@@ -722,7 +722,11 @@ public class TradeMenu : MonoBehaviour
             transform,
             _tradeItemSurfaceDocument,
             "Aetheria Trade Item Details Surface",
-            AetheriaRuntimeTradeItemDetailsSurfaceBuilder.Build(ProjectTradeItemDetailsSurface(item)),
+            AetheriaRuntimeTradeItemDetailsSurfaceBuilder.Build(
+                item,
+                ResolveManufacturerName(item),
+                FormatValue,
+                FormatTemperature),
             HandleTradeItemDetailsSurfaceCommand,
             _tradeItemSurfaceChrome,
             sortingOrder: 1003);
@@ -751,15 +755,6 @@ public class TradeMenu : MonoBehaviour
             return;
 
         AetheriaEveUnitySurfaceHost.Hide(_tradeItemSurfaceDocument);
-    }
-
-    private AetheriaRuntimeTradeItemDetailsSurfaceState ProjectTradeItemDetailsSurface(AetheriaRuntimeCatalogItem item)
-    {
-        return AetheriaRuntimeTradeItemDetailsSurfaceBuilder.Project(
-            item,
-            ResolveManufacturerName(item),
-            FormatValue,
-            FormatTemperature);
     }
 
     void Start()

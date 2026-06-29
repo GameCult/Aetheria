@@ -80,7 +80,25 @@ namespace GameCult.Aetheria.State.Verse
         public const string SurfaceId = "aetheria.trade.item_details";
         public const string Close = "aetheria.trade.item_details.close";
 
-        public static AetheriaRuntimeTradeItemDetailsSurfaceState Project(
+        public static AetheriaRuntimeSurfaceDocument Build(
+            AetheriaRuntimeCatalogItem item,
+            string manufacturer,
+            Func<float, string> formatValue,
+            Func<float, string> formatTemperature,
+            DateTime updatedAtUtc = default(DateTime),
+            long version = 1)
+        {
+            return Build(
+                ProjectState(
+                    item,
+                    manufacturer,
+                    formatValue,
+                    formatTemperature,
+                    updatedAtUtc),
+                version);
+        }
+
+        private static AetheriaRuntimeTradeItemDetailsSurfaceState ProjectState(
             AetheriaRuntimeCatalogItem item,
             string manufacturer,
             Func<float, string> formatValue,

@@ -6069,8 +6069,9 @@ static void RequireTradeItemDetailsUseEveSurface(string root)
         "HandleTradeItemDetailsSurfaceCommand(",
         "AetheriaEveUnitySurfaceHost.RenderRuntime(",
         "AetheriaEveUnitySurfaceHost.Hide(_tradeItemSurfaceDocument)",
-        "AetheriaRuntimeTradeItemDetailsSurfaceBuilder.Build(ProjectTradeItemDetailsSurface(",
-        "AetheriaRuntimeTradeItemDetailsSurfaceBuilder.Project(",
+        "AetheriaRuntimeTradeItemDetailsSurfaceBuilder.Build(",
+        "ResolveManufacturerName(item)",
+        "FormatTemperature",
         "AetheriaRuntimeTradeItemDetailsSurfaceCommands.TryRead(request, out var command)",
         "AetheriaRuntimeTradeItemDetailsCommandKind.Close"
     };
@@ -6102,7 +6103,9 @@ static void RequireTradeItemDetailsUseEveSurface(string root)
         "new EveSurfaceComponent(",
         "string.Equals(request.Command, AetheriaRuntimeTradeItemDetailsSurfaceBuilder.Close",
         "new AetheriaRuntimeTradeItemDetailsSurfaceState(",
+        "ProjectTradeItemDetailsSurface(",
         "ProjectTradeItemDetailsSurfaceState(",
+        "AetheriaRuntimeTradeItemDetailsSurfaceBuilder.Project(",
         "ProjectTradeItemBehaviorSections(",
         "ProjectTradeItemBehaviorMetric("
     };
@@ -6130,7 +6133,7 @@ static void RequireTradeItemDetailsUseEveSurface(string root)
         "AetheriaRuntimeTradeItemDetailsSurfaceState",
         "AetheriaRuntimeTradeItemSection",
         "AetheriaRuntimeTradeItemMetric",
-        "public static AetheriaRuntimeTradeItemDetailsSurfaceState Project(",
+        "private static AetheriaRuntimeTradeItemDetailsSurfaceState ProjectState(",
         "ProjectBehaviorSections(",
         "ProjectBehaviorMetric(",
         "public static AetheriaRuntimeSurfaceDocument Build(",
@@ -6145,6 +6148,13 @@ static void RequireTradeItemDetailsUseEveSurface(string root)
         throw new InvalidOperationException(
             "Shared runtime trade item details surface builder no longer owns the trade item-details shell contract: " +
             string.Join(", ", missingBuilderSymbols));
+    }
+
+    if (tradeItemDetailsSurfaceBuilder.Contains("public static AetheriaRuntimeTradeItemDetailsSurfaceState Project(", StringComparison.Ordinal) ||
+        tradeItemDetailsSurfaceBuilder.Contains("public static AetheriaRuntimeTradeItemDetailsSurfaceState Compose(", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Runtime trade item detail projection must stay behind Build(...); do not re-expose Project/Compose as the public trade item details path.");
     }
 }
 
