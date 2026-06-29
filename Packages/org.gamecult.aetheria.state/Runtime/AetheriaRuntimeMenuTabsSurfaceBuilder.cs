@@ -5,37 +5,6 @@ using GameCult.Eve.Surface;
 
 namespace GameCult.Aetheria.State.Verse
 {
-    public sealed class AetheriaRuntimeMenuTabSurfaceEntry
-    {
-        public AetheriaRuntimeMenuTabSurfaceEntry(string key, string label, bool selected)
-        {
-            Key = key ?? "";
-            Label = label ?? "";
-            Selected = selected;
-        }
-
-        public string Key { get; }
-        public string Label { get; }
-        public bool Selected { get; }
-    }
-
-    public sealed class AetheriaRuntimeMenuTabsSurfaceState
-    {
-        public AetheriaRuntimeMenuTabsSurfaceState(
-            string currentTabKey,
-            IReadOnlyList<AetheriaRuntimeMenuTabSurfaceEntry> visibleTabs,
-            string updatedAtUtc)
-        {
-            CurrentTabKey = currentTabKey ?? "";
-            VisibleTabs = visibleTabs ?? Array.Empty<AetheriaRuntimeMenuTabSurfaceEntry>();
-            UpdatedAtUtc = updatedAtUtc ?? "";
-        }
-
-        public string CurrentTabKey { get; }
-        public IReadOnlyList<AetheriaRuntimeMenuTabSurfaceEntry> VisibleTabs { get; }
-        public string UpdatedAtUtc { get; }
-    }
-
     public sealed class AetheriaRuntimeMenuTabModelOption
     {
         public AetheriaRuntimeMenuTabModelOption(string key, string label, int order)
@@ -72,54 +41,35 @@ namespace GameCult.Aetheria.State.Verse
             string updatedAtUtc,
             long version = 1)
         {
-            return Build(
-                ComposeState(currentTabKey, visibleTabs, updatedAtUtc),
-                version);
-        }
-
-        private static AetheriaRuntimeMenuTabsSurfaceState ComposeState(
-            string currentTabKey,
-            IEnumerable<AetheriaRuntimeMenuTabModelOption> visibleTabs,
-            string updatedAtUtc)
-        {
             var normalizedCurrent = NormalizeTabKey(currentTabKey);
-            return new AetheriaRuntimeMenuTabsSurfaceState(
-                normalizedCurrent,
-                (visibleTabs ?? Array.Empty<AetheriaRuntimeMenuTabModelOption>())
-                    .Where(tab => tab != null)
-                    .OrderBy(tab => tab.Order)
-                    .ThenBy(tab => NormalizeTabKey(tab.Key), StringComparer.Ordinal)
-                    .Select(tab =>
+            var tabs = (visibleTabs ?? Array.Empty<AetheriaRuntimeMenuTabModelOption>())
+                .Where(tab => tab != null)
+                .OrderBy(tab => tab.Order)
+                .ThenBy(tab => NormalizeTabKey(tab.Key), StringComparer.Ordinal)
+                .Select(tab =>
+                {
+                    var key = NormalizeTabKey(tab.Key);
+                    var label = string.IsNullOrWhiteSpace(tab.Label) ? key : tab.Label;
+                    var selected = string.Equals(key, normalizedCurrent, StringComparison.Ordinal);
+                    return new
                     {
-                        var key = NormalizeTabKey(tab.Key);
-                        return new AetheriaRuntimeMenuTabSurfaceEntry(
-                            key,
-                            string.IsNullOrWhiteSpace(tab.Label) ? key : tab.Label,
-                            string.Equals(key, normalizedCurrent, StringComparison.Ordinal));
-                    })
-                    .ToArray(),
-                updatedAtUtc);
-        }
+                        Key = key,
+                        Label = label,
+                        Selected = selected
+                    };
+                })
+                .ToArray();
 
-        public static AetheriaRuntimeSurfaceDocument Build(
-            AetheriaRuntimeMenuTabsSurfaceState state,
-            long version = 1)
-        {
-            state ??= new AetheriaRuntimeMenuTabsSurfaceState(
-                "",
-                Array.Empty<AetheriaRuntimeMenuTabSurfaceEntry>(),
-                "");
-
-            var commands = state.VisibleTabs
+            var commands = tabs
                 .Select(tab => new AetheriaRuntimeSurfaceCommandTemplate(
                     CommandFor(tab.Key),
-                    LabelFor(tab),
+                    tab.Label,
                     AetheriaRuntimeSurfaceCommandTemplate.CultMeshTransport))
                 .ToArray();
-            var buttons = state.VisibleTabs
+            var buttons = tabs
                 .Select(tab => Button(
                     $"{SurfaceId}.{SafeId(tab.Key)}",
-                    tab.Selected ? $"{LabelFor(tab)} *" : LabelFor(tab),
+                    tab.Selected ? $"{tab.Label} *" : tab.Label,
                     CommandFor(tab.Key)))
                 .ToArray();
 
@@ -128,7 +78,7 @@ namespace GameCult.Aetheria.State.Verse
                 providerKind: "runtime.menu",
                 title: "Runtime Menu Tabs",
                 version: version,
-                updatedAtUtc: state.UpdatedAtUtc,
+                updatedAtUtc: updatedAtUtc ?? "",
                 surface: new AetheriaRuntimeSurfaceTree(
                     SurfaceId,
                     Node(
@@ -137,15 +87,10 @@ namespace GameCult.Aetheria.State.Verse
                         Array.Empty<(string Key, string Value)>(),
                         Text(
                             $"{SurfaceId}.current",
-                            $"Current: {state.CurrentTabKey}"),
+                            $"Current: {normalizedCurrent}"),
                         ButtonRow($"{SurfaceId}.tabs", buttons)),
                     Array.Empty<AetheriaRuntimeSurfaceStyleToken>()),
                 commands: commands);
-        }
-
-        private static string LabelFor(AetheriaRuntimeMenuTabSurfaceEntry tab)
-        {
-            return string.IsNullOrWhiteSpace(tab.Label) ? tab.Key : tab.Label;
         }
 
         private static string SafeId(string value)
