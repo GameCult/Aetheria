@@ -520,9 +520,7 @@ public class TradeMenu : MonoBehaviour
         docking = null;
         try
         {
-            docking = AetheriaUnityRuntimeClientProvider
-                .RuntimeState("unity-trade")
-                .CurrentDockingState();
+            docking = AetheriaUnityRuntimeClientProvider.CurrentDockingState("unity-trade");
             return docking != null;
         }
         catch (Exception ex)

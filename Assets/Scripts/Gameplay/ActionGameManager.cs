@@ -385,9 +385,7 @@ public class ActionGameManager : MonoBehaviour
     {
         try
         {
-            return AetheriaUnityRuntimeClientProvider
-                .RuntimeState("unity-action-game-manager")
-                .CurrentDockingState();
+            return AetheriaUnityRuntimeClientProvider.CurrentDockingState("unity-action-game-manager");
         }
         catch (Exception ex)
         {

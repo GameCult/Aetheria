@@ -80,6 +80,18 @@ public static class AetheriaUnityRuntimeClientProvider
         return RuntimeClient(stateBoot, runtimeId).State;
     }
 
+    public static AetheriaRuntimeCurrentDockingDocument CurrentDockingState(string runtimeId = "")
+    {
+        return RuntimeState(runtimeId).CurrentDockingState();
+    }
+
+    public static AetheriaRuntimeCurrentDockingDocument CurrentDockingState(
+        AetheriaRuntimeStateBootReport stateBoot,
+        string runtimeId = "")
+    {
+        return RuntimeState(stateBoot, runtimeId).CurrentDockingState();
+    }
+
     public static AetheriaControl Control(string runtimeId = "")
     {
         return RuntimeClient(runtimeId).Control;

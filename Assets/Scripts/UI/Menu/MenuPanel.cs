@@ -162,9 +162,7 @@ public class MenuPanel : MonoBehaviour
         docking = null;
         try
         {
-            docking = AetheriaUnityRuntimeClientProvider
-                .RuntimeState("unity-runtime-menu-tabs")
-                .CurrentDockingState();
+            docking = AetheriaUnityRuntimeClientProvider.CurrentDockingState("unity-runtime-menu-tabs");
             return docking != null;
         }
         catch (Exception ex)

@@ -4808,8 +4808,7 @@ static void RequireRuntimeMenuTabsUseEveSurface(string root)
         "new AetheriaRuntimeSurfaceCommandTemplate(",
         "ResolveVisibleTabs(",
         "TryResolveCurrentDocking(out var docking)",
-        ".RuntimeState(\"unity-runtime-menu-tabs\")",
-        ".CurrentDockingState()",
+        "AetheriaUnityRuntimeClientProvider.CurrentDockingState(\"unity-runtime-menu-tabs\")",
         "docking.IsDocked",
         "GetTabLabel(",
         "ToRuntimeTabKey(",
@@ -4917,8 +4916,7 @@ static void RequireRuntimeMenuTabsUseEveSurface(string root)
         "private bool TryResolveDockedLocalStory(out LocationStory story)",
         "SetObservedEntityIndex(AetheriaUnityObservedEntityIndex observedEntityIndex)",
         "CurrentDockingSnapshot()",
-        ".RuntimeState(\"unity-local-menu\")",
-        ".CurrentDockingState()",
+        "AetheriaUnityRuntimeClientProvider.CurrentDockingState(\"unity-local-menu\")",
         "docking.IsDocked",
         "_observedEntityIndex.TryResolveDockingBayByRecordKey(",
         "docking.DockParentEntityKey",
@@ -5800,7 +5798,7 @@ static void RequireTradeCargoSelectorUseEveSurface(string root)
         "AetheriaRuntimeTradeCargoSelectorCommandKind.Select",
         ".RuntimeState(\"unity-trade\")",
         ".CurrentStationRefit()",
-        ".CurrentDockingState()",
+        "AetheriaUnityRuntimeClientProvider.CurrentDockingState(\"unity-trade\")",
         "SetTargetCargo(",
         "selection.EntityKey",
         "OwnedQuantity",
@@ -7438,8 +7436,7 @@ static void RequireMenuDockingUsesManagedTypedSnapshot(string root)
 static bool HasManagedDockingSnapshotAccess(string source)
 {
     if (source.Contains("AetheriaUnityRuntimeClientProvider", StringComparison.Ordinal) &&
-        source.Contains("RuntimeState(", StringComparison.Ordinal) &&
-        (source.Contains(".CurrentDockingState()", StringComparison.Ordinal) ||
+        (source.Contains("CurrentDockingState(\"", StringComparison.Ordinal) ||
             source.Contains(".CurrentStationRefit()", StringComparison.Ordinal)) &&
         !source.Contains("AetheriaClientReactiveDockingState _reactiveDockingState", StringComparison.Ordinal) &&
         !source.Contains("CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument>", StringComparison.Ordinal) &&
@@ -13345,8 +13342,7 @@ static void RequireMainMenuContinueRunState(string root)
         "_loadoutItemFactory.CreateLoadoutItem",
         "ResolveDockParent = ResolveDockParentFromCurrentDocking",
         "CurrentDockingSnapshot()",
-        ".RuntimeState(\"unity-action-game-manager\")",
-        ".CurrentDockingState()",
+        "AetheriaUnityRuntimeClientProvider.CurrentDockingState(\"unity-action-game-manager\")",
         "IsCurrentEntityObservedUndocked(",
         "private AetheriaUnityCurrentEntityBinder CurrentEntityBinder =>",
         "private readonly AetheriaUnityCurrentEntityPresentation _currentEntityPresentation",
@@ -16465,6 +16461,8 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "private static AetheriaClient ResolveClient(AetheriaRuntimeStateBootReport stateBoot, string runtimeId = \"\")",
         "private static AetheriaClient RuntimeClient(string runtimeId = \"\")",
         "public static AetheriaClientState RuntimeState(string runtimeId = \"\")",
+        "public static AetheriaRuntimeCurrentDockingDocument CurrentDockingState(string runtimeId = \"\")",
+        "public static AetheriaRuntimeCurrentDockingDocument CurrentDockingState(",
         "public static AetheriaControl Control(string runtimeId = \"\")",
         "public static AetheriaUi Ui(string runtimeId = \"\")",
         "public static AetheriaUi Ui(",

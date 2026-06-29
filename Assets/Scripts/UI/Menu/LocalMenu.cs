@@ -221,9 +221,7 @@ public class LocalMenu : MonoBehaviour
     {
         try
         {
-            return AetheriaUnityRuntimeClientProvider
-                .RuntimeState("unity-local-menu")
-                .CurrentDockingState();
+            return AetheriaUnityRuntimeClientProvider.CurrentDockingState("unity-local-menu");
         }
         catch (Exception ex)
         {
