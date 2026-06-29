@@ -500,8 +500,8 @@ namespace GameCult.Aetheria.State.Verse
             managedDaemonFrame = state.ReactiveDaemonFrame();
             managedCatalog = state.ReactiveCatalogSnapshot();
             managedLoadoutTemplates = state.ReactiveLoadoutTemplates();
-            managedStarbridgeScenario = state.Reactive<AetheriaRuntimeStarbridgeScenarioDocument>();
-            managedStarbridgeSession = state.Reactive<AetheriaRuntimeStarbridgeSessionDocument>();
+            managedStarbridgeScenario = state.ReactiveStarbridgeScenario();
+            managedStarbridgeSession = state.ReactiveStarbridgeSession();
             _managedDaemonFrame = managedDaemonFrame;
             _managedCatalog = managedCatalog;
             _managedLoadoutTemplates = managedLoadoutTemplates;
