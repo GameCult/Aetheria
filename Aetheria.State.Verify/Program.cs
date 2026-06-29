@@ -17800,11 +17800,11 @@ static void RequireInventoryLoadoutSaveRequestAuthority(string root)
 
     var requiredLoadoutSnapshotProjectorSymbols = new[]
     {
-        "ProjectLoadoutTemplateAsync(",
-        "AetheriaClientState state",
-        ".Reactive<AetheriaRuntimeDaemonFrameDocument>()",
-        "ProjectLoadoutTemplate(",
-        "frame.Current?.Run ?? new AetheriaRuntimeRunCheckpointCommit()"
+        "public static AetheriaRuntimeLoadoutTemplateCommit ProjectLoadoutTemplate(",
+        "AetheriaRuntimeRunCheckpointCommit run,",
+        "TryParseEntityKey(entityKey, out var zoneIndex, out var entityIndex)",
+        "ProjectLoadoutTemplate(run, zoneIndex, entityIndex)",
+        "ProjectEntityLoadout(entity, entities)"
     };
     var missingLoadoutSnapshotProjectorSymbols = requiredLoadoutSnapshotProjectorSymbols
         .Where(symbol => !loadoutSnapshotProjector.Contains(symbol, StringComparison.Ordinal))
@@ -17814,6 +17814,15 @@ static void RequireInventoryLoadoutSaveRequestAuthority(string root)
         throw new InvalidOperationException(
             "Loadout template save payloads must be composed from managed typed daemon frame documents: " +
             string.Join(", ", missingLoadoutSnapshotProjectorSymbols));
+    }
+
+    if (loadoutSnapshotProjector.Contains("ProjectLoadoutTemplateAsync(", StringComparison.Ordinal) ||
+        loadoutSnapshotProjector.Contains("AetheriaClientState state", StringComparison.Ordinal) ||
+        loadoutSnapshotProjector.Contains(".Reactive<AetheriaRuntimeDaemonFrameDocument>()", StringComparison.Ordinal) ||
+        loadoutSnapshotProjector.Contains("frame.Current?.Run", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Loadout snapshot composition must not own managed document sampling; InventoryPanel already caches the reactive daemon frame.");
     }
 
     if (loadoutSnapshotProjector.Contains("state.Daemon.LatestFrame.LatestAsync()", StringComparison.Ordinal))
