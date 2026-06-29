@@ -167,8 +167,7 @@ public class ZoneRenderer : MonoBehaviour
             foreach (var camera in MinimapCameras ?? Array.Empty<Camera>())
                 if (camera != null)
                     camera.orthographicSize = value;
-            if (RenderSettings != null)
-                SetIconSize((float)RenderSettings.ResolveMinimapIconSize(value));
+            SetIconSize((float)RenderSettings.ResolveMinimapIconSize(value));
             // MinimapGravityQuad.transform.localScale = value * 2 * Vector3.one;
         }
     }

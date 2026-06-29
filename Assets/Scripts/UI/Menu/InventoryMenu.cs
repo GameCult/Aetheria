@@ -737,7 +737,7 @@ public class InventoryMenu : MonoBehaviour
                _observedEntityIndex.TryResolveEntityByRecordKey(currentEntityKey, out currentEntity);
     }
 
-    private bool TryResolveCurrentDockingBay(out EquippedCargoBay dockingBay)
+    private bool TryResolveCurrentDockingBay(out EquippedDockingBay dockingBay)
     {
         dockingBay = null;
         var refit = StationRefitSnapshot();

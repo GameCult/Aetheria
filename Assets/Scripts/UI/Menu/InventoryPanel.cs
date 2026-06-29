@@ -1130,7 +1130,7 @@ private void Update()
         return dockingBay != null;
     }
 
-    private bool TryResolveCurrentDockingBay(out EquippedCargoBay dockingBay)
+    private bool TryResolveCurrentDockingBay(out EquippedDockingBay dockingBay)
     {
         dockingBay = null;
         var refit = StationRefitSnapshot();
