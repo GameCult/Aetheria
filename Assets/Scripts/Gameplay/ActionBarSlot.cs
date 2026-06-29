@@ -55,7 +55,7 @@ public class ActionBarSlot : MonoBehaviour
 public abstract class ActionBarBinding : IDisposable
 {
     public Entity Entity { get; }
-    protected AetheriaClient Client { get; }
+    private readonly Func<AetheriaControl> _resolveControl;
     protected ActionBarSlot Slot { get; }
     protected GameSettings Settings { get; }
     private CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog;
@@ -63,22 +63,30 @@ public abstract class ActionBarBinding : IDisposable
     public abstract void Deactivate();
     public abstract void Update();
 
-    protected ActionBarBinding(Entity entity, ActionBarSlot slot, AetheriaClient client, GameSettings settings)
+    protected ActionBarBinding(
+        Entity entity,
+        ActionBarSlot slot,
+        Func<AetheriaControl> resolveControl,
+        GameSettings settings)
     {
         Entity = entity;
         Slot = slot;
-        Client = client;
+        _resolveControl = resolveControl ?? (() => null);
         Settings = settings;
     }
 
     protected bool TrySubmit(Action<AetheriaControl> submit, string label)
     {
-        if (Client == null || submit == null)
+        if (submit == null)
             return false;
 
         try
         {
-            submit(Client.Control);
+            var control = _resolveControl();
+            if (control == null)
+                return false;
+
+            submit(control);
             return true;
         }
         catch (Exception ex)
@@ -90,12 +98,10 @@ public abstract class ActionBarBinding : IDisposable
 
     protected AetheriaRuntimeCatalogItem FindCatalogItem(ItemInstance item)
     {
-        if (Client == null)
-            return null;
-
         try
         {
-            _catalog ??= Client.State.Reactive<AetheriaRuntimeCatalogSnapshot>();
+            _catalog ??= AetheriaUnityRuntimeClientProvider
+                .Reactive<AetheriaRuntimeCatalogSnapshot>("unity-action-bar");
             return _catalog?.Current?.FindItem(item, x => x.ItemKey);
         }
         catch (Exception ex)
@@ -119,9 +125,9 @@ public class ActionBarConsumableBinding : ActionBarBinding
     public ActionBarConsumableBinding(
         Entity entity,
         ActionBarSlot slot,
-        AetheriaClient client,
+        Func<AetheriaControl> resolveControl,
         GameSettings settings,
-        AetheriaRuntimeCatalogItem target) : base(entity, slot, client, settings)
+        AetheriaRuntimeCatalogItem target) : base(entity, slot, resolveControl, settings)
     {
         Target = target;
         Slot.QuantityRemaining.gameObject.SetActive(true);
@@ -174,10 +180,10 @@ public class ActionBarGearBinding : ActionBarBinding
     public ActionBarGearBinding(
         Entity entity,
         ActionBarSlot slot,
-        AetheriaClient client,
+        Func<AetheriaControl> resolveControl,
         GameSettings settings,
         EquippedItem item,
-        IActivatedBehavior behavior) : base(entity, slot, client, settings)
+        IActivatedBehavior behavior) : base(entity, slot, resolveControl, settings)
     {
         Item = item;
         Behavior = behavior;
@@ -249,9 +255,9 @@ public class ActionBarWeaponGroupBinding : ActionBarBinding
     public ActionBarWeaponGroupBinding(
         Entity entity,
         ActionBarSlot slot,
-        AetheriaClient client,
+        Func<AetheriaControl> resolveControl,
         GameSettings settings,
-        int group) : base(entity, slot, client, settings)
+        int group) : base(entity, slot, resolveControl, settings)
     {
         Group = group;
         slot.Label.gameObject.SetActive(true);

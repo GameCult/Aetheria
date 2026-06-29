@@ -5657,7 +5657,7 @@ static void RequireInventoryEquippedItemDetailsUseEveSurface(string root)
     {
         "public void ConfigureActionBarPresentation(",
         "actionBarPresentation?.Bind(",
-        "resolveActionBarClient);",
+        "resolveActionBarControl);",
         "Inventory?.SetActionBarPresentation(actionBarPresentation)"
     };
     var missingActionBarSceneWiringSymbols = requiredActionBarSceneWiringSymbols
@@ -7555,7 +7555,8 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
     {
         "public abstract class ActionBarBinding : IDisposable",
         "CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog",
-        "Client.State.Reactive<AetheriaRuntimeCatalogSnapshot>()",
+        "AetheriaUnityRuntimeClientProvider",
+        ".Reactive<AetheriaRuntimeCatalogSnapshot>(\"unity-action-bar\")",
         "_catalog?.Current?.FindItem(item, x => x.ItemKey)",
         "binding?.Dispose()",
         "private void OnDestroy()"
@@ -7571,10 +7572,11 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
     }
 
     if (actionBarSlot.Contains("AetheriaRuntimeCatalogSession _catalog", StringComparison.Ordinal) ||
-        actionBarSlot.Contains("Client.State.ObserveCatalog()", StringComparison.Ordinal))
+        actionBarSlot.Contains("Client.State.ObserveCatalog()", StringComparison.Ordinal) ||
+        actionBarSlot.Contains("Client.State.Reactive<AetheriaRuntimeCatalogSnapshot>()", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "ActionBarSlot still routes through AetheriaRuntimeCatalogSession instead of its managed reactive typed catalog document.");
+            "ActionBarSlot still routes through client/session catalog plumbing instead of its managed reactive typed catalog document.");
     }
 
     var schematicDisplay = File.ReadAllText(Path.Combine(
@@ -17303,7 +17305,7 @@ static void RequireActionBarBindingRequestAuthority(string root)
         "public void ConfigureActionBarPresentation(",
         "gameplayInputShell?.ActionBarSlots ?? Array.Empty<ActionBarSlot>()",
         "actionBarPresentation?.Bind(",
-        "resolveActionBarClient);"
+        "resolveActionBarControl);"
     };
     var missingSceneWiringSymbols = requiredSceneWiringSymbols
         .Where(symbol => !gameplaySceneWiring.Contains(symbol, StringComparison.Ordinal))
@@ -17502,10 +17504,10 @@ static void RequireActionBarBindingRequestAuthority(string root)
 
     if (actionBarSlot.Contains("ActionGameManager.Instance", StringComparison.Ordinal) ||
         !actionBarSlot.Contains("protected GameSettings Settings { get; }", StringComparison.Ordinal) ||
-        !actionBarPresentation.Contains("new ActionBarGearBinding(entity, slot, client, _settings,", StringComparison.Ordinal))
+        !actionBarPresentation.Contains("new ActionBarGearBinding(entity, slot, _resolveControl, _settings,", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "ActionBarSlot must receive icon presentation settings explicitly instead of reaching through ActionGameManager.Instance.");
+            "ActionBarSlot must receive icon presentation settings explicitly and submit through a narrow control handle.");
     }
 }
 

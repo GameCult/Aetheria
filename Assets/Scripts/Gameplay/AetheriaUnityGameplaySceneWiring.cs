@@ -120,14 +120,14 @@ public sealed class AetheriaUnityGameplaySceneWiring
         AetheriaRuntimeCatalogSnapshot runtimeCatalog,
         GameSettings settings,
         Func<Entity> resolveCurrentEntity,
-        Func<AetheriaClient> resolveActionBarClient)
+        Func<AetheriaControl> resolveActionBarControl)
     {
         actionBarPresentation?.Bind(
             gameplayInputShell?.ActionBarSlots ?? Array.Empty<ActionBarSlot>(),
             runtimeCatalog,
             settings,
             resolveCurrentEntity,
-            resolveActionBarClient);
+            resolveActionBarControl);
         Inventory?.SetActionBarPresentation(actionBarPresentation);
     }
 

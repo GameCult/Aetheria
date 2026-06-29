@@ -10,7 +10,7 @@ public sealed class AetheriaUnityActionBarPresentation
     private AetheriaRuntimeCatalogSnapshot _catalog;
     private GameSettings _settings;
     private Func<Entity> _resolveEntity = () => null;
-    private Func<AetheriaClient> _resolveClient = () => null;
+    private Func<AetheriaControl> _resolveControl = () => null;
     private IReadOnlyList<AetheriaUnityActionBarBinding> _localBindings =
         Array.Empty<AetheriaUnityActionBarBinding>();
 
@@ -19,13 +19,13 @@ public sealed class AetheriaUnityActionBarPresentation
         AetheriaRuntimeCatalogSnapshot catalog,
         GameSettings settings,
         Func<Entity> resolveEntity,
-        Func<AetheriaClient> resolveClient)
+        Func<AetheriaControl> resolveControl)
     {
         _slots = slots ?? Array.Empty<ActionBarSlot>();
         _catalog = catalog;
         _settings = settings;
         _resolveEntity = resolveEntity ?? (() => null);
-        _resolveClient = resolveClient ?? (() => null);
+        _resolveControl = resolveControl ?? (() => null);
     }
 
     public int SlotCount => _slots?.Count ?? 0;
@@ -215,15 +215,13 @@ public sealed class AetheriaUnityActionBarPresentation
         if (slot == null || entity == null || binding == null)
             return null;
 
-        var client = _resolveClient();
-
         switch (binding.Kind)
         {
             case "consumable":
                 var consumable = _catalog?.FindItem(binding.ItemKey ?? "");
                 return consumable != null &&
                        string.Equals(consumable.Category, AetheriaRuntimeItemCategories.Consumable, StringComparison.Ordinal)
-                    ? new ActionBarConsumableBinding(entity, slot, client, _settings, consumable)
+                    ? new ActionBarConsumableBinding(entity, slot, _resolveControl, _settings, consumable)
                     : null;
             case "gear":
                 if (binding.EquipmentIndex < 0 || binding.EquipmentIndex >= entity.Equipment.Count)
@@ -243,12 +241,12 @@ public sealed class AetheriaUnityActionBarPresentation
                 if (!(behaviors[binding.BehaviorIndex] is IActivatedBehavior activatedBehavior))
                     return null;
 
-                return new ActionBarGearBinding(entity, slot, client, _settings, equippedItem, activatedBehavior);
+                return new ActionBarGearBinding(entity, slot, _resolveControl, _settings, equippedItem, activatedBehavior);
             case "weapon_group":
                 return entity.WeaponGroups != null &&
                        binding.WeaponGroup >= 0 &&
                        binding.WeaponGroup < entity.WeaponGroups.Length
-                    ? new ActionBarWeaponGroupBinding(entity, slot, client, _settings, binding.WeaponGroup)
+                    ? new ActionBarWeaponGroupBinding(entity, slot, _resolveControl, _settings, binding.WeaponGroup)
                     : null;
             default:
                 return null;

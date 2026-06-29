@@ -293,11 +293,6 @@ public class ActionGameManager : MonoBehaviour
     private readonly AetheriaUnityDragSession _dragSession = new AetheriaUnityDragSession();
     private readonly AetheriaUnityActionBarPresentation _actionBarPresentation = new AetheriaUnityActionBarPresentation();
 
-    private AetheriaClient ResolveActionBarClient()
-    {
-        return ResolveCurrentRuntimeClient();
-    }
-
     private static AetheriaClient ResolveCurrentRuntimeClient()
     {
         return AetheriaUnityRuntimeClientProvider.CurrentClientForStateFile(
@@ -334,7 +329,7 @@ public class ActionGameManager : MonoBehaviour
             boot.RuntimeCatalog,
             Settings,
             () => CurrentEntity,
-            ResolveActionBarClient);
+            () => AetheriaUnityRuntimeClientProvider.Control("unity-action-bar"));
         SceneWiring.ConfigureRuntimeInputScreenShell(MenuShell);
         SceneWiring.ConfigureObservedEntityIndex(_observedEntityIndex);
 
