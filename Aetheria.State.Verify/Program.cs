@@ -7144,7 +7144,7 @@ static void RequireMenuDockingUsesManagedTypedSnapshot(string root)
     {
         "public CultMeshDocumentHandle<AetheriaRuntimeStationRefitDocument> StationRefit { get; }",
         "public CultMeshDocumentHandle<AetheriaRuntimeCurrentDockingDocument> CurrentDockingDocument { get; }",
-        "public TDocument Latest<TDocument>()",
+        "public CultMeshDocumentHandle<TDocument> Document<TDocument>()",
         "public CultMeshReactiveDocument<TDocument> Reactive<TDocument>("
     };
     var missingClientSymbols = requiredClientSymbols
@@ -7335,10 +7335,6 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "public CultMeshDocumentHandle<TDocument> Document<TDocument>()",
         "public Task<CultMeshReactiveDocument<TDocument>> ReactiveAsync<TDocument>(",
         "public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(",
-        "public Task<TDocument> LatestAsync<TDocument>()",
-        "public TDocument Latest<TDocument>()",
-        "public Task<TDocument> LatestAsync<TDocument>()",
-        "public TDocument Latest<TDocument>()",
         "public Task<CultMeshReactiveDocument<TDocument>> ReactiveAsync<TDocument>(",
         "public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(",
         "public CultMeshDocumentHandle<TDocument> Document<TDocument>(int entityOrZoneIndex)",
@@ -7350,8 +7346,15 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
     if (missingClientSymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "AetheriaClientState must expose generic managed reactive access plus latest accessors for shared Unity documents: " +
+            "AetheriaClientState must expose generic managed reactive access and document handles for shared Unity documents: " +
             string.Join(", ", missingClientSymbols));
+    }
+
+    if (clientState.Contains("public Task<TDocument> LatestAsync<TDocument>", StringComparison.Ordinal) ||
+        clientState.Contains("public TDocument Latest<TDocument>", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "AetheriaClientState must not expose generic latest snapshot shortcuts; callers should hold Document<TDocument>() or Reactive<TDocument>() handles.");
     }
 
     var unityPaths = new[]
@@ -7957,14 +7960,10 @@ static void RequireUnityViewportAndMapReadsUseManagedAccessors(string root)
     var requiredClientSymbols = new[]
     {
         "public CultMeshDocumentHandle<TDocument> Document<TDocument>()",
-        "public TDocument Latest<TDocument>()",
-        "public TDocument Latest<TDocument>()",
         "public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(",
         "public CultMeshDocumentHandle<TDocument> Document<TDocument>(AetheriaRuntimeRtsViewportBounds viewport)",
-        "public TDocument Latest<TDocument>(AetheriaRuntimeRtsViewportBounds viewport)",
         "public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(",
         "public CultMeshDocumentHandle<TDocument> Document<TDocument>(int entityOrZoneIndex)",
-        "public TDocument Latest<TDocument>(int entityOrZoneIndex)",
         "public CultMeshReactiveDocument<TDocument> Reactive<TDocument>("
     };
     var missingClientSymbols = requiredClientSymbols
@@ -8164,24 +8163,17 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
         StringSplitOptions.None)[0];
     var requiredClientSymbols = new[]
     {
-        "public Task<TDocument> LatestAsync<TDocument>()",
-        "public TDocument Latest<TDocument>()",
+        "public CultMeshDocumentHandle<TDocument> Document<TDocument>()",
         "public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(",
         "public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(",
         "public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(",
         "public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(",
         "public enum AetheriaClientEveSurface",
         "public CultMeshDocumentHandle<TDocument> Document<TDocument>(AetheriaClientEveSurface surface)",
-        "public TDocument Latest<TDocument>(AetheriaClientEveSurface surface)",
         "public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(",
         "public CultMeshDocumentHandle<TDocument> Document<TDocument>(AetheriaRuntimeRtsViewportBounds viewport)",
-        "public TDocument Latest<TDocument>(AetheriaRuntimeRtsViewportBounds viewport)",
         "public CultMeshDocumentHandle<TDocument> Document<TDocument>(int entityOrZoneIndex)",
-        "public TDocument Latest<TDocument>(int entityOrZoneIndex)",
         "public CultMeshDocumentHandle<TDocument> Document<TDocument>(string seatId)",
-        "public TDocument Latest<TDocument>(string seatId)",
-        "public Task<TDocument> LatestAsync<TDocument>()",
-        "public TDocument Latest<TDocument>()",
         "public Task<CultMeshReactiveDocument<TDocument>> ReactiveAsync<TDocument>(",
         "public CultMeshReactiveDocument<TDocument> Reactive<TDocument>("
     };
@@ -8191,8 +8183,15 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
     if (missingClientSymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "AetheriaClientState must expose named managed latest accessors for the remaining domain documents: " +
+            "AetheriaClientState must expose managed document handles and reactive accessors for remaining domain documents: " +
             string.Join(", ", missingClientSymbols));
+    }
+
+    if (clientState.Contains("public Task<TDocument> LatestAsync<TDocument>", StringComparison.Ordinal) ||
+        clientState.Contains("public TDocument Latest<TDocument>", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "AetheriaClientState must not reintroduce generic latest snapshot shortcuts; callers should sample explicit document or reactive handles.");
     }
 
     var forbiddenFixedReactiveWrappers = new[]
@@ -8411,8 +8410,6 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
     var requiredStarbridgeParameterizedSymbols = new[]
     {
         "publicCultMeshDocumentHandle<TDocument>Document<TDocument>(stringseatId)",
-        "publicTask<TDocument>LatestAsync<TDocument>(stringseatId)",
-        "publicTDocumentLatest<TDocument>(stringseatId)",
         "publicTask<CultMeshReactiveDocument<TDocument>>ReactiveAsync<TDocument>(stringseatId,",
         "publicCultMeshReactiveDocument<TDocument>Reactive<TDocument>(stringseatId,"
     };
@@ -8579,6 +8576,9 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
             ".Reactive<AetheriaRuntimeStarbridgePlayerSeatDocument>(seat.SeatId)",
             StringComparison.Ordinal) ||
         !checkedSources["StarbridgePlayerSeatDocumentTests.cs"].Contains(
+            ".Document<AetheriaRuntimeStarbridgePlayerSeatDocument>(seat.SeatId)",
+            StringComparison.Ordinal) ||
+        checkedSources["StarbridgePlayerSeatDocumentTests.cs"].Contains(
             ".Latest<AetheriaRuntimeStarbridgePlayerSeatDocument>(seat.SeatId)",
             StringComparison.Ordinal))
     {
@@ -16140,7 +16140,6 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     {
         "public CultMeshDocumentHandle<TDocument> Document<TDocument>()",
         "public ICultMeshDocumentHandle DocumentBySchema(string schemaVersion)",
-        "public Task<TDocument> LatestAsync<TDocument>()",
         "public Observable<TDocument> Watch<TDocument>()",
         "public Task<CultMeshReactiveDocument<TDocument>> ReactiveAsync<TDocument>(",
         "public CultMeshReactiveDocument<TDocument> Reactive<TDocument>("
@@ -16153,6 +16152,13 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         throw new InvalidOperationException(
             "AetheriaClientState must expose direct managed typed document access instead of AetheriaClient forwarding shortcuts or per-document session wrappers: " +
             string.Join(", ", missingManagedStateAccessSymbols));
+    }
+
+    if (aetheriaClientState.Contains("public Task<TDocument> LatestAsync<TDocument>", StringComparison.Ordinal) ||
+        aetheriaClientState.Contains("public TDocument Latest<TDocument>", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "AetheriaClientState still exposes generic latest snapshot shortcuts instead of direct document/reactive handles.");
     }
 
     if (aetheriaClientState.Contains("public AetheriaRuntimeObservedDaemonState? CurrentObservedDaemon(", StringComparison.Ordinal) ||
@@ -16357,7 +16363,6 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "public CultMeshStateRefResolver CreateEveSurfaceCultMeshStateRefResolver()",
         "public CultMeshDocumentHandle<TDocument> Document<TDocument>()",
         "public ICultMeshDocumentHandle DocumentBySchema(string schemaVersion)",
-        "public Task<TDocument> LatestAsync<TDocument>()",
         "public Observable<TDocument> Watch<TDocument>()",
         "public Task<CultMeshReactiveDocument<TDocument>> ReactiveAsync<TDocument>(",
         "public CultMeshReactiveDocument<TDocument> Reactive<TDocument>("

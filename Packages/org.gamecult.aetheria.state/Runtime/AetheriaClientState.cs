@@ -207,18 +207,6 @@ namespace GameCult.Aetheria.State.Verse
                 $"Aetheria typed state does not expose a projected document for {typeof(TDocument).FullName}.");
         }
 
-        public Task<TDocument> LatestAsync<TDocument>()
-            where TDocument : class
-        {
-            return Document<TDocument>().LatestAsync();
-        }
-
-        public TDocument Latest<TDocument>()
-            where TDocument : class
-        {
-            return Document<TDocument>().LatestAsync().ConfigureAwait(false).GetAwaiter().GetResult();
-        }
-
         public CultMeshDocumentHandle<TDocument> Document<TDocument>(AetheriaClientEveSurface surface)
             where TDocument : class
         {
@@ -235,18 +223,6 @@ namespace GameCult.Aetheria.State.Verse
                 _ => throw new ArgumentOutOfRangeException(nameof(surface), surface, null)
             };
             return (CultMeshDocumentHandle<TDocument>)(object)document;
-        }
-
-        public Task<TDocument> LatestAsync<TDocument>(AetheriaClientEveSurface surface)
-            where TDocument : class
-        {
-            return Document<TDocument>(surface).LatestAsync();
-        }
-
-        public TDocument Latest<TDocument>(AetheriaClientEveSurface surface)
-            where TDocument : class
-        {
-            return LatestAsync<TDocument>(surface).ConfigureAwait(false).GetAwaiter().GetResult();
         }
 
         public Task<CultMeshReactiveDocument<TDocument>> ReactiveAsync<TDocument>(
@@ -283,18 +259,6 @@ namespace GameCult.Aetheria.State.Verse
                 $"Aetheria typed state does not expose a viewport document for {typeof(TDocument).FullName}.");
         }
 
-        public Task<TDocument> LatestAsync<TDocument>(AetheriaRuntimeRtsViewportBounds viewport)
-            where TDocument : class
-        {
-            return Document<TDocument>(viewport).LatestAsync();
-        }
-
-        public TDocument Latest<TDocument>(AetheriaRuntimeRtsViewportBounds viewport)
-            where TDocument : class
-        {
-            return LatestAsync<TDocument>(viewport).ConfigureAwait(false).GetAwaiter().GetResult();
-        }
-
         public Task<CultMeshReactiveDocument<TDocument>> ReactiveAsync<TDocument>(
             AetheriaRuntimeRtsViewportBounds viewport,
             CultMeshReactiveDocumentOptions? options = null)
@@ -325,18 +289,6 @@ namespace GameCult.Aetheria.State.Verse
                 $"Aetheria typed state does not expose an indexed document for {typeof(TDocument).FullName}.");
         }
 
-        public Task<TDocument> LatestAsync<TDocument>(int entityOrZoneIndex)
-            where TDocument : class
-        {
-            return Document<TDocument>(entityOrZoneIndex).LatestAsync();
-        }
-
-        public TDocument Latest<TDocument>(int entityOrZoneIndex)
-            where TDocument : class
-        {
-            return LatestAsync<TDocument>(entityOrZoneIndex).ConfigureAwait(false).GetAwaiter().GetResult();
-        }
-
         public Task<CultMeshReactiveDocument<TDocument>> ReactiveAsync<TDocument>(
             int entityOrZoneIndex,
             CultMeshReactiveDocumentOptions? options = null)
@@ -363,18 +315,6 @@ namespace GameCult.Aetheria.State.Verse
                 throw new ArgumentException("Seat id must be non-empty.", nameof(seatId));
 
             return (CultMeshDocumentHandle<TDocument>)(object)_starbridgePlayerSeat(seatId);
-        }
-
-        public Task<TDocument> LatestAsync<TDocument>(string seatId)
-            where TDocument : class
-        {
-            return Document<TDocument>(seatId).LatestAsync();
-        }
-
-        public TDocument Latest<TDocument>(string seatId)
-            where TDocument : class
-        {
-            return LatestAsync<TDocument>(seatId).ConfigureAwait(false).GetAwaiter().GetResult();
         }
 
         public Task<CultMeshReactiveDocument<TDocument>> ReactiveAsync<TDocument>(

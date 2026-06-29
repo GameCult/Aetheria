@@ -1,4 +1,5 @@
 using GameCult.Aetheria.State.Verse;
+using GameCult.Mesh;
 using NUnit.Framework;
 using System;
 using System.IO;
@@ -87,13 +88,17 @@ public class StarbridgePlayerSeatDocumentTests
         Assert.AreEqual("seat-support", handle.Latest().SeatId);
         Assert.AreEqual(
             "seat-support",
-            client.State
-                .Latest<AetheriaRuntimeStarbridgePlayerSeatDocument>(seat.SeatId)
-                .SeatId);
+            ReadLatest(client.State.Document<AetheriaRuntimeStarbridgePlayerSeatDocument>(seat.SeatId)).SeatId);
         Assert.AreEqual("item:cockpit:support", reactive.Current.CockpitItemKey);
         Assert.AreEqual("item:cockpit:support", aetheriaSeat.Current.CockpitItemKey);
         Assert.AreEqual("entity:pod:support", reactive.Current.EscapePodEntityKey);
         Assert.AreEqual("entity:pod:support", aetheriaSeat.Current.EscapePodEntityKey);
         Assert.AreEqual("unity-support", reactive.Document.Context.RuntimeId);
+    }
+
+    private static TDocument ReadLatest<TDocument>(CultMeshDocumentHandle<TDocument> document)
+        where TDocument : class
+    {
+        return document.LatestAsync().ConfigureAwait(false).GetAwaiter().GetResult();
     }
 }
