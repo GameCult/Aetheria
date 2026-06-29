@@ -170,10 +170,9 @@ namespace GameCult.Aetheria.EveRuntime
         private CultMeshReactiveDocument<global::Aetheria.State.Documents.EveSurfaceState>? CreateReactiveDaemonSurfaceState(
             AetheriaRuntimeStateBootReport stateBoot)
         {
-            return AetheriaUnityRuntimeClientProvider.ReactiveEveSurface(
-                stateBoot,
-                surfaceId,
-                "unity-eve-surface-presenter");
+            return AetheriaUnityRuntimeClientProvider
+                .RuntimeState(stateBoot, "unity-eve-surface-presenter")
+                .ReactiveEveSurface(surfaceId);
         }
 
         private UIDocument ResolveDocument()

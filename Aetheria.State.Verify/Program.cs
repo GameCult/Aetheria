@@ -3213,7 +3213,8 @@ static void RequireEveRuntimeBootstrap(string root)
     {
         "private string surfaceId = AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId",
         "ReadDaemonSurface(stateBoot)",
-        "AetheriaUnityRuntimeClientProvider.ReactiveEveSurface(",
+        ".RuntimeState(stateBoot, \"unity-eve-surface-presenter\")",
+        ".ReactiveEveSurface(surfaceId)",
         "AetheriaUnityRuntimeClientProvider.EveSurfaceStateRefResolver(",
         "CultMeshReactiveDocument<global::Aetheria.State.Documents.EveSurfaceState>",
         "ResolveReactiveDaemonSurfaceState(",
@@ -16446,28 +16447,6 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "public static AetheriaControl Control(string runtimeId = \"\")",
         "public static AetheriaUi Ui(string runtimeId = \"\")",
         "public static AetheriaUi Ui(",
-        "public static CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> ReactiveCurrentDocking(",
-        "public static CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> ReactiveCurrentEntity(",
-        "public static CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> ReactiveStationRefit(",
-        "public static CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> ReactiveCatalogSnapshot(",
-        "public static CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> ReactivePlayerSettingsDocument(",
-        "public static CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument> ReactiveDaemonFrame(",
-        "public static CultMeshReactiveDocument<AetheriaRuntimeDaemonSoaViewDocument> ReactiveDaemonSoaView(",
-        "public static CultMeshReactiveDocument<AetheriaRuntimeZoneRenderDocument> ReactiveZoneRender(",
-        "public static CultMeshReactiveDocument<AetheriaRuntimeLoadoutTemplatesDocument> ReactiveLoadoutTemplates(",
-        "public static CultMeshReactiveDocument<AetheriaRuntimeSectorMapDocument> ReactiveSectorMap(",
-        "public static CultMeshReactiveDocument<AetheriaRuntimeCurrentZoneDocument> ReactiveCurrentZone(",
-        "public static CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument> ReactiveZoneContacts(",
-        "public static CultMeshReactiveDocument<AetheriaRuntimeVerseHostSettingsDocument> ReactiveVerseHostSettings(",
-        "public static CultMeshReactiveDocument<global::Aetheria.State.Documents.EveSurfaceState> ReactiveEveSurface(",
-        "public static CultMeshReactiveDocument<AetheriaRuntimeRtsViewportDocument> ReactiveRtsViewport(",
-        "public static CultMeshReactiveDocument<AetheriaRuntimeObjectsViewportDocument> ReactiveObjectsViewport(",
-        "public static CultMeshReactiveDocument<AetheriaRuntimeGravityViewportDocument> ReactiveGravityViewport(",
-        "public static CultMeshReactiveDocument<AetheriaRuntimeRenderSplatsViewportDocument> ReactiveRenderSplatsViewport(",
-        "public static CultMeshReactiveDocument<AetheriaRuntimeZoneDetailsDocument> ReactiveZoneDetails(",
-        "public static CultMeshReactiveDocument<AetheriaRuntimeSelectedObjectDocument> ReactiveSelectedObject(",
-        "public static CultMeshReactiveDocument<AetheriaRuntimeInventoryDocument> ReactiveInventory(",
-        "public static CultMeshReactiveDocument<AetheriaRuntimeStarbridgePlayerSeatDocument> ReactiveStarbridgePlayerSeat(",
         "public static CultMeshStateRefResolver EveSurfaceStateRefResolver(string runtimeId = \"\")",
         "public static CultMeshStateRefResolver EveSurfaceStateRefResolver(",
         "private static readonly Dictionary<string, AetheriaClient> RuntimeClients",
@@ -16475,7 +16454,7 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "RuntimeClients[cacheKey] = runtimeClient",
         "AetheriaClient",
         ".State",
-        "ReactivePlayerSettingsDocument()",
+        "RuntimeState().ReactivePlayerSettingsDocument()",
         "_playerSettingsDocument.Current",
         "_playerSettingsDocument?.Dispose()",
         "OpenAsync(",
@@ -16492,10 +16471,12 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
             string.Join(", ", missingRuntimeClientProviderSymbols));
     }
 
-    if (runtimeClientProvider.Contains("public static CultMeshReactiveDocument<TDocument> Reactive<TDocument>", StringComparison.Ordinal))
+    if (runtimeClientProvider.Contains("public static CultMeshReactiveDocument<TDocument> Reactive<TDocument>", StringComparison.Ordinal) ||
+        runtimeClientProvider.Contains("public static CultMeshReactiveDocument<AetheriaRuntime", StringComparison.Ordinal) ||
+        runtimeClientProvider.Contains("public static CultMeshReactiveDocument<global::Aetheria.State.Documents.EveSurfaceState> ReactiveEveSurface(", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "AetheriaUnityRuntimeClientProvider must expose named game-state document access, not generic Reactive<TDocument> escape hatches.");
+            "AetheriaUnityRuntimeClientProvider should expose RuntimeState/Control/Ui and let AetheriaClientState own typed reactive document access; do not rebuild static ReactiveX facade wrappers.");
     }
 
     if (runtimeClientProvider.Contains("AetheriaRuntimePlayerSettingsSession _playerSettingsDocument", StringComparison.Ordinal) ||
@@ -17034,11 +17015,12 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
             string.Join(", ", mainMenuReaderHits));
     }
 
-    if (!eveSurfacePresenter.Contains("AetheriaUnityRuntimeClientProvider.ReactiveEveSurface(", StringComparison.Ordinal) ||
+    if (!eveSurfacePresenter.Contains(".RuntimeState(stateBoot, \"unity-eve-surface-presenter\")", StringComparison.Ordinal) ||
+        !eveSurfacePresenter.Contains(".ReactiveEveSurface(surfaceId)", StringComparison.Ordinal) ||
         !eveSurfacePresenter.Contains("ReadDaemonSurface(stateBoot)", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Aetheria Eve surface presenter must read daemon surface state through provider-native reactive typed documents.");
+            "Aetheria Eve surface presenter must grab the provider RuntimeState and read the daemon surface through AetheriaClientState reactive typed documents.");
     }
 
     if (!eveSurfacePresenter.Contains("AetheriaUnityRuntimeClientProvider.EveSurfaceStateRefResolver(", StringComparison.Ordinal) ||
