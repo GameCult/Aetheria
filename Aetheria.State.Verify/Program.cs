@@ -7365,8 +7365,7 @@ static void RequireMenuDockingUsesManagedTypedSnapshot(string root)
         Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "InventoryPanel.cs"),
         Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "LocalMenu.cs"),
         Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "MenuPanel.cs"),
-        Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "TradeMenu.cs"),
-        Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityObservedDockingIndex.cs")
+        Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "TradeMenu.cs")
     };
 
     var missingPaths = menuPaths.Where(path => !File.Exists(path)).ToArray();
@@ -7429,7 +7428,7 @@ static void RequireMenuDockingUsesManagedTypedSnapshot(string root)
     if (directDockingOffenders.Count > 0)
     {
         throw new InvalidOperationException(
-            "Unity menu docking reads must use current typed state or the Unity observed docking bridge when entity objects are required; do not own duplicate reactive docking/refit documents: " +
+            "Unity menu docking reads must use current typed state directly and adapt Unity objects at the caller edge; do not own duplicate reactive docking/refit documents: " +
             string.Join(", ", directDockingOffenders));
     }
 
@@ -7449,31 +7448,7 @@ static bool HasManagedDockingSnapshotAccess(string source)
         return true;
     }
 
-    if (source.Contains("AetheriaUnityObservedDockingIndex", StringComparison.Ordinal) &&
-        source.Contains("TryResolveObservedDockingIndex(out var dockingIndex)", StringComparison.Ordinal) &&
-        source.Contains("dockingIndex.TryResolveCurrent", StringComparison.Ordinal) &&
-        !source.Contains("AetheriaClientReactiveDockingState _reactiveDockingState", StringComparison.Ordinal))
-    {
-        return true;
-    }
-
-    return source.Contains("public sealed class AetheriaUnityObservedDockingIndex", StringComparison.Ordinal) &&
-           source.Contains("TryReadDockingSnapshots(", StringComparison.Ordinal) &&
-           source.Contains("AetheriaUnityRuntimeClientProvider.RuntimeState()", StringComparison.Ordinal) &&
-           source.Contains("state.CurrentDockingState()", StringComparison.Ordinal) &&
-           source.Contains("state.CurrentStationRefit()", StringComparison.Ordinal) &&
-           source.Contains("state.CurrentEntityState()", StringComparison.Ordinal) &&
-           !source.Contains("CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument>", StringComparison.Ordinal) &&
-           !source.Contains("CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument>", StringComparison.Ordinal) &&
-           !source.Contains("CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument>", StringComparison.Ordinal) &&
-           !source.Contains(".ReactiveCurrentEntity(\"unity-observed-docking\")", StringComparison.Ordinal) &&
-           !source.Contains(".ReactiveCurrentDocking(\"unity-observed-docking\")", StringComparison.Ordinal) &&
-           !source.Contains(".ReactiveStationRefit(\"unity-observed-docking\")", StringComparison.Ordinal) &&
-           !source.Contains("state.Latest<AetheriaRuntimeCurrentEntityDocument>()", StringComparison.Ordinal) &&
-           !source.Contains("state.Latest<AetheriaRuntimeCurrentDockingDocument>()", StringComparison.Ordinal) &&
-           !source.Contains("state.Latest<AetheriaRuntimeStationRefitDocument>()", StringComparison.Ordinal) &&
-           !source.Contains("AetheriaClientReactiveDockingState _dockingState", StringComparison.Ordinal) &&
-           !source.Contains(".ReactiveDockingState()", StringComparison.Ordinal);
+    return false;
 }
 
 static void RequireUnitySharedDocumentAccessorErgonomics(string root)
@@ -13240,10 +13215,12 @@ static void RequireMainMenuContinueRunState(string root)
     var packageStore = File.Exists(packageStorePath)
         ? File.ReadAllText(packageStorePath)
         : throw new InvalidOperationException("Cannot verify Continue entity payload readback; package runtime store is missing.");
-    var observedDockingIndexPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityObservedDockingIndex.cs");
-    var observedDockingIndex = File.Exists(observedDockingIndexPath)
-        ? File.ReadAllText(observedDockingIndexPath)
-        : throw new InvalidOperationException("Cannot verify Continue entity identity; AetheriaUnityObservedDockingIndex.cs is missing.");
+    var deletedObservedDockingIndexPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityObservedDockingIndex.cs");
+    if (File.Exists(deletedObservedDockingIndexPath))
+    {
+        throw new InvalidOperationException(
+            "AetheriaUnityObservedDockingIndex is dead state-access chaff; read current typed docking/refit documents directly and adapt Unity objects at the caller edge.");
+    }
     var currentEntityPresentationPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityCurrentEntityPresentation.cs");
     var currentEntityPresentation = File.Exists(currentEntityPresentationPath)
         ? File.ReadAllText(currentEntityPresentationPath)
@@ -13695,59 +13672,6 @@ static void RequireMainMenuContinueRunState(string root)
             string.Join(", ", managerTargetQueryHits));
     }
 
-    var requiredObservedDockingSymbols = new[]
-    {
-        "public sealed class AetheriaUnityObservedDockingIndex",
-        "TryReadDockingSnapshots(",
-        "AetheriaUnityRuntimeClientProvider.RuntimeState()",
-        "state.CurrentDockingState()",
-        "state.CurrentStationRefit()",
-        "state.CurrentEntityState()",
-        "public bool IsEntityUndocked(Entity entity)",
-        "public bool TryResolveDockingBay(",
-        "out AetheriaRuntimeCurrentDockingDocument docking",
-        "_observedEntityIndex.TryResolveEntityByRecordKey(docking.DockParentEntityKey",
-        "docking.DockingBayIndex"
-    };
-    var missingObservedDockingSymbols = requiredObservedDockingSymbols
-        .Where(symbol => !observedDockingIndex.Contains(symbol, StringComparison.Ordinal))
-        .ToArray();
-    if (missingObservedDockingSymbols.Length > 0)
-    {
-        throw new InvalidOperationException(
-            "Observed docking relationship queries must live in AetheriaUnityObservedDockingIndex instead of ActionGameManager: " +
-            string.Join(", ", missingObservedDockingSymbols));
-    }
-
-    var forbiddenObservedDockingSymbols = new[]
-    {
-        "CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument>",
-        "CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument>",
-        "CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument>",
-        ".ReactiveCurrentEntity(\"unity-observed-docking\")",
-        ".ReactiveCurrentDocking(\"unity-observed-docking\")",
-        ".ReactiveStationRefit(\"unity-observed-docking\")",
-        "state.Latest<AetheriaRuntimeCurrentEntityDocument>()",
-        "state.Latest<AetheriaRuntimeCurrentDockingDocument>()",
-        "state.Latest<AetheriaRuntimeStationRefitDocument>()",
-        "state.Reactive<AetheriaRuntimeCurrentEntityDocument>()",
-        "state.Reactive<AetheriaRuntimeCurrentDockingDocument>()",
-        "state.Reactive<AetheriaRuntimeStationRefitDocument>()",
-        "AetheriaRuntimeObservedDockingState",
-        "new AetheriaRuntimeObservedDockingState(",
-        "ReactiveEntity()",
-        "ReactiveDocking()"
-    };
-    var observedDockingHits = forbiddenObservedDockingSymbols
-        .Where(symbol => observedDockingIndex.Contains(symbol, StringComparison.Ordinal))
-        .ToArray();
-    if (observedDockingHits.Length > 0)
-    {
-        throw new InvalidOperationException(
-            "Observed docking state composition must sample native current typed documents in AetheriaUnityObservedDockingIndex: " +
-            string.Join(", ", observedDockingHits));
-    }
-
     var requiredCurrentEntityBinderSymbols = new[]
     {
         "public sealed class AetheriaUnityCurrentEntityBinder",
@@ -13902,7 +13826,7 @@ static void RequireMainMenuContinueRunState(string root)
     if (managerDockingScanHits.Length > 0)
     {
         throw new InvalidOperationException(
-            "ActionGameManager still scans daemon docking relationships instead of delegating to AetheriaUnityObservedDockingIndex: " +
+            "ActionGameManager still scans daemon docking relationships instead of reading current typed docking state at the caller edge: " +
             string.Join(", ", managerDockingScanHits));
     }
 
@@ -16598,8 +16522,7 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
 
     var missingProviderClientAccess = providerOwnedClientAccessSources
         .Where(pair =>
-            !pair.Value.Contains("AetheriaUnityRuntimeClientProvider", StringComparison.Ordinal) &&
-            !pair.Value.Contains("AetheriaUnityObservedDockingIndex", StringComparison.Ordinal))
+            !pair.Value.Contains("AetheriaUnityRuntimeClientProvider", StringComparison.Ordinal))
         .Select(pair => pair.Key)
         .ToArray();
     if (missingProviderClientAccess.Length > 0)

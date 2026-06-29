@@ -334,12 +334,6 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual(currentEntity.EntityKey, currentEntityByType.EntityKey);
         Assert.AreEqual(currentEntity.EntityKey, currentEntityFromClientType.EntityKey);
         Assert.AreEqual(currentEntity.EntityKey, currentDocking.CurrentEntityKey);
-        Assert.IsNotNull(observedDocking);
-        Assert.AreEqual(currentEntity.EntityKey, observedDocking.CurrentEntityKey);
-        Assert.AreEqual(currentEntity.EntityIndex, observedDocking.CurrentEntityIndex);
-        Assert.AreEqual(currentDocking.CurrentEntityKey, observedDocking.Docking.CurrentEntityKey);
-        Assert.AreEqual(stationRefit.DockParentEntityKey, observedDocking.Refit.DockParentEntityKey);
-        Assert.IsFalse(observedDocking.TryResolveCurrentDockingBayRow(out _));
         Assert.AreEqual(currentEntity.EntityKey, currentDockingReactive.Current.CurrentEntityKey);
         Assert.AreEqual("", stationRefit.DockParentEntityKey);
         Assert.AreEqual("", stationRefitReactive.Current.DockParentEntityKey);
