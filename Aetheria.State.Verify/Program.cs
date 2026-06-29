@@ -18193,10 +18193,10 @@ static void RequireInventoryLoadoutRestoreRequestAuthority(string root)
     var rtsDocuments = File.Exists(rtsDocumentsPath)
         ? File.ReadAllText(rtsDocumentsPath)
         : throw new InvalidOperationException("Cannot verify loadout restore authority; RTS viewport documents are missing.");
-    var rtsProjectionPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeRtsDocuments.cs");
-    var rtsProjection = File.Exists(rtsProjectionPath)
-        ? File.ReadAllText(rtsProjectionPath)
-        : throw new InvalidOperationException("Cannot verify loadout restore authority; RTS projection source is missing.");
+    var rtsDocumentFactoryPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeRtsDocuments.cs");
+    var rtsDocumentFactory = File.Exists(rtsDocumentFactoryPath)
+        ? File.ReadAllText(rtsDocumentFactoryPath)
+        : throw new InvalidOperationException("Cannot verify loadout restore authority; RTS document factory source is missing.");
     var clientPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaClient.cs");
     var client = File.Exists(clientPath)
         ? File.ReadAllText(clientPath)
@@ -18329,7 +18329,8 @@ static void RequireInventoryLoadoutRestoreRequestAuthority(string root)
         throw new InvalidOperationException("InventoryPanel no longer owns typed loadout restore operations directly.");
     }
 
-    if (inventoryPanel.Contains("AetheriaRuntimeDaemonTradeItemQueries.TryProjectLoadoutTemplatePrice(", StringComparison.Ordinal) ||
+    if (inventoryPanel.Contains("AetheriaRuntimeDaemonTradeItemQueries.TryPriceLoadoutTemplate(", StringComparison.Ordinal) ||
+        inventoryPanel.Contains("AetheriaRuntimeDaemonTradeItemQueries.TryProjectLoadoutTemplatePrice(", StringComparison.Ordinal) ||
         inventoryPanel.Contains("blueprint.Price(GameManager.ItemManager)", StringComparison.Ordinal) ||
         inventoryPanel.Contains("LoadoutTemplatesAsync()", StringComparison.Ordinal) ||
         inventoryPanel.Contains("ResolveLoadoutTemplates", StringComparison.Ordinal))
@@ -18338,13 +18339,20 @@ static void RequireInventoryLoadoutRestoreRequestAuthority(string root)
             "InventoryPanel must consume StationRefitAsync loadout restore options instead of pricing or enumerating loadouts locally.");
     }
 
-    if (!tradeQueries.Contains("public static bool TryProjectLoadoutTemplatePrice(", StringComparison.Ordinal) ||
-        !tradeQueries.Contains("TryProjectEntityLoadoutPrice(", StringComparison.Ordinal) ||
+    if (tradeQueries.Contains("TryProjectLoadoutTemplatePrice(", StringComparison.Ordinal) ||
+        tradeQueries.Contains("TryProjectEntityLoadoutPrice(", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Shared runtime trade item queries must price typed loadout templates directly, without projector vocabulary.");
+    }
+
+    if (!tradeQueries.Contains("public static bool TryPriceLoadoutTemplate(", StringComparison.Ordinal) ||
+        !tradeQueries.Contains("TryPriceEntityLoadout(", StringComparison.Ordinal) ||
         !tradeQueries.Contains("typedItem.Stackable", StringComparison.Ordinal) ||
         !tradeQueries.Contains("typedItem.Price * Math.Max(1, item.Quantity)", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Shared runtime trade item queries must own typed loadout template price projection.");
+            "Shared runtime trade item queries must own typed loadout template pricing.");
     }
 
     if (!rtsDocuments.Contains("public IReadOnlyList<AetheriaRuntimeStationLoadoutRestoreOption> LoadoutRestoreOptions", StringComparison.Ordinal) ||
@@ -18352,9 +18360,9 @@ static void RequireInventoryLoadoutRestoreRequestAuthority(string root)
         !rtsDocuments.Contains("public string TargetEntityKey", StringComparison.Ordinal) ||
         !rtsDocuments.Contains("public int Price", StringComparison.Ordinal) ||
         !rtsDocuments.Contains("public bool CanRestore", StringComparison.Ordinal) ||
-        !rtsProjection.Contains("ProjectLoadoutRestoreOptions(", StringComparison.Ordinal) ||
-        !rtsProjection.Contains("AetheriaRuntimeDaemonTradeItemQueries.TryProjectLoadoutTemplatePrice(", StringComparison.Ordinal) ||
-        !rtsProjection.Contains("credits >= price", StringComparison.Ordinal) ||
+        !rtsDocumentFactory.Contains("ProjectLoadoutRestoreOptions(", StringComparison.Ordinal) ||
+        !rtsDocumentFactory.Contains("AetheriaRuntimeDaemonTradeItemQueries.TryPriceLoadoutTemplate(", StringComparison.Ordinal) ||
+        !rtsDocumentFactory.Contains("credits >= price", StringComparison.Ordinal) ||
         !clientState.Contains("public CultMeshDocumentHandle<AetheriaRuntimeLoadoutTemplatesDocument> LoadoutTemplates", StringComparison.Ordinal) ||
         !verseClient.Contains("RequireManagedLoadoutTemplates().Templates", StringComparison.Ordinal) ||
         !verseClient.Contains("StationRefit(", StringComparison.Ordinal))

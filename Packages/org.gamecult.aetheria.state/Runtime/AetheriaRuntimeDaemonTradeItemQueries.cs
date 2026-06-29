@@ -130,17 +130,17 @@ namespace GameCult.Aetheria.State.Verse
                 durability);
         }
 
-        public static bool TryProjectLoadoutTemplatePrice(
+        public static bool TryPriceLoadoutTemplate(
             AetheriaRuntimeLoadoutTemplateSnapshot? template,
             AetheriaRuntimeCatalogSnapshot? catalog,
             AetheriaRuntimeTradeValueSettings? settings,
             out int price)
         {
             price = 0;
-            return TryProjectEntityLoadoutPrice(template?.RootEntity, catalog, settings, out price);
+            return TryPriceEntityLoadout(template?.RootEntity, catalog, settings, out price);
         }
 
-        private static bool TryProjectEntityLoadoutPrice(
+        private static bool TryPriceEntityLoadout(
             AetheriaRuntimeEntityLoadoutSnapshot? entity,
             AetheriaRuntimeCatalogSnapshot? catalog,
             AetheriaRuntimeTradeValueSettings? settings,
@@ -164,7 +164,7 @@ namespace GameCult.Aetheria.State.Verse
 
             foreach (var child in entity.Children ?? Array.Empty<AetheriaRuntimeEntityLoadoutSnapshot>())
             {
-                if (!TryProjectEntityLoadoutPrice(child, catalog, settings, out var childPrice))
+                if (!TryPriceEntityLoadout(child, catalog, settings, out var childPrice))
                     return false;
 
                 price += childPrice;

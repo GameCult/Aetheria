@@ -1199,7 +1199,7 @@ namespace GameCult.Aetheria.State.Verse
             for (var templateIndex = 0; templateIndex < templates.Count; templateIndex++)
             {
                 var template = templates[templateIndex];
-                var canPrice = AetheriaRuntimeDaemonTradeItemQueries.TryProjectLoadoutTemplatePrice(
+                var canPrice = AetheriaRuntimeDaemonTradeItemQueries.TryPriceLoadoutTemplate(
                     template,
                     catalog,
                     catalog?.TradeValueSettings,
