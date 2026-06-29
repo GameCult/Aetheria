@@ -13663,6 +13663,21 @@ static void RequireMainMenuContinueRunState(string root)
             string.Join(", ", missingTargetPresentationSymbols));
     }
 
+    var forbiddenTargetPresentationSymbols = new[]
+    {
+        "Func<AetheriaClient>",
+        "ResolveClient"
+    };
+    var targetPresentationAccessHits = forbiddenTargetPresentationSymbols
+        .Where(symbol => targetPresentation.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (targetPresentationAccessHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "AetheriaUnityTargetPresentation must consume observed typed target data, not hold a runtime client resolver: " +
+            string.Join(", ", targetPresentationAccessHits));
+    }
+
     var requiredPilotFrameControllerSymbols = new[]
     {
         "public sealed class AetheriaUnityPilotFrameController",
@@ -13881,6 +13896,21 @@ static void RequireMainMenuContinueRunState(string root)
         throw new InvalidOperationException(
             "AetheriaUnityGameplaySceneWiring no longer has the daemon-frame Continue presentation boot path: " +
             string.Join(", ", missingGameplaySceneWiringSymbols));
+    }
+
+    var forbiddenGameplaySceneWiringSymbols = new[]
+    {
+        "Func<AetheriaClient> resolveClient",
+        "presentation.ResolveClient = resolveClient"
+    };
+    var gameplaySceneWiringAccessHits = forbiddenGameplaySceneWiringSymbols
+        .Where(symbol => gameplaySceneWiring.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (gameplaySceneWiringAccessHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "AetheriaUnityGameplaySceneWiring must wire typed observed target query delegates instead of passing runtime client resolvers: " +
+            string.Join(", ", gameplaySceneWiringAccessHits));
     }
 
     var forbiddenGameplaySymbols = new[]

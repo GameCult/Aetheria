@@ -314,8 +314,7 @@ public class ActionGameManager : MonoBehaviour
             _targetPresentation,
             boot.RuntimeCatalog,
             _observedEntityIndex,
-            ObservedTargetQuery,
-            () => ResolveDaemonObserver()?.Client);
+            ObservedTargetQuery);
         SceneWiring.ConfigureInventoryDragSession(_dragSession);
         SceneWiring.ConfigureActionBarPresentation(
             _actionBarPresentation,

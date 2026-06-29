@@ -79,8 +79,7 @@ public sealed class AetheriaUnityGameplaySceneWiring
         AetheriaUnityTargetPresentation presentation,
         AetheriaRuntimeCatalogSnapshot runtimeCatalog,
         AetheriaUnityObservedEntityIndex observedEntityIndex,
-        AetheriaUnityObservedTargetQuery observedTargetQuery,
-        Func<AetheriaClient> resolveClient)
+        AetheriaUnityObservedTargetQuery observedTargetQuery)
     {
         if (presentation == null)
             return;
@@ -95,7 +94,6 @@ public sealed class AetheriaUnityGameplaySceneWiring
         presentation.TargetVisibilityFill = TargetVisibilityFill;
         presentation.VisibilityToTargetFill = VisibilityToTargetFill;
         presentation.TargetShieldsFill = TargetShieldsFill;
-        presentation.ResolveClient = resolveClient;
         presentation.ResolveEntity = daemonEntityIndex =>
             observedEntityIndex != null &&
             observedEntityIndex.TryResolveEntityByDaemonIndex(daemonEntityIndex, out var entity)

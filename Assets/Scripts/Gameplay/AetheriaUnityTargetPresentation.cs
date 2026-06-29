@@ -29,7 +29,6 @@ public sealed class AetheriaUnityTargetPresentation
     public Image VisibilityToTargetFill { get; set; }
     public Image TargetShieldsFill { get; set; }
     public AetheriaRuntimeCatalogSnapshot RuntimeCatalog { get; set; }
-    public Func<AetheriaClient> ResolveClient { get; set; }
     public Func<int, Entity> ResolveEntity { get; set; }
     public Func<Entity, Entity> ResolveTarget { get; set; }
     public Func<Entity, Entity, float> ResolveInfoGathered { get; set; }
