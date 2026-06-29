@@ -4893,8 +4893,7 @@ static void RequireRuntimeMenuTabsUseEveSurface(string root)
         "SetObservedEntityIndex(AetheriaUnityObservedEntityIndex observedEntityIndex)",
         "dockingIndex.TryResolveCurrentDockingBay(out var dockingBay)",
         "dockingBay?.Entity is not OrbitalEntity { Story: { } dockedStory }",
-        "AetheriaRuntimeLocalStorySurfaceBuilder.Build(ProjectStorySurface())",
-        "AetheriaRuntimeLocalStorySurfaceBuilder.Project(",
+        "AetheriaRuntimeLocalStorySurfaceBuilder.Build(",
         "AetheriaRuntimeLocalStorySurfaceCommands.TryRead(request, out var command)",
         "AetheriaRuntimeLocalStoryCommandKind.Continue",
         "AetheriaRuntimeLocalStoryCommandKind.Choose",
@@ -4920,11 +4919,13 @@ static void RequireRuntimeMenuTabsUseEveSurface(string root)
         localMenu.Contains("TryGetObservedDockedLocalStory", StringComparison.Ordinal) ||
         actionGameManager.Contains("TryGetObservedDockedLocalStory", StringComparison.Ordinal) ||
         actionGameManager.Contains("IsObservedDocked", StringComparison.Ordinal) ||
+        localMenu.Contains("ProjectStorySurface(", StringComparison.Ordinal) ||
+        localMenu.Contains("AetheriaRuntimeLocalStorySurfaceBuilder.Project(", StringComparison.Ordinal) ||
         localMenu.Contains("Instantiate(ChoicePrefab", StringComparison.Ordinal) ||
         localMenu.Contains("choiceInstance.Button.onClick.AddListener", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Runtime menu/local UI must not inspect DockedEntity or rebuild legacy prefab buttons; use typed docking and the Eve local-story surface.");
+            "Runtime menu/local UI must not inspect DockedEntity, rebuild legacy prefab buttons, or carry a local story projection helper; use typed docking and build the Eve local-story surface directly.");
     }
 
     var requiredLocalStoryBuilderSymbols = new[]
@@ -4933,8 +4934,8 @@ static void RequireRuntimeMenuTabsUseEveSurface(string root)
         "public const string SurfaceId = \"aetheria.runtime_menu.local_story\"",
         "public const string Continue = \"aetheria.runtime_menu.local_story.continue\"",
         "ChoiceCommandFor(int choiceIndex)",
-        "public static AetheriaRuntimeLocalStorySurfaceState Project(",
         "public static AetheriaRuntimeSurfaceDocument Build(",
+        "private static AetheriaRuntimeLocalStorySurfaceState ComposeState(",
         "public enum AetheriaRuntimeLocalStoryCommandKind",
         "public readonly struct AetheriaRuntimeLocalStoryCommand",
         "public static class AetheriaRuntimeLocalStorySurfaceCommands",

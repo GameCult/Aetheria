@@ -54,7 +54,27 @@ namespace GameCult.Aetheria.State.Verse
             return $"{ChoicePrefix}{Math.Max(0, choiceIndex)}";
         }
 
-        public static AetheriaRuntimeLocalStorySurfaceState Project(
+        public static AetheriaRuntimeSurfaceDocument Build(
+            string locationLabel,
+            string currentPath,
+            string body,
+            bool canContinue,
+            IEnumerable<AetheriaRuntimeLocalStoryChoiceState> choices,
+            string updatedAtUtc,
+            long version = 1)
+        {
+            return Build(
+                ComposeState(
+                    locationLabel,
+                    currentPath,
+                    body,
+                    canContinue,
+                    choices,
+                    updatedAtUtc),
+                version);
+        }
+
+        private static AetheriaRuntimeLocalStorySurfaceState ComposeState(
             string locationLabel,
             string currentPath,
             string body,
@@ -78,7 +98,7 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeLocalStorySurfaceState state,
             long version = 1)
         {
-            state ??= Project("", "", "", false, Array.Empty<AetheriaRuntimeLocalStoryChoiceState>(), "");
+            state ??= ComposeState("", "", "", false, Array.Empty<AetheriaRuntimeLocalStoryChoiceState>(), "");
 
             var commands = new List<AetheriaRuntimeSurfaceCommandTemplate>();
             var controls = new List<AetheriaRuntimeSurfaceComponent>();

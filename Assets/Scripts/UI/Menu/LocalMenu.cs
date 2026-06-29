@@ -1,7 +1,6 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
 using GameCult.Aetheria.EveRuntime;
 using GameCult.Aetheria.State.Verse;
@@ -146,22 +145,17 @@ public class LocalMenu : MonoBehaviour
             transform,
             _surfaceDocument,
             "Aetheria Runtime Local Story Surface",
-            AetheriaRuntimeLocalStorySurfaceBuilder.Build(ProjectStorySurface()),
+            AetheriaRuntimeLocalStorySurfaceBuilder.Build(
+                ResolveLocationLabel(),
+                _currentPath,
+                _activeStory?.currentText ?? "",
+                _activeStory?.canContinue == true,
+                _activeChoices.Select(choice => new AetheriaRuntimeLocalStoryChoiceState(
+                    choice.Index,
+                    choice.Choice?.text ?? "")),
+                DateTime.UtcNow.ToString("O")),
             HandleStorySurfaceCommand,
             _surfaceChrome);
-    }
-
-    private AetheriaRuntimeLocalStorySurfaceState ProjectStorySurface()
-    {
-        return AetheriaRuntimeLocalStorySurfaceBuilder.Project(
-            ResolveLocationLabel(),
-            _currentPath,
-            _activeStory?.currentText ?? "",
-            _activeStory?.canContinue == true,
-            _activeChoices.Select(choice => new AetheriaRuntimeLocalStoryChoiceState(
-                choice.Index,
-                choice.Choice?.text ?? "")),
-            DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture));
     }
 
     private void HandleStorySurfaceCommand(EveSurfaceCommandRequest request)
