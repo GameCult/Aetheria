@@ -10245,12 +10245,13 @@ static void RequireAuthoritySmokeUsesManagedPointers(string root)
     var authoritySmoke = File.ReadAllText(authoritySmokePath);
     var requiredSymbols = new[]
     {
-        "writer.StarbridgeScenario()",
-        "writer.StarbridgeSession()",
-        "ravenNode.VerseAuthorityPolicy()",
-        "starfireNode.VerseAuthorityPolicy()",
-        "node.VerseAuthorityPolicy()",
-        "node.LatestFrame().ReadAsync()",
+        "writer.MutableDocument<AetheriaRuntimeVerseAuthorityPolicyDocument>(AetheriaRuntimeVerseRecordKeys.VerseAuthorityPolicy)",
+        "writer.MutableDocument<AetheriaRuntimeStarbridgeScenarioDocument>(AetheriaRuntimeVerseRecordKeys.StarbridgeScenarioLatest)",
+        "writer.MutableDocument<AetheriaRuntimeStarbridgeSessionDocument>(AetheriaRuntimeVerseRecordKeys.StarbridgeSessionLatest)",
+        "ravenNode.MutableDocument<AetheriaRuntimeVerseAuthorityPolicyDocument>(AetheriaRuntimeVerseRecordKeys.VerseAuthorityPolicy)",
+        "starfireNode.MutableDocument<AetheriaRuntimeVerseAuthorityPolicyDocument>(AetheriaRuntimeVerseRecordKeys.VerseAuthorityPolicy)",
+        "node.MutableDocument<AetheriaRuntimeVerseAuthorityPolicyDocument>(AetheriaRuntimeVerseRecordKeys.VerseAuthorityPolicy)",
+        "node.MutableDocument<AetheriaRuntimeDaemonFrameDocument>(AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest)",
         ".ReplaceAsync(policy)",
         ".ReplaceAsync(scenario)",
         ".ReplaceAsync(session)",
@@ -10272,7 +10273,13 @@ static void RequireAuthoritySmokeUsesManagedPointers(string root)
         "PutStarbridgeSessionAsync(",
         "PutVerseAuthorityPolicyAsync(",
         "GetVerseAuthorityPolicyAsync(",
-        "GetDaemonFrameAsync("
+        "GetDaemonFrameAsync(",
+        "writer.StarbridgeScenario()",
+        "writer.StarbridgeSession()",
+        "ravenNode.VerseAuthorityPolicy()",
+        "starfireNode.VerseAuthorityPolicy()",
+        "node.VerseAuthorityPolicy()",
+        "node.LatestFrame()"
     };
     var survivingSymbols = forbiddenSymbols
         .Where(symbol => authoritySmoke.Contains(symbol, StringComparison.Ordinal))
@@ -10299,10 +10306,7 @@ static void RequireAetheriaStateNodeUsesManagedPointers(string root)
         "public CultMeshMutableStatePointer<AetheriaWorldState> World()",
         "public CultMeshMutableStatePointer<AetheriaMigrationLedger> MigrationLedger()",
         "public CultMeshMutableStatePointer<AetheriaItemDefinition> ItemDefinition(",
-        "public CultMeshMutableStatePointer<AetheriaRuntimeDaemonFrameDocument> LatestFrame()",
-        "public CultMeshMutableStatePointer<AetheriaRuntimeDaemonSoaViewDocument> LatestSoaView()",
-        "public CultMeshMutableStatePointer<AetheriaRuntimeStarbridgeScenarioDocument> StarbridgeScenario()",
-        "public CultMeshMutableStatePointer<EveSurfaceState> DaemonGameSurface()",
+        "public CultMeshMutableStatePointer<TDocument> MutableDocument<TDocument>(CultRecordKey key)",
         "private CultMeshMutableStatePointer<T> MutableDocumentPointer<T>(CultRecordKey key)",
         "CultMesh.MutableStatePointer("
     };
@@ -10356,7 +10360,20 @@ static void RequireAetheriaStateNodeUsesManagedPointers(string root)
         "public Task<CultRecordHandle<AetheriaEntitySnapshot>> PutEntitySnapshotAsync(",
         "public Task<AetheriaEntitySnapshot?> GetEntitySnapshotAsync(",
         "public Task<CultRecordHandle<AetheriaVerseHostSettings>> PutVerseHostSettingsAsync(",
-        "public Task<AetheriaVerseHostSettings?> GetVerseHostSettingsAsync("
+        "public Task<AetheriaVerseHostSettings?> GetVerseHostSettingsAsync(",
+        "public CultMeshMutableStatePointer<AetheriaRuntimeDaemonProviderAdvertisementDocument> ProviderAdvertisement()",
+        "public CultMeshMutableStatePointer<AetheriaRuntimeDaemonHealthDocument> Health()",
+        "public CultMeshMutableStatePointer<AetheriaRuntimeDaemonCommandBoundaryDocument> CommandBoundary()",
+        "public CultMeshMutableStatePointer<AetheriaRuntimeVerseAuthorityPolicyDocument> VerseAuthorityPolicy()",
+        "public CultMeshMutableStatePointer<AetheriaRuntimeDaemonFrameDocument> LatestFrame()",
+        "public CultMeshMutableStatePointer<AetheriaRuntimeDaemonSoaViewDocument> LatestSoaView()",
+        "public CultMeshMutableStatePointer<AetheriaRuntimeStarbridgeScenarioDocument> StarbridgeScenario()",
+        "public CultMeshMutableStatePointer<AetheriaRuntimeStarbridgeSessionDocument> StarbridgeSession()",
+        "public CultMeshMutableStatePointer<AetheriaRuntimeStarbridgeSessionSummaryDocument> StarbridgeSessionSummary()",
+        "public CultMeshMutableStatePointer<EveSurfaceState> DaemonGameSurface()",
+        "public CultMeshMutableStatePointer<EveSurfaceState> DaemonGameTuiSurface()",
+        "public CultMeshMutableStatePointer<EveSurfaceState> DaemonEditorSurface()",
+        "public CultMeshMutableStatePointer<EveSurfaceState> DaemonEditorTuiSurface()"
     };
     var survivingSymbols = forbiddenSymbols
         .Where(symbol => stateNode.Contains(symbol, StringComparison.Ordinal))
@@ -10664,9 +10681,7 @@ static void RequireDaemonVersePublication(string root)
         "Database.WatchRecord<TDocument>(key)",
         "public CultMeshDocumentHandle<AetheriaRuntimeCatalogSnapshot> RuntimeCatalog()",
         "AetheriaRuntimeCatalogStore.OpenReadOnly(StatePath)",
-        "public CultMeshMutableStatePointer<AetheriaRuntimeDaemonFrameDocument> LatestFrame()",
-        "public CultMeshMutableStatePointer<AetheriaRuntimeDaemonSoaViewDocument> LatestSoaView()",
-        "public CultMeshMutableStatePointer<AetheriaRuntimeStarbridgeSessionSummaryDocument> StarbridgeSessionSummary()",
+        "public CultMeshMutableStatePointer<TDocument> MutableDocument<TDocument>(CultRecordKey key)",
         "public CultMeshMutableStatePointer<AetheriaMigrationLedger> MigrationLedger()",
         "public CultMeshMutableStatePointer<AetheriaLegacyCatalogQuarantine> LegacyCatalogQuarantine()",
         "public CultMeshMutableStatePointer<AetheriaItemDefinition> ItemDefinition(CultRecordKey key)",
@@ -10674,7 +10689,20 @@ static void RequireDaemonVersePublication(string root)
         "public CultMeshMutableStatePointer<AetheriaNameFile> NameFile(CultRecordKey key)",
         "private CultMeshMutableStatePointer<T> MutableDocumentPointer<T>(CultRecordKey key)",
         "CultMesh.MutableStatePointer(",
-        "AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest",
+        "AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest"
+    };
+    var missingDaemonNodeSymbols = requiredDaemonNodeSymbols
+        .Where(symbol => !stateNode.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingDaemonNodeSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "AetheriaStateNode no longer exposes daemon Verse API records ergonomically: " +
+            string.Join(", ", missingDaemonNodeSymbols));
+    }
+
+    var forbiddenDaemonNodeSymbols = new[]
+    {
         "public CultMeshMutableStatePointer<AetheriaRuntimeDaemonProviderAdvertisementDocument> ProviderAdvertisement()",
         "public CultMeshMutableStatePointer<AetheriaRuntimeDaemonHealthDocument> Health()",
         "public CultMeshMutableStatePointer<AetheriaRuntimeDaemonCommandBoundaryDocument> CommandBoundary()",
@@ -10689,14 +10717,14 @@ static void RequireDaemonVersePublication(string root)
         "public CultMeshMutableStatePointer<EveSurfaceState> DaemonEditorSurface()",
         "public CultMeshMutableStatePointer<EveSurfaceState> DaemonEditorTuiSurface()"
     };
-    var missingDaemonNodeSymbols = requiredDaemonNodeSymbols
-        .Where(symbol => !stateNode.Contains(symbol, StringComparison.Ordinal))
+    var survivingDaemonNodeSymbols = forbiddenDaemonNodeSymbols
+        .Where(symbol => stateNode.Contains(symbol, StringComparison.Ordinal))
         .ToArray();
-    if (missingDaemonNodeSymbols.Length > 0)
+    if (survivingDaemonNodeSymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "AetheriaStateNode no longer exposes daemon Verse API records ergonomically: " +
-            string.Join(", ", missingDaemonNodeSymbols));
+            "AetheriaStateNode still exposes named daemon Verse record helpers instead of the generic typed document handle: " +
+            string.Join(", ", survivingDaemonNodeSymbols));
     }
 
     if (!daemonSurfaceProjector.Contains("public static EveSurfaceState ToState(AetheriaRuntimeSurfaceDocument document)", StringComparison.Ordinal) ||
@@ -10874,30 +10902,27 @@ static void RequireDaemonVersePublication(string root)
         "ProjectReference Include=\"..\\Aetheria.State\\Aetheria.State.csproj\"",
         "AetheriaStateNode.OpenAsync(",
         "startServer: true",
-        "node.LatestFrame().ReadAsync()",
+        "node.MutableDocument<AetheriaRuntimeDaemonFrameDocument>(AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest)",
         "Catalog = node.RuntimeCatalog().Latest()",
         "node.RuntimeCatalog().Latest());",
-        "node.VerseAuthorityPolicy().ReadAsync()",
-        "node.StarbridgeScenario().ReadAsync()",
-        "node.StarbridgeSession().ReadAsync()",
+        "node.MutableDocument<AetheriaRuntimeVerseAuthorityPolicyDocument>(AetheriaRuntimeVerseRecordKeys.VerseAuthorityPolicy)",
+        "node.MutableDocument<AetheriaRuntimeStarbridgeScenarioDocument>(AetheriaRuntimeVerseRecordKeys.StarbridgeScenarioLatest)",
+        "node.MutableDocument<AetheriaRuntimeStarbridgeSessionDocument>(AetheriaRuntimeVerseRecordKeys.StarbridgeSessionLatest)",
         "StarbridgeScenario = starbridgeScenario",
         "StarbridgeSession = starbridgeSession",
         "BuildPublications = buildPublications",
         "new AetheriaVerseDiscoveryHost(node)",
         "discoveryHost.Update(",
         "PublishDaemonApiDocumentsAsync(node, result)",
-        "node.LatestFrame()",
-        "node.LatestSoaView()",
-        "node.ProviderAdvertisement()",
-        "node.Health()",
-        "node.CommandBoundary()",
-        "node.DaemonGameSurface().ReadAsync()",
-        "node.DaemonGameTuiSurface().ReadAsync()",
-        "node.DaemonEditorSurface().ReadAsync()",
-        "node.DaemonEditorTuiSurface().ReadAsync()",
-        "node.StarbridgeSessionSummary()",
-        "node.DaemonGameSurface()",
-        "node.DaemonEditorTuiSurface()",
+        "node.MutableDocument<AetheriaRuntimeDaemonSoaViewDocument>(AetheriaRuntimeVerseRecordKeys.DaemonSoaViewLatest)",
+        "node.MutableDocument<AetheriaRuntimeDaemonProviderAdvertisementDocument>(AetheriaRuntimeVerseRecordKeys.DaemonProviderAdvertisement)",
+        "node.MutableDocument<AetheriaRuntimeDaemonHealthDocument>(AetheriaRuntimeVerseRecordKeys.DaemonHealth)",
+        "node.MutableDocument<AetheriaRuntimeDaemonCommandBoundaryDocument>(AetheriaRuntimeVerseRecordKeys.DaemonCommandBoundary)",
+        "node.MutableDocument<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonGameSurface)",
+        "node.MutableDocument<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonGameTuiSurface)",
+        "node.MutableDocument<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonEditorSurface)",
+        "node.MutableDocument<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonEditorTuiSurface)",
+        "node.MutableDocument<AetheriaRuntimeStarbridgeSessionSummaryDocument>(AetheriaRuntimeVerseRecordKeys.StarbridgeSessionSummary)",
         ".ReplaceAsync(result.Frame)",
         ".ReplaceAsync(result.SoaView)",
         ".ReplaceAsync(result.Health)",
@@ -10935,6 +10960,32 @@ static void RequireDaemonVersePublication(string root)
         throw new InvalidOperationException(
             "Aetheria.State.Daemon no longer has Odin/VoidBot-shaped Verse daemon host authority: " +
             string.Join(", ", missingDaemonHostSymbols));
+    }
+
+    var forbiddenNamedDaemonHostSymbols = new[]
+    {
+        "node.LatestFrame()",
+        "node.LatestSoaView()",
+        "node.ProviderAdvertisement()",
+        "node.Health()",
+        "node.CommandBoundary()",
+        "node.VerseAuthorityPolicy()",
+        "node.StarbridgeScenario()",
+        "node.StarbridgeSession()",
+        "node.StarbridgeSessionSummary()",
+        "node.DaemonGameSurface()",
+        "node.DaemonGameTuiSurface()",
+        "node.DaemonEditorSurface()",
+        "node.DaemonEditorTuiSurface()"
+    };
+    var survivingNamedDaemonHostSymbols = forbiddenNamedDaemonHostSymbols
+        .Where(symbol => daemonHostSource.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (survivingNamedDaemonHostSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Aetheria.State.Daemon still uses named daemon Verse record helpers instead of generic typed document handles: " +
+            string.Join(", ", survivingNamedDaemonHostSymbols));
     }
 
     var committedFactImportStart = daemonHostSource.IndexOf(
@@ -11306,22 +11357,22 @@ static void RequireDaemonVersePublication(string root)
 
     var requiredSmokeSymbols = new[]
     {
-        "node.ProviderAdvertisement().ReplaceAsync(daemonProvider)",
-        "node.Health().ReplaceAsync(daemonHealth)",
-        "node.CommandBoundary().ReplaceAsync(daemonCommandBoundary)",
+        "node.MutableDocument<AetheriaRuntimeDaemonProviderAdvertisementDocument>(AetheriaRuntimeVerseRecordKeys.DaemonProviderAdvertisement)",
+        "node.MutableDocument<AetheriaRuntimeDaemonHealthDocument>(AetheriaRuntimeVerseRecordKeys.DaemonHealth)",
+        "node.MutableDocument<AetheriaRuntimeDaemonCommandBoundaryDocument>(AetheriaRuntimeVerseRecordKeys.DaemonCommandBoundary)",
         "AetheriaClient.OpenAsync(",
         "daemonCommandClient.Control.SensorPing();",
         "eveCommandClient.Ui.InputSettingsAsync(",
         "AetheriaClient control submission did not appear as a typed daemon state record.",
         "AetheriaClient UI submission did not appear as a typed Eve state record.",
-        "node.LatestFrame().ReplaceAsync(daemonFrame)",
-        "node.DaemonGameSurface()",
+        "node.MutableDocument<AetheriaRuntimeDaemonFrameDocument>(AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest)",
+        "node.MutableDocument<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonGameSurface)",
         ".ReplaceAsync(AetheriaRuntimeEveSurfaceStateProjector.ToState(daemonGameSurface))",
-        "reopened.ProviderAdvertisement().ReadAsync()",
-        "reopened.Health().ReadAsync()",
-        "reopened.CommandBoundary().ReadAsync()",
-        "reopened.LatestFrame().ReadAsync()",
-        "reopened.DaemonGameSurface().ReadAsync()",
+        "reopened.MutableDocument<AetheriaRuntimeDaemonProviderAdvertisementDocument>(AetheriaRuntimeVerseRecordKeys.DaemonProviderAdvertisement)",
+        "reopened.MutableDocument<AetheriaRuntimeDaemonHealthDocument>(AetheriaRuntimeVerseRecordKeys.DaemonHealth)",
+        "reopened.MutableDocument<AetheriaRuntimeDaemonCommandBoundaryDocument>(AetheriaRuntimeVerseRecordKeys.DaemonCommandBoundary)",
+        "reopened.MutableDocument<AetheriaRuntimeDaemonFrameDocument>(AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest)",
+        "reopened.MutableDocument<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonGameSurface)",
         "DaemonGameSurfaceKey",
         "DaemonGameTuiSurfaceKey",
         "DaemonEditorSurfaceKey",
@@ -11363,6 +11414,16 @@ static void RequireDaemonVersePublication(string root)
         "GetDaemonFrameAsync(",
         "PutDaemonGameSurfaceAsync(",
         "GetDaemonGameSurfaceAsync(",
+        "node.ProviderAdvertisement()",
+        "node.Health()",
+        "node.CommandBoundary()",
+        "node.LatestFrame()",
+        "node.DaemonGameSurface()",
+        "reopened.ProviderAdvertisement()",
+        "reopened.Health()",
+        "reopened.CommandBoundary()",
+        "reopened.LatestFrame()",
+        "reopened.DaemonGameSurface()",
         "PutRuntimeSessionAsync(",
         "GetRuntimeSessionAsync(",
         "PutLoadoutTemplateAsync(",

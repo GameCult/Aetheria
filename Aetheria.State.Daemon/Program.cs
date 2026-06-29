@@ -31,7 +31,7 @@ await EnsureVerseAuthorityPolicyAsync(node, options).ConfigureAwait(false);
 discoveryHost.Update(verseHost);
 await PublishRuntimeSessionAsync(node, options, startedAtUtc, "starting").ConfigureAwait(false);
 await PublishStateSurfacesAsync(node, options, startedAtUtc).ConfigureAwait(false);
-var latestFrame = await node.LatestFrame().ReadAsync().ConfigureAwait(false);
+var latestFrame = await node.MutableDocument<AetheriaRuntimeDaemonFrameDocument>(AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest).ReadAsync().ConfigureAwait(false);
 using var cultMeshRudpHost = StartRtsCultMeshHost(node, options, () => latestFrame);
 using var rtsPumpCancellation = new CancellationTokenSource();
 var rtsPump = RunRtsCultMeshPumpAsync(cultMeshRudpHost, rtsPumpCancellation.Token);
@@ -138,9 +138,9 @@ static async Task<AetheriaRuntimeDaemonTickResult> TickAsync(
         .Where(command => command != null && !accountedCommandIds.Contains(command.CommandId ?? ""))
         .ToArray();
     var policyRejectedCommandIds = new List<string>();
-    var authorityPolicy = await node.VerseAuthorityPolicy().ReadAsync().ConfigureAwait(false);
-    var starbridgeScenario = await node.StarbridgeScenario().ReadAsync().ConfigureAwait(false);
-    var starbridgeSession = await node.StarbridgeSession().ReadAsync().ConfigureAwait(false);
+    var authorityPolicy = await node.MutableDocument<AetheriaRuntimeVerseAuthorityPolicyDocument>(AetheriaRuntimeVerseRecordKeys.VerseAuthorityPolicy).ReadAsync().ConfigureAwait(false);
+    var starbridgeScenario = await node.MutableDocument<AetheriaRuntimeStarbridgeScenarioDocument>(AetheriaRuntimeVerseRecordKeys.StarbridgeScenarioLatest).ReadAsync().ConfigureAwait(false);
+    var starbridgeSession = await node.MutableDocument<AetheriaRuntimeStarbridgeSessionDocument>(AetheriaRuntimeVerseRecordKeys.StarbridgeSessionLatest).ReadAsync().ConfigureAwait(false);
     var authorityLeases = node.ReadAuthorityLeases();
     var authorizedCommands = AetheriaRuntimeAuthorityRouter.AuthorizedCommands(
         pendingObservedCommands,
@@ -389,7 +389,7 @@ static RudpCultNetSchemaServer StartRtsCultMeshHost(
                     .ToArray();
             }
 
-            var health = await node.Health().ReadAsync().ConfigureAwait(false);
+            var health = await node.MutableDocument<AetheriaRuntimeDaemonHealthDocument>(AetheriaRuntimeVerseRecordKeys.DaemonHealth).ReadAsync().ConfigureAwait(false);
             if (health != null && SnapshotWants(
                 request,
                 AetheriaRuntimeDaemonSchemas.Health,
@@ -412,7 +412,7 @@ static RudpCultNetSchemaServer StartRtsCultMeshHost(
                     .ToArray();
             }
 
-            var authorityPolicy = await node.VerseAuthorityPolicy().ReadAsync().ConfigureAwait(false);
+            var authorityPolicy = await node.MutableDocument<AetheriaRuntimeVerseAuthorityPolicyDocument>(AetheriaRuntimeVerseRecordKeys.VerseAuthorityPolicy).ReadAsync().ConfigureAwait(false);
             if (authorityPolicy != null && SnapshotWants(
                 request,
                 AetheriaRuntimeDaemonSchemas.VerseAuthorityPolicy,
@@ -435,7 +435,7 @@ static RudpCultNetSchemaServer StartRtsCultMeshHost(
                     .ToArray();
             }
 
-            var starbridgeScenario = await node.StarbridgeScenario().ReadAsync().ConfigureAwait(false);
+            var starbridgeScenario = await node.MutableDocument<AetheriaRuntimeStarbridgeScenarioDocument>(AetheriaRuntimeVerseRecordKeys.StarbridgeScenarioLatest).ReadAsync().ConfigureAwait(false);
             if (starbridgeScenario != null && SnapshotWants(
                 request,
                 AetheriaRuntimeDaemonSchemas.StarbridgeScenario,
@@ -487,7 +487,7 @@ static RudpCultNetSchemaServer StartRtsCultMeshHost(
                 AetheriaRuntimeVerseRecordKeys.DaemonEditorTuiSurface.ToString(),
                 "editor-tui").ConfigureAwait(false);
 
-            var starbridgeSession = await node.StarbridgeSessionSummary().ReadAsync().ConfigureAwait(false);
+            var starbridgeSession = await node.MutableDocument<AetheriaRuntimeStarbridgeSessionSummaryDocument>(AetheriaRuntimeVerseRecordKeys.StarbridgeSessionSummary).ReadAsync().ConfigureAwait(false);
             if (starbridgeSession != null &&
                 SnapshotWants(
                     request,
@@ -625,10 +625,10 @@ static Task<EveSurfaceState?> ReadEveSurfacePublicationAsync(AetheriaStateNode n
 {
     return surfaceKind switch
     {
-        "game" => node.DaemonGameSurface().ReadAsync(),
-        "game-tui" => node.DaemonGameTuiSurface().ReadAsync(),
-        "editor" => node.DaemonEditorSurface().ReadAsync(),
-        "editor-tui" => node.DaemonEditorTuiSurface().ReadAsync(),
+        "game" => node.MutableDocument<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonGameSurface).ReadAsync(),
+        "game-tui" => node.MutableDocument<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonGameTuiSurface).ReadAsync(),
+        "editor" => node.MutableDocument<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonEditorSurface).ReadAsync(),
+        "editor-tui" => node.MutableDocument<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonEditorTuiSurface).ReadAsync(),
         _ => throw new ArgumentOutOfRangeException(nameof(surfaceKind), surfaceKind, "Unknown Eve surface publication.")
     };
 }
@@ -747,47 +747,47 @@ static async Task PublishDaemonApiDocumentsAsync(
     AetheriaStateNode node,
     AetheriaRuntimeDaemonTickResult result)
 {
-    await node.LatestFrame()
+    await node.MutableDocument<AetheriaRuntimeDaemonFrameDocument>(AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest)
         .ReplaceAsync(result.Frame)
         .ConfigureAwait(false);
     if (result.SoaView != null &&
         string.Equals(result.SoaView.Schema, AetheriaRuntimeDaemonSchemas.SoaView, StringComparison.Ordinal))
     {
-        await node.LatestSoaView()
+        await node.MutableDocument<AetheriaRuntimeDaemonSoaViewDocument>(AetheriaRuntimeVerseRecordKeys.DaemonSoaViewLatest)
             .ReplaceAsync(result.SoaView)
             .ConfigureAwait(false);
     }
 
     if (result.ProviderAdvertisement != null)
-        await node.ProviderAdvertisement()
+        await node.MutableDocument<AetheriaRuntimeDaemonProviderAdvertisementDocument>(AetheriaRuntimeVerseRecordKeys.DaemonProviderAdvertisement)
             .ReplaceAsync(result.ProviderAdvertisement)
             .ConfigureAwait(false);
     if (result.Health != null)
-        await node.Health()
+        await node.MutableDocument<AetheriaRuntimeDaemonHealthDocument>(AetheriaRuntimeVerseRecordKeys.DaemonHealth)
             .ReplaceAsync(result.Health)
             .ConfigureAwait(false);
     if (result.CommandBoundary != null)
-        await node.CommandBoundary()
+        await node.MutableDocument<AetheriaRuntimeDaemonCommandBoundaryDocument>(AetheriaRuntimeVerseRecordKeys.DaemonCommandBoundary)
             .ReplaceAsync(result.CommandBoundary)
             .ConfigureAwait(false);
     if (result.StarbridgeSessionSummary != null)
-        await node.StarbridgeSessionSummary()
+        await node.MutableDocument<AetheriaRuntimeStarbridgeSessionSummaryDocument>(AetheriaRuntimeVerseRecordKeys.StarbridgeSessionSummary)
             .ReplaceAsync(result.StarbridgeSessionSummary)
             .ConfigureAwait(false);
     if (result.GameSurface != null)
-        await node.DaemonGameSurface()
+        await node.MutableDocument<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonGameSurface)
             .ReplaceAsync(AetheriaRuntimeEveSurfaceStateProjector.ToState(result.GameSurface))
             .ConfigureAwait(false);
     if (result.GameTuiSurface != null)
-        await node.DaemonGameTuiSurface()
+        await node.MutableDocument<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonGameTuiSurface)
             .ReplaceAsync(AetheriaRuntimeEveSurfaceStateProjector.ToState(result.GameTuiSurface))
             .ConfigureAwait(false);
     if (result.EditorSurface != null)
-        await node.DaemonEditorSurface()
+        await node.MutableDocument<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonEditorSurface)
             .ReplaceAsync(AetheriaRuntimeEveSurfaceStateProjector.ToState(result.EditorSurface))
             .ConfigureAwait(false);
     if (result.EditorTuiSurface != null)
-        await node.DaemonEditorTuiSurface()
+        await node.MutableDocument<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonEditorTuiSurface)
             .ReplaceAsync(AetheriaRuntimeEveSurfaceStateProjector.ToState(result.EditorTuiSurface))
             .ConfigureAwait(false);
 }
@@ -1179,8 +1179,8 @@ static async Task EnsureStarbridgeSessionDocumentsAsync(
     AetheriaStateNode node,
     AetheriaDaemonHostOptions options)
 {
-    var existingScenario = await node.StarbridgeScenario().ReadAsync().ConfigureAwait(false);
-    var existingSession = await node.StarbridgeSession().ReadAsync().ConfigureAwait(false);
+    var existingScenario = await node.MutableDocument<AetheriaRuntimeStarbridgeScenarioDocument>(AetheriaRuntimeVerseRecordKeys.StarbridgeScenarioLatest).ReadAsync().ConfigureAwait(false);
+    var existingSession = await node.MutableDocument<AetheriaRuntimeStarbridgeSessionDocument>(AetheriaRuntimeVerseRecordKeys.StarbridgeSessionLatest).ReadAsync().ConfigureAwait(false);
     if (existingScenario != null &&
         string.Equals(existingScenario.Schema, AetheriaRuntimeDaemonSchemas.StarbridgeScenario, StringComparison.Ordinal) &&
         existingSession != null &&
@@ -1297,10 +1297,10 @@ static async Task EnsureStarbridgeSessionDocumentsAsync(
         RuntimeRoles = scenario.RuntimeRoles
     };
 
-    await node.StarbridgeScenario()
+    await node.MutableDocument<AetheriaRuntimeStarbridgeScenarioDocument>(AetheriaRuntimeVerseRecordKeys.StarbridgeScenarioLatest)
         .ReplaceAsync(scenario)
         .ConfigureAwait(false);
-    await node.StarbridgeSession()
+    await node.MutableDocument<AetheriaRuntimeStarbridgeSessionDocument>(AetheriaRuntimeVerseRecordKeys.StarbridgeSessionLatest)
         .ReplaceAsync(session)
         .ConfigureAwait(false);
     await node.FlushAsync().ConfigureAwait(false);
@@ -1310,12 +1310,12 @@ static async Task EnsureVerseAuthorityPolicyAsync(
     AetheriaStateNode node,
     AetheriaDaemonHostOptions options)
 {
-    var existing = await node.VerseAuthorityPolicy().ReadAsync().ConfigureAwait(false);
+    var existing = await node.MutableDocument<AetheriaRuntimeVerseAuthorityPolicyDocument>(AetheriaRuntimeVerseRecordKeys.VerseAuthorityPolicy).ReadAsync().ConfigureAwait(false);
     if (existing != null && string.Equals(existing.Schema, AetheriaRuntimeVerseAuthoritySchemas.Policy, StringComparison.Ordinal))
         return;
 
     var policy = AetheriaRuntimeVerseAuthorityPolicyDocument.TrustedCoop(options.VerseId, options.DaemonId);
-    await node.VerseAuthorityPolicy()
+    await node.MutableDocument<AetheriaRuntimeVerseAuthorityPolicyDocument>(AetheriaRuntimeVerseRecordKeys.VerseAuthorityPolicy)
         .ReplaceAsync(policy)
         .ConfigureAwait(false);
 }

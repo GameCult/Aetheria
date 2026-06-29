@@ -141,10 +141,14 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
         daemonFrame,
         daemonHealth,
         daemonCommandBoundary);
-    await node.ProviderAdvertisement().ReplaceAsync(daemonProvider);
-    await node.Health().ReplaceAsync(daemonHealth);
-    await node.CommandBoundary().ReplaceAsync(daemonCommandBoundary);
-    await node.LatestFrame().ReplaceAsync(daemonFrame);
+    await node.MutableDocument<AetheriaRuntimeDaemonProviderAdvertisementDocument>(AetheriaRuntimeVerseRecordKeys.DaemonProviderAdvertisement)
+        .ReplaceAsync(daemonProvider);
+    await node.MutableDocument<AetheriaRuntimeDaemonHealthDocument>(AetheriaRuntimeVerseRecordKeys.DaemonHealth)
+        .ReplaceAsync(daemonHealth);
+    await node.MutableDocument<AetheriaRuntimeDaemonCommandBoundaryDocument>(AetheriaRuntimeVerseRecordKeys.DaemonCommandBoundary)
+        .ReplaceAsync(daemonCommandBoundary);
+    await node.MutableDocument<AetheriaRuntimeDaemonFrameDocument>(AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest)
+        .ReplaceAsync(daemonFrame);
     await node.FlushAsync();
     using var daemonCommandClient = await AetheriaClient.OpenAsync(
         statePath,
@@ -165,7 +169,7 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
             throw new InvalidOperationException("AetheriaClient control submission did not appear as a typed daemon state record.");
         }
     }
-    await node.DaemonGameSurface()
+    await node.MutableDocument<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonGameSurface)
         .ReplaceAsync(AetheriaRuntimeEveSurfaceStateProjector.ToState(daemonGameSurface));
     await node.RuntimeSession("smoke-runtime").ReplaceAsync(new AetheriaRuntimeSession
     {
@@ -625,11 +629,16 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
     var operationsSurface = await reopened.OperationsSurface().ReadAsync();
     var playerSettingsSurface = await reopened.PlayerSettingsSurface().ReadAsync();
     var advertisement = await reopened.ProviderAdvertisementSurface().ReadAsync();
-    var daemonProvider = await reopened.ProviderAdvertisement().ReadAsync();
-    var daemonHealth = await reopened.Health().ReadAsync();
-    var daemonCommandBoundary = await reopened.CommandBoundary().ReadAsync();
-    var daemonFrame = await reopened.LatestFrame().ReadAsync();
-    var daemonGameSurface = await reopened.DaemonGameSurface().ReadAsync();
+    var daemonProvider = await reopened.MutableDocument<AetheriaRuntimeDaemonProviderAdvertisementDocument>(AetheriaRuntimeVerseRecordKeys.DaemonProviderAdvertisement)
+        .ReadAsync();
+    var daemonHealth = await reopened.MutableDocument<AetheriaRuntimeDaemonHealthDocument>(AetheriaRuntimeVerseRecordKeys.DaemonHealth)
+        .ReadAsync();
+    var daemonCommandBoundary = await reopened.MutableDocument<AetheriaRuntimeDaemonCommandBoundaryDocument>(AetheriaRuntimeVerseRecordKeys.DaemonCommandBoundary)
+        .ReadAsync();
+    var daemonFrame = await reopened.MutableDocument<AetheriaRuntimeDaemonFrameDocument>(AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest)
+        .ReadAsync();
+    var daemonGameSurface = await reopened.MutableDocument<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonGameSurface)
+        .ReadAsync();
     var runtimeSession = await reopened.RuntimeSession("smoke-runtime").ReadAsync();
     var playerSettings = await reopened.PlayerSettings().ReadAsync();
     var loadout = await reopened.LoadoutTemplate(loadoutKey).ReadAsync();

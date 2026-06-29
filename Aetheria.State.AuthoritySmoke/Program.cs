@@ -645,13 +645,13 @@ internal sealed class AuthoritySmokeChecks
             await writer.Database
                 .PutAsync(AetheriaRuntimeVerseRecordKeys.DaemonHealth, health)
                 .ConfigureAwait(false);
-            await writer.VerseAuthorityPolicy()
+            await writer.MutableDocument<AetheriaRuntimeVerseAuthorityPolicyDocument>(AetheriaRuntimeVerseRecordKeys.VerseAuthorityPolicy)
                 .ReplaceAsync(policy)
                 .ConfigureAwait(false);
-            await writer.StarbridgeScenario()
+            await writer.MutableDocument<AetheriaRuntimeStarbridgeScenarioDocument>(AetheriaRuntimeVerseRecordKeys.StarbridgeScenarioLatest)
                 .ReplaceAsync(scenario)
                 .ConfigureAwait(false);
-            await writer.StarbridgeSession()
+            await writer.MutableDocument<AetheriaRuntimeStarbridgeSessionDocument>(AetheriaRuntimeVerseRecordKeys.StarbridgeSessionLatest)
                 .ReplaceAsync(session)
                 .ConfigureAwait(false);
             await writer.FlushAsync().ConfigureAwait(false);
@@ -773,15 +773,15 @@ internal sealed class AuthoritySmokeChecks
             startServer: false,
             enableDurableShardLogs: false).ConfigureAwait(false);
 
-        await ravenNode.VerseAuthorityPolicy()
+        await ravenNode.MutableDocument<AetheriaRuntimeVerseAuthorityPolicyDocument>(AetheriaRuntimeVerseRecordKeys.VerseAuthorityPolicy)
             .ReplaceAsync(policy)
             .ConfigureAwait(false);
-        await starfireNode.VerseAuthorityPolicy()
+        await starfireNode.MutableDocument<AetheriaRuntimeVerseAuthorityPolicyDocument>(AetheriaRuntimeVerseRecordKeys.VerseAuthorityPolicy)
             .ReplaceAsync(policy)
             .ConfigureAwait(false);
 
-        var ravenPolicy = await ravenNode.VerseAuthorityPolicy().ReadAsync().ConfigureAwait(false);
-        var starfirePolicy = await starfireNode.VerseAuthorityPolicy().ReadAsync().ConfigureAwait(false);
+        var ravenPolicy = await ravenNode.MutableDocument<AetheriaRuntimeVerseAuthorityPolicyDocument>(AetheriaRuntimeVerseRecordKeys.VerseAuthorityPolicy).ReadAsync().ConfigureAwait(false);
+        var starfirePolicy = await starfireNode.MutableDocument<AetheriaRuntimeVerseAuthorityPolicyDocument>(AetheriaRuntimeVerseRecordKeys.VerseAuthorityPolicy).ReadAsync().ConfigureAwait(false);
 
         Require(ravenPolicy != null, "raven node should load authority policy");
         Require(starfirePolicy != null, "starfire node should load authority policy");
@@ -1117,14 +1117,14 @@ internal sealed class AuthoritySmokeChecks
             startServer: false,
             enableDurableShardLogs: false).ConfigureAwait(false);
 
-        await node.VerseAuthorityPolicy()
+        await node.MutableDocument<AetheriaRuntimeVerseAuthorityPolicyDocument>(AetheriaRuntimeVerseRecordKeys.VerseAuthorityPolicy)
             .ReplaceAsync(policy)
             .ConfigureAwait(false);
         foreach (var command in commands)
             await node.SubmitDaemonCommandAsync(command).ConfigureAwait(false);
         await node.FlushAsync().ConfigureAwait(false);
 
-        await node.LatestFrame()
+        await node.MutableDocument<AetheriaRuntimeDaemonFrameDocument>(AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest)
             .ReplaceAsync(AetheriaRuntimeDaemonFrameDocument.Create(
                 InitialCoopRun(),
                 runtimeId,
@@ -1332,7 +1332,7 @@ internal sealed class AuthoritySmokeChecks
                     runtimeId,
                     startServer: false,
                     enableDurableShardLogs: false).ConfigureAwait(false);
-                var frame = await node.LatestFrame().ReadAsync().ConfigureAwait(false);
+                var frame = await node.MutableDocument<AetheriaRuntimeDaemonFrameDocument>(AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest).ReadAsync().ConfigureAwait(false);
                 if (frame != null)
                 {
                     lastFrame = frame;
@@ -1459,7 +1459,7 @@ internal sealed class AuthoritySmokeChecks
             runtimeId,
             startServer: false,
             enableDurableShardLogs: false).ConfigureAwait(false);
-        return await node.LatestFrame().ReadAsync().ConfigureAwait(false);
+        return await node.MutableDocument<AetheriaRuntimeDaemonFrameDocument>(AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest).ReadAsync().ConfigureAwait(false);
     }
 
     private static string ProcessDiagnostics(IReadOnlyList<Process> childProcesses)

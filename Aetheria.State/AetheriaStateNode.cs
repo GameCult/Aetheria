@@ -89,6 +89,12 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
             routeHint: new CultMeshRouteHint(CultMeshLocalityKind.SharedMemory, "Aetheria typed state node document"));
     }
 
+    public CultMeshMutableStatePointer<TDocument> MutableDocument<TDocument>(CultRecordKey key)
+        where TDocument : class
+    {
+        return MutableDocumentPointer<TDocument>(key);
+    }
+
     public CultMeshDocumentHandle<AetheriaRuntimeCatalogSnapshot> RuntimeCatalog()
     {
         return _runtimeCatalog ??= CultMesh.Document(
@@ -108,80 +114,6 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
                     "managed Aetheria runtime catalog document")
             },
             routeHint: new CultMeshRouteHint(CultMeshLocalityKind.SharedMemory, "Aetheria typed catalog state"));
-    }
-
-    public CultMeshMutableStatePointer<AetheriaRuntimeDaemonProviderAdvertisementDocument> ProviderAdvertisement()
-    {
-        return MutableDocumentPointer<AetheriaRuntimeDaemonProviderAdvertisementDocument>(
-            AetheriaRuntimeVerseRecordKeys.DaemonProviderAdvertisement);
-    }
-
-    public CultMeshMutableStatePointer<AetheriaRuntimeDaemonHealthDocument> Health()
-    {
-        return MutableDocumentPointer<AetheriaRuntimeDaemonHealthDocument>(
-            AetheriaRuntimeVerseRecordKeys.DaemonHealth);
-    }
-
-    public CultMeshMutableStatePointer<AetheriaRuntimeDaemonCommandBoundaryDocument> CommandBoundary()
-    {
-        return MutableDocumentPointer<AetheriaRuntimeDaemonCommandBoundaryDocument>(
-            AetheriaRuntimeVerseRecordKeys.DaemonCommandBoundary);
-    }
-
-    public CultMeshMutableStatePointer<AetheriaRuntimeVerseAuthorityPolicyDocument> VerseAuthorityPolicy()
-    {
-        return MutableDocumentPointer<AetheriaRuntimeVerseAuthorityPolicyDocument>(
-            AetheriaRuntimeVerseRecordKeys.VerseAuthorityPolicy);
-    }
-
-    public CultMeshMutableStatePointer<AetheriaRuntimeDaemonFrameDocument> LatestFrame()
-    {
-        return MutableDocumentPointer<AetheriaRuntimeDaemonFrameDocument>(
-            AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest);
-    }
-
-    public CultMeshMutableStatePointer<AetheriaRuntimeDaemonSoaViewDocument> LatestSoaView()
-    {
-        return MutableDocumentPointer<AetheriaRuntimeDaemonSoaViewDocument>(
-            AetheriaRuntimeVerseRecordKeys.DaemonSoaViewLatest);
-    }
-
-    public CultMeshMutableStatePointer<AetheriaRuntimeStarbridgeScenarioDocument> StarbridgeScenario()
-    {
-        return MutableDocumentPointer<AetheriaRuntimeStarbridgeScenarioDocument>(
-            AetheriaRuntimeVerseRecordKeys.StarbridgeScenarioLatest);
-    }
-
-    public CultMeshMutableStatePointer<AetheriaRuntimeStarbridgeSessionDocument> StarbridgeSession()
-    {
-        return MutableDocumentPointer<AetheriaRuntimeStarbridgeSessionDocument>(
-            AetheriaRuntimeVerseRecordKeys.StarbridgeSessionLatest);
-    }
-
-    public CultMeshMutableStatePointer<AetheriaRuntimeStarbridgeSessionSummaryDocument> StarbridgeSessionSummary()
-    {
-        return MutableDocumentPointer<AetheriaRuntimeStarbridgeSessionSummaryDocument>(
-            AetheriaRuntimeVerseRecordKeys.StarbridgeSessionSummary);
-    }
-
-    public CultMeshMutableStatePointer<EveSurfaceState> DaemonGameSurface()
-    {
-        return MutableDocumentPointer<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonGameSurface);
-    }
-
-    public CultMeshMutableStatePointer<EveSurfaceState> DaemonGameTuiSurface()
-    {
-        return MutableDocumentPointer<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonGameTuiSurface);
-    }
-
-    public CultMeshMutableStatePointer<EveSurfaceState> DaemonEditorSurface()
-    {
-        return MutableDocumentPointer<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonEditorSurface);
-    }
-
-    public CultMeshMutableStatePointer<EveSurfaceState> DaemonEditorTuiSurface()
-    {
-        return MutableDocumentPointer<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonEditorTuiSurface);
     }
 
     public CultMeshMutableStatePointer<EveSurfaceState> CatalogSurface()
