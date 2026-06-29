@@ -4236,7 +4236,8 @@ static void RequireRuntimeInputScreenUsesEveSurface(string root)
         "AetheriaRuntimeEveCommandKind.SetActionBarEnabled",
         "RequireLocalStateBoot()",
         "AetheriaUnityRuntimeClientProvider",
-        ".ReactivePlayerSettingsDocument(",
+        ".RuntimeState(RequireLocalStateBoot(), \"unity-input-screen\")",
+        ".CurrentPlayerSettings()",
         "action.ApplyBindingOverride",
         "new InputAction(\"Aetheria Input Capture\")",
         "AetheriaRuntimeInputSettingsSurfaceBuilder.IsSupportedCapturePath(",
@@ -4255,17 +4256,13 @@ static void RequireRuntimeInputScreenUsesEveSurface(string root)
             string.Join(", ", missingInputScreenSymbols));
     }
 
-    RequireReactiveTypedDocumentAccess(
-        inputScreen,
-        "InputDisplayLayout",
-        "AetheriaRuntimePlayerSettingsDocument",
-        "_playerSettings",
-        ".ReactivePlayerSettingsDocument(",
-        "AetheriaRuntimePlayerSettingsSession",
-        ".ObservePlayer()");
-
     var forbiddenInputScreenSymbols = new[]
     {
+        "CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument>",
+        ".ReactivePlayerSettingsDocument(",
+        "AetheriaRuntimePlayerSettingsSession",
+        ".ObservePlayer()",
+        "ClearClientCaches()",
         "OnPointerClickAsObservable",
         "BeginDragTrigger",
         "EndDragTrigger",
@@ -7884,7 +7881,7 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
     if (missingMainMenuSharedDocumentSymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "MainMenu should bind sector, player, and Verse host state through managed reactive Aetheria documents: " +
+            "MainMenu should sample sector, player, and Verse host state through named current typed Aetheria documents: " +
             string.Join(", ", missingMainMenuSharedDocumentSymbols));
     }
 
