@@ -110,7 +110,7 @@ var ledger = await node.MigrationLedger().ReadAsync()
     ?? throw new InvalidOperationException("Missing typed migration ledger.");
 var quarantine = await node.LegacyCatalogQuarantine().ReadAsync()
     ?? throw new InvalidOperationException("Missing legacy catalog quarantine document.");
-var publishedSurface = await node.CatalogSurface().ReadAsync()
+var publishedSurface = await node.MutableDocument<EveSurfaceState>(AetheriaStateNode.CatalogSurfaceKey).ReadAsync()
     ?? throw new InvalidOperationException("Missing Aetheria catalog Eve surface document.");
 
 var items = node.Cache.GetAll<AetheriaItemDefinition>().ToArray();
@@ -118,7 +118,7 @@ var corporations = node.Cache.GetAll<AetheriaCorporation>().ToArray();
 var nameFiles = node.Cache.GetAll<AetheriaNameFile>().ToArray();
 var catalog = await node.RuntimeCatalog().LatestAsync().ConfigureAwait(false);
 var surface = AetheriaCatalogSurfaceProjector.Build(catalog, DateTimeOffset.UtcNow.ToString("O"));
-var tradeValuePolicy = await node.TradeValuePolicy().ReadAsync()
+var tradeValuePolicy = await node.MutableDocument<AetheriaTradeValuePolicy>(AetheriaStateNode.TradeValuePolicyKey).ReadAsync()
     ?? throw new InvalidOperationException("Missing authored trade value policy document.");
 await RequireTradeValuePolicyEveCommandPersistsAsync();
 var runtimeCatalog = catalog;
@@ -146,7 +146,6 @@ if (nameFiles.Any(nameFile => nameFile.Names.Length == 0 || nameFile.Names.Lengt
 {
     throw new InvalidOperationException("Typed name files did not import their full name arrays.");
 }
-
 if (tradeValuePolicy.QualityPriceModifier == null ||
     tradeValuePolicy.QualityPriceModifier.Exponent <= 0 ||
     tradeValuePolicy.QualityPriceModifier.Maximum <= tradeValuePolicy.QualityPriceModifier.Minimum ||
@@ -6809,7 +6808,7 @@ static void RequirePlayerSettingsEveSurface(string root)
 
     if (!bridge.Contains("AcceptedPlayerSettingsCommands", StringComparison.Ordinal) ||
         !bridge.Contains("ExecutePlayerSettingsCommandAsync", StringComparison.Ordinal) ||
-        !bridge.Contains("PlayerSettingsSurface()", StringComparison.Ordinal) ||
+        !bridge.Contains("MutableDocument<EveSurfaceState>(AetheriaStateNode.PlayerSettingsSurfaceKey)", StringComparison.Ordinal) ||
         !bridge.Contains(".ReplaceAsync(AetheriaPlayerSettingsSurfaceProjector.Build", StringComparison.Ordinal) ||
         !bridge.Contains("SetPlayerName", StringComparison.Ordinal) ||
         !bridge.Contains("command.PlayerSettings.PlayerName", StringComparison.Ordinal))
@@ -6825,12 +6824,19 @@ static void RequirePlayerSettingsEveSurface(string root)
             "Provider advertisement no longer publishes the player-settings Eve surface and commands.");
     }
 
-    if (!daemonHost.Contains("PlayerSettingsSurface()", StringComparison.Ordinal) ||
+    if (!daemonHost.Contains("MutableDocument<EveSurfaceState>(AetheriaStateNode.PlayerSettingsSurfaceKey)", StringComparison.Ordinal) ||
         !daemonHost.Contains(".ReplaceAsync(AetheriaPlayerSettingsSurfaceProjector.Build", StringComparison.Ordinal) ||
         !daemonHost.Contains("AetheriaPlayerSettingsSurfaceProjector.Build", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "Aetheria.State.Daemon no longer republishes the provider-owned player-settings Eve surface.");
+    }
+
+    if (bridge.Contains("PlayerSettingsSurface()", StringComparison.Ordinal) ||
+        daemonHost.Contains("PlayerSettingsSurface()", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Player-settings Eve publication still uses named AetheriaStateNode surface helpers instead of generic mutable typed documents.");
     }
 
     if (!sharedCommands.Contains("SurfaceId = \"aetheria.player_settings\"", StringComparison.Ordinal) ||
@@ -8626,14 +8632,29 @@ static void RequireVerseHostSettingsAuthority(string root)
             "Aetheria document registry does not register typed verse-host settings.");
     }
 
-    if (!node.Contains("public CultMeshMutableStatePointer<AetheriaVerseHostSettings> VerseHostSettings()", StringComparison.Ordinal) ||
-        !node.Contains("public CultMeshMutableStatePointer<AetheriaPlayerSettings> PlayerSettings()", StringComparison.Ordinal) ||
-        !node.Contains("public CultMeshMutableStatePointer<AetheriaEveCommandAcceptanceStatus> EveCommandAcceptanceStatus()", StringComparison.Ordinal) ||
+    if (!node.Contains("public CultMeshMutableStatePointer<TDocument> MutableDocument<TDocument>(CultRecordKey key)", StringComparison.Ordinal) ||
+        !node.Contains("public static CultRecordKey VerseHostSettingsKey", StringComparison.Ordinal) ||
+        !node.Contains("public static CultRecordKey PlayerSettingsKey", StringComparison.Ordinal) ||
+        !node.Contains("public static CultRecordKey EveCommandAcceptanceStatusKey", StringComparison.Ordinal) ||
         !node.Contains("public CultMeshNode MeshNode => _node;", StringComparison.Ordinal) ||
         !node.Contains("global:aetheria.verse_host_settings.v1", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "Aetheria state node does not expose typed verse-host/settings managed state pointers.");
+    }
+
+    if (node.Contains("public CultMeshMutableStatePointer<AetheriaVerseHostSettings> VerseHostSettings()", StringComparison.Ordinal) ||
+        node.Contains("public CultMeshMutableStatePointer<AetheriaPlayerSettings> PlayerSettings()", StringComparison.Ordinal) ||
+        node.Contains("public CultMeshMutableStatePointer<AetheriaEveCommandAcceptanceStatus> EveCommandAcceptanceStatus()", StringComparison.Ordinal) ||
+        node.Contains("public CultMeshMutableStatePointer<EveSurfaceState> CatalogSurface()", StringComparison.Ordinal) ||
+        node.Contains("public CultMeshMutableStatePointer<EveSurfaceState> OperationsSurface()", StringComparison.Ordinal) ||
+        node.Contains("public CultMeshMutableStatePointer<EveSurfaceState> PlayerSettingsSurface()", StringComparison.Ordinal) ||
+        node.Contains("public CultMeshMutableStatePointer<EveProviderAdvertisementState> ProviderAdvertisementSurface()", StringComparison.Ordinal) ||
+        node.Contains("public CultMeshMutableStatePointer<AetheriaRuntimeSession> RuntimeSession(", StringComparison.Ordinal) ||
+        node.Contains("public CultMeshMutableStatePointer<AetheriaTradeValuePolicy> TradeValuePolicy()", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Aetheria state node still exposes named document helpers instead of generic mutable typed document access.");
     }
 
     var forbiddenHardcodedProviderSymbols = new[]
@@ -8677,8 +8698,8 @@ static void RequireVerseHostSettingsAuthority(string root)
         "discoveryHost.Update",
         "ReadOption(args, \"--verse-id\")",
         "ReadOption(args, \"--cultmesh-address\")",
-        "node.VerseHostSettings().ReadAsync()",
-        "node.VerseHostSettings()",
+        "node.MutableDocument<AetheriaVerseHostSettings>(AetheriaStateNode.VerseHostSettingsKey).ReadAsync()",
+        "node.MutableDocument<AetheriaVerseHostSettings>(AetheriaStateNode.VerseHostSettingsKey)",
         ".ReplaceAsync(normalized)",
         "AetheriaProviderAdvertisementProjector.Build(verseHost, node.StatePath, updatedAtUtc)"
     };
@@ -9675,9 +9696,9 @@ static void RequireVerseSettingsShellAndBridge(string root)
         "AetheriaRuntimeEveCommandKind.VerseHostRefresh",
         "AetheriaRuntimeEveCommandKind.CycleVerseHostVisibility",
         "ExecuteVerseHostCommandAsync",
-        "node.VerseHostSettings()",
+        "node.MutableDocument<AetheriaVerseHostSettings>(AetheriaStateNode.VerseHostSettingsKey)",
         ".ReplaceAsync(normalized)",
-        "node.ProviderAdvertisementSurface()",
+        "node.MutableDocument<EveProviderAdvertisementState>(AetheriaStateNode.ProviderAdvertisementSurfaceKey)",
         "AetheriaOperationsSurfaceProjector.Build(",
         "switch (command.Kind)"
     };
@@ -10944,13 +10965,13 @@ static void RequireDaemonVersePublication(string root)
         "ReadObservedDaemonCommands()",
         "currentFrame?.AccountedCommandIds ?? Array.Empty<string>()",
         "AetheriaRuntimeDaemonTickRunner.Tick(",
-        "node.EveCommandAcceptanceStatus().ReadAsync()",
-        "node.EveCommandAcceptanceStatus()",
-        "node.RuntimeSession(options.DaemonId)",
-        "node.PlayerSettings().ReadAsync()",
-        "node.OperationsSurface()",
-        "node.PlayerSettingsSurface()",
-        "node.ProviderAdvertisementSurface()",
+        "node.MutableDocument<AetheriaEveCommandAcceptanceStatus>(AetheriaStateNode.EveCommandAcceptanceStatusKey).ReadAsync()",
+        "node.MutableDocument<AetheriaEveCommandAcceptanceStatus>(AetheriaStateNode.EveCommandAcceptanceStatusKey)",
+        "node.MutableDocument<AetheriaRuntimeSession>(AetheriaStateNode.RuntimeSessionKey(options.DaemonId))",
+        "node.MutableDocument<AetheriaPlayerSettings>(AetheriaStateNode.PlayerSettingsKey).ReadAsync()",
+        "node.MutableDocument<EveSurfaceState>(AetheriaStateNode.OperationsSurfaceKey)",
+        "node.MutableDocument<EveSurfaceState>(AetheriaStateNode.PlayerSettingsSurfaceKey)",
+        "node.MutableDocument<EveProviderAdvertisementState>(AetheriaStateNode.ProviderAdvertisementSurfaceKey)",
         "AetheriaProviderAdvertisementProjector.Build(verseHost, node.StatePath, updatedAtUtc)",
         "AetheriaOperationsSurfaceProjector.Build(eveStatus, verseHost, runtimeSession)",
         "AetheriaPlayerSettingsSurfaceProjector.Build(playerSettings, playerSettingsUpdatedAt)",
@@ -12276,7 +12297,7 @@ static void RequireTypedEveCommandBodies(string root)
         "command.TradeValuePolicy.Value",
         "command.TradeValuePolicy.TierIndex",
         "ExecuteTradeValuePolicyCommandAsync(",
-        "TradeValuePolicy()",
+        "MutableDocument<AetheriaTradeValuePolicy>(AetheriaStateNode.TradeValuePolicyKey)",
         "SubmitInputSettingsCommandAsync(",
         "SubmitLoadoutTemplateCommandAsync(",
         "SubmitKnownSurfaceCommandAsync(",
@@ -12327,6 +12348,12 @@ static void RequireTypedEveCommandBodies(string root)
     {
         throw new InvalidOperationException(
             "Eve command acceptance report still exposes path vocabulary instead of command-id receipts.");
+    }
+
+    if (typedCommandSources.Contains("TradeValuePolicy()", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Eve command handling still uses the named trade-value policy helper instead of generic mutable typed document access.");
     }
 
     var missingTypedCommandSymbols = requiredTypedCommandSymbols
@@ -15232,7 +15259,7 @@ static async Task RequireTradeValuePolicyEveCommandPersistsAsync()
         var policy = AetheriaRuntimeStateMapper.ToTradeValuePolicy(
             AetheriaRuntimeTradeValueSettings.Default,
             DateTimeOffset.UtcNow.ToString("O"));
-        await commandNode.TradeValuePolicy()
+        await commandNode.MutableDocument<AetheriaTradeValuePolicy>(AetheriaStateNode.TradeValuePolicyKey)
             .ReplaceAsync(policy)
             .ConfigureAwait(false);
         var originalMinimum = policy.QualityPriceModifier?.Minimum ?? 0;
@@ -15255,7 +15282,7 @@ static async Task RequireTradeValuePolicyEveCommandPersistsAsync()
                 "Trade value policy Eve command was not accepted by the typed command bridge.");
         }
 
-        var editedPolicy = await commandNode.TradeValuePolicy().ReadAsync().ConfigureAwait(false)
+        var editedPolicy = await commandNode.MutableDocument<AetheriaTradeValuePolicy>(AetheriaStateNode.TradeValuePolicyKey).ReadAsync().ConfigureAwait(false)
             ?? throw new InvalidOperationException("Trade value policy disappeared after typed Eve command.");
         var actualMinimum = editedPolicy.QualityPriceModifier?.Minimum ?? 0;
         if (Math.Abs(actualMinimum - editedMinimum) > 0.000001)

@@ -19,7 +19,6 @@ public sealed class AetheriaEveCommandAcceptanceReport
     public string LastRejectedCommand { get; set; } = "";
     public string LastRejectedReason { get; set; } = "";
 }
-
 public static class AetheriaEveCommandBridge
 {
     public const string CommandSchema = "gamecult.eve.command.v1";
@@ -49,17 +48,17 @@ public static class AetheriaEveCommandBridge
             {
                 case AetheriaRuntimeEveCommandKind.CatalogRefresh:
                     var catalog = await node.RuntimeCatalog().LatestAsync().ConfigureAwait(false);
-                    await node.CatalogSurface()
+                    await node.MutableDocument<EveSurfaceState>(AetheriaStateNode.CatalogSurfaceKey)
                         .ReplaceAsync(AetheriaCatalogSurfaceProjector.Build(catalog, command.IssuedAtUtc))
                         .ConfigureAwait(false);
                     report.AcceptedCatalogRefreshes++;
                     break;
                 case AetheriaRuntimeEveCommandKind.OperationsRefresh:
-                    var eveStatus = await node.EveCommandAcceptanceStatus().ReadAsync().ConfigureAwait(false) ??
+                    var eveStatus = await node.MutableDocument<AetheriaEveCommandAcceptanceStatus>(AetheriaStateNode.EveCommandAcceptanceStatusKey).ReadAsync().ConfigureAwait(false) ??
                         EmptyEveCommandAcceptanceStatus(node.StatePath, command.IssuedAtUtc);
-                    var verseHostSettings = await node.VerseHostSettings().ReadAsync().ConfigureAwait(false);
-                    var runtimeSession = await node.RuntimeSession(eveStatus.RuntimeId).ReadAsync().ConfigureAwait(false);
-                    await node.OperationsSurface()
+                    var verseHostSettings = await node.MutableDocument<AetheriaVerseHostSettings>(AetheriaStateNode.VerseHostSettingsKey).ReadAsync().ConfigureAwait(false);
+                    var runtimeSession = await node.MutableDocument<AetheriaRuntimeSession>(AetheriaStateNode.RuntimeSessionKey(eveStatus.RuntimeId)).ReadAsync().ConfigureAwait(false);
+                    await node.MutableDocument<EveSurfaceState>(AetheriaStateNode.OperationsSurfaceKey)
                         .ReplaceAsync(AetheriaOperationsSurfaceProjector.Build(
                             eveStatus,
                             verseHostSettings,
@@ -135,7 +134,7 @@ public static class AetheriaEveCommandBridge
         AetheriaStateNode node,
         AetheriaRuntimeEveCommandDocument command)
     {
-        var settings = await node.PlayerSettings().ReadAsync().ConfigureAwait(false) ?? new AetheriaPlayerSettings();
+        var settings = await node.MutableDocument<AetheriaPlayerSettings>(AetheriaStateNode.PlayerSettingsKey).ReadAsync().ConfigureAwait(false) ?? new AetheriaPlayerSettings();
         settings.Gameplay ??= new AetheriaPlayerGameplaySettings();
         settings.Graphics ??= new AetheriaPlayerGraphicsSettings();
         var persistSettings = false;
@@ -181,12 +180,12 @@ public static class AetheriaEveCommandBridge
         if (persistSettings)
         {
             settings.LastUpdatedAtUtc = command.IssuedAtUtc;
-            await node.PlayerSettings()
+            await node.MutableDocument<AetheriaPlayerSettings>(AetheriaStateNode.PlayerSettingsKey)
                 .ReplaceAsync(settings)
                 .ConfigureAwait(false);
         }
 
-        await node.PlayerSettingsSurface()
+        await node.MutableDocument<EveSurfaceState>(AetheriaStateNode.PlayerSettingsSurfaceKey)
             .ReplaceAsync(AetheriaPlayerSettingsSurfaceProjector.Build(settings, command.IssuedAtUtc))
             .ConfigureAwait(false);
     }
@@ -195,7 +194,7 @@ public static class AetheriaEveCommandBridge
         AetheriaStateNode node,
         AetheriaRuntimeEveCommandDocument command)
     {
-        var settings = await node.PlayerSettings().ReadAsync().ConfigureAwait(false) ?? new AetheriaPlayerSettings();
+        var settings = await node.MutableDocument<AetheriaPlayerSettings>(AetheriaStateNode.PlayerSettingsKey).ReadAsync().ConfigureAwait(false) ?? new AetheriaPlayerSettings();
         settings.Input ??= new AetheriaPlayerInputSettings();
         var persistSettings = false;
 
@@ -246,7 +245,7 @@ public static class AetheriaEveCommandBridge
         if (persistSettings)
         {
             settings.LastUpdatedAtUtc = command.IssuedAtUtc;
-            await node.PlayerSettings()
+            await node.MutableDocument<AetheriaPlayerSettings>(AetheriaStateNode.PlayerSettingsKey)
                 .ReplaceAsync(settings)
                 .ConfigureAwait(false);
         }
@@ -256,7 +255,7 @@ public static class AetheriaEveCommandBridge
         AetheriaStateNode node,
         AetheriaRuntimeEveCommandDocument command)
     {
-        var settings = await node.VerseHostSettings().ReadAsync().ConfigureAwait(false) ?? new AetheriaVerseHostSettings();
+        var settings = await node.MutableDocument<AetheriaVerseHostSettings>(AetheriaStateNode.VerseHostSettingsKey).ReadAsync().ConfigureAwait(false) ?? new AetheriaVerseHostSettings();
         var normalized = AetheriaVerseHostSettingsNormalizer.Normalize(settings);
         var persistSettings = false;
 
@@ -271,22 +270,22 @@ public static class AetheriaEveCommandBridge
         if (persistSettings)
         {
             normalized.LastUpdatedAtUtc = command.IssuedAtUtc;
-            await node.VerseHostSettings()
+            await node.MutableDocument<AetheriaVerseHostSettings>(AetheriaStateNode.VerseHostSettingsKey)
                 .ReplaceAsync(normalized)
                 .ConfigureAwait(false);
         }
 
-        var eveStatus = await node.EveCommandAcceptanceStatus().ReadAsync().ConfigureAwait(false) ??
+        var eveStatus = await node.MutableDocument<AetheriaEveCommandAcceptanceStatus>(AetheriaStateNode.EveCommandAcceptanceStatusKey).ReadAsync().ConfigureAwait(false) ??
             EmptyEveCommandAcceptanceStatus(node.StatePath, command.IssuedAtUtc);
-        var runtimeSession = await node.RuntimeSession(eveStatus.RuntimeId).ReadAsync().ConfigureAwait(false);
+        var runtimeSession = await node.MutableDocument<AetheriaRuntimeSession>(AetheriaStateNode.RuntimeSessionKey(eveStatus.RuntimeId)).ReadAsync().ConfigureAwait(false);
 
-        await node.OperationsSurface()
+        await node.MutableDocument<EveSurfaceState>(AetheriaStateNode.OperationsSurfaceKey)
             .ReplaceAsync(AetheriaOperationsSurfaceProjector.Build(
                 eveStatus,
                 normalized,
                 runtimeSession))
             .ConfigureAwait(false);
-        await node.ProviderAdvertisementSurface()
+        await node.MutableDocument<EveProviderAdvertisementState>(AetheriaStateNode.ProviderAdvertisementSurfaceKey)
             .ReplaceAsync(AetheriaProviderAdvertisementProjector.Build(normalized, node.StatePath, command.IssuedAtUtc))
             .ConfigureAwait(false);
     }
@@ -307,7 +306,7 @@ public static class AetheriaEveCommandBridge
         AetheriaStateNode node,
         AetheriaRuntimeEveCommandDocument command)
     {
-        var tradeValuePolicy = node.TradeValuePolicy();
+        var tradeValuePolicy = node.MutableDocument<AetheriaTradeValuePolicy>(AetheriaStateNode.TradeValuePolicyKey);
         var policy = await tradeValuePolicy.ReadAsync().ConfigureAwait(false) ??
             AetheriaRuntimeStateMapper.ToTradeValuePolicy(
                 AetheriaRuntimeTradeValueSettings.Default,

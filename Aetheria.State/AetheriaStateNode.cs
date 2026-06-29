@@ -116,47 +116,6 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
             routeHint: new CultMeshRouteHint(CultMeshLocalityKind.SharedMemory, "Aetheria typed catalog state"));
     }
 
-    public CultMeshMutableStatePointer<EveSurfaceState> CatalogSurface()
-    {
-        return MutableDocumentPointer<EveSurfaceState>(new CultRecordKey(AetheriaCatalogSurfaceProjector.SurfaceKey));
-    }
-
-    public CultMeshMutableStatePointer<EveSurfaceState> OperationsSurface()
-    {
-        return MutableDocumentPointer<EveSurfaceState>(new CultRecordKey(AetheriaOperationsSurfaceProjector.SurfaceKey));
-    }
-
-    public CultMeshMutableStatePointer<EveSurfaceState> PlayerSettingsSurface()
-    {
-        return MutableDocumentPointer<EveSurfaceState>(new CultRecordKey(AetheriaPlayerSettingsSurfaceProjector.SurfaceKey));
-    }
-
-    public CultMeshMutableStatePointer<EveProviderAdvertisementState> ProviderAdvertisementSurface()
-    {
-        return MutableDocumentPointer<EveProviderAdvertisementState>(
-            new CultRecordKey(AetheriaProviderAdvertisementProjector.AdvertisementKey));
-    }
-
-    public CultMeshMutableStatePointer<AetheriaRuntimeSession> RuntimeSession(string runtimeId)
-    {
-        return MutableDocumentPointer<AetheriaRuntimeSession>(RuntimeSessionKey(runtimeId));
-    }
-
-    public CultMeshMutableStatePointer<AetheriaPlayerSettings> PlayerSettings()
-    {
-        return MutableDocumentPointer<AetheriaPlayerSettings>(PlayerSettingsKey);
-    }
-
-    public CultMeshMutableStatePointer<AetheriaVerseHostSettings> VerseHostSettings()
-    {
-        return MutableDocumentPointer<AetheriaVerseHostSettings>(VerseHostSettingsKey);
-    }
-
-    public CultMeshMutableStatePointer<AetheriaEveCommandAcceptanceStatus> EveCommandAcceptanceStatus()
-    {
-        return MutableDocumentPointer<AetheriaEveCommandAcceptanceStatus>(EveCommandAcceptanceStatusKey);
-    }
-
     public CultMeshMutableStatePointer<AetheriaWorldState> World()
     {
         return MutableDocumentPointer<AetheriaWorldState>(new CultRecordKey("global:aetheria.world_state.v1"));
@@ -202,12 +161,6 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
     public CultMeshMutableStatePointer<AetheriaNameFile> NameFileByLegacyId(string legacyId)
     {
         return NameFile(AetheriaCatalogKeys.NameFileFromLegacyId(legacyId));
-    }
-
-    public CultMeshMutableStatePointer<AetheriaTradeValuePolicy> TradeValuePolicy()
-    {
-        return MutableDocumentPointer<AetheriaTradeValuePolicy>(
-            new CultRecordKey(AetheriaTradeValuePolicy.RecordKey));
     }
 
     public CultMeshMutableStatePointer<AetheriaLoadoutTemplate> LoadoutTemplate(CultRecordKey key)
@@ -334,19 +287,34 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
         return string.IsNullOrWhiteSpace(token) ? "empty" : token;
     }
 
-    private static CultRecordKey RuntimeSessionKey(string runtimeId)
+    public static CultRecordKey RuntimeSessionKey(string runtimeId)
     {
         return new CultRecordKey($"runtime:{runtimeId}:aetheria.runtime_session.v1");
     }
 
-    private static CultRecordKey PlayerSettingsKey { get; } =
+    public static CultRecordKey CatalogSurfaceKey { get; } =
+        new(AetheriaCatalogSurfaceProjector.SurfaceKey);
+
+    public static CultRecordKey OperationsSurfaceKey { get; } =
+        new(AetheriaOperationsSurfaceProjector.SurfaceKey);
+
+    public static CultRecordKey PlayerSettingsSurfaceKey { get; } =
+        new(AetheriaPlayerSettingsSurfaceProjector.SurfaceKey);
+
+    public static CultRecordKey ProviderAdvertisementSurfaceKey { get; } =
+        new(AetheriaProviderAdvertisementProjector.AdvertisementKey);
+
+    public static CultRecordKey PlayerSettingsKey { get; } =
         new("global:aetheria.player_settings.v1");
 
-    private static CultRecordKey VerseHostSettingsKey { get; } =
+    public static CultRecordKey VerseHostSettingsKey { get; } =
         new("global:aetheria.verse_host_settings.v1");
 
-    private static CultRecordKey EveCommandAcceptanceStatusKey { get; } =
+    public static CultRecordKey EveCommandAcceptanceStatusKey { get; } =
         new("global:aetheria.eve_command_acceptance_status.v1");
+
+    public static CultRecordKey TradeValuePolicyKey { get; } =
+        new(AetheriaTradeValuePolicy.RecordKey);
 
     private CultMeshMutableStatePointer<T> MutableDocumentPointer<T>(CultRecordKey key) where T : class
     {

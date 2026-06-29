@@ -94,17 +94,17 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
 
     await node.FlushAsync();
     var runtimeCatalog = await node.RuntimeCatalog().LatestAsync().ConfigureAwait(false);
-    await node.CatalogSurface()
+    await node.MutableDocument<EveSurfaceState>(AetheriaStateNode.CatalogSurfaceKey)
         .ReplaceAsync(AetheriaCatalogSurfaceProjector.Build(runtimeCatalog, now));
 
     var verseHostSettings = AetheriaVerseHostSettingsNormalizer.Normalize(new AetheriaVerseHostSettings
     {
         LastUpdatedAtUtc = now
     });
-    await node.VerseHostSettings().ReplaceAsync(verseHostSettings);
-    await node.OperationsSurface()
+    await node.MutableDocument<AetheriaVerseHostSettings>(AetheriaStateNode.VerseHostSettingsKey).ReplaceAsync(verseHostSettings);
+    await node.MutableDocument<EveSurfaceState>(AetheriaStateNode.OperationsSurfaceKey)
         .ReplaceAsync(AetheriaOperationsSurfaceProjector.Build(verseHostSettings: verseHostSettings));
-    await node.ProviderAdvertisementSurface()
+    await node.MutableDocument<EveProviderAdvertisementState>(AetheriaStateNode.ProviderAdvertisementSurfaceKey)
         .ReplaceAsync(AetheriaProviderAdvertisementProjector.Build(verseHostSettings, statePath, now));
     var daemonProvider = AetheriaRuntimeDaemonProviderAdvertisementDocument.Create(
         statePath,
@@ -171,7 +171,7 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
     }
     await node.MutableDocument<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonGameSurface)
         .ReplaceAsync(AetheriaRuntimeEveSurfaceStateProjector.ToState(daemonGameSurface));
-    await node.RuntimeSession("smoke-runtime").ReplaceAsync(new AetheriaRuntimeSession
+    await node.MutableDocument<AetheriaRuntimeSession>(AetheriaStateNode.RuntimeSessionKey("smoke-runtime")).ReplaceAsync(new AetheriaRuntimeSession
     {
         RuntimeId = "smoke-runtime",
         Role = "state-smoke",
@@ -179,9 +179,9 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
         LastSeenAtUtc = now,
         Status = "running"
     });
-    await node.OperationsSurface().ReplaceAsync(AetheriaOperationsSurfaceProjector.Build(
+    await node.MutableDocument<EveSurfaceState>(AetheriaStateNode.OperationsSurfaceKey).ReplaceAsync(AetheriaOperationsSurfaceProjector.Build(
         verseHostSettings: verseHostSettings,
-        runtimeSession: await node.RuntimeSession("smoke-runtime").ReadAsync()));
+        runtimeSession: await node.MutableDocument<AetheriaRuntimeSession>(AetheriaStateNode.RuntimeSessionKey("smoke-runtime")).ReadAsync()));
 
     await node.LoadoutTemplate(loadoutKey).ReplaceAsync(new AetheriaLoadoutTemplate
     {
@@ -493,7 +493,7 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
         UpdatedAtUtc = now
     });
 
-    await node.PlayerSettings().ReplaceAsync(new AetheriaPlayerSettings
+    await node.MutableDocument<AetheriaPlayerSettings>(AetheriaStateNode.PlayerSettingsKey).ReplaceAsync(new AetheriaPlayerSettings
     {
         ActiveRunKey = runKey.ToString(),
         LastUpdatedAtUtc = now,
@@ -531,9 +531,9 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
             ActionBarInputs = ["<Keyboard>/1", "<Mouse>/leftButton"]
         }
     });
-    await node.PlayerSettingsSurface()
+    await node.MutableDocument<EveSurfaceState>(AetheriaStateNode.PlayerSettingsSurfaceKey)
         .ReplaceAsync(AetheriaPlayerSettingsSurfaceProjector.Build(
-            await node.PlayerSettings().ReadAsync(),
+            await node.MutableDocument<AetheriaPlayerSettings>(AetheriaStateNode.PlayerSettingsKey).ReadAsync(),
             now));
 
     using var eveCommandClient = await AetheriaClient.OpenAsync(
@@ -608,15 +608,14 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
         LastRejectedReason = eveCommandReport.LastRejectedReason,
         Status = eveCommandReport.RejectedCommands > 0 ? "rejected" : "ok"
     };
-    await node.EveCommandAcceptanceStatus().ReplaceAsync(eveCommandStatus);
-    await node.OperationsSurface().ReplaceAsync(AetheriaOperationsSurfaceProjector.Build(
+    await node.MutableDocument<AetheriaEveCommandAcceptanceStatus>(AetheriaStateNode.EveCommandAcceptanceStatusKey).ReplaceAsync(eveCommandStatus);
+    await node.MutableDocument<EveSurfaceState>(AetheriaStateNode.OperationsSurfaceKey).ReplaceAsync(AetheriaOperationsSurfaceProjector.Build(
         eveCommandStatus,
-        verseHostSettings: await node.VerseHostSettings().ReadAsync(),
-        runtimeSession: await node.RuntimeSession("smoke-runtime").ReadAsync()));
+        verseHostSettings: await node.MutableDocument<AetheriaVerseHostSettings>(AetheriaStateNode.VerseHostSettingsKey).ReadAsync(),
+        runtimeSession: await node.MutableDocument<AetheriaRuntimeSession>(AetheriaStateNode.RuntimeSessionKey("smoke-runtime")).ReadAsync()));
 
     await node.FlushAsync();
 }
-
 await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aetheria-state-smoke-reopen"))
 {
     var world = await reopened.World().ReadAsync();
@@ -624,11 +623,11 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
     var faction = await reopened.CorporationByLegacyId(factionLegacyId).ReadAsync();
     var nameFile = await reopened.NameFileByLegacyId(nameFileLegacyId).ReadAsync();
     var quarantine = await reopened.LegacyCatalogQuarantine().ReadAsync();
-    var catalogSurface = await reopened.CatalogSurface().ReadAsync();
-    var eveCommandStatus = await reopened.EveCommandAcceptanceStatus().ReadAsync();
-    var operationsSurface = await reopened.OperationsSurface().ReadAsync();
-    var playerSettingsSurface = await reopened.PlayerSettingsSurface().ReadAsync();
-    var advertisement = await reopened.ProviderAdvertisementSurface().ReadAsync();
+    var catalogSurface = await reopened.MutableDocument<EveSurfaceState>(AetheriaStateNode.CatalogSurfaceKey).ReadAsync();
+    var eveCommandStatus = await reopened.MutableDocument<AetheriaEveCommandAcceptanceStatus>(AetheriaStateNode.EveCommandAcceptanceStatusKey).ReadAsync();
+    var operationsSurface = await reopened.MutableDocument<EveSurfaceState>(AetheriaStateNode.OperationsSurfaceKey).ReadAsync();
+    var playerSettingsSurface = await reopened.MutableDocument<EveSurfaceState>(AetheriaStateNode.PlayerSettingsSurfaceKey).ReadAsync();
+    var advertisement = await reopened.MutableDocument<EveProviderAdvertisementState>(AetheriaStateNode.ProviderAdvertisementSurfaceKey).ReadAsync();
     var daemonProvider = await reopened.MutableDocument<AetheriaRuntimeDaemonProviderAdvertisementDocument>(AetheriaRuntimeVerseRecordKeys.DaemonProviderAdvertisement)
         .ReadAsync();
     var daemonHealth = await reopened.MutableDocument<AetheriaRuntimeDaemonHealthDocument>(AetheriaRuntimeVerseRecordKeys.DaemonHealth)
@@ -639,8 +638,8 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
         .ReadAsync();
     var daemonGameSurface = await reopened.MutableDocument<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonGameSurface)
         .ReadAsync();
-    var runtimeSession = await reopened.RuntimeSession("smoke-runtime").ReadAsync();
-    var playerSettings = await reopened.PlayerSettings().ReadAsync();
+    var runtimeSession = await reopened.MutableDocument<AetheriaRuntimeSession>(AetheriaStateNode.RuntimeSessionKey("smoke-runtime")).ReadAsync();
+    var playerSettings = await reopened.MutableDocument<AetheriaPlayerSettings>(AetheriaStateNode.PlayerSettingsKey).ReadAsync();
     var loadout = await reopened.LoadoutTemplate(loadoutKey).ReadAsync();
     var runState = await reopened.RunState(runKey).ReadAsync();
     var zoneState = await reopened.ZoneState(zoneKey).ReadAsync();

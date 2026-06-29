@@ -50,7 +50,6 @@ if (options.Once)
     await rtsPump.ConfigureAwait(false);
     return;
 }
-
 var stopped = new TaskCompletionSource<object?>();
 Console.CancelKeyPress += (_, eventArgs) =>
 {
@@ -83,7 +82,7 @@ while (!stopped.Task.IsCompleted)
     if (buildPublications)
     {
         nextApiPublicationUtc = DateTimeOffset.UtcNow.Add(options.ApiPublicationInterval);
-        discoveryHost.Update(await node.VerseHostSettings().ReadAsync().ConfigureAwait(false));
+        discoveryHost.Update(await node.MutableDocument<AetheriaVerseHostSettings>(AetheriaStateNode.VerseHostSettingsKey).ReadAsync().ConfigureAwait(false));
         await PublishRuntimeSessionAsync(node, options, startedAtUtc, "running").ConfigureAwait(false);
     }
     if (tick.Frame.FrameId % 120 == 0)
@@ -798,12 +797,12 @@ static async Task AcceptEveCommandsAsync(AetheriaStateNode node, AetheriaDaemonH
     var now = DateTimeOffset.UtcNow.ToString("O");
     try
     {
-        var existingStatus = await node.EveCommandAcceptanceStatus().ReadAsync().ConfigureAwait(false);
+        var existingStatus = await node.MutableDocument<AetheriaEveCommandAcceptanceStatus>(AetheriaStateNode.EveCommandAcceptanceStatusKey).ReadAsync().ConfigureAwait(false);
         var report = await AetheriaEveCommandBridge.AcceptObservedAsync(
                 node,
                 existingStatus?.AccountedCommandIds)
             .ConfigureAwait(false);
-        await node.EveCommandAcceptanceStatus()
+        await node.MutableDocument<AetheriaEveCommandAcceptanceStatus>(AetheriaStateNode.EveCommandAcceptanceStatusKey)
             .ReplaceAsync(new AetheriaEveCommandAcceptanceStatus
             {
                 RuntimeId = options.DaemonId,
@@ -829,8 +828,8 @@ static async Task AcceptEveCommandsAsync(AetheriaStateNode node, AetheriaDaemonH
     }
     catch (Exception ex)
     {
-        var existing = await node.EveCommandAcceptanceStatus().ReadAsync().ConfigureAwait(false);
-        await node.EveCommandAcceptanceStatus()
+        var existing = await node.MutableDocument<AetheriaEveCommandAcceptanceStatus>(AetheriaStateNode.EveCommandAcceptanceStatusKey).ReadAsync().ConfigureAwait(false);
+        await node.MutableDocument<AetheriaEveCommandAcceptanceStatus>(AetheriaStateNode.EveCommandAcceptanceStatusKey)
             .ReplaceAsync(new AetheriaEveCommandAcceptanceStatus
             {
                 RuntimeId = options.DaemonId,
@@ -854,20 +853,20 @@ static async Task PublishStateSurfacesAsync(
     string updatedAtUtc)
 {
     var verseHost = await EnsureVerseHostSettingsAsync(node, options, updatedAtUtc).ConfigureAwait(false);
-    var eveStatus = await node.EveCommandAcceptanceStatus().ReadAsync().ConfigureAwait(false);
-    var runtimeSession = await node.RuntimeSession(options.DaemonId).ReadAsync().ConfigureAwait(false);
-    var playerSettings = await node.PlayerSettings().ReadAsync().ConfigureAwait(false) ?? new AetheriaPlayerSettings();
+    var eveStatus = await node.MutableDocument<AetheriaEveCommandAcceptanceStatus>(AetheriaStateNode.EveCommandAcceptanceStatusKey).ReadAsync().ConfigureAwait(false);
+    var runtimeSession = await node.MutableDocument<AetheriaRuntimeSession>(AetheriaStateNode.RuntimeSessionKey(options.DaemonId)).ReadAsync().ConfigureAwait(false);
+    var playerSettings = await node.MutableDocument<AetheriaPlayerSettings>(AetheriaStateNode.PlayerSettingsKey).ReadAsync().ConfigureAwait(false) ?? new AetheriaPlayerSettings();
     var playerSettingsUpdatedAt = string.IsNullOrWhiteSpace(playerSettings.LastUpdatedAtUtc)
         ? updatedAtUtc
         : playerSettings.LastUpdatedAtUtc;
 
-    await node.OperationsSurface()
+    await node.MutableDocument<EveSurfaceState>(AetheriaStateNode.OperationsSurfaceKey)
         .ReplaceAsync(AetheriaOperationsSurfaceProjector.Build(eveStatus, verseHost, runtimeSession))
         .ConfigureAwait(false);
-    await node.PlayerSettingsSurface()
+    await node.MutableDocument<EveSurfaceState>(AetheriaStateNode.PlayerSettingsSurfaceKey)
         .ReplaceAsync(AetheriaPlayerSettingsSurfaceProjector.Build(playerSettings, playerSettingsUpdatedAt))
         .ConfigureAwait(false);
-    await node.ProviderAdvertisementSurface()
+    await node.MutableDocument<EveProviderAdvertisementState>(AetheriaStateNode.ProviderAdvertisementSurfaceKey)
         .ReplaceAsync(AetheriaProviderAdvertisementProjector.Build(verseHost, node.StatePath, updatedAtUtc))
         .ConfigureAwait(false);
     await node.FlushAsync().ConfigureAwait(false);
@@ -880,7 +879,7 @@ static async Task PublishRuntimeSessionAsync(
     string status)
 {
     var now = DateTimeOffset.UtcNow.ToString("O");
-    await node.RuntimeSession(options.DaemonId)
+    await node.MutableDocument<AetheriaRuntimeSession>(AetheriaStateNode.RuntimeSessionKey(options.DaemonId))
         .ReplaceAsync(new AetheriaRuntimeSession
         {
             RuntimeId = options.DaemonId,
@@ -917,7 +916,7 @@ static async Task EnsureWorldDocumentAsync(AetheriaStateNode node)
 
 static async Task EnsureTradeValuePolicyAsync(AetheriaStateNode node, string now)
 {
-    var tradeValuePolicy = node.TradeValuePolicy();
+    var tradeValuePolicy = node.MutableDocument<AetheriaTradeValuePolicy>(AetheriaStateNode.TradeValuePolicyKey);
     var existing = await tradeValuePolicy.ReadAsync().ConfigureAwait(false);
     if (existing != null)
         return;
@@ -930,7 +929,7 @@ static async Task EnsureTradeValuePolicyAsync(AetheriaStateNode node, string now
 
 static async Task EnsurePlayableRunDocumentsAsync(AetheriaStateNode node, string now)
 {
-    var settings = await node.PlayerSettings().ReadAsync().ConfigureAwait(false);
+    var settings = await node.MutableDocument<AetheriaPlayerSettings>(AetheriaStateNode.PlayerSettingsKey).ReadAsync().ConfigureAwait(false);
     if (!string.IsNullOrWhiteSpace(settings?.ActiveRunKey))
     {
         var existingRun = await ReadRuntimeRunCheckpointAsync(node).ConfigureAwait(false);
@@ -950,7 +949,7 @@ static async Task EnsurePlayableRunDocumentsAsync(AetheriaStateNode node, string
     settings.PlayerName = string.IsNullOrWhiteSpace(settings.PlayerName) ? "Codex RTS" : settings.PlayerName;
     settings.TutorialPassed = true;
     settings.LastUpdatedAtUtc = now;
-    await node.PlayerSettings()
+    await node.MutableDocument<AetheriaPlayerSettings>(AetheriaStateNode.PlayerSettingsKey)
         .ReplaceAsync(settings)
         .ConfigureAwait(false);
 
@@ -1322,7 +1321,7 @@ static async Task EnsureVerseAuthorityPolicyAsync(
 
 static async Task<AetheriaRuntimeRunCheckpointCommit?> ReadRuntimeRunCheckpointAsync(AetheriaStateNode node)
 {
-    var settings = await node.PlayerSettings().ReadAsync().ConfigureAwait(false);
+    var settings = await node.MutableDocument<AetheriaPlayerSettings>(AetheriaStateNode.PlayerSettingsKey).ReadAsync().ConfigureAwait(false);
     if (string.IsNullOrWhiteSpace(settings?.ActiveRunKey))
         return null;
 
@@ -1749,7 +1748,7 @@ static async Task<AetheriaVerseHostSettings> EnsureVerseHostSettingsAsync(
     AetheriaDaemonHostOptions options,
     string now)
 {
-    var existing = await node.VerseHostSettings().ReadAsync().ConfigureAwait(false);
+    var existing = await node.MutableDocument<AetheriaVerseHostSettings>(AetheriaStateNode.VerseHostSettingsKey).ReadAsync().ConfigureAwait(false);
     var normalized = AetheriaVerseHostSettingsNormalizer.Normalize(existing);
     normalized.ServiceId = options.DaemonId;
     normalized.VerseId = options.VerseId;
@@ -1760,7 +1759,7 @@ static async Task<AetheriaVerseHostSettings> EnsureVerseHostSettingsAsync(
         !AetheriaVerseHostSettingsNormalizer.Equivalent(existing, normalized))
     {
         normalized.LastUpdatedAtUtc = now;
-        await node.VerseHostSettings()
+        await node.MutableDocument<AetheriaVerseHostSettings>(AetheriaStateNode.VerseHostSettingsKey)
             .ReplaceAsync(normalized)
             .ConfigureAwait(false);
     }
