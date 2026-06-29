@@ -37,23 +37,6 @@ namespace GameCult.Aetheria.State.Verse
         public IReadOnlyList<AetheriaRuntimeInventoryDropdownOption> Options { get; }
     }
 
-    public sealed class AetheriaRuntimeInventoryDropdownSurfaceState
-    {
-        public AetheriaRuntimeInventoryDropdownSurfaceState(
-            string currentView,
-            IReadOnlyList<AetheriaRuntimeInventoryDropdownGroup> groups,
-            string updatedAtUtc)
-        {
-            CurrentView = currentView ?? "";
-            Groups = groups ?? Array.Empty<AetheriaRuntimeInventoryDropdownGroup>();
-            UpdatedAtUtc = updatedAtUtc ?? "";
-        }
-
-        public string CurrentView { get; }
-        public IReadOnlyList<AetheriaRuntimeInventoryDropdownGroup> Groups { get; }
-        public string UpdatedAtUtc { get; }
-    }
-
     public sealed class AetheriaRuntimeInventoryDropdownEntityOption
     {
         public AetheriaRuntimeInventoryDropdownEntityOption(
@@ -154,11 +137,7 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeSurfaceDocument document,
             IReadOnlyDictionary<string, AetheriaRuntimeInventoryDropdownSelection> selections)
         {
-            Document = document ?? AetheriaRuntimeInventoryDropdownSurfaceBuilder.Build(
-                new AetheriaRuntimeInventoryDropdownSurfaceState(
-                    "",
-                    Array.Empty<AetheriaRuntimeInventoryDropdownGroup>(),
-                    ""));
+            Document = document ?? throw new ArgumentNullException(nameof(document));
             Selections = selections ?? new Dictionary<string, AetheriaRuntimeInventoryDropdownSelection>(StringComparer.Ordinal);
         }
 
@@ -335,22 +314,18 @@ namespace GameCult.Aetheria.State.Verse
                     loadoutOptions));
             }
 
-            var state = new AetheriaRuntimeInventoryDropdownSurfaceState(
-                currentView,
-                groups,
-                updatedAtUtc);
-
-            return new AetheriaRuntimeInventoryDropdownSurfaceModel(Build(state), selections);
+            return new AetheriaRuntimeInventoryDropdownSurfaceModel(
+                Build(currentView, groups, updatedAtUtc),
+                selections);
         }
 
-        public static AetheriaRuntimeSurfaceDocument Build(
-            AetheriaRuntimeInventoryDropdownSurfaceState state,
+        private static AetheriaRuntimeSurfaceDocument Build(
+            string currentView,
+            IReadOnlyList<AetheriaRuntimeInventoryDropdownGroup> groups,
+            string updatedAtUtc,
             long version = 1)
         {
-            state ??= new AetheriaRuntimeInventoryDropdownSurfaceState(
-                "",
-                Array.Empty<AetheriaRuntimeInventoryDropdownGroup>(),
-                "");
+            groups ??= Array.Empty<AetheriaRuntimeInventoryDropdownGroup>();
 
             var children = new List<AetheriaRuntimeSurfaceComponent>
             {
@@ -360,13 +335,13 @@ namespace GameCult.Aetheria.State.Verse
                     Metric(
                         $"{SurfaceId}.current",
                         "Current View",
-                        string.IsNullOrWhiteSpace(state.CurrentView) ? "None" : state.CurrentView),
+                        string.IsNullOrWhiteSpace(currentView) ? "None" : currentView),
                     Text(
                         $"{SurfaceId}.note",
                         "The observing client lists available inventory navigation; the shared runtime surface owns the dropdown contract."))
             };
 
-            foreach (var group in state.Groups)
+            foreach (var group in groups)
             {
                 if (group?.Options == null || group.Options.Count == 0)
                     continue;
@@ -383,7 +358,7 @@ namespace GameCult.Aetheria.State.Verse
                 $"{SurfaceId}.actions",
                 Button($"{SurfaceId}.close", "Close", Close)));
 
-            var commands = state.Groups
+            var commands = groups
                 .Where(group => group?.Options != null)
                 .SelectMany(group => group.Options)
                 .Where(option => option?.IsCommand == true)
@@ -396,7 +371,7 @@ namespace GameCult.Aetheria.State.Verse
                 providerKind: "inventory.panel",
                 title: "Inventory Dropdown",
                 version: version,
-                updatedAtUtc: state.UpdatedAtUtc,
+                updatedAtUtc: updatedAtUtc ?? "",
                 surface: new AetheriaRuntimeSurfaceTree(
                     SurfaceId,
                     Node(

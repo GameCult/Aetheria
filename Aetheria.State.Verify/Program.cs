@@ -6627,7 +6627,6 @@ static void RequireInventoryDropdownUseEveSurface(string root)
         "public readonly struct AetheriaRuntimeInventoryDropdownCommand",
         "public static class AetheriaRuntimeInventoryDropdownSurfaceCommands",
         "public static bool TryRead(",
-        "AetheriaRuntimeInventoryDropdownSurfaceState",
         "AetheriaRuntimeInventoryDropdownGroup",
         "AetheriaRuntimeInventoryDropdownOption",
         "AetheriaRuntimeInventoryDropdownEntityOption",
@@ -6644,7 +6643,7 @@ static void RequireInventoryDropdownUseEveSurface(string root)
         "public static string EntityBayCommand(",
         "public static string EntityCommand(",
         "public static string LoadoutCommand(",
-        "public static AetheriaRuntimeSurfaceDocument Build(",
+        "private static AetheriaRuntimeSurfaceDocument Build(",
         "providerKind: \"inventory.panel\"",
         "The observing client lists available inventory navigation; the shared runtime surface owns the dropdown contract."
     };
@@ -6658,11 +6657,13 @@ static void RequireInventoryDropdownUseEveSurface(string root)
             string.Join(", ", missingBuilderSymbols));
     }
 
-    if (inventoryDropdownSurfaceBuilder.Contains("public AetheriaRuntimeInventoryDropdownSurfaceState State { get; }", StringComparison.Ordinal) ||
+    if (inventoryDropdownSurfaceBuilder.Contains("AetheriaRuntimeInventoryDropdownSurfaceState", StringComparison.Ordinal) ||
+        inventoryDropdownSurfaceBuilder.Contains("public AetheriaRuntimeInventoryDropdownSurfaceState State { get; }", StringComparison.Ordinal) ||
+        inventoryDropdownSurfaceBuilder.Contains("public static AetheriaRuntimeSurfaceDocument Build(", StringComparison.Ordinal) ||
         inventoryDropdownSurfaceBuilder.Contains("public static AetheriaRuntimeInventoryDropdownSurfaceModel Compose(", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Shared runtime inventory dropdown builder must return a model with a finished surface document; do not re-expose Compose or a public State handoff.");
+            "Shared runtime inventory dropdown builder must return a model with a finished surface document; do not rebuild a shadow SurfaceState projection layer.");
     }
 }
 
