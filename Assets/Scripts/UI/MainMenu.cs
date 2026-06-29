@@ -2,7 +2,6 @@ using System;
 using GameCult.Aetheria.EveRuntime;
 using GameCult.Aetheria.State.Verse;
 using GameCult.Eve.Surface;
-using GameCult.Mesh;
 using TMPro;
 using UniRx;
 using UnityEngine;
@@ -18,10 +17,6 @@ public class MainMenu : MonoBehaviour
     public bool InGame;
 
     private UIDocument _menuSurfaceDocument;
-    private string _clientStatePath;
-    private CultMeshReactiveDocument<AetheriaRuntimeSectorMapDocument> _sectorMap;
-    private CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings;
-    private CultMeshReactiveDocument<AetheriaRuntimeVerseHostSettingsDocument> _verseHostSettings;
     private Func<bool> _canOpenRuntimeInputScreen;
     private Action _openRuntimeInputScreen;
     private readonly AetheriaEveUnitySurfaceChrome _menuSurfaceChrome = new AetheriaEveUnitySurfaceChrome
@@ -149,10 +144,9 @@ public class MainMenu : MonoBehaviour
 
         try
         {
-            PrepareDocumentAccess(stateBoot);
-            _sectorMap ??= AetheriaUnityRuntimeClientProvider
-                .ReactiveSectorMap(stateBoot, "unity-main-menu");
-            return _sectorMap?.Current;
+            return AetheriaUnityRuntimeClientProvider
+                .RuntimeState(stateBoot, "unity-main-menu")
+                .CurrentSectorMap();
         }
         catch (Exception ex)
         {
@@ -168,10 +162,9 @@ public class MainMenu : MonoBehaviour
 
         try
         {
-            PrepareDocumentAccess(stateBoot);
-            _playerSettings ??= AetheriaUnityRuntimeClientProvider
-                .ReactivePlayerSettingsDocument(stateBoot, "unity-main-menu");
-            return _playerSettings?.Current;
+            return AetheriaUnityRuntimeClientProvider
+                .RuntimeState(stateBoot, "unity-main-menu")
+                .CurrentPlayerSettings();
         }
         catch (Exception ex)
         {
@@ -187,10 +180,9 @@ public class MainMenu : MonoBehaviour
 
         try
         {
-            PrepareDocumentAccess(stateBoot);
-            _verseHostSettings ??= AetheriaUnityRuntimeClientProvider
-                .ReactiveVerseHostSettings(stateBoot, "unity-main-menu");
-            return _verseHostSettings?.Current;
+            return AetheriaUnityRuntimeClientProvider
+                .RuntimeState(stateBoot, "unity-main-menu")
+                .CurrentVerseHostSettings();
         }
         catch (Exception ex)
         {
@@ -455,30 +447,8 @@ public class MainMenu : MonoBehaviour
         return true;
     }
 
-    private void PrepareDocumentAccess(AetheriaRuntimeStateBootReport stateBoot)
-    {
-        var statePath = stateBoot.StateFilePath;
-        if (!string.Equals(_clientStatePath, statePath, StringComparison.Ordinal))
-        {
-            _clientStatePath = statePath;
-            ClearClientCaches();
-        }
-    }
-
-    private void ClearClientCaches()
-    {
-        _sectorMap?.Dispose();
-        _playerSettings?.Dispose();
-        _verseHostSettings?.Dispose();
-        _sectorMap = null;
-        _playerSettings = null;
-        _verseHostSettings = null;
-    }
-
     private void OnDestroy()
     {
-        ClearClientCaches();
-
         if (_menuSurfaceDocument != null)
         {
             Destroy(_menuSurfaceDocument.gameObject);

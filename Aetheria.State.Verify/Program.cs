@@ -7872,12 +7872,10 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "MainMenu.cs"));
     var requiredMainMenuSharedDocumentSymbols = new[]
     {
-        "_sectorMap?.Dispose()",
-        "_playerSettings?.Dispose()",
-        "_verseHostSettings?.Dispose()",
-        "_sectorMap?.Current",
-        "_playerSettings?.Current",
-        "_verseHostSettings?.Current",
+        ".RuntimeState(stateBoot, \"unity-main-menu\")",
+        ".CurrentSectorMap()",
+        ".CurrentPlayerSettings()",
+        ".CurrentVerseHostSettings()",
         "private void OnDestroy()"
     };
     var missingMainMenuSharedDocumentSymbols = requiredMainMenuSharedDocumentSymbols
@@ -7890,30 +7888,30 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
             string.Join(", ", missingMainMenuSharedDocumentSymbols));
     }
 
-    RequireReactiveTypedDocumentAccess(
-        mainMenu,
-        "MainMenu",
-        "AetheriaRuntimeSectorMapDocument",
-        "_sectorMap",
+    var forbiddenMainMenuSharedDocumentSymbols = new[]
+    {
+        "CultMeshReactiveDocument<AetheriaRuntimeSectorMapDocument>",
+        "CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument>",
+        "CultMeshReactiveDocument<AetheriaRuntimeVerseHostSettingsDocument>",
         ".ReactiveSectorMap(",
-        "AetheriaRuntimeSectorMapSession",
-        ".ObserveSectorMap()");
-    RequireReactiveTypedDocumentAccess(
-        mainMenu,
-        "MainMenu",
-        "AetheriaRuntimePlayerSettingsDocument",
-        "_playerSettings",
         ".ReactivePlayerSettingsDocument(",
-        "AetheriaRuntimePlayerSettingsSession",
-        ".ObservePlayer()");
-    RequireReactiveTypedDocumentAccess(
-        mainMenu,
-        "MainMenu",
-        "AetheriaRuntimeVerseHostSettingsDocument",
-        "_verseHostSettings",
         ".ReactiveVerseHostSettings(",
+        "AetheriaRuntimeSectorMapSession",
+        "AetheriaRuntimePlayerSettingsSession",
         "AetheriaRuntimeVerseHostSettingsSession",
-        ".ObserveVerseHost()");
+        ".ObserveSectorMap()",
+        ".ObservePlayer()",
+        ".ObserveVerseHost()"
+    };
+    var forbiddenMainMenuSharedDocumentHits = forbiddenMainMenuSharedDocumentSymbols
+        .Where(symbol => mainMenu.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (forbiddenMainMenuSharedDocumentHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "MainMenu should sample managed current typed documents instead of owning reactive wrappers: " +
+            string.Join(", ", forbiddenMainMenuSharedDocumentHits));
+    }
 
     var tradeMenu = File.ReadAllText(Path.Combine(
         root,
@@ -9512,14 +9510,16 @@ static void RequireClientTargetBootAuthority(string root)
         "CurrentStateBoot()",
         "ResolveSectorMap(AetheriaRuntimeStateBootReport stateBoot)",
         "AetheriaUnityRuntimeClientProvider",
-        ".ReactiveSectorMap(",
-        "PrepareDocumentAccess(stateBoot)",
+        ".RuntimeState(stateBoot, \"unity-main-menu\")",
+        ".CurrentSectorMap()",
         "ResolveVerseHostSettings(AetheriaRuntimeStateBootReport stateBoot)",
+        ".CurrentVerseHostSettings()",
         "AetheriaState.At(AetheriaUnityRuntimePaths.GameDataDirectory)",
         ".ClientTarget",
         "RequestClientTargetCommand(request)",
         "AetheriaRuntimeClientTargetSurfaceCommands.TryRequest(",
         "ResolvePlayerSettings(AetheriaRuntimeStateBootReport stateBoot)",
+        ".CurrentPlayerSettings()",
         "AetheriaRuntimeClientTargetSurfaceBuilder.Build(",
         "AetheriaRuntimeMainMenuSurfaceBuilder.BuildRoot(",
         "AetheriaRuntimeMainMenuSurfaceBuilder.BuildSettings(",
@@ -9550,6 +9550,18 @@ static void RequireClientTargetBootAuthority(string root)
         throw new InvalidOperationException(
             "Shared main-menu surface builder no longer lowers the client-target boot state through Eve: " +
             string.Join(", ", missingMainMenuBuilderSymbols));
+    }
+
+    if (mainMenu.Contains("PrepareDocumentAccess(stateBoot)", StringComparison.Ordinal) ||
+        mainMenu.Contains(".ReactiveSectorMap(", StringComparison.Ordinal) ||
+        mainMenu.Contains(".ReactivePlayerSettingsDocument(", StringComparison.Ordinal) ||
+        mainMenu.Contains(".ReactiveVerseHostSettings(", StringComparison.Ordinal) ||
+        mainMenu.Contains("CultMeshReactiveDocument<AetheriaRuntimeSectorMapDocument>", StringComparison.Ordinal) ||
+        mainMenu.Contains("CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument>", StringComparison.Ordinal) ||
+        mainMenu.Contains("CultMeshReactiveDocument<AetheriaRuntimeVerseHostSettingsDocument>", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "MainMenu should sample named current typed documents instead of owning reactive document handles.");
     }
 
     var forbiddenDirectPathSymbols = new Dictionary<string, string[]>
@@ -13167,7 +13179,8 @@ static void RequireMainMenuVerseHostDocumentAccess(string root)
     var requiredMainMenuSymbols = new[]
     {
         "ResolveVerseHostSettings(AetheriaRuntimeStateBootReport stateBoot)",
-        ".ReactiveVerseHostSettings(",
+        ".RuntimeState(stateBoot, \"unity-main-menu\")",
+        ".CurrentVerseHostSettings()",
         "AetheriaRuntimeClientTargetSurfaceBuilder.Build(",
         "AetheriaRuntimeMainMenuSurfaceBuilder.BuildRoot("
     };
@@ -13207,6 +13220,12 @@ static void RequireMainMenuVerseHostDocumentAccess(string root)
         throw new InvalidOperationException(
             "MainMenu no longer lowers daemon-owned Verse identity through its Eve shell: " +
             string.Join(", ", missingMainMenuSymbols));
+    }
+    if (mainMenu.Contains(".ReactiveVerseHostSettings(", StringComparison.Ordinal) ||
+        mainMenu.Contains("CultMeshReactiveDocument<AetheriaRuntimeVerseHostSettingsDocument>", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "MainMenu should sample daemon-owned Verse identity through the named current typed document.");
     }
     var missingBuilderSymbols = requiredBuilderSymbols
         .Where(symbol => !mainMenuSurfaceBuilder.Contains(symbol, StringComparison.Ordinal))
@@ -13341,8 +13360,8 @@ static void RequireMainMenuContinueRunState(string root)
     {
         "ResolveSectorMap",
         "AetheriaUnityRuntimeClientProvider",
-        ".ReactiveSectorMap(",
-        "PrepareDocumentAccess(stateBoot)",
+        ".RuntimeState(stateBoot, \"unity-main-menu\")",
+        ".CurrentSectorMap()",
         "ContinueGame()",
         "SceneManager.LoadScene(\"ARPG\")"
     };
@@ -13356,6 +13375,14 @@ static void RequireMainMenuContinueRunState(string root)
         throw new InvalidOperationException(
             "MainMenu Continue no longer selects an authoritative daemon frame: " +
             string.Join(", ", missingMenuSymbols));
+    }
+
+    if (mainMenu.Contains("PrepareDocumentAccess(stateBoot)", StringComparison.Ordinal) ||
+        mainMenu.Contains(".ReactiveSectorMap(", StringComparison.Ordinal) ||
+        mainMenu.Contains("CultMeshReactiveDocument<AetheriaRuntimeSectorMapDocument>", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "MainMenu Continue should sample the typed sector map through named current state access.");
     }
 
     if (mainMenu.Contains("AddButton(\"Continue\", null)", StringComparison.Ordinal))
@@ -15568,8 +15595,8 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         "TryStartDaemonObservedGame",
         "ResolveSectorMap(stateBoot)",
         "AetheriaUnityRuntimeClientProvider",
-        "PrepareDocumentAccess(stateBoot)",
-        ".ReactiveSectorMap(",
+        ".RuntimeState(stateBoot, \"unity-main-menu\")",
+        ".CurrentSectorMap()",
         "sectorMap.FrameId",
         "SceneManager.LoadScene(\"ARPG\")"
     };
@@ -17014,12 +17041,21 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
 
     if (!mainMenu.Contains("AetheriaUnityRuntimeClientProvider", StringComparison.Ordinal) ||
         !mainMenu.Contains("ResolveSectorMap(AetheriaRuntimeStateBootReport stateBoot)", StringComparison.Ordinal) ||
-        !mainMenu.Contains("PrepareDocumentAccess(stateBoot)", StringComparison.Ordinal) ||
-        !mainMenu.Contains(".ReactiveSectorMap(", StringComparison.Ordinal) ||
-        !mainMenu.Contains(".ReactivePlayerSettingsDocument(", StringComparison.Ordinal))
+        !mainMenu.Contains(".RuntimeState(stateBoot, \"unity-main-menu\")", StringComparison.Ordinal) ||
+        !mainMenu.Contains(".CurrentSectorMap()", StringComparison.Ordinal) ||
+        !mainMenu.Contains(".CurrentPlayerSettings()", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "MainMenu must read menu state through provider-native managed typed documents.");
+    }
+
+    if (mainMenu.Contains("PrepareDocumentAccess(stateBoot)", StringComparison.Ordinal) ||
+        mainMenu.Contains(".ReactiveSectorMap(", StringComparison.Ordinal) ||
+        mainMenu.Contains(".ReactivePlayerSettingsDocument(", StringComparison.Ordinal) ||
+        mainMenu.Contains(".ReactiveVerseHostSettings(", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "MainMenu still owns reactive document handles instead of sampling named current typed documents.");
     }
 
     if (mainMenu.Contains("AetheriaRuntimeStateReader.TryReadDaemonFrame", StringComparison.Ordinal))
