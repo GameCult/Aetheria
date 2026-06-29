@@ -215,19 +215,6 @@ namespace GameCult.Aetheria.State.Verse
             return Document<TDocument>().LatestAsync().ConfigureAwait(false).GetAwaiter().GetResult();
         }
 
-        public async Task<AetheriaRuntimeObservedDaemonState?> LatestObservedDaemonAsync()
-        {
-            var frame = await LatestAsync<AetheriaRuntimeDaemonFrameDocument>().ConfigureAwait(false);
-            var soaView = await TryReadDaemonSoaViewAsync().ConfigureAwait(false);
-            var zoneRender = await LatestAsync<AetheriaRuntimeZoneRenderDocument>().ConfigureAwait(false);
-            return new AetheriaRuntimeObservedDaemonState(frame, soaView, zoneRender);
-        }
-
-        public AetheriaRuntimeObservedDaemonState? LatestObservedDaemon()
-        {
-            return LatestObservedDaemonAsync().ConfigureAwait(false).GetAwaiter().GetResult();
-        }
-
         public AetheriaRuntimeObservedDaemonState? CurrentObservedDaemon(
             CultMeshReactiveDocumentOptions? options = null)
         {
@@ -431,21 +418,6 @@ namespace GameCult.Aetheria.State.Verse
             try
             {
                 return Reactive<TDocument>(options);
-            }
-            catch (KeyNotFoundException)
-            {
-                return null;
-            }
-        }
-
-        private async Task<AetheriaRuntimeDaemonSoaViewDocument?> TryReadDaemonSoaViewAsync()
-        {
-            try
-            {
-                var soaView = await LatestAsync<AetheriaRuntimeDaemonSoaViewDocument>().ConfigureAwait(false);
-                return string.Equals(soaView.Schema, AetheriaRuntimeDaemonSchemas.SoaView, StringComparison.Ordinal)
-                    ? soaView
-                    : null;
             }
             catch (KeyNotFoundException)
             {

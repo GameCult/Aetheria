@@ -8117,7 +8117,6 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
         "public Task<TDocument> LatestAsync<TDocument>()",
         "public TDocument Latest<TDocument>()",
         "public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(",
-        "public AetheriaRuntimeObservedDaemonState? LatestObservedDaemon()",
         "public AetheriaRuntimeObservedDockingState? CurrentDocking(",
         "public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(",
         "public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(",
@@ -8230,6 +8229,21 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
         "ReactiveEditorTuiSurface(",
         "ReactiveEditorTuiSurfaceAsync("
     };
+    var forbiddenObservedDaemonConvenienceWrappers = new[]
+    {
+        "LatestObservedDaemonAsync(",
+        "LatestObservedDaemon()",
+        "TryReadDaemonSoaViewAsync("
+    };
+    var survivingObservedDaemonConvenienceWrappers = forbiddenObservedDaemonConvenienceWrappers
+        .Where(symbol => clientState.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (survivingObservedDaemonConvenienceWrappers.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "AetheriaClientState still exposes one-shot observed-daemon aggregate wrappers; use CurrentObservedDaemon() or generic typed document reads: " +
+            string.Join(", ", survivingObservedDaemonConvenienceWrappers));
+    }
     var survivingFixedReactiveWrappers = forbiddenFixedReactiveWrappers
         .Where(symbol => clientState.Contains(symbol, StringComparison.Ordinal))
         .ToArray();
@@ -15941,8 +15955,8 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         !observedDaemonState.Contains("CultMeshReactiveDocument<AetheriaRuntimeZoneRenderDocument> zoneRender", StringComparison.Ordinal) ||
         !observedDaemonState.Contains("var currentZoneRender = zoneRender?.Current;", StringComparison.Ordinal) ||
         !observedDaemonState.Contains("new AetheriaRuntimeObservedDaemonState(currentFrame, currentSoaView, currentZoneRender)", StringComparison.Ordinal) ||
-        !aetheriaClientState.Contains("var zoneRender = await LatestAsync<AetheriaRuntimeZoneRenderDocument>().ConfigureAwait(false);", StringComparison.Ordinal) ||
-        !aetheriaClientState.Contains("return new AetheriaRuntimeObservedDaemonState(frame, soaView, zoneRender);", StringComparison.Ordinal))
+        !aetheriaClientState.Contains("using var zoneRender = Reactive<AetheriaRuntimeZoneRenderDocument>(options);", StringComparison.Ordinal) ||
+        !aetheriaClientState.Contains("AetheriaRuntimeObservedDaemonState.TryCreateCurrent(frame, soaView, zoneRender, out var current)", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "Observed zone-render state acquisition must sample managed typed zone-render documents directly.");
@@ -16161,6 +16175,8 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "state.LatestFrame.ReactiveAsync",
         "state.LatestSoaView.ReactiveAsync",
         "public static async Task<AetheriaRuntimeObservedDaemonState?> ReadAsync(",
+        "LatestObservedDaemonAsync(",
+        "LatestObservedDaemon()",
         "public sealed class AetheriaRuntimeReactiveObservedDaemonState",
         "ReactiveObservedDaemonAsync",
         "ReactiveObservedDaemon(",
