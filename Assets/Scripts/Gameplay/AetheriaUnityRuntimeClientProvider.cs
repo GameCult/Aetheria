@@ -62,9 +62,23 @@ public static class AetheriaUnityRuntimeClientProvider
         return ResolveClient(AetheriaUnityRuntimePaths.RuntimeStateFilePath, runtimeId);
     }
 
+    public static AetheriaClient RuntimeClient(
+        AetheriaRuntimeStateBootReport stateBoot,
+        string runtimeId = "")
+    {
+        return ResolveClient(stateBoot, runtimeId);
+    }
+
     public static AetheriaClientState RuntimeState(string runtimeId = "")
     {
         return RuntimeClient(runtimeId).State;
+    }
+
+    public static AetheriaClientState RuntimeState(
+        AetheriaRuntimeStateBootReport stateBoot,
+        string runtimeId = "")
+    {
+        return RuntimeClient(stateBoot, runtimeId).State;
     }
 
     public static AetheriaControl Control(string runtimeId = "")
@@ -72,10 +86,25 @@ public static class AetheriaUnityRuntimeClientProvider
         return RuntimeClient(runtimeId).Control;
     }
 
+    public static AetheriaControl Control(
+        AetheriaRuntimeStateBootReport stateBoot,
+        string runtimeId = "")
+    {
+        return RuntimeClient(stateBoot, runtimeId).Control;
+    }
+
     public static CultMeshReactiveDocument<TDocument> Reactive<TDocument>(string runtimeId = "")
         where TDocument : class
     {
         return RuntimeState(runtimeId).Reactive<TDocument>();
+    }
+
+    public static CultMeshReactiveDocument<TDocument> Reactive<TDocument>(
+        AetheriaRuntimeStateBootReport stateBoot,
+        string runtimeId = "")
+        where TDocument : class
+    {
+        return RuntimeState(stateBoot, runtimeId).Reactive<TDocument>();
     }
 
     public static CultMeshReactiveDocument<TDocument> Reactive<TDocument>(
@@ -87,11 +116,29 @@ public static class AetheriaUnityRuntimeClientProvider
     }
 
     public static CultMeshReactiveDocument<TDocument> Reactive<TDocument>(
+        AetheriaRuntimeStateBootReport stateBoot,
+        AetheriaRuntimeRtsViewportBounds viewport,
+        string runtimeId = "")
+        where TDocument : class
+    {
+        return RuntimeState(stateBoot, runtimeId).Reactive<TDocument>(viewport);
+    }
+
+    public static CultMeshReactiveDocument<TDocument> Reactive<TDocument>(
         int index,
         string runtimeId = "")
         where TDocument : class
     {
         return RuntimeState(runtimeId).Reactive<TDocument>(index);
+    }
+
+    public static CultMeshReactiveDocument<TDocument> Reactive<TDocument>(
+        AetheriaRuntimeStateBootReport stateBoot,
+        int index,
+        string runtimeId = "")
+        where TDocument : class
+    {
+        return RuntimeState(stateBoot, runtimeId).Reactive<TDocument>(index);
     }
 
     public static AetheriaClient CurrentClientForStateFile(string stateFilePath)

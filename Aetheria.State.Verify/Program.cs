@@ -4224,9 +4224,10 @@ static void RequireRuntimeInputScreenUsesEveSurface(string root)
         "AetheriaRuntimeInputSettingsCommandBody",
         "AetheriaRuntimeEveCommandKind.SetBindingOverride",
         "AetheriaRuntimeEveCommandKind.SetActionBarEnabled",
-        "AetheriaClient",
-        "AetheriaUnityRuntimeClientProvider.ResolveClient(",
-        ".State",
+        "RuntimeClient(",
+        "RequireLocalStateBoot()",
+        "AetheriaUnityRuntimeClientProvider",
+        ".Reactive<AetheriaRuntimePlayerSettingsDocument>(",
         "action.ApplyBindingOverride",
         "new InputAction(\"Aetheria Input Capture\")",
         "AetheriaRuntimeInputSettingsSurfaceBuilder.IsSupportedCapturePath(",
@@ -4250,7 +4251,7 @@ static void RequireRuntimeInputScreenUsesEveSurface(string root)
         "InputDisplayLayout",
         "AetheriaRuntimePlayerSettingsDocument",
         "_playerSettings",
-        ".Reactive<AetheriaRuntimePlayerSettingsDocument>()",
+        ".Reactive<AetheriaRuntimePlayerSettingsDocument>(",
         "AetheriaRuntimePlayerSettingsSession",
         ".ObservePlayer()");
 
@@ -7680,7 +7681,7 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
     var requiredObservedTargetSymbols = new[]
     {
         "CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument> _zoneContacts",
-        ".Reactive<AetheriaRuntimeZoneContactsDocument>()",
+        ".Reactive<AetheriaRuntimeZoneContactsDocument>(\"unity-observed-target-query\")",
         "_zoneContacts?.Dispose()",
         "_zoneContacts?.Current"
     };
@@ -7810,7 +7811,7 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "MainMenu",
         "AetheriaRuntimeSectorMapDocument",
         "_sectorMap",
-        ".Reactive<AetheriaRuntimeSectorMapDocument>()",
+        ".Reactive<AetheriaRuntimeSectorMapDocument>(",
         "AetheriaRuntimeSectorMapSession",
         ".ObserveSectorMap()");
     RequireReactiveTypedDocumentAccess(
@@ -7818,7 +7819,7 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "MainMenu",
         "AetheriaRuntimePlayerSettingsDocument",
         "_playerSettings",
-        ".Reactive<AetheriaRuntimePlayerSettingsDocument>()",
+        ".Reactive<AetheriaRuntimePlayerSettingsDocument>(",
         "AetheriaRuntimePlayerSettingsSession",
         ".ObservePlayer()");
     RequireReactiveTypedDocumentAccess(
@@ -7826,7 +7827,7 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "MainMenu",
         "AetheriaRuntimeVerseHostSettingsDocument",
         "_verseHostSettings",
-        ".Reactive<AetheriaRuntimeVerseHostSettingsDocument>()",
+        ".Reactive<AetheriaRuntimeVerseHostSettingsDocument>(",
         "AetheriaRuntimeVerseHostSettingsSession",
         ".ObserveVerseHost()");
 
@@ -9340,9 +9341,9 @@ static void RequireClientTargetBootAuthority(string root)
     {
         "CurrentStateBoot()",
         "ResolveSectorMap(AetheriaRuntimeStateBootReport stateBoot)",
-        "AetheriaClient",
-        ".State",
-        ".Reactive<AetheriaRuntimeSectorMapDocument>()",
+        "AetheriaUnityRuntimeClientProvider",
+        ".Reactive<AetheriaRuntimeSectorMapDocument>(",
+        "PrepareDocumentAccess(stateBoot)",
         "ResolveVerseHostSettings(AetheriaRuntimeStateBootReport stateBoot)",
         "AetheriaState.At(AetheriaUnityRuntimePaths.GameDataDirectory)",
         ".ClientTarget",
@@ -12975,7 +12976,7 @@ static void RequireMainMenuVerseHostDocumentAccess(string root)
     var requiredMainMenuSymbols = new[]
     {
         "ResolveVerseHostSettings(AetheriaRuntimeStateBootReport stateBoot)",
-        ".Reactive<AetheriaRuntimeVerseHostSettingsDocument>()",
+        ".Reactive<AetheriaRuntimeVerseHostSettingsDocument>(",
         "AetheriaRuntimeClientTargetSurfaceBuilder.Build(",
         "AetheriaRuntimeMainMenuSurfaceBuilder.BuildRoot("
     };
@@ -13148,9 +13149,9 @@ static void RequireMainMenuContinueRunState(string root)
     var requiredMenuSymbols = new[]
     {
         "ResolveSectorMap",
-        "AetheriaClient",
-        ".State",
-        ".Reactive<AetheriaRuntimeSectorMapDocument>()",
+        "AetheriaUnityRuntimeClientProvider",
+        ".Reactive<AetheriaRuntimeSectorMapDocument>(",
+        "PrepareDocumentAccess(stateBoot)",
         "ContinueGame()",
         "SceneManager.LoadScene(\"ARPG\")"
     };
@@ -13484,8 +13485,7 @@ static void RequireMainMenuContinueRunState(string root)
         "private bool TryQueryEntityTarget(",
         "AetheriaRuntimeZoneContactRow",
         "AetheriaRuntimeZoneTargetRow",
-        ".State",
-        ".Reactive<AetheriaRuntimeZoneContactsDocument>()",
+        ".Reactive<AetheriaRuntimeZoneContactsDocument>(\"unity-observed-target-query\")",
         "_zoneContacts?.Current",
         "_zoneContacts?.Dispose()",
         "_entityIndex.TryResolveEntityByDaemonIndex(targetEntityIndex, out var targetEntity)"
@@ -14536,8 +14536,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         "private bool TryQueryEntityTarget(",
         "AetheriaRuntimeZoneContactRow",
         "AetheriaRuntimeZoneTargetRow",
-        ".State",
-        ".Reactive<AetheriaRuntimeZoneContactsDocument>()",
+        ".Reactive<AetheriaRuntimeZoneContactsDocument>(\"unity-observed-target-query\")",
         "_zoneContacts?.Current",
         "_zoneContacts?.Dispose()",
         "_entityIndex.TryResolveEntityByDaemonIndex(targetEntityIndex, out var targetEntity)"
@@ -15342,8 +15341,9 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
     {
         "TryStartDaemonObservedGame",
         "ResolveSectorMap(stateBoot)",
-        ".State",
-        ".Reactive<AetheriaRuntimeSectorMapDocument>()",
+        "AetheriaUnityRuntimeClientProvider",
+        "PrepareDocumentAccess(stateBoot)",
+        ".Reactive<AetheriaRuntimeSectorMapDocument>(",
         "sectorMap.FrameId",
         "SceneManager.LoadScene(\"ARPG\")"
     };
@@ -16765,20 +16765,20 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
             "AetheriaDaemonObserver still reads observed daemon state through the AetheriaClient compatibility helper.");
     }
 
-    if (!mainMenu.Contains("AetheriaClient", StringComparison.Ordinal) ||
+    if (!mainMenu.Contains("AetheriaUnityRuntimeClientProvider", StringComparison.Ordinal) ||
         !mainMenu.Contains("ResolveSectorMap(AetheriaRuntimeStateBootReport stateBoot)", StringComparison.Ordinal) ||
-        !mainMenu.Contains(".State", StringComparison.Ordinal) ||
-        !mainMenu.Contains(".Reactive<AetheriaRuntimeSectorMapDocument>()", StringComparison.Ordinal) ||
-        !mainMenu.Contains(".Reactive<AetheriaRuntimePlayerSettingsDocument>()", StringComparison.Ordinal))
+        !mainMenu.Contains("PrepareDocumentAccess(stateBoot)", StringComparison.Ordinal) ||
+        !mainMenu.Contains(".Reactive<AetheriaRuntimeSectorMapDocument>(", StringComparison.Ordinal) ||
+        !mainMenu.Contains(".Reactive<AetheriaRuntimePlayerSettingsDocument>(", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "MainMenu no longer routes sector-map lookup through the shared Aetheria client facade.");
+            "MainMenu must read menu state through provider-native managed typed documents.");
     }
 
     if (mainMenu.Contains("AetheriaRuntimeStateReader.TryReadDaemonFrame", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "MainMenu still reads daemon frames through the runtime file reader instead of the shared Aetheria client facade.");
+            "MainMenu still reads daemon frames through the runtime file reader instead of managed typed documents.");
     }
 
     if (mainMenu.Contains("OpenRuntimeCatalog(", StringComparison.Ordinal))

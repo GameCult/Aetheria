@@ -149,8 +149,9 @@ public class MainMenu : MonoBehaviour
 
         try
         {
-            _sectorMap ??= ResolveClient(stateBoot)
-                .State.Reactive<AetheriaRuntimeSectorMapDocument>();
+            PrepareDocumentAccess(stateBoot);
+            _sectorMap ??= AetheriaUnityRuntimeClientProvider
+                .Reactive<AetheriaRuntimeSectorMapDocument>(stateBoot, "unity-main-menu");
             return _sectorMap?.Current;
         }
         catch (Exception ex)
@@ -167,8 +168,9 @@ public class MainMenu : MonoBehaviour
 
         try
         {
-            _playerSettings ??= ResolveClient(stateBoot)
-                .State.Reactive<AetheriaRuntimePlayerSettingsDocument>();
+            PrepareDocumentAccess(stateBoot);
+            _playerSettings ??= AetheriaUnityRuntimeClientProvider
+                .Reactive<AetheriaRuntimePlayerSettingsDocument>(stateBoot, "unity-main-menu");
             return _playerSettings?.Current;
         }
         catch (Exception ex)
@@ -185,8 +187,9 @@ public class MainMenu : MonoBehaviour
 
         try
         {
-            _verseHostSettings ??= ResolveClient(stateBoot)
-                .State.Reactive<AetheriaRuntimeVerseHostSettingsDocument>();
+            PrepareDocumentAccess(stateBoot);
+            _verseHostSettings ??= AetheriaUnityRuntimeClientProvider
+                .Reactive<AetheriaRuntimeVerseHostSettingsDocument>(stateBoot, "unity-main-menu");
             return _verseHostSettings?.Current;
         }
         catch (Exception ex)
@@ -424,7 +427,8 @@ public class MainMenu : MonoBehaviour
 
         try
         {
-            var submitted = ResolveClient(stateBoot)
+            var submitted = AetheriaUnityRuntimeClientProvider
+                .RuntimeClient(stateBoot, "unity-main-menu")
                 .Ui.SurfaceCommandAsync(request, "unity-main-menu")
                 .GetAwaiter()
                 .GetResult();
@@ -451,7 +455,7 @@ public class MainMenu : MonoBehaviour
         return true;
     }
 
-    private AetheriaClient ResolveClient(AetheriaRuntimeStateBootReport stateBoot)
+    private void PrepareDocumentAccess(AetheriaRuntimeStateBootReport stateBoot)
     {
         var statePath = stateBoot.StateFilePath;
         if (!string.Equals(_clientStatePath, statePath, StringComparison.Ordinal))
@@ -459,8 +463,6 @@ public class MainMenu : MonoBehaviour
             _clientStatePath = statePath;
             ClearClientCaches();
         }
-
-        return AetheriaUnityRuntimeClientProvider.ResolveClient(stateBoot, "unity-main-menu");
     }
 
     private void ClearClientCaches()

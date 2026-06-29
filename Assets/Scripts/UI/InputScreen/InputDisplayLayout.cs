@@ -343,7 +343,8 @@ public class InputDisplayLayout : MonoBehaviour
     {
         try
         {
-            var submitted = ResolveClient()
+            var submitted = AetheriaUnityRuntimeClientProvider
+                .RuntimeClient(RequireLocalStateBoot(), "unity-input-screen")
                 .Ui.InputSettingsAsync(command, body, "unity-input-screen")
                 .GetAwaiter()
                 .GetResult();
@@ -356,7 +357,7 @@ public class InputDisplayLayout : MonoBehaviour
         }
     }
 
-    private AetheriaClient ResolveClient()
+    private AetheriaRuntimeStateBootReport RequireLocalStateBoot()
     {
         var stateBoot = AetheriaRuntimeStateBoot.Inspect(AetheriaUnityRuntimePaths.GameDataDirectory);
         if (!stateBoot.SupportsLocalStateFileRead || !stateBoot.StateFileExists)
@@ -371,7 +372,7 @@ public class InputDisplayLayout : MonoBehaviour
             ClearClientCaches();
         }
 
-        return AetheriaUnityRuntimeClientProvider.ResolveClient(stateBoot, "unity-input-screen");
+        return stateBoot;
     }
 
     private void ClearClientCaches()
@@ -387,8 +388,10 @@ public class InputDisplayLayout : MonoBehaviour
 
         try
         {
-            _playerSettings = ResolveClient()
-                .State.Reactive<AetheriaRuntimePlayerSettingsDocument>();
+            _playerSettings = AetheriaUnityRuntimeClientProvider
+                .Reactive<AetheriaRuntimePlayerSettingsDocument>(
+                    RequireLocalStateBoot(),
+                    "unity-input-screen");
         }
         catch (Exception ex)
         {

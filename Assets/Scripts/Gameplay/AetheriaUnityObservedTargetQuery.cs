@@ -9,15 +9,11 @@ using GameCult.Mesh;
 
 public sealed class AetheriaUnityObservedTargetQuery : IDisposable
 {
-    private readonly Func<AetheriaClient> _resolveClient;
     private readonly AetheriaUnityObservedEntityIndex _entityIndex;
     private CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument> _zoneContacts;
 
-    public AetheriaUnityObservedTargetQuery(
-        Func<AetheriaClient> resolveClient,
-        AetheriaUnityObservedEntityIndex entityIndex)
+    public AetheriaUnityObservedTargetQuery(AetheriaUnityObservedEntityIndex entityIndex)
     {
-        _resolveClient = resolveClient ?? (() => null);
         _entityIndex = entityIndex ?? throw new ArgumentNullException(nameof(entityIndex));
     }
 
@@ -98,8 +94,8 @@ public sealed class AetheriaUnityObservedTargetQuery : IDisposable
 
         try
         {
-            _zoneContacts = _resolveClient()
-                ?.State.Reactive<AetheriaRuntimeZoneContactsDocument>();
+            _zoneContacts = AetheriaUnityRuntimeClientProvider
+                .Reactive<AetheriaRuntimeZoneContactsDocument>("unity-observed-target-query");
             return _zoneContacts?.Current;
         }
         catch

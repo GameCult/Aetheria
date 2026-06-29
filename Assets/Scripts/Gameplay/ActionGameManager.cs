@@ -89,9 +89,7 @@ public class ActionGameManager : MonoBehaviour
             () => _viewDirection,
             () => CurrentEntity);
     private AetheriaUnityObservedTargetQuery ObservedTargetQuery =>
-        _observedTargetQuery ??= new AetheriaUnityObservedTargetQuery(
-            () => ResolveDaemonObserver()?.Client,
-            _observedEntityIndex);
+        _observedTargetQuery ??= new AetheriaUnityObservedTargetQuery(_observedEntityIndex);
     private AetheriaUnityObservedFrameApplier ObservedFrameApplier =>
         _observedFrameApplier ??= new AetheriaUnityObservedFrameApplier(
             ResolveDaemonObserver,
