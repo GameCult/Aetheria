@@ -118,7 +118,29 @@ namespace GameCult.Aetheria.State.Verse
         public const string SurfaceId = "aetheria.inventory.cargo_item_details";
         public const string Close = "aetheria.inventory.cargo_item_details.close";
 
-        public static AetheriaRuntimeCargoItemDetailsSurfaceState Compose(
+        public static AetheriaRuntimeSurfaceDocument Build(
+            AetheriaRuntimeCatalogItem typedItem,
+            AetheriaRuntimeCargoItemObservation item,
+            string manufacturer,
+            string tier,
+            Func<float, string> formatValue,
+            Func<float, string> formatTemperature,
+            DateTime updatedAtUtc = default(DateTime),
+            long version = 1)
+        {
+            return Build(
+                ComposeState(
+                    typedItem,
+                    item,
+                    manufacturer,
+                    tier,
+                    formatValue,
+                    formatTemperature,
+                    updatedAtUtc),
+                version);
+        }
+
+        private static AetheriaRuntimeCargoItemDetailsSurfaceState ComposeState(
             AetheriaRuntimeCatalogItem typedItem,
             AetheriaRuntimeCargoItemObservation item,
             string manufacturer,

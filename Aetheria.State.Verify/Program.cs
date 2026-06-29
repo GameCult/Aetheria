@@ -5227,8 +5227,9 @@ static void RequireInventoryCargoItemDetailsUseEveSurface(string root)
         "HandleCargoItemDetailsSurfaceCommand(",
         "AetheriaEveUnitySurfaceHost.RenderRuntime(",
         "AetheriaEveUnitySurfaceHost.Hide(_cargoItemDetailsSurfaceDocument)",
-        "AetheriaRuntimeCargoItemDetailsSurfaceBuilder.Build(ComposeCargoItemDetailsSurface(",
-        "AetheriaRuntimeCargoItemDetailsSurfaceBuilder.Compose(",
+        "AetheriaRuntimeCargoItemDetailsSurfaceBuilder.Build(",
+        "ResolveManufacturerName(typedItem)",
+        "FormatItemTier(typedItem, equippableItem)",
         "ComposeCargoItemObservation(",
         "AetheriaRuntimeCargoItemDetailsSurfaceCommands.TryRead(request, out var command)",
         "AetheriaRuntimeCargoItemDetailsCommandKind.Close"
@@ -5319,6 +5320,7 @@ static void RequireInventoryCargoItemDetailsUseEveSurface(string root)
         "host.AddComponent<UIDocument>",
         "string.Equals(request.Command, AetheriaRuntimeCargoItemDetailsSurfaceBuilder.Close",
         "new AetheriaRuntimeCargoItemDetailsSurfaceState(",
+        "ComposeCargoItemDetailsSurface(",
         "ProjectCargoItemDetailsSurfaceState(",
         "ProjectCargoItemBehaviorSections(",
         "ProjectCargoItemBehaviorMetric(",
@@ -5349,7 +5351,7 @@ static void RequireInventoryCargoItemDetailsUseEveSurface(string root)
         "AetheriaRuntimeCargoItemObservation",
         "AetheriaRuntimeCargoItemSection",
         "AetheriaRuntimeCargoItemMetric",
-        "public static AetheriaRuntimeCargoItemDetailsSurfaceState Compose(",
+        "private static AetheriaRuntimeCargoItemDetailsSurfaceState ComposeState(",
         "ProjectBehaviorSections(",
         "ProjectBehaviorMetric(",
         "public static AetheriaRuntimeSurfaceDocument Build("
@@ -5362,6 +5364,13 @@ static void RequireInventoryCargoItemDetailsUseEveSurface(string root)
         throw new InvalidOperationException(
             "Shared cargo-item detail surface builder no longer owns the cargo inspection contract: " +
             string.Join(", ", missingBuilderSymbols));
+    }
+
+    if (cargoItemSurfaceBuilder.Contains("public static AetheriaRuntimeCargoItemDetailsSurfaceState Compose(", StringComparison.Ordinal) ||
+        cargoItemSurfaceBuilder.Contains("public static AetheriaRuntimeCargoItemDetailsSurfaceState Project(", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Runtime cargo item detail composition must stay behind Build(...); do not re-expose Compose/Project as the public cargo item details surface path.");
     }
 }
 

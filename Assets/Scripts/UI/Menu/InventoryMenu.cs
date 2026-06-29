@@ -284,7 +284,13 @@ public class InventoryMenu : MonoBehaviour
             transform,
             _cargoItemDetailsSurfaceDocument,
             "Aetheria Inventory Cargo Item Details Surface",
-            AetheriaRuntimeCargoItemDetailsSurfaceBuilder.Build(ComposeCargoItemDetailsSurface(item, typedItem)),
+            AetheriaRuntimeCargoItemDetailsSurfaceBuilder.Build(
+                typedItem,
+                ComposeCargoItemObservation(item),
+                ResolveManufacturerName(typedItem),
+                item is EquippableItem equippableItem ? FormatItemTier(typedItem, equippableItem) : "",
+                FormatValue,
+                FormatTemperature),
             HandleCargoItemDetailsSurfaceCommand,
             _cargoItemDetailsSurfaceChrome,
             sortingOrder: 1001);
@@ -466,19 +472,6 @@ public class InventoryMenu : MonoBehaviour
                 AetheriaRuntimeEquippedItemDetailsSurfaceBuilder.ToggleWeaponGroup,
                 AetheriaRuntimeEquippedItemDetailsSurfaceBuilder.Payload(
                     ("group", groupIndex.ToString(CultureInfo.InvariantCulture)))));
-    }
-
-    private AetheriaRuntimeCargoItemDetailsSurfaceState ComposeCargoItemDetailsSurface(
-        ItemInstance item,
-        AetheriaRuntimeCatalogItem typedItem)
-    {
-        return AetheriaRuntimeCargoItemDetailsSurfaceBuilder.Compose(
-            typedItem,
-            ComposeCargoItemObservation(item),
-            ResolveManufacturerName(typedItem),
-            item is EquippableItem equippableItem ? FormatItemTier(typedItem, equippableItem) : "",
-            FormatValue,
-            FormatTemperature);
     }
 
     private static AetheriaRuntimeCargoItemObservation ComposeCargoItemObservation(ItemInstance item)
