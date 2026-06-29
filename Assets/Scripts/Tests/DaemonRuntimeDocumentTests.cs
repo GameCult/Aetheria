@@ -1226,7 +1226,7 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
-    public void ZoneDetailsProjectionReadsMassRadiusAndContentsFromDaemonZone()
+    public void ZoneDetailsFactsReadMassRadiusAndContentsFromDaemonZone()
     {
         var zone = new AetheriaRuntimeZoneSnapshotCommit
         {
@@ -1245,23 +1245,23 @@ public class DaemonRuntimeDocumentTests
             }
         };
 
-        var projection = AetheriaRuntimeZoneDetailsSurfaceBuilder.ProjectDaemonZone(
+        var facts = AetheriaRuntimeZoneDetailsSurfaceBuilder.Facts(
             zone,
             key => key == "station-hull" ? "Station" : "Ship");
-        var state = AetheriaRuntimeZoneDetailsSurfaceBuilder.Project(
+        var state = AetheriaRuntimeZoneDetailsSurfaceBuilder.Compose(
             zone.Name,
             "GameCult",
-            projection.Mass.ToString("0"),
-            projection.Radius.ToString("0"),
+            facts.Mass.ToString("0"),
+            facts.Radius.ToString("0"),
             new[] { "A", "B" },
-            projection.Bodies,
-            projection.Entities,
-            projection.HasContents,
+            facts.Bodies,
+            facts.Entities,
+            facts.HasContents,
             "");
 
-        Assert.AreEqual(40, projection.Mass, 0.0001);
-        Assert.AreEqual(420, projection.Radius, 0.0001);
-        Assert.IsTrue(projection.HasContents);
+        Assert.AreEqual(40, facts.Mass, 0.0001);
+        Assert.AreEqual(420, facts.Radius, 0.0001);
+        Assert.IsTrue(facts.HasContents);
         Assert.AreEqual("1", state.Planets);
         Assert.AreEqual("1", state.GasGiants);
         Assert.AreEqual("1", state.AsteroidBelts);

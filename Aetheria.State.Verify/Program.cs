@@ -4552,9 +4552,9 @@ static void RequireSectorMapZoneDetailsUseEveSurface(string root)
         "HideZoneDetailsSurface(",
         "AetheriaEveUnitySurfaceHost.RenderRuntime(",
         "AetheriaEveUnitySurfaceHost.Hide(_zoneDetailsSurfaceDocument)",
-        "AetheriaRuntimeZoneDetailsSurfaceBuilder.Build(ProjectZoneDetailsSurfaceState(zoneIndex))",
-        "AetheriaRuntimeZoneDetailsSurfaceBuilder.ProjectDaemonZone(",
-        "AetheriaRuntimeZoneDetailsSurfaceBuilder.Project(",
+        "AetheriaRuntimeZoneDetailsSurfaceBuilder.Build(ComposeZoneDetailsSurfaceState(zoneIndex))",
+        "AetheriaRuntimeZoneDetailsSurfaceBuilder.Facts(",
+        "AetheriaRuntimeZoneDetailsSurfaceBuilder.Compose(",
         "ZoneDetailsSurfaceState(",
         "AetheriaUnityRuntimeClientProvider.ResolveClient(",
         ".State",
@@ -4643,6 +4643,10 @@ static void RequireSectorMapZoneDetailsUseEveSurface(string root)
         "OpenRuntimeCatalog()",
         "ProjectZoneBodies(",
         "ProjectZoneEntities(",
+        "ProjectZoneDetailsSurfaceState(",
+        "ProjectDaemonZone(",
+        "AetheriaRuntimeZoneDetailsSurfaceBuilder.Project(",
+        "AetheriaRuntimeZoneDetailsDaemonProjection",
         "new AetheriaRuntimeZoneDetailsBodyProjection(",
         "new AetheriaRuntimeZoneDetailsEntityProjection(",
         "runtimeZone.PlanetInstances",
@@ -4669,13 +4673,13 @@ static void RequireSectorMapZoneDetailsUseEveSurface(string root)
     var requiredBuilderSymbols = new[]
     {
         "public static class AetheriaRuntimeZoneDetailsSurfaceBuilder",
-        "public sealed class AetheriaRuntimeZoneDetailsDaemonProjection",
-        "public sealed class AetheriaRuntimeZoneDetailsBodyProjection",
-        "public sealed class AetheriaRuntimeZoneDetailsEntityProjection",
-        "public static AetheriaRuntimeZoneDetailsDaemonProjection ProjectDaemonZone(",
+        "public sealed class AetheriaRuntimeZoneDetailsFacts",
+        "public sealed class AetheriaRuntimeZoneDetailsBodyFacts",
+        "public sealed class AetheriaRuntimeZoneDetailsEntityFacts",
+        "public static AetheriaRuntimeZoneDetailsFacts Facts(",
         "Math.Max(0, zone.GravityTerrainRadius)",
         ".Sum(body => body.Mass)",
-        "public static AetheriaRuntimeZoneDetailsSurfaceState Project(",
+        "public static AetheriaRuntimeZoneDetailsSurfaceState Compose(",
         "private static bool IsBodyKind(",
         "private static bool IsPlanetBody(",
         "private static bool HasHullType(",
@@ -14511,7 +14515,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         !compactSectorRenderer.Contains(".State.Reactive<AetheriaRuntimePlayerSettingsDocument>()", StringComparison.Ordinal) ||
         !sectorMap.Contains("AetheriaUnityRuntimeClientProvider.ResolveClient(", StringComparison.Ordinal) ||
         !compactSectorMap.Contains(".State.Reactive<AetheriaRuntimeSectorMapDocument>()", StringComparison.Ordinal) ||
-        !sectorRenderer.Contains("AetheriaRuntimeZoneDetailsSurfaceBuilder.ProjectDaemonZone(", StringComparison.Ordinal))
+        !sectorRenderer.Contains("AetheriaRuntimeZoneDetailsSurfaceBuilder.Facts(", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "Map and sector UI must request projected galaxy/zone data through explicit observed daemon boundaries.");

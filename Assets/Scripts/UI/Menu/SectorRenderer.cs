@@ -98,7 +98,7 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
             transform,
             _zoneDetailsSurfaceDocument,
             "Aetheria Sector Zone Details Surface",
-            AetheriaRuntimeZoneDetailsSurfaceBuilder.Build(ProjectZoneDetailsSurfaceState(zoneIndex)),
+            AetheriaRuntimeZoneDetailsSurfaceBuilder.Build(ComposeZoneDetailsSurfaceState(zoneIndex)),
             HandleZoneDetailsSurfaceCommand,
             _zoneDetailsSurfaceChrome);
     }
@@ -128,7 +128,7 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
         AetheriaEveUnitySurfaceHost.Hide(_zoneDetailsSurfaceDocument);
     }
 
-    private AetheriaRuntimeZoneDetailsSurfaceState ProjectZoneDetailsSurfaceState(int zoneIndex)
+    private AetheriaRuntimeZoneDetailsSurfaceState ComposeZoneDetailsSurfaceState(int zoneIndex)
     {
         var sectorZone = ResolveSectorZone(zoneIndex);
         var zoneDetails = ResolveZoneDetails(zoneIndex);
@@ -139,18 +139,18 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
             .Select(FormatFaction)
             .ToArray();
 
-        var daemonProjection = AetheriaRuntimeZoneDetailsSurfaceBuilder.ProjectDaemonZone(
+        var zoneFacts = AetheriaRuntimeZoneDetailsSurfaceBuilder.Facts(
             zoneDetails,
             ResolveHullType);
-        return AetheriaRuntimeZoneDetailsSurfaceBuilder.Project(
+        return AetheriaRuntimeZoneDetailsSurfaceBuilder.Compose(
             ResolveZoneName(sectorZone, zoneDetails),
             ownerFactionIndex >= 0 ? FormatFaction(ownerFactionIndex) : "None",
-            FormatValue((float)daemonProjection.Mass),
-            FormatValue((float)daemonProjection.Radius),
+            FormatValue((float)zoneFacts.Mass),
+            FormatValue((float)zoneFacts.Radius),
             otherFactions,
-            daemonProjection.Bodies,
-            daemonProjection.Entities,
-            daemonProjection.HasContents,
+            zoneFacts.Bodies,
+            zoneFacts.Entities,
+            zoneFacts.HasContents,
             updatedAtUtc: DateTime.UtcNow.ToString("O"));
     }
 
