@@ -4,19 +4,19 @@ using GameCult.Mesh;
 
 public sealed class AetheriaUnityDaemonRenderDocuments : IDisposable
 {
+    private readonly CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument> _frame;
+    private readonly CultMeshReactiveDocument<AetheriaRuntimeDaemonSoaViewDocument> _soaView;
+    private readonly CultMeshReactiveDocument<AetheriaRuntimeZoneRenderDocument> _zoneRender;
+
     private AetheriaUnityDaemonRenderDocuments(AetheriaClientState state)
     {
         if (state == null)
             throw new ArgumentNullException(nameof(state));
 
-        Frame = state.ReactiveDaemonFrame();
-        SoaView = state.ReactiveDaemonSoaView();
-        ZoneRender = state.ReactiveZoneRender();
+        _frame = state.ReactiveDaemonFrame();
+        _soaView = state.ReactiveDaemonSoaView();
+        _zoneRender = state.ReactiveZoneRender();
     }
-
-    public CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument> Frame { get; }
-    public CultMeshReactiveDocument<AetheriaRuntimeDaemonSoaViewDocument> SoaView { get; }
-    public CultMeshReactiveDocument<AetheriaRuntimeZoneRenderDocument> ZoneRender { get; }
 
     public AetheriaRuntimeDaemonRenderView Current =>
         TryRead(out var observed) ? observed : null;
@@ -29,16 +29,16 @@ public sealed class AetheriaUnityDaemonRenderDocuments : IDisposable
     public bool TryRead(out AetheriaRuntimeDaemonRenderView observed)
     {
         return AetheriaRuntimeDaemonRenderView.TryCreateCurrent(
-            Frame,
-            SoaView,
-            ZoneRender,
+            _frame,
+            _soaView,
+            _zoneRender,
             out observed);
     }
 
     public void Dispose()
     {
-        Frame?.Dispose();
-        SoaView?.Dispose();
-        ZoneRender?.Dispose();
+        _frame?.Dispose();
+        _soaView?.Dispose();
+        _zoneRender?.Dispose();
     }
 }

@@ -4,6 +4,10 @@ using GameCult.Mesh;
 
 public sealed class AetheriaUnityRtsViewportDocuments : IDisposable
 {
+    private readonly CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument> _contacts;
+    private readonly CultMeshReactiveDocument<AetheriaRuntimeObjectsViewportDocument> _objectsViewport;
+    private readonly CultMeshReactiveDocument<AetheriaRuntimeRenderSplatsViewportDocument> _renderSplatsViewport;
+
     private AetheriaUnityRtsViewportDocuments(
         AetheriaClientState state,
         AetheriaRuntimeRtsViewportBounds viewport,
@@ -17,19 +21,16 @@ public sealed class AetheriaUnityRtsViewportDocuments : IDisposable
             throw new ArgumentNullException(nameof(viewport));
 
         Viewport = viewport;
-        Contacts = bindContacts ? state.ReactiveZoneContacts() : null;
-        ObjectsViewport = bindObjects ? state.ReactiveObjectsViewport(viewport) : null;
-        RenderSplatsViewport = bindRenderSplats ? state.ReactiveRenderSplatsViewport(viewport) : null;
+        _contacts = bindContacts ? state.ReactiveZoneContacts() : null;
+        _objectsViewport = bindObjects ? state.ReactiveObjectsViewport(viewport) : null;
+        _renderSplatsViewport = bindRenderSplats ? state.ReactiveRenderSplatsViewport(viewport) : null;
     }
 
     public AetheriaRuntimeRtsViewportBounds Viewport { get; }
-    public CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument> Contacts { get; }
-    public CultMeshReactiveDocument<AetheriaRuntimeObjectsViewportDocument> ObjectsViewport { get; }
-    public CultMeshReactiveDocument<AetheriaRuntimeRenderSplatsViewportDocument> RenderSplatsViewport { get; }
 
-    public AetheriaRuntimeZoneContactsDocument CurrentContacts => Contacts?.Current;
-    public AetheriaRuntimeObjectsViewportDocument CurrentObjectsViewport => ObjectsViewport?.Current;
-    public AetheriaRuntimeRenderSplatsViewportDocument CurrentRenderSplatsViewport => RenderSplatsViewport?.Current;
+    public AetheriaRuntimeZoneContactsDocument CurrentContacts => _contacts?.Current;
+    public AetheriaRuntimeObjectsViewportDocument CurrentObjectsViewport => _objectsViewport?.Current;
+    public AetheriaRuntimeRenderSplatsViewportDocument CurrentRenderSplatsViewport => _renderSplatsViewport?.Current;
 
     public static AetheriaUnityRtsViewportDocuments OpenMap(
         AetheriaClientState state,
@@ -74,9 +75,9 @@ public sealed class AetheriaUnityRtsViewportDocuments : IDisposable
 
     public void Dispose()
     {
-        Contacts?.Dispose();
-        ObjectsViewport?.Dispose();
-        RenderSplatsViewport?.Dispose();
+        _contacts?.Dispose();
+        _objectsViewport?.Dispose();
+        _renderSplatsViewport?.Dispose();
     }
 
     public static bool SameViewport(
