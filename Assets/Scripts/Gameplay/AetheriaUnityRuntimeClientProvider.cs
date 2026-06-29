@@ -93,6 +93,18 @@ public static class AetheriaUnityRuntimeClientProvider
         return RuntimeClient(stateBoot, runtimeId).Control;
     }
 
+    public static AetheriaUi Ui(string runtimeId = "")
+    {
+        return RuntimeClient(runtimeId).Ui;
+    }
+
+    public static AetheriaUi Ui(
+        AetheriaRuntimeStateBootReport stateBoot,
+        string runtimeId = "")
+    {
+        return RuntimeClient(stateBoot, runtimeId).Ui;
+    }
+
     public static CultMeshReactiveDocument<TDocument> Reactive<TDocument>(string runtimeId = "")
         where TDocument : class
     {

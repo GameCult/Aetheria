@@ -1079,13 +1079,13 @@ private void Update()
 
         try
         {
-            var client = AetheriaUnityRuntimeClientProvider.RuntimeClient("unity-inventory");
             var loadout = CreateLoadoutTemplate(targetEntityKey);
             if (loadout?.RootEntity == null || string.IsNullOrWhiteSpace(loadout.RootEntity.Hull?.ItemKey ?? ""))
                 return;
 
-            var submitted = client
-                .Ui.SaveLoadoutTemplateAsync(loadout, "unity-inventory")
+            var submitted = AetheriaUnityRuntimeClientProvider
+                .Ui("unity-inventory")
+                .SaveLoadoutTemplateAsync(loadout, "unity-inventory")
                 .GetAwaiter()
                 .GetResult();
 

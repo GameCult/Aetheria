@@ -428,8 +428,8 @@ public class MainMenu : MonoBehaviour
         try
         {
             var submitted = AetheriaUnityRuntimeClientProvider
-                .RuntimeClient(stateBoot, "unity-main-menu")
-                .Ui.SurfaceCommandAsync(request, "unity-main-menu")
+                .Ui(stateBoot, "unity-main-menu")
+                .SurfaceCommandAsync(request, "unity-main-menu")
                 .GetAwaiter()
                 .GetResult();
 

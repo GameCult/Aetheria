@@ -3538,7 +3538,9 @@ static void RequireMainMenuSettingsCommands(string root)
     {
         "SendKnownAetheriaEveCommand(request, \"player-settings\")",
         "AetheriaRuntimeMainMenuCommandKind.PlayerSettingsCommand",
-        ".Ui.SurfaceCommandAsync(request, \"unity-main-menu\")",
+        "AetheriaUnityRuntimeClientProvider",
+        ".Ui(stateBoot, \"unity-main-menu\")",
+        ".SurfaceCommandAsync(request, \"unity-main-menu\")",
         "stateBoot.StateFilePath",
         "\"unity-main-menu\""
     };
@@ -4220,11 +4222,11 @@ static void RequireRuntimeInputScreenUsesEveSurface(string root)
         "AetheriaEveUnitySurfaceHost.RenderRuntime(",
         "AetheriaEveUnitySurfaceHost.Hide(_surfaceDocument)",
         "UIDocument",
-        ".Ui.InputSettingsAsync(command, body, \"unity-input-screen\")",
+        ".Ui(RequireLocalStateBoot(), \"unity-input-screen\")",
+        ".InputSettingsAsync(command, body, \"unity-input-screen\")",
         "AetheriaRuntimeInputSettingsCommandBody",
         "AetheriaRuntimeEveCommandKind.SetBindingOverride",
         "AetheriaRuntimeEveCommandKind.SetActionBarEnabled",
-        "RuntimeClient(",
         "RequireLocalStateBoot()",
         "AetheriaUnityRuntimeClientProvider",
         ".Reactive<AetheriaRuntimePlayerSettingsDocument>(",
@@ -4370,7 +4372,9 @@ static void RequireRuntimeInputScreenUsesEveSurface(string root)
     var requiredInputSettingsSubmitSymbols = new[]
     {
         "SendInputSettingsCommand(",
-        ".Ui.InputSettingsAsync(",
+        "AetheriaUnityRuntimeClientProvider",
+        ".Ui(RequireLocalStateBoot(), \"unity-input-screen\")",
+        ".InputSettingsAsync(",
         "AetheriaRuntimeEveCommandKind.SetBindingOverride",
         "AetheriaRuntimeEveCommandKind.SetActionBarEnabled"
     };
@@ -9830,7 +9834,8 @@ static void RequireVerseSettingsShellAndBridge(string root)
         "AetheriaRuntimeMainMenuCommandKind.VerseHostCommand",
         "RequestClientTargetCommand(request)",
         "SendKnownAetheriaEveCommand(request, \"Verse-host\")",
-        ".Ui.SurfaceCommandAsync(request, \"unity-main-menu\")",
+        ".Ui(stateBoot, \"unity-main-menu\")",
+        ".SurfaceCommandAsync(request, \"unity-main-menu\")",
         "AetheriaState.At(AetheriaUnityRuntimePaths.GameDataDirectory)",
         ".ClientTarget",
         "AetheriaRuntimeClientTargetSurfaceCommands.TryRequest("
@@ -16328,6 +16333,8 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "public static AetheriaClient RuntimeClient(string runtimeId = \"\")",
         "public static AetheriaClientState RuntimeState(string runtimeId = \"\")",
         "public static AetheriaControl Control(string runtimeId = \"\")",
+        "public static AetheriaUi Ui(string runtimeId = \"\")",
+        "public static AetheriaUi Ui(",
         "public static CultMeshReactiveDocument<TDocument> Reactive<TDocument>(string runtimeId = \"\")",
         "public static CultMeshReactiveDocument<TDocument> Reactive<TDocument>(",
         "public static AetheriaClient CurrentClientForStateFile(string stateFilePath)",
@@ -18234,7 +18241,8 @@ static void RequireInventoryLoadoutSaveRequestAuthority(string root)
         ".CreateLoadoutTemplate(targetEntityKey ?? \"\")",
         ".Reactive<AetheriaRuntimeDaemonFrameDocument>(\"unity-inventory\")",
         "_loadoutFrame?.Dispose()",
-        ".Ui.SaveLoadoutTemplateAsync(loadout, \"unity-inventory\")"
+        ".Ui(\"unity-inventory\")",
+        ".SaveLoadoutTemplateAsync(loadout, \"unity-inventory\")"
     };
     var missingInventoryPanelSymbols = requiredInventoryPanelSymbols
         .Where(symbol => !inventoryPanel.Contains(symbol, StringComparison.Ordinal))
@@ -18247,10 +18255,12 @@ static void RequireInventoryLoadoutSaveRequestAuthority(string root)
     }
 
     if (inventoryPanel.Contains("AetheriaRuntimeDaemonFrameSession _loadoutFrame", StringComparison.Ordinal) ||
-        inventoryPanel.Contains(".ObserveDaemonFrame()", StringComparison.Ordinal))
+        inventoryPanel.Contains(".ObserveDaemonFrame()", StringComparison.Ordinal) ||
+        inventoryPanel.Contains("AetheriaUnityRuntimeClientProvider.RuntimeClient(\"unity-inventory\")", StringComparison.Ordinal) ||
+        inventoryPanel.Contains(".Ui.SaveLoadoutTemplateAsync(loadout, \"unity-inventory\")", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "InventoryPanel still routes loadout snapshots through AetheriaRuntimeDaemonFrameSession instead of a managed reactive typed daemon-frame document.");
+            "InventoryPanel must use managed reactive typed daemon-frame state and the provider-native UI command handle.");
     }
 
     RequireReactiveTypedDocumentAccess(

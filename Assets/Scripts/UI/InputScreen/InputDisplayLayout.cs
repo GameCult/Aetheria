@@ -344,8 +344,8 @@ public class InputDisplayLayout : MonoBehaviour
         try
         {
             var submitted = AetheriaUnityRuntimeClientProvider
-                .RuntimeClient(RequireLocalStateBoot(), "unity-input-screen")
-                .Ui.InputSettingsAsync(command, body, "unity-input-screen")
+                .Ui(RequireLocalStateBoot(), "unity-input-screen")
+                .InputSettingsAsync(command, body, "unity-input-screen")
                 .GetAwaiter()
                 .GetResult();
 
