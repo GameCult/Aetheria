@@ -12904,10 +12904,16 @@ static void RequireMainMenuContinueRunState(string root)
             "Unity still owns daemon entity snapshot projection; package runtime should lower typed daemon entity snapshots.");
     }
 
+    var zoneRenderDocumentsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeRtsViewportDocuments.cs");
+    var zoneRenderDocuments = File.Exists(zoneRenderDocumentsPath)
+        ? File.ReadAllText(zoneRenderDocumentsPath)
+        : throw new InvalidOperationException("Cannot verify Continue entity snapshot access; AetheriaRuntimeRtsViewportDocuments.cs is missing.");
     var daemonEntitySnapshotProjectorPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeEntitySnapshotProjector.cs");
-    var daemonEntitySnapshotProjector = File.Exists(daemonEntitySnapshotProjectorPath)
-        ? File.ReadAllText(daemonEntitySnapshotProjectorPath)
-        : throw new InvalidOperationException("Cannot verify Continue entity projection; AetheriaRuntimeEntitySnapshotProjector.cs is missing.");
+    if (File.Exists(daemonEntitySnapshotProjectorPath))
+    {
+        throw new InvalidOperationException(
+            "AetheriaRuntimeEntitySnapshotProjector is dead access chaff; AetheriaRuntimeZoneRenderDocument owns managed entity snapshot access.");
+    }
     var observedEntityRestorerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityObservedEntityRestorer.cs");
     var observedEntityRestorer = File.Exists(observedEntityRestorerPath)
         ? File.ReadAllText(observedEntityRestorerPath)
@@ -13007,27 +13013,27 @@ static void RequireMainMenuContinueRunState(string root)
             string.Join(", ", gameplayCatalogPolicyHits));
     }
 
-    var requiredEntitySnapshotProjectorSymbols = new[]
+    var requiredZoneRenderSnapshotSymbols = new[]
     {
-        "public static class AetheriaRuntimeEntitySnapshotProjector",
-        "public static AetheriaRuntimeEntitySnapshot[] CreateSnapshots(",
-        "public static string DaemonEntityRecordKey(string runId, int zoneIndex, int entityIndex)",
+        "public AetheriaRuntimeEntitySnapshot[] CreateEntitySnapshots()",
+        "public static AetheriaRuntimeEntitySnapshot[] CreateEntitySnapshots(",
+        "public static string EntityRecordKey(string runId, int zoneIndex, int entityIndex)",
         "new AetheriaRuntimeEntitySnapshot(",
         "entity.EntityIndex,",
-        "CreateItemSlots(entity.Equipment)",
+        "CreateEntityItemSlots(entity.Equipment)",
         "CreateWeaponStates(runId, zoneIndex, entity.WeaponStates)",
         "CreateBehaviorStates(entity.BehaviorStates)",
         "CreateCargoBays(entity.CargoContents)",
         "new AetheriaRuntimeEntityContactSnapshot("
     };
-    var missingEntitySnapshotProjectorSymbols = requiredEntitySnapshotProjectorSymbols
-        .Where(symbol => !daemonEntitySnapshotProjector.Contains(symbol, StringComparison.Ordinal))
+    var missingZoneRenderSnapshotSymbols = requiredZoneRenderSnapshotSymbols
+        .Where(symbol => !zoneRenderDocuments.Contains(symbol, StringComparison.Ordinal))
         .ToArray();
-    if (missingEntitySnapshotProjectorSymbols.Length > 0)
+    if (missingZoneRenderSnapshotSymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "Daemon entity snapshot projection must live in the runtime package outside ActionGameManager and Unity Assets: " +
-            string.Join(", ", missingEntitySnapshotProjectorSymbols));
+            "Managed daemon entity snapshot access must live on AetheriaRuntimeZoneRenderDocument instead of a projector-shaped helper: " +
+            string.Join(", ", missingZoneRenderSnapshotSymbols));
     }
 
     var forbiddenManagerSnapshotProjectionSymbols = new[]
@@ -13204,7 +13210,7 @@ static void RequireMainMenuContinueRunState(string root)
         "private bool TryRestoreEntityGraphFromZoneRender(",
         "if (string.IsNullOrWhiteSpace(render.RunId))",
         "Aetheria zone-render feed does not identify a run id.",
-        "AetheriaRuntimeEntitySnapshotProjector.CreateSnapshots(runId, render.ZoneIndex, render.EntitySnapshots)",
+        "render.CreateEntitySnapshots()",
         ".OrderBy(entity => entity.EntityIndex)",
         "_entityRestorer.TryApplyInPlace(",
         "zoneRenderer?.ApplyZoneRender(render)",
@@ -13827,6 +13833,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
     var daemonOperationClientPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonOperationClient.cs");
     var daemonRuntimeOperationsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonOperations.cs");
     var daemonIntentPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonIntentState.cs");
+    var zoneRenderDocumentsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeRtsViewportDocuments.cs");
     var daemonObserverPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaDaemonObserver.cs");
     var pilotCommandSenderPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityPilotCommandSender.cs");
     var pilotFrameControllerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityPilotFrameController.cs");
@@ -13897,9 +13904,14 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
             "Unity still owns daemon entity snapshot projection; package runtime should lower typed daemon entity snapshots.");
     }
 
-    var daemonEntitySnapshotProjector = File.Exists(daemonEntitySnapshotProjectorPath)
-        ? File.ReadAllText(daemonEntitySnapshotProjectorPath)
-        : throw new InvalidOperationException("Cannot verify Unity observer authority; AetheriaRuntimeEntitySnapshotProjector.cs is missing.");
+    var zoneRenderDocuments = File.Exists(zoneRenderDocumentsPath)
+        ? File.ReadAllText(zoneRenderDocumentsPath)
+        : throw new InvalidOperationException("Cannot verify Unity observer authority; AetheriaRuntimeRtsViewportDocuments.cs is missing.");
+    if (File.Exists(daemonEntitySnapshotProjectorPath))
+    {
+        throw new InvalidOperationException(
+            "AetheriaRuntimeEntitySnapshotProjector is dead access chaff; AetheriaRuntimeZoneRenderDocument owns managed entity snapshot access.");
+    }
     var observedEntityRestorer = File.Exists(observedEntityRestorerPath)
         ? File.ReadAllText(observedEntityRestorerPath)
         : throw new InvalidOperationException("Cannot verify Unity observer authority; AetheriaUnityObservedEntityRestorer.cs is missing.");
@@ -14030,15 +14042,15 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
             string.Join(", ", missingSceneWiringObserverSymbols));
     }
 
-    if (!daemonEntitySnapshotProjector.Contains("new AetheriaRuntimeEntitySnapshot(", StringComparison.Ordinal) ||
-        !daemonEntitySnapshotProjector.Contains("CreateWeaponStates(runId, zoneIndex, entity.WeaponStates)", StringComparison.Ordinal) ||
-        !daemonEntitySnapshotProjector.Contains("entity.EntityIndex,", StringComparison.Ordinal))
+    if (!zoneRenderDocuments.Contains("new AetheriaRuntimeEntitySnapshot(", StringComparison.Ordinal) ||
+        !zoneRenderDocuments.Contains("CreateWeaponStates(runId, zoneIndex, entity.WeaponStates)", StringComparison.Ordinal) ||
+        !zoneRenderDocuments.Contains("entity.EntityIndex,", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Unity observer entity projection no longer carries typed daemon entity indices through the dedicated daemon snapshot projector.");
+            "Unity observer entity snapshot access no longer carries typed daemon entity indices through AetheriaRuntimeZoneRenderDocument.");
     }
 
-    if (daemonEntitySnapshotProjector.Contains("EntityIndexFromRecordKey", StringComparison.Ordinal) ||
+    if (zoneRenderDocuments.Contains("EntityIndexFromRecordKey", StringComparison.Ordinal) ||
         observedFrameApplier.Contains("EntityIndexFromRecordKey", StringComparison.Ordinal) ||
         observedEntityRestorer.Contains("EntityIndexFromRecordKey", StringComparison.Ordinal))
     {
@@ -14115,13 +14127,35 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
             "Unity observer zone context lowering no longer flows through the dedicated observed zone context factory.");
     }
 
+    var requiredZoneRenderSnapshotSymbols = new[]
+    {
+        "public AetheriaRuntimeEntitySnapshot[] CreateEntitySnapshots()",
+        "public static AetheriaRuntimeEntitySnapshot[] CreateEntitySnapshots(",
+        "public static string EntityRecordKey(string runId, int zoneIndex, int entityIndex)",
+        "new AetheriaRuntimeEntitySnapshot(",
+        "CreateEntityItemSlots(entity.Equipment)",
+        "CreateWeaponStates(runId, zoneIndex, entity.WeaponStates)",
+        "CreateBehaviorStates(entity.BehaviorStates)",
+        "CreateCargoBays(entity.CargoContents)",
+        "new AetheriaRuntimeEntityContactSnapshot("
+    };
+    var missingZoneRenderSnapshotSymbols = requiredZoneRenderSnapshotSymbols
+        .Where(symbol => !zoneRenderDocuments.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingZoneRenderSnapshotSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Managed daemon entity snapshot access must live on AetheriaRuntimeZoneRenderDocument instead of a projector-shaped helper: " +
+            string.Join(", ", missingZoneRenderSnapshotSymbols));
+    }
+
     var requiredObservedFrameApplierSymbols = new[]
     {
         "public sealed class AetheriaUnityObservedFrameApplier",
         "public bool ApplyLatestZoneRender()",
         "observer.LastRenderView?.ZoneRender",
         "private bool TryRestoreEntityGraphFromZoneRender(",
-        "AetheriaRuntimeEntitySnapshotProjector.CreateSnapshots(runId, render.ZoneIndex, render.EntitySnapshots)",
+        "render.CreateEntitySnapshots()",
         ".OrderBy(entity => entity.EntityIndex)",
         "_entityRestorer.Replace(entitySnapshots, currentEntityKey, _getZone())",
         "_entityRestorer.TryApplyInPlace(",

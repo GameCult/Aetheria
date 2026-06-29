@@ -90,7 +90,7 @@ public sealed class AetheriaUnityObservedFrameApplier
             return false;
         }
 
-        var entitySnapshots = AetheriaRuntimeEntitySnapshotProjector.CreateSnapshots(runId, render.ZoneIndex, render.EntitySnapshots)
+        var entitySnapshots = render.CreateEntitySnapshots()
             .OrderBy(entity => entity.EntityIndex)
             .ToArray();
 
