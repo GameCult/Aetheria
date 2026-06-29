@@ -23,7 +23,7 @@ namespace GameCult.Aetheria.State.Verse
 
         public static EveSurfaceDocument ToEveSurfaceDocument(
             EveSurfaceState state,
-            Func<string, string>? stateRefResolver)
+            CultMeshStateRefResolver? stateRefResolver)
         {
             if (state == null) throw new ArgumentNullException(nameof(state));
 
@@ -51,7 +51,7 @@ namespace GameCult.Aetheria.State.Verse
 
         public static EveSurfaceDocument ToEveSurfaceDocument(
             AetheriaRuntimeSurfaceDocument document,
-            Func<string, string>? stateRefResolver)
+            CultMeshStateRefResolver? stateRefResolver)
         {
             if (document == null) throw new ArgumentNullException(nameof(document));
 
@@ -78,12 +78,13 @@ namespace GameCult.Aetheria.State.Verse
 
         public static EveSurfaceDocument ResolveStateRefs(
             EveSurfaceDocument surface,
-            Func<string, string>? stateRefResolver)
+            CultMeshStateRefResolver? stateRefResolver)
         {
             if (surface == null) throw new ArgumentNullException(nameof(surface));
             if (stateRefResolver == null)
                 return surface;
 
+            var resolveStateRef = stateRefResolver.AsFunc();
             return new EveSurfaceDocument(
                 surface.Type,
                 surface.Schema,
@@ -94,7 +95,7 @@ namespace GameCult.Aetheria.State.Verse
                 surface.UpdatedAtUtc,
                 new EveSurfaceTree(
                     surface.Surface.Id,
-                    ResolveStateRefs(surface.Surface.Root, stateRefResolver),
+                    ResolveStateRefs(surface.Surface.Root, resolveStateRef),
                     surface.Surface.Styles),
                 surface.Commands);
         }
@@ -187,37 +188,37 @@ namespace GameCult.Aetheria.State.Verse
 
         private static EveSurfaceComponent ResolveStateRefs(
             EveSurfaceComponent component,
-            Func<string, string> stateRefResolver)
+            Func<string, string> resolveStateRef)
         {
             var props = new Dictionary<string, string>(component.Props, StringComparer.Ordinal);
-            ResolvePropRefs(props, stateRefResolver);
+            ResolvePropRefs(props, resolveStateRef);
 
             return new EveSurfaceComponent(
                 component.Id,
                 component.Kind,
                 props,
-                ResolveStateRefs(component.Children, stateRefResolver),
+                ResolveStateRefs(component.Children, resolveStateRef),
                 component.StateBindings);
         }
 
         private static IReadOnlyList<EveSurfaceComponent> ResolveStateRefs(
             IReadOnlyList<EveSurfaceComponent> children,
-            Func<string, string> stateRefResolver)
+            Func<string, string> resolveStateRef)
         {
             if (children == null || children.Count == 0)
                 return Array.Empty<EveSurfaceComponent>();
 
             var resolved = new EveSurfaceComponent[children.Count];
             for (var index = 0; index < children.Count; index++)
-                resolved[index] = ResolveStateRefs(children[index], stateRefResolver);
+                resolved[index] = ResolveStateRefs(children[index], resolveStateRef);
             return resolved;
         }
 
         private static void ResolvePropRefs(
             Dictionary<string, string> props,
-            Func<string, string> stateRefResolver)
+            Func<string, string> resolveStateRef)
         {
-            ResolvePropRef(props, AetheriaRuntimeSurfaceStateRefs.Source, "value", stateRefResolver);
+            ResolvePropRef(props, AetheriaRuntimeSurfaceStateRefs.Source, "value", resolveStateRef);
 
             var refProps = props
                 .Where(prop => IsStatePointerProp(prop.Key) &&
@@ -226,7 +227,7 @@ namespace GameCult.Aetheria.State.Verse
                 .ToArray();
 
             foreach (var refProp in refProps)
-                ResolvePropRef(props, refProp.Key, ResolvePointerValueKey(refProp.Key), stateRefResolver);
+                ResolvePropRef(props, refProp.Key, ResolvePointerValueKey(refProp.Key), resolveStateRef);
         }
 
         private static bool IsStatePointerProp(string key)
@@ -243,12 +244,12 @@ namespace GameCult.Aetheria.State.Verse
             Dictionary<string, string> props,
             string refKey,
             string valueKey,
-            Func<string, string> stateRefResolver)
+            Func<string, string> resolveStateRef)
         {
             if (!props.TryGetValue(refKey, out var stateRef) || string.IsNullOrWhiteSpace(stateRef))
                 return;
 
-            var resolved = stateRefResolver(stateRef);
+            var resolved = resolveStateRef(stateRef);
             if (!string.IsNullOrWhiteSpace(resolved))
                 props[valueKey] = resolved;
         }

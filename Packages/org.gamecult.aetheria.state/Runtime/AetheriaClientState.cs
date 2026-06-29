@@ -249,11 +249,6 @@ namespace GameCult.Aetheria.State.Verse
             return (CultMeshDocumentHandle<TDocument>)(object)_starbridgePlayerSeat(seatId);
         }
 
-        public Func<string, string> CreateEveSurfaceStateRefResolver()
-        {
-            return CreateEveSurfaceCultMeshStateRefResolver().AsFunc();
-        }
-
         public CultMeshStateRefResolver CreateEveSurfaceCultMeshStateRefResolver()
         {
             _eveStateRefFrame ??= Document<AetheriaRuntimeDaemonFrameDocument>().Reactive();

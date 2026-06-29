@@ -601,7 +601,7 @@ public class DaemonRuntimeDocumentTests
         var unityGameTuiSurfaceState = ReadLatest(client.State.Document<global::Aetheria.State.Documents.EveSurfaceState>(AetheriaClientEveSurface.GameTui));
         var unityEditorSurfaceState = ReadLatest(client.State.Document<global::Aetheria.State.Documents.EveSurfaceState>(AetheriaClientEveSurface.Editor));
         var unityEditorTuiSurfaceState = ReadLatest(client.State.Document<global::Aetheria.State.Documents.EveSurfaceState>(AetheriaClientEveSurface.EditorTui));
-        var surfaceResolver = client.State.CreateEveSurfaceStateRefResolver();
+        var surfaceResolver = client.State.CreateEveSurfaceCultMeshStateRefResolver();
         var unityGameSurface = AetheriaRuntimeEveSurfaceAdapter.ToEveSurfaceDocument(
             unityGameSurfaceState,
             surfaceResolver);
@@ -690,9 +690,10 @@ public class DaemonRuntimeDocumentTests
                 Array.Empty<EveStyleToken>()),
             Array.Empty<EveCommandTemplate>());
 
-        var resolved = AetheriaRuntimeEveSurfaceAdapter.ResolveStateRefs(
-            surface,
-            stateRef => stateRef == AetheriaRuntimeDaemonStateRefs.CurrentTargetName ? "Live Target" : "");
+        var resolver = CultMesh.StateRefResolver(
+            "aetheria.tests.refs",
+            (stateRef, _context) => stateRef == AetheriaRuntimeDaemonStateRefs.CurrentTargetName ? "Live Target" : "");
+        var resolved = AetheriaRuntimeEveSurfaceAdapter.ResolveStateRefs(surface, resolver);
 
         Assert.IsTrue(ContainsEveSurfaceMetric(resolved.Surface.Root, "Target", "Live Target"));
         Assert.IsTrue(ContainsEveSurfaceProp(
@@ -728,9 +729,10 @@ public class DaemonRuntimeDocumentTests
                 Array.Empty<EveStyleToken>()),
             Array.Empty<EveCommandTemplate>());
 
-        var resolved = AetheriaRuntimeEveSurfaceAdapter.ResolveStateRefs(
-            surface,
-            stateRef => stateRef == AetheriaRuntimeDaemonStateRefs.CurrentTargetName ? "Live Target" : "");
+        var resolver = CultMesh.StateRefResolver(
+            "aetheria.tests.refs",
+            (stateRef, _context) => stateRef == AetheriaRuntimeDaemonStateRefs.CurrentTargetName ? "Live Target" : "");
+        var resolved = AetheriaRuntimeEveSurfaceAdapter.ResolveStateRefs(surface, resolver);
 
         Assert.IsTrue(ContainsEveSurfaceProp(resolved.Surface.Root, "description", "Live Target"));
         Assert.IsTrue(ContainsEveSurfaceProp(resolved.Surface.Root, "descriptionRef", AetheriaRuntimeDaemonStateRefs.CurrentTargetName));

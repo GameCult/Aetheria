@@ -4,6 +4,7 @@ using System.Linq;
 using GameCult.Aetheria.State.Verse;
 using GameCult.Eve.Surface;
 using GameCult.Eve.UnityUIToolkit;
+using GameCult.Mesh;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -47,7 +48,7 @@ namespace GameCult.Aetheria.EveRuntime
             EveSurfaceDocument surface,
             Action<EveSurfaceCommandRequest> commandHandler,
             AetheriaEveUnitySurfaceChrome chrome,
-            Func<string, string> stateRefResolver = null,
+            CultMeshStateRefResolver stateRefResolver = null,
             int sortingOrder = 1000)
         {
             if (owner == null)
@@ -90,7 +91,7 @@ namespace GameCult.Aetheria.EveRuntime
             AetheriaRuntimeSurfaceDocument surface,
             Action<EveSurfaceCommandRequest> commandHandler,
             AetheriaEveUnitySurfaceChrome chrome,
-            Func<string, string> stateRefResolver = null,
+            CultMeshStateRefResolver stateRefResolver = null,
             int sortingOrder = 1000)
         {
             if (surface == null)
@@ -219,16 +220,16 @@ namespace GameCult.Aetheria.EveRuntime
             return false;
         }
 
-        private static Func<string, string> CreateDefaultStateRefResolver()
+        private static CultMeshStateRefResolver CreateDefaultStateRefResolver()
         {
             var stateBoot = AetheriaRuntimeStateBoot.Inspect(AetheriaUnityRuntimePaths.GameDataDirectory, "");
             if (!stateBoot.SupportsLocalStateFileRead || !stateBoot.StateFileExists)
-                return _ => "";
+                return null;
 
             return AetheriaUnityRuntimeClientProvider
                 .ResolveClient(stateBoot, "unity-eve-surface-host")
                 .State
-                .CreateEveSurfaceStateRefResolver();
+                .CreateEveSurfaceCultMeshStateRefResolver();
         }
 
     }

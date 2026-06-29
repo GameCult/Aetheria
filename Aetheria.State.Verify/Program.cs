@@ -5239,15 +5239,15 @@ static void RequireInventoryCargoItemDetailsUseEveSurface(string root)
         !daemonItemStatQueries.Contains("public static bool TryReadItemStatRef(", StringComparison.Ordinal) ||
         !daemonItemStatQueries.Contains("public string ValueRef =>", StringComparison.Ordinal) ||
         !unityProject.Contains("AetheriaRuntimeDaemonItemStatQueries.cs", StringComparison.Ordinal) ||
-        !eveUnitySurfaceHost.Contains("Func<string, string> stateRefResolver", StringComparison.Ordinal) ||
+        !eveUnitySurfaceHost.Contains("CultMeshStateRefResolver stateRefResolver", StringComparison.Ordinal) ||
         !eveUnitySurfaceHost.Contains("ContainsStateRefs(surface)", StringComparison.Ordinal) ||
         !eveUnitySurfaceHost.Contains("prop.Key.EndsWith(\"Ref\", StringComparison.Ordinal)", StringComparison.Ordinal) ||
         !eveUnitySurfaceHost.Contains("CreateDefaultStateRefResolver()", StringComparison.Ordinal) ||
         !eveUnitySurfaceHost.Contains("AetheriaUnityRuntimeClientProvider", StringComparison.Ordinal) ||
-        !eveUnitySurfaceHost.Contains(".CreateEveSurfaceStateRefResolver()", StringComparison.Ordinal) ||
+        !eveUnitySurfaceHost.Contains(".CreateEveSurfaceCultMeshStateRefResolver()", StringComparison.Ordinal) ||
         !runtimeEveSurfaceAdapter.Contains("public static EveSurfaceDocument ResolveStateRefs(", StringComparison.Ordinal) ||
-        !runtimeEveSurfaceAdapter.Contains("ResolvePropRefs(props, stateRefResolver)", StringComparison.Ordinal) ||
-        !runtimeEveSurfaceAdapter.Contains("ResolvePropRef(props, AetheriaRuntimeSurfaceStateRefs.Source, \"value\", stateRefResolver)", StringComparison.Ordinal) ||
+        !runtimeEveSurfaceAdapter.Contains("ResolvePropRefs(props, resolveStateRef)", StringComparison.Ordinal) ||
+        !runtimeEveSurfaceAdapter.Contains("ResolvePropRef(props, AetheriaRuntimeSurfaceStateRefs.Source, \"value\", resolveStateRef)", StringComparison.Ordinal) ||
         !runtimeEveSurfaceAdapter.Contains("IsStatePointerProp(prop.Key)", StringComparison.Ordinal) ||
         !runtimeEveSurfaceAdapter.Contains("ResolvePointerValueKey(refProp.Key)", StringComparison.Ordinal) ||
         !cargoItemSurfaceBuilder.Contains("public string ValueRef { get; }", StringComparison.Ordinal) ||
@@ -11954,7 +11954,6 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
 
     var requiredClientStateSymbols = new[]
     {
-        "public Func<string, string> CreateEveSurfaceStateRefResolver()",
         "public CultMeshStateRefResolver CreateEveSurfaceCultMeshStateRefResolver()",
         "public sealed class AetheriaClientState : IDisposable",
         "CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument>? _eveStateRefFrame",
@@ -15789,8 +15788,9 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "public static class AetheriaRuntimeEveSurfaceAdapter",
         "public static EveSurfaceDocument ToEveSurfaceDocument(AetheriaRuntimeSurfaceDocument document)",
         "public static EveSurfaceDocument ResolveStateRefs(",
-        "ResolvePropRefs(props, stateRefResolver)",
-        "ResolvePropRef(props, AetheriaRuntimeSurfaceStateRefs.Source, \"value\", stateRefResolver)",
+        "CultMeshStateRefResolver? stateRefResolver",
+        "ResolvePropRefs(props, resolveStateRef)",
+        "ResolvePropRef(props, AetheriaRuntimeSurfaceStateRefs.Source, \"value\", resolveStateRef)",
         "IsStatePointerProp(prop.Key)",
         "ResolvePointerValueKey(refProp.Key)",
         "public static EveSurfaceDocument EmptySurface(string surfaceId)",
@@ -16356,7 +16356,6 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "public async Task<global::Aetheria.State.Documents.EveSurfaceState?> DaemonGameTuiSurfaceAsync()",
         "public async Task<global::Aetheria.State.Documents.EveSurfaceState?> DaemonEditorSurfaceAsync()",
         "public async Task<global::Aetheria.State.Documents.EveSurfaceState?> DaemonEditorTuiSurfaceAsync()",
-        "public Func<string, string> CreateEveSurfaceStateRefResolver()",
         "public CultMeshStateRefResolver CreateEveSurfaceCultMeshStateRefResolver()",
         "public CultMeshDocumentHandle<TDocument> Document<TDocument>()",
         "public Observable<TDocument> Watch<TDocument>()",
@@ -16521,8 +16520,8 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
             "Aetheria Eve surface presenter no longer routes daemon surface lookup through the shared AetheriaClient facade.");
     }
 
-    if (!eveSurfacePresenter.Contains("client.State.CreateEveSurfaceStateRefResolver()", StringComparison.Ordinal) ||
-        !eveSurfacePresenter.Contains("ResolveClient(statePath).State.CreateEveSurfaceStateRefResolver()", StringComparison.Ordinal))
+    if (!eveSurfacePresenter.Contains("client.State.CreateEveSurfaceCultMeshStateRefResolver()", StringComparison.Ordinal) ||
+        !eveSurfacePresenter.Contains("ResolveClient(statePath).State.CreateEveSurfaceCultMeshStateRefResolver()", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "Aetheria Eve surface presenter no longer resolves provider state refs through managed AetheriaClientState documents.");
@@ -16547,10 +16546,11 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     }
 
     if (aetheriaClientState.Contains("AetheriaRuntimeStateReader.CreateEveSurfaceCultMeshStateRefResolver", StringComparison.Ordinal) ||
-        aetheriaClientState.Contains("AetheriaRuntimeStateReader.CreateEveSurfaceStateRefResolver", StringComparison.Ordinal))
+        aetheriaClientState.Contains("AetheriaRuntimeStateReader.CreateEveSurfaceStateRefResolver", StringComparison.Ordinal) ||
+        aetheriaClientState.Contains("public Func<string, string> CreateEveSurfaceStateRefResolver()", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Managed client state still routes Eve state-ref resolution through the file-backed compatibility reader.");
+            "Managed client state still routes or exposes Eve state-ref resolution through file-backed/delegate compatibility.");
     }
 
     var forbiddenDirectStoreSymbols = new Dictionary<string, string[]>
