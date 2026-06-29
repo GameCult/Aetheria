@@ -92,6 +92,40 @@ public static class AetheriaUnityRuntimeClientProvider
         return RuntimeState(stateBoot, runtimeId).CurrentDockingState();
     }
 
+    public static AetheriaRuntimeCatalogSnapshot CurrentCatalog(string runtimeId = "")
+    {
+        return RuntimeState(runtimeId).CurrentCatalog();
+    }
+
+    public static AetheriaRuntimeCatalogSnapshot CurrentCatalog(
+        AetheriaRuntimeStateBootReport stateBoot,
+        string runtimeId = "")
+    {
+        return RuntimeState(stateBoot, runtimeId).CurrentCatalog();
+    }
+
+    public static AetheriaRuntimePlayerSettingsDocument CurrentPlayerSettings(string runtimeId = "")
+    {
+        return RuntimeState(runtimeId).CurrentPlayerSettings();
+    }
+
+    public static AetheriaRuntimePlayerSettingsDocument CurrentPlayerSettings(
+        AetheriaRuntimeStateBootReport stateBoot,
+        string runtimeId = "")
+    {
+        return RuntimeState(stateBoot, runtimeId).CurrentPlayerSettings();
+    }
+
+    public static AetheriaRuntimeCurrentEntityDocument CurrentEntityState(string runtimeId = "")
+    {
+        return RuntimeState(runtimeId).CurrentEntityState();
+    }
+
+    public static AetheriaRuntimeStationRefitDocument CurrentStationRefit(string runtimeId = "")
+    {
+        return RuntimeState(runtimeId).CurrentStationRefit();
+    }
+
     public static AetheriaControl Control(string runtimeId = "")
     {
         return RuntimeClient(runtimeId).Control;

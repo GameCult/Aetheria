@@ -98,7 +98,6 @@ public abstract class ActionBarBinding
         try
         {
             return AetheriaUnityRuntimeClientProvider
-                .RuntimeState()
                 .CurrentCatalog()
                 .FindItem(item, x => x.ItemKey);
         }

@@ -318,9 +318,7 @@ public class SchematicDisplay : MonoBehaviour
     {
         try
         {
-            return AetheriaUnityRuntimeClientProvider
-                .RuntimeState("unity-schematic-display")
-                .CurrentCatalog();
+            return AetheriaUnityRuntimeClientProvider.CurrentCatalog("unity-schematic-display");
         }
         catch (Exception ex)
         {
@@ -334,9 +332,7 @@ public class SchematicDisplay : MonoBehaviour
     {
         try
         {
-            return AetheriaUnityRuntimeClientProvider
-                .RuntimeState("unity-schematic-display")
-                .CurrentPlayerSettings();
+            return AetheriaUnityRuntimeClientProvider.CurrentPlayerSettings("unity-schematic-display");
         }
         catch (Exception ex)
         {
@@ -351,8 +347,7 @@ public class SchematicDisplay : MonoBehaviour
         try
         {
             return AetheriaUnityRuntimeClientProvider
-                .RuntimeState("unity-schematic-display")
-                .CurrentEntityState()
+                .CurrentEntityState("unity-schematic-display")
                 ?.Hud ?? new AetheriaRuntimeCurrentEntityHudStatus();
         }
         catch (Exception ex)

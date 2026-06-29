@@ -2562,10 +2562,9 @@ static void RequireDaemonRenderQueryAuthority(string root)
     {
         "CatalogSnapshot()",
         "CurrentEntityHudStatus()",
-        ".RuntimeState(\"unity-schematic-display\")",
-        ".CurrentCatalog()",
-        ".CurrentPlayerSettings()",
-        ".CurrentEntityState()",
+        "AetheriaUnityRuntimeClientProvider.CurrentCatalog(\"unity-schematic-display\")",
+        "AetheriaUnityRuntimeClientProvider.CurrentPlayerSettings(\"unity-schematic-display\")",
+        ".CurrentEntityState(\"unity-schematic-display\")",
         "?.Hud ?? new AetheriaRuntimeCurrentEntityHudStatus();",
         "hud.OverrideShutdown",
         "hud.HeatsinksEnabled",
@@ -5796,8 +5795,7 @@ static void RequireTradeCargoSelectorUseEveSurface(string root)
         "AetheriaRuntimeTradeCargoSelectorSurfaceCommands.TryRead(request, out var command)",
         "AetheriaRuntimeTradeCargoSelectorCommandKind.Close",
         "AetheriaRuntimeTradeCargoSelectorCommandKind.Select",
-        ".RuntimeState(\"unity-trade\")",
-        ".CurrentStationRefit()",
+        "AetheriaUnityRuntimeClientProvider.CurrentStationRefit(\"unity-trade\")",
         "AetheriaUnityRuntimeClientProvider.CurrentDockingState(\"unity-trade\")",
         "SetTargetCargo(",
         "selection.EntityKey",
@@ -7546,7 +7544,6 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
     {
         "public abstract class ActionBarBinding",
         "AetheriaUnityRuntimeClientProvider",
-        ".RuntimeState()",
         ".CurrentCatalog()",
         ".FindItem(item, x => x.ItemKey)",
         "private void OnDestroy()"
@@ -7589,10 +7586,9 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "AetheriaRuntimePlayerHudState.cs");
     var requiredSchematicDisplaySymbols = new[]
     {
-        ".RuntimeState(\"unity-schematic-display\")",
-        ".CurrentCatalog()",
-        ".CurrentPlayerSettings()",
-        ".CurrentEntityState()",
+        "AetheriaUnityRuntimeClientProvider.CurrentCatalog(\"unity-schematic-display\")",
+        "AetheriaUnityRuntimeClientProvider.CurrentPlayerSettings(\"unity-schematic-display\")",
+        ".CurrentEntityState(\"unity-schematic-display\")",
         "CatalogSnapshot()?.FindItem(item, x => x.ItemKey)",
         "private AetheriaRuntimeCatalogSnapshot CatalogSnapshot()",
         "private AetheriaRuntimePlayerSettingsDocument PlayerSettingsSnapshot()",
@@ -7859,8 +7855,8 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
     var compactTradeMenu = CompactSource(tradeMenu);
     var requiredTradeMenuSharedDocumentSymbols = new[]
     {
-        ".RuntimeState(\"unity-trade\").CurrentCatalog()",
-        ".RuntimeState(\"unity-trade\").CurrentPlayerSettings()",
+        "AetheriaUnityRuntimeClientProvider.CurrentCatalog(\"unity-trade\")",
+        "AetheriaUnityRuntimeClientProvider.CurrentPlayerSettings(\"unity-trade\")",
         "private void OnDestroy()"
     };
     var missingTradeMenuSharedDocumentSymbols = requiredTradeMenuSharedDocumentSymbols
@@ -16463,6 +16459,10 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "public static AetheriaClientState RuntimeState(string runtimeId = \"\")",
         "public static AetheriaRuntimeCurrentDockingDocument CurrentDockingState(string runtimeId = \"\")",
         "public static AetheriaRuntimeCurrentDockingDocument CurrentDockingState(",
+        "public static AetheriaRuntimeCatalogSnapshot CurrentCatalog(string runtimeId = \"\")",
+        "public static AetheriaRuntimePlayerSettingsDocument CurrentPlayerSettings(string runtimeId = \"\")",
+        "public static AetheriaRuntimeCurrentEntityDocument CurrentEntityState(string runtimeId = \"\")",
+        "public static AetheriaRuntimeStationRefitDocument CurrentStationRefit(string runtimeId = \"\")",
         "public static AetheriaControl Control(string runtimeId = \"\")",
         "public static AetheriaUi Ui(string runtimeId = \"\")",
         "public static AetheriaUi Ui(",

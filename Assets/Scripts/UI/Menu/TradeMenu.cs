@@ -504,9 +504,7 @@ public class TradeMenu : MonoBehaviour
     {
         try
         {
-            return AetheriaUnityRuntimeClientProvider
-                .RuntimeState("unity-trade")
-                .CurrentStationRefit();
+            return AetheriaUnityRuntimeClientProvider.CurrentStationRefit("unity-trade");
         }
         catch (Exception ex)
         {
@@ -579,9 +577,7 @@ public class TradeMenu : MonoBehaviour
     {
         try
         {
-            return AetheriaUnityRuntimeClientProvider
-                .RuntimeState("unity-trade")
-                .CurrentCatalog();
+            return AetheriaUnityRuntimeClientProvider.CurrentCatalog("unity-trade");
         }
         catch (Exception ex)
         {
@@ -594,9 +590,7 @@ public class TradeMenu : MonoBehaviour
     {
         try
         {
-            return AetheriaUnityRuntimeClientProvider
-                .RuntimeState("unity-trade")
-                .CurrentPlayerSettings();
+            return AetheriaUnityRuntimeClientProvider.CurrentPlayerSettings("unity-trade");
         }
         catch (Exception ex)
         {
