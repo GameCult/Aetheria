@@ -7493,7 +7493,7 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionBarSlot.cs"),
         Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityGameplayBootShell.cs"),
         Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityRuntimeClientProvider.cs"),
-        Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityObservedTargetQuery.cs"),
+        Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityTargetPresentation.cs"),
         Path.Combine(root, "Assets", "Scripts", "UI", "HUD", "SchematicDisplay.cs"),
         Path.Combine(root, "Assets", "Scripts", "UI", "InputScreen", "InputDisplayLayout.cs"),
         Path.Combine(root, "Assets", "Scripts", "UI", "MainMenu.cs"),
@@ -7686,36 +7686,45 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
             "VolumeCloudRenderer still routes player settings through legacy session/reactive wrapper state instead of named current typed state.");
     }
 
-    var observedTargetQuery = File.ReadAllText(Path.Combine(
+    var targetPresentation = File.ReadAllText(Path.Combine(
         root,
         "Assets",
         "Scripts",
         "Gameplay",
-        "AetheriaUnityObservedTargetQuery.cs"));
-    var requiredObservedTargetSymbols = new[]
-    {
-        ".RuntimeState(\"unity-observed-target-query\")",
-        ".CurrentZoneContacts()"
-    };
-    var missingObservedTargetSymbols = requiredObservedTargetSymbols
-        .Where(symbol => !observedTargetQuery.Contains(symbol, StringComparison.Ordinal))
-        .ToArray();
-    if (missingObservedTargetSymbols.Length > 0)
+        "AetheriaUnityTargetPresentation.cs"));
+    var deletedObservedTargetQueryPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityObservedTargetQuery.cs");
+    if (File.Exists(deletedObservedTargetQueryPath))
     {
         throw new InvalidOperationException(
-            "AetheriaUnityObservedTargetQuery should sample contacts through named current typed zone-contact state: " +
-            string.Join(", ", missingObservedTargetSymbols));
+            "AetheriaUnityObservedTargetQuery is dead contact-query chaff; target presentation should read typed zone contacts directly.");
     }
 
-    if (observedTargetQuery.Contains("CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument>", StringComparison.Ordinal) ||
-        observedTargetQuery.Contains(".ReactiveZoneContacts(\"unity-observed-target-query\")", StringComparison.Ordinal) ||
-        observedTargetQuery.Contains("_zoneContacts?.Dispose()", StringComparison.Ordinal) ||
-        observedTargetQuery.Contains("_zoneContacts?.Current", StringComparison.Ordinal) ||
-        observedTargetQuery.Contains("AetheriaRuntimeZoneContactsSession _zoneContacts", StringComparison.Ordinal) ||
-        observedTargetQuery.Contains(".ObserveZoneContacts()", StringComparison.Ordinal))
+    var requiredTargetContactSymbols = new[]
+    {
+        "public Func<AetheriaRuntimeZoneContactsDocument> ResolveZoneContacts { get; set; }",
+        "GetObservedTarget(Entity observer)",
+        "GetObservedVisibleContacts(",
+        "ResolveZoneContacts?.Invoke()"
+    };
+    var missingTargetContactSymbols = requiredTargetContactSymbols
+        .Where(symbol => !targetPresentation.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingTargetContactSymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "AetheriaUnityObservedTargetQuery still routes zone contacts through legacy session/reactive wrapper state instead of named current typed state.");
+            "AetheriaUnityTargetPresentation should query typed zone contacts directly for target HUD state: " +
+            string.Join(", ", missingTargetContactSymbols));
+    }
+
+    if (targetPresentation.Contains("CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument>", StringComparison.Ordinal) ||
+        targetPresentation.Contains(".ReactiveZoneContacts(\"unity-observed-target-query\")", StringComparison.Ordinal) ||
+        targetPresentation.Contains("_zoneContacts?.Dispose()", StringComparison.Ordinal) ||
+        targetPresentation.Contains("_zoneContacts?.Current", StringComparison.Ordinal) ||
+        targetPresentation.Contains("AetheriaRuntimeZoneContactsSession _zoneContacts", StringComparison.Ordinal) ||
+        targetPresentation.Contains(".ObserveZoneContacts()", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "AetheriaUnityTargetPresentation still routes zone contacts through legacy session/reactive wrapper state instead of typed current state.");
     }
 
     var mapRenderer = File.ReadAllText(Path.Combine(
@@ -8130,7 +8139,7 @@ static void RequireUnityViewportAndMapReadsUseManagedAccessors(string root)
 
     var unityPaths = new[]
     {
-        Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityObservedTargetQuery.cs"),
+        Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityTargetPresentation.cs"),
         Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityRenderSplatViewportSource.cs"),
         Path.Combine(root, "Assets", "Scripts", "UI", "HUD", "SchematicDisplay.cs"),
         Path.Combine(root, "Assets", "Scripts", "UI", "MainMenu.cs"),
@@ -13233,10 +13242,12 @@ static void RequireMainMenuContinueRunState(string root)
     var targetPresentation = File.Exists(targetPresentationPath)
         ? File.ReadAllText(targetPresentationPath)
         : throw new InvalidOperationException("Cannot verify Continue target presentation; AetheriaUnityTargetPresentation.cs is missing.");
-    var observedTargetQueryPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityObservedTargetQuery.cs");
-    var observedTargetQuery = File.Exists(observedTargetQueryPath)
-        ? File.ReadAllText(observedTargetQueryPath)
-        : throw new InvalidOperationException("Cannot verify Continue target query; AetheriaUnityObservedTargetQuery.cs is missing.");
+    var deletedObservedTargetQueryPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityObservedTargetQuery.cs");
+    if (File.Exists(deletedObservedTargetQueryPath))
+    {
+        throw new InvalidOperationException(
+            "AetheriaUnityObservedTargetQuery is dead contact-query chaff; target presentation should read typed zone contacts directly.");
+    }
     var observedFrameApplierPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityObservedFrameApplier.cs");
     var observedFrameApplier = File.Exists(observedFrameApplierPath)
         ? File.ReadAllText(observedFrameApplierPath)
@@ -13326,8 +13337,7 @@ static void RequireMainMenuContinueRunState(string root)
         "ResolveObservedGalaxyZone",
         "private AetheriaUnityObservedZoneContextFactory ObservedZoneContextFactory =>",
         "entity => CurrentEntityBinder.RestoreBinding(entity)",
-        "private AetheriaUnityObservedTargetQuery ObservedTargetQuery =>",
-        "ResolveObservedTarget = entity => ObservedTargetQuery.GetObservedTarget(entity)",
+        "ResolveObservedTarget = entity => _targetPresentation.GetObservedTarget(entity)",
         "TargetPresentation = _targetPresentation",
         "private readonly AetheriaUnityObservedEntityIndex _observedEntityIndex",
         "private AetheriaUnityEntityBlueprintMaterializer EntityBlueprintMaterializer =>",
@@ -13616,37 +13626,36 @@ static void RequireMainMenuContinueRunState(string root)
             string.Join(", ", managerFrameApplicationHits));
     }
 
-    var requiredObservedTargetQuerySymbols = new[]
+    var requiredTargetContactQuerySymbols = new[]
     {
-        "public sealed class AetheriaUnityObservedTargetQuery",
+        "public Func<AetheriaRuntimeZoneContactsDocument> ResolveZoneContacts { get; set; }",
         "public Entity GetObservedTarget(Entity observer)",
-        "public float GetObservedInfoGathered(Entity observer, Entity target)",
-        "public bool IsObservedHostileContact(Entity observer, Entity target)",
-        "public AetheriaRuntimeZoneContactRow[] GetObservedVisibleContacts(",
+        "private float GetObservedInfoGathered(Entity observer, Entity target)",
+        "private bool IsObservedHostileContact(Entity observer, Entity target)",
+        "private AetheriaRuntimeZoneContactRow[] GetObservedVisibleContacts(",
         "private bool TryQueryEntityContact(",
         "private bool TryQueryEntityTarget(",
         "AetheriaRuntimeZoneContactRow",
         "AetheriaRuntimeZoneTargetRow",
-        ".RuntimeState(\"unity-observed-target-query\")",
-        ".CurrentZoneContacts()",
-        "_entityIndex.TryResolveEntityByDaemonIndex(targetEntityIndex, out var targetEntity)"
+        "ResolveZoneContacts?.Invoke()",
+        "ResolveEntity?.Invoke(targetEntityIndex)"
     };
-    var missingObservedTargetQuerySymbols = requiredObservedTargetQuerySymbols
-        .Where(symbol => !observedTargetQuery.Contains(symbol, StringComparison.Ordinal))
+    var missingTargetContactQuerySymbols = requiredTargetContactQuerySymbols
+        .Where(symbol => !targetPresentation.Contains(symbol, StringComparison.Ordinal))
         .ToArray();
-    if (missingObservedTargetQuerySymbols.Length > 0)
+    if (missingTargetContactQuerySymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "Observed Unity target/contact query lowering must live in AetheriaUnityObservedTargetQuery instead of ActionGameManager: " +
-            string.Join(", ", missingObservedTargetQuerySymbols));
+            "Observed Unity target/contact query lowering must live in AetheriaUnityTargetPresentation instead of ActionGameManager: " +
+            string.Join(", ", missingTargetContactQuerySymbols));
     }
 
-    if (observedTargetQuery.Contains("CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument>", StringComparison.Ordinal) ||
-        observedTargetQuery.Contains(".ReactiveZoneContacts(\"unity-observed-target-query\")", StringComparison.Ordinal) ||
-        observedTargetQuery.Contains("_zoneContacts?.Dispose()", StringComparison.Ordinal) ||
-        observedTargetQuery.Contains("_zoneContacts?.Current", StringComparison.Ordinal) ||
-        observedTargetQuery.Contains("AetheriaRuntimeZoneContactsSession _zoneContacts", StringComparison.Ordinal) ||
-        observedTargetQuery.Contains(".ObserveZoneContacts()", StringComparison.Ordinal))
+    if (targetPresentation.Contains("CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument>", StringComparison.Ordinal) ||
+        targetPresentation.Contains(".ReactiveZoneContacts(\"unity-observed-target-query\")", StringComparison.Ordinal) ||
+        targetPresentation.Contains("_zoneContacts?.Dispose()", StringComparison.Ordinal) ||
+        targetPresentation.Contains("_zoneContacts?.Current", StringComparison.Ordinal) ||
+        targetPresentation.Contains("AetheriaRuntimeZoneContactsSession _zoneContacts", StringComparison.Ordinal) ||
+        targetPresentation.Contains(".ObserveZoneContacts()", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "Observed Unity target/contact query still routes zone contacts through legacy session/reactive wrapper state instead of named current typed state.");
@@ -13726,8 +13735,9 @@ static void RequireMainMenuContinueRunState(string root)
     var requiredTargetPresentationSymbols = new[]
     {
         "public sealed class AetheriaUnityTargetPresentation",
-        "public Func<Entity, double, bool, AetheriaRuntimeZoneContactRow[]> ResolveVisibleContacts { get; set; }",
-        "ResolveVisibleContacts?.Invoke(",
+        "public Func<AetheriaRuntimeZoneContactsDocument> ResolveZoneContacts { get; set; }",
+        "ResolveZoneContacts?.Invoke()",
+        "public Entity GetObservedTarget(Entity observer)",
         "public Entity Tick(Entity currentEntity, float time)",
         "public void ReconcileVisibleTargetIndicators(Entity currentEntity)",
         "public void UpdateTargetIndicators(",
@@ -13739,8 +13749,8 @@ static void RequireMainMenuContinueRunState(string root)
         "renderSettings.ResolveLockIndicatorNoiseAmplitude(",
         "renderSettings.ResolveLockIndicatorNoiseFrequency(",
         "renderSettings.ResolveLockSpinSpeed(",
-        "ResolveInfoGathered?.Invoke(currentEntity, target)",
-        "ResolveHostileContact?.Invoke(currentEntity, observedTarget)",
+        "GetObservedInfoGathered(currentEntity, target)",
+        "IsObservedHostileContact(currentEntity, observedTarget)",
         "public AetheriaRuntimeCatalogSnapshot RuntimeCatalog { get; set; }",
         "RuntimeCatalog?.FindItem(target.Hull, x => x.ItemKey)"
     };
@@ -13757,7 +13767,10 @@ static void RequireMainMenuContinueRunState(string root)
     var forbiddenTargetPresentationSymbols = new[]
     {
         "Func<AetheriaClient>",
-        "ResolveClient"
+        "ResolveClient",
+        "ResolveInfoGathered",
+        "ResolveHostileContact",
+        "ResolveVisibleContacts"
     };
     var targetPresentationAccessHits = forbiddenTargetPresentationSymbols
         .Where(symbol => targetPresentation.Contains(symbol, StringComparison.Ordinal))
@@ -13972,9 +13985,9 @@ static void RequireMainMenuContinueRunState(string root)
         "public void ConfigureCurrentEntityPresentation(",
         "presentation.RuntimeCatalog = runtimeCatalog",
         "public void ConfigureTargetPresentation(",
-        "presentation.ResolveTarget = observedTargetQuery.GetObservedTarget",
-        "presentation.ResolveInfoGathered = observedTargetQuery.GetObservedInfoGathered",
-        "presentation.ResolveHostileContact = observedTargetQuery.IsObservedHostileContact",
+        "presentation.ResolveZoneContacts = ReadZoneContacts",
+        ".RuntimeState(\"unity-target-presentation\")",
+        ".CurrentZoneContacts()",
         "presentation.RuntimeCatalog = runtimeCatalog"
     };
 
@@ -14182,7 +14195,8 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
     var pilotOperationControllerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityPilotOperationController.cs");
     var legacyPilotFrameAdapterPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityPilotFrameAdapter.cs");
     var legacyPilotOperationAdapterPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityPilotOperationAdapter.cs");
-    var observedTargetQueryPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityObservedTargetQuery.cs");
+    var targetPresentationPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityTargetPresentation.cs");
+    var deletedObservedTargetQueryPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityObservedTargetQuery.cs");
     var observedFrameApplierPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityObservedFrameApplier.cs");
     var legacyUnityDaemonEntitySnapshotProjectorPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityDaemonEntitySnapshotProjector.cs");
     var daemonEntitySnapshotProjectorPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeEntitySnapshotProjector.cs");
@@ -14234,9 +14248,14 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         throw new InvalidOperationException(
             "Unity pilot control must be owned by named controllers; adapter-shaped pilot access is obsolete.");
     }
-    var observedTargetQuery = File.Exists(observedTargetQueryPath)
-        ? File.ReadAllText(observedTargetQueryPath)
-        : throw new InvalidOperationException("Cannot verify Unity observer authority; AetheriaUnityObservedTargetQuery.cs is missing.");
+    if (File.Exists(deletedObservedTargetQueryPath))
+    {
+        throw new InvalidOperationException(
+            "AetheriaUnityObservedTargetQuery is dead contact-query chaff; target presentation should read typed zone contacts directly.");
+    }
+    var targetPresentation = File.Exists(targetPresentationPath)
+        ? File.ReadAllText(targetPresentationPath)
+        : throw new InvalidOperationException("Cannot verify Unity observer authority; AetheriaUnityTargetPresentation.cs is missing.");
     var observedFrameApplier = File.Exists(observedFrameApplierPath)
         ? File.ReadAllText(observedFrameApplierPath)
         : throw new InvalidOperationException("Cannot verify Unity observer authority; AetheriaUnityObservedFrameApplier.cs is missing.");
@@ -14351,7 +14370,6 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         "private AetheriaUnityPilotFrameController PilotFrameController =>",
         "PilotFrameController = PilotFrameController",
         "private AetheriaUnityPilotOperationController PilotOperationController =>",
-        "private AetheriaUnityObservedTargetQuery ObservedTargetQuery =>",
         "SceneWiring.ConfigureTargetPresentation("
     };
 
@@ -14368,9 +14386,9 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
 
     var requiredSceneWiringObserverSymbols = new[]
     {
-        "presentation.ResolveTarget = observedTargetQuery.GetObservedTarget",
-        "presentation.ResolveInfoGathered = observedTargetQuery.GetObservedInfoGathered",
-        "presentation.ResolveHostileContact = observedTargetQuery.IsObservedHostileContact"
+        "presentation.ResolveZoneContacts = ReadZoneContacts",
+        ".RuntimeState(\"unity-target-presentation\")",
+        ".CurrentZoneContacts()"
     };
 
     var missingSceneWiringObserverSymbols = requiredSceneWiringObserverSymbols
@@ -14382,6 +14400,13 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         throw new InvalidOperationException(
             "Unity scene wiring no longer connects target presentation to observed daemon target queries: " +
             string.Join(", ", missingSceneWiringObserverSymbols));
+    }
+
+    if (!targetPresentation.Contains("public Entity GetObservedTarget(Entity observer)", StringComparison.Ordinal) ||
+        !targetPresentation.Contains("ResolveZoneContacts?.Invoke()", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Unity target presentation must query target/contact HUD state from typed zone contacts directly.");
     }
 
     if (!zoneRenderDocuments.Contains("new AetheriaRuntimeEntitySnapshot(", StringComparison.Ordinal) ||
@@ -14652,37 +14677,36 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
             string.Join(", ", managerOperationLoweringHits));
     }
 
-    var requiredObservedTargetQuerySymbols = new[]
+    var requiredTargetContactQuerySymbols = new[]
     {
-        "public sealed class AetheriaUnityObservedTargetQuery",
+        "public Func<AetheriaRuntimeZoneContactsDocument> ResolveZoneContacts { get; set; }",
         "public Entity GetObservedTarget(Entity observer)",
-        "public float GetObservedInfoGathered(Entity observer, Entity target)",
-        "public bool IsObservedHostileContact(Entity observer, Entity target)",
-        "public AetheriaRuntimeZoneContactRow[] GetObservedVisibleContacts(",
+        "private float GetObservedInfoGathered(Entity observer, Entity target)",
+        "private bool IsObservedHostileContact(Entity observer, Entity target)",
+        "private AetheriaRuntimeZoneContactRow[] GetObservedVisibleContacts(",
         "private bool TryQueryEntityContact(",
         "private bool TryQueryEntityTarget(",
         "AetheriaRuntimeZoneContactRow",
         "AetheriaRuntimeZoneTargetRow",
-        ".RuntimeState(\"unity-observed-target-query\")",
-        ".CurrentZoneContacts()",
-        "_entityIndex.TryResolveEntityByDaemonIndex(targetEntityIndex, out var targetEntity)"
+        "ResolveZoneContacts?.Invoke()",
+        "ResolveEntity?.Invoke(targetEntityIndex)"
     };
-    var missingObservedTargetQuerySymbols = requiredObservedTargetQuerySymbols
-        .Where(symbol => !observedTargetQuery.Contains(symbol, StringComparison.Ordinal))
+    var missingTargetContactQuerySymbols = requiredTargetContactQuerySymbols
+        .Where(symbol => !targetPresentation.Contains(symbol, StringComparison.Ordinal))
         .ToArray();
-    if (missingObservedTargetQuerySymbols.Length > 0)
+    if (missingTargetContactQuerySymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "Unity observer target/contact projection must live in AetheriaUnityObservedTargetQuery instead of ActionGameManager: " +
-            string.Join(", ", missingObservedTargetQuerySymbols));
+            "Unity observer target/contact projection must live in AetheriaUnityTargetPresentation instead of ActionGameManager: " +
+            string.Join(", ", missingTargetContactQuerySymbols));
     }
 
-    if (observedTargetQuery.Contains("CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument>", StringComparison.Ordinal) ||
-        observedTargetQuery.Contains(".ReactiveZoneContacts(\"unity-observed-target-query\")", StringComparison.Ordinal) ||
-        observedTargetQuery.Contains("_zoneContacts?.Dispose()", StringComparison.Ordinal) ||
-        observedTargetQuery.Contains("_zoneContacts?.Current", StringComparison.Ordinal) ||
-        observedTargetQuery.Contains("AetheriaRuntimeZoneContactsSession _zoneContacts", StringComparison.Ordinal) ||
-        observedTargetQuery.Contains(".ObserveZoneContacts()", StringComparison.Ordinal))
+    if (targetPresentation.Contains("CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument>", StringComparison.Ordinal) ||
+        targetPresentation.Contains(".ReactiveZoneContacts(\"unity-observed-target-query\")", StringComparison.Ordinal) ||
+        targetPresentation.Contains("_zoneContacts?.Dispose()", StringComparison.Ordinal) ||
+        targetPresentation.Contains("_zoneContacts?.Current", StringComparison.Ordinal) ||
+        targetPresentation.Contains("AetheriaRuntimeZoneContactsSession _zoneContacts", StringComparison.Ordinal) ||
+        targetPresentation.Contains(".ObserveZoneContacts()", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "Unity observer target/contact projection still routes zone contacts through legacy session/reactive wrapper state instead of named current typed state.");

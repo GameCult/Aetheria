@@ -4,6 +4,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using GameCult.Aetheria.State.Verse;
 using UnityEngine;
 using UnityEngine.UI;
@@ -30,14 +31,11 @@ public sealed class AetheriaUnityTargetPresentation
     public Image TargetShieldsFill { get; set; }
     public AetheriaRuntimeCatalogSnapshot RuntimeCatalog { get; set; }
     public Func<int, Entity> ResolveEntity { get; set; }
-    public Func<Entity, Entity> ResolveTarget { get; set; }
-    public Func<Entity, Entity, float> ResolveInfoGathered { get; set; }
-    public Func<Entity, Entity, bool> ResolveHostileContact { get; set; }
-    public Func<Entity, double, bool, AetheriaRuntimeZoneContactRow[]> ResolveVisibleContacts { get; set; }
+    public Func<AetheriaRuntimeZoneContactsDocument> ResolveZoneContacts { get; set; }
 
     public Entity Tick(Entity currentEntity, float time)
     {
-        var observedTarget = ResolveTarget?.Invoke(currentEntity);
+        var observedTarget = GetObservedTarget(currentEntity);
         ReconcileVisibleTargetIndicators(currentEntity);
         UpdateVisibleIndicatorPresentation(
             _visibleHostileIndicators,
@@ -63,10 +61,10 @@ public sealed class AetheriaUnityTargetPresentation
         if (currentEntity != null && ZoneRenderer != null)
         {
             var renderSettings = ZoneRenderer.RenderSettings;
-            var contacts = ResolveVisibleContacts?.Invoke(
+            var contacts = GetObservedVisibleContacts(
                 currentEntity,
                 renderSettings.TargetDetectionInfoThreshold,
-                true) ?? Array.Empty<AetheriaRuntimeZoneContactRow>();
+                true);
 
             foreach (var contact in contacts)
             {
@@ -113,7 +111,7 @@ public sealed class AetheriaUnityTargetPresentation
             return;
         }
 
-        var observedTarget = ResolveTarget?.Invoke(currentEntity);
+        var observedTarget = GetObservedTarget(currentEntity);
         ViewDot.Target = entityInstance.LookAtPoint.position;
         if (observedTarget != null && TargetIndicator != null)
             TargetIndicator.Target = observedTarget.Position;
@@ -132,7 +130,7 @@ public sealed class AetheriaUnityTargetPresentation
         {
             var showLockingIndicator = targetLock.Lock > .01f &&
                                        observedTarget != null &&
-                                       ResolveHostileContact?.Invoke(currentEntity, observedTarget) == true;
+                                       IsObservedHostileContact(currentEntity, observedTarget);
             indicator.gameObject.SetActive(showLockingIndicator);
             if (!showLockingIndicator)
                 continue;
@@ -166,7 +164,7 @@ public sealed class AetheriaUnityTargetPresentation
                 continue;
             }
 
-            var infoGathered = ResolveInfoGathered?.Invoke(indicator.Key, currentEntity) ?? 0f;
+            var infoGathered = GetObservedInfoGathered(indicator.Key, currentEntity);
             indicator.Value.Fill.fillAmount = (float)renderSettings.NormalizeDetectionProgress(infoGathered);
             indicator.Value.Fill.enabled = !blinkSpottedTargets ||
                                            renderSettings.ResolveTargetSpottedFillEnabled(infoGathered, time);
@@ -179,8 +177,8 @@ public sealed class AetheriaUnityTargetPresentation
             return;
 
         var renderSettings = ZoneRenderer.RenderSettings;
-        var targetInfoGathered = ResolveInfoGathered?.Invoke(currentEntity, target) ?? 0f;
-        var visibilityToTarget = ResolveInfoGathered?.Invoke(target, currentEntity) ?? 0f;
+        var targetInfoGathered = GetObservedInfoGathered(currentEntity, target);
+        var visibilityToTarget = GetObservedInfoGathered(target, currentEntity);
         TargetVisibilityFill.fillAmount = (float)renderSettings.NormalizeTargetVisibilityFill(targetInfoGathered);
         VisibilityToTargetFill.fillAmount = (float)renderSettings.NormalizeVisibilityToTargetFill(visibilityToTarget);
         var targetHull = RuntimeCatalog?.FindItem(target.Hull, x => x.ItemKey);
@@ -227,5 +225,72 @@ public sealed class AetheriaUnityTargetPresentation
         foreach (var indicator in indicators.Values)
             indicator.GetComponent<Prototype>().ReturnToPool();
         indicators.Clear();
+    }
+
+    public Entity GetObservedTarget(Entity observer)
+    {
+        if (TryQueryEntityTarget(observer, out var targetEntityIndex))
+            return ResolveEntity?.Invoke(targetEntityIndex);
+
+        return null;
+    }
+
+    private float GetObservedInfoGathered(Entity observer, Entity target)
+    {
+        return TryQueryEntityContact(observer, target, out var contact)
+            ? (float)contact.InfoGathered
+            : 0f;
+    }
+
+    private bool IsObservedHostileContact(Entity observer, Entity target)
+    {
+        return TryQueryEntityContact(observer, target, out var contact) && contact.Hostile;
+    }
+
+    private AetheriaRuntimeZoneContactRow[] GetObservedVisibleContacts(
+        Entity observer,
+        double minimumInfoGathered,
+        bool visibleOnly)
+    {
+        var contacts = ResolveZoneContacts?.Invoke();
+        if (observer == null || contacts == null)
+            return Array.Empty<AetheriaRuntimeZoneContactRow>();
+
+        return (contacts.Contacts ?? Array.Empty<AetheriaRuntimeZoneContactRow>())
+            .Where(contact =>
+                contact.ObserverEntityIndex == observer.DaemonEntityIndex &&
+                contact.InfoGathered > minimumInfoGathered &&
+                (!visibleOnly || contact.Visible))
+            .ToArray();
+    }
+
+    private bool TryQueryEntityContact(
+        Entity observer,
+        Entity target,
+        out AetheriaRuntimeZoneContactRow contact)
+    {
+        contact = default;
+        if (observer == null || target == null)
+            return false;
+
+        contact = (ResolveZoneContacts?.Invoke()?.Contacts ?? Array.Empty<AetheriaRuntimeZoneContactRow>())
+            .FirstOrDefault(row =>
+                row.ObserverEntityIndex == observer.DaemonEntityIndex &&
+                row.TargetEntityIndex == target.DaemonEntityIndex);
+        return contact != null;
+    }
+
+    private bool TryQueryEntityTarget(
+        Entity observer,
+        out int targetEntityIndex)
+    {
+        targetEntityIndex = -1;
+        if (observer == null)
+            return false;
+
+        targetEntityIndex = (ResolveZoneContacts?.Invoke()?.Targets ?? Array.Empty<AetheriaRuntimeZoneTargetRow>())
+            .FirstOrDefault(row => row.EntityIndex == observer.DaemonEntityIndex)
+            ?.TargetEntityIndex ?? -1;
+        return targetEntityIndex >= 0;
     }
 }

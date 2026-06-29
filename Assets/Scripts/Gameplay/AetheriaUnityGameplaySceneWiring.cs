@@ -78,8 +78,7 @@ public sealed class AetheriaUnityGameplaySceneWiring
     public void ConfigureTargetPresentation(
         AetheriaUnityTargetPresentation presentation,
         AetheriaRuntimeCatalogSnapshot runtimeCatalog,
-        AetheriaUnityObservedEntityIndex observedEntityIndex,
-        AetheriaUnityObservedTargetQuery observedTargetQuery)
+        AetheriaUnityObservedEntityIndex observedEntityIndex)
     {
         if (presentation == null)
             return;
@@ -99,10 +98,22 @@ public sealed class AetheriaUnityGameplaySceneWiring
             observedEntityIndex.TryResolveEntityByDaemonIndex(daemonEntityIndex, out var entity)
                 ? entity
                 : null;
-        presentation.ResolveTarget = observedTargetQuery.GetObservedTarget;
-        presentation.ResolveInfoGathered = observedTargetQuery.GetObservedInfoGathered;
-        presentation.ResolveHostileContact = observedTargetQuery.IsObservedHostileContact;
-        presentation.ResolveVisibleContacts = observedTargetQuery.GetObservedVisibleContacts;
+        presentation.ResolveZoneContacts = ReadZoneContacts;
+    }
+
+    private static AetheriaRuntimeZoneContactsDocument ReadZoneContacts()
+    {
+        try
+        {
+            return AetheriaUnityRuntimeClientProvider
+                .RuntimeState("unity-target-presentation")
+                .CurrentZoneContacts();
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to read Aetheria zone contacts for target presentation: {ex.Message}");
+            return null;
+        }
     }
 
     public void ConfigureInventoryDragSession(AetheriaUnityDragSession dragSession)

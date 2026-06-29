@@ -21,7 +21,6 @@ public class ActionGameManager : MonoBehaviour
     private AetheriaUnityObservedZoneContextFactory _observedZoneContextFactory;
     private AetheriaUnityPilotFrameController _pilotFrameController;
     private AetheriaUnityPilotOperationController _pilotOperationController;
-    private AetheriaUnityObservedTargetQuery _observedTargetQuery;
     private AetheriaUnityObservedFrameApplier _observedFrameApplier;
     private AetheriaUnityEntityBlueprintMaterializer _entityBlueprintMaterializer;
     private AetheriaUnityMenuShell _menuShell;
@@ -85,8 +84,6 @@ public class ActionGameManager : MonoBehaviour
             _observedEntityIndex,
             () => _viewDirection,
             () => CurrentEntity);
-    private AetheriaUnityObservedTargetQuery ObservedTargetQuery =>
-        _observedTargetQuery ??= new AetheriaUnityObservedTargetQuery(_observedEntityIndex);
     private AetheriaUnityObservedFrameApplier ObservedFrameApplier =>
         _observedFrameApplier ??= new AetheriaUnityObservedFrameApplier(
             ResolveDaemonObserver,
@@ -113,7 +110,7 @@ public class ActionGameManager : MonoBehaviour
             GameplayUI = GameplayUI,
             ResolveCurrentEntity = () => CurrentEntity,
             IsCurrentEntityUndocked = IsCurrentEntityObservedUndocked,
-            ResolveObservedTarget = entity => ObservedTargetQuery.GetObservedTarget(entity),
+            ResolveObservedTarget = entity => _targetPresentation.GetObservedTarget(entity),
             SetPaused = paused => GameplayLoopShell.Paused = paused,
             EnablePlayerInput = EnablePlayerInput,
             DisablePlayerInput = DisablePlayerInput,
@@ -293,7 +290,6 @@ public class ActionGameManager : MonoBehaviour
     private void OnDisable()
     {
         _gameplayInputShell?.Dispose();
-        _observedTargetQuery = null;
         AetheriaUnityRuntimeClientProvider.Dispose();
     }
 
@@ -307,8 +303,7 @@ public class ActionGameManager : MonoBehaviour
         SceneWiring.ConfigureTargetPresentation(
             _targetPresentation,
             boot.RuntimeCatalog,
-            _observedEntityIndex,
-            ObservedTargetQuery);
+            _observedEntityIndex);
         SceneWiring.ConfigureInventoryDragSession(_dragSession);
         SceneWiring.ConfigureActionBarPresentation(
             _actionBarPresentation,
