@@ -17868,6 +17868,12 @@ static void RequireInventoryLoadoutSaveRequestAuthority(string root)
     var runtimeStateMapperPath = Path.Combine(root, "Aetheria.State", "AetheriaRuntimeStateMapper.cs");
     var inventoryPanelPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "InventoryPanel.cs");
     var loadoutProjectorPath = Path.Combine(root, "Assets", "Scripts", "ServerShared", "AetheriaRuntimeLoadoutProjector.cs");
+    var snapshotDocumentsPath = Path.Combine(
+        root,
+        "Packages",
+        "org.gamecult.aetheria.state",
+        "Runtime",
+        "AetheriaRuntimeSnapshotDocuments.cs");
     var loadoutSnapshotProjectorPath = Path.Combine(
         root,
         "Packages",
@@ -17890,7 +17896,7 @@ static void RequireInventoryLoadoutSaveRequestAuthority(string root)
             "Legacy AetheriaRuntimeLoadoutProjector must stay deleted; loadout-template saves should compose typed commits from managed daemon-frame documents.");
     }
 
-    var requiredFiles = new[] { eveCommandDocumentPath, loadoutCommandsPath, eveBridgePath, runtimeStateMapperPath, inventoryPanelPath, loadoutSnapshotProjectorPath, clientStatePath, dragSessionPath, gameplaySceneWiringPath };
+    var requiredFiles = new[] { eveCommandDocumentPath, loadoutCommandsPath, eveBridgePath, runtimeStateMapperPath, inventoryPanelPath, snapshotDocumentsPath, clientStatePath, dragSessionPath, gameplaySceneWiringPath };
     var missingFiles = requiredFiles.Where(path => !File.Exists(path)).ToArray();
     if (missingFiles.Length > 0)
     {
@@ -17904,7 +17910,7 @@ static void RequireInventoryLoadoutSaveRequestAuthority(string root)
     var eveBridge = File.ReadAllText(eveBridgePath);
     var runtimeStateMapper = File.ReadAllText(runtimeStateMapperPath);
     var inventoryPanel = File.ReadAllText(inventoryPanelPath);
-    var loadoutSnapshotProjector = File.ReadAllText(loadoutSnapshotProjectorPath);
+    var snapshotDocuments = File.ReadAllText(snapshotDocumentsPath);
     var clientState = File.ReadAllText(clientStatePath);
     var dragSession = File.ReadAllText(dragSessionPath);
     var gameplaySceneWiring = File.ReadAllText(gameplaySceneWiringPath);
@@ -17965,8 +17971,8 @@ static void RequireInventoryLoadoutSaveRequestAuthority(string root)
         "RequestLoadoutTemplateSave(Entity entity)",
         "TryResolveEntityRecordKey(entity, out var targetEntityKey)",
         "CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument> _loadoutFrame",
-        "ProjectLoadoutTemplate(targetEntityKey)",
-        "AetheriaRuntimeLoadoutSnapshotProjector.ProjectLoadoutTemplate(",
+        "CreateLoadoutTemplate(targetEntityKey)",
+        ".CreateLoadoutTemplate(targetEntityKey ?? \"\")",
         ".Document<AetheriaRuntimeDaemonFrameDocument>().Reactive()",
         "_loadoutFrame?.Dispose()",
         ".Ui.SaveLoadoutTemplateAsync(loadout, \"unity-inventory\")"
@@ -18006,51 +18012,59 @@ static void RequireInventoryLoadoutSaveRequestAuthority(string root)
             "InventoryPanel still asks an aggregate compatibility helper for loadout templates instead of caching the managed reactive daemon frame.");
     }
 
-    var requiredLoadoutSnapshotProjectorSymbols = new[]
-    {
-        "public static AetheriaRuntimeLoadoutTemplateCommit ProjectLoadoutTemplate(",
-        "AetheriaRuntimeRunCheckpointCommit run,",
-        "TryParseEntityKey(entityKey, out var zoneIndex, out var entityIndex)",
-        "ProjectLoadoutTemplate(run, zoneIndex, entityIndex)",
-        "ProjectEntityLoadout(entity, entities)"
-    };
-    var missingLoadoutSnapshotProjectorSymbols = requiredLoadoutSnapshotProjectorSymbols
-        .Where(symbol => !loadoutSnapshotProjector.Contains(symbol, StringComparison.Ordinal))
-        .ToArray();
-    if (missingLoadoutSnapshotProjectorSymbols.Length > 0)
+    if (File.Exists(loadoutSnapshotProjectorPath))
     {
         throw new InvalidOperationException(
-            "Loadout template save payloads must be composed from managed typed daemon frame documents: " +
-            string.Join(", ", missingLoadoutSnapshotProjectorSymbols));
+            "AetheriaRuntimeLoadoutSnapshotProjector is dead access chaff; AetheriaRuntimeRunCheckpointCommit owns loadout-template creation and append.");
     }
 
-    if (loadoutSnapshotProjector.Contains("ProjectLoadoutTemplateAsync(", StringComparison.Ordinal) ||
-        loadoutSnapshotProjector.Contains("AetheriaClientState state", StringComparison.Ordinal) ||
-        loadoutSnapshotProjector.Contains(".Document<AetheriaRuntimeDaemonFrameDocument>().Reactive()", StringComparison.Ordinal) ||
-        loadoutSnapshotProjector.Contains("frame.Current?.Run", StringComparison.Ordinal))
+    var requiredRunCheckpointLoadoutSymbols = new[]
+    {
+        "public AetheriaRuntimeLoadoutTemplateCommit CreateLoadoutTemplate(string entityKey)",
+        "public AetheriaRuntimeLoadoutTemplateCommit CreateLoadoutTemplate(int zoneIndex, int entityIndex)",
+        "public string AppendLoadoutTemplateToZone(",
+        "TryParseEntityKey(entityKey, out var zoneIndex, out var entityIndex)",
+        "CreateLoadoutTemplate(zoneIndex, entityIndex)",
+        "CreateEntityLoadout(entity, entities)",
+        "AppendEntity(entities, template.RootEntity, template.Name)"
+    };
+    var missingRunCheckpointLoadoutSymbols = requiredRunCheckpointLoadoutSymbols
+        .Where(symbol => !snapshotDocuments.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingRunCheckpointLoadoutSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Loadout template save payloads must be composed by the managed typed run checkpoint document: " +
+            string.Join(", ", missingRunCheckpointLoadoutSymbols));
+    }
+
+    if (snapshotDocuments.Contains("ProjectLoadoutTemplateAsync(", StringComparison.Ordinal) ||
+        snapshotDocuments.Contains("AetheriaClientState state", StringComparison.Ordinal) ||
+        snapshotDocuments.Contains(".Document<AetheriaRuntimeDaemonFrameDocument>().Reactive()", StringComparison.Ordinal) ||
+        snapshotDocuments.Contains("frame.Current?.Run", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "Loadout snapshot composition must not own managed document sampling; InventoryPanel already caches the reactive daemon frame.");
     }
 
-    if (loadoutSnapshotProjector.Contains("state.Daemon.LatestFrame.LatestAsync()", StringComparison.Ordinal))
+    if (snapshotDocuments.Contains("state.Daemon.LatestFrame.LatestAsync()", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "Loadout template save payloads still perform one-shot daemon frame reads instead of using a reactive typed frame document.");
     }
 
-    if (loadoutSnapshotProjector.Contains("state.Daemon.LatestFrame.ReactiveAsync", StringComparison.Ordinal) ||
-        loadoutSnapshotProjector.Contains("state.LatestFrame.ReactiveAsync", StringComparison.Ordinal) ||
-        loadoutSnapshotProjector.Contains(".ObserveDaemonFrame()", StringComparison.Ordinal) ||
-        loadoutSnapshotProjector.Contains(".ReactiveDaemonFrame()", StringComparison.Ordinal))
+    if (snapshotDocuments.Contains("state.Daemon.LatestFrame.ReactiveAsync", StringComparison.Ordinal) ||
+        snapshotDocuments.Contains("state.LatestFrame.ReactiveAsync", StringComparison.Ordinal) ||
+        snapshotDocuments.Contains(".ObserveDaemonFrame()", StringComparison.Ordinal) ||
+        snapshotDocuments.Contains(".ReactiveDaemonFrame()", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "Loadout template save payloads must use generic AetheriaClientState reactive typed document access instead of named wrappers or raw handle walks.");
     }
 
     if (clientState.Contains("ReactiveLoadoutSnapshotProjector", StringComparison.Ordinal) ||
-        loadoutSnapshotProjector.Contains("AetheriaRuntimeReactiveLoadoutSnapshotProjector", StringComparison.Ordinal) ||
-        loadoutSnapshotProjector.Contains("ProjectLoadoutTemplate(string entityKey)", StringComparison.Ordinal))
+        snapshotDocuments.Contains("AetheriaRuntimeReactiveLoadoutSnapshotProjector", StringComparison.Ordinal) ||
+        inventoryPanel.Contains("ProjectLoadoutTemplate(string targetEntityKey)", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "Loadout template save payloads must not recreate aggregate reactive projector wrappers; cache or sample the managed typed daemon frame document directly.");

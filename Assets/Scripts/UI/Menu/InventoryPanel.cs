@@ -1081,7 +1081,7 @@ private void Update()
         try
         {
             var client = ResolveClient();
-            var loadout = ProjectLoadoutTemplate(targetEntityKey);
+            var loadout = CreateLoadoutTemplate(targetEntityKey);
             if (loadout?.RootEntity == null || string.IsNullOrWhiteSpace(loadout.RootEntity.Hull?.ItemKey ?? ""))
                 return;
 
@@ -1532,12 +1532,11 @@ private void Update()
         return _stationRefit?.Current;
     }
 
-    private AetheriaRuntimeLoadoutTemplateCommit ProjectLoadoutTemplate(string targetEntityKey)
+    private AetheriaRuntimeLoadoutTemplateCommit CreateLoadoutTemplate(string targetEntityKey)
     {
         var frame = ResolveLoadoutFrame();
-        return AetheriaRuntimeLoadoutSnapshotProjector.ProjectLoadoutTemplate(
-            frame?.Run ?? new AetheriaRuntimeRunCheckpointCommit(),
-            targetEntityKey ?? "");
+        return (frame?.Run ?? new AetheriaRuntimeRunCheckpointCommit())
+            .CreateLoadoutTemplate(targetEntityKey ?? "");
     }
 
     private AetheriaRuntimeDaemonFrameDocument ResolveLoadoutFrame()

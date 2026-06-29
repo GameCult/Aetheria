@@ -902,8 +902,7 @@ namespace GameCult.Aetheria.State.Verse
             if (!TryParseEntityKey(command.TargetEntityKey, out var zoneIndex, out _))
                 return false;
 
-            var newEntityKey = AetheriaRuntimeLoadoutSnapshotProjector.AppendToZone(
-                run,
+            var newEntityKey = run.AppendLoadoutTemplateToZone(
                 zoneIndex,
                 command.TargetEntityKey,
                 template);

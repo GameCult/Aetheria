@@ -49,7 +49,6 @@
   <ItemGroup>
     <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeAssemblyInfo.cs" />
     <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeEquippedItemDetailsSurfaceBuilder.cs" />
-    <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeLoadoutSnapshotProjector.cs" />
     <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeBehaviorMetadata.cs" />
     <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeAssets.cs" />
     <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeStateBoundary.cs" />
