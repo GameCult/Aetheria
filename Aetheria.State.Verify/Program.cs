@@ -14950,7 +14950,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         !compactSectorRenderer.Contains(".ReactiveCatalogSnapshot(\"unity-sector-renderer\")", StringComparison.Ordinal) ||
         !compactSectorRenderer.Contains(".ReactivePlayerSettingsDocument(\"unity-sector-renderer\")", StringComparison.Ordinal) ||
         !sectorMap.Contains("AetheriaUnityRuntimeClientProvider", StringComparison.Ordinal) ||
-        !compactSectorMap.Contains(".ReactiveSectorMap(\"unity-sector-map\")", StringComparison.Ordinal) ||
+        !compactSectorMap.Contains(".RuntimeState(\"unity-sector-map\").CurrentSectorMap()", StringComparison.Ordinal) ||
         !sectorRenderer.Contains("AetheriaRuntimeZoneDetailsSurfaceBuilder.Facts(", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
@@ -14964,14 +14964,22 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
             "Map and sector UI must not read the raw ObservedGalaxy projection directly.");
     }
 
-    RequireReactiveTypedDocumentAccess(
-        sectorMap,
-        "SectorMap",
-        "AetheriaRuntimeSectorMapDocument",
-        "_sectorMapDocument",
+    var forbiddenSectorMapSymbols = new[]
+    {
+        "CultMeshReactiveDocument<AetheriaRuntimeSectorMapDocument>",
         ".ReactiveSectorMap(\"unity-sector-map\")",
         "AetheriaRuntimeSectorMapSession",
-        ".ObserveSectorMap()");
+        ".ObserveSectorMap()",
+        "_sectorMapDocument?.Dispose()"
+    }
+        .Where(symbol => sectorMap.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (forbiddenSectorMapSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "SectorMap should sample the sector map through named current typed state instead of owning a reactive/session handle: " +
+            string.Join(", ", forbiddenSectorMapSymbols));
+    }
 
     var requiredDaemonControlValidationSymbols = new[]
     {

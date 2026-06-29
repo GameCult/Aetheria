@@ -3,7 +3,6 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using GameCult.Aetheria.State.Verse;
-using GameCult.Mesh;
 using TMPro;
 using UniRx;
 using UnityEngine;
@@ -53,7 +52,6 @@ public class SectorMap : MonoBehaviour
     private readonly Queue<IEnumerable<int>> _queuedZoneReveals = new Queue<IEnumerable<int>>();
     private readonly Dictionary<int, AetheriaRuntimeSectorMapZone> _zonesByIndex =
         new Dictionary<int, AetheriaRuntimeSectorMapZone>();
-    private CultMeshReactiveDocument<AetheriaRuntimeSectorMapDocument> _sectorMapDocument;
     private AetheriaRuntimeSectorMapDocument _sectorMap;
     private bool _sectorMapLoaded;
 
@@ -221,9 +219,9 @@ public class SectorMap : MonoBehaviour
 
     private void EnsureSectorMapLoaded()
     {
-        _sectorMapDocument ??= AetheriaUnityRuntimeClientProvider
-            .ReactiveSectorMap("unity-sector-map");
-        _sectorMap = _sectorMapDocument?.Current;
+        _sectorMap = AetheriaUnityRuntimeClientProvider
+            .RuntimeState("unity-sector-map")
+            .CurrentSectorMap();
 
         if (_sectorMapLoaded)
             return;
@@ -250,13 +248,6 @@ public class SectorMap : MonoBehaviour
 
         if (_sectorMap.CurrentZoneIndex >= 0)
             TryMarkPlayerLocation(_sectorMap.CurrentZoneIndex);
-    }
-
-    private void OnDestroy()
-    {
-        _sectorMapDocument?.Dispose();
-        _sectorMapDocument = null;
-        _sectorMapLoaded = false;
     }
 
     private void AddFactionMaterials(int factionIndex)
