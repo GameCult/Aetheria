@@ -11549,7 +11549,6 @@ static void RequireDaemonVersePublication(string root)
     var requiredStatRecipeSurfaceProjectionSymbols = new[]
     {
         "public static AetheriaRuntimeSurfaceDocument BuildFromCatalog(",
-        "private static AetheriaRuntimeStatRecipeSurfaceState ComposeState(",
         "SelectMany(ProjectRows)",
         "AetheriaRuntimeBehaviorMetadataCatalog.Get(behavior.Kind)",
         "AetheriaRuntimeBehaviorFieldValueKind.PerformanceStat",
@@ -11569,6 +11568,7 @@ static void RequireDaemonVersePublication(string root)
     if (tradeValuePolicySurfaceBuilder.Contains("public static AetheriaRuntimeTradeValuePolicySurfaceState ProjectState(", StringComparison.Ordinal) ||
         tradeValuePolicySurfaceBuilder.Contains("AetheriaRuntimeTradeValuePolicySurfaceState", StringComparison.Ordinal) ||
         tradeValuePolicySurfaceBuilder.Contains("ComposeState(", StringComparison.Ordinal) ||
+        statRecipeSurfaceBuilder.Contains("ComposeState(", StringComparison.Ordinal) ||
         statRecipeSurfaceBuilder.Contains("public static AetheriaRuntimeStatRecipeSurfaceState ProjectState(", StringComparison.Ordinal) ||
         tradeValuePolicySurfaceBuilder.Contains("Build(ProjectState(", StringComparison.Ordinal) ||
         statRecipeSurfaceBuilder.Contains("Build(ProjectState(", StringComparison.Ordinal))

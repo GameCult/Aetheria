@@ -207,22 +207,18 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeCatalogSnapshot? catalog,
             long version = 1)
         {
-            return Build(ComposeState(catalog), version);
-        }
-
-        private static AetheriaRuntimeStatRecipeSurfaceState ComposeState(
-            AetheriaRuntimeCatalogSnapshot? catalog)
-        {
             var recipes = (catalog?.Items ?? Array.Empty<AetheriaRuntimeCatalogItem>())
                 .SelectMany(ProjectRows)
                 .OrderBy(recipe => recipe.StatName, StringComparer.Ordinal)
                 .ToArray();
 
-            return new AetheriaRuntimeStatRecipeSurfaceState(
-                recipes,
-                recipes.FirstOrDefault()?.StatName ?? "",
-                AetheriaRuntimeStatRecipePreviewState.Default,
-                DateTime.UtcNow.ToString("O"));
+            return Build(
+                new AetheriaRuntimeStatRecipeSurfaceState(
+                    recipes,
+                    recipes.FirstOrDefault()?.StatName ?? "",
+                    AetheriaRuntimeStatRecipePreviewState.Default,
+                    DateTime.UtcNow.ToString("O")),
+                version);
         }
 
         public static AetheriaRuntimeSurfaceDocument Build(
