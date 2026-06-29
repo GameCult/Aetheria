@@ -5338,7 +5338,6 @@ static void RequireInventoryCargoItemDetailsUseEveSurface(string root)
         "new EveUiToolkitSurfaceLowerer()",
         "host.AddComponent<UIDocument>",
         "string.Equals(request.Command, AetheriaRuntimeCargoItemDetailsSurfaceBuilder.Close",
-        "new AetheriaRuntimeCargoItemDetailsSurfaceState(",
         "ComposeCargoItemDetailsSurface(",
         "ProjectCargoItemDetailsSurfaceState(",
         "ProjectCargoItemBehaviorSections(",
@@ -5366,11 +5365,12 @@ static void RequireInventoryCargoItemDetailsUseEveSurface(string root)
         "public readonly struct AetheriaRuntimeCargoItemDetailsCommand",
         "public static class AetheriaRuntimeCargoItemDetailsSurfaceCommands",
         "public static bool TryRead(",
-        "AetheriaRuntimeCargoItemDetailsSurfaceState",
         "AetheriaRuntimeCargoItemObservation",
         "AetheriaRuntimeCargoItemSection",
         "AetheriaRuntimeCargoItemMetric",
-        "private static AetheriaRuntimeCargoItemDetailsSurfaceState ComposeState(",
+        "var itemName = typedItem?.Name ?? \"\"",
+        "var behaviorSections = Array.Empty<AetheriaRuntimeCargoItemSection>()",
+        "var hasEquipmentStatus = !string.IsNullOrWhiteSpace(tier)",
         "ProjectBehaviorSections(",
         "ProjectBehaviorMetric(",
         "public static AetheriaRuntimeSurfaceDocument Build("
@@ -5385,11 +5385,13 @@ static void RequireInventoryCargoItemDetailsUseEveSurface(string root)
             string.Join(", ", missingBuilderSymbols));
     }
 
-    if (cargoItemSurfaceBuilder.Contains("public static AetheriaRuntimeCargoItemDetailsSurfaceState Compose(", StringComparison.Ordinal) ||
+    if (cargoItemSurfaceBuilder.Contains("AetheriaRuntimeCargoItemDetailsSurfaceState", StringComparison.Ordinal) ||
+        cargoItemSurfaceBuilder.Contains("ComposeState(", StringComparison.Ordinal) ||
+        cargoItemSurfaceBuilder.Contains("public static AetheriaRuntimeCargoItemDetailsSurfaceState Compose(", StringComparison.Ordinal) ||
         cargoItemSurfaceBuilder.Contains("public static AetheriaRuntimeCargoItemDetailsSurfaceState Project(", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Runtime cargo item detail composition must stay behind Build(...); do not re-expose Compose/Project as the public cargo item details surface path.");
+            "Runtime cargo item details must emit the typed surface document directly; do not rebuild a shadow SurfaceState projection layer.");
     }
 }
 
