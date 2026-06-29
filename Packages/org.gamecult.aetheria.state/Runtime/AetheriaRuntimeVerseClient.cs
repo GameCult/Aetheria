@@ -144,7 +144,11 @@ namespace GameCult.Aetheria.State.Verse
 
         private readonly CultMeshNode _node;
         private AetheriaClientState? _aetheriaState;
-        private AetheriaRuntimeManagedClientInputs? _managedClientInputs;
+        private CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument>? _managedDaemonFrame;
+        private CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot>? _managedCatalog;
+        private CultMeshReactiveDocument<AetheriaRuntimeLoadoutTemplatesDocument>? _managedLoadoutTemplates;
+        private CultMeshReactiveDocument<AetheriaRuntimeStarbridgeScenarioDocument>? _managedStarbridgeScenario;
+        private CultMeshReactiveDocument<AetheriaRuntimeStarbridgeSessionDocument>? _managedStarbridgeSession;
         private bool _disposed;
 
         private AetheriaRuntimeVerseClient(string statePath, string runtimeId, CultMeshNode node)
@@ -356,7 +360,11 @@ namespace GameCult.Aetheria.State.Verse
                 return;
 
             _disposed = true;
-            _managedClientInputs?.Dispose();
+            _managedDaemonFrame?.Dispose();
+            _managedCatalog?.Dispose();
+            _managedLoadoutTemplates?.Dispose();
+            _managedStarbridgeScenario?.Dispose();
+            _managedStarbridgeSession?.Dispose();
             _node.Dispose();
         }
 
@@ -388,7 +396,11 @@ namespace GameCult.Aetheria.State.Verse
                 AetheriaRuntimeVerseRecordKeys.StarbridgeSessionLatest);
             var latestFrameDocument = Document<AetheriaRuntimeDaemonFrameDocument>(
                 AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest);
-            AetheriaRuntimeManagedClientInputs? managedInputs = null;
+            CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument>? managedDaemonFrame = null;
+            CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot>? managedCatalog = null;
+            CultMeshReactiveDocument<AetheriaRuntimeLoadoutTemplatesDocument>? managedLoadoutTemplates = null;
+            CultMeshReactiveDocument<AetheriaRuntimeStarbridgeScenarioDocument>? managedStarbridgeScenario = null;
+            CultMeshReactiveDocument<AetheriaRuntimeStarbridgeSessionDocument>? managedStarbridgeSession = null;
 
             var state = new AetheriaClientState(
                 Document<AetheriaRuntimeDaemonProviderAdvertisementDocument>(
@@ -492,8 +504,16 @@ namespace GameCult.Aetheria.State.Verse
                 seatId => Document<AetheriaRuntimeStarbridgePlayerSeatDocument>(
                     AetheriaRuntimeVerseRecordKeys.StarbridgePlayerSeat(seatId)));
 
-            managedInputs = new AetheriaRuntimeManagedClientInputs(state);
-            _managedClientInputs = managedInputs;
+            managedDaemonFrame = state.Reactive<AetheriaRuntimeDaemonFrameDocument>();
+            managedCatalog = state.Reactive<AetheriaRuntimeCatalogSnapshot>();
+            managedLoadoutTemplates = state.Reactive<AetheriaRuntimeLoadoutTemplatesDocument>();
+            managedStarbridgeScenario = state.Reactive<AetheriaRuntimeStarbridgeScenarioDocument>();
+            managedStarbridgeSession = state.Reactive<AetheriaRuntimeStarbridgeSessionDocument>();
+            _managedDaemonFrame = managedDaemonFrame;
+            _managedCatalog = managedCatalog;
+            _managedLoadoutTemplates = managedLoadoutTemplates;
+            _managedStarbridgeScenario = managedStarbridgeScenario;
+            _managedStarbridgeSession = managedStarbridgeSession;
             return state;
 
             CultMeshDocumentHandle<TDocument> ProjectedDocument<TDocument>(
@@ -518,7 +538,7 @@ namespace GameCult.Aetheria.State.Verse
                 return CultMesh.Document(
                     documentId,
                     verse,
-                    async _ => await project(RequireManagedInputs().RequireFrame()).ConfigureAwait(false),
+                    async _ => await project(RequireManagedFrame()).ConfigureAwait(false),
                     _ => frameChanges
                         .SelectAwait(async (frame, cancellationToken) =>
                             await project(frame).ConfigureAwait(false)),
@@ -526,10 +546,22 @@ namespace GameCult.Aetheria.State.Verse
                     routeHint: new CultMeshRouteHint(CultMeshLocalityKind.SharedMemory, "Aetheria typed projected state"));
             }
 
-            AetheriaRuntimeManagedClientInputs RequireManagedInputs()
+            AetheriaRuntimeDaemonFrameDocument RequireManagedFrame()
             {
-                return managedInputs
-                    ?? throw new InvalidOperationException("Aetheria Verse client managed inputs were sampled before client state was initialized.");
+                return managedDaemonFrame?.Current
+                    ?? throw new InvalidOperationException("Aetheria Verse client has no daemon frame yet.");
+            }
+
+            AetheriaRuntimeCatalogSnapshot RequireManagedCatalog()
+            {
+                return managedCatalog?.Current
+                    ?? throw new InvalidOperationException("Aetheria Verse client has no runtime catalog document yet.");
+            }
+
+            AetheriaRuntimeLoadoutTemplatesDocument RequireManagedLoadoutTemplates()
+            {
+                return managedLoadoutTemplates?.Current
+                    ?? throw new InvalidOperationException("Aetheria Verse client has no loadout templates document yet.");
             }
 
             CultMeshDocumentHandle<TDocument> BootstrapCatalogDocument<TDocument>(
@@ -558,22 +590,20 @@ namespace GameCult.Aetheria.State.Verse
             Task<AetheriaRuntimeStationRefitDocument> ProjectStationRefitAsync(
                 AetheriaRuntimeDaemonFrameDocument frame)
             {
-                var inputs = RequireManagedInputs();
                 return Task.FromResult(AetheriaRuntimeRtsProjection.ProjectStationRefit(
                     frame,
-                    inputs.LoadoutTemplates.Templates,
-                    inputs.Catalog));
+                    RequireManagedLoadoutTemplates().Templates,
+                    RequireManagedCatalog()));
             }
 
             Task<AetheriaRuntimeStarbridgeSessionSummaryDocument> ProjectStarbridgeSummaryAsync(
                 AetheriaRuntimeDaemonFrameDocument frame)
             {
-                var inputs = RequireManagedInputs();
                 return Task.FromResult(AetheriaRuntimeStarbridgeProjection.ProjectSessionSummary(
                     frame,
-                    inputs.StarbridgeScenario,
-                    inputs.StarbridgeSession,
-                    inputs.Catalog));
+                    managedStarbridgeScenario?.Current,
+                    managedStarbridgeSession?.Current,
+                    RequireManagedCatalog()));
             }
 
             static string IndexedDocumentId(string prefix, int index)
