@@ -11968,11 +11968,24 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
     {
         "public Func<string, string> CreateEveSurfaceStateRefResolver()",
         "public CultMeshStateRefResolver CreateEveSurfaceCultMeshStateRefResolver()",
-        "public async Task<CultMeshStateRefResolver> CreateEveSurfaceCultMeshStateRefResolverAsync()",
-        "LatestAsync<AetheriaRuntimeDaemonFrameDocument>()",
-        "LatestAsync<AetheriaRuntimeDaemonHealthDocument>()",
-        "LatestAsync<AetheriaRuntimeDaemonCommandBoundaryDocument>()",
-        "() => Latest<AetheriaRuntimeCatalogSnapshot>()",
+        "public sealed class AetheriaClientState : IDisposable",
+        "CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument>? _eveStateRefFrame",
+        "CultMeshReactiveDocument<AetheriaRuntimeDaemonHealthDocument>? _eveStateRefHealth",
+        "CultMeshReactiveDocument<AetheriaRuntimeDaemonCommandBoundaryDocument>? _eveStateRefCommandBoundary",
+        "CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot>? _eveStateRefCatalog",
+        "_eveStateRefFrame ??= Reactive<AetheriaRuntimeDaemonFrameDocument>()",
+        "_eveStateRefHealth ??= Reactive<AetheriaRuntimeDaemonHealthDocument>()",
+        "_eveStateRefCommandBoundary ??= Reactive<AetheriaRuntimeDaemonCommandBoundaryDocument>()",
+        "_eveStateRefCatalog ??= Reactive<AetheriaRuntimeCatalogSnapshot>()",
+        "() => _eveStateRefFrame.Current",
+        "() => _eveStateRefHealth.Current",
+        "() => _eveStateRefCommandBoundary.Current",
+        "() => _eveStateRefCatalog.Current",
+        "public void Dispose()",
+        "_eveStateRefFrame?.Dispose()",
+        "_eveStateRefHealth?.Dispose()",
+        "_eveStateRefCommandBoundary?.Dispose()",
+        "_eveStateRefCatalog?.Dispose()",
         "AetheriaRuntimeStateRefResolver.CreateEveSurfaceCultMeshStateRefResolver("
     };
     var missingClientStateSymbols = requiredClientStateSymbols
@@ -11988,10 +12001,21 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
     if (clientState.Contains("var frameTask = Daemon.LatestFrameDocumentAsync()", StringComparison.Ordinal) ||
         clientState.Contains("var healthTask = Daemon.LatestHealthAsync()", StringComparison.Ordinal) ||
         clientState.Contains("var commandBoundaryTask = Daemon.LatestCommandBoundaryAsync()", StringComparison.Ordinal) ||
+        clientState.Contains("LatestAsync<AetheriaRuntimeDaemonFrameDocument>()", StringComparison.Ordinal) ||
+        clientState.Contains("LatestAsync<AetheriaRuntimeDaemonHealthDocument>()", StringComparison.Ordinal) ||
+        clientState.Contains("LatestAsync<AetheriaRuntimeDaemonCommandBoundaryDocument>()", StringComparison.Ordinal) ||
+        clientState.Contains("Latest<AetheriaRuntimeCatalogSnapshot>()", StringComparison.Ordinal) ||
         clientState.Contains("LatestCatalog)", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "AetheriaClientState Eve state-ref resolver must use top-level managed accessors instead of walking through the nested daemon state.");
+            "AetheriaClientState Eve state-ref resolver must own reactive typed documents instead of bootstrapping one-shot latest snapshots.");
+    }
+
+    if (!client.Contains("_aetheriaState?.Dispose()", StringComparison.Ordinal) ||
+        !client.Contains("_aetheriaState = null", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "AetheriaRuntimeVerseClient must dispose AetheriaClientState so cached reactive state-ref resolver documents do not leak.");
     }
 
     var requiredStateRefResolverSymbols = new[]
@@ -15669,6 +15693,11 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "AetheriaRuntimeDaemonItemStatQueries.StateRefPrefix",
         "AetheriaRuntimeDaemonStateRefs.CurrentEntityName",
         "public static CultMeshStateRefResolver CreateEveSurfaceCultMeshStateRefResolver(",
+        "Func<AetheriaRuntimeDaemonFrameDocument?> frameProvider",
+        "Func<AetheriaRuntimeDaemonHealthDocument?> healthProvider",
+        "Func<AetheriaRuntimeDaemonCommandBoundaryDocument?> commandBoundaryProvider",
+        "frameProvider?.Invoke()",
+        "catalogProvider?.Invoke()",
         "CultMesh.StateRefResolver(",
         "FindDaemonItem("
     };

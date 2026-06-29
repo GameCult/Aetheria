@@ -351,6 +351,8 @@ namespace GameCult.Aetheria.State.Verse
                 return;
 
             _disposed = true;
+            _aetheriaState?.Dispose();
+            _aetheriaState = null;
             _managedDaemonFrame?.Dispose();
             _managedCatalog?.Dispose();
             _managedLoadoutTemplates?.Dispose();

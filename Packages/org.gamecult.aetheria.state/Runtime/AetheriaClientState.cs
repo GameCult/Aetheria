@@ -17,7 +17,7 @@ namespace GameCult.Aetheria.State.Verse
         EditorTui
     }
 
-    public sealed class AetheriaClientState
+    public sealed class AetheriaClientState : IDisposable
     {
         private readonly CultMeshDocumentCatalog _documents;
         private readonly Func<AetheriaRuntimeRtsViewportBounds, CultMeshDocumentHandle<AetheriaRuntimeRtsViewportDocument>> _mapViewport;
@@ -28,6 +28,10 @@ namespace GameCult.Aetheria.State.Verse
         private readonly Func<int, CultMeshDocumentHandle<AetheriaRuntimeSelectedObjectDocument>> _selectedObject;
         private readonly Func<int, CultMeshDocumentHandle<AetheriaRuntimeInventoryDocument>> _inventory;
         private readonly Func<string, CultMeshDocumentHandle<AetheriaRuntimeStarbridgePlayerSeatDocument>> _starbridgePlayerSeat;
+        private CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument>? _eveStateRefFrame;
+        private CultMeshReactiveDocument<AetheriaRuntimeDaemonHealthDocument>? _eveStateRefHealth;
+        private CultMeshReactiveDocument<AetheriaRuntimeDaemonCommandBoundaryDocument>? _eveStateRefCommandBoundary;
+        private CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot>? _eveStateRefCatalog;
 
         internal AetheriaClientState(
             CultMeshDocumentHandle<AetheriaRuntimeDaemonProviderAdvertisementDocument> providerAdvertisement,
@@ -437,22 +441,28 @@ namespace GameCult.Aetheria.State.Verse
 
         public CultMeshStateRefResolver CreateEveSurfaceCultMeshStateRefResolver()
         {
-            return CreateEveSurfaceCultMeshStateRefResolverAsync().ConfigureAwait(false).GetAwaiter().GetResult();
-        }
-
-        public async Task<CultMeshStateRefResolver> CreateEveSurfaceCultMeshStateRefResolverAsync()
-        {
-            var frameTask = LatestAsync<AetheriaRuntimeDaemonFrameDocument>();
-            var healthTask = LatestAsync<AetheriaRuntimeDaemonHealthDocument>();
-            var commandBoundaryTask = LatestAsync<AetheriaRuntimeDaemonCommandBoundaryDocument>();
-
-            await Task.WhenAll(frameTask, healthTask, commandBoundaryTask).ConfigureAwait(false);
+            _eveStateRefFrame ??= Reactive<AetheriaRuntimeDaemonFrameDocument>();
+            _eveStateRefHealth ??= Reactive<AetheriaRuntimeDaemonHealthDocument>();
+            _eveStateRefCommandBoundary ??= Reactive<AetheriaRuntimeDaemonCommandBoundaryDocument>();
+            _eveStateRefCatalog ??= Reactive<AetheriaRuntimeCatalogSnapshot>();
 
             return AetheriaRuntimeStateRefResolver.CreateEveSurfaceCultMeshStateRefResolver(
-                frameTask.Result,
-                healthTask.Result,
-                commandBoundaryTask.Result,
-                () => Latest<AetheriaRuntimeCatalogSnapshot>());
+                () => _eveStateRefFrame.Current,
+                () => _eveStateRefHealth.Current,
+                () => _eveStateRefCommandBoundary.Current,
+                () => _eveStateRefCatalog.Current);
+        }
+
+        public void Dispose()
+        {
+            _eveStateRefFrame?.Dispose();
+            _eveStateRefHealth?.Dispose();
+            _eveStateRefCommandBoundary?.Dispose();
+            _eveStateRefCatalog?.Dispose();
+            _eveStateRefFrame = null;
+            _eveStateRefHealth = null;
+            _eveStateRefCommandBoundary = null;
+            _eveStateRefCatalog = null;
         }
     }
 

@@ -128,17 +128,20 @@ namespace GameCult.Aetheria.State.Verse
         }
 
         public static CultMeshStateRefResolver CreateEveSurfaceCultMeshStateRefResolver(
-            AetheriaRuntimeDaemonFrameDocument? frame,
-            AetheriaRuntimeDaemonHealthDocument? health,
-            AetheriaRuntimeDaemonCommandBoundaryDocument? commandBoundary,
+            Func<AetheriaRuntimeDaemonFrameDocument?> frameProvider,
+            Func<AetheriaRuntimeDaemonHealthDocument?> healthProvider,
+            Func<AetheriaRuntimeDaemonCommandBoundaryDocument?> commandBoundaryProvider,
             Func<AetheriaRuntimeCatalogSnapshot?>? catalogProvider = null,
             CultMeshRouteHint? routeHint = null)
         {
-            AetheriaRuntimeCatalogSnapshot? catalog = null;
-
             var daemonRefs = CultMesh.StateRefResolver(
                 "aetheria.daemon.refs",
-                (stateRef, _context) => TryResolveDaemonStateRef(frame, health, commandBoundary, stateRef, out var value)
+                (stateRef, _context) => TryResolveDaemonStateRef(
+                    frameProvider?.Invoke(),
+                    healthProvider?.Invoke(),
+                    commandBoundaryProvider?.Invoke(),
+                    stateRef,
+                    out var value)
                     ? value
                     : "",
                 new[]
@@ -156,8 +159,11 @@ namespace GameCult.Aetheria.State.Verse
                     if (!stateRef.StartsWith(AetheriaRuntimeDaemonItemStatQueries.StateRefPrefix + "/", StringComparison.Ordinal))
                         return "";
 
-                    catalog ??= catalogProvider?.Invoke();
-                    return TryResolveDaemonItemStatRef(frame, catalog, stateRef, out var value)
+                    return TryResolveDaemonItemStatRef(
+                            frameProvider?.Invoke(),
+                            catalogProvider?.Invoke(),
+                            stateRef,
+                            out var value)
                         ? value
                         : "";
                 },
