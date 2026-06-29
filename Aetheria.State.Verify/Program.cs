@@ -5072,7 +5072,7 @@ static void RequireInventoryShipSettingsUseEveSurface(string root)
         "AetheriaRuntimeShipSettingsCommandKind.Close",
         "AetheriaRuntimeShipSettingsSurfaceCommands.ResolveShutdownPerformance(",
         "ResolveDefaultShutdownPerformance()",
-        "ResolvePlayerSettings()?.DefaultShutdownPerformance",
+        "PlayerSettingsSnapshot()?.DefaultShutdownPerformance",
         "TryReadCurrentEntity(out var currentEntity)",
         "SetObservedEntityIndex(AetheriaUnityObservedEntityIndex observedEntityIndex)",
         "private AetheriaRuntimeCurrentEntityDocument _shipSettingsCurrentEntity;",
@@ -6304,7 +6304,7 @@ static void RequireTradeItemValuesUseRuntimeQueries(string root)
     {
         "TradeItemValue(stock, typedItem)",
         "TradeItemCommit(",
-        "ResolveCatalog()?.TradeValueSettings",
+        "CatalogSnapshot()?.TradeValueSettings",
         "AetheriaRuntimeDaemonTradeItemQueries.TradeItemValue(",
         "AetheriaRuntimeTradeItemValue TradeValue",
         "public int Price => TradeValue.Price",

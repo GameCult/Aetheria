@@ -1579,7 +1579,7 @@ private void Update()
         return _catalog?.Current;
     }
 
-    private AetheriaRuntimePlayerSettingsDocument ResolvePlayerSettings()
+    private AetheriaRuntimePlayerSettingsDocument PlayerSettingsSnapshot()
     {
         if (_playerSettings != null)
             return _playerSettings.Current;
@@ -1599,7 +1599,7 @@ private void Update()
 
     private string FormatValue(float value)
     {
-        var settings = ResolvePlayerSettings();
+        var settings = PlayerSettingsSnapshot();
         var significantDigits = settings?.SignificantDigits ?? 3;
         var magnitude = value == 0.0f ? 0 : (int)Math.Floor(Math.Log10(Math.Abs(value))) + 1;
         var digits = significantDigits - magnitude;
@@ -1616,7 +1616,7 @@ private void Update()
 
     private string FormatTemperature(float value)
     {
-        var unit = ResolvePlayerSettings()?.TemperatureUnit ?? nameof(TemperatureUnit.Celsius);
+        var unit = PlayerSettingsSnapshot()?.TemperatureUnit ?? nameof(TemperatureUnit.Celsius);
         if (string.Equals(unit, nameof(TemperatureUnit.Kelvin), StringComparison.OrdinalIgnoreCase))
             return $"{FormatValue(value)} K";
         if (string.Equals(unit, nameof(TemperatureUnit.Fahrenheit), StringComparison.OrdinalIgnoreCase))

@@ -239,7 +239,7 @@ public class TradeMenu : MonoBehaviour
 
     private IEnumerable<TradeRow> BuildStationStockRows()
     {
-        return (ResolveStationRefit()?.StationStock ?? Array.Empty<AetheriaRuntimeStationStockItem>())
+        return (StationRefitSnapshot()?.StationStock ?? Array.Empty<AetheriaRuntimeStationStockItem>())
             .Select(stock =>
             {
                 var typedItem = FindTypedTradeItem(stock.ItemKey);
@@ -285,7 +285,7 @@ public class TradeMenu : MonoBehaviour
 
     private AetheriaRuntimeCatalogItem FindTypedTradeItem(string itemKey)
     {
-        return ResolveCatalog()?.FindItem(itemKey ?? "");
+        return CatalogSnapshot()?.FindItem(itemKey ?? "");
     }
 
     private AetheriaRuntimeTradeItemValue TradeItemValue(
@@ -295,7 +295,7 @@ public class TradeMenu : MonoBehaviour
         return AetheriaRuntimeDaemonTradeItemQueries.TradeItemValue(
             typedItem,
             TradeItemCommit(stock),
-            ResolveCatalog()?.TradeValueSettings);
+            CatalogSnapshot()?.TradeValueSettings);
     }
 
     private static AetheriaRuntimeLoadoutItemCommit? TradeItemCommit(AetheriaRuntimeStationStockItem stock)
@@ -403,7 +403,7 @@ public class TradeMenu : MonoBehaviour
     {
         if (CreditsLabel != null)
         {
-            CreditsLabel.text = ResolveStationRefit()?.Credits.ToString("N0") ?? "0";
+            CreditsLabel.text = StationRefitSnapshot()?.Credits.ToString("N0") ?? "0";
         }
     }
 
@@ -443,7 +443,7 @@ public class TradeMenu : MonoBehaviour
         if (totalPrice > int.MaxValue)
             return;
 
-        var stationRefit = ResolveStationRefit();
+        var stationRefit = StationRefitSnapshot();
         var stationEntityKey = stationRefit?.DockParentEntityKey ?? "";
         var stationCargoIndex = row.Stock.CargoBayIndex;
         var sourcePosition = new int2(row.Stock.X, row.Stock.Y);
@@ -510,7 +510,7 @@ public class TradeMenu : MonoBehaviour
         return true;
     }
 
-    private AetheriaRuntimeStationRefitDocument ResolveStationRefit()
+    private AetheriaRuntimeStationRefitDocument StationRefitSnapshot()
     {
         if (_stationRefit != null)
             return _stationRefit.Current;
@@ -609,7 +609,7 @@ public class TradeMenu : MonoBehaviour
         _stationRefit = null;
     }
 
-    private AetheriaRuntimeCatalogSnapshot ResolveCatalog()
+    private AetheriaRuntimeCatalogSnapshot CatalogSnapshot()
     {
         if (_catalog != null)
             return _catalog.Current;
@@ -627,7 +627,7 @@ public class TradeMenu : MonoBehaviour
         return _catalog?.Current;
     }
 
-    private AetheriaRuntimePlayerSettingsDocument ResolvePlayerSettings()
+    private AetheriaRuntimePlayerSettingsDocument PlayerSettingsSnapshot()
     {
         if (_playerSettings != null)
             return _playerSettings.Current;
@@ -647,12 +647,12 @@ public class TradeMenu : MonoBehaviour
 
     private string ResolveManufacturerName(AetheriaRuntimeCatalogItem item)
     {
-        return ResolveCatalog()?.GetManufacturer(item)?.Name ?? "GameCult";
+        return CatalogSnapshot()?.GetManufacturer(item)?.Name ?? "GameCult";
     }
 
     private string FormatValue(float value)
     {
-        var settings = ResolvePlayerSettings();
+        var settings = PlayerSettingsSnapshot();
         var significantDigits = settings?.SignificantDigits ?? 3;
         var magnitude = value == 0.0f ? 0 : (int)Math.Floor(Math.Log10(Math.Abs(value))) + 1;
         var digits = significantDigits - magnitude;
@@ -669,7 +669,7 @@ public class TradeMenu : MonoBehaviour
 
     private string FormatTemperature(float value)
     {
-        var unit = ResolvePlayerSettings()?.TemperatureUnit ?? nameof(TemperatureUnit.Celsius);
+        var unit = PlayerSettingsSnapshot()?.TemperatureUnit ?? nameof(TemperatureUnit.Celsius);
         if (string.Equals(unit, nameof(TemperatureUnit.Kelvin), StringComparison.OrdinalIgnoreCase))
             return $"{FormatValue(value)} K";
         if (string.Equals(unit, nameof(TemperatureUnit.Fahrenheit), StringComparison.OrdinalIgnoreCase))
@@ -1193,7 +1193,7 @@ public class TradeMenu : MonoBehaviour
     private AetheriaRuntimeTradeCargoSelectorSurfaceModel BuildTradeCargoSelectorSurfaceModel()
     {
         var targets = new List<AetheriaRuntimeTradeCargoModelOption>();
-        var stationRefit = ResolveStationRefit();
+        var stationRefit = StationRefitSnapshot();
         if (stationRefit?.IsDocked == true &&
             !string.IsNullOrWhiteSpace(stationRefit.DockParentEntityKey) &&
             stationRefit.DockingBayIndex >= 0)

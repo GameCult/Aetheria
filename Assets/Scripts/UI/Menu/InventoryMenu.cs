@@ -1047,7 +1047,7 @@ public class InventoryMenu : MonoBehaviour
         return _catalog?.Current;
     }
 
-    private AetheriaRuntimePlayerSettingsDocument ResolvePlayerSettings()
+    private AetheriaRuntimePlayerSettingsDocument PlayerSettingsSnapshot()
     {
         if (_playerSettings != null)
             return _playerSettings.Current;
@@ -1067,7 +1067,7 @@ public class InventoryMenu : MonoBehaviour
 
     private float ResolveDefaultShutdownPerformance()
     {
-        var value = ResolvePlayerSettings()?.DefaultShutdownPerformance ?? 0.25;
+        var value = PlayerSettingsSnapshot()?.DefaultShutdownPerformance ?? 0.25;
         return (float)(value <= 0 ? 0.25 : value);
     }
 
@@ -1078,7 +1078,7 @@ public class InventoryMenu : MonoBehaviour
 
     private string FormatValue(float value)
     {
-        var settings = ResolvePlayerSettings();
+        var settings = PlayerSettingsSnapshot();
         var significantDigits = settings?.SignificantDigits ?? 3;
         var magnitude = value == 0.0f ? 0 : (int)Math.Floor(Math.Log10(Math.Abs(value))) + 1;
         var digits = significantDigits - magnitude;
@@ -1095,7 +1095,7 @@ public class InventoryMenu : MonoBehaviour
 
     private string FormatTemperature(float value)
     {
-        var unit = ResolvePlayerSettings()?.TemperatureUnit ?? nameof(TemperatureUnit.Celsius);
+        var unit = PlayerSettingsSnapshot()?.TemperatureUnit ?? nameof(TemperatureUnit.Celsius);
         if (string.Equals(unit, nameof(TemperatureUnit.Kelvin), StringComparison.OrdinalIgnoreCase))
             return $"{FormatValue(value)} K";
         if (string.Equals(unit, nameof(TemperatureUnit.Fahrenheit), StringComparison.OrdinalIgnoreCase))
