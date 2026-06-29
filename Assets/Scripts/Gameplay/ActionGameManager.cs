@@ -296,7 +296,6 @@ public class ActionGameManager : MonoBehaviour
     private void OnDisable()
     {
         _gameplayInputShell?.Dispose();
-        _observedTargetQuery?.Dispose();
         _observedTargetQuery = null;
         _observedDocking = null;
         AetheriaUnityRuntimeClientProvider.Dispose();
