@@ -36,23 +36,6 @@ namespace GameCult.Aetheria.State.Verse
         public IReadOnlyList<AetheriaRuntimeTradeSurfaceOption> Options { get; }
     }
 
-    public sealed class AetheriaRuntimeTradeFilterSurfaceState
-    {
-        public AetheriaRuntimeTradeFilterSurfaceState(
-            string filterSummary,
-            IReadOnlyList<AetheriaRuntimeTradeSurfaceGroup> groups,
-            string updatedAtUtc)
-        {
-            FilterSummary = filterSummary ?? "";
-            Groups = groups ?? Array.Empty<AetheriaRuntimeTradeSurfaceGroup>();
-            UpdatedAtUtc = updatedAtUtc ?? "";
-        }
-
-        public string FilterSummary { get; }
-        public IReadOnlyList<AetheriaRuntimeTradeSurfaceGroup> Groups { get; }
-        public string UpdatedAtUtc { get; }
-    }
-
     public enum AetheriaRuntimeTradeFilterSelectionKind
     {
         Unknown = 0,
@@ -104,11 +87,7 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeSurfaceDocument document,
             IReadOnlyDictionary<string, AetheriaRuntimeTradeFilterSelection> selections)
         {
-            Document = document ?? AetheriaRuntimeTradeInteractionSurfaceBuilder.BuildFilter(
-                new AetheriaRuntimeTradeFilterSurfaceState(
-                    "",
-                    Array.Empty<AetheriaRuntimeTradeSurfaceGroup>(),
-                    ""));
+            Document = document ?? throw new ArgumentNullException(nameof(document));
             Selections = selections ?? new Dictionary<string, AetheriaRuntimeTradeFilterSelection>(StringComparer.Ordinal);
         }
 
@@ -119,23 +98,6 @@ namespace GameCult.Aetheria.State.Verse
         {
             return Selections.TryGetValue(command ?? "", out selection);
         }
-    }
-
-    public sealed class AetheriaRuntimeTradeRowActionSurfaceState
-    {
-        public AetheriaRuntimeTradeRowActionSurfaceState(
-            string title,
-            IReadOnlyList<AetheriaRuntimeTradeSurfaceOption> actions,
-            string updatedAtUtc)
-        {
-            Title = title ?? "";
-            Actions = actions ?? Array.Empty<AetheriaRuntimeTradeSurfaceOption>();
-            UpdatedAtUtc = updatedAtUtc ?? "";
-        }
-
-        public string Title { get; }
-        public IReadOnlyList<AetheriaRuntimeTradeSurfaceOption> Actions { get; }
-        public string UpdatedAtUtc { get; }
     }
 
     public sealed class AetheriaRuntimeTradeRowActionOption
@@ -168,11 +130,7 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeSurfaceDocument document,
             IReadOnlyDictionary<string, AetheriaRuntimeTradeRowActionSelection> selections)
         {
-            Document = document ?? AetheriaRuntimeTradeInteractionSurfaceBuilder.BuildRowActions(
-                new AetheriaRuntimeTradeRowActionSurfaceState(
-                    "",
-                    Array.Empty<AetheriaRuntimeTradeSurfaceOption>(),
-                    ""));
+            Document = document ?? throw new ArgumentNullException(nameof(document));
             Selections = selections ?? new Dictionary<string, AetheriaRuntimeTradeRowActionSelection>(StringComparer.Ordinal);
         }
 
@@ -272,12 +230,9 @@ namespace GameCult.Aetheria.State.Verse
                 .Where(group => group.Options.Count > 0)
                 .ToArray();
 
-            var state = new AetheriaRuntimeTradeFilterSurfaceState(
-                filterSummary,
-                groups,
-                updatedAtUtc);
-
-            return new AetheriaRuntimeTradeFilterSurfaceModel(BuildFilter(state), selections);
+            return new AetheriaRuntimeTradeFilterSurfaceModel(
+                BuildFilter(filterSummary, groups, updatedAtUtc),
+                selections);
         }
 
         public static AetheriaRuntimeTradeRowActionSurfaceModel BuildRowActions(
@@ -304,22 +259,18 @@ namespace GameCult.Aetheria.State.Verse
                 selections[command] = new AetheriaRuntimeTradeRowActionSelection(command, action.Index);
             }
 
-            var state = new AetheriaRuntimeTradeRowActionSurfaceState(
-                title,
-                options,
-                updatedAtUtc);
-
-            return new AetheriaRuntimeTradeRowActionSurfaceModel(BuildRowActions(state), selections);
+            return new AetheriaRuntimeTradeRowActionSurfaceModel(
+                BuildRowActions(title, options, updatedAtUtc),
+                selections);
         }
 
-        public static AetheriaRuntimeSurfaceDocument BuildFilter(
-            AetheriaRuntimeTradeFilterSurfaceState state,
+        private static AetheriaRuntimeSurfaceDocument BuildFilter(
+            string filterSummary,
+            IReadOnlyList<AetheriaRuntimeTradeSurfaceGroup> groups,
+            string updatedAtUtc,
             long version = 1)
         {
-            state ??= new AetheriaRuntimeTradeFilterSurfaceState(
-                "",
-                Array.Empty<AetheriaRuntimeTradeSurfaceGroup>(),
-                "");
+            groups ??= Array.Empty<AetheriaRuntimeTradeSurfaceGroup>();
 
             var children = new List<AetheriaRuntimeSurfaceComponent>
             {
@@ -329,10 +280,10 @@ namespace GameCult.Aetheria.State.Verse
                     Text(
                         $"{FilterSurfaceId}.note",
                                 "The observing client lists available trade filters; the shared runtime surface owns the filter selector contract."),
-                    Text($"{FilterSurfaceId}.active", state.FilterSummary))
+                    Text($"{FilterSurfaceId}.active", filterSummary))
             };
 
-            foreach (var group in state.Groups)
+            foreach (var group in groups)
             {
                 if (group?.Options == null || group.Options.Count == 0)
                     continue;
@@ -356,7 +307,7 @@ namespace GameCult.Aetheria.State.Verse
                 providerKind: "trade.menu",
                 title: "Trade Filter Selector",
                 version: version,
-                updatedAtUtc: state.UpdatedAtUtc,
+                updatedAtUtc: updatedAtUtc ?? "",
                 surface: new AetheriaRuntimeSurfaceTree(
                     FilterSurfaceId,
                     Node(
@@ -365,7 +316,7 @@ namespace GameCult.Aetheria.State.Verse
                         Array.Empty<(string Key, string Value)>(),
                         children.ToArray()),
                     Array.Empty<AetheriaRuntimeSurfaceStyleToken>()),
-                commands: state.Groups
+                commands: groups
                     .Where(group => group?.Options != null)
                     .SelectMany(group => group.Options)
                     .Select(option => new AetheriaRuntimeSurfaceCommandTemplate(option.Command, option.Label, AetheriaRuntimeSurfaceCommandTemplate.CultMeshTransport))
@@ -373,21 +324,20 @@ namespace GameCult.Aetheria.State.Verse
                     .ToArray());
         }
 
-        public static AetheriaRuntimeSurfaceDocument BuildRowActions(
-            AetheriaRuntimeTradeRowActionSurfaceState state,
+        private static AetheriaRuntimeSurfaceDocument BuildRowActions(
+            string title,
+            IReadOnlyList<AetheriaRuntimeTradeSurfaceOption> actions,
+            string updatedAtUtc,
             long version = 1)
         {
-            state ??= new AetheriaRuntimeTradeRowActionSurfaceState(
-                "",
-                Array.Empty<AetheriaRuntimeTradeSurfaceOption>(),
-                "");
+            actions ??= Array.Empty<AetheriaRuntimeTradeSurfaceOption>();
 
             return new AetheriaRuntimeSurfaceDocument(
                 providerId: "aetheria",
                 providerKind: "trade.menu",
                 title: "Trade Row Actions",
                 version: version,
-                updatedAtUtc: state.UpdatedAtUtc,
+                updatedAtUtc: updatedAtUtc ?? "",
                 surface: new AetheriaRuntimeSurfaceTree(
                     RowActionSurfaceId,
                     Node(
@@ -397,20 +347,20 @@ namespace GameCult.Aetheria.State.Verse
                         Card(
                             $"{RowActionSurfaceId}.card",
                             "Trade Action",
-                            Text($"{RowActionSurfaceId}.title", state.Title),
+                            Text($"{RowActionSurfaceId}.title", title),
                             Text(
                                 $"{RowActionSurfaceId}.note",
                                 "The observing client lists available row actions; the shared runtime surface owns the row action contract."),
                             ButtonColumn(
                                 $"{RowActionSurfaceId}.options",
-                                state.Actions
+                                actions
                                     .Select(action => Button(action.Id, action.Label, action.Command))
                                     .ToArray()),
                             ButtonRow(
                                 $"{RowActionSurfaceId}.actions",
                                 Button($"{RowActionSurfaceId}.close", "Close", CloseRowAction)))),
                     Array.Empty<AetheriaRuntimeSurfaceStyleToken>()),
-                commands: state.Actions
+                commands: actions
                     .Select(action => new AetheriaRuntimeSurfaceCommandTemplate(action.Command, action.Label, AetheriaRuntimeSurfaceCommandTemplate.CultMeshTransport))
                     .Append(new AetheriaRuntimeSurfaceCommandTemplate(CloseRowAction, "Close", AetheriaRuntimeSurfaceCommandTemplate.CultMeshTransport))
                     .ToArray());
