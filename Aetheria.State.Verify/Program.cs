@@ -6483,8 +6483,7 @@ static void RequireInventoryDropdownUseEveSurface(string root)
         "TryResolveStationRefitEntity(string entityKey",
         "SetObservedEntityIndex(AetheriaUnityObservedEntityIndex observedEntityIndex)",
         "_observedEntityIndex.TryResolveEntityByRecordKey",
-        "TryResolveObservedDockingIndex(out var dockingIndex)",
-        "dockingIndex.TryResolveCurrentDockingBay(out var resolvedDockingBay)",
+        "_observedEntityIndex.TryResolveDockingBayByRecordKey",
         "StationRefitSnapshot",
         "currentEntityKey = CurrentEntitySnapshot()?.EntityKey ?? \"\"",
         "LoadoutRestoreOptions"
@@ -6548,13 +6547,14 @@ static void RequireInventoryDropdownUseEveSurface(string root)
         !inventoryDropdownSurfaceBuilder.Contains("entityKey: entity.EntityKey", StringComparison.Ordinal) ||
         !source.Contains("TryResolveStationRefitEntity(selection.EntityKey", StringComparison.Ordinal) ||
         !source.Contains("TryResolveCurrentDockingBayRow(out var currentDockingBay)", StringComparison.Ordinal) ||
-        !source.Contains("TryResolveObservedDockingIndex(out var dockingIndex)", StringComparison.Ordinal) ||
         !source.Contains("TryResolveCurrentDockingBay(out var dockingBay)", StringComparison.Ordinal) ||
-        !source.Contains("dockingIndex.TryResolveCurrentDockingBay(out var resolvedDockingBay)", StringComparison.Ordinal) ||
+        !source.Contains("_observedEntityIndex.TryResolveDockingBayByRecordKey", StringComparison.Ordinal) ||
         !source.Contains("StationRefitSnapshot", StringComparison.Ordinal) ||
         !source.Contains("currentEntityKey = CurrentEntitySnapshot()?.EntityKey ?? \"\"", StringComparison.Ordinal) ||
         !source.Contains("currentDockingBay.DockingBayIndex", StringComparison.Ordinal) ||
         !source.Contains("StationRefitSnapshot()?.DockParentEntityKey", StringComparison.Ordinal) ||
+        source.Contains("TryResolveObservedDockingIndex(out var dockingIndex)", StringComparison.Ordinal) ||
+        source.Contains("dockingIndex.TryResolveCurrentDockingBay", StringComparison.Ordinal) ||
         source.Contains("var hasDockingBay = TryGetTypedCurrentDockingBayFacade", StringComparison.Ordinal) ||
         source.Contains("TryResolveCurrentDockingBayFacade", StringComparison.Ordinal) ||
         source.Contains("ResolveDockingState()?.CurrentDocking", StringComparison.Ordinal) ||
@@ -6566,16 +6566,17 @@ static void RequireInventoryDropdownUseEveSurface(string root)
 
     if (!inventoryMenu.Contains("TryResolveCurrentEntity(out var currentEntity)", StringComparison.Ordinal) ||
         !inventoryMenu.Contains("TryResolveCurrentDockingBay(out var dockingBay)", StringComparison.Ordinal) ||
-        !inventoryMenu.Contains("TryResolveObservedDockingIndex(out var dockingIndex)", StringComparison.Ordinal) ||
-        !inventoryMenu.Contains("dockingIndex.TryResolveCurrentDockingBay(out var resolvedDockingBay)", StringComparison.Ordinal) ||
+        !inventoryMenu.Contains("_observedEntityIndex.TryResolveEntityByRecordKey(currentEntityKey, out currentEntity)", StringComparison.Ordinal) ||
+        !inventoryMenu.Contains("_observedEntityIndex.TryResolveDockingBayByRecordKey", StringComparison.Ordinal) ||
         !inventoryMenu.Contains("currentEntityKey = CurrentEntitySnapshot()?.EntityKey ?? \"\"", StringComparison.Ordinal) ||
         !inventoryMenu.Contains("currentEntity = CurrentEntitySnapshot();", StringComparison.Ordinal) ||
         !inventoryMenu.Contains("StationRefitSnapshot", StringComparison.Ordinal) ||
+        inventoryMenu.Contains("TryResolveObservedDockingIndex(out var dockingIndex)", StringComparison.Ordinal) ||
+        inventoryMenu.Contains("dockingIndex.TryResolveCurrentDockingBay", StringComparison.Ordinal) ||
         inventoryMenu.Contains("TryGetTypedCurrentDockingBayFacade", StringComparison.Ordinal) ||
         inventoryMenu.Contains("TryResolveCurrentEntityFacade", StringComparison.Ordinal) ||
         inventoryMenu.Contains("ResolveDockingState()?.CurrentDocking", StringComparison.Ordinal) ||
         inventoryMenu.Contains("AetheriaClientReactiveDockingState _reactiveDockingState", StringComparison.Ordinal) ||
-        inventoryMenu.Contains("_observedEntityIndex.TryResolveDockingBayByRecordKey", StringComparison.Ordinal) ||
         inventoryMenu.Contains("GameManager.TryGetObservedDockingBay(", StringComparison.Ordinal) ||
         inventoryMenu.Contains("GameManager.DockingBay", StringComparison.Ordinal))
     {

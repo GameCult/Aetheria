@@ -32,7 +32,6 @@ public class InventoryMenu : MonoBehaviour
     private UIDocument _equippedItemDetailsSurfaceDocument;
     private AetheriaUnityActionBarPresentation _actionBarPresentation;
     private AetheriaUnityObservedEntityIndex _observedEntityIndex;
-    private AetheriaUnityObservedDockingIndex _observedDockingIndex;
     private readonly AetheriaEveUnitySurfaceChrome _shipSettingsSurfaceChrome = PanelChrome(360f, 420f);
     private readonly AetheriaEveUnitySurfaceChrome _cargoItemDetailsSurfaceChrome = PanelChrome(420f, 520f);
     private readonly AetheriaEveUnitySurfaceChrome _equippedItemDetailsSurfaceChrome = PanelChrome(460f, 560f);
@@ -58,11 +57,6 @@ public class InventoryMenu : MonoBehaviour
 
     public void SetObservedEntityIndex(AetheriaUnityObservedEntityIndex observedEntityIndex)
     {
-        if (!ReferenceEquals(_observedEntityIndex, observedEntityIndex))
-        {
-            _observedDockingIndex = null;
-        }
-
         _observedEntityIndex = observedEntityIndex;
     }
     // private int2 _dragCellOffset;
@@ -737,31 +731,29 @@ public class InventoryMenu : MonoBehaviour
     private bool TryResolveCurrentEntity(out Entity currentEntity)
     {
         currentEntity = null;
-        return TryResolveObservedDockingIndex(out var dockingIndex) &&
-               dockingIndex.TryResolveCurrentEntity(out currentEntity);
+        var currentEntityKey = CurrentEntitySnapshot()?.EntityKey ?? "";
+        return _observedEntityIndex != null &&
+               !string.IsNullOrWhiteSpace(currentEntityKey) &&
+               _observedEntityIndex.TryResolveEntityByRecordKey(currentEntityKey, out currentEntity);
     }
 
     private bool TryResolveCurrentDockingBay(out EquippedCargoBay dockingBay)
     {
         dockingBay = null;
-        if (!TryResolveObservedDockingIndex(out var dockingIndex) ||
-            !dockingIndex.TryResolveCurrentDockingBay(out var resolvedDockingBay))
+        var refit = StationRefitSnapshot();
+        if (refit?.IsDocked != true ||
+            refit.DockingBayIndex < 0 ||
+            string.IsNullOrWhiteSpace(refit.DockParentEntityKey) ||
+            _observedEntityIndex == null ||
+            !_observedEntityIndex.TryResolveDockingBayByRecordKey(
+                refit.DockParentEntityKey,
+                refit.DockingBayIndex,
+                out dockingBay))
         {
             return false;
         }
 
-        dockingBay = resolvedDockingBay;
         return dockingBay != null;
-    }
-
-    private bool TryResolveObservedDockingIndex(out AetheriaUnityObservedDockingIndex dockingIndex)
-    {
-        dockingIndex = null;
-        if (_observedEntityIndex == null)
-            return false;
-
-        dockingIndex = _observedDockingIndex ??= new AetheriaUnityObservedDockingIndex(_observedEntityIndex);
-        return true;
     }
 
     private bool TryResolveCargoBay(EquippedCargoBay cargoBay, out string entityKey, out int cargoIndex)
@@ -892,11 +884,6 @@ public class InventoryMenu : MonoBehaviour
             Debug.LogWarning($"Failed to send Aetheria daemon inventory menu {label} operation; operation not submitted: {ex.Message}");
             return false;
         }
-    }
-
-    private void ClearClientCaches()
-    {
-        _observedDockingIndex = null;
     }
 
     private AetheriaRuntimeCurrentEntityDocument CurrentEntitySnapshot()
@@ -1081,8 +1068,6 @@ public class InventoryMenu : MonoBehaviour
 
     private void OnDestroy()
     {
-        ClearClientCaches();
-
         if (_shipSettingsSurfaceDocument != null)
         {
             AetheriaEveUnitySurfaceHost.DestroyDocument(_shipSettingsSurfaceDocument);

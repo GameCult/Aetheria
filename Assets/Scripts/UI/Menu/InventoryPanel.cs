@@ -74,7 +74,6 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
     private RectTransform _firstRect;
     private AetheriaUnityDragSession _dragSession;
     private AetheriaUnityObservedEntityIndex _observedEntityIndex;
-    private AetheriaUnityObservedDockingIndex _observedDockingIndex;
 
     public ItemInstance FakeItem;
     public Shape FakeOccupancy;
@@ -88,11 +87,6 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
 
     public void SetObservedEntityIndex(AetheriaUnityObservedEntityIndex observedEntityIndex)
     {
-        if (!ReferenceEquals(_observedEntityIndex, observedEntityIndex))
-        {
-            _observedDockingIndex = null;
-        }
-
         _observedEntityIndex = observedEntityIndex;
     }
 
@@ -1139,24 +1133,20 @@ private void Update()
     private bool TryResolveCurrentDockingBay(out EquippedCargoBay dockingBay)
     {
         dockingBay = null;
-        if (!TryResolveObservedDockingIndex(out var dockingIndex) ||
-            !dockingIndex.TryResolveCurrentDockingBay(out var resolvedDockingBay))
+        var refit = StationRefitSnapshot();
+        if (refit?.IsDocked != true ||
+            refit.DockingBayIndex < 0 ||
+            string.IsNullOrWhiteSpace(refit.DockParentEntityKey) ||
+            _observedEntityIndex == null ||
+            !_observedEntityIndex.TryResolveDockingBayByRecordKey(
+                refit.DockParentEntityKey,
+                refit.DockingBayIndex,
+                out dockingBay))
         {
             return false;
         }
 
-        dockingBay = resolvedDockingBay;
         return dockingBay != null;
-    }
-
-    private bool TryResolveObservedDockingIndex(out AetheriaUnityObservedDockingIndex dockingIndex)
-    {
-        dockingIndex = null;
-        if (_observedEntityIndex == null)
-            return false;
-
-        dockingIndex = _observedDockingIndex ??= new AetheriaUnityObservedDockingIndex(_observedEntityIndex);
-        return true;
     }
 
     private bool TryResolveStationRefitEntity(string entityKey, int optionIndex, out Entity entity)
@@ -1450,11 +1440,6 @@ private void Update()
         }
     }
 
-    private void ClearClientCaches()
-    {
-        _observedDockingIndex = null;
-    }
-
     private AetheriaRuntimeCurrentEntityDocument CurrentEntitySnapshot()
     {
         try
@@ -1625,8 +1610,6 @@ private void Update()
 
     private void OnDestroy()
     {
-        ClearClientCaches();
-
         if (_dropdownSurfaceDocument != null)
         {
             AetheriaEveUnitySurfaceHost.DestroyDocument(_dropdownSurfaceDocument);
