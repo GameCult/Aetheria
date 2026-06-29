@@ -3,7 +3,7 @@ using GameCult.Mesh;
 
 namespace Aetheria.State;
 
-public static class AetheriaVerseCatalogProjector
+public static class AetheriaVerseCatalogDocuments
 {
     private const string TransportVersion = "cultmesh.v0";
     private const string RulesEpoch = "aetheria-runtime-state.v1";

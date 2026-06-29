@@ -8605,7 +8605,8 @@ static void RequireVerseHostSettingsAuthority(string root)
 {
     var settingsPath = Path.Combine(root, "Aetheria.State", "Documents", "AetheriaVerseHostSettings.cs");
     var normalizerPath = Path.Combine(root, "Aetheria.State", "AetheriaVerseHostSettingsNormalizer.cs");
-    var verseCatalogProjectorPath = Path.Combine(root, "Aetheria.State", "AetheriaVerseCatalogProjector.cs");
+    var verseCatalogDocumentsPath = Path.Combine(root, "Aetheria.State", "AetheriaVerseCatalogDocuments.cs");
+    var deletedVerseCatalogProjectorPath = Path.Combine(root, "Aetheria.State", "AetheriaVerseCatalogProjector.cs");
     var verseDiscoveryHostPath = Path.Combine(root, "Aetheria.State", "AetheriaVerseDiscoveryHost.cs");
     var registryPath = Path.Combine(root, "Aetheria.State", "AetheriaDocumentRegistry.cs");
     var nodePath = Path.Combine(root, "Aetheria.State", "AetheriaStateNode.cs");
@@ -8617,7 +8618,7 @@ static void RequireVerseHostSettingsAuthority(string root)
     {
         settingsPath,
         normalizerPath,
-        verseCatalogProjectorPath,
+        verseCatalogDocumentsPath,
         verseDiscoveryHostPath,
         registryPath,
         nodePath,
@@ -8638,7 +8639,13 @@ static void RequireVerseHostSettingsAuthority(string root)
 
     var settings = File.ReadAllText(settingsPath);
     var normalizer = File.ReadAllText(normalizerPath);
-    var verseCatalogProjector = File.ReadAllText(verseCatalogProjectorPath);
+    if (File.Exists(deletedVerseCatalogProjectorPath))
+    {
+        throw new InvalidOperationException(
+            "AetheriaVerseCatalogProjector should stay deleted; Verse discovery publishes typed catalog documents, not projector chaff.");
+    }
+
+    var verseCatalogDocuments = File.ReadAllText(verseCatalogDocumentsPath);
     var verseDiscoveryHost = File.ReadAllText(verseDiscoveryHostPath);
     var registry = File.ReadAllText(registryPath);
     var node = File.ReadAllText(nodePath);
@@ -8671,28 +8678,28 @@ static void RequireVerseHostSettingsAuthority(string root)
             "Verse-host settings normalizer is missing normalize/equivalence ownership.");
     }
 
-    var requiredVerseCatalogProjectorSymbols = new[]
+    var requiredVerseCatalogDocumentSymbols = new[]
     {
-        "public static class AetheriaVerseCatalogProjector",
+        "public static class AetheriaVerseCatalogDocuments",
         "CultMeshVerseDescriptor",
         "BuildDiscoveryEndpoint",
         "CultMeshVerseDescriptor.ComputeRulesHash",
         "cultnet://"
     };
-    var missingVerseCatalogProjectorSymbols = requiredVerseCatalogProjectorSymbols
-        .Where(symbol => !verseCatalogProjector.Contains(symbol, StringComparison.Ordinal))
+    var missingVerseCatalogDocumentSymbols = requiredVerseCatalogDocumentSymbols
+        .Where(symbol => !verseCatalogDocuments.Contains(symbol, StringComparison.Ordinal))
         .ToArray();
-    if (missingVerseCatalogProjectorSymbols.Length > 0)
+    if (missingVerseCatalogDocumentSymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "Verse catalog projector no longer derives public CultMesh discovery from typed host settings: " +
-            string.Join(", ", missingVerseCatalogProjectorSymbols));
+            "Verse catalog documents no longer derive public CultMesh discovery from typed host settings: " +
+            string.Join(", ", missingVerseCatalogDocumentSymbols));
     }
 
     var requiredVerseDiscoveryHostSymbols = new[]
     {
         "public sealed class AetheriaVerseDiscoveryHost",
-        "AetheriaVerseCatalogProjector.Build(normalized)",
+        "AetheriaVerseCatalogDocuments.Build(normalized)",
         "CultMesh.CreateVerseCatalog()",
         "CultMesh.ServeVerseCatalog(_node.MeshNode, _catalog)",
         "normalized.Visibility"

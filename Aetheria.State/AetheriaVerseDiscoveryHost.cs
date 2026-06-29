@@ -31,7 +31,7 @@ public sealed class AetheriaVerseDiscoveryHost : IDisposable
         DisposeServer();
 
         _catalog = CultMesh.CreateVerseCatalog();
-        _catalog.Upsert(AetheriaVerseCatalogProjector.Build(normalized));
+        _catalog.Upsert(AetheriaVerseCatalogDocuments.Build(normalized));
         _server = CultMesh.ServeVerseCatalog(_node.MeshNode, _catalog);
         _fingerprint = nextFingerprint;
     }
