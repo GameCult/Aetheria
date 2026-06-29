@@ -16819,8 +16819,7 @@ static void RequireActionBarBindingRequestAuthority(string root)
     {
         "ActionBarPresentation = _actionBarPresentation",
         "SceneWiring.ConfigureActionBarPresentation(",
-        "private AetheriaUnityActionBarBindingAdapter ActionBarBindings =>",
-        "ApplyActionBarBindings = ActionBarBindings.ApplyBindings"
+        "ApplyActionBarBindings = _ => _actionBarPresentation?.ApplyLocalBindings()"
     };
 
     var missingManagerSymbols = requiredManagerSymbols
@@ -16832,6 +16831,13 @@ static void RequireActionBarBindingRequestAuthority(string root)
         throw new InvalidOperationException(
             "ActionGameManager no longer delegates action-bar binding request/restore through the action-bar presentation owner: " +
             string.Join(", ", missingManagerSymbols));
+    }
+
+    if (actionGameManager.Contains("AetheriaUnityActionBarBindingAdapter", StringComparison.Ordinal) ||
+        File.Exists(Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityActionBarBindingAdapter.cs")))
+    {
+        throw new InvalidOperationException(
+            "Action-bar binding restore must go straight to AetheriaUnityActionBarPresentation; the old adapter owned no authority.");
     }
 
     var requiredSceneWiringSymbols = new[]

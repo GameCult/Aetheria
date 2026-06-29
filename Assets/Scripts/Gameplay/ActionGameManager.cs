@@ -25,7 +25,6 @@ public class ActionGameManager : MonoBehaviour
     private AetheriaUnityObservedTargetQuery _observedTargetQuery;
     private AetheriaUnityObservedFrameApplier _observedFrameApplier;
     private AetheriaUnityEntityBlueprintMaterializer _entityBlueprintMaterializer;
-    private AetheriaUnityActionBarBindingAdapter _actionBarBindingAdapter;
     private AetheriaUnityMenuShell _menuShell;
     private AetheriaUnityGameplayInputShell _gameplayInputShell;
     private AetheriaUnityCockpitHudShell _cockpitHudShell;
@@ -66,7 +65,7 @@ public class ActionGameManager : MonoBehaviour
             GetViewDirection = () => _viewDirection,
             SetViewDirection = direction => _viewDirection = direction,
             ResolveZoneRender = () => ResolveDaemonObserver()?.LastObservedState?.ZoneRender,
-            ApplyActionBarBindings = ActionBarBindings.ApplyBindings,
+            ApplyActionBarBindings = _ => _actionBarPresentation?.ApplyLocalBindings(),
             EnablePlayerInput = EnablePlayerInput,
             DisablePlayerInput = DisablePlayerInput,
             PlayMusic = PlayMusic,
@@ -108,8 +107,6 @@ public class ActionGameManager : MonoBehaviour
             Debug.LogWarning);
     private AetheriaUnityEntityBlueprintMaterializer EntityBlueprintMaterializer =>
         _entityBlueprintMaterializer ??= new AetheriaUnityEntityBlueprintMaterializer(_loadoutItemFactory);
-    private AetheriaUnityActionBarBindingAdapter ActionBarBindings =>
-        _actionBarBindingAdapter ??= new AetheriaUnityActionBarBindingAdapter(_actionBarPresentation);
     private AetheriaUnityMenuShell MenuShell =>
         _menuShell ??= new AetheriaUnityMenuShell
         {
