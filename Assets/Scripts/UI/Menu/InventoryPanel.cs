@@ -1276,7 +1276,7 @@ private void Update()
         }
         catch (Exception ex)
         {
-            Debug.LogWarning($"Failed to validate Aetheria inventory projection for {entityKey}: {ex.Message}");
+            Debug.LogWarning($"Failed to validate Aetheria typed inventory document for {entityKey}: {ex.Message}");
             return false;
         }
     }
@@ -1572,7 +1572,7 @@ private void Update()
         }
         catch (Exception ex)
         {
-            Debug.LogWarning($"Failed to bind Aetheria inventory projection for entity {entityIndex}: {ex.Message}");
+            Debug.LogWarning($"Failed to bind Aetheria typed inventory document for entity {entityIndex}: {ex.Message}");
         }
 
         return _inventory?.Current;

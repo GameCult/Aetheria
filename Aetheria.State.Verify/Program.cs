@@ -6122,6 +6122,7 @@ static void RequireTradeItemValuesUseRuntimeQueries(string root)
 {
     var tradeMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "TradeMenu.cs");
     var inventoryPanelPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "InventoryPanel.cs");
+    var inventoryMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "InventoryMenu.cs");
     var catalogSnapshotPath = Path.Combine(
         root,
         "Packages",
@@ -6142,6 +6143,10 @@ static void RequireTradeItemValuesUseRuntimeQueries(string root)
     {
         throw new InvalidOperationException("Cannot verify typed catalog item enum accessors; InventoryPanel.cs is missing.");
     }
+    if (!File.Exists(inventoryMenuPath))
+    {
+        throw new InvalidOperationException("Cannot verify typed inventory document vocabulary; InventoryMenu.cs is missing.");
+    }
     if (!File.Exists(catalogSnapshotPath))
     {
         throw new InvalidOperationException("Cannot verify typed catalog item enum accessors; AetheriaRuntimeCatalogSnapshot.cs is missing.");
@@ -6153,6 +6158,7 @@ static void RequireTradeItemValuesUseRuntimeQueries(string root)
 
     var tradeMenu = File.ReadAllText(tradeMenuPath);
     var inventoryPanel = File.ReadAllText(inventoryPanelPath);
+    var inventoryMenu = File.ReadAllText(inventoryMenuPath);
     var catalogSnapshot = File.ReadAllText(catalogSnapshotPath);
     var tradeQueries = File.ReadAllText(tradeQueriesPath);
     var requiredTradeMenuSymbols = new[]
@@ -6227,6 +6233,13 @@ static void RequireTradeItemValuesUseRuntimeQueries(string root)
     {
         throw new InvalidOperationException(
             "InventoryPanel must ask AetheriaRuntimeCatalogItem for typed hardpoint classification instead of parsing catalog strings locally.");
+    }
+
+    if (inventoryPanel.Contains("inventory projection", StringComparison.OrdinalIgnoreCase) ||
+        inventoryMenu.Contains("inventory projection", StringComparison.OrdinalIgnoreCase))
+    {
+        throw new InvalidOperationException(
+            "Inventory UI must describe direct reactive inventory document access as typed documents, not inventory projection chaff.");
     }
 
     var requiredQuerySymbols = new[]
