@@ -5073,16 +5073,16 @@ static void RequireInventoryShipSettingsUseEveSurface(string root)
         "AetheriaRuntimeShipSettingsSurfaceCommands.ResolveShutdownPerformance(",
         "ResolveDefaultShutdownPerformance()",
         "ResolvePlayerSettings()?.DefaultShutdownPerformance",
-        "TryResolveCurrentEntityDocument(out var currentEntity)",
+        "TryReadCurrentEntity(out var currentEntity)",
         "SetObservedEntityIndex(AetheriaUnityObservedEntityIndex observedEntityIndex)",
         "private AetheriaRuntimeCurrentEntityDocument _shipSettingsCurrentEntity;",
-        "!TryResolveCurrentEntityDocument(out var latestCurrentEntity)",
+        "!TryReadCurrentEntity(out var latestCurrentEntity)",
         "RequestEntityShutdownPerformance(",
         "latestCurrentEntity.EntityKey",
         "(float)latestCurrentEntity.ShutdownPerformance",
         "CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> _currentEntity",
-        "ResolveCurrentEntity()",
-        "currentEntity = ResolveCurrentEntity();"
+        "CurrentEntitySnapshot()",
+        "currentEntity = CurrentEntitySnapshot();"
     };
 
     var missingSymbols = requiredSymbols
@@ -6523,8 +6523,8 @@ static void RequireInventoryDropdownUseEveSurface(string root)
         "_observedEntityIndex.TryResolveEntityByRecordKey",
         "TryResolveObservedDockingIndex(out var dockingIndex)",
         "dockingIndex.TryResolveCurrentDockingBay(out var resolvedDockingBay)",
-        "ResolveStationRefit",
-        "currentEntityKey = ResolveCurrentEntity()?.EntityKey ?? \"\"",
+        "StationRefitSnapshot",
+        "currentEntityKey = CurrentEntitySnapshot()?.EntityKey ?? \"\"",
         "LoadoutRestoreOptions"
     };
 
@@ -6589,10 +6589,10 @@ static void RequireInventoryDropdownUseEveSurface(string root)
         !source.Contains("TryResolveObservedDockingIndex(out var dockingIndex)", StringComparison.Ordinal) ||
         !source.Contains("TryResolveCurrentDockingBay(out var dockingBay)", StringComparison.Ordinal) ||
         !source.Contains("dockingIndex.TryResolveCurrentDockingBay(out var resolvedDockingBay)", StringComparison.Ordinal) ||
-        !source.Contains("ResolveStationRefit", StringComparison.Ordinal) ||
-        !source.Contains("currentEntityKey = ResolveCurrentEntity()?.EntityKey ?? \"\"", StringComparison.Ordinal) ||
+        !source.Contains("StationRefitSnapshot", StringComparison.Ordinal) ||
+        !source.Contains("currentEntityKey = CurrentEntitySnapshot()?.EntityKey ?? \"\"", StringComparison.Ordinal) ||
         !source.Contains("currentDockingBay.DockingBayIndex", StringComparison.Ordinal) ||
-        !source.Contains("ResolveStationRefit()?.DockParentEntityKey", StringComparison.Ordinal) ||
+        !source.Contains("StationRefitSnapshot()?.DockParentEntityKey", StringComparison.Ordinal) ||
         source.Contains("var hasDockingBay = TryGetTypedCurrentDockingBayFacade", StringComparison.Ordinal) ||
         source.Contains("TryResolveCurrentDockingBayFacade", StringComparison.Ordinal) ||
         source.Contains("ResolveDockingState()?.CurrentDocking", StringComparison.Ordinal) ||
@@ -6606,9 +6606,9 @@ static void RequireInventoryDropdownUseEveSurface(string root)
         !inventoryMenu.Contains("TryResolveCurrentDockingBay(out var dockingBay)", StringComparison.Ordinal) ||
         !inventoryMenu.Contains("TryResolveObservedDockingIndex(out var dockingIndex)", StringComparison.Ordinal) ||
         !inventoryMenu.Contains("dockingIndex.TryResolveCurrentDockingBay(out var resolvedDockingBay)", StringComparison.Ordinal) ||
-        !inventoryMenu.Contains("currentEntityKey = ResolveCurrentEntity()?.EntityKey ?? \"\"", StringComparison.Ordinal) ||
-        !inventoryMenu.Contains("currentEntity = ResolveCurrentEntity();", StringComparison.Ordinal) ||
-        !inventoryMenu.Contains("ResolveStationRefit", StringComparison.Ordinal) ||
+        !inventoryMenu.Contains("currentEntityKey = CurrentEntitySnapshot()?.EntityKey ?? \"\"", StringComparison.Ordinal) ||
+        !inventoryMenu.Contains("currentEntity = CurrentEntitySnapshot();", StringComparison.Ordinal) ||
+        !inventoryMenu.Contains("StationRefitSnapshot", StringComparison.Ordinal) ||
         inventoryMenu.Contains("TryGetTypedCurrentDockingBayFacade", StringComparison.Ordinal) ||
         inventoryMenu.Contains("TryResolveCurrentEntityFacade", StringComparison.Ordinal) ||
         inventoryMenu.Contains("ResolveDockingState()?.CurrentDocking", StringComparison.Ordinal) ||
@@ -6789,7 +6789,7 @@ static void RequireStationRefitDockingBaysUseTypedDocuments(string root)
     {
         "TryResolveCurrentDockingBayRow(out var currentDockingBay)",
         "AetheriaRuntimeStationDockingBayRow dockingBay",
-        "ResolveStationRefit",
+        "StationRefitSnapshot",
         "refit.DockingBays ?? Array.Empty<AetheriaRuntimeStationDockingBayRow>()",
         "currentDockingBay.DockingBayIndex"
     };
@@ -6808,7 +6808,7 @@ static void RequireStationRefitDockingBaysUseTypedDocuments(string root)
     {
         "TryResolveCurrentDockingBayRow(out AetheriaRuntimeStationDockingBayRow dockingBay)",
         "AetheriaRuntimeStationDockingBayRow dockingBay",
-        "ResolveStationRefit",
+        "StationRefitSnapshot",
         "refit.DockingBays ?? Array.Empty<AetheriaRuntimeStationDockingBayRow>()"
     };
     var missingMenuSymbols = requiredMenuSymbols
@@ -7254,9 +7254,9 @@ static void RequireInventoryValidationUsesManagedTypedDocuments(string root)
         var compact = CompactSource(source);
         var requiredSymbols = new[]
         {
-            "ResolveCurrentEntity()",
-            "ResolveStationRefit",
-            "ResolveInventory(entityIndex)",
+            "CurrentEntitySnapshot()",
+            "StationRefitSnapshot",
+            "InventorySnapshot(entityIndex)",
             "_inventory?.Current"
         };
         var missingSymbols = requiredSymbols
@@ -7500,7 +7500,7 @@ static bool HasManagedDockingSnapshotAccess(string source)
            source.Contains("CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> _currentEntity", StringComparison.Ordinal) &&
            source.Contains("CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> _currentDocking", StringComparison.Ordinal) &&
            source.Contains("CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> _stationRefit", StringComparison.Ordinal) &&
-           source.Contains("TryReadCurrentDockingDocuments(", StringComparison.Ordinal) &&
+           source.Contains("TryReadDockingSnapshots(", StringComparison.Ordinal) &&
            source.Contains("AetheriaUnityRuntimeClientProvider", StringComparison.Ordinal) &&
            source.Contains(".ReactiveCurrentEntity(\"unity-observed-docking\")", StringComparison.Ordinal) &&
            source.Contains(".ReactiveCurrentDocking(\"unity-observed-docking\")", StringComparison.Ordinal) &&
@@ -13672,7 +13672,7 @@ static void RequireMainMenuContinueRunState(string root)
         "CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> _currentEntity",
         "CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> _currentDocking",
         "CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> _stationRefit",
-        "TryReadCurrentDockingDocuments(",
+        "TryReadDockingSnapshots(",
         "AetheriaUnityRuntimeClientProvider",
         ".ReactiveCurrentEntity(\"unity-observed-docking\")",
         ".ReactiveCurrentDocking(\"unity-observed-docking\")",
@@ -18838,7 +18838,7 @@ static void RequireDockedCurrentShipRequestAuthority(string root)
     }
 
     if (!inventoryPanel.Contains("TryResolveCurrentEntityKey(out var currentEntityKey)", StringComparison.Ordinal) ||
-        !inventoryPanel.Contains("currentEntityKey = ResolveCurrentEntity()?.EntityKey ?? \"\"", StringComparison.Ordinal) ||
+        !inventoryPanel.Contains("currentEntityKey = CurrentEntitySnapshot()?.EntityKey ?? \"\"", StringComparison.Ordinal) ||
         inventoryPanel.Contains("AetheriaClientReactiveDockingState _reactiveDockingState", StringComparison.Ordinal) ||
         inventoryPanel.Contains("GameManager.CurrentEntity", StringComparison.Ordinal))
     {

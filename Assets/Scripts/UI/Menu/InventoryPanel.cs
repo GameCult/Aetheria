@@ -300,7 +300,7 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
 
     private AetheriaRuntimeInventoryDropdownSurfaceModel BuildDropdownSurfaceModel()
     {
-        var stationRefit = ResolveStationRefit();
+        var stationRefit = StationRefitSnapshot();
         _dropdownStationRefitEntities = (stationRefit?.AvailableEntities ?? Array.Empty<AetheriaRuntimeStationRefitEntityOption>())
             .ToArray();
         _dropdownStationRefitLoadouts = (stationRefit?.LoadoutRestoreOptions ?? Array.Empty<AetheriaRuntimeStationLoadoutRestoreOption>())
@@ -336,7 +336,7 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
                 : "Docking Bay",
             hasDockingBay &&
             IsDisplayedCargoBayKey(
-                ResolveStationRefit()?.DockParentEntityKey ?? "",
+                StationRefitSnapshot()?.DockParentEntityKey ?? "",
                 currentDockingBay.DockingBayIndex),
             _displayedEntity != null,
             loadoutOptions,
@@ -1034,7 +1034,7 @@ private void Update()
 
     private AetheriaRuntimeCatalogItem FindTypedInventoryItem(ItemInstance item)
     {
-        return ResolveCatalog()?.FindItem(item, x => x.ItemKey);
+        return CatalogSnapshot()?.FindItem(item, x => x.ItemKey);
     }
 
     private void RequestDockedCurrentShip(Ship ship)
@@ -1129,14 +1129,14 @@ private void Update()
 
     private bool TryResolveCurrentEntityKey(out string currentEntityKey)
     {
-        currentEntityKey = ResolveCurrentEntity()?.EntityKey ?? "";
+        currentEntityKey = CurrentEntitySnapshot()?.EntityKey ?? "";
         return !string.IsNullOrWhiteSpace(currentEntityKey);
     }
 
     private bool TryResolveCurrentDockingBayRow(out AetheriaRuntimeStationDockingBayRow dockingBay)
     {
         dockingBay = null;
-        var refit = ResolveStationRefitDocument();
+        var refit = StationRefitSnapshot();
         if (refit?.IsDocked != true || refit.DockingBayIndex < 0)
             return false;
 
@@ -1156,11 +1156,6 @@ private void Update()
 
         dockingBay = resolvedDockingBay;
         return dockingBay != null;
-    }
-
-    private AetheriaRuntimeStationRefitDocument ResolveStationRefit()
-    {
-        return ResolveStationRefitDocument();
     }
 
     private bool TryResolveObservedDockingIndex(out AetheriaUnityObservedDockingIndex dockingIndex)
@@ -1242,7 +1237,7 @@ private void Update()
 
         try
         {
-            var current = ResolveCurrentEntity();
+            var current = CurrentEntitySnapshot();
             if (current != null && string.Equals(current.EntityKey, entityKey, StringComparison.Ordinal))
             {
                 equipment = current.Equipment ?? Array.Empty<AetheriaRuntimeRtsInventoryItem>();
@@ -1250,7 +1245,7 @@ private void Update()
                 return true;
             }
 
-            var refit = ResolveStationRefitDocument();
+            var refit = StationRefitSnapshot();
             var entityIndex = -1;
             if (refit != null)
             {
@@ -1265,7 +1260,7 @@ private void Update()
             if (entityIndex < 0)
                 return false;
 
-            var inventory = ResolveInventory(entityIndex);
+            var inventory = InventorySnapshot(entityIndex);
             if (inventory == null || !string.Equals(inventory.EntityKey, entityKey, StringComparison.Ordinal))
                 return false;
 
@@ -1483,7 +1478,7 @@ private void Update()
         _inventoryEntityIndex = -1;
     }
 
-    private AetheriaRuntimeCurrentEntityDocument ResolveCurrentEntity()
+    private AetheriaRuntimeCurrentEntityDocument CurrentEntitySnapshot()
     {
         if (_currentEntity != null)
             return _currentEntity.Current;
@@ -1501,7 +1496,7 @@ private void Update()
         return _currentEntity?.Current;
     }
 
-    private AetheriaRuntimeStationRefitDocument ResolveStationRefitDocument()
+    private AetheriaRuntimeStationRefitDocument StationRefitSnapshot()
     {
         if (_stationRefit != null)
             return _stationRefit.Current;
@@ -1544,7 +1539,7 @@ private void Update()
         return _loadoutFrame?.Current;
     }
 
-    private AetheriaRuntimeInventoryDocument ResolveInventory(int entityIndex)
+    private AetheriaRuntimeInventoryDocument InventorySnapshot(int entityIndex)
     {
         if (_inventory != null && _inventoryEntityIndex == entityIndex)
             return _inventory.Current;
@@ -1566,7 +1561,7 @@ private void Update()
         return _inventory?.Current;
     }
 
-    private AetheriaRuntimeCatalogSnapshot ResolveCatalog()
+    private AetheriaRuntimeCatalogSnapshot CatalogSnapshot()
     {
         if (_catalog != null)
             return _catalog.Current;

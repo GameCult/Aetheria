@@ -42,24 +42,24 @@ public sealed class AetheriaUnityObservedDockingIndex : IDisposable
     public bool TryResolveCurrentEntityKey(out string currentEntityKey)
     {
         currentEntityKey = "";
-        if (TryReadCurrentDockingDocuments(out var currentEntity, out var docking, out _))
+        if (TryReadDockingSnapshots(out var currentEntity, out var docking, out _))
             currentEntityKey = CurrentEntityKey(currentEntity, docking);
         return !string.IsNullOrWhiteSpace(currentEntityKey);
     }
 
-    public bool TryResolveCurrentEntityDocument(out AetheriaRuntimeCurrentEntityDocument currentEntity)
+    public bool TryReadCurrentEntity(out AetheriaRuntimeCurrentEntityDocument currentEntity)
     {
         currentEntity = null;
-        if (!TryReadCurrentDockingDocuments(out var document, out _, out _))
+        if (!TryReadDockingSnapshots(out var document, out _, out _))
             return false;
 
         currentEntity = document;
         return currentEntity != null;
     }
 
-    public AetheriaRuntimeStationRefitDocument ResolveStationRefit()
+    public AetheriaRuntimeStationRefitDocument StationRefitSnapshot()
     {
-        return TryReadCurrentDockingDocuments(out _, out _, out var refit)
+        return TryReadDockingSnapshots(out _, out _, out var refit)
             ? refit
             : null;
     }
@@ -67,7 +67,7 @@ public sealed class AetheriaUnityObservedDockingIndex : IDisposable
     public bool TryResolveCurrentDockingBayRow(out AetheriaRuntimeStationDockingBayRow dockingBay)
     {
         dockingBay = null;
-        if (!TryReadCurrentDockingDocuments(out _, out _, out var refit) ||
+        if (!TryReadDockingSnapshots(out _, out _, out var refit) ||
             !refit.IsDocked ||
             refit.DockingBayIndex < 0)
             return false;
@@ -80,7 +80,7 @@ public sealed class AetheriaUnityObservedDockingIndex : IDisposable
     public bool TryResolveCurrentDockingBay(out EquippedDockingBay dockingBay)
     {
         dockingBay = null;
-        var refit = ResolveStationRefit();
+        var refit = StationRefitSnapshot();
         if (!TryResolveCurrentDockingBayRow(out _) ||
             string.IsNullOrWhiteSpace(refit?.DockParentEntityKey) ||
             refit.DockingBayIndex < 0 ||
@@ -98,7 +98,7 @@ public sealed class AetheriaUnityObservedDockingIndex : IDisposable
     public bool TryResolveCurrentDocking(out AetheriaRuntimeCurrentDockingDocument docking)
     {
         docking = null;
-        if (!TryReadCurrentDockingDocuments(out _, out var currentDocking, out _))
+        if (!TryReadDockingSnapshots(out _, out var currentDocking, out _))
             return false;
 
         docking = currentDocking;
@@ -165,7 +165,7 @@ public sealed class AetheriaUnityObservedDockingIndex : IDisposable
         return true;
     }
 
-    private bool TryReadCurrentDockingDocuments(
+    private bool TryReadDockingSnapshots(
         out AetheriaRuntimeCurrentEntityDocument entity,
         out AetheriaRuntimeCurrentDockingDocument docking,
         out AetheriaRuntimeStationRefitDocument refit)

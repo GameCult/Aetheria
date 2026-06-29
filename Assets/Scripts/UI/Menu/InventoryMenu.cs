@@ -192,7 +192,7 @@ public class InventoryMenu : MonoBehaviour
 
             panel.OnBackgroundClick.Subscribe(data =>
             {
-                if (!TryResolveCurrentEntityDocument(out var currentEntity)) return;
+                if (!TryReadCurrentEntity(out var currentEntity)) return;
 
                 RenderCurrentShipSettingsSurface(currentEntity);
             });
@@ -226,7 +226,7 @@ public class InventoryMenu : MonoBehaviour
         var currentEntity = _shipSettingsCurrentEntity;
         if (currentEntity == null ||
             string.IsNullOrWhiteSpace(currentEntity.EntityKey) ||
-            !TryResolveCurrentEntityDocument(out var latestCurrentEntity) ||
+            !TryReadCurrentEntity(out var latestCurrentEntity) ||
             !string.Equals(latestCurrentEntity.EntityKey, currentEntity.EntityKey, StringComparison.Ordinal))
         {
             HideCurrentShipSettingsSurface();
@@ -489,7 +489,7 @@ public class InventoryMenu : MonoBehaviour
         var tradeValue = AetheriaRuntimeDaemonTradeItemQueries.TradeItemValue(
             typedItem,
             ToRuntimeLoadoutItem(item),
-            ResolveCatalog()?.TradeValueSettings);
+            CatalogSnapshot()?.TradeValueSettings);
         return tradeValue.HasTier
             ? $"{tradeValue.TierName}{new string('+', tradeValue.Upgrades)}"
             : "";
@@ -715,7 +715,7 @@ public class InventoryMenu : MonoBehaviour
     private bool TryResolveCurrentDockingBayRow(out AetheriaRuntimeStationDockingBayRow dockingBay)
     {
         dockingBay = null;
-        var refit = ResolveStationRefitDocument();
+        var refit = StationRefitSnapshot();
         if (refit?.IsDocked != true || refit.DockingBayIndex < 0)
             return false;
 
@@ -726,13 +726,13 @@ public class InventoryMenu : MonoBehaviour
 
     private bool TryResolveCurrentEntityKey(out string currentEntityKey)
     {
-        currentEntityKey = ResolveCurrentEntity()?.EntityKey ?? "";
+        currentEntityKey = CurrentEntitySnapshot()?.EntityKey ?? "";
         return !string.IsNullOrWhiteSpace(currentEntityKey);
     }
 
-    private bool TryResolveCurrentEntityDocument(out AetheriaRuntimeCurrentEntityDocument currentEntity)
+    private bool TryReadCurrentEntity(out AetheriaRuntimeCurrentEntityDocument currentEntity)
     {
-        currentEntity = ResolveCurrentEntity();
+        currentEntity = CurrentEntitySnapshot();
         if (currentEntity == null)
         {
             Debug.LogWarning("Failed to read Aetheria current entity for inventory ship settings.");
@@ -740,11 +740,6 @@ public class InventoryMenu : MonoBehaviour
         }
 
         return true;
-    }
-
-    private AetheriaRuntimeStationRefitDocument ResolveStationRefit()
-    {
-        return ResolveStationRefitDocument();
     }
 
     private bool TryResolveCurrentEntity(out Entity currentEntity)
@@ -809,7 +804,7 @@ public class InventoryMenu : MonoBehaviour
 
         try
         {
-            var current = ResolveCurrentEntity();
+            var current = CurrentEntitySnapshot();
             if (current != null && string.Equals(current.EntityKey, entityKey, StringComparison.Ordinal))
             {
                 equipment = current.Equipment ?? Array.Empty<AetheriaRuntimeRtsInventoryItem>();
@@ -817,7 +812,7 @@ public class InventoryMenu : MonoBehaviour
                 return true;
             }
 
-            var refit = ResolveStationRefitDocument();
+            var refit = StationRefitSnapshot();
             var entityIndex = -1;
             if (refit != null)
             {
@@ -832,7 +827,7 @@ public class InventoryMenu : MonoBehaviour
             if (entityIndex < 0)
                 return false;
 
-            var inventory = ResolveInventory(entityIndex);
+            var inventory = InventorySnapshot(entityIndex);
             if (inventory == null || !string.Equals(inventory.EntityKey, entityKey, StringComparison.Ordinal))
                 return false;
 
@@ -924,7 +919,7 @@ public class InventoryMenu : MonoBehaviour
         _inventoryEntityIndex = -1;
     }
 
-    private AetheriaRuntimeCurrentEntityDocument ResolveCurrentEntity()
+    private AetheriaRuntimeCurrentEntityDocument CurrentEntitySnapshot()
     {
         if (_currentEntity != null)
             return _currentEntity.Current;
@@ -942,7 +937,7 @@ public class InventoryMenu : MonoBehaviour
         return _currentEntity?.Current;
     }
 
-    private AetheriaRuntimeStationRefitDocument ResolveStationRefitDocument()
+    private AetheriaRuntimeStationRefitDocument StationRefitSnapshot()
     {
         if (_stationRefit != null)
             return _stationRefit.Current;
@@ -960,7 +955,7 @@ public class InventoryMenu : MonoBehaviour
         return _stationRefit?.Current;
     }
 
-    private AetheriaRuntimeInventoryDocument ResolveInventory(int entityIndex)
+    private AetheriaRuntimeInventoryDocument InventorySnapshot(int entityIndex)
     {
         if (_inventory != null && _inventoryEntityIndex == entityIndex)
             return _inventory.Current;
@@ -1031,10 +1026,10 @@ public class InventoryMenu : MonoBehaviour
 
     private AetheriaRuntimeCatalogItem FindTypedInventoryItem(ItemInstance item)
     {
-        return ResolveCatalog()?.FindItem(item, x => x.ItemKey);
+        return CatalogSnapshot()?.FindItem(item, x => x.ItemKey);
     }
 
-    private AetheriaRuntimeCatalogSnapshot ResolveCatalog()
+    private AetheriaRuntimeCatalogSnapshot CatalogSnapshot()
     {
         if (_catalog != null)
             return _catalog.Current;
@@ -1078,7 +1073,7 @@ public class InventoryMenu : MonoBehaviour
 
     private string ResolveManufacturerName(AetheriaRuntimeCatalogItem item)
     {
-        return ResolveCatalog()?.GetManufacturer(item)?.Name ?? "GameCult";
+        return CatalogSnapshot()?.GetManufacturer(item)?.Name ?? "GameCult";
     }
 
     private string FormatValue(float value)
