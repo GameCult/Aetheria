@@ -16370,7 +16370,6 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "public static AetheriaControl Control(string runtimeId = \"\")",
         "public static AetheriaUi Ui(string runtimeId = \"\")",
         "public static AetheriaUi Ui(",
-        "public static CultMeshReactiveDocument<TDocument> Reactive<TDocument>(string runtimeId = \"\")",
         "public static CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> ReactiveCurrentDocking(",
         "public static CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> ReactiveCurrentEntity(",
         "public static CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> ReactiveStationRefit(",
@@ -16384,9 +16383,15 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "public static CultMeshReactiveDocument<AetheriaRuntimeCurrentZoneDocument> ReactiveCurrentZone(",
         "public static CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument> ReactiveZoneContacts(",
         "public static CultMeshReactiveDocument<AetheriaRuntimeVerseHostSettingsDocument> ReactiveVerseHostSettings(",
-        "public static CultMeshReactiveDocument<TDocument> Reactive<TDocument>(",
-        "AetheriaClientEveSurface surface",
         "public static CultMeshReactiveDocument<global::Aetheria.State.Documents.EveSurfaceState> ReactiveEveSurface(",
+        "public static CultMeshReactiveDocument<AetheriaRuntimeRtsViewportDocument> ReactiveRtsViewport(",
+        "public static CultMeshReactiveDocument<AetheriaRuntimeObjectsViewportDocument> ReactiveObjectsViewport(",
+        "public static CultMeshReactiveDocument<AetheriaRuntimeGravityViewportDocument> ReactiveGravityViewport(",
+        "public static CultMeshReactiveDocument<AetheriaRuntimeRenderSplatsViewportDocument> ReactiveRenderSplatsViewport(",
+        "public static CultMeshReactiveDocument<AetheriaRuntimeZoneDetailsDocument> ReactiveZoneDetails(",
+        "public static CultMeshReactiveDocument<AetheriaRuntimeSelectedObjectDocument> ReactiveSelectedObject(",
+        "public static CultMeshReactiveDocument<AetheriaRuntimeInventoryDocument> ReactiveInventory(",
+        "public static CultMeshReactiveDocument<AetheriaRuntimeStarbridgePlayerSeatDocument> ReactiveStarbridgePlayerSeat(",
         "public static CultMeshStateRefResolver EveSurfaceStateRefResolver(string runtimeId = \"\")",
         "public static CultMeshStateRefResolver EveSurfaceStateRefResolver(",
         "private static readonly Dictionary<string, AetheriaClient> RuntimeClients",
@@ -16409,6 +16414,12 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         throw new InvalidOperationException(
             "Unity runtime client/player-settings boot must live behind AetheriaUnityRuntimeClientProvider: " +
             string.Join(", ", missingRuntimeClientProviderSymbols));
+    }
+
+    if (runtimeClientProvider.Contains("public static CultMeshReactiveDocument<TDocument> Reactive<TDocument>", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "AetheriaUnityRuntimeClientProvider must expose named game-state document access, not generic Reactive<TDocument> escape hatches.");
     }
 
     if (runtimeClientProvider.Contains("AetheriaRuntimePlayerSettingsSession _playerSettingsDocument", StringComparison.Ordinal) ||

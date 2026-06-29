@@ -105,12 +105,6 @@ public static class AetheriaUnityRuntimeClientProvider
         return RuntimeClient(stateBoot, runtimeId).Ui;
     }
 
-    public static CultMeshReactiveDocument<TDocument> Reactive<TDocument>(string runtimeId = "")
-        where TDocument : class
-    {
-        return RuntimeState(runtimeId).Reactive<TDocument>();
-    }
-
     public static CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> ReactiveCurrentDocking(
         string runtimeId = "")
     {
@@ -280,31 +274,6 @@ public static class AetheriaUnityRuntimeClientProvider
         return RuntimeState(stateBoot, runtimeId).ReactiveVerseHostSettings();
     }
 
-    public static CultMeshReactiveDocument<TDocument> Reactive<TDocument>(
-        AetheriaRuntimeStateBootReport stateBoot,
-        string runtimeId = "")
-        where TDocument : class
-    {
-        return RuntimeState(stateBoot, runtimeId).Reactive<TDocument>();
-    }
-
-    public static CultMeshReactiveDocument<TDocument> Reactive<TDocument>(
-        AetheriaClientEveSurface surface,
-        string runtimeId = "")
-        where TDocument : class
-    {
-        return RuntimeState(runtimeId).Reactive<TDocument>(surface);
-    }
-
-    public static CultMeshReactiveDocument<TDocument> Reactive<TDocument>(
-        AetheriaRuntimeStateBootReport stateBoot,
-        AetheriaClientEveSurface surface,
-        string runtimeId = "")
-        where TDocument : class
-    {
-        return RuntimeState(stateBoot, runtimeId).Reactive<TDocument>(surface);
-    }
-
     public static CultMeshReactiveDocument<global::Aetheria.State.Documents.EveSurfaceState> ReactiveEveSurface(
         string surfaceId,
         string runtimeId = "")
@@ -318,23 +287,6 @@ public static class AetheriaUnityRuntimeClientProvider
         string runtimeId = "")
     {
         return RuntimeState(stateBoot, runtimeId).ReactiveEveSurface(surfaceId);
-    }
-
-    public static CultMeshReactiveDocument<TDocument> Reactive<TDocument>(
-        AetheriaRuntimeRtsViewportBounds viewport,
-        string runtimeId = "")
-        where TDocument : class
-    {
-        return RuntimeState(runtimeId).Reactive<TDocument>(viewport);
-    }
-
-    public static CultMeshReactiveDocument<TDocument> Reactive<TDocument>(
-        AetheriaRuntimeStateBootReport stateBoot,
-        AetheriaRuntimeRtsViewportBounds viewport,
-        string runtimeId = "")
-        where TDocument : class
-    {
-        return RuntimeState(stateBoot, runtimeId).Reactive<TDocument>(viewport);
     }
 
     public static CultMeshReactiveDocument<AetheriaRuntimeRtsViewportDocument> ReactiveRtsViewport(
@@ -395,23 +347,6 @@ public static class AetheriaUnityRuntimeClientProvider
         string runtimeId = "")
     {
         return RuntimeState(stateBoot, runtimeId).ReactiveRenderSplatsViewport(viewport);
-    }
-
-    public static CultMeshReactiveDocument<TDocument> Reactive<TDocument>(
-        int index,
-        string runtimeId = "")
-        where TDocument : class
-    {
-        return RuntimeState(runtimeId).Reactive<TDocument>(index);
-    }
-
-    public static CultMeshReactiveDocument<TDocument> Reactive<TDocument>(
-        AetheriaRuntimeStateBootReport stateBoot,
-        int index,
-        string runtimeId = "")
-        where TDocument : class
-    {
-        return RuntimeState(stateBoot, runtimeId).Reactive<TDocument>(index);
     }
 
     public static CultMeshReactiveDocument<AetheriaRuntimeZoneDetailsDocument> ReactiveZoneDetails(
