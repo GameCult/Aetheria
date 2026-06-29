@@ -26,15 +26,9 @@ public class LocalMenu : MonoBehaviour
     private UIDocument _surfaceDocument;
     private readonly AetheriaEveUnitySurfaceChrome _surfaceChrome = new AetheriaEveUnitySurfaceChrome();
     private AetheriaUnityObservedEntityIndex _observedEntityIndex;
-    private AetheriaUnityObservedDockingIndex _observedDockingIndex;
 
     public void SetObservedEntityIndex(AetheriaUnityObservedEntityIndex observedEntityIndex)
     {
-        if (!ReferenceEquals(_observedEntityIndex, observedEntityIndex))
-        {
-            _observedDockingIndex = null;
-        }
-
         _observedEntityIndex = observedEntityIndex;
     }
 
@@ -204,9 +198,16 @@ public class LocalMenu : MonoBehaviour
     private bool TryResolveDockedLocalStory(out LocationStory story)
     {
         story = null;
+        var docking = CurrentDockingSnapshot();
         if (_observedEntityIndex == null ||
-            !TryResolveObservedDockingIndex(out var dockingIndex) ||
-            !dockingIndex.TryResolveCurrentDockingBay(out var dockingBay) ||
+            docking == null ||
+            !docking.IsDocked ||
+            string.IsNullOrWhiteSpace(docking.DockParentEntityKey) ||
+            docking.DockingBayIndex < 0 ||
+            !_observedEntityIndex.TryResolveDockingBayByRecordKey(
+                docking.DockParentEntityKey,
+                docking.DockingBayIndex,
+                out var dockingBay) ||
             dockingBay?.Entity is not OrbitalEntity { Story: { } dockedStory })
         {
             return false;
@@ -216,14 +217,19 @@ public class LocalMenu : MonoBehaviour
         return true;
     }
 
-    private bool TryResolveObservedDockingIndex(out AetheriaUnityObservedDockingIndex dockingIndex)
+    private static AetheriaRuntimeCurrentDockingDocument CurrentDockingSnapshot()
     {
-        dockingIndex = null;
-        if (_observedEntityIndex == null)
-            return false;
-
-        dockingIndex = _observedDockingIndex ??= new AetheriaUnityObservedDockingIndex(_observedEntityIndex);
-        return true;
+        try
+        {
+            return AetheriaUnityRuntimeClientProvider
+                .RuntimeState("unity-local-menu")
+                .CurrentDockingState();
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to read Aetheria current docking for local menu: {ex.Message}");
+            return null;
+        }
     }
 
     private void HideStorySurface()
@@ -246,7 +252,6 @@ public class LocalMenu : MonoBehaviour
             AetheriaEveUnitySurfaceHost.DestroyDocument(_surfaceDocument);
             _surfaceDocument = null;
         }
-        _observedDockingIndex = null;
     }
 
     // Update is called once per frame
