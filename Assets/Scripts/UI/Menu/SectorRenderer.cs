@@ -175,8 +175,7 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
         try
         {
             _sectorMap ??= ResolveClient()
-                .State
-                .Reactive<AetheriaRuntimeSectorMapDocument>();
+                .State.Document<AetheriaRuntimeSectorMapDocument>().Reactive();
             var sectorMap = _sectorMap?.Current;
             return (sectorMap?.Zones ?? Array.Empty<AetheriaRuntimeSectorMapZone>())
                 .FirstOrDefault(zone => zone.ZoneIndex == zoneIndex);
@@ -205,8 +204,8 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
         {
             var nextZoneDetails = ResolveClient()
                 .State
-                .Details
-                .Reactive<AetheriaRuntimeZoneDetailsDocument>(zoneIndex);
+                .Document<AetheriaRuntimeZoneDetailsDocument>(zoneIndex)
+                .Reactive();
             _zoneDetails?.Dispose();
             _zoneDetailsIndex = zoneIndex;
             _zoneDetails = nextZoneDetails;
@@ -232,7 +231,7 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
 
         try
         {
-            _catalog = ResolveClient().State.Reactive<AetheriaRuntimeCatalogSnapshot>();
+            _catalog = ResolveClient().State.Document<AetheriaRuntimeCatalogSnapshot>().Reactive();
         }
         catch (Exception ex)
         {
@@ -250,8 +249,7 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
         try
         {
             _playerSettings = ResolveClient()
-                .State
-                .Reactive<AetheriaRuntimePlayerSettingsDocument>();
+                .State.Document<AetheriaRuntimePlayerSettingsDocument>().Reactive();
         }
         catch (Exception ex)
         {
@@ -322,8 +320,7 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
         try
         {
             _currentZone ??= ResolveClient()
-                .State
-                .Reactive<AetheriaRuntimeCurrentZoneDocument>();
+                .State.Document<AetheriaRuntimeCurrentZoneDocument>().Reactive();
         }
         catch (Exception ex)
         {

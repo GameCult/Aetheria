@@ -37,11 +37,11 @@ public sealed class AetheriaUnityGameplayBootShell
 
         var aetheria = AetheriaUnityRuntimeClientProvider.ResolveClient(stateBoot.StateFilePath, stateBoot.RuntimeId)
             .State;
-        using var runtimeCatalogDocument = aetheria.Reactive<AetheriaRuntimeCatalogSnapshot>();
+        using var runtimeCatalogDocument = aetheria.Document<AetheriaRuntimeCatalogSnapshot>().Reactive();
         var runtimeCatalog = runtimeCatalogDocument.Current;
         if (runtimeCatalog == null)
             throw new InvalidOperationException("Aetheria typed runtime catalog is required before gameplay boot.");
-        using var sectorMapDocument = aetheria.Reactive<AetheriaRuntimeSectorMapDocument>();
+        using var sectorMapDocument = aetheria.Document<AetheriaRuntimeSectorMapDocument>().Reactive();
         var sectorMap = sectorMapDocument.Current;
         if (sectorMap == null)
             throw new InvalidOperationException("Aetheria typed sector map is required before gameplay boot.");

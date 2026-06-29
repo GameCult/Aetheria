@@ -1504,8 +1504,7 @@ private void Update()
         try
         {
             _currentEntity = ResolveClient()
-                .State
-                .Reactive<AetheriaRuntimeCurrentEntityDocument>();
+                .State.Document<AetheriaRuntimeCurrentEntityDocument>().Reactive();
         }
         catch (Exception ex)
         {
@@ -1523,8 +1522,7 @@ private void Update()
         try
         {
             _stationRefit = ResolveClient()
-                .State
-                .Reactive<AetheriaRuntimeStationRefitDocument>();
+                .State.Document<AetheriaRuntimeStationRefitDocument>().Reactive();
         }
         catch (Exception ex)
         {
@@ -1550,8 +1548,7 @@ private void Update()
         try
         {
             _loadoutFrame = ResolveClient()
-                .State
-                .Reactive<AetheriaRuntimeDaemonFrameDocument>();
+                .State.Document<AetheriaRuntimeDaemonFrameDocument>().Reactive();
         }
         catch (Exception ex)
         {
@@ -1570,8 +1567,8 @@ private void Update()
         {
             var nextInventory = ResolveClient()
                 .State
-                .Details
-                .Reactive<AetheriaRuntimeInventoryDocument>(entityIndex);
+                .Document<AetheriaRuntimeInventoryDocument>(entityIndex)
+                .Reactive();
             _inventory?.Dispose();
             _inventoryEntityIndex = entityIndex;
             _inventory = nextInventory;
@@ -1591,7 +1588,7 @@ private void Update()
 
         try
         {
-            _catalog = ResolveClient().State.Reactive<AetheriaRuntimeCatalogSnapshot>();
+            _catalog = ResolveClient().State.Document<AetheriaRuntimeCatalogSnapshot>().Reactive();
         }
         catch (Exception ex)
         {
@@ -1609,8 +1606,7 @@ private void Update()
         try
         {
             _playerSettings = ResolveClient()
-                .State
-                .Reactive<AetheriaRuntimePlayerSettingsDocument>();
+                .State.Document<AetheriaRuntimePlayerSettingsDocument>().Reactive();
         }
         catch (Exception ex)
         {

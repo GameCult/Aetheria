@@ -182,9 +182,9 @@ namespace GameCult.Aetheria.State.Verse
         internal AetheriaRuntimeObservedDaemonState? CurrentObservedDaemon()
         {
             ThrowIfDisposed();
-            _observedFrame ??= State.Reactive<AetheriaRuntimeDaemonFrameDocument>();
-            _observedSoaView ??= State.Reactive<AetheriaRuntimeDaemonSoaViewDocument>();
-            _observedZoneRender ??= State.Reactive<AetheriaRuntimeZoneRenderDocument>();
+            _observedFrame ??= State.Document<AetheriaRuntimeDaemonFrameDocument>().Reactive();
+            _observedSoaView ??= State.Document<AetheriaRuntimeDaemonSoaViewDocument>().Reactive();
+            _observedZoneRender ??= State.Document<AetheriaRuntimeZoneRenderDocument>().Reactive();
             return AetheriaRuntimeObservedDaemonState.TryCreateCurrent(
                 _observedFrame,
                 _observedSoaView,

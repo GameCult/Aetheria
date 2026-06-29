@@ -95,8 +95,7 @@ public static class AetheriaUnityRuntimeClientProvider
         try
         {
             _playerSettingsDocument ??= ResolveClient(AetheriaUnityRuntimePaths.RuntimeStateFilePath)
-                .State
-                .Reactive<AetheriaRuntimePlayerSettingsDocument>();
+                .State.Document<AetheriaRuntimePlayerSettingsDocument>().Reactive();
 
             var stored = _playerSettingsDocument.Current;
             if (stored == null)

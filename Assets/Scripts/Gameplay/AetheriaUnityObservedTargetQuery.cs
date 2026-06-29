@@ -99,8 +99,7 @@ public sealed class AetheriaUnityObservedTargetQuery : IDisposable
         try
         {
             _zoneContacts = _resolveClient()
-                ?.State
-                .Reactive<AetheriaRuntimeZoneContactsDocument>();
+                ?.State.Document<AetheriaRuntimeZoneContactsDocument>().Reactive();
             return _zoneContacts?.Current;
         }
         catch

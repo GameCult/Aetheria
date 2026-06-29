@@ -1,9 +1,5 @@
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using GameCult.Mesh;
-using R3;
 
 #nullable enable
 
@@ -225,22 +221,6 @@ namespace GameCult.Aetheria.State.Verse
             return (CultMeshDocumentHandle<TDocument>)(object)document;
         }
 
-        public Task<CultMeshReactiveDocument<TDocument>> ReactiveAsync<TDocument>(
-            AetheriaClientEveSurface surface,
-            CultMeshReactiveDocumentOptions? options = null)
-            where TDocument : class
-        {
-            return Document<TDocument>(surface).ReactiveAsync(options);
-        }
-
-        public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(
-            AetheriaClientEveSurface surface,
-            CultMeshReactiveDocumentOptions? options = null)
-            where TDocument : class
-        {
-            return Document<TDocument>(surface).Reactive(options);
-        }
-
         public CultMeshDocumentHandle<TDocument> Document<TDocument>(AetheriaRuntimeRtsViewportBounds viewport)
             where TDocument : class
         {
@@ -259,22 +239,6 @@ namespace GameCult.Aetheria.State.Verse
                 $"Aetheria typed state does not expose a viewport document for {typeof(TDocument).FullName}.");
         }
 
-        public Task<CultMeshReactiveDocument<TDocument>> ReactiveAsync<TDocument>(
-            AetheriaRuntimeRtsViewportBounds viewport,
-            CultMeshReactiveDocumentOptions? options = null)
-            where TDocument : class
-        {
-            return Document<TDocument>(viewport).ReactiveAsync(options);
-        }
-
-        public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(
-            AetheriaRuntimeRtsViewportBounds viewport,
-            CultMeshReactiveDocumentOptions? options = null)
-            where TDocument : class
-        {
-            return Document<TDocument>(viewport).Reactive(options);
-        }
-
         public CultMeshDocumentHandle<TDocument> Document<TDocument>(int entityOrZoneIndex)
             where TDocument : class
         {
@@ -289,22 +253,6 @@ namespace GameCult.Aetheria.State.Verse
                 $"Aetheria typed state does not expose an indexed document for {typeof(TDocument).FullName}.");
         }
 
-        public Task<CultMeshReactiveDocument<TDocument>> ReactiveAsync<TDocument>(
-            int entityOrZoneIndex,
-            CultMeshReactiveDocumentOptions? options = null)
-            where TDocument : class
-        {
-            return Document<TDocument>(entityOrZoneIndex).ReactiveAsync(options);
-        }
-
-        public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(
-            int entityOrZoneIndex,
-            CultMeshReactiveDocumentOptions? options = null)
-            where TDocument : class
-        {
-            return Document<TDocument>(entityOrZoneIndex).Reactive(options);
-        }
-
         public CultMeshDocumentHandle<TDocument> Document<TDocument>(string seatId)
             where TDocument : class
         {
@@ -317,63 +265,6 @@ namespace GameCult.Aetheria.State.Verse
             return (CultMeshDocumentHandle<TDocument>)(object)_starbridgePlayerSeat(seatId);
         }
 
-        public Task<CultMeshReactiveDocument<TDocument>> ReactiveAsync<TDocument>(
-            string seatId,
-            CultMeshReactiveDocumentOptions? options = null)
-            where TDocument : class
-        {
-            return Document<TDocument>(seatId).ReactiveAsync(options);
-        }
-
-        public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(
-            string seatId,
-            CultMeshReactiveDocumentOptions? options = null)
-            where TDocument : class
-        {
-            return Document<TDocument>(seatId).Reactive(options);
-        }
-
-        private CultMeshReactiveDocument<TDocument>? TryReactive<TDocument>(
-            CultMeshReactiveDocumentOptions? options)
-            where TDocument : class
-        {
-            try
-            {
-                return Reactive<TDocument>(options);
-            }
-            catch (KeyNotFoundException)
-            {
-                return null;
-            }
-        }
-
-        public Observable<TDocument> Watch<TDocument>()
-            where TDocument : class
-        {
-            return Document<TDocument>().Watch();
-        }
-
-        public IDisposable Watch<TDocument>(Action<TDocument> onNext)
-            where TDocument : class
-        {
-            if (onNext == null) throw new ArgumentNullException(nameof(onNext));
-            return Document<TDocument>().Watch(onNext);
-        }
-
-        public Task<CultMeshReactiveDocument<TDocument>> ReactiveAsync<TDocument>(
-            CultMeshReactiveDocumentOptions? options = null)
-            where TDocument : class
-        {
-            return Document<TDocument>().ReactiveAsync(options);
-        }
-
-        public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(
-            CultMeshReactiveDocumentOptions? options = null)
-            where TDocument : class
-        {
-            return Document<TDocument>().Reactive(options);
-        }
-
         public Func<string, string> CreateEveSurfaceStateRefResolver()
         {
             return CreateEveSurfaceCultMeshStateRefResolver().AsFunc();
@@ -381,10 +272,10 @@ namespace GameCult.Aetheria.State.Verse
 
         public CultMeshStateRefResolver CreateEveSurfaceCultMeshStateRefResolver()
         {
-            _eveStateRefFrame ??= Reactive<AetheriaRuntimeDaemonFrameDocument>();
-            _eveStateRefHealth ??= Reactive<AetheriaRuntimeDaemonHealthDocument>();
-            _eveStateRefCommandBoundary ??= Reactive<AetheriaRuntimeDaemonCommandBoundaryDocument>();
-            _eveStateRefCatalog ??= Reactive<AetheriaRuntimeCatalogSnapshot>();
+            _eveStateRefFrame ??= Document<AetheriaRuntimeDaemonFrameDocument>().Reactive();
+            _eveStateRefHealth ??= Document<AetheriaRuntimeDaemonHealthDocument>().Reactive();
+            _eveStateRefCommandBoundary ??= Document<AetheriaRuntimeDaemonCommandBoundaryDocument>().Reactive();
+            _eveStateRefCatalog ??= Document<AetheriaRuntimeCatalogSnapshot>().Reactive();
 
             return AetheriaRuntimeStateRefResolver.CreateEveSurfaceCultMeshStateRefResolver(
                 () => _eveStateRefFrame.Current,

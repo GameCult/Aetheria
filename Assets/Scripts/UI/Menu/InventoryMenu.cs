@@ -965,8 +965,7 @@ public class InventoryMenu : MonoBehaviour
         try
         {
             _currentEntity = ResolveClient()
-                .State
-                .Reactive<AetheriaRuntimeCurrentEntityDocument>();
+                .State.Document<AetheriaRuntimeCurrentEntityDocument>().Reactive();
         }
         catch (Exception ex)
         {
@@ -984,8 +983,7 @@ public class InventoryMenu : MonoBehaviour
         try
         {
             _stationRefit = ResolveClient()
-                .State
-                .Reactive<AetheriaRuntimeStationRefitDocument>();
+                .State.Document<AetheriaRuntimeStationRefitDocument>().Reactive();
         }
         catch (Exception ex)
         {
@@ -1004,8 +1002,8 @@ public class InventoryMenu : MonoBehaviour
         {
             var nextInventory = ResolveClient()
                 .State
-                .Details
-                .Reactive<AetheriaRuntimeInventoryDocument>(entityIndex);
+                .Document<AetheriaRuntimeInventoryDocument>(entityIndex)
+                .Reactive();
             _inventory?.Dispose();
             _inventoryEntityIndex = entityIndex;
             _inventory = nextInventory;
@@ -1077,7 +1075,7 @@ public class InventoryMenu : MonoBehaviour
 
         try
         {
-            _catalog = ResolveClient().State.Reactive<AetheriaRuntimeCatalogSnapshot>();
+            _catalog = ResolveClient().State.Document<AetheriaRuntimeCatalogSnapshot>().Reactive();
         }
         catch (Exception ex)
         {
@@ -1095,8 +1093,7 @@ public class InventoryMenu : MonoBehaviour
         try
         {
             _playerSettings = ResolveClient()
-                .State
-                .Reactive<AetheriaRuntimePlayerSettingsDocument>();
+                .State.Document<AetheriaRuntimePlayerSettingsDocument>().Reactive();
         }
         catch (Exception ex)
         {

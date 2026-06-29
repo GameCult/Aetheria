@@ -197,39 +197,39 @@ public class DaemonRuntimeDocumentTests
             .GetAwaiter()
             .GetResult();
         using var currentEntityReactive = client.State
-            .ReactiveAsync<AetheriaRuntimeCurrentEntityDocument>()
+            .Document<AetheriaRuntimeCurrentEntityDocument>()
+            .ReactiveAsync()
             .GetAwaiter()
             .GetResult();
-        using var zoneRenderReactive = client.State
-            .Reactive<AetheriaRuntimeZoneRenderDocument>();
+        using var zoneRenderReactive = client.State.Document<AetheriaRuntimeZoneRenderDocument>().Reactive();
         var observedAuthoritativeFrame = ReadLatest(client.State.Document<AetheriaRuntimeDaemonFrameDocument>());
-        using var catalogReactive = client.State.Reactive<AetheriaRuntimeCatalogSnapshot>();
-        using var daemonFrameReactive = client.State.Reactive<AetheriaRuntimeDaemonFrameDocument>();
-        using var daemonSoaViewReactive = client.State.Reactive<AetheriaRuntimeDaemonSoaViewDocument>();
+        using var catalogReactive = client.State.Document<AetheriaRuntimeCatalogSnapshot>().Reactive();
+        using var daemonFrameReactive = client.State.Document<AetheriaRuntimeDaemonFrameDocument>().Reactive();
+        using var daemonSoaViewReactive = client.State.Document<AetheriaRuntimeDaemonSoaViewDocument>().Reactive();
         Assert.IsTrue(AetheriaRuntimeObservedDaemonState.TryCreateCurrent(
             daemonFrameReactive,
             daemonSoaViewReactive,
             zoneRenderReactive,
             out var observed));
-        using var loadoutTemplatesReactive = client.State.Reactive<AetheriaRuntimeLoadoutTemplatesDocument>();
-        using var sectorMapReactive = client.State.Reactive<AetheriaRuntimeSectorMapDocument>();
-        using var playerSettingsReactive = client.State.Reactive<AetheriaRuntimePlayerSettingsDocument>();
-        using var verseHostSettingsReactive = client.State.Reactive<AetheriaRuntimeVerseHostSettingsDocument>();
-        using var zoneContactsReactive = client.State.Reactive<AetheriaRuntimeZoneContactsDocument>();
-        using var currentZoneReactive = client.State.Reactive<AetheriaRuntimeCurrentZoneDocument>();
-        using var currentEntityDocumentReactive = client.State.Reactive<AetheriaRuntimeCurrentEntityDocument>();
-        using var currentDockingReactive = client.State.Reactive<AetheriaRuntimeCurrentDockingDocument>();
-        using var stationRefitReactive = client.State.Reactive<AetheriaRuntimeStationRefitDocument>();
-        using var zoneDetailsReactive = client.State.Reactive<AetheriaRuntimeZoneDetailsDocument>(0);
-        using var selectedObjectReactive = client.State.Reactive<AetheriaRuntimeSelectedObjectDocument>(0);
-        using var inventoryReactive = client.State.Reactive<AetheriaRuntimeInventoryDocument>(0);
-        using var mapViewportReactive = client.State.Reactive<AetheriaRuntimeRtsViewportDocument>(viewport);
-        using var objectsViewportReactive = client.State.Reactive<AetheriaRuntimeObjectsViewportDocument>(viewport);
-        using var gravityViewportReactive = client.State.Reactive<AetheriaRuntimeGravityViewportDocument>(viewport);
-        using var renderSplatsViewportReactive = client.State.Reactive<AetheriaRuntimeRenderSplatsViewportDocument>(viewport);
-        using var playerHudCatalog = client.State.Reactive<AetheriaRuntimeCatalogSnapshot>();
-        using var playerHudSettings = client.State.Reactive<AetheriaRuntimePlayerSettingsDocument>();
-        using var playerHudEntity = client.State.Reactive<AetheriaRuntimeCurrentEntityDocument>();
+        using var loadoutTemplatesReactive = client.State.Document<AetheriaRuntimeLoadoutTemplatesDocument>().Reactive();
+        using var sectorMapReactive = client.State.Document<AetheriaRuntimeSectorMapDocument>().Reactive();
+        using var playerSettingsReactive = client.State.Document<AetheriaRuntimePlayerSettingsDocument>().Reactive();
+        using var verseHostSettingsReactive = client.State.Document<AetheriaRuntimeVerseHostSettingsDocument>().Reactive();
+        using var zoneContactsReactive = client.State.Document<AetheriaRuntimeZoneContactsDocument>().Reactive();
+        using var currentZoneReactive = client.State.Document<AetheriaRuntimeCurrentZoneDocument>().Reactive();
+        using var currentEntityDocumentReactive = client.State.Document<AetheriaRuntimeCurrentEntityDocument>().Reactive();
+        using var currentDockingReactive = client.State.Document<AetheriaRuntimeCurrentDockingDocument>().Reactive();
+        using var stationRefitReactive = client.State.Document<AetheriaRuntimeStationRefitDocument>().Reactive();
+        using var zoneDetailsReactive = client.State.Document<AetheriaRuntimeZoneDetailsDocument>(0).Reactive();
+        using var selectedObjectReactive = client.State.Document<AetheriaRuntimeSelectedObjectDocument>(0).Reactive();
+        using var inventoryReactive = client.State.Document<AetheriaRuntimeInventoryDocument>(0).Reactive();
+        using var mapViewportReactive = client.State.Document<AetheriaRuntimeRtsViewportDocument>(viewport).Reactive();
+        using var objectsViewportReactive = client.State.Document<AetheriaRuntimeObjectsViewportDocument>(viewport).Reactive();
+        using var gravityViewportReactive = client.State.Document<AetheriaRuntimeGravityViewportDocument>(viewport).Reactive();
+        using var renderSplatsViewportReactive = client.State.Document<AetheriaRuntimeRenderSplatsViewportDocument>(viewport).Reactive();
+        using var playerHudCatalog = client.State.Document<AetheriaRuntimeCatalogSnapshot>().Reactive();
+        using var playerHudSettings = client.State.Document<AetheriaRuntimePlayerSettingsDocument>().Reactive();
+        using var playerHudEntity = client.State.Document<AetheriaRuntimeCurrentEntityDocument>().Reactive();
         var gameSurface = ReadLatest(client.State.Document<global::Aetheria.State.Documents.EveSurfaceState>(AetheriaClientEveSurface.Game));
         var gameTuiSurface = ReadLatest(client.State.Document<global::Aetheria.State.Documents.EveSurfaceState>(AetheriaClientEveSurface.GameTui));
         var editorSurface = ReadLatest(client.State.Document<global::Aetheria.State.Documents.EveSurfaceState>(AetheriaClientEveSurface.Editor));
@@ -245,10 +245,10 @@ public class DaemonRuntimeDocumentTests
             currentDockingReactive,
             stationRefitReactive,
             out var observedDocking));
-        using var reactiveGameSurface = client.State.Reactive<global::Aetheria.State.Documents.EveSurfaceState>(AetheriaClientEveSurface.Game);
-        using var reactiveGameTuiSurface = client.State.Reactive<global::Aetheria.State.Documents.EveSurfaceState>(AetheriaClientEveSurface.GameTui);
-        using var reactiveEditorSurface = client.State.Reactive<global::Aetheria.State.Documents.EveSurfaceState>(AetheriaClientEveSurface.Editor);
-        using var reactiveEditorTuiSurface = client.State.Reactive<global::Aetheria.State.Documents.EveSurfaceState>(AetheriaClientEveSurface.EditorTui);
+        using var reactiveGameSurface = client.State.Document<global::Aetheria.State.Documents.EveSurfaceState>(AetheriaClientEveSurface.Game).Reactive();
+        using var reactiveGameTuiSurface = client.State.Document<global::Aetheria.State.Documents.EveSurfaceState>(AetheriaClientEveSurface.GameTui).Reactive();
+        using var reactiveEditorSurface = client.State.Document<global::Aetheria.State.Documents.EveSurfaceState>(AetheriaClientEveSurface.Editor).Reactive();
+        using var reactiveEditorTuiSurface = client.State.Document<global::Aetheria.State.Documents.EveSurfaceState>(AetheriaClientEveSurface.EditorTui).Reactive();
 
         Assert.AreEqual("aetheria.current.entity", client.State.CurrentEntity.DocumentId);
         Assert.AreSame(client.State.CurrentEntity, client.State.Document<AetheriaRuntimeCurrentEntityDocument>());
@@ -2221,9 +2221,9 @@ public class DaemonRuntimeDocumentTests
             .OpenAsync(statePath, "unity-observer-test", pullOnOpen: true)
             .GetAwaiter()
             .GetResult();
-        using var observedFrame = client.State.Reactive<AetheriaRuntimeDaemonFrameDocument>();
-        using var observedSoaView = client.State.Reactive<AetheriaRuntimeDaemonSoaViewDocument>();
-        using var observedZoneRender = client.State.Reactive<AetheriaRuntimeZoneRenderDocument>();
+        using var observedFrame = client.State.Document<AetheriaRuntimeDaemonFrameDocument>().Reactive();
+        using var observedSoaView = client.State.Document<AetheriaRuntimeDaemonSoaViewDocument>().Reactive();
+        using var observedZoneRender = client.State.Document<AetheriaRuntimeZoneRenderDocument>().Reactive();
         Assert.IsTrue(AetheriaRuntimeObservedDaemonState.TryCreateCurrent(
             observedFrame,
             observedSoaView,
@@ -2279,9 +2279,9 @@ public class DaemonRuntimeDocumentTests
             .OpenAsync(statePath, "unity-reactive-observer-test", pullOnOpen: true)
             .GetAwaiter()
             .GetResult();
-        using var observedFrame = client.State.Reactive<AetheriaRuntimeDaemonFrameDocument>();
-        using var observedSoaView = client.State.Reactive<AetheriaRuntimeDaemonSoaViewDocument>();
-        using var observedZoneRender = client.State.Reactive<AetheriaRuntimeZoneRenderDocument>();
+        using var observedFrame = client.State.Document<AetheriaRuntimeDaemonFrameDocument>().Reactive();
+        using var observedSoaView = client.State.Document<AetheriaRuntimeDaemonSoaViewDocument>().Reactive();
+        using var observedZoneRender = client.State.Document<AetheriaRuntimeZoneRenderDocument>().Reactive();
         var observed = AetheriaRuntimeObservedDaemonState.TryCreateCurrent(
             observedFrame,
             observedSoaView,
@@ -2326,9 +2326,9 @@ public class DaemonRuntimeDocumentTests
             .OpenAsync(statePath, "unity-frame-only-observer-test", pullOnOpen: true)
             .GetAwaiter()
             .GetResult();
-        using var observedFrame = client.State.Reactive<AetheriaRuntimeDaemonFrameDocument>();
-        using var observedSoaView = client.State.Reactive<AetheriaRuntimeDaemonSoaViewDocument>();
-        using var observedZoneRender = client.State.Reactive<AetheriaRuntimeZoneRenderDocument>();
+        using var observedFrame = client.State.Document<AetheriaRuntimeDaemonFrameDocument>().Reactive();
+        using var observedSoaView = client.State.Document<AetheriaRuntimeDaemonSoaViewDocument>().Reactive();
+        using var observedZoneRender = client.State.Document<AetheriaRuntimeZoneRenderDocument>().Reactive();
         Assert.IsTrue(AetheriaRuntimeObservedDaemonState.TryCreateCurrent(
             observedFrame,
             observedSoaView,

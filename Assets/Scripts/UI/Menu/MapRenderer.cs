@@ -131,12 +131,12 @@ public class MapRenderer : MonoBehaviour
             ClearViewportCaches();
             _objectsViewport = client
                 .State
-                .Viewports
-                .Reactive<AetheriaRuntimeObjectsViewportDocument>(viewport);
+                .Document<AetheriaRuntimeObjectsViewportDocument>(viewport)
+                .Reactive();
             _renderSplatsViewport = client
                 .State
-                .Viewports
-                .Reactive<AetheriaRuntimeRenderSplatsViewportDocument>(viewport);
+                .Document<AetheriaRuntimeRenderSplatsViewportDocument>(viewport)
+                .Reactive();
 
             var objectsViewport = _objectsViewport?.Current;
             var zoneName = string.IsNullOrWhiteSpace(objectsViewport?.ZoneName)
@@ -319,8 +319,7 @@ public class MapRenderer : MonoBehaviour
         try
         {
             _playerSettings ??= ResolveClient()
-                .State
-                .Reactive<AetheriaRuntimePlayerSettingsDocument>();
+                .State.Document<AetheriaRuntimePlayerSettingsDocument>().Reactive();
             return _playerSettings?.Current?.ShowAsteroidsInMinimap ?? false;
         }
         catch (Exception ex)
