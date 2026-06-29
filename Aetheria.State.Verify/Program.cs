@@ -16189,8 +16189,8 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "public CultMeshDocumentHandle<AetheriaRuntimeDaemonHealthDocument> Health { get; }",
         "public CultMeshDocumentHandle<AetheriaRuntimeDaemonCommandBoundaryDocument> CommandBoundary { get; }",
         "public CultMeshDocumentHandle<AetheriaRuntimeVerseAuthorityPolicyDocument> AuthorityPolicy { get; }",
-        "public CultMeshDocumentHandle<AetheriaRuntimeDaemonFrameDocument> LatestFrame { get; }",
-        "public CultMeshDocumentHandle<AetheriaRuntimeDaemonSoaViewDocument> LatestSoaView { get; }",
+        "public CultMeshDocumentHandle<AetheriaRuntimeDaemonFrameDocument> DaemonFrame { get; }",
+        "public CultMeshDocumentHandle<AetheriaRuntimeDaemonSoaViewDocument> DaemonSoaView { get; }",
         "public CultMeshDocumentHandle<global::Aetheria.State.Documents.EveSurfaceState> GameSurface { get; }",
         "public CultMeshDocumentHandle<global::Aetheria.State.Documents.EveSurfaceState> GameTuiSurface { get; }",
         "public CultMeshDocumentHandle<global::Aetheria.State.Documents.EveSurfaceState> EditorSurface { get; }",
@@ -16215,7 +16215,9 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "public AetheriaClientDaemonState Daemon { get; }",
         "public sealed class AetheriaClientDaemonState",
         "public AetheriaClientSettingsState Settings { get; }",
-        "public sealed class AetheriaClientSettingsState"
+        "public sealed class AetheriaClientSettingsState",
+        "public CultMeshDocumentHandle<AetheriaRuntimeDaemonFrameDocument> LatestFrame { get; }",
+        "public CultMeshDocumentHandle<AetheriaRuntimeDaemonSoaViewDocument> LatestSoaView { get; }"
     };
     var survivingDaemonStateFacadeSymbols = forbiddenDaemonStateFacadeSymbols
         .Where(symbol => aetheriaClientState.Contains(symbol, StringComparison.Ordinal))

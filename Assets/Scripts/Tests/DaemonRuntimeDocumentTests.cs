@@ -255,8 +255,8 @@ public class DaemonRuntimeDocumentTests
         Assert.AreSame(
             client.State.StarbridgeSummary,
             client.State.Document<AetheriaRuntimeStarbridgeSessionSummaryDocument>());
-        Assert.AreSame(client.State.LatestFrame, client.State.Document<AetheriaRuntimeDaemonFrameDocument>());
-        Assert.AreSame(client.State.LatestSoaView, client.State.Document<AetheriaRuntimeDaemonSoaViewDocument>());
+        Assert.AreSame(client.State.DaemonFrame, client.State.Document<AetheriaRuntimeDaemonFrameDocument>());
+        Assert.AreSame(client.State.DaemonSoaView, client.State.Document<AetheriaRuntimeDaemonSoaViewDocument>());
         Assert.IsNotNull(ReadLatest(client.State.Document<AetheriaRuntimeDaemonProviderAdvertisementDocument>()));
         Assert.IsNotNull(ReadLatest(client.State.Document<AetheriaRuntimeDaemonHealthDocument>()));
         Assert.IsNotNull(ReadLatest(client.State.Document<AetheriaRuntimeDaemonCommandBoundaryDocument>()));

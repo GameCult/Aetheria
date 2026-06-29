@@ -34,8 +34,8 @@ namespace GameCult.Aetheria.State.Verse
             CultMeshDocumentHandle<AetheriaRuntimeDaemonHealthDocument> health,
             CultMeshDocumentHandle<AetheriaRuntimeDaemonCommandBoundaryDocument> commandBoundary,
             CultMeshDocumentHandle<AetheriaRuntimeVerseAuthorityPolicyDocument> authorityPolicy,
-            CultMeshDocumentHandle<AetheriaRuntimeDaemonFrameDocument> latestFrame,
-            CultMeshDocumentHandle<AetheriaRuntimeDaemonSoaViewDocument> latestSoaView,
+            CultMeshDocumentHandle<AetheriaRuntimeDaemonFrameDocument> daemonFrame,
+            CultMeshDocumentHandle<AetheriaRuntimeDaemonSoaViewDocument> daemonSoaView,
             CultMeshDocumentHandle<global::Aetheria.State.Documents.EveSurfaceState> gameSurface,
             CultMeshDocumentHandle<global::Aetheria.State.Documents.EveSurfaceState> gameTuiSurface,
             CultMeshDocumentHandle<global::Aetheria.State.Documents.EveSurfaceState> editorSurface,
@@ -67,8 +67,8 @@ namespace GameCult.Aetheria.State.Verse
             Health = health ?? throw new ArgumentNullException(nameof(health));
             CommandBoundary = commandBoundary ?? throw new ArgumentNullException(nameof(commandBoundary));
             AuthorityPolicy = authorityPolicy ?? throw new ArgumentNullException(nameof(authorityPolicy));
-            LatestFrame = latestFrame ?? throw new ArgumentNullException(nameof(latestFrame));
-            LatestSoaView = latestSoaView ?? throw new ArgumentNullException(nameof(latestSoaView));
+            DaemonFrame = daemonFrame ?? throw new ArgumentNullException(nameof(daemonFrame));
+            DaemonSoaView = daemonSoaView ?? throw new ArgumentNullException(nameof(daemonSoaView));
             GameSurface = gameSurface ?? throw new ArgumentNullException(nameof(gameSurface));
             GameTuiSurface = gameTuiSurface ?? throw new ArgumentNullException(nameof(gameTuiSurface));
             EditorSurface = editorSurface ?? throw new ArgumentNullException(nameof(editorSurface));
@@ -104,8 +104,8 @@ namespace GameCult.Aetheria.State.Verse
                 GameTuiSurface,
                 EditorSurface,
                 EditorTuiSurface,
-                LatestFrame,
-                LatestSoaView,
+                DaemonFrame,
+                DaemonSoaView,
                 Catalog,
                 LoadoutTemplates,
                 PlayerSettings,
@@ -130,9 +130,9 @@ namespace GameCult.Aetheria.State.Verse
 
         public CultMeshDocumentHandle<AetheriaRuntimeVerseAuthorityPolicyDocument> AuthorityPolicy { get; }
 
-        public CultMeshDocumentHandle<AetheriaRuntimeDaemonFrameDocument> LatestFrame { get; }
+        public CultMeshDocumentHandle<AetheriaRuntimeDaemonFrameDocument> DaemonFrame { get; }
 
-        public CultMeshDocumentHandle<AetheriaRuntimeDaemonSoaViewDocument> LatestSoaView { get; }
+        public CultMeshDocumentHandle<AetheriaRuntimeDaemonSoaViewDocument> DaemonSoaView { get; }
 
         public CultMeshDocumentHandle<AetheriaRuntimeCatalogSnapshot> Catalog { get; }
 
