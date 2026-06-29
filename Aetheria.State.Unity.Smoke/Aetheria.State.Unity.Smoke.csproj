@@ -10,6 +10,5 @@
   <ItemGroup>
     <ProjectReference Include="..\Aetheria.State.Unity\Aetheria.State.Unity.csproj" />
     <ProjectReference Include="..\GameCult.Aetheria.State.Unity.csproj" Aliases="PackageUnity" />
-    <ProjectReference Include="..\GameCult.Eve.Surface.csproj" />
   </ItemGroup>
 </Project>

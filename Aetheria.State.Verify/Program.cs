@@ -11615,11 +11615,8 @@ static void RequireUnityRuntimeCatalogClientUsesManagedDocument(string root)
         "enableDurableShardLogs: false",
         "public AetheriaRuntimeCatalogSnapshot ReadCatalog()",
         "return _node.RuntimeCatalog().Latest();",
-        "public async Task<EveSurfaceState?> ReadCatalogSurfaceAsync()",
-        "AetheriaRuntimeCatalogStore",
-        ".ReadEveSurfaces(_node.StatePath)",
-        "candidate.Surface.Id == AetheriaCatalogSurfaceProjector.SurfaceId",
-        "private static EveSurfaceState ToState(global::GameCult.Eve.Surface.EveSurfaceDocument document)"
+        "public EveSurfaceState? ReadCatalogSurface()",
+        "return _node.CatalogSurface().Latest();"
     };
     var missingSymbols = requiredSymbols
         .Where(symbol => !client.Contains(symbol, StringComparison.Ordinal))
@@ -11635,6 +11632,10 @@ static void RequireUnityRuntimeCatalogClientUsesManagedDocument(string root)
     {
         "_node.ReadCatalogSnapshot()",
         "_node.GetCatalogSurfaceAsync()",
+        "ReadCatalogSurfaceAsync(",
+        "AetheriaRuntimeCatalogStore.ReadEveSurfaces",
+        "AetheriaRuntimeCatalogStore",
+        "ToState(global::GameCult.Eve.Surface.EveSurfaceDocument",
         "AetheriaRuntimeCatalogSnapshotMapper.FromCatalog(",
         "AetheriaCatalogSnapshot"
     };
@@ -15765,6 +15766,17 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     {
         throw new InvalidOperationException(
             "Runtime catalog store still exposes file-backed run/zone snapshot projection; managed daemon checkpoint and zone-render documents own runtime state lowering.");
+    }
+
+    if (runtimeCatalogStore.Contains("ReadEveSurfaces", StringComparison.Ordinal) ||
+        runtimeCatalogStore.Contains("ReadEveSurface(", StringComparison.Ordinal) ||
+        runtimeCatalogStore.Contains("ProjectStatRecipeSurfaceDocument", StringComparison.Ordinal) ||
+        runtimeCatalogStore.Contains("ProjectTradeValuePolicySurfaceDocument", StringComparison.Ordinal) ||
+        runtimeCatalogStore.Contains("EveSurfaceSchema", StringComparison.Ordinal) ||
+        runtimeCatalogStore.Contains("ReadFieldEveSurface", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Runtime catalog store still exposes Eve-surface parsing/projection helpers; surface access must flow through managed EveSurfaceState documents.");
     }
 
     if (!unityPackageProject.Contains("AetheriaRuntimeStateRefResolver.cs", StringComparison.Ordinal) ||

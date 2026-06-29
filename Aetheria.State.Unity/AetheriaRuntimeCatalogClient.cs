@@ -26,75 +26,9 @@ public sealed class AetheriaRuntimeCatalogClient : IAsyncDisposable, IDisposable
         return _node.RuntimeCatalog().Latest();
     }
 
-    public async Task<EveSurfaceState?> ReadCatalogSurfaceAsync()
+    public EveSurfaceState? ReadCatalogSurface()
     {
-        var surface = AetheriaRuntimeCatalogStore
-            .ReadEveSurfaces(_node.StatePath)
-            .FirstOrDefault(candidate => candidate.Surface.Id == AetheriaCatalogSurfaceProjector.SurfaceId);
-        return surface == null ? null : ToState(surface);
-    }
-
-    private static EveSurfaceState ToState(global::GameCult.Eve.Surface.EveSurfaceDocument document)
-    {
-        return new EveSurfaceState
-        {
-            Type = document.Type,
-            Schema = document.Schema,
-            ProviderId = document.ProviderId,
-            ProviderKind = document.ProviderKind,
-            Title = document.Title,
-            Version = document.Version,
-            UpdatedAtUtc = document.UpdatedAtUtc,
-            Surface = new EveSurface
-            {
-                Id = document.Surface.Id,
-                Root = ToState(document.Surface.Root),
-                Styles = document.Surface.Styles
-                    .Select(style => new EveStyleToken { Name = style.Name, Value = style.Value })
-                    .ToArray()
-            },
-            Commands = document.Commands
-                .Select(command =>
-                {
-                    var record = CultMesh.OperationBindingRecord(command.Operation);
-                    return new EveCommandTemplate
-                    {
-                        Command = record.OperationId,
-                        Label = record.Label,
-                        Transport = record.RouteDescription,
-                        SchemaId = record.SchemaId,
-                        RouteKind = record.RouteKind,
-                        RouteDescription = record.RouteDescription
-                    };
-                })
-                .ToArray()
-        };
-    }
-
-    private static EveSurfaceComponent ToState(global::GameCult.Eve.Surface.EveSurfaceComponent component)
-    {
-        return new EveSurfaceComponent
-        {
-            Id = component.Id,
-            Kind = component.Kind,
-            Props = new Dictionary<string, string>(component.Props, StringComparer.Ordinal),
-            Children = component.Children.Select(ToState).ToArray(),
-            StateBindings = component.StateBindings
-                .Select(binding =>
-                {
-                    var record = CultMesh.StateBindingRecord(binding);
-                    return new EveSurfaceStateBinding
-                    {
-                        TargetProp = record.TargetProp,
-                        PointerId = record.PointerId,
-                        SourceId = record.SourceId,
-                        SchemaId = record.SchemaId,
-                        RouteKind = record.RouteKind,
-                        RouteDescription = record.RouteDescription
-                    };
-                })
-                .ToArray()
-        };
+        return _node.CatalogSurface().Latest();
     }
 
     public ValueTask DisposeAsync()

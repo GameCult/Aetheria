@@ -15,6 +15,7 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
 {
     private readonly CultMeshNode _node;
     private CultMeshDocumentHandle<AetheriaRuntimeCatalogSnapshot>? _runtimeCatalog;
+    private CultMeshDocumentHandle<EveSurfaceState>? _catalogSurface;
 
     private AetheriaStateNode(string statePath, string runtimeId, CultMeshNode node)
     {
@@ -114,6 +115,35 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
                     "managed Aetheria runtime catalog document")
             },
             routeHint: new CultMeshRouteHint(CultMeshLocalityKind.SharedMemory, "Aetheria typed catalog state"));
+    }
+
+    public CultMeshDocumentHandle<EveSurfaceState> CatalogSurface()
+    {
+        var catalog = RuntimeCatalog();
+        return _catalogSurface ??= CultMesh.Document(
+            "aetheria.catalog.surface",
+            CultMesh.Verse("aetheria.local", RuntimeId),
+            _ => Task.FromResult(AetheriaCatalogSurfaceProjector.Build(
+                catalog.Latest(),
+                DateTimeOffset.UtcNow.ToString("O"))),
+            _ => Database.WatchRecord<AetheriaRuntimeDaemonFrameDocument>(
+                    AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest)
+                .Where(change => change.Document != null)
+                .Select(_ => AetheriaCatalogSurfaceProjector.Build(
+                    catalog.Latest(),
+                    DateTimeOffset.UtcNow.ToString("O"))),
+            sources: new[]
+            {
+                CultMesh.ProjectionSource(
+                    "aetheria.catalog.runtime",
+                    AetheriaRuntimeCatalogSnapshot.SchemaId,
+                    "managed Aetheria runtime catalog document"),
+                CultMesh.ProjectionSource(
+                    CatalogSurfaceKey.ToString(),
+                    "gamecult.eve.surface.v1",
+                    "managed Aetheria catalog Eve surface document")
+            },
+            routeHint: new CultMeshRouteHint(CultMeshLocalityKind.SharedMemory, "Aetheria typed catalog Eve surface"));
     }
 
     public Task<CultRecordHandle<AetheriaRuntimeDaemonCommandDocument>> SubmitDaemonCommandAsync(

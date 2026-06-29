@@ -12,8 +12,7 @@ var statePath = args.Length > 1
 await using var client = await AetheriaRuntimeCatalogClient.OpenAsync(statePath);
 var catalog = client.ReadCatalog();
 var packageCatalog = AetheriaRuntimeCatalogStore.OpenReadOnly(statePath);
-var packageSurfaces = AetheriaRuntimeCatalogStore.ReadEveSurfaces(statePath);
-var surface = await client.ReadCatalogSurfaceAsync();
+var surface = client.ReadCatalogSurface();
 var commitSmokeDirectory = Path.Combine(Path.GetTempPath(), "aetheria-state-unity-smoke", Guid.NewGuid().ToString("N"));
 var commitSmokeStatePath = Path.Combine(commitSmokeDirectory, "aetheria-world.cc");
 Directory.CreateDirectory(commitSmokeDirectory);
@@ -158,15 +157,14 @@ if (surface?.Schema != "gamecult.eve.surface.v1" ||
     throw new InvalidOperationException("Runtime catalog client did not read the typed Eve surface.");
 }
 
-var packageSurface = packageSurfaces.FirstOrDefault(candidate => candidate.Surface.Id == AetheriaCatalogSurfaceProjector.SurfaceId);
-if (packageSurface == null ||
-    packageSurface.Schema != "gamecult.eve.surface.v1" ||
-    packageSurface.ProviderId != "aetheria" ||
-    packageSurface.Surface.Root.Kind != "surface" ||
-    packageSurface.Surface.Root.Children.Count == 0 ||
-    packageSurface.Commands.All(command => command.Command != AetheriaRuntimeCatalogCommands.Refresh))
+if (surface == null ||
+    surface.Schema != "gamecult.eve.surface.v1" ||
+    surface.ProviderId != "aetheria" ||
+    surface.Surface.Root.Kind != "surface" ||
+    surface.Surface.Root.Children.Length == 0 ||
+    surface.Commands.All(command => command.Command != AetheriaRuntimeCatalogCommands.Refresh))
 {
-    throw new InvalidOperationException("Package runtime store did not read the typed Eve surface contract from CultCache.");
+    throw new InvalidOperationException("Unity runtime catalog client did not read the typed Eve surface contract from the managed document.");
 }
 
 try
@@ -229,7 +227,7 @@ Console.WriteLine($"Interior/hardpoint sample: {interior.Name} {interior.Interio
 Console.WriteLine($"Behavior payload sample: {behaviorHost.Name} {behaviorPayload.Kind}/{behaviorPayload.Fields.Count}");
 Console.WriteLine($"Behavior sample: {behaviorKind}");
 Console.WriteLine($"Eve surface: {surface.Surface.Id}");
-Console.WriteLine($"Package Eve surfaces: {packageSurfaces.Count}");
+Console.WriteLine($"Catalog Eve surface document: {surface.Surface.Id}");
 Console.WriteLine("Runtime Eve command smoke: surface command document is a typed state record");
 
 static int CountRequiredBehaviorItemRefsMissingItemKeys(AetheriaRuntimeBehaviorPayload payload)

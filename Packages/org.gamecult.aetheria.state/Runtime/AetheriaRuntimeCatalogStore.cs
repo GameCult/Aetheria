@@ -3,8 +3,6 @@ using System.Buffers;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using GameCult.Eve.Surface;
-using GameCult.Mesh;
 using MessagePack;
 
 #nullable enable
@@ -16,7 +14,6 @@ namespace GameCult.Aetheria.State.Verse
         private const string ItemDefinitionSchema = "aetheria.item_definition";
         private const string CorporationSchema = "aetheria.corporation";
         private const string NameFileSchema = "aetheria.name_file";
-        private const string EveSurfaceSchema = "gamecult.eve.surface";
         private const string TradeValuePolicySchema = "aetheria.trade_value_policy";
         private const string PlayerSettingsSchema = "aetheria.player_settings";
         private const string VerseHostSettingsSchema = "aetheria.verse_host_settings";
@@ -56,51 +53,6 @@ namespace GameCult.Aetheria.State.Verse
                 corporations.ToArray(),
                 nameFiles.ToArray(),
                 tradeValueSettings);
-        }
-
-        public static IReadOnlyList<EveSurfaceDocument> ReadEveSurfaces(string stateFilePath)
-        {
-            if (string.IsNullOrWhiteSpace(stateFilePath))
-                throw new ArgumentException("State file path must be non-empty.", nameof(stateFilePath));
-
-            var catalog = ReadSchemaCatalog(stateFilePath);
-            var surfaces = new List<EveSurfaceDocument>();
-            foreach (var record in ReadRecords(stateFilePath))
-            {
-                if (!catalog.TryGetValue(record.SchemaId, out var schemaName) || schemaName != EveSurfaceSchema)
-                    continue;
-
-                surfaces.Add(ReadEveSurface(record.Payload));
-            }
-
-            var catalogSnapshot = OpenReadOnly(stateFilePath);
-            surfaces.Add(AetheriaRuntimeEveSurfaceAdapter.ToEveSurfaceDocument(
-                ProjectStatRecipeSurfaceDocument(catalogSnapshot)));
-            surfaces.Add(AetheriaRuntimeEveSurfaceAdapter.ToEveSurfaceDocument(
-                ProjectTradeValuePolicySurfaceDocument(catalogSnapshot)));
-            return surfaces;
-        }
-
-        public static AetheriaRuntimeSurfaceDocument ProjectStatRecipeSurfaceDocument(string stateFilePath)
-        {
-            return ProjectStatRecipeSurfaceDocument(OpenReadOnly(stateFilePath));
-        }
-
-        public static AetheriaRuntimeSurfaceDocument ProjectStatRecipeSurfaceDocument(
-            AetheriaRuntimeCatalogSnapshot? catalog)
-        {
-            return AetheriaRuntimeStatRecipeSurfaceBuilder.BuildFromCatalog(catalog);
-        }
-
-        public static AetheriaRuntimeSurfaceDocument ProjectTradeValuePolicySurfaceDocument(string stateFilePath)
-        {
-            return ProjectTradeValuePolicySurfaceDocument(OpenReadOnly(stateFilePath));
-        }
-
-        public static AetheriaRuntimeSurfaceDocument ProjectTradeValuePolicySurfaceDocument(
-            AetheriaRuntimeCatalogSnapshot? catalog)
-        {
-            return AetheriaRuntimeTradeValuePolicySurfaceBuilder.BuildFromCatalog(catalog);
         }
 
         private static AetheriaRuntimeStatRecipe? ReadBehaviorStatRecipe(AetheriaRuntimeBehaviorValue? value)
@@ -883,23 +835,6 @@ namespace GameCult.Aetheria.State.Verse
             return new AetheriaRuntimeNameFile(NameFileKey(legacyId), name, nameCount, sampleNames, names);
         }
 
-        private static EveSurfaceDocument ReadEveSurface(byte[] payload)
-        {
-            var reader = new MessagePackReader(payload);
-            var fields = reader.ReadArrayHeader();
-            var type = ReadFieldString(ref reader, fields, 0);
-            var schema = ReadFieldString(ref reader, fields, 1);
-            var providerId = ReadFieldString(ref reader, fields, 2);
-            var providerKind = ReadFieldString(ref reader, fields, 3);
-            var title = ReadFieldString(ref reader, fields, 4);
-            var version = ReadFieldInt64(ref reader, fields, 5);
-            var updatedAtUtc = ReadFieldString(ref reader, fields, 6);
-            var surface = ReadFieldEveSurfaceTree(ref reader, fields, 7);
-            var commands = ReadFieldEveCommandTemplates(ref reader, fields, 8);
-            SkipRemaining(ref reader, fields, 9);
-            return new EveSurfaceDocument(type, schema, providerId, providerKind, title, version, updatedAtUtc, surface, commands);
-        }
-
         private static AetheriaRuntimePlayerSettingsSnapshot ReadPlayerSettingsPayload(byte[] payload)
         {
             var reader = new MessagePackReader(payload);
@@ -1669,108 +1604,6 @@ namespace GameCult.Aetheria.State.Verse
             }
 
             return allegiances;
-        }
-
-        private static EveSurfaceTree ReadFieldEveSurfaceTree(ref MessagePackReader reader, int fields, int index)
-        {
-            if (index >= fields)
-                return new EveSurfaceTree("", EmptyEveComponent(), Array.Empty<EveStyleToken>());
-
-            var surfaceFields = reader.ReadArrayHeader();
-            var id = ReadFieldString(ref reader, surfaceFields, 0);
-            var root = ReadFieldEveComponent(ref reader, surfaceFields, 1);
-            var styles = ReadFieldEveStyleTokens(ref reader, surfaceFields, 2);
-            SkipRemaining(ref reader, surfaceFields, 3);
-            return new EveSurfaceTree(id, root, styles);
-        }
-
-        private static EveSurfaceComponent ReadFieldEveComponent(ref MessagePackReader reader, int fields, int index)
-        {
-            if (index >= fields)
-                return EmptyEveComponent();
-
-            var componentFields = reader.ReadArrayHeader();
-            var id = ReadFieldString(ref reader, componentFields, 0);
-            var kind = ReadFieldString(ref reader, componentFields, 1);
-            var props = ReadFieldStringMap(ref reader, componentFields, 2);
-            var children = ReadFieldEveComponents(ref reader, componentFields, 3);
-            SkipRemaining(ref reader, componentFields, 4);
-            return new EveSurfaceComponent(id, kind, props, children);
-        }
-
-        private static IReadOnlyList<EveSurfaceComponent> ReadFieldEveComponents(ref MessagePackReader reader, int fields, int index)
-        {
-            if (index >= fields) return Array.Empty<EveSurfaceComponent>();
-            var count = reader.ReadArrayHeader();
-            var components = new EveSurfaceComponent[count];
-            for (var component = 0; component < count; component++)
-                components[component] = ReadFieldEveComponent(ref reader, 1, 0);
-            return components;
-        }
-
-        private static IReadOnlyDictionary<string, string> ReadFieldStringMap(ref MessagePackReader reader, int fields, int index)
-        {
-            if (index >= fields) return EmptyStringMap();
-            var count = reader.ReadMapHeader();
-            if (count == 0) return EmptyStringMap();
-            var map = new Dictionary<string, string>(count, StringComparer.Ordinal);
-            for (var entry = 0; entry < count; entry++)
-            {
-                var key = ReadString(ref reader);
-                var value = ReadString(ref reader);
-                if (!string.IsNullOrWhiteSpace(key))
-                    map[key] = value;
-            }
-
-            return map;
-        }
-
-        private static IReadOnlyList<EveStyleToken> ReadFieldEveStyleTokens(ref MessagePackReader reader, int fields, int index)
-        {
-            if (index >= fields) return Array.Empty<EveStyleToken>();
-            var count = reader.ReadArrayHeader();
-            var tokens = new EveStyleToken[count];
-            for (var token = 0; token < count; token++)
-            {
-                var tokenFields = reader.ReadArrayHeader();
-                var name = ReadFieldString(ref reader, tokenFields, 0);
-                var value = ReadFieldString(ref reader, tokenFields, 1);
-                SkipRemaining(ref reader, tokenFields, 2);
-                tokens[token] = new EveStyleToken(name, value);
-            }
-
-            return tokens;
-        }
-
-        private static IReadOnlyList<EveCommandTemplate> ReadFieldEveCommandTemplates(ref MessagePackReader reader, int fields, int index)
-        {
-            if (index >= fields) return Array.Empty<EveCommandTemplate>();
-            var count = reader.ReadArrayHeader();
-            var commands = new EveCommandTemplate[count];
-            for (var command = 0; command < count; command++)
-            {
-                var commandFields = reader.ReadArrayHeader();
-                var name = ReadFieldString(ref reader, commandFields, 0);
-                var label = ReadFieldString(ref reader, commandFields, 1);
-                var transport = ReadFieldString(ref reader, commandFields, 2);
-                SkipRemaining(ref reader, commandFields, 3);
-                commands[command] = new EveCommandTemplate(CultMesh.OperationBinding(
-                    name,
-                    label,
-                    routeHint: new CultMeshRouteHint(CultMeshLocalityKind.Automatic, transport)));
-            }
-
-            return commands;
-        }
-
-        private static EveSurfaceComponent EmptyEveComponent()
-        {
-            return new EveSurfaceComponent("", "", EmptyStringMap(), Array.Empty<EveSurfaceComponent>());
-        }
-
-        private static IReadOnlyDictionary<string, string> EmptyStringMap()
-        {
-            return new Dictionary<string, string>(0, StringComparer.Ordinal);
         }
 
         private static IReadOnlyList<AetheriaRuntimeShapeCell> ReadShapeCells(ref MessagePackReader reader)
