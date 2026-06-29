@@ -7807,13 +7807,14 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         .Concat(new[]
         {
             ".ReactiveObjectsViewport(viewport,\"unity-map-renderer\")",
-            ".ReactiveRenderSplatsViewport(viewport,\"unity-map-renderer\")"
+            ".ReactiveRenderSplatsViewport(viewport,\"unity-map-renderer\")",
+            ".RuntimeState(\"unity-map-renderer\").CurrentPlayerSettings()"
         }.Where(symbol => !compactMapRenderer.Contains(symbol, StringComparison.Ordinal)))
         .ToArray();
     if (missingMapRendererSharedDocumentSymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "MapRenderer should bind viewport and player settings through managed reactive Aetheria documents: " +
+            "MapRenderer should bind viewport render feeds through managed reactive documents and sample settings through current typed state: " +
             string.Join(", ", missingMapRendererSharedDocumentSymbols));
     }
 
@@ -7833,21 +7834,18 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         ".ReactiveRenderSplatsViewport(viewport,\"unity-map-renderer\")",
         "AetheriaRuntimeRenderSplatsViewportSession",
         ".ObserveRenderSplats(viewport)");
-    RequireReactiveTypedDocumentAccess(
-        mapRenderer,
-        "MapRenderer",
-        "AetheriaRuntimePlayerSettingsDocument",
-        "_playerSettings",
-        ".ReactivePlayerSettingsDocument(\"unity-map-renderer\")",
-        "AetheriaRuntimePlayerSettingsSession",
-        ".ObservePlayer()");
 
     var forbiddenMapRendererSharedDocumentSymbols = new[]
     {
         "AetheriaRuntimeObjectsViewportSession _objectsViewport",
         "AetheriaRuntimeRenderSplatsViewportSession _renderSplatsViewport",
+        "CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument>",
+        ".ReactivePlayerSettingsDocument(\"unity-map-renderer\")",
+        "AetheriaRuntimePlayerSettingsSession",
         ".ObserveObjects(viewport)",
-        ".ObserveRenderSplats(viewport)"
+        ".ObserveRenderSplats(viewport)",
+        ".ObservePlayer()",
+        "_playerSettings?.Dispose()"
     };
     var mapRendererRawDocumentHits = forbiddenMapRendererSharedDocumentSymbols
         .Where(symbol => mapRenderer.Contains(symbol, StringComparison.Ordinal))
@@ -14920,7 +14918,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
     if (!mapRenderer.Contains("AetheriaUnityRuntimeClientProvider", StringComparison.Ordinal) ||
         !compactMapRenderer.Contains(".ReactiveObjectsViewport(viewport,\"unity-map-renderer\")", StringComparison.Ordinal) ||
         !compactMapRenderer.Contains(".ReactiveRenderSplatsViewport(viewport,\"unity-map-renderer\")", StringComparison.Ordinal) ||
-        !compactMapRenderer.Contains(".ReactivePlayerSettingsDocument(\"unity-map-renderer\")", StringComparison.Ordinal) ||
+        !compactMapRenderer.Contains(".RuntimeState(\"unity-map-renderer\").CurrentPlayerSettings()", StringComparison.Ordinal) ||
         !sectorRenderer.Contains("AetheriaUnityRuntimeClientProvider", StringComparison.Ordinal) ||
         !compactSectorRenderer.Contains(".RuntimeState(\"unity-sector-renderer\").CurrentSectorMap()", StringComparison.Ordinal) ||
         !compactSectorRenderer.Contains(".RuntimeState(\"unity-sector-renderer\").CurrentZoneDetails(zoneIndex)", StringComparison.Ordinal) ||
@@ -14933,6 +14931,23 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
     {
         throw new InvalidOperationException(
             "Map and sector UI must request projected galaxy/zone data through explicit observed daemon boundaries.");
+    }
+
+    var forbiddenMapRendererSettingsSymbols = new[]
+    {
+        "CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument>",
+        ".ReactivePlayerSettingsDocument(\"unity-map-renderer\")",
+        "AetheriaRuntimePlayerSettingsSession",
+        ".ObservePlayer()",
+        "_playerSettings?.Dispose()"
+    }
+        .Where(symbol => mapRenderer.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (forbiddenMapRendererSettingsSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "MapRenderer should sample player settings through current typed state; only viewport rendering documents should stay reactive: " +
+            string.Join(", ", forbiddenMapRendererSettingsSymbols));
     }
 
     if (sectorMap.Contains("ActionGameManager.ObservedGalaxy", StringComparison.Ordinal) ||

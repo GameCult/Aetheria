@@ -44,7 +44,6 @@ public class MapRenderer : MonoBehaviour
     private CultMeshReactiveDocument<AetheriaRuntimeRenderSplatsViewportDocument> _renderSplatsViewport;
     private float _nextViewportRefreshTime;
     private readonly List<RawImage> _rtsIconPool = new List<RawImage>();
-    private CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings;
     
     void Start()
     {
@@ -312,13 +311,14 @@ public class MapRenderer : MonoBehaviour
     {
         try
         {
-            _playerSettings ??= AetheriaUnityRuntimeClientProvider
-                .ReactivePlayerSettingsDocument("unity-map-renderer");
-            return _playerSettings?.Current?.ShowAsteroidsInMinimap ?? false;
+            return AetheriaUnityRuntimeClientProvider
+                .RuntimeState("unity-map-renderer")
+                .CurrentPlayerSettings()
+                ?.ShowAsteroidsInMinimap ?? false;
         }
         catch (Exception ex)
         {
-            Debug.LogWarning($"Failed to bind Aetheria map graphics settings from local Verse state: {ex.Message}");
+            Debug.LogWarning($"Failed to read Aetheria map graphics settings from local Verse state: {ex.Message}");
             return false;
         }
     }
@@ -326,8 +326,6 @@ public class MapRenderer : MonoBehaviour
     private void ClearClientCaches()
     {
         ClearViewportCaches();
-        _playerSettings?.Dispose();
-        _playerSettings = null;
     }
 
     private void ClearViewportCaches()
