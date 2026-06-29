@@ -7740,10 +7740,8 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "VolumeCloudRenderer.cs"));
     var requiredVolumeCloudSymbols = new[]
     {
-        "CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings",
-        ".ReactivePlayerSettingsDocument(\"unity-volume-cloud-renderer\")",
-        "_playerSettings?.Dispose()",
-        "_playerSettings?.Current"
+        ".RuntimeState(\"unity-volume-cloud-renderer\")",
+        ".CurrentPlayerSettings()"
     };
     var missingVolumeCloudSymbols = requiredVolumeCloudSymbols
         .Where(symbol => !volumeCloudRenderer.Contains(symbol, StringComparison.Ordinal))
@@ -7751,15 +7749,19 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
     if (missingVolumeCloudSymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "VolumeCloudRenderer should read player settings through a managed reactive typed document: " +
+            "VolumeCloudRenderer should sample player settings through named current typed state: " +
             string.Join(", ", missingVolumeCloudSymbols));
     }
 
-    if (volumeCloudRenderer.Contains("AetheriaRuntimePlayerSettingsSession _playerSettings", StringComparison.Ordinal) ||
+    if (volumeCloudRenderer.Contains("CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument>", StringComparison.Ordinal) ||
+        volumeCloudRenderer.Contains(".ReactivePlayerSettingsDocument(\"unity-volume-cloud-renderer\")", StringComparison.Ordinal) ||
+        volumeCloudRenderer.Contains("_playerSettings?.Dispose()", StringComparison.Ordinal) ||
+        volumeCloudRenderer.Contains("_playerSettings?.Current", StringComparison.Ordinal) ||
+        volumeCloudRenderer.Contains("AetheriaRuntimePlayerSettingsSession _playerSettings", StringComparison.Ordinal) ||
         volumeCloudRenderer.Contains(".ObservePlayer()", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "VolumeCloudRenderer still routes player settings through AetheriaRuntimePlayerSettingsSession instead of the managed reactive typed document.");
+            "VolumeCloudRenderer still routes player settings through legacy session/reactive wrapper state instead of named current typed state.");
     }
 
     var observedTargetQuery = File.ReadAllText(Path.Combine(

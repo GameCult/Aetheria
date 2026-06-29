@@ -3,7 +3,6 @@ using System.Linq;
 using System.Collections;
 using System.Collections.Generic;
 using GameCult.Aetheria.State.Verse;
-using GameCult.Mesh;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -54,7 +53,6 @@ public class VolumeCloudRenderer : EffectBase
     // The index of 4x4 pixels.
     private int frameIndex = 0;
     private bool firstFrame = true;
-    private CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings;
 
     [SerializeField]
     private Shader cloudShader;
@@ -66,8 +64,6 @@ public class VolumeCloudRenderer : EffectBase
     }
 
     private void OnDestroy() {
-        _playerSettings?.Dispose();
-        _playerSettings = null;
         if (this.fullBuffer != null) {
             for (int i = 0; i < fullBuffer.Length; i++) {
                 fullBuffer[i].Release();
@@ -96,20 +92,18 @@ public class VolumeCloudRenderer : EffectBase
 
     private AetheriaRuntimePlayerSettingsDocument ResolvePlayerSettings()
     {
-        if (_playerSettings != null)
-            return _playerSettings.Current;
-
         try
         {
-            _playerSettings = AetheriaUnityRuntimeClientProvider
-                .ReactivePlayerSettingsDocument("unity-volume-cloud-renderer");
+            return AetheriaUnityRuntimeClientProvider
+                .RuntimeState("unity-volume-cloud-renderer")
+                .CurrentPlayerSettings();
         }
         catch (Exception ex)
         {
-            Debug.LogWarning($"Failed to bind Aetheria player settings for volume cloud renderer: {ex.Message}");
+            Debug.LogWarning($"Failed to read Aetheria player settings for volume cloud renderer: {ex.Message}");
         }
 
-        return _playerSettings?.Current;
+        return null;
     }
 
     [ImageEffectOpaque]
