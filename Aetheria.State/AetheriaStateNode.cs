@@ -129,13 +129,13 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
         return _catalogSurface ??= CultMesh.Document(
             "aetheria.catalog.surface",
             CultMesh.Verse("aetheria.local", RuntimeId),
-            _ => Task.FromResult(AetheriaCatalogSurfaceProjector.Build(
+            _ => Task.FromResult(AetheriaEveSurfaceDocuments.BuildCatalogSurface(
                 catalog.Latest(),
                 DateTimeOffset.UtcNow.ToString("O"))),
             _ => Database.WatchRecord<AetheriaRuntimeDaemonFrameDocument>(
                     AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest)
                 .Where(change => change.Document != null)
-                .Select(_ => AetheriaCatalogSurfaceProjector.Build(
+                .Select(_ => AetheriaEveSurfaceDocuments.BuildCatalogSurface(
                     catalog.Latest(),
                     DateTimeOffset.UtcNow.ToString("O"))),
             sources: new[]
@@ -238,16 +238,16 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
         new("global:aetheria.legacy_catalog_quarantine.v1");
 
     public static CultRecordKey CatalogSurfaceKey { get; } =
-        new(AetheriaCatalogSurfaceProjector.SurfaceKey);
+        new(AetheriaEveSurfaceDocuments.CatalogSurfaceKey);
 
     public static CultRecordKey OperationsSurfaceKey { get; } =
-        new(AetheriaOperationsSurfaceProjector.SurfaceKey);
+        new(AetheriaEveSurfaceDocuments.OperationsSurfaceKey);
 
     public static CultRecordKey PlayerSettingsSurfaceKey { get; } =
-        new(AetheriaPlayerSettingsSurfaceProjector.SurfaceKey);
+        new(AetheriaEveSurfaceDocuments.PlayerSettingsSurfaceKey);
 
     public static CultRecordKey ProviderAdvertisementSurfaceKey { get; } =
-        new(AetheriaProviderAdvertisementProjector.AdvertisementKey);
+        new(AetheriaEveSurfaceDocuments.ProviderAdvertisementKey);
 
     public static CultRecordKey PlayerSettingsKey { get; } =
         new("global:aetheria.player_settings.v1");

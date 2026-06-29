@@ -118,7 +118,7 @@ var items = node.Cache.GetAll<AetheriaItemDefinition>().ToArray();
 var corporations = node.Cache.GetAll<AetheriaCorporation>().ToArray();
 var nameFiles = node.Cache.GetAll<AetheriaNameFile>().ToArray();
 var catalog = await node.RuntimeCatalog().LatestAsync().ConfigureAwait(false);
-var surface = AetheriaCatalogSurfaceProjector.Build(catalog, DateTimeOffset.UtcNow.ToString("O"));
+var surface = AetheriaEveSurfaceDocuments.BuildCatalogSurface(catalog, DateTimeOffset.UtcNow.ToString("O"));
 var tradeValuePolicy = await node.MutableDocument<AetheriaTradeValuePolicy>(AetheriaStateNode.TradeValuePolicyKey).ReadAsync()
     ?? throw new InvalidOperationException("Missing authored trade value policy document.");
 await RequireTradeValuePolicyEveCommandPersistsAsync();
@@ -522,7 +522,7 @@ if (surface.Schema != "gamecult.eve.surface.v1" ||
 }
 
 if (publishedSurface.Schema != surface.Schema ||
-    publishedSurface.Surface.Id != AetheriaCatalogSurfaceProjector.SurfaceId ||
+    publishedSurface.Surface.Id != AetheriaEveSurfaceDocuments.CatalogSurfaceId ||
     publishedSurface.Surface.Root.Kind != "surface")
 {
     throw new InvalidOperationException("Published Aetheria catalog Eve surface is not the expected typed surface.");
@@ -725,18 +725,18 @@ static void RequireSharedEvePackagesImportedFromEveRepo(string root)
         "org.gamecult.aetheria.state",
         "Runtime",
         "AetheriaRuntimeCultCacheDocumentStore.cs");
-    var playerSettingsSurfaceProjectorPath = Path.Combine(
+    var playerSettingsSurfaceDocumentsPath = Path.Combine(
         root,
         "Aetheria.State",
-        "AetheriaPlayerSettingsSurfaceProjector.cs");
-    var catalogSurfaceProjectorPath = Path.Combine(
+        "AetheriaEveSurfaceDocuments.cs");
+    var catalogSurfaceDocumentsPath = Path.Combine(
         root,
         "Aetheria.State",
-        "AetheriaCatalogSurfaceProjector.cs");
-    var operationsSurfaceProjectorPath = Path.Combine(
+        "AetheriaEveSurfaceDocuments.cs");
+    var operationsSurfaceDocumentsPath = Path.Combine(
         root,
         "Aetheria.State",
-        "AetheriaOperationsSurfaceProjector.cs");
+        "AetheriaEveSurfaceDocuments.cs");
 
     var manifest = File.Exists(manifestPath)
         ? File.ReadAllText(manifestPath)
@@ -768,15 +768,15 @@ static void RequireSharedEvePackagesImportedFromEveRepo(string root)
     var runtimeCultCacheDocumentStore = File.Exists(runtimeCultCacheDocumentStorePath)
         ? File.ReadAllText(runtimeCultCacheDocumentStorePath)
         : throw new InvalidOperationException("Cannot verify shared Eve package ownership; AetheriaRuntimeCultCacheDocumentStore.cs is missing.");
-    var playerSettingsSurfaceProjector = File.Exists(playerSettingsSurfaceProjectorPath)
-        ? File.ReadAllText(playerSettingsSurfaceProjectorPath)
-        : throw new InvalidOperationException("Cannot verify shared Eve package ownership; AetheriaPlayerSettingsSurfaceProjector.cs is missing.");
-    var catalogSurfaceProjector = File.Exists(catalogSurfaceProjectorPath)
-        ? File.ReadAllText(catalogSurfaceProjectorPath)
-        : throw new InvalidOperationException("Cannot verify shared Eve package ownership; AetheriaCatalogSurfaceProjector.cs is missing.");
-    var operationsSurfaceProjector = File.Exists(operationsSurfaceProjectorPath)
-        ? File.ReadAllText(operationsSurfaceProjectorPath)
-        : throw new InvalidOperationException("Cannot verify shared Eve package ownership; AetheriaOperationsSurfaceProjector.cs is missing.");
+    var playerSettingsSurfaceDocuments = File.Exists(playerSettingsSurfaceDocumentsPath)
+        ? File.ReadAllText(playerSettingsSurfaceDocumentsPath)
+        : throw new InvalidOperationException("Cannot verify shared Eve package ownership; AetheriaEveSurfaceDocuments.cs is missing.");
+    var catalogSurfaceDocuments = File.Exists(catalogSurfaceDocumentsPath)
+        ? File.ReadAllText(catalogSurfaceDocumentsPath)
+        : throw new InvalidOperationException("Cannot verify shared Eve package ownership; AetheriaEveSurfaceDocuments.cs is missing.");
+    var operationsSurfaceDocuments = File.Exists(operationsSurfaceDocumentsPath)
+        ? File.ReadAllText(operationsSurfaceDocumentsPath)
+        : throw new InvalidOperationException("Cannot verify shared Eve package ownership; AetheriaEveSurfaceDocuments.cs is missing.");
 
     var requiredManifestSymbols = new[]
     {
@@ -899,12 +899,12 @@ static void RequireSharedEvePackagesImportedFromEveRepo(string root)
             "AetheriaRuntimeEveSurfaceStateProjector is dead conversion chaff; AetheriaRuntimeEveSurfaceAdapter owns runtime surface to Eve state lowering.");
     }
 
-    var surfaceCommandProjectors = string.Join(
+    var surfaceCommandDocuments = string.Join(
         "\n",
         runtimeAdapter,
-        playerSettingsSurfaceProjector,
-        catalogSurfaceProjector,
-        operationsSurfaceProjector);
+        playerSettingsSurfaceDocuments,
+        catalogSurfaceDocuments,
+        operationsSurfaceDocuments);
     if (!runtimeCultCacheDocumentStore.Contains("CultMesh.OperationBindingRecord(command.Operation)", StringComparison.Ordinal) ||
         !runtimeCultCacheDocumentStore.Contains("CultMesh.OperationBindingRecord(", StringComparison.Ordinal) ||
         !runtimeCultCacheDocumentStore.Contains("routeDescription).ToBinding()", StringComparison.Ordinal) ||
@@ -912,7 +912,7 @@ static void RequireSharedEvePackagesImportedFromEveRepo(string root)
         !runtimeAdapter.Contains("command.SchemaId", StringComparison.Ordinal) ||
         !runtimeAdapter.Contains("public static EveSurfaceState ToEveSurfaceState(AetheriaRuntimeSurfaceDocument document)", StringComparison.Ordinal) ||
         !runtimeAdapter.Contains("global::Aetheria.State.Documents.EveSurfaceComponent ToEveSurfaceState(", StringComparison.Ordinal) ||
-        !surfaceCommandProjectors.Contains("CultMesh.OperationBindingRecord(", StringComparison.Ordinal) ||
+        !surfaceCommandDocuments.Contains("CultMesh.OperationBindingRecord(", StringComparison.Ordinal) ||
         runtimeCultCacheDocumentStore.Contains("new CultMeshOperationBindingDescriptor(", StringComparison.Ordinal) ||
         runtimeAdapter.Contains("new CultMeshOperationBindingDescriptor(", StringComparison.Ordinal))
     {
@@ -6767,9 +6767,9 @@ static void RequireNoDeadPopupShells(string root)
 
 static void RequirePlayerSettingsEveSurface(string root)
 {
-    var projectorPath = Path.Combine(root, "Aetheria.State", "AetheriaPlayerSettingsSurfaceProjector.cs");
+    var surfaceDocumentsPath = Path.Combine(root, "Aetheria.State", "AetheriaEveSurfaceDocuments.cs");
     var bridgePath = Path.Combine(root, "Aetheria.State", "AetheriaEveCommandBridge.cs");
-    var providerPath = Path.Combine(root, "Aetheria.State", "AetheriaProviderAdvertisementProjector.cs");
+    var providerPath = Path.Combine(root, "Aetheria.State", "AetheriaEveSurfaceDocuments.cs");
     var daemonHostPath = Path.Combine(root, "Aetheria.State.Daemon", "Program.cs");
     var sharedCommandsPath = Path.Combine(
         root,
@@ -6784,13 +6784,13 @@ static void RequirePlayerSettingsEveSurface(string root)
         "Runtime",
         "AetheriaRuntimePlayerSettingsSurfaceBuilder.cs");
 
-    if (!File.Exists(projectorPath))
+    if (!File.Exists(surfaceDocumentsPath))
     {
-        throw new InvalidOperationException("Player settings Eve surface projector is missing.");
+        throw new InvalidOperationException("Player settings Eve surface document is missing.");
     }
 
-    var projector = File.ReadAllText(projectorPath);
-    var requiredProjectorSymbols = new[]
+    var surfaceDocuments = File.ReadAllText(surfaceDocumentsPath);
+    var requiredSurfaceDocumentSymbols = new[]
     {
         "AetheriaRuntimePlayerSettingsCommands.SurfaceId",
         "AetheriaRuntimePlayerSettingsSurfaceBuilder.Build",
@@ -6798,15 +6798,15 @@ static void RequirePlayerSettingsEveSurface(string root)
         "settings.ActiveRunKey"
     };
 
-    var missingProjectorSymbols = requiredProjectorSymbols
-        .Where(symbol => !projector.Contains(symbol, StringComparison.Ordinal))
+    var missingSurfaceDocumentSymbols = requiredSurfaceDocumentSymbols
+        .Where(symbol => !surfaceDocuments.Contains(symbol, StringComparison.Ordinal))
         .ToArray();
 
-    if (missingProjectorSymbols.Length > 0)
+    if (missingSurfaceDocumentSymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "Player settings Eve surface projector is missing required typed controls: " +
-            string.Join(", ", missingProjectorSymbols));
+            "Player settings Eve surface document is missing required typed controls: " +
+            string.Join(", ", missingSurfaceDocumentSymbols));
     }
 
     var bridge = File.Exists(bridgePath)
@@ -6828,7 +6828,7 @@ static void RequirePlayerSettingsEveSurface(string root)
     if (!bridge.Contains("AcceptedPlayerSettingsCommands", StringComparison.Ordinal) ||
         !bridge.Contains("ExecutePlayerSettingsCommandAsync", StringComparison.Ordinal) ||
         !bridge.Contains("MutableDocument<EveSurfaceState>(AetheriaStateNode.PlayerSettingsSurfaceKey)", StringComparison.Ordinal) ||
-        !bridge.Contains(".ReplaceAsync(AetheriaPlayerSettingsSurfaceProjector.Build", StringComparison.Ordinal) ||
+        !bridge.Contains(".ReplaceAsync(AetheriaEveSurfaceDocuments.BuildPlayerSettingsSurface", StringComparison.Ordinal) ||
         !bridge.Contains("SetPlayerName", StringComparison.Ordinal) ||
         !bridge.Contains("command.PlayerSettings.PlayerName", StringComparison.Ordinal))
     {
@@ -6836,7 +6836,8 @@ static void RequirePlayerSettingsEveSurface(string root)
             "Eve command bridge no longer owns the typed player-settings surface mutation path.");
     }
 
-    if (!provider.Contains("AetheriaPlayerSettingsSurfaceProjector.SurfaceId", StringComparison.Ordinal) ||
+    if (!provider.Contains("SurfaceId = PlayerSettingsSurfaceId", StringComparison.Ordinal) ||
+        !provider.Contains("Key = PlayerSettingsSurfaceKey", StringComparison.Ordinal) ||
         !provider.Contains("AetheriaRuntimePlayerSettingsCommands.Refresh", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
@@ -6844,8 +6845,8 @@ static void RequirePlayerSettingsEveSurface(string root)
     }
 
     if (!daemonHost.Contains("MutableDocument<EveSurfaceState>(AetheriaStateNode.PlayerSettingsSurfaceKey)", StringComparison.Ordinal) ||
-        !daemonHost.Contains(".ReplaceAsync(AetheriaPlayerSettingsSurfaceProjector.Build", StringComparison.Ordinal) ||
-        !daemonHost.Contains("AetheriaPlayerSettingsSurfaceProjector.Build", StringComparison.Ordinal))
+        !daemonHost.Contains(".ReplaceAsync(AetheriaEveSurfaceDocuments.BuildPlayerSettingsSurface", StringComparison.Ordinal) ||
+        !daemonHost.Contains("AetheriaEveSurfaceDocuments.BuildPlayerSettingsSurface", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "Aetheria.State.Daemon no longer republishes the provider-owned player-settings Eve surface.");
@@ -8600,8 +8601,8 @@ static void RequireVerseHostSettingsAuthority(string root)
     var verseDiscoveryHostPath = Path.Combine(root, "Aetheria.State", "AetheriaVerseDiscoveryHost.cs");
     var registryPath = Path.Combine(root, "Aetheria.State", "AetheriaDocumentRegistry.cs");
     var nodePath = Path.Combine(root, "Aetheria.State", "AetheriaStateNode.cs");
-    var providerPath = Path.Combine(root, "Aetheria.State", "AetheriaProviderAdvertisementProjector.cs");
-    var operationsPath = Path.Combine(root, "Aetheria.State", "AetheriaOperationsSurfaceProjector.cs");
+    var providerPath = Path.Combine(root, "Aetheria.State", "AetheriaEveSurfaceDocuments.cs");
+    var operationsPath = Path.Combine(root, "Aetheria.State", "AetheriaEveSurfaceDocuments.cs");
     var daemonHostPath = Path.Combine(root, "Aetheria.State.Daemon", "Program.cs");
 
     var requiredFiles = new[]
@@ -8774,7 +8775,7 @@ static void RequireVerseHostSettingsAuthority(string root)
         "node.MutableDocument<AetheriaVerseHostSettings>(AetheriaStateNode.VerseHostSettingsKey).ReadAsync()",
         "node.MutableDocument<AetheriaVerseHostSettings>(AetheriaStateNode.VerseHostSettingsKey)",
         ".ReplaceAsync(normalized)",
-        "AetheriaProviderAdvertisementProjector.Build(verseHost, node.StatePath, updatedAtUtc)"
+        "AetheriaEveSurfaceDocuments.BuildProviderAdvertisement(verseHost, node.StatePath, updatedAtUtc)"
     };
     var missingDaemonHostSymbols = requiredDaemonHostSymbols
         .Where(symbol => !daemonHost.Contains(symbol, StringComparison.Ordinal))
@@ -9407,7 +9408,7 @@ static void RequireVerseSettingsShellAndBridge(string root)
     var mainMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "MainMenu.cs");
     var commandBridgePath = Path.Combine(root, "Aetheria.State", "AetheriaEveCommandBridge.cs");
     var acceptanceStatusPath = Path.Combine(root, "Aetheria.State", "Documents", "AetheriaEveCommandAcceptanceStatus.cs");
-    var operationsProjectorPath = Path.Combine(root, "Aetheria.State", "AetheriaOperationsSurfaceProjector.cs");
+    var operationsSurfaceDocumentsPath = Path.Combine(root, "Aetheria.State", "AetheriaEveSurfaceDocuments.cs");
     var daemonHostPath = Path.Combine(root, "Aetheria.State.Daemon", "Program.cs");
 
     var requiredFiles = new[]
@@ -9424,7 +9425,7 @@ static void RequireVerseSettingsShellAndBridge(string root)
         mainMenuPath,
         commandBridgePath,
         acceptanceStatusPath,
-        operationsProjectorPath,
+        operationsSurfaceDocumentsPath,
         daemonHostPath
     };
 
@@ -9451,7 +9452,7 @@ static void RequireVerseSettingsShellAndBridge(string root)
     var mainMenu = File.ReadAllText(mainMenuPath);
     var commandBridge = File.ReadAllText(commandBridgePath);
     var acceptanceStatus = File.ReadAllText(acceptanceStatusPath);
-    var operationsProjector = File.ReadAllText(operationsProjectorPath);
+    var operationsSurfaceDocuments = File.ReadAllText(operationsSurfaceDocumentsPath);
     var daemonHost = File.ReadAllText(daemonHostPath);
 
     var requiredUnityPackageProjectSymbols = new[]
@@ -9772,7 +9773,7 @@ static void RequireVerseSettingsShellAndBridge(string root)
         "node.MutableDocument<AetheriaVerseHostSettings>(AetheriaStateNode.VerseHostSettingsKey)",
         ".ReplaceAsync(normalized)",
         "node.MutableDocument<EveProviderAdvertisementState>(AetheriaStateNode.ProviderAdvertisementSurfaceKey)",
-        "AetheriaOperationsSurfaceProjector.Build(",
+        "AetheriaEveSurfaceDocuments.BuildOperationsSurface(",
         "switch (command.Kind)"
     };
     var missingBridgeSymbols = requiredBridgeSymbols
@@ -9824,7 +9825,7 @@ static void RequireVerseSettingsShellAndBridge(string root)
     {
         ["Aetheria daemon host"] = daemonHost,
         ["Aetheria Eve command bridge"] = commandBridge,
-        ["operations projector"] = operationsProjector
+        ["operations surface document"] = operationsSurfaceDocuments
     };
     var pendingBeforeApplyUses = pendingBeforeApplyUseSources
         .Where(source => source.Value.Contains("PendingBeforeApply", StringComparison.Ordinal))
@@ -9837,8 +9838,8 @@ static void RequireVerseSettingsShellAndBridge(string root)
             string.Join(", ", pendingBeforeApplyUses));
     }
 
-    if (!operationsProjector.Contains("Verse Host Commands", StringComparison.Ordinal) ||
-        !operationsProjector.Contains("AppliedVerseHostCommands", StringComparison.Ordinal))
+    if (!operationsSurfaceDocuments.Contains("Verse Host Commands", StringComparison.Ordinal) ||
+        !operationsSurfaceDocuments.Contains("AppliedVerseHostCommands", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "Operations surface no longer projects Verse-host Eve command counts.");
@@ -10538,7 +10539,7 @@ static void RequireDaemonVersePublication(string root)
     var documentRegistryPath = Path.Combine(root, "Aetheria.State", "AetheriaDocumentRegistry.cs");
     var stateNodePath = Path.Combine(root, "Aetheria.State", "AetheriaStateNode.cs");
     var runtimeEveSurfaceAdapterPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeEveSurfaceAdapter.cs");
-    var providerAdvertisementPath = Path.Combine(root, "Aetheria.State", "AetheriaProviderAdvertisementProjector.cs");
+    var providerAdvertisementPath = Path.Combine(root, "Aetheria.State", "AetheriaEveSurfaceDocuments.cs");
     var documentStorePath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeCultCacheDocumentStore.cs");
     var boundaryPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeStateBoundary.cs");
     var testsPath = Path.Combine(root, "Assets", "Scripts", "Tests", "DaemonRuntimeDocumentTests.cs");
@@ -11095,9 +11096,9 @@ static void RequireDaemonVersePublication(string root)
         "node.MutableDocument<EveSurfaceState>(AetheriaStateNode.OperationsSurfaceKey)",
         "node.MutableDocument<EveSurfaceState>(AetheriaStateNode.PlayerSettingsSurfaceKey)",
         "node.MutableDocument<EveProviderAdvertisementState>(AetheriaStateNode.ProviderAdvertisementSurfaceKey)",
-        "AetheriaProviderAdvertisementProjector.Build(verseHost, node.StatePath, updatedAtUtc)",
-        "AetheriaOperationsSurfaceProjector.Build(eveStatus, verseHost, runtimeSession)",
-        "AetheriaPlayerSettingsSurfaceProjector.Build(playerSettings, playerSettingsUpdatedAt)",
+        "AetheriaEveSurfaceDocuments.BuildProviderAdvertisement(verseHost, node.StatePath, updatedAtUtc)",
+        "AetheriaEveSurfaceDocuments.BuildOperationsSurface(eveStatus, verseHost, runtimeSession)",
+        "AetheriaEveSurfaceDocuments.BuildPlayerSettingsSurface(playerSettings, playerSettingsUpdatedAt)",
         "Role = \"verse-daemon\"",
         "Console.CancelKeyPress",
         "Aetheria Verse daemon is running"
@@ -11701,13 +11702,13 @@ static void RequireUnityRuntimeCatalogClientUsesManagedDocument(string root)
 
 static void RequireCatalogSurfaceUsesManagedRuntimeCatalog(string root)
 {
-    var projectorPath = Path.Combine(root, "Aetheria.State", "AetheriaCatalogSurfaceProjector.cs");
+    var surfaceDocumentsPath = Path.Combine(root, "Aetheria.State", "AetheriaEveSurfaceDocuments.cs");
     var bridgePath = Path.Combine(root, "Aetheria.State", "AetheriaEveCommandBridge.cs");
     var importPath = Path.Combine(root, "Aetheria.State.Import", "Program.cs");
     var legacySnapshotPath = Path.Combine(root, "Aetheria.State", "AetheriaCatalogSnapshot.cs");
-    var projector = File.Exists(projectorPath)
-        ? File.ReadAllText(projectorPath)
-        : throw new InvalidOperationException("Cannot verify catalog surface projector; AetheriaCatalogSurfaceProjector.cs is missing.");
+    var surfaceDocuments = File.Exists(surfaceDocumentsPath)
+        ? File.ReadAllText(surfaceDocumentsPath)
+        : throw new InvalidOperationException("Cannot verify catalog surface document; AetheriaEveSurfaceDocuments.cs is missing.");
     var bridge = File.Exists(bridgePath)
         ? File.ReadAllText(bridgePath)
         : throw new InvalidOperationException("Cannot verify Eve command bridge catalog refresh; AetheriaEveCommandBridge.cs is missing.");
@@ -11715,25 +11716,26 @@ static void RequireCatalogSurfaceUsesManagedRuntimeCatalog(string root)
         ? File.ReadAllText(importPath)
         : throw new InvalidOperationException("Cannot verify legacy catalog import; Aetheria.State.Import/Program.cs is missing.");
 
-    var requiredProjectorSymbols = new[]
+    var requiredSurfaceDocumentSymbols = new[]
     {
-        "Build(AetheriaRuntimeCatalogSnapshot catalog",
+        "BuildCatalogSurface(",
+        "AetheriaRuntimeCatalogSnapshot catalog",
         "item.ItemKey",
         "corporation.CorporationKey",
         "catalog.GetManufacturer(item)",
         "catalog.GetNameFile(corporation)"
     };
-    var missingProjectorSymbols = requiredProjectorSymbols
-        .Where(symbol => !projector.Contains(symbol, StringComparison.Ordinal))
+    var missingSurfaceDocumentSymbols = requiredSurfaceDocumentSymbols
+        .Where(symbol => !surfaceDocuments.Contains(symbol, StringComparison.Ordinal))
         .ToArray();
-    if (missingProjectorSymbols.Length > 0)
+    if (missingSurfaceDocumentSymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "Catalog Eve surface must project from the managed runtime catalog document: " +
-            string.Join(", ", missingProjectorSymbols));
+            "Catalog Eve surface must build from the managed runtime catalog document: " +
+            string.Join(", ", missingSurfaceDocumentSymbols));
     }
 
-    if (projector.Contains("Build(AetheriaCatalogSnapshot catalog", StringComparison.Ordinal))
+    if (surfaceDocuments.Contains("Build(AetheriaCatalogSnapshot catalog", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "Catalog Eve surface still depends on the legacy authored catalog snapshot instead of the managed runtime catalog document.");
@@ -11748,7 +11750,7 @@ static void RequireCatalogSurfaceUsesManagedRuntimeCatalog(string root)
     var requiredBridgeSymbols = new[]
     {
         "var catalog = await node.RuntimeCatalog().LatestAsync().ConfigureAwait(false);",
-        "AetheriaCatalogSurfaceProjector.Build(catalog, command.IssuedAtUtc)"
+        "AetheriaEveSurfaceDocuments.BuildCatalogSurface(catalog, command.IssuedAtUtc)"
     };
     var missingBridgeSymbols = requiredBridgeSymbols
         .Where(symbol => !bridge.Contains(symbol, StringComparison.Ordinal))

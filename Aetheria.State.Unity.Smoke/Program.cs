@@ -152,7 +152,7 @@ if (packageCorporation.Allegiances.Count == 0 || packageCorporation.Allegiances.
 }
 
 if (surface?.Schema != "gamecult.eve.surface.v1" ||
-    surface.Surface.Id != AetheriaCatalogSurfaceProjector.SurfaceId)
+    surface.Surface.Id != AetheriaEveSurfaceDocuments.CatalogSurfaceId)
 {
     throw new InvalidOperationException("Runtime catalog client did not read the typed Eve surface.");
 }

@@ -866,13 +866,13 @@ static async Task PublishStateSurfacesAsync(
         : playerSettings.LastUpdatedAtUtc;
 
     await node.MutableDocument<EveSurfaceState>(AetheriaStateNode.OperationsSurfaceKey)
-        .ReplaceAsync(AetheriaOperationsSurfaceProjector.Build(eveStatus, verseHost, runtimeSession))
+        .ReplaceAsync(AetheriaEveSurfaceDocuments.BuildOperationsSurface(eveStatus, verseHost, runtimeSession))
         .ConfigureAwait(false);
     await node.MutableDocument<EveSurfaceState>(AetheriaStateNode.PlayerSettingsSurfaceKey)
-        .ReplaceAsync(AetheriaPlayerSettingsSurfaceProjector.Build(playerSettings, playerSettingsUpdatedAt))
+        .ReplaceAsync(AetheriaEveSurfaceDocuments.BuildPlayerSettingsSurface(playerSettings, playerSettingsUpdatedAt))
         .ConfigureAwait(false);
     await node.MutableDocument<EveProviderAdvertisementState>(AetheriaStateNode.ProviderAdvertisementSurfaceKey)
-        .ReplaceAsync(AetheriaProviderAdvertisementProjector.Build(verseHost, node.StatePath, updatedAtUtc))
+        .ReplaceAsync(AetheriaEveSurfaceDocuments.BuildProviderAdvertisement(verseHost, node.StatePath, updatedAtUtc))
         .ConfigureAwait(false);
     await node.FlushAsync().ConfigureAwait(false);
 }

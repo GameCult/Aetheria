@@ -95,7 +95,7 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
     await node.FlushAsync();
     var runtimeCatalog = await node.RuntimeCatalog().LatestAsync().ConfigureAwait(false);
     await node.MutableDocument<EveSurfaceState>(AetheriaStateNode.CatalogSurfaceKey)
-        .ReplaceAsync(AetheriaCatalogSurfaceProjector.Build(runtimeCatalog, now));
+        .ReplaceAsync(AetheriaEveSurfaceDocuments.BuildCatalogSurface(runtimeCatalog, now));
 
     var verseHostSettings = AetheriaVerseHostSettingsNormalizer.Normalize(new AetheriaVerseHostSettings
     {
@@ -103,9 +103,9 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
     });
     await node.MutableDocument<AetheriaVerseHostSettings>(AetheriaStateNode.VerseHostSettingsKey).ReplaceAsync(verseHostSettings);
     await node.MutableDocument<EveSurfaceState>(AetheriaStateNode.OperationsSurfaceKey)
-        .ReplaceAsync(AetheriaOperationsSurfaceProjector.Build(verseHostSettings: verseHostSettings));
+        .ReplaceAsync(AetheriaEveSurfaceDocuments.BuildOperationsSurface(verseHostSettings: verseHostSettings));
     await node.MutableDocument<EveProviderAdvertisementState>(AetheriaStateNode.ProviderAdvertisementSurfaceKey)
-        .ReplaceAsync(AetheriaProviderAdvertisementProjector.Build(verseHostSettings, statePath, now));
+        .ReplaceAsync(AetheriaEveSurfaceDocuments.BuildProviderAdvertisement(verseHostSettings, statePath, now));
     var daemonProvider = AetheriaRuntimeDaemonProviderAdvertisementDocument.Create(
         statePath,
         "smoke-daemon",
@@ -182,7 +182,7 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
         LastSeenAtUtc = now,
         Status = "running"
     });
-    await node.MutableDocument<EveSurfaceState>(AetheriaStateNode.OperationsSurfaceKey).ReplaceAsync(AetheriaOperationsSurfaceProjector.Build(
+    await node.MutableDocument<EveSurfaceState>(AetheriaStateNode.OperationsSurfaceKey).ReplaceAsync(AetheriaEveSurfaceDocuments.BuildOperationsSurface(
         verseHostSettings: verseHostSettings,
         runtimeSession: await node.MutableDocument<AetheriaRuntimeSession>(AetheriaStateNode.RuntimeSessionKey("smoke-runtime")).ReadAsync()));
 
@@ -535,7 +535,7 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
         }
     });
     await node.MutableDocument<EveSurfaceState>(AetheriaStateNode.PlayerSettingsSurfaceKey)
-        .ReplaceAsync(AetheriaPlayerSettingsSurfaceProjector.Build(
+        .ReplaceAsync(AetheriaEveSurfaceDocuments.BuildPlayerSettingsSurface(
             await node.MutableDocument<AetheriaPlayerSettings>(AetheriaStateNode.PlayerSettingsKey).ReadAsync(),
             now));
 
@@ -616,7 +616,7 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
         Status = eveCommandReport.RejectedCommands > 0 ? "rejected" : "ok"
     };
     await node.MutableDocument<AetheriaEveCommandAcceptanceStatus>(AetheriaStateNode.EveCommandAcceptanceStatusKey).ReplaceAsync(eveCommandStatus);
-    await node.MutableDocument<EveSurfaceState>(AetheriaStateNode.OperationsSurfaceKey).ReplaceAsync(AetheriaOperationsSurfaceProjector.Build(
+    await node.MutableDocument<EveSurfaceState>(AetheriaStateNode.OperationsSurfaceKey).ReplaceAsync(AetheriaEveSurfaceDocuments.BuildOperationsSurface(
         eveCommandStatus,
         verseHostSettings: await node.MutableDocument<AetheriaVerseHostSettings>(AetheriaStateNode.VerseHostSettingsKey).ReadAsync(),
         runtimeSession: await node.MutableDocument<AetheriaRuntimeSession>(AetheriaStateNode.RuntimeSessionKey("smoke-runtime")).ReadAsync()));
@@ -678,7 +678,7 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
     }
 
     if (catalogSurface?.Schema != "gamecult.eve.surface.v1" ||
-        catalogSurface.Surface.Id != AetheriaCatalogSurfaceProjector.SurfaceId)
+        catalogSurface.Surface.Id != AetheriaEveSurfaceDocuments.CatalogSurfaceId)
     {
         throw new InvalidOperationException("Eve catalog surface did not survive flush/reopen.");
     }
@@ -688,7 +688,7 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
         eveCommandStatus.AppliedCatalogRefreshes != 1 ||
         eveCommandStatus.AppliedPlayerSettingsCommands != 2 ||
         !eveCommandStatus.LastRejectedReason.Contains("Unknown typed Eve command kind", StringComparison.Ordinal) ||
-        operationsSurface?.Surface.Id != AetheriaOperationsSurfaceProjector.SurfaceId ||
+        operationsSurface?.Surface.Id != AetheriaEveSurfaceDocuments.OperationsSurfaceId ||
         !operationsSurface.Surface.Root.Children.Any(child => child.Id == "aetheria.operations.eveCommandAcceptance") ||
         operationsSurface.Surface.Root.Children.Any(child => child.Id == "aetheria.operations.commitDrain") ||
         !operationsSurface.Surface.Root.Children.Any(child => child.Id == "aetheria.operations.runtimeSession"))
@@ -704,23 +704,23 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
             $"children=[{string.Join(", ", operationsSurface?.Surface.Root.Children.Select(child => child.Id) ?? [])}].");
     }
 
-    if (advertisement?.ProviderId != AetheriaProviderAdvertisementProjector.ProviderId ||
+    if (advertisement?.ProviderId != AetheriaEveSurfaceDocuments.ProviderId ||
         advertisement.Surfaces.Length < 7 ||
-        !advertisement.Surfaces.Any(surface => surface.SurfaceId == AetheriaCatalogSurfaceProjector.SurfaceId) ||
-        !advertisement.Surfaces.Any(surface => surface.SurfaceId == AetheriaOperationsSurfaceProjector.SurfaceId) ||
-        !advertisement.Surfaces.Any(surface => surface.SurfaceId == AetheriaPlayerSettingsSurfaceProjector.SurfaceId) ||
+        !advertisement.Surfaces.Any(surface => surface.SurfaceId == AetheriaEveSurfaceDocuments.CatalogSurfaceId) ||
+        !advertisement.Surfaces.Any(surface => surface.SurfaceId == AetheriaEveSurfaceDocuments.OperationsSurfaceId) ||
+        !advertisement.Surfaces.Any(surface => surface.SurfaceId == AetheriaEveSurfaceDocuments.PlayerSettingsSurfaceId) ||
         !advertisement.Surfaces.Any(surface =>
             surface.SurfaceId == AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId &&
-            surface.Key == AetheriaProviderAdvertisementProjector.DaemonGameSurfaceKey) ||
+            surface.Key == AetheriaEveSurfaceDocuments.DaemonGameSurfaceKey) ||
         !advertisement.Surfaces.Any(surface =>
             surface.SurfaceId == AetheriaRuntimeDaemonGameSurfaceBuilder.TuiSurfaceId &&
-            surface.Key == AetheriaProviderAdvertisementProjector.DaemonGameTuiSurfaceKey) ||
+            surface.Key == AetheriaEveSurfaceDocuments.DaemonGameTuiSurfaceKey) ||
         !advertisement.Surfaces.Any(surface =>
             surface.SurfaceId == AetheriaRuntimeDaemonEditorSurfaceBuilder.SurfaceId &&
-            surface.Key == AetheriaProviderAdvertisementProjector.DaemonEditorSurfaceKey) ||
+            surface.Key == AetheriaEveSurfaceDocuments.DaemonEditorSurfaceKey) ||
         !advertisement.Surfaces.Any(surface =>
             surface.SurfaceId == AetheriaRuntimeDaemonEditorSurfaceBuilder.TuiSurfaceId &&
-            surface.Key == AetheriaProviderAdvertisementProjector.DaemonEditorTuiSurfaceKey) ||
+            surface.Key == AetheriaEveSurfaceDocuments.DaemonEditorTuiSurfaceKey) ||
         !advertisement.Schemas.Contains("aetheria.runtime_session.v1") ||
         !advertisement.Schemas.Contains(AetheriaRuntimeDaemonSchemas.ProviderAdvertisement) ||
         !advertisement.Schemas.Contains(AetheriaRuntimeDaemonSchemas.Frame) ||
@@ -776,7 +776,7 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
         throw new InvalidOperationException("Player settings did not survive flush/reopen.");
     }
 
-    if (playerSettingsSurface?.Surface.Id != AetheriaPlayerSettingsSurfaceProjector.SurfaceId ||
+    if (playerSettingsSurface?.Surface.Id != AetheriaEveSurfaceDocuments.PlayerSettingsSurfaceId ||
         !playerSettingsSurface.Surface.Root.Children.Any(child => child.Id == "aetheria.playerSettings.gameplay") ||
         !playerSettingsSurface.Surface.Root.Children.Any(child => child.Id == "aetheria.playerSettings.graphics"))
     {

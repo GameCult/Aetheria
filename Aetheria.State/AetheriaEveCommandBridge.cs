@@ -52,7 +52,7 @@ public static class AetheriaEveCommandBridge
                 case AetheriaRuntimeEveCommandKind.CatalogRefresh:
                     var catalog = await node.RuntimeCatalog().LatestAsync().ConfigureAwait(false);
                     await node.MutableDocument<EveSurfaceState>(AetheriaStateNode.CatalogSurfaceKey)
-                        .ReplaceAsync(AetheriaCatalogSurfaceProjector.Build(catalog, command.IssuedAtUtc))
+                        .ReplaceAsync(AetheriaEveSurfaceDocuments.BuildCatalogSurface(catalog, command.IssuedAtUtc))
                         .ConfigureAwait(false);
                     report.AcceptedCatalogRefreshes++;
                     break;
@@ -62,7 +62,7 @@ public static class AetheriaEveCommandBridge
                     var verseHostSettings = await node.MutableDocument<AetheriaVerseHostSettings>(AetheriaStateNode.VerseHostSettingsKey).ReadAsync().ConfigureAwait(false);
                     var runtimeSession = await node.MutableDocument<AetheriaRuntimeSession>(AetheriaStateNode.RuntimeSessionKey(eveStatus.RuntimeId)).ReadAsync().ConfigureAwait(false);
                     await node.MutableDocument<EveSurfaceState>(AetheriaStateNode.OperationsSurfaceKey)
-                        .ReplaceAsync(AetheriaOperationsSurfaceProjector.Build(
+                        .ReplaceAsync(AetheriaEveSurfaceDocuments.BuildOperationsSurface(
                             eveStatus,
                             verseHostSettings,
                             runtimeSession))
@@ -123,7 +123,7 @@ public static class AetheriaEveCommandBridge
     {
         if (!string.Equals(command.Schema, CommandSchema, StringComparison.Ordinal))
             return $"Unexpected Eve command schema '{command.Schema}'.";
-        if (!string.Equals(command.ProviderId, AetheriaProviderAdvertisementProjector.ProviderId, StringComparison.Ordinal))
+        if (!string.Equals(command.ProviderId, AetheriaEveSurfaceDocuments.ProviderId, StringComparison.Ordinal))
             return $"Unexpected Eve provider '{command.ProviderId}'.";
         if (command.Kind == AetheriaRuntimeEveCommandKind.Unknown)
             return $"Unknown typed Eve command kind for surface '{command.SurfaceId}' command '{command.Command}'.";
@@ -189,7 +189,7 @@ public static class AetheriaEveCommandBridge
         }
 
         await node.MutableDocument<EveSurfaceState>(AetheriaStateNode.PlayerSettingsSurfaceKey)
-            .ReplaceAsync(AetheriaPlayerSettingsSurfaceProjector.Build(settings, command.IssuedAtUtc))
+            .ReplaceAsync(AetheriaEveSurfaceDocuments.BuildPlayerSettingsSurface(settings, command.IssuedAtUtc))
             .ConfigureAwait(false);
     }
 
@@ -283,13 +283,13 @@ public static class AetheriaEveCommandBridge
         var runtimeSession = await node.MutableDocument<AetheriaRuntimeSession>(AetheriaStateNode.RuntimeSessionKey(eveStatus.RuntimeId)).ReadAsync().ConfigureAwait(false);
 
         await node.MutableDocument<EveSurfaceState>(AetheriaStateNode.OperationsSurfaceKey)
-            .ReplaceAsync(AetheriaOperationsSurfaceProjector.Build(
+            .ReplaceAsync(AetheriaEveSurfaceDocuments.BuildOperationsSurface(
                 eveStatus,
                 normalized,
                 runtimeSession))
             .ConfigureAwait(false);
         await node.MutableDocument<EveProviderAdvertisementState>(AetheriaStateNode.ProviderAdvertisementSurfaceKey)
-            .ReplaceAsync(AetheriaProviderAdvertisementProjector.Build(normalized, node.StatePath, command.IssuedAtUtc))
+            .ReplaceAsync(AetheriaEveSurfaceDocuments.BuildProviderAdvertisement(normalized, node.StatePath, command.IssuedAtUtc))
             .ConfigureAwait(false);
     }
 
