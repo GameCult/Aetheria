@@ -106,9 +106,9 @@ await using var node = await AetheriaStateNode.OpenAsync(
     "aetheria-state-verify",
     enableDurableShardLogs: false);
 
-var ledger = await node.MigrationLedger().ReadAsync()
+var ledger = await node.MutableDocument<AetheriaMigrationLedger>(AetheriaStateNode.MigrationLedgerKey).ReadAsync()
     ?? throw new InvalidOperationException("Missing typed migration ledger.");
-var quarantine = await node.LegacyCatalogQuarantine().ReadAsync()
+var quarantine = await node.MutableDocument<AetheriaLegacyCatalogQuarantine>(AetheriaStateNode.LegacyCatalogQuarantineKey).ReadAsync()
     ?? throw new InvalidOperationException("Missing legacy catalog quarantine document.");
 var publishedSurface = await node.MutableDocument<EveSurfaceState>(AetheriaStateNode.CatalogSurfaceKey).ReadAsync()
     ?? throw new InvalidOperationException("Missing Aetheria catalog Eve surface document.");
@@ -529,15 +529,15 @@ if (publishedSurface.Schema != surface.Schema ||
 
 await RequireLegacyLookupAsync(
     items[0].LegacyId,
-    () => node.ItemDefinitionByLegacyId(items[0].LegacyId).ReadAsync(),
+    () => node.MutableDocument<AetheriaItemDefinition>(AetheriaCatalogKeys.ItemDefinitionFromLegacyId(items[0].LegacyId)).ReadAsync(),
     "item definition");
 await RequireLegacyLookupAsync(
     corporations[0].LegacyId,
-    () => node.CorporationByLegacyId(corporations[0].LegacyId).ReadAsync(),
+    () => node.MutableDocument<AetheriaCorporation>(AetheriaCatalogKeys.CorporationFromLegacyId(corporations[0].LegacyId)).ReadAsync(),
     "corporation");
 await RequireLegacyLookupAsync(
     nameFiles[0].LegacyId,
-    () => node.NameFileByLegacyId(nameFiles[0].LegacyId).ReadAsync(),
+    () => node.MutableDocument<AetheriaNameFile>(AetheriaCatalogKeys.NameFileFromLegacyId(nameFiles[0].LegacyId)).ReadAsync(),
     "name file");
 
 if (string.IsNullOrWhiteSpace(quarantine.CatalogFingerprint))
@@ -10331,9 +10331,9 @@ static void RequireAetheriaStateNodeUsesManagedPointers(string root)
     var stateNode = File.ReadAllText(stateNodePath);
     var requiredSymbols = new[]
     {
-        "public CultMeshMutableStatePointer<AetheriaWorldState> World()",
-        "public CultMeshMutableStatePointer<AetheriaMigrationLedger> MigrationLedger()",
-        "public CultMeshMutableStatePointer<AetheriaItemDefinition> ItemDefinition(",
+        "public static CultRecordKey WorldKey { get; }",
+        "public static CultRecordKey MigrationLedgerKey { get; }",
+        "public static CultRecordKey LegacyCatalogQuarantineKey { get; }",
         "public CultMeshMutableStatePointer<TDocument> MutableDocument<TDocument>(CultRecordKey key)",
         "private CultMeshMutableStatePointer<T> MutableDocumentPointer<T>(CultRecordKey key)",
         "CultMesh.MutableStatePointer("
@@ -10389,6 +10389,19 @@ static void RequireAetheriaStateNodeUsesManagedPointers(string root)
         "public Task<AetheriaEntitySnapshot?> GetEntitySnapshotAsync(",
         "public Task<CultRecordHandle<AetheriaVerseHostSettings>> PutVerseHostSettingsAsync(",
         "public Task<AetheriaVerseHostSettings?> GetVerseHostSettingsAsync(",
+        "public CultMeshMutableStatePointer<AetheriaWorldState> World()",
+        "public CultMeshMutableStatePointer<AetheriaMigrationLedger> MigrationLedger()",
+        "public CultMeshMutableStatePointer<AetheriaLegacyCatalogQuarantine> LegacyCatalogQuarantine()",
+        "public CultMeshMutableStatePointer<AetheriaItemDefinition> ItemDefinition(",
+        "public CultMeshMutableStatePointer<AetheriaItemDefinition> ItemDefinitionByLegacyId(",
+        "public CultMeshMutableStatePointer<AetheriaCorporation> Corporation(",
+        "public CultMeshMutableStatePointer<AetheriaCorporation> CorporationByLegacyId(",
+        "public CultMeshMutableStatePointer<AetheriaNameFile> NameFile(",
+        "public CultMeshMutableStatePointer<AetheriaNameFile> NameFileByLegacyId(",
+        "public CultMeshMutableStatePointer<AetheriaLoadoutTemplate> LoadoutTemplate(",
+        "public CultMeshMutableStatePointer<AetheriaRunState> RunState(",
+        "public CultMeshMutableStatePointer<AetheriaZoneState> ZoneState(",
+        "public CultMeshMutableStatePointer<AetheriaEntitySnapshot> EntitySnapshot(",
         "public CultMeshMutableStatePointer<AetheriaRuntimeDaemonProviderAdvertisementDocument> ProviderAdvertisement()",
         "public CultMeshMutableStatePointer<AetheriaRuntimeDaemonHealthDocument> Health()",
         "public CultMeshMutableStatePointer<AetheriaRuntimeDaemonCommandBoundaryDocument> CommandBoundary()",
@@ -10710,11 +10723,9 @@ static void RequireDaemonVersePublication(string root)
         "public CultMeshDocumentHandle<AetheriaRuntimeCatalogSnapshot> RuntimeCatalog()",
         "AetheriaRuntimeCatalogStore.OpenReadOnly(StatePath)",
         "public CultMeshMutableStatePointer<TDocument> MutableDocument<TDocument>(CultRecordKey key)",
-        "public CultMeshMutableStatePointer<AetheriaMigrationLedger> MigrationLedger()",
-        "public CultMeshMutableStatePointer<AetheriaLegacyCatalogQuarantine> LegacyCatalogQuarantine()",
-        "public CultMeshMutableStatePointer<AetheriaItemDefinition> ItemDefinition(CultRecordKey key)",
-        "public CultMeshMutableStatePointer<AetheriaCorporation> Corporation(CultRecordKey key)",
-        "public CultMeshMutableStatePointer<AetheriaNameFile> NameFile(CultRecordKey key)",
+        "public static CultRecordKey WorldKey { get; }",
+        "public static CultRecordKey MigrationLedgerKey { get; }",
+        "public static CultRecordKey LegacyCatalogQuarantineKey { get; }",
         "private CultMeshMutableStatePointer<T> MutableDocumentPointer<T>(CultRecordKey key)",
         "CultMesh.MutableStatePointer(",
         "AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest"
@@ -10731,6 +10742,19 @@ static void RequireDaemonVersePublication(string root)
 
     var forbiddenDaemonNodeSymbols = new[]
     {
+        "public CultMeshMutableStatePointer<AetheriaWorldState> World()",
+        "public CultMeshMutableStatePointer<AetheriaMigrationLedger> MigrationLedger()",
+        "public CultMeshMutableStatePointer<AetheriaLegacyCatalogQuarantine> LegacyCatalogQuarantine()",
+        "public CultMeshMutableStatePointer<AetheriaItemDefinition> ItemDefinition(",
+        "public CultMeshMutableStatePointer<AetheriaItemDefinition> ItemDefinitionByLegacyId(",
+        "public CultMeshMutableStatePointer<AetheriaCorporation> Corporation(",
+        "public CultMeshMutableStatePointer<AetheriaCorporation> CorporationByLegacyId(",
+        "public CultMeshMutableStatePointer<AetheriaNameFile> NameFile(",
+        "public CultMeshMutableStatePointer<AetheriaNameFile> NameFileByLegacyId(",
+        "public CultMeshMutableStatePointer<AetheriaLoadoutTemplate> LoadoutTemplate(",
+        "public CultMeshMutableStatePointer<AetheriaRunState> RunState(",
+        "public CultMeshMutableStatePointer<AetheriaZoneState> ZoneState(",
+        "public CultMeshMutableStatePointer<AetheriaEntitySnapshot> EntitySnapshot(",
         "public CultMeshMutableStatePointer<AetheriaRuntimeDaemonProviderAdvertisementDocument> ProviderAdvertisement()",
         "public CultMeshMutableStatePointer<AetheriaRuntimeDaemonHealthDocument> Health()",
         "public CultMeshMutableStatePointer<AetheriaRuntimeDaemonCommandBoundaryDocument> CommandBoundary()",

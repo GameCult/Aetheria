@@ -21,7 +21,7 @@ var nameFileKey = AetheriaCatalogKeys.NameFileFromLegacyId(nameFileLegacyId);
 
 await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-state-smoke"))
 {
-    await node.World().ReplaceAsync(new AetheriaWorldState
+    await node.MutableDocument<AetheriaWorldState>(AetheriaStateNode.WorldKey).ReplaceAsync(new AetheriaWorldState
     {
         Name = "Aetheria",
         WorldId = "aetheria",
@@ -30,7 +30,7 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
         UpdatedAtUtc = now
     });
 
-    await node.ItemDefinition(itemKey)
+    await node.MutableDocument<AetheriaItemDefinition>(itemKey)
         .ReplaceAsync(new AetheriaItemDefinition
         {
             Name = "Smoke Aether Drive",
@@ -42,7 +42,7 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
             Tags = ["smoke", "state-spine"]
         });
 
-    await node.MigrationLedger().ReplaceAsync(new AetheriaMigrationLedger
+    await node.MutableDocument<AetheriaMigrationLedger>(AetheriaStateNode.MigrationLedgerKey).ReplaceAsync(new AetheriaMigrationLedger
     {
         Source = LegacyMigrationBoundary.LegacyGameDataFile,
         SourceFingerprint = "smoke",
@@ -58,7 +58,7 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
         Notes = ["Smoke proves the new state owner can write, flush, reopen, and read without old JSON/Rethink authority."]
     });
 
-    await node.LegacyCatalogQuarantine().ReplaceAsync(new AetheriaLegacyCatalogQuarantine
+    await node.MutableDocument<AetheriaLegacyCatalogQuarantine>(AetheriaStateNode.LegacyCatalogQuarantineKey).ReplaceAsync(new AetheriaLegacyCatalogQuarantine
     {
         RootPath = root,
         CapturedAtUtc = now,
@@ -77,14 +77,14 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
         Notes = ["Smoke proves legacy catalog quarantine state is typed and durable."]
     });
 
-    await node.Corporation(factionKey).ReplaceAsync(new AetheriaCorporation
+    await node.MutableDocument<AetheriaCorporation>(factionKey).ReplaceAsync(new AetheriaCorporation
     {
         Name = "Smoke Faction",
         LegacyId = factionLegacyId,
         Description = "Typed faction/corporation document for legacy catalog migration smoke."
     });
 
-    await node.NameFile(nameFileKey).ReplaceAsync(new AetheriaNameFile
+    await node.MutableDocument<AetheriaNameFile>(nameFileKey).ReplaceAsync(new AetheriaNameFile
     {
         Name = "Smoke Names",
         LegacyId = nameFileLegacyId,
@@ -183,7 +183,7 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
         verseHostSettings: verseHostSettings,
         runtimeSession: await node.MutableDocument<AetheriaRuntimeSession>(AetheriaStateNode.RuntimeSessionKey("smoke-runtime")).ReadAsync()));
 
-    await node.LoadoutTemplate(loadoutKey).ReplaceAsync(new AetheriaLoadoutTemplate
+    await node.MutableDocument<AetheriaLoadoutTemplate>(loadoutKey).ReplaceAsync(new AetheriaLoadoutTemplate
     {
         Name = "Smoke Aether Runner",
         OwnerPlayerKey = "player:smoke",
@@ -219,7 +219,7 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
         }
     });
 
-    await node.EntitySnapshot(entityKey).ReplaceAsync(new AetheriaEntitySnapshot
+    await node.MutableDocument<AetheriaEntitySnapshot>(entityKey).ReplaceAsync(new AetheriaEntitySnapshot
     {
         Name = "Smoke Aether Runner",
         Kind = "ship",
@@ -419,7 +419,7 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
         ]
     });
 
-    await node.ZoneState(zoneKey).ReplaceAsync(new AetheriaZoneState
+    await node.MutableDocument<AetheriaZoneState>(zoneKey).ReplaceAsync(new AetheriaZoneState
     {
         Name = "Smoke Zone",
         Position = new AetheriaVector2 { X = 4.0, Y = 8.0 },
@@ -479,7 +479,7 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
         ]
     });
 
-    await node.RunState(runKey).ReplaceAsync(new AetheriaRunState
+    await node.MutableDocument<AetheriaRunState>(runKey).ReplaceAsync(new AetheriaRunState
     {
         RunId = "smoke",
         IsTutorial = false,
@@ -618,11 +618,11 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
 }
 await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aetheria-state-smoke-reopen"))
 {
-    var world = await reopened.World().ReadAsync();
-    var item = await reopened.ItemDefinitionByLegacyId(itemLegacyId).ReadAsync();
-    var faction = await reopened.CorporationByLegacyId(factionLegacyId).ReadAsync();
-    var nameFile = await reopened.NameFileByLegacyId(nameFileLegacyId).ReadAsync();
-    var quarantine = await reopened.LegacyCatalogQuarantine().ReadAsync();
+    var world = await reopened.MutableDocument<AetheriaWorldState>(AetheriaStateNode.WorldKey).ReadAsync();
+    var item = await reopened.MutableDocument<AetheriaItemDefinition>(AetheriaCatalogKeys.ItemDefinitionFromLegacyId(itemLegacyId)).ReadAsync();
+    var faction = await reopened.MutableDocument<AetheriaCorporation>(AetheriaCatalogKeys.CorporationFromLegacyId(factionLegacyId)).ReadAsync();
+    var nameFile = await reopened.MutableDocument<AetheriaNameFile>(AetheriaCatalogKeys.NameFileFromLegacyId(nameFileLegacyId)).ReadAsync();
+    var quarantine = await reopened.MutableDocument<AetheriaLegacyCatalogQuarantine>(AetheriaStateNode.LegacyCatalogQuarantineKey).ReadAsync();
     var catalogSurface = await reopened.MutableDocument<EveSurfaceState>(AetheriaStateNode.CatalogSurfaceKey).ReadAsync();
     var eveCommandStatus = await reopened.MutableDocument<AetheriaEveCommandAcceptanceStatus>(AetheriaStateNode.EveCommandAcceptanceStatusKey).ReadAsync();
     var operationsSurface = await reopened.MutableDocument<EveSurfaceState>(AetheriaStateNode.OperationsSurfaceKey).ReadAsync();
@@ -640,10 +640,10 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
         .ReadAsync();
     var runtimeSession = await reopened.MutableDocument<AetheriaRuntimeSession>(AetheriaStateNode.RuntimeSessionKey("smoke-runtime")).ReadAsync();
     var playerSettings = await reopened.MutableDocument<AetheriaPlayerSettings>(AetheriaStateNode.PlayerSettingsKey).ReadAsync();
-    var loadout = await reopened.LoadoutTemplate(loadoutKey).ReadAsync();
-    var runState = await reopened.RunState(runKey).ReadAsync();
-    var zoneState = await reopened.ZoneState(zoneKey).ReadAsync();
-    var entitySnapshot = await reopened.EntitySnapshot(entityKey).ReadAsync();
+    var loadout = await reopened.MutableDocument<AetheriaLoadoutTemplate>(loadoutKey).ReadAsync();
+    var runState = await reopened.MutableDocument<AetheriaRunState>(runKey).ReadAsync();
+    var zoneState = await reopened.MutableDocument<AetheriaZoneState>(zoneKey).ReadAsync();
+    var entitySnapshot = await reopened.MutableDocument<AetheriaEntitySnapshot>(entityKey).ReadAsync();
 
     if (world?.WorldId != "aetheria")
     {

@@ -116,73 +116,6 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
             routeHint: new CultMeshRouteHint(CultMeshLocalityKind.SharedMemory, "Aetheria typed catalog state"));
     }
 
-    public CultMeshMutableStatePointer<AetheriaWorldState> World()
-    {
-        return MutableDocumentPointer<AetheriaWorldState>(new CultRecordKey("global:aetheria.world_state.v1"));
-    }
-
-    public CultMeshMutableStatePointer<AetheriaMigrationLedger> MigrationLedger()
-    {
-        return MutableDocumentPointer<AetheriaMigrationLedger>(
-            new CultRecordKey("global:aetheria.migration_ledger.v1"));
-    }
-
-    public CultMeshMutableStatePointer<AetheriaLegacyCatalogQuarantine> LegacyCatalogQuarantine()
-    {
-        return MutableDocumentPointer<AetheriaLegacyCatalogQuarantine>(
-            new CultRecordKey("global:aetheria.legacy_catalog_quarantine.v1"));
-    }
-
-    public CultMeshMutableStatePointer<AetheriaItemDefinition> ItemDefinition(CultRecordKey key)
-    {
-        return MutableDocumentPointer<AetheriaItemDefinition>(key);
-    }
-
-    public CultMeshMutableStatePointer<AetheriaItemDefinition> ItemDefinitionByLegacyId(string legacyId)
-    {
-        return ItemDefinition(AetheriaCatalogKeys.ItemDefinitionFromLegacyId(legacyId));
-    }
-
-    public CultMeshMutableStatePointer<AetheriaCorporation> Corporation(CultRecordKey key)
-    {
-        return MutableDocumentPointer<AetheriaCorporation>(key);
-    }
-
-    public CultMeshMutableStatePointer<AetheriaCorporation> CorporationByLegacyId(string legacyId)
-    {
-        return Corporation(AetheriaCatalogKeys.CorporationFromLegacyId(legacyId));
-    }
-
-    public CultMeshMutableStatePointer<AetheriaNameFile> NameFile(CultRecordKey key)
-    {
-        return MutableDocumentPointer<AetheriaNameFile>(key);
-    }
-
-    public CultMeshMutableStatePointer<AetheriaNameFile> NameFileByLegacyId(string legacyId)
-    {
-        return NameFile(AetheriaCatalogKeys.NameFileFromLegacyId(legacyId));
-    }
-
-    public CultMeshMutableStatePointer<AetheriaLoadoutTemplate> LoadoutTemplate(CultRecordKey key)
-    {
-        return MutableDocumentPointer<AetheriaLoadoutTemplate>(key);
-    }
-
-    public CultMeshMutableStatePointer<AetheriaRunState> RunState(CultRecordKey key)
-    {
-        return MutableDocumentPointer<AetheriaRunState>(key);
-    }
-
-    public CultMeshMutableStatePointer<AetheriaZoneState> ZoneState(CultRecordKey key)
-    {
-        return MutableDocumentPointer<AetheriaZoneState>(key);
-    }
-
-    public CultMeshMutableStatePointer<AetheriaEntitySnapshot> EntitySnapshot(CultRecordKey key)
-    {
-        return MutableDocumentPointer<AetheriaEntitySnapshot>(key);
-    }
-
     public Task<CultRecordHandle<AetheriaRuntimeDaemonCommandDocument>> SubmitDaemonCommandAsync(
         AetheriaRuntimeDaemonCommandDocument command)
     {
@@ -291,6 +224,15 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
     {
         return new CultRecordKey($"runtime:{runtimeId}:aetheria.runtime_session.v1");
     }
+
+    public static CultRecordKey WorldKey { get; } =
+        new("global:aetheria.world_state.v1");
+
+    public static CultRecordKey MigrationLedgerKey { get; } =
+        new("global:aetheria.migration_ledger.v1");
+
+    public static CultRecordKey LegacyCatalogQuarantineKey { get; } =
+        new("global:aetheria.legacy_catalog_quarantine.v1");
 
     public static CultRecordKey CatalogSurfaceKey { get; } =
         new(AetheriaCatalogSurfaceProjector.SurfaceKey);

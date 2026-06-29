@@ -297,7 +297,7 @@ public static class AetheriaEveCommandBridge
         var commit = command.LoadoutTemplate ?? throw new InvalidOperationException(
             $"Loadout template command '{command.CommandId}' is missing its typed payload.");
         var loadout = AetheriaRuntimeStateMapper.ToLoadoutTemplate(commit, command.IssuedAtUtc);
-        await node.LoadoutTemplate(AetheriaRuntimeStateMapper.LoadoutKey(loadout.Name))
+        await node.MutableDocument<AetheriaLoadoutTemplate>(AetheriaRuntimeStateMapper.LoadoutKey(loadout.Name))
             .ReplaceAsync(loadout)
             .ConfigureAwait(false);
     }
