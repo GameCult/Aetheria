@@ -5,14 +5,10 @@
 using System;
 using System.Linq;
 using GameCult.Aetheria.State.Verse;
-using GameCult.Mesh;
 
-public sealed class AetheriaUnityObservedDockingIndex : IDisposable
+public sealed class AetheriaUnityObservedDockingIndex
 {
     private readonly AetheriaUnityObservedEntityIndex _observedEntityIndex;
-    private CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> _currentEntity;
-    private CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> _currentDocking;
-    private CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> _stationRefit;
 
     public AetheriaUnityObservedDockingIndex(AetheriaUnityObservedEntityIndex observedEntityIndex)
     {
@@ -175,13 +171,13 @@ public sealed class AetheriaUnityObservedDockingIndex : IDisposable
         refit = null;
         try
         {
-            EnsureDockingDocuments();
-            docking = _currentDocking?.Current;
-            refit = _stationRefit?.Current;
+            var state = AetheriaUnityRuntimeClientProvider.RuntimeState();
+            docking = state.CurrentDockingState();
+            refit = state.CurrentStationRefit();
             if (docking == null || refit == null)
                 return false;
 
-            entity = _currentEntity?.Current;
+            entity = state.CurrentEntityState();
             return true;
         }
         catch
@@ -197,28 +193,5 @@ public sealed class AetheriaUnityObservedDockingIndex : IDisposable
         return !string.IsNullOrWhiteSpace(entity?.EntityKey)
             ? entity.EntityKey
             : docking?.CurrentEntityKey ?? "";
-    }
-
-    private void EnsureDockingDocuments()
-    {
-        if (_currentEntity != null && _currentDocking != null && _stationRefit != null)
-            return;
-
-        _currentEntity ??= AetheriaUnityRuntimeClientProvider
-            .ReactiveCurrentEntity("unity-observed-docking");
-        _currentDocking ??= AetheriaUnityRuntimeClientProvider
-            .ReactiveCurrentDocking("unity-observed-docking");
-        _stationRefit ??= AetheriaUnityRuntimeClientProvider
-            .ReactiveStationRefit("unity-observed-docking");
-    }
-
-    public void Dispose()
-    {
-        _currentEntity?.Dispose();
-        _currentEntity = null;
-        _currentDocking?.Dispose();
-        _currentDocking = null;
-        _stationRefit?.Dispose();
-        _stationRefit = null;
     }
 }

@@ -297,7 +297,6 @@ public class ActionGameManager : MonoBehaviour
     {
         _gameplayInputShell?.Dispose();
         _observedTargetQuery?.Dispose();
-        _observedDocking?.Dispose();
         _observedTargetQuery = null;
         _observedDocking = null;
         AetheriaUnityRuntimeClientProvider.Dispose();

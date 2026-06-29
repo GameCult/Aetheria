@@ -32,7 +32,6 @@ public class LocalMenu : MonoBehaviour
     {
         if (!ReferenceEquals(_observedEntityIndex, observedEntityIndex))
         {
-            _observedDockingIndex?.Dispose();
             _observedDockingIndex = null;
         }
 
@@ -247,7 +246,6 @@ public class LocalMenu : MonoBehaviour
             AetheriaEveUnitySurfaceHost.DestroyDocument(_surfaceDocument);
             _surfaceDocument = null;
         }
-        _observedDockingIndex?.Dispose();
         _observedDockingIndex = null;
     }
 

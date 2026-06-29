@@ -7476,7 +7476,7 @@ static void RequireMenuDockingUsesManagedTypedSnapshot(string root)
             string.Join(", ", directDockingOffenders));
     }
 
-    Console.WriteLine("Menu docking state: Unity menus read managed reactive typed docking snapshots");
+    Console.WriteLine("Menu docking state: Unity menus sample managed typed docking documents through native current access");
 }
 
 static bool HasManagedDockingSnapshotAccess(string source)
@@ -7508,16 +7508,17 @@ static bool HasManagedDockingSnapshotAccess(string source)
     }
 
     return source.Contains("public sealed class AetheriaUnityObservedDockingIndex", StringComparison.Ordinal) &&
-           source.Contains("CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> _currentEntity", StringComparison.Ordinal) &&
-           source.Contains("CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> _currentDocking", StringComparison.Ordinal) &&
-           source.Contains("CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> _stationRefit", StringComparison.Ordinal) &&
            source.Contains("TryReadDockingSnapshots(", StringComparison.Ordinal) &&
-           source.Contains("AetheriaUnityRuntimeClientProvider", StringComparison.Ordinal) &&
-           source.Contains(".ReactiveCurrentEntity(\"unity-observed-docking\")", StringComparison.Ordinal) &&
-           source.Contains(".ReactiveCurrentDocking(\"unity-observed-docking\")", StringComparison.Ordinal) &&
-           source.Contains(".ReactiveStationRefit(\"unity-observed-docking\")", StringComparison.Ordinal) &&
-           source.Contains("_currentDocking?.Current", StringComparison.Ordinal) &&
-           source.Contains("_stationRefit?.Current", StringComparison.Ordinal) &&
+           source.Contains("AetheriaUnityRuntimeClientProvider.RuntimeState()", StringComparison.Ordinal) &&
+           source.Contains("state.CurrentDockingState()", StringComparison.Ordinal) &&
+           source.Contains("state.CurrentStationRefit()", StringComparison.Ordinal) &&
+           source.Contains("state.CurrentEntityState()", StringComparison.Ordinal) &&
+           !source.Contains("CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument>", StringComparison.Ordinal) &&
+           !source.Contains("CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument>", StringComparison.Ordinal) &&
+           !source.Contains("CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument>", StringComparison.Ordinal) &&
+           !source.Contains(".ReactiveCurrentEntity(\"unity-observed-docking\")", StringComparison.Ordinal) &&
+           !source.Contains(".ReactiveCurrentDocking(\"unity-observed-docking\")", StringComparison.Ordinal) &&
+           !source.Contains(".ReactiveStationRefit(\"unity-observed-docking\")", StringComparison.Ordinal) &&
            !source.Contains("state.Latest<AetheriaRuntimeCurrentEntityDocument>()", StringComparison.Ordinal) &&
            !source.Contains("state.Latest<AetheriaRuntimeCurrentDockingDocument>()", StringComparison.Ordinal) &&
            !source.Contains("state.Latest<AetheriaRuntimeStationRefitDocument>()", StringComparison.Ordinal) &&
@@ -13720,16 +13721,11 @@ static void RequireMainMenuContinueRunState(string root)
     var requiredObservedDockingSymbols = new[]
     {
         "public sealed class AetheriaUnityObservedDockingIndex",
-        "CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> _currentEntity",
-        "CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> _currentDocking",
-        "CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> _stationRefit",
         "TryReadDockingSnapshots(",
-        "AetheriaUnityRuntimeClientProvider",
-        ".ReactiveCurrentEntity(\"unity-observed-docking\")",
-        ".ReactiveCurrentDocking(\"unity-observed-docking\")",
-        ".ReactiveStationRefit(\"unity-observed-docking\")",
-        "_currentDocking?.Current",
-        "_stationRefit?.Current",
+        "AetheriaUnityRuntimeClientProvider.RuntimeState()",
+        "state.CurrentDockingState()",
+        "state.CurrentStationRefit()",
+        "state.CurrentEntityState()",
         "public bool IsEntityUndocked(Entity entity)",
         "public bool TryResolveDockingBay(",
         "out AetheriaRuntimeCurrentDockingDocument docking",
@@ -13748,6 +13744,12 @@ static void RequireMainMenuContinueRunState(string root)
 
     var forbiddenObservedDockingSymbols = new[]
     {
+        "CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument>",
+        "CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument>",
+        "CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument>",
+        ".ReactiveCurrentEntity(\"unity-observed-docking\")",
+        ".ReactiveCurrentDocking(\"unity-observed-docking\")",
+        ".ReactiveStationRefit(\"unity-observed-docking\")",
         "state.Latest<AetheriaRuntimeCurrentEntityDocument>()",
         "state.Latest<AetheriaRuntimeCurrentDockingDocument>()",
         "state.Latest<AetheriaRuntimeStationRefitDocument>()",
@@ -13765,7 +13767,7 @@ static void RequireMainMenuContinueRunState(string root)
     if (observedDockingHits.Length > 0)
     {
         throw new InvalidOperationException(
-            "Observed docking state composition must use owned managed reactive typed documents in AetheriaUnityObservedDockingIndex: " +
+            "Observed docking state composition must sample native current typed documents in AetheriaUnityObservedDockingIndex: " +
             string.Join(", ", observedDockingHits));
     }
 

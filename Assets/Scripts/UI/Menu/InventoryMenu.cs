@@ -67,7 +67,6 @@ public class InventoryMenu : MonoBehaviour
     {
         if (!ReferenceEquals(_observedEntityIndex, observedEntityIndex))
         {
-            _observedDockingIndex?.Dispose();
             _observedDockingIndex = null;
         }
 
@@ -908,7 +907,6 @@ public class InventoryMenu : MonoBehaviour
         _playerSettings?.Dispose();
         _currentEntity?.Dispose();
         _stationRefit?.Dispose();
-        _observedDockingIndex?.Dispose();
         _inventory?.Dispose();
         _catalog = null;
         _playerSettings = null;

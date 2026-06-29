@@ -58,7 +58,6 @@ public class TradeMenu : MonoBehaviour
     {
         if (!ReferenceEquals(_observedEntityIndex, observedEntityIndex))
         {
-            _observedDockingIndex?.Dispose();
             _observedDockingIndex = null;
         }
 
@@ -589,7 +588,6 @@ public class TradeMenu : MonoBehaviour
     {
         _catalog?.Dispose();
         _playerSettings?.Dispose();
-        _observedDockingIndex?.Dispose();
         _catalog = null;
         _playerSettings = null;
         _observedDockingIndex = null;

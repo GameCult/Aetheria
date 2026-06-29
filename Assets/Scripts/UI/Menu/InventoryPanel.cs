@@ -91,7 +91,6 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
     {
         if (!ReferenceEquals(_observedEntityIndex, observedEntityIndex))
         {
-            _observedDockingIndex?.Dispose();
             _observedDockingIndex = null;
         }
 
@@ -1466,7 +1465,6 @@ private void Update()
         _currentEntity?.Dispose();
         _stationRefit?.Dispose();
         _loadoutFrame?.Dispose();
-        _observedDockingIndex?.Dispose();
         _inventory?.Dispose();
         _catalog = null;
         _playerSettings = null;

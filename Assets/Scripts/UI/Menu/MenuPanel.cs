@@ -40,7 +40,6 @@ public class MenuPanel : MonoBehaviour
     {
         if (!ReferenceEquals(_observedEntityIndex, observedEntityIndex))
         {
-            _observedDockingIndex?.Dispose();
             _observedDockingIndex = null;
         }
 
@@ -107,7 +106,6 @@ public class MenuPanel : MonoBehaviour
             _tabSurfaceDocument = null;
         }
 
-        _observedDockingIndex?.Dispose();
         _observedDockingIndex = null;
     }
 
