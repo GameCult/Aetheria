@@ -170,31 +170,10 @@ namespace GameCult.Aetheria.EveRuntime
         private CultMeshReactiveDocument<global::Aetheria.State.Documents.EveSurfaceState>? CreateReactiveDaemonSurfaceState(
             AetheriaRuntimeStateBootReport stateBoot)
         {
-            if (string.Equals(surfaceId, AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId, StringComparison.Ordinal))
-                return AetheriaUnityRuntimeClientProvider.Reactive<global::Aetheria.State.Documents.EveSurfaceState>(
-                    stateBoot,
-                    AetheriaClientEveSurface.Game,
-                    "unity-eve-surface-presenter");
-
-            if (string.Equals(surfaceId, AetheriaRuntimeDaemonGameSurfaceBuilder.TuiSurfaceId, StringComparison.Ordinal))
-                return AetheriaUnityRuntimeClientProvider.Reactive<global::Aetheria.State.Documents.EveSurfaceState>(
-                    stateBoot,
-                    AetheriaClientEveSurface.GameTui,
-                    "unity-eve-surface-presenter");
-
-            if (string.Equals(surfaceId, AetheriaRuntimeDaemonEditorSurfaceBuilder.SurfaceId, StringComparison.Ordinal))
-                return AetheriaUnityRuntimeClientProvider.Reactive<global::Aetheria.State.Documents.EveSurfaceState>(
-                    stateBoot,
-                    AetheriaClientEveSurface.Editor,
-                    "unity-eve-surface-presenter");
-
-            if (string.Equals(surfaceId, AetheriaRuntimeDaemonEditorSurfaceBuilder.TuiSurfaceId, StringComparison.Ordinal))
-                return AetheriaUnityRuntimeClientProvider.Reactive<global::Aetheria.State.Documents.EveSurfaceState>(
-                    stateBoot,
-                    AetheriaClientEveSurface.EditorTui,
-                    "unity-eve-surface-presenter");
-
-            return null;
+            return AetheriaUnityRuntimeClientProvider.ReactiveEveSurface(
+                stateBoot,
+                surfaceId,
+                "unity-eve-surface-presenter");
         }
 
         private UIDocument ResolveDocument()

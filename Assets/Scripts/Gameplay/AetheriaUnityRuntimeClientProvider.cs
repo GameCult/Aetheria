@@ -136,6 +136,21 @@ public static class AetheriaUnityRuntimeClientProvider
         return RuntimeState(stateBoot, runtimeId).Reactive<TDocument>(surface);
     }
 
+    public static CultMeshReactiveDocument<global::Aetheria.State.Documents.EveSurfaceState> ReactiveEveSurface(
+        string surfaceId,
+        string runtimeId = "")
+    {
+        return RuntimeState(runtimeId).ReactiveEveSurface(surfaceId);
+    }
+
+    public static CultMeshReactiveDocument<global::Aetheria.State.Documents.EveSurfaceState> ReactiveEveSurface(
+        AetheriaRuntimeStateBootReport stateBoot,
+        string surfaceId,
+        string runtimeId = "")
+    {
+        return RuntimeState(stateBoot, runtimeId).ReactiveEveSurface(surfaceId);
+    }
+
     public static CultMeshReactiveDocument<TDocument> Reactive<TDocument>(
         AetheriaRuntimeRtsViewportBounds viewport,
         string runtimeId = "")

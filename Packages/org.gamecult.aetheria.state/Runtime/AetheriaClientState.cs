@@ -193,6 +193,52 @@ namespace GameCult.Aetheria.State.Verse
             return Document<TDocument>().Reactive();
         }
 
+        public static bool TryResolveEveSurface(
+            string? surfaceId,
+            out AetheriaClientEveSurface surface)
+        {
+            if (string.Equals(surfaceId, AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId, StringComparison.Ordinal))
+            {
+                surface = AetheriaClientEveSurface.Game;
+                return true;
+            }
+
+            if (string.Equals(surfaceId, AetheriaRuntimeDaemonGameSurfaceBuilder.TuiSurfaceId, StringComparison.Ordinal))
+            {
+                surface = AetheriaClientEveSurface.GameTui;
+                return true;
+            }
+
+            if (string.Equals(surfaceId, AetheriaRuntimeDaemonEditorSurfaceBuilder.SurfaceId, StringComparison.Ordinal))
+            {
+                surface = AetheriaClientEveSurface.Editor;
+                return true;
+            }
+
+            if (string.Equals(surfaceId, AetheriaRuntimeDaemonEditorSurfaceBuilder.TuiSurfaceId, StringComparison.Ordinal))
+            {
+                surface = AetheriaClientEveSurface.EditorTui;
+                return true;
+            }
+
+            surface = default;
+            return false;
+        }
+
+        public CultMeshDocumentHandle<global::Aetheria.State.Documents.EveSurfaceState>? EveSurfaceDocument(
+            string? surfaceId)
+        {
+            return TryResolveEveSurface(surfaceId, out var surface)
+                ? Document<global::Aetheria.State.Documents.EveSurfaceState>(surface)
+                : null;
+        }
+
+        public CultMeshReactiveDocument<global::Aetheria.State.Documents.EveSurfaceState>? ReactiveEveSurface(
+            string? surfaceId)
+        {
+            return EveSurfaceDocument(surfaceId)?.Reactive();
+        }
+
         public CultMeshDocumentHandle<TDocument> Document<TDocument>(AetheriaClientEveSurface surface)
             where TDocument : class
         {

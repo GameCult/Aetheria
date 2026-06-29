@@ -3213,14 +3213,10 @@ static void RequireEveRuntimeBootstrap(string root)
     {
         "private string surfaceId = AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId",
         "ReadDaemonSurface(stateBoot)",
-        "AetheriaUnityRuntimeClientProvider.Reactive<global::Aetheria.State.Documents.EveSurfaceState>(",
+        "AetheriaUnityRuntimeClientProvider.ReactiveEveSurface(",
         "AetheriaUnityRuntimeClientProvider.EveSurfaceStateRefResolver(",
         "CultMeshReactiveDocument<global::Aetheria.State.Documents.EveSurfaceState>",
         "ResolveReactiveDaemonSurfaceState(",
-        "AetheriaClientEveSurface.Game",
-        "AetheriaClientEveSurface.GameTui",
-        "AetheriaClientEveSurface.Editor",
-        "AetheriaClientEveSurface.EditorTui",
         "DisposeReactiveSurfaceState()",
         "AetheriaRuntimeEveSurfaceAdapter.ToEveSurfaceDocument(",
         "private bool ShouldMountSurface(",
@@ -3273,6 +3269,7 @@ static void RequireEveRuntimeBootstrap(string root)
 
     if (presenter.Contains("ResolveClient(", StringComparison.Ordinal) ||
         presenter.Contains("AetheriaRuntimeDaemonSurfaceCommands.TrySubmit(", StringComparison.Ordinal) ||
+        presenter.Contains("AetheriaClientEveSurface.", StringComparison.Ordinal) ||
         presenter.Contains("client.State.", StringComparison.Ordinal) ||
         presenter.Contains("client.Ui.", StringComparison.Ordinal))
     {
@@ -8330,6 +8327,9 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
     {
         "public CultMeshDocumentHandle<TDocument> Document<TDocument>()",
         "public enum AetheriaClientEveSurface",
+        "public static bool TryResolveEveSurface(",
+        "public CultMeshDocumentHandle<global::Aetheria.State.Documents.EveSurfaceState>? EveSurfaceDocument(",
+        "public CultMeshReactiveDocument<global::Aetheria.State.Documents.EveSurfaceState>? ReactiveEveSurface(",
         "public CultMeshDocumentHandle<TDocument> Document<TDocument>(AetheriaClientEveSurface surface)",
         "public CultMeshDocumentHandle<TDocument> Document<TDocument>(AetheriaRuntimeRtsViewportBounds viewport)",
         "public CultMeshDocumentHandle<TDocument> Document<TDocument>(int index)",
@@ -16343,6 +16343,7 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "public static CultMeshReactiveDocument<TDocument> Reactive<TDocument>(string runtimeId = \"\")",
         "public static CultMeshReactiveDocument<TDocument> Reactive<TDocument>(",
         "AetheriaClientEveSurface surface",
+        "public static CultMeshReactiveDocument<global::Aetheria.State.Documents.EveSurfaceState> ReactiveEveSurface(",
         "public static CultMeshStateRefResolver EveSurfaceStateRefResolver(string runtimeId = \"\")",
         "public static CultMeshStateRefResolver EveSurfaceStateRefResolver(",
         "private static readonly Dictionary<string, AetheriaClient> RuntimeClients",
@@ -16900,7 +16901,7 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
             string.Join(", ", mainMenuReaderHits));
     }
 
-    if (!eveSurfacePresenter.Contains("AetheriaUnityRuntimeClientProvider.Reactive<global::Aetheria.State.Documents.EveSurfaceState>(", StringComparison.Ordinal) ||
+    if (!eveSurfacePresenter.Contains("AetheriaUnityRuntimeClientProvider.ReactiveEveSurface(", StringComparison.Ordinal) ||
         !eveSurfacePresenter.Contains("ReadDaemonSurface(stateBoot)", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
