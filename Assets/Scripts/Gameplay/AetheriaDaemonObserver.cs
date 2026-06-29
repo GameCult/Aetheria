@@ -36,8 +36,6 @@ public sealed class AetheriaDaemonObserver : MonoBehaviour
     public AetheriaDaemonSoaMemoryMap LastSoaMemoryMap => _soaMemoryMap;
     public AetheriaDaemonRenderNativeView LastRenderNativeView => _renderNativeView;
     public bool HasRenderNativeView => _renderNativeView.IsCreated;
-    public AetheriaClient Client => ResolveClient();
-    public AetheriaControl Control => Client.Control;
 
     public event Action<AetheriaRuntimeDaemonRenderView, AetheriaRuntimeDaemonObservationResult> DaemonRenderViewChanged;
 
@@ -125,7 +123,7 @@ public sealed class AetheriaDaemonObserver : MonoBehaviour
             return;
         }
 
-        var state = ResolveClient()?.State;
+        var state = ResolveState();
         if (state == null)
         {
             return;
@@ -150,7 +148,7 @@ public sealed class AetheriaDaemonObserver : MonoBehaviour
         }
     }
 
-    private AetheriaClient ResolveClient()
+    private AetheriaClientState ResolveState()
     {
         var stateBoot = AetheriaRuntimeStateBoot.Inspect(AetheriaUnityRuntimePaths.GameDataDirectory);
         if (!stateBoot.SupportsLocalStateFileRead || !stateBoot.StateFileExists)
@@ -159,7 +157,7 @@ public sealed class AetheriaDaemonObserver : MonoBehaviour
                 $"Aetheria daemon observer requires a readable local Verse state file: {stateBoot.FailureMessage}");
         }
 
-        return AetheriaUnityRuntimeClientProvider.ResolveClient(stateBoot, clientId);
+        return AetheriaUnityRuntimeClientProvider.RuntimeState(stateBoot, clientId);
     }
 
     private void RemapSoaView(AetheriaRuntimeDaemonRenderView observed)

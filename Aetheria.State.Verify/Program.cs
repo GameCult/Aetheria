@@ -16774,8 +16774,8 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
             string.Join(", ", actionGameManagerReaderHits));
     }
 
-    if (!daemonObserver.Contains("AetheriaClient", StringComparison.Ordinal) ||
-        !daemonObserver.Contains("AetheriaUnityRuntimeClientProvider.ResolveClient(", StringComparison.Ordinal) ||
+    if (!daemonObserver.Contains("AetheriaClientState ResolveState()", StringComparison.Ordinal) ||
+        !daemonObserver.Contains("AetheriaUnityRuntimeClientProvider.RuntimeState(stateBoot, clientId)", StringComparison.Ordinal) ||
         !daemonObserver.Contains("AetheriaRuntimeStateBoot.Inspect(AetheriaUnityRuntimePaths.GameDataDirectory)", StringComparison.Ordinal) ||
         !daemonObserver.Contains("AetheriaRuntimeDaemonRenderView", StringComparison.Ordinal) ||
         !daemonObserver.Contains("CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument> _daemonFrame", StringComparison.Ordinal) ||
@@ -16792,6 +16792,10 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     }
 
     if (daemonObserver.Contains("AetheriaRuntimeStateReader.TryReadDaemonRenderView", StringComparison.Ordinal) ||
+        daemonObserver.Contains("public AetheriaClient Client", StringComparison.Ordinal) ||
+        daemonObserver.Contains("public AetheriaControl Control", StringComparison.Ordinal) ||
+        daemonObserver.Contains("AetheriaUnityRuntimeClientProvider.ResolveClient(", StringComparison.Ordinal) ||
+        daemonObserver.Contains("ResolveClient()?.State", StringComparison.Ordinal) ||
         daemonObserver.Contains(".ReadAsync(client.State)", StringComparison.Ordinal) ||
         daemonObserver.Contains("AetheriaRuntimeReactiveObservedDaemonState", StringComparison.Ordinal) ||
         daemonObserver.Contains(".ReactiveObservedDaemon()", StringComparison.Ordinal) ||
