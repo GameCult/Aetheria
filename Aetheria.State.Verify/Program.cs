@@ -5935,7 +5935,6 @@ static void RequireTradeCargoSelectorUseEveSurface(string root)
         "public readonly struct AetheriaRuntimeTradeCargoSelectorCommand",
         "public static class AetheriaRuntimeTradeCargoSelectorSurfaceCommands",
         "public static bool TryRead(",
-        "AetheriaRuntimeTradeCargoSelectorSurfaceState",
         "AetheriaRuntimeTradeCargoTargetOption",
         "AetheriaRuntimeTradeCargoModelOption",
         "AetheriaRuntimeTradeCargoTargetKind",
@@ -5945,7 +5944,7 @@ static void RequireTradeCargoSelectorUseEveSurface(string root)
         "public static string ShipBayCommand(",
         "public static AetheriaRuntimeTradeCargoSelectorSurfaceModel Build(",
         "public bool TryResolve(string command, out AetheriaRuntimeTradeCargoSelection selection)",
-        "public static AetheriaRuntimeSurfaceDocument Build(",
+        "private static AetheriaRuntimeSurfaceDocument Build(",
         "providerKind: \"trade.menu\"",
         "The observing client lists available cargo targets; the shared runtime surface owns the cargo selector contract."
     };
@@ -5959,11 +5958,13 @@ static void RequireTradeCargoSelectorUseEveSurface(string root)
             string.Join(", ", missingBuilderSymbols));
     }
 
-    if (tradeCargoSelectorSurfaceBuilder.Contains("public AetheriaRuntimeTradeCargoSelectorSurfaceState State { get; }", StringComparison.Ordinal) ||
+    if (tradeCargoSelectorSurfaceBuilder.Contains("AetheriaRuntimeTradeCargoSelectorSurfaceState", StringComparison.Ordinal) ||
+        tradeCargoSelectorSurfaceBuilder.Contains("public AetheriaRuntimeTradeCargoSelectorSurfaceState State { get; }", StringComparison.Ordinal) ||
+        tradeCargoSelectorSurfaceBuilder.Contains("public static AetheriaRuntimeSurfaceDocument Build(", StringComparison.Ordinal) ||
         tradeCargoSelectorSurfaceBuilder.Contains("public static AetheriaRuntimeTradeCargoSelectorSurfaceModel Compose(", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Shared runtime trade cargo selector builder must return a model with a finished surface document; do not re-expose Compose or a public State handoff.");
+            "Shared runtime trade cargo selector builder must return a model with a finished surface document; do not rebuild a shadow SurfaceState projection layer.");
     }
 }
 

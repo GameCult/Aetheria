@@ -19,23 +19,6 @@ namespace GameCult.Aetheria.State.Verse
         public string Command { get; }
     }
 
-    public sealed class AetheriaRuntimeTradeCargoSelectorSurfaceState
-    {
-        public AetheriaRuntimeTradeCargoSelectorSurfaceState(
-            string currentTarget,
-            IReadOnlyList<AetheriaRuntimeTradeCargoTargetOption> targets,
-            string updatedAtUtc)
-        {
-            CurrentTarget = currentTarget ?? "";
-            Targets = targets ?? Array.Empty<AetheriaRuntimeTradeCargoTargetOption>();
-            UpdatedAtUtc = updatedAtUtc ?? "";
-        }
-
-        public string CurrentTarget { get; }
-        public IReadOnlyList<AetheriaRuntimeTradeCargoTargetOption> Targets { get; }
-        public string UpdatedAtUtc { get; }
-    }
-
     public enum AetheriaRuntimeTradeCargoTargetKind
     {
         Unknown = 0,
@@ -101,11 +84,7 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeSurfaceDocument document,
             IReadOnlyDictionary<string, AetheriaRuntimeTradeCargoSelection> selections)
         {
-            Document = document ?? AetheriaRuntimeTradeCargoSelectorSurfaceBuilder.Build(
-                new AetheriaRuntimeTradeCargoSelectorSurfaceState(
-                    "",
-                    Array.Empty<AetheriaRuntimeTradeCargoTargetOption>(),
-                    ""));
+            Document = document ?? throw new ArgumentNullException(nameof(document));
             Selections = selections ?? new Dictionary<string, AetheriaRuntimeTradeCargoSelection>(StringComparer.Ordinal);
         }
 
@@ -166,24 +145,20 @@ namespace GameCult.Aetheria.State.Verse
                     target.BayIndex);
             }
 
-            var state = new AetheriaRuntimeTradeCargoSelectorSurfaceState(
-                currentTarget,
-                options,
-                updatedAtUtc);
-
-            return new AetheriaRuntimeTradeCargoSelectorSurfaceModel(Build(state), selections);
+            return new AetheriaRuntimeTradeCargoSelectorSurfaceModel(
+                Build(currentTarget, options, updatedAtUtc),
+                selections);
         }
 
-        public static AetheriaRuntimeSurfaceDocument Build(
-            AetheriaRuntimeTradeCargoSelectorSurfaceState state,
+        private static AetheriaRuntimeSurfaceDocument Build(
+            string currentTarget,
+            IReadOnlyList<AetheriaRuntimeTradeCargoTargetOption> options,
+            string updatedAtUtc,
             long version = 1)
         {
-            state ??= new AetheriaRuntimeTradeCargoSelectorSurfaceState(
-                "",
-                Array.Empty<AetheriaRuntimeTradeCargoTargetOption>(),
-                "");
+            options ??= Array.Empty<AetheriaRuntimeTradeCargoTargetOption>();
 
-            var targets = state.Targets
+            var targets = options
                 .OrderBy(target => target.Label, StringComparer.Ordinal)
                 .ToArray();
 
@@ -192,7 +167,7 @@ namespace GameCult.Aetheria.State.Verse
                 providerKind: "trade.menu",
                 title: "Trade Target Cargo Selector",
                 version: version,
-                updatedAtUtc: state.UpdatedAtUtc,
+                updatedAtUtc: updatedAtUtc ?? "",
                 surface: new AetheriaRuntimeSurfaceTree(
                     SurfaceId,
                     Node(
@@ -202,7 +177,7 @@ namespace GameCult.Aetheria.State.Verse
                         Card(
                             $"{SurfaceId}.card",
                             "Target Cargo",
-                            Metric($"{SurfaceId}.current", "Current", state.CurrentTarget),
+                            Metric($"{SurfaceId}.current", "Current", currentTarget),
                             Text(
                                 $"{SurfaceId}.note",
                                 "The observing client lists available cargo targets; the shared runtime surface owns the cargo selector contract."),
