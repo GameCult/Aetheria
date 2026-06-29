@@ -167,7 +167,7 @@ public class DaemonRuntimeDocumentTests
             .GetResult();
 
         var currentEntity = ReadLatest(client.State.Document<AetheriaRuntimeCurrentEntityDocument>());
-        var latestFrame = ReadLatest(client.State.Document<AetheriaRuntimeDaemonFrameDocument>());
+        var latestFrame = ReadLatest(client.State.DaemonFrameDocument());
         var catalog = ReadLatest(client.State.Document<AetheriaRuntimeCatalogSnapshot>());
         var playerSettings = ReadLatest(client.State.Document<AetheriaRuntimePlayerSettingsDocument>());
         var verseHostSettings = ReadLatest(client.State.Document<AetheriaRuntimeVerseHostSettingsDocument>());
@@ -177,7 +177,7 @@ public class DaemonRuntimeDocumentTests
             .GetAwaiter()
             .GetResult();
         var latestFrameByType = client.State
-            .Document<AetheriaRuntimeDaemonFrameDocument>()
+            .DaemonFrameDocument()
             .LatestAsync()
             .GetAwaiter()
             .GetResult();
@@ -201,11 +201,11 @@ public class DaemonRuntimeDocumentTests
             .ReactiveAsync()
             .GetAwaiter()
             .GetResult();
-        using var zoneRenderReactive = client.State.Reactive<AetheriaRuntimeZoneRenderDocument>();
-        var observedAuthoritativeFrame = ReadLatest(client.State.Document<AetheriaRuntimeDaemonFrameDocument>());
+        using var zoneRenderReactive = client.State.ReactiveZoneRender();
+        var observedAuthoritativeFrame = ReadLatest(client.State.DaemonFrameDocument());
         using var catalogReactive = client.State.ReactiveCatalogSnapshot();
-        using var daemonFrameReactive = client.State.Reactive<AetheriaRuntimeDaemonFrameDocument>();
-        using var daemonSoaViewReactive = client.State.Reactive<AetheriaRuntimeDaemonSoaViewDocument>();
+        using var daemonFrameReactive = client.State.ReactiveDaemonFrame();
+        using var daemonSoaViewReactive = client.State.ReactiveDaemonSoaView();
         Assert.IsTrue(AetheriaRuntimeDaemonRenderView.TryCreateCurrent(
             daemonFrameReactive,
             daemonSoaViewReactive,
@@ -251,12 +251,12 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual("aetheria.current.entity", client.State.CurrentEntity.DocumentId);
         Assert.AreSame(client.State.CurrentEntity, client.State.Document<AetheriaRuntimeCurrentEntityDocument>());
         Assert.AreSame(client.State.Catalog, client.State.Document<AetheriaRuntimeCatalogSnapshot>());
-        Assert.AreSame(client.State.ZoneRender, client.State.Document<AetheriaRuntimeZoneRenderDocument>());
+        Assert.AreSame(client.State.ZoneRender, client.State.ZoneRenderDocument());
         Assert.AreSame(
             client.State.StarbridgeSummary,
             client.State.Document<AetheriaRuntimeStarbridgeSessionSummaryDocument>());
-        Assert.AreSame(client.State.DaemonFrame, client.State.Document<AetheriaRuntimeDaemonFrameDocument>());
-        Assert.AreSame(client.State.DaemonSoaView, client.State.Document<AetheriaRuntimeDaemonSoaViewDocument>());
+        Assert.AreSame(client.State.DaemonFrame, client.State.DaemonFrameDocument());
+        Assert.AreSame(client.State.DaemonSoaView, client.State.DaemonSoaViewDocument());
         Assert.IsNotNull(ReadLatest(client.State.Document<AetheriaRuntimeDaemonProviderAdvertisementDocument>()));
         Assert.IsNotNull(ReadLatest(client.State.Document<AetheriaRuntimeDaemonHealthDocument>()));
         Assert.IsNotNull(ReadLatest(client.State.Document<AetheriaRuntimeDaemonCommandBoundaryDocument>()));
@@ -2210,9 +2210,9 @@ public class DaemonRuntimeDocumentTests
             .OpenAsync(statePath, "unity-observer-test", pullOnOpen: true)
             .GetAwaiter()
             .GetResult();
-        using var observedFrame = client.State.Reactive<AetheriaRuntimeDaemonFrameDocument>();
-        using var observedSoaView = client.State.Reactive<AetheriaRuntimeDaemonSoaViewDocument>();
-        using var observedZoneRender = client.State.Reactive<AetheriaRuntimeZoneRenderDocument>();
+        using var observedFrame = client.State.ReactiveDaemonFrame();
+        using var observedSoaView = client.State.ReactiveDaemonSoaView();
+        using var observedZoneRender = client.State.ReactiveZoneRender();
         Assert.IsTrue(AetheriaRuntimeDaemonRenderView.TryCreateCurrent(
             observedFrame,
             observedSoaView,
@@ -2268,9 +2268,9 @@ public class DaemonRuntimeDocumentTests
             .OpenAsync(statePath, "unity-reactive-observer-test", pullOnOpen: true)
             .GetAwaiter()
             .GetResult();
-        using var observedFrame = client.State.Reactive<AetheriaRuntimeDaemonFrameDocument>();
-        using var observedSoaView = client.State.Reactive<AetheriaRuntimeDaemonSoaViewDocument>();
-        using var observedZoneRender = client.State.Reactive<AetheriaRuntimeZoneRenderDocument>();
+        using var observedFrame = client.State.ReactiveDaemonFrame();
+        using var observedSoaView = client.State.ReactiveDaemonSoaView();
+        using var observedZoneRender = client.State.ReactiveZoneRender();
         var observed = AetheriaRuntimeDaemonRenderView.TryCreateCurrent(
             observedFrame,
             observedSoaView,
@@ -2315,9 +2315,9 @@ public class DaemonRuntimeDocumentTests
             .OpenAsync(statePath, "unity-frame-only-observer-test", pullOnOpen: true)
             .GetAwaiter()
             .GetResult();
-        using var observedFrame = client.State.Reactive<AetheriaRuntimeDaemonFrameDocument>();
-        using var observedSoaView = client.State.Reactive<AetheriaRuntimeDaemonSoaViewDocument>();
-        using var observedZoneRender = client.State.Reactive<AetheriaRuntimeZoneRenderDocument>();
+        using var observedFrame = client.State.ReactiveDaemonFrame();
+        using var observedSoaView = client.State.ReactiveDaemonSoaView();
+        using var observedZoneRender = client.State.ReactiveZoneRender();
         Assert.IsTrue(AetheriaRuntimeDaemonRenderView.TryCreateCurrent(
             observedFrame,
             observedSoaView,

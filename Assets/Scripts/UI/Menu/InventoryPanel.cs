@@ -1534,7 +1534,7 @@ private void Update()
         try
         {
             _loadoutFrame = AetheriaUnityRuntimeClientProvider
-                .Reactive<AetheriaRuntimeDaemonFrameDocument>("unity-inventory");
+                .ReactiveDaemonFrame("unity-inventory");
         }
         catch (Exception ex)
         {

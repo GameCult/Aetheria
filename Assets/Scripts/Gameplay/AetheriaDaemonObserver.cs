@@ -129,23 +129,9 @@ public sealed class AetheriaDaemonObserver : MonoBehaviour
             return;
         }
 
-        _daemonFrame ??= state.Reactive<AetheriaRuntimeDaemonFrameDocument>();
-        _daemonSoaView ??= TryReactive<AetheriaRuntimeDaemonSoaViewDocument>(state);
-        _zoneRender ??= state.Reactive<AetheriaRuntimeZoneRenderDocument>();
-    }
-
-    private static CultMeshReactiveDocument<TDocument> TryReactive<TDocument>(
-        AetheriaClientState state)
-        where TDocument : class
-    {
-        try
-        {
-            return state.Reactive<TDocument>();
-        }
-        catch (System.Collections.Generic.KeyNotFoundException)
-        {
-            return null;
-        }
+        _daemonFrame ??= state.ReactiveDaemonFrame();
+        _daemonSoaView ??= state.ReactiveDaemonSoaView();
+        _zoneRender ??= state.ReactiveZoneRender();
     }
 
     private AetheriaClientState ResolveState()

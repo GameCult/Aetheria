@@ -176,6 +176,45 @@ public static class AetheriaUnityRuntimeClientProvider
         return RuntimeState(stateBoot, runtimeId).ReactivePlayerSettingsDocument();
     }
 
+    public static CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument> ReactiveDaemonFrame(
+        string runtimeId = "")
+    {
+        return RuntimeState(runtimeId).ReactiveDaemonFrame();
+    }
+
+    public static CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument> ReactiveDaemonFrame(
+        AetheriaRuntimeStateBootReport stateBoot,
+        string runtimeId = "")
+    {
+        return RuntimeState(stateBoot, runtimeId).ReactiveDaemonFrame();
+    }
+
+    public static CultMeshReactiveDocument<AetheriaRuntimeDaemonSoaViewDocument> ReactiveDaemonSoaView(
+        string runtimeId = "")
+    {
+        return RuntimeState(runtimeId).ReactiveDaemonSoaView();
+    }
+
+    public static CultMeshReactiveDocument<AetheriaRuntimeDaemonSoaViewDocument> ReactiveDaemonSoaView(
+        AetheriaRuntimeStateBootReport stateBoot,
+        string runtimeId = "")
+    {
+        return RuntimeState(stateBoot, runtimeId).ReactiveDaemonSoaView();
+    }
+
+    public static CultMeshReactiveDocument<AetheriaRuntimeZoneRenderDocument> ReactiveZoneRender(
+        string runtimeId = "")
+    {
+        return RuntimeState(runtimeId).ReactiveZoneRender();
+    }
+
+    public static CultMeshReactiveDocument<AetheriaRuntimeZoneRenderDocument> ReactiveZoneRender(
+        AetheriaRuntimeStateBootReport stateBoot,
+        string runtimeId = "")
+    {
+        return RuntimeState(stateBoot, runtimeId).ReactiveZoneRender();
+    }
+
     public static CultMeshReactiveDocument<TDocument> Reactive<TDocument>(
         AetheriaRuntimeStateBootReport stateBoot,
         string runtimeId = "")

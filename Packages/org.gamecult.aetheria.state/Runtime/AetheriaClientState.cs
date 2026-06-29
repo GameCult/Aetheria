@@ -193,6 +193,36 @@ namespace GameCult.Aetheria.State.Verse
             return Document<TDocument>().Reactive();
         }
 
+        public CultMeshDocumentHandle<AetheriaRuntimeDaemonFrameDocument> DaemonFrameDocument()
+        {
+            return DaemonFrame;
+        }
+
+        public CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument> ReactiveDaemonFrame()
+        {
+            return DaemonFrameDocument().Reactive();
+        }
+
+        public CultMeshDocumentHandle<AetheriaRuntimeDaemonSoaViewDocument> DaemonSoaViewDocument()
+        {
+            return DaemonSoaView;
+        }
+
+        public CultMeshReactiveDocument<AetheriaRuntimeDaemonSoaViewDocument> ReactiveDaemonSoaView()
+        {
+            return DaemonSoaViewDocument().Reactive();
+        }
+
+        public CultMeshDocumentHandle<AetheriaRuntimeZoneRenderDocument> ZoneRenderDocument()
+        {
+            return ZoneRender;
+        }
+
+        public CultMeshReactiveDocument<AetheriaRuntimeZoneRenderDocument> ReactiveZoneRender()
+        {
+            return ZoneRenderDocument().Reactive();
+        }
+
         public CultMeshDocumentHandle<AetheriaRuntimeCurrentDockingDocument> CurrentDocking()
         {
             return CurrentDockingDocument;
@@ -380,7 +410,7 @@ namespace GameCult.Aetheria.State.Verse
 
         public CultMeshStateRefResolver CreateEveSurfaceCultMeshStateRefResolver()
         {
-            _eveStateRefFrame ??= Reactive<AetheriaRuntimeDaemonFrameDocument>();
+            _eveStateRefFrame ??= ReactiveDaemonFrame();
             _eveStateRefHealth ??= Reactive<AetheriaRuntimeDaemonHealthDocument>();
             _eveStateRefCommandBoundary ??= Reactive<AetheriaRuntimeDaemonCommandBoundaryDocument>();
             _eveStateRefCatalog ??= ReactiveCatalogSnapshot();
