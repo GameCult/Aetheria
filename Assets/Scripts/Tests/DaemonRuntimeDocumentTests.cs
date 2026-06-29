@@ -141,7 +141,7 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
-    public void AetheriaClientStateReadsProjectedDocumentsThroughCultMesh()
+    public void AetheriaClientStateReadsManagedDocumentsThroughCultMesh()
     {
         var statePath = Path.Combine(
             Path.GetTempPath(),

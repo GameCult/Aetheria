@@ -210,7 +210,7 @@ namespace GameCult.Aetheria.State.Verse
                 return document;
 
             throw new NotSupportedException(
-                $"Aetheria typed state does not expose a projected document for {typeof(TDocument).FullName}.");
+                $"Aetheria typed state does not expose a managed document for {typeof(TDocument).FullName}.");
         }
 
         public CultMeshReactiveDocument<TDocument> Reactive<TDocument>()

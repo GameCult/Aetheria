@@ -6,16 +6,16 @@ using System.Linq;
 
 namespace GameCult.Aetheria.State.Verse
 {
-    public static class AetheriaRuntimeRtsProjection
+    public static class AetheriaRuntimeRtsDocuments
     {
         private const double ZoneRenderWormholeDistanceRatio = 1.0;
 
-        public static AetheriaRuntimeRtsViewportDocument ProjectViewport(
+        public static AetheriaRuntimeRtsViewportDocument Viewport(
             AetheriaRuntimeDaemonFrameDocument frame,
             AetheriaRuntimeRtsViewportBounds viewport)
         {
-            var objects = ProjectObjectsViewport(frame, viewport);
-            var gravity = ProjectGravityViewport(frame, viewport);
+            var objects = ObjectsViewport(frame, viewport);
+            var gravity = GravityViewport(frame, viewport);
 
             return new AetheriaRuntimeRtsViewportDocument
             {
@@ -34,7 +34,7 @@ namespace GameCult.Aetheria.State.Verse
             };
         }
 
-        public static AetheriaRuntimeObjectsViewportDocument ProjectObjectsViewport(
+        public static AetheriaRuntimeObjectsViewportDocument ObjectsViewport(
             AetheriaRuntimeDaemonFrameDocument frame,
             AetheriaRuntimeRtsViewportBounds viewport)
         {
@@ -75,7 +75,7 @@ namespace GameCult.Aetheria.State.Verse
             };
         }
 
-        public static AetheriaRuntimeGravityViewportDocument ProjectGravityViewport(
+        public static AetheriaRuntimeGravityViewportDocument GravityViewport(
             AetheriaRuntimeDaemonFrameDocument frame,
             AetheriaRuntimeRtsViewportBounds viewport)
         {
@@ -107,7 +107,7 @@ namespace GameCult.Aetheria.State.Verse
             };
         }
 
-        public static AetheriaRuntimeRenderSplatsViewportDocument ProjectRenderSplatsViewport(
+        public static AetheriaRuntimeRenderSplatsViewportDocument RenderSplatsViewport(
             AetheriaRuntimeDaemonFrameDocument frame,
             AetheriaRuntimeRtsViewportBounds viewport)
         {
@@ -374,7 +374,7 @@ namespace GameCult.Aetheria.State.Verse
             };
         }
 
-        public static AetheriaRuntimeCurrentZoneDocument ProjectCurrentZone(
+        public static AetheriaRuntimeCurrentZoneDocument CurrentZone(
             AetheriaRuntimeDaemonFrameDocument frame)
         {
             frame ??= new AetheriaRuntimeDaemonFrameDocument();
@@ -397,7 +397,7 @@ namespace GameCult.Aetheria.State.Verse
             };
         }
 
-        public static AetheriaRuntimeCurrentEntityDocument ProjectCurrentEntity(
+        public static AetheriaRuntimeCurrentEntityDocument CurrentEntity(
             AetheriaRuntimeDaemonFrameDocument frame)
         {
             frame ??= new AetheriaRuntimeDaemonFrameDocument();
@@ -434,11 +434,11 @@ namespace GameCult.Aetheria.State.Verse
                 Equipment = inventory.Where(item => string.Equals(item.Source, "equipment", StringComparison.Ordinal)).ToArray(),
                 Cargo = inventory.Where(item => string.Equals(item.Source, "cargo", StringComparison.Ordinal)).ToArray(),
                 ShutdownPerformance = entity?.ShutdownPerformance ?? 0,
-                Hud = ProjectCurrentEntityHudStatus(entity)
+                Hud = CurrentEntityHudStatus(entity)
             };
         }
 
-        public static AetheriaRuntimeCurrentDockingDocument ProjectCurrentDocking(
+        public static AetheriaRuntimeCurrentDockingDocument CurrentDocking(
             AetheriaRuntimeDaemonFrameDocument frame)
         {
             frame ??= new AetheriaRuntimeDaemonFrameDocument();
@@ -469,7 +469,7 @@ namespace GameCult.Aetheria.State.Verse
             };
         }
 
-        public static AetheriaRuntimeZoneContactsDocument ProjectZoneContacts(
+        public static AetheriaRuntimeZoneContactsDocument ZoneContacts(
             AetheriaRuntimeDaemonFrameDocument frame)
         {
             frame ??= new AetheriaRuntimeDaemonFrameDocument();
@@ -504,7 +504,7 @@ namespace GameCult.Aetheria.State.Verse
             };
         }
 
-        public static AetheriaRuntimeStationRefitDocument ProjectStationRefit(
+        public static AetheriaRuntimeStationRefitDocument StationRefit(
             AetheriaRuntimeDaemonFrameDocument frame,
             IReadOnlyList<AetheriaRuntimeLoadoutTemplateSnapshot>? loadoutTemplates = null,
             AetheriaRuntimeCatalogSnapshot? catalog = null)
@@ -521,7 +521,7 @@ namespace GameCult.Aetheria.State.Verse
                 : AetheriaRuntimeRunCheckpointCommit.EntityRecordKey(context.RunId, context.Zone.ZoneIndex, parent.EntityIndex);
             var availableEntities = parent == null
                 ? Array.Empty<AetheriaRuntimeStationRefitEntityOption>()
-                : ProjectStationRefitEntities(context, parent, currentEntityIndex);
+                : StationRefitEntities(context, parent, currentEntityIndex);
             var stationStock = parent == null
                 ? Array.Empty<AetheriaRuntimeStationStockItem>()
                 : ProjectStationStock(parent);
@@ -609,7 +609,7 @@ namespace GameCult.Aetheria.State.Verse
             };
         }
 
-        public static AetheriaRuntimeSectorMapDocument ProjectSectorMap(
+        public static AetheriaRuntimeSectorMapDocument SectorMap(
             AetheriaRuntimeDaemonFrameDocument frame)
         {
             frame ??= new AetheriaRuntimeDaemonFrameDocument();
@@ -639,11 +639,11 @@ namespace GameCult.Aetheria.State.Verse
                     .OrderBy(zone => zone.ZoneIndex)
                     .Select(zone => ToSectorMapZone(zone, run, discovered))
                     .ToArray(),
-                Links = ProjectSectorMapLinks(zones, discovered)
+                Links = SectorMapLinks(zones, discovered)
             };
         }
 
-        public static AetheriaRuntimeZoneDetailsDocument ProjectZoneDetails(
+        public static AetheriaRuntimeZoneDetailsDocument ZoneDetails(
             AetheriaRuntimeDaemonFrameDocument frame,
             int zoneIndex)
         {
@@ -690,7 +690,7 @@ namespace GameCult.Aetheria.State.Verse
             };
         }
 
-        public static AetheriaRuntimeZoneRenderDocument ProjectZoneRender(
+        public static AetheriaRuntimeZoneRenderDocument ZoneRender(
             AetheriaRuntimeDaemonFrameDocument frame)
         {
             frame ??= new AetheriaRuntimeDaemonFrameDocument();
@@ -710,10 +710,10 @@ namespace GameCult.Aetheria.State.Verse
                 CurrentEntityKey = run.CurrentEntityKey ?? "",
                 ZoneRenderRadius = zoneRenderRadius,
                 Credits = run.Credits,
-                AdjacentZones = ProjectZoneRenderAdjacentZones(run, zone),
-                WormholeExits = ProjectZoneRenderWormholeExits(run, zone, zoneRenderRadius),
-                BodyPoses = ProjectZoneRenderBodyPoses(zone),
-                AsteroidBeltPoses = ProjectZoneRenderAsteroidBeltPoses(zone, frame.SimulationTimeSeconds),
+                AdjacentZones = ZoneRenderAdjacentZones(run, zone),
+                WormholeExits = ZoneRenderWormholeExits(run, zone, zoneRenderRadius),
+                BodyPoses = ZoneRenderBodyPoses(zone),
+                AsteroidBeltPoses = ZoneRenderAsteroidBeltPoses(zone, frame.SimulationTimeSeconds),
                 DroppedPickups = (zone.DroppedPickups ?? Array.Empty<AetheriaRuntimeDroppedPickupCommit>())
                     .Where(pickup => pickup != null)
                     .OrderBy(pickup => pickup.PickupIndex)
@@ -731,7 +731,7 @@ namespace GameCult.Aetheria.State.Verse
             };
         }
 
-        public static AetheriaRuntimeSelectedObjectDocument ProjectSelectedObject(
+        public static AetheriaRuntimeSelectedObjectDocument SelectedObject(
             AetheriaRuntimeDaemonFrameDocument frame,
             int entityIndex)
         {
@@ -750,7 +750,7 @@ namespace GameCult.Aetheria.State.Verse
             };
         }
 
-        public static AetheriaRuntimeInventoryDocument ProjectInventory(
+        public static AetheriaRuntimeInventoryDocument Inventory(
             AetheriaRuntimeDaemonFrameDocument frame,
             int entityIndex)
         {
@@ -905,7 +905,7 @@ namespace GameCult.Aetheria.State.Verse
             };
         }
 
-        private static IReadOnlyList<AetheriaRuntimeSectorMapLink> ProjectSectorMapLinks(
+        private static IReadOnlyList<AetheriaRuntimeSectorMapLink> SectorMapLinks(
             IReadOnlyList<AetheriaRuntimeZoneSnapshotCommit> zones,
             HashSet<int> discovered)
         {
@@ -930,7 +930,7 @@ namespace GameCult.Aetheria.State.Verse
             return links.ToArray();
         }
 
-        private static AetheriaRuntimeZoneRenderAdjacentZone[] ProjectZoneRenderAdjacentZones(
+        private static AetheriaRuntimeZoneRenderAdjacentZone[] ZoneRenderAdjacentZones(
             AetheriaRuntimeRunCheckpointCommit run,
             AetheriaRuntimeZoneSnapshotCommit zone)
         {
@@ -950,7 +950,7 @@ namespace GameCult.Aetheria.State.Verse
                 .ToArray();
         }
 
-        private static AetheriaRuntimeZoneRenderWormholeExit[] ProjectZoneRenderWormholeExits(
+        private static AetheriaRuntimeZoneRenderWormholeExit[] ZoneRenderWormholeExits(
             AetheriaRuntimeRunCheckpointCommit run,
             AetheriaRuntimeZoneSnapshotCommit zone,
             double zoneRenderRadius)
@@ -968,7 +968,7 @@ namespace GameCult.Aetheria.State.Verse
                 .ToArray();
         }
 
-        private static AetheriaRuntimeZoneRenderBodyPose[] ProjectZoneRenderBodyPoses(
+        private static AetheriaRuntimeZoneRenderBodyPose[] ZoneRenderBodyPoses(
             AetheriaRuntimeZoneSnapshotCommit zone)
         {
             return AetheriaRuntimeDaemonRenderQueries.QueryBodyPoses(zone)
@@ -987,7 +987,7 @@ namespace GameCult.Aetheria.State.Verse
                 .ToArray();
         }
 
-        private static AetheriaRuntimeZoneRenderAsteroidBeltPose[] ProjectZoneRenderAsteroidBeltPoses(
+        private static AetheriaRuntimeZoneRenderAsteroidBeltPose[] ZoneRenderAsteroidBeltPoses(
             AetheriaRuntimeZoneSnapshotCommit zone,
             double simulationTimeSeconds)
         {
@@ -1000,7 +1000,7 @@ namespace GameCult.Aetheria.State.Verse
                     CenterZ = pose.CenterZ,
                     Radius = pose.Radius,
                     AsteroidCount = pose.AsteroidCount,
-                    InstancePoses = ProjectZoneRenderAsteroidInstancePoses(
+                    InstancePoses = ZoneRenderAsteroidInstancePoses(
                         zone,
                         pose.BodyKey,
                         simulationTimeSeconds)
@@ -1008,7 +1008,7 @@ namespace GameCult.Aetheria.State.Verse
                 .ToArray();
         }
 
-        private static AetheriaRuntimeZoneRenderAsteroidInstancePose[] ProjectZoneRenderAsteroidInstancePoses(
+        private static AetheriaRuntimeZoneRenderAsteroidInstancePose[] ZoneRenderAsteroidInstancePoses(
             AetheriaRuntimeZoneSnapshotCommit zone,
             string bodyKey,
             double simulationTimeSeconds)
@@ -1045,8 +1045,8 @@ namespace GameCult.Aetheria.State.Verse
             return items.Where(item => !string.IsNullOrWhiteSpace(item.ItemKey)).ToArray();
         }
 
-        private static IReadOnlyList<AetheriaRuntimeStationRefitEntityOption> ProjectStationRefitEntities(
-            ProjectionContext context,
+        private static IReadOnlyList<AetheriaRuntimeStationRefitEntityOption> StationRefitEntities(
+            DocumentContext context,
             AetheriaRuntimeEntitySnapshotCommit dockParent,
             int currentEntityIndex)
         {
@@ -1122,7 +1122,7 @@ namespace GameCult.Aetheria.State.Verse
         }
 
         private static IReadOnlyList<AetheriaRuntimeStationDockingBayRow> ProjectStationDockingBays(
-            ProjectionContext context,
+            DocumentContext context,
             AetheriaRuntimeEntitySnapshotCommit dockParent,
             int currentEntityIndex)
         {
@@ -1501,7 +1501,7 @@ namespace GameCult.Aetheria.State.Verse
             }
         }
 
-        private static ProjectionContext Context(AetheriaRuntimeDaemonFrameDocument frame)
+        private static DocumentContext Context(AetheriaRuntimeDaemonFrameDocument frame)
         {
             var run = frame.Run ?? new AetheriaRuntimeRunCheckpointCommit();
             var zones = run.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>();
@@ -1509,7 +1509,7 @@ namespace GameCult.Aetheria.State.Verse
                 zones.FirstOrDefault() ??
                 new AetheriaRuntimeZoneSnapshotCommit();
             var runId = string.IsNullOrWhiteSpace(run.RunId) ? "local-rts" : run.RunId;
-            return new ProjectionContext(run, zone, runId);
+            return new DocumentContext(run, zone, runId);
         }
 
         private static double Stat(AetheriaRuntimeEntitySnapshotCommit entity, string name)
@@ -1519,7 +1519,7 @@ namespace GameCult.Aetheria.State.Verse
             return grid?.Values?.FirstOrDefault() ?? 0;
         }
 
-        private static AetheriaRuntimeCurrentEntityHudStatus ProjectCurrentEntityHudStatus(
+        private static AetheriaRuntimeCurrentEntityHudStatus CurrentEntityHudStatus(
             AetheriaRuntimeEntitySnapshotCommit? entity)
         {
             if (entity == null)
@@ -1604,9 +1604,9 @@ namespace GameCult.Aetheria.State.Verse
             return int.TryParse(text, out var value) ? value : -1;
         }
 
-        private readonly struct ProjectionContext
+        private readonly struct DocumentContext
         {
-            public ProjectionContext(
+            public DocumentContext(
                 AetheriaRuntimeRunCheckpointCommit run,
                 AetheriaRuntimeZoneSnapshotCommit zone,
                 string runId)

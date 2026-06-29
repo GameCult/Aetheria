@@ -52,7 +52,7 @@ RequireTradeItemDetailsUseEveSurface(root);
 RequireTradeItemValuesUseRuntimeQueries(root);
 RequireItemTierProjectionUsesRuntimeQueries(root);
 RequireInventoryDropdownUseEveSurface(root);
-RequireStationRefitDockingBaysUseTypedProjection(root);
+RequireStationRefitDockingBaysUseTypedDocuments(root);
 RequireNoDeadPopupShells(root);
 RequirePlayerSettingsEveSurface(root);
 RequireVerseHostSettingsAuthority(root);
@@ -89,7 +89,7 @@ RequireLootPickupRequestAuthority(root);
 RequireEntityDestroyedRequestAuthority(root);
 RequireDroppedPickupCheckpointState(root);
 RequireTradePurchaseRequestAuthority(root);
-RequireInventoryProjectionSlotIdentity(root);
+RequireInventoryDocumentSlotIdentity(root);
 RequireInventoryValidationUsesManagedTypedDocuments(root);
 RequireMenuDockingUsesManagedTypedSnapshot(root);
 RequireUnitySharedDocumentAccessorErgonomics(root);
@@ -1270,7 +1270,7 @@ static void RequireTypedBehaviorBodyKeys(string root)
     if (missingZoneSymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "Zone runtime body/orbit objects must own typed projection key surfaces: " +
+            "Zone runtime body/orbit objects must own typed document key surfaces: " +
             string.Join(", ", missingZoneSymbols));
     }
 
@@ -1315,10 +1315,10 @@ static void RequireTypedBehaviorBodyKeys(string root)
 
 static void RequireNoDeadRuntimeProjectionCaches(string root)
 {
-    var runtimeProjectionDirectory = Path.Combine(root, "Assets", "Scripts", "ServerShared", "RuntimeProjection");
-    if (Directory.Exists(runtimeProjectionDirectory))
+    var runtimeDocumentsFactoryDirectory = Path.Combine(root, "Assets", "Scripts", "ServerShared", "RuntimeProjection");
+    if (Directory.Exists(runtimeDocumentsFactoryDirectory))
     {
-        var survivors = Directory.EnumerateFileSystemEntries(runtimeProjectionDirectory)
+        var survivors = Directory.EnumerateFileSystemEntries(runtimeDocumentsFactoryDirectory)
             .Select(path => Path.GetRelativePath(root, path))
             .ToArray();
         throw new InvalidOperationException(
@@ -4552,10 +4552,10 @@ static void RequireSectorMapZoneDetailsUseEveSurface(string root)
         "HideZoneDetailsSurface(",
         "AetheriaEveUnitySurfaceHost.RenderRuntime(",
         "AetheriaEveUnitySurfaceHost.Hide(_zoneDetailsSurfaceDocument)",
-        "AetheriaRuntimeZoneDetailsSurfaceBuilder.Build(ProjectZoneDetailsSurfaceState(",
+        "AetheriaRuntimeZoneDetailsSurfaceBuilder.Build(ProjectZoneDetailsSurfaceState(zoneIndex))",
         "AetheriaRuntimeZoneDetailsSurfaceBuilder.ProjectDaemonZone(",
         "AetheriaRuntimeZoneDetailsSurfaceBuilder.Project(",
-        "ProjectZoneDetailsSurfaceState(",
+        "ZoneDetailsSurfaceState(",
         "AetheriaUnityRuntimeClientProvider.ResolveClient(",
         ".State",
         ".Reactive<AetheriaRuntimeSectorMapDocument>()",
@@ -6504,7 +6504,7 @@ static void RequireInventoryDropdownUseEveSurface(string root)
     }
 }
 
-static void RequireStationRefitDockingBaysUseTypedProjection(string root)
+static void RequireStationRefitDockingBaysUseTypedDocuments(string root)
 {
     var runtimeDocumentsPath = Path.Combine(
         root,
@@ -6512,27 +6512,27 @@ static void RequireStationRefitDockingBaysUseTypedProjection(string root)
         "org.gamecult.aetheria.state",
         "Runtime",
         "AetheriaRuntimeRtsViewportDocuments.cs");
-    var runtimeProjectionPath = Path.Combine(
+    var runtimeDocumentsFactoryPath = Path.Combine(
         root,
         "Packages",
         "org.gamecult.aetheria.state",
         "Runtime",
-        "AetheriaRuntimeRtsProjection.cs");
+        "AetheriaRuntimeRtsDocuments.cs");
     var inventoryPanelPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "InventoryPanel.cs");
     var inventoryMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "InventoryMenu.cs");
 
     var runtimeDocuments = File.Exists(runtimeDocumentsPath)
         ? File.ReadAllText(runtimeDocumentsPath)
-        : throw new InvalidOperationException("Cannot verify station-refit docking-bay projection; runtime viewport documents are missing.");
-    var runtimeProjection = File.Exists(runtimeProjectionPath)
-        ? File.ReadAllText(runtimeProjectionPath)
-        : throw new InvalidOperationException("Cannot verify station-refit docking-bay projection; runtime projection source is missing.");
+        : throw new InvalidOperationException("Cannot verify station-refit docking-bay document; runtime viewport documents are missing.");
+    var runtimeDocumentsFactory = File.Exists(runtimeDocumentsFactoryPath)
+        ? File.ReadAllText(runtimeDocumentsFactoryPath)
+        : throw new InvalidOperationException("Cannot verify station-refit docking-bay document; runtime document factory is missing.");
     var inventoryPanel = File.Exists(inventoryPanelPath)
         ? File.ReadAllText(inventoryPanelPath)
-        : throw new InvalidOperationException("Cannot verify station-refit docking-bay projection; InventoryPanel.cs is missing.");
+        : throw new InvalidOperationException("Cannot verify station-refit docking-bay document; InventoryPanel.cs is missing.");
     var inventoryMenu = File.Exists(inventoryMenuPath)
         ? File.ReadAllText(inventoryMenuPath)
-        : throw new InvalidOperationException("Cannot verify station-refit docking-bay projection; InventoryMenu.cs is missing.");
+        : throw new InvalidOperationException("Cannot verify station-refit docking-bay document; InventoryMenu.cs is missing.");
 
     var requiredDocumentSymbols = new[]
     {
@@ -6566,7 +6566,7 @@ static void RequireStationRefitDockingBaysUseTypedProjection(string root)
             string.Join(", ", missingDocumentSymbols));
     }
 
-    var requiredProjectionSymbols = new[]
+    var requiredDocumentFactorySymbols = new[]
     {
         "var dockingBays = parent == null",
         "DockingBays = dockingBays",
@@ -6599,22 +6599,22 @@ static void RequireStationRefitDockingBaysUseTypedProjection(string root)
         "CanAfford = price >= 0 && credits >= price",
         "OwnedQuantity = CountStationOwnedQuantity"
     };
-    var missingProjectionSymbols = requiredProjectionSymbols
-        .Where(symbol => !runtimeProjection.Contains(symbol, StringComparison.Ordinal))
+    var missingDocumentFactorySymbols = requiredDocumentFactorySymbols
+        .Where(symbol => !runtimeDocumentsFactory.Contains(symbol, StringComparison.Ordinal))
         .ToArray();
 
-    if (missingProjectionSymbols.Length > 0)
+    if (missingDocumentFactorySymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "StationRefitAsync docking-bay rows are no longer projected from daemon station state: " +
-            string.Join(", ", missingProjectionSymbols));
+            "StationRefitAsync docking-bay rows are no longer derived from daemon station state: " +
+            string.Join(", ", missingDocumentFactorySymbols));
     }
 
-    if (runtimeProjection.Contains("private static string BuildEntityKey(", StringComparison.Ordinal) ||
-        runtimeProjection.Contains("private static bool TryParseEntityKey(", StringComparison.Ordinal))
+    if (runtimeDocumentsFactory.Contains("private static string BuildEntityKey(", StringComparison.Ordinal) ||
+        runtimeDocumentsFactory.Contains("private static bool TryParseEntityKey(", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Runtime projection reintroduced local entity key folklore; use AetheriaRuntimeRunCheckpointCommit entity key helpers.");
+            "Runtime document factory reintroduced local entity key folklore; use AetheriaRuntimeRunCheckpointCommit entity key helpers.");
     }
 
     var requiredPanelSymbols = new[]
@@ -6963,14 +6963,14 @@ static void RequireDaemonHostDoesNotDrainRuntimeCommits(string root)
     }
 }
 
-static void RequireInventoryProjectionSlotIdentity(string root)
+static void RequireInventoryDocumentSlotIdentity(string root)
 {
-    var projectionPath = Path.Combine(
+    var documentsFactoryPath = Path.Combine(
         root,
         "Packages",
         "org.gamecult.aetheria.state",
         "Runtime",
-        "AetheriaRuntimeRtsProjection.cs");
+        "AetheriaRuntimeRtsDocuments.cs");
     var viewportDocumentsPath = Path.Combine(
         root,
         "Packages",
@@ -6978,19 +6978,19 @@ static void RequireInventoryProjectionSlotIdentity(string root)
         "Runtime",
         "AetheriaRuntimeRtsViewportDocuments.cs");
 
-    if (!File.Exists(projectionPath))
+    if (!File.Exists(documentsFactoryPath))
     {
-        throw new InvalidOperationException("Cannot verify inventory projection slot identity; AetheriaRuntimeRtsProjection.cs is missing.");
+        throw new InvalidOperationException("Cannot verify inventory document slot identity; AetheriaRuntimeRtsDocuments.cs is missing.");
     }
     if (!File.Exists(viewportDocumentsPath))
     {
-        throw new InvalidOperationException("Cannot verify inventory projection slot identity; AetheriaRuntimeRtsViewportDocuments.cs is missing.");
+        throw new InvalidOperationException("Cannot verify inventory document slot identity; AetheriaRuntimeRtsViewportDocuments.cs is missing.");
     }
 
-    var projection = File.ReadAllText(projectionPath);
+    var documentsFactory = File.ReadAllText(documentsFactoryPath);
     var viewportDocuments = File.ReadAllText(viewportDocumentsPath);
 
-    var requiredProjectionSymbols = new[]
+    var requiredDocumentFactorySymbols = new[]
     {
         "AddSlot(items, \"equipment\", equipmentIndex, equipment[equipmentIndex])",
         "AddSlot(items, \"cargo\", cargoBayIndex, slot)",
@@ -6998,15 +6998,15 @@ static void RequireInventoryProjectionSlotIdentity(string root)
         "X = slot.X",
         "Y = slot.Y"
     };
-    var missingProjectionSymbols = requiredProjectionSymbols
-        .Where(symbol => !projection.Contains(symbol, StringComparison.Ordinal))
+    var missingDocumentFactorySymbols = requiredDocumentFactorySymbols
+        .Where(symbol => !documentsFactory.Contains(symbol, StringComparison.Ordinal))
         .ToArray();
 
-    if (missingProjectionSymbols.Length > 0)
+    if (missingDocumentFactorySymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "Inventory projection no longer carries enough typed slot identity for cargo/equipment operations: " +
-            string.Join(", ", missingProjectionSymbols));
+            "Inventory document no longer carries enough typed slot identity for cargo/equipment operations: " +
+            string.Join(", ", missingDocumentFactorySymbols));
     }
 
     var requiredDocumentSymbols = new[]
@@ -12021,7 +12021,7 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
             "AetheriaRuntimeVerseClient reintroduced a projection-input helper instead of owning generic reactive typed documents directly.");
     }
 
-    if (client.Contains("ProjectStationRefitAsync", StringComparison.Ordinal) &&
+    if (client.Contains("StationRefitAsync", StringComparison.Ordinal) &&
         client.Contains("loadoutTemplatesDocument.LatestAsync()", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
@@ -12041,7 +12041,7 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
         client.Contains("Aetheria().Daemon.LatestFrame.LatestAsync()", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Aetheria runtime Verse client projected documents still bootstrap through one-shot latest-frame reads instead of the managed reactive client inputs.");
+            "Aetheria runtime Verse client managed documents still bootstrap through one-shot latest-frame reads instead of the managed reactive client inputs.");
     }
 
     if (client.Contains("_fallbackCatalog", StringComparison.Ordinal) ||
@@ -13277,7 +13277,7 @@ static void RequireMainMenuContinueRunState(string root)
         "_lastAppliedAuthoritativeDaemonRunId",
         "_lastAppliedAuthoritativeDaemonZoneIndex",
         "private bool TryRestoreEntityGraphFromZoneRender(",
-        "AetheriaRuntimeRtsProjection.ProjectZoneRender(observed.Frame)",
+        "AetheriaRuntimeRtsDocuments.ZoneRender(observed.Frame)",
         "AetheriaRuntimeEntitySnapshotProjector.CreateSnapshots(runId, daemonZone)",
         "ObservedEntityRestorer.TryApplyInPlace(",
         "ObservedEntityRestorer.Replace(entitySnapshots, currentEntityKey, Zone)",
@@ -13628,14 +13628,14 @@ static void RequireMainMenuContinueRunState(string root)
         actionGameManager.Contains("AvailableCargoBays()", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "ActionGameManager must not expose renderer-local towing context or available cargo bay enumeration as public gameplay truth; clients must use typed projections and daemon operations.");
+            "ActionGameManager must not expose renderer-local towing context or available cargo bay enumeration as public gameplay truth; clients must use typed documents and daemon operations.");
     }
 
     if (actionGameManager.Contains("public int Credits", StringComparison.Ordinal) ||
         actionGameManager.Contains("Credits = render.Credits", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "ActionGameManager must not mirror run credits as manager-global gameplay state; clients must read credits through typed projections such as StationRefitAsync.");
+            "ActionGameManager must not mirror run credits as manager-global gameplay state; clients must read credits through typed documents such as StationRefitAsync.");
     }
 
     if (actionGameManager.Contains("public static AetheriaRuntimeCatalogSnapshot RuntimeCatalog", StringComparison.Ordinal) ||
@@ -14222,7 +14222,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         "_lastAppliedAuthoritativeDaemonRunId",
         "_lastAppliedAuthoritativeDaemonZoneIndex",
         "private bool TryRestoreEntityGraphFromZoneRender(",
-        "AetheriaRuntimeRtsProjection.ProjectZoneRender(observed.Frame)",
+        "AetheriaRuntimeRtsDocuments.ZoneRender(observed.Frame)",
         "AetheriaRuntimeEntitySnapshotProjector.CreateSnapshots(runId, daemonZone)",
         "ObservedEntityRestorer.Replace(entitySnapshots, currentEntityKey, Zone)",
         "ObservedEntityRestorer.TryApplyInPlace(",
@@ -14426,7 +14426,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
     if (observedReadShimHits.Length > 0)
     {
         throw new InvalidOperationException(
-            "ActionGameManager must not expose broad observed galaxy/zone read shims; clients read typed projections through AetheriaClient: " +
+            "ActionGameManager must not expose broad observed galaxy/zone read shims; clients read typed documents through AetheriaClient: " +
             string.Join(", ", observedReadShimHits));
     }
 
@@ -16444,7 +16444,7 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "ReactiveObservedDaemon(",
         "TryCurrent(out AetheriaRuntimeDaemonRenderView? observed)",
         "return new AetheriaRuntimeDaemonRenderView(frame, soaView);",
-        "AetheriaRuntimeRtsProjection.ProjectZoneRender(Frame)",
+        "AetheriaRuntimeRtsDocuments.ZoneRender(Frame)",
         "zoneRender = null"
     };
     var observedDaemonStateBypassHits = forbiddenObservedDaemonStateSymbols
@@ -17478,7 +17478,7 @@ static void RequireInventoryDoubleClickTransferRequestAuthority(string root)
     if (missingTypedSlotValidationSymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "Inventory cargo/equipment submissions must validate Unity facade adapters against typed inventory projection slot identity: " +
+            "Inventory cargo/equipment submissions must validate Unity facade adapters against typed inventory document slot identity: " +
             string.Join(", ", missingTypedSlotValidationSymbols));
     }
 
@@ -18184,7 +18184,7 @@ static void RequireInventoryLoadoutRestoreRequestAuthority(string root)
     var rtsDocuments = File.Exists(rtsDocumentsPath)
         ? File.ReadAllText(rtsDocumentsPath)
         : throw new InvalidOperationException("Cannot verify loadout restore authority; RTS viewport documents are missing.");
-    var rtsProjectionPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeRtsProjection.cs");
+    var rtsProjectionPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeRtsDocuments.cs");
     var rtsProjection = File.Exists(rtsProjectionPath)
         ? File.ReadAllText(rtsProjectionPath)
         : throw new InvalidOperationException("Cannot verify loadout restore authority; RTS projection source is missing.");
@@ -18348,7 +18348,7 @@ static void RequireInventoryLoadoutRestoreRequestAuthority(string root)
         !rtsProjection.Contains("credits >= price", StringComparison.Ordinal) ||
         !clientState.Contains("public CultMeshDocumentHandle<AetheriaRuntimeLoadoutTemplatesDocument> LoadoutTemplates", StringComparison.Ordinal) ||
         !verseClient.Contains("RequireManagedLoadoutTemplates().Templates", StringComparison.Ordinal) ||
-        !verseClient.Contains("ProjectStationRefit(", StringComparison.Ordinal))
+        !verseClient.Contains("StationRefit(", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "StationRefitAsync must publish typed loadout restore options with shared runtime pricing and daemon-target identity.");
