@@ -162,7 +162,10 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
                      statePath,
                      "aetheria-state-smoke-command-check"))
     {
-        if (commandVerifyNode.ReadObservedDaemonCommands().All(command =>
+        if (commandVerifyNode.Documents<AetheriaRuntimeDaemonCommandDocument>()
+            .OrderBy(command => command.IssuedAtUtc ?? "", StringComparer.Ordinal)
+            .ThenBy(command => command.CommandId ?? "", StringComparer.Ordinal)
+            .All(command =>
                 command.Kind != AetheriaRuntimeDaemonCommandKinds.SensorPing ||
                 command.ClientId != "aetheria-state-smoke-command-client"))
         {
@@ -555,7 +558,11 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
                      statePath,
                      "aetheria-state-smoke-eve-command-check"))
     {
-        if (commandVerifyNode.ReadObservedEveCommands().All(command =>
+        if (commandVerifyNode.Documents<AetheriaRuntimeEveCommandDocument>()
+            .Select(AetheriaRuntimeEveCommandClient.NormalizeDocument)
+            .OrderBy(command => command.IssuedAtUtc ?? "", StringComparer.Ordinal)
+            .ThenBy(command => command.CommandId ?? "", StringComparer.Ordinal)
+            .All(command =>
                 command.Kind != AetheriaRuntimeEveCommandKind.SetBindingOverride ||
                 command.ClientId != "aetheria-state-smoke-eve-command-client"))
         {

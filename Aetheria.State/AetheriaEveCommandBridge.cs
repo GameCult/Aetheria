@@ -33,7 +33,10 @@ public static class AetheriaEveCommandBridge
         var accepted = new List<string>();
         var rejected = new List<string>();
         var accounted = new HashSet<string>(accountedCommandIds ?? Array.Empty<string>(), StringComparer.Ordinal);
-        foreach (var command in node.ReadObservedEveCommands()
+        foreach (var command in node.Documents<AetheriaRuntimeEveCommandDocument>()
+                     .Select(AetheriaRuntimeEveCommandClient.NormalizeDocument)
+                     .OrderBy(command => command.IssuedAtUtc ?? "", StringComparer.Ordinal)
+                     .ThenBy(command => command.CommandId ?? "", StringComparer.Ordinal)
                      .Where(command => !string.IsNullOrWhiteSpace(command.CommandId))
                      .Where(command => !accounted.Contains(command.CommandId)))
         {

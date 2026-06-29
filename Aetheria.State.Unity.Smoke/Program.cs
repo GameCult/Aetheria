@@ -198,8 +198,16 @@ try
             Enabled = eveCommand.InputSettings.Enabled
         }
     });
-    var eveSubmitted = eveCommandNode.ReadObservedEveCommands();
-    if (eveSubmitted.Count != 1 ||
+    await eveCommandNode.FlushAsync();
+    await using var eveCommandCheckNode = await AetheriaStateNode.OpenAsync(
+        commitSmokeStatePath,
+        "aetheria-unity-runtime-eve-command-check");
+    var eveSubmitted = eveCommandCheckNode.Documents<AetheriaRuntimeEveCommandDocument>()
+        .Select(AetheriaRuntimeEveCommandClient.NormalizeDocument)
+        .OrderBy(command => command.IssuedAtUtc ?? "", StringComparer.Ordinal)
+        .ThenBy(command => command.CommandId ?? "", StringComparer.Ordinal)
+        .ToArray();
+    if (eveSubmitted.Length != 1 ||
         eveSubmitted[0].Schema != AetheriaRuntimeEveCommandClient.CommandSchema ||
         eveSubmitted[0].CommandId != eveCommand.CommandId ||
         eveSubmitted[0].ProviderId != "aetheria" ||
@@ -209,7 +217,18 @@ try
         eveSubmitted[0].PlayerSettings == null ||
         eveSubmitted[0].InputSettings == null)
     {
-        throw new InvalidOperationException("Runtime Eve command state record did not preserve typed command envelopes separately from state commits.");
+        var submitted = eveSubmitted.Length > 0 ? eveSubmitted[0] : null;
+        throw new InvalidOperationException(
+            "Runtime Eve command state record did not preserve typed command envelopes separately from state commits. " +
+            $"Count={eveSubmitted.Length}, " +
+            $"Schema={submitted?.Schema ?? "<null>"}, " +
+            $"CommandId={submitted?.CommandId ?? "<null>"} expected {eveCommand.CommandId}, " +
+            $"ProviderId={submitted?.ProviderId ?? "<null>"}, " +
+            $"SurfaceId={submitted?.SurfaceId ?? "<null>"}, " +
+            $"Command={submitted?.Command ?? "<null>"}, " +
+            $"Kind={submitted?.Kind.ToString() ?? "<null>"}, " +
+            $"PlayerSettings={(submitted?.PlayerSettings == null ? "null" : "present")}, " +
+            $"InputSettings={(submitted?.InputSettings == null ? "null" : "present")}.");
     }
 }
 finally

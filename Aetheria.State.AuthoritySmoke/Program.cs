@@ -1006,7 +1006,10 @@ internal sealed class AuthoritySmokeChecks
             runtimeId,
             startServer: false,
             enableDurableShardLogs: false).ConfigureAwait(false);
-        return node.ReadCommittedCommandFacts();
+        return node.Documents<AetheriaRuntimeCommittedCommandFactDocument>()
+            .OrderBy(fact => fact.CommittedAtUtc ?? "", StringComparer.Ordinal)
+            .ThenBy(fact => fact.FactId ?? "", StringComparer.Ordinal)
+            .ToArray();
     }
 
     private static void TrustedCommittedFactsConvergeLocalRuns()

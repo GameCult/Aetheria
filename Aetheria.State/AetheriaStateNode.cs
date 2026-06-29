@@ -96,6 +96,12 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
         return MutableDocumentPointer<TDocument>(key);
     }
 
+    public IReadOnlyList<TDocument> Documents<TDocument>()
+        where TDocument : class
+    {
+        return Cache.GetAll<TDocument>().ToArray();
+    }
+
     public CultMeshDocumentHandle<AetheriaRuntimeCatalogSnapshot> RuntimeCatalog()
     {
         return _runtimeCatalog ??= CultMesh.Document(
@@ -159,15 +165,6 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
         return Database.PutAsync(DaemonCommandKey(command.CommandId), command);
     }
 
-    public IReadOnlyList<AetheriaRuntimeDaemonCommandDocument> ReadObservedDaemonCommands()
-    {
-        return Cache
-            .GetAll<AetheriaRuntimeDaemonCommandDocument>()
-            .OrderBy(command => command.IssuedAtUtc ?? "", StringComparer.Ordinal)
-            .ThenBy(command => command.CommandId ?? "", StringComparer.Ordinal)
-            .ToArray();
-    }
-
     public Task<CultRecordHandle<AetheriaRuntimeCommittedCommandFactDocument>> PutCommittedCommandFactAsync(
         AetheriaRuntimeCommittedCommandFactDocument fact)
     {
@@ -181,20 +178,6 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
         return Database.PutAsync(
             new CultRecordKey(AetheriaRuntimeCommittedCommandFactDocument.CreateRecordKey(fact.FactId)),
             fact);
-    }
-
-    public IReadOnlyList<AetheriaRuntimeCommittedCommandFactDocument> ReadCommittedCommandFacts()
-    {
-        return Cache
-            .GetAll<AetheriaRuntimeCommittedCommandFactDocument>()
-            .OrderBy(fact => fact.CommittedAtUtc ?? "", StringComparer.Ordinal)
-            .ThenBy(fact => fact.FactId ?? "", StringComparer.Ordinal)
-            .ToArray();
-    }
-
-    public IReadOnlyList<AetheriaRuntimeAuthorityLeaseDocument> ReadAuthorityLeases()
-    {
-        return Cache.GetAll<AetheriaRuntimeAuthorityLeaseDocument>().ToArray();
     }
 
     private static CultRecordKey DaemonCommandKey(string commandId)
@@ -214,16 +197,6 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
             command.IssuedAtUtc = DateTime.UtcNow.ToString("O");
 
         return Database.PutAsync(EveCommandKey(command.CommandId), command);
-    }
-
-    public IReadOnlyList<AetheriaRuntimeEveCommandDocument> ReadObservedEveCommands()
-    {
-        return Cache
-            .GetAll<AetheriaRuntimeEveCommandDocument>()
-            .Select(AetheriaRuntimeEveCommandClient.NormalizeDocument)
-            .OrderBy(command => command.IssuedAtUtc ?? "", StringComparer.Ordinal)
-            .ThenBy(command => command.CommandId ?? "", StringComparer.Ordinal)
-            .ToArray();
     }
 
     private static CultRecordKey EveCommandKey(string commandId)

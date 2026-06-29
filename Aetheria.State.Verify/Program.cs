@@ -10059,7 +10059,6 @@ static void RequireTypedDaemonCommandPayloads(string root)
         "public const string DefaultClientId = \"aetheria-daemon-client\"",
         "ClientId = string.IsNullOrWhiteSpace(clientId) ? DefaultClientId : clientId",
         "private AetheriaRuntimeDaemonCommandEnvelope Send(AetheriaRuntimeDaemonCommandDocument command)",
-        "ReadObservedDaemonCommands()",
         "Func<AetheriaRuntimeDaemonOperationClient, AetheriaRuntimeDaemonFrameDocument?, AetheriaRuntimeDaemonCommandEnvelope> submit",
         "return Submit((client, frame) => client.SetTarget(frame, targetEntityKey));",
         "return Send((client, frame) => client.TransferCargoItem(",
@@ -10393,6 +10392,7 @@ static void RequireAetheriaStateNodeUsesManagedPointers(string root)
         "public static CultRecordKey MigrationLedgerKey { get; }",
         "public static CultRecordKey LegacyCatalogQuarantineKey { get; }",
         "public CultMeshMutableStatePointer<TDocument> MutableDocument<TDocument>(CultRecordKey key)",
+        "public IReadOnlyList<TDocument> Documents<TDocument>()",
         "private CultMeshMutableStatePointer<T> MutableDocumentPointer<T>(CultRecordKey key)",
         "CultMesh.MutableStatePointer("
     };
@@ -10472,7 +10472,11 @@ static void RequireAetheriaStateNodeUsesManagedPointers(string root)
         "public CultMeshMutableStatePointer<EveSurfaceState> DaemonGameSurface()",
         "public CultMeshMutableStatePointer<EveSurfaceState> DaemonGameTuiSurface()",
         "public CultMeshMutableStatePointer<EveSurfaceState> DaemonEditorSurface()",
-        "public CultMeshMutableStatePointer<EveSurfaceState> DaemonEditorTuiSurface()"
+        "public CultMeshMutableStatePointer<EveSurfaceState> DaemonEditorTuiSurface()",
+        "ReadObservedDaemonCommands(",
+        "ReadCommittedCommandFacts(",
+        "ReadAuthorityLeases(",
+        "ReadObservedEveCommands("
     };
     var survivingSymbols = forbiddenSymbols
         .Where(symbol => stateNode.Contains(symbol, StringComparison.Ordinal))
@@ -11044,7 +11048,7 @@ static void RequireDaemonVersePublication(string root)
         "AetheriaRuntimeVerseRecordKeys.DaemonEditorSurface",
         "AetheriaRuntimeVerseRecordKeys.DaemonEditorTuiSurface",
         "AetheriaEveCommandBridge.AcceptObservedAsync(",
-        "ReadObservedDaemonCommands()",
+        "node.Documents<AetheriaRuntimeDaemonCommandDocument>()",
         "currentFrame?.AccountedCommandIds ?? Array.Empty<string>()",
         "AetheriaRuntimeDaemonTickRunner.Tick(",
         "node.MutableDocument<AetheriaEveCommandAcceptanceStatus>(AetheriaStateNode.EveCommandAcceptanceStatusKey).ReadAsync()",
@@ -11168,7 +11172,7 @@ static void RequireDaemonVersePublication(string root)
         "server.OnCultNet<CultNetSnapshotRequestMessage>",
         StringComparison.Ordinal);
     var snapshotHandlerEnd = snapshotHandlerStart >= 0
-        ? daemonHostSource.IndexOf("var factPuts = node.ReadCommittedCommandFacts()", snapshotHandlerStart, StringComparison.Ordinal)
+        ? daemonHostSource.IndexOf("var factPuts = node.Documents<AetheriaRuntimeCommittedCommandFactDocument>()", snapshotHandlerStart, StringComparison.Ordinal)
         : -1;
     var snapshotHandler = snapshotHandlerStart >= 0 && snapshotHandlerEnd > snapshotHandlerStart
         ? daemonHostSource.Substring(snapshotHandlerStart, snapshotHandlerEnd - snapshotHandlerStart)
@@ -12373,10 +12377,10 @@ static void RequireTypedEveCommandBodies(string root)
         "ToDocument(",
         "AcceptObservedAsync(",
         "switch (command.Kind)",
-        "node.ReadObservedEveCommands()",
+        "node.Documents<AetheriaRuntimeEveCommandDocument>()",
+        "AetheriaRuntimeEveCommandClient.NormalizeDocument",
         "AccountedCommandIds",
         "SubmitEveCommandAsync(",
-        "ReadObservedEveCommands(",
         "EveCommandKey(",
         "typeof(AetheriaRuntimeEveCommandDocument)",
         "SubmitPlayerSettingsCommand(",

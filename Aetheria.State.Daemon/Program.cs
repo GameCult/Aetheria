@@ -129,7 +129,10 @@ static async Task<AetheriaRuntimeDaemonTickResult> TickAsync(
         .GetAll<AetheriaLoadoutTemplate>()
         .Select(ToLoadoutTemplateCommit)
         .ToArray();
-    var observedCommands = node.ReadObservedDaemonCommands();
+    var observedCommands = node.Documents<AetheriaRuntimeDaemonCommandDocument>()
+        .OrderBy(command => command.IssuedAtUtc ?? "", StringComparer.Ordinal)
+        .ThenBy(command => command.CommandId ?? "", StringComparer.Ordinal)
+        .ToArray();
     var accountedCommandIds = new HashSet<string>(
         currentFrame?.AccountedCommandIds ?? Array.Empty<string>(),
         StringComparer.Ordinal);
@@ -140,7 +143,7 @@ static async Task<AetheriaRuntimeDaemonTickResult> TickAsync(
     var authorityPolicy = await node.MutableDocument<AetheriaRuntimeVerseAuthorityPolicyDocument>(AetheriaRuntimeVerseRecordKeys.VerseAuthorityPolicy).ReadAsync().ConfigureAwait(false);
     var starbridgeScenario = await node.MutableDocument<AetheriaRuntimeStarbridgeScenarioDocument>(AetheriaRuntimeVerseRecordKeys.StarbridgeScenarioLatest).ReadAsync().ConfigureAwait(false);
     var starbridgeSession = await node.MutableDocument<AetheriaRuntimeStarbridgeSessionDocument>(AetheriaRuntimeVerseRecordKeys.StarbridgeSessionLatest).ReadAsync().ConfigureAwait(false);
-    var authorityLeases = node.ReadAuthorityLeases();
+    var authorityLeases = node.Documents<AetheriaRuntimeAuthorityLeaseDocument>();
     var authorizedCommands = AetheriaRuntimeAuthorityRouter.AuthorizedCommands(
         pendingObservedCommands,
         authorityPolicy,
@@ -510,7 +513,9 @@ static RudpCultNetSchemaServer StartRtsCultMeshHost(
                     .ToArray();
             }
 
-            var factPuts = node.ReadCommittedCommandFacts()
+            var factPuts = node.Documents<AetheriaRuntimeCommittedCommandFactDocument>()
+                .OrderBy(fact => fact.CommittedAtUtc ?? "", StringComparer.Ordinal)
+                .ThenBy(fact => fact.FactId ?? "", StringComparer.Ordinal)
                 .Select(fact => new
                 {
                     Fact = fact,
@@ -793,7 +798,7 @@ static async Task PublishDaemonApiDocumentsAsync(
 
 static async Task AcceptEveCommandsAsync(AetheriaStateNode node, AetheriaDaemonHostOptions options)
 {
-    var commandCountBefore = node.ReadObservedEveCommands().Count;
+    var commandCountBefore = node.Documents<AetheriaRuntimeEveCommandDocument>().Count;
     var now = DateTimeOffset.UtcNow.ToString("O");
     try
     {
