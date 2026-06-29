@@ -772,13 +772,13 @@ public class TradeMenu : MonoBehaviour
 
     private void RenderFilterSurface()
     {
-        _filterSurfaceModel = ComposeTradeFilterSurface();
+        _filterSurfaceModel = BuildTradeFilterSurfaceModel();
 
         _filterSurfaceDocument = AetheriaEveUnitySurfaceHost.RenderRuntime(
             transform,
             _filterSurfaceDocument,
             "Aetheria Trade Filter Surface",
-            AetheriaRuntimeTradeInteractionSurfaceBuilder.BuildFilter(_filterSurfaceModel.State),
+            _filterSurfaceModel.Document,
             HandleFilterSurfaceCommand,
             _filterSurfaceChrome,
             sortingOrder: 1001);
@@ -817,7 +817,7 @@ public class TradeMenu : MonoBehaviour
         AetheriaEveUnitySurfaceHost.Hide(_filterSurfaceDocument);
     }
 
-    private AetheriaRuntimeTradeFilterSurfaceModel ComposeTradeFilterSurface()
+    private AetheriaRuntimeTradeFilterSurfaceModel BuildTradeFilterSurfaceModel()
     {
         var options = new List<AetheriaRuntimeTradeFilterOption>();
         options.AddRange(((HardpointType[])Enum.GetValues(typeof(HardpointType)))
@@ -862,7 +862,7 @@ public class TradeMenu : MonoBehaviour
                 "Maximum Size"));
         }
 
-        return AetheriaRuntimeTradeInteractionSurfaceBuilder.ComposeFilters(
+        return AetheriaRuntimeTradeInteractionSurfaceBuilder.BuildFilters(
             BuildFilterSummary(),
             options,
             DateTime.UtcNow.ToString("O"));
@@ -912,7 +912,7 @@ public class TradeMenu : MonoBehaviour
         _rowActionCallbacks = actions
             .Select(action => action.Action)
             .ToArray();
-        _rowActionSurfaceModel = AetheriaRuntimeTradeInteractionSurfaceBuilder.ComposeRowActions(
+        _rowActionSurfaceModel = AetheriaRuntimeTradeInteractionSurfaceBuilder.BuildRowActions(
             title,
             actions.Select((action, index) => new AetheriaRuntimeTradeRowActionOption(index, action.Label)),
             DateTime.UtcNow.ToString("O"));
@@ -921,7 +921,7 @@ public class TradeMenu : MonoBehaviour
             transform,
             _rowActionSurfaceDocument,
             "Aetheria Trade Row Action Surface",
-            AetheriaRuntimeTradeInteractionSurfaceBuilder.BuildRowActions(_rowActionSurfaceModel.State),
+            _rowActionSurfaceModel.Document,
             HandleRowActionSurfaceCommand,
             _rowActionSurfaceChrome,
             sortingOrder: 1002);

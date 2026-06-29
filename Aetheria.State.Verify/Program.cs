@@ -5958,21 +5958,21 @@ static void RequireTradeFilterAndRowActionsUseEveSurface(string root)
     var requiredSymbols = new[]
     {
         "RenderFilterSurface(",
-        "_filterSurfaceModel = ComposeTradeFilterSurface();",
+        "_filterSurfaceModel = BuildTradeFilterSurfaceModel();",
         "HandleFilterSurfaceCommand(",
         "AetheriaEveUnitySurfaceHost.RenderRuntime(",
         "AetheriaEveUnitySurfaceHost.Hide(_filterSurfaceDocument)",
-        "AetheriaRuntimeTradeInteractionSurfaceBuilder.BuildFilter(_filterSurfaceModel.State)",
-        "ComposeTradeFilterSurface(",
-        "AetheriaRuntimeTradeInteractionSurfaceBuilder.ComposeFilters(",
+        "_filterSurfaceModel.Document",
+        "BuildTradeFilterSurfaceModel(",
+        "AetheriaRuntimeTradeInteractionSurfaceBuilder.BuildFilters(",
         "_filterSurfaceModel?.TryResolve(command.Command, out var selection) == true",
         "ExecuteTradeFilterSelection(",
         "new AetheriaRuntimeTradeFilterOption(",
         "RenderRowActionSurface(",
         "HandleRowActionSurfaceCommand(",
         "AetheriaEveUnitySurfaceHost.Hide(_rowActionSurfaceDocument)",
-        "AetheriaRuntimeTradeInteractionSurfaceBuilder.ComposeRowActions(",
-        "AetheriaRuntimeTradeInteractionSurfaceBuilder.BuildRowActions(_rowActionSurfaceModel.State)",
+        "AetheriaRuntimeTradeInteractionSurfaceBuilder.BuildRowActions(",
+        "_rowActionSurfaceModel.Document",
         "_rowActionSurfaceModel?.TryResolve(command.Command, out var selection) == true",
         "new AetheriaRuntimeTradeRowActionOption(index, action.Label)",
         "ShowBuyQuantityDialog(",
@@ -6020,13 +6020,18 @@ static void RequireTradeFilterAndRowActionsUseEveSurface(string root)
         "BuildFilterSurfaceCommands(",
         "ProjectTradeFilterSurfaceState(",
         "ProjectTradeFilterSurface(",
+        "ComposeTradeFilterSurface(",
+        "AetheriaRuntimeTradeInteractionSurfaceBuilder.ComposeFilters(",
+        "_filterSurfaceModel.State",
         "AddTradeFilterGroup(",
         "_rowActionSurfaceCommands.TryGetValue(request.Command",
         "_rowActionSurfaceProjection",
         "private readonly Dictionary<string, Action> _rowActionSurfaceCommands",
         "BuildRowActionSurfaceCommands(",
         "ProjectTradeRowActionSurfaceState(",
-        "ProjectRowActions("
+        "ProjectRowActions(",
+        "AetheriaRuntimeTradeInteractionSurfaceBuilder.ComposeRowActions(",
+        "_rowActionSurfaceModel.State"
     };
 
     var hits = forbiddenSymbols
@@ -6063,11 +6068,12 @@ static void RequireTradeFilterAndRowActionsUseEveSurface(string root)
         "AetheriaRuntimeTradeRowActionSurfaceModel",
         "AetheriaRuntimeTradeSurfaceGroup",
         "AetheriaRuntimeTradeSurfaceOption",
+        "public AetheriaRuntimeSurfaceDocument Document { get; }",
         "public static string HardpointFilterCommand(",
         "public static string RowActionCommand(",
-        "public static AetheriaRuntimeTradeFilterSurfaceModel ComposeFilters(",
+        "public static AetheriaRuntimeTradeFilterSurfaceModel BuildFilters(",
         "public bool TryResolve(string command, out AetheriaRuntimeTradeFilterSelection selection)",
-        "public static AetheriaRuntimeTradeRowActionSurfaceModel ComposeRowActions(",
+        "public static AetheriaRuntimeTradeRowActionSurfaceModel BuildRowActions(",
         "public bool TryResolve(string command, out AetheriaRuntimeTradeRowActionSelection selection)",
         "public static AetheriaRuntimeSurfaceDocument BuildFilter(",
         "public static AetheriaRuntimeSurfaceDocument BuildRowActions(",
@@ -6083,6 +6089,15 @@ static void RequireTradeFilterAndRowActionsUseEveSurface(string root)
         throw new InvalidOperationException(
             "Shared runtime trade interaction surface builder no longer owns the trade filter/row-action shell contracts: " +
             string.Join(", ", missingBuilderSymbols));
+    }
+
+    if (tradeInteractionSurfaceBuilder.Contains("public AetheriaRuntimeTradeFilterSurfaceState State { get; }", StringComparison.Ordinal) ||
+        tradeInteractionSurfaceBuilder.Contains("public AetheriaRuntimeTradeRowActionSurfaceState State { get; }", StringComparison.Ordinal) ||
+        tradeInteractionSurfaceBuilder.Contains("public static AetheriaRuntimeTradeFilterSurfaceModel ComposeFilters(", StringComparison.Ordinal) ||
+        tradeInteractionSurfaceBuilder.Contains("public static AetheriaRuntimeTradeRowActionSurfaceModel ComposeRowActions(", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Shared runtime trade interaction builder must return models with finished surface documents; do not re-expose Compose or public State handoffs.");
     }
 }
 

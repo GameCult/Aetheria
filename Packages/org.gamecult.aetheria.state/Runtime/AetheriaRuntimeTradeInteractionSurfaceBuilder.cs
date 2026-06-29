@@ -101,17 +101,18 @@ namespace GameCult.Aetheria.State.Verse
     public sealed class AetheriaRuntimeTradeFilterSurfaceModel
     {
         public AetheriaRuntimeTradeFilterSurfaceModel(
-            AetheriaRuntimeTradeFilterSurfaceState state,
+            AetheriaRuntimeSurfaceDocument document,
             IReadOnlyDictionary<string, AetheriaRuntimeTradeFilterSelection> selections)
         {
-            State = state ?? new AetheriaRuntimeTradeFilterSurfaceState(
-                "",
-                Array.Empty<AetheriaRuntimeTradeSurfaceGroup>(),
-                "");
+            Document = document ?? AetheriaRuntimeTradeInteractionSurfaceBuilder.BuildFilter(
+                new AetheriaRuntimeTradeFilterSurfaceState(
+                    "",
+                    Array.Empty<AetheriaRuntimeTradeSurfaceGroup>(),
+                    ""));
             Selections = selections ?? new Dictionary<string, AetheriaRuntimeTradeFilterSelection>(StringComparer.Ordinal);
         }
 
-        public AetheriaRuntimeTradeFilterSurfaceState State { get; }
+        public AetheriaRuntimeSurfaceDocument Document { get; }
         public IReadOnlyDictionary<string, AetheriaRuntimeTradeFilterSelection> Selections { get; }
 
         public bool TryResolve(string command, out AetheriaRuntimeTradeFilterSelection selection)
@@ -164,17 +165,18 @@ namespace GameCult.Aetheria.State.Verse
     public sealed class AetheriaRuntimeTradeRowActionSurfaceModel
     {
         public AetheriaRuntimeTradeRowActionSurfaceModel(
-            AetheriaRuntimeTradeRowActionSurfaceState state,
+            AetheriaRuntimeSurfaceDocument document,
             IReadOnlyDictionary<string, AetheriaRuntimeTradeRowActionSelection> selections)
         {
-            State = state ?? new AetheriaRuntimeTradeRowActionSurfaceState(
-                "",
-                Array.Empty<AetheriaRuntimeTradeSurfaceOption>(),
-                "");
+            Document = document ?? AetheriaRuntimeTradeInteractionSurfaceBuilder.BuildRowActions(
+                new AetheriaRuntimeTradeRowActionSurfaceState(
+                    "",
+                    Array.Empty<AetheriaRuntimeTradeSurfaceOption>(),
+                    ""));
             Selections = selections ?? new Dictionary<string, AetheriaRuntimeTradeRowActionSelection>(StringComparer.Ordinal);
         }
 
-        public AetheriaRuntimeTradeRowActionSurfaceState State { get; }
+        public AetheriaRuntimeSurfaceDocument Document { get; }
         public IReadOnlyDictionary<string, AetheriaRuntimeTradeRowActionSelection> Selections { get; }
 
         public bool TryResolve(string command, out AetheriaRuntimeTradeRowActionSelection selection)
@@ -225,7 +227,7 @@ namespace GameCult.Aetheria.State.Verse
             return $"{RowActionSurfaceId}.action_{index}";
         }
 
-        public static AetheriaRuntimeTradeFilterSurfaceModel ComposeFilters(
+        public static AetheriaRuntimeTradeFilterSurfaceModel BuildFilters(
             string filterSummary,
             IEnumerable<AetheriaRuntimeTradeFilterOption> options,
             string updatedAtUtc)
@@ -270,15 +272,15 @@ namespace GameCult.Aetheria.State.Verse
                 .Where(group => group.Options.Count > 0)
                 .ToArray();
 
-            return new AetheriaRuntimeTradeFilterSurfaceModel(
-                new AetheriaRuntimeTradeFilterSurfaceState(
-                    filterSummary,
-                    groups,
-                    updatedAtUtc),
-                selections);
+            var state = new AetheriaRuntimeTradeFilterSurfaceState(
+                filterSummary,
+                groups,
+                updatedAtUtc);
+
+            return new AetheriaRuntimeTradeFilterSurfaceModel(BuildFilter(state), selections);
         }
 
-        public static AetheriaRuntimeTradeRowActionSurfaceModel ComposeRowActions(
+        public static AetheriaRuntimeTradeRowActionSurfaceModel BuildRowActions(
             string title,
             IEnumerable<AetheriaRuntimeTradeRowActionOption> actions,
             string updatedAtUtc)
@@ -302,12 +304,12 @@ namespace GameCult.Aetheria.State.Verse
                 selections[command] = new AetheriaRuntimeTradeRowActionSelection(command, action.Index);
             }
 
-            return new AetheriaRuntimeTradeRowActionSurfaceModel(
-                new AetheriaRuntimeTradeRowActionSurfaceState(
-                    title,
-                    options,
-                    updatedAtUtc),
-                selections);
+            var state = new AetheriaRuntimeTradeRowActionSurfaceState(
+                title,
+                options,
+                updatedAtUtc);
+
+            return new AetheriaRuntimeTradeRowActionSurfaceModel(BuildRowActions(state), selections);
         }
 
         public static AetheriaRuntimeSurfaceDocument BuildFilter(
