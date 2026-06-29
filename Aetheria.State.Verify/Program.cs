@@ -16337,7 +16337,6 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "public static AetheriaUi Ui(",
         "public static CultMeshReactiveDocument<TDocument> Reactive<TDocument>(string runtimeId = \"\")",
         "public static CultMeshReactiveDocument<TDocument> Reactive<TDocument>(",
-        "public static AetheriaClient CurrentClientForStateFile(string stateFilePath)",
         "private static readonly Dictionary<string, AetheriaClient> RuntimeClients",
         "RuntimeClients.TryGetValue(cacheKey, out var runtimeClient)",
         "RuntimeClients[cacheKey] = runtimeClient",
@@ -16361,10 +16360,12 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     }
 
     if (runtimeClientProvider.Contains("AetheriaRuntimePlayerSettingsSession _playerSettingsDocument", StringComparison.Ordinal) ||
+        runtimeClientProvider.Contains("CurrentClientForStateFile", StringComparison.Ordinal) ||
+        runtimeClientProvider.Contains("StatePathCachePrefix", StringComparison.Ordinal) ||
         runtimeClientProvider.Contains(".ObservePlayer()", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "AetheriaUnityRuntimeClientProvider still routes player settings through a legacy session wrapper instead of the reactive typed document.");
+            "AetheriaUnityRuntimeClientProvider must expose narrow state/control/UI handles, not legacy sessions or ambient current-client lookups.");
     }
 
     var providerOwnedClientAccessSources = new Dictionary<string, string>

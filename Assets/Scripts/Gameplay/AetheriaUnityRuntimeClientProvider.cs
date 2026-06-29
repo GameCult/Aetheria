@@ -153,17 +153,6 @@ public static class AetheriaUnityRuntimeClientProvider
         return RuntimeState(stateBoot, runtimeId).Reactive<TDocument>(index);
     }
 
-    public static AetheriaClient CurrentClientForStateFile(string stateFilePath)
-    {
-        foreach (var pair in RuntimeClients)
-        {
-            if (pair.Key.StartsWith(StatePathCachePrefix(stateFilePath), StringComparison.Ordinal))
-                return pair.Value;
-        }
-
-        return null;
-    }
-
     public static void Dispose()
     {
         _playerSettingsDocument?.Dispose();
@@ -178,12 +167,7 @@ public static class AetheriaUnityRuntimeClientProvider
 
     private static string CacheKey(string stateFilePath, string runtimeId)
     {
-        return StatePathCachePrefix(stateFilePath) + runtimeId;
-    }
-
-    private static string StatePathCachePrefix(string stateFilePath)
-    {
-        return (stateFilePath ?? "") + "\n";
+        return (stateFilePath ?? "") + "\n" + runtimeId;
     }
 
     private static void RefreshPlayerSettings(RuntimePlayerSettings settings)
