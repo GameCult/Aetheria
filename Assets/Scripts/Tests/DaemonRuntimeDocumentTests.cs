@@ -166,18 +166,18 @@ public class DaemonRuntimeDocumentTests
             .GetAwaiter()
             .GetResult();
 
-        var currentEntity = ReadLatest(client.State.CurrentEntityDocument());
-        var latestFrame = ReadLatest(client.State.DaemonFrameDocument());
-        var catalog = ReadLatest(client.State.CatalogSnapshot());
-        var playerSettings = ReadLatest(client.State.PlayerSettingsDocument());
-        var verseHostSettings = ReadLatest(client.State.VerseHostSettingsDocument());
+        var currentEntity = ReadLatest(client.State.CurrentEntity);
+        var latestFrame = ReadLatest(client.State.DaemonFrame);
+        var catalog = ReadLatest(client.State.Catalog);
+        var playerSettings = ReadLatest(client.State.PlayerSettings);
+        var verseHostSettings = ReadLatest(client.State.VerseHostSettings);
         var currentEntityByType = client.State
-            .CurrentEntityDocument()
+            .CurrentEntity
             .LatestAsync()
             .GetAwaiter()
             .GetResult();
         var latestFrameByType = client.State
-            .DaemonFrameDocument()
+            .DaemonFrame
             .LatestAsync()
             .GetAwaiter()
             .GetResult();
@@ -192,17 +192,17 @@ public class DaemonRuntimeDocumentTests
         var zoneDetails = ReadLatest(client.State.ZoneDetails(0));
         var inventory = ReadLatest(client.State.Inventory(0));
         var currentEntityFromClientType = client.State
-            .CurrentEntityDocument()
+            .CurrentEntity
             .LatestAsync()
             .GetAwaiter()
             .GetResult();
         using var currentEntityReactive = client.State
-            .CurrentEntityDocument()
+            .CurrentEntity
             .ReactiveAsync()
             .GetAwaiter()
             .GetResult();
         using var zoneRenderReactive = client.State.ReactiveZoneRender();
-        var observedAuthoritativeFrame = ReadLatest(client.State.DaemonFrameDocument());
+        var observedAuthoritativeFrame = ReadLatest(client.State.DaemonFrame);
         using var catalogReactive = client.State.ReactiveCatalogSnapshot();
         using var daemonFrameReactive = client.State.ReactiveDaemonFrame();
         using var daemonSoaViewReactive = client.State.ReactiveDaemonSoaView();
@@ -234,12 +234,12 @@ public class DaemonRuntimeDocumentTests
         var gameTuiSurface = ReadLatest(client.State.GameTuiSurface);
         var editorSurface = ReadLatest(client.State.EditorSurface);
         var editorTuiSurface = ReadLatest(client.State.EditorTuiSurface);
-        var authorityStatus = ReadLatest(client.State.AuthorityPolicyDocument());
-        var currentDocking = client.State.CurrentDockingDocument
+        var authorityStatus = ReadLatest(client.State.AuthorityPolicy);
+        var currentDocking = client.State.CurrentDocking
             .LatestAsync()
             .GetAwaiter()
             .GetResult();
-        var stationRefit = ReadLatest(client.State.StationRefitDocument());
+        var stationRefit = ReadLatest(client.State.StationRefit);
         Assert.AreEqual(currentEntity.EntityKey, currentEntityDocumentReactive.Current.EntityKey);
         Assert.AreEqual(currentDocking.CurrentEntityKey, currentDockingReactive.Current.CurrentEntityKey);
         Assert.AreEqual(stationRefit.StationEntityKey, stationRefitReactive.Current.StationEntityKey);
@@ -249,34 +249,28 @@ public class DaemonRuntimeDocumentTests
         using var reactiveEditorTuiSurface = client.State.EditorTuiSurface.Reactive();
 
         Assert.AreEqual("aetheria.current.entity", client.State.CurrentEntity.DocumentId);
-        Assert.AreSame(client.State.CurrentEntity, client.State.CurrentEntityDocument());
-        Assert.AreSame(client.State.Catalog, client.State.CatalogSnapshot());
-        Assert.AreSame(client.State.ZoneRender, client.State.ZoneRenderDocument());
-        Assert.AreSame(
-            client.State.StarbridgeSummary,
-            client.State.StarbridgeSummaryDocument());
-        Assert.AreSame(client.State.DaemonFrame, client.State.DaemonFrameDocument());
-        Assert.AreSame(client.State.DaemonSoaView, client.State.DaemonSoaViewDocument());
-        Assert.IsNotNull(ReadLatest(client.State.ProviderAdvertisementDocument()));
-        Assert.IsNotNull(ReadLatest(client.State.HealthDocument()));
-        Assert.IsNotNull(ReadLatest(client.State.CommandBoundaryDocument()));
-        Assert.AreSame(
-            client.State.AuthorityPolicyDocument(),
-            client.State.AuthorityPolicy);
+        Assert.AreEqual("aetheria.catalog.snapshot", client.State.Catalog.DocumentId);
+        Assert.AreEqual(AetheriaRuntimeDaemonSchemas.Frame, client.State.DaemonFrame.DocumentType);
+        Assert.AreEqual(AetheriaRuntimeDaemonSchemas.SoaView, client.State.DaemonSoaView.DocumentType);
+        Assert.IsNotNull(ReadLatest(client.State.ZoneRender));
+        Assert.IsNotNull(ReadLatest(client.State.StarbridgeSummary));
+        Assert.IsNotNull(ReadLatest(client.State.ProviderAdvertisement));
+        Assert.IsNotNull(ReadLatest(client.State.Health));
+        Assert.IsNotNull(ReadLatest(client.State.CommandBoundary));
+        Assert.IsNotNull(ReadLatest(client.State.AuthorityPolicy));
         Assert.AreEqual(AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId, reactiveGameSurface.Current.Surface.Id);
         Assert.AreEqual(AetheriaRuntimeDaemonGameSurfaceBuilder.TuiSurfaceId, reactiveGameTuiSurface.Current.Surface.Id);
         Assert.AreEqual(AetheriaRuntimeDaemonEditorSurfaceBuilder.SurfaceId, reactiveEditorSurface.Current.Surface.Id);
         Assert.AreEqual(AetheriaRuntimeDaemonEditorSurfaceBuilder.TuiSurfaceId, reactiveEditorTuiSurface.Current.Surface.Id);
         Assert.AreEqual(currentDocking.CurrentEntityKey, currentDockingReactive.Current.CurrentEntityKey);
         Assert.AreEqual(stationRefit.StationEntityKey, stationRefitReactive.Current.StationEntityKey);
-        Assert.AreSame(client.State.PlayerSettings, client.State.PlayerSettingsDocument());
-        Assert.AreSame(client.State.VerseHostSettings, client.State.VerseHostSettingsDocument());
-        Assert.AreSame(client.State.CurrentEntity, client.State.CurrentEntityDocument());
-        Assert.AreSame(client.State.ZoneContacts, client.State.ZoneContactsDocument());
+        Assert.IsNotNull(ReadLatest(client.State.PlayerSettings));
+        Assert.IsNotNull(ReadLatest(client.State.VerseHostSettings));
+        Assert.IsNotNull(ReadLatest(client.State.ZoneContacts));
         Assert.AreEqual(
             typeof(AetheriaRuntimeCurrentEntityDocument),
-            client.State.CurrentEntityDocument().DocumentType);
-        Assert.AreSame(client.State.SectorMap, client.State.SectorMapDocument());
+            client.State.CurrentEntity.DocumentType);
+        Assert.IsNotNull(ReadLatest(client.State.SectorMap));
         Assert.AreEqual(AetheriaRuntimeDaemonSchemas.CurrentEntity, currentEntity.Schema);
         Assert.AreEqual(AetheriaRuntimeDaemonSchemas.Frame, latestFrame.Schema);
         Assert.AreEqual(frame.FrameId, latestFrame.FrameId);
@@ -360,9 +354,9 @@ public class DaemonRuntimeDocumentTests
             .GetAwaiter()
             .GetResult();
 
-        var player = ReadLatest(client.State.PlayerSettingsDocument());
-        var verseHost = ReadLatest(client.State.VerseHostSettingsDocument());
-        var catalog = ReadLatest(client.State.CatalogSnapshot());
+        var player = ReadLatest(client.State.PlayerSettings);
+        var verseHost = ReadLatest(client.State.VerseHostSettings);
+        var catalog = ReadLatest(client.State.Catalog);
 
         Assert.AreEqual(AetheriaRuntimeCatalogSnapshot.SchemaId, client.State.Catalog.Sources.Last().SchemaId);
         Assert.IsNotNull(catalog);
@@ -370,8 +364,8 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual(AetheriaRuntimeVerseHostSettingsDocument.SchemaId, verseHost.Schema);
         Assert.AreEqual("", player.PlayerName);
         Assert.AreEqual("", verseHost.VerseId);
-        Assert.AreSame(client.State.PlayerSettings, client.State.PlayerSettingsDocument());
-        Assert.AreSame(client.State.VerseHostSettings, client.State.VerseHostSettingsDocument());
+        Assert.AreSame(client.State.PlayerSettings, client.State.PlayerSettings);
+        Assert.AreSame(client.State.VerseHostSettings, client.State.VerseHostSettings);
     }
 
     [Test]
@@ -2377,7 +2371,7 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
-    public void CommandClientSendsCommandAgainstDaemonFrameDocument()
+    public void CommandClientSendsCommandAgainstDaemonFrame
     {
         var statePath = Path.Combine(
             Path.GetTempPath(),

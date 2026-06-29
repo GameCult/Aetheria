@@ -78,7 +78,7 @@ namespace GameCult.Aetheria.State.Verse
             VerseHostSettings = verseHostSettings ?? throw new ArgumentNullException(nameof(verseHostSettings));
             CurrentZone = currentZone ?? throw new ArgumentNullException(nameof(currentZone));
             CurrentEntity = currentEntity ?? throw new ArgumentNullException(nameof(currentEntity));
-            CurrentDockingDocument = currentDocking ?? throw new ArgumentNullException(nameof(currentDocking));
+            CurrentDocking = currentDocking ?? throw new ArgumentNullException(nameof(currentDocking));
             ZoneContacts = zoneContacts ?? throw new ArgumentNullException(nameof(zoneContacts));
             StationRefit = stationRefit ?? throw new ArgumentNullException(nameof(stationRefit));
             SectorMap = sectorMap ?? throw new ArgumentNullException(nameof(sectorMap));
@@ -98,50 +98,30 @@ namespace GameCult.Aetheria.State.Verse
 
         public CultMeshDocumentHandle<AetheriaRuntimeDaemonProviderAdvertisementDocument> ProviderAdvertisement { get; }
 
-        public CultMeshDocumentHandle<AetheriaRuntimeDaemonProviderAdvertisementDocument> ProviderAdvertisementDocument()
-        {
-            return ProviderAdvertisement;
-        }
-
         public CultMeshReactiveDocument<AetheriaRuntimeDaemonProviderAdvertisementDocument> ReactiveProviderAdvertisement()
         {
-            return ProviderAdvertisementDocument().Reactive();
+            return ProviderAdvertisement.Reactive();
         }
 
         public CultMeshDocumentHandle<AetheriaRuntimeDaemonHealthDocument> Health { get; }
 
-        public CultMeshDocumentHandle<AetheriaRuntimeDaemonHealthDocument> HealthDocument()
-        {
-            return Health;
-        }
-
         public CultMeshReactiveDocument<AetheriaRuntimeDaemonHealthDocument> ReactiveHealth()
         {
-            return HealthDocument().Reactive();
+            return Health.Reactive();
         }
 
         public CultMeshDocumentHandle<AetheriaRuntimeDaemonCommandBoundaryDocument> CommandBoundary { get; }
 
-        public CultMeshDocumentHandle<AetheriaRuntimeDaemonCommandBoundaryDocument> CommandBoundaryDocument()
-        {
-            return CommandBoundary;
-        }
-
         public CultMeshReactiveDocument<AetheriaRuntimeDaemonCommandBoundaryDocument> ReactiveCommandBoundary()
         {
-            return CommandBoundaryDocument().Reactive();
+            return CommandBoundary.Reactive();
         }
 
         public CultMeshDocumentHandle<AetheriaRuntimeVerseAuthorityPolicyDocument> AuthorityPolicy { get; }
 
-        public CultMeshDocumentHandle<AetheriaRuntimeVerseAuthorityPolicyDocument> AuthorityPolicyDocument()
-        {
-            return AuthorityPolicy;
-        }
-
         public CultMeshReactiveDocument<AetheriaRuntimeVerseAuthorityPolicyDocument> ReactiveAuthorityPolicy()
         {
-            return AuthorityPolicyDocument().Reactive();
+            return AuthorityPolicy.Reactive();
         }
 
         public CultMeshDocumentHandle<AetheriaRuntimeDaemonFrameDocument> DaemonFrame { get; }
@@ -168,42 +148,27 @@ namespace GameCult.Aetheria.State.Verse
 
         public CultMeshDocumentHandle<AetheriaRuntimeCurrentEntityDocument> CurrentEntity { get; }
 
-        public CultMeshDocumentHandle<AetheriaRuntimeCurrentDockingDocument> CurrentDockingDocument { get; }
+        public CultMeshDocumentHandle<AetheriaRuntimeCurrentDockingDocument> CurrentDocking { get; }
 
         public CultMeshDocumentHandle<AetheriaRuntimeStarbridgeScenarioDocument> StarbridgeScenario { get; }
 
-        public CultMeshDocumentHandle<AetheriaRuntimeStarbridgeScenarioDocument> StarbridgeScenarioDocument()
-        {
-            return StarbridgeScenario;
-        }
-
         public CultMeshReactiveDocument<AetheriaRuntimeStarbridgeScenarioDocument> ReactiveStarbridgeScenario()
         {
-            return StarbridgeScenarioDocument().Reactive();
+            return StarbridgeScenario.Reactive();
         }
 
         public CultMeshDocumentHandle<AetheriaRuntimeStarbridgeSessionDocument> StarbridgeSession { get; }
 
-        public CultMeshDocumentHandle<AetheriaRuntimeStarbridgeSessionDocument> StarbridgeSessionDocument()
-        {
-            return StarbridgeSession;
-        }
-
         public CultMeshReactiveDocument<AetheriaRuntimeStarbridgeSessionDocument> ReactiveStarbridgeSession()
         {
-            return StarbridgeSessionDocument().Reactive();
+            return StarbridgeSession.Reactive();
         }
 
         public CultMeshDocumentHandle<AetheriaRuntimeStarbridgeSessionSummaryDocument> StarbridgeSummary { get; }
 
-        public CultMeshDocumentHandle<AetheriaRuntimeStarbridgeSessionSummaryDocument> StarbridgeSummaryDocument()
-        {
-            return StarbridgeSummary;
-        }
-
         public CultMeshReactiveDocument<AetheriaRuntimeStarbridgeSessionSummaryDocument> ReactiveStarbridgeSummary()
         {
-            return StarbridgeSummaryDocument().Reactive();
+            return StarbridgeSummary.Reactive();
         }
 
         public CultMeshDocumentHandle<AetheriaRuntimeZoneContactsDocument> ZoneContacts { get; }
@@ -214,134 +179,69 @@ namespace GameCult.Aetheria.State.Verse
 
         public CultMeshDocumentHandle<AetheriaRuntimeZoneRenderDocument> ZoneRender { get; }
 
-        public CultMeshDocumentHandle<AetheriaRuntimeDaemonFrameDocument> DaemonFrameDocument()
-        {
-            return DaemonFrame;
-        }
-
         public CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument> ReactiveDaemonFrame()
         {
-            return DaemonFrameDocument().Reactive();
-        }
-
-        public CultMeshDocumentHandle<AetheriaRuntimeDaemonSoaViewDocument> DaemonSoaViewDocument()
-        {
-            return DaemonSoaView;
+            return DaemonFrame.Reactive();
         }
 
         public CultMeshReactiveDocument<AetheriaRuntimeDaemonSoaViewDocument> ReactiveDaemonSoaView()
         {
-            return DaemonSoaViewDocument().Reactive();
-        }
-
-        public CultMeshDocumentHandle<AetheriaRuntimeZoneRenderDocument> ZoneRenderDocument()
-        {
-            return ZoneRender;
+            return DaemonSoaView.Reactive();
         }
 
         public CultMeshReactiveDocument<AetheriaRuntimeZoneRenderDocument> ReactiveZoneRender()
         {
-            return ZoneRenderDocument().Reactive();
-        }
-
-        public CultMeshDocumentHandle<AetheriaRuntimeLoadoutTemplatesDocument> LoadoutTemplatesDocument()
-        {
-            return LoadoutTemplates;
+            return ZoneRender.Reactive();
         }
 
         public CultMeshReactiveDocument<AetheriaRuntimeLoadoutTemplatesDocument> ReactiveLoadoutTemplates()
         {
-            return LoadoutTemplatesDocument().Reactive();
-        }
-
-        public CultMeshDocumentHandle<AetheriaRuntimeSectorMapDocument> SectorMapDocument()
-        {
-            return SectorMap;
+            return LoadoutTemplates.Reactive();
         }
 
         public CultMeshReactiveDocument<AetheriaRuntimeSectorMapDocument> ReactiveSectorMap()
         {
-            return SectorMapDocument().Reactive();
-        }
-
-        public CultMeshDocumentHandle<AetheriaRuntimeCurrentZoneDocument> CurrentZoneDocument()
-        {
-            return CurrentZone;
+            return SectorMap.Reactive();
         }
 
         public CultMeshReactiveDocument<AetheriaRuntimeCurrentZoneDocument> ReactiveCurrentZone()
         {
-            return CurrentZoneDocument().Reactive();
-        }
-
-        public CultMeshDocumentHandle<AetheriaRuntimeZoneContactsDocument> ZoneContactsDocument()
-        {
-            return ZoneContacts;
+            return CurrentZone.Reactive();
         }
 
         public CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument> ReactiveZoneContacts()
         {
-            return ZoneContactsDocument().Reactive();
-        }
-
-        public CultMeshDocumentHandle<AetheriaRuntimeVerseHostSettingsDocument> VerseHostSettingsDocument()
-        {
-            return VerseHostSettings;
+            return ZoneContacts.Reactive();
         }
 
         public CultMeshReactiveDocument<AetheriaRuntimeVerseHostSettingsDocument> ReactiveVerseHostSettings()
         {
-            return VerseHostSettingsDocument().Reactive();
-        }
-
-        public CultMeshDocumentHandle<AetheriaRuntimeCurrentDockingDocument> CurrentDocking()
-        {
-            return CurrentDockingDocument;
+            return VerseHostSettings.Reactive();
         }
 
         public CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> ReactiveCurrentDocking()
         {
-            return CurrentDocking().Reactive();
-        }
-
-        public CultMeshDocumentHandle<AetheriaRuntimeCurrentEntityDocument> CurrentEntityDocument()
-        {
-            return CurrentEntity;
+            return CurrentDocking.Reactive();
         }
 
         public CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> ReactiveCurrentEntity()
         {
-            return CurrentEntityDocument().Reactive();
-        }
-
-        public CultMeshDocumentHandle<AetheriaRuntimeStationRefitDocument> StationRefitDocument()
-        {
-            return StationRefit;
+            return CurrentEntity.Reactive();
         }
 
         public CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> ReactiveStationRefit()
         {
-            return StationRefitDocument().Reactive();
-        }
-
-        public CultMeshDocumentHandle<AetheriaRuntimeCatalogSnapshot> CatalogSnapshot()
-        {
-            return Catalog;
+            return StationRefit.Reactive();
         }
 
         public CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> ReactiveCatalogSnapshot()
         {
-            return CatalogSnapshot().Reactive();
-        }
-
-        public CultMeshDocumentHandle<AetheriaRuntimePlayerSettingsDocument> PlayerSettingsDocument()
-        {
-            return PlayerSettings;
+            return Catalog.Reactive();
         }
 
         public CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> ReactivePlayerSettingsDocument()
         {
-            return PlayerSettingsDocument().Reactive();
+            return PlayerSettings.Reactive();
         }
 
         public static bool TryResolveEveSurface(
