@@ -219,13 +219,13 @@ public class DaemonRuntimeDocumentTests
         using var currentEntityDocumentReactive = client.State.Reactive<AetheriaRuntimeCurrentEntityDocument>();
         using var currentDockingReactive = client.State.Reactive<AetheriaRuntimeCurrentDockingDocument>();
         using var stationRefitReactive = client.State.Reactive<AetheriaRuntimeStationRefitDocument>();
-        using var zoneDetailsReactive = client.State.Details.Reactive<AetheriaRuntimeZoneDetailsDocument>(0);
-        using var selectedObjectReactive = client.State.Details.Reactive<AetheriaRuntimeSelectedObjectDocument>(0);
-        using var inventoryReactive = client.State.Details.Reactive<AetheriaRuntimeInventoryDocument>(0);
-        using var mapViewportReactive = client.State.Viewports.Reactive<AetheriaRuntimeRtsViewportDocument>(viewport);
-        using var objectsViewportReactive = client.State.Viewports.Reactive<AetheriaRuntimeObjectsViewportDocument>(viewport);
-        using var gravityViewportReactive = client.State.Viewports.Reactive<AetheriaRuntimeGravityViewportDocument>(viewport);
-        using var renderSplatsViewportReactive = client.State.Viewports.Reactive<AetheriaRuntimeRenderSplatsViewportDocument>(viewport);
+        using var zoneDetailsReactive = client.State.Reactive<AetheriaRuntimeZoneDetailsDocument>(0);
+        using var selectedObjectReactive = client.State.Reactive<AetheriaRuntimeSelectedObjectDocument>(0);
+        using var inventoryReactive = client.State.Reactive<AetheriaRuntimeInventoryDocument>(0);
+        using var mapViewportReactive = client.State.Reactive<AetheriaRuntimeRtsViewportDocument>(viewport);
+        using var objectsViewportReactive = client.State.Reactive<AetheriaRuntimeObjectsViewportDocument>(viewport);
+        using var gravityViewportReactive = client.State.Reactive<AetheriaRuntimeGravityViewportDocument>(viewport);
+        using var renderSplatsViewportReactive = client.State.Reactive<AetheriaRuntimeRenderSplatsViewportDocument>(viewport);
         using var playerHudCatalog = client.State.Reactive<AetheriaRuntimeCatalogSnapshot>();
         using var playerHudSettings = client.State.Reactive<AetheriaRuntimePlayerSettingsDocument>();
         using var playerHudEntity = client.State.Reactive<AetheriaRuntimeCurrentEntityDocument>();
@@ -234,7 +234,7 @@ public class DaemonRuntimeDocumentTests
         var editorSurface = client.State.Latest<global::Aetheria.State.Documents.EveSurfaceState>(AetheriaClientEveSurface.Editor);
         var editorTuiSurface = client.State.Latest<global::Aetheria.State.Documents.EveSurfaceState>(AetheriaClientEveSurface.EditorTui);
         var authorityStatus = client.State.Latest<AetheriaRuntimeVerseAuthorityPolicyDocument>();
-        var currentDocking = client.State.Current.Docking
+        var currentDocking = client.State.CurrentDockingDocument
             .LatestAsync()
             .GetAwaiter()
             .GetResult();
@@ -245,15 +245,15 @@ public class DaemonRuntimeDocumentTests
         using var reactiveEditorSurface = client.State.Reactive<global::Aetheria.State.Documents.EveSurfaceState>(AetheriaClientEveSurface.Editor);
         using var reactiveEditorTuiSurface = client.State.Reactive<global::Aetheria.State.Documents.EveSurfaceState>(AetheriaClientEveSurface.EditorTui);
 
-        Assert.AreEqual("aetheria.current.entity", client.State.Current.Entity.DocumentId);
-        Assert.AreSame(client.State.Current.Entity, client.State.Document<AetheriaRuntimeCurrentEntityDocument>());
+        Assert.AreEqual("aetheria.current.entity", client.State.CurrentEntity.DocumentId);
+        Assert.AreSame(client.State.CurrentEntity, client.State.Document<AetheriaRuntimeCurrentEntityDocument>());
         Assert.AreSame(client.State.Catalog, client.State.Document<AetheriaRuntimeCatalogSnapshot>());
         Assert.AreSame(client.State.ZoneRender, client.State.Document<AetheriaRuntimeZoneRenderDocument>());
         Assert.AreSame(
-            client.State.Starbridge.Summary,
+            client.State.StarbridgeSummary,
             client.State.Document<AetheriaRuntimeStarbridgeSessionSummaryDocument>());
         Assert.AreSame(
-            client.State.Starbridge.Summary,
+            client.State.StarbridgeSummary,
             client.State.DocumentBySchema(AetheriaRuntimeDaemonSchemas.StarbridgeSessionSummary));
         Assert.AreSame(client.State.LatestFrame, client.State.Document<AetheriaRuntimeDaemonFrameDocument>());
         Assert.AreSame(client.State.LatestSoaView, client.State.Document<AetheriaRuntimeDaemonSoaViewDocument>());
@@ -269,10 +269,10 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual(AetheriaRuntimeDaemonEditorSurfaceBuilder.TuiSurfaceId, reactiveEditorTuiSurface.Current.Surface.Id);
         Assert.AreEqual(currentDocking.CurrentEntityKey, currentDockingReactive.Current.CurrentEntityKey);
         Assert.AreEqual(stationRefit.StationEntityKey, stationRefitReactive.Current.StationEntityKey);
-        Assert.AreSame(client.State.Settings.Player, client.State.Document<AetheriaRuntimePlayerSettingsDocument>());
-        Assert.AreSame(client.State.Settings.VerseHost, client.State.Document<AetheriaRuntimeVerseHostSettingsDocument>());
+        Assert.AreSame(client.State.PlayerSettings, client.State.Document<AetheriaRuntimePlayerSettingsDocument>());
+        Assert.AreSame(client.State.VerseHostSettings, client.State.Document<AetheriaRuntimeVerseHostSettingsDocument>());
         Assert.AreSame(
-            client.State.Current.Entity,
+            client.State.CurrentEntity,
             client.State.DocumentBySchema(AetheriaRuntimeDaemonSchemas.CurrentEntity));
         Assert.AreSame(
             client.State.ZoneContacts,
@@ -349,7 +349,7 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual("", stationRefit.DockParentEntityKey);
         Assert.AreEqual("", stationRefitReactive.Current.DockParentEntityKey);
         Assert.AreEqual(-1, stationRefit.DockingBayIndex);
-        Assert.IsTrue(client.State.Current.Entity.Sources.Any(source =>
+        Assert.IsTrue(client.State.CurrentEntity.Sources.Any(source =>
             source.SourceId == AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest.ToString()));
         Assert.IsTrue(client.State.StationRefit.Sources.Any(source =>
             source.SourceId == "catalog:aetheria.runtime"));
@@ -379,8 +379,8 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual(AetheriaRuntimeVerseHostSettingsDocument.SchemaId, verseHost.Schema);
         Assert.AreEqual("", player.PlayerName);
         Assert.AreEqual("", verseHost.VerseId);
-        Assert.AreSame(client.State.Settings.Player, client.State.Document<AetheriaRuntimePlayerSettingsDocument>());
-        Assert.AreSame(client.State.Settings.VerseHost, client.State.Document<AetheriaRuntimeVerseHostSettingsDocument>());
+        Assert.AreSame(client.State.PlayerSettings, client.State.Document<AetheriaRuntimePlayerSettingsDocument>());
+        Assert.AreSame(client.State.VerseHostSettings, client.State.Document<AetheriaRuntimeVerseHostSettingsDocument>());
     }
 
     [Test]

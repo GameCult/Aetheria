@@ -7129,11 +7129,9 @@ static void RequireMenuDockingUsesManagedTypedSnapshot(string root)
     var clientState = File.ReadAllText(clientStatePath);
     var requiredClientSymbols = new[]
     {
-        "public AetheriaClientCurrentState Current { get; }",
         "public CultMeshDocumentHandle<AetheriaRuntimeStationRefitDocument> StationRefit { get; }",
-        "public CultMeshDocumentHandle<AetheriaRuntimeCurrentDockingDocument> Docking { get; }",
+        "public CultMeshDocumentHandle<AetheriaRuntimeCurrentDockingDocument> CurrentDockingDocument { get; }",
         "public TDocument Latest<TDocument>()",
-        "public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(",
         "public CultMeshReactiveDocument<TDocument> Reactive<TDocument>("
     };
     var missingClientSymbols = requiredClientSymbols
@@ -7151,6 +7149,7 @@ static void RequireMenuDockingUsesManagedTypedSnapshot(string root)
         "AetheriaClientDockingState",
         "AetheriaClientDockingSnapshot",
         "AetheriaClientReactiveDockingState",
+        "AetheriaClientCurrentState",
         "LatestDockingState",
         "ReactiveDockingState"
     };
@@ -8125,6 +8124,8 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
         "public TDocument Latest<TDocument>(AetheriaRuntimeRtsViewportBounds viewport)",
         "public CultMeshDocumentHandle<TDocument> Document<TDocument>(int entityOrZoneIndex)",
         "public TDocument Latest<TDocument>(int entityOrZoneIndex)",
+        "public CultMeshDocumentHandle<TDocument> Document<TDocument>(string seatId)",
+        "public TDocument Latest<TDocument>(string seatId)",
         "public Task<TDocument> LatestAsync<TDocument>()",
         "public TDocument Latest<TDocument>()",
         "public Task<CultMeshReactiveDocument<TDocument>> ReactiveAsync<TDocument>(",
@@ -8233,11 +8234,31 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
             string.Join(", ", survivingFixedReactiveWrappers));
     }
 
-    var viewportState = clientState.Split(
+    var forbiddenClientStateWrappers = new[]
+    {
+        "public AetheriaClientDaemonState Daemon { get; }",
+        "public AetheriaClientSettingsState Settings { get; }",
+        "public AetheriaClientCurrentState Current { get; }",
+        "public AetheriaClientViewportState Viewports { get; }",
+        "public AetheriaClientDetailState Details { get; }",
+        "public AetheriaClientStarbridgeState Starbridge { get; }",
+        "public sealed class AetheriaClientDaemonState",
+        "public sealed class AetheriaClientSettingsState",
+        "public sealed class AetheriaClientCurrentState",
         "public sealed class AetheriaClientViewportState",
-        StringSplitOptions.None).Last().Split(
         "public sealed class AetheriaClientDetailState",
-        StringSplitOptions.None)[0];
+        "public sealed class AetheriaClientStarbridgeState"
+    };
+    var survivingClientStateWrappers = forbiddenClientStateWrappers
+        .Where(symbol => clientState.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (survivingClientStateWrappers.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "AetheriaClientState still exposes nested wrapper state; use flat typed handles plus generic parameterized Document<T> access: " +
+            string.Join(", ", survivingClientStateWrappers));
+    }
+
     var forbiddenViewportConvenienceWrappers = new[]
     {
         "LatestMap(",
@@ -8258,20 +8279,15 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
         "ReactiveRenderSplatsAsync("
     };
     var survivingViewportConvenienceWrappers = forbiddenViewportConvenienceWrappers
-        .Where(symbol => viewportState.Contains(symbol, StringComparison.Ordinal))
+        .Where(symbol => clientState.Contains(symbol, StringComparison.Ordinal))
         .ToArray();
     if (survivingViewportConvenienceWrappers.Length > 0)
     {
         throw new InvalidOperationException(
-            "AetheriaClientViewportState must use generic parameterized document access instead of named latest/reactive wrappers: " +
+            "AetheriaClientState must use generic viewport document access instead of named latest/reactive wrappers: " +
             string.Join(", ", survivingViewportConvenienceWrappers));
     }
 
-    var detailState = clientState.Split(
-        "public sealed class AetheriaClientDetailState",
-        StringSplitOptions.None).Last().Split(
-        "public sealed class AetheriaClientStarbridgeState",
-        StringSplitOptions.None)[0];
     var forbiddenDetailConvenienceWrappers = new[]
     {
         "LatestZone(",
@@ -8288,20 +8304,15 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
         "ReactiveInventoryAsync("
     };
     var survivingDetailConvenienceWrappers = forbiddenDetailConvenienceWrappers
-        .Where(symbol => detailState.Contains(symbol, StringComparison.Ordinal))
+        .Where(symbol => clientState.Contains(symbol, StringComparison.Ordinal))
         .ToArray();
     if (survivingDetailConvenienceWrappers.Length > 0)
     {
         throw new InvalidOperationException(
-            "AetheriaClientDetailState must use generic parameterized document access instead of named latest/reactive wrappers: " +
+            "AetheriaClientState must use generic indexed document access instead of named latest/reactive wrappers: " +
             string.Join(", ", survivingDetailConvenienceWrappers));
     }
 
-    var currentState = clientState.Split(
-        "public sealed class AetheriaClientCurrentState",
-        StringSplitOptions.None).Last().Split(
-        "public sealed class AetheriaClientSettingsState",
-        StringSplitOptions.None)[0];
     var forbiddenCurrentConvenienceWrappers = new[]
     {
         "LatestZone(",
@@ -8318,22 +8329,18 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
         "ReactiveDockingAsync("
     };
     var survivingCurrentConvenienceWrappers = forbiddenCurrentConvenienceWrappers
-        .Where(symbol => currentState.Contains(symbol, StringComparison.Ordinal))
+        .Where(symbol => clientState.Contains(symbol, StringComparison.Ordinal))
         .ToArray();
     if (survivingCurrentConvenienceWrappers.Length > 0)
     {
         throw new InvalidOperationException(
-            "AetheriaClientCurrentState must use top-level generic document access instead of named latest/reactive wrappers: " +
+            "AetheriaClientState must use top-level generic document access instead of named current-state wrappers: " +
             string.Join(", ", survivingCurrentConvenienceWrappers));
     }
 
-    var starbridgeState = clientState.Split(
-        "public sealed class AetheriaClientStarbridgeState",
-        StringSplitOptions.None).Last();
-    var compactStarbridgeState = CompactSource(starbridgeState);
+    var compactClientState = CompactSource(clientState);
     var requiredStarbridgeParameterizedSymbols = new[]
     {
-        "publicboolTryGetDocument<TDocument>(stringseatId,outCultMeshDocumentHandle<TDocument>document)",
         "publicCultMeshDocumentHandle<TDocument>Document<TDocument>(stringseatId)",
         "publicTask<TDocument>LatestAsync<TDocument>(stringseatId)",
         "publicTDocumentLatest<TDocument>(stringseatId)",
@@ -8341,12 +8348,12 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
         "publicCultMeshReactiveDocument<TDocument>Reactive<TDocument>(stringseatId,"
     };
     var missingStarbridgeParameterizedSymbols = requiredStarbridgeParameterizedSymbols
-        .Where(symbol => !compactStarbridgeState.Contains(symbol, StringComparison.Ordinal))
+        .Where(symbol => !compactClientState.Contains(symbol, StringComparison.Ordinal))
         .ToArray();
     if (missingStarbridgeParameterizedSymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "AetheriaClientStarbridgeState must expose generic parameterized document access for player-seat state: " +
+            "AetheriaClientState must expose generic parameterized document access for player-seat state: " +
             string.Join(", ", missingStarbridgeParameterizedSymbols));
     }
 
@@ -8358,12 +8365,12 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
         "ReactivePlayerSeatAsync("
     };
     var survivingStarbridgeConvenienceWrappers = forbiddenStarbridgeConvenienceWrappers
-        .Where(symbol => starbridgeState.Contains(symbol, StringComparison.Ordinal))
+        .Where(symbol => clientState.Contains(symbol, StringComparison.Ordinal))
         .ToArray();
     if (survivingStarbridgeConvenienceWrappers.Length > 0)
     {
         throw new InvalidOperationException(
-            "AetheriaClientStarbridgeState must use generic parameterized document access instead of named player-seat latest/reactive wrappers: " +
+            "AetheriaClientState must use generic parameterized document access instead of named player-seat latest/reactive wrappers: " +
             string.Join(", ", survivingStarbridgeConvenienceWrappers));
     }
 
@@ -8480,7 +8487,7 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
             string.Join(", ", offenders));
     }
 
-    if (!clientState.Contains("Starbridge.Summary", StringComparison.Ordinal) ||
+    if (!clientState.Contains("StarbridgeSummary", StringComparison.Ordinal) ||
         !checkedSources["DaemonRuntimeDocumentTests.cs"].Contains(
             "client.State.Document<AetheriaRuntimeStarbridgeSessionSummaryDocument>()",
             StringComparison.Ordinal) ||
@@ -15912,24 +15919,20 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
 
     var requiredDaemonStateFacadeSymbols = new[]
     {
-        "public AetheriaClientDaemonState Daemon { get; }",
-        "public sealed class AetheriaClientDaemonState",
-        "CultMeshDocumentHandle<AetheriaRuntimeDaemonProviderAdvertisementDocument> ProviderAdvertisement",
-        "CultMeshDocumentHandle<AetheriaRuntimeDaemonHealthDocument> Health",
-        "CultMeshDocumentHandle<AetheriaRuntimeDaemonCommandBoundaryDocument> CommandBoundary",
-        "CultMeshDocumentHandle<AetheriaRuntimeVerseAuthorityPolicyDocument> AuthorityPolicy",
-        "CultMeshDocumentHandle<AetheriaRuntimeDaemonFrameDocument> LatestFrame",
-        "CultMeshDocumentHandle<AetheriaRuntimeDaemonSoaViewDocument> LatestSoaView",
-        "CultMeshDocumentHandle<global::Aetheria.State.Documents.EveSurfaceState> GameSurface",
-        "CultMeshDocumentHandle<global::Aetheria.State.Documents.EveSurfaceState> GameTuiSurface",
-        "CultMeshDocumentHandle<global::Aetheria.State.Documents.EveSurfaceState> EditorSurface",
-        "CultMeshDocumentHandle<global::Aetheria.State.Documents.EveSurfaceState> EditorTuiSurface",
+        "public CultMeshDocumentHandle<AetheriaRuntimeDaemonProviderAdvertisementDocument> ProviderAdvertisement { get; }",
+        "public CultMeshDocumentHandle<AetheriaRuntimeDaemonHealthDocument> Health { get; }",
+        "public CultMeshDocumentHandle<AetheriaRuntimeDaemonCommandBoundaryDocument> CommandBoundary { get; }",
+        "public CultMeshDocumentHandle<AetheriaRuntimeVerseAuthorityPolicyDocument> AuthorityPolicy { get; }",
+        "public CultMeshDocumentHandle<AetheriaRuntimeDaemonFrameDocument> LatestFrame { get; }",
+        "public CultMeshDocumentHandle<AetheriaRuntimeDaemonSoaViewDocument> LatestSoaView { get; }",
+        "public CultMeshDocumentHandle<global::Aetheria.State.Documents.EveSurfaceState> GameSurface { get; }",
+        "public CultMeshDocumentHandle<global::Aetheria.State.Documents.EveSurfaceState> GameTuiSurface { get; }",
+        "public CultMeshDocumentHandle<global::Aetheria.State.Documents.EveSurfaceState> EditorSurface { get; }",
+        "public CultMeshDocumentHandle<global::Aetheria.State.Documents.EveSurfaceState> EditorTuiSurface { get; }",
         "public CultMeshDocumentHandle<AetheriaRuntimeCatalogSnapshot> Catalog { get; }",
         "public CultMeshDocumentHandle<AetheriaRuntimeLoadoutTemplatesDocument> LoadoutTemplates { get; }",
-        "public AetheriaClientSettingsState Settings { get; }",
-        "public sealed class AetheriaClientSettingsState",
-        "CultMeshDocumentHandle<AetheriaRuntimePlayerSettingsDocument> Player",
-        "CultMeshDocumentHandle<AetheriaRuntimeVerseHostSettingsDocument> VerseHost"
+        "public CultMeshDocumentHandle<AetheriaRuntimePlayerSettingsDocument> PlayerSettings { get; }",
+        "public CultMeshDocumentHandle<AetheriaRuntimeVerseHostSettingsDocument> VerseHostSettings { get; }"
     };
     var missingDaemonStateFacadeSymbols = requiredDaemonStateFacadeSymbols
         .Where(symbol => !aetheriaClientState.Contains(symbol, StringComparison.Ordinal))
@@ -15939,6 +15942,23 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         throw new InvalidOperationException(
             "AetheriaClientState must expose daemon service state as managed typed document handles: " +
             string.Join(", ", missingDaemonStateFacadeSymbols));
+    }
+
+    var forbiddenDaemonStateFacadeSymbols = new[]
+    {
+        "public AetheriaClientDaemonState Daemon { get; }",
+        "public sealed class AetheriaClientDaemonState",
+        "public AetheriaClientSettingsState Settings { get; }",
+        "public sealed class AetheriaClientSettingsState"
+    };
+    var survivingDaemonStateFacadeSymbols = forbiddenDaemonStateFacadeSymbols
+        .Where(symbol => aetheriaClientState.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (survivingDaemonStateFacadeSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "AetheriaClientState still exposes daemon/settings facade wrappers instead of flat managed typed document handles: " +
+            string.Join(", ", survivingDaemonStateFacadeSymbols));
     }
 
     var requiredManagedClientConnectionSymbols = new[]
