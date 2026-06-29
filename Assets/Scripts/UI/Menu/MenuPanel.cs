@@ -13,6 +13,9 @@ using UnityEngine.UIElements;
 
 public class MenuPanel : MonoBehaviour
 {
+    private const string TabSurfaceId = "aetheria.runtime_menu.tabs";
+    private const string TabCommandPrefix = "aetheria.runtime_menu.tab.";
+
     [Serializable]
     private sealed class MenuTabBinding
     {
@@ -121,13 +124,9 @@ public class MenuPanel : MonoBehaviour
             transform,
             _tabSurfaceDocument,
             "Aetheria Runtime Menu Tabs Surface",
-            AetheriaRuntimeMenuTabsSurfaceBuilder.Build(
+            BuildTabSurfaceDocument(
                 ToRuntimeTabKey(CurrentTab),
-                ResolveVisibleTabs()
-                    .Select(tabBinding => new AetheriaRuntimeMenuTabModelOption(
-                        ToRuntimeTabKey(tabBinding.Tab),
-                        GetTabLabel(tabBinding),
-                        (int)tabBinding.Tab)),
+                ResolveVisibleTabs(),
                 DateTime.UtcNow.ToString("O")),
             HandleTabSurfaceCommand,
             _tabSurfaceChrome);
@@ -135,7 +134,7 @@ public class MenuPanel : MonoBehaviour
 
     private void HandleTabSurfaceCommand(EveSurfaceCommandRequest request)
     {
-        if (!AetheriaRuntimeMenuTabsSurfaceCommands.TryRead(request, out var command))
+        if (!TryReadTabSurfaceCommand(request, out var tabKey))
         {
             Debug.LogWarning($"Unknown runtime menu tab command: {request?.Command}");
             return;
@@ -143,8 +142,7 @@ public class MenuPanel : MonoBehaviour
 
         foreach (var tab in _tabs.Keys)
         {
-            if (command.Kind == AetheriaRuntimeMenuTabCommandKind.SelectTab &&
-                string.Equals(command.TabKey, ToRuntimeTabKey(tab), StringComparison.Ordinal))
+            if (string.Equals(tabKey, ToRuntimeTabKey(tab), StringComparison.Ordinal))
             {
                 ShowTab(tab);
                 return;
@@ -193,7 +191,128 @@ public class MenuPanel : MonoBehaviour
 
     private static string ToRuntimeTabKey(MenuTab tab)
     {
-        return AetheriaRuntimeMenuTabsSurfaceBuilder.NormalizeTabKey(tab.ToString());
+        return NormalizeTabKey(tab.ToString());
+    }
+
+    private static string NormalizeTabKey(string tabKey)
+    {
+        return string.IsNullOrWhiteSpace(tabKey)
+            ? "unknown"
+            : tabKey.Trim().ToLowerInvariant();
+    }
+
+    private static string TabCommandFor(string tabKey)
+    {
+        return $"{TabCommandPrefix}{NormalizeTabKey(tabKey)}";
+    }
+
+    private static bool TryReadTabSurfaceCommand(EveSurfaceCommandRequest request, out string tabKey)
+    {
+        tabKey = "";
+        if (request == null ||
+            !string.Equals(request.SurfaceId, TabSurfaceId, StringComparison.Ordinal))
+            return false;
+
+        var commandText = request.Operation?.OperationId ?? "";
+        if (!commandText.StartsWith(TabCommandPrefix, StringComparison.Ordinal))
+            return false;
+
+        tabKey = commandText.Substring(TabCommandPrefix.Length);
+        return !string.IsNullOrWhiteSpace(tabKey);
+    }
+
+    private static AetheriaRuntimeSurfaceDocument BuildTabSurfaceDocument(
+        string currentTabKey,
+        IEnumerable<MenuTabBinding> visibleTabs,
+        string updatedAtUtc)
+    {
+        var normalizedCurrent = NormalizeTabKey(currentTabKey);
+        var tabs = (visibleTabs ?? Array.Empty<MenuTabBinding>())
+            .Where(tab => tab != null)
+            .OrderBy(tab => (int)tab.Tab)
+            .Select(tab =>
+            {
+                var key = ToRuntimeTabKey(tab.Tab);
+                var label = GetTabLabel(tab);
+                return new
+                {
+                    Key = key,
+                    Label = label,
+                    Selected = string.Equals(key, normalizedCurrent, StringComparison.Ordinal)
+                };
+            })
+            .ToArray();
+
+        return new AetheriaRuntimeSurfaceDocument(
+            providerId: "aetheria",
+            providerKind: "runtime.menu",
+            title: "Runtime Menu Tabs",
+            version: 1,
+            updatedAtUtc: updatedAtUtc ?? "",
+            surface: new AetheriaRuntimeSurfaceTree(
+                TabSurfaceId,
+                TabSurfaceNode(
+                    $"{TabSurfaceId}.root",
+                    "surface",
+                    Array.Empty<(string Key, string Value)>(),
+                    TabSurfaceText(
+                        $"{TabSurfaceId}.current",
+                        $"Current: {normalizedCurrent}"),
+                    TabSurfaceButtonRow(
+                        $"{TabSurfaceId}.tabs",
+                        tabs
+                            .Select(tab => TabSurfaceButton(
+                                $"{TabSurfaceId}.{SafeSurfaceId(tab.Key)}",
+                                tab.Selected ? $"{tab.Label} *" : tab.Label,
+                                TabCommandFor(tab.Key)))
+                            .ToArray())),
+                Array.Empty<AetheriaRuntimeSurfaceStyleToken>()),
+            commands: tabs
+                .Select(tab => new AetheriaRuntimeSurfaceCommandTemplate(
+                    TabCommandFor(tab.Key),
+                    tab.Label,
+                    AetheriaRuntimeSurfaceCommandTemplate.CultMeshTransport))
+                .ToArray());
+    }
+
+    private static string SafeSurfaceId(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return "empty";
+
+        return new string(value
+            .Select(character => char.IsLetterOrDigit(character) ? char.ToLowerInvariant(character) : '-')
+            .ToArray()).Trim('-');
+    }
+
+    private static AetheriaRuntimeSurfaceComponent TabSurfaceText(string id, string value)
+    {
+        return TabSurfaceNode(id, "text", new[] { ("value", value ?? "") });
+    }
+
+    private static AetheriaRuntimeSurfaceComponent TabSurfaceButton(string id, string label, string command)
+    {
+        return TabSurfaceNode(id, "control.button", new[] { ("label", label ?? ""), ("command", command ?? "") });
+    }
+
+    private static AetheriaRuntimeSurfaceComponent TabSurfaceButtonRow(
+        string id,
+        params AetheriaRuntimeSurfaceComponent[] children)
+    {
+        return TabSurfaceNode(id, "row", Array.Empty<(string Key, string Value)>(), children);
+    }
+
+    private static AetheriaRuntimeSurfaceComponent TabSurfaceNode(
+        string id,
+        string kind,
+        IEnumerable<(string Key, string Value)> props,
+        params AetheriaRuntimeSurfaceComponent[] children)
+    {
+        return new AetheriaRuntimeSurfaceComponent(
+            id,
+            kind,
+            props.ToDictionary(prop => prop.Key, prop => prop.Value ?? "", StringComparer.Ordinal),
+            children ?? Array.Empty<AetheriaRuntimeSurfaceComponent>());
     }
 
 // void Start()

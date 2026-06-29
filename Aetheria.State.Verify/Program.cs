@@ -586,7 +586,7 @@ Console.WriteLine("Main-menu input shell: the Eve input page delegates to the li
 Console.WriteLine("Runtime input screen shell: input rebinding lowers through an Eve UI Toolkit surface instead of the old drag/drop uGUI screen");
 Console.WriteLine("Runtime input-screen authority: hotkey and menu handoff share the same fullscreen-menu primitive");
 Console.WriteLine("Sector-map zone details shell: shared zone detail surface lowers selected zone state through Eve UI Toolkit");
-Console.WriteLine("Runtime menu tab shell: shared runtime tab surface lowers MenuPanel tab metadata through Eve UI Toolkit");
+Console.WriteLine("Runtime menu tab shell: MenuPanel owns its client-local tab surface and lowers it through Eve UI Toolkit");
 Console.WriteLine("Inventory ship-settings shell: shared ship settings surface lowers selected ship state through Eve UI Toolkit");
 Console.WriteLine("Inventory cargo-item shell: shared cargo detail surface lowers selected item state through Eve UI Toolkit");
 Console.WriteLine("Inventory equipped-item shell: shared equipped item surface lowers selected equipment state and controls through Eve UI Toolkit");
@@ -4748,7 +4748,7 @@ static void RequireRuntimeMenuTabsUseEveSurface(string root)
     var menuPanelPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "MenuPanel.cs");
     var localMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "LocalMenu.cs");
     var actionGameManagerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs");
-    var menuTabsSurfaceBuilderPath = Path.Combine(
+    var legacyMenuTabsSurfaceBuilderPath = Path.Combine(
         root,
         "Packages",
         "org.gamecult.aetheria.state",
@@ -4772,10 +4772,6 @@ static void RequireRuntimeMenuTabsUseEveSurface(string root)
     {
         throw new InvalidOperationException("Cannot verify runtime menu tab shell; ActionGameManager.cs is missing.");
     }
-    if (!File.Exists(menuTabsSurfaceBuilderPath))
-    {
-        throw new InvalidOperationException("Cannot verify runtime menu tab shell; AetheriaRuntimeMenuTabsSurfaceBuilder.cs is missing.");
-    }
     if (!File.Exists(localStorySurfaceBuilderPath))
     {
         throw new InvalidOperationException("Cannot verify runtime local story shell; AetheriaRuntimeLocalStorySurfaceBuilder.cs is missing.");
@@ -4796,7 +4792,6 @@ static void RequireRuntimeMenuTabsUseEveSurface(string root)
         throw new InvalidOperationException("Cannot verify runtime menu tab shell; AetheriaEveUnitySurfaceHost.cs is missing.");
     }
 
-    var menuTabsSurfaceBuilder = File.ReadAllText(menuTabsSurfaceBuilderPath);
     var localStorySurfaceBuilder = File.ReadAllText(localStorySurfaceBuilderPath);
     var surfaceHost = File.ReadAllText(surfaceHostPath);
     var requiredSymbols = new[]
@@ -4807,8 +4802,10 @@ static void RequireRuntimeMenuTabsUseEveSurface(string root)
         "HandleTabSurfaceCommand(",
         "AetheriaEveUnitySurfaceHost.RenderRuntime(",
         "AetheriaEveUnitySurfaceHost.Hide(_tabSurfaceDocument)",
-        "AetheriaRuntimeMenuTabsSurfaceBuilder.Build(",
-        "new AetheriaRuntimeMenuTabModelOption(",
+        "BuildTabSurfaceDocument(",
+        "new AetheriaRuntimeSurfaceDocument(",
+        "new AetheriaRuntimeSurfaceTree(",
+        "new AetheriaRuntimeSurfaceCommandTemplate(",
         "ResolveVisibleTabs(",
         "SetObservedEntityIndex(AetheriaUnityObservedEntityIndex observedEntityIndex)",
         "private AetheriaUnityObservedEntityIndex _observedEntityIndex;",
@@ -4819,10 +4816,9 @@ static void RequireRuntimeMenuTabsUseEveSurface(string root)
         "new AetheriaUnityObservedDockingIndex(_observedEntityIndex)",
         "GetTabLabel(",
         "ToRuntimeTabKey(",
-        "AetheriaRuntimeMenuTabsSurfaceBuilder.NormalizeTabKey(tab.ToString())",
-        "AetheriaRuntimeMenuTabsSurfaceCommands.TryRead(request, out var command)",
-        "AetheriaRuntimeMenuTabCommandKind.SelectTab",
-        "string.Equals(command.TabKey, ToRuntimeTabKey(tab), StringComparison.Ordinal)",
+        "NormalizeTabKey(tab.ToString())",
+        "TryReadTabSurfaceCommand(request, out var tabKey)",
+        "string.Equals(tabKey, ToRuntimeTabKey(tab), StringComparison.Ordinal)",
         "TabButtons.gameObject.SetActive(false)"
     };
 
@@ -4869,6 +4865,10 @@ static void RequireRuntimeMenuTabsUseEveSurface(string root)
         "ResolveTabSurfaceDocument(",
         "new EveUiToolkitSurfaceLowerer()",
         "string.Equals(request.Command, AetheriaRuntimeMenuTabsSurfaceBuilder.CommandFor(",
+        "AetheriaRuntimeMenuTabsSurfaceBuilder",
+        "AetheriaRuntimeMenuTabsSurfaceCommands",
+        "AetheriaRuntimeMenuTabModelOption",
+        "AetheriaRuntimeMenuTabCommandKind",
         "ResolveClient().State.CurrentDocking()",
         "CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> _currentDocking",
         ".ReactiveCurrentDocking(\"unity-runtime-menu-tabs\")",
@@ -4903,36 +4903,10 @@ static void RequireRuntimeMenuTabsUseEveSurface(string root)
             "MenuPanel tab visibility must read managed typed current-docking state instead of direct docking caches or ActionGameManager observed adapters.");
     }
 
-    var requiredDocumentBuilderSymbols = new[]
-    {
-        "public sealed class AetheriaRuntimeMenuTabModelOption",
-        "public static string NormalizeTabKey(string tabKey)",
-        "public static AetheriaRuntimeSurfaceDocument Build(",
-        "public int Order { get; }",
-        ".OrderBy(tab => tab.Order)",
-        "var normalizedCurrent = NormalizeTabKey(currentTabKey)",
-        "var tabs = (visibleTabs ?? Array.Empty<AetheriaRuntimeMenuTabModelOption>())",
-        "var selected = string.Equals(key, normalizedCurrent, StringComparison.Ordinal)",
-        "string.Equals(key, normalizedCurrent, StringComparison.Ordinal)"
-    };
-    var missingDocumentBuilderSymbols = requiredDocumentBuilderSymbols
-        .Where(symbol => !menuTabsSurfaceBuilder.Contains(symbol, StringComparison.Ordinal))
-        .ToArray();
-    if (missingDocumentBuilderSymbols.Length > 0)
+    if (File.Exists(legacyMenuTabsSurfaceBuilderPath))
     {
         throw new InvalidOperationException(
-            "Shared runtime menu tab surface builder no longer owns tab document composition semantics: " +
-            string.Join(", ", missingDocumentBuilderSymbols));
-    }
-
-    if (menuTabsSurfaceBuilder.Contains("public static AetheriaRuntimeMenuTabsSurfaceState Compose(", StringComparison.Ordinal) ||
-        menuTabsSurfaceBuilder.Contains("public static AetheriaRuntimeMenuTabsSurfaceState Project(", StringComparison.Ordinal) ||
-        menuTabsSurfaceBuilder.Contains("AetheriaRuntimeMenuTabsSurfaceState", StringComparison.Ordinal) ||
-        menuTabsSurfaceBuilder.Contains("AetheriaRuntimeMenuTabSurfaceEntry", StringComparison.Ordinal) ||
-        menuTabsSurfaceBuilder.Contains("ComposeState(", StringComparison.Ordinal))
-    {
-        throw new InvalidOperationException(
-            "Runtime menu tab composition must emit the typed surface document directly; do not rebuild a shadow SurfaceState/Entry projection layer.");
+            "Runtime menu tabs are client-local UI; do not keep a shared MenuTabsSurfaceBuilder or projection shell for them.");
     }
 
     var requiredDockedStoryObserverSymbols = new[]
@@ -5010,27 +4984,6 @@ static void RequireRuntimeMenuTabsUseEveSurface(string root)
             "Runtime local story composition must emit the typed surface document directly; do not rebuild a shadow SurfaceState projection layer.");
     }
 
-    var requiredBuilderSymbols = new[]
-    {
-        "public static class AetheriaRuntimeMenuTabsSurfaceBuilder",
-        "public const string SurfaceId = \"aetheria.runtime_menu.tabs\"",
-        "CommandFor(string tabKey)",
-        "public enum AetheriaRuntimeMenuTabCommandKind",
-        "public readonly struct AetheriaRuntimeMenuTabCommand",
-        "public static class AetheriaRuntimeMenuTabsSurfaceCommands",
-        "public static bool TryRead(",
-        "public static AetheriaRuntimeSurfaceDocument Build(",
-        "var tabs = (visibleTabs ?? Array.Empty<AetheriaRuntimeMenuTabModelOption>())"
-    };
-    var missingBuilderSymbols = requiredBuilderSymbols
-        .Where(symbol => !menuTabsSurfaceBuilder.Contains(symbol, StringComparison.Ordinal))
-        .ToArray();
-    if (missingBuilderSymbols.Length > 0)
-    {
-        throw new InvalidOperationException(
-            "Shared runtime menu tab surface builder no longer owns the tab shell contract: " +
-            string.Join(", ", missingBuilderSymbols));
-    }
 }
 
 static void RequireInventoryShipSettingsUseEveSurface(string root)
