@@ -175,6 +175,27 @@ public static class AetheriaUnityRuntimeClientProvider
         return RuntimeState(runtimeId).ReactiveRenderSplatsViewport(viewport);
     }
 
+    public static AetheriaUnityRtsViewportDocuments MapViewportDocuments(
+        AetheriaRuntimeRtsViewportBounds viewport,
+        string runtimeId = "")
+    {
+        return AetheriaUnityRtsViewportDocuments.OpenMap(RuntimeState(runtimeId), viewport);
+    }
+
+    public static AetheriaUnityRtsViewportDocuments ZonePresentationDocuments(
+        AetheriaRuntimeRtsViewportBounds viewport,
+        string runtimeId = "")
+    {
+        return AetheriaUnityRtsViewportDocuments.OpenZonePresentation(RuntimeState(runtimeId), viewport);
+    }
+
+    public static AetheriaUnityRtsViewportDocuments RenderSplatViewportDocuments(
+        AetheriaRuntimeRtsViewportBounds viewport,
+        string runtimeId = "")
+    {
+        return AetheriaUnityRtsViewportDocuments.OpenRenderSplats(RuntimeState(runtimeId), viewport);
+    }
+
     public static AetheriaRuntimeDaemonFrameDocument CurrentDaemonFrame(string runtimeId = "")
     {
         return RuntimeState(runtimeId).CurrentDaemonFrame();

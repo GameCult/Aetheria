@@ -2438,9 +2438,8 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "FindAnyObjectByType<AetheriaDaemonObserver>()",
         "ResolveObjectsViewport(viewport)",
         "private AetheriaRuntimeObjectsViewportDocument ResolveObjectsViewport(AetheriaRuntimeXzRect viewport)",
-        ".ReactiveObjectsViewport(",
-        "\"unity-zone-renderer\"",
-        "_objectsViewport?.Current",
+        ".ZonePresentationDocuments(viewportBounds, \"unity-zone-renderer\")",
+        "_zonePresentationDocuments.CurrentObjectsViewport",
         "foreach (var entity in objects?.Objects ?? Array.Empty<AetheriaRuntimeRtsViewportObject>())",
         "_observedEntitySnapshotsByDaemonIndex.TryGetValue(entityIndex, out var entity)",
         "Loading entity {entity.Name} from daemon presentation query",
@@ -2457,7 +2456,7 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "foreach (var beltPose in _daemonAsteroidBeltPoses)",
         "beltPose.InstancePoses ?? Array.Empty<AetheriaRuntimeZoneRenderAsteroidInstancePose>()",
         "private void RefreshDaemonContactRows()",
-        ".ReactiveZoneContacts(\"unity-zone-renderer\")",
+        "_zonePresentationDocuments.CurrentContacts",
         "private void RefreshDaemonCompassMarkers()",
         "private void RefreshDaemonVisibleEntityInstances()",
         "PowerPulse(",
@@ -7730,13 +7729,11 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "MapRenderer.cs"));
     var requiredMapRendererSharedDocumentSymbols = new[]
     {
-        "CultMeshReactiveDocument<AetheriaRuntimeObjectsViewportDocument> _objectsViewport",
-        "CultMeshReactiveDocument<AetheriaRuntimeRenderSplatsViewportDocument> _renderSplatsViewport",
+        "AetheriaUnityRtsViewportDocuments _viewportDocuments",
         "ClearViewportCaches()",
-        "_objectsViewport?.Dispose()",
-        "_renderSplatsViewport?.Dispose()",
-        "_objectsViewport?.Current",
-        "_renderSplatsViewport?.Current",
+        "_viewportDocuments?.Dispose()",
+        "_viewportDocuments?.CurrentObjectsViewport",
+        "_viewportDocuments?.CurrentRenderSplatsViewport",
         "private void OnDestroy()"
     };
     var missingMapRendererSharedDocumentSymbols = requiredMapRendererSharedDocumentSymbols
@@ -7746,8 +7743,7 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
     missingMapRendererSharedDocumentSymbols = missingMapRendererSharedDocumentSymbols
         .Concat(new[]
         {
-            ".ReactiveObjectsViewport(viewport,\"unity-map-renderer\")",
-            ".ReactiveRenderSplatsViewport(viewport,\"unity-map-renderer\")",
+            ".MapViewportDocuments(viewport,\"unity-map-renderer\")",
             "AetheriaUnityRuntimeClientProvider.CurrentPlayerSettings(\"unity-map-renderer\")"
         }
             .Select(CompactSource)
@@ -7760,25 +7756,12 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
             string.Join(", ", missingMapRendererSharedDocumentSymbols));
     }
 
-    RequireReactiveTypedDocumentAccess(
-        mapRenderer,
-        "MapRenderer",
-        "AetheriaRuntimeObjectsViewportDocument",
-        "_objectsViewport",
-        ".ReactiveObjectsViewport(viewport,\"unity-map-renderer\")",
-        "AetheriaRuntimeObjectsViewportSession",
-        ".ObserveObjects(viewport)");
-    RequireReactiveTypedDocumentAccess(
-        mapRenderer,
-        "MapRenderer",
-        "AetheriaRuntimeRenderSplatsViewportDocument",
-        "_renderSplatsViewport",
-        ".ReactiveRenderSplatsViewport(viewport,\"unity-map-renderer\")",
-        "AetheriaRuntimeRenderSplatsViewportSession",
-        ".ObserveRenderSplats(viewport)");
-
     var forbiddenMapRendererSharedDocumentSymbols = new[]
     {
+        "CultMeshReactiveDocument<AetheriaRuntimeObjectsViewportDocument> _objectsViewport",
+        "CultMeshReactiveDocument<AetheriaRuntimeRenderSplatsViewportDocument> _renderSplatsViewport",
+        ".ReactiveObjectsViewport(viewport, \"unity-map-renderer\")",
+        ".ReactiveRenderSplatsViewport(viewport, \"unity-map-renderer\")",
         "AetheriaRuntimeObjectsViewportSession _objectsViewport",
         "AetheriaRuntimeRenderSplatsViewportSession _renderSplatsViewport",
         "CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument>",
@@ -8054,12 +8037,11 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "ZoneRenderer.cs"));
     var requiredZoneRendererSharedDocumentSymbols = new[]
     {
-        ".RuntimeState(\"unity-zone-renderer\")",
-        ".CurrentCatalog()",
-        "CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument> _zoneContacts",
-        ".ReactiveZoneContacts(\"unity-zone-renderer\")",
-        "_zoneContacts?.Dispose()",
-        "_zoneContacts?.Current",
+        ".CurrentCatalog(\"unity-zone-renderer\")",
+        "AetheriaUnityRtsViewportDocuments _zonePresentationDocuments",
+        ".ZonePresentationDocuments(",
+        "_zonePresentationDocuments?.Dispose()",
+        "_zonePresentationDocuments?.CurrentContacts",
         "private void OnDestroy()"
     };
     var missingZoneRendererSharedDocumentSymbols = requiredZoneRendererSharedDocumentSymbols
@@ -8072,16 +8054,13 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
             string.Join(", ", missingZoneRendererSharedDocumentSymbols));
     }
 
-    RequireReactiveTypedDocumentAccess(
-        zoneRenderer,
-        "ZoneRenderer",
-        "AetheriaRuntimeZoneContactsDocument",
-        "_zoneContacts",
-        ".ReactiveZoneContacts(\"unity-zone-renderer\")",
-        "AetheriaRuntimeZoneContactsSession",
-        "ResolveClient().State.ObserveZoneContacts()");
     var forbiddenZoneRendererSharedDocumentSymbols = new[]
     {
+        "CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument> _zoneContacts",
+        ".ReactiveZoneContacts(\"unity-zone-renderer\")",
+        "_zoneContacts?.Current",
+        "_zoneContacts?.Dispose()",
+        ".RuntimeState(\"unity-zone-renderer\")",
         "AetheriaRuntimeZoneContactsSession _zoneContacts",
         "ResolveClient().State.ObserveZoneContacts()",
         "CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot>",
@@ -8190,19 +8169,19 @@ static void RequireUnityViewportAndMapReadsUseManagedAccessors(string root)
         "AetheriaUnityRenderSplatViewportSource.cs"));
     var requiredRenderSplatViewportSourceSymbols = new[]
     {
-        "CultMeshReactiveDocument<AetheriaRuntimeRenderSplatsViewportDocument> _renderSplatsViewport",
-        "_renderSplatsViewport?.Current",
+        "AetheriaUnityRtsViewportDocuments _viewportDocuments",
+        "_viewportDocuments?.CurrentRenderSplatsViewport",
         "ClearViewportDocument()"
     };
     var missingRenderSplatViewportSourceSymbols = requiredRenderSplatViewportSourceSymbols
         .Where(symbol => !renderSplatViewportSource.Contains(symbol, StringComparison.Ordinal))
         .ToArray();
     if (!CompactSource(renderSplatViewportSource).Contains(
-        ".ReactiveRenderSplatsViewport(viewport,\"unity-render-splat-viewport\")",
+        ".RenderSplatViewportDocuments(viewport,\"unity-render-splat-viewport\")",
         StringComparison.Ordinal))
     {
         missingRenderSplatViewportSourceSymbols = missingRenderSplatViewportSourceSymbols
-            .Concat(new[] { ".ReactiveRenderSplatsViewport(viewport,\"unity-render-splat-viewport\")" })
+            .Concat(new[] { ".RenderSplatViewportDocuments(viewport,\"unity-render-splat-viewport\")" })
             .ToArray();
     }
     if (missingRenderSplatViewportSourceSymbols.Length > 0 ||
@@ -8213,21 +8192,14 @@ static void RequireUnityViewportAndMapReadsUseManagedAccessors(string root)
             string.Join(", ", missingRenderSplatViewportSourceSymbols));
     }
 
-    if (renderSplatViewportSource.Contains("AetheriaRuntimeRenderSplatsViewportSession _renderSplatsViewport", StringComparison.Ordinal) ||
+    if (renderSplatViewportSource.Contains("CultMeshReactiveDocument<AetheriaRuntimeRenderSplatsViewportDocument> _renderSplatsViewport", StringComparison.Ordinal) ||
+        renderSplatViewportSource.Contains(".ReactiveRenderSplatsViewport(", StringComparison.Ordinal) ||
+        renderSplatViewportSource.Contains("AetheriaRuntimeRenderSplatsViewportSession _renderSplatsViewport", StringComparison.Ordinal) ||
         renderSplatViewportSource.Contains(".ObserveRenderSplats(viewport)", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "AetheriaUnityRenderSplatViewportSource still routes render-splats viewports through a session wrapper instead of a managed reactive typed document.");
+            "AetheriaUnityRenderSplatViewportSource still routes render-splats viewports through raw/session wrapper state instead of a managed viewport document.");
     }
-
-    RequireReactiveTypedDocumentAccess(
-        renderSplatViewportSource,
-        "AetheriaUnityRenderSplatViewportSource",
-        "AetheriaRuntimeRenderSplatsViewportDocument",
-        "_renderSplatsViewport",
-        ".ReactiveRenderSplatsViewport(viewport,\"unity-render-splat-viewport\")",
-        "AetheriaRuntimeRenderSplatsViewportSession",
-        ".ObserveRenderSplats(viewport)");
 
     var zoneRenderer = File.ReadAllText(Path.Combine(
         root,
@@ -8237,19 +8209,19 @@ static void RequireUnityViewportAndMapReadsUseManagedAccessors(string root)
         "ZoneRenderer.cs"));
     var requiredZoneRendererViewportSymbols = new[]
     {
-        "CultMeshReactiveDocument<AetheriaRuntimeObjectsViewportDocument> _objectsViewport",
-        "_objectsViewport?.Current",
-        "_objectsViewport?.Dispose()"
+        "AetheriaUnityRtsViewportDocuments _zonePresentationDocuments",
+        "_zonePresentationDocuments.CurrentObjectsViewport",
+        "_zonePresentationDocuments?.Dispose()"
     };
     var missingZoneRendererViewportSymbols = requiredZoneRendererViewportSymbols
         .Where(symbol => !zoneRenderer.Contains(symbol, StringComparison.Ordinal))
         .ToArray();
     if (!CompactSource(zoneRenderer).Contains(
-        ".ReactiveObjectsViewport(viewportBounds,\"unity-zone-renderer\")",
+        ".ZonePresentationDocuments(viewportBounds,\"unity-zone-renderer\")",
         StringComparison.Ordinal))
     {
         missingZoneRendererViewportSymbols = missingZoneRendererViewportSymbols
-            .Concat(new[] { ".ReactiveObjectsViewport(viewportBounds,\"unity-zone-renderer\")" })
+            .Concat(new[] { ".ZonePresentationDocuments(viewportBounds,\"unity-zone-renderer\")" })
             .ToArray();
     }
     if (missingZoneRendererViewportSymbols.Length > 0 ||
@@ -8260,21 +8232,14 @@ static void RequireUnityViewportAndMapReadsUseManagedAccessors(string root)
             string.Join(", ", missingZoneRendererViewportSymbols));
     }
 
-    if (zoneRenderer.Contains("AetheriaRuntimeObjectsViewportSession _objectsViewport", StringComparison.Ordinal) ||
+    if (zoneRenderer.Contains("CultMeshReactiveDocument<AetheriaRuntimeObjectsViewportDocument> _objectsViewport", StringComparison.Ordinal) ||
+        zoneRenderer.Contains(".ReactiveObjectsViewport(", StringComparison.Ordinal) ||
+        zoneRenderer.Contains("AetheriaRuntimeObjectsViewportSession _objectsViewport", StringComparison.Ordinal) ||
         zoneRenderer.Contains(".ObserveObjects(viewportBounds)", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "ZoneRenderer still routes fallback objects viewports through a session wrapper instead of a managed reactive typed document.");
+            "ZoneRenderer still routes fallback objects viewports through raw/session wrapper state instead of a managed viewport document.");
     }
-
-    RequireReactiveTypedDocumentAccess(
-        zoneRenderer,
-        "ZoneRenderer",
-        "AetheriaRuntimeObjectsViewportDocument",
-        "_objectsViewport",
-        ".ReactiveObjectsViewport(viewportBounds,\"unity-zone-renderer\")",
-        "AetheriaRuntimeObjectsViewportSession",
-        ".ObserveObjects(viewportBounds)");
 
     Console.WriteLine("Viewport and map document accessors: Unity reads fixed map/contact state and parameterized viewport state through named managed typed documents");
 }
@@ -14823,8 +14788,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
     var compactSectorRenderer = CompactSource(sectorRenderer);
     var compactSectorMap = CompactSource(sectorMap);
     if (!mapRenderer.Contains("AetheriaUnityRuntimeClientProvider", StringComparison.Ordinal) ||
-        !compactMapRenderer.Contains(".ReactiveObjectsViewport(viewport,\"unity-map-renderer\")", StringComparison.Ordinal) ||
-        !compactMapRenderer.Contains(".ReactiveRenderSplatsViewport(viewport,\"unity-map-renderer\")", StringComparison.Ordinal) ||
+        !compactMapRenderer.Contains(".MapViewportDocuments(viewport,\"unity-map-renderer\")", StringComparison.Ordinal) ||
         !compactMapRenderer.Contains(CompactSource("AetheriaUnityRuntimeClientProvider.CurrentPlayerSettings(\"unity-map-renderer\")"), StringComparison.Ordinal) ||
         !sectorRenderer.Contains("AetheriaUnityRuntimeClientProvider", StringComparison.Ordinal) ||
         !sectorRenderer.Contains("AetheriaUnityRuntimeClientProvider.CurrentSectorMap(\"unity-sector-renderer\")", StringComparison.Ordinal) ||
@@ -16478,6 +16442,9 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "public static AetheriaRuntimeInventoryDocument CurrentInventory(int entityIndex, string runtimeId = \"\")",
         "public static CultMeshReactiveDocument<AetheriaRuntimeObjectsViewportDocument> ReactiveObjectsViewport(",
         "public static CultMeshReactiveDocument<AetheriaRuntimeRenderSplatsViewportDocument> ReactiveRenderSplatsViewport(",
+        "public static AetheriaUnityRtsViewportDocuments MapViewportDocuments(",
+        "public static AetheriaUnityRtsViewportDocuments ZonePresentationDocuments(",
+        "public static AetheriaUnityRtsViewportDocuments RenderSplatViewportDocuments(",
         "public static AetheriaRuntimeDaemonFrameDocument CurrentDaemonFrame(string runtimeId = \"\")",
         "public static AetheriaRuntimeDaemonFrameDocument CurrentDaemonFrame(",
         "public static AetheriaUnityDaemonRenderDocuments DaemonRenderDocuments(",
@@ -18969,56 +18936,6 @@ static bool ContainsUnitySettingsMember(string source, string memberName)
            source.Contains($", Settings.{memberName}", StringComparison.Ordinal) ||
            source.Contains($"\tSettings.{memberName}", StringComparison.Ordinal) ||
            source.Contains($"\nSettings.{memberName}", StringComparison.Ordinal);
-}
-
-static void RequireReactiveTypedDocumentAccess(
-    string source,
-    string ownerName,
-    string documentType,
-    string fieldName,
-    string reactiveAccessor,
-    string forbiddenSessionType,
-    string forbiddenObserveAccessor)
-{
-    var compactSource = CompactSource(source);
-    var compactReactiveAccessor = CompactSource(reactiveAccessor);
-    var requiredSymbols = new[]
-    {
-        $"CultMeshReactiveDocument<{documentType}> {fieldName}",
-        $"{fieldName}?.Current",
-        $"{fieldName}?.Dispose()"
-    };
-    var missingSymbols = requiredSymbols
-        .Where(symbol => !source.Contains(symbol, StringComparison.Ordinal))
-        .ToArray();
-    if (!string.IsNullOrWhiteSpace(compactReactiveAccessor) &&
-        !compactSource.Contains(compactReactiveAccessor, StringComparison.Ordinal))
-    {
-        missingSymbols = missingSymbols
-            .Concat(new[] { reactiveAccessor })
-            .ToArray();
-    }
-    if (missingSymbols.Length > 0)
-    {
-        throw new InvalidOperationException(
-            $"{ownerName} should read {documentType} through a managed reactive typed document: " +
-            string.Join(", ", missingSymbols));
-    }
-
-    var forbiddenSymbols = new[]
-    {
-        $"{forbiddenSessionType} {fieldName}",
-        forbiddenObserveAccessor
-    };
-    var survivingSymbols = forbiddenSymbols
-        .Where(symbol => source.Contains(symbol, StringComparison.Ordinal))
-        .ToArray();
-    if (survivingSymbols.Length > 0)
-    {
-        throw new InvalidOperationException(
-            $"{ownerName} still routes {documentType} through a legacy session wrapper instead of the managed reactive typed document: " +
-            string.Join(", ", survivingSymbols));
-    }
 }
 
 static string CompactSource(string source)

@@ -8,7 +8,6 @@ using System.Collections.Generic;
 using System.Linq;
 using Cinemachine;
 using GameCult.Aetheria.State.Verse;
-using GameCult.Mesh;
 using UnityEngine;
 using UnityEngine.Serialization;
 using Object = UnityEngine.Object;
@@ -119,9 +118,7 @@ public class ZoneRenderer : MonoBehaviour
         Array.Empty<AetheriaRuntimeZoneRenderAsteroidBeltPose>();
     private IReadOnlyList<AetheriaRuntimeBodySnapshotCommit> _zoneRenderBodies =
         Array.Empty<AetheriaRuntimeBodySnapshotCommit>();
-    private CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument> _zoneContacts;
-    private AetheriaRuntimeRtsViewportBounds _objectsViewportBounds;
-    private CultMeshReactiveDocument<AetheriaRuntimeObjectsViewportDocument> _objectsViewport;
+    private AetheriaUnityRtsViewportDocuments _zonePresentationDocuments;
 
     public Dictionary<int, (GameObject gravity, CompassIcon icon)> WormholeInstances = new Dictionary<int, (GameObject, CompassIcon)>();
     private List<ItemPickup> _loot = new List<ItemPickup>();
@@ -1204,8 +1201,7 @@ public class ZoneRenderer : MonoBehaviour
         try
         {
             return AetheriaUnityRuntimeClientProvider
-                .RuntimeState("unity-zone-renderer")
-                .CurrentCatalog();
+                .CurrentCatalog("unity-zone-renderer");
         }
         catch (Exception ex)
         {
@@ -1217,65 +1213,47 @@ public class ZoneRenderer : MonoBehaviour
 
     private AetheriaRuntimeZoneContactsDocument ResolveZoneContacts()
     {
-        if (_zoneContacts != null)
-            return _zoneContacts.Current;
+        if (_zonePresentationDocuments != null)
+            return _zonePresentationDocuments.CurrentContacts;
 
         try
         {
-            _zoneContacts = AetheriaUnityRuntimeClientProvider
-                .ReactiveZoneContacts("unity-zone-renderer");
+            _zonePresentationDocuments = AetheriaUnityRuntimeClientProvider
+                .ZonePresentationDocuments(ToViewportBounds(ResolveDaemonRenderViewport()), "unity-zone-renderer");
         }
         catch (Exception ex)
         {
             Debug.LogWarning($"Failed to bind Aetheria zone contacts for renderer target distances: {ex.Message}");
         }
 
-        return _zoneContacts?.Current;
+        return _zonePresentationDocuments?.CurrentContacts;
     }
 
     private AetheriaRuntimeObjectsViewportDocument ResolveObjectsViewport(AetheriaRuntimeXzRect viewport)
     {
         var viewportBounds = ToViewportBounds(viewport);
-        if (_objectsViewport != null && SameViewport(_objectsViewportBounds, viewportBounds))
-            return _objectsViewport.Current;
+        if (_zonePresentationDocuments != null && _zonePresentationDocuments.Matches(viewportBounds))
+            return _zonePresentationDocuments.CurrentObjectsViewport;
 
         try
         {
-            var nextObjectsViewport = AetheriaUnityRuntimeClientProvider
-                .ReactiveObjectsViewport(
-                    viewportBounds,
-                    "unity-zone-renderer");
-            _objectsViewport?.Dispose();
-            _objectsViewportBounds = viewportBounds;
-            _objectsViewport = nextObjectsViewport;
+            var nextDocuments = AetheriaUnityRuntimeClientProvider
+                .ZonePresentationDocuments(viewportBounds, "unity-zone-renderer");
+            _zonePresentationDocuments?.Dispose();
+            _zonePresentationDocuments = nextDocuments;
         }
         catch (Exception ex)
         {
             Debug.LogWarning($"Failed to bind Aetheria objects viewport for zone renderer presentation: {ex.Message}");
         }
 
-        return _objectsViewport?.Current;
+        return _zonePresentationDocuments?.CurrentObjectsViewport;
     }
 
     private void ClearClientCaches()
     {
-        _zoneContacts?.Dispose();
-        _objectsViewport?.Dispose();
-        _zoneContacts = null;
-        _objectsViewport = null;
-    }
-
-    private static bool SameViewport(
-        AetheriaRuntimeRtsViewportBounds left,
-        AetheriaRuntimeRtsViewportBounds right)
-    {
-        if (left == null || right == null)
-            return false;
-
-        return Mathf.Approximately(left.MinX, right.MinX) &&
-            Mathf.Approximately(left.MinY, right.MinY) &&
-            Mathf.Approximately(left.MaxX, right.MaxX) &&
-            Mathf.Approximately(left.MaxY, right.MaxY);
+        _zonePresentationDocuments?.Dispose();
+        _zonePresentationDocuments = null;
     }
 }
 

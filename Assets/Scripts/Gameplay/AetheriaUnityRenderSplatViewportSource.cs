@@ -1,6 +1,5 @@
 using System;
 using GameCult.Aetheria.State.Verse;
-using GameCult.Mesh;
 using UnityEngine;
 
 public sealed class AetheriaUnityRenderSplatViewportSource : MonoBehaviour
@@ -27,8 +26,7 @@ public sealed class AetheriaUnityRenderSplatViewportSource : MonoBehaviour
     private bool renderInLateUpdate = true;
 
     private float _nextRefreshTime;
-    private AetheriaRuntimeRtsViewportBounds _viewport;
-    private CultMeshReactiveDocument<AetheriaRuntimeRenderSplatsViewportDocument> _renderSplatsViewport;
+    private AetheriaUnityRtsViewportDocuments _viewportDocuments;
 
     public RenderTexture TargetTexture
     {
@@ -65,7 +63,7 @@ public sealed class AetheriaUnityRenderSplatViewportSource : MonoBehaviour
             return false;
 
         RefreshDocument(false);
-        var document = _renderSplatsViewport?.Current;
+        var document = _viewportDocuments?.CurrentRenderSplatsViewport;
         if (document == null)
             return false;
 
@@ -107,7 +105,7 @@ public sealed class AetheriaUnityRenderSplatViewportSource : MonoBehaviour
     private void RefreshDocument(bool force)
     {
         var viewport = ResolveViewportBounds();
-        if (!force && _renderSplatsViewport != null && SameViewport(_viewport, viewport))
+        if (!force && _viewportDocuments != null && _viewportDocuments.Matches(viewport))
             return;
 
         if (!force && Time.unscaledTime < _nextRefreshTime)
@@ -116,13 +114,10 @@ public sealed class AetheriaUnityRenderSplatViewportSource : MonoBehaviour
         _nextRefreshTime = Time.unscaledTime + Mathf.Max(0.02f, refreshIntervalSeconds);
         try
         {
-            var nextRenderSplatsViewport = AetheriaUnityRuntimeClientProvider
-                .ReactiveRenderSplatsViewport(
-                    viewport,
-                    "unity-render-splat-viewport");
+            var nextDocuments = AetheriaUnityRuntimeClientProvider
+                .RenderSplatViewportDocuments(viewport, "unity-render-splat-viewport");
             ClearViewportDocument();
-            _viewport = viewport;
-            _renderSplatsViewport = nextRenderSplatsViewport;
+            _viewportDocuments = nextDocuments;
         }
         catch (Exception ex)
         {
@@ -144,21 +139,8 @@ public sealed class AetheriaUnityRenderSplatViewportSource : MonoBehaviour
 
     private void ClearViewportDocument()
     {
-        _renderSplatsViewport?.Dispose();
-        _renderSplatsViewport = null;
-    }
-
-    private static bool SameViewport(
-        AetheriaRuntimeRtsViewportBounds left,
-        AetheriaRuntimeRtsViewportBounds right)
-    {
-        if (left == null || right == null)
-            return false;
-
-        return Mathf.Approximately(left.MinX, right.MinX) &&
-            Mathf.Approximately(left.MinY, right.MinY) &&
-            Mathf.Approximately(left.MaxX, right.MaxX) &&
-            Mathf.Approximately(left.MaxY, right.MaxY);
+        _viewportDocuments?.Dispose();
+        _viewportDocuments = null;
     }
 
 }

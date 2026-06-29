@@ -7,7 +7,6 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using GameCult.Aetheria.State.Verse;
-using GameCult.Mesh;
 using TMPro;
 using UnityEngine;
 using Unity.Mathematics;
@@ -40,8 +39,7 @@ public class MapRenderer : MonoBehaviour
     private RenderTexture _mapTexture;
     private int2 _size;
     private bool _init;
-    private CultMeshReactiveDocument<AetheriaRuntimeObjectsViewportDocument> _objectsViewport;
-    private CultMeshReactiveDocument<AetheriaRuntimeRenderSplatsViewportDocument> _renderSplatsViewport;
+    private AetheriaUnityRtsViewportDocuments _viewportDocuments;
     private float _nextViewportRefreshTime;
     private readonly List<RawImage> _rtsIconPool = new List<RawImage>();
     
@@ -126,12 +124,10 @@ public class MapRenderer : MonoBehaviour
         {
             var viewport = ResolveViewportBounds();
             ClearViewportCaches();
-            _objectsViewport = AetheriaUnityRuntimeClientProvider
-                .ReactiveObjectsViewport(viewport, "unity-map-renderer");
-            _renderSplatsViewport = AetheriaUnityRuntimeClientProvider
-                .ReactiveRenderSplatsViewport(viewport, "unity-map-renderer");
+            _viewportDocuments = AetheriaUnityRuntimeClientProvider
+                .MapViewportDocuments(viewport, "unity-map-renderer");
 
-            var objectsViewport = _objectsViewport?.Current;
+            var objectsViewport = _viewportDocuments?.CurrentObjectsViewport;
             var zoneName = string.IsNullOrWhiteSpace(objectsViewport?.ZoneName)
                 ? "Unknown"
                 : objectsViewport.ZoneName;
@@ -146,7 +142,7 @@ public class MapRenderer : MonoBehaviour
 
     private void RenderSplatLayers()
     {
-        var renderSplatsViewport = _renderSplatsViewport?.Current;
+        var renderSplatsViewport = _viewportDocuments?.CurrentRenderSplatsViewport;
         if (renderSplatsViewport == null)
             return;
 
@@ -185,7 +181,7 @@ public class MapRenderer : MonoBehaviour
         if (RtsIconRoot == null)
             return;
 
-        var objects = _objectsViewport?.Current?.Objects ?? Array.Empty<AetheriaRuntimeRtsViewportObject>();
+        var objects = _viewportDocuments?.CurrentObjectsViewport?.Objects ?? Array.Empty<AetheriaRuntimeRtsViewportObject>();
         for (var i = 0; i < objects.Count; i++)
         {
             var icon = ResolveRtsIcon(i);
@@ -244,7 +240,7 @@ public class MapRenderer : MonoBehaviour
 
     private Vector2 WorldToMapPosition(double worldX, double worldY)
     {
-        var viewport = _objectsViewport?.Current?.Viewport ?? ResolveViewportBounds();
+        var viewport = _viewportDocuments?.CurrentObjectsViewport?.Viewport ?? ResolveViewportBounds();
         var minX = Math.Min(viewport.MinX, viewport.MaxX);
         var maxX = Math.Max(viewport.MinX, viewport.MaxX);
         var minY = Math.Min(viewport.MinY, viewport.MaxY);
@@ -329,10 +325,8 @@ public class MapRenderer : MonoBehaviour
 
     private void ClearViewportCaches()
     {
-        _objectsViewport?.Dispose();
-        _renderSplatsViewport?.Dispose();
-        _objectsViewport = null;
-        _renderSplatsViewport = null;
+        _viewportDocuments?.Dispose();
+        _viewportDocuments = null;
     }
 
     private void OnDestroy()
