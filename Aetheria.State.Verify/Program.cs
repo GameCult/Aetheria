@@ -3777,7 +3777,6 @@ static void RequireMainMenuSettingsShellUsesEveSurface(string root)
         "ProjectMainMenuSurfaceState(",
         "new AetheriaRuntimePlayerSettingsSurfaceState(",
         "new AetheriaRuntimeClientTargetSurfaceState(",
-        "new AetheriaRuntimeMainMenuSurfaceState(",
         "_nextMenu.panel.Title.text = \"settings\"",
         "_nextMenu.panel.Title.text = TitleSubtitle(\"input\", \"settings\")",
         "_nextMenu.panel.Title.text = TitleSubtitle(\"audio\", \"settings\")"
@@ -3802,8 +3801,9 @@ static void RequireMainMenuSettingsShellUsesEveSurface(string root)
         "BuildInputSettings(",
         "BuildPlayerSettingsShell(",
         "BuildVerseSettingsShell(",
-        "private static AetheriaRuntimeMainMenuSurfaceState ComposeRootState(",
-        "private static AetheriaRuntimePlayerSettingsSurfaceState ComposePlayerSettingsState(",
+        "private static AetheriaRuntimeSurfaceDocument BuildRoot(",
+        "private static AetheriaRuntimeSurfaceDocument BuildInputSettings(",
+        "var verseLabel = VerseLabel(verseTitle, verseId)",
         "AetheriaRuntimePlayerSettingsSurfaceBuilder.Build(state, version)",
         "AetheriaRuntimeSurfaceDocument document",
         "WithBackAction(",
@@ -3827,11 +3827,14 @@ static void RequireMainMenuSettingsShellUsesEveSurface(string root)
             string.Join(", ", missingBuilderSymbols));
     }
 
-    if (mainMenuSurfaceBuilder.Contains("public static AetheriaRuntimeMainMenuSurfaceState Project", StringComparison.Ordinal) ||
+    if (mainMenuSurfaceBuilder.Contains("AetheriaRuntimeMainMenuSurfaceState", StringComparison.Ordinal) ||
+        mainMenuSurfaceBuilder.Contains("ComposeRootState(", StringComparison.Ordinal) ||
+        mainMenuSurfaceBuilder.Contains("ComposePlayerSettingsState(", StringComparison.Ordinal) ||
+        mainMenuSurfaceBuilder.Contains("public static AetheriaRuntimeMainMenuSurfaceState Project", StringComparison.Ordinal) ||
         mainMenuSurfaceBuilder.Contains("public static AetheriaRuntimePlayerSettingsSurfaceState Project", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Shared main-menu surface builder must accept typed documents and return finished Eve documents; do not re-expose public Project helpers.");
+            "Shared main-menu surface builder must accept typed documents and return finished Eve documents; do not rebuild a shadow main-menu SurfaceState projection layer.");
     }
 }
 
@@ -3953,7 +3956,8 @@ static void RequireMainMenuRootUsesEveSurface(string root)
         "AetheriaRuntimeMainMenuCommands.NewGame",
         "AetheriaRuntimeMainMenuCommands.ShowSettings",
         "AetheriaRuntimeMainMenuCommands.Quit",
-        "AetheriaRuntimeMainMenuSurfaceState",
+        "private static AetheriaRuntimeSurfaceDocument BuildRoot(",
+        "var verseLabel = VerseLabel(verseTitle, verseId)",
         "public enum AetheriaRuntimeMainMenuCommandKind",
         "public readonly struct AetheriaRuntimeMainMenuCommand",
         "public static class AetheriaRuntimeMainMenuSurfaceCommands",
@@ -4175,7 +4179,8 @@ static void RequireMainMenuInputSettingsDelegateToRuntimeScreen(string root)
     }
 
     if (!mainMenuSurfaceBuilder.Contains("AetheriaRuntimeMainMenuCommands.OpenRuntimeInputScreen", StringComparison.Ordinal) ||
-        !mainMenuSurfaceBuilder.Contains("CanOpenRuntimeInputScreen", StringComparison.Ordinal))
+        !mainMenuSurfaceBuilder.Contains("bool canOpenRuntimeInputScreen", StringComparison.Ordinal) ||
+        !mainMenuSurfaceBuilder.Contains("if (canOpenRuntimeInputScreen)", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "Shared main-menu input surface no longer exposes the runtime input-screen handoff.");
@@ -9433,7 +9438,8 @@ static void RequireClientTargetBootAuthority(string root)
     };
     var requiredMainMenuBuilderSymbols = new[]
     {
-        "AetheriaRuntimeMainMenuSurfaceState",
+        "private static AetheriaRuntimeSurfaceDocument BuildRoot(",
+        "var verseLabel = VerseLabel(verseTitle, verseId)",
         "\"Client Target\"",
         "\"Transport\"",
         "\"Target Source\""

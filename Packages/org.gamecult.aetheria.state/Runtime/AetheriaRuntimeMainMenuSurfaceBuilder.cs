@@ -25,69 +25,6 @@ namespace GameCult.Aetheria.State.Verse
         public const string BackToSettings = "aetheria.main_menu.settings.back_to_settings";
     }
 
-    public sealed class AetheriaRuntimeMainMenuSurfaceState
-    {
-        public AetheriaRuntimeMainMenuSurfaceState(
-            string targetLabel,
-            string targetKind,
-            string targetSource,
-            string verseTitle,
-            string verseId,
-            string verseVisibility,
-            string verseCultMeshAddress,
-            bool inGame,
-            bool hasAuthoritativeDaemonFrame,
-            string daemonRunId,
-            long daemonFrameId,
-            int bindingOverrideCount,
-            int actionBarInputCount,
-            bool canOpenRuntimeInputScreen,
-            string updatedAtUtc)
-        {
-            TargetLabel = targetLabel ?? "";
-            TargetKind = targetKind ?? "";
-            TargetSource = targetSource ?? "";
-            VerseTitle = verseTitle ?? "";
-            VerseId = verseId ?? "";
-            VerseVisibility = verseVisibility ?? "";
-            VerseCultMeshAddress = verseCultMeshAddress ?? "";
-            InGame = inGame;
-            HasAuthoritativeDaemonFrame = hasAuthoritativeDaemonFrame;
-            DaemonRunId = daemonRunId ?? "";
-            DaemonFrameId = daemonFrameId;
-            BindingOverrideCount = bindingOverrideCount;
-            ActionBarInputCount = actionBarInputCount;
-            CanOpenRuntimeInputScreen = canOpenRuntimeInputScreen;
-            UpdatedAtUtc = updatedAtUtc ?? "";
-        }
-
-        public string TargetLabel { get; }
-        public string TargetKind { get; }
-        public string TargetSource { get; }
-        public string VerseTitle { get; }
-        public string VerseId { get; }
-        public string VerseVisibility { get; }
-        public string VerseCultMeshAddress { get; }
-        public bool InGame { get; }
-        public bool HasAuthoritativeDaemonFrame { get; }
-        public string DaemonRunId { get; }
-        public long DaemonFrameId { get; }
-        public int BindingOverrideCount { get; }
-        public int ActionBarInputCount { get; }
-        public bool CanOpenRuntimeInputScreen { get; }
-        public string UpdatedAtUtc { get; }
-
-        public string VerseLabel
-        {
-            get
-            {
-                var title = string.IsNullOrWhiteSpace(VerseTitle) ? "Unknown Verse" : VerseTitle;
-                var verseId = string.IsNullOrWhiteSpace(VerseId) ? "unknown" : VerseId;
-                return string.Equals(title, verseId, StringComparison.Ordinal) ? title : $"{title} ({verseId})";
-            }
-        }
-    }
-
     public static class AetheriaRuntimeMainMenuSurfaceBuilder
     {
         public static AetheriaRuntimeSurfaceDocument BuildRoot(
@@ -99,67 +36,6 @@ namespace GameCult.Aetheria.State.Verse
             long version = 1)
         {
             return BuildRoot(
-                ComposeRootState(
-                    stateBoot,
-                    playerSettings,
-                    canOpenRuntimeInputScreen,
-                    inGame,
-                    updatedAtUtc),
-                version);
-        }
-
-        public static AetheriaRuntimeSurfaceDocument BuildRoot(
-            AetheriaRuntimeStateBootReport stateBoot,
-            AetheriaRuntimeDaemonFrameDocument daemonFrame,
-            AetheriaRuntimeVerseHostSettingsDocument verseHost,
-            AetheriaRuntimePlayerSettingsDocument playerSettings,
-            bool canOpenRuntimeInputScreen,
-            bool inGame,
-            string updatedAtUtc,
-            long version = 1)
-        {
-            return BuildRoot(
-                ComposeRootState(
-                    stateBoot,
-                    daemonFrame,
-                    verseHost,
-                    playerSettings,
-                    canOpenRuntimeInputScreen,
-                    inGame,
-                    updatedAtUtc),
-                version);
-        }
-
-        public static AetheriaRuntimeSurfaceDocument BuildRoot(
-            AetheriaRuntimeStateBootReport stateBoot,
-            AetheriaRuntimeSectorMapDocument sectorMap,
-            AetheriaRuntimeVerseHostSettingsDocument verseHost,
-            AetheriaRuntimePlayerSettingsDocument playerSettings,
-            bool canOpenRuntimeInputScreen,
-            bool inGame,
-            string updatedAtUtc,
-            long version = 1)
-        {
-            return BuildRoot(
-                ComposeRootState(
-                    stateBoot,
-                    sectorMap,
-                    verseHost,
-                    playerSettings,
-                    canOpenRuntimeInputScreen,
-                    inGame,
-                    updatedAtUtc),
-                version);
-        }
-
-        private static AetheriaRuntimeMainMenuSurfaceState ComposeRootState(
-            AetheriaRuntimeStateBootReport stateBoot,
-            AetheriaRuntimePlayerSettingsDocument playerSettings,
-            bool canOpenRuntimeInputScreen,
-            bool inGame,
-            string updatedAtUtc)
-        {
-            return new AetheriaRuntimeMainMenuSurfaceState(
                 stateBoot.TargetLabel,
                 stateBoot.TargetKind,
                 stateBoot.TargetSource,
@@ -168,25 +44,24 @@ namespace GameCult.Aetheria.State.Verse
                 "unknown",
                 stateBoot.CultMeshAddress,
                 inGame,
-                false,
-                "",
-                -1,
-                playerSettings?.BindingOverrides?.Length ?? 0,
-                playerSettings?.ActionBarInputs?.Length ?? 0,
-                canOpenRuntimeInputScreen,
-                updatedAtUtc);
+                hasAuthoritativeDaemonFrame: false,
+                daemonRunId: "",
+                daemonFrameId: -1,
+                updatedAtUtc,
+                version);
         }
 
-        private static AetheriaRuntimeMainMenuSurfaceState ComposeRootState(
+        public static AetheriaRuntimeSurfaceDocument BuildRoot(
             AetheriaRuntimeStateBootReport stateBoot,
             AetheriaRuntimeDaemonFrameDocument daemonFrame,
             AetheriaRuntimeVerseHostSettingsDocument verseHost,
             AetheriaRuntimePlayerSettingsDocument playerSettings,
             bool canOpenRuntimeInputScreen,
             bool inGame,
-            string updatedAtUtc)
+            string updatedAtUtc,
+            long version = 1)
         {
-            return new AetheriaRuntimeMainMenuSurfaceState(
+            return BuildRoot(
                 stateBoot.TargetLabel,
                 stateBoot.TargetKind,
                 stateBoot.TargetSource,
@@ -195,25 +70,24 @@ namespace GameCult.Aetheria.State.Verse
                 verseHost?.Visibility ?? "unknown",
                 verseHost?.CultMeshAddress ?? stateBoot.CultMeshAddress,
                 inGame,
-                daemonFrame != null,
+                hasAuthoritativeDaemonFrame: daemonFrame != null,
                 daemonFrame?.Run?.RunId ?? "",
                 daemonFrame?.FrameId ?? -1,
-                playerSettings?.BindingOverrides?.Length ?? 0,
-                playerSettings?.ActionBarInputs?.Length ?? 0,
-                canOpenRuntimeInputScreen,
-                updatedAtUtc);
+                updatedAtUtc,
+                version);
         }
 
-        private static AetheriaRuntimeMainMenuSurfaceState ComposeRootState(
+        public static AetheriaRuntimeSurfaceDocument BuildRoot(
             AetheriaRuntimeStateBootReport stateBoot,
             AetheriaRuntimeSectorMapDocument sectorMap,
             AetheriaRuntimeVerseHostSettingsDocument verseHost,
             AetheriaRuntimePlayerSettingsDocument playerSettings,
             bool canOpenRuntimeInputScreen,
             bool inGame,
-            string updatedAtUtc)
+            string updatedAtUtc,
+            long version = 1)
         {
-            return new AetheriaRuntimeMainMenuSurfaceState(
+            return BuildRoot(
                 stateBoot.TargetLabel,
                 stateBoot.TargetKind,
                 stateBoot.TargetSource,
@@ -222,13 +96,11 @@ namespace GameCult.Aetheria.State.Verse
                 verseHost?.Visibility ?? "unknown",
                 verseHost?.CultMeshAddress ?? stateBoot.CultMeshAddress,
                 inGame,
-                sectorMap != null,
+                hasAuthoritativeDaemonFrame: sectorMap != null,
                 sectorMap?.RunId ?? "",
                 sectorMap?.FrameId ?? -1,
-                playerSettings?.BindingOverrides?.Length ?? 0,
-                playerSettings?.ActionBarInputs?.Length ?? 0,
-                canOpenRuntimeInputScreen,
-                updatedAtUtc);
+                updatedAtUtc,
+                version);
         }
 
         public static AetheriaRuntimeSurfaceDocument BuildInputSettings(
@@ -240,12 +112,11 @@ namespace GameCult.Aetheria.State.Verse
             long version = 1)
         {
             return BuildInputSettings(
-                ComposeRootState(
-                    stateBoot,
-                    playerSettings,
-                    canOpenRuntimeInputScreen,
-                    inGame,
-                    updatedAtUtc),
+                playerSettings?.BindingOverrides?.Length ?? 0,
+                playerSettings?.ActionBarInputs?.Length ?? 0,
+                canOpenRuntimeInputScreen,
+                inGame,
+                updatedAtUtc,
                 version);
         }
 
@@ -254,14 +125,7 @@ namespace GameCult.Aetheria.State.Verse
             string updatedAtUtc,
             long version = 1)
         {
-            return BuildPlayerSettingsShell(ComposePlayerSettingsState(playerSettings, updatedAtUtc), version);
-        }
-
-        private static AetheriaRuntimePlayerSettingsSurfaceState ComposePlayerSettingsState(
-            AetheriaRuntimePlayerSettingsDocument playerSettings,
-            string updatedAtUtc)
-        {
-            return new AetheriaRuntimePlayerSettingsSurfaceState(
+            var state = new AetheriaRuntimePlayerSettingsSurfaceState(
                 playerSettings?.PlayerName ?? "",
                 playerSettings?.TutorialPassed ?? false,
                 "",
@@ -270,29 +134,41 @@ namespace GameCult.Aetheria.State.Verse
                 playerSettings?.NebulaQuality ?? "",
                 playerSettings?.ShowAsteroidsInMinimap ?? false,
                 updatedAtUtc);
+
+            return BuildPlayerSettingsShell(state, version);
         }
 
-        public static AetheriaRuntimeSurfaceDocument BuildRoot(
-            AetheriaRuntimeMainMenuSurfaceState state,
-            long version = 1)
+        private static AetheriaRuntimeSurfaceDocument BuildRoot(
+            string targetLabel,
+            string targetKind,
+            string targetSource,
+            string verseTitle,
+            string verseId,
+            string verseVisibility,
+            string verseCultMeshAddress,
+            bool inGame,
+            bool hasAuthoritativeDaemonFrame,
+            string daemonRunId,
+            long daemonFrameId,
+            string updatedAtUtc,
+            long version)
         {
-            state ??= EmptyState();
-
             var commands = new List<AetheriaRuntimeSurfaceCommandTemplate>();
             var actionButtons = new List<AetheriaRuntimeSurfaceComponent>();
             var cardChildren = new List<AetheriaRuntimeSurfaceComponent>();
-            var targetKind = string.IsNullOrWhiteSpace(state.TargetKind) ? "unknown" : state.TargetKind;
-            var targetSource = string.IsNullOrWhiteSpace(state.TargetSource) ? "unknown" : state.TargetSource;
-            var verseVisibility = string.IsNullOrWhiteSpace(state.VerseVisibility) ? "unknown" : state.VerseVisibility;
-            var verseMeshAddress = string.IsNullOrWhiteSpace(state.VerseCultMeshAddress) ? "unpublished" : state.VerseCultMeshAddress;
+            targetKind = string.IsNullOrWhiteSpace(targetKind) ? "unknown" : targetKind;
+            targetSource = string.IsNullOrWhiteSpace(targetSource) ? "unknown" : targetSource;
+            verseVisibility = string.IsNullOrWhiteSpace(verseVisibility) ? "unknown" : verseVisibility;
+            var verseMeshAddress = string.IsNullOrWhiteSpace(verseCultMeshAddress) ? "unpublished" : verseCultMeshAddress;
+            var verseLabel = VerseLabel(verseTitle, verseId);
 
-            if (!state.InGame)
+            if (!inGame)
             {
-                if (!state.HasAuthoritativeDaemonFrame)
+                if (!hasAuthoritativeDaemonFrame)
                 {
                     cardChildren.Add(Text(
                         $"{AetheriaRuntimeMainMenuCommands.RootSurfaceId}.continue.note",
-                        $"No authoritative daemon frame is available in {state.VerseLabel} yet. Start or connect a daemon before opening the observer scene."));
+                        $"No authoritative daemon frame is available in {verseLabel} yet. Start or connect a daemon before opening the observer scene."));
                 }
                 else
                 {
@@ -304,18 +180,18 @@ namespace GameCult.Aetheria.State.Verse
                     cardChildren.Add(Metric(
                         $"{AetheriaRuntimeMainMenuCommands.RootSurfaceId}.continue.run",
                         "Daemon Run",
-                        state.DaemonRunId));
+                        daemonRunId));
                     cardChildren.Add(Metric(
                         $"{AetheriaRuntimeMainMenuCommands.RootSurfaceId}.continue.frame",
                         "Daemon Frame",
-                        state.DaemonFrameId.ToString()));
+                        daemonFrameId.ToString()));
                 }
             }
 
             cardChildren.Add(Metric(
                 $"{AetheriaRuntimeMainMenuCommands.RootSurfaceId}.target.title",
                 "Client Target",
-                state.TargetLabel));
+                targetLabel));
             cardChildren.Add(Metric(
                 $"{AetheriaRuntimeMainMenuCommands.RootSurfaceId}.target.transport",
                 "Transport",
@@ -327,7 +203,7 @@ namespace GameCult.Aetheria.State.Verse
             cardChildren.Add(Metric(
                 $"{AetheriaRuntimeMainMenuCommands.RootSurfaceId}.verse.title",
                 "Verse",
-                state.VerseLabel));
+                verseLabel));
             cardChildren.Add(Metric(
                 $"{AetheriaRuntimeMainMenuCommands.RootSurfaceId}.verse.visibility",
                 "Visibility",
@@ -347,13 +223,13 @@ namespace GameCult.Aetheria.State.Verse
 
             cardChildren.Add(Text(
                 $"{AetheriaRuntimeMainMenuCommands.RootSurfaceId}.note",
-                $"The client lowers this shell through Eve. The client target chooses which Verse it follows; game truth belongs to the daemon serving {state.VerseLabel}."));
+                $"The client lowers this shell through Eve. The client target chooses which Verse it follows; game truth belongs to the daemon serving {verseLabel}."));
             cardChildren.Add(ButtonColumn($"{AetheriaRuntimeMainMenuCommands.RootSurfaceId}.actions", actionButtons.ToArray()));
 
             return BuildSurfaceDocument(
                 AetheriaRuntimeMainMenuCommands.RootSurfaceId,
                 "Aetheria Terminus",
-                state.UpdatedAtUtc,
+                updatedAtUtc,
                 version,
                 commands,
                 Card(
@@ -392,12 +268,14 @@ namespace GameCult.Aetheria.State.Verse
                         Button("aetheria.mainMenu.settings.back", "Back", AetheriaRuntimeMainMenuCommands.BackToMain))));
         }
 
-        public static AetheriaRuntimeSurfaceDocument BuildInputSettings(
-            AetheriaRuntimeMainMenuSurfaceState state,
-            long version = 1)
+        private static AetheriaRuntimeSurfaceDocument BuildInputSettings(
+            int bindingOverrideCount,
+            int actionBarInputCount,
+            bool canOpenRuntimeInputScreen,
+            bool inGame,
+            string updatedAtUtc,
+            long version)
         {
-            state ??= EmptyState();
-
             var commands = new List<AetheriaRuntimeSurfaceCommandTemplate>
             {
                 Command(AetheriaRuntimeMainMenuCommands.BackToSettings, "Back")
@@ -408,21 +286,21 @@ namespace GameCult.Aetheria.State.Verse
                 Metric(
                     "aetheria.mainMenu.input.bindingOverrides",
                     "Binding Overrides",
-                    state.BindingOverrideCount.ToString()),
+                    bindingOverrideCount.ToString()),
                 Metric(
                     "aetheria.mainMenu.input.actionBarInputs",
                     "Action-Bar Inputs",
-                    state.ActionBarInputCount.ToString())
+                    actionBarInputCount.ToString())
             };
 
-            if (state.CanOpenRuntimeInputScreen)
+            if (canOpenRuntimeInputScreen)
             {
                 commands.Insert(0, Command(AetheriaRuntimeMainMenuCommands.OpenRuntimeInputScreen, "Open Remap Screen"));
                 cardChildren.Add(Text(
                     "aetheria.mainMenu.input.note",
                     "The runtime Eve input screen owns low-level InputSystem rebinding and action-bar input edits. This title shell reports typed player-settings state and hands off to that owner."));
             }
-            else if (state.InGame)
+            else if (inGame)
             {
                 cardChildren.Add(Text(
                     "aetheria.mainMenu.input.note",
@@ -436,7 +314,7 @@ namespace GameCult.Aetheria.State.Verse
             }
 
             var buttons = new List<AetheriaRuntimeSurfaceComponent>();
-            if (state.CanOpenRuntimeInputScreen)
+            if (canOpenRuntimeInputScreen)
             {
                 buttons.Add(Button(
                     "aetheria.mainMenu.input.openRuntimeScreen",
@@ -450,7 +328,7 @@ namespace GameCult.Aetheria.State.Verse
             return BuildSurfaceDocument(
                 AetheriaRuntimeMainMenuCommands.InputSettingsSurfaceId,
                 "Aetheria Input Settings",
-                state.UpdatedAtUtc,
+                updatedAtUtc,
                 version,
                 commands,
                 Card(
@@ -511,24 +389,11 @@ namespace GameCult.Aetheria.State.Verse
                     .ToArray());
         }
 
-        private static AetheriaRuntimeMainMenuSurfaceState EmptyState()
+        private static string VerseLabel(string verseTitle, string verseId)
         {
-            return new AetheriaRuntimeMainMenuSurfaceState(
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                inGame: false,
-                hasAuthoritativeDaemonFrame: false,
-                daemonRunId: "",
-                daemonFrameId: -1,
-                bindingOverrideCount: 0,
-                actionBarInputCount: 0,
-                canOpenRuntimeInputScreen: false,
-                updatedAtUtc: "");
+            var title = string.IsNullOrWhiteSpace(verseTitle) ? "Unknown Verse" : verseTitle;
+            var id = string.IsNullOrWhiteSpace(verseId) ? "unknown" : verseId;
+            return string.Equals(title, id, StringComparison.Ordinal) ? title : $"{title} ({id})";
         }
 
         private static AetheriaRuntimeSurfaceDocument BuildSurfaceDocument(
