@@ -4292,6 +4292,9 @@ static void RequireRuntimeInputScreenUsesEveSurface(string root)
         "new AetheriaRuntimeInputSettingsSurfaceState(",
         "new AetheriaRuntimeInputBindingSurfaceState(",
         "new AetheriaRuntimeActionBarInputSurfaceState(",
+        "public sealed class AetheriaRuntimeInputSettingsSurfaceState",
+        "public sealed class AetheriaRuntimeInputBindingSurfaceState",
+        "public sealed class AetheriaRuntimeActionBarInputSurfaceState",
         "AetheriaRuntimeInputSettingsSurfaceBuilder.ProjectActionBarInputs(",
         "AetheriaRuntimeInputSettingsSurfaceBuilder.ProjectActionBarCandidates(",
         "new SortedDictionary<string, string>(StringComparer.Ordinal)",
@@ -4322,19 +4325,18 @@ static void RequireRuntimeInputScreenUsesEveSurface(string root)
 
     var requiredBuilderSymbols = new[]
     {
-        "public sealed class AetheriaRuntimeInputSettingsSurfaceState",
-        "public sealed class AetheriaRuntimeInputBindingSurfaceState",
-        "public sealed class AetheriaRuntimeActionBarInputSurfaceState",
         "public sealed class AetheriaRuntimeInputPathSurfaceLabel",
         "public sealed class AetheriaRuntimeObservedInputBinding",
         "public static readonly IReadOnlyList<string> DefaultActionBarCandidatePaths",
         "public static readonly IReadOnlyList<AetheriaRuntimeInputPathSurfaceLabel> DefaultActionBarCandidateInputPaths",
         "public static bool IsSupportedCapturePath(string path)",
         "public static AetheriaRuntimeSurfaceDocument Build(",
-        "private static AetheriaRuntimeInputSettingsSurfaceState ComposeState(",
-        "private static IReadOnlyList<AetheriaRuntimeInputBindingSurfaceState> ComposeBindingInputs(",
+        "private static AetheriaRuntimeSurfaceDocument Build(",
+        "private static IReadOnlyList<InputBindingRow> ComposeBindingInputs(",
         "private static IReadOnlyList<AetheriaRuntimeInputPathSurfaceLabel> ComposeActionBarCandidates(",
-        "private static IReadOnlyList<AetheriaRuntimeActionBarInputSurfaceState> ComposeActionBarInputs(",
+        "private static IReadOnlyList<ActionBarInputRow> ComposeActionBarInputs(",
+        "private sealed class InputBindingRow",
+        "private sealed class ActionBarInputRow",
         "new SortedDictionary<string, string>(StringComparer.Ordinal)",
         "public enum AetheriaRuntimeInputSettingsCommandKind",
         "public readonly struct AetheriaRuntimeInputSettingsSurfaceCommand",
@@ -4360,13 +4362,17 @@ static void RequireRuntimeInputScreenUsesEveSurface(string root)
             string.Join(", ", missingBuilderSymbols));
     }
 
-    if (builder.Contains("public static AetheriaRuntimeInputSettingsSurfaceState Project(", StringComparison.Ordinal) ||
+    if (builder.Contains("AetheriaRuntimeInputSettingsSurfaceState", StringComparison.Ordinal) ||
+        builder.Contains("AetheriaRuntimeInputBindingSurfaceState", StringComparison.Ordinal) ||
+        builder.Contains("AetheriaRuntimeActionBarInputSurfaceState", StringComparison.Ordinal) ||
+        builder.Contains("ComposeState(", StringComparison.Ordinal) ||
+        builder.Contains("public static AetheriaRuntimeInputSettingsSurfaceState Project(", StringComparison.Ordinal) ||
         builder.Contains("public static IReadOnlyList<AetheriaRuntimeInputBindingSurfaceState> ProjectBindingInputs(", StringComparison.Ordinal) ||
         builder.Contains("public static IReadOnlyList<AetheriaRuntimeInputPathSurfaceLabel> ProjectActionBarCandidates(", StringComparison.Ordinal) ||
         builder.Contains("public static IReadOnlyList<AetheriaRuntimeActionBarInputSurfaceState> ProjectActionBarInputs(", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Input-settings surface composition must stay behind Build(...); do not re-expose projection helpers as the public ergonomic path.");
+            "Input-settings surface builder must emit the typed surface document directly; do not rebuild a shadow SurfaceState projection layer.");
     }
 
     var actionGameManagerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs");

@@ -6,72 +6,6 @@ using GameCult.Eve.Surface;
 
 namespace GameCult.Aetheria.State.Verse
 {
-    public sealed class AetheriaRuntimeInputSettingsSurfaceState
-    {
-        public AetheriaRuntimeInputSettingsSurfaceState(
-            IReadOnlyList<AetheriaRuntimeInputBindingSurfaceState> bindings,
-            IReadOnlyList<AetheriaRuntimeActionBarInputSurfaceState> actionBarInputs,
-            bool capturePending,
-            string capturePrompt,
-            string updatedAtUtc)
-        {
-            Bindings = bindings ?? Array.Empty<AetheriaRuntimeInputBindingSurfaceState>();
-            ActionBarInputs = actionBarInputs ?? Array.Empty<AetheriaRuntimeActionBarInputSurfaceState>();
-            CapturePending = capturePending;
-            CapturePrompt = capturePrompt ?? "";
-            UpdatedAtUtc = updatedAtUtc ?? "";
-        }
-
-        public IReadOnlyList<AetheriaRuntimeInputBindingSurfaceState> Bindings { get; }
-
-        public IReadOnlyList<AetheriaRuntimeActionBarInputSurfaceState> ActionBarInputs { get; }
-
-        public bool CapturePending { get; }
-
-        public string CapturePrompt { get; }
-
-        public string UpdatedAtUtc { get; }
-    }
-
-    public sealed class AetheriaRuntimeInputBindingSurfaceState
-    {
-        public AetheriaRuntimeInputBindingSurfaceState(
-            string actionName,
-            int bindingIndex,
-            string bindingLabel,
-            string currentInputLabel)
-        {
-            ActionName = actionName ?? "";
-            BindingIndex = bindingIndex;
-            BindingLabel = bindingLabel ?? "";
-            CurrentInputLabel = currentInputLabel ?? "";
-        }
-
-        public string ActionName { get; }
-
-        public int BindingIndex { get; }
-
-        public string BindingLabel { get; }
-
-        public string CurrentInputLabel { get; }
-    }
-
-    public sealed class AetheriaRuntimeActionBarInputSurfaceState
-    {
-        public AetheriaRuntimeActionBarInputSurfaceState(string inputPath, string label, bool enabled)
-        {
-            InputPath = inputPath ?? "";
-            Label = label ?? "";
-            Enabled = enabled;
-        }
-
-        public string InputPath { get; }
-
-        public string Label { get; }
-
-        public bool Enabled { get; }
-    }
-
     public sealed class AetheriaRuntimeInputPathSurfaceLabel
     {
         public AetheriaRuntimeInputPathSurfaceLabel(string inputPath, string label)
@@ -162,35 +96,20 @@ namespace GameCult.Aetheria.State.Verse
             var observed = (observedBindings ?? Array.Empty<AetheriaRuntimeObservedInputBinding>())
                 .Where(binding => binding != null)
                 .ToArray();
+            var actionBarCandidates = ComposeActionBarCandidates(observed, enabledActionBarInputPaths);
+            var bindings = ComposeBindingInputs(observed);
+            var actionBarInputs = ComposeActionBarInputs(enabledActionBarInputPaths, actionBarCandidates);
 
             return Build(
-                ComposeState(
-                    observed,
-                    enabledActionBarInputPaths,
-                    ComposeActionBarCandidates(observed, enabledActionBarInputPaths),
-                    capturePending,
-                    capturePrompt,
-                    updatedAtUtc),
+                bindings,
+                actionBarInputs,
+                capturePending,
+                capturePrompt,
+                updatedAtUtc,
                 version);
         }
 
-        private static AetheriaRuntimeInputSettingsSurfaceState ComposeState(
-            IEnumerable<AetheriaRuntimeObservedInputBinding> observedBindings,
-            IEnumerable<string> enabledActionBarInputPaths,
-            IEnumerable<AetheriaRuntimeInputPathSurfaceLabel> actionBarCandidateInputPaths,
-            bool capturePending,
-            string capturePrompt,
-            string updatedAtUtc)
-        {
-            return new AetheriaRuntimeInputSettingsSurfaceState(
-                ComposeBindingInputs(observedBindings),
-                ComposeActionBarInputs(enabledActionBarInputPaths, actionBarCandidateInputPaths),
-                capturePending,
-                capturePrompt,
-                updatedAtUtc);
-        }
-
-        private static IReadOnlyList<AetheriaRuntimeInputBindingSurfaceState> ComposeBindingInputs(
+        private static IReadOnlyList<InputBindingRow> ComposeBindingInputs(
             IEnumerable<AetheriaRuntimeObservedInputBinding> observedBindings)
         {
             return (observedBindings ?? Array.Empty<AetheriaRuntimeObservedInputBinding>())
@@ -198,7 +117,7 @@ namespace GameCult.Aetheria.State.Verse
                                   binding.Include &&
                                   !string.IsNullOrWhiteSpace(binding.InputPath) &&
                                   IsSupportedCapturePath(binding.InputPath))
-                .Select(binding => new AetheriaRuntimeInputBindingSurfaceState(
+                .Select(binding => new InputBindingRow(
                     binding.ActionName,
                     binding.BindingIndex,
                     binding.BindingLabel,
@@ -244,7 +163,7 @@ namespace GameCult.Aetheria.State.Verse
             return candidates;
         }
 
-        private static IReadOnlyList<AetheriaRuntimeActionBarInputSurfaceState> ComposeActionBarInputs(
+        private static IReadOnlyList<ActionBarInputRow> ComposeActionBarInputs(
             IEnumerable<string> enabledInputPaths,
             IEnumerable<AetheriaRuntimeInputPathSurfaceLabel> candidateInputPaths)
         {
@@ -274,7 +193,7 @@ namespace GameCult.Aetheria.State.Verse
             }
 
             return candidates
-                .Select(entry => new AetheriaRuntimeActionBarInputSurfaceState(
+                .Select(entry => new ActionBarInputRow(
                     entry.Key,
                     entry.Value,
                     enabledPaths.Contains(entry.Key)))
@@ -300,23 +219,22 @@ namespace GameCult.Aetheria.State.Verse
             return inputPath;
         }
 
-        public static AetheriaRuntimeSurfaceDocument Build(
-            AetheriaRuntimeInputSettingsSurfaceState settings,
-            long version = 1)
+        private static AetheriaRuntimeSurfaceDocument Build(
+            IReadOnlyList<InputBindingRow> bindings,
+            IReadOnlyList<ActionBarInputRow> actionBarInputs,
+            bool capturePending,
+            string capturePrompt,
+            string updatedAtUtc,
+            long version)
         {
-            settings ??= new AetheriaRuntimeInputSettingsSurfaceState(
-                Array.Empty<AetheriaRuntimeInputBindingSurfaceState>(),
-                Array.Empty<AetheriaRuntimeActionBarInputSurfaceState>(),
-                capturePending: false,
-                capturePrompt: "",
-                updatedAtUtc: "");
-
+            bindings ??= Array.Empty<InputBindingRow>();
+            actionBarInputs ??= Array.Empty<ActionBarInputRow>();
             return new AetheriaRuntimeSurfaceDocument(
                 providerId: "aetheria",
                 providerKind: "game.runtime",
                 title: "Aetheria Input Settings",
                 version: version,
-                updatedAtUtc: settings.UpdatedAtUtc,
+                updatedAtUtc: updatedAtUtc ?? "",
                 surface: new AetheriaRuntimeSurfaceTree(
                     AetheriaRuntimeInputSettingsCommands.SurfaceId,
                     Node(
@@ -330,11 +248,11 @@ namespace GameCult.Aetheria.State.Verse
                             Metric(
                                 "aetheria.inputSettings.summary.bindings",
                                 "Rebindable Inputs",
-                                settings.Bindings.Count.ToString()),
+                                bindings.Count.ToString()),
                             Metric(
                                 "aetheria.inputSettings.summary.actionBar",
                                 "Action-Bar Inputs",
-                                settings.ActionBarInputs.Count(entry => entry.Enabled).ToString()),
+                                actionBarInputs.Count(entry => entry.Enabled).ToString()),
                             Text(
                                 "aetheria.inputSettings.summary.note",
                                 "Low-level InputSystem edits flow through this Eve surface as typed input-setting requests.")),
@@ -344,12 +262,12 @@ namespace GameCult.Aetheria.State.Verse
                             new[] { ("title", "Capture") },
                             Text(
                                 "aetheria.inputSettings.capture.note",
-                                settings.CapturePending
-                                    ? settings.CapturePrompt
+                                capturePending
+                                    ? capturePrompt ?? ""
                                     : "Choose a binding row, then press a keyboard or mouse input to capture it."),
                             ButtonRow(
                                 "aetheria.inputSettings.capture.actions",
-                                settings.CapturePending
+                                capturePending
                                     ? Button(
                                         "aetheria.inputSettings.capture.cancel",
                                         "Cancel Capture",
@@ -366,7 +284,7 @@ namespace GameCult.Aetheria.State.Verse
                                 "aetheria.inputSettings.bindings.grid",
                                 "grid",
                                 Array.Empty<(string Key, string Value)>(),
-                                settings.Bindings.Select(BuildBindingCard).ToArray())),
+                                bindings.Select(BuildBindingCard).ToArray())),
                         Node(
                             "aetheria.inputSettings.actionBarInputs",
                             "card",
@@ -375,7 +293,7 @@ namespace GameCult.Aetheria.State.Verse
                                 "aetheria.inputSettings.actionBarInputs.grid",
                                 "grid",
                                 Array.Empty<(string Key, string Value)>(),
-                                settings.ActionBarInputs.Select(BuildActionBarCard).ToArray()))),
+                                actionBarInputs.Select(BuildActionBarCard).ToArray()))),
                     Array.Empty<AetheriaRuntimeSurfaceStyleToken>()),
                 commands: new[]
                 {
@@ -399,7 +317,7 @@ namespace GameCult.Aetheria.State.Verse
         }
 
         private static AetheriaRuntimeSurfaceComponent BuildBindingCard(
-            AetheriaRuntimeInputBindingSurfaceState binding)
+            InputBindingRow binding)
         {
             return Node(
                 $"aetheria.inputSettings.binding.{binding.ActionName}.{binding.BindingIndex}",
@@ -419,7 +337,7 @@ namespace GameCult.Aetheria.State.Verse
         }
 
         private static AetheriaRuntimeSurfaceComponent BuildActionBarCard(
-            AetheriaRuntimeActionBarInputSurfaceState input)
+            ActionBarInputRow input)
         {
             return Node(
                 $"aetheria.inputSettings.actionBar.{input.Label}",
@@ -485,6 +403,45 @@ namespace GameCult.Aetheria.State.Verse
                 kind,
                 props.ToDictionary(prop => prop.Key, prop => prop.Value, StringComparer.Ordinal),
                 children ?? Array.Empty<AetheriaRuntimeSurfaceComponent>());
+        }
+
+        private sealed class InputBindingRow
+        {
+            public InputBindingRow(
+                string actionName,
+                int bindingIndex,
+                string bindingLabel,
+                string currentInputLabel)
+            {
+                ActionName = actionName ?? "";
+                BindingIndex = bindingIndex;
+                BindingLabel = bindingLabel ?? "";
+                CurrentInputLabel = currentInputLabel ?? "";
+            }
+
+            public string ActionName { get; }
+
+            public int BindingIndex { get; }
+
+            public string BindingLabel { get; }
+
+            public string CurrentInputLabel { get; }
+        }
+
+        private sealed class ActionBarInputRow
+        {
+            public ActionBarInputRow(string inputPath, string label, bool enabled)
+            {
+                InputPath = inputPath ?? "";
+                Label = label ?? "";
+                Enabled = enabled;
+            }
+
+            public string InputPath { get; }
+
+            public string Label { get; }
+
+            public bool Enabled { get; }
         }
     }
 
