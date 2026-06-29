@@ -326,7 +326,7 @@ public class SchematicDisplay : MonoBehaviour
         try
         {
             _catalog = AetheriaUnityRuntimeClientProvider
-                .Reactive<AetheriaRuntimeCatalogSnapshot>("unity-schematic-display");
+                .ReactiveCatalogSnapshot("unity-schematic-display");
         }
         catch (Exception ex)
         {
@@ -343,7 +343,7 @@ public class SchematicDisplay : MonoBehaviour
             try
             {
                 _playerSettings = AetheriaUnityRuntimeClientProvider
-                    .Reactive<AetheriaRuntimePlayerSettingsDocument>("unity-schematic-display");
+                    .ReactivePlayerSettingsDocument("unity-schematic-display");
             }
             catch (Exception ex)
             {

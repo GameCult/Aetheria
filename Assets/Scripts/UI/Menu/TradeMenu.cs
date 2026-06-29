@@ -617,7 +617,7 @@ public class TradeMenu : MonoBehaviour
         try
         {
             _catalog = AetheriaUnityRuntimeClientProvider
-                .Reactive<AetheriaRuntimeCatalogSnapshot>("unity-trade");
+                .ReactiveCatalogSnapshot("unity-trade");
         }
         catch (Exception ex)
         {
@@ -635,7 +635,7 @@ public class TradeMenu : MonoBehaviour
         try
         {
             _playerSettings = AetheriaUnityRuntimeClientProvider
-                .Reactive<AetheriaRuntimePlayerSettingsDocument>("unity-trade");
+                .ReactivePlayerSettingsDocument("unity-trade");
         }
         catch (Exception ex)
         {

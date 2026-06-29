@@ -203,7 +203,7 @@ public class DaemonRuntimeDocumentTests
             .GetResult();
         using var zoneRenderReactive = client.State.Reactive<AetheriaRuntimeZoneRenderDocument>();
         var observedAuthoritativeFrame = ReadLatest(client.State.Document<AetheriaRuntimeDaemonFrameDocument>());
-        using var catalogReactive = client.State.Reactive<AetheriaRuntimeCatalogSnapshot>();
+        using var catalogReactive = client.State.ReactiveCatalogSnapshot();
         using var daemonFrameReactive = client.State.Reactive<AetheriaRuntimeDaemonFrameDocument>();
         using var daemonSoaViewReactive = client.State.Reactive<AetheriaRuntimeDaemonSoaViewDocument>();
         Assert.IsTrue(AetheriaRuntimeDaemonRenderView.TryCreateCurrent(
@@ -213,7 +213,7 @@ public class DaemonRuntimeDocumentTests
             out var observed));
         using var loadoutTemplatesReactive = client.State.Reactive<AetheriaRuntimeLoadoutTemplatesDocument>();
         using var sectorMapReactive = client.State.Reactive<AetheriaRuntimeSectorMapDocument>();
-        using var playerSettingsReactive = client.State.Reactive<AetheriaRuntimePlayerSettingsDocument>();
+        using var playerSettingsReactive = client.State.ReactivePlayerSettingsDocument();
         using var verseHostSettingsReactive = client.State.Reactive<AetheriaRuntimeVerseHostSettingsDocument>();
         using var zoneContactsReactive = client.State.Reactive<AetheriaRuntimeZoneContactsDocument>();
         using var currentZoneReactive = client.State.Reactive<AetheriaRuntimeCurrentZoneDocument>();
@@ -227,8 +227,8 @@ public class DaemonRuntimeDocumentTests
         using var objectsViewportReactive = client.State.Reactive<AetheriaRuntimeObjectsViewportDocument>(viewport);
         using var gravityViewportReactive = client.State.Reactive<AetheriaRuntimeGravityViewportDocument>(viewport);
         using var renderSplatsViewportReactive = client.State.Reactive<AetheriaRuntimeRenderSplatsViewportDocument>(viewport);
-        using var playerHudCatalog = client.State.Reactive<AetheriaRuntimeCatalogSnapshot>();
-        using var playerHudSettings = client.State.Reactive<AetheriaRuntimePlayerSettingsDocument>();
+        using var playerHudCatalog = client.State.ReactiveCatalogSnapshot();
+        using var playerHudSettings = client.State.ReactivePlayerSettingsDocument();
         using var playerHudEntity = client.State.ReactiveCurrentEntity();
         var gameSurface = ReadLatest(client.State.Document<global::Aetheria.State.Documents.EveSurfaceState>(AetheriaClientEveSurface.Game));
         var gameTuiSurface = ReadLatest(client.State.Document<global::Aetheria.State.Documents.EveSurfaceState>(AetheriaClientEveSurface.GameTui));

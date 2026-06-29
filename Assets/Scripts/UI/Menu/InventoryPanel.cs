@@ -1574,7 +1574,7 @@ private void Update()
         try
         {
             _catalog = AetheriaUnityRuntimeClientProvider
-                .Reactive<AetheriaRuntimeCatalogSnapshot>("unity-inventory");
+                .ReactiveCatalogSnapshot("unity-inventory");
         }
         catch (Exception ex)
         {
@@ -1592,7 +1592,7 @@ private void Update()
         try
         {
             _playerSettings = AetheriaUnityRuntimeClientProvider
-                .Reactive<AetheriaRuntimePlayerSettingsDocument>("unity-inventory");
+                .ReactivePlayerSettingsDocument("unity-inventory");
         }
         catch (Exception ex)
         {

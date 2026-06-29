@@ -102,7 +102,7 @@ public class VolumeCloudRenderer : EffectBase
         try
         {
             _playerSettings = AetheriaUnityRuntimeClientProvider
-                .Reactive<AetheriaRuntimePlayerSettingsDocument>("unity-volume-cloud-renderer");
+                .ReactivePlayerSettingsDocument("unity-volume-cloud-renderer");
         }
         catch (Exception ex)
         {

@@ -498,7 +498,7 @@ namespace GameCult.Aetheria.State.Verse
                     AetheriaRuntimeVerseRecordKeys.StarbridgePlayerSeat(seatId)));
 
             managedDaemonFrame = state.Reactive<AetheriaRuntimeDaemonFrameDocument>();
-            managedCatalog = state.Reactive<AetheriaRuntimeCatalogSnapshot>();
+            managedCatalog = state.ReactiveCatalogSnapshot();
             managedLoadoutTemplates = state.Reactive<AetheriaRuntimeLoadoutTemplatesDocument>();
             managedStarbridgeScenario = state.Reactive<AetheriaRuntimeStarbridgeScenarioDocument>();
             managedStarbridgeSession = state.Reactive<AetheriaRuntimeStarbridgeSessionDocument>();

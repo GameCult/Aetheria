@@ -101,7 +101,7 @@ public abstract class ActionBarBinding : IDisposable
         try
         {
             _catalog ??= AetheriaUnityRuntimeClientProvider
-                .Reactive<AetheriaRuntimeCatalogSnapshot>("unity-action-bar");
+                .ReactiveCatalogSnapshot("unity-action-bar");
             return _catalog?.Current?.FindItem(item, x => x.ItemKey);
         }
         catch (Exception ex)

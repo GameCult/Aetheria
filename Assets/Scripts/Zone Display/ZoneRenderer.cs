@@ -1208,7 +1208,7 @@ public class ZoneRenderer : MonoBehaviour
         try
         {
             _catalog = AetheriaUnityRuntimeClientProvider
-                .Reactive<AetheriaRuntimeCatalogSnapshot>("unity-zone-renderer");
+                .ReactiveCatalogSnapshot("unity-zone-renderer");
         }
         catch (Exception ex)
         {

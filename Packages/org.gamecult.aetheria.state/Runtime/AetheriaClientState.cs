@@ -223,6 +223,26 @@ namespace GameCult.Aetheria.State.Verse
             return StationRefitDocument().Reactive();
         }
 
+        public CultMeshDocumentHandle<AetheriaRuntimeCatalogSnapshot> CatalogSnapshot()
+        {
+            return Catalog;
+        }
+
+        public CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> ReactiveCatalogSnapshot()
+        {
+            return CatalogSnapshot().Reactive();
+        }
+
+        public CultMeshDocumentHandle<AetheriaRuntimePlayerSettingsDocument> PlayerSettingsDocument()
+        {
+            return PlayerSettings;
+        }
+
+        public CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> ReactivePlayerSettingsDocument()
+        {
+            return PlayerSettingsDocument().Reactive();
+        }
+
         public static bool TryResolveEveSurface(
             string? surfaceId,
             out AetheriaClientEveSurface surface)
@@ -363,7 +383,7 @@ namespace GameCult.Aetheria.State.Verse
             _eveStateRefFrame ??= Reactive<AetheriaRuntimeDaemonFrameDocument>();
             _eveStateRefHealth ??= Reactive<AetheriaRuntimeDaemonHealthDocument>();
             _eveStateRefCommandBoundary ??= Reactive<AetheriaRuntimeDaemonCommandBoundaryDocument>();
-            _eveStateRefCatalog ??= Reactive<AetheriaRuntimeCatalogSnapshot>();
+            _eveStateRefCatalog ??= ReactiveCatalogSnapshot();
 
             return AetheriaRuntimeStateRefResolver.CreateEveSurfaceCultMeshStateRefResolver(
                 () => _eveStateRefFrame.Current,

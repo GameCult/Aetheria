@@ -313,7 +313,7 @@ public class MapRenderer : MonoBehaviour
         try
         {
             _playerSettings ??= AetheriaUnityRuntimeClientProvider
-                .Reactive<AetheriaRuntimePlayerSettingsDocument>("unity-map-renderer");
+                .ReactivePlayerSettingsDocument("unity-map-renderer");
             return _playerSettings?.Current?.ShowAsteroidsInMinimap ?? false;
         }
         catch (Exception ex)

@@ -224,7 +224,7 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
         try
         {
             _catalog = AetheriaUnityRuntimeClientProvider
-                .Reactive<AetheriaRuntimeCatalogSnapshot>("unity-sector-renderer");
+                .ReactiveCatalogSnapshot("unity-sector-renderer");
         }
         catch (Exception ex)
         {
@@ -242,7 +242,7 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
         try
         {
             _playerSettings = AetheriaUnityRuntimeClientProvider
-                .Reactive<AetheriaRuntimePlayerSettingsDocument>("unity-sector-renderer");
+                .ReactivePlayerSettingsDocument("unity-sector-renderer");
         }
         catch (Exception ex)
         {

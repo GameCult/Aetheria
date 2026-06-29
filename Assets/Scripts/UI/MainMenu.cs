@@ -170,7 +170,7 @@ public class MainMenu : MonoBehaviour
         {
             PrepareDocumentAccess(stateBoot);
             _playerSettings ??= AetheriaUnityRuntimeClientProvider
-                .Reactive<AetheriaRuntimePlayerSettingsDocument>(stateBoot, "unity-main-menu");
+                .ReactivePlayerSettingsDocument(stateBoot, "unity-main-menu");
             return _playerSettings?.Current;
         }
         catch (Exception ex)

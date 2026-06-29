@@ -1042,7 +1042,7 @@ public class InventoryMenu : MonoBehaviour
         try
         {
             _catalog = AetheriaUnityRuntimeClientProvider
-                .Reactive<AetheriaRuntimeCatalogSnapshot>("unity-inventory-menu");
+                .ReactiveCatalogSnapshot("unity-inventory-menu");
         }
         catch (Exception ex)
         {
@@ -1060,7 +1060,7 @@ public class InventoryMenu : MonoBehaviour
         try
         {
             _playerSettings = AetheriaUnityRuntimeClientProvider
-                .Reactive<AetheriaRuntimePlayerSettingsDocument>("unity-inventory-menu");
+                .ReactivePlayerSettingsDocument("unity-inventory-menu");
         }
         catch (Exception ex)
         {

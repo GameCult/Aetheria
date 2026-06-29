@@ -150,6 +150,32 @@ public static class AetheriaUnityRuntimeClientProvider
         return RuntimeState(stateBoot, runtimeId).ReactiveStationRefit();
     }
 
+    public static CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> ReactiveCatalogSnapshot(
+        string runtimeId = "")
+    {
+        return RuntimeState(runtimeId).ReactiveCatalogSnapshot();
+    }
+
+    public static CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> ReactiveCatalogSnapshot(
+        AetheriaRuntimeStateBootReport stateBoot,
+        string runtimeId = "")
+    {
+        return RuntimeState(stateBoot, runtimeId).ReactiveCatalogSnapshot();
+    }
+
+    public static CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> ReactivePlayerSettingsDocument(
+        string runtimeId = "")
+    {
+        return RuntimeState(runtimeId).ReactivePlayerSettingsDocument();
+    }
+
+    public static CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> ReactivePlayerSettingsDocument(
+        AetheriaRuntimeStateBootReport stateBoot,
+        string runtimeId = "")
+    {
+        return RuntimeState(stateBoot, runtimeId).ReactivePlayerSettingsDocument();
+    }
+
     public static CultMeshReactiveDocument<TDocument> Reactive<TDocument>(
         AetheriaRuntimeStateBootReport stateBoot,
         string runtimeId = "")
@@ -257,7 +283,7 @@ public static class AetheriaUnityRuntimeClientProvider
     {
         try
         {
-            _playerSettingsDocument ??= Reactive<AetheriaRuntimePlayerSettingsDocument>();
+            _playerSettingsDocument ??= ReactivePlayerSettingsDocument();
 
             var stored = _playerSettingsDocument.Current;
             if (stored == null)

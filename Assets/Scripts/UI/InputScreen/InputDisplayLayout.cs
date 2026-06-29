@@ -389,7 +389,7 @@ public class InputDisplayLayout : MonoBehaviour
         try
         {
             _playerSettings = AetheriaUnityRuntimeClientProvider
-                .Reactive<AetheriaRuntimePlayerSettingsDocument>(
+                .ReactivePlayerSettingsDocument(
                     RequireLocalStateBoot(),
                     "unity-input-screen");
         }
