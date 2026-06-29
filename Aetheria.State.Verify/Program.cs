@@ -11465,9 +11465,9 @@ static void RequireDaemonVersePublication(string root)
     {
         "public static class AetheriaRuntimeTradeValuePolicySurfaceBuilder",
         "public static AetheriaRuntimeSurfaceDocument BuildFromCatalog(",
-        "private static AetheriaRuntimeTradeValuePolicySurfaceState ComposeState(",
         "SurfaceId = \"aetheria.tradeValuePolicy\"",
-        "AetheriaRuntimeTradeValuePolicySurfaceState",
+        "var settings = catalog?.TradeValueSettings ?? AetheriaRuntimeTradeValueSettings.Default",
+        "updatedAtUtc: DateTime.UtcNow.ToString(\"O\", CultureInfo.InvariantCulture)",
         "Quality Price Modifier",
         "Rarity Tiers",
         "AetheriaRuntimeTradeValuePolicyCommands.SetQualityMinimum",
@@ -11509,12 +11509,14 @@ static void RequireDaemonVersePublication(string root)
     }
 
     if (tradeValuePolicySurfaceBuilder.Contains("public static AetheriaRuntimeTradeValuePolicySurfaceState ProjectState(", StringComparison.Ordinal) ||
+        tradeValuePolicySurfaceBuilder.Contains("AetheriaRuntimeTradeValuePolicySurfaceState", StringComparison.Ordinal) ||
+        tradeValuePolicySurfaceBuilder.Contains("ComposeState(", StringComparison.Ordinal) ||
         statRecipeSurfaceBuilder.Contains("public static AetheriaRuntimeStatRecipeSurfaceState ProjectState(", StringComparison.Ordinal) ||
         tradeValuePolicySurfaceBuilder.Contains("Build(ProjectState(", StringComparison.Ordinal) ||
         statRecipeSurfaceBuilder.Contains("Build(ProjectState(", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Designer surface builders must build finished Eve documents from typed catalog input; do not re-expose public ProjectState helpers.");
+            "Designer surface builders must build finished Eve documents from typed catalog input; do not re-expose ProjectState or shadow SurfaceState helpers.");
     }
 
     var forbiddenCatalogStoreSurfaceProjectionSymbols = new[]

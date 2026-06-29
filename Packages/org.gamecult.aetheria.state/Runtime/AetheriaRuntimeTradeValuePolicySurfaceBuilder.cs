@@ -7,21 +7,6 @@ using System.Linq;
 
 namespace GameCult.Aetheria.State.Verse
 {
-    public sealed class AetheriaRuntimeTradeValuePolicySurfaceState
-    {
-        public AetheriaRuntimeTradeValuePolicySurfaceState(
-            AetheriaRuntimeTradeValueSettings settings,
-            string updatedAtUtc)
-        {
-            Settings = settings ?? AetheriaRuntimeTradeValueSettings.Default;
-            UpdatedAtUtc = updatedAtUtc ?? "";
-        }
-
-        public AetheriaRuntimeTradeValueSettings Settings { get; }
-
-        public string UpdatedAtUtc { get; }
-    }
-
     public static class AetheriaRuntimeTradeValuePolicySurfaceBuilder
     {
         public const string SurfaceId = "aetheria.tradeValuePolicy";
@@ -30,40 +15,23 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeCatalogSnapshot? catalog,
             long version = 1)
         {
-            return Build(ComposeState(catalog), version);
-        }
-
-        private static AetheriaRuntimeTradeValuePolicySurfaceState ComposeState(
-            AetheriaRuntimeCatalogSnapshot? catalog)
-        {
-            return new AetheriaRuntimeTradeValuePolicySurfaceState(
-                catalog?.TradeValueSettings ?? AetheriaRuntimeTradeValueSettings.Default,
-                DateTime.UtcNow.ToString("O"));
-        }
-
-        public static AetheriaRuntimeSurfaceDocument Build(
-            AetheriaRuntimeTradeValuePolicySurfaceState state,
-            long version = 1)
-        {
-            state ??= new AetheriaRuntimeTradeValuePolicySurfaceState(
-                AetheriaRuntimeTradeValueSettings.Default,
-                "");
+            var settings = catalog?.TradeValueSettings ?? AetheriaRuntimeTradeValueSettings.Default;
 
             return new AetheriaRuntimeSurfaceDocument(
                 providerId: "aetheria",
                 providerKind: "game.design",
                 title: "Aetheria Trade Value Policy",
                 version: version,
-                updatedAtUtc: state.UpdatedAtUtc,
+                updatedAtUtc: DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture),
                 surface: new AetheriaRuntimeSurfaceTree(
                     SurfaceId,
                     Node(
                         "aetheria.tradeValuePolicy.root",
                         "surface",
                         Array.Empty<(string Key, string Value)>(),
-                        BuildSummaryCard(state.Settings),
-                        BuildQualityCurveCard(state.Settings.QualityPriceModifier),
-                        BuildTierList(state.Settings.Tiers)),
+                        BuildSummaryCard(settings),
+                        BuildQualityCurveCard(settings.QualityPriceModifier),
+                        BuildTierList(settings.Tiers)),
                     Array.Empty<AetheriaRuntimeSurfaceStyleToken>()),
                 commands: BuildCommandTemplates());
         }
