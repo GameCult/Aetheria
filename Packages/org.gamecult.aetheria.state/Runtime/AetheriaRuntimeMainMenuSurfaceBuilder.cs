@@ -184,35 +184,6 @@ namespace GameCult.Aetheria.State.Verse
                 updatedAtUtc);
         }
 
-        public static AetheriaRuntimeClientTargetSurfaceState ProjectVerseSettings(
-            AetheriaRuntimeStateBootReport stateBoot,
-            AetheriaRuntimeVerseHostSettingsDocument verseHost,
-            string updatedAtUtc)
-        {
-            return new AetheriaRuntimeClientTargetSurfaceState(
-                stateBoot.TargetKind,
-                stateBoot.Title,
-                stateBoot.VerseId,
-                stateBoot.RuntimeId,
-                stateBoot.CultMeshAddress,
-                stateBoot.StateFilePath,
-                stateBoot.ReplicaStateFilePath,
-                string.Join(", ", stateBoot.DiscoveryEndpoints ?? Array.Empty<string>()),
-                stateBoot.DiscoveredVerses ?? Array.Empty<AetheriaRuntimeDiscoveredVerse>(),
-                stateBoot.LastDiscoveryAtUtc,
-                stateBoot.LastDiscoveryError,
-                stateBoot.LastReplicaSyncAtUtc,
-                stateBoot.LastReplicaSyncError,
-                stateBoot.TargetSource,
-                stateBoot.SupportsLocalStateFileRead,
-                stateBoot.FailureMessage,
-                verseHost?.Title ?? stateBoot.Title,
-                verseHost?.VerseId ?? stateBoot.VerseId,
-                verseHost?.Visibility ?? "unknown",
-                verseHost?.CultMeshAddress ?? stateBoot.CultMeshAddress,
-                updatedAtUtc);
-        }
-
         public static AetheriaRuntimeSurfaceDocument BuildRoot(
             AetheriaRuntimeMainMenuSurfaceState state,
             long version = 1)
@@ -412,11 +383,11 @@ namespace GameCult.Aetheria.State.Verse
         }
 
         public static AetheriaRuntimeSurfaceDocument BuildVerseSettingsShell(
-            AetheriaRuntimeClientTargetSurfaceState state,
+            AetheriaRuntimeSurfaceDocument document,
             long version = 1)
         {
             return WithBackAction(
-                AetheriaRuntimeClientTargetSurfaceBuilder.Build(state, version),
+                document,
                 AetheriaRuntimeMainMenuCommands.VerseSettingsShellSurfaceId,
                 AetheriaRuntimeMainMenuCommands.BackToSettings,
                 "Back");

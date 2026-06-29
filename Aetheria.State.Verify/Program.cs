@@ -67,7 +67,7 @@ RequireDaemonVersePublication(root);
 RequireUnityRuntimeCatalogClientUsesManagedDocument(root);
 RequireAetheriaRuntimeVerseClientContract(root);
 RequireTypedEveCommandBodies(root);
-RequireMainMenuVerseHostProjection(root);
+RequireMainMenuVerseHostDocumentAccess(root);
 RequireMainMenuContinueRunState(root);
 RequireUnityObserverDoesNotTickLocalSimulation(root);
 RequireUnityDoesNotCallSharedSimulationTicks(root);
@@ -603,7 +603,7 @@ Console.WriteLine("Verse host authority: daemon-owned typed verse host settings 
 Console.WriteLine("Client target boot authority: Unity boot resolves the active Verse through a typed client target instead of local path folklore");
 Console.WriteLine("Verse replica authority: remote client targets resolve to cache-only replica .cc files fed from the daemon");
 Console.WriteLine("Verse settings shell: client target edits and Verse-host visibility commands lower through typed Eve surfaces");
-Console.WriteLine("Main-menu Verse projection: the Unity Eve shell lowers daemon-owned verse identity instead of ad-libbing local menu copy");
+Console.WriteLine("Main-menu Verse document access: the Unity Eve shell composes daemon-owned verse identity from typed documents instead of ad-libbing local menu copy");
 Console.WriteLine("Unity observer authority: gameplay scenes restore daemon frames and do not tick local simulation");
 Console.WriteLine("Shared simulation authority: Zone/Entity/Agent ticks stay out of Unity gameplay callers");
 Console.WriteLine("Ymir physics authority: gameplay code uses Ymir queries and has no Unity collision callback fallback");
@@ -3721,7 +3721,7 @@ static void RequireMainMenuSettingsShellUsesEveSurface(string root)
         "AetheriaRuntimeMainMenuSurfaceBuilder.BuildPlayerSettingsShell(",
         "AetheriaRuntimeMainMenuSurfaceBuilder.ProjectPlayerSettings(",
         "AetheriaRuntimeMainMenuSurfaceBuilder.BuildVerseSettingsShell(",
-        "AetheriaRuntimeMainMenuSurfaceBuilder.ProjectVerseSettings(",
+        "AetheriaRuntimeClientTargetSurfaceBuilder.Build(",
         "AetheriaRuntimeMainMenuSurfaceBuilder.BuildInputSettings(",
         "AetheriaRuntimeMainMenuSurfaceBuilder.ProjectRoot(",
         "HandleSettingsSurfaceCommand(",
@@ -3806,9 +3806,8 @@ static void RequireMainMenuSettingsShellUsesEveSurface(string root)
         "BuildVerseSettingsShell(",
         "ProjectRoot(",
         "ProjectPlayerSettings(",
-        "ProjectVerseSettings(",
         "AetheriaRuntimePlayerSettingsSurfaceBuilder.Build(state, version)",
-        "AetheriaRuntimeClientTargetSurfaceBuilder.Build(state, version)",
+        "AetheriaRuntimeSurfaceDocument document",
         "WithBackAction(",
         "AetheriaRuntimeMainMenuCommands.BackToSettings",
         "public enum AetheriaRuntimeMainMenuCommandKind",
@@ -9237,7 +9236,7 @@ static void RequireClientTargetBootAuthority(string root)
         "AetheriaRuntimeClientTargetSurfaceCommands.TryRequest(",
         "ResolvePlayerSettings(AetheriaRuntimeStateBootReport stateBoot)",
         "AetheriaRuntimeMainMenuSurfaceBuilder.ProjectRoot(",
-        "AetheriaRuntimeMainMenuSurfaceBuilder.ProjectVerseSettings(",
+        "AetheriaRuntimeClientTargetSurfaceBuilder.Build(",
         "AetheriaRuntimeMainMenuSurfaceBuilder.BuildRoot(",
         "AetheriaRuntimeMainMenuSurfaceBuilder.BuildSettings(",
         "AetheriaRuntimeMainMenuSurfaceBuilder.BuildInputSettings("
@@ -9245,15 +9244,6 @@ static void RequireClientTargetBootAuthority(string root)
     var requiredMainMenuBuilderSymbols = new[]
     {
         "AetheriaRuntimeMainMenuSurfaceState",
-        "ProjectVerseSettings(",
-        "stateBoot.FailureMessage",
-        "stateBoot.DiscoveryEndpoints",
-        "stateBoot.DiscoveredVerses",
-        "stateBoot.LastDiscoveryAtUtc",
-        "stateBoot.LastDiscoveryError",
-        "stateBoot.ReplicaStateFilePath",
-        "stateBoot.LastReplicaSyncAtUtc",
-        "stateBoot.LastReplicaSyncError",
         "\"Client Target\"",
         "\"Transport\"",
         "\"Target Source\""
@@ -9716,7 +9706,7 @@ static void RequireVerseSettingsShellAndBridge(string root)
         "ShowVerseSettingsSurface()",
         "HandleVerseSettingsSurfaceCommand(EveSurfaceCommandRequest request)",
         "AetheriaRuntimeMainMenuSurfaceBuilder.BuildVerseSettingsShell(",
-        "AetheriaRuntimeMainMenuSurfaceBuilder.ProjectVerseSettings(",
+        "AetheriaRuntimeClientTargetSurfaceBuilder.Build(",
         "AetheriaRuntimeMainMenuSurfaceCommands.TryRead(request, out var command)",
         "AetheriaRuntimeMainMenuCommandKind.ClientTargetCommand",
         "AetheriaRuntimeMainMenuCommandKind.VerseHostCommand",
@@ -12788,13 +12778,14 @@ static void RequireTypedEveCommandBodies(string root)
     }
 }
 
-static void RequireMainMenuVerseHostProjection(string root)
+static void RequireMainMenuVerseHostDocumentAccess(string root)
 {
     var packageSnapshotPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeCatalogSnapshot.cs");
     var packageStorePath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeCatalogStore.cs");
     var runtimeStateRefResolverPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeStateRefResolver.cs");
     var mainMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "MainMenu.cs");
     var mainMenuSurfaceBuilderPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeMainMenuSurfaceBuilder.cs");
+    var clientTargetSurfaceBuilderPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeClientTargetSurfaceBuilder.cs");
 
     var requiredFiles = new[]
     {
@@ -12802,7 +12793,8 @@ static void RequireMainMenuVerseHostProjection(string root)
         packageStorePath,
         runtimeStateRefResolverPath,
         mainMenuPath,
-        mainMenuSurfaceBuilderPath
+        mainMenuSurfaceBuilderPath,
+        clientTargetSurfaceBuilderPath
     };
 
     var missingFiles = requiredFiles
@@ -12812,7 +12804,7 @@ static void RequireMainMenuVerseHostProjection(string root)
     if (missingFiles.Length > 0)
     {
         throw new InvalidOperationException(
-            "Main-menu Verse projection cannot be verified because required files are missing: " +
+            "Main-menu Verse document access cannot be verified because required files are missing: " +
             string.Join(", ", missingFiles));
     }
 
@@ -12821,6 +12813,7 @@ static void RequireMainMenuVerseHostProjection(string root)
     var runtimeStateRefResolver = File.ReadAllText(runtimeStateRefResolverPath);
     var mainMenu = File.ReadAllText(mainMenuPath);
     var mainMenuSurfaceBuilder = File.ReadAllText(mainMenuSurfaceBuilderPath);
+    var clientTargetSurfaceBuilder = File.ReadAllText(clientTargetSurfaceBuilderPath);
 
     var requiredSnapshotSymbols = new[]
     {
@@ -12861,6 +12854,7 @@ static void RequireMainMenuVerseHostProjection(string root)
     {
         "ResolveVerseHostSettings(AetheriaRuntimeStateBootReport stateBoot)",
         ".Reactive<AetheriaRuntimeVerseHostSettingsDocument>()",
+        "AetheriaRuntimeClientTargetSurfaceBuilder.Build(",
         "AetheriaRuntimeMainMenuSurfaceBuilder.ProjectRoot(",
         "AetheriaRuntimeMainMenuSurfaceBuilder.BuildRoot("
     };
@@ -12874,6 +12868,24 @@ static void RequireMainMenuVerseHostProjection(string root)
         "\"CultMesh\"",
         "The client target chooses which Verse it follows; game truth belongs to the daemon serving"
     };
+    var requiredClientTargetBuilderSymbols = new[]
+    {
+        "Build(",
+        "AetheriaRuntimeStateBootReport stateBoot",
+        "AetheriaRuntimeVerseHostSettingsDocument verseHost",
+        "stateBoot.FailureMessage",
+        "stateBoot.DiscoveryEndpoints",
+        "stateBoot.DiscoveredVerses",
+        "stateBoot.LastDiscoveryAtUtc",
+        "stateBoot.LastDiscoveryError",
+        "stateBoot.ReplicaStateFilePath",
+        "stateBoot.LastReplicaSyncAtUtc",
+        "stateBoot.LastReplicaSyncError",
+        "verseHost?.Title ?? stateBoot.Title",
+        "verseHost?.VerseId ?? stateBoot.VerseId",
+        "verseHost?.Visibility ?? \"unknown\"",
+        "verseHost?.CultMeshAddress ?? stateBoot.CultMeshAddress"
+    };
     var missingMainMenuSymbols = requiredMainMenuSymbols
         .Where(symbol => !mainMenu.Contains(symbol, StringComparison.Ordinal))
         .ToArray();
@@ -12886,11 +12898,29 @@ static void RequireMainMenuVerseHostProjection(string root)
     var missingBuilderSymbols = requiredBuilderSymbols
         .Where(symbol => !mainMenuSurfaceBuilder.Contains(symbol, StringComparison.Ordinal))
         .ToArray();
+    var missingClientTargetBuilderSymbols = requiredClientTargetBuilderSymbols
+        .Where(symbol => !clientTargetSurfaceBuilder.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
     if (missingBuilderSymbols.Length > 0)
     {
         throw new InvalidOperationException(
             "Shared main-menu surface builder no longer lowers daemon-owned Verse identity through its Eve shell: " +
             string.Join(", ", missingBuilderSymbols));
+    }
+    if (missingClientTargetBuilderSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Client-target surface builder no longer owns the typed Verse-host document merge: " +
+            string.Join(", ", missingClientTargetBuilderSymbols));
+    }
+
+    if (mainMenu.Contains("AetheriaRuntimeMainMenuSurfaceBuilder.ProjectVerseSettings(", StringComparison.Ordinal) ||
+        mainMenuSurfaceBuilder.Contains("ProjectVerseSettings(", StringComparison.Ordinal) ||
+        mainMenu.Contains("new AetheriaRuntimeClientTargetSurfaceState(", StringComparison.Ordinal) ||
+        mainMenuSurfaceBuilder.Contains("new AetheriaRuntimeClientTargetSurfaceState(", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Main-menu Verse state must come from typed documents through AetheriaRuntimeClientTargetSurfaceBuilder; do not reintroduce menu-local client-target state shaping.");
     }
 }
 

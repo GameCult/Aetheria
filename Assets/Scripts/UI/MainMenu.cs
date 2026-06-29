@@ -241,7 +241,7 @@ public class MainMenu : MonoBehaviour
         var stateBoot = CurrentStateBoot();
         RenderMenuSurface(
             AetheriaRuntimeMainMenuSurfaceBuilder.BuildVerseSettingsShell(
-                AetheriaRuntimeMainMenuSurfaceBuilder.ProjectVerseSettings(
+                AetheriaRuntimeClientTargetSurfaceBuilder.Build(
                     stateBoot,
                     ResolveVerseHostSettings(stateBoot),
                     DateTime.UtcNow.ToString("O"))),

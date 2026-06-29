@@ -92,6 +92,38 @@ namespace GameCult.Aetheria.State.Verse
     public static class AetheriaRuntimeClientTargetSurfaceBuilder
     {
         public static AetheriaRuntimeSurfaceDocument Build(
+            AetheriaRuntimeStateBootReport stateBoot,
+            AetheriaRuntimeVerseHostSettingsDocument verseHost,
+            string updatedAtUtc,
+            long version = 1)
+        {
+            return Build(
+                new AetheriaRuntimeClientTargetSurfaceState(
+                    stateBoot.TargetKind,
+                    stateBoot.Title,
+                    stateBoot.VerseId,
+                    stateBoot.RuntimeId,
+                    stateBoot.CultMeshAddress,
+                    stateBoot.StateFilePath,
+                    stateBoot.ReplicaStateFilePath,
+                    string.Join(", ", stateBoot.DiscoveryEndpoints ?? Array.Empty<string>()),
+                    stateBoot.DiscoveredVerses ?? Array.Empty<AetheriaRuntimeDiscoveredVerse>(),
+                    stateBoot.LastDiscoveryAtUtc,
+                    stateBoot.LastDiscoveryError,
+                    stateBoot.LastReplicaSyncAtUtc,
+                    stateBoot.LastReplicaSyncError,
+                    stateBoot.TargetSource,
+                    stateBoot.SupportsLocalStateFileRead,
+                    stateBoot.FailureMessage,
+                    verseHost?.Title ?? stateBoot.Title,
+                    verseHost?.VerseId ?? stateBoot.VerseId,
+                    verseHost?.Visibility ?? "unknown",
+                    verseHost?.CultMeshAddress ?? stateBoot.CultMeshAddress,
+                    updatedAtUtc),
+                version);
+        }
+
+        public static AetheriaRuntimeSurfaceDocument Build(
             AetheriaRuntimeClientTargetSurfaceState state,
             long version = 1)
         {
