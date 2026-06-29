@@ -7469,24 +7469,6 @@ static void RequireMenuDockingUsesManagedTypedSnapshot(string root)
 
 static bool HasManagedDockingSnapshotAccess(string source)
 {
-    if (source.Contains("AetheriaRuntimeCurrentDocking", StringComparison.Ordinal) &&
-        source.Contains("CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> _currentDocking", StringComparison.Ordinal) &&
-        source.Contains(".ReactiveCurrentDocking(", StringComparison.Ordinal) &&
-        source.Contains("_currentDocking.Current", StringComparison.Ordinal) &&
-        !source.Contains("ResolveClient().State.Latest<AetheriaRuntimeCurrentDockingDocument>()", StringComparison.Ordinal))
-    {
-        return true;
-    }
-
-    if (source.Contains("AetheriaRuntimeCurrentDocking", StringComparison.Ordinal) &&
-        source.Contains("ResolveClient().State.Latest<AetheriaRuntimeCurrentDockingDocument>()", StringComparison.Ordinal) &&
-        !source.Contains("ResolveClient().State.CurrentDocking()", StringComparison.Ordinal) &&
-        !source.Contains("AetheriaClientReactiveDockingState _dockingState", StringComparison.Ordinal) &&
-        !source.Contains(".ReactiveDockingState()", StringComparison.Ordinal))
-    {
-        return true;
-    }
-
     if (source.Contains("AetheriaUnityObservedDockingIndex", StringComparison.Ordinal) &&
         source.Contains("TryResolveObservedDockingIndex(out var dockingIndex)", StringComparison.Ordinal) &&
         source.Contains("dockingIndex.TryResolveCurrent", StringComparison.Ordinal) &&
