@@ -80,54 +80,6 @@ namespace GameCult.Aetheria.State.Verse
         public CultMeshOperationPayload Payload { get; }
     }
 
-    public sealed class AetheriaRuntimeEquippedItemDetailsSurfaceState
-    {
-        public AetheriaRuntimeEquippedItemDetailsSurfaceState(
-            string itemName,
-            string description,
-            string manufacturer,
-            string mass,
-            string durability,
-            string temperature,
-            string thermalRange,
-            string overrideShutdown,
-            string overrideShutdownLabel,
-            IReadOnlyList<AetheriaRuntimeEquippedItemTemperatureControl> temperatureControls,
-            IReadOnlyList<AetheriaRuntimeEquippedItemSection> behaviorSections,
-            IReadOnlyList<AetheriaRuntimeEquippedItemControl> weaponGroupControls,
-            string updatedAtUtc)
-        {
-            ItemName = itemName ?? "";
-            Description = description ?? "";
-            Manufacturer = manufacturer ?? "";
-            Mass = mass ?? "";
-            Durability = durability ?? "";
-            Temperature = temperature ?? "";
-            ThermalRange = thermalRange ?? "";
-            OverrideShutdown = overrideShutdown ?? "";
-            OverrideShutdownLabel = overrideShutdownLabel ?? "";
-            TemperatureControls = temperatureControls ?? Array.Empty<AetheriaRuntimeEquippedItemTemperatureControl>();
-            BehaviorSections = behaviorSections ?? Array.Empty<AetheriaRuntimeEquippedItemSection>();
-            WeaponGroupControls = weaponGroupControls ?? Array.Empty<AetheriaRuntimeEquippedItemControl>();
-            UpdatedAtUtc = updatedAtUtc ?? "";
-        }
-
-        public string ItemName { get; }
-        public string Description { get; }
-        public string Manufacturer { get; }
-        public string Mass { get; }
-        public string Durability { get; }
-        public string Temperature { get; }
-        public string ThermalRange { get; }
-        public string OverrideShutdown { get; }
-        public string OverrideShutdownLabel { get; }
-        public IReadOnlyList<AetheriaRuntimeEquippedItemTemperatureControl> TemperatureControls { get; }
-        public IReadOnlyList<AetheriaRuntimeEquippedItemSection> BehaviorSections { get; }
-        public IReadOnlyList<AetheriaRuntimeEquippedItemControl> WeaponGroupControls { get; }
-        public string UpdatedAtUtc { get; }
-        public bool HasWeaponControls => WeaponGroupControls.Count > 0;
-    }
-
     public sealed class AetheriaRuntimeEquippedItemObservation
     {
         public AetheriaRuntimeEquippedItemObservation(
@@ -171,115 +123,55 @@ namespace GameCult.Aetheria.State.Verse
             DateTime updatedAtUtc = default(DateTime),
             long version = 1)
         {
-            return Build(
-                ComposeState(
-                    typedItem,
-                    item,
-                    title,
-                    manufacturer,
-                    formatValue,
-                    formatTemperature,
-                    temperatureControls,
-                    weaponGroupControls,
-                    updatedAtUtc),
-                version);
-        }
-
-        private static AetheriaRuntimeEquippedItemDetailsSurfaceState ComposeState(
-            AetheriaRuntimeCatalogItem typedItem,
-            AetheriaRuntimeEquippedItemObservation item,
-            string title,
-            string manufacturer,
-            Func<float, string> formatValue,
-            Func<float, string> formatTemperature,
-            IReadOnlyList<AetheriaRuntimeEquippedItemTemperatureControl> temperatureControls,
-            IReadOnlyList<AetheriaRuntimeEquippedItemControl> weaponGroupControls,
-            DateTime updatedAtUtc = default(DateTime))
-        {
             if (updatedAtUtc == default(DateTime))
                 updatedAtUtc = DateTime.UtcNow;
 
-            if (typedItem == null)
-            {
-                return new AetheriaRuntimeEquippedItemDetailsSurfaceState(
-                    title ?? "",
-                    "",
-                    manufacturer ?? "",
-                    "",
-                    "",
-                    "",
-                    "",
-                    "",
-                    "",
-                    temperatureControls ?? Array.Empty<AetheriaRuntimeEquippedItemTemperatureControl>(),
-                    Array.Empty<AetheriaRuntimeEquippedItemSection>(),
-                    weaponGroupControls ?? Array.Empty<AetheriaRuntimeEquippedItemControl>(),
-                    updatedAtUtc.ToString("O", CultureInfo.InvariantCulture));
-            }
+            temperatureControls ??= Array.Empty<AetheriaRuntimeEquippedItemTemperatureControl>();
+            weaponGroupControls ??= Array.Empty<AetheriaRuntimeEquippedItemControl>();
+            var itemSnapshot = item ?? new AetheriaRuntimeEquippedItemObservation("", 1, 1, 0, false);
 
-            var durability = item != null && item.Durability < .01
-                ? "Item Destroyed!"
-                : $"{(int)((item?.Durability ?? 1) / MaxDurability(typedItem, item) * 100)}%";
-
-            return new AetheriaRuntimeEquippedItemDetailsSurfaceState(
-                title ?? typedItem.Name,
-                typedItem.Description ?? "",
-                manufacturer ?? "",
-                FormatValue(typedItem.Mass, formatValue),
-                durability,
-                FormatTemperature(item?.Temperature ?? 0, formatTemperature),
-                FormatTemperatureRange(typedItem, formatTemperature),
-                item != null && item.OverrideShutdown ? "Enabled" : "Disabled",
-                item != null && item.OverrideShutdown ? "Disable Override" : "Enable Override",
-                temperatureControls ?? Array.Empty<AetheriaRuntimeEquippedItemTemperatureControl>(),
-                ProjectBehaviorSections(typedItem, item, formatValue, formatTemperature).ToArray(),
-                weaponGroupControls ?? Array.Empty<AetheriaRuntimeEquippedItemControl>(),
-                updatedAtUtc.ToString("O", CultureInfo.InvariantCulture));
-        }
-
-        public static AetheriaRuntimeSurfaceDocument Build(
-            AetheriaRuntimeEquippedItemDetailsSurfaceState state,
-            long version = 1)
-        {
-            state ??= new AetheriaRuntimeEquippedItemDetailsSurfaceState(
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                Array.Empty<AetheriaRuntimeEquippedItemTemperatureControl>(),
-                Array.Empty<AetheriaRuntimeEquippedItemSection>(),
-                Array.Empty<AetheriaRuntimeEquippedItemControl>(),
-                "");
+            title = typedItem == null ? title ?? "" : title ?? typedItem.Name;
+            manufacturer ??= "";
+            var description = typedItem?.Description ?? "";
+            var mass = typedItem == null ? "" : FormatValue(typedItem.Mass, formatValue);
+            var durability = typedItem == null
+                ? ""
+                : item != null && item.Durability < .01
+                    ? "Item Destroyed!"
+                    : $"{(int)(itemSnapshot.Durability / MaxDurability(typedItem, itemSnapshot) * 100)}%";
+            var temperature = typedItem == null ? "" : FormatTemperature(item?.Temperature ?? 0, formatTemperature);
+            var thermalRange = typedItem == null ? "" : FormatTemperatureRange(typedItem, formatTemperature);
+            var overrideShutdown = item != null && item.OverrideShutdown ? "Enabled" : "Disabled";
+            var overrideShutdownLabel = item != null && item.OverrideShutdown ? "Disable Override" : "Enable Override";
+            var behaviorSections = typedItem == null
+                ? Array.Empty<AetheriaRuntimeEquippedItemSection>()
+                : ProjectBehaviorSections(typedItem, itemSnapshot, formatValue, formatTemperature).ToArray();
+            var updated = updatedAtUtc.ToString("O", CultureInfo.InvariantCulture);
 
             var children = new List<AetheriaRuntimeSurfaceComponent>
             {
                 Card(
                     $"{SurfaceId}.summary",
-                    state.ItemName,
+                    title,
                     Text(
                         $"{SurfaceId}.description",
-                        string.IsNullOrWhiteSpace(state.Description)
+                        string.IsNullOrWhiteSpace(description)
                             ? "No typed item description is available."
-                            : state.Description),
+                            : description),
                     Text(
                         $"{SurfaceId}.note",
                         "The observing client supplies selected equipment; the shared runtime surface owns equipped-item inspection layout and commands."),
-                    Metric($"{SurfaceId}.manufacturer", "Manufacturer", state.Manufacturer),
-                    Metric($"{SurfaceId}.mass", "Mass", state.Mass)),
+                    Metric($"{SurfaceId}.manufacturer", "Manufacturer", manufacturer),
+                    Metric($"{SurfaceId}.mass", "Mass", mass)),
                 Card(
                     $"{SurfaceId}.status.card",
                     "Status",
-                    Metric($"{SurfaceId}.durability", "Durability", state.Durability),
-                    Metric($"{SurfaceId}.temperature", "Temperature", state.Temperature),
-                    Metric($"{SurfaceId}.thermal_range", "Thermal Range", state.ThermalRange))
+                    Metric($"{SurfaceId}.durability", "Durability", durability),
+                    Metric($"{SurfaceId}.temperature", "Temperature", temperature),
+                    Metric($"{SurfaceId}.thermal_range", "Thermal Range", thermalRange))
             };
 
-            foreach (var section in state.BehaviorSections)
+            foreach (var section in behaviorSections)
             {
                 if (section?.Metrics == null || section.Metrics.Count == 0)
                     continue;
@@ -294,9 +186,9 @@ namespace GameCult.Aetheria.State.Verse
                         .ToArray()));
             }
 
-            children.Add(BuildControlsCard(state));
+            children.Add(BuildControlsCard(overrideShutdown, overrideShutdownLabel, temperatureControls));
 
-            if (state.HasWeaponControls)
+            if (weaponGroupControls.Count > 0)
             {
                 children.Add(Card(
                     $"{SurfaceId}.weapon_groups.card",
@@ -306,7 +198,7 @@ namespace GameCult.Aetheria.State.Verse
                         "Toggle membership directly; local clients may map inputs to equipment activation."),
                     ButtonRow(
                         $"{SurfaceId}.weapon_groups.actions",
-                        state.WeaponGroupControls.Select(Button).ToArray())));
+                        weaponGroupControls.Select(Button).ToArray())));
             }
 
             children.Add(ButtonRow(
@@ -318,7 +210,7 @@ namespace GameCult.Aetheria.State.Verse
                 providerKind: "inventory.menu",
                 title: "Inventory Equipped Item Details",
                 version: version,
-                updatedAtUtc: state.UpdatedAtUtc,
+                updatedAtUtc: updated,
                 surface: new AetheriaRuntimeSurfaceTree(
                     SurfaceId,
                     Node(
@@ -342,29 +234,33 @@ namespace GameCult.Aetheria.State.Verse
         }
 
         private static AetheriaRuntimeSurfaceComponent BuildControlsCard(
-            AetheriaRuntimeEquippedItemDetailsSurfaceState state)
+            string overrideShutdown,
+            string overrideShutdownLabel,
+            IReadOnlyList<AetheriaRuntimeEquippedItemTemperatureControl> temperatureControls)
         {
+            temperatureControls ??= Array.Empty<AetheriaRuntimeEquippedItemTemperatureControl>();
+
             var children = new List<AetheriaRuntimeSurfaceComponent>
             {
                 Metric(
                     $"{SurfaceId}.controls.override_shutdown.metric",
                     "Override Shutdown",
-                    state.OverrideShutdown),
+                    overrideShutdown),
                 ButtonRow(
                     $"{SurfaceId}.controls.override_shutdown.actions",
                     Button(
                         $"{SurfaceId}.controls.override_shutdown.toggle",
-                        string.IsNullOrWhiteSpace(state.OverrideShutdownLabel)
+                        string.IsNullOrWhiteSpace(overrideShutdownLabel)
                             ? "Toggle Override"
-                            : state.OverrideShutdownLabel,
+                            : overrideShutdownLabel,
                         ToggleOverrideShutdown))
             };
 
-            children.AddRange(state.TemperatureControls.Select(control => Metric(
+            children.AddRange(temperatureControls.Select(control => Metric(
                 $"{control.Id}.metric",
                 control.Label,
                 control.Value)));
-            children.AddRange(state.TemperatureControls.Select(control => TextField(
+            children.AddRange(temperatureControls.Select(control => TextField(
                 control.Id,
                 control.Label,
                 SetTargetTemperature,

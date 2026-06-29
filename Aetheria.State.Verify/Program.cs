@@ -5545,7 +5545,6 @@ static void RequireInventoryEquippedItemDetailsUseEveSurface(string root)
     var unityProject = File.ReadAllText(unityProjectPath);
     var requiredBuilderSymbols = new[]
     {
-        "public sealed class AetheriaRuntimeEquippedItemDetailsSurfaceState",
         "public sealed class AetheriaRuntimeEquippedItemObservation",
         "public sealed class AetheriaRuntimeEquippedItemSection",
         "public sealed class AetheriaRuntimeEquippedItemMetric",
@@ -5560,7 +5559,9 @@ static void RequireInventoryEquippedItemDetailsUseEveSurface(string root)
         "public const string ToggleOverrideShutdown = \"aetheria.inventory.equipped_item_details.override_shutdown.toggle\"",
         "public const string SetTargetTemperature = \"aetheria.inventory.equipped_item_details.target_temperature.set\"",
         "public const string ToggleWeaponGroup = \"aetheria.inventory.equipped_item_details.weapon_group.toggle\"",
-        "private static AetheriaRuntimeEquippedItemDetailsSurfaceState ComposeState(",
+        "var behaviorSections = typedItem == null",
+        "BuildControlsCard(overrideShutdown, overrideShutdownLabel, temperatureControls)",
+        "weaponGroupControls.Count > 0",
         "ProjectBehaviorSections(",
         "ProjectBehaviorMetric(",
         "AetheriaRuntimeDaemonItemStatQueries.ItemStatRef(",
@@ -5585,11 +5586,13 @@ static void RequireInventoryEquippedItemDetailsUseEveSurface(string root)
             string.Join(", ", missingBuilderSymbols));
     }
 
-    if (equippedItemSurfaceBuilder.Contains("public static AetheriaRuntimeEquippedItemDetailsSurfaceState Compose(", StringComparison.Ordinal) ||
+    if (equippedItemSurfaceBuilder.Contains("AetheriaRuntimeEquippedItemDetailsSurfaceState", StringComparison.Ordinal) ||
+        equippedItemSurfaceBuilder.Contains("ComposeState(", StringComparison.Ordinal) ||
+        equippedItemSurfaceBuilder.Contains("public static AetheriaRuntimeEquippedItemDetailsSurfaceState Compose(", StringComparison.Ordinal) ||
         equippedItemSurfaceBuilder.Contains("public static AetheriaRuntimeEquippedItemDetailsSurfaceState Project(", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Runtime equipped item detail composition must stay behind Build(...); do not re-expose Compose/Project as the public equipped item details surface path.");
+            "Runtime equipped item details must emit the typed surface document directly; do not rebuild a shadow SurfaceState projection layer.");
     }
 
     var forbiddenBuilderActionBarSymbols = new[]
