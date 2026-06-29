@@ -1001,7 +1001,7 @@ public class InventoryMenu : MonoBehaviour
         try
         {
             var nextInventory = ResolveClient()
-                .State.Reactive<AetheriaRuntimeInventoryDocument>(entityIndex);
+                .State.Reactive<AetheriaRuntimeInventoryDocument>(AetheriaClientState.Entity(entityIndex));
             _inventory?.Dispose();
             _inventoryEntityIndex = entityIndex;
             _inventory = nextInventory;

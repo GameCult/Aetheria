@@ -4559,7 +4559,7 @@ static void RequireSectorMapZoneDetailsUseEveSurface(string root)
         "AetheriaUnityRuntimeClientProvider.ResolveClient(",
         ".State",
         ".Reactive<AetheriaRuntimeSectorMapDocument>()",
-        ".State.Reactive<AetheriaRuntimeZoneDetailsDocument>(zoneIndex)",
+        ".State.Reactive<AetheriaRuntimeZoneDetailsDocument>(AetheriaClientState.Zone(zoneIndex))",
         "_zoneDetails?.Current",
         "AetheriaClient",
         "AetheriaRuntimeZoneDetailsSurfaceCommands.TryRead(request, out var command)",
@@ -4598,7 +4598,7 @@ static void RequireSectorMapZoneDetailsUseEveSurface(string root)
         "SectorRenderer",
         "AetheriaRuntimeZoneDetailsDocument",
         "_zoneDetails",
-        ".Reactive<AetheriaRuntimeZoneDetailsDocument>(zoneIndex)",
+        ".Reactive<AetheriaRuntimeZoneDetailsDocument>(AetheriaClientState.Zone(zoneIndex))",
         "AetheriaRuntimeZoneDetailsSession",
         ".ObserveZone(zoneIndex)");
     RequireReactiveTypedDocumentAccess(
@@ -7051,12 +7051,16 @@ static void RequireInventoryValidationUsesManagedTypedDocuments(string root)
 
     var clientState = File.ReadAllText(clientStatePath);
     if (!clientState.Contains("public CultMeshDocumentHandle<TDocument> Document<TDocument>()", StringComparison.Ordinal) ||
-        !clientState.Contains("public CultMeshDocumentHandle<TDocument> Document<TDocument>(int entityOrZoneIndex)", StringComparison.Ordinal) ||
+        !clientState.Contains("public static AetheriaClientZone Zone(int zoneIndex)", StringComparison.Ordinal) ||
+        !clientState.Contains("public static AetheriaClientEntity Entity(int entityIndex)", StringComparison.Ordinal) ||
+        !clientState.Contains("public CultMeshDocumentHandle<TDocument> Document<TDocument>(AetheriaClientZone zone)", StringComparison.Ordinal) ||
+        !clientState.Contains("public CultMeshDocumentHandle<TDocument> Document<TDocument>(AetheriaClientEntity entity)", StringComparison.Ordinal) ||
         !clientState.Contains("public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(", StringComparison.Ordinal) ||
-        !clientState.Contains("public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(int entityOrZoneIndex)", StringComparison.Ordinal))
+        !clientState.Contains("public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(AetheriaClientZone zone)", StringComparison.Ordinal) ||
+        !clientState.Contains("public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(AetheriaClientEntity entity)", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "AetheriaClientState must expose native typed document handles and native reactive typed documents for current entity, station refit, and indexed inventory documents.");
+            "AetheriaClientState must expose native typed document handles and native reactive typed documents for current entity, station refit, and explicitly scoped inventory/zone documents.");
     }
 
     var sources = new Dictionary<string, string>
@@ -7081,7 +7085,7 @@ static void RequireInventoryValidationUsesManagedTypedDocuments(string root)
         {
             ".Reactive<AetheriaRuntimeCurrentEntityDocument>()",
             ".Reactive<AetheriaRuntimeStationRefitDocument>()",
-            ".Reactive<AetheriaRuntimeInventoryDocument>(entityIndex)"
+            ".Reactive<AetheriaRuntimeInventoryDocument>(AetheriaClientState.Entity(entityIndex))"
         };
         missingSymbols = missingSymbols
             .Concat(requiredCompactedSymbols.Where(symbol => !compact.Contains(symbol, StringComparison.Ordinal)))
@@ -7140,7 +7144,7 @@ static void RequireInventoryValidationUsesManagedTypedDocuments(string root)
             name,
             "AetheriaRuntimeInventoryDocument",
             "_inventory",
-            ".Reactive<AetheriaRuntimeInventoryDocument>(entityIndex)",
+            ".Reactive<AetheriaRuntimeInventoryDocument>(AetheriaClientState.Entity(entityIndex))",
             "AetheriaRuntimeInventorySession",
             ".ObserveInventory(entityIndex)");
     }
@@ -7338,7 +7342,8 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
     var requiredClientSymbols = new[]
     {
         "public CultMeshDocumentHandle<TDocument> Document<TDocument>()",
-        "public CultMeshDocumentHandle<TDocument> Document<TDocument>(int entityOrZoneIndex)"
+        "public CultMeshDocumentHandle<TDocument> Document<TDocument>(AetheriaClientZone zone)",
+        "public CultMeshDocumentHandle<TDocument> Document<TDocument>(AetheriaClientEntity entity)"
     };
     var missingClientSymbols = requiredClientSymbols
         .Where(symbol => !clientState.Contains(symbol, StringComparison.Ordinal))
@@ -7353,10 +7358,12 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
     if (clientState.Contains("public Task<TDocument> LatestAsync<TDocument>", StringComparison.Ordinal) ||
         clientState.Contains("public TDocument Latest<TDocument>", StringComparison.Ordinal) ||
         clientState.Contains("public Task<CultMeshReactiveDocument<TDocument>> ReactiveAsync<TDocument>", StringComparison.Ordinal) ||
-        clientState.Contains("public Observable<TDocument> Watch<TDocument>", StringComparison.Ordinal))
+        clientState.Contains("public Observable<TDocument> Watch<TDocument>", StringComparison.Ordinal) ||
+        clientState.Contains("public CultMeshDocumentHandle<TDocument> Document<TDocument>(int ", StringComparison.Ordinal) ||
+        clientState.Contains("public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(int ", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "AetheriaClientState must not expose latest/watch/session wrappers; callers should hold native Document<TDocument>() handles or native Reactive<TDocument>() documents.");
+            "AetheriaClientState must not expose latest/watch/session wrappers or ambiguous raw-index document access; callers should hold native typed documents scoped by explicit selectors.");
     }
 
     var unityPaths = new[]
@@ -7831,7 +7838,7 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         {
             ".Reactive<AetheriaRuntimeSectorMapDocument>()",
             ".Reactive<AetheriaRuntimeCurrentZoneDocument>()",
-            ".Reactive<AetheriaRuntimeZoneDetailsDocument>(zoneIndex)"
+            ".Reactive<AetheriaRuntimeZoneDetailsDocument>(AetheriaClientState.Zone(zoneIndex))"
         }.Where(symbol => !compactSectorRenderer.Contains(symbol, StringComparison.Ordinal)))
         .ToArray();
     if (missingSectorRendererSharedDocumentSymbols.Length > 0)
@@ -7862,7 +7869,7 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "SectorRenderer",
         "AetheriaRuntimeZoneDetailsDocument",
         "_zoneDetails",
-        ".Reactive<AetheriaRuntimeZoneDetailsDocument>(zoneIndex)",
+        ".Reactive<AetheriaRuntimeZoneDetailsDocument>(AetheriaClientState.Zone(zoneIndex))",
         "AetheriaRuntimeZoneDetailsSession",
         ".ObserveZone(zoneIndex)");
     RequireReactiveTypedDocumentAccess(
@@ -7975,7 +7982,8 @@ static void RequireUnityViewportAndMapReadsUseManagedAccessors(string root)
     {
         "public CultMeshDocumentHandle<TDocument> Document<TDocument>()",
         "public CultMeshDocumentHandle<TDocument> Document<TDocument>(AetheriaRuntimeRtsViewportBounds viewport)",
-        "public CultMeshDocumentHandle<TDocument> Document<TDocument>(int entityOrZoneIndex)"
+        "public CultMeshDocumentHandle<TDocument> Document<TDocument>(AetheriaClientZone zone)",
+        "public CultMeshDocumentHandle<TDocument> Document<TDocument>(AetheriaClientEntity entity)"
     };
     var missingClientSymbols = requiredClientSymbols
         .Where(symbol => !clientState.Contains(symbol, StringComparison.Ordinal))
@@ -8185,12 +8193,14 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
         "public enum AetheriaClientEveSurface",
         "public CultMeshDocumentHandle<TDocument> Document<TDocument>(AetheriaClientEveSurface surface)",
         "public CultMeshDocumentHandle<TDocument> Document<TDocument>(AetheriaRuntimeRtsViewportBounds viewport)",
-        "public CultMeshDocumentHandle<TDocument> Document<TDocument>(int entityOrZoneIndex)",
+        "public CultMeshDocumentHandle<TDocument> Document<TDocument>(AetheriaClientZone zone)",
+        "public CultMeshDocumentHandle<TDocument> Document<TDocument>(AetheriaClientEntity entity)",
         "public CultMeshDocumentHandle<TDocument> Document<TDocument>(string seatId)",
         "public CultMeshReactiveDocument<TDocument> Reactive<TDocument>()",
         "public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(AetheriaClientEveSurface surface)",
         "public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(AetheriaRuntimeRtsViewportBounds viewport)",
-        "public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(int entityOrZoneIndex)",
+        "public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(AetheriaClientZone zone)",
+        "public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(AetheriaClientEntity entity)",
         "public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(string seatId)"
     };
     var missingClientSymbols = requiredClientSymbols
@@ -8206,10 +8216,12 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
     if (clientState.Contains("public Task<TDocument> LatestAsync<TDocument>", StringComparison.Ordinal) ||
         clientState.Contains("public TDocument Latest<TDocument>", StringComparison.Ordinal) ||
         clientState.Contains("public Task<CultMeshReactiveDocument<TDocument>> ReactiveAsync<TDocument>", StringComparison.Ordinal) ||
-        clientState.Contains("public Observable<TDocument> Watch<TDocument>", StringComparison.Ordinal))
+        clientState.Contains("public Observable<TDocument> Watch<TDocument>", StringComparison.Ordinal) ||
+        clientState.Contains("public CultMeshDocumentHandle<TDocument> Document<TDocument>(int ", StringComparison.Ordinal) ||
+        clientState.Contains("public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(int ", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "AetheriaClientState must not reintroduce generic latest/watch shortcuts; callers should sample native typed document handles or native reactive typed documents.");
+            "AetheriaClientState must not reintroduce generic latest/watch shortcuts or ambiguous raw-index access; callers should sample native typed document handles scoped by explicit selectors.");
     }
 
     var forbiddenFixedReactiveWrappers = new[]
@@ -8395,7 +8407,7 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
     if (survivingDetailConvenienceWrappers.Length > 0)
     {
         throw new InvalidOperationException(
-            "AetheriaClientState must use generic indexed document access instead of named latest/reactive wrappers: " +
+            "AetheriaClientState must use generic scoped document access instead of named latest/reactive wrappers: " +
             string.Join(", ", survivingDetailConvenienceWrappers));
     }
 
@@ -14493,7 +14505,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         !compactMapRenderer.Contains(".State.Reactive<AetheriaRuntimePlayerSettingsDocument>()", StringComparison.Ordinal) ||
         !sectorRenderer.Contains("AetheriaUnityRuntimeClientProvider.ResolveClient(", StringComparison.Ordinal) ||
         !compactSectorRenderer.Contains(".State.Reactive<AetheriaRuntimeSectorMapDocument>()", StringComparison.Ordinal) ||
-        !compactSectorRenderer.Contains(".State.Reactive<AetheriaRuntimeZoneDetailsDocument>(zoneIndex)", StringComparison.Ordinal) ||
+        !compactSectorRenderer.Contains(".State.Reactive<AetheriaRuntimeZoneDetailsDocument>(AetheriaClientState.Zone(zoneIndex))", StringComparison.Ordinal) ||
         !sectorRenderer.Contains(".Current", StringComparison.Ordinal) ||
         !compactSectorRenderer.Contains("ResolveClient().State.Reactive<AetheriaRuntimeCatalogSnapshot>()", StringComparison.Ordinal) ||
         !compactSectorRenderer.Contains(".State.Reactive<AetheriaRuntimePlayerSettingsDocument>()", StringComparison.Ordinal) ||
@@ -16268,7 +16280,8 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "public CultMeshDocumentHandle<TDocument> Document<TDocument>()",
         "public CultMeshDocumentHandle<TDocument> Document<TDocument>(AetheriaClientEveSurface surface)",
         "public CultMeshDocumentHandle<TDocument> Document<TDocument>(AetheriaRuntimeRtsViewportBounds viewport)",
-        "public CultMeshDocumentHandle<TDocument> Document<TDocument>(int entityOrZoneIndex)",
+        "public CultMeshDocumentHandle<TDocument> Document<TDocument>(AetheriaClientZone zone)",
+        "public CultMeshDocumentHandle<TDocument> Document<TDocument>(AetheriaClientEntity entity)",
         "public CultMeshDocumentHandle<TDocument> Document<TDocument>(string seatId)"
     };
     var missingManagedStateAccessSymbols = requiredManagedStateAccessSymbols
@@ -16285,11 +16298,13 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         aetheriaClientState.Contains("public TDocument Latest<TDocument>", StringComparison.Ordinal) ||
         aetheriaClientState.Contains("public Observable<TDocument> Watch<TDocument>", StringComparison.Ordinal) ||
         aetheriaClientState.Contains("public Task<CultMeshReactiveDocument<TDocument>> ReactiveAsync<TDocument>", StringComparison.Ordinal) ||
+        aetheriaClientState.Contains("public CultMeshDocumentHandle<TDocument> Document<TDocument>(int ", StringComparison.Ordinal) ||
+        aetheriaClientState.Contains("public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(int ", StringComparison.Ordinal) ||
         aetheriaClientState.Contains("DocumentBySchema(", StringComparison.Ordinal) ||
         aetheriaClientState.Contains("TryGetDocumentBySchema(", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "AetheriaClientState still exposes generic latest/watch or schema-string shortcuts instead of direct typed CultMesh document handles.");
+            "AetheriaClientState still exposes generic latest/watch, raw-index, or schema-string shortcuts instead of direct typed CultMesh document handles.");
     }
 
     if (aetheriaClientState.Contains("public AetheriaRuntimeDaemonRenderView? CurrentObservedDaemon(", StringComparison.Ordinal) ||
@@ -17446,7 +17461,7 @@ static void RequireInventoryDoubleClickTransferRequestAuthority(string root)
         "TryResolveTypedInventoryRows(",
         "TryValidateTypedCargoSlot(",
         "TryValidateTypedEquipmentSlot(",
-        ".State.Reactive<AetheriaRuntimeInventoryDocument>(entityIndex)",
+        ".State.Reactive<AetheriaRuntimeInventoryDocument>(AetheriaClientState.Entity(entityIndex))",
         "origin.Cargo.TryGetValue(item, out var originPosition)",
         "SourceIndex == cargoIndex",
         "SourceIndex == equipmentIndex",
