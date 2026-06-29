@@ -119,7 +119,6 @@ public class ZoneRenderer : MonoBehaviour
         Array.Empty<AetheriaRuntimeZoneRenderAsteroidBeltPose>();
     private IReadOnlyList<AetheriaRuntimeBodySnapshotCommit> _zoneRenderBodies =
         Array.Empty<AetheriaRuntimeBodySnapshotCommit>();
-    private CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog;
     private CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument> _zoneContacts;
     private AetheriaRuntimeRtsViewportBounds _objectsViewportBounds;
     private CultMeshReactiveDocument<AetheriaRuntimeObjectsViewportDocument> _objectsViewport;
@@ -1202,20 +1201,18 @@ public class ZoneRenderer : MonoBehaviour
 
     private AetheriaRuntimeCatalogSnapshot ResolveCatalog()
     {
-        if (_catalog != null)
-            return _catalog.Current;
-
         try
         {
-            _catalog = AetheriaUnityRuntimeClientProvider
-                .ReactiveCatalogSnapshot("unity-zone-renderer");
+            return AetheriaUnityRuntimeClientProvider
+                .RuntimeState("unity-zone-renderer")
+                .CurrentCatalog();
         }
         catch (Exception ex)
         {
-            Debug.LogWarning($"Failed to bind Aetheria runtime catalog for zone renderer: {ex.Message}");
+            Debug.LogWarning($"Failed to read Aetheria runtime catalog for zone renderer: {ex.Message}");
         }
 
-        return _catalog?.Current;
+        return null;
     }
 
     private AetheriaRuntimeZoneContactsDocument ResolveZoneContacts()
@@ -1262,10 +1259,8 @@ public class ZoneRenderer : MonoBehaviour
 
     private void ClearClientCaches()
     {
-        _catalog?.Dispose();
         _zoneContacts?.Dispose();
         _objectsViewport?.Dispose();
-        _catalog = null;
         _zoneContacts = null;
         _objectsViewport = null;
     }

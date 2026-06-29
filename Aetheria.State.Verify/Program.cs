@@ -8046,6 +8046,8 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "ZoneRenderer.cs"));
     var requiredZoneRendererSharedDocumentSymbols = new[]
     {
+        ".RuntimeState(\"unity-zone-renderer\")",
+        ".CurrentCatalog()",
         "CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument> _zoneContacts",
         ".ReactiveZoneContacts(\"unity-zone-renderer\")",
         "_zoneContacts?.Dispose()",
@@ -8058,7 +8060,7 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
     if (missingZoneRendererSharedDocumentSymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "ZoneRenderer should bind catalog and contact state through managed reactive Aetheria documents with renderer lifetime disposal: " +
+            "ZoneRenderer should sample catalog through current typed state while keeping contact state on managed reactive Aetheria documents: " +
             string.Join(", ", missingZoneRendererSharedDocumentSymbols));
     }
 
@@ -8070,19 +8072,15 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         ".ReactiveZoneContacts(\"unity-zone-renderer\")",
         "AetheriaRuntimeZoneContactsSession",
         "ResolveClient().State.ObserveZoneContacts()");
-    RequireReactiveTypedDocumentAccess(
-        zoneRenderer,
-        "ZoneRenderer",
-        "AetheriaRuntimeCatalogSnapshot",
-        "_catalog",
-        ".ReactiveCatalogSnapshot(\"unity-zone-renderer\")",
-        "AetheriaRuntimeCatalogSession",
-        "ResolveClient().State.ObserveCatalog()");
-
     var forbiddenZoneRendererSharedDocumentSymbols = new[]
     {
         "AetheriaRuntimeZoneContactsSession _zoneContacts",
-        "ResolveClient().State.ObserveZoneContacts()"
+        "ResolveClient().State.ObserveZoneContacts()",
+        "CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot>",
+        ".ReactiveCatalogSnapshot(\"unity-zone-renderer\")",
+        "AetheriaRuntimeCatalogSession _catalog",
+        "ResolveClient().State.ObserveCatalog()",
+        "_catalog?.Dispose()"
     };
     var zoneRendererRawDocumentHits = forbiddenZoneRendererSharedDocumentSymbols
         .Where(symbol => zoneRenderer.Contains(symbol, StringComparison.Ordinal))
