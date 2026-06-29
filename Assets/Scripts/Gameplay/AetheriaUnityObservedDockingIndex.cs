@@ -207,7 +207,7 @@ public sealed class AetheriaUnityObservedDockingIndex : IDisposable
         _currentEntity ??= AetheriaUnityRuntimeClientProvider
             .Reactive<AetheriaRuntimeCurrentEntityDocument>("unity-observed-docking");
         _currentDocking ??= AetheriaUnityRuntimeClientProvider
-            .Reactive<AetheriaRuntimeCurrentDockingDocument>("unity-observed-docking");
+            .ReactiveCurrentDocking("unity-observed-docking");
         _stationRefit ??= AetheriaUnityRuntimeClientProvider
             .Reactive<AetheriaRuntimeStationRefitDocument>("unity-observed-docking");
     }

@@ -193,6 +193,16 @@ namespace GameCult.Aetheria.State.Verse
             return Document<TDocument>().Reactive();
         }
 
+        public CultMeshDocumentHandle<AetheriaRuntimeCurrentDockingDocument> CurrentDocking()
+        {
+            return CurrentDockingDocument;
+        }
+
+        public CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> ReactiveCurrentDocking()
+        {
+            return CurrentDocking().Reactive();
+        }
+
         public static bool TryResolveEveSurface(
             string? surfaceId,
             out AetheriaClientEveSurface surface)

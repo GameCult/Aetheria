@@ -534,7 +534,7 @@ public class TradeMenu : MonoBehaviour
         try
         {
             _currentDocking ??= AetheriaUnityRuntimeClientProvider
-                .Reactive<AetheriaRuntimeCurrentDockingDocument>("unity-trade");
+                .ReactiveCurrentDocking("unity-trade");
             docking = _currentDocking.Current;
             return docking != null;
         }

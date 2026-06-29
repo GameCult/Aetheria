@@ -218,7 +218,7 @@ public class DaemonRuntimeDocumentTests
         using var zoneContactsReactive = client.State.Reactive<AetheriaRuntimeZoneContactsDocument>();
         using var currentZoneReactive = client.State.Reactive<AetheriaRuntimeCurrentZoneDocument>();
         using var currentEntityDocumentReactive = client.State.Reactive<AetheriaRuntimeCurrentEntityDocument>();
-        using var currentDockingReactive = client.State.Reactive<AetheriaRuntimeCurrentDockingDocument>();
+        using var currentDockingReactive = client.State.ReactiveCurrentDocking();
         using var stationRefitReactive = client.State.Reactive<AetheriaRuntimeStationRefitDocument>();
         using var zoneDetailsReactive = client.State.Reactive<AetheriaRuntimeZoneDetailsDocument>(0);
         using var selectedObjectReactive = client.State.Reactive<AetheriaRuntimeSelectedObjectDocument>(0);

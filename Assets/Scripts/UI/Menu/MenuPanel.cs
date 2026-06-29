@@ -173,7 +173,7 @@ public class MenuPanel : MonoBehaviour
         try
         {
             _currentDocking ??= AetheriaUnityRuntimeClientProvider
-                .Reactive<AetheriaRuntimeCurrentDockingDocument>("unity-runtime-menu-tabs");
+                .ReactiveCurrentDocking("unity-runtime-menu-tabs");
             docking = _currentDocking.Current;
             return docking != null;
         }

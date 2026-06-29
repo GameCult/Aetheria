@@ -111,6 +111,19 @@ public static class AetheriaUnityRuntimeClientProvider
         return RuntimeState(runtimeId).Reactive<TDocument>();
     }
 
+    public static CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> ReactiveCurrentDocking(
+        string runtimeId = "")
+    {
+        return RuntimeState(runtimeId).ReactiveCurrentDocking();
+    }
+
+    public static CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> ReactiveCurrentDocking(
+        AetheriaRuntimeStateBootReport stateBoot,
+        string runtimeId = "")
+    {
+        return RuntimeState(stateBoot, runtimeId).ReactiveCurrentDocking();
+    }
+
     public static CultMeshReactiveDocument<TDocument> Reactive<TDocument>(
         AetheriaRuntimeStateBootReport stateBoot,
         string runtimeId = "")
