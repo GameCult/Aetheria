@@ -361,7 +361,7 @@ public class SchematicDisplay : MonoBehaviour
             try
             {
                 _currentEntity = AetheriaUnityRuntimeClientProvider
-                    .Reactive<AetheriaRuntimeCurrentEntityDocument>("unity-schematic-display");
+                    .ReactiveCurrentEntity("unity-schematic-display");
             }
             catch (Exception ex)
             {

@@ -124,6 +124,32 @@ public static class AetheriaUnityRuntimeClientProvider
         return RuntimeState(stateBoot, runtimeId).ReactiveCurrentDocking();
     }
 
+    public static CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> ReactiveCurrentEntity(
+        string runtimeId = "")
+    {
+        return RuntimeState(runtimeId).ReactiveCurrentEntity();
+    }
+
+    public static CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> ReactiveCurrentEntity(
+        AetheriaRuntimeStateBootReport stateBoot,
+        string runtimeId = "")
+    {
+        return RuntimeState(stateBoot, runtimeId).ReactiveCurrentEntity();
+    }
+
+    public static CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> ReactiveStationRefit(
+        string runtimeId = "")
+    {
+        return RuntimeState(runtimeId).ReactiveStationRefit();
+    }
+
+    public static CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> ReactiveStationRefit(
+        AetheriaRuntimeStateBootReport stateBoot,
+        string runtimeId = "")
+    {
+        return RuntimeState(stateBoot, runtimeId).ReactiveStationRefit();
+    }
+
     public static CultMeshReactiveDocument<TDocument> Reactive<TDocument>(
         AetheriaRuntimeStateBootReport stateBoot,
         string runtimeId = "")

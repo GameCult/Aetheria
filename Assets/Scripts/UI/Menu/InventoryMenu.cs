@@ -932,7 +932,7 @@ public class InventoryMenu : MonoBehaviour
         try
         {
             _currentEntity = AetheriaUnityRuntimeClientProvider
-                .Reactive<AetheriaRuntimeCurrentEntityDocument>("unity-inventory-menu");
+                .ReactiveCurrentEntity("unity-inventory-menu");
         }
         catch (Exception ex)
         {
@@ -950,7 +950,7 @@ public class InventoryMenu : MonoBehaviour
         try
         {
             _stationRefit = AetheriaUnityRuntimeClientProvider
-                .Reactive<AetheriaRuntimeStationRefitDocument>("unity-inventory-menu");
+                .ReactiveStationRefit("unity-inventory-menu");
         }
         catch (Exception ex)
         {

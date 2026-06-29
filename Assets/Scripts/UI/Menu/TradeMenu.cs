@@ -518,7 +518,7 @@ public class TradeMenu : MonoBehaviour
         try
         {
             _stationRefit = AetheriaUnityRuntimeClientProvider
-                .Reactive<AetheriaRuntimeStationRefitDocument>("unity-trade");
+                .ReactiveStationRefit("unity-trade");
         }
         catch (Exception ex)
         {

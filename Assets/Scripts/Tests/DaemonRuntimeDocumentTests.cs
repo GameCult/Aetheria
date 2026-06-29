@@ -217,9 +217,9 @@ public class DaemonRuntimeDocumentTests
         using var verseHostSettingsReactive = client.State.Reactive<AetheriaRuntimeVerseHostSettingsDocument>();
         using var zoneContactsReactive = client.State.Reactive<AetheriaRuntimeZoneContactsDocument>();
         using var currentZoneReactive = client.State.Reactive<AetheriaRuntimeCurrentZoneDocument>();
-        using var currentEntityDocumentReactive = client.State.Reactive<AetheriaRuntimeCurrentEntityDocument>();
+        using var currentEntityDocumentReactive = client.State.ReactiveCurrentEntity();
         using var currentDockingReactive = client.State.ReactiveCurrentDocking();
-        using var stationRefitReactive = client.State.Reactive<AetheriaRuntimeStationRefitDocument>();
+        using var stationRefitReactive = client.State.ReactiveStationRefit();
         using var zoneDetailsReactive = client.State.Reactive<AetheriaRuntimeZoneDetailsDocument>(0);
         using var selectedObjectReactive = client.State.Reactive<AetheriaRuntimeSelectedObjectDocument>(0);
         using var inventoryReactive = client.State.Reactive<AetheriaRuntimeInventoryDocument>(0);
@@ -229,7 +229,7 @@ public class DaemonRuntimeDocumentTests
         using var renderSplatsViewportReactive = client.State.Reactive<AetheriaRuntimeRenderSplatsViewportDocument>(viewport);
         using var playerHudCatalog = client.State.Reactive<AetheriaRuntimeCatalogSnapshot>();
         using var playerHudSettings = client.State.Reactive<AetheriaRuntimePlayerSettingsDocument>();
-        using var playerHudEntity = client.State.Reactive<AetheriaRuntimeCurrentEntityDocument>();
+        using var playerHudEntity = client.State.ReactiveCurrentEntity();
         var gameSurface = ReadLatest(client.State.Document<global::Aetheria.State.Documents.EveSurfaceState>(AetheriaClientEveSurface.Game));
         var gameTuiSurface = ReadLatest(client.State.Document<global::Aetheria.State.Documents.EveSurfaceState>(AetheriaClientEveSurface.GameTui));
         var editorSurface = ReadLatest(client.State.Document<global::Aetheria.State.Documents.EveSurfaceState>(AetheriaClientEveSurface.Editor));

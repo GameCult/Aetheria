@@ -203,6 +203,26 @@ namespace GameCult.Aetheria.State.Verse
             return CurrentDocking().Reactive();
         }
 
+        public CultMeshDocumentHandle<AetheriaRuntimeCurrentEntityDocument> CurrentEntityDocument()
+        {
+            return CurrentEntity;
+        }
+
+        public CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> ReactiveCurrentEntity()
+        {
+            return CurrentEntityDocument().Reactive();
+        }
+
+        public CultMeshDocumentHandle<AetheriaRuntimeStationRefitDocument> StationRefitDocument()
+        {
+            return StationRefit;
+        }
+
+        public CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> ReactiveStationRefit()
+        {
+            return StationRefitDocument().Reactive();
+        }
+
         public static bool TryResolveEveSurface(
             string? surfaceId,
             out AetheriaClientEveSurface surface)

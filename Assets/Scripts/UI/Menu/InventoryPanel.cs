@@ -1491,7 +1491,7 @@ private void Update()
         try
         {
             _currentEntity = AetheriaUnityRuntimeClientProvider
-                .Reactive<AetheriaRuntimeCurrentEntityDocument>("unity-inventory");
+                .ReactiveCurrentEntity("unity-inventory");
         }
         catch (Exception ex)
         {
@@ -1509,7 +1509,7 @@ private void Update()
         try
         {
             _stationRefit = AetheriaUnityRuntimeClientProvider
-                .Reactive<AetheriaRuntimeStationRefitDocument>("unity-inventory");
+                .ReactiveStationRefit("unity-inventory");
         }
         catch (Exception ex)
         {
