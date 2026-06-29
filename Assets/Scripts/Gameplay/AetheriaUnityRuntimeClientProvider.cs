@@ -48,9 +48,6 @@ public static class AetheriaUnityRuntimeClientProvider
 
     private static AetheriaClient ResolveClient(AetheriaRuntimeStateBootReport stateBoot, string runtimeId = "")
     {
-        if (stateBoot == null)
-            throw new ArgumentNullException(nameof(stateBoot));
-
         return ResolveClient(
             stateBoot.StateFilePath,
             string.IsNullOrWhiteSpace(runtimeId) ? stateBoot.RuntimeId : runtimeId);
@@ -131,6 +128,12 @@ public static class AetheriaUnityRuntimeClientProvider
         return RuntimeState(runtimeId).CurrentZoneContacts();
     }
 
+    public static CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument> ReactiveZoneContacts(
+        string runtimeId = "")
+    {
+        return RuntimeState(runtimeId).ReactiveZoneContacts();
+    }
+
     public static AetheriaRuntimeStationRefitDocument CurrentStationRefit(string runtimeId = "")
     {
         return RuntimeState(runtimeId).CurrentStationRefit();
@@ -158,6 +161,20 @@ public static class AetheriaUnityRuntimeClientProvider
         return RuntimeState(runtimeId).CurrentInventory(entityIndex);
     }
 
+    public static CultMeshReactiveDocument<AetheriaRuntimeObjectsViewportDocument> ReactiveObjectsViewport(
+        AetheriaRuntimeRtsViewportBounds viewport,
+        string runtimeId = "")
+    {
+        return RuntimeState(runtimeId).ReactiveObjectsViewport(viewport);
+    }
+
+    public static CultMeshReactiveDocument<AetheriaRuntimeRenderSplatsViewportDocument> ReactiveRenderSplatsViewport(
+        AetheriaRuntimeRtsViewportBounds viewport,
+        string runtimeId = "")
+    {
+        return RuntimeState(runtimeId).ReactiveRenderSplatsViewport(viewport);
+    }
+
     public static AetheriaRuntimeDaemonFrameDocument CurrentDaemonFrame(string runtimeId = "")
     {
         return RuntimeState(runtimeId).CurrentDaemonFrame();
@@ -168,6 +185,13 @@ public static class AetheriaUnityRuntimeClientProvider
         string runtimeId = "")
     {
         return RuntimeState(stateBoot, runtimeId).CurrentDaemonFrame();
+    }
+
+    public static AetheriaUnityDaemonRenderDocuments DaemonRenderDocuments(
+        AetheriaRuntimeStateBootReport stateBoot,
+        string runtimeId = "")
+    {
+        return AetheriaUnityDaemonRenderDocuments.Open(RuntimeState(stateBoot, runtimeId));
     }
 
     public static AetheriaRuntimeVerseHostSettingsDocument CurrentVerseHostSettings(

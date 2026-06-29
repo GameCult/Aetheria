@@ -16319,6 +16319,10 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     var runtimeClientProvider = File.Exists(runtimeClientProviderPath)
         ? File.ReadAllText(runtimeClientProviderPath)
         : throw new InvalidOperationException("Cannot verify daemon state acquisition; AetheriaUnityRuntimeClientProvider.cs is missing.");
+    var unityDaemonRenderDocumentsPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityDaemonRenderDocuments.cs");
+    var unityDaemonRenderDocuments = File.Exists(unityDaemonRenderDocumentsPath)
+        ? File.ReadAllText(unityDaemonRenderDocumentsPath)
+        : throw new InvalidOperationException("Cannot verify daemon state acquisition; AetheriaUnityDaemonRenderDocuments.cs is missing.");
     var zoneRendererPath = Path.Combine(root, "Assets", "Scripts", "Zone Display", "ZoneRenderer.cs");
     var zoneRenderer = File.Exists(zoneRendererPath)
         ? File.ReadAllText(zoneRendererPath)
@@ -16466,13 +16470,17 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "public static AetheriaRuntimeCurrentEntityDocument CurrentEntityState(string runtimeId = \"\")",
         "public static AetheriaRuntimeCurrentZoneDocument CurrentZoneState(string runtimeId = \"\")",
         "public static AetheriaRuntimeZoneContactsDocument CurrentZoneContacts(string runtimeId = \"\")",
+        "public static CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument> ReactiveZoneContacts(",
         "public static AetheriaRuntimeStationRefitDocument CurrentStationRefit(string runtimeId = \"\")",
         "public static AetheriaRuntimeSectorMapDocument CurrentSectorMap(string runtimeId = \"\")",
         "public static AetheriaRuntimeSectorMapDocument CurrentSectorMap(",
         "public static AetheriaRuntimeZoneDetailsDocument CurrentZoneDetails(int zoneIndex, string runtimeId = \"\")",
         "public static AetheriaRuntimeInventoryDocument CurrentInventory(int entityIndex, string runtimeId = \"\")",
+        "public static CultMeshReactiveDocument<AetheriaRuntimeObjectsViewportDocument> ReactiveObjectsViewport(",
+        "public static CultMeshReactiveDocument<AetheriaRuntimeRenderSplatsViewportDocument> ReactiveRenderSplatsViewport(",
         "public static AetheriaRuntimeDaemonFrameDocument CurrentDaemonFrame(string runtimeId = \"\")",
         "public static AetheriaRuntimeDaemonFrameDocument CurrentDaemonFrame(",
+        "public static AetheriaUnityDaemonRenderDocuments DaemonRenderDocuments(",
         "public static AetheriaRuntimeVerseHostSettingsDocument CurrentVerseHostSettings(",
         "public static AetheriaControl Control(string runtimeId = \"\")",
         "public static AetheriaUi Ui(string runtimeId = \"\")",
@@ -16500,7 +16508,6 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     }
 
     if (runtimeClientProvider.Contains("public static CultMeshReactiveDocument<TDocument> Reactive<TDocument>", StringComparison.Ordinal) ||
-        runtimeClientProvider.Contains("public static CultMeshReactiveDocument<AetheriaRuntime", StringComparison.Ordinal) ||
         runtimeClientProvider.Contains("public static CultMeshReactiveDocument<global::Aetheria.State.Documents.EveSurfaceState> ReactiveEveSurface(", StringComparison.Ordinal) ||
         runtimeClientProvider.Contains("private static CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettingsDocument", StringComparison.Ordinal) ||
         runtimeClientProvider.Contains("RuntimeState().ReactivePlayerSettingsDocument()", StringComparison.Ordinal) ||
@@ -16508,7 +16515,7 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         runtimeClientProvider.Contains("_playerSettingsDocument?.Dispose()", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "AetheriaUnityRuntimeClientProvider should expose RuntimeState/Control/Ui and read named current typed state for cached settings; do not rebuild static ReactiveX facade wrappers.");
+            "AetheriaUnityRuntimeClientProvider should expose named current/reactive typed handles; do not rebuild generic static ReactiveX facade wrappers or cached reactive state.");
     }
 
     if (runtimeClientProvider.Contains("AetheriaRuntimePlayerSettingsSession _playerSettingsDocument", StringComparison.Ordinal) ||
@@ -16572,10 +16579,15 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         !observedDaemonState.Contains("CultMeshReactiveDocument<AetheriaRuntimeZoneRenderDocument> zoneRender", StringComparison.Ordinal) ||
         !observedDaemonState.Contains("var currentZoneRender = zoneRender?.Current;", StringComparison.Ordinal) ||
         !observedDaemonState.Contains("new AetheriaRuntimeDaemonRenderView(currentFrame, currentSoaView, currentZoneRender)", StringComparison.Ordinal) ||
-        !daemonObserver.Contains("private CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument> _daemonFrame;", StringComparison.Ordinal) ||
-        !daemonObserver.Contains("private CultMeshReactiveDocument<AetheriaRuntimeDaemonSoaViewDocument> _daemonSoaView;", StringComparison.Ordinal) ||
-        !daemonObserver.Contains("private CultMeshReactiveDocument<AetheriaRuntimeZoneRenderDocument> _zoneRender;", StringComparison.Ordinal) ||
-        !daemonObserver.Contains("AetheriaRuntimeDaemonRenderView.TryCreateCurrent(", StringComparison.Ordinal))
+        !unityDaemonRenderDocuments.Contains("public sealed class AetheriaUnityDaemonRenderDocuments : IDisposable", StringComparison.Ordinal) ||
+        !unityDaemonRenderDocuments.Contains("public CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument> Frame { get; }", StringComparison.Ordinal) ||
+        !unityDaemonRenderDocuments.Contains("public CultMeshReactiveDocument<AetheriaRuntimeDaemonSoaViewDocument> SoaView { get; }", StringComparison.Ordinal) ||
+        !unityDaemonRenderDocuments.Contains("public CultMeshReactiveDocument<AetheriaRuntimeZoneRenderDocument> ZoneRender { get; }", StringComparison.Ordinal) ||
+        !unityDaemonRenderDocuments.Contains("public AetheriaRuntimeDaemonRenderView Current", StringComparison.Ordinal) ||
+        !unityDaemonRenderDocuments.Contains("AetheriaRuntimeDaemonRenderView.TryCreateCurrent(", StringComparison.Ordinal) ||
+        !daemonObserver.Contains("private AetheriaUnityDaemonRenderDocuments _renderDocuments;", StringComparison.Ordinal) ||
+        !daemonObserver.Contains("_renderDocuments?.Current", StringComparison.Ordinal) ||
+        !daemonObserver.Contains("AetheriaUnityRuntimeClientProvider.DaemonRenderDocuments(stateBoot, clientId)", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "Observed zone-render state acquisition must sample managed typed zone-render documents directly.");
@@ -16933,27 +16945,34 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
             string.Join(", ", actionGameManagerReaderHits));
     }
 
-    if (!daemonObserver.Contains("AetheriaClientState ResolveState()", StringComparison.Ordinal) ||
-        !daemonObserver.Contains("AetheriaUnityRuntimeClientProvider.RuntimeState(stateBoot, clientId)", StringComparison.Ordinal) ||
-        !daemonObserver.Contains("AetheriaRuntimeStateBoot.Inspect(AetheriaUnityRuntimePaths.GameDataDirectory)", StringComparison.Ordinal) ||
+    if (!daemonObserver.Contains("AetheriaRuntimeStateBoot.Inspect(AetheriaUnityRuntimePaths.GameDataDirectory)", StringComparison.Ordinal) ||
         !daemonObserver.Contains("AetheriaRuntimeDaemonRenderView", StringComparison.Ordinal) ||
-        !daemonObserver.Contains("CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument> _daemonFrame", StringComparison.Ordinal) ||
-        !daemonObserver.Contains("CultMeshReactiveDocument<AetheriaRuntimeDaemonSoaViewDocument> _daemonSoaView", StringComparison.Ordinal) ||
-        !daemonObserver.Contains("CultMeshReactiveDocument<AetheriaRuntimeZoneRenderDocument> _zoneRender", StringComparison.Ordinal) ||
-        !daemonObserver.Contains("_daemonFrame ??= state.ReactiveDaemonFrame();", StringComparison.Ordinal) ||
-        !daemonObserver.Contains("_daemonSoaView ??= state.ReactiveDaemonSoaView();", StringComparison.Ordinal) ||
-        !daemonObserver.Contains("_zoneRender ??= state.ReactiveZoneRender();", StringComparison.Ordinal) ||
-        !daemonObserver.Contains("AetheriaRuntimeDaemonRenderView.TryCreateCurrent(", StringComparison.Ordinal) ||
+        !daemonObserver.Contains("private AetheriaUnityDaemonRenderDocuments _renderDocuments;", StringComparison.Ordinal) ||
+        !daemonObserver.Contains("_renderDocuments?.Current", StringComparison.Ordinal) ||
+        !daemonObserver.Contains("AetheriaUnityRuntimeClientProvider.DaemonRenderDocuments(stateBoot, clientId)", StringComparison.Ordinal) ||
+        !unityDaemonRenderDocuments.Contains("public AetheriaRuntimeDaemonRenderView Current", StringComparison.Ordinal) ||
+        !unityDaemonRenderDocuments.Contains("public CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument> Frame { get; }", StringComparison.Ordinal) ||
+        !unityDaemonRenderDocuments.Contains("public CultMeshReactiveDocument<AetheriaRuntimeDaemonSoaViewDocument> SoaView { get; }", StringComparison.Ordinal) ||
+        !unityDaemonRenderDocuments.Contains("public CultMeshReactiveDocument<AetheriaRuntimeZoneRenderDocument> ZoneRender { get; }", StringComparison.Ordinal) ||
         !daemonObserver.Contains("DisposeRenderViewDocuments()", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "AetheriaDaemonObserver must sample daemon render views through direct managed reactive daemon documents.");
+            "AetheriaDaemonObserver must hold a native managed daemon-render document handle and read its current state.");
     }
 
     if (daemonObserver.Contains("AetheriaRuntimeStateReader.TryReadDaemonRenderView", StringComparison.Ordinal) ||
         daemonObserver.Contains("public AetheriaClient Client", StringComparison.Ordinal) ||
         daemonObserver.Contains("public AetheriaControl Control", StringComparison.Ordinal) ||
         daemonObserver.Contains("AetheriaUnityRuntimeClientProvider.ResolveClient(", StringComparison.Ordinal) ||
+        daemonObserver.Contains("AetheriaClientState ResolveState()", StringComparison.Ordinal) ||
+        daemonObserver.Contains("AetheriaUnityRuntimeClientProvider.RuntimeState(stateBoot, clientId)", StringComparison.Ordinal) ||
+        daemonObserver.Contains("CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument> _daemonFrame", StringComparison.Ordinal) ||
+        daemonObserver.Contains("CultMeshReactiveDocument<AetheriaRuntimeDaemonSoaViewDocument> _daemonSoaView", StringComparison.Ordinal) ||
+        daemonObserver.Contains("CultMeshReactiveDocument<AetheriaRuntimeZoneRenderDocument> _zoneRender", StringComparison.Ordinal) ||
+        daemonObserver.Contains("_daemonFrame ??= state.ReactiveDaemonFrame();", StringComparison.Ordinal) ||
+        daemonObserver.Contains("_daemonSoaView ??= state.ReactiveDaemonSoaView();", StringComparison.Ordinal) ||
+        daemonObserver.Contains("_zoneRender ??= state.ReactiveZoneRender();", StringComparison.Ordinal) ||
+        daemonObserver.Contains("AetheriaRuntimeDaemonRenderView.TryCreateCurrent(", StringComparison.Ordinal) ||
         daemonObserver.Contains("ResolveClient()?.State", StringComparison.Ordinal) ||
         daemonObserver.Contains(".ReadAsync(client.State)", StringComparison.Ordinal) ||
         daemonObserver.Contains("AetheriaRuntimeReactiveObservedDaemonState", StringComparison.Ordinal) ||

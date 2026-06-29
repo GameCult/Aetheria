@@ -1,6 +1,5 @@
 using System;
 using GameCult.Aetheria.State.Verse;
-using GameCult.Mesh;
 using UnityEngine;
 
 public sealed class AetheriaDaemonObserver : MonoBehaviour
@@ -21,9 +20,7 @@ public sealed class AetheriaDaemonObserver : MonoBehaviour
     private float _nextPollTime;
     private AetheriaDaemonSoaMemoryMap _soaMemoryMap;
     private AetheriaDaemonRenderNativeView _renderNativeView;
-    private CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument> _daemonFrame;
-    private CultMeshReactiveDocument<AetheriaRuntimeDaemonSoaViewDocument> _daemonSoaView;
-    private CultMeshReactiveDocument<AetheriaRuntimeZoneRenderDocument> _zoneRender;
+    private AetheriaUnityDaemonRenderDocuments _renderDocuments;
 
     public AetheriaRuntimeDaemonRenderView LastRenderView { get; private set; }
     public AetheriaRuntimeDaemonObservationResult LastObservation { get; private set; }
@@ -102,13 +99,7 @@ public sealed class AetheriaDaemonObserver : MonoBehaviour
         try
         {
             EnsureRenderViewDocuments();
-            return AetheriaRuntimeDaemonRenderView.TryCreateCurrent(
-                _daemonFrame,
-                _daemonSoaView,
-                _zoneRender,
-                out var observed)
-                ? observed
-                : null;
+            return _renderDocuments?.Current;
         }
         catch
         {
@@ -118,24 +109,11 @@ public sealed class AetheriaDaemonObserver : MonoBehaviour
 
     private void EnsureRenderViewDocuments()
     {
-        if (_daemonFrame != null && _daemonSoaView != null && _zoneRender != null)
+        if (_renderDocuments != null)
         {
             return;
         }
 
-        var state = ResolveState();
-        if (state == null)
-        {
-            return;
-        }
-
-        _daemonFrame ??= state.ReactiveDaemonFrame();
-        _daemonSoaView ??= state.ReactiveDaemonSoaView();
-        _zoneRender ??= state.ReactiveZoneRender();
-    }
-
-    private AetheriaClientState ResolveState()
-    {
         var stateBoot = AetheriaRuntimeStateBoot.Inspect(AetheriaUnityRuntimePaths.GameDataDirectory);
         if (!stateBoot.SupportsLocalStateFileRead || !stateBoot.StateFileExists)
         {
@@ -143,7 +121,7 @@ public sealed class AetheriaDaemonObserver : MonoBehaviour
                 $"Aetheria daemon observer requires a readable local Verse state file: {stateBoot.FailureMessage}");
         }
 
-        return AetheriaUnityRuntimeClientProvider.RuntimeState(stateBoot, clientId);
+        _renderDocuments = AetheriaUnityRuntimeClientProvider.DaemonRenderDocuments(stateBoot, clientId);
     }
 
     private void RemapSoaView(AetheriaRuntimeDaemonRenderView observed)
@@ -184,11 +162,7 @@ public sealed class AetheriaDaemonObserver : MonoBehaviour
 
     private void DisposeRenderViewDocuments()
     {
-        _daemonFrame?.Dispose();
-        _daemonFrame = null;
-        _daemonSoaView?.Dispose();
-        _daemonSoaView = null;
-        _zoneRender?.Dispose();
-        _zoneRender = null;
+        _renderDocuments?.Dispose();
+        _renderDocuments = null;
     }
 }
