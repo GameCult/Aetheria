@@ -214,15 +214,14 @@ public static class AetheriaEveSurfaceDocuments
             : updatedAtUtc;
 
         var surface = AetheriaRuntimePlayerSettingsSurfaceBuilder.Build(
-            new AetheriaRuntimePlayerSettingsSurfaceState(
-                settings.PlayerName,
-                settings.TutorialPassed,
-                settings.ActiveRunKey,
-                gameplay.TemperatureUnit,
-                gameplay.SignificantDigits,
-                graphics.NebulaQuality,
-                graphics.ShowAsteroidsInMinimap,
-                publishedAtUtc),
+            settings.PlayerName,
+            settings.TutorialPassed,
+            settings.ActiveRunKey,
+            gameplay.TemperatureUnit,
+            gameplay.SignificantDigits,
+            graphics.NebulaQuality,
+            graphics.ShowAsteroidsInMinimap,
+            publishedAtUtc,
             version);
 
         return new EveSurfaceState

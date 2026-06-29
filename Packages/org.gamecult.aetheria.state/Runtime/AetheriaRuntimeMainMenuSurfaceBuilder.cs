@@ -125,17 +125,11 @@ namespace GameCult.Aetheria.State.Verse
             string updatedAtUtc,
             long version = 1)
         {
-            var state = new AetheriaRuntimePlayerSettingsSurfaceState(
-                playerSettings?.PlayerName ?? "",
-                playerSettings?.TutorialPassed ?? false,
-                "",
-                playerSettings?.TemperatureUnit ?? "",
-                Math.Max(0, playerSettings?.SignificantDigits ?? 0),
-                playerSettings?.NebulaQuality ?? "",
-                playerSettings?.ShowAsteroidsInMinimap ?? false,
-                updatedAtUtc);
-
-            return BuildPlayerSettingsShell(state, version);
+            return WithBackAction(
+                AetheriaRuntimePlayerSettingsSurfaceBuilder.Build(playerSettings, updatedAtUtc, version),
+                AetheriaRuntimeMainMenuCommands.PlayerSettingsShellSurfaceId,
+                AetheriaRuntimeMainMenuCommands.BackToSettings,
+                "Back");
         }
 
         private static AetheriaRuntimeSurfaceDocument BuildRoot(
@@ -335,17 +329,6 @@ namespace GameCult.Aetheria.State.Verse
                     "aetheria.mainMenu.input.card",
                     "Input Settings",
                     cardChildren.ToArray()));
-        }
-
-        public static AetheriaRuntimeSurfaceDocument BuildPlayerSettingsShell(
-            AetheriaRuntimePlayerSettingsSurfaceState state,
-            long version = 1)
-        {
-            return WithBackAction(
-                AetheriaRuntimePlayerSettingsSurfaceBuilder.Build(state, version),
-                AetheriaRuntimeMainMenuCommands.PlayerSettingsShellSurfaceId,
-                AetheriaRuntimeMainMenuCommands.BackToSettings,
-                "Back");
         }
 
         public static AetheriaRuntimeSurfaceDocument BuildVerseSettingsShell(

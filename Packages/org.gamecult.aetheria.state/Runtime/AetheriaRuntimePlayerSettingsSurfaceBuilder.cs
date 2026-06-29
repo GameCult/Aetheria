@@ -266,9 +266,26 @@ namespace GameCult.Aetheria.State.Verse
         public string Transport => Operation.RouteHint.Description ?? "";
     }
 
-    public sealed class AetheriaRuntimePlayerSettingsSurfaceState
+    public static class AetheriaRuntimePlayerSettingsSurfaceBuilder
     {
-        public AetheriaRuntimePlayerSettingsSurfaceState(
+        public static AetheriaRuntimeSurfaceDocument Build(
+            AetheriaRuntimePlayerSettingsDocument settings,
+            string updatedAtUtc,
+            long version = 1)
+        {
+            return Build(
+                settings?.PlayerName ?? "",
+                settings?.TutorialPassed ?? false,
+                activeRunKey: "",
+                settings?.TemperatureUnit ?? "",
+                Math.Max(0, settings?.SignificantDigits ?? 0),
+                settings?.NebulaQuality ?? "",
+                settings?.ShowAsteroidsInMinimap ?? false,
+                updatedAtUtc,
+                version);
+        }
+
+        public static AetheriaRuntimeSurfaceDocument Build(
             string playerName,
             bool tutorialPassed,
             string activeRunKey,
@@ -276,57 +293,21 @@ namespace GameCult.Aetheria.State.Verse
             int significantDigits,
             string nebulaQuality,
             bool showAsteroidsInMinimap,
-            string updatedAtUtc)
-        {
-            PlayerName = playerName ?? "";
-            TutorialPassed = tutorialPassed;
-            ActiveRunKey = activeRunKey ?? "";
-            TemperatureUnit = temperatureUnit ?? "";
-            SignificantDigits = significantDigits;
-            NebulaQuality = nebulaQuality ?? "";
-            ShowAsteroidsInMinimap = showAsteroidsInMinimap;
-            UpdatedAtUtc = updatedAtUtc ?? "";
-        }
-
-        public string PlayerName { get; }
-
-        public bool TutorialPassed { get; }
-
-        public string ActiveRunKey { get; }
-
-        public string TemperatureUnit { get; }
-
-        public int SignificantDigits { get; }
-
-        public string NebulaQuality { get; }
-
-        public bool ShowAsteroidsInMinimap { get; }
-
-        public string UpdatedAtUtc { get; }
-    }
-
-    public static class AetheriaRuntimePlayerSettingsSurfaceBuilder
-    {
-        public static AetheriaRuntimeSurfaceDocument Build(
-            AetheriaRuntimePlayerSettingsSurfaceState settings,
+            string updatedAtUtc,
             long version = 1)
         {
-            settings ??= new AetheriaRuntimePlayerSettingsSurfaceState(
-                "",
-                tutorialPassed: false,
-                activeRunKey: "",
-                temperatureUnit: "",
-                significantDigits: 0,
-                nebulaQuality: "",
-                showAsteroidsInMinimap: false,
-                updatedAtUtc: "");
-
+            playerName ??= "";
+            activeRunKey ??= "";
+            temperatureUnit ??= "";
+            nebulaQuality ??= "";
+            updatedAtUtc ??= "";
+            significantDigits = Math.Max(0, significantDigits);
             return new AetheriaRuntimeSurfaceDocument(
                 providerId: "aetheria",
                 providerKind: "game.runtime",
                 title: "Aetheria Player Settings",
                 version: version,
-                updatedAtUtc: settings.UpdatedAtUtc,
+                updatedAtUtc: updatedAtUtc,
                 surface: new AetheriaRuntimeSurfaceTree(
                     AetheriaRuntimePlayerSettingsCommands.SurfaceId,
                     Node(
@@ -340,12 +321,12 @@ namespace GameCult.Aetheria.State.Verse
                             TextInput(
                                 "playerSettings.summary.playerName",
                                 "Name",
-                                settings.PlayerName,
+                                playerName,
                                 AetheriaRuntimePlayerSettingsCommands.SetPlayerName),
                             Row(
                                 "playerSettings.summary.values",
-                                ("tutorialPassed", settings.TutorialPassed ? "Yes" : "No"),
-                                ("activeRun", settings.ActiveRunKey)),
+                                ("tutorialPassed", tutorialPassed ? "Yes" : "No"),
+                                ("activeRun", activeRunKey)),
                             Text(
                                 "playerSettings.summary.note",
                                 "Input remapping lowers through the runtime Eve input screen and sends typed input-setting requests.")),
@@ -353,7 +334,7 @@ namespace GameCult.Aetheria.State.Verse
                             "aetheria.playerSettings.gameplay",
                             "card",
                             new[] { ("title", "Gameplay") },
-                            Metric("playerSettings.gameplay.temperatureUnit", "Temperature Unit", settings.TemperatureUnit),
+                            Metric("playerSettings.gameplay.temperatureUnit", "Temperature Unit", temperatureUnit),
                             ButtonRow(
                                 "playerSettings.gameplay.temperatureUnit.buttons",
                                 Button(
@@ -363,7 +344,7 @@ namespace GameCult.Aetheria.State.Verse
                             Metric(
                                 "playerSettings.gameplay.significantDigits",
                                 "Significant Digits",
-                                settings.SignificantDigits.ToString()),
+                                significantDigits.ToString()),
                             ButtonRow(
                                 "playerSettings.gameplay.significantDigits.buttons",
                                 Button(
@@ -378,7 +359,7 @@ namespace GameCult.Aetheria.State.Verse
                             "aetheria.playerSettings.graphics",
                             "card",
                             new[] { ("title", "Graphics") },
-                            Metric("playerSettings.graphics.nebulaQuality", "Nebula Quality", settings.NebulaQuality),
+                            Metric("playerSettings.graphics.nebulaQuality", "Nebula Quality", nebulaQuality),
                             ButtonRow(
                                 "playerSettings.graphics.nebulaQuality.buttons",
                                 Button(
@@ -388,12 +369,12 @@ namespace GameCult.Aetheria.State.Verse
                             Metric(
                                 "playerSettings.graphics.showAsteroids",
                                 "Show Asteroids In Minimap",
-                                settings.ShowAsteroidsInMinimap ? "Enabled" : "Disabled"),
+                                showAsteroidsInMinimap ? "Enabled" : "Disabled"),
                             ButtonRow(
                                 "playerSettings.graphics.showAsteroids.buttons",
                                 Button(
                                     "playerSettings.graphics.showAsteroids.toggle",
-                                    settings.ShowAsteroidsInMinimap ? "Disable Minimap Asteroids" : "Enable Minimap Asteroids",
+                                    showAsteroidsInMinimap ? "Disable Minimap Asteroids" : "Enable Minimap Asteroids",
                                     AetheriaRuntimePlayerSettingsCommands.ToggleShowAsteroidsInMinimap)))),
                     Array.Empty<AetheriaRuntimeSurfaceStyleToken>()),
                 commands: new[]

@@ -3804,7 +3804,7 @@ static void RequireMainMenuSettingsShellUsesEveSurface(string root)
         "private static AetheriaRuntimeSurfaceDocument BuildRoot(",
         "private static AetheriaRuntimeSurfaceDocument BuildInputSettings(",
         "var verseLabel = VerseLabel(verseTitle, verseId)",
-        "AetheriaRuntimePlayerSettingsSurfaceBuilder.Build(state, version)",
+        "AetheriaRuntimePlayerSettingsSurfaceBuilder.Build(playerSettings, updatedAtUtc, version)",
         "AetheriaRuntimeSurfaceDocument document",
         "WithBackAction(",
         "AetheriaRuntimeMainMenuCommands.BackToSettings",
@@ -3830,6 +3830,7 @@ static void RequireMainMenuSettingsShellUsesEveSurface(string root)
     if (mainMenuSurfaceBuilder.Contains("AetheriaRuntimeMainMenuSurfaceState", StringComparison.Ordinal) ||
         mainMenuSurfaceBuilder.Contains("ComposeRootState(", StringComparison.Ordinal) ||
         mainMenuSurfaceBuilder.Contains("ComposePlayerSettingsState(", StringComparison.Ordinal) ||
+        mainMenuSurfaceBuilder.Contains("new AetheriaRuntimePlayerSettingsSurfaceState(", StringComparison.Ordinal) ||
         mainMenuSurfaceBuilder.Contains("public static AetheriaRuntimeMainMenuSurfaceState Project", StringComparison.Ordinal) ||
         mainMenuSurfaceBuilder.Contains("public static AetheriaRuntimePlayerSettingsSurfaceState Project", StringComparison.Ordinal))
     {
@@ -6960,7 +6961,6 @@ static void RequirePlayerSettingsEveSurface(string root)
     {
         "AetheriaRuntimePlayerSettingsCommands.SurfaceId",
         "AetheriaRuntimePlayerSettingsSurfaceBuilder.Build",
-        "AetheriaRuntimePlayerSettingsSurfaceState",
         "settings.ActiveRunKey"
     };
 
@@ -6973,6 +6973,13 @@ static void RequirePlayerSettingsEveSurface(string root)
         throw new InvalidOperationException(
             "Player settings Eve surface document is missing required typed controls: " +
             string.Join(", ", missingSurfaceDocumentSymbols));
+    }
+
+    if (surfaceDocuments.Contains("AetheriaRuntimePlayerSettingsSurfaceState", StringComparison.Ordinal) ||
+        surfaceDocuments.Contains("new AetheriaRuntimePlayerSettingsSurfaceState(", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Player settings Eve surface document should pass typed settings directly into the shared builder, not repack them into a shadow surface state.");
     }
 
     var bridge = File.Exists(bridgePath)
@@ -7039,6 +7046,13 @@ static void RequirePlayerSettingsEveSurface(string root)
     {
         throw new InvalidOperationException(
             "Shared player-settings Eve surface builder no longer owns the portable settings surface contract.");
+    }
+
+    if (surfaceBuilder.Contains("AetheriaRuntimePlayerSettingsSurfaceState", StringComparison.Ordinal) ||
+        surfaceBuilder.Contains("new AetheriaRuntimePlayerSettingsSurfaceState(", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Shared player-settings Eve surface builder should accept typed documents or semantic values directly, not a duplicate SurfaceState DTO.");
     }
 }
 
