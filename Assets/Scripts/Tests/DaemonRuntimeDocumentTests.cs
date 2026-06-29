@@ -240,11 +240,9 @@ public class DaemonRuntimeDocumentTests
             .GetAwaiter()
             .GetResult();
         var stationRefit = ReadLatest(client.State.Document<AetheriaRuntimeStationRefitDocument>());
-        Assert.IsTrue(AetheriaRuntimeObservedDockingState.TryCreateCurrent(
-            currentEntityDocumentReactive,
-            currentDockingReactive,
-            stationRefitReactive,
-            out var observedDocking));
+        Assert.AreEqual(currentEntity.EntityKey, currentEntityDocumentReactive.Current.EntityKey);
+        Assert.AreEqual(currentDocking.CurrentEntityKey, currentDockingReactive.Current.CurrentEntityKey);
+        Assert.AreEqual(stationRefit.StationEntityKey, stationRefitReactive.Current.StationEntityKey);
         using var reactiveGameSurface = client.State.Document<global::Aetheria.State.Documents.EveSurfaceState>(AetheriaClientEveSurface.Game).Reactive();
         using var reactiveGameTuiSurface = client.State.Document<global::Aetheria.State.Documents.EveSurfaceState>(AetheriaClientEveSurface.GameTui).Reactive();
         using var reactiveEditorSurface = client.State.Document<global::Aetheria.State.Documents.EveSurfaceState>(AetheriaClientEveSurface.Editor).Reactive();

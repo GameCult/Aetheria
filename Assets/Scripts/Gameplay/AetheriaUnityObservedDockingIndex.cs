@@ -3,6 +3,7 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
 using System;
+using System.Linq;
 using GameCult.Aetheria.State.Verse;
 using GameCult.Mesh;
 
@@ -45,36 +46,38 @@ public sealed class AetheriaUnityObservedDockingIndex : IDisposable
     public bool TryResolveCurrentEntityKey(out string currentEntityKey)
     {
         currentEntityKey = "";
-        if (TryResolveCurrentDocking(out var docking))
-            currentEntityKey = docking.CurrentEntityKey;
+        if (TryReadCurrentDockingDocuments(out var currentEntity, out var docking, out _))
+            currentEntityKey = CurrentEntityKey(currentEntity, docking);
         return !string.IsNullOrWhiteSpace(currentEntityKey);
     }
 
     public bool TryResolveCurrentEntityDocument(out AetheriaRuntimeCurrentEntityDocument currentEntity)
     {
         currentEntity = null;
-        if (!TryResolveCurrentDocking(out var docking))
+        if (!TryReadCurrentDockingDocuments(out var document, out _, out _))
             return false;
 
-        currentEntity = docking.Entity;
+        currentEntity = document;
         return currentEntity != null;
     }
 
     public AetheriaRuntimeStationRefitDocument ResolveStationRefit()
     {
-        return TryResolveCurrentDocking(out var docking)
-            ? docking.Refit
+        return TryReadCurrentDockingDocuments(out _, out _, out var refit)
+            ? refit
             : null;
     }
 
     public bool TryResolveCurrentDockingBayRow(out AetheriaRuntimeStationDockingBayRow dockingBay)
     {
         dockingBay = null;
-        if (!TryResolveCurrentDocking(out var docking) ||
-            !docking.TryResolveCurrentDockingBayRow(out var row))
+        if (!TryReadCurrentDockingDocuments(out _, out _, out var refit) ||
+            !refit.IsDocked ||
+            refit.DockingBayIndex < 0)
             return false;
 
-        dockingBay = row;
+        dockingBay = (refit.DockingBays ?? Array.Empty<AetheriaRuntimeStationDockingBayRow>())
+            .FirstOrDefault(row => row != null && row.DockingBayIndex == refit.DockingBayIndex);
         return dockingBay != null;
     }
 
@@ -99,10 +102,10 @@ public sealed class AetheriaUnityObservedDockingIndex : IDisposable
     public bool TryResolveCurrentDocking(out AetheriaRuntimeCurrentDockingDocument docking)
     {
         docking = null;
-        if (!TryResolveCurrentDocking(out var currentDocking))
+        if (!TryReadCurrentDockingDocuments(out _, out var currentDocking, out _))
             return false;
 
-        docking = currentDocking.Docking;
+        docking = currentDocking;
         return docking != null;
     }
 
@@ -166,22 +169,38 @@ public sealed class AetheriaUnityObservedDockingIndex : IDisposable
         return true;
     }
 
-    private bool TryResolveCurrentDocking(out AetheriaRuntimeObservedDockingState docking)
+    private bool TryReadCurrentDockingDocuments(
+        out AetheriaRuntimeCurrentEntityDocument entity,
+        out AetheriaRuntimeCurrentDockingDocument docking,
+        out AetheriaRuntimeStationRefitDocument refit)
     {
+        entity = null;
         docking = null;
+        refit = null;
         try
         {
             EnsureDockingDocuments();
-            return AetheriaRuntimeObservedDockingState.TryCreateCurrent(
-                _currentEntity,
-                _currentDocking,
-                _stationRefit,
-                out docking);
+            docking = _currentDocking?.Current;
+            refit = _stationRefit?.Current;
+            if (docking == null || refit == null)
+                return false;
+
+            entity = _currentEntity?.Current;
+            return true;
         }
         catch
         {
             return false;
         }
+    }
+
+    private static string CurrentEntityKey(
+        AetheriaRuntimeCurrentEntityDocument entity,
+        AetheriaRuntimeCurrentDockingDocument docking)
+    {
+        return !string.IsNullOrWhiteSpace(entity?.EntityKey)
+            ? entity.EntityKey
+            : docking?.CurrentEntityKey ?? "";
     }
 
     private void EnsureDockingDocuments()
