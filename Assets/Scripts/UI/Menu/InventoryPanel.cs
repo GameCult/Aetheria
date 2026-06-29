@@ -215,13 +215,13 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
 
     private void RenderDropdownSurface()
     {
-        _dropdownSurfaceModel = ComposeDropdownSurface();
+        _dropdownSurfaceModel = BuildDropdownSurfaceModel();
 
         _dropdownSurfaceDocument = AetheriaEveUnitySurfaceHost.RenderRuntime(
             transform,
             _dropdownSurfaceDocument,
             "Aetheria Inventory Dropdown Surface",
-            AetheriaRuntimeInventoryDropdownSurfaceBuilder.Build(_dropdownSurfaceModel.State),
+            _dropdownSurfaceModel.Document,
             HandleDropdownSurfaceCommand,
             _dropdownSurfaceChrome);
     }
@@ -299,7 +299,7 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
         AetheriaEveUnitySurfaceHost.Hide(_dropdownSurfaceDocument);
     }
 
-    private AetheriaRuntimeInventoryDropdownSurfaceModel ComposeDropdownSurface()
+    private AetheriaRuntimeInventoryDropdownSurfaceModel BuildDropdownSurfaceModel()
     {
         var stationRefit = ResolveStationRefit();
         _dropdownStationRefitEntities = (stationRefit?.AvailableEntities ?? Array.Empty<AetheriaRuntimeStationRefitEntityOption>())
@@ -328,7 +328,7 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
             .ToArray();
         var hasDockingBay = TryResolveCurrentDockingBayRow(out var currentDockingBay);
 
-        return AetheriaRuntimeInventoryDropdownSurfaceBuilder.Compose(
+        return AetheriaRuntimeInventoryDropdownSurfaceBuilder.Build(
             Title?.text ?? "None",
             entityOptions,
             hasDockingBay,

@@ -151,17 +151,18 @@ namespace GameCult.Aetheria.State.Verse
     public sealed class AetheriaRuntimeInventoryDropdownSurfaceModel
     {
         public AetheriaRuntimeInventoryDropdownSurfaceModel(
-            AetheriaRuntimeInventoryDropdownSurfaceState state,
+            AetheriaRuntimeSurfaceDocument document,
             IReadOnlyDictionary<string, AetheriaRuntimeInventoryDropdownSelection> selections)
         {
-            State = state ?? new AetheriaRuntimeInventoryDropdownSurfaceState(
-                "",
-                Array.Empty<AetheriaRuntimeInventoryDropdownGroup>(),
-                "");
+            Document = document ?? AetheriaRuntimeInventoryDropdownSurfaceBuilder.Build(
+                new AetheriaRuntimeInventoryDropdownSurfaceState(
+                    "",
+                    Array.Empty<AetheriaRuntimeInventoryDropdownGroup>(),
+                    ""));
             Selections = selections ?? new Dictionary<string, AetheriaRuntimeInventoryDropdownSelection>(StringComparer.Ordinal);
         }
 
-        public AetheriaRuntimeInventoryDropdownSurfaceState State { get; }
+        public AetheriaRuntimeSurfaceDocument Document { get; }
         public IReadOnlyDictionary<string, AetheriaRuntimeInventoryDropdownSelection> Selections { get; }
 
         public bool TryResolve(
@@ -199,7 +200,7 @@ namespace GameCult.Aetheria.State.Verse
             return $"{SurfaceId}.loadout_{templateIndex}";
         }
 
-        public static AetheriaRuntimeInventoryDropdownSurfaceModel Compose(
+        public static AetheriaRuntimeInventoryDropdownSurfaceModel Build(
             string currentView,
             IEnumerable<AetheriaRuntimeInventoryDropdownEntityOption> entities,
             bool hasDockingBay,
@@ -334,12 +335,12 @@ namespace GameCult.Aetheria.State.Verse
                     loadoutOptions));
             }
 
-            return new AetheriaRuntimeInventoryDropdownSurfaceModel(
-                new AetheriaRuntimeInventoryDropdownSurfaceState(
-                    currentView,
-                    groups,
-                    updatedAtUtc),
-                selections);
+            var state = new AetheriaRuntimeInventoryDropdownSurfaceState(
+                currentView,
+                groups,
+                updatedAtUtc);
+
+            return new AetheriaRuntimeInventoryDropdownSurfaceModel(Build(state), selections);
         }
 
         public static AetheriaRuntimeSurfaceDocument Build(

@@ -6432,14 +6432,14 @@ static void RequireInventoryDropdownUseEveSurface(string root)
     var requiredSymbols = new[]
     {
         "RenderDropdownSurface(",
-        "ComposeDropdownSurface(",
-        "_dropdownSurfaceModel = ComposeDropdownSurface();",
+        "BuildDropdownSurfaceModel(",
+        "_dropdownSurfaceModel = BuildDropdownSurfaceModel();",
         "HandleDropdownSurfaceCommand(",
         "ExecuteDropdownSelection(",
         "AetheriaEveUnitySurfaceHost.RenderRuntime(",
         "AetheriaEveUnitySurfaceHost.Hide(_dropdownSurfaceDocument)",
-        "AetheriaRuntimeInventoryDropdownSurfaceBuilder.Build(_dropdownSurfaceModel.State)",
-        "AetheriaRuntimeInventoryDropdownSurfaceBuilder.Compose(",
+        "_dropdownSurfaceModel.Document",
+        "AetheriaRuntimeInventoryDropdownSurfaceBuilder.Build(",
         "AetheriaRuntimeInventoryDropdownSurfaceCommands.TryRead(request, out var command)",
         "AetheriaRuntimeInventoryDropdownCommandKind.Close",
         "AetheriaRuntimeInventoryDropdownCommandKind.Select",
@@ -6495,6 +6495,9 @@ static void RequireInventoryDropdownUseEveSurface(string root)
         "BuildDropdownCommands(",
         "ProjectDropdownSurfaceState(",
         "ProjectDropdownSurface(",
+        "ComposeDropdownSurface(",
+        "_dropdownSurfaceModel.State",
+        "AetheriaRuntimeInventoryDropdownSurfaceBuilder.Compose(",
         "_dropdownSurfaceProjection",
         "GameManager.DockingBay",
         "GameManager.AvailableEntities()",
@@ -6570,9 +6573,10 @@ static void RequireInventoryDropdownUseEveSurface(string root)
         "AetheriaRuntimeInventoryDropdownLoadoutOption",
         "AetheriaRuntimeInventoryDropdownSelectionKind",
         "AetheriaRuntimeInventoryDropdownSurfaceModel",
+        "public AetheriaRuntimeSurfaceDocument Document { get; }",
         "public string EntityKey { get; }",
         "entityKey: entity.EntityKey",
-        "public static AetheriaRuntimeInventoryDropdownSurfaceModel Compose(",
+        "public static AetheriaRuntimeInventoryDropdownSurfaceModel Build(",
         "public bool TryResolve(",
         "public static string EntityEquipmentCommand(",
         "public static string EntityBayCommand(",
@@ -6590,6 +6594,13 @@ static void RequireInventoryDropdownUseEveSurface(string root)
         throw new InvalidOperationException(
             "Shared runtime inventory dropdown surface builder no longer owns the inventory dropdown shell contract: " +
             string.Join(", ", missingBuilderSymbols));
+    }
+
+    if (inventoryDropdownSurfaceBuilder.Contains("public AetheriaRuntimeInventoryDropdownSurfaceState State { get; }", StringComparison.Ordinal) ||
+        inventoryDropdownSurfaceBuilder.Contains("public static AetheriaRuntimeInventoryDropdownSurfaceModel Compose(", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Shared runtime inventory dropdown builder must return a model with a finished surface document; do not re-expose Compose or a public State handoff.");
     }
 }
 
