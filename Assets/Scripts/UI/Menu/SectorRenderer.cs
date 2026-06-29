@@ -94,11 +94,32 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
 
     private void RenderZoneDetailsSurface(int zoneIndex)
     {
+        var sectorZone = ResolveSectorZone(zoneIndex);
+        var zoneDetails = ResolveZoneDetails(zoneIndex);
+        var ownerFactionIndex = sectorZone?.OwnerFactionIndex ?? -1;
+        var otherFactions = (sectorZone?.FactionIndices ?? Array.Empty<int>())
+            .Where(index => index >= 0 && index != ownerFactionIndex)
+            .Distinct()
+            .Select(FormatFaction)
+            .ToArray();
+        var zoneFacts = AetheriaRuntimeZoneDetailsSurfaceBuilder.Facts(
+            zoneDetails,
+            ResolveHullType);
+
         _zoneDetailsSurfaceDocument = AetheriaEveUnitySurfaceHost.RenderRuntime(
             transform,
             _zoneDetailsSurfaceDocument,
             "Aetheria Sector Zone Details Surface",
-            AetheriaRuntimeZoneDetailsSurfaceBuilder.Build(ComposeZoneDetailsSurfaceState(zoneIndex)),
+            AetheriaRuntimeZoneDetailsSurfaceBuilder.Build(
+                ResolveZoneName(sectorZone, zoneDetails),
+                ownerFactionIndex >= 0 ? FormatFaction(ownerFactionIndex) : "None",
+                FormatValue((float)zoneFacts.Mass),
+                FormatValue((float)zoneFacts.Radius),
+                otherFactions,
+                zoneFacts.Bodies,
+                zoneFacts.Entities,
+                zoneFacts.HasContents,
+                DateTime.UtcNow.ToString("O")),
             HandleZoneDetailsSurfaceCommand,
             _zoneDetailsSurfaceChrome);
     }
@@ -126,32 +147,6 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
             return;
 
         AetheriaEveUnitySurfaceHost.Hide(_zoneDetailsSurfaceDocument);
-    }
-
-    private AetheriaRuntimeZoneDetailsSurfaceState ComposeZoneDetailsSurfaceState(int zoneIndex)
-    {
-        var sectorZone = ResolveSectorZone(zoneIndex);
-        var zoneDetails = ResolveZoneDetails(zoneIndex);
-        var ownerFactionIndex = sectorZone?.OwnerFactionIndex ?? -1;
-        var otherFactions = (sectorZone?.FactionIndices ?? Array.Empty<int>())
-            .Where(index => index >= 0 && index != ownerFactionIndex)
-            .Distinct()
-            .Select(FormatFaction)
-            .ToArray();
-
-        var zoneFacts = AetheriaRuntimeZoneDetailsSurfaceBuilder.Facts(
-            zoneDetails,
-            ResolveHullType);
-        return AetheriaRuntimeZoneDetailsSurfaceBuilder.Compose(
-            ResolveZoneName(sectorZone, zoneDetails),
-            ownerFactionIndex >= 0 ? FormatFaction(ownerFactionIndex) : "None",
-            FormatValue((float)zoneFacts.Mass),
-            FormatValue((float)zoneFacts.Radius),
-            otherFactions,
-            zoneFacts.Bodies,
-            zoneFacts.Entities,
-            zoneFacts.HasContents,
-            updatedAtUtc: DateTime.UtcNow.ToString("O"));
     }
 
     private string ResolveZoneName(

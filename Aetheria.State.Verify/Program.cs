@@ -4562,10 +4562,11 @@ static void RequireSectorMapZoneDetailsUseEveSurface(string root)
         "HideZoneDetailsSurface(",
         "AetheriaEveUnitySurfaceHost.RenderRuntime(",
         "AetheriaEveUnitySurfaceHost.Hide(_zoneDetailsSurfaceDocument)",
-        "AetheriaRuntimeZoneDetailsSurfaceBuilder.Build(ComposeZoneDetailsSurfaceState(zoneIndex))",
+        "AetheriaRuntimeZoneDetailsSurfaceBuilder.Build(",
         "AetheriaRuntimeZoneDetailsSurfaceBuilder.Facts(",
-        "AetheriaRuntimeZoneDetailsSurfaceBuilder.Compose(",
-        "ZoneDetailsSurfaceState(",
+        "ResolveZoneName(sectorZone, zoneDetails)",
+        "zoneFacts.Bodies",
+        "zoneFacts.Entities",
         "AetheriaUnityRuntimeClientProvider.ResolveClient(",
         ".State",
         ".Reactive<AetheriaRuntimeSectorMapDocument>()",
@@ -4653,8 +4654,10 @@ static void RequireSectorMapZoneDetailsUseEveSurface(string root)
         "OpenRuntimeCatalog()",
         "ProjectZoneBodies(",
         "ProjectZoneEntities(",
+        "ComposeZoneDetailsSurfaceState(",
         "ProjectZoneDetailsSurfaceState(",
         "ProjectDaemonZone(",
+        "AetheriaRuntimeZoneDetailsSurfaceBuilder.Compose(",
         "AetheriaRuntimeZoneDetailsSurfaceBuilder.Project(",
         "AetheriaRuntimeZoneDetailsDaemonProjection",
         "new AetheriaRuntimeZoneDetailsBodyProjection(",
@@ -4689,7 +4692,8 @@ static void RequireSectorMapZoneDetailsUseEveSurface(string root)
         "public static AetheriaRuntimeZoneDetailsFacts Facts(",
         "Math.Max(0, zone.GravityTerrainRadius)",
         ".Sum(body => body.Mass)",
-        "public static AetheriaRuntimeZoneDetailsSurfaceState Compose(",
+        "public static AetheriaRuntimeSurfaceDocument Build(",
+        "private static AetheriaRuntimeZoneDetailsSurfaceState ComposeState(",
         "private static bool IsBodyKind(",
         "private static bool IsPlanetBody(",
         "private static bool HasHullType(",
@@ -4714,6 +4718,13 @@ static void RequireSectorMapZoneDetailsUseEveSurface(string root)
         throw new InvalidOperationException(
             "Shared runtime zone details surface builder no longer owns the sector-map zone shell contract: " +
             string.Join(", ", missingBuilderSymbols));
+    }
+
+    if (zoneDetailsSurfaceBuilder.Contains("public static AetheriaRuntimeZoneDetailsSurfaceState Compose(", StringComparison.Ordinal) ||
+        zoneDetailsSurfaceBuilder.Contains("public static AetheriaRuntimeZoneDetailsSurfaceState Project(", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Runtime zone detail composition must stay behind Build(...); do not re-expose Compose/Project as the public zone details surface path.");
     }
 }
 

@@ -154,7 +154,33 @@ namespace GameCult.Aetheria.State.Verse
                 zone.HasContents);
         }
 
-        public static AetheriaRuntimeZoneDetailsSurfaceState Compose(
+        public static AetheriaRuntimeSurfaceDocument Build(
+            string zoneName,
+            string ownerName,
+            string mass,
+            string radius,
+            IEnumerable<string> otherFactions,
+            IEnumerable<AetheriaRuntimeZoneDetailsBodyFacts> bodies,
+            IEnumerable<AetheriaRuntimeZoneDetailsEntityFacts> entities,
+            bool hasContents,
+            string updatedAtUtc,
+            long version = 1)
+        {
+            return Build(
+                ComposeState(
+                    zoneName,
+                    ownerName,
+                    mass,
+                    radius,
+                    otherFactions,
+                    bodies,
+                    entities,
+                    hasContents,
+                    updatedAtUtc),
+                version);
+        }
+
+        private static AetheriaRuntimeZoneDetailsSurfaceState ComposeState(
             string zoneName,
             string ownerName,
             string mass,

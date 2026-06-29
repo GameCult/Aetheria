@@ -1248,7 +1248,7 @@ public class DaemonRuntimeDocumentTests
         var facts = AetheriaRuntimeZoneDetailsSurfaceBuilder.Facts(
             zone,
             key => key == "station-hull" ? "Station" : "Ship");
-        var state = AetheriaRuntimeZoneDetailsSurfaceBuilder.Compose(
+        var document = AetheriaRuntimeZoneDetailsSurfaceBuilder.Build(
             zone.Name,
             "GameCult",
             facts.Mass.ToString("0"),
@@ -1262,11 +1262,11 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual(40, facts.Mass, 0.0001);
         Assert.AreEqual(420, facts.Radius, 0.0001);
         Assert.IsTrue(facts.HasContents);
-        Assert.AreEqual("1", state.Planets);
-        Assert.AreEqual("1", state.GasGiants);
-        Assert.AreEqual("1", state.AsteroidBelts);
-        Assert.AreEqual("1", state.Stations);
-        Assert.AreEqual("1", state.Ships);
+        Assert.IsTrue(ContainsSurfaceMetric(document.Surface.Root, "Planets", "1"));
+        Assert.IsTrue(ContainsSurfaceMetric(document.Surface.Root, "Gas Giants", "1"));
+        Assert.IsTrue(ContainsSurfaceMetric(document.Surface.Root, "Asteroid Belts", "1"));
+        Assert.IsTrue(ContainsSurfaceMetric(document.Surface.Root, "Stations", "1"));
+        Assert.IsTrue(ContainsSurfaceMetric(document.Surface.Root, "Ships", "1"));
     }
 
     [Test]
