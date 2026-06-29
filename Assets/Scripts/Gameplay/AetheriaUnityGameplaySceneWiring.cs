@@ -136,8 +136,6 @@ public sealed class AetheriaUnityGameplaySceneWiring
 
     public void ConfigureObservedEntityIndex(AetheriaUnityObservedEntityIndex observedEntityIndex)
     {
-        Menu?.SetObservedEntityIndex(observedEntityIndex);
-        TradeMenu?.SetObservedEntityIndex(observedEntityIndex);
         Inventory?.SetObservedEntityIndex(observedEntityIndex);
         ShipPanel?.SetObservedEntityIndex(observedEntityIndex);
         TargetShipPanel?.SetObservedEntityIndex(observedEntityIndex);

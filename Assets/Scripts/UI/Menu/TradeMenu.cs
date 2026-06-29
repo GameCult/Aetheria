@@ -36,8 +36,6 @@ public class TradeMenu : MonoBehaviour
     private UIDocument _filterSurfaceDocument;
     private UIDocument _rowActionSurfaceDocument;
     private UIDocument _tradeItemSurfaceDocument;
-    private AetheriaUnityObservedEntityIndex _observedEntityIndex;
-    private AetheriaUnityObservedDockingIndex _observedDockingIndex;
     private readonly AetheriaEveUnitySurfaceChrome _cargoSelectorSurfaceChrome = PanelChrome(360f, 420f, Align.FlexEnd);
     private readonly AetheriaEveUnitySurfaceChrome _filterSurfaceChrome = PanelChrome(420f, 520f, Align.FlexStart);
     private readonly AetheriaEveUnitySurfaceChrome _rowActionSurfaceChrome = PanelChrome(320f, 360f, Align.FlexStart);
@@ -51,16 +49,6 @@ public class TradeMenu : MonoBehaviour
     
     public EquippedCargoBay Inventory { get; set; }
 
-    public void SetObservedEntityIndex(AetheriaUnityObservedEntityIndex observedEntityIndex)
-    {
-        if (!ReferenceEquals(_observedEntityIndex, observedEntityIndex))
-        {
-            _observedDockingIndex = null;
-        }
-
-        _observedEntityIndex = observedEntityIndex;
-    }
-    
     private void OnEnable()
     {
         if (!TryResolveCurrentDocking(out var docking) ||
@@ -514,26 +502,34 @@ public class TradeMenu : MonoBehaviour
 
     private AetheriaRuntimeStationRefitDocument StationRefitSnapshot()
     {
-        return TryResolveObservedDockingIndex(out var dockingIndex)
-            ? dockingIndex.StationRefitSnapshot()
-            : null;
+        try
+        {
+            return AetheriaUnityRuntimeClientProvider
+                .RuntimeState("unity-trade")
+                .CurrentStationRefit();
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to read Aetheria station refit for trade menu: {ex.Message}");
+            return null;
+        }
     }
 
     private bool TryResolveCurrentDocking(out AetheriaRuntimeCurrentDockingDocument docking)
     {
         docking = null;
-        return TryResolveObservedDockingIndex(out var dockingIndex) &&
-               dockingIndex.TryResolveCurrentDocking(out docking);
-    }
-
-    private bool TryResolveObservedDockingIndex(out AetheriaUnityObservedDockingIndex dockingIndex)
-    {
-        dockingIndex = null;
-        if (_observedEntityIndex == null)
+        try
+        {
+            docking = AetheriaUnityRuntimeClientProvider
+                .RuntimeState("unity-trade")
+                .CurrentDockingState();
+            return docking != null;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to read Aetheria runtime docking for trade menu: {ex.Message}");
             return false;
-
-        dockingIndex = _observedDockingIndex ??= new AetheriaUnityObservedDockingIndex(_observedEntityIndex);
-        return true;
+        }
     }
 
     private bool TryResolveStationRefitCargoTarget(
@@ -579,11 +575,6 @@ public class TradeMenu : MonoBehaviour
             Debug.LogWarning($"Failed to send Aetheria daemon trade {label} operation; operation not submitted: {ex.Message}");
             return false;
         }
-    }
-
-    private void ClearClientCaches()
-    {
-        _observedDockingIndex = null;
     }
 
     private AetheriaRuntimeCatalogSnapshot CatalogSnapshot()
@@ -1258,8 +1249,6 @@ public class TradeMenu : MonoBehaviour
 
     private void OnDestroy()
     {
-        ClearClientCaches();
-
         if (_cargoSelectorSurfaceDocument != null)
         {
             AetheriaEveUnitySurfaceHost.DestroyDocument(_cargoSelectorSurfaceDocument);

@@ -4807,13 +4807,10 @@ static void RequireRuntimeMenuTabsUseEveSurface(string root)
         "new AetheriaRuntimeSurfaceTree(",
         "new AetheriaRuntimeSurfaceCommandTemplate(",
         "ResolveVisibleTabs(",
-        "SetObservedEntityIndex(AetheriaUnityObservedEntityIndex observedEntityIndex)",
-        "private AetheriaUnityObservedEntityIndex _observedEntityIndex;",
-        "private AetheriaUnityObservedDockingIndex _observedDockingIndex;",
-        "dockingIndex.TryResolveCurrentDocking(out var docking)",
+        "TryResolveCurrentDocking(out var docking)",
+        ".RuntimeState(\"unity-runtime-menu-tabs\")",
+        ".CurrentDockingState()",
         "docking.IsDocked",
-        "TryResolveObservedDockingIndex(out AetheriaUnityObservedDockingIndex dockingIndex)",
-        "new AetheriaUnityObservedDockingIndex(_observedEntityIndex)",
         "GetTabLabel(",
         "ToRuntimeTabKey(",
         "NormalizeTabKey(tab.ToString())",
@@ -4874,6 +4871,11 @@ static void RequireRuntimeMenuTabsUseEveSurface(string root)
         ".ReactiveCurrentDocking(\"unity-runtime-menu-tabs\")",
         "docking = _currentDocking.Current",
         "AetheriaRuntimeObservedDockingState",
+        "SetObservedEntityIndex(AetheriaUnityObservedEntityIndex observedEntityIndex)",
+        "private AetheriaUnityObservedEntityIndex _observedEntityIndex;",
+        "private AetheriaUnityObservedDockingIndex _observedDockingIndex;",
+        "TryResolveObservedDockingIndex(out AetheriaUnityObservedDockingIndex dockingIndex)",
+        "new AetheriaUnityObservedDockingIndex(_observedEntityIndex)",
         "ComposeTabSurface(",
         "ProjectTabSurfaceState(",
         "ProjectTabSurface(",
@@ -4900,7 +4902,7 @@ static void RequireRuntimeMenuTabsUseEveSurface(string root)
         source.Contains("private AetheriaClientDockingSnapshot ResolveCurrentDocking()", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "MenuPanel tab visibility must read managed typed current-docking state instead of direct docking caches or ActionGameManager observed adapters.");
+            "MenuPanel tab visibility must read current typed docking state directly instead of direct docking caches, ActionGameManager observed adapters, or Unity observed docking index bridges.");
     }
 
     if (File.Exists(legacyMenuTabsSurfaceBuilderPath))
@@ -5787,13 +5789,9 @@ static void RequireTradeCargoSelectorUseEveSurface(string root)
         "AetheriaRuntimeTradeCargoSelectorSurfaceCommands.TryRead(request, out var command)",
         "AetheriaRuntimeTradeCargoSelectorCommandKind.Close",
         "AetheriaRuntimeTradeCargoSelectorCommandKind.Select",
-        "SetObservedEntityIndex(AetheriaUnityObservedEntityIndex observedEntityIndex)",
-        "private AetheriaUnityObservedEntityIndex _observedEntityIndex;",
-        "private AetheriaUnityObservedDockingIndex _observedDockingIndex;",
-        "TryResolveObservedDockingIndex(out AetheriaUnityObservedDockingIndex dockingIndex)",
-        "new AetheriaUnityObservedDockingIndex(_observedEntityIndex)",
-        "dockingIndex.StationRefitSnapshot()",
-        "dockingIndex.TryResolveCurrentDocking(out docking)",
+        ".RuntimeState(\"unity-trade\")",
+        ".CurrentStationRefit()",
+        ".CurrentDockingState()",
         "SetTargetCargo(",
         "selection.EntityKey",
         "OwnedQuantity",
@@ -5836,6 +5834,14 @@ static void RequireTradeCargoSelectorUseEveSurface(string root)
         "AetheriaRuntimeTradeCargoSelectorSurfaceBuilder.Compose(",
         "_cargoSelectorSurfaceProjection",
         "AetheriaRuntimeObservedDockingState",
+        "SetObservedEntityIndex(AetheriaUnityObservedEntityIndex observedEntityIndex)",
+        "private AetheriaUnityObservedEntityIndex _observedEntityIndex;",
+        "private AetheriaUnityObservedDockingIndex _observedDockingIndex;",
+        "TryResolveObservedDockingIndex(out AetheriaUnityObservedDockingIndex dockingIndex)",
+        "new AetheriaUnityObservedDockingIndex(_observedEntityIndex)",
+        "dockingIndex.StationRefitSnapshot()",
+        "dockingIndex.TryResolveCurrentDocking(out docking)",
+        "ClearClientCaches()",
         "ResolveClient().State.CurrentDocking()",
         "CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> _currentDocking",
         ".ReactiveCurrentDocking(\"unity-trade\")",
@@ -7413,7 +7419,7 @@ static void RequireMenuDockingUsesManagedTypedSnapshot(string root)
     if (directDockingOffenders.Count > 0)
     {
         throw new InvalidOperationException(
-            "Unity menu docking reads must share AetheriaUnityObservedDockingIndex instead of owning duplicate reactive docking/refit documents: " +
+            "Unity menu docking reads must use current typed state or the Unity observed docking bridge when entity objects are required; do not own duplicate reactive docking/refit documents: " +
             string.Join(", ", directDockingOffenders));
     }
 
@@ -7422,6 +7428,17 @@ static void RequireMenuDockingUsesManagedTypedSnapshot(string root)
 
 static bool HasManagedDockingSnapshotAccess(string source)
 {
+    if (source.Contains("AetheriaUnityRuntimeClientProvider", StringComparison.Ordinal) &&
+        source.Contains("RuntimeState(", StringComparison.Ordinal) &&
+        (source.Contains(".CurrentDockingState()", StringComparison.Ordinal) ||
+            source.Contains(".CurrentStationRefit()", StringComparison.Ordinal)) &&
+        !source.Contains("AetheriaClientReactiveDockingState _reactiveDockingState", StringComparison.Ordinal) &&
+        !source.Contains("CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument>", StringComparison.Ordinal) &&
+        !source.Contains("CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument>", StringComparison.Ordinal))
+    {
+        return true;
+    }
+
     if (source.Contains("AetheriaUnityObservedDockingIndex", StringComparison.Ordinal) &&
         source.Contains("TryResolveObservedDockingIndex(out var dockingIndex)", StringComparison.Ordinal) &&
         source.Contains("dockingIndex.TryResolveCurrent", StringComparison.Ordinal) &&
