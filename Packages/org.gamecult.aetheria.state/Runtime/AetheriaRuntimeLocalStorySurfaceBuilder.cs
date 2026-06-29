@@ -17,32 +17,6 @@ namespace GameCult.Aetheria.State.Verse
         public string Label { get; }
     }
 
-    public sealed class AetheriaRuntimeLocalStorySurfaceState
-    {
-        public AetheriaRuntimeLocalStorySurfaceState(
-            string locationLabel,
-            string currentPath,
-            string body,
-            bool canContinue,
-            IReadOnlyList<AetheriaRuntimeLocalStoryChoiceState> choices,
-            string updatedAtUtc)
-        {
-            LocationLabel = locationLabel ?? "";
-            CurrentPath = currentPath ?? "";
-            Body = body ?? "";
-            CanContinue = canContinue;
-            Choices = choices ?? Array.Empty<AetheriaRuntimeLocalStoryChoiceState>();
-            UpdatedAtUtc = updatedAtUtc ?? "";
-        }
-
-        public string LocationLabel { get; }
-        public string CurrentPath { get; }
-        public string Body { get; }
-        public bool CanContinue { get; }
-        public IReadOnlyList<AetheriaRuntimeLocalStoryChoiceState> Choices { get; }
-        public string UpdatedAtUtc { get; }
-    }
-
     public static class AetheriaRuntimeLocalStorySurfaceBuilder
     {
         public const string SurfaceId = "aetheria.runtime_menu.local_story";
@@ -63,46 +37,15 @@ namespace GameCult.Aetheria.State.Verse
             string updatedAtUtc,
             long version = 1)
         {
-            return Build(
-                ComposeState(
-                    locationLabel,
-                    currentPath,
-                    body,
-                    canContinue,
-                    choices,
-                    updatedAtUtc),
-                version);
-        }
-
-        private static AetheriaRuntimeLocalStorySurfaceState ComposeState(
-            string locationLabel,
-            string currentPath,
-            string body,
-            bool canContinue,
-            IEnumerable<AetheriaRuntimeLocalStoryChoiceState> choices,
-            string updatedAtUtc)
-        {
-            return new AetheriaRuntimeLocalStorySurfaceState(
-                locationLabel,
-                currentPath,
-                string.IsNullOrWhiteSpace(body) ? "..." : body.Trim(),
-                canContinue,
-                (choices ?? Array.Empty<AetheriaRuntimeLocalStoryChoiceState>())
-                    .Where(choice => choice != null)
-                    .OrderBy(choice => choice.Index)
-                    .ToArray(),
-                updatedAtUtc);
-        }
-
-        public static AetheriaRuntimeSurfaceDocument Build(
-            AetheriaRuntimeLocalStorySurfaceState state,
-            long version = 1)
-        {
-            state ??= ComposeState("", "", "", false, Array.Empty<AetheriaRuntimeLocalStoryChoiceState>(), "");
+            var storyBody = string.IsNullOrWhiteSpace(body) ? "..." : body.Trim();
+            var orderedChoices = (choices ?? Array.Empty<AetheriaRuntimeLocalStoryChoiceState>())
+                .Where(choice => choice != null)
+                .OrderBy(choice => choice.Index)
+                .ToArray();
 
             var commands = new List<AetheriaRuntimeSurfaceCommandTemplate>();
             var controls = new List<AetheriaRuntimeSurfaceComponent>();
-            if (state.CanContinue)
+            if (canContinue)
             {
                 commands.Add(new AetheriaRuntimeSurfaceCommandTemplate(
                     Continue,
@@ -111,7 +54,7 @@ namespace GameCult.Aetheria.State.Verse
                 controls.Add(Button($"{SurfaceId}.continue", "Continue", Continue));
             }
 
-            foreach (var choice in state.Choices)
+            foreach (var choice in orderedChoices)
             {
                 var command = ChoiceCommandFor(choice.Index);
                 commands.Add(new AetheriaRuntimeSurfaceCommandTemplate(
@@ -125,9 +68,9 @@ namespace GameCult.Aetheria.State.Verse
             {
                 Card(
                     $"{SurfaceId}.card",
-                    string.IsNullOrWhiteSpace(state.LocationLabel) ? "Local" : state.LocationLabel,
-                    Text($"{SurfaceId}.body", state.Body),
-                    Metric($"{SurfaceId}.path", "Path", string.IsNullOrWhiteSpace(state.CurrentPath) ? "root" : state.CurrentPath))
+                    string.IsNullOrWhiteSpace(locationLabel) ? "Local" : locationLabel,
+                    Text($"{SurfaceId}.body", storyBody),
+                    Metric($"{SurfaceId}.path", "Path", string.IsNullOrWhiteSpace(currentPath) ? "root" : currentPath))
             };
             if (controls.Count > 0)
                 children.Add(ButtonColumn($"{SurfaceId}.controls", controls.ToArray()));
@@ -137,7 +80,7 @@ namespace GameCult.Aetheria.State.Verse
                 providerKind: "runtime.menu",
                 title: "Local Story",
                 version: version,
-                updatedAtUtc: state.UpdatedAtUtc,
+                updatedAtUtc: updatedAtUtc ?? "",
                 surface: new AetheriaRuntimeSurfaceTree(
                     SurfaceId,
                     Node(

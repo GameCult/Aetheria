@@ -4972,12 +4972,12 @@ static void RequireRuntimeMenuTabsUseEveSurface(string root)
         "public const string Continue = \"aetheria.runtime_menu.local_story.continue\"",
         "ChoiceCommandFor(int choiceIndex)",
         "public static AetheriaRuntimeSurfaceDocument Build(",
-        "private static AetheriaRuntimeLocalStorySurfaceState ComposeState(",
+        "var storyBody = string.IsNullOrWhiteSpace(body) ? \"...\" : body.Trim()",
+        "var orderedChoices = (choices ?? Array.Empty<AetheriaRuntimeLocalStoryChoiceState>())",
         "public enum AetheriaRuntimeLocalStoryCommandKind",
         "public readonly struct AetheriaRuntimeLocalStoryCommand",
         "public static class AetheriaRuntimeLocalStorySurfaceCommands",
-        "AetheriaRuntimeLocalStoryChoiceState",
-        "AetheriaRuntimeLocalStorySurfaceState"
+        "AetheriaRuntimeLocalStoryChoiceState"
     };
     var missingLocalStoryBuilderSymbols = requiredLocalStoryBuilderSymbols
         .Where(symbol => !localStorySurfaceBuilder.Contains(symbol, StringComparison.Ordinal))
@@ -4987,6 +4987,14 @@ static void RequireRuntimeMenuTabsUseEveSurface(string root)
         throw new InvalidOperationException(
             "Shared runtime local story surface builder no longer owns the local story shell contract: " +
             string.Join(", ", missingLocalStoryBuilderSymbols));
+    }
+
+    if (localStorySurfaceBuilder.Contains("AetheriaRuntimeLocalStorySurfaceState", StringComparison.Ordinal) ||
+        localStorySurfaceBuilder.Contains("ComposeState(", StringComparison.Ordinal) ||
+        localStorySurfaceBuilder.Contains("public static AetheriaRuntimeLocalStorySurfaceState Project(", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Runtime local story composition must emit the typed surface document directly; do not rebuild a shadow SurfaceState projection layer.");
     }
 
     var requiredBuilderSymbols = new[]
