@@ -4670,7 +4670,6 @@ static void RequireSectorMapZoneDetailsUseEveSurface(string root)
         "runtimeZone.PlanetInstances",
         "runtimeZone.AsteroidBelts",
         "runtimeZone.Entities",
-        "new AetheriaRuntimeZoneDetailsSurfaceState(",
         "private static bool IsBodyKind(",
         "private static bool IsPlanetBody(",
         "private static bool HasHullType(",
@@ -4698,7 +4697,10 @@ static void RequireSectorMapZoneDetailsUseEveSurface(string root)
         "Math.Max(0, zone.GravityTerrainRadius)",
         ".Sum(body => body.Mass)",
         "public static AetheriaRuntimeSurfaceDocument Build(",
-        "private static AetheriaRuntimeZoneDetailsSurfaceState ComposeState(",
+        "var bodyList = (bodies ?? Array.Empty<AetheriaRuntimeZoneDetailsBodyFacts>())",
+        "var sortedFactions = (otherFactions ?? Array.Empty<string>())",
+        "var planets = bodyList.Count(IsPlanetBody).ToString()",
+        "var stations = entityList.Count(entity => HasHullType(entity, \"Station\")).ToString()",
         "private static bool IsBodyKind(",
         "private static bool IsPlanetBody(",
         "private static bool HasHullType(",
@@ -4708,7 +4710,6 @@ static void RequireSectorMapZoneDetailsUseEveSurface(string root)
         "public readonly struct AetheriaRuntimeZoneDetailsCommand",
         "public static class AetheriaRuntimeZoneDetailsSurfaceCommands",
         "public static bool TryRead(",
-        "AetheriaRuntimeZoneDetailsSurfaceState",
         "public static AetheriaRuntimeSurfaceDocument Build(",
         "providerKind: \"sector.map\"",
         "Factions Present",
@@ -4725,11 +4726,13 @@ static void RequireSectorMapZoneDetailsUseEveSurface(string root)
             string.Join(", ", missingBuilderSymbols));
     }
 
-    if (zoneDetailsSurfaceBuilder.Contains("public static AetheriaRuntimeZoneDetailsSurfaceState Compose(", StringComparison.Ordinal) ||
+    if (zoneDetailsSurfaceBuilder.Contains("AetheriaRuntimeZoneDetailsSurfaceState", StringComparison.Ordinal) ||
+        zoneDetailsSurfaceBuilder.Contains("ComposeState(", StringComparison.Ordinal) ||
+        zoneDetailsSurfaceBuilder.Contains("public static AetheriaRuntimeZoneDetailsSurfaceState Compose(", StringComparison.Ordinal) ||
         zoneDetailsSurfaceBuilder.Contains("public static AetheriaRuntimeZoneDetailsSurfaceState Project(", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Runtime zone detail composition must stay behind Build(...); do not re-expose Compose/Project as the public zone details surface path.");
+            "Runtime zone details must emit the typed surface document directly; do not rebuild a shadow SurfaceState projection layer.");
     }
 }
 
