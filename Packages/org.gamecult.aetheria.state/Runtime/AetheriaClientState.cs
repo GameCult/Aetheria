@@ -226,17 +226,6 @@ namespace GameCult.Aetheria.State.Verse
                 : null;
         }
 
-        public AetheriaRuntimeObservedDockingState? CurrentDocking(
-            CultMeshReactiveDocumentOptions? options = null)
-        {
-            using var entity = Reactive<AetheriaRuntimeCurrentEntityDocument>(options);
-            using var docking = Reactive<AetheriaRuntimeCurrentDockingDocument>(options);
-            using var refit = Reactive<AetheriaRuntimeStationRefitDocument>(options);
-            return AetheriaRuntimeObservedDockingState.TryCreateCurrent(entity, docking, refit, out var current)
-                ? current
-                : null;
-        }
-
         public CultMeshDocumentHandle<TDocument> Document<TDocument>(AetheriaClientEveSurface surface)
             where TDocument : class
         {

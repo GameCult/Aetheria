@@ -7169,6 +7169,13 @@ static void RequireMenuDockingUsesManagedTypedSnapshot(string root)
             string.Join(", ", forbiddenClientHits));
     }
 
+    if (clientState.Contains("public AetheriaRuntimeObservedDockingState? CurrentDocking(", StringComparison.Ordinal) ||
+        clientState.Contains("AetheriaRuntimeObservedDockingState.TryCreateCurrent(entity, docking, refit", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "AetheriaClientState must not expose one-shot observed docking aggregation; callers should hold the managed typed docking documents they need.");
+    }
+
     var menuPaths = new[]
     {
         Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "InventoryMenu.cs"),
@@ -8109,6 +8116,7 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
     }
 
     var clientState = File.ReadAllText(clientStatePath);
+    var daemonRuntimeDocumentTests = File.ReadAllText(daemonRuntimeDocumentTestsPath);
     var topLevelClientState = clientState.Split(
         "public sealed class AetheriaClientDaemonState",
         StringSplitOptions.None)[0];
@@ -8117,7 +8125,6 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
         "public Task<TDocument> LatestAsync<TDocument>()",
         "public TDocument Latest<TDocument>()",
         "public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(",
-        "public AetheriaRuntimeObservedDockingState? CurrentDocking(",
         "public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(",
         "public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(",
         "public CultMeshReactiveDocument<TDocument> Reactive<TDocument>(",
@@ -8421,6 +8428,13 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
     {
         throw new InvalidOperationException(
             "Observed docking state still samples legacy session wrappers instead of direct reactive CultMesh documents.");
+    }
+
+    if (!daemonRuntimeDocumentTests.Contains("AetheriaRuntimeObservedDockingState.TryCreateCurrent(", StringComparison.Ordinal) ||
+        daemonRuntimeDocumentTests.Contains("client.State.CurrentDocking()", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Daemon runtime document tests must teach observed docking composition from caller-owned managed reactive typed documents.");
     }
 
     if (observedDaemonState.Contains("state.LatestFrame.ReactiveAsync", StringComparison.Ordinal) ||
@@ -13218,7 +13232,7 @@ static void RequireMainMenuContinueRunState(string root)
     if (observedDockingHits.Length > 0)
     {
         throw new InvalidOperationException(
-            "Observed docking state composition must live in AetheriaClientState.CurrentDocking(), not the Unity docking index: " +
+            "Observed docking state composition must use owned managed reactive typed documents in AetheriaUnityObservedDockingIndex: " +
             string.Join(", ", observedDockingHits));
     }
 

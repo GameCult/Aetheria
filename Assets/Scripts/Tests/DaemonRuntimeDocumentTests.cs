@@ -239,7 +239,11 @@ public class DaemonRuntimeDocumentTests
             .GetAwaiter()
             .GetResult();
         var stationRefit = client.State.Latest<AetheriaRuntimeStationRefitDocument>();
-        var observedDocking = client.State.CurrentDocking();
+        Assert.IsTrue(AetheriaRuntimeObservedDockingState.TryCreateCurrent(
+            currentEntityDocumentReactive,
+            currentDockingReactive,
+            stationRefitReactive,
+            out var observedDocking));
         using var reactiveGameSurface = client.State.Reactive<global::Aetheria.State.Documents.EveSurfaceState>(AetheriaClientEveSurface.Game);
         using var reactiveGameTuiSurface = client.State.Reactive<global::Aetheria.State.Documents.EveSurfaceState>(AetheriaClientEveSurface.GameTui);
         using var reactiveEditorSurface = client.State.Reactive<global::Aetheria.State.Documents.EveSurfaceState>(AetheriaClientEveSurface.Editor);
