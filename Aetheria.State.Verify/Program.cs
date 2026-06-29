@@ -9448,10 +9448,8 @@ static void RequireClientTargetBootAuthority(string root)
         "!stateBoot.SupportsLocalStateFileRead",
         "stateBoot.StateFileExists",
         "AetheriaUnityRuntimeClientProvider.RuntimeState(stateBoot, stateBoot.RuntimeId)",
-        ".ReactiveCatalogSnapshot()",
-        "runtimeCatalogDocument.Current",
-        ".ReactiveSectorMap()",
-        "sectorMapDocument.Current",
+        "runtimeState.CurrentCatalog()",
+        "runtimeState.CurrentSectorMap()",
         "new ItemManager(",
         "new AetheriaUnityLoadoutItemFactory(itemManager, runtimeCatalog)",
         "ZoneRenderer.SetDroppedPickupItemFactory(loadoutItemFactory.CreateLoadoutItem)",
@@ -9473,6 +9471,10 @@ static void RequireClientTargetBootAuthority(string root)
 
     if (gameplayBootShell.Contains(".ObserveCatalog()", StringComparison.Ordinal) ||
         gameplayBootShell.Contains(".ObserveSectorMap()", StringComparison.Ordinal) ||
+        gameplayBootShell.Contains(".ReactiveCatalogSnapshot()", StringComparison.Ordinal) ||
+        gameplayBootShell.Contains("runtimeCatalogDocument.Current", StringComparison.Ordinal) ||
+        gameplayBootShell.Contains(".ReactiveSectorMap()", StringComparison.Ordinal) ||
+        gameplayBootShell.Contains("sectorMapDocument.Current", StringComparison.Ordinal) ||
         gameplayBootShell.Contains("AetheriaUnityRuntimeClientProvider.ResolveClient(stateBoot.StateFilePath, stateBoot.RuntimeId)", StringComparison.Ordinal) ||
         gameplayBootShell.Contains(".State;"))
     {
@@ -16466,10 +16468,8 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "public AetheriaUnityGameplayBootResult Boot()",
         "AetheriaRuntimeStateBoot.Inspect(AetheriaUnityRuntimePaths.GameDataDirectory)",
         "AetheriaUnityRuntimeClientProvider.RuntimeState(stateBoot, stateBoot.RuntimeId)",
-        ".ReactiveCatalogSnapshot()",
-        "runtimeCatalogDocument.Current",
-        ".ReactiveSectorMap()",
-        "sectorMapDocument.Current",
+        "runtimeState.CurrentCatalog()",
+        "runtimeState.CurrentSectorMap()",
         "new ItemManager(",
         "new AetheriaUnityLoadoutItemFactory(itemManager, runtimeCatalog)",
         "ZoneRenderer.SetDroppedPickupItemFactory(loadoutItemFactory.CreateLoadoutItem)",
@@ -17041,10 +17041,8 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
 
     var requiredGameplayBootSymbols = new[]
     {
-        ".ReactiveCatalogSnapshot()",
-        "runtimeCatalogDocument.Current",
-        ".ReactiveSectorMap()",
-        "sectorMapDocument.Current",
+        "runtimeState.CurrentCatalog()",
+        "runtimeState.CurrentSectorMap()",
         "Galaxy.ProjectObservedSectorMap(",
         "sectorMap.IsTutorial",
         "sectorMap.GenerationSeed",
@@ -17059,6 +17057,15 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         throw new InvalidOperationException(
             "AetheriaUnityGameplayBootShell must own managed catalog/sector-map projection for the observed gameplay scene: " +
             string.Join(", ", missingGameplayBootSymbols));
+    }
+
+    if (gameplayBootShell.Contains(".ReactiveCatalogSnapshot()", StringComparison.Ordinal) ||
+        gameplayBootShell.Contains("runtimeCatalogDocument.Current", StringComparison.Ordinal) ||
+        gameplayBootShell.Contains(".ReactiveSectorMap()", StringComparison.Ordinal) ||
+        gameplayBootShell.Contains("sectorMapDocument.Current", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "AetheriaUnityGameplayBootShell should use named current typed state reads for one-shot gameplay boot catalog/sector-map access.");
     }
 
     var observedRunProjectionPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityObservedRunProjection.cs");
