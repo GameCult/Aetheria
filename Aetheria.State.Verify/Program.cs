@@ -13347,8 +13347,10 @@ static void RequireMainMenuContinueRunState(string root)
         "private AetheriaUnityEntityBlueprintMaterializer EntityBlueprintMaterializer =>",
         "EntityBlueprintMaterializer.MaterializeObservedEntity",
         "_loadoutItemFactory.CreateLoadoutItem",
-        "private AetheriaUnityObservedDockingIndex ObservedDocking =>",
-        "ObservedDocking.IsEntityUndocked(CurrentEntity)",
+        "ResolveDockParent = ResolveDockParentFromCurrentDocking",
+        "CurrentDockingSnapshot()",
+        ".RuntimeState(\"unity-action-game-manager\")",
+        ".CurrentDockingState()",
         "IsCurrentEntityObservedUndocked(",
         "private AetheriaUnityCurrentEntityBinder CurrentEntityBinder =>",
         "private readonly AetheriaUnityCurrentEntityPresentation _currentEntityPresentation",
@@ -13743,7 +13745,8 @@ static void RequireMainMenuContinueRunState(string root)
         "public void RestoreBinding(",
         "public void ClearBinding()",
         "private void BindUndocked(",
-        "ObservedDocking.TryResolveDockingBay(currentEntity, out var dockParent, out _)",
+        "public Func<Entity, Entity> ResolveDockParent { get; set; }",
+        "var dockParent = ResolveDockParent?.Invoke(currentEntity)",
         "CurrentEntityPresentation?.BindDocked(",
         "CurrentEntityPresentation?.BindUndocked(",
         "TargetPresentation?.ClearIndicators();",
@@ -13766,6 +13769,8 @@ static void RequireMainMenuContinueRunState(string root)
     var forbiddenManagerCurrentEntityBinderSymbols = new[]
     {
         "if (ObservedDocking.TryResolveDockingBay(currentEntity, out var dockParent, out _))",
+        "private AetheriaUnityObservedDockingIndex ObservedDocking =>",
+        "ObservedDocking.IsEntityUndocked(CurrentEntity)",
         "_currentEntityPresentation.BindDocked(",
         "_currentEntityPresentation.BindUndocked(",
         "_targetPresentation.ClearIndicators();",
@@ -14771,7 +14776,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
     }
 
     if (!currentEntityBinder.Contains("public void RestoreBinding(", StringComparison.Ordinal) ||
-        !currentEntityBinder.Contains("ObservedDocking.TryResolveDockingBay(currentEntity, out var dockParent, out _)", StringComparison.Ordinal) ||
+        !currentEntityBinder.Contains("var dockParent = ResolveDockParent?.Invoke(currentEntity)", StringComparison.Ordinal) ||
         !currentEntityBinder.Contains("CurrentEntityPresentation?.BindDocked(", StringComparison.Ordinal) ||
         !currentEntityBinder.Contains("CurrentEntityPresentation?.BindUndocked(", StringComparison.Ordinal))
     {

@@ -15,10 +15,10 @@ public sealed class AetheriaUnityCurrentEntityBinder
     public ZoneRenderer ZoneRenderer { get; set; }
     public PostProcessVolume DeathPost { get; set; }
     public CanvasGroup GameplayUI { get; set; }
-    public AetheriaUnityObservedDockingIndex ObservedDocking { get; set; }
     public AetheriaUnityCurrentEntityPresentation CurrentEntityPresentation { get; set; }
     public AetheriaUnityTargetPresentation TargetPresentation { get; set; }
     public Func<Entity> GetCurrentEntity { get; set; }
+    public Func<Entity, Entity> ResolveDockParent { get; set; }
     public Action<Entity> SetCurrentEntity { get; set; }
     public Func<float3> GetViewDirection { get; set; }
     public Action<float3> SetViewDirection { get; set; }
@@ -31,8 +31,8 @@ public sealed class AetheriaUnityCurrentEntityBinder
 
     public void RestoreBinding(Entity currentEntity)
     {
-        if (ObservedDocking != null &&
-            ObservedDocking.TryResolveDockingBay(currentEntity, out var dockParent, out _))
+        var dockParent = ResolveDockParent?.Invoke(currentEntity);
+        if (dockParent != null)
         {
             SetCurrentEntity?.Invoke(currentEntity);
             ApplyActionBarBindings?.Invoke(Array.Empty<AetheriaUnityActionBarBinding>());

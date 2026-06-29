@@ -16,7 +16,6 @@ public class ActionGameManager : MonoBehaviour
 {
     private AetheriaDaemonObserver _daemonObserver;
     private AetheriaUnityPilotCommandSender _pilotCommands;
-    private AetheriaUnityObservedDockingIndex _observedDocking;
     private AetheriaUnityObservedEntityRestorer _observedEntityRestorer;
     private AetheriaUnityCurrentEntityBinder _currentEntityBinder;
     private AetheriaUnityObservedZoneContextFactory _observedZoneContextFactory;
@@ -35,8 +34,6 @@ public class ActionGameManager : MonoBehaviour
         _pilotCommands ??= new AetheriaUnityPilotCommandSender(
             () => AetheriaUnityRuntimeClientProvider.Control("unity-pilot-commands"),
             () => Time.unscaledTime);
-    private AetheriaUnityObservedDockingIndex ObservedDocking =>
-        _observedDocking ??= new AetheriaUnityObservedDockingIndex(_observedEntityIndex);
     private AetheriaUnityObservedEntityRestorer ObservedEntityRestorer =>
         _observedEntityRestorer ??= new AetheriaUnityObservedEntityRestorer(
             _observedEntityIndex,
@@ -57,10 +54,10 @@ public class ActionGameManager : MonoBehaviour
             ZoneRenderer = ZoneRenderer,
             DeathPost = DeathPost,
             GameplayUI = GameplayUI,
-            ObservedDocking = ObservedDocking,
             CurrentEntityPresentation = _currentEntityPresentation,
             TargetPresentation = _targetPresentation,
             GetCurrentEntity = () => CurrentEntity,
+            ResolveDockParent = ResolveDockParentFromCurrentDocking,
             SetCurrentEntity = entity => CurrentEntity = entity,
             GetViewDirection = () => _viewDirection,
             SetViewDirection = direction => _viewDirection = direction,
@@ -297,7 +294,6 @@ public class ActionGameManager : MonoBehaviour
     {
         _gameplayInputShell?.Dispose();
         _observedTargetQuery = null;
-        _observedDocking = null;
         AetheriaUnityRuntimeClientProvider.Dispose();
     }
 
@@ -348,7 +344,61 @@ public class ActionGameManager : MonoBehaviour
 
     private bool IsCurrentEntityObservedUndocked()
     {
-        return ObservedDocking.IsEntityUndocked(CurrentEntity);
+        var docking = CurrentDockingSnapshot();
+        if (CurrentEntity == null ||
+            docking == null ||
+            docking.CurrentEntityIndex != CurrentEntity.DaemonEntityIndex)
+        {
+            return false;
+        }
+
+        if (_observedEntityIndex.TryResolveEntityRecordKey(CurrentEntity, out var currentEntityKey) &&
+            !string.IsNullOrWhiteSpace(docking.CurrentEntityKey) &&
+            !string.Equals(docking.CurrentEntityKey, currentEntityKey, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        return !docking.IsDocked;
+    }
+
+    private Entity ResolveDockParentFromCurrentDocking(Entity currentEntity)
+    {
+        var docking = CurrentDockingSnapshot();
+        if (currentEntity == null ||
+            docking == null ||
+            !docking.IsDocked ||
+            docking.CurrentEntityIndex != currentEntity.DaemonEntityIndex ||
+            string.IsNullOrWhiteSpace(docking.DockParentEntityKey))
+        {
+            return null;
+        }
+
+        if (_observedEntityIndex.TryResolveEntityRecordKey(currentEntity, out var currentEntityKey) &&
+            !string.IsNullOrWhiteSpace(docking.CurrentEntityKey) &&
+            !string.Equals(docking.CurrentEntityKey, currentEntityKey, StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        return _observedEntityIndex.TryResolveEntityByRecordKey(docking.DockParentEntityKey, out var dockParent)
+            ? dockParent
+            : null;
+    }
+
+    private static AetheriaRuntimeCurrentDockingDocument CurrentDockingSnapshot()
+    {
+        try
+        {
+            return AetheriaUnityRuntimeClientProvider
+                .RuntimeState("unity-action-game-manager")
+                .CurrentDockingState();
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to read Aetheria current docking for gameplay manager: {ex.Message}");
+            return null;
+        }
     }
 
     private GalaxyZone ResolveObservedGalaxyZone(int daemonZoneIndex)
