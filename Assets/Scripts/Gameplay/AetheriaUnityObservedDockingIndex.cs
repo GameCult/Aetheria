@@ -9,17 +9,13 @@ using GameCult.Mesh;
 
 public sealed class AetheriaUnityObservedDockingIndex : IDisposable
 {
-    private readonly Func<AetheriaClient> _resolveClient;
     private readonly AetheriaUnityObservedEntityIndex _observedEntityIndex;
     private CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> _currentEntity;
     private CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> _currentDocking;
     private CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> _stationRefit;
 
-    public AetheriaUnityObservedDockingIndex(
-        Func<AetheriaClient> resolveClient,
-        AetheriaUnityObservedEntityIndex observedEntityIndex)
+    public AetheriaUnityObservedDockingIndex(AetheriaUnityObservedEntityIndex observedEntityIndex)
     {
-        _resolveClient = resolveClient ?? throw new ArgumentNullException(nameof(resolveClient));
         _observedEntityIndex = observedEntityIndex ?? throw new ArgumentNullException(nameof(observedEntityIndex));
     }
 
@@ -208,13 +204,12 @@ public sealed class AetheriaUnityObservedDockingIndex : IDisposable
         if (_currentEntity != null && _currentDocking != null && _stationRefit != null)
             return;
 
-        var state = _resolveClient()?.State;
-        if (state == null)
-            return;
-
-        _currentEntity ??= state.Reactive<AetheriaRuntimeCurrentEntityDocument>();
-        _currentDocking ??= state.Reactive<AetheriaRuntimeCurrentDockingDocument>();
-        _stationRefit ??= state.Reactive<AetheriaRuntimeStationRefitDocument>();
+        _currentEntity ??= AetheriaUnityRuntimeClientProvider
+            .Reactive<AetheriaRuntimeCurrentEntityDocument>("unity-observed-docking");
+        _currentDocking ??= AetheriaUnityRuntimeClientProvider
+            .Reactive<AetheriaRuntimeCurrentDockingDocument>("unity-observed-docking");
+        _stationRefit ??= AetheriaUnityRuntimeClientProvider
+            .Reactive<AetheriaRuntimeStationRefitDocument>("unity-observed-docking");
     }
 
     public void Dispose()

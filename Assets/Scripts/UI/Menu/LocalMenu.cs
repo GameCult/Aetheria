@@ -223,9 +223,7 @@ public class LocalMenu : MonoBehaviour
         if (_observedEntityIndex == null)
             return false;
 
-        dockingIndex = _observedDockingIndex ??= new AetheriaUnityObservedDockingIndex(
-            () => AetheriaUnityRuntimeClientProvider.RuntimeClient("unity-runtime-local-story"),
-            _observedEntityIndex);
+        dockingIndex = _observedDockingIndex ??= new AetheriaUnityObservedDockingIndex(_observedEntityIndex);
         return true;
     }
 

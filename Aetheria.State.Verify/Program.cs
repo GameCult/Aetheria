@@ -4921,14 +4921,14 @@ static void RequireRuntimeMenuTabsUseEveSurface(string root)
         "private bool TryResolveDockedLocalStory(out LocationStory story)",
         "private bool TryResolveObservedDockingIndex(out AetheriaUnityObservedDockingIndex dockingIndex)",
         "SetObservedEntityIndex(AetheriaUnityObservedEntityIndex observedEntityIndex)",
+        "new AetheriaUnityObservedDockingIndex(_observedEntityIndex)",
         "dockingIndex.TryResolveCurrentDockingBay(out var dockingBay)",
         "dockingBay?.Entity is not OrbitalEntity { Story: { } dockedStory }",
         "AetheriaRuntimeLocalStorySurfaceBuilder.Build(",
         "AetheriaRuntimeLocalStorySurfaceCommands.TryRead(request, out var command)",
         "AetheriaRuntimeLocalStoryCommandKind.Continue",
         "AetheriaRuntimeLocalStoryCommandKind.Choose",
-        "new AetheriaRuntimeLocalStoryChoiceState(",
-        "unity-runtime-local-story"
+        "new AetheriaRuntimeLocalStoryChoiceState("
     };
     var dockedStoryObserverCorpus = localMenu;
     var missingDockedStoryObserverSymbols = requiredDockedStoryObserverSymbols
@@ -7444,9 +7444,10 @@ static bool HasManagedDockingSnapshotAccess(string source)
            source.Contains("CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> _currentDocking", StringComparison.Ordinal) &&
            source.Contains("CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> _stationRefit", StringComparison.Ordinal) &&
            source.Contains("TryReadCurrentDockingDocuments(", StringComparison.Ordinal) &&
-           source.Contains("state.Reactive<AetheriaRuntimeCurrentEntityDocument>()", StringComparison.Ordinal) &&
-           source.Contains("state.Reactive<AetheriaRuntimeCurrentDockingDocument>()", StringComparison.Ordinal) &&
-           source.Contains("state.Reactive<AetheriaRuntimeStationRefitDocument>()", StringComparison.Ordinal) &&
+           source.Contains("AetheriaUnityRuntimeClientProvider", StringComparison.Ordinal) &&
+           source.Contains(".Reactive<AetheriaRuntimeCurrentEntityDocument>(\"unity-observed-docking\")", StringComparison.Ordinal) &&
+           source.Contains(".Reactive<AetheriaRuntimeCurrentDockingDocument>(\"unity-observed-docking\")", StringComparison.Ordinal) &&
+           source.Contains(".Reactive<AetheriaRuntimeStationRefitDocument>(\"unity-observed-docking\")", StringComparison.Ordinal) &&
            source.Contains("_currentDocking?.Current", StringComparison.Ordinal) &&
            source.Contains("_stationRefit?.Current", StringComparison.Ordinal) &&
            !source.Contains("State?.CurrentDocking()", StringComparison.Ordinal) &&
@@ -13536,9 +13537,10 @@ static void RequireMainMenuContinueRunState(string root)
         "CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> _currentDocking",
         "CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> _stationRefit",
         "TryReadCurrentDockingDocuments(",
-        "state.Reactive<AetheriaRuntimeCurrentEntityDocument>()",
-        "state.Reactive<AetheriaRuntimeCurrentDockingDocument>()",
-        "state.Reactive<AetheriaRuntimeStationRefitDocument>()",
+        "AetheriaUnityRuntimeClientProvider",
+        ".Reactive<AetheriaRuntimeCurrentEntityDocument>(\"unity-observed-docking\")",
+        ".Reactive<AetheriaRuntimeCurrentDockingDocument>(\"unity-observed-docking\")",
+        ".Reactive<AetheriaRuntimeStationRefitDocument>(\"unity-observed-docking\")",
         "_currentDocking?.Current",
         "_stationRefit?.Current",
         "public bool IsEntityUndocked(Entity entity)",
@@ -13562,6 +13564,9 @@ static void RequireMainMenuContinueRunState(string root)
         "state.Latest<AetheriaRuntimeCurrentEntityDocument>()",
         "state.Latest<AetheriaRuntimeCurrentDockingDocument>()",
         "state.Latest<AetheriaRuntimeStationRefitDocument>()",
+        "state.Reactive<AetheriaRuntimeCurrentEntityDocument>()",
+        "state.Reactive<AetheriaRuntimeCurrentDockingDocument>()",
+        "state.Reactive<AetheriaRuntimeStationRefitDocument>()",
         "AetheriaRuntimeObservedDockingState",
         "new AetheriaRuntimeObservedDockingState(",
         "State?.CurrentDocking()",
@@ -16330,7 +16335,6 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         ["Assets/Scripts/UI/Menu/MenuPanel.cs"] = menuPanel,
         ["Assets/Scripts/UI/Menu/MapRenderer.cs"] = mapRenderer,
         ["Assets/Scripts/UI/Menu/SectorMap.cs"] = sectorMap,
-        ["Assets/Scripts/UI/Menu/LocalMenu.cs"] = localMenu,
         ["Assets/Scripts/UI/Menu/SectorRenderer.cs"] = sectorRenderer,
         ["Assets/Scripts/UI/HUD/SchematicDisplay.cs"] = schematicDisplay,
         ["Assets/Scripts/UI/Menu/TradeMenu.cs"] = tradeMenu,

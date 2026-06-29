@@ -773,7 +773,7 @@ public class InventoryMenu : MonoBehaviour
         if (_observedEntityIndex == null)
             return false;
 
-        dockingIndex = _observedDockingIndex ??= new AetheriaUnityObservedDockingIndex(ResolveClient, _observedEntityIndex);
+        dockingIndex = _observedDockingIndex ??= new AetheriaUnityObservedDockingIndex(_observedEntityIndex);
         return true;
     }
 

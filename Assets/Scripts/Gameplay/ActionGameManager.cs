@@ -34,9 +34,7 @@ public class ActionGameManager : MonoBehaviour
     private AetheriaUnityPilotCommandSender PilotCommands =>
         _pilotCommands ??= new AetheriaUnityPilotCommandSender(ResolveCurrentRuntimeClient, () => Time.unscaledTime);
     private AetheriaUnityObservedDockingIndex ObservedDocking =>
-        _observedDocking ??= new AetheriaUnityObservedDockingIndex(
-            () => ResolveDaemonObserver()?.Client,
-            _observedEntityIndex);
+        _observedDocking ??= new AetheriaUnityObservedDockingIndex(_observedEntityIndex);
     private AetheriaUnityObservedEntityRestorer ObservedEntityRestorer =>
         _observedEntityRestorer ??= new AetheriaUnityObservedEntityRestorer(
             _observedEntityIndex,
