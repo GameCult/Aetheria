@@ -101,8 +101,8 @@ public class VolumeCloudRenderer : EffectBase
 
         try
         {
-            _playerSettings = ResolveClient()
-                .State.Reactive<AetheriaRuntimePlayerSettingsDocument>();
+            _playerSettings = AetheriaUnityRuntimeClientProvider
+                .Reactive<AetheriaRuntimePlayerSettingsDocument>("unity-volume-cloud-renderer");
         }
         catch (Exception ex)
         {
@@ -110,13 +110,6 @@ public class VolumeCloudRenderer : EffectBase
         }
 
         return _playerSettings?.Current;
-    }
-
-    private AetheriaClient ResolveClient()
-    {
-        return AetheriaUnityRuntimeClientProvider.ResolveClient(
-            AetheriaRuntimeStateBoot.Inspect(AetheriaUnityRuntimePaths.GameDataDirectory),
-            "unity-volume-cloud-renderer");
     }
 
     [ImageEffectOpaque]

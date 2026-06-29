@@ -69,7 +69,6 @@ public class SchematicDisplay : MonoBehaviour
     private EquippedCargoBay[] _cargoBays;
     private SchematicDisplayItem[] _schematicItems;
     private AetherDrive _aetherDrive;
-    private string _clientStatePath = "";
     private CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog;
     private CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings;
     private CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> _currentEntity;
@@ -326,7 +325,8 @@ public class SchematicDisplay : MonoBehaviour
 
         try
         {
-            _catalog = ResolveClient().State.Reactive<AetheriaRuntimeCatalogSnapshot>();
+            _catalog = AetheriaUnityRuntimeClientProvider
+                .Reactive<AetheriaRuntimeCatalogSnapshot>("unity-schematic-display");
         }
         catch (Exception ex)
         {
@@ -342,7 +342,8 @@ public class SchematicDisplay : MonoBehaviour
         {
             try
             {
-                _playerSettings = ResolveClient().State.Reactive<AetheriaRuntimePlayerSettingsDocument>();
+                _playerSettings = AetheriaUnityRuntimeClientProvider
+                    .Reactive<AetheriaRuntimePlayerSettingsDocument>("unity-schematic-display");
             }
             catch (Exception ex)
             {
@@ -359,7 +360,8 @@ public class SchematicDisplay : MonoBehaviour
         {
             try
             {
-                _currentEntity = ResolveClient().State.Reactive<AetheriaRuntimeCurrentEntityDocument>();
+                _currentEntity = AetheriaUnityRuntimeClientProvider
+                    .Reactive<AetheriaRuntimeCurrentEntityDocument>("unity-schematic-display");
             }
             catch (Exception ex)
             {
@@ -368,18 +370,6 @@ public class SchematicDisplay : MonoBehaviour
         }
 
         return _currentEntity?.Current?.Hud ?? new AetheriaRuntimeCurrentEntityHudStatus();
-    }
-
-    private AetheriaClient ResolveClient()
-    {
-        var stateBoot = AetheriaRuntimeStateBoot.Inspect(AetheriaUnityRuntimePaths.GameDataDirectory);
-        if (!string.Equals(_clientStatePath, stateBoot.StateFilePath, StringComparison.Ordinal))
-        {
-            _clientStatePath = stateBoot.StateFilePath;
-            ClearClientCaches();
-        }
-
-        return AetheriaUnityRuntimeClientProvider.ResolveClient(stateBoot, "unity-schematic-display");
     }
 
     private string FormatValue(float value)

@@ -116,8 +116,10 @@ public sealed class AetheriaUnityRenderSplatViewportSource : MonoBehaviour
         _nextRefreshTime = Time.unscaledTime + Mathf.Max(0.02f, refreshIntervalSeconds);
         try
         {
-            var nextRenderSplatsViewport = ResolveClient()
-                .State.Reactive<AetheriaRuntimeRenderSplatsViewportDocument>(viewport);
+            var nextRenderSplatsViewport = AetheriaUnityRuntimeClientProvider
+                .Reactive<AetheriaRuntimeRenderSplatsViewportDocument>(
+                    viewport,
+                    "unity-render-splat-viewport");
             ClearViewportDocument();
             _viewport = viewport;
             _renderSplatsViewport = nextRenderSplatsViewport;
@@ -157,13 +159,6 @@ public sealed class AetheriaUnityRenderSplatViewportSource : MonoBehaviour
             Mathf.Approximately(left.MinY, right.MinY) &&
             Mathf.Approximately(left.MaxX, right.MaxX) &&
             Mathf.Approximately(left.MaxY, right.MaxY);
-    }
-
-    private AetheriaClient ResolveClient()
-    {
-        return AetheriaUnityRuntimeClientProvider.ResolveClient(
-            AetheriaRuntimeStateBoot.Inspect(AetheriaUnityRuntimePaths.GameDataDirectory),
-            "unity-render-splat-viewport");
     }
 
 }

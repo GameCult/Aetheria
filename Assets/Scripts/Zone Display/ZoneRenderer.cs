@@ -119,7 +119,6 @@ public class ZoneRenderer : MonoBehaviour
         Array.Empty<AetheriaRuntimeZoneRenderAsteroidBeltPose>();
     private IReadOnlyList<AetheriaRuntimeBodySnapshotCommit> _zoneRenderBodies =
         Array.Empty<AetheriaRuntimeBodySnapshotCommit>();
-    private string _clientStatePath = "";
     private CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog;
     private CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument> _zoneContacts;
     private AetheriaRuntimeRtsViewportBounds _objectsViewportBounds;
@@ -1208,7 +1207,8 @@ public class ZoneRenderer : MonoBehaviour
 
         try
         {
-            _catalog = ResolveClient().State.Reactive<AetheriaRuntimeCatalogSnapshot>();
+            _catalog = AetheriaUnityRuntimeClientProvider
+                .Reactive<AetheriaRuntimeCatalogSnapshot>("unity-zone-renderer");
         }
         catch (Exception ex)
         {
@@ -1225,7 +1225,8 @@ public class ZoneRenderer : MonoBehaviour
 
         try
         {
-            _zoneContacts = ResolveClient().State.Reactive<AetheriaRuntimeZoneContactsDocument>();
+            _zoneContacts = AetheriaUnityRuntimeClientProvider
+                .Reactive<AetheriaRuntimeZoneContactsDocument>("unity-zone-renderer");
         }
         catch (Exception ex)
         {
@@ -1243,8 +1244,10 @@ public class ZoneRenderer : MonoBehaviour
 
         try
         {
-            var nextObjectsViewport = ResolveClient()
-                .State.Reactive<AetheriaRuntimeObjectsViewportDocument>(viewportBounds);
+            var nextObjectsViewport = AetheriaUnityRuntimeClientProvider
+                .Reactive<AetheriaRuntimeObjectsViewportDocument>(
+                    viewportBounds,
+                    "unity-zone-renderer");
             _objectsViewport?.Dispose();
             _objectsViewportBounds = viewportBounds;
             _objectsViewport = nextObjectsViewport;
@@ -1255,20 +1258,6 @@ public class ZoneRenderer : MonoBehaviour
         }
 
         return _objectsViewport?.Current;
-    }
-
-    private AetheriaClient ResolveClient()
-    {
-        var stateBoot = AetheriaRuntimeStateBoot.Inspect(AetheriaUnityRuntimePaths.GameDataDirectory);
-        if (!string.Equals(_clientStatePath, stateBoot.StateFilePath, StringComparison.Ordinal))
-        {
-            _clientStatePath = stateBoot.StateFilePath;
-            ClearClientCaches();
-        }
-
-        return AetheriaUnityRuntimeClientProvider.ResolveClient(
-            stateBoot,
-            "unity-zone-renderer");
     }
 
     private void ClearClientCaches()

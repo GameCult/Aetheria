@@ -2438,7 +2438,8 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "FindAnyObjectByType<AetheriaDaemonObserver>()",
         "ResolveObjectsViewport(viewport)",
         "private AetheriaRuntimeObjectsViewportDocument ResolveObjectsViewport(AetheriaRuntimeXzRect viewport)",
-        ".State.Reactive<AetheriaRuntimeObjectsViewportDocument>(viewportBounds)",
+        ".Reactive<AetheriaRuntimeObjectsViewportDocument>(",
+        "\"unity-zone-renderer\"",
         "_objectsViewport?.Current",
         "foreach (var entity in objects?.Objects ?? Array.Empty<AetheriaRuntimeRtsViewportObject>())",
         "_observedEntitySnapshotsByDaemonIndex.TryGetValue(entityIndex, out var entity)",
@@ -2456,8 +2457,7 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "foreach (var beltPose in _daemonAsteroidBeltPoses)",
         "beltPose.InstancePoses ?? Array.Empty<AetheriaRuntimeZoneRenderAsteroidInstancePose>()",
         "private void RefreshDaemonContactRows()",
-        ".State",
-        ".Reactive<AetheriaRuntimeZoneContactsDocument>()",
+        ".Reactive<AetheriaRuntimeZoneContactsDocument>(\"unity-zone-renderer\")",
         "private void RefreshDaemonCompassMarkers()",
         "private void RefreshDaemonVisibleEntityInstances()",
         "PowerPulse(",
@@ -2565,10 +2565,9 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> _currentEntity",
         "ResolveCatalog()",
         "ResolveCurrentEntityHudStatus()",
-        "AetheriaUnityRuntimeClientProvider.ResolveClient(",
-        "ResolveClient().State.Reactive<AetheriaRuntimeCatalogSnapshot>()",
-        "ResolveClient().State.Reactive<AetheriaRuntimePlayerSettingsDocument>()",
-        "ResolveClient().State.Reactive<AetheriaRuntimeCurrentEntityDocument>()",
+        ".Reactive<AetheriaRuntimeCatalogSnapshot>(\"unity-schematic-display\")",
+        ".Reactive<AetheriaRuntimePlayerSettingsDocument>(\"unity-schematic-display\")",
+        ".Reactive<AetheriaRuntimeCurrentEntityDocument>(\"unity-schematic-display\")",
         "return _currentEntity?.Current?.Hud ?? new AetheriaRuntimeCurrentEntityHudStatus();",
         "_currentEntity?.Dispose()",
         "hud.OverrideShutdown",
@@ -7595,9 +7594,9 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog",
         "CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings",
         "CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> _currentEntity",
-        "ResolveClient().State.Reactive<AetheriaRuntimeCatalogSnapshot>()",
-        "ResolveClient().State.Reactive<AetheriaRuntimePlayerSettingsDocument>()",
-        "ResolveClient().State.Reactive<AetheriaRuntimeCurrentEntityDocument>()",
+        ".Reactive<AetheriaRuntimeCatalogSnapshot>(\"unity-schematic-display\")",
+        ".Reactive<AetheriaRuntimePlayerSettingsDocument>(\"unity-schematic-display\")",
+        ".Reactive<AetheriaRuntimeCurrentEntityDocument>(\"unity-schematic-display\")",
         "_catalog?.Dispose()",
         "_playerSettings?.Dispose()",
         "_currentEntity?.Dispose()",
@@ -7651,7 +7650,7 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
     var requiredVolumeCloudSymbols = new[]
     {
         "CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings",
-        ".Reactive<AetheriaRuntimePlayerSettingsDocument>()",
+        ".Reactive<AetheriaRuntimePlayerSettingsDocument>(\"unity-volume-cloud-renderer\")",
         "_playerSettings?.Dispose()",
         "_playerSettings?.Current"
     };
@@ -8044,7 +8043,7 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
     var requiredZoneRendererSharedDocumentSymbols = new[]
     {
         "CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument> _zoneContacts",
-        "ResolveClient().State.Reactive<AetheriaRuntimeZoneContactsDocument>()",
+        ".Reactive<AetheriaRuntimeZoneContactsDocument>(\"unity-zone-renderer\")",
         "_zoneContacts?.Dispose()",
         "_zoneContacts?.Current",
         "private void OnDestroy()"
@@ -8064,7 +8063,7 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "ZoneRenderer",
         "AetheriaRuntimeZoneContactsDocument",
         "_zoneContacts",
-        "ResolveClient().State.Reactive<AetheriaRuntimeZoneContactsDocument>()",
+        ".Reactive<AetheriaRuntimeZoneContactsDocument>(\"unity-zone-renderer\")",
         "AetheriaRuntimeZoneContactsSession",
         "ResolveClient().State.ObserveZoneContacts()");
     RequireReactiveTypedDocumentAccess(
@@ -8072,7 +8071,7 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "ZoneRenderer",
         "AetheriaRuntimeCatalogSnapshot",
         "_catalog",
-        "ResolveClient().State.Reactive<AetheriaRuntimeCatalogSnapshot>()",
+        ".Reactive<AetheriaRuntimeCatalogSnapshot>(\"unity-zone-renderer\")",
         "AetheriaRuntimeCatalogSession",
         "ResolveClient().State.ObserveCatalog()");
 
@@ -8186,11 +8185,11 @@ static void RequireUnityViewportAndMapReadsUseManagedAccessors(string root)
         .Where(symbol => !renderSplatViewportSource.Contains(symbol, StringComparison.Ordinal))
         .ToArray();
     if (!CompactSource(renderSplatViewportSource).Contains(
-        ".Reactive<AetheriaRuntimeRenderSplatsViewportDocument>(viewport)",
+        ".Reactive<AetheriaRuntimeRenderSplatsViewportDocument>(viewport,\"unity-render-splat-viewport\")",
         StringComparison.Ordinal))
     {
         missingRenderSplatViewportSourceSymbols = missingRenderSplatViewportSourceSymbols
-            .Concat(new[] { ".Reactive<AetheriaRuntimeRenderSplatsViewportDocument>(viewport)" })
+            .Concat(new[] { ".Reactive<AetheriaRuntimeRenderSplatsViewportDocument>(viewport,\"unity-render-splat-viewport\")" })
             .ToArray();
     }
     if (missingRenderSplatViewportSourceSymbols.Length > 0 ||
@@ -8213,7 +8212,7 @@ static void RequireUnityViewportAndMapReadsUseManagedAccessors(string root)
         "AetheriaUnityRenderSplatViewportSource",
         "AetheriaRuntimeRenderSplatsViewportDocument",
         "_renderSplatsViewport",
-        ".Reactive<AetheriaRuntimeRenderSplatsViewportDocument>(viewport)",
+        ".Reactive<AetheriaRuntimeRenderSplatsViewportDocument>(viewport,\"unity-render-splat-viewport\")",
         "AetheriaRuntimeRenderSplatsViewportSession",
         ".ObserveRenderSplats(viewport)");
 
@@ -8233,11 +8232,11 @@ static void RequireUnityViewportAndMapReadsUseManagedAccessors(string root)
         .Where(symbol => !zoneRenderer.Contains(symbol, StringComparison.Ordinal))
         .ToArray();
     if (!CompactSource(zoneRenderer).Contains(
-        ".Reactive<AetheriaRuntimeObjectsViewportDocument>(viewportBounds)",
+        ".Reactive<AetheriaRuntimeObjectsViewportDocument>(viewportBounds,\"unity-zone-renderer\")",
         StringComparison.Ordinal))
     {
         missingZoneRendererViewportSymbols = missingZoneRendererViewportSymbols
-            .Concat(new[] { ".Reactive<AetheriaRuntimeObjectsViewportDocument>(viewportBounds)" })
+            .Concat(new[] { ".Reactive<AetheriaRuntimeObjectsViewportDocument>(viewportBounds,\"unity-zone-renderer\")" })
             .ToArray();
     }
     if (missingZoneRendererViewportSymbols.Length > 0 ||
@@ -8260,7 +8259,7 @@ static void RequireUnityViewportAndMapReadsUseManagedAccessors(string root)
         "ZoneRenderer",
         "AetheriaRuntimeObjectsViewportDocument",
         "_objectsViewport",
-        ".Reactive<AetheriaRuntimeObjectsViewportDocument>(viewportBounds)",
+        ".Reactive<AetheriaRuntimeObjectsViewportDocument>(viewportBounds,\"unity-zone-renderer\")",
         "AetheriaRuntimeObjectsViewportSession",
         ".ObserveObjects(viewportBounds)");
 
