@@ -126,6 +126,11 @@ public static class AetheriaUnityRuntimeClientProvider
         return RuntimeState(runtimeId).CurrentZoneState();
     }
 
+    public static AetheriaRuntimeZoneContactsDocument CurrentZoneContacts(string runtimeId = "")
+    {
+        return RuntimeState(runtimeId).CurrentZoneContacts();
+    }
+
     public static AetheriaRuntimeStationRefitDocument CurrentStationRefit(string runtimeId = "")
     {
         return RuntimeState(runtimeId).CurrentStationRefit();
@@ -156,6 +161,13 @@ public static class AetheriaUnityRuntimeClientProvider
     public static AetheriaRuntimeDaemonFrameDocument CurrentDaemonFrame(string runtimeId = "")
     {
         return RuntimeState(runtimeId).CurrentDaemonFrame();
+    }
+
+    public static AetheriaRuntimeDaemonFrameDocument CurrentDaemonFrame(
+        AetheriaRuntimeStateBootReport stateBoot,
+        string runtimeId = "")
+    {
+        return RuntimeState(stateBoot, runtimeId).CurrentDaemonFrame();
     }
 
     public static AetheriaRuntimeVerseHostSettingsDocument CurrentVerseHostSettings(
@@ -220,7 +232,7 @@ public static class AetheriaUnityRuntimeClientProvider
     {
         try
         {
-            var stored = RuntimeState().CurrentPlayerSettings();
+            var stored = CurrentPlayerSettings();
             if (stored == null)
                 return;
 

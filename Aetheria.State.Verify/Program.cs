@@ -7748,8 +7748,10 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         {
             ".ReactiveObjectsViewport(viewport,\"unity-map-renderer\")",
             ".ReactiveRenderSplatsViewport(viewport,\"unity-map-renderer\")",
-            ".RuntimeState(\"unity-map-renderer\").CurrentPlayerSettings()"
-        }.Where(symbol => !compactMapRenderer.Contains(symbol, StringComparison.Ordinal)))
+            "AetheriaUnityRuntimeClientProvider.CurrentPlayerSettings(\"unity-map-renderer\")"
+        }
+            .Select(CompactSource)
+            .Where(symbol => !compactMapRenderer.Contains(symbol, StringComparison.Ordinal)))
         .ToArray();
     if (missingMapRendererSharedDocumentSymbols.Length > 0)
     {
@@ -9371,9 +9373,8 @@ static void RequireClientTargetBootAuthority(string root)
         "Aetheria runtime state file: {stateBoot.StateFilePath}",
         "!stateBoot.SupportsLocalStateFileRead",
         "stateBoot.StateFileExists",
-        "AetheriaUnityRuntimeClientProvider.RuntimeState(stateBoot, stateBoot.RuntimeId)",
-        "runtimeState.CurrentCatalog()",
-        "runtimeState.CurrentSectorMap()",
+        "AetheriaUnityRuntimeClientProvider.CurrentCatalog(stateBoot, stateBoot.RuntimeId)",
+        "AetheriaUnityRuntimeClientProvider.CurrentSectorMap(stateBoot, stateBoot.RuntimeId)",
         "new ItemManager(",
         "new AetheriaUnityLoadoutItemFactory(itemManager, runtimeCatalog)",
         "ZoneRenderer.SetDroppedPickupItemFactory(loadoutItemFactory.CreateLoadoutItem)",
@@ -9399,6 +9400,7 @@ static void RequireClientTargetBootAuthority(string root)
         gameplayBootShell.Contains("runtimeCatalogDocument.Current", StringComparison.Ordinal) ||
         gameplayBootShell.Contains(".ReactiveSectorMap()", StringComparison.Ordinal) ||
         gameplayBootShell.Contains("sectorMapDocument.Current", StringComparison.Ordinal) ||
+        gameplayBootShell.Contains("AetheriaUnityRuntimeClientProvider.RuntimeState(stateBoot, stateBoot.RuntimeId)", StringComparison.Ordinal) ||
         gameplayBootShell.Contains("AetheriaUnityRuntimeClientProvider.ResolveClient(stateBoot.StateFilePath, stateBoot.RuntimeId)", StringComparison.Ordinal) ||
         gameplayBootShell.Contains(".State;"))
     {
@@ -13980,8 +13982,7 @@ static void RequireMainMenuContinueRunState(string root)
         "presentation.RuntimeCatalog = runtimeCatalog",
         "public void ConfigureTargetPresentation(",
         "presentation.ResolveZoneContacts = ReadZoneContacts",
-        ".RuntimeState(\"unity-target-presentation\")",
-        ".CurrentZoneContacts()",
+        "AetheriaUnityRuntimeClientProvider.CurrentZoneContacts(\"unity-target-presentation\")",
         "presentation.RuntimeCatalog = runtimeCatalog"
     };
 
@@ -14381,8 +14382,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
     var requiredSceneWiringObserverSymbols = new[]
     {
         "presentation.ResolveZoneContacts = ReadZoneContacts",
-        ".RuntimeState(\"unity-target-presentation\")",
-        ".CurrentZoneContacts()"
+        "AetheriaUnityRuntimeClientProvider.CurrentZoneContacts(\"unity-target-presentation\")"
     };
 
     var missingSceneWiringObserverSymbols = requiredSceneWiringObserverSymbols
@@ -14825,7 +14825,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
     if (!mapRenderer.Contains("AetheriaUnityRuntimeClientProvider", StringComparison.Ordinal) ||
         !compactMapRenderer.Contains(".ReactiveObjectsViewport(viewport,\"unity-map-renderer\")", StringComparison.Ordinal) ||
         !compactMapRenderer.Contains(".ReactiveRenderSplatsViewport(viewport,\"unity-map-renderer\")", StringComparison.Ordinal) ||
-        !compactMapRenderer.Contains(".RuntimeState(\"unity-map-renderer\").CurrentPlayerSettings()", StringComparison.Ordinal) ||
+        !compactMapRenderer.Contains(CompactSource("AetheriaUnityRuntimeClientProvider.CurrentPlayerSettings(\"unity-map-renderer\")"), StringComparison.Ordinal) ||
         !sectorRenderer.Contains("AetheriaUnityRuntimeClientProvider", StringComparison.Ordinal) ||
         !sectorRenderer.Contains("AetheriaUnityRuntimeClientProvider.CurrentSectorMap(\"unity-sector-renderer\")", StringComparison.Ordinal) ||
         !sectorRenderer.Contains("AetheriaUnityRuntimeClientProvider.CurrentZoneDetails(zoneIndex, \"unity-sector-renderer\")", StringComparison.Ordinal) ||
@@ -16418,9 +16418,8 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "public sealed class AetheriaUnityGameplayBootShell",
         "public AetheriaUnityGameplayBootResult Boot()",
         "AetheriaRuntimeStateBoot.Inspect(AetheriaUnityRuntimePaths.GameDataDirectory)",
-        "AetheriaUnityRuntimeClientProvider.RuntimeState(stateBoot, stateBoot.RuntimeId)",
-        "runtimeState.CurrentCatalog()",
-        "runtimeState.CurrentSectorMap()",
+        "AetheriaUnityRuntimeClientProvider.CurrentCatalog(stateBoot, stateBoot.RuntimeId)",
+        "AetheriaUnityRuntimeClientProvider.CurrentSectorMap(stateBoot, stateBoot.RuntimeId)",
         "new ItemManager(",
         "new AetheriaUnityLoadoutItemFactory(itemManager, runtimeCatalog)",
         "ZoneRenderer.SetDroppedPickupItemFactory(loadoutItemFactory.CreateLoadoutItem)",
@@ -16444,6 +16443,7 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
 
     if (gameplayBootShell.Contains(".ObserveCatalog()", StringComparison.Ordinal) ||
         gameplayBootShell.Contains(".ObserveSectorMap()", StringComparison.Ordinal) ||
+        gameplayBootShell.Contains("AetheriaUnityRuntimeClientProvider.RuntimeState(stateBoot, stateBoot.RuntimeId)", StringComparison.Ordinal) ||
         gameplayBootShell.Contains("AetheriaUnityRuntimeClientProvider.ResolveClient(stateBoot.StateFilePath, stateBoot.RuntimeId)", StringComparison.Ordinal) ||
         gameplayBootShell.Contains(".State;"))
     {
@@ -16465,12 +16465,14 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "public static AetheriaRuntimePlayerSettingsDocument CurrentPlayerSettings(string runtimeId = \"\")",
         "public static AetheriaRuntimeCurrentEntityDocument CurrentEntityState(string runtimeId = \"\")",
         "public static AetheriaRuntimeCurrentZoneDocument CurrentZoneState(string runtimeId = \"\")",
+        "public static AetheriaRuntimeZoneContactsDocument CurrentZoneContacts(string runtimeId = \"\")",
         "public static AetheriaRuntimeStationRefitDocument CurrentStationRefit(string runtimeId = \"\")",
         "public static AetheriaRuntimeSectorMapDocument CurrentSectorMap(string runtimeId = \"\")",
         "public static AetheriaRuntimeSectorMapDocument CurrentSectorMap(",
         "public static AetheriaRuntimeZoneDetailsDocument CurrentZoneDetails(int zoneIndex, string runtimeId = \"\")",
         "public static AetheriaRuntimeInventoryDocument CurrentInventory(int entityIndex, string runtimeId = \"\")",
         "public static AetheriaRuntimeDaemonFrameDocument CurrentDaemonFrame(string runtimeId = \"\")",
+        "public static AetheriaRuntimeDaemonFrameDocument CurrentDaemonFrame(",
         "public static AetheriaRuntimeVerseHostSettingsDocument CurrentVerseHostSettings(",
         "public static AetheriaControl Control(string runtimeId = \"\")",
         "public static AetheriaUi Ui(string runtimeId = \"\")",
@@ -16482,7 +16484,7 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "RuntimeClients[cacheKey] = runtimeClient",
         "AetheriaClient",
         ".State",
-        "RuntimeState().CurrentPlayerSettings()",
+        "CurrentPlayerSettings()",
         "OpenAsync(",
         "pullOnOpen: true",
         "ApplyPlayerSettings(settings, stored)"
@@ -17013,8 +17015,8 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
 
     var requiredGameplayBootSymbols = new[]
     {
-        "runtimeState.CurrentCatalog()",
-        "runtimeState.CurrentSectorMap()",
+        "AetheriaUnityRuntimeClientProvider.CurrentCatalog(stateBoot, stateBoot.RuntimeId)",
+        "AetheriaUnityRuntimeClientProvider.CurrentSectorMap(stateBoot, stateBoot.RuntimeId)",
         "Galaxy.ProjectObservedSectorMap(",
         "sectorMap.IsTutorial",
         "sectorMap.GenerationSeed",
@@ -17034,7 +17036,8 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     if (gameplayBootShell.Contains(".ReactiveCatalogSnapshot()", StringComparison.Ordinal) ||
         gameplayBootShell.Contains("runtimeCatalogDocument.Current", StringComparison.Ordinal) ||
         gameplayBootShell.Contains(".ReactiveSectorMap()", StringComparison.Ordinal) ||
-        gameplayBootShell.Contains("sectorMapDocument.Current", StringComparison.Ordinal))
+        gameplayBootShell.Contains("sectorMapDocument.Current", StringComparison.Ordinal) ||
+        gameplayBootShell.Contains("AetheriaUnityRuntimeClientProvider.RuntimeState(stateBoot, stateBoot.RuntimeId)", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "AetheriaUnityGameplayBootShell should use named current typed state reads for one-shot gameplay boot catalog/sector-map access.");

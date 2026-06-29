@@ -34,11 +34,10 @@ public sealed class AetheriaUnityGameplayBootShell
                 $"Aetheria runtime state file is missing at {stateBoot.StateFilePath}; gameplay requires an authoritative daemon mirror.");
         }
 
-        var runtimeState = AetheriaUnityRuntimeClientProvider.RuntimeState(stateBoot, stateBoot.RuntimeId);
-        var runtimeCatalog = runtimeState.CurrentCatalog();
+        var runtimeCatalog = AetheriaUnityRuntimeClientProvider.CurrentCatalog(stateBoot, stateBoot.RuntimeId);
         if (runtimeCatalog == null)
             throw new InvalidOperationException("Aetheria typed runtime catalog is required before gameplay boot.");
-        var sectorMap = runtimeState.CurrentSectorMap();
+        var sectorMap = AetheriaUnityRuntimeClientProvider.CurrentSectorMap(stateBoot, stateBoot.RuntimeId);
         if (sectorMap == null)
             throw new InvalidOperationException("Aetheria typed sector map is required before gameplay boot.");
 

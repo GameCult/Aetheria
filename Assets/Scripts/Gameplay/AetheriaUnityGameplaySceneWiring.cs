@@ -105,9 +105,7 @@ public sealed class AetheriaUnityGameplaySceneWiring
     {
         try
         {
-            return AetheriaUnityRuntimeClientProvider
-                .RuntimeState("unity-target-presentation")
-                .CurrentZoneContacts();
+            return AetheriaUnityRuntimeClientProvider.CurrentZoneContacts("unity-target-presentation");
         }
         catch (Exception ex)
         {
