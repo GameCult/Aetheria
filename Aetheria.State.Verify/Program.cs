@@ -16333,9 +16333,9 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "public static class AetheriaUnityRuntimeClientProvider",
         "private static CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettingsDocument",
         "public static RuntimePlayerSettings PlayerSettings",
-        "public static AetheriaClient ResolveClient(string stateFilePath, string runtimeId = \"\")",
-        "public static AetheriaClient ResolveClient(AetheriaRuntimeStateBootReport stateBoot, string runtimeId = \"\")",
-        "public static AetheriaClient RuntimeClient(string runtimeId = \"\")",
+        "private static AetheriaClient ResolveClient(string stateFilePath, string runtimeId = \"\")",
+        "private static AetheriaClient ResolveClient(AetheriaRuntimeStateBootReport stateBoot, string runtimeId = \"\")",
+        "private static AetheriaClient RuntimeClient(string runtimeId = \"\")",
         "public static AetheriaClientState RuntimeState(string runtimeId = \"\")",
         "public static AetheriaControl Control(string runtimeId = \"\")",
         "public static AetheriaUi Ui(string runtimeId = \"\")",
@@ -16368,6 +16368,8 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     }
 
     if (runtimeClientProvider.Contains("AetheriaRuntimePlayerSettingsSession _playerSettingsDocument", StringComparison.Ordinal) ||
+        runtimeClientProvider.Contains("public static AetheriaClient ResolveClient", StringComparison.Ordinal) ||
+        runtimeClientProvider.Contains("public static AetheriaClient RuntimeClient", StringComparison.Ordinal) ||
         runtimeClientProvider.Contains("CurrentClientForStateFile", StringComparison.Ordinal) ||
         runtimeClientProvider.Contains("StatePathCachePrefix", StringComparison.Ordinal) ||
         runtimeClientProvider.Contains(".ObservePlayer()", StringComparison.Ordinal))

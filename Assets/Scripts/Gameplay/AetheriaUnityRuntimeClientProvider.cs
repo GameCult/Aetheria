@@ -27,7 +27,7 @@ public static class AetheriaUnityRuntimeClientProvider
         }
     }
 
-    public static AetheriaClient ResolveClient(string stateFilePath, string runtimeId = "")
+    private static AetheriaClient ResolveClient(string stateFilePath, string runtimeId = "")
     {
         var effectiveRuntimeId = string.IsNullOrWhiteSpace(runtimeId) ? "raven-unity" : runtimeId;
         var cacheKey = CacheKey(stateFilePath, effectiveRuntimeId);
@@ -47,7 +47,7 @@ public static class AetheriaUnityRuntimeClientProvider
         return runtimeClient;
     }
 
-    public static AetheriaClient ResolveClient(AetheriaRuntimeStateBootReport stateBoot, string runtimeId = "")
+    private static AetheriaClient ResolveClient(AetheriaRuntimeStateBootReport stateBoot, string runtimeId = "")
     {
         if (stateBoot == null)
             throw new ArgumentNullException(nameof(stateBoot));
@@ -57,12 +57,12 @@ public static class AetheriaUnityRuntimeClientProvider
             string.IsNullOrWhiteSpace(runtimeId) ? stateBoot.RuntimeId : runtimeId);
     }
 
-    public static AetheriaClient RuntimeClient(string runtimeId = "")
+    private static AetheriaClient RuntimeClient(string runtimeId = "")
     {
         return ResolveClient(AetheriaUnityRuntimePaths.RuntimeStateFilePath, runtimeId);
     }
 
-    public static AetheriaClient RuntimeClient(
+    private static AetheriaClient RuntimeClient(
         AetheriaRuntimeStateBootReport stateBoot,
         string runtimeId = "")
     {
