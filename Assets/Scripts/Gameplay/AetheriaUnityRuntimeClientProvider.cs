@@ -13,7 +13,6 @@ public static class AetheriaUnityRuntimeClientProvider
 {
     private static readonly Dictionary<string, AetheriaClient> RuntimeClients =
         new Dictionary<string, AetheriaClient>(StringComparer.Ordinal);
-    private static CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettingsDocument;
     private static RuntimePlayerSettings _runtimePlayerSettings;
     private static bool _playerSettingsLoaded;
 
@@ -119,8 +118,6 @@ public static class AetheriaUnityRuntimeClientProvider
 
     public static void Dispose()
     {
-        _playerSettingsDocument?.Dispose();
-        _playerSettingsDocument = null;
         _runtimePlayerSettings = null;
         _playerSettingsLoaded = false;
 
@@ -138,16 +135,14 @@ public static class AetheriaUnityRuntimeClientProvider
     {
         try
         {
-            _playerSettingsDocument ??= RuntimeState().ReactivePlayerSettingsDocument();
-
-            var stored = _playerSettingsDocument.Current;
+            var stored = RuntimeState().CurrentPlayerSettings();
             if (stored == null)
                 return;
 
             ApplyPlayerSettings(settings, stored);
             if (!_playerSettingsLoaded)
             {
-                Debug.Log("Loaded Aetheria Verse player settings from reactive typed state.");
+                Debug.Log("Loaded Aetheria Verse player settings from typed state.");
                 _playerSettingsLoaded = true;
             }
         }

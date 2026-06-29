@@ -16503,7 +16503,6 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     var requiredRuntimeClientProviderSymbols = new[]
     {
         "public static class AetheriaUnityRuntimeClientProvider",
-        "private static CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettingsDocument",
         "public static RuntimePlayerSettings PlayerSettings",
         "private static AetheriaClient ResolveClient(string stateFilePath, string runtimeId = \"\")",
         "private static AetheriaClient ResolveClient(AetheriaRuntimeStateBootReport stateBoot, string runtimeId = \"\")",
@@ -16519,9 +16518,7 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "RuntimeClients[cacheKey] = runtimeClient",
         "AetheriaClient",
         ".State",
-        "RuntimeState().ReactivePlayerSettingsDocument()",
-        "_playerSettingsDocument.Current",
-        "_playerSettingsDocument?.Dispose()",
+        "RuntimeState().CurrentPlayerSettings()",
         "OpenAsync(",
         "pullOnOpen: true",
         "ApplyPlayerSettings(settings, stored)"
@@ -16538,10 +16535,14 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
 
     if (runtimeClientProvider.Contains("public static CultMeshReactiveDocument<TDocument> Reactive<TDocument>", StringComparison.Ordinal) ||
         runtimeClientProvider.Contains("public static CultMeshReactiveDocument<AetheriaRuntime", StringComparison.Ordinal) ||
-        runtimeClientProvider.Contains("public static CultMeshReactiveDocument<global::Aetheria.State.Documents.EveSurfaceState> ReactiveEveSurface(", StringComparison.Ordinal))
+        runtimeClientProvider.Contains("public static CultMeshReactiveDocument<global::Aetheria.State.Documents.EveSurfaceState> ReactiveEveSurface(", StringComparison.Ordinal) ||
+        runtimeClientProvider.Contains("private static CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettingsDocument", StringComparison.Ordinal) ||
+        runtimeClientProvider.Contains("RuntimeState().ReactivePlayerSettingsDocument()", StringComparison.Ordinal) ||
+        runtimeClientProvider.Contains("_playerSettingsDocument.Current", StringComparison.Ordinal) ||
+        runtimeClientProvider.Contains("_playerSettingsDocument?.Dispose()", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "AetheriaUnityRuntimeClientProvider should expose RuntimeState/Control/Ui and let AetheriaClientState own typed reactive document access; do not rebuild static ReactiveX facade wrappers.");
+            "AetheriaUnityRuntimeClientProvider should expose RuntimeState/Control/Ui and read named current typed state for cached settings; do not rebuild static ReactiveX facade wrappers.");
     }
 
     if (runtimeClientProvider.Contains("AetheriaRuntimePlayerSettingsSession _playerSettingsDocument", StringComparison.Ordinal) ||
