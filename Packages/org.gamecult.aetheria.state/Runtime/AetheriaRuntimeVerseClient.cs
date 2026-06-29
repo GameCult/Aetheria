@@ -649,22 +649,25 @@ namespace GameCult.Aetheria.State.Verse
 
         private AetheriaRuntimeCatalogSnapshot BootstrapRuntimeCatalogSnapshot()
         {
-            return AetheriaRuntimeBootstrapDocuments.RuntimeCatalog(StatePath);
+            return AetheriaRuntimeCatalogStore.OpenReadOnly(StatePath);
         }
 
         private AetheriaRuntimeLoadoutTemplatesDocument BootstrapLoadoutTemplatesDocument()
         {
-            return AetheriaRuntimeBootstrapDocuments.LoadoutTemplates(StatePath);
+            return new AetheriaRuntimeLoadoutTemplatesDocument(
+                AetheriaRuntimeCatalogStore.ReadLoadoutTemplates(StatePath));
         }
 
         private AetheriaRuntimePlayerSettingsDocument BootstrapPlayerSettingsDocument()
         {
-            return AetheriaRuntimeBootstrapDocuments.PlayerSettings(StatePath);
+            return AetheriaRuntimePlayerSettingsDocument.FromSnapshot(
+                AetheriaRuntimeCatalogStore.ReadPlayerSettings(StatePath));
         }
 
         private AetheriaRuntimeVerseHostSettingsDocument BootstrapVerseHostSettingsDocument()
         {
-            return AetheriaRuntimeBootstrapDocuments.VerseHostSettings(StatePath);
+            return AetheriaRuntimeVerseHostSettingsDocument.FromSnapshot(
+                AetheriaRuntimeCatalogStore.ReadVerseHostSettings(StatePath));
         }
     }
 }

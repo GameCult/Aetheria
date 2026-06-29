@@ -12095,10 +12095,10 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
         "BootstrapLoadoutTemplatesDocument()",
         "BootstrapPlayerSettingsDocument()",
         "BootstrapVerseHostSettingsDocument()",
-        "AetheriaRuntimeBootstrapDocuments.RuntimeCatalog(StatePath)",
-        "AetheriaRuntimeBootstrapDocuments.LoadoutTemplates(StatePath)",
-        "AetheriaRuntimeBootstrapDocuments.PlayerSettings(StatePath)",
-        "AetheriaRuntimeBootstrapDocuments.VerseHostSettings(StatePath)"
+        "return AetheriaRuntimeCatalogStore.OpenReadOnly(StatePath);",
+        "AetheriaRuntimeCatalogStore.ReadLoadoutTemplates(StatePath)",
+        "AetheriaRuntimeCatalogStore.ReadPlayerSettings(StatePath)",
+        "AetheriaRuntimeCatalogStore.ReadVerseHostSettings(StatePath)"
     };
     var missingClientBootstrapSymbols = requiredClientBootstrapSymbols
         .Where(symbol => !client.Contains(symbol, StringComparison.Ordinal))
@@ -12114,10 +12114,7 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
     {
         "return Task.FromResult(AetheriaRuntimeCatalogStore.ReadPlayerSettings(StatePath));",
         "return Task.FromResult(AetheriaRuntimeCatalogStore.ReadVerseHostSettings(StatePath));",
-        "AetheriaRuntimeCatalogStore.OpenReadOnly(StatePath)",
-        "AetheriaRuntimeCatalogStore.ReadLoadoutTemplates(StatePath)",
-        "AetheriaRuntimeCatalogStore.ReadPlayerSettings(StatePath)",
-        "AetheriaRuntimeCatalogStore.ReadVerseHostSettings(StatePath)",
+        "public static class AetheriaRuntimeBootstrapDocuments",
         "ReadRuntimeCatalogSnapshot()",
         "ReadLoadoutTemplatesDocument()",
         "ReadPlayerSettingsDocument()",
