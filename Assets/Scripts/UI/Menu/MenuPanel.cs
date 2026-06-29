@@ -8,6 +8,7 @@ using System.Linq;
 using GameCult.Aetheria.EveRuntime;
 using GameCult.Aetheria.State.Verse;
 using GameCult.Eve.Surface;
+using GameCult.Mesh;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -32,6 +33,7 @@ public class MenuPanel : MonoBehaviour
     private UIDocument _tabSurfaceDocument;
     private readonly AetheriaEveUnitySurfaceChrome _tabSurfaceChrome = new AetheriaEveUnitySurfaceChrome();
     private string _clientStatePath = "";
+    private CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> _currentDocking;
     
     public MenuTab CurrentTab { get; private set; }
 
@@ -98,6 +100,9 @@ public class MenuPanel : MonoBehaviour
             AetheriaEveUnitySurfaceHost.DestroyDocument(_tabSurfaceDocument);
             _tabSurfaceDocument = null;
         }
+
+        _currentDocking?.Dispose();
+        _currentDocking = null;
     }
 
     private void RenderTabSurface()
@@ -175,7 +180,8 @@ public class MenuPanel : MonoBehaviour
         docking = null;
         try
         {
-            docking = ResolveClient().State.Latest<AetheriaRuntimeCurrentDockingDocument>();
+            _currentDocking ??= ResolveClient().State.Reactive<AetheriaRuntimeCurrentDockingDocument>();
+            docking = _currentDocking.Current;
             return docking != null;
         }
         catch (Exception ex)

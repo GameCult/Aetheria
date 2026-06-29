@@ -241,15 +241,6 @@ namespace GameCult.Aetheria.State.Verse
                 new CultMeshRouteHint(CultMeshLocalityKind.SharedMemory, "Aetheria Verse database"));
         }
 
-        public Task<CultMeshReactiveDocument<TDocument>> ReactiveDocumentAsync<TDocument>(
-            CultRecordKey key,
-            CultMeshReactiveDocumentOptions? options = null,
-            string? documentId = null)
-            where TDocument : class
-        {
-            return Document<TDocument>(key, documentId).ReactiveAsync(options);
-        }
-
         public Observable<CultNetDatabaseChange<TDocument>> WatchRecord<TDocument>(
             CultRecordKey key)
             where TDocument : class

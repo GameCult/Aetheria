@@ -40,6 +40,8 @@ public class TradeMenu : MonoBehaviour
     private string _clientStatePath = "";
     private CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog;
     private CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings;
+    private CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> _currentDocking;
+    private CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> _stationRefit;
     private readonly AetheriaEveUnitySurfaceChrome _cargoSelectorSurfaceChrome = PanelChrome(360f, 420f, Align.FlexEnd);
     private readonly AetheriaEveUnitySurfaceChrome _filterSurfaceChrome = PanelChrome(420f, 520f, Align.FlexStart);
     private readonly AetheriaEveUnitySurfaceChrome _rowActionSurfaceChrome = PanelChrome(320f, 360f, Align.FlexStart);
@@ -47,7 +49,6 @@ public class TradeMenu : MonoBehaviour
     private AetheriaRuntimeTradeCargoSelectorSurfaceModel _cargoSelectorSurfaceModel;
     private AetheriaRuntimeStationCargoTargetRow[] _cargoSelectorStationRefitTargets =
         Array.Empty<AetheriaRuntimeStationCargoTargetRow>();
-    private AetheriaRuntimeStationRefitDocument _stationRefit;
     private AetheriaRuntimeTradeFilterSurfaceModel _filterSurfaceModel;
     private Action[] _rowActionCallbacks = Array.Empty<Action>();
     private AetheriaRuntimeTradeRowActionSurfaceModel _rowActionSurfaceModel;
@@ -513,23 +514,18 @@ public class TradeMenu : MonoBehaviour
     private AetheriaRuntimeStationRefitDocument ResolveStationRefit()
     {
         if (_stationRefit != null)
-            return _stationRefit;
+            return _stationRefit.Current;
 
-        _stationRefit = TryResolveStationRefit();
-        return _stationRefit;
-    }
-
-    private AetheriaRuntimeStationRefitDocument TryResolveStationRefit()
-    {
         try
         {
-            return ResolveClient().State.Latest<AetheriaRuntimeStationRefitDocument>();
+            _stationRefit = ResolveClient().State.Reactive<AetheriaRuntimeStationRefitDocument>();
         }
         catch (Exception ex)
         {
-            Debug.LogWarning($"Failed to read Aetheria station refit state for trade menu: {ex.Message}");
-            return null;
+            Debug.LogWarning($"Failed to bind Aetheria station refit state for trade menu: {ex.Message}");
         }
+
+        return _stationRefit?.Current;
     }
 
     private bool TryResolveCurrentDocking(out AetheriaRuntimeCurrentDockingDocument docking)
@@ -537,7 +533,8 @@ public class TradeMenu : MonoBehaviour
         docking = null;
         try
         {
-            docking = ResolveClient().State.Latest<AetheriaRuntimeCurrentDockingDocument>();
+            _currentDocking ??= ResolveClient().State.Reactive<AetheriaRuntimeCurrentDockingDocument>();
+            docking = _currentDocking.Current;
             return docking != null;
         }
         catch (Exception ex)
@@ -549,6 +546,7 @@ public class TradeMenu : MonoBehaviour
 
     private void InvalidateStationRefit()
     {
+        _stationRefit?.Dispose();
         _stationRefit = null;
     }
 
@@ -614,8 +612,11 @@ public class TradeMenu : MonoBehaviour
     {
         _catalog?.Dispose();
         _playerSettings?.Dispose();
+        _currentDocking?.Dispose();
+        _stationRefit?.Dispose();
         _catalog = null;
         _playerSettings = null;
+        _currentDocking = null;
         _stationRefit = null;
     }
 
