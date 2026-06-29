@@ -15,34 +15,12 @@ namespace GameCult.Aetheria.State.Verse
             envelope = null;
             if (request == null ||
                 client == null ||
-                !string.Equals(request.ProviderId, "aetheria.daemon", StringComparison.Ordinal) ||
-                !TryResolveKind(request, out var kind))
+                !client.Control.TrySubmitSurfaceCommand(request, out envelope))
             {
                 return false;
             }
 
-            var frame = client.CurrentDaemonFrame();
-            var operationClient = new AetheriaRuntimeDaemonOperationClient(
-                client.StatePath,
-                string.IsNullOrWhiteSpace(request.ClientId) ? AetheriaRuntimeDaemonOperationClient.DefaultClientId : request.ClientId,
-                frame?.SessionId ?? "local",
-                client.SubmitDaemonCommandDocument);
-            return AetheriaRuntimeDaemonSurfaceCommandCatalog.TrySubmitArgumentless(
-                operationClient,
-                frame,
-                kind,
-                out envelope);
-        }
-
-        private static bool TryResolveKind(EveSurfaceCommandRequest request, out AetheriaRuntimeDaemonCommandKinds kind)
-        {
-            kind = AetheriaRuntimeDaemonCommandKinds.None;
-            var command = request.Operation?.OperationId ?? "";
-            if (command.StartsWith(AetheriaRuntimeDaemonSurfaceCommandCatalog.CommandPrefix, StringComparison.Ordinal))
-                command = command.Substring(AetheriaRuntimeDaemonSurfaceCommandCatalog.CommandPrefix.Length);
-
-            return Enum.TryParse(command, ignoreCase: false, out kind) &&
-                   kind != AetheriaRuntimeDaemonCommandKinds.None;
+            return true;
         }
     }
 }

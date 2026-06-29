@@ -1,4 +1,5 @@
 using System;
+using GameCult.Eve.Surface;
 using GameCult.Mesh;
 
 #nullable enable
@@ -245,5 +246,10 @@ namespace GameCult.Aetheria.State.Verse
                 destinationX,
                 destinationY,
                 hasDestinationPosition);
+
+        public bool TrySubmitSurfaceCommand(
+            EveSurfaceCommandRequest request,
+            out AetheriaRuntimeDaemonCommandEnvelope? envelope) =>
+            _operations.TrySubmitSurfaceCommand(request, out envelope);
     }
 }

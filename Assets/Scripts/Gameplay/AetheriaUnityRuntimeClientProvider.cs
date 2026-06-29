@@ -120,6 +120,23 @@ public static class AetheriaUnityRuntimeClientProvider
     }
 
     public static CultMeshReactiveDocument<TDocument> Reactive<TDocument>(
+        AetheriaClientEveSurface surface,
+        string runtimeId = "")
+        where TDocument : class
+    {
+        return RuntimeState(runtimeId).Reactive<TDocument>(surface);
+    }
+
+    public static CultMeshReactiveDocument<TDocument> Reactive<TDocument>(
+        AetheriaRuntimeStateBootReport stateBoot,
+        AetheriaClientEveSurface surface,
+        string runtimeId = "")
+        where TDocument : class
+    {
+        return RuntimeState(stateBoot, runtimeId).Reactive<TDocument>(surface);
+    }
+
+    public static CultMeshReactiveDocument<TDocument> Reactive<TDocument>(
         AetheriaRuntimeRtsViewportBounds viewport,
         string runtimeId = "")
         where TDocument : class
@@ -151,6 +168,18 @@ public static class AetheriaUnityRuntimeClientProvider
         where TDocument : class
     {
         return RuntimeState(stateBoot, runtimeId).Reactive<TDocument>(index);
+    }
+
+    public static CultMeshStateRefResolver EveSurfaceStateRefResolver(string runtimeId = "")
+    {
+        return RuntimeState(runtimeId).CreateEveSurfaceCultMeshStateRefResolver();
+    }
+
+    public static CultMeshStateRefResolver EveSurfaceStateRefResolver(
+        AetheriaRuntimeStateBootReport stateBoot,
+        string runtimeId = "")
+    {
+        return RuntimeState(stateBoot, runtimeId).CreateEveSurfaceCultMeshStateRefResolver();
     }
 
     public static void Dispose()

@@ -226,10 +226,9 @@ namespace GameCult.Aetheria.EveRuntime
             if (!stateBoot.SupportsLocalStateFileRead || !stateBoot.StateFileExists)
                 return null;
 
-            return AetheriaUnityRuntimeClientProvider
-                .ResolveClient(stateBoot, "unity-eve-surface-host")
-                .State
-                .CreateEveSurfaceCultMeshStateRefResolver();
+            return AetheriaUnityRuntimeClientProvider.EveSurfaceStateRefResolver(
+                stateBoot,
+                "unity-eve-surface-host");
         }
 
     }

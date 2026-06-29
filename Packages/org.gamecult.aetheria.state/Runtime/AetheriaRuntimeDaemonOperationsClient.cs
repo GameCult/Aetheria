@@ -1,4 +1,5 @@
 using System;
+using GameCult.Eve.Surface;
 using GameCult.Mesh;
 
 #nullable enable
@@ -347,6 +348,37 @@ public sealed class AetheriaRuntimeDaemonOperationsClient
             hasDestinationPosition));
     }
 
+    public bool TrySubmitSurfaceCommand(
+        EveSurfaceCommandRequest request,
+        out AetheriaRuntimeDaemonCommandEnvelope? envelope)
+    {
+        envelope = null;
+        if (request == null ||
+            !string.Equals(request.ProviderId, "aetheria.daemon", StringComparison.Ordinal) ||
+            !TryResolveSurfaceCommandKind(request, out var kind))
+        {
+            return false;
+        }
+
+        try
+        {
+            envelope = Submit((client, frame) =>
+                AetheriaRuntimeDaemonSurfaceCommandCatalog.TrySubmitArgumentless(
+                    client,
+                    frame,
+                    kind,
+                    out var submitted)
+                    ? submitted!
+                    : throw new UnsupportedSurfaceCommandException());
+            return true;
+        }
+        catch (UnsupportedSurfaceCommandException)
+        {
+            envelope = null;
+            return false;
+        }
+    }
+
     private CultMeshOperationReceipt Send(
         Func<AetheriaRuntimeDaemonOperationClient, AetheriaRuntimeDaemonFrameDocument?, AetheriaRuntimeDaemonCommandEnvelope> submit)
     {
@@ -357,6 +389,23 @@ public sealed class AetheriaRuntimeDaemonOperationsClient
         Func<AetheriaRuntimeDaemonOperationClient, AetheriaRuntimeDaemonFrameDocument?, AetheriaRuntimeDaemonCommandEnvelope> submit)
     {
         return _submit(submit);
+    }
+
+    private static bool TryResolveSurfaceCommandKind(
+        EveSurfaceCommandRequest request,
+        out AetheriaRuntimeDaemonCommandKinds kind)
+    {
+        kind = AetheriaRuntimeDaemonCommandKinds.None;
+        var command = request.Operation?.OperationId ?? "";
+        if (command.StartsWith(AetheriaRuntimeDaemonSurfaceCommandCatalog.CommandPrefix, StringComparison.Ordinal))
+            command = command.Substring(AetheriaRuntimeDaemonSurfaceCommandCatalog.CommandPrefix.Length);
+
+        return Enum.TryParse(command, ignoreCase: false, out kind) &&
+               kind != AetheriaRuntimeDaemonCommandKinds.None;
+    }
+
+    private sealed class UnsupportedSurfaceCommandException : Exception
+    {
     }
 }
 }

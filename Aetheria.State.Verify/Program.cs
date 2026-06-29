@@ -3212,25 +3212,25 @@ static void RequireEveRuntimeBootstrap(string root)
     var requiredPresenterSymbols = new[]
     {
         "private string surfaceId = AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId",
-        "ReadDaemonSurface(statePath)",
-        "ReadDaemonSurface(stateBoot.StateFilePath)",
-        "AetheriaUnityRuntimeClientProvider.ResolveClient(",
+        "ReadDaemonSurface(stateBoot)",
+        "AetheriaUnityRuntimeClientProvider.Reactive<global::Aetheria.State.Documents.EveSurfaceState>(",
+        "AetheriaUnityRuntimeClientProvider.EveSurfaceStateRefResolver(",
         "CultMeshReactiveDocument<global::Aetheria.State.Documents.EveSurfaceState>",
         "ResolveReactiveDaemonSurfaceState(",
-        "client.State.Reactive<global::Aetheria.State.Documents.EveSurfaceState>(AetheriaClientEveSurface.Game)",
-        "client.State.Reactive<global::Aetheria.State.Documents.EveSurfaceState>(AetheriaClientEveSurface.GameTui)",
-        "client.State.Reactive<global::Aetheria.State.Documents.EveSurfaceState>(AetheriaClientEveSurface.Editor)",
-        "client.State.Reactive<global::Aetheria.State.Documents.EveSurfaceState>(AetheriaClientEveSurface.EditorTui)",
+        "AetheriaClientEveSurface.Game",
+        "AetheriaClientEveSurface.GameTui",
+        "AetheriaClientEveSurface.Editor",
+        "AetheriaClientEveSurface.EditorTui",
         "DisposeReactiveSurfaceState()",
         "AetheriaRuntimeEveSurfaceAdapter.ToEveSurfaceDocument(",
         "private bool ShouldMountSurface(",
         "_mountedSurfaceVersion != surface.Version",
         "private static readonly AetheriaEveUnitySurfaceChrome RootOnlyChrome",
         "UseShell = false",
-        "MountSurface(string statePath, EveSurfaceDocument surface)",
+        "MountSurface(AetheriaRuntimeStateBootReport stateBoot, EveSurfaceDocument surface)",
         "AetheriaEveUnitySurfaceHost.Render(",
-        "AetheriaRuntimeDaemonSurfaceCommands.TrySubmit(ResolveClient(statePath), request, out var daemonEnvelope)",
-        ".Ui.SurfaceCommandAsync("
+        "control.TrySubmitSurfaceCommand(request, out var daemonEnvelope)",
+        ".SurfaceCommandAsync("
     };
     var missingPresenterSymbols = requiredPresenterSymbols
         .Where(symbol => !presenter.Contains(symbol, StringComparison.Ordinal))
@@ -3271,11 +3271,20 @@ static void RequireEveRuntimeBootstrap(string root)
             "Aetheria Eve presenter still lowers daemon-published surfaces directly instead of delegating to the shared Unity Eve surface host.");
     }
 
+    if (presenter.Contains("ResolveClient(", StringComparison.Ordinal) ||
+        presenter.Contains("AetheriaRuntimeDaemonSurfaceCommands.TrySubmit(", StringComparison.Ordinal) ||
+        presenter.Contains("client.State.", StringComparison.Ordinal) ||
+        presenter.Contains("client.Ui.", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Aetheria Eve presenter must use provider-native typed state/control/UI access instead of raw client plumbing.");
+    }
+
     var daemonSubmitIndex = presenter.IndexOf(
-        "AetheriaRuntimeDaemonSurfaceCommands.TrySubmit(ResolveClient(statePath), request, out var daemonEnvelope)",
+        "control.TrySubmitSurfaceCommand(request, out var daemonEnvelope)",
         StringComparison.Ordinal);
     var eveSubmitIndex = presenter.IndexOf(
-        ".Ui.SurfaceCommandAsync(",
+        ".SurfaceCommandAsync(",
         StringComparison.Ordinal);
     if (daemonSubmitIndex < 0 || eveSubmitIndex < 0 || daemonSubmitIndex > eveSubmitIndex)
     {
@@ -3287,12 +3296,8 @@ static void RequireEveRuntimeBootstrap(string root)
     {
         "public static class AetheriaRuntimeDaemonSurfaceCommands",
         "EveSurfaceCommandRequest request",
-        "request.ProviderId, \"aetheria.daemon\"",
         "AetheriaClient",
-        "client.CurrentDaemonFrame()",
-        "new AetheriaRuntimeDaemonOperationClient(",
-        "AetheriaRuntimeDaemonSurfaceCommandCatalog.TrySubmitArgumentless(",
-        "AetheriaRuntimeDaemonSurfaceCommandCatalog.CommandPrefix"
+        "client.Control.TrySubmitSurfaceCommand(request, out envelope)"
     };
     var missingDaemonSurfaceCommandSymbols = requiredDaemonSurfaceCommandSymbols
         .Where(symbol => !daemonSurfaceCommands.Contains(symbol, StringComparison.Ordinal))
@@ -5297,7 +5302,7 @@ static void RequireInventoryCargoItemDetailsUseEveSurface(string root)
         !eveUnitySurfaceHost.Contains("prop.Key.EndsWith(\"Ref\", StringComparison.Ordinal)", StringComparison.Ordinal) ||
         !eveUnitySurfaceHost.Contains("CreateDefaultStateRefResolver()", StringComparison.Ordinal) ||
         !eveUnitySurfaceHost.Contains("AetheriaUnityRuntimeClientProvider", StringComparison.Ordinal) ||
-        !eveUnitySurfaceHost.Contains(".CreateEveSurfaceCultMeshStateRefResolver()", StringComparison.Ordinal) ||
+        !eveUnitySurfaceHost.Contains("AetheriaUnityRuntimeClientProvider.EveSurfaceStateRefResolver(", StringComparison.Ordinal) ||
         !runtimeEveSurfaceAdapter.Contains("public static EveSurfaceDocument ResolveStateRefs(", StringComparison.Ordinal) ||
         !runtimeEveSurfaceAdapter.Contains("ResolvePropRefs(props, resolveStateRef)", StringComparison.Ordinal) ||
         !runtimeEveSurfaceAdapter.Contains("ResolvePropRef(props, AetheriaRuntimeSurfaceStateRefs.Source, \"value\", resolveStateRef)", StringComparison.Ordinal) ||
@@ -12578,7 +12583,7 @@ static void RequireTypedEveCommandBodies(string root)
         "internal static class AetheriaRuntimeEveCommands",
         "public static class AetheriaRuntimeEveCommandClient",
         "namespace GameCult.Aetheria.State.Verse",
-        "AetheriaUnityRuntimeClientProvider.ResolveClient(",
+        "SurfaceCommandAsync(",
         "internal async Task<AetheriaRuntimeDaemonCommandEnvelope> SubmitDaemonCommandAsync(",
         "internal async Task<AetheriaRuntimeEveCommandEnvelope> SubmitEveCommandAsync(",
         "CreatePlayerSettingsCommand(",
@@ -16337,6 +16342,9 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "public static AetheriaUi Ui(",
         "public static CultMeshReactiveDocument<TDocument> Reactive<TDocument>(string runtimeId = \"\")",
         "public static CultMeshReactiveDocument<TDocument> Reactive<TDocument>(",
+        "AetheriaClientEveSurface surface",
+        "public static CultMeshStateRefResolver EveSurfaceStateRefResolver(string runtimeId = \"\")",
+        "public static CultMeshStateRefResolver EveSurfaceStateRefResolver(",
         "private static readonly Dictionary<string, AetheriaClient> RuntimeClients",
         "RuntimeClients.TryGetValue(cacheKey, out var runtimeClient)",
         "RuntimeClients[cacheKey] = runtimeClient",
@@ -16890,18 +16898,26 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
             string.Join(", ", mainMenuReaderHits));
     }
 
-    if (!eveSurfacePresenter.Contains("AetheriaUnityRuntimeClientProvider.ResolveClient(", StringComparison.Ordinal) ||
-        !eveSurfacePresenter.Contains("ReadDaemonSurface(statePath)", StringComparison.Ordinal))
+    if (!eveSurfacePresenter.Contains("AetheriaUnityRuntimeClientProvider.Reactive<global::Aetheria.State.Documents.EveSurfaceState>(", StringComparison.Ordinal) ||
+        !eveSurfacePresenter.Contains("ReadDaemonSurface(stateBoot)", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Aetheria Eve surface presenter no longer routes daemon surface lookup through the shared AetheriaClient facade.");
+            "Aetheria Eve surface presenter must read daemon surface state through provider-native reactive typed documents.");
     }
 
-    if (!eveSurfacePresenter.Contains("client.State.CreateEveSurfaceCultMeshStateRefResolver()", StringComparison.Ordinal) ||
-        !eveSurfacePresenter.Contains("ResolveClient(statePath).State.CreateEveSurfaceCultMeshStateRefResolver()", StringComparison.Ordinal))
+    if (!eveSurfacePresenter.Contains("AetheriaUnityRuntimeClientProvider.EveSurfaceStateRefResolver(", StringComparison.Ordinal) ||
+        !eveUnitySurfaceHost.Contains("AetheriaUnityRuntimeClientProvider.EveSurfaceStateRefResolver(", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Aetheria Eve surface presenter no longer resolves provider state refs through managed AetheriaClientState documents.");
+            "Unity Eve surface lowering must resolve provider state refs through provider-native managed AetheriaClientState documents.");
+    }
+
+    if (eveSurfacePresenter.Contains("AetheriaUnityRuntimeClientProvider.ResolveClient(", StringComparison.Ordinal) ||
+        eveSurfacePresenter.Contains("client.State.CreateEveSurfaceCultMeshStateRefResolver()", StringComparison.Ordinal) ||
+        eveSurfacePresenter.Contains("ResolveClient(statePath).State.CreateEveSurfaceCultMeshStateRefResolver()", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Aetheria Eve surface presenter still peels through the raw client instead of using provider-native state/ref handles.");
     }
 
     if (eveSurfacePresenter.Contains("AetheriaRuntimeStateReader.CreateEveSurfaceStateRefResolver", StringComparison.Ordinal))
