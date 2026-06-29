@@ -9284,8 +9284,7 @@ static void RequireClientTargetBootAuthority(string root)
         "Aetheria runtime state file: {stateBoot.StateFilePath}",
         "!stateBoot.SupportsLocalStateFileRead",
         "stateBoot.StateFileExists",
-        "AetheriaUnityRuntimeClientProvider.ResolveClient(stateBoot.StateFilePath, stateBoot.RuntimeId)",
-        ".State",
+        "AetheriaUnityRuntimeClientProvider.RuntimeState(stateBoot, stateBoot.RuntimeId)",
         ".Reactive<AetheriaRuntimeCatalogSnapshot>()",
         "runtimeCatalogDocument.Current",
         ".Reactive<AetheriaRuntimeSectorMapDocument>()",
@@ -9310,10 +9309,12 @@ static void RequireClientTargetBootAuthority(string root)
     }
 
     if (gameplayBootShell.Contains(".ObserveCatalog()", StringComparison.Ordinal) ||
-        gameplayBootShell.Contains(".ObserveSectorMap()", StringComparison.Ordinal))
+        gameplayBootShell.Contains(".ObserveSectorMap()", StringComparison.Ordinal) ||
+        gameplayBootShell.Contains("AetheriaUnityRuntimeClientProvider.ResolveClient(stateBoot.StateFilePath, stateBoot.RuntimeId)", StringComparison.Ordinal) ||
+        gameplayBootShell.Contains(".State;"))
     {
         throw new InvalidOperationException(
-            "AetheriaUnityGameplayBootShell still routes boot catalog/sector-map reads through legacy session wrappers instead of reactive typed documents.");
+            "AetheriaUnityGameplayBootShell must acquire runtime state through provider-native typed state access, not legacy wrappers or full-client peels.");
     }
 
     var requiredPresenterSymbols = new[]
@@ -16282,8 +16283,7 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "public sealed class AetheriaUnityGameplayBootShell",
         "public AetheriaUnityGameplayBootResult Boot()",
         "AetheriaRuntimeStateBoot.Inspect(AetheriaUnityRuntimePaths.GameDataDirectory)",
-        "AetheriaUnityRuntimeClientProvider.ResolveClient(stateBoot.StateFilePath, stateBoot.RuntimeId)",
-        ".State",
+        "AetheriaUnityRuntimeClientProvider.RuntimeState(stateBoot, stateBoot.RuntimeId)",
         ".Reactive<AetheriaRuntimeCatalogSnapshot>()",
         "runtimeCatalogDocument.Current",
         ".Reactive<AetheriaRuntimeSectorMapDocument>()",
@@ -16310,10 +16310,12 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     }
 
     if (gameplayBootShell.Contains(".ObserveCatalog()", StringComparison.Ordinal) ||
-        gameplayBootShell.Contains(".ObserveSectorMap()", StringComparison.Ordinal))
+        gameplayBootShell.Contains(".ObserveSectorMap()", StringComparison.Ordinal) ||
+        gameplayBootShell.Contains("AetheriaUnityRuntimeClientProvider.ResolveClient(stateBoot.StateFilePath, stateBoot.RuntimeId)", StringComparison.Ordinal) ||
+        gameplayBootShell.Contains(".State;"))
     {
         throw new InvalidOperationException(
-            "AetheriaUnityGameplayBootShell still routes boot catalog/sector-map reads through legacy session wrappers instead of reactive typed documents.");
+            "AetheriaUnityGameplayBootShell must acquire runtime state through provider-native typed state access, not legacy wrappers or full-client peels.");
     }
 
     var requiredRuntimeClientProviderSymbols = new[]
