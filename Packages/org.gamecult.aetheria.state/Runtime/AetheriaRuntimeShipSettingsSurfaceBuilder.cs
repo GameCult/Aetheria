@@ -31,7 +31,23 @@ namespace GameCult.Aetheria.State.Verse
         public const string ResetShutdownThreshold = "aetheria.inventory.current_ship_settings.shutdown.reset";
         public const string Close = "aetheria.inventory.current_ship_settings.close";
 
-        public static AetheriaRuntimeShipSettingsSurfaceState Compose(
+        public static AetheriaRuntimeSurfaceDocument Build(
+            string shipName,
+            float shutdownPerformance,
+            Func<float, string> formatShutdownPerformance,
+            DateTime updatedAtUtc = default(DateTime),
+            long version = 1)
+        {
+            return Build(
+                ComposeState(
+                    shipName,
+                    shutdownPerformance,
+                    formatShutdownPerformance,
+                    updatedAtUtc),
+                version);
+        }
+
+        private static AetheriaRuntimeShipSettingsSurfaceState ComposeState(
             string shipName,
             float shutdownPerformance,
             Func<float, string> formatShutdownPerformance,

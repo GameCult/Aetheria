@@ -214,7 +214,10 @@ public class InventoryMenu : MonoBehaviour
             transform,
             _shipSettingsSurfaceDocument,
             "Aetheria Inventory Ship Settings Surface",
-            AetheriaRuntimeShipSettingsSurfaceBuilder.Build(ComposeCurrentShipSettingsSurface(currentEntity)),
+            AetheriaRuntimeShipSettingsSurfaceBuilder.Build(
+                currentEntity?.Entity?.DisplayName ?? "",
+                (float)(currentEntity?.ShutdownPerformance ?? 0),
+                FormatValue),
             HandleCurrentShipSettingsSurfaceCommand,
             _shipSettingsSurfaceChrome);
     }
@@ -267,15 +270,6 @@ public class InventoryMenu : MonoBehaviour
             return;
 
         AetheriaEveUnitySurfaceHost.Hide(_shipSettingsSurfaceDocument);
-    }
-
-    private AetheriaRuntimeShipSettingsSurfaceState ComposeCurrentShipSettingsSurface(
-        AetheriaRuntimeCurrentEntityDocument currentEntity)
-    {
-        return AetheriaRuntimeShipSettingsSurfaceBuilder.Compose(
-            currentEntity?.Entity?.DisplayName ?? "",
-            (float)(currentEntity?.ShutdownPerformance ?? 0),
-            FormatValue);
     }
 
     private void RenderCargoItemDetailsSurface(ItemInstance item)

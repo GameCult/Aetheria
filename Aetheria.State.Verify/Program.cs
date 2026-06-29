@@ -5032,8 +5032,9 @@ static void RequireInventoryShipSettingsUseEveSurface(string root)
         "HandleCurrentShipSettingsSurfaceCommand(",
         "AetheriaEveUnitySurfaceHost.RenderRuntime(",
         "AetheriaEveUnitySurfaceHost.Hide(_shipSettingsSurfaceDocument)",
-        "AetheriaRuntimeShipSettingsSurfaceBuilder.Build(ComposeCurrentShipSettingsSurface(",
-        "AetheriaRuntimeShipSettingsSurfaceBuilder.Compose(",
+        "AetheriaRuntimeShipSettingsSurfaceBuilder.Build(",
+        "currentEntity?.Entity?.DisplayName",
+        "(float)(currentEntity?.ShutdownPerformance ?? 0)",
         "AetheriaRuntimeShipSettingsSurfaceCommands.TryRead(request, out var command)",
         "AetheriaRuntimeShipSettingsCommandKind.DecrementShutdownThreshold",
         "AetheriaRuntimeShipSettingsCommandKind.IncrementShutdownThreshold",
@@ -5094,7 +5095,9 @@ static void RequireInventoryShipSettingsUseEveSurface(string root)
         "entity == null || !IsCurrentEntity(entity)",
         "entity.Settings.ShutdownPerformance",
         "new AetheriaRuntimeShipSettingsSurfaceState(",
+        "ComposeCurrentShipSettingsSurface(",
         "ProjectCurrentShipSettingsSurface(",
+        "AetheriaRuntimeShipSettingsSurfaceBuilder.Compose(",
         "AetheriaRuntimeShipSettingsSurfaceBuilder.Project("
     };
 
@@ -5122,8 +5125,8 @@ static void RequireInventoryShipSettingsUseEveSurface(string root)
         "public static class AetheriaRuntimeShipSettingsSurfaceCommands",
         "public static bool TryRead(",
         "AetheriaRuntimeShipSettingsSurfaceState",
-        "public static AetheriaRuntimeShipSettingsSurfaceState Compose(",
         "public static AetheriaRuntimeSurfaceDocument Build(",
+        "private static AetheriaRuntimeShipSettingsSurfaceState ComposeState(",
         "public static float ResolveShutdownPerformance(",
         "public static float ClampShutdownPerformance("
     };
@@ -5135,6 +5138,13 @@ static void RequireInventoryShipSettingsUseEveSurface(string root)
         throw new InvalidOperationException(
             "Shared runtime ship settings surface builder no longer owns the ship-settings shell contract: " +
             string.Join(", ", missingBuilderSymbols));
+    }
+
+    if (shipSettingsSurfaceBuilder.Contains("public static AetheriaRuntimeShipSettingsSurfaceState Compose(", StringComparison.Ordinal) ||
+        shipSettingsSurfaceBuilder.Contains("public static AetheriaRuntimeShipSettingsSurfaceState Project(", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Runtime ship settings composition must stay behind Build(...); do not re-expose Compose/Project as the public ship settings surface path.");
     }
 }
 
