@@ -7921,33 +7921,44 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "UI",
         "Menu",
         "TradeMenu.cs"));
-    var requiredTradeMenuSharedDocumentSymbols = new[] { "private void OnDestroy()" };
+    var compactTradeMenu = CompactSource(tradeMenu);
+    var requiredTradeMenuSharedDocumentSymbols = new[]
+    {
+        ".RuntimeState(\"unity-trade\").CurrentCatalog()",
+        ".RuntimeState(\"unity-trade\").CurrentPlayerSettings()",
+        "private void OnDestroy()"
+    };
     var missingTradeMenuSharedDocumentSymbols = requiredTradeMenuSharedDocumentSymbols
-        .Where(symbol => !tradeMenu.Contains(symbol, StringComparison.Ordinal))
+        .Where(symbol => !compactTradeMenu.Contains(symbol, StringComparison.Ordinal) &&
+                         !tradeMenu.Contains(symbol, StringComparison.Ordinal))
         .ToArray();
     if (missingTradeMenuSharedDocumentSymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "TradeMenu should bind shared catalog/settings through managed reactive Aetheria documents with menu lifetime disposal: " +
+            "TradeMenu should sample shared catalog/settings through named current typed Aetheria documents: " +
             string.Join(", ", missingTradeMenuSharedDocumentSymbols));
     }
 
-    RequireReactiveTypedDocumentAccess(
-        tradeMenu,
-        "TradeMenu",
-        "AetheriaRuntimeCatalogSnapshot",
-        "_catalog",
+    var forbiddenTradeMenuSharedDocumentSymbols = new[]
+    {
+        "CultMeshReactiveDocument<",
         ".ReactiveCatalogSnapshot(\"unity-trade\")",
-        "AetheriaRuntimeCatalogSession",
-        "ResolveClient().State.ObserveCatalog()");
-    RequireReactiveTypedDocumentAccess(
-        tradeMenu,
-        "TradeMenu",
-        "AetheriaRuntimePlayerSettingsDocument",
-        "_playerSettings",
         ".ReactivePlayerSettingsDocument(\"unity-trade\")",
+        "AetheriaRuntimeCatalogSession",
         "AetheriaRuntimePlayerSettingsSession",
-        ".ObservePlayer()");
+        "ResolveClient().State.ObserveCatalog()",
+        ".ObservePlayer()",
+        "_catalog?.Dispose()",
+        "_playerSettings?.Dispose()"
+    }
+        .Where(symbol => tradeMenu.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (forbiddenTradeMenuSharedDocumentSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "TradeMenu still routes catalog/settings through wrapper/session/reactive handles instead of current typed documents: " +
+            string.Join(", ", forbiddenTradeMenuSharedDocumentSymbols));
+    }
 
     var inventoryMenu = File.ReadAllText(Path.Combine(
         root,
