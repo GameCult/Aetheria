@@ -60,7 +60,7 @@ public sealed class AetheriaUnityObservedFrameApplier
             return false;
         }
 
-        var render = observer.LastObservedState?.ZoneRender;
+        var render = observer.LastRenderView?.ZoneRender;
         if (render == null)
         {
             return false;

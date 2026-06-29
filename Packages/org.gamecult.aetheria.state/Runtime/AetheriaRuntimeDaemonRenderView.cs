@@ -5,9 +5,9 @@ using GameCult.Mesh;
 
 namespace GameCult.Aetheria.State.Verse
 {
-    public sealed class AetheriaRuntimeObservedDaemonState
+    public sealed class AetheriaRuntimeDaemonRenderView
     {
-        public AetheriaRuntimeObservedDaemonState(
+        public AetheriaRuntimeDaemonRenderView(
             AetheriaRuntimeDaemonFrameDocument frame,
             AetheriaRuntimeDaemonSoaViewDocument? soaView,
             AetheriaRuntimeZoneRenderDocument zoneRender)
@@ -30,7 +30,7 @@ namespace GameCult.Aetheria.State.Verse
             CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument> frame,
             CultMeshReactiveDocument<AetheriaRuntimeDaemonSoaViewDocument>? soaView,
             CultMeshReactiveDocument<AetheriaRuntimeZoneRenderDocument> zoneRender,
-            out AetheriaRuntimeObservedDaemonState? observed)
+            out AetheriaRuntimeDaemonRenderView? observed)
         {
             observed = null;
             try
@@ -47,7 +47,7 @@ namespace GameCult.Aetheria.State.Verse
                     currentSoaView = null;
                 }
 
-                observed = new AetheriaRuntimeObservedDaemonState(currentFrame, currentSoaView, currentZoneRender);
+                observed = new AetheriaRuntimeDaemonRenderView(currentFrame, currentSoaView, currentZoneRender);
                 return true;
             }
             catch

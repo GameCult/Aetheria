@@ -38,7 +38,7 @@ namespace GameCult.Aetheria.State.Verse
         public string LastDaemonId { get; private set; } = "";
         public string LastSessionId { get; private set; } = "";
 
-        public AetheriaRuntimeDaemonObservationResult Observe(AetheriaRuntimeObservedDaemonState? observed)
+        public AetheriaRuntimeDaemonObservationResult Observe(AetheriaRuntimeDaemonRenderView? observed)
         {
             if (observed == null)
             {

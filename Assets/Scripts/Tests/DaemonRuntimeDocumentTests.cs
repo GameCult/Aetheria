@@ -206,7 +206,7 @@ public class DaemonRuntimeDocumentTests
         using var catalogReactive = client.State.Document<AetheriaRuntimeCatalogSnapshot>().Reactive();
         using var daemonFrameReactive = client.State.Document<AetheriaRuntimeDaemonFrameDocument>().Reactive();
         using var daemonSoaViewReactive = client.State.Document<AetheriaRuntimeDaemonSoaViewDocument>().Reactive();
-        Assert.IsTrue(AetheriaRuntimeObservedDaemonState.TryCreateCurrent(
+        Assert.IsTrue(AetheriaRuntimeDaemonRenderView.TryCreateCurrent(
             daemonFrameReactive,
             daemonSoaViewReactive,
             zoneRenderReactive,
@@ -2151,11 +2151,11 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
-    public void ObservedDaemonStateReadsManagedFrameAndSoaDocuments()
+    public void DaemonRenderViewReadsManagedFrameAndSoaDocuments()
     {
         var statePath = Path.Combine(
             Path.GetTempPath(),
-            "aetheria-observed-daemon-state-tests",
+            "aetheria-daemon-render-view-tests",
             Path.GetRandomFileName(),
             "state.cc");
         var frame = AetheriaRuntimeDaemonFrameDocument.Create(
@@ -2211,7 +2211,7 @@ public class DaemonRuntimeDocumentTests
         using var observedFrame = client.State.Document<AetheriaRuntimeDaemonFrameDocument>().Reactive();
         using var observedSoaView = client.State.Document<AetheriaRuntimeDaemonSoaViewDocument>().Reactive();
         using var observedZoneRender = client.State.Document<AetheriaRuntimeZoneRenderDocument>().Reactive();
-        Assert.IsTrue(AetheriaRuntimeObservedDaemonState.TryCreateCurrent(
+        Assert.IsTrue(AetheriaRuntimeDaemonRenderView.TryCreateCurrent(
             observedFrame,
             observedSoaView,
             observedZoneRender,
@@ -2232,7 +2232,7 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
-    public void ManagedStateSamplesCurrentObservedDaemonFromReactiveDocuments()
+    public void ManagedStateSamplesCurrentDaemonRenderViewFromReactiveDocuments()
     {
         var statePath = Path.Combine(
             Path.GetTempPath(),
@@ -2269,7 +2269,7 @@ public class DaemonRuntimeDocumentTests
         using var observedFrame = client.State.Document<AetheriaRuntimeDaemonFrameDocument>().Reactive();
         using var observedSoaView = client.State.Document<AetheriaRuntimeDaemonSoaViewDocument>().Reactive();
         using var observedZoneRender = client.State.Document<AetheriaRuntimeZoneRenderDocument>().Reactive();
-        var observed = AetheriaRuntimeObservedDaemonState.TryCreateCurrent(
+        var observed = AetheriaRuntimeDaemonRenderView.TryCreateCurrent(
             observedFrame,
             observedSoaView,
             observedZoneRender,
@@ -2287,11 +2287,11 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
-    public void ObservedDaemonStateReadsManagedFrameWithoutSoaDocument()
+    public void DaemonRenderViewReadsManagedFrameWithoutSoaDocument()
     {
         var statePath = Path.Combine(
             Path.GetTempPath(),
-            "aetheria-observed-daemon-frame-only-tests",
+            "aetheria-daemon-render-view-frame-only-tests",
             Path.GetRandomFileName(),
             "state.cc");
         var frame = AetheriaRuntimeDaemonFrameDocument.Create(
@@ -2316,7 +2316,7 @@ public class DaemonRuntimeDocumentTests
         using var observedFrame = client.State.Document<AetheriaRuntimeDaemonFrameDocument>().Reactive();
         using var observedSoaView = client.State.Document<AetheriaRuntimeDaemonSoaViewDocument>().Reactive();
         using var observedZoneRender = client.State.Document<AetheriaRuntimeZoneRenderDocument>().Reactive();
-        Assert.IsTrue(AetheriaRuntimeObservedDaemonState.TryCreateCurrent(
+        Assert.IsTrue(AetheriaRuntimeDaemonRenderView.TryCreateCurrent(
             observedFrame,
             observedSoaView,
             observedZoneRender,
@@ -2339,12 +2339,12 @@ public class DaemonRuntimeDocumentTests
     public void ObservationCursorTracksFrameAndSoaGenerationChanges()
     {
         var cursor = new AetheriaRuntimeDaemonObservationCursor();
-        var observed = ObservedState(frameId: 10, soaGeneration: 20);
+        var observed = RenderView(frameId: 10, soaGeneration: 20);
 
         var first = cursor.Observe(observed);
         var second = cursor.Observe(observed);
-        var third = cursor.Observe(ObservedState(frameId: 11, soaGeneration: 20));
-        var fourth = cursor.Observe(ObservedState(frameId: 11, soaGeneration: 21));
+        var third = cursor.Observe(RenderView(frameId: 11, soaGeneration: 20));
+        var fourth = cursor.Observe(RenderView(frameId: 11, soaGeneration: 21));
 
         Assert.IsTrue(first.Observed);
         Assert.IsTrue(first.FrameChanged);
@@ -2365,7 +2365,7 @@ public class DaemonRuntimeDocumentTests
     {
         var cursor = new AetheriaRuntimeDaemonObservationCursor();
 
-        cursor.Observe(ObservedState(frameId: 12, soaGeneration: 22));
+        cursor.Observe(RenderView(frameId: 12, soaGeneration: 22));
         cursor.Reset();
         var missing = cursor.Observe(null);
 
@@ -2376,19 +2376,19 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
-    public void CommandClientSendsCommandAgainstObservedDaemonFrame()
+    public void CommandClientSendsCommandAgainstDaemonFrameDocument()
     {
         var statePath = Path.Combine(
             Path.GetTempPath(),
             "aetheria-daemon-command-client-tests",
             Path.GetRandomFileName(),
             "state.cc");
-        var observed = ObservedState(frameId: 33, soaGeneration: 44);
-        observed.Frame.SessionId = "session-command-client";
-        observed.Frame.Run.CurrentEntityKey = "entity:player";
+        var frame = DaemonFrame(frameId: 33);
+        frame.SessionId = "session-command-client";
+        frame.Run.CurrentEntityKey = "entity:player";
         var client = new AetheriaRuntimeDaemonOperationClient(statePath, "unity-test", "unobserved-session");
 
-        var envelope = client.FireWeaponGroup(observed, 2);
+        var envelope = client.FireWeaponGroup(frame, 2);
 
         Assert.AreEqual(AetheriaRuntimeDaemonCommandKinds.FireWeaponGroup, envelope.Kind);
         Assert.AreEqual("unity-test", envelope.ClientId);
@@ -2406,10 +2406,10 @@ public class DaemonRuntimeDocumentTests
             "aetheria-daemon-command-client-tests",
             Path.GetRandomFileName(),
             "state.cc");
-        var observed = ObservedState(frameId: 34, soaGeneration: 45);
+        var frame = DaemonFrame(frameId: 34);
         var client = new AetheriaRuntimeDaemonOperationClient(statePath, "", "session-default-client");
 
-        var envelope = client.SensorPing(observed);
+        var envelope = client.SensorPing(frame);
 
         Assert.AreEqual(AetheriaRuntimeDaemonOperationClient.DefaultClientId, envelope.ClientId);
         Assert.AreEqual(AetheriaRuntimeDaemonCommandKinds.SensorPing, envelope.Kind);
@@ -4058,7 +4058,7 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
-    public void CommandClientCanSendWithoutObservedState()
+    public void CommandClientCanSendWithoutRenderView()
     {
         var statePath = Path.Combine(
             Path.GetTempPath(),
@@ -4271,15 +4271,9 @@ public class DaemonRuntimeDocumentTests
         return null;
     }
 
-    private static AetheriaRuntimeObservedDaemonState ObservedState(long frameId, long soaGeneration)
+    private static AetheriaRuntimeDaemonRenderView RenderView(long frameId, long soaGeneration)
     {
-        var frame = AetheriaRuntimeDaemonFrameDocument.Create(
-            new AetheriaRuntimeRunCheckpointCommit { RunId = "cursor-run" },
-            "daemon",
-            "session",
-            frameId,
-            0,
-            0.02);
+        var frame = DaemonFrame(frameId);
         var soaView = AetheriaRuntimeDaemonSoaViewDocument.Create(
             "daemon",
             "session",
@@ -4293,10 +4287,21 @@ public class DaemonRuntimeDocumentTests
             FrameId = frame.FrameId
         };
 
-        return new AetheriaRuntimeObservedDaemonState(
+        return new AetheriaRuntimeDaemonRenderView(
             frame,
             soaView,
             zoneRender);
+    }
+
+    private static AetheriaRuntimeDaemonFrameDocument DaemonFrame(long frameId)
+    {
+        return AetheriaRuntimeDaemonFrameDocument.Create(
+            new AetheriaRuntimeRunCheckpointCommit { RunId = "cursor-run" },
+            "daemon",
+            "session",
+            frameId,
+            0,
+            0.02);
     }
 
     private static void PublishLatestFrameThroughVerseClient(

@@ -25,21 +25,21 @@ public sealed class AetheriaDaemonObserver : MonoBehaviour
     private CultMeshReactiveDocument<AetheriaRuntimeDaemonSoaViewDocument> _daemonSoaView;
     private CultMeshReactiveDocument<AetheriaRuntimeZoneRenderDocument> _zoneRender;
 
-    public AetheriaRuntimeObservedDaemonState LastObservedState { get; private set; }
+    public AetheriaRuntimeDaemonRenderView LastRenderView { get; private set; }
     public AetheriaRuntimeDaemonObservationResult LastObservation { get; private set; }
     public long LastFrameId => _cursor.LastFrameId;
     public long LastSoaGeneration => _cursor.LastSoaGeneration;
-    public bool HasAuthoritativeState => LastObservedState != null && LastObservedState.IsAuthoritative;
-    public bool HasSoaView => LastObservedState != null && LastObservedState.HasSoaView;
+    public bool HasAuthoritativeState => LastRenderView != null && LastRenderView.IsAuthoritative;
+    public bool HasSoaView => LastRenderView != null && LastRenderView.HasSoaView;
     public AetheriaRuntimeDaemonSoaViewIndex LastSoaIndex =>
-        LastObservedState?.SoaIndex ?? AetheriaRuntimeDaemonSoaViewIndex.Empty;
+        LastRenderView?.SoaIndex ?? AetheriaRuntimeDaemonSoaViewIndex.Empty;
     public AetheriaDaemonSoaMemoryMap LastSoaMemoryMap => _soaMemoryMap;
     public AetheriaDaemonRenderNativeView LastRenderNativeView => _renderNativeView;
     public bool HasRenderNativeView => _renderNativeView.IsCreated;
     public AetheriaClient Client => ResolveClient();
     public AetheriaControl Control => Client.Control;
 
-    public event Action<AetheriaRuntimeObservedDaemonState, AetheriaRuntimeDaemonObservationResult> ObservedDaemonStateChanged;
+    public event Action<AetheriaRuntimeDaemonRenderView, AetheriaRuntimeDaemonObservationResult> DaemonRenderViewChanged;
 
     private void Update()
     {
@@ -54,7 +54,7 @@ public sealed class AetheriaDaemonObserver : MonoBehaviour
 
     public bool Poll()
     {
-        var observed = ReadObservedDaemonState();
+        var observed = ReadDaemonRenderView();
         if (observed == null)
         {
             LastObservation = _cursor.Observe(null);
@@ -62,7 +62,7 @@ public sealed class AetheriaDaemonObserver : MonoBehaviour
         }
 
         var result = _cursor.Observe(observed);
-        LastObservedState = observed;
+        LastRenderView = observed;
         LastObservation = result;
 
         if (result.SoaViewChanged)
@@ -72,7 +72,7 @@ public sealed class AetheriaDaemonObserver : MonoBehaviour
 
         if (result.Changed)
         {
-            ObservedDaemonStateChanged?.Invoke(observed, result);
+            DaemonRenderViewChanged?.Invoke(observed, result);
             if (logChanges)
             {
                 Debug.Log(
@@ -87,24 +87,24 @@ public sealed class AetheriaDaemonObserver : MonoBehaviour
     public void ResetObservation()
     {
         _cursor.Reset();
-        DisposeObservedDaemonDocuments();
+        DisposeRenderViewDocuments();
         DisposeSoaMemoryMap();
-        LastObservedState = null;
+        LastRenderView = null;
         LastObservation = null;
     }
 
     private void OnDisable()
     {
-        DisposeObservedDaemonDocuments();
+        DisposeRenderViewDocuments();
         DisposeSoaMemoryMap();
     }
 
-    private AetheriaRuntimeObservedDaemonState ReadObservedDaemonState()
+    private AetheriaRuntimeDaemonRenderView ReadDaemonRenderView()
     {
         try
         {
-            EnsureObservedDaemonDocuments();
-            return AetheriaRuntimeObservedDaemonState.TryCreateCurrent(
+            EnsureRenderViewDocuments();
+            return AetheriaRuntimeDaemonRenderView.TryCreateCurrent(
                 _daemonFrame,
                 _daemonSoaView,
                 _zoneRender,
@@ -118,7 +118,7 @@ public sealed class AetheriaDaemonObserver : MonoBehaviour
         }
     }
 
-    private void EnsureObservedDaemonDocuments()
+    private void EnsureRenderViewDocuments()
     {
         if (_daemonFrame != null && _daemonSoaView != null && _zoneRender != null)
         {
@@ -162,7 +162,7 @@ public sealed class AetheriaDaemonObserver : MonoBehaviour
         return AetheriaUnityRuntimeClientProvider.ResolveClient(stateBoot, clientId);
     }
 
-    private void RemapSoaView(AetheriaRuntimeObservedDaemonState observed)
+    private void RemapSoaView(AetheriaRuntimeDaemonRenderView observed)
     {
         DisposeSoaMemoryMap();
         if (observed == null || !observed.HasSoaView)
@@ -198,7 +198,7 @@ public sealed class AetheriaDaemonObserver : MonoBehaviour
         _soaMemoryMap = null;
     }
 
-    private void DisposeObservedDaemonDocuments()
+    private void DisposeRenderViewDocuments()
     {
         _daemonFrame?.Dispose();
         _daemonFrame = null;
