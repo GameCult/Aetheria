@@ -17,9 +17,7 @@ namespace GameCult.Aetheria.State.Verse
         private readonly AetheriaControl _control;
         private readonly AetheriaUi _ui;
         private readonly AetheriaClientState _state;
-        private CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument>? _observedFrame;
-        private CultMeshReactiveDocument<AetheriaRuntimeDaemonSoaViewDocument>? _observedSoaView;
-        private CultMeshReactiveDocument<AetheriaRuntimeZoneRenderDocument>? _observedZoneRender;
+        private CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument>? _daemonFrame;
         private bool _disposed;
 
         private AetheriaClient(AetheriaRuntimeVerseClient verse, string clientId, string sessionId)
@@ -154,44 +152,41 @@ namespace GameCult.Aetheria.State.Verse
                 return;
 
             _disposed = true;
-            _observedFrame?.Dispose();
-            _observedSoaView?.Dispose();
-            _observedZoneRender?.Dispose();
+            _daemonFrame?.Dispose();
             _verse.Dispose();
         }
 
         private AetheriaRuntimeDaemonCommandEnvelope SendOperation(
-            Func<AetheriaRuntimeDaemonOperationClient, AetheriaRuntimeObservedDaemonState?, AetheriaRuntimeDaemonCommandEnvelope> submit)
+            Func<AetheriaRuntimeDaemonOperationClient, AetheriaRuntimeDaemonFrameDocument?, AetheriaRuntimeDaemonCommandEnvelope> submit)
         {
             ThrowIfDisposed();
             if (submit == null) throw new ArgumentNullException(nameof(submit));
 
-            var observed = CurrentObservedDaemon();
+            var frame = CurrentDaemonFrame();
             var operationClient = new AetheriaRuntimeDaemonOperationClient(
                 StatePath,
                 _clientId,
-                observed?.Frame.SessionId ?? _sessionId,
+                frame?.SessionId ?? _sessionId,
                 command => _verse
                     .SubmitDaemonCommandAsync(command)
                     .GetAwaiter()
                     .GetResult());
 
-            return submit(operationClient, observed);
+            return submit(operationClient, frame);
         }
 
-        internal AetheriaRuntimeObservedDaemonState? CurrentObservedDaemon()
+        internal AetheriaRuntimeDaemonFrameDocument? CurrentDaemonFrame()
         {
             ThrowIfDisposed();
-            _observedFrame ??= State.Document<AetheriaRuntimeDaemonFrameDocument>().Reactive();
-            _observedSoaView ??= State.Document<AetheriaRuntimeDaemonSoaViewDocument>().Reactive();
-            _observedZoneRender ??= State.Document<AetheriaRuntimeZoneRenderDocument>().Reactive();
-            return AetheriaRuntimeObservedDaemonState.TryCreateCurrent(
-                _observedFrame,
-                _observedSoaView,
-                _observedZoneRender,
-                out var current)
-                ? current
-                : null;
+            try
+            {
+                _daemonFrame ??= State.Document<AetheriaRuntimeDaemonFrameDocument>().Reactive();
+                return _daemonFrame.Current;
+            }
+            catch
+            {
+                return null;
+            }
         }
 
         private void ThrowIfDisposed()

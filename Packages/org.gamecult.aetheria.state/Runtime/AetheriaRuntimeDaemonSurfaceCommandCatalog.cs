@@ -56,7 +56,7 @@ namespace GameCult.Aetheria.State.Verse
 
         internal static bool TrySubmitArgumentless(
             AetheriaRuntimeDaemonOperationClient client,
-            AetheriaRuntimeObservedDaemonState? observed,
+            AetheriaRuntimeDaemonFrameDocument? frame,
             AetheriaRuntimeDaemonCommandKinds kind,
             out AetheriaRuntimeDaemonCommandEnvelope? envelope)
         {
@@ -68,21 +68,21 @@ namespace GameCult.Aetheria.State.Verse
             {
                 envelope = kind switch
                 {
-                    AetheriaRuntimeDaemonCommandKinds.ClearTarget => client.ClearTarget(observed),
-                    AetheriaRuntimeDaemonCommandKinds.TargetNearest => client.TargetNearest(observed),
-                    AetheriaRuntimeDaemonCommandKinds.TargetNext => client.TargetNext(observed),
-                    AetheriaRuntimeDaemonCommandKinds.TargetPrevious => client.TargetPrevious(observed),
-                    AetheriaRuntimeDaemonCommandKinds.SetMoveVector => client.SetMoveVector(observed, 0.0, 1.0),
-                    AetheriaRuntimeDaemonCommandKinds.SetLookDirection => client.SetLookDirection(observed, 0.0, 1.0, 0.0),
-                    AetheriaRuntimeDaemonCommandKinds.SetTractorPower => client.SetTractorPower(observed, 1.0),
-                    AetheriaRuntimeDaemonCommandKinds.FireWeaponGroup => client.FireWeaponGroup(observed, 0),
-                    AetheriaRuntimeDaemonCommandKinds.SetWeaponGroupActive => client.SetWeaponGroupActive(observed, 0, true),
-                    AetheriaRuntimeDaemonCommandKinds.SensorPing => client.SensorPing(observed),
-                    AetheriaRuntimeDaemonCommandKinds.SetHeatsinksEnabled => client.SetHeatsinksEnabled(observed, true),
-                    AetheriaRuntimeDaemonCommandKinds.SetOverrideShutdown => client.SetOverrideShutdown(observed, true),
-                    AetheriaRuntimeDaemonCommandKinds.ToggleShieldEnabled => client.ToggleShieldEnabled(observed),
-                    AetheriaRuntimeDaemonCommandKinds.DockNearest => client.DockNearest(observed),
-                    AetheriaRuntimeDaemonCommandKinds.Undock => client.Undock(observed),
+                    AetheriaRuntimeDaemonCommandKinds.ClearTarget => client.ClearTarget(frame),
+                    AetheriaRuntimeDaemonCommandKinds.TargetNearest => client.TargetNearest(frame),
+                    AetheriaRuntimeDaemonCommandKinds.TargetNext => client.TargetNext(frame),
+                    AetheriaRuntimeDaemonCommandKinds.TargetPrevious => client.TargetPrevious(frame),
+                    AetheriaRuntimeDaemonCommandKinds.SetMoveVector => client.SetMoveVector(frame, 0.0, 1.0),
+                    AetheriaRuntimeDaemonCommandKinds.SetLookDirection => client.SetLookDirection(frame, 0.0, 1.0, 0.0),
+                    AetheriaRuntimeDaemonCommandKinds.SetTractorPower => client.SetTractorPower(frame, 1.0),
+                    AetheriaRuntimeDaemonCommandKinds.FireWeaponGroup => client.FireWeaponGroup(frame, 0),
+                    AetheriaRuntimeDaemonCommandKinds.SetWeaponGroupActive => client.SetWeaponGroupActive(frame, 0, true),
+                    AetheriaRuntimeDaemonCommandKinds.SensorPing => client.SensorPing(frame),
+                    AetheriaRuntimeDaemonCommandKinds.SetHeatsinksEnabled => client.SetHeatsinksEnabled(frame, true),
+                    AetheriaRuntimeDaemonCommandKinds.SetOverrideShutdown => client.SetOverrideShutdown(frame, true),
+                    AetheriaRuntimeDaemonCommandKinds.ToggleShieldEnabled => client.ToggleShieldEnabled(frame),
+                    AetheriaRuntimeDaemonCommandKinds.DockNearest => client.DockNearest(frame),
+                    AetheriaRuntimeDaemonCommandKinds.Undock => client.Undock(frame),
                     _ => null
                 };
                 return envelope != null;

@@ -77,14 +77,14 @@ namespace GameCult.Aetheria.State.Verse
 
         private AetheriaRuntimeDaemonCommandDocument Create(
             AetheriaRuntimeDaemonCommandKinds kind,
-            AetheriaRuntimeObservedDaemonState? observed)
+            AetheriaRuntimeDaemonFrameDocument? frame)
         {
             return AetheriaRuntimeDaemonCommandDocument.Create(
                 kind,
                 ClientId,
-                observed?.Frame.SessionId ?? SessionId,
-                observed?.Frame.FrameId ?? -1,
-                observed?.Run.CurrentEntityKey ?? "");
+                frame?.SessionId ?? SessionId,
+                frame?.FrameId ?? -1,
+                frame?.Run.CurrentEntityKey ?? "");
         }
 
         internal static AetheriaRuntimeDaemonCommandEnvelope ToEnvelope(AetheriaRuntimeDaemonCommandDocument command)
@@ -102,41 +102,41 @@ namespace GameCult.Aetheria.State.Verse
         }
 
         internal AetheriaRuntimeDaemonCommandEnvelope SetTarget(
-            AetheriaRuntimeObservedDaemonState? observed,
+            AetheriaRuntimeDaemonFrameDocument? frame,
             string targetEntityKey)
         {
-            var command = Create(AetheriaRuntimeDaemonCommandKinds.SetTarget, observed);
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.SetTarget, frame);
             command.TargetEntityKey = targetEntityKey ?? "";
             return Send(command);
         }
 
-        internal AetheriaRuntimeDaemonCommandEnvelope ClearTarget(AetheriaRuntimeObservedDaemonState? observed)
+        internal AetheriaRuntimeDaemonCommandEnvelope ClearTarget(AetheriaRuntimeDaemonFrameDocument? frame)
         {
-            return Send(Create(AetheriaRuntimeDaemonCommandKinds.ClearTarget, observed));
+            return Send(Create(AetheriaRuntimeDaemonCommandKinds.ClearTarget, frame));
         }
 
-        internal AetheriaRuntimeDaemonCommandEnvelope TargetNearest(AetheriaRuntimeObservedDaemonState? observed)
+        internal AetheriaRuntimeDaemonCommandEnvelope TargetNearest(AetheriaRuntimeDaemonFrameDocument? frame)
         {
-            return Send(Create(AetheriaRuntimeDaemonCommandKinds.TargetNearest, observed));
+            return Send(Create(AetheriaRuntimeDaemonCommandKinds.TargetNearest, frame));
         }
 
-        internal AetheriaRuntimeDaemonCommandEnvelope TargetNext(AetheriaRuntimeObservedDaemonState? observed)
+        internal AetheriaRuntimeDaemonCommandEnvelope TargetNext(AetheriaRuntimeDaemonFrameDocument? frame)
         {
-            return Send(Create(AetheriaRuntimeDaemonCommandKinds.TargetNext, observed));
+            return Send(Create(AetheriaRuntimeDaemonCommandKinds.TargetNext, frame));
         }
 
-        internal AetheriaRuntimeDaemonCommandEnvelope TargetPrevious(AetheriaRuntimeObservedDaemonState? observed)
+        internal AetheriaRuntimeDaemonCommandEnvelope TargetPrevious(AetheriaRuntimeDaemonFrameDocument? frame)
         {
-            return Send(Create(AetheriaRuntimeDaemonCommandKinds.TargetPrevious, observed));
+            return Send(Create(AetheriaRuntimeDaemonCommandKinds.TargetPrevious, frame));
         }
 
         internal AetheriaRuntimeDaemonCommandEnvelope TargetReticle(
-            AetheriaRuntimeObservedDaemonState? observed,
+            AetheriaRuntimeDaemonFrameDocument? frame,
             double directionX,
             double directionY,
             double directionZ)
         {
-            var command = Create(AetheriaRuntimeDaemonCommandKinds.TargetReticle, observed);
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.TargetReticle, frame);
             command.DirectionX = directionX;
             command.DirectionY = directionY;
             command.PositionZ = directionZ;
@@ -144,12 +144,12 @@ namespace GameCult.Aetheria.State.Verse
         }
 
         internal AetheriaRuntimeDaemonCommandEnvelope SetMoveVector(
-            AetheriaRuntimeObservedDaemonState? observed,
+            AetheriaRuntimeDaemonFrameDocument? frame,
             double directionX,
             double directionY,
             double scalarValue = 1.0)
         {
-            var command = Create(AetheriaRuntimeDaemonCommandKinds.SetMoveVector, observed);
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.SetMoveVector, frame);
             command.DirectionX = directionX;
             command.DirectionY = directionY;
             command.ScalarValue = scalarValue;
@@ -157,12 +157,12 @@ namespace GameCult.Aetheria.State.Verse
         }
 
         internal AetheriaRuntimeDaemonCommandEnvelope SetLookDirection(
-            AetheriaRuntimeObservedDaemonState? observed,
+            AetheriaRuntimeDaemonFrameDocument? frame,
             double directionX,
             double directionY,
             double directionZ)
         {
-            var command = Create(AetheriaRuntimeDaemonCommandKinds.SetLookDirection, observed);
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.SetLookDirection, frame);
             command.DirectionX = directionX;
             command.DirectionY = directionY;
             command.PositionZ = directionZ;
@@ -170,42 +170,42 @@ namespace GameCult.Aetheria.State.Verse
         }
 
         internal AetheriaRuntimeDaemonCommandEnvelope SetTractorPower(
-            AetheriaRuntimeObservedDaemonState? observed,
+            AetheriaRuntimeDaemonFrameDocument? frame,
             double power)
         {
-            var command = Create(AetheriaRuntimeDaemonCommandKinds.SetTractorPower, observed);
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.SetTractorPower, frame);
             command.ScalarValue = power;
             return Send(command);
         }
 
         internal AetheriaRuntimeDaemonCommandEnvelope FireWeaponGroup(
-            AetheriaRuntimeObservedDaemonState? observed,
+            AetheriaRuntimeDaemonFrameDocument? frame,
             int weaponGroup)
         {
-            var command = Create(AetheriaRuntimeDaemonCommandKinds.FireWeaponGroup, observed);
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.FireWeaponGroup, frame);
             command.WeaponGroup = weaponGroup;
             return Send(command);
         }
 
         internal AetheriaRuntimeDaemonCommandEnvelope SetWeaponGroupActive(
-            AetheriaRuntimeObservedDaemonState? observed,
+            AetheriaRuntimeDaemonFrameDocument? frame,
             int weaponGroup,
             bool active)
         {
-            var command = Create(AetheriaRuntimeDaemonCommandKinds.SetWeaponGroupActive, observed);
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.SetWeaponGroupActive, frame);
             command.WeaponGroup = weaponGroup;
             command.ScalarValue = active ? 1.0 : 0.0;
             return Send(command);
         }
 
         internal AetheriaRuntimeDaemonCommandEnvelope SetWeaponGroupMembership(
-            AetheriaRuntimeObservedDaemonState? observed,
+            AetheriaRuntimeDaemonFrameDocument? frame,
             string targetEntityKey,
             int equipmentIndex,
             int weaponGroup,
             bool assigned)
         {
-            var command = Create(AetheriaRuntimeDaemonCommandKinds.SetWeaponGroupMembership, observed);
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.SetWeaponGroupMembership, frame);
             command.TargetEntityKey = targetEntityKey ?? "";
             command.EquipmentIndex = equipmentIndex;
             command.WeaponGroup = weaponGroup;
@@ -214,12 +214,12 @@ namespace GameCult.Aetheria.State.Verse
         }
 
         internal AetheriaRuntimeDaemonCommandEnvelope SetBehaviorActive(
-            AetheriaRuntimeObservedDaemonState? observed,
+            AetheriaRuntimeDaemonFrameDocument? frame,
             int equipmentIndex,
             int behaviorIndex,
             bool active)
         {
-            var command = Create(AetheriaRuntimeDaemonCommandKinds.SetBehaviorActive, observed);
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.SetBehaviorActive, frame);
             command.EquipmentIndex = equipmentIndex;
             command.BehaviorIndex = behaviorIndex;
             command.ScalarValue = active ? 1.0 : 0.0;
@@ -227,71 +227,71 @@ namespace GameCult.Aetheria.State.Verse
         }
 
         internal AetheriaRuntimeDaemonCommandEnvelope ActivateConsumable(
-            AetheriaRuntimeObservedDaemonState? observed,
+            AetheriaRuntimeDaemonFrameDocument? frame,
             string itemKey)
         {
-            var command = Create(AetheriaRuntimeDaemonCommandKinds.ActivateConsumable, observed);
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.ActivateConsumable, frame);
             command.TextValue = itemKey ?? "";
             return Send(command);
         }
 
-        internal AetheriaRuntimeDaemonCommandEnvelope SensorPing(AetheriaRuntimeObservedDaemonState? observed)
+        internal AetheriaRuntimeDaemonCommandEnvelope SensorPing(AetheriaRuntimeDaemonFrameDocument? frame)
         {
-            return Send(Create(AetheriaRuntimeDaemonCommandKinds.SensorPing, observed));
+            return Send(Create(AetheriaRuntimeDaemonCommandKinds.SensorPing, frame));
         }
 
         internal AetheriaRuntimeDaemonCommandEnvelope SetHeatsinksEnabled(
-            AetheriaRuntimeObservedDaemonState? observed,
+            AetheriaRuntimeDaemonFrameDocument? frame,
             bool enabled)
         {
-            var command = Create(AetheriaRuntimeDaemonCommandKinds.SetHeatsinksEnabled, observed);
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.SetHeatsinksEnabled, frame);
             command.ScalarValue = enabled ? 1.0 : 0.0;
             return Send(command);
         }
 
         internal AetheriaRuntimeDaemonCommandEnvelope SetOverrideShutdown(
-            AetheriaRuntimeObservedDaemonState? observed,
+            AetheriaRuntimeDaemonFrameDocument? frame,
             bool enabled)
         {
-            var command = Create(AetheriaRuntimeDaemonCommandKinds.SetOverrideShutdown, observed);
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.SetOverrideShutdown, frame);
             command.ScalarValue = enabled ? 1.0 : 0.0;
             return Send(command);
         }
 
         internal AetheriaRuntimeDaemonCommandEnvelope SetOverrideShutdown(
-            AetheriaRuntimeObservedDaemonState? observed,
+            AetheriaRuntimeDaemonFrameDocument? frame,
             string targetEntityKey,
             bool enabled)
         {
-            var command = Create(AetheriaRuntimeDaemonCommandKinds.SetOverrideShutdown, observed);
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.SetOverrideShutdown, frame);
             command.TargetEntityKey = targetEntityKey ?? "";
             command.ScalarValue = enabled ? 1.0 : 0.0;
             return Send(command);
         }
 
         internal AetheriaRuntimeDaemonCommandEnvelope SetItemEnabled(
-            AetheriaRuntimeObservedDaemonState? observed,
+            AetheriaRuntimeDaemonFrameDocument? frame,
             int equipmentIndex,
             bool enabled)
         {
-            var command = Create(AetheriaRuntimeDaemonCommandKinds.SetItemEnabled, observed);
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.SetItemEnabled, frame);
             command.EquipmentIndex = equipmentIndex;
             command.ScalarValue = enabled ? 1.0 : 0.0;
             return Send(command);
         }
 
-        internal AetheriaRuntimeDaemonCommandEnvelope ToggleShieldEnabled(AetheriaRuntimeObservedDaemonState? observed)
+        internal AetheriaRuntimeDaemonCommandEnvelope ToggleShieldEnabled(AetheriaRuntimeDaemonFrameDocument? frame)
         {
-            return Send(Create(AetheriaRuntimeDaemonCommandKinds.ToggleShieldEnabled, observed));
+            return Send(Create(AetheriaRuntimeDaemonCommandKinds.ToggleShieldEnabled, frame));
         }
 
         internal AetheriaRuntimeDaemonCommandEnvelope SetItemOverrideShutdown(
-            AetheriaRuntimeObservedDaemonState? observed,
+            AetheriaRuntimeDaemonFrameDocument? frame,
             string targetEntityKey,
             int equipmentIndex,
             bool enabled)
         {
-            var command = Create(AetheriaRuntimeDaemonCommandKinds.SetItemOverrideShutdown, observed);
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.SetItemOverrideShutdown, frame);
             command.TargetEntityKey = targetEntityKey ?? "";
             command.EquipmentIndex = equipmentIndex;
             command.ScalarValue = enabled ? 1.0 : 0.0;
@@ -299,13 +299,13 @@ namespace GameCult.Aetheria.State.Verse
         }
 
         internal AetheriaRuntimeDaemonCommandEnvelope SetThermotoggleTargetTemperature(
-            AetheriaRuntimeObservedDaemonState? observed,
+            AetheriaRuntimeDaemonFrameDocument? frame,
             string targetEntityKey,
             int equipmentIndex,
             int behaviorIndex,
             double targetTemperature)
         {
-            var command = Create(AetheriaRuntimeDaemonCommandKinds.SetThermotoggleTargetTemperature, observed);
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.SetThermotoggleTargetTemperature, frame);
             command.TargetEntityKey = targetEntityKey ?? "";
             command.EquipmentIndex = equipmentIndex;
             command.BehaviorIndex = behaviorIndex;
@@ -314,24 +314,24 @@ namespace GameCult.Aetheria.State.Verse
         }
 
         internal AetheriaRuntimeDaemonCommandEnvelope SetShutdownPerformance(
-            AetheriaRuntimeObservedDaemonState? observed,
+            AetheriaRuntimeDaemonFrameDocument? frame,
             string targetEntityKey,
             double shutdownPerformance)
         {
-            var command = Create(AetheriaRuntimeDaemonCommandKinds.SetShutdownPerformance, observed);
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.SetShutdownPerformance, frame);
             command.TargetEntityKey = targetEntityKey ?? "";
             command.ScalarValue = shutdownPerformance;
             return Send(command);
         }
 
         internal AetheriaRuntimeDaemonCommandEnvelope ToggleHullConductivity(
-            AetheriaRuntimeObservedDaemonState? observed,
+            AetheriaRuntimeDaemonFrameDocument? frame,
             string targetEntityKey,
             int x,
             int y,
             int axis)
         {
-            var command = Create(AetheriaRuntimeDaemonCommandKinds.ToggleHullConductivity, observed);
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.ToggleHullConductivity, frame);
             command.TargetEntityKey = targetEntityKey ?? "";
             command.PositionX = x;
             command.PositionY = y;
@@ -340,56 +340,56 @@ namespace GameCult.Aetheria.State.Verse
         }
 
         internal AetheriaRuntimeDaemonCommandEnvelope SetEntityName(
-            AetheriaRuntimeObservedDaemonState? observed,
+            AetheriaRuntimeDaemonFrameDocument? frame,
             string targetEntityKey,
             string name)
         {
-            var command = Create(AetheriaRuntimeDaemonCommandKinds.SetEntityName, observed);
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.SetEntityName, frame);
             command.TargetEntityKey = targetEntityKey ?? "";
             command.TextValue = name ?? "";
             return Send(command);
         }
 
-        internal AetheriaRuntimeDaemonCommandEnvelope Dock(AetheriaRuntimeObservedDaemonState? observed, string targetEntityKey)
+        internal AetheriaRuntimeDaemonCommandEnvelope Dock(AetheriaRuntimeDaemonFrameDocument? frame, string targetEntityKey)
         {
-            var command = Create(AetheriaRuntimeDaemonCommandKinds.Dock, observed);
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.Dock, frame);
             command.TargetEntityKey = targetEntityKey ?? "";
             return Send(command);
         }
 
-        internal AetheriaRuntimeDaemonCommandEnvelope DockNearest(AetheriaRuntimeObservedDaemonState? observed)
+        internal AetheriaRuntimeDaemonCommandEnvelope DockNearest(AetheriaRuntimeDaemonFrameDocument? frame)
         {
-            var command = Create(AetheriaRuntimeDaemonCommandKinds.DockNearest, observed);
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.DockNearest, frame);
             return Send(command);
         }
 
-        internal AetheriaRuntimeDaemonCommandEnvelope Undock(AetheriaRuntimeObservedDaemonState? observed)
+        internal AetheriaRuntimeDaemonCommandEnvelope Undock(AetheriaRuntimeDaemonFrameDocument? frame)
         {
-            return Send(Create(AetheriaRuntimeDaemonCommandKinds.Undock, observed));
+            return Send(Create(AetheriaRuntimeDaemonCommandKinds.Undock, frame));
         }
 
-        internal AetheriaRuntimeDaemonCommandEnvelope Interact(AetheriaRuntimeObservedDaemonState? observed)
+        internal AetheriaRuntimeDaemonCommandEnvelope Interact(AetheriaRuntimeDaemonFrameDocument? frame)
         {
-            var command = Create(AetheriaRuntimeDaemonCommandKinds.Interact, observed);
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.Interact, frame);
             return Send(command);
         }
 
         internal AetheriaRuntimeDaemonCommandEnvelope SetDockedCurrentShip(
-            AetheriaRuntimeObservedDaemonState? observed,
+            AetheriaRuntimeDaemonFrameDocument? frame,
             string targetEntityKey)
         {
-            var command = Create(AetheriaRuntimeDaemonCommandKinds.SetDockedCurrentShip, observed);
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.SetDockedCurrentShip, frame);
             command.TargetEntityKey = targetEntityKey ?? "";
             return Send(command);
         }
 
         internal AetheriaRuntimeDaemonCommandEnvelope EnterWormhole(
-            AetheriaRuntimeObservedDaemonState? observed,
+            AetheriaRuntimeDaemonFrameDocument? frame,
             int targetZoneIndex,
             double positionX,
             double positionY)
         {
-            var command = Create(AetheriaRuntimeDaemonCommandKinds.EnterWormhole, observed);
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.EnterWormhole, frame);
             command.TargetZoneIndex = targetZoneIndex;
             command.PositionX = positionX;
             command.PositionY = positionY;
@@ -397,16 +397,16 @@ namespace GameCult.Aetheria.State.Verse
         }
 
         internal AetheriaRuntimeDaemonCommandEnvelope TowToStation(
-            AetheriaRuntimeObservedDaemonState? observed,
+            AetheriaRuntimeDaemonFrameDocument? frame,
             string stationEntityKey)
         {
-            var command = Create(AetheriaRuntimeDaemonCommandKinds.TowToStation, observed);
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.TowToStation, frame);
             command.TargetEntityKey = stationEntityKey ?? "";
             return Send(command);
         }
 
         internal AetheriaRuntimeDaemonCommandEnvelope TransferCargoItem(
-            AetheriaRuntimeObservedDaemonState? observed,
+            AetheriaRuntimeDaemonFrameDocument? frame,
             string originEntityKey,
             int originCargoIndex,
             string destinationEntityKey,
@@ -419,7 +419,7 @@ namespace GameCult.Aetheria.State.Verse
             int destinationY,
             bool hasDestinationPosition)
         {
-            var command = Create(AetheriaRuntimeDaemonCommandKinds.TransferCargoItem, observed);
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.TransferCargoItem, frame);
             command.TargetEntityKey = destinationEntityKey ?? "";
             command.EquipmentIndex = destinationCargoIndex;
             command.PositionX = destinationX;
@@ -439,7 +439,7 @@ namespace GameCult.Aetheria.State.Verse
         }
 
         internal AetheriaRuntimeDaemonCommandEnvelope TradePurchase(
-            AetheriaRuntimeObservedDaemonState? observed,
+            AetheriaRuntimeDaemonFrameDocument? frame,
             string purchaseKind,
             string itemKey,
             int quantity,
@@ -453,7 +453,7 @@ namespace GameCult.Aetheria.State.Verse
             int sourceY,
             bool createsDockedShip)
         {
-            var command = Create(AetheriaRuntimeDaemonCommandKinds.TradePurchase, observed);
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.TradePurchase, frame);
             command.TargetEntityKey = targetEntityKey ?? "";
             command.EquipmentIndex = targetCargoIndex;
             command.PositionX = sourceX;
@@ -476,7 +476,7 @@ namespace GameCult.Aetheria.State.Verse
         }
 
         internal AetheriaRuntimeDaemonCommandEnvelope PickUpLoot(
-            AetheriaRuntimeObservedDaemonState? observed,
+            AetheriaRuntimeDaemonFrameDocument? frame,
             string targetEntityKey,
             string itemKey,
             int quantity,
@@ -484,7 +484,7 @@ namespace GameCult.Aetheria.State.Verse
             double positionY,
             double positionZ)
         {
-            var command = Create(AetheriaRuntimeDaemonCommandKinds.PickUpLoot, observed);
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.PickUpLoot, frame);
             command.TargetEntityKey = targetEntityKey ?? "";
             command.TextValue = itemKey ?? "";
             command.ScalarValue = quantity;
@@ -500,12 +500,12 @@ namespace GameCult.Aetheria.State.Verse
         }
 
         internal AetheriaRuntimeDaemonCommandEnvelope RestoreLoadout(
-            AetheriaRuntimeObservedDaemonState? observed,
+            AetheriaRuntimeDaemonFrameDocument? frame,
             string dockedEntityKey,
             string templateName,
             int price)
         {
-            var command = Create(AetheriaRuntimeDaemonCommandKinds.RestoreLoadout, observed);
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.RestoreLoadout, frame);
             command.TargetEntityKey = dockedEntityKey ?? "";
             command.TextValue = templateName ?? "";
             command.ScalarValue = price;
@@ -516,7 +516,7 @@ namespace GameCult.Aetheria.State.Verse
         }
 
         internal AetheriaRuntimeDaemonCommandEnvelope EquipItem(
-            AetheriaRuntimeObservedDaemonState? observed,
+            AetheriaRuntimeDaemonFrameDocument? frame,
             string sourceKind,
             string originEntityKey,
             int originIndex,
@@ -528,7 +528,7 @@ namespace GameCult.Aetheria.State.Verse
             int destinationY,
             bool hasDestinationPosition)
         {
-            var command = Create(AetheriaRuntimeDaemonCommandKinds.EquipItem, observed);
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.EquipItem, frame);
             command.TargetEntityKey = destinationEntityKey ?? "";
             command.PositionX = destinationX;
             command.PositionY = destinationY;
@@ -546,7 +546,7 @@ namespace GameCult.Aetheria.State.Verse
         }
 
         internal AetheriaRuntimeDaemonCommandEnvelope StoreItem(
-            AetheriaRuntimeObservedDaemonState? observed,
+            AetheriaRuntimeDaemonFrameDocument? frame,
             string originEntityKey,
             int sourceEquipmentIndex,
             string destinationEntityKey,
@@ -556,7 +556,7 @@ namespace GameCult.Aetheria.State.Verse
             int destinationY,
             bool hasDestinationPosition)
         {
-            var command = Create(AetheriaRuntimeDaemonCommandKinds.StoreItem, observed);
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.StoreItem, frame);
             command.TargetEntityKey = destinationEntityKey ?? "";
             command.EquipmentIndex = sourceEquipmentIndex;
             command.PositionX = destinationX;

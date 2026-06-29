@@ -21,15 +21,15 @@ namespace GameCult.Aetheria.State.Verse
                 return false;
             }
 
-            var observed = client.CurrentObservedDaemon();
+            var frame = client.CurrentDaemonFrame();
             var operationClient = new AetheriaRuntimeDaemonOperationClient(
                 client.StatePath,
                 string.IsNullOrWhiteSpace(request.ClientId) ? AetheriaRuntimeDaemonOperationClient.DefaultClientId : request.ClientId,
-                observed?.Frame.SessionId ?? "local",
+                frame?.SessionId ?? "local",
                 client.SubmitDaemonCommandDocument);
             return AetheriaRuntimeDaemonSurfaceCommandCatalog.TrySubmitArgumentless(
                 operationClient,
-                observed,
+                frame,
                 kind,
                 out envelope);
         }
