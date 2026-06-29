@@ -89,7 +89,7 @@ namespace GameCult.Aetheria.State.Verse
             long version = 1)
         {
             return Build(
-                ProjectState(
+                ComposeState(
                     item,
                     manufacturer,
                     formatValue,
@@ -98,7 +98,7 @@ namespace GameCult.Aetheria.State.Verse
                 version);
         }
 
-        private static AetheriaRuntimeTradeItemDetailsSurfaceState ProjectState(
+        private static AetheriaRuntimeTradeItemDetailsSurfaceState ComposeState(
             AetheriaRuntimeCatalogItem item,
             string manufacturer,
             Func<float, string> formatValue,

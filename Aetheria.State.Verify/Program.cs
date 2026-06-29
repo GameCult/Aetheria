@@ -6191,7 +6191,7 @@ static void RequireTradeItemDetailsUseEveSurface(string root)
         "AetheriaRuntimeTradeItemDetailsSurfaceState",
         "AetheriaRuntimeTradeItemSection",
         "AetheriaRuntimeTradeItemMetric",
-        "private static AetheriaRuntimeTradeItemDetailsSurfaceState ProjectState(",
+        "private static AetheriaRuntimeTradeItemDetailsSurfaceState ComposeState(",
         "ProjectBehaviorSections(",
         "ProjectBehaviorMetric(",
         "public static AetheriaRuntimeSurfaceDocument Build(",
@@ -6209,10 +6209,12 @@ static void RequireTradeItemDetailsUseEveSurface(string root)
     }
 
     if (tradeItemDetailsSurfaceBuilder.Contains("public static AetheriaRuntimeTradeItemDetailsSurfaceState Project(", StringComparison.Ordinal) ||
-        tradeItemDetailsSurfaceBuilder.Contains("public static AetheriaRuntimeTradeItemDetailsSurfaceState Compose(", StringComparison.Ordinal))
+        tradeItemDetailsSurfaceBuilder.Contains("public static AetheriaRuntimeTradeItemDetailsSurfaceState Compose(", StringComparison.Ordinal) ||
+        tradeItemDetailsSurfaceBuilder.Contains("private static AetheriaRuntimeTradeItemDetailsSurfaceState ProjectState(", StringComparison.Ordinal) ||
+        tradeItemDetailsSurfaceBuilder.Contains("Build(ProjectState(", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Runtime trade item detail projection must stay behind Build(...); do not re-expose Project/Compose as the public trade item details path.");
+            "Runtime trade item detail composition must stay behind Build(...); do not re-expose Project/Compose or restore ProjectState handoffs.");
     }
 }
 
@@ -11401,7 +11403,7 @@ static void RequireDaemonVersePublication(string root)
     {
         "public static class AetheriaRuntimeTradeValuePolicySurfaceBuilder",
         "public static AetheriaRuntimeSurfaceDocument BuildFromCatalog(",
-        "public static AetheriaRuntimeTradeValuePolicySurfaceState ProjectState(",
+        "private static AetheriaRuntimeTradeValuePolicySurfaceState ComposeState(",
         "SurfaceId = \"aetheria.tradeValuePolicy\"",
         "AetheriaRuntimeTradeValuePolicySurfaceState",
         "Quality Price Modifier",
@@ -11427,7 +11429,7 @@ static void RequireDaemonVersePublication(string root)
     var requiredStatRecipeSurfaceProjectionSymbols = new[]
     {
         "public static AetheriaRuntimeSurfaceDocument BuildFromCatalog(",
-        "public static AetheriaRuntimeStatRecipeSurfaceState ProjectState(",
+        "private static AetheriaRuntimeStatRecipeSurfaceState ComposeState(",
         "SelectMany(ProjectRows)",
         "AetheriaRuntimeBehaviorMetadataCatalog.Get(behavior.Kind)",
         "AetheriaRuntimeBehaviorFieldValueKind.PerformanceStat",
@@ -11442,6 +11444,15 @@ static void RequireDaemonVersePublication(string root)
         throw new InvalidOperationException(
             "Stat recipe designer surface projection must live on AetheriaRuntimeStatRecipeSurfaceBuilder: " +
             string.Join(", ", missingStatRecipeSurfaceProjectionSymbols));
+    }
+
+    if (tradeValuePolicySurfaceBuilder.Contains("public static AetheriaRuntimeTradeValuePolicySurfaceState ProjectState(", StringComparison.Ordinal) ||
+        statRecipeSurfaceBuilder.Contains("public static AetheriaRuntimeStatRecipeSurfaceState ProjectState(", StringComparison.Ordinal) ||
+        tradeValuePolicySurfaceBuilder.Contains("Build(ProjectState(", StringComparison.Ordinal) ||
+        statRecipeSurfaceBuilder.Contains("Build(ProjectState(", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Designer surface builders must build finished Eve documents from typed catalog input; do not re-expose public ProjectState helpers.");
     }
 
     var forbiddenCatalogStoreSurfaceProjectionSymbols = new[]

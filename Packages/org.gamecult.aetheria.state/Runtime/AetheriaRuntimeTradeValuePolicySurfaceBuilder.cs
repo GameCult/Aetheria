@@ -30,10 +30,10 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeCatalogSnapshot? catalog,
             long version = 1)
         {
-            return Build(ProjectState(catalog), version);
+            return Build(ComposeState(catalog), version);
         }
 
-        public static AetheriaRuntimeTradeValuePolicySurfaceState ProjectState(
+        private static AetheriaRuntimeTradeValuePolicySurfaceState ComposeState(
             AetheriaRuntimeCatalogSnapshot? catalog)
         {
             return new AetheriaRuntimeTradeValuePolicySurfaceState(

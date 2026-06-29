@@ -207,10 +207,10 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeCatalogSnapshot? catalog,
             long version = 1)
         {
-            return Build(ProjectState(catalog), version);
+            return Build(ComposeState(catalog), version);
         }
 
-        public static AetheriaRuntimeStatRecipeSurfaceState ProjectState(
+        private static AetheriaRuntimeStatRecipeSurfaceState ComposeState(
             AetheriaRuntimeCatalogSnapshot? catalog)
         {
             var recipes = (catalog?.Items ?? Array.Empty<AetheriaRuntimeCatalogItem>())
