@@ -27,7 +27,6 @@ public class LocalMenu : MonoBehaviour
     private readonly AetheriaEveUnitySurfaceChrome _surfaceChrome = new AetheriaEveUnitySurfaceChrome();
     private AetheriaUnityObservedEntityIndex _observedEntityIndex;
     private AetheriaUnityObservedDockingIndex _observedDockingIndex;
-    private string _clientStatePath = "";
 
     public void SetObservedEntityIndex(AetheriaUnityObservedEntityIndex observedEntityIndex)
     {
@@ -224,21 +223,10 @@ public class LocalMenu : MonoBehaviour
         if (_observedEntityIndex == null)
             return false;
 
-        dockingIndex = _observedDockingIndex ??= new AetheriaUnityObservedDockingIndex(ResolveClient, _observedEntityIndex);
+        dockingIndex = _observedDockingIndex ??= new AetheriaUnityObservedDockingIndex(
+            () => AetheriaUnityRuntimeClientProvider.RuntimeClient("unity-runtime-local-story"),
+            _observedEntityIndex);
         return true;
-    }
-
-    private AetheriaClient ResolveClient()
-    {
-        var stateBoot = AetheriaRuntimeStateBoot.Inspect(AetheriaUnityRuntimePaths.GameDataDirectory);
-        if (!string.Equals(_clientStatePath, stateBoot.StateFilePath, StringComparison.Ordinal))
-        {
-            _clientStatePath = stateBoot.StateFilePath;
-            _observedDockingIndex?.Dispose();
-            _observedDockingIndex = null;
-        }
-
-        return AetheriaUnityRuntimeClientProvider.ResolveClient(stateBoot, "unity-runtime-local-story");
     }
 
     private void HideStorySurface()

@@ -108,7 +108,6 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
     private int _clickCount;
     private InventoryCell _clickCell;
     private float _clickTime;
-    private string _clientStatePath = "";
     private CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog;
     private CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings;
     private CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> _currentEntity;
@@ -1080,7 +1079,7 @@ private void Update()
 
         try
         {
-            var client = ResolveClient();
+            var client = AetheriaUnityRuntimeClientProvider.RuntimeClient("unity-inventory");
             var loadout = CreateLoadoutTemplate(targetEntityKey);
             if (loadout?.RootEntity == null || string.IsNullOrWhiteSpace(loadout.RootEntity.Hull?.ItemKey ?? ""))
                 return;
@@ -1455,7 +1454,7 @@ private void Update()
 
         try
         {
-            submit(ResolveClient().Control);
+            submit(AetheriaUnityRuntimeClientProvider.Control("unity-inventory"));
             return true;
         }
         catch (Exception ex)
@@ -1463,18 +1462,6 @@ private void Update()
             Debug.LogWarning($"Failed to send Aetheria daemon inventory {label} operation; operation not submitted: {ex.Message}");
             return false;
         }
-    }
-
-    private AetheriaClient ResolveClient()
-    {
-        var stateBoot = AetheriaRuntimeStateBoot.Inspect(AetheriaUnityRuntimePaths.GameDataDirectory);
-        if (!string.Equals(_clientStatePath, stateBoot.StateFilePath, StringComparison.Ordinal))
-        {
-            _clientStatePath = stateBoot.StateFilePath;
-            ClearClientCaches();
-        }
-
-        return AetheriaUnityRuntimeClientProvider.ResolveClient(stateBoot, "unity-inventory");
     }
 
     private void ClearClientCaches()
@@ -1503,8 +1490,8 @@ private void Update()
 
         try
         {
-            _currentEntity = ResolveClient()
-                .State.Reactive<AetheriaRuntimeCurrentEntityDocument>();
+            _currentEntity = AetheriaUnityRuntimeClientProvider
+                .Reactive<AetheriaRuntimeCurrentEntityDocument>("unity-inventory");
         }
         catch (Exception ex)
         {
@@ -1521,8 +1508,8 @@ private void Update()
 
         try
         {
-            _stationRefit = ResolveClient()
-                .State.Reactive<AetheriaRuntimeStationRefitDocument>();
+            _stationRefit = AetheriaUnityRuntimeClientProvider
+                .Reactive<AetheriaRuntimeStationRefitDocument>("unity-inventory");
         }
         catch (Exception ex)
         {
@@ -1546,8 +1533,8 @@ private void Update()
 
         try
         {
-            _loadoutFrame = ResolveClient()
-                .State.Reactive<AetheriaRuntimeDaemonFrameDocument>();
+            _loadoutFrame = AetheriaUnityRuntimeClientProvider
+                .Reactive<AetheriaRuntimeDaemonFrameDocument>("unity-inventory");
         }
         catch (Exception ex)
         {
@@ -1564,8 +1551,9 @@ private void Update()
 
         try
         {
-            var nextInventory = ResolveClient()
-                .State.Reactive<AetheriaRuntimeInventoryDocument>(entityIndex);
+            var nextInventory = AetheriaUnityRuntimeClientProvider
+                .RuntimeState("unity-inventory")
+                .Reactive<AetheriaRuntimeInventoryDocument>(entityIndex);
             _inventory?.Dispose();
             _inventoryEntityIndex = entityIndex;
             _inventory = nextInventory;
@@ -1585,7 +1573,8 @@ private void Update()
 
         try
         {
-            _catalog = ResolveClient().State.Reactive<AetheriaRuntimeCatalogSnapshot>();
+            _catalog = AetheriaUnityRuntimeClientProvider
+                .Reactive<AetheriaRuntimeCatalogSnapshot>("unity-inventory");
         }
         catch (Exception ex)
         {
@@ -1602,8 +1591,8 @@ private void Update()
 
         try
         {
-            _playerSettings = ResolveClient()
-                .State.Reactive<AetheriaRuntimePlayerSettingsDocument>();
+            _playerSettings = AetheriaUnityRuntimeClientProvider
+                .Reactive<AetheriaRuntimePlayerSettingsDocument>("unity-inventory");
         }
         catch (Exception ex)
         {

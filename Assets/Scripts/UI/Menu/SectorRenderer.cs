@@ -46,7 +46,6 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
     private float _sectorBackgroundDepth;
     private float _sectorCameraDepth;
     private UIDocument _zoneDetailsSurfaceDocument;
-    private string _clientStatePath = "";
     private CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog;
     private CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings;
     private CultMeshReactiveDocument<AetheriaRuntimeSectorMapDocument> _sectorMap;
@@ -169,8 +168,8 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
 
         try
         {
-            _sectorMap ??= ResolveClient()
-                .State.Reactive<AetheriaRuntimeSectorMapDocument>();
+            _sectorMap ??= AetheriaUnityRuntimeClientProvider
+                .Reactive<AetheriaRuntimeSectorMapDocument>("unity-sector-renderer");
             var sectorMap = _sectorMap?.Current;
             return (sectorMap?.Zones ?? Array.Empty<AetheriaRuntimeSectorMapZone>())
                 .FirstOrDefault(zone => zone.ZoneIndex == zoneIndex);
@@ -197,8 +196,8 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
 
         try
         {
-            var nextZoneDetails = ResolveClient()
-                .State.Reactive<AetheriaRuntimeZoneDetailsDocument>(zoneIndex);
+            var nextZoneDetails = AetheriaUnityRuntimeClientProvider
+                .Reactive<AetheriaRuntimeZoneDetailsDocument>(zoneIndex, "unity-sector-renderer");
             _zoneDetails?.Dispose();
             _zoneDetailsIndex = zoneIndex;
             _zoneDetails = nextZoneDetails;
@@ -224,7 +223,8 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
 
         try
         {
-            _catalog = ResolveClient().State.Reactive<AetheriaRuntimeCatalogSnapshot>();
+            _catalog = AetheriaUnityRuntimeClientProvider
+                .Reactive<AetheriaRuntimeCatalogSnapshot>("unity-sector-renderer");
         }
         catch (Exception ex)
         {
@@ -241,8 +241,8 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
 
         try
         {
-            _playerSettings = ResolveClient()
-                .State.Reactive<AetheriaRuntimePlayerSettingsDocument>();
+            _playerSettings = AetheriaUnityRuntimeClientProvider
+                .Reactive<AetheriaRuntimePlayerSettingsDocument>("unity-sector-renderer");
         }
         catch (Exception ex)
         {
@@ -265,18 +265,6 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
         return formatted.Contains(CultureInfo.CurrentCulture.NumberFormat.NumberDecimalSeparator)
             ? formatted.TrimEnd('0').TrimEnd(decimalSeparator)
             : formatted;
-    }
-
-    private AetheriaClient ResolveClient()
-    {
-        var stateBoot = AetheriaRuntimeStateBoot.Inspect(AetheriaUnityRuntimePaths.GameDataDirectory);
-        if (!string.Equals(_clientStatePath, stateBoot.StateFilePath, StringComparison.Ordinal))
-        {
-            _clientStatePath = stateBoot.StateFilePath;
-            ClearClientCaches();
-        }
-
-        return AetheriaUnityRuntimeClientProvider.ResolveClient(stateBoot, "unity-sector-renderer");
     }
 
     private void ClearClientCaches()
@@ -312,8 +300,8 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
     {
         try
         {
-            _currentZone ??= ResolveClient()
-                .State.Reactive<AetheriaRuntimeCurrentZoneDocument>();
+            _currentZone ??= AetheriaUnityRuntimeClientProvider
+                .Reactive<AetheriaRuntimeCurrentZoneDocument>("unity-sector-renderer");
         }
         catch (Exception ex)
         {

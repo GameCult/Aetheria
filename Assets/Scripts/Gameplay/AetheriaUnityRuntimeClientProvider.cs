@@ -57,6 +57,43 @@ public static class AetheriaUnityRuntimeClientProvider
             string.IsNullOrWhiteSpace(runtimeId) ? stateBoot.RuntimeId : runtimeId);
     }
 
+    public static AetheriaClient RuntimeClient(string runtimeId = "")
+    {
+        return ResolveClient(AetheriaUnityRuntimePaths.RuntimeStateFilePath, runtimeId);
+    }
+
+    public static AetheriaClientState RuntimeState(string runtimeId = "")
+    {
+        return RuntimeClient(runtimeId).State;
+    }
+
+    public static AetheriaControl Control(string runtimeId = "")
+    {
+        return RuntimeClient(runtimeId).Control;
+    }
+
+    public static CultMeshReactiveDocument<TDocument> Reactive<TDocument>(string runtimeId = "")
+        where TDocument : class
+    {
+        return RuntimeState(runtimeId).Reactive<TDocument>();
+    }
+
+    public static CultMeshReactiveDocument<TDocument> Reactive<TDocument>(
+        AetheriaRuntimeRtsViewportBounds viewport,
+        string runtimeId = "")
+        where TDocument : class
+    {
+        return RuntimeState(runtimeId).Reactive<TDocument>(viewport);
+    }
+
+    public static CultMeshReactiveDocument<TDocument> Reactive<TDocument>(
+        int index,
+        string runtimeId = "")
+        where TDocument : class
+    {
+        return RuntimeState(runtimeId).Reactive<TDocument>(index);
+    }
+
     public static AetheriaClient CurrentClientForStateFile(string stateFilePath)
     {
         foreach (var pair in RuntimeClients)
@@ -94,8 +131,7 @@ public static class AetheriaUnityRuntimeClientProvider
     {
         try
         {
-            _playerSettingsDocument ??= ResolveClient(AetheriaUnityRuntimePaths.RuntimeStateFilePath)
-                .State.Reactive<AetheriaRuntimePlayerSettingsDocument>();
+            _playerSettingsDocument ??= Reactive<AetheriaRuntimePlayerSettingsDocument>();
 
             var stored = _playerSettingsDocument.Current;
             if (stored == null)

@@ -32,7 +32,6 @@ public class MenuPanel : MonoBehaviour
     private MenuTabBinding _current;
     private UIDocument _tabSurfaceDocument;
     private readonly AetheriaEveUnitySurfaceChrome _tabSurfaceChrome = new AetheriaEveUnitySurfaceChrome();
-    private string _clientStatePath = "";
     private CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> _currentDocking;
     
     public MenuTab CurrentTab { get; private set; }
@@ -173,7 +172,8 @@ public class MenuPanel : MonoBehaviour
         docking = null;
         try
         {
-            _currentDocking ??= ResolveClient().State.Reactive<AetheriaRuntimeCurrentDockingDocument>();
+            _currentDocking ??= AetheriaUnityRuntimeClientProvider
+                .Reactive<AetheriaRuntimeCurrentDockingDocument>("unity-runtime-menu-tabs");
             docking = _currentDocking.Current;
             return docking != null;
         }
@@ -182,17 +182,6 @@ public class MenuPanel : MonoBehaviour
             Debug.LogWarning($"Failed to read Aetheria current docking for runtime menu tabs: {ex.Message}");
             return false;
         }
-    }
-
-    private AetheriaClient ResolveClient()
-    {
-        var stateBoot = AetheriaRuntimeStateBoot.Inspect(AetheriaUnityRuntimePaths.GameDataDirectory);
-        if (!string.Equals(_clientStatePath, stateBoot.StateFilePath, StringComparison.Ordinal))
-        {
-            _clientStatePath = stateBoot.StateFilePath;
-        }
-
-        return AetheriaUnityRuntimeClientProvider.ResolveClient(stateBoot, "unity-runtime-menu-tabs");
     }
 
     private static string GetTabLabel(MenuTabBinding tabBinding)

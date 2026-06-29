@@ -44,7 +44,6 @@ public class MapRenderer : MonoBehaviour
     private CultMeshReactiveDocument<AetheriaRuntimeRenderSplatsViewportDocument> _renderSplatsViewport;
     private float _nextViewportRefreshTime;
     private readonly List<RawImage> _rtsIconPool = new List<RawImage>();
-    private string _clientStatePath = "";
     private CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings;
     
     void Start()
@@ -126,11 +125,12 @@ public class MapRenderer : MonoBehaviour
         _nextViewportRefreshTime = Time.unscaledTime + .5f;
         try
         {
-            var client = ResolveClient();
             var viewport = ResolveViewportBounds();
             ClearViewportCaches();
-            _objectsViewport = client.State.Reactive<AetheriaRuntimeObjectsViewportDocument>(viewport);
-            _renderSplatsViewport = client.State.Reactive<AetheriaRuntimeRenderSplatsViewportDocument>(viewport);
+            _objectsViewport = AetheriaUnityRuntimeClientProvider
+                .Reactive<AetheriaRuntimeObjectsViewportDocument>(viewport, "unity-map-renderer");
+            _renderSplatsViewport = AetheriaUnityRuntimeClientProvider
+                .Reactive<AetheriaRuntimeRenderSplatsViewportDocument>(viewport, "unity-map-renderer");
 
             var objectsViewport = _objectsViewport?.Current;
             var zoneName = string.IsNullOrWhiteSpace(objectsViewport?.ZoneName)
@@ -312,8 +312,8 @@ public class MapRenderer : MonoBehaviour
     {
         try
         {
-            _playerSettings ??= ResolveClient()
-                .State.Reactive<AetheriaRuntimePlayerSettingsDocument>();
+            _playerSettings ??= AetheriaUnityRuntimeClientProvider
+                .Reactive<AetheriaRuntimePlayerSettingsDocument>("unity-map-renderer");
             return _playerSettings?.Current?.ShowAsteroidsInMinimap ?? false;
         }
         catch (Exception ex)
@@ -321,20 +321,6 @@ public class MapRenderer : MonoBehaviour
             Debug.LogWarning($"Failed to bind Aetheria map graphics settings from local Verse state: {ex.Message}");
             return false;
         }
-    }
-
-    private AetheriaClient ResolveClient()
-    {
-        var stateBoot = AetheriaRuntimeStateBoot.Inspect(AetheriaUnityRuntimePaths.GameDataDirectory);
-        if (!string.Equals(_clientStatePath, stateBoot.StateFilePath, StringComparison.Ordinal))
-        {
-            _clientStatePath = stateBoot.StateFilePath;
-            ClearClientCaches();
-        }
-
-        return AetheriaUnityRuntimeClientProvider.ResolveClient(
-            stateBoot,
-            "unity-map-renderer");
     }
 
     private void ClearClientCaches()

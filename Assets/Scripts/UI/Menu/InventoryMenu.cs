@@ -31,7 +31,6 @@ public class InventoryMenu : MonoBehaviour
     private UIDocument _shipSettingsSurfaceDocument;
     private UIDocument _cargoItemDetailsSurfaceDocument;
     private UIDocument _equippedItemDetailsSurfaceDocument;
-    private string _clientStatePath = "";
     private CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog;
     private CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings;
     private CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> _currentEntity;
@@ -898,7 +897,7 @@ public class InventoryMenu : MonoBehaviour
 
         try
         {
-            submit(ResolveClient().Control);
+            submit(AetheriaUnityRuntimeClientProvider.Control("unity-inventory-menu"));
             return true;
         }
         catch (Exception ex)
@@ -906,18 +905,6 @@ public class InventoryMenu : MonoBehaviour
             Debug.LogWarning($"Failed to send Aetheria daemon inventory menu {label} operation; operation not submitted: {ex.Message}");
             return false;
         }
-    }
-
-    private AetheriaClient ResolveClient()
-    {
-        var stateBoot = AetheriaRuntimeStateBoot.Inspect(AetheriaUnityRuntimePaths.GameDataDirectory);
-        if (!string.Equals(_clientStatePath, stateBoot.StateFilePath, StringComparison.Ordinal))
-        {
-            _clientStatePath = stateBoot.StateFilePath;
-            ClearClientCaches();
-        }
-
-        return AetheriaUnityRuntimeClientProvider.ResolveClient(stateBoot, "unity-inventory-menu");
     }
 
     private void ClearClientCaches()
@@ -944,8 +931,8 @@ public class InventoryMenu : MonoBehaviour
 
         try
         {
-            _currentEntity = ResolveClient()
-                .State.Reactive<AetheriaRuntimeCurrentEntityDocument>();
+            _currentEntity = AetheriaUnityRuntimeClientProvider
+                .Reactive<AetheriaRuntimeCurrentEntityDocument>("unity-inventory-menu");
         }
         catch (Exception ex)
         {
@@ -962,8 +949,8 @@ public class InventoryMenu : MonoBehaviour
 
         try
         {
-            _stationRefit = ResolveClient()
-                .State.Reactive<AetheriaRuntimeStationRefitDocument>();
+            _stationRefit = AetheriaUnityRuntimeClientProvider
+                .Reactive<AetheriaRuntimeStationRefitDocument>("unity-inventory-menu");
         }
         catch (Exception ex)
         {
@@ -980,8 +967,9 @@ public class InventoryMenu : MonoBehaviour
 
         try
         {
-            var nextInventory = ResolveClient()
-                .State.Reactive<AetheriaRuntimeInventoryDocument>(entityIndex);
+            var nextInventory = AetheriaUnityRuntimeClientProvider
+                .RuntimeState("unity-inventory-menu")
+                .Reactive<AetheriaRuntimeInventoryDocument>(entityIndex);
             _inventory?.Dispose();
             _inventoryEntityIndex = entityIndex;
             _inventory = nextInventory;
@@ -1053,7 +1041,8 @@ public class InventoryMenu : MonoBehaviour
 
         try
         {
-            _catalog = ResolveClient().State.Reactive<AetheriaRuntimeCatalogSnapshot>();
+            _catalog = AetheriaUnityRuntimeClientProvider
+                .Reactive<AetheriaRuntimeCatalogSnapshot>("unity-inventory-menu");
         }
         catch (Exception ex)
         {
@@ -1070,8 +1059,8 @@ public class InventoryMenu : MonoBehaviour
 
         try
         {
-            _playerSettings = ResolveClient()
-                .State.Reactive<AetheriaRuntimePlayerSettingsDocument>();
+            _playerSettings = AetheriaUnityRuntimeClientProvider
+                .Reactive<AetheriaRuntimePlayerSettingsDocument>("unity-inventory-menu");
         }
         catch (Exception ex)
         {

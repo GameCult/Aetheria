@@ -221,8 +221,8 @@ public class SectorMap : MonoBehaviour
 
     private void EnsureSectorMapLoaded()
     {
-        _sectorMapDocument ??= ResolveClient()
-            .State.Reactive<AetheriaRuntimeSectorMapDocument>();
+        _sectorMapDocument ??= AetheriaUnityRuntimeClientProvider
+            .Reactive<AetheriaRuntimeSectorMapDocument>("unity-sector-map");
         _sectorMap = _sectorMapDocument?.Current;
 
         if (_sectorMapLoaded)
@@ -495,13 +495,6 @@ public class SectorMap : MonoBehaviour
 
         InfluenceCamera.targetTexture = null;
         InfluenceCamera.gameObject.SetActive(false);
-    }
-
-    private AetheriaClient ResolveClient()
-    {
-        return AetheriaUnityRuntimeClientProvider.ResolveClient(
-            AetheriaRuntimeStateBoot.Inspect(AetheriaUnityRuntimePaths.GameDataDirectory),
-            "unity-sector-map");
     }
 
     private static float2 Position(AetheriaRuntimeSectorMapZone zone)

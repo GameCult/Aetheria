@@ -37,7 +37,6 @@ public class TradeMenu : MonoBehaviour
     private UIDocument _filterSurfaceDocument;
     private UIDocument _rowActionSurfaceDocument;
     private UIDocument _tradeItemSurfaceDocument;
-    private string _clientStatePath = "";
     private CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog;
     private CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings;
     private CultMeshReactiveDocument<AetheriaRuntimeCurrentDockingDocument> _currentDocking;
@@ -518,7 +517,8 @@ public class TradeMenu : MonoBehaviour
 
         try
         {
-            _stationRefit = ResolveClient().State.Reactive<AetheriaRuntimeStationRefitDocument>();
+            _stationRefit = AetheriaUnityRuntimeClientProvider
+                .Reactive<AetheriaRuntimeStationRefitDocument>("unity-trade");
         }
         catch (Exception ex)
         {
@@ -533,7 +533,8 @@ public class TradeMenu : MonoBehaviour
         docking = null;
         try
         {
-            _currentDocking ??= ResolveClient().State.Reactive<AetheriaRuntimeCurrentDockingDocument>();
+            _currentDocking ??= AetheriaUnityRuntimeClientProvider
+                .Reactive<AetheriaRuntimeCurrentDockingDocument>("unity-trade");
             docking = _currentDocking.Current;
             return docking != null;
         }
@@ -585,7 +586,7 @@ public class TradeMenu : MonoBehaviour
 
         try
         {
-            submit(ResolveClient().Control);
+            submit(AetheriaUnityRuntimeClientProvider.Control("unity-trade"));
             InvalidateStationRefit();
             return true;
         }
@@ -594,18 +595,6 @@ public class TradeMenu : MonoBehaviour
             Debug.LogWarning($"Failed to send Aetheria daemon trade {label} operation; operation not submitted: {ex.Message}");
             return false;
         }
-    }
-
-    private AetheriaClient ResolveClient()
-    {
-        var stateBoot = AetheriaRuntimeStateBoot.Inspect(AetheriaUnityRuntimePaths.GameDataDirectory);
-        if (!string.Equals(_clientStatePath, stateBoot.StateFilePath, StringComparison.Ordinal))
-        {
-            _clientStatePath = stateBoot.StateFilePath;
-            ClearClientCaches();
-        }
-
-        return AetheriaUnityRuntimeClientProvider.ResolveClient(stateBoot, "unity-trade");
     }
 
     private void ClearClientCaches()
@@ -627,7 +616,8 @@ public class TradeMenu : MonoBehaviour
 
         try
         {
-            _catalog = ResolveClient().State.Reactive<AetheriaRuntimeCatalogSnapshot>();
+            _catalog = AetheriaUnityRuntimeClientProvider
+                .Reactive<AetheriaRuntimeCatalogSnapshot>("unity-trade");
         }
         catch (Exception ex)
         {
@@ -644,8 +634,8 @@ public class TradeMenu : MonoBehaviour
 
         try
         {
-            _playerSettings = ResolveClient()
-                .State.Reactive<AetheriaRuntimePlayerSettingsDocument>();
+            _playerSettings = AetheriaUnityRuntimeClientProvider
+                .Reactive<AetheriaRuntimePlayerSettingsDocument>("unity-trade");
         }
         catch (Exception ex)
         {
