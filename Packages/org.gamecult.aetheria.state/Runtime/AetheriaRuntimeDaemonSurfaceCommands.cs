@@ -21,7 +21,7 @@ namespace GameCult.Aetheria.State.Verse
                 return false;
             }
 
-            var observed = client.State.CurrentObservedDaemon();
+            var observed = client.CurrentObservedDaemon();
             var operationClient = new AetheriaRuntimeDaemonOperationClient(
                 client.StatePath,
                 string.IsNullOrWhiteSpace(request.ClientId) ? AetheriaRuntimeDaemonOperationClient.DefaultClientId : request.ClientId,

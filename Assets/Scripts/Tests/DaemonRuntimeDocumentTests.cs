@@ -205,11 +205,15 @@ public class DaemonRuntimeDocumentTests
             .GetResult();
         using var zoneRenderReactive = client.State
             .Reactive<AetheriaRuntimeZoneRenderDocument>();
-        var observed = client.State.CurrentObservedDaemon();
         var observedAuthoritativeFrame = client.State.Latest<AetheriaRuntimeDaemonFrameDocument>();
         using var catalogReactive = client.State.Reactive<AetheriaRuntimeCatalogSnapshot>();
         using var daemonFrameReactive = client.State.Reactive<AetheriaRuntimeDaemonFrameDocument>();
         using var daemonSoaViewReactive = client.State.Reactive<AetheriaRuntimeDaemonSoaViewDocument>();
+        Assert.IsTrue(AetheriaRuntimeObservedDaemonState.TryCreateCurrent(
+            daemonFrameReactive,
+            daemonSoaViewReactive,
+            zoneRenderReactive,
+            out var observed));
         using var loadoutTemplatesReactive = client.State.Reactive<AetheriaRuntimeLoadoutTemplatesDocument>();
         using var sectorMapReactive = client.State.Reactive<AetheriaRuntimeSectorMapDocument>();
         using var playerSettingsReactive = client.State.Reactive<AetheriaRuntimePlayerSettingsDocument>();
@@ -2220,7 +2224,14 @@ public class DaemonRuntimeDocumentTests
             .OpenAsync(statePath, "unity-observer-test", pullOnOpen: true)
             .GetAwaiter()
             .GetResult();
-        var observed = client.State.CurrentObservedDaemon();
+        using var observedFrame = client.State.Reactive<AetheriaRuntimeDaemonFrameDocument>();
+        using var observedSoaView = client.State.Reactive<AetheriaRuntimeDaemonSoaViewDocument>();
+        using var observedZoneRender = client.State.Reactive<AetheriaRuntimeZoneRenderDocument>();
+        Assert.IsTrue(AetheriaRuntimeObservedDaemonState.TryCreateCurrent(
+            observedFrame,
+            observedSoaView,
+            observedZoneRender,
+            out var observed));
 
         Assert.IsNotNull(observed);
         Assert.IsTrue(observed.IsAuthoritative);
@@ -2281,12 +2292,9 @@ public class DaemonRuntimeDocumentTests
             out var currentObserved)
             ? currentObserved
             : null;
-        var sampledObserved = client.State.CurrentObservedDaemon();
         Assert.IsNotNull(observed);
-        Assert.IsNotNull(sampledObserved);
         Assert.IsTrue(observed.IsAuthoritative);
         Assert.AreEqual("reactive-daemon-run", observed.Run.RunId);
-        Assert.AreEqual(observed.Run.RunId, sampledObserved.Run.RunId);
         Assert.AreEqual("entity:reactive-observer-target", observed.Run.CurrentEntityKey);
         Assert.AreEqual(330, observed.Frame.FrameId);
         Assert.AreEqual(331, observed.SoaView.Generation);
@@ -2321,7 +2329,14 @@ public class DaemonRuntimeDocumentTests
             .OpenAsync(statePath, "unity-frame-only-observer-test", pullOnOpen: true)
             .GetAwaiter()
             .GetResult();
-        var observed = client.State.CurrentObservedDaemon();
+        using var observedFrame = client.State.Reactive<AetheriaRuntimeDaemonFrameDocument>();
+        using var observedSoaView = client.State.Reactive<AetheriaRuntimeDaemonSoaViewDocument>();
+        using var observedZoneRender = client.State.Reactive<AetheriaRuntimeZoneRenderDocument>();
+        Assert.IsTrue(AetheriaRuntimeObservedDaemonState.TryCreateCurrent(
+            observedFrame,
+            observedSoaView,
+            observedZoneRender,
+            out var observed));
 
         Assert.IsNotNull(observed);
         Assert.IsTrue(observed.IsAuthoritative);

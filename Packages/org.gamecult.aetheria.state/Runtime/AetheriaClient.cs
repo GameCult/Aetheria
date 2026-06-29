@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Threading.Tasks;
 using GameCult.Eve.Surface;
+using GameCult.Mesh;
 
 #nullable enable
 
@@ -16,6 +17,9 @@ namespace GameCult.Aetheria.State.Verse
         private readonly AetheriaControl _control;
         private readonly AetheriaUi _ui;
         private readonly AetheriaClientState _state;
+        private CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument>? _observedFrame;
+        private CultMeshReactiveDocument<AetheriaRuntimeDaemonSoaViewDocument>? _observedSoaView;
+        private CultMeshReactiveDocument<AetheriaRuntimeZoneRenderDocument>? _observedZoneRender;
         private bool _disposed;
 
         private AetheriaClient(AetheriaRuntimeVerseClient verse, string clientId, string sessionId)
@@ -150,6 +154,9 @@ namespace GameCult.Aetheria.State.Verse
                 return;
 
             _disposed = true;
+            _observedFrame?.Dispose();
+            _observedSoaView?.Dispose();
+            _observedZoneRender?.Dispose();
             _verse.Dispose();
         }
 
@@ -159,7 +166,7 @@ namespace GameCult.Aetheria.State.Verse
             ThrowIfDisposed();
             if (submit == null) throw new ArgumentNullException(nameof(submit));
 
-            var observed = State.CurrentObservedDaemon();
+            var observed = CurrentObservedDaemon();
             var operationClient = new AetheriaRuntimeDaemonOperationClient(
                 StatePath,
                 _clientId,
@@ -170,6 +177,21 @@ namespace GameCult.Aetheria.State.Verse
                     .GetResult());
 
             return submit(operationClient, observed);
+        }
+
+        internal AetheriaRuntimeObservedDaemonState? CurrentObservedDaemon()
+        {
+            ThrowIfDisposed();
+            _observedFrame ??= State.Reactive<AetheriaRuntimeDaemonFrameDocument>();
+            _observedSoaView ??= State.Reactive<AetheriaRuntimeDaemonSoaViewDocument>();
+            _observedZoneRender ??= State.Reactive<AetheriaRuntimeZoneRenderDocument>();
+            return AetheriaRuntimeObservedDaemonState.TryCreateCurrent(
+                _observedFrame,
+                _observedSoaView,
+                _observedZoneRender,
+                out var current)
+                ? current
+                : null;
         }
 
         private void ThrowIfDisposed()

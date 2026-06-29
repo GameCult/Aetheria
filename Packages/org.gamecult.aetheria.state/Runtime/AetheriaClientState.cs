@@ -215,17 +215,6 @@ namespace GameCult.Aetheria.State.Verse
             return Document<TDocument>().LatestAsync().ConfigureAwait(false).GetAwaiter().GetResult();
         }
 
-        public AetheriaRuntimeObservedDaemonState? CurrentObservedDaemon(
-            CultMeshReactiveDocumentOptions? options = null)
-        {
-            using var frame = Reactive<AetheriaRuntimeDaemonFrameDocument>(options);
-            using var soaView = TryReactive<AetheriaRuntimeDaemonSoaViewDocument>(options);
-            using var zoneRender = Reactive<AetheriaRuntimeZoneRenderDocument>(options);
-            return AetheriaRuntimeObservedDaemonState.TryCreateCurrent(frame, soaView, zoneRender, out var current)
-                ? current
-                : null;
-        }
-
         public CultMeshDocumentHandle<TDocument> Document<TDocument>(AetheriaClientEveSurface surface)
             where TDocument : class
         {
