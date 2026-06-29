@@ -110,8 +110,9 @@ var ledger = await node.MutableDocument<AetheriaMigrationLedger>(AetheriaStateNo
     ?? throw new InvalidOperationException("Missing typed migration ledger.");
 var quarantine = await node.MutableDocument<AetheriaLegacyCatalogQuarantine>(AetheriaStateNode.LegacyCatalogQuarantineKey).ReadAsync()
     ?? throw new InvalidOperationException("Missing legacy catalog quarantine document.");
-var publishedSurface = await node.MutableDocument<EveSurfaceState>(AetheriaStateNode.CatalogSurfaceKey).ReadAsync()
-    ?? throw new InvalidOperationException("Missing Aetheria catalog Eve surface document.");
+var publishedSurface = await node.CatalogSurface().LatestAsync().ConfigureAwait(false);
+if (publishedSurface == null)
+    throw new InvalidOperationException("Missing managed Aetheria catalog Eve surface document.");
 
 var items = node.Cache.GetAll<AetheriaItemDefinition>().ToArray();
 var corporations = node.Cache.GetAll<AetheriaCorporation>().ToArray();
@@ -11666,6 +11667,7 @@ static void RequireCatalogSurfaceUsesManagedRuntimeCatalog(string root)
 {
     var projectorPath = Path.Combine(root, "Aetheria.State", "AetheriaCatalogSurfaceProjector.cs");
     var bridgePath = Path.Combine(root, "Aetheria.State", "AetheriaEveCommandBridge.cs");
+    var importPath = Path.Combine(root, "Aetheria.State.Import", "Program.cs");
     var legacySnapshotPath = Path.Combine(root, "Aetheria.State", "AetheriaCatalogSnapshot.cs");
     var projector = File.Exists(projectorPath)
         ? File.ReadAllText(projectorPath)
@@ -11673,6 +11675,9 @@ static void RequireCatalogSurfaceUsesManagedRuntimeCatalog(string root)
     var bridge = File.Exists(bridgePath)
         ? File.ReadAllText(bridgePath)
         : throw new InvalidOperationException("Cannot verify Eve command bridge catalog refresh; AetheriaEveCommandBridge.cs is missing.");
+    var import = File.Exists(importPath)
+        ? File.ReadAllText(importPath)
+        : throw new InvalidOperationException("Cannot verify legacy catalog import; Aetheria.State.Import/Program.cs is missing.");
 
     var requiredProjectorSymbols = new[]
     {
@@ -11723,6 +11728,47 @@ static void RequireCatalogSurfaceUsesManagedRuntimeCatalog(string root)
     {
         throw new InvalidOperationException(
             "Eve catalog refresh still rebuilds the legacy catalog snapshot instead of using AetheriaStateNode.RuntimeCatalog().");
+    }
+
+    var requiredImportSymbols = new[]
+    {
+        "node.MutableDocument<AetheriaLegacyCatalogQuarantine>(AetheriaStateNode.LegacyCatalogQuarantineKey)",
+        "node.MutableDocument<AetheriaMigrationLedger>(AetheriaStateNode.MigrationLedgerKey)",
+        "node.MutableDocument<AetheriaItemDefinition>(AetheriaCatalogKeys.ItemDefinitionFromLegacyId(item.LegacyId))",
+        "node.MutableDocument<AetheriaCorporation>(AetheriaCatalogKeys.CorporationFromLegacyId(corporation.LegacyId))",
+        "node.MutableDocument<AetheriaNameFile>(AetheriaCatalogKeys.NameFileFromLegacyId(nameFile.LegacyId))",
+        "node.MutableDocument<AetheriaTradeValuePolicy>(AetheriaStateNode.TradeValuePolicyKey)",
+        "AetheriaRuntimeStateMapper.ToTradeValuePolicy(",
+        "await node.CatalogSurface().LatestAsync().ConfigureAwait(false);"
+    };
+    var missingImportSymbols = requiredImportSymbols
+        .Where(symbol => !import.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingImportSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Legacy catalog import must write through managed typed document handles and materialize the managed catalog surface: " +
+            string.Join(", ", missingImportSymbols));
+    }
+
+    var forbiddenImportSymbols = new[]
+    {
+        "PutLegacyCatalogQuarantineAsync(",
+        "PutMigrationLedgerAsync(",
+        "PutLegacyItemDefinitionAsync(",
+        "PutLegacyCorporationAsync(",
+        "PutLegacyNameFileAsync(",
+        "PutTradeValuePolicyAsync(",
+        "PutCatalogSurfaceAsync("
+    };
+    var forbiddenImportHits = forbiddenImportSymbols
+        .Where(symbol => import.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (forbiddenImportHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Legacy catalog import still uses AetheriaStateNode Put helpers instead of managed typed documents: " +
+            string.Join(", ", forbiddenImportHits));
     }
 
     Console.WriteLine("Catalog Eve surface: refresh path uses the managed runtime catalog document");

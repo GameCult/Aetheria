@@ -47,7 +47,8 @@ ResetMaterializedStateOutput(statePath);
 
 await using var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-legacy-catalog-import");
 
-await node.PutLegacyCatalogQuarantineAsync(new AetheriaLegacyCatalogQuarantine
+await node.MutableDocument<AetheriaLegacyCatalogQuarantine>(AetheriaStateNode.LegacyCatalogQuarantineKey)
+    .ReplaceAsync(new AetheriaLegacyCatalogQuarantine
 {
     RootPath = sourceRoot,
     CapturedAtUtc = capturedAtUtc,
@@ -62,7 +63,8 @@ await node.PutLegacyCatalogQuarantineAsync(new AetheriaLegacyCatalogQuarantine
     ]
 });
 
-await node.PutMigrationLedgerAsync(new AetheriaMigrationLedger
+await node.MutableDocument<AetheriaMigrationLedger>(AetheriaStateNode.MigrationLedgerKey)
+    .ReplaceAsync(new AetheriaMigrationLedger
 {
     Source = LegacyMigrationBoundary.LegacyGameDataFile,
     SourceFingerprint = catalog.Fingerprint,
@@ -111,21 +113,30 @@ await node.PutMigrationLedgerAsync(new AetheriaMigrationLedger
 
 foreach (var item in itemDefinitions)
 {
-    await node.PutLegacyItemDefinitionAsync(item);
+    await node.MutableDocument<AetheriaItemDefinition>(AetheriaCatalogKeys.ItemDefinitionFromLegacyId(item.LegacyId))
+        .ReplaceAsync(item);
 }
 
 foreach (var corporation in corporations)
 {
-    await node.PutLegacyCorporationAsync(corporation);
+    await node.MutableDocument<AetheriaCorporation>(AetheriaCatalogKeys.CorporationFromLegacyId(corporation.LegacyId))
+        .ReplaceAsync(corporation);
 }
 
 foreach (var nameFile in parsedNameFiles)
 {
-    await node.PutLegacyNameFileAsync(nameFile);
+    await node.MutableDocument<AetheriaNameFile>(AetheriaCatalogKeys.NameFileFromLegacyId(nameFile.LegacyId))
+        .ReplaceAsync(nameFile);
 }
 
+await node.FlushAsync();
 var runtimeCatalog = await node.RuntimeCatalog().LatestAsync().ConfigureAwait(false);
-await node.PutCatalogSurfaceAsync(AetheriaCatalogSurfaceProjector.Build(runtimeCatalog, capturedAtUtc));
+await node.MutableDocument<AetheriaTradeValuePolicy>(AetheriaStateNode.TradeValuePolicyKey)
+    .ReplaceAsync(AetheriaRuntimeStateMapper.ToTradeValuePolicy(
+        runtimeCatalog.TradeValueSettings,
+        capturedAtUtc));
+await node.FlushAsync();
+await node.CatalogSurface().LatestAsync().ConfigureAwait(false);
 
 await node.FlushAsync();
 
