@@ -15,7 +15,7 @@ public sealed class AetheriaUnityPilotCommandSender
     private const float DaemonTractorCommandIntervalSeconds = 0.05f;
     private const float DaemonTractorCommandChangeThreshold = 0.001f;
 
-    private readonly Func<AetheriaClient> _resolveClient;
+    private readonly Func<AetheriaControl> _resolveControl;
     private readonly Func<float> _time;
     private Vector2 _lastSentDaemonMoveVector;
     private Vector3 _lastSentDaemonLookDirection;
@@ -28,10 +28,10 @@ public sealed class AetheriaUnityPilotCommandSender
     private bool _hasSentDaemonTractorPower;
 
     public AetheriaUnityPilotCommandSender(
-        Func<AetheriaClient> resolveClient,
+        Func<AetheriaControl> resolveControl,
         Func<float> time)
     {
-        _resolveClient = resolveClient ?? throw new ArgumentNullException(nameof(resolveClient));
+        _resolveControl = resolveControl ?? throw new ArgumentNullException(nameof(resolveControl));
         _time = time ?? throw new ArgumentNullException(nameof(time));
     }
 
@@ -99,16 +99,18 @@ public sealed class AetheriaUnityPilotCommandSender
         Action<AetheriaControl> submit,
         string label)
     {
-        var client = _resolveClient();
-        if (client == null ||
-            submit == null)
+        if (submit == null)
         {
             return false;
         }
 
         try
         {
-            submit(client.Control);
+            var control = _resolveControl();
+            if (control == null)
+                return false;
+
+            submit(control);
             return true;
         }
         catch (Exception ex)

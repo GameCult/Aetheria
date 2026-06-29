@@ -32,7 +32,9 @@ public class ActionGameManager : MonoBehaviour
     private AetheriaUnityGameplayBootShell _gameplayBootShell;
     private AetheriaUnityGameplaySceneWiring _sceneWiring;
     private AetheriaUnityPilotCommandSender PilotCommands =>
-        _pilotCommands ??= new AetheriaUnityPilotCommandSender(ResolveCurrentRuntimeClient, () => Time.unscaledTime);
+        _pilotCommands ??= new AetheriaUnityPilotCommandSender(
+            () => AetheriaUnityRuntimeClientProvider.Control("unity-pilot-commands"),
+            () => Time.unscaledTime);
     private AetheriaUnityObservedDockingIndex ObservedDocking =>
         _observedDocking ??= new AetheriaUnityObservedDockingIndex(_observedEntityIndex);
     private AetheriaUnityObservedEntityRestorer ObservedEntityRestorer =>
@@ -290,12 +292,6 @@ public class ActionGameManager : MonoBehaviour
 
     private readonly AetheriaUnityDragSession _dragSession = new AetheriaUnityDragSession();
     private readonly AetheriaUnityActionBarPresentation _actionBarPresentation = new AetheriaUnityActionBarPresentation();
-
-    private static AetheriaClient ResolveCurrentRuntimeClient()
-    {
-        return AetheriaUnityRuntimeClientProvider.CurrentClientForStateFile(
-            AetheriaUnityRuntimePaths.RuntimeStateFilePath);
-    }
 
     private void OnDisable()
     {

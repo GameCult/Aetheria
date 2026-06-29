@@ -14931,9 +14931,9 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         "_hasSentDaemonMoveVector",
         "_hasSentDaemonLookDirection",
         "_hasSentDaemonTractorPower",
-        "Func<AetheriaClient> _resolveClient",
+        "Func<AetheriaControl> _resolveControl",
         "Action<AetheriaControl> submit",
-        "submit(client.Control)",
+        "submit(control)",
         "Failed to send Aetheria daemon pilot {label} operation",
         "operations => operations.SetMoveVector",
         "operations => operations.SetLookDirection",
@@ -14951,6 +14951,8 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
 
     var forbiddenSentOperationSymbols = new[]
     {
+        "Func<AetheriaClient> _resolveClient",
+        "submit(client.Control)",
         "Func<AetheriaDaemonObserver> _resolveObserver",
         "Action<AetheriaRuntimeDaemonOperationsClient> submit",
         "submit(observer.Operations)"
