@@ -286,7 +286,7 @@ namespace GameCult.Aetheria.State.Verse
                     1,
                     1,
                     1,
-                    BuildEntityKey(context.RunId, zone.ZoneIndex, entity.EntityIndex));
+                    AetheriaRuntimeRunCheckpointCommit.EntityRecordKey(context.RunId, zone.ZoneIndex, entity.EntityIndex));
             }
 
             return new AetheriaRuntimeRenderSplatsViewportDocument
@@ -407,7 +407,7 @@ namespace GameCult.Aetheria.State.Verse
                 .FirstOrDefault(candidate => candidate.EntityIndex == currentEntityIndex);
             var entityKey = entity == null
                 ? context.Run.CurrentEntityKey ?? ""
-                : BuildEntityKey(context.RunId, context.Zone.ZoneIndex, entity.EntityIndex);
+                : AetheriaRuntimeRunCheckpointCommit.EntityRecordKey(context.RunId, context.Zone.ZoneIndex, entity.EntityIndex);
             var inventory = entity == null
                 ? Array.Empty<AetheriaRuntimeRtsInventoryItem>()
                 : Inventory(entity).ToArray();
@@ -447,10 +447,10 @@ namespace GameCult.Aetheria.State.Verse
             var parent = FindDockParent(context.Zone, currentEntityIndex, out var dockingBayIndex);
             var currentEntityKey = currentEntityIndex < 0
                 ? context.Run.CurrentEntityKey ?? ""
-                : BuildEntityKey(context.RunId, context.Zone.ZoneIndex, currentEntityIndex);
+                : AetheriaRuntimeRunCheckpointCommit.EntityRecordKey(context.RunId, context.Zone.ZoneIndex, currentEntityIndex);
             var parentKey = parent == null
                 ? ""
-                : BuildEntityKey(context.RunId, context.Zone.ZoneIndex, parent.EntityIndex);
+                : AetheriaRuntimeRunCheckpointCommit.EntityRecordKey(context.RunId, context.Zone.ZoneIndex, parent.EntityIndex);
 
             return new AetheriaRuntimeCurrentDockingDocument
             {
@@ -515,10 +515,10 @@ namespace GameCult.Aetheria.State.Verse
             var parent = FindDockParent(context.Zone, currentEntityIndex, out var dockingBayIndex);
             var currentEntityKey = currentEntityIndex < 0
                 ? context.Run.CurrentEntityKey ?? ""
-                : BuildEntityKey(context.RunId, context.Zone.ZoneIndex, currentEntityIndex);
+                : AetheriaRuntimeRunCheckpointCommit.EntityRecordKey(context.RunId, context.Zone.ZoneIndex, currentEntityIndex);
             var parentKey = parent == null
                 ? ""
-                : BuildEntityKey(context.RunId, context.Zone.ZoneIndex, parent.EntityIndex);
+                : AetheriaRuntimeRunCheckpointCommit.EntityRecordKey(context.RunId, context.Zone.ZoneIndex, parent.EntityIndex);
             var availableEntities = parent == null
                 ? Array.Empty<AetheriaRuntimeStationRefitEntityOption>()
                 : ProjectStationRefitEntities(context, parent, currentEntityIndex);
@@ -768,7 +768,7 @@ namespace GameCult.Aetheria.State.Verse
                 RunId = context.RunId,
                 ZoneIndex = context.Zone.ZoneIndex,
                 EntityIndex = entityIndex,
-                EntityKey = entity == null ? "" : BuildEntityKey(context.RunId, context.Zone.ZoneIndex, entityIndex),
+                EntityKey = entity == null ? "" : AetheriaRuntimeRunCheckpointCommit.EntityRecordKey(context.RunId, context.Zone.ZoneIndex, entityIndex),
                 Items = items,
                 Equipment = items.Where(item => string.Equals(item.Source, "equipment", StringComparison.Ordinal)).ToArray(),
                 Cargo = items.Where(item => string.Equals(item.Source, "cargo", StringComparison.Ordinal)).ToArray()
@@ -823,7 +823,7 @@ namespace GameCult.Aetheria.State.Verse
             var obj = new AetheriaRuntimeRtsViewportObject
             {
                 EntityIndex = entity.EntityIndex,
-                EntityKey = BuildEntityKey(runId, zoneIndex, entity.EntityIndex),
+                EntityKey = AetheriaRuntimeRunCheckpointCommit.EntityRecordKey(runId, zoneIndex, entity.EntityIndex),
                 DisplayName = entity.Name ?? "",
                 Kind = entity.Kind ?? "",
                 FactionKey = entity.FactionKey ?? "",
@@ -1065,7 +1065,7 @@ namespace GameCult.Aetheria.State.Verse
 
                 options.Add(new AetheriaRuntimeStationRefitEntityOption
                 {
-                    EntityKey = BuildEntityKey(context.RunId, context.Zone.ZoneIndex, entity.EntityIndex),
+                    EntityKey = AetheriaRuntimeRunCheckpointCommit.EntityRecordKey(context.RunId, context.Zone.ZoneIndex, entity.EntityIndex),
                     EntityIndex = entity.EntityIndex,
                     DisplayName = entity.Name ?? "",
                     Kind = entity.Kind ?? "",
@@ -1150,7 +1150,7 @@ namespace GameCult.Aetheria.State.Verse
                     OccupiedEntityIndex = assignedEntity?.EntityIndex ?? assignedEntityIndex,
                     OccupiedEntityKey = assignedEntity == null
                         ? ""
-                        : BuildEntityKey(context.RunId, context.Zone.ZoneIndex, assignedEntity.EntityIndex),
+                        : AetheriaRuntimeRunCheckpointCommit.EntityRecordKey(context.RunId, context.Zone.ZoneIndex, assignedEntity.EntityIndex),
                     OccupiedEntityName = assignedEntity?.Name ?? "",
                     OccupiedHullItemKey = assignedEntity?.HullItemKey ?? "",
                     OccupiedByCurrentEntity = assignedEntityIndex >= 0 && assignedEntityIndex == currentEntityIndex,
@@ -1561,11 +1561,6 @@ namespace GameCult.Aetheria.State.Verse
                 AetherDriveRpmZ = driveState?.AetherDriveRpmZ ?? 0,
                 AetherDriveMaximumRpm = driveState?.AetherDriveMaximumRpm ?? 0
             };
-        }
-
-        private static string BuildEntityKey(string runId, int zoneIndex, int entityIndex)
-        {
-            return $"global:aetheria.run_state.{runId}.zone.{zoneIndex}.entity.{entityIndex}.v1";
         }
 
         private static AetheriaRuntimeEntitySnapshotCommit? FindDockParent(

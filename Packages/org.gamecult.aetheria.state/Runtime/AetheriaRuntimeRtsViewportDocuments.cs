@@ -884,7 +884,7 @@ namespace GameCult.Aetheria.State.Verse
         {
             return string.IsNullOrWhiteSpace(runId)
                 ? ""
-                : $"global:aetheria.run_state.{runId}.zone.{zoneIndex}.entity.{entityIndex}.v1";
+                : AetheriaRuntimeRunCheckpointCommit.EntityRecordKey(runId, zoneIndex, entityIndex);
         }
 
         public AetheriaRuntimeEntitySnapshot[] CreateEntitySnapshots()

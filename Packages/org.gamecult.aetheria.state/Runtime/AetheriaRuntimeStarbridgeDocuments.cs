@@ -174,7 +174,7 @@ namespace GameCult.Aetheria.State.Verse
                 .ToArray();
             foreach (var entity in entities)
             {
-                var entityKey = BuildEntityKey(runId, zoneIndex, entity.EntityIndex);
+                var entityKey = AetheriaRuntimeRunCheckpointCommit.EntityRecordKey(runId, zoneIndex, entity.EntityIndex);
                 if (keys.Any(key => string.Equals(key, entityKey, StringComparison.Ordinal) ||
                     string.Equals(key, entity.Name, StringComparison.OrdinalIgnoreCase)))
                 {
@@ -206,7 +206,7 @@ namespace GameCult.Aetheria.State.Verse
 
             return new AetheriaRuntimeStarbridgeBaseStatus
             {
-                EntityKey = BuildEntityKey(runId, zoneIndex, entity.EntityIndex),
+                EntityKey = AetheriaRuntimeRunCheckpointCommit.EntityRecordKey(runId, zoneIndex, entity.EntityIndex),
                 DisplayName = entity.Name ?? "",
                 Hull = Stat(entity, "hull"),
                 Shield = Stat(entity, "shield"),
@@ -305,11 +305,6 @@ namespace GameCult.Aetheria.State.Verse
             var grid = (entity.StatGrids ?? Array.Empty<AetheriaRuntimeEntityStatGridCommit>())
                 .FirstOrDefault(candidate => string.Equals(candidate.Name, name, StringComparison.OrdinalIgnoreCase));
             return grid?.Values?.FirstOrDefault() ?? 0;
-        }
-
-        private static string BuildEntityKey(string runId, int zoneIndex, int entityIndex)
-        {
-            return $"global:aetheria.run_state.{runId}.zone.{zoneIndex}.entity.{entityIndex}.v1";
         }
 
         private static string FirstNonEmpty(params string?[] values)

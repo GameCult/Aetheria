@@ -6579,7 +6579,7 @@ static void RequireStationRefitDockingBaysUseTypedProjection(string root)
         "dockParent.DockingBayContents",
         "OccupiedEntityIndex = assignedEntity?.EntityIndex ?? assignedEntityIndex",
         "OccupiedEntityKey = assignedEntity == null",
-        "BuildEntityKey(context.RunId, context.Zone.ZoneIndex, assignedEntity.EntityIndex)",
+        "AetheriaRuntimeRunCheckpointCommit.EntityRecordKey(context.RunId, context.Zone.ZoneIndex, assignedEntity.EntityIndex)",
         "OccupiedEntityName = assignedEntity?.Name",
         "OccupiedHullItemKey = assignedEntity?.HullItemKey",
         "OccupiedByCurrentEntity = assignedEntityIndex >= 0 && assignedEntityIndex == currentEntityIndex",
@@ -6610,6 +6610,13 @@ static void RequireStationRefitDockingBaysUseTypedProjection(string root)
         throw new InvalidOperationException(
             "StationRefitAsync docking-bay rows are no longer projected from daemon station state: " +
             string.Join(", ", missingProjectionSymbols));
+    }
+
+    if (runtimeProjection.Contains("private static string BuildEntityKey(", StringComparison.Ordinal) ||
+        runtimeProjection.Contains("private static bool TryParseEntityKey(", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Runtime projection reintroduced local entity key folklore; use AetheriaRuntimeRunCheckpointCommit entity key helpers.");
     }
 
     var requiredPanelSymbols = new[]
@@ -9944,11 +9951,12 @@ static void RequireTypedDaemonCommandPayloads(string root)
     var actionGameManagerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs");
     var testsPath = Path.Combine(root, "Assets", "Scripts", "Tests", "DaemonRuntimeDocumentTests.cs");
     var daemonSurfaceCommandsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonSurfaceCommands.cs");
+    var starbridgeDocumentsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeStarbridgeDocuments.cs");
 
     if (File.Exists(legacyDaemonApplierPath))
         throw new InvalidOperationException("Legacy daemon command applier still exists; daemon operations must own execution.");
 
-    var requiredFiles = new[] { daemonDocumentsPath, daemonClientPath, daemonRuntimeOperationsPath, stateNodePath, observerPath, actionGameManagerPath, testsPath, daemonSurfaceCommandsPath };
+    var requiredFiles = new[] { daemonDocumentsPath, daemonClientPath, daemonRuntimeOperationsPath, stateNodePath, observerPath, actionGameManagerPath, testsPath, daemonSurfaceCommandsPath, starbridgeDocumentsPath };
     var missingFiles = requiredFiles
         .Where(path => !File.Exists(path))
         .Select(path => Path.GetRelativePath(root, path))
@@ -9968,6 +9976,20 @@ static void RequireTypedDaemonCommandPayloads(string root)
     var actionGameManager = File.ReadAllText(actionGameManagerPath);
     var tests = File.ReadAllText(testsPath);
     var daemonSurfaceCommands = File.ReadAllText(daemonSurfaceCommandsPath);
+    var starbridgeDocuments = File.ReadAllText(starbridgeDocumentsPath);
+
+    if (daemonOperationsSource.Contains("private static string BuildEntityKey(", StringComparison.Ordinal) ||
+        daemonOperationsSource.Contains("private static bool TryParseEntityKey(", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Daemon operations reintroduced local entity key parsing/building; use AetheriaRuntimeRunCheckpointCommit entity key helpers.");
+    }
+
+    if (starbridgeDocuments.Contains("private static string BuildEntityKey(", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Starbridge documents reintroduced local entity key building; use AetheriaRuntimeRunCheckpointCommit entity key helpers.");
+    }
 
     var requiredPayloadTypes = new[]
     {

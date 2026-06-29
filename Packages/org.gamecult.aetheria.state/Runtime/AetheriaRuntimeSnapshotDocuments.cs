@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using MessagePack;
 
@@ -272,13 +273,13 @@ namespace GameCult.Aetheria.State.Verse
             for (var i = 0; i < parts.Length - 1; i++)
             {
                 if (string.Equals(parts[i], "zone", StringComparison.Ordinal) &&
-                    int.TryParse(parts[i + 1], out zoneIndex))
+                    int.TryParse(parts[i + 1], NumberStyles.Integer, CultureInfo.InvariantCulture, out zoneIndex))
                 {
                     continue;
                 }
 
                 if (string.Equals(parts[i], "entity", StringComparison.Ordinal) &&
-                    int.TryParse(parts[i + 1], out entityIndex))
+                    int.TryParse(parts[i + 1], NumberStyles.Integer, CultureInfo.InvariantCulture, out entityIndex))
                 {
                     continue;
                 }

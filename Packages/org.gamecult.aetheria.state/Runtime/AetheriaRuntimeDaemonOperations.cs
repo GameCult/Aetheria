@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
 
 #nullable enable
@@ -369,7 +368,7 @@ namespace GameCult.Aetheria.State.Verse
                 return false;
 
             run.CurrentZoneIndex = zoneIndex;
-            run.CurrentEntityKey = BuildEntityKey(run.RunId, zoneIndex, entityIndex);
+            run.CurrentEntityKey = AetheriaRuntimeRunCheckpointCommit.EntityRecordKey(run.RunId, zoneIndex, entityIndex);
             return true;
         }
 
@@ -394,7 +393,7 @@ namespace GameCult.Aetheria.State.Verse
                 return false;
 
             run.CurrentZoneIndex = zoneIndex;
-            run.CurrentEntityKey = BuildEntityKey(run.RunId, zoneIndex, entityIndex);
+            run.CurrentEntityKey = AetheriaRuntimeRunCheckpointCommit.EntityRecordKey(run.RunId, zoneIndex, entityIndex);
             return true;
         }
 
@@ -871,7 +870,7 @@ namespace GameCult.Aetheria.State.Verse
                 assignments.Add(entityIndex);
             parent.DockingBayAssignments = assignments.ToArray();
 
-            purchasedShipKey = BuildEntityKey(run.RunId, zoneIndex, entityIndex);
+            purchasedShipKey = AetheriaRuntimeRunCheckpointCommit.EntityRecordKey(run.RunId, zoneIndex, entityIndex);
             return true;
         }
 
@@ -899,7 +898,7 @@ namespace GameCult.Aetheria.State.Verse
             if (template == null)
                 return false;
 
-            if (!TryParseEntityKey(command.TargetEntityKey, out var zoneIndex, out _))
+            if (!AetheriaRuntimeRunCheckpointCommit.TryParseEntityKey(command.TargetEntityKey, out var zoneIndex, out _))
                 return false;
 
             var newEntityKey = run.AppendLoadoutTemplateToZone(
@@ -1208,7 +1207,7 @@ namespace GameCult.Aetheria.State.Verse
             if (closestIndex < 0)
                 return false;
 
-            targetEntityKey = BuildEntityKey(run.RunId, zoneIndex, closestIndex);
+            targetEntityKey = AetheriaRuntimeRunCheckpointCommit.EntityRecordKey(run.RunId, zoneIndex, closestIndex);
             return true;
         }
 
@@ -1437,7 +1436,7 @@ namespace GameCult.Aetheria.State.Verse
         {
             movedEntityKey = "";
 
-            if (!TryParseEntityKey(entityKey, out var sourceZoneIndex, out var sourceEntityIndex))
+            if (!AetheriaRuntimeRunCheckpointCommit.TryParseEntityKey(entityKey, out var sourceZoneIndex, out var sourceEntityIndex))
                 return false;
 
             var zones = (run.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>()).ToList();
@@ -1456,7 +1455,7 @@ namespace GameCult.Aetheria.State.Verse
             if (IsChildReferencedInZone(run, sourceZoneIndex, sourceEntityIndex))
                 return false;
 
-            var movedCurrentEntity = TryParseEntityKey(run.CurrentEntityKey, out var currentZoneIndex, out var currentEntityIndex) &&
+            var movedCurrentEntity = AetheriaRuntimeRunCheckpointCommit.TryParseEntityKey(run.CurrentEntityKey, out var currentZoneIndex, out var currentEntityIndex) &&
                 currentZoneIndex == sourceZoneIndex &&
                 currentEntityIndex == sourceEntityIndex;
 
@@ -1486,7 +1485,7 @@ namespace GameCult.Aetheria.State.Verse
             targetEntities.Add(movedEntity);
             targetZone.Entities = targetEntities.ToArray();
 
-            movedEntityKey = BuildEntityKey(run.RunId, targetZoneIndex, targetEntityIndex);
+            movedEntityKey = AetheriaRuntimeRunCheckpointCommit.EntityRecordKey(run.RunId, targetZoneIndex, targetEntityIndex);
             if (movedCurrentEntity)
             {
                 run.CurrentZoneIndex = targetZoneIndex;
@@ -1511,7 +1510,7 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeRunCheckpointCommit run,
             AetheriaRuntimeDaemonCommandDocument command)
         {
-            if (!TryParseEntityKey(command.TargetEntityKey, out var zoneIndex, out var entityIndex))
+            if (!AetheriaRuntimeRunCheckpointCommit.TryParseEntityKey(command.TargetEntityKey, out var zoneIndex, out var entityIndex))
                 return false;
 
             var zones = (run.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>()).ToList();
@@ -1566,7 +1565,7 @@ namespace GameCult.Aetheria.State.Verse
             int zoneIndex,
             int removedEntityIndex)
         {
-            if (!TryParseEntityKey(run.CurrentEntityKey, out var currentZoneIndex, out var currentEntityIndex) ||
+            if (!AetheriaRuntimeRunCheckpointCommit.TryParseEntityKey(run.CurrentEntityKey, out var currentZoneIndex, out var currentEntityIndex) ||
                 currentZoneIndex != zoneIndex)
             {
                 return;
@@ -1575,7 +1574,7 @@ namespace GameCult.Aetheria.State.Verse
             var reindexedCurrent = ReindexEntityReference(currentEntityIndex, removedEntityIndex);
             run.CurrentEntityKey = reindexedCurrent < 0
                 ? ""
-                : BuildEntityKey(run.RunId, zoneIndex, reindexedCurrent);
+                : AetheriaRuntimeRunCheckpointCommit.EntityRecordKey(run.RunId, zoneIndex, reindexedCurrent);
         }
 
         private static bool ApplyTargetEntity(
@@ -1601,7 +1600,7 @@ namespace GameCult.Aetheria.State.Verse
             zoneIndex = -1;
             entityIndex = -1;
 
-            if (!TryParseEntityKey(entityKey, out zoneIndex, out entityIndex))
+            if (!AetheriaRuntimeRunCheckpointCommit.TryParseEntityKey(entityKey, out zoneIndex, out entityIndex))
                 return false;
 
             var parsedZoneIndex = zoneIndex;
@@ -1626,12 +1625,6 @@ namespace GameCult.Aetheria.State.Verse
             return referencedEntityIndex > removedEntityIndex
                 ? referencedEntityIndex - 1
                 : referencedEntityIndex;
-        }
-
-        private static string BuildEntityKey(string runId, int zoneIndex, int entityIndex)
-        {
-            var normalizedRunId = string.IsNullOrWhiteSpace(runId) ? "local" : runId;
-            return $"global:aetheria.run_state.{normalizedRunId}.zone.{zoneIndex}.entity.{entityIndex}.v1";
         }
 
         private static string ResolveActorEntityKey(
@@ -1867,36 +1860,6 @@ namespace GameCult.Aetheria.State.Verse
             return Math.Abs(pickup.PositionX - expectedX) < 0.001 &&
                    Math.Abs(pickup.PositionY - expectedY) < 0.001 &&
                    Math.Abs(pickup.PositionZ - expectedZ) < 0.001;
-        }
-
-        private static bool TryParseEntityKey(
-            string entityKey,
-            out int zoneIndex,
-            out int entityIndex)
-        {
-            zoneIndex = -1;
-            entityIndex = -1;
-
-            if (string.IsNullOrWhiteSpace(entityKey))
-                return false;
-
-            var parts = entityKey.Split('.');
-            for (var i = 0; i < parts.Length - 1; i++)
-            {
-                if (string.Equals(parts[i], "zone", StringComparison.Ordinal) &&
-                    int.TryParse(parts[i + 1], NumberStyles.Integer, CultureInfo.InvariantCulture, out zoneIndex))
-                {
-                    continue;
-                }
-
-                if (string.Equals(parts[i], "entity", StringComparison.Ordinal) &&
-                    int.TryParse(parts[i + 1], NumberStyles.Integer, CultureInfo.InvariantCulture, out entityIndex))
-                {
-                    continue;
-                }
-            }
-
-            return zoneIndex >= 0 && entityIndex >= 0;
         }
 
     }
