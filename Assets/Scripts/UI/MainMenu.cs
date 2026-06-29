@@ -58,14 +58,13 @@ public class MainMenu : MonoBehaviour
         var playerSettings = ResolvePlayerSettings(stateBoot);
         RenderMenuSurface(
             AetheriaRuntimeMainMenuSurfaceBuilder.BuildRoot(
-                AetheriaRuntimeMainMenuSurfaceBuilder.ProjectRoot(
-                    stateBoot,
-                    sectorMap,
-                    verseHost,
-                    playerSettings,
-                    CanOpenRuntimeInputScreen(),
-                    InGame,
-                    DateTime.UtcNow.ToString("O"))),
+                stateBoot,
+                sectorMap,
+                verseHost,
+                playerSettings,
+                CanOpenRuntimeInputScreen(),
+                InGame,
+                DateTime.UtcNow.ToString("O")),
             HandleMainSurfaceCommand);
     }
 
@@ -217,12 +216,11 @@ public class MainMenu : MonoBehaviour
         var stateBoot = CurrentStateBoot();
         RenderMenuSurface(
             AetheriaRuntimeMainMenuSurfaceBuilder.BuildInputSettings(
-                AetheriaRuntimeMainMenuSurfaceBuilder.ProjectRoot(
-                    stateBoot,
-                    ResolvePlayerSettings(stateBoot),
-                    CanOpenRuntimeInputScreen(),
-                    InGame,
-                    DateTime.UtcNow.ToString("O"))),
+                stateBoot,
+                ResolvePlayerSettings(stateBoot),
+                CanOpenRuntimeInputScreen(),
+                InGame,
+                DateTime.UtcNow.ToString("O")),
             HandleInputSettingsSurfaceCommand);
     }
 
@@ -230,9 +228,8 @@ public class MainMenu : MonoBehaviour
     {
         RenderMenuSurface(
             AetheriaRuntimeMainMenuSurfaceBuilder.BuildPlayerSettingsShell(
-                AetheriaRuntimeMainMenuSurfaceBuilder.ProjectPlayerSettings(
-                    ResolvePlayerSettings(CurrentStateBoot()),
-                    DateTime.UtcNow.ToString("O"))),
+                ResolvePlayerSettings(CurrentStateBoot()),
+                DateTime.UtcNow.ToString("O")),
             HandlePlayerSettingsSurfaceCommand);
     }
 

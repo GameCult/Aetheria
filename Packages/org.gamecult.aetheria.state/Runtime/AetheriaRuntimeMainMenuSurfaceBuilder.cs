@@ -90,7 +90,69 @@ namespace GameCult.Aetheria.State.Verse
 
     public static class AetheriaRuntimeMainMenuSurfaceBuilder
     {
-        public static AetheriaRuntimeMainMenuSurfaceState ProjectRoot(
+        public static AetheriaRuntimeSurfaceDocument BuildRoot(
+            AetheriaRuntimeStateBootReport stateBoot,
+            AetheriaRuntimePlayerSettingsDocument playerSettings,
+            bool canOpenRuntimeInputScreen,
+            bool inGame,
+            string updatedAtUtc,
+            long version = 1)
+        {
+            return BuildRoot(
+                ComposeRootState(
+                    stateBoot,
+                    playerSettings,
+                    canOpenRuntimeInputScreen,
+                    inGame,
+                    updatedAtUtc),
+                version);
+        }
+
+        public static AetheriaRuntimeSurfaceDocument BuildRoot(
+            AetheriaRuntimeStateBootReport stateBoot,
+            AetheriaRuntimeDaemonFrameDocument daemonFrame,
+            AetheriaRuntimeVerseHostSettingsDocument verseHost,
+            AetheriaRuntimePlayerSettingsDocument playerSettings,
+            bool canOpenRuntimeInputScreen,
+            bool inGame,
+            string updatedAtUtc,
+            long version = 1)
+        {
+            return BuildRoot(
+                ComposeRootState(
+                    stateBoot,
+                    daemonFrame,
+                    verseHost,
+                    playerSettings,
+                    canOpenRuntimeInputScreen,
+                    inGame,
+                    updatedAtUtc),
+                version);
+        }
+
+        public static AetheriaRuntimeSurfaceDocument BuildRoot(
+            AetheriaRuntimeStateBootReport stateBoot,
+            AetheriaRuntimeSectorMapDocument sectorMap,
+            AetheriaRuntimeVerseHostSettingsDocument verseHost,
+            AetheriaRuntimePlayerSettingsDocument playerSettings,
+            bool canOpenRuntimeInputScreen,
+            bool inGame,
+            string updatedAtUtc,
+            long version = 1)
+        {
+            return BuildRoot(
+                ComposeRootState(
+                    stateBoot,
+                    sectorMap,
+                    verseHost,
+                    playerSettings,
+                    canOpenRuntimeInputScreen,
+                    inGame,
+                    updatedAtUtc),
+                version);
+        }
+
+        private static AetheriaRuntimeMainMenuSurfaceState ComposeRootState(
             AetheriaRuntimeStateBootReport stateBoot,
             AetheriaRuntimePlayerSettingsDocument playerSettings,
             bool canOpenRuntimeInputScreen,
@@ -115,7 +177,7 @@ namespace GameCult.Aetheria.State.Verse
                 updatedAtUtc);
         }
 
-        public static AetheriaRuntimeMainMenuSurfaceState ProjectRoot(
+        private static AetheriaRuntimeMainMenuSurfaceState ComposeRootState(
             AetheriaRuntimeStateBootReport stateBoot,
             AetheriaRuntimeDaemonFrameDocument daemonFrame,
             AetheriaRuntimeVerseHostSettingsDocument verseHost,
@@ -142,7 +204,7 @@ namespace GameCult.Aetheria.State.Verse
                 updatedAtUtc);
         }
 
-        public static AetheriaRuntimeMainMenuSurfaceState ProjectRoot(
+        private static AetheriaRuntimeMainMenuSurfaceState ComposeRootState(
             AetheriaRuntimeStateBootReport stateBoot,
             AetheriaRuntimeSectorMapDocument sectorMap,
             AetheriaRuntimeVerseHostSettingsDocument verseHost,
@@ -169,7 +231,33 @@ namespace GameCult.Aetheria.State.Verse
                 updatedAtUtc);
         }
 
-        public static AetheriaRuntimePlayerSettingsSurfaceState ProjectPlayerSettings(
+        public static AetheriaRuntimeSurfaceDocument BuildInputSettings(
+            AetheriaRuntimeStateBootReport stateBoot,
+            AetheriaRuntimePlayerSettingsDocument playerSettings,
+            bool canOpenRuntimeInputScreen,
+            bool inGame,
+            string updatedAtUtc,
+            long version = 1)
+        {
+            return BuildInputSettings(
+                ComposeRootState(
+                    stateBoot,
+                    playerSettings,
+                    canOpenRuntimeInputScreen,
+                    inGame,
+                    updatedAtUtc),
+                version);
+        }
+
+        public static AetheriaRuntimeSurfaceDocument BuildPlayerSettingsShell(
+            AetheriaRuntimePlayerSettingsDocument playerSettings,
+            string updatedAtUtc,
+            long version = 1)
+        {
+            return BuildPlayerSettingsShell(ComposePlayerSettingsState(playerSettings, updatedAtUtc), version);
+        }
+
+        private static AetheriaRuntimePlayerSettingsSurfaceState ComposePlayerSettingsState(
             AetheriaRuntimePlayerSettingsDocument playerSettings,
             string updatedAtUtc)
         {

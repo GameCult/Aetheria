@@ -3625,7 +3625,6 @@ static void RequireMainMenuSettingsCommands(string root)
     var requiredMainMenuSymbols = new[]
     {
         "AetheriaRuntimeMainMenuSurfaceBuilder.BuildPlayerSettingsShell(",
-        "AetheriaRuntimeMainMenuSurfaceBuilder.ProjectPlayerSettings(",
         "ResolvePlayerSettings(CurrentStateBoot())",
         "AetheriaEveUnitySurfaceHost.RenderRuntime(",
         "AetheriaRuntimeMainMenuCommandKind.PlayerSettingsCommand",
@@ -3719,11 +3718,9 @@ static void RequireMainMenuSettingsShellUsesEveSurface(string root)
         "RenderMenuSurface(",
         "AetheriaRuntimeMainMenuSurfaceBuilder.BuildSettings(",
         "AetheriaRuntimeMainMenuSurfaceBuilder.BuildPlayerSettingsShell(",
-        "AetheriaRuntimeMainMenuSurfaceBuilder.ProjectPlayerSettings(",
         "AetheriaRuntimeMainMenuSurfaceBuilder.BuildVerseSettingsShell(",
         "AetheriaRuntimeClientTargetSurfaceBuilder.Build(",
         "AetheriaRuntimeMainMenuSurfaceBuilder.BuildInputSettings(",
-        "AetheriaRuntimeMainMenuSurfaceBuilder.ProjectRoot(",
         "HandleSettingsSurfaceCommand(",
         "HandleVerseSettingsSurfaceCommand(",
         "HandleInputSettingsSurfaceCommand(",
@@ -3804,8 +3801,8 @@ static void RequireMainMenuSettingsShellUsesEveSurface(string root)
         "BuildInputSettings(",
         "BuildPlayerSettingsShell(",
         "BuildVerseSettingsShell(",
-        "ProjectRoot(",
-        "ProjectPlayerSettings(",
+        "private static AetheriaRuntimeMainMenuSurfaceState ComposeRootState(",
+        "private static AetheriaRuntimePlayerSettingsSurfaceState ComposePlayerSettingsState(",
         "AetheriaRuntimePlayerSettingsSurfaceBuilder.Build(state, version)",
         "AetheriaRuntimeSurfaceDocument document",
         "WithBackAction(",
@@ -3827,6 +3824,13 @@ static void RequireMainMenuSettingsShellUsesEveSurface(string root)
         throw new InvalidOperationException(
             "Shared main-menu surface builder no longer owns the settings/input shell contract: " +
             string.Join(", ", missingBuilderSymbols));
+    }
+
+    if (mainMenuSurfaceBuilder.Contains("public static AetheriaRuntimeMainMenuSurfaceState Project", StringComparison.Ordinal) ||
+        mainMenuSurfaceBuilder.Contains("public static AetheriaRuntimePlayerSettingsSurfaceState Project", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Shared main-menu surface builder must accept typed documents and return finished Eve documents; do not re-expose public Project helpers.");
     }
 }
 
@@ -3853,7 +3857,6 @@ static void RequireMainMenuRootUsesEveSurface(string root)
     var requiredSymbols = new[]
     {
         "AetheriaRuntimeMainMenuSurfaceBuilder.BuildRoot(",
-        "AetheriaRuntimeMainMenuSurfaceBuilder.ProjectRoot(",
         "AetheriaRuntimeMainMenuSurfaceCommands.TryRead(request, out var command)",
         "AetheriaRuntimeMainMenuCommandKind.ContinueRun",
         "AetheriaRuntimeMainMenuCommandKind.NewGame",
@@ -4135,7 +4138,7 @@ static void RequireMainMenuInputSettingsDelegateToRuntimeScreen(string root)
         "CanOpenRuntimeInputScreen()",
         "TryOpenRuntimeInputScreen()",
         "AetheriaRuntimeMainMenuSurfaceBuilder.BuildInputSettings(",
-        "AetheriaRuntimeMainMenuSurfaceBuilder.ProjectRoot(",
+        "ResolvePlayerSettings(stateBoot)",
         "_canOpenRuntimeInputScreen?.Invoke() == true",
         "_openRuntimeInputScreen?.Invoke();"
     };
@@ -9305,7 +9308,6 @@ static void RequireClientTargetBootAuthority(string root)
         "RequestClientTargetCommand(request)",
         "AetheriaRuntimeClientTargetSurfaceCommands.TryRequest(",
         "ResolvePlayerSettings(AetheriaRuntimeStateBootReport stateBoot)",
-        "AetheriaRuntimeMainMenuSurfaceBuilder.ProjectRoot(",
         "AetheriaRuntimeClientTargetSurfaceBuilder.Build(",
         "AetheriaRuntimeMainMenuSurfaceBuilder.BuildRoot(",
         "AetheriaRuntimeMainMenuSurfaceBuilder.BuildSettings(",
@@ -12925,7 +12927,6 @@ static void RequireMainMenuVerseHostDocumentAccess(string root)
         "ResolveVerseHostSettings(AetheriaRuntimeStateBootReport stateBoot)",
         ".Reactive<AetheriaRuntimeVerseHostSettingsDocument>()",
         "AetheriaRuntimeClientTargetSurfaceBuilder.Build(",
-        "AetheriaRuntimeMainMenuSurfaceBuilder.ProjectRoot(",
         "AetheriaRuntimeMainMenuSurfaceBuilder.BuildRoot("
     };
     var requiredBuilderSymbols = new[]
