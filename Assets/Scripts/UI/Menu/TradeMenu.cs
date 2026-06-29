@@ -247,7 +247,7 @@ public class TradeMenu : MonoBehaviour
                 return new TradeRow(
                     stock,
                     typedItem,
-                    ProjectTradeItem(stock, typedItem));
+                    TradeItemValue(stock, typedItem));
             })
             .Where(row => row.TypedItem != null)
             .Where(PassesTypedTradeFilters);
@@ -289,17 +289,17 @@ public class TradeMenu : MonoBehaviour
         return ResolveCatalog()?.FindItem(itemKey ?? "");
     }
 
-    private AetheriaRuntimeTradeItemProjection ProjectTradeItem(
+    private AetheriaRuntimeTradeItemValue TradeItemValue(
         AetheriaRuntimeStationStockItem stock,
         AetheriaRuntimeCatalogItem typedItem)
     {
-        return AetheriaRuntimeDaemonTradeItemQueries.ProjectTradeItem(
+        return AetheriaRuntimeDaemonTradeItemQueries.TradeItemValue(
             typedItem,
-            ProjectTradeItemCommit(stock),
+            TradeItemCommit(stock),
             ResolveCatalog()?.TradeValueSettings);
     }
 
-    private static AetheriaRuntimeLoadoutItemCommit? ProjectTradeItemCommit(AetheriaRuntimeStationStockItem stock)
+    private static AetheriaRuntimeLoadoutItemCommit? TradeItemCommit(AetheriaRuntimeStationStockItem stock)
     {
         if (stock == null || string.IsNullOrWhiteSpace(stock.ItemKey))
             return null;
@@ -367,18 +367,18 @@ public class TradeMenu : MonoBehaviour
         public TradeRow(
             AetheriaRuntimeStationStockItem stock,
             AetheriaRuntimeCatalogItem typedItem,
-            AetheriaRuntimeTradeItemProjection tradeProjection)
+            AetheriaRuntimeTradeItemValue tradeValue)
         {
             Stock = stock;
             TypedItem = typedItem;
-            TradeProjection = tradeProjection;
+            TradeValue = tradeValue;
         }
 
         public AetheriaRuntimeStationStockItem Stock { get; }
 
         public AetheriaRuntimeCatalogItem TypedItem { get; }
 
-        public AetheriaRuntimeTradeItemProjection TradeProjection { get; }
+        public AetheriaRuntimeTradeItemValue TradeValue { get; }
 
         public string ItemKey => Stock?.ItemKey ?? "";
 
@@ -386,11 +386,11 @@ public class TradeMenu : MonoBehaviour
 
         public float Mass => TypedItem != null ? (float)TypedItem.Mass : 0f;
 
-        public int Price => TradeProjection.Price;
+        public int Price => TradeValue.Price;
 
         public int OwnedQuantity => Stock?.OwnedQuantity ?? 0;
 
-        public string TierColorHex => TradeProjection.TierColorHex;
+        public string TierColorHex => TradeValue.TierColorHex;
 
         public int ShapeWidth => TypedItem != null && TypedItem.ShapeWidth > 0 ? TypedItem.ShapeWidth : 0;
 

@@ -507,12 +507,12 @@ public class InventoryMenu : MonoBehaviour
 
     private string FormatItemTier(AetheriaRuntimeCatalogItem typedItem, EquippableItem item)
     {
-        var tradeProjection = AetheriaRuntimeDaemonTradeItemQueries.ProjectTradeItem(
+        var tradeValue = AetheriaRuntimeDaemonTradeItemQueries.TradeItemValue(
             typedItem,
             ToRuntimeLoadoutItem(item),
             ResolveCatalog()?.TradeValueSettings);
-        return tradeProjection.HasTier
-            ? $"{tradeProjection.TierName}{new string('+', tradeProjection.Upgrades)}"
+        return tradeValue.HasTier
+            ? $"{tradeValue.TierName}{new string('+', tradeValue.Upgrades)}"
             : "";
     }
 

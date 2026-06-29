@@ -69,9 +69,9 @@ namespace GameCult.Aetheria.State.Verse
         public IReadOnlyList<AetheriaRuntimeItemRarityTier> Tiers { get; }
     }
 
-    public readonly struct AetheriaRuntimeTradeItemProjection
+    public readonly struct AetheriaRuntimeTradeItemValue
     {
-        public AetheriaRuntimeTradeItemProjection(
+        public AetheriaRuntimeTradeItemValue(
             int price,
             string tierName,
             string tierColorHex,
@@ -92,7 +92,7 @@ namespace GameCult.Aetheria.State.Verse
 
     public static class AetheriaRuntimeDaemonTradeItemQueries
     {
-        public static AetheriaRuntimeTradeItemProjection ProjectTradeItem(
+        public static AetheriaRuntimeTradeItemValue TradeItemValue(
             AetheriaRuntimeCatalogItem? typedItem,
             AetheriaRuntimeLoadoutItemCommit? item,
             AetheriaRuntimeTradeValueSettings? settings)
@@ -112,7 +112,7 @@ namespace GameCult.Aetheria.State.Verse
                 ? Upgrades(tier.Value, quality.Value)
                 : 0;
 
-            return new AetheriaRuntimeTradeItemProjection(
+            return new AetheriaRuntimeTradeItemValue(
                 price,
                 tier?.Name ?? "",
                 tier.HasValue ? ToHex(tier.Value) : "",
@@ -222,7 +222,7 @@ namespace GameCult.Aetheria.State.Verse
                 return true;
             }
 
-            price += ProjectTradeItem(
+            price += TradeItemValue(
                 typedItem,
                 CraftedItemCommit(item.ItemKey, item.Quality, item.Durability),
                 settings).Price;

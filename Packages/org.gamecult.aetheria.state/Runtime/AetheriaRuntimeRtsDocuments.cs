@@ -1259,7 +1259,7 @@ namespace GameCult.Aetheria.State.Verse
             if (typedItem == null)
                 return 0;
 
-            return AetheriaRuntimeDaemonTradeItemQueries.ProjectTradeItem(
+            return AetheriaRuntimeDaemonTradeItemQueries.TradeItemValue(
                     typedItem,
                     AetheriaRuntimeDaemonTradeItemQueries.CraftedItemCommit(
                         itemKey,

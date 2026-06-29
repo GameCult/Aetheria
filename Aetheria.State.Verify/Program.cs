@@ -50,7 +50,7 @@ RequireTradeCargoSelectorUseEveSurface(root);
 RequireTradeFilterAndRowActionsUseEveSurface(root);
 RequireTradeItemDetailsUseEveSurface(root);
 RequireTradeItemValuesUseRuntimeQueries(root);
-RequireItemTierProjectionUsesRuntimeQueries(root);
+RequireItemTierValuesUseRuntimeQueries(root);
 RequireInventoryDropdownUseEveSurface(root);
 RequireStationRefitDockingBaysUseTypedDocuments(root);
 RequireNoDeadPopupShells(root);
@@ -6132,7 +6132,7 @@ static void RequireTradeItemValuesUseRuntimeQueries(string root)
         "AetheriaRuntimeDaemonTradeItemQueries.cs");
     if (!File.Exists(tradeMenuPath))
     {
-        throw new InvalidOperationException("Cannot verify trade item value projection; TradeMenu.cs is missing.");
+        throw new InvalidOperationException("Cannot verify trade item value; TradeMenu.cs is missing.");
     }
     if (!File.Exists(inventoryPanelPath))
     {
@@ -6144,7 +6144,7 @@ static void RequireTradeItemValuesUseRuntimeQueries(string root)
     }
     if (!File.Exists(tradeQueriesPath))
     {
-        throw new InvalidOperationException("Cannot verify trade item value projection; shared runtime trade item queries are missing.");
+        throw new InvalidOperationException("Cannot verify trade item value; shared runtime trade item queries are missing.");
     }
 
     var tradeMenu = File.ReadAllText(tradeMenuPath);
@@ -6153,13 +6153,13 @@ static void RequireTradeItemValuesUseRuntimeQueries(string root)
     var tradeQueries = File.ReadAllText(tradeQueriesPath);
     var requiredTradeMenuSymbols = new[]
     {
-        "ProjectTradeItem(stock, typedItem)",
-        "ProjectTradeItemCommit(",
+        "TradeItemValue(stock, typedItem)",
+        "TradeItemCommit(",
         "ResolveCatalog()?.TradeValueSettings",
-        "AetheriaRuntimeDaemonTradeItemQueries.ProjectTradeItem(",
-        "AetheriaRuntimeTradeItemProjection TradeProjection",
-        "public int Price => TradeProjection.Price",
-        "public string TierColorHex => TradeProjection.TierColorHex",
+        "AetheriaRuntimeDaemonTradeItemQueries.TradeItemValue(",
+        "AetheriaRuntimeTradeItemValue TradeValue",
+        "public int Price => TradeValue.Price",
+        "public string TierColorHex => TradeValue.TierColorHex",
         "x.TypedItem.TryGetSimpleCommodityCategory(",
         "x.TypedItem.TryGetCompoundCommodityCategory(",
         "x.TypedItem.TryGetHardpointType(",
@@ -6171,7 +6171,7 @@ static void RequireTradeItemValuesUseRuntimeQueries(string root)
     if (missingTradeMenuSymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "TradeMenu no longer projects trade item price/tier values through shared daemon runtime queries: " +
+            "TradeMenu no longer reads trade item price/tier values through shared daemon runtime queries: " +
             string.Join(", ", missingTradeMenuSymbols));
     }
 
@@ -6194,7 +6194,7 @@ static void RequireTradeItemValuesUseRuntimeQueries(string root)
     if (tradeMenuHits.Length > 0)
     {
         throw new InvalidOperationException(
-            "TradeMenu still asks Unity ItemManager for trade item value projection: " +
+            "TradeMenu still asks Unity ItemManager for trade item value: " +
             string.Join(", ", tradeMenuHits));
     }
 
@@ -6228,11 +6228,11 @@ static void RequireTradeItemValuesUseRuntimeQueries(string root)
     var requiredQuerySymbols = new[]
     {
         "public static class AetheriaRuntimeDaemonTradeItemQueries",
-        "public readonly struct AetheriaRuntimeTradeItemProjection",
+        "public readonly struct AetheriaRuntimeTradeItemValue",
         "public sealed class AetheriaRuntimeTradeValueSettings",
         "public readonly struct AetheriaRuntimeItemRarityTier",
         "public readonly struct AetheriaRuntimeExponentialLerp",
-        "public static AetheriaRuntimeTradeItemProjection ProjectTradeItem(",
+        "public static AetheriaRuntimeTradeItemValue TradeItemValue(",
         "settings.QualityPriceModifier.Evaluate(quality.Value) * typedItem.Price",
         "SelectTier(settings.Tiers, quality.Value)",
         "AetheriaRuntimeDaemonItemStatQueries.ItemCommit("
@@ -6243,12 +6243,12 @@ static void RequireTradeItemValuesUseRuntimeQueries(string root)
     if (missingQuerySymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "Shared runtime trade item queries no longer own price/tier projection: " +
+            "Shared runtime trade item queries no longer own price/tier value: " +
             string.Join(", ", missingQuerySymbols));
     }
 }
 
-static void RequireItemTierProjectionUsesRuntimeQueries(string root)
+static void RequireItemTierValuesUseRuntimeQueries(string root)
 {
     var actionGameManagerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs");
     var inventoryMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "InventoryMenu.cs");
@@ -6262,21 +6262,21 @@ static void RequireItemTierProjectionUsesRuntimeQueries(string root)
 
     var actionGameManager = File.Exists(actionGameManagerPath)
         ? File.ReadAllText(actionGameManagerPath)
-        : throw new InvalidOperationException("Cannot verify item tier projection; ActionGameManager.cs is missing.");
+        : throw new InvalidOperationException("Cannot verify item tier value; ActionGameManager.cs is missing.");
     var inventoryMenu = File.Exists(inventoryMenuPath)
         ? File.ReadAllText(inventoryMenuPath)
-        : throw new InvalidOperationException("Cannot verify item tier projection; InventoryMenu.cs is missing.");
+        : throw new InvalidOperationException("Cannot verify item tier value; InventoryMenu.cs is missing.");
     var zoneRenderer = File.Exists(zoneRendererPath)
         ? File.ReadAllText(zoneRendererPath)
-        : throw new InvalidOperationException("Cannot verify item tier projection; ZoneRenderer.cs is missing.");
+        : throw new InvalidOperationException("Cannot verify item tier value; ZoneRenderer.cs is missing.");
     var tradeQueries = File.Exists(tradeQueriesPath)
         ? File.ReadAllText(tradeQueriesPath)
-        : throw new InvalidOperationException("Cannot verify item tier projection; runtime trade item queries are missing.");
+        : throw new InvalidOperationException("Cannot verify item tier value; runtime trade item queries are missing.");
 
     if (actionGameManager.Contains("ObservedItemTier(", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "ActionGameManager still exposes item tier projection as a Unity ItemManager bridge.");
+            "ActionGameManager still exposes item tier value as a Unity ItemManager bridge.");
     }
 
     var forbiddenUnityTierSymbols = new[]
@@ -6300,17 +6300,17 @@ static void RequireItemTierProjectionUsesRuntimeQueries(string root)
     }
 
     if (!inventoryMenu.Contains("FormatItemTier(", StringComparison.Ordinal) ||
-        !inventoryMenu.Contains("AetheriaRuntimeDaemonTradeItemQueries.ProjectTradeItem(", StringComparison.Ordinal) ||
-        !inventoryMenu.Contains("tradeProjection.TierName", StringComparison.Ordinal) ||
-        !inventoryMenu.Contains("tradeProjection.Upgrades", StringComparison.Ordinal) ||
-        !zoneRenderer.Contains("AetheriaRuntimeDaemonTradeItemQueries.ProjectTradeItem(", StringComparison.Ordinal) ||
-        !zoneRenderer.Contains("tradeProjection.TierColorHex", StringComparison.Ordinal) ||
+        !inventoryMenu.Contains("AetheriaRuntimeDaemonTradeItemQueries.TradeItemValue(", StringComparison.Ordinal) ||
+        !inventoryMenu.Contains("tradeValue.TierName", StringComparison.Ordinal) ||
+        !inventoryMenu.Contains("tradeValue.Upgrades", StringComparison.Ordinal) ||
+        !zoneRenderer.Contains("AetheriaRuntimeDaemonTradeItemQueries.TradeItemValue(", StringComparison.Ordinal) ||
+        !zoneRenderer.Contains("tradeValue.TierColorHex", StringComparison.Ordinal) ||
         !tradeQueries.Contains("public string TierName { get; }", StringComparison.Ordinal) ||
         !tradeQueries.Contains("public string TierColorHex { get; }", StringComparison.Ordinal) ||
         !tradeQueries.Contains("public int Upgrades { get; }", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Item tier labels and pickup colors must be projected through shared runtime trade item query results.");
+            "Item tier labels and pickup colors must use shared runtime trade item query results.");
     }
 }
 
@@ -6595,7 +6595,7 @@ static void RequireStationRefitDockingBaysUseTypedDocuments(string root)
         "private static IReadOnlyList<AetheriaRuntimeStationStockItem> ProjectStationStockTradeFacts(",
         "private static int ProjectStationStockPrice(",
         "private static int CountStationOwnedQuantity(",
-        "AetheriaRuntimeDaemonTradeItemQueries.ProjectTradeItem(",
+        "AetheriaRuntimeDaemonTradeItemQueries.TradeItemValue(",
         "CanAfford = price >= 0 && credits >= price",
         "OwnedQuantity = CountStationOwnedQuantity"
     };
