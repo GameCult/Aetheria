@@ -6,7 +6,6 @@ using System.Linq;
 using GameCult.Aetheria.EveRuntime;
 using GameCult.Aetheria.State.Verse;
 using GameCult.Eve.Surface;
-using GameCult.Mesh;
 using UniRx;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -46,12 +45,6 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
     private float _sectorBackgroundDepth;
     private float _sectorCameraDepth;
     private UIDocument _zoneDetailsSurfaceDocument;
-    private CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog;
-    private CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings;
-    private CultMeshReactiveDocument<AetheriaRuntimeSectorMapDocument> _sectorMap;
-    private CultMeshReactiveDocument<AetheriaRuntimeCurrentZoneDocument> _currentZone;
-    private int _zoneDetailsIndex = -1;
-    private CultMeshReactiveDocument<AetheriaRuntimeZoneDetailsDocument> _zoneDetails;
     private readonly AetheriaEveUnitySurfaceChrome _zoneDetailsSurfaceChrome = new AetheriaEveUnitySurfaceChrome
     {
         RootAlignItems = Align.FlexEnd,
@@ -168,9 +161,9 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
 
         try
         {
-            _sectorMap ??= AetheriaUnityRuntimeClientProvider
-                .ReactiveSectorMap("unity-sector-renderer");
-            var sectorMap = _sectorMap?.Current;
+            var sectorMap = AetheriaUnityRuntimeClientProvider
+                .RuntimeState("unity-sector-renderer")
+                .CurrentSectorMap();
             return (sectorMap?.Zones ?? Array.Empty<AetheriaRuntimeSectorMapZone>())
                 .FirstOrDefault(zone => zone.ZoneIndex == zoneIndex);
         }
@@ -191,23 +184,17 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
         if (zoneIndex < 0)
             return null;
 
-        if (_zoneDetails != null && _zoneDetailsIndex == zoneIndex)
-            return _zoneDetails.Current;
-
         try
         {
-            var nextZoneDetails = AetheriaUnityRuntimeClientProvider
-                .ReactiveZoneDetails(zoneIndex, "unity-sector-renderer");
-            _zoneDetails?.Dispose();
-            _zoneDetailsIndex = zoneIndex;
-            _zoneDetails = nextZoneDetails;
+            return AetheriaUnityRuntimeClientProvider
+                .RuntimeState("unity-sector-renderer")
+                .CurrentZoneDetails(zoneIndex);
         }
         catch (Exception ex)
         {
-            Debug.LogWarning($"Failed to bind Aetheria sector zone details from local Verse state: {ex.Message}");
+            Debug.LogWarning($"Failed to read Aetheria sector zone details from local Verse state: {ex.Message}");
+            return null;
         }
-
-        return _zoneDetails?.Current;
     }
 
     private string ResolveHullType(string hullItemKey)
@@ -218,38 +205,32 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
 
     private AetheriaRuntimeCatalogSnapshot ResolveCatalog()
     {
-        if (_catalog != null)
-            return _catalog.Current;
-
         try
         {
-            _catalog = AetheriaUnityRuntimeClientProvider
-                .ReactiveCatalogSnapshot("unity-sector-renderer");
+            return AetheriaUnityRuntimeClientProvider
+                .RuntimeState("unity-sector-renderer")
+                .CurrentCatalog();
         }
         catch (Exception ex)
         {
-            Debug.LogWarning($"Failed to bind Aetheria sector catalog from local Verse state: {ex.Message}");
+            Debug.LogWarning($"Failed to read Aetheria sector catalog from local Verse state: {ex.Message}");
+            return null;
         }
-
-        return _catalog?.Current;
     }
 
     private AetheriaRuntimePlayerSettingsDocument ResolvePlayerSettings()
     {
-        if (_playerSettings != null)
-            return _playerSettings.Current;
-
         try
         {
-            _playerSettings = AetheriaUnityRuntimeClientProvider
-                .ReactivePlayerSettingsDocument("unity-sector-renderer");
+            return AetheriaUnityRuntimeClientProvider
+                .RuntimeState("unity-sector-renderer")
+                .CurrentPlayerSettings();
         }
         catch (Exception ex)
         {
-            Debug.LogWarning($"Failed to bind Aetheria sector player settings from local Verse state: {ex.Message}");
+            Debug.LogWarning($"Failed to read Aetheria sector player settings from local Verse state: {ex.Message}");
+            return null;
         }
-
-        return _playerSettings?.Current;
     }
 
     private string FormatValue(float value)
@@ -267,20 +248,6 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
             : formatted;
     }
 
-    private void ClearClientCaches()
-    {
-        _catalog?.Dispose();
-        _playerSettings?.Dispose();
-        _sectorMap?.Dispose();
-        _currentZone?.Dispose();
-        _zoneDetails?.Dispose();
-        _catalog = null;
-        _playerSettings = null;
-        _sectorMap = null;
-        _currentZone = null;
-        _zoneDetails = null;
-        _zoneDetailsIndex = -1;
-    }
     private void OnEnable()
     {
         _init = true;
@@ -300,15 +267,15 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
     {
         try
         {
-            _currentZone ??= AetheriaUnityRuntimeClientProvider
-                .ReactiveCurrentZone("unity-sector-renderer");
+            return AetheriaUnityRuntimeClientProvider
+                .RuntimeState("unity-sector-renderer")
+                .CurrentZoneState();
         }
         catch (Exception ex)
         {
-            Debug.LogWarning($"Failed to bind Aetheria sector current zone from local Verse state: {ex.Message}");
+            Debug.LogWarning($"Failed to read Aetheria sector current zone from local Verse state: {ex.Message}");
+            return null;
         }
-
-        return _currentZone?.Current;
     }
 
     private void OnDisable()
@@ -324,8 +291,6 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
 
     private void OnDestroy()
     {
-        ClearClientCaches();
-
         if (_zoneDetailsSurfaceDocument != null)
         {
             AetheriaEveUnitySurfaceHost.DestroyDocument(_zoneDetailsSurfaceDocument);

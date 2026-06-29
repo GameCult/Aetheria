@@ -4591,9 +4591,12 @@ static void RequireSectorMapZoneDetailsUseEveSurface(string root)
         "zoneFacts.Bodies",
         "zoneFacts.Entities",
         "AetheriaUnityRuntimeClientProvider",
-        ".ReactiveSectorMap(\"unity-sector-renderer\")",
-        ".ReactiveZoneDetails(zoneIndex, \"unity-sector-renderer\")",
-        "_zoneDetails?.Current",
+        ".RuntimeState(\"unity-sector-renderer\")",
+        ".CurrentSectorMap()",
+        ".CurrentZoneDetails(zoneIndex)",
+        ".CurrentCatalog()",
+        ".CurrentPlayerSettings()",
+        ".CurrentZoneState()",
         "AetheriaRuntimeZoneDetailsSurfaceCommands.TryRead(request, out var command)",
         "AetheriaRuntimeZoneDetailsCommandKind.Close"
     };
@@ -4609,46 +4612,34 @@ static void RequireSectorMapZoneDetailsUseEveSurface(string root)
             string.Join(", ", missingSymbols));
     }
 
-    RequireReactiveTypedDocumentAccess(
-        source,
-        "SectorRenderer",
-        "AetheriaRuntimeSectorMapDocument",
-        "_sectorMap",
+    var forbiddenAccessSymbols = new[]
+    {
+        "CultMeshReactiveDocument<",
         ".ReactiveSectorMap(\"unity-sector-renderer\")",
-        "AetheriaRuntimeSectorMapSession",
-        ".ObserveSectorMap()");
-    RequireReactiveTypedDocumentAccess(
-        source,
-        "SectorRenderer",
-        "AetheriaRuntimeCurrentZoneDocument",
-        "_currentZone",
         ".ReactiveCurrentZone(\"unity-sector-renderer\")",
-        "AetheriaRuntimeCurrentZoneSession",
-        ".ObserveZone()");
-    RequireReactiveTypedDocumentAccess(
-        source,
-        "SectorRenderer",
-        "AetheriaRuntimeZoneDetailsDocument",
-        "_zoneDetails",
         ".ReactiveZoneDetails(zoneIndex, \"unity-sector-renderer\")",
-        "AetheriaRuntimeZoneDetailsSession",
-        ".ObserveZone(zoneIndex)");
-    RequireReactiveTypedDocumentAccess(
-        source,
-        "SectorRenderer",
-        "AetheriaRuntimeCatalogSnapshot",
-        "_catalog",
         ".ReactiveCatalogSnapshot(\"unity-sector-renderer\")",
-        "AetheriaRuntimeCatalogSession",
-        "ResolveClient().State.ObserveCatalog()");
-    RequireReactiveTypedDocumentAccess(
-        source,
-        "SectorRenderer",
-        "AetheriaRuntimePlayerSettingsDocument",
-        "_playerSettings",
         ".ReactivePlayerSettingsDocument(\"unity-sector-renderer\")",
+        "AetheriaRuntimeSectorMapSession",
+        "AetheriaRuntimeCurrentZoneSession",
+        "AetheriaRuntimeZoneDetailsSession",
+        "AetheriaRuntimeCatalogSession",
         "AetheriaRuntimePlayerSettingsSession",
-        ".ObservePlayer()");
+        ".ObserveSectorMap()",
+        ".ObserveZone()",
+        ".ObserveZone(zoneIndex)",
+        "ResolveClient().State.ObserveCatalog()",
+        ".ObservePlayer()",
+        "ClearClientCaches()"
+    }
+        .Where(symbol => source.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (forbiddenAccessSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "SectorRenderer should sample sector UI documents through named current typed state instead of owning reactive/session handles: " +
+            string.Join(", ", forbiddenAccessSymbols));
+    }
 
     var forbiddenSymbols = new[]
     {
@@ -8038,84 +8029,47 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "UI",
         "Menu",
         "SectorRenderer.cs"));
+    var compactSectorRenderer = CompactSource(sectorRenderer);
     var requiredSectorRendererSharedDocumentSymbols = new[]
     {
-        "CultMeshReactiveDocument<AetheriaRuntimeSectorMapDocument> _sectorMap",
-        "CultMeshReactiveDocument<AetheriaRuntimeCurrentZoneDocument> _currentZone",
-        "CultMeshReactiveDocument<AetheriaRuntimeZoneDetailsDocument> _zoneDetails",
-        ".Current",
-        "_sectorMap?.Dispose()",
-        "_currentZone?.Dispose()",
-        "_zoneDetails?.Dispose()",
-        "private void OnDestroy()"
-    };
-    var missingSectorRendererSharedDocumentSymbols = requiredSectorRendererSharedDocumentSymbols
-        .Where(symbol => !sectorRenderer.Contains(symbol, StringComparison.Ordinal))
+        ".RuntimeState(\"unity-sector-renderer\").CurrentSectorMap()",
+        ".RuntimeState(\"unity-sector-renderer\").CurrentZoneState()",
+        ".RuntimeState(\"unity-sector-renderer\").CurrentZoneDetails(zoneIndex)",
+        ".RuntimeState(\"unity-sector-renderer\").CurrentCatalog()",
+        ".RuntimeState(\"unity-sector-renderer\").CurrentPlayerSettings()"
+    }
+        .Where(symbol => !compactSectorRenderer.Contains(symbol, StringComparison.Ordinal))
         .ToArray();
-    var compactSectorRenderer = CompactSource(sectorRenderer);
-    missingSectorRendererSharedDocumentSymbols = missingSectorRendererSharedDocumentSymbols
-        .Concat(new[]
-        {
-            ".ReactiveSectorMap(\"unity-sector-renderer\")",
-            ".ReactiveCurrentZone(\"unity-sector-renderer\")",
-            ".ReactiveZoneDetails(zoneIndex,\"unity-sector-renderer\")"
-        }.Where(symbol => !compactSectorRenderer.Contains(symbol, StringComparison.Ordinal)))
-        .ToArray();
-    if (missingSectorRendererSharedDocumentSymbols.Length > 0)
+    if (requiredSectorRendererSharedDocumentSymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "SectorRenderer should bind shared catalog/settings through managed reactive Aetheria documents with renderer lifetime disposal: " +
-            string.Join(", ", missingSectorRendererSharedDocumentSymbols));
+            "SectorRenderer should sample shared sector UI state through named current typed Aetheria documents: " +
+            string.Join(", ", requiredSectorRendererSharedDocumentSymbols));
     }
-
-    RequireReactiveTypedDocumentAccess(
-        sectorRenderer,
-        "SectorRenderer",
-        "AetheriaRuntimeSectorMapDocument",
-        "_sectorMap",
-        ".ReactiveSectorMap(\"unity-sector-renderer\")",
-        "AetheriaRuntimeSectorMapSession",
-        ".ObserveSectorMap()");
-    RequireReactiveTypedDocumentAccess(
-        sectorRenderer,
-        "SectorRenderer",
-        "AetheriaRuntimeCurrentZoneDocument",
-        "_currentZone",
-        ".ReactiveCurrentZone(\"unity-sector-renderer\")",
-        "AetheriaRuntimeCurrentZoneSession",
-        ".ObserveZone()");
-    RequireReactiveTypedDocumentAccess(
-        sectorRenderer,
-        "SectorRenderer",
-        "AetheriaRuntimeZoneDetailsDocument",
-        "_zoneDetails",
-        ".ReactiveZoneDetails(zoneIndex,\"unity-sector-renderer\")",
-        "AetheriaRuntimeZoneDetailsSession",
-        ".ObserveZone(zoneIndex)");
-    RequireReactiveTypedDocumentAccess(
-        sectorRenderer,
-        "SectorRenderer",
-        "AetheriaRuntimeCatalogSnapshot",
-        "_catalog",
-        ".ReactiveCatalogSnapshot(\"unity-sector-renderer\")",
-        "AetheriaRuntimeCatalogSession",
-        "ResolveClient().State.ObserveCatalog()");
-    RequireReactiveTypedDocumentAccess(
-        sectorRenderer,
-        "SectorRenderer",
-        "AetheriaRuntimePlayerSettingsDocument",
-        "_playerSettings",
-        ".ReactivePlayerSettingsDocument(\"unity-sector-renderer\")",
-        "AetheriaRuntimePlayerSettingsSession",
-        ".ObservePlayer()");
 
     var forbiddenSectorRendererSharedDocumentSymbols = new[]
     {
+        "CultMeshReactiveDocument<",
+        ".ReactiveSectorMap(\"unity-sector-renderer\")",
+        ".ReactiveCurrentZone(\"unity-sector-renderer\")",
+        ".ReactiveZoneDetails(zoneIndex, \"unity-sector-renderer\")",
+        ".ReactiveCatalogSnapshot(\"unity-sector-renderer\")",
+        ".ReactivePlayerSettingsDocument(\"unity-sector-renderer\")",
         "AetheriaRuntimeSectorMapSession _sectorMap",
         "AetheriaRuntimeCurrentZoneSession _currentZone",
         "AetheriaRuntimeZoneDetailsSession _zoneDetails",
+        "AetheriaRuntimeCatalogSession _catalog",
+        "AetheriaRuntimePlayerSettingsSession _playerSettings",
         ".ObserveSectorMap()",
-        ".ObserveZone(zoneIndex)"
+        ".ObserveZone()",
+        ".ObserveZone(zoneIndex)",
+        "ResolveClient().State.ObserveCatalog()",
+        ".ObservePlayer()",
+        "_sectorMap?.Dispose()",
+        "_currentZone?.Dispose()",
+        "_zoneDetails?.Dispose()",
+        "_catalog?.Dispose()",
+        "_playerSettings?.Dispose()"
     };
     var sectorRendererRawDocumentHits = forbiddenSectorRendererSharedDocumentSymbols
         .Where(symbol => sectorRenderer.Contains(symbol, StringComparison.Ordinal))
@@ -8123,7 +8077,7 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
     if (sectorRendererRawDocumentHits.Length > 0)
     {
         throw new InvalidOperationException(
-            "SectorRenderer still routes map/current-zone/details through session wrappers instead of managed reactive typed documents: " +
+            "SectorRenderer still routes map/current-zone/details through wrapper/session/reactive handles instead of current typed documents: " +
             string.Join(", ", sectorRendererRawDocumentHits));
     }
 
@@ -14944,11 +14898,11 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         !compactMapRenderer.Contains(".ReactiveRenderSplatsViewport(viewport,\"unity-map-renderer\")", StringComparison.Ordinal) ||
         !compactMapRenderer.Contains(".ReactivePlayerSettingsDocument(\"unity-map-renderer\")", StringComparison.Ordinal) ||
         !sectorRenderer.Contains("AetheriaUnityRuntimeClientProvider", StringComparison.Ordinal) ||
-        !compactSectorRenderer.Contains(".ReactiveSectorMap(\"unity-sector-renderer\")", StringComparison.Ordinal) ||
-        !compactSectorRenderer.Contains(".ReactiveZoneDetails(zoneIndex,\"unity-sector-renderer\")", StringComparison.Ordinal) ||
-        !sectorRenderer.Contains(".Current", StringComparison.Ordinal) ||
-        !compactSectorRenderer.Contains(".ReactiveCatalogSnapshot(\"unity-sector-renderer\")", StringComparison.Ordinal) ||
-        !compactSectorRenderer.Contains(".ReactivePlayerSettingsDocument(\"unity-sector-renderer\")", StringComparison.Ordinal) ||
+        !compactSectorRenderer.Contains(".RuntimeState(\"unity-sector-renderer\").CurrentSectorMap()", StringComparison.Ordinal) ||
+        !compactSectorRenderer.Contains(".RuntimeState(\"unity-sector-renderer\").CurrentZoneDetails(zoneIndex)", StringComparison.Ordinal) ||
+        !compactSectorRenderer.Contains(".RuntimeState(\"unity-sector-renderer\").CurrentCatalog()", StringComparison.Ordinal) ||
+        !compactSectorRenderer.Contains(".RuntimeState(\"unity-sector-renderer\").CurrentPlayerSettings()", StringComparison.Ordinal) ||
+        !compactSectorRenderer.Contains(".RuntimeState(\"unity-sector-renderer\").CurrentZoneState()", StringComparison.Ordinal) ||
         !sectorMap.Contains("AetheriaUnityRuntimeClientProvider", StringComparison.Ordinal) ||
         !compactSectorMap.Contains(".RuntimeState(\"unity-sector-map\").CurrentSectorMap()", StringComparison.Ordinal) ||
         !sectorRenderer.Contains("AetheriaRuntimeZoneDetailsSurfaceBuilder.Facts(", StringComparison.Ordinal))
