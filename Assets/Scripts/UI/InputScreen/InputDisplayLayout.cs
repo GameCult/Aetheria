@@ -369,8 +369,7 @@ public class InputDisplayLayout : MonoBehaviour
         try
         {
             return AetheriaUnityRuntimeClientProvider
-                .RuntimeState(RequireLocalStateBoot(), "unity-input-screen")
-                .CurrentPlayerSettings();
+                .CurrentPlayerSettings(RequireLocalStateBoot(), "unity-input-screen");
         }
         catch (Exception ex)
         {

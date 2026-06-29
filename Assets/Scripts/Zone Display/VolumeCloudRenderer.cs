@@ -95,8 +95,7 @@ public class VolumeCloudRenderer : EffectBase
         try
         {
             return AetheriaUnityRuntimeClientProvider
-                .RuntimeState("unity-volume-cloud-renderer")
-                .CurrentPlayerSettings();
+                .CurrentPlayerSettings("unity-volume-cloud-renderer");
         }
         catch (Exception ex)
         {

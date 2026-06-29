@@ -4240,8 +4240,7 @@ static void RequireRuntimeInputScreenUsesEveSurface(string root)
         "AetheriaRuntimeEveCommandKind.SetActionBarEnabled",
         "RequireLocalStateBoot()",
         "AetheriaUnityRuntimeClientProvider",
-        ".RuntimeState(RequireLocalStateBoot(), \"unity-input-screen\")",
-        ".CurrentPlayerSettings()",
+        ".CurrentPlayerSettings(RequireLocalStateBoot(), \"unity-input-screen\")",
         "action.ApplyBindingOverride",
         "new InputAction(\"Aetheria Input Capture\")",
         "AetheriaRuntimeInputSettingsSurfaceBuilder.IsSupportedCapturePath(",
@@ -7655,8 +7654,8 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "VolumeCloudRenderer.cs"));
     var requiredVolumeCloudSymbols = new[]
     {
-        ".RuntimeState(\"unity-volume-cloud-renderer\")",
-        ".CurrentPlayerSettings()"
+        "AetheriaUnityRuntimeClientProvider",
+        ".CurrentPlayerSettings(\"unity-volume-cloud-renderer\")"
     };
     var missingVolumeCloudSymbols = requiredVolumeCloudSymbols
         .Where(symbol => !volumeCloudRenderer.Contains(symbol, StringComparison.Ordinal))
@@ -7790,10 +7789,10 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "MainMenu.cs"));
     var requiredMainMenuSharedDocumentSymbols = new[]
     {
-        ".RuntimeState(stateBoot, \"unity-main-menu\")",
-        ".CurrentSectorMap()",
-        ".CurrentPlayerSettings()",
-        ".CurrentVerseHostSettings()",
+        "AetheriaUnityRuntimeClientProvider",
+        ".CurrentSectorMap(stateBoot, \"unity-main-menu\")",
+        ".CurrentPlayerSettings(stateBoot, \"unity-main-menu\")",
+        ".CurrentVerseHostSettings(stateBoot, \"unity-main-menu\")",
         "private void OnDestroy()"
     };
     var missingMainMenuSharedDocumentSymbols = requiredMainMenuSharedDocumentSymbols
@@ -9402,16 +9401,15 @@ static void RequireClientTargetBootAuthority(string root)
         "CurrentStateBoot()",
         "ResolveSectorMap(AetheriaRuntimeStateBootReport stateBoot)",
         "AetheriaUnityRuntimeClientProvider",
-        ".RuntimeState(stateBoot, \"unity-main-menu\")",
-        ".CurrentSectorMap()",
+        ".CurrentSectorMap(stateBoot, \"unity-main-menu\")",
         "ResolveVerseHostSettings(AetheriaRuntimeStateBootReport stateBoot)",
-        ".CurrentVerseHostSettings()",
+        ".CurrentVerseHostSettings(stateBoot, \"unity-main-menu\")",
         "AetheriaState.At(AetheriaUnityRuntimePaths.GameDataDirectory)",
         ".ClientTarget",
         "RequestClientTargetCommand(request)",
         "AetheriaRuntimeClientTargetSurfaceCommands.TryRequest(",
         "ResolvePlayerSettings(AetheriaRuntimeStateBootReport stateBoot)",
-        ".CurrentPlayerSettings()",
+        ".CurrentPlayerSettings(stateBoot, \"unity-main-menu\")",
         "AetheriaRuntimeClientTargetSurfaceBuilder.Build(",
         "AetheriaRuntimeMainMenuSurfaceBuilder.BuildRoot(",
         "AetheriaRuntimeMainMenuSurfaceBuilder.BuildSettings(",
@@ -13071,8 +13069,8 @@ static void RequireMainMenuVerseHostDocumentAccess(string root)
     var requiredMainMenuSymbols = new[]
     {
         "ResolveVerseHostSettings(AetheriaRuntimeStateBootReport stateBoot)",
-        ".RuntimeState(stateBoot, \"unity-main-menu\")",
-        ".CurrentVerseHostSettings()",
+        "AetheriaUnityRuntimeClientProvider",
+        ".CurrentVerseHostSettings(stateBoot, \"unity-main-menu\")",
         "AetheriaRuntimeClientTargetSurfaceBuilder.Build(",
         "AetheriaRuntimeMainMenuSurfaceBuilder.BuildRoot("
     };
@@ -13256,8 +13254,7 @@ static void RequireMainMenuContinueRunState(string root)
     {
         "ResolveSectorMap",
         "AetheriaUnityRuntimeClientProvider",
-        ".RuntimeState(stateBoot, \"unity-main-menu\")",
-        ".CurrentSectorMap()",
+        ".CurrentSectorMap(stateBoot, \"unity-main-menu\")",
         "ContinueGame()",
         "SceneManager.LoadScene(\"ARPG\")"
     };
@@ -15481,8 +15478,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         "TryStartDaemonObservedGame",
         "ResolveSectorMap(stateBoot)",
         "AetheriaUnityRuntimeClientProvider",
-        ".RuntimeState(stateBoot, \"unity-main-menu\")",
-        ".CurrentSectorMap()",
+        ".CurrentSectorMap(stateBoot, \"unity-main-menu\")",
         "sectorMap.FrameId",
         "SceneManager.LoadScene(\"ARPG\")"
     };
@@ -16963,9 +16959,8 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
 
     if (!mainMenu.Contains("AetheriaUnityRuntimeClientProvider", StringComparison.Ordinal) ||
         !mainMenu.Contains("ResolveSectorMap(AetheriaRuntimeStateBootReport stateBoot)", StringComparison.Ordinal) ||
-        !mainMenu.Contains(".RuntimeState(stateBoot, \"unity-main-menu\")", StringComparison.Ordinal) ||
-        !mainMenu.Contains(".CurrentSectorMap()", StringComparison.Ordinal) ||
-        !mainMenu.Contains(".CurrentPlayerSettings()", StringComparison.Ordinal))
+        !mainMenu.Contains(".CurrentSectorMap(stateBoot, \"unity-main-menu\")", StringComparison.Ordinal) ||
+        !mainMenu.Contains(".CurrentPlayerSettings(stateBoot, \"unity-main-menu\")", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "MainMenu must read menu state through provider-native managed typed documents.");

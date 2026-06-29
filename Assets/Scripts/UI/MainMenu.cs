@@ -145,8 +145,7 @@ public class MainMenu : MonoBehaviour
         try
         {
             return AetheriaUnityRuntimeClientProvider
-                .RuntimeState(stateBoot, "unity-main-menu")
-                .CurrentSectorMap();
+                .CurrentSectorMap(stateBoot, "unity-main-menu");
         }
         catch (Exception ex)
         {
@@ -163,8 +162,7 @@ public class MainMenu : MonoBehaviour
         try
         {
             return AetheriaUnityRuntimeClientProvider
-                .RuntimeState(stateBoot, "unity-main-menu")
-                .CurrentPlayerSettings();
+                .CurrentPlayerSettings(stateBoot, "unity-main-menu");
         }
         catch (Exception ex)
         {
@@ -181,8 +179,7 @@ public class MainMenu : MonoBehaviour
         try
         {
             return AetheriaUnityRuntimeClientProvider
-                .RuntimeState(stateBoot, "unity-main-menu")
-                .CurrentVerseHostSettings();
+                .CurrentVerseHostSettings(stateBoot, "unity-main-menu");
         }
         catch (Exception ex)
         {
