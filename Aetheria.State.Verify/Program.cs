@@ -7255,15 +7255,12 @@ static void RequireInventoryValidationUsesManagedTypedDocuments(string root)
     foreach (var (name, source) in sources)
     {
         var compact = CompactSource(source);
-        var currentEntityAccess = name == "InventoryMenu.cs"
-            ? ".RuntimeState(\"unity-inventory-menu\").CurrentEntityState()"
-            : ".ReactiveCurrentEntity(\"unity-inventory\")";
-        var stationRefitAccess = name == "InventoryMenu.cs"
-            ? ".RuntimeState(\"unity-inventory-menu\").CurrentStationRefit()"
-            : ".ReactiveStationRefit(\"unity-inventory\")";
-        var inventoryAccess = name == "InventoryMenu.cs"
-            ? ".RuntimeState(\"unity-inventory-menu\").CurrentInventory(entityIndex)"
-            : ".ReactiveInventory(entityIndex)";
+        var runtimeId = name == "InventoryMenu.cs"
+            ? "unity-inventory-menu"
+            : "unity-inventory";
+        var currentEntityAccess = $".RuntimeState(\"{runtimeId}\").CurrentEntityState()";
+        var stationRefitAccess = $".RuntimeState(\"{runtimeId}\").CurrentStationRefit()";
+        var inventoryAccess = $".RuntimeState(\"{runtimeId}\").CurrentInventory(entityIndex)";
         var requiredSymbols = new[]
         {
             "CurrentEntitySnapshot()",
@@ -7279,12 +7276,6 @@ static void RequireInventoryValidationUsesManagedTypedDocuments(string root)
             stationRefitAccess,
             inventoryAccess
         };
-        if (name == "InventoryPanel.cs")
-        {
-            missingSymbols = missingSymbols
-                .Concat(new[] { "_inventory?.Current" }.Where(symbol => !source.Contains(symbol, StringComparison.Ordinal)))
-                .ToArray();
-        }
         missingSymbols = missingSymbols
             .Concat(requiredCompactedSymbols.Where(symbol => !compact.Contains(symbol, StringComparison.Ordinal)))
             .ToArray();
@@ -7321,53 +7312,23 @@ static void RequireInventoryValidationUsesManagedTypedDocuments(string root)
                 $"{name} still routes inventory validation through session wrappers instead of direct managed reactive typed documents.");
         }
 
-        if (name == "InventoryMenu.cs")
+        var forbiddenCurrentDocumentSymbols = new[]
         {
-            var forbiddenMenuSymbols = new[]
-            {
-                "CultMeshReactiveDocument<",
-                ".ReactiveCurrentEntity(\"unity-inventory-menu\")",
-                ".ReactiveStationRefit(\"unity-inventory-menu\")",
-                ".ReactiveInventory(entityIndex)",
-                "_currentEntity?.Dispose()",
-                "_stationRefit?.Dispose()",
-                "_inventory?.Dispose()"
-            }
-                .Where(symbol => source.Contains(symbol, StringComparison.Ordinal))
-                .ToArray();
-            if (forbiddenMenuSymbols.Length > 0)
-            {
-                throw new InvalidOperationException(
-                    "InventoryMenu should sample inventory validation state through current typed documents instead of owning reactive handles: " +
-                    string.Join(", ", forbiddenMenuSymbols));
-            }
+            "CultMeshReactiveDocument<",
+            $".ReactiveCurrentEntity(\"{runtimeId}\")",
+            $".ReactiveStationRefit(\"{runtimeId}\")",
+            ".ReactiveInventory(entityIndex)",
+            "_currentEntity?.Dispose()",
+            "_stationRefit?.Dispose()",
+            "_inventory?.Dispose()"
         }
-        else
+            .Where(symbol => source.Contains(symbol, StringComparison.Ordinal))
+            .ToArray();
+        if (forbiddenCurrentDocumentSymbols.Length > 0)
         {
-            RequireReactiveTypedDocumentAccess(
-                source,
-                name,
-                "AetheriaRuntimeCurrentEntityDocument",
-                "_currentEntity",
-                currentEntityAccess,
-                "AetheriaRuntimeCurrentEntitySession",
-                ".ObserveEntity()");
-            RequireReactiveTypedDocumentAccess(
-                source,
-                name,
-                "AetheriaRuntimeStationRefitDocument",
-                "_stationRefit",
-                stationRefitAccess,
-                "AetheriaRuntimeStationRefitSession",
-                ".ObserveStationRefit()");
-            RequireReactiveTypedDocumentAccess(
-                source,
-                name,
-                "AetheriaRuntimeInventoryDocument",
-                "_inventory",
-                ".ReactiveInventory(entityIndex)",
-                "AetheriaRuntimeInventorySession",
-                ".ObserveInventory(entityIndex)");
+            throw new InvalidOperationException(
+                $"{name} should sample inventory validation state through current typed documents instead of owning reactive handles: " +
+                string.Join(", ", forbiddenCurrentDocumentSymbols));
         }
     }
 
@@ -8046,36 +8007,44 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "UI",
         "Menu",
         "InventoryPanel.cs"));
+    var compactInventoryPanel = CompactSource(inventoryPanel);
     var requiredInventoryPanelSharedDocumentSymbols = new[]
     {
+        ".RuntimeState(\"unity-inventory\").CurrentCatalog()",
+        ".RuntimeState(\"unity-inventory\").CurrentPlayerSettings()",
         "private void OnDestroy()"
     };
     var missingInventoryPanelSharedDocumentSymbols = requiredInventoryPanelSharedDocumentSymbols
-        .Where(symbol => !inventoryPanel.Contains(symbol, StringComparison.Ordinal))
+        .Where(symbol => !compactInventoryPanel.Contains(symbol, StringComparison.Ordinal) &&
+                         !inventoryPanel.Contains(symbol, StringComparison.Ordinal))
         .ToArray();
     if (missingInventoryPanelSharedDocumentSymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "InventoryPanel should bind shared catalog/settings through managed reactive Aetheria documents with panel lifetime disposal: " +
+            "InventoryPanel should sample shared catalog/settings through named current typed Aetheria documents: " +
             string.Join(", ", missingInventoryPanelSharedDocumentSymbols));
     }
 
-    RequireReactiveTypedDocumentAccess(
-        inventoryPanel,
-        "InventoryPanel",
-        "AetheriaRuntimeCatalogSnapshot",
-        "_catalog",
+    var forbiddenInventoryPanelSharedDocumentSymbols = new[]
+    {
+        "CultMeshReactiveDocument<",
         ".ReactiveCatalogSnapshot(\"unity-inventory\")",
-        "AetheriaRuntimeCatalogSession",
-        "ResolveClient().State.ObserveCatalog()");
-    RequireReactiveTypedDocumentAccess(
-        inventoryPanel,
-        "InventoryPanel",
-        "AetheriaRuntimePlayerSettingsDocument",
-        "_playerSettings",
         ".ReactivePlayerSettingsDocument(\"unity-inventory\")",
+        "AetheriaRuntimeCatalogSession",
         "AetheriaRuntimePlayerSettingsSession",
-        ".ObservePlayer()");
+        "ResolveClient().State.ObserveCatalog()",
+        ".ObservePlayer()",
+        "_catalog?.Dispose()",
+        "_playerSettings?.Dispose()"
+    }
+        .Where(symbol => inventoryPanel.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (forbiddenInventoryPanelSharedDocumentSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "InventoryPanel still routes catalog/settings through wrapper/session/reactive handles instead of current typed documents: " +
+            string.Join(", ", forbiddenInventoryPanelSharedDocumentSymbols));
+    }
 
     var sectorRenderer = File.ReadAllText(Path.Combine(
         root,
@@ -17989,7 +17958,7 @@ static void RequireInventoryDoubleClickTransferRequestAuthority(string root)
             string.Join(", ", missingTypedSlotValidationSymbols));
     }
     var requiredMenuInventoryAccess = ".CurrentInventory(entityIndex)";
-    var requiredPanelInventoryAccess = ".ReactiveInventory(entityIndex)";
+    var requiredPanelInventoryAccess = ".CurrentInventory(entityIndex)";
     if (!inventoryMenu.Contains(requiredMenuInventoryAccess, StringComparison.Ordinal) ||
         !inventoryPanel.Contains(requiredPanelInventoryAccess, StringComparison.Ordinal))
     {
@@ -18531,41 +18500,34 @@ static void RequireInventoryLoadoutSaveRequestAuthority(string root)
     {
         "RequestLoadoutTemplateSave(Entity entity)",
         "TryResolveEntityRecordKey(entity, out var targetEntityKey)",
-        "CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument> _loadoutFrame",
         "CreateLoadoutTemplate(targetEntityKey)",
         ".CreateLoadoutTemplate(targetEntityKey ?? \"\")",
-        ".ReactiveDaemonFrame(\"unity-inventory\")",
-        "_loadoutFrame?.Dispose()",
         ".Ui(\"unity-inventory\")",
         ".SaveLoadoutTemplateAsync(loadout, \"unity-inventory\")"
     };
     var missingInventoryPanelSymbols = requiredInventoryPanelSymbols
         .Where(symbol => !inventoryPanel.Contains(symbol, StringComparison.Ordinal))
+        .Concat(new[] { ".RuntimeState(\"unity-inventory\").CurrentDaemonFrame()" }
+            .Where(symbol => !CompactSource(inventoryPanel).Contains(symbol, StringComparison.Ordinal)))
         .ToArray();
     if (missingInventoryPanelSymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "InventoryPanel no longer sends a typed Eve loadout-template command from the managed reactive daemon frame: " +
+            "InventoryPanel no longer sends a typed Eve loadout-template command from the managed current daemon frame: " +
             string.Join(", ", missingInventoryPanelSymbols));
     }
 
     if (inventoryPanel.Contains("AetheriaRuntimeDaemonFrameSession _loadoutFrame", StringComparison.Ordinal) ||
+        inventoryPanel.Contains("CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument> _loadoutFrame", StringComparison.Ordinal) ||
+        inventoryPanel.Contains(".ReactiveDaemonFrame(\"unity-inventory\")", StringComparison.Ordinal) ||
+        inventoryPanel.Contains("_loadoutFrame?.Dispose()", StringComparison.Ordinal) ||
         inventoryPanel.Contains(".ObserveDaemonFrame()", StringComparison.Ordinal) ||
         inventoryPanel.Contains("AetheriaUnityRuntimeClientProvider.RuntimeClient(\"unity-inventory\")", StringComparison.Ordinal) ||
         inventoryPanel.Contains(".Ui.SaveLoadoutTemplateAsync(loadout, \"unity-inventory\")", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "InventoryPanel must use managed reactive typed daemon-frame state and the provider-native UI command handle.");
+            "InventoryPanel must use managed current typed daemon-frame state and the provider-native UI command handle.");
     }
-
-    RequireReactiveTypedDocumentAccess(
-        inventoryPanel,
-        "InventoryPanel",
-        "AetheriaRuntimeDaemonFrameDocument",
-        "_loadoutFrame",
-        ".ReactiveDaemonFrame(\"unity-inventory\")",
-        "AetheriaRuntimeDaemonFrameSession",
-        ".ObserveDaemonFrame()");
 
     if (inventoryPanel.Contains(".LoadoutTemplateAsync(", StringComparison.Ordinal) ||
         inventoryPanel.Contains(".ProjectLoadoutTemplateAsync(client.State, targetEntityKey)", StringComparison.Ordinal) ||
@@ -18573,7 +18535,7 @@ static void RequireInventoryLoadoutSaveRequestAuthority(string root)
         inventoryPanel.Contains(".ReactiveLoadoutSnapshotProjector()", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "InventoryPanel still asks an aggregate compatibility helper for loadout templates instead of caching the managed reactive daemon frame.");
+            "InventoryPanel still asks an aggregate compatibility helper for loadout templates instead of reading the managed current daemon frame.");
     }
 
     if (File.Exists(loadoutSnapshotProjectorPath))

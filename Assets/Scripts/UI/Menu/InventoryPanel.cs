@@ -10,7 +10,6 @@ using System.Linq;
 using GameCult.Aetheria.EveRuntime;
 using GameCult.Aetheria.State.Verse;
 using GameCult.Eve.Surface;
-using GameCult.Mesh;
 using TMPro;
 using UniRx;
 using UniRx.Triggers;
@@ -107,13 +106,6 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
     private int _clickCount;
     private InventoryCell _clickCell;
     private float _clickTime;
-    private CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot> _catalog;
-    private CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettings;
-    private CultMeshReactiveDocument<AetheriaRuntimeCurrentEntityDocument> _currentEntity;
-    private CultMeshReactiveDocument<AetheriaRuntimeStationRefitDocument> _stationRefit;
-    private CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument> _loadoutFrame;
-    private int _inventoryEntityIndex = -1;
-    private CultMeshReactiveDocument<AetheriaRuntimeInventoryDocument> _inventory;
     private AetheriaRuntimeStationRefitEntityOption[] _dropdownStationRefitEntities =
         Array.Empty<AetheriaRuntimeStationRefitEntityOption>();
     private AetheriaRuntimeStationLoadoutRestoreOption[] _dropdownStationRefitLoadouts =
@@ -1460,56 +1452,37 @@ private void Update()
 
     private void ClearClientCaches()
     {
-        _catalog?.Dispose();
-        _playerSettings?.Dispose();
-        _currentEntity?.Dispose();
-        _stationRefit?.Dispose();
-        _loadoutFrame?.Dispose();
-        _inventory?.Dispose();
-        _catalog = null;
-        _playerSettings = null;
-        _currentEntity = null;
-        _stationRefit = null;
-        _loadoutFrame = null;
         _observedDockingIndex = null;
-        _inventory = null;
-        _inventoryEntityIndex = -1;
     }
 
     private AetheriaRuntimeCurrentEntityDocument CurrentEntitySnapshot()
     {
-        if (_currentEntity != null)
-            return _currentEntity.Current;
-
         try
         {
-            _currentEntity = AetheriaUnityRuntimeClientProvider
-                .ReactiveCurrentEntity("unity-inventory");
+            return AetheriaUnityRuntimeClientProvider
+                .RuntimeState("unity-inventory")
+                .CurrentEntityState();
         }
         catch (Exception ex)
         {
-            Debug.LogWarning($"Failed to bind Aetheria current entity for inventory panel: {ex.Message}");
+            Debug.LogWarning($"Failed to read Aetheria current entity for inventory panel: {ex.Message}");
+            return null;
         }
-
-        return _currentEntity?.Current;
     }
 
     private AetheriaRuntimeStationRefitDocument StationRefitSnapshot()
     {
-        if (_stationRefit != null)
-            return _stationRefit.Current;
-
         try
         {
-            _stationRefit = AetheriaUnityRuntimeClientProvider
-                .ReactiveStationRefit("unity-inventory");
+            return AetheriaUnityRuntimeClientProvider
+                .RuntimeState("unity-inventory")
+                .CurrentStationRefit();
         }
         catch (Exception ex)
         {
-            Debug.LogWarning($"Failed to bind Aetheria station refit for inventory panel: {ex.Message}");
+            Debug.LogWarning($"Failed to read Aetheria station refit for inventory panel: {ex.Message}");
+            return null;
         }
-
-        return _stationRefit?.Current;
     }
 
     private AetheriaRuntimeLoadoutTemplateCommit CreateLoadoutTemplate(string targetEntityKey)
@@ -1521,78 +1494,62 @@ private void Update()
 
     private AetheriaRuntimeDaemonFrameDocument ResolveLoadoutFrame()
     {
-        if (_loadoutFrame != null)
-            return _loadoutFrame.Current;
-
         try
         {
-            _loadoutFrame = AetheriaUnityRuntimeClientProvider
-                .ReactiveDaemonFrame("unity-inventory");
+            return AetheriaUnityRuntimeClientProvider
+                .RuntimeState("unity-inventory")
+                .CurrentDaemonFrame();
         }
         catch (Exception ex)
         {
-            Debug.LogWarning($"Failed to bind Aetheria daemon frame for loadout template save: {ex.Message}");
+            Debug.LogWarning($"Failed to read Aetheria daemon frame for loadout template save: {ex.Message}");
+            return null;
         }
-
-        return _loadoutFrame?.Current;
     }
 
     private AetheriaRuntimeInventoryDocument InventorySnapshot(int entityIndex)
     {
-        if (_inventory != null && _inventoryEntityIndex == entityIndex)
-            return _inventory.Current;
-
         try
         {
-            var nextInventory = AetheriaUnityRuntimeClientProvider
+            return AetheriaUnityRuntimeClientProvider
                 .RuntimeState("unity-inventory")
-                .ReactiveInventory(entityIndex);
-            _inventory?.Dispose();
-            _inventoryEntityIndex = entityIndex;
-            _inventory = nextInventory;
+                .CurrentInventory(entityIndex);
         }
         catch (Exception ex)
         {
-            Debug.LogWarning($"Failed to bind Aetheria typed inventory document for entity {entityIndex}: {ex.Message}");
+            Debug.LogWarning($"Failed to read Aetheria typed inventory document for entity {entityIndex}: {ex.Message}");
+            return null;
         }
-
-        return _inventory?.Current;
     }
 
     private AetheriaRuntimeCatalogSnapshot CatalogSnapshot()
     {
-        if (_catalog != null)
-            return _catalog.Current;
-
         try
         {
-            _catalog = AetheriaUnityRuntimeClientProvider
-                .ReactiveCatalogSnapshot("unity-inventory");
+            return AetheriaUnityRuntimeClientProvider
+                .RuntimeState("unity-inventory")
+                .CurrentCatalog();
         }
         catch (Exception ex)
         {
-            Debug.LogWarning($"Failed to bind Aetheria runtime catalog for inventory panel: {ex.Message}");
+            Debug.LogWarning($"Failed to read Aetheria runtime catalog for inventory panel: {ex.Message}");
+            return null;
         }
-
-        return _catalog?.Current;
     }
 
     private AetheriaRuntimePlayerSettingsDocument PlayerSettingsSnapshot()
     {
-        if (_playerSettings != null)
-            return _playerSettings.Current;
-
         try
         {
-            _playerSettings = AetheriaUnityRuntimeClientProvider
-                .ReactivePlayerSettingsDocument("unity-inventory");
+            return AetheriaUnityRuntimeClientProvider
+                .RuntimeState("unity-inventory")
+                .CurrentPlayerSettings();
         }
         catch (Exception ex)
         {
-            Debug.LogWarning($"Failed to bind Aetheria player settings for inventory panel: {ex.Message}");
+            Debug.LogWarning($"Failed to read Aetheria player settings for inventory panel: {ex.Message}");
+            return null;
         }
-
-        return _playerSettings?.Current;
     }
 
     private string FormatValue(float value)
