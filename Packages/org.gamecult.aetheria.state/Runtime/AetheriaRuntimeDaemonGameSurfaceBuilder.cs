@@ -21,7 +21,7 @@ namespace GameCult.Aetheria.State.Verse
             frame ??= new AetheriaRuntimeDaemonFrameDocument();
             health ??= new AetheriaRuntimeDaemonHealthDocument();
             commandBoundary ??= AetheriaRuntimeDaemonCommandBoundaryDocument.Create(frame.DaemonId);
-            starbridge ??= AetheriaRuntimeStarbridgeProjection.ProjectSessionSummary(frame);
+            starbridge ??= AetheriaRuntimeStarbridgeDocuments.SessionSummary(frame);
 
             var run = frame.Run ?? new AetheriaRuntimeRunCheckpointCommit();
             var zone = FindCurrentZone(run);

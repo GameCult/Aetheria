@@ -119,9 +119,9 @@ namespace GameCult.Aetheria.State.Verse
         [Key(5)] public bool IsActive { get; set; }
     }
 
-    public static class AetheriaRuntimeStarbridgeProjection
+    public static class AetheriaRuntimeStarbridgeDocuments
     {
-        public static AetheriaRuntimeStarbridgeSessionSummaryDocument ProjectSessionSummary(
+        public static AetheriaRuntimeStarbridgeSessionSummaryDocument SessionSummary(
             AetheriaRuntimeDaemonFrameDocument frame,
             AetheriaRuntimeStarbridgeScenarioDocument? scenario = null,
             AetheriaRuntimeStarbridgeSessionDocument? session = null,

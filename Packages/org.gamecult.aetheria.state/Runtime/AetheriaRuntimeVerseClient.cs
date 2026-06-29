@@ -489,7 +489,7 @@ namespace GameCult.Aetheria.State.Verse
                 starbridgeSessionDocument,
                 ManagedFrameDocument(
                     "aetheria.starbridge.summary",
-                    ProjectStarbridgeSummaryAsync,
+                    StarbridgeSummaryAsync,
                     AetheriaRuntimeDaemonSchemas.StarbridgeSessionSummary,
                     CultMesh.ProjectionSource(AetheriaRuntimeVerseRecordKeys.StarbridgeScenarioLatest.ToString()),
                     CultMesh.ProjectionSource(AetheriaRuntimeVerseRecordKeys.StarbridgeSessionLatest.ToString()),
@@ -589,10 +589,10 @@ namespace GameCult.Aetheria.State.Verse
                     RequireManagedCatalog()));
             }
 
-            Task<AetheriaRuntimeStarbridgeSessionSummaryDocument> ProjectStarbridgeSummaryAsync(
+            Task<AetheriaRuntimeStarbridgeSessionSummaryDocument> StarbridgeSummaryAsync(
                 AetheriaRuntimeDaemonFrameDocument frame)
             {
-                return Task.FromResult(AetheriaRuntimeStarbridgeProjection.ProjectSessionSummary(
+                return Task.FromResult(AetheriaRuntimeStarbridgeDocuments.SessionSummary(
                     frame,
                     managedStarbridgeScenario?.Current,
                     managedStarbridgeSession?.Current,

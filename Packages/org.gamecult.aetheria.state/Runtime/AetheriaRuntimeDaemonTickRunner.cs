@@ -203,7 +203,7 @@ namespace GameCult.Aetheria.State.Verse
                 Array.Empty<AetheriaRuntimeCatalogItem>(),
                 Array.Empty<AetheriaRuntimeCorporation>(),
                 Array.Empty<AetheriaRuntimeNameFile>());
-            var starbridgeSummary = AetheriaRuntimeStarbridgeProjection.ProjectSessionSummary(
+            var starbridgeSummary = AetheriaRuntimeStarbridgeDocuments.SessionSummary(
                 frame,
                 options.StarbridgeScenario,
                 options.StarbridgeSession,

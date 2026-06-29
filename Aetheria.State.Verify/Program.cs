@@ -11001,7 +11001,7 @@ static void RequireDaemonVersePublication(string root)
         "AetheriaRuntimeDaemonCommandBoundaryDocument.Create",
         "AetheriaRuntimeDaemonSoaFramePublisher.BuildCurrentZoneEntities(stateFilePath, frame)",
         "AetheriaRuntimeDaemonProviderAdvertisementDocument.Create",
-        "AetheriaRuntimeStarbridgeProjection.ProjectSessionSummary(",
+        "AetheriaRuntimeStarbridgeDocuments.SessionSummary(",
         "StarbridgeScenario",
         "StarbridgeSession",
         "var catalog = options.Catalog ?? new AetheriaRuntimeCatalogSnapshot(",
@@ -11373,7 +11373,7 @@ static void RequireDaemonVersePublication(string root)
         "AetheriaRuntimeDaemonHealthDocument health",
         "AetheriaRuntimeDaemonCommandBoundaryDocument commandBoundary",
         "AetheriaRuntimeStarbridgeSessionSummaryDocument? starbridge = null",
-        "AetheriaRuntimeStarbridgeProjection.ProjectSessionSummary(frame)",
+        "AetheriaRuntimeStarbridgeDocuments.SessionSummary(frame)",
         "AetheriaRuntimeSurfaceStateRefs.SourceRef(stateRef)",
         "AetheriaRuntimeDaemonStateRefs.CurrentEntityName",
         "AetheriaRuntimeDaemonStateRefs.CurrentTargetName",
@@ -11891,7 +11891,7 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
         "_managedStarbridgeSession?.Dispose()",
         "return _aetheriaState ??= CreateAetheriaState();",
         "AetheriaRuntimeLoadoutTemplatesDocument",
-        "ProjectStarbridgeSummaryAsync",
+        "StarbridgeSummaryAsync",
         "CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument>? managedDaemonFrame = null;",
         "managedDaemonFrame = state.Reactive<AetheriaRuntimeDaemonFrameDocument>();",
         "managedCatalog = state.Reactive<AetheriaRuntimeCatalogSnapshot>();",
@@ -12028,13 +12028,13 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
             "Aetheria runtime Verse client station-refit projection still polls loadout templates instead of sampling managed reactive client inputs.");
     }
 
-    if (client.Contains("ProjectStarbridgeSummaryAsync", StringComparison.Ordinal) &&
+    if (client.Contains("StarbridgeSummaryAsync", StringComparison.Ordinal) &&
         (client.Contains("starbridgeScenarioDocument.LatestAsync()", StringComparison.Ordinal) ||
             client.Contains("starbridgeSessionDocument.LatestAsync()", StringComparison.Ordinal) ||
             client.Contains("catalogDocument.LatestAsync()", StringComparison.Ordinal)))
     {
         throw new InvalidOperationException(
-            "Aetheria runtime Verse client Starbridge projection still polls sibling documents instead of sampling managed reactive client inputs.");
+            "Aetheria runtime Verse client Starbridge summary document still polls sibling documents instead of sampling managed reactive client inputs.");
     }
 
     if (client.Contains("RequireFrameAsync", StringComparison.Ordinal) ||
@@ -12166,12 +12166,12 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
     }
 
     var starbridgeSummaryStart = client.IndexOf(
-        "Task<AetheriaRuntimeStarbridgeSessionSummaryDocument> ProjectStarbridgeSummaryAsync",
+        "Task<AetheriaRuntimeStarbridgeSessionSummaryDocument> StarbridgeSummaryAsync",
         StringComparison.Ordinal);
     if (starbridgeSummaryStart < 0)
     {
         throw new InvalidOperationException(
-            "AetheriaRuntimeVerseClient no longer exposes the managed Starbridge summary projection.");
+            "AetheriaRuntimeVerseClient no longer exposes the managed Starbridge summary document.");
     }
 
     var indexedDocumentStart = client.IndexOf("static string IndexedDocumentId", starbridgeSummaryStart, StringComparison.Ordinal);
@@ -12184,7 +12184,7 @@ static void RequireAetheriaRuntimeVerseClientContract(string root)
         starbridgeSummaryBlock.Contains("AetheriaRuntimeCatalogStore.OpenReadOnly", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Starbridge summary projection must use the managed runtime catalog document instead of reopening the catalog store.");
+            "Starbridge summary document must use the managed runtime catalog document instead of reopening the catalog store.");
     }
 
     var requiredClientBootstrapSymbols = new[]
