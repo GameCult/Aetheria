@@ -5412,8 +5412,9 @@ static void RequireInventoryEquippedItemDetailsUseEveSurface(string root)
         "HandleEquippedItemDetailsSurfaceCommand(",
         "AetheriaEveUnitySurfaceHost.RenderRuntime(",
         "AetheriaEveUnitySurfaceHost.Hide(_equippedItemDetailsSurfaceDocument)",
-        "AetheriaRuntimeEquippedItemDetailsSurfaceBuilder.Build(ComposeEquippedItemDetailsSurface(",
-        "AetheriaRuntimeEquippedItemDetailsSurfaceBuilder.Compose(",
+        "AetheriaRuntimeEquippedItemDetailsSurfaceBuilder.Build(",
+        "BuildEquippedItemTitle(item, typedItem)",
+        "ResolveManufacturerName(typedItem)",
         "ComposeEquippedItemObservation(",
         "ComposeEquippedItemTemperatureControls(",
         "ComposeEquippedItemWeaponGroupControls(",
@@ -5460,6 +5461,7 @@ static void RequireInventoryEquippedItemDetailsUseEveSurface(string root)
         "new EveUiToolkitSurfaceLowerer()",
         "host.AddComponent<UIDocument>",
         "new AetheriaRuntimeEquippedItemDetailsSurfaceState(",
+        "ComposeEquippedItemDetailsSurface(",
         "ProjectEquippedItemDetailsSurfaceState(",
         "ProjectEquippedItemBehaviorSections(",
         "ProjectEquippedItemBehaviorMetric(",
@@ -5480,6 +5482,7 @@ static void RequireInventoryEquippedItemDetailsUseEveSurface(string root)
         "ProjectEquippedItemObservation(",
         "ProjectEquippedItemTemperatureControls(",
         "ProjectEquippedItemWeaponGroupControls(",
+        "AetheriaRuntimeEquippedItemDetailsSurfaceBuilder.Compose(",
         "AetheriaRuntimeEquippedItemDetailsSurfaceBuilder.Project("
     };
     var forbiddenHits = forbiddenSymbols
@@ -5536,7 +5539,7 @@ static void RequireInventoryEquippedItemDetailsUseEveSurface(string root)
         "public const string ToggleOverrideShutdown = \"aetheria.inventory.equipped_item_details.override_shutdown.toggle\"",
         "public const string SetTargetTemperature = \"aetheria.inventory.equipped_item_details.target_temperature.set\"",
         "public const string ToggleWeaponGroup = \"aetheria.inventory.equipped_item_details.weapon_group.toggle\"",
-        "public static AetheriaRuntimeEquippedItemDetailsSurfaceState Compose(",
+        "private static AetheriaRuntimeEquippedItemDetailsSurfaceState ComposeState(",
         "ProjectBehaviorSections(",
         "ProjectBehaviorMetric(",
         "AetheriaRuntimeDaemonItemStatQueries.ItemStatRef(",
@@ -5559,6 +5562,13 @@ static void RequireInventoryEquippedItemDetailsUseEveSurface(string root)
         throw new InvalidOperationException(
             "Shared equipped-item detail surface builder no longer owns the equipped-item inspection contract: " +
             string.Join(", ", missingBuilderSymbols));
+    }
+
+    if (equippedItemSurfaceBuilder.Contains("public static AetheriaRuntimeEquippedItemDetailsSurfaceState Compose(", StringComparison.Ordinal) ||
+        equippedItemSurfaceBuilder.Contains("public static AetheriaRuntimeEquippedItemDetailsSurfaceState Project(", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Runtime equipped item detail composition must stay behind Build(...); do not re-expose Compose/Project as the public equipped item details surface path.");
     }
 
     var forbiddenBuilderActionBarSymbols = new[]

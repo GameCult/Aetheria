@@ -332,7 +332,17 @@ public class InventoryMenu : MonoBehaviour
             transform,
             _equippedItemDetailsSurfaceDocument,
             "Aetheria Inventory Equipped Item Details Surface",
-            AetheriaRuntimeEquippedItemDetailsSurfaceBuilder.Build(ComposeEquippedItemDetailsSurface(item, typedItem)),
+            AetheriaRuntimeEquippedItemDetailsSurfaceBuilder.Build(
+                typedItem,
+                ComposeEquippedItemObservation(item),
+                BuildEquippedItemTitle(item, typedItem),
+                ResolveManufacturerName(typedItem),
+                FormatValue,
+                FormatTemperature,
+                ComposeEquippedItemTemperatureControls(item).ToArray(),
+                item.GetBehavior<Weapon>() != null
+                    ? ComposeEquippedItemWeaponGroupControls(item).ToArray()
+                    : Array.Empty<AetheriaRuntimeEquippedItemControl>()),
             HandleEquippedItemDetailsSurfaceCommand,
             _equippedItemDetailsSurfaceChrome,
             sortingOrder: 1002);
@@ -415,23 +425,6 @@ public class InventoryMenu : MonoBehaviour
             PaddingTop = 18f,
             PaddingBottom = 18f
         };
-    }
-
-    private AetheriaRuntimeEquippedItemDetailsSurfaceState ComposeEquippedItemDetailsSurface(
-        EquippedItem item,
-        AetheriaRuntimeCatalogItem typedItem)
-    {
-        var hasWeapon = item.GetBehavior<Weapon>() != null;
-
-        return AetheriaRuntimeEquippedItemDetailsSurfaceBuilder.Compose(
-            typedItem,
-            ComposeEquippedItemObservation(item),
-            BuildEquippedItemTitle(item, typedItem),
-            ResolveManufacturerName(typedItem),
-            FormatValue,
-            FormatTemperature,
-            ComposeEquippedItemTemperatureControls(item).ToArray(),
-            hasWeapon ? ComposeEquippedItemWeaponGroupControls(item).ToArray() : Array.Empty<AetheriaRuntimeEquippedItemControl>());
     }
 
     private static AetheriaRuntimeEquippedItemObservation ComposeEquippedItemObservation(EquippedItem item)

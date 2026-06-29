@@ -159,7 +159,33 @@ namespace GameCult.Aetheria.State.Verse
         public const string SetTargetTemperature = "aetheria.inventory.equipped_item_details.target_temperature.set";
         public const string ToggleWeaponGroup = "aetheria.inventory.equipped_item_details.weapon_group.toggle";
 
-        public static AetheriaRuntimeEquippedItemDetailsSurfaceState Compose(
+        public static AetheriaRuntimeSurfaceDocument Build(
+            AetheriaRuntimeCatalogItem typedItem,
+            AetheriaRuntimeEquippedItemObservation item,
+            string title,
+            string manufacturer,
+            Func<float, string> formatValue,
+            Func<float, string> formatTemperature,
+            IReadOnlyList<AetheriaRuntimeEquippedItemTemperatureControl> temperatureControls,
+            IReadOnlyList<AetheriaRuntimeEquippedItemControl> weaponGroupControls,
+            DateTime updatedAtUtc = default(DateTime),
+            long version = 1)
+        {
+            return Build(
+                ComposeState(
+                    typedItem,
+                    item,
+                    title,
+                    manufacturer,
+                    formatValue,
+                    formatTemperature,
+                    temperatureControls,
+                    weaponGroupControls,
+                    updatedAtUtc),
+                version);
+        }
+
+        private static AetheriaRuntimeEquippedItemDetailsSurfaceState ComposeState(
             AetheriaRuntimeCatalogItem typedItem,
             AetheriaRuntimeEquippedItemObservation item,
             string title,
