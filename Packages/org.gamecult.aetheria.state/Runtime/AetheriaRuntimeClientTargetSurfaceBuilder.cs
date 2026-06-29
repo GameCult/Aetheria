@@ -4,91 +4,6 @@ using System.Linq;
 
 namespace GameCult.Aetheria.State.Verse
 {
-    public sealed class AetheriaRuntimeClientTargetSurfaceState
-    {
-        public AetheriaRuntimeClientTargetSurfaceState(
-            string targetKind,
-            string targetTitle,
-            string targetVerseId,
-            string targetRuntimeId,
-            string targetCultMeshAddress,
-            string targetStateFilePath,
-            string targetReplicaStateFilePath,
-            string discoveryEndpointsText,
-            IReadOnlyList<AetheriaRuntimeDiscoveredVerse> discoveredVerses,
-            string lastDiscoveryAtUtc,
-            string lastDiscoveryError,
-            string lastReplicaSyncAtUtc,
-            string lastReplicaSyncError,
-            string targetSource,
-            bool supportsLocalStateFileRead,
-            string bootFailureMessage,
-            string hostTitle,
-            string hostVerseId,
-            string hostVisibility,
-            string hostCultMeshAddress,
-            string updatedAtUtc)
-        {
-            TargetKind = targetKind ?? "";
-            TargetTitle = targetTitle ?? "";
-            TargetVerseId = targetVerseId ?? "";
-            TargetRuntimeId = targetRuntimeId ?? "";
-            TargetCultMeshAddress = targetCultMeshAddress ?? "";
-            TargetStateFilePath = targetStateFilePath ?? "";
-            TargetReplicaStateFilePath = targetReplicaStateFilePath ?? "";
-            DiscoveryEndpointsText = discoveryEndpointsText ?? "";
-            DiscoveredVerses = discoveredVerses ?? Array.Empty<AetheriaRuntimeDiscoveredVerse>();
-            LastDiscoveryAtUtc = lastDiscoveryAtUtc ?? "";
-            LastDiscoveryError = lastDiscoveryError ?? "";
-            LastReplicaSyncAtUtc = lastReplicaSyncAtUtc ?? "";
-            LastReplicaSyncError = lastReplicaSyncError ?? "";
-            TargetSource = targetSource ?? "";
-            SupportsLocalStateFileRead = supportsLocalStateFileRead;
-            BootFailureMessage = bootFailureMessage ?? "";
-            HostTitle = hostTitle ?? "";
-            HostVerseId = hostVerseId ?? "";
-            HostVisibility = hostVisibility ?? "";
-            HostCultMeshAddress = hostCultMeshAddress ?? "";
-            UpdatedAtUtc = updatedAtUtc ?? "";
-        }
-
-        public string TargetKind { get; }
-        public string TargetTitle { get; }
-        public string TargetVerseId { get; }
-        public string TargetRuntimeId { get; }
-        public string TargetCultMeshAddress { get; }
-        public string TargetStateFilePath { get; }
-        public string TargetReplicaStateFilePath { get; }
-        public string DiscoveryEndpointsText { get; }
-        public IReadOnlyList<AetheriaRuntimeDiscoveredVerse> DiscoveredVerses { get; }
-        public string LastDiscoveryAtUtc { get; }
-        public string LastDiscoveryError { get; }
-        public string LastReplicaSyncAtUtc { get; }
-        public string LastReplicaSyncError { get; }
-        public string TargetSource { get; }
-        public bool SupportsLocalStateFileRead { get; }
-        public string BootFailureMessage { get; }
-        public string HostTitle { get; }
-        public string HostVerseId { get; }
-        public string HostVisibility { get; }
-        public string HostCultMeshAddress { get; }
-        public string UpdatedAtUtc { get; }
-
-        public string TargetLabel =>
-            string.IsNullOrWhiteSpace(TargetTitle)
-                ? (string.IsNullOrWhiteSpace(TargetVerseId) ? "Unknown Verse" : TargetVerseId)
-                : (string.IsNullOrWhiteSpace(TargetVerseId) || string.Equals(TargetTitle, TargetVerseId, StringComparison.Ordinal)
-                    ? TargetTitle
-                    : $"{TargetTitle} ({TargetVerseId})");
-
-        public string HostLabel =>
-            string.IsNullOrWhiteSpace(HostTitle)
-                ? (string.IsNullOrWhiteSpace(HostVerseId) ? "Unknown Verse" : HostVerseId)
-                : (string.IsNullOrWhiteSpace(HostVerseId) || string.Equals(HostTitle, HostVerseId, StringComparison.Ordinal)
-                    ? HostTitle
-                    : $"{HostTitle} ({HostVerseId})");
-    }
-
     public static class AetheriaRuntimeClientTargetSurfaceBuilder
     {
         public static AetheriaRuntimeSurfaceDocument Build(
@@ -97,71 +12,35 @@ namespace GameCult.Aetheria.State.Verse
             string updatedAtUtc,
             long version = 1)
         {
-            return Build(
-                new AetheriaRuntimeClientTargetSurfaceState(
-                    stateBoot.TargetKind,
-                    stateBoot.Title,
-                    stateBoot.VerseId,
-                    stateBoot.RuntimeId,
-                    stateBoot.CultMeshAddress,
-                    stateBoot.StateFilePath,
-                    stateBoot.ReplicaStateFilePath,
-                    string.Join(", ", stateBoot.DiscoveryEndpoints ?? Array.Empty<string>()),
-                    stateBoot.DiscoveredVerses ?? Array.Empty<AetheriaRuntimeDiscoveredVerse>(),
-                    stateBoot.LastDiscoveryAtUtc,
-                    stateBoot.LastDiscoveryError,
-                    stateBoot.LastReplicaSyncAtUtc,
-                    stateBoot.LastReplicaSyncError,
-                    stateBoot.TargetSource,
-                    stateBoot.SupportsLocalStateFileRead,
-                    stateBoot.FailureMessage,
-                    verseHost?.Title ?? stateBoot.Title,
-                    verseHost?.VerseId ?? stateBoot.VerseId,
-                    verseHost?.Visibility ?? "unknown",
-                    verseHost?.CultMeshAddress ?? stateBoot.CultMeshAddress,
-                    updatedAtUtc),
-                version);
-        }
+            var targetKind = stateBoot.TargetKind ?? AetheriaRuntimeClientTargetKinds.StateFile;
+            var targetTitle = stateBoot.Title ?? "";
+            var targetVerseId = stateBoot.VerseId ?? "";
+            var targetRuntimeId = string.IsNullOrWhiteSpace(stateBoot.RuntimeId) ? "raven-unity" : stateBoot.RuntimeId;
+            var targetCultMeshAddress = stateBoot.CultMeshAddress ?? "";
+            var targetStateFilePath = stateBoot.StateFilePath ?? "";
+            var targetReplicaStateFilePath = stateBoot.ReplicaStateFilePath ?? "";
+            var discoveryEndpointsText = string.Join(", ", stateBoot.DiscoveryEndpoints ?? Array.Empty<string>());
+            var discoveredVerses = stateBoot.DiscoveredVerses ?? Array.Empty<AetheriaRuntimeDiscoveredVerse>();
+            var targetSource = stateBoot.TargetSource ?? "";
+            var bootFailureMessage = stateBoot.FailureMessage ?? "";
+            var hostTitle = verseHost?.Title ?? targetTitle;
+            var hostVerseId = verseHost?.VerseId ?? targetVerseId;
+            var hostVisibility = verseHost?.Visibility ?? "unknown";
+            var hostCultMeshAddress = verseHost?.CultMeshAddress ?? targetCultMeshAddress;
+            updatedAtUtc ??= "";
 
-        public static AetheriaRuntimeSurfaceDocument Build(
-            AetheriaRuntimeClientTargetSurfaceState state,
-            long version = 1)
-        {
-            state ??= new AetheriaRuntimeClientTargetSurfaceState(
-                AetheriaRuntimeClientTargetKinds.StateFile,
-                "",
-                "",
-                "raven-unity",
-                "",
-                "",
-                "",
-                "",
-                Array.Empty<AetheriaRuntimeDiscoveredVerse>(),
-                "",
-                "",
-                "",
-                "",
-                "",
-                supportsLocalStateFileRead: true,
-                bootFailureMessage: "",
-                hostTitle: "",
-                hostVerseId: "",
-                hostVisibility: "",
-                hostCultMeshAddress: "",
-                updatedAtUtc: "");
-
-            var targetKindLabel = string.Equals(state.TargetKind, AetheriaRuntimeClientTargetKinds.CultMeshVerse, StringComparison.Ordinal)
+            var targetKindLabel = string.Equals(targetKind, AetheriaRuntimeClientTargetKinds.CultMeshVerse, StringComparison.Ordinal)
                 ? "CultMesh Verse"
                 : "Local State File";
-            var visibilityLabel = string.IsNullOrWhiteSpace(state.HostVisibility) ? "unknown" : state.HostVisibility;
+            var visibilityLabel = string.IsNullOrWhiteSpace(hostVisibility) ? "unknown" : hostVisibility;
             var visibilityActionLabel = string.Equals(visibilityLabel, "public", StringComparison.OrdinalIgnoreCase)
                 ? "Make Private"
                 : "Make Public";
-            var lastDiscoveryLabel = string.IsNullOrWhiteSpace(state.LastDiscoveryAtUtc) ? "never" : state.LastDiscoveryAtUtc;
-            var lastReplicaSyncLabel = string.IsNullOrWhiteSpace(state.LastReplicaSyncAtUtc) ? "never" : state.LastReplicaSyncAtUtc;
-            var summaryNote = !state.SupportsLocalStateFileRead && !string.IsNullOrWhiteSpace(state.BootFailureMessage)
-                ? state.BootFailureMessage
-                : string.Equals(state.TargetSource, "state-path-override", StringComparison.Ordinal)
+            var lastDiscoveryLabel = string.IsNullOrWhiteSpace(stateBoot.LastDiscoveryAtUtc) ? "never" : stateBoot.LastDiscoveryAtUtc;
+            var lastReplicaSyncLabel = string.IsNullOrWhiteSpace(stateBoot.LastReplicaSyncAtUtc) ? "never" : stateBoot.LastReplicaSyncAtUtc;
+            var summaryNote = !stateBoot.SupportsLocalStateFileRead && !string.IsNullOrWhiteSpace(bootFailureMessage)
+                ? bootFailureMessage
+                : string.Equals(targetSource, "state-path-override", StringComparison.Ordinal)
                     ? "AETHERIA_STATE_PATH is overriding the persisted client target. Update the environment if you want boot to follow the saved target again."
                     : "Client target edits persist in aetheria-client.cc. Verse discovery and selection mutate the same typed owner. Verse visibility changes append provider-owned Eve requests for the daemon bridge. Remote Verse targets hydrate a cache-only local replica before observers read them.";
 
@@ -170,23 +49,23 @@ namespace GameCult.Aetheria.State.Verse
                 TextInput(
                     "aetheria.clientTarget.discovery.endpoints",
                     "Discovery Endpoints",
-                    state.DiscoveryEndpointsText,
+                    discoveryEndpointsText,
                     AetheriaRuntimeClientTargetCommands.SetDiscoveryEndpoints),
                 Metric("aetheria.clientTarget.discovery.lastScan", "Last Scan", lastDiscoveryLabel)
             };
 
-            if (!string.IsNullOrWhiteSpace(state.LastDiscoveryError))
+            if (!string.IsNullOrWhiteSpace(stateBoot.LastDiscoveryError))
             {
                 discoveryChildren.Add(Text(
                     "aetheria.clientTarget.discovery.error",
-                    state.LastDiscoveryError));
+                    stateBoot.LastDiscoveryError));
             }
 
-            if (state.DiscoveredVerses.Count == 0)
+            if (discoveredVerses.Length == 0)
             {
                 discoveryChildren.Add(Text(
                     "aetheria.clientTarget.discovery.empty",
-                    string.IsNullOrWhiteSpace(state.DiscoveryEndpointsText)
+                    string.IsNullOrWhiteSpace(discoveryEndpointsText)
                         ? "Add one or more cultnet:// discovery endpoints to scan for public or federated Aetheria Verses."
                         : "No Verse descriptors are cached yet for the configured discovery endpoints."));
             }
@@ -195,11 +74,11 @@ namespace GameCult.Aetheria.State.Verse
                 discoveryChildren.Add(Metric(
                     "aetheria.clientTarget.discovery.count",
                     "Known Verses",
-                    state.DiscoveredVerses.Count.ToString()));
+                    discoveredVerses.Length.ToString()));
                 discoveryChildren.Add(Row(
                     "aetheria.clientTarget.discovery.list",
-                    state.DiscoveredVerses
-                        .Select((verse, index) => BuildDiscoveredVerseNode(state, verse, index))
+                    discoveredVerses
+                        .Select((verse, index) => BuildDiscoveredVerseNode(targetKind, targetVerseId, verse, index))
                         .ToArray()));
             }
 
@@ -219,7 +98,7 @@ namespace GameCult.Aetheria.State.Verse
                 providerKind: "game.menu",
                 title: "Aetheria Verse Settings",
                 version: version,
-                updatedAtUtc: state.UpdatedAtUtc,
+                updatedAtUtc: updatedAtUtc,
                 surface: new AetheriaRuntimeSurfaceTree(
                     AetheriaRuntimeClientTargetCommands.SurfaceId,
                     Node(
@@ -230,9 +109,9 @@ namespace GameCult.Aetheria.State.Verse
                             "aetheria.clientTarget.summary",
                             "card",
                             new[] { ("title", "Client Target") },
-                            Metric("aetheria.clientTarget.summary.target", "Target", state.TargetLabel),
+                            Metric("aetheria.clientTarget.summary.target", "Target", stateBoot.TargetLabel),
                             Metric("aetheria.clientTarget.summary.transport", "Transport", targetKindLabel),
-                            Metric("aetheria.clientTarget.summary.source", "Target Source", state.TargetSource),
+                            Metric("aetheria.clientTarget.summary.source", "Target Source", targetSource),
                             Text("aetheria.clientTarget.summary.note", summaryNote)),
                         Node(
                             "aetheria.clientTarget.target",
@@ -241,44 +120,44 @@ namespace GameCult.Aetheria.State.Verse
                             TextInput(
                                 "aetheria.clientTarget.target.title",
                                 "Title",
-                                state.TargetTitle,
+                                targetTitle,
                                 AetheriaRuntimeClientTargetCommands.SetTitle),
                             TextInput(
                                 "aetheria.clientTarget.target.verseId",
                                 "Verse Id",
-                                state.TargetVerseId,
+                                targetVerseId,
                                 AetheriaRuntimeClientTargetCommands.SetVerseId),
                             TextInput(
                                 "aetheria.clientTarget.target.runtimeId",
                                 "Runtime Id",
-                                state.TargetRuntimeId,
+                                targetRuntimeId,
                                 AetheriaRuntimeClientTargetCommands.SetRuntimeId),
                             TextInput(
                                 "aetheria.clientTarget.target.cultMeshAddress",
                                 "CultMesh Address",
-                                state.TargetCultMeshAddress,
+                                targetCultMeshAddress,
                                 AetheriaRuntimeClientTargetCommands.SetCultMeshAddress),
                             TextInput(
                                 "aetheria.clientTarget.target.stateFilePath",
                                 "State File Path",
-                                state.TargetStateFilePath,
+                                targetStateFilePath,
                                 AetheriaRuntimeClientTargetCommands.SetStateFilePath),
                             Metric(
                                 "aetheria.clientTarget.target.replicaStateFilePath",
                                 "Replica State File",
-                                state.TargetReplicaStateFilePath),
+                                targetReplicaStateFilePath),
                             Metric(
                                 "aetheria.clientTarget.target.replicaSyncAt",
                                 "Replica Sync",
                                 lastReplicaSyncLabel),
                             Text(
                                 "aetheria.clientTarget.target.replicaSyncError",
-                                state.LastReplicaSyncError),
+                                stateBoot.LastReplicaSyncError),
                             ButtonRow(
                                 "aetheria.clientTarget.target.actions",
                                 Button(
                                     "aetheria.clientTarget.target.cycleTransport",
-                                    string.Equals(state.TargetKind, AetheriaRuntimeClientTargetKinds.CultMeshVerse, StringComparison.Ordinal)
+                                    string.Equals(targetKind, AetheriaRuntimeClientTargetKinds.CultMeshVerse, StringComparison.Ordinal)
                                         ? "Use Local State File"
                                         : "Use CultMesh Verse",
                                     AetheriaRuntimeClientTargetCommands.CycleTargetKind),
@@ -299,9 +178,9 @@ namespace GameCult.Aetheria.State.Verse
                             "aetheria.clientTarget.host",
                             "card",
                             new[] { ("title", "Daemon Verse Host") },
-                            Metric("aetheria.clientTarget.host.verse", "Verse", state.HostLabel),
+                            Metric("aetheria.clientTarget.host.verse", "Verse", BuildVerseLabel(hostTitle, hostVerseId)),
                             Metric("aetheria.clientTarget.host.visibility", "Visibility", visibilityLabel),
-                            Metric("aetheria.clientTarget.host.cultMesh", "CultMesh", state.HostCultMeshAddress),
+                            Metric("aetheria.clientTarget.host.cultMesh", "CultMesh", hostCultMeshAddress),
                             ButtonRow(
                                 "aetheria.clientTarget.host.actions",
                                 Button(
@@ -428,14 +307,15 @@ namespace GameCult.Aetheria.State.Verse
         }
 
         private static AetheriaRuntimeSurfaceComponent BuildDiscoveredVerseNode(
-            AetheriaRuntimeClientTargetSurfaceState state,
+            string targetKind,
+            string targetVerseId,
             AetheriaRuntimeDiscoveredVerse verse,
             int index)
         {
             var verseLabel = BuildVerseLabel(verse);
             var address = verse.DiscoveryEndpoints.FirstOrDefault() ?? "";
-            var isSelected = string.Equals(state.TargetKind, AetheriaRuntimeClientTargetKinds.CultMeshVerse, StringComparison.Ordinal) &&
-                             string.Equals(state.TargetVerseId, verse.VerseId, StringComparison.Ordinal);
+            var isSelected = string.Equals(targetKind, AetheriaRuntimeClientTargetKinds.CultMeshVerse, StringComparison.Ordinal) &&
+                             string.Equals(targetVerseId, verse.VerseId, StringComparison.Ordinal);
             var buttonLabel = isSelected ? "Selected" : "Select";
 
             return Node(
@@ -467,12 +347,19 @@ namespace GameCult.Aetheria.State.Verse
 
         private static string BuildVerseLabel(AetheriaRuntimeDiscoveredVerse verse)
         {
-            if (string.IsNullOrWhiteSpace(verse.DisplayName))
-                return string.IsNullOrWhiteSpace(verse.VerseId) ? "Unknown Verse" : verse.VerseId;
+            return verse == null
+                ? "Unknown Verse"
+                : BuildVerseLabel(verse.DisplayName, verse.VerseId);
+        }
 
-            return string.IsNullOrWhiteSpace(verse.VerseId) || string.Equals(verse.DisplayName, verse.VerseId, StringComparison.Ordinal)
-                ? verse.DisplayName
-                : $"{verse.DisplayName} ({verse.VerseId})";
+        private static string BuildVerseLabel(string displayName, string verseId)
+        {
+            if (string.IsNullOrWhiteSpace(displayName))
+                return string.IsNullOrWhiteSpace(verseId) ? "Unknown Verse" : verseId;
+
+            return string.IsNullOrWhiteSpace(verseId) || string.Equals(displayName, verseId, StringComparison.Ordinal)
+                ? displayName
+                : $"{displayName} ({verseId})";
         }
     }
 }

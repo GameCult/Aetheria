@@ -9727,7 +9727,12 @@ static void RequireVerseSettingsShellAndBridge(string root)
 
     var requiredSurfaceBuilderSymbols = new[]
     {
-        "public sealed class AetheriaRuntimeClientTargetSurfaceState",
+        "AetheriaRuntimeStateBootReport stateBoot",
+        "AetheriaRuntimeVerseHostSettingsDocument verseHost",
+        "var targetKind = stateBoot.TargetKind ?? AetheriaRuntimeClientTargetKinds.StateFile",
+        "var discoveredVerses = stateBoot.DiscoveredVerses ?? Array.Empty<AetheriaRuntimeDiscoveredVerse>()",
+        "Metric(\"aetheria.clientTarget.summary.target\", \"Target\", stateBoot.TargetLabel)",
+        "Metric(\"aetheria.clientTarget.host.verse\", \"Verse\", BuildVerseLabel(hostTitle, hostVerseId))",
         "\"Client Target\"",
         "\"Target Fields\"",
         "\"Verse Discovery\"",
@@ -9750,6 +9755,13 @@ static void RequireVerseSettingsShellAndBridge(string root)
         throw new InvalidOperationException(
             "Client-target Eve surface builder is incomplete: " +
             string.Join(", ", missingSurfaceBuilderSymbols));
+    }
+
+    if (clientTargetSurfaceBuilder.Contains("AetheriaRuntimeClientTargetSurfaceState", StringComparison.Ordinal) ||
+        clientTargetSurfaceBuilder.Contains("new AetheriaRuntimeClientTargetSurfaceState(", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Client-target Eve surface builder must compose from typed boot and Verse-host documents directly; do not rebuild a shadow SurfaceState layer.");
     }
 
     if (!clientTargetStore.Contains("Update(", StringComparison.Ordinal))
@@ -13078,10 +13090,10 @@ static void RequireMainMenuVerseHostDocumentAccess(string root)
         "stateBoot.ReplicaStateFilePath",
         "stateBoot.LastReplicaSyncAtUtc",
         "stateBoot.LastReplicaSyncError",
-        "verseHost?.Title ?? stateBoot.Title",
-        "verseHost?.VerseId ?? stateBoot.VerseId",
-        "verseHost?.Visibility ?? \"unknown\"",
-        "verseHost?.CultMeshAddress ?? stateBoot.CultMeshAddress"
+        "var hostTitle = verseHost?.Title ?? targetTitle",
+        "var hostVerseId = verseHost?.VerseId ?? targetVerseId",
+        "var hostVisibility = verseHost?.Visibility ?? \"unknown\"",
+        "var hostCultMeshAddress = verseHost?.CultMeshAddress ?? targetCultMeshAddress"
     };
     var missingMainMenuSymbols = requiredMainMenuSymbols
         .Where(symbol => !mainMenu.Contains(symbol, StringComparison.Ordinal))
