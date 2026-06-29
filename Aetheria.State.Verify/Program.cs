@@ -4228,7 +4228,6 @@ static void RequireRuntimeInputScreenUsesEveSurface(string root)
         "action.ApplyBindingOverride",
         "new InputAction(\"Aetheria Input Capture\")",
         "AetheriaRuntimeInputSettingsSurfaceBuilder.IsSupportedCapturePath(",
-        "AetheriaRuntimeInputSettingsSurfaceBuilder.Project(",
         "new AetheriaRuntimeObservedInputBinding(",
         "HideLegacyChildren()"
     };
@@ -4278,6 +4277,8 @@ static void RequireRuntimeInputScreenUsesEveSurface(string root)
         "request.Payload",
         "private static readonly string[] DefaultActionBarCandidatePaths",
         "private static bool IsSupportedCapturePath(string path)",
+        "ProjectSurfaceState(",
+        "AetheriaRuntimeInputSettingsSurfaceBuilder.Project(",
         "new AetheriaRuntimeInputSettingsSurfaceState(",
         "new AetheriaRuntimeInputBindingSurfaceState(",
         "new AetheriaRuntimeActionBarInputSurfaceState(",
@@ -4319,10 +4320,11 @@ static void RequireRuntimeInputScreenUsesEveSurface(string root)
         "public static readonly IReadOnlyList<string> DefaultActionBarCandidatePaths",
         "public static readonly IReadOnlyList<AetheriaRuntimeInputPathSurfaceLabel> DefaultActionBarCandidateInputPaths",
         "public static bool IsSupportedCapturePath(string path)",
-        "public static AetheriaRuntimeInputSettingsSurfaceState Project(",
-        "public static IReadOnlyList<AetheriaRuntimeInputBindingSurfaceState> ProjectBindingInputs(",
-        "public static IReadOnlyList<AetheriaRuntimeInputPathSurfaceLabel> ProjectActionBarCandidates(",
-        "public static IReadOnlyList<AetheriaRuntimeActionBarInputSurfaceState> ProjectActionBarInputs(",
+        "public static AetheriaRuntimeSurfaceDocument Build(",
+        "private static AetheriaRuntimeInputSettingsSurfaceState ComposeState(",
+        "private static IReadOnlyList<AetheriaRuntimeInputBindingSurfaceState> ComposeBindingInputs(",
+        "private static IReadOnlyList<AetheriaRuntimeInputPathSurfaceLabel> ComposeActionBarCandidates(",
+        "private static IReadOnlyList<AetheriaRuntimeActionBarInputSurfaceState> ComposeActionBarInputs(",
         "new SortedDictionary<string, string>(StringComparer.Ordinal)",
         "public enum AetheriaRuntimeInputSettingsCommandKind",
         "public readonly struct AetheriaRuntimeInputSettingsSurfaceCommand",
@@ -4346,6 +4348,15 @@ static void RequireRuntimeInputScreenUsesEveSurface(string root)
         throw new InvalidOperationException(
             "Shared input-settings Eve surface builder is incomplete: " +
             string.Join(", ", missingBuilderSymbols));
+    }
+
+    if (builder.Contains("public static AetheriaRuntimeInputSettingsSurfaceState Project(", StringComparison.Ordinal) ||
+        builder.Contains("public static IReadOnlyList<AetheriaRuntimeInputBindingSurfaceState> ProjectBindingInputs(", StringComparison.Ordinal) ||
+        builder.Contains("public static IReadOnlyList<AetheriaRuntimeInputPathSurfaceLabel> ProjectActionBarCandidates(", StringComparison.Ordinal) ||
+        builder.Contains("public static IReadOnlyList<AetheriaRuntimeActionBarInputSurfaceState> ProjectActionBarInputs(", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Input-settings surface composition must stay behind Build(...); do not re-expose projection helpers as the public ergonomic path.");
     }
 
     var actionGameManagerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs");

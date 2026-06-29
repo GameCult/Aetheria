@@ -156,7 +156,13 @@ public class InputDisplayLayout : MonoBehaviour
         EnsureInputAsset();
         EnsureCaptureAction();
 
-        var document = AetheriaRuntimeInputSettingsSurfaceBuilder.Build(ProjectSurfaceState());
+        var runtimeSettings = ResolvePlayerSettings();
+        var document = AetheriaRuntimeInputSettingsSurfaceBuilder.Build(
+            ProjectObservedBindings(),
+            runtimeSettings?.ActionBarInputs ?? Array.Empty<string>(),
+            capturePending: _captureBindingIndex >= 0 && !string.IsNullOrWhiteSpace(_captureActionName),
+            capturePrompt: BuildCapturePrompt(),
+            updatedAtUtc: DateTime.UtcNow.ToString("O"));
 
         _surfaceDocument = AetheriaEveUnitySurfaceHost.RenderRuntime(
             transform,
@@ -165,17 +171,6 @@ public class InputDisplayLayout : MonoBehaviour
             document,
             HandleSurfaceCommand,
             _surfaceChrome);
-    }
-
-    private AetheriaRuntimeInputSettingsSurfaceState ProjectSurfaceState()
-    {
-        var runtimeSettings = ResolvePlayerSettings();
-        return AetheriaRuntimeInputSettingsSurfaceBuilder.Project(
-            ProjectObservedBindings(),
-            runtimeSettings?.ActionBarInputs ?? Array.Empty<string>(),
-            capturePending: _captureBindingIndex >= 0 && !string.IsNullOrWhiteSpace(_captureActionName),
-            capturePrompt: BuildCapturePrompt(),
-            updatedAtUtc: DateTime.UtcNow.ToString("O"));
     }
 
     private IReadOnlyList<AetheriaRuntimeObservedInputBinding> ProjectObservedBindings()

@@ -151,27 +151,30 @@ namespace GameCult.Aetheria.State.Verse
                     path.StartsWith("<Mouse>/", StringComparison.Ordinal));
         }
 
-        public static AetheriaRuntimeInputSettingsSurfaceState Project(
+        public static AetheriaRuntimeSurfaceDocument Build(
             IEnumerable<AetheriaRuntimeObservedInputBinding> observedBindings,
             IEnumerable<string> enabledActionBarInputPaths,
             bool capturePending,
             string capturePrompt,
-            string updatedAtUtc)
+            string updatedAtUtc,
+            long version = 1)
         {
             var observed = (observedBindings ?? Array.Empty<AetheriaRuntimeObservedInputBinding>())
                 .Where(binding => binding != null)
                 .ToArray();
 
-            return Project(
-                observed,
-                enabledActionBarInputPaths,
-                ProjectActionBarCandidates(observed, enabledActionBarInputPaths),
-                capturePending,
-                capturePrompt,
-                updatedAtUtc);
+            return Build(
+                ComposeState(
+                    observed,
+                    enabledActionBarInputPaths,
+                    ComposeActionBarCandidates(observed, enabledActionBarInputPaths),
+                    capturePending,
+                    capturePrompt,
+                    updatedAtUtc),
+                version);
         }
 
-        public static AetheriaRuntimeInputSettingsSurfaceState Project(
+        private static AetheriaRuntimeInputSettingsSurfaceState ComposeState(
             IEnumerable<AetheriaRuntimeObservedInputBinding> observedBindings,
             IEnumerable<string> enabledActionBarInputPaths,
             IEnumerable<AetheriaRuntimeInputPathSurfaceLabel> actionBarCandidateInputPaths,
@@ -180,14 +183,14 @@ namespace GameCult.Aetheria.State.Verse
             string updatedAtUtc)
         {
             return new AetheriaRuntimeInputSettingsSurfaceState(
-                ProjectBindingInputs(observedBindings),
-                ProjectActionBarInputs(enabledActionBarInputPaths, actionBarCandidateInputPaths),
+                ComposeBindingInputs(observedBindings),
+                ComposeActionBarInputs(enabledActionBarInputPaths, actionBarCandidateInputPaths),
                 capturePending,
                 capturePrompt,
                 updatedAtUtc);
         }
 
-        public static IReadOnlyList<AetheriaRuntimeInputBindingSurfaceState> ProjectBindingInputs(
+        private static IReadOnlyList<AetheriaRuntimeInputBindingSurfaceState> ComposeBindingInputs(
             IEnumerable<AetheriaRuntimeObservedInputBinding> observedBindings)
         {
             return (observedBindings ?? Array.Empty<AetheriaRuntimeObservedInputBinding>())
@@ -206,7 +209,7 @@ namespace GameCult.Aetheria.State.Verse
                 .ToArray();
         }
 
-        public static IReadOnlyList<AetheriaRuntimeInputPathSurfaceLabel> ProjectActionBarCandidates(
+        private static IReadOnlyList<AetheriaRuntimeInputPathSurfaceLabel> ComposeActionBarCandidates(
             IEnumerable<AetheriaRuntimeObservedInputBinding> observedBindings,
             IEnumerable<string> enabledInputPaths)
         {
@@ -241,7 +244,7 @@ namespace GameCult.Aetheria.State.Verse
             return candidates;
         }
 
-        public static IReadOnlyList<AetheriaRuntimeActionBarInputSurfaceState> ProjectActionBarInputs(
+        private static IReadOnlyList<AetheriaRuntimeActionBarInputSurfaceState> ComposeActionBarInputs(
             IEnumerable<string> enabledInputPaths,
             IEnumerable<AetheriaRuntimeInputPathSurfaceLabel> candidateInputPaths)
         {
