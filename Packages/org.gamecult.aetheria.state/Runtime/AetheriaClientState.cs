@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using GameCult.Mesh;
+using MessagePack;
 
 #nullable enable
 
@@ -279,16 +281,31 @@ namespace GameCult.Aetheria.State.Verse
 
         public CultMeshStateRefResolver CreateEveSurfaceCultMeshStateRefResolver()
         {
-            _eveStateRefFrame ??= DaemonFrame.Reactive();
-            _eveStateRefHealth ??= Health.Reactive();
-            _eveStateRefCommandBoundary ??= CommandBoundary.Reactive();
-            _eveStateRefCatalog ??= Catalog.Reactive();
-
             return AetheriaRuntimeStateRefResolver.CreateEveSurfaceCultMeshStateRefResolver(
-                () => _eveStateRefFrame.Current,
-                () => _eveStateRefHealth.Current,
-                () => _eveStateRefCommandBoundary.Current,
-                () => _eveStateRefCatalog.Current);
+                () => ReadOptionalReactive(ref _eveStateRefFrame, DaemonFrame),
+                () => ReadOptionalReactive(ref _eveStateRefHealth, Health),
+                () => ReadOptionalReactive(ref _eveStateRefCommandBoundary, CommandBoundary),
+                () => ReadOptionalReactive(ref _eveStateRefCatalog, Catalog));
+        }
+
+        private static TDocument? ReadOptionalReactive<TDocument>(
+            ref CultMeshReactiveDocument<TDocument>? reactive,
+            CultMeshDocumentHandle<TDocument> handle)
+            where TDocument : class
+        {
+            try
+            {
+                reactive ??= handle.Reactive();
+                return reactive.Current;
+            }
+            catch (KeyNotFoundException)
+            {
+                return null;
+            }
+            catch (FormatterNotRegisteredException)
+            {
+                return null;
+            }
         }
 
         public void Dispose()

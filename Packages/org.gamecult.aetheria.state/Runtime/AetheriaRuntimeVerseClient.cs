@@ -521,16 +521,8 @@ namespace GameCult.Aetheria.State.Verse
                 seatId => Document<AetheriaRuntimeStarbridgePlayerSeatDocument>(
                     AetheriaRuntimeVerseRecordKeys.StarbridgePlayerSeat(seatId)));
 
-            managedCatalog = state.Catalog.Reactive();
-            managedLoadoutTemplates = state.LoadoutTemplates.Reactive();
             managedPlayerSettings = state.PlayerSettings.Reactive();
-            managedStarbridgeScenario = state.StarbridgeScenario.Reactive();
-            managedStarbridgeSession = state.StarbridgeSession.Reactive();
-            _managedCatalog = managedCatalog;
-            _managedLoadoutTemplates = managedLoadoutTemplates;
             _managedPlayerSettings = managedPlayerSettings;
-            _managedStarbridgeScenario = managedStarbridgeScenario;
-            _managedStarbridgeSession = managedStarbridgeSession;
             return state;
 
             CultMeshDocumentHandle<TDocument> ManagedFrameDocument<TDocument>(
@@ -573,12 +565,16 @@ namespace GameCult.Aetheria.State.Verse
 
             AetheriaRuntimeCatalogSnapshot RequireManagedCatalog()
             {
+                managedCatalog ??= catalogDocument.Reactive();
+                _managedCatalog = managedCatalog;
                 return managedCatalog?.Current
                     ?? throw new InvalidOperationException("Aetheria Verse client has no runtime catalog document yet.");
             }
 
             AetheriaRuntimeLoadoutTemplatesDocument RequireManagedLoadoutTemplates()
             {
+                managedLoadoutTemplates ??= loadoutTemplatesDocument.Reactive();
+                _managedLoadoutTemplates = managedLoadoutTemplates;
                 return managedLoadoutTemplates?.Current
                     ?? throw new InvalidOperationException("Aetheria Verse client has no loadout templates document yet.");
             }
@@ -626,9 +622,45 @@ namespace GameCult.Aetheria.State.Verse
             {
                 return Task.FromResult(AetheriaRuntimeStarbridgeDocuments.SessionSummary(
                     frame,
-                    managedStarbridgeScenario?.Current,
-                    managedStarbridgeSession?.Current,
+                    CurrentStarbridgeScenario(),
+                    CurrentStarbridgeSession(),
                     RequireManagedCatalog()));
+            }
+
+            AetheriaRuntimeStarbridgeScenarioDocument? CurrentStarbridgeScenario()
+            {
+                try
+                {
+                    managedStarbridgeScenario ??= starbridgeScenarioDocument.Reactive();
+                    _managedStarbridgeScenario = managedStarbridgeScenario;
+                    return managedStarbridgeScenario.Current;
+                }
+                catch (KeyNotFoundException)
+                {
+                    return null;
+                }
+                catch (MessagePack.FormatterNotRegisteredException)
+                {
+                    return null;
+                }
+            }
+
+            AetheriaRuntimeStarbridgeSessionDocument? CurrentStarbridgeSession()
+            {
+                try
+                {
+                    managedStarbridgeSession ??= starbridgeSessionDocument.Reactive();
+                    _managedStarbridgeSession = managedStarbridgeSession;
+                    return managedStarbridgeSession.Current;
+                }
+                catch (KeyNotFoundException)
+                {
+                    return null;
+                }
+                catch (MessagePack.FormatterNotRegisteredException)
+                {
+                    return null;
+                }
             }
 
             Task<AetheriaRuntimeSurfaceDocument> ZoneDetailsSurfaceAsync(

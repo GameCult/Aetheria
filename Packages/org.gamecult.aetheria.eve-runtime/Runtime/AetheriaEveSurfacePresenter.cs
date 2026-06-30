@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using GameCult.Aetheria.State.Verse;
 using GameCult.Eve.Surface;
 using GameCult.Mesh;
@@ -87,7 +88,7 @@ namespace GameCult.Aetheria.EveRuntime
             var surface = ReadDaemonSurface(stateBoot);
             if (surface == null)
             {
-                root.Add(BuildError($"Eve surface not found: {surfaceId}"));
+                ClearMountedSurface();
                 return;
             }
 
@@ -170,10 +171,17 @@ namespace GameCult.Aetheria.EveRuntime
         private CultMeshReactiveDocument<global::Aetheria.State.Documents.EveSurfaceState>? CreateReactiveDaemonSurfaceState(
             AetheriaRuntimeStateBootReport stateBoot)
         {
-            return AetheriaEveRuntimeUnityHooks
-                .RequireRuntimeState(stateBoot, "unity-eve-surface-presenter")
-                .EveSurfaceDocument(surfaceId)
-                ?.Reactive();
+            try
+            {
+                return AetheriaEveRuntimeUnityHooks
+                    .RequireRuntimeState(stateBoot, "unity-eve-surface-presenter")
+                    .EveSurfaceDocument(surfaceId)
+                    ?.Reactive();
+            }
+            catch (KeyNotFoundException)
+            {
+                return null;
+            }
         }
 
         private UIDocument ResolveDocument()
@@ -204,6 +212,16 @@ namespace GameCult.Aetheria.EveRuntime
                    !string.Equals(_mountedSurfaceId, surface.Surface.Id, StringComparison.Ordinal) ||
                    _mountedSurfaceVersion != surface.Version ||
                    !string.Equals(_mountedSurfaceUpdatedAtUtc, surface.UpdatedAtUtc, StringComparison.Ordinal);
+        }
+
+        private void ClearMountedSurface()
+        {
+            var document = ResolveDocument();
+            document.rootVisualElement.Clear();
+            _mountedStatePath = "";
+            _mountedSurfaceId = "";
+            _mountedSurfaceVersion = -1;
+            _mountedSurfaceUpdatedAtUtc = "";
         }
 
         private void MountSurface(AetheriaRuntimeStateBootReport stateBoot, EveSurfaceDocument surface)
