@@ -877,9 +877,11 @@ public class MainMenu : MonoBehaviour
     private static TextCoreFontAsset ResolveFontAsset(string assetPath, params string[] osFontNames)
     {
 #if UNITY_EDITOR
-        var editorFontAsset = UnityEditor.AssetDatabase.LoadAssetAtPath<TextCoreFontAsset>(assetPath);
-        if (editorFontAsset != null)
-            return editorFontAsset;
+        foreach (var asset in UnityEditor.AssetDatabase.LoadAllAssetsAtPath(assetPath))
+        {
+            if (asset is TextCoreFontAsset editorFontAsset)
+                return editorFontAsset;
+        }
 #endif
 
         foreach (var osFontName in osFontNames)
