@@ -11,6 +11,8 @@ using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using UnityEngine.UIElements;
 using UiButton = UnityEngine.UIElements.Button;
+using TextCoreFontAsset = UnityEngine.TextCore.Text.FontAsset;
+using GlyphRenderMode = UnityEngine.TextCore.LowLevel.GlyphRenderMode;
 
 public class MainMenu : MonoBehaviour
 {
@@ -33,8 +35,8 @@ public class MainMenu : MonoBehaviour
     private bool _fading;
     private float _fadeLerp;
     private readonly List<MenuHoverButton> _hoverButtons = new List<MenuHoverButton>();
-    private static Font _titleFont;
-    private static Font _labelFont;
+    private static TextCoreFontAsset _titleFont;
+    private static TextCoreFontAsset _labelFont;
     private readonly AetheriaEveUnitySurfaceChrome _menuSurfaceChrome = new AetheriaEveUnitySurfaceChrome
     {
         UseShell = false,
@@ -373,6 +375,7 @@ public class MainMenu : MonoBehaviour
             return;
 
         StyleMenuTree(root, rootMainMenu);
+        ApplyDefaultTextFont(root);
 
         var surface = rootMainMenu
             ? FindElement(root, $"{AetheriaRuntimeMainMenuCommands.RootSurfaceId}.root")
@@ -388,7 +391,7 @@ public class MainMenu : MonoBehaviour
         var title = FindElement(root, $"{AetheriaRuntimeMainMenuCommands.RootSurfaceId}.title") as Label;
         if (title != null)
         {
-            title.style.unityFont = TitleFont;
+            title.style.unityFontDefinition = new StyleFontDefinition(TitleFont);
             title.style.fontSize = 86f;
             title.style.color = new Color(0.82f, 0.95f, 1f, 0.96f);
             title.style.unityFontStyleAndWeight = FontStyle.Normal;
@@ -401,7 +404,7 @@ public class MainMenu : MonoBehaviour
         var subtitle = FindElement(root, $"{AetheriaRuntimeMainMenuCommands.RootSurfaceId}.subtitle") as Label;
         if (subtitle != null)
         {
-            subtitle.style.unityFont = TitleFont;
+            subtitle.style.unityFontDefinition = new StyleFontDefinition(TitleFont);
             subtitle.style.fontSize = 39f;
             subtitle.style.color = new Color(0.82f, 0.95f, 1f, 0.92f);
             subtitle.style.unityFontStyleAndWeight = FontStyle.Normal;
@@ -412,6 +415,12 @@ public class MainMenu : MonoBehaviour
         }
 
         RegisterHoverButtons(root);
+    }
+
+    private static void ApplyDefaultTextFont(VisualElement root)
+    {
+        root.Query<TextElement>().ForEach(element =>
+            element.style.unityFontDefinition = new StyleFontDefinition(LabelFont));
     }
 
     private void StyleMenuTree(VisualElement element, bool rootMainMenu)
@@ -499,7 +508,7 @@ public class MainMenu : MonoBehaviour
     private static void StyleMenuLabel(Label label, bool rootMainMenu)
     {
         label.style.color = new Color(0.86f, 0.98f, 1f, 0.94f);
-        label.style.unityFont = LabelFont;
+        label.style.unityFontDefinition = new StyleFontDefinition(LabelFont);
         label.style.unityFontStyleAndWeight = FontStyle.Normal;
         label.style.unityTextAlign = TextAnchor.MiddleLeft;
         label.style.whiteSpace = WhiteSpace.Normal;
@@ -547,13 +556,14 @@ public class MainMenu : MonoBehaviour
         field.style.marginTop = 0f;
         field.style.marginBottom = rootMainMenu ? 4f : 8f;
         field.style.color = new Color(0.86f, 0.98f, 1f, 0.96f);
-        field.style.unityFont = LabelFont;
+        field.style.unityFontDefinition = new StyleFontDefinition(LabelFont);
         field.style.fontSize = rootMainMenu ? 18f : 15f;
         field.pickingMode = PickingMode.Position;
 
         field.labelElement.style.minWidth = rootMainMenu ? 100f : 190f;
         field.labelElement.style.width = rootMainMenu ? 100f : 190f;
         field.labelElement.style.color = new Color(0.78f, 0.92f, 0.98f, 0.84f);
+        field.labelElement.style.unityFontDefinition = new StyleFontDefinition(LabelFont);
     }
 
     private static void StyleMenuButton(UiButton button, bool rootMainMenu)
@@ -564,7 +574,7 @@ public class MainMenu : MonoBehaviour
         button.style.borderTopWidth = 0f;
         button.style.borderBottomWidth = 0f;
         button.style.color = new Color(0.86f, 0.98f, 1f, 0.96f);
-        button.style.unityFont = LabelFont;
+        button.style.unityFontDefinition = new StyleFontDefinition(LabelFont);
         button.style.fontSize = rootMainMenu ? 24f : 16f;
         button.style.unityFontStyleAndWeight = FontStyle.Normal;
         button.style.unityTextAlign = TextAnchor.MiddleLeft;
@@ -852,35 +862,56 @@ public class MainMenu : MonoBehaviour
         }
     }
 
-    private static Font TitleFont =>
-        _titleFont ??= ResolveFont(
-            "Assets/Fonts/Ubuntu/Montserrat-Thin.ttf",
+    private static TextCoreFontAsset TitleFont =>
+        _titleFont ??= ResolveFontAsset(
+            "Assets/Fonts/Ubuntu/Montserrat-Thin SDF.asset",
             "Montserrat Thin",
             "Montserrat");
 
-    private static Font LabelFont =>
-        _labelFont ??= ResolveFont(
-            "Assets/Fonts/Ubuntu/Ubuntu-R.ttf",
+    private static TextCoreFontAsset LabelFont =>
+        _labelFont ??= ResolveFontAsset(
+            "Assets/Fonts/Ubuntu/Ubuntu-R SDF.asset",
             "Ubuntu",
             "Ubuntu Regular");
 
-    private static Font ResolveFont(string assetPath, params string[] osFontNames)
+    private static TextCoreFontAsset ResolveFontAsset(string assetPath, params string[] osFontNames)
     {
 #if UNITY_EDITOR
-        var editorFont = UnityEditor.AssetDatabase.LoadAssetAtPath<Font>(assetPath);
-        if (editorFont != null)
-            return editorFont;
+        var editorFontAsset = UnityEditor.AssetDatabase.LoadAssetAtPath<TextCoreFontAsset>(assetPath);
+        if (editorFontAsset != null)
+            return editorFontAsset;
 #endif
 
-        try
+        foreach (var osFontName in osFontNames)
         {
-            return Font.CreateDynamicFontFromOSFont(osFontNames, 16);
+            try
+            {
+                var fontAsset = TextCoreFontAsset.CreateFontAsset(
+                    osFontName,
+                    "Regular",
+                    90,
+                    9,
+                    GlyphRenderMode.SDFAA);
+                if (fontAsset != null)
+                    return fontAsset;
+            }
+            catch
+            {
+                // Try the next configured face name before falling back.
+            }
         }
-        catch (Exception ex)
-        {
-            Debug.LogWarning($"Failed to resolve UI font '{assetPath}': {ex.Message}");
-            return Font.CreateDynamicFontFromOSFont("Arial", 16);
-        }
+
+        Debug.LogWarning($"Failed to resolve UI font asset '{assetPath}'. Falling back to Arial.");
+        var fallback = TextCoreFontAsset.CreateFontAsset(
+            "Arial",
+            "Regular",
+            90,
+            9,
+            GlyphRenderMode.SDFAA);
+        if (fallback != null)
+            return fallback;
+
+        throw new InvalidOperationException($"Failed to create fallback UI font asset for '{assetPath}'.");
     }
 
     private sealed class MenuHoverButton
