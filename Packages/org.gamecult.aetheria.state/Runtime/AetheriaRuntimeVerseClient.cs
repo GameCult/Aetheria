@@ -391,6 +391,11 @@ namespace GameCult.Aetheria.State.Verse
                 () => Task.FromResult(BootstrapPlayerSettingsDocument()),
                 AetheriaRuntimePlayerSettingsDocument.SchemaId,
                 CatalogBootstrapSource("catalog:aetheria.player_settings"));
+            var verseHostSettingsDocument = BootstrapCatalogDocument(
+                "aetheria.settings.verse_host",
+                () => Task.FromResult(BootstrapVerseHostSettingsDocument()),
+                AetheriaRuntimeVerseHostSettingsDocument.SchemaId,
+                CatalogBootstrapSource("catalog:aetheria.verse_host_settings"));
             var starbridgeScenarioDocument = Document<AetheriaRuntimeStarbridgeScenarioDocument>(
                 AetheriaRuntimeVerseRecordKeys.StarbridgeScenarioLatest);
             var starbridgeSessionDocument = Document<AetheriaRuntimeStarbridgeSessionDocument>(
@@ -427,11 +432,7 @@ namespace GameCult.Aetheria.State.Verse
                 catalogDocument,
                 loadoutTemplatesDocument,
                 playerSettingsDocument,
-                BootstrapCatalogDocument(
-                    "aetheria.settings.verse_host",
-                    () => Task.FromResult(BootstrapVerseHostSettingsDocument()),
-                    AetheriaRuntimeVerseHostSettingsDocument.SchemaId,
-                    CatalogBootstrapSource("catalog:aetheria.verse_host_settings")),
+                verseHostSettingsDocument,
                 ManagedFrameDocument(
                     "aetheria.current.zone",
                     frame => Task.FromResult(AetheriaRuntimeRtsDocuments.CurrentZone(frame)),
@@ -501,6 +502,10 @@ namespace GameCult.Aetheria.State.Verse
                     AetheriaRuntimeInventoryDropdownSurfaceBuilder.SurfaceId,
                     CultMesh.ProjectionSource("catalog:aetheria.runtime"),
                     CultMesh.ProjectionSource("loadout-templates:aetheria.runtime")),
+                (surfaceId, canOpenRuntimeInputScreen, inGame) => ManagedMainMenuSurfaceDocument(
+                    surfaceId,
+                    canOpenRuntimeInputScreen,
+                    inGame),
                 entityIndex => ManagedFrameDocument(
                     IndexedDocumentId("aetheria.object.selected", entityIndex),
                     frame => Task.FromResult(AetheriaRuntimeRtsDocuments.SelectedObject(frame, entityIndex)),
@@ -608,6 +613,39 @@ namespace GameCult.Aetheria.State.Verse
                     routeHint: new CultMeshRouteHint(CultMeshLocalityKind.SharedMemory, "Aetheria managed catalog state"));
             }
 
+            CultMeshDocumentHandle<AetheriaRuntimeSurfaceDocument> ManagedMainMenuSurfaceDocument(
+                string surfaceId,
+                bool canOpenRuntimeInputScreen,
+                bool inGame)
+            {
+                surfaceId = string.IsNullOrWhiteSpace(surfaceId)
+                    ? AetheriaRuntimeMainMenuCommands.RootSurfaceId
+                    : surfaceId;
+                var documentId = string.Join(
+                    ".",
+                    "aetheria.main_menu.surface",
+                    AetheriaRuntimeVerseRecordKeys.StableToken(surfaceId),
+                    canOpenRuntimeInputScreen ? "input-open" : "input-closed",
+                    inGame ? "in-game" : "title");
+                var descriptor = CultDocumentRegistry.Shared.GetRequired<AetheriaRuntimeSurfaceDocument>();
+                var sources = new[]
+                {
+                    CultMesh.ProjectionSource(documentId, descriptor.SchemaId, "managed Aetheria main menu surface"),
+                    CultMesh.ProjectionSource("catalog:aetheria.player_settings"),
+                    CultMesh.ProjectionSource("catalog:aetheria.verse_host_settings"),
+                    CultMesh.ProjectionSource(AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest.ToString())
+                };
+                var verse = CultMesh.Verse("aetheria.local", RuntimeId);
+                return CultMesh.Document(
+                    documentId,
+                    verse,
+                    _ => Task.FromResult(BuildMainMenuSurface(surfaceId, canOpenRuntimeInputScreen, inGame)),
+                    _ => frameChanges
+                        .Select(_ => BuildMainMenuSurface(surfaceId, canOpenRuntimeInputScreen, inGame)),
+                    sources: sources,
+                    routeHint: new CultMeshRouteHint(CultMeshLocalityKind.SharedMemory, "Aetheria managed main menu surface"));
+            }
+
             Task<AetheriaRuntimeStationRefitDocument> StationRefitAsync(
                 AetheriaRuntimeDaemonFrameDocument frame)
             {
@@ -712,6 +750,99 @@ namespace GameCult.Aetheria.State.Verse
                         RequireManagedCatalog()),
                     request,
                     DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture)));
+            }
+
+            AetheriaRuntimeSurfaceDocument BuildMainMenuSurface(
+                string surfaceId,
+                bool canOpenRuntimeInputScreen,
+                bool inGame)
+            {
+                var updatedAtUtc = DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture);
+                var stateBoot = AetheriaRuntimeStateBoot.Inspect(
+                    new DirectoryInfo(Path.GetDirectoryName(StatePath) ?? "."),
+                    StatePath);
+
+                if (string.Equals(surfaceId, AetheriaRuntimeMainMenuCommands.RootSurfaceId, StringComparison.Ordinal))
+                {
+                    return AetheriaRuntimeMainMenuSurfaceBuilder.BuildRoot(
+                        stateBoot,
+                        TryCurrentSectorMap(),
+                        TryCurrentVerseHostSettings(),
+                        TryCurrentPlayerSettings(),
+                        canOpenRuntimeInputScreen,
+                        inGame,
+                        updatedAtUtc);
+                }
+
+                if (string.Equals(surfaceId, AetheriaRuntimeMainMenuCommands.SettingsSurfaceId, StringComparison.Ordinal))
+                    return AetheriaRuntimeMainMenuSurfaceBuilder.BuildSettings(updatedAtUtc);
+
+                if (string.Equals(surfaceId, AetheriaRuntimeMainMenuCommands.InputSettingsSurfaceId, StringComparison.Ordinal))
+                {
+                    return AetheriaRuntimeMainMenuSurfaceBuilder.BuildInputSettings(
+                        stateBoot,
+                        TryCurrentPlayerSettings(),
+                        canOpenRuntimeInputScreen,
+                        inGame,
+                        updatedAtUtc);
+                }
+
+                if (string.Equals(surfaceId, AetheriaRuntimeMainMenuCommands.PlayerSettingsShellSurfaceId, StringComparison.Ordinal))
+                {
+                    return AetheriaRuntimeMainMenuSurfaceBuilder.BuildPlayerSettingsShell(
+                        TryCurrentPlayerSettings(),
+                        updatedAtUtc);
+                }
+
+                if (string.Equals(surfaceId, AetheriaRuntimeMainMenuCommands.VerseSettingsShellSurfaceId, StringComparison.Ordinal))
+                {
+                    return AetheriaRuntimeMainMenuSurfaceBuilder.BuildVerseSettingsShell(
+                        AetheriaRuntimeClientTargetSurfaceBuilder.Build(
+                            stateBoot,
+                            TryCurrentVerseHostSettings(),
+                            updatedAtUtc));
+                }
+
+                throw new ArgumentException($"Unknown Aetheria main menu surface id '{surfaceId}'.", nameof(surfaceId));
+            }
+
+            AetheriaRuntimePlayerSettingsDocument? TryCurrentPlayerSettings()
+            {
+                try
+                {
+                    managedPlayerSettings ??= playerSettingsDocument.Reactive();
+                    _managedPlayerSettings = managedPlayerSettings;
+                    return managedPlayerSettings.Current;
+                }
+                catch (Exception)
+                {
+                    return null;
+                }
+            }
+
+            AetheriaRuntimeVerseHostSettingsDocument? TryCurrentVerseHostSettings()
+            {
+                try
+                {
+                    return verseHostSettingsDocument.Latest();
+                }
+                catch (Exception)
+                {
+                    return null;
+                }
+            }
+
+            AetheriaRuntimeSectorMapDocument? TryCurrentSectorMap()
+            {
+                try
+                {
+                    var frame = latestFrameDocument.Latest();
+                    return frame == null ? null : AetheriaRuntimeRtsDocuments.SectorMap(frame);
+                }
+                catch (Exception)
+                {
+                    return null;
+                }
             }
 
             static string IndexedDocumentId(string prefix, int index)

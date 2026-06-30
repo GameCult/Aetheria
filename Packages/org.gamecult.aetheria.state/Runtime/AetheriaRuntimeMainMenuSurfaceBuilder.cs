@@ -27,6 +27,9 @@ namespace GameCult.Aetheria.State.Verse
 
     public static class AetheriaRuntimeMainMenuSurfaceBuilder
     {
+        public const string ProviderId = "aetheria";
+        public const string ProviderKind = "game.menu";
+
         public static AetheriaRuntimeSurfaceDocument BuildRoot(
             AetheriaRuntimeStateBootReport stateBoot,
             AetheriaRuntimePlayerSettingsDocument playerSettings,
@@ -327,16 +330,32 @@ namespace GameCult.Aetheria.State.Verse
             params AetheriaRuntimeSurfaceComponent[] children)
         {
             return new AetheriaRuntimeSurfaceDocument(
-                providerId: "aetheria",
-                providerKind: "game.menu",
+                providerId: ProviderId,
+                providerKind: ProviderKind,
                 title: title,
                 version: version,
                 updatedAtUtc: updatedAtUtc,
                 surface: new AetheriaRuntimeSurfaceTree(
                     surfaceId,
                     Node($"{surfaceId}.root", "surface", Array.Empty<(string Key, string Value)>(), children),
-                    Array.Empty<AetheriaRuntimeSurfaceStyleToken>()),
+                    MainMenuStyleTokens()),
                 commands: commands);
+        }
+
+        private static IReadOnlyList<AetheriaRuntimeSurfaceStyleToken> MainMenuStyleTokens()
+        {
+            return new[]
+            {
+                new AetheriaRuntimeSurfaceStyleToken("font.title.family", "Montserrat"),
+                new AetheriaRuntimeSurfaceStyleToken("font.title.style", "Thin"),
+                new AetheriaRuntimeSurfaceStyleToken("font.title.weight", "100"),
+                new AetheriaRuntimeSurfaceStyleToken("font.body.family", "Ubuntu"),
+                new AetheriaRuntimeSurfaceStyleToken("font.body.style", "Regular"),
+                new AetheriaRuntimeSurfaceStyleToken("font.body.weight", "400"),
+                new AetheriaRuntimeSurfaceStyleToken(
+                    "font.web.google",
+                    "https://fonts.googleapis.com/css2?family=Montserrat:wght@100&family=Ubuntu:wght@400&display=swap")
+            };
         }
 
         private static AetheriaRuntimeSurfaceCommandTemplate Command(string command, string label)

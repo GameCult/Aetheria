@@ -6,7 +6,9 @@ using GameCult.Eve.Surface;
 using GameCult.Eve.UnityUIToolkit;
 using GameCult.Mesh;
 using UnityEngine;
+using UnityEngine.TextCore.LowLevel;
 using UnityEngine.UIElements;
+using TextCoreFontAsset = UnityEngine.TextCore.Text.FontAsset;
 
 namespace GameCult.Aetheria.EveRuntime
 {
@@ -42,6 +44,7 @@ namespace GameCult.Aetheria.EveRuntime
     public static class AetheriaEveUnitySurfaceHost
     {
         private static PanelSettings _runtimePanelSettings;
+        private static readonly Dictionary<string, TextCoreFontAsset> FontCache = new Dictionary<string, TextCoreFontAsset>(StringComparer.Ordinal);
 
         public static UIDocument Render(
             Transform owner,
@@ -73,15 +76,20 @@ namespace GameCult.Aetheria.EveRuntime
                     : null);
             surface = AetheriaRuntimeSurfaceDocuments.ResolveStateRefs(surface, effectiveStateRefResolver);
             var lowerer = new EveUiToolkitSurfaceLowerer(new EveUiToolkitSurfaceOptions(embeddedDocumentResolver));
+            VisualElement lowered;
             if (chrome.UseShell)
             {
                 var shell = CreateShell(chrome);
                 root.Add(shell);
-                shell.Add(lowerer.Lower(surface, commandHandler));
+                lowered = lowerer.Lower(surface, commandHandler);
+                ApplyTheme(lowered, surface);
+                shell.Add(lowered);
             }
             else
             {
-                root.Add(lowerer.Lower(surface, commandHandler));
+                lowered = lowerer.Lower(surface, commandHandler);
+                ApplyTheme(lowered, surface);
+                root.Add(lowered);
             }
 
             Debug.Log(
@@ -228,6 +236,75 @@ namespace GameCult.Aetheria.EveRuntime
             shell.style.borderBottomColor = chrome.BorderColor;
             shell.pickingMode = chrome.ShellPickingMode;
             return shell;
+        }
+
+        private static void ApplyTheme(VisualElement root, EveSurfaceDocument surface)
+        {
+            if (root == null || surface?.Surface?.Styles == null)
+                return;
+
+            var tokens = surface.Surface.Styles
+                .Where(token => !string.IsNullOrWhiteSpace(token?.Name))
+                .GroupBy(token => token.Name, StringComparer.Ordinal)
+                .ToDictionary(group => group.Key, group => group.Last().Value ?? "", StringComparer.Ordinal);
+            var bodyFont = ResolveFont(tokens, "body");
+            var titleFont = ResolveFont(tokens, "title") ?? bodyFont;
+
+            if (bodyFont != null)
+            {
+                root.Query<TextElement>().ForEach(element =>
+                    element.style.unityFontDefinition = new StyleFontDefinition(bodyFont));
+            }
+
+            if (titleFont != null)
+            {
+                root.Query<TextElement>(className: "eve-kind-text-title").ForEach(element =>
+                    element.style.unityFontDefinition = new StyleFontDefinition(titleFont));
+            }
+        }
+
+        private static TextCoreFontAsset ResolveFont(IReadOnlyDictionary<string, string> tokens, string role)
+        {
+            if (tokens == null || string.IsNullOrWhiteSpace(role))
+                return null;
+
+            if (!tokens.TryGetValue($"font.{role}.family", out var family) || string.IsNullOrWhiteSpace(family))
+                return null;
+
+            tokens.TryGetValue($"font.{role}.style", out var style);
+            style = string.IsNullOrWhiteSpace(style) ? "Regular" : style;
+            var key = $"{family}\n{style}";
+            if (FontCache.TryGetValue(key, out var cached))
+                return cached;
+
+            var font = TryCreateFontAsset(family, style)
+                ?? TryCreateFontAsset(family, "Regular")
+                ?? TryCreateFontAsset($"{family} {style}", "Regular");
+            if (font == null)
+            {
+                Debug.LogWarning($"Aetheria Eve UI could not resolve runtime font '{family}' style '{style}'.");
+                return null;
+            }
+
+            FontCache[key] = font;
+            return font;
+        }
+
+        private static TextCoreFontAsset TryCreateFontAsset(string family, string style)
+        {
+            try
+            {
+                return TextCoreFontAsset.CreateFontAsset(
+                    family,
+                    string.IsNullOrWhiteSpace(style) ? "Regular" : style,
+                    90,
+                    9,
+                    GlyphRenderMode.SDFAA);
+            }
+            catch
+            {
+                return null;
+            }
         }
 
         private static bool ContainsStateRefs(EveSurfaceDocument surface)

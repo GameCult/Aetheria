@@ -25,6 +25,7 @@ namespace GameCult.Aetheria.State.Verse
         private readonly Func<int, CultMeshDocumentHandle<AetheriaRuntimeSurfaceDocument>> _zoneDetailsSurface;
         private readonly Func<AetheriaRuntimeInventoryPanelSurfaceRequest, CultMeshDocumentHandle<AetheriaRuntimeSurfaceDocument>> _inventoryPanelSurface;
         private readonly Func<AetheriaRuntimeInventoryDropdownSurfaceRequest, CultMeshDocumentHandle<AetheriaRuntimeSurfaceDocument>> _inventoryDropdownSurface;
+        private readonly Func<string, bool, bool, CultMeshDocumentHandle<AetheriaRuntimeSurfaceDocument>> _mainMenuSurface;
         private readonly Func<int, CultMeshDocumentHandle<AetheriaRuntimeSelectedObjectDocument>> _selectedObject;
         private readonly Func<int, CultMeshDocumentHandle<AetheriaRuntimeInventoryDocument>> _inventory;
         private readonly Func<string, CultMeshDocumentHandle<AetheriaRuntimeStarbridgePlayerSeatDocument>> _starbridgePlayerSeat;
@@ -63,6 +64,7 @@ namespace GameCult.Aetheria.State.Verse
             Func<int, CultMeshDocumentHandle<AetheriaRuntimeSurfaceDocument>> zoneDetailsSurface,
             Func<AetheriaRuntimeInventoryPanelSurfaceRequest, CultMeshDocumentHandle<AetheriaRuntimeSurfaceDocument>> inventoryPanelSurface,
             Func<AetheriaRuntimeInventoryDropdownSurfaceRequest, CultMeshDocumentHandle<AetheriaRuntimeSurfaceDocument>> inventoryDropdownSurface,
+            Func<string, bool, bool, CultMeshDocumentHandle<AetheriaRuntimeSurfaceDocument>> mainMenuSurface,
             Func<int, CultMeshDocumentHandle<AetheriaRuntimeSelectedObjectDocument>> selectedObject,
             Func<int, CultMeshDocumentHandle<AetheriaRuntimeInventoryDocument>> inventory,
             CultMeshDocumentHandle<AetheriaRuntimeStarbridgeScenarioDocument> starbridgeScenario,
@@ -99,6 +101,7 @@ namespace GameCult.Aetheria.State.Verse
             _zoneDetailsSurface = zoneDetailsSurface ?? throw new ArgumentNullException(nameof(zoneDetailsSurface));
             _inventoryPanelSurface = inventoryPanelSurface ?? throw new ArgumentNullException(nameof(inventoryPanelSurface));
             _inventoryDropdownSurface = inventoryDropdownSurface ?? throw new ArgumentNullException(nameof(inventoryDropdownSurface));
+            _mainMenuSurface = mainMenuSurface ?? throw new ArgumentNullException(nameof(mainMenuSurface));
             _selectedObject = selectedObject ?? throw new ArgumentNullException(nameof(selectedObject));
             _inventory = inventory ?? throw new ArgumentNullException(nameof(inventory));
             StarbridgeScenario = starbridgeScenario ?? throw new ArgumentNullException(nameof(starbridgeScenario));
@@ -253,6 +256,17 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeInventoryDropdownSurfaceRequest request)
         {
             return _inventoryDropdownSurface(request ?? new AetheriaRuntimeInventoryDropdownSurfaceRequest());
+        }
+
+        public CultMeshDocumentHandle<AetheriaRuntimeSurfaceDocument> MainMenuSurface(
+            string surfaceId,
+            bool canOpenRuntimeInputScreen,
+            bool inGame)
+        {
+            if (string.IsNullOrWhiteSpace(surfaceId))
+                throw new ArgumentException("Main menu surface id must be non-empty.", nameof(surfaceId));
+
+            return _mainMenuSurface(surfaceId, canOpenRuntimeInputScreen, inGame);
         }
 
         public CultMeshDocumentHandle<AetheriaRuntimeSelectedObjectDocument> SelectedObject(int zoneIndex)

@@ -3,16 +3,12 @@ using System.Collections.Generic;
 using GameCult.Aetheria.EveRuntime;
 using GameCult.Aetheria.State.Verse;
 using GameCult.Eve.Surface;
-using GameCult.Mesh;
-using TMPro;
 using UniRx;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using UnityEngine.UIElements;
 using UiButton = UnityEngine.UIElements.Button;
-using TextCoreFontAsset = UnityEngine.TextCore.Text.FontAsset;
-using GlyphRenderMode = UnityEngine.TextCore.LowLevel.GlyphRenderMode;
 
 public class MainMenu : MonoBehaviour
 {
@@ -35,8 +31,6 @@ public class MainMenu : MonoBehaviour
     private bool _fading;
     private float _fadeLerp;
     private readonly List<MenuHoverButton> _hoverButtons = new List<MenuHoverButton>();
-    private static TextCoreFontAsset _titleFont;
-    private static TextCoreFontAsset _labelFont;
     private readonly AetheriaEveUnitySurfaceChrome _menuSurfaceChrome = new AetheriaEveUnitySurfaceChrome
     {
         UseShell = false,
@@ -63,19 +57,8 @@ public class MainMenu : MonoBehaviour
 
     private void ShowMain(bool animateFromRight = true)
     {
-        var stateBoot = CurrentStateBoot();
-        var sectorMap = ResolveSectorMap(stateBoot);
-        var verseHost = ResolveVerseHostSettings(stateBoot);
-        var playerSettings = ResolvePlayerSettings(stateBoot);
         RenderMenuSurface(
-            AetheriaRuntimeMainMenuSurfaceBuilder.BuildRoot(
-                stateBoot,
-                sectorMap,
-                verseHost,
-                playerSettings,
-                CanOpenRuntimeInputScreen(),
-                InGame,
-                DateTime.UtcNow.ToString("O")),
+            ResolveMainMenuSurface(AetheriaRuntimeMainMenuCommands.RootSurfaceId),
             HandleMainSurfaceCommand,
             animateFromRight);
     }
@@ -177,44 +160,6 @@ public class MainMenu : MonoBehaviour
         }
     }
 
-    private AetheriaRuntimePlayerSettingsDocument ResolvePlayerSettings(AetheriaRuntimeStateBootReport stateBoot)
-    {
-        if (!stateBoot.SupportsLocalStateFileRead || !stateBoot.StateFileExists)
-            return null;
-
-        try
-        {
-            return AetheriaUnityRuntimeClientProvider
-                .RuntimeState(stateBoot, "unity-main-menu")
-                .PlayerSettings
-                .Latest();
-        }
-        catch (Exception ex)
-        {
-            Debug.LogError($"Failed to bind typed Aetheria player settings for the main menu: {ex}");
-            return null;
-        }
-    }
-
-    private AetheriaRuntimeVerseHostSettingsDocument ResolveVerseHostSettings(AetheriaRuntimeStateBootReport stateBoot)
-    {
-        if (!stateBoot.SupportsLocalStateFileRead || !stateBoot.StateFileExists)
-            return null;
-
-        try
-        {
-            return AetheriaUnityRuntimeClientProvider
-                .RuntimeState(stateBoot, "unity-main-menu")
-                .VerseHostSettings
-                .Latest();
-        }
-        catch (Exception ex)
-        {
-            Debug.LogError($"Failed to bind typed Aetheria Verse host settings for the main menu: {ex}");
-            return null;
-        }
-    }
-
     private static bool IsMissingDaemonFrame(KeyNotFoundException ex)
     {
         return ex?.Message?.Contains("daemon:aetheria.frame.latest.v1", StringComparison.Ordinal) == true;
@@ -231,21 +176,15 @@ public class MainMenu : MonoBehaviour
     private void ShowSettings(bool animateFromRight = true)
     {
         RenderMenuSurface(
-            AetheriaRuntimeMainMenuSurfaceBuilder.BuildSettings(DateTime.UtcNow.ToString("O")),
+            ResolveMainMenuSurface(AetheriaRuntimeMainMenuCommands.SettingsSurfaceId),
             HandleSettingsSurfaceCommand,
             animateFromRight);
     }
 
     private void ShowInputSettings(bool animateFromRight = true)
     {
-        var stateBoot = CurrentStateBoot();
         RenderMenuSurface(
-            AetheriaRuntimeMainMenuSurfaceBuilder.BuildInputSettings(
-                stateBoot,
-                ResolvePlayerSettings(stateBoot),
-                CanOpenRuntimeInputScreen(),
-                InGame,
-                DateTime.UtcNow.ToString("O")),
+            ResolveMainMenuSurface(AetheriaRuntimeMainMenuCommands.InputSettingsSurfaceId),
             HandleInputSettingsSurfaceCommand,
             animateFromRight);
     }
@@ -253,24 +192,26 @@ public class MainMenu : MonoBehaviour
     private void ShowPlayerSettingsSurface(bool animateFromRight = true)
     {
         RenderMenuSurface(
-            AetheriaRuntimeMainMenuSurfaceBuilder.BuildPlayerSettingsShell(
-                ResolvePlayerSettings(CurrentStateBoot()),
-                DateTime.UtcNow.ToString("O")),
+            ResolveMainMenuSurface(AetheriaRuntimeMainMenuCommands.PlayerSettingsShellSurfaceId),
             HandlePlayerSettingsSurfaceCommand,
             animateFromRight);
     }
 
     private void ShowVerseSettingsSurface(bool animateFromRight = true)
     {
-        var stateBoot = CurrentStateBoot();
         RenderMenuSurface(
-            AetheriaRuntimeMainMenuSurfaceBuilder.BuildVerseSettingsShell(
-                AetheriaRuntimeClientTargetSurfaceBuilder.Build(
-                    stateBoot,
-                    ResolveVerseHostSettings(stateBoot),
-                    DateTime.UtcNow.ToString("O"))),
+            ResolveMainMenuSurface(AetheriaRuntimeMainMenuCommands.VerseSettingsShellSurfaceId),
             HandleVerseSettingsSurfaceCommand,
             animateFromRight);
+    }
+
+    private AetheriaRuntimeSurfaceDocument ResolveMainMenuSurface(string surfaceId)
+    {
+        var stateBoot = CurrentStateBoot();
+        return AetheriaUnityRuntimeClientProvider
+            .RuntimeState(stateBoot, "unity-main-menu")
+            .MainMenuSurface(surfaceId, CanOpenRuntimeInputScreen(), InGame)
+            .Latest();
     }
 
     private void RenderMenuSurface(
@@ -375,7 +316,6 @@ public class MainMenu : MonoBehaviour
             return;
 
         StyleMenuTree(root, rootMainMenu);
-        ApplyDefaultTextFont(root);
 
         var surface = rootMainMenu
             ? FindElement(root, $"{AetheriaRuntimeMainMenuCommands.RootSurfaceId}.root")
@@ -391,7 +331,6 @@ public class MainMenu : MonoBehaviour
         var title = FindElement(root, $"{AetheriaRuntimeMainMenuCommands.RootSurfaceId}.title") as Label;
         if (title != null)
         {
-            title.style.unityFontDefinition = new StyleFontDefinition(TitleFont);
             title.style.fontSize = 86f;
             title.style.color = new Color(0.82f, 0.95f, 1f, 0.96f);
             title.style.unityFontStyleAndWeight = FontStyle.Normal;
@@ -404,7 +343,6 @@ public class MainMenu : MonoBehaviour
         var subtitle = FindElement(root, $"{AetheriaRuntimeMainMenuCommands.RootSurfaceId}.subtitle") as Label;
         if (subtitle != null)
         {
-            subtitle.style.unityFontDefinition = new StyleFontDefinition(TitleFont);
             subtitle.style.fontSize = 39f;
             subtitle.style.color = new Color(0.82f, 0.95f, 1f, 0.92f);
             subtitle.style.unityFontStyleAndWeight = FontStyle.Normal;
@@ -415,12 +353,6 @@ public class MainMenu : MonoBehaviour
         }
 
         RegisterHoverButtons(root);
-    }
-
-    private static void ApplyDefaultTextFont(VisualElement root)
-    {
-        root.Query<TextElement>().ForEach(element =>
-            element.style.unityFontDefinition = new StyleFontDefinition(LabelFont));
     }
 
     private void StyleMenuTree(VisualElement element, bool rootMainMenu)
@@ -508,7 +440,6 @@ public class MainMenu : MonoBehaviour
     private static void StyleMenuLabel(Label label, bool rootMainMenu)
     {
         label.style.color = new Color(0.86f, 0.98f, 1f, 0.94f);
-        label.style.unityFontDefinition = new StyleFontDefinition(LabelFont);
         label.style.unityFontStyleAndWeight = FontStyle.Normal;
         label.style.unityTextAlign = TextAnchor.MiddleLeft;
         label.style.whiteSpace = WhiteSpace.Normal;
@@ -556,14 +487,12 @@ public class MainMenu : MonoBehaviour
         field.style.marginTop = 0f;
         field.style.marginBottom = rootMainMenu ? 4f : 8f;
         field.style.color = new Color(0.86f, 0.98f, 1f, 0.96f);
-        field.style.unityFontDefinition = new StyleFontDefinition(LabelFont);
         field.style.fontSize = rootMainMenu ? 18f : 15f;
         field.pickingMode = PickingMode.Position;
 
         field.labelElement.style.minWidth = rootMainMenu ? 100f : 190f;
         field.labelElement.style.width = rootMainMenu ? 100f : 190f;
         field.labelElement.style.color = new Color(0.78f, 0.92f, 0.98f, 0.84f);
-        field.labelElement.style.unityFontDefinition = new StyleFontDefinition(LabelFont);
     }
 
     private static void StyleMenuButton(UiButton button, bool rootMainMenu)
@@ -574,7 +503,6 @@ public class MainMenu : MonoBehaviour
         button.style.borderTopWidth = 0f;
         button.style.borderBottomWidth = 0f;
         button.style.color = new Color(0.86f, 0.98f, 1f, 0.96f);
-        button.style.unityFontDefinition = new StyleFontDefinition(LabelFont);
         button.style.fontSize = rootMainMenu ? 24f : 16f;
         button.style.unityFontStyleAndWeight = FontStyle.Normal;
         button.style.unityTextAlign = TextAnchor.MiddleLeft;
@@ -860,60 +788,6 @@ public class MainMenu : MonoBehaviour
             Destroy(_nextMenuSurfaceDocument.gameObject);
             _nextMenuSurfaceDocument = null;
         }
-    }
-
-    private static TextCoreFontAsset TitleFont =>
-        _titleFont ??= ResolveFontAsset(
-            "Assets/Fonts/Ubuntu/Montserrat-Thin SDF.asset",
-            "Montserrat Thin",
-            "Montserrat");
-
-    private static TextCoreFontAsset LabelFont =>
-        _labelFont ??= ResolveFontAsset(
-            "Assets/Fonts/Ubuntu/Ubuntu-R SDF.asset",
-            "Ubuntu",
-            "Ubuntu Regular");
-
-    private static TextCoreFontAsset ResolveFontAsset(string assetPath, params string[] osFontNames)
-    {
-#if UNITY_EDITOR
-        foreach (var asset in UnityEditor.AssetDatabase.LoadAllAssetsAtPath(assetPath))
-        {
-            if (asset is TextCoreFontAsset editorFontAsset)
-                return editorFontAsset;
-        }
-#endif
-
-        foreach (var osFontName in osFontNames)
-        {
-            try
-            {
-                var fontAsset = TextCoreFontAsset.CreateFontAsset(
-                    osFontName,
-                    "Regular",
-                    90,
-                    9,
-                    GlyphRenderMode.SDFAA);
-                if (fontAsset != null)
-                    return fontAsset;
-            }
-            catch
-            {
-                // Try the next configured face name before falling back.
-            }
-        }
-
-        Debug.LogWarning($"Failed to resolve UI font asset '{assetPath}'. Falling back to Arial.");
-        var fallback = TextCoreFontAsset.CreateFontAsset(
-            "Arial",
-            "Regular",
-            90,
-            9,
-            GlyphRenderMode.SDFAA);
-        if (fallback != null)
-            return fallback;
-
-        throw new InvalidOperationException($"Failed to create fallback UI font asset for '{assetPath}'.");
     }
 
     private sealed class MenuHoverButton
