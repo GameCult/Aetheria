@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using GameCult.Aetheria.State.Verse;
+using GameCult.Mesh;
 using TMPro;
 using UniRx;
 using UnityEngine;
@@ -33,6 +34,7 @@ public class SectorMap : MonoBehaviour
     public Texture2D HomeIcon;
     public Prototype LegendPrototype;
     public float IconDistance = 1;
+    private AetheriaClientState _runtimeState;
     public float IconBackgroundSize = 3;
     public float LabelDistance = .4f;
     public float LinkWidth;
@@ -219,8 +221,8 @@ public class SectorMap : MonoBehaviour
 
     private void EnsureSectorMapLoaded()
     {
-        _sectorMap = AetheriaUnityRuntimeClientProvider
-            .CurrentSectorMap("unity-sector-map");
+        _runtimeState ??= AetheriaUnityRuntimeClientProvider.RuntimeState("unity-sector-map");
+        _sectorMap = _runtimeState.SectorMap.Latest();
 
         if (_sectorMapLoaded)
             return;

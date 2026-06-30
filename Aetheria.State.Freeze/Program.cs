@@ -117,17 +117,17 @@ static async Task ExportFixtureSetAsync(
         MaxX = options.ViewportMaxX,
         MaxY = options.ViewportMaxY
     };
-    WriteArtifact(outputDirectory, manifest, "projection.rts-viewport", AetheriaRuntimeDaemonSchemas.RtsViewport, AetheriaRuntimeRtsProjection.ProjectViewport(frame, viewport));
-    WriteArtifact(outputDirectory, manifest, "projection.objects-viewport", AetheriaRuntimeDaemonSchemas.ObjectsViewport, AetheriaRuntimeRtsProjection.ProjectObjectsViewport(frame, viewport));
-    WriteArtifact(outputDirectory, manifest, "projection.gravity-viewport", AetheriaRuntimeDaemonSchemas.GravityViewport, AetheriaRuntimeRtsProjection.ProjectGravityViewport(frame, viewport));
-    WriteArtifact(outputDirectory, manifest, "projection.current-zone", AetheriaRuntimeDaemonSchemas.CurrentZone, AetheriaRuntimeRtsProjection.ProjectCurrentZone(frame));
-    WriteArtifact(outputDirectory, manifest, "projection.current-entity", AetheriaRuntimeDaemonSchemas.CurrentEntity, AetheriaRuntimeRtsProjection.ProjectCurrentEntity(frame));
-    WriteArtifact(outputDirectory, manifest, "projection.sector-map", AetheriaRuntimeDaemonSchemas.SectorMap, AetheriaRuntimeRtsProjection.ProjectSectorMap(frame));
-    WriteArtifact(outputDirectory, manifest, "projection.zone-render", AetheriaRuntimeDaemonSchemas.ZoneRender, AetheriaRuntimeRtsProjection.ProjectZoneRender(frame));
+    WriteArtifact(outputDirectory, manifest, "document.rts-viewport", AetheriaRuntimeDaemonSchemas.RtsViewport, AetheriaRuntimeRtsDocuments.Viewport(frame, viewport));
+    WriteArtifact(outputDirectory, manifest, "document.objects-viewport", AetheriaRuntimeDaemonSchemas.ObjectsViewport, AetheriaRuntimeRtsDocuments.ObjectsViewport(frame, viewport));
+    WriteArtifact(outputDirectory, manifest, "document.gravity-viewport", AetheriaRuntimeDaemonSchemas.GravityViewport, AetheriaRuntimeRtsDocuments.GravityViewport(frame, viewport));
+    WriteArtifact(outputDirectory, manifest, "document.current-zone", AetheriaRuntimeDaemonSchemas.CurrentZone, AetheriaRuntimeRtsDocuments.CurrentZone(frame));
+    WriteArtifact(outputDirectory, manifest, "document.current-entity", AetheriaRuntimeDaemonSchemas.CurrentEntity, AetheriaRuntimeRtsDocuments.CurrentEntity(frame));
+    WriteArtifact(outputDirectory, manifest, "document.sector-map", AetheriaRuntimeDaemonSchemas.SectorMap, AetheriaRuntimeRtsDocuments.SectorMap(frame));
+    WriteArtifact(outputDirectory, manifest, "document.zone-render", AetheriaRuntimeDaemonSchemas.ZoneRender, AetheriaRuntimeRtsDocuments.ZoneRender(frame));
 
     var selectedEntityIndex = ResolveSelectedEntityIndex(frame);
-    WriteArtifact(outputDirectory, manifest, "projection.selected-object", AetheriaRuntimeDaemonSchemas.SelectedObject, AetheriaRuntimeRtsProjection.ProjectSelectedObject(frame, selectedEntityIndex));
-    WriteArtifact(outputDirectory, manifest, "projection.inventory", AetheriaRuntimeDaemonSchemas.Inventory, AetheriaRuntimeRtsProjection.ProjectInventory(frame, selectedEntityIndex));
+    WriteArtifact(outputDirectory, manifest, "document.selected-object", AetheriaRuntimeDaemonSchemas.SelectedObject, AetheriaRuntimeRtsDocuments.SelectedObject(frame, selectedEntityIndex));
+    WriteArtifact(outputDirectory, manifest, "document.inventory", AetheriaRuntimeDaemonSchemas.Inventory, AetheriaRuntimeRtsDocuments.Inventory(frame, selectedEntityIndex));
 
     WriteJson(Path.Combine(outputDirectory, "manifest.json"), manifest);
 }

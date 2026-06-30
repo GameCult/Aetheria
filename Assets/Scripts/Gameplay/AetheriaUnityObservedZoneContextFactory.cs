@@ -67,6 +67,15 @@ public sealed class AetheriaUnityObservedZoneContextFactory
         return observedZoneContext;
     }
 
+    public GalaxyZone ResolveGalaxyZone(int daemonZoneIndex)
+    {
+        if (daemonZoneIndex < 0)
+            return null;
+
+        _observedGalaxy ??= _resolveObservedGalaxy();
+        return _observedGalaxy?.Zones?.FirstOrDefault(zone => zone != null && zone.ZoneIndex == daemonZoneIndex);
+    }
+
     private static ZoneConstructionBlueprint CreateZoneConstructionBlueprint(AetheriaRuntimeZoneRenderDocument render)
     {
         var blueprint = new ZoneConstructionBlueprint

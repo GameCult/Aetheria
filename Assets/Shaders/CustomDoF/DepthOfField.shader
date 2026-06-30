@@ -13,9 +13,9 @@ Shader "Aetheria/PostProcessing/FogBlur"
 
             HLSLPROGRAM
                 #pragma target 3.5
-                #pragma vertex VertDefault
+                #pragma vertex Vert
                 #pragma fragment FragCoC
-                #include "DepthOfField.hlsl"
+                #include "AetheriaFogBlurUrp.hlsl"
             ENDHLSL
         }
 
@@ -25,9 +25,9 @@ Shader "Aetheria/PostProcessing/FogBlur"
 
             HLSLPROGRAM
                 #pragma target 5.0
-                #pragma vertex VertDefault
+                #pragma vertex Vert
                 #pragma fragment FragTempFilter
-                #include "DepthOfField.hlsl"
+                #include "AetheriaFogBlurUrp.hlsl"
             ENDHLSL
         }
 
@@ -37,9 +37,9 @@ Shader "Aetheria/PostProcessing/FogBlur"
 
             HLSLPROGRAM
                 #pragma target 5.0
-                #pragma vertex VertDefault
+                #pragma vertex Vert
                 #pragma fragment FragPrefilter
-                #include "DepthOfField.hlsl"
+                #include "AetheriaFogBlurUrp.hlsl"
             ENDHLSL
         }
 
@@ -49,10 +49,10 @@ Shader "Aetheria/PostProcessing/FogBlur"
 
             HLSLPROGRAM
                 #pragma target 3.5
-                #pragma vertex VertDefault
+                #pragma vertex Vert
                 #pragma fragment FragBlur
                 #define KERNEL_SMALL
-                #include "DepthOfField.hlsl"
+                #include "AetheriaFogBlurUrp.hlsl"
             ENDHLSL
         }
 
@@ -62,10 +62,10 @@ Shader "Aetheria/PostProcessing/FogBlur"
 
             HLSLPROGRAM
                 #pragma target 3.5
-                #pragma vertex VertDefault
+                #pragma vertex Vert
                 #pragma fragment FragBlur
                 #define KERNEL_MEDIUM
-                #include "DepthOfField.hlsl"
+                #include "AetheriaFogBlurUrp.hlsl"
             ENDHLSL
         }
 
@@ -75,10 +75,10 @@ Shader "Aetheria/PostProcessing/FogBlur"
 
             HLSLPROGRAM
                 #pragma target 3.5
-                #pragma vertex VertDefault
+                #pragma vertex Vert
                 #pragma fragment FragBlur
                 #define KERNEL_LARGE
-                #include "DepthOfField.hlsl"
+                #include "AetheriaFogBlurUrp.hlsl"
             ENDHLSL
         }
 
@@ -88,10 +88,10 @@ Shader "Aetheria/PostProcessing/FogBlur"
 
             HLSLPROGRAM
                 #pragma target 3.5
-                #pragma vertex VertDefault
+                #pragma vertex Vert
                 #pragma fragment FragBlur
                 #define KERNEL_VERYLARGE
-                #include "DepthOfField.hlsl"
+                #include "AetheriaFogBlurUrp.hlsl"
             ENDHLSL
         }
 
@@ -101,9 +101,9 @@ Shader "Aetheria/PostProcessing/FogBlur"
 
             HLSLPROGRAM
                 #pragma target 3.5
-                #pragma vertex VertDefault
+                #pragma vertex Vert
                 #pragma fragment FragPostBlur
-                #include "DepthOfField.hlsl"
+                #include "AetheriaFogBlurUrp.hlsl"
             ENDHLSL
         }
 
@@ -113,9 +113,9 @@ Shader "Aetheria/PostProcessing/FogBlur"
 
             HLSLPROGRAM
                 #pragma target 3.5
-                #pragma vertex VertDefault
+                #pragma vertex Vert
                 #pragma fragment FragCombine
-                #include "DepthOfField.hlsl"
+                #include "AetheriaFogBlurUrp.hlsl"
             ENDHLSL
         }
 
@@ -125,9 +125,9 @@ Shader "Aetheria/PostProcessing/FogBlur"
 
             HLSLPROGRAM
                 #pragma target 3.5
-                #pragma vertex VertDefault
+                #pragma vertex Vert
                 #pragma fragment FragDebugOverlay
-                #include "DepthOfField.hlsl"
+                #include "AetheriaFogBlurUrp.hlsl"
             ENDHLSL
         }
     }
@@ -144,9 +144,9 @@ Shader "Aetheria/PostProcessing/FogBlur"
 
             HLSLPROGRAM
                 #pragma target 3.5
-                #pragma vertex VertDefault
+                #pragma vertex Vert
                 #pragma fragment FragCoC
-                #include "DepthOfField.hlsl"
+                #include "AetheriaFogBlurUrp.hlsl"
             ENDHLSL
         }
 
@@ -156,9 +156,9 @@ Shader "Aetheria/PostProcessing/FogBlur"
 
             HLSLPROGRAM
                 #pragma target 3.5
-                #pragma vertex VertDefault
+                #pragma vertex Vert
                 #pragma fragment FragTempFilter
-                #include "DepthOfField.hlsl"
+                #include "AetheriaFogBlurUrp.hlsl"
             ENDHLSL
         }
 
@@ -168,9 +168,9 @@ Shader "Aetheria/PostProcessing/FogBlur"
 
             HLSLPROGRAM
                 #pragma target 3.5
-                #pragma vertex VertDefault
+                #pragma vertex Vert
                 #pragma fragment FragPrefilter
-                #include "DepthOfField.hlsl"
+                #include "AetheriaFogBlurUrp.hlsl"
             ENDHLSL
         }
 
@@ -180,10 +180,10 @@ Shader "Aetheria/PostProcessing/FogBlur"
 
             HLSLPROGRAM
                 #pragma target 3.5
-                #pragma vertex VertDefault
+                #pragma vertex Vert
                 #pragma fragment FragBlur
                 #define KERNEL_SMALL
-                #include "DepthOfField.hlsl"
+                #include "AetheriaFogBlurUrp.hlsl"
             ENDHLSL
         }
 
@@ -193,10 +193,10 @@ Shader "Aetheria/PostProcessing/FogBlur"
 
             HLSLPROGRAM
                 #pragma target 3.5
-                #pragma vertex VertDefault
+                #pragma vertex Vert
                 #pragma fragment FragBlur
                 #define KERNEL_MEDIUM
-                #include "DepthOfField.hlsl"
+                #include "AetheriaFogBlurUrp.hlsl"
             ENDHLSL
         }
 
@@ -206,10 +206,10 @@ Shader "Aetheria/PostProcessing/FogBlur"
 
             HLSLPROGRAM
                 #pragma target 3.5
-                #pragma vertex VertDefault
+                #pragma vertex Vert
                 #pragma fragment FragBlur
                 #define KERNEL_LARGE
-                #include "DepthOfField.hlsl"
+                #include "AetheriaFogBlurUrp.hlsl"
             ENDHLSL
         }
 
@@ -219,10 +219,10 @@ Shader "Aetheria/PostProcessing/FogBlur"
 
             HLSLPROGRAM
                 #pragma target 3.5
-                #pragma vertex VertDefault
+                #pragma vertex Vert
                 #pragma fragment FragBlur
                 #define KERNEL_VERYLARGE
-                #include "DepthOfField.hlsl"
+                #include "AetheriaFogBlurUrp.hlsl"
             ENDHLSL
         }
 
@@ -232,9 +232,9 @@ Shader "Aetheria/PostProcessing/FogBlur"
 
             HLSLPROGRAM
                 #pragma target 3.5
-                #pragma vertex VertDefault
+                #pragma vertex Vert
                 #pragma fragment FragPostBlur
-                #include "DepthOfField.hlsl"
+                #include "AetheriaFogBlurUrp.hlsl"
             ENDHLSL
         }
 
@@ -244,9 +244,9 @@ Shader "Aetheria/PostProcessing/FogBlur"
 
             HLSLPROGRAM
                 #pragma target 3.5
-                #pragma vertex VertDefault
+                #pragma vertex Vert
                 #pragma fragment FragCombine
-                #include "DepthOfField.hlsl"
+                #include "AetheriaFogBlurUrp.hlsl"
             ENDHLSL
         }
 
@@ -256,9 +256,9 @@ Shader "Aetheria/PostProcessing/FogBlur"
 
             HLSLPROGRAM
                 #pragma target 3.5
-                #pragma vertex VertDefault
+                #pragma vertex Vert
                 #pragma fragment FragDebugOverlay
-                #include "DepthOfField.hlsl"
+                #include "AetheriaFogBlurUrp.hlsl"
             ENDHLSL
         }
     }

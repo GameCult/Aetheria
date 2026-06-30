@@ -57,14 +57,14 @@ The current migration is moving toward this shape:
 
 ```text
 client input
-  -> typed client facade
+  -> typed client handles
   -> typed command document
   -> local Verse node
   -> daemon command gate
   -> simulation
   -> typed daemon frame/fact documents
   -> local Verse replica
-  -> typed projection or native SoA view
+  -> managed typed document/query or native SoA view
   -> Unity/Electron rendering and UI
 ```
 
@@ -79,7 +79,7 @@ typed Verse state."
 Durable typed state and shared runtime contract. This is the center of the new
 world. It owns document types, schema registration, state mapping, Eve command
 bridges, provider advertisement, player settings, loadout templates, trade
-policy, Verse target state, and several projection helpers.
+policy, Verse target state, and managed derived document/query helpers.
 
 `Aetheria.State.Daemon`
 
@@ -91,8 +91,8 @@ daemon frame/SoA/health/provider/surface records.
 
 The Unity-embeddable runtime state package. Unity, tests, daemon, and Electron
 binding generation all depend on this contract. This package contains the
-shared C# client facade (`AetheriaClient`, `AetheriaControl`, `AetheriaUi`),
-daemon command documents, RTS/current-entity projections, Starbridge documents,
+shared C# client handles (`AetheriaClient`, `AetheriaControl`, `AetheriaUi`),
+daemon command documents, RTS/current-entity documents, Starbridge documents,
 authority policy, SoA documents, Eve surface builders, and runtime catalog
 snapshots.
 
@@ -106,7 +106,7 @@ daemon contract fills in.
 `Aetheria.Rts.Web`
 
 Electron RTS client. It is intentionally thin: browser UI plus Electron
-CultMesh/Verse access, local projection reads, and typed operation helpers.
+CultMesh/Verse access, generated query/document reads, and typed operation helpers.
 Generated TypeScript bindings live in
 `Aetheria.Rts.Web/Electron/aetheria-rts-generated-bindings.ts` and are derived
 from C# `[Key]` declarations.
@@ -218,7 +218,7 @@ Command application is in:
 Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeDaemonOperations.cs
 ```
 
-### Client Facade
+### Client Handles
 
 Use `AetheriaClient` first:
 
@@ -232,9 +232,9 @@ documents, Starbridge seat handles, typed controls through `AetheriaControl`,
 and typed UI surface helpers through `AetheriaUi`.
 
 If a Unity panel or Electron surface needs a fact, prefer the generic managed
-document call first. Add a named facade only when it carries semantic identity,
+document call first. Add a named handle only when it carries semantic identity,
 parameters, operation policy, or a distinct derived/native shape. Avoid handing
-callers raw daemon frames unless the caller is a transitional projection layer.
+callers raw daemon frames unless the caller is an explicitly fenced transition.
 
 ### Unity Shell
 
@@ -292,11 +292,11 @@ Add or inspect a daemon command:
 - `Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeDaemonOperations.cs`
 - `Aetheria.State.Verify/Program.cs`
 
-Add a client projection:
+Add a managed derived document/query:
 
-- `Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeRtsProjection.cs`
+- `Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeRtsDocuments.cs`
 - `Packages/org.gamecult.aetheria.state/Runtime/AetheriaClient.cs`
-- `Aetheria.Rts.Web/Electron/aetheria-rts-local-projection.ts`
+- `Aetheria.Rts.Web/Electron/aetheria-rts-local-documents.ts`
 - `Aetheria.Rts.Web/Electron/aetheria-rts-generated-bindings.ts`
 - `Aetheria.State.Verify/Program.cs`
 
@@ -306,7 +306,6 @@ Work on Unity thin-client migration:
 - `Assets/Scripts/Gameplay/AetheriaUnityGameplayBootShell.cs`
 - `Assets/Scripts/Gameplay/AetheriaUnityGameplayInputShell.cs`
 - `Assets/Scripts/Gameplay/AetheriaUnityObservedFrameApplier.cs`
-- `Assets/Scripts/Gameplay/AetheriaUnityObservedFacadeProjector.cs`
 - `Assets/Scripts/Gameplay/AetheriaUnityCurrentEntityBinder.cs`
 - `Assets/Scripts/Gameplay/AetheriaUnityTargetPresentation.cs`
 - `Assets/Scripts/UI/Menu/*.cs`
@@ -316,7 +315,7 @@ Work on Unity thin-client migration:
 Work on Eve/CultUI surfaces:
 
 - `Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeEveSurfaceState.cs`
-- `Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeEveSurfaceAdapter.cs`
+- `Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeSurfaceDocuments.cs`
 - `Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeEveCommandClient.cs`
 - `Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntime*SurfaceBuilder.cs`
 - `Packages/org.gamecult.aetheria.eve-runtime/Runtime/AetheriaEveSurfacePresenter.cs`
@@ -330,7 +329,7 @@ Work on RTS/Electron:
 - `Aetheria.Rts.Web/Electron/preload.cjs`
 - `Aetheria.Rts.Web/Electron/aetheria-cultmesh.ts`
 - `Aetheria.Rts.Web/Electron/aetheria-rts-bindings.ts`
-- `Aetheria.Rts.Web/Electron/aetheria-rts-local-projection.ts`
+- `Aetheria.Rts.Web/Electron/aetheria-rts-local-documents.ts`
 - `Aetheria.Rts.Web/scripts/generate-rts-bindings.mjs`
 
 Work on native/SoA render path:
@@ -360,7 +359,7 @@ Work on Ymir/physics:
    fact.
    If yes, promote it into `Aetheria.State` and read it through `AetheriaClient`.
 
-3. If a fact is needed every frame, prefer a typed projection or SoA/native view.
+3. If a fact is needed every frame, prefer a typed query/document or SoA/native view.
    Do not make Unity crawl a whole daemon frame in a hot path unless the code is
    explicitly transitional and fenced by the verifier.
 
@@ -373,7 +372,7 @@ Work on Ymir/physics:
    enemy AI, movement rules, trade rules, station rules, or combat rules.
 
 6. Keep Unity honest.
-   Unity may adapt old facade objects for presentation until Stage 8 finishes,
+   Unity may adapt old object graphs for presentation until Stage 8 finishes,
    but new state truth belongs in typed documents.
 
 7. Do not preserve legacy shape for its own sake.

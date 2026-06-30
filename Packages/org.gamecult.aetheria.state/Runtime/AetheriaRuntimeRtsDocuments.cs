@@ -491,7 +491,7 @@ namespace GameCult.Aetheria.State.Verse
                     .Where(entity => entity != null &&
                                      entity.TargetEntityIndex >= 0 &&
                                      entityMap.ContainsKey(entity.TargetEntityIndex))
-                    .Select(entity => ProjectZoneTargetRow(entity, entityMap[entity.TargetEntityIndex]))
+                    .Select(entity => ToZoneTargetRow(entity, entityMap[entity.TargetEntityIndex]))
                     .ToArray(),
                 Contacts = entities
                     .Where(entity => entity != null)
@@ -524,14 +524,14 @@ namespace GameCult.Aetheria.State.Verse
                 : StationRefitEntities(context, parent, currentEntityIndex);
             var stationStock = parent == null
                 ? Array.Empty<AetheriaRuntimeStationStockItem>()
-                : ProjectStationStock(parent);
+                : StationStock(parent);
             var dockingBays = parent == null
                 ? Array.Empty<AetheriaRuntimeStationDockingBayRow>()
                 : ProjectStationDockingBays(context, parent, currentEntityIndex);
             var cargoTargets = parent == null
                 ? Array.Empty<AetheriaRuntimeStationCargoTargetRow>()
                 : ProjectStationCargoTargets(parentKey, dockingBayIndex, dockingBays, availableEntities);
-            stationStock = ProjectStationStockTradeFacts(
+            stationStock = StationStockTradeFacts(
                 stationStock,
                 availableEntities,
                 cargoTargets,
@@ -563,7 +563,7 @@ namespace GameCult.Aetheria.State.Verse
             };
         }
 
-        private static AetheriaRuntimeZoneTargetRow ProjectZoneTargetRow(
+        private static AetheriaRuntimeZoneTargetRow ToZoneTargetRow(
             AetheriaRuntimeEntitySnapshotCommit observer,
             AetheriaRuntimeEntitySnapshotCommit target)
         {
@@ -1078,14 +1078,14 @@ namespace GameCult.Aetheria.State.Verse
                         entity.CargoContents?.Count ?? 0),
                     DockingBayIndex = dockingBayIndex,
                     HullItemKey = entity.HullItemKey ?? "",
-                    CargoItems = ProjectStationStock(entity)
+                    CargoItems = StationStock(entity)
                 });
             }
 
             return options.ToArray();
         }
 
-        private static IReadOnlyList<AetheriaRuntimeStationStockItem> ProjectStationStock(
+        private static IReadOnlyList<AetheriaRuntimeStationStockItem> StationStock(
             AetheriaRuntimeEntitySnapshotCommit dockParent)
         {
             var stock = new List<AetheriaRuntimeStationStockItem>();
@@ -1155,7 +1155,7 @@ namespace GameCult.Aetheria.State.Verse
                     OccupiedHullItemKey = assignedEntity?.HullItemKey ?? "",
                     OccupiedByCurrentEntity = assignedEntityIndex >= 0 && assignedEntityIndex == currentEntityIndex,
                     CargoItems = dockingBayIndex < contents.Count
-                        ? ProjectStationStock(contents[dockingBayIndex], dockingBayIndex)
+                        ? StationStock(contents[dockingBayIndex], dockingBayIndex)
                         : Array.Empty<AetheriaRuntimeStationStockItem>()
                 });
             }
@@ -1163,7 +1163,7 @@ namespace GameCult.Aetheria.State.Verse
             return rows.ToArray();
         }
 
-        private static IReadOnlyList<AetheriaRuntimeStationStockItem> ProjectStationStock(
+        private static IReadOnlyList<AetheriaRuntimeStationStockItem> StationStock(
             AetheriaRuntimeCargoBayLoadoutCommit cargoBay,
             int cargoBayIndex)
         {
@@ -1221,7 +1221,7 @@ namespace GameCult.Aetheria.State.Verse
             return options.ToArray();
         }
 
-        private static IReadOnlyList<AetheriaRuntimeStationStockItem> ProjectStationStockTradeFacts(
+        private static IReadOnlyList<AetheriaRuntimeStationStockItem> StationStockTradeFacts(
             IReadOnlyList<AetheriaRuntimeStationStockItem> stationStock,
             IReadOnlyList<AetheriaRuntimeStationRefitEntityOption> availableEntities,
             IReadOnlyList<AetheriaRuntimeStationCargoTargetRow> cargoTargets,
@@ -1232,7 +1232,7 @@ namespace GameCult.Aetheria.State.Verse
                 .Select(stock =>
                 {
                     var itemKey = stock?.ItemKey ?? "";
-                    var price = ProjectStationStockPrice(stock, catalog);
+                    var price = StationStockPrice(stock, catalog);
                     return new AetheriaRuntimeStationStockItem
                     {
                         ItemKey = itemKey,
@@ -1250,7 +1250,7 @@ namespace GameCult.Aetheria.State.Verse
                 .ToArray();
         }
 
-        private static int ProjectStationStockPrice(
+        private static int StationStockPrice(
             AetheriaRuntimeStationStockItem? stock,
             AetheriaRuntimeCatalogSnapshot? catalog)
         {

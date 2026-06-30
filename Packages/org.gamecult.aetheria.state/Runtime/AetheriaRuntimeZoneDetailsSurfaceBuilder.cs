@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using GameCult.Eve.Surface;
 
@@ -200,6 +201,36 @@ namespace GameCult.Aetheria.State.Verse
                 });
         }
 
+        public static AetheriaRuntimeSurfaceDocument BuildFromDocuments(
+            AetheriaRuntimeZoneDetailsDocument zoneDetails,
+            AetheriaRuntimeSectorMapDocument sectorMap,
+            AetheriaRuntimeCatalogSnapshot catalog,
+            AetheriaRuntimePlayerSettingsDocument playerSettings,
+            string updatedAtUtc,
+            long version = 1)
+        {
+            var sectorZone = ResolveSectorZone(sectorMap, zoneDetails?.ZoneIndex ?? -1);
+            var ownerFactionIndex = sectorZone?.OwnerFactionIndex ?? -1;
+            var otherFactions = (sectorZone?.FactionIndices ?? Array.Empty<int>())
+                .Where(index => index >= 0 && index != ownerFactionIndex)
+                .Distinct()
+                .Select(FormatFaction)
+                .ToArray();
+            var facts = Facts(zoneDetails, hullItemKey => ResolveHullType(catalog, hullItemKey));
+
+            return Build(
+                ResolveZoneName(sectorZone, zoneDetails),
+                ownerFactionIndex >= 0 ? FormatFaction(ownerFactionIndex) : "None",
+                FormatValue(facts.Mass, playerSettings),
+                FormatValue(facts.Radius, playerSettings),
+                otherFactions,
+                facts.Bodies,
+                facts.Entities,
+                facts.HasContents,
+                updatedAtUtc,
+                version);
+        }
+
         private static IReadOnlyList<AetheriaRuntimeZoneDetailsBodyFacts> BodyFacts(
             AetheriaRuntimeZoneSnapshotCommit zone)
         {
@@ -280,6 +311,60 @@ namespace GameCult.Aetheria.State.Verse
         private static bool HasHullType(AetheriaRuntimeZoneDetailsEntityFacts entity, string hullType)
         {
             return entity != null && string.Equals(entity.HullType ?? "", hullType, StringComparison.Ordinal);
+        }
+
+        private static AetheriaRuntimeSectorMapZone ResolveSectorZone(
+            AetheriaRuntimeSectorMapDocument sectorMap,
+            int zoneIndex)
+        {
+            if (zoneIndex < 0)
+                return null;
+
+            return (sectorMap?.Zones ?? Array.Empty<AetheriaRuntimeSectorMapZone>())
+                .FirstOrDefault(zone => zone.ZoneIndex == zoneIndex);
+        }
+
+        private static string ResolveZoneName(
+            AetheriaRuntimeSectorMapZone sectorZone,
+            AetheriaRuntimeZoneDetailsDocument zoneDetails)
+        {
+            if (!string.IsNullOrWhiteSpace(zoneDetails?.ZoneName))
+                return zoneDetails.ZoneName;
+
+            if (!string.IsNullOrWhiteSpace(sectorZone?.Name))
+                return sectorZone.Name;
+
+            return sectorZone == null ? "Unknown" : $"Zone {sectorZone.ZoneIndex}";
+        }
+
+        private static string ResolveHullType(
+            AetheriaRuntimeCatalogSnapshot catalog,
+            string hullItemKey)
+        {
+            var typedHull = catalog?.FindItem(hullItemKey ?? "");
+            return typedHull?.HullType ?? "";
+        }
+
+        private static string FormatFaction(int factionIndex)
+        {
+            return factionIndex < 0 ? "None" : $"Faction {factionIndex}";
+        }
+
+        private static string FormatValue(
+            double value,
+            AetheriaRuntimePlayerSettingsDocument playerSettings)
+        {
+            var digits = playerSettings?.SignificantDigits ?? 3;
+            var magnitude = value == 0 ? 0 : (int)Math.Floor(Math.Log10(Math.Abs(value))) + 1;
+            digits -= magnitude;
+            if (digits < 0)
+                digits = 0;
+
+            var formatted = value.ToString($"N{digits}", CultureInfo.CurrentCulture);
+            var decimalSeparator = Convert.ToChar(CultureInfo.CurrentCulture.NumberFormat.NumberDecimalSeparator);
+            return formatted.Contains(CultureInfo.CurrentCulture.NumberFormat.NumberDecimalSeparator)
+                ? formatted.TrimEnd('0').TrimEnd(decimalSeparator)
+                : formatted;
         }
     }
 

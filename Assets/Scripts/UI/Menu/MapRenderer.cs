@@ -7,6 +7,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using GameCult.Aetheria.State.Verse;
+using GameCult.Mesh;
 using TMPro;
 using UnityEngine;
 using Unity.Mathematics;
@@ -33,6 +34,7 @@ public class MapRenderer : MonoBehaviour
     public RawImage RtsIconPrototype;
     public float Scale;
     public float2 Position;
+    private AetheriaClientState _runtimeState;
     public float IconSize = 1f/128;
 
     private RectTransform _rect;
@@ -307,9 +309,8 @@ public class MapRenderer : MonoBehaviour
     {
         try
         {
-            return AetheriaUnityRuntimeClientProvider
-                .CurrentPlayerSettings("unity-map-renderer")
-                ?.ShowAsteroidsInMinimap ?? false;
+            _runtimeState ??= AetheriaUnityRuntimeClientProvider.RuntimeState("unity-map-renderer");
+            return _runtimeState.PlayerSettings.Latest()?.ShowAsteroidsInMinimap ?? false;
         }
         catch (Exception ex)
         {

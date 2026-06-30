@@ -21,6 +21,8 @@ namespace GameCult.Aetheria.State.Verse
             Add(entries, MapIcon("body.planet", "Planet", "Sprites/Map/planet"));
             Add(entries, MapIcon("body.sun", "Sun", "Sprites/Map/sun"));
             Add(entries, MapIcon("body.asteroid", "Asteroid", "Sprites/Map/asteroid"));
+            foreach (var inventoryAsset in InventoryUiAssets())
+                Add(entries, inventoryAsset);
 
             foreach (var item in catalog?.Items ?? Array.Empty<AetheriaRuntimeCatalogItem>())
             {
@@ -84,6 +86,49 @@ namespace GameCult.Aetheria.State.Verse
                 "image/*");
         }
 
+        public static AetheriaRuntimeAssetRef InventoryCellBackgroundAtlas()
+        {
+            return Texture(
+                "inventory.cell.background_atlas",
+                "Sprites/Flat UI/Nodes/Nodes8BG");
+        }
+
+        public static AetheriaRuntimeAssetRef InventoryCellForegroundAtlas()
+        {
+            return Texture(
+                "inventory.cell.foreground_atlas",
+                "Sprites/Flat UI/Nodes/Nodes8");
+        }
+
+        public static AetheriaRuntimeAssetRef InventoryThermalLayerAtlas()
+        {
+            return Texture(
+                "inventory.cell.thermal_layer_atlas",
+                "Sprites/Flat UI/pipes");
+        }
+
+        public static IReadOnlyList<AetheriaRuntimeAssetManifestEntry> InventoryUiAssets()
+        {
+            return new[]
+            {
+                new AetheriaRuntimeAssetManifestEntry
+                {
+                    Ref = InventoryCellBackgroundAtlas(),
+                    Tags = new[] { "inventory", "cell", "background", "atlas" }
+                },
+                new AetheriaRuntimeAssetManifestEntry
+                {
+                    Ref = InventoryCellForegroundAtlas(),
+                    Tags = new[] { "inventory", "cell", "foreground", "atlas" }
+                },
+                new AetheriaRuntimeAssetManifestEntry
+                {
+                    Ref = InventoryThermalLayerAtlas(),
+                    Tags = new[] { "inventory", "thermal", "layer", "atlas" }
+                }
+            };
+        }
+
         private static AetheriaRuntimeAssetManifestEntry MapIcon(
             string key,
             string label,
@@ -101,6 +146,16 @@ namespace GameCult.Aetheria.State.Verse
             return AetheriaRuntimeAssetRef.FromKey(
                 key,
                 AetheriaRuntimeAssetKinds.Sprite,
+                $"resources://{NormalizeResourcePath(resourcePath)}",
+                AetheriaRuntimeAssetTransports.Resources,
+                "image/*");
+        }
+
+        private static AetheriaRuntimeAssetRef Texture(string key, string resourcePath)
+        {
+            return AetheriaRuntimeAssetRef.FromKey(
+                key,
+                AetheriaRuntimeAssetKinds.Texture,
                 $"resources://{NormalizeResourcePath(resourcePath)}",
                 AetheriaRuntimeAssetTransports.Resources,
                 "image/*");

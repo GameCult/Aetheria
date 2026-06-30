@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using GameCult.Aetheria.State.Verse;
+using GameCult.Mesh;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -69,6 +70,7 @@ public class SchematicDisplay : MonoBehaviour
     private SchematicDisplayItem[] _schematicItems;
     private AetherDrive _aetherDrive;
     private AetheriaRuntimeDaemonRenderSettings? _renderSettings;
+    private AetheriaClientState _runtimeState;
 
     private bool _enemy;
     private Entity _player;
@@ -90,6 +92,15 @@ public class SchematicDisplay : MonoBehaviour
     public void SetRenderSettings(AetheriaRuntimeDaemonRenderSettings renderSettings)
     {
         _renderSettings = renderSettings;
+    }
+
+    private AetheriaClientState RuntimeState
+    {
+        get
+        {
+            _runtimeState ??= AetheriaUnityRuntimeClientProvider.RuntimeState("unity-schematic-display");
+            return _runtimeState;
+        }
     }
 
     public void ShowShip(Entity entity, Entity player = null)
@@ -318,7 +329,7 @@ public class SchematicDisplay : MonoBehaviour
     {
         try
         {
-            return AetheriaUnityRuntimeClientProvider.CurrentCatalog("unity-schematic-display");
+            return RuntimeState.Catalog.Latest();
         }
         catch (Exception ex)
         {
@@ -332,7 +343,7 @@ public class SchematicDisplay : MonoBehaviour
     {
         try
         {
-            return AetheriaUnityRuntimeClientProvider.CurrentPlayerSettings("unity-schematic-display");
+            return RuntimeState.PlayerSettings.Latest();
         }
         catch (Exception ex)
         {
@@ -346,9 +357,7 @@ public class SchematicDisplay : MonoBehaviour
     {
         try
         {
-            return AetheriaUnityRuntimeClientProvider
-                .CurrentEntityState("unity-schematic-display")
-                ?.Hud ?? new AetheriaRuntimeCurrentEntityHudStatus();
+            return RuntimeState.CurrentEntity.Latest()?.Hud ?? new AetheriaRuntimeCurrentEntityHudStatus();
         }
         catch (Exception ex)
         {

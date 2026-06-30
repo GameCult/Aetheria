@@ -550,7 +550,7 @@ static RudpCultNetSchemaServer StartRtsCultMeshHost(
 
             if (hasFrame && frame != null && TryGetRtsViewportRequest(request, out var viewportRecordKey, out var viewport))
             {
-                var viewportDocument = AetheriaRuntimeRtsProjection.ProjectViewport(frame, viewport);
+                var viewportDocument = AetheriaRuntimeRtsDocuments.Viewport(frame, viewport);
                 var viewportPut = node.Database.Documents.CreateRawDocumentPutMessage(
                     response.MessageId,
                     new CultRecordHandle<AetheriaRuntimeRtsViewportDocument>(
@@ -780,19 +780,19 @@ static async Task PublishDaemonApiDocumentsAsync(
             .ConfigureAwait(false);
     if (result.GameSurface != null)
         await node.MutableDocument<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonGameSurface)
-            .ReplaceAsync(AetheriaRuntimeEveSurfaceAdapter.ToEveSurfaceState(result.GameSurface))
+            .ReplaceAsync(AetheriaRuntimeSurfaceDocuments.ToEveSurfaceState(result.GameSurface))
             .ConfigureAwait(false);
     if (result.GameTuiSurface != null)
         await node.MutableDocument<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonGameTuiSurface)
-            .ReplaceAsync(AetheriaRuntimeEveSurfaceAdapter.ToEveSurfaceState(result.GameTuiSurface))
+            .ReplaceAsync(AetheriaRuntimeSurfaceDocuments.ToEveSurfaceState(result.GameTuiSurface))
             .ConfigureAwait(false);
     if (result.EditorSurface != null)
         await node.MutableDocument<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonEditorSurface)
-            .ReplaceAsync(AetheriaRuntimeEveSurfaceAdapter.ToEveSurfaceState(result.EditorSurface))
+            .ReplaceAsync(AetheriaRuntimeSurfaceDocuments.ToEveSurfaceState(result.EditorSurface))
             .ConfigureAwait(false);
     if (result.EditorTuiSurface != null)
         await node.MutableDocument<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonEditorTuiSurface)
-            .ReplaceAsync(AetheriaRuntimeEveSurfaceAdapter.ToEveSurfaceState(result.EditorTuiSurface))
+            .ReplaceAsync(AetheriaRuntimeSurfaceDocuments.ToEveSurfaceState(result.EditorTuiSurface))
             .ConfigureAwait(false);
 }
 

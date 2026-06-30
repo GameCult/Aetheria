@@ -8,14 +8,14 @@ using GameCult.Aetheria.State.Verse;
 
 public sealed class AetheriaUnityObservedEntityRestorer
 {
-    private readonly AetheriaUnityObservedEntityIndex _entityIndex;
+    private readonly AetheriaUnityPresentationEntityIndex _entityIndex;
     private readonly ItemManager _itemManager;
     private readonly Func<AetheriaRuntimeEntitySnapshot, bool, EntityConstructionBlueprint> _createBlueprint;
     private readonly Func<AetheriaRuntimeLoadoutItemSnapshot, ItemInstance> _createLoadoutItem;
     private readonly Action<string> _logWarning;
 
     public AetheriaUnityObservedEntityRestorer(
-        AetheriaUnityObservedEntityIndex entityIndex,
+        AetheriaUnityPresentationEntityIndex entityIndex,
         ItemManager itemManager,
         Func<AetheriaRuntimeEntitySnapshot, bool, EntityConstructionBlueprint> createBlueprint,
         Func<AetheriaRuntimeLoadoutItemSnapshot, ItemInstance> createLoadoutItem,
@@ -53,7 +53,7 @@ public sealed class AetheriaUnityObservedEntityRestorer
         }
 
         ApplyInPlace(entitySnapshots);
-        if (_entityIndex.TryResolveEntityByRecordKey(currentEntityKey, out var resolvedCurrentEntity) &&
+        if (_entityIndex.TryGetPresentationEntityByRecordKey(currentEntityKey, out var resolvedCurrentEntity) &&
             currentEntity != resolvedCurrentEntity)
         {
             reboundCurrentEntity = resolvedCurrentEntity;
@@ -107,7 +107,7 @@ public sealed class AetheriaUnityObservedEntityRestorer
     {
         foreach (var entitySnapshot in entitySnapshots)
         {
-            if (!_entityIndex.TryResolveEntityByRecordKey(entitySnapshot.RecordKey, out var entity))
+            if (!_entityIndex.TryGetPresentationEntityByRecordKey(entitySnapshot.RecordKey, out var entity))
                 continue;
 
             ApplyPoseAndSimpleRuntimeState(entity, entitySnapshot);
@@ -115,7 +115,7 @@ public sealed class AetheriaUnityObservedEntityRestorer
             if (entity.Settings != null)
                 entity.Settings.ShutdownPerformance = (float)entitySnapshot.ShutdownPerformance;
             entity.RestoreThermalExposure((float)entitySnapshot.Heatstroke, (float)entitySnapshot.Hypothermia);
-            RestoreRuntimeBehaviorState(entity, entitySnapshot, _entityIndex.EntitiesByRecordKey);
+            RestoreRuntimeBehaviorState(entity, entitySnapshot, _entityIndex.PresentationEntitiesByRecordKey);
         }
 
         _entityIndex.RefreshDaemonIndex();
@@ -123,6 +123,7 @@ public sealed class AetheriaUnityObservedEntityRestorer
 
     private static void ApplyPoseAndSimpleRuntimeState(Entity entity, AetheriaRuntimeEntitySnapshot entitySnapshot)
     {
+        entity.DaemonRecordKey = entitySnapshot.RecordKey ?? "";
         entity.DaemonEntityIndex = entitySnapshot.EntityIndex;
         entity.Name = entitySnapshot.Name ?? "";
         entity.CultPosition = new CultMath.float3((float)entitySnapshot.PositionX, (float)entitySnapshot.PositionY, (float)entitySnapshot.PositionZ);

@@ -15,7 +15,7 @@ tooling hosts.
 This is not a minimalist transport library. CultMesh should grow the shared
 abstractions that make daemon state feel intimate: typed state pointers,
 reactive wrappers, query handles, operation handles, native slice descriptors,
-authority claims, locality routing, schema-generated facades, UI bindings,
+authority claims, locality routing, schema-generated handles, UI bindings,
 diagnostics, and deterministic math/query primitives. "Primitive" does not
 only mean a small value type; it means any reusable cross-runtime developer
 affordance that can be hoisted into the shared library layer. The goal is a
@@ -72,18 +72,54 @@ that make that simple.
 First implementation footholds now exist in CultLib:
 
 - `E:/Projects/CultLib/src/GameCult.Mesh/CultMeshPrimitives.cs` defines typed operation handles, query surfaces, state pointers, route hints, authority claims, and native slice descriptors.
-- `E:/Projects/CultLib/src/GameCult.Mesh/CultMeshPrimitives.cs` also exposes fluent operation/query context builders, with `CultMesh.OperationContextFor(...)` and `CultMesh.QueryContextFor(...)` facade entrypoints. Application code should read like a typed Verse call, not like manual transport setup.
+- `E:/Projects/CultLib/src/GameCult.Mesh/CultMeshPrimitives.cs` also exposes fluent operation/query context builders, with `CultMesh.OperationContextFor(...)` and `CultMesh.QueryContextFor(...)` entrypoints. Application code should read like a typed Verse call, not like manual transport setup.
 - `E:/Projects/CultLib/src/GameCult.Geometry/CultGeometryPrimitives.cs` defines shared `CultVec2`, `CultVec3`, `CultRect`, `CultCircle`, and `CultSphere` values for query and physics contracts.
-- `E:/Projects/CultLib/packages/cultmesh-ts/src/index.ts` now exposes TS `CultMeshVec2`, `CultMeshRect`, `CultMeshViewportRequest`, `CultMeshQuerySurface`, `CultMeshQueryContext`, `CultMeshOperationHandle`, `CultMeshOperationContext`, `CultMeshOperationPayload`, `CultMeshDocumentHandle`, `CultMeshDocumentCatalog`, `CultMeshCollectionHandle`, `CultMeshStatePointer`, `CultMeshStateBindingDescriptor`, `CultMeshOperationBindingDescriptor`, `CultMeshOperationInvocationDescriptor`, native slice descriptors, authority claims, route hints, fluent context builders, and facade helpers like `CultMesh.rectFromBounds(...)`, `CultMesh.viewportRequest(...)`, `CultMesh.query(...)`, `CultMesh.operation(...)`, `CultMesh.document(...)`, `CultMesh.documents(...)`, `CultMesh.collection(...)`, `CultMesh.operationPayload(...)`, `CultMesh.statePointer(...)`, `CultMesh.stateBinding(...)`, `CultMesh.operationBinding(...)`, `CultMesh.operationInvocation(...)`, `CultMesh.nativeSliceView(...)`, `CultMesh.operationContextFor(...)`, and `CultMesh.queryContextFor(...)`.
+- `E:/Projects/CultLib/packages/cultmesh-ts/src/index.ts` now exposes TS `CultMeshVec2`, `CultMeshRect`, `CultMeshViewportRequest`, `CultMeshQuerySurface`, `CultMeshQueryContext`, `CultMeshOperationHandle`, `CultMeshOperationContext`, `CultMeshOperationPayload`, `CultMeshDocumentHandle`, `CultMeshDocumentCatalog`, `CultMeshCollectionHandle`, `CultMeshStatePointer`, `CultMeshStateBindingDescriptor`, `CultMeshOperationBindingDescriptor`, `CultMeshOperationInvocationDescriptor`, native slice descriptors, authority claims, route hints, fluent context builders, and handle helpers like `CultMesh.rectFromBounds(...)`, `CultMesh.viewportRequest(...)`, `CultMesh.query(...)`, `CultMesh.querySource(...)`, `CultMesh.operation(...)`, `CultMesh.document(...)`, `CultMesh.documents(...)`, `CultMesh.collection(...)`, `CultMesh.operationPayload(...)`, `CultMesh.statePointer(...)`, `CultMesh.stateBinding(...)`, `CultMesh.operationBinding(...)`, `CultMesh.operationInvocation(...)`, `CultMesh.nativeSliceView(...)`, `CultMesh.operationContextFor(...)`, and `CultMesh.queryContextFor(...)`.
 - `Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimePlayerSettingsSurfaceBuilder.cs` and `E:/Projects/Eve/packages/org.gamecult.eve.surface/Runtime/EveSurfaceDocument.cs` now expose component `StateBindings` as `IReadOnlyList<CultMeshStateBindingDescriptor>`. Eve no longer owns a parallel live binding DTO, and Aetheria no longer keeps one in its live runtime surface model. Aetheria only keeps a MessagePack DTO at the persisted document boundary and converts to the shared CultMesh primitive before handing surfaces to renderers.
+- `E:/Projects/Eve/packages/org.gamecult.eve.surface/Runtime/EveSurfaceDocument.cs` also exposes component `EmbeddedDocuments` as first-class CultUI slots. Aetheria runtime surfaces mirror that shape with `AetheriaRuntimeEmbeddedDocumentSlot`, so daemon-owned UI can compose nested synced surfaces such as inventory dropdowns without a Unity-only model, facade, or projector.
 - Aetheria and Eve live command templates now carry `CultMeshOperationBindingDescriptor`. Eve command requests carry `CultMeshOperationInvocationDescriptor` plus `CultMeshOperationPayload`, so renderer click/change events preserve operation id, schema, route hint, idempotency, and scalar field reads as shared CultMesh metadata. Legacy `command`, `label`, `transport`, and string payload fields remain compatibility projections and persisted DTO fields, but the live API no longer exposes raw command-string/dictionary constructors; controls point at typed CultMesh operations and renderers build requests from shared CultMesh primitives.
-- `Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeDaemonOperationsClient.cs` is now a typed operation facade that returns `CultMeshOperationReceipt` from semantic verbs such as `SetMoveVector`, `SetTarget`, `DockNearest`, and inventory transfers. The lower-level daemon command envelope remains an internal transport wrapper, but public client code should receive shared CultMesh receipts, not Aetheria-specific command envelopes.
+- `Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeDaemonOperationsClient.cs` is now a typed operation handle surface that returns `CultMeshOperationReceipt` from semantic verbs such as `SetMoveVector`, `SetTarget`, `DockNearest`, and inventory transfers. The lower-level daemon command envelope remains an internal transport wrapper, but public client code should receive shared CultMesh receipts, not Aetheria-specific command envelopes.
 - `Packages/org.gamecult.aetheria.state/Runtime/AetheriaUi.cs` applies the same rule to Eve/CultUI commands. Unity UI and Eve presenter code should call `AetheriaClient.Ui` and receive `CultMeshOperationReceipt`; `AetheriaRuntimeEveCommandEnvelope` remains a bridge/document persistence detail for the Verse command boundary, not the shape application code leans on.
 - `AetheriaRuntimeEveCommands` is internal now. It may help smoke tests and internal bridge code manufacture persisted command documents, but it is not the public renderer/client API. Public callers use `AetheriaClient.Ui`, and the shared receipt is the public outcome type.
 - `Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeDaemonRenderQueries.cs` now exposes daemon render gravity/body query overloads around `CultMath.rect` in Aetheria XY space. `AetheriaRuntimeXzRect` remains only as a Unity legacy adapter.
 - `E:/Projects/CultLib/src/GameCult.Caching.MessagePack/DirectoryMessagePackBackingStore.cs` now recovers readable schema-stamped cold records when the hot directory manifest is missing the record's catalog entry. Aetheria hit this with persisted Verse authority policy state; the fix belongs in CultCache because durable Verse state should feel managed and resilient across runtime/schema refreshes, not like hand-maintained manifest bookkeeping.
 - `E:/Projects/CultLib/packages/cultcache-ts/src/single-file-messagepack-backing-store.ts` and `E:/Projects/CultLib/packages/cultcache-rs/src/lib.rs` now mirror the same schema-stamped recovery for single-file MessagePack snapshots. Their cache registries resolve recovered schema names and normalize envelopes back to registered public document types, so browser/Electron/Rust clients can share durable Verse state without depending on a stale hot catalog.
 - `E:/Projects/CultLib/packages/cultcache-py/src/cultcache_py/stores.py`, `E:/Projects/CultLib/packages/cultcache-py/src/cultnet_py/replication.py`, and `E:/Projects/CultLib/packages/cultcache-ts/src/cult-cache-inspector.ts` now carry the same primitive into Python stores, raw CultNet replication helpers, and tooling inspection. A stale schema id should be a recoverable runtime detail when the cold payload is schema-stamped, not a client-visible failure mode.
+
+### Nested CultUI Surface Discovery
+
+Nested CultUI surfaces are a shared Eve/CultMesh feature, not an Aetheria-only
+inventory workaround. Discovery starts in `E:/Projects/Eve/tools/parity/parity-manifest.json`,
+which lists the canonical `embedded-surface` fixture and the active runtime
+claims for web, Flutter desktop/Linux/Android, iOS/UIKit, Android/Kotlin, Unity
+UI Toolkit, and Rust document sync. A renderer that claims CultUI GUI parity must
+advertise `embeddedDocuments` there and require the `embedded-surface` fixture.
+Every target runtime must be named in that matrix as tested, pending, or
+unsupported; an omitted runtime is a broken discovery story, not a harmless
+documentation gap.
+
+Run the shared evidence from the owning repos:
+
+```powershell
+cd E:\Projects\Eve
+node --test web\eve-dsl.test.mjs
+powershell -ExecutionPolicy Bypass -File .\scripts\run-parity-harness.ps1
+
+cd E:\Projects\CultLib\packages\cultnet-rs
+cargo test rust_preserves_cultui_embedded_surface_slots_through_typed_document_sync
+```
+
+When Flutter is installed, also run from `E:/Projects/Eve/flutter/eve_parity`:
+
+```powershell
+flutter test --plain-name embedded_surface_fixture_contract
+```
+
+Aetheria's local proof stays thin: build the Unity package and run
+`Aetheria.State.Verify`. The verifier should prove Aetheria consumes the shared
+contract through `AetheriaRuntimeSurfaceDocuments`, `AetheriaRuntimeEmbeddedDocumentSlot`,
+and the Eve UI Toolkit lowerer, not through local projectors, facades, or
+adapter-shaped child state.
 
 ### Typed Document Handles
 
@@ -149,7 +185,7 @@ const objects = await verse
   .watch();
 ```
 
-Queries are derived-state surfaces, not bespoke HTTP endpoints or local projection helpers. CultMesh should own query identity, parameters, caching, invalidation, locality routing, and remote execution. A co-located daemon can execute directly over slabs; a remote peer can execute through the Verse; a browser can consume the same query shape through generated TS/WASM bindings. The RTS binding generator now emits projection response types, `createAetheriaRuntimeRtsQueryHandles(...)` for every RTS read surface, renderer `aetheria-rts-contract.ts`, `AetheriaRtsIpcChannels`, the preload bridge, and `registerAetheriaRtsIpcHandlers(...)`. Those generated read handles are backed by `CultMesh.projectionRecipe(...).asQuerySurface()` with explicit daemon frame, health, authority, and Starbridge source descriptors. The RTS client passes its local publication route into the generated handles once, then uses automatic query contexts so the recipe owns locality defaults. Because `CultMeshQuerySurface` preserves `sources` and `routeHint`, the RTS client can expose `projectionDiagnostics()` directly from generated handle metadata instead of maintaining a parallel diagnostic table. Electron and browser clients consume generated contracts instead of duplicating query/response shapes, IPC channel names, handler registration, or viewport methods as the primary abstraction.
+Queries are derived-state surfaces, not bespoke HTTP endpoints or local helper layers. CultMesh should own query identity, parameters, caching, invalidation, locality routing, and remote execution. A co-located daemon can execute directly over slabs; a remote peer can execute through the Verse; a browser can consume the same query shape through generated TS/WASM bindings. The RTS binding generator now emits response document types, `createAetheriaRuntimeRtsQueryHandles(...)` for every RTS read surface, renderer `aetheria-rts-contract.ts`, `AetheriaRtsIpcChannels`, the preload bridge, and `registerAetheriaRtsIpcHandlers(...)`. Those generated read handles are backed by `CultMesh.query(...)` with explicit daemon frame, health, authority, and Starbridge source descriptors. The RTS client passes its local publication route into the generated handles once, then uses automatic query contexts so the query handle owns locality defaults. Because `CultMeshQuerySurface` preserves `sources` and `routeHint`, the RTS client exposes `queryDiagnostics()` directly from generated handle metadata instead of maintaining a parallel diagnostic table. Electron and browser clients consume generated contracts instead of duplicating query/response shapes, IPC channel names, handler registration, or viewport methods as the primary abstraction.
 
 ### Reactive State Pointers
 
@@ -225,7 +261,7 @@ var context = CultMesh.OperationContextFor("unity-raven")
 ```ts
 const context = CultMesh.operationContextFor("browser-starfire")
   .claim("simulation-authority", { shardId: "zone:starfire" })
-  .route("wasm", "browser-local projection")
+  .route("wasm", "browser-local query")
   .idempotency("move:starfire:1")
   .build();
 ```
@@ -316,7 +352,7 @@ const selected = CultMesh.statePointer(
 );
 ```
 
-That pointer is still only a primitive, not the final generated Verse facade.
+That pointer is still only a primitive, not the final generated Verse handle.
 The next step is generator-owned state paths, codecs, unavailable-state
 diagnostics, and UI binding metadata.
 
@@ -328,19 +364,19 @@ Bifrost should consume: inspect typed pointer surfaces, resolve/watch them
 through the local Verse, and leave record keys and daemon-specific resolver
 rules below the shared primitive layer.
 
-Those generated pointers are now Verse-bound in the RTS facade as well. The
+Those generated pointers are now Verse-bound in the RTS handle surface as well. The
 Electron client supplies publication-reader resolvers once, generated code binds
 the pointers with `CultMesh.bindStatePointer(queryVerse, pointer)`, and callers
-can resolve the underlying daemon documents through the facade without manually
+can resolve the underlying daemon documents through the handle surface without manually
 constructing query contexts or knowing where the local publication files live.
 
 The same rule applies to projected documents and collections. Browser,
 Electron, Unity, Eve, and tool runtimes should ask CultMesh for a typed
 document or collection handle, bind it to the Verse once, and then call
 `latest`, `watch`, `replace`, or `watchChanges`. Local CultCache records,
-remote Verse documents, shared-memory projections, and quorum-backed
+remote Verse documents, shared-memory queries, and quorum-backed
 authorities are configuration details behind that handle. Generated Aetheria
-RTS facades should target this shape instead of emitting schema dictionaries,
+RTS handles should target this shape instead of emitting schema dictionaries,
 transport-specific lookups, or hand-written state-file readers.
 
 ## Aetheria Proofs

@@ -1,14 +1,14 @@
 import type {
   AetheriaRtsApi,
-  AuthorityStatusProjection,
+  AuthorityStatusDocument,
   AetheriaRuntimeViewportFeedSnapshot,
   BodyView,
-  DaemonHealthProjection,
+  DaemonHealthDocument,
   GravityInfluence,
   InventoryItem,
-  InventoryProjection,
-  SelectedObjectProjection,
-  StarbridgeSessionProjection,
+  InventoryDocument,
+  SelectedObjectDocument,
+  StarbridgeSessionDocument,
   ViewObject,
   Viewport,
   ViewportResponse,
@@ -38,11 +38,11 @@ let centerX = 0;
 let centerY = 0;
 let selectedEntityIndex = -1;
 let latest: ViewportResponse | null = null;
-let latestSelected: SelectedObjectProjection | null = null;
-let latestInventory: InventoryProjection | null = null;
-let latestDaemonHealth: DaemonHealthProjection | null = null;
-let latestAuthority: AuthorityStatusProjection | null = null;
-let latestStarbridge: StarbridgeSessionProjection | null = null;
+let latestSelected: SelectedObjectDocument | null = null;
+let latestInventory: InventoryDocument | null = null;
+let latestDaemonHealth: DaemonHealthDocument | null = null;
+let latestAuthority: AuthorityStatusDocument | null = null;
+let latestStarbridge: StarbridgeSessionDocument | null = null;
 let latestSurfaceIndex: Awaited<ReturnType<AetheriaRtsApi["surfaceCatalogIndex"]>> | null = null;
 let latestOperationReceipt: string | null = null;
 let latestReceivedAt = 0;
@@ -554,7 +554,7 @@ function surfaceListText(surfaces: ReadonlyArray<{
     .join(", ");
 }
 
-function stockText(session: StarbridgeSessionProjection): string {
+function stockText(session: StarbridgeSessionDocument): string {
   if (session.stationStock.length === 0) {
     return "empty";
   }
@@ -565,7 +565,7 @@ function stockText(session: StarbridgeSessionProjection): string {
     .join(", ");
 }
 
-function waveText(session: StarbridgeSessionProjection): string {
+function waveText(session: StarbridgeSessionDocument): string {
   const wave = session.waveForecast[0];
   if (!wave) {
     return "none";
@@ -575,7 +575,7 @@ function waveText(session: StarbridgeSessionProjection): string {
   return `${wave.displayName || `Wave ${wave.waveIndex}`}${attackers}`;
 }
 
-function roleText(session: StarbridgeSessionProjection): string {
+function roleText(session: StarbridgeSessionDocument): string {
   if (session.runtimeRoles.length === 0) {
     return "none";
   }

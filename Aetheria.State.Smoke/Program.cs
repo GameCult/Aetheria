@@ -173,7 +173,7 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
         }
     }
     await node.MutableDocument<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonGameSurface)
-        .ReplaceAsync(AetheriaRuntimeEveSurfaceAdapter.ToEveSurfaceState(daemonGameSurface));
+        .ReplaceAsync(AetheriaRuntimeSurfaceDocuments.ToEveSurfaceState(daemonGameSurface));
     await node.MutableDocument<AetheriaRuntimeSession>(AetheriaStateNode.RuntimeSessionKey("smoke-runtime")).ReplaceAsync(new AetheriaRuntimeSession
     {
         RuntimeId = "smoke-runtime",

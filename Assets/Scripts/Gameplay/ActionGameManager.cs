@@ -5,8 +5,9 @@
 using System;
 using Cinemachine;
 using GameCult.Aetheria.State.Verse;
+using GameCult.Mesh;
 using UnityEngine;
-using UnityEngine.Rendering.PostProcessing;
+using UnityEngine.Rendering;
 using UnityEngine.Serialization;
 using UnityEngine.UI;
 using float2 = Unity.Mathematics.float2;
@@ -29,13 +30,17 @@ public class ActionGameManager : MonoBehaviour
     private AetheriaUnityGameplayLoopShell _gameplayLoopShell;
     private AetheriaUnityGameplayBootShell _gameplayBootShell;
     private AetheriaUnityGameplaySceneWiring _sceneWiring;
+    private AetheriaClientState _gameplayState;
+    private AetheriaClientState GameplayState =>
+        _gameplayState ??= AetheriaUnityRuntimeClientProvider.RuntimeState("unity-action-game-manager");
+
     private AetheriaUnityPilotCommandSender PilotCommands =>
         _pilotCommands ??= new AetheriaUnityPilotCommandSender(
             () => AetheriaUnityRuntimeClientProvider.Control("unity-pilot-commands"),
             () => Time.unscaledTime);
     private AetheriaUnityObservedEntityRestorer ObservedEntityRestorer =>
         _observedEntityRestorer ??= new AetheriaUnityObservedEntityRestorer(
-            _observedEntityIndex,
+            _presentationEntityIndex,
             ItemManager,
             EntityBlueprintMaterializer.MaterializeObservedEntity,
             _loadoutItemFactory.CreateLoadoutItem,
@@ -81,16 +86,16 @@ public class ActionGameManager : MonoBehaviour
     private AetheriaUnityPilotOperationController PilotOperationController =>
         _pilotOperationController ??= new AetheriaUnityPilotOperationController(
             () => PilotCommands,
-            _observedEntityIndex,
+            _presentationEntityIndex,
             () => _viewDirection,
             () => CurrentEntity);
     private AetheriaUnityObservedFrameApplier ObservedFrameApplier =>
         _observedFrameApplier ??= new AetheriaUnityObservedFrameApplier(
             ResolveDaemonObserver,
-            ResolveObservedGalaxyZone,
+            ObservedZoneContextFactory.ResolveGalaxyZone,
             () => Zone,
             zone => Zone = zone,
-            _observedEntityIndex,
+            _presentationEntityIndex,
             ObservedEntityRestorer,
             ObservedZoneContextFactory,
             () => ZoneRenderer,
@@ -200,7 +205,7 @@ public class ActionGameManager : MonoBehaviour
             TargetShieldsFill = TargetShieldsFill,
             MainMenu = MainMenu
         };
-    private readonly AetheriaUnityObservedEntityIndex _observedEntityIndex = new AetheriaUnityObservedEntityIndex();
+    private readonly AetheriaUnityPresentationEntityIndex _presentationEntityIndex = new AetheriaUnityPresentationEntityIndex();
     private static RuntimePlayerSettings RuntimePlayerSettings
         => AetheriaUnityRuntimeClientProvider.PlayerSettings;
 
@@ -211,9 +216,9 @@ public class ActionGameManager : MonoBehaviour
     public float TargetSpottedBlinkOffset = -.25f;
 
     [Header("Postprocessing")]
-    public PostProcessVolume DeathPost;
-    public PostProcessVolume HeatstrokePost;
-    public PostProcessVolume SevereHeatstrokePost;
+    public Volume DeathPost;
+    public Volume HeatstrokePost;
+    public Volume SevereHeatstrokePost;
 
     [Header("Scene Links")]
     public GameObject UiRoot;
@@ -303,7 +308,7 @@ public class ActionGameManager : MonoBehaviour
         SceneWiring.ConfigureTargetPresentation(
             _targetPresentation,
             boot.RuntimeCatalog,
-            _observedEntityIndex);
+            _presentationEntityIndex);
         SceneWiring.ConfigureInventoryDragSession(_dragSession);
         SceneWiring.ConfigureActionBarPresentation(
             _actionBarPresentation,
@@ -313,7 +318,7 @@ public class ActionGameManager : MonoBehaviour
             () => CurrentEntity,
             () => AetheriaUnityRuntimeClientProvider.Control("unity-action-bar"));
         SceneWiring.ConfigureRuntimeInputScreenShell(MenuShell);
-        SceneWiring.ConfigureObservedEntityIndex(_observedEntityIndex);
+        SceneWiring.ConfigurePresentationEntityIndex(_presentationEntityIndex);
 
         // TODO: Process Stories
 
@@ -347,7 +352,7 @@ public class ActionGameManager : MonoBehaviour
             return false;
         }
 
-        if (_observedEntityIndex.TryResolveEntityRecordKey(CurrentEntity, out var currentEntityKey) &&
+        if (_presentationEntityIndex.TryGetRecordKeyForPresentationEntity(CurrentEntity, out var currentEntityKey) &&
             !string.IsNullOrWhiteSpace(docking.CurrentEntityKey) &&
             !string.Equals(docking.CurrentEntityKey, currentEntityKey, StringComparison.Ordinal))
         {
@@ -369,43 +374,29 @@ public class ActionGameManager : MonoBehaviour
             return null;
         }
 
-        if (_observedEntityIndex.TryResolveEntityRecordKey(currentEntity, out var currentEntityKey) &&
+        if (_presentationEntityIndex.TryGetRecordKeyForPresentationEntity(currentEntity, out var currentEntityKey) &&
             !string.IsNullOrWhiteSpace(docking.CurrentEntityKey) &&
             !string.Equals(docking.CurrentEntityKey, currentEntityKey, StringComparison.Ordinal))
         {
             return null;
         }
 
-        return _observedEntityIndex.TryResolveEntityByRecordKey(docking.DockParentEntityKey, out var dockParent)
+        return _presentationEntityIndex.TryGetPresentationEntityByRecordKey(docking.DockParentEntityKey, out var dockParent)
             ? dockParent
             : null;
     }
 
-    private static AetheriaRuntimeCurrentDockingDocument CurrentDockingSnapshot()
+    private AetheriaRuntimeCurrentDockingDocument CurrentDockingSnapshot()
     {
         try
         {
-            return AetheriaUnityRuntimeClientProvider.CurrentDockingState("unity-action-game-manager");
+            return GameplayState.CurrentDocking.Latest();
         }
         catch (Exception ex)
         {
             Debug.LogWarning($"Failed to read Aetheria current docking for gameplay manager: {ex.Message}");
             return null;
         }
-    }
-
-    private GalaxyZone ResolveObservedGalaxyZone(int daemonZoneIndex)
-    {
-        if (daemonZoneIndex < 0 || ObservedGalaxy?.Zones == null)
-            return null;
-
-        foreach (var zone in ObservedGalaxy.Zones)
-        {
-            if (zone != null && zone.ZoneIndex == daemonZoneIndex)
-                return zone;
-        }
-
-        return null;
     }
 
     // public void ToggleEditMode()

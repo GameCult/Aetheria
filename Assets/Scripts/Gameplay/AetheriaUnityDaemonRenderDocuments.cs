@@ -13,9 +13,9 @@ public sealed class AetheriaUnityDaemonRenderDocuments : IDisposable
         if (state == null)
             throw new ArgumentNullException(nameof(state));
 
-        _frame = state.ReactiveDaemonFrame();
-        _soaView = state.ReactiveDaemonSoaView();
-        _zoneRender = state.ReactiveZoneRender();
+        _frame = state.DaemonFrame.Reactive();
+        _soaView = state.DaemonSoaView.Reactive();
+        _zoneRender = state.ZoneRender.Reactive();
     }
 
     public AetheriaRuntimeDaemonRenderView Current =>

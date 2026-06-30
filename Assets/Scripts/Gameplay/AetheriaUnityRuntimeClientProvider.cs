@@ -77,104 +77,6 @@ public static class AetheriaUnityRuntimeClientProvider
         return RuntimeClient(stateBoot, runtimeId).State;
     }
 
-    public static AetheriaRuntimeCurrentDockingDocument CurrentDockingState(string runtimeId = "")
-    {
-        return RuntimeState(runtimeId).CurrentDockingState();
-    }
-
-    public static AetheriaRuntimeCurrentDockingDocument CurrentDockingState(
-        AetheriaRuntimeStateBootReport stateBoot,
-        string runtimeId = "")
-    {
-        return RuntimeState(stateBoot, runtimeId).CurrentDockingState();
-    }
-
-    public static AetheriaRuntimeCatalogSnapshot CurrentCatalog(string runtimeId = "")
-    {
-        return RuntimeState(runtimeId).CurrentCatalog();
-    }
-
-    public static AetheriaRuntimeCatalogSnapshot CurrentCatalog(
-        AetheriaRuntimeStateBootReport stateBoot,
-        string runtimeId = "")
-    {
-        return RuntimeState(stateBoot, runtimeId).CurrentCatalog();
-    }
-
-    public static AetheriaRuntimePlayerSettingsDocument CurrentPlayerSettings(string runtimeId = "")
-    {
-        return RuntimeState(runtimeId).CurrentPlayerSettings();
-    }
-
-    public static AetheriaRuntimePlayerSettingsDocument CurrentPlayerSettings(
-        AetheriaRuntimeStateBootReport stateBoot,
-        string runtimeId = "")
-    {
-        return RuntimeState(stateBoot, runtimeId).CurrentPlayerSettings();
-    }
-
-    public static AetheriaRuntimeCurrentEntityDocument CurrentEntityState(string runtimeId = "")
-    {
-        return RuntimeState(runtimeId).CurrentEntityState();
-    }
-
-    public static AetheriaRuntimeCurrentZoneDocument CurrentZoneState(string runtimeId = "")
-    {
-        return RuntimeState(runtimeId).CurrentZoneState();
-    }
-
-    public static AetheriaRuntimeZoneContactsDocument CurrentZoneContacts(string runtimeId = "")
-    {
-        return RuntimeState(runtimeId).CurrentZoneContacts();
-    }
-
-    public static CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument> ReactiveZoneContacts(
-        string runtimeId = "")
-    {
-        return RuntimeState(runtimeId).ReactiveZoneContacts();
-    }
-
-    public static AetheriaRuntimeStationRefitDocument CurrentStationRefit(string runtimeId = "")
-    {
-        return RuntimeState(runtimeId).CurrentStationRefit();
-    }
-
-    public static AetheriaRuntimeSectorMapDocument CurrentSectorMap(string runtimeId = "")
-    {
-        return RuntimeState(runtimeId).CurrentSectorMap();
-    }
-
-    public static AetheriaRuntimeSectorMapDocument CurrentSectorMap(
-        AetheriaRuntimeStateBootReport stateBoot,
-        string runtimeId = "")
-    {
-        return RuntimeState(stateBoot, runtimeId).CurrentSectorMap();
-    }
-
-    public static AetheriaRuntimeZoneDetailsDocument CurrentZoneDetails(int zoneIndex, string runtimeId = "")
-    {
-        return RuntimeState(runtimeId).CurrentZoneDetails(zoneIndex);
-    }
-
-    public static AetheriaRuntimeInventoryDocument CurrentInventory(int entityIndex, string runtimeId = "")
-    {
-        return RuntimeState(runtimeId).CurrentInventory(entityIndex);
-    }
-
-    public static CultMeshReactiveDocument<AetheriaRuntimeObjectsViewportDocument> ReactiveObjectsViewport(
-        AetheriaRuntimeRtsViewportBounds viewport,
-        string runtimeId = "")
-    {
-        return RuntimeState(runtimeId).ReactiveObjectsViewport(viewport);
-    }
-
-    public static CultMeshReactiveDocument<AetheriaRuntimeRenderSplatsViewportDocument> ReactiveRenderSplatsViewport(
-        AetheriaRuntimeRtsViewportBounds viewport,
-        string runtimeId = "")
-    {
-        return RuntimeState(runtimeId).ReactiveRenderSplatsViewport(viewport);
-    }
-
     public static AetheriaUnityRtsViewportDocuments MapViewportDocuments(
         AetheriaRuntimeRtsViewportBounds viewport,
         string runtimeId = "")
@@ -196,30 +98,11 @@ public static class AetheriaUnityRuntimeClientProvider
         return AetheriaUnityRtsViewportDocuments.OpenRenderSplats(RuntimeState(runtimeId), viewport);
     }
 
-    public static AetheriaRuntimeDaemonFrameDocument CurrentDaemonFrame(string runtimeId = "")
-    {
-        return RuntimeState(runtimeId).CurrentDaemonFrame();
-    }
-
-    public static AetheriaRuntimeDaemonFrameDocument CurrentDaemonFrame(
-        AetheriaRuntimeStateBootReport stateBoot,
-        string runtimeId = "")
-    {
-        return RuntimeState(stateBoot, runtimeId).CurrentDaemonFrame();
-    }
-
     public static AetheriaUnityDaemonRenderDocuments DaemonRenderDocuments(
         AetheriaRuntimeStateBootReport stateBoot,
         string runtimeId = "")
     {
         return AetheriaUnityDaemonRenderDocuments.Open(RuntimeState(stateBoot, runtimeId));
-    }
-
-    public static AetheriaRuntimeVerseHostSettingsDocument CurrentVerseHostSettings(
-        AetheriaRuntimeStateBootReport stateBoot,
-        string runtimeId = "")
-    {
-        return RuntimeState(stateBoot, runtimeId).CurrentVerseHostSettings();
     }
 
     public static AetheriaControl Control(string runtimeId = "")
@@ -277,7 +160,7 @@ public static class AetheriaUnityRuntimeClientProvider
     {
         try
         {
-            var stored = CurrentPlayerSettings();
+            var stored = RuntimeState().PlayerSettings.Latest();
             if (stored == null)
                 return;
 

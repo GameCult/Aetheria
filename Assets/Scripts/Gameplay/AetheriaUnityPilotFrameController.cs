@@ -6,7 +6,7 @@ using System;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.InputSystem;
-using UnityEngine.Rendering.PostProcessing;
+using UnityEngine.Rendering;
 using static Unity.Mathematics.math;
 
 public sealed class AetheriaUnityPilotFrameController
@@ -23,8 +23,8 @@ public sealed class AetheriaUnityPilotFrameController
     public AetheriaInput Input { get; set; }
     public AetheriaUnityTargetPresentation TargetPresentation { get; set; }
     public AetheriaUnityPilotCommandSender PilotCommands { get; set; }
-    public PostProcessVolume HeatstrokePost { get; set; }
-    public PostProcessVolume SevereHeatstrokePost { get; set; }
+    public Volume HeatstrokePost { get; set; }
+    public Volume SevereHeatstrokePost { get; set; }
     public float2 Sensitivity { get; set; }
 
     public void Tick(Entity currentEntity, float deltaTime, float timeSeconds)

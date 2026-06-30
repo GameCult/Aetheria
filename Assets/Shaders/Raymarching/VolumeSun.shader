@@ -1,150 +1,181 @@
-﻿// Upgrade NOTE: replaced 'mul(UNITY_MATRIX_MVP,*)' with 'UnityObjectToClipPos(*)'
-
 Shader "Aetheria/Volume Sun"
 {
-	Properties
-	{
-		_ColorRamp ("Color Ramp", 2D) = "white" {}
-		_Offset ("Offset", CUBE) = "gray" {}
-		_Albedo ("Albedo", CUBE) = "black" {}
-		_RayStepSize("Ray Step Size", Float) = .01
-		_FirstOffsetDistance("First Offset Distance", Float) = .01
-		_FirstOffsetDepthExponent("First Offset Depth Exponent", Float) = 1
-		_SecondOffsetDistance("Second Offset Distance", Float) = .01
-		_SecondOffsetDepthExponent("Second Offset Depth Exponent", Float) = 1
-		_DensityDepthExponent("Density Depth Exponent", Float) = 1
-		_DensityAlbedoExponent("Density Albedo Exponent", Float) = 1
-		_NoiseFrequency("Noise Frequency", Float) = 1
-		_NoiseAmplitude("Noise Amplitude", Float) = 1
-		_NoiseSpeed("Noise Speed", Float) = 1
-        _Emission("Emission", Float) = 1
-        _Alpha("Alpha Multiplier", Float) = 1
-        _Glossiness("Gloss", Range(0,1)) = 1
-        _Metallic("Metallic", Range(0,1)) = 1
-        //_EdgeTransparency("Edge Transparency", Float) = 1
-	}
-	
-	SubShader
-	{
-        Tags { "RenderType"="Opaque" }
-		LOD 200
+    Properties
+    {
+        _ColorRamp ("Color Ramp", 2D) = "white" {}
+        _Offset ("Offset", CUBE) = "gray" {}
+        _Albedo ("Albedo", CUBE) = "black" {}
+        _RayStepSize ("Ray Step Size", Float) = 0.01
+        _FirstOffsetDistance ("First Offset Distance", Float) = 0.01
+        _FirstOffsetDepthExponent ("First Offset Depth Exponent", Float) = 1
+        _SecondOffsetDistance ("Second Offset Distance", Float) = 0.01
+        _SecondOffsetDepthExponent ("Second Offset Depth Exponent", Float) = 1
+        _DensityDepthExponent ("Density Depth Exponent", Float) = 1
+        _DensityAlbedoExponent ("Density Albedo Exponent", Float) = 1
+        _NoiseFrequency ("Noise Frequency", Float) = 1
+        _NoiseAmplitude ("Noise Amplitude", Float) = 1
+        _NoiseSpeed ("Noise Speed", Float) = 1
+        _Emission ("Emission", Float) = 1
+        _Alpha ("Alpha Multiplier", Float) = 1
+        _Glossiness ("Gloss", Range(0,1)) = 1
+        _Metallic ("Metallic", Range(0,1)) = 1
+    }
 
-		CGPROGRAM
+    SubShader
+    {
+        Tags
+        {
+            "Queue" = "Geometry"
+            "RenderType" = "Opaque"
+            "RenderPipeline" = "UniversalPipeline"
+        }
 
-		#pragma surface surf Standard vertex:vert NoLighting noambient noforwardadd
-		#pragma target 3.0
-        #include "UnityPBSLighting.cginc"
-        #include "Assets/Shaders/Dither Functions.cginc"
+        Pass
+        {
+            Name "VolumeSun"
+            Tags { "LightMode" = "UniversalForward" }
 
-		sampler2D _ColorRamp;
-		samplerCUBE _Offset;
-		samplerCUBE _Albedo;
- 
-		struct Input {
-			float4 screenPos;
-			float3 worldNormal;
-			float3 viewDir;
-		};
+            Cull Back
+            ZWrite On
 
-		half _Glossiness;
-		half _Metallic;
-		fixed4 _Color;
+            HLSLPROGRAM
+            #pragma vertex Vert
+            #pragma fragment Frag
+            #pragma target 3.5
 
-		float _RayStepSize;
-		float _FirstOffsetDistance;
-		float _SecondOffsetDistance;
-		float _FirstOffsetDepthExponent;
-		float _SecondOffsetDepthExponent;
-		float _LimbDarkening;
-		float _DensityDepthExponent;
-		float _DensityAlbedoExponent;
-		float _Alpha;
-		float _Emission;
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 
-		float4x4 _AlbedoRotation;
-		float4x4 _FirstOffsetDomainRotation;
-		float4x4 _FirstOffsetRotation;
-		float4x4 _SecondOffsetDomainRotation;
-		float4x4 _SecondOffsetRotation;
+            TEXTURE2D(_ColorRamp);
+            SAMPLER(sampler_ColorRamp);
+            TEXTURECUBE(_Offset);
+            SAMPLER(sampler_Offset);
+            TEXTURECUBE(_Albedo);
+            SAMPLER(sampler_Albedo);
 
-		float4 _LightingDirection;
-		half _NoiseFrequency;
-		half _NoiseAmplitude;
-		half _NoiseSpeed;
+            CBUFFER_START(UnityPerMaterial)
+                float _RayStepSize;
+                float _FirstOffsetDistance;
+                float _SecondOffsetDistance;
+                float _FirstOffsetDepthExponent;
+                float _SecondOffsetDepthExponent;
+                float _LimbDarkening;
+                float _DensityDepthExponent;
+                float _DensityAlbedoExponent;
+                float _Alpha;
+                float _Emission;
+                float4x4 _AlbedoRotation;
+                float4x4 _FirstOffsetDomainRotation;
+                float4x4 _FirstOffsetRotation;
+                float4x4 _SecondOffsetDomainRotation;
+                float4x4 _SecondOffsetRotation;
+                float4 _LightingDirection;
+                half _NoiseFrequency;
+                half _NoiseAmplitude;
+                half _NoiseSpeed;
+            CBUFFER_END
 
-		void vert (inout appdata_full v, out Input o) {
-			UNITY_INITIALIZE_OUTPUT(Input,o);
-		}
+            struct Attributes
+            {
+                float4 positionOS : POSITION;
+                float3 normalOS : NORMAL;
+            };
 
-		float tri(in float x){return abs(frac(x)-.5);}
-		float3 tri3(in float3 p){return float3( tri(p.z+tri(p.y*1.)), tri(p.z+tri(p.x*1.)), tri(p.y+tri(p.x*1.)));}
+            struct Varyings
+            {
+                float4 positionCS : SV_POSITION;
+                float3 normalWS : TEXCOORD0;
+                float3 viewDirWS : TEXCOORD1;
+            };
 
-		float triNoise3d(in float3 p, in float spd)
-		{
-		    float z=1.4;
-			float rz = 0.;
-		    float3 bp = p;
-			for (float i=0.; i<=2.; i++ )
-			{
-		        float3 dg = tri3(bp*2.);
-		        p += (dg+_Time.y*spd);
+            Varyings Vert(Attributes input)
+            {
+                Varyings output;
+                float3 positionWS = TransformObjectToWorld(input.positionOS.xyz);
+                output.positionCS = TransformWorldToHClip(positionWS);
+                output.normalWS = normalize(TransformObjectToWorldNormal(input.normalOS));
+                output.viewDirWS = normalize(GetWorldSpaceViewDir(positionWS));
+                return output;
+            }
 
-		        bp *= 1.8;
-				z *= 1.5;
-				p *= 1.2;
-		        
-		        rz+= (tri(p.z+tri(p.x+tri(p.y))))/z;
-		        bp += 0.14;
-			}
-			return rz;
-		}
-		
-		void surf (Input IN, inout SurfaceOutputStandard o)
-		{
-			float rim = saturate(dot(IN.viewDir,IN.worldNormal));
-        	float2 screenPos = IN.screenPos.xy / IN.screenPos.w;
-        	
-			float3 rayPos = IN.worldNormal;
-			float3 rayStep = normalize(IN.viewDir)*_RayStepSize*(2-rim);
-			half dither = frac(tex2D(_DitheringTex, (screenPos + .5) * _DitheringCoords.xy).r + _FrameNumber * 1.61803398875);
-			//float dither = tex2D(_DitheringTex, (screenPos + .5) * _DitheringCoords.xy + _DitheringCoords.zw).r * 2;
-			rayPos += rayStep * dither;
-        	
-			float3 accum = 0;
-        	float alphaAccum = 0;
-			for(int i=0;i<32;i++){
-				float elevation = length(rayPos);
-				float depth = 1 - elevation;
-				float turbulence = 1.25 - abs(rayPos.y) * .5;
+            float Tri(float x)
+            {
+                return abs(frac(x) - 0.5);
+            }
 
-				float3 firstSamplePosition = mul((float3x3)_FirstOffsetDomainRotation, rayPos);
-				float3 offset =  mul((float3x3)_FirstOffsetRotation,
-									 normalize(texCUBElod(_Offset, float4(firstSamplePosition, i/8)).rgb - float3(.5,.5,.5))) *
-									 _FirstOffsetDistance * (pow(elevation,_FirstOffsetDepthExponent)) * turbulence;
+            float3 Tri3(float3 p)
+            {
+                return float3(
+                    Tri(p.z + Tri(p.y)),
+                    Tri(p.z + Tri(p.x)),
+                    Tri(p.y + Tri(p.x)));
+            }
 
-				float3 secondSamplePosition = mul((float3x3)_SecondOffsetDomainRotation, rayPos + offset);
-				float3 offset2 = mul((float3x3)_SecondOffsetRotation, 
-									 normalize(texCUBElod(_Offset, float4(secondSamplePosition, i/16)).rgb - float3(.5,.5,.5))) * 
-									 _SecondOffsetDistance * (pow(elevation,_SecondOffsetDepthExponent)) * turbulence;
+            float TriNoise3d(float3 p, float speed)
+            {
+                float z = 1.4;
+                float result = 0.0;
+                float3 bp = p;
 
-				float albedo = texCUBElod (_Albedo, float4(mul((float3x3)_AlbedoRotation,normalize(firstSamplePosition + offset2)) ,i/8)).x;
-				float noise = max(1 - (triNoise3d(secondSamplePosition * _NoiseFrequency, _NoiseSpeed)) * _NoiseAmplitude, 0.01);
+                UNITY_UNROLL
+                for (int i = 0; i <= 2; i++)
+                {
+                    float3 dg = Tri3(bp * 2.0);
+                    p += dg + _Time.y * speed;
+                    bp *= 1.8;
+                    z *= 1.5;
+                    p *= 1.2;
+                    result += Tri(p.z + Tri(p.x + Tri(p.y))) / z;
+                    bp += 0.14;
+                }
 
-				float density = pow(max(depth,0),_DensityDepthExponent) * pow(albedo,_DensityAlbedoExponent);
-				alphaAccum += density;
-				accum += tex2D(_ColorRamp, albedo.xx * noise) * density * noise;
-				            
-				rayPos += rayStep;
-			}
-        	ditherClip(screenPos, alphaAccum * _Alpha);
+                return result;
+            }
 
-            o.Smoothness = _Glossiness;
-        	o.Albedo = 0;
-			o.Emission = accum*_Emission;
-            o.Metallic = _Metallic;
-			o.Alpha = 1;
-		}
-		ENDCG
-	}
-	FallBack "Standard"
+            float4 Frag(Varyings input) : SV_Target
+            {
+                float rim = saturate(dot(input.viewDirWS, input.normalWS));
+                float3 rayPos = input.normalWS;
+                float3 rayStep = normalize(input.viewDirWS) * _RayStepSize * (2.0 - rim);
+                float3 accum = 0.0;
+                float alphaAccum = 0.0;
+
+                UNITY_LOOP
+                for (int i = 0; i < 32; i++)
+                {
+                    float elevation = length(rayPos);
+                    float depth = 1.0 - elevation;
+                    float turbulence = 1.25 - abs(rayPos.y) * 0.5;
+
+                    float3 firstSamplePosition = mul((float3x3)_FirstOffsetDomainRotation, rayPos);
+                    float3 offset = mul(
+                        (float3x3)_FirstOffsetRotation,
+                        normalize(SAMPLE_TEXTURECUBE_LOD(_Offset, sampler_Offset, firstSamplePosition, i / 8.0).rgb - float3(0.5, 0.5, 0.5)))
+                        * _FirstOffsetDistance
+                        * pow(max(elevation, 0.0001), _FirstOffsetDepthExponent)
+                        * turbulence;
+
+                    float3 secondSamplePosition = mul((float3x3)_SecondOffsetDomainRotation, rayPos + offset);
+                    float3 offset2 = mul(
+                        (float3x3)_SecondOffsetRotation,
+                        normalize(SAMPLE_TEXTURECUBE_LOD(_Offset, sampler_Offset, secondSamplePosition, i / 16.0).rgb - float3(0.5, 0.5, 0.5)))
+                        * _SecondOffsetDistance
+                        * pow(max(elevation, 0.0001), _SecondOffsetDepthExponent)
+                        * turbulence;
+
+                    float3 albedoDirection = normalize(mul((float3x3)_AlbedoRotation, firstSamplePosition + offset2));
+                    float albedo = SAMPLE_TEXTURECUBE_LOD(_Albedo, sampler_Albedo, albedoDirection, i / 8.0).r;
+                    float noise = max(1.0 - TriNoise3d(secondSamplePosition * _NoiseFrequency, _NoiseSpeed) * _NoiseAmplitude, 0.01);
+                    float density = pow(max(depth, 0.0), _DensityDepthExponent) * pow(max(albedo, 0.0), _DensityAlbedoExponent);
+
+                    alphaAccum += density;
+                    accum += SAMPLE_TEXTURE2D(_ColorRamp, sampler_ColorRamp, albedo.xx * noise).rgb * density * noise;
+                    rayPos += rayStep;
+                }
+
+                clip(alphaAccum * _Alpha - 0.01);
+                return float4(accum * _Emission, 1.0);
+            }
+            ENDHLSL
+        }
+    }
 }

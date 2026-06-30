@@ -41,6 +41,8 @@ namespace GameCult.Aetheria.EveRuntime
 
     public static class AetheriaEveUnitySurfaceHost
     {
+        private static PanelSettings _runtimePanelSettings;
+
         public static UIDocument Render(
             Transform owner,
             UIDocument document,
@@ -49,6 +51,7 @@ namespace GameCult.Aetheria.EveRuntime
             Action<EveSurfaceCommandRequest> commandHandler,
             AetheriaEveUnitySurfaceChrome chrome,
             CultMeshStateRefResolver stateRefResolver = null,
+            Func<EveEmbeddedDocumentSlot, EveSurfaceDocument> embeddedDocumentResolver = null,
             int sortingOrder = 1000)
         {
             if (owner == null)
@@ -68,8 +71,8 @@ namespace GameCult.Aetheria.EveRuntime
                 ContainsStateRefs(surface)
                     ? CreateDefaultStateRefResolver()
                     : null);
-            surface = AetheriaRuntimeEveSurfaceAdapter.ResolveStateRefs(surface, effectiveStateRefResolver);
-            var lowerer = new EveUiToolkitSurfaceLowerer();
+            surface = AetheriaRuntimeSurfaceDocuments.ResolveStateRefs(surface, effectiveStateRefResolver);
+            var lowerer = new EveUiToolkitSurfaceLowerer(new EveUiToolkitSurfaceOptions(embeddedDocumentResolver));
             if (chrome.UseShell)
             {
                 var shell = CreateShell(chrome);
@@ -81,6 +84,8 @@ namespace GameCult.Aetheria.EveRuntime
                 root.Add(lowerer.Lower(surface, commandHandler));
             }
 
+            Debug.Log(
+                $"Rendered Eve surface '{surface.Surface.Id}' into UIDocument '{document.name}' with panel '{document.panelSettings?.name ?? "none"}'.");
             return document;
         }
 
@@ -92,6 +97,7 @@ namespace GameCult.Aetheria.EveRuntime
             Action<EveSurfaceCommandRequest> commandHandler,
             AetheriaEveUnitySurfaceChrome chrome,
             CultMeshStateRefResolver stateRefResolver = null,
+            Func<EveEmbeddedDocumentSlot, AetheriaRuntimeSurfaceDocument> embeddedDocumentResolver = null,
             int sortingOrder = 1000)
         {
             if (surface == null)
@@ -101,10 +107,17 @@ namespace GameCult.Aetheria.EveRuntime
                 owner,
                 document,
                 hostName,
-                AetheriaRuntimeEveSurfaceAdapter.ToEveSurfaceDocument(surface),
+                AetheriaRuntimeSurfaceDocuments.ToEveSurfaceDocument(surface),
                 commandHandler,
                 chrome,
                 stateRefResolver,
+                embeddedDocumentResolver == null
+                    ? null
+                    : slot =>
+                    {
+                        var nested = embeddedDocumentResolver(slot);
+                        return nested == null ? null : AetheriaRuntimeSurfaceDocuments.ToEveSurfaceDocument(nested);
+                    },
                 sortingOrder);
         }
 
@@ -132,15 +145,37 @@ namespace GameCult.Aetheria.EveRuntime
             int sortingOrder)
         {
             if (document != null)
+            {
+                if (document.panelSettings == null)
+                    document.panelSettings = ResolveRuntimePanelSettings();
                 return document;
+            }
 
             var host = new GameObject(string.IsNullOrWhiteSpace(hostName) ? "Aetheria Eve Surface" : hostName);
+            host.SetActive(false);
             host.transform.SetParent(owner, false);
             host.layer = owner.gameObject.layer;
             document = host.AddComponent<UIDocument>();
             document.sortingOrder = sortingOrder;
-            host.SetActive(false);
+            document.panelSettings = ResolveRuntimePanelSettings();
             return document;
+        }
+
+        private static PanelSettings ResolveRuntimePanelSettings()
+        {
+            if (_runtimePanelSettings != null)
+                return _runtimePanelSettings;
+
+            _runtimePanelSettings = ScriptableObject.CreateInstance<PanelSettings>();
+            _runtimePanelSettings.name = "Aetheria Runtime Eve Panel Settings";
+            _runtimePanelSettings.scaleMode = PanelScaleMode.ScaleWithScreenSize;
+            _runtimePanelSettings.referenceResolution = new Vector2Int(1920, 1080);
+            _runtimePanelSettings.screenMatchMode = PanelScreenMatchMode.MatchWidthOrHeight;
+            _runtimePanelSettings.match = 0.5f;
+            _runtimePanelSettings.themeStyleSheet = Resources.Load<ThemeStyleSheet>("UnityDefaultRuntimeTheme");
+            if (_runtimePanelSettings.themeStyleSheet == null)
+                Debug.LogWarning("Aetheria runtime Eve panel could not load UnityDefaultRuntimeTheme.tss.");
+            return _runtimePanelSettings;
         }
 
         private static void ConfigureRoot(VisualElement root, AetheriaEveUnitySurfaceChrome chrome)
@@ -222,14 +257,78 @@ namespace GameCult.Aetheria.EveRuntime
 
         private static CultMeshStateRefResolver CreateDefaultStateRefResolver()
         {
-            var stateBoot = AetheriaRuntimeStateBoot.Inspect(AetheriaUnityRuntimePaths.GameDataDirectory, "");
+            return AetheriaEveRuntimeUnityHooks.TryCreateDefaultStateRefResolver();
+        }
+
+    }
+
+    public static class AetheriaEveRuntimeUnityHooks
+    {
+        public static Func<string, AetheriaRuntimeStateBootReport> ResolveStateBoot { get; set; }
+
+        public static Func<AetheriaRuntimeStateBootReport, string, AetheriaClientState> RuntimeState { get; set; }
+
+        public static Func<AetheriaRuntimeStateBootReport, string, AetheriaControl> Control { get; set; }
+
+        public static Func<AetheriaRuntimeStateBootReport, string, AetheriaUi> Ui { get; set; }
+
+        public static Func<AetheriaRuntimeStateBootReport, string, CultMeshStateRefResolver> StateRefResolver { get; set; }
+
+        public static AetheriaRuntimeStateBootReport RequireStateBoot(string stateFilePathOverride)
+        {
+            if (ResolveStateBoot == null)
+                throw new InvalidOperationException("Aetheria Eve runtime hooks are not installed.");
+
+            return ResolveStateBoot(stateFilePathOverride ?? "");
+        }
+
+        public static AetheriaClientState RequireRuntimeState(
+            AetheriaRuntimeStateBootReport stateBoot,
+            string runtimeId)
+        {
+            if (RuntimeState == null)
+                throw new InvalidOperationException("Aetheria Eve runtime state hook is not installed.");
+
+            return RuntimeState(stateBoot, runtimeId ?? "");
+        }
+
+        public static AetheriaControl RequireControl(
+            AetheriaRuntimeStateBootReport stateBoot,
+            string runtimeId)
+        {
+            if (Control == null)
+                throw new InvalidOperationException("Aetheria Eve runtime control hook is not installed.");
+
+            return Control(stateBoot, runtimeId ?? "");
+        }
+
+        public static AetheriaUi RequireUi(
+            AetheriaRuntimeStateBootReport stateBoot,
+            string runtimeId)
+        {
+            if (Ui == null)
+                throw new InvalidOperationException("Aetheria Eve runtime UI hook is not installed.");
+
+            return Ui(stateBoot, runtimeId ?? "");
+        }
+
+        public static CultMeshStateRefResolver TryCreateStateRefResolver(
+            AetheriaRuntimeStateBootReport stateBoot,
+            string runtimeId)
+        {
+            return StateRefResolver?.Invoke(stateBoot, runtimeId ?? "");
+        }
+
+        public static CultMeshStateRefResolver TryCreateDefaultStateRefResolver()
+        {
+            if (ResolveStateBoot == null || StateRefResolver == null)
+                return null;
+
+            var stateBoot = ResolveStateBoot("");
             if (!stateBoot.SupportsLocalStateFileRead || !stateBoot.StateFileExists)
                 return null;
 
-            return AetheriaUnityRuntimeClientProvider.EveSurfaceStateRefResolver(
-                stateBoot,
-                "unity-eve-surface-host");
+            return StateRefResolver(stateBoot, "unity-eve-surface-host");
         }
-
     }
 }

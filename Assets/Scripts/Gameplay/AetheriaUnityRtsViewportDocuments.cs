@@ -21,9 +21,9 @@ public sealed class AetheriaUnityRtsViewportDocuments : IDisposable
             throw new ArgumentNullException(nameof(viewport));
 
         Viewport = viewport;
-        _contacts = bindContacts ? state.ReactiveZoneContacts() : null;
-        _objectsViewport = bindObjects ? state.ReactiveObjectsViewport(viewport) : null;
-        _renderSplatsViewport = bindRenderSplats ? state.ReactiveRenderSplatsViewport(viewport) : null;
+        _contacts = bindContacts ? state.ZoneContacts.Reactive() : null;
+        _objectsViewport = bindObjects ? state.ObjectsViewport(viewport).Reactive() : null;
+        _renderSplatsViewport = bindRenderSplats ? state.RenderSplatsViewport(viewport).Reactive() : null;
     }
 
     public AetheriaRuntimeRtsViewportBounds Viewport { get; }

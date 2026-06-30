@@ -188,11 +188,11 @@ public class DaemonRuntimeDocumentTests
             MaxX = 100,
             MaxY = 100
         };
-        var currentCatalog = client.State.CurrentCatalog();
-        var currentPlayerSettings = client.State.CurrentPlayerSettings();
-        var currentFrame = client.State.CurrentDaemonFrame();
-        var currentEntityState = client.State.CurrentEntityState();
-        var currentObjectsViewport = client.State.CurrentObjectsViewport(viewport);
+        var currentCatalog = client.State.Catalog.Latest();
+        var currentPlayerSettings = client.State.PlayerSettings.Latest();
+        var currentFrame = client.State.DaemonFrame.Latest();
+        var currentEntityState = client.State.CurrentEntity.Latest();
+        var currentObjectsViewport = client.State.ObjectsViewport(viewport).Latest();
         var objectsViewport = ReadLatest(client.State.ObjectsViewport(viewport));
         var zoneDetails = ReadLatest(client.State.ZoneDetails(0));
         var inventory = ReadLatest(client.State.Inventory(0));
@@ -206,35 +206,35 @@ public class DaemonRuntimeDocumentTests
             .ReactiveAsync()
             .GetAwaiter()
             .GetResult();
-        using var zoneRenderReactive = client.State.ReactiveZoneRender();
+        using var zoneRenderReactive = client.State.ZoneRender.Reactive();
         var observedAuthoritativeFrame = ReadLatest(client.State.DaemonFrame);
-        using var catalogReactive = client.State.ReactiveCatalogSnapshot();
-        using var daemonFrameReactive = client.State.ReactiveDaemonFrame();
-        using var daemonSoaViewReactive = client.State.ReactiveDaemonSoaView();
+        using var catalogReactive = client.State.Catalog.Reactive();
+        using var daemonFrameReactive = client.State.DaemonFrame.Reactive();
+        using var daemonSoaViewReactive = client.State.DaemonSoaView.Reactive();
         Assert.IsTrue(AetheriaRuntimeDaemonRenderView.TryCreateCurrent(
             daemonFrameReactive,
             daemonSoaViewReactive,
             zoneRenderReactive,
             out var observed));
-        using var loadoutTemplatesReactive = client.State.ReactiveLoadoutTemplates();
-        using var sectorMapReactive = client.State.ReactiveSectorMap();
-        using var playerSettingsReactive = client.State.ReactivePlayerSettingsDocument();
-        using var verseHostSettingsReactive = client.State.ReactiveVerseHostSettings();
-        using var zoneContactsReactive = client.State.ReactiveZoneContacts();
-        using var currentZoneReactive = client.State.ReactiveCurrentZone();
-        using var currentEntityDocumentReactive = client.State.ReactiveCurrentEntity();
-        using var currentDockingReactive = client.State.ReactiveCurrentDocking();
-        using var stationRefitReactive = client.State.ReactiveStationRefit();
-        using var zoneDetailsReactive = client.State.ReactiveZoneDetails(0);
-        using var selectedObjectReactive = client.State.ReactiveSelectedObject(0);
-        using var inventoryReactive = client.State.ReactiveInventory(0);
-        using var mapViewportReactive = client.State.ReactiveRtsViewport(viewport);
-        using var objectsViewportReactive = client.State.ReactiveObjectsViewport(viewport);
-        using var gravityViewportReactive = client.State.ReactiveGravityViewport(viewport);
-        using var renderSplatsViewportReactive = client.State.ReactiveRenderSplatsViewport(viewport);
-        using var playerHudCatalog = client.State.ReactiveCatalogSnapshot();
-        using var playerHudSettings = client.State.ReactivePlayerSettingsDocument();
-        using var playerHudEntity = client.State.ReactiveCurrentEntity();
+        using var loadoutTemplatesReactive = client.State.LoadoutTemplates.Reactive();
+        using var sectorMapReactive = client.State.SectorMap.Reactive();
+        using var playerSettingsReactive = client.State.PlayerSettings.Reactive();
+        using var verseHostSettingsReactive = client.State.VerseHostSettings.Reactive();
+        using var zoneContactsReactive = client.State.ZoneContacts.Reactive();
+        using var currentZoneReactive = client.State.CurrentZone.Reactive();
+        using var currentEntityDocumentReactive = client.State.CurrentEntity.Reactive();
+        using var currentDockingReactive = client.State.CurrentDocking.Reactive();
+        using var stationRefitReactive = client.State.StationRefit.Reactive();
+        using var zoneDetailsReactive = client.State.ZoneDetails(0).Reactive();
+        using var selectedObjectReactive = client.State.SelectedObject(0).Reactive();
+        using var inventoryReactive = client.State.Inventory(0).Reactive();
+        using var mapViewportReactive = client.State.RtsViewport(viewport).Reactive();
+        using var objectsViewportReactive = client.State.ObjectsViewport(viewport).Reactive();
+        using var gravityViewportReactive = client.State.GravityViewport(viewport).Reactive();
+        using var renderSplatsViewportReactive = client.State.RenderSplatsViewport(viewport).Reactive();
+        using var playerHudCatalog = client.State.Catalog.Reactive();
+        using var playerHudSettings = client.State.PlayerSettings.Reactive();
+        using var playerHudEntity = client.State.CurrentEntity.Reactive();
         var gameSurface = ReadLatest(client.State.GameSurface);
         var gameTuiSurface = ReadLatest(client.State.GameTuiSurface);
         var editorSurface = ReadLatest(client.State.EditorSurface);
@@ -247,7 +247,7 @@ public class DaemonRuntimeDocumentTests
         var stationRefit = ReadLatest(client.State.StationRefit);
         Assert.AreEqual(currentEntity.EntityKey, currentEntityDocumentReactive.Current.EntityKey);
         Assert.AreEqual(currentDocking.CurrentEntityKey, currentDockingReactive.Current.CurrentEntityKey);
-        Assert.AreEqual(stationRefit.StationEntityKey, stationRefitReactive.Current.StationEntityKey);
+        Assert.AreEqual(stationRefit.CurrentEntityKey, stationRefitReactive.Current.CurrentEntityKey);
         using var reactiveGameSurface = client.State.GameSurface.Reactive();
         using var reactiveGameTuiSurface = client.State.GameTuiSurface.Reactive();
         using var reactiveEditorSurface = client.State.EditorSurface.Reactive();
@@ -268,7 +268,7 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual(AetheriaRuntimeDaemonEditorSurfaceBuilder.SurfaceId, reactiveEditorSurface.Current.Surface.Id);
         Assert.AreEqual(AetheriaRuntimeDaemonEditorSurfaceBuilder.TuiSurfaceId, reactiveEditorTuiSurface.Current.Surface.Id);
         Assert.AreEqual(currentDocking.CurrentEntityKey, currentDockingReactive.Current.CurrentEntityKey);
-        Assert.AreEqual(stationRefit.StationEntityKey, stationRefitReactive.Current.StationEntityKey);
+        Assert.AreEqual(stationRefit.CurrentEntityKey, stationRefitReactive.Current.CurrentEntityKey);
         Assert.IsNotNull(ReadLatest(client.State.PlayerSettings));
         Assert.IsNotNull(ReadLatest(client.State.VerseHostSettings));
         Assert.IsNotNull(ReadLatest(client.State.ZoneContacts));
@@ -301,7 +301,7 @@ public class DaemonRuntimeDocumentTests
         Assert.AreSame(catalog, catalogReactive.Current);
         Assert.AreEqual(AetheriaRuntimeDaemonSchemas.Frame, daemonFrameReactive.Current.Schema);
         Assert.AreEqual(AetheriaRuntimeDaemonSchemas.SoaView, daemonSoaViewReactive.Current.Schema);
-        Assert.AreEqual(AetheriaRuntimeLoadoutTemplatesDocument.SchemaId, loadoutTemplatesReactive.Current.Schema);
+        Assert.AreEqual(typeof(AetheriaRuntimeLoadoutTemplatesDocument), client.State.LoadoutTemplates.DocumentType);
         Assert.AreEqual(AetheriaRuntimeDaemonSchemas.SectorMap, sectorMapReactive.Current.Schema);
         Assert.AreEqual(AetheriaRuntimePlayerSettingsDocument.SchemaId, playerSettingsReactive.Current.Schema);
         Assert.AreEqual(AetheriaRuntimeVerseHostSettingsDocument.SchemaId, verseHostSettings.Schema);
@@ -395,19 +395,19 @@ public class DaemonRuntimeDocumentTests
             .GetResult();
 
         var aetheria = verse.Aetheria();
-        var currentEntity = ReadLatest(aetheria.Document<AetheriaRuntimeCurrentEntityDocument>());
+        var currentEntity = ReadLatest(aetheria.CurrentEntity);
         var latestFrameDocument = verse.Document<AetheriaRuntimeDaemonFrameDocument>(
             AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest);
         using var latestFrameReactive = latestFrameDocument.Reactive();
 
-        Assert.AreEqual("aetheria.current.entity", aetheria.Current.Entity.DocumentId);
+        Assert.AreEqual("aetheria.current.entity", aetheria.CurrentEntity.DocumentId);
         Assert.AreEqual("zone.0.entity.0", currentEntity.EntityKey);
         Assert.AreEqual("Player", currentEntity.Entity?.DisplayName);
         Assert.AreEqual(AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest.ToString(), latestFrameDocument.DocumentId);
         Assert.AreEqual(AetheriaRuntimeDaemonSchemas.Frame, latestFrameReactive.Current.Schema);
         Assert.AreEqual(8, latestFrameReactive.Current.FrameId);
         Assert.IsTrue(latestFrameDocument.CanSet);
-        Assert.IsTrue(aetheria.Current.Entity.Sources.Any(source =>
+        Assert.IsTrue(aetheria.CurrentEntity.Sources.Any(source =>
             source.SourceId == AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest.ToString()));
     }
 
@@ -599,16 +599,16 @@ public class DaemonRuntimeDocumentTests
         var unityEditorSurfaceState = ReadLatest(client.State.EditorSurface);
         var unityEditorTuiSurfaceState = ReadLatest(client.State.EditorTuiSurface);
         var surfaceResolver = client.State.CreateEveSurfaceCultMeshStateRefResolver();
-        var unityGameSurface = AetheriaRuntimeEveSurfaceAdapter.ToEveSurfaceDocument(
+        var unityGameSurface = AetheriaRuntimeSurfaceDocuments.ToEveSurfaceDocument(
             unityGameSurfaceState,
             surfaceResolver);
-        var unityGameTuiSurface = AetheriaRuntimeEveSurfaceAdapter.ToEveSurfaceDocument(
+        var unityGameTuiSurface = AetheriaRuntimeSurfaceDocuments.ToEveSurfaceDocument(
             unityGameTuiSurfaceState,
             surfaceResolver);
-        var unityEditorSurface = AetheriaRuntimeEveSurfaceAdapter.ToEveSurfaceDocument(
+        var unityEditorSurface = AetheriaRuntimeSurfaceDocuments.ToEveSurfaceDocument(
             unityEditorSurfaceState,
             surfaceResolver);
-        var unityEditorTuiSurface = AetheriaRuntimeEveSurfaceAdapter.ToEveSurfaceDocument(
+        var unityEditorTuiSurface = AetheriaRuntimeSurfaceDocuments.ToEveSurfaceDocument(
             unityEditorTuiSurfaceState,
             surfaceResolver);
 
@@ -628,7 +628,7 @@ public class DaemonRuntimeDocumentTests
             command.Command == "aetheria.daemon.commands.TransferCargoItem"));
         Assert.AreEqual(AetheriaRuntimeDaemonEditorSurfaceBuilder.TuiSurfaceId, unityEditorTuiSurface.Surface.Id);
         Assert.AreEqual("editor.daemon", unityEditorTuiSurface.ProviderKind);
-        var genericGameSurface = AetheriaRuntimeEveSurfaceAdapter.ToEveSurfaceDocument(
+        var genericGameSurface = AetheriaRuntimeSurfaceDocuments.ToEveSurfaceDocument(
             ReadLatest(client.State.GameSurface),
             surfaceResolver);
         Assert.AreEqual(AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId, genericGameSurface.Surface.Id);
@@ -651,18 +651,18 @@ public class DaemonRuntimeDocumentTests
             "value",
             AetheriaRuntimeDaemonStateRefs.CurrentTargetName,
             AetheriaRuntimeDaemonSchemas.Frame));
-        var genericGameTuiSurface = AetheriaRuntimeEveSurfaceAdapter.ToEveSurfaceDocument(
+        var genericGameTuiSurface = AetheriaRuntimeSurfaceDocuments.ToEveSurfaceDocument(
             ReadLatest(client.State.GameTuiSurface),
             surfaceResolver);
         Assert.AreEqual(AetheriaRuntimeDaemonGameSurfaceBuilder.TuiSurfaceId, genericGameTuiSurface.Surface.Id);
-        var genericEditorTuiSurface = AetheriaRuntimeEveSurfaceAdapter.ToEveSurfaceDocument(
+        var genericEditorTuiSurface = AetheriaRuntimeSurfaceDocuments.ToEveSurfaceDocument(
             ReadLatest(client.State.EditorTuiSurface),
             surfaceResolver);
         Assert.AreEqual(AetheriaRuntimeDaemonEditorSurfaceBuilder.TuiSurfaceId, genericEditorTuiSurface.Surface.Id);
     }
 
     [Test]
-    public void EveSurfaceAdapterResolvesDaemonStateRefsBeforeLowering()
+    public void RuntimeSurfaceDocumentsResolveDaemonStateRefsBeforeLowering()
     {
         var surface = new EveSurfaceDocument(
             "surface-state",
@@ -690,7 +690,7 @@ public class DaemonRuntimeDocumentTests
         var resolver = CultMesh.StateRefResolver(
             "aetheria.tests.refs",
             (stateRef, _context) => stateRef == AetheriaRuntimeDaemonStateRefs.CurrentTargetName ? "Live Target" : "");
-        var resolved = AetheriaRuntimeEveSurfaceAdapter.ResolveStateRefs(surface, resolver);
+        var resolved = AetheriaRuntimeSurfaceDocuments.ResolveStateRefs(surface, resolver);
 
         Assert.IsTrue(ContainsEveSurfaceMetric(resolved.Surface.Root, "Target", "Live Target"));
         Assert.IsTrue(ContainsEveSurfaceProp(
@@ -700,7 +700,7 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
-    public void EveSurfaceAdapterResolvesTypedPointerPropsBeforeLowering()
+    public void RuntimeSurfaceDocumentsResolveTypedPointerPropsBeforeLowering()
     {
         var surface = new EveSurfaceDocument(
             "surface-state",
@@ -729,7 +729,7 @@ public class DaemonRuntimeDocumentTests
         var resolver = CultMesh.StateRefResolver(
             "aetheria.tests.refs",
             (stateRef, _context) => stateRef == AetheriaRuntimeDaemonStateRefs.CurrentTargetName ? "Live Target" : "");
-        var resolved = AetheriaRuntimeEveSurfaceAdapter.ResolveStateRefs(surface, resolver);
+        var resolved = AetheriaRuntimeSurfaceDocuments.ResolveStateRefs(surface, resolver);
 
         Assert.IsTrue(ContainsEveSurfaceProp(resolved.Surface.Root, "description", "Live Target"));
         Assert.IsTrue(ContainsEveSurfaceProp(resolved.Surface.Root, "descriptionRef", AetheriaRuntimeDaemonStateRefs.CurrentTargetName));
@@ -2207,9 +2207,9 @@ public class DaemonRuntimeDocumentTests
             .OpenAsync(statePath, "unity-observer-test", pullOnOpen: true)
             .GetAwaiter()
             .GetResult();
-        using var observedFrame = client.State.ReactiveDaemonFrame();
-        using var observedSoaView = client.State.ReactiveDaemonSoaView();
-        using var observedZoneRender = client.State.ReactiveZoneRender();
+        using var observedFrame = client.State.DaemonFrame.Reactive();
+        using var observedSoaView = client.State.DaemonSoaView.Reactive();
+        using var observedZoneRender = client.State.ZoneRender.Reactive();
         Assert.IsTrue(AetheriaRuntimeDaemonRenderView.TryCreateCurrent(
             observedFrame,
             observedSoaView,
@@ -2265,9 +2265,9 @@ public class DaemonRuntimeDocumentTests
             .OpenAsync(statePath, "unity-reactive-observer-test", pullOnOpen: true)
             .GetAwaiter()
             .GetResult();
-        using var observedFrame = client.State.ReactiveDaemonFrame();
-        using var observedSoaView = client.State.ReactiveDaemonSoaView();
-        using var observedZoneRender = client.State.ReactiveZoneRender();
+        using var observedFrame = client.State.DaemonFrame.Reactive();
+        using var observedSoaView = client.State.DaemonSoaView.Reactive();
+        using var observedZoneRender = client.State.ZoneRender.Reactive();
         var observed = AetheriaRuntimeDaemonRenderView.TryCreateCurrent(
             observedFrame,
             observedSoaView,
@@ -2312,9 +2312,9 @@ public class DaemonRuntimeDocumentTests
             .OpenAsync(statePath, "unity-frame-only-observer-test", pullOnOpen: true)
             .GetAwaiter()
             .GetResult();
-        using var observedFrame = client.State.ReactiveDaemonFrame();
-        using var observedSoaView = client.State.ReactiveDaemonSoaView();
-        using var observedZoneRender = client.State.ReactiveZoneRender();
+        using var observedFrame = client.State.DaemonFrame.Reactive();
+        using var observedSoaView = client.State.DaemonSoaView.Reactive();
+        using var observedZoneRender = client.State.ZoneRender.Reactive();
         Assert.IsTrue(AetheriaRuntimeDaemonRenderView.TryCreateCurrent(
             observedFrame,
             observedSoaView,
@@ -2375,7 +2375,7 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
-    public void CommandClientSendsCommandAgainstDaemonFrame
+    public void CommandClientSendsCommandAgainstDaemonFrame()
     {
         var statePath = Path.Combine(
             Path.GetTempPath(),

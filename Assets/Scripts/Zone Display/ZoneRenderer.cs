@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Cinemachine;
 using GameCult.Aetheria.State.Verse;
+using GameCult.Mesh;
 using UnityEngine;
 using UnityEngine.Serialization;
 using Object = UnityEngine.Object;
@@ -29,6 +30,7 @@ public class ZoneRenderer : MonoBehaviour
     public CinemachineVirtualCamera SceneCamera;
     public Camera[] FogCameras;
     public Camera[] MinimapCameras;
+    private AetheriaClientState _runtimeState;
     public bool UseRenderSplatTextureLayers = true;
     public Material FogMaterial;
     public float FogFarFadeFraction = .125f;
@@ -1199,8 +1201,8 @@ public class ZoneRenderer : MonoBehaviour
     {
         try
         {
-            return AetheriaUnityRuntimeClientProvider
-                .CurrentCatalog("unity-zone-renderer");
+            _runtimeState ??= AetheriaUnityRuntimeClientProvider.RuntimeState("unity-zone-renderer");
+            return _runtimeState.Catalog.Latest();
         }
         catch (Exception ex)
         {

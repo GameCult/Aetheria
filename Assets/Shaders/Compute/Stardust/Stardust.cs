@@ -3,10 +3,13 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine.Rendering;
+using UnityEngine.Rendering.RenderGraphModule;
 
 
 public class Stardust : MonoBehaviour
 {
+    private static readonly List<Stardust> Instances = new List<Stardust>();
+
     #region variables
     //public bool debugLog = false;
     //public float proxyPersistTime = 2;
@@ -57,13 +60,52 @@ public class Stardust : MonoBehaviour
 
     private ComputeBuffer _quadPoints;
     private const int QUAD_STRIDE = 12;
+    private bool _buffersReady;
 
     #endregion
 
+    public static void RenderForCamera(UnsafeCommandBuffer cmd, Camera camera, TextureHandle colorTarget, TextureHandle depthTarget)
+    {
+        for (var i = 0; i < Instances.Count; i++)
+        {
+            var stardust = Instances[i];
+            if (stardust == null || !stardust.isActiveAndEnabled || stardust.TargetCamera != camera)
+                continue;
+
+            stardust.RenderStardust(cmd, colorTarget, depthTarget);
+        }
+    }
+
     #region setup
+    private void OnEnable()
+    {
+        if (!Instances.Contains(this))
+            Instances.Add(this);
+    }
+
+    private void OnDisable()
+    {
+        Instances.Remove(this);
+        ReleaseBuffers();
+    }
+
     // Use this for initialization
     void Start()
     {
+        EnsureBuffers();
+    }
+
+    private void EnsureBuffers()
+    {
+        if (_buffersReady && (_particlesBuffer == null || _quadPoints == null))
+            _buffersReady = false;
+
+        if (_buffersReady)
+            return;
+
+        if (ParticleCalculation == null || ParticleMaterial == null)
+            return;
+
         //Find compute kernel
         _updateParticlesKernel = ParticleCalculation.FindKernel("UpdateParticles");
 
@@ -92,6 +134,8 @@ public class Stardust : MonoBehaviour
 			new Vector3(-.5f, -.5f),
 			new Vector3(-.5f, .5f)
 		});
+
+        _buffersReady = true;
     }
     #endregion
 
@@ -99,6 +143,18 @@ public class Stardust : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
+        EnsureBuffers();
+        if (!_buffersReady || GravityCamera == null)
+            return;
+
+        if (_particlesBuffer == null)
+        {
+            _buffersReady = false;
+            EnsureBuffers();
+            if (!_buffersReady)
+                return;
+        }
+
         //Bind resources to compute shader
         ParticleCalculation.SetBuffer(_updateParticlesKernel, "particles", _particlesBuffer);
 
@@ -121,10 +177,24 @@ public class Stardust : MonoBehaviour
         //Dispatch, launch threads on GPU
         int numberOfGroups = Mathf.CeilToInt((float)Span * Span / GROUP_SIZE);
         ParticleCalculation.Dispatch(_updateParticlesKernel, numberOfGroups, 1, 1);
-        
+
+    }
+
+    private void RenderStardust(UnsafeCommandBuffer cmd, TextureHandle colorTarget, TextureHandle depthTarget)
+    {
+        EnsureBuffers();
+        if (!_buffersReady || ParticleMaterial == null || _particlesBuffer == null || _quadPoints == null)
+            return;
+
         ParticleMaterial.SetBuffer("particles", _particlesBuffer);
         ParticleMaterial.SetBuffer("quadPoints", _quadPoints);
-        Graphics.DrawProcedural(ParticleMaterial, new Bounds(pos, new Vector3(Spacing * Span, 2048, Spacing * Span)), MeshTopology.Triangles, 6, Span * Span, TargetCamera, null, ShadowCastingMode.Off, false, 0);
+
+        if (depthTarget.IsValid())
+            cmd.SetRenderTarget(colorTarget, depthTarget);
+        else
+            cmd.SetRenderTarget(colorTarget);
+
+        cmd.DrawProcedural(Matrix4x4.identity, ParticleMaterial, 0, MeshTopology.Triangles, 6, Span * Span);
     }
     #endregion
 
@@ -151,14 +221,16 @@ public class Stardust : MonoBehaviour
     #region cleanup
     void OnDestroy()
     {
-//        m_emitterProxies.Release();
-//        _temperature.Release();
-        if(_particlesBuffer!=null)
-        {
-            _particlesBuffer.Release();
-            _quadPoints.Release();
-        }
-//        m_livingProxyIndices.Release();
+        ReleaseBuffers();
+    }
+
+    private void ReleaseBuffers()
+    {
+        _particlesBuffer?.Release();
+        _quadPoints?.Release();
+        _particlesBuffer = null;
+        _quadPoints = null;
+        _buffersReady = false;
     }
     #endregion
 }

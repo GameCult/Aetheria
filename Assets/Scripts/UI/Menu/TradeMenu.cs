@@ -6,6 +6,7 @@ using System.Text.RegularExpressions;
 using GameCult.Aetheria.EveRuntime;
 using GameCult.Aetheria.State.Verse;
 using GameCult.Eve.Surface;
+using GameCult.Mesh;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -28,6 +29,7 @@ public class TradeMenu : MonoBehaviour
     private string _targetCargoEntityKey = "";
     private int _targetCargoIndex = -1;
     private string _targetCargoLabel = "Docking Bay";
+    private AetheriaClientState _runtimeState;
     private (ItemFilter filter, HardpointType type) _hardpointFilter;
     private (ItemFilter filter, SimpleCommodityCategory type) _commodityFilter;
     private (ItemFilter filter, CompoundCommodityCategory type) _compoundCommodityFilter;
@@ -46,6 +48,8 @@ public class TradeMenu : MonoBehaviour
     private AetheriaRuntimeTradeFilterSurfaceModel _filterSurfaceModel;
     private Action[] _rowActionCallbacks = Array.Empty<Action>();
     private AetheriaRuntimeTradeRowActionSurfaceModel _rowActionSurfaceModel;
+
+    private AetheriaClientState RuntimeState => _runtimeState ??= AetheriaUnityRuntimeClientProvider.RuntimeState("unity-trade");
     
     public EquippedCargoBay Inventory { get; set; }
 
@@ -504,7 +508,7 @@ public class TradeMenu : MonoBehaviour
     {
         try
         {
-            return AetheriaUnityRuntimeClientProvider.CurrentStationRefit("unity-trade");
+            return RuntimeState.StationRefit.Latest();
         }
         catch (Exception ex)
         {
@@ -518,7 +522,7 @@ public class TradeMenu : MonoBehaviour
         docking = null;
         try
         {
-            docking = AetheriaUnityRuntimeClientProvider.CurrentDockingState("unity-trade");
+            docking = RuntimeState.CurrentDocking.Latest();
             return docking != null;
         }
         catch (Exception ex)
@@ -577,7 +581,7 @@ public class TradeMenu : MonoBehaviour
     {
         try
         {
-            return AetheriaUnityRuntimeClientProvider.CurrentCatalog("unity-trade");
+            return RuntimeState.Catalog.Latest();
         }
         catch (Exception ex)
         {
@@ -590,7 +594,7 @@ public class TradeMenu : MonoBehaviour
     {
         try
         {
-            return AetheriaUnityRuntimeClientProvider.CurrentPlayerSettings("unity-trade");
+            return RuntimeState.PlayerSettings.Latest();
         }
         catch (Exception ex)
         {

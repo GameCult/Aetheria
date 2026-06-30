@@ -146,8 +146,8 @@ $requiredGeneratedBindingSymbols = @(
     'aetheriaRuntimeDaemonCommandDocumentSlots',
     'encodeSetMoveVectorCommand',
     'encodeSetTargetCommand',
-    'AetheriaRuntimeRtsProjectionSources',
-    'AetheriaRuntimeRtsProjectionDiagnostic',
+    'AetheriaRuntimeRtsDocumentSources',
+    'AetheriaRuntimeRtsQueryDiagnostic',
     'AetheriaRuntimeRtsLiveFeedDiagnostic',
     'AetheriaRuntimeRtsSurfaceCatalogDiagnostic',
     'AetheriaRuntimeRtsDocuments',
@@ -161,9 +161,9 @@ $requiredGeneratedBindingSymbols = @(
     'surfaceCatalogIndexDiagnostics(): CultMeshSurfaceCatalogIndexDiagnostic',
     'ipcMain.handle(AetheriaRtsIpcChannels.surfaceCatalog',
     'ipcMain.handle(AetheriaRtsIpcChannels.surfaceCatalogIndex',
-    'CultMesh.projectionSource',
-    'CultMesh.projectionRecipe',
-    'CultMeshProjectionSource',
+    'CultMesh.querySource',
+    'CultMesh.query',
+    'CultMeshQuerySource',
     'routeHint: CultMeshRouteHint',
     'CultMeshQueryWatcher',
     'AetheriaRuntimeRtsQueryWatchers',
@@ -171,9 +171,8 @@ $requiredGeneratedBindingSymbols = @(
     'CultMesh.document',
     'CultMesh.bindDocument',
     'CultMesh.describeSurface(documents.daemonFrame)',
-    'routeHint, watchProjection',
-    'watchProjection: watchers.objectsViewport',
-    '.asQuerySurface()',
+    'watchQuery: watchers.objectsViewport',
+    'sources: [AetheriaRuntimeRtsDocumentSources.daemonFrame]',
     'describeAetheriaRuntimeRtsQueryHandles',
     'describeAetheriaRuntimeRtsLiveFeedSurface',
     'describeAetheriaRuntimeRtsSurfaceCatalog',
@@ -186,19 +185,19 @@ $requiredGeneratedBindingSymbols = @(
     'CultMesh.operation',
     'CultMesh.operationReceipt',
     'AetheriaRuntimeRtsOperationHandles',
-    'AetheriaRuntimeRtsVerseFacade',
-    'createAetheriaRuntimeRtsVerseFacade',
+    'AetheriaRuntimeRtsVerseHandles',
+    'createAetheriaRuntimeRtsVerseHandles',
     'CultMesh.bindQuery',
     'CultMesh.bindOperation',
     'zone: (_zoneId =',
     'visibleWithin',
     'entity: (entityKey: string)',
     'pilot',
-    'selectedObject: CultMesh.projectionRecipe',
-    'inventory: CultMesh.projectionRecipe',
-    'daemonHealth: CultMesh.projectionRecipe',
-    'authorityStatus: CultMesh.projectionRecipe',
-    'starbridgeSession: CultMesh.projectionRecipe'
+    'selectedObject: CultMesh.query',
+    'inventory: CultMesh.query',
+    'daemonHealth: CultMesh.query',
+    'authorityStatus: CultMesh.query',
+    'starbridgeSession: CultMesh.query'
 )
 
 foreach ($symbol in $requiredGeneratedBindingSymbols) {
@@ -208,17 +207,17 @@ foreach ($symbol in $requiredGeneratedBindingSymbols) {
     }
 }
 
-$forbiddenGeneratedQuerySurfaceHits = & rg -n 'CultMesh\.query\s*[<(]' Electron/aetheria-rts-generated-bindings.ts 2>$null
+$forbiddenGeneratedQuerySurfaceHits = & rg -n 'CultMesh\.(projectionRecipe|projectionSource)\s*[<(]' Electron/aetheria-rts-generated-bindings.ts 2>$null
 if ($LASTEXITCODE -eq 0) {
-    Write-Error "Stage 7B verifier failed: generated RTS read surfaces should use CultMesh projection recipes, not raw query wrappers.`n$forbiddenGeneratedQuerySurfaceHits"
+    Write-Error "Stage 7B verifier failed: generated RTS read surfaces should use CultMesh query/document handles, not projection recipes or projection sources.`n$forbiddenGeneratedQuerySurfaceHits"
 }
 if ($LASTEXITCODE -gt 1) {
-    Write-Error "Stage 7B verifier could not run rg for generated projection recipe checks."
+    Write-Error "Stage 7B verifier could not run rg for generated projection vocabulary checks."
 }
 
 $forbiddenGeneratedContextPlumbingHits = & rg -n 'CultMesh\.(queryContextFromVerse|operationContextFromVerse)|\.execute\([^,\n]+,\s*queryContext\(|\.invoke\([^,\n]+,\s*operationContext\(' Electron/aetheria-rts-generated-bindings.ts 2>$null
 if ($LASTEXITCODE -eq 0) {
-    Write-Error "Stage 7B verifier failed: generated RTS facade should bind surfaces to Verse contexts instead of threading context plumbing.`n$forbiddenGeneratedContextPlumbingHits"
+    Write-Error "Stage 7B verifier failed: generated RTS handles should bind surfaces to Verse contexts instead of threading context plumbing.`n$forbiddenGeneratedContextPlumbingHits"
 }
 if ($LASTEXITCODE -gt 1) {
     Write-Error "Stage 7B verifier could not run rg for generated Verse binding checks."
@@ -247,7 +246,7 @@ if (-not $clientText.Contains('this.verse = CultMesh.verse("aetheria.local", thi
 
 if (-not $clientText.Contains('? this.verse.withRoute("network", this.publicationDescription)') -or
     -not $clientText.Contains(': this.verse.withRoute("shared-memory", this.publicationDescription)')) {
-    Write-Error "Stage 7B verifier failed: RTS client is not deriving publication-mode Verse views for projection reads."
+    Write-Error "Stage 7B verifier failed: RTS client is not deriving publication-mode Verse views for query reads."
 }
 
 if (-not $clientText.Contains('this.commandVerse = this.verse') -or
@@ -257,14 +256,14 @@ if (-not $clientText.Contains('this.commandVerse = this.verse') -or
 }
 
 if (-not $clientText.Contains('this.publicationDescription = publicationMode === "remote" ? this.endpoint : statePath')) {
-    Write-Error "Stage 7B verifier failed: RTS client projection route metadata does not include the local publication source description."
+    Write-Error "Stage 7B verifier failed: RTS client query route metadata does not include the local publication source description."
 }
 
 if (-not $clientText.Contains('return this.queryVerse.queryContext();')) {
     Write-Error "Stage 7B verifier failed: RTS query call sites should derive query contexts from the shared Verse primitive."
 }
 
-if (-not $clientText.Contains('this.aetheria = createAetheriaRuntimeRtsVerseFacade(')) {
+if (-not $clientText.Contains('this.aetheria = createAetheriaRuntimeRtsVerseHandles(')) {
     Write-Error "Stage 7B verifier failed: RTS client should bind generated Aetheria domain sugar to its Verse contexts."
 }
 
@@ -282,12 +281,12 @@ if ($LASTEXITCODE -gt 1) {
     Write-Error "Stage 7B verifier could not run rg for raw context checks."
 }
 
-if (-not $clientText.Contains('projectionDiagnostics()')) {
-    Write-Error "Stage 7B verifier failed: RTS client does not expose generated projection diagnostics."
+if (-not $clientText.Contains('queryDiagnostics()')) {
+    Write-Error "Stage 7B verifier failed: RTS client does not expose generated query diagnostics."
 }
 
 if (-not $clientText.Contains('describeAetheriaRuntimeRtsQueryHandles(this.queries)')) {
-    Write-Error "Stage 7B verifier failed: RTS projection diagnostics should be read from generated query handle metadata."
+    Write-Error "Stage 7B verifier failed: RTS query diagnostics should be read from generated query handle metadata."
 }
 
 if (-not $clientText.Contains('liveFeedDiagnostics()')) {
@@ -374,20 +373,20 @@ if ($LASTEXITCODE -ne 0) {
     Write-Error "Stage 7B verifier failed: Electron main is not using generated RTS IPC handler registration."
 }
 
-$forbiddenClientDirectProjectionReturns = @(
+$forbiddenClientDirectDocumentReturns = @(
     'return projectSelectedObjectFromFrame',
     'return projectInventoryFromFrame',
     'return projectDaemonHealth',
     'return projectAuthorityStatus',
     'return projectStarbridgeSessionSummary'
 )
-$forbiddenClientDirectProjectionPattern = ($forbiddenClientDirectProjectionReturns -join '|')
-$forbiddenClientDirectProjectionHits = & rg -n $forbiddenClientDirectProjectionPattern Electron/aetheria-cultmesh.ts 2>$null
+$forbiddenClientDirectDocumentPattern = ($forbiddenClientDirectDocumentReturns -join '|')
+$forbiddenClientDirectDocumentHits = & rg -n $forbiddenClientDirectDocumentPattern Electron/aetheria-cultmesh.ts 2>$null
 if ($LASTEXITCODE -eq 0) {
-    Write-Error "Stage 7B verifier failed: RTS client read methods bypass generated query handles.`n$forbiddenClientDirectProjectionHits"
+    Write-Error "Stage 7B verifier failed: RTS client read methods bypass generated query handles.`n$forbiddenClientDirectDocumentHits"
 }
 if ($LASTEXITCODE -gt 1) {
-    Write-Error "Stage 7B verifier could not run rg for direct projection return checks."
+    Write-Error "Stage 7B verifier could not run rg for direct document return checks."
 }
 
 $requiredRendererContractSymbols = @(
@@ -462,30 +461,30 @@ if ($LASTEXITCODE -gt 1) {
     Write-Error "Stage 7B verifier could not run rg for stale binding checks."
 }
 
-& rg -q 'projectViewportFromFrame' Electron/aetheria-rts-local-projection.ts
+& rg -q 'buildViewportDocumentFromFrame' Electron/aetheria-rts-local-documents.ts
 if ($LASTEXITCODE -ne 0) {
-    Write-Error "Stage 7B verifier failed: local RTS frame projection entry point was not found."
+    Write-Error "Stage 7B verifier failed: local RTS frame document entry point was not found."
 }
 
-$requiredProjectionSymbols = @(
-    'projectObjectsViewportFromFrame',
-    'projectGravityViewportFromFrame',
+$requiredLocalDocumentSymbols = @(
+    'buildObjectsViewportDocumentFromFrame',
+    'buildGravityViewportDocumentFromFrame',
     'AetheriaRtsSchemas.objectsViewport',
     'AetheriaRtsSchemas.gravityViewport',
-    'projectSelectedObjectFromFrame',
-    'projectInventoryFromFrame',
+    'buildSelectedObjectDocumentFromFrame',
+    'buildInventoryDocumentFromFrame',
     'AetheriaRtsSchemas.selectedObject',
     'AetheriaRtsSchemas.inventory',
-    'projectDaemonHealth',
-    'projectAuthorityStatus',
-    'projectStarbridgeSessionSummary',
+    'readDaemonHealthDocument',
+    'readAuthorityStatusDocument',
+    'readStarbridgeSessionSummaryDocument',
     'AetheriaRtsSchemas.starbridgeSessionSummary'
 )
 
-foreach ($symbol in $requiredProjectionSymbols) {
-    & rg -q $symbol Electron/aetheria-rts-local-projection.ts
+foreach ($symbol in $requiredLocalDocumentSymbols) {
+    & rg -q $symbol Electron/aetheria-rts-local-documents.ts
     if ($LASTEXITCODE -ne 0) {
-        Write-Error "Stage 7B verifier failed: expected local RTS projection symbol '$symbol' was not found."
+        Write-Error "Stage 7B verifier failed: expected local RTS document symbol '$symbol' was not found."
     }
 }
 
@@ -507,9 +506,17 @@ if ($LASTEXITCODE -ne 0) {
     Write-Error "Stage 7B verifier failed: Starbridge summary publication binding was not found."
 }
 
-& rg -q '.daemon.starbridge.session.cc' Electron/aetheria-cultmesh.ts
+$forbiddenLocalPublicationSidecars = & rg -n '\.(daemon\.frame|daemon\.health|authority\.policy|daemon\.starbridge\.session|daemon\.assets)\.cc' Electron/aetheria-cultmesh.ts 2>$null
+if ($LASTEXITCODE -eq 0) {
+    Write-Error "Stage 7B verifier failed: RTS client should read local publications from the canonical daemon store, not obsolete sidecar files.`n$forbiddenLocalPublicationSidecars"
+}
+if ($LASTEXITCODE -gt 1) {
+    Write-Error "Stage 7B verifier could not run rg for obsolete local publication sidecar checks."
+}
+
+& rg -q 'localPath: statePath' Electron/aetheria-cultmesh.ts
 if ($LASTEXITCODE -ne 0) {
-    Write-Error "Stage 7B verifier failed: RTS client is not reading the daemon Starbridge sidecar publication."
+    Write-Error "Stage 7B verifier failed: RTS client local publication bindings do not point at the canonical daemon store."
 }
 
 $requiredGeneratedBindingSymbols = @(

@@ -23,27 +23,27 @@ import {
 } from "./aetheria-rts-generated-bindings.js";
 import { cultMeshRectFromBounds, cultMeshViewportRequest } from "cultmesh-ts";
 import type {
-  AssetManifestProjection,
+  AssetManifestDocument,
   AssetRef,
-  AuthorityStatusProjection,
+  AuthorityStatusDocument,
   BodyView,
-  DaemonHealthProjection,
+  DaemonHealthDocument,
   GravityViewportResponse,
   GravityInfluence,
-  InventoryProjection,
+  InventoryDocument,
   InventoryItem,
   ObjectsViewportResponse,
-  SelectedObjectProjection,
+  SelectedObjectDocument,
   SelectedObjectRequest,
-  StarbridgeSessionProjection,
+  StarbridgeSessionDocument,
   ViewObject,
   ViewportRequest,
   ViewportResponse,
 } from "./aetheria-rts-bindings.js";
 
-export function projectViewportFromFrame(frameDocument: unknown, request: ViewportRequest): ViewportResponse {
-  const objects = projectObjectsViewportFromFrame(frameDocument, request);
-  const gravity = projectGravityViewportFromFrame(frameDocument, request);
+export function buildViewportDocumentFromFrame(frameDocument: unknown, request: ViewportRequest): ViewportResponse {
+  const objects = buildObjectsViewportDocumentFromFrame(frameDocument, request);
+  const gravity = buildGravityViewportDocumentFromFrame(frameDocument, request);
   return {
     schema: AetheriaRtsSchemas.rtsViewport,
     frameId: objects.frameId,
@@ -61,7 +61,7 @@ export function projectViewportFromFrame(frameDocument: unknown, request: Viewpo
   };
 }
 
-export function projectObjectsViewportFromFrame(
+export function buildObjectsViewportDocumentFromFrame(
   frameDocument: unknown,
   request: ViewportRequest,
 ): ObjectsViewportResponse {
@@ -102,7 +102,7 @@ export function projectObjectsViewportFromFrame(
   };
 }
 
-export function projectGravityViewportFromFrame(
+export function buildGravityViewportDocumentFromFrame(
   frameDocument: unknown,
   request: ViewportRequest,
 ): GravityViewportResponse {
@@ -132,10 +132,10 @@ export function projectGravityViewportFromFrame(
   };
 }
 
-export function projectSelectedObjectFromFrame(
+export function buildSelectedObjectDocumentFromFrame(
   frameDocument: unknown,
   request: SelectedObjectRequest,
-): SelectedObjectProjection {
+): SelectedObjectDocument {
   const context = frameContext(frameDocument);
   const entity = context.entities.find(candidate => num(candidate[entitySlots.entityIndex], -1) === request.entityIndex);
   return {
@@ -148,7 +148,7 @@ export function projectSelectedObjectFromFrame(
   };
 }
 
-export function projectInventoryFromFrame(frameDocument: unknown, request: SelectedObjectRequest): InventoryProjection {
+export function buildInventoryDocumentFromFrame(frameDocument: unknown, request: SelectedObjectRequest): InventoryDocument {
   const context = frameContext(frameDocument);
   const entity = context.entities.find(candidate => num(candidate[entitySlots.entityIndex], -1) === request.entityIndex);
   const allItems = entity ? inventory(entity) : [];
@@ -165,7 +165,7 @@ export function projectInventoryFromFrame(frameDocument: unknown, request: Selec
   };
 }
 
-export function projectDaemonHealth(healthDocument: unknown): DaemonHealthProjection {
+export function readDaemonHealthDocument(healthDocument: unknown): DaemonHealthDocument {
   const health = arr(healthDocument);
   return {
     schema: str(health[healthSlots.schema]) || AetheriaRtsSchemas.daemonHealth,
@@ -184,7 +184,7 @@ export function projectDaemonHealth(healthDocument: unknown): DaemonHealthProjec
   };
 }
 
-export function projectAuthorityStatus(policyDocument: unknown): AuthorityStatusProjection {
+export function readAuthorityStatusDocument(policyDocument: unknown): AuthorityStatusDocument {
   const policy = arr(policyDocument);
   return {
     schema: str(policy[authorityPolicySlots.schema]) || AetheriaRtsSchemas.verseAuthorityPolicy,
@@ -206,7 +206,7 @@ export function projectAuthorityStatus(policyDocument: unknown): AuthorityStatus
   };
 }
 
-export function projectStarbridgeSessionSummary(summaryDocument: unknown): StarbridgeSessionProjection {
+export function readStarbridgeSessionSummaryDocument(summaryDocument: unknown): StarbridgeSessionDocument {
   const summary = arr(summaryDocument);
   return {
     schema: str(summary[starbridgeSummarySlots.schema]) || AetheriaRtsSchemas.starbridgeSessionSummary,
@@ -227,7 +227,7 @@ export function projectStarbridgeSessionSummary(summaryDocument: unknown): Starb
   };
 }
 
-export function projectAssetManifest(assetManifestDocument: unknown): AssetManifestProjection {
+export function readAssetManifestDocument(assetManifestDocument: unknown): AssetManifestDocument {
   const manifest = arr(assetManifestDocument);
   return {
     schema: str(manifest[assetManifestSlots.schema]) || AetheriaRtsSchemas.assetManifest,
@@ -296,7 +296,7 @@ function toViewObject(entity: unknown[], runId: string, zoneIndex: number): View
   };
 }
 
-function toStarbridgeBaseStatus(status: unknown[]): StarbridgeSessionProjection["baseStatus"] {
+function toStarbridgeBaseStatus(status: unknown[]): StarbridgeSessionDocument["baseStatus"] {
   return {
     entityKey: str(status[starbridgeBaseSlots.entityKey]),
     displayName: str(status[starbridgeBaseSlots.displayName]),
@@ -307,7 +307,7 @@ function toStarbridgeBaseStatus(status: unknown[]): StarbridgeSessionProjection[
   };
 }
 
-function toStarbridgeStationStockItem(item: unknown[]): StarbridgeSessionProjection["stationStock"][number] {
+function toStarbridgeStationStockItem(item: unknown[]): StarbridgeSessionDocument["stationStock"][number] {
   const itemKey = str(item[starbridgeStockSlots.itemKey]);
   return {
     itemKey,
@@ -319,7 +319,7 @@ function toStarbridgeStationStockItem(item: unknown[]): StarbridgeSessionProject
   };
 }
 
-function toStarbridgeWaveForecast(wave: unknown[]): StarbridgeSessionProjection["waveForecast"][number] {
+function toStarbridgeWaveForecast(wave: unknown[]): StarbridgeSessionDocument["waveForecast"][number] {
   return {
     waveIndex: num(wave[starbridgeWaveForecastSlots.waveIndex]),
     displayName: str(wave[starbridgeWaveForecastSlots.displayName]),
@@ -329,7 +329,7 @@ function toStarbridgeWaveForecast(wave: unknown[]): StarbridgeSessionProjection[
   };
 }
 
-function toStarbridgeRuntimeRole(role: unknown[]): StarbridgeSessionProjection["runtimeRoles"][number] {
+function toStarbridgeRuntimeRole(role: unknown[]): StarbridgeSessionDocument["runtimeRoles"][number] {
   return {
     runtimeId: str(role[starbridgeRoleSlots.runtimeId]),
     role: str(role[starbridgeRoleSlots.role]),
@@ -439,7 +439,7 @@ function entityKey(runId: string, zoneIndex: number, entityIndex: number): strin
   return `global:aetheria.run_state.${runId}.zone.${zoneIndex}.entity.${entityIndex}.v1`;
 }
 
-function toAssetManifestEntry(entry: unknown[]): AssetManifestProjection["assets"][number] {
+function toAssetManifestEntry(entry: unknown[]): AssetManifestDocument["assets"][number] {
   return {
     ref: assetRef(arr(entry[assetManifestEntrySlots.ref])),
     sizeBytes: num(entry[assetManifestEntrySlots.sizeBytes]),

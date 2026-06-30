@@ -1,15 +1,238 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using GameCult.Caching;
 using GameCult.Eve.Surface;
 using GameCult.Mesh;
+using MessagePack;
 using EveSurfaceState = global::Aetheria.State.Documents.EveSurfaceState;
 
 #nullable enable
 
 namespace GameCult.Aetheria.State.Verse
 {
-    public static class AetheriaRuntimeEveSurfaceAdapter
+    [CultDocument("gamecult.aetheria.runtime_surface", "gamecult.aetheria.runtime_surface.v1")]
+    [MessagePackObject]
+    public sealed class AetheriaRuntimeSurfaceDocument
+    {
+        [SerializationConstructor]
+        public AetheriaRuntimeSurfaceDocument(
+            string providerId,
+            string providerKind,
+            string title,
+            long version,
+            string updatedAtUtc,
+            AetheriaRuntimeSurfaceTree surface,
+            IReadOnlyList<AetheriaRuntimeSurfaceCommandTemplate> commands)
+        {
+            ProviderId = providerId ?? "";
+            ProviderKind = providerKind ?? "";
+            Title = title ?? "";
+            Version = version;
+            UpdatedAtUtc = updatedAtUtc ?? "";
+            Surface = surface ?? throw new ArgumentNullException(nameof(surface));
+            Commands = commands ?? Array.Empty<AetheriaRuntimeSurfaceCommandTemplate>();
+        }
+
+        [Key(0)]
+        public string ProviderId { get; }
+
+        [Key(1)]
+        public string ProviderKind { get; }
+
+        [Key(2)]
+        public string Title { get; }
+
+        [Key(3)]
+        public long Version { get; }
+
+        [Key(4)]
+        public string UpdatedAtUtc { get; }
+
+        [Key(5)]
+        public AetheriaRuntimeSurfaceTree Surface { get; }
+
+        [Key(6)]
+        public IReadOnlyList<AetheriaRuntimeSurfaceCommandTemplate> Commands { get; }
+    }
+
+    [MessagePackObject]
+    public sealed class AetheriaRuntimeSurfaceTree
+    {
+        [SerializationConstructor]
+        public AetheriaRuntimeSurfaceTree(
+            string id,
+            AetheriaRuntimeSurfaceComponent root,
+            IReadOnlyList<AetheriaRuntimeSurfaceStyleToken> styles)
+        {
+            Id = id ?? "";
+            Root = root ?? throw new ArgumentNullException(nameof(root));
+            Styles = styles ?? Array.Empty<AetheriaRuntimeSurfaceStyleToken>();
+        }
+
+        [Key(0)]
+        public string Id { get; }
+
+        [Key(1)]
+        public AetheriaRuntimeSurfaceComponent Root { get; }
+
+        [Key(2)]
+        public IReadOnlyList<AetheriaRuntimeSurfaceStyleToken> Styles { get; }
+    }
+
+    [MessagePackObject]
+    public sealed class AetheriaRuntimeSurfaceComponent
+    {
+        public AetheriaRuntimeSurfaceComponent(
+            string id,
+            string kind,
+            IReadOnlyDictionary<string, string> props,
+            IReadOnlyList<AetheriaRuntimeSurfaceComponent> children)
+            : this(id, kind, props, children, AetheriaRuntimeSurfaceStateBindings.FromProps(props))
+        {
+        }
+
+        public AetheriaRuntimeSurfaceComponent(
+            string id,
+            string kind,
+            IReadOnlyDictionary<string, string> props,
+            IReadOnlyList<AetheriaRuntimeSurfaceComponent> children,
+            IReadOnlyList<CultMeshStateBindingDescriptor> stateBindings)
+            : this(id, kind, props, children, stateBindings, Array.Empty<AetheriaRuntimeEmbeddedDocumentSlot>())
+        {
+        }
+
+        [SerializationConstructor]
+        public AetheriaRuntimeSurfaceComponent(
+            string id,
+            string kind,
+            IReadOnlyDictionary<string, string> props,
+            IReadOnlyList<AetheriaRuntimeSurfaceComponent> children,
+            IReadOnlyList<CultMeshStateBindingDescriptor> stateBindings,
+            IReadOnlyList<AetheriaRuntimeEmbeddedDocumentSlot> embeddedDocuments)
+        {
+            Id = id ?? "";
+            Kind = kind ?? "";
+            Props = props ?? new Dictionary<string, string>(StringComparer.Ordinal);
+            Children = children ?? Array.Empty<AetheriaRuntimeSurfaceComponent>();
+            StateBindings = stateBindings ?? Array.Empty<CultMeshStateBindingDescriptor>();
+            EmbeddedDocuments = embeddedDocuments ?? Array.Empty<AetheriaRuntimeEmbeddedDocumentSlot>();
+        }
+
+        [Key(0)]
+        public string Id { get; }
+
+        [Key(1)]
+        public string Kind { get; }
+
+        [Key(2)]
+        public IReadOnlyDictionary<string, string> Props { get; }
+
+        [Key(3)]
+        public IReadOnlyList<AetheriaRuntimeSurfaceComponent> Children { get; }
+
+        [Key(4)]
+        public IReadOnlyList<CultMeshStateBindingDescriptor> StateBindings { get; }
+
+        [Key(5)]
+        public IReadOnlyList<AetheriaRuntimeEmbeddedDocumentSlot> EmbeddedDocuments { get; }
+    }
+
+    [MessagePackObject]
+    public sealed class AetheriaRuntimeEmbeddedDocumentSlot
+    {
+        [SerializationConstructor]
+        public AetheriaRuntimeEmbeddedDocumentSlot(
+            string slotId,
+            string documentId,
+            string schemaId,
+            string presentationKind,
+            CultMeshRouteHint routeHint)
+        {
+            SlotId = slotId ?? "";
+            DocumentId = documentId ?? "";
+            SchemaId = schemaId ?? "";
+            PresentationKind = presentationKind ?? "";
+            RouteHint = routeHint ?? CultMeshRouteHint.Automatic;
+        }
+
+        public AetheriaRuntimeEmbeddedDocumentSlot(
+            string slotId,
+            string documentId,
+            string schemaId,
+            string presentationKind)
+            : this(slotId, documentId, schemaId, presentationKind, CultMeshRouteHint.Automatic)
+        {
+        }
+
+        [Key(0)]
+        public string SlotId { get; }
+
+        [Key(1)]
+        public string DocumentId { get; }
+
+        [Key(2)]
+        public string SchemaId { get; }
+
+        [Key(3)]
+        public string PresentationKind { get; }
+
+        [Key(4)]
+        public CultMeshRouteHint RouteHint { get; }
+    }
+
+    [MessagePackObject]
+    public sealed class AetheriaRuntimeSurfaceStyleToken
+    {
+        [SerializationConstructor]
+        public AetheriaRuntimeSurfaceStyleToken(string name, string value)
+        {
+            Name = name ?? "";
+            Value = value ?? "";
+        }
+
+        [Key(0)]
+        public string Name { get; }
+
+        [Key(1)]
+        public string Value { get; }
+    }
+
+    [MessagePackObject]
+    public sealed class AetheriaRuntimeSurfaceCommandTemplate
+    {
+        public const string CultMeshTransport = "cultmesh";
+
+        public AetheriaRuntimeSurfaceCommandTemplate(string command, string label, string transport)
+            : this(CultMesh.OperationBindingRecord(
+                command,
+                label,
+                "",
+                nameof(CultMeshLocalityKind.Automatic),
+                transport).ToBinding())
+        {
+        }
+
+        [SerializationConstructor]
+        public AetheriaRuntimeSurfaceCommandTemplate(CultMeshOperationBindingDescriptor operation)
+        {
+            Operation = operation ?? throw new ArgumentNullException(nameof(operation));
+        }
+
+        [Key(0)]
+        public CultMeshOperationBindingDescriptor Operation { get; }
+
+        [IgnoreMember]
+        public string Command => Operation.OperationId;
+
+        [IgnoreMember]
+        public string Label => Operation.Label;
+
+        [IgnoreMember]
+        public string Transport => Operation.RouteHint.Description ?? "";
+    }
+
+    public static class AetheriaRuntimeSurfaceDocuments
     {
         public static EveSurfaceState ToEveSurfaceState(AetheriaRuntimeSurfaceDocument document)
         {
@@ -69,10 +292,10 @@ namespace GameCult.Aetheria.State.Verse
                     state.Surface.Id,
                     ToEveSurfaceComponent(state.Surface.Root),
                     state.Surface.Styles
-                        .Select(style => new GameCult.Eve.Surface.EveStyleToken(style.Name, style.Value))
+                        .Select(style => new EveStyleToken(style.Name, style.Value))
                         .ToArray()),
                 state.Commands
-                    .Select(command => new GameCult.Eve.Surface.EveCommandTemplate(
+                    .Select(command => new EveCommandTemplate(
                         ToCultMeshOperationBinding(command)))
                     .ToArray());
 
@@ -161,7 +384,8 @@ namespace GameCult.Aetheria.State.Verse
                 component.Kind,
                 props,
                 component.Children.Select(ToEveSurfaceComponent).ToArray(),
-                component.StateBindings.Select(ToCultMeshStateBinding).ToArray());
+                component.StateBindings.Select(ToCultMeshStateBinding).ToArray(),
+                component.EmbeddedDocuments.Select(ToEveEmbeddedDocumentSlot).ToArray());
         }
 
         private static global::Aetheria.State.Documents.EveSurface ToEveSurfaceState(
@@ -228,6 +452,16 @@ namespace GameCult.Aetheria.State.Verse
                 stateBindings.Select(ToCultMeshStateBinding).ToArray());
         }
 
+        private static EveEmbeddedDocumentSlot ToEveEmbeddedDocumentSlot(AetheriaRuntimeEmbeddedDocumentSlot slot)
+        {
+            return new EveEmbeddedDocumentSlot(
+                slot.SlotId,
+                slot.DocumentId,
+                slot.SchemaId,
+                slot.PresentationKind,
+                slot.RouteHint);
+        }
+
         private static CultMeshStateBindingDescriptor ToCultMeshStateBinding(
             CultMeshStateBindingDescriptor binding)
         {
@@ -275,7 +509,8 @@ namespace GameCult.Aetheria.State.Verse
                 component.Kind,
                 props,
                 ResolveStateRefs(component.Children, resolveStateRef),
-                component.StateBindings);
+                component.StateBindings,
+                component.EmbeddedDocuments);
         }
 
         private static IReadOnlyList<EveSurfaceComponent> ResolveStateRefs(

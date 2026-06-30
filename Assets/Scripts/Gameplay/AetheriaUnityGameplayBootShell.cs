@@ -4,6 +4,7 @@
 
 using System;
 using GameCult.Aetheria.State.Verse;
+using GameCult.Mesh;
 
 public sealed class AetheriaUnityGameplayBootShell
 {
@@ -34,10 +35,11 @@ public sealed class AetheriaUnityGameplayBootShell
                 $"Aetheria runtime state file is missing at {stateBoot.StateFilePath}; gameplay requires an authoritative daemon mirror.");
         }
 
-        var runtimeCatalog = AetheriaUnityRuntimeClientProvider.CurrentCatalog(stateBoot, stateBoot.RuntimeId);
+        var runtimeState = AetheriaUnityRuntimeClientProvider.RuntimeState(stateBoot, stateBoot.RuntimeId);
+        var runtimeCatalog = runtimeState.Catalog.Latest();
         if (runtimeCatalog == null)
             throw new InvalidOperationException("Aetheria typed runtime catalog is required before gameplay boot.");
-        var sectorMap = AetheriaUnityRuntimeClientProvider.CurrentSectorMap(stateBoot, stateBoot.RuntimeId);
+        var sectorMap = runtimeState.SectorMap.Latest();
         if (sectorMap == null)
             throw new InvalidOperationException("Aetheria typed sector map is required before gameplay boot.");
 

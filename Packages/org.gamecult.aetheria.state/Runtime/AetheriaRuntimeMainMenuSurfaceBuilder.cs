@@ -149,63 +149,15 @@ namespace GameCult.Aetheria.State.Verse
         {
             var commands = new List<AetheriaRuntimeSurfaceCommandTemplate>();
             var actionButtons = new List<AetheriaRuntimeSurfaceComponent>();
-            var cardChildren = new List<AetheriaRuntimeSurfaceComponent>();
-            targetKind = string.IsNullOrWhiteSpace(targetKind) ? "unknown" : targetKind;
-            targetSource = string.IsNullOrWhiteSpace(targetSource) ? "unknown" : targetSource;
-            verseVisibility = string.IsNullOrWhiteSpace(verseVisibility) ? "unknown" : verseVisibility;
-            var verseMeshAddress = string.IsNullOrWhiteSpace(verseCultMeshAddress) ? "unpublished" : verseCultMeshAddress;
-            var verseLabel = VerseLabel(verseTitle, verseId);
 
             if (!inGame)
             {
-                if (!hasAuthoritativeDaemonFrame)
-                {
-                    cardChildren.Add(Text(
-                        $"{AetheriaRuntimeMainMenuCommands.RootSurfaceId}.continue.note",
-                        $"No authoritative daemon frame is available in {verseLabel} yet. Start or connect a daemon before opening the observer scene."));
-                }
-                else
-                {
-                    commands.Add(Command(AetheriaRuntimeMainMenuCommands.ContinueRun, "Continue"));
-                    actionButtons.Add(Button(
-                        $"{AetheriaRuntimeMainMenuCommands.RootSurfaceId}.continue",
-                        "Continue",
-                        AetheriaRuntimeMainMenuCommands.ContinueRun));
-                    cardChildren.Add(Metric(
-                        $"{AetheriaRuntimeMainMenuCommands.RootSurfaceId}.continue.run",
-                        "Daemon Run",
-                        daemonRunId));
-                    cardChildren.Add(Metric(
-                        $"{AetheriaRuntimeMainMenuCommands.RootSurfaceId}.continue.frame",
-                        "Daemon Frame",
-                        daemonFrameId.ToString()));
-                }
+                commands.Add(Command(AetheriaRuntimeMainMenuCommands.ContinueRun, "Continue"));
+                actionButtons.Add(Button(
+                    $"{AetheriaRuntimeMainMenuCommands.RootSurfaceId}.continue",
+                    "Continue",
+                    AetheriaRuntimeMainMenuCommands.ContinueRun));
             }
-
-            cardChildren.Add(Metric(
-                $"{AetheriaRuntimeMainMenuCommands.RootSurfaceId}.target.title",
-                "Client Target",
-                targetLabel));
-            cardChildren.Add(Metric(
-                $"{AetheriaRuntimeMainMenuCommands.RootSurfaceId}.target.transport",
-                "Transport",
-                targetKind));
-            cardChildren.Add(Metric(
-                $"{AetheriaRuntimeMainMenuCommands.RootSurfaceId}.target.source",
-                "Target Source",
-                targetSource));
-            cardChildren.Add(Metric(
-                $"{AetheriaRuntimeMainMenuCommands.RootSurfaceId}.verse.title",
-                "Verse",
-                verseLabel));
-            cardChildren.Add(Metric(
-                $"{AetheriaRuntimeMainMenuCommands.RootSurfaceId}.verse.visibility",
-                "Visibility",
-                verseVisibility));
-            cardChildren.Add(Metric(
-                $"{AetheriaRuntimeMainMenuCommands.RootSurfaceId}.verse.mesh",
-                "CultMesh",
-                verseMeshAddress));
 
             commands.Add(Command(AetheriaRuntimeMainMenuCommands.NewGame, "New Game"));
             commands.Add(Command(AetheriaRuntimeMainMenuCommands.ShowSettings, "Settings"));
@@ -215,21 +167,15 @@ namespace GameCult.Aetheria.State.Verse
             actionButtons.Add(Button($"{AetheriaRuntimeMainMenuCommands.RootSurfaceId}.settings", "Settings", AetheriaRuntimeMainMenuCommands.ShowSettings));
             actionButtons.Add(Button($"{AetheriaRuntimeMainMenuCommands.RootSurfaceId}.quit", "Quit", AetheriaRuntimeMainMenuCommands.Quit));
 
-            cardChildren.Add(Text(
-                $"{AetheriaRuntimeMainMenuCommands.RootSurfaceId}.note",
-                $"The client lowers this shell through Eve. The client target chooses which Verse it follows; game truth belongs to the daemon serving {verseLabel}."));
-            cardChildren.Add(ButtonColumn($"{AetheriaRuntimeMainMenuCommands.RootSurfaceId}.actions", actionButtons.ToArray()));
-
             return BuildSurfaceDocument(
                 AetheriaRuntimeMainMenuCommands.RootSurfaceId,
                 "Aetheria Terminus",
                 updatedAtUtc,
                 version,
                 commands,
-                Card(
-                    $"{AetheriaRuntimeMainMenuCommands.RootSurfaceId}.card",
-                    "Aetheria Terminus",
-                    cardChildren.ToArray()));
+                Text($"{AetheriaRuntimeMainMenuCommands.RootSurfaceId}.title", "AETHERIA", "text.title"),
+                Text($"{AetheriaRuntimeMainMenuCommands.RootSurfaceId}.subtitle", "TERMINUS", "text.subtitle"),
+                ButtonColumn($"{AetheriaRuntimeMainMenuCommands.RootSurfaceId}.actions", actionButtons.ToArray()));
         }
 
         public static AetheriaRuntimeSurfaceDocument BuildSettings(
@@ -248,18 +194,13 @@ namespace GameCult.Aetheria.State.Verse
                     Command(AetheriaRuntimeMainMenuCommands.ShowInputSettings, "Input"),
                     Command(AetheriaRuntimeMainMenuCommands.BackToMain, "Back")
                 },
-                Card(
-                    "aetheria.mainMenu.settings.card",
-                    "Settings",
-                    Text(
-                        "aetheria.mainMenu.settings.note",
-                        "Player settings, client target selection, and input rebinding all lower through typed Eve surfaces. Audio still has no typed owner."),
-                    ButtonRow(
-                        "aetheria.mainMenu.settings.actions",
-                        Button("aetheria.mainMenu.settings.playerSettings", "Player Settings", AetheriaRuntimeMainMenuCommands.ShowPlayerSettings),
-                        Button("aetheria.mainMenu.settings.verse", "Verse", AetheriaRuntimeMainMenuCommands.ShowVerseSettings),
-                        Button("aetheria.mainMenu.settings.input", "Input", AetheriaRuntimeMainMenuCommands.ShowInputSettings),
-                        Button("aetheria.mainMenu.settings.back", "Back", AetheriaRuntimeMainMenuCommands.BackToMain))));
+                Text("aetheria.mainMenu.settings.title", "SETTINGS", "text.title"),
+                ButtonColumn(
+                    "aetheria.mainMenu.settings.actions",
+                    Button("aetheria.mainMenu.settings.playerSettings", "Player Settings", AetheriaRuntimeMainMenuCommands.ShowPlayerSettings),
+                    Button("aetheria.mainMenu.settings.verse", "Verse", AetheriaRuntimeMainMenuCommands.ShowVerseSettings),
+                    Button("aetheria.mainMenu.settings.input", "Input", AetheriaRuntimeMainMenuCommands.ShowInputSettings),
+                    Button("aetheria.mainMenu.settings.back", "Back", AetheriaRuntimeMainMenuCommands.BackToMain)));
         }
 
         private static AetheriaRuntimeSurfaceDocument BuildInputSettings(
@@ -275,8 +216,9 @@ namespace GameCult.Aetheria.State.Verse
                 Command(AetheriaRuntimeMainMenuCommands.BackToSettings, "Back")
             };
 
-            var cardChildren = new List<AetheriaRuntimeSurfaceComponent>
+            var children = new List<AetheriaRuntimeSurfaceComponent>
             {
+                Text("aetheria.mainMenu.input.title", "INPUT", "text.title"),
                 Metric(
                     "aetheria.mainMenu.input.bindingOverrides",
                     "Binding Overrides",
@@ -290,19 +232,19 @@ namespace GameCult.Aetheria.State.Verse
             if (canOpenRuntimeInputScreen)
             {
                 commands.Insert(0, Command(AetheriaRuntimeMainMenuCommands.OpenRuntimeInputScreen, "Open Remap Screen"));
-                cardChildren.Add(Text(
+                children.Add(Text(
                     "aetheria.mainMenu.input.note",
                     "The runtime Eve input screen owns low-level InputSystem rebinding and action-bar input edits. This title shell reports typed player-settings state and hands off to that owner."));
             }
             else if (inGame)
             {
-                cardChildren.Add(Text(
+                children.Add(Text(
                     "aetheria.mainMenu.input.note",
                     "The runtime Eve input screen should own rebinding here, but this scene has no active input surface to hand off to."));
             }
             else
             {
-                cardChildren.Add(Text(
+                children.Add(Text(
                     "aetheria.mainMenu.input.note",
                     "This title shell reports the typed player-settings state. Launch a run to open the runtime Eve input screen that owns low-level InputSystem rebinding."));
             }
@@ -317,7 +259,7 @@ namespace GameCult.Aetheria.State.Verse
             }
 
             buttons.Add(Button("aetheria.mainMenu.input.back", "Back", AetheriaRuntimeMainMenuCommands.BackToSettings));
-            cardChildren.Add(ButtonRow("aetheria.mainMenu.input.actions", buttons.ToArray()));
+            children.Add(ButtonColumn("aetheria.mainMenu.input.actions", buttons.ToArray()));
 
             return BuildSurfaceDocument(
                 AetheriaRuntimeMainMenuCommands.InputSettingsSurfaceId,
@@ -325,10 +267,7 @@ namespace GameCult.Aetheria.State.Verse
                 updatedAtUtc,
                 version,
                 commands,
-                Card(
-                    "aetheria.mainMenu.input.card",
-                    "Input Settings",
-                    cardChildren.ToArray()));
+                children.ToArray());
         }
 
         public static AetheriaRuntimeSurfaceDocument BuildVerseSettingsShell(
@@ -420,7 +359,12 @@ namespace GameCult.Aetheria.State.Verse
 
         private static AetheriaRuntimeSurfaceComponent Text(string id, string value)
         {
-            return Node(id, "text", new[] { ("value", value ?? "") });
+            return Text(id, value, "text");
+        }
+
+        private static AetheriaRuntimeSurfaceComponent Text(string id, string value, string kind)
+        {
+            return Node(id, kind, new[] { ("value", value ?? "") });
         }
 
         private static AetheriaRuntimeSurfaceComponent Button(string id, string label, string command)

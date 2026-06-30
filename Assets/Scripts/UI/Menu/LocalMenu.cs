@@ -5,6 +5,7 @@ using System.Linq;
 using GameCult.Aetheria.EveRuntime;
 using GameCult.Aetheria.State.Verse;
 using GameCult.Eve.Surface;
+using GameCult.Mesh;
 using Ink.Runtime;
 using TMPro;
 using UniRx;
@@ -20,16 +21,17 @@ public class LocalMenu : MonoBehaviour
     public ChoicePrefab ChoicePrefab;
 
     private string _currentPath;
-    private LocationStory _currentLocation;
+    private LocationStory _currentLocalInkLocation;
     private Story _activeStory;
     private readonly List<ActiveStoryChoice> _activeChoices = new List<ActiveStoryChoice>();
     private UIDocument _surfaceDocument;
     private readonly AetheriaEveUnitySurfaceChrome _surfaceChrome = new AetheriaEveUnitySurfaceChrome();
-    private AetheriaUnityObservedEntityIndex _observedEntityIndex;
+    private AetheriaUnityPresentationEntityIndex _presentationEntityIndex;
+    private AetheriaClientState _runtimeState;
 
-    public void SetObservedEntityIndex(AetheriaUnityObservedEntityIndex observedEntityIndex)
+    public void SetPresentationEntityIndex(AetheriaUnityPresentationEntityIndex presentationEntityIndex)
     {
-        _observedEntityIndex = observedEntityIndex;
+        _presentationEntityIndex = presentationEntityIndex;
     }
 
     private sealed class ActiveStoryChoice
@@ -48,13 +50,13 @@ public class LocalMenu : MonoBehaviour
     
     private void OnEnable()
     {
-        if (!TryResolveDockedLocalStory(out _currentLocation))
+        if (!TryResolveDockedLocalInkStory(out _currentLocalInkLocation))
         {
             HideStorySurface();
             return;
         }
 
-        _activeStory = _currentLocation.Story;
+        _activeStory = _currentLocalInkLocation.Story;
         Continue();
     }
 
@@ -84,7 +86,7 @@ public class LocalMenu : MonoBehaviour
         else if (!_activeStory.canContinue)
         {
             // There's no choices, but we also can't continue; indicates we hit an END
-            if (_activeStory == _currentLocation.Story)
+            if (_activeStory == _currentLocalInkLocation.Story)
             {
                 // END inside location-based story thread, restart the story
                 _activeStory.ResetState();
@@ -93,7 +95,7 @@ public class LocalMenu : MonoBehaviour
             else
             {
                 // END inside quest content, switch back to location thread and present choices
-                _activeStory = _currentLocation.Story;
+                _activeStory = _currentLocalInkLocation.Story;
                 Continue();
             }
         }
@@ -103,10 +105,10 @@ public class LocalMenu : MonoBehaviour
 
     void PresentCurrentChoices()
     {
-        Debug.Log($"Current Path: \"{_currentPath}\" in {(_activeStory == _currentLocation.Story ? "Location Story" : "Quest Story")}");
-        if(!string.IsNullOrEmpty(_currentPath) && _currentLocation.KnotQuests.ContainsKey(_currentPath))
+        Debug.Log($"Current Path: \"{_currentPath}\" in {(_activeStory == _currentLocalInkLocation.Story ? "Location Story" : "Quest Story")}");
+        if(!string.IsNullOrEmpty(_currentPath) && _currentLocalInkLocation.KnotQuests.ContainsKey(_currentPath))
         {
-            foreach (var quest in _currentLocation.KnotQuests[_currentPath])
+            foreach (var quest in _currentLocalInkLocation.KnotQuests[_currentPath])
             {
                 if (quest.Story == _activeStory) continue; // Don't repeat choices for active injected branch
                 
@@ -188,23 +190,26 @@ public class LocalMenu : MonoBehaviour
 
     private string ResolveLocationLabel()
     {
-        if (!string.IsNullOrWhiteSpace(_currentLocation?.Name))
-            return _currentLocation.Name;
-        if (!string.IsNullOrWhiteSpace(_currentLocation?.FileName))
-            return _currentLocation.FileName;
+        if (!string.IsNullOrWhiteSpace(_currentLocalInkLocation?.Name))
+            return _currentLocalInkLocation.Name;
+        if (!string.IsNullOrWhiteSpace(_currentLocalInkLocation?.FileName))
+            return _currentLocalInkLocation.FileName;
         return "Local";
     }
 
-    private bool TryResolveDockedLocalStory(out LocationStory story)
+    private bool TryResolveDockedLocalInkStory(out LocationStory story)
     {
         story = null;
         var docking = CurrentDockingSnapshot();
-        if (_observedEntityIndex == null ||
+        // Ink story execution is still a Unity-local island. The docking identity
+        // comes from managed typed state; the remaining object lookup should go
+        // away when local story state becomes a daemon-owned CultMesh document.
+        if (_presentationEntityIndex == null ||
             docking == null ||
             !docking.IsDocked ||
             string.IsNullOrWhiteSpace(docking.DockParentEntityKey) ||
             docking.DockingBayIndex < 0 ||
-            !_observedEntityIndex.TryResolveDockingBayByRecordKey(
+            !_presentationEntityIndex.TryGetPresentationDockingBayByRecordKey(
                 docking.DockParentEntityKey,
                 docking.DockingBayIndex,
                 out var dockingBay) ||
@@ -217,11 +222,12 @@ public class LocalMenu : MonoBehaviour
         return true;
     }
 
-    private static AetheriaRuntimeCurrentDockingDocument CurrentDockingSnapshot()
+    private AetheriaRuntimeCurrentDockingDocument CurrentDockingSnapshot()
     {
         try
         {
-            return AetheriaUnityRuntimeClientProvider.CurrentDockingState("unity-local-menu");
+            _runtimeState ??= AetheriaUnityRuntimeClientProvider.RuntimeState("unity-local-menu");
+            return _runtimeState.CurrentDocking.Latest();
         }
         catch (Exception ex)
         {

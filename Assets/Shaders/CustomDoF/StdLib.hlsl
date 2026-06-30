@@ -260,11 +260,6 @@ float2 TransformTriangleVertexToUV(float2 vertex)
 // -----------------------------------------------------------------------------
 // Default vertex shaders
 
-struct AttributesDefault
-{
-    float3 vertex : POSITION;
-};
-
 struct VaryingsDefault
 {
     float4 vertex : SV_POSITION;
@@ -279,15 +274,19 @@ struct VaryingsDefault
 float _DepthSlice;
 #endif
 
-VaryingsDefault VertDefault(AttributesDefault v)
+float2 FullScreenTriangleUV(uint vertexID)
 {
-    VaryingsDefault o;
-    o.vertex = float4(v.vertex.xy, 0.0, 1.0);
-    o.texcoord = TransformTriangleVertexToUV(v.vertex.xy);
+    return float2((vertexID << 1) & 2, vertexID & 2);
+}
 
-#if UNITY_UV_STARTS_AT_TOP
-    o.texcoord = o.texcoord * float2(1.0, -1.0) + float2(0.0, 1.0);
-#endif
+float4 _BlitScaleBias; // xy: scale, zw: translate
+
+VaryingsDefault VertDefault(uint vertexID : SV_VertexID)
+{
+    float2 uv = FullScreenTriangleUV(vertexID);
+    VaryingsDefault o;
+    o.vertex = float4(uv * 2.0 - 1.0, 0.0, 1.0);
+    o.texcoord = uv * _BlitScaleBias.xy + _BlitScaleBias.zw;
 
     o.texcoordStereo = TransformStereoScreenSpaceTex(o.texcoord, 1.0);
 
@@ -300,16 +299,17 @@ float4 _UVTransform; // xy: scale, wz: translate
 float4 _PosScaleOffset; // xy: scale, wz: offset
 #endif
 
-VaryingsDefault VertUVTransform(AttributesDefault v)
+VaryingsDefault VertUVTransform(uint vertexID : SV_VertexID)
 {
+    float2 uv = FullScreenTriangleUV(vertexID);
     VaryingsDefault o;
 
 #if STEREO_DOUBLEWIDE_TARGET
-    o.vertex = float4(v.vertex.xy * _PosScaleOffset.xy + _PosScaleOffset.zw, 0.0, 1.0);
+    o.vertex = float4((uv * 2.0 - 1.0) * _PosScaleOffset.xy + _PosScaleOffset.zw, 0.0, 1.0);
 #else
-    o.vertex = float4(v.vertex.xy, 0.0, 1.0);
+    o.vertex = float4(uv * 2.0 - 1.0, 0.0, 1.0);
 #endif
-    o.texcoord = TransformTriangleVertexToUV(v.vertex.xy) * _UVTransform.xy + _UVTransform.zw;
+    o.texcoord = uv * _UVTransform.xy + _UVTransform.zw;
     o.texcoordStereo = TransformStereoScreenSpaceTex(o.texcoord, 1.0);
 #if STEREO_INSTANCING_ENABLED
     o.stereoTargetEyeIndex = (uint)_DepthSlice;

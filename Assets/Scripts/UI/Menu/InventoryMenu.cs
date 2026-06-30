@@ -9,6 +9,7 @@ using System.Linq;
 using GameCult.Aetheria.EveRuntime;
 using GameCult.Aetheria.State.Verse;
 using GameCult.Eve.Surface;
+using GameCult.Mesh;
 using UnityEngine;
 using UniRx;
 using UniRx.Triggers;
@@ -21,17 +22,14 @@ public class InventoryMenu : MonoBehaviour
     public ConfirmationDialog Dialog;
     // public ClickCatcher Background;
 
-    private int2 _selectedPosition;
-    private InventoryPanel _selectedPanel;
-    private ItemInstance _selectedItem;
     private EquippedItem _selectedEquippedItem;
-    private int2[] _selectedCells;
     private AetheriaRuntimeCurrentEntityDocument _shipSettingsCurrentEntity;
     private UIDocument _shipSettingsSurfaceDocument;
     private UIDocument _cargoItemDetailsSurfaceDocument;
     private UIDocument _equippedItemDetailsSurfaceDocument;
     private AetheriaUnityActionBarPresentation _actionBarPresentation;
-    private AetheriaUnityObservedEntityIndex _observedEntityIndex;
+    private AetheriaUnityPresentationEntityIndex _presentationEntityIndex;
+    private AetheriaClientState _runtimeState;
     private readonly AetheriaEveUnitySurfaceChrome _shipSettingsSurfaceChrome = PanelChrome(360f, 420f);
     private readonly AetheriaEveUnitySurfaceChrome _cargoItemDetailsSurfaceChrome = PanelChrome(420f, 520f);
     private readonly AetheriaEveUnitySurfaceChrome _equippedItemDetailsSurfaceChrome = PanelChrome(460f, 560f);
@@ -55,10 +53,12 @@ public class InventoryMenu : MonoBehaviour
         _actionBarPresentation = actionBarPresentation;
     }
 
-    public void SetObservedEntityIndex(AetheriaUnityObservedEntityIndex observedEntityIndex)
+    public void SetPresentationEntityIndex(AetheriaUnityPresentationEntityIndex presentationEntityIndex)
     {
-        _observedEntityIndex = observedEntityIndex;
+        _presentationEntityIndex = presentationEntityIndex;
     }
+
+    private AetheriaClientState RuntimeState => _runtimeState ??= AetheriaUnityRuntimeClientProvider.RuntimeState("unity-inventory-menu");
     // private int2 _dragCellOffset;
     // private ItemRotation _originalRotation;
     // //private Shape _previousFakeOccupancy;
@@ -108,74 +108,6 @@ public class InventoryMenu : MonoBehaviour
     {
         foreach (var panel in InventoryPanels)
         {
-            panel.OnClickAsObservable().Subscribe(e =>
-            {
-                if (e.data is InventoryCargoEventData cargoEvent)
-                {
-                    var item = cargoEvent.CargoBay.Occupancy[cargoEvent.Position.x, cargoEvent.Position.y];
-                    if(item!=null)
-                    {
-                        if (e.clickCount == 2)
-                        {
-                            HideCargoItemDetailsSurface();
-                            HideEquippedItemDetailsSurface();
-                            ClearSelectedItemSelection();
-                            var otherPanel = panel == InventoryPanels[0] ? InventoryPanels[1] : InventoryPanels[0];
-                            RequestCargoItemTransfer(cargoEvent.CargoBay, otherPanel, item);
-                            // TODO: SFX: Equip
-                            // else
-                            // TODO: SFX: Fail
-                        }
-                        else
-                        {
-                            HideCurrentShipSettingsSurface();
-                            HideCargoItemDetailsSurface();
-                            HideEquippedItemDetailsSurface();
-                            ClearSelectedItemSelection();
-                            _selectedPanel = panel;
-                            _selectedPosition = cargoEvent.CargoBay.Cargo[item];
-                            _selectedItem = item;
-                            _selectedCells = GetSelectedCells(item, _selectedPosition);
-                            ApplySelectedCellHighlight();
-                            RenderCargoItemDetailsSurface(item);
-                            // TODO: SFX: Success
-                        }
-                    }
-                }
-                else if (e.data is InventoryEntityEventData entityEvent)
-                {
-                    var item = entityEvent.Entity.GearOccupancy[entityEvent.Position.x, entityEvent.Position.y];
-                    if (item != null)
-                    {
-                        if (e.clickCount == 2)
-                        {
-                            HideCargoItemDetailsSurface();
-                            HideEquippedItemDetailsSurface();
-                            ClearSelectedItemSelection();
-                            var otherPanel = panel == InventoryPanels[0] ? InventoryPanels[1] : InventoryPanels[0];
-                            RequestEquippedItemTransfer(entityEvent.Entity, item, otherPanel);
-                            // TODO: SFX: Unequip
-                            // else
-                            // TODO: SFX: Fail
-                        }
-                        else
-                        {
-                            HideCurrentShipSettingsSurface();
-                            HideCargoItemDetailsSurface();
-                            ClearSelectedItemSelection();
-                            _selectedPanel = panel;
-                            _selectedPosition = item.Position;
-                            _selectedItem = item.EquippableItem;
-                            _selectedEquippedItem = item;
-                            _selectedCells = GetSelectedCells(item.EquippableItem, _selectedPosition);
-                            ApplySelectedCellHighlight();
-                            RenderEquippedItemDetailsSurface(item);
-                            // TODO: SFX: Success
-                        }
-                    }
-                }
-            });
-
             panel.OnBackgroundClick.Subscribe(data =>
             {
                 if (!TryReadCurrentEntity(out var currentEntity)) return;
@@ -499,122 +431,9 @@ public class InventoryMenu : MonoBehaviour
                item.Entity.WeaponGroups[groupIndex].items.Contains(item);
     }
 
-    private void RequestCargoItemTransfer(EquippedCargoBay origin, InventoryPanel destination, ItemInstance item)
-    {
-        if (destination.DisplayedEntity != null && item is EquippableItem equippableItem)
-        {
-            RequestCargoItemEquip(origin, destination.DisplayedEntity, equippableItem);
-            return;
-        }
-
-        if (destination.DisplayedCargo != null)
-            RequestCargoItemTransfer(origin, destination.DisplayedCargo, item);
-    }
-
     private void ClearSelectedItemSelection()
     {
-        ClearSelectedCellHighlight();
-        _selectedPanel = null;
-        _selectedItem = null;
         _selectedEquippedItem = null;
-        _selectedCells = null;
-        _selectedPosition = default;
-    }
-
-    private void RequestEquippedItemTransfer(Entity origin, EquippedItem item, InventoryPanel destination)
-    {
-        if (destination.DisplayedCargo != null)
-            RequestEquippedItemStore(item, destination.DisplayedCargo);
-    }
-
-    private void RequestCargoItemTransfer(
-        EquippedCargoBay origin,
-        EquippedCargoBay destination,
-        ItemInstance item)
-    {
-        if (!TryResolveCargoBay(origin, out var originEntityKey, out var originCargoIndex) ||
-            !TryResolveCargoBay(destination, out var destinationEntityKey, out var destinationCargoIndex) ||
-            item == null ||
-            string.IsNullOrWhiteSpace(item.ItemKey) ||
-            !origin.Cargo.TryGetValue(item, out var originPosition) ||
-            !TryValidateTypedCargoSlot(originEntityKey, originCargoIndex, item, originPosition, true))
-        {
-            return;
-        }
-
-        var quantity = item is SimpleCommodity commodity ? commodity.Quantity : 1;
-        if (quantity <= 0)
-            return;
-
-        TrySubmitOperation(
-            operations => operations.TransferCargoItem(
-                originEntityKey,
-                originCargoIndex,
-                destinationEntityKey,
-                destinationCargoIndex,
-                item.ItemKey,
-                quantity,
-                originPosition.x,
-                originPosition.y,
-                default,
-                default,
-                false),
-            "cargo transfer");
-    }
-
-    private void RequestCargoItemEquip(
-        EquippedCargoBay origin,
-        Entity destination,
-        EquippableItem item)
-    {
-        if (!TryResolveCargoBay(origin, out var originEntityKey, out var originCargoIndex) ||
-            !TryResolveEntityRecordKey(destination, out var destinationEntityKey) ||
-            item == null ||
-            string.IsNullOrWhiteSpace(item.ItemKey) ||
-            !origin.Cargo.TryGetValue(item, out var originPosition) ||
-            !TryValidateTypedCargoSlot(originEntityKey, originCargoIndex, item, originPosition, true))
-        {
-            return;
-        }
-
-        TrySubmitOperation(
-            operations => operations.EquipItem(
-                "cargo",
-                originEntityKey,
-                originCargoIndex,
-                destinationEntityKey,
-                item.ItemKey,
-                originPosition.x,
-                originPosition.y,
-                default,
-                default,
-                false),
-            "cargo equip");
-    }
-
-    private void RequestEquippedItemStore(
-        EquippedItem item,
-        EquippedCargoBay destination)
-    {
-        if (!TryResolveEquippedItem(item, out var originEntityKey, out var equipmentIndex) ||
-            !TryResolveCargoBay(destination, out var destinationEntityKey, out var destinationCargoIndex) ||
-            item?.EquippableItem == null ||
-            !TryValidateTypedEquipmentSlot(originEntityKey, equipmentIndex, item))
-        {
-            return;
-        }
-
-        TrySubmitOperation(
-            operations => operations.StoreItem(
-                originEntityKey,
-                equipmentIndex,
-                destinationEntityKey,
-                destinationCargoIndex,
-                item.EquippableItem.ItemKey,
-                default,
-                default,
-                false),
-            "equipment store");
     }
 
     private void RequestEntityShutdownPerformance(string targetEntityKey, float shutdownPerformance)
@@ -678,17 +497,17 @@ public class InventoryMenu : MonoBehaviour
             "weapon-group membership");
     }
 
-    private bool TryResolveEntityRecordKey(Entity entity, out string recordKey)
+    private bool TryGetRecordKeyForPresentationEntity(Entity entity, out string recordKey)
     {
         recordKey = "";
-        return _observedEntityIndex != null &&
-               _observedEntityIndex.TryResolveEntityRecordKey(entity, out recordKey);
+        return _presentationEntityIndex != null &&
+               _presentationEntityIndex.TryGetRecordKeyForPresentationEntity(entity, out recordKey);
     }
 
     private bool IsCurrentEntity(Entity entity)
     {
         if (entity == null ||
-            !TryResolveEntityRecordKey(entity, out var entityKey) ||
+            !TryGetRecordKeyForPresentationEntity(entity, out var entityKey) ||
             string.IsNullOrWhiteSpace(entityKey) ||
             !TryResolveCurrentEntityKey(out var currentEntityKey))
         {
@@ -732,9 +551,9 @@ public class InventoryMenu : MonoBehaviour
     {
         currentEntity = null;
         var currentEntityKey = CurrentEntitySnapshot()?.EntityKey ?? "";
-        return _observedEntityIndex != null &&
+        return _presentationEntityIndex != null &&
                !string.IsNullOrWhiteSpace(currentEntityKey) &&
-               _observedEntityIndex.TryResolveEntityByRecordKey(currentEntityKey, out currentEntity);
+               _presentationEntityIndex.TryGetPresentationEntityByRecordKey(currentEntityKey, out currentEntity);
     }
 
     private bool TryResolveCurrentDockingBay(out EquippedDockingBay dockingBay)
@@ -744,8 +563,8 @@ public class InventoryMenu : MonoBehaviour
         if (refit?.IsDocked != true ||
             refit.DockingBayIndex < 0 ||
             string.IsNullOrWhiteSpace(refit.DockParentEntityKey) ||
-            _observedEntityIndex == null ||
-            !_observedEntityIndex.TryResolveDockingBayByRecordKey(
+            _presentationEntityIndex == null ||
+            !_presentationEntityIndex.TryGetPresentationDockingBayByRecordKey(
                 refit.DockParentEntityKey,
                 refit.DockingBayIndex,
                 out dockingBay))
@@ -756,115 +575,19 @@ public class InventoryMenu : MonoBehaviour
         return dockingBay != null;
     }
 
-    private bool TryResolveCargoBay(EquippedCargoBay cargoBay, out string entityKey, out int cargoIndex)
-    {
-        return TryResolveEquippedItem(cargoBay, out entityKey, out cargoIndex);
-    }
-
     private bool TryResolveEquippedItem(EquippedItem item, out string entityKey, out int equipmentIndex)
     {
         entityKey = "";
         equipmentIndex = -1;
         var entity = item?.Entity;
         if (entity?.Equipment == null ||
-            !TryResolveEntityRecordKey(entity, out entityKey))
+            !TryGetRecordKeyForPresentationEntity(entity, out entityKey))
         {
             return false;
         }
 
         equipmentIndex = entity.Equipment.IndexOf(item);
         return equipmentIndex >= 0;
-    }
-
-    private bool TryResolveTypedInventoryRows(
-        string entityKey,
-        out IReadOnlyList<AetheriaRuntimeRtsInventoryItem> equipment,
-        out IReadOnlyList<AetheriaRuntimeRtsInventoryItem> cargo)
-    {
-        equipment = Array.Empty<AetheriaRuntimeRtsInventoryItem>();
-        cargo = Array.Empty<AetheriaRuntimeRtsInventoryItem>();
-        if (string.IsNullOrWhiteSpace(entityKey))
-            return false;
-
-        try
-        {
-            var current = CurrentEntitySnapshot();
-            if (current != null && string.Equals(current.EntityKey, entityKey, StringComparison.Ordinal))
-            {
-                equipment = current.Equipment ?? Array.Empty<AetheriaRuntimeRtsInventoryItem>();
-                cargo = current.Cargo ?? Array.Empty<AetheriaRuntimeRtsInventoryItem>();
-                return true;
-            }
-
-            var refit = StationRefitSnapshot();
-            var entityIndex = -1;
-            if (refit != null)
-            {
-                if (string.Equals(refit.DockParentEntityKey, entityKey, StringComparison.Ordinal))
-                    entityIndex = refit.DockParentEntityIndex;
-                else
-                    entityIndex = (refit.AvailableEntities ?? Array.Empty<AetheriaRuntimeStationRefitEntityOption>())
-                        .FirstOrDefault(option => string.Equals(option.EntityKey, entityKey, StringComparison.Ordinal))
-                        ?.EntityIndex ?? -1;
-            }
-
-            if (entityIndex < 0)
-                return false;
-
-            var inventory = InventorySnapshot(entityIndex);
-            if (inventory == null || !string.Equals(inventory.EntityKey, entityKey, StringComparison.Ordinal))
-                return false;
-
-            equipment = inventory.Equipment ?? Array.Empty<AetheriaRuntimeRtsInventoryItem>();
-            cargo = inventory.Cargo ?? Array.Empty<AetheriaRuntimeRtsInventoryItem>();
-            return true;
-        }
-        catch (Exception ex)
-        {
-            Debug.LogWarning($"Failed to validate Aetheria typed inventory document for {entityKey}: {ex.Message}");
-            return false;
-        }
-    }
-
-    private bool TryValidateTypedCargoSlot(
-        string entityKey,
-        int cargoIndex,
-        ItemInstance item,
-        int2 originPosition,
-        bool hasOriginPosition)
-    {
-        if (item == null ||
-            string.IsNullOrWhiteSpace(item.ItemKey) ||
-            !TryResolveTypedInventoryRows(entityKey, out _, out var cargo))
-        {
-            return false;
-        }
-
-        return cargo.Any(row =>
-            string.Equals(row.Source, "cargo", StringComparison.Ordinal) &&
-            row.SourceIndex == cargoIndex &&
-            string.Equals(row.ItemKey, item.ItemKey, StringComparison.Ordinal) &&
-            (!hasOriginPosition || (row.X == originPosition.x && row.Y == originPosition.y)));
-    }
-
-    private bool TryValidateTypedEquipmentSlot(
-        string entityKey,
-        int equipmentIndex,
-        EquippedItem item)
-    {
-        if (item?.EquippableItem == null ||
-            string.IsNullOrWhiteSpace(item.EquippableItem.ItemKey) ||
-            !TryResolveTypedInventoryRows(entityKey, out var equipment, out _))
-        {
-            return false;
-        }
-
-        return equipment.Any(row =>
-            string.Equals(row.Source, "equipment", StringComparison.Ordinal) &&
-            row.SourceIndex == equipmentIndex &&
-            row.X == item.Position.x &&
-            row.Y == item.Position.y &&
-            string.Equals(row.ItemKey, item.EquippableItem.ItemKey, StringComparison.Ordinal));
     }
 
     private bool TrySubmitOperation(
@@ -890,7 +613,7 @@ public class InventoryMenu : MonoBehaviour
     {
         try
         {
-            return AetheriaUnityRuntimeClientProvider.CurrentEntityState("unity-inventory-menu");
+            return RuntimeState.CurrentEntity.Latest();
         }
         catch (Exception ex)
         {
@@ -903,24 +626,11 @@ public class InventoryMenu : MonoBehaviour
     {
         try
         {
-            return AetheriaUnityRuntimeClientProvider.CurrentStationRefit("unity-inventory-menu");
+            return RuntimeState.StationRefit.Latest();
         }
         catch (Exception ex)
         {
             Debug.LogWarning($"Failed to read Aetheria station refit for inventory menu: {ex.Message}");
-            return null;
-        }
-    }
-
-    private AetheriaRuntimeInventoryDocument InventorySnapshot(int entityIndex)
-    {
-        try
-        {
-            return AetheriaUnityRuntimeClientProvider.CurrentInventory(entityIndex, "unity-inventory-menu");
-        }
-        catch (Exception ex)
-        {
-            Debug.LogWarning($"Failed to read Aetheria typed inventory document for entity {entityIndex}: {ex.Message}");
             return null;
         }
     }
@@ -937,41 +647,6 @@ public class InventoryMenu : MonoBehaviour
         // }
     }
 
-    private void ClearSelectedCellHighlight()
-    {
-        if (_selectedPanel == null || _selectedCells == null) return;
-
-        foreach (var v in _selectedCells)
-        {
-            if (_selectedPanel.CellInstances.ContainsKey(v))
-                _selectedPanel.CellInstances[v].Icon.color = _selectedPanel.GetColor(v);
-        }
-    }
-
-    private void ApplySelectedCellHighlight()
-    {
-        if (_selectedPanel == null || _selectedCells == null) return;
-
-        foreach (var v in _selectedCells)
-        {
-            if (_selectedPanel.CellInstances.ContainsKey(v))
-                _selectedPanel.CellInstances[v].Icon.color = _selectedPanel.GetColor(v, true);
-        }
-    }
-
-    private int2[] GetSelectedCells(ItemInstance item, int2 position)
-    {
-        var typedItem = FindTypedInventoryItem(item);
-        if (typedItem != null && typedItem.ShapeCells.Count > 0)
-        {
-            return typedItem.ShapeCells
-                .Select(cell => RotateTypedShapeCell(cell, typedItem, item.Rotation) + position)
-                .ToArray();
-        }
-
-        return Array.Empty<int2>();
-    }
-
     private AetheriaRuntimeCatalogItem FindTypedInventoryItem(ItemInstance item)
     {
         return CatalogSnapshot()?.FindItem(item, x => x.ItemKey);
@@ -981,7 +656,7 @@ public class InventoryMenu : MonoBehaviour
     {
         try
         {
-            return AetheriaUnityRuntimeClientProvider.CurrentCatalog("unity-inventory-menu");
+            return RuntimeState.Catalog.Latest();
         }
         catch (Exception ex)
         {
@@ -994,7 +669,7 @@ public class InventoryMenu : MonoBehaviour
     {
         try
         {
-            return AetheriaUnityRuntimeClientProvider.CurrentPlayerSettings("unity-inventory-menu");
+            return RuntimeState.PlayerSettings.Latest();
         }
         catch (Exception ex)
         {
@@ -1040,20 +715,6 @@ public class InventoryMenu : MonoBehaviour
             return $"{FormatValue(value * (9f / 5) - 459.67f)} F";
 
         return $"{FormatValue(value - 273.15f)} C";
-    }
-
-    private static int2 RotateTypedShapeCell(
-        AetheriaRuntimeShapeCell cell,
-        AetheriaRuntimeCatalogItem item,
-        ItemRotation rotation)
-    {
-        return rotation switch
-        {
-            ItemRotation.Clockwise => new int2(cell.Y, item.ShapeWidth - 1 - cell.X),
-            ItemRotation.Reversed => new int2(item.ShapeWidth - 1 - cell.X, item.ShapeHeight - 1 - cell.Y),
-            ItemRotation.CounterClockwise => new int2(item.ShapeHeight - 1 - cell.Y, cell.X),
-            _ => new int2(cell.X, cell.Y)
-        };
     }
 
     private void OnDestroy()

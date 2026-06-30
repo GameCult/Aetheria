@@ -7,13 +7,13 @@ using System.Collections.Generic;
 using System.Linq;
 using GameCult.Aetheria.State.Verse;
 using UnityEngine;
-using UnityEngine.Rendering.PostProcessing;
+using UnityEngine.Rendering;
 using float3 = Unity.Mathematics.float3;
 
 public sealed class AetheriaUnityCurrentEntityBinder
 {
     public ZoneRenderer ZoneRenderer { get; set; }
-    public PostProcessVolume DeathPost { get; set; }
+    public Volume DeathPost { get; set; }
     public CanvasGroup GameplayUI { get; set; }
     public AetheriaUnityCurrentEntityPresentation CurrentEntityPresentation { get; set; }
     public AetheriaUnityTargetPresentation TargetPresentation { get; set; }

@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using GameCult.Aetheria.State.Verse;
+using GameCult.Mesh;
 using TMPro;
 using UniRx.Triggers;
 using UnityEngine;
@@ -52,6 +53,7 @@ public class ActionBarSlot : MonoBehaviour
 
 public abstract class ActionBarBinding
 {
+    private static AetheriaClientState s_runtimeState;
     public Entity Entity { get; }
     private readonly Func<AetheriaControl> _resolveControl;
     protected ActionBarSlot Slot { get; }
@@ -97,9 +99,8 @@ public abstract class ActionBarBinding
     {
         try
         {
-            return AetheriaUnityRuntimeClientProvider
-                .CurrentCatalog()
-                .FindItem(item, x => x.ItemKey);
+            s_runtimeState ??= AetheriaUnityRuntimeClientProvider.RuntimeState("unity-action-bar");
+            return s_runtimeState.Catalog.Latest()?.FindItem(item, x => x.ItemKey);
         }
         catch (Exception ex)
         {

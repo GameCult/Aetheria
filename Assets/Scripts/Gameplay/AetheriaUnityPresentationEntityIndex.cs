@@ -1,14 +1,14 @@
 using System;
 using System.Collections.Generic;
 
-public sealed class AetheriaUnityObservedEntityIndex
+public sealed class AetheriaUnityPresentationEntityIndex
 {
     private readonly Dictionary<string, Entity> _entitiesByRecordKey = new Dictionary<string, Entity>(StringComparer.Ordinal);
     private readonly Dictionary<int, Entity> _entitiesByDaemonIndex = new Dictionary<int, Entity>();
 
-    public IReadOnlyDictionary<string, Entity> EntitiesByRecordKey => _entitiesByRecordKey;
+    public IReadOnlyDictionary<string, Entity> PresentationEntitiesByRecordKey => _entitiesByRecordKey;
 
-    public IReadOnlyDictionary<int, Entity> EntitiesByDaemonIndex => _entitiesByDaemonIndex;
+    public IReadOnlyDictionary<int, Entity> PresentationEntitiesByDaemonIndex => _entitiesByDaemonIndex;
 
     public int Count => _entitiesByRecordKey.Count;
 
@@ -26,7 +26,10 @@ public sealed class AetheriaUnityObservedEntityIndex
             foreach (var pair in entitiesByRecordKey)
             {
                 if (!string.IsNullOrWhiteSpace(pair.Key) && pair.Value != null)
+                {
+                    pair.Value.DaemonRecordKey = pair.Key;
                     _entitiesByRecordKey[pair.Key] = pair.Value;
+                }
             }
         }
 
@@ -38,11 +41,19 @@ public sealed class AetheriaUnityObservedEntityIndex
         RebuildDaemonIndex();
     }
 
-    public bool TryResolveEntityRecordKey(Entity entity, out string recordKey)
+    public bool TryGetRecordKeyForPresentationEntity(Entity entity, out string recordKey)
     {
         recordKey = "";
         if (entity == null)
             return false;
+
+        if (!string.IsNullOrWhiteSpace(entity.DaemonRecordKey) &&
+            _entitiesByRecordKey.TryGetValue(entity.DaemonRecordKey, out var indexedEntity) &&
+            ReferenceEquals(indexedEntity, entity))
+        {
+            recordKey = entity.DaemonRecordKey;
+            return true;
+        }
 
         foreach (var pair in _entitiesByRecordKey)
         {
@@ -56,26 +67,26 @@ public sealed class AetheriaUnityObservedEntityIndex
         return false;
     }
 
-    public bool TryResolveEntityByRecordKey(string recordKey, out Entity entity)
+    public bool TryGetPresentationEntityByRecordKey(string recordKey, out Entity entity)
     {
         entity = null;
         return !string.IsNullOrWhiteSpace(recordKey) &&
                _entitiesByRecordKey.TryGetValue(recordKey, out entity);
     }
 
-    public bool TryResolveEntityByDaemonIndex(int daemonEntityIndex, out Entity entity)
+    public bool TryGetPresentationEntityByDaemonIndex(int daemonEntityIndex, out Entity entity)
     {
         return _entitiesByDaemonIndex.TryGetValue(daemonEntityIndex, out entity);
     }
 
-    public bool TryResolveDockingBayByRecordKey(
+    public bool TryGetPresentationDockingBayByRecordKey(
         string parentRecordKey,
         int dockingBayIndex,
         out EquippedDockingBay dockingBay)
     {
         dockingBay = null;
         if (dockingBayIndex < 0 ||
-            !TryResolveEntityByRecordKey(parentRecordKey, out var parent) ||
+            !TryGetPresentationEntityByRecordKey(parentRecordKey, out var parent) ||
             parent?.DockingBays == null ||
             dockingBayIndex >= parent.DockingBays.Count)
         {

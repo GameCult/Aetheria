@@ -3,8 +3,10 @@ using System.Linq;
 using System.Collections;
 using System.Collections.Generic;
 using GameCult.Aetheria.State.Verse;
+using GameCult.Mesh;
 using UnityEngine;
 using UnityEngine.Rendering;
+using UnityEngine.Rendering.RenderGraphModule;
 
 /// <summary>
 /// Based on github.com/yangrc1234/VolumeCloud
@@ -33,11 +35,11 @@ public class HaltonSequence
 /// <summary>
 /// Cloud renderer post processing.
 /// </summary>
-[ImageEffectAllowedInSceneView]
 [ExecuteInEditMode,RequireComponent(typeof(Camera))]
-[ImageEffectOpaque]
 public class VolumeCloudRenderer : EffectBase
 {
+    private static readonly Dictionary<Camera, VolumeCloudRenderer> RenderersByCamera = new Dictionary<Camera, VolumeCloudRenderer>();
+
     [Header("Render Settings")]
     [Range(0, 2)]
     public int downSample = 1;
@@ -50,16 +52,73 @@ public class VolumeCloudRenderer : EffectBase
     private Matrix4x4 prevV;
     private Camera mcam;
     private HaltonSequence sequence = new HaltonSequence() { radix = 3 };
+    private const int TemporalHistoryVersion = 4;
+    private int appliedTemporalHistoryVersion = -1;
     // The index of 4x4 pixels.
     private int frameIndex = 0;
     private bool firstFrame = true;
+    private AetheriaClientState _runtimeState;
+    private int _debugRenderCount;
+    private int _debugLastRenderFrame = -1;
 
     [SerializeField]
     private Shader cloudShader;
 
+    [SerializeField]
+    private Texture2D ditherTexture;
+
+    public static bool TryGetRenderer(Camera camera, out VolumeCloudRenderer renderer)
+    {
+        renderer = null;
+        return camera != null
+            && RenderersByCamera.TryGetValue(camera, out renderer)
+            && renderer != null
+            && renderer.isActiveAndEnabled;
+    }
+
+    public int DebugRenderCount => _debugRenderCount;
+    public int DebugLastRenderFrame => _debugLastRenderFrame;
+    public RenderTexture DebugUndersampleBuffer => undersampleBuffer;
+    public RenderTexture DebugHistoryBuffer => fullBuffer != null && fullBuffer.Length > 0 ? fullBuffer[fullBufferIndex] : null;
+    public RenderTexture DebugCurrentCloudBuffer => fullBuffer != null && fullBuffer.Length > 1 ? fullBuffer[fullBufferIndex ^ 1] : null;
+    public bool DebugFirstFrame => firstFrame;
+
+    private void OnEnable()
+    {
+        var camera = GetComponent<Camera>();
+        if (camera != null)
+            RenderersByCamera[camera] = this;
+        ResetTemporalHistory();
+    }
+
+    private void OnDisable()
+    {
+        var camera = GetComponent<Camera>();
+        if (camera != null && RenderersByCamera.TryGetValue(camera, out var renderer) && renderer == this)
+            RenderersByCamera.Remove(camera);
+    }
+
     void EnsureMaterial(bool force = false) {
+        if (cloudShader == null)
+            cloudShader = Shader.Find("Aetheria/CloudShader");
+
         if (mat == null || force) {
             mat = new Material(cloudShader);
+            ResetTemporalHistory();
+        }
+    }
+
+    private void ResetTemporalHistory()
+    {
+        firstFrame = true;
+        appliedTemporalHistoryVersion = TemporalHistoryVersion;
+        if (fullBuffer != null)
+        {
+            for (var i = 0; i < fullBuffer.Length; i++)
+            {
+                if (fullBuffer[i] != null)
+                    fullBuffer[i].DiscardContents();
+            }
         }
     }
 
@@ -94,8 +153,8 @@ public class VolumeCloudRenderer : EffectBase
     {
         try
         {
-            return AetheriaUnityRuntimeClientProvider
-                .CurrentPlayerSettings("unity-volume-cloud-renderer");
+            _runtimeState ??= AetheriaUnityRuntimeClientProvider.RuntimeState("unity-volume-cloud-renderer");
+            return _runtimeState.PlayerSettings.Latest();
         }
         catch (Exception ex)
         {
@@ -105,31 +164,73 @@ public class VolumeCloudRenderer : EffectBase
         return null;
     }
 
-    [ImageEffectOpaque]
-    private void OnRenderImage(RenderTexture source, RenderTexture destination) {
-        if (cloudShader == null) {
-            Graphics.Blit(source, destination);
-            return;
-        }
-
+    public void RenderClouds(UnsafeCommandBuffer cmd, Camera camera, TextureHandle colorTarget, TextureHandle depthTarget)
+    {
         mcam = GetComponent<Camera>();
+        if (camera != mcam || cloudShader == null)
+            return;
+
+        _debugRenderCount++;
+        _debugLastRenderFrame = Time.frameCount;
+
         var width = mcam.pixelWidth >> downSample;
         var height = mcam.pixelHeight >> downSample;
+        if (width <= 0 || height <= 0)
+            return;
 
-        this.EnsureMaterial();
+        EnsureMaterial();
+        EnsureDitherTexture();
+
+        if (appliedTemporalHistoryVersion != TemporalHistoryVersion)
+            ResetTemporalHistory();
 
         EnsureArray(ref fullBuffer, 2);
         firstFrame |= EnsureRenderTarget(ref fullBuffer[0], width, height, RenderTextureFormat.ARGBFloat, FilterMode.Bilinear);
         firstFrame |= EnsureRenderTarget(ref fullBuffer[1], width, height, RenderTextureFormat.ARGBFloat, FilterMode.Bilinear);
-        firstFrame |= EnsureRenderTarget(ref undersampleBuffer, width , height, RenderTextureFormat.ARGBFloat, FilterMode.Bilinear);
+        firstFrame |= EnsureRenderTarget(ref undersampleBuffer, width, height, RenderTextureFormat.ARGBFloat, FilterMode.Bilinear);
 
-        frameIndex = (frameIndex + 1)% 16;
+        frameIndex = (frameIndex + 1) % 16;
         fullBufferIndex = (fullBufferIndex + 1) % 2;
 
-        /* Some code is from playdead TAA. */
+        ApplyQualityKeywords();
 
-        //1. Pass1, Render a undersampled buffer. The buffer is dithered using blue noise and halton sequence.
-        //If it's first frame, force a high quality sample to make the initial history buffer good enough.
+        var gpuProjection = GL.GetGPUProjectionMatrix(mcam.projectionMatrix, true);
+        mat.SetMatrix("_CamInvProj", (gpuProjection * mcam.worldToCameraMatrix).inverse);
+        mat.SetVector("_ProjectionExtents", mcam.GetProjectionExtents());
+        mat.SetFloat("_RaymarchOffset", sequence.Get());
+        mat.SetVector("_TexelSize", undersampleBuffer.texelSize);
+        mat.SetFloat("_ResetHistory", firstFrame ? 1.0f : 0.0f);
+
+        mat.SetTexture("_UndersampleCloudTex", undersampleBuffer);
+        mat.SetMatrix("_PrevVP", gpuProjection * prevV);
+
+        cmd.SetRenderTarget(undersampleBuffer);
+        cmd.SetViewport(new Rect(0, 0, width, height));
+        cmd.ClearRenderTarget(false, true, Color.clear);
+        cmd.DrawProcedural(Matrix4x4.identity, mat, 0, MeshTopology.Triangles, 3, 1);
+
+        mat.SetTexture("_MainTex", firstFrame ? undersampleBuffer : fullBuffer[fullBufferIndex]);
+
+        cmd.SetRenderTarget(fullBuffer[fullBufferIndex ^ 1]);
+        cmd.SetViewport(new Rect(0, 0, width, height));
+        cmd.ClearRenderTarget(false, true, Color.clear);
+        cmd.DrawProcedural(Matrix4x4.identity, mat, 1, MeshTopology.Triangles, 3, 1);
+
+        mat.SetTexture("_CloudTex", fullBuffer[fullBufferIndex ^ 1]);
+
+        if (depthTarget.IsValid())
+            cmd.SetRenderTarget(colorTarget, depthTarget);
+        else
+            cmd.SetRenderTarget(colorTarget);
+        cmd.SetViewport(mcam.pixelRect);
+        cmd.DrawProcedural(Matrix4x4.identity, mat, 2, MeshTopology.Triangles, 3, 1);
+
+        prevV = mcam.worldToCameraMatrix;
+        firstFrame = false;
+    }
+
+    private void ApplyQualityKeywords()
+    {
         if (firstFrame || quality == Quality.Ultra) {
             mat.EnableKeyword("ULTRA_QUALITY");
             mat.DisableKeyword("HIGH_QUALITY");
@@ -151,30 +252,22 @@ public class VolumeCloudRenderer : EffectBase
             mat.DisableKeyword("MEDIUM_QUALITY");
             mat.EnableKeyword("LOW_QUALITY");
         }
-
-        mat.SetMatrix("_CamInvProj", (Camera.current.projectionMatrix * Camera.current.worldToCameraMatrix).inverse);
-        mat.SetVector("_ProjectionExtents", mcam.GetProjectionExtents());
-        mat.SetFloat("_RaymarchOffset", sequence.Get());
-        mat.SetVector("_TexelSize", undersampleBuffer.texelSize);
-
-        Graphics.Blit(null, undersampleBuffer, mat, 0);
-
-        //2. Pass 2, blend undersampled image with history buffer to new buffer.
-        mat.SetTexture("_UndersampleCloudTex", undersampleBuffer);
-        mat.SetMatrix("_PrevVP", GL.GetGPUProjectionMatrix(mcam.projectionMatrix,false) * prevV);
-        mat.SetVector("_ProjectionExtents", mcam.GetProjectionExtents());
-
-        if (firstFrame) {   //Wait, is this the first frame? If it is, the history buffer is empty yet. It will cause glitch if we use it directly. Fill it using the undersample buffer.
-            Graphics.Blit(undersampleBuffer, fullBuffer[fullBufferIndex]);
-        }
-        Graphics.Blit(fullBuffer[fullBufferIndex], fullBuffer[fullBufferIndex ^ 1], mat, 1);
-
-        //3. Pass3, Calculate lighting, blend final cloud image with final image.
-        mat.SetTexture("_CloudTex", fullBuffer[fullBufferIndex ^ 1]);
-        Graphics.Blit(source, destination, mat, 2);
-
-        //4. Cleanup
-        prevV = mcam.worldToCameraMatrix;
-        firstFrame = false;
     }
+
+    private void EnsureDitherTexture()
+    {
+        if (ditherTexture == null)
+            ditherTexture = Resources.Load<Texture2D>("LDR_LLL1_0");
+
+        if (ditherTexture == null)
+            return;
+
+        Shader.SetGlobalTexture("_DitheringTex", ditherTexture);
+        Shader.SetGlobalVector("_DitheringCoords", new Vector4(
+            (float)Math.Max(1, Screen.width) / ditherTexture.width,
+            (float)Math.Max(1, Screen.height) / ditherTexture.height,
+            0,
+            0));
+    }
+
 }

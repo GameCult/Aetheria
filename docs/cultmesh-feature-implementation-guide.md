@@ -12,7 +12,7 @@ The rule is blunt:
 
 ```text
 small UI-only value: derive it inline from already accessible typed state
-named UI-only projection: define the projected document, then read it
+named UI-only derived view: define the typed derived document, then read it
 simulation feature: define one canonical typed document, let daemon authority mutate it, consume the same document everywhere
 hot rendering/physics: use SoA, not object-graph UI documents
 ```
@@ -45,11 +45,29 @@ A second document is justified only when it earns a distinct job:
 - viewport/windowed selection;
 - SoA/native render or physics layout;
 - lossy presentation summaries;
-- UI surface documents;
+- UI surface documents, including nested CultUI `embeddedDocuments` slots when
+  a parent surface reserves layout for a separately synced child document;
 - compatibility mirrors with a named removal stage.
 
 Projection is not the normal way to make state client-visible. Projection is an
 exception for a different shape.
+
+Nested UI does not loosen this rule. If a daemon-owned panel needs an embedded
+dropdown, item inspector, scene insert, or drag/drop target surface, the parent
+surface carries a `surface.slot` with `embeddedDocuments`, and each child is
+resolved as its own managed CultMesh document. The renderer lowers the retained
+tree and wires commands; it does not invent a Unity-only state model for the
+child surface.
+
+Discovery and parity live with the shared Eve contract, not in an Aetheria-only
+helper. Any CultUI feature that affects nested surfaces must update the
+canonical fixture at `E:\Projects\Eve\web\fixtures\cultui-embedded-surface.json`
+or an equivalent versioned fixture, and it must be discoverable from
+`E:\Projects\Eve\docs\parity-testing-harness.md`. The active runtime checks are
+the browser DSL test, Eve parity harness, Flutter parity smoke, Unity build, and
+Aetheria verifier scripts. Android/Kotlin and Fensalir must remain listed in
+the matrix with explicit pending/unsupported status until they become active
+GUI CultUI renderers. Do not let an untested target disappear into politeness.
 
 ## The Ergonomic Bar
 
@@ -63,11 +81,11 @@ var currentDocking = client.State.Reactive<AetheriaRuntimeCurrentDockingDocument
 var bayName = currentDocking.Current?.DockingBayName ?? "";
 ```
 
-Use two steps when the projection is shared, non-trivial, or should have a
+Use two steps when the derived view is shared, non-trivial, or should have a
 stable schema:
 
 ```text
-1. Define the typed projected document.
+1. Define the typed derived document.
 2. Read it from Unity as a managed reactive typed document.
 ```
 
@@ -133,13 +151,13 @@ Use inline derivation when:
 - the source typed document is already available to the caller;
 - no other system needs the result as a named state surface.
 
-Use a projected typed document when:
+Use a derived typed document when:
 
 - multiple callers need the same derived state;
 - the state is useful to Unity, RTS, tests, tooling, or the website simulator;
 - the derivation joins multiple source documents;
 - the result needs a stable schema or cross-runtime binding;
-- the projection should update reactively as daemon state changes.
+- the derived view should update reactively as daemon state changes.
 
 Use a canonical simulation document when:
 
@@ -148,7 +166,7 @@ Use a canonical simulation document when:
 - it needs authority, replay, persistence, or reconciliation;
 - the daemon must validate operations before publishing the next state.
 
-Use a projected typed document when the caller needs a different state shape,
+Use a derived typed document when the caller needs a different state shape,
 not merely because a client needs to see daemon-owned state.
 
 Use SoA/native views when:
@@ -194,20 +212,20 @@ public sealed class DockingBadge : IDisposable
 ```
 
 The caller does not need a custom facade, session, projector, or adapter. If the
-inline derivation becomes shared or hard to read, promote it to a projected
+inline derivation becomes shared or hard to read, promote it to a derived
 document.
 
-## Two-Step UI Projection
+## Two-Step Derived UI Document
 
 Use this for shared presentation state such as player HUD, docking summary,
 commander wave status, station service summary, or Starbridge support alerts.
 
-Before adding this projection, ask whether the UI can read the canonical
-simulation document directly. If it can, do that. The projection exists only
+Before adding this document, ask whether the UI can read the canonical
+simulation document directly. If it can, do that. The derived document exists only
 when the UI shape is genuinely derived, filtered, windowed, or shared enough to
 deserve its own schema.
 
-### Step 1: Define The Projected Document
+### Step 1: Define The Derived Document
 
 Put the document type in the shared runtime package so every runtime sees the
 same schema:
@@ -250,7 +268,7 @@ using var status =
 The exact registration/publishing code belongs in the runtime plumbing. It
 should be generated or centralized. The feature author should not have to write
 five separate access classes, wrapper methods, sessions, or facades for one
-projected state shape.
+derived state shape.
 
 ### Step 2: Read It From Unity
 
@@ -290,7 +308,7 @@ public sealed class ZoneDefenseHud : IDisposable
 }
 ```
 
-That is the whole UI projection workflow. If more steps are required, they
+That is the whole derived UI document workflow. If more steps are required, they
 belong in CultMesh/runtime infrastructure, not in every feature.
 
 ## Two Or Three-Step Simulation Feature
@@ -406,12 +424,26 @@ from `Current`. Reconnection should not require replaying UI actions.
 For inline UI derivation, test the source document and the small consuming
 component when behavior is non-trivial.
 
-For projected UI documents, test:
+For derived UI documents, test:
 
-- projection from representative daemon state;
+- derivation from representative daemon state;
 - empty/default state;
 - reactive update after source state changes;
 - Unity caller reads the typed document directly.
+
+For nested CultUI surfaces, test every target runtime listed in the Eve parity
+matrix:
+
+- browser DSL lowering discovers and renders `embeddedDocuments`;
+- Eve parity harness preserves slots, child document identity, and command
+  wiring;
+- Flutter parity smoke renders the same nested surface contract;
+- Unity build/lowering binds the parent surface and embedded child documents
+  without local projector state;
+- Aetheria verifier scripts prove the game daemon publishes the discoverable
+  CultMesh surface document;
+- pending runtimes such as Android/Kotlin and Fensalir remain explicitly marked
+  pending/unsupported until they have a real renderer test.
 
 For simulation features, test:
 
@@ -463,7 +495,7 @@ freeze the ceremony in place.
 Before calling a CultMesh feature ergonomic, answer these questions:
 
 - Can a UI-only inline value be implemented in one local derivation?
-- Can a shared UI projection be implemented by defining the document and reading
+- Can a shared UI view be implemented by defining the document and reading
   it from Unity?
 - Can a simulation feature be explained as one canonical typed document plus
   authority policy and typed operations?

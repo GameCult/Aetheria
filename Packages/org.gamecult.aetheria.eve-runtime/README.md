@@ -3,7 +3,7 @@
 This package mounts provider-owned Eve surfaces from Aetheria's typed
 CultCache state into Unity UI Toolkit.
 
-`AetheriaEveSurfacePresenter` is a projection bridge:
+`AetheriaEveSurfacePresenter` is a typed surface document lowerer:
 
 - it resolves the active client target from `GameData/aetheria-client.cc`;
 - it reads `gamecult.eve.surface.v1` from the selected typed state source, which
@@ -23,6 +23,20 @@ still works as a legacy fallback), or disable the automatic mount with
 `AETHERIA_DISABLE_EVE_RUNTIME_BOOTSTRAP=true` or
 `--aetheria-disable-eve-runtime-bootstrap`. Batchmode disables the bootstrap so
 compile and smoke gates do not accidentally create renderer state.
+
+Nested CultUI regions are expressed as `embeddedDocuments` / `surface.slot`
+entries on the retained surface component. Aetheria mirrors Eve's
+`EveEmbeddedDocumentSlot` as `AetheriaRuntimeEmbeddedDocumentSlot`, and the
+Unity host resolves those child documents through the same managed CultMesh
+state handles as the parent surface. Use this for daemon-owned composite UI
+such as inventory panels with dropdown child surfaces; do not rebuild the child
+state as a Unity-only model, projector, or drag/drop workaround.
+
+Discovery starts from Eve's `web/fixtures/cultui-embedded-surface.json` fixture
+and `docs/parity-testing-harness.md` runtime matrix. Keep Unity covered by the
+Aetheria state verifier and `verify-stage7d-unity-parity.ps1`; keep the shared
+CultUI contract covered by Eve's browser DSL test, parity harness, and Flutter
+parity smoke.
 
 Commands are surfaced as `gamecult.eve.command.v1` requests. The presenter does
 not accept or apply them locally; provider acceptance still belongs to the

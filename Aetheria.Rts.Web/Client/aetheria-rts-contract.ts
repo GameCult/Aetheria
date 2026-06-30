@@ -39,12 +39,12 @@ export type AetheriaRuntimeViewportFeedRequest = {
 
 export type AetheriaRuntimeViewportFeedSnapshot = {
   viewport: ViewportResponse;
-  selectedObject: SelectedObjectProjection | null;
-  inventory: InventoryProjection | null;
-  daemonHealth: DaemonHealthProjection;
-  authorityStatus: AuthorityStatusProjection;
-  starbridgeSession: StarbridgeSessionProjection;
-  assetManifest: AssetManifestProjection;
+  selectedObject: SelectedObjectDocument | null;
+  inventory: InventoryDocument | null;
+  daemonHealth: DaemonHealthDocument;
+  authorityStatus: AuthorityStatusDocument;
+  starbridgeSession: StarbridgeSessionDocument;
+  assetManifest: AssetManifestDocument;
   receivedAtUtc: string;
   sampleMs: number;
 };
@@ -130,7 +130,7 @@ export type InventoryItem = {
   iconAsset: AssetRef;
 };
 
-export type SelectedObjectProjection = {
+export type SelectedObjectDocument = {
   schema: string;
   frameId: number;
   runId: string;
@@ -139,7 +139,7 @@ export type SelectedObjectProjection = {
   selected: ViewObject | null;
 };
 
-export type InventoryProjection = {
+export type InventoryDocument = {
   schema: string;
   frameId: number;
   runId: string;
@@ -151,7 +151,7 @@ export type InventoryProjection = {
   cargo: InventoryItem[];
 };
 
-export type DaemonHealthProjection = {
+export type DaemonHealthDocument = {
   schema: string;
   daemonId: string;
   verseId: string;
@@ -167,7 +167,7 @@ export type DaemonHealthProjection = {
   commandBoundaryPath: string;
 };
 
-export type AuthorityStatusProjection = {
+export type AuthorityStatusDocument = {
   schema: string;
   verseId: string;
   policyId: string;
@@ -175,10 +175,10 @@ export type AuthorityStatusProjection = {
   hostRuntimeId: string;
   defaultMode: string;
   updatedAtUtc: string;
-  rules: AuthorityRuleProjection[];
+  rules: AuthorityRuleDocument[];
 };
 
-export type AuthorityRuleProjection = {
+export type AuthorityRuleDocument = {
   ruleId: string;
   subjectPrefix: string;
   claimKinds: string[];
@@ -188,7 +188,7 @@ export type AuthorityRuleProjection = {
   priority: number;
 };
 
-export type StarbridgeSessionProjection = {
+export type StarbridgeSessionDocument = {
   schema: string;
   frameId: number;
   publishedAtUtc: string;
@@ -200,13 +200,13 @@ export type StarbridgeSessionProjection = {
   zoneName: string;
   phase: string;
   currentWaveIndex: number;
-  baseStatus: StarbridgeBaseStatusProjection;
-  stationStock: StarbridgeStationStockItemProjection[];
-  waveForecast: StarbridgeWaveForecastProjection[];
-  runtimeRoles: StarbridgeRuntimeRoleProjection[];
+  baseStatus: StarbridgeBaseStatusDocument;
+  stationStock: StarbridgeStationStockItemDocument[];
+  waveForecast: StarbridgeWaveForecastDocument[];
+  runtimeRoles: StarbridgeRuntimeRoleDocument[];
 };
 
-export type StarbridgeBaseStatusProjection = {
+export type StarbridgeBaseStatusDocument = {
   entityKey: string;
   displayName: string;
   hull: number;
@@ -215,7 +215,7 @@ export type StarbridgeBaseStatusProjection = {
   isActive: boolean;
 };
 
-export type StarbridgeStationStockItemProjection = {
+export type StarbridgeStationStockItemDocument = {
   itemKey: string;
   quantity: number;
   quality: number;
@@ -224,7 +224,7 @@ export type StarbridgeStationStockItemProjection = {
   iconAsset: AssetRef;
 };
 
-export type AssetManifestProjection = {
+export type AssetManifestDocument = {
   schema: string;
   publishedAtUtc: string;
   runId: string;
@@ -250,7 +250,7 @@ export type AssetRef = {
   metadata: Record<string, string>;
 };
 
-export type StarbridgeWaveForecastProjection = {
+export type StarbridgeWaveForecastDocument = {
   waveIndex: number;
   displayName: string;
   attackerKeys: string[];
@@ -258,7 +258,7 @@ export type StarbridgeWaveForecastProjection = {
   recoveredTechnologyKeys: string[];
 };
 
-export type StarbridgeRuntimeRoleProjection = {
+export type StarbridgeRuntimeRoleDocument = {
   runtimeId: string;
   role: string;
   entityKey: string;
@@ -294,12 +294,12 @@ export type AetheriaRtsApi = {
   mapViewport(request: Viewport): Promise<ViewportResponse>;
   objectsViewport(request: Viewport): Promise<ObjectsViewportResponse>;
   gravityViewport(request: Viewport): Promise<GravityViewportResponse>;
-  selectedObject(request: AetheriaRuntimeSelectedObjectRequest): Promise<SelectedObjectProjection>;
-  inventory(request: AetheriaRuntimeSelectedObjectRequest): Promise<InventoryProjection>;
-  daemonHealth(): Promise<DaemonHealthProjection>;
-  authorityStatus(): Promise<AuthorityStatusProjection>;
-  starbridgeSession(): Promise<StarbridgeSessionProjection>;
-  assetManifest(): Promise<AssetManifestProjection>;
+  selectedObject(request: AetheriaRuntimeSelectedObjectRequest): Promise<SelectedObjectDocument>;
+  inventory(request: AetheriaRuntimeSelectedObjectRequest): Promise<InventoryDocument>;
+  daemonHealth(): Promise<DaemonHealthDocument>;
+  authorityStatus(): Promise<AuthorityStatusDocument>;
+  starbridgeSession(): Promise<StarbridgeSessionDocument>;
+  assetManifest(): Promise<AssetManifestDocument>;
   watchViewportFeed(request: AetheriaRuntimeViewportFeedRequest, callback: (snapshot: AetheriaRuntimeViewportFeedSnapshot) => void): () => void;
   setMoveVector(request: AetheriaRuntimeSetMoveVectorRequest): Promise<AetheriaRuntimeDaemonCommandReceipt>;
   setTarget(request: AetheriaRuntimeSetTargetRequest): Promise<AetheriaRuntimeDaemonCommandReceipt>;

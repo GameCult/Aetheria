@@ -8,6 +8,7 @@ using System.Linq;
 using GameCult.Aetheria.EveRuntime;
 using GameCult.Aetheria.State.Verse;
 using GameCult.Eve.Surface;
+using GameCult.Mesh;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -34,6 +35,7 @@ public class MenuPanel : MonoBehaviour
     private MenuTabBinding _current;
     private UIDocument _tabSurfaceDocument;
     private readonly AetheriaEveUnitySurfaceChrome _tabSurfaceChrome = new AetheriaEveUnitySurfaceChrome();
+    private AetheriaClientState _runtimeState;
     
     public MenuTab CurrentTab { get; private set; }
 
@@ -157,12 +159,13 @@ public class MenuPanel : MonoBehaviour
             .ToArray();
     }
 
-    private static bool TryResolveCurrentDocking(out AetheriaRuntimeCurrentDockingDocument docking)
+    private bool TryResolveCurrentDocking(out AetheriaRuntimeCurrentDockingDocument docking)
     {
         docking = null;
         try
         {
-            docking = AetheriaUnityRuntimeClientProvider.CurrentDockingState("unity-runtime-menu-tabs");
+            _runtimeState ??= AetheriaUnityRuntimeClientProvider.RuntimeState("unity-runtime-menu-tabs");
+            docking = _runtimeState.CurrentDocking.Latest();
             return docking != null;
         }
         catch (Exception ex)

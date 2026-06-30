@@ -132,9 +132,9 @@ namespace GameCult.Aetheria.EveRuntime
             var surface = ReadDaemonSurfaceState(stateBoot);
             return surface == null
                 ? null
-                : AetheriaRuntimeEveSurfaceAdapter.ToEveSurfaceDocument(
+                : AetheriaRuntimeSurfaceDocuments.ToEveSurfaceDocument(
                     surface,
-                    AetheriaUnityRuntimeClientProvider.EveSurfaceStateRefResolver(
+                    AetheriaEveRuntimeUnityHooks.TryCreateStateRefResolver(
                         stateBoot,
                         "unity-eve-surface-presenter"));
         }
@@ -170,9 +170,10 @@ namespace GameCult.Aetheria.EveRuntime
         private CultMeshReactiveDocument<global::Aetheria.State.Documents.EveSurfaceState>? CreateReactiveDaemonSurfaceState(
             AetheriaRuntimeStateBootReport stateBoot)
         {
-            return AetheriaUnityRuntimeClientProvider
-                .RuntimeState(stateBoot, "unity-eve-surface-presenter")
-                .ReactiveEveSurface(surfaceId);
+            return AetheriaEveRuntimeUnityHooks
+                .RequireRuntimeState(stateBoot, "unity-eve-surface-presenter")
+                .EveSurfaceDocument(surfaceId)
+                ?.Reactive();
         }
 
         private UIDocument ResolveDocument()
@@ -184,9 +185,7 @@ namespace GameCult.Aetheria.EveRuntime
 
         private AetheriaRuntimeStateBootReport ResolveStateBoot()
         {
-            return AetheriaRuntimeStateBoot.Inspect(
-                AetheriaUnityRuntimePaths.GameDataDirectory,
-                stateFilePathOverride);
+            return AetheriaEveRuntimeUnityHooks.RequireStateBoot(stateFilePathOverride);
         }
 
         private static VisualElement BuildError(string message)
@@ -217,7 +216,7 @@ namespace GameCult.Aetheria.EveRuntime
                 surface,
                 request => EmitCommand(stateBoot, request),
                 RootOnlyChrome,
-                AetheriaUnityRuntimeClientProvider.EveSurfaceStateRefResolver(
+                AetheriaEveRuntimeUnityHooks.TryCreateStateRefResolver(
                     stateBoot,
                     "unity-eve-surface-presenter"));
             _mountedStatePath = statePath;
@@ -231,7 +230,7 @@ namespace GameCult.Aetheria.EveRuntime
             var clientId = string.IsNullOrWhiteSpace(request.ClientId)
                 ? "unity-eve-surface-presenter"
                 : request.ClientId;
-            var control = AetheriaUnityRuntimeClientProvider.Control(
+            var control = AetheriaEveRuntimeUnityHooks.RequireControl(
                 stateBoot,
                 clientId);
             if (control.TrySubmitSurfaceCommand(request, out var daemonEnvelope))
@@ -243,8 +242,8 @@ namespace GameCult.Aetheria.EveRuntime
 
             try
             {
-                var envelope = AetheriaUnityRuntimeClientProvider
-                    .Ui(stateBoot, "unity-eve-surface-presenter")
+                var envelope = AetheriaEveRuntimeUnityHooks
+                    .RequireUi(stateBoot, "unity-eve-surface-presenter")
                     .SurfaceCommandAsync(
                         request,
                         string.IsNullOrWhiteSpace(request.ClientId) ? "unity-uitoolkit" : request.ClientId)

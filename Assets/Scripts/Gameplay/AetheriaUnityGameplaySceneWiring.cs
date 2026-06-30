@@ -5,8 +5,8 @@
 using System;
 using Cinemachine;
 using GameCult.Aetheria.State.Verse;
+using GameCult.Mesh;
 using UnityEngine;
-using UnityEngine.Rendering.PostProcessing;
 using UnityEngine.UI;
 
 public sealed class AetheriaUnityGameplaySceneWiring
@@ -34,6 +34,17 @@ public sealed class AetheriaUnityGameplaySceneWiring
     public Sprite NoShieldIcon { get; set; }
     public Prototype HostileTargetIndicator { get; set; }
     public Prototype FriendlyTargetIndicator { get; set; }
+
+    private AetheriaClientState _targetPresentationState;
+
+    private AetheriaClientState TargetPresentationState
+    {
+        get
+        {
+            _targetPresentationState ??= AetheriaUnityRuntimeClientProvider.RuntimeState("unity-target-presentation");
+            return _targetPresentationState;
+        }
+    }
     public PlaceUIElementWorldspace ViewDot { get; set; }
     public PlaceUIElementWorldspace TargetIndicator { get; set; }
     public Image TargetHitpointsFill { get; set; }
@@ -78,7 +89,7 @@ public sealed class AetheriaUnityGameplaySceneWiring
     public void ConfigureTargetPresentation(
         AetheriaUnityTargetPresentation presentation,
         AetheriaRuntimeCatalogSnapshot runtimeCatalog,
-        AetheriaUnityObservedEntityIndex observedEntityIndex)
+        AetheriaUnityPresentationEntityIndex presentationEntityIndex)
     {
         if (presentation == null)
             return;
@@ -94,18 +105,18 @@ public sealed class AetheriaUnityGameplaySceneWiring
         presentation.VisibilityToTargetFill = VisibilityToTargetFill;
         presentation.TargetShieldsFill = TargetShieldsFill;
         presentation.ResolveEntity = daemonEntityIndex =>
-            observedEntityIndex != null &&
-            observedEntityIndex.TryResolveEntityByDaemonIndex(daemonEntityIndex, out var entity)
+            presentationEntityIndex != null &&
+            presentationEntityIndex.TryGetPresentationEntityByDaemonIndex(daemonEntityIndex, out var entity)
                 ? entity
                 : null;
         presentation.ResolveZoneContacts = ReadZoneContacts;
     }
 
-    private static AetheriaRuntimeZoneContactsDocument ReadZoneContacts()
+    private AetheriaRuntimeZoneContactsDocument ReadZoneContacts()
     {
         try
         {
-            return AetheriaUnityRuntimeClientProvider.CurrentZoneContacts("unity-target-presentation");
+            return TargetPresentationState.ZoneContacts.Latest();
         }
         catch (Exception ex)
         {
@@ -143,12 +154,12 @@ public sealed class AetheriaUnityGameplaySceneWiring
         MainMenu?.SetRuntimeInputScreenShell(menuShell.CanOpenRuntimeInputScreen, menuShell.ShowRuntimeInputScreen);
     }
 
-    public void ConfigureObservedEntityIndex(AetheriaUnityObservedEntityIndex observedEntityIndex)
+    public void ConfigurePresentationEntityIndex(AetheriaUnityPresentationEntityIndex presentationEntityIndex)
     {
-        Inventory?.SetObservedEntityIndex(observedEntityIndex);
-        ShipPanel?.SetObservedEntityIndex(observedEntityIndex);
-        TargetShipPanel?.SetObservedEntityIndex(observedEntityIndex);
+        Inventory?.SetPresentationEntityIndex(presentationEntityIndex);
+        ShipPanel?.SetPresentationEntityIndex(presentationEntityIndex);
+        TargetShipPanel?.SetPresentationEntityIndex(presentationEntityIndex);
         foreach (var localMenu in UnityEngine.Object.FindObjectsByType<LocalMenu>(FindObjectsSortMode.None))
-            localMenu.SetObservedEntityIndex(observedEntityIndex);
+            localMenu.SetPresentationEntityIndex(presentationEntityIndex);
     }
 }

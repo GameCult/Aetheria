@@ -4,6 +4,7 @@ using System.Linq;
 using GameCult.Aetheria.EveRuntime;
 using GameCult.Aetheria.State.Verse;
 using GameCult.Eve.Surface;
+using GameCult.Mesh;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.Utilities;
@@ -18,6 +19,7 @@ public class InputDisplayLayout : MonoBehaviour
     private string _captureActionName = "";
     private int _captureBindingIndex = -1;
     private string _captureBindingLabel = "";
+    private AetheriaClientState _runtimeState;
     private readonly AetheriaEveUnitySurfaceChrome _surfaceChrome = new AetheriaEveUnitySurfaceChrome
     {
         RootAlignItems = Align.Center,
@@ -368,8 +370,10 @@ public class InputDisplayLayout : MonoBehaviour
     {
         try
         {
-            return AetheriaUnityRuntimeClientProvider
-                .CurrentPlayerSettings(RequireLocalStateBoot(), "unity-input-screen");
+            _runtimeState ??= AetheriaUnityRuntimeClientProvider.RuntimeState(
+                RequireLocalStateBoot(),
+                "unity-input-screen");
+            return _runtimeState.PlayerSettings.Latest();
         }
         catch (Exception ex)
         {

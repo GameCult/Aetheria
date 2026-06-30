@@ -25,7 +25,7 @@ internal sealed class AuthoritySmokeChecks
         PreRejectedCommandsEnterFrameReceipts();
         ClientTargetCarriesRuntimeIdentity();
         TwoLocalRuntimeDelegatedPolicyHarness();
-        RtsProjectionProjectsLocalViewportFromFrame();
+        RtsDocumentsBuildLocalViewportFromFrame();
         StarbridgeSessionSummaryProjectsScenarioFacts();
         await AetheriaClientStateDocumentsProjectAndSubmitAsync().ConfigureAwait(false);
         await DaemonOncePublishesStarbridgeSessionFactsAsync().ConfigureAwait(false);
@@ -282,28 +282,28 @@ internal sealed class AuthoritySmokeChecks
         Require(starfireFrame.AccountedCommandIds.Contains(hostileByStarfire.CommandId), "starfire node should account applied hostile command");
     }
 
-    private static void RtsProjectionProjectsLocalViewportFromFrame()
+    private static void RtsDocumentsBuildLocalViewportFromFrame()
     {
         var run = new AetheriaRuntimeRunCheckpointCommit
         {
-            RunId = "rts-projection-smoke",
+            RunId = "rts-documents-smoke",
             CurrentZoneIndex = 0,
             EntranceZoneIndex = 0,
             ExitZoneIndex = 1,
             DiscoveredZoneIndices = [0],
-            CurrentEntityKey = EntityKey("rts-projection-smoke", 0, 0),
+            CurrentEntityKey = EntityKey("rts-documents-smoke", 0, 0),
             Zones =
             [
                 new AetheriaRuntimeZoneSnapshotCommit
                 {
                     ZoneIndex = 0,
-                    Name = "Projection Zone",
+                    Name = "Document Zone",
                     PositionX = 12,
                     PositionY = 34,
                     AdjacentZoneIndices = [1],
                     Entities =
                     [
-                        ProjectionEntity(
+                        SnapshotEntity(
                             0,
                             "Raven",
                             "player",
@@ -312,7 +312,7 @@ internal sealed class AuthoritySmokeChecks
                             visibility: 80,
                             hull: 120,
                             cargoItem: "reactor-cell"),
-                        ProjectionEntity(
+                        SnapshotEntity(
                             1,
                             "Starfire",
                             "player",
@@ -321,7 +321,7 @@ internal sealed class AuthoritySmokeChecks
                             visibility: 160,
                             hull: 140,
                             cargoItem: "sensor-pack"),
-                        ProjectionEntity(
+                        SnapshotEntity(
                             2,
                             "Raider In Shared Sight",
                             "raider",
@@ -330,7 +330,7 @@ internal sealed class AuthoritySmokeChecks
                             visibility: 60,
                             hull: 70,
                             cargoItem: "scrap"),
-                        ProjectionEntity(
+                        SnapshotEntity(
                             3,
                             "Outside Viewport",
                             "raider",
@@ -372,7 +372,7 @@ internal sealed class AuthoritySmokeChecks
                 new AetheriaRuntimeZoneSnapshotCommit
                 {
                     ZoneIndex = 1,
-                    Name = "Projection Neighbor",
+                    Name = "Document Neighbor",
                     PositionX = 72,
                     PositionY = 34,
                     AdjacentZoneIndices = [0],
@@ -383,13 +383,13 @@ internal sealed class AuthoritySmokeChecks
         };
         var frame = AetheriaRuntimeDaemonFrameDocument.Create(
             run,
-            "projection-daemon",
-            "projection-session",
+            "documents-daemon",
+            "documents-session",
             12,
             0.24,
             0.02);
 
-        var projection = AetheriaRuntimeRtsProjection.ProjectViewport(
+        var viewportDocument = AetheriaRuntimeRtsDocuments.Viewport(
             frame,
             new AetheriaRuntimeRtsViewportBounds
             {
@@ -398,45 +398,45 @@ internal sealed class AuthoritySmokeChecks
                 MaxX = -50,
                 MaxY = 100
             });
-        var objectProjection = AetheriaRuntimeRtsProjection.ProjectObjectsViewport(
+        var objectsViewport = AetheriaRuntimeRtsDocuments.ObjectsViewport(
             frame,
-            projection.Viewport);
-        var gravityProjection = AetheriaRuntimeRtsProjection.ProjectGravityViewport(
+            viewportDocument.Viewport);
+        var gravityViewport = AetheriaRuntimeRtsDocuments.GravityViewport(
             frame,
-            projection.Viewport);
-        var currentZone = AetheriaRuntimeRtsProjection.ProjectCurrentZone(frame);
-        var sectorMap = AetheriaRuntimeRtsProjection.ProjectSectorMap(frame);
+            viewportDocument.Viewport);
+        var currentZone = AetheriaRuntimeRtsDocuments.CurrentZone(frame);
+        var sectorMap = AetheriaRuntimeRtsDocuments.SectorMap(frame);
 
-        RequireEqual(AetheriaRuntimeDaemonSchemas.RtsViewport, projection.Schema, "projection schema");
-        RequireEqual(AetheriaRuntimeDaemonSchemas.ObjectsViewport, objectProjection.Schema, "objects viewport projection schema");
-        RequireEqual(AetheriaRuntimeDaemonSchemas.GravityViewport, gravityProjection.Schema, "gravity viewport projection schema");
-        RequireEqual(AetheriaRuntimeDaemonSchemas.CurrentZone, currentZone.Schema, "current-zone projection schema");
-        RequireEqual(AetheriaRuntimeDaemonSchemas.SectorMap, sectorMap.Schema, "sector-map projection schema");
-        RequireEqual("Projection Zone", currentZone.ZoneName, "current-zone projection zone name");
-        RequireEqual(12.0, currentZone.PositionX, "current-zone projection position x");
-        RequireEqual(34.0, currentZone.PositionY, "current-zone projection position y");
-        RequireEqual(2, sectorMap.Zones.Count, "sector-map projection zone count");
+        RequireEqual(AetheriaRuntimeDaemonSchemas.RtsViewport, viewportDocument.Schema, "viewport document schema");
+        RequireEqual(AetheriaRuntimeDaemonSchemas.ObjectsViewport, objectsViewport.Schema, "objects viewport document schema");
+        RequireEqual(AetheriaRuntimeDaemonSchemas.GravityViewport, gravityViewport.Schema, "gravity viewport document schema");
+        RequireEqual(AetheriaRuntimeDaemonSchemas.CurrentZone, currentZone.Schema, "current-zone document schema");
+        RequireEqual(AetheriaRuntimeDaemonSchemas.SectorMap, sectorMap.Schema, "sector-map document schema");
+        RequireEqual("Document Zone", currentZone.ZoneName, "current-zone document zone name");
+        RequireEqual(12.0, currentZone.PositionX, "current-zone document position x");
+        RequireEqual(34.0, currentZone.PositionY, "current-zone document position y");
+        RequireEqual(2, sectorMap.Zones.Count, "sector-map document zone count");
         Require(sectorMap.Zones.Any(zone => zone.ZoneIndex == 0 && zone.Current && zone.Entrance && zone.Discovered), "sector-map should mark current entrance zone");
         Require(sectorMap.Zones.Any(zone => zone.ZoneIndex == 1 && zone.Exit && !zone.Discovered), "sector-map should mark undiscovered exit zone");
         Require(sectorMap.Links.Any(link => link.FromZoneIndex == 0 && link.ToZoneIndex == 1 && !link.Discovered), "sector-map should include normalized topology link");
-        RequireEqual(12L, projection.FrameId, "projection frame id");
-        RequireEqual(-50.0, projection.Viewport.MinX, "normalized viewport min x");
-        RequireEqual(500.0, projection.Viewport.MaxX, "normalized viewport max x");
-        Require(projection.ControlledEntityIndices.SequenceEqual([0, 1]), "projection should expose controlled unit set");
-        Require(projection.Objects.Any(item => item.DisplayName == "Raider In Shared Sight"), "projection should use union of controlled unit visibility");
-        Require(!projection.Objects.Any(item => item.DisplayName == "Outside Viewport"), "projection should exclude objects outside viewport");
-        Require(objectProjection.Objects.Select(item => item.EntityIndex).SequenceEqual(projection.Objects.Select(item => item.EntityIndex)), "objects viewport should match composed map object set");
-        var raven = projection.Objects.First(item => item.DisplayName == "Raven");
-        RequireEqual(120.0, raven.Status.Hull, "projection should include entity status");
-        Require(raven.Inventory.Any(item => item.ItemKey == "reactor-cell" && item.Source == "cargo"), "projection should include inventory");
-        Require(projection.GravityInfluences.Any(item => item.BodyKey == "body:near"), "projection should include intersecting gravity influence");
-        Require(!projection.GravityInfluences.Any(item => item.BodyKey == "body:far"), "projection should exclude non-intersecting gravity influence");
-        Require(gravityProjection.GravityInfluences.Select(item => item.BodyKey).SequenceEqual(projection.GravityInfluences.Select(item => item.BodyKey)), "gravity viewport should match composed map gravity set");
+        RequireEqual(12L, viewportDocument.FrameId, "viewport document frame id");
+        RequireEqual(-50.0, viewportDocument.Viewport.MinX, "normalized viewport min x");
+        RequireEqual(500.0, viewportDocument.Viewport.MaxX, "normalized viewport max x");
+        Require(viewportDocument.ControlledEntityIndices.SequenceEqual([0, 1]), "viewport document should expose controlled unit set");
+        Require(viewportDocument.Objects.Any(item => item.DisplayName == "Raider In Shared Sight"), "viewport document should use union of controlled unit visibility");
+        Require(!viewportDocument.Objects.Any(item => item.DisplayName == "Outside Viewport"), "viewport document should exclude objects outside viewport");
+        Require(objectsViewport.Objects.Select(item => item.EntityIndex).SequenceEqual(viewportDocument.Objects.Select(item => item.EntityIndex)), "objects viewport should match composed map object set");
+        var raven = viewportDocument.Objects.First(item => item.DisplayName == "Raven");
+        RequireEqual(120.0, raven.Status.Hull, "viewport document should include entity status");
+        Require(raven.Inventory.Any(item => item.ItemKey == "reactor-cell" && item.Source == "cargo"), "viewport document should include inventory");
+        Require(viewportDocument.GravityInfluences.Any(item => item.BodyKey == "body:near"), "viewport document should include intersecting gravity influence");
+        Require(!viewportDocument.GravityInfluences.Any(item => item.BodyKey == "body:far"), "viewport document should exclude non-intersecting gravity influence");
+        Require(gravityViewport.GravityInfluences.Select(item => item.BodyKey).SequenceEqual(viewportDocument.GravityInfluences.Select(item => item.BodyKey)), "gravity viewport should match composed map gravity set");
     }
 
     private static void StarbridgeSessionSummaryProjectsScenarioFacts()
     {
-        var baseEntity = ProjectionEntity(
+        var baseEntity = SnapshotEntity(
             4,
             "Starbridge Base",
             "player",
@@ -460,7 +460,7 @@ internal sealed class AuthoritySmokeChecks
                     Entities =
                     [
                         baseEntity,
-                        ProjectionEntity(5, "Pilot Raven", "player", 120, 0, 300, 140, "repair-pod")
+                        SnapshotEntity(5, "Pilot Raven", "player", 120, 0, 300, 140, "repair-pod")
                     ]
                 }
             ]
@@ -532,7 +532,7 @@ internal sealed class AuthoritySmokeChecks
             CurrentWaveIndex = 1
         };
 
-        var summary = AetheriaRuntimeStarbridgeProjection.ProjectSessionSummary(frame, scenario, session);
+        var summary = AetheriaRuntimeStarbridgeDocuments.SessionSummary(frame, scenario, session);
 
         RequireEqual(AetheriaRuntimeDaemonSchemas.StarbridgeSessionSummary, summary.Schema, "starbridge session summary schema");
         RequireEqual("starbridge.frontier-fabricator", summary.ScenarioId, "starbridge scenario id");
@@ -579,8 +579,8 @@ internal sealed class AuthoritySmokeChecks
                         Name = "Client State Documents Zone",
                         Entities =
                         [
-                            ProjectionEntity(0, "Document Raven", "player", 0, 0, 600, 140, "document-cargo"),
-                            ProjectionEntity(1, "Document Raider", "raider", 100, 0, 120, 80, "raider-cargo")
+                            SnapshotEntity(0, "Document Raven", "player", 0, 0, 600, 140, "document-cargo"),
+                            SnapshotEntity(1, "Document Raider", "raider", 100, 0, 120, 80, "raider-cargo")
                         ]
                     }
                 ]
@@ -660,58 +660,53 @@ internal sealed class AuthoritySmokeChecks
         using var client = await AetheriaClient
             .OpenAsync(statePath, "raven-unity", sessionId: "state-documents-session", pullOnOpen: true)
             .ConfigureAwait(false);
-        var aetheria = client.Aetheria();
-        var viewport = await client
-            .Aetheria()
-            .Viewports
-            .Map(new AetheriaRuntimeRtsViewportBounds { MinX = -20, MinY = -20, MaxX = 150, MaxY = 20 })
+        var state = client.State;
+        var viewportBounds = new AetheriaRuntimeRtsViewportBounds { MinX = -20, MinY = -20, MaxX = 150, MaxY = 20 };
+        var viewport = await state
+            .RtsViewport(viewportBounds)
             .LatestAsync()
             .ConfigureAwait(false);
         Require(viewport.Objects.Any(item => item.DisplayName == "Document Raven"), "managed map document should include controlled object");
         Require(viewport.Objects.Any(item => item.DisplayName == "Document Raider"), "managed map document should include visible hostile object");
-        var objectsViewport = await client
-            .Aetheria()
-            .Viewports
-            .Objects(new AetheriaRuntimeRtsViewportBounds { MinX = -20, MinY = -20, MaxX = 150, MaxY = 20 })
+        var objectsViewport = await state
+            .ObjectsViewport(viewportBounds)
             .LatestAsync()
             .ConfigureAwait(false);
         RequireEqual(AetheriaRuntimeDaemonSchemas.ObjectsViewport, objectsViewport.Schema, "managed objects viewport document schema");
         Require(objectsViewport.Objects.Any(item => item.DisplayName == "Document Raven"), "managed objects viewport document should include controlled object");
         Require(objectsViewport.Objects.Any(item => item.DisplayName == "Document Raider"), "managed objects viewport document should include visible hostile object");
-        var gravityViewport = await client
-            .Aetheria()
-            .Viewports
-            .Gravity(new AetheriaRuntimeRtsViewportBounds { MinX = -20, MinY = -20, MaxX = 150, MaxY = 20 })
+        var gravityViewport = await state
+            .GravityViewport(viewportBounds)
             .LatestAsync()
             .ConfigureAwait(false);
         RequireEqual(AetheriaRuntimeDaemonSchemas.GravityViewport, gravityViewport.Schema, "managed gravity viewport document schema");
 
-        var currentZone = await aetheria.Current.Zone.LatestAsync().ConfigureAwait(false);
+        var currentZone = await state.CurrentZone.LatestAsync().ConfigureAwait(false);
         RequireEqual(AetheriaRuntimeDaemonSchemas.CurrentZone, currentZone.Schema, "managed current-zone document schema");
         RequireEqual("Client State Documents Zone", currentZone.ZoneName, "managed current-zone document name");
 
-        var sectorMap = await aetheria.SectorMap.LatestAsync().ConfigureAwait(false);
+        var sectorMap = await state.SectorMap.LatestAsync().ConfigureAwait(false);
         RequireEqual(AetheriaRuntimeDaemonSchemas.SectorMap, sectorMap.Schema, "managed sector-map document schema");
         Require(sectorMap.Zones.Any(zone => zone.ZoneIndex == currentZone.ZoneIndex && zone.Current), "managed sector-map document should include current zone marker");
 
-        var selected = await aetheria.Details.SelectedObject(0).LatestAsync().ConfigureAwait(false);
+        var selected = await state.SelectedObject(0).LatestAsync().ConfigureAwait(false);
         RequireEqual(AetheriaRuntimeDaemonSchemas.SelectedObject, selected.Schema, "managed selected-object document schema");
         Require(selected.Selected?.DisplayName == "Document Raven", "managed selected-object document should resolve entity");
 
-        var inventory = await aetheria.Details.Inventory(0).LatestAsync().ConfigureAwait(false);
+        var inventory = await state.Inventory(0).LatestAsync().ConfigureAwait(false);
         RequireEqual(AetheriaRuntimeDaemonSchemas.Inventory, inventory.Schema, "managed inventory document schema");
         Require(inventory.Cargo.Any(item => item.ItemKey == "document-cargo"), "managed inventory document should expose cargo");
 
-        var starbridgeSummary = await aetheria.Starbridge.Summary.LatestAsync().ConfigureAwait(false);
+        var starbridgeSummary = await state.StarbridgeSummary.LatestAsync().ConfigureAwait(false);
         RequireEqual("Document Starbridge", starbridgeSummary.ScenarioName, "managed starbridge summary document should project scenario name");
         RequireEqual("pre-wave", starbridgeSummary.Phase, "managed starbridge summary document should project session phase");
         Require(starbridgeSummary.StationStock.Any(item => item.ItemKey == "document-cargo"), "managed starbridge summary document should expose station stock");
 
-        var projectedHealth = await aetheria.Daemon.Health.LatestAsync().ConfigureAwait(false);
-        Require(projectedHealth?.Status == "healthy", "managed daemon health document should read local health");
+        var healthDocument = await state.Health.LatestAsync().ConfigureAwait(false);
+        Require(healthDocument?.Status == "healthy", "managed daemon health document should read local health");
 
-        var projectedPolicy = await aetheria.Daemon.AuthorityPolicy.LatestAsync().ConfigureAwait(false);
-        RequireEqual("aetheria.trusted-coop.v1", projectedPolicy?.PolicyId, "managed authority policy document id");
+        var authorityPolicy = await state.AuthorityPolicy.LatestAsync().ConfigureAwait(false);
+        RequireEqual("aetheria.trusted-coop.v1", authorityPolicy?.PolicyId, "managed authority policy document id");
 
         var command = client.SetMoveVector(1, 0, 0.5);
         RequireEqual(AetheriaRuntimeDaemonCommandKinds.SetMoveVector, command.Kind, "managed client command kind");
@@ -741,7 +736,7 @@ internal sealed class AuthoritySmokeChecks
         using var client = await AetheriaClient
             .OpenAsync(statePath, "starbridge-smoke-client", sessionId: "authority-smoke", pullOnOpen: true)
             .ConfigureAwait(false);
-        var summary = await client.Aetheria().Starbridge.Summary.LatestAsync().ConfigureAwait(false);
+        var summary = await client.State.StarbridgeSummary.LatestAsync().ConfigureAwait(false);
 
         RequireEqual(AetheriaRuntimeDaemonSchemas.StarbridgeSessionSummary, summary.Schema, "daemon starbridge summary schema");
         RequireEqual("starbridge.frontier-fabricator", summary.ScenarioId, "daemon starbridge scenario id");
@@ -1718,7 +1713,7 @@ internal sealed class AuthoritySmokeChecks
             .First(candidate => candidate.EntityIndex == entityIndex);
     }
 
-    private static AetheriaRuntimeEntitySnapshotCommit ProjectionEntity(
+    private static AetheriaRuntimeEntitySnapshotCommit SnapshotEntity(
         int entityIndex,
         string name,
         string factionKey,

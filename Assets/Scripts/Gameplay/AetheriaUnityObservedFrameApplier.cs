@@ -13,7 +13,7 @@ public sealed class AetheriaUnityObservedFrameApplier
     private readonly Func<int, GalaxyZone> _resolveObservedZone;
     private readonly Func<Zone> _getZone;
     private readonly Action<Zone> _setZone;
-    private readonly AetheriaUnityObservedEntityIndex _entityIndex;
+    private readonly AetheriaUnityPresentationEntityIndex _entityIndex;
     private readonly AetheriaUnityObservedEntityRestorer _entityRestorer;
     private readonly AetheriaUnityObservedZoneContextFactory _zoneContextFactory;
     private readonly Func<ZoneRenderer> _resolveZoneRenderer;
@@ -31,7 +31,7 @@ public sealed class AetheriaUnityObservedFrameApplier
         Func<int, GalaxyZone> resolveObservedZone,
         Func<Zone> getZone,
         Action<Zone> setZone,
-        AetheriaUnityObservedEntityIndex entityIndex,
+        AetheriaUnityPresentationEntityIndex entityIndex,
         AetheriaUnityObservedEntityRestorer entityRestorer,
         AetheriaUnityObservedZoneContextFactory zoneContextFactory,
         Func<ZoneRenderer> resolveZoneRenderer,
@@ -146,8 +146,8 @@ public sealed class AetheriaUnityObservedFrameApplier
         }
 
         _entityRestorer.Replace(entitySnapshots, currentEntityKey, _getZone());
-        zoneRenderer?.LoadDaemonZoneView(_entityIndex.EntitiesByDaemonIndex, render);
-        if (_entityIndex.TryResolveEntityByRecordKey(currentEntityKey, out var currentEntity))
+        zoneRenderer?.LoadDaemonZoneView(_entityIndex.PresentationEntitiesByDaemonIndex, render);
+        if (_entityIndex.TryGetPresentationEntityByRecordKey(currentEntityKey, out var currentEntity))
             _restoreCurrentEntityBinding(currentEntity);
         zoneRenderer?.RestoreDroppedPickupsFromZoneRender(render);
         _lastAppliedZoneRenderFrameId = render.FrameId;

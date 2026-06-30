@@ -1,11 +1,10 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Globalization;
-using System.Linq;
 using GameCult.Aetheria.EveRuntime;
 using GameCult.Aetheria.State.Verse;
 using GameCult.Eve.Surface;
+using GameCult.Mesh;
 using UniRx;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -45,6 +44,7 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
     private float _sectorBackgroundDepth;
     private float _sectorCameraDepth;
     private UIDocument _zoneDetailsSurfaceDocument;
+    private AetheriaClientState _runtimeState;
     private readonly AetheriaEveUnitySurfaceChrome _zoneDetailsSurfaceChrome = new AetheriaEveUnitySurfaceChrome
     {
         RootAlignItems = Align.FlexEnd,
@@ -61,6 +61,8 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
     
     private float2 _position = float2(0.5f);
     private float _viewSize = .5f;
+
+    private AetheriaClientState RuntimeState => _runtimeState ??= AetheriaUnityRuntimeClientProvider.RuntimeState("unity-sector-renderer");
     
     void Start()
     {
@@ -86,32 +88,15 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
 
     private void RenderZoneDetailsSurface(int zoneIndex)
     {
-        var sectorZone = ResolveSectorZone(zoneIndex);
-        var zoneDetails = ResolveZoneDetails(zoneIndex);
-        var ownerFactionIndex = sectorZone?.OwnerFactionIndex ?? -1;
-        var otherFactions = (sectorZone?.FactionIndices ?? Array.Empty<int>())
-            .Where(index => index >= 0 && index != ownerFactionIndex)
-            .Distinct()
-            .Select(FormatFaction)
-            .ToArray();
-        var zoneFacts = AetheriaRuntimeZoneDetailsSurfaceBuilder.Facts(
-            zoneDetails,
-            ResolveHullType);
+        var surface = ResolveZoneDetailsSurface(zoneIndex);
+        if (surface == null)
+            return;
 
         _zoneDetailsSurfaceDocument = AetheriaEveUnitySurfaceHost.RenderRuntime(
             transform,
             _zoneDetailsSurfaceDocument,
             "Aetheria Sector Zone Details Surface",
-            AetheriaRuntimeZoneDetailsSurfaceBuilder.Build(
-                ResolveZoneName(sectorZone, zoneDetails),
-                ownerFactionIndex >= 0 ? FormatFaction(ownerFactionIndex) : "None",
-                FormatValue((float)zoneFacts.Mass),
-                FormatValue((float)zoneFacts.Radius),
-                otherFactions,
-                zoneFacts.Bodies,
-                zoneFacts.Entities,
-                zoneFacts.HasContents,
-                DateTime.UtcNow.ToString("O")),
+            surface,
             HandleZoneDetailsSurfaceCommand,
             _zoneDetailsSurfaceChrome);
     }
@@ -141,103 +126,20 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
         AetheriaEveUnitySurfaceHost.Hide(_zoneDetailsSurfaceDocument);
     }
 
-    private string ResolveZoneName(
-        AetheriaRuntimeSectorMapZone sectorZone,
-        AetheriaRuntimeZoneDetailsDocument zoneDetails)
-    {
-        if (!string.IsNullOrWhiteSpace(zoneDetails?.ZoneName))
-            return zoneDetails.ZoneName;
-
-        if (!string.IsNullOrWhiteSpace(sectorZone?.Name))
-            return sectorZone.Name;
-
-        return sectorZone == null ? "Unknown" : $"Zone {sectorZone.ZoneIndex}";
-    }
-
-    private AetheriaRuntimeSectorMapZone ResolveSectorZone(int zoneIndex)
+    private AetheriaRuntimeSurfaceDocument ResolveZoneDetailsSurface(int zoneIndex)
     {
         if (zoneIndex < 0)
             return null;
 
         try
         {
-            var sectorMap = AetheriaUnityRuntimeClientProvider.CurrentSectorMap("unity-sector-renderer");
-            return (sectorMap?.Zones ?? Array.Empty<AetheriaRuntimeSectorMapZone>())
-                .FirstOrDefault(zone => zone.ZoneIndex == zoneIndex);
+            return RuntimeState.ZoneDetailsSurface(zoneIndex).Latest();
         }
         catch (Exception ex)
         {
-            Debug.LogWarning($"Failed to read Aetheria sector map zone from local Verse state: {ex.Message}");
+            Debug.LogWarning($"Failed to read Aetheria sector zone details surface from local Verse state: {ex.Message}");
             return null;
         }
-    }
-
-    private static string FormatFaction(int factionIndex)
-    {
-        return factionIndex < 0 ? "None" : $"Faction {factionIndex}";
-    }
-
-    private AetheriaRuntimeZoneDetailsDocument ResolveZoneDetails(int zoneIndex)
-    {
-        if (zoneIndex < 0)
-            return null;
-
-        try
-        {
-            return AetheriaUnityRuntimeClientProvider.CurrentZoneDetails(zoneIndex, "unity-sector-renderer");
-        }
-        catch (Exception ex)
-        {
-            Debug.LogWarning($"Failed to read Aetheria sector zone details from local Verse state: {ex.Message}");
-            return null;
-        }
-    }
-
-    private string ResolveHullType(string hullItemKey)
-    {
-        var typedHull = ResolveCatalog()?.FindItem(hullItemKey ?? "");
-        return typedHull?.HullType ?? "";
-    }
-
-    private AetheriaRuntimeCatalogSnapshot ResolveCatalog()
-    {
-        try
-        {
-            return AetheriaUnityRuntimeClientProvider.CurrentCatalog("unity-sector-renderer");
-        }
-        catch (Exception ex)
-        {
-            Debug.LogWarning($"Failed to read Aetheria sector catalog from local Verse state: {ex.Message}");
-            return null;
-        }
-    }
-
-    private AetheriaRuntimePlayerSettingsDocument ResolvePlayerSettings()
-    {
-        try
-        {
-            return AetheriaUnityRuntimeClientProvider.CurrentPlayerSettings("unity-sector-renderer");
-        }
-        catch (Exception ex)
-        {
-            Debug.LogWarning($"Failed to read Aetheria sector player settings from local Verse state: {ex.Message}");
-            return null;
-        }
-    }
-
-    private string FormatValue(float value)
-    {
-        var digits = ResolvePlayerSettings()?.SignificantDigits ?? 3;
-        var magnitude = value == 0f ? 0 : (int)Math.Floor(Math.Log10(Math.Abs(value))) + 1;
-        digits -= magnitude;
-        if (digits < 0)
-            digits = 0;
-
-        var formatted = value.ToString($"N{digits}");
-        var decimalSeparator = Convert.ToChar(CultureInfo.CurrentCulture.NumberFormat.NumberDecimalSeparator);
-        return formatted.Contains(CultureInfo.CurrentCulture.NumberFormat.NumberDecimalSeparator)
-            ? formatted.TrimEnd('0').TrimEnd(decimalSeparator)
-            : formatted;
     }
 
     private void OnEnable()
@@ -259,7 +161,7 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
     {
         try
         {
-            return AetheriaUnityRuntimeClientProvider.CurrentZoneState("unity-sector-renderer");
+            return RuntimeState.CurrentZone.Latest();
         }
         catch (Exception ex)
         {
@@ -299,7 +201,7 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
             {
                 _outputTexture.Release();
             }
-            _outputTexture = new RenderTexture(_size.x, _size.y, 0, RenderTextureFormat.Default);
+            _outputTexture = new RenderTexture(_size.x, _size.y, 16, RenderTextureFormat.Default);
             SectorCamera.targetTexture = _outputTexture;
             _outputImage.material.SetTexture("_DetailTex", _outputTexture);
         }

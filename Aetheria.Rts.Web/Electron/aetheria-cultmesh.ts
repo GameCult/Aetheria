@@ -18,45 +18,45 @@ import {
   AetheriaRtsSchemas,
   createAetheriaRuntimeRtsDocuments,
   createAetheriaRuntimeRtsOperationHandles,
-  createAetheriaRuntimeRtsVerseFacade,
+  createAetheriaRuntimeRtsVerseHandles,
   createAetheriaRuntimeRtsQueryHandles,
   describeAetheriaRuntimeRtsLiveFeedSurface,
   describeAetheriaRuntimeRtsQueryHandles,
   describeAetheriaRuntimeRtsSurfaceCatalog,
   type AetheriaRuntimeDaemonCommandReceipt,
-  type AssetManifestProjection,
-  type AuthorityStatusProjection,
-  type DaemonHealthProjection,
+  type AssetManifestDocument,
+  type AuthorityStatusDocument,
+  type DaemonHealthDocument,
   type GravityViewportResponse,
-  type InventoryProjection,
+  type InventoryDocument,
   type ObjectsViewportResponse,
   type AetheriaRuntimeRtsLiveFeedDiagnostic,
-  type AetheriaRuntimeRtsProjectionDiagnostic,
+  type AetheriaRuntimeRtsQueryDiagnostic,
   type AetheriaRuntimeRtsSurfaceCatalogDiagnostic,
   type AetheriaRuntimeRtsOperationHandles,
-  type AetheriaRuntimeRtsVerseFacade,
+  type AetheriaRuntimeRtsVerseHandles,
   type AetheriaRuntimeRtsDocuments,
   type AetheriaRuntimeViewportFeedRequest,
   type AetheriaRuntimeViewportFeedSnapshot,
   type RtsSetMoveVectorRequest,
   type RtsSetTargetRequest,
-  type SelectedObjectProjection,
+  type SelectedObjectDocument,
   type SelectedObjectRequest,
-  type StarbridgeSessionProjection,
+  type StarbridgeSessionDocument,
   type ViewportRequest,
   type ViewportResponse,
 } from "./aetheria-rts-bindings.js";
 import {
-  projectAuthorityStatus,
-  projectAssetManifest,
-  projectDaemonHealth,
-  projectGravityViewportFromFrame,
-  projectInventoryFromFrame,
-  projectObjectsViewportFromFrame,
-  projectSelectedObjectFromFrame,
-  projectStarbridgeSessionSummary,
-  projectViewportFromFrame,
-} from "./aetheria-rts-local-projection.js";
+  readAuthorityStatusDocument,
+  readAssetManifestDocument,
+  readDaemonHealthDocument,
+  buildGravityViewportDocumentFromFrame,
+  buildInventoryDocumentFromFrame,
+  buildObjectsViewportDocumentFromFrame,
+  buildSelectedObjectDocumentFromFrame,
+  readStarbridgeSessionSummaryDocument,
+  buildViewportDocumentFromFrame,
+} from "./aetheria-rts-local-documents.js";
 
 const connectionId = 0x43554c54;
 
@@ -81,9 +81,9 @@ export type {
   AetheriaRuntimeViewportFeedSnapshot,
   RtsSetMoveVectorRequest,
   RtsSetTargetRequest,
-  SelectedObjectProjection,
+  SelectedObjectDocument,
   SelectedObjectRequest,
-  StarbridgeSessionProjection,
+  StarbridgeSessionDocument,
   ViewObject,
   ViewportRequest,
   ViewportResponse,
@@ -121,15 +121,15 @@ export class AetheriaCultMeshClient {
       },
     );
     const executors = {
-      mapViewport: async (request: ViewportRequest) => projectViewportFromFrame(await this.fetchLatestFrameDocument(), request),
-      objectsViewport: async (request: ViewportRequest) => projectObjectsViewportFromFrame(await this.fetchLatestFrameDocument(), request),
-      gravityViewport: async (request: ViewportRequest) => projectGravityViewportFromFrame(await this.fetchLatestFrameDocument(), request),
-      selectedObject: async (request: SelectedObjectRequest) => projectSelectedObjectFromFrame(await this.fetchLatestFrameDocument(), request),
-      inventory: async (request: SelectedObjectRequest) => projectInventoryFromFrame(await this.fetchLatestFrameDocument(), request),
-      daemonHealth: async () => projectDaemonHealth(await this.fetchDaemonHealthDocument()),
-      authorityStatus: async () => projectAuthorityStatus(await this.fetchAuthorityPolicyDocument()),
-      starbridgeSession: async () => projectStarbridgeSessionSummary(await this.fetchStarbridgeSessionSummaryDocument()),
-      assetManifest: async () => projectAssetManifest(await this.fetchAssetManifestDocument()),
+      mapViewport: async (request: ViewportRequest) => buildViewportDocumentFromFrame(await this.fetchLatestFrameDocument(), request),
+      objectsViewport: async (request: ViewportRequest) => buildObjectsViewportDocumentFromFrame(await this.fetchLatestFrameDocument(), request),
+      gravityViewport: async (request: ViewportRequest) => buildGravityViewportDocumentFromFrame(await this.fetchLatestFrameDocument(), request),
+      selectedObject: async (request: SelectedObjectRequest) => buildSelectedObjectDocumentFromFrame(await this.fetchLatestFrameDocument(), request),
+      inventory: async (request: SelectedObjectRequest) => buildInventoryDocumentFromFrame(await this.fetchLatestFrameDocument(), request),
+      daemonHealth: async () => readDaemonHealthDocument(await this.fetchDaemonHealthDocument()),
+      authorityStatus: async () => readAuthorityStatusDocument(await this.fetchAuthorityPolicyDocument()),
+      starbridgeSession: async () => readStarbridgeSessionSummaryDocument(await this.fetchStarbridgeSessionSummaryDocument()),
+      assetManifest: async () => readAssetManifestDocument(await this.fetchAssetManifestDocument()),
     };
     this.queries = createAetheriaRuntimeRtsQueryHandles(
       executors,
@@ -159,7 +159,7 @@ export class AetheriaCultMeshClient {
       (commandId, issuedAtUtc, command, context) =>
         this.sendCommandDocument(commandId, issuedAtUtc, command, context),
     );
-    this.aetheria = createAetheriaRuntimeRtsVerseFacade(
+    this.aetheria = createAetheriaRuntimeRtsVerseHandles(
       this.queryVerse.context,
       this.commandVerse.context,
       this.queries,
@@ -173,7 +173,7 @@ export class AetheriaCultMeshClient {
   private readonly queries: ReturnType<typeof createAetheriaRuntimeRtsQueryHandles>;
   private readonly documents: AetheriaRuntimeRtsDocuments;
   private readonly operations: AetheriaRuntimeRtsOperationHandles;
-  private readonly aetheria: AetheriaRuntimeRtsVerseFacade;
+  private readonly aetheria: AetheriaRuntimeRtsVerseHandles;
 
   public async close(): Promise<void> {
     this.#peer?.close();
@@ -208,31 +208,31 @@ export class AetheriaCultMeshClient {
     return this.aetheria.zone().gravity.within(request);
   }
 
-  public async selectedObject(request: SelectedObjectRequest): Promise<SelectedObjectProjection> {
+  public async selectedObject(request: SelectedObjectRequest): Promise<SelectedObjectDocument> {
     return this.aetheria.selectedObject(request.entityIndex);
   }
 
-  public async inventory(request: SelectedObjectRequest): Promise<InventoryProjection> {
+  public async inventory(request: SelectedObjectRequest): Promise<InventoryDocument> {
     return this.aetheria.inventory(request.entityIndex);
   }
 
-  public async daemonHealth(): Promise<DaemonHealthProjection> {
+  public async daemonHealth(): Promise<DaemonHealthDocument> {
     return this.aetheria.daemon.health();
   }
 
-  public async authorityStatus(): Promise<AuthorityStatusProjection> {
+  public async authorityStatus(): Promise<AuthorityStatusDocument> {
     return this.aetheria.daemon.authorityStatus();
   }
 
-  public async starbridgeSession(): Promise<StarbridgeSessionProjection> {
+  public async starbridgeSession(): Promise<StarbridgeSessionDocument> {
     return this.aetheria.daemon.starbridgeSession();
   }
 
-  public async assetManifest(): Promise<AssetManifestProjection> {
+  public async assetManifest(): Promise<AssetManifestDocument> {
     return this.aetheria.daemon.assetManifest();
   }
 
-  public projectionDiagnostics(): Readonly<Record<string, AetheriaRuntimeRtsProjectionDiagnostic>> {
+  public queryDiagnostics(): Readonly<Record<string, AetheriaRuntimeRtsQueryDiagnostic>> {
     return describeAetheriaRuntimeRtsQueryHandles(this.queries);
   }
 
@@ -492,7 +492,7 @@ function createAetheriaPublicationDocuments(
           sourceId: "daemon:aetheria.frame.latest.v1",
         },
       ),
-      localPath: `${statePath}.daemon.frame.cc`,
+      localPath: statePath,
     },
     {
       ...CultMesh.publicationDocument(
@@ -503,7 +503,7 @@ function createAetheriaPublicationDocuments(
           sourceId: "daemon:aetheria.health.latest.v1",
         },
       ),
-      localPath: `${statePath}.daemon.health.cc`,
+      localPath: statePath,
       remoteRecordKey: "daemon:aetheria.health.v1",
     },
     {
@@ -515,7 +515,7 @@ function createAetheriaPublicationDocuments(
           sourceId: "daemon:aetheria.authority.policy.latest.v1",
         },
       ),
-      localPath: `${statePath}.authority.policy.cc`,
+      localPath: statePath,
       remoteRecordKey: "global:aetheria.verse_authority_policy.v1",
     },
     {
@@ -527,7 +527,7 @@ function createAetheriaPublicationDocuments(
           sourceId: "daemon:aetheria.starbridge.session.latest.v1",
         },
       ),
-      localPath: `${statePath}.daemon.starbridge.session.cc`,
+      localPath: statePath,
     },
     {
       ...CultMesh.publicationDocument(
@@ -538,7 +538,7 @@ function createAetheriaPublicationDocuments(
           sourceId: "daemon:aetheria.asset_manifest.latest.v1",
         },
       ),
-      localPath: `${statePath}.daemon.assets.cc`,
+      localPath: statePath,
     },
   ];
 

@@ -121,6 +121,7 @@ namespace GameCult.Aetheria.State.Verse
             typeof(AetheriaRuntimeStarbridgePlayerSeatDocument),
             typeof(AetheriaRuntimePlayerSettingsDocument),
             typeof(AetheriaRuntimeVerseHostSettingsDocument),
+            typeof(AetheriaRuntimeSurfaceDocument),
             typeof(AetheriaRuntimeDaemonCommandDocument),
             typeof(AetheriaRuntimeEveCommandDocument),
             typeof(EveSurfaceState)
@@ -147,6 +148,7 @@ namespace GameCult.Aetheria.State.Verse
         private CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument>? _managedDaemonFrame;
         private CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot>? _managedCatalog;
         private CultMeshReactiveDocument<AetheriaRuntimeLoadoutTemplatesDocument>? _managedLoadoutTemplates;
+        private CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument>? _managedPlayerSettings;
         private CultMeshReactiveDocument<AetheriaRuntimeStarbridgeScenarioDocument>? _managedStarbridgeScenario;
         private CultMeshReactiveDocument<AetheriaRuntimeStarbridgeSessionDocument>? _managedStarbridgeSession;
         private bool _disposed;
@@ -356,6 +358,7 @@ namespace GameCult.Aetheria.State.Verse
             _managedDaemonFrame?.Dispose();
             _managedCatalog?.Dispose();
             _managedLoadoutTemplates?.Dispose();
+            _managedPlayerSettings?.Dispose();
             _managedStarbridgeScenario?.Dispose();
             _managedStarbridgeSession?.Dispose();
             _node.Dispose();
@@ -383,6 +386,11 @@ namespace GameCult.Aetheria.State.Verse
                 () => Task.FromResult(BootstrapLoadoutTemplatesDocument()),
                 AetheriaRuntimeLoadoutTemplatesDocument.SchemaId,
                 CatalogBootstrapSource("catalog:aetheria.loadout_templates"));
+            var playerSettingsDocument = BootstrapCatalogDocument(
+                "aetheria.settings.player",
+                () => Task.FromResult(BootstrapPlayerSettingsDocument()),
+                AetheriaRuntimePlayerSettingsDocument.SchemaId,
+                CatalogBootstrapSource("catalog:aetheria.player_settings"));
             var starbridgeScenarioDocument = Document<AetheriaRuntimeStarbridgeScenarioDocument>(
                 AetheriaRuntimeVerseRecordKeys.StarbridgeScenarioLatest);
             var starbridgeSessionDocument = Document<AetheriaRuntimeStarbridgeSessionDocument>(
@@ -392,6 +400,7 @@ namespace GameCult.Aetheria.State.Verse
             CultMeshReactiveDocument<AetheriaRuntimeDaemonFrameDocument>? managedDaemonFrame = null;
             CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot>? managedCatalog = null;
             CultMeshReactiveDocument<AetheriaRuntimeLoadoutTemplatesDocument>? managedLoadoutTemplates = null;
+            CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument>? managedPlayerSettings = null;
             CultMeshReactiveDocument<AetheriaRuntimeStarbridgeScenarioDocument>? managedStarbridgeScenario = null;
             CultMeshReactiveDocument<AetheriaRuntimeStarbridgeSessionDocument>? managedStarbridgeSession = null;
 
@@ -417,11 +426,7 @@ namespace GameCult.Aetheria.State.Verse
                     AetheriaRuntimeVerseRecordKeys.DaemonEditorTuiSurface),
                 catalogDocument,
                 loadoutTemplatesDocument,
-                BootstrapCatalogDocument(
-                    "aetheria.settings.player",
-                    () => Task.FromResult(BootstrapPlayerSettingsDocument()),
-                    AetheriaRuntimePlayerSettingsDocument.SchemaId,
-                    CatalogBootstrapSource("catalog:aetheria.player_settings")),
+                playerSettingsDocument,
                 BootstrapCatalogDocument(
                     "aetheria.settings.verse_host",
                     () => Task.FromResult(BootstrapVerseHostSettingsDocument()),
@@ -477,6 +482,25 @@ namespace GameCult.Aetheria.State.Verse
                     IndexedDocumentId("aetheria.zone.details", zoneIndex),
                     frame => Task.FromResult(AetheriaRuntimeRtsDocuments.ZoneDetails(frame, zoneIndex)),
                     AetheriaRuntimeDaemonSchemas.ZoneDetails),
+                zoneIndex => ManagedFrameDocument(
+                    IndexedDocumentId("aetheria.zone.details.surface", zoneIndex),
+                    frame => ZoneDetailsSurfaceAsync(frame, zoneIndex),
+                    AetheriaRuntimeZoneDetailsSurfaceBuilder.SurfaceId,
+                    CultMesh.ProjectionSource("catalog:aetheria.runtime"),
+                    CultMesh.ProjectionSource("catalog:aetheria.player_settings")),
+                request => ManagedFrameDocument(
+                    InventoryPanelSurfaceDocumentId(request),
+                    frame => InventoryPanelSurfaceAsync(frame, request),
+                    AetheriaRuntimeInventoryPanelSurfaceBuilder.SurfaceId,
+                    CultMesh.ProjectionSource("catalog:aetheria.runtime"),
+                    CultMesh.ProjectionSource("catalog:aetheria.player_settings"),
+                    CultMesh.ProjectionSource("loadout-templates:aetheria.runtime")),
+                request => ManagedFrameDocument(
+                    InventoryDropdownSurfaceDocumentId(request),
+                    frame => InventoryDropdownSurfaceAsync(frame, request),
+                    AetheriaRuntimeInventoryDropdownSurfaceBuilder.SurfaceId,
+                    CultMesh.ProjectionSource("catalog:aetheria.runtime"),
+                    CultMesh.ProjectionSource("loadout-templates:aetheria.runtime")),
                 entityIndex => ManagedFrameDocument(
                     IndexedDocumentId("aetheria.object.selected", entityIndex),
                     frame => Task.FromResult(AetheriaRuntimeRtsDocuments.SelectedObject(frame, entityIndex)),
@@ -497,14 +521,16 @@ namespace GameCult.Aetheria.State.Verse
                 seatId => Document<AetheriaRuntimeStarbridgePlayerSeatDocument>(
                     AetheriaRuntimeVerseRecordKeys.StarbridgePlayerSeat(seatId)));
 
-            managedDaemonFrame = state.ReactiveDaemonFrame();
-            managedCatalog = state.ReactiveCatalogSnapshot();
-            managedLoadoutTemplates = state.ReactiveLoadoutTemplates();
-            managedStarbridgeScenario = state.ReactiveStarbridgeScenario();
-            managedStarbridgeSession = state.ReactiveStarbridgeSession();
+            managedDaemonFrame = state.DaemonFrame.Reactive();
+            managedCatalog = state.Catalog.Reactive();
+            managedLoadoutTemplates = state.LoadoutTemplates.Reactive();
+            managedPlayerSettings = state.PlayerSettings.Reactive();
+            managedStarbridgeScenario = state.StarbridgeScenario.Reactive();
+            managedStarbridgeSession = state.StarbridgeSession.Reactive();
             _managedDaemonFrame = managedDaemonFrame;
             _managedCatalog = managedCatalog;
             _managedLoadoutTemplates = managedLoadoutTemplates;
+            _managedPlayerSettings = managedPlayerSettings;
             _managedStarbridgeScenario = managedStarbridgeScenario;
             _managedStarbridgeSession = managedStarbridgeSession;
             return state;
@@ -557,6 +583,12 @@ namespace GameCult.Aetheria.State.Verse
                     ?? throw new InvalidOperationException("Aetheria Verse client has no loadout templates document yet.");
             }
 
+            AetheriaRuntimePlayerSettingsDocument RequireManagedPlayerSettings()
+            {
+                return managedPlayerSettings?.Current
+                    ?? throw new InvalidOperationException("Aetheria Verse client has no player settings document yet.");
+            }
+
             CultMeshDocumentHandle<TDocument> BootstrapCatalogDocument<TDocument>(
                 string documentId,
                 Func<Task<TDocument>> bootstrap,
@@ -599,6 +631,57 @@ namespace GameCult.Aetheria.State.Verse
                     RequireManagedCatalog()));
             }
 
+            Task<AetheriaRuntimeSurfaceDocument> ZoneDetailsSurfaceAsync(
+                AetheriaRuntimeDaemonFrameDocument frame,
+                int zoneIndex)
+            {
+                return Task.FromResult(AetheriaRuntimeZoneDetailsSurfaceBuilder.BuildFromDocuments(
+                    AetheriaRuntimeRtsDocuments.ZoneDetails(frame, zoneIndex),
+                    AetheriaRuntimeRtsDocuments.SectorMap(frame),
+                    RequireManagedCatalog(),
+                    RequireManagedPlayerSettings(),
+                    DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture)));
+            }
+
+            Task<AetheriaRuntimeSurfaceDocument> InventoryPanelSurfaceAsync(
+                AetheriaRuntimeDaemonFrameDocument frame,
+                AetheriaRuntimeInventoryPanelSurfaceRequest request)
+            {
+                request ??= new AetheriaRuntimeInventoryPanelSurfaceRequest();
+                var entityIndex = request.DisplayedEntityIndex >= 0
+                    ? request.DisplayedEntityIndex
+                    : request.DisplayedCargoEntityIndex;
+                var inventory = entityIndex < 0
+                    ? new AetheriaRuntimeInventoryDocument()
+                    : AetheriaRuntimeRtsDocuments.Inventory(frame, entityIndex);
+
+                return Task.FromResult(AetheriaRuntimeInventoryPanelSurfaceBuilder.BuildFromDocuments(
+                    AetheriaRuntimeRtsDocuments.CurrentEntity(frame),
+                    AetheriaRuntimeRtsDocuments.StationRefit(
+                        frame,
+                        RequireManagedLoadoutTemplates().Templates,
+                        RequireManagedCatalog()),
+                    inventory,
+                    RequireManagedCatalog(),
+                    RequireManagedPlayerSettings(),
+                    request,
+                    InventoryDropdownSurfaceDocumentId(ToDropdownRequest(request)),
+                    DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture)));
+            }
+
+            Task<AetheriaRuntimeSurfaceDocument> InventoryDropdownSurfaceAsync(
+                AetheriaRuntimeDaemonFrameDocument frame,
+                AetheriaRuntimeInventoryDropdownSurfaceRequest request)
+            {
+                return Task.FromResult(AetheriaRuntimeInventoryDropdownSurfaceBuilder.BuildFromDocuments(
+                    AetheriaRuntimeRtsDocuments.StationRefit(
+                        frame,
+                        RequireManagedLoadoutTemplates().Templates,
+                        RequireManagedCatalog()),
+                    request,
+                    DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture)));
+            }
+
             static string IndexedDocumentId(string prefix, int index)
             {
                 return $"{prefix}.{index.ToString(CultureInfo.InvariantCulture)}";
@@ -614,6 +697,46 @@ namespace GameCult.Aetheria.State.Verse
                     ViewportToken(normalized.MinY),
                     ViewportToken(normalized.MaxX),
                     ViewportToken(normalized.MaxY));
+            }
+
+            static string InventoryPanelSurfaceDocumentId(AetheriaRuntimeInventoryPanelSurfaceRequest? request)
+            {
+                request ??= new AetheriaRuntimeInventoryPanelSurfaceRequest();
+                return string.Join(
+                    ".",
+                    "aetheria.inventory.panel.surface",
+                    AetheriaRuntimeVerseRecordKeys.StableToken(request.DisplayedEntityKey),
+                    request.DisplayedEntityIndex.ToString(CultureInfo.InvariantCulture),
+                    AetheriaRuntimeVerseRecordKeys.StableToken(request.DisplayedCargoEntityKey),
+                    request.DisplayedCargoEntityIndex.ToString(CultureInfo.InvariantCulture),
+                    request.DisplayedCargoIndex.ToString(CultureInfo.InvariantCulture),
+                    request.ThermalView ? "thermal" : "inventory");
+            }
+
+            static string InventoryDropdownSurfaceDocumentId(AetheriaRuntimeInventoryDropdownSurfaceRequest? request)
+            {
+                request ??= new AetheriaRuntimeInventoryDropdownSurfaceRequest();
+                return string.Join(
+                    ".",
+                    "aetheria.inventory.dropdown.surface",
+                    AetheriaRuntimeVerseRecordKeys.StableToken(request.DisplayedEntityKey),
+                    AetheriaRuntimeVerseRecordKeys.StableToken(request.DisplayedCargoEntityKey),
+                    request.DisplayedCargoIndex.ToString(CultureInfo.InvariantCulture),
+                    request.CanSaveLoadout ? "save" : "readonly");
+            }
+
+            static AetheriaRuntimeInventoryDropdownSurfaceRequest ToDropdownRequest(
+                AetheriaRuntimeInventoryPanelSurfaceRequest? request)
+            {
+                request ??= new AetheriaRuntimeInventoryPanelSurfaceRequest();
+                return new AetheriaRuntimeInventoryDropdownSurfaceRequest
+                {
+                    CurrentView = request.ViewTitle ?? "",
+                    DisplayedEntityKey = request.DisplayedEntityKey ?? "",
+                    DisplayedCargoEntityKey = request.DisplayedCargoEntityKey ?? "",
+                    DisplayedCargoIndex = request.DisplayedCargoIndex,
+                    CanSaveLoadout = !string.IsNullOrWhiteSpace(request.DisplayedEntityKey)
+                };
             }
 
             static string ViewportToken(double value)

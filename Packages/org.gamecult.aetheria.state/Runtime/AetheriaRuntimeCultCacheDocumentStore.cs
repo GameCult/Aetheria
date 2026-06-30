@@ -113,7 +113,7 @@ namespace GameCult.Aetheria.State.Verse
                 new System.Collections.Generic.Dictionary<string, string>(StringComparer.Ordinal),
                 Array.Empty<AetheriaRuntimeSurfaceComponent>());
 
-            writer.WriteArrayHeader(5);
+            writer.WriteArrayHeader(6);
             writer.Write(component.Id ?? "");
             writer.Write(component.Kind ?? "");
             writer.WriteMapHeader(component.Props?.Count ?? 0);
@@ -140,6 +140,19 @@ namespace GameCult.Aetheria.State.Verse
                 writer.Write(record.SchemaId);
                 writer.Write(record.RouteKind);
                 writer.Write(record.RouteDescription);
+            }
+
+            writer.WriteArrayHeader(component.EmbeddedDocuments?.Count ?? 0);
+            foreach (var slot in component.EmbeddedDocuments ?? Array.Empty<AetheriaRuntimeEmbeddedDocumentSlot>())
+            {
+                var route = slot.RouteHint ?? CultMeshRouteHint.Automatic;
+                writer.WriteArrayHeader(6);
+                writer.Write(slot.SlotId ?? "");
+                writer.Write(slot.DocumentId ?? "");
+                writer.Write(slot.SchemaId ?? "");
+                writer.Write(slot.PresentationKind ?? "");
+                writer.Write(route.Kind.ToString());
+                writer.Write(route.Description ?? "");
             }
         }
 
@@ -241,12 +254,57 @@ namespace GameCult.Aetheria.State.Verse
             var props = ReadFieldStringMap(ref reader, componentFields, 2);
             var children = ReadFieldSurfaceComponents(ref reader, componentFields, 3);
             var stateBindings = ReadFieldSurfaceStateBindings(ref reader, componentFields, 4);
-            for (var field = 5; field < componentFields; field++)
+            var embeddedDocuments = ReadFieldEmbeddedDocumentSlots(ref reader, componentFields, 5);
+            for (var field = 6; field < componentFields; field++)
             {
                 reader.Skip();
             }
 
-            return new AetheriaRuntimeSurfaceComponent(id, kind, props, children, stateBindings);
+            return new AetheriaRuntimeSurfaceComponent(id, kind, props, children, stateBindings, embeddedDocuments);
+        }
+
+        private static System.Collections.Generic.IReadOnlyList<AetheriaRuntimeEmbeddedDocumentSlot> ReadFieldEmbeddedDocumentSlots(
+            ref MessagePackReader reader,
+            int fields,
+            int index)
+        {
+            if (index >= fields || reader.NextMessagePackType == MessagePackType.Nil)
+            {
+                if (index < fields)
+                    reader.ReadNil();
+
+                return Array.Empty<AetheriaRuntimeEmbeddedDocumentSlot>();
+            }
+
+            var count = reader.ReadArrayHeader();
+            var slots = new AetheriaRuntimeEmbeddedDocumentSlot[count];
+            for (var item = 0; item < count; item++)
+            {
+                var slotFields = reader.ReadArrayHeader();
+                var slotId = ReadFieldString(ref reader, slotFields, 0, "");
+                var documentId = ReadFieldString(ref reader, slotFields, 1, "");
+                var schemaId = ReadFieldString(ref reader, slotFields, 2, "");
+                var presentationKind = ReadFieldString(ref reader, slotFields, 3, "");
+                var routeKind = ReadFieldString(ref reader, slotFields, 4, nameof(CultMeshLocalityKind.Automatic));
+                var routeDescription = ReadFieldString(ref reader, slotFields, 5, "");
+                for (var field = 6; field < slotFields; field++)
+                {
+                    reader.Skip();
+                }
+
+                slots[item] = new AetheriaRuntimeEmbeddedDocumentSlot(
+                    slotId,
+                    documentId,
+                    schemaId,
+                    presentationKind,
+                    new CultMeshRouteHint(
+                        Enum.TryParse<CultMeshLocalityKind>(routeKind, true, out var locality)
+                            ? locality
+                            : CultMeshLocalityKind.Automatic,
+                        routeDescription));
+            }
+
+            return slots;
         }
 
         private static System.Collections.Generic.IReadOnlyList<CultMeshStateBindingDescriptor> ReadFieldSurfaceStateBindings(

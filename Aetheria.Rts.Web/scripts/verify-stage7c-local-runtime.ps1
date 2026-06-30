@@ -15,10 +15,17 @@ $statePath = Join-Path $tempRoot "aetheria-rts.cc"
 $endpoint = $null
 
 try {
-    $daemonOutput = dotnet run --project (Join-Path $repoRoot "Aetheria.State.Daemon\Aetheria.State.Daemon.csproj") -- `
-        --state $statePath `
-        --once `
-        --rts-cultmesh-port 0 2>&1
+    $previousErrorActionPreference = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        $daemonOutput = dotnet run --project (Join-Path $repoRoot "Aetheria.State.Daemon\Aetheria.State.Daemon.csproj") -- `
+            --state $statePath `
+            --once `
+            --rts-cultmesh-port 0 2>&1
+    }
+    finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
     $daemonOutput | Out-Host
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Stage 7C verifier failed: one-shot daemon did not complete."
@@ -52,9 +59,9 @@ const viewport = await client.mapViewport({ minX: -5000, minY: -5000, maxX: 5000
 const objectsViewport = await client.objectsViewport({ minX: -5000, minY: -5000, maxX: 5000, maxY: 5000 });
 const gravityViewport = await client.gravityViewport({ minX: -5000, minY: -5000, maxX: 5000, maxY: 5000 });
 if (!Number.isFinite(viewport.frameId))
-  throw new Error("Viewport projection did not produce a frame id.");
+  throw new Error("Viewport query did not produce a frame id.");
 if (!Array.isArray(viewport.objects) || viewport.objects.length === 0)
-  throw new Error("Viewport projection did not expose visible objects.");
+  throw new Error("Viewport query did not expose visible objects.");
 if (objectsViewport.schema !== "gamecult.aetheria.objects_viewport.v1")
   throw new Error(`Objects viewport used unexpected schema: ${objectsViewport.schema}`);
 if (gravityViewport.schema !== "gamecult.aetheria.gravity_viewport.v1")
@@ -66,19 +73,19 @@ if (!Array.isArray(gravityViewport.gravityInfluences) || gravityViewport.gravity
 
 const selectedIndex = viewport.controlledEntityIndices[0] ?? viewport.objects[0]?.entityIndex;
 if (!Number.isFinite(selectedIndex))
-  throw new Error("No entity was available for selected-object projection.");
+  throw new Error("No entity was available for the selected-object query.");
 
 const selected = await client.selectedObject({ entityIndex: selectedIndex });
 if (!selected.selected)
-  throw new Error(`Selected-object projection did not resolve entity ${selectedIndex}.`);
+  throw new Error(`Selected-object query did not resolve entity ${selectedIndex}.`);
 
 const inventory = await client.inventory({ entityIndex: selectedIndex });
 if (!Array.isArray(inventory.equipment) || !Array.isArray(inventory.cargo))
-  throw new Error("Inventory projection did not return equipment and cargo arrays.");
+  throw new Error("Inventory query did not return equipment and cargo arrays.");
 
 const health = await client.daemonHealth();
 if (health.status !== "healthy")
-  throw new Error(`Daemon health projection was not healthy: ${health.status}`);
+  throw new Error(`Daemon health document was not healthy: ${health.status}`);
 
 const authority = await client.authorityStatus();
 if (authority.policyId !== "aetheria.trusted-coop.v1")
@@ -146,7 +153,7 @@ console.log(JSON.stringify({
     $env:AETHERIA_STAGE7C_CLIENT_MODULE = Join-Path $root "electron-dist\aetheria-cultmesh.js"
     node $smokeScript
     if ($LASTEXITCODE -ne 0) {
-        Write-Error "Stage 7C verifier failed: local Electron runtime facade could not read daemon publications."
+        Write-Error "Stage 7C verifier failed: local Electron runtime handles could not read daemon publications."
     }
 }
 finally {
