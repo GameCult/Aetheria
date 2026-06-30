@@ -164,6 +164,10 @@ public class MainMenu : MonoBehaviour
                 .SectorMap
                 .Latest();
         }
+        catch (KeyNotFoundException ex) when (IsMissingDaemonFrame(ex))
+        {
+            return null;
+        }
         catch (Exception ex)
         {
             Debug.LogError($"Failed to bind typed Aetheria sector-map state for the main menu: {ex}");
@@ -207,6 +211,11 @@ public class MainMenu : MonoBehaviour
             Debug.LogError($"Failed to bind typed Aetheria Verse host settings for the main menu: {ex}");
             return null;
         }
+    }
+
+    private static bool IsMissingDaemonFrame(KeyNotFoundException ex)
+    {
+        return ex?.Message?.Contains("daemon:aetheria.frame.latest.v1", StringComparison.Ordinal) == true;
     }
 
     private void ContinueGame()

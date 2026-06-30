@@ -521,13 +521,11 @@ namespace GameCult.Aetheria.State.Verse
                 seatId => Document<AetheriaRuntimeStarbridgePlayerSeatDocument>(
                     AetheriaRuntimeVerseRecordKeys.StarbridgePlayerSeat(seatId)));
 
-            managedDaemonFrame = state.DaemonFrame.Reactive();
             managedCatalog = state.Catalog.Reactive();
             managedLoadoutTemplates = state.LoadoutTemplates.Reactive();
             managedPlayerSettings = state.PlayerSettings.Reactive();
             managedStarbridgeScenario = state.StarbridgeScenario.Reactive();
             managedStarbridgeSession = state.StarbridgeSession.Reactive();
-            _managedDaemonFrame = managedDaemonFrame;
             _managedCatalog = managedCatalog;
             _managedLoadoutTemplates = managedLoadoutTemplates;
             _managedPlayerSettings = managedPlayerSettings;
@@ -567,6 +565,8 @@ namespace GameCult.Aetheria.State.Verse
 
             AetheriaRuntimeDaemonFrameDocument RequireManagedFrame()
             {
+                managedDaemonFrame ??= latestFrameDocument.Reactive();
+                _managedDaemonFrame = managedDaemonFrame;
                 return managedDaemonFrame?.Current
                     ?? throw new InvalidOperationException("Aetheria Verse client has no daemon frame yet.");
             }
