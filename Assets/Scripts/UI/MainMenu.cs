@@ -33,6 +33,8 @@ public class MainMenu : MonoBehaviour
     private bool _fading;
     private float _fadeLerp;
     private readonly List<MenuHoverButton> _hoverButtons = new List<MenuHoverButton>();
+    private static Font _titleFont;
+    private static Font _labelFont;
     private readonly AetheriaEveUnitySurfaceChrome _menuSurfaceChrome = new AetheriaEveUnitySurfaceChrome
     {
         UseShell = false,
@@ -369,7 +371,7 @@ public class MainMenu : MonoBehaviour
         if (surface != null)
         {
             surface.style.flexGrow = 0f;
-            surface.style.width = rootMainMenu ? 680f : 560f;
+            surface.style.width = rootMainMenu ? 720f : 560f;
             surface.style.alignItems = Align.FlexStart;
             surface.pickingMode = PickingMode.Position;
         }
@@ -377,25 +379,27 @@ public class MainMenu : MonoBehaviour
         var title = FindElement(root, $"{AetheriaRuntimeMainMenuCommands.RootSurfaceId}.title") as Label;
         if (title != null)
         {
-            title.style.fontSize = 82f;
+            title.style.unityFont = TitleFont;
+            title.style.fontSize = 86f;
             title.style.color = new Color(0.82f, 0.95f, 1f, 0.96f);
             title.style.unityFontStyleAndWeight = FontStyle.Normal;
-            title.style.unityTextAlign = TextAnchor.MiddleLeft;
+            title.style.unityTextAlign = TextAnchor.MiddleRight;
             title.style.marginLeft = 0f;
             title.style.marginBottom = -12f;
-            title.style.width = 660f;
+            title.style.width = 720f;
         }
 
         var subtitle = FindElement(root, $"{AetheriaRuntimeMainMenuCommands.RootSurfaceId}.subtitle") as Label;
         if (subtitle != null)
         {
-            subtitle.style.fontSize = 38f;
+            subtitle.style.unityFont = TitleFont;
+            subtitle.style.fontSize = 39f;
             subtitle.style.color = new Color(0.82f, 0.95f, 1f, 0.92f);
             subtitle.style.unityFontStyleAndWeight = FontStyle.Normal;
             subtitle.style.unityTextAlign = TextAnchor.MiddleRight;
             subtitle.style.marginTop = 0f;
             subtitle.style.marginBottom = 36f;
-            subtitle.style.width = 660f;
+            subtitle.style.width = 720f;
         }
 
         RegisterHoverButtons(root);
@@ -486,6 +490,7 @@ public class MainMenu : MonoBehaviour
     private static void StyleMenuLabel(Label label, bool rootMainMenu)
     {
         label.style.color = new Color(0.86f, 0.98f, 1f, 0.94f);
+        label.style.unityFont = LabelFont;
         label.style.unityFontStyleAndWeight = FontStyle.Normal;
         label.style.unityTextAlign = TextAnchor.MiddleLeft;
         label.style.whiteSpace = WhiteSpace.Normal;
@@ -533,6 +538,7 @@ public class MainMenu : MonoBehaviour
         field.style.marginTop = 0f;
         field.style.marginBottom = rootMainMenu ? 4f : 8f;
         field.style.color = new Color(0.86f, 0.98f, 1f, 0.96f);
+        field.style.unityFont = LabelFont;
         field.style.fontSize = rootMainMenu ? 18f : 15f;
         field.pickingMode = PickingMode.Position;
 
@@ -549,6 +555,7 @@ public class MainMenu : MonoBehaviour
         button.style.borderTopWidth = 0f;
         button.style.borderBottomWidth = 0f;
         button.style.color = new Color(0.86f, 0.98f, 1f, 0.96f);
+        button.style.unityFont = LabelFont;
         button.style.fontSize = rootMainMenu ? 24f : 16f;
         button.style.unityFontStyleAndWeight = FontStyle.Normal;
         button.style.unityTextAlign = TextAnchor.MiddleLeft;
@@ -833,6 +840,37 @@ public class MainMenu : MonoBehaviour
         {
             Destroy(_nextMenuSurfaceDocument.gameObject);
             _nextMenuSurfaceDocument = null;
+        }
+    }
+
+    private static Font TitleFont =>
+        _titleFont ??= ResolveFont(
+            "Assets/Fonts/Ubuntu/Montserrat-Thin.ttf",
+            "Montserrat Thin",
+            "Montserrat");
+
+    private static Font LabelFont =>
+        _labelFont ??= ResolveFont(
+            "Assets/Fonts/Ubuntu/Ubuntu-R.ttf",
+            "Ubuntu",
+            "Ubuntu Regular");
+
+    private static Font ResolveFont(string assetPath, params string[] osFontNames)
+    {
+#if UNITY_EDITOR
+        var editorFont = UnityEditor.AssetDatabase.LoadAssetAtPath<Font>(assetPath);
+        if (editorFont != null)
+            return editorFont;
+#endif
+
+        try
+        {
+            return Font.CreateDynamicFontFromOSFont(osFontNames, 16);
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Failed to resolve UI font '{assetPath}': {ex.Message}");
+            return Font.CreateDynamicFontFromOSFont("Arial", 16);
         }
     }
 
