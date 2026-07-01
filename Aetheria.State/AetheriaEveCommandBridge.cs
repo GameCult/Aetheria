@@ -1,5 +1,6 @@
 using Aetheria.State.Documents;
 using GameCult.Aetheria.State.Verse;
+using GameCult.Mesh;
 
 namespace Aetheria.State;
 
@@ -51,7 +52,7 @@ public static class AetheriaEveCommandBridge
             {
                 case AetheriaRuntimeEveCommandKind.CatalogRefresh:
                     var catalog = await node.RuntimeCatalog().LatestAsync().ConfigureAwait(false);
-                    await node.MutableDocument<EveSurfaceState>(AetheriaStateNode.CatalogSurfaceKey)
+                    await node.MutableDocument<EveSurfaceDocument>(AetheriaStateNode.CatalogSurfaceKey)
                         .ReplaceAsync(AetheriaEveSurfaceDocuments.BuildCatalogSurface(catalog, command.IssuedAtUtc))
                         .ConfigureAwait(false);
                     report.AcceptedCatalogRefreshes++;
@@ -61,7 +62,7 @@ public static class AetheriaEveCommandBridge
                         EmptyEveCommandAcceptanceStatus(node.StatePath, command.IssuedAtUtc);
                     var verseHostSettings = await node.MutableDocument<AetheriaVerseHostSettings>(AetheriaStateNode.VerseHostSettingsKey).ReadAsync().ConfigureAwait(false);
                     var runtimeSession = await node.MutableDocument<AetheriaRuntimeSession>(AetheriaStateNode.RuntimeSessionKey(eveStatus.RuntimeId)).ReadAsync().ConfigureAwait(false);
-                    await node.MutableDocument<EveSurfaceState>(AetheriaStateNode.OperationsSurfaceKey)
+                    await node.MutableDocument<EveSurfaceDocument>(AetheriaStateNode.OperationsSurfaceKey)
                         .ReplaceAsync(AetheriaEveSurfaceDocuments.BuildOperationsSurface(
                             eveStatus,
                             verseHostSettings,
@@ -188,7 +189,7 @@ public static class AetheriaEveCommandBridge
                 .ConfigureAwait(false);
         }
 
-        await node.MutableDocument<EveSurfaceState>(AetheriaStateNode.PlayerSettingsSurfaceKey)
+        await node.MutableDocument<EveSurfaceDocument>(AetheriaStateNode.PlayerSettingsSurfaceKey)
             .ReplaceAsync(AetheriaEveSurfaceDocuments.BuildPlayerSettingsSurface(settings, command.IssuedAtUtc))
             .ConfigureAwait(false);
     }
@@ -282,7 +283,7 @@ public static class AetheriaEveCommandBridge
             EmptyEveCommandAcceptanceStatus(node.StatePath, command.IssuedAtUtc);
         var runtimeSession = await node.MutableDocument<AetheriaRuntimeSession>(AetheriaStateNode.RuntimeSessionKey(eveStatus.RuntimeId)).ReadAsync().ConfigureAwait(false);
 
-        await node.MutableDocument<EveSurfaceState>(AetheriaStateNode.OperationsSurfaceKey)
+        await node.MutableDocument<EveSurfaceDocument>(AetheriaStateNode.OperationsSurfaceKey)
             .ReplaceAsync(AetheriaEveSurfaceDocuments.BuildOperationsSurface(
                 eveStatus,
                 normalized,

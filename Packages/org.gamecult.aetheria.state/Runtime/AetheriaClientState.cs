@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using GameCult.Mesh;
 using MessagePack;
+using MeshEveSurfaceDocument = GameCult.Mesh.EveSurfaceDocument;
 
 #nullable enable
 
@@ -41,10 +42,10 @@ namespace GameCult.Aetheria.State.Verse
             CultMeshDocumentHandle<AetheriaRuntimeVerseAuthorityPolicyDocument> authorityPolicy,
             CultMeshDocumentHandle<AetheriaRuntimeDaemonFrameDocument> daemonFrame,
             CultMeshDocumentHandle<AetheriaRuntimeDaemonSoaViewDocument> daemonSoaView,
-            CultMeshDocumentHandle<global::Aetheria.State.Documents.EveSurfaceState> gameSurface,
-            CultMeshDocumentHandle<global::Aetheria.State.Documents.EveSurfaceState> gameTuiSurface,
-            CultMeshDocumentHandle<global::Aetheria.State.Documents.EveSurfaceState> editorSurface,
-            CultMeshDocumentHandle<global::Aetheria.State.Documents.EveSurfaceState> editorTuiSurface,
+            CultMeshDocumentHandle<MeshEveSurfaceDocument> gameSurface,
+            CultMeshDocumentHandle<MeshEveSurfaceDocument> gameTuiSurface,
+            CultMeshDocumentHandle<MeshEveSurfaceDocument> editorSurface,
+            CultMeshDocumentHandle<MeshEveSurfaceDocument> editorTuiSurface,
             CultMeshDocumentHandle<AetheriaRuntimeCatalogSnapshot> catalog,
             CultMeshDocumentHandle<AetheriaRuntimeLoadoutTemplatesDocument> loadoutTemplates,
             CultMeshDocumentHandle<AetheriaRuntimePlayerSettingsDocument> playerSettings,
@@ -126,13 +127,13 @@ namespace GameCult.Aetheria.State.Verse
 
         public CultMeshDocumentHandle<AetheriaRuntimeLoadoutTemplatesDocument> LoadoutTemplates { get; }
 
-        public CultMeshDocumentHandle<global::Aetheria.State.Documents.EveSurfaceState> GameSurface { get; }
+        public CultMeshDocumentHandle<MeshEveSurfaceDocument> GameSurface { get; }
 
-        public CultMeshDocumentHandle<global::Aetheria.State.Documents.EveSurfaceState> GameTuiSurface { get; }
+        public CultMeshDocumentHandle<MeshEveSurfaceDocument> GameTuiSurface { get; }
 
-        public CultMeshDocumentHandle<global::Aetheria.State.Documents.EveSurfaceState> EditorSurface { get; }
+        public CultMeshDocumentHandle<MeshEveSurfaceDocument> EditorSurface { get; }
 
-        public CultMeshDocumentHandle<global::Aetheria.State.Documents.EveSurfaceState> EditorTuiSurface { get; }
+        public CultMeshDocumentHandle<MeshEveSurfaceDocument> EditorTuiSurface { get; }
 
         public CultMeshDocumentHandle<AetheriaRuntimePlayerSettingsDocument> PlayerSettings { get; }
 
@@ -190,7 +191,7 @@ namespace GameCult.Aetheria.State.Verse
             return false;
         }
 
-        public CultMeshDocumentHandle<global::Aetheria.State.Documents.EveSurfaceState>? EveSurfaceDocument(
+        public CultMeshDocumentHandle<MeshEveSurfaceDocument>? EveSurfaceDocument(
             string? surfaceId)
         {
             if (!TryResolveEveSurface(surfaceId, out var surface))

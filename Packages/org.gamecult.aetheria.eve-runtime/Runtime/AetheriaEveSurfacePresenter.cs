@@ -5,6 +5,7 @@ using GameCult.Eve.Surface;
 using GameCult.Mesh;
 using UnityEngine;
 using UnityEngine.UIElements;
+using MeshEveSurfaceDocument = GameCult.Mesh.EveSurfaceDocument;
 
 #nullable enable
 
@@ -35,7 +36,7 @@ namespace GameCult.Aetheria.EveRuntime
         private string _mountedSurfaceId = "";
         private long _mountedSurfaceVersion = -1;
         private string _mountedSurfaceUpdatedAtUtc = "";
-        private CultMeshReactiveDocument<global::Aetheria.State.Documents.EveSurfaceState>? _reactiveSurfaceState;
+        private CultMeshReactiveDocument<MeshEveSurfaceDocument>? _reactiveSurfaceState;
         private string _reactiveSurfaceStatePath = "";
         private string _reactiveSurfaceId = "";
         private static readonly AetheriaEveUnitySurfaceChrome RootOnlyChrome = new AetheriaEveUnitySurfaceChrome
@@ -140,14 +141,14 @@ namespace GameCult.Aetheria.EveRuntime
                         "unity-eve-surface-presenter"));
         }
 
-        private global::Aetheria.State.Documents.EveSurfaceState? ReadDaemonSurfaceState(
+        private MeshEveSurfaceDocument? ReadDaemonSurfaceState(
             AetheriaRuntimeStateBootReport stateBoot)
         {
             var reactive = ResolveReactiveDaemonSurfaceState(stateBoot);
             return reactive?.Current;
         }
 
-        private CultMeshReactiveDocument<global::Aetheria.State.Documents.EveSurfaceState>? ResolveReactiveDaemonSurfaceState(
+        private CultMeshReactiveDocument<MeshEveSurfaceDocument>? ResolveReactiveDaemonSurfaceState(
             AetheriaRuntimeStateBootReport stateBoot)
         {
             if (_reactiveSurfaceState != null &&
@@ -168,7 +169,7 @@ namespace GameCult.Aetheria.EveRuntime
             return _reactiveSurfaceState;
         }
 
-        private CultMeshReactiveDocument<global::Aetheria.State.Documents.EveSurfaceState>? CreateReactiveDaemonSurfaceState(
+        private CultMeshReactiveDocument<MeshEveSurfaceDocument>? CreateReactiveDaemonSurfaceState(
             AetheriaRuntimeStateBootReport stateBoot)
         {
             try

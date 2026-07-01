@@ -388,7 +388,7 @@ Current Eve surface state-ref resolution:
 
 ```csharp
 using var client = await AetheriaClient.OpenAsync(statePath, runtimeId);
-var resolver = client.State.CreateEveSurfaceStateRefResolver();
+var resolver = client.State.CreateEveSurfaceCultMeshStateRefResolver();
 var label = resolver("aetheria.daemon/frame/currentEntity/name");
 ```
 

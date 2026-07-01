@@ -134,9 +134,11 @@ The daemon already publishes game and editor Eve surface records at these keys:
 
 `AetheriaRuntimeVerseRecordKeys` exposes those keys and
 `AetheriaRuntimeVerseClient` exposes typed reads, mutable state pointers, and
-`WatchRecord<EveSurfaceState>(CultRecordKey)` subscriptions for all four. The
-`EveSurfaceState` document contract lives in the shared runtime package so a
-Unity client, terminal client, daemon inspector, or later non-C# runtime binding
-can lower the same published UI surface. The existing Eve Unity runtime host can
-keep resolving Aetheria state refs automatically; it should consume those refs as
-part of lowering the shared surface, not as a separate authority path.
+`WatchRecord<GameCult.Mesh.EveSurfaceDocument>(CultRecordKey)` subscriptions for
+all four. The Eve surface document contract lives in CultMesh because Eve is the
+UI projection language, not an Aetheria persisted-state owner. A Unity client,
+terminal client, daemon inspector, or later non-C# runtime binding lowers the
+same published `GameCult.Mesh.EveSurfaceDocument`. The existing Eve Unity
+runtime host can keep resolving Aetheria state refs automatically; it should
+consume those refs as part of lowering the shared surface, not as a separate
+authority path.

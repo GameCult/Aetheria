@@ -13,6 +13,7 @@ using EveSurfaceCommandRequest = GameCult.Eve.Surface.EveSurfaceCommandRequest;
 using EveSurfaceComponent = GameCult.Eve.Surface.EveSurfaceComponent;
 using EveSurfaceDocument = GameCult.Eve.Surface.EveSurfaceDocument;
 using EveSurfaceTree = GameCult.Eve.Surface.EveSurfaceTree;
+using MeshEveSurfaceDocument = GameCult.Mesh.EveSurfaceDocument;
 
 public class DaemonRuntimeDocumentTests
 {
@@ -4350,107 +4351,32 @@ public class DaemonRuntimeDocumentTests
             .GetAwaiter()
             .GetResult();
         client
-            .MutableDocument<Aetheria.State.Documents.EveSurfaceState>(
+            .MutableDocument<MeshEveSurfaceDocument>(
                 AetheriaRuntimeVerseRecordKeys.DaemonGameSurface)
-            .ReplaceAsync(ToEveSurfaceState(result.GameSurface))
+            .ReplaceAsync(AetheriaRuntimeSurfaceDocuments.ToPortableSurface(result.GameSurface))
             .GetAwaiter()
             .GetResult();
         client
-            .MutableDocument<Aetheria.State.Documents.EveSurfaceState>(
+            .MutableDocument<MeshEveSurfaceDocument>(
                 AetheriaRuntimeVerseRecordKeys.DaemonGameTuiSurface)
-            .ReplaceAsync(ToEveSurfaceState(result.GameTuiSurface))
+            .ReplaceAsync(AetheriaRuntimeSurfaceDocuments.ToPortableSurface(result.GameTuiSurface))
             .GetAwaiter()
             .GetResult();
         client
-            .MutableDocument<Aetheria.State.Documents.EveSurfaceState>(
+            .MutableDocument<MeshEveSurfaceDocument>(
                 AetheriaRuntimeVerseRecordKeys.DaemonEditorSurface)
-            .ReplaceAsync(ToEveSurfaceState(result.EditorSurface))
+            .ReplaceAsync(AetheriaRuntimeSurfaceDocuments.ToPortableSurface(result.EditorSurface))
             .GetAwaiter()
             .GetResult();
         client
-            .MutableDocument<Aetheria.State.Documents.EveSurfaceState>(
+            .MutableDocument<MeshEveSurfaceDocument>(
                 AetheriaRuntimeVerseRecordKeys.DaemonEditorTuiSurface)
-            .ReplaceAsync(ToEveSurfaceState(result.EditorTuiSurface))
+            .ReplaceAsync(AetheriaRuntimeSurfaceDocuments.ToPortableSurface(result.EditorTuiSurface))
             .GetAwaiter()
             .GetResult();
         client.FlushAsync()
             .GetAwaiter()
             .GetResult();
-    }
-
-    private static Aetheria.State.Documents.EveSurfaceState ToEveSurfaceState(
-        AetheriaRuntimeSurfaceDocument document)
-    {
-        return new Aetheria.State.Documents.EveSurfaceState
-        {
-            ProviderId = document.ProviderId,
-            ProviderKind = document.ProviderKind,
-            Title = document.Title,
-            Version = document.Version,
-            UpdatedAtUtc = document.UpdatedAtUtc,
-            Surface = ToEveSurface(document.Surface),
-            Commands = document.Commands
-                .Select(command =>
-                {
-                    var record = CultMesh.OperationBindingRecord(command.Operation);
-                    return new Aetheria.State.Documents.EveCommandTemplate
-                    {
-                        Command = record.OperationId,
-                        Label = record.Label,
-                        Transport = record.RouteDescription,
-                        SchemaId = record.SchemaId,
-                        RouteKind = record.RouteKind,
-                        RouteDescription = record.RouteDescription
-                    };
-                })
-                .ToArray()
-        };
-    }
-
-    private static Aetheria.State.Documents.EveSurface ToEveSurface(AetheriaRuntimeSurfaceTree surface)
-    {
-        return new Aetheria.State.Documents.EveSurface
-        {
-            Id = surface.Id,
-            Root = ToEveSurfaceComponent(surface.Root),
-            Styles = surface.Styles
-                .Select(style => new Aetheria.State.Documents.EveStyleToken
-                {
-                    Name = style.Name,
-                    Value = style.Value
-                })
-                .ToArray()
-        };
-    }
-
-    private static Aetheria.State.Documents.EveSurfaceComponent ToEveSurfaceComponent(
-        AetheriaRuntimeSurfaceComponent component)
-    {
-        var props = new Dictionary<string, string>(component.Props, StringComparer.Ordinal);
-        AetheriaRuntimeSurfaceStateBindings.AddPointerProps(props, component.StateBindings);
-
-        return new Aetheria.State.Documents.EveSurfaceComponent
-        {
-            Id = component.Id,
-            Kind = component.Kind,
-            Props = props,
-            Children = component.Children.Select(ToEveSurfaceComponent).ToArray(),
-            StateBindings = component.StateBindings
-                .Select(binding =>
-                {
-                    var record = CultMesh.StateBindingRecord(binding);
-                    return new Aetheria.State.Documents.EveSurfaceStateBinding
-                    {
-                        TargetProp = record.TargetProp,
-                        PointerId = record.PointerId,
-                        SourceId = record.SourceId,
-                        SchemaId = record.SchemaId,
-                        RouteKind = record.RouteKind,
-                        RouteDescription = record.RouteDescription
-                    };
-                })
-                .ToArray()
-        };
     }
 
     private static void PublishVerseAuthorityPolicyThroughVerseClient(

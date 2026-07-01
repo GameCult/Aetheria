@@ -314,7 +314,7 @@ Work on Unity thin-client migration:
 
 Work on Eve/CultUI surfaces:
 
-- `Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeEveSurfaceState.cs`
+- `GameCult.Mesh.EveSurfaceDocument` for daemon-published CultUI/Eve surfaces
 - `Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeSurfaceDocuments.cs`
 - `Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeEveCommandClient.cs`
 - `Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntime*SurfaceBuilder.cs`

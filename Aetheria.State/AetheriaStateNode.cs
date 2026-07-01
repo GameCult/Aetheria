@@ -15,7 +15,7 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
 {
     private readonly CultMeshNode _node;
     private CultMeshDocumentHandle<AetheriaRuntimeCatalogSnapshot>? _runtimeCatalog;
-    private CultMeshDocumentHandle<EveSurfaceState>? _catalogSurface;
+    private CultMeshDocumentHandle<EveSurfaceDocument>? _catalogSurface;
 
     private AetheriaStateNode(string statePath, string runtimeId, CultMeshNode node)
     {
@@ -123,7 +123,7 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
             routeHint: new CultMeshRouteHint(CultMeshLocalityKind.SharedMemory, "Aetheria typed catalog state"));
     }
 
-    public CultMeshDocumentHandle<EveSurfaceState> CatalogSurface()
+    public CultMeshDocumentHandle<EveSurfaceDocument> CatalogSurface()
     {
         var catalog = RuntimeCatalog();
         return _catalogSurface ??= CultMesh.Document(

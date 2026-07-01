@@ -64,7 +64,7 @@ public static class AetheriaDocumentRegistry
         typeof(AetheriaRuntimeCommittedCommandFactDocument),
         typeof(AetheriaRuntimeEveCommandDocument),
         typeof(AetheriaRuntimeSurfaceDocument),
-        typeof(EveSurfaceState),
+        typeof(EveSurfaceDocument),
         typeof(EveProviderAdvertisementState)
     ];
 }

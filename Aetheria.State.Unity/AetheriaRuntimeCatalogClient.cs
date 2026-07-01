@@ -1,4 +1,3 @@
-using Aetheria.State.Documents;
 using GameCult.Aetheria.State.Verse;
 using GameCult.Mesh;
 
@@ -26,7 +25,7 @@ public sealed class AetheriaRuntimeCatalogClient : IAsyncDisposable, IDisposable
         return _node.RuntimeCatalog().Latest();
     }
 
-    public EveSurfaceState? ReadCatalogSurface()
+    public EveSurfaceDocument? ReadCatalogSurface()
     {
         return _node.CatalogSurface().Latest();
     }

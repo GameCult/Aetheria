@@ -4,13 +4,13 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
-using Aetheria.State.Documents;
 using GameCult.Caching;
 using GameCult.Caching.MessagePack;
-using GameCult.Eve.Surface;
 using GameCult.Mesh;
 using GameCult.Networking;
 using R3;
+using EveUiCommandRequest = GameCult.Eve.Surface.EveSurfaceCommandRequest;
+using MeshEveSurfaceDocument = GameCult.Mesh.EveSurfaceDocument;
 
 #nullable enable
 
@@ -122,9 +122,9 @@ namespace GameCult.Aetheria.State.Verse
             typeof(AetheriaRuntimePlayerSettingsDocument),
             typeof(AetheriaRuntimeVerseHostSettingsDocument),
             typeof(AetheriaRuntimeSurfaceDocument),
+            typeof(MeshEveSurfaceDocument),
             typeof(AetheriaRuntimeDaemonCommandDocument),
-            typeof(AetheriaRuntimeEveCommandDocument),
-            typeof(EveSurfaceState)
+            typeof(AetheriaRuntimeEveCommandDocument)
         };
 
         public static CultDocumentRegistry CreateCultCacheRegistry()
@@ -324,7 +324,7 @@ namespace GameCult.Aetheria.State.Verse
         }
 
         internal Task<AetheriaRuntimeEveCommandEnvelope> SubmitKnownSurfaceCommandAsync(
-            EveSurfaceCommandRequest request,
+            EveUiCommandRequest request,
             string clientId,
             bool flush = true)
         {
@@ -421,13 +421,13 @@ namespace GameCult.Aetheria.State.Verse
                 latestFrameDocument,
                 Document<AetheriaRuntimeDaemonSoaViewDocument>(
                     AetheriaRuntimeVerseRecordKeys.DaemonSoaViewLatest),
-                Document<EveSurfaceState>(
+                Document<MeshEveSurfaceDocument>(
                     AetheriaRuntimeVerseRecordKeys.DaemonGameSurface),
-                Document<EveSurfaceState>(
+                Document<MeshEveSurfaceDocument>(
                     AetheriaRuntimeVerseRecordKeys.DaemonGameTuiSurface),
-                Document<EveSurfaceState>(
+                Document<MeshEveSurfaceDocument>(
                     AetheriaRuntimeVerseRecordKeys.DaemonEditorSurface),
-                Document<EveSurfaceState>(
+                Document<MeshEveSurfaceDocument>(
                     AetheriaRuntimeVerseRecordKeys.DaemonEditorTuiSurface),
                 catalogDocument,
                 loadoutTemplatesDocument,

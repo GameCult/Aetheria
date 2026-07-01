@@ -4,10 +4,9 @@ using System.Linq;
 using Aetheria.State.Documents;
 using GameCult.Aetheria.State.Verse;
 using GameCult.Mesh;
-using EveDocumentCommandTemplate = Aetheria.State.Documents.EveCommandTemplate;
-using EveDocumentStyleToken = Aetheria.State.Documents.EveStyleToken;
-using EveDocumentSurface = Aetheria.State.Documents.EveSurface;
-using EveDocumentSurfaceComponent = Aetheria.State.Documents.EveSurfaceComponent;
+using EveSurfaceComponent = GameCult.Mesh.EveSurfaceComponent;
+using EveSurfaceDocument = GameCult.Mesh.EveSurfaceDocument;
+using EveSurfaceTree = GameCult.Mesh.EveSurfaceTree;
 
 namespace Aetheria.State;
 
@@ -30,7 +29,7 @@ public static class AetheriaEveSurfaceDocuments
     private const string DaemonCommandBoundaryId = "aetheria.daemon.commands";
     private const string DaemonRecordTransport = "cultmesh-record";
 
-    public static EveSurfaceState BuildCatalogSurface(
+    public static EveSurfaceDocument BuildCatalogSurface(
         AetheriaRuntimeCatalogSnapshot catalog,
         string updatedAtUtc,
         long version = 1)
@@ -60,17 +59,15 @@ public static class AetheriaEveSurfaceDocuments
                     CultMeshLocalityKind.Automatic,
                     "cultmesh")));
 
-        return new EveSurfaceState
-        {
-            ProviderId = ProviderId,
-            ProviderKind = "game.runtime",
-            Title = "Aetheria Catalog",
-            Version = version,
-            UpdatedAtUtc = updatedAtUtc,
-            Surface = new EveDocumentSurface
-            {
-                Id = CatalogSurfaceId,
-                Root = Node(
+        return new EveSurfaceDocument(
+            ProviderId,
+            "game.runtime",
+            "Aetheria Catalog",
+            version,
+            updatedAtUtc,
+            new EveSurfaceTree(
+                CatalogSurfaceId,
+                Node(
                     "aetheria.catalog.root",
                     "surface",
                     [],
@@ -93,24 +90,15 @@ public static class AetheriaEveSurfaceDocuments
                         "aetheria.catalog.corporations",
                         "card",
                         [("title", "Corporations")],
-                        Node("aetheria.catalog.corporation.rows", "inspector.kv", [], corporations)))
-            },
-            Commands =
-            [
-                new EveDocumentCommandTemplate
-                {
-                    Command = refreshCommand.OperationId,
-                    Label = refreshCommand.Label,
-                    Transport = refreshCommand.RouteDescription,
-                    SchemaId = refreshCommand.SchemaId,
-                    RouteKind = refreshCommand.RouteKind,
-                    RouteDescription = refreshCommand.RouteDescription
-                }
-            ]
-        };
+                        Node("aetheria.catalog.corporation.rows", "inspector.kv", [], corporations))),
+                Array.Empty<EveSurfaceStyleToken>()),
+            new[]
+            {
+                new EveSurfaceCommandTemplate(refreshCommand.ToBinding())
+            });
     }
 
-    public static EveSurfaceState BuildOperationsSurface(
+    public static EveSurfaceDocument BuildOperationsSurface(
         AetheriaEveCommandAcceptanceStatus? eveCommandStatus = null,
         AetheriaVerseHostSettings? verseHostSettings = null,
         AetheriaRuntimeSession? runtimeSession = null,
@@ -128,17 +116,15 @@ public static class AetheriaEveSurfaceDocuments
                 routeHint: new CultMeshRouteHint(
                     CultMeshLocalityKind.Automatic,
                     "cultmesh")));
-        return new EveSurfaceState
-        {
-            ProviderId = ProviderId,
-            ProviderKind = "game.runtime",
-            Title = "Aetheria Operations",
-            Version = version,
-            UpdatedAtUtc = updatedAtUtc,
-            Surface = new EveDocumentSurface
-            {
-                Id = OperationsSurfaceId,
-                Root = Node(
+        return new EveSurfaceDocument(
+            ProviderId,
+            "game.runtime",
+            "Aetheria Operations",
+            version,
+            updatedAtUtc,
+            new EveSurfaceTree(
+                OperationsSurfaceId,
+                Node(
                     "aetheria.operations.root",
                     "surface",
                     [],
@@ -188,24 +174,15 @@ public static class AetheriaEveSurfaceDocuments
                             "runtimeSession.last",
                             ("runtime", runtimeSession?.RuntimeId ?? ""),
                             ("started", runtimeSession?.StartedAtUtc ?? ""),
-                            ("lastSeen", runtimeSession?.LastSeenAtUtc ?? ""))))
-            },
-            Commands =
-            [
-                new EveDocumentCommandTemplate
-                {
-                    Command = refreshCommand.OperationId,
-                    Label = refreshCommand.Label,
-                    Transport = refreshCommand.RouteDescription,
-                    SchemaId = refreshCommand.SchemaId,
-                    RouteKind = refreshCommand.RouteKind,
-                    RouteDescription = refreshCommand.RouteDescription
-                }
-            ]
-        };
+                            ("lastSeen", runtimeSession?.LastSeenAtUtc ?? "")))),
+                Array.Empty<EveSurfaceStyleToken>()),
+            new[]
+            {
+                new EveSurfaceCommandTemplate(refreshCommand.ToBinding())
+            });
     }
 
-    public static EveSurfaceState BuildPlayerSettingsSurface(
+    public static EveSurfaceDocument BuildPlayerSettingsSurface(
         AetheriaPlayerSettings? settings,
         string updatedAtUtc,
         long version = 1)
@@ -228,41 +205,7 @@ public static class AetheriaEveSurfaceDocuments
             publishedAtUtc,
             version);
 
-        return new EveSurfaceState
-        {
-            ProviderId = surface.ProviderId,
-            ProviderKind = surface.ProviderKind,
-            Title = surface.Title,
-            Version = surface.Version,
-            UpdatedAtUtc = surface.UpdatedAtUtc,
-            Surface = new EveDocumentSurface
-            {
-                Id = surface.Surface.Id,
-                Root = ConvertComponent(surface.Surface.Root),
-                Styles = surface.Surface.Styles
-                    .Select(style => new EveDocumentStyleToken
-                    {
-                        Name = style.Name,
-                        Value = style.Value
-                    })
-                    .ToArray()
-            },
-            Commands = surface.Commands
-                .Select(command =>
-                {
-                    var record = CultMesh.OperationBindingRecord(command.Operation);
-                    return new EveDocumentCommandTemplate
-                    {
-                        Command = record.OperationId,
-                        Label = record.Label,
-                        Transport = record.RouteDescription,
-                        SchemaId = record.SchemaId,
-                        RouteKind = record.RouteKind,
-                        RouteDescription = record.RouteDescription
-                    };
-                })
-                .ToArray()
-        };
+        return AetheriaRuntimeSurfaceDocuments.ToPortableSurface(surface);
     }
 
     public static EveProviderAdvertisementState BuildProviderAdvertisement(
@@ -483,40 +426,27 @@ public static class AetheriaEveSurfaceDocuments
         return latest;
     }
 
-    private static EveDocumentSurfaceComponent Metric(string id, string label, string value)
+    private static EveSurfaceComponent Metric(string id, string label, string value)
     {
         return Node(id, "metric", [("label", label), ("value", value)]);
     }
 
-    private static EveDocumentSurfaceComponent Row(string id, params (string Key, string Value)[] props)
+    private static EveSurfaceComponent Row(string id, params (string Key, string Value)[] props)
     {
         return Node(id, "row", props);
     }
 
-    private static EveDocumentSurfaceComponent Node(
+    private static EveSurfaceComponent Node(
         string id,
         string kind,
         (string Key, string Value)[] props,
-        params EveDocumentSurfaceComponent[] children)
+        params EveSurfaceComponent[] children)
     {
-        return new EveDocumentSurfaceComponent
-        {
-            Id = id,
-            Kind = kind,
-            Props = props.ToDictionary(prop => prop.Key, prop => prop.Value),
-            Children = children
-        };
-    }
-
-    private static EveDocumentSurfaceComponent ConvertComponent(AetheriaRuntimeSurfaceComponent component)
-    {
-        return new EveDocumentSurfaceComponent
-        {
-            Id = component.Id,
-            Kind = component.Kind,
-            Props = new Dictionary<string, string>(component.Props, StringComparer.Ordinal),
-            Children = component.Children.Select(ConvertComponent).ToArray()
-        };
+        return new EveSurfaceComponent(
+            id,
+            kind,
+            props.ToDictionary(prop => prop.Key, prop => prop.Value),
+            children);
     }
 
     private static string SafeId(string value)

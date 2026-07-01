@@ -129,12 +129,12 @@ public static class AetheriaUnityRuntimeClientProvider
         return RuntimeClient(stateBoot, runtimeId).Ui;
     }
 
-    public static CultMeshStateRefResolver EveSurfaceStateRefResolver(string runtimeId = "")
+    public static CultMeshStateRefResolver EveSurfaceCultMeshStateRefResolver(string runtimeId = "")
     {
         return RuntimeState(runtimeId).CreateEveSurfaceCultMeshStateRefResolver();
     }
 
-    public static CultMeshStateRefResolver EveSurfaceStateRefResolver(
+    public static CultMeshStateRefResolver EveSurfaceCultMeshStateRefResolver(
         AetheriaRuntimeStateBootReport stateBoot,
         string runtimeId = "")
     {

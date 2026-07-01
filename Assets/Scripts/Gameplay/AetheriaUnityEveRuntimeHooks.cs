@@ -18,6 +18,6 @@ public static class AetheriaUnityEveRuntimeHooks
         AetheriaEveRuntimeUnityHooks.Ui =
             (stateBoot, runtimeId) => AetheriaUnityRuntimeClientProvider.Ui(stateBoot, runtimeId);
         AetheriaEveRuntimeUnityHooks.StateRefResolver =
-            (stateBoot, runtimeId) => AetheriaUnityRuntimeClientProvider.EveSurfaceStateRefResolver(stateBoot, runtimeId);
+            (stateBoot, runtimeId) => AetheriaUnityRuntimeClientProvider.EveSurfaceCultMeshStateRefResolver(stateBoot, runtimeId);
     }
 }

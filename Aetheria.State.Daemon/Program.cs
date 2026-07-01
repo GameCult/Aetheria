@@ -611,7 +611,7 @@ static async Task InjectEveSurfaceSnapshotAsync(
 
     var surfacePut = node.Database.Documents.CreateRawDocumentPutMessage(
         response.MessageId,
-        new CultRecordHandle<EveSurfaceState>(new CultRecordKey(recordKey)),
+        new CultRecordHandle<EveSurfaceDocument>(new CultRecordKey(recordKey)),
         surfaceState,
         new CultNetDocumentMessageOptions
         {
@@ -625,14 +625,14 @@ static async Task InjectEveSurfaceSnapshotAsync(
         .ToArray();
 }
 
-static Task<EveSurfaceState?> ReadEveSurfacePublicationAsync(AetheriaStateNode node, string surfaceKind)
+static Task<EveSurfaceDocument?> ReadEveSurfacePublicationAsync(AetheriaStateNode node, string surfaceKind)
 {
     return surfaceKind switch
     {
-        "game" => node.MutableDocument<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonGameSurface).ReadAsync(),
-        "game-tui" => node.MutableDocument<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonGameTuiSurface).ReadAsync(),
-        "editor" => node.MutableDocument<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonEditorSurface).ReadAsync(),
-        "editor-tui" => node.MutableDocument<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonEditorTuiSurface).ReadAsync(),
+        "game" => node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.DaemonGameSurface).ReadAsync(),
+        "game-tui" => node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.DaemonGameTuiSurface).ReadAsync(),
+        "editor" => node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.DaemonEditorSurface).ReadAsync(),
+        "editor-tui" => node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.DaemonEditorTuiSurface).ReadAsync(),
         _ => throw new ArgumentOutOfRangeException(nameof(surfaceKind), surfaceKind, "Unknown Eve surface publication.")
     };
 }
@@ -779,20 +779,20 @@ static async Task PublishDaemonApiDocumentsAsync(
             .ReplaceAsync(result.StarbridgeSessionSummary)
             .ConfigureAwait(false);
     if (result.GameSurface != null)
-        await node.MutableDocument<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonGameSurface)
-            .ReplaceAsync(AetheriaRuntimeSurfaceDocuments.ToEveSurfaceState(result.GameSurface))
+        await node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.DaemonGameSurface)
+            .ReplaceAsync(AetheriaRuntimeSurfaceDocuments.ToPortableSurface(result.GameSurface))
             .ConfigureAwait(false);
     if (result.GameTuiSurface != null)
-        await node.MutableDocument<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonGameTuiSurface)
-            .ReplaceAsync(AetheriaRuntimeSurfaceDocuments.ToEveSurfaceState(result.GameTuiSurface))
+        await node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.DaemonGameTuiSurface)
+            .ReplaceAsync(AetheriaRuntimeSurfaceDocuments.ToPortableSurface(result.GameTuiSurface))
             .ConfigureAwait(false);
     if (result.EditorSurface != null)
-        await node.MutableDocument<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonEditorSurface)
-            .ReplaceAsync(AetheriaRuntimeSurfaceDocuments.ToEveSurfaceState(result.EditorSurface))
+        await node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.DaemonEditorSurface)
+            .ReplaceAsync(AetheriaRuntimeSurfaceDocuments.ToPortableSurface(result.EditorSurface))
             .ConfigureAwait(false);
     if (result.EditorTuiSurface != null)
-        await node.MutableDocument<EveSurfaceState>(AetheriaRuntimeVerseRecordKeys.DaemonEditorTuiSurface)
-            .ReplaceAsync(AetheriaRuntimeSurfaceDocuments.ToEveSurfaceState(result.EditorTuiSurface))
+        await node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.DaemonEditorTuiSurface)
+            .ReplaceAsync(AetheriaRuntimeSurfaceDocuments.ToPortableSurface(result.EditorTuiSurface))
             .ConfigureAwait(false);
 }
 
@@ -865,10 +865,10 @@ static async Task PublishStateSurfacesAsync(
         ? updatedAtUtc
         : playerSettings.LastUpdatedAtUtc;
 
-    await node.MutableDocument<EveSurfaceState>(AetheriaStateNode.OperationsSurfaceKey)
+    await node.MutableDocument<EveSurfaceDocument>(AetheriaStateNode.OperationsSurfaceKey)
         .ReplaceAsync(AetheriaEveSurfaceDocuments.BuildOperationsSurface(eveStatus, verseHost, runtimeSession))
         .ConfigureAwait(false);
-    await node.MutableDocument<EveSurfaceState>(AetheriaStateNode.PlayerSettingsSurfaceKey)
+    await node.MutableDocument<EveSurfaceDocument>(AetheriaStateNode.PlayerSettingsSurfaceKey)
         .ReplaceAsync(AetheriaEveSurfaceDocuments.BuildPlayerSettingsSurface(playerSettings, playerSettingsUpdatedAt))
         .ConfigureAwait(false);
     await node.MutableDocument<EveProviderAdvertisementState>(AetheriaStateNode.ProviderAdvertisementSurfaceKey)

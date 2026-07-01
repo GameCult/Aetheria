@@ -93,7 +93,6 @@
     <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeRtsViewportDocuments.cs" />
     <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeZoneDetailsSurfaceBuilder.cs" />
     <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeInventoryDropdownSurfaceDocuments.cs" />
-    <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeEveSurfaceState.cs" />
     <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeDaemonSoaDocuments.cs" />
     <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeVerseClient.cs" />
     <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeCargoItemDetailsSurfaceBuilder.cs" />
