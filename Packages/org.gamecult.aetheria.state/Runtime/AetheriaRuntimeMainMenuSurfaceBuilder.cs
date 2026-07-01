@@ -333,13 +333,13 @@ namespace GameCult.Aetheria.State.Verse
                     .ToArray());
         }
 
-        private static GameCult.Mesh.EveSurfaceBuilder MainMenuSurface(
+        private static GameCult.Eve.Surface.EveSurfaceBuilder MainMenuSurface(
             string surfaceId,
             string title,
             string updatedAtUtc,
             long version)
         {
-            var builder = GameCult.Mesh.EveSurface.Create(surfaceId)
+            var builder = GameCult.Eve.Surface.EveSurface.Create(surfaceId)
                 .Provider(ProviderId, ProviderKind)
                 .Version(version)
                 .UpdatedAtUtc(updatedAtUtc);

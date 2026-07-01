@@ -10,7 +10,7 @@ using GameCult.Mesh;
 using GameCult.Networking;
 using R3;
 using EveUiCommandRequest = GameCult.Eve.Surface.EveSurfaceCommandRequest;
-using MeshEveSurfaceDocument = GameCult.Mesh.EveSurfaceDocument;
+using EveSurfaceDocument = GameCult.Eve.Surface.EveSurfaceDocument;
 
 #nullable enable
 
@@ -122,7 +122,7 @@ namespace GameCult.Aetheria.State.Verse
             typeof(AetheriaRuntimePlayerSettingsDocument),
             typeof(AetheriaRuntimeVerseHostSettingsDocument),
             typeof(AetheriaRuntimeSurfaceDocument),
-            typeof(MeshEveSurfaceDocument),
+            typeof(EveSurfaceDocument),
             typeof(AetheriaRuntimeDaemonCommandDocument),
             typeof(AetheriaRuntimeEveCommandDocument)
         };
@@ -421,13 +421,13 @@ namespace GameCult.Aetheria.State.Verse
                 latestFrameDocument,
                 Document<AetheriaRuntimeDaemonSoaViewDocument>(
                     AetheriaRuntimeVerseRecordKeys.DaemonSoaViewLatest),
-                Document<MeshEveSurfaceDocument>(
+                Document<EveSurfaceDocument>(
                     AetheriaRuntimeVerseRecordKeys.DaemonGameSurface),
-                Document<MeshEveSurfaceDocument>(
+                Document<EveSurfaceDocument>(
                     AetheriaRuntimeVerseRecordKeys.DaemonGameTuiSurface),
-                Document<MeshEveSurfaceDocument>(
+                Document<EveSurfaceDocument>(
                     AetheriaRuntimeVerseRecordKeys.DaemonEditorSurface),
-                Document<MeshEveSurfaceDocument>(
+                Document<EveSurfaceDocument>(
                     AetheriaRuntimeVerseRecordKeys.DaemonEditorTuiSurface),
                 catalogDocument,
                 loadoutTemplatesDocument,

@@ -1,5 +1,6 @@
 using GameCult.Aetheria.State.Verse;
 using GameCult.Mesh;
+using EveSurfaceDocument = GameCult.Eve.Surface.EveSurfaceDocument;
 
 namespace Aetheria.State.Unity;
 

@@ -5,7 +5,7 @@ using GameCult.Eve.Surface;
 using GameCult.Mesh;
 using UnityEngine;
 using UnityEngine.UIElements;
-using MeshEveSurfaceDocument = GameCult.Mesh.EveSurfaceDocument;
+using EveSurfaceDocument = GameCult.Eve.Surface.EveSurfaceDocument;
 
 #nullable enable
 
@@ -36,7 +36,7 @@ namespace GameCult.Aetheria.EveRuntime
         private string _mountedSurfaceId = "";
         private long _mountedSurfaceVersion = -1;
         private string _mountedSurfaceUpdatedAtUtc = "";
-        private CultMeshReactiveDocument<MeshEveSurfaceDocument>? _reactiveSurfaceState;
+        private CultMeshReactiveDocument<EveSurfaceDocument>? _reactiveSurfaceState;
         private string _reactiveSurfaceStatePath = "";
         private string _reactiveSurfaceId = "";
         private static readonly AetheriaEveUnitySurfaceChrome RootOnlyChrome = new AetheriaEveUnitySurfaceChrome
@@ -141,14 +141,14 @@ namespace GameCult.Aetheria.EveRuntime
                         "unity-eve-surface-presenter"));
         }
 
-        private MeshEveSurfaceDocument? ReadDaemonSurfaceState(
+        private EveSurfaceDocument? ReadDaemonSurfaceState(
             AetheriaRuntimeStateBootReport stateBoot)
         {
             var reactive = ResolveReactiveDaemonSurfaceState(stateBoot);
             return reactive?.Current;
         }
 
-        private CultMeshReactiveDocument<MeshEveSurfaceDocument>? ResolveReactiveDaemonSurfaceState(
+        private CultMeshReactiveDocument<EveSurfaceDocument>? ResolveReactiveDaemonSurfaceState(
             AetheriaRuntimeStateBootReport stateBoot)
         {
             if (_reactiveSurfaceState != null &&
@@ -169,7 +169,7 @@ namespace GameCult.Aetheria.EveRuntime
             return _reactiveSurfaceState;
         }
 
-        private CultMeshReactiveDocument<MeshEveSurfaceDocument>? CreateReactiveDaemonSurfaceState(
+        private CultMeshReactiveDocument<EveSurfaceDocument>? CreateReactiveDaemonSurfaceState(
             AetheriaRuntimeStateBootReport stateBoot)
         {
             try

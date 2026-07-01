@@ -13,7 +13,7 @@ using EveSurfaceCommandRequest = GameCult.Eve.Surface.EveSurfaceCommandRequest;
 using EveSurfaceComponent = GameCult.Eve.Surface.EveSurfaceComponent;
 using EveSurfaceDocument = GameCult.Eve.Surface.EveSurfaceDocument;
 using EveSurfaceTree = GameCult.Eve.Surface.EveSurfaceTree;
-using MeshEveSurfaceDocument = GameCult.Mesh.EveSurfaceDocument;
+using EveSurfaceDocument = GameCult.Eve.Surface.EveSurfaceDocument;
 
 public class DaemonRuntimeDocumentTests
 {
@@ -4351,25 +4351,25 @@ public class DaemonRuntimeDocumentTests
             .GetAwaiter()
             .GetResult();
         client
-            .MutableDocument<MeshEveSurfaceDocument>(
+            .MutableDocument<EveSurfaceDocument>(
                 AetheriaRuntimeVerseRecordKeys.DaemonGameSurface)
             .ReplaceAsync(AetheriaRuntimeSurfaceDocuments.ToPortableSurface(result.GameSurface))
             .GetAwaiter()
             .GetResult();
         client
-            .MutableDocument<MeshEveSurfaceDocument>(
+            .MutableDocument<EveSurfaceDocument>(
                 AetheriaRuntimeVerseRecordKeys.DaemonGameTuiSurface)
             .ReplaceAsync(AetheriaRuntimeSurfaceDocuments.ToPortableSurface(result.GameTuiSurface))
             .GetAwaiter()
             .GetResult();
         client
-            .MutableDocument<MeshEveSurfaceDocument>(
+            .MutableDocument<EveSurfaceDocument>(
                 AetheriaRuntimeVerseRecordKeys.DaemonEditorSurface)
             .ReplaceAsync(AetheriaRuntimeSurfaceDocuments.ToPortableSurface(result.EditorSurface))
             .GetAwaiter()
             .GetResult();
         client
-            .MutableDocument<MeshEveSurfaceDocument>(
+            .MutableDocument<EveSurfaceDocument>(
                 AetheriaRuntimeVerseRecordKeys.DaemonEditorTuiSurface)
             .ReplaceAsync(AetheriaRuntimeSurfaceDocuments.ToPortableSurface(result.EditorTuiSurface))
             .GetAwaiter()

@@ -47,6 +47,7 @@
     <Analyzer Include="C:\Program Files\Unity\Hub\Editor\6000.4.2f1\Editor\Data\Tools\BuildPipeline\Unity.SourceGenerators\Unity.UIToolkit.SourceGenerator.dll" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="E:\Projects\Eve\packages\org.gamecult.eve.surface\Runtime\EveSurfaceBuilder.cs" />
     <Compile Include="E:\Projects\Eve\packages\org.gamecult.eve.surface\Runtime\EveSurfaceDocument.cs" />
     <None Include="E:\Projects\Eve\packages\org.gamecult.eve.surface\Runtime\GameCult.Eve.Surface.asmdef" />
     <Reference Include="Unity.Cecil.Awesome">
@@ -96,6 +97,9 @@
     </Reference>
     <Reference Include="GameCult.Caching">
       <HintPath>E:\Projects\Brokkr\surfaces\unity\Packages\com.gamecult.brokkr\Plugins\CultMesh\GameCult.Caching.dll</HintPath>
+    </Reference>
+    <Reference Include="MessagePack.Annotations">
+      <HintPath>E:\Projects\Brokkr\surfaces\unity\Packages\com.gamecult.brokkr\Plugins\CultMesh\MessagePack.Annotations.dll</HintPath>
     </Reference>
     <Reference Include="QuickGraph">
       <HintPath>E:\Projects\Aetheria\Assets\Plugins\QuickGraph.dll</HintPath>

@@ -8,6 +8,7 @@ using GameCult.Caching.MessagePack;
 using GameCult.Mesh;
 using GameCult.Networking;
 using R3;
+using EveSurfaceDocument = GameCult.Eve.Surface.EveSurfaceDocument;
 
 namespace Aetheria.State;
 

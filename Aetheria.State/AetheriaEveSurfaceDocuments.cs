@@ -4,9 +4,11 @@ using System.Linq;
 using Aetheria.State.Documents;
 using GameCult.Aetheria.State.Verse;
 using GameCult.Mesh;
-using EveSurfaceComponent = GameCult.Mesh.EveSurfaceComponent;
-using EveSurfaceDocument = GameCult.Mesh.EveSurfaceDocument;
-using EveSurfaceTree = GameCult.Mesh.EveSurfaceTree;
+using EveCommandTemplate = GameCult.Eve.Surface.EveCommandTemplate;
+using EveStyleToken = GameCult.Eve.Surface.EveStyleToken;
+using EveSurfaceComponent = GameCult.Eve.Surface.EveSurfaceComponent;
+using EveSurfaceDocument = GameCult.Eve.Surface.EveSurfaceDocument;
+using EveSurfaceTree = GameCult.Eve.Surface.EveSurfaceTree;
 
 namespace Aetheria.State;
 
@@ -91,10 +93,10 @@ public static class AetheriaEveSurfaceDocuments
                         "card",
                         [("title", "Corporations")],
                         Node("aetheria.catalog.corporation.rows", "inspector.kv", [], corporations))),
-                Array.Empty<EveSurfaceStyleToken>()),
+                Array.Empty<EveStyleToken>()),
             new[]
             {
-                new EveSurfaceCommandTemplate(refreshCommand.ToBinding())
+                new EveCommandTemplate(refreshCommand.ToBinding())
             });
     }
 
@@ -175,10 +177,10 @@ public static class AetheriaEveSurfaceDocuments
                             ("runtime", runtimeSession?.RuntimeId ?? ""),
                             ("started", runtimeSession?.StartedAtUtc ?? ""),
                             ("lastSeen", runtimeSession?.LastSeenAtUtc ?? "")))),
-                Array.Empty<EveSurfaceStyleToken>()),
+                Array.Empty<EveStyleToken>()),
             new[]
             {
-                new EveSurfaceCommandTemplate(refreshCommand.ToBinding())
+                new EveCommandTemplate(refreshCommand.ToBinding())
             });
     }
 
