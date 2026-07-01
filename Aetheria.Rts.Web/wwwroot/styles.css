@@ -24,6 +24,7 @@ body {
 }
 
 body.main-menu-mode {
+  -webkit-app-region: drag;
   background:
     radial-gradient(circle at 76% 66%, rgba(255, 213, 112, 0.74) 0, rgba(247, 121, 88, 0.36) 13%, transparent 31%),
     radial-gradient(circle at 61% 37%, rgba(240, 45, 201, 0.54) 0, rgba(176, 38, 174, 0.28) 19%, transparent 45%),
@@ -36,11 +37,12 @@ body.main-menu-mode .shell {
 }
 
 body.main-menu-mode .main-menu-host {
+  -webkit-app-region: no-drag;
   display: flex;
   align-items: flex-start;
   justify-content: flex-start;
   min-height: 100%;
-  padding: 92px 96px;
+  padding: 128px 96px;
   background:
     radial-gradient(ellipse at 78% 64%, rgba(255, 194, 95, 0.36) 0, rgba(255, 148, 92, 0.18) 16%, transparent 35%),
     radial-gradient(ellipse at 59% 38%, rgba(238, 56, 216, 0.28) 0, rgba(164, 37, 160, 0.2) 22%, transparent 52%),
@@ -54,7 +56,8 @@ body.main-menu-mode .eve-surface {
   align-items: flex-start;
 }
 
-body.main-menu-mode .eve-text-title {
+body.main-menu-mode .eve-text-title,
+body.main-menu-mode .eve-text-subtitle {
   width: 720px;
   color: rgba(209, 242, 255, 0.96);
   font-family: "Montserrat", sans-serif;
@@ -63,12 +66,12 @@ body.main-menu-mode .eve-text-title {
   text-align: right;
 }
 
-body.main-menu-mode #aetheria\.main_menu\.root\.title {
-  margin: 0 0 -12px;
+body.main-menu-mode .eve-root-title {
+  margin: 0 0 2px;
   font-size: 86px;
 }
 
-body.main-menu-mode #aetheria\.main_menu\.root\.subtitle {
+body.main-menu-mode .eve-root-subtitle {
   margin: 0 0 36px;
   font-size: 39px;
 }
@@ -104,7 +107,7 @@ body.main-menu-mode .eve-control-button:hover,
 body.main-menu-mode .eve-control-button:focus-visible {
   background: transparent;
   color: white;
-  letter-spacing: 8px;
+  letter-spacing: 2px;
   outline: 0;
 }
 
@@ -116,12 +119,63 @@ body.main-menu-mode .eve-metric {
   margin: 0 0 8px;
 }
 
-body.main-menu-mode .eve-text:not(.eve-text-title) {
+body.main-menu-mode .eve-text:not(.eve-text-title):not(.eve-text-subtitle) {
   width: 520px;
   margin: 0 0 14px;
   color: rgba(219, 250, 255, 0.9);
   font-size: 16px;
   line-height: 1.25;
+}
+
+.window-controls {
+  display: none;
+}
+
+body.main-menu-mode .window-drag-region {
+  -webkit-app-region: drag;
+  position: fixed;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 15;
+  display: block;
+  height: 44px;
+}
+
+body.main-menu-mode .window-controls {
+  -webkit-app-region: no-drag;
+  position: fixed;
+  top: 8px;
+  right: 10px;
+  z-index: 20;
+  display: flex;
+  gap: 2px;
+}
+
+body.main-menu-mode .window-control {
+  min-width: 0;
+  width: 30px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: rgba(219, 250, 255, 0.5);
+  font-family: "Ubuntu", system-ui, sans-serif;
+  font-size: 12px;
+  line-height: 24px;
+}
+
+body.main-menu-mode .window-control:hover,
+body.main-menu-mode .window-control:focus-visible {
+  background: rgba(219, 250, 255, 0.09);
+  color: rgba(240, 252, 255, 0.95);
+  outline: 0;
+}
+
+body.main-menu-mode .window-control-close:hover,
+body.main-menu-mode .window-control-close:focus-visible {
+  background: rgba(255, 88, 88, 0.28);
 }
 
 button {

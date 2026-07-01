@@ -114,6 +114,7 @@ app.on("before-quit", () => {
 });
 
 function createWindow(): BrowserWindow {
+  const isMainMenuWindow = rendererView === "main-menu";
   const window = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -122,6 +123,8 @@ function createWindow(): BrowserWindow {
     show: !electronSmoke,
     backgroundColor: "#0b1016",
     title: "Aetheria RTS",
+    frame: !isMainMenuWindow,
+    autoHideMenuBar: isMainMenuWindow,
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -301,6 +304,28 @@ function registerIpc(): void {
     }));
   ipcMain.handle("aetheria-rts:main-menu-surface", async (_event, request) =>
     requireClient().mainMenuSurface(request));
+  ipcMain.handle("aetheria-rts:window-control", (event, action: string) => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    if (!window)
+      return;
+
+    switch (action) {
+      case "minimize":
+        window.minimize();
+        return;
+      case "maximize":
+        if (window.isMaximized())
+          window.unmaximize();
+        else
+          window.maximize();
+        return;
+      case "close":
+        window.close();
+        return;
+      default:
+        throw new Error(`Unknown window control '${action}'.`);
+    }
+  });
 }
 
 function parseEndpointList(value: string | undefined): string[] {

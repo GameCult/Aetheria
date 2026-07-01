@@ -21,6 +21,7 @@ const channels = {
   surfaceCatalog: "aetheria-rts:surface-catalog",
   surfaceCatalogIndex: "aetheria-rts:surface-catalog-index",
   mainMenuSurface: "aetheria-rts:main-menu-surface",
+  windowControl: "aetheria-rts:window-control",
   health: "aetheria-rts:health",
 };
 
@@ -53,5 +54,6 @@ contextBridge.exposeInMainWorld("aetheriaRts", {
   surfaceCatalog: () => ipcRenderer.invoke(channels.surfaceCatalog),
   surfaceCatalogIndex: () => ipcRenderer.invoke(channels.surfaceCatalogIndex),
   mainMenuSurface: request => ipcRenderer.invoke(channels.mainMenuSurface, request),
+  windowControl: action => ipcRenderer.invoke(channels.windowControl, action),
   health: () => ipcRenderer.invoke(channels.health),
 });

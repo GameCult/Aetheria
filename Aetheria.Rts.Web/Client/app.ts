@@ -131,6 +131,7 @@ function renderMainMenuSurface(surface: AetheriaMenuSurfaceDocument): void {
   }
 
   host.replaceChildren(lowerMenuComponent(surface.surface.root, surface));
+  wireWindowControls();
 }
 
 function lowerMenuComponent(
@@ -151,7 +152,7 @@ function lowerMenuComponent(
   if (kind.startsWith("text")) {
     const label = document.createElement("div");
     label.id = component.id;
-    label.className = kind === "text.title" ? "eve-text-title" : "eve-text";
+    label.className = menuTextClasses(component, kind).join(" ");
     label.textContent = component.props.value ?? component.props.text ?? "";
     return label;
   }
@@ -179,6 +180,37 @@ function lowerMenuComponent(
     element.append(lowerMenuComponent(child, surface));
   }
   return element;
+}
+
+function menuTextClasses(component: AetheriaMenuSurfaceComponent, kind: string): string[] {
+  const classes: string[] = [];
+  if (kind === "text.title")
+    classes.push("eve-text-title");
+  if (kind === "text.subtitle")
+    classes.push("eve-text-subtitle");
+  if (classes.length === 0)
+    classes.push("eve-text");
+  if (component.id === "aetheria.main_menu.root.title")
+    classes.push("eve-root-title");
+  if (component.id === "aetheria.main_menu.root.subtitle")
+    classes.push("eve-root-subtitle");
+  return classes;
+}
+
+function wireWindowControls(): void {
+  if (!mainMenuMode)
+    return;
+
+  document.querySelectorAll<HTMLButtonElement>("[data-window-control]").forEach(button => {
+    if (button.dataset.windowControlWired === "true")
+      return;
+    button.dataset.windowControlWired = "true";
+    button.addEventListener("click", () => {
+      const action = button.dataset.windowControl as "minimize" | "maximize" | "close" | undefined;
+      if (action)
+        void window.aetheriaRts.windowControl(action);
+    });
+  });
 }
 
 function handleMenuCommand(command: string, surface: AetheriaMenuSurfaceDocument): void {

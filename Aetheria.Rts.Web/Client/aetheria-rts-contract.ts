@@ -346,5 +346,6 @@ export type AetheriaRtsApi = {
   surfaceCatalog(): Promise<CultMeshSurfaceCatalogDiagnostic>;
   surfaceCatalogIndex(): Promise<CultMeshSurfaceCatalogIndexDiagnostic>;
   mainMenuSurface(request: AetheriaMenuSurfaceRequest): Promise<AetheriaMenuSurfaceDocument>;
+  windowControl(action: "minimize" | "maximize" | "close"): Promise<void>;
   health(): Promise<unknown>;
 };
