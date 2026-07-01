@@ -27,6 +27,7 @@ const rtsCultMeshAdvertiseHost = process.env.AETHERIA_RTS_CULTMESH_ADVERTISE_HOS
 const peerCultMeshEndpoints = parseEndpointList(process.env.AETHERIA_RTS_PEER_CULTMESH_ENDPOINTS);
 const electronSmoke = process.env.AETHERIA_RTS_ELECTRON_SMOKE === "1";
 const electronSmokeResultPath = process.env.AETHERIA_RTS_ELECTRON_SMOKE_RESULT;
+const rendererView = process.env.AETHERIA_RTS_VIEW?.trim() ?? "";
 
 let daemonProcess: ChildProcessWithoutNullStreams | null = null;
 let mainWindow: BrowserWindow | null = null;
@@ -39,7 +40,10 @@ app.whenReady().then(async () => {
   showStartup("Preparing Aetheria RTS", "Building daemon if needed.");
 
   try {
-    if (launchLocalDaemon) {
+    if (rendererView === "main-menu") {
+      showStartup("Launching Aetheria Menu", "Lowering the CultUI main-menu surface.");
+      mkdirSync(runtimeRoot, { recursive: true });
+    } else if (launchLocalDaemon) {
       await ensureDotnetBuild();
       showStartup("Launching Aetheria RTS", "Starting the Aetheria daemon.");
       mkdirSync(runtimeRoot, { recursive: true });
@@ -73,9 +77,13 @@ app.whenReady().then(async () => {
       "aetheria-rts-electron",
       { publicationMode: launchLocalDaemon ? "local" : "remote" });
 
-    showStartup("Launching Aetheria RTS", "Waiting for the daemon CultMesh frame.");
-    await rtsClient.waitForFrame(30000);
-    await mainWindow.loadFile(rendererIndex);
+    if (rendererView === "main-menu") {
+      await mainWindow.loadFile(rendererIndex, { hash: "main-menu" });
+    } else {
+      showStartup("Launching Aetheria RTS", "Waiting for the daemon CultMesh frame.");
+      await rtsClient.waitForFrame(30000);
+      await mainWindow.loadFile(rendererIndex);
+    }
     if (electronSmoke) {
       const result = await runElectronSmoke(mainWindow);
       writeElectronSmokeResult({ ok: true, result });
@@ -291,6 +299,8 @@ function registerIpc(): void {
       daemonRunning: daemonProcess != null && !daemonProcess.killed,
       daemonMode: launchLocalDaemon ? "local" : "remote",
     }));
+  ipcMain.handle("aetheria-rts:main-menu-surface", async (_event, request) =>
+    requireClient().mainMenuSurface(request));
 }
 
 function parseEndpointList(value: string | undefined): string[] {

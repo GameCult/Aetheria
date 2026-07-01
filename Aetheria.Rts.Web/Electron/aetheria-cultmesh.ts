@@ -70,6 +70,46 @@ export type AetheriaCultMeshClientOptions = {
   snapshotTimeoutMs?: number;
 };
 
+export type AetheriaMenuSurfaceRequest = {
+  surfaceId?: string;
+  inGame?: boolean;
+  canOpenRuntimeInputScreen?: boolean;
+};
+
+export type AetheriaMenuSurfaceDocument = {
+  providerId: string;
+  providerKind: string;
+  title: string;
+  version: number;
+  updatedAtUtc: string;
+  surface: AetheriaMenuSurfaceTree;
+  commands: AetheriaMenuSurfaceCommand[];
+};
+
+export type AetheriaMenuSurfaceTree = {
+  id: string;
+  root: AetheriaMenuSurfaceComponent;
+  styles: AetheriaMenuStyleToken[];
+};
+
+export type AetheriaMenuSurfaceComponent = {
+  id: string;
+  kind: string;
+  props: Record<string, string>;
+  children: AetheriaMenuSurfaceComponent[];
+};
+
+export type AetheriaMenuStyleToken = {
+  name: string;
+  value: string;
+};
+
+export type AetheriaMenuSurfaceCommand = {
+  command: string;
+  label: string;
+  transport: string;
+};
+
 export type {
   BodyView,
   EntityStatus,
@@ -230,6 +270,13 @@ export class AetheriaCultMeshClient {
 
   public async assetManifest(): Promise<AssetManifestDocument> {
     return this.aetheria.daemon.assetManifest();
+  }
+
+  public async mainMenuSurface(request: AetheriaMenuSurfaceRequest = {}): Promise<AetheriaMenuSurfaceDocument> {
+    return buildMainMenuSurface(
+      request.surfaceId || "aetheria.main_menu.root",
+      request.canOpenRuntimeInputScreen === true,
+      request.inGame === true);
   }
 
   public queryDiagnostics(): Readonly<Record<string, AetheriaRuntimeRtsQueryDiagnostic>> {
@@ -447,6 +494,141 @@ export class AetheriaCultMeshClient {
     });
     return this.#peer;
   }
+}
+
+function buildMainMenuSurface(
+  surfaceId: string,
+  canOpenRuntimeInputScreen: boolean,
+  inGame: boolean,
+): AetheriaMenuSurfaceDocument {
+  const updatedAtUtc = new Date().toISOString();
+  if (surfaceId === "aetheria.main_menu.settings") {
+    return surfaceDocument(
+      surfaceId,
+      "Aetheria Settings",
+      updatedAtUtc,
+      [
+        command("aetheria.main_menu.settings.show_player_settings", "Player Settings"),
+        command("aetheria.main_menu.settings.show_verse_settings", "Verse"),
+        command("aetheria.main_menu.settings.show_input_settings", "Input"),
+        command("aetheria.main_menu.settings.back_to_main", "Back"),
+      ],
+      text("aetheria.mainMenu.settings.title", "SETTINGS", "text.title"),
+      buttonColumn(
+        "aetheria.mainMenu.settings.actions",
+        button("aetheria.mainMenu.settings.playerSettings", "Player Settings", "aetheria.main_menu.settings.show_player_settings"),
+        button("aetheria.mainMenu.settings.verse", "Verse", "aetheria.main_menu.settings.show_verse_settings"),
+        button("aetheria.mainMenu.settings.input", "Input", "aetheria.main_menu.settings.show_input_settings"),
+        button("aetheria.mainMenu.settings.back", "Back", "aetheria.main_menu.settings.back_to_main"),
+      ),
+    );
+  }
+
+  if (surfaceId === "aetheria.main_menu.input_settings") {
+    const children = [
+      text("aetheria.mainMenu.input.title", "INPUT", "text.title"),
+      metric("aetheria.mainMenu.input.bindingOverrides", "Binding Overrides", "0"),
+      metric("aetheria.mainMenu.input.actionBarInputs", "Action-Bar Inputs", "0"),
+      text(
+        "aetheria.mainMenu.input.note",
+        canOpenRuntimeInputScreen && inGame
+          ? "The runtime Eve input screen owns low-level InputSystem rebinding and action-bar input edits."
+          : "This title shell reports typed player-settings state. Launch a run to open the runtime Eve input screen that owns low-level InputSystem rebinding."),
+      buttonColumn(
+        "aetheria.mainMenu.input.actions",
+        button("aetheria.mainMenu.input.back", "Back", "aetheria.main_menu.settings.back_to_settings"),
+      ),
+    ];
+    return surfaceDocument(
+      surfaceId,
+      "Aetheria Input Settings",
+      updatedAtUtc,
+      [command("aetheria.main_menu.settings.back_to_settings", "Back")],
+      ...children);
+  }
+
+  const actionButtons = [
+    ...(!inGame ? [button("aetheria.main_menu.root.continue", "Continue", "aetheria.main_menu.root.continue")] : []),
+    button("aetheria.main_menu.root.newGame", "New Game", "aetheria.main_menu.root.new_game"),
+    button("aetheria.main_menu.root.settings", "Settings", "aetheria.main_menu.root.show_settings"),
+    button("aetheria.main_menu.root.quit", "Quit", "aetheria.main_menu.root.quit"),
+  ];
+  return surfaceDocument(
+    "aetheria.main_menu.root",
+    "Aetheria Terminus",
+    updatedAtUtc,
+    [
+      ...(!inGame ? [command("aetheria.main_menu.root.continue", "Continue")] : []),
+      command("aetheria.main_menu.root.new_game", "New Game"),
+      command("aetheria.main_menu.root.show_settings", "Settings"),
+      command("aetheria.main_menu.root.quit", "Quit"),
+    ],
+    text("aetheria.main_menu.root.title", "AETHERIA", "text.title"),
+    text("aetheria.main_menu.root.subtitle", "TERMINUS", "text.subtitle"),
+    buttonColumn("aetheria.main_menu.root.actions", ...actionButtons),
+  );
+}
+
+function surfaceDocument(
+  surfaceId: string,
+  title: string,
+  updatedAtUtc: string,
+  commands: AetheriaMenuSurfaceCommand[],
+  ...children: AetheriaMenuSurfaceComponent[]
+): AetheriaMenuSurfaceDocument {
+  return {
+    providerId: "aetheria",
+    providerKind: "game.menu",
+    title,
+    version: 1,
+    updatedAtUtc,
+    surface: {
+      id: surfaceId,
+      root: node(`${surfaceId}.root`, "surface", {}, ...children),
+      styles: [
+        { name: "font.title.family", value: "Montserrat" },
+        { name: "font.title.style", value: "Thin" },
+        { name: "font.title.weight", value: "100" },
+        { name: "font.body.family", value: "Ubuntu" },
+        { name: "font.body.style", value: "Regular" },
+        { name: "font.body.weight", value: "400" },
+        {
+          name: "font.web.google",
+          value: "https://fonts.googleapis.com/css2?family=Montserrat:wght@100&family=Ubuntu:wght@400&display=swap",
+        },
+      ],
+    },
+    commands,
+  };
+}
+
+function command(commandId: string, label: string): AetheriaMenuSurfaceCommand {
+  return { command: commandId, label, transport: "cultmesh" };
+}
+
+function node(
+  id: string,
+  kind: string,
+  props: Record<string, string>,
+  ...children: AetheriaMenuSurfaceComponent[]
+): AetheriaMenuSurfaceComponent {
+  return { id, kind, props, children };
+}
+
+function text(id: string, value: string, kind = "text"): AetheriaMenuSurfaceComponent {
+  return node(id, kind, { value });
+}
+
+function metric(id: string, label: string, value: string): AetheriaMenuSurfaceComponent {
+  return node(id, "metric", { label, value });
+}
+
+function button(id: string, label: string, commandId: string): AetheriaMenuSurfaceComponent {
+  return node(id, "control.button", { label, command: commandId });
+}
+
+function buttonColumn(id: string, ...children: AetheriaMenuSurfaceComponent[]): AetheriaMenuSurfaceComponent {
+  return node(id, "column", {}, ...children);
 }
 
 function stableToken(value: string): string {

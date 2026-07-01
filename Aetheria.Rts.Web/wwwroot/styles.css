@@ -19,6 +19,111 @@ body {
   overflow: hidden;
 }
 
+.main-menu-host {
+  display: none;
+}
+
+body.main-menu-mode {
+  background:
+    radial-gradient(circle at 76% 66%, rgba(255, 213, 112, 0.74) 0, rgba(247, 121, 88, 0.36) 13%, transparent 31%),
+    radial-gradient(circle at 61% 37%, rgba(240, 45, 201, 0.54) 0, rgba(176, 38, 174, 0.28) 19%, transparent 45%),
+    radial-gradient(circle at 40% 45%, rgba(145, 21, 122, 0.42) 0, rgba(54, 8, 41, 0.4) 34%, transparent 62%),
+    #050407;
+}
+
+body.main-menu-mode .shell {
+  display: none;
+}
+
+body.main-menu-mode .main-menu-host {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  min-height: 100%;
+  padding: 92px 96px;
+  background:
+    radial-gradient(ellipse at 78% 64%, rgba(255, 194, 95, 0.36) 0, rgba(255, 148, 92, 0.18) 16%, transparent 35%),
+    radial-gradient(ellipse at 59% 38%, rgba(238, 56, 216, 0.28) 0, rgba(164, 37, 160, 0.2) 22%, transparent 52%),
+    linear-gradient(90deg, rgba(0, 0, 0, 0.5), transparent 48%);
+}
+
+body.main-menu-mode .eve-surface {
+  width: 720px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+body.main-menu-mode .eve-text-title {
+  width: 720px;
+  color: rgba(209, 242, 255, 0.96);
+  font-family: "Montserrat", sans-serif;
+  font-weight: 100;
+  line-height: 0.95;
+  text-align: right;
+}
+
+body.main-menu-mode #aetheria\.main_menu\.root\.title {
+  margin: 0 0 -12px;
+  font-size: 86px;
+}
+
+body.main-menu-mode #aetheria\.main_menu\.root\.subtitle {
+  margin: 0 0 36px;
+  font-size: 39px;
+}
+
+body.main-menu-mode .eve-text,
+body.main-menu-mode .eve-metric,
+body.main-menu-mode .eve-control-button {
+  font-family: "Ubuntu", system-ui, sans-serif;
+}
+
+body.main-menu-mode .eve-column {
+  display: flex;
+  flex-direction: column;
+}
+
+body.main-menu-mode .eve-control-button {
+  width: 220px;
+  min-width: 0;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: rgba(219, 250, 255, 0.96);
+  font-size: 24px;
+  line-height: 32px;
+  text-align: left;
+  letter-spacing: 0;
+  transition: letter-spacing 160ms ease, color 160ms ease;
+}
+
+body.main-menu-mode .eve-control-button:hover,
+body.main-menu-mode .eve-control-button:focus-visible {
+  background: transparent;
+  color: white;
+  letter-spacing: 8px;
+  outline: 0;
+}
+
+body.main-menu-mode .eve-metric {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+  gap: 8px;
+  width: 520px;
+  margin: 0 0 8px;
+}
+
+body.main-menu-mode .eve-text:not(.eve-text-title) {
+  width: 520px;
+  margin: 0 0 14px;
+  color: rgba(219, 250, 255, 0.9);
+  font-size: 16px;
+  line-height: 1.25;
+}
+
 button {
   min-width: 36px;
   height: 32px;

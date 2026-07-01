@@ -1,5 +1,7 @@
 import type {
   AetheriaRtsApi,
+  AetheriaMenuSurfaceComponent,
+  AetheriaMenuSurfaceDocument,
   AuthorityStatusDocument,
   AetheriaRuntimeViewportFeedSnapshot,
   BodyView,
@@ -49,6 +51,7 @@ let latestReceivedAt = 0;
 let latestPollMs = 0;
 let refreshInFlight = false;
 let viewportFeedUnsubscribe: (() => void) | null = null;
+const mainMenuMode = window.location.hash === "#main-menu";
 
 function requiredElement<TElement extends Element>(selector: string): TElement {
   const element = document.querySelector<TElement>(selector);
@@ -85,6 +88,117 @@ function currentViewport(): Viewport {
 
 function setStatus(text: string): void {
   statusEl.textContent = text;
+}
+
+async function showMainMenu(surfaceId = "aetheria.main_menu.root"): Promise<void> {
+  document.body.classList.add("main-menu-mode");
+  viewportFeedUnsubscribe?.();
+  const surface = await window.aetheriaRts.mainMenuSurface({
+    surfaceId,
+    inGame: false,
+    canOpenRuntimeInputScreen: false,
+  });
+  installMenuFonts(surface);
+  renderMainMenuSurface(surface);
+}
+
+function installMenuFonts(surface: AetheriaMenuSurfaceDocument): void {
+  const googleFont = surface.surface.styles.find(token => token.name === "font.web.google")?.value;
+  if (!googleFont || document.querySelector(`link[data-aetheria-menu-fonts="${googleFont}"]`)) {
+    return;
+  }
+
+  const preconnect = document.createElement("link");
+  preconnect.rel = "preconnect";
+  preconnect.href = "https://fonts.gstatic.com";
+  preconnect.crossOrigin = "anonymous";
+  document.head.append(preconnect);
+
+  const link = document.createElement("link");
+  link.rel = "stylesheet";
+  link.href = googleFont;
+  link.dataset.aetheriaMenuFonts = googleFont;
+  document.head.append(link);
+}
+
+function renderMainMenuSurface(surface: AetheriaMenuSurfaceDocument): void {
+  let host = document.querySelector<HTMLElement>("#main-menu-host");
+  if (!host) {
+    host = document.createElement("section");
+    host.id = "main-menu-host";
+    host.className = "main-menu-host";
+    document.body.append(host);
+  }
+
+  host.replaceChildren(lowerMenuComponent(surface.surface.root, surface));
+}
+
+function lowerMenuComponent(
+  component: AetheriaMenuSurfaceComponent,
+  surface: AetheriaMenuSurfaceDocument,
+): HTMLElement {
+  const kind = component.kind || "surface";
+  if (kind === "control.button") {
+    const button = document.createElement("button");
+    button.id = component.id;
+    button.className = "eve-control-button";
+    button.type = "button";
+    button.textContent = component.props.label ?? "";
+    button.addEventListener("click", () => handleMenuCommand(component.props.command ?? "", surface));
+    return button;
+  }
+
+  if (kind.startsWith("text")) {
+    const label = document.createElement("div");
+    label.id = component.id;
+    label.className = kind === "text.title" ? "eve-text-title" : "eve-text";
+    label.textContent = component.props.value ?? component.props.text ?? "";
+    return label;
+  }
+
+  if (kind === "metric") {
+    const metric = document.createElement("dl");
+    metric.id = component.id;
+    metric.className = "eve-metric";
+    const term = document.createElement("dt");
+    term.textContent = component.props.label ?? "";
+    const value = document.createElement("dd");
+    value.textContent = component.props.value ?? "";
+    metric.append(term, value);
+    return metric;
+  }
+
+  const element = document.createElement("div");
+  element.id = component.id;
+  element.className = [
+    kind === "surface" ? "eve-surface" : "",
+    kind === "column" ? "eve-column" : "",
+    kind === "row" ? "eve-row" : "",
+  ].filter(Boolean).join(" ");
+  for (const child of component.children ?? []) {
+    element.append(lowerMenuComponent(child, surface));
+  }
+  return element;
+}
+
+function handleMenuCommand(command: string, surface: AetheriaMenuSurfaceDocument): void {
+  switch (command) {
+    case "aetheria.main_menu.root.show_settings":
+      void showMainMenu("aetheria.main_menu.settings");
+      return;
+    case "aetheria.main_menu.settings.show_input_settings":
+      void showMainMenu("aetheria.main_menu.input_settings");
+      return;
+    case "aetheria.main_menu.settings.back_to_settings":
+      void showMainMenu("aetheria.main_menu.settings");
+      return;
+    case "aetheria.main_menu.settings.back_to_main":
+      void showMainMenu("aetheria.main_menu.root");
+      return;
+    default:
+      setStatus(`${surface.title}: ${command || "no command"}`);
+      return;
+  }
 }
 
 function startViewportFeed(): void {
@@ -585,6 +699,10 @@ function roleText(session: StarbridgeSessionDocument): string {
     .join(", ");
 }
 
-updateZoomLabel();
-void refreshRuntimeSurfaces();
-void refresh();
+if (mainMenuMode) {
+  void showMainMenu();
+} else {
+  updateZoomLabel();
+  void refreshRuntimeSurfaces();
+  void refresh();
+}

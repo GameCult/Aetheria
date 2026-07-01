@@ -10,6 +10,46 @@ import type {
 
 export type Viewport = CultMeshViewportRequest;
 
+export type AetheriaMenuSurfaceRequest = {
+  surfaceId?: string;
+  inGame?: boolean;
+  canOpenRuntimeInputScreen?: boolean;
+};
+
+export type AetheriaMenuSurfaceDocument = {
+  providerId: string;
+  providerKind: string;
+  title: string;
+  version: number;
+  updatedAtUtc: string;
+  surface: AetheriaMenuSurfaceTree;
+  commands: AetheriaMenuSurfaceCommand[];
+};
+
+export type AetheriaMenuSurfaceTree = {
+  id: string;
+  root: AetheriaMenuSurfaceComponent;
+  styles: AetheriaMenuStyleToken[];
+};
+
+export type AetheriaMenuSurfaceComponent = {
+  id: string;
+  kind: string;
+  props: Record<string, string>;
+  children: AetheriaMenuSurfaceComponent[];
+};
+
+export type AetheriaMenuStyleToken = {
+  name: string;
+  value: string;
+};
+
+export type AetheriaMenuSurfaceCommand = {
+  command: string;
+  label: string;
+  transport: string;
+};
+
 export type AetheriaRuntimeSetMoveVectorRequest = {
   actorEntityKey: string;
   directionX: number;
@@ -305,5 +345,6 @@ export type AetheriaRtsApi = {
   setTarget(request: AetheriaRuntimeSetTargetRequest): Promise<AetheriaRuntimeDaemonCommandReceipt>;
   surfaceCatalog(): Promise<CultMeshSurfaceCatalogDiagnostic>;
   surfaceCatalogIndex(): Promise<CultMeshSurfaceCatalogIndexDiagnostic>;
+  mainMenuSurface(request: AetheriaMenuSurfaceRequest): Promise<AetheriaMenuSurfaceDocument>;
   health(): Promise<unknown>;
 };
