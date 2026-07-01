@@ -2,10 +2,15 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using GameCult.Caching;
-using GameCult.Eve.Surface;
 using GameCult.Mesh;
 using MessagePack;
 using EveSurfaceState = global::Aetheria.State.Documents.EveSurfaceState;
+using EveUiCommandTemplate = GameCult.Eve.Surface.EveCommandTemplate;
+using EveUiEmbeddedDocumentSlot = GameCult.Eve.Surface.EveEmbeddedDocumentSlot;
+using EveUiStyleToken = GameCult.Eve.Surface.EveStyleToken;
+using EveUiSurfaceComponent = GameCult.Eve.Surface.EveSurfaceComponent;
+using EveUiSurfaceDocument = GameCult.Eve.Surface.EveSurfaceDocument;
+using EveUiSurfaceTree = GameCult.Eve.Surface.EveSurfaceTree;
 
 #nullable enable
 
@@ -264,23 +269,45 @@ namespace GameCult.Aetheria.State.Verse
             };
         }
 
-        public static EveSurfaceDocument ToEveSurfaceDocument(AetheriaRuntimeSurfaceDocument document)
+        public static AetheriaRuntimeSurfaceDocument FromPortableSurface(GameCult.Mesh.EveSurfaceDocument document)
+        {
+            if (document == null) throw new ArgumentNullException(nameof(document));
+
+            return new AetheriaRuntimeSurfaceDocument(
+                document.ProviderId,
+                document.ProviderKind,
+                document.Title,
+                document.Version,
+                document.UpdatedAtUtc,
+                new AetheriaRuntimeSurfaceTree(
+                    document.Surface.Id,
+                    FromPortableComponent(document.Surface.Root),
+                    document.Surface.Styles
+                        .Select(style => new AetheriaRuntimeSurfaceStyleToken(style.Name, style.Value))
+                        .ToArray()),
+                document.Commands
+                    .Select(command => new AetheriaRuntimeSurfaceCommandTemplate(
+                        FromPortableOperation(command.Operation)))
+                    .ToArray());
+        }
+
+        public static EveUiSurfaceDocument ToEveSurfaceDocument(AetheriaRuntimeSurfaceDocument document)
         {
             return ToEveSurfaceDocument(document, null);
         }
 
-        public static EveSurfaceDocument ToEveSurfaceDocument(EveSurfaceState state)
+        public static EveUiSurfaceDocument ToEveSurfaceDocument(EveSurfaceState state)
         {
             return ToEveSurfaceDocument(state, null);
         }
 
-        public static EveSurfaceDocument ToEveSurfaceDocument(
+        public static EveUiSurfaceDocument ToEveSurfaceDocument(
             EveSurfaceState state,
             CultMeshStateRefResolver? stateRefResolver)
         {
             if (state == null) throw new ArgumentNullException(nameof(state));
 
-            var surface = new EveSurfaceDocument(
+            var surface = new EveUiSurfaceDocument(
                 state.Type,
                 state.Schema,
                 state.ProviderId,
@@ -288,27 +315,27 @@ namespace GameCult.Aetheria.State.Verse
                 state.Title,
                 state.Version,
                 state.UpdatedAtUtc,
-                new EveSurfaceTree(
+                new EveUiSurfaceTree(
                     state.Surface.Id,
                     ToEveSurfaceComponent(state.Surface.Root),
                     state.Surface.Styles
-                        .Select(style => new EveStyleToken(style.Name, style.Value))
+                        .Select(style => new EveUiStyleToken(style.Name, style.Value))
                         .ToArray()),
                 state.Commands
-                    .Select(command => new EveCommandTemplate(
+                    .Select(command => new EveUiCommandTemplate(
                         ToCultMeshOperationBinding(command)))
                     .ToArray());
 
             return ResolveStateRefs(surface, stateRefResolver);
         }
 
-        public static EveSurfaceDocument ToEveSurfaceDocument(
+        public static EveUiSurfaceDocument ToEveSurfaceDocument(
             AetheriaRuntimeSurfaceDocument document,
             CultMeshStateRefResolver? stateRefResolver)
         {
             if (document == null) throw new ArgumentNullException(nameof(document));
 
-            var surface = new EveSurfaceDocument(
+            var surface = new EveUiSurfaceDocument(
                 "surface-state",
                 "gamecult.eve.surface.v1",
                 document.ProviderId,
@@ -316,21 +343,21 @@ namespace GameCult.Aetheria.State.Verse
                 document.Title,
                 document.Version,
                 document.UpdatedAtUtc,
-                new EveSurfaceTree(
+                new EveUiSurfaceTree(
                     document.Surface.Id,
                     ToEveSurfaceComponent(document.Surface.Root),
                     document.Surface.Styles
-                        .Select(style => new EveStyleToken(style.Name, style.Value))
+                        .Select(style => new EveUiStyleToken(style.Name, style.Value))
                         .ToArray()),
                 document.Commands
-                    .Select(command => new EveCommandTemplate(command.Operation))
+                    .Select(command => new EveUiCommandTemplate(command.Operation))
                     .ToArray());
 
             return ResolveStateRefs(surface, stateRefResolver);
         }
 
-        public static EveSurfaceDocument ResolveStateRefs(
-            EveSurfaceDocument surface,
+        public static EveUiSurfaceDocument ResolveStateRefs(
+            EveUiSurfaceDocument surface,
             CultMeshStateRefResolver? stateRefResolver)
         {
             if (surface == null) throw new ArgumentNullException(nameof(surface));
@@ -338,7 +365,7 @@ namespace GameCult.Aetheria.State.Verse
                 return surface;
 
             var resolveStateRef = stateRefResolver.AsFunc();
-            return new EveSurfaceDocument(
+            return new EveUiSurfaceDocument(
                 surface.Type,
                 surface.Schema,
                 surface.ProviderId,
@@ -346,17 +373,17 @@ namespace GameCult.Aetheria.State.Verse
                 surface.Title,
                 surface.Version,
                 surface.UpdatedAtUtc,
-                new EveSurfaceTree(
+                new EveUiSurfaceTree(
                     surface.Surface.Id,
                     ResolveStateRefs(surface.Surface.Root, resolveStateRef),
                     surface.Surface.Styles),
                 surface.Commands);
         }
 
-        public static EveSurfaceDocument EmptySurface(string surfaceId)
+        public static EveUiSurfaceDocument EmptySurface(string surfaceId)
         {
             var id = string.IsNullOrWhiteSpace(surfaceId) ? "aetheria.surface.missing" : surfaceId;
-            return new EveSurfaceDocument(
+            return new EveUiSurfaceDocument(
                 "surface-state",
                 "gamecult.eve.surface.v1",
                 "aetheria.daemon",
@@ -364,22 +391,22 @@ namespace GameCult.Aetheria.State.Verse
                 "",
                 0,
                 "",
-                new EveSurfaceTree(
+                new EveUiSurfaceTree(
                     id,
-                    new EveSurfaceComponent(
+                    new EveUiSurfaceComponent(
                         id + ".missing",
                         "surface",
                         new Dictionary<string, string>(StringComparer.Ordinal),
-                        Array.Empty<EveSurfaceComponent>()),
-                    Array.Empty<EveStyleToken>()),
-                Array.Empty<EveCommandTemplate>());
+                        Array.Empty<EveUiSurfaceComponent>()),
+                    Array.Empty<EveUiStyleToken>()),
+                Array.Empty<EveUiCommandTemplate>());
         }
 
-        private static EveSurfaceComponent ToEveSurfaceComponent(AetheriaRuntimeSurfaceComponent component)
+        private static EveUiSurfaceComponent ToEveSurfaceComponent(AetheriaRuntimeSurfaceComponent component)
         {
             var props = new Dictionary<string, string>(component.Props, StringComparer.Ordinal);
             AetheriaRuntimeSurfaceStateBindings.AddPointerProps(props, component.StateBindings);
-            return new EveSurfaceComponent(
+            return new EveUiSurfaceComponent(
                 component.Id,
                 component.Kind,
                 props,
@@ -435,7 +462,7 @@ namespace GameCult.Aetheria.State.Verse
             };
         }
 
-        private static EveSurfaceComponent ToEveSurfaceComponent(global::Aetheria.State.Documents.EveSurfaceComponent component)
+        private static EveUiSurfaceComponent ToEveSurfaceComponent(global::Aetheria.State.Documents.EveSurfaceComponent component)
         {
             var props = new Dictionary<string, string>(component.Props, StringComparer.Ordinal);
             var stateBindings = (component.StateBindings ?? Array.Empty<global::Aetheria.State.Documents.EveSurfaceStateBinding>())
@@ -444,7 +471,7 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeSurfaceStateBindings.AddPointerProps(
                 props,
                 stateBindings);
-            return new EveSurfaceComponent(
+            return new EveUiSurfaceComponent(
                 component.Id,
                 component.Kind,
                 props,
@@ -452,9 +479,9 @@ namespace GameCult.Aetheria.State.Verse
                 stateBindings.Select(ToCultMeshStateBinding).ToArray());
         }
 
-        private static EveEmbeddedDocumentSlot ToEveEmbeddedDocumentSlot(AetheriaRuntimeEmbeddedDocumentSlot slot)
+        private static EveUiEmbeddedDocumentSlot ToEveEmbeddedDocumentSlot(AetheriaRuntimeEmbeddedDocumentSlot slot)
         {
-            return new EveEmbeddedDocumentSlot(
+            return new EveUiEmbeddedDocumentSlot(
                 slot.SlotId,
                 slot.DocumentId,
                 slot.SchemaId,
@@ -497,14 +524,14 @@ namespace GameCult.Aetheria.State.Verse
                 routeDescription).ToBinding();
         }
 
-        private static EveSurfaceComponent ResolveStateRefs(
-            EveSurfaceComponent component,
+        private static EveUiSurfaceComponent ResolveStateRefs(
+            EveUiSurfaceComponent component,
             Func<string, string> resolveStateRef)
         {
             var props = new Dictionary<string, string>(component.Props, StringComparer.Ordinal);
             ResolvePropRefs(props, resolveStateRef);
 
-            return new EveSurfaceComponent(
+            return new EveUiSurfaceComponent(
                 component.Id,
                 component.Kind,
                 props,
@@ -513,17 +540,67 @@ namespace GameCult.Aetheria.State.Verse
                 component.EmbeddedDocuments);
         }
 
-        private static IReadOnlyList<EveSurfaceComponent> ResolveStateRefs(
-            IReadOnlyList<EveSurfaceComponent> children,
+        private static IReadOnlyList<EveUiSurfaceComponent> ResolveStateRefs(
+            IReadOnlyList<EveUiSurfaceComponent> children,
             Func<string, string> resolveStateRef)
         {
             if (children == null || children.Count == 0)
-                return Array.Empty<EveSurfaceComponent>();
+                return Array.Empty<EveUiSurfaceComponent>();
 
-            var resolved = new EveSurfaceComponent[children.Count];
+            var resolved = new EveUiSurfaceComponent[children.Count];
             for (var index = 0; index < children.Count; index++)
                 resolved[index] = ResolveStateRefs(children[index], resolveStateRef);
             return resolved;
+        }
+
+        private static AetheriaRuntimeSurfaceComponent FromPortableComponent(GameCult.Mesh.EveSurfaceComponent component)
+        {
+            return new AetheriaRuntimeSurfaceComponent(
+                component.Id,
+                component.Kind,
+                new Dictionary<string, string>(component.Props, StringComparer.Ordinal),
+                component.Children.Select(FromPortableComponent).ToArray(),
+                component.StateBindings.Select(FromPortableStateBinding).ToArray(),
+                component.EmbeddedDocuments.Select(FromPortableEmbeddedDocumentSlot).ToArray());
+        }
+
+        private static AetheriaRuntimeEmbeddedDocumentSlot FromPortableEmbeddedDocumentSlot(
+            GameCult.Mesh.EveEmbeddedDocumentSlot slot)
+        {
+            return new AetheriaRuntimeEmbeddedDocumentSlot(
+                slot.SlotId,
+                slot.DocumentId,
+                slot.SchemaId,
+                slot.PresentationKind,
+                FromPortableRoute(slot.RouteHint));
+        }
+
+        private static CultMeshStateBindingDescriptor FromPortableStateBinding(
+            GameCult.Mesh.EveSurfaceStateBinding binding)
+        {
+            return CultMesh.StateBindingRecord(
+                binding.TargetProp,
+                binding.PointerId,
+                binding.SourceId,
+                binding.SchemaId,
+                binding.RouteHint.Kind,
+                binding.RouteHint.Description).ToBinding();
+        }
+
+        private static CultMeshOperationBindingDescriptor FromPortableOperation(
+            GameCult.Mesh.EveSurfaceOperationBinding operation)
+        {
+            return CultMesh.OperationBindingRecord(
+                operation.OperationId,
+                operation.Label,
+                operation.SchemaId,
+                operation.RouteHint.Kind,
+                operation.RouteHint.Description).ToBinding();
+        }
+
+        private static CultMeshRouteHint FromPortableRoute(GameCult.Mesh.EveSurfaceRouteHint route)
+        {
+            return new CultMeshRouteRecord(route.Kind, route.Description).ToRoute(CultMeshRouteHint.Automatic);
         }
 
         private static void ResolvePropRefs(

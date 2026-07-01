@@ -4,6 +4,10 @@ using System.Linq;
 using Aetheria.State.Documents;
 using GameCult.Aetheria.State.Verse;
 using GameCult.Mesh;
+using EveDocumentCommandTemplate = Aetheria.State.Documents.EveCommandTemplate;
+using EveDocumentStyleToken = Aetheria.State.Documents.EveStyleToken;
+using EveDocumentSurface = Aetheria.State.Documents.EveSurface;
+using EveDocumentSurfaceComponent = Aetheria.State.Documents.EveSurfaceComponent;
 
 namespace Aetheria.State;
 
@@ -63,7 +67,7 @@ public static class AetheriaEveSurfaceDocuments
             Title = "Aetheria Catalog",
             Version = version,
             UpdatedAtUtc = updatedAtUtc,
-            Surface = new EveSurface
+            Surface = new EveDocumentSurface
             {
                 Id = CatalogSurfaceId,
                 Root = Node(
@@ -93,7 +97,7 @@ public static class AetheriaEveSurfaceDocuments
             },
             Commands =
             [
-                new EveCommandTemplate
+                new EveDocumentCommandTemplate
                 {
                     Command = refreshCommand.OperationId,
                     Label = refreshCommand.Label,
@@ -131,7 +135,7 @@ public static class AetheriaEveSurfaceDocuments
             Title = "Aetheria Operations",
             Version = version,
             UpdatedAtUtc = updatedAtUtc,
-            Surface = new EveSurface
+            Surface = new EveDocumentSurface
             {
                 Id = OperationsSurfaceId,
                 Root = Node(
@@ -188,7 +192,7 @@ public static class AetheriaEveSurfaceDocuments
             },
             Commands =
             [
-                new EveCommandTemplate
+                new EveDocumentCommandTemplate
                 {
                     Command = refreshCommand.OperationId,
                     Label = refreshCommand.Label,
@@ -231,12 +235,12 @@ public static class AetheriaEveSurfaceDocuments
             Title = surface.Title,
             Version = surface.Version,
             UpdatedAtUtc = surface.UpdatedAtUtc,
-            Surface = new EveSurface
+            Surface = new EveDocumentSurface
             {
                 Id = surface.Surface.Id,
                 Root = ConvertComponent(surface.Surface.Root),
                 Styles = surface.Surface.Styles
-                    .Select(style => new EveStyleToken
+                    .Select(style => new EveDocumentStyleToken
                     {
                         Name = style.Name,
                         Value = style.Value
@@ -247,7 +251,7 @@ public static class AetheriaEveSurfaceDocuments
                 .Select(command =>
                 {
                     var record = CultMesh.OperationBindingRecord(command.Operation);
-                    return new EveCommandTemplate
+                    return new EveDocumentCommandTemplate
                     {
                         Command = record.OperationId,
                         Label = record.Label,
@@ -479,23 +483,23 @@ public static class AetheriaEveSurfaceDocuments
         return latest;
     }
 
-    private static EveSurfaceComponent Metric(string id, string label, string value)
+    private static EveDocumentSurfaceComponent Metric(string id, string label, string value)
     {
         return Node(id, "metric", [("label", label), ("value", value)]);
     }
 
-    private static EveSurfaceComponent Row(string id, params (string Key, string Value)[] props)
+    private static EveDocumentSurfaceComponent Row(string id, params (string Key, string Value)[] props)
     {
         return Node(id, "row", props);
     }
 
-    private static EveSurfaceComponent Node(
+    private static EveDocumentSurfaceComponent Node(
         string id,
         string kind,
         (string Key, string Value)[] props,
-        params EveSurfaceComponent[] children)
+        params EveDocumentSurfaceComponent[] children)
     {
-        return new EveSurfaceComponent
+        return new EveDocumentSurfaceComponent
         {
             Id = id,
             Kind = kind,
@@ -504,9 +508,9 @@ public static class AetheriaEveSurfaceDocuments
         };
     }
 
-    private static EveSurfaceComponent ConvertComponent(AetheriaRuntimeSurfaceComponent component)
+    private static EveDocumentSurfaceComponent ConvertComponent(AetheriaRuntimeSurfaceComponent component)
     {
-        return new EveSurfaceComponent
+        return new EveDocumentSurfaceComponent
         {
             Id = component.Id,
             Kind = component.Kind,

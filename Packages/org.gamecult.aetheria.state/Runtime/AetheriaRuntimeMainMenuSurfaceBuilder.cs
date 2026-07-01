@@ -1,7 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using GameCult.Eve.Surface;
+using GameCult.Mesh;
+using EveUiCommandRequest = GameCult.Eve.Surface.EveSurfaceCommandRequest;
 
 namespace GameCult.Aetheria.State.Verse
 {
@@ -150,60 +151,52 @@ namespace GameCult.Aetheria.State.Verse
             string updatedAtUtc,
             long version)
         {
-            var commands = new List<AetheriaRuntimeSurfaceCommandTemplate>();
-            var actionButtons = new List<AetheriaRuntimeSurfaceComponent>();
+            var builder = MainMenuSurface(
+                    AetheriaRuntimeMainMenuCommands.RootSurfaceId,
+                    "Aetheria Terminus",
+                    updatedAtUtc,
+                    version)
+                .TitleSubtitle("AETHERIA", "TERMINUS")
+                .ButtonColumn(
+                    $"{AetheriaRuntimeMainMenuCommands.RootSurfaceId}.actions",
+                    actions =>
+                    {
+                        if (!inGame)
+                        {
+                            actions.Button(
+                                "Continue",
+                                Operation(AetheriaRuntimeMainMenuCommands.ContinueRun, "Continue"));
+                        }
 
-            if (!inGame)
-            {
-                commands.Add(Command(AetheriaRuntimeMainMenuCommands.ContinueRun, "Continue"));
-                actionButtons.Add(Button(
-                    $"{AetheriaRuntimeMainMenuCommands.RootSurfaceId}.continue",
-                    "Continue",
-                    AetheriaRuntimeMainMenuCommands.ContinueRun));
-            }
+                        actions.Button("New Game", Operation(AetheriaRuntimeMainMenuCommands.NewGame, "New Game"));
+                        actions.Button("Settings", Operation(AetheriaRuntimeMainMenuCommands.ShowSettings, "Settings"));
+                        actions.Button("Quit", Operation(AetheriaRuntimeMainMenuCommands.Quit, "Quit"));
+                    });
 
-            commands.Add(Command(AetheriaRuntimeMainMenuCommands.NewGame, "New Game"));
-            commands.Add(Command(AetheriaRuntimeMainMenuCommands.ShowSettings, "Settings"));
-            commands.Add(Command(AetheriaRuntimeMainMenuCommands.Quit, "Quit"));
-
-            actionButtons.Add(Button($"{AetheriaRuntimeMainMenuCommands.RootSurfaceId}.newGame", "New Game", AetheriaRuntimeMainMenuCommands.NewGame));
-            actionButtons.Add(Button($"{AetheriaRuntimeMainMenuCommands.RootSurfaceId}.settings", "Settings", AetheriaRuntimeMainMenuCommands.ShowSettings));
-            actionButtons.Add(Button($"{AetheriaRuntimeMainMenuCommands.RootSurfaceId}.quit", "Quit", AetheriaRuntimeMainMenuCommands.Quit));
-
-            return BuildSurfaceDocument(
-                AetheriaRuntimeMainMenuCommands.RootSurfaceId,
-                "Aetheria Terminus",
-                updatedAtUtc,
-                version,
-                commands,
-                Text($"{AetheriaRuntimeMainMenuCommands.RootSurfaceId}.title", "AETHERIA", "text.title"),
-                Text($"{AetheriaRuntimeMainMenuCommands.RootSurfaceId}.subtitle", "TERMINUS", "text.subtitle"),
-                ButtonColumn($"{AetheriaRuntimeMainMenuCommands.RootSurfaceId}.actions", actionButtons.ToArray()));
+            return AetheriaRuntimeSurfaceDocuments.FromPortableSurface(builder.Build());
         }
 
         public static AetheriaRuntimeSurfaceDocument BuildSettings(
             string updatedAtUtc,
             long version = 1)
         {
-            return BuildSurfaceDocument(
-                AetheriaRuntimeMainMenuCommands.SettingsSurfaceId,
-                "Aetheria Settings",
-                updatedAtUtc,
-                version,
-                new[]
-                {
-                    Command(AetheriaRuntimeMainMenuCommands.ShowPlayerSettings, "Player Settings"),
-                    Command(AetheriaRuntimeMainMenuCommands.ShowVerseSettings, "Verse"),
-                    Command(AetheriaRuntimeMainMenuCommands.ShowInputSettings, "Input"),
-                    Command(AetheriaRuntimeMainMenuCommands.BackToMain, "Back")
-                },
-                Text("aetheria.mainMenu.settings.title", "SETTINGS", "text.title"),
-                ButtonColumn(
+            var builder = MainMenuSurface(
+                    AetheriaRuntimeMainMenuCommands.SettingsSurfaceId,
+                    "Aetheria Settings",
+                    updatedAtUtc,
+                    version)
+                .Title("SETTINGS")
+                .ButtonColumn(
                     "aetheria.mainMenu.settings.actions",
-                    Button("aetheria.mainMenu.settings.playerSettings", "Player Settings", AetheriaRuntimeMainMenuCommands.ShowPlayerSettings),
-                    Button("aetheria.mainMenu.settings.verse", "Verse", AetheriaRuntimeMainMenuCommands.ShowVerseSettings),
-                    Button("aetheria.mainMenu.settings.input", "Input", AetheriaRuntimeMainMenuCommands.ShowInputSettings),
-                    Button("aetheria.mainMenu.settings.back", "Back", AetheriaRuntimeMainMenuCommands.BackToMain)));
+                    actions =>
+                    {
+                        actions.Button("Player Settings", Operation(AetheriaRuntimeMainMenuCommands.ShowPlayerSettings, "Player Settings"));
+                        actions.Button("Verse", Operation(AetheriaRuntimeMainMenuCommands.ShowVerseSettings, "Verse"));
+                        actions.Button("Input", Operation(AetheriaRuntimeMainMenuCommands.ShowInputSettings, "Input"));
+                        actions.Button("Back", Operation(AetheriaRuntimeMainMenuCommands.BackToMain, "Back"));
+                    });
+
+            return AetheriaRuntimeSurfaceDocuments.FromPortableSurface(builder.Build());
         }
 
         private static AetheriaRuntimeSurfaceDocument BuildInputSettings(
@@ -214,63 +207,52 @@ namespace GameCult.Aetheria.State.Verse
             string updatedAtUtc,
             long version)
         {
-            var commands = new List<AetheriaRuntimeSurfaceCommandTemplate>
-            {
-                Command(AetheriaRuntimeMainMenuCommands.BackToSettings, "Back")
-            };
-
-            var children = new List<AetheriaRuntimeSurfaceComponent>
-            {
-                Text("aetheria.mainMenu.input.title", "INPUT", "text.title"),
-                Metric(
-                    "aetheria.mainMenu.input.bindingOverrides",
-                    "Binding Overrides",
-                    bindingOverrideCount.ToString()),
-                Metric(
-                    "aetheria.mainMenu.input.actionBarInputs",
-                    "Action-Bar Inputs",
-                    actionBarInputCount.ToString())
-            };
+            var builder = MainMenuSurface(
+                    AetheriaRuntimeMainMenuCommands.InputSettingsSurfaceId,
+                    "Aetheria Input Settings",
+                    updatedAtUtc,
+                    version)
+                .Title("INPUT")
+                .Form(
+                    "aetheria.mainMenu.input.metrics",
+                    form => form
+                        .Metric("Binding Overrides", bindingOverrideCount.ToString())
+                        .Metric("Action-Bar Inputs", actionBarInputCount.ToString()));
 
             if (canOpenRuntimeInputScreen)
             {
-                commands.Insert(0, Command(AetheriaRuntimeMainMenuCommands.OpenRuntimeInputScreen, "Open Remap Screen"));
-                children.Add(Text(
-                    "aetheria.mainMenu.input.note",
-                    "The runtime Eve input screen owns low-level InputSystem rebinding and action-bar input edits. This title shell reports typed player-settings state and hands off to that owner."));
+                builder.Text(
+                    "The runtime Eve input screen owns low-level InputSystem rebinding and action-bar input edits. This title shell reports typed player-settings state and hands off to that owner.",
+                    "aetheria.mainMenu.input.note");
             }
             else if (inGame)
             {
-                children.Add(Text(
-                    "aetheria.mainMenu.input.note",
-                    "The runtime Eve input screen should own rebinding here, but this scene has no active input surface to hand off to."));
+                builder.Text(
+                    "The runtime Eve input screen should own rebinding here, but this scene has no active input surface to hand off to.",
+                    "aetheria.mainMenu.input.note");
             }
             else
             {
-                children.Add(Text(
-                    "aetheria.mainMenu.input.note",
-                    "This title shell reports the typed player-settings state. Launch a run to open the runtime Eve input screen that owns low-level InputSystem rebinding."));
+                builder.Text(
+                    "This title shell reports the typed player-settings state. Launch a run to open the runtime Eve input screen that owns low-level InputSystem rebinding.",
+                    "aetheria.mainMenu.input.note");
             }
 
-            var buttons = new List<AetheriaRuntimeSurfaceComponent>();
-            if (canOpenRuntimeInputScreen)
-            {
-                buttons.Add(Button(
-                    "aetheria.mainMenu.input.openRuntimeScreen",
-                    "Open Remap Screen",
-                    AetheriaRuntimeMainMenuCommands.OpenRuntimeInputScreen));
-            }
+            builder.ButtonColumn(
+                "aetheria.mainMenu.input.actions",
+                actions =>
+                {
+                    if (canOpenRuntimeInputScreen)
+                    {
+                        actions.Button(
+                            "Open Remap Screen",
+                            Operation(AetheriaRuntimeMainMenuCommands.OpenRuntimeInputScreen, "Open Remap Screen"));
+                    }
 
-            buttons.Add(Button("aetheria.mainMenu.input.back", "Back", AetheriaRuntimeMainMenuCommands.BackToSettings));
-            children.Add(ButtonColumn("aetheria.mainMenu.input.actions", buttons.ToArray()));
+                    actions.Button("Back", Operation(AetheriaRuntimeMainMenuCommands.BackToSettings, "Back"));
+                });
 
-            return BuildSurfaceDocument(
-                AetheriaRuntimeMainMenuCommands.InputSettingsSurfaceId,
-                "Aetheria Input Settings",
-                updatedAtUtc,
-                version,
-                commands,
-                children.ToArray());
+            return AetheriaRuntimeSurfaceDocuments.FromPortableSurface(builder.Build());
         }
 
         public static AetheriaRuntimeSurfaceDocument BuildVerseSettingsShell(
@@ -314,32 +296,21 @@ namespace GameCult.Aetheria.State.Verse
                     .ToArray());
         }
 
-        private static string VerseLabel(string verseTitle, string verseId)
-        {
-            var title = string.IsNullOrWhiteSpace(verseTitle) ? "Unknown Verse" : verseTitle;
-            var id = string.IsNullOrWhiteSpace(verseId) ? "unknown" : verseId;
-            return string.Equals(title, id, StringComparison.Ordinal) ? title : $"{title} ({id})";
-        }
-
-        private static AetheriaRuntimeSurfaceDocument BuildSurfaceDocument(
+        private static GameCult.Mesh.EveSurfaceBuilder MainMenuSurface(
             string surfaceId,
             string title,
             string updatedAtUtc,
-            long version,
-            IReadOnlyList<AetheriaRuntimeSurfaceCommandTemplate> commands,
-            params AetheriaRuntimeSurfaceComponent[] children)
+            long version)
         {
-            return new AetheriaRuntimeSurfaceDocument(
-                providerId: ProviderId,
-                providerKind: ProviderKind,
-                title: title,
-                version: version,
-                updatedAtUtc: updatedAtUtc,
-                surface: new AetheriaRuntimeSurfaceTree(
-                    surfaceId,
-                    Node($"{surfaceId}.root", "surface", Array.Empty<(string Key, string Value)>(), children),
-                    MainMenuStyleTokens()),
-                commands: commands);
+            var builder = GameCult.Mesh.EveSurface.Create(surfaceId)
+                .Provider(ProviderId, ProviderKind)
+                .Version(version)
+                .UpdatedAtUtc(updatedAtUtc);
+
+            foreach (var token in MainMenuStyleTokens())
+                builder.Style(token.Name, token.Value);
+
+            return builder;
         }
 
         private static IReadOnlyList<AetheriaRuntimeSurfaceStyleToken> MainMenuStyleTokens()
@@ -363,17 +334,14 @@ namespace GameCult.Aetheria.State.Verse
             return new AetheriaRuntimeSurfaceCommandTemplate(command, label, AetheriaRuntimeSurfaceCommandTemplate.CultMeshTransport);
         }
 
-        private static AetheriaRuntimeSurfaceComponent Card(
-            string id,
-            string title,
-            params AetheriaRuntimeSurfaceComponent[] children)
+        private static CultMeshOperationBindingDescriptor Operation(string command, string label)
         {
-            return Node(id, "card", new[] { ("title", title) }, children);
-        }
-
-        private static AetheriaRuntimeSurfaceComponent Metric(string id, string label, string value)
-        {
-            return Node(id, "metric", new[] { ("label", label), ("value", value ?? "") });
+            return CultMesh.OperationBindingRecord(
+                command,
+                label,
+                "",
+                nameof(CultMeshLocalityKind.Automatic),
+                AetheriaRuntimeSurfaceCommandTemplate.CultMeshTransport).ToBinding();
         }
 
         private static AetheriaRuntimeSurfaceComponent Text(string id, string value)
@@ -454,7 +422,7 @@ namespace GameCult.Aetheria.State.Verse
     public static class AetheriaRuntimeMainMenuSurfaceCommands
     {
         public static bool TryRead(
-            EveSurfaceCommandRequest request,
+            EveUiCommandRequest request,
             out AetheriaRuntimeMainMenuCommand command)
         {
             command = default;
