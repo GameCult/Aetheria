@@ -15,6 +15,137 @@ using EveUiSurfaceTree = GameCult.Eve.Surface.EveSurfaceTree;
 
 namespace GameCult.Aetheria.State.Verse
 {
+    public static class AetheriaRuntimeSurfaceStateRefs
+    {
+        public const string Source = "stateRef";
+        public const string Value = "valueRef";
+        public const string Label = "labelRef";
+        public const string Format = "stateFormat";
+
+        public static (string Key, string Value) SourceRef(string reference)
+        {
+            return (Source, reference ?? "");
+        }
+
+        public static (string Key, string Value) ValueRef(string reference)
+        {
+            return (Value, reference ?? "");
+        }
+
+        public static (string Key, string Value) LabelRef(string reference)
+        {
+            return (Label, reference ?? "");
+        }
+
+        public static (string Key, string Value) FormatRef(string format)
+        {
+            return (Format, format ?? "");
+        }
+    }
+
+    public static class AetheriaRuntimeSurfaceStateBindings
+    {
+        public const string PropPrefix = "cultmesh.statePointer.";
+        public const string PointerIdSuffix = ".pointerId";
+        public const string SourceIdSuffix = ".sourceId";
+        public const string SchemaIdSuffix = ".schemaId";
+        public const string RouteKindSuffix = ".routeKind";
+        public const string RouteDescriptionSuffix = ".routeDescription";
+
+        public static CultMeshStateBindingDescriptor ForDaemonStateRef(
+            string targetProp,
+            string stateRef,
+            string schemaId = AetheriaRuntimeDaemonSchemas.Frame)
+        {
+            return new CultMeshStateBindingDescriptor(
+                targetProp,
+                ToPointerId(stateRef),
+                stateRef,
+                schemaId,
+                new CultMeshRouteHint(
+                    CultMeshLocalityKind.SharedMemory,
+                    "daemon-published CultCache state"));
+        }
+
+        public static IReadOnlyList<CultMeshStateBindingDescriptor> FromProps(
+            IReadOnlyDictionary<string, string> props)
+        {
+            if (props == null || props.Count == 0)
+                return Array.Empty<CultMeshStateBindingDescriptor>();
+
+            var bindings = new List<CultMeshStateBindingDescriptor>();
+            AddPropBinding(bindings, "value", Get(props, AetheriaRuntimeSurfaceStateRefs.Source));
+            foreach (var prop in props)
+            {
+                if (string.IsNullOrWhiteSpace(prop.Value) ||
+                    string.Equals(prop.Key, AetheriaRuntimeSurfaceStateRefs.Source, StringComparison.Ordinal) ||
+                    !prop.Key.EndsWith("Ref", StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                AddPropBinding(bindings, prop.Key.Substring(0, prop.Key.Length - "Ref".Length), prop.Value);
+            }
+
+            return bindings;
+        }
+
+        public static void AddPointerProps(
+            IDictionary<string, string> props,
+            IReadOnlyList<CultMeshStateBindingDescriptor> bindings)
+        {
+            if (props == null || bindings == null)
+                return;
+
+            foreach (var binding in bindings)
+            {
+                if (binding == null || string.IsNullOrWhiteSpace(binding.PointerId))
+                    continue;
+
+                var record = CultMesh.StateBindingRecord(binding);
+                var prefix = PropPrefix + record.TargetProp;
+                props[prefix + PointerIdSuffix] = record.PointerId;
+                props[prefix + SourceIdSuffix] = record.SourceId;
+                props[prefix + SchemaIdSuffix] = record.SchemaId;
+                props[prefix + RouteKindSuffix] = record.RouteKind;
+                props[prefix + RouteDescriptionSuffix] = record.RouteDescription;
+            }
+        }
+
+        private static void AddPropBinding(
+            List<CultMeshStateBindingDescriptor> bindings,
+            string targetProp,
+            string stateRef)
+        {
+            if (string.IsNullOrWhiteSpace(stateRef))
+                return;
+
+            var schemaId = stateRef.StartsWith(AetheriaRuntimeDaemonItemStatQueries.StateRefPrefix + "/", StringComparison.Ordinal)
+                ? AetheriaRuntimeDaemonSchemas.CurrentEntity
+                : AetheriaRuntimeDaemonSchemas.Frame;
+            bindings.Add(ForDaemonStateRef(targetProp, stateRef, schemaId));
+        }
+
+        private static string Get(IReadOnlyDictionary<string, string> props, string key)
+        {
+            return props.TryGetValue(key, out var value) ? value : "";
+        }
+
+        private static string ToPointerId(string stateRef)
+        {
+            if (string.IsNullOrWhiteSpace(stateRef))
+                return "";
+
+            var chars = stateRef
+                .Select(character => char.IsLetterOrDigit(character) ? char.ToLowerInvariant(character) : '.')
+                .ToArray();
+            var pointerId = new string(chars).Trim('.');
+            while (pointerId.Contains("..", StringComparison.Ordinal))
+                pointerId = pointerId.Replace("..", ".", StringComparison.Ordinal);
+            return string.IsNullOrWhiteSpace(pointerId) ? "aetheria.state.unknown" : pointerId;
+        }
+    }
+
     [CultDocument("gamecult.aetheria.runtime_surface", "gamecult.aetheria.runtime_surface.v1")]
     [MessagePackObject]
     public sealed class AetheriaRuntimeSurfaceDocument

@@ -16,20 +16,12 @@ public class MainMenu : MonoBehaviour
     public GameSettings Settings;
     public ConfirmationDialog Dialog;
     public bool InGame;
-    public float FadeTime = 0.5f;
-    public float FadeDistance = 512f;
-    public float FadeAlphaExponent = 2f;
-    public float FadePositionExponent = 2f;
     public float HoverSpacing = 8f;
     public float HoverAnimationDuration = 0.16f;
 
-    private UIDocument _currentMenuSurfaceDocument;
-    private UIDocument _nextMenuSurfaceDocument;
+    private UIDocument _menuSurfaceDocument;
     private Func<bool> _canOpenRuntimeInputScreen;
     private Action _openRuntimeInputScreen;
-    private bool _fadeFromRight;
-    private bool _fading;
-    private float _fadeLerp;
     private readonly List<MenuHoverButton> _hoverButtons = new List<MenuHoverButton>();
     private readonly AetheriaEveUnitySurfaceChrome _menuSurfaceChrome = new AetheriaEveUnitySurfaceChrome
     {
@@ -51,7 +43,6 @@ public class MainMenu : MonoBehaviour
 
     void Update()
     {
-        UpdateMenuFade();
         UpdateHoverButtons();
     }
 
@@ -219,30 +210,16 @@ public class MainMenu : MonoBehaviour
         Action<EveSurfaceCommandRequest> commandHandler,
         bool animateFromRight)
     {
-        var initialRender = _currentMenuSurfaceDocument == null;
-        var targetDocument = initialRender ? _currentMenuSurfaceDocument : _nextMenuSurfaceDocument;
-        targetDocument = AetheriaEveUnitySurfaceHost.RenderRuntime(
+        _menuSurfaceDocument = AetheriaEveUnitySurfaceHost.RenderRuntime(
             transform,
-            targetDocument,
-            initialRender ? "Aetheria Menu Surface" : "Aetheria Menu Surface Transition",
+            _menuSurfaceDocument,
+            "Aetheria Menu Surface",
             document,
             commandHandler,
             _menuSurfaceChrome,
-            sortingOrder: initialRender ? 1000 : 1001);
+            sortingOrder: 1000);
 
-        ApplyMenuStyles(targetDocument.rootVisualElement, IsRootMainMenu(document));
-        SetDocumentTransition(targetDocument, initialRender ? 0f : (animateFromRight ? FadeDistance : -FadeDistance), initialRender ? 1f : 0f);
-
-        if (initialRender)
-        {
-            _currentMenuSurfaceDocument = targetDocument;
-            return;
-        }
-
-        _nextMenuSurfaceDocument = targetDocument;
-        _fadeFromRight = animateFromRight;
-        _fadeLerp = 0f;
-        _fading = true;
+        ApplyMenuStyles(_menuSurfaceDocument.rootVisualElement, IsRootMainMenu(document));
     }
 
     private static bool IsRootMainMenu(AetheriaRuntimeSurfaceDocument document)
@@ -251,46 +228,6 @@ public class MainMenu : MonoBehaviour
             document?.Surface?.Id,
             AetheriaRuntimeMainMenuCommands.RootSurfaceId,
             StringComparison.Ordinal);
-    }
-
-    private void UpdateMenuFade()
-    {
-        if (!_fading)
-            return;
-
-        _fadeLerp += Time.unscaledDeltaTime / Mathf.Max(0.01f, FadeTime);
-        var t = Mathf.Clamp01(_fadeLerp);
-        var outgoing = Mathf.Pow(t, FadePositionExponent);
-        var incoming = Mathf.Pow(1f - t, FadePositionExponent);
-        var direction = _fadeFromRight ? 1f : -1f;
-
-        SetDocumentTransition(
-            _currentMenuSurfaceDocument,
-            -direction * FadeDistance * outgoing,
-            Mathf.Pow(1f - t, FadeAlphaExponent));
-        SetDocumentTransition(
-            _nextMenuSurfaceDocument,
-            direction * FadeDistance * incoming,
-            Mathf.Pow(t, FadeAlphaExponent));
-
-        if (_fadeLerp <= 1f)
-            return;
-
-        _fading = false;
-        AetheriaEveUnitySurfaceHost.Hide(_currentMenuSurfaceDocument);
-        var previous = _currentMenuSurfaceDocument;
-        _currentMenuSurfaceDocument = _nextMenuSurfaceDocument;
-        _nextMenuSurfaceDocument = previous;
-        SetDocumentTransition(_currentMenuSurfaceDocument, 0f, 1f);
-    }
-
-    private static void SetDocumentTransition(UIDocument document, float x, float opacity)
-    {
-        if (document?.rootVisualElement == null)
-            return;
-
-        document.rootVisualElement.style.translate = new Translate(new Length(x, LengthUnit.Pixel), 0f, 0f);
-        document.rootVisualElement.style.opacity = opacity;
     }
 
     private void UpdateHoverButtons()
@@ -689,8 +626,7 @@ public class MainMenu : MonoBehaviour
 
     private void HideMenuSurface()
     {
-        AetheriaEveUnitySurfaceHost.Hide(_currentMenuSurfaceDocument);
-        AetheriaEveUnitySurfaceHost.Hide(_nextMenuSurfaceDocument);
+        AetheriaEveUnitySurfaceHost.Hide(_menuSurfaceDocument);
     }
 
     public void SetRuntimeInputScreenShell(Func<bool> canOpenRuntimeInputScreen, Action openRuntimeInputScreen)
@@ -777,16 +713,10 @@ public class MainMenu : MonoBehaviour
 
     private void OnDestroy()
     {
-        if (_currentMenuSurfaceDocument != null)
+        if (_menuSurfaceDocument != null)
         {
-            Destroy(_currentMenuSurfaceDocument.gameObject);
-            _currentMenuSurfaceDocument = null;
-        }
-
-        if (_nextMenuSurfaceDocument != null)
-        {
-            Destroy(_nextMenuSurfaceDocument.gameObject);
-            _nextMenuSurfaceDocument = null;
+            Destroy(_menuSurfaceDocument.gameObject);
+            _menuSurfaceDocument = null;
         }
     }
 

@@ -151,6 +151,15 @@ namespace GameCult.Aetheria.State.Verse
             string updatedAtUtc,
             long version)
         {
+            var verseLabel = VerseLabel(verseTitle, verseId);
+            var targetLine = TargetLine(targetLabel, targetKind, targetSource);
+            var daemonLine = hasAuthoritativeDaemonFrame
+                ? $"Run {daemonRunId} / frame {daemonFrameId}"
+                : "No daemon frame";
+            var transportLine = string.IsNullOrWhiteSpace(verseCultMeshAddress)
+                ? verseVisibility
+                : $"{verseVisibility} / {verseCultMeshAddress}";
+
             var builder = MainMenuSurface(
                     AetheriaRuntimeMainMenuCommands.RootSurfaceId,
                     "Aetheria Terminus",
@@ -171,9 +180,37 @@ namespace GameCult.Aetheria.State.Verse
                         actions.Button("New Game", Operation(AetheriaRuntimeMainMenuCommands.NewGame, "New Game"));
                         actions.Button("Settings", Operation(AetheriaRuntimeMainMenuCommands.ShowSettings, "Settings"));
                         actions.Button("Quit", Operation(AetheriaRuntimeMainMenuCommands.Quit, "Quit"));
-                    });
+                    })
+                .Form(
+                    $"{AetheriaRuntimeMainMenuCommands.RootSurfaceId}.verse",
+                    form => form
+                        .Metric("Verse", verseLabel)
+                        .Metric("Target", targetLine)
+                        .Metric("Daemon", daemonLine)
+                        .Metric("Transport", transportLine));
 
             return AetheriaRuntimeSurfaceDocuments.FromPortableSurface(builder.Build());
+        }
+
+        private static string VerseLabel(string verseTitle, string verseId)
+        {
+            if (string.IsNullOrWhiteSpace(verseTitle))
+                return string.IsNullOrWhiteSpace(verseId) ? "Unknown Verse" : verseId;
+
+            if (string.IsNullOrWhiteSpace(verseId) || string.Equals(verseTitle, verseId, StringComparison.Ordinal))
+                return verseTitle;
+
+            return $"{verseTitle} / {verseId}";
+        }
+
+        private static string TargetLine(string targetLabel, string targetKind, string targetSource)
+        {
+            var label = string.IsNullOrWhiteSpace(targetLabel) ? "Unknown target" : targetLabel;
+            var kind = string.IsNullOrWhiteSpace(targetKind) ? "unknown" : targetKind;
+            if (string.IsNullOrWhiteSpace(targetSource))
+                return $"{label} ({kind})";
+
+            return $"{label} ({kind}) / {targetSource}";
         }
 
         public static AetheriaRuntimeSurfaceDocument BuildSettings(

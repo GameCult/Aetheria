@@ -731,14 +731,17 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
         !advertisement.Schemas.Contains(AetheriaRuntimeDaemonSchemas.GameSurface) ||
         !advertisement.Schemas.Contains(AetheriaRuntimeDaemonSchemas.EditorSurface) ||
         !advertisement.Witnesses.Any(witness =>
-            witness.Kind == "cultcache-witness" &&
-            witness.Ref == AetheriaRuntimeStateBoundary.GetDaemonProviderPath(statePath)) ||
+            witness.Kind == "cultcache" &&
+            witness.Ref == statePath) ||
         !advertisement.Witnesses.Any(witness =>
-            witness.Kind == "cultcache-witness" &&
-            witness.Ref == AetheriaRuntimeStateBoundary.GetDaemonCommandBoundaryPath(statePath)) ||
+            witness.Kind == "cultmesh-record" &&
+            witness.Ref == AetheriaRuntimeVerseRecordKeys.DaemonProviderAdvertisement.ToString()) ||
+        !advertisement.Witnesses.Any(witness =>
+            witness.Kind == "cultmesh-record" &&
+            witness.Ref == AetheriaRuntimeVerseRecordKeys.DaemonCommandBoundary.ToString()) ||
         !advertisement.Commands.Any(command =>
             command.Command == "aetheria.daemon.commands" &&
-            command.Transport == "cultcache-witness") ||
+            command.Transport == "cultmesh") ||
         !advertisement.Commands.Any(command => command.Command == "aetheria.player_settings.graphics.show_asteroids.toggle") ||
         !advertisement.Schemas.Contains(AetheriaEveCommandBridge.CommandSchema))
     {

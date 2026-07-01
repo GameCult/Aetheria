@@ -1,11 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using MessagePack;
 
 #nullable enable
 
 namespace GameCult.Aetheria.State.Verse
 {
+    [MessagePackObject(true)]
     public readonly struct AetheriaRuntimeExponentialLerp
     {
         public AetheriaRuntimeExponentialLerp(double exponent, double minimum, double maximum)
@@ -26,6 +28,7 @@ namespace GameCult.Aetheria.State.Verse
         }
     }
 
+    [MessagePackObject(true)]
     public readonly struct AetheriaRuntimeItemRarityTier
     {
         public AetheriaRuntimeItemRarityTier(string name, double quality, double red, double green, double blue)
@@ -44,6 +47,7 @@ namespace GameCult.Aetheria.State.Verse
         public double Blue { get; }
     }
 
+    [MessagePackObject(true)]
     public sealed class AetheriaRuntimeTradeValueSettings
     {
         public static AetheriaRuntimeTradeValueSettings Default { get; } = new AetheriaRuntimeTradeValueSettings(
@@ -65,8 +69,9 @@ namespace GameCult.Aetheria.State.Verse
             Tiers = tiers ?? Array.Empty<AetheriaRuntimeItemRarityTier>();
         }
 
-        public AetheriaRuntimeExponentialLerp QualityPriceModifier { get; }
-        public IReadOnlyList<AetheriaRuntimeItemRarityTier> Tiers { get; }
+        public AetheriaRuntimeExponentialLerp QualityPriceModifier { get; set; }
+        public IReadOnlyList<AetheriaRuntimeItemRarityTier> Tiers { get; set; } =
+            Array.Empty<AetheriaRuntimeItemRarityTier>();
     }
 
     public readonly struct AetheriaRuntimeTradeItemValue
