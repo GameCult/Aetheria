@@ -1475,6 +1475,11 @@ First Aetheria surfaces to publish:
    - Done: add `org.gamecult.aetheria.eve-runtime` with a `UIDocument`
      presenter that mounts typed Eve surfaces from `GameData/aetheria-world.cc`
      through UI Toolkit without giving the renderer state authority.
+   - Done: add the Unity editor `Aetheria/CultUI/Live Composition Surface`
+     authoring window. It rebuilds a draft `EveSurfaceDocument` in editor
+     memory, lowers it through the shared Eve UI Toolkit path, and emits
+     provider-builder code for menu work; it does not publish state, accept
+     commands, or become a menu authority.
    - Done: publish renderer-emitted Eve commands as typed
      `gamecult.eve.command.v1` records, separate from runtime state commits so
      only the daemon-owned provider bridge accepts commands it owns.
