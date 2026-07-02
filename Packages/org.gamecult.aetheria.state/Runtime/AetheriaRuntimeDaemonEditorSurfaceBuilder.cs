@@ -106,6 +106,16 @@ namespace GameCult.Aetheria.State.Verse
                                 designerSurfaces
                                     .Where(surface => surface != null)
                                     .Select((surface, index) => DesignerSurfaceRow(index, surface))
+                                    .ToArray())),
+                        Node(
+                            "aetheria.daemon.editor.eve_surfaces",
+                            "card",
+                            new[] { ("title", "Advertised Eve Surfaces") },
+                            Row(
+                                "aetheria.daemon.editor.eve_surfaces.rows",
+                                provider.EveSurfaces
+                                    .Where(surface => surface != null)
+                                    .Select((surface, index) => AdvertisedSurfaceRow(index, surface))
                                     .ToArray()))),
                     Array.Empty<AetheriaRuntimeSurfaceStyleToken>()),
                 commands: commandBoundary.Commands
@@ -131,6 +141,24 @@ namespace GameCult.Aetheria.State.Verse
                     ("provider", surface.ProviderId),
                     ("kind", surface.ProviderKind),
                     ("commands", surface.Commands.Count.ToString(CultureInfo.InvariantCulture))
+                });
+        }
+
+        private static AetheriaRuntimeSurfaceComponent AdvertisedSurfaceRow(
+            int index,
+            AetheriaRuntimeEveSurfaceAdvertisement surface)
+        {
+            return Node(
+                $"aetheria.daemon.editor.eve_surfaces.{index}",
+                "inspector.kv",
+                new[]
+                {
+                    ("title", surface.Title),
+                    ("surfaceId", surface.SurfaceId),
+                    ("record", surface.RecordRef),
+                    ("status", surface.Status),
+                    ("audience", surface.Audience),
+                    ("provider", surface.ProviderId)
                 });
         }
 

@@ -2,6 +2,7 @@ using Aetheria.State;
 using Aetheria.State.Documents;
 using GameCult.Aetheria.State.Verse;
 using GameCult.Caching;
+using GameCult.Eve.Surface;
 using GameCult.Mesh;
 using GameCult.Networking;
 using MessagePack;

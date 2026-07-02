@@ -527,10 +527,15 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   narrow typed command buttons, not renderer-local fields.
 - `AetheriaProviderAdvertisementProjector` publishes
   `gamecult.eve.provider_advertisement.v1` for the `aetheria` provider,
-  advertising the catalog, operations, and player-settings surfaces, command
-  boundaries, schemas, and `.cc` witness path. Its Verse/service identity now
-  comes from typed daemon host settings instead of hardcoded projector fields.
-  This is the discovery map for Odin/Eve, not a health page.
+  advertising the shared runtime Eve surface catalog, command boundaries,
+  schemas, and `.cc` witness path. Its Verse/service identity now comes from
+  typed daemon host settings instead of hardcoded projector fields. This is the
+  discovery map for Odin/Eve, not a health page.
+- `AetheriaRuntimeEveSurfaceCatalog` is the single inventory of known Aetheria
+  Eve panels. The daemon advertisement and Odin-facing provider advertisement
+  both derive from it, so daemon GUI/TUI records, operator records, menu shells,
+  inventory/trade panels, contextual inspectors, and designer previews are
+  visible without making Unity or Electron the owner.
 - `AetheriaCatalogSurfaceProjector` now emits the first provider-owned Eve
   surface from typed catalog state. The importer materializes a
   `gamecult.eve.surface.v1` catalog operator document at
@@ -1678,6 +1683,9 @@ First Aetheria surfaces to publish:
      surface and advertise their command boundary through the provider ad.
    - Done: publish an Eve provider advertisement so Odin/Eve can discover
      Aetheria surfaces and command boundaries through typed state.
+   - Done: make the daemon/provider advertisements derive from the shared
+     `AetheriaRuntimeEveSurfaceCatalog`, so Odin/Eir can index every known
+     Aetheria Eve panel instead of only the daemon game/editor surfaces.
    - Done: stop legacy catalog pull/read paths from writing entries back to
      their source backing store.
    - Done: delete legacy catalog backing-store write/realtime APIs.

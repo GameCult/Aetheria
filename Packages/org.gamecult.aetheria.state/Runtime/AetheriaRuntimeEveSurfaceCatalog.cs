@@ -1,0 +1,133 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using MessagePack;
+
+#nullable enable
+
+namespace GameCult.Aetheria.State.Verse
+{
+    [MessagePackObject]
+    public sealed class AetheriaRuntimeEveSurfaceAdvertisement
+    {
+        [Key(0)]
+        public string SurfaceId { get; set; } = "";
+
+        [Key(1)]
+        public string Title { get; set; } = "";
+
+        [Key(2)]
+        public string ProviderId { get; set; } = "aetheria";
+
+        [Key(3)]
+        public string ProviderKind { get; set; } = "game.runtime";
+
+        [Key(4)]
+        public string RecordRef { get; set; } = "";
+
+        [Key(5)]
+        public string Transport { get; set; } = "cultmesh-managed";
+
+        [Key(6)]
+        public string Status { get; set; } = "available";
+
+        [Key(7)]
+        public string Audience { get; set; } = "operator";
+
+        [Key(8)]
+        public string Mode { get; set; } = "interactive";
+
+        [Key(9)]
+        public string Summary { get; set; } = "";
+
+        [Key(10)]
+        public IReadOnlyList<string> Commands { get; set; } = Array.Empty<string>();
+    }
+
+    public static class AetheriaRuntimeEveSurfaceCatalog
+    {
+        private const string SurfaceSchema = "gamecult.eve.surface.v1";
+
+        private static readonly AetheriaRuntimeEveSurfaceAdvertisement[] Surfaces =
+        {
+            Surface(AetheriaRuntimeCatalogCommands.SurfaceId, "Aetheria Catalog", "eve:surface:aetheria.catalog.operator", "operator", "Aetheria catalog operator surface.", AetheriaRuntimeCatalogCommands.Refresh),
+            Surface(AetheriaRuntimeOperationsCommands.SurfaceId, "Aetheria Operations", "eve:surface:aetheria.operations", "operator", "Daemon operation and Eve command acceptance surface.", AetheriaRuntimeOperationsCommands.Refresh),
+            Surface(AetheriaRuntimePlayerSettingsCommands.SurfaceId, "Player Settings", "eve:surface:aetheria.player_settings", "player", "Typed player settings surface.",
+                AetheriaRuntimePlayerSettingsCommands.Refresh,
+                AetheriaRuntimePlayerSettingsCommands.CycleTemperatureUnit,
+                AetheriaRuntimePlayerSettingsCommands.DecrementSignificantDigits,
+                AetheriaRuntimePlayerSettingsCommands.IncrementSignificantDigits,
+                AetheriaRuntimePlayerSettingsCommands.CycleNebulaQuality,
+                AetheriaRuntimePlayerSettingsCommands.ToggleShowAsteroidsInMinimap),
+            Surface(AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId, "Aetheria Daemon", AetheriaRuntimeVerseRecordKeys.DaemonGameSurface.ToString(), "player", "Authoritative daemon game surface.", providerId: "aetheria.daemon", providerKind: "game.daemon", transport: "cultmesh-record"),
+            Surface(AetheriaRuntimeDaemonGameSurfaceBuilder.TuiSurfaceId, "Aetheria Daemon TUI", AetheriaRuntimeVerseRecordKeys.DaemonGameTuiSurface.ToString(), "agent", "Compact daemon game surface for dense inspection.", providerId: "aetheria.daemon", providerKind: "game.daemon", transport: "cultmesh-record"),
+            Surface(AetheriaRuntimeDaemonEditorSurfaceBuilder.SurfaceId, "Aetheria Daemon Editor", AetheriaRuntimeVerseRecordKeys.DaemonEditorSurface.ToString(), "operator", "Daemon editor and surface inventory.", providerId: "aetheria.daemon", providerKind: "editor.daemon", transport: "cultmesh-record"),
+            Surface(AetheriaRuntimeDaemonEditorSurfaceBuilder.TuiSurfaceId, "Aetheria Daemon Editor TUI", AetheriaRuntimeVerseRecordKeys.DaemonEditorTuiSurface.ToString(), "agent", "Compact daemon editor and surface inventory.", providerId: "aetheria.daemon", providerKind: "editor.daemon", transport: "cultmesh-record"),
+            Surface(AetheriaRuntimeMainMenuCommands.RootSurfaceId, "Main Menu", "", "player", "Runtime main menu root.", status: "client-contextual"),
+            Surface(AetheriaRuntimeMainMenuCommands.SettingsSurfaceId, "Main Menu Settings", "", "player", "Runtime main menu settings shell.", status: "client-contextual"),
+            Surface(AetheriaRuntimeMainMenuCommands.InputSettingsSurfaceId, "Main Menu Input Settings", "", "player", "Main menu input settings handoff shell.", status: "client-contextual"),
+            Surface(AetheriaRuntimeMainMenuCommands.PlayerSettingsShellSurfaceId, "Main Menu Player Settings", "", "player", "Main menu player settings shell.", status: "client-contextual"),
+            Surface(AetheriaRuntimeMainMenuCommands.VerseSettingsShellSurfaceId, "Main Menu Verse Settings", "", "player", "Main menu Verse settings shell.", status: "client-contextual"),
+            Surface(AetheriaRuntimeInputSettingsCommands.SurfaceId, "Input Settings", "", "player", "Runtime input binding surface.", status: "client-contextual"),
+            Surface(AetheriaRuntimeVerseHostCommands.SurfaceId, "Verse Host Settings", "", "operator", "Verse host visibility and discovery surface.", status: "client-contextual"),
+            Surface(AetheriaRuntimeLoadoutTemplateCommands.SurfaceId, "Loadout Templates", "", "player", "Loadout template save surface.", status: "client-contextual"),
+            Surface(AetheriaRuntimeClientTargetCommands.SurfaceId, "Client Target", "", "operator", "Local client target and Verse discovery surface.", status: "client-contextual"),
+            Surface(AetheriaRuntimeLocalStorySurfaceBuilder.SurfaceId, "Local Story", "", "player", "Local runtime story/menu surface.", status: "client-contextual"),
+            Surface(AetheriaRuntimeZoneDetailsSurfaceBuilder.SurfaceId, "Zone Details", "", "player", "Selected zone details surface.", status: "contextual"),
+            Surface(AetheriaRuntimeInventoryPanelSurfaceBuilder.SurfaceId, "Inventory Panel", "", "player", "Current inventory panel surface.", status: "contextual"),
+            Surface(AetheriaRuntimeInventoryDropdownSurfaceBuilder.SurfaceId, "Inventory Dropdown", "", "player", "Inventory navigation dropdown surface.", status: "contextual"),
+            Surface(AetheriaRuntimeShipSettingsSurfaceBuilder.SurfaceId, "Current Ship Settings", "", "player", "Current ship settings surface.", status: "contextual"),
+            Surface(AetheriaRuntimeCargoItemDetailsSurfaceBuilder.SurfaceId, "Cargo Item Details", "", "player", "Selected cargo item details surface.", status: "contextual"),
+            Surface(AetheriaRuntimeEquippedItemDetailsSurfaceBuilder.SurfaceId, "Equipped Item Details", "", "player", "Selected equipped item details surface.", status: "contextual"),
+            Surface(AetheriaRuntimeTradeCargoSelectorSurfaceBuilder.SurfaceId, "Trade Cargo Selector", "", "player", "Trade cargo target selector surface.", status: "contextual"),
+            Surface(AetheriaRuntimeTradeInteractionSurfaceBuilder.FilterSurfaceId, "Trade Filter Selector", "", "player", "Trade filter selector surface.", status: "contextual"),
+            Surface(AetheriaRuntimeTradeInteractionSurfaceBuilder.RowActionSurfaceId, "Trade Row Actions", "", "player", "Trade row action selector surface.", status: "contextual"),
+            Surface(AetheriaRuntimeTradeItemDetailsSurfaceBuilder.SurfaceId, "Trade Item Details", "", "player", "Selected trade item details surface.", status: "contextual"),
+            Surface(AetheriaRuntimeStatRecipeCommands.SurfaceId, "Stat Recipes", "", "designer", "Designer stat recipe surface.", status: "designer-preview"),
+            Surface(AetheriaRuntimeTradeValuePolicySurfaceBuilder.SurfaceId, "Trade Value Policy", "", "designer", "Designer trade value policy surface.", status: "designer-preview")
+        };
+
+        public static IReadOnlyList<AetheriaRuntimeEveSurfaceAdvertisement> All => Surfaces;
+
+        public static IReadOnlyList<string> SurfaceSchemas { get; } = new[] { SurfaceSchema };
+
+        private static AetheriaRuntimeEveSurfaceAdvertisement Surface(
+            string surfaceId,
+            string title,
+            string recordRef,
+            string audience,
+            string summary,
+            params string[] commands)
+        {
+            return Surface(surfaceId, title, recordRef, audience, summary, "aetheria", "game.runtime", "cultmesh-managed", "available", commands);
+        }
+
+        private static AetheriaRuntimeEveSurfaceAdvertisement Surface(
+            string surfaceId,
+            string title,
+            string recordRef,
+            string audience,
+            string summary,
+            string providerId = "aetheria",
+            string providerKind = "game.runtime",
+            string transport = "cultmesh-managed",
+            string status = "available",
+            params string[] commands)
+        {
+            return new AetheriaRuntimeEveSurfaceAdvertisement
+            {
+                SurfaceId = surfaceId,
+                Title = title,
+                ProviderId = providerId,
+                ProviderKind = providerKind,
+                RecordRef = recordRef ?? "",
+                Transport = transport,
+                Status = status,
+                Audience = audience,
+                Mode = "interactive",
+                Summary = summary,
+                Commands = commands?.Where(command => !string.IsNullOrWhiteSpace(command)).ToArray() ?? Array.Empty<string>()
+            };
+        }
+    }
+}

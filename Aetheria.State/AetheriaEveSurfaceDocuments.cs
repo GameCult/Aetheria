@@ -323,44 +323,9 @@ public static class AetheriaEveSurfaceDocuments
                     Summary = "Aetheria daemon editor Eve TUI surface record"
                 }
             ],
-            Surfaces =
-            [
-                new EveProviderSurfaceRef
-                {
-                    SurfaceId = CatalogSurfaceId,
-                    Key = CatalogSurfaceKey
-                },
-                new EveProviderSurfaceRef
-                {
-                    SurfaceId = OperationsSurfaceId,
-                    Key = OperationsSurfaceKey
-                },
-                new EveProviderSurfaceRef
-                {
-                    SurfaceId = PlayerSettingsSurfaceId,
-                    Key = PlayerSettingsSurfaceKey
-                },
-                new EveProviderSurfaceRef
-                {
-                    SurfaceId = AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId,
-                    Key = DaemonGameSurfaceKey
-                },
-                new EveProviderSurfaceRef
-                {
-                    SurfaceId = AetheriaRuntimeDaemonGameSurfaceBuilder.TuiSurfaceId,
-                    Key = DaemonGameTuiSurfaceKey
-                },
-                new EveProviderSurfaceRef
-                {
-                    SurfaceId = AetheriaRuntimeDaemonEditorSurfaceBuilder.SurfaceId,
-                    Key = DaemonEditorSurfaceKey
-                },
-                new EveProviderSurfaceRef
-                {
-                    SurfaceId = AetheriaRuntimeDaemonEditorSurfaceBuilder.TuiSurfaceId,
-                    Key = DaemonEditorTuiSurfaceKey
-                }
-            ],
+            Surfaces = AetheriaRuntimeEveSurfaceCatalog.All
+                .Select(ToProviderSurfaceRef)
+                .ToArray(),
             Commands =
             [
                 new EveProviderCommandRef
@@ -410,6 +375,17 @@ public static class AetheriaEveSurfaceDocuments
                     Summary = "Toggle typed player minimap asteroid visibility"
                 }
             ]
+        };
+    }
+
+    private static EveProviderSurfaceRef ToProviderSurfaceRef(AetheriaRuntimeEveSurfaceAdvertisement surface)
+    {
+        return new EveProviderSurfaceRef
+        {
+            SurfaceId = surface.SurfaceId,
+            Key = surface.RecordRef,
+            Transport = surface.Transport,
+            Status = surface.Status
         };
     }
 

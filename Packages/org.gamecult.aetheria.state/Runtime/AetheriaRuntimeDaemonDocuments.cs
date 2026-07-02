@@ -263,6 +263,10 @@ namespace GameCult.Aetheria.State.Verse
         [Key(21)]
         public string AssetManifestRecordRef { get; set; } = "";
 
+        [Key(22)]
+        public IReadOnlyList<AetheriaRuntimeEveSurfaceAdvertisement> EveSurfaces { get; set; } =
+            Array.Empty<AetheriaRuntimeEveSurfaceAdvertisement>();
+
         public static AetheriaRuntimeDaemonProviderAdvertisementDocument Create(
             string stateFilePath,
             string daemonId,
@@ -291,6 +295,7 @@ namespace GameCult.Aetheria.State.Verse
                 CultMeshAddress = string.IsNullOrWhiteSpace(cultMeshAddress)
                     ? "cultmesh://aetheria.local/eve/providers/aetheria.daemon"
                     : cultMeshAddress,
+                EveSurfaces = AetheriaRuntimeEveSurfaceCatalog.All,
                 PublishedSchemas = new[]
                 {
                     AetheriaRuntimeDaemonSchemas.Frame,
@@ -313,6 +318,7 @@ namespace GameCult.Aetheria.State.Verse
                     AetheriaRuntimeDaemonSchemas.Inventory,
                     AetheriaRuntimeDaemonSchemas.GameSurface,
                     AetheriaRuntimeDaemonSchemas.EditorSurface,
+                    "gamecult.eve.surface.v1",
                     AetheriaRuntimeDaemonSchemas.Command,
                     AetheriaRuntimeDaemonSchemas.StarbridgeScenario,
                     AetheriaRuntimeDaemonSchemas.StarbridgeSession,
