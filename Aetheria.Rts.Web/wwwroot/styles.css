@@ -307,6 +307,62 @@ dd {
   color: #91a4ad;
 }
 
+.debug-surface-host {
+  min-width: 0;
+}
+
+.debug-surface-host .eve-surface,
+.debug-surface-host .eve-column,
+.debug-surface-host .eve-form {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.debug-surface-host .eve-row {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.debug-surface-host .eve-text-title {
+  color: #d8f7ff;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.debug-surface-host .eve-text {
+  color: #b8c7cf;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.debug-surface-host .eve-metric {
+  display: grid;
+  grid-template-columns: 86px minmax(0, 1fr);
+  gap: 6px 8px;
+  font-size: 12px;
+}
+
+.debug-surface-host .eve-metric dt {
+  color: #91a4ad;
+}
+
+.debug-surface-host .eve-metric dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.debug-surface-host .eve-control-button {
+  min-width: 82px;
+  height: 28px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
 @media (max-width: 760px) {
   .shell {
     grid-template-columns: 1fr;

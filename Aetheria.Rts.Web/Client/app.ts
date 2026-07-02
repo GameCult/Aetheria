@@ -33,6 +33,7 @@ const frameDetails = requiredElement<HTMLElement>("#frame-details");
 const starbridgeDetails = requiredElement<HTMLElement>("#starbridge-details");
 const runtimeSurfaceDetails = requiredElement<HTMLElement>("#runtime-surface-details");
 const controlledList = requiredElement<HTMLElement>("#controlled-list");
+const debugSurfaceHost = requiredElement<HTMLElement>("#debug-surface-host");
 const ctx = requiredContext(canvas);
 
 let zoom = 1;
@@ -134,6 +135,20 @@ function renderMainMenuSurface(surface: AetheriaMenuSurfaceDocument): void {
   wireWindowControls();
 }
 
+async function startDebugSurface(): Promise<void> {
+  try {
+    renderDebugSurface(await window.aetheriaRts.debugSurface());
+    window.aetheriaRts.watchDebugSurface(renderDebugSurface);
+  } catch (error) {
+    debugSurfaceHost.textContent = error instanceof Error ? error.message : "CultUI debug surface unavailable.";
+  }
+}
+
+function renderDebugSurface(surface: AetheriaMenuSurfaceDocument): void {
+  installMenuFonts(surface);
+  debugSurfaceHost.replaceChildren(lowerMenuComponent(surface.surface.root, surface));
+}
+
 function lowerMenuComponent(
   component: AetheriaMenuSurfaceComponent,
   surface: AetheriaMenuSurfaceDocument,
@@ -175,6 +190,7 @@ function lowerMenuComponent(
     kind === "surface" ? "eve-surface" : "",
     kind === "column" ? "eve-column" : "",
     kind === "row" ? "eve-row" : "",
+    kind === "form" ? "eve-form" : "",
   ].filter(Boolean).join(" ");
   for (const child of component.children ?? []) {
     element.append(lowerMenuComponent(child, surface));
@@ -735,6 +751,7 @@ if (mainMenuMode) {
   void showMainMenu();
 } else {
   updateZoomLabel();
+  void startDebugSurface();
   void refreshRuntimeSurfaces();
   void refresh();
 }

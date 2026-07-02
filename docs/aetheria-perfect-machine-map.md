@@ -1480,6 +1480,12 @@ First Aetheria surfaces to publish:
      memory, lowers it through the shared Eve UI Toolkit path, and emits
      provider-builder code for menu work; it does not publish state, accept
      commands, or become a menu authority.
+   - Done: add a shared file-owned debug CultUI surface at
+     `GameData/cultui-debug-surface.cultui`. Unity can mount it through
+     `AETHERIA_EVE_FILE_SURFACE_PATH` / `AetheriaEveFileSurfacePresenter`;
+     Electron reads and watches the same file through IPC and lowers it in the
+     RTS side panel. The file owns only debug composition; daemon/provider
+     surfaces and command acceptance remain separate authorities.
    - Done: publish renderer-emitted Eve commands as typed
      `gamecult.eve.command.v1` records, separate from runtime state commits so
      only the daemon-owned provider bridge accepts commands it owns.

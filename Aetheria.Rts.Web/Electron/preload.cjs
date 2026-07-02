@@ -21,6 +21,10 @@ const channels = {
   surfaceCatalog: "aetheria-rts:surface-catalog",
   surfaceCatalogIndex: "aetheria-rts:surface-catalog-index",
   mainMenuSurface: "aetheria-rts:main-menu-surface",
+  debugSurface: "aetheria-rts:debug-surface",
+  debugSurfaceWatch: "aetheria-rts:debug-surface-watch",
+  debugSurfaceWatchStop: "aetheria-rts:debug-surface-watch-stop",
+  debugSurfaceChanged: "aetheria-rts:debug-surface-changed",
   windowControl: "aetheria-rts:window-control",
   health: "aetheria-rts:health",
 };
@@ -54,6 +58,21 @@ contextBridge.exposeInMainWorld("aetheriaRts", {
   surfaceCatalog: () => ipcRenderer.invoke(channels.surfaceCatalog),
   surfaceCatalogIndex: () => ipcRenderer.invoke(channels.surfaceCatalogIndex),
   mainMenuSurface: request => ipcRenderer.invoke(channels.mainMenuSurface, request),
+  debugSurface: () => ipcRenderer.invoke(channels.debugSurface),
+  watchDebugSurface: callback => {
+    const subscriptionId = `debug-surface-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+    const listener = (_event, message) => {
+      if (message?.subscriptionId === subscriptionId) {
+        callback(message.surface);
+      }
+    };
+    ipcRenderer.on(channels.debugSurfaceChanged, listener);
+    void ipcRenderer.invoke(channels.debugSurfaceWatch, subscriptionId);
+    return () => {
+      ipcRenderer.off(channels.debugSurfaceChanged, listener);
+      void ipcRenderer.invoke(channels.debugSurfaceWatchStop, subscriptionId);
+    };
+  },
   windowControl: action => ipcRenderer.invoke(channels.windowControl, action),
   health: () => ipcRenderer.invoke(channels.health),
 });

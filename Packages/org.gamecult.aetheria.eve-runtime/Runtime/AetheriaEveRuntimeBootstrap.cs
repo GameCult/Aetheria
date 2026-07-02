@@ -13,20 +13,33 @@ namespace GameCult.Aetheria.EveRuntime
         public const string DefaultSurfaceId = AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId;
         public const string DisableEnvironmentVariable = "AETHERIA_DISABLE_EVE_RUNTIME_BOOTSTRAP";
         public const string SurfaceEnvironmentVariable = "AETHERIA_EVE_SURFACE_ID";
+        public const string FileSurfaceEnvironmentVariable = "AETHERIA_EVE_FILE_SURFACE_PATH";
         public const string DisableCommandLineSwitch = "--aetheria-disable-eve-runtime-bootstrap";
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void MountDefaultSurface()
         {
-            if (IsDisabled() || UnityEngine.Object.FindObjectOfType<AetheriaEveSurfacePresenter>() != null)
+            if (IsDisabled() ||
+                UnityEngine.Object.FindAnyObjectByType<AetheriaEveSurfacePresenter>() != null ||
+                UnityEngine.Object.FindAnyObjectByType<AetheriaEveFileSurfacePresenter>() != null)
+            {
                 return;
+            }
 
             var host = new GameObject("Aetheria Eve Runtime Surface");
             UnityEngine.Object.DontDestroyOnLoad(host);
 
             host.AddComponent<UIDocument>();
-            var presenter = host.AddComponent<AetheriaEveSurfacePresenter>();
-            presenter.SurfaceId = SurfaceId();
+            var fileSurfacePath = FileSurfacePath();
+            if (!string.IsNullOrWhiteSpace(fileSurfacePath))
+            {
+                var presenter = host.AddComponent<AetheriaEveFileSurfacePresenter>();
+                presenter.SurfaceFilePath = fileSurfacePath;
+                return;
+            }
+
+            var statePresenter = host.AddComponent<AetheriaEveSurfacePresenter>();
+            statePresenter.SurfaceId = SurfaceId();
         }
 
         private static bool IsDisabled()
@@ -49,6 +62,12 @@ namespace GameCult.Aetheria.EveRuntime
         {
             var configured = Environment.GetEnvironmentVariable(SurfaceEnvironmentVariable);
             return string.IsNullOrWhiteSpace(configured) ? DefaultSurfaceId : configured;
+        }
+
+        private static string FileSurfacePath()
+        {
+            var configured = Environment.GetEnvironmentVariable(FileSurfaceEnvironmentVariable);
+            return string.IsNullOrWhiteSpace(configured) ? "" : configured;
         }
     }
 }

@@ -1,11 +1,15 @@
-import { app, BrowserWindow, ipcMain, shell } from "electron";
+import { app, BrowserWindow, ipcMain, shell, type WebContents } from "electron";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
-import { createWriteStream, existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { createWriteStream, existsSync, mkdirSync, readFileSync, watch, writeFileSync, type FSWatcher } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
   AetheriaCultMeshClient,
+} from "./aetheria-cultmesh.js";
+import type {
+  AetheriaMenuSurfaceComponent,
+  AetheriaMenuSurfaceDocument,
 } from "./aetheria-cultmesh.js";
 import { registerAetheriaRtsIpcHandlers } from "./aetheria-rts-generated-bindings.js";
 
@@ -15,6 +19,7 @@ const repoRoot = resolve(projectRoot, "..");
 const logsRoot = resolve(projectRoot, "logs");
 const runtimeRoot = resolve(process.env.AETHERIA_RTS_RUNTIME_ROOT ?? resolve(projectRoot, "runtime"));
 const runtimeStatePath = resolve(runtimeRoot, "aetheria-rts.cc");
+const debugSurfacePath = resolve(process.env.AETHERIA_CULTUI_DEBUG_SURFACE_PATH ?? resolve(repoRoot, "GameData", "cultui-debug-surface.cultui"));
 const daemonDll = resolve(repoRoot, "Aetheria.State.Daemon", "bin", "Debug", "net10.0", "Aetheria.State.Daemon.dll");
 const rendererIndex = resolve(projectRoot, "wwwroot", "index.html");
 const rtsCultMeshPort = Number.parseInt(process.env.AETHERIA_RTS_CULTMESH_PORT ?? "3076", 10);
@@ -33,6 +38,44 @@ let daemonProcess: ChildProcessWithoutNullStreams | null = null;
 let mainWindow: BrowserWindow | null = null;
 let rtsClient: AetheriaCultMeshClient | null = null;
 let isQuitting = false;
+let debugSurfaceWatcher: FSWatcher | null = null;
+let debugSurfaceWatchTimer: NodeJS.Timeout | null = null;
+const debugSurfaceSubscriptions = new Map<string, WebContents>();
+
+type AetheriaFileSurfaceDocument = {
+  readonly schema?: string;
+  readonly providerId?: string;
+  readonly providerKind?: string;
+  readonly title?: string;
+  readonly version?: number;
+  readonly updatedAtUtc?: string;
+  readonly surface?: AetheriaFileSurfaceTree;
+  readonly commands?: readonly AetheriaFileCommand[];
+};
+
+type AetheriaFileSurfaceTree = {
+  readonly id?: string;
+  readonly root?: AetheriaFileSurfaceComponent;
+  readonly styles?: readonly AetheriaFileStyleToken[];
+};
+
+type AetheriaFileSurfaceComponent = {
+  readonly id?: string;
+  readonly kind?: string;
+  readonly props?: unknown;
+  readonly children?: readonly AetheriaFileSurfaceComponent[];
+};
+
+type AetheriaFileStyleToken = {
+  readonly name?: string;
+  readonly value?: string;
+};
+
+type AetheriaFileCommand = {
+  readonly command?: string;
+  readonly label?: string;
+  readonly transport?: string;
+};
 
 app.whenReady().then(async () => {
   mainWindow = createWindow();
@@ -111,6 +154,7 @@ app.on("before-quit", () => {
   isQuitting = true;
   void rtsClient?.close();
   stopChild(daemonProcess);
+  closeDebugSurfaceWatcher();
 });
 
 function createWindow(): BrowserWindow {
@@ -304,6 +348,26 @@ function registerIpc(): void {
     }));
   ipcMain.handle("aetheria-rts:main-menu-surface", async (_event, request) =>
     requireClient().mainMenuSurface(request));
+  ipcMain.handle("aetheria-rts:debug-surface", () => readDebugSurface());
+  ipcMain.handle("aetheria-rts:debug-surface-watch", (event, subscriptionId: string) => {
+    if (!subscriptionId)
+      throw new Error("Debug surface subscription id is required.");
+
+    debugSurfaceSubscriptions.set(subscriptionId, event.sender);
+    event.sender.once("destroyed", () => {
+      debugSurfaceSubscriptions.delete(subscriptionId);
+      stopDebugSurfaceWatcherIfIdle();
+    });
+    ensureDebugSurfaceWatcher();
+    event.sender.send("aetheria-rts:debug-surface-changed", {
+      subscriptionId,
+      surface: readDebugSurface(),
+    });
+  });
+  ipcMain.handle("aetheria-rts:debug-surface-watch-stop", (_event, subscriptionId: string) => {
+    debugSurfaceSubscriptions.delete(subscriptionId);
+    stopDebugSurfaceWatcherIfIdle();
+  });
   ipcMain.handle("aetheria-rts:window-control", (event, action: string) => {
     const window = BrowserWindow.fromWebContents(event.sender);
     if (!window)
@@ -326,6 +390,140 @@ function registerIpc(): void {
         throw new Error(`Unknown window control '${action}'.`);
     }
   });
+}
+
+function readDebugSurface(): AetheriaMenuSurfaceDocument {
+  if (!existsSync(debugSurfacePath)) {
+    throw new Error(`CultUI debug surface file not found: ${debugSurfacePath}`);
+  }
+
+  const document = JSON.parse(readFileSync(debugSurfacePath, "utf8")) as AetheriaFileSurfaceDocument;
+  return normalizeDebugSurface(document);
+}
+
+function ensureDebugSurfaceWatcher(): void {
+  if (debugSurfaceWatcher)
+    return;
+
+  debugSurfaceWatcher = watch(debugSurfacePath, { persistent: false }, () => {
+    if (debugSurfaceWatchTimer)
+      clearTimeout(debugSurfaceWatchTimer);
+    debugSurfaceWatchTimer = setTimeout(publishDebugSurfaceChange, 50);
+  });
+  debugSurfaceWatcher.once("error", error => {
+    console.warn(`CultUI debug surface watcher failed for ${debugSurfacePath}:`, error);
+    closeDebugSurfaceWatcher();
+  });
+}
+
+function publishDebugSurfaceChange(): void {
+  debugSurfaceWatchTimer = null;
+  let surface: AetheriaMenuSurfaceDocument;
+  try {
+    surface = readDebugSurface();
+  } catch (error) {
+    console.warn(error instanceof Error ? error.message : String(error));
+    return;
+  }
+
+  for (const [subscriptionId, webContents] of debugSurfaceSubscriptions) {
+    if (webContents.isDestroyed()) {
+      debugSurfaceSubscriptions.delete(subscriptionId);
+      continue;
+    }
+
+    webContents.send("aetheria-rts:debug-surface-changed", { subscriptionId, surface });
+  }
+  stopDebugSurfaceWatcherIfIdle();
+}
+
+function stopDebugSurfaceWatcherIfIdle(): void {
+  if (debugSurfaceSubscriptions.size === 0)
+    closeDebugSurfaceWatcher();
+}
+
+function closeDebugSurfaceWatcher(): void {
+  if (debugSurfaceWatchTimer) {
+    clearTimeout(debugSurfaceWatchTimer);
+    debugSurfaceWatchTimer = null;
+  }
+  debugSurfaceWatcher?.close();
+  debugSurfaceWatcher = null;
+}
+
+function normalizeDebugSurface(document: AetheriaFileSurfaceDocument): AetheriaMenuSurfaceDocument {
+  const surfaceId = stringOr(document.surface?.id, "aetheria.debug.file_surface");
+  return {
+    providerId: stringOr(document.providerId, "aetheria.debug"),
+    providerKind: stringOr(document.providerKind, "debug.file_surface"),
+    title: stringOr(document.title, "Aetheria Debug Surface"),
+    version: typeof document.version === "number" && Number.isFinite(document.version)
+      ? document.version
+      : Date.now(),
+    updatedAtUtc: stringOr(document.updatedAtUtc, new Date().toISOString()),
+    surface: {
+      id: surfaceId,
+      root: normalizeDebugComponent(document.surface?.root, `${surfaceId}.root`),
+      styles: Array.isArray(document.surface?.styles)
+        ? document.surface.styles.map(token => ({
+          name: stringOr(token.name, ""),
+          value: stringOr(token.value, ""),
+        }))
+        : [],
+    },
+    commands: Array.isArray(document.commands)
+      ? document.commands.map(command => ({
+        command: stringOr(command.command, ""),
+        label: stringOr(command.label, command.command ?? ""),
+        transport: stringOr(command.transport, "debug-log"),
+      }))
+      : [],
+  };
+}
+
+function normalizeDebugComponent(
+  component: AetheriaFileSurfaceComponent | undefined,
+  fallbackId: string,
+): AetheriaMenuSurfaceComponent {
+  if (!component) {
+    return {
+      id: fallbackId,
+      kind: "surface",
+      props: {},
+      children: [],
+    };
+  }
+
+  return {
+    id: stringOr(component.id, fallbackId),
+    kind: stringOr(component.kind, "surface"),
+    props: normalizeDebugProps(component.props),
+    children: Array.isArray(component.children)
+      ? component.children.map((child, index) => normalizeDebugComponent(child, `${fallbackId}.${index}`))
+      : [],
+  };
+}
+
+function normalizeDebugProps(props: unknown): Record<string, string> {
+  if (Array.isArray(props)) {
+    return Object.fromEntries(
+      props
+        .map(prop => objectValue(prop))
+        .filter(prop => prop && typeof prop.key === "string")
+        .map(prop => [String(prop!.key), stringOr(prop!.value, "")]));
+  }
+
+  if (props != null && typeof props === "object") {
+    return Object.fromEntries(
+      Object.entries(props as Record<string, unknown>)
+        .map(([key, value]) => [key, stringOr(value, "")]));
+  }
+
+  return {};
+}
+
+function stringOr(value: unknown, fallback: string): string {
+  return typeof value === "string" ? value : fallback;
 }
 
 function parseEndpointList(value: string | undefined): string[] {
