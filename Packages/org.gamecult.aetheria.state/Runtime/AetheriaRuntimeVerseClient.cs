@@ -65,6 +65,21 @@ namespace GameCult.Aetheria.State.Verse
         public static CultRecordKey DaemonEditorTuiSurface { get; } =
             new CultRecordKey("eve:surface:aetheria.daemon.editor.tui");
 
+        public static CultRecordKey MainMenuSurface { get; } =
+            new CultRecordKey("eve:surface:aetheria.main_menu.root");
+
+        public static CultRecordKey InventoryPanelSurface { get; } =
+            new CultRecordKey("eve:surface:aetheria.inventory.panel");
+
+        public static CultRecordKey InventoryDropdownSurface { get; } =
+            new CultRecordKey("eve:surface:aetheria.inventory.panel.dropdown");
+
+        public static CultRecordKey MapMenuSurface { get; } =
+            new CultRecordKey("eve:surface:aetheria.map.zone_details");
+
+        public static CultRecordKey TradeMenuSurface { get; } =
+            new CultRecordKey("eve:surface:aetheria.trade.menu");
+
         public static CultRecordKey DaemonCommand(string commandId)
         {
             return new CultRecordKey($"daemon:commands:{StableToken(commandId)}:gamecult.aetheria.daemon_command.v1");

@@ -64,7 +64,7 @@ namespace GameCult.Aetheria.State.Verse
                 payload);
         }
 
-        private static byte[] WriteRuntimeSurfaceDocument(AetheriaRuntimeSurfaceDocument document)
+        internal static byte[] WriteRuntimeSurfaceDocument(AetheriaRuntimeSurfaceDocument document)
         {
             var buffer = new ArrayBufferWriter<byte>();
             var writer = new MessagePackWriter(buffer);
@@ -173,7 +173,7 @@ namespace GameCult.Aetheria.State.Verse
             }
         }
 
-        private static AetheriaRuntimeSurfaceDocument ReadRuntimeSurfaceDocument(byte[] payload)
+        internal static AetheriaRuntimeSurfaceDocument ReadRuntimeSurfaceDocument(byte[] payload)
         {
             var reader = new MessagePackReader(payload);
             var fields = reader.ReadArrayHeader();

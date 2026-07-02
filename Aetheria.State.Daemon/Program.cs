@@ -795,6 +795,189 @@ static async Task PublishDaemonApiDocumentsAsync(
         await node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.DaemonEditorTuiSurface)
             .ReplaceAsync(AetheriaRuntimeSurfaceDocuments.ToPortableSurface(result.EditorTuiSurface))
             .ConfigureAwait(false);
+
+    await PublishDaemonMenuSurfacesAsync(node, result.Frame).ConfigureAwait(false);
+}
+
+static async Task PublishDaemonMenuSurfacesAsync(
+    AetheriaStateNode node,
+    AetheriaRuntimeDaemonFrameDocument frame)
+{
+    if (frame == null)
+        return;
+
+    var updatedAtUtc = string.IsNullOrWhiteSpace(frame.PublishedAtUtc)
+        ? DateTimeOffset.UtcNow.ToString("O")
+        : frame.PublishedAtUtc;
+    var catalog = AetheriaRuntimeCatalogStore.OpenReadOnly(node.StatePath);
+    var loadoutTemplates = AetheriaRuntimeCatalogStore.ReadLoadoutTemplates(node.StatePath);
+    var playerSettings = await ReadRuntimePlayerSettingsAsync(node).ConfigureAwait(false);
+    var currentEntity = AetheriaRuntimeRtsDocuments.CurrentEntity(frame);
+    var stationRefit = AetheriaRuntimeRtsDocuments.StationRefit(frame, loadoutTemplates, catalog);
+    var dropdownRequest = new AetheriaRuntimeInventoryDropdownSurfaceRequest
+    {
+        CurrentView = "Current Entity",
+        DisplayedEntityKey = currentEntity.EntityKey,
+        DisplayedCargoEntityKey = currentEntity.EntityKey,
+        DisplayedCargoIndex = 0,
+        CanSaveLoadout = !string.IsNullOrWhiteSpace(currentEntity.EntityKey)
+    };
+    var inventoryRequest = new AetheriaRuntimeInventoryPanelSurfaceRequest
+    {
+        ViewTitle = string.IsNullOrWhiteSpace(currentEntity.Entity?.DisplayName)
+            ? "Current Entity Inventory"
+            : currentEntity.Entity.DisplayName,
+        DisplayedEntityKey = currentEntity.EntityKey,
+        DisplayedEntityIndex = currentEntity.EntityIndex,
+        DisplayedCargoEntityKey = currentEntity.EntityKey,
+        DisplayedCargoEntityIndex = currentEntity.EntityIndex,
+        DisplayedCargoIndex = 0
+    };
+    var inventory = currentEntity.EntityIndex < 0
+        ? new AetheriaRuntimeInventoryDocument()
+        : AetheriaRuntimeRtsDocuments.Inventory(frame, currentEntity.EntityIndex);
+
+    var mainMenu = AetheriaRuntimeMainMenuSurfaceBuilder.BuildRoot(
+        AetheriaRuntimeStateBoot.Inspect(
+            new DirectoryInfo(Path.GetDirectoryName(node.StatePath) ?? "."),
+            node.StatePath),
+        playerSettings,
+        canOpenRuntimeInputScreen: true,
+        inGame: true,
+        updatedAtUtc);
+    var inventoryPanel = AetheriaRuntimeInventoryPanelSurfaceBuilder.BuildFromDocuments(
+        currentEntity,
+        stationRefit,
+        inventory,
+        catalog,
+        playerSettings,
+        inventoryRequest,
+        AetheriaRuntimeVerseRecordKeys.InventoryDropdownSurface.ToString(),
+        updatedAtUtc);
+    var inventoryDropdown = AetheriaRuntimeInventoryDropdownSurfaceBuilder.BuildFromDocuments(
+        stationRefit,
+        dropdownRequest,
+        updatedAtUtc);
+    var mapMenu = AetheriaRuntimeZoneDetailsSurfaceBuilder.BuildFromDocuments(
+        AetheriaRuntimeRtsDocuments.ZoneDetails(frame, currentEntity.ZoneIndex),
+        AetheriaRuntimeRtsDocuments.SectorMap(frame),
+        catalog,
+        playerSettings,
+        updatedAtUtc);
+    var tradeMenu = BuildTradeMenuSurface(stationRefit, catalog, updatedAtUtc, frame.FrameId);
+
+    await node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.MainMenuSurface)
+        .ReplaceAsync(AetheriaRuntimeSurfaceDocuments.ToPortableSurface(mainMenu))
+        .ConfigureAwait(false);
+    await node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.InventoryPanelSurface)
+        .ReplaceAsync(AetheriaRuntimeSurfaceDocuments.ToPortableSurface(inventoryPanel))
+        .ConfigureAwait(false);
+    await node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.InventoryDropdownSurface)
+        .ReplaceAsync(AetheriaRuntimeSurfaceDocuments.ToPortableSurface(inventoryDropdown))
+        .ConfigureAwait(false);
+    await node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.MapMenuSurface)
+        .ReplaceAsync(AetheriaRuntimeSurfaceDocuments.ToPortableSurface(mapMenu))
+        .ConfigureAwait(false);
+    await node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.TradeMenuSurface)
+        .ReplaceAsync(AetheriaRuntimeSurfaceDocuments.ToPortableSurface(tradeMenu))
+        .ConfigureAwait(false);
+}
+
+static async Task<AetheriaRuntimePlayerSettingsDocument> ReadRuntimePlayerSettingsAsync(AetheriaStateNode node)
+{
+    var settings = await node.MutableDocument<AetheriaPlayerSettings>(AetheriaStateNode.PlayerSettingsKey)
+        .ReadAsync()
+        .ConfigureAwait(false);
+    settings ??= new AetheriaPlayerSettings();
+    return new AetheriaRuntimePlayerSettingsDocument
+    {
+        PlayerName = settings.PlayerName ?? "",
+        TutorialPassed = settings.TutorialPassed,
+        TemperatureUnit = settings.Gameplay?.TemperatureUnit ?? "",
+        SignificantDigits = settings.Gameplay?.SignificantDigits ?? 3,
+        DefaultShutdownPerformance = settings.Gameplay?.DefaultShutdownPerformance ?? 0,
+        NebulaQuality = settings.Graphics?.NebulaQuality ?? "",
+        ShowAsteroidsInMinimap = settings.Graphics?.ShowAsteroidsInMinimap ?? false,
+        BindingOverrides = Array.Empty<AetheriaRuntimeInputBindingOverrideDocument>(),
+        ActionBarInputs = settings.Input?.ActionBarInputs ?? Array.Empty<string>()
+    };
+}
+
+static AetheriaRuntimeSurfaceDocument BuildTradeMenuSurface(
+    AetheriaRuntimeStationRefitDocument stationRefit,
+    AetheriaRuntimeCatalogSnapshot catalog,
+    string updatedAtUtc,
+    long version)
+{
+    stationRefit ??= new AetheriaRuntimeStationRefitDocument();
+    var rows = (stationRefit.StationStock ?? Array.Empty<AetheriaRuntimeStationStockItem>())
+        .Take(12)
+        .Select((item, index) =>
+        {
+            var typedItem = catalog?.FindItem(item.ItemKey);
+            return SurfaceLeaf(
+                $"aetheria.trade.menu.stock.{index}",
+                "row",
+                ("item", typedItem?.Name ?? item.ItemKey),
+                ("key", item.ItemKey ?? ""),
+                ("qty", item.Quantity.ToString(CultureInfo.InvariantCulture)),
+                ("price", item.Price.ToString("N0", CultureInfo.InvariantCulture)),
+                ("owned", item.OwnedQuantity.ToString(CultureInfo.InvariantCulture)),
+                ("afford", item.CanAfford ? "yes" : "no"));
+        })
+        .DefaultIfEmpty(SurfaceLeaf(
+            "aetheria.trade.menu.stock.empty",
+            "text",
+            ("value", "No station stock is available in the current daemon frame.")))
+        .ToArray();
+
+    return new AetheriaRuntimeSurfaceDocument(
+        providerId: "aetheria.daemon",
+        providerKind: "trade.menu",
+        title: "Trade Menu",
+        version: version,
+        updatedAtUtc: updatedAtUtc ?? "",
+        surface: new AetheriaRuntimeSurfaceTree(
+            "aetheria.trade.menu",
+            SurfaceNode(
+                "aetheria.trade.menu.root",
+                "surface",
+                Array.Empty<(string Key, string Value)>(),
+                SurfaceNode(
+                    "aetheria.trade.menu.summary",
+                    "card",
+                    new[] { ("title", "Station Trade") },
+                    SurfaceLeaf("aetheria.trade.menu.summary.docked", "metric", ("label", "Docked"), ("value", stationRefit.IsDocked ? "yes" : "no")),
+                    SurfaceLeaf("aetheria.trade.menu.summary.station", "metric", ("label", "Station"), ("value", stationRefit.DockParent?.DisplayName ?? stationRefit.DockParentEntityKey ?? "")),
+                    SurfaceLeaf("aetheria.trade.menu.summary.credits", "metric", ("label", "Credits"), ("value", stationRefit.Credits.ToString("N0", CultureInfo.InvariantCulture)))),
+                SurfaceNode(
+                    "aetheria.trade.menu.stock",
+                    "card",
+                    new[] { ("title", "Station Stock") },
+                    rows)),
+            Array.Empty<AetheriaRuntimeSurfaceStyleToken>()),
+        commands: Array.Empty<AetheriaRuntimeSurfaceCommandTemplate>());
+}
+
+static AetheriaRuntimeSurfaceComponent SurfaceLeaf(
+    string id,
+    string kind,
+    params (string Key, string Value)[] props)
+{
+    return SurfaceNode(id, kind, props, Array.Empty<AetheriaRuntimeSurfaceComponent>());
+}
+
+static AetheriaRuntimeSurfaceComponent SurfaceNode(
+    string id,
+    string kind,
+    (string Key, string Value)[] props,
+    params AetheriaRuntimeSurfaceComponent[] children)
+{
+    return new AetheriaRuntimeSurfaceComponent(
+        id,
+        kind,
+        props.ToDictionary(prop => prop.Key, prop => prop.Value),
+        children);
 }
 
 static async Task AcceptEveCommandsAsync(AetheriaStateNode node, AetheriaDaemonHostOptions options)
