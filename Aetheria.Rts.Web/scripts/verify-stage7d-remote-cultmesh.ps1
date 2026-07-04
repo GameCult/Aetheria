@@ -66,15 +66,21 @@ try {
     @'
 import { pathToFileURL } from "node:url";
 
-const endpoint = process.env.AETHERIA_STAGE7D_REMOTE_ENDPOINT;
+const endpoint = process.env.AETHERIA_STAGE7D_RESOLVED_RUDP_ENDPOINT;
 const clientModulePath = process.env.AETHERIA_STAGE7D_REMOTE_CLIENT_MODULE;
 if (!endpoint)
-  throw new Error("Stage 7D verifier missing remote endpoint.");
+  throw new Error("Stage 7D verifier missing resolved RUDP endpoint.");
 if (!clientModulePath)
   throw new Error("Stage 7D verifier missing compiled client module path.");
 
 const { AetheriaCultMeshClient } = await import(pathToFileURL(clientModulePath).href);
-const client = new AetheriaCultMeshClient(endpoint, "unused-local-state.cc", "stage7d-starfire", {
+const client = new AetheriaCultMeshClient({
+  uri: "cultmesh://odin/aetheria/rts/stage7d-starfire",
+  peerId: "stage7d-daemon",
+  verseId: "aetheria.local",
+  role: "aetheria-rts-daemon",
+  endpoints: [endpoint],
+}, "unused-local-state.cc", "stage7d-starfire", {
   publicationMode: "remote",
   snapshotTimeoutMs: 5000,
 });
@@ -120,7 +126,7 @@ try {
 }
 '@ | Set-Content -LiteralPath $smokeScript -Encoding UTF8
 
-    $env:AETHERIA_STAGE7D_REMOTE_ENDPOINT = $endpoint
+    $env:AETHERIA_STAGE7D_RESOLVED_RUDP_ENDPOINT = $endpoint
     $env:AETHERIA_STAGE7D_REMOTE_CLIENT_MODULE = Join-Path $root "electron-dist\aetheria-cultmesh.js"
     node $smokeScript
     if ($LASTEXITCODE -ne 0) {
@@ -128,7 +134,7 @@ try {
     }
 }
 finally {
-    Remove-Item Env:\AETHERIA_STAGE7D_REMOTE_ENDPOINT -ErrorAction SilentlyContinue
+    Remove-Item Env:\AETHERIA_STAGE7D_RESOLVED_RUDP_ENDPOINT -ErrorAction SilentlyContinue
     Remove-Item Env:\AETHERIA_STAGE7D_REMOTE_CLIENT_MODULE -ErrorAction SilentlyContinue
     if ($daemon -and -not $daemon.HasExited) {
         Stop-Process -Id $daemon.Id -Force

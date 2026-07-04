@@ -781,7 +781,7 @@ namespace GameCult.Aetheria.State.Verse
                 {
                     return AetheriaRuntimeMainMenuSurfaceBuilder.BuildRoot(
                         stateBoot,
-                        TryCurrentSectorMap(),
+                        TryCurrentDaemonFrame(),
                         TryCurrentVerseHostSettings(),
                         TryCurrentPlayerSettings(),
                         canOpenRuntimeInputScreen,
@@ -847,12 +847,11 @@ namespace GameCult.Aetheria.State.Verse
                 }
             }
 
-            AetheriaRuntimeSectorMapDocument? TryCurrentSectorMap()
+            AetheriaRuntimeDaemonFrameDocument? TryCurrentDaemonFrame()
             {
                 try
                 {
-                    var frame = latestFrameDocument.Latest();
-                    return frame == null ? null : AetheriaRuntimeRtsDocuments.SectorMap(frame);
+                    return latestFrameDocument.Latest();
                 }
                 catch (Exception)
                 {

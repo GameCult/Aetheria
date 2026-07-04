@@ -50,92 +50,14 @@
     <Compile Include="E:\Projects\Eve\packages\org.gamecult.eve.surface\Runtime\EveSurfaceBuilder.cs" />
     <Compile Include="E:\Projects\Eve\packages\org.gamecult.eve.surface\Runtime\EveSurfaceDocument.cs" />
     <None Include="E:\Projects\Eve\packages\org.gamecult.eve.surface\Runtime\GameCult.Eve.Surface.asmdef" />
-    <Reference Include="Unity.Cecil.Awesome">
-      <HintPath>E:\Projects\Aetheria\Library\PackageCache\com.unity.entities@637eb689ab47\Unity.Entities.CodeGen\Unity.Cecil.Awesome.dll</HintPath>
-    </Reference>
-    <Reference Include="Unity.Collections.LowLevel.ILSupport">
-      <HintPath>E:\Projects\Aetheria\Library\PackageCache\com.unity.collections@05d86f76b771\Unity.Collections.LowLevel.ILSupport\Unity.Collections.LowLevel.ILSupport.dll</HintPath>
-    </Reference>
-    <Reference Include="nunit.framework">
-      <HintPath>E:\Projects\Aetheria\Library\PackageCache\com.unity.ext.nunit@d8c07649098d\net40\unity-custom\nunit.framework.dll</HintPath>
-    </Reference>
-    <Reference Include="System.Collections.Immutable">
-      <HintPath>E:\Projects\Brokkr\surfaces\unity\Packages\com.gamecult.brokkr\Plugins\CultMesh\System.Collections.Immutable.dll</HintPath>
-    </Reference>
-    <Reference Include="System.IO.Pipelines">
-      <HintPath>E:\Projects\Brokkr\surfaces\unity\Packages\com.gamecult.brokkr\Plugins\CultMesh\System.IO.Pipelines.dll</HintPath>
-    </Reference>
-    <Reference Include="Microsoft.Bcl.TimeProvider">
-      <HintPath>E:\Projects\Brokkr\surfaces\unity\Packages\com.gamecult.brokkr\Plugins\CultMesh\Microsoft.Bcl.TimeProvider.dll</HintPath>
-    </Reference>
-    <Reference Include="R3">
-      <HintPath>E:\Projects\Brokkr\surfaces\unity\Packages\com.gamecult.brokkr\Plugins\CultMesh\R3.dll</HintPath>
-    </Reference>
-    <Reference Include="GameCult.Networking">
-      <HintPath>E:\Projects\Brokkr\surfaces\unity\Packages\com.gamecult.brokkr\Plugins\CultMesh\GameCult.Networking.dll</HintPath>
-    </Reference>
-    <Reference Include="Isopoh.Cryptography.Argon2">
-      <HintPath>E:\Projects\Brokkr\surfaces\unity\Packages\com.gamecult.brokkr\Plugins\CultMesh\Isopoh.Cryptography.Argon2.dll</HintPath>
-    </Reference>
-    <Reference Include="Isopoh.Cryptography.SecureArray">
-      <HintPath>E:\Projects\Brokkr\surfaces\unity\Packages\com.gamecult.brokkr\Plugins\CultMesh\Isopoh.Cryptography.SecureArray.dll</HintPath>
-    </Reference>
-    <Reference Include="System.Runtime.CompilerServices.Unsafe">
-      <HintPath>E:\Projects\Brokkr\surfaces\unity\Packages\com.gamecult.brokkr\Plugins\CultMesh\System.Runtime.CompilerServices.Unsafe.dll</HintPath>
-    </Reference>
-    <Reference Include="ConcurrentCollections">
-      <HintPath>E:\Projects\Brokkr\surfaces\unity\Packages\com.gamecult.brokkr\Plugins\CultMesh\ConcurrentCollections.dll</HintPath>
-    </Reference>
-    <Reference Include="System.Text.Encodings.Web">
-      <HintPath>E:\Projects\Brokkr\surfaces\unity\Packages\com.gamecult.brokkr\Plugins\CultMesh\System.Text.Encodings.Web.dll</HintPath>
-    </Reference>
-    <Reference Include="Microsoft.NET.StringTools">
-      <HintPath>E:\Projects\Brokkr\surfaces\unity\Packages\com.gamecult.brokkr\Plugins\CultMesh\Microsoft.NET.StringTools.dll</HintPath>
-    </Reference>
-    <Reference Include="System.IO.Hashing">
-      <HintPath>E:\Projects\Aetheria\Library\PackageCache\com.unity.collections@05d86f76b771\Unity.Collections.Tests\System.IO.Hashing\System.IO.Hashing.dll</HintPath>
-    </Reference>
     <Reference Include="GameCult.Caching">
       <HintPath>E:\Projects\Brokkr\surfaces\unity\Packages\com.gamecult.brokkr\Plugins\CultMesh\GameCult.Caching.dll</HintPath>
-    </Reference>
-    <Reference Include="MessagePack.Annotations">
-      <HintPath>E:\Projects\Brokkr\surfaces\unity\Packages\com.gamecult.brokkr\Plugins\CultMesh\MessagePack.Annotations.dll</HintPath>
-    </Reference>
-    <Reference Include="QuickGraph">
-      <HintPath>E:\Projects\Aetheria\Assets\Plugins\QuickGraph.dll</HintPath>
-    </Reference>
-    <Reference Include="Mono.Cecil">
-      <HintPath>E:\Projects\Aetheria\Library\PackageCache\com.unity.nuget.mono-cecil@ecb9724e46ff\Mono.Cecil.dll</HintPath>
-    </Reference>
-    <Reference Include="Remotion.Linq">
-      <HintPath>E:\Projects\Aetheria\Assets\Plugins\Remotion.Linq.dll</HintPath>
-    </Reference>
-    <Reference Include="Microsoft.Bcl.AsyncInterfaces">
-      <HintPath>E:\Projects\Brokkr\surfaces\unity\Packages\com.gamecult.brokkr\Plugins\CultMesh\Microsoft.Bcl.AsyncInterfaces.dll</HintPath>
-    </Reference>
-    <Reference Include="System.Threading.Channels">
-      <HintPath>E:\Projects\Brokkr\surfaces\unity\Packages\com.gamecult.brokkr\Plugins\CultMesh\System.Threading.Channels.dll</HintPath>
-    </Reference>
-    <Reference Include="GameCult.Logging">
-      <HintPath>E:\Projects\Brokkr\surfaces\unity\Packages\com.gamecult.brokkr\Plugins\CultMesh\GameCult.Logging.dll</HintPath>
     </Reference>
     <Reference Include="GameCult.Mesh">
       <HintPath>E:\Projects\Brokkr\surfaces\unity\Packages\com.gamecult.brokkr\Plugins\CultMesh\GameCult.Mesh.dll</HintPath>
     </Reference>
-    <Reference Include="System.Text.Json">
-      <HintPath>E:\Projects\Brokkr\surfaces\unity\Packages\com.gamecult.brokkr\Plugins\CultMesh\System.Text.Json.dll</HintPath>
-    </Reference>
-    <Reference Include="Isopoh.Cryptography.Blake2b">
-      <HintPath>E:\Projects\Brokkr\surfaces\unity\Packages\com.gamecult.brokkr\Plugins\CultMesh\Isopoh.Cryptography.Blake2b.dll</HintPath>
-    </Reference>
-    <Reference Include="GameCult.Caching.MessagePack">
-      <HintPath>E:\Projects\Brokkr\surfaces\unity\Packages\com.gamecult.brokkr\Plugins\CultMesh\GameCult.Caching.MessagePack.dll</HintPath>
-    </Reference>
-    <Reference Include="LiteNetLib">
-      <HintPath>E:\Projects\Brokkr\surfaces\unity\Packages\com.gamecult.brokkr\Plugins\CultMesh\LiteNetLib.dll</HintPath>
-    </Reference>
-    <Reference Include="Microsoft.Extensions.Logging.Abstractions">
-      <HintPath>E:\Projects\Aetheria\Assets\Plugins\Microsoft.Extensions.Logging.Abstractions.dll</HintPath>
+    <Reference Include="MessagePack.Annotations">
+      <HintPath>E:\Projects\Brokkr\surfaces\unity\Packages\com.gamecult.brokkr\Plugins\CultMesh\MessagePack.Annotations.dll</HintPath>
     </Reference>
     <Reference Include="mscorlib">
       <HintPath>C:\Program Files\Unity\Hub\Editor\6000.4.2f1\Editor\Data\UnityReferenceAssemblies\unity-4.8-api\mscorlib.dll</HintPath>

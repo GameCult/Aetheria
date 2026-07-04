@@ -24,6 +24,7 @@
   },
   "dependencies": {
     "@msgpack/msgpack": "^3.1.2",
+    "@gamecult/eve-browser-lowering": "file:../../Eve/packages/eve-browser-lowering",
     "cultcache-ts": "file:../../CultLib/packages/cultcache-ts",
     "cultmesh-ts": "file:../../CultLib/packages/cultmesh-ts",
     "cultnet-ts": "file:../../CultLib/packages/cultnet-ts"

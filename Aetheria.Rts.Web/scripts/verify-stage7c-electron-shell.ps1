@@ -33,13 +33,13 @@ if (-not $mainText.Contains('await api.setMoveVector') -or
     Write-Error "Stage 7C Electron shell verifier failed: Electron smoke does not verify typed operation receipts through preload."
 }
 
-if (-not $mainText.Contains('AETHERIA_RTS_PEER_CULTMESH_ENDPOINTS') -or
-    -not $mainText.Contains('--peer-cultmesh-endpoint') -or
+if (-not $mainText.Contains('AETHERIA_RTS_RESOLVED_RUDP_ENDPOINT has been removed') -or
+    -not $mainText.Contains('AETHERIA_RTS_PEER_CULTMESH_ENDPOINTS has been removed') -or
     -not $mainText.Contains('AETHERIA_RTS_VERSE_ID') -or
     -not $mainText.Contains('--verse-id') -or
     -not $mainText.Contains('AETHERIA_RTS_DAEMON_ID') -or
     -not $mainText.Contains('--daemon-id')) {
-    Write-Error "Stage 7C Electron shell verifier failed: Electron launcher does not pass Verse identity and peer CultMesh endpoints into the local daemon."
+    Write-Error "Stage 7C Electron shell verifier failed: Electron launcher does not enforce CultMesh URI daemon targeting."
 }
 
 $electron = Join-Path $root "node_modules\electron\dist\electron.exe"
@@ -60,7 +60,6 @@ try {
     $env:AETHERIA_RTS_CULTMESH_PORT = $port.ToString()
     $env:AETHERIA_RTS_VERSE_ID = "aetheria.stage7c.electron"
     $env:AETHERIA_RTS_DAEMON_ID = "stage7c-starfire"
-    $env:AETHERIA_RTS_PEER_CULTMESH_ENDPOINTS = "rudp://127.0.0.1:1"
     $env:AETHERIA_RTS_ELECTRON_SMOKE_RESULT = $resultPath
     $process = Start-Process -FilePath $electron -ArgumentList "." -WorkingDirectory $root -Wait -PassThru
     if ($process.ExitCode -ne 0) {
@@ -83,6 +82,7 @@ finally {
     Remove-Item Env:\AETHERIA_RTS_VERSE_ID -ErrorAction SilentlyContinue
     Remove-Item Env:\AETHERIA_RTS_DAEMON_ID -ErrorAction SilentlyContinue
     Remove-Item Env:\AETHERIA_RTS_PEER_CULTMESH_ENDPOINTS -ErrorAction SilentlyContinue
+    Remove-Item Env:\AETHERIA_RTS_RESOLVED_RUDP_ENDPOINT -ErrorAction SilentlyContinue
     Remove-Item Env:\AETHERIA_RTS_ELECTRON_SMOKE_RESULT -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
 }

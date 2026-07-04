@@ -250,12 +250,12 @@ if (-not $clientText.Contains('? this.verse.withRoute("network", this.publicatio
 }
 
 if (-not $clientText.Contains('this.commandVerse = this.verse') -or
-    -not $clientText.Contains('.withRoute("network", this.endpoint)') -or
+    -not $clientText.Contains('.withRoute("network", this.daemonTarget.uri)') -or
     -not $clientText.Contains('.withClaim("commander-control"')) {
     Write-Error "Stage 7B verifier failed: RTS client is not deriving a network Verse view with an explicit command authority claim."
 }
 
-if (-not $clientText.Contains('this.publicationDescription = publicationMode === "remote" ? this.endpoint : statePath')) {
+if (-not $clientText.Contains('this.publicationDescription = publicationMode === "remote" ? this.daemonTarget.uri : statePath')) {
     Write-Error "Stage 7B verifier failed: RTS client query route metadata does not include the local publication source description."
 }
 

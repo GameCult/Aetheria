@@ -244,7 +244,9 @@ namespace GameCult.Aetheria.State.Verse
             IReadOnlyDictionary<string, string> props,
             IReadOnlyList<AetheriaRuntimeSurfaceComponent> children,
             IReadOnlyList<CultMeshStateBindingDescriptor> stateBindings,
-            IReadOnlyList<AetheriaRuntimeEmbeddedDocumentSlot> embeddedDocuments)
+            IReadOnlyList<AetheriaRuntimeEmbeddedDocumentSlot> embeddedDocuments,
+            IReadOnlyDictionary<string, string>? layout = null,
+            IReadOnlyDictionary<string, string>? style = null)
         {
             Id = id ?? "";
             Kind = kind ?? "";
@@ -252,6 +254,8 @@ namespace GameCult.Aetheria.State.Verse
             Children = children ?? Array.Empty<AetheriaRuntimeSurfaceComponent>();
             StateBindings = stateBindings ?? Array.Empty<CultMeshStateBindingDescriptor>();
             EmbeddedDocuments = embeddedDocuments ?? Array.Empty<AetheriaRuntimeEmbeddedDocumentSlot>();
+            Layout = layout ?? new Dictionary<string, string>(StringComparer.Ordinal);
+            Style = style ?? new Dictionary<string, string>(StringComparer.Ordinal);
         }
 
         [Key(0)]
@@ -271,6 +275,12 @@ namespace GameCult.Aetheria.State.Verse
 
         [Key(5)]
         public IReadOnlyList<AetheriaRuntimeEmbeddedDocumentSlot> EmbeddedDocuments { get; }
+
+        [Key(6)]
+        public IReadOnlyDictionary<string, string> Layout { get; }
+
+        [Key(7)]
+        public IReadOnlyDictionary<string, string> Style { get; }
     }
 
     [MessagePackObject]
@@ -496,7 +506,9 @@ namespace GameCult.Aetheria.State.Verse
                 props,
                 component.Children.Select(ToEveSurfaceComponent).ToArray(),
                 component.StateBindings.Select(ToCultMeshStateBinding).ToArray(),
-                component.EmbeddedDocuments.Select(ToEveEmbeddedDocumentSlot).ToArray());
+                component.EmbeddedDocuments.Select(ToEveEmbeddedDocumentSlot).ToArray(),
+                new Dictionary<string, string>(component.Layout, StringComparer.Ordinal),
+                new Dictionary<string, string>(component.Style, StringComparer.Ordinal));
         }
 
         private static EveUiEmbeddedDocumentSlot ToEveEmbeddedDocumentSlot(AetheriaRuntimeEmbeddedDocumentSlot slot)
@@ -534,7 +546,9 @@ namespace GameCult.Aetheria.State.Verse
                 props,
                 ResolveStateRefs(component.Children, resolveStateRef),
                 component.StateBindings,
-                component.EmbeddedDocuments);
+                component.EmbeddedDocuments,
+                component.Layout,
+                component.Style);
         }
 
         private static IReadOnlyList<EveUiSurfaceComponent> ResolveStateRefs(
@@ -558,7 +572,9 @@ namespace GameCult.Aetheria.State.Verse
                 new Dictionary<string, string>(component.Props, StringComparer.Ordinal),
                 component.Children.Select(FromPortableComponent).ToArray(),
                 component.StateBindings.Select(FromPortableStateBinding).ToArray(),
-                component.EmbeddedDocuments.Select(FromPortableEmbeddedDocumentSlot).ToArray());
+                component.EmbeddedDocuments.Select(FromPortableEmbeddedDocumentSlot).ToArray(),
+                new Dictionary<string, string>(component.Layout, StringComparer.Ordinal),
+                new Dictionary<string, string>(component.Style, StringComparer.Ordinal));
         }
 
         private static AetheriaRuntimeEmbeddedDocumentSlot FromPortableEmbeddedDocumentSlot(

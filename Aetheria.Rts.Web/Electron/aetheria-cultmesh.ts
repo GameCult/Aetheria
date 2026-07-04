@@ -70,6 +70,14 @@ export type AetheriaCultMeshClientOptions = {
   snapshotTimeoutMs?: number;
 };
 
+export type AetheriaCultMeshDaemonTarget = {
+  readonly uri: string;
+  readonly peerId?: string;
+  readonly verseId?: string;
+  readonly role?: string;
+  readonly endpoints?: readonly string[];
+};
+
 export type AetheriaMenuSurfaceRequest = {
   surfaceId?: string;
   inGame?: boolean;
@@ -96,6 +104,8 @@ export type AetheriaMenuSurfaceComponent = {
   id: string;
   kind: string;
   props: Record<string, string>;
+  layout?: Record<string, string>;
+  style?: Record<string, string>;
   children: AetheriaMenuSurfaceComponent[];
 };
 
@@ -134,21 +144,23 @@ export class AetheriaCultMeshClient {
   private readonly verse: CultMeshVerse;
   private readonly queryVerse: CultMeshVerse;
   private readonly commandVerse: CultMeshVerse;
+  private readonly daemonTarget: Required<AetheriaCultMeshDaemonTarget>;
 
   public constructor(
-    private readonly endpoint: string,
+    daemonTarget: string | AetheriaCultMeshDaemonTarget,
     statePath: string,
     private readonly runtimeId = "aetheria-rts-electron",
     options: AetheriaCultMeshClientOptions = {},
   ) {
+    this.daemonTarget = normalizeDaemonTarget(daemonTarget);
     const publicationMode = options.publicationMode ?? "local";
-    this.publicationDescription = publicationMode === "remote" ? this.endpoint : statePath;
+    this.publicationDescription = publicationMode === "remote" ? this.daemonTarget.uri : statePath;
     this.verse = CultMesh.verse("aetheria.local", this.runtimeId);
     this.queryVerse = publicationMode === "remote"
       ? this.verse.withRoute("network", this.publicationDescription)
       : this.verse.withRoute("shared-memory", this.publicationDescription);
     this.commandVerse = this.verse
-      .withRoute("network", this.endpoint)
+      .withRoute("network", this.daemonTarget.uri)
       .withClaim("commander-control", { shardId: "aetheria.local" });
     this.publications = CultMesh.documentsFromPublication(
       this.createPublicationSource(publicationMode),
@@ -233,7 +245,7 @@ export class AetheriaCultMeshClient {
       }
     }
 
-    throw new Error(`Timed out waiting for Aetheria CultMesh frame at ${this.endpoint}. ${lastError}`);
+    throw new Error(`Timed out waiting for Aetheria CultMesh frame at ${this.daemonTarget.uri}. ${lastError}`);
   }
 
   public async mapViewport(request: ViewportRequest): Promise<ViewportResponse> {
@@ -355,7 +367,7 @@ export class AetheriaCultMeshClient {
       return () => ({
         kind: "peer-snapshot",
         peer: () => this.peer(),
-        endpoint: this.endpoint,
+        endpoint: this.resolvedRudpEndpoint(),
       });
     }
 
@@ -484,16 +496,69 @@ export class AetheriaCultMeshClient {
   private async peer(): Promise<CultNetPeer> {
     if (this.#peer)
       return this.#peer;
-    this.#peer = await CultMesh.createRudpPeer(this.runtimeId, connectionId, this.endpoint, {
+    const peers = CultMesh.createPeerCatalog();
+    const leases = CultMesh.createAuthorityLeaseCatalog();
+    const leaseId = `${this.daemonTarget.peerId}:authority`;
+    peers.upsert({
+      peerId: this.daemonTarget.peerId,
+      verseId: this.daemonTarget.verseId,
+      endpoints: this.daemonTarget.endpoints,
+      roles: [this.daemonTarget.role],
+      authorityLeaseId: leaseId,
+    });
+    leases.upsert({
+      leaseId,
+      verseId: this.daemonTarget.verseId,
+      peerId: this.daemonTarget.peerId,
+      roles: [this.daemonTarget.role],
+      validFrom: new Date(Date.now() - 60_000),
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+    this.#peer = await CultMesh.createRudpPeerForAuthorizedPeer(
+      this.runtimeId,
+      connectionId,
+      peers,
+      leases,
+      this.daemonTarget.verseId,
+      this.daemonTarget.role,
+      {
       connectTimeoutMs: 2000,
       maxFragmentBytes: 1200,
       maxPendingReliablePackets: 512,
-    });
+      },
+    );
     this.#peer.on("close", () => {
       this.#peer = null;
     });
     return this.#peer;
   }
+
+  private resolvedRudpEndpoint(): string {
+    const endpoint = this.daemonTarget.endpoints.find(value => value.toLowerCase().startsWith("rudp://"));
+    if (!endpoint) {
+      throw new Error(`Daemon ${this.daemonTarget.uri} has no resolved RUDP transport endpoint. Resolve it through Odin/CultMesh before opening a transport peer.`);
+    }
+    return endpoint;
+  }
+}
+
+function normalizeDaemonTarget(target: string | AetheriaCultMeshDaemonTarget): Required<AetheriaCultMeshDaemonTarget> {
+  const value = typeof target === "string"
+    ? { uri: target }
+    : target;
+  if (!value.uri.trim()) {
+    throw new Error("Aetheria CultMesh daemon target URI is required.");
+  }
+  if (value.uri.toLowerCase().startsWith("rudp://")) {
+    throw new Error("Aetheria daemon targets must be CultMesh URIs; raw RUDP endpoints belong in resolved peer-card endpoints.");
+  }
+  return {
+    uri: value.uri,
+    peerId: value.peerId?.trim() || "aetheria-rts-daemon",
+    verseId: value.verseId?.trim() || "aetheria.local",
+    role: value.role?.trim() || "aetheria-rts-daemon",
+    endpoints: value.endpoints ?? [],
+  };
 }
 
 function buildMainMenuSurface(
@@ -563,9 +628,33 @@ function buildMainMenuSurface(
       command("aetheria.main_menu.root.show_settings", "Settings"),
       command("aetheria.main_menu.root.quit", "Quit"),
     ],
-    text("aetheria.main_menu.root.title", "AETHERIA", "text.title"),
-    text("aetheria.main_menu.root.subtitle", "TERMINUS", "text.subtitle"),
-    buttonColumn("aetheria.main_menu.root.actions", ...actionButtons),
+    gravitySurface("aetheria.main_menu.root.gravity"),
+    node(
+      "aetheria.main_menu.root.menu",
+      "column",
+      {},
+      {
+        position: "relative",
+        padding: "7.25rem 0 0 6.75rem",
+        gap: "1.1rem",
+        width: "44rem",
+        maxWidth: "calc(100vw - 3rem)",
+        minHeight: "100vh",
+        alignItems: "flex-start",
+      },
+      { color: "#e9fbff" },
+      text("aetheria.main_menu.root.title", "AETHERIA", "text.title", { margin: "0 0 -1.6rem 0" }, {
+        font: "100 5.9rem/0.98 Montserrat, sans-serif",
+        color: "rgba(232, 250, 255, 0.94)",
+        whiteSpace: "nowrap",
+      }),
+      text("aetheria.main_menu.root.subtitle", "TERMINUS", "text.subtitle", { margin: "0 0 0.35rem 16.8rem" }, {
+        font: "100 2.6rem/1 Montserrat, sans-serif",
+        color: "rgba(232, 250, 255, 0.9)",
+        whiteSpace: "nowrap",
+      }),
+      buttonColumn("aetheria.main_menu.root.actions", ...actionButtons),
+    ),
   );
 }
 
@@ -584,7 +673,13 @@ function surfaceDocument(
     updatedAtUtc,
     surface: {
       id: surfaceId,
-      root: node(`${surfaceId}.root`, "surface", {}, ...children),
+      root: node(
+        `${surfaceId}.root`,
+        "surface",
+        {},
+        { position: "relative", overflow: "hidden", width: "100%", height: "100vh", minHeight: "100vh" },
+        { background: "#020606" },
+        ...children),
       styles: [
         { name: "font.title.family", value: "Montserrat" },
         { name: "font.title.style", value: "Thin" },
@@ -610,13 +705,28 @@ function node(
   id: string,
   kind: string,
   props: Record<string, string>,
+  layoutOrChild?: Record<string, string> | AetheriaMenuSurfaceComponent,
+  styleOrChild?: Record<string, string> | AetheriaMenuSurfaceComponent,
   ...children: AetheriaMenuSurfaceComponent[]
 ): AetheriaMenuSurfaceComponent {
-  return { id, kind, props, children };
+  const layout = isSurfaceComponent(layoutOrChild) ? undefined : layoutOrChild;
+  const style = isSurfaceComponent(styleOrChild) ? undefined : styleOrChild;
+  const normalizedChildren = [
+    ...(isSurfaceComponent(layoutOrChild) ? [layoutOrChild] : []),
+    ...(isSurfaceComponent(styleOrChild) ? [styleOrChild] : []),
+    ...children,
+  ];
+  return { id, kind, props, layout, style, children: normalizedChildren };
 }
 
-function text(id: string, value: string, kind = "text"): AetheriaMenuSurfaceComponent {
-  return node(id, kind, { value });
+function text(
+  id: string,
+  value: string,
+  kind = "text",
+  layout?: Record<string, string>,
+  style?: Record<string, string>,
+): AetheriaMenuSurfaceComponent {
+  return node(id, kind, { value }, layout, style);
 }
 
 function metric(id: string, label: string, value: string): AetheriaMenuSurfaceComponent {
@@ -624,11 +734,65 @@ function metric(id: string, label: string, value: string): AetheriaMenuSurfaceCo
 }
 
 function button(id: string, label: string, commandId: string): AetheriaMenuSurfaceComponent {
-  return node(id, "control.button", { label, command: commandId });
+  return node(
+    id,
+    "control.button",
+    { label, command: commandId },
+    { minWidth: "0", padding: "0.04rem 0" },
+    {
+      background: "rgba(0, 0, 0, 0)",
+      borderWidth: "0",
+      borderStyle: "solid",
+      boxShadow: "none",
+      font: "400 1.55rem/1.2 Ubuntu, sans-serif",
+      color: "#e8fbff",
+      textAlign: "left",
+    });
 }
 
 function buttonColumn(id: string, ...children: AetheriaMenuSurfaceComponent[]): AetheriaMenuSurfaceComponent {
-  return node(id, "column", {}, ...children);
+  return node(id, "column", {}, { gap: "0.18rem", alignItems: "flex-start" }, { color: "#e8fbff" }, ...children);
+}
+
+function gravitySurface(id: string): AetheriaMenuSurfaceComponent {
+  return node(
+    id,
+    "gravity.surface",
+    {
+      label: "Aetheria level gravity surface",
+      viewRadius: "1450",
+      terrainRadius: "1450",
+      terrainDepth: "-8",
+      terrainDepthExponent: "1.2",
+      terrainWaveFrequency: "0.6",
+      simulationTimeSeconds: "0",
+      samplesX: "196",
+      isolines: "22",
+      shader: "perlines.gravity-map.v1",
+      noiseAsset: "cultmesh://aetheria/assets/textures/perlines-nebula",
+      tintSplatAsset: "cultmesh://aetheria/assets/textures/tint_splat",
+      bodies: [
+        "terminus-sun|Sun|0|0|900|-80|3|450|10|2|cultmesh://aetheria/assets/icons/star.terminus-sun|cultmesh://aetheria/assets/textures/tint_splat",
+        "anchor-moon|Planet|360|-180|260|-22|2.2|180|4|1.4|cultmesh://aetheria/assets/icons/body.anchor-moon|cultmesh://aetheria/assets/textures/tint_splat",
+        "blueglass|Planet|-540|340|340|-34|2.6|150|5|1.1|cultmesh://aetheria/assets/icons/body.blueglass|cultmesh://aetheria/assets/textures/tint_splat",
+        "emberhook|Planet|-680|-420|310|-28|2.1|130|4|1.3|cultmesh://aetheria/assets/icons/body.emberhook|cultmesh://aetheria/assets/textures/tint_splat",
+        "vesper|Gas Giant|780|420|420|-38|2.4|210|6|0.7|cultmesh://aetheria/assets/icons/body.vesper|cultmesh://aetheria/assets/textures/tint_splat",
+        "latch|Moon|-160|620|210|-18|2.8|95|3|1.6|cultmesh://aetheria/assets/icons/body.latch|cultmesh://aetheria/assets/textures/tint_splat",
+      ].join(";"),
+      objects: [
+        "anchor-station|station|Anchor Station|-220|-90|1|0|player|1|1|cultmesh://aetheria/assets/icons/station.anchor-station",
+        "vanguard-one|ship|Vanguard One|-60|-40|1|0.2|player|1|1|cultmesh://aetheria/assets/icons/ship.vanguard-one",
+        "wing-two|ship|Wing Two|180|120|-0.4|0.9|player|1|1|cultmesh://aetheria/assets/icons/ship.wing-two",
+        "torch-three|ship|Torch Three|-160|210|0.6|-0.8|player|1|1|cultmesh://aetheria/assets/icons/ship.torch-three",
+        "ash-raider|ship|Ash Raider|420|180|-0.8|-0.1|raider|0|1|cultmesh://aetheria/assets/icons/ship.ash-raider",
+        "derelict-relay|station|Derelict Relay|-260|260|0|1|neutral|0|1|cultmesh://aetheria/assets/icons/station.derelict-relay",
+      ].join(";"),
+    },
+    { position: "absolute", top: "0", right: "0", bottom: "0", left: "0", width: "100%", height: "100%" });
+}
+
+function isSurfaceComponent(value: unknown): value is AetheriaMenuSurfaceComponent {
+  return !!value && typeof value === "object" && "kind" in value && "props" in value && "children" in value;
 }
 
 function stableToken(value: string): string {

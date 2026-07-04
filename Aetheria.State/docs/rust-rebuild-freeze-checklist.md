@@ -63,7 +63,7 @@ The expanded primitive spec is `Aetheria.State/docs/cultmesh-cross-runtime-primi
 | Authority | Each daemon invents policy, lease, claim, and runtime-role glue. | CultMesh authority primitives carry policy modes, claims, leases, runtime roles, and future quorum hooks. |
 | Geometry | Each runtime reinvents vectors, rects, circles, spheres, and coordinate conversions. | CultMath/CultMesh provide shared geometry values and deterministic scalar helpers. |
 | Locality | Co-deployed services still talk through bespoke URLs or files. | CultMesh chooses in-process, shared slab, IPC, network, or WASM transport behind one semantic API. |
-| Ymir queries | Unity or TS posts JSON to a hard-coded local URL for normal co-deployed queries. | Aetheria/Ymir queries are typed, colocated when possible, and remotely routable when needed. |
+| Ymir queries | Unity or TS reintroduces bespoke endpoint transport for normal co-deployed queries. | Aetheria/Ymir queries are typed, colocated when possible, and remotely routable when needed. |
 | Schema generation | TS, C#, and Rust each hand-maintain slot maps. | One schema source generates cross-runtime CultMesh bindings and legacy migration manifests. |
 | Client semantics | Each runtime gets bespoke helper layers and transport assumptions. | Unity, TS, browser, Rust, native, and Eve/CultUI share the same operation/query/state semantics with runtime-specific ergonomic sugar. |
 

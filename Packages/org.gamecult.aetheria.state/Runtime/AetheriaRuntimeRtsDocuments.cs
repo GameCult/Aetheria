@@ -852,7 +852,7 @@ namespace GameCult.Aetheria.State.Verse
 
         private static AetheriaRuntimeRtsBodyView ToBodyView(AetheriaRuntimeBodySnapshotCommit body)
         {
-            return new AetheriaRuntimeRtsBodyView
+            var view = new AetheriaRuntimeRtsBodyView
             {
                 BodyKey = body.BodyKey ?? "",
                 OrbitKey = body.OrbitKey ?? "",
@@ -864,6 +864,8 @@ namespace GameCult.Aetheria.State.Verse
                 IsAsteroidBelt = (body.Kind ?? "").IndexOf("asteroid", StringComparison.OrdinalIgnoreCase) >= 0,
                 Body = body
             };
+            view.IconAsset = AetheriaRuntimeAssets.ResolveBodyIcon(view);
+            return view;
         }
 
         private static AetheriaRuntimeRtsGravityInfluence ToGravityInfluence(AetheriaRuntimeBodySnapshotCommit body)

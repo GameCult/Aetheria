@@ -1,6 +1,9 @@
+import {
+  renderEveSurface,
+  type EveCommandIntent,
+} from "../node_modules/@gamecult/eve-browser-lowering/dist/index.js";
 import type {
   AetheriaRtsApi,
-  AetheriaMenuSurfaceComponent,
   AetheriaMenuSurfaceDocument,
   AuthorityStatusDocument,
   AetheriaRuntimeViewportFeedSnapshot,
@@ -99,27 +102,7 @@ async function showMainMenu(surfaceId = "aetheria.main_menu.root"): Promise<void
     inGame: false,
     canOpenRuntimeInputScreen: false,
   });
-  installMenuFonts(surface);
   renderMainMenuSurface(surface);
-}
-
-function installMenuFonts(surface: AetheriaMenuSurfaceDocument): void {
-  const googleFont = surface.surface.styles.find(token => token.name === "font.web.google")?.value;
-  if (!googleFont || document.querySelector(`link[data-aetheria-menu-fonts="${googleFont}"]`)) {
-    return;
-  }
-
-  const preconnect = document.createElement("link");
-  preconnect.rel = "preconnect";
-  preconnect.href = "https://fonts.gstatic.com";
-  preconnect.crossOrigin = "anonymous";
-  document.head.append(preconnect);
-
-  const link = document.createElement("link");
-  link.rel = "stylesheet";
-  link.href = googleFont;
-  link.dataset.aetheriaMenuFonts = googleFont;
-  document.head.append(link);
 }
 
 function renderMainMenuSurface(surface: AetheriaMenuSurfaceDocument): void {
@@ -131,7 +114,13 @@ function renderMainMenuSurface(surface: AetheriaMenuSurfaceDocument): void {
     document.body.append(host);
   }
 
-  host.replaceChildren(lowerMenuComponent(surface.surface.root, surface));
+  renderEveSurface(surface, host, {
+    body: document.body,
+    clientId: "aetheria.rts.electron",
+    commandSink: intent => handleMenuCommand(intent.command, surface),
+    source: "Aetheria Electron",
+    statusElement: statusEl,
+  });
   wireWindowControls();
 }
 
@@ -145,72 +134,13 @@ async function startDebugSurface(): Promise<void> {
 }
 
 function renderDebugSurface(surface: AetheriaMenuSurfaceDocument): void {
-  installMenuFonts(surface);
-  debugSurfaceHost.replaceChildren(lowerMenuComponent(surface.surface.root, surface));
-}
-
-function lowerMenuComponent(
-  component: AetheriaMenuSurfaceComponent,
-  surface: AetheriaMenuSurfaceDocument,
-): HTMLElement {
-  const kind = component.kind || "surface";
-  if (kind === "control.button") {
-    const button = document.createElement("button");
-    button.id = component.id;
-    button.className = "eve-control-button";
-    button.type = "button";
-    button.textContent = component.props.label ?? "";
-    button.addEventListener("click", () => handleMenuCommand(component.props.command ?? "", surface));
-    return button;
-  }
-
-  if (kind.startsWith("text")) {
-    const label = document.createElement("div");
-    label.id = component.id;
-    label.className = menuTextClasses(component, kind).join(" ");
-    label.textContent = component.props.value ?? component.props.text ?? "";
-    return label;
-  }
-
-  if (kind === "metric") {
-    const metric = document.createElement("dl");
-    metric.id = component.id;
-    metric.className = "eve-metric";
-    const term = document.createElement("dt");
-    term.textContent = component.props.label ?? "";
-    const value = document.createElement("dd");
-    value.textContent = component.props.value ?? "";
-    metric.append(term, value);
-    return metric;
-  }
-
-  const element = document.createElement("div");
-  element.id = component.id;
-  element.className = [
-    kind === "surface" ? "eve-surface" : "",
-    kind === "column" ? "eve-column" : "",
-    kind === "row" ? "eve-row" : "",
-    kind === "form" ? "eve-form" : "",
-  ].filter(Boolean).join(" ");
-  for (const child of component.children ?? []) {
-    element.append(lowerMenuComponent(child, surface));
-  }
-  return element;
-}
-
-function menuTextClasses(component: AetheriaMenuSurfaceComponent, kind: string): string[] {
-  const classes: string[] = [];
-  if (kind === "text.title")
-    classes.push("eve-text-title");
-  if (kind === "text.subtitle")
-    classes.push("eve-text-subtitle");
-  if (classes.length === 0)
-    classes.push("eve-text");
-  if (component.id === "aetheria.main_menu.root.title")
-    classes.push("eve-root-title");
-  if (component.id === "aetheria.main_menu.root.subtitle")
-    classes.push("eve-root-subtitle");
-  return classes;
+  renderEveSurface(surface, debugSurfaceHost, {
+    body: document.body,
+    clientId: "aetheria.rts.electron",
+    commandSink: intent => handleMenuCommand(intent.command, surface),
+    source: "CultUI Debug",
+    statusElement: statusEl,
+  });
 }
 
 function wireWindowControls(): void {
@@ -229,7 +159,8 @@ function wireWindowControls(): void {
   });
 }
 
-function handleMenuCommand(command: string, surface: AetheriaMenuSurfaceDocument): void {
+function handleMenuCommand(commandOrIntent: string | EveCommandIntent, surface: AetheriaMenuSurfaceDocument): void {
+  const command = typeof commandOrIntent === "string" ? commandOrIntent : commandOrIntent.command;
   switch (command) {
     case "aetheria.main_menu.root.show_settings":
       void showMainMenu("aetheria.main_menu.settings");

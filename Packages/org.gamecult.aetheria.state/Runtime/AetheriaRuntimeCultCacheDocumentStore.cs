@@ -113,7 +113,7 @@ namespace GameCult.Aetheria.State.Verse
                 new System.Collections.Generic.Dictionary<string, string>(StringComparer.Ordinal),
                 Array.Empty<AetheriaRuntimeSurfaceComponent>());
 
-            writer.WriteArrayHeader(6);
+            writer.WriteArrayHeader(8);
             writer.Write(component.Id ?? "");
             writer.Write(component.Kind ?? "");
             writer.WriteMapHeader(component.Props?.Count ?? 0);
@@ -154,6 +154,9 @@ namespace GameCult.Aetheria.State.Verse
                 writer.Write(route.Kind.ToString());
                 writer.Write(route.Description ?? "");
             }
+
+            WriteStringMap(ref writer, component.Layout);
+            WriteStringMap(ref writer, component.Style);
         }
 
         private static void WriteSurfaceCommands(
@@ -170,6 +173,18 @@ namespace GameCult.Aetheria.State.Verse
                 writer.Write(record.SchemaId);
                 writer.Write(record.RouteKind);
                 writer.Write(record.RouteDescription);
+            }
+        }
+
+        private static void WriteStringMap(
+            ref MessagePackWriter writer,
+            System.Collections.Generic.IReadOnlyDictionary<string, string> values)
+        {
+            writer.WriteMapHeader(values?.Count ?? 0);
+            foreach (var value in values ?? new System.Collections.Generic.Dictionary<string, string>(StringComparer.Ordinal))
+            {
+                writer.Write(value.Key ?? "");
+                writer.Write(value.Value ?? "");
             }
         }
 
@@ -255,12 +270,14 @@ namespace GameCult.Aetheria.State.Verse
             var children = ReadFieldSurfaceComponents(ref reader, componentFields, 3);
             var stateBindings = ReadFieldSurfaceStateBindings(ref reader, componentFields, 4);
             var embeddedDocuments = ReadFieldEmbeddedDocumentSlots(ref reader, componentFields, 5);
-            for (var field = 6; field < componentFields; field++)
+            var layout = ReadFieldStringMap(ref reader, componentFields, 6);
+            var style = ReadFieldStringMap(ref reader, componentFields, 7);
+            for (var field = 8; field < componentFields; field++)
             {
                 reader.Skip();
             }
 
-            return new AetheriaRuntimeSurfaceComponent(id, kind, props, children, stateBindings, embeddedDocuments);
+            return new AetheriaRuntimeSurfaceComponent(id, kind, props, children, stateBindings, embeddedDocuments, layout, style);
         }
 
         private static System.Collections.Generic.IReadOnlyList<AetheriaRuntimeEmbeddedDocumentSlot> ReadFieldEmbeddedDocumentSlots(

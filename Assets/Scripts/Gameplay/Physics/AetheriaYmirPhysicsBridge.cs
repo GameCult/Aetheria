@@ -1,8 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
-using System.Net;
-using System.Text;
 using UnityEngine;
 
 public sealed class AetheriaYmirPhysicsBridge : MonoBehaviour
@@ -12,15 +9,9 @@ public sealed class AetheriaYmirPhysicsBridge : MonoBehaviour
 
     private static AetheriaYmirPhysicsBridge _instance;
 
-    public string ServiceUrl = "http://127.0.0.1:8877/simulate/step";
-    public string OverlapSphereUrl = "http://127.0.0.1:8877/query/overlap-sphere";
-    public string OverlapCircleUrl = "http://127.0.0.1:8877/query/overlap-circle";
-    public string CastCircleUrl = "http://127.0.0.1:8877/query/cast-circle";
-    public string CastSphereUrl = "http://127.0.0.1:8877/query/cast-sphere";
     public bool EnableProjectileCutover = true;
     public float ProjectileRadius = 0.1f;
     public float ProjectileMass = 1.0f;
-    public int TimeoutMilliseconds = 20;
     public AetheriaDaemonObserver DaemonObserver;
 
     private readonly List<YmirPhysicsBody> _projectileBodies = new List<YmirPhysicsBody>();
@@ -58,11 +49,11 @@ public sealed class AetheriaYmirPhysicsBridge : MonoBehaviour
         YmirStepResult result;
         try
         {
-            result = PostJson<YmirStepRequest, YmirStepResult>(ServiceUrl, request);
+            result = YmirPhysicsQueries.Step(request);
         }
         catch (Exception error)
         {
-            Debug.LogWarning($"Ymir projectile step failed: {error.Message}");
+            Debug.LogWarning($"Ymir projectile typed step failed: {error.Message}");
             return false;
         }
 
@@ -595,7 +586,7 @@ public sealed class AetheriaYmirPhysicsBridge : MonoBehaviour
 
         try
         {
-            var result = PostJson<YmirSphereOverlapRequest, YmirSphereOverlapResult>(OverlapSphereUrl, new YmirSphereOverlapRequest
+            var result = YmirPhysicsQueries.OverlapSphere(new YmirSphereOverlapRequest
             {
                 center = ToVec3(center),
                 radius = radius,
@@ -622,7 +613,7 @@ public sealed class AetheriaYmirPhysicsBridge : MonoBehaviour
 
         try
         {
-            var result = PostJson<YmirSphereCastRequest, YmirSphereCastResult>(CastSphereUrl, request);
+            var result = YmirPhysicsQueries.CastSphere(request);
             hits = result.hits ?? Array.Empty<YmirSphereCastHit>();
             return true;
         }
@@ -641,15 +632,9 @@ public sealed class AetheriaYmirPhysicsBridge : MonoBehaviour
         if (!EnableProjectileCutover || request == null || request.world == null || request.world.bodies == null || request.world.bodies.Length == 0 || request.radius <= 0)
             return false;
 
-        if (string.IsNullOrWhiteSpace(OverlapCircleUrl))
-        {
-            Debug.LogWarning("Ymir circle overlap query failed: daemon URL is not configured.");
-            return false;
-        }
-
         try
         {
-            var result = PostJson<YmirCircleOverlapRequest, YmirCircleOverlapResult>(OverlapCircleUrl, request);
+            var result = YmirPhysicsQueries.OverlapCircle(request);
             hits = result.hits ?? Array.Empty<YmirCircleOverlapHit>();
             return true;
         }
@@ -671,7 +656,7 @@ public sealed class AetheriaYmirPhysicsBridge : MonoBehaviour
 
         try
         {
-            var result = PostJson<YmirCircleCastRequest, YmirCircleCastResult>(CastCircleUrl, request);
+            var result = YmirPhysicsQueries.CastCircle(request);
             hits = result.hits ?? Array.Empty<YmirCircleCastHit>();
             return true;
         }
@@ -688,37 +673,6 @@ public sealed class AetheriaYmirPhysicsBridge : MonoBehaviour
         for (var i = 0; i < copy.Length; i++)
             copy[i] = bodies[i];
         return copy;
-    }
-
-    private TResult PostJson<TRequest, TResult>(string url, TRequest request)
-        where TResult : class
-    {
-        if (string.IsNullOrWhiteSpace(url))
-            throw new InvalidOperationException("Ymir daemon URL is not configured.");
-
-        var json = JsonUtility.ToJson(request);
-        var bytes = Encoding.UTF8.GetBytes(json);
-        var http = (HttpWebRequest)WebRequest.Create(url);
-        http.Method = "POST";
-        http.ContentType = "application/json; charset=utf-8";
-        http.ContentLength = bytes.Length;
-        http.Timeout = TimeoutMilliseconds;
-        http.ReadWriteTimeout = TimeoutMilliseconds;
-
-        using (var stream = http.GetRequestStream())
-            stream.Write(bytes, 0, bytes.Length);
-
-        using var response = (HttpWebResponse)http.GetResponse();
-        using var reader = new StreamReader(response.GetResponseStream());
-        var payload = reader.ReadToEnd();
-        if (string.IsNullOrWhiteSpace(payload))
-            throw new InvalidDataException("Ymir daemon returned an empty response.");
-
-        var result = JsonUtility.FromJson<TResult>(payload);
-        if (result == null)
-            throw new InvalidDataException("Ymir daemon returned a response that could not be parsed.");
-
-        return result;
     }
 
     private static YmirPhysicsBody FindBody(YmirWorld world, string bodyId)

@@ -89,7 +89,7 @@ These files define the deprecated reference surface. They should be treated as A
 | Unity consumption | `Assets/Scripts/Gameplay/AetheriaDaemonObserver.cs` | Current Unity daemon observation, SoA remapping, and render native view handoff. |
 | TS consumption | `Aetheria.Rts.Web/Electron/aetheria-cultmesh.ts`, `aetheria-rts-local-projection.ts`, `aetheria-local-publication-reader.ts` | Current Electron command sending, local publication reading, and duplicated projection behavior. |
 | Ymir C# contracts | `Assets/Scripts/ServerShared/YmirPhysicsContracts.cs` | Current body/world/query DTOs plus reference implementation for step, overlap, and cast queries. |
-| Ymir Unity bridge | `Assets/Scripts/Gameplay/Physics/AetheriaYmirPhysicsBridge.cs` | Current Unity presentation adapter that posts JSON to Ymir endpoints and maps daemon SoA bodies into Ymir query worlds. |
+| Ymir Unity bridge | `Assets/Scripts/Gameplay/Physics/AetheriaYmirPhysicsBridge.cs` | Current Unity presentation adapter that maps daemon SoA bodies into typed Ymir query worlds. |
 | Ymir query tests | `Assets/Scripts/Tests/YmirPhysicsQueryTests.cs` | Current expectations for integration, radial fields, contacts, overlap sphere/circle, and cast sphere/circle; useful semantics should survive, DTO/endpoint shape should not. |
 
 ## Current Control Flow
@@ -368,7 +368,7 @@ var request = new YmirCircleOverlapRequest
     center = ToVec2(center),
     radius = radius
 };
-var hits = PostJson<YmirCircleOverlapRequest, YmirCircleOverlapResult>(OverlapCircleUrl, request).hits;
+var hits = YmirPhysicsQueries.OverlapCircle(request).hits;
 ```
 
 Desired Rust Ymir/Aetheria query sugar:

@@ -67,6 +67,7 @@ namespace GameCult.Aetheria.State.Verse
         public const string GravityViewport = "gamecult.aetheria.gravity_viewport.v1";
         public const string RenderSplatsViewport = "gamecult.aetheria.render_splats_viewport.v1";
         public const string AssetManifest = "gamecult.aetheria.asset_manifest.v1";
+        public const string CultMeshCdnAssetBlob = "gamecult.cultmesh.cdn.asset_blob.v1";
         public const string CurrentZone = "gamecult.aetheria.current_zone.v1";
         public const string CurrentEntity = "gamecult.aetheria.current_entity.v1";
         public const string CurrentDocking = "gamecult.aetheria.current_docking.v1";

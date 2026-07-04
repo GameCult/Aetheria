@@ -1494,5 +1494,9 @@ namespace GameCult.Aetheria.State.Verse
         [Key(8)]
         public AetheriaRuntimeBodySnapshotCommit Body { get; set; } =
             new AetheriaRuntimeBodySnapshotCommit();
+
+        [Key(9)]
+        public AetheriaRuntimeAssetRef IconAsset { get; set; } =
+            AetheriaRuntimeAssetRef.Empty(AetheriaRuntimeAssetKinds.Sprite);
     }
 }

@@ -149,6 +149,23 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   action-bar group binding, override shutdown, and thermotoggle target
   temperature controls directly instead of routing them through
   `PropertiesPanel`.
+- Main-menu level presentation is now authored as a field-oriented Eve/CultUI
+  surface, not as a renderer-owned Aetheria special case. The provider publishes
+  `field.surface2d` with embedded document slots for `gravity.height`,
+  `nebula.tint`, and object rows. `gravity.height` is a 2D scalar field;
+  isolines are one declared visualizer, alongside other possible scalar
+  visualizers such as shaded height and probes. `nebula.tint` is a 2D
+  vector/color field accumulated from render splats as color times the
+  PowerPulse window. The browser lowerer and the Unity client should both lower
+  this same field surface. Unity's current `ZoneRenderer`, `PowerBrush`, and
+  `Zone.GetHeight` behavior are parity evidence for the new Eve field renderer,
+  not a permanent side path.
+  Object and body icon selection is provider-owned too:
+  `AetheriaRuntimeRtsViewportObject.IconAsset` and
+  `AetheriaRuntimeRtsBodyView.IconAsset` carry the CultMesh CDN asset refs. A
+  lowering target may draw the advertised asset or expose the missing provider
+  data, but it must not synthesize icons, glow, asset paths, gravity fields,
+  or backdrop noise as renderer-local compensation.
 - The combat schematic HUD uses typed runtime catalog weapon facets for its
   static weapon icon strip; missing typed weapon facets no longer fall back to
   legacy `WeaponItemData`. Schematic weapon-row selection now uses typed
@@ -550,8 +567,8 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
 - `AetheriaEveSurfacePresenter` is the first runtime UI Toolkit consumer of
   those typed surface documents. It owns mounting only: state file resolution,
   surface lookup, lowering, and command emission into a typed pending queue.
-  Provider command acceptance still belongs to the future CultMesh command
-  bridge.
+  Provider command acceptance belongs to `AetheriaEveCommandBridge`, which
+  consumes typed Eve command documents from the CultCache/CultMesh state node.
 - `AetheriaEveRuntimeBootstrap` mounts the first runtime Eve surface after
   scene load. The default surface is `aetheria.operations`, hosted in a
   runtime-created `UIDocument`; environment variables or a command-line switch
@@ -1684,7 +1701,7 @@ First Aetheria surfaces to publish:
    - Done: publish an Eve provider advertisement so Odin/Eve can discover
      Aetheria surfaces and command boundaries through typed state.
    - Done: make the daemon/provider advertisements derive from the shared
-     `AetheriaRuntimeEveSurfaceCatalog`, so Odin/Eir can index every known
+     `AetheriaRuntimeEveSurfaceCatalog`, so Odin/Hermodr can index every known
      Aetheria Eve panel instead of only the daemon game/editor surfaces.
    - Done: stop legacy catalog pull/read paths from writing entries back to
      their source backing store.

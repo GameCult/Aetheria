@@ -14,13 +14,13 @@ namespace GameCult.Aetheria.State.Verse
             string baseUri = "cultmesh://aetheria.local/assets")
         {
             var entries = new Dictionary<string, AetheriaRuntimeAssetManifestEntry>(StringComparer.Ordinal);
-            Add(entries, MapIcon("entity.player", "Player", "Sprites/Map/player"));
-            Add(entries, MapIcon("entity.ship", "Ship", "Sprites/Map/ship"));
-            Add(entries, MapIcon("entity.orbital", "Orbital", "Sprites/Map/orbital"));
-            Add(entries, MapIcon("entity.station", "Station", "Sprites/Map/station"));
-            Add(entries, MapIcon("body.planet", "Planet", "Sprites/Map/planet"));
-            Add(entries, MapIcon("body.sun", "Sun", "Sprites/Map/sun"));
-            Add(entries, MapIcon("body.asteroid", "Asteroid", "Sprites/Map/asteroid"));
+            Add(entries, MapIcon("entity.player", "Player", "Sprites/Icons/Stroked/Ship"));
+            Add(entries, MapIcon("entity.ship", "Ship", "Sprites/Icons/Stroked/Ship"));
+            Add(entries, MapIcon("entity.orbital", "Orbital", "Sprites/Icons/Stroked/orbital"));
+            Add(entries, MapIcon("entity.station", "Station", "Sprites/Icons/station1"));
+            Add(entries, MapIcon("body.planet", "Planet", "Sprites/Icons/Stroked/Planet"));
+            Add(entries, MapIcon("body.sun", "Sun", "Sprites/Icons/Stroked/Sun"));
+            Add(entries, MapIcon("body.asteroid", "Asteroid", "Sprites/Icons/Stroked/Planet"));
             foreach (var inventoryAsset in InventoryUiAssets())
                 Add(entries, inventoryAsset);
 
@@ -56,15 +56,27 @@ namespace GameCult.Aetheria.State.Verse
         public static AetheriaRuntimeAssetRef ResolveEntityIcon(AetheriaRuntimeRtsViewportObject? obj)
         {
             if (obj?.Controlled == true)
-                return Sprite("map.entity.player", "Sprites/Map/player");
+                return Sprite("map.entity.player", "Sprites/Icons/Stroked/Ship");
 
             var kind = (obj?.Kind ?? "").Trim().ToLowerInvariant();
             if (kind.IndexOf("station", StringComparison.Ordinal) >= 0)
-                return Sprite("map.entity.station", "Sprites/Map/station");
+                return Sprite("map.entity.station", "Sprites/Icons/station1");
             if (kind.IndexOf("orbital", StringComparison.Ordinal) >= 0)
-                return Sprite("map.entity.orbital", "Sprites/Map/orbital");
+                return Sprite("map.entity.orbital", "Sprites/Icons/Stroked/orbital");
 
-            return Sprite("map.entity.ship", "Sprites/Map/ship");
+            return Sprite("map.entity.ship", "Sprites/Icons/Stroked/Ship");
+        }
+
+        public static AetheriaRuntimeAssetRef ResolveBodyIcon(AetheriaRuntimeRtsBodyView? body)
+        {
+            var kind = (body?.Kind ?? "").Trim().ToLowerInvariant();
+            if (kind.IndexOf("sun", StringComparison.Ordinal) >= 0 ||
+                kind.IndexOf("star", StringComparison.Ordinal) >= 0)
+                return Sprite("map.body.sun", "Sprites/Icons/Stroked/Sun");
+            if (kind.IndexOf("asteroid", StringComparison.Ordinal) >= 0)
+                return Sprite("map.body.asteroid", "Sprites/Icons/Stroked/Planet");
+
+            return Sprite("map.body.planet", "Sprites/Icons/Stroked/Planet");
         }
 
         public static AetheriaRuntimeAssetRef AssetRefFromCatalogIcon(
@@ -78,11 +90,10 @@ namespace GameCult.Aetheria.State.Verse
             var assetKey = string.IsNullOrWhiteSpace(fallbackAssetKey)
                 ? $"catalog.{resourcePath}".Replace('/', '.').Replace('\\', '.')
                 : fallbackAssetKey;
-            return AetheriaRuntimeAssetRef.FromKey(
+            return CultMeshAssetRef(
                 assetKey,
                 AetheriaRuntimeAssetKinds.Texture,
-                $"resources://{resourcePath}",
-                AetheriaRuntimeAssetTransports.Resources,
+                resourcePath,
                 "image/*");
         }
 
@@ -143,22 +154,49 @@ namespace GameCult.Aetheria.State.Verse
 
         private static AetheriaRuntimeAssetRef Sprite(string key, string resourcePath)
         {
-            return AetheriaRuntimeAssetRef.FromKey(
+            return CultMeshAssetRef(
                 key,
                 AetheriaRuntimeAssetKinds.Sprite,
-                $"resources://{NormalizeResourcePath(resourcePath)}",
-                AetheriaRuntimeAssetTransports.Resources,
+                resourcePath,
                 "image/*");
         }
 
         private static AetheriaRuntimeAssetRef Texture(string key, string resourcePath)
         {
-            return AetheriaRuntimeAssetRef.FromKey(
+            return CultMeshAssetRef(
                 key,
                 AetheriaRuntimeAssetKinds.Texture,
-                $"resources://{NormalizeResourcePath(resourcePath)}",
-                AetheriaRuntimeAssetTransports.Resources,
+                resourcePath,
                 "image/*");
+        }
+
+        private static AetheriaRuntimeAssetRef CultMeshAssetRef(
+            string key,
+            string kind,
+            string resourcePath,
+            string mimeType)
+        {
+            var normalizedResourcePath = NormalizeResourcePath(resourcePath);
+            return new AetheriaRuntimeAssetRef
+            {
+                AssetKey = key ?? "",
+                Kind = kind ?? "",
+                Uri = CultMeshAssetUri(key),
+                Transport = AetheriaRuntimeAssetTransports.CultMesh,
+                MimeType = mimeType ?? "",
+                Metadata = new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    ["resourcePath"] = normalizedResourcePath,
+                    ["sourceUri"] = $"resources://{normalizedResourcePath}",
+                    ["sourceTransport"] = AetheriaRuntimeAssetTransports.Resources
+                }
+            };
+        }
+
+        private static string CultMeshAssetUri(string key)
+        {
+            var path = (key ?? "").Trim().Replace('.', '/').Replace('\\', '/').Trim('/');
+            return $"cultmesh://aetheria/assets/{path}";
         }
 
         private static string NormalizeResourcePath(string path)

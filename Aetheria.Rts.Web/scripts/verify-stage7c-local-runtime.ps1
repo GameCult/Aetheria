@@ -54,7 +54,13 @@ if (!clientModulePath)
 
 const { AetheriaCultMeshClient } = await import(pathToFileURL(clientModulePath).href);
 
-const client = new AetheriaCultMeshClient(endpoint, statePath, "stage7c-verifier");
+const client = new AetheriaCultMeshClient({
+  uri: "cultmesh://odin/aetheria/rts/stage7c-verifier",
+  peerId: "stage7c-daemon",
+  verseId: "aetheria.local",
+  role: "aetheria-rts-daemon",
+  endpoints: [endpoint],
+}, statePath, "stage7c-verifier");
 const viewport = await client.mapViewport({ minX: -5000, minY: -5000, maxX: 5000, maxY: 5000 });
 const objectsViewport = await client.objectsViewport({ minX: -5000, minY: -5000, maxX: 5000, maxY: 5000 });
 const gravityViewport = await client.gravityViewport({ minX: -5000, minY: -5000, maxX: 5000, maxY: 5000 });

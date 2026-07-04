@@ -49,6 +49,7 @@
   <ItemGroup>
     <Compile Include="Packages\org.gamecult.aetheria.eve-runtime\Runtime\AetheriaEveSurfacePresenter.cs" />
     <Compile Include="Packages\org.gamecult.aetheria.eve-runtime\Runtime\AetheriaEveRuntimeBootstrap.cs" />
+    <Compile Include="Packages\org.gamecult.aetheria.eve-runtime\Runtime\AetheriaEveFileSurfacePresenter.cs" />
     <Compile Include="Packages\org.gamecult.aetheria.eve-runtime\Runtime\AetheriaEveUnitySurfaceHost.cs" />
     <None Include="Packages\org.gamecult.aetheria.eve-runtime\Runtime\GameCult.Aetheria.EveRuntime.asmdef" />
     <Reference Include="UnityEngine">

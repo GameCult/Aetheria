@@ -23,13 +23,16 @@ const debugSurfacePath = resolve(process.env.AETHERIA_CULTUI_DEBUG_SURFACE_PATH 
 const daemonDll = resolve(repoRoot, "Aetheria.State.Daemon", "bin", "Debug", "net10.0", "Aetheria.State.Daemon.dll");
 const rendererIndex = resolve(projectRoot, "wwwroot", "index.html");
 const rtsCultMeshPort = Number.parseInt(process.env.AETHERIA_RTS_CULTMESH_PORT ?? "3076", 10);
-const configuredDaemonEndpoint = process.env.AETHERIA_RTS_DAEMON_ENDPOINT?.trim() ?? "";
-const launchLocalDaemon = configuredDaemonEndpoint.length === 0;
-const rtsCultMeshEndpoint = configuredDaemonEndpoint || `rudp://127.0.0.1:${rtsCultMeshPort}`;
 const rtsVerseId = process.env.AETHERIA_RTS_VERSE_ID?.trim() || "aetheria.local";
 const rtsDaemonId = process.env.AETHERIA_RTS_DAEMON_ID?.trim() || "starfire-rts";
+const configuredDaemonUri = process.env.AETHERIA_RTS_CULTMESH_URI?.trim() ?? "";
+const legacyDaemonEndpoint = process.env.AETHERIA_RTS_DAEMON_ENDPOINT?.trim() ?? "";
+const launchLocalDaemon = configuredDaemonUri.length === 0 && legacyDaemonEndpoint.length === 0;
+const rtsCultMeshUri = configuredDaemonUri || `cultmesh://odin/aetheria/rts/${encodeURIComponent(rtsDaemonId)}`;
 const rtsCultMeshAdvertiseHost = process.env.AETHERIA_RTS_CULTMESH_ADVERTISE_HOST?.trim() || "127.0.0.1";
-const peerCultMeshEndpoints = parseEndpointList(process.env.AETHERIA_RTS_PEER_CULTMESH_ENDPOINTS);
+const removedResolvedRudpEndpoint = process.env.AETHERIA_RTS_RESOLVED_RUDP_ENDPOINT?.trim() ?? "";
+const removedPeerCultMeshEndpoints = process.env.AETHERIA_RTS_PEER_CULTMESH_ENDPOINTS?.trim() ?? "";
+const localDaemonRudpEndpoint = launchLocalDaemon ? `rudp://127.0.0.1:${rtsCultMeshPort}` : "";
 const electronSmoke = process.env.AETHERIA_RTS_ELECTRON_SMOKE === "1";
 const electronSmokeResultPath = process.env.AETHERIA_RTS_ELECTRON_SMOKE_RESULT;
 const rendererView = process.env.AETHERIA_RTS_VIEW?.trim() ?? "";
@@ -83,6 +86,16 @@ app.whenReady().then(async () => {
   showStartup("Preparing Aetheria RTS", "Building daemon if needed.");
 
   try {
+    if (legacyDaemonEndpoint) {
+      throw new Error("AETHERIA_RTS_DAEMON_ENDPOINT has been removed. Configure AETHERIA_RTS_CULTMESH_URI and let Odin/CultMesh resolve the transport.");
+    }
+    if (removedResolvedRudpEndpoint) {
+      throw new Error("AETHERIA_RTS_RESOLVED_RUDP_ENDPOINT has been removed. Configure AETHERIA_RTS_CULTMESH_URI and let Odin/CultMesh resolve the daemon transport.");
+    }
+    if (removedPeerCultMeshEndpoints) {
+      throw new Error("AETHERIA_RTS_PEER_CULTMESH_ENDPOINTS has been removed. Configure AETHERIA_RTS_CULTMESH_URI and let Odin/CultMesh discover peer endpoints.");
+    }
+
     if (rendererView === "main-menu") {
       showStartup("Launching Aetheria Menu", "Lowering the CultUI main-menu surface.");
       mkdirSync(runtimeRoot, { recursive: true });
@@ -107,15 +120,20 @@ app.whenReady().then(async () => {
         "20",
         "--api-publication-interval-ms",
         "100000",
-        ...peerCultMeshEndpoints.flatMap(endpoint => ["--peer-cultmesh-endpoint", endpoint]),
       ]);
     } else {
-      showStartup("Connecting Aetheria RTS", `Using daemon ${rtsCultMeshEndpoint}.`);
+      showStartup("Connecting Aetheria RTS", `Using daemon ${rtsCultMeshUri}.`);
       mkdirSync(runtimeRoot, { recursive: true });
     }
 
     rtsClient = new AetheriaCultMeshClient(
-      rtsCultMeshEndpoint,
+      {
+        uri: rtsCultMeshUri,
+        peerId: rtsDaemonId,
+        verseId: rtsVerseId,
+        role: "aetheria-rts-daemon",
+        endpoints: localDaemonRudpEndpoint ? [localDaemonRudpEndpoint] : [],
+      },
       runtimeStatePath,
       "aetheria-rts-electron",
       { publicationMode: launchLocalDaemon ? "local" : "remote" });
@@ -339,10 +357,10 @@ function registerIpc(): void {
     () => ({
       status: "ok",
       transport: "cultmesh-rudp",
-      endpoint: rtsCultMeshEndpoint,
+      endpoint: rtsCultMeshUri,
       verseId: rtsVerseId,
       daemonId: rtsDaemonId,
-      peerEndpoints: peerCultMeshEndpoints,
+      peerEndpoints: [],
       daemonRunning: daemonProcess != null && !daemonProcess.killed,
       daemonMode: launchLocalDaemon ? "local" : "remote",
     }));
@@ -524,16 +542,6 @@ function normalizeDebugProps(props: unknown): Record<string, string> {
 
 function stringOr(value: unknown, fallback: string): string {
   return typeof value === "string" ? value : fallback;
-}
-
-function parseEndpointList(value: string | undefined): string[] {
-  if (!value)
-    return [];
-
-  return value
-    .split(/[;,]/u)
-    .map(endpoint => endpoint.trim())
-    .filter(endpoint => endpoint.length > 0);
 }
 
 function requireClient(): AetheriaCultMeshClient {

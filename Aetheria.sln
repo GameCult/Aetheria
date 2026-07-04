@@ -27,9 +27,9 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GameCult.Brokkr", "GameCult
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tests", "Tests.csproj", "{28568750-512b-4d45-69bf-887882a23da7}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GameCult.Eve.UnityUIToolkit", "GameCult.Eve.UnityUIToolkit.csproj", "{5cdb0413-71d7-c6b3-4ad9-d8e730b55ffb}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GameCult.Eve.Surface", "GameCult.Eve.Surface.csproj", "{037dacf0-10f4-20ed-7963-3a1e1ac15b64}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GameCult.Eve.UnityUIToolkit", "GameCult.Eve.UnityUIToolkit.csproj", "{5cdb0413-71d7-c6b3-4ad9-d8e730b55ffb}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MessagePack.SourceDisabled", "MessagePack.SourceDisabled.csproj", "{b916e744-81e2-a0ba-3884-e845f1c5ef88}"
 EndProject
@@ -64,10 +64,10 @@ Global
 		{fc28bcbe-9ef4-444f-c1c9-dde8a3a864ad}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{28568750-512b-4d45-69bf-887882a23da7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{28568750-512b-4d45-69bf-887882a23da7}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{5cdb0413-71d7-c6b3-4ad9-d8e730b55ffb}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{5cdb0413-71d7-c6b3-4ad9-d8e730b55ffb}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{037dacf0-10f4-20ed-7963-3a1e1ac15b64}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{037dacf0-10f4-20ed-7963-3a1e1ac15b64}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5cdb0413-71d7-c6b3-4ad9-d8e730b55ffb}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5cdb0413-71d7-c6b3-4ad9-d8e730b55ffb}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{b916e744-81e2-a0ba-3884-e845f1c5ef88}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{b916e744-81e2-a0ba-3884-e845f1c5ef88}.Debug|Any CPU.Build.0 = Debug|Any CPU
 	EndGlobalSection

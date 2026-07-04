@@ -14,7 +14,8 @@ var options = AetheriaDaemonHostOptions.Parse(args);
 var startedAtUtc = DateTimeOffset.UtcNow.ToString("O");
 
 Console.WriteLine($"Aetheria Verse daemon starting: {options.StatePath}");
-Console.WriteLine($"Aetheria Verse daemon peers: {options.PeerCultMeshEndpoints.Count} [{string.Join(", ", options.PeerCultMeshEndpoints)}]");
+Console.WriteLine("Aetheria Verse daemon peers: Odin/CultMesh discovery");
+Console.WriteLine($"Aetheria Odin announcement target: {options.OdinCultMeshUri}");
 
 await using var node = await AetheriaStateNode.OpenAsync(
     options.StatePath,
@@ -122,7 +123,7 @@ static async Task<AetheriaRuntimeDaemonTickResult> TickAsync(
     var sessionId = string.IsNullOrWhiteSpace(currentFrame?.SessionId)
         ? options.SessionId
         : currentFrame.SessionId;
-    var run = HasPlayableRun(currentFrame?.Run)
+    var run = HasPlayableRun(currentFrame?.Run) && HasRtsScenario(currentFrame?.Run)
         ? currentFrame!.Run
         : await ReadRuntimeRunCheckpointAsync(node).ConfigureAwait(false) ?? new AetheriaRuntimeRunCheckpointCommit();
 
@@ -191,21 +192,11 @@ static async Task<AetheriaRuntimeDaemonTickResult> TickAsync(
         authorizedCommands,
         policyRejectedCommandIds).ConfigureAwait(false);
 
-    if (options.PeerCultMeshEndpoints.Count > 0)
-    {
-        result = await ImportRemoteCommittedFactsAsync(
-            node,
-            options,
-            result.Frame,
-            result,
-            authorityPolicy,
-            authorityLeases).ConfigureAwait(false);
-    }
-
     if (buildPublications)
     {
-        await PublishDaemonApiDocumentsAsync(node, result).ConfigureAwait(false);
+        await PublishDaemonApiDocumentsAsync(node, options, result).ConfigureAwait(false);
         await PublishStateSurfacesAsync(node, options, result.Frame.PublishedAtUtc).ConfigureAwait(false);
+        await PublishOdinSurfaceAnnouncementsAsync(node, options, result.Frame.PublishedAtUtc).ConfigureAwait(false);
     }
 
     return result;
@@ -251,97 +242,6 @@ static async Task PublishCommittedCommandFactsAsync(
                 command,
                 options.VerseId)).ConfigureAwait(false);
     }
-}
-
-static async Task<AetheriaRuntimeDaemonTickResult> ImportRemoteCommittedFactsAsync(
-    AetheriaStateNode node,
-    AetheriaDaemonHostOptions options,
-    AetheriaRuntimeDaemonFrameDocument frame,
-    AetheriaRuntimeDaemonTickResult currentResult,
-    AetheriaRuntimeVerseAuthorityPolicyDocument? authorityPolicy,
-    IReadOnlyList<AetheriaRuntimeAuthorityLeaseDocument> authorityLeases)
-{
-    var remoteFacts = new List<AetheriaRuntimeCommittedCommandFactDocument>();
-    foreach (var endpoint in options.PeerCultMeshEndpoints)
-    {
-        try
-        {
-            var endpointFacts = await AetheriaVerseReplica.FetchScopedDocumentsAsync<AetheriaRuntimeCommittedCommandFactDocument>(
-                endpoint,
-                schemaIds:
-                [
-                    AetheriaRuntimeDaemonSchemas.CommittedCommandFact
-                ],
-                connectTimeout: options.PeerSyncTimeout,
-                responseTimeout: options.PeerSyncTimeout).ConfigureAwait(false);
-            remoteFacts.AddRange(endpointFacts);
-        }
-        catch (Exception ex) when (
-            ex is IOException ||
-            ex is SocketException ||
-            ex is TimeoutException ||
-            ex is InvalidOperationException)
-        {
-            Console.WriteLine($"Aetheria peer fact sync skipped for {endpoint}: {ex.GetType().Name}: {ex.Message}");
-        }
-    }
-
-    var facts = remoteFacts
-        .Where(fact => fact != null)
-        .Where(fact => string.Equals(fact.VerseId, options.VerseId, StringComparison.Ordinal))
-        .Where(fact => !string.Equals(fact.SourceDaemonId, options.DaemonId, StringComparison.Ordinal))
-        .GroupBy(fact => fact.FactId ?? "", StringComparer.Ordinal)
-        .Where(group => !string.IsNullOrWhiteSpace(group.Key))
-        .Select(group => group.First())
-        .ToArray();
-    if (facts.Length == 0)
-        return currentResult;
-
-    var importedFactIds = (frame.CumulativeImportedFactIds ?? Array.Empty<string>())
-        .Concat(frame.CumulativeRejectedImportedFactIds ?? Array.Empty<string>())
-        .Distinct(StringComparer.Ordinal)
-        .ToArray();
-    var import = AetheriaRuntimeCommittedFactImporter.ImportIntoFrame(
-        node.StatePath,
-        frame,
-        facts,
-        authorityPolicy,
-        authorityLeases,
-        options.DaemonId,
-        options.DaemonId,
-        frame.SessionId,
-        options.VerseId,
-        importedFactIds,
-        node.RuntimeCatalog().Latest());
-
-    var importedFrame = import.Frame;
-    importedFrame.ImportedFactIds = import.AcceptedFactIds;
-    importedFrame.RejectedImportedFactIds = import.RejectedFactIds;
-    importedFrame.DuplicateImportedFactIds = import.DuplicateFactIds;
-    importedFrame.CumulativeImportedFactIds = (frame.CumulativeImportedFactIds ?? Array.Empty<string>())
-        .Concat(import.AcceptedFactIds)
-        .Distinct(StringComparer.Ordinal)
-        .ToArray();
-    importedFrame.CumulativeRejectedImportedFactIds = (frame.CumulativeRejectedImportedFactIds ?? Array.Empty<string>())
-        .Concat(import.RejectedFactIds)
-        .Distinct(StringComparer.Ordinal)
-        .ToArray();
-    importedFrame.CumulativeAppliedCommandIds = (frame.CumulativeAppliedCommandIds ?? Array.Empty<string>())
-        .Concat(importedFrame.CumulativeAppliedCommandIds ?? Array.Empty<string>())
-        .Distinct(StringComparer.Ordinal)
-        .ToArray();
-    importedFrame.CumulativeRejectedCommandIds = (frame.CumulativeRejectedCommandIds ?? Array.Empty<string>())
-        .Concat(importedFrame.CumulativeRejectedCommandIds ?? Array.Empty<string>())
-        .Distinct(StringComparer.Ordinal)
-        .ToArray();
-
-    if (import.AcceptedFactIds.Count > 0 || import.RejectedFactIds.Count > 0)
-    {
-        Console.WriteLine(
-            $"Aetheria imported peer facts: accepted={import.AcceptedFactIds.Count}, rejected={import.RejectedFactIds.Count}, duplicates={import.DuplicateFactIds.Count}.");
-    }
-
-    return import.Tick;
 }
 
 static RudpCultNetSchemaServer StartRtsCultMeshHost(
@@ -489,6 +389,41 @@ static RudpCultNetSchemaServer StartRtsCultMeshHost(
                 response,
                 AetheriaRuntimeVerseRecordKeys.DaemonEditorTuiSurface.ToString(),
                 "editor-tui").ConfigureAwait(false);
+            await InjectEveSurfaceSnapshotAsync(
+                node,
+                options,
+                request,
+                response,
+                AetheriaRuntimeVerseRecordKeys.MainMenuSurface.ToString(),
+                "main-menu").ConfigureAwait(false);
+            await InjectEveSurfaceSnapshotAsync(
+                node,
+                options,
+                request,
+                response,
+                AetheriaRuntimeVerseRecordKeys.InventoryPanelSurface.ToString(),
+                "inventory-panel").ConfigureAwait(false);
+            await InjectEveSurfaceSnapshotAsync(
+                node,
+                options,
+                request,
+                response,
+                AetheriaRuntimeVerseRecordKeys.InventoryDropdownSurface.ToString(),
+                "inventory-dropdown").ConfigureAwait(false);
+            await InjectEveSurfaceSnapshotAsync(
+                node,
+                options,
+                request,
+                response,
+                AetheriaRuntimeVerseRecordKeys.MapMenuSurface.ToString(),
+                "map-menu").ConfigureAwait(false);
+            await InjectEveSurfaceSnapshotAsync(
+                node,
+                options,
+                request,
+                response,
+                AetheriaRuntimeVerseRecordKeys.TradeMenuSurface.ToString(),
+                "trade-menu").ConfigureAwait(false);
 
             var starbridgeSession = await node.MutableDocument<AetheriaRuntimeStarbridgeSessionSummaryDocument>(AetheriaRuntimeVerseRecordKeys.StarbridgeSessionSummary).ReadAsync().ConfigureAwait(false);
             if (starbridgeSession != null &&
@@ -549,26 +484,83 @@ static RudpCultNetSchemaServer StartRtsCultMeshHost(
                     .ToArray();
             }
 
-            if (hasFrame && frame != null && TryGetRtsViewportRequest(request, out var viewportRecordKey, out var viewport))
+            if (hasFrame && frame != null && TryGetRtsViewportRequest(request, out var viewportRecordKey, out var viewportSchemaId, out var viewport))
             {
-                var viewportDocument = AetheriaRuntimeRtsDocuments.Viewport(frame, viewport);
-                var viewportPut = node.Database.Documents.CreateRawDocumentPutMessage(
-                    response.MessageId,
-                    new CultRecordHandle<AetheriaRuntimeRtsViewportDocument>(
-                        new CultRecordKey(viewportRecordKey)),
-                    viewportDocument,
-                    new CultNetDocumentMessageOptions
-                    {
-                        SourceRuntimeId = options.DaemonId,
-                        SourceRole = "aetheria-daemon"
-                    });
-                response.Documents = response.Documents
-                    .Where(document => !string.Equals(document.SchemaId, viewportPut.Document.SchemaId, StringComparison.Ordinal) ||
-                        !string.Equals(document.RecordKey, viewportPut.Document.RecordKey, StringComparison.Ordinal))
-                    .Concat(new[] { viewportPut.Document })
-                    .ToArray();
+                if (string.Equals(viewportSchemaId, AetheriaRuntimeDaemonSchemas.ObjectsViewport, StringComparison.Ordinal))
+                {
+                    var viewportPut = node.Database.Documents.CreateRawDocumentPutMessage(
+                        response.MessageId,
+                        new CultRecordHandle<AetheriaRuntimeObjectsViewportDocument>(
+                            new CultRecordKey(viewportRecordKey)),
+                        AetheriaRuntimeRtsDocuments.ObjectsViewport(frame, viewport),
+                        new CultNetDocumentMessageOptions
+                        {
+                            SourceRuntimeId = options.DaemonId,
+                            SourceRole = "aetheria-daemon"
+                        });
+                    response.Documents = response.Documents
+                        .Where(document => !string.Equals(document.SchemaId, viewportPut.Document.SchemaId, StringComparison.Ordinal) ||
+                            !string.Equals(document.RecordKey, viewportPut.Document.RecordKey, StringComparison.Ordinal))
+                        .Concat(new[] { viewportPut.Document })
+                        .ToArray();
+                }
+                else if (string.Equals(viewportSchemaId, AetheriaRuntimeDaemonSchemas.GravityViewport, StringComparison.Ordinal))
+                {
+                    var viewportPut = node.Database.Documents.CreateRawDocumentPutMessage(
+                        response.MessageId,
+                        new CultRecordHandle<AetheriaRuntimeGravityViewportDocument>(
+                            new CultRecordKey(viewportRecordKey)),
+                        AetheriaRuntimeRtsDocuments.GravityViewport(frame, viewport),
+                        new CultNetDocumentMessageOptions
+                        {
+                            SourceRuntimeId = options.DaemonId,
+                            SourceRole = "aetheria-daemon"
+                        });
+                    response.Documents = response.Documents
+                        .Where(document => !string.Equals(document.SchemaId, viewportPut.Document.SchemaId, StringComparison.Ordinal) ||
+                            !string.Equals(document.RecordKey, viewportPut.Document.RecordKey, StringComparison.Ordinal))
+                        .Concat(new[] { viewportPut.Document })
+                        .ToArray();
+                }
+                else if (string.Equals(viewportSchemaId, AetheriaRuntimeDaemonSchemas.RenderSplatsViewport, StringComparison.Ordinal))
+                {
+                    var viewportPut = node.Database.Documents.CreateRawDocumentPutMessage(
+                        response.MessageId,
+                        new CultRecordHandle<AetheriaRuntimeRenderSplatsViewportDocument>(
+                            new CultRecordKey(viewportRecordKey)),
+                        AetheriaRuntimeRtsDocuments.RenderSplatsViewport(frame, viewport),
+                        new CultNetDocumentMessageOptions
+                        {
+                            SourceRuntimeId = options.DaemonId,
+                            SourceRole = "aetheria-daemon"
+                        });
+                    response.Documents = response.Documents
+                        .Where(document => !string.Equals(document.SchemaId, viewportPut.Document.SchemaId, StringComparison.Ordinal) ||
+                            !string.Equals(document.RecordKey, viewportPut.Document.RecordKey, StringComparison.Ordinal))
+                        .Concat(new[] { viewportPut.Document })
+                        .ToArray();
+                }
+                else
+                {
+                    var viewportPut = node.Database.Documents.CreateRawDocumentPutMessage(
+                        response.MessageId,
+                        new CultRecordHandle<AetheriaRuntimeRtsViewportDocument>(
+                            new CultRecordKey(viewportRecordKey)),
+                        AetheriaRuntimeRtsDocuments.Viewport(frame, viewport),
+                        new CultNetDocumentMessageOptions
+                        {
+                            SourceRuntimeId = options.DaemonId,
+                            SourceRole = "aetheria-daemon"
+                        });
+                    response.Documents = response.Documents
+                        .Where(document => !string.Equals(document.SchemaId, viewportPut.Document.SchemaId, StringComparison.Ordinal) ||
+                            !string.Equals(document.RecordKey, viewportPut.Document.RecordKey, StringComparison.Ordinal))
+                        .Concat(new[] { viewportPut.Document })
+                        .ToArray();
+                }
             }
 
+            await InjectCultMeshCdnAssetSnapshotsAsync(options, request, response).ConfigureAwait(false);
             peer.SendCultNet(response);
         }
         catch (Exception ex)
@@ -592,6 +584,178 @@ static RudpCultNetSchemaServer StartRtsCultMeshHost(
         await node.Database.ApplyPutAsync(message).ConfigureAwait(false);
     });
     return server;
+}
+
+static async Task InjectCultMeshCdnAssetSnapshotsAsync(
+    AetheriaDaemonHostOptions options,
+    CultNetSnapshotRequestMessage request,
+    CultNetSnapshotResponseRawMessage response)
+{
+    var schemaIds = request.SchemaIds ?? Array.Empty<string>();
+    if (schemaIds.Length > 0 &&
+        !schemaIds.Contains(AetheriaRuntimeDaemonSchemas.CultMeshCdnAssetBlob, StringComparer.Ordinal))
+    {
+        return;
+    }
+
+    var recordKeys = request.RecordKeys ?? Array.Empty<string>();
+    if (recordKeys.Length == 0)
+        return;
+
+    var documents = new List<CultNetRawDocumentRecord>();
+    foreach (var recordKey in recordKeys.Distinct(StringComparer.Ordinal))
+    {
+        if (!TryResolveCultMeshCdnAssetPath(options, recordKey, out var filePath, out var mimeType, out var canonicalUri))
+            continue;
+
+        var bytes = await File.ReadAllBytesAsync(filePath).ConfigureAwait(false);
+        documents.Add(new CultNetRawDocumentRecord
+        {
+            SchemaId = AetheriaRuntimeDaemonSchemas.CultMeshCdnAssetBlob,
+            RecordKey = recordKey,
+            StoredAt = DateTimeOffset.UtcNow.ToString("O"),
+            PayloadEncoding = "messagepack",
+            Payload = MessagePackSerializer.Serialize(bytes),
+            SourceRuntimeId = options.DaemonId,
+            SourceRole = "aetheria-cultmesh-cdn",
+            Tags =
+            [
+                "aetheria",
+                "cultmesh-cdn",
+                "asset",
+                $"mime:{mimeType}",
+                $"canonical:{canonicalUri}"
+            ]
+        });
+    }
+
+    if (documents.Count == 0)
+        return;
+
+    var keys = documents.Select(document => document.RecordKey).ToHashSet(StringComparer.Ordinal);
+    response.Documents = response.Documents
+        .Where(document => !string.Equals(document.SchemaId, AetheriaRuntimeDaemonSchemas.CultMeshCdnAssetBlob, StringComparison.Ordinal) ||
+            !keys.Contains(document.RecordKey))
+        .Concat(documents)
+        .ToArray();
+}
+
+static bool TryResolveCultMeshCdnAssetPath(
+    AetheriaDaemonHostOptions options,
+    string recordKey,
+    out string filePath,
+    out string mimeType,
+    out string canonicalUri)
+{
+    filePath = "";
+    mimeType = "application/octet-stream";
+    canonicalUri = "";
+
+    var assetPath = ParseCultMeshAssetPath(recordKey);
+    if (string.IsNullOrWhiteSpace(assetPath))
+        return false;
+
+    var relative = ResolveCultMeshAssetResourcePath(assetPath);
+    if (string.IsNullOrWhiteSpace(relative))
+        return false;
+
+    var candidates = new[]
+    {
+        Path.Combine(options.AetheriaResourcesRoot, relative),
+        Path.Combine(options.AetheriaResourcesRoot, relative + ".png"),
+        Path.Combine(options.AetheriaResourcesRoot, relative + ".PNG"),
+        Path.Combine(options.AetheriaResourcesRoot, relative + ".jpg"),
+        Path.Combine(options.AetheriaResourcesRoot, relative + ".jpeg"),
+        Path.Combine(options.AetheriaResourcesRoot, relative + ".psd")
+    };
+    filePath = candidates.FirstOrDefault(path =>
+        File.Exists(path) &&
+        Path.GetFullPath(path).StartsWith(Path.GetFullPath(options.AetheriaResourcesRoot), StringComparison.OrdinalIgnoreCase)) ?? "";
+    if (string.IsNullOrWhiteSpace(filePath))
+        return false;
+
+    mimeType = ContentTypeForPath(filePath);
+    canonicalUri = recordKey.StartsWith("cultmesh://", StringComparison.OrdinalIgnoreCase)
+        ? recordKey
+        : $"cultmesh://aetheria/assets/{assetPath.Trim('/')}";
+    return true;
+}
+
+static string ParseCultMeshAssetPath(string recordKey)
+{
+    var text = (recordKey ?? "").Trim();
+    if (text.Length == 0)
+        return "";
+
+    if (text.StartsWith("resources://", StringComparison.OrdinalIgnoreCase))
+        return text.Substring("resources://".Length).Trim('/');
+
+    if (!text.StartsWith("cultmesh://", StringComparison.OrdinalIgnoreCase))
+        return text.Trim('/');
+
+    if (!Uri.TryCreate(text, UriKind.Absolute, out var uri))
+        return "";
+
+    var parts = uri.AbsolutePath.Trim('/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+    var assetIndex = Array.FindIndex(parts, part => string.Equals(part, "assets", StringComparison.OrdinalIgnoreCase));
+    return string.Join("/", assetIndex >= 0 ? parts.Skip(assetIndex + 1) : parts);
+}
+
+static string ResolveCultMeshAssetResourcePath(string assetPath)
+{
+    var path = (assetPath ?? "").Trim('/').Replace('\\', '/');
+    var aliases = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+    {
+        ["icons/ui/sun"] = "Sprites/Icons/Stroked/Sun",
+        ["icons/ui/star"] = "Sprites/Icons/Stroked/Sun",
+        ["icons/ui/planet"] = "Sprites/Icons/Stroked/Planet",
+        ["icons/ui/gasgiant"] = "Sprites/Icons/Stroked/gasgiant",
+        ["icons/ui/asteroid"] = "Sprites/Icons/Stroked/Planet",
+        ["icons/ui/ship"] = "Sprites/Icons/Stroked/Ship",
+        ["icons/ui/player"] = "Sprites/Icons/Stroked/Ship",
+        ["icons/ui/station"] = "Sprites/Icons/station1",
+        ["icons/ui/orbital"] = "Sprites/Icons/Stroked/orbital",
+        ["map/entity/player"] = "Sprites/Icons/Stroked/Ship",
+        ["map/entity/ship"] = "Sprites/Icons/Stroked/Ship",
+        ["map/entity/orbital"] = "Sprites/Icons/Stroked/orbital",
+        ["map/entity/station"] = "Sprites/Icons/station1",
+        ["map/body/planet"] = "Sprites/Icons/Stroked/Planet",
+        ["map/body/sun"] = "Sprites/Icons/Stroked/Sun",
+        ["map/body/asteroid"] = "Sprites/Icons/Stroked/Planet",
+        ["textures/tint_splat"] = "Sprites/Flat UI/areaFade2",
+        ["textures/perlines-nebula"] = "Sprites/Icons/Tech/Cloud",
+        ["inventory/cell/background_atlas"] = "Sprites/Flat UI/Nodes/Nodes8BG",
+        ["inventory/cell/foreground_atlas"] = "Sprites/Flat UI/Nodes/Nodes8",
+        ["inventory/cell/thermal_layer_atlas"] = "Sprites/Flat UI/pipes"
+    };
+    if (aliases.TryGetValue(path, out var relative))
+        return relative;
+
+    if (path.StartsWith("icons/star.", StringComparison.OrdinalIgnoreCase))
+        return "Sprites/Icons/Stroked/Sun";
+    if (path.StartsWith("icons/body.", StringComparison.OrdinalIgnoreCase))
+        return path.Contains("vesper", StringComparison.OrdinalIgnoreCase)
+            ? "Sprites/Icons/Stroked/gasgiant"
+            : "Sprites/Icons/Stroked/Planet";
+    if (path.StartsWith("icons/ship.", StringComparison.OrdinalIgnoreCase))
+        return "Sprites/Icons/Stroked/Ship";
+    if (path.StartsWith("icons/station.", StringComparison.OrdinalIgnoreCase))
+        return "Sprites/Icons/station1";
+
+    return path;
+}
+
+static string ContentTypeForPath(string filePath)
+{
+    return Path.GetExtension(filePath).ToLowerInvariant() switch
+    {
+        ".png" => "image/png",
+        ".jpg" => "image/jpeg",
+        ".jpeg" => "image/jpeg",
+        ".svg" => "image/svg+xml",
+        ".psd" => "image/vnd.adobe.photoshop",
+        _ => "application/octet-stream"
+    };
 }
 
 static async Task InjectEveSurfaceSnapshotAsync(
@@ -634,6 +798,11 @@ static Task<EveSurfaceDocument?> ReadEveSurfacePublicationAsync(AetheriaStateNod
         "game-tui" => node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.DaemonGameTuiSurface).ReadAsync(),
         "editor" => node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.DaemonEditorSurface).ReadAsync(),
         "editor-tui" => node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.DaemonEditorTuiSurface).ReadAsync(),
+        "main-menu" => node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.MainMenuSurface).ReadAsync(),
+        "inventory-panel" => node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.InventoryPanelSurface).ReadAsync(),
+        "inventory-dropdown" => node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.InventoryDropdownSurface).ReadAsync(),
+        "map-menu" => node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.MapMenuSurface).ReadAsync(),
+        "trade-menu" => node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.TradeMenuSurface).ReadAsync(),
         _ => throw new ArgumentOutOfRangeException(nameof(surfaceKind), surfaceKind, "Unknown Eve surface publication.")
     };
 }
@@ -695,47 +864,125 @@ static bool SnapshotWants(
 static bool TryGetRtsViewportRequest(
     CultNetSnapshotRequestMessage request,
     out string recordKey,
+    out string schemaId,
     out AetheriaRuntimeRtsViewportBounds viewport)
 {
     const string prefix = "daemon:aetheria.rts.viewport.v1;";
     recordKey = "";
+    schemaId = "";
     viewport = new AetheriaRuntimeRtsViewportBounds();
 
     var schemaIds = request.SchemaIds ?? Array.Empty<string>();
-    if (schemaIds.Length > 0 && !schemaIds.Contains(AetheriaRuntimeDaemonSchemas.RtsViewport, StringComparer.Ordinal))
+    var allowedSchemas = new[]
+    {
+        AetheriaRuntimeDaemonSchemas.RtsViewport,
+        AetheriaRuntimeDaemonSchemas.ObjectsViewport,
+        AetheriaRuntimeDaemonSchemas.GravityViewport,
+        AetheriaRuntimeDaemonSchemas.RenderSplatsViewport
+    };
+    if (schemaIds.Length > 0 && !schemaIds.Any(candidate => allowedSchemas.Contains(candidate, StringComparer.Ordinal)))
         return false;
 
     foreach (var candidate in request.RecordKeys ?? Array.Empty<string>())
     {
-        if (!candidate.StartsWith(prefix, StringComparison.Ordinal))
-            continue;
-
-        var values = candidate
-            .Substring(prefix.Length)
-            .Split(';', StringSplitOptions.RemoveEmptyEntries)
-            .Select(part => part.Split(new[] { '=' }, 2))
-            .Where(parts => parts.Length == 2)
-            .ToDictionary(parts => parts[0], parts => parts[1], StringComparer.Ordinal);
-        if (!TryGetDouble(values, "minX", out var minX) ||
-            !TryGetDouble(values, "minY", out var minY) ||
-            !TryGetDouble(values, "maxX", out var maxX) ||
-            !TryGetDouble(values, "maxY", out var maxY))
+        if (candidate.StartsWith(prefix, StringComparison.Ordinal))
         {
-            continue;
+            var values = candidate
+                .Substring(prefix.Length)
+                .Split(';', StringSplitOptions.RemoveEmptyEntries)
+                .Select(part => part.Split(new[] { '=' }, 2))
+                .Where(parts => parts.Length == 2)
+                .ToDictionary(parts => parts[0], parts => parts[1], StringComparer.Ordinal);
+            if (!TryGetDouble(values, "minX", out var minX) ||
+                !TryGetDouble(values, "minY", out var minY) ||
+                !TryGetDouble(values, "maxX", out var maxX) ||
+                !TryGetDouble(values, "maxY", out var maxY))
+            {
+                continue;
+            }
+
+            recordKey = candidate;
+            schemaId = schemaIds.FirstOrDefault(known => allowedSchemas.Contains(known, StringComparer.Ordinal))
+                ?? AetheriaRuntimeDaemonSchemas.RtsViewport;
+            viewport = new AetheriaRuntimeRtsViewportBounds
+            {
+                MinX = Math.Min(minX, maxX),
+                MinY = Math.Min(minY, maxY),
+                MaxX = Math.Max(minX, maxX),
+                MaxY = Math.Max(minY, maxY)
+            };
+            return true;
         }
 
-        recordKey = candidate;
-        viewport = new AetheriaRuntimeRtsViewportBounds
+        if (TryGetManagedViewportRequest(candidate, out var managedSchemaId, out viewport))
         {
-            MinX = Math.Min(minX, maxX),
-            MinY = Math.Min(minY, maxY),
-            MaxX = Math.Max(minX, maxX),
-            MaxY = Math.Max(minY, maxY)
-        };
-        return true;
+            if (schemaIds.Length > 0 && !schemaIds.Contains(managedSchemaId, StringComparer.Ordinal))
+                continue;
+
+            recordKey = candidate;
+            schemaId = managedSchemaId;
+            return true;
+        }
     }
 
     return false;
+}
+
+static bool TryGetManagedViewportRequest(
+    string recordKey,
+    out string schemaId,
+    out AetheriaRuntimeRtsViewportBounds viewport)
+{
+    schemaId = "";
+    viewport = new AetheriaRuntimeRtsViewportBounds();
+    var prefix = "";
+    if (recordKey.StartsWith("aetheria.viewport.objects.", StringComparison.Ordinal))
+    {
+        prefix = "aetheria.viewport.objects.";
+        schemaId = AetheriaRuntimeDaemonSchemas.ObjectsViewport;
+    }
+    else if (recordKey.StartsWith("aetheria.viewport.gravity.", StringComparison.Ordinal))
+    {
+        prefix = "aetheria.viewport.gravity.";
+        schemaId = AetheriaRuntimeDaemonSchemas.GravityViewport;
+    }
+    else if (recordKey.StartsWith("aetheria.viewport.render_splats.", StringComparison.Ordinal))
+    {
+        prefix = "aetheria.viewport.render_splats.";
+        schemaId = AetheriaRuntimeDaemonSchemas.RenderSplatsViewport;
+    }
+    else
+    {
+        return false;
+    }
+
+    var parts = recordKey.Substring(prefix.Length).Split('.');
+    if (parts.Length != 4 ||
+        !TryParseViewportToken(parts[0], out var minX) ||
+        !TryParseViewportToken(parts[1], out var minY) ||
+        !TryParseViewportToken(parts[2], out var maxX) ||
+        !TryParseViewportToken(parts[3], out var maxY))
+    {
+        return false;
+    }
+
+    viewport = new AetheriaRuntimeRtsViewportBounds
+    {
+        MinX = Math.Min(minX, maxX),
+        MinY = Math.Min(minY, maxY),
+        MaxX = Math.Max(minX, maxX),
+        MaxY = Math.Max(minY, maxY)
+    };
+    return true;
+}
+
+static bool TryParseViewportToken(string token, out double value)
+{
+    return double.TryParse(
+        (token ?? "").Replace('n', '-').Replace('p', '.'),
+        NumberStyles.Float,
+        CultureInfo.InvariantCulture,
+        out value);
 }
 
 static bool TryGetDouble(
@@ -750,6 +997,7 @@ static bool TryGetDouble(
 
 static async Task PublishDaemonApiDocumentsAsync(
     AetheriaStateNode node,
+    AetheriaDaemonHostOptions options,
     AetheriaRuntimeDaemonTickResult result)
 {
     await node.MutableDocument<AetheriaRuntimeDaemonFrameDocument>(AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest)
@@ -796,11 +1044,12 @@ static async Task PublishDaemonApiDocumentsAsync(
             .ReplaceAsync(AetheriaRuntimeSurfaceDocuments.ToPortableSurface(result.EditorTuiSurface))
             .ConfigureAwait(false);
 
-    await PublishDaemonMenuSurfacesAsync(node, result.Frame).ConfigureAwait(false);
+    await PublishDaemonMenuSurfacesAsync(node, options, result.Frame).ConfigureAwait(false);
 }
 
 static async Task PublishDaemonMenuSurfacesAsync(
     AetheriaStateNode node,
+    AetheriaDaemonHostOptions options,
     AetheriaRuntimeDaemonFrameDocument frame)
 {
     if (frame == null)
@@ -810,6 +1059,10 @@ static async Task PublishDaemonMenuSurfacesAsync(
         ? DateTimeOffset.UtcNow.ToString("O")
         : frame.PublishedAtUtc;
     var catalog = AetheriaRuntimeCatalogStore.OpenReadOnly(node.StatePath);
+    var assetManifest = AetheriaRuntimeAssets.ProjectManifest(
+        catalog,
+        frame.Run?.RunId ?? frame.SessionId,
+        "cultmesh://aetheria/assets");
     var loadoutTemplates = AetheriaRuntimeCatalogStore.ReadLoadoutTemplates(node.StatePath);
     var playerSettings = await ReadRuntimePlayerSettingsAsync(node).ConfigureAwait(false);
     var currentEntity = AetheriaRuntimeRtsDocuments.CurrentEntity(frame);
@@ -837,10 +1090,23 @@ static async Task PublishDaemonMenuSurfacesAsync(
         ? new AetheriaRuntimeInventoryDocument()
         : AetheriaRuntimeRtsDocuments.Inventory(frame, currentEntity.EntityIndex);
 
+    var verseHost = await EnsureVerseHostSettingsAsync(node, options, updatedAtUtc)
+        .ConfigureAwait(false);
     var mainMenu = AetheriaRuntimeMainMenuSurfaceBuilder.BuildRoot(
         AetheriaRuntimeStateBoot.Inspect(
             new DirectoryInfo(Path.GetDirectoryName(node.StatePath) ?? "."),
             node.StatePath),
+        frame,
+        AetheriaRuntimeVerseHostSettingsDocument.FromSnapshot(new AetheriaRuntimeVerseHostSettingsSnapshot(
+            verseHost.ServiceId,
+            verseHost.VerseId,
+            verseHost.RootVerse,
+            verseHost.CanonicalService,
+            verseHost.LocatedService,
+            verseHost.CultMeshAddress,
+            verseHost.Title,
+            verseHost.Visibility,
+            verseHost.LastUpdatedAtUtc)),
         playerSettings,
         canOpenRuntimeInputScreen: true,
         inGame: true,
@@ -880,6 +1146,9 @@ static async Task PublishDaemonMenuSurfacesAsync(
         .ConfigureAwait(false);
     await node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.TradeMenuSurface)
         .ReplaceAsync(AetheriaRuntimeSurfaceDocuments.ToPortableSurface(tradeMenu))
+        .ConfigureAwait(false);
+    await node.MutableDocument<AetheriaRuntimeAssetManifestDocument>(AetheriaRuntimeVerseRecordKeys.DaemonAssetManifest)
+        .ReplaceAsync(assetManifest)
         .ConfigureAwait(false);
 }
 
@@ -1061,6 +1330,277 @@ static async Task PublishStateSurfacesAsync(
     await node.FlushAsync().ConfigureAwait(false);
 }
 
+static async Task PublishOdinSurfaceAnnouncementsAsync(
+    AetheriaStateNode node,
+    AetheriaDaemonHostOptions options,
+    string updatedAtUtc)
+{
+    if (string.IsNullOrWhiteSpace(options.OdinCultMeshUri))
+        return;
+
+    var surfaces = new[]
+    {
+        ("aetheria.operations", "Aetheria Operations", AetheriaStateNode.OperationsSurfaceKey),
+        ("aetheria.player_settings", "Aetheria Player Settings", AetheriaStateNode.PlayerSettingsSurfaceKey),
+        ("aetheria.daemon.game", "Aetheria Daemon Game", AetheriaRuntimeVerseRecordKeys.DaemonGameSurface),
+        ("aetheria.daemon.game.tui", "Aetheria Daemon Game TUI", AetheriaRuntimeVerseRecordKeys.DaemonGameTuiSurface),
+        ("aetheria.daemon.editor", "Aetheria Daemon Editor", AetheriaRuntimeVerseRecordKeys.DaemonEditorSurface),
+        ("aetheria.daemon.editor.tui", "Aetheria Daemon Editor TUI", AetheriaRuntimeVerseRecordKeys.DaemonEditorTuiSurface),
+        ("aetheria.main_menu.root", "Main Menu", AetheriaRuntimeVerseRecordKeys.MainMenuSurface),
+        ("aetheria.inventory.panel", "Inventory Panel", AetheriaRuntimeVerseRecordKeys.InventoryPanelSurface),
+        ("aetheria.inventory.panel.dropdown", "Inventory Dropdown", AetheriaRuntimeVerseRecordKeys.InventoryDropdownSurface),
+        ("aetheria.map.zone_details", "Map Menu", AetheriaRuntimeVerseRecordKeys.MapMenuSurface),
+        ("aetheria.trade.menu", "Trade Menu", AetheriaRuntimeVerseRecordKeys.TradeMenuSurface)
+    };
+
+    var documents = new List<CultNetDocumentPutRawMessage>();
+    var assetManifest = await node.MutableDocument<AetheriaRuntimeAssetManifestDocument>(AetheriaRuntimeVerseRecordKeys.DaemonAssetManifest)
+        .ReadAsync()
+        .ConfigureAwait(false);
+    if (assetManifest != null)
+    {
+        documents.Add(CreateOdinRawPut(
+            "gamecult.aetheria.asset_manifest.v1",
+            AetheriaRuntimeVerseRecordKeys.DaemonAssetManifest.ToString(),
+            assetManifest));
+    }
+    foreach (var (providerId, title, recordKey) in surfaces)
+    {
+        var surface = await node.MutableDocument<EveSurfaceDocument>(recordKey)
+            .ReadAsync()
+            .ConfigureAwait(false);
+        if (surface?.Surface?.Root == null)
+            continue;
+
+        documents.Add(CreateOdinRawPut(
+            "gamecult.eve.provider_advertisement.v1",
+            providerId,
+            BuildOdinProviderAdvertisement(providerId, title, options, updatedAtUtc)));
+        documents.Add(CreateOdinRawPut(
+            "gamecult.eve.surface_state.v1",
+            providerId,
+            BuildOdinSurfaceState(providerId, title, surface, updatedAtUtc, assetManifest)));
+    }
+
+    if (documents.Count == 0)
+        return;
+
+    try
+    {
+        await PublishOdinRawPutsAsync(options, options.OdinCultMeshUri, documents).ConfigureAwait(false);
+    }
+    catch (Exception ex) when (
+        ex is IOException ||
+        ex is SocketException ||
+        ex is TimeoutException ||
+        ex is InvalidOperationException)
+    {
+        Console.WriteLine($"Aetheria Odin announcement skipped for {options.OdinCultMeshUri}: {ex.GetType().Name}: {ex.Message}");
+    }
+}
+
+static CultNetDocumentPutRawMessage CreateOdinRawPut(
+    string schemaId,
+    string recordKey,
+    object payload)
+{
+    var now = DateTimeOffset.UtcNow.ToString("O");
+    return new CultNetDocumentPutRawMessage
+    {
+        MessageId = $"aetheria-odin-put:{recordKey}:{Guid.NewGuid():N}",
+        Document = new CultNetRawDocumentRecord
+        {
+            SchemaId = schemaId,
+            RecordKey = recordKey,
+            StoredAt = now,
+            PayloadEncoding = "messagepack",
+            Payload = MessagePackSerializer.Serialize(payload),
+            SourceRuntimeId = "aetheria-daemon",
+            SourceRole = "aetheria-daemon",
+            Tags = ["aetheria", "eve", "odin"]
+        }
+    };
+}
+
+static Dictionary<string, object?> BuildOdinProviderAdvertisement(
+    string providerId,
+    string title,
+    AetheriaDaemonHostOptions options,
+    string updatedAtUtc)
+{
+    return new Dictionary<string, object?>(StringComparer.Ordinal)
+    {
+        ["schema"] = "gamecult.eve.provider_advertisement.v1",
+        ["providerId"] = providerId,
+        ["serviceId"] = options.DaemonId,
+        ["verseId"] = options.VerseId,
+        ["rootVerse"] = "asgard",
+        ["canonicalService"] = "aetheria",
+        ["locatedService"] = options.DaemonId,
+        ["cultMeshAddress"] = options.CultMeshAddress,
+        ["title"] = title,
+        ["kind"] = "game.runtime",
+        ["status"] = "active",
+        ["updatedAt"] = string.IsNullOrWhiteSpace(updatedAtUtc) ? DateTimeOffset.UtcNow.ToString("O") : updatedAtUtc,
+        ["capabilities"] = new[] { "cultui-surface", "eve-browser-lowering", "aetheria-ui-panel" },
+        ["routes"] = new[]
+        {
+            new Dictionary<string, object?>(StringComparer.Ordinal)
+            {
+                ["transport"] = "cultmesh",
+                ["address"] = options.OdinCultMeshUri,
+                ["resolver"] = "odin-cultmesh",
+                ["role"] = "odin-provider-announcement"
+            },
+            new Dictionary<string, object?>(StringComparer.Ordinal)
+            {
+                ["transport"] = "cultmesh-rudp",
+                ["address"] = $"rudp://{options.RtsCultMeshAdvertiseHost}:{options.RtsCultMeshPort}",
+                ["resolver"] = "provider-cultmesh-rudp",
+                ["role"] = "cultmesh-snapshot"
+            },
+            new Dictionary<string, object?>(StringComparer.Ordinal)
+            {
+                ["transport"] = "cultmesh-rudp",
+                ["address"] = $"rudp://{options.RtsCultMeshAdvertiseHost}:{options.RtsCultMeshPort}",
+                ["schemaId"] = AetheriaRuntimeDaemonSchemas.CultMeshCdnAssetBlob,
+                ["resolver"] = "provider-cultmesh-rudp",
+                ["role"] = "cultmesh-cdn"
+            }
+        }
+    };
+}
+
+static object[] BuildOdinSurfaceState(
+    string providerId,
+    string title,
+    EveSurfaceDocument document,
+    string updatedAtUtc,
+    AetheriaRuntimeAssetManifestDocument? assetManifest)
+{
+    var surface = new Dictionary<string, object?>(StringComparer.Ordinal)
+    {
+        ["schema"] = "gamecult.eve.surface.v1",
+        ["id"] = document.Surface.Id,
+        ["title"] = string.IsNullOrWhiteSpace(document.Title) ? title : document.Title,
+        ["root"] = ToOdinSurfaceComponent(document.Surface.Root),
+        ["assetManifestDocumentId"] = AetheriaRuntimeVerseRecordKeys.DaemonAssetManifest.ToString(),
+        ["assetManifestSchemaId"] = AetheriaRuntimeDaemonSchemas.AssetManifest,
+        ["assets"] = ToOdinAssetRefs(assetManifest)
+    };
+    return
+    [
+        providerId,
+        title,
+        document.Version,
+        string.IsNullOrWhiteSpace(document.UpdatedAtUtc)
+            ? (string.IsNullOrWhiteSpace(updatedAtUtc) ? DateTimeOffset.UtcNow.ToString("O") : updatedAtUtc)
+            : document.UpdatedAtUtc,
+        surface
+    ];
+}
+
+static object[] ToOdinAssetRefs(AetheriaRuntimeAssetManifestDocument? assetManifest)
+{
+    return assetManifest?.Assets?
+        .Where(entry => !string.IsNullOrWhiteSpace(entry?.Ref?.AssetKey))
+        .Select(entry => new Dictionary<string, object?>(StringComparer.Ordinal)
+        {
+            ["assetKey"] = entry.Ref.AssetKey,
+            ["kind"] = entry.Ref.Kind,
+            ["uri"] = entry.Ref.Uri,
+            ["transport"] = entry.Ref.Transport,
+            ["mimeType"] = entry.Ref.MimeType,
+            ["contentHash"] = entry.Ref.ContentHash,
+            ["tags"] = entry.Tags?.ToArray() ?? Array.Empty<string>()
+        })
+        .Cast<object>()
+        .ToArray()
+        ?? Array.Empty<object>();
+}
+
+static Dictionary<string, object?> ToOdinSurfaceComponent(EveSurfaceComponent component)
+{
+    var result = new Dictionary<string, object?>(StringComparer.Ordinal)
+    {
+        ["id"] = component.Id,
+        ["kind"] = component.Kind,
+        ["props"] = component.Props.ToDictionary(prop => prop.Key, prop => (object?)prop.Value, StringComparer.Ordinal),
+        ["children"] = component.Children.Select(ToOdinSurfaceComponent).ToArray()
+    };
+    if (component.Layout.Count > 0)
+    {
+        result["layout"] = component.Layout.ToDictionary(prop => prop.Key, prop => (object?)prop.Value, StringComparer.Ordinal);
+    }
+
+    if (component.Style.Count > 0)
+    {
+        result["style"] = component.Style.ToDictionary(prop => prop.Key, prop => (object?)prop.Value, StringComparer.Ordinal);
+    }
+
+    if (component.EmbeddedDocuments.Count > 0)
+    {
+        result["embeddedDocuments"] = component.EmbeddedDocuments
+            .Select(document => new Dictionary<string, object?>(StringComparer.Ordinal)
+            {
+                ["slotId"] = document.SlotId,
+                ["documentId"] = document.DocumentId,
+                ["schemaId"] = document.SchemaId,
+                ["presentationKind"] = document.PresentationKind
+            })
+            .ToArray();
+    }
+
+    return result;
+}
+
+static async Task PublishOdinRawPutsAsync(
+    AetheriaDaemonHostOptions options,
+    string cultMeshUri,
+    IReadOnlyList<CultNetDocumentPutRawMessage> documents)
+{
+    var endpoint = CultMesh.ResolveRudpEndpoint(cultMeshUri);
+    using var client = CultMesh.ConnectRudpClient(
+        $"{options.DaemonId}-odin-publisher",
+        0x0d1d0002,
+        endpoint,
+        new CultMeshRudpClientOptions
+        {
+            ConnectPayload = System.Text.Encoding.UTF8.GetBytes("aetheria-odin-surface-announcer"),
+            ConnectTimeout = TimeSpan.FromMilliseconds(500),
+            PollInterval = TimeSpan.FromMilliseconds(5),
+            SocketOptions = new CultMeshRudpSocketOptions
+            {
+                BindHost = "0.0.0.0",
+                BindPort = 0,
+                TransportId = "aetheria-odin-surface-announcer",
+                MaxFragmentBytes = 1200,
+                MaxPendingReliablePackets = 512,
+                ResendDelayMs = 25
+            }
+        });
+
+    foreach (var document in documents)
+    {
+        client.SendSchemaMessage(document);
+        var drainUntil = DateTimeOffset.UtcNow.AddMilliseconds(40);
+        while (DateTimeOffset.UtcNow < drainUntil)
+        {
+            _ = client.ReceiveOnce();
+            client.PollResends();
+            await Task.Delay(5).ConfigureAwait(false);
+        }
+    }
+
+    var deadline = DateTimeOffset.UtcNow.AddMilliseconds(500);
+    while (DateTimeOffset.UtcNow < deadline)
+    {
+        _ = client.ReceiveOnce();
+        client.PollResends();
+        await Task.Delay(10).ConfigureAwait(false);
+    }
+}
+
 static async Task PublishRuntimeSessionAsync(
     AetheriaStateNode node,
     AetheriaDaemonHostOptions options,
@@ -1176,6 +1716,38 @@ static async Task EnsurePlayableRunDocumentsAsync(AetheriaStateNode node, string
                 FixedPosition = Vec2(360, -180),
                 Distance = 402,
                 Phase = 0.33
+            },
+            new AetheriaOrbitSnapshot
+            {
+                OrbitKey = "local.blue.orbit",
+                ParentOrbitKey = "local.sun.orbit",
+                FixedPosition = Vec2(-540, 340),
+                Distance = 636,
+                Phase = 2.58
+            },
+            new AetheriaOrbitSnapshot
+            {
+                OrbitKey = "local.ember.orbit",
+                ParentOrbitKey = "local.sun.orbit",
+                FixedPosition = Vec2(-680, -420),
+                Distance = 799,
+                Phase = 3.70
+            },
+            new AetheriaOrbitSnapshot
+            {
+                OrbitKey = "local.outer.orbit",
+                ParentOrbitKey = "local.sun.orbit",
+                FixedPosition = Vec2(780, 420),
+                Distance = 886,
+                Phase = 0.49
+            },
+            new AetheriaOrbitSnapshot
+            {
+                OrbitKey = "local.lagrange.orbit",
+                ParentOrbitKey = "local.sun.orbit",
+                FixedPosition = Vec2(-160, 620),
+                Distance = 640,
+                Phase = 1.82
             }
         ],
         Bodies =
@@ -1225,9 +1797,77 @@ static async Task EnsurePlayableRunDocumentsAsync(AetheriaStateNode node, string
                     new AetheriaAsteroidSnapshot { Distance = 78, Phase = 1.70, Size = 0.8, RotationSpeed = -0.1 },
                     new AetheriaAsteroidSnapshot { Distance = 118, Phase = 3.35, Size = 1.6, RotationSpeed = 0.08 }
                 ]
+            },
+            new AetheriaBodySnapshot
+            {
+                BodyKey = "local.blue",
+                Kind = "planet",
+                Name = "Blueglass",
+                OrbitKey = "local.blue.orbit",
+                Mass = 220,
+                BodyRadiusMultiplier = 1.25,
+                GravityInfluenceCenterX = -540,
+                GravityInfluenceCenterZ = 340,
+                GravityInfluenceRadius = 340,
+                GravityWellDepth = -34,
+                GravityDepthExponent = 2.6,
+                GravityWaveRadius = 150,
+                GravityWaveDepth = 5,
+                GravityWaveSpeed = 1.1
+            },
+            new AetheriaBodySnapshot
+            {
+                BodyKey = "local.ember",
+                Kind = "planet",
+                Name = "Emberhook",
+                OrbitKey = "local.ember.orbit",
+                Mass = 180,
+                BodyRadiusMultiplier = 1.05,
+                GravityInfluenceCenterX = -680,
+                GravityInfluenceCenterZ = -420,
+                GravityInfluenceRadius = 310,
+                GravityWellDepth = -28,
+                GravityDepthExponent = 2.1,
+                GravityWaveRadius = 130,
+                GravityWaveDepth = 4,
+                GravityWaveSpeed = 1.3
+            },
+            new AetheriaBodySnapshot
+            {
+                BodyKey = "local.outer",
+                Kind = "gas_giant",
+                Name = "Vesper",
+                OrbitKey = "local.outer.orbit",
+                Mass = 260,
+                BodyRadiusMultiplier = 1.45,
+                GravityInfluenceCenterX = 780,
+                GravityInfluenceCenterZ = 420,
+                GravityInfluenceRadius = 420,
+                GravityWellDepth = -38,
+                GravityDepthExponent = 2.4,
+                GravityWaveRadius = 210,
+                GravityWaveDepth = 6,
+                GravityWaveSpeed = 0.7
+            },
+            new AetheriaBodySnapshot
+            {
+                BodyKey = "local.lagrange",
+                Kind = "moon",
+                Name = "Latch",
+                OrbitKey = "local.lagrange.orbit",
+                Mass = 90,
+                BodyRadiusMultiplier = 0.82,
+                GravityInfluenceCenterX = -160,
+                GravityInfluenceCenterZ = 620,
+                GravityInfluenceRadius = 210,
+                GravityWellDepth = -18,
+                GravityDepthExponent = 2.8,
+                GravityWaveRadius = 95,
+                GravityWaveDepth = 3,
+                GravityWaveSpeed = 1.6
             }
         ],
-        GravityTerrainRadius = 1200,
+        GravityTerrainRadius = 1450,
         GravityTerrainDepth = -8,
         GravityTerrainDepthExponent = 1.2,
         GravityTerrainWaveFrequency = 0.6
@@ -1795,12 +2435,14 @@ static bool HasPlayableRun(AetheriaRuntimeRunCheckpointCommit? run)
 
 static bool HasRtsScenario(AetheriaRuntimeRunCheckpointCommit? run)
 {
-    var entities = (run?.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>())
-        .SelectMany(zone => zone.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
-        .ToArray();
+    var zones = run?.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>();
+    var entities = zones.SelectMany(zone => zone.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>()).ToArray();
+    var bodies = zones.SelectMany(zone => zone.Bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>()).ToArray();
     return entities.Any(entity => string.Equals(entity.Name, "Anchor Station", StringComparison.Ordinal)) &&
         entities.Count(entity => string.Equals(entity.FactionKey, "player", StringComparison.OrdinalIgnoreCase)) >= 4 &&
-        entities.Count(entity => string.Equals(entity.FactionKey, "raider", StringComparison.OrdinalIgnoreCase)) >= 3;
+        entities.Count(entity => string.Equals(entity.FactionKey, "raider", StringComparison.OrdinalIgnoreCase)) >= 3 &&
+        bodies.Any(body => string.Equals(body.BodyKey, "local.outer", StringComparison.Ordinal)) &&
+        bodies.Length >= 6;
 }
 
 static AetheriaEntitySnapshot SeedEntity(
@@ -2037,8 +2679,8 @@ internal sealed class AetheriaDaemonHostOptions
     public string RtsCultMeshHost { get; init; } = "127.0.0.1";
     public string RtsCultMeshAdvertiseHost { get; init; } = "127.0.0.1";
     public int RtsCultMeshPort { get; init; } = 3076;
-    public IReadOnlyList<string> PeerCultMeshEndpoints { get; init; } = Array.Empty<string>();
-    public TimeSpan PeerSyncTimeout { get; init; } = TimeSpan.FromMilliseconds(250);
+    public string AetheriaResourcesRoot { get; init; } = "";
+    public string OdinCultMeshUri { get; init; } = "cultmesh://odin/rendezvous/provider-catalog";
     public TimeSpan TickInterval { get; init; } = TimeSpan.FromMilliseconds(20);
     public TimeSpan ApiPublicationInterval { get; init; } = TimeSpan.FromSeconds(1);
     public double FixedDeltaSeconds { get; init; } = 0.02;
@@ -2059,8 +2701,12 @@ internal sealed class AetheriaDaemonHostOptions
         var rtsCultMeshHost = ReadOption(args, "--rts-cultmesh-host");
         var rtsCultMeshAdvertiseHost = ReadOption(args, "--rts-cultmesh-advertise-host");
         var rtsCultMeshPort = ReadNonNegativeInt(args, "--rts-cultmesh-port") ?? 3076;
-        var peerCultMeshEndpoints = ReadOptions(args, "--peer-cultmesh-endpoint");
-        var peerSyncTimeoutMs = ReadPositiveInt(args, "--peer-sync-timeout-ms") ?? 250;
+        var aetheriaResourcesRoot = ReadOption(args, "--aetheria-resources-root");
+        RejectRemovedOption(args, "--peer-cultmesh-endpoint", "Odin-discovered CultMesh peer documents");
+        RejectRemovedOption(args, "--odin-cultmesh-rudp", "--odin-cultmesh-uri");
+        RejectRemovedOption(args, "--odin-cultnet-rudp", "--odin-cultmesh-uri");
+        var odinCultMeshUri = ReadOption(args, "--odin-cultmesh-uri");
+        RejectRemovedOption(args, "--peer-sync-timeout-ms", "Odin-discovered CultMesh peer documents");
         var apiPublicationIntervalMs = ReadPositiveInt(args, "--api-publication-interval-ms") ?? 1000;
         var sessionId = ReadOption(args, "--session-id");
 
@@ -2080,8 +2726,12 @@ internal sealed class AetheriaDaemonHostOptions
                 ? (string.IsNullOrWhiteSpace(rtsCultMeshHost) || rtsCultMeshHost == "0.0.0.0" || rtsCultMeshHost == "*" ? "127.0.0.1" : rtsCultMeshHost)
                 : rtsCultMeshAdvertiseHost,
             RtsCultMeshPort = rtsCultMeshPort,
-            PeerCultMeshEndpoints = peerCultMeshEndpoints,
-            PeerSyncTimeout = TimeSpan.FromMilliseconds(peerSyncTimeoutMs),
+            AetheriaResourcesRoot = string.IsNullOrWhiteSpace(aetheriaResourcesRoot)
+                ? Path.GetFullPath(Path.Combine(root, "Assets", "Resources"))
+                : Path.GetFullPath(aetheriaResourcesRoot),
+            OdinCultMeshUri = string.IsNullOrWhiteSpace(odinCultMeshUri)
+                ? "cultmesh://odin/rendezvous/provider-catalog"
+                : odinCultMeshUri,
             TickInterval = TimeSpan.FromMilliseconds(intervalMs),
             ApiPublicationInterval = TimeSpan.FromMilliseconds(apiPublicationIntervalMs),
             FixedDeltaSeconds = fixedDeltaMs / 1000.0,
@@ -2115,6 +2765,14 @@ internal sealed class AetheriaDaemonHostOptions
         return values
             .Distinct(StringComparer.Ordinal)
             .ToArray();
+    }
+
+    private static void RejectRemovedOption(IReadOnlyList<string> args, string removed, string replacement)
+    {
+        if (args.Any(arg => string.Equals(arg, removed, StringComparison.OrdinalIgnoreCase)))
+        {
+            throw new InvalidOperationException($"{removed} was removed. Use {replacement} with a cultmesh:// Odin route.");
+        }
     }
 
     private static int? ReadPositiveInt(IReadOnlyList<string> args, string name)

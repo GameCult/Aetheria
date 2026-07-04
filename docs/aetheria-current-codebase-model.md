@@ -145,18 +145,20 @@ Current Ymir control flow:
   `TryOverlapZoneHulls`, or `TryCastZoneHulls`.
 - `TryBuildDaemonWorld` builds Ymir bodies from `AetheriaDaemonRenderNativeView`
   rather than from Unity `HullCollider` geometry.
+- Ymir step/overlap/cast requests execute through the typed
+  `YmirPhysicsQueries` surface in `YmirPhysicsContracts.cs`.
 - Query results are resolved back to Unity presentation hulls through daemon
   entity ids, so visual effects still have a GameObject to attach to.
 
 This is the right authority direction: Ymir receives bodies derived from daemon
 SoA, and Unity hulls are presentation targets. Remaining debt:
 
-- `AetheriaYmirPhysicsBridge` still has a fallback from missing daemon
-  `EntityIndex` to row index. That should be removed; stable entity identity is
-  required for daemon/Ymir correspondence.
-- Ymir query requests are still JSON-over-local-HTTP from Unity. That can be a
-  temporary transport, but the durable model should be typed CultNet/CultMesh
-  command/query boundaries.
+- `AetheriaYmirPhysicsBridge` requires daemon `EntityIndex` and
+  `PhysicsBodyRadius` columns before it builds Ymir bodies; stable entity
+  identity is required for daemon/Ymir correspondence.
+- Ymir query requests no longer use Unity-owned JSON endpoint calls. The
+  remaining durable target is exposing the same typed query semantics through
+  CultNet/CultMesh query handles.
 - Clickable raycasts still construct query bodies from Unity click bounds. That
   is presentation picking, not simulation authority, but it should stay clearly
   labeled as renderer/UI picking.
@@ -273,22 +275,20 @@ Moved or moving out:
 
 ## High-Value Next Cuts
 
-1. Remove the Ymir row-index fallback. `TryBuildDaemonWorld` should require
-   daemon `EntityIndex`; Ymir body ids must never derive from SoA row order.
-2. Enrich daemon SoA physics columns. Publish body radius/mass/inverse mass
+1. Enrich daemon SoA physics columns. Publish body radius/mass/inverse mass
    from typed entity/hull state instead of `1.0` placeholders.
-3. Add daemon current-stat query documents/surfaces. Designers and clients
+2. Add daemon current-stat query documents/surfaces. Designers and clients
    should query current resolved stats through daemon-owned state refs, not
    inspect Unity behavior objects.
-4. Convert hot behavior reads from `PerformanceStat` to stat handles with
+3. Convert hot behavior reads from `PerformanceStat` to stat handles with
    dependency masks and cached condition sampling. Leave legacy exponent
    evaluation only as migration import/readback.
-5. Shrink `ZoneRenderer` toward stateless per-frame render lowering. Persistent
+4. Shrink `ZoneRenderer` toward stateless per-frame render lowering. Persistent
    GameObjects can remain for prefabs, but zone/body/entity discovery should be
    query-driven from daemon state.
-6. Replace local HTTP Ymir calls with typed CultNet/CultMesh query boundaries
+5. Promote Ymir's typed local query surface to CultNet/CultMesh query handles
    when the Ymir daemon interface is ready.
-7. Make Eve state refs first-class in the UI runtime so surfaces can point to
+6. Make Eve state refs first-class in the UI runtime so surfaces can point to
    daemon state and clients resolve it automatically.
 
 ## Mental Model
@@ -298,4 +298,3 @@ It is now "the Aetheria daemon owns typed state and publications, while Unity is
 a powerful but still-too-large observer/projection runtime." The main migration
 task is to keep deleting places where Unity turns observed daemon facts back
 into local authority.
-

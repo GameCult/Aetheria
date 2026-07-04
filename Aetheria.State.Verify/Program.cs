@@ -16116,11 +16116,11 @@ static void RequireUnityPhysicsIsNotGameplayAuthority(string root)
     {
         [ymirBridgePath] = new[]
         {
-            "public string ServiceUrl",
-            "public string OverlapSphereUrl",
-            "public string OverlapCircleUrl",
-            "public string CastCircleUrl",
-            "public string CastSphereUrl",
+            "YmirPhysicsQueries.Step(request)",
+            "YmirPhysicsQueries.OverlapSphere(",
+            "YmirPhysicsQueries.CastSphere(request)",
+            "YmirPhysicsQueries.OverlapCircle(request)",
+            "YmirPhysicsQueries.CastCircle(request)",
             "TryStepProjectile(",
             "TryCastZoneHulls(",
             "TryBuildDaemonWorld(",
@@ -16204,6 +16204,31 @@ static void RequireUnityPhysicsIsNotGameplayAuthority(string root)
     }
 
     var ymirBridge = File.ReadAllText(ymirBridgePath);
+    var forbiddenYmirTransportSymbols = new[]
+    {
+        "public string ServiceUrl",
+        "public string OverlapSphereUrl",
+        "public string OverlapCircleUrl",
+        "public string CastCircleUrl",
+        "public string CastSphereUrl",
+        "TimeoutMilliseconds",
+        "PostJson<",
+        "HttpWebRequest",
+        "WebRequest.Create",
+        "http://127.0.0.1:8877"
+    };
+    var ymirTransportHits = forbiddenYmirTransportSymbols
+        .Where(symbol => ymirBridge.Contains(symbol, StringComparison.Ordinal))
+        .Select(symbol => $"{Path.GetRelativePath(root, ymirBridgePath)}: {symbol}")
+        .ToArray();
+
+    if (ymirTransportHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Ymir gameplay queries must use the typed query surface, not a local HTTP transport shortcut: " +
+            string.Join("; ", ymirTransportHits));
+    }
+
     if (ymirBridge.Contains("BuildZoneWorld(", StringComparison.Ordinal) ||
         ymirBridge.Contains("BuildTargetWorld(", StringComparison.Ordinal) ||
         ymirBridge.Contains("_zoneBodies", StringComparison.Ordinal) ||
