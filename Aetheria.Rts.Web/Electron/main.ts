@@ -212,12 +212,9 @@ async function runElectronSmoke(window: BrowserWindow): Promise<Record<string, u
         await new Promise(resolve => setTimeout(resolve, 100));
         const api = window.aetheriaRts;
         const status = document.querySelector("#status")?.textContent ?? "";
-        const selectionTitle = document.querySelector("#selection-title")?.textContent ?? "";
-        const selectionDetails = document.querySelector("#selection-details")?.textContent ?? "";
-        const frameDetails = document.querySelector("#frame-details")?.textContent ?? "";
-        const runtimeSurfaceDetails = document.querySelector("#runtime-surface-details")?.textContent ?? "";
-        const controlledText = document.querySelector("#controlled-list")?.textContent ?? "";
-        const canvas = document.querySelector("#map");
+        const bodyMode = document.body.className;
+        const eveHostText = document.querySelector("#main-menu-host")?.textContent ?? "";
+        const eveSurface = api ? await api.eveSurface({ recordKey: "eve:surface:aetheria.daemon.game" }) : null;
         const health = api ? await api.daemonHealth() : null;
         const authority = api ? await api.authorityStatus() : null;
         const starbridge = api ? await api.starbridgeSession() : null;
@@ -226,12 +223,12 @@ async function runElectronSmoke(window: BrowserWindow): Promise<Record<string, u
         const surfaceCatalogIndex = api ? await api.surfaceCatalogIndex() : null;
         const viewport = api ? await api.mapViewport({ minX: -5000, minY: -5000, maxX: 5000, maxY: 5000 }) : null;
         const actor = viewport?.objects?.find(object => object.controlled) ?? viewport?.objects?.[0] ?? null;
-        const moveReceipt = api && actor ? await api.setMoveVector({
-          actorEntityKey: actor.entityKey,
-          directionX: 1,
-          directionY: 0,
-          scalar: 0.1,
-          observedFrameId: viewport.frameId,
+        const eveReceipt = api ? await api.submitEveCommand({
+          providerId: "aetheria.daemon",
+          surfaceId: "aetheria.game",
+          command: "sensor_ping",
+          clientId: "aetheria-rts-electron-smoke",
+          payload: {},
         }) : null;
         return {
           hasApi: !!api &&
@@ -245,24 +242,22 @@ async function runElectronSmoke(window: BrowserWindow): Promise<Record<string, u
             typeof api.starbridgeSession === "function" &&
             typeof api.assetManifest === "function" &&
             typeof api.surfaceCatalog === "function" &&
-            typeof api.surfaceCatalogIndex === "function",
+            typeof api.surfaceCatalogIndex === "function" &&
+            typeof api.eveSurface === "function" &&
+            typeof api.submitEveCommand === "function",
           status,
-          selectionTitle,
-          selectionDetails,
-          frameDetails,
-          runtimeSurfaceDetails,
-          controlledText,
-          canvasClientWidth: canvas?.clientWidth ?? 0,
-          canvasClientHeight: canvas?.clientHeight ?? 0,
-          canvasWidth: canvas?.width ?? 0,
-          canvasHeight: canvas?.height ?? 0,
+          bodyMode,
+          eveHostText,
+          eveSurface,
           health,
           authority,
           starbridge,
           assetManifest,
           surfaceCatalog,
           surfaceCatalogIndex,
-          moveReceipt
+          viewport,
+          actor,
+          eveReceipt
         };
       })()
     `, true) as Record<string, unknown>;
@@ -277,44 +272,35 @@ async function runElectronSmoke(window: BrowserWindow): Promise<Record<string, u
 
 function isElectronSmokeReady(result: Record<string, unknown>): boolean {
   const status = stringValue(result.status);
-  const selectionTitle = stringValue(result.selectionTitle);
-  const selectionDetails = stringValue(result.selectionDetails);
-  const frameDetails = stringValue(result.frameDetails);
-  const runtimeSurfaceDetails = stringValue(result.runtimeSurfaceDetails);
-  const controlledText = stringValue(result.controlledText);
+  const bodyMode = stringValue(result.bodyMode);
+  const eveHostText = stringValue(result.eveHostText);
+  const eveSurface = objectValue(result.eveSurface);
   const health = objectValue(result.health);
   const authority = objectValue(result.authority);
   const starbridge = objectValue(result.starbridge);
   const surfaceCatalog = objectValue(result.surfaceCatalog);
   const surfaceCatalogIndex = objectValue(result.surfaceCatalogIndex);
-  const moveReceipt = objectValue(result.moveReceipt);
+  const viewport = objectValue(result.viewport);
+  const actor = objectValue(result.actor);
+  const eveReceipt = objectValue(result.eveReceipt);
   return result.hasApi === true &&
-    status.includes("frame") &&
-    selectionTitle.length > 0 &&
-    selectionTitle !== "No Selection" &&
-    selectionDetails.includes("Equipment") &&
-    selectionDetails.includes("Cargo") &&
-    frameDetails.includes("Daemon") &&
-    frameDetails.includes("Authority") &&
-    runtimeSurfaceDetails.includes("network") &&
-    runtimeSurfaceDetails.includes("daemon:aetheria.frame.latest.v1") &&
-    runtimeSurfaceDetails.includes("gamecult.aetheria.pilot.set_move_vector.v1") &&
-    controlledText.length > 0 &&
-    numberValue(result.canvasClientWidth) > 0 &&
-    numberValue(result.canvasClientHeight) > 0 &&
-    numberValue(result.canvasWidth) > 0 &&
-    numberValue(result.canvasHeight) > 0 &&
+    status.includes("Aetheria Daemon") &&
+    bodyMode.includes("eve-game-mode") &&
+    eveHostText.includes("Daemon Frame") &&
+    eveHostText.includes("Typed Command Boundary") &&
+    objectValue(eveSurface?.surface)?.id === "aetheria.game" &&
     health?.status === "healthy" &&
     authority?.policyId === "aetheria.trusted-coop.v1" &&
     starbridge?.scenarioName === "Frontier Fabricator Defense" &&
+    arrayValue(viewport?.objects).length > 0 &&
+    stringValue(actor?.entityKey).length > 0 &&
     surfaceCatalog?.catalogId === "gamecult.aetheria.rts.surfaces.v1" &&
     arrayValue(surfaceCatalogIndex?.queries).length > 0 &&
     arrayValue(surfaceCatalogIndex?.operations).some(surface =>
       objectValue(surface)?.surfaceId === "gamecult.aetheria.pilot.set_move_vector.v1") &&
-    stringValue(moveReceipt?.commandId).length > 0 &&
-    stringValue(moveReceipt?.operationId) === "gamecult.aetheria.pilot.set_move_vector.v1" &&
-    objectValue(moveReceipt?.route)?.kind === "network" &&
-    moveReceipt?.accepted === true;
+    stringValue(eveReceipt?.commandId).length > 0 &&
+    objectValue(eveReceipt?.route)?.kind === "network" &&
+    eveReceipt?.accepted === true;
 }
 
 function stringValue(value: unknown): string {

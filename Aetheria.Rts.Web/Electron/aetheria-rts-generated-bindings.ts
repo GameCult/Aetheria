@@ -116,6 +116,8 @@ export const AetheriaRtsIpcChannels = {
   setTarget: "aetheria-rts:set-target",
   surfaceCatalog: "aetheria-rts:surface-catalog",
   surfaceCatalogIndex: "aetheria-rts:surface-catalog-index",
+  eveSurface: "aetheria-rts:eve-surface",
+  submitEveCommand: "aetheria-rts:submit-eve-command",
   mainMenuSurface: "aetheria-rts:main-menu-surface",
   debugSurface: "aetheria-rts:debug-surface",
   debugSurfaceWatch: "aetheria-rts:debug-surface-watch",
@@ -1732,6 +1734,62 @@ export type AetheriaRuntimeViewportFeedSnapshot = {
   sampleMs: number;
 };
 
+export type AetheriaMenuSurfaceRequest = {
+  surfaceId?: string;
+  inGame?: boolean;
+  canOpenRuntimeInputScreen?: boolean;
+};
+
+export type AetheriaEveSurfaceRequest = {
+  surfaceId?: string;
+  recordKey?: string;
+};
+
+export type AetheriaEveCommandRequest = {
+  providerId?: string;
+  surfaceId?: string;
+  command?: string;
+  clientId?: string;
+  issuedAtUtc?: string;
+  payload?: Record<string, unknown>;
+};
+
+export type AetheriaMenuSurfaceDocument = {
+  providerId: string;
+  providerKind: string;
+  title: string;
+  version: number;
+  updatedAtUtc: string;
+  surface: AetheriaMenuSurfaceTree;
+  commands: AetheriaMenuSurfaceCommand[];
+};
+
+export type AetheriaMenuSurfaceTree = {
+  id: string;
+  root: AetheriaMenuSurfaceComponent;
+  styles: AetheriaMenuStyleToken[];
+};
+
+export type AetheriaMenuSurfaceComponent = {
+  id: string;
+  kind: string;
+  props: Record<string, string>;
+  layout?: Record<string, string>;
+  style?: Record<string, string>;
+  children: AetheriaMenuSurfaceComponent[];
+};
+
+export type AetheriaMenuStyleToken = {
+  name: string;
+  value: string;
+};
+
+export type AetheriaMenuSurfaceCommand = {
+  command: string;
+  label: string;
+  transport: string;
+};
+
 export type AetheriaRtsMainClient = {
   mapViewport(request: CultMeshViewportRequest): Promise<ViewportResponse>;
   objectsViewport(request: CultMeshViewportRequest): Promise<ObjectsViewportResponse>;
@@ -1745,6 +1803,8 @@ export type AetheriaRtsMainClient = {
   watchViewportFeed(request: AetheriaRuntimeViewportFeedRequest, callback: (snapshot: AetheriaRuntimeViewportFeedSnapshot) => void): CultMeshUnsubscribe;
   setMoveVector(request: AetheriaRuntimeSetMoveVectorRequest): Promise<AetheriaRuntimeDaemonCommandReceipt>;
   setTarget(request: AetheriaRuntimeSetTargetRequest): Promise<AetheriaRuntimeDaemonCommandReceipt>;
+  eveSurface(request: AetheriaEveSurfaceRequest): Promise<AetheriaMenuSurfaceDocument>;
+  submitEveCommand(request: AetheriaEveCommandRequest): Promise<AetheriaRuntimeDaemonCommandReceipt>;
   surfaceCatalogDiagnostics(): CultMeshSurfaceCatalogDiagnostic;
   surfaceCatalogIndexDiagnostics(): CultMeshSurfaceCatalogIndexDiagnostic;
 };
@@ -1789,6 +1849,10 @@ export function registerAetheriaRtsIpcHandlers(
     getClient().setMoveVector(request));
   ipcMain.handle(AetheriaRtsIpcChannels.setTarget, async (_event, request: AetheriaRuntimeSetTargetRequest) =>
     getClient().setTarget(request));
+  ipcMain.handle(AetheriaRtsIpcChannels.eveSurface, async (_event, request: AetheriaEveSurfaceRequest) =>
+    getClient().eveSurface(request));
+  ipcMain.handle(AetheriaRtsIpcChannels.submitEveCommand, async (_event, request: AetheriaEveCommandRequest) =>
+    getClient().submitEveCommand(request));
   ipcMain.handle(AetheriaRtsIpcChannels.surfaceCatalog, () => getClient().surfaceCatalogDiagnostics());
   ipcMain.handle(AetheriaRtsIpcChannels.surfaceCatalogIndex, () => getClient().surfaceCatalogIndexDiagnostics());
   ipcMain.handle(AetheriaRtsIpcChannels.health, () => getHealth());

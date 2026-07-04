@@ -36,6 +36,68 @@ body.main-menu-mode .shell {
   display: none;
 }
 
+body.eve-game-mode {
+  -webkit-app-region: drag;
+  background: #020909;
+}
+
+body.eve-game-mode .shell {
+  display: none;
+}
+
+body.eve-game-mode .main-menu-host {
+  -webkit-app-region: no-drag;
+  display: block;
+  min-height: 100%;
+}
+
+body.eve-game-mode .window-drag-region {
+  -webkit-app-region: drag;
+  position: fixed;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 15;
+  display: block;
+  height: 44px;
+}
+
+body.eve-game-mode .window-controls {
+  -webkit-app-region: no-drag;
+  position: fixed;
+  top: 8px;
+  right: 10px;
+  z-index: 20;
+  display: flex;
+  gap: 2px;
+}
+
+body.eve-game-mode .window-control {
+  min-width: 0;
+  width: 30px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: rgba(219, 250, 255, 0.5);
+  font-family: "Ubuntu", system-ui, sans-serif;
+  font-size: 12px;
+  line-height: 24px;
+}
+
+body.eve-game-mode .window-control:hover,
+body.eve-game-mode .window-control:focus-visible {
+  background: rgba(219, 250, 255, 0.09);
+  color: rgba(240, 252, 255, 0.95);
+  outline: 0;
+}
+
+body.eve-game-mode .window-control-close:hover,
+body.eve-game-mode .window-control-close:focus-visible {
+  background: rgba(255, 88, 88, 0.28);
+}
+
 body.main-menu-mode .main-menu-host {
   -webkit-app-region: no-drag;
   display: flex;

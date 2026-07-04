@@ -297,6 +297,20 @@ export type AetheriaMenuSurfaceRequest = {
   canOpenRuntimeInputScreen?: boolean;
 };
 
+export type AetheriaEveSurfaceRequest = {
+  surfaceId?: string;
+  recordKey?: string;
+};
+
+export type AetheriaEveCommandRequest = {
+  providerId?: string;
+  surfaceId?: string;
+  command?: string;
+  clientId?: string;
+  issuedAtUtc?: string;
+  payload?: Record<string, unknown>;
+};
+
 export type AetheriaMenuSurfaceDocument = {
   providerId: string;
   providerKind: string;
@@ -346,6 +360,8 @@ export type AetheriaRtsApi = {
   setTarget(request: AetheriaRuntimeSetTargetRequest): Promise<AetheriaRuntimeDaemonCommandReceipt>;
   surfaceCatalog(): Promise<CultMeshSurfaceCatalogDiagnostic>;
   surfaceCatalogIndex(): Promise<CultMeshSurfaceCatalogIndexDiagnostic>;
+  eveSurface(request: AetheriaEveSurfaceRequest): Promise<AetheriaMenuSurfaceDocument>;
+  submitEveCommand(request: AetheriaEveCommandRequest): Promise<AetheriaRuntimeDaemonCommandReceipt>;
   mainMenuSurface(request: AetheriaMenuSurfaceRequest): Promise<AetheriaMenuSurfaceDocument>;
   debugSurface(): Promise<AetheriaMenuSurfaceDocument>;
   watchDebugSurface(callback: (surface: AetheriaMenuSurfaceDocument) => void): () => void;

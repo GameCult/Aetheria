@@ -4,6 +4,7 @@ export {
   AetheriaRtsIpcChannels,
   AetheriaRtsSchemas,
   AetheriaRuntimeDaemonCommandKinds,
+  aetheriaRuntimeEveCommandDocumentSlots,
   createAetheriaRuntimeRtsDocuments,
   createAetheriaRuntimeRtsOperationHandles,
   createAetheriaRuntimeRtsQueryHandles,

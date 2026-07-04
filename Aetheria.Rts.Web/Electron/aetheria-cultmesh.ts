@@ -16,6 +16,7 @@ import type {
 } from "cultnet-ts";
 import {
   AetheriaRtsSchemas,
+  aetheriaRuntimeEveCommandDocumentSlots,
   createAetheriaRuntimeRtsDocuments,
   createAetheriaRuntimeRtsOperationHandles,
   createAetheriaRuntimeRtsVerseHandles,
@@ -59,6 +60,8 @@ import {
 } from "./aetheria-rts-local-documents.js";
 
 const connectionId = 0x43554c54;
+const eveSurfaceSchemaId = "gamecult.eve.surface.v1";
+const defaultEveSurfaceRecordKey = "eve:surface:aetheria.daemon.game";
 
 type AetheriaPublicationDocumentSpec = CultMeshPublicationDocumentBinding & {
   readonly localPath: string;
@@ -82,6 +85,20 @@ export type AetheriaMenuSurfaceRequest = {
   surfaceId?: string;
   inGame?: boolean;
   canOpenRuntimeInputScreen?: boolean;
+};
+
+export type AetheriaEveSurfaceRequest = {
+  surfaceId?: string;
+  recordKey?: string;
+};
+
+export type AetheriaEveCommandRequest = {
+  providerId?: string;
+  surfaceId?: string;
+  command?: string;
+  clientId?: string;
+  issuedAtUtc?: string;
+  payload?: Record<string, unknown>;
 };
 
 export type AetheriaMenuSurfaceDocument = {
@@ -289,6 +306,68 @@ export class AetheriaCultMeshClient {
       request.surfaceId || "aetheria.main_menu.root",
       request.canOpenRuntimeInputScreen === true,
       request.inGame === true);
+  }
+
+  public async eveSurface(request: AetheriaEveSurfaceRequest = {}): Promise<AetheriaMenuSurfaceDocument> {
+    const recordKey = eveSurfaceRecordKey(request);
+    const document = CultMesh.documentFromPublication(
+      {
+        kind: "peer-snapshot",
+        peer: () => this.peer(),
+        endpoint: this.resolvedRudpEndpoint(),
+      },
+      eveSurfaceSchemaId,
+      recordKey,
+      {
+        documentId: recordKey,
+        routeHint: this.queryVerse.context.routeHint,
+        sourceId: recordKey,
+        timeoutMs: 1500,
+        pollMs: 50,
+        messageIdPrefix: `${this.runtimeId}:eve-surface`,
+      },
+    );
+
+    return normalizeEveSurfaceDocument(await document.latest(this.queryContext()));
+  }
+
+  public async submitEveCommand(request: AetheriaEveCommandRequest): Promise<AetheriaRuntimeDaemonCommandReceipt> {
+    const issuedAtUtc = request?.issuedAtUtc || new Date().toISOString();
+    const commandId = `${this.runtimeId}:eve:${Date.now().toString(36)}:${Math.random().toString(36).slice(2)}`;
+    const command: unknown[] = [];
+    command[aetheriaRuntimeEveCommandDocumentSlots.schema] = AetheriaRtsSchemas.eveCommand;
+    command[aetheriaRuntimeEveCommandDocumentSlots.commandId] = commandId;
+    command[aetheriaRuntimeEveCommandDocumentSlots.providerId] = request?.providerId ?? "";
+    command[aetheriaRuntimeEveCommandDocumentSlots.surfaceId] = request?.surfaceId ?? "";
+    command[aetheriaRuntimeEveCommandDocumentSlots.command] = request?.command ?? "";
+    command[aetheriaRuntimeEveCommandDocumentSlots.issuedAtUtc] = issuedAtUtc;
+    command[aetheriaRuntimeEveCommandDocumentSlots.clientId] = request?.clientId || this.runtimeId;
+    command[aetheriaRuntimeEveCommandDocumentSlots.payload] = normalizeCommandPayload(request?.payload);
+
+    const message: CultNetDocumentPutRawMessage = {
+      schemaVersion: "cultnet.document_put_raw.v0",
+      messageId: commandId,
+      document: {
+        schemaId: AetheriaRtsSchemas.eveCommand,
+        recordKey: `daemon:eve-commands:${stableToken(commandId)}:${AetheriaRtsSchemas.eveCommand}`,
+        storedAt: issuedAtUtc,
+        payloadEncoding: "messagepack",
+        payload: encode(command),
+        sourceRuntimeId: this.runtimeId,
+        sourceRole: "rts-client",
+        tags: ["aetheria-rts", "eve-command"],
+      },
+    };
+    const peer = await this.peer();
+    peer.send(message);
+    await delay(80);
+    return {
+      commandId,
+      operationId: commandId,
+      accepted: true,
+      route: this.commandVerse.context.routeHint,
+      diagnostic: "submitted Eve surface command",
+    };
   }
 
   public queryDiagnostics(): Readonly<Record<string, AetheriaRuntimeRtsQueryDiagnostic>> {
@@ -894,6 +973,139 @@ function createAetheriaPublicationDocuments(
         recordKey: document.remoteRecordKey,
       }
     : document);
+}
+
+function eveSurfaceRecordKey(request: AetheriaEveSurfaceRequest): string {
+  if (request?.recordKey && request.recordKey.trim())
+    return request.recordKey.trim();
+
+  switch (request?.surfaceId) {
+    case "aetheria.game":
+    case "aetheria.daemon.game":
+      return "eve:surface:aetheria.daemon.game";
+    case "aetheria.game.tui":
+    case "aetheria.daemon.game.tui":
+      return "eve:surface:aetheria.daemon.game.tui";
+    case "aetheria.main_menu.root":
+      return "eve:surface:aetheria.main_menu.root";
+    case "aetheria.inventory.panel":
+      return "eve:surface:aetheria.inventory.panel";
+    case "aetheria.inventory.panel.dropdown":
+      return "eve:surface:aetheria.inventory.panel.dropdown";
+    case "aetheria.map.zone_details":
+      return "eve:surface:aetheria.map.zone_details";
+    case "aetheria.trade.menu":
+      return "eve:surface:aetheria.trade.menu";
+    default:
+      return defaultEveSurfaceRecordKey;
+  }
+}
+
+function normalizeEveSurfaceDocument(document: unknown): AetheriaMenuSurfaceDocument {
+  const portableSlots = Array.isArray(document) &&
+    typeof document[1] === "string" &&
+    document[1] === eveSurfaceSchemaId;
+  const providerSlot = portableSlots ? 2 : 0;
+  const providerKindSlot = portableSlots ? 3 : 1;
+  const titleSlot = portableSlots ? 4 : 2;
+  const versionSlot = portableSlots ? 5 : 3;
+  const updatedAtSlot = portableSlots ? 6 : 4;
+  const surfaceSlot = portableSlots ? 7 : 5;
+  const commandsSlot = portableSlots ? 8 : 6;
+  const surface = readField(document, "surface", surfaceSlot);
+  const surfaceId = stringOr(readField(surface, "id", 0), "aetheria.surface.missing");
+  return {
+    providerId: stringOr(readField(document, "providerId", providerSlot), "aetheria.daemon"),
+    providerKind: stringOr(readField(document, "providerKind", providerKindSlot), "daemon"),
+    title: stringOr(readField(document, "title", titleSlot), surfaceId),
+    version: numberOr(readField(document, "version", versionSlot), 0),
+    updatedAtUtc: stringOr(readField(document, "updatedAtUtc", updatedAtSlot), ""),
+    surface: {
+      id: surfaceId,
+      root: normalizeEveComponent(readField(surface, "root", 1), `${surfaceId}.root`),
+      styles: arrayValue(readField(surface, "styles", 2))
+        .map(token => ({
+          name: stringOr(readField(token, "name", 0), ""),
+          value: stringOr(readField(token, "value", 1), ""),
+        })),
+    },
+    commands: arrayValue(readField(document, "commands", commandsSlot))
+      .map(command => {
+        const operation = readField(command, "operation", 0);
+        const routeHint = readField(operation, "routeHint", 3);
+        return {
+          command: stringOr(readField(operation, "operationId", 0), ""),
+          label: stringOr(readField(operation, "label", 1), ""),
+          transport: stringOr(readField(routeHint, "description", 1), "cultmesh"),
+        };
+      })
+      .filter(command => command.command.length > 0),
+  };
+}
+
+function normalizeEveComponent(component: unknown, fallbackId: string): AetheriaMenuSurfaceComponent {
+  return {
+    id: stringOr(readField(component, "id", 0), fallbackId),
+    kind: stringOr(readField(component, "kind", 1), "surface"),
+    props: stringRecord(readField(component, "props", 2)),
+    layout: stringRecord(readField(component, "layout", 6)),
+    style: stringRecord(readField(component, "style", 7)),
+    children: arrayValue(readField(component, "children", 3))
+      .map((child, index) => normalizeEveComponent(child, `${fallbackId}.${index}`)),
+  };
+}
+
+function readField(value: unknown, property: string, index: number): unknown {
+  if (Array.isArray(value))
+    return value[index];
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    if (property in record)
+      return record[property];
+    const pascal = property.charAt(0).toUpperCase() + property.slice(1);
+    if (pascal in record)
+      return record[pascal];
+  }
+  return undefined;
+}
+
+function arrayValue(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function normalizeCommandPayload(payload: Record<string, unknown> | undefined): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const [key, value] of Object.entries(payload ?? {})) {
+    if (value == null)
+      continue;
+    result[key] = typeof value === "string" ? value : String(value);
+  }
+  return result;
+}
+
+function objectValue(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+}
+
+function stringOr(value: unknown, fallback: string): string {
+  return typeof value === "string" ? value : fallback;
+}
+
+function numberOr(value: unknown, fallback: number): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function stringRecord(value: unknown): Record<string, string> {
+  const source = objectValue(value);
+  const result: Record<string, string> = {};
+  for (const [key, entry] of Object.entries(source)) {
+    if (entry == null)
+      continue;
+    result[key] = typeof entry === "string" ? entry : String(entry);
+  }
+  return result;
 }
 
 function delay(milliseconds: number): Promise<void> {

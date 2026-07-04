@@ -55,7 +55,10 @@ let latestReceivedAt = 0;
 let latestPollMs = 0;
 let refreshInFlight = false;
 let viewportFeedUnsubscribe: (() => void) | null = null;
+let eveSurfacePoll: number | null = null;
+let latestEveSurfaceKey = "";
 const mainMenuMode = window.location.hash === "#main-menu";
+const legacyViewportMode = window.location.hash === "#legacy-viewport";
 
 function requiredElement<TElement extends Element>(selector: string): TElement {
   const element = document.querySelector<TElement>(selector);
@@ -96,7 +99,9 @@ function setStatus(text: string): void {
 
 async function showMainMenu(surfaceId = "aetheria.main_menu.root"): Promise<void> {
   document.body.classList.add("main-menu-mode");
+  document.body.classList.remove("eve-game-mode");
   viewportFeedUnsubscribe?.();
+  stopEveSurfacePoll();
   const surface = await window.aetheriaRts.mainMenuSurface({
     surfaceId,
     inGame: false,
@@ -124,6 +129,50 @@ function renderMainMenuSurface(surface: AetheriaMenuSurfaceDocument): void {
   wireWindowControls();
 }
 
+async function showDaemonEveSurface(): Promise<void> {
+  document.body.classList.remove("main-menu-mode");
+  document.body.classList.add("eve-game-mode");
+  viewportFeedUnsubscribe?.();
+
+  let host = document.querySelector<HTMLElement>("#main-menu-host");
+  if (!host) {
+    host = document.createElement("section");
+    host.id = "main-menu-host";
+    host.className = "main-menu-host";
+    document.body.append(host);
+  }
+  host.setAttribute("aria-label", "Aetheria daemon Eve surface");
+
+  const renderLatest = async () => {
+    try {
+      const surface = await window.aetheriaRts.eveSurface({
+        recordKey: "eve:surface:aetheria.daemon.game",
+      });
+      const surfaceKey = `${surface.providerId}:${surface.surface.id}:${surface.version}:${surface.updatedAtUtc}`;
+      if (surfaceKey !== latestEveSurfaceKey) {
+        latestEveSurfaceKey = surfaceKey;
+        renderEveSurface(surface, host, {
+          body: document.body,
+          clientId: "aetheria.rts.electron",
+          commandSink: intent => submitEveCommand(intent),
+          source: "Aetheria Daemon",
+          statusElement: statusEl,
+        });
+        wireWindowControls();
+      }
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Aetheria daemon Eve surface unavailable.");
+    }
+  };
+
+  await renderLatest();
+  if (eveSurfacePoll == null) {
+    eveSurfacePoll = window.setInterval(() => {
+      void renderLatest();
+    }, 250);
+  }
+}
+
 async function startDebugSurface(): Promise<void> {
   try {
     renderDebugSurface(await window.aetheriaRts.debugSurface());
@@ -144,9 +193,6 @@ function renderDebugSurface(surface: AetheriaMenuSurfaceDocument): void {
 }
 
 function wireWindowControls(): void {
-  if (!mainMenuMode)
-    return;
-
   document.querySelectorAll<HTMLButtonElement>("[data-window-control]").forEach(button => {
     if (button.dataset.windowControlWired === "true")
       return;
@@ -178,6 +224,29 @@ function handleMenuCommand(commandOrIntent: string | EveCommandIntent, surface: 
       setStatus(`${surface.title}: ${command || "no command"}`);
       return;
   }
+}
+
+async function submitEveCommand(intent: EveCommandIntent): Promise<void> {
+  try {
+    const receipt = await window.aetheriaRts.submitEveCommand({
+      providerId: intent.providerId,
+      surfaceId: intent.surfaceId,
+      command: intent.command,
+      clientId: intent.clientId,
+      issuedAtUtc: intent.issuedAt,
+      payload: intent.payload,
+    });
+    setStatus(`${intent.command}: ${receipt.accepted ? "submitted" : "rejected"}`);
+  } catch (error) {
+    setStatus(error instanceof Error ? error.message : `Failed to submit ${intent.command}.`);
+  }
+}
+
+function stopEveSurfacePoll(): void {
+  if (eveSurfacePoll == null)
+    return;
+  window.clearInterval(eveSurfacePoll);
+  eveSurfacePoll = null;
 }
 
 function startViewportFeed(): void {
@@ -680,9 +749,12 @@ function roleText(session: StarbridgeSessionDocument): string {
 
 if (mainMenuMode) {
   void showMainMenu();
-} else {
+} else if (legacyViewportMode) {
+  document.body.classList.remove("main-menu-mode", "eve-game-mode");
   updateZoomLabel();
   void startDebugSurface();
   void refreshRuntimeSurfaces();
   void refresh();
+} else {
+  void showDaemonEveSurface();
 }
