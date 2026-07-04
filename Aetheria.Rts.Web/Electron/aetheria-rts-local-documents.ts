@@ -354,15 +354,17 @@ function toGravityInfluence(body: unknown[]): GravityInfluence {
 }
 
 function toBodyView(body: unknown[]): BodyView {
+  const kind = str(body[bodySlots.kind]);
   return {
     bodyKey: str(body[bodySlots.bodyKey]),
     orbitKey: str(body[bodySlots.orbitKey]),
     name: str(body[bodySlots.name]),
-    kind: str(body[bodySlots.kind]),
+    kind,
     x: num(body[bodySlots.gravityInfluenceCenterX]),
     y: num(body[bodySlots.gravityInfluenceCenterZ]),
     radius: Math.max(32, num(body[bodySlots.bodyRadiusMultiplier]) * 70),
-    isAsteroidBelt: str(body[bodySlots.kind]).toLowerCase().includes("asteroid"),
+    isAsteroidBelt: kind.toLowerCase().includes("asteroid"),
+    iconAsset: bodyIconAsset(kind),
   };
 }
 
@@ -460,6 +462,16 @@ function entityIconAsset(kind: string, controlled: boolean): AssetRef {
     return spriteAsset("map.entity.orbital", "Sprites/Map/orbital");
 
   return spriteAsset("map.entity.ship", "Sprites/Map/ship");
+}
+
+function bodyIconAsset(kind: string): AssetRef {
+  const normalized = kind.trim().toLowerCase();
+  if (normalized.includes("sun") || normalized.includes("star"))
+    return spriteAsset("map.body.sun", "Sprites/Map/sun");
+  if (normalized.includes("asteroid"))
+    return spriteAsset("map.body.asteroid", "Sprites/Map/planet");
+
+  return spriteAsset("map.body.planet", "Sprites/Map/planet");
 }
 
 function itemIconAsset(itemKey: string): AssetRef {

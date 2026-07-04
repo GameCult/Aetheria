@@ -37,6 +37,12 @@ const ipcChannels = [
   ["setTarget", "aetheria-rts:set-target"],
   ["surfaceCatalog", "aetheria-rts:surface-catalog"],
   ["surfaceCatalogIndex", "aetheria-rts:surface-catalog-index"],
+  ["mainMenuSurface", "aetheria-rts:main-menu-surface"],
+  ["debugSurface", "aetheria-rts:debug-surface"],
+  ["debugSurfaceWatch", "aetheria-rts:debug-surface-watch"],
+  ["debugSurfaceWatchStop", "aetheria-rts:debug-surface-watch-stop"],
+  ["debugSurfaceChanged", "aetheria-rts:debug-surface-changed"],
+  ["windowControl", "aetheria-rts:window-control"],
   ["health", "aetheria-rts:health"],
 ];
 
@@ -1030,6 +1036,46 @@ export type AetheriaRuntimeViewportFeedSnapshot = {
 
 ${renderRtsDocumentTypes("Viewport")}
 
+export type AetheriaMenuSurfaceRequest = {
+  surfaceId?: string;
+  inGame?: boolean;
+  canOpenRuntimeInputScreen?: boolean;
+};
+
+export type AetheriaMenuSurfaceDocument = {
+  providerId: string;
+  providerKind: string;
+  title: string;
+  version: number;
+  updatedAtUtc: string;
+  surface: AetheriaMenuSurfaceTree;
+  commands: AetheriaMenuSurfaceCommand[];
+};
+
+export type AetheriaMenuSurfaceTree = {
+  id: string;
+  root: AetheriaMenuSurfaceComponent;
+  styles: AetheriaMenuStyleToken[];
+};
+
+export type AetheriaMenuSurfaceComponent = {
+  id: string;
+  kind: string;
+  props: Record<string, string>;
+  children: AetheriaMenuSurfaceComponent[];
+};
+
+export type AetheriaMenuStyleToken = {
+  name: string;
+  value: string;
+};
+
+export type AetheriaMenuSurfaceCommand = {
+  command: string;
+  label: string;
+  transport: string;
+};
+
 export type AetheriaRtsApi = {
   mapViewport(request: Viewport): Promise<ViewportResponse>;
   objectsViewport(request: Viewport): Promise<ObjectsViewportResponse>;
@@ -1045,6 +1091,10 @@ export type AetheriaRtsApi = {
   setTarget(request: AetheriaRuntimeSetTargetRequest): Promise<AetheriaRuntimeDaemonCommandReceipt>;
   surfaceCatalog(): Promise<CultMeshSurfaceCatalogDiagnostic>;
   surfaceCatalogIndex(): Promise<CultMeshSurfaceCatalogIndexDiagnostic>;
+  mainMenuSurface(request: AetheriaMenuSurfaceRequest): Promise<AetheriaMenuSurfaceDocument>;
+  debugSurface(): Promise<AetheriaMenuSurfaceDocument>;
+  watchDebugSurface(callback: (surface: AetheriaMenuSurfaceDocument) => void): () => void;
+  windowControl(action: "minimize" | "maximize" | "close"): Promise<void>;
   health(): Promise<unknown>;
 };
 `;
@@ -1289,6 +1339,7 @@ export type BodyView = {
   y: number;
   radius: number;
   isAsteroidBelt: boolean;
+  iconAsset: AssetRef;
 };
 `;
 }
@@ -1302,7 +1353,11 @@ function renderIpcChannelLines() {
 function renderPreload() {
   const channelLines = renderIpcChannelLines();
   const apiLines = ipcChannels
-    .filter(([name]) => name !== "viewportFeedUpdate" && name !== "viewportFeedStop")
+    .filter(([name]) => name !== "viewportFeedUpdate" &&
+      name !== "viewportFeedStop" &&
+      name !== "debugSurfaceWatch" &&
+      name !== "debugSurfaceWatchStop" &&
+      name !== "debugSurfaceChanged")
     .map(([name]) => {
       if (name === "viewportFeed") {
         return `  watchViewportFeed: (request, callback) => {
@@ -1317,6 +1372,23 @@ function renderPreload() {
     return () => {
       ipcRenderer.off(channels.viewportFeedUpdate, listener);
       void ipcRenderer.invoke(channels.viewportFeedStop, subscriptionId);
+    };
+  },`;
+      }
+      if (name === "debugSurface") {
+        return `  debugSurface: () => ipcRenderer.invoke(channels.debugSurface),
+  watchDebugSurface: callback => {
+    const subscriptionId = \`debug-surface-\${Date.now().toString(36)}-\${Math.random().toString(36).slice(2)}\`;
+    const listener = (_event, message) => {
+      if (message?.subscriptionId === subscriptionId) {
+        callback(message.surface);
+      }
+    };
+    ipcRenderer.on(channels.debugSurfaceChanged, listener);
+    void ipcRenderer.invoke(channels.debugSurfaceWatch, subscriptionId);
+    return () => {
+      ipcRenderer.off(channels.debugSurfaceChanged, listener);
+      void ipcRenderer.invoke(channels.debugSurfaceWatchStop, subscriptionId);
     };
   },`;
       }

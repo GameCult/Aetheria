@@ -73,6 +73,6 @@ contextBridge.exposeInMainWorld("aetheriaRts", {
       void ipcRenderer.invoke(channels.debugSurfaceWatchStop, subscriptionId);
     };
   },
-  windowControl: action => ipcRenderer.invoke(channels.windowControl, action),
+  windowControl: request => ipcRenderer.invoke(channels.windowControl, request),
   health: () => ipcRenderer.invoke(channels.health),
 });

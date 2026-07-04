@@ -116,6 +116,12 @@ export const AetheriaRtsIpcChannels = {
   setTarget: "aetheria-rts:set-target",
   surfaceCatalog: "aetheria-rts:surface-catalog",
   surfaceCatalogIndex: "aetheria-rts:surface-catalog-index",
+  mainMenuSurface: "aetheria-rts:main-menu-surface",
+  debugSurface: "aetheria-rts:debug-surface",
+  debugSurfaceWatch: "aetheria-rts:debug-surface-watch",
+  debugSurfaceWatchStop: "aetheria-rts:debug-surface-watch-stop",
+  debugSurfaceChanged: "aetheria-rts:debug-surface-changed",
+  windowControl: "aetheria-rts:window-control",
   health: "aetheria-rts:health",
 } as const;
 
@@ -1193,7 +1199,8 @@ export type AetheriaRuntimeRtsBodyViewSlot =
   | "y"
   | "radius"
   | "isAsteroidBelt"
-  | "body";
+  | "body"
+  | "iconAsset";
 
 export const aetheriaRuntimeRtsBodyViewSlots: Record<AetheriaRuntimeRtsBodyViewSlot, number> = {
   bodyKey: 0,
@@ -1205,6 +1212,7 @@ export const aetheriaRuntimeRtsBodyViewSlots: Record<AetheriaRuntimeRtsBodyViewS
   radius: 6,
   isAsteroidBelt: 7,
   body: 8,
+  iconAsset: 9,
 };
 
 export type AetheriaRuntimeStarbridgeScenarioDocumentSlot =
@@ -1681,6 +1689,7 @@ export type BodyView = {
   y: number;
   radius: number;
   isAsteroidBelt: boolean;
+  iconAsset: AssetRef;
 };
 
 
