@@ -14,8 +14,11 @@ var options = AetheriaDaemonHostOptions.Parse(args);
 var startedAtUtc = DateTimeOffset.UtcNow.ToString("O");
 
 Console.WriteLine($"Aetheria Verse daemon starting: {options.StatePath}");
-Console.WriteLine("Aetheria Verse daemon peers: Odin/CultMesh discovery");
-Console.WriteLine($"Aetheria Odin announcement target: {options.OdinCultMeshUri}");
+Console.WriteLine(options.EnableOdinAnnouncements
+    ? "Aetheria Verse daemon peers: Odin/CultMesh discovery"
+    : "Aetheria Verse daemon peers: local child-daemon transport");
+if (options.EnableOdinAnnouncements)
+    Console.WriteLine($"Aetheria Odin announcement target: {options.OdinCultMeshUri}");
 
 await using var node = await AetheriaStateNode.OpenAsync(
     options.StatePath,
@@ -26,6 +29,7 @@ using var discoveryHost = new AetheriaVerseDiscoveryHost(node);
 
 await EnsureWorldDocumentAsync(node).ConfigureAwait(false);
 await EnsureTradeValuePolicyAsync(node, startedAtUtc).ConfigureAwait(false);
+await node.FlushAsync().ConfigureAwait(false);
 await EnsurePlayableRunDocumentsAsync(node, startedAtUtc).ConfigureAwait(false);
 await EnsureStarbridgeSessionDocumentsAsync(node, options).ConfigureAwait(false);
 var verseHost = await EnsureVerseHostSettingsAsync(node, options, startedAtUtc).ConfigureAwait(false);
@@ -446,6 +450,30 @@ static RudpCultNetSchemaServer StartRtsCultMeshHost(
                     .Where(document => !string.Equals(document.SchemaId, starbridgePut.Document.SchemaId, StringComparison.Ordinal) ||
                         !string.Equals(document.RecordKey, starbridgePut.Document.RecordKey, StringComparison.Ordinal))
                     .Concat(new[] { starbridgePut.Document })
+                    .ToArray();
+            }
+
+            var assetManifest = await node.MutableDocument<AetheriaRuntimeAssetManifestDocument>(AetheriaRuntimeVerseRecordKeys.DaemonAssetManifest).ReadAsync().ConfigureAwait(false);
+            if (assetManifest != null &&
+                SnapshotWants(
+                    request,
+                    AetheriaRuntimeDaemonSchemas.AssetManifest,
+                    AetheriaRuntimeVerseRecordKeys.DaemonAssetManifest.ToString()))
+            {
+                var assetManifestPut = node.Database.Documents.CreateRawDocumentPutMessage(
+                    response.MessageId,
+                    new CultRecordHandle<AetheriaRuntimeAssetManifestDocument>(
+                        AetheriaRuntimeVerseRecordKeys.DaemonAssetManifest),
+                    assetManifest,
+                    new CultNetDocumentMessageOptions
+                    {
+                        SourceRuntimeId = options.DaemonId,
+                        SourceRole = "aetheria-daemon"
+                    });
+                response.Documents = response.Documents
+                    .Where(document => !string.Equals(document.SchemaId, assetManifestPut.Document.SchemaId, StringComparison.Ordinal) ||
+                        !string.Equals(document.RecordKey, assetManifestPut.Document.RecordKey, StringComparison.Ordinal))
+                    .Concat(new[] { assetManifestPut.Document })
                     .ToArray();
             }
 
@@ -1335,7 +1363,7 @@ static async Task PublishOdinSurfaceAnnouncementsAsync(
     AetheriaDaemonHostOptions options,
     string updatedAtUtc)
 {
-    if (string.IsNullOrWhiteSpace(options.OdinCultMeshUri))
+    if (!options.EnableOdinAnnouncements || string.IsNullOrWhiteSpace(options.OdinCultMeshUri))
         return;
 
     var surfaces = new[]
@@ -2251,6 +2279,7 @@ internal sealed class AetheriaDaemonHostOptions
     public int RtsCultMeshPort { get; init; } = 3076;
     public string AetheriaResourcesRoot { get; init; } = "";
     public string OdinCultMeshUri { get; init; } = "cultmesh://odin/rendezvous/provider-catalog";
+    public bool EnableOdinAnnouncements { get; init; } = true;
     public TimeSpan TickInterval { get; init; } = TimeSpan.FromMilliseconds(20);
     public TimeSpan ApiPublicationInterval { get; init; } = TimeSpan.FromSeconds(1);
     public double FixedDeltaSeconds { get; init; } = 0.02;
@@ -2276,6 +2305,7 @@ internal sealed class AetheriaDaemonHostOptions
         RejectRemovedOption(args, "--odin-cultmesh-rudp", "--odin-cultmesh-uri");
         RejectRemovedOption(args, "--odin-cultnet-rudp", "--odin-cultmesh-uri");
         var odinCultMeshUri = ReadOption(args, "--odin-cultmesh-uri");
+        var noOdinAnnouncements = HasFlag(args, "--no-odin-announcements");
         RejectRemovedOption(args, "--peer-sync-timeout-ms", "Odin-discovered CultMesh peer documents");
         var apiPublicationIntervalMs = ReadPositiveInt(args, "--api-publication-interval-ms") ?? 1000;
         var sessionId = ReadOption(args, "--session-id");
@@ -2299,9 +2329,12 @@ internal sealed class AetheriaDaemonHostOptions
             AetheriaResourcesRoot = string.IsNullOrWhiteSpace(aetheriaResourcesRoot)
                 ? Path.GetFullPath(Path.Combine(root, "Assets", "Resources"))
                 : Path.GetFullPath(aetheriaResourcesRoot),
-            OdinCultMeshUri = string.IsNullOrWhiteSpace(odinCultMeshUri)
+            OdinCultMeshUri = noOdinAnnouncements
+                ? ""
+                : string.IsNullOrWhiteSpace(odinCultMeshUri)
                 ? "cultmesh://odin/rendezvous/provider-catalog"
                 : odinCultMeshUri,
+            EnableOdinAnnouncements = !noOdinAnnouncements,
             TickInterval = TimeSpan.FromMilliseconds(intervalMs),
             ApiPublicationInterval = TimeSpan.FromMilliseconds(apiPublicationIntervalMs),
             FixedDeltaSeconds = fixedDeltaMs / 1000.0,

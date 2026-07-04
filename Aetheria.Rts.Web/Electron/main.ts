@@ -120,6 +120,7 @@ app.whenReady().then(async () => {
         "20",
         "--api-publication-interval-ms",
         "100000",
+        "--no-odin-announcements",
       ]);
     } else {
       showStartup("Connecting Aetheria RTS", `Using daemon ${rtsCultMeshUri}.`);
@@ -136,7 +137,7 @@ app.whenReady().then(async () => {
       },
       runtimeStatePath,
       "aetheria-rts-electron",
-      { publicationMode: launchLocalDaemon ? "local" : "remote" });
+      { publicationMode: "remote" });
 
     if (rendererView === "main-menu") {
       await mainWindow.loadFile(rendererIndex, { hash: "main-menu" });
@@ -295,7 +296,7 @@ function isElectronSmokeReady(result: Record<string, unknown>): boolean {
     selectionDetails.includes("Cargo") &&
     frameDetails.includes("Daemon") &&
     frameDetails.includes("Authority") &&
-    runtimeSurfaceDetails.includes("shared-memory") &&
+    runtimeSurfaceDetails.includes("network") &&
     runtimeSurfaceDetails.includes("daemon:aetheria.frame.latest.v1") &&
     runtimeSurfaceDetails.includes("gamecult.aetheria.pilot.set_move_vector.v1") &&
     controlledText.length > 0 &&

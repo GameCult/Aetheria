@@ -28,7 +28,7 @@ namespace GameCult.Aetheria.State.Verse
             new CultRecordKey("daemon:aetheria.command_boundary.v1");
 
         public static CultRecordKey DaemonAssetManifest { get; } =
-            new CultRecordKey("daemon:aetheria.asset_manifest.v1");
+            new CultRecordKey("daemon:aetheria.asset_manifest.latest.v1");
 
         public static CultRecordKey VerseAuthorityPolicy { get; } =
             new CultRecordKey(AetheriaRuntimeVerseAuthorityPolicyDocument.DocumentKey);
