@@ -28,7 +28,7 @@ const rtsDaemonId = process.env.AETHERIA_RTS_DAEMON_ID?.trim() || "starfire-rts"
 const configuredDaemonUri = process.env.AETHERIA_RTS_CULTMESH_URI?.trim() ?? "";
 const legacyDaemonEndpoint = process.env.AETHERIA_RTS_DAEMON_ENDPOINT?.trim() ?? "";
 const launchLocalDaemon = configuredDaemonUri.length === 0 && legacyDaemonEndpoint.length === 0;
-const rtsCultMeshUri = configuredDaemonUri || `cultmesh://odin/aetheria/rts/${encodeURIComponent(rtsDaemonId)}`;
+const rtsCultMeshUri = configuredDaemonUri || `cultmesh://aetheria/daemon/${encodeURIComponent(rtsDaemonId)}`;
 const rtsCultMeshAdvertiseHost = process.env.AETHERIA_RTS_CULTMESH_ADVERTISE_HOST?.trim() || "127.0.0.1";
 const removedResolvedRudpEndpoint = process.env.AETHERIA_RTS_RESOLVED_RUDP_ENDPOINT?.trim() ?? "";
 const removedPeerCultMeshEndpoints = process.env.AETHERIA_RTS_PEER_CULTMESH_ENDPOINTS?.trim() ?? "";
@@ -137,7 +137,7 @@ app.whenReady().then(async () => {
       },
       runtimeStatePath,
       "aetheria-rts-electron",
-      { publicationMode: "remote" });
+      { publicationMode: launchLocalDaemon ? "local" : "remote" });
 
     if (rendererView === "main-menu") {
       await mainWindow.loadFile(rendererIndex, { hash: "main-menu" });
@@ -177,7 +177,6 @@ app.on("before-quit", () => {
 });
 
 function createWindow(): BrowserWindow {
-  const isMainMenuWindow = rendererView === "main-menu";
   const window = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -186,8 +185,8 @@ function createWindow(): BrowserWindow {
     show: !electronSmoke,
     backgroundColor: "#0b1016",
     title: "Aetheria RTS",
-    frame: !isMainMenuWindow,
-    autoHideMenuBar: isMainMenuWindow,
+    frame: false,
+    autoHideMenuBar: true,
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
