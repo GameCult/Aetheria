@@ -11743,7 +11743,7 @@ static void RequireDaemonVersePublication(string root)
         "startServer: true",
         "node.MutableDocument<AetheriaRuntimeDaemonFrameDocument>(AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest)",
         "Catalog = node.RuntimeCatalog().Latest()",
-        "node.RuntimeCatalog().Latest());",
+        "AetheriaDaemonZoneGenerator.WritePlayableRunAsync(",
         "node.MutableDocument<AetheriaRuntimeVerseAuthorityPolicyDocument>(AetheriaRuntimeVerseRecordKeys.VerseAuthorityPolicy)",
         "node.MutableDocument<AetheriaRuntimeStarbridgeScenarioDocument>(AetheriaRuntimeVerseRecordKeys.StarbridgeScenarioLatest)",
         "node.MutableDocument<AetheriaRuntimeStarbridgeSessionDocument>(AetheriaRuntimeVerseRecordKeys.StarbridgeSessionLatest)",
@@ -11752,7 +11752,7 @@ static void RequireDaemonVersePublication(string root)
         "BuildPublications = buildPublications",
         "new AetheriaVerseDiscoveryHost(node)",
         "discoveryHost.Update(",
-        "PublishDaemonApiDocumentsAsync(node, result)",
+        "PublishDaemonApiDocumentsAsync(node, options, result)",
         "node.MutableDocument<AetheriaRuntimeDaemonSoaViewDocument>(AetheriaRuntimeVerseRecordKeys.DaemonSoaViewLatest)",
         "node.MutableDocument<AetheriaRuntimeDaemonProviderAdvertisementDocument>(AetheriaRuntimeVerseRecordKeys.DaemonProviderAdvertisement)",
         "node.MutableDocument<AetheriaRuntimeDaemonHealthDocument>(AetheriaRuntimeVerseRecordKeys.DaemonHealth)",
@@ -11827,16 +11827,8 @@ static void RequireDaemonVersePublication(string root)
             string.Join(", ", survivingNamedDaemonHostSymbols));
     }
 
-    var committedFactImportStart = daemonHostSource.IndexOf(
-        "static async Task<AetheriaRuntimeDaemonTickResult> ImportRemoteCommittedFactsAsync",
-        StringComparison.Ordinal);
-    var committedFactImportEnd = committedFactImportStart >= 0
-        ? daemonHostSource.IndexOf("static RudpCultNetSchemaServer StartRtsCultMeshHost", committedFactImportStart, StringComparison.Ordinal)
-        : -1;
-    var committedFactImportBlock = committedFactImportStart >= 0 && committedFactImportEnd > committedFactImportStart
-        ? daemonHostSource.Substring(committedFactImportStart, committedFactImportEnd - committedFactImportStart)
-        : "";
-    if (!committedFactImportBlock.Contains("node.RuntimeCatalog().Latest())", StringComparison.Ordinal))
+    if (!committedFactImporter.Contains("AetheriaRuntimeCatalogSnapshot? catalog = null", StringComparison.Ordinal) ||
+        !committedFactImporter.Contains("Catalog = catalog ?? EmptyCatalog()", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "Remote committed fact import must pass the managed runtime catalog document into the tick importer instead of reopening catalog storage.");
@@ -11887,7 +11879,7 @@ static void RequireDaemonVersePublication(string root)
     }
 
     if (!daemonTickBlock.Contains("if (buildPublications)", StringComparison.Ordinal) ||
-        !daemonTickBlock.Contains("PublishDaemonApiDocumentsAsync(node, result)", StringComparison.Ordinal))
+        !daemonTickBlock.Contains("PublishDaemonApiDocumentsAsync(node, options, result)", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "Daemon ticks must publish API cadence documents through managed AetheriaStateNode pointers.");
