@@ -16253,6 +16253,11 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
         throw new InvalidOperationException(
             "Aetheria daemon smoke/freeze callers and fixtures must use client-neutral endpoint, run, and runtime vocabulary instead of preserving RTS-branded transport names.");
     }
+    if (rtsLocalDocuments.Contains("local-rts", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Electron local document projections must not invent RTS-branded run ids when the daemon frame omits run identity.");
+    }
     if (stateBoundary.Contains("UnityRuntimeIdOverrideEnvironmentVariable", StringComparison.Ordinal) ||
         stateBoundary.Contains("AETHERIA_UNITY_RUNTIME_ID", StringComparison.Ordinal) ||
         clientTargetStore.Contains("raven-unity", StringComparison.Ordinal) ||

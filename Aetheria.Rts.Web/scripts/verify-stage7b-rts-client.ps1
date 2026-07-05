@@ -139,7 +139,7 @@ $requiredGeneratedBindingSymbols = @(
     'AetheriaRuntimeRtsQueryDiagnostic',
     'AetheriaRuntimeRtsLiveFeedDiagnostic',
     'AetheriaRuntimeRtsSurfaceCatalogDiagnostic',
-    'AetheriaRuntimeRtsDocuments',
+    'AetheriaRuntimeGameDocuments',
     'AetheriaRuntimeRtsDocumentResolvers',
     'CultMeshSurfaceCatalogDiagnostic',
     'CultMeshSurfaceCatalogIndexDiagnostic',
@@ -156,7 +156,7 @@ $requiredGeneratedBindingSymbols = @(
     'routeHint: CultMeshRouteHint',
     'CultMeshQueryWatcher',
     'AetheriaRuntimeRtsQueryWatchers',
-    'createAetheriaRuntimeRtsDocuments',
+    'createAetheriaRuntimeGameDocuments',
     'CultMesh.document',
     'CultMesh.bindDocument',
     'CultMesh.describeSurface(documents.daemonFrame)',
@@ -219,7 +219,7 @@ if ($LASTEXITCODE -ne 0) {
 
 $clientText = Get-Content Electron/aetheria-cultmesh.ts -Raw
 
-if (-not $clientText.Contains('this.documents = createAetheriaRuntimeRtsDocuments(') -or
+if (-not $clientText.Contains('this.documents = createAetheriaRuntimeGameDocuments(') -or
     -not $clientText.Contains('this.queryVerse.context.routeHint,')) {
     Write-Error "Stage 7B verifier failed: RTS client is not creating generated document handles with its shared Verse route."
 }
@@ -515,9 +515,10 @@ $requiredGeneratedBindingSymbols = @(
     'aetheriaRuntimeDaemonCommandDocumentSlots',
     'aetheriaRuntimeDaemonFrameDocumentSlots',
     'aetheriaRuntimeDaemonHealthDocumentSlots',
-    'aetheriaRuntimeRtsViewportDocumentSlots',
+    'aetheriaRuntimeGameViewportDocumentSlots',
     'aetheriaRuntimeObjectsViewportDocumentSlots',
     'aetheriaRuntimeGravityViewportDocumentSlots',
+    'aetheriaRuntimeRenderSplatsViewportDocumentSlots',
     'aetheriaRuntimeSelectedObjectDocumentSlots',
     'aetheriaRuntimeInventoryDocumentSlots',
     'aetheriaRuntimeStarbridgeScenarioDocumentSlots',
@@ -528,8 +529,8 @@ $requiredGeneratedBindingSymbols = @(
     'aetheriaRuntimeStarbridgeWaveForecastSlots',
     'aetheriaRuntimeStarbridgeRuntimeRoleSlots',
     'aetheriaRuntimeStarbridgeBaseStatusSlots',
-    'aetheriaRuntimeRtsViewportBoundsSlots',
-    'aetheriaRuntimeRtsViewportObjectSlots',
+    'aetheriaRuntimeGameViewportBoundsSlots',
+    'aetheriaRuntimeGameViewportObjectSlots',
     'aetheriaRuntimeVerseAuthorityPolicyDocumentSlots',
     'aetheriaRuntimeAuthorityRuleSlots',
     'aetheriaRuntimeAuthorityLeaseDocumentSlots',

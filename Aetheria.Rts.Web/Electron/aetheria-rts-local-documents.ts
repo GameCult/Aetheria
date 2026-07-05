@@ -44,6 +44,8 @@ import type {
   ViewportResponse,
 } from "./aetheria-rts-bindings.js";
 
+const missingDaemonRunId = "aetheria.run.unknown";
+
 export function buildViewportDocumentFromFrame(frameDocument: unknown, request: ViewportRequest): ViewportResponse {
   const objects = buildObjectsViewportDocumentFromFrame(frameDocument, request);
   const gravity = buildGravityViewportDocumentFromFrame(frameDocument, request);
@@ -75,7 +77,7 @@ export function buildObjectsViewportDocumentFromFrame(
   const zone = zones.find(candidate => num(candidate[zoneSlots.zoneIndex], -1) === currentZoneIndex) ??
     zones[0] ??
     [];
-  const runId = str(run[runSlots.runId]) || "local-rts";
+  const runId = str(run[runSlots.runId]) || missingDaemonRunId;
   const viewport = normalizeViewport(request);
   const entities = list<unknown[]>(zone[zoneSlots.entities]);
   const controlledEntityIndices = entities
@@ -121,7 +123,7 @@ export function buildGravityViewportDocumentFromFrame(
   const zone = zones.find(candidate => num(candidate[zoneSlots.zoneIndex], -1) === currentZoneIndex) ??
     zones[0] ??
     [];
-  const runId = str(run[runSlots.runId]) || "local-rts";
+  const runId = str(run[runSlots.runId]) || missingDaemonRunId;
   const viewport = normalizeViewport(request);
   const visibleBodies = list<unknown[]>(zone[zoneSlots.bodies])
     .filter(body => gravityInfluenceIntersectsViewport(body, viewport));
@@ -151,7 +153,7 @@ export function buildRenderSplatsViewportDocumentFromFrame(
   const zone = zones.find(candidate => num(candidate[zoneSlots.zoneIndex], -1) === currentZoneIndex) ??
     zones[0] ??
     [];
-  const runId = str(run[runSlots.runId]) || "local-rts";
+  const runId = str(run[runSlots.runId]) || missingDaemonRunId;
   const viewport = normalizeViewport(request);
   const layers = defaultRenderSplatLayers();
   const layerIndices: ReadonlyMap<string, number> = new Map(layers.map((layer, index) => [layer.layerKey, index] as const));
@@ -459,7 +461,7 @@ function frameContext(frameDocument: unknown): {
     [];
   return {
     frameId: num(frame[frameSlots.frameId]),
-    runId: str(run[runSlots.runId]) || "local-rts",
+    runId: str(run[runSlots.runId]) || missingDaemonRunId,
     zoneIndex: num(zone[zoneSlots.zoneIndex]),
     entities: list<unknown[]>(zone[zoneSlots.entities]),
   };
