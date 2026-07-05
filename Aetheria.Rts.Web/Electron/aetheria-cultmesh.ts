@@ -893,6 +893,7 @@ function surfaceDocument(
   commands: AetheriaMenuSurfaceCommand[],
   ...children: AetheriaMenuSurfaceComponent[]
 ): AetheriaMenuSurfaceDocument {
+  const isMenuShell = surfaceId === "aetheria.main_menu.shell";
   return {
     providerId: "aetheria",
     providerKind: "game.menu",
@@ -906,7 +907,7 @@ function surfaceDocument(
         "surface",
         {},
         { position: "relative", overflow: "hidden", width: "100%", height: "100vh", minHeight: "100vh" },
-        { background: "#020606" },
+        { background: isMenuShell ? "#020606" : "rgba(0,0,0,0)" },
         ...children),
       styles: [
         { name: "font.title.family", value: "Montserrat" },
