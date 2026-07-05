@@ -87,27 +87,30 @@ static async Task ExportFixtureSetAsync(
         .OpenAsync(statePath, runtimeId: "aetheria-freeze", startServer: false)
         .ConfigureAwait(false);
 
-    var frame = await node.LatestFrame().ReadAsync().ConfigureAwait(false);
+    var frame = await node.MutableDocument<AetheriaRuntimeDaemonFrameDocument>(
+            AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest)
+        .ReadAsync()
+        .ConfigureAwait(false);
     if (frame == null)
         throw new InvalidOperationException("Freeze export cannot continue because the daemon latest frame is missing.");
     WriteArtifact(outputDirectory, manifest, "daemon-frame.latest", AetheriaRuntimeDaemonSchemas.Frame, frame);
 
-    if (await TryReadAsync<AetheriaRuntimeDaemonHealthDocument>(() => node.Health().ReadAsync()).ConfigureAwait(false) is { } health)
+    if (await TryReadDocumentAsync<AetheriaRuntimeDaemonHealthDocument>(node, AetheriaRuntimeVerseRecordKeys.DaemonHealth).ConfigureAwait(false) is { } health)
         WriteArtifact(outputDirectory, manifest, "daemon-health.latest", AetheriaRuntimeDaemonSchemas.Health, health);
 
-    if (await TryReadAsync<AetheriaRuntimeDaemonProviderAdvertisementDocument>(() => node.ProviderAdvertisement().ReadAsync()).ConfigureAwait(false) is { } provider)
+    if (await TryReadDocumentAsync<AetheriaRuntimeDaemonProviderAdvertisementDocument>(node, AetheriaRuntimeVerseRecordKeys.DaemonProviderAdvertisement).ConfigureAwait(false) is { } provider)
         WriteArtifact(outputDirectory, manifest, "daemon-provider.latest", AetheriaRuntimeDaemonSchemas.ProviderAdvertisement, provider);
 
-    if (await TryReadAsync<AetheriaRuntimeDaemonCommandBoundaryDocument>(() => node.CommandBoundary().ReadAsync()).ConfigureAwait(false) is { } commandBoundary)
+    if (await TryReadDocumentAsync<AetheriaRuntimeDaemonCommandBoundaryDocument>(node, AetheriaRuntimeVerseRecordKeys.DaemonCommandBoundary).ConfigureAwait(false) is { } commandBoundary)
         WriteArtifact(outputDirectory, manifest, "daemon-command-boundary.latest", AetheriaRuntimeDaemonSchemas.CommandBoundary, commandBoundary);
 
-    if (await TryReadAsync<AetheriaRuntimeVerseAuthorityPolicyDocument>(() => node.VerseAuthorityPolicy().ReadAsync()).ConfigureAwait(false) is { } authorityPolicy)
+    if (await TryReadDocumentAsync<AetheriaRuntimeVerseAuthorityPolicyDocument>(node, AetheriaRuntimeVerseRecordKeys.VerseAuthorityPolicy).ConfigureAwait(false) is { } authorityPolicy)
         WriteArtifact(outputDirectory, manifest, "verse-authority-policy.latest", AetheriaRuntimeVerseAuthoritySchemas.Policy, authorityPolicy);
 
-    if (await TryReadAsync<AetheriaRuntimeStarbridgeSessionSummaryDocument>(() => node.StarbridgeSessionSummary().ReadAsync()).ConfigureAwait(false) is { } starbridgeSummary)
+    if (await TryReadDocumentAsync<AetheriaRuntimeStarbridgeSessionSummaryDocument>(node, AetheriaRuntimeVerseRecordKeys.StarbridgeSessionSummary).ConfigureAwait(false) is { } starbridgeSummary)
         WriteArtifact(outputDirectory, manifest, "starbridge-session-summary.latest", AetheriaRuntimeDaemonSchemas.StarbridgeSessionSummary, starbridgeSummary);
 
-    if (await TryReadAsync<AetheriaRuntimeDaemonSoaViewDocument>(() => node.LatestSoaView().ReadAsync()).ConfigureAwait(false) is { } soaView)
+    if (await TryReadDocumentAsync<AetheriaRuntimeDaemonSoaViewDocument>(node, AetheriaRuntimeVerseRecordKeys.DaemonSoaViewLatest).ConfigureAwait(false) is { } soaView)
         WriteArtifact(outputDirectory, manifest, "daemon-soa-view.latest", AetheriaRuntimeDaemonSchemas.SoaView, soaView);
 
     var viewport = new AetheriaRuntimeViewportBounds
@@ -117,7 +120,7 @@ static async Task ExportFixtureSetAsync(
         MaxX = options.ViewportMaxX,
         MaxY = options.ViewportMaxY
     };
-    WriteArtifact(outputDirectory, manifest, "document.rts-viewport", AetheriaRuntimeDaemonSchemas.GameViewport, AetheriaRuntimeGameDocuments.Viewport(frame, viewport));
+    WriteArtifact(outputDirectory, manifest, "document.game-viewport", AetheriaRuntimeDaemonSchemas.GameViewport, AetheriaRuntimeGameDocuments.Viewport(frame, viewport));
     WriteArtifact(outputDirectory, manifest, "document.objects-viewport", AetheriaRuntimeDaemonSchemas.ObjectsViewport, AetheriaRuntimeGameDocuments.ObjectsViewport(frame, viewport));
     WriteArtifact(outputDirectory, manifest, "document.gravity-viewport", AetheriaRuntimeDaemonSchemas.GravityViewport, AetheriaRuntimeGameDocuments.GravityViewport(frame, viewport));
     WriteArtifact(outputDirectory, manifest, "document.current-zone", AetheriaRuntimeDaemonSchemas.CurrentZone, AetheriaRuntimeGameDocuments.CurrentZone(frame));
@@ -146,6 +149,12 @@ static void ExportAuthorityDecisionFixtures(string outputDirectory)
     };
     WriteArtifact(outputDirectory, manifest, "authority-decisions", "gamecult.aetheria.freeze.authority_decisions.v1", fixtures);
     WriteJson(Path.Combine(outputDirectory, "manifest.json"), manifest);
+}
+
+static Task<T?> TryReadDocumentAsync<T>(AetheriaStateNode node, GameCult.Caching.CultRecordKey recordKey)
+    where T : class
+{
+    return TryReadAsync(() => node.MutableDocument<T>(recordKey).ReadAsync());
 }
 
 static async Task<T?> TryReadAsync<T>(Func<Task<T?>> read)
@@ -210,7 +219,7 @@ static async Task RunDaemonOnceAsync(FreezeOptions options, string statePath, st
             $"aetheria-freeze-{scenario}",
             "--session-id",
             scenario,
-            "--rts-cultmesh-port",
+            "--client-cultmesh-port",
             "0"
         });
 

@@ -16091,6 +16091,8 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
         "Runtime",
         "AetheriaRuntimeGameViewportDocuments.cs");
     var rtsLocalDocumentsPath = Path.Combine(root, "Aetheria.Rts.Web", "Electron", "aetheria-rts-local-documents.ts");
+    var authoritySmokePath = Path.Combine(root, "Aetheria.State.AuthoritySmoke", "Program.cs");
+    var freezePath = Path.Combine(root, "Aetheria.State.Freeze", "Program.cs");
     var snapshotDocuments = File.Exists(snapshotDocumentsPath)
         ? File.ReadAllText(snapshotDocumentsPath)
         : throw new InvalidOperationException("Cannot verify daemon projectile authority; runtime snapshot documents are missing.");
@@ -16112,6 +16114,12 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
     var rtsLocalDocuments = File.Exists(rtsLocalDocumentsPath)
         ? File.ReadAllText(rtsLocalDocumentsPath)
         : throw new InvalidOperationException("Cannot verify daemon projectile authority; Electron local projection is missing.");
+    var authoritySmoke = File.Exists(authoritySmokePath)
+        ? File.ReadAllText(authoritySmokePath)
+        : throw new InvalidOperationException("Cannot verify daemon transport vocabulary; authority smoke harness is missing.");
+    var freeze = File.Exists(freezePath)
+        ? File.ReadAllText(freezePath)
+        : throw new InvalidOperationException("Cannot verify daemon transport vocabulary; freeze harness is missing.");
 
     var requiredProjectileAuthoritySymbols = new Dictionary<string, string[]>
     {
@@ -16211,7 +16219,9 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
     }
 
     if (daemonProgram.Contains("RtsCultMesh", StringComparison.Ordinal) ||
-        daemonProgram.Contains("--rts-cultmesh", StringComparison.Ordinal) ||
+        daemonProgram.Contains("ReadOption(args, \"--rts-cultmesh", StringComparison.Ordinal) ||
+        daemonProgram.Contains("ReadNonNegativeInt(args, \"--rts-cultmesh", StringComparison.Ordinal) ||
+        daemonProgram.Contains("ReadPositiveInt(args, \"--rts-cultmesh", StringComparison.Ordinal) ||
         daemonProgram.Contains("RTS CultMesh endpoint", StringComparison.Ordinal) ||
         daemonProgram.Contains("aetheria-rts-rudp", StringComparison.Ordinal) ||
         daemonProgram.Contains("daemon:aetheria.rts.viewport", StringComparison.Ordinal) ||
@@ -16220,6 +16230,18 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
     {
         throw new InvalidOperationException(
             "Aetheria daemon transport must be client-neutral; runtime-branded CultMesh flags and transport ids belong outside daemon authority.");
+    }
+    if (!daemonProgram.Contains("RejectRemovedOption(args, \"--rts-cultmesh-port\", \"--client-cultmesh-port\")", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Aetheria daemon must explicitly reject the removed RTS-branded CultMesh port flag and point callers at the client-neutral flag.");
+    }
+    if (authoritySmoke.Contains("--rts-cultmesh-port", StringComparison.Ordinal) ||
+        authoritySmoke.Contains("rtsPort", StringComparison.Ordinal) ||
+        freeze.Contains("--rts-cultmesh-port", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Aetheria daemon smoke/freeze callers must use the client-neutral CultMesh endpoint flag instead of preserving RTS-branded transport vocabulary.");
     }
 
     var sharedRuntimeText = string.Join(

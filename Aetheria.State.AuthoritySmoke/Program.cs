@@ -728,10 +728,10 @@ internal sealed class AuthoritySmokeChecks
     {
         var smokeId = Guid.NewGuid().ToString("N");
         var statePath = Path.Combine(Path.GetTempPath(), $"aetheria-starbridge-daemon-{smokeId}.cc");
-        var rtsPort = GetFreeUdpPort();
+        var clientCultMeshPort = GetFreeUdpPort();
         const string runtimeId = "starbridge-daemon-smoke";
 
-        await RunDaemonOnceAsync(statePath, runtimeId, rtsPort).ConfigureAwait(false);
+        await RunDaemonOnceAsync(statePath, runtimeId, clientCultMeshPort).ConfigureAwait(false);
 
         using var client = await AetheriaClient
             .OpenAsync(statePath, "starbridge-smoke-client", sessionId: "authority-smoke", pullOnOpen: true)
@@ -801,7 +801,7 @@ internal sealed class AuthoritySmokeChecks
             "raven-local",
             policy,
             [ravenByRaven, hostileByRaven]).ConfigureAwait(false);
-        await RunDaemonOnceAsync(ravenStatePath, "raven-local", rtsPort: 41076).ConfigureAwait(false);
+        await RunDaemonOnceAsync(ravenStatePath, "raven-local", clientCultMeshPort: 41076).ConfigureAwait(false);
         var ravenFrame = await ReadPublishedFrameAsync(ravenStatePath, "raven-local").ConfigureAwait(false);
 
         Require(ravenFrame.AppliedCommandIds.Contains(ravenByRaven.CommandId), "raven daemon should apply Raven-authored Raven movement");
@@ -817,7 +817,7 @@ internal sealed class AuthoritySmokeChecks
             "starfire-local",
             policy,
             [ravenByStarfire, hostileByStarfire]).ConfigureAwait(false);
-        await RunDaemonOnceAsync(starfireStatePath, "starfire-local", rtsPort: 41077).ConfigureAwait(false);
+        await RunDaemonOnceAsync(starfireStatePath, "starfire-local", clientCultMeshPort: 41077).ConfigureAwait(false);
         var starfireFrame = await ReadPublishedFrameAsync(starfireStatePath, "starfire-local").ConfigureAwait(false);
 
         Require(starfireFrame.RejectedCommandIds.Contains(ravenByStarfire.CommandId), "starfire daemon should reject Starfire-authored Raven movement");
@@ -1137,25 +1137,25 @@ internal sealed class AuthoritySmokeChecks
     private static async Task RunDaemonOnceAsync(
         string statePath,
         string runtimeId,
-        int rtsPort)
+        int clientCultMeshPort)
     {
-        using var process = StartDaemonProcess(statePath, runtimeId, rtsPort, once: true);
+        using var process = StartDaemonProcess(statePath, runtimeId, clientCultMeshPort, once: true);
         await WaitForProcessSuccessAsync(process, runtimeId, TimeSpan.FromSeconds(90)).ConfigureAwait(false);
     }
 
     private static Process StartDaemonProcess(
         string statePath,
         string runtimeId,
-        int rtsPort,
+        int clientCultMeshPort,
         bool once)
     {
-        return StartDaemonProcess(statePath, runtimeId, rtsPort, once, peerEndpoints: null);
+        return StartDaemonProcess(statePath, runtimeId, clientCultMeshPort, once, peerEndpoints: null);
     }
 
     private static Process StartDaemonProcess(
         string statePath,
         string runtimeId,
-        int rtsPort,
+        int clientCultMeshPort,
         bool once,
         IReadOnlyList<string>? peerEndpoints)
     {
@@ -1195,8 +1195,8 @@ internal sealed class AuthoritySmokeChecks
             "aetheria.coop-smoke",
             "--session-id",
             "authority-smoke",
-            "--rts-cultmesh-port",
-            rtsPort.ToString(),
+            "--client-cultmesh-port",
+            clientCultMeshPort.ToString(),
             "--api-publication-interval-ms",
             "50",
             string.Join(" ", (peerEndpoints ?? Array.Empty<string>())

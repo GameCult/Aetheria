@@ -2421,6 +2421,7 @@ internal sealed class AetheriaDaemonHostOptions
         var clientCultMeshAdvertiseHost = ReadOption(args, "--client-cultmesh-advertise-host");
         var clientCultMeshPort = ReadNonNegativeInt(args, "--client-cultmesh-port") ?? 3076;
         var aetheriaResourcesRoot = ReadOption(args, "--aetheria-resources-root");
+        RejectRemovedOption(args, "--rts-cultmesh-port", "--client-cultmesh-port");
         RejectRemovedOption(args, "--peer-cultmesh-endpoint", "Odin-discovered CultMesh peer documents");
         RejectRemovedOption(args, "--odin-cultmesh-rudp", "--odin-cultmesh-uri");
         RejectRemovedOption(args, "--odin-cultnet-rudp", "--odin-cultmesh-uri");
