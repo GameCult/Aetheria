@@ -28,6 +28,14 @@ if ($LASTEXITCODE -gt 1) {
     Write-Error "Stage 7B verifier could not run rg for forbidden public surfaces."
 }
 
+$forbiddenFileBackedDebugSurfaceHits = & rg -n 'debugSurface|debug-surface|watchDebugSurface|AETHERIA_CULTUI_DEBUG_SURFACE_PATH|cultui-debug-surface|file_surface|debug-log' Client Electron scripts/generate-rts-bindings.mjs 2>$null
+if ($LASTEXITCODE -eq 0) {
+    Write-Error "Stage 7B verifier failed: Electron must consume daemon Eve surfaces, not file-backed CultUI debug surfaces.`n$forbiddenFileBackedDebugSurfaceHits"
+}
+if ($LASTEXITCODE -gt 1) {
+    Write-Error "Stage 7B verifier could not run rg for file-backed debug surface checks."
+}
+
 $required = @(
     'mapViewport',
     'objectsViewport',

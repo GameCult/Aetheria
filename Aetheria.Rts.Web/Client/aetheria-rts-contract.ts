@@ -417,8 +417,6 @@ export type AetheriaRtsApi = {
   surfaceCatalogIndex(): Promise<CultMeshSurfaceCatalogIndexDiagnostic>;
   eveSurface(request: AetheriaEveSurfaceRequest): Promise<AetheriaMenuSurfaceDocument>;
   submitEveCommand(request: AetheriaEveCommandRequest): Promise<AetheriaRuntimeDaemonCommandReceipt>;
-  debugSurface(): Promise<AetheriaMenuSurfaceDocument>;
-  watchDebugSurface(callback: (surface: AetheriaMenuSurfaceDocument) => void): () => void;
   windowControl(action: "minimize" | "maximize" | "close"): Promise<void>;
   health(): Promise<unknown>;
 };

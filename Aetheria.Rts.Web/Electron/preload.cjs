@@ -23,10 +23,6 @@ const channels = {
   surfaceCatalogIndex: "aetheria-rts:surface-catalog-index",
   eveSurface: "aetheria-rts:eve-surface",
   submitEveCommand: "aetheria-rts:submit-eve-command",
-  debugSurface: "aetheria-rts:debug-surface",
-  debugSurfaceWatch: "aetheria-rts:debug-surface-watch",
-  debugSurfaceWatchStop: "aetheria-rts:debug-surface-watch-stop",
-  debugSurfaceChanged: "aetheria-rts:debug-surface-changed",
   windowControl: "aetheria-rts:window-control",
   health: "aetheria-rts:health",
 };
@@ -62,21 +58,6 @@ contextBridge.exposeInMainWorld("aetheriaRts", {
   surfaceCatalogIndex: () => ipcRenderer.invoke(channels.surfaceCatalogIndex),
   eveSurface: request => ipcRenderer.invoke(channels.eveSurface, request),
   submitEveCommand: request => ipcRenderer.invoke(channels.submitEveCommand, request),
-  debugSurface: () => ipcRenderer.invoke(channels.debugSurface),
-  watchDebugSurface: callback => {
-    const subscriptionId = `debug-surface-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
-    const listener = (_event, message) => {
-      if (message?.subscriptionId === subscriptionId) {
-        callback(message.surface);
-      }
-    };
-    ipcRenderer.on(channels.debugSurfaceChanged, listener);
-    void ipcRenderer.invoke(channels.debugSurfaceWatch, subscriptionId);
-    return () => {
-      ipcRenderer.off(channels.debugSurfaceChanged, listener);
-      void ipcRenderer.invoke(channels.debugSurfaceWatchStop, subscriptionId);
-    };
-  },
   windowControl: request => ipcRenderer.invoke(channels.windowControl, request),
   health: () => ipcRenderer.invoke(channels.health),
 });

@@ -43,10 +43,6 @@ const ipcChannels = [
   ["surfaceCatalogIndex", "aetheria-rts:surface-catalog-index"],
   ["eveSurface", "aetheria-rts:eve-surface"],
   ["submitEveCommand", "aetheria-rts:submit-eve-command"],
-  ["debugSurface", "aetheria-rts:debug-surface"],
-  ["debugSurfaceWatch", "aetheria-rts:debug-surface-watch"],
-  ["debugSurfaceWatchStop", "aetheria-rts:debug-surface-watch-stop"],
-  ["debugSurfaceChanged", "aetheria-rts:debug-surface-changed"],
   ["windowControl", "aetheria-rts:window-control"],
   ["health", "aetheria-rts:health"],
 ];
@@ -1221,8 +1217,6 @@ export type AetheriaRtsApi = {
   surfaceCatalogIndex(): Promise<CultMeshSurfaceCatalogIndexDiagnostic>;
   eveSurface(request: AetheriaEveSurfaceRequest): Promise<AetheriaMenuSurfaceDocument>;
   submitEveCommand(request: AetheriaEveCommandRequest): Promise<AetheriaRuntimeDaemonCommandReceipt>;
-  debugSurface(): Promise<AetheriaMenuSurfaceDocument>;
-  watchDebugSurface(callback: (surface: AetheriaMenuSurfaceDocument) => void): () => void;
   windowControl(action: "minimize" | "maximize" | "close"): Promise<void>;
   health(): Promise<unknown>;
 };
@@ -1535,10 +1529,7 @@ function renderPreload() {
   const channelLines = renderIpcChannelLines();
   const apiLines = ipcChannels
     .filter(([name]) => name !== "viewportFeedUpdate" &&
-      name !== "viewportFeedStop" &&
-      name !== "debugSurfaceWatch" &&
-      name !== "debugSurfaceWatchStop" &&
-      name !== "debugSurfaceChanged")
+      name !== "viewportFeedStop")
     .map(([name]) => {
       if (name === "viewportFeed") {
         return `  watchViewportFeed: (request, callback) => {
@@ -1553,23 +1544,6 @@ function renderPreload() {
     return () => {
       ipcRenderer.off(channels.viewportFeedUpdate, listener);
       void ipcRenderer.invoke(channels.viewportFeedStop, subscriptionId);
-    };
-  },`;
-      }
-      if (name === "debugSurface") {
-        return `  debugSurface: () => ipcRenderer.invoke(channels.debugSurface),
-  watchDebugSurface: callback => {
-    const subscriptionId = \`debug-surface-\${Date.now().toString(36)}-\${Math.random().toString(36).slice(2)}\`;
-    const listener = (_event, message) => {
-      if (message?.subscriptionId === subscriptionId) {
-        callback(message.surface);
-      }
-    };
-    ipcRenderer.on(channels.debugSurfaceChanged, listener);
-    void ipcRenderer.invoke(channels.debugSurfaceWatch, subscriptionId);
-    return () => {
-      ipcRenderer.off(channels.debugSurfaceChanged, listener);
-      void ipcRenderer.invoke(channels.debugSurfaceWatchStop, subscriptionId);
     };
   },`;
       }

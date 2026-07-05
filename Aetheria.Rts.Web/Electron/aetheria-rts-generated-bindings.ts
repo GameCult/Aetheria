@@ -130,10 +130,6 @@ export const AetheriaRtsIpcChannels = {
   surfaceCatalogIndex: "aetheria-rts:surface-catalog-index",
   eveSurface: "aetheria-rts:eve-surface",
   submitEveCommand: "aetheria-rts:submit-eve-command",
-  debugSurface: "aetheria-rts:debug-surface",
-  debugSurfaceWatch: "aetheria-rts:debug-surface-watch",
-  debugSurfaceWatchStop: "aetheria-rts:debug-surface-watch-stop",
-  debugSurfaceChanged: "aetheria-rts:debug-surface-changed",
   windowControl: "aetheria-rts:window-control",
   health: "aetheria-rts:health",
 } as const;
