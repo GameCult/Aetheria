@@ -6,10 +6,7 @@ public class Lightning : MonoBehaviour
     public LightningCompute LightningCompute;
     public float HitRadius;
     
-    public float Damage { get; set; }
-    public float Penetration { get; set; }
-    public float Spread { get; set; }
-    public DamageType DamageType { get; set; }
+    public float ImpactIntensity { get; set; } = 1;
     public EntityInstance Source { get; set; }
     public float Range { get; set; }
     public EntityInstance Target { get; set; }
@@ -43,7 +40,7 @@ public class Lightning : MonoBehaviour
                 {
                     LightningCompute.OnLeaderComplete = () =>
                     {
-                        hit.Shield?.ShowHit(hit.Point, Mathf.Sqrt(Damage));
+                        hit.Shield?.ShowHit(hit.Point, Mathf.Max(0.01f, ImpactIntensity));
                     };
                 }
                 else

@@ -25,11 +25,8 @@ public class ProjectileManager : InstantWeaponEffectManager
         p.StartPosition = p.transform.position = barrel.position + p.Velocity * (Random.value * Time.deltaTime);
         if(InheritVelocity)
             p.Velocity += (Vector3)AetheriaMath.ToUnityXZ(source.Entity.CultVelocity);
-        p.Damage = weapon.Damage;
         p.Range = weapon.Range;
-        p.Penetration = weapon.Penetration;
-        p.Spread = weapon.DamageSpread;
-        p.DamageType = weapon.DamageType;
+        p.ImpactIntensity = 1;
         p.AirburstDistance = target != null
             ? CultMath.math.length(source.Entity.CultPosition - target.Entity.CultPosition)
             : (weapon.Range * .75f);

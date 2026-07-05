@@ -17,10 +17,7 @@ public class LaserManager : InstantWeaponEffectManager
         t.position = barrel.position;
         p.SourceEntity = source.Entity;
         p.ZoneRenderer = source.ZoneRenderer;
-        p.Damage = weapon.Damage;
         p.Range = weapon.Range;
-        p.Penetration = weapon.Penetration;
-        p.Spread = weapon.DamageSpread;
-        p.DamageType = weapon.DamageType;
+        p.ImpactIntensity = 1;
     }
 }

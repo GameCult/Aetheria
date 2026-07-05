@@ -19,8 +19,6 @@ public class ConstantParticleWeaponManager : ConstantWeaponEffectManager
         t.SetParent(barrel);
         t.forward = barrel.forward;
         t.position = barrel.position;
-        p.Damage = weapon.Damage;
-        p.DamageType = weapon.DamageType;
         p.Range = weapon.Range;
         _weapons.Add(item, p);
         p.Initialize();

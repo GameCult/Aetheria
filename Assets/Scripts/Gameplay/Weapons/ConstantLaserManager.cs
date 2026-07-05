@@ -20,10 +20,7 @@ public class ConstantLaserManager : ConstantWeaponEffectManager
         t.SetParent(barrel);
         t.forward = barrel.forward;
         t.position = barrel.position;
-        p.Damage = weapon.Damage;
-        p.Penetration = weapon.Penetration;
-        p.Spread = weapon.DamageSpread;
-        p.DamageType = weapon.DamageType;
+        p.ImpactIntensity = 1;
         _lasers.Add(item, p);
     }
 

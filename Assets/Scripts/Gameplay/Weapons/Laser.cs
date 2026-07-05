@@ -8,10 +8,7 @@ public class Laser : MonoBehaviour
     public float Duration;
     public LineRenderer LineRenderer;
     
-    public float Damage { get; set; }
-    public float Penetration { get; set; }
-    public float Spread { get; set; }
-    public DamageType DamageType { get; set; }
+    public float ImpactIntensity { get; set; } = 1;
     public Entity SourceEntity { get; set; }
     public ZoneRenderer ZoneRenderer { get; set; }
     public float Range { get; set; }
@@ -51,7 +48,7 @@ public class Laser : MonoBehaviour
                 var entity = hull.Entity;
                 if (entity.Shield != null && entity.Shield.Item.Active.Value)
                 {
-                    hit.Shield?.ShowHit(hit.Point, Mathf.Sqrt(Damage));
+                    hit.Shield?.ShowHit(hit.Point, Mathf.Max(0.01f, ImpactIntensity));
                     LineRenderer.SetPosition(1, hit.Point);
                     hitFound = true;
                     break;

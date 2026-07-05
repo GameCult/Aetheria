@@ -10,10 +10,7 @@ public class ConstantLightning : MonoBehaviour
     public float FadeDuration;
     
     public Transform Barrel { get; set; }
-    public float Damage { get; set; }
-    public float Penetration { get; set; }
-    public float Spread { get; set; }
-    public DamageType DamageType { get; set; }
+    public float ImpactIntensity { get; set; } = 1;
     public EntityInstance Source { get; set; }
     public float Range { get; set; }
 
@@ -63,7 +60,7 @@ public class ConstantLightning : MonoBehaviour
                 var entity = hull.Entity;
                 if (entity.Shield != null && entity.Shield.Item.Active.Value)
                 {
-                    hit.Shield?.ShowHit(hit.Point, Mathf.Sqrt(Damage));
+                    hit.Shield?.ShowHit(hit.Point, Mathf.Max(0.01f, ImpactIntensity));
                 }
                 else
                 {

@@ -21,8 +21,7 @@ public class MineManager : InstantWeaponEffectManager
                                Random.Range(-angle, angle)) *
                                barrel.forward *
                                weapon.Velocity;
-        p.Damage = weapon.Damage;
         p.Range = weapon.Range;
-        p.DamageType = weapon.DamageType;
+        p.ImpactIntensity = 1;
     }
 }

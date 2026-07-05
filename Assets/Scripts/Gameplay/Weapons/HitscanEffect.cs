@@ -8,10 +8,7 @@ public class HitscanEffect : MonoBehaviour
     public ParticleSystem LineEffect;
     public Prototype HitEffect;
     
-    public float Damage { get; set; }
-    public float Penetration { get; set; }
-    public float Spread { get; set; }
-    public DamageType DamageType { get; set; }
+    public float ImpactIntensity { get; set; } = 1;
     public Entity SourceEntity { get; set; }
     public ZoneRenderer ZoneRenderer { get; set; }
     public float Range { get; set; }
@@ -38,7 +35,7 @@ public class HitscanEffect : MonoBehaviour
                 var entity = hull.Entity;
                 if (entity.Shield != null && entity.Shield.Item.Active.Value)
                 {
-                    hit.Shield?.ShowHit(hit.Point, Mathf.Sqrt(Damage));
+                    hit.Shield?.ShowHit(hit.Point, Mathf.Max(0.01f, ImpactIntensity));
                     hitFound = true;
                 }
                 else

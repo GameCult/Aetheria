@@ -6,9 +6,7 @@ public class ConstantParticleWeapon : MonoBehaviour
     public ParticleSystem[] Particles;
     public float CastRadius = 0.25f;
     
-    public float Damage { get; set; }
     public float Range { get; set; }
-    public DamageType DamageType { get; set; }
     public EntityInstance Source { get; set; }
     public EntityInstance Target { get; set; }
 

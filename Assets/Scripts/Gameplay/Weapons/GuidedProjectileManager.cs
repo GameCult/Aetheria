@@ -31,11 +31,8 @@ public class GuidedProjectileManager : InstantWeaponEffectManager
             var hp = source.Entity.Hardpoints[item.Position.x, item.Position.y];
             var barrel = source.GetBarrel(hp);
             p.StartPosition = p.transform.position = barrel.position;
-            p.Damage = weapon.Damage;
             p.Range = weapon.Range;
-            p.Penetration = weapon.Penetration;
-            p.Spread = weapon.DamageSpread;
-            p.DamageType = weapon.DamageType;
+            p.ImpactIntensity = 1;
             p.GuidanceCurve = weapon.GuidedProjectileGuidanceCurve.ToCurve();
             p.LiftCurve = weapon.GuidedProjectileLiftCurve.ToCurve();
             p.ThrustCurve = weapon.GuidedProjectileThrustCurve.ToCurve();
@@ -54,11 +51,8 @@ public class GuidedProjectileManager : InstantWeaponEffectManager
             var hp = source.Entity.Hardpoints[item.Position.x, item.Position.y];
             var barrel = source.GetBarrel(hp);
             p.StartPosition = p.transform.position = barrel.position;
-            p.Damage = weapon.Damage;
             p.Range = weapon.Range;
-            p.Penetration = weapon.Penetration;
-            p.Spread = weapon.DamageSpread;
-            p.DamageType = weapon.DamageType;
+            p.ImpactIntensity = 1;
             p.GuidanceCurve = weapon.GuidedProjectileGuidanceCurve.ToCurve();
             p.LiftCurve = weapon.GuidedProjectileLiftCurve.ToCurve();
             p.ThrustCurve = weapon.GuidedProjectileThrustCurve.ToCurve();

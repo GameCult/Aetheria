@@ -34,10 +34,7 @@ public class GuidedProjectile : MonoBehaviour
     public Vector3 StartPosition { get; set; }
     public float Range { get; set; }
     public Vector3 Velocity { get; set; }
-    public float Damage { get; set; }
-    public float Penetration { get; set; }
-    public float Spread { get; set; }
-    public DamageType DamageType { get; set; }
+    public float ImpactIntensity { get; set; } = 1;
     public Entity SourceEntity { get; set; }
     public ZoneRenderer ZoneRenderer { get; set; }
 
@@ -106,10 +103,7 @@ public class GuidedProjectile : MonoBehaviour
                     var perpendicularRandom = randomDirection.x * right + randomDirection.y * up;
                     child.Velocity = Vector3.Lerp(perpendicularRandom, dir, SplitSeparationForwardness).normalized * Velocity.magnitude * SplitSeparationVelocity;
                     child.Range = Range;
-                    child.Damage = Damage / Children;
-                    child.Penetration = Penetration;
-                    child.Spread = Spread;
-                    child.DamageType = DamageType;
+                    child.ImpactIntensity = ImpactIntensity;
                     child.Source = Source;
                     child.Target = Target;
                     child.SourceEntity = SourceEntity;
@@ -160,7 +154,7 @@ public class GuidedProjectile : MonoBehaviour
                 var entity = hull.Entity;
                 if (entity.Shield != null && entity.Shield.Item.Active.Value)
                 {
-                    hit.Shield?.ShowHit(hit.Point, Mathf.Sqrt(Damage));
+                    hit.Shield?.ShowHit(hit.Point, Mathf.Max(0.01f, ImpactIntensity));
                 }
                 else
                 {

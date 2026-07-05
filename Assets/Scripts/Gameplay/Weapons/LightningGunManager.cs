@@ -13,11 +13,8 @@ public class LightningGunManager : InstantWeaponEffectManager
         var barrel = source.GetBarrel(hp);
         p.Barrel = barrel;
         p.Source = source;
-        p.Damage = weapon.Damage;
         p.Range = weapon.Range;
-        p.Penetration = weapon.Penetration;
-        p.Spread = weapon.DamageSpread;
-        p.DamageType = weapon.DamageType;
+        p.ImpactIntensity = 1;
         p.Target = target;
         p.Fire();
     }

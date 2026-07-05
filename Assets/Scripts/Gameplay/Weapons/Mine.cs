@@ -28,8 +28,7 @@ public class Mine : MonoBehaviour
     private Material _material;
     private float _pulseLerp;
     private float _emission;
-    public float Damage { get; set; }
-    public DamageType DamageType { get; set; }
+    public float ImpactIntensity { get; set; } = 1;
     public EntityInstance Source { get; set; }
     public float Range { get; set; }
 

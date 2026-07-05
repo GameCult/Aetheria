@@ -13,16 +13,13 @@ public class Projectile : MonoBehaviour
     
     public float AirburstDistance;
     public float AirburstRange;
-    public float DirectHitDamageMultiplier = 1;
+    public float DirectHitIntensityMultiplier = 1;
     
     private bool _alive;
     
     public Vector3 StartPosition { get; set; }
     public Vector3 Velocity { get; set; }
-    public float Damage { get; set; }
-    public float Penetration { get; set; }
-    public float Spread { get; set; }
-    public DamageType DamageType { get; set; }
+    public float ImpactIntensity { get; set; } = 1;
     public Entity SourceEntity { get; set; }
     public EntityInstance TargetInstance { get; set; }
     public float Range { get; set; }
@@ -99,11 +96,7 @@ public class Projectile : MonoBehaviour
 
         if (hull.Entity.Shield != null &&
             hull.Entity.Shield.Item.Active.Value)
-        {
-        }
-        else
-        {
-        }
+            hull.Entity.Shield.ShowHit(step.Hit.Point, Mathf.Max(0.01f, ImpactIntensity * DirectHitIntensityMultiplier));
 
         transform.position = step.Hit.Point;
         if (HitEffect != null)

@@ -16451,6 +16451,32 @@ static void RequireUnityPhysicsIsNotGameplayAuthority(string root)
     }
 
     var weaponEffectRoot = Path.Combine(root, "Assets", "Scripts", "Gameplay", "Weapons");
+    var forbiddenWeaponCombatSymbols = new[]
+    {
+        "public float Damage",
+        "public float Penetration",
+        "public float Spread",
+        "public DamageType",
+        ".Damage =",
+        ".Penetration =",
+        ".Spread =",
+        ".DamageType =",
+        ".DamageSpread"
+    };
+    var weaponCombatAuthorityHits = Directory.EnumerateFiles(weaponEffectRoot, "*.cs", SearchOption.TopDirectoryOnly)
+        .SelectMany(path => File.ReadLines(path)
+            .Select((line, index) => new { Path = path, LineNumber = index + 1, Line = line }))
+        .Where(line => forbiddenWeaponCombatSymbols.Any(symbol => line.Line.Contains(symbol, StringComparison.Ordinal)))
+        .Select(line => $"{Path.GetRelativePath(root, line.Path)}:{line.LineNumber}: {line.Line.Trim()}")
+        .ToArray();
+
+    if (weaponCombatAuthorityHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Unity weapon effects are presentation only; combat damage, penetration, spread, and damage type belong to daemon/Ymir state: " +
+            string.Join("; ", weaponCombatAuthorityHits));
+    }
+
     var weaponSingletonHits = Directory.EnumerateFiles(weaponEffectRoot, "*.cs", SearchOption.TopDirectoryOnly)
         .SelectMany(path => File.ReadLines(path)
             .Select((line, index) => new { Path = path, LineNumber = index + 1, Line = line }))

@@ -17,10 +17,7 @@ public class HitscanManager : InstantWeaponEffectManager
         // t.position = barrel.position;
         // t.forward = barrel.forward;
         p.Range = weapon.Range;
-        p.Damage = weapon.Damage;
-        p.Penetration = weapon.Penetration;
-        p.Spread = weapon.DamageSpread;
-        p.DamageType = weapon.DamageType;
+        p.ImpactIntensity = 1;
         p.Fire();
     }
 }
