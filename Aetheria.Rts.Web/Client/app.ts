@@ -7,6 +7,7 @@ import {
 import type {
   AetheriaRtsApi,
   AetheriaMenuSurfaceDocument,
+  AetheriaMenuSurfaceComponent,
   AuthorityStatusDocument,
   AetheriaRuntimeViewportFeedSnapshot,
   BodyView,
@@ -59,6 +60,8 @@ let refreshInFlight = false;
 let viewportFeedUnsubscribe: (() => void) | null = null;
 let eveSurfacePoll: number | null = null;
 let latestEveSurfaceKey = "";
+let activeMainMenuSurfaceId = "aetheria.main_menu.root";
+let renderDaemonEveSurfaceNow: (() => Promise<void>) | null = null;
 const mainMenuMode = window.location.hash === "#main-menu";
 const legacyViewportMode = window.location.hash === "#legacy-viewport";
 
@@ -99,40 +102,6 @@ function setStatus(text: string): void {
   statusEl.textContent = text;
 }
 
-async function showMainMenu(surfaceId = "aetheria.main_menu.root"): Promise<void> {
-  document.body.classList.add("main-menu-mode");
-  document.body.classList.remove("eve-game-mode");
-  viewportFeedUnsubscribe?.();
-  stopEveSurfacePoll();
-  const surface = await window.aetheriaRts.mainMenuSurface({
-    surfaceId,
-    inGame: false,
-    canOpenRuntimeInputScreen: false,
-  });
-  renderMainMenuSurface(surface);
-}
-
-function renderMainMenuSurface(surface: AetheriaMenuSurfaceDocument): void {
-  let host = document.querySelector<HTMLElement>("#main-menu-host");
-  if (!host) {
-    host = document.createElement("section");
-    host.id = "main-menu-host";
-    host.className = "main-menu-host";
-    document.body.append(host);
-  }
-
-  renderEveSurface(surface, host, {
-    body: document.body,
-    assetUrlResolver: resolveAetheriaAssetUrl,
-    clientId: "aetheria.rts.electron",
-    commandSink: intent => handleMenuCommand(intent.command, surface),
-    documentResolver: resolveEveDocument,
-    source: "Aetheria Electron",
-    statusElement: statusEl,
-  });
-  wireWindowControls();
-}
-
 async function showDaemonEveSurface(): Promise<void> {
   document.body.classList.remove("main-menu-mode");
   document.body.classList.add("eve-game-mode");
@@ -152,10 +121,11 @@ async function showDaemonEveSurface(): Promise<void> {
       const surface = await window.aetheriaRts.eveSurface({
         recordKey: "eve:surface:aetheria.daemon.game",
       });
-      const surfaceKey = `${surface.providerId}:${surface.surface.id}:${surface.version}:${surface.updatedAtUtc}`;
+      const loweredSurface = withActiveMainMenuPanel(surface, activeMainMenuSurfaceId);
+      const surfaceKey = `${surface.providerId}:${surface.surface.id}:${surface.version}:${surface.updatedAtUtc}:${activeMainMenuSurfaceId}`;
       if (surfaceKey !== latestEveSurfaceKey) {
         latestEveSurfaceKey = surfaceKey;
-        renderEveSurface(surface, host, {
+        renderEveSurface(loweredSurface, host, {
           body: document.body,
           assetUrlResolver: resolveAetheriaAssetUrl,
           clientId: "aetheria.rts.electron",
@@ -171,12 +141,77 @@ async function showDaemonEveSurface(): Promise<void> {
     }
   };
 
+  renderDaemonEveSurfaceNow = renderLatest;
   await renderLatest();
   if (eveSurfacePoll == null) {
     eveSurfacePoll = window.setInterval(() => {
       void renderLatest();
     }, 250);
   }
+}
+
+async function showMainMenuPanel(surfaceId: string): Promise<void> {
+  activeMainMenuSurfaceId = normalizeMainMenuSurfaceId(surfaceId);
+  latestEveSurfaceKey = "";
+  if (renderDaemonEveSurfaceNow) {
+    await renderDaemonEveSurfaceNow();
+    return;
+  }
+
+  await showDaemonEveSurface();
+}
+
+function normalizeMainMenuSurfaceId(surfaceId: string): string {
+  switch (surfaceId) {
+    case "aetheria.main_menu.settings":
+    case "aetheria.main_menu.player_settings":
+    case "aetheria.main_menu.verse_settings":
+    case "aetheria.main_menu.input_settings":
+      return surfaceId;
+    default:
+      return "aetheria.main_menu.root";
+  }
+}
+
+function withActiveMainMenuPanel(
+  document: AetheriaMenuSurfaceDocument,
+  panelSurfaceId: string,
+): AetheriaMenuSurfaceDocument {
+  return {
+    ...document,
+    surface: {
+      ...document.surface,
+      root: rewriteMainMenuPanelSlot(document.surface.root, panelSurfaceId),
+    },
+  };
+}
+
+type MutableEveComponent = AetheriaMenuSurfaceComponent & {
+  layout?: Record<string, string>;
+  style?: Record<string, string>;
+};
+
+function rewriteMainMenuPanelSlot(
+  component: AetheriaMenuSurfaceComponent,
+  panelSurfaceId: string,
+): AetheriaMenuSurfaceComponent {
+  const source = component as MutableEveComponent;
+  const props = source.props ?? {};
+  const embeddedDocuments = source.embeddedDocuments ?? [];
+  const isMainMenuSlot = props.slotId === "mainMenuPanel" ||
+    embeddedDocuments.some(slot => slot.slotId === "mainMenuPanel");
+  return {
+    ...source,
+    props: isMainMenuSlot
+      ? { ...props, documentId: panelSurfaceId }
+      : props,
+    embeddedDocuments: isMainMenuSlot
+      ? embeddedDocuments.map(slot => slot.slotId === "mainMenuPanel"
+        ? { ...slot, documentId: panelSurfaceId }
+        : slot)
+      : source.embeddedDocuments,
+    children: source.children.map(child => rewriteMainMenuPanelSlot(child, panelSurfaceId)),
+  };
 }
 
 async function resolveEveDocument(
@@ -291,22 +326,22 @@ function handleMenuCommand(commandOrIntent: string | EveCommandIntent, surface?:
   const command = typeof commandOrIntent === "string" ? commandOrIntent : commandOrIntent.command;
   switch (command) {
     case "aetheria.main_menu.root.show_settings":
-      void showMainMenu("aetheria.main_menu.settings");
+      void showMainMenuPanel("aetheria.main_menu.settings");
       return;
     case "aetheria.main_menu.settings.show_player_settings":
-      void showMainMenu("aetheria.main_menu.player_settings");
+      void showMainMenuPanel("aetheria.main_menu.player_settings");
       return;
     case "aetheria.main_menu.settings.show_verse_settings":
-      void showMainMenu("aetheria.main_menu.verse_settings");
+      void showMainMenuPanel("aetheria.main_menu.verse_settings");
       return;
     case "aetheria.main_menu.settings.show_input_settings":
-      void showMainMenu("aetheria.main_menu.input_settings");
+      void showMainMenuPanel("aetheria.main_menu.input_settings");
       return;
     case "aetheria.main_menu.settings.back_to_settings":
-      void showMainMenu("aetheria.main_menu.settings");
+      void showMainMenuPanel("aetheria.main_menu.settings");
       return;
     case "aetheria.main_menu.settings.back_to_main":
-      void showMainMenu("aetheria.main_menu.root");
+      void showMainMenuPanel("aetheria.main_menu.root");
       return;
     default:
       setStatus(`${surface?.title ?? "Aetheria Starbridge"}: ${command || "no command"}`);
@@ -841,7 +876,7 @@ function roleText(session: StarbridgeSessionDocument): string {
 }
 
 if (mainMenuMode) {
-  void showMainMenu();
+  void showDaemonEveSurface();
 } else if (legacyViewportMode) {
   document.body.classList.remove("main-menu-mode", "eve-game-mode");
   updateZoomLabel();

@@ -700,34 +700,11 @@ function buildMainMenuSurface(
   surfaceId: string,
   canOpenRuntimeInputScreen: boolean,
   inGame: boolean,
-  panelOnly = false,
+  _panelOnly = false,
 ): AetheriaMenuSurfaceDocument {
   const updatedAtUtc = new Date().toISOString();
   const activeSurfaceId = normalizeMainMenuSurfaceId(surfaceId);
-  return panelOnly
-    ? buildMainMenuPanelSurface(activeSurfaceId, canOpenRuntimeInputScreen, inGame, updatedAtUtc)
-    : buildMainMenuShellSurface(activeSurfaceId, updatedAtUtc);
-}
-
-function buildMainMenuShellSurface(
-  activeSurfaceId: string,
-  updatedAtUtc: string,
-): AetheriaMenuSurfaceDocument {
-  return surfaceDocument(
-    "aetheria.main_menu.shell",
-    "Aetheria Starbridge",
-    updatedAtUtc,
-    mainMenuCommands(),
-    gravitySurface("aetheria.main_menu.shell.gravity"),
-    surfaceSlot(
-      "aetheria.main_menu.shell.panel",
-      "mainMenuPanel",
-      activeSurfaceId,
-      eveSurfaceSchemaId,
-      "menu.overlay",
-      { position: "absolute", top: "0", right: "0", bottom: "0", left: "0", width: "100%", height: "100%" },
-      { background: "rgba(0,0,0,0)" }),
-  );
+  return buildMainMenuPanelSurface(activeSurfaceId, canOpenRuntimeInputScreen, inGame, updatedAtUtc);
 }
 
 function buildMainMenuPanelSurface(
@@ -858,7 +835,6 @@ function buildMainMenuPanelSurface(
 
 function normalizeMainMenuSurfaceId(surfaceId: string): string {
   switch (surfaceId) {
-    case "aetheria.main_menu.shell":
     case "":
       return "aetheria.main_menu.root";
     case "aetheria.main_menu.root":
@@ -872,20 +848,6 @@ function normalizeMainMenuSurfaceId(surfaceId: string): string {
   }
 }
 
-function mainMenuCommands(): AetheriaMenuSurfaceCommand[] {
-  return [
-    command("aetheria.main_menu.root.continue", "Continue"),
-    command("aetheria.main_menu.root.new_game", "New Game"),
-    command("aetheria.main_menu.root.show_settings", "Settings"),
-    command("aetheria.main_menu.root.quit", "Quit"),
-    command("aetheria.main_menu.settings.show_player_settings", "Player Settings"),
-    command("aetheria.main_menu.settings.show_verse_settings", "Verse"),
-    command("aetheria.main_menu.settings.show_input_settings", "Input"),
-    command("aetheria.main_menu.settings.back_to_main", "Back"),
-    command("aetheria.main_menu.settings.back_to_settings", "Back"),
-  ];
-}
-
 function surfaceDocument(
   surfaceId: string,
   title: string,
@@ -893,7 +855,6 @@ function surfaceDocument(
   commands: AetheriaMenuSurfaceCommand[],
   ...children: AetheriaMenuSurfaceComponent[]
 ): AetheriaMenuSurfaceDocument {
-  const isMenuShell = surfaceId === "aetheria.main_menu.shell";
   return {
     providerId: "aetheria",
     providerKind: "game.menu",
@@ -907,7 +868,7 @@ function surfaceDocument(
         "surface",
         {},
         { position: "relative", overflow: "hidden", width: "100%", height: "100vh", minHeight: "100vh" },
-        { background: isMenuShell ? "#020606" : "rgba(0,0,0,0)" },
+        { background: "rgba(0,0,0,0)" },
         ...children),
       styles: [
         { name: "font.title.family", value: "Montserrat" },
@@ -946,26 +907,6 @@ function node(
     ...children,
   ];
   return { id, kind, props, layout, style, children: normalizedChildren };
-}
-
-function surfaceSlot(
-  id: string,
-  slotId: string,
-  documentId: string,
-  schemaId: string,
-  presentationKind: string,
-  layout?: Record<string, string>,
-  style?: Record<string, string>,
-): AetheriaMenuSurfaceComponent {
-  return {
-    id,
-    kind: "surface.slot",
-    props: { slotId, documentId, schemaId, presentationKind },
-    layout,
-    style,
-    embeddedDocuments: [{ slotId, documentId, schemaId, presentationKind }],
-    children: [],
-  };
 }
 
 function text(
@@ -1016,8 +957,10 @@ function button(id: string, label: string, commandId: string): AetheriaMenuSurfa
     { minWidth: "0", width: "220px", height: "32px", padding: "0" },
     {
       background: "rgba(0, 0, 0, 0)",
+      border: "0",
       borderWidth: "0",
       borderStyle: "solid",
+      borderRadius: "0",
       boxShadow: "none",
       font: "400 1.55rem/32px Ubuntu, sans-serif",
       color: "#e8fbff",
@@ -1027,43 +970,6 @@ function button(id: string, label: string, commandId: string): AetheriaMenuSurfa
 
 function buttonColumn(id: string, ...children: AetheriaMenuSurfaceComponent[]): AetheriaMenuSurfaceComponent {
   return node(id, "column", {}, { gap: "0.18rem", alignItems: "flex-start" }, { color: "#e8fbff" }, ...children);
-}
-
-function gravitySurface(id: string): AetheriaMenuSurfaceComponent {
-  return node(
-    id,
-    "gravity.surface",
-    {
-      label: "Aetheria level gravity surface",
-      viewRadius: "1450",
-      terrainRadius: "1450",
-      terrainDepth: "-8",
-      terrainDepthExponent: "1.2",
-      terrainWaveFrequency: "0.6",
-      simulationTimeSeconds: "0",
-      samplesX: "196",
-      isolines: "22",
-      shader: "perlines.gravity-map.v1",
-      noiseAsset: "cultmesh://aetheria/assets/textures/perlines-nebula",
-      tintSplatAsset: "cultmesh://aetheria/assets/textures/tint_splat",
-      bodies: [
-        "terminus-sun|Sun|0|0|900|-80|3|450|10|2|cultmesh://aetheria/assets/icons/star.terminus-sun|cultmesh://aetheria/assets/textures/tint_splat",
-        "anchor-moon|Planet|360|-180|260|-22|2.2|180|4|1.4|cultmesh://aetheria/assets/icons/body.anchor-moon|cultmesh://aetheria/assets/textures/tint_splat",
-        "blueglass|Planet|-540|340|340|-34|2.6|150|5|1.1|cultmesh://aetheria/assets/icons/body.blueglass|cultmesh://aetheria/assets/textures/tint_splat",
-        "emberhook|Planet|-680|-420|310|-28|2.1|130|4|1.3|cultmesh://aetheria/assets/icons/body.emberhook|cultmesh://aetheria/assets/textures/tint_splat",
-        "vesper|Gas Giant|780|420|420|-38|2.4|210|6|0.7|cultmesh://aetheria/assets/icons/body.vesper|cultmesh://aetheria/assets/textures/tint_splat",
-        "latch|Moon|-160|620|210|-18|2.8|95|3|1.6|cultmesh://aetheria/assets/icons/body.latch|cultmesh://aetheria/assets/textures/tint_splat",
-      ].join(";"),
-      objects: [
-        "anchor-station|station|Anchor Station|-220|-90|1|0|player|1|1|cultmesh://aetheria/assets/icons/station.anchor-station",
-        "vanguard-one|ship|Vanguard One|-60|-40|1|0.2|player|1|1|cultmesh://aetheria/assets/icons/ship.vanguard-one",
-        "wing-two|ship|Wing Two|180|120|-0.4|0.9|player|1|1|cultmesh://aetheria/assets/icons/ship.wing-two",
-        "torch-three|ship|Torch Three|-160|210|0.6|-0.8|player|1|1|cultmesh://aetheria/assets/icons/ship.torch-three",
-        "ash-raider|ship|Ash Raider|420|180|-0.8|-0.1|raider|0|1|cultmesh://aetheria/assets/icons/ship.ash-raider",
-        "derelict-relay|station|Derelict Relay|-260|260|0|1|neutral|0|1|cultmesh://aetheria/assets/icons/station.derelict-relay",
-      ].join(";"),
-    },
-    { position: "absolute", top: "0", right: "0", bottom: "0", left: "0", width: "100%", height: "100%" });
 }
 
 function isSurfaceComponent(value: unknown): value is AetheriaMenuSurfaceComponent {

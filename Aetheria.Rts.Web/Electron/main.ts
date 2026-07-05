@@ -96,10 +96,7 @@ app.whenReady().then(async () => {
       throw new Error("AETHERIA_RTS_PEER_CULTMESH_ENDPOINTS has been removed. Configure AETHERIA_RTS_CULTMESH_URI and let Odin/CultMesh discover peer endpoints.");
     }
 
-    if (rendererView === "main-menu") {
-      showStartup("Launching Aetheria Menu", "Lowering the CultUI main-menu surface.");
-      mkdirSync(runtimeRoot, { recursive: true });
-    } else if (launchLocalDaemon) {
+    if (launchLocalDaemon) {
       await ensureDotnetBuild();
       showStartup("Launching Aetheria RTS", "Starting the Aetheria daemon.");
       mkdirSync(runtimeRoot, { recursive: true });
@@ -139,11 +136,11 @@ app.whenReady().then(async () => {
       "aetheria-rts-electron",
       { publicationMode: launchLocalDaemon ? "local" : "remote" });
 
+    showStartup("Launching Aetheria RTS", "Waiting for the daemon CultMesh frame.");
+    await rtsClient.waitForFrame(30000);
     if (rendererView === "main-menu") {
       await mainWindow.loadFile(rendererIndex, { hash: "main-menu" });
     } else {
-      showStartup("Launching Aetheria RTS", "Waiting for the daemon CultMesh frame.");
-      await rtsClient.waitForFrame(30000);
       await mainWindow.loadFile(rendererIndex);
     }
     if (electronSmoke) {

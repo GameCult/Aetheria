@@ -367,55 +367,37 @@ namespace GameCult.Aetheria.State.Verse
         {
             return new AetheriaRuntimeSurfaceComponent(
                 id,
-                "column",
-                new Dictionary<string, string>(StringComparer.Ordinal),
+                "surface.slot",
+                new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    ["slotId"] = "mainMenuPanel",
+                    ["documentId"] = AetheriaRuntimeMainMenuCommands.RootSurfaceId,
+                    ["schemaId"] = "gamecult.eve.surface.v1",
+                    ["presentationKind"] = "menu.overlay"
+                },
+                Array.Empty<AetheriaRuntimeSurfaceComponent>(),
+                AetheriaRuntimeSurfaceStateBindings.FromProps(new Dictionary<string, string>(StringComparer.Ordinal)),
                 new[]
                 {
-                    TextNode(
-                        $"{id}.title",
-                        "AETHERIA",
-                        "text.title",
-                        Layout(("margin", "0 0 -1.35rem 0")),
-                        new Dictionary<string, string>
-                        {
-                            ["font"] = "100 5.3rem/0.98 Montserrat, sans-serif",
-                            ["color"] = "rgba(232, 250, 255, 0.94)",
-                            ["whiteSpace"] = "nowrap"
-                        }),
-                    TextNode(
-                        $"{id}.subtitle",
-                        "STARBRIDGE",
-                        "text.subtitle",
-                        Layout(("margin", "0 0 1.15rem 15.2rem")),
-                        new Dictionary<string, string>
-                        {
-                            ["font"] = "100 2.25rem/1 Montserrat, sans-serif",
-                            ["color"] = "rgba(232, 250, 255, 0.88)",
-                            ["whiteSpace"] = "nowrap"
-                        }),
-                    Node(
-                        $"{id}.actions",
-                        "column",
-                        Array.Empty<(string Key, string Value)>(),
-                        MenuButton($"{id}.continue", "Continue", "aetheria.main_menu.root.continue"),
-                        MenuButton($"{id}.new_game", "New Game", "aetheria.main_menu.root.new_game"),
-                        MenuButton($"{id}.settings", "Settings", "aetheria.main_menu.root.show_settings"),
-                        MenuButton($"{id}.quit", "Quit", "aetheria.main_menu.root.quit"))
+                    new AetheriaRuntimeEmbeddedDocumentSlot(
+                        "mainMenuPanel",
+                        AetheriaRuntimeMainMenuCommands.RootSurfaceId,
+                        "gamecult.eve.surface.v1",
+                        "menu.overlay")
                 },
-                AetheriaRuntimeSurfaceStateBindings.FromProps(new Dictionary<string, string>(StringComparer.Ordinal)),
-                Array.Empty<AetheriaRuntimeEmbeddedDocumentSlot>(),
                 Layout(
                     ("position", "absolute"),
-                    ("left", "6.75rem"),
-                    ("top", "5.75rem"),
-                    ("width", "34rem"),
-                    ("gap", "1rem"),
-                    ("alignItems", "flex-start"),
+                    ("top", "0"),
+                    ("right", "0"),
+                    ("bottom", "0"),
+                    ("left", "0"),
+                    ("width", "100%"),
+                    ("height", "100%"),
                     ("zIndex", "4"),
                     ("pointerEvents", "auto")),
                 new Dictionary<string, string>
                 {
-                    ["color"] = "#e9fbff"
+                    ["background"] = "rgba(0,0,0,0)"
                 });
         }
 
