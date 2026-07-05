@@ -16102,6 +16102,7 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
         "org.gamecult.aetheria.state",
         "Runtime",
         "AetheriaRuntimeClientTargetStore.cs");
+    var runtimeClientProviderPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityRuntimeClientProvider.cs");
     var rtsLocalDocumentsPath = Path.Combine(root, "Aetheria.Rts.Web", "Electron", "aetheria-rts-local-documents.ts");
     var authoritySmokePath = Path.Combine(root, "Aetheria.State.AuthoritySmoke", "Program.cs");
     var freezePath = Path.Combine(root, "Aetheria.State.Freeze", "Program.cs");
@@ -16129,6 +16130,9 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
     var clientTargetStore = File.Exists(clientTargetStorePath)
         ? File.ReadAllText(clientTargetStorePath)
         : throw new InvalidOperationException("Cannot verify runtime-neutral client target authority; client target store is missing.");
+    var runtimeClientProvider = File.Exists(runtimeClientProviderPath)
+        ? File.ReadAllText(runtimeClientProviderPath)
+        : throw new InvalidOperationException("Cannot verify runtime-neutral client target authority; Unity runtime client provider is missing.");
     var rtsLocalDocuments = File.Exists(rtsLocalDocumentsPath)
         ? File.ReadAllText(rtsLocalDocumentsPath)
         : throw new InvalidOperationException("Cannot verify daemon projectile authority; Electron local projection is missing.");
@@ -16269,10 +16273,12 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
     }
     if (stateBoundary.Contains("UnityRuntimeIdOverrideEnvironmentVariable", StringComparison.Ordinal) ||
         stateBoundary.Contains("AETHERIA_UNITY_RUNTIME_ID", StringComparison.Ordinal) ||
-        clientTargetStore.Contains("raven-unity", StringComparison.Ordinal))
+        clientTargetStore.Contains("raven-unity", StringComparison.Ordinal) ||
+        runtimeClientProvider.Contains("raven-unity", StringComparison.Ordinal) ||
+        !runtimeClientProvider.Contains("AetheriaRuntimeStateBoundary.DefaultClientRuntimeId", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Aetheria shared client-target authority must use generic runtime identity only; Unity-specific defaults and environment fallbacks belong at the Unity edge.");
+            "Aetheria shared client-target authority must use generic runtime identity only; Unity-specific defaults and environment fallbacks must not survive as ambient provider defaults.");
     }
 
     var sharedRuntimeText = string.Join(

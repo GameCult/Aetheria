@@ -28,7 +28,9 @@ public static class AetheriaUnityRuntimeClientProvider
 
     private static AetheriaClient ResolveClient(string stateFilePath, string runtimeId = "")
     {
-        var effectiveRuntimeId = string.IsNullOrWhiteSpace(runtimeId) ? "raven-unity" : runtimeId;
+        var effectiveRuntimeId = string.IsNullOrWhiteSpace(runtimeId)
+            ? AetheriaRuntimeStateBoundary.DefaultClientRuntimeId
+            : runtimeId;
         var cacheKey = CacheKey(stateFilePath, effectiveRuntimeId);
         if (RuntimeClients.TryGetValue(cacheKey, out var runtimeClient))
             return runtimeClient;

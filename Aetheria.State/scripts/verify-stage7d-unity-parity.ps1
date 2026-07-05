@@ -356,6 +356,8 @@ $renderSettingsBridge = Read-Text "Assets\Scripts\Gameplay\AetheriaUnityRenderSe
 $cockpitHudShell = Read-Text "Assets\Scripts\Gameplay\AetheriaUnityCockpitHudShell.cs"
 $gameplayBootShell = Read-Text "Assets\Scripts\Gameplay\AetheriaUnityGameplayBootShell.cs"
 $sceneWiring = Read-Text "Assets\Scripts\Gameplay\AetheriaUnityGameplaySceneWiring.cs"
+Assert-Contains $runtimeClientProvider "AetheriaRuntimeStateBoundary.DefaultClientRuntimeId" "Unity runtime provider must default unnamed readers to the shared client runtime identity."
+Assert-NotContains $runtimeClientProvider "raven-unity" "Unity runtime provider must not preserve a Unity-branded ambient runtime id."
 Assert-Contains $actionGameManager "private readonly AetheriaUnityPresentationEntityIndex _presentationEntityIndex" "ActionGameManager must keep observed entity adaptation behind an explicit helper."
 Assert-Contains $actionGameManager "private AetheriaClientState _gameplayState;" "ActionGameManager must cache the managed CultMesh state handle for gameplay reads."
 Assert-Contains $actionGameManager "AetheriaUnityRuntimeClientProvider.RuntimeState(""unity-action-game-manager"")" "ActionGameManager must grab gameplay state through the Unity runtime provider."
