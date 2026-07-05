@@ -167,8 +167,6 @@ public class ActionGameManager : MonoBehaviour
             Settings = Settings,
             ZoneRenderer = ZoneRenderer,
             CockpitHudShell = CockpitHudShell,
-            TargetSpottedBlinkFrequency = TargetSpottedBlinkFrequency,
-            TargetSpottedBlinkOffset = TargetSpottedBlinkOffset,
             Log = Debug.Log
         };
     private AetheriaUnityGameplaySceneWiring SceneWiring =>
@@ -212,8 +210,6 @@ public class ActionGameManager : MonoBehaviour
     public GameSettings Settings;
     //public string StarterShipTemplate = "Longinus";
     public float2 Sensitivity;
-    public float TargetSpottedBlinkFrequency = 20;
-    public float TargetSpottedBlinkOffset = -.25f;
 
     [Header("Postprocessing")]
     public Volume DeathPost;

@@ -2169,9 +2169,6 @@ static void RequireDaemonRenderQueryAuthority(string root)
         ? File.ReadAllText(gameplayInputShellPath)
         : throw new InvalidOperationException("Cannot verify daemon render query authority; AetheriaUnityGameplayInputShell.cs is missing.");
     var renderSettingsBridgePath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityRenderSettingsBridge.cs");
-    var renderSettingsBridge = File.Exists(renderSettingsBridgePath)
-        ? File.ReadAllText(renderSettingsBridgePath)
-        : throw new InvalidOperationException("Cannot verify daemon render query authority; AetheriaUnityRenderSettingsBridge.cs is missing.");
     var cockpitHudShellPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityCockpitHudShell.cs");
     var cockpitHudShell = File.Exists(cockpitHudShellPath)
         ? File.ReadAllText(cockpitHudShellPath)
@@ -2180,7 +2177,7 @@ static void RequireDaemonRenderQueryAuthority(string root)
     var gameplayBootShell = File.Exists(gameplayBootShellPath)
         ? File.ReadAllText(gameplayBootShellPath)
         : throw new InvalidOperationException("Cannot verify daemon render query authority; AetheriaUnityGameplayBootShell.cs is missing.");
-    var unityRenderPresentation = actionGameManager + "\n" + targetPresentation + "\n" + pilotFrameController + "\n" + gameplayInputShell + "\n" + renderSettingsBridge + "\n" + cockpitHudShell + "\n" + gameplayBootShell;
+    var unityRenderPresentation = actionGameManager + "\n" + targetPresentation + "\n" + pilotFrameController + "\n" + gameplayInputShell + "\n" + cockpitHudShell + "\n" + gameplayBootShell;
 
     var canonicalSnapshotPath = Path.Combine(root, "Aetheria.State", "Documents", "AetheriaRuntimeStateDocuments.cs");
     var canonicalSnapshot = File.Exists(canonicalSnapshotPath)
@@ -2741,24 +2738,31 @@ static void RequireDaemonRenderQueryAuthority(string root)
     if (!schematicDisplay.Contains("public void SetRenderSettings(AetheriaRuntimeDaemonRenderSettings renderSettings)", StringComparison.Ordinal) ||
         !schematicDisplay.Contains("_renderSettings?.NormalizeThermalRisk(", StringComparison.Ordinal) ||
         !gameplayBootShell.Contains("CockpitHudShell.SetRenderSettings(ZoneRenderer.RenderSettings)", StringComparison.Ordinal) ||
+        !gameplayBootShell.Contains("runtimeState?.DaemonFrame?.Latest()", StringComparison.Ordinal) ||
+        !gameplayBootShell.Contains("render/game-feel settings are daemon authority", StringComparison.Ordinal) ||
         !cockpitHudShell.Contains("public sealed class AetheriaUnityCockpitHudShell", StringComparison.Ordinal) ||
         !cockpitHudShell.Contains("public void SetRenderSettings(AetheriaRuntimeDaemonRenderSettings renderSettings)", StringComparison.Ordinal) ||
         !cockpitHudShell.Contains("SchematicDisplay?.SetRenderSettings(renderSettings)", StringComparison.Ordinal) ||
-        !cockpitHudShell.Contains("TargetSchematicDisplay?.SetRenderSettings(renderSettings)", StringComparison.Ordinal) ||
-        !renderSettingsBridge.Contains("settings.GameplaySettings.HypothermiaTemperature", StringComparison.Ordinal) ||
-        !renderSettingsBridge.Contains("settings.GameplaySettings.HeatstrokeTemperature", StringComparison.Ordinal))
+        !cockpitHudShell.Contains("TargetSchematicDisplay?.SetRenderSettings(renderSettings)", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "HUD thermal presentation no longer flows through the shared daemon render settings bridge.");
+            "HUD thermal presentation must flow through daemon-frame render settings, not Unity-local render tuning.");
+    }
+    if (File.Exists(renderSettingsBridgePath) ||
+        unityRenderPresentation.Contains("AetheriaUnityRenderSettingsBridge", StringComparison.Ordinal) ||
+        unityRenderPresentation.Contains("local Unity Settings fallback", StringComparison.Ordinal) ||
+        actionGameManager.Contains("TargetSpottedBlinkFrequency", StringComparison.Ordinal) ||
+        actionGameManager.Contains("TargetSpottedBlinkOffset", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Unity render/game-feel boot must not preserve the local render-settings bridge or fallback; daemon frame settings are authoritative.");
     }
 
     var requiredActionGameManagerRenderSymbols = new[]
     {
-        "public static class AetheriaUnityRenderSettingsBridge",
-        "public static AetheriaRuntimeDaemonRenderSettings Build(",
-        "AetheriaUnityRenderSettingsBridge.Build(",
         "public sealed class AetheriaUnityCockpitHudShell",
         "public sealed class AetheriaUnityGameplayBootShell",
+        "runtimeState?.DaemonFrame?.Latest()",
         "CockpitHudShell.SetRenderSettings(ZoneRenderer.RenderSettings)",
         "renderSettings.NormalizeDetectionProgress(",
         "renderSettings.ResolveTargetSpottedFillEnabled(",
@@ -2773,30 +2777,6 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "ZoneRenderer.RenderSettings.ResolveDefaultMinimapZoomIndex()",
         "ZoneRenderer.RenderSettings.ResolveNextMinimapZoomIndex(_zoomLevelIndex)",
         "ZoneRenderer.RenderSettings.ResolveMinimapDistance(_zoomLevelIndex)",
-        "new AetheriaRuntimeExponentialLerp(",
-        "settings.GameplaySettings.TargetDetectionInfoThreshold",
-        "settings.GameplaySettings.SevereHeatstrokeRiskThreshold",
-        "settings.GameplaySettings.LockIndicatorNoiseAmplitude",
-        "settings.HeatstrokePhasingFloor",
-        "settings.HeatstrokePhasingFrequency",
-        "TargetSpottedBlinkFrequency",
-        "TargetSpottedBlinkOffset",
-        "settings.MinimapZoomLevels",
-        "settings.DefaultMinimapZoom",
-        "settings.WormholeDistanceRatio",
-        "settings.DefaultViewDistance",
-        "settings.MinimapIconSize",
-        "settings.MinimapAsteroidSize",
-        "settings.IconSize",
-        "settings.MinimapZoneGravityRange",
-        "settings.PlanetSettings.AsteroidVerticalOffset",
-        "settings.PlanetRotationSpeed",
-        "settings.PlanetSettings.ZoneDepthExponent",
-        "settings.PlanetSettings.ZoneDepth + settings.PlanetSettings.ZoneBoundaryFog",
-        "settings.AsteroidMeshCount",
-        "settings.PlanetSettings.BodyRadius",
-        "settings.PlanetSettings.LightRadius",
-        "settings.PlanetSettings.WaveFrequency",
         "ZoneRenderer.BodySettingsCollections = Settings.BodySettingsCollections;"
     };
 
@@ -2806,7 +2786,7 @@ static void RequireDaemonRenderQueryAuthority(string root)
     if (missingActionGameManagerRenderSymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "Unity target/render presentation no longer bridges Unity render tuning through shared daemon render settings: " +
+            "Unity target/render presentation no longer consumes daemon-owned render settings: " +
             string.Join(", ", missingActionGameManagerRenderSymbols));
     }
 
@@ -9767,7 +9747,8 @@ static void RequireClientTargetBootAuthority(string root)
         "new AetheriaUnityLoadoutItemFactory(itemManager, runtimeCatalog)",
         "ZoneRenderer.SetDroppedPickupItemFactory(loadoutItemFactory.CreateLoadoutItem)",
         "ZoneRenderer.BodySettingsCollections = Settings.BodySettingsCollections",
-        "AetheriaUnityRenderSettingsBridge.Build(",
+        "runtimeState?.DaemonFrame?.Latest()",
+        "render/game-feel settings are daemon authority",
         "CockpitHudShell.SetRenderSettings(ZoneRenderer.RenderSettings)",
         "AetheriaUnityRuntimeClientProvider.PlayerSettings.GraphicsSettings.ShowAsteroidsInMinimap",
         "public readonly struct AetheriaUnityGameplayBootResult"
@@ -17248,7 +17229,8 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "new AetheriaUnityLoadoutItemFactory(itemManager, runtimeCatalog)",
         "ZoneRenderer.SetDroppedPickupItemFactory(loadoutItemFactory.CreateLoadoutItem)",
         "ZoneRenderer.BodySettingsCollections = Settings.BodySettingsCollections",
-        "AetheriaUnityRenderSettingsBridge.Build(",
+        "runtimeState?.DaemonFrame?.Latest()",
+        "render/game-feel settings are daemon authority",
         "CockpitHudShell.SetRenderSettings(ZoneRenderer.RenderSettings)",
         "AetheriaUnityRuntimeClientProvider.PlayerSettings.GraphicsSettings.ShowAsteroidsInMinimap",
         "public readonly struct AetheriaUnityGameplayBootResult"

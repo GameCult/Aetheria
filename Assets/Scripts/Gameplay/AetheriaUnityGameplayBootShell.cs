@@ -11,8 +11,6 @@ public sealed class AetheriaUnityGameplayBootShell
     public GameSettings Settings { get; set; }
     public ZoneRenderer ZoneRenderer { get; set; }
     public AetheriaUnityCockpitHudShell CockpitHudShell { get; set; }
-    public float TargetSpottedBlinkFrequency { get; set; }
-    public float TargetSpottedBlinkOffset { get; set; }
     public Action<string> Log { get; set; }
 
     public AetheriaUnityGameplayBootResult Boot()
@@ -79,17 +77,11 @@ public sealed class AetheriaUnityGameplayBootShell
     private AetheriaRuntimeDaemonRenderSettings ResolveDaemonRenderSettings(AetheriaClientState runtimeState)
     {
         var frame = runtimeState?.DaemonFrame?.Latest();
-        if (frame?.RenderSettings != null)
-        {
-            Log?.Invoke($"Aetheria render/game-feel settings: daemon frame {frame.FrameId}");
-            return frame.RenderSettings;
-        }
+        if (frame == null)
+            throw new InvalidOperationException("Aetheria daemon frame is required before gameplay boot; render/game-feel settings are daemon authority.");
 
-        Log?.Invoke("Aetheria render/game-feel settings: local Unity Settings fallback; daemon frame unavailable.");
-        return AetheriaUnityRenderSettingsBridge.Build(
-            Settings,
-            TargetSpottedBlinkFrequency,
-            TargetSpottedBlinkOffset);
+        Log?.Invoke($"Aetheria render/game-feel settings: daemon frame {frame.FrameId}");
+        return frame.RenderSettings;
     }
 
     private AetheriaRuntimeStateBootReport SyncRemoteReplicaBeforeBoot(AetheriaRuntimeStateBootReport stateBoot)
