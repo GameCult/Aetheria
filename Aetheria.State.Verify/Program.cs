@@ -16238,10 +16238,13 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
     }
     if (authoritySmoke.Contains("--rts-cultmesh-port", StringComparison.Ordinal) ||
         authoritySmoke.Contains("rtsPort", StringComparison.Ordinal) ||
-        freeze.Contains("--rts-cultmesh-port", StringComparison.Ordinal))
+        freeze.Contains("--rts-cultmesh-port", StringComparison.Ordinal) ||
+        freeze.Contains("local-rts", StringComparison.Ordinal) ||
+        freeze.Contains("starfire-rts", StringComparison.Ordinal) ||
+        freeze.Contains("const string rts", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Aetheria daemon smoke/freeze callers must use the client-neutral CultMesh endpoint flag instead of preserving RTS-branded transport vocabulary.");
+            "Aetheria daemon smoke/freeze callers and fixtures must use client-neutral endpoint, run, and runtime vocabulary instead of preserving RTS-branded transport names.");
     }
 
     var sharedRuntimeText = string.Join(

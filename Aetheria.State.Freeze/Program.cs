@@ -261,8 +261,8 @@ static void DeleteStateFamily(string statePath)
 
 static IReadOnlyList<AetheriaRuntimeDaemonCommandDocument> BuildPilotCommands()
 {
-    const string actor = "global:aetheria.run_state.local-rts.zone.0.entity.1.v1";
-    const string target = "global:aetheria.run_state.local-rts.zone.0.entity.4.v1";
+    const string actor = "global:aetheria.run_state.local-starbridge.zone.0.entity.1.v1";
+    const string target = "global:aetheria.run_state.local-starbridge.zone.0.entity.4.v1";
     return new[]
     {
         Command("pilot-001-set-target", AetheriaRuntimeDaemonCommandKinds.SetTarget, actor, command =>
@@ -295,8 +295,8 @@ static IReadOnlyList<AetheriaRuntimeDaemonCommandDocument> BuildPilotCommands()
 
 static IReadOnlyList<AetheriaRuntimeDaemonCommandDocument> BuildInteractionCommands()
 {
-    const string actor = "global:aetheria.run_state.local-rts.zone.0.entity.1.v1";
-    const string station = "global:aetheria.run_state.local-rts.zone.0.entity.0.v1";
+    const string actor = "global:aetheria.run_state.local-starbridge.zone.0.entity.1.v1";
+    const string station = "global:aetheria.run_state.local-starbridge.zone.0.entity.0.v1";
     return new[]
     {
         Command("interaction-001-dock-nearest", AetheriaRuntimeDaemonCommandKinds.DockNearest, actor),
@@ -315,8 +315,8 @@ static IReadOnlyList<AetheriaRuntimeDaemonCommandDocument> BuildInteractionComma
 
 static IReadOnlyList<AetheriaRuntimeDaemonCommandDocument> BuildRefitCommands()
 {
-    const string actor = "global:aetheria.run_state.local-rts.zone.0.entity.1.v1";
-    const string station = "global:aetheria.run_state.local-rts.zone.0.entity.0.v1";
+    const string actor = "global:aetheria.run_state.local-starbridge.zone.0.entity.1.v1";
+    const string station = "global:aetheria.run_state.local-starbridge.zone.0.entity.0.v1";
     return new[]
     {
         Command("refit-001-rename", AetheriaRuntimeDaemonCommandKinds.SetEntityName, actor, command =>
@@ -419,15 +419,15 @@ static AuthorityDecisionFixtureSet BuildAuthorityDecisionFixtures()
 {
     const string verseId = "aetheria.freeze";
     const string host = "aetheria-daemon";
-    const string unity = "raven-unity";
-    const string rts = "starfire-rts";
-    const string actor = "global:aetheria.run_state.local-rts.zone.0.entity.1.v1";
-    const string raider = "global:aetheria.run_state.local-rts.zone.0.entity.4.v1";
+    const string otherRuntime = "raven-client";
+    const string delegatedRuntime = "starbridge-commander";
+    const string actor = "global:aetheria.run_state.local-starbridge.zone.0.entity.1.v1";
+    const string raider = "global:aetheria.run_state.local-starbridge.zone.0.entity.4.v1";
     var validLease = new AetheriaRuntimeAuthorityLeaseDocument
     {
-        LeaseId = "lease-rts-vanguard-movement",
+        LeaseId = "lease-commander-vanguard-movement",
         VerseId = verseId,
-        RuntimeId = rts,
+        RuntimeId = delegatedRuntime,
         SubjectPrefix = actor,
         ClaimKinds = new[] { AetheriaRuntimeClaimKinds.Movement },
         ValidFromUtc = "2026-01-01T00:00:00.0000000Z",
@@ -438,10 +438,10 @@ static AuthorityDecisionFixtureSet BuildAuthorityDecisionFixtures()
     var cases = new[]
     {
         AuthorityCase(
-            "trusted-coop-allows-rts-movement",
+            "trusted-coop-allows-delegated-movement",
             AetheriaRuntimeVerseAuthorityPolicyDocument.TrustedCoop(verseId, host),
             Array.Empty<AetheriaRuntimeAuthorityLeaseDocument>(),
-            AuthorityCommand("auth-001-rts-move", AetheriaRuntimeDaemonCommandKinds.SetMoveVector, actor, rts),
+            AuthorityCommand("auth-001-delegated-move", AetheriaRuntimeDaemonCommandKinds.SetMoveVector, actor, delegatedRuntime),
             host),
         AuthorityCase(
             "host-authoritative-allows-host",
@@ -450,40 +450,40 @@ static AuthorityDecisionFixtureSet BuildAuthorityDecisionFixtures()
             AuthorityCommand("auth-002-host-move", AetheriaRuntimeDaemonCommandKinds.SetMoveVector, actor, host),
             host),
         AuthorityCase(
-            "host-authoritative-rejects-rts",
+            "host-authoritative-rejects-delegated-runtime",
             HostPolicy(verseId, host),
             Array.Empty<AetheriaRuntimeAuthorityLeaseDocument>(),
-            AuthorityCommand("auth-003-rts-move", AetheriaRuntimeDaemonCommandKinds.SetMoveVector, actor, rts),
+            AuthorityCommand("auth-003-delegated-move", AetheriaRuntimeDaemonCommandKinds.SetMoveVector, actor, delegatedRuntime),
             host),
         AuthorityCase(
-            "delegated-runtime-allows-rts-targeting",
-            DelegatedPolicy(verseId, host, actor, AetheriaRuntimeClaimKinds.Targeting, rts),
+            "delegated-runtime-allows-commander-targeting",
+            DelegatedPolicy(verseId, host, actor, AetheriaRuntimeClaimKinds.Targeting, delegatedRuntime),
             Array.Empty<AetheriaRuntimeAuthorityLeaseDocument>(),
-            AuthorityCommand("auth-004-rts-target", AetheriaRuntimeDaemonCommandKinds.SetTarget, actor, rts, command => command.TargetEntityKey = raider),
+            AuthorityCommand("auth-004-commander-target", AetheriaRuntimeDaemonCommandKinds.SetTarget, actor, delegatedRuntime, command => command.TargetEntityKey = raider),
             host),
         AuthorityCase(
-            "delegated-runtime-rejects-unity-targeting",
-            DelegatedPolicy(verseId, host, actor, AetheriaRuntimeClaimKinds.Targeting, rts),
+            "delegated-runtime-rejects-other-targeting",
+            DelegatedPolicy(verseId, host, actor, AetheriaRuntimeClaimKinds.Targeting, delegatedRuntime),
             Array.Empty<AetheriaRuntimeAuthorityLeaseDocument>(),
-            AuthorityCommand("auth-005-unity-target", AetheriaRuntimeDaemonCommandKinds.SetTarget, actor, unity, command => command.TargetEntityKey = raider),
+            AuthorityCommand("auth-005-other-target", AetheriaRuntimeDaemonCommandKinds.SetTarget, actor, otherRuntime, command => command.TargetEntityKey = raider),
             host),
         AuthorityCase(
-            "interest-lease-allows-rts-movement",
+            "interest-lease-allows-delegated-movement",
             LeasePolicy(verseId, host, actor, AetheriaRuntimeClaimKinds.Movement),
             new[] { validLease },
-            AuthorityCommand("auth-006-rts-lease-move", AetheriaRuntimeDaemonCommandKinds.SetMoveVector, actor, rts),
+            AuthorityCommand("auth-006-delegated-lease-move", AetheriaRuntimeDaemonCommandKinds.SetMoveVector, actor, delegatedRuntime),
             host),
         AuthorityCase(
-            "interest-lease-rejects-rts-without-lease",
+            "interest-lease-rejects-delegated-without-lease",
             LeasePolicy(verseId, host, actor, AetheriaRuntimeClaimKinds.Movement),
             Array.Empty<AetheriaRuntimeAuthorityLeaseDocument>(),
-            AuthorityCommand("auth-007-rts-no-lease-move", AetheriaRuntimeDaemonCommandKinds.SetMoveVector, actor, rts),
+            AuthorityCommand("auth-007-delegated-no-lease-move", AetheriaRuntimeDaemonCommandKinds.SetMoveVector, actor, delegatedRuntime),
             host),
         AuthorityCase(
             "owning-runtime-is-not-implemented",
             OwningPolicy(verseId, host, actor),
             Array.Empty<AetheriaRuntimeAuthorityLeaseDocument>(),
-            AuthorityCommand("auth-008-owning-mode-move", AetheriaRuntimeDaemonCommandKinds.SetMoveVector, actor, unity),
+            AuthorityCommand("auth-008-owning-mode-move", AetheriaRuntimeDaemonCommandKinds.SetMoveVector, actor, otherRuntime),
             host)
     };
 
