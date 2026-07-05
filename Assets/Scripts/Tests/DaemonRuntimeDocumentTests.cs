@@ -1209,6 +1209,35 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
+    public void DaemonRenderSettingsDefaultOwnsAetheriaGameFeel()
+    {
+        var settings = AetheriaRuntimeDaemonRenderSettings.AetheriaDefault;
+
+        Assert.AreEqual(0.75, settings.WormholeDistanceRatio);
+        Assert.AreEqual(4096, settings.DefaultViewDistance);
+        Assert.AreEqual(0.125, settings.MinimapIconScale);
+        Assert.AreEqual(3, settings.MinimapAsteroidSize);
+        Assert.AreEqual(0.45, settings.MinimapZoneGravityRange);
+        Assert.AreEqual(-10, settings.AsteroidVerticalOffset);
+        Assert.AreEqual(0.1, settings.PlanetRotationSpeed);
+        Assert.AreEqual(2, settings.ZoneBoundaryPower);
+        Assert.AreEqual(64, settings.ZoneBoundaryDepth);
+        Assert.AreEqual(4, settings.AsteroidMeshCount);
+        Assert.AreEqual(3, settings.DefaultMinimapZoom);
+        CollectionAssert.AreEqual(new[] { 250.0, 500.0, 1000.0, 2000.0, 4000.0 }, settings.ResolveMinimapZoomLevels().ToArray());
+        Assert.AreEqual(2000, settings.ResolveDefaultMinimapDistance());
+        Assert.AreEqual(0.15, settings.BodyIconSizeCurve.Exponent);
+        Assert.AreEqual(10, settings.BodyIconSizeCurve.Multiplier);
+        Assert.AreEqual(25, settings.BodyIconSizeCurve.Constant);
+        Assert.AreEqual(0.25, settings.BodyRadiusCurve.Exponent);
+        Assert.AreEqual(3, settings.BodyRadiusCurve.Multiplier);
+        Assert.AreEqual(0.25, settings.LightRadiusCurve.Exponent);
+        Assert.AreEqual(300, settings.LightRadiusCurve.Multiplier);
+        Assert.AreEqual(0.45, settings.GravityWaveFrequencyCurve.Exponent);
+        Assert.AreEqual(0.2, settings.GravityWaveFrequencyCurve.Multiplier);
+    }
+
+    [Test]
     public void DaemonRenderQueriesPublishGravityTerrainMaterialBand()
     {
         var zone = new AetheriaRuntimeZoneSnapshotCommit
@@ -1799,6 +1828,59 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual(0.8, exits[0].DirectionZ, 0.0001);
         Assert.AreEqual(30, exits[0].PositionX, 0.0001);
         Assert.AreEqual(40, exits[0].PositionZ, 0.0001);
+    }
+
+    [Test]
+    public void RtsZoneRenderUsesDaemonFrameWormholeDistanceRatio()
+    {
+        var defaults = AetheriaRuntimeDaemonRenderSettings.AetheriaDefault;
+        var renderSettings = new AetheriaRuntimeDaemonRenderSettings(
+            defaults.TemperatureEmissionCurve,
+            defaults.LockIndicatorFrequency,
+            defaults.LockSpinSpeed,
+            defaults.ConvergenceMinimumDistance,
+            defaults.HypothermiaTemperature,
+            defaults.HeatstrokeTemperature,
+            defaults.SevereHeatstrokeRiskThreshold,
+            defaults.TargetDetectionInfoThreshold,
+            defaults.LockIndicatorNoiseAmplitude,
+            wormholeDistanceRatio: 0.25);
+        var currentZone = new AetheriaRuntimeZoneSnapshotCommit
+        {
+            ZoneIndex = 0,
+            PositionX = 0,
+            PositionY = 0,
+            GravityTerrainRadius = 100,
+            AdjacentZoneIndices = new[] { 1 }
+        };
+        var frame = AetheriaRuntimeDaemonFrameDocument.Create(
+            new AetheriaRuntimeRunCheckpointCommit
+            {
+                RunId = "wormhole-ratio-run",
+                CurrentZoneIndex = 0,
+                Zones = new[]
+                {
+                    currentZone,
+                    new AetheriaRuntimeZoneSnapshotCommit
+                    {
+                        ZoneIndex = 1,
+                        PositionX = 4,
+                        PositionY = 3
+                    }
+                }
+            },
+            "daemon",
+            "session",
+            12,
+            0,
+            0.02,
+            renderSettings: renderSettings);
+
+        var zoneRender = AetheriaRuntimeRtsDocuments.ZoneRender(frame);
+
+        Assert.AreEqual(1, zoneRender.WormholeExits.Count);
+        Assert.AreEqual(0.8 * 25, zoneRender.WormholeExits[0].PositionX, 0.0001);
+        Assert.AreEqual(0.6 * 25, zoneRender.WormholeExits[0].PositionZ, 0.0001);
     }
 
     [Test]

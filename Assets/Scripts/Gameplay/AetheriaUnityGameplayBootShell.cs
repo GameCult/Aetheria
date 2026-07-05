@@ -63,10 +63,7 @@ public sealed class AetheriaUnityGameplayBootShell
         var loadoutItemFactory = new AetheriaUnityLoadoutItemFactory(itemManager, runtimeCatalog);
         ZoneRenderer.SetDroppedPickupItemFactory(loadoutItemFactory.CreateLoadoutItem);
         ZoneRenderer.BodySettingsCollections = Settings.BodySettingsCollections;
-        ZoneRenderer.RenderSettings = AetheriaUnityRenderSettingsBridge.Build(
-            Settings,
-            TargetSpottedBlinkFrequency,
-            TargetSpottedBlinkOffset);
+        ZoneRenderer.RenderSettings = ResolveDaemonRenderSettings(runtimeState);
         CockpitHudShell.SetRenderSettings(ZoneRenderer.RenderSettings);
 
         if (!AetheriaUnityRuntimeClientProvider.PlayerSettings.GraphicsSettings.ShowAsteroidsInMinimap)
@@ -77,6 +74,22 @@ public sealed class AetheriaUnityGameplayBootShell
             observedGalaxy,
             itemManager,
             loadoutItemFactory);
+    }
+
+    private AetheriaRuntimeDaemonRenderSettings ResolveDaemonRenderSettings(AetheriaClientState runtimeState)
+    {
+        var frame = runtimeState?.DaemonFrame?.Latest();
+        if (frame?.RenderSettings != null)
+        {
+            Log?.Invoke($"Aetheria render/game-feel settings: daemon frame {frame.FrameId}");
+            return frame.RenderSettings;
+        }
+
+        Log?.Invoke("Aetheria render/game-feel settings: local Unity Settings fallback; daemon frame unavailable.");
+        return AetheriaUnityRenderSettingsBridge.Build(
+            Settings,
+            TargetSpottedBlinkFrequency,
+            TargetSpottedBlinkOffset);
     }
 
     private AetheriaRuntimeStateBootReport SyncRemoteReplicaBeforeBoot(AetheriaRuntimeStateBootReport stateBoot)

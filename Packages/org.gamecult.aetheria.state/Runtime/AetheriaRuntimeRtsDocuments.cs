@@ -8,8 +8,6 @@ namespace GameCult.Aetheria.State.Verse
 {
     public static class AetheriaRuntimeRtsDocuments
     {
-        private const double ZoneRenderWormholeDistanceRatio = 1.0;
-
         public static AetheriaRuntimeRtsViewportDocument Viewport(
             AetheriaRuntimeDaemonFrameDocument frame,
             AetheriaRuntimeRtsViewportBounds viewport)
@@ -711,7 +709,7 @@ namespace GameCult.Aetheria.State.Verse
                 ZoneRenderRadius = zoneRenderRadius,
                 Credits = run.Credits,
                 AdjacentZones = ZoneRenderAdjacentZones(run, zone),
-                WormholeExits = ZoneRenderWormholeExits(run, zone, zoneRenderRadius),
+                WormholeExits = ZoneRenderWormholeExits(run, zone, zoneRenderRadius, frame.RenderSettings),
                 BodyPoses = ZoneRenderBodyPoses(zone),
                 AsteroidBeltPoses = ZoneRenderAsteroidBeltPoses(zone, frame.SimulationTimeSeconds),
                 DroppedPickups = (zone.DroppedPickups ?? Array.Empty<AetheriaRuntimeDroppedPickupCommit>())
@@ -958,10 +956,11 @@ namespace GameCult.Aetheria.State.Verse
         private static AetheriaRuntimeZoneRenderWormholeExit[] ZoneRenderWormholeExits(
             AetheriaRuntimeRunCheckpointCommit run,
             AetheriaRuntimeZoneSnapshotCommit zone,
-            double zoneRenderRadius)
+            double zoneRenderRadius,
+            AetheriaRuntimeDaemonRenderSettings renderSettings)
         {
             return AetheriaRuntimeDaemonRenderQueries
-                .QueryWormholeExits(run, zone, zoneRenderRadius, ZoneRenderWormholeDistanceRatio)
+                .QueryWormholeExits(run, zone, zoneRenderRadius, renderSettings.WormholeDistanceRatio)
                 .Select(exit => new AetheriaRuntimeZoneRenderWormholeExit
                 {
                     TargetZoneIndex = exit.TargetZoneIndex,
