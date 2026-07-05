@@ -245,6 +245,13 @@ namespace GameCult.Aetheria.State.Verse
                     when AetheriaRuntimeTradeValuePolicyCommands.IsKnown(command):
                     envelope = CreateTradeValuePolicyCommand(CommandKindForSurface(request), request, clientId);
                     return true;
+                case AetheriaRuntimeMainMenuCommands.RootSurfaceId:
+                case AetheriaRuntimeMainMenuCommands.SettingsSurfaceId:
+                case AetheriaRuntimeMainMenuCommands.InputSettingsSurfaceId:
+                case AetheriaRuntimeMainMenuCommands.PlayerSettingsSurfaceId:
+                case AetheriaRuntimeMainMenuCommands.VerseSettingsSurfaceId:
+                    envelope = CreateMainMenuCommand(CommandKindForSurface(request), request, clientId);
+                    return envelope.Kind != AetheriaRuntimeEveCommandKind.Unknown;
             }
 
             envelope = null;
@@ -413,6 +420,23 @@ namespace GameCult.Aetheria.State.Verse
                 inputSettings: new AetheriaRuntimeInputSettingsCommandBody(),
                 loadoutTemplate: null,
                 tradeValuePolicy: ReadTradeValuePolicyBody(request),
+                invocation: request.Operation,
+                payload: request.Payload);
+        }
+
+        private static AetheriaRuntimeEveCommandEnvelope CreateMainMenuCommand(
+            AetheriaRuntimeEveCommandKind command,
+            EveSurfaceCommandRequest request,
+            string clientId)
+        {
+            return CreateTypedCommand(
+                request.SurfaceId ?? AetheriaRuntimeMainMenuCommands.RootSurfaceId,
+                command,
+                string.IsNullOrWhiteSpace(clientId) ? request.ClientId ?? "" : clientId,
+                playerSettings: ReadPlayerSettingsBody(request),
+                inputSettings: ReadInputSettingsBody(request),
+                loadoutTemplate: null,
+                tradeValuePolicy: null,
                 invocation: request.Operation,
                 payload: request.Payload);
         }
@@ -616,6 +640,28 @@ namespace GameCult.Aetheria.State.Verse
                             : AetheriaRuntimeEveCommandKind.Unknown;
                 case AetheriaRuntimeTradeValuePolicyCommands.SurfaceId:
                     return TradeValuePolicyKind(command);
+                case AetheriaRuntimeMainMenuCommands.RootSurfaceId:
+                    return MainMenuRootKind(command);
+                case AetheriaRuntimeMainMenuCommands.SettingsSurfaceId:
+                    return MainMenuSettingsKind(command);
+                case AetheriaRuntimeMainMenuCommands.InputSettingsSurfaceId:
+                    return command == AetheriaRuntimeMainMenuCommands.OpenRuntimeInputScreen
+                        ? AetheriaRuntimeEveCommandKind.MainMenuOpenRuntimeInputScreen
+                        : command == AetheriaRuntimeMainMenuCommands.BackToSettings
+                            ? AetheriaRuntimeEveCommandKind.MainMenuBackToSettings
+                            : InputSettingsKind(command);
+                case AetheriaRuntimeMainMenuCommands.PlayerSettingsSurfaceId:
+                    return command == AetheriaRuntimeMainMenuCommands.BackToSettings
+                        ? AetheriaRuntimeEveCommandKind.MainMenuBackToSettings
+                        : PlayerSettingsKind(command);
+                case AetheriaRuntimeMainMenuCommands.VerseSettingsSurfaceId:
+                    return command == AetheriaRuntimeMainMenuCommands.BackToSettings
+                        ? AetheriaRuntimeEveCommandKind.MainMenuBackToSettings
+                        : command == AetheriaRuntimeVerseHostCommands.Refresh
+                            ? AetheriaRuntimeEveCommandKind.VerseHostRefresh
+                            : command == AetheriaRuntimeVerseHostCommands.CycleVisibility
+                                ? AetheriaRuntimeEveCommandKind.CycleVerseHostVisibility
+                                : AetheriaRuntimeEveCommandKind.Unknown;
                 default:
                     return AetheriaRuntimeEveCommandKind.Unknown;
             }
@@ -671,9 +717,55 @@ namespace GameCult.Aetheria.State.Verse
                     return AetheriaRuntimeTradeValuePolicyCommands.SetQualityExponent;
                 case AetheriaRuntimeEveCommandKind.SetTradeValueTierQuality:
                     return AetheriaRuntimeTradeValuePolicyCommands.SetTierQuality;
+                case AetheriaRuntimeEveCommandKind.MainMenuContinueRun:
+                    return AetheriaRuntimeMainMenuCommands.ContinueRun;
+                case AetheriaRuntimeEveCommandKind.MainMenuNewGame:
+                    return AetheriaRuntimeMainMenuCommands.NewGame;
+                case AetheriaRuntimeEveCommandKind.MainMenuShowSettings:
+                    return AetheriaRuntimeMainMenuCommands.ShowSettings;
+                case AetheriaRuntimeEveCommandKind.MainMenuQuit:
+                    return AetheriaRuntimeMainMenuCommands.Quit;
+                case AetheriaRuntimeEveCommandKind.MainMenuShowPlayerSettings:
+                    return AetheriaRuntimeMainMenuCommands.ShowPlayerSettings;
+                case AetheriaRuntimeEveCommandKind.MainMenuShowVerseSettings:
+                    return AetheriaRuntimeMainMenuCommands.ShowVerseSettings;
+                case AetheriaRuntimeEveCommandKind.MainMenuShowInputSettings:
+                    return AetheriaRuntimeMainMenuCommands.ShowInputSettings;
+                case AetheriaRuntimeEveCommandKind.MainMenuBackToMain:
+                    return AetheriaRuntimeMainMenuCommands.BackToMain;
+                case AetheriaRuntimeEveCommandKind.MainMenuBackToSettings:
+                    return AetheriaRuntimeMainMenuCommands.BackToSettings;
+                case AetheriaRuntimeEveCommandKind.MainMenuOpenRuntimeInputScreen:
+                    return AetheriaRuntimeMainMenuCommands.OpenRuntimeInputScreen;
                 default:
                     return "";
             }
+        }
+
+        private static AetheriaRuntimeEveCommandKind MainMenuRootKind(string command)
+        {
+            if (command == AetheriaRuntimeMainMenuCommands.ContinueRun)
+                return AetheriaRuntimeEveCommandKind.MainMenuContinueRun;
+            if (command == AetheriaRuntimeMainMenuCommands.NewGame)
+                return AetheriaRuntimeEveCommandKind.MainMenuNewGame;
+            if (command == AetheriaRuntimeMainMenuCommands.ShowSettings)
+                return AetheriaRuntimeEveCommandKind.MainMenuShowSettings;
+            if (command == AetheriaRuntimeMainMenuCommands.Quit)
+                return AetheriaRuntimeEveCommandKind.MainMenuQuit;
+            return AetheriaRuntimeEveCommandKind.Unknown;
+        }
+
+        private static AetheriaRuntimeEveCommandKind MainMenuSettingsKind(string command)
+        {
+            if (command == AetheriaRuntimeMainMenuCommands.ShowPlayerSettings)
+                return AetheriaRuntimeEveCommandKind.MainMenuShowPlayerSettings;
+            if (command == AetheriaRuntimeMainMenuCommands.ShowVerseSettings)
+                return AetheriaRuntimeEveCommandKind.MainMenuShowVerseSettings;
+            if (command == AetheriaRuntimeMainMenuCommands.ShowInputSettings)
+                return AetheriaRuntimeEveCommandKind.MainMenuShowInputSettings;
+            if (command == AetheriaRuntimeMainMenuCommands.BackToMain)
+                return AetheriaRuntimeEveCommandKind.MainMenuBackToMain;
+            return AetheriaRuntimeEveCommandKind.Unknown;
         }
 
         private static AetheriaRuntimeEveCommandKind PlayerSettingsKind(string command)

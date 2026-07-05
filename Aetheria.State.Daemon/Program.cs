@@ -1089,10 +1089,24 @@ static async Task PublishDaemonApiDocumentsAsync(
         await node.MutableDocument<AetheriaRuntimeStarbridgeSessionSummaryDocument>(AetheriaRuntimeVerseRecordKeys.StarbridgeSessionSummary)
             .ReplaceAsync(result.StarbridgeSessionSummary)
             .ConfigureAwait(false);
+    var mainMenuState = await node.MutableDocument<AetheriaMainMenuState>(AetheriaStateNode.MainMenuStateKey)
+        .ReadAsync()
+        .ConfigureAwait(false);
+    var activeMainMenuSurfaceId = string.IsNullOrWhiteSpace(mainMenuState?.ActiveSurfaceId)
+        ? AetheriaRuntimeMainMenuCommands.RootSurfaceId
+        : mainMenuState.ActiveSurfaceId;
     if (result.GameSurface != null)
+    {
+        var gameSurface = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(
+            result.Frame,
+            result.Health ?? new AetheriaRuntimeDaemonHealthDocument(),
+            result.CommandBoundary ?? AetheriaRuntimeDaemonCommandBoundaryDocument.Create(options.DaemonId),
+            result.StarbridgeSessionSummary,
+            activeMainMenuSurfaceId);
         await node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.DaemonGameSurface)
-            .ReplaceAsync(AetheriaRuntimeSurfaceDocuments.ToPortableSurface(result.GameSurface))
+            .ReplaceAsync(AetheriaRuntimeSurfaceDocuments.ToPortableSurface(gameSurface))
             .ConfigureAwait(false);
+    }
     if (result.GameTuiSurface != null)
         await node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.DaemonGameTuiSurface)
             .ReplaceAsync(AetheriaRuntimeSurfaceDocuments.ToPortableSurface(result.GameTuiSurface))
@@ -1375,6 +1389,7 @@ static async Task AcceptEveCommandsAsync(AetheriaStateNode node, AetheriaDaemonH
                 AppliedInputSettingsCommands = report.AcceptedInputSettingsCommands,
                 AppliedLoadoutTemplateCommands = report.AcceptedLoadoutTemplateCommands,
                 AppliedVerseHostCommands = report.AcceptedVerseHostCommands,
+                AppliedMainMenuCommands = report.AcceptedMainMenuCommands,
                 AccountedCommandIds = report.AccountedCommandIds,
                 LastRejectedCommand = report.LastRejectedCommand,
                 LastRejectedReason = report.LastRejectedReason,

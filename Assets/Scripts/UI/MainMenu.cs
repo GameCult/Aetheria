@@ -183,7 +183,7 @@ public class MainMenu : MonoBehaviour
     private void ShowPlayerSettingsSurface(bool animateFromRight = true)
     {
         RenderMenuSurface(
-            ResolveMainMenuSurface(AetheriaRuntimeMainMenuCommands.PlayerSettingsShellSurfaceId),
+            ResolveMainMenuSurface(AetheriaRuntimeMainMenuCommands.PlayerSettingsSurfaceId),
             HandlePlayerSettingsSurfaceCommand,
             animateFromRight);
     }
@@ -191,7 +191,7 @@ public class MainMenu : MonoBehaviour
     private void ShowVerseSettingsSurface(bool animateFromRight = true)
     {
         RenderMenuSurface(
-            ResolveMainMenuSurface(AetheriaRuntimeMainMenuCommands.VerseSettingsShellSurfaceId),
+            ResolveMainMenuSurface(AetheriaRuntimeMainMenuCommands.VerseSettingsSurfaceId),
             HandleVerseSettingsSurfaceCommand,
             animateFromRight);
     }

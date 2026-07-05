@@ -259,6 +259,9 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
     public static CultRecordKey EveCommandAcceptanceStatusKey { get; } =
         new("global:aetheria.eve_command_acceptance_status.v1");
 
+    public static CultRecordKey MainMenuStateKey { get; } =
+        new("global:aetheria.main_menu_state.v1");
+
     public static CultRecordKey TradeValuePolicyKey { get; } =
         new(AetheriaTradeValuePolicy.RecordKey);
 

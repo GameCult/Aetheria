@@ -1,6 +1,8 @@
 using Aetheria.State;
 using Aetheria.State.Documents;
 using GameCult.Aetheria.State.Verse;
+using GameCult.Eve.Surface;
+using GameCult.Mesh;
 
 var root = args.Length > 0 ? Path.GetFullPath(args[0]) : Directory.GetCurrentDirectory();
 var statePath = args.Length > 1
@@ -124,6 +126,7 @@ var surface = AetheriaEveSurfaceDocuments.BuildCatalogSurface(catalog, DateTimeO
 var tradeValuePolicy = await node.MutableDocument<AetheriaTradeValuePolicy>(AetheriaStateNode.TradeValuePolicyKey).ReadAsync()
     ?? throw new InvalidOperationException("Missing authored trade value policy document.");
 await RequireTradeValuePolicyEveCommandPersistsAsync();
+await RequireMainMenuEveCommandPersistsAsync();
 var runtimeCatalog = catalog;
 
 RequireCount(ledger, "aetheria.item_definition.v1", items.Length);
@@ -3935,7 +3938,7 @@ static void RequireMainMenuSettingsShellUsesEveSurface(string root)
         "BuildVerseSettings(",
         "private static AetheriaRuntimeSurfaceDocument BuildRoot(",
         "private static AetheriaRuntimeSurfaceDocument BuildInputSettings(",
-        "var verseLabel = VerseLabel(verseTitle, verseId)",
+        "\"STARBRIDGE\"",
         "AetheriaRuntimePlayerSettingsSurfaceBuilder.Build(playerSettings, updatedAtUtc, version)",
         "AetheriaRuntimeSurfaceDocument document",
         "WithBackAction(",
@@ -4096,7 +4099,9 @@ static void RequireMainMenuRootUsesEveSurface(string root)
         "AetheriaRuntimeMainMenuCommands.ShowSettings",
         "AetheriaRuntimeMainMenuCommands.Quit",
         "private static AetheriaRuntimeSurfaceDocument BuildRoot(",
-        "var verseLabel = VerseLabel(verseTitle, verseId)",
+        "\"STARBRIDGE\"",
+        "\"Aetheria Starbridge\"",
+        "GravitySurface($",
         "public enum AetheriaRuntimeMainMenuCommandKind",
         "public readonly struct AetheriaRuntimeMainMenuCommand",
         "public static class AetheriaRuntimeMainMenuSurfaceCommands",
@@ -9870,11 +9875,9 @@ static void RequireClientTargetBootAuthority(string root)
     var requiredMainMenuBuilderSymbols = new[]
     {
         "private static AetheriaRuntimeSurfaceDocument BuildRoot(",
-        "var verseLabel = VerseLabel(verseTitle, verseId)",
-        "\"Verse\"",
-        "\"Target\"",
-        "\"Daemon\"",
-        "\"Transport\""
+        "\"STARBRIDGE\"",
+        "AetheriaMainMenuGravityField.FromDaemonFrame(daemonFrame)",
+        "GravitySurface($"
     };
     var missingMainMenuSymbols = requiredMainMenuSymbols
         .Where(symbol => !mainMenu.Contains(symbol, StringComparison.Ordinal))
@@ -11614,7 +11617,10 @@ static void RequireDaemonVersePublication(string root)
         "public const string DaemonGameSurfaceKey = \"eve:surface:aetheria.daemon.game\"",
         "public const string DaemonGameTuiSurfaceKey = \"eve:surface:aetheria.daemon.game.tui\"",
         "public const string DaemonEditorSurfaceKey = \"eve:surface:aetheria.daemon.editor\"",
-        "public const string DaemonEditorTuiSurfaceKey = \"eve:surface:aetheria.daemon.editor.tui\"",
+        "public const string DaemonEditorTuiSurfaceKey = \"eve:surface:aetheria.daemon.editor.tui\""
+    };
+    var requiredDaemonProviderDocumentSymbols = new[]
+    {
         "AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId",
         "AetheriaRuntimeDaemonGameSurfaceBuilder.TuiSurfaceId",
         "AetheriaRuntimeDaemonEditorSurfaceBuilder.SurfaceId",
@@ -11628,6 +11634,15 @@ static void RequireDaemonVersePublication(string root)
         throw new InvalidOperationException(
             "Odin-visible provider advertisement no longer points at managed daemon CultMesh records: " +
             string.Join(", ", missingProviderAdvertisementSymbols));
+    }
+    var missingDaemonProviderDocumentSymbols = requiredDaemonProviderDocumentSymbols
+        .Where(symbol => !daemonDocuments.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingDaemonProviderDocumentSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Daemon provider advertisement document no longer owns daemon surface ids: " +
+            string.Join(", ", missingDaemonProviderDocumentSymbols));
     }
 
     var forbiddenProviderAdvertisementSymbols = new[]
@@ -13542,19 +13557,11 @@ static void RequireMainMenuVerseHostDocumentAccess(string root)
         "public static AetheriaRuntimeSurfaceDocument BuildRoot(",
         "AetheriaRuntimeStateBootReport stateBoot",
         "AetheriaRuntimeVerseHostSettingsDocument verseHost",
-        "verseHost?.Title ?? stateBoot.Title",
-        "verseHost?.VerseId ?? stateBoot.VerseId",
-        "verseHost?.Visibility ?? \"unknown\"",
-        "verseHost?.CultMeshAddress ?? stateBoot.CultMeshAddress",
-        ".TitleSubtitle(\"AETHERIA\", \"TERMINUS\")",
-        ".Metric(\"Verse\", verseLabel)",
-        ".Metric(\"Target\", targetLine)",
-        ".Metric(\"Daemon\", daemonLine)",
-        ".Metric(\"Transport\", transportLine)",
-        "private static string VerseLabel(",
-        "private static string TargetLine(",
-        "\"No daemon frame\"",
-        "\"Run {daemonRunId} / frame {daemonFrameId}\""
+        "AetheriaMainMenuGravityField.FromDaemonFrame(daemonFrame)",
+        "GravitySurface($",
+        "\"AETHERIA\"",
+        "\"STARBRIDGE\"",
+        "\"Aetheria Starbridge\""
     };
     var requiredClientTargetBuilderSymbols = new[]
     {
@@ -16334,6 +16341,67 @@ static async Task RequireTradeValuePolicyEveCommandPersistsAsync()
         {
             throw new InvalidOperationException(
                 $"Trade value policy Eve command did not persist the typed edit. Expected {editedMinimum}, got {actualMinimum}.");
+        }
+    }
+    finally
+    {
+        try
+        {
+            File.Delete(tempStatePath);
+        }
+        catch
+        {
+            // Best-effort cleanup for verifier scratch state.
+        }
+    }
+}
+
+static async Task RequireMainMenuEveCommandPersistsAsync()
+{
+    var tempStatePath = Path.Combine(
+        Path.GetTempPath(),
+        $"aetheria-main-menu-command-{Guid.NewGuid():N}.cc");
+
+    try
+    {
+        await using var commandNode = await AetheriaStateNode.OpenAsync(
+            tempStatePath,
+            "aetheria-state-verify-main-menu",
+            enableDurableShardLogs: false);
+
+        if (!AetheriaRuntimeEveCommandClient.TryCreateKnownSurfaceCommand(
+                new EveSurfaceCommandRequest(
+                    AetheriaRuntimeMainMenuSurfaceBuilder.ProviderId,
+                    AetheriaRuntimeMainMenuCommands.RootSurfaceId,
+                    CultMesh.OperationInvocation(
+                        AetheriaRuntimeMainMenuCommands.ShowSettings,
+                        AetheriaRuntimeEveCommandDocument.SchemaId,
+                        new CultMeshRouteHint(CultMeshLocalityKind.Network, "aetheria-eve-command")),
+                    CultMesh.OperationPayload(),
+                    DateTimeOffset.UtcNow,
+                    "aetheria-state-verify"),
+                out var envelope) ||
+            envelope == null)
+        {
+            throw new InvalidOperationException("Main menu Eve surface command did not create a typed command envelope.");
+        }
+
+        var command = AetheriaRuntimeEveCommandClient.ToDocument(envelope);
+        await commandNode.SubmitEveCommandAsync(command).ConfigureAwait(false);
+
+        var report = await AetheriaEveCommandBridge.AcceptObservedAsync(commandNode).ConfigureAwait(false);
+        if (report.AcceptedMainMenuCommands != 1)
+        {
+            throw new InvalidOperationException(
+                "Main menu Eve command was not accepted by the typed command bridge.");
+        }
+
+        var menuState = await commandNode.MutableDocument<AetheriaMainMenuState>(AetheriaStateNode.MainMenuStateKey).ReadAsync().ConfigureAwait(false)
+            ?? throw new InvalidOperationException("Main menu state was not created by the typed Eve command.");
+        if (!string.Equals(menuState.ActiveSurfaceId, AetheriaRuntimeMainMenuCommands.SettingsSurfaceId, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                $"Main menu Eve command did not persist daemon-owned panel state. Expected {AetheriaRuntimeMainMenuCommands.SettingsSurfaceId}, got {menuState.ActiveSurfaceId}.");
         }
     }
     finally

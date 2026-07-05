@@ -69,4 +69,7 @@ public sealed class AetheriaEveCommandAcceptanceStatus
 
     [Key(19)]
     public string[] AccountedCommandIds { get; set; } = [];
+
+    [Key(20)]
+    public int AppliedMainMenuCommands { get; set; }
 }

@@ -37,6 +37,7 @@ public static class AetheriaDocumentRegistry
         typeof(AetheriaZoneState),
         typeof(AetheriaEntitySnapshot),
         typeof(AetheriaVerseHostSettings),
+        typeof(AetheriaMainMenuState),
         typeof(AetheriaEveCommandAcceptanceStatus),
         typeof(AetheriaRuntimeDaemonProviderAdvertisementDocument),
         typeof(AetheriaRuntimeDaemonHealthDocument),

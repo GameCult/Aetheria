@@ -33,7 +33,17 @@ namespace GameCult.Aetheria.State.Verse
         SetTradeValueQualityMinimum = 20,
         SetTradeValueQualityMaximum = 21,
         SetTradeValueQualityExponent = 22,
-        SetTradeValueTierQuality = 23
+        SetTradeValueTierQuality = 23,
+        MainMenuContinueRun = 24,
+        MainMenuNewGame = 25,
+        MainMenuShowSettings = 26,
+        MainMenuQuit = 27,
+        MainMenuShowPlayerSettings = 28,
+        MainMenuShowVerseSettings = 29,
+        MainMenuShowInputSettings = 30,
+        MainMenuBackToMain = 31,
+        MainMenuBackToSettings = 32,
+        MainMenuOpenRuntimeInputScreen = 33
     }
 
     public sealed class AetheriaRuntimeEveCommandEnvelope

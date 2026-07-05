@@ -16,7 +16,8 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeDaemonFrameDocument frame,
             AetheriaRuntimeDaemonHealthDocument health,
             AetheriaRuntimeDaemonCommandBoundaryDocument commandBoundary,
-            AetheriaRuntimeStarbridgeSessionSummaryDocument? starbridge = null)
+            AetheriaRuntimeStarbridgeSessionSummaryDocument? starbridge = null,
+            string activeMainMenuSurfaceId = AetheriaRuntimeMainMenuCommands.RootSurfaceId)
         {
             frame ??= new AetheriaRuntimeDaemonFrameDocument();
             health ??= new AetheriaRuntimeDaemonHealthDocument();
@@ -28,10 +29,11 @@ namespace GameCult.Aetheria.State.Verse
             var entity = FindCurrentEntity(run, zone);
             var target = FindTargetEntity(zone, entity);
             var entityName = string.IsNullOrWhiteSpace(entity?.Name) ? "(no current entity)" : entity!.Name;
+            activeMainMenuSurfaceId = NormalizeMainMenuSurfaceId(activeMainMenuSurfaceId);
             var surfaceChildren = new List<AetheriaRuntimeSurfaceComponent>
             {
                 GravityFieldSurface("aetheria.daemon.game.field"),
-                MainMenuOverlay("aetheria.daemon.game.main_menu"),
+                MainMenuOverlay("aetheria.daemon.game.main_menu", activeMainMenuSurfaceId),
                 Node(
                     "aetheria.daemon.game.frame",
                     "card",
@@ -363,15 +365,18 @@ namespace GameCult.Aetheria.State.Verse
                 null);
         }
 
-        private static AetheriaRuntimeSurfaceComponent MainMenuOverlay(string id)
+        private static AetheriaRuntimeSurfaceComponent MainMenuOverlay(
+            string id,
+            string activeSurfaceId)
         {
+            activeSurfaceId = NormalizeMainMenuSurfaceId(activeSurfaceId);
             return new AetheriaRuntimeSurfaceComponent(
                 id,
                 "surface.slot",
                 new Dictionary<string, string>(StringComparer.Ordinal)
                 {
                     ["slotId"] = "mainMenuPanel",
-                    ["documentId"] = AetheriaRuntimeMainMenuCommands.RootSurfaceId,
+                    ["documentId"] = activeSurfaceId,
                     ["schemaId"] = "gamecult.eve.surface.v1",
                     ["presentationKind"] = "menu.overlay"
                 },
@@ -381,7 +386,7 @@ namespace GameCult.Aetheria.State.Verse
                 {
                     new AetheriaRuntimeEmbeddedDocumentSlot(
                         "mainMenuPanel",
-                        AetheriaRuntimeMainMenuCommands.RootSurfaceId,
+                        activeSurfaceId,
                         "gamecult.eve.surface.v1",
                         "menu.overlay")
                 },
@@ -399,6 +404,20 @@ namespace GameCult.Aetheria.State.Verse
                 {
                     ["background"] = "rgba(0,0,0,0)"
                 });
+        }
+
+        private static string NormalizeMainMenuSurfaceId(string surfaceId)
+        {
+            switch (surfaceId ?? "")
+            {
+                case AetheriaRuntimeMainMenuCommands.SettingsSurfaceId:
+                case AetheriaRuntimeMainMenuCommands.InputSettingsSurfaceId:
+                case AetheriaRuntimeMainMenuCommands.PlayerSettingsSurfaceId:
+                case AetheriaRuntimeMainMenuCommands.VerseSettingsSurfaceId:
+                    return surfaceId;
+                default:
+                    return AetheriaRuntimeMainMenuCommands.RootSurfaceId;
+            }
         }
 
         private static AetheriaRuntimeRtsViewportBounds DefaultViewport()

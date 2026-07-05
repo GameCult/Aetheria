@@ -98,6 +98,16 @@ export const AetheriaRuntimeEveCommandKinds = {
   setTradeValueQualityMaximum: 21,
   setTradeValueQualityExponent: 22,
   setTradeValueTierQuality: 23,
+  mainMenuContinueRun: 24,
+  mainMenuNewGame: 25,
+  mainMenuShowSettings: 26,
+  mainMenuQuit: 27,
+  mainMenuShowPlayerSettings: 28,
+  mainMenuShowVerseSettings: 29,
+  mainMenuShowInputSettings: 30,
+  mainMenuBackToMain: 31,
+  mainMenuBackToSettings: 32,
+  mainMenuOpenRuntimeInputScreen: 33,
 } as const;
 
 export const AetheriaRtsIpcChannels = {

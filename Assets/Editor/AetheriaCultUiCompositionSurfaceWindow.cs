@@ -75,7 +75,7 @@ public sealed class AetheriaCultUiCompositionSurfaceWindow : EditorWindow
         _providerId = TextInput("Provider Id", DefaultProviderId, controls);
         _providerKind = TextInput("Provider Kind", DefaultProviderKind, controls);
         _title = TextInput("Title", "AETHERIA", controls);
-        _subtitle = TextInput("Subtitle", "TERMINUS", controls);
+        _subtitle = TextInput("Subtitle", "STARBRIDGE", controls);
         _note = TextInput("Note", "Live CultUI draft lowered through the shared Eve UI Toolkit path.", controls);
         _showStatusMetrics = ToggleInput("Status Metrics", true, controls);
         _useButtonRow = ToggleInput("Button Row", false, controls);
@@ -206,7 +206,7 @@ public sealed class AetheriaCultUiCompositionSurfaceWindow : EditorWindow
         _providerId.value = DefaultProviderId;
         _providerKind.value = DefaultProviderKind;
         _title.value = "AETHERIA";
-        _subtitle.value = "TERMINUS";
+        _subtitle.value = "STARBRIDGE";
         _note.value = "Live CultUI draft lowered through the shared Eve UI Toolkit path.";
         _showStatusMetrics.value = true;
         _useButtonRow.value = false;

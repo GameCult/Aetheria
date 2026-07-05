@@ -14,6 +14,7 @@ public sealed class AetheriaEveCommandAcceptanceReport
     public int AcceptedLoadoutTemplateCommands { get; set; }
     public int AcceptedVerseHostCommands { get; set; }
     public int AcceptedTradeValuePolicyCommands { get; set; }
+    public int AcceptedMainMenuCommands { get; set; }
     public int RejectedCommands { get; set; }
     public string[] AcceptedCommandIds { get; set; } = [];
     public string[] RejectedCommandIds { get; set; } = [];
@@ -103,6 +104,19 @@ public static class AetheriaEveCommandBridge
                 case AetheriaRuntimeEveCommandKind.SetTradeValueTierQuality:
                     await ExecuteTradeValuePolicyCommandAsync(node, command).ConfigureAwait(false);
                     report.AcceptedTradeValuePolicyCommands++;
+                    break;
+                case AetheriaRuntimeEveCommandKind.MainMenuContinueRun:
+                case AetheriaRuntimeEveCommandKind.MainMenuNewGame:
+                case AetheriaRuntimeEveCommandKind.MainMenuShowSettings:
+                case AetheriaRuntimeEveCommandKind.MainMenuQuit:
+                case AetheriaRuntimeEveCommandKind.MainMenuShowPlayerSettings:
+                case AetheriaRuntimeEveCommandKind.MainMenuShowVerseSettings:
+                case AetheriaRuntimeEveCommandKind.MainMenuShowInputSettings:
+                case AetheriaRuntimeEveCommandKind.MainMenuBackToMain:
+                case AetheriaRuntimeEveCommandKind.MainMenuBackToSettings:
+                case AetheriaRuntimeEveCommandKind.MainMenuOpenRuntimeInputScreen:
+                    await ExecuteMainMenuCommandAsync(node, command).ConfigureAwait(false);
+                    report.AcceptedMainMenuCommands++;
                     break;
             }
 
@@ -349,6 +363,64 @@ public static class AetheriaEveCommandBridge
         {
             policy.UpdatedAtUtc = command.IssuedAtUtc;
             await tradeValuePolicy.ReplaceAsync(policy).ConfigureAwait(false);
+        }
+    }
+
+    private static async Task ExecuteMainMenuCommandAsync(
+        AetheriaStateNode node,
+        AetheriaRuntimeEveCommandDocument command)
+    {
+        var state = await node.MutableDocument<AetheriaMainMenuState>(AetheriaStateNode.MainMenuStateKey).ReadAsync().ConfigureAwait(false) ??
+            new AetheriaMainMenuState();
+        var activeSurfaceId = ActiveMainMenuSurfaceFor(command.Kind, state.ActiveSurfaceId);
+        state.ActiveSurfaceId = activeSurfaceId;
+        state.LastCommandId = command.CommandId ?? "";
+        state.LastCommand = command.Command ?? "";
+        state.UpdatedAtUtc = string.IsNullOrWhiteSpace(command.IssuedAtUtc)
+            ? DateTimeOffset.UtcNow.ToString("O")
+            : command.IssuedAtUtc;
+        await node.MutableDocument<AetheriaMainMenuState>(AetheriaStateNode.MainMenuStateKey)
+            .ReplaceAsync(state)
+            .ConfigureAwait(false);
+    }
+
+    private static string ActiveMainMenuSurfaceFor(
+        AetheriaRuntimeEveCommandKind kind,
+        string currentSurfaceId)
+    {
+        switch (kind)
+        {
+            case AetheriaRuntimeEveCommandKind.MainMenuShowSettings:
+            case AetheriaRuntimeEveCommandKind.MainMenuBackToSettings:
+                return AetheriaRuntimeMainMenuCommands.SettingsSurfaceId;
+            case AetheriaRuntimeEveCommandKind.MainMenuShowPlayerSettings:
+                return AetheriaRuntimeMainMenuCommands.PlayerSettingsSurfaceId;
+            case AetheriaRuntimeEveCommandKind.MainMenuShowVerseSettings:
+                return AetheriaRuntimeMainMenuCommands.VerseSettingsSurfaceId;
+            case AetheriaRuntimeEveCommandKind.MainMenuShowInputSettings:
+            case AetheriaRuntimeEveCommandKind.MainMenuOpenRuntimeInputScreen:
+                return AetheriaRuntimeMainMenuCommands.InputSettingsSurfaceId;
+            case AetheriaRuntimeEveCommandKind.MainMenuBackToMain:
+            case AetheriaRuntimeEveCommandKind.MainMenuContinueRun:
+            case AetheriaRuntimeEveCommandKind.MainMenuNewGame:
+            case AetheriaRuntimeEveCommandKind.MainMenuQuit:
+                return AetheriaRuntimeMainMenuCommands.RootSurfaceId;
+            default:
+                return NormalizeMainMenuSurfaceId(currentSurfaceId);
+        }
+    }
+
+    private static string NormalizeMainMenuSurfaceId(string surfaceId)
+    {
+        switch (surfaceId ?? "")
+        {
+            case AetheriaRuntimeMainMenuCommands.SettingsSurfaceId:
+            case AetheriaRuntimeMainMenuCommands.InputSettingsSurfaceId:
+            case AetheriaRuntimeMainMenuCommands.PlayerSettingsSurfaceId:
+            case AetheriaRuntimeMainMenuCommands.VerseSettingsSurfaceId:
+                return surfaceId;
+            default:
+                return AetheriaRuntimeMainMenuCommands.RootSurfaceId;
         }
     }
 

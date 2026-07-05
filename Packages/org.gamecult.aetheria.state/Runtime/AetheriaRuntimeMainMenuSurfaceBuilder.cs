@@ -41,17 +41,7 @@ namespace GameCult.Aetheria.State.Verse
             long version = 1)
         {
             return BuildRoot(
-                stateBoot.TargetLabel,
-                stateBoot.TargetKind,
-                stateBoot.TargetSource,
-                stateBoot.Title,
-                stateBoot.VerseId,
-                "unknown",
-                stateBoot.CultMeshAddress,
                 inGame,
-                hasAuthoritativeDaemonFrame: false,
-                daemonRunId: "",
-                daemonFrameId: -1,
                 gravityField: AetheriaMainMenuGravityField.Default(),
                 updatedAtUtc,
                 version);
@@ -68,17 +58,7 @@ namespace GameCult.Aetheria.State.Verse
             long version = 1)
         {
             return BuildRoot(
-                stateBoot.TargetLabel,
-                stateBoot.TargetKind,
-                stateBoot.TargetSource,
-                verseHost?.Title ?? stateBoot.Title,
-                verseHost?.VerseId ?? stateBoot.VerseId,
-                verseHost?.Visibility ?? "unknown",
-                verseHost?.CultMeshAddress ?? stateBoot.CultMeshAddress,
                 inGame,
-                hasAuthoritativeDaemonFrame: daemonFrame != null,
-                daemonFrame?.Run?.RunId ?? "",
-                daemonFrame?.FrameId ?? -1,
                 gravityField: AetheriaMainMenuGravityField.FromDaemonFrame(daemonFrame),
                 updatedAtUtc,
                 version);
@@ -95,17 +75,7 @@ namespace GameCult.Aetheria.State.Verse
             long version = 1)
         {
             return BuildRoot(
-                stateBoot.TargetLabel,
-                stateBoot.TargetKind,
-                stateBoot.TargetSource,
-                verseHost?.Title ?? stateBoot.Title,
-                verseHost?.VerseId ?? stateBoot.VerseId,
-                verseHost?.Visibility ?? "unknown",
-                verseHost?.CultMeshAddress ?? stateBoot.CultMeshAddress,
                 inGame,
-                hasAuthoritativeDaemonFrame: sectorMap != null,
-                sectorMap?.RunId ?? "",
-                sectorMap?.FrameId ?? -1,
                 gravityField: AetheriaMainMenuGravityField.Default(),
                 updatedAtUtc,
                 version);
@@ -141,17 +111,7 @@ namespace GameCult.Aetheria.State.Verse
         }
 
         private static AetheriaRuntimeSurfaceDocument BuildRoot(
-            string targetLabel,
-            string targetKind,
-            string targetSource,
-            string verseTitle,
-            string verseId,
-            string verseVisibility,
-            string verseCultMeshAddress,
             bool inGame,
-            bool hasAuthoritativeDaemonFrame,
-            string daemonRunId,
-            long daemonFrameId,
             AetheriaMainMenuGravityField gravityField,
             string updatedAtUtc,
             long version)
@@ -195,7 +155,7 @@ namespace GameCult.Aetheria.State.Verse
                             ("font", "100 5.9rem/0.98 Montserrat, sans-serif"),
                             ("color", "rgba(232, 250, 255, 0.94)"),
                             ("whiteSpace", "nowrap"))),
-                    Text($"{AetheriaRuntimeMainMenuCommands.RootSurfaceId}.subtitle", "TERMINUS", "text.subtitle",
+                    Text($"{AetheriaRuntimeMainMenuCommands.RootSurfaceId}.subtitle", "STARBRIDGE", "text.subtitle",
                         Layout(("margin", "0 0 0.35rem 16.8rem")),
                         Style(
                             ("font", "100 2.6rem/1 Montserrat, sans-serif"),
@@ -212,7 +172,7 @@ namespace GameCult.Aetheria.State.Verse
             return new AetheriaRuntimeSurfaceDocument(
                 ProviderId,
                 ProviderKind,
-                "Aetheria Terminus",
+                "Aetheria Starbridge",
                 version,
                 updatedAtUtc,
                 new AetheriaRuntimeSurfaceTree(
@@ -226,27 +186,6 @@ namespace GameCult.Aetheria.State.Verse
                     Command(AetheriaRuntimeMainMenuCommands.ShowSettings, "Settings"),
                     Command(AetheriaRuntimeMainMenuCommands.Quit, "Quit")
                 });
-        }
-
-        private static string VerseLabel(string verseTitle, string verseId)
-        {
-            if (string.IsNullOrWhiteSpace(verseTitle))
-                return string.IsNullOrWhiteSpace(verseId) ? "Unknown Verse" : verseId;
-
-            if (string.IsNullOrWhiteSpace(verseId) || string.Equals(verseTitle, verseId, StringComparison.Ordinal))
-                return verseTitle;
-
-            return $"{verseTitle} / {verseId}";
-        }
-
-        private static string TargetLine(string targetLabel, string targetKind, string targetSource)
-        {
-            var label = string.IsNullOrWhiteSpace(targetLabel) ? "Unknown target" : targetLabel;
-            var kind = string.IsNullOrWhiteSpace(targetKind) ? "unknown" : targetKind;
-            if (string.IsNullOrWhiteSpace(targetSource))
-                return $"{label} ({kind})";
-
-            return $"{label} ({kind}) / {targetSource}";
         }
 
         public static AetheriaRuntimeSurfaceDocument BuildSettings(
