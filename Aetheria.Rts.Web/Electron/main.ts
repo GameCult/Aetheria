@@ -93,9 +93,9 @@ app.whenReady().then(async () => {
         rtsVerseId,
         "--daemon-id",
         rtsDaemonId,
-        "--rts-cultmesh-port",
+        "--client-cultmesh-port",
         rtsCultMeshPort.toString(),
-        "--rts-cultmesh-advertise-host",
+        "--client-cultmesh-advertise-host",
         rtsCultMeshAdvertiseHost,
         "--tick-interval-ms",
         "20",
@@ -536,7 +536,7 @@ function stringOr(value: unknown, fallback: string): string {
 
 function requireClient(): AetheriaCultMeshClient {
   if (!rtsClient)
-    throw new Error("Aetheria RTS CultMesh client is not initialized.");
+    throw new Error("Aetheria CultMesh client is not initialized.");
   return rtsClient;
 }
 

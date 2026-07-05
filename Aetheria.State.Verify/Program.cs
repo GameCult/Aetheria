@@ -16020,6 +16020,10 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
     var daemonTickRunner = File.Exists(daemonTickRunnerPath)
         ? File.ReadAllText(daemonTickRunnerPath)
         : throw new InvalidOperationException("Cannot verify shared simulation authority; daemon tick runner is missing.");
+    var daemonProgramPath = Path.Combine(root, "Aetheria.State.Daemon", "Program.cs");
+    var daemonProgram = File.Exists(daemonProgramPath)
+        ? File.ReadAllText(daemonProgramPath)
+        : throw new InvalidOperationException("Cannot verify shared simulation authority; daemon host is missing.");
 
     var requiredDaemonTickSymbols = new[]
     {
@@ -16047,12 +16051,30 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
         "org.gamecult.aetheria.state",
         "Runtime",
         "AetheriaRuntimeSnapshotDocuments.cs");
-    var rtsSimulationPath = Path.Combine(
+    var oldRtsSimulationPath = Path.Combine(
         root,
         "Packages",
         "org.gamecult.aetheria.state",
         "Runtime",
         "AetheriaRuntimeRtsSimulation.cs");
+    if (File.Exists(oldRtsSimulationPath))
+    {
+        throw new InvalidOperationException(
+            "Aetheria simulation authority is still runtime-named. Delete AetheriaRuntimeRtsSimulation.cs and keep runtime-specific names at projection edges.");
+    }
+
+    var daemonSimulationPath = Path.Combine(
+        root,
+        "Packages",
+        "org.gamecult.aetheria.state",
+        "Runtime",
+        "AetheriaRuntimeDaemonSimulation.cs");
+    var daemonSimulationSettingsPath = Path.Combine(
+        root,
+        "Packages",
+        "org.gamecult.aetheria.state",
+        "Runtime",
+        "AetheriaRuntimeDaemonSimulationSettings.cs");
     var ymirProjectilePhysicsPath = Path.Combine(
         root,
         "Packages",
@@ -16075,9 +16097,12 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
     var snapshotDocuments = File.Exists(snapshotDocumentsPath)
         ? File.ReadAllText(snapshotDocumentsPath)
         : throw new InvalidOperationException("Cannot verify daemon projectile authority; runtime snapshot documents are missing.");
-    var rtsSimulation = File.Exists(rtsSimulationPath)
-        ? File.ReadAllText(rtsSimulationPath)
-        : throw new InvalidOperationException("Cannot verify daemon projectile authority; RTS simulation is missing.");
+    var daemonSimulation = File.Exists(daemonSimulationPath)
+        ? File.ReadAllText(daemonSimulationPath)
+        : throw new InvalidOperationException("Cannot verify daemon projectile authority; daemon simulation is missing.");
+    var daemonSimulationSettings = File.Exists(daemonSimulationSettingsPath)
+        ? File.ReadAllText(daemonSimulationSettingsPath)
+        : throw new InvalidOperationException("Cannot verify daemon simulation authority; daemon simulation settings are missing.");
     var ymirProjectilePhysics = File.Exists(ymirProjectilePhysicsPath)
         ? File.ReadAllText(ymirProjectilePhysicsPath)
         : throw new InvalidOperationException("Cannot verify daemon projectile authority; Ymir projectile physics boundary is missing.");
@@ -16098,13 +16123,22 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
             "public IReadOnlyList<AetheriaRuntimeProjectileCommit> Projectiles",
             "public sealed class AetheriaRuntimeProjectileCommit"
         },
-        [rtsSimulationPath] = new[]
+        [daemonSimulationPath] = new[]
         {
-            "StepCombat(zone, entities, deltaSeconds)",
+            "public static class AetheriaRuntimeDaemonSimulation",
+            "AetheriaRuntimeDaemonSimulationSettings settings",
+            "StepCombat(zone, entities, deltaSeconds, settings)",
             "EnsureDaemonWeaponState(",
-            "SpawnProjectile(zone, attacker, target)",
+            "SpawnProjectile(zone, attacker, target, settings)",
             "AetheriaRuntimeYmirProjectilePhysics.Step(zone, entities, deltaSeconds)",
             "Damage(target, hit.Projectile.Damage)"
+        },
+        [daemonSimulationSettingsPath] = new[]
+        {
+            "public readonly struct AetheriaRuntimeDaemonSimulationSettings",
+            "public static AetheriaRuntimeDaemonSimulationSettings AetheriaDefault",
+            "public double ProjectileSpeed { get; }",
+            "public double AttackRange { get; }"
         },
         [ymirProjectilePhysicsPath] = new[]
         {
@@ -16137,7 +16171,8 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
         .SelectMany(pair =>
         {
             var text = pair.Key == snapshotDocumentsPath ? snapshotDocuments :
-                pair.Key == rtsSimulationPath ? rtsSimulation :
+                pair.Key == daemonSimulationPath ? daemonSimulation :
+                pair.Key == daemonSimulationSettingsPath ? daemonSimulationSettings :
                 pair.Key == ymirProjectilePhysicsPath ? ymirProjectilePhysics :
                 pair.Key == rtsDocumentsPath ? rtsDocuments :
                 pair.Key == rtsViewportDocumentsPath ? rtsViewportDocuments :
@@ -16154,13 +16189,35 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
             string.Join("; ", missingProjectileAuthoritySymbols));
     }
 
-    if (rtsSimulation.Contains("Damage(target, damage)", StringComparison.Ordinal) ||
-        rtsSimulation.Contains("Damage(target, ResolveProjectileDamage(attacker)", StringComparison.Ordinal) ||
-        rtsSimulation.Contains("private static void StepProjectiles(", StringComparison.Ordinal) ||
-        rtsSimulation.Contains("private static bool ProjectileHits(", StringComparison.Ordinal))
+    if (daemonSimulation.Contains("AetheriaRuntimeRtsSimulation", StringComparison.Ordinal) ||
+        daemonSimulation.Contains("Damage(target, damage)", StringComparison.Ordinal) ||
+        daemonSimulation.Contains("Damage(target, ResolveProjectileDamage(attacker)", StringComparison.Ordinal) ||
+        daemonSimulation.Contains("private static void StepProjectiles(", StringComparison.Ordinal) ||
+        daemonSimulation.Contains("private static bool ProjectileHits(", StringComparison.Ordinal) ||
+        daemonSimulation.Contains("private const double PawnSpeed", StringComparison.Ordinal) ||
+        daemonSimulation.Contains("private const double AttackRange", StringComparison.Ordinal) ||
+        daemonSimulation.Contains("private const double ProjectileSpeed", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Daemon RTS combat regressed to direct target damage or local projectile physics instead of Ymir-shaped projectile contact damage.");
+            "Daemon combat regressed to runtime-named simulation, hardcoded game feel, direct target damage, or local projectile physics instead of daemon settings plus Ymir-shaped projectile contact damage.");
+    }
+
+    if (!daemonTickRunner.Contains("AetheriaRuntimeDaemonSimulation.Step(", StringComparison.Ordinal) ||
+        !daemonTickRunner.Contains("public AetheriaRuntimeDaemonSimulationSettings SimulationSettings { get; set; }", StringComparison.Ordinal) ||
+        !daemonTickRunner.Contains("AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault", StringComparison.Ordinal) ||
+        !daemonTickRunner.Contains("simulationSettings: options.SimulationSettings", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Daemon ticks must route Aetheria simulation through daemon-owned settings, not runtime-local constants.");
+    }
+
+    if (daemonProgram.Contains("RtsCultMesh", StringComparison.Ordinal) ||
+        daemonProgram.Contains("--rts-cultmesh", StringComparison.Ordinal) ||
+        daemonProgram.Contains("RTS CultMesh endpoint", StringComparison.Ordinal) ||
+        daemonProgram.Contains("aetheria-rts-rudp", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Aetheria daemon transport must be client-neutral; runtime-branded CultMesh flags and transport ids belong outside daemon authority.");
     }
 
     if (daemonTickRunner.Contains("AetheriaRuntimeDaemonFrameStore.PublishFrame", StringComparison.Ordinal))

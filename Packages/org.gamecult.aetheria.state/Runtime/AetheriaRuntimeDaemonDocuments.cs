@@ -536,6 +536,10 @@ namespace GameCult.Aetheria.State.Verse
         public AetheriaRuntimeDaemonRenderSettings RenderSettings { get; set; } =
             AetheriaRuntimeDaemonRenderSettings.AetheriaDefault;
 
+        [Key(22)]
+        public AetheriaRuntimeDaemonSimulationSettings SimulationSettings { get; set; } =
+            AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault;
+
         public static AetheriaRuntimeDaemonFrameDocument Create(
             AetheriaRuntimeRunCheckpointCommit run,
             string daemonId,
@@ -545,7 +549,8 @@ namespace GameCult.Aetheria.State.Verse
             double fixedDeltaSeconds,
             bool isAuthoritative = true,
             string stateSource = "daemon",
-            AetheriaRuntimeDaemonRenderSettings? renderSettings = null)
+            AetheriaRuntimeDaemonRenderSettings? renderSettings = null,
+            AetheriaRuntimeDaemonSimulationSettings? simulationSettings = null)
         {
             return new AetheriaRuntimeDaemonFrameDocument
             {
@@ -558,7 +563,8 @@ namespace GameCult.Aetheria.State.Verse
                 IsAuthoritative = isAuthoritative,
                 StateSource = string.IsNullOrWhiteSpace(stateSource) ? "daemon" : stateSource,
                 Run = run ?? new AetheriaRuntimeRunCheckpointCommit(),
-                RenderSettings = renderSettings ?? AetheriaRuntimeDaemonRenderSettings.AetheriaDefault
+                RenderSettings = renderSettings ?? AetheriaRuntimeDaemonRenderSettings.AetheriaDefault,
+                SimulationSettings = simulationSettings ?? AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault
             };
         }
     }

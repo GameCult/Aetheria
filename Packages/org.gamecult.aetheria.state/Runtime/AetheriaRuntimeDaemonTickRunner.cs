@@ -32,6 +32,8 @@ namespace GameCult.Aetheria.State.Verse
         public AetheriaRuntimeCatalogSnapshot? Catalog { get; set; }
         public AetheriaRuntimeDaemonRenderSettings RenderSettings { get; set; } =
             AetheriaRuntimeDaemonRenderSettings.AetheriaDefault;
+        public AetheriaRuntimeDaemonSimulationSettings SimulationSettings { get; set; } =
+            AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault;
         public bool BuildPublications { get; set; } = true;
     }
 
@@ -126,10 +128,11 @@ namespace GameCult.Aetheria.State.Verse
                         .ToArray(),
                     operationResult.Intents);
             }
-            AetheriaRuntimeRtsSimulation.Step(
+            AetheriaRuntimeDaemonSimulation.Step(
                 operationResult.Run,
                 operationResult.Intents,
-                options.FixedDeltaSeconds);
+                options.FixedDeltaSeconds,
+                options.SimulationSettings);
             StampZoneSimulationTime(operationResult.Run, options.SimulationTimeSeconds);
 
             var frame = AetheriaRuntimeDaemonFrameDocument.Create(
@@ -139,7 +142,8 @@ namespace GameCult.Aetheria.State.Verse
                 options.FrameId,
                 options.SimulationTimeSeconds,
                 options.FixedDeltaSeconds,
-                renderSettings: options.RenderSettings);
+                renderSettings: options.RenderSettings,
+                simulationSettings: options.SimulationSettings);
             frame.AppliedCommandIds = operationResult.AppliedCommandIds;
             frame.RejectedCommandIds = operationResult.RejectedCommandIds;
             frame.AccountedCommandIds = accountedBeforeTick

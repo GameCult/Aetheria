@@ -6,25 +6,17 @@ using System.Linq;
 
 namespace GameCult.Aetheria.State.Verse
 {
-    public static class AetheriaRuntimeRtsSimulation
+    public static class AetheriaRuntimeDaemonSimulation
     {
         private const string Hull = "hull";
         private const string Shield = "shield";
         private const string Heat = "heat";
-        private const double PawnSpeed = 84.0;
-        private const double RaiderSpeed = 68.0;
-        private const double AttackRange = 145.0;
-        private const double PawnProjectileDamage = 18.0;
-        private const double RaiderProjectileDamage = 12.0;
-        private const double WeaponCooldownSeconds = 0.55;
-        private const double ProjectileSpeed = 330.0;
-        private const double ProjectileRadius = 18.0;
-        private const double ProjectileLifetimeSeconds = 2.2;
 
         public static void Step(
             AetheriaRuntimeRunCheckpointCommit run,
             AetheriaRuntimeDaemonIntentState intents,
-            double deltaSeconds)
+            double deltaSeconds,
+            AetheriaRuntimeDaemonSimulationSettings settings)
         {
             if (run == null || deltaSeconds <= 0)
                 return;
@@ -40,20 +32,21 @@ namespace GameCult.Aetheria.State.Verse
                 if (entities.Length == 0)
                     continue;
 
-                EnsureStats(entities);
-                ApplyMovementIntent(run, entities, intents?.Movement);
+                EnsureStats(entities, settings);
+                ApplyMovementIntent(run, entities, intents?.Movement, settings);
                 StepRaiderAi(entities);
-                StepTargetPursuit(entities);
+                StepTargetPursuit(entities, settings);
                 StepMovement(entities, deltaSeconds);
-                StepCombat(zone, entities, deltaSeconds);
-                RefreshContacts(entities);
+                StepCombat(zone, entities, deltaSeconds, settings);
+                RefreshContacts(entities, settings);
             }
         }
 
         private static void ApplyMovementIntent(
             AetheriaRuntimeRunCheckpointCommit run,
             IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities,
-            AetheriaRuntimeDaemonMovementIntent? movement)
+            AetheriaRuntimeDaemonMovementIntent? movement,
+            AetheriaRuntimeDaemonSimulationSettings settings)
         {
             if (movement == null || !TryParseEntityIndex(movement.ActorEntityKey, out var entityIndex))
                 return;
@@ -64,7 +57,7 @@ namespace GameCult.Aetheria.State.Verse
 
             var magnitude = Clamp01(movement.Magnitude);
             var normalized = Normalize(movement.DirectionX, movement.DirectionY);
-            var speed = ResolveSpeed(entity);
+            var speed = ResolveSpeed(entity, settings);
             entity.VelocityX = normalized.X * speed * magnitude;
             entity.VelocityY = normalized.Y * speed * magnitude;
             if (magnitude <= 0.001)
@@ -92,7 +85,9 @@ namespace GameCult.Aetheria.State.Verse
             }
         }
 
-        private static void StepTargetPursuit(IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities)
+        private static void StepTargetPursuit(
+            IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities,
+            AetheriaRuntimeDaemonSimulationSettings settings)
         {
             var byIndex = entities.ToDictionary(entity => entity.EntityIndex);
             foreach (var entity in entities)
@@ -108,7 +103,7 @@ namespace GameCult.Aetheria.State.Verse
                 var dx = target.PositionX - entity.PositionX;
                 var dy = target.PositionZ - entity.PositionZ;
                 var distance = Math.Sqrt(dx * dx + dy * dy);
-                if (distance <= AttackRange * 0.82)
+                if (distance <= settings.AttackRange * settings.AttackHoldRatio)
                 {
                     entity.VelocityX *= 0.72;
                     entity.VelocityY *= 0.72;
@@ -119,7 +114,7 @@ namespace GameCult.Aetheria.State.Verse
                 if (string.Equals(entity.FactionKey, "raider", StringComparison.OrdinalIgnoreCase))
                 {
                     var direction = Normalize(dx, dy);
-                    var speed = ResolveSpeed(entity);
+                    var speed = ResolveSpeed(entity, settings);
                     entity.VelocityX = direction.X * speed;
                     entity.VelocityY = direction.Y * speed;
                     Face(entity, direction.X, direction.Y);
@@ -148,12 +143,13 @@ namespace GameCult.Aetheria.State.Verse
         private static void StepCombat(
             AetheriaRuntimeZoneSnapshotCommit zone,
             IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities,
-            double deltaSeconds)
+            double deltaSeconds,
+            AetheriaRuntimeDaemonSimulationSettings settings)
         {
             var byIndex = entities.ToDictionary(entity => entity.EntityIndex);
             foreach (var attacker in entities)
             {
-                var weaponState = EnsureDaemonWeaponState(attacker);
+                var weaponState = EnsureDaemonWeaponState(attacker, settings);
                 weaponState.Firing = false;
                 weaponState.CooldownProgress = Math.Max(0, weaponState.CooldownProgress - deltaSeconds);
                 weaponState.CoolingDown = weaponState.CooldownProgress > 0;
@@ -167,7 +163,7 @@ namespace GameCult.Aetheria.State.Verse
                     continue;
                 }
 
-                if (DistanceSq(attacker, target) > AttackRange * AttackRange)
+                if (DistanceSq(attacker, target) > settings.AttackRange * settings.AttackRange)
                     continue;
 
                 Face(attacker, target.PositionX - attacker.PositionX, target.PositionZ - attacker.PositionZ);
@@ -177,11 +173,11 @@ namespace GameCult.Aetheria.State.Verse
                 if (weaponState.CooldownProgress > 0)
                     continue;
 
-                SpawnProjectile(zone, attacker, target);
+                SpawnProjectile(zone, attacker, target, settings);
                 weaponState.Firing = true;
                 weaponState.CoolingDown = true;
-                weaponState.CooldownProgress = WeaponCooldownSeconds;
-                SetStat(attacker, Heat, Math.Min(100, GetStat(attacker, Heat) + ResolveProjectileDamage(attacker) * 0.18));
+                weaponState.CooldownProgress = settings.WeaponCooldownSeconds;
+                SetStat(attacker, Heat, Math.Min(100, GetStat(attacker, Heat) + ResolveProjectileDamage(attacker, settings) * settings.ProjectileHeatScale));
             }
 
             var projectileStep = AetheriaRuntimeYmirProjectilePhysics.Step(zone, entities, deltaSeconds);
@@ -194,7 +190,7 @@ namespace GameCult.Aetheria.State.Verse
 
             foreach (var entity in entities)
             {
-                SetStat(entity, Heat, Math.Max(0, GetStat(entity, Heat) - 8.0 * deltaSeconds));
+                SetStat(entity, Heat, Math.Max(0, GetStat(entity, Heat) - settings.HeatDissipationPerSecond * deltaSeconds));
                 entity.IsActive = IsAlive(entity);
                 if (!entity.IsActive)
                 {
@@ -206,7 +202,8 @@ namespace GameCult.Aetheria.State.Verse
         }
 
         private static AetheriaRuntimeWeaponStateCommit EnsureDaemonWeaponState(
-            AetheriaRuntimeEntitySnapshotCommit entity)
+            AetheriaRuntimeEntitySnapshotCommit entity,
+            AetheriaRuntimeDaemonSimulationSettings settings)
         {
             var states = (entity.WeaponStates ?? Array.Empty<AetheriaRuntimeWeaponStateCommit>()).ToList();
             var state = states.FirstOrDefault(candidate =>
@@ -224,7 +221,7 @@ namespace GameCult.Aetheria.State.Verse
                 BehaviorKind = "ProjectileWeapon",
                 Ammo = -1,
                 BurstRemaining = 0,
-                BurstInterval = WeaponCooldownSeconds,
+                BurstInterval = settings.WeaponCooldownSeconds,
                 LockTargetEntityIndex = -1
             };
             states.Add(state);
@@ -235,7 +232,8 @@ namespace GameCult.Aetheria.State.Verse
         private static void SpawnProjectile(
             AetheriaRuntimeZoneSnapshotCommit zone,
             AetheriaRuntimeEntitySnapshotCommit attacker,
-            AetheriaRuntimeEntitySnapshotCommit target)
+            AetheriaRuntimeEntitySnapshotCommit target,
+            AetheriaRuntimeDaemonSimulationSettings settings)
         {
             var direction = Normalize(target.PositionX - attacker.PositionX, target.PositionZ - attacker.PositionZ);
             if (Math.Abs(direction.X) + Math.Abs(direction.Y) <= 0.0001)
@@ -252,16 +250,16 @@ namespace GameCult.Aetheria.State.Verse
                 SourceEntityIndex = attacker.EntityIndex,
                 TargetEntityIndex = target.EntityIndex,
                 FactionKey = attacker.FactionKey ?? "",
-                PositionX = attacker.PositionX + direction.X * 18.0,
+                PositionX = attacker.PositionX + direction.X * settings.ProjectileSpawnOffset,
                 PositionY = attacker.PositionY,
-                PositionZ = attacker.PositionZ + direction.Y * 18.0,
+                PositionZ = attacker.PositionZ + direction.Y * settings.ProjectileSpawnOffset,
                 DirectionX = direction.X,
                 DirectionY = direction.Y,
-                VelocityX = direction.X * ProjectileSpeed,
-                VelocityY = direction.Y * ProjectileSpeed,
-                Damage = ResolveProjectileDamage(attacker),
-                Radius = ProjectileRadius,
-                LifetimeSeconds = ProjectileLifetimeSeconds,
+                VelocityX = direction.X * settings.ProjectileSpeed,
+                VelocityY = direction.Y * settings.ProjectileSpeed,
+                Damage = ResolveProjectileDamage(attacker, settings),
+                Radius = settings.ProjectileRadius,
+                LifetimeSeconds = settings.ProjectileLifetimeSeconds,
                 Guided = true,
                 Active = true,
                 WeaponKind = IsPlayerOwned(attacker) ? "vanguard-bolt" : "raider-bolt"
@@ -279,12 +277,16 @@ namespace GameCult.Aetheria.State.Verse
             return $"projectile:{zone.ZoneIndex}:{tick}:{attacker.EntityIndex}:{target.EntityIndex}:{ordinal}";
         }
 
-        private static double ResolveProjectileDamage(AetheriaRuntimeEntitySnapshotCommit attacker)
+        private static double ResolveProjectileDamage(
+            AetheriaRuntimeEntitySnapshotCommit attacker,
+            AetheriaRuntimeDaemonSimulationSettings settings)
         {
-            return IsPlayerOwned(attacker) ? PawnProjectileDamage : RaiderProjectileDamage;
+            return IsPlayerOwned(attacker) ? settings.PawnProjectileDamage : settings.RaiderProjectileDamage;
         }
 
-        private static void RefreshContacts(IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities)
+        private static void RefreshContacts(
+            IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities,
+            AetheriaRuntimeDaemonSimulationSettings settings)
         {
             foreach (var observer in entities)
             {
@@ -295,7 +297,7 @@ namespace GameCult.Aetheria.State.Verse
                         continue;
 
                     var distance = Math.Sqrt(DistanceSq(observer, target));
-                    var visible = distance <= ResolveSensorRange(observer);
+                    var visible = distance <= ResolveSensorRange(observer, settings);
                     if (!visible && !Hostile(observer, target))
                         continue;
 
@@ -309,12 +311,14 @@ namespace GameCult.Aetheria.State.Verse
                 }
 
                 observer.Contacts = contacts;
-                observer.Visibility = observer.IsActive ? ResolveSensorRange(observer) : 0;
+                observer.Visibility = observer.IsActive ? ResolveSensorRange(observer, settings) : 0;
                 observer.VisibilitySourceCount = observer.IsActive ? 1 : 0;
             }
         }
 
-        private static void EnsureStats(IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities)
+        private static void EnsureStats(
+            IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities,
+            AetheriaRuntimeDaemonSimulationSettings settings)
         {
             foreach (var entity in entities)
             {
@@ -322,8 +326,8 @@ namespace GameCult.Aetheria.State.Verse
                 {
                     entity.StatGrids = new[]
                     {
-                        Stat(Hull, DefaultHull(entity)),
-                        Stat(Shield, DefaultShield(entity)),
+                        Stat(Hull, DefaultHull(entity, settings)),
+                        Stat(Shield, DefaultShield(entity, settings)),
                         Stat(Heat, 0)
                     };
                 }
@@ -366,33 +370,45 @@ namespace GameCult.Aetheria.State.Verse
                  string.Equals(right.FactionKey, "raider", StringComparison.OrdinalIgnoreCase));
         }
 
-        private static double ResolveSpeed(AetheriaRuntimeEntitySnapshotCommit entity)
+        private static double ResolveSpeed(
+            AetheriaRuntimeEntitySnapshotCommit entity,
+            AetheriaRuntimeDaemonSimulationSettings settings)
         {
             if (string.Equals(entity.Kind, "station", StringComparison.OrdinalIgnoreCase))
                 return 0;
 
             return string.Equals(entity.FactionKey, "raider", StringComparison.OrdinalIgnoreCase)
-                ? RaiderSpeed
-                : PawnSpeed;
+                ? settings.RaiderSpeed
+                : settings.PawnSpeed;
         }
 
-        private static double ResolveSensorRange(AetheriaRuntimeEntitySnapshotCommit entity)
-        {
-            return string.Equals(entity.Kind, "station", StringComparison.OrdinalIgnoreCase) ? 720 : 520;
-        }
-
-        private static double DefaultHull(AetheriaRuntimeEntitySnapshotCommit entity)
+        private static double ResolveSensorRange(
+            AetheriaRuntimeEntitySnapshotCommit entity,
+            AetheriaRuntimeDaemonSimulationSettings settings)
         {
             return string.Equals(entity.Kind, "station", StringComparison.OrdinalIgnoreCase)
-                ? (IsPlayerOwned(entity) ? 420 : 240)
-                : string.Equals(entity.FactionKey, "raider", StringComparison.OrdinalIgnoreCase)
-                    ? 80
-                    : 120;
+                ? settings.StationSensorRange
+                : settings.EntitySensorRange;
         }
 
-        private static double DefaultShield(AetheriaRuntimeEntitySnapshotCommit entity)
+        private static double DefaultHull(
+            AetheriaRuntimeEntitySnapshotCommit entity,
+            AetheriaRuntimeDaemonSimulationSettings settings)
         {
-            return string.Equals(entity.Kind, "station", StringComparison.OrdinalIgnoreCase) ? 120 : 45;
+            return string.Equals(entity.Kind, "station", StringComparison.OrdinalIgnoreCase)
+                ? (IsPlayerOwned(entity) ? settings.PlayerStationHull : settings.HostileStationHull)
+                : string.Equals(entity.FactionKey, "raider", StringComparison.OrdinalIgnoreCase)
+                    ? settings.RaiderEntityHull
+                    : settings.PlayerEntityHull;
+        }
+
+        private static double DefaultShield(
+            AetheriaRuntimeEntitySnapshotCommit entity,
+            AetheriaRuntimeDaemonSimulationSettings settings)
+        {
+            return string.Equals(entity.Kind, "station", StringComparison.OrdinalIgnoreCase)
+                ? settings.StationShield
+                : settings.EntityShield;
         }
 
         private static double GetStat(AetheriaRuntimeEntitySnapshotCommit entity, string name)

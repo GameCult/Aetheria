@@ -21,7 +21,7 @@ try {
         $daemonOutput = dotnet run --project (Join-Path $repoRoot "Aetheria.State.Daemon\Aetheria.State.Daemon.csproj") -- `
             --state $statePath `
             --once `
-            --rts-cultmesh-port 0 2>&1
+            --client-cultmesh-port 0 2>&1
     }
     finally {
         $ErrorActionPreference = $previousErrorActionPreference
@@ -32,12 +32,12 @@ try {
     }
 
     foreach ($line in $daemonOutput) {
-        if ($line -match "Aetheria RTS CultMesh endpoint: (rudp://127\.0\.0\.1:\d+)") {
+        if ($line -match "Aetheria client CultMesh endpoint: (rudp://127\.0\.0\.1:\d+)") {
             $endpoint = $Matches[1]
         }
     }
     if ([string]::IsNullOrWhiteSpace($endpoint)) {
-        Write-Error "Stage 7C verifier failed: one-shot daemon did not report an RTS CultMesh endpoint."
+        Write-Error "Stage 7C verifier failed: one-shot daemon did not report a client CultMesh endpoint."
     }
 
     $smokeScript = Join-Path $tempRoot "stage7c-smoke.mjs"

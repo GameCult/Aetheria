@@ -264,7 +264,8 @@ export type AetheriaRuntimeDaemonFrameDocumentSlot =
   | "duplicateImportedFactIds"
   | "cumulativeImportedFactIds"
   | "cumulativeRejectedImportedFactIds"
-  | "renderSettings";
+  | "renderSettings"
+  | "simulationSettings";
 
 export const aetheriaRuntimeDaemonFrameDocumentSlots: Record<AetheriaRuntimeDaemonFrameDocumentSlot, number> = {
   schema: 0,
@@ -289,6 +290,7 @@ export const aetheriaRuntimeDaemonFrameDocumentSlots: Record<AetheriaRuntimeDaem
   cumulativeImportedFactIds: 19,
   cumulativeRejectedImportedFactIds: 20,
   renderSettings: 21,
+  simulationSettings: 22,
 };
 
 export type AetheriaRuntimeDaemonHealthDocumentSlot =

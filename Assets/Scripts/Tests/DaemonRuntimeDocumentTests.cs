@@ -1925,10 +1925,11 @@ public class DaemonRuntimeDocumentTests
             }
         };
 
-        AetheriaRuntimeRtsSimulation.Step(
+        AetheriaRuntimeDaemonSimulation.Step(
             run,
             new AetheriaRuntimeDaemonIntentState(),
-            0.1);
+            0.1,
+            AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault);
 
         var zone = FindZone(run, 0);
         Assert.IsNotEmpty(zone.Projectiles);
@@ -1959,6 +1960,102 @@ public class DaemonRuntimeDocumentTests
         Assert.IsTrue(objectsViewport.Objects.Any(obj =>
             obj.Kind == "projectile" &&
             obj.IconAsset.AssetKey == "aetheria.asset.sprite.rts.projectile"));
+    }
+
+    [Test]
+    public void DaemonSimulationSettingsDriveAetheriaCombatGameFeel()
+    {
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "simulation-settings-run",
+            CurrentZoneIndex = 0,
+            CurrentEntityKey = "zone.0.entity.0",
+            Zones = new[]
+            {
+                new AetheriaRuntimeZoneSnapshotCommit
+                {
+                    ZoneIndex = 0,
+                    SimulationTimeSeconds = 4,
+                    Entities = new[]
+                    {
+                        new AetheriaRuntimeEntitySnapshotCommit
+                        {
+                            EntityIndex = 0,
+                            Name = "Vanguard",
+                            Kind = "ship",
+                            FactionKey = "player",
+                            IsActive = true,
+                            TargetEntityIndex = 1,
+                            PositionX = 0,
+                            PositionZ = 0
+                        },
+                        new AetheriaRuntimeEntitySnapshotCommit
+                        {
+                            EntityIndex = 1,
+                            Name = "Raider",
+                            Kind = "ship",
+                            FactionKey = "raider",
+                            IsActive = true,
+                            PositionX = 90,
+                            PositionZ = 0
+                        }
+                    }
+                }
+            }
+        };
+        var settings = new AetheriaRuntimeDaemonSimulationSettings(
+            pawnSpeed: 11,
+            raiderSpeed: 7,
+            attackRange: 120,
+            attackHoldRatio: 0.75,
+            pawnProjectileDamage: 33,
+            raiderProjectileDamage: 5,
+            weaponCooldownSeconds: 1.25,
+            projectileSpeed: 444,
+            projectileRadius: 9,
+            projectileLifetimeSeconds: 3.5,
+            projectileSpawnOffset: 21,
+            projectileHeatScale: 0.5,
+            heatDissipationPerSecond: 0,
+            stationSensorRange: 333,
+            entitySensorRange: 222,
+            playerStationHull: 900,
+            hostileStationHull: 300,
+            playerEntityHull: 88,
+            raiderEntityHull: 66,
+            stationShield: 44,
+            entityShield: 22);
+
+        AetheriaRuntimeDaemonSimulation.Step(
+            run,
+            new AetheriaRuntimeDaemonIntentState(),
+            0.1,
+            settings);
+
+        var zone = FindZone(run, 0);
+        var projectile = zone.Projectiles.Single(projectile => projectile.SourceEntityIndex == 0);
+        Assert.AreEqual(21, projectile.PositionX, 0.0001);
+        Assert.AreEqual(444, projectile.VelocityX, 0.0001);
+        Assert.AreEqual(33, projectile.Damage, 0.0001);
+        Assert.AreEqual(9, projectile.Radius, 0.0001);
+        Assert.AreEqual(3.5, projectile.LifetimeSeconds, 0.0001);
+        var weapon = zone.Entities[0].WeaponStates.Single();
+        Assert.AreEqual(1.25, weapon.CooldownProgress, 0.0001);
+        Assert.AreEqual(1.25, weapon.BurstInterval, 0.0001);
+        Assert.AreEqual(88, zone.Entities[0].StatGrids.Single(grid => grid.Name == "hull").Values[0], 0.0001);
+        Assert.AreEqual(66, zone.Entities[1].StatGrids.Single(grid => grid.Name == "hull").Values[0], 0.0001);
+        Assert.AreEqual(222, zone.Entities[0].Visibility, 0.0001);
+
+        var frame = AetheriaRuntimeDaemonFrameDocument.Create(
+            run,
+            "daemon",
+            "session",
+            5,
+            4.1,
+            0.1,
+            simulationSettings: settings);
+        Assert.AreEqual(444, frame.SimulationSettings.ProjectileSpeed, 0.0001);
+        Assert.AreEqual(120, frame.SimulationSettings.AttackRange, 0.0001);
     }
 
     [Test]
