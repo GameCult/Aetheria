@@ -16,7 +16,7 @@ namespace GameCult.Aetheria.State.Verse
     }
 
     /// <summary>
-    /// Legacy Unity XZ viewport adapter. New daemon/client query code should use CultMath.rect in Aetheria XY space.
+    /// Unity XZ viewport boundary for callers that still present the world through Unity axes.
     /// </summary>
     public readonly struct AetheriaRuntimeXzRect
     {

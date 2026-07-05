@@ -18,8 +18,7 @@ game surface, so Unity starts as a lowering surface for the daemon Verse member
 without a hand-wired scene object. Set `AETHERIA_EVE_SURFACE_ID` to mount a
 different daemon or provider surface such as `aetheria.game.tui`,
 `aetheria.daemon.editor`, or `aetheria.daemon.editor.tui`; set
-`AETHERIA_STATE_PATH` to override the selected local `.cc` state file (`AETHERIA_EVE_STATE_PATH`
-still works as a legacy fallback), or disable the automatic mount with
+`AETHERIA_STATE_PATH` to override the selected local `.cc` state file, or disable the automatic mount with
 `AETHERIA_DISABLE_EVE_RUNTIME_BOOTSTRAP=true` or
 `--aetheria-disable-eve-runtime-bootstrap`. Batchmode disables the bootstrap so
 compile and smoke gates do not accidentally create renderer state.

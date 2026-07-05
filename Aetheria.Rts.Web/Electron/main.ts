@@ -26,16 +26,12 @@ const rtsCultMeshPort = Number.parseInt(process.env.AETHERIA_RTS_CULTMESH_PORT ?
 const rtsVerseId = process.env.AETHERIA_RTS_VERSE_ID?.trim() || "aetheria.local";
 const rtsDaemonId = process.env.AETHERIA_RTS_DAEMON_ID?.trim() || "starfire-rts";
 const configuredDaemonUri = process.env.AETHERIA_RTS_CULTMESH_URI?.trim() ?? "";
-const legacyDaemonEndpoint = process.env.AETHERIA_RTS_DAEMON_ENDPOINT?.trim() ?? "";
-const launchLocalDaemon = configuredDaemonUri.length === 0 && legacyDaemonEndpoint.length === 0;
+const launchLocalDaemon = configuredDaemonUri.length === 0;
 const rtsCultMeshUri = configuredDaemonUri || `cultmesh://aetheria/daemon/${encodeURIComponent(rtsDaemonId)}`;
 const rtsCultMeshAdvertiseHost = process.env.AETHERIA_RTS_CULTMESH_ADVERTISE_HOST?.trim() || "127.0.0.1";
-const removedResolvedRudpEndpoint = process.env.AETHERIA_RTS_RESOLVED_RUDP_ENDPOINT?.trim() ?? "";
-const removedPeerCultMeshEndpoints = process.env.AETHERIA_RTS_PEER_CULTMESH_ENDPOINTS?.trim() ?? "";
 const localDaemonRudpEndpoint = launchLocalDaemon ? `rudp://127.0.0.1:${rtsCultMeshPort}` : "";
 const electronSmoke = process.env.AETHERIA_RTS_ELECTRON_SMOKE === "1";
 const electronSmokeResultPath = process.env.AETHERIA_RTS_ELECTRON_SMOKE_RESULT;
-const rendererView = process.env.AETHERIA_RTS_VIEW?.trim() ?? "";
 
 let daemonProcess: ChildProcessWithoutNullStreams | null = null;
 let mainWindow: BrowserWindow | null = null;
@@ -86,16 +82,6 @@ app.whenReady().then(async () => {
   showStartup("Preparing Aetheria RTS", "Building daemon if needed.");
 
   try {
-    if (legacyDaemonEndpoint) {
-      throw new Error("AETHERIA_RTS_DAEMON_ENDPOINT has been removed. Configure AETHERIA_RTS_CULTMESH_URI and let Odin/CultMesh resolve the transport.");
-    }
-    if (removedResolvedRudpEndpoint) {
-      throw new Error("AETHERIA_RTS_RESOLVED_RUDP_ENDPOINT has been removed. Configure AETHERIA_RTS_CULTMESH_URI and let Odin/CultMesh resolve the daemon transport.");
-    }
-    if (removedPeerCultMeshEndpoints) {
-      throw new Error("AETHERIA_RTS_PEER_CULTMESH_ENDPOINTS has been removed. Configure AETHERIA_RTS_CULTMESH_URI and let Odin/CultMesh discover peer endpoints.");
-    }
-
     if (launchLocalDaemon) {
       await ensureDotnetBuild();
       showStartup("Launching Aetheria RTS", "Starting the Aetheria daemon.");
@@ -138,11 +124,7 @@ app.whenReady().then(async () => {
 
     showStartup("Launching Aetheria RTS", "Waiting for the daemon CultMesh frame.");
     await rtsClient.waitForFrame(30000);
-    if (rendererView === "main-menu") {
-      await mainWindow.loadFile(rendererIndex, { hash: "main-menu" });
-    } else {
-      await mainWindow.loadFile(rendererIndex);
-    }
+    await mainWindow.loadFile(rendererIndex);
     if (electronSmoke) {
       const result = await runElectronSmoke(mainWindow);
       writeElectronSmokeResult({ ok: true, result });
@@ -209,7 +191,7 @@ async function runElectronSmoke(window: BrowserWindow): Promise<Record<string, u
         const api = window.aetheriaRts;
         const status = document.querySelector("#status")?.textContent ?? "";
         const bodyMode = document.body.className;
-        const eveHostText = document.querySelector("#main-menu-host")?.textContent ?? "";
+        const eveHostText = document.querySelector("#eve-surface-host")?.textContent ?? "";
         const eveSurface = api ? await api.eveSurface({ recordKey: "eve:surface:aetheria.daemon.game" }) : null;
         const health = api ? await api.daemonHealth() : null;
         const authority = api ? await api.authorityStatus() : null;
@@ -374,8 +356,6 @@ function registerIpc(): void {
       daemonRunning: daemonProcess != null && !daemonProcess.killed,
       daemonMode: launchLocalDaemon ? "local" : "remote",
     }));
-  ipcMain.handle("aetheria-rts:main-menu-surface", async (_event, request) =>
-    requireClient().mainMenuSurface(request));
   ipcMain.handle("aetheria-rts:debug-surface", () => readDebugSurface());
   ipcMain.handle("aetheria-rts:debug-surface-watch", (event, subscriptionId: string) => {
     if (!subscriptionId)

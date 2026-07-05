@@ -21,7 +21,6 @@ namespace GameCult.Aetheria.State.Verse
         public const string RuntimeDaemonEditorSurfaceFileSuffix = ".daemon.editor.eve.cc";
         public const string RuntimeDaemonEditorTuiSurfaceFileSuffix = ".daemon.editor.tui.cc";
         public const string RuntimeStatePathOverrideEnvironmentVariable = "AETHERIA_STATE_PATH";
-        public const string LegacyRuntimeStatePathOverrideEnvironmentVariable = "AETHERIA_EVE_STATE_PATH";
         public const string RuntimeIdOverrideEnvironmentVariable = "AETHERIA_RUNTIME_ID";
         public const string UnityRuntimeIdOverrideEnvironmentVariable = "AETHERIA_UNITY_RUNTIME_ID";
 
@@ -114,11 +113,7 @@ namespace GameCult.Aetheria.State.Verse
 
         public static string ResolveStatePathOverride()
         {
-            var configured = System.Environment.GetEnvironmentVariable(RuntimeStatePathOverrideEnvironmentVariable);
-            if (!string.IsNullOrWhiteSpace(configured))
-                return configured;
-
-            return System.Environment.GetEnvironmentVariable(LegacyRuntimeStatePathOverrideEnvironmentVariable) ?? "";
+            return System.Environment.GetEnvironmentVariable(RuntimeStatePathOverrideEnvironmentVariable) ?? "";
         }
 
         public static string ResolveRuntimeIdOverride()

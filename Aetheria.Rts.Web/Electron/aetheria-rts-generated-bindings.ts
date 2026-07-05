@@ -120,7 +120,6 @@ export const AetheriaRtsIpcChannels = {
   surfaceCatalogIndex: "aetheria-rts:surface-catalog-index",
   eveSurface: "aetheria-rts:eve-surface",
   submitEveCommand: "aetheria-rts:submit-eve-command",
-  mainMenuSurface: "aetheria-rts:main-menu-surface",
   debugSurface: "aetheria-rts:debug-surface",
   debugSurfaceWatch: "aetheria-rts:debug-surface-watch",
   debugSurfaceWatchStop: "aetheria-rts:debug-surface-watch-stop",
@@ -1910,13 +1909,6 @@ export type AetheriaRuntimeViewportFeedSnapshot = {
   assetManifest: AssetManifestDocument;
   receivedAtUtc: string;
   sampleMs: number;
-};
-
-export type AetheriaMenuSurfaceRequest = {
-  surfaceId?: string;
-  inGame?: boolean;
-  canOpenRuntimeInputScreen?: boolean;
-  panelOnly?: boolean;
 };
 
 export type AetheriaEveSurfaceRequest = {

@@ -3,8 +3,8 @@ import { resolve } from "node:path";
 
 const root = resolve(import.meta.dirname, "..");
 const source = resolve(root, "Electron", "preload.cjs");
-const legacyOutput = resolve(root, "electron-dist", "preload.js");
+const previousPreloadOutput = resolve(root, "electron-dist", "preload.js");
 const output = resolve(root, "electron-dist", "preload.cjs");
 
-rmSync(legacyOutput, { force: true });
+rmSync(previousPreloadOutput, { force: true });
 copyFileSync(source, output);

@@ -1,8 +1,8 @@
 :root {
   color-scheme: dark;
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  background: #111417;
+  background: #020909;
   color: #e8edf0;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
 * {
@@ -11,189 +11,49 @@
 
 html,
 body {
+  width: 100%;
   height: 100%;
   margin: 0;
 }
 
 body {
+  -webkit-app-region: drag;
   overflow: hidden;
-}
-
-.main-menu-host {
-  display: none;
-}
-
-body.main-menu-mode {
-  -webkit-app-region: drag;
-  background: #020606;
-}
-
-body.main-menu-mode .shell {
-  display: none;
-}
-
-body.eve-game-mode {
-  -webkit-app-region: drag;
   background: #020909;
 }
 
-body.eve-game-mode .shell {
-  display: none;
-}
-
-body.eve-game-mode .main-menu-host {
+.eve-surface-host {
   -webkit-app-region: no-drag;
   display: block;
+  width: 100%;
   min-height: 100%;
 }
 
-body.eve-game-mode .window-drag-region {
+.status {
+  position: fixed;
+  right: 112px;
+  bottom: 10px;
+  z-index: 30;
+  max-width: min(560px, calc(100vw - 140px));
+  overflow: hidden;
+  color: rgba(219, 250, 255, 0.45);
+  font: 400 11px/1.2 "Ubuntu", system-ui, sans-serif;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.window-drag-region {
   -webkit-app-region: drag;
   position: fixed;
   top: 0;
   right: 0;
   left: 0;
   z-index: 15;
-  display: block;
   height: 44px;
-}
-
-body.eve-game-mode .window-controls {
-  -webkit-app-region: no-drag;
-  position: fixed;
-  top: 8px;
-  right: 10px;
-  z-index: 20;
-  display: flex;
-  gap: 2px;
-}
-
-body.eve-game-mode .window-control {
-  min-width: 0;
-  width: 30px;
-  height: 24px;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  color: rgba(219, 250, 255, 0.5);
-  font-family: "Ubuntu", system-ui, sans-serif;
-  font-size: 12px;
-  line-height: 24px;
-}
-
-body.eve-game-mode .window-control:hover,
-body.eve-game-mode .window-control:focus-visible {
-  background: rgba(219, 250, 255, 0.09);
-  color: rgba(240, 252, 255, 0.95);
-  outline: 0;
-}
-
-body.eve-game-mode .window-control-close:hover,
-body.eve-game-mode .window-control-close:focus-visible {
-  background: rgba(255, 88, 88, 0.28);
-}
-
-body.main-menu-mode .main-menu-host {
-  -webkit-app-region: no-drag;
-  display: block;
-  min-height: 100%;
-  padding: 0;
-  background: transparent;
-}
-
-body.main-menu-mode .eve-surface {
-  width: 100%;
-  min-height: 100vh;
-}
-
-body.main-menu-mode .eve-text-title,
-body.main-menu-mode .eve-text-subtitle {
-  width: 720px;
-  color: rgba(209, 242, 255, 0.96);
-  font-family: "Montserrat", sans-serif;
-  font-weight: 100;
-  line-height: 0.95;
-  text-align: right;
-}
-
-body.main-menu-mode .eve-root-title {
-  margin: 0 0 2px;
-  font-size: 86px;
-}
-
-body.main-menu-mode .eve-root-subtitle {
-  margin: 0 0 36px;
-  font-size: 39px;
-}
-
-body.main-menu-mode .eve-text,
-body.main-menu-mode .eve-metric,
-body.main-menu-mode .eve-control-button {
-  font-family: "Ubuntu", system-ui, sans-serif;
-}
-
-body.main-menu-mode .eve-column {
-  display: flex;
-  flex-direction: column;
-}
-
-body.main-menu-mode .eve-control-button {
-  width: 220px;
-  min-width: 0;
-  height: 32px;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  color: rgba(219, 250, 255, 0.96);
-  font-size: 24px;
-  line-height: 32px;
-  text-align: left;
-  letter-spacing: 0;
-  transition: letter-spacing 160ms ease, color 160ms ease;
-}
-
-body.main-menu-mode .eve-control-button:hover,
-body.main-menu-mode .eve-control-button:focus-visible {
-  background: transparent;
-  color: white;
-  letter-spacing: 2px;
-  outline: 0;
-}
-
-body.main-menu-mode .eve-metric {
-  display: grid;
-  grid-template-columns: 180px minmax(0, 1fr);
-  gap: 8px;
-  width: 520px;
-  margin: 0 0 8px;
-}
-
-body.main-menu-mode .eve-text:not(.eve-text-title):not(.eve-text-subtitle) {
-  width: 520px;
-  margin: 0 0 14px;
-  color: rgba(219, 250, 255, 0.9);
-  font-size: 16px;
-  line-height: 1.25;
 }
 
 .window-controls {
-  display: none;
-}
-
-body.main-menu-mode .window-drag-region {
-  -webkit-app-region: drag;
-  position: fixed;
-  top: 0;
-  right: 0;
-  left: 0;
-  z-index: 15;
-  display: block;
-  height: 44px;
-}
-
-body.main-menu-mode .window-controls {
   -webkit-app-region: no-drag;
   position: fixed;
   top: 8px;
@@ -203,7 +63,7 @@ body.main-menu-mode .window-controls {
   gap: 2px;
 }
 
-body.main-menu-mode .window-control {
+.window-control {
   min-width: 0;
   width: 30px;
   height: 24px;
@@ -217,222 +77,14 @@ body.main-menu-mode .window-control {
   line-height: 24px;
 }
 
-body.main-menu-mode .window-control:hover,
-body.main-menu-mode .window-control:focus-visible {
+.window-control:hover,
+.window-control:focus-visible {
   background: rgba(219, 250, 255, 0.09);
   color: rgba(240, 252, 255, 0.95);
   outline: 0;
 }
 
-body.main-menu-mode .window-control-close:hover,
-body.main-menu-mode .window-control-close:focus-visible {
+.window-control-close:hover,
+.window-control-close:focus-visible {
   background: rgba(255, 88, 88, 0.28);
-}
-
-button {
-  min-width: 36px;
-  height: 32px;
-  border: 1px solid #41505a;
-  border-radius: 6px;
-  background: #20282d;
-  color: #eef6f8;
-  font: inherit;
-}
-
-button:hover {
-  background: #2a353b;
-}
-
-.shell {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 320px;
-  height: 100%;
-  min-height: 0;
-}
-
-.map-pane {
-  display: grid;
-  grid-template-rows: 52px minmax(0, 1fr);
-  min-width: 0;
-  min-height: 0;
-  background: #0f1215;
-}
-
-.topbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 0 16px;
-  border-bottom: 1px solid #263038;
-  background: #171d21;
-}
-
-.topbar span {
-  display: inline-block;
-  margin-left: 12px;
-  color: #9fb0b9;
-  font-size: 13px;
-}
-
-.toolbar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-#zoom-label {
-  min-width: 52px;
-  color: #c5d2d7;
-  text-align: center;
-}
-
-#map {
-  display: block;
-  width: 100%;
-  height: 100%;
-  background: #0d1013;
-  cursor: crosshair;
-}
-
-.side-pane {
-  display: grid;
-  grid-auto-rows: min-content;
-  gap: 18px;
-  min-height: 0;
-  overflow: auto;
-  padding: 18px;
-  border-left: 1px solid #263038;
-  background: #171d21;
-}
-
-.side-pane section {
-  min-width: 0;
-}
-
-h1,
-h2 {
-  margin: 0 0 10px;
-  font-size: 15px;
-  line-height: 1.2;
-}
-
-h1 {
-  font-size: 18px;
-}
-
-dl {
-  display: grid;
-  grid-template-columns: 96px minmax(0, 1fr);
-  gap: 7px 10px;
-  margin: 0;
-  font-size: 13px;
-}
-
-dt {
-  color: #91a4ad;
-}
-
-dd {
-  min-width: 0;
-  margin: 0;
-  overflow-wrap: anywhere;
-}
-
-#controlled-list {
-  display: grid;
-  gap: 8px;
-  font-size: 13px;
-}
-
-.controlled-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 7px 0;
-  border-bottom: 1px solid #263038;
-}
-
-.muted {
-  color: #91a4ad;
-}
-
-.debug-surface-host {
-  min-width: 0;
-}
-
-.debug-surface-host .eve-surface,
-.debug-surface-host .eve-column,
-.debug-surface-host .eve-form {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.debug-surface-host .eve-row {
-  display: flex;
-  min-width: 0;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.debug-surface-host .eve-text-title {
-  color: #d8f7ff;
-  font-size: 16px;
-  font-weight: 700;
-}
-
-.debug-surface-host .eve-text {
-  color: #b8c7cf;
-  font-size: 13px;
-  line-height: 1.35;
-}
-
-.debug-surface-host .eve-metric {
-  display: grid;
-  grid-template-columns: 86px minmax(0, 1fr);
-  gap: 6px 8px;
-  font-size: 12px;
-}
-
-.debug-surface-host .eve-metric dt {
-  color: #91a4ad;
-}
-
-.debug-surface-host .eve-metric dd {
-  min-width: 0;
-  margin: 0;
-  overflow-wrap: anywhere;
-}
-
-.debug-surface-host .eve-control-button {
-  min-width: 82px;
-  height: 28px;
-  border-radius: 4px;
-  font-size: 12px;
-}
-
-@media (max-width: 760px) {
-  .shell {
-    grid-template-columns: 1fr;
-    grid-template-rows: minmax(0, 1fr) 230px;
-  }
-
-  .side-pane {
-    border-top: 1px solid #263038;
-    border-left: 0;
-  }
-
-  .topbar {
-    align-items: flex-start;
-    flex-direction: column;
-    height: auto;
-    padding: 10px 12px;
-  }
-
-  .map-pane {
-    grid-template-rows: auto minmax(0, 1fr);
-  }
 }

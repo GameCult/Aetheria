@@ -343,13 +343,6 @@ export type BodyView = {
 };
 
 
-export type AetheriaMenuSurfaceRequest = {
-  surfaceId?: string;
-  inGame?: boolean;
-  canOpenRuntimeInputScreen?: boolean;
-  panelOnly?: boolean;
-};
-
 export type AetheriaEveSurfaceRequest = {
   surfaceId?: string;
   recordKey?: string;
@@ -424,7 +417,6 @@ export type AetheriaRtsApi = {
   surfaceCatalogIndex(): Promise<CultMeshSurfaceCatalogIndexDiagnostic>;
   eveSurface(request: AetheriaEveSurfaceRequest): Promise<AetheriaMenuSurfaceDocument>;
   submitEveCommand(request: AetheriaEveCommandRequest): Promise<AetheriaRuntimeDaemonCommandReceipt>;
-  mainMenuSurface(request: AetheriaMenuSurfaceRequest): Promise<AetheriaMenuSurfaceDocument>;
   debugSurface(): Promise<AetheriaMenuSurfaceDocument>;
   watchDebugSurface(callback: (surface: AetheriaMenuSurfaceDocument) => void): () => void;
   windowControl(action: "minimize" | "maximize" | "close"): Promise<void>;

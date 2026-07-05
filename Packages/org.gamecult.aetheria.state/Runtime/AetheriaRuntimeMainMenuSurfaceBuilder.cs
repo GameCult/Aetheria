@@ -12,8 +12,8 @@ namespace GameCult.Aetheria.State.Verse
         public const string RootSurfaceId = "aetheria.main_menu.root";
         public const string SettingsSurfaceId = "aetheria.main_menu.settings";
         public const string InputSettingsSurfaceId = "aetheria.main_menu.input_settings";
-        public const string PlayerSettingsShellSurfaceId = "aetheria.main_menu.player_settings";
-        public const string VerseSettingsShellSurfaceId = "aetheria.main_menu.verse_settings";
+        public const string PlayerSettingsSurfaceId = "aetheria.main_menu.player_settings";
+        public const string VerseSettingsSurfaceId = "aetheria.main_menu.verse_settings";
 
         public const string ContinueRun = "aetheria.main_menu.root.continue";
         public const string NewGame = "aetheria.main_menu.root.new_game";
@@ -128,14 +128,14 @@ namespace GameCult.Aetheria.State.Verse
                 version);
         }
 
-        public static AetheriaRuntimeSurfaceDocument BuildPlayerSettingsShell(
+        public static AetheriaRuntimeSurfaceDocument BuildPlayerSettings(
             AetheriaRuntimePlayerSettingsDocument playerSettings,
             string updatedAtUtc,
             long version = 1)
         {
             return WithBackAction(
                 AetheriaRuntimePlayerSettingsSurfaceBuilder.Build(playerSettings, updatedAtUtc, version),
-                AetheriaRuntimeMainMenuCommands.PlayerSettingsShellSurfaceId,
+                AetheriaRuntimeMainMenuCommands.PlayerSettingsSurfaceId,
                 AetheriaRuntimeMainMenuCommands.BackToSettings,
                 "Back");
         }
@@ -295,7 +295,7 @@ namespace GameCult.Aetheria.State.Verse
             if (canOpenRuntimeInputScreen)
             {
                 builder.Text(
-                    "The runtime Eve input screen owns low-level InputSystem rebinding and action-bar input edits. This title shell reports typed player-settings state and hands off to that owner.",
+                    "The runtime Eve input screen owns low-level InputSystem rebinding and action-bar input edits. This panel reports typed player-settings state and hands off to that owner.",
                     "aetheria.mainMenu.input.note");
             }
             else if (inGame)
@@ -307,7 +307,7 @@ namespace GameCult.Aetheria.State.Verse
             else
             {
                 builder.Text(
-                    "This title shell reports the typed player-settings state. Launch a run to open the runtime Eve input screen that owns low-level InputSystem rebinding.",
+                    "This panel reports typed player-settings state. Launch a run to open the runtime Eve input screen that owns low-level InputSystem rebinding.",
                     "aetheria.mainMenu.input.note");
             }
 
@@ -328,13 +328,13 @@ namespace GameCult.Aetheria.State.Verse
             return AetheriaRuntimeSurfaceDocuments.FromPortableSurface(builder.Build());
         }
 
-        public static AetheriaRuntimeSurfaceDocument BuildVerseSettingsShell(
+        public static AetheriaRuntimeSurfaceDocument BuildVerseSettings(
             AetheriaRuntimeSurfaceDocument document,
             long version = 1)
         {
             return WithBackAction(
                 document,
-                AetheriaRuntimeMainMenuCommands.VerseSettingsShellSurfaceId,
+                AetheriaRuntimeMainMenuCommands.VerseSettingsSurfaceId,
                 AetheriaRuntimeMainMenuCommands.BackToSettings,
                 "Back");
         }
@@ -968,10 +968,10 @@ namespace GameCult.Aetheria.State.Verse
                     return TryReadSettings(operationId, out command);
                 case AetheriaRuntimeMainMenuCommands.InputSettingsSurfaceId:
                     return TryReadInputSettings(operationId, out command);
-                case AetheriaRuntimeMainMenuCommands.PlayerSettingsShellSurfaceId:
-                    return TryReadPlayerSettingsShell(operationId, out command);
-                case AetheriaRuntimeMainMenuCommands.VerseSettingsShellSurfaceId:
-                    return TryReadVerseSettingsShell(operationId, out command);
+                case AetheriaRuntimeMainMenuCommands.PlayerSettingsSurfaceId:
+                    return TryReadPlayerSettings(operationId, out command);
+                case AetheriaRuntimeMainMenuCommands.VerseSettingsSurfaceId:
+                    return TryReadVerseSettings(operationId, out command);
                 default:
                     return false;
             }
@@ -1037,7 +1037,7 @@ namespace GameCult.Aetheria.State.Verse
             }
         }
 
-        private static bool TryReadPlayerSettingsShell(string commandText, out AetheriaRuntimeMainMenuCommand command)
+        private static bool TryReadPlayerSettings(string commandText, out AetheriaRuntimeMainMenuCommand command)
         {
             if (string.Equals(commandText, AetheriaRuntimeMainMenuCommands.BackToSettings, StringComparison.Ordinal))
             {
@@ -1055,7 +1055,7 @@ namespace GameCult.Aetheria.State.Verse
             return false;
         }
 
-        private static bool TryReadVerseSettingsShell(string commandText, out AetheriaRuntimeMainMenuCommand command)
+        private static bool TryReadVerseSettings(string commandText, out AetheriaRuntimeMainMenuCommand command)
         {
             if (string.Equals(commandText, AetheriaRuntimeMainMenuCommands.BackToSettings, StringComparison.Ordinal))
             {

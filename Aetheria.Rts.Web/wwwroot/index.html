@@ -8,56 +8,14 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <main class="shell">
-    <section class="map-pane">
-      <header class="topbar">
-        <div>
-          <strong>Aetheria RTS</strong>
-          <span id="status">Connecting</span>
-        </div>
-        <div class="toolbar">
-          <button id="zoom-out" type="button" title="Zoom out">-</button>
-          <output id="zoom-label">1x</output>
-          <button id="zoom-in" type="button" title="Zoom in">+</button>
-          <button id="refresh" type="button" title="Refresh viewport">Refresh</button>
-        </div>
-      </header>
-      <canvas id="map"></canvas>
-    </section>
-    <aside class="side-pane">
-      <section>
-        <h1 id="selection-title">No Selection</h1>
-        <dl id="selection-details"></dl>
-      </section>
-      <section>
-        <h2>Controlled</h2>
-        <div id="controlled-list"></div>
-      </section>
-      <section>
-        <h2>Starbridge</h2>
-        <dl id="starbridge-details"></dl>
-      </section>
-      <section>
-        <h2>Frame</h2>
-        <dl id="frame-details"></dl>
-      </section>
-      <section>
-        <h2>Runtime Surfaces</h2>
-        <dl id="runtime-surface-details"></dl>
-      </section>
-      <section>
-        <h2>CultUI Debug</h2>
-        <div id="debug-surface-host" class="debug-surface-host"></div>
-      </section>
-    </aside>
-  </main>
+  <div id="status" class="status">Connecting</div>
   <div class="window-drag-region" aria-hidden="true"></div>
   <div class="window-controls" aria-label="Window controls">
     <button class="window-control" type="button" data-window-control="minimize" aria-label="Minimize">-</button>
     <button class="window-control" type="button" data-window-control="maximize" aria-label="Maximize">[]</button>
     <button class="window-control window-control-close" type="button" data-window-control="close" aria-label="Close">x</button>
   </div>
-  <section id="main-menu-host" class="main-menu-host" aria-label="Aetheria main menu"></section>
+  <main id="eve-surface-host" class="eve-surface-host" aria-label="Aetheria daemon Eve surface"></main>
   <script type="module" src="app.js"></script>
 </body>
 </html>

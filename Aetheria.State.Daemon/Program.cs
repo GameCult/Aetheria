@@ -407,6 +407,34 @@ static RudpCultNetSchemaServer StartRtsCultMeshHost(
                 options,
                 request,
                 response,
+                AetheriaRuntimeVerseRecordKeys.MainMenuSettingsSurface.ToString(),
+                "main-menu-settings").ConfigureAwait(false);
+            await InjectEveSurfaceSnapshotAsync(
+                node,
+                options,
+                request,
+                response,
+                AetheriaRuntimeVerseRecordKeys.MainMenuInputSettingsSurface.ToString(),
+                "main-menu-input-settings").ConfigureAwait(false);
+            await InjectEveSurfaceSnapshotAsync(
+                node,
+                options,
+                request,
+                response,
+                AetheriaRuntimeVerseRecordKeys.MainMenuPlayerSettingsSurface.ToString(),
+                "main-menu-player-settings").ConfigureAwait(false);
+            await InjectEveSurfaceSnapshotAsync(
+                node,
+                options,
+                request,
+                response,
+                AetheriaRuntimeVerseRecordKeys.MainMenuVerseSettingsSurface.ToString(),
+                "main-menu-verse-settings").ConfigureAwait(false);
+            await InjectEveSurfaceSnapshotAsync(
+                node,
+                options,
+                request,
+                response,
                 AetheriaRuntimeVerseRecordKeys.InventoryPanelSurface.ToString(),
                 "inventory-panel").ConfigureAwait(false);
             await InjectEveSurfaceSnapshotAsync(
@@ -829,6 +857,10 @@ static Task<EveSurfaceDocument?> ReadEveSurfacePublicationAsync(AetheriaStateNod
         "editor" => node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.DaemonEditorSurface).ReadAsync(),
         "editor-tui" => node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.DaemonEditorTuiSurface).ReadAsync(),
         "main-menu" => node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.MainMenuSurface).ReadAsync(),
+        "main-menu-settings" => node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.MainMenuSettingsSurface).ReadAsync(),
+        "main-menu-input-settings" => node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.MainMenuInputSettingsSurface).ReadAsync(),
+        "main-menu-player-settings" => node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.MainMenuPlayerSettingsSurface).ReadAsync(),
+        "main-menu-verse-settings" => node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.MainMenuVerseSettingsSurface).ReadAsync(),
         "inventory-panel" => node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.InventoryPanelSurface).ReadAsync(),
         "inventory-dropdown" => node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.InventoryDropdownSurface).ReadAsync(),
         "map-menu" => node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.MapMenuSurface).ReadAsync(),
@@ -1122,10 +1154,11 @@ static async Task PublishDaemonMenuSurfacesAsync(
 
     var verseHost = await EnsureVerseHostSettingsAsync(node, options, updatedAtUtc)
         .ConfigureAwait(false);
+    var stateBoot = AetheriaRuntimeStateBoot.Inspect(
+        new DirectoryInfo(Path.GetDirectoryName(node.StatePath) ?? "."),
+        node.StatePath);
     var mainMenu = AetheriaRuntimeMainMenuSurfaceBuilder.BuildRoot(
-        AetheriaRuntimeStateBoot.Inspect(
-            new DirectoryInfo(Path.GetDirectoryName(node.StatePath) ?? "."),
-            node.StatePath),
+        stateBoot,
         frame,
         AetheriaRuntimeVerseHostSettingsDocument.FromSnapshot(new AetheriaRuntimeVerseHostSettingsSnapshot(
             verseHost.ServiceId,
@@ -1141,6 +1174,30 @@ static async Task PublishDaemonMenuSurfacesAsync(
         canOpenRuntimeInputScreen: true,
         inGame: true,
         updatedAtUtc);
+    var mainMenuSettings = AetheriaRuntimeMainMenuSurfaceBuilder.BuildSettings(updatedAtUtc);
+    var mainMenuInputSettings = AetheriaRuntimeMainMenuSurfaceBuilder.BuildInputSettings(
+        stateBoot,
+        playerSettings,
+        canOpenRuntimeInputScreen: true,
+        inGame: true,
+        updatedAtUtc);
+    var mainMenuPlayerSettings = AetheriaRuntimeMainMenuSurfaceBuilder.BuildPlayerSettings(
+        playerSettings,
+        updatedAtUtc);
+    var mainMenuVerseSettings = AetheriaRuntimeMainMenuSurfaceBuilder.BuildVerseSettings(
+        AetheriaRuntimeClientTargetSurfaceBuilder.Build(
+            stateBoot,
+            AetheriaRuntimeVerseHostSettingsDocument.FromSnapshot(new AetheriaRuntimeVerseHostSettingsSnapshot(
+                verseHost.ServiceId,
+                verseHost.VerseId,
+                verseHost.RootVerse,
+                verseHost.CanonicalService,
+                verseHost.LocatedService,
+                verseHost.CultMeshAddress,
+                verseHost.Title,
+                verseHost.Visibility,
+                verseHost.LastUpdatedAtUtc)),
+            updatedAtUtc));
     var inventoryPanel = AetheriaRuntimeInventoryPanelSurfaceBuilder.BuildFromDocuments(
         currentEntity,
         stationRefit,
@@ -1164,6 +1221,18 @@ static async Task PublishDaemonMenuSurfacesAsync(
 
     await node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.MainMenuSurface)
         .ReplaceAsync(AetheriaRuntimeSurfaceDocuments.ToPortableSurface(mainMenu))
+        .ConfigureAwait(false);
+    await node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.MainMenuSettingsSurface)
+        .ReplaceAsync(AetheriaRuntimeSurfaceDocuments.ToPortableSurface(mainMenuSettings))
+        .ConfigureAwait(false);
+    await node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.MainMenuInputSettingsSurface)
+        .ReplaceAsync(AetheriaRuntimeSurfaceDocuments.ToPortableSurface(mainMenuInputSettings))
+        .ConfigureAwait(false);
+    await node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.MainMenuPlayerSettingsSurface)
+        .ReplaceAsync(AetheriaRuntimeSurfaceDocuments.ToPortableSurface(mainMenuPlayerSettings))
+        .ConfigureAwait(false);
+    await node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.MainMenuVerseSettingsSurface)
+        .ReplaceAsync(AetheriaRuntimeSurfaceDocuments.ToPortableSurface(mainMenuVerseSettings))
         .ConfigureAwait(false);
     await node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.InventoryPanelSurface)
         .ReplaceAsync(AetheriaRuntimeSurfaceDocuments.ToPortableSurface(inventoryPanel))
@@ -1377,6 +1446,10 @@ static async Task PublishOdinSurfaceAnnouncementsAsync(
         ("aetheria.daemon.editor", "Aetheria Daemon Editor", AetheriaRuntimeVerseRecordKeys.DaemonEditorSurface),
         ("aetheria.daemon.editor.tui", "Aetheria Daemon Editor TUI", AetheriaRuntimeVerseRecordKeys.DaemonEditorTuiSurface),
         ("aetheria.main_menu.root", "Main Menu", AetheriaRuntimeVerseRecordKeys.MainMenuSurface),
+        ("aetheria.main_menu.settings", "Main Menu Settings", AetheriaRuntimeVerseRecordKeys.MainMenuSettingsSurface),
+        ("aetheria.main_menu.input_settings", "Main Menu Input Settings", AetheriaRuntimeVerseRecordKeys.MainMenuInputSettingsSurface),
+        ("aetheria.main_menu.player_settings", "Main Menu Player Settings", AetheriaRuntimeVerseRecordKeys.MainMenuPlayerSettingsSurface),
+        ("aetheria.main_menu.verse_settings", "Main Menu Verse Settings", AetheriaRuntimeVerseRecordKeys.MainMenuVerseSettingsSurface),
         ("aetheria.inventory.panel", "Inventory Panel", AetheriaRuntimeVerseRecordKeys.InventoryPanelSurface),
         ("aetheria.inventory.panel.dropdown", "Inventory Dropdown", AetheriaRuntimeVerseRecordKeys.InventoryDropdownSurface),
         ("aetheria.map.zone_details", "Map Menu", AetheriaRuntimeVerseRecordKeys.MapMenuSurface),

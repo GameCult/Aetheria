@@ -1309,7 +1309,6 @@ static void RequireTypedBehaviorBodyKeys(string root)
             string.Join("; ", missingBehaviorSymbols));
     }
 }
-
 static void RequireNoScopedReactiveFacadeWrappers(string root)
 {
     var providerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityRuntimeClientProvider.cs");
@@ -3758,7 +3757,7 @@ static void RequireMainMenuSettingsCommands(string root)
 
     var requiredMainMenuSymbols = new[]
     {
-        "ResolveMainMenuSurface(AetheriaRuntimeMainMenuCommands.PlayerSettingsShellSurfaceId)",
+        "ResolveMainMenuSurface(AetheriaRuntimeMainMenuCommands.PlayerSettingsSurfaceId)",
         ".RuntimeState(stateBoot, \"unity-main-menu\")",
         ".MainMenuSurface(surfaceId, CanOpenRuntimeInputScreen(), InGame)",
         "AetheriaEveUnitySurfaceHost.RenderRuntime(",
@@ -3853,8 +3852,8 @@ static void RequireMainMenuSettingsShellUsesEveSurface(string root)
         "RenderMenuSurface(",
         "ResolveMainMenuSurface(AetheriaRuntimeMainMenuCommands.SettingsSurfaceId)",
         "ResolveMainMenuSurface(AetheriaRuntimeMainMenuCommands.InputSettingsSurfaceId)",
-        "ResolveMainMenuSurface(AetheriaRuntimeMainMenuCommands.PlayerSettingsShellSurfaceId)",
-        "ResolveMainMenuSurface(AetheriaRuntimeMainMenuCommands.VerseSettingsShellSurfaceId)",
+        "ResolveMainMenuSurface(AetheriaRuntimeMainMenuCommands.PlayerSettingsSurfaceId)",
+        "ResolveMainMenuSurface(AetheriaRuntimeMainMenuCommands.VerseSettingsSurfaceId)",
         ".MainMenuSurface(surfaceId, CanOpenRuntimeInputScreen(), InGame)",
         "HandleSettingsSurfaceCommand(",
         "HandleVerseSettingsSurfaceCommand(",
@@ -3932,8 +3931,8 @@ static void RequireMainMenuSettingsShellUsesEveSurface(string root)
         "public static class AetheriaRuntimeMainMenuCommands",
         "BuildSettings(",
         "BuildInputSettings(",
-        "BuildPlayerSettingsShell(",
-        "BuildVerseSettingsShell(",
+        "BuildPlayerSettings(",
+        "BuildVerseSettings(",
         "private static AetheriaRuntimeSurfaceDocument BuildRoot(",
         "private static AetheriaRuntimeSurfaceDocument BuildInputSettings(",
         "var verseLabel = VerseLabel(verseTitle, verseId)",
@@ -9520,7 +9519,6 @@ static void RequireClientTargetBootAuthority(string root)
         "RuntimeClientTargetFileName = \"aetheria-client.cc\"",
         "RuntimeReplicaDirectoryName = \"Verses\"",
         "RuntimeStatePathOverrideEnvironmentVariable = \"AETHERIA_STATE_PATH\"",
-        "LegacyRuntimeStatePathOverrideEnvironmentVariable = \"AETHERIA_EVE_STATE_PATH\"",
         "GetClientTargetPath",
         "GetReplicaStateFilePath",
         "ResolveStatePathOverride"
@@ -10359,7 +10357,7 @@ static void RequireVerseSettingsShellAndBridge(string root)
         "AetheriaRuntimeMainMenuCommandKind.ShowVerseSettings",
         "ShowVerseSettingsSurface(",
         "HandleVerseSettingsSurfaceCommand(EveSurfaceCommandRequest request)",
-        "ResolveMainMenuSurface(AetheriaRuntimeMainMenuCommands.VerseSettingsShellSurfaceId)",
+        "ResolveMainMenuSurface(AetheriaRuntimeMainMenuCommands.VerseSettingsSurfaceId)",
         ".MainMenuSurface(surfaceId, CanOpenRuntimeInputScreen(), InGame)",
         "AetheriaRuntimeMainMenuSurfaceCommands.TryRead(request, out var command)",
         "AetheriaRuntimeMainMenuCommandKind.ClientTargetCommand",

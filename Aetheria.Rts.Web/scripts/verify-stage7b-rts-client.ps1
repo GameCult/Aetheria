@@ -50,32 +50,21 @@ foreach ($symbol in $required) {
     }
 }
 
-if (-not (Get-Content Client/app.ts -Raw).Contains('window.aetheriaRts.surfaceCatalogIndex()')) {
-    Write-Error "Stage 7B verifier failed: RTS renderer does not read the shared CultMesh surface catalog index."
-}
-
 $rendererText = Get-Content Client/app.ts -Raw
-if (-not $rendererText.Contains('surface.routeHint.kind') -or -not $rendererText.Contains('surface.sources.length')) {
-    Write-Error "Stage 7B verifier failed: RTS renderer does not expose CultMesh surface route and source metadata."
+if (-not $rendererText.Contains('window.aetheriaRts.eveSurface') -or
+    -not $rendererText.Contains('renderEveSurface') -or
+    -not $rendererText.Contains('resolveEveDocument') -or
+    -not $rendererText.Contains('submitEveCommand')) {
+    Write-Error "Stage 7B verifier failed: RTS renderer is not lowering daemon Eve through the generated preload API."
 }
 
-if (-not $rendererText.Contains('latestOperationReceipt') -or
-    -not $rendererText.Contains('receipt.commandId') -or
-    -not $rendererText.Contains('receipt.operationId') -or
-    -not $rendererText.Contains('receipt.accepted') -or
-    -not $rendererText.Contains('receipt.route.kind')) {
-    Write-Error "Stage 7B verifier failed: RTS renderer does not expose CultMesh operation receipt metadata."
-}
-
-if (-not (Get-Content wwwroot/index.html -Raw).Contains('runtime-surface-details')) {
-    Write-Error "Stage 7B verifier failed: RTS renderer does not expose runtime surface diagnostics in the shell."
+$indexText = Get-Content wwwroot/index.html -Raw
+if (-not $indexText.Contains('eve-surface-host')) {
+    Write-Error "Stage 7B verifier failed: RTS renderer is not mounting the daemon Eve surface host."
 }
 
 $transportLayoutPatterns = @(
-    '\[[0-9]+\]',
     'new Array<unknown>',
-    'command\[',
-    'value\[',
     'bounds\[',
     'viewportSchema',
     'commandSchema',
@@ -426,17 +415,20 @@ if ($LASTEXITCODE -gt 1) {
     Write-Error "Stage 7B verifier could not run rg for duplicated renderer contract checks."
 }
 
-$forbiddenRendererPollingHits = & rg -n 'setInterval|objectsViewport\(viewport\)|gravityViewport\(viewport\)' Client/app.ts 2>$null
-if ($LASTEXITCODE -eq 0) {
-    Write-Error "Stage 7B verifier failed: renderer still owns the RTS viewport polling loop instead of subscribing to the generated feed.`n$forbiddenRendererPollingHits"
-}
-if ($LASTEXITCODE -gt 1) {
-    Write-Error "Stage 7B verifier could not run rg for renderer polling checks."
-}
+$requiredEveRendererSymbols = @(
+    'renderEveSurface',
+    'eve-surface-host',
+    'window.aetheriaRts.eveSurface',
+    'resolveEveDocument',
+    'gamecult.eve.surface.v1',
+    'aetheria.daemon.game'
+)
 
-& rg -q 'watchViewportFeed' Client/app.ts
-if ($LASTEXITCODE -ne 0) {
-    Write-Error "Stage 7B verifier failed: renderer is not subscribing to the generated viewport feed."
+foreach ($symbol in $requiredEveRendererSymbols) {
+    & rg -F -q $symbol Client/app.ts wwwroot/index.html
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Stage 7B verifier failed: expected daemon Eve renderer symbol '$symbol' was not found."
+    }
 }
 
 $forbiddenBindingPatterns = @(

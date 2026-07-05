@@ -90,7 +90,7 @@ namespace GameCult.Aetheria.State.Verse
                     AetheriaRuntimeClientTargetCommands.DiscoverVerses),
                 Button(
                     "aetheria.clientTarget.discovery.refresh",
-                    "Refresh Shell",
+                    "Refresh",
                     AetheriaRuntimeClientTargetCommands.Refresh)));
 
             return new AetheriaRuntimeSurfaceDocument(

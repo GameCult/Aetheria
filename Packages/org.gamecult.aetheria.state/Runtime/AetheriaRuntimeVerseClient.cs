@@ -68,6 +68,18 @@ namespace GameCult.Aetheria.State.Verse
         public static CultRecordKey MainMenuSurface { get; } =
             new CultRecordKey("eve:surface:aetheria.main_menu.root");
 
+        public static CultRecordKey MainMenuSettingsSurface { get; } =
+            new CultRecordKey("eve:surface:aetheria.main_menu.settings");
+
+        public static CultRecordKey MainMenuInputSettingsSurface { get; } =
+            new CultRecordKey("eve:surface:aetheria.main_menu.input_settings");
+
+        public static CultRecordKey MainMenuPlayerSettingsSurface { get; } =
+            new CultRecordKey("eve:surface:aetheria.main_menu.player_settings");
+
+        public static CultRecordKey MainMenuVerseSettingsSurface { get; } =
+            new CultRecordKey("eve:surface:aetheria.main_menu.verse_settings");
+
         public static CultRecordKey InventoryPanelSurface { get; } =
             new CultRecordKey("eve:surface:aetheria.inventory.panel");
 
@@ -802,16 +814,16 @@ namespace GameCult.Aetheria.State.Verse
                         updatedAtUtc);
                 }
 
-                if (string.Equals(surfaceId, AetheriaRuntimeMainMenuCommands.PlayerSettingsShellSurfaceId, StringComparison.Ordinal))
+                if (string.Equals(surfaceId, AetheriaRuntimeMainMenuCommands.PlayerSettingsSurfaceId, StringComparison.Ordinal))
                 {
-                    return AetheriaRuntimeMainMenuSurfaceBuilder.BuildPlayerSettingsShell(
+                    return AetheriaRuntimeMainMenuSurfaceBuilder.BuildPlayerSettings(
                         TryCurrentPlayerSettings(),
                         updatedAtUtc);
                 }
 
-                if (string.Equals(surfaceId, AetheriaRuntimeMainMenuCommands.VerseSettingsShellSurfaceId, StringComparison.Ordinal))
+                if (string.Equals(surfaceId, AetheriaRuntimeMainMenuCommands.VerseSettingsSurfaceId, StringComparison.Ordinal))
                 {
-                    return AetheriaRuntimeMainMenuSurfaceBuilder.BuildVerseSettingsShell(
+                    return AetheriaRuntimeMainMenuSurfaceBuilder.BuildVerseSettings(
                         AetheriaRuntimeClientTargetSurfaceBuilder.Build(
                             stateBoot,
                             TryCurrentVerseHostSettings(),

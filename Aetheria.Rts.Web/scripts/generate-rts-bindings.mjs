@@ -43,7 +43,6 @@ const ipcChannels = [
   ["surfaceCatalogIndex", "aetheria-rts:surface-catalog-index"],
   ["eveSurface", "aetheria-rts:eve-surface"],
   ["submitEveCommand", "aetheria-rts:submit-eve-command"],
-  ["mainMenuSurface", "aetheria-rts:main-menu-surface"],
   ["debugSurface", "aetheria-rts:debug-surface"],
   ["debugSurfaceWatch", "aetheria-rts:debug-surface-watch"],
   ["debugSurfaceWatchStop", "aetheria-rts:debug-surface-watch-stop"],
@@ -479,13 +478,6 @@ export type AetheriaRuntimeViewportFeedSnapshot = {
   assetManifest: AssetManifestDocument;
   receivedAtUtc: string;
   sampleMs: number;
-};
-
-export type AetheriaMenuSurfaceRequest = {
-  surfaceId?: string;
-  inGame?: boolean;
-  canOpenRuntimeInputScreen?: boolean;
-  panelOnly?: boolean;
 };
 
 export type AetheriaEveSurfaceRequest = {
@@ -1151,13 +1143,6 @@ export type AetheriaRuntimeViewportFeedSnapshot = {
 
 ${renderRtsDocumentTypes("Viewport")}
 
-export type AetheriaMenuSurfaceRequest = {
-  surfaceId?: string;
-  inGame?: boolean;
-  canOpenRuntimeInputScreen?: boolean;
-  panelOnly?: boolean;
-};
-
 export type AetheriaEveSurfaceRequest = {
   surfaceId?: string;
   recordKey?: string;
@@ -1232,7 +1217,6 @@ export type AetheriaRtsApi = {
   surfaceCatalogIndex(): Promise<CultMeshSurfaceCatalogIndexDiagnostic>;
   eveSurface(request: AetheriaEveSurfaceRequest): Promise<AetheriaMenuSurfaceDocument>;
   submitEveCommand(request: AetheriaEveCommandRequest): Promise<AetheriaRuntimeDaemonCommandReceipt>;
-  mainMenuSurface(request: AetheriaMenuSurfaceRequest): Promise<AetheriaMenuSurfaceDocument>;
   debugSurface(): Promise<AetheriaMenuSurfaceDocument>;
   watchDebugSurface(callback: (surface: AetheriaMenuSurfaceDocument) => void): () => void;
   windowControl(action: "minimize" | "maximize" | "close"): Promise<void>;

@@ -12,7 +12,7 @@
     "check:rts-bindings": "C:\\Progra~1\\nodejs\\node.exe scripts/generate-rts-bindings.mjs --check",
     "verify:stage7b": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\\verify-stage7b-rts-client.ps1",
     "verify:stage7c": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\\verify-stage7c-local-runtime.ps1",
-    "verify:stage7c:electron": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\\verify-stage7c-electron-shell.ps1",
+    "verify:stage7c:electron": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\\verify-stage7c-electron-rts.ps1",
     "verify:stage7d:remote": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\\verify-stage7d-remote-cultmesh.ps1",
     "electron": "npm run build && .\\node_modules\\electron\\dist\\electron.exe .",
     "watch": "C:\\Progra~1\\nodejs\\node.exe ./node_modules/typescript/bin/tsc -p tsconfig.json --watch"

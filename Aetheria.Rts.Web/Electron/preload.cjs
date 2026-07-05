@@ -23,7 +23,6 @@ const channels = {
   surfaceCatalogIndex: "aetheria-rts:surface-catalog-index",
   eveSurface: "aetheria-rts:eve-surface",
   submitEveCommand: "aetheria-rts:submit-eve-command",
-  mainMenuSurface: "aetheria-rts:main-menu-surface",
   debugSurface: "aetheria-rts:debug-surface",
   debugSurfaceWatch: "aetheria-rts:debug-surface-watch",
   debugSurfaceWatchStop: "aetheria-rts:debug-surface-watch-stop",
@@ -63,7 +62,6 @@ contextBridge.exposeInMainWorld("aetheriaRts", {
   surfaceCatalogIndex: () => ipcRenderer.invoke(channels.surfaceCatalogIndex),
   eveSurface: request => ipcRenderer.invoke(channels.eveSurface, request),
   submitEveCommand: request => ipcRenderer.invoke(channels.submitEveCommand, request),
-  mainMenuSurface: request => ipcRenderer.invoke(channels.mainMenuSurface, request),
   debugSurface: () => ipcRenderer.invoke(channels.debugSurface),
   watchDebugSurface: callback => {
     const subscriptionId = `debug-surface-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
