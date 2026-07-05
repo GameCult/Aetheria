@@ -565,6 +565,7 @@ function toBodyView(body: unknown[]): BodyView {
     radius: Math.max(32, num(body[bodySlots.bodyRadiusMultiplier]) * 70),
     isAsteroidBelt: kind.toLowerCase().includes("asteroid"),
     iconAsset: bodyIconAsset(kind),
+    iconSize: num(body[bodySlots.iconSize]),
   };
 }
 

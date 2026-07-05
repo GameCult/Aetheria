@@ -339,6 +339,7 @@ export type BodyView = {
   radius: number;
   isAsteroidBelt: boolean;
   iconAsset: AssetRef;
+  iconSize: number;
 };
 
 

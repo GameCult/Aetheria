@@ -70,6 +70,19 @@ type AetheriaPublicationDocumentSpec = CultMeshPublicationDocumentBinding & {
   readonly remoteRecordKey?: string;
 };
 
+type AetheriaRuntimeRtsQueryExecutors = {
+  mapViewport: (request: ViewportRequest) => Promise<ViewportResponse>;
+  objectsViewport: (request: ViewportRequest) => Promise<ObjectsViewportResponse>;
+  gravityViewport: (request: ViewportRequest) => Promise<GravityViewportResponse>;
+  renderSplatsViewport: (request: ViewportRequest) => Promise<RenderSplatsViewportResponse>;
+  selectedObject: (request: SelectedObjectRequest) => Promise<SelectedObjectDocument>;
+  inventory: (request: SelectedObjectRequest) => Promise<InventoryDocument>;
+  daemonHealth: () => Promise<DaemonHealthDocument>;
+  authorityStatus: () => Promise<AuthorityStatusDocument>;
+  starbridgeSession: () => Promise<StarbridgeSessionDocument>;
+  assetManifest: () => Promise<AssetManifestDocument>;
+};
+
 export type AetheriaCultMeshClientOptions = {
   publicationMode?: "local" | "remote";
   snapshotTimeoutMs?: number;
@@ -211,6 +224,7 @@ export class AetheriaCultMeshClient {
       starbridgeSession: async () => readStarbridgeSessionSummaryDocument(await this.fetchStarbridgeSessionSummaryDocument()),
       assetManifest: async () => readAssetManifestDocument(await this.fetchAssetManifestDocument()),
     };
+    this.queryExecutors = executors;
     this.queries = createAetheriaRuntimeRtsQueryHandles(
       executors,
       this.queryVerse.context.routeHint,
@@ -251,6 +265,7 @@ export class AetheriaCultMeshClient {
 
   private readonly publicationDescription: string;
   private readonly publications: CultMeshDocumentCatalog;
+  private readonly queryExecutors: AetheriaRuntimeRtsQueryExecutors;
   private readonly queries: ReturnType<typeof createAetheriaRuntimeRtsQueryHandles>;
   private readonly documents: AetheriaRuntimeRtsDocuments;
   private readonly operations: AetheriaRuntimeRtsOperationHandles;
@@ -278,27 +293,27 @@ export class AetheriaCultMeshClient {
   }
 
   public async mapViewport(request: ViewportRequest): Promise<ViewportResponse> {
-    return this.aetheria.zone().viewport.within(request);
+    return this.queryExecutors.mapViewport(request);
   }
 
   public async objectsViewport(request: ViewportRequest): Promise<ObjectsViewportResponse> {
-    return this.aetheria.zone().objects.visibleWithin(request);
+    return this.queryExecutors.objectsViewport(request);
   }
 
   public async gravityViewport(request: ViewportRequest): Promise<GravityViewportResponse> {
-    return this.aetheria.zone().gravity.within(request);
+    return this.queryExecutors.gravityViewport(request);
   }
 
   public async renderSplatsViewport(request: ViewportRequest): Promise<RenderSplatsViewportResponse> {
-    return this.aetheria.zone().renderSplats.within(request);
+    return this.queryExecutors.renderSplatsViewport(request);
   }
 
   public async selectedObject(request: SelectedObjectRequest): Promise<SelectedObjectDocument> {
-    return this.aetheria.selectedObject(request.entityIndex);
+    return this.queryExecutors.selectedObject(request);
   }
 
   public async inventory(request: SelectedObjectRequest): Promise<InventoryDocument> {
-    return this.aetheria.inventory(request.entityIndex);
+    return this.queryExecutors.inventory(request);
   }
 
   public async daemonHealth(): Promise<DaemonHealthDocument> {
@@ -533,16 +548,16 @@ export class AetheriaCultMeshClient {
       selectedObject,
       inventory,
     ] = await Promise.all([
-      this.aetheria.zone().gravity.within(request.viewport),
-      this.aetheria.daemon.health(),
-      this.aetheria.daemon.authorityStatus(),
-      this.aetheria.daemon.starbridgeSession(),
-      this.aetheria.daemon.assetManifest(),
+      this.queryExecutors.gravityViewport(request.viewport),
+      this.queryExecutors.daemonHealth(),
+      this.queryExecutors.authorityStatus(),
+      this.queryExecutors.starbridgeSession(),
+      this.queryExecutors.assetManifest(),
       selectedEntityIndex >= 0
-        ? this.aetheria.selectedObject(selectedEntityIndex)
+        ? this.queryExecutors.selectedObject({ entityIndex: selectedEntityIndex })
         : Promise.resolve(null),
       selectedEntityIndex >= 0
-        ? this.aetheria.inventory(selectedEntityIndex)
+        ? this.queryExecutors.inventory({ entityIndex: selectedEntityIndex })
         : Promise.resolve(null),
     ]);
 
@@ -658,14 +673,14 @@ function normalizeDaemonTarget(target: string | AetheriaCultMeshDaemonTarget): R
 
 async function retryTransientPublicationRead<T>(read: () => Promise<T>): Promise<T> {
   let lastError: unknown;
-  for (let attempt = 0; attempt < 8; attempt += 1) {
+  for (let attempt = 0; attempt < 40; attempt += 1) {
     try {
       return await read();
     } catch (error) {
       lastError = error;
       if (!isTransientPublicationReadError(error))
         throw error;
-      await delay(20 + attempt * 15);
+      await delay(25 + attempt * 8);
     }
   }
   throw lastError;
@@ -673,7 +688,10 @@ async function retryTransientPublicationRead<T>(read: () => Promise<T>): Promise
 
 function isTransientPublicationReadError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
-  return message.includes("EBUSY") || message.includes("EPERM") || message.includes("ENOENT");
+  return message.includes("EBUSY") ||
+    message.includes("EPERM") ||
+    message.includes("ENOENT") ||
+    message.includes("did not contain schema");
 }
 
 function buildMainMenuSurface(

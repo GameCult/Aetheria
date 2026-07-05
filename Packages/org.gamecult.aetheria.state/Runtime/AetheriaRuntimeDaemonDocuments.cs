@@ -532,6 +532,10 @@ namespace GameCult.Aetheria.State.Verse
         [Key(20)]
         public IReadOnlyList<string> CumulativeRejectedImportedFactIds { get; set; } = Array.Empty<string>();
 
+        [Key(21)]
+        public AetheriaRuntimeDaemonRenderSettings RenderSettings { get; set; } =
+            AetheriaRuntimeDaemonRenderSettings.AetheriaDefault;
+
         public static AetheriaRuntimeDaemonFrameDocument Create(
             AetheriaRuntimeRunCheckpointCommit run,
             string daemonId,
@@ -540,7 +544,8 @@ namespace GameCult.Aetheria.State.Verse
             double simulationTimeSeconds,
             double fixedDeltaSeconds,
             bool isAuthoritative = true,
-            string stateSource = "daemon")
+            string stateSource = "daemon",
+            AetheriaRuntimeDaemonRenderSettings? renderSettings = null)
         {
             return new AetheriaRuntimeDaemonFrameDocument
             {
@@ -552,7 +557,8 @@ namespace GameCult.Aetheria.State.Verse
                 FixedDeltaSeconds = fixedDeltaSeconds,
                 IsAuthoritative = isAuthoritative,
                 StateSource = string.IsNullOrWhiteSpace(stateSource) ? "daemon" : stateSource,
-                Run = run ?? new AetheriaRuntimeRunCheckpointCommit()
+                Run = run ?? new AetheriaRuntimeRunCheckpointCommit(),
+                RenderSettings = renderSettings ?? AetheriaRuntimeDaemonRenderSettings.AetheriaDefault
             };
         }
     }

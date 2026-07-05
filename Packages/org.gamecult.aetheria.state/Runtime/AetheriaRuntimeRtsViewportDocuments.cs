@@ -1498,5 +1498,8 @@ namespace GameCult.Aetheria.State.Verse
         [Key(9)]
         public AetheriaRuntimeAssetRef IconAsset { get; set; } =
             AetheriaRuntimeAssetRef.Empty(AetheriaRuntimeAssetKinds.Sprite);
+
+        [Key(10)]
+        public double IconSize { get; set; }
     }
 }

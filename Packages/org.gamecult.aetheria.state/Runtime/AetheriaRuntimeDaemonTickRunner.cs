@@ -30,6 +30,8 @@ namespace GameCult.Aetheria.State.Verse
         public AetheriaRuntimeStarbridgeScenarioDocument? StarbridgeScenario { get; set; }
         public AetheriaRuntimeStarbridgeSessionDocument? StarbridgeSession { get; set; }
         public AetheriaRuntimeCatalogSnapshot? Catalog { get; set; }
+        public AetheriaRuntimeDaemonRenderSettings RenderSettings { get; set; } =
+            AetheriaRuntimeDaemonRenderSettings.AetheriaDefault;
         public bool BuildPublications { get; set; } = true;
     }
 
@@ -136,7 +138,8 @@ namespace GameCult.Aetheria.State.Verse
                 options.SessionId,
                 options.FrameId,
                 options.SimulationTimeSeconds,
-                options.FixedDeltaSeconds);
+                options.FixedDeltaSeconds,
+                renderSettings: options.RenderSettings);
             frame.AppliedCommandIds = operationResult.AppliedCommandIds;
             frame.RejectedCommandIds = operationResult.RejectedCommandIds;
             frame.AccountedCommandIds = accountedBeforeTick

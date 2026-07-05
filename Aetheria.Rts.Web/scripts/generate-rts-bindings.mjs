@@ -10,6 +10,8 @@ const sources = [
   resolve(repoRoot, "Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeDaemonDocuments.cs"),
   resolve(repoRoot, "Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeEveCommandDocument.cs"),
   resolve(repoRoot, "Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeAssetDocuments.cs"),
+  resolve(repoRoot, "Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeDaemonRenderQueries.cs"),
+  resolve(repoRoot, "Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeDaemonTradeItemQueries.cs"),
   resolve(repoRoot, "Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeSnapshotDocuments.cs"),
   resolve(repoRoot, "Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeRtsViewportDocuments.cs"),
   resolve(repoRoot, "Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeRenderSplatDocuments.cs"),
@@ -1528,6 +1530,7 @@ export type BodyView = {
   radius: number;
   isAsteroidBelt: boolean;
   iconAsset: AssetRef;
+  iconSize: number;
 };
 `;
 }

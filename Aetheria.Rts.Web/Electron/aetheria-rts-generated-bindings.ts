@@ -254,7 +254,8 @@ export type AetheriaRuntimeDaemonFrameDocumentSlot =
   | "rejectedImportedFactIds"
   | "duplicateImportedFactIds"
   | "cumulativeImportedFactIds"
-  | "cumulativeRejectedImportedFactIds";
+  | "cumulativeRejectedImportedFactIds"
+  | "renderSettings";
 
 export const aetheriaRuntimeDaemonFrameDocumentSlots: Record<AetheriaRuntimeDaemonFrameDocumentSlot, number> = {
   schema: 0,
@@ -278,6 +279,7 @@ export const aetheriaRuntimeDaemonFrameDocumentSlots: Record<AetheriaRuntimeDaem
   duplicateImportedFactIds: 18,
   cumulativeImportedFactIds: 19,
   cumulativeRejectedImportedFactIds: 20,
+  renderSettings: 21,
 };
 
 export type AetheriaRuntimeDaemonHealthDocumentSlot =
@@ -1099,7 +1101,8 @@ export type AetheriaRuntimeBodySnapshotCommitSlot =
   | "gravityWellDepth"
   | "gravityWaveRadius"
   | "gravityWaveDepth"
-  | "gravityWaveSpeed";
+  | "gravityWaveSpeed"
+  | "iconSize";
 
 export const aetheriaRuntimeBodySnapshotCommitSlots: Record<AetheriaRuntimeBodySnapshotCommitSlot, number> = {
   kind: 1,
@@ -1122,6 +1125,7 @@ export const aetheriaRuntimeBodySnapshotCommitSlots: Record<AetheriaRuntimeBodyS
   gravityWaveRadius: 19,
   gravityWaveDepth: 20,
   gravityWaveSpeed: 21,
+  iconSize: 22,
 };
 
 export type AetheriaRuntimeSunVisualCommitSlot =
@@ -1322,7 +1326,8 @@ export type AetheriaRuntimeRtsBodyViewSlot =
   | "radius"
   | "isAsteroidBelt"
   | "body"
-  | "iconAsset";
+  | "iconAsset"
+  | "iconSize";
 
 export const aetheriaRuntimeRtsBodyViewSlots: Record<AetheriaRuntimeRtsBodyViewSlot, number> = {
   bodyKey: 0,
@@ -1335,6 +1340,7 @@ export const aetheriaRuntimeRtsBodyViewSlots: Record<AetheriaRuntimeRtsBodyViewS
   isAsteroidBelt: 7,
   body: 8,
   iconAsset: 9,
+  iconSize: 10,
 };
 
 export type AetheriaRuntimeStarbridgeScenarioDocumentSlot =
@@ -1863,6 +1869,7 @@ export type BodyView = {
   radius: number;
   isAsteroidBelt: boolean;
   iconAsset: AssetRef;
+  iconSize: number;
 };
 
 

@@ -30,7 +30,7 @@ using var discoveryHost = new AetheriaVerseDiscoveryHost(node);
 await EnsureWorldDocumentAsync(node).ConfigureAwait(false);
 await EnsureTradeValuePolicyAsync(node, startedAtUtc).ConfigureAwait(false);
 await node.FlushAsync().ConfigureAwait(false);
-await EnsurePlayableRunDocumentsAsync(node, startedAtUtc).ConfigureAwait(false);
+await EnsurePlayableRunDocumentsAsync(node, options, startedAtUtc).ConfigureAwait(false);
 await EnsureStarbridgeSessionDocumentsAsync(node, options).ConfigureAwait(false);
 var verseHost = await EnsureVerseHostSettingsAsync(node, options, startedAtUtc).ConfigureAwait(false);
 await EnsureVerseAuthorityPolicyAsync(node, options).ConfigureAwait(false);
@@ -129,7 +129,8 @@ static async Task<AetheriaRuntimeDaemonTickResult> TickAsync(
         : currentFrame.SessionId;
     var run = HasPlayableRun(currentFrame?.Run) && HasRtsScenario(currentFrame?.Run)
         ? currentFrame!.Run
-        : await ReadRuntimeRunCheckpointAsync(node).ConfigureAwait(false) ?? new AetheriaRuntimeRunCheckpointCommit();
+        : await ReadRuntimeRunCheckpointAsync(node, options.RenderSettings).ConfigureAwait(false) ?? new AetheriaRuntimeRunCheckpointCommit();
+    ApplyDaemonRenderSettings(run, options.RenderSettings);
 
     var loadoutTemplates = node.Cache
         .GetAll<AetheriaLoadoutTemplate>()
@@ -175,6 +176,7 @@ static async Task<AetheriaRuntimeDaemonTickResult> TickAsync(
             CumulativeAppliedCommandIds = currentFrame?.CumulativeAppliedCommandIds ?? currentFrame?.AppliedCommandIds ?? Array.Empty<string>(),
             CumulativeRejectedCommandIds = currentFrame?.CumulativeRejectedCommandIds ?? currentFrame?.RejectedCommandIds ?? Array.Empty<string>(),
             Catalog = node.RuntimeCatalog().Latest(),
+            RenderSettings = options.RenderSettings,
             StarbridgeScenario = starbridgeScenario,
             StarbridgeSession = starbridgeSession,
             BuildPublications = buildPublications,
@@ -1684,12 +1686,15 @@ static async Task EnsureTradeValuePolicyAsync(AetheriaStateNode node, string now
             now)).ConfigureAwait(false);
 }
 
-static async Task EnsurePlayableRunDocumentsAsync(AetheriaStateNode node, string now)
+static async Task EnsurePlayableRunDocumentsAsync(
+    AetheriaStateNode node,
+    AetheriaDaemonHostOptions options,
+    string now)
 {
     var settings = await node.MutableDocument<AetheriaPlayerSettings>(AetheriaStateNode.PlayerSettingsKey).ReadAsync().ConfigureAwait(false);
     if (!string.IsNullOrWhiteSpace(settings?.ActiveRunKey))
     {
-        var existingRun = await ReadRuntimeRunCheckpointAsync(node).ConfigureAwait(false);
+        var existingRun = await ReadRuntimeRunCheckpointAsync(node, options.RenderSettings).ConfigureAwait(false);
         if (HasPlayableRun(existingRun) && HasRtsScenario(existingRun))
             return;
     }
@@ -1846,7 +1851,9 @@ static async Task EnsureVerseAuthorityPolicyAsync(
         .ConfigureAwait(false);
 }
 
-static async Task<AetheriaRuntimeRunCheckpointCommit?> ReadRuntimeRunCheckpointAsync(AetheriaStateNode node)
+static async Task<AetheriaRuntimeRunCheckpointCommit?> ReadRuntimeRunCheckpointAsync(
+    AetheriaStateNode node,
+    AetheriaRuntimeDaemonRenderSettings renderSettings)
 {
     var settings = await node.MutableDocument<AetheriaPlayerSettings>(AetheriaStateNode.PlayerSettingsKey).ReadAsync().ConfigureAwait(false);
     if (string.IsNullOrWhiteSpace(settings?.ActiveRunKey))
@@ -1864,7 +1871,7 @@ static async Task<AetheriaRuntimeRunCheckpointCommit?> ReadRuntimeRunCheckpointA
         if (zone == null)
             continue;
 
-        zones.Add(await ToRuntimeZoneAsync(node, zone, zoneIndex).ConfigureAwait(false));
+        zones.Add(await ToRuntimeZoneAsync(node, zone, zoneIndex, renderSettings).ConfigureAwait(false));
     }
 
     return new AetheriaRuntimeRunCheckpointCommit
@@ -1893,7 +1900,8 @@ static async Task<AetheriaRuntimeRunCheckpointCommit?> ReadRuntimeRunCheckpointA
 static async Task<AetheriaRuntimeZoneSnapshotCommit> ToRuntimeZoneAsync(
     AetheriaStateNode node,
     AetheriaZoneState zone,
-    int zoneIndex)
+    int zoneIndex,
+    AetheriaRuntimeDaemonRenderSettings renderSettings)
 {
     var entityKeys = zone.EntityKeys ?? Array.Empty<string>();
     var entityIndices = entityKeys
@@ -1919,7 +1927,7 @@ static async Task<AetheriaRuntimeZoneSnapshotCommit> ToRuntimeZoneAsync(
         OwnerFactionIndex = zone.OwnerFactionIndex,
         Entities = entities,
         Orbits = (zone.Orbits ?? Array.Empty<AetheriaOrbitSnapshot>()).Select(ToRuntimeOrbit).ToArray(),
-        Bodies = (zone.Bodies ?? Array.Empty<AetheriaBodySnapshot>()).Select(body => ToRuntimeBody(body, entityIndices)).ToArray(),
+        Bodies = (zone.Bodies ?? Array.Empty<AetheriaBodySnapshot>()).Select(body => ToRuntimeBody(body, entityIndices, renderSettings)).ToArray(),
         DroppedPickups = (zone.DroppedPickups ?? Array.Empty<AetheriaDroppedPickupSnapshot>()).Select(ToRuntimePickup).ToArray(),
         GravityTerrainRadius = zone.GravityTerrainRadius,
         GravityTerrainDepth = zone.GravityTerrainDepth,
@@ -2036,7 +2044,8 @@ static AetheriaRuntimeOrbitSnapshotCommit ToRuntimeOrbit(AetheriaOrbitSnapshot o
 
 static AetheriaRuntimeBodySnapshotCommit ToRuntimeBody(
     AetheriaBodySnapshot body,
-    IReadOnlyDictionary<string, int> entityIndices)
+    IReadOnlyDictionary<string, int> entityIndices,
+    AetheriaRuntimeDaemonRenderSettings renderSettings)
 {
     return new AetheriaRuntimeBodySnapshotCommit
     {
@@ -2106,8 +2115,20 @@ static AetheriaRuntimeBodySnapshotCommit ToRuntimeBody(
         GravityWellDepth = body.GravityWellDepth,
         GravityWaveRadius = body.GravityWaveRadius,
         GravityWaveDepth = body.GravityWaveDepth,
-        GravityWaveSpeed = body.GravityWaveSpeed
+        GravityWaveSpeed = body.GravityWaveSpeed,
+        IconSize = renderSettings.ResolveBodyIconSize(body.Mass)
     };
+}
+
+static void ApplyDaemonRenderSettings(
+    AetheriaRuntimeRunCheckpointCommit run,
+    AetheriaRuntimeDaemonRenderSettings renderSettings)
+{
+    foreach (var zone in run.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>())
+    {
+        foreach (var body in zone.Bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>())
+            body.IconSize = renderSettings.ResolveBodyIconSize(body.Mass);
+    }
 }
 
 static AetheriaRuntimeDroppedPickupCommit ToRuntimePickup(AetheriaDroppedPickupSnapshot pickup)
@@ -2283,6 +2304,8 @@ internal sealed class AetheriaDaemonHostOptions
     public TimeSpan TickInterval { get; init; } = TimeSpan.FromMilliseconds(20);
     public TimeSpan ApiPublicationInterval { get; init; } = TimeSpan.FromSeconds(1);
     public double FixedDeltaSeconds { get; init; } = 0.02;
+    public AetheriaRuntimeDaemonRenderSettings RenderSettings { get; init; } =
+        AetheriaRuntimeDaemonRenderSettings.AetheriaDefault;
     public bool Once { get; init; }
 
     public static AetheriaDaemonHostOptions Parse(IReadOnlyList<string> args)

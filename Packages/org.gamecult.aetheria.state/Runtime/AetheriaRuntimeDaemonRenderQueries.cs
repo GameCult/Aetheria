@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using CultMath;
+using MessagePack;
 
 #nullable enable
 
@@ -42,6 +43,7 @@ namespace GameCult.Aetheria.State.Verse
         }
     }
 
+    [MessagePackObject(true)]
     public readonly struct AetheriaRuntimeExponentialCurve
     {
         public AetheriaRuntimeExponentialCurve(double exponent, double multiplier, double constant)
@@ -61,8 +63,25 @@ namespace GameCult.Aetheria.State.Verse
         }
     }
 
+    [MessagePackObject(true)]
     public readonly struct AetheriaRuntimeDaemonRenderSettings
     {
+        public static AetheriaRuntimeDaemonRenderSettings AetheriaDefault { get; } =
+            new AetheriaRuntimeDaemonRenderSettings(
+                default,
+                default,
+                default,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                bodyIconSizeCurve: new AetheriaRuntimeExponentialCurve(0.15, 10.0, 25.0),
+                bodyRadiusCurve: default,
+                lightRadiusCurve: default,
+                gravityWaveFrequencyCurve: default);
+
         public AetheriaRuntimeDaemonRenderSettings(
             AetheriaRuntimeExponentialCurve temperatureEmissionCurve,
             AetheriaRuntimeExponentialLerp lockIndicatorFrequency,

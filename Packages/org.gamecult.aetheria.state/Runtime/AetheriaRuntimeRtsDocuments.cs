@@ -99,7 +99,7 @@ namespace GameCult.Aetheria.State.Verse
                 ZoneName = string.IsNullOrWhiteSpace(zone.Name) ? $"Zone {zone.ZoneIndex}" : zone.Name,
                 Viewport = normalizedViewport,
                 GravityInfluences = visibleBodies.Select(ToGravityInfluence).ToArray(),
-                Bodies = visibleBodies.Select(ToBodyView).ToArray(),
+                Bodies = visibleBodies.Select(body => ToBodyView(body, frame.RenderSettings)).ToArray(),
                 TerrainRadius = zone.GravityTerrainRadius,
                 TerrainDepth = zone.GravityTerrainDepth,
                 TerrainDepthExponent = zone.GravityTerrainDepthExponent,
@@ -850,7 +850,9 @@ namespace GameCult.Aetheria.State.Verse
             return obj;
         }
 
-        private static AetheriaRuntimeRtsBodyView ToBodyView(AetheriaRuntimeBodySnapshotCommit body)
+        private static AetheriaRuntimeRtsBodyView ToBodyView(
+            AetheriaRuntimeBodySnapshotCommit body,
+            AetheriaRuntimeDaemonRenderSettings renderSettings)
         {
             var view = new AetheriaRuntimeRtsBodyView
             {
@@ -862,7 +864,8 @@ namespace GameCult.Aetheria.State.Verse
                 Y = body.GravityInfluenceCenterZ,
                 Radius = Math.Max(32, body.BodyRadiusMultiplier * 70),
                 IsAsteroidBelt = (body.Kind ?? "").IndexOf("asteroid", StringComparison.OrdinalIgnoreCase) >= 0,
-                Body = body
+                Body = body,
+                IconSize = body.IconSize > 0 ? body.IconSize : renderSettings.ResolveBodyIconSize(body.Mass)
             };
             view.IconAsset = AetheriaRuntimeAssets.ResolveBodyIcon(view);
             return view;
