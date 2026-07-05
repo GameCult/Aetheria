@@ -30,8 +30,8 @@ public class MapRenderer : MonoBehaviour
     public Image InfluenceDisplay;
     public AetheriaRenderSplatLayerRenderer SplatLayerRenderer;
     public AetheriaDaemonRenderAssetCatalog AssetCatalog;
-    public RectTransform RtsIconRoot;
-    public RawImage RtsIconPrototype;
+    public RectTransform MapIconRoot;
+    public RawImage MapIconPrototype;
     public float Scale;
     public float2 Position;
     private AetheriaClientState _runtimeState;
@@ -43,7 +43,7 @@ public class MapRenderer : MonoBehaviour
     private bool _init;
     private AetheriaUnityGameViewportDocuments _viewportDocuments;
     private float _nextViewportRefreshTime;
-    private readonly List<RawImage> _rtsIconPool = new List<RawImage>();
+    private readonly List<RawImage> _mapIconPool = new List<RawImage>();
     
     void Start()
     {
@@ -61,8 +61,8 @@ public class MapRenderer : MonoBehaviour
             OverlayDisplay.gameObject.SetActive(false);
         if (GravityBackdropMaterial != null && GravityDisplay != null)
             GravityDisplay.material = GravityBackdropMaterial;
-        EnsureRtsIconRoot();
-        SetRtsIconsActive(true);
+        EnsureMapIconRoot();
+        SetMapIconsActive(true);
         RefreshViewportDocuments(force: true);
         
         // If hiding minimap asteroids, turn them back on for the map screen
@@ -83,7 +83,7 @@ public class MapRenderer : MonoBehaviour
         SetCameraActive(InfluenceCamera, false);
         if (OverlayDisplay != null)
             OverlayDisplay.gameObject.SetActive(false);
-        SetRtsIconsActive(false);
+        SetMapIconsActive(false);
         
         // If hiding minimap asteroids, turn them back off when leaving the map screen
         if (!ResolveShowAsteroidsInMinimap())
@@ -113,7 +113,7 @@ public class MapRenderer : MonoBehaviour
         GravityDisplay.material.SetFloat("_Scale", Scale / 2);
         RefreshViewportDocuments(force: false);
         RenderSplatLayers();
-        RenderRtsIcons();
+        RenderMapIcons();
     }
 
     private void RefreshViewportDocuments(bool force)
@@ -137,7 +137,7 @@ public class MapRenderer : MonoBehaviour
         }
         catch (Exception ex)
         {
-            Debug.LogWarning($"Failed to read Aetheria map viewport from local Verse state: {ex.Message}");
+            Debug.LogWarning($"Failed to read Aetheria map viewport from Verse state: {ex.Message}");
             Title.text = "Zone: Unknown";
         }
     }
@@ -177,49 +177,49 @@ public class MapRenderer : MonoBehaviour
             camera.gameObject.SetActive(active);
     }
 
-    private void RenderRtsIcons()
+    private void RenderMapIcons()
     {
-        EnsureRtsIconRoot();
-        if (RtsIconRoot == null)
+        EnsureMapIconRoot();
+        if (MapIconRoot == null)
             return;
 
         var objects = _viewportDocuments?.CurrentObjectsViewport?.Objects ?? Array.Empty<AetheriaRuntimeViewportObject>();
         for (var i = 0; i < objects.Count; i++)
         {
-            var icon = ResolveRtsIcon(i);
-            ApplyRtsIcon(icon, objects[i]);
+            var icon = ResolveMapIcon(i);
+            ApplyMapIcon(icon, objects[i]);
         }
 
-        for (var i = objects.Count; i < _rtsIconPool.Count; i++)
-            if (_rtsIconPool[i] != null)
-                _rtsIconPool[i].gameObject.SetActive(false);
+        for (var i = objects.Count; i < _mapIconPool.Count; i++)
+            if (_mapIconPool[i] != null)
+                _mapIconPool[i].gameObject.SetActive(false);
     }
 
-    private RawImage ResolveRtsIcon(int index)
+    private RawImage ResolveMapIcon(int index)
     {
-        while (_rtsIconPool.Count <= index)
+        while (_mapIconPool.Count <= index)
         {
             RawImage icon;
-            if (RtsIconPrototype != null)
+            if (MapIconPrototype != null)
             {
-                icon = Instantiate(RtsIconPrototype, RtsIconRoot);
+                icon = Instantiate(MapIconPrototype, MapIconRoot);
             }
             else
             {
-                var go = new GameObject("RTS Map Icon", typeof(RectTransform), typeof(CanvasRenderer), typeof(RawImage));
-                go.transform.SetParent(RtsIconRoot, false);
+                var go = new GameObject("Map Viewport Icon", typeof(RectTransform), typeof(CanvasRenderer), typeof(RawImage));
+                go.transform.SetParent(MapIconRoot, false);
                 icon = go.GetComponent<RawImage>();
                 icon.texture = Texture2D.whiteTexture;
                 icon.raycastTarget = false;
             }
 
-            _rtsIconPool.Add(icon);
+            _mapIconPool.Add(icon);
         }
 
-        return _rtsIconPool[index];
+        return _mapIconPool[index];
     }
 
-    private void ApplyRtsIcon(RawImage icon, AetheriaRuntimeViewportObject obj)
+    private void ApplyMapIcon(RawImage icon, AetheriaRuntimeViewportObject obj)
     {
         if (icon == null || obj == null)
             return;
@@ -249,7 +249,7 @@ public class MapRenderer : MonoBehaviour
         var maxY = Math.Max(viewport.MinY, viewport.MaxY);
         var width = Math.Max(0.0001, maxX - minX);
         var height = Math.Max(0.0001, maxY - minY);
-        var rootRect = RtsIconRoot != null ? RtsIconRoot.rect : new Rect(0, 0, _size.x, _size.y);
+        var rootRect = MapIconRoot != null ? MapIconRoot.rect : new Rect(0, 0, _size.x, _size.y);
         var u = (float)((worldX - minX) / width);
         var v = (float)((worldY - minY) / height);
         return new Vector2(
@@ -266,28 +266,28 @@ public class MapRenderer : MonoBehaviour
         return color;
     }
 
-    private void EnsureRtsIconRoot()
+    private void EnsureMapIconRoot()
     {
-        if (RtsIconRoot != null)
+        if (MapIconRoot != null)
             return;
 
         var parent = GravityDisplay != null
             ? GravityDisplay.transform.parent
             : transform;
-        var go = new GameObject("RTS Command Icons", typeof(RectTransform));
+        var go = new GameObject("Map Viewport Icons", typeof(RectTransform));
         go.transform.SetParent(parent, false);
-        RtsIconRoot = go.GetComponent<RectTransform>();
-        RtsIconRoot.anchorMin = Vector2.zero;
-        RtsIconRoot.anchorMax = Vector2.one;
-        RtsIconRoot.offsetMin = Vector2.zero;
-        RtsIconRoot.offsetMax = Vector2.zero;
-        RtsIconRoot.SetAsLastSibling();
+        MapIconRoot = go.GetComponent<RectTransform>();
+        MapIconRoot.anchorMin = Vector2.zero;
+        MapIconRoot.anchorMax = Vector2.one;
+        MapIconRoot.offsetMin = Vector2.zero;
+        MapIconRoot.offsetMax = Vector2.zero;
+        MapIconRoot.SetAsLastSibling();
     }
 
-    private void SetRtsIconsActive(bool active)
+    private void SetMapIconsActive(bool active)
     {
-        if (RtsIconRoot != null)
-            RtsIconRoot.gameObject.SetActive(active);
+        if (MapIconRoot != null)
+            MapIconRoot.gameObject.SetActive(active);
     }
 
     private AetheriaRuntimeViewportBounds ResolveViewportBounds()
@@ -314,7 +314,7 @@ public class MapRenderer : MonoBehaviour
         }
         catch (Exception ex)
         {
-            Debug.LogWarning($"Failed to read Aetheria map graphics settings from local Verse state: {ex.Message}");
+            Debug.LogWarning($"Failed to read Aetheria map graphics settings from Verse state: {ex.Message}");
             return false;
         }
     }

@@ -52,6 +52,10 @@ Assert-NotContains $mapRenderer "ObjectsViewportAsync" "MapRenderer must not use
 Assert-NotContains $mapRenderer "GravityViewportAsync" "MapRenderer must not use the transitional gravity viewport helper."
 Assert-NotContains $mapRenderer "PlayerSettingsAsync" "MapRenderer must not use the transitional player settings helper."
 Assert-NotContains $mapRenderer "ActionGameManager.RuntimePlayerSettings" "MapRenderer must not read manager-global player settings."
+Assert-NotContains $mapRenderer "RtsIcon" "MapRenderer viewport icon presentation must not keep RTS-specific vocabulary."
+Assert-NotContains $mapRenderer "RTS Map Icon" "MapRenderer viewport icon objects must not be RTS-branded."
+Assert-NotContains $mapRenderer "RTS Command Icons" "MapRenderer viewport icon root must not be RTS-branded."
+Assert-NotContains $mapRenderer "local Verse state" "MapRenderer warnings must not imply a local-file Verse shortcut."
 
 $sectorRenderer = Read-Text "Assets\Scripts\UI\Menu\SectorRenderer.cs"
 Assert-Contains $sectorRenderer "AetheriaUnityRuntimeClientProvider.RuntimeState(""unity-sector-renderer"")" "SectorRenderer must keep a managed typed state handle."

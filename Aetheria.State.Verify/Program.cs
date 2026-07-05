@@ -8007,7 +8007,11 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         ".ObserveObjects(viewport)",
         ".ObserveRenderSplats(viewport)",
         ".ObservePlayer()",
-        "_playerSettings?.Dispose()"
+        "_playerSettings?.Dispose()",
+        "RtsIcon",
+        "RTS Map Icon",
+        "RTS Command Icons",
+        "local Verse state"
     };
     var mapRendererRawDocumentHits = forbiddenMapRendererSharedDocumentSymbols
         .Where(symbol => mapRenderer.Contains(symbol, StringComparison.Ordinal))
