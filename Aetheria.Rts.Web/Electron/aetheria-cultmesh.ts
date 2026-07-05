@@ -452,7 +452,7 @@ export class AetheriaCultMeshClient {
   }
 
   private fetchPublicationDocument(schemaId: string): Promise<unknown> {
-    return this.publications.latest({ schemaId }, this.queryContext());
+    return retryTransientPublicationRead(() => this.publications.latest({ schemaId }, this.queryContext()));
   }
 
   private createPublicationSource(
@@ -656,6 +656,26 @@ function normalizeDaemonTarget(target: string | AetheriaCultMeshDaemonTarget): R
   };
 }
 
+async function retryTransientPublicationRead<T>(read: () => Promise<T>): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    try {
+      return await read();
+    } catch (error) {
+      lastError = error;
+      if (!isTransientPublicationReadError(error))
+        throw error;
+      await delay(20 + attempt * 15);
+    }
+  }
+  throw lastError;
+}
+
+function isTransientPublicationReadError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.includes("EBUSY") || message.includes("EPERM") || message.includes("ENOENT");
+}
+
 function buildMainMenuSurface(
   surfaceId: string,
   canOpenRuntimeInputScreen: boolean,
@@ -715,7 +735,7 @@ function buildMainMenuSurface(
   ];
   return surfaceDocument(
     "aetheria.main_menu.root",
-    "Aetheria Terminus",
+    "Aetheria Starbridge",
     updatedAtUtc,
     [
       ...(!inGame ? [command("aetheria.main_menu.root.continue", "Continue")] : []),
@@ -743,7 +763,7 @@ function buildMainMenuSurface(
         color: "rgba(232, 250, 255, 0.94)",
         whiteSpace: "nowrap",
       }),
-      text("aetheria.main_menu.root.subtitle", "TERMINUS", "text.subtitle", { margin: "0 0 0.35rem 16.8rem" }, {
+      text("aetheria.main_menu.root.subtitle", "STARBRIDGE", "text.subtitle", { margin: "0 0 0.35rem 16.8rem" }, {
         font: "100 2.6rem/1 Montserrat, sans-serif",
         color: "rgba(232, 250, 255, 0.9)",
         whiteSpace: "nowrap",

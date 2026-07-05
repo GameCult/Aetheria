@@ -753,25 +753,25 @@ function toAssetManifestEntry(entry: unknown[]): AssetManifestDocument["assets"]
 
 function entityIconAsset(kind: string, controlled: boolean): AssetRef {
   if (controlled)
-    return spriteAsset("map.entity.player", "Sprites/Map/player");
+    return spriteAsset("map.entity.player", "Sprites/Icons/Stroked/Ship");
 
   const normalized = kind.trim().toLowerCase();
   if (normalized.includes("station"))
-    return spriteAsset("map.entity.station", "Sprites/Map/station");
+    return spriteAsset("map.entity.station", "Sprites/Icons/station1");
   if (normalized.includes("orbital"))
-    return spriteAsset("map.entity.orbital", "Sprites/Map/orbital");
+    return spriteAsset("map.entity.orbital", "Sprites/Icons/Stroked/orbital");
 
-  return spriteAsset("map.entity.ship", "Sprites/Map/ship");
+  return spriteAsset("map.entity.ship", "Sprites/Icons/Stroked/Ship");
 }
 
 function bodyIconAsset(kind: string): AssetRef {
   const normalized = kind.trim().toLowerCase();
   if (normalized.includes("sun") || normalized.includes("star"))
-    return spriteAsset("map.body.sun", "Sprites/Map/sun");
+    return spriteAsset("map.body.sun", "Sprites/Icons/Stroked/Sun");
   if (normalized.includes("asteroid"))
-    return spriteAsset("map.body.asteroid", "Sprites/Map/planet");
+    return spriteAsset("map.body.asteroid", "Sprites/Icons/Stroked/Planet");
 
-  return spriteAsset("map.body.planet", "Sprites/Map/planet");
+  return spriteAsset("map.body.planet", "Sprites/Icons/Stroked/Planet");
 }
 
 function itemIconAsset(itemKey: string): AssetRef {

@@ -123,6 +123,7 @@ function renderMainMenuSurface(surface: AetheriaMenuSurfaceDocument): void {
 
   renderEveSurface(surface, host, {
     body: document.body,
+    assetUrlResolver: resolveAetheriaAssetUrl,
     clientId: "aetheria.rts.electron",
     commandSink: intent => handleMenuCommand(intent.command, surface),
     source: "Aetheria Electron",
@@ -155,6 +156,7 @@ async function showDaemonEveSurface(): Promise<void> {
         latestEveSurfaceKey = surfaceKey;
         renderEveSurface(surface, host, {
           body: document.body,
+          assetUrlResolver: resolveAetheriaAssetUrl,
           clientId: "aetheria.rts.electron",
           commandSink: intent => submitEveCommand(intent),
           documentResolver: resolveEveDocument,
@@ -226,6 +228,17 @@ function numberProp(value: unknown, fallback: number): number {
   return fallback;
 }
 
+function resolveAetheriaAssetUrl(uri: string): string {
+  if (!uri.startsWith("resources://"))
+    return uri;
+
+  const resourcePath = uri.slice("resources://".length).replace(/^\/+/, "");
+  const filePath = resourcePath.match(/\.[a-z0-9]+$/i)
+    ? resourcePath
+    : `${resourcePath}.png`;
+  return new URL(`../../Assets/Resources/${filePath}`, document.baseURI).href;
+}
+
 async function startDebugSurface(): Promise<void> {
   try {
     renderDebugSurface(await window.aetheriaRts.debugSurface());
@@ -238,6 +251,7 @@ async function startDebugSurface(): Promise<void> {
 function renderDebugSurface(surface: AetheriaMenuSurfaceDocument): void {
   renderEveSurface(surface, debugSurfaceHost, {
     body: document.body,
+    assetUrlResolver: resolveAetheriaAssetUrl,
     clientId: "aetheria.rts.electron",
     commandSink: intent => handleMenuCommand(intent.command, surface),
     source: "CultUI Debug",
@@ -258,7 +272,7 @@ function wireWindowControls(): void {
   });
 }
 
-function handleMenuCommand(commandOrIntent: string | EveCommandIntent, surface: AetheriaMenuSurfaceDocument): void {
+function handleMenuCommand(commandOrIntent: string | EveCommandIntent, surface?: AetheriaMenuSurfaceDocument): void {
   const command = typeof commandOrIntent === "string" ? commandOrIntent : commandOrIntent.command;
   switch (command) {
     case "aetheria.main_menu.root.show_settings":
@@ -274,12 +288,17 @@ function handleMenuCommand(commandOrIntent: string | EveCommandIntent, surface: 
       void showMainMenu("aetheria.main_menu.root");
       return;
     default:
-      setStatus(`${surface.title}: ${command || "no command"}`);
+      setStatus(`${surface?.title ?? "Aetheria Starbridge"}: ${command || "no command"}`);
       return;
   }
 }
 
 async function submitEveCommand(intent: EveCommandIntent): Promise<void> {
+  if (intent.command.startsWith("aetheria.main_menu.")) {
+    handleMenuCommand(intent.command);
+    return;
+  }
+
   try {
     const receipt = await window.aetheriaRts.submitEveCommand({
       providerId: intent.providerId,

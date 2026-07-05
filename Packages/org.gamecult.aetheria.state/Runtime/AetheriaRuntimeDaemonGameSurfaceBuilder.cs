@@ -31,6 +31,7 @@ namespace GameCult.Aetheria.State.Verse
             var surfaceChildren = new List<AetheriaRuntimeSurfaceComponent>
             {
                 GravityFieldSurface("aetheria.daemon.game.field"),
+                MainMenuOverlay("aetheria.daemon.game.main_menu"),
                 Node(
                     "aetheria.daemon.game.frame",
                     "card",
@@ -112,6 +113,13 @@ namespace GameCult.Aetheria.State.Verse
                         AetheriaRuntimeDaemonSurfaceCommandCatalog.CommandName(entry.Kind),
                         AetheriaRuntimeDaemonSurfaceCommandCatalog.Label(entry.Kind),
                         "cultmesh"))
+                    .Concat(new[]
+                    {
+                        new AetheriaRuntimeSurfaceCommandTemplate("aetheria.main_menu.root.continue", "Continue", "cultmesh"),
+                        new AetheriaRuntimeSurfaceCommandTemplate("aetheria.main_menu.root.new_game", "New Game", "cultmesh"),
+                        new AetheriaRuntimeSurfaceCommandTemplate("aetheria.main_menu.root.show_settings", "Settings", "cultmesh"),
+                        new AetheriaRuntimeSurfaceCommandTemplate("aetheria.main_menu.root.quit", "Quit", "cultmesh")
+                    })
                     .ToArray());
         }
 
@@ -355,6 +363,62 @@ namespace GameCult.Aetheria.State.Verse
                 null);
         }
 
+        private static AetheriaRuntimeSurfaceComponent MainMenuOverlay(string id)
+        {
+            return new AetheriaRuntimeSurfaceComponent(
+                id,
+                "column",
+                new Dictionary<string, string>(StringComparer.Ordinal),
+                new[]
+                {
+                    TextNode(
+                        $"{id}.title",
+                        "AETHERIA",
+                        "text.title",
+                        Layout(("margin", "0 0 -1.35rem 0")),
+                        new Dictionary<string, string>
+                        {
+                            ["font"] = "100 5.3rem/0.98 Montserrat, sans-serif",
+                            ["color"] = "rgba(232, 250, 255, 0.94)",
+                            ["whiteSpace"] = "nowrap"
+                        }),
+                    TextNode(
+                        $"{id}.subtitle",
+                        "STARBRIDGE",
+                        "text.subtitle",
+                        Layout(("margin", "0 0 1.15rem 15.2rem")),
+                        new Dictionary<string, string>
+                        {
+                            ["font"] = "100 2.25rem/1 Montserrat, sans-serif",
+                            ["color"] = "rgba(232, 250, 255, 0.88)",
+                            ["whiteSpace"] = "nowrap"
+                        }),
+                    Node(
+                        $"{id}.actions",
+                        "column",
+                        Array.Empty<(string Key, string Value)>(),
+                        MenuButton($"{id}.continue", "Continue", "aetheria.main_menu.root.continue"),
+                        MenuButton($"{id}.new_game", "New Game", "aetheria.main_menu.root.new_game"),
+                        MenuButton($"{id}.settings", "Settings", "aetheria.main_menu.root.show_settings"),
+                        MenuButton($"{id}.quit", "Quit", "aetheria.main_menu.root.quit"))
+                },
+                AetheriaRuntimeSurfaceStateBindings.FromProps(new Dictionary<string, string>(StringComparer.Ordinal)),
+                Array.Empty<AetheriaRuntimeEmbeddedDocumentSlot>(),
+                Layout(
+                    ("position", "absolute"),
+                    ("left", "6.75rem"),
+                    ("top", "5.75rem"),
+                    ("width", "34rem"),
+                    ("gap", "1rem"),
+                    ("alignItems", "flex-start"),
+                    ("zIndex", "4"),
+                    ("pointerEvents", "auto")),
+                new Dictionary<string, string>
+                {
+                    ["color"] = "#e9fbff"
+                });
+        }
+
         private static AetheriaRuntimeRtsViewportBounds DefaultViewport()
         {
             return new AetheriaRuntimeRtsViewportBounds
@@ -412,6 +476,41 @@ namespace GameCult.Aetheria.State.Verse
         private static AetheriaRuntimeSurfaceComponent Text(string id, string value)
         {
             return Node(id, "text", new[] { ("value", value ?? "") });
+        }
+
+        private static AetheriaRuntimeSurfaceComponent TextNode(
+            string id,
+            string value,
+            string role,
+            IReadOnlyDictionary<string, string> layout,
+            IReadOnlyDictionary<string, string> style)
+        {
+            var props = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["value"] = value ?? "",
+                ["role"] = role ?? "text"
+            };
+            return new AetheriaRuntimeSurfaceComponent(
+                id,
+                "text",
+                props,
+                Array.Empty<AetheriaRuntimeSurfaceComponent>(),
+                AetheriaRuntimeSurfaceStateBindings.FromProps(props),
+                Array.Empty<AetheriaRuntimeEmbeddedDocumentSlot>(),
+                layout,
+                style);
+        }
+
+        private static AetheriaRuntimeSurfaceComponent MenuButton(string id, string label, string command)
+        {
+            return Node(
+                id,
+                "control.button",
+                new[]
+                {
+                    ("label", label),
+                    ("command", command)
+                });
         }
 
         private static AetheriaRuntimeSurfaceComponent CommandButton(
