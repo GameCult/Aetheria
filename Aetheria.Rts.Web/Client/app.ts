@@ -126,6 +126,7 @@ function renderMainMenuSurface(surface: AetheriaMenuSurfaceDocument): void {
     assetUrlResolver: resolveAetheriaAssetUrl,
     clientId: "aetheria.rts.electron",
     commandSink: intent => handleMenuCommand(intent.command, surface),
+    documentResolver: resolveEveDocument,
     source: "Aetheria Electron",
     statusElement: statusEl,
   });
@@ -181,7 +182,21 @@ async function showDaemonEveSurface(): Promise<void> {
 async function resolveEveDocument(
   request: EveEmbeddedDocumentRequest,
   component: EveSurfaceComponent,
-): Promise<{ document: unknown; documentId: string; schemaId: string } | undefined> {
+): Promise<{ document?: unknown; documentId: string; schemaId: string; surface?: AetheriaMenuSurfaceDocument["surface"] } | undefined> {
+  if (request.schemaId === "gamecult.eve.surface.v1" || request.slotId === "mainMenuPanel") {
+    const surface = await window.aetheriaRts.mainMenuSurface({
+      surfaceId: request.documentId,
+      inGame: false,
+      canOpenRuntimeInputScreen: false,
+      panelOnly: true,
+    });
+    return {
+      documentId: request.documentId,
+      schemaId: "gamecult.eve.surface.v1",
+      surface: surface.surface,
+    };
+  }
+
   const viewport = viewportFromComponent(component);
   if (request.schemaId === "gamecult.aetheria.render_splats_viewport.v1" || request.slotId === "renderSplats") {
     return {
@@ -277,6 +292,12 @@ function handleMenuCommand(commandOrIntent: string | EveCommandIntent, surface?:
   switch (command) {
     case "aetheria.main_menu.root.show_settings":
       void showMainMenu("aetheria.main_menu.settings");
+      return;
+    case "aetheria.main_menu.settings.show_player_settings":
+      void showMainMenu("aetheria.main_menu.player_settings");
+      return;
+    case "aetheria.main_menu.settings.show_verse_settings":
+      void showMainMenu("aetheria.main_menu.verse_settings");
       return;
     case "aetheria.main_menu.settings.show_input_settings":
       void showMainMenu("aetheria.main_menu.input_settings");

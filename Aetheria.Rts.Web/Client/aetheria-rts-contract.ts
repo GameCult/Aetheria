@@ -347,6 +347,7 @@ export type AetheriaMenuSurfaceRequest = {
   surfaceId?: string;
   inGame?: boolean;
   canOpenRuntimeInputScreen?: boolean;
+  panelOnly?: boolean;
 };
 
 export type AetheriaEveSurfaceRequest = {

@@ -100,6 +100,7 @@ export type AetheriaMenuSurfaceRequest = {
   surfaceId?: string;
   inGame?: boolean;
   canOpenRuntimeInputScreen?: boolean;
+  panelOnly?: boolean;
 };
 
 export type AetheriaEveSurfaceRequest = {
@@ -336,7 +337,8 @@ export class AetheriaCultMeshClient {
     return buildMainMenuSurface(
       request.surfaceId || "aetheria.main_menu.root",
       request.canOpenRuntimeInputScreen === true,
-      request.inGame === true);
+      request.inGame === true,
+      request.panelOnly === true);
   }
 
   public async eveSurface(request: AetheriaEveSurfaceRequest = {}): Promise<AetheriaMenuSurfaceDocument> {
@@ -698,8 +700,42 @@ function buildMainMenuSurface(
   surfaceId: string,
   canOpenRuntimeInputScreen: boolean,
   inGame: boolean,
+  panelOnly = false,
 ): AetheriaMenuSurfaceDocument {
   const updatedAtUtc = new Date().toISOString();
+  const activeSurfaceId = normalizeMainMenuSurfaceId(surfaceId);
+  return panelOnly
+    ? buildMainMenuPanelSurface(activeSurfaceId, canOpenRuntimeInputScreen, inGame, updatedAtUtc)
+    : buildMainMenuShellSurface(activeSurfaceId, updatedAtUtc);
+}
+
+function buildMainMenuShellSurface(
+  activeSurfaceId: string,
+  updatedAtUtc: string,
+): AetheriaMenuSurfaceDocument {
+  return surfaceDocument(
+    "aetheria.main_menu.shell",
+    "Aetheria Starbridge",
+    updatedAtUtc,
+    mainMenuCommands(),
+    gravitySurface("aetheria.main_menu.shell.gravity"),
+    surfaceSlot(
+      "aetheria.main_menu.shell.panel",
+      "mainMenuPanel",
+      activeSurfaceId,
+      eveSurfaceSchemaId,
+      "menu.overlay",
+      { position: "absolute", top: "0", right: "0", bottom: "0", left: "0", width: "100%", height: "100%" },
+      { background: "rgba(0,0,0,0)" }),
+  );
+}
+
+function buildMainMenuPanelSurface(
+  surfaceId: string,
+  canOpenRuntimeInputScreen: boolean,
+  inGame: boolean,
+  updatedAtUtc: string,
+): AetheriaMenuSurfaceDocument {
   if (surfaceId === "aetheria.main_menu.settings") {
     return surfaceDocument(
       surfaceId,
@@ -711,20 +747,25 @@ function buildMainMenuSurface(
         command("aetheria.main_menu.settings.show_input_settings", "Input"),
         command("aetheria.main_menu.settings.back_to_main", "Back"),
       ],
-      text("aetheria.mainMenu.settings.title", "SETTINGS", "text.title"),
-      buttonColumn(
-        "aetheria.mainMenu.settings.actions",
-        button("aetheria.mainMenu.settings.playerSettings", "Player Settings", "aetheria.main_menu.settings.show_player_settings"),
-        button("aetheria.mainMenu.settings.verse", "Verse", "aetheria.main_menu.settings.show_verse_settings"),
-        button("aetheria.mainMenu.settings.input", "Input", "aetheria.main_menu.settings.show_input_settings"),
-        button("aetheria.mainMenu.settings.back", "Back", "aetheria.main_menu.settings.back_to_main"),
+      menuPanel(
+        surfaceId,
+        [
+          text("aetheria.mainMenu.settings.title", "SETTINGS", "text.title", { margin: "0 0 2.4rem 0" }, mainMenuTitleStyle("4.4rem")),
+          buttonColumn(
+            "aetheria.mainMenu.settings.actions",
+            button("aetheria.mainMenu.settings.playerSettings", "Player Settings", "aetheria.main_menu.settings.show_player_settings"),
+            button("aetheria.mainMenu.settings.verse", "Verse", "aetheria.main_menu.settings.show_verse_settings"),
+            button("aetheria.mainMenu.settings.input", "Input", "aetheria.main_menu.settings.show_input_settings"),
+            button("aetheria.mainMenu.settings.back", "Back", "aetheria.main_menu.settings.back_to_main"),
+          ),
+        ],
       ),
     );
   }
 
   if (surfaceId === "aetheria.main_menu.input_settings") {
     const children = [
-      text("aetheria.mainMenu.input.title", "INPUT", "text.title"),
+      text("aetheria.mainMenu.input.title", "INPUT", "text.title", { margin: "0 0 2.2rem 0" }, mainMenuTitleStyle("4.4rem")),
       metric("aetheria.mainMenu.input.bindingOverrides", "Binding Overrides", "0"),
       metric("aetheria.mainMenu.input.actionBarInputs", "Action-Bar Inputs", "0"),
       text(
@@ -742,7 +783,47 @@ function buildMainMenuSurface(
       "Aetheria Input Settings",
       updatedAtUtc,
       [command("aetheria.main_menu.settings.back_to_settings", "Back")],
-      ...children);
+      menuPanel(surfaceId, children));
+  }
+
+  if (surfaceId === "aetheria.main_menu.player_settings") {
+    return surfaceDocument(
+      surfaceId,
+      "Aetheria Player Settings",
+      updatedAtUtc,
+      [command("aetheria.main_menu.settings.back_to_settings", "Back")],
+      menuPanel(
+        surfaceId,
+        [
+          text("aetheria.mainMenu.player.title", "PLAYER", "text.title", { margin: "0 0 2.2rem 0" }, mainMenuTitleStyle("4.4rem")),
+          metric("aetheria.mainMenu.player.temperatureUnit", "Temperature Unit", "Celsius"),
+          metric("aetheria.mainMenu.player.significantDigits", "Significant Digits", "3"),
+          metric("aetheria.mainMenu.player.shutdown", "Default Shutdown", "25%"),
+          buttonColumn(
+            "aetheria.mainMenu.player.actions",
+            button("aetheria.mainMenu.player.back", "Back", "aetheria.main_menu.settings.back_to_settings"),
+          ),
+        ]));
+  }
+
+  if (surfaceId === "aetheria.main_menu.verse_settings") {
+    return surfaceDocument(
+      surfaceId,
+      "Aetheria Verse Settings",
+      updatedAtUtc,
+      [command("aetheria.main_menu.settings.back_to_settings", "Back")],
+      menuPanel(
+        surfaceId,
+        [
+          text("aetheria.mainMenu.verse.title", "VERSE", "text.title", { margin: "0 0 2.2rem 0" }, mainMenuTitleStyle("4.4rem")),
+          metric("aetheria.mainMenu.verse.name", "Name", "Local Aetheria"),
+          metric("aetheria.mainMenu.verse.id", "Verse", "aetheria.local"),
+          metric("aetheria.mainMenu.verse.visibility", "Visibility", "local"),
+          buttonColumn(
+            "aetheria.mainMenu.verse.actions",
+            button("aetheria.mainMenu.verse.back", "Back", "aetheria.main_menu.settings.back_to_settings"),
+          ),
+        ]));
   }
 
   const actionButtons = [
@@ -761,34 +842,48 @@ function buildMainMenuSurface(
       command("aetheria.main_menu.root.show_settings", "Settings"),
       command("aetheria.main_menu.root.quit", "Quit"),
     ],
-    gravitySurface("aetheria.main_menu.root.gravity"),
-    node(
-      "aetheria.main_menu.root.menu",
-      "column",
-      {},
-      {
-        position: "relative",
-        padding: "7.25rem 0 0 6.75rem",
-        gap: "1.1rem",
-        width: "44rem",
-        maxWidth: "calc(100vw - 3rem)",
-        minHeight: "100vh",
-        alignItems: "flex-start",
-      },
-      { color: "#e9fbff" },
-      text("aetheria.main_menu.root.title", "AETHERIA", "text.title", { margin: "0 0 -1.6rem 0" }, {
-        font: "100 5.9rem/0.98 Montserrat, sans-serif",
-        color: "rgba(232, 250, 255, 0.94)",
-        whiteSpace: "nowrap",
-      }),
-      text("aetheria.main_menu.root.subtitle", "STARBRIDGE", "text.subtitle", { margin: "0 0 0.35rem 16.8rem" }, {
-        font: "100 2.6rem/1 Montserrat, sans-serif",
-        color: "rgba(232, 250, 255, 0.9)",
-        whiteSpace: "nowrap",
-      }),
-      buttonColumn("aetheria.main_menu.root.actions", ...actionButtons),
-    ),
+    menuPanel(
+      "aetheria.main_menu.root",
+      [
+        text("aetheria.main_menu.root.title", "AETHERIA", "text.title", { margin: "0 0 -1.6rem 0" }, mainMenuTitleStyle("5.9rem")),
+        text("aetheria.main_menu.root.subtitle", "STARBRIDGE", "text.subtitle", { margin: "0 0 0.35rem 16.8rem" }, {
+          font: "100 2.6rem/1 Montserrat, sans-serif",
+          color: "rgba(232, 250, 255, 0.9)",
+          whiteSpace: "nowrap",
+        }),
+        buttonColumn("aetheria.main_menu.root.actions", ...actionButtons),
+      ]),
   );
+}
+
+function normalizeMainMenuSurfaceId(surfaceId: string): string {
+  switch (surfaceId) {
+    case "aetheria.main_menu.shell":
+    case "":
+      return "aetheria.main_menu.root";
+    case "aetheria.main_menu.root":
+    case "aetheria.main_menu.settings":
+    case "aetheria.main_menu.input_settings":
+    case "aetheria.main_menu.player_settings":
+    case "aetheria.main_menu.verse_settings":
+      return surfaceId;
+    default:
+      return "aetheria.main_menu.root";
+  }
+}
+
+function mainMenuCommands(): AetheriaMenuSurfaceCommand[] {
+  return [
+    command("aetheria.main_menu.root.continue", "Continue"),
+    command("aetheria.main_menu.root.new_game", "New Game"),
+    command("aetheria.main_menu.root.show_settings", "Settings"),
+    command("aetheria.main_menu.root.quit", "Quit"),
+    command("aetheria.main_menu.settings.show_player_settings", "Player Settings"),
+    command("aetheria.main_menu.settings.show_verse_settings", "Verse"),
+    command("aetheria.main_menu.settings.show_input_settings", "Input"),
+    command("aetheria.main_menu.settings.back_to_main", "Back"),
+    command("aetheria.main_menu.settings.back_to_settings", "Back"),
+  ];
 }
 
 function surfaceDocument(
@@ -852,6 +947,26 @@ function node(
   return { id, kind, props, layout, style, children: normalizedChildren };
 }
 
+function surfaceSlot(
+  id: string,
+  slotId: string,
+  documentId: string,
+  schemaId: string,
+  presentationKind: string,
+  layout?: Record<string, string>,
+  style?: Record<string, string>,
+): AetheriaMenuSurfaceComponent {
+  return {
+    id,
+    kind: "surface.slot",
+    props: { slotId, documentId, schemaId, presentationKind },
+    layout,
+    style,
+    embeddedDocuments: [{ slotId, documentId, schemaId, presentationKind }],
+    children: [],
+  };
+}
+
 function text(
   id: string,
   value: string,
@@ -866,18 +981,44 @@ function metric(id: string, label: string, value: string): AetheriaMenuSurfaceCo
   return node(id, "metric", { label, value });
 }
 
+function menuPanel(id: string, children: AetheriaMenuSurfaceComponent[]): AetheriaMenuSurfaceComponent {
+  return node(
+    `${id}.menu`,
+    "column",
+    {},
+    {
+      position: "relative",
+      padding: "7.25rem 0 0 6.75rem",
+      gap: "1.1rem",
+      width: "44rem",
+      maxWidth: "calc(100vw - 3rem)",
+      minHeight: "100vh",
+      alignItems: "flex-start",
+    },
+    { color: "#e9fbff", background: "rgba(0,0,0,0)" },
+    ...children);
+}
+
+function mainMenuTitleStyle(fontSize: string): Record<string, string> {
+  return {
+    font: `100 ${fontSize}/0.98 Montserrat, sans-serif`,
+    color: "rgba(232, 250, 255, 0.94)",
+    whiteSpace: "nowrap",
+  };
+}
+
 function button(id: string, label: string, commandId: string): AetheriaMenuSurfaceComponent {
   return node(
     id,
     "control.button",
     { label, command: commandId },
-    { minWidth: "0", padding: "0.04rem 0" },
+    { minWidth: "0", width: "220px", height: "32px", padding: "0" },
     {
       background: "rgba(0, 0, 0, 0)",
       borderWidth: "0",
       borderStyle: "solid",
       boxShadow: "none",
-      font: "400 1.55rem/1.2 Ubuntu, sans-serif",
+      font: "400 1.55rem/32px Ubuntu, sans-serif",
       color: "#e8fbff",
       textAlign: "left",
     });

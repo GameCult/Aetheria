@@ -25,11 +25,7 @@ body {
 
 body.main-menu-mode {
   -webkit-app-region: drag;
-  background:
-    radial-gradient(circle at 76% 66%, rgba(255, 213, 112, 0.74) 0, rgba(247, 121, 88, 0.36) 13%, transparent 31%),
-    radial-gradient(circle at 61% 37%, rgba(240, 45, 201, 0.54) 0, rgba(176, 38, 174, 0.28) 19%, transparent 45%),
-    radial-gradient(circle at 40% 45%, rgba(145, 21, 122, 0.42) 0, rgba(54, 8, 41, 0.4) 34%, transparent 62%),
-    #050407;
+  background: #020606;
 }
 
 body.main-menu-mode .shell {
@@ -100,22 +96,15 @@ body.eve-game-mode .window-control-close:focus-visible {
 
 body.main-menu-mode .main-menu-host {
   -webkit-app-region: no-drag;
-  display: flex;
-  align-items: flex-start;
-  justify-content: flex-start;
+  display: block;
   min-height: 100%;
-  padding: 128px 96px;
-  background:
-    radial-gradient(ellipse at 78% 64%, rgba(255, 194, 95, 0.36) 0, rgba(255, 148, 92, 0.18) 16%, transparent 35%),
-    radial-gradient(ellipse at 59% 38%, rgba(238, 56, 216, 0.28) 0, rgba(164, 37, 160, 0.2) 22%, transparent 52%),
-    linear-gradient(90deg, rgba(0, 0, 0, 0.5), transparent 48%);
+  padding: 0;
+  background: transparent;
 }
 
 body.main-menu-mode .eve-surface {
-  width: 720px;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
+  width: 100%;
+  min-height: 100vh;
 }
 
 body.main-menu-mode .eve-text-title,
