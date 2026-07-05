@@ -15,7 +15,7 @@ namespace GameCult.Aetheria.State.Verse
             var targetKind = stateBoot.TargetKind ?? AetheriaRuntimeClientTargetKinds.StateFile;
             var targetTitle = stateBoot.Title ?? "";
             var targetVerseId = stateBoot.VerseId ?? "";
-            var targetRuntimeId = string.IsNullOrWhiteSpace(stateBoot.RuntimeId) ? "raven-unity" : stateBoot.RuntimeId;
+            var targetRuntimeId = string.IsNullOrWhiteSpace(stateBoot.RuntimeId) ? AetheriaRuntimeStateBoundary.DefaultClientRuntimeId : stateBoot.RuntimeId;
             var targetCultMeshAddress = stateBoot.CultMeshAddress ?? "";
             var targetStateFilePath = stateBoot.StateFilePath ?? "";
             var targetReplicaStateFilePath = stateBoot.ReplicaStateFilePath ?? "";

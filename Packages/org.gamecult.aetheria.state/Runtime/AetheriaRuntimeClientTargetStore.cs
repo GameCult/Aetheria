@@ -36,7 +36,7 @@ namespace GameCult.Aetheria.State.Verse
         [Key(11)] public string ReplicaStateFilePath { get; set; } = "";
         [Key(12)] public string LastReplicaSyncAtUtc { get; set; } = "";
         [Key(13)] public string LastReplicaSyncError { get; set; } = "";
-        [Key(14)] public string RuntimeId { get; set; } = "raven-unity";
+        [Key(14)] public string RuntimeId { get; set; } = AetheriaRuntimeStateBoundary.DefaultClientRuntimeId;
     }
 
     [MessagePackObject]
@@ -77,7 +77,7 @@ namespace GameCult.Aetheria.State.Verse
                 Title = "Local Aetheria",
                 VerseId = "aetheria.local",
                 CultMeshAddress = "asgard.local.aetheria/eve",
-                RuntimeId = "raven-unity",
+                RuntimeId = AetheriaRuntimeStateBoundary.DefaultClientRuntimeId,
                 StateFilePath = defaultStateFilePath ?? "",
                 ReplicaStateFilePath = AetheriaRuntimeStateBoundary.GetReplicaStateFilePath(gameDataDirectory, "aetheria.local"),
                 UpdatedAtUtc = DateTime.UtcNow.ToString("O")
@@ -97,7 +97,7 @@ namespace GameCult.Aetheria.State.Verse
             document.LastReplicaSyncAtUtc ??= "";
             document.LastReplicaSyncError ??= "";
             if (string.IsNullOrWhiteSpace(document.RuntimeId))
-                document.RuntimeId = "raven-unity";
+                document.RuntimeId = AetheriaRuntimeStateBoundary.DefaultClientRuntimeId;
             foreach (var verse in document.DiscoveredVerses)
             {
                 if (verse == null)

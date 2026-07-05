@@ -120,7 +120,7 @@ namespace GameCult.Aetheria.State.Verse
                 document.Title = title ?? "";
                 document.VerseId = verseId ?? "";
                 if (string.IsNullOrWhiteSpace(document.RuntimeId))
-                    document.RuntimeId = "raven-unity";
+                    document.RuntimeId = AetheriaRuntimeStateBoundary.DefaultClientRuntimeId;
                 document.CultMeshAddress = cultMeshAddress ?? "";
                 document.ReplicaStateFilePath = AetheriaRuntimeStateBoundary.GetReplicaStateFilePath(gameDataDirectory, document.VerseId);
                 document.DiscoveryEndpoints = NormalizeDiscoveryEndpoints(discoveryEndpoints);

@@ -11010,7 +11010,7 @@ static void RequireAuthoritySmokeUsesManagedPointers(string root)
         "writer.MutableDocument<AetheriaRuntimeStarbridgeScenarioDocument>(AetheriaRuntimeVerseRecordKeys.StarbridgeScenarioLatest)",
         "writer.MutableDocument<AetheriaRuntimeStarbridgeSessionDocument>(AetheriaRuntimeVerseRecordKeys.StarbridgeSessionLatest)",
         "ravenNode.MutableDocument<AetheriaRuntimeVerseAuthorityPolicyDocument>(AetheriaRuntimeVerseRecordKeys.VerseAuthorityPolicy)",
-        "starfireNode.MutableDocument<AetheriaRuntimeVerseAuthorityPolicyDocument>(AetheriaRuntimeVerseRecordKeys.VerseAuthorityPolicy)",
+        "commanderNode.MutableDocument<AetheriaRuntimeVerseAuthorityPolicyDocument>(AetheriaRuntimeVerseRecordKeys.VerseAuthorityPolicy)",
         "node.MutableDocument<AetheriaRuntimeVerseAuthorityPolicyDocument>(AetheriaRuntimeVerseRecordKeys.VerseAuthorityPolicy)",
         "node.MutableDocument<AetheriaRuntimeDaemonFrameDocument>(AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest)",
         ".ReplaceAsync(policy)",
@@ -11038,7 +11038,7 @@ static void RequireAuthoritySmokeUsesManagedPointers(string root)
         "writer.StarbridgeScenario()",
         "writer.StarbridgeSession()",
         "ravenNode.VerseAuthorityPolicy()",
-        "starfireNode.VerseAuthorityPolicy()",
+        "commanderNode.VerseAuthorityPolicy()",
         "node.VerseAuthorityPolicy()",
         "node.LatestFrame()"
     };
@@ -16090,6 +16090,18 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
         "org.gamecult.aetheria.state",
         "Runtime",
         "AetheriaRuntimeGameViewportDocuments.cs");
+    var stateBoundaryPath = Path.Combine(
+        root,
+        "Packages",
+        "org.gamecult.aetheria.state",
+        "Runtime",
+        "AetheriaRuntimeStateBoundary.cs");
+    var clientTargetStorePath = Path.Combine(
+        root,
+        "Packages",
+        "org.gamecult.aetheria.state",
+        "Runtime",
+        "AetheriaRuntimeClientTargetStore.cs");
     var rtsLocalDocumentsPath = Path.Combine(root, "Aetheria.Rts.Web", "Electron", "aetheria-rts-local-documents.ts");
     var authoritySmokePath = Path.Combine(root, "Aetheria.State.AuthoritySmoke", "Program.cs");
     var freezePath = Path.Combine(root, "Aetheria.State.Freeze", "Program.cs");
@@ -16111,6 +16123,12 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
     var gameViewportDocuments = File.Exists(gameViewportDocumentsPath)
         ? File.ReadAllText(gameViewportDocumentsPath)
         : throw new InvalidOperationException("Cannot verify daemon projectile authority; zone render documents are missing.");
+    var stateBoundary = File.Exists(stateBoundaryPath)
+        ? File.ReadAllText(stateBoundaryPath)
+        : throw new InvalidOperationException("Cannot verify runtime-neutral client target authority; state boundary is missing.");
+    var clientTargetStore = File.Exists(clientTargetStorePath)
+        ? File.ReadAllText(clientTargetStorePath)
+        : throw new InvalidOperationException("Cannot verify runtime-neutral client target authority; client target store is missing.");
     var rtsLocalDocuments = File.Exists(rtsLocalDocumentsPath)
         ? File.ReadAllText(rtsLocalDocumentsPath)
         : throw new InvalidOperationException("Cannot verify daemon projectile authority; Electron local projection is missing.");
@@ -16238,6 +16256,8 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
     }
     if (authoritySmoke.Contains("--rts-cultmesh-port", StringComparison.Ordinal) ||
         authoritySmoke.Contains("rtsPort", StringComparison.Ordinal) ||
+        authoritySmoke.Contains("raven-unity", StringComparison.Ordinal) ||
+        authoritySmoke.Contains("starfire-rts", StringComparison.Ordinal) ||
         freeze.Contains("--rts-cultmesh-port", StringComparison.Ordinal) ||
         freeze.Contains("local-rts", StringComparison.Ordinal) ||
         freeze.Contains("starfire-rts", StringComparison.Ordinal) ||
@@ -16245,6 +16265,13 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
     {
         throw new InvalidOperationException(
             "Aetheria daemon smoke/freeze callers and fixtures must use client-neutral endpoint, run, and runtime vocabulary instead of preserving RTS-branded transport names.");
+    }
+    if (stateBoundary.Contains("UnityRuntimeIdOverrideEnvironmentVariable", StringComparison.Ordinal) ||
+        stateBoundary.Contains("AETHERIA_UNITY_RUNTIME_ID", StringComparison.Ordinal) ||
+        clientTargetStore.Contains("raven-unity", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Aetheria shared client-target authority must use generic runtime identity only; Unity-specific defaults and environment fallbacks belong at the Unity edge.");
     }
 
     var sharedRuntimeText = string.Join(

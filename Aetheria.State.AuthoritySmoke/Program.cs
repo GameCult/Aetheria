@@ -25,7 +25,7 @@ internal sealed class AuthoritySmokeChecks
         PreRejectedCommandsEnterFrameReceipts();
         ClientTargetCarriesRuntimeIdentity();
         TwoLocalRuntimeDelegatedPolicyHarness();
-        RtsDocumentsBuildLocalViewportFromFrame();
+        GameDocumentsBuildLocalViewportFromFrame();
         StarbridgeSessionSummaryProjectsScenarioFacts();
         await AetheriaClientStateDocumentsProjectAndSubmitAsync().ConfigureAwait(false);
         await DaemonOncePublishesStarbridgeSessionFactsAsync().ConfigureAwait(false);
@@ -37,7 +37,7 @@ internal sealed class AuthoritySmokeChecks
 
     private static void DefaultTrustedPolicyAcceptsCommand()
     {
-        var command = Command("raven-unity", "entity:raven");
+        var command = Command("pilot-client", "entity:raven");
         var decision = AetheriaRuntimeAuthorityRouter.Authorize(
             command,
             policy: null,
@@ -58,7 +58,7 @@ internal sealed class AuthoritySmokeChecks
         {
             var state = AetheriaState.At(gameData);
             var target = state.ClientTarget.Refresh();
-            RequireEqual("raven-unity", target.RuntimeId, "client target default runtime id");
+            RequireEqual(AetheriaRuntimeStateBoundary.DefaultClientRuntimeId, target.RuntimeId, "client target default runtime id");
 
             target = state.ClientTarget.RequestRuntimeId("raven-test-runtime");
             RequireEqual("raven-test-runtime", target.RuntimeId, "client target should persist requested runtime id");
@@ -67,22 +67,15 @@ internal sealed class AuthoritySmokeChecks
             RequireEqual("raven-test-runtime", boot.RuntimeId, "boot report should expose client target runtime id");
 
             var previousRuntimeOverride = Environment.GetEnvironmentVariable(AetheriaRuntimeStateBoundary.RuntimeIdOverrideEnvironmentVariable);
-            var previousUnityOverride = Environment.GetEnvironmentVariable(AetheriaRuntimeStateBoundary.UnityRuntimeIdOverrideEnvironmentVariable);
             try
             {
                 Environment.SetEnvironmentVariable(AetheriaRuntimeStateBoundary.RuntimeIdOverrideEnvironmentVariable, "raven-env-runtime");
-                Environment.SetEnvironmentVariable(AetheriaRuntimeStateBoundary.UnityRuntimeIdOverrideEnvironmentVariable, "ignored-unity-runtime");
                 boot = AetheriaRuntimeStateBoot.Inspect(gameData);
                 RequireEqual("raven-env-runtime", boot.RuntimeId, "generic runtime id override should win");
-
-                Environment.SetEnvironmentVariable(AetheriaRuntimeStateBoundary.RuntimeIdOverrideEnvironmentVariable, "");
-                boot = AetheriaRuntimeStateBoot.Inspect(gameData);
-                RequireEqual("ignored-unity-runtime", boot.RuntimeId, "Unity runtime id override should apply when generic override is absent");
             }
             finally
             {
                 Environment.SetEnvironmentVariable(AetheriaRuntimeStateBoundary.RuntimeIdOverrideEnvironmentVariable, previousRuntimeOverride);
-                Environment.SetEnvironmentVariable(AetheriaRuntimeStateBoundary.UnityRuntimeIdOverrideEnvironmentVariable, previousUnityOverride);
             }
         }
         finally
@@ -107,20 +100,20 @@ internal sealed class AuthoritySmokeChecks
                 SubjectPrefix = "entity:raven",
                 ClaimKinds = [AetheriaRuntimeClaimKinds.Movement],
                 Mode = AetheriaRuntimeAuthorityModes.DelegatedRuntime,
-                RuntimeIds = ["raven-unity"],
+                RuntimeIds = ["pilot-client"],
                 Priority = 10
             });
 
         var accepted = AetheriaRuntimeAuthorityRouter.Authorize(
-            Command("raven-unity", "entity:raven"),
+            Command("pilot-client", "entity:raven"),
             policy,
             leases: null,
-            localRuntimeId: "starfire-rts");
+            localRuntimeId: "commander-client");
         var rejected = AetheriaRuntimeAuthorityRouter.Authorize(
-            Command("starfire-rts", "entity:raven"),
+            Command("commander-client", "entity:raven"),
             policy,
             leases: null,
-            localRuntimeId: "starfire-rts");
+            localRuntimeId: "commander-client");
 
         Require(accepted.Authorized, "delegated runtime should accept listed runtime id");
         Require(!rejected.Authorized, "delegated runtime should reject unlisted runtime id");
@@ -137,7 +130,7 @@ internal sealed class AuthoritySmokeChecks
             leases: null,
             localRuntimeId: "host-daemon");
         var rejected = AetheriaRuntimeAuthorityRouter.Authorize(
-            Command("raven-unity", "entity:raven"),
+            Command("pilot-client", "entity:raven"),
             policy,
             leases: null,
             localRuntimeId: "host-daemon");
@@ -166,8 +159,8 @@ internal sealed class AuthoritySmokeChecks
         {
             new AetheriaRuntimeAuthorityLeaseDocument
             {
-                LeaseId = "lease:starfire:hostile",
-                RuntimeId = "starfire-rts",
+                LeaseId = "lease:commander:hostile",
+                RuntimeId = "commander-client",
                 SubjectPrefix = "entity:hostile",
                 ClaimKinds = [AetheriaRuntimeClaimKinds.Combat],
                 Scope = "combat",
@@ -177,15 +170,15 @@ internal sealed class AuthoritySmokeChecks
         };
 
         var accepted = AetheriaRuntimeAuthorityRouter.Authorize(
-            Command("starfire-rts", "entity:hostile:001", AetheriaRuntimeDaemonCommandKinds.FireWeaponGroup),
+            Command("commander-client", "entity:hostile:001", AetheriaRuntimeDaemonCommandKinds.FireWeaponGroup),
             policy,
             leases,
-            localRuntimeId: "raven-unity");
+            localRuntimeId: "pilot-client");
         var rejected = AetheriaRuntimeAuthorityRouter.Authorize(
-            Command("raven-unity", "entity:hostile:001", AetheriaRuntimeDaemonCommandKinds.FireWeaponGroup),
+            Command("pilot-client", "entity:hostile:001", AetheriaRuntimeDaemonCommandKinds.FireWeaponGroup),
             policy,
             leases,
-            localRuntimeId: "raven-unity");
+            localRuntimeId: "pilot-client");
 
         Require(accepted.Authorized, "interest lease should accept active matching lease");
         Require(!rejected.Authorized, "interest lease should reject missing runtime lease");
@@ -196,10 +189,10 @@ internal sealed class AuthoritySmokeChecks
     {
         var policy = Policy(AetheriaRuntimeAuthorityModes.WitnessQuorum);
         var decision = AetheriaRuntimeAuthorityRouter.Authorize(
-            Command("raven-unity", "entity:raven"),
+            Command("pilot-client", "entity:raven"),
             policy,
             leases: null,
-            localRuntimeId: "raven-unity");
+            localRuntimeId: "pilot-client");
 
         Require(!decision.Authorized, "witness quorum should be represented but fail closed");
         RequireEqual("authority-mode-not-implemented", decision.Reason, "unsupported mode rejection reason");
@@ -209,7 +202,7 @@ internal sealed class AuthoritySmokeChecks
     {
         var policy = Policy(AetheriaRuntimeAuthorityModes.HostAuthoritative);
         var host = Command("host-daemon", "entity:raven");
-        var client = Command("raven-unity", "entity:raven");
+        var client = Command("pilot-client", "entity:raven");
         var rejectedIds = new List<string>();
 
         var accepted = AetheriaRuntimeAuthorityRouter.AuthorizedCommands(
@@ -227,7 +220,7 @@ internal sealed class AuthoritySmokeChecks
 
     private static void PreRejectedCommandsEnterFrameReceipts()
     {
-        var command = Command("raven-unity", "entity:raven");
+        var command = Command("pilot-client", "entity:raven");
         var result = AetheriaRuntimeDaemonTickRunner.Tick(
             Path.Combine(Path.GetTempPath(), "aetheria-authority-smoke.cc"),
             new AetheriaRuntimeRunCheckpointCommit(),
@@ -249,16 +242,16 @@ internal sealed class AuthoritySmokeChecks
 
     private static void TwoLocalRuntimeDelegatedPolicyHarness()
     {
-        const string ravenRuntime = "raven-unity";
-        const string starfireRuntime = "starfire-rts";
+        const string pilotRuntime = "pilot-client";
+        const string commanderRuntime = "commander-client";
         var ravenKey = EntityKey("coop-smoke", 0, 0);
         var hostileKey = EntityKey("coop-smoke", 0, 1);
         var policy = CoopPolicy();
 
-        var ravenByRaven = MovementCommand(ravenRuntime, ravenKey, directionX: 1, directionY: 0, magnitude: 1);
-        var hostileByRaven = MovementCommand(ravenRuntime, hostileKey, directionX: 0, directionY: 1, magnitude: 1);
+        var ravenByRaven = MovementCommand(pilotRuntime, ravenKey, directionX: 1, directionY: 0, magnitude: 1);
+        var hostileByRaven = MovementCommand(pilotRuntime, hostileKey, directionX: 0, directionY: 1, magnitude: 1);
         var ravenFrame = TickWithPolicy(
-            "raven-local",
+            "pilot-local",
             InitialCoopRun(),
             policy,
             [ravenByRaven, hostileByRaven]);
@@ -268,30 +261,30 @@ internal sealed class AuthoritySmokeChecks
         Require(ravenFrame.AccountedCommandIds.Contains(ravenByRaven.CommandId), "raven node should account applied Raven command");
         Require(ravenFrame.AccountedCommandIds.Contains(hostileByRaven.CommandId), "raven node should account rejected hostile command");
 
-        var ravenByStarfire = MovementCommand(starfireRuntime, ravenKey, directionX: -1, directionY: 0, magnitude: 1);
-        var hostileByStarfire = MovementCommand(starfireRuntime, hostileKey, directionX: 0, directionY: -1, magnitude: 1);
-        var starfireFrame = TickWithPolicy(
-            "starfire-local",
+        var ravenByCommander = MovementCommand(commanderRuntime, ravenKey, directionX: -1, directionY: 0, magnitude: 1);
+        var hostileByCommander = MovementCommand(commanderRuntime, hostileKey, directionX: 0, directionY: -1, magnitude: 1);
+        var commanderFrame = TickWithPolicy(
+            "commander-local",
             InitialCoopRun(),
             policy,
-            [ravenByStarfire, hostileByStarfire]);
+            [ravenByCommander, hostileByCommander]);
 
-        Require(starfireFrame.RejectedCommandIds.Contains(ravenByStarfire.CommandId), "starfire node should reject Starfire-authored Raven movement");
-        Require(starfireFrame.AppliedCommandIds.Contains(hostileByStarfire.CommandId), "starfire node should apply Starfire-authored hostile movement");
-        Require(starfireFrame.AccountedCommandIds.Contains(ravenByStarfire.CommandId), "starfire node should account rejected Raven command");
-        Require(starfireFrame.AccountedCommandIds.Contains(hostileByStarfire.CommandId), "starfire node should account applied hostile command");
+        Require(commanderFrame.RejectedCommandIds.Contains(ravenByCommander.CommandId), "commander node should reject Commander-authored Raven movement");
+        Require(commanderFrame.AppliedCommandIds.Contains(hostileByCommander.CommandId), "commander node should apply Commander-authored hostile movement");
+        Require(commanderFrame.AccountedCommandIds.Contains(ravenByCommander.CommandId), "commander node should account rejected Raven command");
+        Require(commanderFrame.AccountedCommandIds.Contains(hostileByCommander.CommandId), "commander node should account applied hostile command");
     }
 
-    private static void RtsDocumentsBuildLocalViewportFromFrame()
+    private static void GameDocumentsBuildLocalViewportFromFrame()
     {
         var run = new AetheriaRuntimeRunCheckpointCommit
         {
-            RunId = "rts-documents-smoke",
+            RunId = "game-documents-smoke",
             CurrentZoneIndex = 0,
             EntranceZoneIndex = 0,
             ExitZoneIndex = 1,
             DiscoveredZoneIndices = [0],
-            CurrentEntityKey = EntityKey("rts-documents-smoke", 0, 0),
+            CurrentEntityKey = EntityKey("game-documents-smoke", 0, 0),
             Zones =
             [
                 new AetheriaRuntimeZoneSnapshotCommit
@@ -314,7 +307,7 @@ internal sealed class AuthoritySmokeChecks
                             cargoItem: "reactor-cell"),
                         SnapshotEntity(
                             1,
-                            "Starfire",
+                            "Commander",
                             "player",
                             x: 240,
                             z: 0,
@@ -510,12 +503,12 @@ internal sealed class AuthoritySmokeChecks
             [
                 new AetheriaRuntimeStarbridgeRuntimeRole
                 {
-                    RuntimeId = "starfire-rts",
+                    RuntimeId = "commander-client",
                     Role = "commander"
                 },
                 new AetheriaRuntimeStarbridgeRuntimeRole
                 {
-                    RuntimeId = "raven-unity",
+                    RuntimeId = "pilot-client",
                     Role = "pilot",
                     EntityKey = EntityKey("starbridge-session-smoke", 0, 5)
                 }
@@ -542,7 +535,7 @@ internal sealed class AuthoritySmokeChecks
         RequireEqual(850.0, summary.BaseStatus.Hull, "starbridge base hull");
         Require(summary.StationStock.Any(item => item.ItemKey == "coolant-beam"), "starbridge station stock should project scenario stock");
         Require(summary.WaveForecast.Length == 1 && summary.WaveForecast[0].DisplayName == "Bomber Line", "starbridge wave forecast should start at current wave");
-        Require(summary.RuntimeRoles.Any(role => role.RuntimeId == "starfire-rts" && role.Role == "commander"), "starbridge runtime roles should project scenario roles");
+        Require(summary.RuntimeRoles.Any(role => role.RuntimeId == "commander-client" && role.Role == "commander"), "starbridge runtime roles should project scenario roles");
 
         var gameSurface = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(
             frame,
@@ -558,7 +551,7 @@ internal sealed class AuthoritySmokeChecks
         RequireSurfaceMetric(gameSurface, "aetheria.daemon.game.starbridge.base", "Starbridge Base", "daemon game surface starbridge base");
         RequireSurfaceMetric(gameSurface, "aetheria.daemon.game.starbridge.stock.0.item", "coolant-beam", "daemon game surface starbridge stock");
         RequireSurfaceMetric(gameSurface, "aetheria.daemon.game.starbridge.wave.0.name", "Bomber Line", "daemon game surface starbridge wave forecast");
-        RequireSurfaceMetric(gameSurface, "aetheria.daemon.game.starbridge.role.0.runtime", "starfire-rts", "daemon game surface starbridge runtime role");
+        RequireSurfaceMetric(gameSurface, "aetheria.daemon.game.starbridge.role.0.runtime", "commander-client", "daemon game surface starbridge runtime role");
     }
 
     private static async Task AetheriaClientStateDocumentsProjectAndSubmitAsync()
@@ -658,7 +651,7 @@ internal sealed class AuthoritySmokeChecks
         }
 
         using var client = await AetheriaClient
-            .OpenAsync(statePath, "raven-unity", sessionId: "state-documents-session", pullOnOpen: true)
+            .OpenAsync(statePath, "pilot-client", sessionId: "state-documents-session", pullOnOpen: true)
             .ConfigureAwait(false);
         var state = client.State;
         var viewportBounds = new AetheriaRuntimeViewportBounds { MinX = -20, MinY = -20, MaxX = 150, MaxY = 20 };
@@ -710,7 +703,7 @@ internal sealed class AuthoritySmokeChecks
 
         var command = client.SetMoveVector(1, 0, 0.5);
         RequireEqual(AetheriaRuntimeDaemonCommandKinds.SetMoveVector, command.Kind, "managed client command kind");
-        RequireEqual("raven-unity", command.ClientId, "managed client command client id");
+        RequireEqual("pilot-client", command.ClientId, "managed client command client id");
         RequireEqual(frame.FrameId, command.ObservedFrameId, "managed client command observed frame id");
 
         using var reader = await AetheriaRuntimeVerseClient
@@ -746,44 +739,44 @@ internal sealed class AuthoritySmokeChecks
         RequireEqual("Anchor Station", summary.BaseStatus.DisplayName, "daemon starbridge base name");
         Require(summary.StationStock.Any(item => item.ItemKey == "repair-parts"), "daemon starbridge summary should expose station stock");
         Require(summary.WaveForecast.Any(wave => wave.DisplayName == "Scout Probe"), "daemon starbridge summary should expose wave forecast");
-        Require(summary.RuntimeRoles.Any(role => role.RuntimeId == "starfire-rts" && role.Role == "commander"), "daemon starbridge summary should expose commander role");
-        Require(summary.RuntimeRoles.Any(role => role.RuntimeId == "raven-unity" && role.Role == "pilot"), "daemon starbridge summary should expose pilot role");
+        Require(summary.RuntimeRoles.Any(role => role.RuntimeId == "commander-client" && role.Role == "commander"), "daemon starbridge summary should expose commander role");
+        Require(summary.RuntimeRoles.Any(role => role.RuntimeId == "pilot-client" && role.Role == "pilot"), "daemon starbridge summary should expose pilot role");
     }
 
     private static async Task SamePolicyDocumentCanBeLoadedByTwoNodesAsync()
     {
         var smokeId = Guid.NewGuid().ToString("N");
         var ravenPath = Path.Combine(Path.GetTempPath(), $"aetheria-authority-raven-{smokeId}.cc");
-        var starfirePath = Path.Combine(Path.GetTempPath(), $"aetheria-authority-starfire-{smokeId}.cc");
+        var commanderPath = Path.Combine(Path.GetTempPath(), $"aetheria-authority-commander-{smokeId}.cc");
         var policy = CoopPolicy();
 
         await using var ravenNode = await AetheriaStateNode.OpenAsync(
             ravenPath,
-            runtimeId: "raven-local",
+            runtimeId: "pilot-local",
             startServer: false,
             enableDurableShardLogs: false).ConfigureAwait(false);
-        await using var starfireNode = await AetheriaStateNode.OpenAsync(
-            starfirePath,
-            runtimeId: "starfire-local",
+        await using var commanderNode = await AetheriaStateNode.OpenAsync(
+            commanderPath,
+            runtimeId: "commander-local",
             startServer: false,
             enableDurableShardLogs: false).ConfigureAwait(false);
 
         await ravenNode.MutableDocument<AetheriaRuntimeVerseAuthorityPolicyDocument>(AetheriaRuntimeVerseRecordKeys.VerseAuthorityPolicy)
             .ReplaceAsync(policy)
             .ConfigureAwait(false);
-        await starfireNode.MutableDocument<AetheriaRuntimeVerseAuthorityPolicyDocument>(AetheriaRuntimeVerseRecordKeys.VerseAuthorityPolicy)
+        await commanderNode.MutableDocument<AetheriaRuntimeVerseAuthorityPolicyDocument>(AetheriaRuntimeVerseRecordKeys.VerseAuthorityPolicy)
             .ReplaceAsync(policy)
             .ConfigureAwait(false);
 
         var ravenPolicy = await ravenNode.MutableDocument<AetheriaRuntimeVerseAuthorityPolicyDocument>(AetheriaRuntimeVerseRecordKeys.VerseAuthorityPolicy).ReadAsync().ConfigureAwait(false);
-        var starfirePolicy = await starfireNode.MutableDocument<AetheriaRuntimeVerseAuthorityPolicyDocument>(AetheriaRuntimeVerseRecordKeys.VerseAuthorityPolicy).ReadAsync().ConfigureAwait(false);
+        var commanderPolicy = await commanderNode.MutableDocument<AetheriaRuntimeVerseAuthorityPolicyDocument>(AetheriaRuntimeVerseRecordKeys.VerseAuthorityPolicy).ReadAsync().ConfigureAwait(false);
 
         Require(ravenPolicy != null, "raven node should load authority policy");
-        Require(starfirePolicy != null, "starfire node should load authority policy");
+        Require(commanderPolicy != null, "commander node should load authority policy");
         RequireEqual(policy.PolicyId, ravenPolicy!.PolicyId, "raven loaded policy id");
-        RequireEqual(policy.PolicyId, starfirePolicy!.PolicyId, "starfire loaded policy id");
+        RequireEqual(policy.PolicyId, commanderPolicy!.PolicyId, "commander loaded policy id");
         RequireEqual(policy.Rules.Length, ravenPolicy.Rules.Length, "raven loaded rule count");
-        RequireEqual(policy.Rules.Length, starfirePolicy.Rules.Length, "starfire loaded rule count");
+        RequireEqual(policy.Rules.Length, commanderPolicy.Rules.Length, "commander loaded rule count");
     }
 
     private static async Task TwoDaemonProcessesApplyDelegatedPolicyAsync()
@@ -793,37 +786,37 @@ internal sealed class AuthoritySmokeChecks
         var ravenKey = EntityKey("coop-smoke", 0, 0);
         var hostileKey = EntityKey("coop-smoke", 0, 1);
 
-        var ravenByRaven = MovementCommand("raven-unity", ravenKey, directionX: 1, directionY: 0, magnitude: 1);
-        var hostileByRaven = MovementCommand("raven-unity", hostileKey, directionX: 0, directionY: 1, magnitude: 1);
+        var ravenByRaven = MovementCommand("pilot-client", ravenKey, directionX: 1, directionY: 0, magnitude: 1);
+        var hostileByRaven = MovementCommand("pilot-client", hostileKey, directionX: 0, directionY: 1, magnitude: 1);
         var ravenStatePath = Path.Combine(Path.GetTempPath(), $"aetheria-authority-raven-daemon-{smokeId}.cc");
         await SeedDaemonStateAsync(
             ravenStatePath,
-            "raven-local",
+            "pilot-local",
             policy,
             [ravenByRaven, hostileByRaven]).ConfigureAwait(false);
-        await RunDaemonOnceAsync(ravenStatePath, "raven-local", clientCultMeshPort: 41076).ConfigureAwait(false);
-        var ravenFrame = await ReadPublishedFrameAsync(ravenStatePath, "raven-local").ConfigureAwait(false);
+        await RunDaemonOnceAsync(ravenStatePath, "pilot-local", clientCultMeshPort: 41076).ConfigureAwait(false);
+        var ravenFrame = await ReadPublishedFrameAsync(ravenStatePath, "pilot-local").ConfigureAwait(false);
 
         Require(ravenFrame.AppliedCommandIds.Contains(ravenByRaven.CommandId), "raven daemon should apply Raven-authored Raven movement");
         Require(ravenFrame.RejectedCommandIds.Contains(hostileByRaven.CommandId), "raven daemon should reject Raven-authored hostile movement");
         Require(ravenFrame.AccountedCommandIds.Contains(ravenByRaven.CommandId), "raven daemon should account applied command");
         Require(ravenFrame.AccountedCommandIds.Contains(hostileByRaven.CommandId), "raven daemon should account rejected command");
 
-        var ravenByStarfire = MovementCommand("starfire-rts", ravenKey, directionX: -1, directionY: 0, magnitude: 1);
-        var hostileByStarfire = MovementCommand("starfire-rts", hostileKey, directionX: 0, directionY: -1, magnitude: 1);
-        var starfireStatePath = Path.Combine(Path.GetTempPath(), $"aetheria-authority-starfire-daemon-{smokeId}.cc");
+        var ravenByCommander = MovementCommand("commander-client", ravenKey, directionX: -1, directionY: 0, magnitude: 1);
+        var hostileByCommander = MovementCommand("commander-client", hostileKey, directionX: 0, directionY: -1, magnitude: 1);
+        var commanderStatePath = Path.Combine(Path.GetTempPath(), $"aetheria-authority-commander-daemon-{smokeId}.cc");
         await SeedDaemonStateAsync(
-            starfireStatePath,
-            "starfire-local",
+            commanderStatePath,
+            "commander-local",
             policy,
-            [ravenByStarfire, hostileByStarfire]).ConfigureAwait(false);
-        await RunDaemonOnceAsync(starfireStatePath, "starfire-local", clientCultMeshPort: 41077).ConfigureAwait(false);
-        var starfireFrame = await ReadPublishedFrameAsync(starfireStatePath, "starfire-local").ConfigureAwait(false);
+            [ravenByCommander, hostileByCommander]).ConfigureAwait(false);
+        await RunDaemonOnceAsync(commanderStatePath, "commander-local", clientCultMeshPort: 41077).ConfigureAwait(false);
+        var commanderFrame = await ReadPublishedFrameAsync(commanderStatePath, "commander-local").ConfigureAwait(false);
 
-        Require(starfireFrame.RejectedCommandIds.Contains(ravenByStarfire.CommandId), "starfire daemon should reject Starfire-authored Raven movement");
-        Require(starfireFrame.AppliedCommandIds.Contains(hostileByStarfire.CommandId), "starfire daemon should apply Starfire-authored hostile movement");
-        Require(starfireFrame.AccountedCommandIds.Contains(ravenByStarfire.CommandId), "starfire daemon should account rejected command");
-        Require(starfireFrame.AccountedCommandIds.Contains(hostileByStarfire.CommandId), "starfire daemon should account applied command");
+        Require(commanderFrame.RejectedCommandIds.Contains(ravenByCommander.CommandId), "commander daemon should reject Commander-authored Raven movement");
+        Require(commanderFrame.AppliedCommandIds.Contains(hostileByCommander.CommandId), "commander daemon should apply Commander-authored hostile movement");
+        Require(commanderFrame.AccountedCommandIds.Contains(ravenByCommander.CommandId), "commander daemon should account rejected command");
+        Require(commanderFrame.AccountedCommandIds.Contains(hostileByCommander.CommandId), "commander daemon should account applied command");
     }
 
     private static async Task ConcurrentDaemonsPublishRemoteFramesToLocalReplicasAsync()
@@ -833,154 +826,154 @@ internal sealed class AuthoritySmokeChecks
         var ravenKey = EntityKey("coop-smoke", 0, 0);
         var hostileKey = EntityKey("coop-smoke", 0, 1);
         var ravenStatePath = Path.Combine(Path.GetTempPath(), $"aetheria-authority-raven-live-{smokeId}.cc");
-        var starfireStatePath = Path.Combine(Path.GetTempPath(), $"aetheria-authority-starfire-live-{smokeId}.cc");
+        var commanderStatePath = Path.Combine(Path.GetTempPath(), $"aetheria-authority-commander-live-{smokeId}.cc");
         var ravenReplicaPath = Path.Combine(Path.GetTempPath(), $"aetheria-authority-raven-replica-{smokeId}.cc");
-        var starfireReplicaPath = Path.Combine(Path.GetTempPath(), $"aetheria-authority-starfire-replica-{smokeId}.cc");
+        var commanderReplicaPath = Path.Combine(Path.GetTempPath(), $"aetheria-authority-commander-replica-{smokeId}.cc");
         var ravenPort = GetFreeUdpPort();
-        var starfirePort = GetFreeUdpPort();
+        var commanderPort = GetFreeUdpPort();
 
-        var ravenByRaven = MovementCommand("raven-unity", ravenKey, directionX: 1, directionY: 0, magnitude: 1);
-        var hostileByRaven = MovementCommand("raven-unity", hostileKey, directionX: 0, directionY: 1, magnitude: 1);
+        var ravenByRaven = MovementCommand("pilot-client", ravenKey, directionX: 1, directionY: 0, magnitude: 1);
+        var hostileByRaven = MovementCommand("pilot-client", hostileKey, directionX: 0, directionY: 1, magnitude: 1);
         await SeedDaemonStateAsync(
             ravenStatePath,
-            "raven-local",
+            "pilot-local",
             policy,
             [ravenByRaven, hostileByRaven]).ConfigureAwait(false);
 
-        var ravenByStarfire = MovementCommand("starfire-rts", ravenKey, directionX: -1, directionY: 0, magnitude: 1);
-        var hostileByStarfire = MovementCommand("starfire-rts", hostileKey, directionX: 0, directionY: -1, magnitude: 1);
+        var ravenByCommander = MovementCommand("commander-client", ravenKey, directionX: -1, directionY: 0, magnitude: 1);
+        var hostileByCommander = MovementCommand("commander-client", hostileKey, directionX: 0, directionY: -1, magnitude: 1);
         await SeedDaemonStateAsync(
-            starfireStatePath,
-            "starfire-local",
+            commanderStatePath,
+            "commander-local",
             policy,
-            [ravenByStarfire, hostileByStarfire]).ConfigureAwait(false);
+            [ravenByCommander, hostileByCommander]).ConfigureAwait(false);
 
         using var ravenDaemon = StartDaemonProcess(
             ravenStatePath,
-            "raven-local",
+            "pilot-local",
             ravenPort,
             once: false,
-            peerEndpoints: [$"rudp://127.0.0.1:{starfirePort}"]);
-        using var starfireDaemon = StartDaemonProcess(
-            starfireStatePath,
-            "starfire-local",
-            starfirePort,
+            peerEndpoints: [$"rudp://127.0.0.1:{commanderPort}"]);
+        using var commanderDaemon = StartDaemonProcess(
+            commanderStatePath,
+            "commander-local",
+            commanderPort,
             once: false,
             peerEndpoints: [$"rudp://127.0.0.1:{ravenPort}"]);
         try
         {
             var ravenRemoteFrame = await WaitForReplicaFrameAsync(
                 $"rudp://127.0.0.1:{ravenPort}",
-                starfireReplicaPath,
-                "starfire-observes-raven",
-                [ravenDaemon, starfireDaemon],
+                commanderReplicaPath,
+                "commander-observes-raven",
+                [ravenDaemon, commanderDaemon],
                 frame =>
-                    string.Equals(frame.DaemonId, "raven-local", StringComparison.Ordinal) &&
+                    string.Equals(frame.DaemonId, "pilot-local", StringComparison.Ordinal) &&
                     frame.CumulativeAppliedCommandIds.Contains(ravenByRaven.CommandId) &&
                     frame.CumulativeRejectedCommandIds.Contains(hostileByRaven.CommandId),
                 "Raven frame with Raven movement applied and hostile movement rejected").ConfigureAwait(false);
-            var starfireRemoteFrame = await WaitForReplicaFrameAsync(
-                $"rudp://127.0.0.1:{starfirePort}",
+            var commanderRemoteFrame = await WaitForReplicaFrameAsync(
+                $"rudp://127.0.0.1:{commanderPort}",
                 ravenReplicaPath,
-                "raven-observes-starfire",
-                [ravenDaemon, starfireDaemon],
+                "raven-observes-commander",
+                [ravenDaemon, commanderDaemon],
                 frame =>
-                    string.Equals(frame.DaemonId, "starfire-local", StringComparison.Ordinal) &&
-                    frame.CumulativeAppliedCommandIds.Contains(hostileByStarfire.CommandId) &&
-                    frame.CumulativeRejectedCommandIds.Contains(ravenByStarfire.CommandId),
-                "Starfire frame with hostile movement applied and Raven movement rejected").ConfigureAwait(false);
+                    string.Equals(frame.DaemonId, "commander-local", StringComparison.Ordinal) &&
+                    frame.CumulativeAppliedCommandIds.Contains(hostileByCommander.CommandId) &&
+                    frame.CumulativeRejectedCommandIds.Contains(ravenByCommander.CommandId),
+                "Commander frame with hostile movement applied and Raven movement rejected").ConfigureAwait(false);
 
-            RequireEqual("raven-local", ravenRemoteFrame.DaemonId, "Starfire local replica should observe Raven daemon id");
-            Require(ravenRemoteFrame.CumulativeAppliedCommandIds.Contains(ravenByRaven.CommandId), "Starfire local replica should observe Raven-applied Raven command");
-            Require(ravenRemoteFrame.CumulativeRejectedCommandIds.Contains(hostileByRaven.CommandId), "Starfire local replica should observe Raven rejection receipt");
-            var starfireObservedRavenFacts = await WaitForReplicaFactsAsync(
+            RequireEqual("pilot-local", ravenRemoteFrame.DaemonId, "Commander local replica should observe Raven daemon id");
+            Require(ravenRemoteFrame.CumulativeAppliedCommandIds.Contains(ravenByRaven.CommandId), "Commander local replica should observe Raven-applied Raven command");
+            Require(ravenRemoteFrame.CumulativeRejectedCommandIds.Contains(hostileByRaven.CommandId), "Commander local replica should observe Raven rejection receipt");
+            var commanderObservedRavenFacts = await WaitForReplicaFactsAsync(
                 $"rudp://127.0.0.1:{ravenPort}",
-                starfireReplicaPath,
-                "starfire-observes-raven-facts",
-                [ravenDaemon, starfireDaemon],
+                commanderReplicaPath,
+                "commander-observes-raven-facts",
+                [ravenDaemon, commanderDaemon],
                 facts =>
                     facts.Any(fact =>
-                        string.Equals(fact.SourceDaemonId, "raven-local", StringComparison.Ordinal) &&
+                        string.Equals(fact.SourceDaemonId, "pilot-local", StringComparison.Ordinal) &&
                         string.Equals(fact.CommandId, ravenByRaven.CommandId, StringComparison.Ordinal) &&
                         string.Equals(fact.Outcome, AetheriaRuntimeCommandFactOutcomes.Applied, StringComparison.Ordinal)) &&
                     facts.Any(fact =>
-                        string.Equals(fact.SourceDaemonId, "raven-local", StringComparison.Ordinal) &&
+                        string.Equals(fact.SourceDaemonId, "pilot-local", StringComparison.Ordinal) &&
                         string.Equals(fact.CommandId, hostileByRaven.CommandId, StringComparison.Ordinal) &&
                         string.Equals(fact.Outcome, AetheriaRuntimeCommandFactOutcomes.Rejected, StringComparison.Ordinal)),
                 "Raven applied and rejected committed facts").ConfigureAwait(false);
             Require(
-                starfireObservedRavenFacts.Any(fact =>
-                    string.Equals(fact.SourceDaemonId, "raven-local", StringComparison.Ordinal) &&
+                commanderObservedRavenFacts.Any(fact =>
+                    string.Equals(fact.SourceDaemonId, "pilot-local", StringComparison.Ordinal) &&
                     string.Equals(fact.CommandId, ravenByRaven.CommandId, StringComparison.Ordinal) &&
                     string.Equals(fact.Outcome, AetheriaRuntimeCommandFactOutcomes.Applied, StringComparison.Ordinal)),
-                "Starfire local replica should observe Raven committed movement fact");
+                "Commander local replica should observe Raven committed movement fact");
             Require(
-                starfireObservedRavenFacts.Any(fact =>
-                    string.Equals(fact.SourceDaemonId, "raven-local", StringComparison.Ordinal) &&
+                commanderObservedRavenFacts.Any(fact =>
+                    string.Equals(fact.SourceDaemonId, "pilot-local", StringComparison.Ordinal) &&
                     string.Equals(fact.CommandId, hostileByRaven.CommandId, StringComparison.Ordinal) &&
                     string.Equals(fact.Outcome, AetheriaRuntimeCommandFactOutcomes.Rejected, StringComparison.Ordinal)),
-                "Starfire local replica should observe Raven policy rejection fact");
+                "Commander local replica should observe Raven policy rejection fact");
 
-            RequireEqual("starfire-local", starfireRemoteFrame.DaemonId, "Raven local replica should observe Starfire daemon id");
-            Require(starfireRemoteFrame.CumulativeAppliedCommandIds.Contains(hostileByStarfire.CommandId), "Raven local replica should observe Starfire-applied hostile command");
-            Require(starfireRemoteFrame.CumulativeRejectedCommandIds.Contains(ravenByStarfire.CommandId), "Raven local replica should observe Starfire rejection receipt");
-            var ravenObservedStarfireFacts = await WaitForReplicaFactsAsync(
-                $"rudp://127.0.0.1:{starfirePort}",
+            RequireEqual("commander-local", commanderRemoteFrame.DaemonId, "Raven local replica should observe Commander daemon id");
+            Require(commanderRemoteFrame.CumulativeAppliedCommandIds.Contains(hostileByCommander.CommandId), "Raven local replica should observe Commander-applied hostile command");
+            Require(commanderRemoteFrame.CumulativeRejectedCommandIds.Contains(ravenByCommander.CommandId), "Raven local replica should observe Commander rejection receipt");
+            var ravenObservedCommanderFacts = await WaitForReplicaFactsAsync(
+                $"rudp://127.0.0.1:{commanderPort}",
                 ravenReplicaPath,
-                "raven-observes-starfire-facts",
-                [ravenDaemon, starfireDaemon],
+                "raven-observes-commander-facts",
+                [ravenDaemon, commanderDaemon],
                 facts =>
                     facts.Any(fact =>
-                        string.Equals(fact.SourceDaemonId, "starfire-local", StringComparison.Ordinal) &&
-                        string.Equals(fact.CommandId, hostileByStarfire.CommandId, StringComparison.Ordinal) &&
+                        string.Equals(fact.SourceDaemonId, "commander-local", StringComparison.Ordinal) &&
+                        string.Equals(fact.CommandId, hostileByCommander.CommandId, StringComparison.Ordinal) &&
                         string.Equals(fact.Outcome, AetheriaRuntimeCommandFactOutcomes.Applied, StringComparison.Ordinal)) &&
                     facts.Any(fact =>
-                        string.Equals(fact.SourceDaemonId, "starfire-local", StringComparison.Ordinal) &&
-                        string.Equals(fact.CommandId, ravenByStarfire.CommandId, StringComparison.Ordinal) &&
+                        string.Equals(fact.SourceDaemonId, "commander-local", StringComparison.Ordinal) &&
+                        string.Equals(fact.CommandId, ravenByCommander.CommandId, StringComparison.Ordinal) &&
                         string.Equals(fact.Outcome, AetheriaRuntimeCommandFactOutcomes.Rejected, StringComparison.Ordinal)),
-                "Starfire applied and rejected committed facts").ConfigureAwait(false);
+                "Commander applied and rejected committed facts").ConfigureAwait(false);
             Require(
-                ravenObservedStarfireFacts.Any(fact =>
-                    string.Equals(fact.SourceDaemonId, "starfire-local", StringComparison.Ordinal) &&
-                    string.Equals(fact.CommandId, hostileByStarfire.CommandId, StringComparison.Ordinal) &&
+                ravenObservedCommanderFacts.Any(fact =>
+                    string.Equals(fact.SourceDaemonId, "commander-local", StringComparison.Ordinal) &&
+                    string.Equals(fact.CommandId, hostileByCommander.CommandId, StringComparison.Ordinal) &&
                     string.Equals(fact.Outcome, AetheriaRuntimeCommandFactOutcomes.Applied, StringComparison.Ordinal)),
-                "Raven local replica should observe Starfire committed hostile fact");
+                "Raven local replica should observe Commander committed hostile fact");
             Require(
-                ravenObservedStarfireFacts.Any(fact =>
-                    string.Equals(fact.SourceDaemonId, "starfire-local", StringComparison.Ordinal) &&
-                    string.Equals(fact.CommandId, ravenByStarfire.CommandId, StringComparison.Ordinal) &&
+                ravenObservedCommanderFacts.Any(fact =>
+                    string.Equals(fact.SourceDaemonId, "commander-local", StringComparison.Ordinal) &&
+                    string.Equals(fact.CommandId, ravenByCommander.CommandId, StringComparison.Ordinal) &&
                     string.Equals(fact.Outcome, AetheriaRuntimeCommandFactOutcomes.Rejected, StringComparison.Ordinal)),
-                "Raven local replica should observe Starfire policy rejection fact");
+                "Raven local replica should observe Commander policy rejection fact");
 
-            var ravenMovementFactId = starfireObservedRavenFacts.First(fact =>
-                string.Equals(fact.SourceDaemonId, "raven-local", StringComparison.Ordinal) &&
+            var ravenMovementFactId = commanderObservedRavenFacts.First(fact =>
+                string.Equals(fact.SourceDaemonId, "pilot-local", StringComparison.Ordinal) &&
                 string.Equals(fact.CommandId, ravenByRaven.CommandId, StringComparison.Ordinal) &&
                 string.Equals(fact.Outcome, AetheriaRuntimeCommandFactOutcomes.Applied, StringComparison.Ordinal)).FactId;
-            var starfireHostileFactId = ravenObservedStarfireFacts.First(fact =>
-                string.Equals(fact.SourceDaemonId, "starfire-local", StringComparison.Ordinal) &&
-                string.Equals(fact.CommandId, hostileByStarfire.CommandId, StringComparison.Ordinal) &&
+            var commanderHostileFactId = ravenObservedCommanderFacts.First(fact =>
+                string.Equals(fact.SourceDaemonId, "commander-local", StringComparison.Ordinal) &&
+                string.Equals(fact.CommandId, hostileByCommander.CommandId, StringComparison.Ordinal) &&
                 string.Equals(fact.Outcome, AetheriaRuntimeCommandFactOutcomes.Applied, StringComparison.Ordinal)).FactId;
 
-            var starfireConvergedFrame = await WaitForLocalFrameAsync(
-                starfireStatePath,
-                "starfire-local-converges-raven",
-                [ravenDaemon, starfireDaemon],
+            var commanderConvergedFrame = await WaitForLocalFrameAsync(
+                commanderStatePath,
+                "commander-local-converges-raven",
+                [ravenDaemon, commanderDaemon],
                 frame =>
                     frame.CumulativeImportedFactIds.Contains(ravenMovementFactId) &&
                     Entity(frame.Run, ravenKey).PositionX > 0,
-                "Starfire live daemon imports Raven movement fact and moves Raven locally").ConfigureAwait(false);
+                "Commander live daemon imports Raven movement fact and moves Raven locally").ConfigureAwait(false);
             Require(
-                starfireConvergedFrame.CumulativeImportedFactIds.Any(),
-                "Starfire live daemon should record imported remote fact ids");
+                commanderConvergedFrame.CumulativeImportedFactIds.Any(),
+                "Commander live daemon should record imported remote fact ids");
 
             var ravenConvergedFrame = await WaitForLocalFrameAsync(
                 ravenStatePath,
-                "raven-local-converges-starfire",
-                [ravenDaemon, starfireDaemon],
+                "pilot-local-converges-commander",
+                [ravenDaemon, commanderDaemon],
                 frame =>
-                    frame.CumulativeImportedFactIds.Contains(starfireHostileFactId) &&
+                    frame.CumulativeImportedFactIds.Contains(commanderHostileFactId) &&
                     Entity(frame.Run, hostileKey).PositionZ < 0,
-                "Raven live daemon imports Starfire hostile movement fact and moves hostile locally").ConfigureAwait(false);
+                "Raven live daemon imports Commander hostile movement fact and moves hostile locally").ConfigureAwait(false);
             Require(
                 ravenConvergedFrame.CumulativeImportedFactIds.Any(),
                 "Raven live daemon should record imported remote fact ids");
@@ -988,7 +981,7 @@ internal sealed class AuthoritySmokeChecks
         finally
         {
             StopProcess(ravenDaemon);
-            StopProcess(starfireDaemon);
+            StopProcess(commanderDaemon);
         }
     }
 
@@ -1014,9 +1007,9 @@ internal sealed class AuthoritySmokeChecks
         var ravenKey = EntityKey("coop-smoke", 0, 0);
         var hostileKey = EntityKey("coop-smoke", 0, 1);
 
-        var ravenMovement = MovementCommand("raven-unity", ravenKey, directionX: 1, directionY: 0, magnitude: 1);
+        var ravenMovement = MovementCommand("pilot-client", ravenKey, directionX: 1, directionY: 0, magnitude: 1);
         var ravenSourceFrame = TickWithPolicy(
-            "raven-local",
+            "pilot-local",
             InitialCoopFactRun(),
             policy,
             [ravenMovement]);
@@ -1025,11 +1018,11 @@ internal sealed class AuthoritySmokeChecks
             ravenMovement,
             policy.VerseId);
 
-        var starfireImport = AetheriaRuntimeCommittedFactImporter.ImportIntoFrame(
-            Path.Combine(Path.GetTempPath(), $"aetheria-authority-facts-starfire-{smokeId}.cc"),
+        var commanderImport = AetheriaRuntimeCommittedFactImporter.ImportIntoFrame(
+            Path.Combine(Path.GetTempPath(), $"aetheria-authority-facts-commander-{smokeId}.cc"),
             AetheriaRuntimeDaemonFrameDocument.Create(
                 InitialCoopFactRun(),
-                "starfire-local",
+                "commander-local",
                 "authority-smoke",
                 frameId: 0,
                 simulationTimeSeconds: 0,
@@ -1037,23 +1030,23 @@ internal sealed class AuthoritySmokeChecks
             [ravenMovementFact],
             policy,
             leases: null,
-            localRuntimeId: "starfire-local",
-            daemonId: "starfire-local",
+            localRuntimeId: "commander-local",
+            daemonId: "commander-local",
             sessionId: "authority-smoke",
             verseId: policy.VerseId);
 
-        Require(starfireImport.AcceptedFactIds.Contains(ravenMovementFact.FactId), "Starfire should accept Raven's committed Raven movement fact");
-        Require(!starfireImport.RejectedFactIds.Contains(ravenMovementFact.FactId), "Starfire should not reject Raven's authorized movement fact");
-        Require(Entity(starfireImport.Run, ravenKey).PositionX > 0, "Starfire local run should converge Raven movement into local state");
+        Require(commanderImport.AcceptedFactIds.Contains(ravenMovementFact.FactId), "Commander should accept Raven's committed Raven movement fact");
+        Require(!commanderImport.RejectedFactIds.Contains(ravenMovementFact.FactId), "Commander should not reject Raven's authorized movement fact");
+        Require(Entity(commanderImport.Run, ravenKey).PositionX > 0, "Commander local run should converge Raven movement into local state");
 
-        var hostileRename = MetadataNameCommand("starfire-rts", hostileKey, "Starfire Marked Hostile");
-        var starfireSourceFrame = TickWithPolicy(
-            "starfire-local",
+        var hostileRename = MetadataNameCommand("commander-client", hostileKey, "Commander Marked Hostile");
+        var commanderSourceFrame = TickWithPolicy(
+            "commander-local",
             InitialCoopFactRun(),
             policy,
             [hostileRename]);
         var hostileRenameFact = AetheriaRuntimeCommittedCommandFactDocument.FromAppliedCommand(
-            starfireSourceFrame,
+            commanderSourceFrame,
             hostileRename,
             policy.VerseId);
 
@@ -1061,7 +1054,7 @@ internal sealed class AuthoritySmokeChecks
             Path.Combine(Path.GetTempPath(), $"aetheria-authority-facts-raven-{smokeId}.cc"),
             AetheriaRuntimeDaemonFrameDocument.Create(
                 InitialCoopFactRun(),
-                "raven-local",
+                "pilot-local",
                 "authority-smoke",
                 frameId: 0,
                 simulationTimeSeconds: 0,
@@ -1069,15 +1062,15 @@ internal sealed class AuthoritySmokeChecks
             [hostileRenameFact],
             policy,
             leases: null,
-            localRuntimeId: "raven-local",
-            daemonId: "raven-local",
+            localRuntimeId: "pilot-local",
+            daemonId: "pilot-local",
             sessionId: "authority-smoke",
             verseId: policy.VerseId);
 
-        Require(ravenImport.AcceptedFactIds.Contains(hostileRenameFact.FactId), "Raven should accept Starfire's hostile metadata fact");
-        RequireEqual("Starfire Marked Hostile", Entity(ravenImport.Run, hostileKey).Name, "Raven local run should converge Starfire hostile metadata into local state");
+        Require(ravenImport.AcceptedFactIds.Contains(hostileRenameFact.FactId), "Raven should accept Commander's hostile metadata fact");
+        RequireEqual("Commander Marked Hostile", Entity(ravenImport.Run, hostileKey).Name, "Raven local run should converge Commander hostile metadata into local state");
 
-        var unauthorizedRename = MetadataNameCommand("raven-unity", hostileKey, "Raven Should Not Own This");
+        var unauthorizedRename = MetadataNameCommand("pilot-client", hostileKey, "Raven Should Not Own This");
         var unauthorizedFact = AetheriaRuntimeCommittedCommandFactDocument.FromAppliedCommand(
             ravenSourceFrame,
             unauthorizedRename,
@@ -1086,7 +1079,7 @@ internal sealed class AuthoritySmokeChecks
             Path.Combine(Path.GetTempPath(), $"aetheria-authority-facts-rejected-{smokeId}.cc"),
             AetheriaRuntimeDaemonFrameDocument.Create(
                 InitialCoopFactRun(),
-                "starfire-local",
+                "commander-local",
                 "authority-smoke",
                 frameId: 0,
                 simulationTimeSeconds: 0,
@@ -1094,13 +1087,13 @@ internal sealed class AuthoritySmokeChecks
             [unauthorizedFact],
             policy,
             leases: null,
-            localRuntimeId: "starfire-local",
-            daemonId: "starfire-local",
+            localRuntimeId: "commander-local",
+            daemonId: "commander-local",
             sessionId: "authority-smoke",
             verseId: policy.VerseId);
 
-        Require(rejectedImport.RejectedFactIds.Contains(unauthorizedFact.FactId), "Starfire should reject Raven-authored hostile metadata fact");
-        RequireEqual("Starfire Hostile", Entity(rejectedImport.Run, hostileKey).Name, "Rejected facts should not mutate local state");
+        Require(rejectedImport.RejectedFactIds.Contains(unauthorizedFact.FactId), "Commander should reject Raven-authored hostile metadata fact");
+        RequireEqual("Commander Hostile", Entity(rejectedImport.Run, hostileKey).Name, "Rejected facts should not mutate local state");
     }
 
     private static async Task SeedDaemonStateAsync(
@@ -1560,16 +1553,16 @@ internal sealed class AuthoritySmokeChecks
                 SubjectPrefix = ravenKey,
                 ClaimKinds = [AetheriaRuntimeClaimKinds.Movement],
                 Mode = AetheriaRuntimeAuthorityModes.DelegatedRuntime,
-                RuntimeIds = ["raven-unity"],
+                RuntimeIds = ["pilot-client"],
                 Priority = 100
             },
             new AetheriaRuntimeAuthorityRule
             {
-                RuleId = "starfire.runtime.owns.hostile.movement",
+                RuleId = "commander.runtime.owns.hostile.movement",
                 SubjectPrefix = hostileKey,
                 ClaimKinds = [AetheriaRuntimeClaimKinds.Movement],
                 Mode = AetheriaRuntimeAuthorityModes.DelegatedRuntime,
-                RuntimeIds = ["starfire-rts"],
+                RuntimeIds = ["commander-client"],
                 Priority = 100
             });
         policy.VerseId = "aetheria.coop-smoke";
@@ -1591,16 +1584,16 @@ internal sealed class AuthoritySmokeChecks
                     SubjectPrefix = ravenKey,
                     ClaimKinds = [AetheriaRuntimeClaimKinds.Metadata],
                     Mode = AetheriaRuntimeAuthorityModes.DelegatedRuntime,
-                    RuntimeIds = ["raven-unity"],
+                    RuntimeIds = ["pilot-client"],
                     Priority = 90
                 },
                 new AetheriaRuntimeAuthorityRule
                 {
-                    RuleId = "starfire.runtime.owns.hostile.metadata",
+                    RuleId = "commander.runtime.owns.hostile.metadata",
                     SubjectPrefix = hostileKey,
                     ClaimKinds = [AetheriaRuntimeClaimKinds.Metadata],
                     Mode = AetheriaRuntimeAuthorityModes.DelegatedRuntime,
-                    RuntimeIds = ["starfire-rts"],
+                    RuntimeIds = ["commander-client"],
                     Priority = 90
                 }
             })
@@ -1676,7 +1669,7 @@ internal sealed class AuthoritySmokeChecks
                         new AetheriaRuntimeEntitySnapshotCommit
                         {
                             EntityIndex = 1,
-                            Name = "Starfire Hostile",
+                            Name = "Commander Hostile",
                             Kind = "ship",
                             FactionKey = "player",
                             IsActive = true

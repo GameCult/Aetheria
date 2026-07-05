@@ -137,7 +137,7 @@ namespace GameCult.Aetheria.State.Verse
                 targetSource,
                 targetTitle,
                 targetVerseId,
-                string.IsNullOrWhiteSpace(targetRuntimeId) ? "raven-unity" : targetRuntimeId,
+                string.IsNullOrWhiteSpace(targetRuntimeId) ? AetheriaRuntimeStateBoundary.DefaultClientRuntimeId : targetRuntimeId,
                 targetCultMeshAddress,
                 stateFilePath,
                 replicaStateFilePath,

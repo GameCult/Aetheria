@@ -20,9 +20,9 @@ namespace GameCult.Aetheria.State.Verse
         public const string RuntimeDaemonGameTuiSurfaceFileSuffix = ".daemon.game.tui.cc";
         public const string RuntimeDaemonEditorSurfaceFileSuffix = ".daemon.editor.eve.cc";
         public const string RuntimeDaemonEditorTuiSurfaceFileSuffix = ".daemon.editor.tui.cc";
+        public const string DefaultClientRuntimeId = "aetheria-client";
         public const string RuntimeStatePathOverrideEnvironmentVariable = "AETHERIA_STATE_PATH";
         public const string RuntimeIdOverrideEnvironmentVariable = "AETHERIA_RUNTIME_ID";
-        public const string UnityRuntimeIdOverrideEnvironmentVariable = "AETHERIA_UNITY_RUNTIME_ID";
 
         public static string GetStateFilePath(DirectoryInfo gameDataDirectory)
         {
@@ -118,11 +118,7 @@ namespace GameCult.Aetheria.State.Verse
 
         public static string ResolveRuntimeIdOverride()
         {
-            var configured = System.Environment.GetEnvironmentVariable(RuntimeIdOverrideEnvironmentVariable);
-            if (!string.IsNullOrWhiteSpace(configured))
-                return configured;
-
-            return System.Environment.GetEnvironmentVariable(UnityRuntimeIdOverrideEnvironmentVariable) ?? "";
+            return System.Environment.GetEnvironmentVariable(RuntimeIdOverrideEnvironmentVariable) ?? "";
         }
     }
 }
