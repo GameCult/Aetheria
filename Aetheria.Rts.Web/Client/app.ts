@@ -27,7 +27,7 @@ let eveSurfacePoll: number | null = null;
 function requiredElement<TElement extends Element>(selector: string): TElement {
   const element = document.querySelector<TElement>(selector);
   if (!element) {
-    throw new Error(`Aetheria RTS is missing ${selector}.`);
+    throw new Error(`Aetheria Starbridge is missing ${selector}.`);
   }
 
   return element;
@@ -55,7 +55,7 @@ async function showDaemonEveSurface(): Promise<void> {
       renderEveSurface(surface, host, {
         body: document.body,
         assetUrlResolver: resolveAetheriaAssetUrl,
-        clientId: "aetheria.rts.electron",
+        clientId: "aetheria-electron-client",
         commandSink: intent => submitEveCommand(intent),
         documentResolver: resolveEveDocument,
         source: "Aetheria Daemon",

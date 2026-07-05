@@ -19,6 +19,10 @@ if (-not $appText.Contains('window.aetheriaRts.eveSurface') -or
     $appText.Contains('main-menu-mode')) {
     Write-Error "Stage 7C Electron RTS verifier failed: renderer is not daemon-Eve-only."
 }
+if ($appText.Contains('aetheria.rts.electron') -or
+    $appText.Contains('Aetheria RTS')) {
+    Write-Error "Stage 7C Electron RTS verifier failed: renderer still advertises an RTS-branded client identity."
+}
 
 $mainText = Get-Content Electron\main.ts -Raw
 if (-not $mainText.Contains('await api.surfaceCatalog()') -or -not $mainText.Contains('await api.surfaceCatalogIndex()')) {
@@ -46,8 +50,10 @@ if (-not $mainText.Contains('AETHERIA_VERSE_ID') -or
     Write-Error "Stage 7C Electron RTS verifier failed: Electron launcher does not configure daemon Verse identity."
 }
 if ($mainText.Contains('AETHERIA_RTS_') -or
+    $mainText.Contains('Aetheria RTS') -or
     $mainText.Contains('starfire-rts') -or
     $mainText.Contains('aetheria-rts-daemon') -or
+    $mainText.Contains('aetheria.rts.electron') -or
     $mainText.Contains('aetheria-rts-electron') -or
     $mainText.Contains('rtsCultMesh') -or
     $mainText.Contains('rtsDaemonId') -or

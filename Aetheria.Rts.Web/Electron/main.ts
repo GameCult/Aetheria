@@ -36,12 +36,12 @@ let isQuitting = false;
 app.whenReady().then(async () => {
   mainWindow = createWindow();
   registerIpc();
-  showStartup("Preparing Aetheria RTS", "Building daemon if needed.");
+  showStartup("Preparing Aetheria Starbridge", "Building daemon if needed.");
 
   try {
     if (launchLocalDaemon) {
       await ensureDotnetBuild();
-      showStartup("Launching Aetheria RTS", "Starting the Aetheria daemon.");
+      showStartup("Launching Aetheria Starbridge", "Starting the Aetheria daemon.");
       mkdirSync(runtimeRoot, { recursive: true });
       daemonProcess = startDotnet("aetheria-daemon", daemonDll, [
         "--state",
@@ -63,7 +63,7 @@ app.whenReady().then(async () => {
         "--no-odin-announcements",
       ]);
     } else {
-      showStartup("Connecting Aetheria RTS", `Using daemon ${daemonCultMeshUri}.`);
+      showStartup("Connecting Aetheria Starbridge", `Using daemon ${daemonCultMeshUri}.`);
       mkdirSync(runtimeRoot, { recursive: true });
     }
 
@@ -79,7 +79,7 @@ app.whenReady().then(async () => {
       "aetheria-electron-client",
       { publicationMode: launchLocalDaemon ? "local" : "remote" });
 
-    showStartup("Launching Aetheria RTS", "Waiting for the daemon CultMesh frame.");
+    showStartup("Launching Aetheria Starbridge", "Waiting for the daemon CultMesh frame.");
     await aetheriaClient.waitForFrame(30000);
     await mainWindow.loadFile(rendererIndex);
     if (electronSmoke) {
@@ -119,7 +119,7 @@ function createWindow(): BrowserWindow {
     minHeight: 640,
     show: !electronSmoke,
     backgroundColor: "#0b1016",
-    title: "Aetheria RTS",
+    title: "Aetheria Starbridge",
     frame: false,
     autoHideMenuBar: true,
     webPreferences: {
@@ -216,7 +216,7 @@ async function runElectronSmoke(window: BrowserWindow): Promise<Record<string, u
     await delay(250);
   }
 
-  throw new Error(`Aetheria RTS Electron smoke did not reach ready state. Last result: ${JSON.stringify(lastResult)}`);
+  throw new Error(`Aetheria Starbridge Electron smoke did not reach ready state. Last result: ${JSON.stringify(lastResult)}`);
 }
 
 function isElectronSmokeReady(result: Record<string, unknown>): boolean {
@@ -445,7 +445,7 @@ function showStartup(title: string, detail: string): void {
 
 async function showFailure(error: unknown): Promise<void> {
   const message = error instanceof Error ? error.message : String(error);
-  await mainWindow?.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(startupHtml("Aetheria RTS failed to start", message))}`);
+  await mainWindow?.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(startupHtml("Aetheria Starbridge failed to start", message))}`);
 }
 
 function startupHtml(title: string, detail: string): string {
