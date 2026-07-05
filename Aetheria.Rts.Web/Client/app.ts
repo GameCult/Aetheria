@@ -1,6 +1,8 @@
 import {
   renderEveSurface,
   type EveCommandIntent,
+  type EveEmbeddedDocumentRequest,
+  type EveSurfaceComponent,
 } from "../node_modules/@gamecult/eve-browser-lowering/dist/index.js";
 import type {
   AetheriaRtsApi,
@@ -155,6 +157,7 @@ async function showDaemonEveSurface(): Promise<void> {
           body: document.body,
           clientId: "aetheria.rts.electron",
           commandSink: intent => submitEveCommand(intent),
+          documentResolver: resolveEveDocument,
           source: "Aetheria Daemon",
           statusElement: statusEl,
         });
@@ -171,6 +174,56 @@ async function showDaemonEveSurface(): Promise<void> {
       void renderLatest();
     }, 250);
   }
+}
+
+async function resolveEveDocument(
+  request: EveEmbeddedDocumentRequest,
+  component: EveSurfaceComponent,
+): Promise<{ document: unknown; documentId: string; schemaId: string } | undefined> {
+  const viewport = viewportFromComponent(component);
+  if (request.schemaId === "gamecult.aetheria.render_splats_viewport.v1" || request.slotId === "renderSplats") {
+    return {
+      document: await window.aetheriaRts.renderSplatsViewport(viewport),
+      documentId: request.documentId,
+      schemaId: "gamecult.aetheria.render_splats_viewport.v1",
+    };
+  }
+  if (request.schemaId === "gamecult.aetheria.gravity_viewport.v1" || request.slotId === "gravity") {
+    return {
+      document: await window.aetheriaRts.gravityViewport(viewport),
+      documentId: request.documentId,
+      schemaId: "gamecult.aetheria.gravity_viewport.v1",
+    };
+  }
+  if (request.schemaId === "gamecult.aetheria.objects_viewport.v1" || request.slotId === "objects") {
+    return {
+      document: await window.aetheriaRts.objectsViewport(viewport),
+      documentId: request.documentId,
+      schemaId: "gamecult.aetheria.objects_viewport.v1",
+    };
+  }
+  return undefined;
+}
+
+function viewportFromComponent(component: EveSurfaceComponent): Viewport {
+  const props = component.props ?? {};
+  return {
+    minX: numberProp(props.minX, -1500),
+    minY: numberProp(props.minY, -1000),
+    maxX: numberProp(props.maxX, 1500),
+    maxY: numberProp(props.maxY, 1000),
+  };
+}
+
+function numberProp(value: unknown, fallback: number): number {
+  if (typeof value === "number" && Number.isFinite(value))
+    return value;
+  if (typeof value === "string") {
+    const parsed = Number.parseFloat(value);
+    if (Number.isFinite(parsed))
+      return parsed;
+  }
+  return fallback;
 }
 
 async function startDebugSurface(): Promise<void> {

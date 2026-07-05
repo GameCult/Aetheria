@@ -30,6 +30,7 @@ namespace GameCult.Aetheria.State.Verse
             var entityName = string.IsNullOrWhiteSpace(entity?.Name) ? "(no current entity)" : entity!.Name;
             var surfaceChildren = new List<AetheriaRuntimeSurfaceComponent>
             {
+                GravityFieldSurface("aetheria.daemon.game.field"),
                 Node(
                     "aetheria.daemon.game.frame",
                     "card",
@@ -101,10 +102,8 @@ namespace GameCult.Aetheria.State.Verse
                 updatedAtUtc: frame.PublishedAtUtc,
                 surface: new AetheriaRuntimeSurfaceTree(
                     SurfaceId,
-                    Node(
+                    SurfaceRoot(
                         "aetheria.daemon.game.root",
-                        "surface",
-                        Array.Empty<(string Key, string Value)>(),
                         surfaceChildren.ToArray()),
                     Array.Empty<AetheriaRuntimeSurfaceStyleToken>()),
                 commands: commandBoundary.Commands
@@ -260,6 +259,143 @@ namespace GameCult.Aetheria.State.Verse
             return AetheriaRuntimeDaemonSurfaceCommandCatalog.CommandName(kind);
         }
 
+        private static AetheriaRuntimeSurfaceComponent GravityFieldSurface(string id)
+        {
+            var viewport = DefaultViewport();
+            var renderSplatsDocumentId = ViewportDocumentId("aetheria.viewport.render_splats", viewport);
+            var gravityDocumentId = ViewportDocumentId("aetheria.viewport.gravity", viewport);
+            var objectsDocumentId = ViewportDocumentId("aetheria.viewport.objects", viewport);
+            var props = new[]
+            {
+                ("label", "Aetheria level field surface"),
+                ("minX", F(viewport.MinX)),
+                ("minY", F(viewport.MinY)),
+                ("maxX", F(viewport.MaxX)),
+                ("maxY", F(viewport.MaxY)),
+                ("fieldModel", "aetheria.fields2d.v1"),
+                ("scalarField", "gravity.height"),
+                ("scalarFieldSlot", "gravity"),
+                ("scalarFieldSchemaId", AetheriaRuntimeDaemonSchemas.GravityViewport),
+                ("scalarFieldDefaultVisualizer", "isolines.branchless"),
+                ("scalarFieldVisualizers", "isolines.branchless,height-shade,probe"),
+                ("scalarFieldLineInterval", "11.4398025"),
+                ("scalarFieldBaseColor", "0.002,0.006,0.012"),
+                ("scalarFieldGlowColor", "0.018,0.050,0.075"),
+                ("scalarFieldLowLineColor", "0.000,0.340,0.520"),
+                ("scalarFieldHighLineColor", "1.450,0.300,0.050"),
+                ("scalarFieldLowAngleColor", "0.060,0.160,0.240"),
+                ("scalarFieldHighAngleColor", "1.100,0.240,0.040"),
+                ("vectorField", "nebula.tint"),
+                ("vectorFieldSlot", "renderSplats"),
+                ("vectorFieldLayer", AetheriaRuntimeRenderSplatLayerKeys.FogTint),
+                ("vectorFieldSchemaId", AetheriaRuntimeDaemonSchemas.RenderSplatsViewport),
+                ("vectorFieldDefaultVisualizer", "color.powerpulse"),
+                ("vectorFieldVisualizers", "color.powerpulse,probe"),
+                ("vectorFieldTintScale", "0.45"),
+                ("objectFieldSlot", "objects"),
+                ("objectFieldSchemaId", AetheriaRuntimeDaemonSchemas.ObjectsViewport),
+                ("bodyIconMinPx", "24"),
+                ("sunIconMinPx", "34"),
+                ("bodyIconScale", "0.48"),
+                ("sunIconScale", "0.72"),
+                ("bodyLabelColor", "rgba(226, 244, 255, 0.82)"),
+                ("objectLabelFont", "700 12px Ubuntu, system-ui, sans-serif"),
+                ("objectLabelStroke", "rgba(0, 0, 0, 0.72)"),
+                ("objectLabelStrokeWidth", "3"),
+                ("objectControlledColor", "rgba(122, 240, 255, {alpha})"),
+                ("objectRaiderColor", "rgba(255, 143, 74, {alpha})"),
+                ("objectNeutralColor", "rgba(232, 232, 224, {alpha})"),
+                ("objectDefaultColor", "rgba(214, 244, 255, {alpha})"),
+                ("shipIconSizePx", "22"),
+                ("remoteShipIconSizePx", "18"),
+                ("stationIconSizePx", "34"),
+                ("renderSplatsDocumentId", renderSplatsDocumentId),
+                ("renderSplatsSchemaId", AetheriaRuntimeDaemonSchemas.RenderSplatsViewport),
+                ("gravityDocumentId", gravityDocumentId),
+                ("gravitySchemaId", AetheriaRuntimeDaemonSchemas.GravityViewport),
+                ("objectsDocumentId", objectsDocumentId),
+                ("objectsSchemaId", AetheriaRuntimeDaemonSchemas.ObjectsViewport),
+                ("samplesX", "196"),
+                ("shader", "aetheria.field-surface2d.v1"),
+                ("stateRefreshMs", "50")
+            };
+            var normalizedProps = props.ToDictionary(prop => prop.Item1, prop => prop.Item2 ?? "", StringComparer.Ordinal);
+            return new AetheriaRuntimeSurfaceComponent(
+                id,
+                "field.surface2d",
+                normalizedProps,
+                Array.Empty<AetheriaRuntimeSurfaceComponent>(),
+                AetheriaRuntimeSurfaceStateBindings.FromProps(normalizedProps),
+                new[]
+                {
+                    new AetheriaRuntimeEmbeddedDocumentSlot(
+                        "renderSplats",
+                        renderSplatsDocumentId,
+                        AetheriaRuntimeDaemonSchemas.RenderSplatsViewport,
+                        "data"),
+                    new AetheriaRuntimeEmbeddedDocumentSlot(
+                        "gravity",
+                        gravityDocumentId,
+                        AetheriaRuntimeDaemonSchemas.GravityViewport,
+                        "data"),
+                    new AetheriaRuntimeEmbeddedDocumentSlot(
+                        "objects",
+                        objectsDocumentId,
+                        AetheriaRuntimeDaemonSchemas.ObjectsViewport,
+                        "data")
+                },
+                Layout(
+                    ("position", "absolute"),
+                    ("top", "0"),
+                    ("right", "0"),
+                    ("bottom", "0"),
+                    ("left", "0"),
+                    ("width", "100%"),
+                    ("height", "100%")),
+                null);
+        }
+
+        private static AetheriaRuntimeRtsViewportBounds DefaultViewport()
+        {
+            return new AetheriaRuntimeRtsViewportBounds
+            {
+                MinX = -1500,
+                MinY = -1000,
+                MaxX = 1500,
+                MaxY = 1000
+            };
+        }
+
+        private static string ViewportDocumentId(string prefix, AetheriaRuntimeRtsViewportBounds viewport)
+        {
+            var normalized = AetheriaRuntimeRtsDocuments.Normalize(viewport);
+            return string.Join(
+                ".",
+                prefix,
+                ViewportToken(normalized.MinX),
+                ViewportToken(normalized.MinY),
+                ViewportToken(normalized.MaxX),
+                ViewportToken(normalized.MaxY));
+        }
+
+        private static string ViewportToken(double value)
+        {
+            return value
+                .ToString("0.###", CultureInfo.InvariantCulture)
+                .Replace('-', 'n')
+                .Replace('.', 'p');
+        }
+
+        private static IReadOnlyDictionary<string, string> Layout(params (string Key, string Value)[] values)
+        {
+            return values.ToDictionary(value => value.Item1, value => value.Item2 ?? "", StringComparer.Ordinal);
+        }
+
+        private static string F(double value)
+        {
+            return value.ToString("0.###", CultureInfo.InvariantCulture);
+        }
+
         private static AetheriaRuntimeSurfaceComponent Metric(string id, string label, string value, string stateRef = "")
         {
             var props = string.IsNullOrWhiteSpace(stateRef)
@@ -299,6 +435,30 @@ namespace GameCult.Aetheria.State.Verse
             params AetheriaRuntimeSurfaceComponent[] children)
         {
             return Node(id, "row", Array.Empty<(string Key, string Value)>(), children);
+        }
+
+        private static AetheriaRuntimeSurfaceComponent SurfaceRoot(
+            string id,
+            params AetheriaRuntimeSurfaceComponent[] children)
+        {
+            var props = new Dictionary<string, string>(StringComparer.Ordinal);
+            return new AetheriaRuntimeSurfaceComponent(
+                id,
+                "surface",
+                props,
+                children ?? Array.Empty<AetheriaRuntimeSurfaceComponent>(),
+                AetheriaRuntimeSurfaceStateBindings.FromProps(props),
+                Array.Empty<AetheriaRuntimeEmbeddedDocumentSlot>(),
+                Layout(
+                    ("position", "relative"),
+                    ("overflow", "hidden"),
+                    ("width", "100%"),
+                    ("height", "100vh"),
+                    ("minHeight", "100vh")),
+                new Dictionary<string, string>
+                {
+                    ["background"] = "#020606"
+                });
         }
 
         private static AetheriaRuntimeSurfaceComponent Node(

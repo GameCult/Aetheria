@@ -7,6 +7,7 @@ const channels = {
   mapViewport: "aetheria-rts:map-viewport",
   objectsViewport: "aetheria-rts:objects-viewport",
   gravityViewport: "aetheria-rts:gravity-viewport",
+  renderSplatsViewport: "aetheria-rts:render-splats-viewport",
   viewportFeed: "aetheria-rts:viewport-feed",
   viewportFeedStop: "aetheria-rts:viewport-feed-stop",
   viewportFeedUpdate: "aetheria-rts:viewport-feed-update",
@@ -35,6 +36,7 @@ contextBridge.exposeInMainWorld("aetheriaRts", {
   mapViewport: request => ipcRenderer.invoke(channels.mapViewport, request),
   objectsViewport: request => ipcRenderer.invoke(channels.objectsViewport, request),
   gravityViewport: request => ipcRenderer.invoke(channels.gravityViewport, request),
+  renderSplatsViewport: request => ipcRenderer.invoke(channels.renderSplatsViewport, request),
   watchViewportFeed: (request, callback) => {
     const subscriptionId = `viewport-feed-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
     const listener = (_event, message) => {

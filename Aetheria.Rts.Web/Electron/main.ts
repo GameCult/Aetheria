@@ -1,6 +1,6 @@
 import { app, BrowserWindow, ipcMain, shell, type WebContents } from "electron";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
-import { createWriteStream, existsSync, mkdirSync, readFileSync, watch, writeFileSync, type FSWatcher } from "node:fs";
+import { createWriteStream, existsSync, mkdirSync, readdirSync, readFileSync, statSync, watch, writeFileSync, type FSWatcher } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -222,7 +222,19 @@ async function runElectronSmoke(window: BrowserWindow): Promise<Record<string, u
         const surfaceCatalog = api ? await api.surfaceCatalog() : null;
         const surfaceCatalogIndex = api ? await api.surfaceCatalogIndex() : null;
         const viewport = api ? await api.mapViewport({ minX: -5000, minY: -5000, maxX: 5000, maxY: 5000 }) : null;
+        const renderSplatsViewport = api ? await api.renderSplatsViewport({ minX: -1500, minY: -1000, maxX: 1500, maxY: 1000 }) : null;
         const actor = viewport?.objects?.find(object => object.controlled) ?? viewport?.objects?.[0] ?? null;
+        const findComponent = (component, predicate) => {
+          if (!component || typeof component !== "object") return null;
+          if (predicate(component)) return component;
+          for (const child of component.children ?? []) {
+            const match = findComponent(child, predicate);
+            if (match) return match;
+          }
+          return null;
+        };
+        const eveFieldSurface = findComponent(eveSurface?.surface?.root, component =>
+          component.kind === "field.surface2d" || component.kind === "gravity.surface");
         const eveReceipt = api ? await api.submitEveCommand({
           providerId: "aetheria.daemon",
           surfaceId: "aetheria.game",
@@ -235,6 +247,7 @@ async function runElectronSmoke(window: BrowserWindow): Promise<Record<string, u
             typeof api.mapViewport === "function" &&
             typeof api.objectsViewport === "function" &&
             typeof api.gravityViewport === "function" &&
+            typeof api.renderSplatsViewport === "function" &&
             typeof api.selectedObject === "function" &&
             typeof api.inventory === "function" &&
             typeof api.daemonHealth === "function" &&
@@ -256,7 +269,9 @@ async function runElectronSmoke(window: BrowserWindow): Promise<Record<string, u
           surfaceCatalog,
           surfaceCatalogIndex,
           viewport,
+          renderSplatsViewport,
           actor,
+          eveFieldSurface,
           eveReceipt
         };
       })()
@@ -281,7 +296,9 @@ function isElectronSmokeReady(result: Record<string, unknown>): boolean {
   const surfaceCatalog = objectValue(result.surfaceCatalog);
   const surfaceCatalogIndex = objectValue(result.surfaceCatalogIndex);
   const viewport = objectValue(result.viewport);
+  const renderSplatsViewport = objectValue(result.renderSplatsViewport);
   const actor = objectValue(result.actor);
+  const eveFieldSurface = objectValue(result.eveFieldSurface);
   const eveReceipt = objectValue(result.eveReceipt);
   return result.hasApi === true &&
     status.includes("Aetheria Daemon") &&
@@ -293,6 +310,16 @@ function isElectronSmokeReady(result: Record<string, unknown>): boolean {
     authority?.policyId === "aetheria.trusted-coop.v1" &&
     starbridge?.scenarioName === "Frontier Fabricator Defense" &&
     arrayValue(viewport?.objects).length > 0 &&
+    renderSplatsViewport?.schema === "gamecult.aetheria.render_splats_viewport.v1" &&
+    arrayValue(renderSplatsViewport?.layers).some(layer =>
+      objectValue(layer)?.layerKey === "fog.tint") &&
+    stringValue(eveFieldSurface?.id).length > 0 &&
+    arrayValue(eveFieldSurface?.embeddedDocuments).some(slot =>
+      objectValue(slot)?.slotId === "renderSplats") &&
+    arrayValue(eveFieldSurface?.embeddedDocuments).some(slot =>
+      objectValue(slot)?.slotId === "gravity") &&
+    arrayValue(eveFieldSurface?.embeddedDocuments).some(slot =>
+      objectValue(slot)?.slotId === "objects") &&
     stringValue(actor?.entityKey).length > 0 &&
     surfaceCatalog?.catalogId === "gamecult.aetheria.rts.surfaces.v1" &&
     arrayValue(surfaceCatalogIndex?.queries).length > 0 &&
@@ -538,10 +565,47 @@ function requireClient(): AetheriaCultMeshClient {
 }
 
 async function ensureDotnetBuild(): Promise<void> {
-  if (existsSync(daemonDll))
+  if (existsSync(daemonDll) && !daemonBuildInputsAreNewer(daemonDll))
     return;
 
   await runProcess("dotnet", ["build", resolve(repoRoot, "Aetheria.State.Daemon", "Aetheria.State.Daemon.csproj")], "Aetheria.State.Daemon.build");
+}
+
+function daemonBuildInputsAreNewer(outputPath: string): boolean {
+  const outputMtime = statSync(outputPath).mtimeMs;
+  const sourceRoots = [
+    resolve(repoRoot, "Aetheria.State.Daemon"),
+    resolve(repoRoot, "Aetheria.State"),
+    resolve(repoRoot, "Packages", "org.gamecult.aetheria.state", "Runtime"),
+  ];
+
+  return sourceRoots.some(sourceRoot => newestSourceMtime(sourceRoot) > outputMtime);
+}
+
+function newestSourceMtime(root: string): number {
+  if (!existsSync(root))
+    return 0;
+
+  const stat = statSync(root);
+  if (stat.isFile())
+    return isBuildInput(root) ? stat.mtimeMs : 0;
+
+  let newest = 0;
+  for (const entry of readdirSync(root, { withFileTypes: true })) {
+    const path = resolve(root, entry.name);
+    if (entry.isDirectory()) {
+      if (entry.name === "bin" || entry.name === "obj")
+        continue;
+      newest = Math.max(newest, newestSourceMtime(path));
+    } else if (entry.isFile() && isBuildInput(path)) {
+      newest = Math.max(newest, statSync(path).mtimeMs);
+    }
+  }
+  return newest;
+}
+
+function isBuildInput(path: string): boolean {
+  return path.endsWith(".cs") || path.endsWith(".csproj") || path.endsWith(".props") || path.endsWith(".targets");
 }
 
 function startDotnet(name: string, dllPath: string, args: string[]): ChildProcessWithoutNullStreams {

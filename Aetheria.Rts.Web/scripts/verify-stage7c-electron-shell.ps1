@@ -21,15 +21,17 @@ if (-not $mainText.Contains('await api.surfaceCatalog()') -or -not $mainText.Con
     Write-Error "Stage 7C Electron shell verifier failed: Electron smoke does not call the preload CultMesh surface catalog APIs."
 }
 
-if (-not $mainText.Contains('runtimeSurfaceDetails.includes("shared-memory")') -or -not $mainText.Contains('daemon:aetheria.frame.latest.v1')) {
-    Write-Error "Stage 7C Electron shell verifier failed: Electron smoke does not verify rendered CultMesh route/source metadata."
+if (-not $mainText.Contains('await api.renderSplatsViewport') -or
+    -not $mainText.Contains('eveFieldSurface') -or
+    -not $mainText.Contains('embeddedDocuments') -or
+    -not $mainText.Contains('fog.tint')) {
+    Write-Error "Stage 7C Electron shell verifier failed: Electron smoke does not verify daemon Eve field document lowering."
 }
 
-if (-not $mainText.Contains('await api.setMoveVector') -or
-    -not $mainText.Contains('moveReceipt?.commandId') -or
-    -not $mainText.Contains('moveReceipt?.operationId') -or
-    -not $mainText.Contains('moveReceipt?.accepted') -or
-    -not $mainText.Contains('moveReceipt?.route')) {
+if (-not $mainText.Contains('await api.submitEveCommand') -or
+    -not $mainText.Contains('eveReceipt?.commandId') -or
+    -not $mainText.Contains('eveReceipt?.accepted') -or
+    -not $mainText.Contains('eveReceipt?.route')) {
     Write-Error "Stage 7C Electron shell verifier failed: Electron smoke does not verify typed operation receipts through preload."
 }
 

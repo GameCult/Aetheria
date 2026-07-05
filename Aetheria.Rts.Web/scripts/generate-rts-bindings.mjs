@@ -12,6 +12,7 @@ const sources = [
   resolve(repoRoot, "Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeAssetDocuments.cs"),
   resolve(repoRoot, "Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeSnapshotDocuments.cs"),
   resolve(repoRoot, "Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeRtsViewportDocuments.cs"),
+  resolve(repoRoot, "Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeRenderSplatDocuments.cs"),
   resolve(repoRoot, "Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeStarbridgeDocuments.cs"),
   resolve(repoRoot, "Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeVerseAuthorityPolicy.cs"),
 ];
@@ -24,6 +25,7 @@ const ipcChannels = [
   ["mapViewport", "aetheria-rts:map-viewport"],
   ["objectsViewport", "aetheria-rts:objects-viewport"],
   ["gravityViewport", "aetheria-rts:gravity-viewport"],
+  ["renderSplatsViewport", "aetheria-rts:render-splats-viewport"],
   ["viewportFeed", "aetheria-rts:viewport-feed"],
   ["viewportFeedStop", "aetheria-rts:viewport-feed-stop"],
   ["viewportFeedUpdate", "aetheria-rts:viewport-feed-update"],
@@ -110,6 +112,19 @@ const documents = [
     schemaName: "gravityViewport",
   },
   {
+    exportName: "aetheriaRuntimeRenderSplatsViewportDocument",
+    className: "AetheriaRuntimeRenderSplatsViewportDocument",
+    schemaName: "renderSplatsViewport",
+  },
+  {
+    exportName: "aetheriaRuntimeRenderSplatLayerDefinition",
+    className: "AetheriaRuntimeRenderSplatLayerDefinition",
+  },
+  {
+    exportName: "aetheriaRuntimeRenderSplatSoa",
+    className: "AetheriaRuntimeRenderSplatSoa",
+  },
+  {
     exportName: "aetheriaRuntimeCurrentZoneDocument",
     className: "AetheriaRuntimeCurrentZoneDocument",
     schemaName: "currentZone",
@@ -188,6 +203,10 @@ const documents = [
   {
     exportName: "aetheriaRuntimeBodySnapshotCommit",
     className: "AetheriaRuntimeBodySnapshotCommit",
+  },
+  {
+    exportName: "aetheriaRuntimeSunVisualCommit",
+    className: "AetheriaRuntimeSunVisualCommit",
   },
   {
     exportName: "aetheriaRuntimeEntityStatGridCommit",
@@ -502,7 +521,15 @@ export type AetheriaMenuSurfaceComponent = {
   props: Record<string, string>;
   layout?: Record<string, string>;
   style?: Record<string, string>;
+  embeddedDocuments?: AetheriaMenuEmbeddedDocumentSlot[];
   children: AetheriaMenuSurfaceComponent[];
+};
+
+export type AetheriaMenuEmbeddedDocumentSlot = {
+  slotId: string;
+  documentId: string;
+  schemaId: string;
+  presentationKind: string;
 };
 
 export type AetheriaMenuStyleToken = {
@@ -520,6 +547,7 @@ export type AetheriaRtsMainClient = {
   mapViewport(request: CultMeshViewportRequest): Promise<ViewportResponse>;
   objectsViewport(request: CultMeshViewportRequest): Promise<ObjectsViewportResponse>;
   gravityViewport(request: CultMeshViewportRequest): Promise<GravityViewportResponse>;
+  renderSplatsViewport(request: CultMeshViewportRequest): Promise<RenderSplatsViewportResponse>;
   selectedObject(request: AetheriaRuntimeSelectedObjectRequest): Promise<SelectedObjectDocument>;
   inventory(request: AetheriaRuntimeSelectedObjectRequest): Promise<InventoryDocument>;
   daemonHealth(): Promise<DaemonHealthDocument>;
@@ -549,6 +577,8 @@ export function registerAetheriaRtsIpcHandlers(
     getClient().objectsViewport(request));
   ipcMain.handle(AetheriaRtsIpcChannels.gravityViewport, async (_event, request: CultMeshViewportRequest) =>
     getClient().gravityViewport(request));
+  ipcMain.handle(AetheriaRtsIpcChannels.renderSplatsViewport, async (_event, request: CultMeshViewportRequest) =>
+    getClient().renderSplatsViewport(request));
   ipcMain.handle(AetheriaRtsIpcChannels.selectedObject, async (_event, request: AetheriaRuntimeSelectedObjectRequest) =>
     getClient().selectedObject(request));
   ipcMain.handle(AetheriaRtsIpcChannels.inventory, async (_event, request: AetheriaRuntimeSelectedObjectRequest) =>
@@ -605,6 +635,7 @@ export type AetheriaRuntimeRtsQueryExecutors = {
   mapViewport: AetheriaRuntimeViewportQueryExecutor<ViewportResponse>;
   objectsViewport: AetheriaRuntimeViewportQueryExecutor<ObjectsViewportResponse>;
   gravityViewport: AetheriaRuntimeViewportQueryExecutor<GravityViewportResponse>;
+  renderSplatsViewport: AetheriaRuntimeViewportQueryExecutor<RenderSplatsViewportResponse>;
   selectedObject: AetheriaRuntimeQueryExecutor<AetheriaRuntimeSelectedObjectRequest, SelectedObjectDocument>;
   inventory: AetheriaRuntimeQueryExecutor<AetheriaRuntimeSelectedObjectRequest, InventoryDocument>;
   daemonHealth: AetheriaRuntimeQueryExecutor<void, DaemonHealthDocument>;
@@ -617,6 +648,7 @@ export type AetheriaRuntimeRtsQueryWatchers = Partial<{
   mapViewport: CultMeshQueryWatcher<CultMeshViewportRequest, ViewportResponse>;
   objectsViewport: CultMeshQueryWatcher<CultMeshViewportRequest, ObjectsViewportResponse>;
   gravityViewport: CultMeshQueryWatcher<CultMeshViewportRequest, GravityViewportResponse>;
+  renderSplatsViewport: CultMeshQueryWatcher<CultMeshViewportRequest, RenderSplatsViewportResponse>;
   selectedObject: CultMeshQueryWatcher<AetheriaRuntimeSelectedObjectRequest, SelectedObjectDocument>;
   inventory: CultMeshQueryWatcher<AetheriaRuntimeSelectedObjectRequest, InventoryDocument>;
   daemonHealth: CultMeshQueryWatcher<void, DaemonHealthDocument>;
@@ -746,6 +778,11 @@ export function createAetheriaRuntimeRtsQueryHandles(
       executors.gravityViewport,
       { routeHint, sources: [AetheriaRuntimeRtsDocumentSources.daemonFrame], watchQuery: watchers.gravityViewport },
     ),
+    renderSplatsViewport: CultMesh.query<CultMeshViewportRequest, RenderSplatsViewportResponse>(
+      AetheriaRtsSchemas.renderSplatsViewport,
+      executors.renderSplatsViewport,
+      { routeHint, sources: [AetheriaRuntimeRtsDocumentSources.daemonFrame], watchQuery: watchers.renderSplatsViewport },
+    ),
     selectedObject: CultMesh.query<AetheriaRuntimeSelectedObjectRequest, SelectedObjectDocument>(
       AetheriaRtsSchemas.selectedObject,
       executors.selectedObject,
@@ -786,6 +823,7 @@ export function describeAetheriaRuntimeRtsQueryHandles(
     mapViewport: describeAetheriaRuntimeRtsQuerySurface(handles.mapViewport),
     objectsViewport: describeAetheriaRuntimeRtsQuerySurface(handles.objectsViewport),
     gravityViewport: describeAetheriaRuntimeRtsQuerySurface(handles.gravityViewport),
+    renderSplatsViewport: describeAetheriaRuntimeRtsQuerySurface(handles.renderSplatsViewport),
     selectedObject: describeAetheriaRuntimeRtsQuerySurface(handles.selectedObject),
     inventory: describeAetheriaRuntimeRtsQuerySurface(handles.inventory),
     daemonHealth: describeAetheriaRuntimeRtsQuerySurface(handles.daemonHealth),
@@ -811,6 +849,7 @@ export function describeAetheriaRuntimeRtsSurfaceCatalog(
       CultMesh.describeSurface(handles.mapViewport),
       CultMesh.describeSurface(handles.objectsViewport),
       CultMesh.describeSurface(handles.gravityViewport),
+      CultMesh.describeSurface(handles.renderSplatsViewport),
       CultMesh.describeSurface(handles.selectedObject),
       CultMesh.describeSurface(handles.inventory),
       CultMesh.describeSurface(handles.daemonHealth),
@@ -897,6 +936,7 @@ export function createAetheriaRuntimeRtsVerseHandles(
   const mapViewport = CultMesh.bindQuery(queryVerse, queries.mapViewport);
   const objectsViewport = CultMesh.bindQuery(queryVerse, queries.objectsViewport);
   const gravityViewport = CultMesh.bindQuery(queryVerse, queries.gravityViewport);
+  const renderSplatsViewport = CultMesh.bindQuery(queryVerse, queries.renderSplatsViewport);
   const selectedObject = CultMesh.bindQuery(queryVerse, queries.selectedObject);
   const inventory = CultMesh.bindQuery(queryVerse, queries.inventory);
   const daemonHealth = CultMesh.bindQuery(queryVerse, queries.daemonHealth);
@@ -936,6 +976,14 @@ export function createAetheriaRuntimeRtsVerseHandles(
           request: CultMeshViewportRequest,
           callback: (value: GravityViewportResponse) => void,
         ) => gravityViewport.watch(request, callback),
+      },
+      renderSplats: {
+        within: (request: CultMeshViewportRequest) =>
+          renderSplatsViewport.execute(request),
+        watchWithin: (
+          request: CultMeshViewportRequest,
+          callback: (value: RenderSplatsViewportResponse) => void,
+        ) => renderSplatsViewport.watch(request, callback),
       },
     }),
     entity: (entityKey: string) => ({
@@ -1140,7 +1188,15 @@ export type AetheriaMenuSurfaceComponent = {
   id: string;
   kind: string;
   props: Record<string, string>;
+  embeddedDocuments?: AetheriaMenuEmbeddedDocumentSlot[];
   children: AetheriaMenuSurfaceComponent[];
+};
+
+export type AetheriaMenuEmbeddedDocumentSlot = {
+  slotId: string;
+  documentId: string;
+  schemaId: string;
+  presentationKind: string;
 };
 
 export type AetheriaMenuStyleToken = {
@@ -1158,6 +1214,7 @@ export type AetheriaRtsApi = {
   mapViewport(request: Viewport): Promise<ViewportResponse>;
   objectsViewport(request: Viewport): Promise<ObjectsViewportResponse>;
   gravityViewport(request: Viewport): Promise<GravityViewportResponse>;
+  renderSplatsViewport(request: Viewport): Promise<RenderSplatsViewportResponse>;
   selectedObject(request: AetheriaRuntimeSelectedObjectRequest): Promise<SelectedObjectDocument>;
   inventory(request: AetheriaRuntimeSelectedObjectRequest): Promise<InventoryDocument>;
   daemonHealth(): Promise<DaemonHealthDocument>;
@@ -1222,6 +1279,57 @@ export type GravityViewportResponse = {
   viewport: ${viewportTypeName};
   gravityInfluences: GravityInfluence[];
   bodies: BodyView[];
+};
+
+export type RenderSplatsViewportResponse = {
+  schema: string;
+  frameId: number;
+  publishedAtUtc: string;
+  simulationTimeSeconds: number;
+  runId: string;
+  zoneIndex: number;
+  zoneName: string;
+  viewport: ${viewportTypeName};
+  layers: RenderSplatLayerDefinition[];
+  splats: RenderSplatSoa;
+};
+
+export type RenderSplatLayerDefinition = {
+  layerKey: string;
+  displayName: string;
+  channel: number;
+  blendMode: string;
+  graphicsFormat: string;
+  clearBeforeDraw: boolean;
+  clearR: number;
+  clearG: number;
+  clearB: number;
+  clearA: number;
+};
+
+export type RenderSplatSoa = {
+  count: number;
+  centerX: number[];
+  centerY: number[];
+  halfExtentX: number[];
+  halfExtentY: number[];
+  rotationCos: number[];
+  rotationSin: number[];
+  channel: number[];
+  falloff: number[];
+  valueR: number[];
+  valueG: number[];
+  valueB: number[];
+  valueA: number[];
+  sourceKey: string[];
+  layerIndex: number[];
+  sourceKind: number[];
+  frequencyX: number[];
+  frequencyY: number[];
+  phaseX: number[];
+  phaseY: number[];
+  animationSpeed: number[];
+  sourceFlags: number[];
 };
 
 export type ViewObject = {

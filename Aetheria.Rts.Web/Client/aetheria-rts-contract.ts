@@ -92,6 +92,57 @@ export type GravityViewportResponse = {
   bodies: BodyView[];
 };
 
+export type RenderSplatsViewportResponse = {
+  schema: string;
+  frameId: number;
+  publishedAtUtc: string;
+  simulationTimeSeconds: number;
+  runId: string;
+  zoneIndex: number;
+  zoneName: string;
+  viewport: Viewport;
+  layers: RenderSplatLayerDefinition[];
+  splats: RenderSplatSoa;
+};
+
+export type RenderSplatLayerDefinition = {
+  layerKey: string;
+  displayName: string;
+  channel: number;
+  blendMode: string;
+  graphicsFormat: string;
+  clearBeforeDraw: boolean;
+  clearR: number;
+  clearG: number;
+  clearB: number;
+  clearA: number;
+};
+
+export type RenderSplatSoa = {
+  count: number;
+  centerX: number[];
+  centerY: number[];
+  halfExtentX: number[];
+  halfExtentY: number[];
+  rotationCos: number[];
+  rotationSin: number[];
+  channel: number[];
+  falloff: number[];
+  valueR: number[];
+  valueG: number[];
+  valueB: number[];
+  valueA: number[];
+  sourceKey: string[];
+  layerIndex: number[];
+  sourceKind: number[];
+  frequencyX: number[];
+  frequencyY: number[];
+  phaseX: number[];
+  phaseY: number[];
+  animationSpeed: number[];
+  sourceFlags: number[];
+};
+
 export type ViewObject = {
   entityIndex: number;
   entityKey: string;
@@ -331,7 +382,15 @@ export type AetheriaMenuSurfaceComponent = {
   id: string;
   kind: string;
   props: Record<string, string>;
+  embeddedDocuments?: AetheriaMenuEmbeddedDocumentSlot[];
   children: AetheriaMenuSurfaceComponent[];
+};
+
+export type AetheriaMenuEmbeddedDocumentSlot = {
+  slotId: string;
+  documentId: string;
+  schemaId: string;
+  presentationKind: string;
 };
 
 export type AetheriaMenuStyleToken = {
@@ -349,6 +408,7 @@ export type AetheriaRtsApi = {
   mapViewport(request: Viewport): Promise<ViewportResponse>;
   objectsViewport(request: Viewport): Promise<ObjectsViewportResponse>;
   gravityViewport(request: Viewport): Promise<GravityViewportResponse>;
+  renderSplatsViewport(request: Viewport): Promise<RenderSplatsViewportResponse>;
   selectedObject(request: AetheriaRuntimeSelectedObjectRequest): Promise<SelectedObjectDocument>;
   inventory(request: AetheriaRuntimeSelectedObjectRequest): Promise<InventoryDocument>;
   daemonHealth(): Promise<DaemonHealthDocument>;

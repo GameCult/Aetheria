@@ -44,6 +44,7 @@ export type {
   InventoryItem,
   InventoryDocument,
   ObjectsViewportResponse,
+  RenderSplatsViewportResponse,
   SelectedObjectDocument,
   StarbridgeBaseStatusDocument,
   StarbridgeRuntimeRoleDocument,

@@ -13,6 +13,7 @@ import {
   aetheriaRuntimeLoadoutItemCommitSlots as itemSlots,
   aetheriaRuntimeLoadoutItemSlotCommitSlots as itemSlotSlots,
   aetheriaRuntimeRunCheckpointCommitSlots as runSlots,
+  aetheriaRuntimeSunVisualCommitSlots as sunVisualSlots,
   aetheriaRuntimeStarbridgeBaseStatusSlots as starbridgeBaseSlots,
   aetheriaRuntimeStarbridgeRuntimeRoleSlots as starbridgeRoleSlots,
   aetheriaRuntimeStarbridgeSessionSummaryDocumentSlots as starbridgeSummarySlots,
@@ -33,6 +34,7 @@ import type {
   InventoryDocument,
   InventoryItem,
   ObjectsViewportResponse,
+  RenderSplatsViewportResponse,
   SelectedObjectDocument,
   SelectedObjectRequest,
   StarbridgeSessionDocument,
@@ -129,6 +131,204 @@ export function buildGravityViewportDocumentFromFrame(
     viewport,
     gravityInfluences: visibleBodies.map(toGravityInfluence),
     bodies: visibleBodies.map(toBodyView),
+  };
+}
+
+export function buildRenderSplatsViewportDocumentFromFrame(
+  frameDocument: unknown,
+  request: ViewportRequest,
+): RenderSplatsViewportResponse {
+  const frame = arr(frameDocument);
+  const run = arr(frame[frameSlots.run]);
+  const zones = list<unknown[]>(run[runSlots.zones]);
+  const currentZoneIndex = num(run[runSlots.currentZoneIndex], -1);
+  const zone = zones.find(candidate => num(candidate[zoneSlots.zoneIndex], -1) === currentZoneIndex) ??
+    zones[0] ??
+    [];
+  const runId = str(run[runSlots.runId]) || "local-rts";
+  const viewport = normalizeViewport(request);
+  const layers = defaultRenderSplatLayers();
+  const layerIndices: ReadonlyMap<string, number> = new Map(layers.map((layer, index) => [layer.layerKey, index] as const));
+  const builder = new RenderSplatBuilder();
+  const viewportCenterX = (viewport.minX + viewport.maxX) * 0.5;
+  const viewportCenterY = (viewport.minY + viewport.maxY) * 0.5;
+  const viewportHalfX = Math.max(0.0001, (viewport.maxX - viewport.minX) * 0.5);
+  const viewportHalfY = Math.max(0.0001, (viewport.maxY - viewport.minY) * 0.5);
+  const terrainDepth = num(zone[zoneSlots.gravityTerrainDepth]);
+  const terrainWaveFrequency = num(zone[zoneSlots.gravityTerrainWaveFrequency], 1);
+
+  if (terrainDepth !== 0) {
+    builder.add({
+      layerIndex: requiredLayerIndex(layerIndices, "gravity.height"),
+      centerX: viewportCenterX,
+      centerY: viewportCenterY,
+      halfExtentX: viewportHalfX,
+      halfExtentY: viewportHalfY,
+      channel: 1,
+      falloff: 0,
+      valueR: -terrainDepth,
+      valueA: 1,
+      sourceKey: "environment.gravity_terrain",
+      sourceKind: 2,
+      frequencyX: 3,
+      frequencyY: 3,
+      animationSpeed: terrainWaveFrequency * 0.025,
+      sourceFlags: 1,
+    });
+  }
+
+  builder.add({
+    layerIndex: requiredLayerIndex(layerIndices, "fog.surface_height"),
+    centerX: viewportCenterX,
+    centerY: viewportCenterY,
+    halfExtentX: viewportHalfX,
+    halfExtentY: viewportHalfY,
+    channel: 4,
+    falloff: 0,
+    valueR: 1,
+    valueA: 1,
+    sourceKey: "environment.fog_surface_height",
+    sourceKind: 2,
+    frequencyX: 4,
+    frequencyY: 4,
+    animationSpeed: 0.015,
+    sourceFlags: 1,
+  });
+  builder.add({
+    layerIndex: requiredLayerIndex(layerIndices, "fog.patch_height"),
+    centerX: viewportCenterX,
+    centerY: viewportCenterY,
+    halfExtentX: viewportHalfX,
+    halfExtentY: viewportHalfY,
+    channel: 4,
+    falloff: 0,
+    valueR: 1,
+    valueA: 1,
+    sourceKey: "environment.fog_patch_height",
+    sourceKind: 2,
+    frequencyX: 9,
+    frequencyY: 9,
+    animationSpeed: 0.02,
+    sourceFlags: 1,
+  });
+  builder.add({
+    layerIndex: requiredLayerIndex(layerIndices, "fog.patch"),
+    centerX: viewportCenterX,
+    centerY: viewportCenterY,
+    halfExtentX: viewportHalfX,
+    halfExtentY: viewportHalfY,
+    channel: 4,
+    falloff: 0,
+    valueR: 1,
+    valueA: 1,
+    sourceKey: "environment.fog_patch",
+    sourceKind: 2,
+    frequencyX: 6,
+    frequencyY: 6,
+    animationSpeed: 0.01,
+    sourceFlags: 1,
+  });
+
+  for (const body of list<unknown[]>(zone[zoneSlots.bodies])) {
+    if (!gravityInfluenceIntersectsViewport(body, viewport))
+      continue;
+
+    const radius = resolveGravityRadius(body);
+    const bodyKey = str(body[bodySlots.bodyKey]);
+    builder.add({
+      layerIndex: requiredLayerIndex(layerIndices, "gravity.height"),
+      centerX: num(body[bodySlots.gravityInfluenceCenterX]),
+      centerY: num(body[bodySlots.gravityInfluenceCenterZ]),
+      halfExtentX: radius,
+      halfExtentY: radius,
+      channel: 1,
+      falloff: 3,
+      valueR: num(body[bodySlots.gravityWellDepth]),
+      valueA: 1,
+      sourceKey: bodyKey,
+    });
+
+    if (num(body[bodySlots.gravityWaveRadius]) > 0 && num(body[bodySlots.gravityWaveDepth]) !== 0) {
+      builder.add({
+        layerIndex: requiredLayerIndex(layerIndices, "gravity.wave"),
+        centerX: num(body[bodySlots.gravityInfluenceCenterX]),
+        centerY: num(body[bodySlots.gravityInfluenceCenterZ]),
+        halfExtentX: num(body[bodySlots.gravityWaveRadius]),
+        halfExtentY: num(body[bodySlots.gravityWaveRadius]),
+        channel: 2,
+        falloff: 2,
+        valueR: num(body[bodySlots.gravityWaveDepth]),
+        valueG: num(body[bodySlots.gravityWaveSpeed]),
+        valueA: 1,
+        sourceKey: bodyKey,
+      });
+    }
+
+    if (str(body[bodySlots.kind]).toLowerCase().includes("sun")) {
+      const sunVisual = arr(body[bodySlots.sunVisual]);
+      const tintRadius = Math.max(
+        radius,
+        Math.max(32, num(body[bodySlots.bodyRadiusMultiplier]) * 70) *
+          Math.max(0.01, num(sunVisual[sunVisualSlots.lightRadiusMultiplier], 1)),
+      );
+      builder.add({
+        layerIndex: requiredLayerIndex(layerIndices, "fog.tint"),
+        centerX: num(body[bodySlots.gravityInfluenceCenterX]),
+        centerY: num(body[bodySlots.gravityInfluenceCenterZ]),
+        halfExtentX: tintRadius,
+        halfExtentY: tintRadius,
+        channel: 4,
+        falloff: 2,
+        valueR: num(sunVisual[sunVisualSlots.fogTintColorX]),
+        valueG: num(sunVisual[sunVisualSlots.fogTintColorY]),
+        valueB: num(sunVisual[sunVisualSlots.fogTintColorZ]),
+        valueA: 1,
+        sourceKey: bodyKey,
+      });
+    }
+  }
+
+  for (const entity of list<unknown[]>(zone[zoneSlots.entities])) {
+    if (!isPlayerControlled(entity))
+      continue;
+
+    const visibility = Math.max(180, num(entity[entitySlots.visibility]));
+    const x = num(entity[entitySlots.positionX]);
+    const y = num(entity[entitySlots.positionZ]);
+    if (x + visibility < viewport.minX ||
+      x - visibility > viewport.maxX ||
+      y + visibility < viewport.minY ||
+      y - visibility > viewport.maxY) {
+      continue;
+    }
+
+    builder.add({
+      layerIndex: requiredLayerIndex(layerIndices, "visibility.mask"),
+      centerX: x,
+      centerY: y,
+      halfExtentX: visibility,
+      halfExtentY: visibility,
+      channel: 0,
+      falloff: 2,
+      valueR: 1,
+      valueG: 1,
+      valueB: 1,
+      valueA: 1,
+      sourceKey: entityKey(runId, num(zone[zoneSlots.zoneIndex]), num(entity[entitySlots.entityIndex], -1)),
+    });
+  }
+
+  return {
+    schema: AetheriaRtsSchemas.renderSplatsViewport,
+    frameId: num(frame[frameSlots.frameId]),
+    publishedAtUtc: str(frame[frameSlots.publishedAtUtc]),
+    simulationTimeSeconds: num(frame[frameSlots.simulationTimeSeconds]),
+    runId,
+    zoneIndex: num(zone[zoneSlots.zoneIndex]),
+    zoneName: str(zone[zoneSlots.name]) || `Zone ${num(zone[zoneSlots.zoneIndex])}`,
+    viewport,
+    layers,
+    splats: builder.build(),
   };
 }
 
@@ -435,6 +635,106 @@ function resolveGravityRadius(body: unknown[]): number {
   if (explicit > 0)
     return explicit;
   return Math.max(32, num(body[bodySlots.bodyRadiusMultiplier]) * 70);
+}
+
+type RenderSplatRow = {
+  layerIndex: number;
+  centerX: number;
+  centerY: number;
+  halfExtentX: number;
+  halfExtentY: number;
+  rotationCos?: number;
+  rotationSin?: number;
+  channel: number;
+  falloff: number;
+  valueR?: number;
+  valueG?: number;
+  valueB?: number;
+  valueA?: number;
+  sourceKey: string;
+  sourceKind?: number;
+  frequencyX?: number;
+  frequencyY?: number;
+  phaseX?: number;
+  phaseY?: number;
+  animationSpeed?: number;
+  sourceFlags?: number;
+};
+
+class RenderSplatBuilder {
+  private readonly rows: RenderSplatRow[] = [];
+
+  public add(row: RenderSplatRow): void {
+    this.rows.push(row);
+  }
+
+  public build(): RenderSplatsViewportResponse["splats"] {
+    return {
+      count: this.rows.length,
+      centerX: this.rows.map(row => row.centerX),
+      centerY: this.rows.map(row => row.centerY),
+      halfExtentX: this.rows.map(row => row.halfExtentX),
+      halfExtentY: this.rows.map(row => row.halfExtentY),
+      rotationCos: this.rows.map(row => row.rotationCos ?? 1),
+      rotationSin: this.rows.map(row => row.rotationSin ?? 0),
+      channel: this.rows.map(row => row.channel),
+      falloff: this.rows.map(row => row.falloff),
+      valueR: this.rows.map(row => row.valueR ?? 0),
+      valueG: this.rows.map(row => row.valueG ?? 0),
+      valueB: this.rows.map(row => row.valueB ?? 0),
+      valueA: this.rows.map(row => row.valueA ?? 0),
+      sourceKey: this.rows.map(row => row.sourceKey),
+      layerIndex: this.rows.map(row => row.layerIndex),
+      sourceKind: this.rows.map(row => row.sourceKind ?? 0),
+      frequencyX: this.rows.map(row => row.frequencyX ?? 1),
+      frequencyY: this.rows.map(row => row.frequencyY ?? 1),
+      phaseX: this.rows.map(row => row.phaseX ?? 0),
+      phaseY: this.rows.map(row => row.phaseY ?? 0),
+      animationSpeed: this.rows.map(row => row.animationSpeed ?? 0),
+      sourceFlags: this.rows.map(row => row.sourceFlags ?? 0),
+    };
+  }
+}
+
+function defaultRenderSplatLayers(): RenderSplatsViewportResponse["layers"] {
+  return [
+    layer("gravity.height", "Gravity Height", 1, "add", "R16_SFloat"),
+    layer("gravity.wave", "Gravity Wave", 2, "add", "R16_SFloat"),
+    layer("visibility.mask", "Visibility Mask", 0, "max", "R16_SFloat"),
+    layer("fog.surface_height", "Fog Surface Height", 4, "add", "R16_SFloat"),
+    layer("fog.patch_height", "Fog Patch Height", 4, "add", "R16_SFloat"),
+    layer("fog.patch", "Fog Patch", 4, "max", "R16_SFloat"),
+    layer("fog.tint", "Fog Tint", 4, "add", "B10G11R11_UFloatPack32"),
+    layer("influence.mask", "Influence", 3, "add", "R16_SFloat"),
+  ];
+}
+
+function layer(
+  layerKey: string,
+  displayName: string,
+  channel: number,
+  blendMode: string,
+  graphicsFormat: string,
+): RenderSplatsViewportResponse["layers"][number] {
+  return {
+    layerKey,
+    displayName,
+    channel,
+    blendMode,
+    graphicsFormat,
+    clearBeforeDraw: true,
+    clearR: 0,
+    clearG: 0,
+    clearB: 0,
+    clearA: 0,
+  };
+}
+
+function requiredLayerIndex(layers: ReadonlyMap<string, number>, key: string): number {
+  const index = layers.get(key);
+  if (index == null)
+    throw new Error(`Missing render splat layer ${key}.`);
+  return index;
 }
 
 function entityKey(runId: string, zoneIndex: number, entityIndex: number): string {

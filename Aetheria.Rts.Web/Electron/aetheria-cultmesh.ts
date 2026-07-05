@@ -31,6 +31,7 @@ import {
   type GravityViewportResponse,
   type InventoryDocument,
   type ObjectsViewportResponse,
+  type RenderSplatsViewportResponse,
   type AetheriaRuntimeRtsLiveFeedDiagnostic,
   type AetheriaRuntimeRtsQueryDiagnostic,
   type AetheriaRuntimeRtsSurfaceCatalogDiagnostic,
@@ -54,6 +55,7 @@ import {
   buildGravityViewportDocumentFromFrame,
   buildInventoryDocumentFromFrame,
   buildObjectsViewportDocumentFromFrame,
+  buildRenderSplatsViewportDocumentFromFrame,
   buildSelectedObjectDocumentFromFrame,
   readStarbridgeSessionSummaryDocument,
   buildViewportDocumentFromFrame,
@@ -123,7 +125,15 @@ export type AetheriaMenuSurfaceComponent = {
   props: Record<string, string>;
   layout?: Record<string, string>;
   style?: Record<string, string>;
+  embeddedDocuments?: AetheriaMenuEmbeddedDocumentSlot[];
   children: AetheriaMenuSurfaceComponent[];
+};
+
+export type AetheriaMenuEmbeddedDocumentSlot = {
+  slotId: string;
+  documentId: string;
+  schemaId: string;
+  presentationKind: string;
 };
 
 export type AetheriaMenuStyleToken = {
@@ -193,6 +203,7 @@ export class AetheriaCultMeshClient {
       mapViewport: async (request: ViewportRequest) => buildViewportDocumentFromFrame(await this.fetchLatestFrameDocument(), request),
       objectsViewport: async (request: ViewportRequest) => buildObjectsViewportDocumentFromFrame(await this.fetchLatestFrameDocument(), request),
       gravityViewport: async (request: ViewportRequest) => buildGravityViewportDocumentFromFrame(await this.fetchLatestFrameDocument(), request),
+      renderSplatsViewport: async (request: ViewportRequest) => buildRenderSplatsViewportDocumentFromFrame(await this.fetchLatestFrameDocument(), request),
       selectedObject: async (request: SelectedObjectRequest) => buildSelectedObjectDocumentFromFrame(await this.fetchLatestFrameDocument(), request),
       inventory: async (request: SelectedObjectRequest) => buildInventoryDocumentFromFrame(await this.fetchLatestFrameDocument(), request),
       daemonHealth: async () => readDaemonHealthDocument(await this.fetchDaemonHealthDocument()),
@@ -206,6 +217,7 @@ export class AetheriaCultMeshClient {
       {
         objectsViewport: CultMesh.pollingQueryWatcher(executors.objectsViewport, { intervalMs: 50 }),
         gravityViewport: CultMesh.pollingQueryWatcher(executors.gravityViewport, { intervalMs: 50 }),
+        renderSplatsViewport: CultMesh.pollingQueryWatcher(executors.renderSplatsViewport, { intervalMs: 50 }),
         selectedObject: CultMesh.pollingQueryWatcher(executors.selectedObject, { intervalMs: 50 }),
         inventory: CultMesh.pollingQueryWatcher(executors.inventory, { intervalMs: 50 }),
         daemonHealth: CultMesh.pollingQueryWatcher(executors.daemonHealth, { intervalMs: 250 }),
@@ -275,6 +287,10 @@ export class AetheriaCultMeshClient {
 
   public async gravityViewport(request: ViewportRequest): Promise<GravityViewportResponse> {
     return this.aetheria.zone().gravity.within(request);
+  }
+
+  public async renderSplatsViewport(request: ViewportRequest): Promise<RenderSplatsViewportResponse> {
+    return this.aetheria.zone().renderSplats.within(request);
   }
 
   public async selectedObject(request: SelectedObjectRequest): Promise<SelectedObjectDocument> {
@@ -1050,8 +1066,20 @@ function normalizeEveComponent(component: unknown, fallbackId: string): Aetheria
     props: stringRecord(readField(component, "props", 2)),
     layout: stringRecord(readField(component, "layout", 6)),
     style: stringRecord(readField(component, "style", 7)),
+    embeddedDocuments: arrayValue(readField(component, "embeddedDocuments", 5))
+      .map(normalizeEmbeddedDocumentSlot)
+      .filter(slot => slot.documentId.length > 0),
     children: arrayValue(readField(component, "children", 3))
       .map((child, index) => normalizeEveComponent(child, `${fallbackId}.${index}`)),
+  };
+}
+
+function normalizeEmbeddedDocumentSlot(slot: unknown): AetheriaMenuEmbeddedDocumentSlot {
+  return {
+    slotId: stringOr(readField(slot, "slotId", 0), ""),
+    documentId: stringOr(readField(slot, "documentId", 1), ""),
+    schemaId: stringOr(readField(slot, "schemaId", 2), ""),
+    presentationKind: stringOr(readField(slot, "presentationKind", 3), ""),
   };
 }
 
