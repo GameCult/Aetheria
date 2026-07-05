@@ -39,11 +39,20 @@ if (-not $mainText.Contains('await api.submitEveCommand') -or
     Write-Error "Stage 7C Electron RTS verifier failed: Electron smoke does not verify typed operation receipts through preload."
 }
 
-if (-not $mainText.Contains('AETHERIA_RTS_VERSE_ID') -or
+if (-not $mainText.Contains('AETHERIA_VERSE_ID') -or
     -not $mainText.Contains('--verse-id') -or
-    -not $mainText.Contains('AETHERIA_RTS_DAEMON_ID') -or
+    -not $mainText.Contains('AETHERIA_DAEMON_ID') -or
     -not $mainText.Contains('--daemon-id')) {
     Write-Error "Stage 7C Electron RTS verifier failed: Electron launcher does not configure daemon Verse identity."
+}
+if ($mainText.Contains('AETHERIA_RTS_') -or
+    $mainText.Contains('starfire-rts') -or
+    $mainText.Contains('aetheria-rts-daemon') -or
+    $mainText.Contains('aetheria-rts-electron') -or
+    $mainText.Contains('rtsCultMesh') -or
+    $mainText.Contains('rtsDaemonId') -or
+    $mainText.Contains('rtsVerseId')) {
+    Write-Error "Stage 7C Electron RTS verifier failed: Electron launcher still uses RTS-branded daemon connection authority."
 }
 
 $electron = Join-Path $root "node_modules\electron\dist\electron.exe"
@@ -59,12 +68,12 @@ $port = ([System.Net.IPEndPoint]$udp.Client.LocalEndPoint).Port
 $udp.Close()
 
 try {
-    $env:AETHERIA_RTS_ELECTRON_SMOKE = "1"
-    $env:AETHERIA_RTS_RUNTIME_ROOT = $tempRoot
-    $env:AETHERIA_RTS_CULTMESH_PORT = $port.ToString()
-    $env:AETHERIA_RTS_VERSE_ID = "aetheria.stage7c.electron"
-    $env:AETHERIA_RTS_DAEMON_ID = "stage7c-starfire"
-    $env:AETHERIA_RTS_ELECTRON_SMOKE_RESULT = $resultPath
+    $env:AETHERIA_ELECTRON_SMOKE = "1"
+    $env:AETHERIA_RUNTIME_ROOT = $tempRoot
+    $env:AETHERIA_CLIENT_CULTMESH_PORT = $port.ToString()
+    $env:AETHERIA_VERSE_ID = "aetheria.stage7c.electron"
+    $env:AETHERIA_DAEMON_ID = "stage7c-aetheria-daemon"
+    $env:AETHERIA_ELECTRON_SMOKE_RESULT = $resultPath
     $process = Start-Process -FilePath $electron -ArgumentList "." -WorkingDirectory $root -Wait -PassThru
     if ($process.ExitCode -ne 0) {
         Write-Error "Stage 7C Electron RTS verifier failed: Electron exited with code $($process.ExitCode)."
@@ -80,12 +89,12 @@ try {
     }
 }
 finally {
-    Remove-Item Env:\AETHERIA_RTS_ELECTRON_SMOKE -ErrorAction SilentlyContinue
-    Remove-Item Env:\AETHERIA_RTS_RUNTIME_ROOT -ErrorAction SilentlyContinue
-    Remove-Item Env:\AETHERIA_RTS_CULTMESH_PORT -ErrorAction SilentlyContinue
-    Remove-Item Env:\AETHERIA_RTS_VERSE_ID -ErrorAction SilentlyContinue
-    Remove-Item Env:\AETHERIA_RTS_DAEMON_ID -ErrorAction SilentlyContinue
-    Remove-Item Env:\AETHERIA_RTS_ELECTRON_SMOKE_RESULT -ErrorAction SilentlyContinue
+    Remove-Item Env:\AETHERIA_ELECTRON_SMOKE -ErrorAction SilentlyContinue
+    Remove-Item Env:\AETHERIA_RUNTIME_ROOT -ErrorAction SilentlyContinue
+    Remove-Item Env:\AETHERIA_CLIENT_CULTMESH_PORT -ErrorAction SilentlyContinue
+    Remove-Item Env:\AETHERIA_VERSE_ID -ErrorAction SilentlyContinue
+    Remove-Item Env:\AETHERIA_DAEMON_ID -ErrorAction SilentlyContinue
+    Remove-Item Env:\AETHERIA_ELECTRON_SMOKE_RESULT -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
 }
 

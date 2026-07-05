@@ -11,7 +11,7 @@ if ($LASTEXITCODE -ne 0) {
 
 $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("aetheria-stage7c-" + [Guid]::NewGuid().ToString("N"))
 New-Item -ItemType Directory -Path $tempRoot | Out-Null
-$statePath = Join-Path $tempRoot "aetheria-rts.cc"
+$statePath = Join-Path $tempRoot "aetheria.cc"
 $endpoint = $null
 
 try {
@@ -55,10 +55,10 @@ if (!clientModulePath)
 const { AetheriaCultMeshClient } = await import(pathToFileURL(clientModulePath).href);
 
 const client = new AetheriaCultMeshClient({
-  uri: "cultmesh://odin/aetheria/rts/stage7c-verifier",
+  uri: "cultmesh://aetheria/daemon/stage7c-aetheria-daemon",
   peerId: "stage7c-daemon",
   verseId: "aetheria.local",
-  role: "aetheria-rts-daemon",
+  role: "aetheria-daemon",
   endpoints: [endpoint],
 }, statePath, "stage7c-verifier");
 const viewport = await client.mapViewport({ minX: -5000, minY: -5000, maxX: 5000, maxY: 5000 });

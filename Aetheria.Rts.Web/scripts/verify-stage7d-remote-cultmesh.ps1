@@ -75,12 +75,12 @@ if (!clientModulePath)
 
 const { AetheriaCultMeshClient } = await import(pathToFileURL(clientModulePath).href);
 const client = new AetheriaCultMeshClient({
-  uri: "cultmesh://odin/aetheria/rts/stage7d-starfire",
+  uri: "cultmesh://aetheria/daemon/stage7d-aetheria-daemon",
   peerId: "stage7d-daemon",
   verseId: "aetheria.local",
-  role: "aetheria-rts-daemon",
+  role: "aetheria-daemon",
   endpoints: [endpoint],
-}, "unused-local-state.cc", "stage7d-starfire", {
+}, "unused-local-state.cc", "stage7d-verifier", {
   publicationMode: "remote",
   snapshotTimeoutMs: 5000,
 });

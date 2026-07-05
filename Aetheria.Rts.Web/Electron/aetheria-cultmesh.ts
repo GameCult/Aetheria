@@ -183,7 +183,7 @@ export class AetheriaCultMeshClient {
   public constructor(
     daemonTarget: string | AetheriaCultMeshDaemonTarget,
     statePath: string,
-    private readonly runtimeId = "aetheria-rts-electron",
+    private readonly runtimeId = "aetheria-electron-client",
     options: AetheriaCultMeshClientOptions = {},
   ) {
     this.daemonTarget = normalizeDaemonTarget(daemonTarget);
@@ -372,8 +372,8 @@ export class AetheriaCultMeshClient {
         payloadEncoding: "messagepack",
         payload: encode(command),
         sourceRuntimeId: this.runtimeId,
-        sourceRole: "rts-client",
-        tags: ["aetheria-rts", "eve-command"],
+        sourceRole: "aetheria-client",
+        tags: ["aetheria", "eve-command"],
       },
     };
     const peer = await this.peer();
@@ -581,8 +581,8 @@ export class AetheriaCultMeshClient {
         payloadEncoding: "messagepack",
         payload: encode(command),
         sourceRuntimeId: context.runtimeId,
-        sourceRole: "rts-client",
-        tags: ["aetheria-rts"],
+        sourceRole: "aetheria-client",
+        tags: ["aetheria"],
       },
     };
     const peer = await this.peer();
@@ -651,9 +651,9 @@ function normalizeDaemonTarget(target: string | AetheriaCultMeshDaemonTarget): R
   }
   return {
     uri: value.uri,
-    peerId: value.peerId?.trim() || "aetheria-rts-daemon",
+    peerId: value.peerId?.trim() || "aetheria-daemon",
     verseId: value.verseId?.trim() || "aetheria.local",
-    role: value.role?.trim() || "aetheria-rts-daemon",
+    role: value.role?.trim() || "aetheria-daemon",
     endpoints: value.endpoints ?? [],
   };
 }

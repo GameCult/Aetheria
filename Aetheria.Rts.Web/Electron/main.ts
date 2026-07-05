@@ -17,25 +17,25 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..");
 const repoRoot = resolve(projectRoot, "..");
 const logsRoot = resolve(projectRoot, "logs");
-const runtimeRoot = resolve(process.env.AETHERIA_RTS_RUNTIME_ROOT ?? resolve(projectRoot, "runtime"));
-const runtimeStatePath = resolve(runtimeRoot, "aetheria-rts.cc");
+const runtimeRoot = resolve(process.env.AETHERIA_RUNTIME_ROOT ?? resolve(projectRoot, "runtime"));
+const runtimeStatePath = resolve(runtimeRoot, "aetheria.cc");
 const debugSurfacePath = resolve(process.env.AETHERIA_CULTUI_DEBUG_SURFACE_PATH ?? resolve(repoRoot, "GameData", "cultui-debug-surface.cultui"));
 const daemonDll = resolve(repoRoot, "Aetheria.State.Daemon", "bin", "Debug", "net10.0", "Aetheria.State.Daemon.dll");
 const rendererIndex = resolve(projectRoot, "wwwroot", "index.html");
-const rtsCultMeshPort = Number.parseInt(process.env.AETHERIA_RTS_CULTMESH_PORT ?? "3076", 10);
-const rtsVerseId = process.env.AETHERIA_RTS_VERSE_ID?.trim() || "aetheria.local";
-const rtsDaemonId = process.env.AETHERIA_RTS_DAEMON_ID?.trim() || "starfire-rts";
-const configuredDaemonUri = process.env.AETHERIA_RTS_CULTMESH_URI?.trim() ?? "";
+const clientCultMeshPort = Number.parseInt(process.env.AETHERIA_CLIENT_CULTMESH_PORT ?? "3076", 10);
+const verseId = process.env.AETHERIA_VERSE_ID?.trim() || "aetheria.local";
+const daemonId = process.env.AETHERIA_DAEMON_ID?.trim() || "aetheria-daemon";
+const configuredDaemonUri = process.env.AETHERIA_CULTMESH_URI?.trim() ?? "";
 const launchLocalDaemon = configuredDaemonUri.length === 0;
-const rtsCultMeshUri = configuredDaemonUri || `cultmesh://aetheria/daemon/${encodeURIComponent(rtsDaemonId)}`;
-const rtsCultMeshAdvertiseHost = process.env.AETHERIA_RTS_CULTMESH_ADVERTISE_HOST?.trim() || "127.0.0.1";
-const localDaemonRudpEndpoint = launchLocalDaemon ? `rudp://127.0.0.1:${rtsCultMeshPort}` : "";
-const electronSmoke = process.env.AETHERIA_RTS_ELECTRON_SMOKE === "1";
-const electronSmokeResultPath = process.env.AETHERIA_RTS_ELECTRON_SMOKE_RESULT;
+const daemonCultMeshUri = configuredDaemonUri || `cultmesh://aetheria/daemon/${encodeURIComponent(daemonId)}`;
+const clientCultMeshAdvertiseHost = process.env.AETHERIA_CLIENT_CULTMESH_ADVERTISE_HOST?.trim() || "127.0.0.1";
+const localDaemonRudpEndpoint = launchLocalDaemon ? `rudp://127.0.0.1:${clientCultMeshPort}` : "";
+const electronSmoke = process.env.AETHERIA_ELECTRON_SMOKE === "1";
+const electronSmokeResultPath = process.env.AETHERIA_ELECTRON_SMOKE_RESULT;
 
 let daemonProcess: ChildProcessWithoutNullStreams | null = null;
 let mainWindow: BrowserWindow | null = null;
-let rtsClient: AetheriaCultMeshClient | null = null;
+let aetheriaClient: AetheriaCultMeshClient | null = null;
 let isQuitting = false;
 let debugSurfaceWatcher: FSWatcher | null = null;
 let debugSurfaceWatchTimer: NodeJS.Timeout | null = null;
@@ -90,13 +90,13 @@ app.whenReady().then(async () => {
         "--state",
         runtimeStatePath,
         "--verse-id",
-        rtsVerseId,
+        verseId,
         "--daemon-id",
-        rtsDaemonId,
+        daemonId,
         "--client-cultmesh-port",
-        rtsCultMeshPort.toString(),
+        clientCultMeshPort.toString(),
         "--client-cultmesh-advertise-host",
-        rtsCultMeshAdvertiseHost,
+        clientCultMeshAdvertiseHost,
         "--tick-interval-ms",
         "20",
         "--fixed-delta-ms",
@@ -106,24 +106,24 @@ app.whenReady().then(async () => {
         "--no-odin-announcements",
       ]);
     } else {
-      showStartup("Connecting Aetheria RTS", `Using daemon ${rtsCultMeshUri}.`);
+      showStartup("Connecting Aetheria RTS", `Using daemon ${daemonCultMeshUri}.`);
       mkdirSync(runtimeRoot, { recursive: true });
     }
 
-    rtsClient = new AetheriaCultMeshClient(
+    aetheriaClient = new AetheriaCultMeshClient(
       {
-        uri: rtsCultMeshUri,
-        peerId: rtsDaemonId,
-        verseId: rtsVerseId,
-        role: "aetheria-rts-daemon",
+        uri: daemonCultMeshUri,
+        peerId: daemonId,
+        verseId,
+        role: "aetheria-daemon",
         endpoints: localDaemonRudpEndpoint ? [localDaemonRudpEndpoint] : [],
       },
       runtimeStatePath,
-      "aetheria-rts-electron",
+      "aetheria-electron-client",
       { publicationMode: launchLocalDaemon ? "local" : "remote" });
 
     showStartup("Launching Aetheria RTS", "Waiting for the daemon CultMesh frame.");
-    await rtsClient.waitForFrame(30000);
+    await aetheriaClient.waitForFrame(30000);
     await mainWindow.loadFile(rendererIndex);
     if (electronSmoke) {
       const result = await runElectronSmoke(mainWindow);
@@ -150,7 +150,7 @@ app.on("window-all-closed", () => {
 
 app.on("before-quit", () => {
   isQuitting = true;
-  void rtsClient?.close();
+  void aetheriaClient?.close();
   stopChild(daemonProcess);
   closeDebugSurfaceWatcher();
 });
@@ -217,7 +217,7 @@ async function runElectronSmoke(window: BrowserWindow): Promise<Record<string, u
           providerId: "aetheria.daemon",
           surfaceId: "aetheria.game",
           command: "sensor_ping",
-          clientId: "aetheria-rts-electron-smoke",
+          clientId: "aetheria-electron-smoke",
           payload: {},
         }) : null;
         return {
@@ -333,8 +333,8 @@ function writeElectronSmokeResult(result: Record<string, unknown>): void {
 
 function exitElectronSmoke(exitCode: number): void {
   isQuitting = true;
-  void rtsClient?.close();
-  rtsClient = null;
+  void aetheriaClient?.close();
+  aetheriaClient = null;
   stopChild(daemonProcess);
   daemonProcess = null;
   mainWindow?.destroy();
@@ -349,9 +349,9 @@ function registerIpc(): void {
     () => ({
       status: "ok",
       transport: "cultmesh-rudp",
-      endpoint: rtsCultMeshUri,
-      verseId: rtsVerseId,
-      daemonId: rtsDaemonId,
+      endpoint: daemonCultMeshUri,
+      verseId,
+      daemonId,
       peerEndpoints: [],
       daemonRunning: daemonProcess != null && !daemonProcess.killed,
       daemonMode: launchLocalDaemon ? "local" : "remote",
@@ -535,9 +535,9 @@ function stringOr(value: unknown, fallback: string): string {
 }
 
 function requireClient(): AetheriaCultMeshClient {
-  if (!rtsClient)
+  if (!aetheriaClient)
     throw new Error("Aetheria CultMesh client is not initialized.");
-  return rtsClient;
+  return aetheriaClient;
 }
 
 async function ensureDotnetBuild(): Promise<void> {
