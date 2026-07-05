@@ -14,8 +14,12 @@ namespace GameCult.Aetheria.State.Verse
         private const double PawnSpeed = 84.0;
         private const double RaiderSpeed = 68.0;
         private const double AttackRange = 145.0;
-        private const double PawnDamagePerSecond = 18.0;
-        private const double RaiderDamagePerSecond = 12.0;
+        private const double PawnProjectileDamage = 18.0;
+        private const double RaiderProjectileDamage = 12.0;
+        private const double WeaponCooldownSeconds = 0.55;
+        private const double ProjectileSpeed = 330.0;
+        private const double ProjectileRadius = 18.0;
+        private const double ProjectileLifetimeSeconds = 2.2;
 
         public static void Step(
             AetheriaRuntimeRunCheckpointCommit run,
@@ -41,7 +45,7 @@ namespace GameCult.Aetheria.State.Verse
                 StepRaiderAi(entities);
                 StepTargetPursuit(entities);
                 StepMovement(entities, deltaSeconds);
-                StepCombat(entities, deltaSeconds);
+                StepCombat(zone, entities, deltaSeconds);
                 RefreshContacts(entities);
             }
         }
@@ -142,12 +146,18 @@ namespace GameCult.Aetheria.State.Verse
         }
 
         private static void StepCombat(
+            AetheriaRuntimeZoneSnapshotCommit zone,
             IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities,
             double deltaSeconds)
         {
             var byIndex = entities.ToDictionary(entity => entity.EntityIndex);
             foreach (var attacker in entities)
             {
+                var weaponState = EnsureDaemonWeaponState(attacker);
+                weaponState.Firing = false;
+                weaponState.CooldownProgress = Math.Max(0, weaponState.CooldownProgress - deltaSeconds);
+                weaponState.CoolingDown = weaponState.CooldownProgress > 0;
+
                 if (!IsAlive(attacker) ||
                     attacker.TargetEntityIndex < 0 ||
                     !byIndex.TryGetValue(attacker.TargetEntityIndex, out var target) ||
@@ -160,9 +170,26 @@ namespace GameCult.Aetheria.State.Verse
                 if (DistanceSq(attacker, target) > AttackRange * AttackRange)
                     continue;
 
-                var damage = (IsPlayerOwned(attacker) ? PawnDamagePerSecond : RaiderDamagePerSecond) * deltaSeconds;
-                Damage(target, damage);
-                SetStat(attacker, Heat, Math.Min(100, GetStat(attacker, Heat) + damage * 0.18));
+                Face(attacker, target.PositionX - attacker.PositionX, target.PositionZ - attacker.PositionZ);
+                weaponState.LockTargetEntityIndex = target.EntityIndex;
+                weaponState.LockProgress = 1.0;
+
+                if (weaponState.CooldownProgress > 0)
+                    continue;
+
+                SpawnProjectile(zone, attacker, target);
+                weaponState.Firing = true;
+                weaponState.CoolingDown = true;
+                weaponState.CooldownProgress = WeaponCooldownSeconds;
+                SetStat(attacker, Heat, Math.Min(100, GetStat(attacker, Heat) + ResolveProjectileDamage(attacker) * 0.18));
+            }
+
+            var projectileStep = AetheriaRuntimeYmirProjectilePhysics.Step(zone, entities, deltaSeconds);
+            zone.Projectiles = projectileStep.Projectiles;
+            foreach (var hit in projectileStep.Hits)
+            {
+                if (byIndex.TryGetValue(hit.TargetEntityIndex, out var target))
+                    Damage(target, hit.Projectile.Damage);
             }
 
             foreach (var entity in entities)
@@ -176,6 +203,85 @@ namespace GameCult.Aetheria.State.Verse
                     entity.TargetEntityIndex = -1;
                 }
             }
+        }
+
+        private static AetheriaRuntimeWeaponStateCommit EnsureDaemonWeaponState(
+            AetheriaRuntimeEntitySnapshotCommit entity)
+        {
+            var states = (entity.WeaponStates ?? Array.Empty<AetheriaRuntimeWeaponStateCommit>()).ToList();
+            var state = states.FirstOrDefault(candidate =>
+                candidate != null &&
+                string.Equals(candidate.OwnerKind, "daemon-rts", StringComparison.Ordinal) &&
+                candidate.OwnerIndex == entity.EntityIndex);
+            if (state != null)
+                return state;
+
+            state = new AetheriaRuntimeWeaponStateCommit
+            {
+                OwnerKind = "daemon-rts",
+                OwnerIndex = entity.EntityIndex,
+                BehaviorIndex = 0,
+                BehaviorKind = "ProjectileWeapon",
+                Ammo = -1,
+                BurstRemaining = 0,
+                BurstInterval = WeaponCooldownSeconds,
+                LockTargetEntityIndex = -1
+            };
+            states.Add(state);
+            entity.WeaponStates = states.ToArray();
+            return state;
+        }
+
+        private static void SpawnProjectile(
+            AetheriaRuntimeZoneSnapshotCommit zone,
+            AetheriaRuntimeEntitySnapshotCommit attacker,
+            AetheriaRuntimeEntitySnapshotCommit target)
+        {
+            var direction = Normalize(target.PositionX - attacker.PositionX, target.PositionZ - attacker.PositionZ);
+            if (Math.Abs(direction.X) + Math.Abs(direction.Y) <= 0.0001)
+                direction = Normalize(attacker.DirectionX, attacker.DirectionY);
+            if (Math.Abs(direction.X) + Math.Abs(direction.Y) <= 0.0001)
+                direction = (0, 1);
+
+            var projectiles = (zone.Projectiles ?? Array.Empty<AetheriaRuntimeProjectileCommit>())
+                .Where(projectile => projectile != null && projectile.Active)
+                .ToList();
+            projectiles.Add(new AetheriaRuntimeProjectileCommit
+            {
+                ProjectileId = CreateProjectileId(zone, attacker, target, projectiles.Count),
+                SourceEntityIndex = attacker.EntityIndex,
+                TargetEntityIndex = target.EntityIndex,
+                FactionKey = attacker.FactionKey ?? "",
+                PositionX = attacker.PositionX + direction.X * 18.0,
+                PositionY = attacker.PositionY,
+                PositionZ = attacker.PositionZ + direction.Y * 18.0,
+                DirectionX = direction.X,
+                DirectionY = direction.Y,
+                VelocityX = direction.X * ProjectileSpeed,
+                VelocityY = direction.Y * ProjectileSpeed,
+                Damage = ResolveProjectileDamage(attacker),
+                Radius = ProjectileRadius,
+                LifetimeSeconds = ProjectileLifetimeSeconds,
+                Guided = true,
+                Active = true,
+                WeaponKind = IsPlayerOwned(attacker) ? "vanguard-bolt" : "raider-bolt"
+            });
+            zone.Projectiles = projectiles.ToArray();
+        }
+
+        private static string CreateProjectileId(
+            AetheriaRuntimeZoneSnapshotCommit zone,
+            AetheriaRuntimeEntitySnapshotCommit attacker,
+            AetheriaRuntimeEntitySnapshotCommit target,
+            int ordinal)
+        {
+            var tick = Math.Max(0, (long)Math.Round(zone.SimulationTimeSeconds * 1000.0));
+            return $"projectile:{zone.ZoneIndex}:{tick}:{attacker.EntityIndex}:{target.EntityIndex}:{ordinal}";
+        }
+
+        private static double ResolveProjectileDamage(AetheriaRuntimeEntitySnapshotCommit attacker)
+        {
+            return IsPlayerOwned(attacker) ? PawnProjectileDamage : RaiderProjectileDamage;
         }
 
         private static void RefreshContacts(IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities)

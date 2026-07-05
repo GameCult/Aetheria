@@ -485,6 +485,68 @@ namespace GameCult.Aetheria.State.Verse
 
         [Key(16)]
         public double SimulationTimeSeconds { get; set; }
+
+        [Key(17)]
+        public IReadOnlyList<AetheriaRuntimeProjectileCommit> Projectiles { get; set; } =
+            Array.Empty<AetheriaRuntimeProjectileCommit>();
+    }
+
+    [MessagePackObject]
+    public sealed class AetheriaRuntimeProjectileCommit
+    {
+        [Key(0)]
+        public string ProjectileId { get; set; } = "";
+
+        [Key(1)]
+        public int SourceEntityIndex { get; set; } = -1;
+
+        [Key(2)]
+        public int TargetEntityIndex { get; set; } = -1;
+
+        [Key(3)]
+        public string FactionKey { get; set; } = "";
+
+        [Key(4)]
+        public double PositionX { get; set; }
+
+        [Key(5)]
+        public double PositionY { get; set; }
+
+        [Key(6)]
+        public double PositionZ { get; set; }
+
+        [Key(7)]
+        public double DirectionX { get; set; }
+
+        [Key(8)]
+        public double DirectionY { get; set; }
+
+        [Key(9)]
+        public double VelocityX { get; set; }
+
+        [Key(10)]
+        public double VelocityY { get; set; }
+
+        [Key(11)]
+        public double Damage { get; set; }
+
+        [Key(12)]
+        public double Radius { get; set; }
+
+        [Key(13)]
+        public double AgeSeconds { get; set; }
+
+        [Key(14)]
+        public double LifetimeSeconds { get; set; }
+
+        [Key(15)]
+        public bool Guided { get; set; }
+
+        [Key(16)]
+        public bool Active { get; set; } = true;
+
+        [Key(17)]
+        public string WeaponKind { get; set; } = "";
     }
 
     [MessagePackObject]

@@ -202,6 +202,10 @@ const documents = [
     className: "AetheriaRuntimeEntitySnapshotCommit",
   },
   {
+    exportName: "aetheriaRuntimeProjectileCommit",
+    className: "AetheriaRuntimeProjectileCommit",
+  },
+  {
     exportName: "aetheriaRuntimeBodySnapshotCommit",
     className: "AetheriaRuntimeBodySnapshotCommit",
   },

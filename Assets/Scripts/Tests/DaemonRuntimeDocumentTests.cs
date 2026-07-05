@@ -13,7 +13,6 @@ using EveSurfaceCommandRequest = GameCult.Eve.Surface.EveSurfaceCommandRequest;
 using EveSurfaceComponent = GameCult.Eve.Surface.EveSurfaceComponent;
 using EveSurfaceDocument = GameCult.Eve.Surface.EveSurfaceDocument;
 using EveSurfaceTree = GameCult.Eve.Surface.EveSurfaceTree;
-using EveSurfaceDocument = GameCult.Eve.Surface.EveSurfaceDocument;
 
 public class DaemonRuntimeDocumentTests
 {
@@ -1224,7 +1223,7 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual(64, settings.ZoneBoundaryDepth);
         Assert.AreEqual(4, settings.AsteroidMeshCount);
         Assert.AreEqual(3, settings.DefaultMinimapZoom);
-        CollectionAssert.AreEqual(new[] { 250.0, 500.0, 1000.0, 2000.0, 4000.0 }, settings.ResolveMinimapZoomLevels().ToArray());
+        CollectionAssert.AreEqual(new[] { 250.0, 500.0, 1000.0, 2000.0, 4000.0 }, settings.MinimapZoomLevels.ToArray());
         Assert.AreEqual(2000, settings.ResolveDefaultMinimapDistance());
         Assert.AreEqual(0.15, settings.BodyIconSizeCurve.Exponent);
         Assert.AreEqual(10, settings.BodyIconSizeCurve.Multiplier);
@@ -1881,6 +1880,85 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual(1, zoneRender.WormholeExits.Count);
         Assert.AreEqual(0.8 * 25, zoneRender.WormholeExits[0].PositionX, 0.0001);
         Assert.AreEqual(0.6 * 25, zoneRender.WormholeExits[0].PositionZ, 0.0001);
+    }
+
+    [Test]
+    public void RtsSimulationPublishesDaemonProjectilesThroughRenderDocuments()
+    {
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "projectile-run",
+            CurrentZoneIndex = 0,
+            CurrentEntityKey = "zone.0.entity.0",
+            Zones = new[]
+            {
+                new AetheriaRuntimeZoneSnapshotCommit
+                {
+                    ZoneIndex = 0,
+                    SimulationTimeSeconds = 12,
+                    Entities = new[]
+                    {
+                        new AetheriaRuntimeEntitySnapshotCommit
+                        {
+                            EntityIndex = 0,
+                            Name = "Vanguard",
+                            Kind = "ship",
+                            FactionKey = "player",
+                            IsActive = true,
+                            TargetEntityIndex = 1,
+                            PositionX = 0,
+                            PositionZ = 0
+                        },
+                        new AetheriaRuntimeEntitySnapshotCommit
+                        {
+                            EntityIndex = 1,
+                            Name = "Raider",
+                            Kind = "ship",
+                            FactionKey = "raider",
+                            IsActive = true,
+                            TargetEntityIndex = 0,
+                            PositionX = 80,
+                            PositionZ = 0
+                        }
+                    }
+                }
+            }
+        };
+
+        AetheriaRuntimeRtsSimulation.Step(
+            run,
+            new AetheriaRuntimeDaemonIntentState(),
+            0.1);
+
+        var zone = FindZone(run, 0);
+        Assert.IsNotEmpty(zone.Projectiles);
+        Assert.IsTrue(zone.Projectiles.All(projectile => projectile.Active));
+        Assert.IsTrue(zone.Projectiles.Any(projectile => projectile.SourceEntityIndex == 0 && projectile.TargetEntityIndex == 1));
+        Assert.IsTrue(zone.Entities.All(entity => entity.WeaponStates.Any(weapon =>
+            weapon.OwnerKind == "daemon-rts" &&
+            weapon.BehaviorKind == "ProjectileWeapon")));
+
+        var frame = AetheriaRuntimeDaemonFrameDocument.Create(
+            run,
+            "daemon",
+            "session",
+            77,
+            12.1,
+            0.1);
+        var viewport = new AetheriaRuntimeRtsViewportBounds
+        {
+            MinX = -100,
+            MinY = -100,
+            MaxX = 140,
+            MaxY = 100
+        };
+        var zoneRender = AetheriaRuntimeRtsDocuments.ZoneRender(frame);
+        var objectsViewport = AetheriaRuntimeRtsDocuments.ObjectsViewport(frame, viewport);
+
+        Assert.AreEqual(zone.Projectiles.Count, zoneRender.Projectiles.Count);
+        Assert.IsTrue(objectsViewport.Objects.Any(obj =>
+            obj.Kind == "projectile" &&
+            obj.IconAsset.AssetKey == "aetheria.asset.sprite.rts.projectile"));
     }
 
     [Test]

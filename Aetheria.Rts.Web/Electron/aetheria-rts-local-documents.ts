@@ -12,6 +12,7 @@ import {
   aetheriaRuntimeEntityStatGridCommitSlots as statGridSlots,
   aetheriaRuntimeLoadoutItemCommitSlots as itemSlots,
   aetheriaRuntimeLoadoutItemSlotCommitSlots as itemSlotSlots,
+  aetheriaRuntimeProjectileCommitSlots as projectileSlots,
   aetheriaRuntimeRunCheckpointCommitSlots as runSlots,
   aetheriaRuntimeSunVisualCommitSlots as sunVisualSlots,
   aetheriaRuntimeStarbridgeBaseStatusSlots as starbridgeBaseSlots,
@@ -82,12 +83,17 @@ export function buildObjectsViewportDocumentFromFrame(
     .map(entity => num(entity[entitySlots.entityIndex], -1))
     .filter(index => index >= 0);
   const controlled = entities.filter(entity => controlledEntityIndices.includes(num(entity[entitySlots.entityIndex], -1)));
+  const projectiles = list<unknown[]>(zone[zoneSlots.projectiles]);
   const objects = entities
     .filter(entity => entityIntersectsViewport(entity, viewport))
     .filter(entity => isPlayerControlled(entity) ||
       controlled.length === 0 ||
       controlled.some(observer => canSee(observer, entity)))
-    .map(entity => toViewObject(entity, runId, num(zone[zoneSlots.zoneIndex])));
+    .map(entity => toViewObject(entity, runId, num(zone[zoneSlots.zoneIndex])))
+    .concat(projectiles
+      .filter(projectile => projectile[projectileSlots.active] !== false)
+      .filter(projectile => projectileIntersectsViewport(projectile, viewport))
+      .map(toProjectileViewObject));
 
   return {
     schema: AetheriaRtsSchemas.objectsViewport,
@@ -496,6 +502,34 @@ function toViewObject(entity: unknown[], runId: string, zoneIndex: number): View
   };
 }
 
+function toProjectileViewObject(projectile: unknown[]): ViewObject {
+  return {
+    entityIndex: -1,
+    entityKey: str(projectile[projectileSlots.projectileId]),
+    displayName: str(projectile[projectileSlots.weaponKind]) || "projectile",
+    kind: "projectile",
+    factionKey: str(projectile[projectileSlots.factionKey]),
+    x: num(projectile[projectileSlots.positionX]),
+    y: num(projectile[projectileSlots.positionZ]),
+    z: num(projectile[projectileSlots.positionY]),
+    directionX: num(projectile[projectileSlots.directionX]),
+    directionY: num(projectile[projectileSlots.directionY]),
+    velocityX: num(projectile[projectileSlots.velocityX]),
+    velocityY: num(projectile[projectileSlots.velocityY]),
+    controlled: false,
+    targetEntityIndex: num(projectile[projectileSlots.targetEntityIndex], -1),
+    isActive: projectile[projectileSlots.active] !== false,
+    visibility: num(projectile[projectileSlots.radius]),
+    iconAsset: spriteAsset("aetheria.asset.sprite.rts.projectile", "Sprites/Icons/Lightning Bolt"),
+    status: {
+      hull: num(projectile[projectileSlots.damage]),
+      shield: 0,
+      heat: num(projectile[projectileSlots.ageSeconds]),
+    },
+    inventory: [],
+  };
+}
+
 function toStarbridgeBaseStatus(status: unknown[]): StarbridgeSessionDocument["baseStatus"] {
   return {
     entityKey: str(status[starbridgeBaseSlots.entityKey]),
@@ -598,6 +632,12 @@ function addSlot(items: InventoryItem[], source: string, slot: unknown[]): void 
 function entityIntersectsViewport(entity: unknown[], viewport: ViewportRequest): boolean {
   const x = num(entity[entitySlots.positionX]);
   const y = num(entity[entitySlots.positionZ]);
+  return x >= viewport.minX && x <= viewport.maxX && y >= viewport.minY && y <= viewport.maxY;
+}
+
+function projectileIntersectsViewport(projectile: unknown[], viewport: ViewportRequest): boolean {
+  const x = num(projectile[projectileSlots.positionX]);
+  const y = num(projectile[projectileSlots.positionZ]);
   return x >= viewport.minX && x <= viewport.maxX && y >= viewport.minY && y <= viewport.maxY;
 }
 

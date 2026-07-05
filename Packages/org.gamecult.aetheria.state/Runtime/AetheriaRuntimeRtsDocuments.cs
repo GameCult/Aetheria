@@ -44,6 +44,7 @@ namespace GameCult.Aetheria.State.Verse
             var run = context.Run;
             var zone = context.Zone;
             var entities = zone.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>();
+            var projectiles = zone.Projectiles ?? Array.Empty<AetheriaRuntimeProjectileCommit>();
             var controlledEntityIndices = entities
                 .Where(IsPlayerControlled)
                 .Select(entity => entity.EntityIndex)
@@ -69,6 +70,10 @@ namespace GameCult.Aetheria.State.Verse
                         controlled.Length == 0 ||
                         controlled.Any(observer => CanSee(observer, entity)))
                     .Select(entity => ToViewportObject(entity, context.RunId, zone.ZoneIndex))
+                    .Concat(projectiles
+                        .Where(projectile => projectile != null && projectile.Active)
+                        .Where(projectile => IntersectsViewport(projectile, normalizedViewport))
+                        .Select(ToViewportObject))
                     .ToArray()
             };
         }
@@ -725,6 +730,9 @@ namespace GameCult.Aetheria.State.Verse
                     .ToArray(),
                 Bodies = (zone.Bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>())
                     .Where(body => body != null)
+                    .ToArray(),
+                Projectiles = (zone.Projectiles ?? Array.Empty<AetheriaRuntimeProjectileCommit>())
+                    .Where(projectile => projectile != null && projectile.Active)
                     .ToArray()
             };
         }
@@ -795,6 +803,16 @@ namespace GameCult.Aetheria.State.Verse
                 entity.PositionZ <= viewport.MaxY;
         }
 
+        public static bool IntersectsViewport(
+            AetheriaRuntimeProjectileCommit projectile,
+            AetheriaRuntimeRtsViewportBounds viewport)
+        {
+            return projectile.PositionX >= viewport.MinX &&
+                projectile.PositionX <= viewport.MaxX &&
+                projectile.PositionZ >= viewport.MinY &&
+                projectile.PositionZ <= viewport.MaxY;
+        }
+
         public static bool GravityInfluenceIntersectsViewport(
             AetheriaRuntimeBodySnapshotCommit body,
             AetheriaRuntimeRtsViewportBounds viewport)
@@ -846,6 +864,41 @@ namespace GameCult.Aetheria.State.Verse
             };
             obj.IconAsset = AetheriaRuntimeAssets.ResolveEntityIcon(obj);
             return obj;
+        }
+
+        private static AetheriaRuntimeRtsViewportObject ToViewportObject(
+            AetheriaRuntimeProjectileCommit projectile)
+        {
+            return new AetheriaRuntimeRtsViewportObject
+            {
+                EntityIndex = -1,
+                EntityKey = projectile.ProjectileId ?? "",
+                DisplayName = projectile.WeaponKind ?? "projectile",
+                Kind = "projectile",
+                FactionKey = projectile.FactionKey ?? "",
+                X = projectile.PositionX,
+                Y = projectile.PositionZ,
+                Z = projectile.PositionY,
+                DirectionX = projectile.DirectionX,
+                DirectionY = projectile.DirectionY,
+                VelocityX = projectile.VelocityX,
+                VelocityY = projectile.VelocityY,
+                Controlled = false,
+                TargetEntityIndex = projectile.TargetEntityIndex,
+                IsActive = projectile.Active,
+                Visibility = projectile.Radius,
+                Status = new AetheriaRuntimeRtsEntityStatus
+                {
+                    Hull = projectile.Damage,
+                    Shield = 0,
+                    Heat = projectile.AgeSeconds
+                },
+                Inventory = Array.Empty<AetheriaRuntimeRtsInventoryItem>(),
+                IconAsset = AetheriaRuntimeAssetRef.FromKey(
+                    "aetheria.asset.sprite.rts.projectile",
+                    AetheriaRuntimeAssetKinds.Sprite,
+                    "resources://Sprites/Icons/Lightning Bolt")
+            };
         }
 
         private static AetheriaRuntimeRtsBodyView ToBodyView(

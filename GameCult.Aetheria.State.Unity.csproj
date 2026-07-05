@@ -101,6 +101,7 @@
     <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeDaemonItemStatQueries.cs" />
     <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeDaemonObservationCursor.cs" />
     <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeRtsDocuments.cs" />
+    <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeYmirProjectilePhysics.cs" />
     <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeVerseDiscovery.cs" />
     <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeOperationsCommands.cs" />
     <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeDaemonEditorSurfaceBuilder.cs" />

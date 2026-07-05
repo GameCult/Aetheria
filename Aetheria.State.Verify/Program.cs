@@ -16041,6 +16041,128 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
             string.Join(", ", missingDaemonTickSymbols));
     }
 
+    var snapshotDocumentsPath = Path.Combine(
+        root,
+        "Packages",
+        "org.gamecult.aetheria.state",
+        "Runtime",
+        "AetheriaRuntimeSnapshotDocuments.cs");
+    var rtsSimulationPath = Path.Combine(
+        root,
+        "Packages",
+        "org.gamecult.aetheria.state",
+        "Runtime",
+        "AetheriaRuntimeRtsSimulation.cs");
+    var ymirProjectilePhysicsPath = Path.Combine(
+        root,
+        "Packages",
+        "org.gamecult.aetheria.state",
+        "Runtime",
+        "AetheriaRuntimeYmirProjectilePhysics.cs");
+    var rtsDocumentsPath = Path.Combine(
+        root,
+        "Packages",
+        "org.gamecult.aetheria.state",
+        "Runtime",
+        "AetheriaRuntimeRtsDocuments.cs");
+    var rtsViewportDocumentsPath = Path.Combine(
+        root,
+        "Packages",
+        "org.gamecult.aetheria.state",
+        "Runtime",
+        "AetheriaRuntimeRtsViewportDocuments.cs");
+    var rtsLocalDocumentsPath = Path.Combine(root, "Aetheria.Rts.Web", "Electron", "aetheria-rts-local-documents.ts");
+    var snapshotDocuments = File.Exists(snapshotDocumentsPath)
+        ? File.ReadAllText(snapshotDocumentsPath)
+        : throw new InvalidOperationException("Cannot verify daemon projectile authority; runtime snapshot documents are missing.");
+    var rtsSimulation = File.Exists(rtsSimulationPath)
+        ? File.ReadAllText(rtsSimulationPath)
+        : throw new InvalidOperationException("Cannot verify daemon projectile authority; RTS simulation is missing.");
+    var ymirProjectilePhysics = File.Exists(ymirProjectilePhysicsPath)
+        ? File.ReadAllText(ymirProjectilePhysicsPath)
+        : throw new InvalidOperationException("Cannot verify daemon projectile authority; Ymir projectile physics boundary is missing.");
+    var rtsDocuments = File.Exists(rtsDocumentsPath)
+        ? File.ReadAllText(rtsDocumentsPath)
+        : throw new InvalidOperationException("Cannot verify daemon projectile authority; RTS viewport documents are missing.");
+    var rtsViewportDocuments = File.Exists(rtsViewportDocumentsPath)
+        ? File.ReadAllText(rtsViewportDocumentsPath)
+        : throw new InvalidOperationException("Cannot verify daemon projectile authority; zone render documents are missing.");
+    var rtsLocalDocuments = File.Exists(rtsLocalDocumentsPath)
+        ? File.ReadAllText(rtsLocalDocumentsPath)
+        : throw new InvalidOperationException("Cannot verify daemon projectile authority; Electron local projection is missing.");
+
+    var requiredProjectileAuthoritySymbols = new Dictionary<string, string[]>
+    {
+        [snapshotDocumentsPath] = new[]
+        {
+            "public IReadOnlyList<AetheriaRuntimeProjectileCommit> Projectiles",
+            "public sealed class AetheriaRuntimeProjectileCommit"
+        },
+        [rtsSimulationPath] = new[]
+        {
+            "StepCombat(zone, entities, deltaSeconds)",
+            "EnsureDaemonWeaponState(",
+            "SpawnProjectile(zone, attacker, target)",
+            "AetheriaRuntimeYmirProjectilePhysics.Step(zone, entities, deltaSeconds)",
+            "Damage(target, hit.Projectile.Damage)"
+        },
+        [ymirProjectilePhysicsPath] = new[]
+        {
+            "public static class AetheriaRuntimeYmirProjectilePhysics",
+            "public static AetheriaRuntimeYmirProjectileStep Step(",
+            "ProjectileBodyPrefix",
+            "DaemonEntityBodyPrefix",
+            "TryResolveProjectileContact(",
+            "public sealed class AetheriaRuntimeYmirProjectileHit"
+        },
+        [rtsDocumentsPath] = new[]
+        {
+            "var projectiles = zone.Projectiles",
+            ".Concat(projectiles",
+            "private static AetheriaRuntimeRtsViewportObject ToViewportObject(",
+            "AetheriaRuntimeProjectileCommit projectile)"
+        },
+        [rtsViewportDocumentsPath] = new[]
+        {
+            "public IReadOnlyList<AetheriaRuntimeProjectileCommit> Projectiles"
+        },
+        [rtsLocalDocumentsPath] = new[]
+        {
+            "const projectiles = list<unknown[]>(zone[zoneSlots.projectiles])",
+            ".map(toProjectileViewObject)",
+            "function toProjectileViewObject(projectile: unknown[]): ViewObject"
+        }
+    };
+    var missingProjectileAuthoritySymbols = requiredProjectileAuthoritySymbols
+        .SelectMany(pair =>
+        {
+            var text = pair.Key == snapshotDocumentsPath ? snapshotDocuments :
+                pair.Key == rtsSimulationPath ? rtsSimulation :
+                pair.Key == ymirProjectilePhysicsPath ? ymirProjectilePhysics :
+                pair.Key == rtsDocumentsPath ? rtsDocuments :
+                pair.Key == rtsViewportDocumentsPath ? rtsViewportDocuments :
+                rtsLocalDocuments;
+            return pair.Value
+                .Where(symbol => !text.Contains(symbol, StringComparison.Ordinal))
+                .Select(symbol => $"{Path.GetRelativePath(root, pair.Key)}: missing {symbol}");
+        })
+        .ToArray();
+    if (missingProjectileAuthoritySymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Daemon RTS combat must publish moving typed projectiles instead of invisible local/direct-damage shortcuts: " +
+            string.Join("; ", missingProjectileAuthoritySymbols));
+    }
+
+    if (rtsSimulation.Contains("Damage(target, damage)", StringComparison.Ordinal) ||
+        rtsSimulation.Contains("Damage(target, ResolveProjectileDamage(attacker)", StringComparison.Ordinal) ||
+        rtsSimulation.Contains("private static void StepProjectiles(", StringComparison.Ordinal) ||
+        rtsSimulation.Contains("private static bool ProjectileHits(", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Daemon RTS combat regressed to direct target damage or local projectile physics instead of Ymir-shaped projectile contact damage.");
+    }
+
     if (daemonTickRunner.Contains("AetheriaRuntimeDaemonFrameStore.PublishFrame", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(

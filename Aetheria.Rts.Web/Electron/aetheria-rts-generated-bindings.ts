@@ -842,7 +842,8 @@ export type AetheriaRuntimeZoneRenderDocumentSlot =
   | "droppedPickups"
   | "entitySnapshots"
   | "orbits"
-  | "bodies";
+  | "bodies"
+  | "projectiles";
 
 export const aetheriaRuntimeZoneRenderDocumentSlots: Record<AetheriaRuntimeZoneRenderDocumentSlot, number> = {
   schema: 0,
@@ -863,6 +864,7 @@ export const aetheriaRuntimeZoneRenderDocumentSlots: Record<AetheriaRuntimeZoneR
   entitySnapshots: 17,
   orbits: 18,
   bodies: 19,
+  projectiles: 20,
 };
 
 export type AetheriaRuntimeZoneRenderBodyPoseSlot =
@@ -991,7 +993,8 @@ export type AetheriaRuntimeZoneSnapshotCommitSlot =
   | "gravityTerrainDepthExponent"
   | "gravityTerrainBoundaryFog"
   | "gravityTerrainWaveFrequency"
-  | "simulationTimeSeconds";
+  | "simulationTimeSeconds"
+  | "projectiles";
 
 export const aetheriaRuntimeZoneSnapshotCommitSlots: Record<AetheriaRuntimeZoneSnapshotCommitSlot, number> = {
   zoneIndex: 0,
@@ -1011,6 +1014,7 @@ export const aetheriaRuntimeZoneSnapshotCommitSlots: Record<AetheriaRuntimeZoneS
   gravityTerrainBoundaryFog: 14,
   gravityTerrainWaveFrequency: 15,
   simulationTimeSeconds: 16,
+  projectiles: 17,
 };
 
 export type AetheriaRuntimeEntitySnapshotCommitSlot =
@@ -1088,6 +1092,47 @@ export const aetheriaRuntimeEntitySnapshotCommitSlots: Record<AetheriaRuntimeEnt
   hullItemKey: 35,
   factionKey: 36,
   shutdownPerformance: 37,
+};
+
+export type AetheriaRuntimeProjectileCommitSlot =
+  | "projectileId"
+  | "sourceEntityIndex"
+  | "targetEntityIndex"
+  | "factionKey"
+  | "positionX"
+  | "positionY"
+  | "positionZ"
+  | "directionX"
+  | "directionY"
+  | "velocityX"
+  | "velocityY"
+  | "damage"
+  | "radius"
+  | "ageSeconds"
+  | "lifetimeSeconds"
+  | "guided"
+  | "active"
+  | "weaponKind";
+
+export const aetheriaRuntimeProjectileCommitSlots: Record<AetheriaRuntimeProjectileCommitSlot, number> = {
+  projectileId: 0,
+  sourceEntityIndex: 1,
+  targetEntityIndex: 2,
+  factionKey: 3,
+  positionX: 4,
+  positionY: 5,
+  positionZ: 6,
+  directionX: 7,
+  directionY: 8,
+  velocityX: 9,
+  velocityY: 10,
+  damage: 11,
+  radius: 12,
+  ageSeconds: 13,
+  lifetimeSeconds: 14,
+  guided: 15,
+  active: 16,
+  weaponKind: 17,
 };
 
 export type AetheriaRuntimeBodySnapshotCommitSlot =
