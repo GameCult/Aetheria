@@ -16247,6 +16247,7 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
         daemonProgram.Contains("RTS CultMesh endpoint", StringComparison.Ordinal) ||
         daemonProgram.Contains("aetheria-rts-rudp", StringComparison.Ordinal) ||
         daemonProgram.Contains("daemon:aetheria.rts.viewport", StringComparison.Ordinal) ||
+        daemonProgram.Contains("eve-browser-lowering", StringComparison.Ordinal) ||
         daemonProgram.Contains("raven-unity", StringComparison.Ordinal) ||
         daemonProgram.Contains("local-rts", StringComparison.Ordinal) ||
         daemonProgram.Contains("starfire-rts", StringComparison.Ordinal))

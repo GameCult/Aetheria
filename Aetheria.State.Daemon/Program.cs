@@ -1561,7 +1561,7 @@ static Dictionary<string, object?> BuildOdinProviderAdvertisement(
         ["kind"] = "game.runtime",
         ["status"] = "active",
         ["updatedAt"] = string.IsNullOrWhiteSpace(updatedAtUtc) ? DateTimeOffset.UtcNow.ToString("O") : updatedAtUtc,
-        ["capabilities"] = new[] { "cultui-surface", "eve-browser-lowering", "aetheria-ui-panel" },
+        ["capabilities"] = new[] { "cultui-surface", "eve-surface", "cultmesh-cdn-assets", "aetheria-game-surface" },
         ["routes"] = new[]
         {
             new Dictionary<string, object?>(StringComparer.Ordinal)
