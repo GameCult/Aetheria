@@ -4139,6 +4139,121 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
+    public void BehaviorStateProjectorDerivesEquipmentRowsFromCatalogPayloads()
+    {
+        var catalog = new AetheriaRuntimeCatalogSnapshot(
+            new[]
+            {
+                CatalogItem(
+                    "test-relay",
+                    new[]
+                    {
+                        new AetheriaRuntimeBehaviorPayload(
+                            3,
+                            "SensorRelay",
+                            0,
+                            Array.Empty<AetheriaRuntimeBehaviorField>()),
+                        new AetheriaRuntimeBehaviorPayload(
+                            4,
+                            "Shield",
+                            1,
+                            Array.Empty<AetheriaRuntimeBehaviorField>())
+                    })
+            },
+            Array.Empty<AetheriaRuntimeCorporation>(),
+            Array.Empty<AetheriaRuntimeNameFile>());
+        var equipment = new[]
+        {
+            new AetheriaRuntimeLoadoutItemSlotCommit
+            {
+                Item = new AetheriaRuntimeLoadoutItemCommit
+                {
+                    ItemKey = "test-relay",
+                    Enabled = true
+                }
+            }
+        };
+
+        var states = AetheriaRuntimeBehaviorStateProjector.CreateEquipmentBehaviorStates(equipment, catalog);
+
+        Assert.AreEqual(2, states.Length);
+        Assert.AreEqual(AetheriaRuntimeBehaviorStateProjector.EquipmentOwnerKind, states[0].OwnerKind);
+        Assert.AreEqual(0, states[0].OwnerIndex);
+        Assert.AreEqual(0, states[0].BehaviorIndex);
+        Assert.AreEqual("SensorRelay", states[0].BehaviorKind);
+        Assert.AreEqual(AetheriaRuntimeBehaviorStateProjector.EquipmentOwnerKind, states[1].OwnerKind);
+        Assert.AreEqual(0, states[1].OwnerIndex);
+        Assert.AreEqual(1, states[1].BehaviorIndex);
+        Assert.AreEqual("Shield", states[1].BehaviorKind);
+    }
+
+    [Test]
+    public void DaemonOperationsAcceptsBehaviorIntentFromCatalogProjectedState()
+    {
+        var run = RunWithTwoEntities();
+        var actor = run.Zones[0].Entities[0];
+        actor.BehaviorStates = new[]
+        {
+            new AetheriaRuntimeBehaviorStateCommit
+            {
+                OwnerKind = AetheriaRuntimeBehaviorStateProjector.EquipmentOwnerKind,
+                OwnerIndex = 0,
+                BehaviorIndex = 1,
+                BehaviorKind = "StaleLocalBehavior"
+            }
+        };
+        actor.Equipment = new[]
+        {
+            new AetheriaRuntimeLoadoutItemSlotCommit
+            {
+                Item = new AetheriaRuntimeLoadoutItemCommit
+                {
+                    ItemKey = "test-relay",
+                    Enabled = true
+                }
+            }
+        };
+        var catalog = new AetheriaRuntimeCatalogSnapshot(
+            new[]
+            {
+                CatalogItem(
+                    "test-relay",
+                    new[]
+                    {
+                        new AetheriaRuntimeBehaviorPayload(
+                            7,
+                            "SensorRelay",
+                            0,
+                            Array.Empty<AetheriaRuntimeBehaviorField>())
+                    })
+            },
+            Array.Empty<AetheriaRuntimeCorporation>(),
+            Array.Empty<AetheriaRuntimeNameFile>());
+        AetheriaRuntimeBehaviorStateProjector.EnsureEquipmentBehaviorStates(actor, catalog);
+        Assert.AreEqual(1, actor.BehaviorStates.Count);
+        Assert.AreEqual("SensorRelay", actor.BehaviorStates[0].BehaviorKind);
+        var command = AetheriaRuntimeDaemonCommandDocument.Create(
+            AetheriaRuntimeDaemonCommandKinds.SetBehaviorActive,
+            "codex",
+            "session-intents",
+            36,
+            "zone.0.entity.0");
+        command.EquipmentIndex = 0;
+        command.BehaviorIndex = 0;
+        command.ScalarValue = 1.0;
+
+        var result = AetheriaRuntimeDaemonOperations.Execute(run, new[] { command });
+
+        Assert.AreEqual(1, result.AppliedCommandIds.Count);
+        Assert.AreEqual(0, result.RejectedCommandIds.Count);
+        Assert.AreEqual(1, result.Intents.Behaviors.Count);
+        Assert.AreEqual("zone.0.entity.0", result.Intents.Behaviors[0].ActorEntityKey);
+        Assert.AreEqual(0, result.Intents.Behaviors[0].EquipmentIndex);
+        Assert.AreEqual(0, result.Intents.Behaviors[0].BehaviorIndex);
+        Assert.IsTrue(result.Intents.Behaviors[0].Active);
+    }
+
+    [Test]
     public void DaemonOperationsRejectsWeaponGroupIntentForMissingGroup()
     {
         var run = RunWithTwoEntities();

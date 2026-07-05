@@ -576,7 +576,7 @@ Console.WriteLine($"Name files: {nameFiles.Length}");
 Console.WriteLine("Live gameplay source purity: no serializer or legacy database symbols in Assets/Scripts");
 Console.WriteLine("Package serializer boundary: MessagePack execution remains in named CultCache transport files; document DTOs may carry schema annotations");
 Console.WriteLine("Shared Eve package ownership: generic Unity Eve packages import from the neighboring Eve repo instead of local staged copies");
-Console.WriteLine("Typed runtime behavior coverage: live behavior kinds have typed factory plus progress/state restore coverage");
+Console.WriteLine("Typed runtime behavior coverage: daemon behavior-state rows derive from catalog payloads; Unity behavior objects are presentation restore only");
 Console.WriteLine("Zone construction/runtime key authority: body/orbit wrappers and task shells retain typed keys instead of GUID sidecars");
 Console.WriteLine("Eve runtime bootstrap: daemon-published game surface mounts through UI Toolkit presenter");
 Console.WriteLine("Renderer-local console authority: deleted; UI commands flow through Eve command documents");
@@ -3151,98 +3151,69 @@ static void RequireFactionKeyIdentity(string root)
 
 static void RequireTypedRuntimeBehaviorCoverage(string root)
 {
-    var itemManagerPath = Path.Combine(root, "Assets", "Scripts", "ServerShared", "ItemManager.cs");
     var actionGameManagerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs");
     var observedEntityRestorerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityObservedEntityRestorer.cs");
+    var behaviorStateProjectorPath = Path.Combine(
+        root,
+        "Packages",
+        "org.gamecult.aetheria.state",
+        "Runtime",
+        "AetheriaRuntimeBehaviorStateProjector.cs");
+    var daemonProgramPath = Path.Combine(root, "Aetheria.State.Daemon", "Program.cs");
+    var unityProjectPath = Path.Combine(root, "GameCult.Aetheria.State.Unity.csproj");
 
-    var itemManager = File.Exists(itemManagerPath)
-        ? File.ReadAllText(itemManagerPath)
-        : throw new InvalidOperationException("Cannot verify typed runtime behavior coverage; ItemManager.cs is missing.");
     var actionGameManager = File.Exists(actionGameManagerPath)
         ? File.ReadAllText(actionGameManagerPath)
         : throw new InvalidOperationException("Cannot verify typed runtime behavior coverage; ActionGameManager.cs is missing.");
     var observedEntityRestorer = File.Exists(observedEntityRestorerPath)
         ? File.ReadAllText(observedEntityRestorerPath)
         : throw new InvalidOperationException("Cannot verify typed runtime behavior coverage; AetheriaUnityObservedEntityRestorer.cs is missing.");
+    var behaviorStateProjector = File.Exists(behaviorStateProjectorPath)
+        ? File.ReadAllText(behaviorStateProjectorPath)
+        : throw new InvalidOperationException("Cannot verify typed runtime behavior coverage; behavior-state projector is missing.");
+    var daemonProgram = File.Exists(daemonProgramPath)
+        ? File.ReadAllText(daemonProgramPath)
+        : throw new InvalidOperationException("Cannot verify typed runtime behavior coverage; daemon program is missing.");
+    var unityProject = File.Exists(unityProjectPath)
+        ? File.ReadAllText(unityProjectPath)
+        : throw new InvalidOperationException("Cannot verify typed runtime behavior coverage; Unity project is missing.");
     var runtimeRestoreSource = actionGameManager + "\n" + observedEntityRestorer;
 
-    var requiredFactoryMappings = new[]
+    var requiredBehaviorStateProjection = new[]
     {
-        "case \"AetherDrive\": return new AetherDrive(definition, item);",
-        "case \"AutoWeapon\": return new AutoWeapon(definition, item);",
-        "case \"Capacitor\": return new Capacitor(definition, item);",
-        "case \"ChargedWeapon\": return new ChargedWeapon(definition, item);",
-        "case \"Cockpit\": return new Cockpit(definition, item);",
-        "case \"Cooldown\": return new Cooldown(definition, item);",
-        "case \"ConstantWeapon\": return new ConstantWeapon(definition, item);",
-        "case \"EnergyDraw\": return new EnergyDraw(definition, item);",
-        "case \"GuidedWeapon\": return new InstantWeapon(definition, item);",
-        "case \"Heat\": return new Heat(definition, item);",
-        "case \"HeatStorage\": return new HeatStorage(definition, item);",
-        "case \"InstantWeapon\": return new InstantWeapon(definition, item);",
-        "case \"ItemUsage\": return new ItemUsage(definition, item);",
-        "case \"Launcher\": return new LockWeapon(definition, item);",
-        "case \"LockWeapon\": return new LockWeapon(definition, item);",
-        "case \"MiningTool\": return new MiningTool(definition, item);",
-        "case \"Radiator\": return new Radiator(definition, item);",
-        "case \"Reactor\": return new Reactor(definition, item);",
-        "case \"Reflector\": return new Reflector(definition, item);",
-        "case \"ResourceScanner\": return new ResourceScanner(definition, item);",
-        "case \"Sensor\": return new Sensor(definition, item);",
-        "case \"Shield\": return new Shield(definition, item);",
-        "case \"StatModifier\": return new StatModifier(definition, item);",
-        "case \"Switch\": return new Switch(definition, item);",
-        "case \"Thermotoggle\": return new Thermotoggle(definition, item);",
-        "case \"Thruster\": return new Thruster(definition, item);",
-        "case \"Trigger\": return new Trigger(definition, item);",
-        "case \"TurretController\": return new TurretController(definition, item);",
-        "case \"VelocityConversion\": return new VelocityConversion(definition, item);",
-        "case \"VelocityLimit\": return new VelocityLimit(definition, item);",
-        "case \"Visibility\": return new Visibility(definition, item);",
-        "case \"Wear\": return new Wear(definition, item);",
-        "case \"AetherDrive\": return new AetherDrive(definition, effect);",
-        "case \"AutoWeapon\": return new InstantWeapon(definition, effect);",
-        "case \"Capacitor\": return new Capacitor(definition, effect);",
-        "case \"ChargedWeapon\": return new ChargedWeapon(definition, effect);",
-        "case \"Cockpit\": return new Cockpit(definition, effect);",
-        "case \"Cooldown\": return new Cooldown(definition, effect);",
-        "case \"ConstantWeapon\": return new ConstantWeapon(definition, effect);",
-        "case \"EnergyDraw\": return new EnergyDraw(definition, effect);",
-        "case \"GuidedWeapon\": return new InstantWeapon(definition, effect);",
-        "case \"Heat\": return new Heat(definition, effect);",
-        "case \"HeatStorage\": return new HeatStorage(definition, effect);",
-        "case \"InstantWeapon\": return new InstantWeapon(definition, effect);",
-        "case \"ItemUsage\": return new ItemUsage(definition, effect);",
-        "case \"Launcher\": return new LockWeapon(definition, effect);",
-        "case \"LockWeapon\": return new LockWeapon(definition, effect);",
-        "case \"MiningTool\": return new MiningTool(definition, effect);",
-        "case \"Radiator\": return new Radiator(definition, effect);",
-        "case \"Reactor\": return new Reactor(definition, effect);",
-        "case \"Reflector\": return new Reflector(definition, effect);",
-        "case \"ResourceScanner\": return new ResourceScanner(definition, effect);",
-        "case \"Sensor\": return new Sensor(definition, effect);",
-        "case \"Shield\": return new Shield(definition, effect);",
-        "case \"StatModifier\": return new StatModifier(definition, effect);",
-        "case \"Switch\": return new Switch(definition, effect);",
-        "case \"Thermotoggle\": return new Thermotoggle(definition, effect);",
-        "case \"Thruster\": return new Thruster(definition, effect);",
-        "case \"Trigger\": return new Trigger(definition, effect);",
-        "case \"TurretController\": return new TurretController(definition, effect);",
-        "case \"VelocityConversion\": return new VelocityConversion(definition, effect);",
-        "case \"VelocityLimit\": return new VelocityLimit(definition, effect);",
-        "case \"Visibility\": return new Visibility(definition, effect);",
-        "case \"Wear\": return new Wear(definition, effect);"
+        "public static class AetheriaRuntimeBehaviorStateProjector",
+        "public static void EnsureEquipmentBehaviorStates(",
+        "public static AetheriaRuntimeBehaviorStateCommit[] CreateEquipmentBehaviorStates(",
+        "AetheriaRuntimeCatalogSnapshot? catalog",
+        "catalog.FindItem(item.ItemKey ?? \"\")",
+        "typedItem?.BehaviorPayloads",
+        "OwnerKind = EquipmentOwnerKind",
+        "BehaviorKind = payload.Kind"
     };
 
-    var missingFactoryMappings = requiredFactoryMappings
-        .Where(symbol => !itemManager.Contains(symbol, StringComparison.Ordinal))
+    var missingBehaviorStateProjection = requiredBehaviorStateProjection
+        .Where(symbol => !behaviorStateProjector.Contains(symbol, StringComparison.Ordinal))
         .ToArray();
 
-    if (missingFactoryMappings.Length > 0)
+    if (missingBehaviorStateProjection.Length > 0)
     {
         throw new InvalidOperationException(
-            "Typed runtime behavior factory no longer covers the live behavior payload kinds: " +
-            string.Join(", ", missingFactoryMappings));
+            "Typed runtime behavior authority must derive daemon behavior-state rows from catalog payloads instead of Unity behavior objects: " +
+            string.Join(", ", missingBehaviorStateProjection));
+    }
+
+    if (!daemonProgram.Contains("node.RuntimeCatalog().Latest() ?? new AetheriaRuntimeCatalogSnapshot()", StringComparison.Ordinal) ||
+        !daemonProgram.Contains("AetheriaRuntimeBehaviorStateProjector.CreateEquipmentBehaviorStates(equipment, catalog)", StringComparison.Ordinal) ||
+        !daemonProgram.Contains("AetheriaRuntimeBehaviorStateProjector.EnsureEquipmentBehaviorStates(runtimeEntity, catalog)", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Daemon runtime checkpoint projection must publish typed behavior-state rows from managed catalog payloads.");
+    }
+
+    if (!unityProject.Contains("AetheriaRuntimeBehaviorStateProjector.cs", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Unity-compatible shared runtime builds must include the typed behavior-state projector.");
     }
 
     var requiredWeaponStateCoverage = new[]

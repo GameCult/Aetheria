@@ -1952,6 +1952,7 @@ static async Task<AetheriaRuntimeRunCheckpointCommit?> ReadRuntimeRunCheckpointA
     if (run == null)
         return null;
 
+    var catalog = node.RuntimeCatalog().Latest() ?? new AetheriaRuntimeCatalogSnapshot();
     var zones = new List<AetheriaRuntimeZoneSnapshotCommit>();
     var zoneKeys = run.ZoneKeys ?? Array.Empty<string>();
     for (var zoneIndex = 0; zoneIndex < zoneKeys.Length; zoneIndex++)
@@ -1960,7 +1961,7 @@ static async Task<AetheriaRuntimeRunCheckpointCommit?> ReadRuntimeRunCheckpointA
         if (zone == null)
             continue;
 
-        zones.Add(await ToRuntimeZoneAsync(node, zone, zoneIndex, renderSettings).ConfigureAwait(false));
+        zones.Add(await ToRuntimeZoneAsync(node, zone, zoneIndex, renderSettings, catalog).ConfigureAwait(false));
     }
 
     return new AetheriaRuntimeRunCheckpointCommit
@@ -1990,7 +1991,8 @@ static async Task<AetheriaRuntimeZoneSnapshotCommit> ToRuntimeZoneAsync(
     AetheriaStateNode node,
     AetheriaZoneState zone,
     int zoneIndex,
-    AetheriaRuntimeDaemonRenderSettings renderSettings)
+    AetheriaRuntimeDaemonRenderSettings renderSettings,
+    AetheriaRuntimeCatalogSnapshot catalog)
 {
     var entityKeys = zone.EntityKeys ?? Array.Empty<string>();
     var entityIndices = entityKeys
@@ -2002,7 +2004,7 @@ static async Task<AetheriaRuntimeZoneSnapshotCommit> ToRuntimeZoneAsync(
     {
         var entity = await node.MutableDocument<AetheriaEntitySnapshot>(new CultRecordKey(entityKeys[entityIndex])).ReadAsync().ConfigureAwait(false);
         if (entity != null)
-            entities.Add(ToRuntimeEntity(entity, entityIndex, entityIndices));
+            entities.Add(ToRuntimeEntity(entity, entityIndex, entityIndices, catalog));
     }
 
     return new AetheriaRuntimeZoneSnapshotCommit
@@ -2030,9 +2032,11 @@ static async Task<AetheriaRuntimeZoneSnapshotCommit> ToRuntimeZoneAsync(
 static AetheriaRuntimeEntitySnapshotCommit ToRuntimeEntity(
     AetheriaEntitySnapshot entity,
     int entityIndex,
-    IReadOnlyDictionary<string, int> entityIndices)
+    IReadOnlyDictionary<string, int> entityIndices,
+    AetheriaRuntimeCatalogSnapshot catalog)
 {
-    return new AetheriaRuntimeEntitySnapshotCommit
+    var equipment = ToEntitySlotCommits(entity.Equipment);
+    var runtimeEntity = new AetheriaRuntimeEntitySnapshotCommit
     {
         EntityIndex = entityIndex,
         Name = entity.Name ?? "",
@@ -2044,7 +2048,7 @@ static AetheriaRuntimeEntitySnapshotCommit ToRuntimeEntity(
         DirectionY = entity.Direction?.Y ?? 1,
         FactionKey = entity.FactionKey ?? "",
         HullItemKey = entity.HullItemKey ?? "",
-        Equipment = ToEntitySlotCommits(entity.Equipment),
+        Equipment = equipment,
         CargoBays = ToEntitySlotCommits(entity.CargoBays),
         DockingBays = ToEntitySlotCommits(entity.DockingBays),
         ChildEntityIndices = (entity.ChildEntityKeys ?? Array.Empty<string>())
@@ -2092,7 +2096,7 @@ static AetheriaRuntimeEntitySnapshotCommit ToRuntimeEntity(
             })
             .ToArray(),
         WeaponStates = Array.Empty<AetheriaRuntimeWeaponStateCommit>(),
-        BehaviorStates = Array.Empty<AetheriaRuntimeBehaviorStateCommit>(),
+        BehaviorStates = AetheriaRuntimeBehaviorStateProjector.CreateEquipmentBehaviorStates(equipment, catalog),
         CargoContents = ToCargoBayCommits(entity.CargoContents),
         DockingBayContents = ToCargoBayCommits(entity.DockingBayContents),
         DockingBayAssignments = (entity.DockingBayAssignments ?? Array.Empty<int>()).ToArray(),
@@ -2103,6 +2107,8 @@ static AetheriaRuntimeEntitySnapshotCommit ToRuntimeEntity(
             .Where(contact => contact.TargetEntityIndex >= 0)
             .ToArray()
     };
+    AetheriaRuntimeBehaviorStateProjector.EnsureEquipmentBehaviorStates(runtimeEntity, catalog);
+    return runtimeEntity;
 }
 
 static AetheriaRuntimeEntityContactCommit ToRuntimeContact(
