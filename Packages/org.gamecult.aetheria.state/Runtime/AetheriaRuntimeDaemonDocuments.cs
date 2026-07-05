@@ -62,7 +62,7 @@ namespace GameCult.Aetheria.State.Verse
         public const string Frame = "gamecult.aetheria.daemon_frame.v1";
         public const string Command = "gamecult.aetheria.daemon_command.v1";
         public const string CommittedCommandFact = "gamecult.aetheria.committed_command_fact.v1";
-        public const string RtsViewport = "gamecult.aetheria.rts_viewport.v1";
+        public const string GameViewport = "gamecult.aetheria.game_viewport.v1";
         public const string ObjectsViewport = "gamecult.aetheria.objects_viewport.v1";
         public const string GravityViewport = "gamecult.aetheria.gravity_viewport.v1";
         public const string RenderSplatsViewport = "gamecult.aetheria.render_splats_viewport.v1";

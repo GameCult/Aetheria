@@ -462,19 +462,19 @@ namespace GameCult.Aetheria.State.Verse
                 verseHostSettingsDocument,
                 ManagedFrameDocument(
                     "aetheria.current.zone",
-                    frame => Task.FromResult(AetheriaRuntimeRtsDocuments.CurrentZone(frame)),
+                    frame => Task.FromResult(AetheriaRuntimeGameDocuments.CurrentZone(frame)),
                     AetheriaRuntimeDaemonSchemas.CurrentZone),
                 ManagedFrameDocument(
                     "aetheria.current.entity",
-                    frame => Task.FromResult(AetheriaRuntimeRtsDocuments.CurrentEntity(frame)),
+                    frame => Task.FromResult(AetheriaRuntimeGameDocuments.CurrentEntity(frame)),
                     AetheriaRuntimeDaemonSchemas.CurrentEntity),
                 ManagedFrameDocument(
                     "aetheria.current.docking",
-                    frame => Task.FromResult(AetheriaRuntimeRtsDocuments.CurrentDocking(frame)),
+                    frame => Task.FromResult(AetheriaRuntimeGameDocuments.CurrentDocking(frame)),
                     AetheriaRuntimeDaemonSchemas.CurrentDocking),
                 ManagedFrameDocument(
                     "aetheria.zone.contacts",
-                    frame => Task.FromResult(AetheriaRuntimeRtsDocuments.ZoneContacts(frame)),
+                    frame => Task.FromResult(AetheriaRuntimeGameDocuments.ZoneContacts(frame)),
                     AetheriaRuntimeDaemonSchemas.ZoneContacts),
                 ManagedFrameDocument(
                     "aetheria.station.refit",
@@ -484,31 +484,31 @@ namespace GameCult.Aetheria.State.Verse
                     CultMesh.ProjectionSource("loadout-templates:aetheria.runtime")),
                 ManagedFrameDocument(
                     "aetheria.sector.map",
-                    frame => Task.FromResult(AetheriaRuntimeRtsDocuments.SectorMap(frame)),
+                    frame => Task.FromResult(AetheriaRuntimeGameDocuments.SectorMap(frame)),
                     AetheriaRuntimeDaemonSchemas.SectorMap),
                 ManagedFrameDocument(
                     "aetheria.zone.render",
-                    frame => Task.FromResult(AetheriaRuntimeRtsDocuments.ZoneRender(frame)),
+                    frame => Task.FromResult(AetheriaRuntimeGameDocuments.ZoneRender(frame)),
                     AetheriaRuntimeDaemonSchemas.ZoneRender),
                 viewport => ManagedFrameDocument(
                     ViewportDocumentId("aetheria.viewport.map", viewport),
-                    frame => Task.FromResult(AetheriaRuntimeRtsDocuments.Viewport(frame, viewport)),
-                    AetheriaRuntimeDaemonSchemas.RtsViewport),
+                    frame => Task.FromResult(AetheriaRuntimeGameDocuments.Viewport(frame, viewport)),
+                    AetheriaRuntimeDaemonSchemas.GameViewport),
                 viewport => ManagedFrameDocument(
                     ViewportDocumentId("aetheria.viewport.objects", viewport),
-                    frame => Task.FromResult(AetheriaRuntimeRtsDocuments.ObjectsViewport(frame, viewport)),
+                    frame => Task.FromResult(AetheriaRuntimeGameDocuments.ObjectsViewport(frame, viewport)),
                     AetheriaRuntimeDaemonSchemas.ObjectsViewport),
                 viewport => ManagedFrameDocument(
                     ViewportDocumentId("aetheria.viewport.gravity", viewport),
-                    frame => Task.FromResult(AetheriaRuntimeRtsDocuments.GravityViewport(frame, viewport)),
+                    frame => Task.FromResult(AetheriaRuntimeGameDocuments.GravityViewport(frame, viewport)),
                     AetheriaRuntimeDaemonSchemas.GravityViewport),
                 viewport => ManagedFrameDocument(
                     ViewportDocumentId("aetheria.viewport.render_splats", viewport),
-                    frame => Task.FromResult(AetheriaRuntimeRtsDocuments.RenderSplatsViewport(frame, viewport)),
+                    frame => Task.FromResult(AetheriaRuntimeGameDocuments.RenderSplatsViewport(frame, viewport)),
                     AetheriaRuntimeDaemonSchemas.RenderSplatsViewport),
                 zoneIndex => ManagedFrameDocument(
                     IndexedDocumentId("aetheria.zone.details", zoneIndex),
-                    frame => Task.FromResult(AetheriaRuntimeRtsDocuments.ZoneDetails(frame, zoneIndex)),
+                    frame => Task.FromResult(AetheriaRuntimeGameDocuments.ZoneDetails(frame, zoneIndex)),
                     AetheriaRuntimeDaemonSchemas.ZoneDetails),
                 zoneIndex => ManagedFrameDocument(
                     IndexedDocumentId("aetheria.zone.details.surface", zoneIndex),
@@ -535,11 +535,11 @@ namespace GameCult.Aetheria.State.Verse
                     inGame),
                 entityIndex => ManagedFrameDocument(
                     IndexedDocumentId("aetheria.object.selected", entityIndex),
-                    frame => Task.FromResult(AetheriaRuntimeRtsDocuments.SelectedObject(frame, entityIndex)),
+                    frame => Task.FromResult(AetheriaRuntimeGameDocuments.SelectedObject(frame, entityIndex)),
                     AetheriaRuntimeDaemonSchemas.SelectedObject),
                 entityIndex => ManagedFrameDocument(
                     IndexedDocumentId("aetheria.inventory", entityIndex),
-                    frame => Task.FromResult(AetheriaRuntimeRtsDocuments.Inventory(frame, entityIndex)),
+                    frame => Task.FromResult(AetheriaRuntimeGameDocuments.Inventory(frame, entityIndex)),
                     AetheriaRuntimeDaemonSchemas.Inventory),
                 starbridgeScenarioDocument,
                 starbridgeSessionDocument,
@@ -676,7 +676,7 @@ namespace GameCult.Aetheria.State.Verse
             Task<AetheriaRuntimeStationRefitDocument> StationRefitAsync(
                 AetheriaRuntimeDaemonFrameDocument frame)
             {
-                return Task.FromResult(AetheriaRuntimeRtsDocuments.StationRefit(
+                return Task.FromResult(AetheriaRuntimeGameDocuments.StationRefit(
                     frame,
                     RequireManagedLoadoutTemplates().Templates,
                     RequireManagedCatalog()));
@@ -733,8 +733,8 @@ namespace GameCult.Aetheria.State.Verse
                 int zoneIndex)
             {
                 return Task.FromResult(AetheriaRuntimeZoneDetailsSurfaceBuilder.BuildFromDocuments(
-                    AetheriaRuntimeRtsDocuments.ZoneDetails(frame, zoneIndex),
-                    AetheriaRuntimeRtsDocuments.SectorMap(frame),
+                    AetheriaRuntimeGameDocuments.ZoneDetails(frame, zoneIndex),
+                    AetheriaRuntimeGameDocuments.SectorMap(frame),
                     RequireManagedCatalog(),
                     RequireManagedPlayerSettings(),
                     DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture)));
@@ -750,11 +750,11 @@ namespace GameCult.Aetheria.State.Verse
                     : request.DisplayedCargoEntityIndex;
                 var inventory = entityIndex < 0
                     ? new AetheriaRuntimeInventoryDocument()
-                    : AetheriaRuntimeRtsDocuments.Inventory(frame, entityIndex);
+                    : AetheriaRuntimeGameDocuments.Inventory(frame, entityIndex);
 
                 return Task.FromResult(AetheriaRuntimeInventoryPanelSurfaceBuilder.BuildFromDocuments(
-                    AetheriaRuntimeRtsDocuments.CurrentEntity(frame),
-                    AetheriaRuntimeRtsDocuments.StationRefit(
+                    AetheriaRuntimeGameDocuments.CurrentEntity(frame),
+                    AetheriaRuntimeGameDocuments.StationRefit(
                         frame,
                         RequireManagedLoadoutTemplates().Templates,
                         RequireManagedCatalog()),
@@ -771,7 +771,7 @@ namespace GameCult.Aetheria.State.Verse
                 AetheriaRuntimeInventoryDropdownSurfaceRequest request)
             {
                 return Task.FromResult(AetheriaRuntimeInventoryDropdownSurfaceBuilder.BuildFromDocuments(
-                    AetheriaRuntimeRtsDocuments.StationRefit(
+                    AetheriaRuntimeGameDocuments.StationRefit(
                         frame,
                         RequireManagedLoadoutTemplates().Templates,
                         RequireManagedCatalog()),
@@ -876,9 +876,9 @@ namespace GameCult.Aetheria.State.Verse
                 return $"{prefix}.{index.ToString(CultureInfo.InvariantCulture)}";
             }
 
-            static string ViewportDocumentId(string prefix, AetheriaRuntimeRtsViewportBounds viewport)
+            static string ViewportDocumentId(string prefix, AetheriaRuntimeViewportBounds viewport)
             {
-                var normalized = AetheriaRuntimeRtsDocuments.Normalize(viewport);
+                var normalized = AetheriaRuntimeGameDocuments.Normalize(viewport);
                 return string.Join(
                     ".",
                     prefix,

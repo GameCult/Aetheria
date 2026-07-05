@@ -204,7 +204,7 @@ public static class AetheriaRenderProbe
             ? new Vector2(centerTransform.position.x, centerTransform.position.z)
             : Vector2.zero;
         var half = size * 0.5f;
-        var document = sampler.SceneSplatSource.BuildDocument(new AetheriaRuntimeRtsViewportBounds
+        var document = sampler.SceneSplatSource.BuildDocument(new AetheriaRuntimeViewportBounds
         {
             MinX = center.x - half.x,
             MinY = center.y - half.y,

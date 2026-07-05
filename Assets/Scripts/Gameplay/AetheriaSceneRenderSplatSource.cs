@@ -43,9 +43,9 @@ public sealed class AetheriaSceneRenderSplatSource : MonoBehaviour
     [SerializeField]
     private AetheriaSceneRenderSplatFixture[] fixtures = Array.Empty<AetheriaSceneRenderSplatFixture>();
 
-    public AetheriaRuntimeRenderSplatsViewportDocument BuildDocument(AetheriaRuntimeRtsViewportBounds viewport)
+    public AetheriaRuntimeRenderSplatsViewportDocument BuildDocument(AetheriaRuntimeViewportBounds viewport)
     {
-        viewport ??= new AetheriaRuntimeRtsViewportBounds();
+        viewport ??= new AetheriaRuntimeViewportBounds();
         var normalizedViewport = Normalize(viewport);
         var layers = BuildLayers();
         var layerIndices = new Dictionary<string, int>(StringComparer.Ordinal);
@@ -70,9 +70,9 @@ public sealed class AetheriaSceneRenderSplatSource : MonoBehaviour
         };
     }
 
-    private static AetheriaRuntimeRtsViewportBounds Normalize(AetheriaRuntimeRtsViewportBounds viewport)
+    private static AetheriaRuntimeViewportBounds Normalize(AetheriaRuntimeViewportBounds viewport)
     {
-        return new AetheriaRuntimeRtsViewportBounds
+        return new AetheriaRuntimeViewportBounds
         {
             MinX = Math.Min(viewport.MinX, viewport.MaxX),
             MinY = Math.Min(viewport.MinY, viewport.MaxY),

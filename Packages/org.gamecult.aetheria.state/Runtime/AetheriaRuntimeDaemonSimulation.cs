@@ -208,14 +208,14 @@ namespace GameCult.Aetheria.State.Verse
             var states = (entity.WeaponStates ?? Array.Empty<AetheriaRuntimeWeaponStateCommit>()).ToList();
             var state = states.FirstOrDefault(candidate =>
                 candidate != null &&
-                string.Equals(candidate.OwnerKind, "daemon-rts", StringComparison.Ordinal) &&
+                string.Equals(candidate.OwnerKind, "daemon-simulation", StringComparison.Ordinal) &&
                 candidate.OwnerIndex == entity.EntityIndex);
             if (state != null)
                 return state;
 
             state = new AetheriaRuntimeWeaponStateCommit
             {
-                OwnerKind = "daemon-rts",
+                OwnerKind = "daemon-simulation",
                 OwnerIndex = entity.EntityIndex,
                 BehaviorIndex = 0,
                 BehaviorKind = "ProjectileWeapon",

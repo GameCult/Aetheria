@@ -26,7 +26,7 @@ public sealed class AetheriaUnityRenderSplatViewportSource : MonoBehaviour
     private bool renderInLateUpdate = true;
 
     private float _nextRefreshTime;
-    private AetheriaUnityRtsViewportDocuments _viewportDocuments;
+    private AetheriaUnityGameViewportDocuments _viewportDocuments;
     private AetheriaRuntimeRenderSplatsViewportDocument _fallbackRenderSplatsViewport;
     private string _lastWarningMessage = "";
 
@@ -150,19 +150,19 @@ public sealed class AetheriaUnityRenderSplatViewportSource : MonoBehaviour
     }
 
     private static AetheriaRuntimeRenderSplatsViewportDocument EmptyRenderSplatsViewport(
-        AetheriaRuntimeRtsViewportBounds viewport)
+        AetheriaRuntimeViewportBounds viewport)
     {
         return new AetheriaRuntimeRenderSplatsViewportDocument
         {
             PublishedAtUtc = DateTimeOffset.UtcNow.ToString("O"),
-            Viewport = viewport ?? new AetheriaRuntimeRtsViewportBounds()
+            Viewport = viewport ?? new AetheriaRuntimeViewportBounds()
         };
     }
 
-    private AetheriaRuntimeRtsViewportBounds ResolveViewportBounds()
+    private AetheriaRuntimeViewportBounds ResolveViewportBounds()
     {
         var halfSize = size * 0.5f;
-        return new AetheriaRuntimeRtsViewportBounds
+        return new AetheriaRuntimeViewportBounds
         {
             MinX = position.x - halfSize.x,
             MinY = position.y - halfSize.y,

@@ -53,7 +53,7 @@ namespace GameCult.Aetheria.State.Verse
             };
         }
 
-        public static AetheriaRuntimeAssetRef ResolveEntityIcon(AetheriaRuntimeRtsViewportObject? obj)
+        public static AetheriaRuntimeAssetRef ResolveEntityIcon(AetheriaRuntimeViewportObject? obj)
         {
             if (obj?.Controlled == true)
                 return Sprite("map.entity.player", "Sprites/Icons/Stroked/Ship");
@@ -67,7 +67,7 @@ namespace GameCult.Aetheria.State.Verse
             return Sprite("map.entity.ship", "Sprites/Icons/Stroked/Ship");
         }
 
-        public static AetheriaRuntimeAssetRef ResolveBodyIcon(AetheriaRuntimeRtsBodyView? body)
+        public static AetheriaRuntimeAssetRef ResolveBodyIcon(AetheriaRuntimeBodyView? body)
         {
             var kind = (body?.Kind ?? "").Trim().ToLowerInvariant();
             if (kind.IndexOf("sun", StringComparison.Ordinal) >= 0 ||

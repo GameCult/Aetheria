@@ -43,7 +43,7 @@ public static class AetheriaDocumentRegistry
         typeof(AetheriaRuntimeDaemonHealthDocument),
         typeof(AetheriaRuntimeDaemonCommandBoundaryDocument),
         typeof(AetheriaRuntimeDaemonFrameDocument),
-        typeof(AetheriaRuntimeRtsViewportDocument),
+        typeof(AetheriaRuntimeGameViewportDocument),
         typeof(AetheriaRuntimeObjectsViewportDocument),
         typeof(AetheriaRuntimeGravityViewportDocument),
         typeof(AetheriaRuntimeCurrentZoneDocument),

@@ -278,7 +278,7 @@ Add or inspect a typed runtime document:
 
 - `Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeDaemonDocuments.cs`
 - `Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeSnapshotDocuments.cs`
-- `Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeRtsViewportDocuments.cs`
+- `Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeGameViewportDocuments.cs`
 - `Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeStarbridgeDocuments.cs`
 - `Aetheria.State/AetheriaDocumentRegistry.cs`
 - `Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeVerseClient.cs`
@@ -294,7 +294,7 @@ Add or inspect a daemon command:
 
 Add a managed derived document/query:
 
-- `Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeRtsDocuments.cs`
+- `Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeGameDocuments.cs`
 - `Packages/org.gamecult.aetheria.state/Runtime/AetheriaClient.cs`
 - `Aetheria.Rts.Web/Electron/aetheria-rts-local-documents.ts`
 - `Aetheria.Rts.Web/Electron/aetheria-rts-generated-bindings.ts`

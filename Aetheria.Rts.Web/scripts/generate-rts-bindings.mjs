@@ -13,7 +13,7 @@ const sources = [
   resolve(repoRoot, "Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeDaemonRenderQueries.cs"),
   resolve(repoRoot, "Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeDaemonTradeItemQueries.cs"),
   resolve(repoRoot, "Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeSnapshotDocuments.cs"),
-  resolve(repoRoot, "Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeRtsViewportDocuments.cs"),
+  resolve(repoRoot, "Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeGameViewportDocuments.cs"),
   resolve(repoRoot, "Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeRenderSplatDocuments.cs"),
   resolve(repoRoot, "Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeStarbridgeDocuments.cs"),
   resolve(repoRoot, "Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeVerseAuthorityPolicy.cs"),
@@ -98,9 +98,9 @@ const documents = [
     className: "AetheriaRuntimeAssetManifestEntry",
   },
   {
-    exportName: "aetheriaRuntimeRtsViewportDocument",
-    className: "AetheriaRuntimeRtsViewportDocument",
-    schemaName: "rtsViewport",
+    exportName: "aetheriaRuntimeGameViewportDocument",
+    className: "AetheriaRuntimeGameViewportDocument",
+    schemaName: "gameViewport",
   },
   {
     exportName: "aetheriaRuntimeObjectsViewportDocument",
@@ -230,28 +230,28 @@ const documents = [
     className: "AetheriaRuntimeLoadoutItemCommit",
   },
   {
-    exportName: "aetheriaRuntimeRtsViewportBounds",
-    className: "AetheriaRuntimeRtsViewportBounds",
+    exportName: "aetheriaRuntimeGameViewportBounds",
+    className: "AetheriaRuntimeViewportBounds",
   },
   {
-    exportName: "aetheriaRuntimeRtsViewportObject",
-    className: "AetheriaRuntimeRtsViewportObject",
+    exportName: "aetheriaRuntimeGameViewportObject",
+    className: "AetheriaRuntimeViewportObject",
   },
   {
     exportName: "aetheriaRuntimeRtsEntityStatus",
-    className: "AetheriaRuntimeRtsEntityStatus",
+    className: "AetheriaRuntimeEntityStatus",
   },
   {
     exportName: "aetheriaRuntimeRtsInventoryItem",
-    className: "AetheriaRuntimeRtsInventoryItem",
+    className: "AetheriaRuntimeInventoryItem",
   },
   {
     exportName: "aetheriaRuntimeRtsGravityInfluence",
-    className: "AetheriaRuntimeRtsGravityInfluence",
+    className: "AetheriaRuntimeGravityInfluence",
   },
   {
     exportName: "aetheriaRuntimeRtsBodyView",
-    className: "AetheriaRuntimeRtsBodyView",
+    className: "AetheriaRuntimeBodyView",
   },
   {
     exportName: "aetheriaRuntimeStarbridgeScenarioDocument",
@@ -664,9 +664,9 @@ export type AetheriaRuntimeRtsSurfaceCatalogDiagnostic = CultMeshSurfaceCatalogD
 
 export type AetheriaRuntimeRtsOperationHandles = ReturnType<typeof createAetheriaRuntimeRtsOperationHandles>;
 
-export type AetheriaRuntimeRtsDocuments = ReturnType<typeof createAetheriaRuntimeRtsDocuments>;
+export type AetheriaRuntimeGameDocuments = ReturnType<typeof createAetheriaRuntimeGameDocuments>;
 
-export type AetheriaRuntimeRtsStatePointers = AetheriaRuntimeRtsDocuments;
+export type AetheriaRuntimeRtsStatePointers = AetheriaRuntimeGameDocuments;
 
 export type AetheriaRuntimeRtsDocumentResolvers = Partial<{
   daemonFrame: (context: CultMeshQueryContext) => Promise<unknown>;
@@ -701,7 +701,7 @@ export const AetheriaRuntimeRtsDocumentSources = {
   })
 } as const;
 
-export function createAetheriaRuntimeRtsDocuments(
+export function createAetheriaRuntimeGameDocuments(
   routeHint: CultMeshRouteHint = CultMesh.routeHint(),
   resolvers: AetheriaRuntimeRtsDocumentResolvers = {},
 ) {
@@ -754,7 +754,7 @@ export function createAetheriaRuntimeRtsDocuments(
   } as const;
 }
 
-export const createAetheriaRuntimeRtsStatePointers = createAetheriaRuntimeRtsDocuments;
+export const createAetheriaRuntimeRtsStatePointers = createAetheriaRuntimeGameDocuments;
 
 export function createAetheriaRuntimeRtsQueryHandles(
   executors: AetheriaRuntimeRtsQueryExecutors,
@@ -763,7 +763,7 @@ export function createAetheriaRuntimeRtsQueryHandles(
 ) {
   return {
     mapViewport: CultMesh.query<CultMeshViewportRequest, ViewportResponse>(
-      AetheriaRtsSchemas.rtsViewport,
+      AetheriaRtsSchemas.gameViewport,
       executors.mapViewport,
       { routeHint, sources: [AetheriaRuntimeRtsDocumentSources.daemonFrame], watchQuery: watchers.mapViewport },
     ),
@@ -835,7 +835,7 @@ export function describeAetheriaRuntimeRtsQueryHandles(
 export function describeAetheriaRuntimeRtsSurfaceCatalog(
   handles: ReturnType<typeof createAetheriaRuntimeRtsQueryHandles>,
   operations?: AetheriaRuntimeRtsOperationHandles,
-  documents: AetheriaRuntimeRtsDocuments = createAetheriaRuntimeRtsDocuments(),
+  documents: AetheriaRuntimeGameDocuments = createAetheriaRuntimeGameDocuments(),
 ): AetheriaRuntimeRtsSurfaceCatalogDiagnostic {
   return CultMesh.describeSurfaceCatalog(
     "gamecult.aetheria.rts.surfaces.v1",
@@ -930,7 +930,7 @@ export function createAetheriaRuntimeRtsVerseHandles(
   commandVerse: CultMeshVerseContext,
   queries: ReturnType<typeof createAetheriaRuntimeRtsQueryHandles>,
   operations: AetheriaRuntimeRtsOperationHandles,
-  documents: AetheriaRuntimeRtsDocuments = createAetheriaRuntimeRtsDocuments(),
+  documents: AetheriaRuntimeGameDocuments = createAetheriaRuntimeGameDocuments(),
 ) {
   const mapViewport = CultMesh.bindQuery(queryVerse, queries.mapViewport);
   const objectsViewport = CultMesh.bindQuery(queryVerse, queries.objectsViewport);

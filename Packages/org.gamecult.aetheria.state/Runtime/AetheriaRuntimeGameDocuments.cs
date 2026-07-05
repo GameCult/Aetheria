@@ -6,16 +6,16 @@ using System.Linq;
 
 namespace GameCult.Aetheria.State.Verse
 {
-    public static class AetheriaRuntimeRtsDocuments
+    public static class AetheriaRuntimeGameDocuments
     {
-        public static AetheriaRuntimeRtsViewportDocument Viewport(
+        public static AetheriaRuntimeGameViewportDocument Viewport(
             AetheriaRuntimeDaemonFrameDocument frame,
-            AetheriaRuntimeRtsViewportBounds viewport)
+            AetheriaRuntimeViewportBounds viewport)
         {
             var objects = ObjectsViewport(frame, viewport);
             var gravity = GravityViewport(frame, viewport);
 
-            return new AetheriaRuntimeRtsViewportDocument
+            return new AetheriaRuntimeGameViewportDocument
             {
                 FrameId = objects.FrameId,
                 PublishedAtUtc = objects.PublishedAtUtc,
@@ -34,10 +34,10 @@ namespace GameCult.Aetheria.State.Verse
 
         public static AetheriaRuntimeObjectsViewportDocument ObjectsViewport(
             AetheriaRuntimeDaemonFrameDocument frame,
-            AetheriaRuntimeRtsViewportBounds viewport)
+            AetheriaRuntimeViewportBounds viewport)
         {
             frame ??= new AetheriaRuntimeDaemonFrameDocument();
-            viewport ??= new AetheriaRuntimeRtsViewportBounds();
+            viewport ??= new AetheriaRuntimeViewportBounds();
 
             var normalizedViewport = Normalize(viewport);
             var context = Context(frame);
@@ -80,10 +80,10 @@ namespace GameCult.Aetheria.State.Verse
 
         public static AetheriaRuntimeGravityViewportDocument GravityViewport(
             AetheriaRuntimeDaemonFrameDocument frame,
-            AetheriaRuntimeRtsViewportBounds viewport)
+            AetheriaRuntimeViewportBounds viewport)
         {
             frame ??= new AetheriaRuntimeDaemonFrameDocument();
-            viewport ??= new AetheriaRuntimeRtsViewportBounds();
+            viewport ??= new AetheriaRuntimeViewportBounds();
 
             var normalizedViewport = Normalize(viewport);
             var context = Context(frame);
@@ -112,10 +112,10 @@ namespace GameCult.Aetheria.State.Verse
 
         public static AetheriaRuntimeRenderSplatsViewportDocument RenderSplatsViewport(
             AetheriaRuntimeDaemonFrameDocument frame,
-            AetheriaRuntimeRtsViewportBounds viewport)
+            AetheriaRuntimeViewportBounds viewport)
         {
             frame ??= new AetheriaRuntimeDaemonFrameDocument();
-            viewport ??= new AetheriaRuntimeRtsViewportBounds();
+            viewport ??= new AetheriaRuntimeViewportBounds();
 
             var normalizedViewport = Normalize(viewport);
             var context = Context(frame);
@@ -412,7 +412,7 @@ namespace GameCult.Aetheria.State.Verse
                 ? context.Run.CurrentEntityKey ?? ""
                 : AetheriaRuntimeRunCheckpointCommit.EntityRecordKey(context.RunId, context.Zone.ZoneIndex, entity.EntityIndex);
             var inventory = entity == null
-                ? Array.Empty<AetheriaRuntimeRtsInventoryItem>()
+                ? Array.Empty<AetheriaRuntimeInventoryItem>()
                 : Inventory(entity).ToArray();
 
             return new AetheriaRuntimeCurrentEntityDocument
@@ -426,8 +426,8 @@ namespace GameCult.Aetheria.State.Verse
                 EntityIndex = entity?.EntityIndex ?? currentEntityIndex,
                 Entity = entity == null ? null : ToViewportObject(entity, context.RunId, context.Zone.ZoneIndex),
                 Status = entity == null
-                    ? new AetheriaRuntimeRtsEntityStatus()
-                    : new AetheriaRuntimeRtsEntityStatus
+                    ? new AetheriaRuntimeEntityStatus()
+                    : new AetheriaRuntimeEntityStatus
                     {
                         Hull = Stat(entity, "hull"),
                         Shield = Stat(entity, "shield"),
@@ -765,7 +765,7 @@ namespace GameCult.Aetheria.State.Verse
             var entity = (context.Zone.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
                 .FirstOrDefault(candidate => candidate.EntityIndex == entityIndex);
             var items = entity == null
-                ? Array.Empty<AetheriaRuntimeRtsInventoryItem>()
+                ? Array.Empty<AetheriaRuntimeInventoryItem>()
                 : Inventory(entity).ToArray();
 
             return new AetheriaRuntimeInventoryDocument
@@ -781,10 +781,10 @@ namespace GameCult.Aetheria.State.Verse
             };
         }
 
-        public static AetheriaRuntimeRtsViewportBounds Normalize(AetheriaRuntimeRtsViewportBounds viewport)
+        public static AetheriaRuntimeViewportBounds Normalize(AetheriaRuntimeViewportBounds viewport)
         {
-            viewport ??= new AetheriaRuntimeRtsViewportBounds();
-            return new AetheriaRuntimeRtsViewportBounds
+            viewport ??= new AetheriaRuntimeViewportBounds();
+            return new AetheriaRuntimeViewportBounds
             {
                 MinX = Math.Min(viewport.MinX, viewport.MaxX),
                 MinY = Math.Min(viewport.MinY, viewport.MaxY),
@@ -795,7 +795,7 @@ namespace GameCult.Aetheria.State.Verse
 
         public static bool IntersectsViewport(
             AetheriaRuntimeEntitySnapshotCommit entity,
-            AetheriaRuntimeRtsViewportBounds viewport)
+            AetheriaRuntimeViewportBounds viewport)
         {
             return entity.PositionX >= viewport.MinX &&
                 entity.PositionX <= viewport.MaxX &&
@@ -805,7 +805,7 @@ namespace GameCult.Aetheria.State.Verse
 
         public static bool IntersectsViewport(
             AetheriaRuntimeProjectileCommit projectile,
-            AetheriaRuntimeRtsViewportBounds viewport)
+            AetheriaRuntimeViewportBounds viewport)
         {
             return projectile.PositionX >= viewport.MinX &&
                 projectile.PositionX <= viewport.MaxX &&
@@ -815,7 +815,7 @@ namespace GameCult.Aetheria.State.Verse
 
         public static bool GravityInfluenceIntersectsViewport(
             AetheriaRuntimeBodySnapshotCommit body,
-            AetheriaRuntimeRtsViewportBounds viewport)
+            AetheriaRuntimeViewportBounds viewport)
         {
             var radius = ResolveGravityRadius(body);
             return body.GravityInfluenceCenterX + radius >= viewport.MinX &&
@@ -831,12 +831,12 @@ namespace GameCult.Aetheria.State.Verse
             return Math.Max(32, body.BodyRadiusMultiplier * 70);
         }
 
-        private static AetheriaRuntimeRtsViewportObject ToViewportObject(
+        private static AetheriaRuntimeViewportObject ToViewportObject(
             AetheriaRuntimeEntitySnapshotCommit entity,
             string runId,
             int zoneIndex)
         {
-            var obj = new AetheriaRuntimeRtsViewportObject
+            var obj = new AetheriaRuntimeViewportObject
             {
                 EntityIndex = entity.EntityIndex,
                 EntityKey = AetheriaRuntimeRunCheckpointCommit.EntityRecordKey(runId, zoneIndex, entity.EntityIndex),
@@ -854,7 +854,7 @@ namespace GameCult.Aetheria.State.Verse
                 TargetEntityIndex = entity.TargetEntityIndex,
                 IsActive = entity.IsActive,
                 Visibility = entity.Visibility,
-                Status = new AetheriaRuntimeRtsEntityStatus
+                Status = new AetheriaRuntimeEntityStatus
                 {
                     Hull = Stat(entity, "hull"),
                     Shield = Stat(entity, "shield"),
@@ -866,10 +866,10 @@ namespace GameCult.Aetheria.State.Verse
             return obj;
         }
 
-        private static AetheriaRuntimeRtsViewportObject ToViewportObject(
+        private static AetheriaRuntimeViewportObject ToViewportObject(
             AetheriaRuntimeProjectileCommit projectile)
         {
-            return new AetheriaRuntimeRtsViewportObject
+            return new AetheriaRuntimeViewportObject
             {
                 EntityIndex = -1,
                 EntityKey = projectile.ProjectileId ?? "",
@@ -887,25 +887,25 @@ namespace GameCult.Aetheria.State.Verse
                 TargetEntityIndex = projectile.TargetEntityIndex,
                 IsActive = projectile.Active,
                 Visibility = projectile.Radius,
-                Status = new AetheriaRuntimeRtsEntityStatus
+                Status = new AetheriaRuntimeEntityStatus
                 {
                     Hull = projectile.Damage,
                     Shield = 0,
                     Heat = projectile.AgeSeconds
                 },
-                Inventory = Array.Empty<AetheriaRuntimeRtsInventoryItem>(),
+                Inventory = Array.Empty<AetheriaRuntimeInventoryItem>(),
                 IconAsset = AetheriaRuntimeAssetRef.FromKey(
-                    "aetheria.asset.sprite.rts.projectile",
+                    "aetheria.asset.sprite.game.projectile",
                     AetheriaRuntimeAssetKinds.Sprite,
                     "resources://Sprites/Icons/Lightning Bolt")
             };
         }
 
-        private static AetheriaRuntimeRtsBodyView ToBodyView(
+        private static AetheriaRuntimeBodyView ToBodyView(
             AetheriaRuntimeBodySnapshotCommit body,
             AetheriaRuntimeDaemonRenderSettings renderSettings)
         {
-            var view = new AetheriaRuntimeRtsBodyView
+            var view = new AetheriaRuntimeBodyView
             {
                 BodyKey = body.BodyKey ?? "",
                 OrbitKey = body.OrbitKey ?? "",
@@ -922,9 +922,9 @@ namespace GameCult.Aetheria.State.Verse
             return view;
         }
 
-        private static AetheriaRuntimeRtsGravityInfluence ToGravityInfluence(AetheriaRuntimeBodySnapshotCommit body)
+        private static AetheriaRuntimeGravityInfluence ToGravityInfluence(AetheriaRuntimeBodySnapshotCommit body)
         {
-            return new AetheriaRuntimeRtsGravityInfluence
+            return new AetheriaRuntimeGravityInfluence
             {
                 BodyKey = body.BodyKey ?? "",
                 OrbitKey = body.OrbitKey ?? "",
@@ -1084,9 +1084,9 @@ namespace GameCult.Aetheria.State.Verse
                 .ToArray();
         }
 
-        private static IReadOnlyList<AetheriaRuntimeRtsInventoryItem> Inventory(AetheriaRuntimeEntitySnapshotCommit entity)
+        private static IReadOnlyList<AetheriaRuntimeInventoryItem> Inventory(AetheriaRuntimeEntitySnapshotCommit entity)
         {
-            var items = new List<AetheriaRuntimeRtsInventoryItem>();
+            var items = new List<AetheriaRuntimeInventoryItem>();
             var equipment = entity.Equipment ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>();
             for (var equipmentIndex = 0; equipmentIndex < equipment.Count; equipmentIndex++)
                 AddSlot(items, "equipment", equipmentIndex, equipment[equipmentIndex]);
@@ -1411,13 +1411,13 @@ namespace GameCult.Aetheria.State.Verse
         }
 
         private static void AddSlot(
-            List<AetheriaRuntimeRtsInventoryItem> items,
+            List<AetheriaRuntimeInventoryItem> items,
             string source,
             int sourceIndex,
             AetheriaRuntimeLoadoutItemSlotCommit slot)
         {
             var item = slot.Item ?? new AetheriaRuntimeLoadoutItemCommit();
-            items.Add(new AetheriaRuntimeRtsInventoryItem
+            items.Add(new AetheriaRuntimeInventoryItem
             {
                 Source = source,
                 ItemKey = item.ItemKey ?? "",
@@ -1565,7 +1565,7 @@ namespace GameCult.Aetheria.State.Verse
             var zone = zones.FirstOrDefault(candidate => candidate.ZoneIndex == run.CurrentZoneIndex) ??
                 zones.FirstOrDefault() ??
                 new AetheriaRuntimeZoneSnapshotCommit();
-            var runId = string.IsNullOrWhiteSpace(run.RunId) ? "local-rts" : run.RunId;
+            var runId = string.IsNullOrWhiteSpace(run.RunId) ? "local-starbridge" : run.RunId;
             return new DocumentContext(run, zone, runId);
         }
 

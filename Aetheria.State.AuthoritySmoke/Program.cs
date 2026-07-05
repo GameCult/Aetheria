@@ -389,25 +389,25 @@ internal sealed class AuthoritySmokeChecks
             0.24,
             0.02);
 
-        var viewportDocument = AetheriaRuntimeRtsDocuments.Viewport(
+        var viewportDocument = AetheriaRuntimeGameDocuments.Viewport(
             frame,
-            new AetheriaRuntimeRtsViewportBounds
+            new AetheriaRuntimeViewportBounds
             {
                 MinX = 500,
                 MinY = -100,
                 MaxX = -50,
                 MaxY = 100
             });
-        var objectsViewport = AetheriaRuntimeRtsDocuments.ObjectsViewport(
+        var objectsViewport = AetheriaRuntimeGameDocuments.ObjectsViewport(
             frame,
             viewportDocument.Viewport);
-        var gravityViewport = AetheriaRuntimeRtsDocuments.GravityViewport(
+        var gravityViewport = AetheriaRuntimeGameDocuments.GravityViewport(
             frame,
             viewportDocument.Viewport);
-        var currentZone = AetheriaRuntimeRtsDocuments.CurrentZone(frame);
-        var sectorMap = AetheriaRuntimeRtsDocuments.SectorMap(frame);
+        var currentZone = AetheriaRuntimeGameDocuments.CurrentZone(frame);
+        var sectorMap = AetheriaRuntimeGameDocuments.SectorMap(frame);
 
-        RequireEqual(AetheriaRuntimeDaemonSchemas.RtsViewport, viewportDocument.Schema, "viewport document schema");
+        RequireEqual(AetheriaRuntimeDaemonSchemas.GameViewport, viewportDocument.Schema, "viewport document schema");
         RequireEqual(AetheriaRuntimeDaemonSchemas.ObjectsViewport, objectsViewport.Schema, "objects viewport document schema");
         RequireEqual(AetheriaRuntimeDaemonSchemas.GravityViewport, gravityViewport.Schema, "gravity viewport document schema");
         RequireEqual(AetheriaRuntimeDaemonSchemas.CurrentZone, currentZone.Schema, "current-zone document schema");
@@ -661,9 +661,9 @@ internal sealed class AuthoritySmokeChecks
             .OpenAsync(statePath, "raven-unity", sessionId: "state-documents-session", pullOnOpen: true)
             .ConfigureAwait(false);
         var state = client.State;
-        var viewportBounds = new AetheriaRuntimeRtsViewportBounds { MinX = -20, MinY = -20, MaxX = 150, MaxY = 20 };
+        var viewportBounds = new AetheriaRuntimeViewportBounds { MinX = -20, MinY = -20, MaxX = 150, MaxY = 20 };
         var viewport = await state
-            .RtsViewport(viewportBounds)
+            .GameViewport(viewportBounds)
             .LatestAsync()
             .ConfigureAwait(false);
         Require(viewport.Objects.Any(item => item.DisplayName == "Document Raven"), "managed map document should include controlled object");

@@ -48,7 +48,7 @@ export function buildViewportDocumentFromFrame(frameDocument: unknown, request: 
   const objects = buildObjectsViewportDocumentFromFrame(frameDocument, request);
   const gravity = buildGravityViewportDocumentFromFrame(frameDocument, request);
   return {
-    schema: AetheriaRtsSchemas.rtsViewport,
+    schema: AetheriaRtsSchemas.gameViewport,
     frameId: objects.frameId,
     publishedAtUtc: objects.publishedAtUtc,
     simulationTimeSeconds: objects.simulationTimeSeconds,

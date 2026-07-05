@@ -5,7 +5,7 @@ using GameCult.Caching;
 
 internal static class AetheriaDaemonZoneGenerator
 {
-    public const string RunId = "local-rts";
+    public const string RunId = "local-starbridge";
     public const uint GenerationSeed = 0xA37E_2026u;
 
     public static async Task WritePlayableRunAsync(
@@ -25,7 +25,7 @@ internal static class AetheriaDaemonZoneGenerator
             .ReadAsync()
             .ConfigureAwait(false) ?? new AetheriaPlayerSettings();
         settings.ActiveRunKey = runKey.ToString();
-        settings.PlayerName = string.IsNullOrWhiteSpace(settings.PlayerName) ? "Codex RTS" : settings.PlayerName;
+        settings.PlayerName = string.IsNullOrWhiteSpace(settings.PlayerName) ? "Starbridge Commander" : settings.PlayerName;
         settings.TutorialPassed = true;
         settings.LastUpdatedAtUtc = now;
         await node.MutableDocument<AetheriaPlayerSettings>(AetheriaStateNode.PlayerSettingsKey)

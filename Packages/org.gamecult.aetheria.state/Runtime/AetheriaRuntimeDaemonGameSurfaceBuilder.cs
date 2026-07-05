@@ -420,9 +420,9 @@ namespace GameCult.Aetheria.State.Verse
             }
         }
 
-        private static AetheriaRuntimeRtsViewportBounds DefaultViewport()
+        private static AetheriaRuntimeViewportBounds DefaultViewport()
         {
-            return new AetheriaRuntimeRtsViewportBounds
+            return new AetheriaRuntimeViewportBounds
             {
                 MinX = -1500,
                 MinY = -1000,
@@ -431,9 +431,9 @@ namespace GameCult.Aetheria.State.Verse
             };
         }
 
-        private static string ViewportDocumentId(string prefix, AetheriaRuntimeRtsViewportBounds viewport)
+        private static string ViewportDocumentId(string prefix, AetheriaRuntimeViewportBounds viewport)
         {
-            var normalized = AetheriaRuntimeRtsDocuments.Normalize(viewport);
+            var normalized = AetheriaRuntimeGameDocuments.Normalize(viewport);
             return string.Join(
                 ".",
                 prefix,

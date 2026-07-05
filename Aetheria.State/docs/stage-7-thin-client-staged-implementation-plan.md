@@ -345,7 +345,7 @@ Outputs:
 
 Demolition target:
 
-- Electron requesting `gamecult.aetheria.rts_viewport.v1` from the daemon.
+- Electron requesting `gamecult.aetheria.game_viewport.v1` from the daemon.
 - Stale `decodeViewportDocument` and `viewportRecordKey` TS binding helpers.
 
 Verifier:

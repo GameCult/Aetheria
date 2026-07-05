@@ -53,7 +53,7 @@ namespace GameCult.Aetheria.State.Verse
                     $"{Format(settings?.QualityPriceModifier.Minimum ?? 0)} -> {Format(settings?.QualityPriceModifier.Maximum ?? 0)}"),
                 Text(
                     "aetheria.tradeValuePolicy.summary.note",
-                    "Trade value is authored as typed policy state so inventory, trade, loadout pricing, and RTS station stock read the same curve."));
+                    "Trade value is authored as typed policy state so inventory, trade, loadout pricing, and Starbridge station stock read the same curve."));
         }
 
         private static AetheriaRuntimeSurfaceComponent BuildQualityCurveCard(

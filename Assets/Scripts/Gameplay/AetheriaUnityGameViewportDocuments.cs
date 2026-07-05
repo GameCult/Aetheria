@@ -2,15 +2,15 @@ using System;
 using GameCult.Aetheria.State.Verse;
 using GameCult.Mesh;
 
-public sealed class AetheriaUnityRtsViewportDocuments : IDisposable
+public sealed class AetheriaUnityGameViewportDocuments : IDisposable
 {
     private readonly CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument> _contacts;
     private readonly CultMeshReactiveDocument<AetheriaRuntimeObjectsViewportDocument> _objectsViewport;
     private readonly CultMeshReactiveDocument<AetheriaRuntimeRenderSplatsViewportDocument> _renderSplatsViewport;
 
-    private AetheriaUnityRtsViewportDocuments(
+    private AetheriaUnityGameViewportDocuments(
         AetheriaClientState state,
-        AetheriaRuntimeRtsViewportBounds viewport,
+        AetheriaRuntimeViewportBounds viewport,
         bool bindContacts,
         bool bindObjects,
         bool bindRenderSplats)
@@ -26,17 +26,17 @@ public sealed class AetheriaUnityRtsViewportDocuments : IDisposable
         _renderSplatsViewport = bindRenderSplats ? state.RenderSplatsViewport(viewport).Reactive() : null;
     }
 
-    public AetheriaRuntimeRtsViewportBounds Viewport { get; }
+    public AetheriaRuntimeViewportBounds Viewport { get; }
 
     public AetheriaRuntimeZoneContactsDocument CurrentContacts => _contacts?.Current;
     public AetheriaRuntimeObjectsViewportDocument CurrentObjectsViewport => _objectsViewport?.Current;
     public AetheriaRuntimeRenderSplatsViewportDocument CurrentRenderSplatsViewport => _renderSplatsViewport?.Current;
 
-    public static AetheriaUnityRtsViewportDocuments OpenMap(
+    public static AetheriaUnityGameViewportDocuments OpenMap(
         AetheriaClientState state,
-        AetheriaRuntimeRtsViewportBounds viewport)
+        AetheriaRuntimeViewportBounds viewport)
     {
-        return new AetheriaUnityRtsViewportDocuments(
+        return new AetheriaUnityGameViewportDocuments(
             state,
             viewport,
             bindContacts: false,
@@ -44,11 +44,11 @@ public sealed class AetheriaUnityRtsViewportDocuments : IDisposable
             bindRenderSplats: true);
     }
 
-    public static AetheriaUnityRtsViewportDocuments OpenZonePresentation(
+    public static AetheriaUnityGameViewportDocuments OpenZonePresentation(
         AetheriaClientState state,
-        AetheriaRuntimeRtsViewportBounds viewport)
+        AetheriaRuntimeViewportBounds viewport)
     {
-        return new AetheriaUnityRtsViewportDocuments(
+        return new AetheriaUnityGameViewportDocuments(
             state,
             viewport,
             bindContacts: true,
@@ -56,11 +56,11 @@ public sealed class AetheriaUnityRtsViewportDocuments : IDisposable
             bindRenderSplats: false);
     }
 
-    public static AetheriaUnityRtsViewportDocuments OpenRenderSplats(
+    public static AetheriaUnityGameViewportDocuments OpenRenderSplats(
         AetheriaClientState state,
-        AetheriaRuntimeRtsViewportBounds viewport)
+        AetheriaRuntimeViewportBounds viewport)
     {
-        return new AetheriaUnityRtsViewportDocuments(
+        return new AetheriaUnityGameViewportDocuments(
             state,
             viewport,
             bindContacts: false,
@@ -68,7 +68,7 @@ public sealed class AetheriaUnityRtsViewportDocuments : IDisposable
             bindRenderSplats: true);
     }
 
-    public bool Matches(AetheriaRuntimeRtsViewportBounds viewport)
+    public bool Matches(AetheriaRuntimeViewportBounds viewport)
     {
         return SameViewport(Viewport, viewport);
     }
@@ -81,8 +81,8 @@ public sealed class AetheriaUnityRtsViewportDocuments : IDisposable
     }
 
     public static bool SameViewport(
-        AetheriaRuntimeRtsViewportBounds left,
-        AetheriaRuntimeRtsViewportBounds right)
+        AetheriaRuntimeViewportBounds left,
+        AetheriaRuntimeViewportBounds right)
     {
         if (left == null || right == null)
             return false;

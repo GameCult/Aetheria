@@ -18,10 +18,10 @@ namespace GameCult.Aetheria.State.Verse
 
     public sealed class AetheriaClientState : IDisposable
     {
-        private readonly Func<AetheriaRuntimeRtsViewportBounds, CultMeshDocumentHandle<AetheriaRuntimeRtsViewportDocument>> _mapViewport;
-        private readonly Func<AetheriaRuntimeRtsViewportBounds, CultMeshDocumentHandle<AetheriaRuntimeObjectsViewportDocument>> _objectsViewport;
-        private readonly Func<AetheriaRuntimeRtsViewportBounds, CultMeshDocumentHandle<AetheriaRuntimeGravityViewportDocument>> _gravityViewport;
-        private readonly Func<AetheriaRuntimeRtsViewportBounds, CultMeshDocumentHandle<AetheriaRuntimeRenderSplatsViewportDocument>> _renderSplatsViewport;
+        private readonly Func<AetheriaRuntimeViewportBounds, CultMeshDocumentHandle<AetheriaRuntimeGameViewportDocument>> _mapViewport;
+        private readonly Func<AetheriaRuntimeViewportBounds, CultMeshDocumentHandle<AetheriaRuntimeObjectsViewportDocument>> _objectsViewport;
+        private readonly Func<AetheriaRuntimeViewportBounds, CultMeshDocumentHandle<AetheriaRuntimeGravityViewportDocument>> _gravityViewport;
+        private readonly Func<AetheriaRuntimeViewportBounds, CultMeshDocumentHandle<AetheriaRuntimeRenderSplatsViewportDocument>> _renderSplatsViewport;
         private readonly Func<int, CultMeshDocumentHandle<AetheriaRuntimeZoneDetailsDocument>> _zoneDetails;
         private readonly Func<int, CultMeshDocumentHandle<AetheriaRuntimeSurfaceDocument>> _zoneDetailsSurface;
         private readonly Func<AetheriaRuntimeInventoryPanelSurfaceRequest, CultMeshDocumentHandle<AetheriaRuntimeSurfaceDocument>> _inventoryPanelSurface;
@@ -57,10 +57,10 @@ namespace GameCult.Aetheria.State.Verse
             CultMeshDocumentHandle<AetheriaRuntimeStationRefitDocument> stationRefit,
             CultMeshDocumentHandle<AetheriaRuntimeSectorMapDocument> sectorMap,
             CultMeshDocumentHandle<AetheriaRuntimeZoneRenderDocument> zoneRender,
-            Func<AetheriaRuntimeRtsViewportBounds, CultMeshDocumentHandle<AetheriaRuntimeRtsViewportDocument>> mapViewport,
-            Func<AetheriaRuntimeRtsViewportBounds, CultMeshDocumentHandle<AetheriaRuntimeObjectsViewportDocument>> objectsViewport,
-            Func<AetheriaRuntimeRtsViewportBounds, CultMeshDocumentHandle<AetheriaRuntimeGravityViewportDocument>> gravityViewport,
-            Func<AetheriaRuntimeRtsViewportBounds, CultMeshDocumentHandle<AetheriaRuntimeRenderSplatsViewportDocument>> renderSplatsViewport,
+            Func<AetheriaRuntimeViewportBounds, CultMeshDocumentHandle<AetheriaRuntimeGameViewportDocument>> mapViewport,
+            Func<AetheriaRuntimeViewportBounds, CultMeshDocumentHandle<AetheriaRuntimeObjectsViewportDocument>> objectsViewport,
+            Func<AetheriaRuntimeViewportBounds, CultMeshDocumentHandle<AetheriaRuntimeGravityViewportDocument>> gravityViewport,
+            Func<AetheriaRuntimeViewportBounds, CultMeshDocumentHandle<AetheriaRuntimeRenderSplatsViewportDocument>> renderSplatsViewport,
             Func<int, CultMeshDocumentHandle<AetheriaRuntimeZoneDetailsDocument>> zoneDetails,
             Func<int, CultMeshDocumentHandle<AetheriaRuntimeSurfaceDocument>> zoneDetailsSurface,
             Func<AetheriaRuntimeInventoryPanelSurfaceRequest, CultMeshDocumentHandle<AetheriaRuntimeSurfaceDocument>> inventoryPanelSurface,
@@ -207,28 +207,28 @@ namespace GameCult.Aetheria.State.Verse
             };
         }
 
-        public CultMeshDocumentHandle<AetheriaRuntimeRtsViewportDocument> RtsViewport(
-            AetheriaRuntimeRtsViewportBounds viewport)
+        public CultMeshDocumentHandle<AetheriaRuntimeGameViewportDocument> GameViewport(
+            AetheriaRuntimeViewportBounds viewport)
         {
-            return _mapViewport(viewport ?? new AetheriaRuntimeRtsViewportBounds());
+            return _mapViewport(viewport ?? new AetheriaRuntimeViewportBounds());
         }
 
         public CultMeshDocumentHandle<AetheriaRuntimeObjectsViewportDocument> ObjectsViewport(
-            AetheriaRuntimeRtsViewportBounds viewport)
+            AetheriaRuntimeViewportBounds viewport)
         {
-            return _objectsViewport(viewport ?? new AetheriaRuntimeRtsViewportBounds());
+            return _objectsViewport(viewport ?? new AetheriaRuntimeViewportBounds());
         }
 
         public CultMeshDocumentHandle<AetheriaRuntimeGravityViewportDocument> GravityViewport(
-            AetheriaRuntimeRtsViewportBounds viewport)
+            AetheriaRuntimeViewportBounds viewport)
         {
-            return _gravityViewport(viewport ?? new AetheriaRuntimeRtsViewportBounds());
+            return _gravityViewport(viewport ?? new AetheriaRuntimeViewportBounds());
         }
 
         public CultMeshDocumentHandle<AetheriaRuntimeRenderSplatsViewportDocument> RenderSplatsViewport(
-            AetheriaRuntimeRtsViewportBounds viewport)
+            AetheriaRuntimeViewportBounds viewport)
         {
-            return _renderSplatsViewport(viewport ?? new AetheriaRuntimeRtsViewportBounds());
+            return _renderSplatsViewport(viewport ?? new AetheriaRuntimeViewportBounds());
         }
 
         public CultMeshDocumentHandle<AetheriaRuntimeZoneDetailsDocument> ZoneDetails(int zoneIndex)

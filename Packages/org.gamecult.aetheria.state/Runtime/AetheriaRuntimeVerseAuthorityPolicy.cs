@@ -41,7 +41,7 @@ namespace GameCult.Aetheria.State.Verse
     {
         public const string SimulationHost = "simulation-host";
         public const string UnityPlayer = "unity-player";
-        public const string RtsCommander = "rts-commander";
+        public const string StarbridgeCommander = "starbridge-commander";
         public const string BrowserObserver = "browser-observer";
         public const string BrowserSimulationHost = "browser-simulation-host";
         public const string NativeSimulationKernel = "native-simulation-kernel";

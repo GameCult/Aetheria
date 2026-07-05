@@ -91,7 +91,7 @@
     <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeStarbridgeDocuments.cs" />
     <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeInventoryDropdownSurfaceBuilder.cs" />
     <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeSnapshotDocuments.cs" />
-    <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeRtsViewportDocuments.cs" />
+    <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeGameViewportDocuments.cs" />
     <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeZoneDetailsSurfaceBuilder.cs" />
     <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeInventoryDropdownSurfaceDocuments.cs" />
     <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeDaemonSoaDocuments.cs" />
@@ -100,7 +100,7 @@
     <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeTradeInteractionSurfaceBuilder.cs" />
     <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeDaemonItemStatQueries.cs" />
     <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeDaemonObservationCursor.cs" />
-    <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeRtsDocuments.cs" />
+    <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeGameDocuments.cs" />
     <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeYmirProjectilePhysics.cs" />
     <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeVerseDiscovery.cs" />
     <Compile Include="Packages\org.gamecult.aetheria.state\Runtime\AetheriaRuntimeOperationsCommands.cs" />

@@ -127,31 +127,31 @@ namespace GameCult.Aetheria.State.Verse
                 });
         }
 
-        private static IReadOnlyList<AetheriaRuntimeRtsInventoryItem> ResolveItems(
+        private static IReadOnlyList<AetheriaRuntimeInventoryItem> ResolveItems(
             AetheriaRuntimeInventoryDocument displayedInventory,
             AetheriaRuntimeInventoryPanelSurfaceRequest request,
             bool isEquipmentView,
             bool isCargoView)
         {
             if (displayedInventory == null)
-                return Array.Empty<AetheriaRuntimeRtsInventoryItem>();
+                return Array.Empty<AetheriaRuntimeInventoryItem>();
 
             if (isEquipmentView)
-                return displayedInventory.Equipment ?? Array.Empty<AetheriaRuntimeRtsInventoryItem>();
+                return displayedInventory.Equipment ?? Array.Empty<AetheriaRuntimeInventoryItem>();
 
             if (isCargoView)
             {
-                return (displayedInventory.Cargo ?? Array.Empty<AetheriaRuntimeRtsInventoryItem>())
+                return (displayedInventory.Cargo ?? Array.Empty<AetheriaRuntimeInventoryItem>())
                     .Where(item => item != null && item.SourceIndex == request.DisplayedCargoIndex)
                     .ToArray();
             }
 
-            return Array.Empty<AetheriaRuntimeRtsInventoryItem>();
+            return Array.Empty<AetheriaRuntimeInventoryItem>();
         }
 
         private static AetheriaRuntimeSurfaceComponent Grid(
             string id,
-            IReadOnlyList<AetheriaRuntimeRtsInventoryItem> items,
+            IReadOnlyList<AetheriaRuntimeInventoryItem> items,
             AetheriaRuntimeCatalogSnapshot catalog,
             AetheriaRuntimePlayerSettingsDocument playerSettings)
         {
@@ -170,7 +170,7 @@ namespace GameCult.Aetheria.State.Verse
             AddAssetProps(props, "foregroundAtlas", AetheriaRuntimeAssets.InventoryCellForegroundAtlas());
             AddAssetProps(props, "thermalLayer", AetheriaRuntimeAssets.InventoryThermalLayerAtlas());
 
-            var cells = (items ?? Array.Empty<AetheriaRuntimeRtsInventoryItem>())
+            var cells = (items ?? Array.Empty<AetheriaRuntimeInventoryItem>())
                 .Where(item => item != null)
                 .OrderBy(item => item.SourceIndex)
                 .ThenBy(item => item.X)
@@ -286,7 +286,7 @@ namespace GameCult.Aetheria.State.Verse
 
         private static AetheriaRuntimeSurfaceComponent ItemCell(
             string gridId,
-            AetheriaRuntimeRtsInventoryItem item,
+            AetheriaRuntimeInventoryItem item,
             AetheriaRuntimeCatalogSnapshot catalog,
             AetheriaRuntimePlayerSettingsDocument playerSettings)
         {
@@ -355,7 +355,7 @@ namespace GameCult.Aetheria.State.Verse
         }
 
         private static AetheriaRuntimeAssetRef ResolveItemIconAsset(
-            AetheriaRuntimeRtsInventoryItem item,
+            AetheriaRuntimeInventoryItem item,
             AetheriaRuntimeCatalogItem typedItem)
         {
             if (!string.IsNullOrWhiteSpace(item?.IconAsset?.AssetKey))

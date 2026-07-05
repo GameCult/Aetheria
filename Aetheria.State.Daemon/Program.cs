@@ -127,7 +127,7 @@ static async Task<AetheriaRuntimeDaemonTickResult> TickAsync(
     var sessionId = string.IsNullOrWhiteSpace(currentFrame?.SessionId)
         ? options.SessionId
         : currentFrame.SessionId;
-    var run = HasPlayableRun(currentFrame?.Run) && HasRtsScenario(currentFrame?.Run)
+    var run = HasPlayableRun(currentFrame?.Run) && HasStarbridgeScenario(currentFrame?.Run)
         ? currentFrame!.Run
         : await ReadRuntimeRunCheckpointAsync(node, options.RenderSettings).ConfigureAwait(false) ?? new AetheriaRuntimeRunCheckpointCommit();
     ApplyDaemonRenderSettings(run, options.RenderSettings);
@@ -543,7 +543,7 @@ static RudpCultNetSchemaServer StartClientCultMeshHost(
                     .ToArray();
             }
 
-            if (hasFrame && frame != null && TryGetRtsViewportRequest(request, out var viewportRecordKey, out var viewportSchemaId, out var viewport))
+            if (hasFrame && frame != null && TryGetGameViewportRequest(request, out var viewportRecordKey, out var viewportSchemaId, out var viewport))
             {
                 if (string.Equals(viewportSchemaId, AetheriaRuntimeDaemonSchemas.ObjectsViewport, StringComparison.Ordinal))
                 {
@@ -551,7 +551,7 @@ static RudpCultNetSchemaServer StartClientCultMeshHost(
                         response.MessageId,
                         new CultRecordHandle<AetheriaRuntimeObjectsViewportDocument>(
                             new CultRecordKey(viewportRecordKey)),
-                        AetheriaRuntimeRtsDocuments.ObjectsViewport(frame, viewport),
+                        AetheriaRuntimeGameDocuments.ObjectsViewport(frame, viewport),
                         new CultNetDocumentMessageOptions
                         {
                             SourceRuntimeId = options.DaemonId,
@@ -569,7 +569,7 @@ static RudpCultNetSchemaServer StartClientCultMeshHost(
                         response.MessageId,
                         new CultRecordHandle<AetheriaRuntimeGravityViewportDocument>(
                             new CultRecordKey(viewportRecordKey)),
-                        AetheriaRuntimeRtsDocuments.GravityViewport(frame, viewport),
+                        AetheriaRuntimeGameDocuments.GravityViewport(frame, viewport),
                         new CultNetDocumentMessageOptions
                         {
                             SourceRuntimeId = options.DaemonId,
@@ -587,7 +587,7 @@ static RudpCultNetSchemaServer StartClientCultMeshHost(
                         response.MessageId,
                         new CultRecordHandle<AetheriaRuntimeRenderSplatsViewportDocument>(
                             new CultRecordKey(viewportRecordKey)),
-                        AetheriaRuntimeRtsDocuments.RenderSplatsViewport(frame, viewport),
+                        AetheriaRuntimeGameDocuments.RenderSplatsViewport(frame, viewport),
                         new CultNetDocumentMessageOptions
                         {
                             SourceRuntimeId = options.DaemonId,
@@ -603,9 +603,9 @@ static RudpCultNetSchemaServer StartClientCultMeshHost(
                 {
                     var viewportPut = node.Database.Documents.CreateRawDocumentPutMessage(
                         response.MessageId,
-                        new CultRecordHandle<AetheriaRuntimeRtsViewportDocument>(
+                        new CultRecordHandle<AetheriaRuntimeGameViewportDocument>(
                             new CultRecordKey(viewportRecordKey)),
-                        AetheriaRuntimeRtsDocuments.Viewport(frame, viewport),
+                        AetheriaRuntimeGameDocuments.Viewport(frame, viewport),
                         new CultNetDocumentMessageOptions
                         {
                             SourceRuntimeId = options.DaemonId,
@@ -924,21 +924,21 @@ static bool SnapshotWants(
     return schemaMatches && recordMatches;
 }
 
-static bool TryGetRtsViewportRequest(
+static bool TryGetGameViewportRequest(
     CultNetSnapshotRequestMessage request,
     out string recordKey,
     out string schemaId,
-    out AetheriaRuntimeRtsViewportBounds viewport)
+    out AetheriaRuntimeViewportBounds viewport)
 {
-    const string prefix = "daemon:aetheria.rts.viewport.v1;";
+    const string prefix = "daemon:aetheria.game.viewport.v1;";
     recordKey = "";
     schemaId = "";
-    viewport = new AetheriaRuntimeRtsViewportBounds();
+    viewport = new AetheriaRuntimeViewportBounds();
 
     var schemaIds = request.SchemaIds ?? Array.Empty<string>();
     var allowedSchemas = new[]
     {
-        AetheriaRuntimeDaemonSchemas.RtsViewport,
+        AetheriaRuntimeDaemonSchemas.GameViewport,
         AetheriaRuntimeDaemonSchemas.ObjectsViewport,
         AetheriaRuntimeDaemonSchemas.GravityViewport,
         AetheriaRuntimeDaemonSchemas.RenderSplatsViewport
@@ -966,8 +966,8 @@ static bool TryGetRtsViewportRequest(
 
             recordKey = candidate;
             schemaId = schemaIds.FirstOrDefault(known => allowedSchemas.Contains(known, StringComparer.Ordinal))
-                ?? AetheriaRuntimeDaemonSchemas.RtsViewport;
-            viewport = new AetheriaRuntimeRtsViewportBounds
+                ?? AetheriaRuntimeDaemonSchemas.GameViewport;
+            viewport = new AetheriaRuntimeViewportBounds
             {
                 MinX = Math.Min(minX, maxX),
                 MinY = Math.Min(minY, maxY),
@@ -994,10 +994,10 @@ static bool TryGetRtsViewportRequest(
 static bool TryGetManagedViewportRequest(
     string recordKey,
     out string schemaId,
-    out AetheriaRuntimeRtsViewportBounds viewport)
+    out AetheriaRuntimeViewportBounds viewport)
 {
     schemaId = "";
-    viewport = new AetheriaRuntimeRtsViewportBounds();
+    viewport = new AetheriaRuntimeViewportBounds();
     var prefix = "";
     if (recordKey.StartsWith("aetheria.viewport.objects.", StringComparison.Ordinal))
     {
@@ -1029,7 +1029,7 @@ static bool TryGetManagedViewportRequest(
         return false;
     }
 
-    viewport = new AetheriaRuntimeRtsViewportBounds
+    viewport = new AetheriaRuntimeViewportBounds
     {
         MinX = Math.Min(minX, maxX),
         MinY = Math.Min(minY, maxY),
@@ -1142,8 +1142,8 @@ static async Task PublishDaemonMenuSurfacesAsync(
         "cultmesh://aetheria/assets");
     var loadoutTemplates = AetheriaRuntimeCatalogStore.ReadLoadoutTemplates(node.StatePath);
     var playerSettings = await ReadRuntimePlayerSettingsAsync(node).ConfigureAwait(false);
-    var currentEntity = AetheriaRuntimeRtsDocuments.CurrentEntity(frame);
-    var stationRefit = AetheriaRuntimeRtsDocuments.StationRefit(frame, loadoutTemplates, catalog);
+    var currentEntity = AetheriaRuntimeGameDocuments.CurrentEntity(frame);
+    var stationRefit = AetheriaRuntimeGameDocuments.StationRefit(frame, loadoutTemplates, catalog);
     var dropdownRequest = new AetheriaRuntimeInventoryDropdownSurfaceRequest
     {
         CurrentView = "Current Entity",
@@ -1165,7 +1165,7 @@ static async Task PublishDaemonMenuSurfacesAsync(
     };
     var inventory = currentEntity.EntityIndex < 0
         ? new AetheriaRuntimeInventoryDocument()
-        : AetheriaRuntimeRtsDocuments.Inventory(frame, currentEntity.EntityIndex);
+        : AetheriaRuntimeGameDocuments.Inventory(frame, currentEntity.EntityIndex);
 
     var verseHost = await EnsureVerseHostSettingsAsync(node, options, updatedAtUtc)
         .ConfigureAwait(false);
@@ -1227,8 +1227,8 @@ static async Task PublishDaemonMenuSurfacesAsync(
         dropdownRequest,
         updatedAtUtc);
     var mapMenu = AetheriaRuntimeZoneDetailsSurfaceBuilder.BuildFromDocuments(
-        AetheriaRuntimeRtsDocuments.ZoneDetails(frame, currentEntity.ZoneIndex),
-        AetheriaRuntimeRtsDocuments.SectorMap(frame),
+        AetheriaRuntimeGameDocuments.ZoneDetails(frame, currentEntity.ZoneIndex),
+        AetheriaRuntimeGameDocuments.SectorMap(frame),
         catalog,
         playerSettings,
         updatedAtUtc);
@@ -1784,7 +1784,7 @@ static async Task EnsurePlayableRunDocumentsAsync(
     if (!string.IsNullOrWhiteSpace(settings?.ActiveRunKey))
     {
         var existingRun = await ReadRuntimeRunCheckpointAsync(node, options.RenderSettings).ConfigureAwait(false);
-        if (HasPlayableRun(existingRun) && HasRtsScenario(existingRun))
+        if (HasPlayableRun(existingRun) && HasStarbridgeScenario(existingRun))
             return;
     }
 
@@ -1809,7 +1809,7 @@ static async Task EnsureStarbridgeSessionDocumentsAsync(
         return;
     }
 
-    const string runId = "local-rts";
+    const string runId = "local-starbridge";
     var baseEntityKey = EntityKey(runId, 0, 0);
     var pilotOneKey = EntityKey(runId, 0, 1);
     var pilotTwoKey = EntityKey(runId, 0, 2);
@@ -1893,7 +1893,7 @@ static async Task EnsureStarbridgeSessionDocumentsAsync(
         [
             new AetheriaRuntimeStarbridgeRuntimeRole
             {
-                RuntimeId = "starfire-rts",
+                RuntimeId = "starbridge-daemon",
                 Role = "commander"
             },
             new AetheriaRuntimeStarbridgeRuntimeRole
@@ -2241,7 +2241,7 @@ static bool HasPlayableRun(AetheriaRuntimeRunCheckpointCommit? run)
         .Any(zone => (zone.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>()).Count > 0);
 }
 
-static bool HasRtsScenario(AetheriaRuntimeRunCheckpointCommit? run)
+static bool HasStarbridgeScenario(AetheriaRuntimeRunCheckpointCommit? run)
 {
     var zones = run?.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>();
     var entities = zones.SelectMany(zone => zone.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>()).ToArray();

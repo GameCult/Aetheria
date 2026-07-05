@@ -120,7 +120,7 @@ public class ZoneRenderer : MonoBehaviour
         Array.Empty<AetheriaRuntimeZoneRenderAsteroidBeltPose>();
     private IReadOnlyList<AetheriaRuntimeBodySnapshotCommit> _zoneRenderBodies =
         Array.Empty<AetheriaRuntimeBodySnapshotCommit>();
-    private AetheriaUnityRtsViewportDocuments _zonePresentationDocuments;
+    private AetheriaUnityGameViewportDocuments _zonePresentationDocuments;
 
     public Dictionary<int, (GameObject gravity, CompassIcon icon)> WormholeInstances = new Dictionary<int, (GameObject, CompassIcon)>();
     private List<ItemPickup> _loot = new List<ItemPickup>();
@@ -768,9 +768,9 @@ public class ZoneRenderer : MonoBehaviour
             center.y + range);
     }
 
-    private static AetheriaRuntimeRtsViewportBounds ToViewportBounds(AetheriaRuntimeXzRect viewport)
+    private static AetheriaRuntimeViewportBounds ToViewportBounds(AetheriaRuntimeXzRect viewport)
     {
-        return new AetheriaRuntimeRtsViewportBounds
+        return new AetheriaRuntimeViewportBounds
         {
             MinX = viewport.MinX,
             MinY = viewport.MinZ,
@@ -892,7 +892,7 @@ public class ZoneRenderer : MonoBehaviour
         if (!TryCollectDaemonPresentationEntityIndicesFromSoa(viewport))
         {
             var objects = ResolveObjectsViewport(viewport);
-            foreach (var entity in objects?.Objects ?? Array.Empty<AetheriaRuntimeRtsViewportObject>())
+            foreach (var entity in objects?.Objects ?? Array.Empty<AetheriaRuntimeViewportObject>())
             {
                 if (entity != null && entity.EntityIndex >= 0)
                     _daemonPresentationEntityIndices.Add(entity.EntityIndex);

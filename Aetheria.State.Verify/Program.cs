@@ -1348,7 +1348,7 @@ static void RequireNoScopedReactiveFacadeWrappers(string root)
         "ReactiveCatalogSnapshot(",
         "ReactivePlayerSettingsDocument(",
         "ReactiveEveSurface(",
-        "ReactiveRtsViewport(",
+        "ReactiveGameViewport(",
         "ReactiveObjectsViewport(",
         "ReactiveGravityViewport(",
         "ReactiveRenderSplatsViewport(",
@@ -2545,7 +2545,7 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "foreach (var bodyPose in _zoneRenderBodyPoses ?? Array.Empty<AetheriaRuntimeZoneRenderBodyPose>())",
         "ResolveDaemonRenderViewport()",
         "private AetheriaRuntimeXzRect ResolveDaemonRenderViewport()",
-        "private static AetheriaRuntimeRtsViewportBounds ToViewportBounds(AetheriaRuntimeXzRect viewport)",
+        "private static AetheriaRuntimeViewportBounds ToViewportBounds(AetheriaRuntimeXzRect viewport)",
         "private void UnloadBodyView(string bodyKey)",
         "foreach (var pose in _daemonBodyPoses)",
         "LoadPlanet(body)",
@@ -2567,7 +2567,7 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "private AetheriaRuntimeObjectsViewportDocument ResolveObjectsViewport(AetheriaRuntimeXzRect viewport)",
         ".ZonePresentationDocuments(viewportBounds, \"unity-zone-renderer\")",
         "_zonePresentationDocuments.CurrentObjectsViewport",
-        "foreach (var entity in objects?.Objects ?? Array.Empty<AetheriaRuntimeRtsViewportObject>())",
+        "foreach (var entity in objects?.Objects ?? Array.Empty<AetheriaRuntimeViewportObject>())",
         "_observedEntitySnapshotsByDaemonIndex.TryGetValue(entityIndex, out var entity)",
         "Loading entity {entity.Name} from daemon presentation query",
         "UnloadEntity(pair.Value.Entity)",
@@ -6887,13 +6887,13 @@ static void RequireStationRefitDockingBaysUseTypedDocuments(string root)
         "Packages",
         "org.gamecult.aetheria.state",
         "Runtime",
-        "AetheriaRuntimeRtsViewportDocuments.cs");
+        "AetheriaRuntimeGameViewportDocuments.cs");
     var runtimeDocumentsFactoryPath = Path.Combine(
         root,
         "Packages",
         "org.gamecult.aetheria.state",
         "Runtime",
-        "AetheriaRuntimeRtsDocuments.cs");
+        "AetheriaRuntimeGameDocuments.cs");
     var inventoryPanelPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "InventoryPanel.cs");
     var inventoryMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "InventoryMenu.cs");
 
@@ -7365,21 +7365,21 @@ static void RequireInventoryDocumentSlotIdentity(string root)
         "Packages",
         "org.gamecult.aetheria.state",
         "Runtime",
-        "AetheriaRuntimeRtsDocuments.cs");
+        "AetheriaRuntimeGameDocuments.cs");
     var viewportDocumentsPath = Path.Combine(
         root,
         "Packages",
         "org.gamecult.aetheria.state",
         "Runtime",
-        "AetheriaRuntimeRtsViewportDocuments.cs");
+        "AetheriaRuntimeGameViewportDocuments.cs");
 
     if (!File.Exists(documentsFactoryPath))
     {
-        throw new InvalidOperationException("Cannot verify inventory document slot identity; AetheriaRuntimeRtsDocuments.cs is missing.");
+        throw new InvalidOperationException("Cannot verify inventory document slot identity; AetheriaRuntimeGameDocuments.cs is missing.");
     }
     if (!File.Exists(viewportDocumentsPath))
     {
-        throw new InvalidOperationException("Cannot verify inventory document slot identity; AetheriaRuntimeRtsViewportDocuments.cs is missing.");
+        throw new InvalidOperationException("Cannot verify inventory document slot identity; AetheriaRuntimeGameViewportDocuments.cs is missing.");
     }
 
     var documentsFactory = File.ReadAllText(documentsFactoryPath);
@@ -7406,7 +7406,7 @@ static void RequireInventoryDocumentSlotIdentity(string root)
 
     var requiredDocumentSymbols = new[]
     {
-        "public sealed class AetheriaRuntimeRtsInventoryItem",
+        "public sealed class AetheriaRuntimeInventoryItem",
         "[Key(6)]",
         "public int SourceIndex { get; set; } = -1;",
         "[Key(7)]",
@@ -8013,7 +8013,7 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
         "MapRenderer.cs"));
     var requiredMapRendererSharedDocumentSymbols = new[]
     {
-        "AetheriaUnityRtsViewportDocuments _viewportDocuments",
+        "AetheriaUnityGameViewportDocuments _viewportDocuments",
         "ClearViewportCaches()",
         "_viewportDocuments?.Dispose()",
         "_viewportDocuments?.CurrentObjectsViewport",
@@ -8435,7 +8435,7 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
     {
         "AetheriaUnityRuntimeClientProvider.RuntimeState(\"unity-zone-renderer\")",
         "_runtimeState.Catalog.Latest()",
-        "AetheriaUnityRtsViewportDocuments _zonePresentationDocuments",
+        "AetheriaUnityGameViewportDocuments _zonePresentationDocuments",
         ".ZonePresentationDocuments(",
         "_zonePresentationDocuments?.Dispose()",
         "_zonePresentationDocuments?.CurrentContacts",
@@ -8579,7 +8579,7 @@ static void RequireUnityViewportAndMapReadsUseManagedAccessors(string root)
         "AetheriaUnityRenderSplatViewportSource.cs"));
     var requiredRenderSplatViewportSourceSymbols = new[]
     {
-        "AetheriaUnityRtsViewportDocuments _viewportDocuments",
+        "AetheriaUnityGameViewportDocuments _viewportDocuments",
         "_viewportDocuments?.CurrentRenderSplatsViewport",
         "ClearViewportDocument()"
     };
@@ -8619,7 +8619,7 @@ static void RequireUnityViewportAndMapReadsUseManagedAccessors(string root)
         "ZoneRenderer.cs"));
     var requiredZoneRendererViewportSymbols = new[]
     {
-        "AetheriaUnityRtsViewportDocuments _zonePresentationDocuments",
+        "AetheriaUnityGameViewportDocuments _zonePresentationDocuments",
         "_zonePresentationDocuments.CurrentObjectsViewport",
         "_zonePresentationDocuments?.Dispose()"
     };
@@ -8723,7 +8723,7 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
         "public CultMeshDocumentHandle<AetheriaRuntimePlayerSettingsDocument> PlayerSettings { get; }",
         "public static bool TryResolveEveSurface(",
         "public CultMeshDocumentHandle<EveSurfaceDocument>? EveSurfaceDocument(",
-        "public CultMeshDocumentHandle<AetheriaRuntimeRtsViewportDocument> RtsViewport(",
+        "public CultMeshDocumentHandle<AetheriaRuntimeGameViewportDocument> GameViewport(",
         "public CultMeshDocumentHandle<AetheriaRuntimeObjectsViewportDocument> ObjectsViewport(",
         "public CultMeshDocumentHandle<AetheriaRuntimeGravityViewportDocument> GravityViewport(",
         "public CultMeshDocumentHandle<AetheriaRuntimeRenderSplatsViewportDocument> RenderSplatsViewport(",
@@ -8771,7 +8771,7 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
         "public CultMeshReactiveDocument<AetheriaRuntimeStarbridgeSessionDocument> ReactiveStarbridgeSession()",
         "public CultMeshReactiveDocument<AetheriaRuntimeStarbridgeSessionSummaryDocument> ReactiveStarbridgeSummary()",
         "public CultMeshReactiveDocument<global::Aetheria.State.Documents.EveSurfaceState>? ReactiveEveSurface(",
-        "public CultMeshReactiveDocument<AetheriaRuntimeRtsViewportDocument> ReactiveRtsViewport(",
+        "public CultMeshReactiveDocument<AetheriaRuntimeGameViewportDocument> ReactiveGameViewport(",
         "public CultMeshReactiveDocument<AetheriaRuntimeObjectsViewportDocument> ReactiveObjectsViewport(",
         "public CultMeshReactiveDocument<AetheriaRuntimeGravityViewportDocument> ReactiveGravityViewport(",
         "public CultMeshReactiveDocument<AetheriaRuntimeRenderSplatsViewportDocument> ReactiveRenderSplatsViewport(",
@@ -8834,7 +8834,7 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
         "public AetheriaRuntimeStationRefitDocument CurrentStationRefit()",
         "public AetheriaRuntimeSectorMapDocument CurrentSectorMap()",
         "public AetheriaRuntimeZoneRenderDocument CurrentZoneRender()",
-        "public AetheriaRuntimeRtsViewportDocument CurrentRtsViewport(",
+        "public AetheriaRuntimeGameViewportDocument CurrentGameViewport(",
         "public AetheriaRuntimeObjectsViewportDocument CurrentObjectsViewport(",
         "public AetheriaRuntimeGravityViewportDocument CurrentGravityViewport(",
         "public AetheriaRuntimeRenderSplatsViewportDocument CurrentRenderSplatsViewport(",
@@ -13689,10 +13689,10 @@ static void RequireMainMenuContinueRunState(string root)
             "Unity still owns daemon entity snapshot projection; package runtime should lower typed daemon entity snapshots.");
     }
 
-    var zoneRenderDocumentsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeRtsViewportDocuments.cs");
+    var zoneRenderDocumentsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeGameViewportDocuments.cs");
     var zoneRenderDocuments = File.Exists(zoneRenderDocumentsPath)
         ? File.ReadAllText(zoneRenderDocumentsPath)
-        : throw new InvalidOperationException("Cannot verify Continue entity snapshot access; AetheriaRuntimeRtsViewportDocuments.cs is missing.");
+        : throw new InvalidOperationException("Cannot verify Continue entity snapshot access; AetheriaRuntimeGameViewportDocuments.cs is missing.");
     var daemonEntitySnapshotProjectorPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeEntitySnapshotProjector.cs");
     if (File.Exists(daemonEntitySnapshotProjectorPath))
     {
@@ -14035,7 +14035,7 @@ static void RequireMainMenuContinueRunState(string root)
         "_lastAppliedAuthoritativeDaemonRunId",
         "_lastAppliedAuthoritativeDaemonZoneIndex",
         "private bool TryRestoreEntityGraphFromZoneRender(",
-        "AetheriaRuntimeRtsDocuments.ZoneRender(observed.Frame)",
+        "AetheriaRuntimeGameDocuments.ZoneRender(observed.Frame)",
         "AetheriaRuntimeEntitySnapshotProjector.CreateSnapshots(runId, daemonZone)",
         "ObservedEntityRestorer.TryApplyInPlace(",
         "ObservedEntityRestorer.Replace(entitySnapshots, currentEntityKey, Zone)",
@@ -14617,7 +14617,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
     var daemonOperationClientPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonOperationClient.cs");
     var daemonRuntimeOperationsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonOperations.cs");
     var daemonIntentPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonIntentState.cs");
-    var zoneRenderDocumentsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeRtsViewportDocuments.cs");
+    var zoneRenderDocumentsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeGameViewportDocuments.cs");
     var daemonObserverPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaDaemonObserver.cs");
     var pilotCommandSenderPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityPilotCommandSender.cs");
     var pilotFrameControllerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityPilotFrameController.cs");
@@ -14696,7 +14696,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
 
     var zoneRenderDocuments = File.Exists(zoneRenderDocumentsPath)
         ? File.ReadAllText(zoneRenderDocumentsPath)
-        : throw new InvalidOperationException("Cannot verify Unity observer authority; AetheriaRuntimeRtsViewportDocuments.cs is missing.");
+        : throw new InvalidOperationException("Cannot verify Unity observer authority; AetheriaRuntimeGameViewportDocuments.cs is missing.");
     if (File.Exists(daemonEntitySnapshotProjectorPath))
     {
         throw new InvalidOperationException(
@@ -14980,7 +14980,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         "_lastAppliedAuthoritativeDaemonRunId",
         "_lastAppliedAuthoritativeDaemonZoneIndex",
         "private bool TryRestoreEntityGraphFromZoneRender(",
-        "AetheriaRuntimeRtsDocuments.ZoneRender(observed.Frame)",
+        "AetheriaRuntimeGameDocuments.ZoneRender(observed.Frame)",
         "AetheriaRuntimeEntitySnapshotProjector.CreateSnapshots(runId, daemonZone)",
         "ObservedEntityRestorer.Replace(entitySnapshots, currentEntityKey, Zone)",
         "ObservedEntityRestorer.TryApplyInPlace(",
@@ -16051,16 +16051,42 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
         "org.gamecult.aetheria.state",
         "Runtime",
         "AetheriaRuntimeSnapshotDocuments.cs");
-    var oldRtsSimulationPath = Path.Combine(
-        root,
-        "Packages",
-        "org.gamecult.aetheria.state",
-        "Runtime",
-        "AetheriaRuntimeRtsSimulation.cs");
-    if (File.Exists(oldRtsSimulationPath))
+    var oldRuntimeSpecificAuthorityFiles = new[]
+    {
+        Path.Combine(
+            root,
+            "Packages",
+            "org.gamecult.aetheria.state",
+            "Runtime",
+            "AetheriaRuntimeRtsSimulation.cs"),
+        Path.Combine(
+            root,
+            "Packages",
+            "org.gamecult.aetheria.state",
+            "Runtime",
+            "AetheriaRuntimeRtsSimulation.cs.meta"),
+        Path.Combine(
+            root,
+            "Packages",
+            "org.gamecult.aetheria.state",
+            "Runtime",
+            "AetheriaRuntimeRtsDocuments.cs"),
+        Path.Combine(
+            root,
+            "Packages",
+            "org.gamecult.aetheria.state",
+            "Runtime",
+            "AetheriaRuntimeRtsViewportDocuments.cs")
+    };
+    var survivingRuntimeSpecificAuthorityFiles = oldRuntimeSpecificAuthorityFiles
+        .Where(File.Exists)
+        .Select(path => Path.GetRelativePath(root, path))
+        .ToArray();
+    if (survivingRuntimeSpecificAuthorityFiles.Length > 0)
     {
         throw new InvalidOperationException(
-            "Aetheria simulation authority is still runtime-named. Delete AetheriaRuntimeRtsSimulation.cs and keep runtime-specific names at projection edges.");
+            "Aetheria daemon/shared simulation and viewport authority must not be runtime-named: " +
+            string.Join(", ", survivingRuntimeSpecificAuthorityFiles));
     }
 
     var daemonSimulationPath = Path.Combine(
@@ -16081,18 +16107,18 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
         "org.gamecult.aetheria.state",
         "Runtime",
         "AetheriaRuntimeYmirProjectilePhysics.cs");
-    var rtsDocumentsPath = Path.Combine(
+    var gameDocumentsPath = Path.Combine(
         root,
         "Packages",
         "org.gamecult.aetheria.state",
         "Runtime",
-        "AetheriaRuntimeRtsDocuments.cs");
-    var rtsViewportDocumentsPath = Path.Combine(
+        "AetheriaRuntimeGameDocuments.cs");
+    var gameViewportDocumentsPath = Path.Combine(
         root,
         "Packages",
         "org.gamecult.aetheria.state",
         "Runtime",
-        "AetheriaRuntimeRtsViewportDocuments.cs");
+        "AetheriaRuntimeGameViewportDocuments.cs");
     var rtsLocalDocumentsPath = Path.Combine(root, "Aetheria.Rts.Web", "Electron", "aetheria-rts-local-documents.ts");
     var snapshotDocuments = File.Exists(snapshotDocumentsPath)
         ? File.ReadAllText(snapshotDocumentsPath)
@@ -16106,11 +16132,11 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
     var ymirProjectilePhysics = File.Exists(ymirProjectilePhysicsPath)
         ? File.ReadAllText(ymirProjectilePhysicsPath)
         : throw new InvalidOperationException("Cannot verify daemon projectile authority; Ymir projectile physics boundary is missing.");
-    var rtsDocuments = File.Exists(rtsDocumentsPath)
-        ? File.ReadAllText(rtsDocumentsPath)
-        : throw new InvalidOperationException("Cannot verify daemon projectile authority; RTS viewport documents are missing.");
-    var rtsViewportDocuments = File.Exists(rtsViewportDocumentsPath)
-        ? File.ReadAllText(rtsViewportDocumentsPath)
+    var gameDocuments = File.Exists(gameDocumentsPath)
+        ? File.ReadAllText(gameDocumentsPath)
+        : throw new InvalidOperationException("Cannot verify daemon projectile authority; game viewport documents are missing.");
+    var gameViewportDocuments = File.Exists(gameViewportDocumentsPath)
+        ? File.ReadAllText(gameViewportDocumentsPath)
         : throw new InvalidOperationException("Cannot verify daemon projectile authority; zone render documents are missing.");
     var rtsLocalDocuments = File.Exists(rtsLocalDocumentsPath)
         ? File.ReadAllText(rtsLocalDocumentsPath)
@@ -16149,14 +16175,14 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
             "TryResolveProjectileContact(",
             "public sealed class AetheriaRuntimeYmirProjectileHit"
         },
-        [rtsDocumentsPath] = new[]
+        [gameDocumentsPath] = new[]
         {
             "var projectiles = zone.Projectiles",
             ".Concat(projectiles",
-            "private static AetheriaRuntimeRtsViewportObject ToViewportObject(",
+            "private static AetheriaRuntimeViewportObject ToViewportObject(",
             "AetheriaRuntimeProjectileCommit projectile)"
         },
-        [rtsViewportDocumentsPath] = new[]
+        [gameViewportDocumentsPath] = new[]
         {
             "public IReadOnlyList<AetheriaRuntimeProjectileCommit> Projectiles"
         },
@@ -16174,8 +16200,8 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
                 pair.Key == daemonSimulationPath ? daemonSimulation :
                 pair.Key == daemonSimulationSettingsPath ? daemonSimulationSettings :
                 pair.Key == ymirProjectilePhysicsPath ? ymirProjectilePhysics :
-                pair.Key == rtsDocumentsPath ? rtsDocuments :
-                pair.Key == rtsViewportDocumentsPath ? rtsViewportDocuments :
+                pair.Key == gameDocumentsPath ? gameDocuments :
+                pair.Key == gameViewportDocumentsPath ? gameViewportDocuments :
                 rtsLocalDocuments;
             return pair.Value
                 .Where(symbol => !text.Contains(symbol, StringComparison.Ordinal))
@@ -16185,11 +16211,13 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
     if (missingProjectileAuthoritySymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "Daemon RTS combat must publish moving typed projectiles instead of invisible local/direct-damage shortcuts: " +
+            "Daemon combat must publish moving typed projectiles instead of invisible local/direct-damage shortcuts: " +
             string.Join("; ", missingProjectileAuthoritySymbols));
     }
 
     if (daemonSimulation.Contains("AetheriaRuntimeRtsSimulation", StringComparison.Ordinal) ||
+        daemonSimulation.Contains("daemon-rts", StringComparison.Ordinal) ||
+        daemonSimulation.Contains("rts-commander", StringComparison.Ordinal) ||
         daemonSimulation.Contains("Damage(target, damage)", StringComparison.Ordinal) ||
         daemonSimulation.Contains("Damage(target, ResolveProjectileDamage(attacker)", StringComparison.Ordinal) ||
         daemonSimulation.Contains("private static void StepProjectiles(", StringComparison.Ordinal) ||
@@ -16214,10 +16242,39 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
     if (daemonProgram.Contains("RtsCultMesh", StringComparison.Ordinal) ||
         daemonProgram.Contains("--rts-cultmesh", StringComparison.Ordinal) ||
         daemonProgram.Contains("RTS CultMesh endpoint", StringComparison.Ordinal) ||
-        daemonProgram.Contains("aetheria-rts-rudp", StringComparison.Ordinal))
+        daemonProgram.Contains("aetheria-rts-rudp", StringComparison.Ordinal) ||
+        daemonProgram.Contains("daemon:aetheria.rts.viewport", StringComparison.Ordinal) ||
+        daemonProgram.Contains("local-rts", StringComparison.Ordinal) ||
+        daemonProgram.Contains("starfire-rts", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "Aetheria daemon transport must be client-neutral; runtime-branded CultMesh flags and transport ids belong outside daemon authority.");
+    }
+
+    var sharedRuntimeText = string.Join(
+        "\n",
+        daemonSimulation,
+        gameDocuments,
+        gameViewportDocuments);
+    var forbiddenSharedRuntimeAuthoritySymbols = new[]
+    {
+        "AetheriaRuntimeRtsDocuments",
+        "AetheriaRuntimeRtsViewport",
+        "RtsViewport",
+        "gamecult.aetheria.rts_viewport",
+        "local-rts",
+        "daemon-rts",
+        "rts-commander",
+        "aetheria.asset.sprite.rts."
+    };
+    var sharedRuntimeAuthorityHits = forbiddenSharedRuntimeAuthoritySymbols
+        .Where(symbol => sharedRuntimeText.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (sharedRuntimeAuthorityHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Aetheria shared runtime still exposes RTS-specific authority vocabulary: " +
+            string.Join(", ", sharedRuntimeAuthorityHits));
     }
 
     if (daemonTickRunner.Contains("AetheriaRuntimeDaemonFrameStore.PublishFrame", StringComparison.Ordinal))
@@ -17050,10 +17107,10 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     var unityDaemonRenderDocuments = File.Exists(unityDaemonRenderDocumentsPath)
         ? File.ReadAllText(unityDaemonRenderDocumentsPath)
         : throw new InvalidOperationException("Cannot verify daemon state acquisition; AetheriaUnityDaemonRenderDocuments.cs is missing.");
-    var unityRtsViewportDocumentsPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityRtsViewportDocuments.cs");
-    var unityRtsViewportDocuments = File.Exists(unityRtsViewportDocumentsPath)
-        ? File.ReadAllText(unityRtsViewportDocumentsPath)
-        : throw new InvalidOperationException("Cannot verify daemon state acquisition; AetheriaUnityRtsViewportDocuments.cs is missing.");
+    var unityGameViewportDocumentsPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityGameViewportDocuments.cs");
+    var unityGameViewportDocuments = File.Exists(unityGameViewportDocumentsPath)
+        ? File.ReadAllText(unityGameViewportDocumentsPath)
+        : throw new InvalidOperationException("Cannot verify daemon state acquisition; AetheriaUnityGameViewportDocuments.cs is missing.");
     var zoneRendererPath = Path.Combine(root, "Assets", "Scripts", "Zone Display", "ZoneRenderer.cs");
     var zoneRenderer = File.Exists(zoneRendererPath)
         ? File.ReadAllText(zoneRendererPath)
@@ -17196,9 +17253,9 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "private static AetheriaClient ResolveClient(AetheriaRuntimeStateBootReport stateBoot, string runtimeId = \"\")",
         "private static AetheriaClient RuntimeClient(string runtimeId = \"\")",
         "public static AetheriaClientState RuntimeState(string runtimeId = \"\")",
-        "public static AetheriaUnityRtsViewportDocuments MapViewportDocuments(",
-        "public static AetheriaUnityRtsViewportDocuments ZonePresentationDocuments(",
-        "public static AetheriaUnityRtsViewportDocuments RenderSplatViewportDocuments(",
+        "public static AetheriaUnityGameViewportDocuments MapViewportDocuments(",
+        "public static AetheriaUnityGameViewportDocuments ZonePresentationDocuments(",
+        "public static AetheriaUnityGameViewportDocuments RenderSplatViewportDocuments(",
         "public static AetheriaUnityDaemonRenderDocuments DaemonRenderDocuments(",
         "public static AetheriaControl Control(string runtimeId = \"\")",
         "public static AetheriaUi Ui(string runtimeId = \"\")",
@@ -17335,7 +17392,7 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     }
 
     if (unityDaemonRenderDocuments.Contains("public CultMeshReactiveDocument<", StringComparison.Ordinal) ||
-        unityRtsViewportDocuments.Contains("public CultMeshReactiveDocument<", StringComparison.Ordinal))
+        unityGameViewportDocuments.Contains("public CultMeshReactiveDocument<", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "Unity managed document holders must not leak raw CultMesh reactive documents through their public surface.");
@@ -17592,7 +17649,7 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "ReactiveObservedDaemon(",
         "TryCurrent(out AetheriaRuntimeDaemonRenderView? observed)",
         "return new AetheriaRuntimeDaemonRenderView(frame, soaView);",
-        "AetheriaRuntimeRtsDocuments.ZoneRender(Frame)",
+        "AetheriaRuntimeGameDocuments.ZoneRender(Frame)",
         "zoneRender = null"
     };
     var observedDaemonStateBypassHits = forbiddenObservedDaemonStateSymbols
@@ -17628,7 +17685,7 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "session ??= await _verse.GetStarbridgeSessionAsync()",
         "var frame = await _verse.GetLatestFrameAsync()",
         "public async Task<AetheriaRuntimeDaemonFrameDocument?> LatestAuthoritativeRunFrameAsync()",
-        "public async Task<AetheriaRuntimeRtsViewportDocument> MapViewportAsync(",
+        "public async Task<AetheriaRuntimeGameViewportDocument> MapViewportAsync(",
         "public async Task<AetheriaRuntimeObjectsViewportDocument> ObjectsViewportAsync(",
         "public async Task<AetheriaRuntimeGravityViewportDocument> GravityViewportAsync(",
         "public async Task<AetheriaRuntimeRenderSplatsViewportDocument> RenderSplatsViewportAsync(",
@@ -19358,11 +19415,11 @@ static void RequireInventoryLoadoutRestoreRequestAuthority(string root)
     var tradeQueries = File.Exists(tradeQueriesPath)
         ? File.ReadAllText(tradeQueriesPath)
         : throw new InvalidOperationException("Cannot verify loadout restore authority; runtime trade item queries are missing.");
-    var rtsDocumentsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeRtsViewportDocuments.cs");
+    var rtsDocumentsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeGameViewportDocuments.cs");
     var rtsDocuments = File.Exists(rtsDocumentsPath)
         ? File.ReadAllText(rtsDocumentsPath)
         : throw new InvalidOperationException("Cannot verify loadout restore authority; RTS viewport documents are missing.");
-    var rtsDocumentFactoryPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeRtsDocuments.cs");
+    var rtsDocumentFactoryPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeGameDocuments.cs");
     var rtsDocumentFactory = File.Exists(rtsDocumentFactoryPath)
         ? File.ReadAllText(rtsDocumentFactoryPath)
         : throw new InvalidOperationException("Cannot verify loadout restore authority; RTS document factory source is missing.");

@@ -76,7 +76,7 @@ namespace GameCult.Aetheria.State.Verse
         public string ZoneName { get; set; } = "";
 
         [Key(7)]
-        public AetheriaRuntimeRtsViewportBounds Viewport { get; set; } = new AetheriaRuntimeRtsViewportBounds();
+        public AetheriaRuntimeViewportBounds Viewport { get; set; } = new AetheriaRuntimeViewportBounds();
 
         [Key(8)]
         public IReadOnlyList<AetheriaRuntimeRenderSplatLayerDefinition> Layers { get; set; } =

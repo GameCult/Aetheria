@@ -41,7 +41,7 @@ public class MapRenderer : MonoBehaviour
     private RenderTexture _mapTexture;
     private int2 _size;
     private bool _init;
-    private AetheriaUnityRtsViewportDocuments _viewportDocuments;
+    private AetheriaUnityGameViewportDocuments _viewportDocuments;
     private float _nextViewportRefreshTime;
     private readonly List<RawImage> _rtsIconPool = new List<RawImage>();
     
@@ -183,7 +183,7 @@ public class MapRenderer : MonoBehaviour
         if (RtsIconRoot == null)
             return;
 
-        var objects = _viewportDocuments?.CurrentObjectsViewport?.Objects ?? Array.Empty<AetheriaRuntimeRtsViewportObject>();
+        var objects = _viewportDocuments?.CurrentObjectsViewport?.Objects ?? Array.Empty<AetheriaRuntimeViewportObject>();
         for (var i = 0; i < objects.Count; i++)
         {
             var icon = ResolveRtsIcon(i);
@@ -219,7 +219,7 @@ public class MapRenderer : MonoBehaviour
         return _rtsIconPool[index];
     }
 
-    private void ApplyRtsIcon(RawImage icon, AetheriaRuntimeRtsViewportObject obj)
+    private void ApplyRtsIcon(RawImage icon, AetheriaRuntimeViewportObject obj)
     {
         if (icon == null || obj == null)
             return;
@@ -257,7 +257,7 @@ public class MapRenderer : MonoBehaviour
             (v - 0.5f) * rootRect.height);
     }
 
-    private static Color ResolveIconColor(AetheriaRuntimeRtsViewportObject obj)
+    private static Color ResolveIconColor(AetheriaRuntimeViewportObject obj)
     {
         var color = obj.Controlled
             ? new Color(0.3f, 0.9f, 1.0f, 1.0f)
@@ -290,13 +290,13 @@ public class MapRenderer : MonoBehaviour
             RtsIconRoot.gameObject.SetActive(active);
     }
 
-    private AetheriaRuntimeRtsViewportBounds ResolveViewportBounds()
+    private AetheriaRuntimeViewportBounds ResolveViewportBounds()
     {
         var screenHeight = _size.y <= 0 ? Math.Max(1, Screen.height) : _size.y;
         var screenWidth = _size.x <= 0 ? Math.Max(1, Screen.width) : _size.x;
         var halfHeight = screenHeight * Scale * .5f;
         var halfWidth = screenWidth * Scale * .5f;
-        return new AetheriaRuntimeRtsViewportBounds
+        return new AetheriaRuntimeViewportBounds
         {
             MinX = Position.x - halfWidth,
             MinY = Position.y - halfHeight,

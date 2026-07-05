@@ -181,7 +181,7 @@ public class DaemonRuntimeDocumentTests
             .LatestAsync()
             .GetAwaiter()
             .GetResult();
-        var viewport = new AetheriaRuntimeRtsViewportBounds
+        var viewport = new AetheriaRuntimeViewportBounds
         {
             MinX = -100,
             MinY = -100,
@@ -228,7 +228,7 @@ public class DaemonRuntimeDocumentTests
         using var zoneDetailsReactive = client.State.ZoneDetails(0).Reactive();
         using var selectedObjectReactive = client.State.SelectedObject(0).Reactive();
         using var inventoryReactive = client.State.Inventory(0).Reactive();
-        using var mapViewportReactive = client.State.RtsViewport(viewport).Reactive();
+        using var mapViewportReactive = client.State.GameViewport(viewport).Reactive();
         using var objectsViewportReactive = client.State.ObjectsViewport(viewport).Reactive();
         using var gravityViewportReactive = client.State.GravityViewport(viewport).Reactive();
         using var renderSplatsViewportReactive = client.State.RenderSplatsViewport(viewport).Reactive();
@@ -307,7 +307,7 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual(AetheriaRuntimeVerseHostSettingsDocument.SchemaId, verseHostSettings.Schema);
         Assert.AreEqual(AetheriaRuntimeVerseHostSettingsDocument.SchemaId, verseHostSettingsReactive.Current.Schema);
         Assert.AreEqual(AetheriaRuntimeDaemonSchemas.ObjectsViewport, objectsViewport.Schema);
-        Assert.AreEqual(AetheriaRuntimeDaemonSchemas.RtsViewport, mapViewportReactive.Current.Schema);
+        Assert.AreEqual(AetheriaRuntimeDaemonSchemas.GameViewport, mapViewportReactive.Current.Schema);
         Assert.AreEqual(AetheriaRuntimeDaemonSchemas.ObjectsViewport, objectsViewportReactive.Current.Schema);
         Assert.AreEqual(AetheriaRuntimeDaemonSchemas.GravityViewport, gravityViewportReactive.Current.Schema);
         Assert.AreEqual(AetheriaRuntimeDaemonSchemas.RenderSplatsViewport, renderSplatsViewportReactive.Current.Schema);
@@ -1875,7 +1875,7 @@ public class DaemonRuntimeDocumentTests
             0.02,
             renderSettings: renderSettings);
 
-        var zoneRender = AetheriaRuntimeRtsDocuments.ZoneRender(frame);
+        var zoneRender = AetheriaRuntimeGameDocuments.ZoneRender(frame);
 
         Assert.AreEqual(1, zoneRender.WormholeExits.Count);
         Assert.AreEqual(0.8 * 25, zoneRender.WormholeExits[0].PositionX, 0.0001);
@@ -1946,15 +1946,15 @@ public class DaemonRuntimeDocumentTests
             77,
             12.1,
             0.1);
-        var viewport = new AetheriaRuntimeRtsViewportBounds
+        var viewport = new AetheriaRuntimeViewportBounds
         {
             MinX = -100,
             MinY = -100,
             MaxX = 140,
             MaxY = 100
         };
-        var zoneRender = AetheriaRuntimeRtsDocuments.ZoneRender(frame);
-        var objectsViewport = AetheriaRuntimeRtsDocuments.ObjectsViewport(frame, viewport);
+        var zoneRender = AetheriaRuntimeGameDocuments.ZoneRender(frame);
+        var objectsViewport = AetheriaRuntimeGameDocuments.ObjectsViewport(frame, viewport);
 
         Assert.AreEqual(zone.Projectiles.Count, zoneRender.Projectiles.Count);
         Assert.IsTrue(objectsViewport.Objects.Any(obj =>

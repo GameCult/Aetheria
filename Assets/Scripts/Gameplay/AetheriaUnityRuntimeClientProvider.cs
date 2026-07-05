@@ -77,25 +77,25 @@ public static class AetheriaUnityRuntimeClientProvider
         return RuntimeClient(stateBoot, runtimeId).State;
     }
 
-    public static AetheriaUnityRtsViewportDocuments MapViewportDocuments(
-        AetheriaRuntimeRtsViewportBounds viewport,
+    public static AetheriaUnityGameViewportDocuments MapViewportDocuments(
+        AetheriaRuntimeViewportBounds viewport,
         string runtimeId = "")
     {
-        return AetheriaUnityRtsViewportDocuments.OpenMap(RuntimeState(runtimeId), viewport);
+        return AetheriaUnityGameViewportDocuments.OpenMap(RuntimeState(runtimeId), viewport);
     }
 
-    public static AetheriaUnityRtsViewportDocuments ZonePresentationDocuments(
-        AetheriaRuntimeRtsViewportBounds viewport,
+    public static AetheriaUnityGameViewportDocuments ZonePresentationDocuments(
+        AetheriaRuntimeViewportBounds viewport,
         string runtimeId = "")
     {
-        return AetheriaUnityRtsViewportDocuments.OpenZonePresentation(RuntimeState(runtimeId), viewport);
+        return AetheriaUnityGameViewportDocuments.OpenZonePresentation(RuntimeState(runtimeId), viewport);
     }
 
-    public static AetheriaUnityRtsViewportDocuments RenderSplatViewportDocuments(
-        AetheriaRuntimeRtsViewportBounds viewport,
+    public static AetheriaUnityGameViewportDocuments RenderSplatViewportDocuments(
+        AetheriaRuntimeViewportBounds viewport,
         string runtimeId = "")
     {
-        return AetheriaUnityRtsViewportDocuments.OpenRenderSplats(RuntimeState(runtimeId), viewport);
+        return AetheriaUnityGameViewportDocuments.OpenRenderSplats(RuntimeState(runtimeId), viewport);
     }
 
     public static AetheriaUnityDaemonRenderDocuments DaemonRenderDocuments(

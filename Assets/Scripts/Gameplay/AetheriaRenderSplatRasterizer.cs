@@ -252,9 +252,9 @@ public sealed class AetheriaRenderSplatRasterizer : MonoBehaviour
         Graphics.ExecuteCommandBuffer(_commandBuffer);
     }
 
-    private static Matrix4x4 BuildViewportToClip(AetheriaRuntimeRtsViewportBounds viewport)
+    private static Matrix4x4 BuildViewportToClip(AetheriaRuntimeViewportBounds viewport)
     {
-        viewport ??= new AetheriaRuntimeRtsViewportBounds();
+        viewport ??= new AetheriaRuntimeViewportBounds();
         var minX = (float)math.min(viewport.MinX, viewport.MaxX);
         var minY = (float)math.min(viewport.MinY, viewport.MaxY);
         var maxX = (float)math.max(viewport.MinX, viewport.MaxX);

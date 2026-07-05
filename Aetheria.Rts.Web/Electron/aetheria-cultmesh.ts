@@ -17,7 +17,7 @@ import type {
 import {
   AetheriaRtsSchemas,
   aetheriaRuntimeEveCommandDocumentSlots,
-  createAetheriaRuntimeRtsDocuments,
+  createAetheriaRuntimeGameDocuments,
   createAetheriaRuntimeRtsOperationHandles,
   createAetheriaRuntimeRtsVerseHandles,
   createAetheriaRuntimeRtsQueryHandles,
@@ -37,7 +37,7 @@ import {
   type AetheriaRuntimeRtsSurfaceCatalogDiagnostic,
   type AetheriaRuntimeRtsOperationHandles,
   type AetheriaRuntimeRtsVerseHandles,
-  type AetheriaRuntimeRtsDocuments,
+  type AetheriaRuntimeGameDocuments,
   type AetheriaRuntimeViewportFeedRequest,
   type AetheriaRuntimeViewportFeedSnapshot,
   type RtsSetMoveVectorRequest,
@@ -234,7 +234,7 @@ export class AetheriaCultMeshClient {
         assetManifest: CultMesh.pollingQueryWatcher(executors.assetManifest, { intervalMs: 1000 }),
       },
     );
-    this.documents = createAetheriaRuntimeRtsDocuments(
+    this.documents = createAetheriaRuntimeGameDocuments(
       this.queryVerse.context.routeHint,
       {
         daemonFrame: async () => this.fetchLatestFrameDocument(),
@@ -261,7 +261,7 @@ export class AetheriaCultMeshClient {
   private readonly publications: CultMeshDocumentCatalog;
   private readonly queryExecutors: AetheriaRuntimeRtsQueryExecutors;
   private readonly queries: ReturnType<typeof createAetheriaRuntimeRtsQueryHandles>;
-  private readonly documents: AetheriaRuntimeRtsDocuments;
+  private readonly documents: AetheriaRuntimeGameDocuments;
   private readonly operations: AetheriaRuntimeRtsOperationHandles;
   private readonly aetheria: AetheriaRuntimeRtsVerseHandles;
 
@@ -694,7 +694,7 @@ function composeViewport(
   gravity: GravityViewportResponse,
 ): ViewportResponse {
   return {
-    schema: "gamecult.aetheria.rts_viewport.v1",
+    schema: "gamecult.aetheria.game_viewport.v1",
     frameId: objects.frameId,
     publishedAtUtc: objects.publishedAtUtc,
     simulationTimeSeconds: objects.simulationTimeSeconds,

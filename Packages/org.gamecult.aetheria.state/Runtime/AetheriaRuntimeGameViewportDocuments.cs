@@ -8,12 +8,12 @@ using MessagePack;
 
 namespace GameCult.Aetheria.State.Verse
 {
-    [CultDocument("gamecult.aetheria.rts_viewport", "gamecult.aetheria.rts_viewport.v1")]
+    [CultDocument("gamecult.aetheria.game_viewport", "gamecult.aetheria.game_viewport.v1")]
     [MessagePackObject]
-    public sealed class AetheriaRuntimeRtsViewportDocument
+    public sealed class AetheriaRuntimeGameViewportDocument
     {
         [Key(0)]
-        public string Schema { get; set; } = AetheriaRuntimeDaemonSchemas.RtsViewport;
+        public string Schema { get; set; } = AetheriaRuntimeDaemonSchemas.GameViewport;
 
         [Key(1)]
         public long FrameId { get; set; }
@@ -37,22 +37,22 @@ namespace GameCult.Aetheria.State.Verse
         public string CurrentEntityKey { get; set; } = "";
 
         [Key(8)]
-        public AetheriaRuntimeRtsViewportBounds Viewport { get; set; } = new AetheriaRuntimeRtsViewportBounds();
+        public AetheriaRuntimeViewportBounds Viewport { get; set; } = new AetheriaRuntimeViewportBounds();
 
         [Key(9)]
         public IReadOnlyList<int> ControlledEntityIndices { get; set; } = Array.Empty<int>();
 
         [Key(10)]
-        public IReadOnlyList<AetheriaRuntimeRtsViewportObject> Objects { get; set; } =
-            Array.Empty<AetheriaRuntimeRtsViewportObject>();
+        public IReadOnlyList<AetheriaRuntimeViewportObject> Objects { get; set; } =
+            Array.Empty<AetheriaRuntimeViewportObject>();
 
         [Key(11)]
-        public IReadOnlyList<AetheriaRuntimeRtsGravityInfluence> GravityInfluences { get; set; } =
-            Array.Empty<AetheriaRuntimeRtsGravityInfluence>();
+        public IReadOnlyList<AetheriaRuntimeGravityInfluence> GravityInfluences { get; set; } =
+            Array.Empty<AetheriaRuntimeGravityInfluence>();
 
         [Key(12)]
-        public IReadOnlyList<AetheriaRuntimeRtsBodyView> Bodies { get; set; } =
-            Array.Empty<AetheriaRuntimeRtsBodyView>();
+        public IReadOnlyList<AetheriaRuntimeBodyView> Bodies { get; set; } =
+            Array.Empty<AetheriaRuntimeBodyView>();
     }
 
     [CultDocument("gamecult.aetheria.objects_viewport", "gamecult.aetheria.objects_viewport.v1")]
@@ -84,14 +84,14 @@ namespace GameCult.Aetheria.State.Verse
         public string CurrentEntityKey { get; set; } = "";
 
         [Key(8)]
-        public AetheriaRuntimeRtsViewportBounds Viewport { get; set; } = new AetheriaRuntimeRtsViewportBounds();
+        public AetheriaRuntimeViewportBounds Viewport { get; set; } = new AetheriaRuntimeViewportBounds();
 
         [Key(9)]
         public IReadOnlyList<int> ControlledEntityIndices { get; set; } = Array.Empty<int>();
 
         [Key(10)]
-        public IReadOnlyList<AetheriaRuntimeRtsViewportObject> Objects { get; set; } =
-            Array.Empty<AetheriaRuntimeRtsViewportObject>();
+        public IReadOnlyList<AetheriaRuntimeViewportObject> Objects { get; set; } =
+            Array.Empty<AetheriaRuntimeViewportObject>();
     }
 
     [CultDocument("gamecult.aetheria.gravity_viewport", "gamecult.aetheria.gravity_viewport.v1")]
@@ -120,15 +120,15 @@ namespace GameCult.Aetheria.State.Verse
         public string ZoneName { get; set; } = "";
 
         [Key(7)]
-        public AetheriaRuntimeRtsViewportBounds Viewport { get; set; } = new AetheriaRuntimeRtsViewportBounds();
+        public AetheriaRuntimeViewportBounds Viewport { get; set; } = new AetheriaRuntimeViewportBounds();
 
         [Key(8)]
-        public IReadOnlyList<AetheriaRuntimeRtsGravityInfluence> GravityInfluences { get; set; } =
-            Array.Empty<AetheriaRuntimeRtsGravityInfluence>();
+        public IReadOnlyList<AetheriaRuntimeGravityInfluence> GravityInfluences { get; set; } =
+            Array.Empty<AetheriaRuntimeGravityInfluence>();
 
         [Key(9)]
-        public IReadOnlyList<AetheriaRuntimeRtsBodyView> Bodies { get; set; } =
-            Array.Empty<AetheriaRuntimeRtsBodyView>();
+        public IReadOnlyList<AetheriaRuntimeBodyView> Bodies { get; set; } =
+            Array.Empty<AetheriaRuntimeBodyView>();
 
         [Key(10)]
         public double TerrainRadius { get; set; }
@@ -210,22 +210,22 @@ namespace GameCult.Aetheria.State.Verse
         public int EntityIndex { get; set; } = -1;
 
         [Key(8)]
-        public AetheriaRuntimeRtsViewportObject? Entity { get; set; }
+        public AetheriaRuntimeViewportObject? Entity { get; set; }
 
         [Key(9)]
-        public AetheriaRuntimeRtsEntityStatus Status { get; set; } = new AetheriaRuntimeRtsEntityStatus();
+        public AetheriaRuntimeEntityStatus Status { get; set; } = new AetheriaRuntimeEntityStatus();
 
         [Key(10)]
-        public IReadOnlyList<AetheriaRuntimeRtsInventoryItem> Inventory { get; set; } =
-            Array.Empty<AetheriaRuntimeRtsInventoryItem>();
+        public IReadOnlyList<AetheriaRuntimeInventoryItem> Inventory { get; set; } =
+            Array.Empty<AetheriaRuntimeInventoryItem>();
 
         [Key(11)]
-        public IReadOnlyList<AetheriaRuntimeRtsInventoryItem> Equipment { get; set; } =
-            Array.Empty<AetheriaRuntimeRtsInventoryItem>();
+        public IReadOnlyList<AetheriaRuntimeInventoryItem> Equipment { get; set; } =
+            Array.Empty<AetheriaRuntimeInventoryItem>();
 
         [Key(12)]
-        public IReadOnlyList<AetheriaRuntimeRtsInventoryItem> Cargo { get; set; } =
-            Array.Empty<AetheriaRuntimeRtsInventoryItem>();
+        public IReadOnlyList<AetheriaRuntimeInventoryItem> Cargo { get; set; } =
+            Array.Empty<AetheriaRuntimeInventoryItem>();
 
         [Key(13)]
         public double ShutdownPerformance { get; set; }
@@ -333,7 +333,7 @@ namespace GameCult.Aetheria.State.Verse
         public int DockingBayIndex { get; set; } = -1;
 
         [Key(12)]
-        public AetheriaRuntimeRtsViewportObject? DockParent { get; set; }
+        public AetheriaRuntimeViewportObject? DockParent { get; set; }
 
         [Key(13)]
         public string DockParentOrbitKey { get; set; } = "";
@@ -491,7 +491,7 @@ namespace GameCult.Aetheria.State.Verse
         public int DockingBayIndex { get; set; } = -1;
 
         [Key(12)]
-        public AetheriaRuntimeRtsViewportObject? DockParent { get; set; }
+        public AetheriaRuntimeViewportObject? DockParent { get; set; }
 
         [Key(13)]
         public IReadOnlyList<AetheriaRuntimeStationRefitEntityOption> AvailableEntities { get; set; } =
@@ -1266,7 +1266,7 @@ namespace GameCult.Aetheria.State.Verse
         public int EntityIndex { get; set; }
 
         [Key(5)]
-        public AetheriaRuntimeRtsViewportObject? Selected { get; set; }
+        public AetheriaRuntimeViewportObject? Selected { get; set; }
     }
 
     [CultDocument("gamecult.aetheria.inventory", "gamecult.aetheria.inventory.v1")]
@@ -1292,20 +1292,20 @@ namespace GameCult.Aetheria.State.Verse
         public string EntityKey { get; set; } = "";
 
         [Key(6)]
-        public IReadOnlyList<AetheriaRuntimeRtsInventoryItem> Items { get; set; } =
-            Array.Empty<AetheriaRuntimeRtsInventoryItem>();
+        public IReadOnlyList<AetheriaRuntimeInventoryItem> Items { get; set; } =
+            Array.Empty<AetheriaRuntimeInventoryItem>();
 
         [Key(7)]
-        public IReadOnlyList<AetheriaRuntimeRtsInventoryItem> Equipment { get; set; } =
-            Array.Empty<AetheriaRuntimeRtsInventoryItem>();
+        public IReadOnlyList<AetheriaRuntimeInventoryItem> Equipment { get; set; } =
+            Array.Empty<AetheriaRuntimeInventoryItem>();
 
         [Key(8)]
-        public IReadOnlyList<AetheriaRuntimeRtsInventoryItem> Cargo { get; set; } =
-            Array.Empty<AetheriaRuntimeRtsInventoryItem>();
+        public IReadOnlyList<AetheriaRuntimeInventoryItem> Cargo { get; set; } =
+            Array.Empty<AetheriaRuntimeInventoryItem>();
     }
 
     [MessagePackObject]
-    public sealed class AetheriaRuntimeRtsViewportBounds
+    public sealed class AetheriaRuntimeViewportBounds
     {
         [Key(0)]
         public double MinX { get; set; }
@@ -1321,7 +1321,7 @@ namespace GameCult.Aetheria.State.Verse
     }
 
     [MessagePackObject]
-    public sealed class AetheriaRuntimeRtsViewportObject
+    public sealed class AetheriaRuntimeViewportObject
     {
         [Key(0)]
         public int EntityIndex { get; set; }
@@ -1372,11 +1372,11 @@ namespace GameCult.Aetheria.State.Verse
         public double Visibility { get; set; }
 
         [Key(16)]
-        public AetheriaRuntimeRtsEntityStatus Status { get; set; } = new AetheriaRuntimeRtsEntityStatus();
+        public AetheriaRuntimeEntityStatus Status { get; set; } = new AetheriaRuntimeEntityStatus();
 
         [Key(17)]
-        public IReadOnlyList<AetheriaRuntimeRtsInventoryItem> Inventory { get; set; } =
-            Array.Empty<AetheriaRuntimeRtsInventoryItem>();
+        public IReadOnlyList<AetheriaRuntimeInventoryItem> Inventory { get; set; } =
+            Array.Empty<AetheriaRuntimeInventoryItem>();
 
         [Key(18)]
         public AetheriaRuntimeAssetRef IconAsset { get; set; } =
@@ -1384,7 +1384,7 @@ namespace GameCult.Aetheria.State.Verse
     }
 
     [MessagePackObject]
-    public sealed class AetheriaRuntimeRtsEntityStatus
+    public sealed class AetheriaRuntimeEntityStatus
     {
         [Key(0)]
         public double Hull { get; set; }
@@ -1397,7 +1397,7 @@ namespace GameCult.Aetheria.State.Verse
     }
 
     [MessagePackObject]
-    public sealed class AetheriaRuntimeRtsInventoryItem
+    public sealed class AetheriaRuntimeInventoryItem
     {
         [Key(0)]
         public string Source { get; set; } = "";
@@ -1432,7 +1432,7 @@ namespace GameCult.Aetheria.State.Verse
     }
 
     [MessagePackObject]
-    public sealed class AetheriaRuntimeRtsGravityInfluence
+    public sealed class AetheriaRuntimeGravityInfluence
     {
         [Key(0)]
         public string BodyKey { get; set; } = "";
@@ -1469,7 +1469,7 @@ namespace GameCult.Aetheria.State.Verse
     }
 
     [MessagePackObject]
-    public sealed class AetheriaRuntimeRtsBodyView
+    public sealed class AetheriaRuntimeBodyView
     {
         [Key(0)]
         public string BodyKey { get; set; } = "";

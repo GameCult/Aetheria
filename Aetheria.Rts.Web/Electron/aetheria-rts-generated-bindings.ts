@@ -11,7 +11,7 @@ export const AetheriaRtsSchemas = {
   daemonFrame: "gamecult.aetheria.daemon_frame.v1",
   daemonHealth: "gamecult.aetheria.daemon_health.v1",
   assetManifest: "gamecult.aetheria.asset_manifest.v1",
-  rtsViewport: "gamecult.aetheria.rts_viewport.v1",
+  gameViewport: "gamecult.aetheria.game_viewport.v1",
   objectsViewport: "gamecult.aetheria.objects_viewport.v1",
   gravityViewport: "gamecult.aetheria.gravity_viewport.v1",
   renderSplatsViewport: "gamecult.aetheria.render_splats_viewport.v1",
@@ -373,7 +373,7 @@ export const aetheriaRuntimeAssetManifestEntrySlots: Record<AetheriaRuntimeAsset
   tags: 4,
 };
 
-export type AetheriaRuntimeRtsViewportDocumentSlot =
+export type AetheriaRuntimeGameViewportDocumentSlot =
   | "schema"
   | "frameId"
   | "publishedAtUtc"
@@ -388,7 +388,7 @@ export type AetheriaRuntimeRtsViewportDocumentSlot =
   | "gravityInfluences"
   | "bodies";
 
-export const aetheriaRuntimeRtsViewportDocumentSlots: Record<AetheriaRuntimeRtsViewportDocumentSlot, number> = {
+export const aetheriaRuntimeGameViewportDocumentSlots: Record<AetheriaRuntimeGameViewportDocumentSlot, number> = {
   schema: 0,
   frameId: 1,
   publishedAtUtc: 2,
@@ -1253,20 +1253,20 @@ export const aetheriaRuntimeLoadoutItemCommitSlots: Record<AetheriaRuntimeLoadou
   temperature: 7,
 };
 
-export type AetheriaRuntimeRtsViewportBoundsSlot =
+export type AetheriaRuntimeGameViewportBoundsSlot =
   | "minX"
   | "minY"
   | "maxX"
   | "maxY";
 
-export const aetheriaRuntimeRtsViewportBoundsSlots: Record<AetheriaRuntimeRtsViewportBoundsSlot, number> = {
+export const aetheriaRuntimeGameViewportBoundsSlots: Record<AetheriaRuntimeGameViewportBoundsSlot, number> = {
   minX: 0,
   minY: 1,
   maxX: 2,
   maxY: 3,
 };
 
-export type AetheriaRuntimeRtsViewportObjectSlot =
+export type AetheriaRuntimeGameViewportObjectSlot =
   | "entityIndex"
   | "entityKey"
   | "displayName"
@@ -1287,7 +1287,7 @@ export type AetheriaRuntimeRtsViewportObjectSlot =
   | "inventory"
   | "iconAsset";
 
-export const aetheriaRuntimeRtsViewportObjectSlots: Record<AetheriaRuntimeRtsViewportObjectSlot, number> = {
+export const aetheriaRuntimeGameViewportObjectSlots: Record<AetheriaRuntimeGameViewportObjectSlot, number> = {
   entityIndex: 0,
   entityKey: 1,
   displayName: 2,
@@ -2148,9 +2148,9 @@ export type AetheriaRuntimeRtsSurfaceCatalogDiagnostic = CultMeshSurfaceCatalogD
 
 export type AetheriaRuntimeRtsOperationHandles = ReturnType<typeof createAetheriaRuntimeRtsOperationHandles>;
 
-export type AetheriaRuntimeRtsDocuments = ReturnType<typeof createAetheriaRuntimeRtsDocuments>;
+export type AetheriaRuntimeGameDocuments = ReturnType<typeof createAetheriaRuntimeGameDocuments>;
 
-export type AetheriaRuntimeRtsStatePointers = AetheriaRuntimeRtsDocuments;
+export type AetheriaRuntimeRtsStatePointers = AetheriaRuntimeGameDocuments;
 
 export type AetheriaRuntimeRtsDocumentResolvers = Partial<{
   daemonFrame: (context: CultMeshQueryContext) => Promise<unknown>;
@@ -2185,7 +2185,7 @@ export const AetheriaRuntimeRtsDocumentSources = {
   })
 } as const;
 
-export function createAetheriaRuntimeRtsDocuments(
+export function createAetheriaRuntimeGameDocuments(
   routeHint: CultMeshRouteHint = CultMesh.routeHint(),
   resolvers: AetheriaRuntimeRtsDocumentResolvers = {},
 ) {
@@ -2238,7 +2238,7 @@ export function createAetheriaRuntimeRtsDocuments(
   } as const;
 }
 
-export const createAetheriaRuntimeRtsStatePointers = createAetheriaRuntimeRtsDocuments;
+export const createAetheriaRuntimeRtsStatePointers = createAetheriaRuntimeGameDocuments;
 
 export function createAetheriaRuntimeRtsQueryHandles(
   executors: AetheriaRuntimeRtsQueryExecutors,
@@ -2247,7 +2247,7 @@ export function createAetheriaRuntimeRtsQueryHandles(
 ) {
   return {
     mapViewport: CultMesh.query<CultMeshViewportRequest, ViewportResponse>(
-      AetheriaRtsSchemas.rtsViewport,
+      AetheriaRtsSchemas.gameViewport,
       executors.mapViewport,
       { routeHint, sources: [AetheriaRuntimeRtsDocumentSources.daemonFrame], watchQuery: watchers.mapViewport },
     ),
@@ -2319,7 +2319,7 @@ export function describeAetheriaRuntimeRtsQueryHandles(
 export function describeAetheriaRuntimeRtsSurfaceCatalog(
   handles: ReturnType<typeof createAetheriaRuntimeRtsQueryHandles>,
   operations?: AetheriaRuntimeRtsOperationHandles,
-  documents: AetheriaRuntimeRtsDocuments = createAetheriaRuntimeRtsDocuments(),
+  documents: AetheriaRuntimeGameDocuments = createAetheriaRuntimeGameDocuments(),
 ): AetheriaRuntimeRtsSurfaceCatalogDiagnostic {
   return CultMesh.describeSurfaceCatalog(
     "gamecult.aetheria.rts.surfaces.v1",
@@ -2414,7 +2414,7 @@ export function createAetheriaRuntimeRtsVerseHandles(
   commandVerse: CultMeshVerseContext,
   queries: ReturnType<typeof createAetheriaRuntimeRtsQueryHandles>,
   operations: AetheriaRuntimeRtsOperationHandles,
-  documents: AetheriaRuntimeRtsDocuments = createAetheriaRuntimeRtsDocuments(),
+  documents: AetheriaRuntimeGameDocuments = createAetheriaRuntimeGameDocuments(),
 ) {
   const mapViewport = CultMesh.bindQuery(queryVerse, queries.mapViewport);
   const objectsViewport = CultMesh.bindQuery(queryVerse, queries.objectsViewport);

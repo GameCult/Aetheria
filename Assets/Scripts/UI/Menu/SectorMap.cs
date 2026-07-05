@@ -423,7 +423,7 @@ public class SectorMap : MonoBehaviour
         return new AetheriaRuntimeRenderSplatsViewportDocument
         {
             Schema = AetheriaRuntimeDaemonSchemas.RenderSplatsViewport,
-            Viewport = new AetheriaRuntimeRtsViewportBounds
+            Viewport = new AetheriaRuntimeViewportBounds
             {
                 MinX = minX - padding,
                 MinY = minY - padding,

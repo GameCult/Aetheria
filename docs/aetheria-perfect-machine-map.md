@@ -161,8 +161,8 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   `Zone.GetHeight` behavior are parity evidence for the new Eve field renderer,
   not a permanent side path.
   Object and body icon selection is provider-owned too:
-  `AetheriaRuntimeRtsViewportObject.IconAsset` and
-  `AetheriaRuntimeRtsBodyView.IconAsset` carry the CultMesh CDN asset refs. A
+  `AetheriaRuntimeViewportObject.IconAsset` and
+  `AetheriaRuntimeBodyView.IconAsset` carry the CultMesh CDN asset refs. A
   lowering target may draw the advertised asset or expose the missing provider
   data, but it must not synthesize icons, glow, asset paths, gravity fields,
   or backdrop noise as renderer-local compensation.

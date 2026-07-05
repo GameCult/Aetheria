@@ -517,9 +517,9 @@ namespace GameCult.Aetheria.State.Verse
                 null);
         }
 
-        private static AetheriaRuntimeRtsViewportBounds MainMenuViewport()
+        private static AetheriaRuntimeViewportBounds MainMenuViewport()
         {
-            return new AetheriaRuntimeRtsViewportBounds
+            return new AetheriaRuntimeViewportBounds
             {
                 MinX = -1500,
                 MinY = -1000,
@@ -528,9 +528,9 @@ namespace GameCult.Aetheria.State.Verse
             };
         }
 
-        private static string ViewportDocumentId(string prefix, AetheriaRuntimeRtsViewportBounds viewport)
+        private static string ViewportDocumentId(string prefix, AetheriaRuntimeViewportBounds viewport)
         {
-            var normalized = AetheriaRuntimeRtsDocuments.Normalize(viewport);
+            var normalized = AetheriaRuntimeGameDocuments.Normalize(viewport);
             return string.Join(
                 ".",
                 prefix,
@@ -709,7 +709,7 @@ namespace GameCult.Aetheria.State.Verse
                 .Where(entity => entity != null && entity.IsActive)
                 .Select(entity =>
                 {
-                    var entityKey = AetheriaRuntimeRunCheckpointCommit.EntityRecordKey(run?.RunId ?? "local-rts", currentZone.ZoneIndex, entity.EntityIndex);
+                    var entityKey = AetheriaRuntimeRunCheckpointCommit.EntityRecordKey(run?.RunId ?? "local-starbridge", currentZone.ZoneIndex, entity.EntityIndex);
                     return new AetheriaMainMenuGravityObject(
                         entityKey,
                         entity.Kind,
