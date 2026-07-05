@@ -108,10 +108,10 @@ if (!Array.isArray(starbridge.waveForecast) || !starbridge.waveForecast.some(wav
   throw new Error("Starbridge session did not expose daemon-seeded wave forecast.");
 
 const surfaceCatalog = client.surfaceCatalogDiagnostics();
-if (surfaceCatalog.catalogId !== "gamecult.aetheria.rts.surfaces.v1")
-  throw new Error(`Unexpected RTS surface catalog id: ${surfaceCatalog.catalogId}`);
-if (!surfaceCatalog.surfaces.some(surface => surface.surfaceId === "gamecult.aetheria.rts.viewport_feed.v1" && surface.kind === "live-feed"))
-  throw new Error("RTS surface catalog did not expose the viewport live feed.");
+if (surfaceCatalog.catalogId !== "gamecult.aetheria.surfaces.v1")
+  throw new Error(`Unexpected Aetheria surface catalog id: ${surfaceCatalog.catalogId}`);
+if (!surfaceCatalog.surfaces.some(surface => surface.surfaceId === "gamecult.aetheria.viewport_feed.v1" && surface.kind === "live-feed"))
+  throw new Error("Aetheria surface catalog did not expose the viewport live feed.");
 if (!surfaceCatalog.surfaces.some(surface => surface.surfaceId === "gamecult.aetheria.pilot.set_move_vector.v1" && surface.kind === "operation"))
   throw new Error("RTS surface catalog did not expose the move operation.");
 if (!surfaceCatalog.surfaces.some(surface =>
@@ -126,8 +126,8 @@ if (surfaceIndex.catalogId !== surfaceCatalog.catalogId)
   throw new Error("RTS surface catalog index did not preserve the catalog id.");
 if (!Array.isArray(surfaceIndex.operations) || surfaceIndex.operations.length < 2)
   throw new Error("RTS surface catalog index did not group operation surfaces.");
-if (!Array.isArray(surfaceIndex.liveFeeds) || !surfaceIndex.liveFeeds.some(surface => surface.surfaceId === "gamecult.aetheria.rts.viewport_feed.v1"))
-  throw new Error("RTS surface catalog index did not group the viewport live feed.");
+if (!Array.isArray(surfaceIndex.liveFeeds) || !surfaceIndex.liveFeeds.some(surface => surface.surfaceId === "gamecult.aetheria.viewport_feed.v1"))
+  throw new Error("Aetheria surface catalog index did not group the viewport live feed.");
 if (!Array.isArray(surfaceIndex.queries) || !surfaceIndex.queries.some(surface => surface.surfaceId === "gamecult.aetheria.objects_viewport.v1"))
   throw new Error("RTS surface catalog index did not group generated query surfaces.");
 if (!Array.isArray(surfaceIndex.documents) || !surfaceIndex.documents.some(surface => surface.surfaceId === "daemon:aetheria.frame.latest.v1"))

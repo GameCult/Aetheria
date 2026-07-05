@@ -834,7 +834,7 @@ export function describeAetheriaRuntimeRtsSurfaceCatalog(
   documents: AetheriaRuntimeGameDocuments = createAetheriaRuntimeGameDocuments(),
 ): AetheriaRuntimeRtsSurfaceCatalogDiagnostic {
   return CultMesh.describeSurfaceCatalog(
-    "gamecult.aetheria.rts.surfaces.v1",
+    "gamecult.aetheria.surfaces.v1",
     [
       CultMesh.describeSurface(documents.daemonFrame),
       CultMesh.describeSurface(documents.daemonHealth),

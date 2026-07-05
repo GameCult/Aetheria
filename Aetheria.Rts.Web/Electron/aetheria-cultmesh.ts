@@ -476,7 +476,7 @@ export class AetheriaCultMeshClient {
 
   private createViewportFeed() {
     return CultMesh.liveFeed<AetheriaRuntimeViewportFeedRequest, AetheriaRuntimeViewportFeedSnapshot>(
-      "gamecult.aetheria.rts.viewport_feed.v1",
+      "gamecult.aetheria.viewport_feed.v1",
       async (request, context) => {
         const objects = await this.queries.objectsViewport.execute(request.viewport, context);
         return this.createViewportFeedSnapshot(request, objects);

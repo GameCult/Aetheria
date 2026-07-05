@@ -255,7 +255,7 @@ function isElectronSmokeReady(result: Record<string, unknown>): boolean {
     arrayValue(eveFieldSurface?.embeddedDocuments).some(slot =>
       objectValue(slot)?.slotId === "objects") &&
     stringValue(actor?.entityKey).length > 0 &&
-    surfaceCatalog?.catalogId === "gamecult.aetheria.rts.surfaces.v1" &&
+    surfaceCatalog?.catalogId === "gamecult.aetheria.surfaces.v1" &&
     arrayValue(surfaceCatalogIndex?.queries).length > 0 &&
     arrayValue(surfaceCatalogIndex?.operations).some(surface =>
       objectValue(surface)?.surfaceId === "gamecult.aetheria.pilot.set_move_vector.v1") &&

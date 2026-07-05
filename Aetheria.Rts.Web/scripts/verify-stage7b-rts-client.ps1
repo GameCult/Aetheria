@@ -36,6 +36,14 @@ if ($LASTEXITCODE -gt 1) {
     Write-Error "Stage 7B verifier could not run rg for file-backed debug surface checks."
 }
 
+$forbiddenRtsSurfaceContractHits = & rg -n 'gamecult\.aetheria\.rts\.(surfaces|viewport_feed)' Client Electron scripts/generate-rts-bindings.mjs 2>$null
+if ($LASTEXITCODE -eq 0) {
+    Write-Error "Stage 7B verifier failed: Aetheria CultMesh surface catalog/feed ids must not be RTS-branded.`n$forbiddenRtsSurfaceContractHits"
+}
+if ($LASTEXITCODE -gt 1) {
+    Write-Error "Stage 7B verifier could not run rg for RTS-branded surface contract checks."
+}
+
 $required = @(
     'mapViewport',
     'objectsViewport',
