@@ -8562,6 +8562,14 @@ static void RequireUnityViewportAndMapReadsUseManagedAccessors(string root)
             "AetheriaUnityRenderSplatViewportSource still routes render-splats viewports through raw/session wrapper state instead of a managed viewport document.");
     }
 
+    if (renderSplatViewportSource.Contains("_fallbackRenderSplatsViewport", StringComparison.Ordinal) ||
+        renderSplatViewportSource.Contains("EmptyRenderSplatsViewport", StringComparison.Ordinal) ||
+        renderSplatViewportSource.Contains("new AetheriaRuntimeRenderSplatsViewportDocument", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "AetheriaUnityRenderSplatViewportSource must not fabricate renderer-local render splat documents; daemon/CultMesh viewport documents own render fields.");
+    }
+
     var zoneRenderer = File.ReadAllText(Path.Combine(
         root,
         "Assets",

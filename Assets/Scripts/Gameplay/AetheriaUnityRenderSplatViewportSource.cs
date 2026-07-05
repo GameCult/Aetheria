@@ -27,7 +27,6 @@ public sealed class AetheriaUnityRenderSplatViewportSource : MonoBehaviour
 
     private float _nextRefreshTime;
     private AetheriaUnityGameViewportDocuments _viewportDocuments;
-    private AetheriaRuntimeRenderSplatsViewportDocument _fallbackRenderSplatsViewport;
     private string _lastWarningMessage = "";
 
     public RenderTexture TargetTexture
@@ -42,7 +41,7 @@ public sealed class AetheriaUnityRenderSplatViewportSource : MonoBehaviour
     }
 
     public AetheriaRuntimeRenderSplatsViewportDocument CurrentDocument =>
-        _viewportDocuments?.CurrentRenderSplatsViewport ?? _fallbackRenderSplatsViewport;
+        _viewportDocuments?.CurrentRenderSplatsViewport;
 
     public bool RenderInLateUpdate
     {
@@ -74,7 +73,7 @@ public sealed class AetheriaUnityRenderSplatViewportSource : MonoBehaviour
             return false;
 
         RefreshDocument(false);
-        var document = _viewportDocuments?.CurrentRenderSplatsViewport ?? _fallbackRenderSplatsViewport;
+        var document = _viewportDocuments?.CurrentRenderSplatsViewport;
         if (document == null)
             return false;
 
@@ -129,14 +128,12 @@ public sealed class AetheriaUnityRenderSplatViewportSource : MonoBehaviour
                 .RenderSplatViewportDocuments(viewport, "unity-render-splat-viewport");
             ClearViewportDocument();
             _viewportDocuments = nextDocuments;
-            _fallbackRenderSplatsViewport = null;
             _lastWarningMessage = "";
         }
         catch (Exception ex)
         {
             ClearViewportDocument();
-            _fallbackRenderSplatsViewport = EmptyRenderSplatsViewport(viewport);
-            WarnOnce($"Failed to read Aetheria render splats from local Verse state: {ex.Message}");
+            WarnOnce($"Failed to read daemon render splats from Verse state: {ex.Message}");
         }
     }
 
@@ -147,16 +144,6 @@ public sealed class AetheriaUnityRenderSplatViewportSource : MonoBehaviour
 
         _lastWarningMessage = message;
         Debug.LogWarning(message);
-    }
-
-    private static AetheriaRuntimeRenderSplatsViewportDocument EmptyRenderSplatsViewport(
-        AetheriaRuntimeViewportBounds viewport)
-    {
-        return new AetheriaRuntimeRenderSplatsViewportDocument
-        {
-            PublishedAtUtc = DateTimeOffset.UtcNow.ToString("O"),
-            Viewport = viewport ?? new AetheriaRuntimeViewportBounds()
-        };
     }
 
     private AetheriaRuntimeViewportBounds ResolveViewportBounds()
