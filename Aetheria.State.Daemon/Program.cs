@@ -1898,7 +1898,7 @@ static async Task EnsureStarbridgeSessionDocumentsAsync(
             },
             new AetheriaRuntimeStarbridgeRuntimeRole
             {
-                RuntimeId = "raven-unity",
+                RuntimeId = "pilot-client",
                 Role = "pilot",
                 EntityKey = pilotOneKey
             }
