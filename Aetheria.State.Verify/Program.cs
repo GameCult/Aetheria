@@ -16721,6 +16721,13 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
         throw new InvalidOperationException(
             "Electron queries must fetch daemon-authored managed documents, not rebuild field/view/selection/inventory documents from daemonFrame.");
     }
+    if (rtsElectronCultMesh.Contains("switch (request?.surfaceId)", StringComparison.Ordinal) ||
+        rtsElectronCultMesh.Contains("case \"aetheria.", StringComparison.Ordinal) ||
+        !rtsElectronCultMesh.Contains("return surfaceId ? `eve:surface:${surfaceId}` : defaultEveSurfaceRecordKey;", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Electron Eve surface loading must not carry a hardcoded Aetheria panel catalog; Eve surface ids resolve through daemon-authored surface records.");
+    }
     if (rtsLocalDocuments.Contains("buildViewportDocumentFromFrame", StringComparison.Ordinal) ||
         rtsLocalDocuments.Contains("buildObjectsViewportDocumentFromFrame", StringComparison.Ordinal) ||
         rtsLocalDocuments.Contains("buildGravityViewportDocumentFromFrame", StringComparison.Ordinal) ||

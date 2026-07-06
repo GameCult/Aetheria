@@ -926,34 +926,8 @@ function eveSurfaceRecordKey(request: AetheriaEveSurfaceRequest): string {
   if (request?.recordKey && request.recordKey.trim())
     return request.recordKey.trim();
 
-  switch (request?.surfaceId) {
-    case "aetheria.game":
-    case "aetheria.daemon.game":
-      return "eve:surface:aetheria.daemon.game";
-    case "aetheria.game.tui":
-    case "aetheria.daemon.game.tui":
-      return "eve:surface:aetheria.daemon.game.tui";
-    case "aetheria.main_menu.root":
-      return "eve:surface:aetheria.main_menu.root";
-    case "aetheria.main_menu.settings":
-      return "eve:surface:aetheria.main_menu.settings";
-    case "aetheria.main_menu.input_settings":
-      return "eve:surface:aetheria.main_menu.input_settings";
-    case "aetheria.main_menu.player_settings":
-      return "eve:surface:aetheria.main_menu.player_settings";
-    case "aetheria.main_menu.verse_settings":
-      return "eve:surface:aetheria.main_menu.verse_settings";
-    case "aetheria.inventory.panel":
-      return "eve:surface:aetheria.inventory.panel";
-    case "aetheria.inventory.panel.dropdown":
-      return "eve:surface:aetheria.inventory.panel.dropdown";
-    case "aetheria.map.zone_details":
-      return "eve:surface:aetheria.map.zone_details";
-    case "aetheria.trade.menu":
-      return "eve:surface:aetheria.trade.menu";
-    default:
-      return defaultEveSurfaceRecordKey;
-  }
+  const surfaceId = request?.surfaceId?.trim();
+  return surfaceId ? `eve:surface:${surfaceId}` : defaultEveSurfaceRecordKey;
 }
 
 function normalizeEveSurfaceDocument(document: unknown): AetheriaMenuSurfaceDocument {
