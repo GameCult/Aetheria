@@ -997,7 +997,12 @@ static bool TryGetManagedViewportRequest(
     schemaId = "";
     viewport = new AetheriaRuntimeViewportBounds();
     var prefix = "";
-    if (recordKey.StartsWith("aetheria.viewport.objects.", StringComparison.Ordinal))
+    if (recordKey.StartsWith("aetheria.viewport.map.", StringComparison.Ordinal))
+    {
+        prefix = "aetheria.viewport.map.";
+        schemaId = AetheriaRuntimeDaemonSchemas.GameViewport;
+    }
+    else if (recordKey.StartsWith("aetheria.viewport.objects.", StringComparison.Ordinal))
     {
         prefix = "aetheria.viewport.objects.";
         schemaId = AetheriaRuntimeDaemonSchemas.ObjectsViewport;

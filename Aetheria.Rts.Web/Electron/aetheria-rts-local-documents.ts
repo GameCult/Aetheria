@@ -4,17 +4,26 @@ import {
   aetheriaRuntimeAssetManifestEntrySlots as assetManifestEntrySlots,
   aetheriaRuntimeAssetRefSlots as assetRefSlots,
   aetheriaRuntimeAuthorityRuleSlots as authorityRuleSlots,
-  aetheriaRuntimeBodySnapshotCommitSlots as bodySlots,
   aetheriaRuntimeCargoBayLoadoutCommitSlots as cargoBaySlots,
   aetheriaRuntimeDaemonFrameDocumentSlots as frameSlots,
   aetheriaRuntimeDaemonHealthDocumentSlots as healthSlots,
   aetheriaRuntimeEntitySnapshotCommitSlots as entitySlots,
   aetheriaRuntimeEntityStatGridCommitSlots as statGridSlots,
+  aetheriaRuntimeGameViewportBoundsSlots as viewportBoundsSlots,
+  aetheriaRuntimeGameViewportDocumentSlots as gameViewportSlots,
+  aetheriaRuntimeGameViewportObjectSlots as viewportObjectSlots,
+  aetheriaRuntimeGravityViewportDocumentSlots as gravityViewportSlots,
   aetheriaRuntimeLoadoutItemCommitSlots as itemSlots,
   aetheriaRuntimeLoadoutItemSlotCommitSlots as itemSlotSlots,
-  aetheriaRuntimeProjectileCommitSlots as projectileSlots,
+  aetheriaRuntimeObjectsViewportDocumentSlots as objectsViewportSlots,
+  aetheriaRuntimeRenderSplatLayerDefinitionSlots as renderSplatLayerSlots,
+  aetheriaRuntimeRenderSplatsViewportDocumentSlots as renderSplatsViewportSlots,
+  aetheriaRuntimeRenderSplatSoaSlots as renderSplatSoaSlots,
+  aetheriaRuntimeRtsBodyViewSlots as bodyViewSlots,
+  aetheriaRuntimeRtsEntityStatusSlots as viewportStatusSlots,
+  aetheriaRuntimeRtsGravityInfluenceSlots as gravityInfluenceSlots,
+  aetheriaRuntimeRtsInventoryItemSlots as viewportInventoryItemSlots,
   aetheriaRuntimeRunCheckpointCommitSlots as runSlots,
-  aetheriaRuntimeSunVisualCommitSlots as sunVisualSlots,
   aetheriaRuntimeStarbridgeBaseStatusSlots as starbridgeBaseSlots,
   aetheriaRuntimeStarbridgeRuntimeRoleSlots as starbridgeRoleSlots,
   aetheriaRuntimeStarbridgeSessionSummaryDocumentSlots as starbridgeSummarySlots,
@@ -30,6 +39,7 @@ import type {
   AuthorityStatusDocument,
   BodyView,
   DaemonHealthDocument,
+  EntityStatus,
   GravityViewportResponse,
   GravityInfluence,
   InventoryDocument,
@@ -45,300 +55,6 @@ import type {
 } from "./aetheria-rts-bindings.js";
 
 const missingDaemonRunId = "aetheria.run.unknown";
-
-export function buildViewportDocumentFromFrame(frameDocument: unknown, request: ViewportRequest): ViewportResponse {
-  const objects = buildObjectsViewportDocumentFromFrame(frameDocument, request);
-  const gravity = buildGravityViewportDocumentFromFrame(frameDocument, request);
-  return {
-    schema: AetheriaRtsSchemas.gameViewport,
-    frameId: objects.frameId,
-    publishedAtUtc: objects.publishedAtUtc,
-    simulationTimeSeconds: objects.simulationTimeSeconds,
-    runId: objects.runId,
-    zoneIndex: objects.zoneIndex,
-    zoneName: objects.zoneName,
-    currentEntityKey: objects.currentEntityKey,
-    viewport: objects.viewport,
-    controlledEntityIndices: objects.controlledEntityIndices,
-    objects: objects.objects,
-    gravityInfluences: gravity.gravityInfluences,
-    bodies: gravity.bodies,
-  };
-}
-
-export function buildObjectsViewportDocumentFromFrame(
-  frameDocument: unknown,
-  request: ViewportRequest,
-): ObjectsViewportResponse {
-  const frame = arr(frameDocument);
-  const run = arr(frame[frameSlots.run]);
-  const zones = list<unknown[]>(run[runSlots.zones]);
-  const currentZoneIndex = num(run[runSlots.currentZoneIndex], -1);
-  const zone = zones.find(candidate => num(candidate[zoneSlots.zoneIndex], -1) === currentZoneIndex) ??
-    zones[0] ??
-    [];
-  const runId = str(run[runSlots.runId]) || missingDaemonRunId;
-  const viewport = normalizeViewport(request);
-  const entities = list<unknown[]>(zone[zoneSlots.entities]);
-  const controlledEntityIndices = entities
-    .filter(isPlayerControlled)
-    .map(entity => num(entity[entitySlots.entityIndex], -1))
-    .filter(index => index >= 0);
-  const controlled = entities.filter(entity => controlledEntityIndices.includes(num(entity[entitySlots.entityIndex], -1)));
-  const projectiles = list<unknown[]>(zone[zoneSlots.projectiles]);
-  const objects = entities
-    .filter(entity => entityIntersectsViewport(entity, viewport))
-    .filter(entity => isPlayerControlled(entity) ||
-      controlled.length === 0 ||
-      controlled.some(observer => canSee(observer, entity)))
-    .map(entity => toViewObject(entity, runId, num(zone[zoneSlots.zoneIndex])))
-    .concat(projectiles
-      .filter(projectile => projectile[projectileSlots.active] !== false)
-      .filter(projectile => projectileIntersectsViewport(projectile, viewport))
-      .map(toProjectileViewObject));
-
-  return {
-    schema: AetheriaRtsSchemas.objectsViewport,
-    frameId: num(frame[frameSlots.frameId]),
-    publishedAtUtc: str(frame[frameSlots.publishedAtUtc]),
-    simulationTimeSeconds: num(frame[frameSlots.simulationTimeSeconds]),
-    runId,
-    zoneIndex: num(zone[zoneSlots.zoneIndex]),
-    zoneName: str(zone[zoneSlots.name]) || `Zone ${num(zone[zoneSlots.zoneIndex])}`,
-    currentEntityKey: str(run[runSlots.currentEntityKey]),
-    viewport,
-    controlledEntityIndices,
-    objects,
-  };
-}
-
-export function buildGravityViewportDocumentFromFrame(
-  frameDocument: unknown,
-  request: ViewportRequest,
-): GravityViewportResponse {
-  const frame = arr(frameDocument);
-  const run = arr(frame[frameSlots.run]);
-  const zones = list<unknown[]>(run[runSlots.zones]);
-  const currentZoneIndex = num(run[runSlots.currentZoneIndex], -1);
-  const zone = zones.find(candidate => num(candidate[zoneSlots.zoneIndex], -1) === currentZoneIndex) ??
-    zones[0] ??
-    [];
-  const runId = str(run[runSlots.runId]) || missingDaemonRunId;
-  const viewport = normalizeViewport(request);
-  const visibleBodies = list<unknown[]>(zone[zoneSlots.bodies])
-    .filter(body => gravityInfluenceIntersectsViewport(body, viewport));
-
-  return {
-    schema: AetheriaRtsSchemas.gravityViewport,
-    frameId: num(frame[frameSlots.frameId]),
-    publishedAtUtc: str(frame[frameSlots.publishedAtUtc]),
-    simulationTimeSeconds: num(frame[frameSlots.simulationTimeSeconds]),
-    runId,
-    zoneIndex: num(zone[zoneSlots.zoneIndex]),
-    zoneName: str(zone[zoneSlots.name]) || `Zone ${num(zone[zoneSlots.zoneIndex])}`,
-    viewport,
-    gravityInfluences: visibleBodies.map(toGravityInfluence),
-    bodies: visibleBodies.map(toBodyView),
-  };
-}
-
-export function buildRenderSplatsViewportDocumentFromFrame(
-  frameDocument: unknown,
-  request: ViewportRequest,
-): RenderSplatsViewportResponse {
-  const frame = arr(frameDocument);
-  const run = arr(frame[frameSlots.run]);
-  const zones = list<unknown[]>(run[runSlots.zones]);
-  const currentZoneIndex = num(run[runSlots.currentZoneIndex], -1);
-  const zone = zones.find(candidate => num(candidate[zoneSlots.zoneIndex], -1) === currentZoneIndex) ??
-    zones[0] ??
-    [];
-  const runId = str(run[runSlots.runId]) || missingDaemonRunId;
-  const viewport = normalizeViewport(request);
-  const layers = defaultRenderSplatLayers();
-  const layerIndices: ReadonlyMap<string, number> = new Map(layers.map((layer, index) => [layer.layerKey, index] as const));
-  const builder = new RenderSplatBuilder();
-  const viewportCenterX = (viewport.minX + viewport.maxX) * 0.5;
-  const viewportCenterY = (viewport.minY + viewport.maxY) * 0.5;
-  const viewportHalfX = Math.max(0.0001, (viewport.maxX - viewport.minX) * 0.5);
-  const viewportHalfY = Math.max(0.0001, (viewport.maxY - viewport.minY) * 0.5);
-  const terrainDepth = num(zone[zoneSlots.gravityTerrainDepth]);
-  const terrainWaveFrequency = num(zone[zoneSlots.gravityTerrainWaveFrequency], 1);
-
-  if (terrainDepth !== 0) {
-    builder.add({
-      layerIndex: requiredLayerIndex(layerIndices, "gravity.height"),
-      centerX: viewportCenterX,
-      centerY: viewportCenterY,
-      halfExtentX: viewportHalfX,
-      halfExtentY: viewportHalfY,
-      channel: 1,
-      falloff: 0,
-      valueR: -terrainDepth,
-      valueA: 1,
-      sourceKey: "environment.gravity_terrain",
-      sourceKind: 2,
-      frequencyX: 3,
-      frequencyY: 3,
-      animationSpeed: terrainWaveFrequency * 0.025,
-      sourceFlags: 1,
-    });
-  }
-
-  builder.add({
-    layerIndex: requiredLayerIndex(layerIndices, "fog.surface_height"),
-    centerX: viewportCenterX,
-    centerY: viewportCenterY,
-    halfExtentX: viewportHalfX,
-    halfExtentY: viewportHalfY,
-    channel: 4,
-    falloff: 0,
-    valueR: 1,
-    valueA: 1,
-    sourceKey: "environment.fog_surface_height",
-    sourceKind: 2,
-    frequencyX: 4,
-    frequencyY: 4,
-    animationSpeed: 0.015,
-    sourceFlags: 1,
-  });
-  builder.add({
-    layerIndex: requiredLayerIndex(layerIndices, "fog.patch_height"),
-    centerX: viewportCenterX,
-    centerY: viewportCenterY,
-    halfExtentX: viewportHalfX,
-    halfExtentY: viewportHalfY,
-    channel: 4,
-    falloff: 0,
-    valueR: 1,
-    valueA: 1,
-    sourceKey: "environment.fog_patch_height",
-    sourceKind: 2,
-    frequencyX: 9,
-    frequencyY: 9,
-    animationSpeed: 0.02,
-    sourceFlags: 1,
-  });
-  builder.add({
-    layerIndex: requiredLayerIndex(layerIndices, "fog.patch"),
-    centerX: viewportCenterX,
-    centerY: viewportCenterY,
-    halfExtentX: viewportHalfX,
-    halfExtentY: viewportHalfY,
-    channel: 4,
-    falloff: 0,
-    valueR: 1,
-    valueA: 1,
-    sourceKey: "environment.fog_patch",
-    sourceKind: 2,
-    frequencyX: 6,
-    frequencyY: 6,
-    animationSpeed: 0.01,
-    sourceFlags: 1,
-  });
-
-  for (const body of list<unknown[]>(zone[zoneSlots.bodies])) {
-    if (!gravityInfluenceIntersectsViewport(body, viewport))
-      continue;
-
-    const radius = resolveGravityRadius(body);
-    const bodyKey = str(body[bodySlots.bodyKey]);
-    builder.add({
-      layerIndex: requiredLayerIndex(layerIndices, "gravity.height"),
-      centerX: num(body[bodySlots.gravityInfluenceCenterX]),
-      centerY: num(body[bodySlots.gravityInfluenceCenterZ]),
-      halfExtentX: radius,
-      halfExtentY: radius,
-      channel: 1,
-      falloff: 3,
-      valueR: num(body[bodySlots.gravityWellDepth]),
-      valueA: 1,
-      sourceKey: bodyKey,
-    });
-
-    if (num(body[bodySlots.gravityWaveRadius]) > 0 && num(body[bodySlots.gravityWaveDepth]) !== 0) {
-      builder.add({
-        layerIndex: requiredLayerIndex(layerIndices, "gravity.wave"),
-        centerX: num(body[bodySlots.gravityInfluenceCenterX]),
-        centerY: num(body[bodySlots.gravityInfluenceCenterZ]),
-        halfExtentX: num(body[bodySlots.gravityWaveRadius]),
-        halfExtentY: num(body[bodySlots.gravityWaveRadius]),
-        channel: 2,
-        falloff: 2,
-        valueR: num(body[bodySlots.gravityWaveDepth]),
-        valueG: num(body[bodySlots.gravityWaveSpeed]),
-        valueA: 1,
-        sourceKey: bodyKey,
-      });
-    }
-
-    if (str(body[bodySlots.kind]).toLowerCase().includes("sun")) {
-      const sunVisual = arr(body[bodySlots.sunVisual]);
-      const tintRadius = Math.max(
-        radius,
-        Math.max(32, num(body[bodySlots.bodyRadiusMultiplier]) * 70) *
-          Math.max(0.01, num(sunVisual[sunVisualSlots.lightRadiusMultiplier], 1)),
-      );
-      builder.add({
-        layerIndex: requiredLayerIndex(layerIndices, "fog.tint"),
-        centerX: num(body[bodySlots.gravityInfluenceCenterX]),
-        centerY: num(body[bodySlots.gravityInfluenceCenterZ]),
-        halfExtentX: tintRadius,
-        halfExtentY: tintRadius,
-        channel: 4,
-        falloff: 2,
-        valueR: num(sunVisual[sunVisualSlots.fogTintColorX]),
-        valueG: num(sunVisual[sunVisualSlots.fogTintColorY]),
-        valueB: num(sunVisual[sunVisualSlots.fogTintColorZ]),
-        valueA: 1,
-        sourceKey: bodyKey,
-      });
-    }
-  }
-
-  for (const entity of list<unknown[]>(zone[zoneSlots.entities])) {
-    if (!isPlayerControlled(entity))
-      continue;
-
-    const visibility = Math.max(180, num(entity[entitySlots.visibility]));
-    const x = num(entity[entitySlots.positionX]);
-    const y = num(entity[entitySlots.positionZ]);
-    if (x + visibility < viewport.minX ||
-      x - visibility > viewport.maxX ||
-      y + visibility < viewport.minY ||
-      y - visibility > viewport.maxY) {
-      continue;
-    }
-
-    builder.add({
-      layerIndex: requiredLayerIndex(layerIndices, "visibility.mask"),
-      centerX: x,
-      centerY: y,
-      halfExtentX: visibility,
-      halfExtentY: visibility,
-      channel: 0,
-      falloff: 2,
-      valueR: 1,
-      valueG: 1,
-      valueB: 1,
-      valueA: 1,
-      sourceKey: entityKey(runId, num(zone[zoneSlots.zoneIndex]), num(entity[entitySlots.entityIndex], -1)),
-    });
-  }
-
-  return {
-    schema: AetheriaRtsSchemas.renderSplatsViewport,
-    frameId: num(frame[frameSlots.frameId]),
-    publishedAtUtc: str(frame[frameSlots.publishedAtUtc]),
-    simulationTimeSeconds: num(frame[frameSlots.simulationTimeSeconds]),
-    runId,
-    zoneIndex: num(zone[zoneSlots.zoneIndex]),
-    zoneName: str(zone[zoneSlots.name]) || `Zone ${num(zone[zoneSlots.zoneIndex])}`,
-    viewport,
-    layers,
-    splats: builder.build(),
-  };
-}
 
 export function buildSelectedObjectDocumentFromFrame(
   frameDocument: unknown,
@@ -370,6 +86,77 @@ export function buildInventoryDocumentFromFrame(frameDocument: unknown, request:
     items: allItems,
     equipment: allItems.filter(item => item.source === "equipment"),
     cargo: allItems.filter(item => item.source === "cargo"),
+  };
+}
+
+export function readViewportDocument(viewportDocument: unknown): ViewportResponse {
+  const document = arr(viewportDocument);
+  const objects = readViewportObjects(list<unknown[]>(document[gameViewportSlots.objects]));
+  const gravityInfluences = readGravityInfluences(list<unknown[]>(document[gameViewportSlots.gravityInfluences]));
+  const bodies = readBodyViews(list<unknown[]>(document[gameViewportSlots.bodies]));
+  return {
+    schema: str(document[gameViewportSlots.schema]) || AetheriaRtsSchemas.gameViewport,
+    frameId: num(document[gameViewportSlots.frameId]),
+    publishedAtUtc: str(document[gameViewportSlots.publishedAtUtc]),
+    simulationTimeSeconds: num(document[gameViewportSlots.simulationTimeSeconds]),
+    runId: str(document[gameViewportSlots.runId]) || missingDaemonRunId,
+    zoneIndex: num(document[gameViewportSlots.zoneIndex]),
+    zoneName: str(document[gameViewportSlots.zoneName]),
+    currentEntityKey: str(document[gameViewportSlots.currentEntityKey]),
+    viewport: readViewportBounds(document[gameViewportSlots.viewport]),
+    controlledEntityIndices: numberList(document[gameViewportSlots.controlledEntityIndices]),
+    objects,
+    gravityInfluences,
+    bodies,
+  };
+}
+
+export function readObjectsViewportDocument(viewportDocument: unknown): ObjectsViewportResponse {
+  const document = arr(viewportDocument);
+  return {
+    schema: str(document[objectsViewportSlots.schema]) || AetheriaRtsSchemas.objectsViewport,
+    frameId: num(document[objectsViewportSlots.frameId]),
+    publishedAtUtc: str(document[objectsViewportSlots.publishedAtUtc]),
+    simulationTimeSeconds: num(document[objectsViewportSlots.simulationTimeSeconds]),
+    runId: str(document[objectsViewportSlots.runId]) || missingDaemonRunId,
+    zoneIndex: num(document[objectsViewportSlots.zoneIndex]),
+    zoneName: str(document[objectsViewportSlots.zoneName]),
+    currentEntityKey: str(document[objectsViewportSlots.currentEntityKey]),
+    viewport: readViewportBounds(document[objectsViewportSlots.viewport]),
+    controlledEntityIndices: numberList(document[objectsViewportSlots.controlledEntityIndices]),
+    objects: readViewportObjects(list<unknown[]>(document[objectsViewportSlots.objects])),
+  };
+}
+
+export function readGravityViewportDocument(viewportDocument: unknown): GravityViewportResponse {
+  const document = arr(viewportDocument);
+  return {
+    schema: str(document[gravityViewportSlots.schema]) || AetheriaRtsSchemas.gravityViewport,
+    frameId: num(document[gravityViewportSlots.frameId]),
+    publishedAtUtc: str(document[gravityViewportSlots.publishedAtUtc]),
+    simulationTimeSeconds: num(document[gravityViewportSlots.simulationTimeSeconds]),
+    runId: str(document[gravityViewportSlots.runId]) || missingDaemonRunId,
+    zoneIndex: num(document[gravityViewportSlots.zoneIndex]),
+    zoneName: str(document[gravityViewportSlots.zoneName]),
+    viewport: readViewportBounds(document[gravityViewportSlots.viewport]),
+    gravityInfluences: readGravityInfluences(list<unknown[]>(document[gravityViewportSlots.gravityInfluences])),
+    bodies: readBodyViews(list<unknown[]>(document[gravityViewportSlots.bodies])),
+  };
+}
+
+export function readRenderSplatsViewportDocument(viewportDocument: unknown): RenderSplatsViewportResponse {
+  const document = arr(viewportDocument);
+  return {
+    schema: str(document[renderSplatsViewportSlots.schema]) || AetheriaRtsSchemas.renderSplatsViewport,
+    frameId: num(document[renderSplatsViewportSlots.frameId]),
+    publishedAtUtc: str(document[renderSplatsViewportSlots.publishedAtUtc]),
+    simulationTimeSeconds: num(document[renderSplatsViewportSlots.simulationTimeSeconds]),
+    runId: str(document[renderSplatsViewportSlots.runId]) || missingDaemonRunId,
+    zoneIndex: num(document[renderSplatsViewportSlots.zoneIndex]),
+    zoneName: str(document[renderSplatsViewportSlots.zoneName]),
+    viewport: readViewportBounds(document[renderSplatsViewportSlots.viewport]),
+    layers: list<unknown[]>(document[renderSplatsViewportSlots.layers]).map(readRenderSplatLayer),
+    splats: readRenderSplatSoa(document[renderSplatsViewportSlots.splats]),
   };
 }
 
@@ -467,11 +254,145 @@ function frameContext(frameDocument: unknown): {
   };
 }
 
-function normalizeViewport(request: ViewportRequest): ViewportRequest {
+function readViewportBounds(value: unknown): ViewportRequest {
+  const bounds = arr(value);
   return cultMeshViewportRequest(
-    cultMeshRectFromBounds(request.minX, request.minY, request.maxX, request.maxY),
-    request.controlledEntityIndices,
+    cultMeshRectFromBounds(
+      num(bounds[viewportBoundsSlots.minX]),
+      num(bounds[viewportBoundsSlots.minY]),
+      num(bounds[viewportBoundsSlots.maxX]),
+      num(bounds[viewportBoundsSlots.maxY]),
+    ),
+    [],
   );
+}
+
+function readViewportObjects(objects: unknown[][]): ViewObject[] {
+  return objects.map(readViewportObject);
+}
+
+function readViewportObject(object: unknown[]): ViewObject {
+  return {
+    entityIndex: num(object[viewportObjectSlots.entityIndex], -1),
+    entityKey: str(object[viewportObjectSlots.entityKey]),
+    displayName: str(object[viewportObjectSlots.displayName]),
+    kind: str(object[viewportObjectSlots.kind]),
+    factionKey: str(object[viewportObjectSlots.factionKey]),
+    x: num(object[viewportObjectSlots.x]),
+    y: num(object[viewportObjectSlots.y]),
+    z: num(object[viewportObjectSlots.z]),
+    directionX: num(object[viewportObjectSlots.directionX]),
+    directionY: num(object[viewportObjectSlots.directionY]),
+    velocityX: num(object[viewportObjectSlots.velocityX]),
+    velocityY: num(object[viewportObjectSlots.velocityY]),
+    controlled: bool(object[viewportObjectSlots.controlled]),
+    targetEntityIndex: num(object[viewportObjectSlots.targetEntityIndex], -1),
+    isActive: object[viewportObjectSlots.isActive] !== false,
+    visibility: num(object[viewportObjectSlots.visibility]),
+    iconAsset: assetRef(arr(object[viewportObjectSlots.iconAsset]), entityIconAsset(str(object[viewportObjectSlots.kind]), bool(object[viewportObjectSlots.controlled]))),
+    status: readViewportStatus(object[viewportObjectSlots.status]),
+    inventory: list<unknown[]>(object[viewportObjectSlots.inventory]).map(readViewportInventoryItem),
+  };
+}
+
+function readViewportStatus(value: unknown): EntityStatus {
+  const status = arr(value);
+  return {
+    hull: num(status[viewportStatusSlots.hull]),
+    shield: num(status[viewportStatusSlots.shield]),
+    heat: num(status[viewportStatusSlots.heat]),
+  };
+}
+
+function readViewportInventoryItem(value: unknown[]): InventoryItem {
+  const itemKey = str(value[viewportInventoryItemSlots.itemKey]);
+  return {
+    source: str(value[viewportInventoryItemSlots.source]),
+    itemKey,
+    quantity: num(value[viewportInventoryItemSlots.quantity]),
+    quality: num(value[viewportInventoryItemSlots.quality]),
+    durability: num(value[viewportInventoryItemSlots.durability]),
+    enabled: value[viewportInventoryItemSlots.enabled] !== false,
+    iconAsset: assetRef(arr(value[viewportInventoryItemSlots.iconAsset]), itemIconAsset(itemKey)),
+  };
+}
+
+function readGravityInfluences(influences: unknown[][]): GravityInfluence[] {
+  return influences.map(influence => ({
+    bodyKey: str(influence[gravityInfluenceSlots.bodyKey]),
+    orbitKey: str(influence[gravityInfluenceSlots.orbitKey]),
+    kind: str(influence[gravityInfluenceSlots.kind]),
+    x: num(influence[gravityInfluenceSlots.x]),
+    y: num(influence[gravityInfluenceSlots.y]),
+    radius: num(influence[gravityInfluenceSlots.radius]),
+    gravityDepth: num(influence[gravityInfluenceSlots.gravityDepth]),
+    gravityDepthExponent: num(influence[gravityInfluenceSlots.gravityDepthExponent]),
+    waveRadius: num(influence[gravityInfluenceSlots.waveRadius]),
+    waveDepth: num(influence[gravityInfluenceSlots.waveDepth]),
+    waveSpeed: num(influence[gravityInfluenceSlots.waveSpeed]),
+  }));
+}
+
+function readBodyViews(bodies: unknown[][]): BodyView[] {
+  return bodies.map(body => {
+    const kind = str(body[bodyViewSlots.kind]);
+    return {
+      bodyKey: str(body[bodyViewSlots.bodyKey]),
+      orbitKey: str(body[bodyViewSlots.orbitKey]),
+      name: str(body[bodyViewSlots.name]),
+      kind,
+      x: num(body[bodyViewSlots.x]),
+      y: num(body[bodyViewSlots.y]),
+      radius: num(body[bodyViewSlots.radius]),
+      isAsteroidBelt: bool(body[bodyViewSlots.isAsteroidBelt]),
+      body: num(body[bodyViewSlots.body]),
+      iconAsset: assetRef(arr(body[bodyViewSlots.iconAsset]), bodyIconAsset(kind)),
+      iconSize: num(body[bodyViewSlots.iconSize]),
+    };
+  });
+}
+
+function readRenderSplatLayer(layer: unknown[]): RenderSplatsViewportResponse["layers"][number] {
+  return {
+    layerKey: str(layer[renderSplatLayerSlots.layerKey]),
+    displayName: str(layer[renderSplatLayerSlots.displayName]),
+    channel: num(layer[renderSplatLayerSlots.channel]),
+    blendMode: str(layer[renderSplatLayerSlots.blendMode]),
+    graphicsFormat: str(layer[renderSplatLayerSlots.graphicsFormat]),
+    clearBeforeDraw: bool(layer[renderSplatLayerSlots.clearBeforeDraw]),
+    clearR: num(layer[renderSplatLayerSlots.clearR]),
+    clearG: num(layer[renderSplatLayerSlots.clearG]),
+    clearB: num(layer[renderSplatLayerSlots.clearB]),
+    clearA: num(layer[renderSplatLayerSlots.clearA]),
+  };
+}
+
+function readRenderSplatSoa(value: unknown): RenderSplatsViewportResponse["splats"] {
+  const splats = arr(value);
+  return {
+    count: num(splats[renderSplatSoaSlots.count]),
+    centerX: numberList(splats[renderSplatSoaSlots.centerX]),
+    centerY: numberList(splats[renderSplatSoaSlots.centerY]),
+    halfExtentX: numberList(splats[renderSplatSoaSlots.halfExtentX]),
+    halfExtentY: numberList(splats[renderSplatSoaSlots.halfExtentY]),
+    rotationCos: numberList(splats[renderSplatSoaSlots.rotationCos]),
+    rotationSin: numberList(splats[renderSplatSoaSlots.rotationSin]),
+    channel: numberList(splats[renderSplatSoaSlots.channel]),
+    falloff: numberList(splats[renderSplatSoaSlots.falloff]),
+    valueR: numberList(splats[renderSplatSoaSlots.valueR]),
+    valueG: numberList(splats[renderSplatSoaSlots.valueG]),
+    valueB: numberList(splats[renderSplatSoaSlots.valueB]),
+    valueA: numberList(splats[renderSplatSoaSlots.valueA]),
+    sourceKey: stringList(splats[renderSplatSoaSlots.sourceKey]),
+    layerIndex: numberList(splats[renderSplatSoaSlots.layerIndex]),
+    sourceKind: numberList(splats[renderSplatSoaSlots.sourceKind]),
+    frequencyX: numberList(splats[renderSplatSoaSlots.frequencyX]),
+    frequencyY: numberList(splats[renderSplatSoaSlots.frequencyY]),
+    phaseX: numberList(splats[renderSplatSoaSlots.phaseX]),
+    phaseY: numberList(splats[renderSplatSoaSlots.phaseY]),
+    animationSpeed: numberList(splats[renderSplatSoaSlots.animationSpeed]),
+    sourceFlags: numberList(splats[renderSplatSoaSlots.sourceFlags]),
+  };
 }
 
 function toViewObject(entity: unknown[], runId: string, zoneIndex: number): ViewObject {
@@ -501,34 +422,6 @@ function toViewObject(entity: unknown[], runId: string, zoneIndex: number): View
       heat: stat(entity, "heat"),
     },
     inventory: inventory(entity),
-  };
-}
-
-function toProjectileViewObject(projectile: unknown[]): ViewObject {
-  return {
-    entityIndex: -1,
-    entityKey: str(projectile[projectileSlots.projectileId]),
-    displayName: str(projectile[projectileSlots.weaponKind]) || "projectile",
-    kind: "projectile",
-    factionKey: str(projectile[projectileSlots.factionKey]),
-    x: num(projectile[projectileSlots.positionX]),
-    y: num(projectile[projectileSlots.positionZ]),
-    z: num(projectile[projectileSlots.positionY]),
-    directionX: num(projectile[projectileSlots.directionX]),
-    directionY: num(projectile[projectileSlots.directionY]),
-    velocityX: num(projectile[projectileSlots.velocityX]),
-    velocityY: num(projectile[projectileSlots.velocityY]),
-    controlled: false,
-    targetEntityIndex: num(projectile[projectileSlots.targetEntityIndex], -1),
-    isActive: projectile[projectileSlots.active] !== false,
-    visibility: num(projectile[projectileSlots.radius]),
-    iconAsset: spriteAsset("map.entity.projectile"),
-    status: {
-      hull: num(projectile[projectileSlots.damage]),
-      shield: 0,
-      heat: num(projectile[projectileSlots.ageSeconds]),
-    },
-    inventory: [],
   };
 }
 
@@ -573,38 +466,6 @@ function toStarbridgeRuntimeRole(role: unknown[]): StarbridgeSessionDocument["ru
   };
 }
 
-function toGravityInfluence(body: unknown[]): GravityInfluence {
-  return {
-    bodyKey: str(body[bodySlots.bodyKey]),
-    orbitKey: str(body[bodySlots.orbitKey]),
-    kind: str(body[bodySlots.kind]),
-    x: num(body[bodySlots.gravityInfluenceCenterX]),
-    y: num(body[bodySlots.gravityInfluenceCenterZ]),
-    radius: resolveGravityRadius(body),
-    gravityDepth: num(body[bodySlots.gravityWellDepth]),
-    gravityDepthExponent: num(body[bodySlots.gravityDepthExponent]),
-    waveRadius: num(body[bodySlots.gravityWaveRadius]),
-    waveDepth: num(body[bodySlots.gravityWaveDepth]),
-    waveSpeed: num(body[bodySlots.gravityWaveSpeed]),
-  };
-}
-
-function toBodyView(body: unknown[]): BodyView {
-  const kind = str(body[bodySlots.kind]);
-  return {
-    bodyKey: str(body[bodySlots.bodyKey]),
-    orbitKey: str(body[bodySlots.orbitKey]),
-    name: str(body[bodySlots.name]),
-    kind,
-    x: num(body[bodySlots.gravityInfluenceCenterX]),
-    y: num(body[bodySlots.gravityInfluenceCenterZ]),
-    radius: Math.max(32, num(body[bodySlots.bodyRadiusMultiplier]) * 70),
-    isAsteroidBelt: kind.toLowerCase().includes("asteroid"),
-    iconAsset: bodyIconAsset(kind),
-    iconSize: num(body[bodySlots.iconSize]),
-  };
-}
-
 function inventory(entity: unknown[]): InventoryItem[] {
   const items: InventoryItem[] = [];
   for (const slot of list<unknown[]>(entity[entitySlots.equipment]))
@@ -631,38 +492,6 @@ function addSlot(items: InventoryItem[], source: string, slot: unknown[]): void 
   });
 }
 
-function entityIntersectsViewport(entity: unknown[], viewport: ViewportRequest): boolean {
-  const x = num(entity[entitySlots.positionX]);
-  const y = num(entity[entitySlots.positionZ]);
-  return x >= viewport.minX && x <= viewport.maxX && y >= viewport.minY && y <= viewport.maxY;
-}
-
-function projectileIntersectsViewport(projectile: unknown[], viewport: ViewportRequest): boolean {
-  const x = num(projectile[projectileSlots.positionX]);
-  const y = num(projectile[projectileSlots.positionZ]);
-  return x >= viewport.minX && x <= viewport.maxX && y >= viewport.minY && y <= viewport.maxY;
-}
-
-function gravityInfluenceIntersectsViewport(body: unknown[], viewport: ViewportRequest): boolean {
-  const x = num(body[bodySlots.gravityInfluenceCenterX]);
-  const y = num(body[bodySlots.gravityInfluenceCenterZ]);
-  const radius = resolveGravityRadius(body);
-  return x + radius >= viewport.minX &&
-    x - radius <= viewport.maxX &&
-    y + radius >= viewport.minY &&
-    y - radius <= viewport.maxY;
-}
-
-function canSee(observer: unknown[], target: unknown[]): boolean {
-  if (num(observer[entitySlots.entityIndex], -1) === num(target[entitySlots.entityIndex], -2))
-    return true;
-
-  const dx = num(observer[entitySlots.positionX]) - num(target[entitySlots.positionX]);
-  const dy = num(observer[entitySlots.positionZ]) - num(target[entitySlots.positionZ]);
-  const range = Math.max(180, num(observer[entitySlots.visibility]));
-  return dx * dx + dy * dy <= range * range;
-}
-
 function isPlayerControlled(entity: unknown[]): boolean {
   return str(entity[entitySlots.factionKey]).toLowerCase() === "player";
 }
@@ -671,113 +500,6 @@ function stat(entity: unknown[], name: string): number {
   const grid = list<unknown[]>(entity[entitySlots.statGrids])
     .find(candidate => str(candidate[statGridSlots.name]).toLowerCase() === name.toLowerCase());
   return grid ? numberList(grid[statGridSlots.values])[0] ?? 0 : 0;
-}
-
-function resolveGravityRadius(body: unknown[]): number {
-  const explicit = num(body[bodySlots.gravityInfluenceRadius]);
-  if (explicit > 0)
-    return explicit;
-  return Math.max(32, num(body[bodySlots.bodyRadiusMultiplier]) * 70);
-}
-
-type RenderSplatRow = {
-  layerIndex: number;
-  centerX: number;
-  centerY: number;
-  halfExtentX: number;
-  halfExtentY: number;
-  rotationCos?: number;
-  rotationSin?: number;
-  channel: number;
-  falloff: number;
-  valueR?: number;
-  valueG?: number;
-  valueB?: number;
-  valueA?: number;
-  sourceKey: string;
-  sourceKind?: number;
-  frequencyX?: number;
-  frequencyY?: number;
-  phaseX?: number;
-  phaseY?: number;
-  animationSpeed?: number;
-  sourceFlags?: number;
-};
-
-class RenderSplatBuilder {
-  private readonly rows: RenderSplatRow[] = [];
-
-  public add(row: RenderSplatRow): void {
-    this.rows.push(row);
-  }
-
-  public build(): RenderSplatsViewportResponse["splats"] {
-    return {
-      count: this.rows.length,
-      centerX: this.rows.map(row => row.centerX),
-      centerY: this.rows.map(row => row.centerY),
-      halfExtentX: this.rows.map(row => row.halfExtentX),
-      halfExtentY: this.rows.map(row => row.halfExtentY),
-      rotationCos: this.rows.map(row => row.rotationCos ?? 1),
-      rotationSin: this.rows.map(row => row.rotationSin ?? 0),
-      channel: this.rows.map(row => row.channel),
-      falloff: this.rows.map(row => row.falloff),
-      valueR: this.rows.map(row => row.valueR ?? 0),
-      valueG: this.rows.map(row => row.valueG ?? 0),
-      valueB: this.rows.map(row => row.valueB ?? 0),
-      valueA: this.rows.map(row => row.valueA ?? 0),
-      sourceKey: this.rows.map(row => row.sourceKey),
-      layerIndex: this.rows.map(row => row.layerIndex),
-      sourceKind: this.rows.map(row => row.sourceKind ?? 0),
-      frequencyX: this.rows.map(row => row.frequencyX ?? 1),
-      frequencyY: this.rows.map(row => row.frequencyY ?? 1),
-      phaseX: this.rows.map(row => row.phaseX ?? 0),
-      phaseY: this.rows.map(row => row.phaseY ?? 0),
-      animationSpeed: this.rows.map(row => row.animationSpeed ?? 0),
-      sourceFlags: this.rows.map(row => row.sourceFlags ?? 0),
-    };
-  }
-}
-
-function defaultRenderSplatLayers(): RenderSplatsViewportResponse["layers"] {
-  return [
-    layer("gravity.height", "Gravity Height", 1, "add", "R16_SFloat"),
-    layer("gravity.wave", "Gravity Wave", 2, "add", "R16_SFloat"),
-    layer("visibility.mask", "Visibility Mask", 0, "max", "R16_SFloat"),
-    layer("fog.surface_height", "Fog Surface Height", 4, "add", "R16_SFloat"),
-    layer("fog.patch_height", "Fog Patch Height", 4, "add", "R16_SFloat"),
-    layer("fog.patch", "Fog Patch", 4, "max", "R16_SFloat"),
-    layer("fog.tint", "Fog Tint", 4, "add", "B10G11R11_UFloatPack32"),
-    layer("influence.mask", "Influence", 3, "add", "R16_SFloat"),
-  ];
-}
-
-function layer(
-  layerKey: string,
-  displayName: string,
-  channel: number,
-  blendMode: string,
-  graphicsFormat: string,
-): RenderSplatsViewportResponse["layers"][number] {
-  return {
-    layerKey,
-    displayName,
-    channel,
-    blendMode,
-    graphicsFormat,
-    clearBeforeDraw: true,
-    clearR: 0,
-    clearG: 0,
-    clearB: 0,
-    clearA: 0,
-  };
-}
-
-function requiredLayerIndex(layers: ReadonlyMap<string, number>, key: string): number {
-  const index = layers.get(key);
-  if (index == null)
-    throw new Error(`Missing render splat layer ${key}.`);
-  return index;
 }
 
 function entityKey(runId: string, zoneIndex: number, entityIndex: number): string {

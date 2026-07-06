@@ -16391,12 +16391,6 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
         [gameViewportDocumentsPath] = new[]
         {
             "public IReadOnlyList<AetheriaRuntimeProjectileCommit> Projectiles"
-        },
-        [rtsLocalDocumentsPath] = new[]
-        {
-            "const projectiles = list<unknown[]>(zone[zoneSlots.projectiles])",
-            ".map(toProjectileViewObject)",
-            "function toProjectileViewObject(projectile: unknown[]): ViewObject"
         }
     };
     var missingProjectileAuthoritySymbols = requiredProjectileAuthoritySymbols
@@ -16407,8 +16401,7 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
                 pair.Key == daemonSimulationSettingsPath ? daemonSimulationSettings :
                 pair.Key == ymirProjectilePhysicsPath ? ymirProjectilePhysics :
                 pair.Key == gameDocumentsPath ? gameDocuments :
-                pair.Key == gameViewportDocumentsPath ? gameViewportDocuments :
-                rtsLocalDocuments;
+                gameViewportDocuments;
             return pair.Value
                 .Where(symbol => !text.Contains(symbol, StringComparison.Ordinal))
                 .Select(symbol => $"{Path.GetRelativePath(root, pair.Key)}: missing {symbol}");
@@ -16595,6 +16588,39 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
     {
         throw new InvalidOperationException(
             "Electron Eve lowering must resolve CultMesh asset refs through the daemon CultMesh CDN protocol bridge.");
+    }
+    if (rtsElectronCultMesh.Contains("buildViewportDocumentFromFrame(await this.fetchLatestFrameDocument()", StringComparison.Ordinal) ||
+        rtsElectronCultMesh.Contains("buildObjectsViewportDocumentFromFrame(await this.fetchLatestFrameDocument()", StringComparison.Ordinal) ||
+        rtsElectronCultMesh.Contains("buildGravityViewportDocumentFromFrame(await this.fetchLatestFrameDocument()", StringComparison.Ordinal) ||
+        rtsElectronCultMesh.Contains("buildRenderSplatsViewportDocumentFromFrame(await this.fetchLatestFrameDocument()", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Electron viewport queries must fetch daemon-authored managed viewport documents, not rebuild field/view documents from daemonFrame.");
+    }
+    if (rtsLocalDocuments.Contains("buildViewportDocumentFromFrame", StringComparison.Ordinal) ||
+        rtsLocalDocuments.Contains("buildObjectsViewportDocumentFromFrame", StringComparison.Ordinal) ||
+        rtsLocalDocuments.Contains("buildGravityViewportDocumentFromFrame", StringComparison.Ordinal) ||
+        rtsLocalDocuments.Contains("buildRenderSplatsViewportDocumentFromFrame", StringComparison.Ordinal) ||
+        rtsLocalDocuments.Contains("RenderSplatBuilder", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Electron local document decoding must not keep dead viewport projection builders; daemon managed viewport documents own those fields.");
+    }
+    if (!rtsElectronCultMesh.Contains("fetchViewportDocument(AetheriaRtsSchemas.gameViewport, \"aetheria.viewport.map\"", StringComparison.Ordinal) ||
+        !rtsElectronCultMesh.Contains("fetchViewportDocument(AetheriaRtsSchemas.objectsViewport, \"aetheria.viewport.objects\"", StringComparison.Ordinal) ||
+        !rtsElectronCultMesh.Contains("fetchViewportDocument(AetheriaRtsSchemas.gravityViewport, \"aetheria.viewport.gravity\"", StringComparison.Ordinal) ||
+        !rtsElectronCultMesh.Contains("fetchViewportDocument(AetheriaRtsSchemas.renderSplatsViewport, \"aetheria.viewport.render_splats\"", StringComparison.Ordinal) ||
+        !rtsElectronCultMesh.Contains("managedViewportRecordKey(", StringComparison.Ordinal) ||
+        !rtsElectronCultMesh.Contains("readRenderSplatsViewportDocument(await this.fetchViewportDocument", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Electron viewport queries no longer use the daemon managed viewport document path.");
+    }
+    if (!daemonProgram.Contains("recordKey.StartsWith(\"aetheria.viewport.map.\"", StringComparison.Ordinal) ||
+        !daemonProgram.Contains("schemaId = AetheriaRuntimeDaemonSchemas.GameViewport", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Daemon snapshot handling must expose the managed map viewport document key beside objects/gravity/render-splats.");
     }
 
     if (daemonTickRunner.Contains("AetheriaRuntimeDaemonFrameStore.PublishFrame", StringComparison.Ordinal))

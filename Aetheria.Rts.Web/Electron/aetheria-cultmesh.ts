@@ -52,13 +52,13 @@ import {
   readAuthorityStatusDocument,
   readAssetManifestDocument,
   readDaemonHealthDocument,
-  buildGravityViewportDocumentFromFrame,
   buildInventoryDocumentFromFrame,
-  buildObjectsViewportDocumentFromFrame,
-  buildRenderSplatsViewportDocumentFromFrame,
+  readGravityViewportDocument,
+  readObjectsViewportDocument,
+  readRenderSplatsViewportDocument,
   buildSelectedObjectDocumentFromFrame,
   readStarbridgeSessionSummaryDocument,
-  buildViewportDocumentFromFrame,
+  readViewportDocument,
 } from "./aetheria-rts-local-documents.js";
 
 const connectionId = 0x43554c54;
@@ -208,10 +208,14 @@ export class AetheriaCultMeshClient {
       },
     );
     const executors = {
-      mapViewport: async (request: ViewportRequest) => buildViewportDocumentFromFrame(await this.fetchLatestFrameDocument(), request),
-      objectsViewport: async (request: ViewportRequest) => buildObjectsViewportDocumentFromFrame(await this.fetchLatestFrameDocument(), request),
-      gravityViewport: async (request: ViewportRequest) => buildGravityViewportDocumentFromFrame(await this.fetchLatestFrameDocument(), request),
-      renderSplatsViewport: async (request: ViewportRequest) => buildRenderSplatsViewportDocumentFromFrame(await this.fetchLatestFrameDocument(), request),
+      mapViewport: async (request: ViewportRequest) =>
+        readViewportDocument(await this.fetchViewportDocument(AetheriaRtsSchemas.gameViewport, "aetheria.viewport.map", request)),
+      objectsViewport: async (request: ViewportRequest) =>
+        readObjectsViewportDocument(await this.fetchViewportDocument(AetheriaRtsSchemas.objectsViewport, "aetheria.viewport.objects", request)),
+      gravityViewport: async (request: ViewportRequest) =>
+        readGravityViewportDocument(await this.fetchViewportDocument(AetheriaRtsSchemas.gravityViewport, "aetheria.viewport.gravity", request)),
+      renderSplatsViewport: async (request: ViewportRequest) =>
+        readRenderSplatsViewportDocument(await this.fetchViewportDocument(AetheriaRtsSchemas.renderSplatsViewport, "aetheria.viewport.render_splats", request)),
       selectedObject: async (request: SelectedObjectRequest) => buildSelectedObjectDocumentFromFrame(await this.fetchLatestFrameDocument(), request),
       inventory: async (request: SelectedObjectRequest) => buildInventoryDocumentFromFrame(await this.fetchLatestFrameDocument(), request),
       daemonHealth: async () => readDaemonHealthDocument(await this.fetchDaemonHealthDocument()),
@@ -481,6 +485,33 @@ export class AetheriaCultMeshClient {
     return this.fetchPublicationDocument(AetheriaRtsSchemas.assetManifest);
   }
 
+  private async fetchViewportDocument(
+    schemaId: string,
+    recordPrefix: string,
+    request: ViewportRequest,
+  ): Promise<unknown> {
+    const recordKey = managedViewportRecordKey(recordPrefix, request);
+    const document = CultMesh.documentFromPublication(
+      {
+        kind: "peer-snapshot",
+        peer: () => this.peer(),
+        endpoint: this.resolvedRudpEndpoint(),
+      },
+      schemaId,
+      recordKey,
+      {
+        documentId: recordKey,
+        routeHint: this.queryVerse.context.routeHint,
+        sourceId: recordKey,
+        timeoutMs: 1500,
+        pollMs: 50,
+        messageIdPrefix: `${this.runtimeId}:viewport`,
+      },
+    );
+
+    return retryTransientPublicationRead(() => document.latest(this.queryContext()));
+  }
+
   private fetchPublicationDocument(schemaId: string): Promise<unknown> {
     return retryTransientPublicationRead(() => this.publications.latest({ schemaId }, this.queryContext()));
   }
@@ -692,6 +723,26 @@ function normalizeCultMeshAssetUri(uri: string): string {
     throw new Error(`Aetheria asset URI must be CultMesh-native: ${value}`);
   }
   return value;
+}
+
+function managedViewportRecordKey(prefix: string, request: ViewportRequest): string {
+  const minX = Math.min(finiteNumber(request.minX), finiteNumber(request.maxX));
+  const minY = Math.min(finiteNumber(request.minY), finiteNumber(request.maxY));
+  const maxX = Math.max(finiteNumber(request.minX), finiteNumber(request.maxX));
+  const maxY = Math.max(finiteNumber(request.minY), finiteNumber(request.maxY));
+  return `${prefix}.${viewportToken(minX)}.${viewportToken(minY)}.${viewportToken(maxX)}.${viewportToken(maxY)}`;
+}
+
+function viewportToken(value: number): string {
+  const rounded = Math.round(value * 1000) / 1000;
+  return rounded
+    .toString()
+    .replace("-", "n")
+    .replace(".", "p");
+}
+
+function finiteNumber(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
 function normalizeAssetBlob(value: unknown): Uint8Array {
