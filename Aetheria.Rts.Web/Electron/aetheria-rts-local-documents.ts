@@ -522,7 +522,7 @@ function toProjectileViewObject(projectile: unknown[]): ViewObject {
     targetEntityIndex: num(projectile[projectileSlots.targetEntityIndex], -1),
     isActive: projectile[projectileSlots.active] !== false,
     visibility: num(projectile[projectileSlots.radius]),
-    iconAsset: spriteAsset("aetheria.asset.sprite.rts.projectile", "Sprites/Icons/Lightning Bolt"),
+    iconAsset: spriteAsset("aetheria.asset.sprite.game.projectile", "Sprites/Icons/Lightning Bolt"),
     status: {
       hull: num(projectile[projectileSlots.damage]),
       shield: 0,

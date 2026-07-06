@@ -1959,7 +1959,7 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual(zone.Projectiles.Count, zoneRender.Projectiles.Count);
         Assert.IsTrue(objectsViewport.Objects.Any(obj =>
             obj.Kind == "projectile" &&
-            obj.IconAsset.AssetKey == "aetheria.asset.sprite.rts.projectile"));
+            obj.IconAsset.AssetKey == "aetheria.asset.sprite.game.projectile"));
     }
 
     [Test]

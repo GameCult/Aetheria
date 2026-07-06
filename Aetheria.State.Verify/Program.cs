@@ -16097,6 +16097,7 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
         "AetheriaRuntimeClientTargetStore.cs");
     var runtimeClientProviderPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityRuntimeClientProvider.cs");
     var rtsLocalDocumentsPath = Path.Combine(root, "Aetheria.Rts.Web", "Electron", "aetheria-rts-local-documents.ts");
+    var daemonRuntimeDocumentTestsPath = Path.Combine(root, "Assets", "Scripts", "Tests", "DaemonRuntimeDocumentTests.cs");
     var authoritySmokePath = Path.Combine(root, "Aetheria.State.AuthoritySmoke", "Program.cs");
     var freezePath = Path.Combine(root, "Aetheria.State.Freeze", "Program.cs");
     var snapshotDocuments = File.Exists(snapshotDocumentsPath)
@@ -16129,6 +16130,9 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
     var rtsLocalDocuments = File.Exists(rtsLocalDocumentsPath)
         ? File.ReadAllText(rtsLocalDocumentsPath)
         : throw new InvalidOperationException("Cannot verify daemon projectile authority; Electron local projection is missing.");
+    var daemonRuntimeDocumentTests = File.Exists(daemonRuntimeDocumentTestsPath)
+        ? File.ReadAllText(daemonRuntimeDocumentTestsPath)
+        : throw new InvalidOperationException("Cannot verify daemon projectile authority; daemon runtime document tests are missing.");
     var authoritySmoke = File.Exists(authoritySmokePath)
         ? File.ReadAllText(authoritySmokePath)
         : throw new InvalidOperationException("Cannot verify daemon transport vocabulary; authority smoke harness is missing.");
@@ -16304,6 +16308,21 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
         throw new InvalidOperationException(
             "Aetheria shared runtime still exposes RTS-specific authority vocabulary: " +
             string.Join(", ", sharedRuntimeAuthorityHits));
+    }
+
+    var staleRuntimeSpecificAssetSources = new Dictionary<string, string>
+    {
+        ["Aetheria.Rts.Web/Electron/aetheria-rts-local-documents.ts"] = rtsLocalDocuments,
+        ["Assets/Scripts/Tests/DaemonRuntimeDocumentTests.cs"] = daemonRuntimeDocumentTests
+    }
+        .Where(pair => pair.Value.Contains("aetheria.asset.sprite.rts.", StringComparison.Ordinal))
+        .Select(pair => pair.Key)
+        .ToArray();
+    if (staleRuntimeSpecificAssetSources.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Aetheria projectile and map assets must use daemon/shared game asset keys, not runtime-branded sprite keys: " +
+            string.Join(", ", staleRuntimeSpecificAssetSources));
     }
 
     if (daemonTickRunner.Contains("AetheriaRuntimeDaemonFrameStore.PublishFrame", StringComparison.Ordinal))
