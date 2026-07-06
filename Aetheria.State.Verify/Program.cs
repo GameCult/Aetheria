@@ -8808,7 +8808,7 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
         "public CultMeshDocumentHandle<AetheriaRuntimeSurfaceDocument> ZoneDetailsSurface(",
         "public CultMeshDocumentHandle<AetheriaRuntimeSurfaceDocument> InventoryPanelSurface(",
         "public CultMeshDocumentHandle<AetheriaRuntimeSurfaceDocument> InventoryDropdownSurface(",
-        "public CultMeshDocumentHandle<AetheriaRuntimeSelectedObjectDocument> SelectedObject(",
+        "public CultMeshDocumentHandle<AetheriaRuntimeSelectedObjectDocument> SelectedObject(int entityIndex)",
         "public CultMeshDocumentHandle<AetheriaRuntimeInventoryDocument> Inventory(",
         "public CultMeshDocumentHandle<AetheriaRuntimeStarbridgeScenarioDocument> StarbridgeScenario { get; }",
         "public CultMeshDocumentHandle<AetheriaRuntimeStarbridgeSessionDocument> StarbridgeSession { get; }",
@@ -8823,6 +8823,13 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
         throw new InvalidOperationException(
             "AetheriaClientState must expose managed document handles for remaining domain documents: " +
             string.Join(", ", missingClientSymbols));
+    }
+    if (clientState.Contains("SelectedObject(int zoneIndex)", StringComparison.Ordinal) ||
+        clientState.Contains("_selectedObject(zoneIndex)", StringComparison.Ordinal) ||
+        clientState.Contains("Aetheria zone index must be non-negative.\";\r\n\r\n            return _selectedObject", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Selected object documents are entity-indexed; AetheriaClientState must not expose a zone-indexed selected-object handle.");
     }
 
     var forbiddenFixedReactiveSymbols = new[]

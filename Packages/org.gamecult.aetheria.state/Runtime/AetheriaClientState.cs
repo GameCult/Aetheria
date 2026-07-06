@@ -270,12 +270,12 @@ namespace GameCult.Aetheria.State.Verse
             return _mainMenuSurfaceDocument(surfaceId, canOpenRuntimeInputScreen, inGame);
         }
 
-        public CultMeshDocumentHandle<AetheriaRuntimeSelectedObjectDocument> SelectedObject(int zoneIndex)
+        public CultMeshDocumentHandle<AetheriaRuntimeSelectedObjectDocument> SelectedObject(int entityIndex)
         {
-            if (zoneIndex < 0)
-                throw new ArgumentOutOfRangeException(nameof(zoneIndex), zoneIndex, "Aetheria zone index must be non-negative.");
+            if (entityIndex < 0)
+                throw new ArgumentOutOfRangeException(nameof(entityIndex), entityIndex, "Aetheria entity index must be non-negative.");
 
-            return _selectedObject(zoneIndex);
+            return _selectedObject(entityIndex);
         }
 
         public CultMeshDocumentHandle<AetheriaRuntimeInventoryDocument> Inventory(int entityIndex)
