@@ -136,9 +136,10 @@ Completed and usable:
   from C# `[Key]` declarations.
 - `Aetheria.Rts.Web/Electron/aetheria-rts-bindings.ts` keeps ergonomic command
   encoders and public TS request/response types.
-- `Aetheria.Rts.Web/Electron/aetheria-rts-local-projection.ts` projects the
-  latest daemon frame into a local map viewport.
-- Electron no longer requests the remote RTS viewport snapshot document.
+- `Aetheria.Rts.Web/Electron/aetheria-cultmesh.ts` reads daemon-authored
+  managed documents through CultMesh document catalog/query handles.
+- `Aetheria.Rts.Web/Electron/aetheria-rts-local-documents.ts` only decodes
+  those managed documents into TypeScript values.
 - `AetheriaRuntimeGameViewportDocuments` owns the matching C# map projection and
   the daemon delegates the temporary RUDP compatibility hook to it.
 - `AetheriaRuntimeStarbridgeDocuments` owns the first S0 session-summary
@@ -338,7 +339,8 @@ Build:
 
 Outputs:
 
-- `Aetheria.Rts.Web/Electron/aetheria-rts-local-projection.ts`
+- daemon-authored managed viewport/indexed documents;
+- `Aetheria.Rts.Web/Electron/aetheria-rts-local-documents.ts`
 - `Aetheria.Rts.Web/Electron/aetheria-cultmesh.ts`
 - `Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeGameViewportDocuments.cs`
 - `Aetheria.State.AuthoritySmoke/Program.cs`
@@ -389,7 +391,7 @@ Build:
 
 Outputs:
 
-- `Aetheria.Rts.Web/Electron/aetheria-rts-local-projection.ts`
+- `Aetheria.Rts.Web/Electron/aetheria-rts-local-documents.ts`
 - `Aetheria.Rts.Web/Electron/aetheria-rts-bindings.ts`
 - `Aetheria.Rts.Web/Electron/aetheria-cultmesh.ts`
 - `Aetheria.Rts.Web/Client/app.ts`
@@ -443,8 +445,10 @@ Build:
 
 Outputs:
 
-- `Aetheria.Rts.Web/Electron/aetheria-local-publication-reader.ts`;
-- updated `AetheriaCultMeshClient` read path;
+- updated `AetheriaCultMeshClient` document catalog and managed query read
+  path;
+- typed document decoding in
+  `Aetheria.Rts.Web/Electron/aetheria-rts-local-documents.ts`;
 - verifier proving map reads no longer issue snapshot requests for local frame
   data.
 - authority policy sidecar publication through

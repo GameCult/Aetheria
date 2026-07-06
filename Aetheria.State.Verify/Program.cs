@@ -16374,6 +16374,10 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
     var rtsElectronMainPath = Path.Combine(root, "Aetheria.Rts.Web", "Electron", "main.ts");
     var rtsElectronCultMeshPath = Path.Combine(root, "Aetheria.Rts.Web", "Electron", "aetheria-cultmesh.ts");
     var rtsClientAppPath = Path.Combine(root, "Aetheria.Rts.Web", "Client", "app.ts");
+    var verseAuthorityPlanPath = Path.Combine(root, "Aetheria.State", "docs", "verse-authority-implementation-plan.md");
+    var stage7ThinClientPlanPath = Path.Combine(root, "Aetheria.State", "docs", "stage-7-thin-client-staged-implementation-plan.md");
+    var stage7ClientSurfaceInventoryPath = Path.Combine(root, "Aetheria.State", "docs", "stage-7-client-surface-inventory.md");
+    var daemonCodeMapPath = Path.Combine(root, "Aetheria.State", "docs", "daemon-code-map-for-rust-port.md");
     var daemonRuntimeDocumentTestsPath = Path.Combine(root, "Assets", "Scripts", "Tests", "DaemonRuntimeDocumentTests.cs");
     var authoritySmokePath = Path.Combine(root, "Aetheria.State.AuthoritySmoke", "Program.cs");
     var freezePath = Path.Combine(root, "Aetheria.State.Freeze", "Program.cs");
@@ -16422,6 +16426,19 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
     var rtsClientApp = File.Exists(rtsClientAppPath)
         ? File.ReadAllText(rtsClientAppPath)
         : throw new InvalidOperationException("Cannot verify Electron CultMesh CDN asset authority; renderer app is missing.");
+    var activeStage7ArchitectureDocs = new[]
+    {
+        verseAuthorityPlanPath,
+        stage7ThinClientPlanPath,
+        stage7ClientSurfaceInventoryPath,
+        daemonCodeMapPath
+    }
+        .Select(path => File.Exists(path)
+            ? File.ReadAllText(path)
+            : throw new InvalidOperationException(
+                "Cannot verify RTS client authority documentation; architecture doc is missing: " +
+                Path.GetRelativePath(root, path)))
+        .ToArray();
     var daemonRuntimeDocumentTests = File.Exists(daemonRuntimeDocumentTestsPath)
         ? File.ReadAllText(daemonRuntimeDocumentTestsPath)
         : throw new InvalidOperationException("Cannot verify daemon projectile authority; daemon runtime document tests are missing.");
@@ -16715,6 +16732,33 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
     {
         throw new InvalidOperationException(
             "Electron local document decoding must not keep dead viewport, selection, or inventory projection builders; daemon managed documents own those fields.");
+    }
+    var staleRtsClientDocumentationPhrases = new[]
+    {
+        "aetheria-rts-local-projection.ts",
+        "aetheria-local-publication-reader.ts",
+        "AetheriaLocalPublicationReader",
+        "AetheriaRemotePublicationReader",
+        "projection facade methods backed by local CultCache publication sidecars",
+        "Electron sends CultMesh commands but still reads local `.cc` publications.",
+        "TS duplicates projection logic by decoding MessagePack arrays and slot constants."
+    };
+    var staleRtsClientDocumentationHits = activeStage7ArchitectureDocs
+        .SelectMany((text, index) => staleRtsClientDocumentationPhrases
+            .Where(phrase => text.Contains(phrase, StringComparison.Ordinal))
+            .Select(phrase => $"{Path.GetRelativePath(root, new[]
+            {
+                verseAuthorityPlanPath,
+                stage7ThinClientPlanPath,
+                stage7ClientSurfaceInventoryPath,
+                daemonCodeMapPath
+            }[index])}: {phrase}"))
+        .ToArray();
+    if (staleRtsClientDocumentationHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Active architecture docs must not preserve deleted Electron local projection/publication-reader wrappers as the client contract; Hermodr and Electron consume daemon-authored documents through the Eve/CultMesh contract: " +
+            string.Join("; ", staleRtsClientDocumentationHits));
     }
     if (!rtsElectronCultMesh.Contains("fetchViewportDocument(AetheriaRtsSchemas.gameViewport, \"aetheria.viewport.map\"", StringComparison.Ordinal) ||
         !rtsElectronCultMesh.Contains("fetchViewportDocument(AetheriaRtsSchemas.objectsViewport, \"aetheria.viewport.objects\"", StringComparison.Ordinal) ||

@@ -56,8 +56,10 @@ The current daemon is one C# executable around a CultMesh node. It ensures seed 
 That shape proved the core idea, but it also leaked implementation details into every edge:
 
 - Unity observes daemon state through a C# facade and memory-mapped SoA view.
-- Electron sends CultMesh commands but still reads local `.cc` publications.
-- TS duplicates projection logic by decoding MessagePack arrays and slot constants.
+- Electron sends CultMesh commands and reads daemon-authored managed documents
+  through the CultMesh document catalog.
+- TS decodes the daemon-authored document slot layout, but must not duplicate
+  projection authority or rebuild view/state from raw daemon frames.
 - RUDP snapshot handling injects ad hoc viewport projection records.
 - Eve/CultUI surface generation is mixed into daemon publication.
 - The host loop seeds scenario content and durable docs directly.
@@ -87,7 +89,7 @@ These files define the deprecated reference surface. They should be treated as A
 | Operation builders | `Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeDaemonOperationClient.cs` and `AetheriaRuntimeDaemonOperationsClient.cs` | Existing typed operation vocabulary. |
 | Eve bridge | `Aetheria.State/AetheriaEveCommandBridge.cs` | Existing Eve command acceptance behavior for settings, catalog, policies, and surfaces. |
 | Unity consumption | `Assets/Scripts/Gameplay/AetheriaDaemonObserver.cs` | Current Unity daemon observation, SoA remapping, and render native view handoff. |
-| TS consumption | `Aetheria.Rts.Web/Electron/aetheria-cultmesh.ts`, `aetheria-rts-local-projection.ts`, `aetheria-local-publication-reader.ts` | Current Electron command sending, local publication reading, and duplicated projection behavior. |
+| TS consumption | `Aetheria.Rts.Web/Electron/aetheria-cultmesh.ts`, `Aetheria.Rts.Web/Electron/aetheria-rts-local-documents.ts` | Current Electron command sending, CultMesh document catalog/query reads, and typed daemon document decoding. |
 | Ymir C# contracts | `Assets/Scripts/ServerShared/YmirPhysicsContracts.cs` | Current body/world/query DTOs plus reference implementation for step, overlap, and cast queries. |
 | Ymir Unity bridge | `Assets/Scripts/Gameplay/Physics/AetheriaYmirPhysicsBridge.cs` | Current Unity presentation adapter that maps daemon SoA bodies into typed Ymir query worlds. |
 | Ymir query tests | `Assets/Scripts/Tests/YmirPhysicsQueryTests.cs` | Current expectations for integration, radial fields, contacts, overlap sphere/circle, and cast sphere/circle; useful semantics should survive, DTO/endpoint shape should not. |

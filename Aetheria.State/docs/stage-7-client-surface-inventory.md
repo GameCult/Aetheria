@@ -239,15 +239,15 @@ Done:
   inline;
 - `Aetheria.State.AuthoritySmoke` verifies the projection behavior against a
   local daemon frame;
-- Electron map reads now fetch the latest daemon frame and project it locally in
-  `aetheria-rts-local-projection.ts` instead of requesting the remote RTS
-  viewport document;
+- Electron map reads now fetch daemon-authored managed viewport documents
+  through CultMesh query handles instead of rebuilding viewports locally from
+  the latest daemon frame;
 - Electron selected-object, inventory/cargo, daemon health, and authority status
-  panels now read through typed local projection facade methods instead of
-  deriving panel state sideways from the map payload;
-- Electron map/panel projection reads now use local CultCache publication files
-  through `aetheria-local-publication-reader.ts` instead of loopback
-  `sendSnapshotRequest`;
+  panels now decode typed daemon documents instead of deriving panel state
+  sideways from the map payload;
+- Electron map/panel reads use the CultMesh document catalog and managed query
+  records instead of loopback `sendSnapshotRequest` or local publication reader
+  wrappers;
 - the daemon publishes the Verse authority policy to a local `.authority.policy.cc`
   sidecar so Electron can read authority status locally alongside frame and
   health;

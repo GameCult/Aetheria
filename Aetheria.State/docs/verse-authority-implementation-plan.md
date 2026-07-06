@@ -753,12 +753,11 @@ Current artifacts:
 - `Aetheria.Rts.Web/Electron/aetheria-rts-bindings.ts` owns only ergonomic
   command encoders and public request/response types over the generated
   contract metadata.
-- `Aetheria.Rts.Web/Electron/aetheria-rts-local-projection.ts` projects the
-  latest daemon frame into the Electron map viewport locally, and also owns
-  selected-object, inventory/cargo, daemon health, and authority-status
-  projections.
-- `Aetheria.Rts.Web/Electron/aetheria-local-publication-reader.ts` reads local
-  CultCache publication sidecars for frame, health, and authority policy.
+- `Aetheria.Rts.Web/Electron/aetheria-cultmesh.ts` reads daemon-authored
+  managed documents through the CultMesh document catalog and query handles.
+- `Aetheria.Rts.Web/Electron/aetheria-rts-local-documents.ts` decodes those
+  daemon-authored documents into TypeScript view values; it must not rebuild
+  field, viewport, selection, inventory, or asset documents from daemon frames.
 - `Aetheria.Rts.Web/scripts/verify-stage7c-local-runtime.ps1` proves the
   compiled Electron runtime facade can drive map, selection, inventory, health,
   and authority projections from a one-shot daemon's local publications.
@@ -1909,11 +1908,11 @@ publish post-import frames, and converge in the two-daemon smoke.
 
 The current known risk is Stage 7 client parity. RTS/Electron no longer exposes
 public generic `command` or `viewport` APIs, the TS contract metadata is
-generated from C# document declarations, and the map viewport is projected
-locally in TypeScript from the latest daemon frame. Electron selected-object,
-inventory/cargo, daemon health, and authority status now read through typed
-projection facade methods backed by local CultCache publication sidecars. The
-Stage 7C verifiers prove both the compiled Electron runtime facade and the real
-Electron app shell against local daemon publications. The remaining Stage 7 risk
-is Unity parity: Unity still needs the same typed local Verse client shape before
-the gameplay shell can be demolished.
+generated from C# document declarations, and Electron fetches daemon-authored
+managed documents through CultMesh document catalog/query handles. Electron
+selected-object, inventory/cargo, daemon health, and authority status are
+decoded from those typed daemon documents, not rebuilt from daemon frames or
+local sidecar readers. The Stage 7C verifiers prove both the compiled Electron
+runtime facade and the real Electron app shell against local daemon
+publications. The remaining Stage 7 risk is Unity parity: Unity still needs the
+same typed local Verse client shape before the gameplay shell can be demolished.
