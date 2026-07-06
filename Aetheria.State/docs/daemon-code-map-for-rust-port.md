@@ -30,9 +30,9 @@ flowchart TD
     Authority["Authority router\npolicy + leases"]
     Tick["Tick runner"]
     Ops["Operations executor\nmutates run checkpoint"]
-    Sim["RTS sim\nmovement, AI, combat, contacts"]
+    Sim["Daemon sim\nmovement, AI, combat, contacts"]
     Frame["Frame document\nrun snapshot + facts"]
-    Projection["Projection helpers\nviewport, gravity, inventory"]
+    Projection["Game viewport documents\nviewport, gravity, inventory"]
     Publications["Publications\nCultNet records, .cc files, RUDP snapshots, Eve surfaces"]
     Unity["Unity client\nobserver + SoA mmap"]
     TS["Electron/TS client\nCultMesh send, local reads"]
@@ -51,7 +51,7 @@ flowchart TD
     Publications --> TS
 ```
 
-The current daemon is one C# executable around a CultMesh node. It ensures seed documents, reads typed command documents, authorizes them, applies operations, steps a compact RTS sim, publishes a new frame, and emits several secondary publications for clients.
+The current daemon is one C# executable around a CultMesh node. It ensures seed documents, reads typed command documents, authorizes them, applies operations, steps daemon-owned Aetheria simulation, publishes a new frame, and emits several secondary publications for clients.
 
 That shape proved the core idea, but it also leaked implementation details into every edge:
 
@@ -80,8 +80,8 @@ These files define the deprecated reference surface. They should be treated as A
 | SoA documents | `Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeDaemonSoaDocuments.cs` | SoA backends, sync modes, column ids, dirty ranges, render groups. |
 | Command application | `Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeDaemonOperations.cs` | Current meaning of every gameplay command and rejection. |
 | Tick composition | `Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeDaemonTickRunner.cs` | Current order of command filtering, operation execution, sim step, frame creation, publication payloads. |
-| Compact sim | `Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeRtsSimulation.cs` | Existing movement, hostile AI, combat, heat, and contact rules. |
-| Projections | `Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeRtsProjection.cs` | Existing map, object, gravity, selected object, docking, refit, sector, and inventory projections. |
+| Daemon sim | `Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeDaemonSimulation.cs` | Existing movement, hostile AI, combat, heat, and contact rules. |
+| Game viewport documents | `Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeGameViewportDocuments.cs` | Existing map, object, gravity, selected object, docking, refit, sector, and inventory projections. |
 | Client facade | `Packages/org.gamecult.aetheria.state/Runtime/AetheriaClient.cs` | C# client observation and typed operation ergonomics. |
 | Verse client | `Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeVerseClient.cs` | Current lower-level typed document reads/watches and command submission. |
 | Operation builders | `Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeDaemonOperationClient.cs` and `AetheriaRuntimeDaemonOperationsClient.cs` | Existing typed operation vocabulary. |
@@ -108,7 +108,7 @@ The C# host does this today:
    - Read loadout templates, daemon commands, authority policy, Starbridge state, and leases.
    - Filter commands through authority rules.
    - Execute daemon operations.
-   - Step the compact RTS sim.
+   - Step the daemon-owned Aetheria simulation.
    - Build a daemon frame.
    - Publish committed command facts.
    - Import remote committed command facts.

@@ -139,9 +139,9 @@ Completed and usable:
 - `Aetheria.Rts.Web/Electron/aetheria-rts-local-projection.ts` projects the
   latest daemon frame into a local map viewport.
 - Electron no longer requests the remote RTS viewport snapshot document.
-- `AetheriaRuntimeRtsProjection` owns the matching C# map projection and the
-  daemon delegates the temporary RUDP compatibility hook to it.
-- `AetheriaRuntimeStarbridgeProjection` owns the first S0 session-summary
+- `AetheriaRuntimeGameViewportDocuments` owns the matching C# map projection and
+  the daemon delegates the temporary RUDP compatibility hook to it.
+- `AetheriaRuntimeStarbridgeDocuments` owns the first S0 session-summary
   projection, and `AetheriaClient.StarbridgeSessionSummaryAsync` exposes it as
   a semantic managed read without routing through map viewport state. Scenario
   and session facts now have latest-record keys in local Verse, so clients can
@@ -326,7 +326,7 @@ Inputs:
 
 - Generated daemon frame and nested snapshot metadata from 7B.1.
 - Typed map request/response model from 7B.2.
-- C# projection semantics in `AetheriaRuntimeRtsProjection`.
+- C# projection semantics in `AetheriaRuntimeGameViewportDocuments`.
 
 Build:
 
@@ -340,7 +340,7 @@ Outputs:
 
 - `Aetheria.Rts.Web/Electron/aetheria-rts-local-projection.ts`
 - `Aetheria.Rts.Web/Electron/aetheria-cultmesh.ts`
-- `Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeRtsProjection.cs`
+- `Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeGameViewportDocuments.cs`
 - `Aetheria.State.AuthoritySmoke/Program.cs`
 
 Demolition target:
@@ -874,7 +874,7 @@ Completed slice:
   relationships so Unity no longer needs a whole daemon frame just to enter the
   observer scene.
 - `gamecult.aetheria.zone_render.v1` now names the transitional Unity zone
-  renderer feed. `AetheriaRuntimeRtsProjection.ProjectZoneRender` owns the
+  renderer feed. `AetheriaRuntimeGameViewportDocuments.ProjectZoneRender` owns the
   projection, `AetheriaClient.ZoneRenderAsync` exposes it as a facade read, and
   `ActionGameManager` now restores the Unity shell from
   `AetheriaRuntimeZoneRenderDocument` rather than directly from a raw daemon
@@ -890,7 +890,7 @@ Completed slice:
   making the boundary explicit and shared before replacing that payload with
   native/projection slabs.
 - `gamecult.aetheria.current_entity.v1` now names the portable current-subject
-  feed. `AetheriaRuntimeRtsProjection.ProjectCurrentEntity` derives the active
+  feed. `AetheriaRuntimeGameViewportDocuments.ProjectCurrentEntity` derives the active
   entity from the typed run current entity key and returns entity identity,
   status, inventory, equipment, and cargo without requiring callers to know the
   entity index. `AetheriaClient.CurrentEntityAsync` exposes the feed for Unity

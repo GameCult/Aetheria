@@ -1453,6 +1453,7 @@ static void RequireNoDeadRuntimeProjectionClasses(string root)
 {
     var forbiddenSymbols = new[]
     {
+        "AetheriaRuntimeRtsSimulation",
         "AetheriaRuntimeRtsProjection",
         "AetheriaRuntimeStarbridgeProjection"
     };
@@ -1478,6 +1479,27 @@ static void RequireNoDeadRuntimeProjectionClasses(string root)
         throw new InvalidOperationException(
             "Dead runtime projection class names must stay deleted; use typed document builders/handles instead: " +
             string.Join("; ", hits));
+    }
+
+    var activeDocsRoot = Path.Combine(root, "Aetheria.State", "docs");
+    if (Directory.Exists(activeDocsRoot))
+    {
+        var docHits = Directory.EnumerateFiles(activeDocsRoot, "*.md", SearchOption.AllDirectories)
+            .SelectMany(path =>
+            {
+                var text = File.ReadAllText(path);
+                return forbiddenSymbols
+                    .Where(symbol => text.Contains(symbol, StringComparison.Ordinal))
+                    .Select(symbol => $"{Path.GetRelativePath(root, path)} contains {symbol}");
+            })
+            .ToArray();
+
+        if (docHits.Length > 0)
+        {
+            throw new InvalidOperationException(
+                "Active architecture docs must not point future work at deleted runtime-specific shared authorities: " +
+                string.Join("; ", docHits));
+        }
     }
 }
 

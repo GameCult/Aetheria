@@ -232,7 +232,7 @@ Known command ingress:
 Known mutation points:
 
 - `AetheriaRuntimeDaemonOperations.Execute`;
-- `AetheriaRuntimeRtsSimulation.Step`;
+- `AetheriaRuntimeDaemonSimulation.Step`;
 - fact import through `AetheriaRuntimeCommittedFactImporter`;
 - any Unity-side gameplay mutation found by follow-up audit.
 
@@ -734,7 +734,7 @@ Current artifacts:
 - `Aetheria.Rts.Web/scripts/verify-stage7c-electron-shell.ps1` launches the real
   Electron app shell and proves the renderer can refresh through preload IPC
   using the same typed projection facade.
-- `Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeRtsProjection.cs`
+- `Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeGameViewportDocuments.cs`
   owns typed map viewport projection over local daemon frame state.
 - `Aetheria.State.Daemon/Program.cs` delegates the temporary RUDP RTS viewport
   snapshot hook to the shared projection API.
@@ -1370,7 +1370,7 @@ Current staged work order:
 
 | Order | Build now | Code surface | Verifier | Demolition rule |
 | --- | --- | --- | --- | --- |
-| 1 | Finish S2 station/refit read parity. `current_entity`, `current_docking`, inventory rows, source slot identity, and loadout templates are already moving; split remaining station stock, docked ship, cargo, equipment, pricing, and refit eligibility reads into canonical typed documents or derived projections as appropriate. | `AetheriaRuntimeRtsProjection`, `AetheriaRuntimeGameViewportDocuments`, `AetheriaClient`, Unity inventory/trade menus, generated TS bindings. | `verify-stage7d-unity-parity.ps1`, `Aetheria.State.Verify`, `AuthoritySmoke`, `npm run check:rts-bindings`, Unity compile. | Menu logic may adapt Unity controls, but station/refit truth may not come from manager-global observed cargo, docked ship, catalog, pricing, or loadout caches. |
+| 1 | Finish S2 station/refit read parity. `current_entity`, `current_docking`, inventory rows, source slot identity, and loadout templates are already moving; split remaining station stock, docked ship, cargo, equipment, pricing, and refit eligibility reads into canonical typed documents or derived projections as appropriate. | `AetheriaRuntimeGameViewportDocuments`, `AetheriaClient`, Unity inventory/trade menus, generated TS bindings. | `verify-stage7d-unity-parity.ps1`, `Aetheria.State.Verify`, `AuthoritySmoke`, `npm run check:rts-bindings`, Unity compile. | Menu logic may adapt Unity controls, but station/refit truth may not come from manager-global observed cargo, docked ship, catalog, pricing, or loadout caches. |
 | 2 | Add S2 typed refit operation parity. Dock, undock, select docked ship, equip, store, transfer, restore loadout, and purchase/refit become named operations with typed receipts. | `AetheriaRuntimeDaemonOperationClient`, `AetheriaRuntimeVerseClient`, generated TS operation bindings, Unity/Electron facade methods, daemon operation validation. | Cross-client operation smoke: one runtime issues an allowed refit operation, the other observes the committed result through local Verse state. | Delete or quarantine any public client path that mutates inventory/loadout through operation strings, raw item bags, UI-local rules, or Unity checkpoint rewrites. |
 | 3 | Contract Unity to a render/input shell for S2. Inventory/trade UI can remain Unity UI, but every gameplay read/write goes through typed state. | `InventoryMenu`, `InventoryPanel`, `TradeMenu`, `ActionGameManager`, `ZoneRenderer` shims. | Stage 7D verifier rejects direct manager-global refit reads, public manager gameplay reads, new command buses, and Unity-only command paths. | Remaining facade-object bridges must validate daemon keys against typed projections and name the Stage 8 projection/native slab that deletes them. |
 | 4 | Prove 7E.1 two-client local Verse parity. Raven Unity and Starfire Electron are peers with separate local Verse nodes, not one runtime viewing another runtime's projection. | launch harness, scoped peer sync, committed facts, session/refit/authority projections, diagnostics. | Raven/Starfire smoke: both clients see the same session, station/refit state, controlled entities, policy id, and fact receipts through local Verse state. | No test may prove co-op by reading a remote viewport or one daemon's debug projection as gameplay state. |
@@ -1749,7 +1749,7 @@ Progress:
   Unity scene or `ZoneRenderer.LoadZone` to publish the active scenario,
   session id, base entity, station stock, wave forecast, and commander/pilot
   roles.
-- `AetheriaRuntimeStarbridgeProjection.ProjectSessionSummary` projects base
+- `AetheriaRuntimeStarbridgeDocuments.SessionSummary` projects base
   status, station stock, wave forecast, and runtime roles from daemon frame plus
   optional scenario/session documents without going through an RTS viewport.
 - `AetheriaClient.StarbridgeSessionSummaryAsync` exposes that projection as a
