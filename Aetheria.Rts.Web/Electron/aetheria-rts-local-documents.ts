@@ -259,7 +259,7 @@ function readViewportObject(object: unknown[]): ViewObject {
     targetEntityIndex: num(object[viewportObjectSlots.targetEntityIndex], -1),
     isActive: object[viewportObjectSlots.isActive] !== false,
     visibility: num(object[viewportObjectSlots.visibility]),
-    iconAsset: assetRef(arr(object[viewportObjectSlots.iconAsset]), entityIconAsset(str(object[viewportObjectSlots.kind]), bool(object[viewportObjectSlots.controlled]))),
+    iconAsset: assetRef(arr(object[viewportObjectSlots.iconAsset])),
     status: readViewportStatus(object[viewportObjectSlots.status]),
     inventory: list<unknown[]>(object[viewportObjectSlots.inventory]).map(readViewportInventoryItem),
   };
@@ -283,7 +283,7 @@ function readViewportInventoryItem(value: unknown[]): InventoryItem {
     quality: num(value[viewportInventoryItemSlots.quality]),
     durability: num(value[viewportInventoryItemSlots.durability]),
     enabled: value[viewportInventoryItemSlots.enabled] !== false,
-    iconAsset: assetRef(arr(value[viewportInventoryItemSlots.iconAsset]), itemIconAsset(itemKey)),
+    iconAsset: assetRef(arr(value[viewportInventoryItemSlots.iconAsset])),
   };
 }
 
@@ -316,7 +316,7 @@ function readBodyViews(bodies: unknown[][]): BodyView[] {
       radius: num(body[bodyViewSlots.radius]),
       isAsteroidBelt: bool(body[bodyViewSlots.isAsteroidBelt]),
       body: num(body[bodyViewSlots.body]),
-      iconAsset: assetRef(arr(body[bodyViewSlots.iconAsset]), bodyIconAsset(kind)),
+      iconAsset: assetRef(arr(body[bodyViewSlots.iconAsset])),
       iconSize: num(body[bodyViewSlots.iconSize]),
     };
   });
@@ -377,14 +377,13 @@ function toStarbridgeBaseStatus(status: unknown[]): StarbridgeSessionDocument["b
 }
 
 function toStarbridgeStationStockItem(item: unknown[]): StarbridgeSessionDocument["stationStock"][number] {
-  const itemKey = str(item[starbridgeStockSlots.itemKey]);
   return {
-    itemKey,
+    itemKey: str(item[starbridgeStockSlots.itemKey]),
     quantity: num(item[starbridgeStockSlots.quantity]),
     quality: num(item[starbridgeStockSlots.quality]),
     durability: num(item[starbridgeStockSlots.durability]),
     source: str(item[starbridgeStockSlots.source]) || "station",
-    iconAsset: assetRef(arr(item[starbridgeStockSlots.iconAsset]), itemIconAsset(itemKey)),
+    iconAsset: assetRef(arr(item[starbridgeStockSlots.iconAsset])),
   };
 }
 
@@ -416,54 +415,10 @@ function toAssetManifestEntry(entry: unknown[]): AssetManifestDocument["assets"]
   };
 }
 
-function entityIconAsset(kind: string, controlled: boolean): AssetRef {
-  if (controlled)
-    return spriteAsset("map.entity.player");
-
-  const normalized = kind.trim().toLowerCase();
-  if (normalized.includes("station"))
-    return spriteAsset("map.entity.station");
-  if (normalized.includes("orbital"))
-    return spriteAsset("map.entity.orbital");
-  if (normalized.includes("projectile"))
-    return spriteAsset("map.entity.projectile");
-
-  return spriteAsset("map.entity.ship");
-}
-
-function bodyIconAsset(kind: string): AssetRef {
-  const normalized = kind.trim().toLowerCase();
-  if (normalized.includes("sun") || normalized.includes("star"))
-    return spriteAsset("map.body.sun");
-  if (normalized.includes("asteroid"))
-    return spriteAsset("map.body.asteroid");
-
-  return spriteAsset("map.body.planet");
-}
-
-function itemIconAsset(itemKey: string): AssetRef {
-  const key = itemKey.trim();
-  return key.length > 0
-    ? textureAsset(`item.${key}.icon`)
-    : emptyAsset("texture");
-}
-
-function spriteAsset(assetKey: string): AssetRef {
-  return asset(assetKey, "sprite", cultMeshAssetUri(assetKey), "cultmesh", "image/*");
-}
-
-function textureAsset(assetKey: string): AssetRef {
-  return asset(assetKey, "texture", cultMeshAssetUri(assetKey), "cultmesh", "image/*");
-}
-
-function cultMeshAssetUri(assetKey: string): string {
-  return `cultmesh://aetheria/assets/${assetKey.trim().replace(/[.\\]+/g, "/").replace(/^\/+|\/+$/g, "")}`;
-}
-
-function assetRef(value: unknown[], fallback: AssetRef = emptyAsset()): AssetRef {
+function assetRef(value: unknown[]): AssetRef {
   const assetKey = str(value[assetRefSlots.assetKey]);
   if (assetKey.length === 0)
-    return fallback;
+    return emptyAsset();
 
   return asset(
     assetKey,

@@ -16673,6 +16673,17 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
         throw new InvalidOperationException(
             "Electron Eve lowering must not synthesize renderer-local Resources asset refs; assets resolve through CultMesh CDN.");
     }
+    if (rtsLocalDocuments.Contains("entityIconAsset", StringComparison.Ordinal) ||
+        rtsLocalDocuments.Contains("bodyIconAsset", StringComparison.Ordinal) ||
+        rtsLocalDocuments.Contains("itemIconAsset", StringComparison.Ordinal) ||
+        rtsLocalDocuments.Contains("cultMeshAssetUri", StringComparison.Ordinal) ||
+        rtsLocalDocuments.Contains("map.entity.", StringComparison.Ordinal) ||
+        rtsLocalDocuments.Contains("map.body.", StringComparison.Ordinal) ||
+        rtsLocalDocuments.Contains(".icon`)", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Electron document decoding must not fabricate fallback Aetheria asset refs; daemon-authored documents and CultMesh CDN own asset identity.");
+    }
     if (!rtsClientApp.Contains("aetheria-cdn://asset?uri=", StringComparison.Ordinal) ||
         !rtsClientApp.Contains("uri.startsWith(\"cultmesh://\")", StringComparison.Ordinal) ||
         !rtsElectronMain.Contains("protocol.handle(assetProtocol", StringComparison.Ordinal) ||
