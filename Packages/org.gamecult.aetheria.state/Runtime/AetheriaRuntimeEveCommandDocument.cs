@@ -206,21 +206,6 @@ namespace GameCult.Aetheria.State.Verse
         [Key(10)]
         public AetheriaRuntimeTradeValuePolicyCommandBody TradeValuePolicy { get; set; } = new AetheriaRuntimeTradeValuePolicyCommandBody();
 
-        [Key(11)]
-        public string OperationId { get; set; } = "";
-
-        [Key(12)]
-        public string OperationSchemaId { get; set; } = "";
-
-        [Key(13)]
-        public string OperationRouteKind { get; set; } = "";
-
-        [Key(14)]
-        public string OperationRouteDescription { get; set; } = "";
-
-        [Key(15)]
-        public string OperationIdempotencyKey { get; set; } = "";
-
         [Key(16)]
         public Dictionary<string, string> Payload { get; set; } = new Dictionary<string, string>(StringComparer.Ordinal);
 

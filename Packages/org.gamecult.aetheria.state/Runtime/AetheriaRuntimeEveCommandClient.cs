@@ -544,7 +544,6 @@ namespace GameCult.Aetheria.State.Verse
             if (string.IsNullOrWhiteSpace(document.Command) && document.Kind != AetheriaRuntimeEveCommandKind.Unknown)
                 document.Command = CommandText(document.Kind);
             document.Operation = NormalizeInvocationRecord(document);
-            ApplyInvocationCompatibilityFields(document, document.Operation);
             if (document.Payload == null)
                 document.Payload = new System.Collections.Generic.Dictionary<string, string>(StringComparer.Ordinal);
             return document;
@@ -552,7 +551,7 @@ namespace GameCult.Aetheria.State.Verse
 
         private static CultMeshOperationInvocationDescriptor CreateInvocation(AetheriaRuntimeEveCommandDocument document)
         {
-            return document.Operation.ToInvocation(
+            return (document.Operation ?? new CultMeshOperationInvocationRecord()).ToInvocation(
                 fallbackOperationId: document.Command ?? "",
                 fallbackSchemaId: CommandSchema,
                 fallbackRouteHint: new CultMeshRouteHint(CultMeshLocalityKind.Network, "aetheria-eve-command"),
@@ -562,43 +561,12 @@ namespace GameCult.Aetheria.State.Verse
         private static CultMeshOperationInvocationRecord NormalizeInvocationRecord(
             AetheriaRuntimeEveCommandDocument document)
         {
-            var record = document.Operation;
-            var legacy = CultMesh.OperationInvocationRecord(
-                document.OperationId,
-                document.OperationSchemaId,
-                document.OperationRouteKind,
-                document.OperationRouteDescription,
-                document.OperationIdempotencyKey);
-
-            var recordOperationId = record?.OperationId ?? "";
-            var recordSchemaId = record?.SchemaId ?? "";
-            var recordRouteKind = record?.RouteKind ?? "";
-            var recordRouteDescription = record?.RouteDescription ?? "";
-            var recordIdempotencyKey = record?.IdempotencyKey ?? "";
-            var merged = CultMesh.OperationInvocationRecord(
-                string.IsNullOrWhiteSpace(recordOperationId) ? legacy.OperationId : recordOperationId,
-                string.IsNullOrWhiteSpace(recordSchemaId) ? legacy.SchemaId : recordSchemaId,
-                string.IsNullOrWhiteSpace(recordRouteKind) ? legacy.RouteKind : recordRouteKind,
-                string.IsNullOrWhiteSpace(recordRouteDescription) ? legacy.RouteDescription : recordRouteDescription,
-                string.IsNullOrWhiteSpace(recordIdempotencyKey) ? legacy.IdempotencyKey : recordIdempotencyKey);
-
-            var invocation = merged.ToInvocation(
+            var invocation = (document.Operation ?? new CultMeshOperationInvocationRecord()).ToInvocation(
                 fallbackOperationId: document.Command ?? "",
                 fallbackSchemaId: CommandSchema,
                 fallbackRouteHint: new CultMeshRouteHint(CultMeshLocalityKind.Network, "aetheria-eve-command"),
                 fallbackIdempotencyKey: document.CommandId);
             return CultMesh.OperationInvocationRecord(invocation);
-        }
-
-        private static void ApplyInvocationCompatibilityFields(
-            AetheriaRuntimeEveCommandDocument document,
-            CultMeshOperationInvocationRecord record)
-        {
-            document.OperationId = record.OperationId;
-            document.OperationSchemaId = record.SchemaId;
-            document.OperationRouteKind = record.RouteKind;
-            document.OperationRouteDescription = record.RouteDescription;
-            document.OperationIdempotencyKey = record.IdempotencyKey;
         }
 
         public static AetheriaRuntimeEveCommandKind CommandKindForSurface(EveSurfaceCommandRequest request)

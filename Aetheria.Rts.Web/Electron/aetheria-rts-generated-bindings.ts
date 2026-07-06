@@ -209,11 +209,6 @@ export type AetheriaRuntimeEveCommandDocumentSlot =
   | "loadoutTemplate"
   | "inputSettings"
   | "tradeValuePolicy"
-  | "operationId"
-  | "operationSchemaId"
-  | "operationRouteKind"
-  | "operationRouteDescription"
-  | "operationIdempotencyKey"
   | "payload"
   | "operation";
 
@@ -229,11 +224,6 @@ export const aetheriaRuntimeEveCommandDocumentSlots: Record<AetheriaRuntimeEveCo
   loadoutTemplate: 8,
   inputSettings: 9,
   tradeValuePolicy: 10,
-  operationId: 11,
-  operationSchemaId: 12,
-  operationRouteKind: 13,
-  operationRouteDescription: 14,
-  operationIdempotencyKey: 15,
   payload: 16,
   operation: 17,
 };

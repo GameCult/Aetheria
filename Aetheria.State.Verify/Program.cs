@@ -13130,11 +13130,6 @@ static void RequireTypedEveCommandBodies(string root)
         "public CultMeshOperationInvocationDescriptor Invocation",
         "public CultMeshOperationPayload Payload",
         "public CultMeshOperationInvocationRecord Operation",
-        "public string OperationId",
-        "public string OperationSchemaId",
-        "public string OperationRouteKind",
-        "public string OperationRouteDescription",
-        "public string OperationIdempotencyKey",
         "public Dictionary<string, string> Payload",
         "SetTradeValueQualityMinimum",
         "SetTradeValueTierQuality",
@@ -13154,7 +13149,16 @@ static void RequireTypedEveCommandBodies(string root)
     {
         "IReadOnlyDictionary<string, string> Payload",
         "SubmitSurfaceRequest(",
-        "CreateSurfaceRequestCommand("
+        "CreateSurfaceRequestCommand(",
+        "public string OperationSchemaId",
+        "public string OperationRouteKind",
+        "public string OperationRouteDescription",
+        "public string OperationIdempotencyKey",
+        "[Key(11)]",
+        "[Key(12)]",
+        "[Key(13)]",
+        "[Key(14)]",
+        "[Key(15)]"
     };
     var forbiddenDocumentHits = forbiddenDocumentSymbols
         .Where(symbol => eveCommandDocument.Contains(symbol, StringComparison.Ordinal))
@@ -13195,7 +13199,6 @@ static void RequireTypedEveCommandBodies(string root)
         "Operation = invocation",
         "Operation = invocationRecord",
         "NormalizeInvocationRecord(",
-        "ApplyInvocationCompatibilityFields(",
         "Payload = envelope.Payload.ToDictionary()",
         "Payload = (payload ?? CultMeshOperationPayload.Empty).ToDictionary()",
         "return request.Payload.GetString(key);",
@@ -13253,6 +13256,12 @@ static void RequireTypedEveCommandBodies(string root)
         eveCommandClient.Contains("OperationId = envelope.Invocation.OperationId", StringComparison.Ordinal) ||
         eveCommandClient.Contains("OperationId = invocation.OperationId", StringComparison.Ordinal) ||
         eveCommandClient.Contains("OperationId = invocationRecord.OperationId", StringComparison.Ordinal) ||
+        eveCommandClient.Contains("ApplyInvocationCompatibilityFields(", StringComparison.Ordinal) ||
+        eveCommandClient.Contains("document.OperationId", StringComparison.Ordinal) ||
+        eveCommandClient.Contains("document.OperationSchemaId", StringComparison.Ordinal) ||
+        eveCommandClient.Contains("document.OperationRouteKind", StringComparison.Ordinal) ||
+        eveCommandClient.Contains("document.OperationRouteDescription", StringComparison.Ordinal) ||
+        eveCommandClient.Contains("document.OperationIdempotencyKey", StringComparison.Ordinal) ||
         eveCommandClient.Contains("Payload = new System.Collections.Generic.Dictionary<string, string>(\r\n                    envelope.Payload", StringComparison.Ordinal) ||
         eveCommandClient.Contains("Payload = new System.Collections.Generic.Dictionary<string, string>(\n                    envelope.Payload", StringComparison.Ordinal))
     {

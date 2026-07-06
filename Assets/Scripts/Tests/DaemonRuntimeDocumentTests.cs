@@ -4472,11 +4472,6 @@ public class DaemonRuntimeDocumentTests
         var document = AetheriaRuntimeEveCommandClient.ToDocument(envelope);
         var restored = AetheriaRuntimeEveCommandClient.ToEnvelope(document);
 
-        Assert.AreEqual(AetheriaRuntimePlayerSettingsCommands.SetPlayerName, document.OperationId);
-        Assert.AreEqual(AetheriaRuntimeEveCommandDocument.SchemaId, document.OperationSchemaId);
-        Assert.AreEqual(CultMeshLocalityKind.Ipc.ToString(), document.OperationRouteKind);
-        Assert.AreEqual("eve-ui-test", document.OperationRouteDescription);
-        Assert.AreEqual("idempotent-player-name", document.OperationIdempotencyKey);
         Assert.AreEqual(AetheriaRuntimePlayerSettingsCommands.SetPlayerName, document.Operation.OperationId);
         Assert.AreEqual(AetheriaRuntimeEveCommandDocument.SchemaId, document.Operation.SchemaId);
         Assert.AreEqual(CultMeshLocalityKind.Ipc.ToString(), document.Operation.RouteKind);
