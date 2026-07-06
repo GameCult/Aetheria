@@ -89,7 +89,6 @@ $transportLayoutPatterns = @(
     'decodeInventoryItem',
     'decodeGravityInfluence',
     'decodeBodyView',
-    'fetchViewportDocument',
     'fetchDocument\(',
     'sendSnapshotRequest',
     'schemaIds',
@@ -124,8 +123,8 @@ if ($LASTEXITCODE -gt 1) {
 }
 
 $requiredBindingSymbols = @(
-    'createAetheriaRuntimeRtsOperationHandles',
-    'createAetheriaRuntimeRtsQueryHandles',
+    'createAetheriaRuntimeGameOperationHandles',
+    'createAetheriaRuntimeGameQueryHandles',
     'AetheriaRtsSchemas'
 )
 
@@ -151,12 +150,12 @@ $requiredGeneratedBindingSymbols = @(
     'aetheriaRuntimeDaemonCommandDocumentSlots',
     'encodeSetMoveVectorCommand',
     'encodeSetTargetCommand',
-    'AetheriaRuntimeRtsDocumentSources',
-    'AetheriaRuntimeRtsQueryDiagnostic',
-    'AetheriaRuntimeRtsLiveFeedDiagnostic',
-    'AetheriaRuntimeRtsSurfaceCatalogDiagnostic',
+    'AetheriaRuntimeGameDocumentSources',
+    'AetheriaRuntimeGameQueryDiagnostic',
+    'AetheriaRuntimeGameLiveFeedDiagnostic',
+    'AetheriaRuntimeGameSurfaceCatalogDiagnostic',
     'AetheriaRuntimeGameDocuments',
-    'AetheriaRuntimeRtsDocumentResolvers',
+    'AetheriaRuntimeGameDocumentResolvers',
     'CultMeshSurfaceCatalogDiagnostic',
     'CultMeshSurfaceCatalogIndexDiagnostic',
     'CultMeshOperationReceipt',
@@ -171,16 +170,16 @@ $requiredGeneratedBindingSymbols = @(
     'CultMeshQuerySource',
     'routeHint: CultMeshRouteHint',
     'CultMeshQueryWatcher',
-    'AetheriaRuntimeRtsQueryWatchers',
+    'AetheriaRuntimeGameQueryWatchers',
     'createAetheriaRuntimeGameDocuments',
     'CultMesh.document',
     'CultMesh.bindDocument',
     'CultMesh.describeSurface(documents.daemonFrame)',
     'watchQuery: watchers.objectsViewport',
-    'sources: [AetheriaRuntimeRtsDocumentSources.daemonFrame]',
-    'describeAetheriaRuntimeRtsQueryHandles',
-    'describeAetheriaRuntimeRtsLiveFeedSurface',
-    'describeAetheriaRuntimeRtsSurfaceCatalog',
+    'sources: [AetheriaRuntimeGameDocumentSources.daemonFrame]',
+    'describeAetheriaRuntimeGameQueryHandles',
+    'describeAetheriaRuntimeGameLiveFeedSurface',
+    'describeAetheriaRuntimeGameSurfaceCatalog',
     'CultMesh.describeQuerySurface',
     'CultMesh.describeLiveFeed',
     'CultMesh.describeSurfaceCatalog',
@@ -189,9 +188,9 @@ $requiredGeneratedBindingSymbols = @(
     'CultMesh.describeSurface(operations.setTarget)',
     'CultMesh.operation',
     'CultMesh.operationReceipt',
-    'AetheriaRuntimeRtsOperationHandles',
-    'AetheriaRuntimeRtsVerseHandles',
-    'createAetheriaRuntimeRtsVerseHandles',
+    'AetheriaRuntimeGameOperationHandles',
+    'AetheriaRuntimeGameVerseHandles',
+    'createAetheriaRuntimeGameVerseHandles',
     'CultMesh.bindQuery',
     'CultMesh.bindOperation',
     'zone: (_zoneId =',
@@ -228,7 +227,7 @@ if ($LASTEXITCODE -gt 1) {
     Write-Error "Stage 7B verifier could not run rg for generated Verse binding checks."
 }
 
-& rg -q 'createAetheriaRuntimeRtsQueryHandles\(' Electron/aetheria-cultmesh.ts
+& rg -q 'createAetheriaRuntimeGameQueryHandles\(' Electron/aetheria-cultmesh.ts
 if ($LASTEXITCODE -ne 0) {
     Write-Error "Stage 7B verifier failed: RTS client is not creating generated query handles."
 }
@@ -268,7 +267,7 @@ if (-not $clientText.Contains('return this.queryVerse.queryContext();')) {
     Write-Error "Stage 7B verifier failed: RTS query call sites should derive query contexts from the shared Verse primitive."
 }
 
-if (-not $clientText.Contains('this.aetheria = createAetheriaRuntimeRtsVerseHandles(')) {
+if (-not $clientText.Contains('this.aetheria = createAetheriaRuntimeGameVerseHandles(')) {
     Write-Error "Stage 7B verifier failed: RTS client should bind generated Aetheria domain sugar to its Verse contexts."
 }
 
@@ -290,7 +289,7 @@ if (-not $clientText.Contains('queryDiagnostics()')) {
     Write-Error "Stage 7B verifier failed: RTS client does not expose generated query diagnostics."
 }
 
-if (-not $clientText.Contains('describeAetheriaRuntimeRtsQueryHandles(this.queries)')) {
+if (-not $clientText.Contains('describeAetheriaRuntimeGameQueryHandles(this.queries)')) {
     Write-Error "Stage 7B verifier failed: RTS query diagnostics should be read from generated query handle metadata."
 }
 
@@ -298,7 +297,7 @@ if (-not $clientText.Contains('liveFeedDiagnostics()')) {
     Write-Error "Stage 7B verifier failed: RTS client does not expose generated live feed diagnostics."
 }
 
-if (-not $clientText.Contains('describeAetheriaRuntimeRtsLiveFeedSurface(this.createViewportFeed())')) {
+if (-not $clientText.Contains('describeAetheriaRuntimeGameLiveFeedSurface(this.createViewportFeed())')) {
     Write-Error "Stage 7B verifier failed: RTS live feed diagnostics should be read from generated live feed metadata."
 }
 
@@ -314,7 +313,7 @@ if (-not $clientText.Contains('CultMesh.surfaceCatalogIndex(this.surfaceCatalogD
     Write-Error "Stage 7B verifier failed: RTS grouped surface catalog should use the shared CultMesh catalog index primitive."
 }
 
-if (-not $clientText.Contains('describeAetheriaRuntimeRtsSurfaceCatalog(this.queries, this.operations, this.documents)')) {
+if (-not $clientText.Contains('describeAetheriaRuntimeGameSurfaceCatalog(this.queries, this.operations, this.documents)')) {
     Write-Error "Stage 7B verifier failed: RTS surface catalog should be read from generated query, operation, and document metadata."
 }
 
@@ -469,18 +468,15 @@ if ($LASTEXITCODE -gt 1) {
     Write-Error "Stage 7B verifier could not run rg for stale binding checks."
 }
 
-& rg -q 'buildViewportDocumentFromFrame' Electron/aetheria-rts-local-documents.ts
-if ($LASTEXITCODE -ne 0) {
-    Write-Error "Stage 7B verifier failed: local RTS frame document entry point was not found."
-}
-
 $requiredLocalDocumentSymbols = @(
-    'buildObjectsViewportDocumentFromFrame',
-    'buildGravityViewportDocumentFromFrame',
+    'readViewportDocument',
+    'readObjectsViewportDocument',
+    'readGravityViewportDocument',
+    'readRenderSplatsViewportDocument',
     'AetheriaRtsSchemas.objectsViewport',
     'AetheriaRtsSchemas.gravityViewport',
-    'buildSelectedObjectDocumentFromFrame',
-    'buildInventoryDocumentFromFrame',
+    'readSelectedObjectDocument',
+    'readInventoryDocument',
     'AetheriaRtsSchemas.selectedObject',
     'AetheriaRtsSchemas.inventory',
     'readDaemonHealthDocument',
@@ -492,8 +488,16 @@ $requiredLocalDocumentSymbols = @(
 foreach ($symbol in $requiredLocalDocumentSymbols) {
     & rg -q $symbol Electron/aetheria-rts-local-documents.ts
     if ($LASTEXITCODE -ne 0) {
-        Write-Error "Stage 7B verifier failed: expected local RTS document symbol '$symbol' was not found."
+        Write-Error "Stage 7B verifier failed: expected daemon-authored document decoder symbol '$symbol' was not found."
     }
+}
+
+$forbiddenLocalDocumentBuilders = & rg -n 'build(Viewport|ObjectsViewport|GravityViewport|RenderSplatsViewport|SelectedObject|Inventory)DocumentFromFrame|frameContext\(frameDocument' Electron/aetheria-rts-local-documents.ts 2>$null
+if ($LASTEXITCODE -eq 0) {
+    Write-Error "Stage 7B verifier failed: Electron must decode daemon-authored managed documents, not rebuild them from daemonFrame.`n$forbiddenLocalDocumentBuilders"
+}
+if ($LASTEXITCODE -gt 1) {
+    Write-Error "Stage 7B verifier could not run rg for stale local document builder checks."
 }
 
 & rg -q 'CultMesh.documentsFromPublication' Electron/aetheria-cultmesh.ts

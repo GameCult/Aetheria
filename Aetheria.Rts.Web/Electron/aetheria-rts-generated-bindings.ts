@@ -2100,7 +2100,7 @@ export type AetheriaRuntimeQueryExecutor<TParameters, TResult> = (
   context: CultMeshQueryContext,
 ) => Promise<TResult>;
 
-export type AetheriaRuntimeRtsQueryExecutors = {
+export type AetheriaRuntimeGameQueryExecutors = {
   mapViewport: AetheriaRuntimeViewportQueryExecutor<ViewportResponse>;
   objectsViewport: AetheriaRuntimeViewportQueryExecutor<ObjectsViewportResponse>;
   gravityViewport: AetheriaRuntimeViewportQueryExecutor<GravityViewportResponse>;
@@ -2113,7 +2113,7 @@ export type AetheriaRuntimeRtsQueryExecutors = {
   assetManifest: AetheriaRuntimeQueryExecutor<void, AssetManifestDocument>;
 };
 
-export type AetheriaRuntimeRtsQueryWatchers = Partial<{
+export type AetheriaRuntimeGameQueryWatchers = Partial<{
   mapViewport: CultMeshQueryWatcher<CultMeshViewportRequest, ViewportResponse>;
   objectsViewport: CultMeshQueryWatcher<CultMeshViewportRequest, ObjectsViewportResponse>;
   gravityViewport: CultMeshQueryWatcher<CultMeshViewportRequest, GravityViewportResponse>;
@@ -2126,19 +2126,19 @@ export type AetheriaRuntimeRtsQueryWatchers = Partial<{
   assetManifest: CultMeshQueryWatcher<void, AssetManifestDocument>;
 }>;
 
-export type AetheriaRuntimeRtsQueryDiagnostic = CultMeshQuerySurfaceDiagnostic;
+export type AetheriaRuntimeGameQueryDiagnostic = CultMeshQuerySurfaceDiagnostic;
 
-export type AetheriaRuntimeRtsLiveFeedDiagnostic = CultMeshLiveFeedDiagnostic;
+export type AetheriaRuntimeGameLiveFeedDiagnostic = CultMeshLiveFeedDiagnostic;
 
-export type AetheriaRuntimeRtsSurfaceCatalogDiagnostic = CultMeshSurfaceCatalogDiagnostic;
+export type AetheriaRuntimeGameSurfaceCatalogDiagnostic = CultMeshSurfaceCatalogDiagnostic;
 
-export type AetheriaRuntimeRtsOperationHandles = ReturnType<typeof createAetheriaRuntimeRtsOperationHandles>;
+export type AetheriaRuntimeGameOperationHandles = ReturnType<typeof createAetheriaRuntimeGameOperationHandles>;
 
 export type AetheriaRuntimeGameDocuments = ReturnType<typeof createAetheriaRuntimeGameDocuments>;
 
-export type AetheriaRuntimeRtsStatePointers = AetheriaRuntimeGameDocuments;
+export type AetheriaRuntimeGameStatePointers = AetheriaRuntimeGameDocuments;
 
-export type AetheriaRuntimeRtsDocumentResolvers = Partial<{
+export type AetheriaRuntimeGameDocumentResolvers = Partial<{
   daemonFrame: (context: CultMeshQueryContext) => Promise<unknown>;
   daemonHealth: (context: CultMeshQueryContext) => Promise<unknown>;
   authorityPolicy: (context: CultMeshQueryContext) => Promise<unknown>;
@@ -2146,9 +2146,9 @@ export type AetheriaRuntimeRtsDocumentResolvers = Partial<{
   assetManifest: (context: CultMeshQueryContext) => Promise<unknown>;
 }>;
 
-export type AetheriaRuntimeRtsStatePointerResolvers = AetheriaRuntimeRtsDocumentResolvers;
+export type AetheriaRuntimeGameStatePointerResolvers = AetheriaRuntimeGameDocumentResolvers;
 
-export const AetheriaRuntimeRtsDocumentSources = {
+export const AetheriaRuntimeGameDocumentSources = {
   daemonFrame: CultMesh.querySource("daemon:aetheria.frame.latest.v1", {
     schemaId: AetheriaRtsSchemas.daemonFrame,
     description: "latest daemon frame"
@@ -2173,140 +2173,140 @@ export const AetheriaRuntimeRtsDocumentSources = {
 
 export function createAetheriaRuntimeGameDocuments(
   routeHint: CultMeshRouteHint = CultMesh.routeHint(),
-  resolvers: AetheriaRuntimeRtsDocumentResolvers = {},
+  resolvers: AetheriaRuntimeGameDocumentResolvers = {},
 ) {
   return {
     daemonFrame: CultMesh.document(
-      AetheriaRuntimeRtsDocumentSources.daemonFrame.sourceId,
+      AetheriaRuntimeGameDocumentSources.daemonFrame.sourceId,
       { schemaId: AetheriaRtsSchemas.daemonFrame },
       async (context) => resolvers.daemonFrame?.(context),
       {
         routeHint,
-        sources: [AetheriaRuntimeRtsDocumentSources.daemonFrame],
+        sources: [AetheriaRuntimeGameDocumentSources.daemonFrame],
       },
     ),
     daemonHealth: CultMesh.document(
-      AetheriaRuntimeRtsDocumentSources.daemonHealth.sourceId,
+      AetheriaRuntimeGameDocumentSources.daemonHealth.sourceId,
       { schemaId: AetheriaRtsSchemas.daemonHealth },
       async (context) => resolvers.daemonHealth?.(context),
       {
         routeHint,
-        sources: [AetheriaRuntimeRtsDocumentSources.daemonHealth],
+        sources: [AetheriaRuntimeGameDocumentSources.daemonHealth],
       },
     ),
     authorityPolicy: CultMesh.document(
-      AetheriaRuntimeRtsDocumentSources.authorityPolicy.sourceId,
+      AetheriaRuntimeGameDocumentSources.authorityPolicy.sourceId,
       { schemaId: AetheriaRtsSchemas.verseAuthorityPolicy },
       async (context) => resolvers.authorityPolicy?.(context),
       {
         routeHint,
-        sources: [AetheriaRuntimeRtsDocumentSources.authorityPolicy],
+        sources: [AetheriaRuntimeGameDocumentSources.authorityPolicy],
       },
     ),
     starbridgeSession: CultMesh.document(
-      AetheriaRuntimeRtsDocumentSources.starbridgeSession.sourceId,
+      AetheriaRuntimeGameDocumentSources.starbridgeSession.sourceId,
       { schemaId: AetheriaRtsSchemas.starbridgeSessionSummary },
       async (context) => resolvers.starbridgeSession?.(context),
       {
         routeHint,
-        sources: [AetheriaRuntimeRtsDocumentSources.starbridgeSession],
+        sources: [AetheriaRuntimeGameDocumentSources.starbridgeSession],
       },
     ),
     assetManifest: CultMesh.document(
-      AetheriaRuntimeRtsDocumentSources.assetManifest.sourceId,
+      AetheriaRuntimeGameDocumentSources.assetManifest.sourceId,
       { schemaId: AetheriaRtsSchemas.assetManifest },
       async (context) => resolvers.assetManifest?.(context),
       {
         routeHint,
-        sources: [AetheriaRuntimeRtsDocumentSources.assetManifest],
+        sources: [AetheriaRuntimeGameDocumentSources.assetManifest],
       },
     ),
   } as const;
 }
 
-export const createAetheriaRuntimeRtsStatePointers = createAetheriaRuntimeGameDocuments;
+export const createAetheriaRuntimeGameStatePointers = createAetheriaRuntimeGameDocuments;
 
-export function createAetheriaRuntimeRtsQueryHandles(
-  executors: AetheriaRuntimeRtsQueryExecutors,
+export function createAetheriaRuntimeGameQueryHandles(
+  executors: AetheriaRuntimeGameQueryExecutors,
   routeHint: CultMeshRouteHint = CultMesh.routeHint(),
-  watchers: AetheriaRuntimeRtsQueryWatchers = {},
+  watchers: AetheriaRuntimeGameQueryWatchers = {},
 ) {
   return {
     mapViewport: CultMesh.query<CultMeshViewportRequest, ViewportResponse>(
       AetheriaRtsSchemas.gameViewport,
       executors.mapViewport,
-      { routeHint, sources: [AetheriaRuntimeRtsDocumentSources.daemonFrame], watchQuery: watchers.mapViewport },
+      { routeHint, sources: [AetheriaRuntimeGameDocumentSources.daemonFrame], watchQuery: watchers.mapViewport },
     ),
     objectsViewport: CultMesh.query<CultMeshViewportRequest, ObjectsViewportResponse>(
       AetheriaRtsSchemas.objectsViewport,
       executors.objectsViewport,
-      { routeHint, sources: [AetheriaRuntimeRtsDocumentSources.daemonFrame], watchQuery: watchers.objectsViewport },
+      { routeHint, sources: [AetheriaRuntimeGameDocumentSources.daemonFrame], watchQuery: watchers.objectsViewport },
     ),
     gravityViewport: CultMesh.query<CultMeshViewportRequest, GravityViewportResponse>(
       AetheriaRtsSchemas.gravityViewport,
       executors.gravityViewport,
-      { routeHint, sources: [AetheriaRuntimeRtsDocumentSources.daemonFrame], watchQuery: watchers.gravityViewport },
+      { routeHint, sources: [AetheriaRuntimeGameDocumentSources.daemonFrame], watchQuery: watchers.gravityViewport },
     ),
     renderSplatsViewport: CultMesh.query<CultMeshViewportRequest, RenderSplatsViewportResponse>(
       AetheriaRtsSchemas.renderSplatsViewport,
       executors.renderSplatsViewport,
-      { routeHint, sources: [AetheriaRuntimeRtsDocumentSources.daemonFrame], watchQuery: watchers.renderSplatsViewport },
+      { routeHint, sources: [AetheriaRuntimeGameDocumentSources.daemonFrame], watchQuery: watchers.renderSplatsViewport },
     ),
     selectedObject: CultMesh.query<AetheriaRuntimeSelectedObjectRequest, SelectedObjectDocument>(
       AetheriaRtsSchemas.selectedObject,
       executors.selectedObject,
-      { routeHint, sources: [AetheriaRuntimeRtsDocumentSources.daemonFrame], watchQuery: watchers.selectedObject },
+      { routeHint, sources: [AetheriaRuntimeGameDocumentSources.daemonFrame], watchQuery: watchers.selectedObject },
     ),
     inventory: CultMesh.query<AetheriaRuntimeSelectedObjectRequest, InventoryDocument>(
       AetheriaRtsSchemas.inventory,
       executors.inventory,
-      { routeHint, sources: [AetheriaRuntimeRtsDocumentSources.daemonFrame], watchQuery: watchers.inventory },
+      { routeHint, sources: [AetheriaRuntimeGameDocumentSources.daemonFrame], watchQuery: watchers.inventory },
     ),
     daemonHealth: CultMesh.query<void, DaemonHealthDocument>(
       AetheriaRtsSchemas.daemonHealth,
       executors.daemonHealth,
-      { routeHint, sources: [AetheriaRuntimeRtsDocumentSources.daemonHealth], watchQuery: watchers.daemonHealth },
+      { routeHint, sources: [AetheriaRuntimeGameDocumentSources.daemonHealth], watchQuery: watchers.daemonHealth },
     ),
     authorityStatus: CultMesh.query<void, AuthorityStatusDocument>(
       AetheriaRtsSchemas.verseAuthorityPolicy,
       executors.authorityStatus,
-      { routeHint, sources: [AetheriaRuntimeRtsDocumentSources.authorityPolicy], watchQuery: watchers.authorityStatus },
+      { routeHint, sources: [AetheriaRuntimeGameDocumentSources.authorityPolicy], watchQuery: watchers.authorityStatus },
     ),
     starbridgeSession: CultMesh.query<void, StarbridgeSessionDocument>(
       AetheriaRtsSchemas.starbridgeSessionSummary,
       executors.starbridgeSession,
-      { routeHint, sources: [AetheriaRuntimeRtsDocumentSources.starbridgeSession], watchQuery: watchers.starbridgeSession },
+      { routeHint, sources: [AetheriaRuntimeGameDocumentSources.starbridgeSession], watchQuery: watchers.starbridgeSession },
     ),
     assetManifest: CultMesh.query<void, AssetManifestDocument>(
       AetheriaRtsSchemas.assetManifest,
       executors.assetManifest,
-      { routeHint, sources: [AetheriaRuntimeRtsDocumentSources.assetManifest], watchQuery: watchers.assetManifest },
+      { routeHint, sources: [AetheriaRuntimeGameDocumentSources.assetManifest], watchQuery: watchers.assetManifest },
     ),
   } as const;
 }
 
-export function describeAetheriaRuntimeRtsQueryHandles(
-  handles: ReturnType<typeof createAetheriaRuntimeRtsQueryHandles>,
+export function describeAetheriaRuntimeGameQueryHandles(
+  handles: ReturnType<typeof createAetheriaRuntimeGameQueryHandles>,
 ) {
   return {
-    mapViewport: describeAetheriaRuntimeRtsQuerySurface(handles.mapViewport),
-    objectsViewport: describeAetheriaRuntimeRtsQuerySurface(handles.objectsViewport),
-    gravityViewport: describeAetheriaRuntimeRtsQuerySurface(handles.gravityViewport),
-    renderSplatsViewport: describeAetheriaRuntimeRtsQuerySurface(handles.renderSplatsViewport),
-    selectedObject: describeAetheriaRuntimeRtsQuerySurface(handles.selectedObject),
-    inventory: describeAetheriaRuntimeRtsQuerySurface(handles.inventory),
-    daemonHealth: describeAetheriaRuntimeRtsQuerySurface(handles.daemonHealth),
-    authorityStatus: describeAetheriaRuntimeRtsQuerySurface(handles.authorityStatus),
-    starbridgeSession: describeAetheriaRuntimeRtsQuerySurface(handles.starbridgeSession),
-    assetManifest: describeAetheriaRuntimeRtsQuerySurface(handles.assetManifest),
+    mapViewport: describeAetheriaRuntimeGameQuerySurface(handles.mapViewport),
+    objectsViewport: describeAetheriaRuntimeGameQuerySurface(handles.objectsViewport),
+    gravityViewport: describeAetheriaRuntimeGameQuerySurface(handles.gravityViewport),
+    renderSplatsViewport: describeAetheriaRuntimeGameQuerySurface(handles.renderSplatsViewport),
+    selectedObject: describeAetheriaRuntimeGameQuerySurface(handles.selectedObject),
+    inventory: describeAetheriaRuntimeGameQuerySurface(handles.inventory),
+    daemonHealth: describeAetheriaRuntimeGameQuerySurface(handles.daemonHealth),
+    authorityStatus: describeAetheriaRuntimeGameQuerySurface(handles.authorityStatus),
+    starbridgeSession: describeAetheriaRuntimeGameQuerySurface(handles.starbridgeSession),
+    assetManifest: describeAetheriaRuntimeGameQuerySurface(handles.assetManifest),
   } as const;
 }
 
-export function describeAetheriaRuntimeRtsSurfaceCatalog(
-  handles: ReturnType<typeof createAetheriaRuntimeRtsQueryHandles>,
-  operations?: AetheriaRuntimeRtsOperationHandles,
+export function describeAetheriaRuntimeGameSurfaceCatalog(
+  handles: ReturnType<typeof createAetheriaRuntimeGameQueryHandles>,
+  operations?: AetheriaRuntimeGameOperationHandles,
   documents: AetheriaRuntimeGameDocuments = createAetheriaRuntimeGameDocuments(),
-): AetheriaRuntimeRtsSurfaceCatalogDiagnostic {
+): AetheriaRuntimeGameSurfaceCatalogDiagnostic {
   return CultMesh.describeSurfaceCatalog(
     "gamecult.aetheria.surfaces.v1",
     [
@@ -2335,23 +2335,23 @@ export function describeAetheriaRuntimeRtsSurfaceCatalog(
   );
 }
 
-function describeAetheriaRuntimeRtsQuerySurface(surface: {
+function describeAetheriaRuntimeGameQuerySurface(surface: {
   queryId: string;
   routeHint: CultMeshRouteHint;
   sources: readonly CultMeshQuerySource[];
-}): AetheriaRuntimeRtsQueryDiagnostic {
+}): AetheriaRuntimeGameQueryDiagnostic {
   return CultMesh.describeQuerySurface(surface);
 }
 
-export function describeAetheriaRuntimeRtsLiveFeedSurface(surface: {
+export function describeAetheriaRuntimeGameLiveFeedSurface(surface: {
   feedId: string;
   routeHint: CultMeshRouteHint;
   sources: readonly CultMeshQuerySource[];
-}): AetheriaRuntimeRtsLiveFeedDiagnostic {
+}): AetheriaRuntimeGameLiveFeedDiagnostic {
   return CultMesh.describeLiveFeed(surface);
 }
 
-export function createAetheriaRuntimeRtsOperationHandles(
+export function createAetheriaRuntimeGameOperationHandles(
   sendCommand: AetheriaRuntimeDaemonCommandSender,
   createCommandId: () => string = createDefaultCommandId,
 ) {
@@ -2393,13 +2393,13 @@ export function createAetheriaRuntimeRtsOperationHandles(
   } as const;
 }
 
-export type AetheriaRuntimeRtsVerseHandles = ReturnType<typeof createAetheriaRuntimeRtsVerseHandles>;
+export type AetheriaRuntimeGameVerseHandles = ReturnType<typeof createAetheriaRuntimeGameVerseHandles>;
 
-export function createAetheriaRuntimeRtsVerseHandles(
+export function createAetheriaRuntimeGameVerseHandles(
   queryVerse: CultMeshVerseContext,
   commandVerse: CultMeshVerseContext,
-  queries: ReturnType<typeof createAetheriaRuntimeRtsQueryHandles>,
-  operations: AetheriaRuntimeRtsOperationHandles,
+  queries: ReturnType<typeof createAetheriaRuntimeGameQueryHandles>,
+  operations: AetheriaRuntimeGameOperationHandles,
   documents: AetheriaRuntimeGameDocuments = createAetheriaRuntimeGameDocuments(),
 ) {
   const mapViewport = CultMesh.bindQuery(queryVerse, queries.mapViewport);

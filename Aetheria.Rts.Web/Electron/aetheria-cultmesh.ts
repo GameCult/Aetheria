@@ -18,12 +18,12 @@ import {
   AetheriaRtsSchemas,
   aetheriaRuntimeEveCommandDocumentSlots,
   createAetheriaRuntimeGameDocuments,
-  createAetheriaRuntimeRtsOperationHandles,
-  createAetheriaRuntimeRtsVerseHandles,
-  createAetheriaRuntimeRtsQueryHandles,
-  describeAetheriaRuntimeRtsLiveFeedSurface,
-  describeAetheriaRuntimeRtsQueryHandles,
-  describeAetheriaRuntimeRtsSurfaceCatalog,
+  createAetheriaRuntimeGameOperationHandles,
+  createAetheriaRuntimeGameVerseHandles,
+  createAetheriaRuntimeGameQueryHandles,
+  describeAetheriaRuntimeGameLiveFeedSurface,
+  describeAetheriaRuntimeGameQueryHandles,
+  describeAetheriaRuntimeGameSurfaceCatalog,
   type AetheriaRuntimeDaemonCommandReceipt,
   type AssetManifestDocument,
   type AuthorityStatusDocument,
@@ -32,11 +32,11 @@ import {
   type InventoryDocument,
   type ObjectsViewportResponse,
   type RenderSplatsViewportResponse,
-  type AetheriaRuntimeRtsLiveFeedDiagnostic,
-  type AetheriaRuntimeRtsQueryDiagnostic,
-  type AetheriaRuntimeRtsSurfaceCatalogDiagnostic,
-  type AetheriaRuntimeRtsOperationHandles,
-  type AetheriaRuntimeRtsVerseHandles,
+  type AetheriaRuntimeGameLiveFeedDiagnostic,
+  type AetheriaRuntimeGameQueryDiagnostic,
+  type AetheriaRuntimeGameSurfaceCatalogDiagnostic,
+  type AetheriaRuntimeGameOperationHandles,
+  type AetheriaRuntimeGameVerseHandles,
   type AetheriaRuntimeGameDocuments,
   type AetheriaRuntimeViewportFeedRequest,
   type AetheriaRuntimeViewportFeedSnapshot,
@@ -71,7 +71,7 @@ type AetheriaPublicationDocumentSpec = CultMeshPublicationDocumentBinding & {
   readonly remoteRecordKey?: string;
 };
 
-type AetheriaRuntimeRtsQueryExecutors = {
+type AetheriaRuntimeGameQueryExecutors = {
   mapViewport: (request: ViewportRequest) => Promise<ViewportResponse>;
   objectsViewport: (request: ViewportRequest) => Promise<ObjectsViewportResponse>;
   gravityViewport: (request: ViewportRequest) => Promise<GravityViewportResponse>;
@@ -226,7 +226,7 @@ export class AetheriaCultMeshClient {
       assetManifest: async () => readAssetManifestDocument(await this.fetchAssetManifestDocument()),
     };
     this.queryExecutors = executors;
-    this.queries = createAetheriaRuntimeRtsQueryHandles(
+    this.queries = createAetheriaRuntimeGameQueryHandles(
       executors,
       this.queryVerse.context.routeHint,
       {
@@ -251,11 +251,11 @@ export class AetheriaCultMeshClient {
         assetManifest: async () => this.fetchAssetManifestDocument(),
       },
     );
-    this.operations = createAetheriaRuntimeRtsOperationHandles(
+    this.operations = createAetheriaRuntimeGameOperationHandles(
       (commandId, issuedAtUtc, command, context) =>
         this.sendCommandDocument(commandId, issuedAtUtc, command, context),
     );
-    this.aetheria = createAetheriaRuntimeRtsVerseHandles(
+    this.aetheria = createAetheriaRuntimeGameVerseHandles(
       this.queryVerse.context,
       this.commandVerse.context,
       this.queries,
@@ -266,11 +266,11 @@ export class AetheriaCultMeshClient {
 
   private readonly publicationDescription: string;
   private readonly publications: CultMeshDocumentCatalog;
-  private readonly queryExecutors: AetheriaRuntimeRtsQueryExecutors;
-  private readonly queries: ReturnType<typeof createAetheriaRuntimeRtsQueryHandles>;
+  private readonly queryExecutors: AetheriaRuntimeGameQueryExecutors;
+  private readonly queries: ReturnType<typeof createAetheriaRuntimeGameQueryHandles>;
   private readonly documents: AetheriaRuntimeGameDocuments;
-  private readonly operations: AetheriaRuntimeRtsOperationHandles;
-  private readonly aetheria: AetheriaRuntimeRtsVerseHandles;
+  private readonly operations: AetheriaRuntimeGameOperationHandles;
+  private readonly aetheria: AetheriaRuntimeGameVerseHandles;
 
   public async close(): Promise<void> {
     this.#peer?.close();
@@ -422,18 +422,18 @@ export class AetheriaCultMeshClient {
     };
   }
 
-  public queryDiagnostics(): Readonly<Record<string, AetheriaRuntimeRtsQueryDiagnostic>> {
-    return describeAetheriaRuntimeRtsQueryHandles(this.queries);
+  public queryDiagnostics(): Readonly<Record<string, AetheriaRuntimeGameQueryDiagnostic>> {
+    return describeAetheriaRuntimeGameQueryHandles(this.queries);
   }
 
-  public liveFeedDiagnostics(): Readonly<Record<string, AetheriaRuntimeRtsLiveFeedDiagnostic>> {
+  public liveFeedDiagnostics(): Readonly<Record<string, AetheriaRuntimeGameLiveFeedDiagnostic>> {
     return {
-      viewportFeed: describeAetheriaRuntimeRtsLiveFeedSurface(this.createViewportFeed()),
+      viewportFeed: describeAetheriaRuntimeGameLiveFeedSurface(this.createViewportFeed()),
     };
   }
 
-  public surfaceCatalogDiagnostics(): AetheriaRuntimeRtsSurfaceCatalogDiagnostic {
-    const catalog = describeAetheriaRuntimeRtsSurfaceCatalog(this.queries, this.operations, this.documents);
+  public surfaceCatalogDiagnostics(): AetheriaRuntimeGameSurfaceCatalogDiagnostic {
+    const catalog = describeAetheriaRuntimeGameSurfaceCatalog(this.queries, this.operations, this.documents);
     return CultMesh.describeSurfaceCatalog(catalog.catalogId, [
       ...catalog.surfaces,
       CultMesh.describeSurface(this.createViewportFeed()),

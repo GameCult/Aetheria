@@ -1883,7 +1883,7 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
-    public void RtsSimulationPublishesDaemonProjectilesThroughRenderDocuments()
+    public void AetheriaSimulationPublishesDaemonProjectilesThroughRenderDocuments()
     {
         var run = new AetheriaRuntimeRunCheckpointCommit
         {

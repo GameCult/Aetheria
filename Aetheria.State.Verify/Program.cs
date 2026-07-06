@@ -16290,6 +16290,7 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
         "AetheriaRuntimeClientTargetStore.cs");
     var runtimeClientProviderPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityRuntimeClientProvider.cs");
     var rtsLocalDocumentsPath = Path.Combine(root, "Aetheria.Rts.Web", "Electron", "aetheria-rts-local-documents.ts");
+    var rtsGeneratedBindingsPath = Path.Combine(root, "Aetheria.Rts.Web", "Electron", "aetheria-rts-generated-bindings.ts");
     var rtsElectronMainPath = Path.Combine(root, "Aetheria.Rts.Web", "Electron", "main.ts");
     var rtsElectronCultMeshPath = Path.Combine(root, "Aetheria.Rts.Web", "Electron", "aetheria-cultmesh.ts");
     var rtsClientAppPath = Path.Combine(root, "Aetheria.Rts.Web", "Client", "app.ts");
@@ -16329,6 +16330,9 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
     var rtsLocalDocuments = File.Exists(rtsLocalDocumentsPath)
         ? File.ReadAllText(rtsLocalDocumentsPath)
         : throw new InvalidOperationException("Cannot verify daemon projectile authority; Electron local projection is missing.");
+    var rtsGeneratedBindings = File.Exists(rtsGeneratedBindingsPath)
+        ? File.ReadAllText(rtsGeneratedBindingsPath)
+        : throw new InvalidOperationException("Cannot verify Electron generated game bindings; generated bindings are missing.");
     var rtsElectronMain = File.Exists(rtsElectronMainPath)
         ? File.ReadAllText(rtsElectronMainPath)
         : throw new InvalidOperationException("Cannot verify Electron CultMesh CDN asset authority; Electron main process is missing.");
@@ -16503,6 +16507,16 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
     {
         throw new InvalidOperationException(
             "Electron local document projections must not invent RTS-branded run ids when the daemon frame omits run identity.");
+    }
+    if (rtsGeneratedBindings.Contains("AetheriaRuntimeRtsQuery", StringComparison.Ordinal) ||
+        rtsGeneratedBindings.Contains("AetheriaRuntimeRtsOperation", StringComparison.Ordinal) ||
+        rtsGeneratedBindings.Contains("AetheriaRuntimeRtsDocument", StringComparison.Ordinal) ||
+        rtsGeneratedBindings.Contains("AetheriaRuntimeRtsVerse", StringComparison.Ordinal) ||
+        rtsElectronCultMesh.Contains("createAetheriaRuntimeRts", StringComparison.Ordinal) ||
+        rtsElectronCultMesh.Contains("describeAetheriaRuntimeRts", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Electron may be the RTS client, but generated shared Aetheria game handles must use runtime-neutral Game vocabulary.");
     }
     if (stateBoundary.Contains("UnityRuntimeIdOverrideEnvironmentVariable", StringComparison.Ordinal) ||
         stateBoundary.Contains("AETHERIA_UNITY_RUNTIME_ID", StringComparison.Ordinal) ||
