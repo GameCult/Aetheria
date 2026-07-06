@@ -16592,35 +16592,48 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
     if (rtsElectronCultMesh.Contains("buildViewportDocumentFromFrame(await this.fetchLatestFrameDocument()", StringComparison.Ordinal) ||
         rtsElectronCultMesh.Contains("buildObjectsViewportDocumentFromFrame(await this.fetchLatestFrameDocument()", StringComparison.Ordinal) ||
         rtsElectronCultMesh.Contains("buildGravityViewportDocumentFromFrame(await this.fetchLatestFrameDocument()", StringComparison.Ordinal) ||
-        rtsElectronCultMesh.Contains("buildRenderSplatsViewportDocumentFromFrame(await this.fetchLatestFrameDocument()", StringComparison.Ordinal))
+        rtsElectronCultMesh.Contains("buildRenderSplatsViewportDocumentFromFrame(await this.fetchLatestFrameDocument()", StringComparison.Ordinal) ||
+        rtsElectronCultMesh.Contains("buildSelectedObjectDocumentFromFrame(await this.fetchLatestFrameDocument()", StringComparison.Ordinal) ||
+        rtsElectronCultMesh.Contains("buildInventoryDocumentFromFrame(await this.fetchLatestFrameDocument()", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Electron viewport queries must fetch daemon-authored managed viewport documents, not rebuild field/view documents from daemonFrame.");
+            "Electron queries must fetch daemon-authored managed documents, not rebuild field/view/selection/inventory documents from daemonFrame.");
     }
     if (rtsLocalDocuments.Contains("buildViewportDocumentFromFrame", StringComparison.Ordinal) ||
         rtsLocalDocuments.Contains("buildObjectsViewportDocumentFromFrame", StringComparison.Ordinal) ||
         rtsLocalDocuments.Contains("buildGravityViewportDocumentFromFrame", StringComparison.Ordinal) ||
         rtsLocalDocuments.Contains("buildRenderSplatsViewportDocumentFromFrame", StringComparison.Ordinal) ||
+        rtsLocalDocuments.Contains("buildSelectedObjectDocumentFromFrame", StringComparison.Ordinal) ||
+        rtsLocalDocuments.Contains("buildInventoryDocumentFromFrame", StringComparison.Ordinal) ||
+        rtsLocalDocuments.Contains("frameContext(frameDocument", StringComparison.Ordinal) ||
         rtsLocalDocuments.Contains("RenderSplatBuilder", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Electron local document decoding must not keep dead viewport projection builders; daemon managed viewport documents own those fields.");
+            "Electron local document decoding must not keep dead viewport, selection, or inventory projection builders; daemon managed documents own those fields.");
     }
     if (!rtsElectronCultMesh.Contains("fetchViewportDocument(AetheriaRtsSchemas.gameViewport, \"aetheria.viewport.map\"", StringComparison.Ordinal) ||
         !rtsElectronCultMesh.Contains("fetchViewportDocument(AetheriaRtsSchemas.objectsViewport, \"aetheria.viewport.objects\"", StringComparison.Ordinal) ||
         !rtsElectronCultMesh.Contains("fetchViewportDocument(AetheriaRtsSchemas.gravityViewport, \"aetheria.viewport.gravity\"", StringComparison.Ordinal) ||
         !rtsElectronCultMesh.Contains("fetchViewportDocument(AetheriaRtsSchemas.renderSplatsViewport, \"aetheria.viewport.render_splats\"", StringComparison.Ordinal) ||
         !rtsElectronCultMesh.Contains("managedViewportRecordKey(", StringComparison.Ordinal) ||
-        !rtsElectronCultMesh.Contains("readRenderSplatsViewportDocument(await this.fetchViewportDocument", StringComparison.Ordinal))
+        !rtsElectronCultMesh.Contains("readRenderSplatsViewportDocument(await this.fetchViewportDocument", StringComparison.Ordinal) ||
+        !rtsElectronCultMesh.Contains("fetchIndexedDocument(AetheriaRtsSchemas.selectedObject, \"aetheria.object.selected\"", StringComparison.Ordinal) ||
+        !rtsElectronCultMesh.Contains("fetchIndexedDocument(AetheriaRtsSchemas.inventory, \"aetheria.inventory\"", StringComparison.Ordinal) ||
+        !rtsElectronCultMesh.Contains("readSelectedObjectDocument(await this.fetchIndexedDocument", StringComparison.Ordinal) ||
+        !rtsElectronCultMesh.Contains("readInventoryDocument(await this.fetchIndexedDocument", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Electron viewport queries no longer use the daemon managed viewport document path.");
+            "Electron viewport, selected-object, and inventory queries no longer use the daemon managed document path.");
     }
     if (!daemonProgram.Contains("recordKey.StartsWith(\"aetheria.viewport.map.\"", StringComparison.Ordinal) ||
-        !daemonProgram.Contains("schemaId = AetheriaRuntimeDaemonSchemas.GameViewport", StringComparison.Ordinal))
+        !daemonProgram.Contains("schemaId = AetheriaRuntimeDaemonSchemas.GameViewport", StringComparison.Ordinal) ||
+        !daemonProgram.Contains("candidate.StartsWith(\"aetheria.object.selected.\"", StringComparison.Ordinal) ||
+        !daemonProgram.Contains("candidate.StartsWith(\"aetheria.inventory.\"", StringComparison.Ordinal) ||
+        !daemonProgram.Contains("AetheriaRuntimeGameDocuments.SelectedObject(frame, indexedEntityIndex)", StringComparison.Ordinal) ||
+        !daemonProgram.Contains("AetheriaRuntimeGameDocuments.Inventory(frame, indexedEntityIndex)", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Daemon snapshot handling must expose the managed map viewport document key beside objects/gravity/render-splats.");
+            "Daemon snapshot handling must expose managed viewport and indexed selected-object/inventory document keys.");
     }
 
     if (daemonTickRunner.Contains("AetheriaRuntimeDaemonFrameStore.PublishFrame", StringComparison.Ordinal))

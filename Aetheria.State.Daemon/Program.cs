@@ -619,6 +619,46 @@ static RudpCultNetSchemaServer StartClientCultMeshHost(
                 }
             }
 
+            if (hasFrame && frame != null && TryGetIndexedGameDocumentRequest(request, out var indexedRecordKey, out var indexedSchemaId, out var indexedEntityIndex))
+            {
+                if (string.Equals(indexedSchemaId, AetheriaRuntimeDaemonSchemas.SelectedObject, StringComparison.Ordinal))
+                {
+                    var selectedObjectPut = node.Database.Documents.CreateRawDocumentPutMessage(
+                        response.MessageId,
+                        new CultRecordHandle<AetheriaRuntimeSelectedObjectDocument>(
+                            new CultRecordKey(indexedRecordKey)),
+                        AetheriaRuntimeGameDocuments.SelectedObject(frame, indexedEntityIndex),
+                        new CultNetDocumentMessageOptions
+                        {
+                            SourceRuntimeId = options.DaemonId,
+                            SourceRole = "aetheria-daemon"
+                        });
+                    response.Documents = response.Documents
+                        .Where(document => !string.Equals(document.SchemaId, selectedObjectPut.Document.SchemaId, StringComparison.Ordinal) ||
+                            !string.Equals(document.RecordKey, selectedObjectPut.Document.RecordKey, StringComparison.Ordinal))
+                        .Concat(new[] { selectedObjectPut.Document })
+                        .ToArray();
+                }
+                else if (string.Equals(indexedSchemaId, AetheriaRuntimeDaemonSchemas.Inventory, StringComparison.Ordinal))
+                {
+                    var inventoryPut = node.Database.Documents.CreateRawDocumentPutMessage(
+                        response.MessageId,
+                        new CultRecordHandle<AetheriaRuntimeInventoryDocument>(
+                            new CultRecordKey(indexedRecordKey)),
+                        AetheriaRuntimeGameDocuments.Inventory(frame, indexedEntityIndex),
+                        new CultNetDocumentMessageOptions
+                        {
+                            SourceRuntimeId = options.DaemonId,
+                            SourceRole = "aetheria-daemon"
+                        });
+                    response.Documents = response.Documents
+                        .Where(document => !string.Equals(document.SchemaId, inventoryPut.Document.SchemaId, StringComparison.Ordinal) ||
+                            !string.Equals(document.RecordKey, inventoryPut.Document.RecordKey, StringComparison.Ordinal))
+                        .Concat(new[] { inventoryPut.Document })
+                        .ToArray();
+                }
+            }
+
             await InjectCultMeshCdnAssetSnapshotsAsync(options, request, response).ConfigureAwait(false);
             peer.SendCultNet(response);
         }
@@ -1040,6 +1080,57 @@ static bool TryGetManagedViewportRequest(
         MaxY = Math.Max(minY, maxY)
     };
     return true;
+}
+
+static bool TryGetIndexedGameDocumentRequest(
+    CultNetSnapshotRequestMessage request,
+    out string recordKey,
+    out string schemaId,
+    out int entityIndex)
+{
+    recordKey = "";
+    schemaId = "";
+    entityIndex = -1;
+    var schemaIds = request.SchemaIds ?? Array.Empty<string>();
+    var allowedSchemas = new[]
+    {
+        AetheriaRuntimeDaemonSchemas.SelectedObject,
+        AetheriaRuntimeDaemonSchemas.Inventory
+    };
+    if (schemaIds.Length > 0 && !schemaIds.Any(candidate => allowedSchemas.Contains(candidate, StringComparer.Ordinal)))
+        return false;
+
+    foreach (var candidate in request.RecordKeys ?? Array.Empty<string>())
+    {
+        var candidateSchemaId = "";
+        var prefix = "";
+        if (candidate.StartsWith("aetheria.object.selected.", StringComparison.Ordinal))
+        {
+            prefix = "aetheria.object.selected.";
+            candidateSchemaId = AetheriaRuntimeDaemonSchemas.SelectedObject;
+        }
+        else if (candidate.StartsWith("aetheria.inventory.", StringComparison.Ordinal))
+        {
+            prefix = "aetheria.inventory.";
+            candidateSchemaId = AetheriaRuntimeDaemonSchemas.Inventory;
+        }
+        else
+        {
+            continue;
+        }
+
+        if (schemaIds.Length > 0 && !schemaIds.Contains(candidateSchemaId, StringComparer.Ordinal))
+            continue;
+        if (!int.TryParse(candidate.Substring(prefix.Length), NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedEntityIndex))
+            continue;
+
+        recordKey = candidate;
+        schemaId = candidateSchemaId;
+        entityIndex = parsedEntityIndex;
+        return true;
+    }
+
+    return false;
 }
 
 static bool TryParseViewportToken(string token, out double value)

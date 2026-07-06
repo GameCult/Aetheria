@@ -52,11 +52,11 @@ import {
   readAuthorityStatusDocument,
   readAssetManifestDocument,
   readDaemonHealthDocument,
-  buildInventoryDocumentFromFrame,
   readGravityViewportDocument,
+  readInventoryDocument,
   readObjectsViewportDocument,
   readRenderSplatsViewportDocument,
-  buildSelectedObjectDocumentFromFrame,
+  readSelectedObjectDocument,
   readStarbridgeSessionSummaryDocument,
   readViewportDocument,
 } from "./aetheria-rts-local-documents.js";
@@ -216,8 +216,10 @@ export class AetheriaCultMeshClient {
         readGravityViewportDocument(await this.fetchViewportDocument(AetheriaRtsSchemas.gravityViewport, "aetheria.viewport.gravity", request)),
       renderSplatsViewport: async (request: ViewportRequest) =>
         readRenderSplatsViewportDocument(await this.fetchViewportDocument(AetheriaRtsSchemas.renderSplatsViewport, "aetheria.viewport.render_splats", request)),
-      selectedObject: async (request: SelectedObjectRequest) => buildSelectedObjectDocumentFromFrame(await this.fetchLatestFrameDocument(), request),
-      inventory: async (request: SelectedObjectRequest) => buildInventoryDocumentFromFrame(await this.fetchLatestFrameDocument(), request),
+      selectedObject: async (request: SelectedObjectRequest) =>
+        readSelectedObjectDocument(await this.fetchIndexedDocument(AetheriaRtsSchemas.selectedObject, "aetheria.object.selected", request.entityIndex)),
+      inventory: async (request: SelectedObjectRequest) =>
+        readInventoryDocument(await this.fetchIndexedDocument(AetheriaRtsSchemas.inventory, "aetheria.inventory", request.entityIndex)),
       daemonHealth: async () => readDaemonHealthDocument(await this.fetchDaemonHealthDocument()),
       authorityStatus: async () => readAuthorityStatusDocument(await this.fetchAuthorityPolicyDocument()),
       starbridgeSession: async () => readStarbridgeSessionSummaryDocument(await this.fetchStarbridgeSessionSummaryDocument()),
@@ -506,6 +508,33 @@ export class AetheriaCultMeshClient {
         timeoutMs: 1500,
         pollMs: 50,
         messageIdPrefix: `${this.runtimeId}:viewport`,
+      },
+    );
+
+    return retryTransientPublicationRead(() => document.latest(this.queryContext()));
+  }
+
+  private async fetchIndexedDocument(
+    schemaId: string,
+    recordPrefix: string,
+    entityIndex: number,
+  ): Promise<unknown> {
+    const recordKey = `${recordPrefix}.${Math.trunc(entityIndex)}`;
+    const document = CultMesh.documentFromPublication(
+      {
+        kind: "peer-snapshot",
+        peer: () => this.peer(),
+        endpoint: this.resolvedRudpEndpoint(),
+      },
+      schemaId,
+      recordKey,
+      {
+        documentId: recordKey,
+        routeHint: this.queryVerse.context.routeHint,
+        sourceId: recordKey,
+        timeoutMs: 1500,
+        pollMs: 50,
+        messageIdPrefix: `${this.runtimeId}:indexed-document`,
       },
     );
 

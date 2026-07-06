@@ -4,17 +4,12 @@ import {
   aetheriaRuntimeAssetManifestEntrySlots as assetManifestEntrySlots,
   aetheriaRuntimeAssetRefSlots as assetRefSlots,
   aetheriaRuntimeAuthorityRuleSlots as authorityRuleSlots,
-  aetheriaRuntimeCargoBayLoadoutCommitSlots as cargoBaySlots,
-  aetheriaRuntimeDaemonFrameDocumentSlots as frameSlots,
   aetheriaRuntimeDaemonHealthDocumentSlots as healthSlots,
-  aetheriaRuntimeEntitySnapshotCommitSlots as entitySlots,
-  aetheriaRuntimeEntityStatGridCommitSlots as statGridSlots,
   aetheriaRuntimeGameViewportBoundsSlots as viewportBoundsSlots,
   aetheriaRuntimeGameViewportDocumentSlots as gameViewportSlots,
   aetheriaRuntimeGameViewportObjectSlots as viewportObjectSlots,
   aetheriaRuntimeGravityViewportDocumentSlots as gravityViewportSlots,
-  aetheriaRuntimeLoadoutItemCommitSlots as itemSlots,
-  aetheriaRuntimeLoadoutItemSlotCommitSlots as itemSlotSlots,
+  aetheriaRuntimeInventoryDocumentSlots as inventoryDocumentSlots,
   aetheriaRuntimeObjectsViewportDocumentSlots as objectsViewportSlots,
   aetheriaRuntimeRenderSplatLayerDefinitionSlots as renderSplatLayerSlots,
   aetheriaRuntimeRenderSplatsViewportDocumentSlots as renderSplatsViewportSlots,
@@ -23,14 +18,13 @@ import {
   aetheriaRuntimeRtsEntityStatusSlots as viewportStatusSlots,
   aetheriaRuntimeRtsGravityInfluenceSlots as gravityInfluenceSlots,
   aetheriaRuntimeRtsInventoryItemSlots as viewportInventoryItemSlots,
-  aetheriaRuntimeRunCheckpointCommitSlots as runSlots,
+  aetheriaRuntimeSelectedObjectDocumentSlots as selectedObjectDocumentSlots,
   aetheriaRuntimeStarbridgeBaseStatusSlots as starbridgeBaseSlots,
   aetheriaRuntimeStarbridgeRuntimeRoleSlots as starbridgeRoleSlots,
   aetheriaRuntimeStarbridgeSessionSummaryDocumentSlots as starbridgeSummarySlots,
   aetheriaRuntimeStarbridgeStationStockItemSlots as starbridgeStockSlots,
   aetheriaRuntimeStarbridgeWaveForecastSlots as starbridgeWaveForecastSlots,
   aetheriaRuntimeVerseAuthorityPolicyDocumentSlots as authorityPolicySlots,
-  aetheriaRuntimeZoneSnapshotCommitSlots as zoneSlots,
 } from "./aetheria-rts-generated-bindings.js";
 import { cultMeshRectFromBounds, cultMeshViewportRequest } from "cultmesh-ts";
 import type {
@@ -47,7 +41,6 @@ import type {
   ObjectsViewportResponse,
   RenderSplatsViewportResponse,
   SelectedObjectDocument,
-  SelectedObjectRequest,
   StarbridgeSessionDocument,
   ViewObject,
   ViewportRequest,
@@ -56,36 +49,30 @@ import type {
 
 const missingDaemonRunId = "aetheria.run.unknown";
 
-export function buildSelectedObjectDocumentFromFrame(
-  frameDocument: unknown,
-  request: SelectedObjectRequest,
-): SelectedObjectDocument {
-  const context = frameContext(frameDocument);
-  const entity = context.entities.find(candidate => num(candidate[entitySlots.entityIndex], -1) === request.entityIndex);
+export function readSelectedObjectDocument(selectedObjectDocument: unknown): SelectedObjectDocument {
+  const document = arr(selectedObjectDocument);
   return {
-    schema: AetheriaRtsSchemas.selectedObject,
-    frameId: context.frameId,
-    runId: context.runId,
-    zoneIndex: context.zoneIndex,
-    entityIndex: request.entityIndex,
-    selected: entity ? toViewObject(entity, context.runId, context.zoneIndex) : null,
+    schema: str(document[selectedObjectDocumentSlots.schema]) || AetheriaRtsSchemas.selectedObject,
+    frameId: num(document[selectedObjectDocumentSlots.frameId]),
+    runId: str(document[selectedObjectDocumentSlots.runId]) || missingDaemonRunId,
+    zoneIndex: num(document[selectedObjectDocumentSlots.zoneIndex]),
+    entityIndex: num(document[selectedObjectDocumentSlots.entityIndex], -1),
+    selected: readNullableViewportObject(document[selectedObjectDocumentSlots.selected]),
   };
 }
 
-export function buildInventoryDocumentFromFrame(frameDocument: unknown, request: SelectedObjectRequest): InventoryDocument {
-  const context = frameContext(frameDocument);
-  const entity = context.entities.find(candidate => num(candidate[entitySlots.entityIndex], -1) === request.entityIndex);
-  const allItems = entity ? inventory(entity) : [];
+export function readInventoryDocument(inventoryDocument: unknown): InventoryDocument {
+  const document = arr(inventoryDocument);
   return {
-    schema: AetheriaRtsSchemas.inventory,
-    frameId: context.frameId,
-    runId: context.runId,
-    zoneIndex: context.zoneIndex,
-    entityIndex: request.entityIndex,
-    entityKey: entity ? entityKey(context.runId, context.zoneIndex, request.entityIndex) : "",
-    items: allItems,
-    equipment: allItems.filter(item => item.source === "equipment"),
-    cargo: allItems.filter(item => item.source === "cargo"),
+    schema: str(document[inventoryDocumentSlots.schema]) || AetheriaRtsSchemas.inventory,
+    frameId: num(document[inventoryDocumentSlots.frameId]),
+    runId: str(document[inventoryDocumentSlots.runId]) || missingDaemonRunId,
+    zoneIndex: num(document[inventoryDocumentSlots.zoneIndex]),
+    entityIndex: num(document[inventoryDocumentSlots.entityIndex], -1),
+    entityKey: str(document[inventoryDocumentSlots.entityKey]),
+    items: list<unknown[]>(document[inventoryDocumentSlots.items]).map(readViewportInventoryItem),
+    equipment: list<unknown[]>(document[inventoryDocumentSlots.equipment]).map(readViewportInventoryItem),
+    cargo: list<unknown[]>(document[inventoryDocumentSlots.cargo]).map(readViewportInventoryItem),
   };
 }
 
@@ -233,27 +220,6 @@ export function readAssetManifestDocument(assetManifestDocument: unknown): Asset
   };
 }
 
-function frameContext(frameDocument: unknown): {
-  frameId: number;
-  runId: string;
-  zoneIndex: number;
-  entities: unknown[][];
-} {
-  const frame = arr(frameDocument);
-  const run = arr(frame[frameSlots.run]);
-  const zones = list<unknown[]>(run[runSlots.zones]);
-  const currentZoneIndex = num(run[runSlots.currentZoneIndex], -1);
-  const zone = zones.find(candidate => num(candidate[zoneSlots.zoneIndex], -1) === currentZoneIndex) ??
-    zones[0] ??
-    [];
-  return {
-    frameId: num(frame[frameSlots.frameId]),
-    runId: str(run[runSlots.runId]) || missingDaemonRunId,
-    zoneIndex: num(zone[zoneSlots.zoneIndex]),
-    entities: list<unknown[]>(zone[zoneSlots.entities]),
-  };
-}
-
 function readViewportBounds(value: unknown): ViewportRequest {
   const bounds = arr(value);
   return cultMeshViewportRequest(
@@ -269,6 +235,10 @@ function readViewportBounds(value: unknown): ViewportRequest {
 
 function readViewportObjects(objects: unknown[][]): ViewObject[] {
   return objects.map(readViewportObject);
+}
+
+function readNullableViewportObject(value: unknown): ViewObject | null {
+  return Array.isArray(value) ? readViewportObject(value) : null;
 }
 
 function readViewportObject(object: unknown[]): ViewObject {
@@ -395,36 +365,6 @@ function readRenderSplatSoa(value: unknown): RenderSplatsViewportResponse["splat
   };
 }
 
-function toViewObject(entity: unknown[], runId: string, zoneIndex: number): ViewObject {
-  const kind = str(entity[entitySlots.kind]);
-  const controlled = isPlayerControlled(entity);
-  return {
-    entityIndex: num(entity[entitySlots.entityIndex], -1),
-    entityKey: entityKey(runId, zoneIndex, num(entity[entitySlots.entityIndex], -1)),
-    displayName: str(entity[entitySlots.name]),
-    kind,
-    factionKey: str(entity[entitySlots.factionKey]),
-    x: num(entity[entitySlots.positionX]),
-    y: num(entity[entitySlots.positionZ]),
-    z: num(entity[entitySlots.positionY]),
-    directionX: num(entity[entitySlots.directionX]),
-    directionY: num(entity[entitySlots.directionY]),
-    velocityX: num(entity[entitySlots.velocityX]),
-    velocityY: num(entity[entitySlots.velocityY]),
-    controlled,
-    targetEntityIndex: num(entity[entitySlots.targetEntityIndex], -1),
-    isActive: bool(entity[entitySlots.isActive]),
-    visibility: num(entity[entitySlots.visibility]),
-    iconAsset: entityIconAsset(kind, controlled),
-    status: {
-      hull: stat(entity, "hull"),
-      shield: stat(entity, "shield"),
-      heat: stat(entity, "heat"),
-    },
-    inventory: inventory(entity),
-  };
-}
-
 function toStarbridgeBaseStatus(status: unknown[]): StarbridgeSessionDocument["baseStatus"] {
   return {
     entityKey: str(status[starbridgeBaseSlots.entityKey]),
@@ -464,46 +404,6 @@ function toStarbridgeRuntimeRole(role: unknown[]): StarbridgeSessionDocument["ru
     role: str(role[starbridgeRoleSlots.role]),
     entityKey: str(role[starbridgeRoleSlots.entityKey]),
   };
-}
-
-function inventory(entity: unknown[]): InventoryItem[] {
-  const items: InventoryItem[] = [];
-  for (const slot of list<unknown[]>(entity[entitySlots.equipment]))
-    addSlot(items, "equipment", slot);
-  for (const bay of list<unknown[]>(entity[entitySlots.cargoContents])) {
-    for (const slot of list<unknown[]>(bay[cargoBaySlots.items]))
-      addSlot(items, "cargo", slot);
-  }
-
-  return items.filter(item => item.itemKey.length > 0);
-}
-
-function addSlot(items: InventoryItem[], source: string, slot: unknown[]): void {
-  const item = arr(slot[itemSlotSlots.item]);
-  const itemKey = str(item[itemSlots.itemKey]);
-  items.push({
-    source,
-    itemKey,
-    quantity: num(item[itemSlots.quantity]),
-    quality: num(item[itemSlots.quality]),
-    durability: num(item[itemSlots.durability]),
-    enabled: bool(item[itemSlots.enabled]),
-    iconAsset: itemIconAsset(itemKey),
-  });
-}
-
-function isPlayerControlled(entity: unknown[]): boolean {
-  return str(entity[entitySlots.factionKey]).toLowerCase() === "player";
-}
-
-function stat(entity: unknown[], name: string): number {
-  const grid = list<unknown[]>(entity[entitySlots.statGrids])
-    .find(candidate => str(candidate[statGridSlots.name]).toLowerCase() === name.toLowerCase());
-  return grid ? numberList(grid[statGridSlots.values])[0] ?? 0 : 0;
-}
-
-function entityKey(runId: string, zoneIndex: number, entityIndex: number): string {
-  return `global:aetheria.run_state.${runId}.zone.${zoneIndex}.entity.${entityIndex}.v1`;
 }
 
 function toAssetManifestEntry(entry: unknown[]): AssetManifestDocument["assets"][number] {
