@@ -12,32 +12,53 @@ if ($LASTEXITCODE -ne 0) {
 $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("aetheria-stage7c-" + [Guid]::NewGuid().ToString("N"))
 New-Item -ItemType Directory -Path $tempRoot | Out-Null
 $statePath = Join-Path $tempRoot "aetheria.cc"
+$daemonOut = Join-Path $tempRoot "daemon.out.log"
+$daemonErr = Join-Path $tempRoot "daemon.err.log"
+$daemonProject = Join-Path $repoRoot "Aetheria.State.Daemon\Aetheria.State.Daemon.csproj"
+$port = Get-Random -Minimum 41000 -Maximum 64000
 $endpoint = $null
+$daemon = $null
 
 try {
-    $previousErrorActionPreference = $ErrorActionPreference
-    $ErrorActionPreference = "Continue"
-    try {
-        $daemonOutput = dotnet run --project (Join-Path $repoRoot "Aetheria.State.Daemon\Aetheria.State.Daemon.csproj") -- `
-            --state $statePath `
-            --once `
-            --client-cultmesh-port 0 2>&1
-    }
-    finally {
-        $ErrorActionPreference = $previousErrorActionPreference
-    }
-    $daemonOutput | Out-Host
-    if ($LASTEXITCODE -ne 0) {
-        Write-Error "Stage 7C verifier failed: one-shot daemon did not complete."
+    $daemon = Start-Process -FilePath "dotnet" -ArgumentList @(
+        "run",
+        "--project",
+        $daemonProject,
+        "--",
+        "--state",
+        $statePath,
+        "--client-cultmesh-host",
+        "127.0.0.1",
+        "--client-cultmesh-port",
+        $port,
+        "--tick-interval-ms",
+        "20",
+        "--fixed-delta-ms",
+        "20",
+        "--api-publication-interval-ms",
+        "100000",
+        "--no-odin-announcements"
+    ) -RedirectStandardOutput $daemonOut -RedirectStandardError $daemonErr -WindowStyle Hidden -PassThru
+
+    $deadline = (Get-Date).AddSeconds(40)
+    while ((Get-Date) -lt $deadline) {
+        if ($daemon.HasExited) {
+            Write-Error "Stage 7C verifier failed: daemon exited early ($($daemon.ExitCode)).`n$(if (Test-Path $daemonErr) { Get-Content $daemonErr -Raw })`n$(if (Test-Path $daemonOut) { Get-Content $daemonOut -Raw })"
+        }
+
+        if ((Test-Path $daemonOut) -and ((Get-Content $daemonOut -Raw) -match "Aetheria client CultMesh endpoint: (rudp://127\.0\.0\.1:\d+)")) {
+            $endpoint = $Matches[1]
+            break
+        }
+
+        Start-Sleep -Milliseconds 250
     }
 
-    foreach ($line in $daemonOutput) {
-        if ($line -match "Aetheria client CultMesh endpoint: (rudp://127\.0\.0\.1:\d+)") {
-            $endpoint = $Matches[1]
-        }
+    if (Test-Path $daemonOut) {
+        Get-Content $daemonOut | Out-Host
     }
     if ([string]::IsNullOrWhiteSpace($endpoint)) {
-        Write-Error "Stage 7C verifier failed: one-shot daemon did not report a client CultMesh endpoint."
+        Write-Error "Stage 7C verifier failed: daemon did not report a client CultMesh endpoint.`n$(if (Test-Path $daemonErr) { Get-Content $daemonErr -Raw })`n$(if (Test-Path $daemonOut) { Get-Content $daemonOut -Raw })"
     }
 
     $smokeScript = Join-Path $tempRoot "stage7c-smoke.mjs"
@@ -152,6 +173,7 @@ console.log(JSON.stringify({
     documents: surfaceIndex.documents.length
   }
 }, null, 2));
+await client.close();
 '@ | Set-Content -LiteralPath $smokeScript -Encoding UTF8
 
     $env:AETHERIA_STAGE7C_STATE_PATH = $statePath
@@ -163,6 +185,10 @@ console.log(JSON.stringify({
     }
 }
 finally {
+    if ($daemon -and -not $daemon.HasExited) {
+        Stop-Process -Id $daemon.Id -Force
+        $daemon.WaitForExit()
+    }
     Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
 }
 
