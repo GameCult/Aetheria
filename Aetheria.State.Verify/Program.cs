@@ -1500,6 +1500,31 @@ static void RequireNoDeadRuntimeProjectionClasses(string root)
                 "Active architecture docs must not point future work at deleted runtime-specific shared authorities: " +
                 string.Join("; ", docHits));
         }
+
+        var daemonRuntimeSpecificHookPhrases = new[]
+        {
+            "daemon RTS viewport",
+            "Daemon RTS viewport",
+            "temporary RUDP RTS viewport",
+            "RUDP RTS viewport",
+            "daemon RTS command",
+            "Daemon RTS command"
+        };
+        var hookPhraseHits = Directory.EnumerateFiles(activeDocsRoot, "*.md", SearchOption.AllDirectories)
+            .SelectMany(path =>
+            {
+                var text = File.ReadAllText(path);
+                return daemonRuntimeSpecificHookPhrases
+                    .Where(phrase => text.Contains(phrase, StringComparison.Ordinal))
+                    .Select(phrase => $"{Path.GetRelativePath(root, path)} contains {phrase}");
+            })
+            .ToArray();
+        if (hookPhraseHits.Length > 0)
+        {
+            throw new InvalidOperationException(
+                "Active architecture docs must describe daemon RUDP hooks as client-neutral compatibility, not RTS-specific daemon authority: " +
+                string.Join("; ", hookPhraseHits));
+        }
     }
 }
 

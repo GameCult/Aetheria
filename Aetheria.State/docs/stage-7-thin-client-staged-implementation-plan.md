@@ -334,7 +334,7 @@ Build:
 - Project the map viewport in TS from the frame document.
 - Use controlled-unit visibility union for fog of war.
 - Include objects, status, inventory, gravity influences, and body views.
-- Keep remote RTS viewport document handling as daemon compatibility only.
+- Keep remote game viewport document handling as daemon compatibility only.
 
 Outputs:
 

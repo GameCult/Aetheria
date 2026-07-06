@@ -736,7 +736,7 @@ Current artifacts:
   using the same typed projection facade.
 - `Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeGameViewportDocuments.cs`
   owns typed map viewport projection over local daemon frame state.
-- `Aetheria.State.Daemon/Program.cs` delegates the temporary RUDP RTS viewport
+- `Aetheria.State.Daemon/Program.cs` delegates the temporary RUDP game viewport
   snapshot hook to the shared projection API.
 - `Aetheria.Rts.Web/scripts/verify-stage7b-rts-client.ps1` fails if public
   generic APIs return or if the Electron transport wrapper regains document
@@ -753,7 +753,7 @@ Remaining Stage 7B work:
    canonical peer health surface.
 3. Replace the remaining semantic command construction arrays with a CultMesh TS
    typed document writer once that primitive is available locally.
-4. Delete or narrow the daemon RTS viewport RUDP hook once no compatibility
+4. Delete or narrow the daemon local viewport RUDP hook once no compatibility
    client or diagnostic path depends on it.
 
 Stop line:

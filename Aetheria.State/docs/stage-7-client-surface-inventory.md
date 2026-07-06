@@ -229,12 +229,12 @@ Done:
 - `scripts/generate-rts-bindings.mjs` derives schema ids, command kind ids, and
   slot maps from the C# MessagePack document declarations into
   `aetheria-rts-generated-bindings.ts` for daemon command, daemon frame, daemon
-  health, RTS viewport payloads, nested daemon snapshot payloads, Verse
+  health, game viewport payloads, nested daemon snapshot payloads, Verse
   authority policy, authority rule, and authority lease;
 - `AetheriaRuntimeGameViewportDocuments` owns typed viewport projection over local
   daemon frame state, including controlled-unit visibility union, status,
   inventory, and gravity influence intersections;
-- daemon RUDP snapshot handling delegates RTS viewport construction to
+- daemon RUDP snapshot handling delegates game viewport construction to
   `AetheriaRuntimeGameViewportDocuments` instead of carrying map projection logic
   inline;
 - `Aetheria.State.AuthoritySmoke` verifies the projection behavior against a
@@ -275,7 +275,7 @@ Remaining:
 3. Replace the remaining semantic command construction arrays with a CultMesh
    TS typed document writer once that primitive is available locally.
 4. Narrow Electron preload/main IPC behind a typed runtime facade.
-5. Keep the daemon RTS viewport handler only as temporary compatibility plumbing
+5. Keep the daemon local viewport handler only as temporary compatibility plumbing
    until no client or diagnostic path depends on it.
 6. Keep the verifier checking for old public generic surfaces and transport
    wrapper layout leaks:
