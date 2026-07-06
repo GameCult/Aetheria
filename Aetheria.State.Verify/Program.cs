@@ -16310,6 +16310,22 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
             string.Join(", ", sharedRuntimeAuthorityHits));
     }
 
+    var staleRuntimeSpecificTestAuthoritySources = new Dictionary<string, string>
+    {
+        ["Assets/Scripts/Tests/DaemonRuntimeDocumentTests.cs"] = daemonRuntimeDocumentTests
+    }
+        .Where(pair =>
+            pair.Value.Contains("daemon-rts", StringComparison.Ordinal) ||
+            pair.Value.Contains("rts-commander", StringComparison.Ordinal))
+        .Select(pair => pair.Key)
+        .ToArray();
+    if (staleRuntimeSpecificTestAuthoritySources.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Aetheria daemon tests must assert daemon-owned simulation vocabulary, not stale RTS owner kinds: " +
+            string.Join(", ", staleRuntimeSpecificTestAuthoritySources));
+    }
+
     var staleRuntimeSpecificAssetSources = new Dictionary<string, string>
     {
         ["Aetheria.Rts.Web/Electron/aetheria-rts-local-documents.ts"] = rtsLocalDocuments,

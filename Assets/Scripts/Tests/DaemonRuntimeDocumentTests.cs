@@ -1936,7 +1936,7 @@ public class DaemonRuntimeDocumentTests
         Assert.IsTrue(zone.Projectiles.All(projectile => projectile.Active));
         Assert.IsTrue(zone.Projectiles.Any(projectile => projectile.SourceEntityIndex == 0 && projectile.TargetEntityIndex == 1));
         Assert.IsTrue(zone.Entities.All(entity => entity.WeaponStates.Any(weapon =>
-            weapon.OwnerKind == "daemon-rts" &&
+            weapon.OwnerKind == "daemon-simulation" &&
             weapon.BehaviorKind == "ProjectileWeapon")));
 
         var frame = AetheriaRuntimeDaemonFrameDocument.Create(
