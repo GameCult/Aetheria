@@ -19,7 +19,6 @@ public class ActionGameManager : MonoBehaviour
     private AetheriaUnityPilotCommandSender _pilotCommands;
     private AetheriaUnityObservedEntityRestorer _observedEntityRestorer;
     private AetheriaUnityCurrentEntityBinder _currentEntityBinder;
-    private AetheriaUnityObservedZoneContextFactory _observedZoneContextFactory;
     private AetheriaUnityPilotFrameController _pilotFrameController;
     private AetheriaUnityPilotOperationController _pilotOperationController;
     private AetheriaUnityObservedFrameApplier _observedFrameApplier;
@@ -45,13 +44,7 @@ public class ActionGameManager : MonoBehaviour
             EntityBlueprintMaterializer.MaterializeObservedEntity,
             _loadoutItemFactory.CreateLoadoutItem,
             Debug.LogWarning);
-    private AetheriaUnityObservedZoneContextFactory ObservedZoneContextFactory =>
-        _observedZoneContextFactory ??= new AetheriaUnityObservedZoneContextFactory(
-            ItemManager,
-            Settings.PlanetSettings,
-            () => ObservedGalaxy,
-            Debug.LogWarning,
-            PlayMusic);
+    private AetheriaUnityObservedZoneContextFactory ObservedZoneContextFactory { get; set; }
     private AetheriaUnityCurrentEntityBinder CurrentEntityBinder =>
         _currentEntityBinder ??= new AetheriaUnityCurrentEntityBinder
         {
@@ -282,7 +275,6 @@ public class ActionGameManager : MonoBehaviour
 
     private ItemManager ItemManager { get; set; }
     private AetheriaUnityLoadoutItemFactory _loadoutItemFactory;
-    private Galaxy ObservedGalaxy { get; set; }
     private Zone Zone { get; set; }
 
     private readonly AetheriaUnityDragSession _dragSession = new AetheriaUnityDragSession();
@@ -299,7 +291,12 @@ public class ActionGameManager : MonoBehaviour
         var boot = GameplayBootShell.Boot();
         ItemManager = boot.ItemManager;
         _loadoutItemFactory = boot.LoadoutItemFactory;
-        ObservedGalaxy = boot.ObservedGalaxy;
+        ObservedZoneContextFactory = new AetheriaUnityObservedZoneContextFactory(
+            ItemManager,
+            Settings.PlanetSettings,
+            boot.ObservedGalaxy,
+            Debug.LogWarning,
+            PlayMusic);
         SceneWiring.ConfigureCurrentEntityPresentation(_currentEntityPresentation, boot.RuntimeCatalog);
         SceneWiring.ConfigureTargetPresentation(
             _targetPresentation,

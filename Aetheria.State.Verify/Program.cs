@@ -13888,10 +13888,10 @@ static void RequireMainMenuContinueRunState(string root)
         "GameplayLoopShell.LateTick()",
         "ApplyLatestZoneRender = () => ObservedFrameApplier.ApplyLatestZoneRender()",
         "private AetheriaUnityObservedFrameApplier ObservedFrameApplier =>",
-        "private Galaxy ObservedGalaxy { get; set; }",
-        "ObservedGalaxy = boot.ObservedGalaxy",
+        "ObservedZoneContextFactory = new AetheriaUnityObservedZoneContextFactory(",
+        "boot.ObservedGalaxy",
         "ObservedZoneContextFactory.ResolveGalaxyZone",
-        "private AetheriaUnityObservedZoneContextFactory ObservedZoneContextFactory =>",
+        "private AetheriaUnityObservedZoneContextFactory ObservedZoneContextFactory { get; set; }",
         "entity => CurrentEntityBinder.RestoreBinding(entity)",
         "ResolveObservedTarget = entity => _targetPresentation.GetObservedTarget(entity)",
         "TargetPresentation = _targetPresentation",
@@ -14916,10 +14916,10 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         "ApplyLatestZoneRender = () => ObservedFrameApplier.ApplyLatestZoneRender()",
         "ResolveDaemonObserver()",
         "private AetheriaUnityObservedFrameApplier ObservedFrameApplier =>",
-        "private Galaxy ObservedGalaxy { get; set; }",
-        "ObservedGalaxy = boot.ObservedGalaxy",
+        "ObservedZoneContextFactory = new AetheriaUnityObservedZoneContextFactory(",
+        "boot.ObservedGalaxy",
         "ObservedZoneContextFactory.ResolveGalaxyZone",
-        "private AetheriaUnityObservedZoneContextFactory ObservedZoneContextFactory =>",
+        "private AetheriaUnityObservedZoneContextFactory ObservedZoneContextFactory { get; set; }",
         "entity => CurrentEntityBinder.RestoreBinding(entity)",
         "private AetheriaUnityEntityBlueprintMaterializer EntityBlueprintMaterializer =>",
         "EntityBlueprintMaterializer.MaterializeObservedEntity",
@@ -15317,10 +15317,15 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
             string.Join(", ", observedReadShimHits));
     }
 
-    if (actionGameManager.Contains("public static Galaxy ObservedGalaxy", StringComparison.Ordinal))
+    if (actionGameManager.Contains("private Galaxy ObservedGalaxy", StringComparison.Ordinal) ||
+        actionGameManager.Contains("ObservedGalaxy = boot.ObservedGalaxy", StringComparison.Ordinal) ||
+        actionGameManager.Contains("() => ObservedGalaxy", StringComparison.Ordinal) ||
+        observedZoneContextFactory.Contains("Func<Galaxy> resolveObservedGalaxy", StringComparison.Ordinal) ||
+        observedZoneContextFactory.Contains("_resolveObservedGalaxy", StringComparison.Ordinal) ||
+        observedZoneContextFactory.Contains("_observedGalaxy ??=", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "ActionGameManager must not expose the raw observed galaxy projection as public gameplay state; keep it as a private renderer adapter behind managed typed documents.");
+            "ActionGameManager must not own the raw observed galaxy projection; gameplay boot may pass it once into the legacy Zone construction adapter only.");
     }
 
     if (actionGameManager.Contains("public static void ProjectObservedDaemonRun(", StringComparison.Ordinal) ||

@@ -15,21 +15,20 @@ public sealed class AetheriaUnityObservedZoneContextFactory
     private readonly Dictionary<int, Zone> _observedZoneContextsByDaemonIndex = new Dictionary<int, Zone>();
     private readonly ItemManager _itemManager;
     private readonly PlanetSettings _planetSettings;
-    private readonly Func<Galaxy> _resolveObservedGalaxy;
     private readonly Action<string> _logWarning;
     private readonly Action<MusicType> _playMusic;
-    private Galaxy _observedGalaxy;
+    private readonly Galaxy _observedGalaxy;
 
     public AetheriaUnityObservedZoneContextFactory(
         ItemManager itemManager,
         PlanetSettings planetSettings,
-        Func<Galaxy> resolveObservedGalaxy,
+        Galaxy observedGalaxy,
         Action<string> logWarning,
         Action<MusicType> playMusic)
     {
         _itemManager = itemManager ?? throw new ArgumentNullException(nameof(itemManager));
         _planetSettings = planetSettings ?? throw new ArgumentNullException(nameof(planetSettings));
-        _resolveObservedGalaxy = resolveObservedGalaxy ?? (() => null);
+        _observedGalaxy = observedGalaxy;
         _logWarning = logWarning ?? (_ => { });
         _playMusic = playMusic ?? (_ => { });
     }
@@ -50,7 +49,6 @@ public sealed class AetheriaUnityObservedZoneContextFactory
         var zoneIndex = render.ZoneIndex;
         if (!_observedZoneContextsByDaemonIndex.TryGetValue(zoneIndex, out var observedZoneContext))
         {
-            _observedGalaxy = _resolveObservedGalaxy();
             if (_observedGalaxy == null)
             {
                 _logWarning($"Daemon-authoritative zone population suppressed for {galaxyZone.Name}; no observed sector projection is available.");
@@ -72,7 +70,6 @@ public sealed class AetheriaUnityObservedZoneContextFactory
         if (daemonZoneIndex < 0)
             return null;
 
-        _observedGalaxy ??= _resolveObservedGalaxy();
         return _observedGalaxy?.Zones?.FirstOrDefault(zone => zone != null && zone.ZoneIndex == daemonZoneIndex);
     }
 
