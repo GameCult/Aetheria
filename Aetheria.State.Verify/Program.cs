@@ -18,6 +18,7 @@ RequireTypedPendingCommitKeys(root);
 RequireTypedRuntimeFactionKeys(root);
 RequireTypedGalaxyFactionRelationships(root);
 RequireRuntimeCatalogKeyOnlyLookups(root);
+RequireDaemonPlayableRunGenerationAuthority(root);
 RequireTypedBehaviorBodyKeys(root);
 RequireTypedOrbitTaskKeys(root);
 RequireTypedAgentTaskKeys(root);
@@ -1207,6 +1208,67 @@ static void RequireRuntimeCatalogKeyOnlyLookups(string root)
         throw new InvalidOperationException(
             "Unity runtime catalog lookup authority must stay on the typed snapshot; legacy-ID indexes and redundant catalog adapters belong to migration boundaries: " +
             string.Join("; ", hits));
+    }
+}
+
+static void RequireDaemonPlayableRunGenerationAuthority(string root)
+{
+    var daemonProgramPath = Path.Combine(root, "Aetheria.State.Daemon", "Program.cs");
+    var daemonZoneGeneratorPath = Path.Combine(root, "Aetheria.State.Daemon", "AetheriaDaemonZoneGenerator.cs");
+    var sharedLoadoutGeneratorPath = Path.Combine(root, "Assets", "Scripts", "ServerShared", "LoadoutGenerator.cs");
+
+    var daemonProgram = File.Exists(daemonProgramPath)
+        ? File.ReadAllText(daemonProgramPath)
+        : throw new InvalidOperationException("Cannot verify daemon playable-run generation authority; daemon Program.cs is missing.");
+    var daemonZoneGenerator = File.Exists(daemonZoneGeneratorPath)
+        ? File.ReadAllText(daemonZoneGeneratorPath)
+        : throw new InvalidOperationException("Cannot verify daemon playable-run generation authority; daemon zone generator is missing.");
+    var sharedLoadoutGenerator = File.Exists(sharedLoadoutGeneratorPath)
+        ? File.ReadAllText(sharedLoadoutGeneratorPath)
+        : throw new InvalidOperationException("Cannot verify daemon playable-run generation authority; legacy Unity LoadoutGenerator.cs is missing.");
+
+    var requiredDaemonSymbols = new[]
+    {
+        "await AetheriaDaemonZoneGenerator.WritePlayableRunAsync(",
+        "internal static class AetheriaDaemonZoneGenerator",
+        "private sealed class DaemonLoadoutGenerator",
+        "var loadouts = new DaemonLoadoutGenerator(catalog);",
+        "GenerateEntities(loadouts)"
+    };
+
+    var daemonText = daemonProgram + "\n" + daemonZoneGenerator;
+    var missingDaemonSymbols = requiredDaemonSymbols
+        .Where(symbol => !daemonText.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingDaemonSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Playable run and loadout generation must be daemon-owned, not recovered through Unity ServerShared generators: " +
+            string.Join(", ", missingDaemonSymbols));
+    }
+
+    var forbiddenDaemonSymbols = new[]
+    {
+        "new LoadoutGenerator(",
+        "ZoneGenerator.Generate(",
+        "Assets.Scripts.ServerShared",
+        "ServerShared.LoadoutGenerator"
+    };
+    var survivingDaemonSymbols = forbiddenDaemonSymbols
+        .Where(symbol => daemonText.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (survivingDaemonSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Daemon generation must not call the legacy Unity ServerShared loadout/zone generators: " +
+            string.Join(", ", survivingDaemonSymbols));
+    }
+
+    if (sharedLoadoutGenerator.Contains("// public LoadoutGenerator", StringComparison.Ordinal) ||
+        sharedLoadoutGenerator.Contains("//     ref Random random", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Legacy Unity LoadoutGenerator must not carry commented constructor scars; Git history owns removed APIs.");
     }
 }
 
