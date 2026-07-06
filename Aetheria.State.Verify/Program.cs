@@ -11238,6 +11238,7 @@ static void RequireDaemonVersePublication(string root)
     var committedFactImporterPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeCommittedFactImporter.cs");
     var daemonHostProjectPath = Path.Combine(root, "Aetheria.State.Daemon", "Aetheria.State.Daemon.csproj");
     var daemonHostProgramPath = Path.Combine(root, "Aetheria.State.Daemon", "Program.cs");
+    var daemonZoneGeneratorPath = Path.Combine(root, "Aetheria.State.Daemon", "AetheriaDaemonZoneGenerator.cs");
     var documentRegistryPath = Path.Combine(root, "Aetheria.State", "AetheriaDocumentRegistry.cs");
     var stateNodePath = Path.Combine(root, "Aetheria.State", "AetheriaStateNode.cs");
     var runtimeSurfaceDocumentsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeSurfaceDocuments.cs");
@@ -11264,6 +11265,7 @@ static void RequireDaemonVersePublication(string root)
         committedFactImporterPath,
         daemonHostProjectPath,
         daemonHostProgramPath,
+        daemonZoneGeneratorPath,
         documentRegistryPath,
         stateNodePath,
         runtimeSurfaceDocumentsPath,
@@ -11299,6 +11301,7 @@ static void RequireDaemonVersePublication(string root)
     var committedFactImporter = File.ReadAllText(committedFactImporterPath);
     var daemonHostProject = File.ReadAllText(daemonHostProjectPath);
     var daemonHostProgram = File.ReadAllText(daemonHostProgramPath);
+    var daemonZoneGenerator = File.ReadAllText(daemonZoneGeneratorPath);
     var documentRegistry = File.ReadAllText(documentRegistryPath);
     var stateNode = File.ReadAllText(stateNodePath);
     var runtimeSurfaceDocuments = File.ReadAllText(runtimeSurfaceDocumentsPath);
@@ -11761,6 +11764,14 @@ static void RequireDaemonVersePublication(string root)
         throw new InvalidOperationException(
             "Daemon tick runner must build typed publication documents, not write legacy witness stores: " +
             string.Join(", ", forbiddenTickPublicationHits));
+    }
+
+    if (daemonZoneGenerator.Contains("fallbackCargo", StringComparison.Ordinal) ||
+        !daemonZoneGenerator.Contains("Build(string entityKind, string factionKey, IReadOnlyList<string> scenarioCargo)", StringComparison.Ordinal) ||
+        !daemonZoneGenerator.Contains("if (scenarioCargo != null && scenarioCargo.Count > 0)", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Daemon zone generation must treat declared scenario cargo as authored state, not as a catalog-generation fallback.");
     }
 
     var requiredDaemonHostSymbols = new[]

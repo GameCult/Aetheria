@@ -350,7 +350,7 @@ internal static class AetheriaDaemonZoneGenerator
             _catalog = catalog ?? new AetheriaRuntimeCatalogSnapshot();
         }
 
-        public DaemonLoadout Build(string entityKind, string factionKey, IReadOnlyList<string> fallbackCargo)
+        public DaemonLoadout Build(string entityKind, string factionKey, IReadOnlyList<string> scenarioCargo)
         {
             var hullType = string.Equals(entityKind, "station", StringComparison.OrdinalIgnoreCase)
                 ? "Station"
@@ -359,7 +359,7 @@ internal static class AetheriaDaemonZoneGenerator
             var equipment = PickEquipment(hull, factionKey)
                 .Select((item, index) => Slot(index, item.ItemKey))
                 .ToArray();
-            var cargo = PickCargo(fallbackCargo)
+            var cargo = PickCargo(scenarioCargo)
                 .Select((itemKey, index) => CargoSlot(index, itemKey))
                 .ToArray();
 
@@ -397,8 +397,11 @@ internal static class AetheriaDaemonZoneGenerator
             }
         }
 
-        private IEnumerable<string> PickCargo(IReadOnlyList<string> fallbackCargo)
+        private IEnumerable<string> PickCargo(IReadOnlyList<string> scenarioCargo)
         {
+            if (scenarioCargo != null && scenarioCargo.Count > 0)
+                return scenarioCargo.Where(itemKey => !string.IsNullOrWhiteSpace(itemKey));
+
             var catalogCargo = _catalog.TradeItems
                 .Where(item => item.MaxStack != 1 || string.Equals(item.Category, AetheriaRuntimeItemCategories.Gear, StringComparison.OrdinalIgnoreCase))
                 .OrderBy(item => item.Price <= 0 ? int.MaxValue : item.Price)
@@ -406,7 +409,7 @@ internal static class AetheriaDaemonZoneGenerator
                 .Select(item => item.ItemKey)
                 .Take(4)
                 .ToArray();
-            return catalogCargo.Length > 0 ? catalogCargo : fallbackCargo;
+            return catalogCargo;
         }
 
         private static int ManufacturerScore(AetheriaRuntimeCatalogItem item, string factionKey)
