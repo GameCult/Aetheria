@@ -925,6 +925,8 @@ static void RequireSharedEvePackagesImportedFromEveRepo(string root)
         !runtimeSurfaceDocuments.Contains("public static EveUiSurfaceDocument ToPortableSurface(AetheriaRuntimeSurfaceDocument document)", StringComparison.Ordinal) ||
         !runtimeSurfaceDocuments.Contains("new EveUiCommandTemplate(command.Operation)", StringComparison.Ordinal) ||
         runtimeSurfaceDocuments.Contains("GameCult.Mesh.EveSurface", StringComparison.Ordinal) ||
+        runtimeCultCacheDocumentStore.Contains("legacyTransportOrSchema", StringComparison.Ordinal) ||
+        runtimeCultCacheDocumentStore.Contains("commandFields > 3 ? legacyTransportOrSchema", StringComparison.Ordinal) ||
         runtimeCultCacheDocumentStore.Contains("new CultMeshOperationBindingDescriptor(", StringComparison.Ordinal) ||
         runtimeSurfaceDocuments.Contains("new CultMeshOperationBindingDescriptor(", StringComparison.Ordinal))
     {

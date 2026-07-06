@@ -462,13 +462,13 @@ namespace GameCult.Aetheria.State.Verse
                 var commandFields = reader.ReadArrayHeader();
                 var name = ReadFieldString(ref reader, commandFields, 0, "");
                 var label = ReadFieldString(ref reader, commandFields, 1, "");
-                var legacyTransportOrSchema = ReadFieldString(ref reader, commandFields, 2, "");
+                var schemaId = ReadFieldString(ref reader, commandFields, 2, "");
                 var routeKind = commandFields > 3
                     ? ReadFieldString(ref reader, commandFields, 3, "")
                     : nameof(CultMeshLocalityKind.Automatic);
                 var routeDescription = commandFields > 4
                     ? ReadFieldString(ref reader, commandFields, 4, "")
-                    : legacyTransportOrSchema;
+                    : "";
                 for (var field = 5; field < commandFields; field++)
                 {
                     reader.Skip();
@@ -478,7 +478,7 @@ namespace GameCult.Aetheria.State.Verse
                     CultMesh.OperationBindingRecord(
                         name,
                         label,
-                        commandFields > 3 ? legacyTransportOrSchema : "",
+                        schemaId,
                         routeKind,
                         routeDescription).ToBinding());
             }
