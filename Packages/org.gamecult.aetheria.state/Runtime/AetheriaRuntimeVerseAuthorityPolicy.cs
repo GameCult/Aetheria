@@ -29,9 +29,6 @@ namespace GameCult.Aetheria.State.Verse
     public static class AetheriaRuntimeVerseDeploymentModes
     {
         public const string DedicatedDaemon = "dedicated-daemon";
-        public const string ElectronLaunchedDaemon = "electron-launched-daemon";
-        public const string UnityHost = "unity-host";
-        public const string BrowserWasmHost = "browser-wasm-host";
         public const string NativeKernelHost = "native-kernel-host";
         public const string DistributedTrusted = "distributed-trusted";
         public const string ObserverOnly = "observer-only";
@@ -40,10 +37,7 @@ namespace GameCult.Aetheria.State.Verse
     public static class AetheriaRuntimeVerseRuntimeRoles
     {
         public const string SimulationHost = "simulation-host";
-        public const string UnityPlayer = "unity-player";
         public const string StarbridgeCommander = "starbridge-commander";
-        public const string BrowserObserver = "browser-observer";
-        public const string BrowserSimulationHost = "browser-simulation-host";
         public const string NativeSimulationKernel = "native-simulation-kernel";
         public const string DedicatedDaemon = "dedicated-daemon";
     }
@@ -110,44 +104,6 @@ namespace GameCult.Aetheria.State.Verse
                         SubjectPrefix = "*",
                         ClaimKinds = new[] { AetheriaRuntimeClaimKinds.Any },
                         Mode = AetheriaRuntimeAuthorityModes.AnyTrustedRuntime
-                    }
-                }
-            };
-        }
-
-        public static AetheriaRuntimeVerseAuthorityPolicyDocument UnityHost(
-            string verseId,
-            string unityRuntimeId)
-        {
-            var runtimeId = string.IsNullOrWhiteSpace(unityRuntimeId) ? "aetheria-unity-host" : unityRuntimeId;
-            return new AetheriaRuntimeVerseAuthorityPolicyDocument
-            {
-                VerseId = string.IsNullOrWhiteSpace(verseId) ? "aetheria.local" : verseId,
-                PolicyId = "aetheria.unity-host.v1",
-                HostRuntimeId = runtimeId,
-                DefaultMode = AetheriaRuntimeAuthorityModes.HostAuthoritative,
-                DeploymentMode = AetheriaRuntimeVerseDeploymentModes.UnityHost,
-                UpdatedAtUtc = DateTime.UtcNow.ToString("O"),
-                RuntimeRoles = new[]
-                {
-                    new AetheriaRuntimeAuthorityRuntimeRole
-                    {
-                        RuntimeId = runtimeId,
-                        Roles = new[]
-                        {
-                            AetheriaRuntimeVerseRuntimeRoles.UnityPlayer,
-                            AetheriaRuntimeVerseRuntimeRoles.SimulationHost
-                        }
-                    }
-                },
-                Rules = new[]
-                {
-                    new AetheriaRuntimeAuthorityRule
-                    {
-                        RuleId = "unity-host.default",
-                        SubjectPrefix = "*",
-                        ClaimKinds = new[] { AetheriaRuntimeClaimKinds.Any },
-                        Mode = AetheriaRuntimeAuthorityModes.HostAuthoritative
                     }
                 }
             };

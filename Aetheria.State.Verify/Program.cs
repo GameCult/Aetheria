@@ -16147,6 +16147,12 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
         "org.gamecult.aetheria.state",
         "Runtime",
         "AetheriaRuntimeGameViewportDocuments.cs");
+    var verseAuthorityPolicyPath = Path.Combine(
+        root,
+        "Packages",
+        "org.gamecult.aetheria.state",
+        "Runtime",
+        "AetheriaRuntimeVerseAuthorityPolicy.cs");
     var stateBoundaryPath = Path.Combine(
         root,
         "Packages",
@@ -16182,6 +16188,9 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
     var gameViewportDocuments = File.Exists(gameViewportDocumentsPath)
         ? File.ReadAllText(gameViewportDocumentsPath)
         : throw new InvalidOperationException("Cannot verify daemon projectile authority; zone render documents are missing.");
+    var verseAuthorityPolicy = File.Exists(verseAuthorityPolicyPath)
+        ? File.ReadAllText(verseAuthorityPolicyPath)
+        : throw new InvalidOperationException("Cannot verify runtime-neutral Verse authority policy; policy document is missing.");
     var stateBoundary = File.Exists(stateBoundaryPath)
         ? File.ReadAllText(stateBoundaryPath)
         : throw new InvalidOperationException("Cannot verify runtime-neutral client target authority; state boundary is missing.");
@@ -16290,6 +16299,33 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
     {
         throw new InvalidOperationException(
             "Daemon combat regressed to runtime-named simulation, hardcoded game feel, direct target damage, or local projectile physics instead of daemon settings plus Ymir-shaped projectile contact damage.");
+    }
+
+    var forbiddenRuntimeSpecificAuthorityPolicySymbols = new[]
+    {
+        "ElectronLaunchedDaemon",
+        "electron-launched-daemon",
+        "UnityHost(",
+        "unity-host",
+        "BrowserWasmHost",
+        "browser-wasm-host",
+        "UnityPlayer",
+        "unity-player",
+        "BrowserObserver",
+        "browser-observer",
+        "BrowserSimulationHost",
+        "browser-simulation-host",
+        "aetheria-unity-host",
+        "aetheria.unity-host.v1"
+    };
+    var runtimeSpecificAuthorityPolicyHits = forbiddenRuntimeSpecificAuthorityPolicySymbols
+        .Where(symbol => verseAuthorityPolicy.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (runtimeSpecificAuthorityPolicyHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Shared Verse authority policy must describe daemon/trusted authority, not runtime-specific host side paths: " +
+            string.Join(", ", runtimeSpecificAuthorityPolicyHits));
     }
 
     if (!daemonTickRunner.Contains("AetheriaRuntimeDaemonSimulation.Step(", StringComparison.Ordinal) ||
