@@ -586,6 +586,13 @@ The migration is MVP-complete when:
 - Eve/CultUI surfaces use typed state pointers and typed operation handles.
 - Aetheria exposes current stats, inventory, equipment, selection, objects viewport, gravity viewport, and authority-aware operations as typed surfaces.
 - Unity and browser clients can point at the same Verse and observe/interact with the same simulation according to authority policy.
+- Hermodr can reconstruct the RTS gameplay surface as an unspecialized Eve
+  lowering from daemon API, Eve/CultUI, render-field declarations, and CultMesh
+  CDN assets; Electron may be the shipped RTS shell but cannot own private
+  gameplay interpretation.
+- Godot can become the ARPG equivalent conformance target by lowering the
+  daemon-authored ARPG Eve/CultUI contract, not by inheriting Unity scene
+  authority or triggering daemon-side runtime branches.
 - Co-located clients can use native slab views where available.
 - Remote clients use the same facade shape over network routes.
 - Locality is visible in diagnostics, not application logic.

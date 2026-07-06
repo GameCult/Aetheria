@@ -590,15 +590,23 @@ Notes:
 
 Status: active. Stage 7A through 7C are implemented for the Electron proving
 surface; Stage 7D.4 is the current gate after the initial shared C# facade and
-typed Unity command reroute.
+typed Unity command reroute. The client-runtime conformance contract in
+`Aetheria.State/docs/client-runtime-conformance.md` is now the live role map:
+Hermodr is the unspecialized Eve sanity check for the RTS surface. Electron is
+the player-facing RTS client. Unity is the current ARPG reference shell. Godot
+is the future unspecialized Eve parity target for the ARPG surface.
 
-Owner: Unity and Electron runtime clients.
+Owner: daemon-authored client surfaces, with Unity and Electron as current
+product runtimes and Hermodr/Godot as generic Eve conformance targets.
 
 Build:
 
 Stage 7 is the client parity stage. It is not an RTS feature pass. Its job is
 to make Unity and Electron use the same local Verse shape before any more
-gameplay is added.
+gameplay is added, while keeping the generic conformance question explicit:
+Hermodr must be able to reconstruct the RTS surface from Eve plus daemon API
+without Aetheria-specific lowering, and Godot must eventually do the same for
+the ARPG surface.
 
 Implementation slices:
 
@@ -637,6 +645,29 @@ Implementation slices:
    - each node observes converged remote facts through local state;
    - neither runtime reads a peer viewport as authoritative gameplay.
 7. Only after the parity smoke passes, begin Stage 8 Unity shell demolition.
+
+Hermodr/Electron distinction:
+
+- Hermodr is a browser/Eve lowering sanity check. It should discover Aetheria
+  through Odin/CultMesh, fetch daemon-owned surfaces/state/assets, and lower the
+  RTS gameplay surface without Aetheria-specific map or command code.
+- Electron is the Starbridge RTS application shell. It may own launch,
+  packaging, player-facing ergonomics, and runtime app concerns, but the surface
+  it renders must be the same Eve/CultMesh contract Hermodr can lower.
+- If Electron displays or commands gameplay through a path Hermodr cannot
+  reconstruct from Eve plus daemon API, the private path is architectural debt.
+
+Unity/Godot distinction:
+
+- Unity remains the current ARPG reference and demolition target. It may keep
+  presentation, input, camera, GameObject, and UI Toolkit adapters only while
+  they lower daemon-authored state and surfaces.
+- Godot is not a Unity port target. It is the ARPG equivalent of the Hermodr
+  check: a new runtime should reconstruct the ARPG surface from Eve/CultUI,
+  typed state, typed operations, render-field specs, and CultMesh CDN assets.
+- Any daemon-side `Godot` behavior branch would be the wrong cut. If Godot needs
+  a special gameplay hint, that hint belongs in daemon-authored Eve/CultMesh
+  surface state or a reusable Eve/CultMesh primitive.
 
 Shared runtime configuration:
 

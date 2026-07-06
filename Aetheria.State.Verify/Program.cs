@@ -59,6 +59,7 @@ RequireNoDeadPopupShells(root);
 RequirePlayerSettingsEveSurface(root);
 RequireVerseHostSettingsAuthority(root);
 RequireClientTargetBootAuthority(root);
+RequireClientRuntimeConformanceContract(root);
 RequireVerseReplicaTool(root);
 RequireVerseSettingsShellAndBridge(root);
 RequireTypedStatRecipeOperations(root);
@@ -604,6 +605,7 @@ Console.WriteLine("NameTools editor shell: the remaining name helper window lowe
 Console.WriteLine("Verse client state authority: Unity gameplay/UI read typed state through the shared Verse client instead of direct store spelunking");
 Console.WriteLine("Verse host authority: daemon-owned typed verse host settings now drive provider advertisement, operations telemetry, and served Verse discovery");
 Console.WriteLine("Client target boot authority: Unity boot resolves the active Verse through a typed client target instead of local path folklore");
+Console.WriteLine("Client runtime conformance: Hermodr is the generic Eve RTS check; Godot is the generic Eve ARPG check");
 Console.WriteLine("Verse replica authority: remote client targets resolve to cache-only replica .cc files fed from the daemon");
 Console.WriteLine("Verse settings shell: client target edits and Verse-host visibility commands lower through typed Eve surfaces");
 Console.WriteLine("Main-menu Verse document access: the Unity Eve shell composes daemon-owned verse identity from typed documents instead of ad-libbing local menu copy");
@@ -10035,6 +10037,77 @@ static void RequireClientTargetBootAuthority(string root)
         throw new InvalidOperationException(
             "Unity boot still contains direct local state-path owners instead of the shared client target: " +
             string.Join("; ", hits));
+    }
+}
+
+static void RequireClientRuntimeConformanceContract(string root)
+{
+    var conformancePath = Path.Combine(root, "Aetheria.State", "docs", "client-runtime-conformance.md");
+    var authorityPlanPath = Path.Combine(root, "Aetheria.State", "docs", "verse-authority-implementation-plan.md");
+    var ergonomicsPlanPath = Path.Combine(root, "Aetheria.State", "docs", "cultmesh-ergonomics-staged-migration-plan.md");
+
+    var conformance = File.Exists(conformancePath)
+        ? File.ReadAllText(conformancePath)
+        : throw new InvalidOperationException("Client runtime conformance contract is missing.");
+    var authorityPlan = File.Exists(authorityPlanPath)
+        ? File.ReadAllText(authorityPlanPath)
+        : throw new InvalidOperationException("Verse authority implementation plan is missing.");
+    var ergonomicsPlan = File.Exists(ergonomicsPlanPath)
+        ? File.ReadAllText(ergonomicsPlanPath)
+        : throw new InvalidOperationException("CultMesh ergonomics staged migration plan is missing.");
+
+    var requiredContractSymbols = new[]
+    {
+        "Hermodr | Unspecialized Eve/browser lowering sanity check for the RTS surface.",
+        "Electron | Player-facing Starbridge RTS client.",
+        "Unity | Current ARPG reference client and demolition target.",
+        "Godot | Future unspecialized Eve/runtime parity target for the ARPG surface.",
+        "No daemon-side `Godot` mode, `Electron` mode, `Hermodr` mode, or `Unity`",
+        "No Aetheria-specific Hermodr plugin for RTS map semantics.",
+        "Godot lowers the ARPG contract without inheriting Unity authority."
+    };
+    var missingContractSymbols = requiredContractSymbols
+        .Where(symbol => !conformance.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingContractSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Client runtime conformance contract no longer names the runtime authority map: " +
+            string.Join(", ", missingContractSymbols));
+    }
+
+    var requiredPlanSymbols = new[]
+    {
+        "Hermodr is the unspecialized Eve sanity check for the RTS surface",
+        "player-facing RTS client",
+        "future unspecialized Eve parity target for the ARPG surface",
+        "Hermodr must be able to reconstruct the RTS surface from Eve plus daemon API",
+        "Any daemon-side `Godot` behavior branch would be the wrong cut"
+    };
+    var missingPlanSymbols = requiredPlanSymbols
+        .Where(symbol => !authorityPlan.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingPlanSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Verse authority plan no longer preserves Hermodr/Electron/Godot/Unity conformance roles: " +
+            string.Join(", ", missingPlanSymbols));
+    }
+
+    var requiredErgonomicsSymbols = new[]
+    {
+        "Hermodr can reconstruct the RTS gameplay surface as an unspecialized Eve",
+        "Electron may be the shipped RTS shell but cannot own private",
+        "Godot can become the ARPG equivalent conformance target"
+    };
+    var missingErgonomicsSymbols = requiredErgonomicsSymbols
+        .Where(symbol => !ergonomicsPlan.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingErgonomicsSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "CultMesh ergonomics plan no longer carries the client runtime conformance gate: " +
+            string.Join(", ", missingErgonomicsSymbols));
     }
 }
 
