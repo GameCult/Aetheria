@@ -16246,11 +16246,13 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
         daemonProgram.Contains("daemon:aetheria.rts.viewport", StringComparison.Ordinal) ||
         daemonProgram.Contains("eve-browser-lowering", StringComparison.Ordinal) ||
         daemonProgram.Contains("raven-unity", StringComparison.Ordinal) ||
+        daemonProgram.Contains("pilot-client", StringComparison.Ordinal) ||
+        daemonProgram.Contains("starbridge-daemon", StringComparison.Ordinal) ||
         daemonProgram.Contains("local-rts", StringComparison.Ordinal) ||
         daemonProgram.Contains("starfire-rts", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Aetheria daemon transport must be client-neutral; runtime-branded CultMesh flags and transport ids belong outside daemon authority.");
+            "Aetheria daemon transport and seeded role documents must be client-neutral; runtime-branded CultMesh flags, transport ids, and placeholder client identities belong outside daemon authority.");
     }
     if (!daemonProgram.Contains("RejectRemovedOption(args, \"--rts-cultmesh-port\", \"--client-cultmesh-port\")", StringComparison.Ordinal))
     {

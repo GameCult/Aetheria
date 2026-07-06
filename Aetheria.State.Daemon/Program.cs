@@ -1893,12 +1893,12 @@ static async Task EnsureStarbridgeSessionDocumentsAsync(
         [
             new AetheriaRuntimeStarbridgeRuntimeRole
             {
-                RuntimeId = "starbridge-daemon",
+                RuntimeId = "starbridge.commander",
                 Role = "commander"
             },
             new AetheriaRuntimeStarbridgeRuntimeRole
             {
-                RuntimeId = "pilot-client",
+                RuntimeId = "starbridge.pilot.0",
                 Role = "pilot",
                 EntityKey = pilotOneKey
             }
