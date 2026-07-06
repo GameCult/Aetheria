@@ -12,10 +12,10 @@ Aetheria should become a renderless daemon-owned game.
 
 The Aetheria daemon owns game state, simulation rules, generated content,
 game-feel settings, authority policy, typed operations, assets, and
-high-performance views of live state. Eve owns the portable UI and rendering
-instruction contract. Unity, Godot, Electron, Hermodr, and later runtimes lower
-Eve surfaces and submit typed operations; they do not own Aetheria gameplay
-truth.
+high-performance views of live state. Eve owns the portable UI and world-state
+rendering instruction contract. Unity, Godot, Electron, Hermodr, and later
+runtimes lower Eve surfaces and submit typed operations; they do not own
+Aetheria gameplay truth.
 
 Hermodr is the RTS sanity check: an unspecialized Eve/browser client must be
 able to reconstruct the same RTS gameplay surface as Electron from the Eve spec,
@@ -86,7 +86,8 @@ state that must be audited before they can be deleted or demoted.
 ## Invariants
 
 - Aetheria gameplay truth lives in daemon-owned typed state, not renderer state.
-- Eve surfaces contain the UI and render instructions required by clients.
+- Eve surfaces contain the UI and world-state render instructions required by
+  clients.
 - Dynamic contents are state pointers or managed document references, not copied
   live state embedded into the surface document.
 - CultMesh CDN serves assets advertised by the daemon.
@@ -105,6 +106,12 @@ state that must be audited before they can be deleted or demoted.
 An Aetheria Eve surface should be rich enough to describe both the 2D RTS view
 and the 3D ARPG view.
 
+This is not only UI Toolkit-style widget lowering. Eve lowerers must be able to
+lower world state with different presentation budgets: a compact 2D tactical
+map, a richer browser canvas, a Unity or Godot 3D scene, a debug overlay, or a
+future room-scale view. The sophistication belongs to the lowering target, but
+the semantic instructions belong to Eve and the daemon-authored surface.
+
 The surface should be able to declare:
 
 - layout, rows, columns, grids, modal placement, fields, and command bindings;
@@ -118,12 +125,45 @@ The surface should be able to declare:
 - render splat buffers and accumulation rules;
 - entity/object render rows with asset refs, transforms, labels, and selection
   metadata;
+- presentation-quality hints, level-of-detail policies, and native-view
+  descriptors that let clients choose an appropriate 2D or 3D lowering without
+  changing gameplay meaning;
 - asset refs resolved through CultMesh CDN.
 
 The Eve package should own the game-agnostic lowering primitives for these
 contracts. Aetheria may define game documents and author surfaces, but it should
 not require Electron, Hermodr, Unity, or Godot to carry private Aetheria
 rendering knowledge.
+
+## World-State Lowering
+
+World-state lowering is an Eve responsibility, not an Aetheria client
+responsibility.
+
+The Aetheria daemon can publish a view of world state at several levels:
+
+- canonical typed game documents for rules and committed facts;
+- high-performance SoA/native view descriptors for hot rendering paths;
+- field documents for scalar/vector/color data;
+- object/entity render rows for things with transforms, sprites, meshes, labels,
+  selection metadata, and operation affordances;
+- asset refs for icons, sprites, materials, meshes, shaders, and generated
+  textures.
+
+Eve lowerers decide how sophisticated the presentation should be in a particular
+runtime. Hermodr might draw an RTS surface as a 2D canvas with isolines, icons,
+labels, and modal UI. Electron might use the same lowering path with richer
+shell integration. Unity or Godot might lower the ARPG surface into meshes,
+materials, particles, UI panels, input affordances, and camera-relative
+overlays. Those are quality tiers over the same semantic surface, not separate
+Aetheria clients with private gameplay knowledge.
+
+If a lowerer needs to know that a value is "Aetheria gravity" in order to render
+it, the contract is wrong. The surface should say it is a scalar field with
+domain, units, sampling rules, visualization options, and asset/material refs.
+If a lowerer needs to know that a row is an "Aetheria planet" to draw it, the
+contract is wrong. The row should carry an entity kind, transform, display
+label, state refs, and daemon-advertised assets.
 
 ## Field Documents
 
@@ -164,18 +204,19 @@ own Aetheria gameplay semantics.
 
 Unity:
 Current ARPG reference client and migration source. It may own engine
-presentation, input capture, camera, GameObject restoration, and temporary
-adapters. It should not remain the owner of rules, state, level generation,
-physics truth, or UI semantics.
+presentation, input capture, camera, GameObject restoration, native world-state
+lowering, and temporary adapters. It should not remain the owner of rules,
+state, level generation, physics truth, or UI/world semantics.
 
 Godot:
 Future ARPG conformance runtime. It should prove the ARPG client can be rebuilt
 from the daemon and Eve contract rather than ported from Unity scene authority.
 
 Eve:
-Game-agnostic surface and lowering contract. Eve owns reusable primitives for
-state binding, operation invocation, modal placement, field visualization,
-asset refs, and runtime-neutral UI/render semantics.
+Game-agnostic surface and world-state lowering contract. Eve owns reusable
+primitives for state binding, operation invocation, modal placement, 2D/3D
+field visualization, asset refs, native-view descriptors, and runtime-neutral
+UI/render semantics.
 
 Aetheria:
 Game daemon, documents, rules, authored surfaces, assets, generation,
@@ -211,6 +252,8 @@ When enforcement starts, the verifier should prove:
 - asset refs come from daemon manifests and CultMesh CDN;
 - field visualization settings come from Eve/daemon documents, not renderer
   constants.
+- world-state lowerers live in Eve packages or generic runtime packages, not as
+  Aetheria-specific client renderer code.
 
 The goal is not to outlaw useful runtime code. The goal is to make ownership
 legible: renderers render, the daemon decides, Eve carries the contract.

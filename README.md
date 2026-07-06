@@ -4,10 +4,10 @@ Aetheria is an ambitious (AA quality) open source tactical action role-playing g
 Aetheria is being rebuilt as a renderless daemon-owned game. The daemon owns
 rules, simulation state, level generation, assets, operations, and the
 high-performance view documents clients need to render the world. Eve/CultUI
-owns the portable surface and field-description contract. Unity, Godot,
-Electron, Hermodr, and later runtimes should be game-agnostic Eve lowerers:
-they render, capture input, cache native views, and submit typed operations
-without becoming gameplay authorities.
+owns the portable surface, field-description, and world-state lowering
+contract. Unity, Godot, Electron, Hermodr, and later runtimes should be
+game-agnostic Eve lowerers: they render, capture input, cache native views, and
+submit typed operations without becoming gameplay authorities.
 
 It is our ambition to forge a new paradigm of open source game development, as to our knowledge there are no other open source projects of this scope building up a foundation from scratch. Game development is notoriously averse to this model and nobody wants to share their shiny toys for fear of losing their competitive advantage. By building and sharing immersive and compelling experiences like this, we hope to change that.
 
@@ -87,8 +87,8 @@ client, shared runtime packages, and the C# Aetheria daemon. The target shape is
 not "two clients sharing a game library." The target shape is one daemon-owned
 game publishing typed CultMesh state, render fields, assets, operations, and
 Eve/CultUI surfaces. Runtime code is a lowering boundary: Unity and Godot lower
-ARPG surfaces, Electron and Hermodr lower RTS surfaces, and all of them consume
-the same game-agnostic Eve/runtime primitives.
+ARPG world surfaces, Electron and Hermodr lower RTS world surfaces, and all of
+them consume the same game-agnostic Eve/runtime primitives.
 
 ### Third Party Libraries
 
