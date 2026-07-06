@@ -11231,6 +11231,7 @@ static void RequireDaemonVersePublication(string root)
     var daemonTickRunnerPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonTickRunner.cs");
     var daemonSoaDocumentsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonSoaDocuments.cs");
     var daemonSoaFramePublisherPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonSoaFramePublisher.cs");
+    var assetDocumentsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeAssetDocuments.cs");
     var daemonStateRefsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonStateRefs.cs");
     var daemonGameSurfaceBuilderPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonGameSurfaceBuilder.cs");
     var daemonEditorSurfaceBuilderPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonEditorSurfaceBuilder.cs");
@@ -11258,6 +11259,7 @@ static void RequireDaemonVersePublication(string root)
         daemonTickRunnerPath,
         daemonSoaDocumentsPath,
         daemonSoaFramePublisherPath,
+        assetDocumentsPath,
         daemonStateRefsPath,
         daemonGameSurfaceBuilderPath,
         daemonEditorSurfaceBuilderPath,
@@ -11294,6 +11296,7 @@ static void RequireDaemonVersePublication(string root)
     var daemonTickRunner = File.ReadAllText(daemonTickRunnerPath);
     var daemonSoaDocuments = File.ReadAllText(daemonSoaDocumentsPath);
     var daemonSoaFramePublisher = File.ReadAllText(daemonSoaFramePublisherPath);
+    var assetDocuments = File.ReadAllText(assetDocumentsPath);
     var daemonStateRefs = File.ReadAllText(daemonStateRefsPath);
     var daemonGameSurfaceBuilder = File.ReadAllText(daemonGameSurfaceBuilderPath);
     var daemonEditorSurfaceBuilder = File.ReadAllText(daemonEditorSurfaceBuilderPath);
@@ -11401,6 +11404,18 @@ static void RequireDaemonVersePublication(string root)
         throw new InvalidOperationException(
             "Daemon SoA frame publisher no longer turns authoritative frames into observer-readable direct-memory slabs: " +
             string.Join(", ", missingSoaFramePublisherSymbols));
+    }
+
+    if (assetDocuments.Contains("UnityAddressable", StringComparison.Ordinal) ||
+        assetDocuments.Contains("unity_addressable", StringComparison.Ordinal) ||
+        daemonSoaFramePublisher.Contains("AetheriaRuntimeAssetTransports.Resources", StringComparison.Ordinal) ||
+        daemonSoaFramePublisher.Contains("resources://Aetheria/Daemon/EntityProxy", StringComparison.Ordinal) ||
+        !daemonSoaFramePublisher.Contains("AetheriaRuntimeAssetTransports.CultMesh", StringComparison.Ordinal) ||
+        !daemonSoaFramePublisher.Contains("cultmesh://aetheria/assets/daemon/entity_proxy/mesh", StringComparison.Ordinal) ||
+        !daemonSoaFramePublisher.Contains("cultmesh://aetheria/assets/daemon/entity_proxy/material", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Daemon SoA render groups must publish CultMesh CDN asset refs, not renderer-local Resources or Unity Addressables transport.");
     }
 
     var requiredBoundarySymbols = new[]

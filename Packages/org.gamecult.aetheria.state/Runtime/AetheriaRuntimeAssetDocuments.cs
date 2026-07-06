@@ -22,7 +22,6 @@ namespace GameCult.Aetheria.State.Verse
     {
         public const string CultMesh = "cultmesh";
         public const string Resources = "resources";
-        public const string UnityAddressable = "unity_addressable";
     }
 
     [MessagePackObject]

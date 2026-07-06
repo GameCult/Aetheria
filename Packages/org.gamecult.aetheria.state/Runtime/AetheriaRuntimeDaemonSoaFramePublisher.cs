@@ -18,6 +18,10 @@ namespace GameCult.Aetheria.State.Verse
         private const int IntStride = 4;
         private const int ByteStride = 1;
         private const int RetainedBufferCount = 4;
+        private const string EntityProxyMeshAssetKey = "daemon.entity_proxy.mesh";
+        private const string EntityProxyMaterialAssetKey = "daemon.entity_proxy.material";
+        private const string EntityProxyMeshUri = "cultmesh://aetheria/assets/daemon/entity_proxy/mesh";
+        private const string EntityProxyMaterialUri = "cultmesh://aetheria/assets/daemon/entity_proxy/material";
 
         private static readonly object Sync = new object();
         private static readonly Dictionary<string, RetainedMappedBuffer> RetainedBuffers =
@@ -96,18 +100,18 @@ namespace GameCult.Aetheria.State.Verse
                 new AetheriaRuntimeDaemonRenderGroupDocument
                 {
                     GroupId = EntityRenderGroupId,
-                    MeshKey = "resources://Aetheria/Daemon/EntityProxy",
-                    MaterialKey = "resources://Aetheria/Daemon/EntityProxy",
+                    MeshKey = EntityProxyMeshUri,
+                    MaterialKey = EntityProxyMaterialUri,
                     MeshAsset = AetheriaRuntimeAssetRef.FromKey(
-                        "daemon.entity_proxy.mesh",
+                        EntityProxyMeshAssetKey,
                         AetheriaRuntimeAssetKinds.Mesh,
-                        "resources://Aetheria/Daemon/EntityProxy",
-                        AetheriaRuntimeAssetTransports.Resources),
+                        EntityProxyMeshUri,
+                        AetheriaRuntimeAssetTransports.CultMesh),
                     MaterialAsset = AetheriaRuntimeAssetRef.FromKey(
-                        "daemon.entity_proxy.material",
+                        EntityProxyMaterialAssetKey,
                         AetheriaRuntimeAssetKinds.Material,
-                        "resources://Aetheria/Daemon/EntityProxy",
-                        AetheriaRuntimeAssetTransports.Resources),
+                        EntityProxyMaterialUri,
+                        AetheriaRuntimeAssetTransports.CultMesh),
                     SubMeshIndex = 0,
                     Layer = 0,
                     ShaderKey = "aetheria.daemon.entity-proxy",
