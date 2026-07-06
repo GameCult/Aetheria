@@ -11279,6 +11279,8 @@ static void RequireDaemonVersePublication(string root)
     var daemonSoaDocumentsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonSoaDocuments.cs");
     var daemonSoaFramePublisherPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonSoaFramePublisher.cs");
     var assetDocumentsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeAssetDocuments.cs");
+    var runtimeAssetsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeAssets.cs");
+    var runtimeGameDocumentsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeGameDocuments.cs");
     var daemonRenderAssetCatalogPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaDaemonRenderAssetCatalog.cs");
     var daemonIndirectRendererPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaDaemonIndirectRenderer.cs");
     var daemonStateRefsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonStateRefs.cs");
@@ -11309,6 +11311,8 @@ static void RequireDaemonVersePublication(string root)
         daemonSoaDocumentsPath,
         daemonSoaFramePublisherPath,
         assetDocumentsPath,
+        runtimeAssetsPath,
+        runtimeGameDocumentsPath,
         daemonRenderAssetCatalogPath,
         daemonIndirectRendererPath,
         daemonStateRefsPath,
@@ -11348,6 +11352,8 @@ static void RequireDaemonVersePublication(string root)
     var daemonSoaDocuments = File.ReadAllText(daemonSoaDocumentsPath);
     var daemonSoaFramePublisher = File.ReadAllText(daemonSoaFramePublisherPath);
     var assetDocuments = File.ReadAllText(assetDocumentsPath);
+    var runtimeAssets = File.ReadAllText(runtimeAssetsPath);
+    var runtimeGameDocuments = File.ReadAllText(runtimeGameDocumentsPath);
     var daemonRenderAssetCatalog = File.ReadAllText(daemonRenderAssetCatalogPath);
     var daemonIndirectRenderer = File.ReadAllText(daemonIndirectRendererPath);
     var daemonStateRefs = File.ReadAllText(daemonStateRefsPath);
@@ -11461,6 +11467,8 @@ static void RequireDaemonVersePublication(string root)
 
     if (assetDocuments.Contains("UnityAddressable", StringComparison.Ordinal) ||
         assetDocuments.Contains("unity_addressable", StringComparison.Ordinal) ||
+        assetDocuments.Contains("public const string Resources", StringComparison.Ordinal) ||
+        assetDocuments.Contains("\"resources\"", StringComparison.Ordinal) ||
         daemonSoaFramePublisher.Contains("AetheriaRuntimeAssetTransports.Resources", StringComparison.Ordinal) ||
         daemonSoaFramePublisher.Contains("resources://Aetheria/Daemon/EntityProxy", StringComparison.Ordinal) ||
         !daemonSoaFramePublisher.Contains("AetheriaRuntimeAssetTransports.CultMesh", StringComparison.Ordinal) ||
@@ -11469,6 +11477,15 @@ static void RequireDaemonVersePublication(string root)
     {
         throw new InvalidOperationException(
             "Daemon SoA render groups must publish CultMesh CDN asset refs, not renderer-local Resources or Unity Addressables transport.");
+    }
+
+    if (runtimeAssets.Contains("sourceTransport", StringComparison.Ordinal) ||
+        runtimeAssets.Contains("resources://", StringComparison.Ordinal) ||
+        runtimeGameDocuments.Contains("resources://", StringComparison.Ordinal) ||
+        daemonHostProgram.Contains("text.StartsWith(\"resources://\"", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Aetheria asset refs and daemon CDN requests must stay CultMesh-native; Resources paths are source resolution details, not public transport.");
     }
 
     if (daemonRenderAssetCatalog.Contains("Resources.Load", StringComparison.Ordinal) ||

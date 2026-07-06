@@ -895,9 +895,11 @@ namespace GameCult.Aetheria.State.Verse
                 },
                 Inventory = Array.Empty<AetheriaRuntimeInventoryItem>(),
                 IconAsset = AetheriaRuntimeAssetRef.FromKey(
-                    "aetheria.asset.sprite.game.projectile",
+                    "map.entity.projectile",
                     AetheriaRuntimeAssetKinds.Sprite,
-                    "resources://Sprites/Icons/Lightning Bolt")
+                    "cultmesh://aetheria/assets/map/entity/projectile",
+                    AetheriaRuntimeAssetTransports.CultMesh,
+                    "image/*")
             };
         }
 

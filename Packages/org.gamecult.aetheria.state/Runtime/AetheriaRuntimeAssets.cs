@@ -18,6 +18,7 @@ namespace GameCult.Aetheria.State.Verse
             Add(entries, MapIcon("entity.ship", "Ship", "Sprites/Icons/Stroked/Ship"));
             Add(entries, MapIcon("entity.orbital", "Orbital", "Sprites/Icons/Stroked/orbital"));
             Add(entries, MapIcon("entity.station", "Station", "Sprites/Icons/station1"));
+            Add(entries, MapIcon("entity.projectile", "Projectile", "Sprites/Icons/Lightning Bolt"));
             Add(entries, MapIcon("body.planet", "Planet", "Sprites/Icons/Stroked/Planet"));
             Add(entries, MapIcon("body.sun", "Sun", "Sprites/Icons/Stroked/Sun"));
             Add(entries, MapIcon("body.asteroid", "Asteroid", "Sprites/Icons/Stroked/Planet"));
@@ -63,6 +64,8 @@ namespace GameCult.Aetheria.State.Verse
                 return Sprite("map.entity.station", "Sprites/Icons/station1");
             if (kind.IndexOf("orbital", StringComparison.Ordinal) >= 0)
                 return Sprite("map.entity.orbital", "Sprites/Icons/Stroked/orbital");
+            if (kind.IndexOf("projectile", StringComparison.Ordinal) >= 0)
+                return Sprite("map.entity.projectile", "Sprites/Icons/Lightning Bolt");
 
             return Sprite("map.entity.ship", "Sprites/Icons/Stroked/Ship");
         }
@@ -176,20 +179,13 @@ namespace GameCult.Aetheria.State.Verse
             string resourcePath,
             string mimeType)
         {
-            var normalizedResourcePath = NormalizeResourcePath(resourcePath);
             return new AetheriaRuntimeAssetRef
             {
                 AssetKey = key ?? "",
                 Kind = kind ?? "",
                 Uri = CultMeshAssetUri(key),
                 Transport = AetheriaRuntimeAssetTransports.CultMesh,
-                MimeType = mimeType ?? "",
-                Metadata = new Dictionary<string, string>(StringComparer.Ordinal)
-                {
-                    ["resourcePath"] = normalizedResourcePath,
-                    ["sourceUri"] = $"resources://{normalizedResourcePath}",
-                    ["sourceTransport"] = AetheriaRuntimeAssetTransports.Resources
-                }
+                MimeType = mimeType ?? ""
             };
         }
 

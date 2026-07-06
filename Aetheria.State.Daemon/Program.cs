@@ -746,9 +746,6 @@ static string ParseCultMeshAssetPath(string recordKey)
     if (text.Length == 0)
         return "";
 
-    if (text.StartsWith("resources://", StringComparison.OrdinalIgnoreCase))
-        return text.Substring("resources://".Length).Trim('/');
-
     if (!text.StartsWith("cultmesh://", StringComparison.OrdinalIgnoreCase))
         return text.Trim('/');
 
@@ -778,6 +775,7 @@ static string ResolveCultMeshAssetResourcePath(string assetPath)
         ["map/entity/ship"] = "Sprites/Icons/Stroked/Ship",
         ["map/entity/orbital"] = "Sprites/Icons/Stroked/orbital",
         ["map/entity/station"] = "Sprites/Icons/station1",
+        ["map/entity/projectile"] = "Sprites/Icons/Lightning Bolt",
         ["map/body/planet"] = "Sprites/Icons/Stroked/Planet",
         ["map/body/sun"] = "Sprites/Icons/Stroked/Sun",
         ["map/body/asteroid"] = "Sprites/Icons/Stroked/Planet",

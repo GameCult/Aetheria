@@ -21,7 +21,6 @@ namespace GameCult.Aetheria.State.Verse
     public static class AetheriaRuntimeAssetTransports
     {
         public const string CultMesh = "cultmesh";
-        public const string Resources = "resources";
     }
 
     [MessagePackObject]
