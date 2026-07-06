@@ -1,7 +1,13 @@
 # Aetheria
 Aetheria is an ambitious (AA quality) open source tactical action role-playing game with a sprawling sci-fi setting that combines stunning visuals with unprecedented simulation depth while maintaining accessibility.
 
-All mechanics are developed to be engine-agnostic, while Unity was chosen as a renderer and editor environment for its accessibility and extensibility. Many custom features have been developed, such as a database frontend with configurable backing store for managing game content, a novel visual input rebinding system, and a volumetric cloud renderer with groundbreaking fidelity, any of which can easily add value to other open source gamedev projects. We'd love to see other teams building on our foundation to deliver their own vision and contribute to the ecosystem we're creating.
+Aetheria is being rebuilt as a renderless daemon-owned game. The daemon owns
+rules, simulation state, level generation, assets, operations, and the
+high-performance view documents clients need to render the world. Eve/CultUI
+owns the portable surface and field-description contract. Unity, Godot,
+Electron, Hermodr, and later runtimes should be game-agnostic Eve lowerers:
+they render, capture input, cache native views, and submit typed operations
+without becoming gameplay authorities.
 
 It is our ambition to forge a new paradigm of open source game development, as to our knowledge there are no other open source projects of this scope building up a foundation from scratch. Game development is notoriously averse to this model and nobody wants to share their shiny toys for fear of losing their competitive advantage. By building and sharing immersive and compelling experiences like this, we hope to change that.
 
@@ -58,20 +64,31 @@ As a result of lessons learned, we then focused on the economy system, and built
 
 ## Current Work
 
-At the moment we are focused on implementing and polishing the ARPG gameplay as a standalone title, first as a rogue-lite combat demo and then adding a story-driven campaign mode.
+At the moment we are focused on moving Aetheria gameplay authority into the
+daemon and proving that both RTS and ARPG clients can be reconstructed from
+daemon-published typed state, CultMesh CDN assets, and Eve/CultUI surfaces.
+Starbridge is the first product pressure test for this model.
 
 ## Developer Navigation
 
 The repo is currently in a major typed-state migration. Before making runtime
 changes, read [docs/developer-navigation.md](docs/developer-navigation.md) for
-the current project map, command list, migration rules, and where the new
-Unity/daemon/Electron boundaries live.
+the current project map, command list, migration rules, and where the daemon,
+Eve, and runtime-lowering boundaries live. The target renderless architecture
+is mapped in
+[docs/renderless-aetheria-architecture.md](docs/renderless-aetheria-architecture.md).
 
 ## Architecture
 
 ### Project Structure
 
-There are two solutions in this repository. One is a Unity project containing the desktop client for Aetheria, and the other is a .NET Core application intended to run on Linux cloud servers. The bulk of the game's code is shared between them, located at [Assets/Scripts/ServerShared](Assets/Scripts/ServerShared), defining a common protocol, world simulation code and data serialization format.
+The current repository still contains Unity-era source, an Electron Starbridge
+client, shared runtime packages, and the C# Aetheria daemon. The target shape is
+not "two clients sharing a game library." The target shape is one daemon-owned
+game publishing typed CultMesh state, render fields, assets, operations, and
+Eve/CultUI surfaces. Runtime code is a lowering boundary: Unity and Godot lower
+ARPG surfaces, Electron and Hermodr lower RTS surfaces, and all of them consume
+the same game-agnostic Eve/runtime primitives.
 
 ### Third Party Libraries
 

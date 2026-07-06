@@ -5,9 +5,17 @@ gameplay body without replacing it with a new privileged runtime.
 
 The daemon owns Aetheria game state, simulation, generated level content,
 assets, render-field declarations, Eve/CultUI surfaces, and typed operations.
-Client runtimes lower those surfaces and submit typed operations. A runtime may
-own presentation, input hardware, local caches, native buffers, and frame
-timing. It must not own gameplay truth merely because it can draw the game.
+Eve owns the game-agnostic surface language: layout, interaction, state
+pointers, render-field instructions, and 2D/3D scalar/vector field
+visualization contracts. Client runtimes lower those surfaces and submit typed
+operations. A runtime may own presentation, input hardware, local caches, native
+buffers, and frame timing. It must not own gameplay truth merely because it can
+draw the game.
+
+The desired end state is renderless Aetheria. Aetheria should not preserve a
+Unity, Godot, Electron, or browser side path for game behavior. If a runtime
+needs an Aetheria-specific rendering rule to show the game, that rule belongs in
+daemon-authored Eve/CultUI or in a game-agnostic Eve lowering primitive.
 
 ## Runtime Roles
 
@@ -39,6 +47,10 @@ assumptions, or Unity-only gameplay adapters.
 - No Godot port of Unity scene code as the ARPG authority.
 - No Electron-only field, asset, or command interpretation that Hermodr cannot
   consume through shared Eve/CultMesh primitives.
+- No Aetheria-specific Unity, Godot, Electron, or Hermodr renderer compensator
+  for 2D or 3D scalar/vector field visualization.
+- No daemon-published Eve surface that requires a named runtime to understand
+  Aetheria gameplay semantics.
 
 ## Acceptance Gates
 
@@ -51,6 +63,9 @@ assumptions, or Unity-only gameplay adapters.
 5. Unity consumes the ARPG contract as a renderer/input shell, with remaining
    shims listed for deletion.
 6. Godot lowers the ARPG contract without inheriting Unity authority.
+7. Eve lowerers can reconstruct the required 2D and 3D gameplay surfaces from
+   daemon-authored state pointers, field documents, asset refs, and operation
+   descriptors without Aetheria runtime branches.
 
 Until those gates pass, Aetheria is daemon-authoritative in pieces, not free of
 Unity as a complete client dependency.

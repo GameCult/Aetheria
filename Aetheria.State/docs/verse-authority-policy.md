@@ -106,58 +106,35 @@ entity.hostile.
 That leaves the door open to witness-authoritative MMO policy later while
 keeping the co-op hot path as a few string/prefix checks and set lookups.
 
-## Simulation Host Deployment Shapes
+## Simulation Host Packaging
 
-Aetheria should not require the C# daemon process to exist as a separately
-deployed executable. A Verse needs at least one runtime capable of advancing
-simulation, but that runtime can be packaged in different surfaces:
+Aetheria should not require the current C# daemon executable to be the only
+packaging shape forever. It does require the Aetheria simulation host role to be
+daemon-shaped: a runtime that owns the typed state graph, applies Verse policy,
+advances simulation, publishes high-performance views, serves assets, and emits
+Eve/CultUI surfaces.
 
-- `dedicated-daemon`: a standalone C# daemon owns simulation and publishes
-  daemon frames.
-- `electron-launched-daemon`: Electron deploys/launches the same daemon and the
-  browser surface talks to the local CultMesh node.
-- `unity-host`: one Unity player runs the Aetheria simulation host in-process
-  or as an embedded sidecar and advertises itself as the host runtime for the
-  Verse.
-- `browser-wasm-host`: a browser runtime runs a WebAssembly simulation kernel
-  and advertises itself as the simulation host for a Verse.
-- `native-kernel-host`: a native Rust/CultLib runtime runs the same simulation
-  kernel outside Unity and outside the current C# daemon executable.
-- `distributed-trusted`: trusted Unity/RTS runtimes author claim subsets
-  directly according to policy; each still submits typed facts through the same
-  authority gate.
-- `observer-only`: browser/Eve/RTS clients render and submit typed commands but
-  do not advance simulation.
+A standalone process, embedded native host, or future WASM/native kernel can
+package that role. Those are deployment choices, not gameplay authority modes.
+Unity, Godot, Electron, Hermodr, and browser shells are render/input lowerers
+unless they are explicitly running the daemon-shaped simulation host behind the
+same typed CultMesh boundary. A renderer does not gain authority because it
+spawned, embedded, or happens to sit beside the host.
 
 The important boundary is not the executable. It is the policy document:
 
 ```text
-browser CultMesh client
+runtime CultMesh client
   -> typed command/proposal document
   -> Verse authority policy
   -> simulation-capable runtime lease/host
   -> committed facts and local projections
 ```
 
-If no dedicated daemon is deployed, a Unity player may become the simulation
-host by advertising a stable runtime id and by using `host-authoritative` or
-delegated rules that name that Unity runtime. Browser-only clients remain thin:
-they can control and observe the Verse through CultMesh, but they do not become
-authoritative unless a TS/WASM simulation runtime is explicitly added and named
-by policy.
-
-The first co-op fallback should be:
-
-```text
-simulation host: raven-unity
-default mode: host-authoritative
-
-*
-  *
-  host-authoritative
-```
-
-Then Starbridge can refine hot claims without changing client protocols:
+If no standalone daemon process is deployed, an embedded host may still run the
+same daemon-shaped simulation role and publish the same typed documents. The
+client shell around it remains a renderer/input surface. Starbridge can refine
+hot claims without changing client protocols:
 
 ```text
 entity.player.raven
@@ -170,20 +147,19 @@ entity.hostile.
 
 *
   inventory,economy,system
-  host-authoritative: raven-unity
+  host-authoritative
 ```
 
-This keeps the browser client honest: it can run CultMesh and submit typed
-commands, but someone with the Aetheria simulation assembly must own the
-simulation work.
+This keeps every client honest: it can run CultMesh and submit typed commands,
+but the daemon-shaped simulation host owns the committed game state.
 
 ## Current Local-Mirror Constraint
 
 The current C# implementation is not a pure remote-client architecture yet.
 Unity can select a remote CultMesh Verse, but gameplay boot still requires that
 Verse to be hydrated into a readable local CultCache replica before the Unity
-shell starts. The Electron RTS client likewise launches a local daemon and reads
-local daemon publications while using CultMesh for typed command submission.
+shell starts. The Electron Starbridge client likewise uses local daemon
+publications while using CultMesh for typed command submission.
 
 That constraint is acceptable as a migration bridge, but it must not become the
 architecture. The end state is:
@@ -215,9 +191,9 @@ The staged migration is:
    simulation decision behind that contract.
 3. Port the deterministic simulation kernel to Rust with matching schema
    bindings and fixture-based parity tests against the C# host.
-4. Compile the Rust kernel to native and WASM. Native hosts cover dedicated
-   daemon, Electron-launched daemon, and Unity sidecar deployment. WASM covers
-   browser simulation host deployment.
+4. Compile the Rust kernel to native and WASM. Native and WASM hosts package
+   the same daemon-shaped simulation role behind the same typed CultMesh
+   contract.
 5. Replace local-file-only readers with CultMesh subscriptions plus optional
    local cache hydration, so remote Verse access does not require a C# process
    on the same machine.
