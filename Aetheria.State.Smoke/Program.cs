@@ -4,6 +4,7 @@ using Aetheria.State.Migration;
 using GameCult.Caching;
 using GameCult.Aetheria.State.Verse;
 using GameCult.Mesh;
+using EveSurfaceDocument = GameCult.Eve.Surface.EveSurfaceDocument;
 
 var root = args.Length > 0 ? args[0] : Directory.GetCurrentDirectory();
 var stateDirectory = Path.Combine(Path.GetTempPath(), "aetheria-state-smoke", Guid.NewGuid().ToString("N"));
@@ -322,7 +323,7 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
                 OwnerIndex = 0,
                 BehaviorIndex = 1,
                 BehaviorKind = "ResourceScanner",
-                ResourceScannerTargetBodyKey = "aetheria.body:legacy:smoke:body",
+                ResourceScannerTargetBodyKey = "aetheria.body:smoke:body",
                 ResourceScannerAsteroidIndex = 2,
                 ResourceScannerScanTime = 1.25,
                 ResourceScannerRange = 500.0,
@@ -335,7 +336,7 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
                 OwnerIndex = 0,
                 BehaviorIndex = 2,
                 BehaviorKind = "MiningTool",
-                MiningToolAsteroidBeltKey = "aetheria.body:legacy:smoke:body",
+                MiningToolAsteroidBeltKey = "aetheria.body:smoke:body",
                 MiningToolAsteroidIndex = 3,
                 MiningToolRange = 275.0
             },
@@ -852,12 +853,12 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
         entitySnapshot.BehaviorStates[0].AetherDriveRpmY != 900.0 ||
         entitySnapshot.BehaviorStates[0].AetherDriveMaximumRpm != 2400.0 ||
         entitySnapshot.BehaviorStates[1].BehaviorKind != "ResourceScanner" ||
-        entitySnapshot.BehaviorStates[1].ResourceScannerTargetBodyKey != "aetheria.body:legacy:smoke:body" ||
+        entitySnapshot.BehaviorStates[1].ResourceScannerTargetBodyKey != "aetheria.body:smoke:body" ||
         entitySnapshot.BehaviorStates[1].ResourceScannerAsteroidIndex != 2 ||
         entitySnapshot.BehaviorStates[1].ResourceScannerScanTime != 1.25 ||
         entitySnapshot.BehaviorStates[1].ResourceScannerScanDuration != 3.5 ||
         entitySnapshot.BehaviorStates[2].BehaviorKind != "MiningTool" ||
-        entitySnapshot.BehaviorStates[2].MiningToolAsteroidBeltKey != "aetheria.body:legacy:smoke:body" ||
+        entitySnapshot.BehaviorStates[2].MiningToolAsteroidBeltKey != "aetheria.body:smoke:body" ||
         entitySnapshot.BehaviorStates[2].MiningToolAsteroidIndex != 3 ||
         entitySnapshot.BehaviorStates[2].MiningToolRange != 275.0 ||
         entitySnapshot.BehaviorStates[3].BehaviorKind != "Thruster" ||

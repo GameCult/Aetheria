@@ -18,8 +18,8 @@ using Random = Unity.Mathematics.Random;
 
 public class Zone
 {
-    public const string OrbitKeyPrefix = "aetheria.orbit:legacy:";
-    public const string BodyKeyPrefix = "aetheria.body:legacy:";
+    public const string OrbitKeyPrefix = "aetheria.orbit:";
+    public const string BodyKeyPrefix = "aetheria.body:";
 
     public Action<string> Log;
     public ReactiveCollection<Entity> Entities = new ReactiveCollection<Entity>();

@@ -1216,6 +1216,7 @@ static void RequireTypedBehaviorBodyKeys(string root)
         Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeCatalogSnapshot.cs"),
         Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeCatalogStore.cs"),
         Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs"),
+        Path.Combine(root, "Assets", "Scripts", "ServerShared", "Zone.cs"),
         Path.Combine(root, "Aetheria.State.Smoke", "Program.cs"),
         Path.Combine(root, "Aetheria.State.Unity.Smoke", "Program.cs")
     };
@@ -1229,8 +1230,8 @@ static void RequireTypedBehaviorBodyKeys(string root)
         "ParseBodyGuidFromKey(",
         "private static string OrbitKey(Guid",
         "private static string BodyKey(Guid",
-        "$\"aetheria.orbit:legacy:",
-        "$\"aetheria.body:legacy:",
+        "aetheria.orbit:legacy:",
+        "aetheria.body:legacy:",
         "public Guid ScanTarget",
         "public Guid AsteroidBelt",
         "RestoreRuntimeState(Guid scanTarget",
