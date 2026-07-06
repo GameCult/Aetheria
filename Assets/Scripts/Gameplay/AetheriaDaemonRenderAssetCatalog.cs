@@ -13,6 +13,9 @@ public sealed class AetheriaDaemonRenderAssetCatalog : ScriptableObject
     [SerializeField]
     private MaterialEntry[] materials = Array.Empty<MaterialEntry>();
 
+    [SerializeField]
+    private TextureEntry[] textures = Array.Empty<TextureEntry>();
+
     public bool TryResolveMesh(string key, out Mesh mesh)
     {
         mesh = null;
@@ -30,8 +33,7 @@ public sealed class AetheriaDaemonRenderAssetCatalog : ScriptableObject
             }
         }
 
-        mesh = Resources.Load<Mesh>(NormalizeResourceKey(key));
-        return mesh != null;
+        return false;
     }
 
     public bool TryResolveMesh(AetheriaRuntimeAssetRef asset, out Mesh mesh)
@@ -56,8 +58,7 @@ public sealed class AetheriaDaemonRenderAssetCatalog : ScriptableObject
             }
         }
 
-        material = Resources.Load<Material>(NormalizeResourceKey(key));
-        return material != null;
+        return false;
     }
 
     public bool TryResolveMaterial(AetheriaRuntimeAssetRef asset, out Material material)
@@ -70,21 +71,20 @@ public sealed class AetheriaDaemonRenderAssetCatalog : ScriptableObject
         texture = null;
         var key = ResolveLocalKey(asset);
         if (string.IsNullOrWhiteSpace(key))
-            return false;
-
-        texture = Resources.Load<Texture2D>(NormalizeResourceKey(key));
-        return texture != null;
-    }
-
-    private static string NormalizeResourceKey(string key)
-    {
-        const string resourcesPrefix = "resources://";
-        if (key.StartsWith(resourcesPrefix, StringComparison.OrdinalIgnoreCase))
         {
-            return key.Substring(resourcesPrefix.Length);
+            return false;
         }
 
-        return key;
+        for (var i = 0; i < textures.Length; i++)
+        {
+            if (string.Equals(textures[i].Key, key, StringComparison.Ordinal))
+            {
+                texture = textures[i].Texture;
+                return texture != null;
+            }
+        }
+
+        return false;
     }
 
     private static string ResolveLocalKey(AetheriaRuntimeAssetRef asset)
@@ -92,10 +92,7 @@ public sealed class AetheriaDaemonRenderAssetCatalog : ScriptableObject
         if (asset == null)
             return "";
 
-        if (string.Equals(asset.Transport, AetheriaRuntimeAssetTransports.Resources, StringComparison.OrdinalIgnoreCase))
-            return asset.Uri;
-
-        return string.IsNullOrWhiteSpace(asset.Uri) ? asset.AssetKey : asset.Uri;
+        return string.IsNullOrWhiteSpace(asset.AssetKey) ? asset.Uri ?? "" : asset.AssetKey;
     }
 
     [Serializable]
@@ -110,5 +107,12 @@ public sealed class AetheriaDaemonRenderAssetCatalog : ScriptableObject
     {
         public string Key;
         public Material Material;
+    }
+
+    [Serializable]
+    private struct TextureEntry
+    {
+        public string Key;
+        public Texture2D Texture;
     }
 }

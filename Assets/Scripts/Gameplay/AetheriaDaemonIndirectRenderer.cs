@@ -247,7 +247,8 @@ public sealed class AetheriaDaemonIndirectRenderer : MonoBehaviour
             return true;
         }
 
-        return assetCatalog.TryResolveMesh(renderGroup?.MeshKey, out mesh);
+        mesh = null;
+        return false;
     }
 
     private bool TryResolveMaterial(AetheriaRuntimeDaemonRenderGroupDocument renderGroup, out Material material)
@@ -259,6 +260,7 @@ public sealed class AetheriaDaemonIndirectRenderer : MonoBehaviour
             return true;
         }
 
-        return assetCatalog.TryResolveMaterial(renderGroup?.MaterialKey, out material);
+        material = null;
+        return false;
     }
 }

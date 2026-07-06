@@ -11232,6 +11232,8 @@ static void RequireDaemonVersePublication(string root)
     var daemonSoaDocumentsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonSoaDocuments.cs");
     var daemonSoaFramePublisherPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonSoaFramePublisher.cs");
     var assetDocumentsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeAssetDocuments.cs");
+    var daemonRenderAssetCatalogPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaDaemonRenderAssetCatalog.cs");
+    var daemonIndirectRendererPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaDaemonIndirectRenderer.cs");
     var daemonStateRefsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonStateRefs.cs");
     var daemonGameSurfaceBuilderPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonGameSurfaceBuilder.cs");
     var daemonEditorSurfaceBuilderPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonEditorSurfaceBuilder.cs");
@@ -11260,6 +11262,8 @@ static void RequireDaemonVersePublication(string root)
         daemonSoaDocumentsPath,
         daemonSoaFramePublisherPath,
         assetDocumentsPath,
+        daemonRenderAssetCatalogPath,
+        daemonIndirectRendererPath,
         daemonStateRefsPath,
         daemonGameSurfaceBuilderPath,
         daemonEditorSurfaceBuilderPath,
@@ -11297,6 +11301,8 @@ static void RequireDaemonVersePublication(string root)
     var daemonSoaDocuments = File.ReadAllText(daemonSoaDocumentsPath);
     var daemonSoaFramePublisher = File.ReadAllText(daemonSoaFramePublisherPath);
     var assetDocuments = File.ReadAllText(assetDocumentsPath);
+    var daemonRenderAssetCatalog = File.ReadAllText(daemonRenderAssetCatalogPath);
+    var daemonIndirectRenderer = File.ReadAllText(daemonIndirectRendererPath);
     var daemonStateRefs = File.ReadAllText(daemonStateRefsPath);
     var daemonGameSurfaceBuilder = File.ReadAllText(daemonGameSurfaceBuilderPath);
     var daemonEditorSurfaceBuilder = File.ReadAllText(daemonEditorSurfaceBuilderPath);
@@ -11416,6 +11422,16 @@ static void RequireDaemonVersePublication(string root)
     {
         throw new InvalidOperationException(
             "Daemon SoA render groups must publish CultMesh CDN asset refs, not renderer-local Resources or Unity Addressables transport.");
+    }
+
+    if (daemonRenderAssetCatalog.Contains("Resources.Load", StringComparison.Ordinal) ||
+        daemonRenderAssetCatalog.Contains("resources://", StringComparison.Ordinal) ||
+        daemonRenderAssetCatalog.Contains("AetheriaRuntimeAssetTransports.Resources", StringComparison.Ordinal) ||
+        daemonIndirectRenderer.Contains("TryResolveMesh(renderGroup?.MeshKey", StringComparison.Ordinal) ||
+        daemonIndirectRenderer.Contains("TryResolveMaterial(renderGroup?.MaterialKey", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Unity daemon rendering must resolve explicit daemon asset refs/catalog entries, not Resources fallback paths or legacy string-key mirrors.");
     }
 
     var requiredBoundarySymbols = new[]
