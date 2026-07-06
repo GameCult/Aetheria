@@ -16290,6 +16290,9 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
         "AetheriaRuntimeClientTargetStore.cs");
     var runtimeClientProviderPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityRuntimeClientProvider.cs");
     var rtsLocalDocumentsPath = Path.Combine(root, "Aetheria.Rts.Web", "Electron", "aetheria-rts-local-documents.ts");
+    var rtsElectronMainPath = Path.Combine(root, "Aetheria.Rts.Web", "Electron", "main.ts");
+    var rtsElectronCultMeshPath = Path.Combine(root, "Aetheria.Rts.Web", "Electron", "aetheria-cultmesh.ts");
+    var rtsClientAppPath = Path.Combine(root, "Aetheria.Rts.Web", "Client", "app.ts");
     var daemonRuntimeDocumentTestsPath = Path.Combine(root, "Assets", "Scripts", "Tests", "DaemonRuntimeDocumentTests.cs");
     var authoritySmokePath = Path.Combine(root, "Aetheria.State.AuthoritySmoke", "Program.cs");
     var freezePath = Path.Combine(root, "Aetheria.State.Freeze", "Program.cs");
@@ -16326,6 +16329,15 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
     var rtsLocalDocuments = File.Exists(rtsLocalDocumentsPath)
         ? File.ReadAllText(rtsLocalDocumentsPath)
         : throw new InvalidOperationException("Cannot verify daemon projectile authority; Electron local projection is missing.");
+    var rtsElectronMain = File.Exists(rtsElectronMainPath)
+        ? File.ReadAllText(rtsElectronMainPath)
+        : throw new InvalidOperationException("Cannot verify Electron CultMesh CDN asset authority; Electron main process is missing.");
+    var rtsElectronCultMesh = File.Exists(rtsElectronCultMeshPath)
+        ? File.ReadAllText(rtsElectronCultMeshPath)
+        : throw new InvalidOperationException("Cannot verify Electron CultMesh CDN asset authority; Electron CultMesh client is missing.");
+    var rtsClientApp = File.Exists(rtsClientAppPath)
+        ? File.ReadAllText(rtsClientAppPath)
+        : throw new InvalidOperationException("Cannot verify Electron CultMesh CDN asset authority; renderer app is missing.");
     var daemonRuntimeDocumentTests = File.Exists(daemonRuntimeDocumentTestsPath)
         ? File.ReadAllText(daemonRuntimeDocumentTestsPath)
         : throw new InvalidOperationException("Cannot verify daemon projectile authority; daemon runtime document tests are missing.");
@@ -16564,6 +16576,25 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
         throw new InvalidOperationException(
             "Aetheria projectile and map assets must use daemon/shared game asset keys, not runtime-branded sprite keys: " +
             string.Join(", ", staleRuntimeSpecificAssetSources));
+    }
+
+    if (rtsLocalDocuments.Contains("resources://", StringComparison.Ordinal) ||
+        rtsLocalDocuments.Contains("\"resources\"", StringComparison.Ordinal) ||
+        rtsClientApp.Contains("Assets/Resources", StringComparison.Ordinal) ||
+        rtsClientApp.Contains("resources://", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Electron Eve lowering must not synthesize renderer-local Resources asset refs; assets resolve through CultMesh CDN.");
+    }
+    if (!rtsClientApp.Contains("aetheria-cdn://asset?uri=", StringComparison.Ordinal) ||
+        !rtsClientApp.Contains("uri.startsWith(\"cultmesh://\")", StringComparison.Ordinal) ||
+        !rtsElectronMain.Contains("protocol.handle(assetProtocol", StringComparison.Ordinal) ||
+        !rtsElectronMain.Contains("aetheriaClient.assetBlob(uri)", StringComparison.Ordinal) ||
+        !rtsElectronCultMesh.Contains("cultMeshCdnAssetBlobSchemaId", StringComparison.Ordinal) ||
+        !rtsElectronCultMesh.Contains("public async assetBlob(uri: string)", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Electron Eve lowering must resolve CultMesh asset refs through the daemon CultMesh CDN protocol bridge.");
     }
 
     if (daemonTickRunner.Contains("AetheriaRuntimeDaemonFrameStore.PublishFrame", StringComparison.Ordinal))

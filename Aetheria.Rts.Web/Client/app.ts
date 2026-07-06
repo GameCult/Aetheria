@@ -140,15 +140,11 @@ function numberProp(value: unknown, fallback: number): number {
 }
 
 function resolveAetheriaAssetUrl(uri: string): string {
-  if (!uri.startsWith("resources://")) {
+  if (!uri.startsWith("cultmesh://")) {
     return uri;
   }
 
-  const resourcePath = uri.slice("resources://".length).replace(/^\/+/, "");
-  const filePath = resourcePath.match(/\.[a-z0-9]+$/i)
-    ? resourcePath
-    : `${resourcePath}.png`;
-  return new URL(`../../Assets/Resources/${filePath}`, document.baseURI).href;
+  return `aetheria-cdn://asset?uri=${encodeURIComponent(uri)}`;
 }
 
 async function submitEveCommand(intent: EveCommandIntent): Promise<void> {

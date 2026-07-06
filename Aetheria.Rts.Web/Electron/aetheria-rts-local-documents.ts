@@ -522,7 +522,7 @@ function toProjectileViewObject(projectile: unknown[]): ViewObject {
     targetEntityIndex: num(projectile[projectileSlots.targetEntityIndex], -1),
     isActive: projectile[projectileSlots.active] !== false,
     visibility: num(projectile[projectileSlots.radius]),
-    iconAsset: spriteAsset("aetheria.asset.sprite.game.projectile", "Sprites/Icons/Lightning Bolt"),
+    iconAsset: spriteAsset("map.entity.projectile"),
     status: {
       hull: num(projectile[projectileSlots.damage]),
       shield: 0,
@@ -796,40 +796,46 @@ function toAssetManifestEntry(entry: unknown[]): AssetManifestDocument["assets"]
 
 function entityIconAsset(kind: string, controlled: boolean): AssetRef {
   if (controlled)
-    return spriteAsset("map.entity.player", "Sprites/Icons/Stroked/Ship");
+    return spriteAsset("map.entity.player");
 
   const normalized = kind.trim().toLowerCase();
   if (normalized.includes("station"))
-    return spriteAsset("map.entity.station", "Sprites/Icons/station1");
+    return spriteAsset("map.entity.station");
   if (normalized.includes("orbital"))
-    return spriteAsset("map.entity.orbital", "Sprites/Icons/Stroked/orbital");
+    return spriteAsset("map.entity.orbital");
+  if (normalized.includes("projectile"))
+    return spriteAsset("map.entity.projectile");
 
-  return spriteAsset("map.entity.ship", "Sprites/Icons/Stroked/Ship");
+  return spriteAsset("map.entity.ship");
 }
 
 function bodyIconAsset(kind: string): AssetRef {
   const normalized = kind.trim().toLowerCase();
   if (normalized.includes("sun") || normalized.includes("star"))
-    return spriteAsset("map.body.sun", "Sprites/Icons/Stroked/Sun");
+    return spriteAsset("map.body.sun");
   if (normalized.includes("asteroid"))
-    return spriteAsset("map.body.asteroid", "Sprites/Icons/Stroked/Planet");
+    return spriteAsset("map.body.asteroid");
 
-  return spriteAsset("map.body.planet", "Sprites/Icons/Stroked/Planet");
+  return spriteAsset("map.body.planet");
 }
 
 function itemIconAsset(itemKey: string): AssetRef {
   const key = itemKey.trim();
   return key.length > 0
-    ? textureAsset(`item.${key}.icon`, `item.${key}.icon`)
+    ? textureAsset(`item.${key}.icon`)
     : emptyAsset("texture");
 }
 
-function spriteAsset(assetKey: string, resourcePath: string): AssetRef {
-  return asset(assetKey, "sprite", `resources://${resourcePath}`, "resources", "image/*");
+function spriteAsset(assetKey: string): AssetRef {
+  return asset(assetKey, "sprite", cultMeshAssetUri(assetKey), "cultmesh", "image/*");
 }
 
-function textureAsset(assetKey: string, resourcePath: string): AssetRef {
-  return asset(assetKey, "texture", resourcePath.startsWith("resources://") ? resourcePath : `resources://${resourcePath}`, "resources", "image/*");
+function textureAsset(assetKey: string): AssetRef {
+  return asset(assetKey, "texture", cultMeshAssetUri(assetKey), "cultmesh", "image/*");
+}
+
+function cultMeshAssetUri(assetKey: string): string {
+  return `cultmesh://aetheria/assets/${assetKey.trim().replace(/[.\\]+/g, "/").replace(/^\/+|\/+$/g, "")}`;
 }
 
 function assetRef(value: unknown[], fallback: AssetRef = emptyAsset()): AssetRef {

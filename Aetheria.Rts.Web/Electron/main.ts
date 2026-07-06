@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell } from "electron";
+import { app, BrowserWindow, ipcMain, protocol, shell } from "electron";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { createWriteStream, existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
@@ -27,6 +27,7 @@ const clientCultMeshAdvertiseHost = process.env.AETHERIA_CLIENT_CULTMESH_ADVERTI
 const localDaemonRudpEndpoint = launchLocalDaemon ? `rudp://127.0.0.1:${clientCultMeshPort}` : "";
 const electronSmoke = process.env.AETHERIA_ELECTRON_SMOKE === "1";
 const electronSmokeResultPath = process.env.AETHERIA_ELECTRON_SMOKE_RESULT;
+const assetProtocol = "aetheria-cdn";
 
 let daemonProcess: ChildProcessWithoutNullStreams | null = null;
 let mainWindow: BrowserWindow | null = null;
@@ -36,6 +37,7 @@ let isQuitting = false;
 app.whenReady().then(async () => {
   mainWindow = createWindow();
   registerIpc();
+  registerAssetProtocol();
   showStartup("Preparing Aetheria Starbridge", "Building daemon if needed.");
 
   try {
@@ -332,6 +334,29 @@ function registerIpc(): void {
         return;
       default:
         throw new Error(`Unknown window control '${action}'.`);
+    }
+  });
+}
+
+function registerAssetProtocol(): void {
+  protocol.handle(assetProtocol, async request => {
+    try {
+      const uri = new URL(request.url).searchParams.get("uri") ?? "";
+      if (!aetheriaClient) {
+        return new Response("Aetheria CultMesh client is not initialized.", { status: 503 });
+      }
+
+      const asset = await aetheriaClient.assetBlob(uri);
+      const body = Uint8Array.from(asset.bytes).buffer as ArrayBuffer;
+      return new Response(body, {
+        status: 200,
+        headers: {
+          "content-type": asset.mimeType,
+          "cache-control": "no-store",
+        },
+      });
+    } catch (error) {
+      return new Response(error instanceof Error ? error.message : String(error), { status: 404 });
     }
   });
 }
