@@ -118,7 +118,7 @@ public sealed class AetheriaDaemonObserver : MonoBehaviour
         if (!stateBoot.SupportsLocalStateFileRead || !stateBoot.StateFileExists)
         {
             throw new InvalidOperationException(
-                $"Aetheria daemon observer requires a readable local Verse state file: {stateBoot.FailureMessage}");
+                $"Aetheria daemon observer requires a readable managed Verse target: {stateBoot.FailureMessage}");
         }
 
         _renderDocuments = AetheriaUnityRuntimeClientProvider.DaemonRenderDocuments(stateBoot, clientId);

@@ -704,7 +704,7 @@ public class MainMenu : MonoBehaviour
         if (!stateBoot.SupportsLocalStateFileRead || !stateBoot.StateFileExists)
         {
             Debug.LogWarning(
-                $"Cannot send {label} command because the active target is not a readable local Verse state file.");
+                $"Cannot send {label} command because the active Verse target is not readable.");
             return false;
         }
 

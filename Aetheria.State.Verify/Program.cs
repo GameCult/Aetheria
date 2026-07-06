@@ -2137,6 +2137,12 @@ static void RequireDaemonRenderQueryAuthority(string root)
     var querySource = File.Exists(queryPath)
         ? File.ReadAllText(queryPath)
         : throw new InvalidOperationException("Daemon render queries must live in the shared Aetheria runtime package, not in Unity ZoneRenderer.");
+    if (querySource.Contains("Unity XZ viewport", StringComparison.Ordinal) ||
+        querySource.Contains("through Unity axes", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Shared daemon render query types must use domain projection vocabulary, not runtime-specific Unity axis copy.");
+    }
 
     var packageSnapshotPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeSnapshotDocuments.cs");
     var packageSnapshot = File.Exists(packageSnapshotPath)
@@ -8073,6 +8079,64 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
             string.Join(", ", forbiddenMainMenuSharedDocumentHits));
     }
 
+    var managedVerseCopySources = new Dictionary<string, string>
+    {
+        ["Packages/org.gamecult.aetheria.state/Runtime/AetheriaClient.cs"] = File.ReadAllText(Path.Combine(
+            root,
+            "Packages",
+            "org.gamecult.aetheria.state",
+            "Runtime",
+            "AetheriaClient.cs")),
+        ["Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeClientTargetSurfaceBuilder.cs"] = File.ReadAllText(Path.Combine(
+            root,
+            "Packages",
+            "org.gamecult.aetheria.state",
+            "Runtime",
+            "AetheriaRuntimeClientTargetSurfaceBuilder.cs")),
+        ["Assets/Scripts/Gameplay/AetheriaDaemonObserver.cs"] = File.ReadAllText(Path.Combine(
+            root,
+            "Assets",
+            "Scripts",
+            "Gameplay",
+            "AetheriaDaemonObserver.cs")),
+        ["Assets/Scripts/UI/InputScreen/InputDisplayLayout.cs"] = File.ReadAllText(Path.Combine(
+            root,
+            "Assets",
+            "Scripts",
+            "UI",
+            "InputScreen",
+            "InputDisplayLayout.cs")),
+        ["Assets/Scripts/UI/MainMenu.cs"] = mainMenu,
+        ["Assets/Scripts/UI/Menu/InventoryPanel.cs"] = File.ReadAllText(Path.Combine(
+            root,
+            "Assets",
+            "Scripts",
+            "UI",
+            "Menu",
+            "InventoryPanel.cs")),
+        ["Assets/Scripts/UI/Menu/SectorRenderer.cs"] = File.ReadAllText(Path.Combine(
+            root,
+            "Assets",
+            "Scripts",
+            "UI",
+            "Menu",
+            "SectorRenderer.cs"))
+    };
+    var staleLocalVerseCopyHits = managedVerseCopySources
+        .Where(pair =>
+            pair.Value.Contains("local Verse state", StringComparison.Ordinal) ||
+            pair.Value.Contains("local Aetheria Verse state", StringComparison.Ordinal) ||
+            pair.Value.Contains("selected local Verse state file", StringComparison.Ordinal) ||
+            pair.Value.Contains("readable local Verse state file", StringComparison.Ordinal))
+        .Select(pair => pair.Key)
+        .ToArray();
+    if (staleLocalVerseCopyHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Managed client/UI surfaces must describe typed Verse targets/documents instead of teaching local-file Verse authority: " +
+            string.Join(", ", staleLocalVerseCopyHits));
+    }
+
     var tradeMenu = File.ReadAllText(Path.Combine(
         root,
         "Assets",
@@ -13528,7 +13592,7 @@ static void RequireMainMenuVerseHostDocumentAccess(string root)
         "\"Verse\"",
         "\"Visibility\"",
         "\"CultMesh\"",
-        "Client target edits are local. Visibility changes append provider-owned Eve requests"
+        "Client target edits persist through the managed target document. Visibility changes append provider-owned Eve requests against the selected Verse target."
     };
     var missingMainMenuSymbols = requiredMainMenuSymbols
         .Where(symbol => !mainMenu.Contains(symbol, StringComparison.Ordinal))

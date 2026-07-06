@@ -64,7 +64,7 @@ namespace GameCult.Aetheria.State.Verse
             if (!stateBoot.SupportsLocalStateFileRead || !stateBoot.StateFileExists)
             {
                 throw new InvalidOperationException(
-                    $"Aetheria local client requires a readable local Verse state file: {stateBoot.FailureMessage}");
+                    $"Aetheria client requires a readable managed Verse target: {stateBoot.FailureMessage}");
             }
 
             return OpenAsync(

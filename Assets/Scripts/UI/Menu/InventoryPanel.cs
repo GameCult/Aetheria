@@ -385,7 +385,7 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
         }
         catch (Exception ex)
         {
-            Debug.LogWarning($"Failed to read Aetheria inventory panel surface from local Verse state: {ex.Message}");
+            Debug.LogWarning($"Failed to read Aetheria inventory panel surface from managed Verse state: {ex.Message}");
             return null;
         }
     }
@@ -398,7 +398,7 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
         }
         catch (Exception ex)
         {
-            Debug.LogWarning($"Failed to read Aetheria inventory dropdown surface from local Verse state: {ex.Message}");
+            Debug.LogWarning($"Failed to read Aetheria inventory dropdown surface from managed Verse state: {ex.Message}");
             return null;
         }
     }

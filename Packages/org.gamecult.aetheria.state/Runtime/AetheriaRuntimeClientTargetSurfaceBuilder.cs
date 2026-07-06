@@ -197,7 +197,7 @@ namespace GameCult.Aetheria.State.Verse
                             new[] { ("title", "Ownership") },
                             Text(
                                 "aetheria.clientTarget.host.note",
-                                "Client target edits are local. Visibility changes append provider-owned Eve requests against the selected local Verse state file."))),
+                                "Client target edits persist through the managed target document. Visibility changes append provider-owned Eve requests against the selected Verse target."))),
                     Array.Empty<AetheriaRuntimeSurfaceStyleToken>()),
                 commands: new[]
                 {

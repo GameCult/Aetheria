@@ -137,7 +137,7 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
         }
         catch (Exception ex)
         {
-            Debug.LogWarning($"Failed to read Aetheria sector zone details surface from local Verse state: {ex.Message}");
+            Debug.LogWarning($"Failed to read Aetheria sector zone details surface from managed Verse state: {ex.Message}");
             return null;
         }
     }
@@ -165,7 +165,7 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
         }
         catch (Exception ex)
         {
-            Debug.LogWarning($"Failed to read Aetheria sector current zone from local Verse state: {ex.Message}");
+            Debug.LogWarning($"Failed to read Aetheria sector current zone from managed Verse state: {ex.Message}");
             return null;
         }
     }

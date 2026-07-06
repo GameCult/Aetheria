@@ -360,7 +360,7 @@ public class InputDisplayLayout : MonoBehaviour
         if (!stateBoot.SupportsLocalStateFileRead || !stateBoot.StateFileExists)
         {
             throw new InvalidOperationException(
-                $"Input settings require a readable local Aetheria Verse state file: {stateBoot.FailureMessage}");
+                $"Input settings require a readable managed Aetheria Verse target: {stateBoot.FailureMessage}");
         }
 
         return stateBoot;

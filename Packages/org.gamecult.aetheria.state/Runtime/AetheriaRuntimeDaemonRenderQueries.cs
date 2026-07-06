@@ -16,7 +16,7 @@ namespace GameCult.Aetheria.State.Verse
     }
 
     /// <summary>
-    /// Unity XZ viewport boundary for callers that still present the world through Unity axes.
+    /// Horizontal X/Z viewport boundary for callers projecting the world into a two-dimensional surface.
     /// </summary>
     public readonly struct AetheriaRuntimeXzRect
     {
