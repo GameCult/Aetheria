@@ -6,6 +6,11 @@ This document records the intended architecture before the next demolition pass.
 It is not an implementation claim. It is the map the implementation must be
 measured against.
 
+Canonical Eve-side doctrine lives in
+`E:\Projects\Eve\docs\world-state-lowering.md`. This Aetheria document applies
+that doctrine to Aetheria: the daemon is the provider, Eve owns world-state
+lowering semantics, and Aetheria clients are conformance targets.
+
 ## Objective
 
 Aetheria should become a renderless daemon-owned game.
@@ -130,10 +135,10 @@ The surface should be able to declare:
   changing gameplay meaning;
 - asset refs resolved through CultMesh CDN.
 
-The Eve package should own the game-agnostic lowering primitives for these
-contracts. Aetheria may define game documents and author surfaces, but it should
-not require Electron, Hermodr, Unity, or Godot to carry private Aetheria
-rendering knowledge.
+The Eve repo owns the game-agnostic lowering primitives for these contracts.
+Aetheria may define game documents, author surfaces, publish assets, and provide
+fixtures, but it should not require Electron, Hermodr, Unity, or Godot to carry
+private Aetheria rendering knowledge.
 
 ## World-State Lowering
 
