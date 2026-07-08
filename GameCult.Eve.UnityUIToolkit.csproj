@@ -49,9 +49,9 @@
   <ItemGroup>
     <Compile Include="E:\Projects\Eve\packages\org.gamecult.eve.unity-uitoolkit\Runtime\EveUiToolkitSurfaceOptions.cs" />
     <Compile Include="E:\Projects\Eve\packages\org.gamecult.eve.unity-uitoolkit\Runtime\EveUiToolkitSurfaceLowerer.cs" />
-    <Compile Include="E:\Projects\Eve\packages\org.gamecult.eve.unity-uitoolkit\Runtime\IEveUiToolkitPluginHost.cs" />
-    <Compile Include="E:\Projects\Eve\packages\org.gamecult.eve.unity-uitoolkit\Runtime\SaiVisualNovelUiToolkitPluginHost.cs" />
-    <Compile Include="E:\Projects\Eve\packages\org.gamecult.eve.unity-uitoolkit\Runtime\NornGraphUiToolkitPluginHost.cs" />
+    <Compile Include="E:\Projects\Eve\packages\org.gamecult.eve.unity-uitoolkit\Runtime\IEveUiToolkitPluginProjectionAdapter.cs" />
+    <Compile Include="E:\Projects\Eve\packages\org.gamecult.eve.unity-uitoolkit\Runtime\SaiVisualNovelUiToolkitProjectionAdapter.cs" />
+    <Compile Include="E:\Projects\Eve\packages\org.gamecult.eve.unity-uitoolkit\Runtime\NornGraphUiToolkitProjectionAdapter.cs" />
     <None Include="E:\Projects\Eve\packages\org.gamecult.eve.unity-uitoolkit\Runtime\GameCult.Eve.UnityUIToolkit.asmdef" />
     <Reference Include="UnityEngine">
       <HintPath>C:\Program Files\Unity\Hub\Editor\6000.4.2f1\Editor\Data\Managed\UnityEngine\UnityEngine.dll</HintPath>
