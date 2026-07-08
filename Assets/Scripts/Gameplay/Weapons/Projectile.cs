@@ -94,9 +94,11 @@ public class Projectile : MonoBehaviour
         if (hull == null || hull.Entity == SourceEntity)
             return;
 
-        if (hull.Entity.Shield != null &&
+        var shieldManager = hull.GetComponentInParent<EntityInstance>()?.Shield;
+        if (shieldManager != null &&
+            hull.Entity.Shield != null &&
             hull.Entity.Shield.Item.Active.Value)
-            hull.Entity.Shield.ShowHit(step.Hit.Point, Mathf.Max(0.01f, ImpactIntensity * DirectHitIntensityMultiplier));
+            shieldManager.ShowHit(step.Hit.Point, Mathf.Max(0.01f, ImpactIntensity * DirectHitIntensityMultiplier));
 
         transform.position = step.Hit.Point;
         if (HitEffect != null)

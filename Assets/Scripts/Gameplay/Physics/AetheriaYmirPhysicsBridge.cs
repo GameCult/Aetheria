@@ -13,6 +13,7 @@ public sealed class AetheriaYmirPhysicsBridge : MonoBehaviour
     public float ProjectileRadius = 0.1f;
     public float ProjectileMass = 1.0f;
     public AetheriaDaemonObserver DaemonObserver;
+    public IYmirDaemonBodySource DaemonBodySource { get; set; }
 
     private readonly List<YmirPhysicsBody> _projectileBodies = new List<YmirPhysicsBody>();
     private readonly List<YmirPhysicsBody> _daemonBodies = new List<YmirPhysicsBody>();
@@ -414,7 +415,7 @@ public sealed class AetheriaYmirPhysicsBridge : MonoBehaviour
                 world = new YmirWorld
                 {
                     time = projectile.YmirWorldTime,
-                    bodies = _projectileBodies.ToArray(),
+                    bodies = Array.Empty<YmirPhysicsBody>(),
                     fields = Array.Empty<YmirRadialField>()
                 }
             };
@@ -436,6 +437,24 @@ public sealed class AetheriaYmirPhysicsBridge : MonoBehaviour
     private bool TryBuildDaemonWorld(Entity sourceEntity, int? onlyDaemonEntityIndex, out YmirWorld world)
     {
         world = null;
+        if (DaemonBodySource != null)
+        {
+            _daemonBodies.Clear();
+            if (!DaemonBodySource.TryAppendDaemonBodies(sourceEntity, onlyDaemonEntityIndex, _daemonBodies) ||
+                _daemonBodies.Count == 0)
+            {
+                return false;
+            }
+
+            world = new YmirWorld
+            {
+                time = Time.time,
+                bodies = _daemonBodies.ToArray(),
+                fields = Array.Empty<YmirRadialField>()
+            };
+            return true;
+        }
+
         var observer = ResolveDaemonObserver();
         if (observer == null || !observer.HasRenderNativeView)
             return false;
@@ -712,6 +731,14 @@ public sealed class AetheriaYmirPhysicsBridge : MonoBehaviour
 
         return bounds;
     }
+}
+
+public interface IYmirDaemonBodySource
+{
+    bool TryAppendDaemonBodies(
+        Entity sourceEntity,
+        int? onlyDaemonEntityIndex,
+        List<YmirPhysicsBody> bodies);
 }
 
 public struct AetheriaYmirProjectileStep
