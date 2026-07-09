@@ -81,6 +81,21 @@ namespace GameCult.Aetheria.EveRuntime
             remove => ((IEveUnitySceneLiveProviderTransport)Bridge).AssetManifestDocumentAvailable -= value;
         }
 
+        public void Configure(
+            string stateFilePath,
+            string surfaceId = AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId,
+            string runtimeId = "unity-scene")
+        {
+            Dispose();
+            stateFilePathOverride = stateFilePath ?? "";
+            this.surfaceId = string.IsNullOrWhiteSpace(surfaceId)
+                ? AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId
+                : surfaceId;
+            this.runtimeId = string.IsNullOrWhiteSpace(runtimeId)
+                ? "unity-scene"
+                : runtimeId;
+        }
+
         public override void Connect()
         {
             Bridge.Connect();

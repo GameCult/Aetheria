@@ -9,6 +9,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.IO.MemoryMappedFiles;
 using System.Linq;
+using UnityEngine;
 using EveCommandTemplate = GameCult.Eve.Surface.EveCommandTemplate;
 using EveStyleToken = GameCult.Eve.Surface.EveStyleToken;
 using EveSurfaceCommandRequest = GameCult.Eve.Surface.EveSurfaceCommandRequest;
@@ -3015,6 +3016,133 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
+    public void GenericEveUnityClientHostInstantiatesAetheriaDaemonWorldThroughProviderComponent()
+    {
+        var statePath = Path.Combine(
+            Path.GetTempPath(),
+            "aetheria-eveunity-scene-host-tests",
+            Path.GetRandomFileName(),
+            "state.cc");
+        var run = RunWithTwoEntities();
+        run.CurrentEntityKey = "zone.0.entity.1";
+        run.Zones[0].Entities[0].Kind = "ship";
+        run.Zones[0].Entities[0].FactionKey = "raider";
+        run.Zones[0].Entities[1].Kind = "ship";
+        run.Zones[0].Entities[1].FactionKey = "player";
+
+        var frame = AetheriaRuntimeDaemonFrameDocument.Create(
+            run,
+            "aetheria-daemon",
+            "session-scene-host",
+            82,
+            1.75,
+            0.02);
+        var tickResult = AetheriaRuntimeDaemonTickRunner.Tick(
+            statePath,
+            frame.Run,
+            new AetheriaRuntimeDaemonTickOptions
+            {
+                DaemonId = frame.DaemonId,
+                SessionId = frame.SessionId,
+                VerseId = "aetheria.local",
+                CultMeshAddress = "cultmesh://aetheria.local/eve/providers/aetheria.daemon",
+                FrameId = frame.FrameId,
+                SimulationTimeSeconds = frame.SimulationTimeSeconds,
+                FixedDeltaSeconds = frame.FixedDeltaSeconds
+            });
+        PublishLatestFrameThroughVerseClient(statePath, tickResult.Frame);
+        PublishDaemonSurfacesThroughVerseClient(statePath, tickResult);
+
+        var previousResolveStateBoot = AetheriaEveRuntimeUnityHooks.ResolveStateBoot;
+        var previousRuntimeState = AetheriaEveRuntimeUnityHooks.RuntimeState;
+        var previousControl = AetheriaEveRuntimeUnityHooks.Control;
+        var previousUi = AetheriaEveRuntimeUnityHooks.Ui;
+        var previousStateRefResolver = AetheriaEveRuntimeUnityHooks.StateRefResolver;
+
+        GameObject hostObject = null;
+        GameObject rootObject = null;
+        GameObject providerObject = null;
+        GameObject assetProviderObject = null;
+        GameObject prefabObject = null;
+        GameObject cameraObject = null;
+
+        try
+        {
+            AetheriaEveRuntimeUnityHookInstaller.Install();
+
+            hostObject = new GameObject("Generic EveUnity Client Host");
+            rootObject = new GameObject("Generic EveUnity Scene Root");
+            providerObject = new GameObject("Aetheria Provider Component");
+            assetProviderObject = new GameObject("Generic EveUnity Asset Provider");
+            prefabObject = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+            prefabObject.name = "Generic Provider Prefab";
+            cameraObject = new GameObject("Generic EveUnity Camera");
+
+            var provider = providerObject.AddComponent<AetheriaEveUnitySceneProviderComponent>();
+            provider.Configure(
+                statePath,
+                AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId,
+                "unity-scene-host-test");
+
+            var assetProvider = assetProviderObject.AddComponent<TestGameObjectAssetProvider>();
+            assetProvider.Prefab = prefabObject;
+
+            var host = hostObject.AddComponent<EveUnityPlayableWorldClientHost>();
+            host.Configure(
+                rootObject.transform,
+                provider,
+                provider,
+                provider,
+                provider,
+                assetProvider);
+
+            var presentation = host.Connect();
+
+            var playerEntityId = run.EntityRecordKey(0, 1);
+            var markers = rootObject.GetComponentsInChildren<EveUnityPlayableWorldEntityMarker>();
+            var playerMarker = markers.FirstOrDefault(marker => marker.EntityId == playerEntityId);
+
+            Assert.AreEqual(1, presentation.ActiveEntities);
+            Assert.AreEqual(1, markers.Length);
+            Assert.IsNotNull(host.Runtime);
+            Assert.IsNotNull(host.ActiveWorld);
+            Assert.AreEqual(playerEntityId, host.ActiveWorld.PlayerEntityId);
+            Assert.AreEqual(
+                AetheriaRuntimeVerseRecordKeys.DaemonAssetManifest.ToString(),
+                host.ActiveWorld.AssetManifest);
+            Assert.AreEqual(host.ActiveWorld.WorldRootId, rootObject.name);
+            Assert.IsNotNull(playerMarker);
+            Assert.IsTrue(playerMarker.Controllable);
+            Assert.AreEqual("ship", playerMarker.EntityKind);
+            Assert.AreEqual("provider-asset-ref", playerMarker.PresentationKind);
+            Assert.AreEqual(playerMarker.AssetRef, host.ActiveWorld.Entities[0].AssetRef);
+            Assert.AreSame(rootObject.transform, playerMarker.transform.parent);
+
+            var cameraRig = hostObject.AddComponent<EveUnityPlayableWorldCameraRig>();
+            cameraRig.Host = host;
+            cameraRig.CameraTransform = cameraObject.transform;
+            Assert.IsTrue(cameraRig.ApplyRig(0f));
+            Assert.AreNotEqual(Vector3.zero, cameraObject.transform.position);
+        }
+        finally
+        {
+            AetheriaEveRuntimeUnityClientCache.Dispose();
+            AetheriaEveRuntimeUnityHooks.ResolveStateBoot = previousResolveStateBoot;
+            AetheriaEveRuntimeUnityHooks.RuntimeState = previousRuntimeState;
+            AetheriaEveRuntimeUnityHooks.Control = previousControl;
+            AetheriaEveRuntimeUnityHooks.Ui = previousUi;
+            AetheriaEveRuntimeUnityHooks.StateRefResolver = previousStateRefResolver;
+
+            DestroyTestObject(cameraObject);
+            DestroyTestObject(prefabObject);
+            DestroyTestObject(assetProviderObject);
+            DestroyTestObject(providerObject);
+            DestroyTestObject(rootObject);
+            DestroyTestObject(hostObject);
+        }
+    }
+
+    [Test]
     public void DaemonEveSurfaceCommandRejectsUnsupportedArgumentlessOperation()
     {
         var statePath = Path.Combine(
@@ -4924,6 +5052,22 @@ public class DaemonRuntimeDocumentTests
         public EveUnityPlayableWorldAssetBinding Asset { get; }
     }
 
+    private sealed class TestGameObjectAssetProvider : MonoBehaviour, IEveUnityGameObjectAssetProvider
+    {
+        public GameObject Prefab;
+
+        public GameObject ResolvePrefab(EveUnityPlayableWorldAssetBinding asset)
+        {
+            return Prefab;
+        }
+    }
+
+    private static void DestroyTestObject(GameObject instance)
+    {
+        if (instance != null)
+            UnityEngine.Object.DestroyImmediate(instance);
+    }
+
     private static AetheriaRuntimeZoneSnapshotCommit FindZone(AetheriaRuntimeRunCheckpointCommit run, int zoneIndex)
     {
         foreach (var zone in run.Zones)
@@ -5015,6 +5159,33 @@ public class DaemonRuntimeDocumentTests
             .OpenAsync(statePath, "daemon-surfaces-test", startServer: false, pullOnOpen: true)
             .GetAwaiter()
             .GetResult();
+        if (result.ProviderAdvertisement != null)
+        {
+            client
+                .MutableDocument<AetheriaRuntimeDaemonProviderAdvertisementDocument>(
+                    AetheriaRuntimeVerseRecordKeys.DaemonProviderAdvertisement)
+                .ReplaceAsync(result.ProviderAdvertisement)
+                .GetAwaiter()
+                .GetResult();
+        }
+        if (result.Health != null)
+        {
+            client
+                .MutableDocument<AetheriaRuntimeDaemonHealthDocument>(
+                    AetheriaRuntimeVerseRecordKeys.DaemonHealth)
+                .ReplaceAsync(result.Health)
+                .GetAwaiter()
+                .GetResult();
+        }
+        if (result.CommandBoundary != null)
+        {
+            client
+                .MutableDocument<AetheriaRuntimeDaemonCommandBoundaryDocument>(
+                    AetheriaRuntimeVerseRecordKeys.DaemonCommandBoundary)
+                .ReplaceAsync(result.CommandBoundary)
+                .GetAwaiter()
+                .GetResult();
+        }
         client
             .MutableDocument<EveSurfaceDocument>(
                 AetheriaRuntimeVerseRecordKeys.DaemonGameSurface)
