@@ -13,6 +13,7 @@ namespace GameCult.Aetheria.EveRuntime
         IEveUnitySceneProviderSurfaceDocumentSource,
         IEveUnityPlayableWorldAssetManifestDocumentSource,
         IEveUnitySceneCommandSink,
+        IEveUnitySceneCommandReceiptSource,
         IEveUnityProviderRefreshSource,
         IDisposable
     {
@@ -36,6 +37,12 @@ namespace GameCult.Aetheria.EveRuntime
         {
             add => Bridge.DocumentAvailable += value;
             remove => Bridge.DocumentAvailable -= value;
+        }
+
+        public event Action<EveUnitySceneCommandReceipt>? ReceiptAvailable
+        {
+            add => Bridge.ReceiptAvailable += value;
+            remove => Bridge.ReceiptAvailable -= value;
         }
 
         event Action<EveUnityPlayableWorldAssetManifestDocument> IEveUnityPlayableWorldAssetManifestDocumentSource.DocumentAvailable

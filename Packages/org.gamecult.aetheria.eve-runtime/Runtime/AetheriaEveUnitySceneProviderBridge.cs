@@ -16,6 +16,7 @@ namespace GameCult.Aetheria.EveRuntime
         IEveUnitySceneProviderSurfaceDocumentSource,
         IEveUnityPlayableWorldAssetManifestDocumentSource,
         IEveUnitySceneCommandSink,
+        IEveUnitySceneCommandReceiptSource,
         IEveUnityProviderRefreshSource,
         IDisposable
     {
@@ -58,6 +59,8 @@ namespace GameCult.Aetheria.EveRuntime
 
         public event Action<EveUnitySceneProviderSurfaceDocument>? DocumentAvailable;
 
+        public event Action<EveUnitySceneCommandReceipt>? ReceiptAvailable;
+
         event Action<EveUnityPlayableWorldAssetManifestDocument> IEveUnityPlayableWorldAssetManifestDocumentSource.DocumentAvailable
         {
             add => AssetManifestDocumentAvailable += value;
@@ -92,6 +95,7 @@ namespace GameCult.Aetheria.EveRuntime
             {
                 Debug.Log(
                     $"Submitted Aetheria daemon operation from Eve Unity scene: {daemonEnvelope!.Kind} {daemonEnvelope.CommandId}");
+                ReceiptAvailable?.Invoke(ToReceipt(request, daemonEnvelope));
                 return;
             }
 
@@ -101,6 +105,7 @@ namespace GameCult.Aetheria.EveRuntime
                 .GetAwaiter()
                 .GetResult();
             Debug.Log($"Submitted Eve Unity scene operation for CultMesh bridge: {envelope.OperationId}");
+            ReceiptAvailable?.Invoke(ToReceipt(request, envelope));
         }
 
         public void Dispose()
@@ -179,6 +184,54 @@ namespace GameCult.Aetheria.EveRuntime
             return string.IsNullOrWhiteSpace(path)
                 ? AetheriaRuntimeVerseRecordKeys.DaemonGameSurface.ToString()
                 : $"{path}#{_surfaceId}";
+        }
+
+        private static EveUnitySceneCommandReceipt ToReceipt(
+            EveSurfaceCommandRequest request,
+            AetheriaRuntimeDaemonCommandEnvelope envelope)
+        {
+            if (request == null) throw new ArgumentNullException(nameof(request));
+            if (envelope == null) throw new ArgumentNullException(nameof(envelope));
+
+            return new EveUnitySceneCommandReceipt(
+                string.IsNullOrWhiteSpace(envelope.CommandId) ? envelope.OperationId : envelope.CommandId,
+                envelope.OperationId,
+                envelope.CommandId,
+                envelope.Accepted ? "accepted" : "denied",
+                "Aetheria",
+                "aetheria-daemon-command-boundary",
+                request.ReceiptSchema,
+                request.ProviderId,
+                request.SurfaceId,
+                envelope.Diagnostic ?? "",
+                ParseIssuedAt(envelope.IssuedAtUtc, request.IssuedAt));
+        }
+
+        private static EveUnitySceneCommandReceipt ToReceipt(
+            EveSurfaceCommandRequest request,
+            CultMeshOperationReceipt receipt)
+        {
+            if (request == null) throw new ArgumentNullException(nameof(request));
+            if (receipt == null) throw new ArgumentNullException(nameof(receipt));
+
+            var commandId = request.Operation?.IdempotencyKey ?? "";
+            return new EveUnitySceneCommandReceipt(
+                string.IsNullOrWhiteSpace(commandId) ? receipt.OperationId : commandId,
+                receipt.OperationId,
+                commandId,
+                receipt.Accepted ? "accepted" : "denied",
+                "Aetheria",
+                "aetheria-eve-command-boundary",
+                request.ReceiptSchema,
+                request.ProviderId,
+                request.SurfaceId,
+                receipt.Diagnostic ?? "",
+                request.IssuedAt);
+        }
+
+        private static DateTimeOffset ParseIssuedAt(string value, DateTimeOffset fallback)
+        {
+            return DateTimeOffset.TryParse(value, out var parsed) ? parsed : fallback;
         }
 
         private static EveUnityPlayableWorldAssetManifestDocument ToUnityPlayableWorldAssetManifest(
