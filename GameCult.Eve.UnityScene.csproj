@@ -58,6 +58,7 @@
     <Compile Include="E:\Projects\Eve\runtimes\incubating\eve-unity-scene\Runtime\EveUnityGameObjectPlayableWorldSceneSink.cs" />
     <Compile Include="E:\Projects\Eve\runtimes\incubating\eve-unity-scene\Runtime\EveUnitySceneSurfaceLowerer.cs" />
     <Compile Include="E:\Projects\Eve\runtimes\incubating\eve-unity-scene\Runtime\EveUnityPlayableWorldClientHost.cs" />
+    <Compile Include="E:\Projects\Eve\runtimes\incubating\eve-unity-scene\Runtime\EveUnityPlayableWorldClientBootstrap.cs" />
     <Compile Include="E:\Projects\Eve\runtimes\incubating\eve-unity-scene\Runtime\EveUnitySceneProviderConnection.cs" />
     <Compile Include="E:\Projects\Eve\runtimes\incubating\eve-unity-scene\Runtime\EveUnityPlayableWorldInputDriver.cs" />
     <Compile Include="E:\Projects\Eve\runtimes\incubating\eve-unity-scene\Runtime\EveUnityPlayableWorldPresenter.cs" />
