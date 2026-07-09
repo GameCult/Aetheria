@@ -49,10 +49,12 @@
   <ItemGroup>
     <Compile Include="Packages\org.gamecult.aetheria.eve-runtime\Runtime\AetheriaEveSurfacePresenter.cs" />
     <Compile Include="Packages\org.gamecult.aetheria.eve-runtime\Runtime\AetheriaEveUnitySceneProviderComponent.cs" />
+    <Compile Include="Packages\org.gamecult.aetheria.eve-runtime\Runtime\AetheriaEveRuntimeUnityClientCache.cs" />
     <Compile Include="Packages\org.gamecult.aetheria.eve-runtime\Runtime\AetheriaEveRuntimeBootstrap.cs" />
     <Compile Include="Packages\org.gamecult.aetheria.eve-runtime\Runtime\AetheriaEveUnitySceneProviderBridge.cs" />
     <Compile Include="Packages\org.gamecult.aetheria.eve-runtime\Runtime\AetheriaEveFileSurfacePresenter.cs" />
     <Compile Include="Packages\org.gamecult.aetheria.eve-runtime\Runtime\AetheriaEveUnitySurfaceHost.cs" />
+    <Compile Include="Packages\org.gamecult.aetheria.eve-runtime\Runtime\AetheriaEveRuntimeUnityHookInstaller.cs" />
     <None Include="Packages\org.gamecult.aetheria.eve-runtime\Runtime\GameCult.Aetheria.EveRuntime.asmdef" />
     <Reference Include="UnityEngine">
       <HintPath>C:\Program Files\Unity\Hub\Editor\6000.4.2f1\Editor\Data\Managed\UnityEngine\UnityEngine.dll</HintPath>

@@ -2777,29 +2777,6 @@ public class DaemonRuntimeDocumentTests
             0.02);
         PublishLatestFrameThroughVerseClient(statePath, frame);
 
-        using var client = AetheriaClient
-            .OpenAsync(statePath, "unity-scene-receipt-test", startServer: false, pullOnOpen: true)
-            .GetAwaiter()
-            .GetResult();
-        var stateBoot = new AetheriaRuntimeStateBootReport(
-            "",
-            "",
-            "state-path-override",
-            "Aetheria daemon test",
-            "aetheria.local",
-            "unity-scene-receipt-test",
-            "",
-            statePath,
-            "",
-            stateFileExists: true,
-            supportsLocalStateFileRead: true,
-            "",
-            Array.Empty<string>(),
-            Array.Empty<AetheriaRuntimeDiscoveredVerse>(),
-            "",
-            "",
-            "",
-            "");
         var previousResolveStateBoot = AetheriaEveRuntimeUnityHooks.ResolveStateBoot;
         var previousRuntimeState = AetheriaEveRuntimeUnityHooks.RuntimeState;
         var previousControl = AetheriaEveRuntimeUnityHooks.Control;
@@ -2808,12 +2785,7 @@ public class DaemonRuntimeDocumentTests
 
         try
         {
-            AetheriaEveRuntimeUnityHooks.ResolveStateBoot = _ => stateBoot;
-            AetheriaEveRuntimeUnityHooks.RuntimeState = (_, __) => client.State;
-            AetheriaEveRuntimeUnityHooks.Control = (_, __) => client.Control;
-            AetheriaEveRuntimeUnityHooks.Ui = (_, __) => client.Ui;
-            AetheriaEveRuntimeUnityHooks.StateRefResolver = (_, __) =>
-                client.State.CreateEveSurfaceCultMeshStateRefResolver();
+            AetheriaEveRuntimeUnityHookInstaller.Install();
 
             using var bridge = new AetheriaEveUnitySceneProviderBridge(
                 statePath,
@@ -2850,6 +2822,7 @@ public class DaemonRuntimeDocumentTests
         }
         finally
         {
+            AetheriaEveRuntimeUnityClientCache.Dispose();
             AetheriaEveRuntimeUnityHooks.ResolveStateBoot = previousResolveStateBoot;
             AetheriaEveRuntimeUnityHooks.RuntimeState = previousRuntimeState;
             AetheriaEveRuntimeUnityHooks.Control = previousControl;

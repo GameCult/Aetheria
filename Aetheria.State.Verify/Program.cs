@@ -9597,7 +9597,8 @@ static void RequireClientTargetBootAuthority(string root)
     var mainMenuSurfaceBuilderPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeMainMenuSurfaceBuilder.cs");
     var bootstrapPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.eve-runtime", "Runtime", "AetheriaEveRuntimeBootstrap.cs");
     var presenterPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.eve-runtime", "Runtime", "AetheriaEveSurfacePresenter.cs");
-    var unityEveRuntimeHooksPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityEveRuntimeHooks.cs");
+    var eveRuntimeClientCachePath = Path.Combine(root, "Packages", "org.gamecult.aetheria.eve-runtime", "Runtime", "AetheriaEveRuntimeUnityClientCache.cs");
+    var eveRuntimeHookInstallerPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.eve-runtime", "Runtime", "AetheriaEveRuntimeUnityHookInstaller.cs");
     var actionGameManagerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "ActionGameManager.cs");
     var gameplayBootShellPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityGameplayBootShell.cs");
     var mainMenuPath = Path.Combine(root, "Assets", "Scripts", "UI", "MainMenu.cs");
@@ -9615,7 +9616,8 @@ static void RequireClientTargetBootAuthority(string root)
         mainMenuSurfaceBuilderPath,
         bootstrapPath,
         presenterPath,
-        unityEveRuntimeHooksPath,
+        eveRuntimeClientCachePath,
+        eveRuntimeHookInstallerPath,
         actionGameManagerPath,
         gameplayBootShellPath,
         mainMenuPath
@@ -9643,7 +9645,8 @@ static void RequireClientTargetBootAuthority(string root)
     var mainMenuSurfaceBuilder = File.ReadAllText(mainMenuSurfaceBuilderPath);
     var bootstrap = File.ReadAllText(bootstrapPath);
     var presenter = File.ReadAllText(presenterPath);
-    var unityEveRuntimeHooks = File.ReadAllText(unityEveRuntimeHooksPath);
+    var eveRuntimeClientCache = File.ReadAllText(eveRuntimeClientCachePath);
+    var eveRuntimeHookInstaller = File.ReadAllText(eveRuntimeHookInstallerPath);
     var actionGameManager = File.ReadAllText(actionGameManagerPath);
     var gameplayBootShell = File.ReadAllText(gameplayBootShellPath);
     var mainMenu = File.ReadAllText(mainMenuPath);
@@ -9992,11 +9995,55 @@ static void RequireClientTargetBootAuthority(string root)
             string.Join(", ", missingPresenterSymbols));
     }
 
-    if (!unityEveRuntimeHooks.Contains("AetheriaRuntimeStateBoot.Inspect(", StringComparison.Ordinal) ||
-        !unityEveRuntimeHooks.Contains("AetheriaUnityRuntimePaths.GameDataDirectory", StringComparison.Ordinal))
+    var requiredEveRuntimeClientCacheSymbols = new[]
+    {
+        "public static class AetheriaEveRuntimeUnityClientCache",
+        "new DirectoryInfo(Application.dataPath).Parent.CreateSubdirectory(\"GameData\")",
+        "AetheriaRuntimeStateBoot.Inspect(GameDataDirectory).StateFilePath",
+        "AetheriaClient",
+        ".OpenAsync(",
+        "startServer: false",
+        "pullOnOpen: true",
+        "CreateEveSurfaceCultMeshStateRefResolver()",
+        "public static void Dispose()"
+    };
+    var missingEveRuntimeClientCacheSymbols = requiredEveRuntimeClientCacheSymbols
+        .Where(symbol => !eveRuntimeClientCache.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingEveRuntimeClientCacheSymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "Aetheria Eve runtime hooks no longer own Unity client-target boot resolution.");
+            "Aetheria Eve runtime package no longer owns its generic Unity client cache: " +
+            string.Join(", ", missingEveRuntimeClientCacheSymbols));
+    }
+
+    var requiredEveRuntimeHookInstallerSymbols = new[]
+    {
+        "public static class AetheriaEveRuntimeUnityHookInstaller",
+        "RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)",
+        "public static void Install()",
+        "AetheriaEveRuntimeUnityHooks.ResolveStateBoot",
+        "AetheriaRuntimeStateBoot.Inspect(",
+        "AetheriaEveRuntimeUnityClientCache.GameDataDirectory",
+        "AetheriaEveRuntimeUnityHooks.RuntimeState",
+        "AetheriaEveRuntimeUnityHooks.Control",
+        "AetheriaEveRuntimeUnityHooks.Ui",
+        "AetheriaEveRuntimeUnityHooks.StateRefResolver"
+    };
+    var missingEveRuntimeHookInstallerSymbols = requiredEveRuntimeHookInstallerSymbols
+        .Where(symbol => !eveRuntimeHookInstaller.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingEveRuntimeHookInstallerSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Aetheria Eve runtime package no longer owns Unity client-target hook installation: " +
+            string.Join(", ", missingEveRuntimeHookInstallerSymbols));
+    }
+
+    if (File.Exists(Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaUnityEveRuntimeHooks.cs")))
+    {
+        throw new InvalidOperationException(
+            "Aetheria Eve runtime hooks are still installed by the legacy Unity gameplay assembly; the provider package must own this boundary.");
     }
 
     if (bootstrap.Contains("StatePathEnvironmentVariable", StringComparison.Ordinal) ||
