@@ -52,6 +52,7 @@
     <Compile Include="E:\Projects\Eve\packages\org.gamecult.eve.unity-uitoolkit\Runtime\IEveUiToolkitPluginProjectionAdapter.cs" />
     <Compile Include="E:\Projects\Eve\packages\org.gamecult.eve.unity-uitoolkit\Runtime\SaiVisualNovelUiToolkitProjectionAdapter.cs" />
     <Compile Include="E:\Projects\Eve\packages\org.gamecult.eve.unity-uitoolkit\Runtime\NornGraphUiToolkitProjectionAdapter.cs" />
+    <Compile Include="E:\Projects\Eve\packages\org.gamecult.eve.unity-uitoolkit\Runtime\TeXMathUiToolkitProjectionAdapter.cs" />
     <None Include="E:\Projects\Eve\packages\org.gamecult.eve.unity-uitoolkit\Runtime\GameCult.Eve.UnityUIToolkit.asmdef" />
     <Reference Include="UnityEngine">
       <HintPath>C:\Program Files\Unity\Hub\Editor\6000.4.2f1\Editor\Data\Managed\UnityEngine\UnityEngine.dll</HintPath>
