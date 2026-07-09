@@ -22,6 +22,11 @@ namespace GameCult.Aetheria.State.Verse
             Add(entries, MapIcon("body.planet", "Planet", "Sprites/Icons/Stroked/Planet"));
             Add(entries, MapIcon("body.sun", "Sun", "Sprites/Icons/Stroked/Sun"));
             Add(entries, MapIcon("body.asteroid", "Asteroid", "Sprites/Icons/Stroked/Planet"));
+            Add(entries, MapPrefab("prefab.entity.player", "Player Ship", "Prefabs/Ships/Djinni"));
+            Add(entries, MapPrefab("prefab.entity.ship", "Ship", "Prefabs/Ships/Djinni"));
+            Add(entries, MapPrefab("prefab.entity.station", "Station", "Prefabs/Stations/AsteroidOutpost"));
+            Add(entries, MapPrefab("prefab.entity.orbital", "Orbital", "Prefabs/Stations/Zenith"));
+            Add(entries, MapPrefab("prefab.entity.projectile", "Projectile", "Prefabs/Lightning"));
             foreach (var inventoryAsset in InventoryUiAssets())
                 Add(entries, inventoryAsset);
 
@@ -155,6 +160,18 @@ namespace GameCult.Aetheria.State.Verse
             };
         }
 
+        private static AetheriaRuntimeAssetManifestEntry MapPrefab(
+            string key,
+            string label,
+            string resourcePath)
+        {
+            return new AetheriaRuntimeAssetManifestEntry
+            {
+                Ref = Prefab(key, resourcePath),
+                Tags = new[] { "world", "prefab", label }
+            };
+        }
+
         private static AetheriaRuntimeAssetRef Sprite(string key, string resourcePath)
         {
             return CultMeshAssetRef(
@@ -173,19 +190,35 @@ namespace GameCult.Aetheria.State.Verse
                 "image/*");
         }
 
+        private static AetheriaRuntimeAssetRef Prefab(string key, string resourcePath)
+        {
+            return CultMeshAssetRef(
+                key,
+                AetheriaRuntimeAssetKinds.Prefab,
+                resourcePath,
+                "application/vnd.unity.prefab");
+        }
+
         private static AetheriaRuntimeAssetRef CultMeshAssetRef(
             string key,
             string kind,
             string resourcePath,
             string mimeType)
         {
+            var normalizedResourcePath = NormalizeResourcePath(resourcePath);
             return new AetheriaRuntimeAssetRef
             {
                 AssetKey = key ?? "",
                 Kind = kind ?? "",
                 Uri = CultMeshAssetUri(key),
                 Transport = AetheriaRuntimeAssetTransports.CultMesh,
-                MimeType = mimeType ?? ""
+                MimeType = mimeType ?? "",
+                Metadata = string.IsNullOrWhiteSpace(normalizedResourcePath)
+                    ? new Dictionary<string, string>()
+                    : new Dictionary<string, string>(StringComparer.Ordinal)
+                    {
+                        ["resourcesPath"] = normalizedResourcePath
+                    }
             };
         }
 

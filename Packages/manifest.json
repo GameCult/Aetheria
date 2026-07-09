@@ -22,6 +22,7 @@
     "org.gamecult.aetheria.state": "file:org.gamecult.aetheria.state",
     "org.gamecult.cultmath": "file:../../CultMath",
     "org.gamecult.eve.surface": "file:../../Eve/packages/org.gamecult.eve.surface",
+    "org.gamecult.eve.unity-scene": "file:../../Eve/runtimes/incubating/eve-unity-scene",
     "org.gamecult.eve.unity-uitoolkit": "file:../../Eve/packages/org.gamecult.eve.unity-uitoolkit",
     "com.unity.modules.accessibility": "1.0.0",
     "com.unity.modules.adaptiveperformance": "1.0.0",

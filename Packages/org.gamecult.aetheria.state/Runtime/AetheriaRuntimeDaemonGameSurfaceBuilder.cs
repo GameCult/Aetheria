@@ -32,6 +32,7 @@ namespace GameCult.Aetheria.State.Verse
             activeMainMenuSurfaceId = NormalizeMainMenuSurfaceId(activeMainMenuSurfaceId);
             var surfaceChildren = new List<AetheriaRuntimeSurfaceComponent>
             {
+                PlayableWorldSurface("aetheria.daemon.game.world", run, zone, run.CurrentEntityKey),
                 GravityFieldSurface("aetheria.daemon.game.field"),
                 MainMenuOverlay("aetheria.daemon.game.main_menu", activeMainMenuSurfaceId),
                 Node(
@@ -267,6 +268,124 @@ namespace GameCult.Aetheria.State.Verse
         private static string CommandName(AetheriaRuntimeDaemonCommandKinds kind)
         {
             return AetheriaRuntimeDaemonSurfaceCommandCatalog.CommandName(kind);
+        }
+
+        private static AetheriaRuntimeSurfaceComponent PlayableWorldSurface(
+            string id,
+            AetheriaRuntimeRunCheckpointCommit run,
+            AetheriaRuntimeZoneSnapshotCommit zone,
+            string currentEntityKey)
+        {
+            run ??= new AetheriaRuntimeRunCheckpointCommit();
+            zone ??= new AetheriaRuntimeZoneSnapshotCommit();
+            var props = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["label"] = string.IsNullOrWhiteSpace(zone.Name) ? "Aetheria World" : zone.Name,
+                ["statePointerId"] = AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest.ToString(),
+                ["assetManifest"] = AetheriaRuntimeVerseRecordKeys.DaemonAssetManifest.ToString(),
+                ["inputProfile"] = "arpg.pointer-keyboard.v1",
+                ["cameraRig"] = "arpg.orbital-follow.v1",
+                ["playerEntityId"] = currentEntityKey ?? "",
+                ["movementCommand"] = CommandName(AetheriaRuntimeDaemonCommandKinds.SetMoveVector),
+                ["focusCommand"] = CommandName(AetheriaRuntimeDaemonCommandKinds.TargetNearest),
+                ["targetCommand"] = CommandName(AetheriaRuntimeDaemonCommandKinds.SetTarget),
+                ["actionCommand"] = CommandName(AetheriaRuntimeDaemonCommandKinds.FireWeaponGroup),
+                ["zoneIndex"] = zone.ZoneIndex.ToString(CultureInfo.InvariantCulture),
+                ["runId"] = run.RunId ?? ""
+            };
+
+            var entities = (zone.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
+                .Where(candidate => candidate != null && candidate.IsActive)
+                .Select(candidate => PlayableWorldEntity(candidate, run, zone, currentEntityKey))
+                .ToArray();
+
+            return new AetheriaRuntimeSurfaceComponent(
+                id,
+                "world.scene3d",
+                props,
+                entities,
+                AetheriaRuntimeSurfaceStateBindings.FromProps(props),
+                Array.Empty<AetheriaRuntimeEmbeddedDocumentSlot>(),
+                Layout(
+                    ("position", "absolute"),
+                    ("top", "0"),
+                    ("right", "0"),
+                    ("bottom", "0"),
+                    ("left", "0"),
+                    ("width", "100%"),
+                    ("height", "100%")),
+                new Dictionary<string, string>
+                {
+                    ["background"] = "transparent"
+                });
+        }
+
+        private static AetheriaRuntimeSurfaceComponent PlayableWorldEntity(
+            AetheriaRuntimeEntitySnapshotCommit entity,
+            AetheriaRuntimeRunCheckpointCommit run,
+            AetheriaRuntimeZoneSnapshotCommit zone,
+            string currentEntityKey)
+        {
+            var entityId = run.EntityRecordKey(zone.ZoneIndex, entity.EntityIndex);
+            var props = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["entityId"] = entityId,
+                ["entityKind"] = entity.Kind ?? "",
+                ["label"] = string.IsNullOrWhiteSpace(entity.Name) ? entityId : entity.Name,
+                ["faction"] = entity.FactionKey ?? "",
+                ["assetRef"] = PlayableWorldAssetRef(entity),
+                ["position"] = FormatPosition(entity),
+                ["rotationY"] = HeadingYaw(entity).ToString("0.###", CultureInfo.InvariantCulture),
+                ["radius"] = PlayableWorldRadius(entity).ToString("0.###", CultureInfo.InvariantCulture),
+                ["selectable"] = "true",
+                ["controllable"] = string.Equals(entityId, currentEntityKey, StringComparison.Ordinal) ? "true" : "false",
+                ["focusCommand"] = CommandName(AetheriaRuntimeDaemonCommandKinds.TargetNearest),
+                ["moveCommand"] = CommandName(AetheriaRuntimeDaemonCommandKinds.SetMoveVector),
+                ["targetCommand"] = CommandName(AetheriaRuntimeDaemonCommandKinds.SetTarget),
+                ["actionCommand"] = CommandName(AetheriaRuntimeDaemonCommandKinds.FireWeaponGroup)
+            };
+
+            return new AetheriaRuntimeSurfaceComponent(
+                $"aetheria.daemon.game.world.entity.{entity.EntityIndex}",
+                "world.entity3d",
+                props,
+                Array.Empty<AetheriaRuntimeSurfaceComponent>());
+        }
+
+        private static string PlayableWorldAssetRef(AetheriaRuntimeEntitySnapshotCommit entity)
+        {
+            if (entity == null)
+                return "";
+
+            var kind = (entity.Kind ?? "").Trim().ToLowerInvariant();
+            if (kind.Contains("station"))
+                return "prefab.entity.station";
+            if (kind.Contains("projectile"))
+                return "prefab.entity.projectile";
+            if (kind.Contains("orbital"))
+                return "prefab.entity.orbital";
+            if (string.Equals(entity.FactionKey, "player", StringComparison.OrdinalIgnoreCase))
+                return "prefab.entity.player";
+            return "prefab.entity.ship";
+        }
+
+        private static double PlayableWorldRadius(AetheriaRuntimeEntitySnapshotCommit entity)
+        {
+            var kind = (entity.Kind ?? "").Trim().ToLowerInvariant();
+            if (kind.Contains("station"))
+                return 48.0;
+            if (kind.Contains("projectile"))
+                return Math.Max(1.0, entity.Visibility > 0.0 ? entity.Visibility : 3.0);
+            return 12.0;
+        }
+
+        private static double HeadingYaw(AetheriaRuntimeEntitySnapshotCommit entity)
+        {
+            if (entity == null)
+                return 0.0;
+            if (Math.Abs(entity.DirectionX) <= 0.0001 && Math.Abs(entity.DirectionY) <= 0.0001)
+                return 0.0;
+            return Math.Atan2(entity.DirectionX, entity.DirectionY);
         }
 
         private static AetheriaRuntimeSurfaceComponent GravityFieldSurface(string id)

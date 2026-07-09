@@ -3,9 +3,10 @@
     "displayName": "Aetheria Eve Runtime",
     "version": "0.1.0",
     "unity": "2021.3",
-    "description": "Aetheria runtime bridge from typed CultCache Eve surfaces to Unity UI Toolkit projection.",
+    "description": "Aetheria provider bridge from typed CultCache Eve surfaces to generic Eve Unity lowerers.",
     "dependencies": {
         "org.gamecult.aetheria.state": "0.1.0",
+        "org.gamecult.eve.unity-scene": "0.1.0",
         "org.gamecult.eve.unity-uitoolkit": "0.1.0"
     },
     "keywords": [

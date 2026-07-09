@@ -4,6 +4,7 @@
     "references": [
         "GameCult.Aetheria.State.Unity",
         "GameCult.Eve.Surface",
+        "GameCult.Eve.UnityScene",
         "GameCult.Eve.UnityUIToolkit"
     ],
     "includePlatforms": [],
