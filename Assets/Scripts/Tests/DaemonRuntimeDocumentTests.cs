@@ -1,5 +1,7 @@
 using CultMath;
+using GameCult.Aetheria.EveRuntime;
 using GameCult.Aetheria.State.Verse;
+using GameCult.Eve.UnityScene;
 using GameCult.Mesh;
 using NUnit.Framework;
 using System;
@@ -2753,6 +2755,107 @@ public class DaemonRuntimeDocumentTests
         Assert.IsTrue(AetheriaRuntimeDaemonSurfaceCommands.TrySubmit(client, request, out var envelope));
         Assert.AreEqual(AetheriaRuntimeDaemonOperationClient.DefaultClientId, envelope.ClientId);
         Assert.AreEqual(AetheriaRuntimeDaemonCommandKinds.SensorPing, envelope.Kind);
+    }
+
+    [Test]
+    public void EveUnitySceneProviderBridgePublishesProviderReceiptForDaemonCommand()
+    {
+        var statePath = Path.Combine(
+            Path.GetTempPath(),
+            "aetheria-eveunity-scene-receipt-tests",
+            Path.GetRandomFileName(),
+            "state.cc");
+        var frame = AetheriaRuntimeDaemonFrameDocument.Create(
+            new AetheriaRuntimeRunCheckpointCommit
+            {
+                CurrentEntityKey = "entity:surface-player"
+            },
+            "aetheria-daemon",
+            "session-scene-receipt",
+            80,
+            1.5,
+            0.02);
+        PublishLatestFrameThroughVerseClient(statePath, frame);
+
+        using var client = AetheriaClient
+            .OpenAsync(statePath, "unity-scene-receipt-test", startServer: false, pullOnOpen: true)
+            .GetAwaiter()
+            .GetResult();
+        var stateBoot = new AetheriaRuntimeStateBootReport(
+            "",
+            "",
+            "state-path-override",
+            "Aetheria daemon test",
+            "aetheria.local",
+            "unity-scene-receipt-test",
+            "",
+            statePath,
+            "",
+            stateFileExists: true,
+            supportsLocalStateFileRead: true,
+            "",
+            Array.Empty<string>(),
+            Array.Empty<AetheriaRuntimeDiscoveredVerse>(),
+            "",
+            "",
+            "",
+            "");
+        var previousResolveStateBoot = AetheriaEveRuntimeUnityHooks.ResolveStateBoot;
+        var previousRuntimeState = AetheriaEveRuntimeUnityHooks.RuntimeState;
+        var previousControl = AetheriaEveRuntimeUnityHooks.Control;
+        var previousUi = AetheriaEveRuntimeUnityHooks.Ui;
+        var previousStateRefResolver = AetheriaEveRuntimeUnityHooks.StateRefResolver;
+
+        try
+        {
+            AetheriaEveRuntimeUnityHooks.ResolveStateBoot = _ => stateBoot;
+            AetheriaEveRuntimeUnityHooks.RuntimeState = (_, __) => client.State;
+            AetheriaEveRuntimeUnityHooks.Control = (_, __) => client.Control;
+            AetheriaEveRuntimeUnityHooks.Ui = (_, __) => client.Ui;
+            AetheriaEveRuntimeUnityHooks.StateRefResolver = (_, __) =>
+                client.State.CreateEveSurfaceCultMeshStateRefResolver();
+
+            using var bridge = new AetheriaEveUnitySceneProviderBridge(
+                statePath,
+                AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId,
+                "unity-scene-receipt-test");
+            EveUnitySceneCommandReceipt observedReceipt = null;
+            bridge.ReceiptAvailable += receipt => observedReceipt = receipt;
+            var request = new EveSurfaceCommandRequest(
+                "aetheria.daemon",
+                AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId,
+                CultMesh.OperationInvocation("aetheria.daemon.commands.SensorPing"),
+                CultMesh.OperationPayload(),
+                DateTimeOffset.Parse("2026-07-09T00:00:00Z"),
+                "",
+                "aetheria.daemon.commands",
+                "aetheria.eve_command_acceptance_status.v1");
+
+            bridge.Submit(request);
+
+            Assert.IsNotNull(observedReceipt);
+            Assert.AreEqual("accepted", observedReceipt.State);
+            Assert.AreEqual("Aetheria", observedReceipt.OwnerRepo);
+            Assert.AreEqual("aetheria-daemon-command-boundary", observedReceipt.Authority);
+            Assert.AreEqual("aetheria.daemon", observedReceipt.ProviderId);
+            Assert.AreEqual(AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId, observedReceipt.SurfaceId);
+            Assert.AreEqual(
+                AetheriaRuntimeDaemonOperationIds.ForKind(AetheriaRuntimeDaemonCommandKinds.SensorPing),
+                observedReceipt.Command);
+            Assert.IsFalse(string.IsNullOrWhiteSpace(observedReceipt.CommandId));
+            Assert.AreEqual(observedReceipt.CommandId, observedReceipt.ReceiptId);
+            Assert.AreEqual("aetheria.eve_command_acceptance_status.v1", observedReceipt.Schema);
+            Assert.IsTrue(observedReceipt.IsProviderOwned);
+            Assert.IsTrue(observedReceipt.ShouldRefreshProviderSurface);
+        }
+        finally
+        {
+            AetheriaEveRuntimeUnityHooks.ResolveStateBoot = previousResolveStateBoot;
+            AetheriaEveRuntimeUnityHooks.RuntimeState = previousRuntimeState;
+            AetheriaEveRuntimeUnityHooks.Control = previousControl;
+            AetheriaEveRuntimeUnityHooks.Ui = previousUi;
+            AetheriaEveRuntimeUnityHooks.StateRefResolver = previousStateRefResolver;
+        }
     }
 
     [Test]

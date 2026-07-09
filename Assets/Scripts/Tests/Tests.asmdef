@@ -7,10 +7,12 @@
         "Unity.Mathematics",
         "CultMath",
         "Aetheria.Shared.Unity",
+        "GameCult.Aetheria.EveRuntime",
         "GameCult.Aetheria.State.Unity",
         "GameCult.Caching",
         "GameCult.Mesh",
-        "GameCult.Eve.Surface"
+        "GameCult.Eve.Surface",
+        "GameCult.Eve.UnityScene"
     ],
     "includePlatforms": [
         "Editor"
