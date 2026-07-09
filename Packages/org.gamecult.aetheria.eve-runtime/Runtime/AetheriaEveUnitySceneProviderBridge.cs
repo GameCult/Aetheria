@@ -16,6 +16,7 @@ namespace GameCult.Aetheria.EveRuntime
         IEveUnitySceneProviderSurfaceDocumentSource,
         IEveUnityPlayableWorldAssetManifestDocumentSource,
         IEveUnitySceneCommandSink,
+        IEveUnityProviderRefreshSource,
         IDisposable
     {
         private readonly string _stateFilePathOverride;
@@ -45,6 +46,8 @@ namespace GameCult.Aetheria.EveRuntime
         }
 
         public string SinkKind => "aetheria-daemon-command-boundary";
+
+        public string ManifestRef => CurrentDocumentManifest.ManifestRef;
 
         public EveUnitySceneProviderSurfaceDocument CurrentDocument { get; private set; }
 
@@ -110,14 +113,16 @@ namespace GameCult.Aetheria.EveRuntime
 
         private AetheriaRuntimeStateBootReport ResolveStateBoot()
         {
-            _stateBoot = AetheriaEveRuntimeUnityHooks.RequireStateBoot(_stateFilePathOverride);
-            return _stateBoot;
+            var stateBoot = AetheriaEveRuntimeUnityHooks.RequireStateBoot(_stateFilePathOverride);
+            _stateBoot = stateBoot;
+            return stateBoot;
         }
 
         private AetheriaClientState ResolveRuntimeState(AetheriaRuntimeStateBootReport stateBoot)
         {
-            _runtimeState = AetheriaEveRuntimeUnityHooks.RequireRuntimeState(stateBoot, _runtimeId);
-            return _runtimeState;
+            var runtimeState = AetheriaEveRuntimeUnityHooks.RequireRuntimeState(stateBoot, _runtimeId);
+            _runtimeState = runtimeState;
+            return runtimeState;
         }
 
         private EveSurfaceDocument? ReadSurface(

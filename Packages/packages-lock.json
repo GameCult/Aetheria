@@ -297,6 +297,7 @@
       "source": "embedded",
       "dependencies": {
         "org.gamecult.aetheria.state": "0.1.0",
+        "org.gamecult.eve.unity-scene": "0.1.0",
         "org.gamecult.eve.unity-uitoolkit": "0.1.0"
       }
     },
@@ -320,6 +321,14 @@
       "depth": 0,
       "source": "local",
       "dependencies": {}
+    },
+    "org.gamecult.eve.unity-scene": {
+      "version": "file:../../Eve/runtimes/incubating/eve-unity-scene",
+      "depth": 0,
+      "source": "local",
+      "dependencies": {
+        "org.gamecult.eve.surface": "0.1.0"
+      }
     },
     "org.gamecult.eve.unity-uitoolkit": {
       "version": "file:../../Eve/packages/org.gamecult.eve.unity-uitoolkit",
