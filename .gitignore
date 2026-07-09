@@ -105,6 +105,8 @@ Aetheria.State/bin/
 Aetheria.State/obj/
 Aetheria.State.Daemon/bin/
 Aetheria.State.Daemon/obj/
+Aetheria.State.Daemon.Smoke/bin/
+Aetheria.State.Daemon.Smoke/obj/
 Aetheria.State.Import/bin/
 Aetheria.State.Import/obj/
 Aetheria.State.Smoke/bin/

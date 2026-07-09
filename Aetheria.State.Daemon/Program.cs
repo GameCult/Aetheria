@@ -186,6 +186,19 @@ static async Task<AetheriaRuntimeDaemonTickResult> TickAsync(
                 LoadoutTemplates = loadoutTemplates
             }
         });
+    if (options.UseAbstractCombatKernel)
+    {
+        AetheriaDaemonCombatKernel.Step(
+            result.Frame.Run,
+            result.Intents,
+            fixedDeltaSeconds,
+            node.RuntimeCatalog().Latest(),
+            options.CombatKernelSettings);
+        result.Frame.Capabilities = (result.Frame.Capabilities ?? Array.Empty<string>())
+            .Concat(new[] { "aetheria.daemon.abstract_combat_kernel.v1" })
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+    }
     result.Frame.CumulativeImportedFactIds =
         currentFrame?.CumulativeImportedFactIds ?? Array.Empty<string>();
     result.Frame.CumulativeRejectedImportedFactIds =
@@ -2497,6 +2510,9 @@ internal sealed class AetheriaDaemonHostOptions
         AetheriaRuntimeDaemonRenderSettings.AetheriaDefault;
     public AetheriaRuntimeDaemonSimulationSettings SimulationSettings { get; init; } =
         AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault;
+    public AetheriaDaemonCombatKernelSettings CombatKernelSettings { get; init; } =
+        AetheriaDaemonCombatKernelSettings.Default;
+    public bool UseAbstractCombatKernel { get; init; }
     public bool Once { get; init; }
 
     public static AetheriaDaemonHostOptions Parse(IReadOnlyList<string> args)
@@ -2553,6 +2569,7 @@ internal sealed class AetheriaDaemonHostOptions
             TickInterval = TimeSpan.FromMilliseconds(intervalMs),
             ApiPublicationInterval = TimeSpan.FromMilliseconds(apiPublicationIntervalMs),
             FixedDeltaSeconds = fixedDeltaMs / 1000.0,
+            UseAbstractCombatKernel = HasFlag(args, "--abstract-combat-kernel"),
             Once = HasFlag(args, "--once")
         };
     }

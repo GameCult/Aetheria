@@ -31,6 +31,7 @@ flowchart TD
     Tick["Tick runner"]
     Ops["Operations executor\nmutates run checkpoint"]
     Sim["Daemon sim\nmovement, AI, combat, contacts"]
+    CombatKernel["Abstract combat kernel\nnative snapshots, pressure clocks"]
     Frame["Frame document\nrun snapshot + facts"]
     Projection["Game viewport documents\nviewport, gravity, inventory"]
     Publications["Publications\nCultNet records, .cc files, RUDP snapshots, Eve surfaces"]
@@ -43,7 +44,9 @@ flowchart TD
     Authority --> Tick
     Tick --> Ops
     Ops --> Sim
+    Ops --> CombatKernel
     Sim --> Frame
+    CombatKernel --> Frame
     Frame --> Projection
     Frame --> Publications
     Projection --> Publications
@@ -83,6 +86,7 @@ These files define the deprecated reference surface. They should be treated as A
 | Command application | `Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeDaemonOperations.cs` | Current meaning of every gameplay command and rejection. |
 | Tick composition | `Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeDaemonTickRunner.cs` | Current order of command filtering, operation execution, sim step, frame creation, publication payloads. |
 | Daemon sim | `Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeDaemonSimulation.cs` | Existing movement, hostile AI, combat, heat, and contact rules. |
+| Abstract combat kernel | `Aetheria.State.Daemon/AetheriaDaemonCombatKernel.cs` | Daemon-owned deterministic combat pressure model over native run/zone/entity snapshot commits. This is the first out-of-view combat oracle shape and should be promoted into the Rust daemon simulation body, not into Unity. |
 | Game viewport documents | `Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeGameViewportDocuments.cs` | Existing map, object, gravity, selected object, docking, refit, sector, and inventory projections. |
 | Client facade | `Packages/org.gamecult.aetheria.state/Runtime/AetheriaClient.cs` | C# client observation and typed operation ergonomics. |
 | Verse client | `Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeVerseClient.cs` | Current lower-level typed document reads/watches and command submission. |
@@ -93,6 +97,41 @@ These files define the deprecated reference surface. They should be treated as A
 | Ymir C# contracts | `Assets/Scripts/ServerShared/YmirPhysicsContracts.cs` | Current body/world/query DTOs plus reference implementation for step, overlap, and cast queries. |
 | Ymir Unity bridge | `Assets/Scripts/Gameplay/Physics/AetheriaYmirPhysicsBridge.cs` | Current Unity presentation adapter that maps daemon SoA bodies into typed Ymir query worlds. |
 | Ymir query tests | `Assets/Scripts/Tests/YmirPhysicsQueryTests.cs` | Current expectations for integration, radial fields, contacts, overlap sphere/circle, and cast sphere/circle; useful semantics should survive, DTO/endpoint shape should not. |
+
+## Abstract Combat Kernel
+
+`Aetheria.State.Daemon/AetheriaDaemonCombatKernel.cs` is the first daemon-owned
+combat oracle for out-of-view simulation and balance runs. It is deliberately
+not a Unity feature and not a renderer projection. Its input is the same native
+`AetheriaRuntimeRunCheckpointCommit` graph the daemon already publishes in
+frames: zones, entities, stat grids, contacts, weapon states, target indices,
+factions, velocities, equipment, and optional runtime catalog facts. Its output
+is mutation of that same graph plus a transient step report for smoke tests and
+future balance harnesses.
+
+The current kernel models pressure rather than rendered combat:
+
+- thermal pressure through `heat` and `heat-capacity` stat grids;
+- detection pressure through `signature`, `signature-masking`,
+  `sensor-sensitivity`, and native contact confidence rows;
+- cognition pressure through `cognition`, `cognitive-load`, and
+  `fire-control` stat grids;
+- munition/commitment pressure through `munition-pressure`, native
+  `AetheriaRuntimeWeaponStateCommit` rows, launch thresholds, lock confidence,
+  and subsystem-quality damage bonuses.
+
+The invariant is state compatibility. Out-of-view combat must be able to become
+visible combat by handing the frame back to a client or future presentation
+runtime without translating a private oracle state. Mechanics not yet present in
+visible gameplay may exist as named stat grids or transient reports, but they
+must not become a hidden second save model.
+
+The C# host currently gates the kernel behind `--abstract-combat-kernel` because
+`AetheriaRuntimeDaemonTickRunner` still calls the older shared daemon
+simulation. That is a temporary compatibility boundary, not a second owner. The
+rebuild target is one daemon simulation body where command application,
+abstract combat, visible physics, contacts, heat, and publications all commit to
+the same typed state primitive.
 
 ## Current Control Flow
 

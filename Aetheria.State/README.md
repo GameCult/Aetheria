@@ -49,6 +49,17 @@ renderer-side commit authority.
 `Aetheria.State.Daemon` owns the long-running `aetheria-daemon` heartbeat and
 publishes `starting`, `running`, and `stopping` states through `Aetheria.State`;
 legacy outbox status remains operation telemetry, not daemon-session ownership.
+The daemon also owns the first deterministic abstract combat kernel. That
+kernel consumes native runtime run/zone/entity snapshot commits directly and
+mutates those same snapshot rows: stat grids for hull, shield, heat, thermal
+capacity, signature masking, cognition, cognitive load, fire control, and
+munition pressure; contact rows for track confidence and visibility; and native
+weapon-state rows for abstract firing and lock state. It is meant for
+out-of-view combat advancement and balance simulation without creating a second
+private combat state model. The current C# host exposes it behind
+`--abstract-combat-kernel` while the older shared daemon simulation remains the
+default compatibility path. The promotion path is to move this authority into
+the Rust daemon/Ymir simulation body, not into Unity or a renderer package.
 Unity Eve surfaces construct typed `gamecult.eve.command.v1` command documents.
 `AetheriaRuntimeVerseClient` is the shared CultMesh client boundary for
 headless, Unity, and non-Unity runtimes. Typed command clients submit directly
