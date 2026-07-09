@@ -9,7 +9,7 @@ using UnityEngine;
 namespace GameCult.Aetheria.EveRuntime
 {
     public sealed class AetheriaEveUnitySceneProviderComponent :
-        MonoBehaviour,
+        EveUnitySceneLiveProviderTransportBehaviour,
         IEveUnitySceneProviderSurfaceDocumentSource,
         IEveUnityPlayableWorldAssetManifestDocumentSource,
         IEveUnitySceneCommandSink,
@@ -23,6 +23,18 @@ namespace GameCult.Aetheria.EveRuntime
         [SerializeField] private bool refreshOnEnable = true;
 
         private AetheriaEveUnitySceneProviderBridge? _bridge;
+
+        public override string TransportKind => Bridge.TransportKind;
+
+        public override string SurfacePointer => Bridge.SurfacePointer;
+
+        public override string AssetManifestPointer => Bridge.AssetManifestPointer;
+
+        public override EveUnitySceneProviderSurfaceDocument CurrentSurfaceDocument =>
+            ((IEveUnitySceneLiveProviderTransport)Bridge).CurrentSurfaceDocument;
+
+        public override EveUnityPlayableWorldAssetManifestDocument CurrentAssetManifestDocument =>
+            ((IEveUnitySceneLiveProviderTransport)Bridge).CurrentAssetManifestDocument;
 
         public string SinkKind => Bridge.SinkKind;
 
@@ -39,10 +51,22 @@ namespace GameCult.Aetheria.EveRuntime
             remove => Bridge.DocumentAvailable -= value;
         }
 
+        public override event Action<EveUnitySceneProviderSurfaceDocument> SurfaceDocumentAvailable
+        {
+            add => ((IEveUnitySceneLiveProviderTransport)Bridge).SurfaceDocumentAvailable += value;
+            remove => ((IEveUnitySceneLiveProviderTransport)Bridge).SurfaceDocumentAvailable -= value;
+        }
+
         public event Action<EveUnitySceneCommandReceipt>? ReceiptAvailable
         {
             add => Bridge.ReceiptAvailable += value;
             remove => Bridge.ReceiptAvailable -= value;
+        }
+
+        public override event Action<EveUnitySceneCommandReceipt> CommandReceiptAvailable
+        {
+            add => ((IEveUnitySceneLiveProviderTransport)Bridge).CommandReceiptAvailable += value;
+            remove => ((IEveUnitySceneLiveProviderTransport)Bridge).CommandReceiptAvailable -= value;
         }
 
         event Action<EveUnityPlayableWorldAssetManifestDocument> IEveUnityPlayableWorldAssetManifestDocumentSource.DocumentAvailable
@@ -51,7 +75,23 @@ namespace GameCult.Aetheria.EveRuntime
             remove => ((IEveUnityPlayableWorldAssetManifestDocumentSource)Bridge).DocumentAvailable -= value;
         }
 
-        public void Refresh()
+        public override event Action<EveUnityPlayableWorldAssetManifestDocument> AssetManifestDocumentAvailable
+        {
+            add => ((IEveUnitySceneLiveProviderTransport)Bridge).AssetManifestDocumentAvailable += value;
+            remove => ((IEveUnitySceneLiveProviderTransport)Bridge).AssetManifestDocumentAvailable -= value;
+        }
+
+        public override void Connect()
+        {
+            Bridge.Connect();
+        }
+
+        public override void Disconnect()
+        {
+            Bridge.Disconnect();
+        }
+
+        public override void Refresh()
         {
             Bridge.Refresh();
         }
@@ -59,6 +99,11 @@ namespace GameCult.Aetheria.EveRuntime
         public void Submit(EveSurfaceCommandRequest request)
         {
             Bridge.Submit(request);
+        }
+
+        public override void SubmitCommand(EveSurfaceCommandRequest request)
+        {
+            Bridge.SubmitCommand(request);
         }
 
         public void Dispose()

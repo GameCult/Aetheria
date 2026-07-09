@@ -2832,7 +2832,7 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
-    public void GenericEveUnityRuntimePresentsAetheriaDaemonPlayableWorldThroughProviderBridge()
+    public void GenericEveUnityRuntimePresentsAetheriaDaemonPlayableWorldThroughLiveProviderTransport()
     {
         var statePath = Path.Combine(
             Path.GetTempPath(),
@@ -2884,19 +2884,22 @@ public class DaemonRuntimeDocumentTests
                 AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId,
                 "unity-scene-playable-test");
             bridge.Refresh();
+            using var liveBridge = new EveUnitySceneLiveProviderBridge(bridge);
 
             var sceneSink = new RecordingPlayableWorldSceneSink();
             using var runtime = new EveUnityPlayableWorldRuntime(
-                bridge,
-                bridge,
+                liveBridge,
+                liveBridge,
                 sceneSink,
-                bridge,
-                bridge);
+                liveBridge,
+                liveBridge);
             EveUnitySceneCommandReceipt observedReceipt = null;
             runtime.ReceiptAvailable += receipt => observedReceipt = receipt;
 
             var presentation = runtime.Connect();
 
+            Assert.AreEqual("aetheria-cultmesh-cultcache-transport", liveBridge.TransportKind);
+            Assert.AreEqual(AetheriaRuntimeVerseRecordKeys.DaemonAssetManifest.ToString(), liveBridge.AssetManifestPointer);
             Assert.AreEqual(1, presentation.ActiveEntities);
             Assert.AreEqual(1, sceneSink.Upserts.Count);
             Assert.IsNotNull(runtime.ActiveWorld);

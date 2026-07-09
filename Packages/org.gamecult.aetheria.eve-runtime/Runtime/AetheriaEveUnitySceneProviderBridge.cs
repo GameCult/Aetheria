@@ -13,6 +13,7 @@ using EveSurfaceDocument = GameCult.Eve.Surface.EveSurfaceDocument;
 namespace GameCult.Aetheria.EveRuntime
 {
     public sealed class AetheriaEveUnitySceneProviderBridge :
+        IEveUnitySceneLiveProviderTransport,
         IEveUnitySceneProviderSurfaceDocumentSource,
         IEveUnityPlayableWorldAssetManifestDocumentSource,
         IEveUnitySceneCommandSink,
@@ -44,13 +45,25 @@ namespace GameCult.Aetheria.EveRuntime
                 "aetheria.daemon");
         }
 
+        public string TransportKind => "aetheria-cultmesh-cultcache-transport";
+
+        public string SurfacePointer => CurrentDocument.SourcePointer;
+
+        public string AssetManifestPointer => CurrentDocumentManifest.ManifestRef;
+
         public string SinkKind => "aetheria-daemon-command-boundary";
 
         public string ManifestRef => CurrentDocumentManifest.ManifestRef;
 
         public EveUnitySceneProviderSurfaceDocument CurrentDocument { get; private set; }
 
+        EveUnitySceneProviderSurfaceDocument IEveUnitySceneLiveProviderTransport.CurrentSurfaceDocument =>
+            CurrentDocument;
+
         EveUnityPlayableWorldAssetManifestDocument IEveUnityPlayableWorldAssetManifestDocumentSource.CurrentDocument =>
+            CurrentDocumentManifest;
+
+        EveUnityPlayableWorldAssetManifestDocument IEveUnitySceneLiveProviderTransport.CurrentAssetManifestDocument =>
             CurrentDocumentManifest;
 
         public EveUnityPlayableWorldAssetManifestDocument CurrentDocumentManifest { get; private set; }
@@ -59,10 +72,37 @@ namespace GameCult.Aetheria.EveRuntime
 
         public event Action<EveUnitySceneCommandReceipt>? ReceiptAvailable;
 
+        event Action<EveUnitySceneProviderSurfaceDocument> IEveUnitySceneLiveProviderTransport.SurfaceDocumentAvailable
+        {
+            add => DocumentAvailable += value;
+            remove => DocumentAvailable -= value;
+        }
+
         event Action<EveUnityPlayableWorldAssetManifestDocument> IEveUnityPlayableWorldAssetManifestDocumentSource.DocumentAvailable
         {
             add => AssetManifestDocumentAvailable += value;
             remove => AssetManifestDocumentAvailable -= value;
+        }
+
+        event Action<EveUnityPlayableWorldAssetManifestDocument> IEveUnitySceneLiveProviderTransport.AssetManifestDocumentAvailable
+        {
+            add => AssetManifestDocumentAvailable += value;
+            remove => AssetManifestDocumentAvailable -= value;
+        }
+
+        event Action<EveUnitySceneCommandReceipt> IEveUnitySceneLiveProviderTransport.CommandReceiptAvailable
+        {
+            add => ReceiptAvailable += value;
+            remove => ReceiptAvailable -= value;
+        }
+
+        public void Connect()
+        {
+            Refresh();
+        }
+
+        public void Disconnect()
+        {
         }
 
         public void Refresh()
@@ -104,6 +144,11 @@ namespace GameCult.Aetheria.EveRuntime
                 .GetResult();
             Debug.Log($"Submitted Eve Unity scene operation for CultMesh bridge: {envelope.OperationId}");
             ReceiptAvailable?.Invoke(ToReceipt(request, envelope));
+        }
+
+        public void SubmitCommand(EveSurfaceCommandRequest request)
+        {
+            Submit(request);
         }
 
         public void Dispose()
