@@ -23,8 +23,6 @@ namespace GameCult.Aetheria.EveRuntime
         private readonly string _stateFilePathOverride;
         private readonly string _surfaceId;
         private readonly string _runtimeId;
-        private CultMeshReactiveDocument<EveSurfaceDocument>? _surfaceState;
-        private CultMeshReactiveDocument<AetheriaRuntimeCatalogSnapshot>? _catalogState;
         private AetheriaRuntimeStateBootReport? _stateBoot;
         private AetheriaClientState? _runtimeState;
         private event Action<EveUnityPlayableWorldAssetManifestDocument>? AssetManifestDocumentAvailable;
@@ -110,10 +108,6 @@ namespace GameCult.Aetheria.EveRuntime
 
         public void Dispose()
         {
-            _surfaceState?.Dispose();
-            _surfaceState = null;
-            _catalogState?.Dispose();
-            _catalogState = null;
         }
 
         private AetheriaRuntimeStateBootReport ResolveStateBoot()
@@ -140,9 +134,8 @@ namespace GameCult.Aetheria.EveRuntime
                 if (handle == null)
                     return null;
 
-                _surfaceState ??= handle.Reactive();
                 var resolver = AetheriaEveRuntimeUnityHooks.TryCreateStateRefResolver(stateBoot, _runtimeId);
-                return AetheriaRuntimeSurfaceDocuments.ToEveSurfaceDocument(_surfaceState.Current, resolver);
+                return AetheriaRuntimeSurfaceDocuments.ToEveSurfaceDocument(handle.Latest(), resolver);
             }
             catch (KeyNotFoundException)
             {
@@ -152,9 +145,9 @@ namespace GameCult.Aetheria.EveRuntime
 
         private EveUnityPlayableWorldAssetManifestDocument ReadAssetManifest(AetheriaClientState runtimeState)
         {
-            _catalogState ??= runtimeState.Catalog.Reactive();
+            var catalog = runtimeState.Catalog.Latest();
             var manifest = AetheriaRuntimeAssets.ProjectManifest(
-                _catalogState.Current,
+                catalog,
                 runId: "",
                 baseUri: "cultmesh://aetheria.local/assets");
             return ToUnityPlayableWorldAssetManifest(manifest);

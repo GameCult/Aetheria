@@ -392,12 +392,22 @@ public sealed class AetheriaRuntimeDaemonOperationsClient
         out AetheriaRuntimeDaemonCommandKinds kind)
     {
         kind = AetheriaRuntimeDaemonCommandKinds.None;
-        var command = request.Operation?.OperationId ?? "";
-        if (command.StartsWith(AetheriaRuntimeDaemonSurfaceCommandCatalog.CommandPrefix, StringComparison.Ordinal))
-            command = command.Substring(AetheriaRuntimeDaemonSurfaceCommandCatalog.CommandPrefix.Length);
+        var command = NormalizeSurfaceCommandName(request.Operation?.OperationId ?? "");
+        if (!Enum.TryParse(command, ignoreCase: false, out kind) ||
+            kind == AetheriaRuntimeDaemonCommandKinds.None)
+        {
+            command = NormalizeSurfaceCommandName(ReadPayloadString(request, "commandId", ""));
+        }
 
         return Enum.TryParse(command, ignoreCase: false, out kind) &&
                kind != AetheriaRuntimeDaemonCommandKinds.None;
+    }
+
+    private static string NormalizeSurfaceCommandName(string command)
+    {
+        if (command.StartsWith(AetheriaRuntimeDaemonSurfaceCommandCatalog.CommandPrefix, StringComparison.Ordinal))
+            command = command.Substring(AetheriaRuntimeDaemonSurfaceCommandCatalog.CommandPrefix.Length);
+        return command;
     }
 
     private static bool TrySubmitSurfaceCommand(

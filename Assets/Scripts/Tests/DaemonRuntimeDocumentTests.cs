@@ -2832,6 +2832,143 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
+    public void GenericEveUnityRuntimePresentsAetheriaDaemonPlayableWorldThroughProviderBridge()
+    {
+        var statePath = Path.Combine(
+            Path.GetTempPath(),
+            "aetheria-eveunity-scene-playable-world-tests",
+            Path.GetRandomFileName(),
+            "state.cc");
+        var run = RunWithTwoEntities();
+        run.CurrentEntityKey = "zone.0.entity.1";
+        run.Zones[0].Entities[0].Kind = "ship";
+        run.Zones[0].Entities[0].FactionKey = "raider";
+        run.Zones[0].Entities[1].Kind = "ship";
+        run.Zones[0].Entities[1].FactionKey = "player";
+
+        var frame = AetheriaRuntimeDaemonFrameDocument.Create(
+            run,
+            "aetheria-daemon",
+            "session-scene-playable",
+            81,
+            1.5,
+            0.02);
+        var tickResult = AetheriaRuntimeDaemonTickRunner.Tick(
+            statePath,
+            frame.Run,
+            new AetheriaRuntimeDaemonTickOptions
+            {
+                DaemonId = frame.DaemonId,
+                SessionId = frame.SessionId,
+                VerseId = "aetheria.local",
+                CultMeshAddress = "cultmesh://aetheria.local/eve/providers/aetheria.daemon",
+                FrameId = frame.FrameId,
+                SimulationTimeSeconds = frame.SimulationTimeSeconds,
+                FixedDeltaSeconds = frame.FixedDeltaSeconds
+            });
+        PublishLatestFrameThroughVerseClient(statePath, tickResult.Frame);
+        PublishDaemonSurfacesThroughVerseClient(statePath, tickResult);
+
+        var previousResolveStateBoot = AetheriaEveRuntimeUnityHooks.ResolveStateBoot;
+        var previousRuntimeState = AetheriaEveRuntimeUnityHooks.RuntimeState;
+        var previousControl = AetheriaEveRuntimeUnityHooks.Control;
+        var previousUi = AetheriaEveRuntimeUnityHooks.Ui;
+        var previousStateRefResolver = AetheriaEveRuntimeUnityHooks.StateRefResolver;
+
+        try
+        {
+            AetheriaEveRuntimeUnityHookInstaller.Install();
+
+            using var bridge = new AetheriaEveUnitySceneProviderBridge(
+                statePath,
+                AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId,
+                "unity-scene-playable-test");
+            bridge.Refresh();
+
+            var sceneSink = new RecordingPlayableWorldSceneSink();
+            using var runtime = new EveUnityPlayableWorldRuntime(
+                bridge,
+                bridge,
+                sceneSink,
+                bridge,
+                bridge);
+            EveUnitySceneCommandReceipt observedReceipt = null;
+            runtime.ReceiptAvailable += receipt => observedReceipt = receipt;
+
+            var presentation = runtime.Connect();
+
+            Assert.AreEqual(1, presentation.ActiveEntities);
+            Assert.AreEqual(1, sceneSink.Upserts.Count);
+            Assert.IsNotNull(runtime.ActiveWorld);
+            Assert.AreEqual(
+                AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest.ToString(),
+                runtime.ActiveWorld.StatePointerId);
+            Assert.AreEqual(
+                AetheriaRuntimeVerseRecordKeys.DaemonAssetManifest.ToString(),
+                runtime.ActiveWorld.AssetManifest);
+            var playerEntityId = run.EntityRecordKey(0, 1);
+            Assert.AreEqual(playerEntityId, runtime.ActiveWorld.PlayerEntityId);
+            Assert.IsNotNull(runtime.AssetManifests.GetForWorld(runtime.ActiveWorld));
+            var playerUpsert = sceneSink.Upserts.FirstOrDefault(upsert =>
+                upsert.Entity.EntityId == playerEntityId &&
+                upsert.Entity.Controllable);
+            Assert.IsNotNull(
+                playerUpsert,
+                "Expected controllable player upsert for " + playerEntityId +
+                "; world player=" + runtime.ActiveWorld.PlayerEntityId +
+                "; upserts=" + string.Join(
+                    "|",
+                    sceneSink.Upserts.Select(upsert =>
+                        upsert.Entity.EntityId + ":" + upsert.Entity.Controllable + ":" + upsert.Entity.AssetRef)));
+            Assert.AreEqual(playerUpsert.Entity.AssetRef, playerUpsert.Asset.AssetRef);
+            Assert.IsTrue(runtime.AssetManifests.GetForWorld(runtime.ActiveWorld).Entries.Any(entry =>
+                entry.AssetRef == playerUpsert.Asset.AssetRef &&
+                entry.ResourcesPath == "Prefabs/Ships/Djinni"));
+
+            var moveIntent = runtime.SubmitMoveVectorIntent(
+                runtime.ActiveWorld.PlayerEntityId,
+                0.25f,
+                0.75f,
+                1f,
+                DateTimeOffset.Parse("2026-07-09T00:00:00Z"));
+
+            Assert.AreEqual("aetheria.daemon", moveIntent.ProviderId);
+            Assert.AreEqual(AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId, moveIntent.SurfaceId);
+            Assert.AreEqual("aetheria.daemon.commands", moveIntent.CommandBoundary);
+            Assert.AreEqual("aetheria.eve_command_acceptance_status.v1", moveIntent.ReceiptSchema);
+            Assert.AreEqual(
+                AetheriaRuntimeDaemonSurfaceCommandCatalog.CommandName(AetheriaRuntimeDaemonCommandKinds.SetMoveVector),
+                moveIntent.Payload.GetString("commandId"));
+            Assert.AreEqual(playerEntityId, moveIntent.Payload.GetString("entityId"));
+            Assert.AreEqual("0.25", moveIntent.Payload.GetString("directionX"));
+            Assert.AreEqual("0.75", moveIntent.Payload.GetString("directionY"));
+
+            Assert.IsNotNull(observedReceipt);
+            Assert.AreEqual("accepted", observedReceipt.State);
+            Assert.AreEqual("Aetheria", observedReceipt.OwnerRepo);
+            Assert.AreEqual("aetheria-daemon-command-boundary", observedReceipt.Authority);
+            Assert.AreEqual("aetheria.daemon", observedReceipt.ProviderId);
+            Assert.AreEqual(AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId, observedReceipt.SurfaceId);
+            Assert.AreEqual(
+                AetheriaRuntimeDaemonOperationIds.ForKind(AetheriaRuntimeDaemonCommandKinds.SetMoveVector),
+                observedReceipt.Command);
+            Assert.IsTrue(observedReceipt.IsProviderOwned);
+            Assert.IsTrue(observedReceipt.ShouldRefreshProviderSurface);
+            Assert.AreSame(observedReceipt, runtime.LastReceipt);
+            Assert.GreaterOrEqual(sceneSink.Upserts.Count, 2);
+        }
+        finally
+        {
+            AetheriaEveRuntimeUnityClientCache.Dispose();
+            AetheriaEveRuntimeUnityHooks.ResolveStateBoot = previousResolveStateBoot;
+            AetheriaEveRuntimeUnityHooks.RuntimeState = previousRuntimeState;
+            AetheriaEveRuntimeUnityHooks.Control = previousControl;
+            AetheriaEveRuntimeUnityHooks.Ui = previousUi;
+            AetheriaEveRuntimeUnityHooks.StateRefResolver = previousStateRefResolver;
+        }
+    }
+
+    [Test]
     public void DaemonEveSurfaceCommandRejectsUnsupportedArgumentlessOperation()
     {
         var statePath = Path.Combine(
@@ -4700,6 +4837,45 @@ public class DaemonRuntimeDocumentTests
                 }
             }
         };
+    }
+
+    private sealed class RecordingPlayableWorldSceneSink : IEveUnityPlayableWorldSceneSink
+    {
+        public readonly List<RecordedPlayableWorldUpsert> Upserts =
+            new List<RecordedPlayableWorldUpsert>();
+        public readonly List<string> RemovedEntityIds = new List<string>();
+
+        public EveUnityPlayableWorldProjection ConfiguredWorld { get; private set; }
+
+        public void ConfigureWorld(EveUnityPlayableWorldProjection world)
+        {
+            ConfiguredWorld = world;
+        }
+
+        public void UpsertEntity(EveUnityPlayableWorldEntity entity, EveUnityPlayableWorldAssetBinding asset)
+        {
+            Upserts.Add(new RecordedPlayableWorldUpsert(entity, asset));
+        }
+
+        public void RemoveEntity(string entityId)
+        {
+            RemovedEntityIds.Add(entityId);
+        }
+    }
+
+    private sealed class RecordedPlayableWorldUpsert
+    {
+        public RecordedPlayableWorldUpsert(
+            EveUnityPlayableWorldEntity entity,
+            EveUnityPlayableWorldAssetBinding asset)
+        {
+            Entity = entity;
+            Asset = asset;
+        }
+
+        public EveUnityPlayableWorldEntity Entity { get; }
+
+        public EveUnityPlayableWorldAssetBinding Asset { get; }
     }
 
     private static AetheriaRuntimeZoneSnapshotCommit FindZone(AetheriaRuntimeRunCheckpointCommit run, int zoneIndex)

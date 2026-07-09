@@ -278,6 +278,7 @@ namespace GameCult.Aetheria.State.Verse
         {
             run ??= new AetheriaRuntimeRunCheckpointCommit();
             zone ??= new AetheriaRuntimeZoneSnapshotCommit();
+            var playerEntityId = PlayableWorldEntityId(run, zone, currentEntityKey);
             var props = new Dictionary<string, string>(StringComparer.Ordinal)
             {
                 ["label"] = string.IsNullOrWhiteSpace(zone.Name) ? "Aetheria World" : zone.Name,
@@ -285,7 +286,7 @@ namespace GameCult.Aetheria.State.Verse
                 ["assetManifest"] = AetheriaRuntimeVerseRecordKeys.DaemonAssetManifest.ToString(),
                 ["inputProfile"] = "arpg.pointer-keyboard.v1",
                 ["cameraRig"] = "arpg.orbital-follow.v1",
-                ["playerEntityId"] = currentEntityKey ?? "",
+                ["playerEntityId"] = playerEntityId,
                 ["movementCommand"] = CommandName(AetheriaRuntimeDaemonCommandKinds.SetMoveVector),
                 ["focusCommand"] = CommandName(AetheriaRuntimeDaemonCommandKinds.TargetNearest),
                 ["targetCommand"] = CommandName(AetheriaRuntimeDaemonCommandKinds.SetTarget),
@@ -327,6 +328,7 @@ namespace GameCult.Aetheria.State.Verse
             string currentEntityKey)
         {
             var entityId = run.EntityRecordKey(zone.ZoneIndex, entity.EntityIndex);
+            var playerEntityId = PlayableWorldEntityId(run, zone, currentEntityKey);
             var props = new Dictionary<string, string>(StringComparer.Ordinal)
             {
                 ["entityId"] = entityId,
@@ -338,7 +340,7 @@ namespace GameCult.Aetheria.State.Verse
                 ["rotationY"] = HeadingYaw(entity).ToString("0.###", CultureInfo.InvariantCulture),
                 ["radius"] = PlayableWorldRadius(entity).ToString("0.###", CultureInfo.InvariantCulture),
                 ["selectable"] = "true",
-                ["controllable"] = string.Equals(entityId, currentEntityKey, StringComparison.Ordinal) ? "true" : "false",
+                ["controllable"] = string.Equals(entityId, playerEntityId, StringComparison.Ordinal) ? "true" : "false",
                 ["focusCommand"] = CommandName(AetheriaRuntimeDaemonCommandKinds.TargetNearest),
                 ["moveCommand"] = CommandName(AetheriaRuntimeDaemonCommandKinds.SetMoveVector),
                 ["targetCommand"] = CommandName(AetheriaRuntimeDaemonCommandKinds.SetTarget),
@@ -548,6 +550,29 @@ namespace GameCult.Aetheria.State.Verse
                 MaxX = 1500,
                 MaxY = 1000
             };
+        }
+
+        private static string PlayableWorldEntityId(
+            AetheriaRuntimeRunCheckpointCommit run,
+            AetheriaRuntimeZoneSnapshotCommit zone,
+            string currentEntityKey)
+        {
+            if (run == null)
+                return currentEntityKey ?? "";
+
+            if (AetheriaRuntimeRunCheckpointCommit.TryParseEntityKey(
+                    currentEntityKey ?? "",
+                    out var zoneIndex,
+                    out var entityIndex))
+            {
+                return run.EntityRecordKey(zoneIndex, entityIndex);
+            }
+
+            var parsedEntityIndex = TryParseEntityIndex(currentEntityKey ?? "");
+            if (parsedEntityIndex >= 0)
+                return run.EntityRecordKey(zone?.ZoneIndex ?? run.CurrentZoneIndex, parsedEntityIndex);
+
+            return currentEntityKey ?? "";
         }
 
         private static string ViewportDocumentId(string prefix, AetheriaRuntimeViewportBounds viewport)
