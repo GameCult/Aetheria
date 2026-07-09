@@ -50,6 +50,7 @@
     <Compile Include="E:\Projects\Eve\runtimes\incubating\eve-unity-scene\Runtime\EveUnityProviderRefreshSource.cs" />
     <Compile Include="E:\Projects\Eve\runtimes\incubating\eve-unity-scene\Runtime\EveUnitySceneClientSession.cs" />
     <Compile Include="E:\Projects\Eve\runtimes\incubating\eve-unity-scene\Runtime\EveUnityPlayableWorldLiveClient.cs" />
+    <Compile Include="E:\Projects\Eve\runtimes\incubating\eve-unity-scene\Runtime\EveUnityPlayableWorldCameraRig.cs" />
     <Compile Include="E:\Projects\Eve\runtimes\incubating\eve-unity-scene\Runtime\NornGraphUnitySceneProjectionAdapter.cs" />
     <Compile Include="E:\Projects\Eve\runtimes\incubating\eve-unity-scene\Runtime\TeXMathUnitySceneProjectionAdapter.cs" />
     <Compile Include="E:\Projects\Eve\runtimes\incubating\eve-unity-scene\Runtime\EveUnityPlayableWorldAssetManifest.cs" />
@@ -58,6 +59,7 @@
     <Compile Include="E:\Projects\Eve\runtimes\incubating\eve-unity-scene\Runtime\EveUnitySceneSurfaceLowerer.cs" />
     <Compile Include="E:\Projects\Eve\runtimes\incubating\eve-unity-scene\Runtime\EveUnityPlayableWorldClientHost.cs" />
     <Compile Include="E:\Projects\Eve\runtimes\incubating\eve-unity-scene\Runtime\EveUnitySceneProviderConnection.cs" />
+    <Compile Include="E:\Projects\Eve\runtimes\incubating\eve-unity-scene\Runtime\EveUnityPlayableWorldInputDriver.cs" />
     <Compile Include="E:\Projects\Eve\runtimes\incubating\eve-unity-scene\Runtime\EveUnityPlayableWorldPresenter.cs" />
     <Compile Include="E:\Projects\Eve\runtimes\incubating\eve-unity-scene\Runtime\EveUnityPlayableWorldRuntime.cs" />
     <None Include="E:\Projects\Eve\runtimes\incubating\eve-unity-scene\Runtime\GameCult.Eve.UnityScene.asmdef" />

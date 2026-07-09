@@ -363,11 +363,7 @@ public sealed class AetheriaRuntimeDaemonOperationsClient
         try
         {
             envelope = Submit((client, frame) =>
-                AetheriaRuntimeDaemonSurfaceCommandCatalog.TrySubmitArgumentless(
-                    client,
-                    frame,
-                    kind,
-                    out var submitted)
+                TrySubmitSurfaceCommand(client, frame, kind, request, out var submitted)
                     ? submitted!
                     : throw new UnsupportedSurfaceCommandException());
             return true;
@@ -402,6 +398,93 @@ public sealed class AetheriaRuntimeDaemonOperationsClient
 
         return Enum.TryParse(command, ignoreCase: false, out kind) &&
                kind != AetheriaRuntimeDaemonCommandKinds.None;
+    }
+
+    private static bool TrySubmitSurfaceCommand(
+        AetheriaRuntimeDaemonOperationClient client,
+        AetheriaRuntimeDaemonFrameDocument? frame,
+        AetheriaRuntimeDaemonCommandKinds kind,
+        EveSurfaceCommandRequest request,
+        out AetheriaRuntimeDaemonCommandEnvelope? envelope)
+    {
+        envelope = null;
+        if (client == null)
+            return false;
+
+        envelope = kind switch
+        {
+            AetheriaRuntimeDaemonCommandKinds.SetMoveVector => client.SetMoveVector(
+                frame,
+                ReadPayloadDouble(request, "directionX", 0.0),
+                ReadPayloadDouble(request, "directionY", 0.0),
+                ReadPayloadDouble(request, "scalarValue", 1.0)),
+            AetheriaRuntimeDaemonCommandKinds.SetLookDirection => client.SetLookDirection(
+                frame,
+                ReadPayloadDouble(request, "directionX", 0.0),
+                ReadPayloadDouble(request, "directionY", 1.0),
+                ReadPayloadDouble(request, "directionZ", 0.0)),
+            AetheriaRuntimeDaemonCommandKinds.SetTractorPower => client.SetTractorPower(
+                frame,
+                ReadPayloadDouble(request, "scalarValue", 1.0)),
+            AetheriaRuntimeDaemonCommandKinds.FireWeaponGroup => client.FireWeaponGroup(
+                frame,
+                ReadWeaponGroup(request)),
+            AetheriaRuntimeDaemonCommandKinds.SetWeaponGroupActive => client.SetWeaponGroupActive(
+                frame,
+                ReadWeaponGroup(request),
+                ReadPayloadBool(request, "active", true)),
+            AetheriaRuntimeDaemonCommandKinds.SetTarget => client.SetTarget(
+                frame,
+                ReadPayloadString(request, "targetEntityId", ReadPayloadString(request, "entityId", ""))),
+            _ => AetheriaRuntimeDaemonSurfaceCommandCatalog.TrySubmitArgumentless(
+                    client,
+                    frame,
+                    kind,
+                    out var submitted)
+                ? submitted
+                : null
+        };
+
+        return envelope != null;
+    }
+
+    private static string ReadPayloadString(
+        EveSurfaceCommandRequest request,
+        string key,
+        string defaultValue)
+    {
+        var value = request.Payload.GetString(key);
+        return string.IsNullOrWhiteSpace(value) ? defaultValue : value;
+    }
+
+    private static double ReadPayloadDouble(
+        EveSurfaceCommandRequest request,
+        string key,
+        double defaultValue)
+    {
+        return request.Payload.GetDouble(key, defaultValue);
+    }
+
+    private static bool ReadPayloadBool(
+        EveSurfaceCommandRequest request,
+        string key,
+        bool defaultValue)
+    {
+        var value = request.Payload.GetString(key);
+        return string.IsNullOrWhiteSpace(value)
+            ? defaultValue
+            : string.Equals(value, "true", StringComparison.OrdinalIgnoreCase) ||
+              string.Equals(value, "1", StringComparison.Ordinal);
+    }
+
+    private static int ReadWeaponGroup(EveSurfaceCommandRequest request)
+    {
+        var value = request.Payload.GetString("weaponGroup");
+        if (int.TryParse(value, out var parsed))
+            return parsed;
+
+        value = request.Payload.GetString("actionId");
+        return int.TryParse(value, out parsed) ? parsed : 0;
     }
 
     private sealed class UnsupportedSurfaceCommandException : Exception
