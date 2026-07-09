@@ -156,6 +156,9 @@ namespace GameCult.Aetheria.State.Verse
                     ("title", surface.Title),
                     ("surfaceId", surface.SurfaceId),
                     ("record", surface.RecordRef),
+                    ("kind", surface.SurfaceKind),
+                    ("projection", surface.WorldInteraction?.ProjectionKind ?? ""),
+                    ("commandBoundary", surface.WorldInteraction?.CommandBoundary ?? ""),
                     ("status", surface.Status),
                     ("audience", surface.Audience),
                     ("provider", surface.ProviderId)

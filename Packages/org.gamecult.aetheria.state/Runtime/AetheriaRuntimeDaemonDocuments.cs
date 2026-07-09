@@ -88,6 +88,7 @@ namespace GameCult.Aetheria.State.Verse
         public const string ProviderAdvertisement = "gamecult.aetheria.daemon_provider_advertisement.v1";
         public const string Health = "gamecult.aetheria.daemon_health.v1";
         public const string CommandBoundary = "gamecult.aetheria.daemon_command_boundary.v1";
+        public const string EveCommandAcceptanceStatus = "aetheria.eve_command_acceptance_status.v1";
         public const string GameSurface = "gamecult.aetheria.daemon_game_surface.v1";
         public const string EditorSurface = "gamecult.aetheria.daemon_editor_surface.v1";
     }

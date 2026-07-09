@@ -115,7 +115,10 @@ namespace GameCult.Aetheria.EveRuntime
             var surface = ReadSurface(runtimeState, stateBoot);
             if (surface != null)
             {
-                CurrentDocument = CreateSurfaceDocument(surface, surface.Version);
+                CurrentDocument = CreateSurfaceDocument(
+                    surface,
+                    surface.Version,
+                    ReadAdvertisedSurface(runtimeState));
                 DocumentAvailable?.Invoke(CurrentDocument);
             }
 
@@ -198,26 +201,40 @@ namespace GameCult.Aetheria.EveRuntime
             return ToUnityPlayableWorldAssetManifest(manifest);
         }
 
+        private AetheriaRuntimeEveSurfaceAdvertisement? ReadAdvertisedSurface(AetheriaClientState runtimeState)
+        {
+            var provider = runtimeState.ProviderAdvertisement.Latest();
+            return (provider.EveSurfaces ?? Array.Empty<AetheriaRuntimeEveSurfaceAdvertisement>())
+                .FirstOrDefault(surface => surface != null && string.Equals(surface.SurfaceId, _surfaceId, StringComparison.Ordinal))
+                ?? AetheriaRuntimeEveSurfaceCatalog.Find(_surfaceId);
+        }
+
         private EveUnitySceneProviderSurfaceDocument CreateSurfaceDocument(
             EveSurfaceDocument surface,
-            long version)
+            long version,
+            AetheriaRuntimeEveSurfaceAdvertisement? advertisedSurface = null)
         {
+            advertisedSurface ??= AetheriaRuntimeEveSurfaceCatalog.Find(_surfaceId);
+            var worldInteraction = advertisedSurface?.WorldInteraction;
             return new EveUnitySceneProviderSurfaceDocument(
                 surface,
                 new EveUnitySceneProviderSurfaceAdvertisement(
                     _surfaceId,
-                    "interactive-world",
+                    advertisedSurface?.SurfaceKind ?? "",
                     new EveUnitySceneWorldInteraction(
-                        "provider-authored-world-surface",
-                        "aetheria.daemon.commands",
-                        "aetheria.eve_command_acceptance_status.v1",
-                        "provider-owns-world-state-assets-command-acceptance-and-receipts")),
-                SourcePointer(),
+                        worldInteraction?.ProjectionKind ?? "",
+                        worldInteraction?.CommandBoundary ?? "",
+                        worldInteraction?.ReceiptSchema ?? "",
+                        worldInteraction?.Ownership ?? "")),
+                SourcePointer(advertisedSurface),
                 version);
         }
 
-        private string SourcePointer()
+        private string SourcePointer(AetheriaRuntimeEveSurfaceAdvertisement? advertisedSurface)
         {
+            if (!string.IsNullOrWhiteSpace(advertisedSurface?.RecordRef))
+                return advertisedSurface.RecordRef;
+
             var path = _stateBoot?.StateFilePath ?? _stateFilePathOverride;
             return string.IsNullOrWhiteSpace(path)
                 ? AetheriaRuntimeVerseRecordKeys.DaemonGameSurface.ToString()

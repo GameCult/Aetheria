@@ -42,6 +42,34 @@ namespace GameCult.Aetheria.State.Verse
 
         [Key(10)]
         public IReadOnlyList<string> Commands { get; set; } = Array.Empty<string>();
+
+        [Key(11)]
+        public string SurfaceKind { get; set; } = "";
+
+        [Key(12)]
+        public AetheriaRuntimeEveWorldInteractionAdvertisement? WorldInteraction { get; set; }
+    }
+
+    [MessagePackObject]
+    public sealed class AetheriaRuntimeEveWorldInteractionAdvertisement
+    {
+        [Key(0)]
+        public string ProjectionKind { get; set; } = "";
+
+        [Key(1)]
+        public IReadOnlyList<string> StateSchemas { get; set; } = Array.Empty<string>();
+
+        [Key(2)]
+        public IReadOnlyList<string> LoweringTargets { get; set; } = Array.Empty<string>();
+
+        [Key(3)]
+        public string CommandBoundary { get; set; } = "";
+
+        [Key(4)]
+        public string ReceiptSchema { get; set; } = "";
+
+        [Key(5)]
+        public string Ownership { get; set; } = "";
     }
 
     public static class AetheriaRuntimeEveSurfaceCatalog
@@ -59,10 +87,10 @@ namespace GameCult.Aetheria.State.Verse
                 AetheriaRuntimePlayerSettingsCommands.IncrementSignificantDigits,
                 AetheriaRuntimePlayerSettingsCommands.CycleNebulaQuality,
                 AetheriaRuntimePlayerSettingsCommands.ToggleShowAsteroidsInMinimap),
-            Surface(AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId, "Aetheria Daemon", AetheriaRuntimeVerseRecordKeys.DaemonGameSurface.ToString(), "player", "Authoritative daemon game surface.", providerId: "aetheria.daemon", providerKind: "game.daemon", transport: "cultmesh-record"),
-            Surface(AetheriaRuntimeDaemonGameSurfaceBuilder.TuiSurfaceId, "Aetheria Daemon TUI", AetheriaRuntimeVerseRecordKeys.DaemonGameTuiSurface.ToString(), "agent", "Compact daemon game surface for dense inspection.", providerId: "aetheria.daemon", providerKind: "game.daemon", transport: "cultmesh-record"),
-            Surface(AetheriaRuntimeDaemonEditorSurfaceBuilder.SurfaceId, "Aetheria Daemon Editor", AetheriaRuntimeVerseRecordKeys.DaemonEditorSurface.ToString(), "operator", "Daemon editor and surface inventory.", providerId: "aetheria.daemon", providerKind: "editor.daemon", transport: "cultmesh-record"),
-            Surface(AetheriaRuntimeDaemonEditorSurfaceBuilder.TuiSurfaceId, "Aetheria Daemon Editor TUI", AetheriaRuntimeVerseRecordKeys.DaemonEditorTuiSurface.ToString(), "agent", "Compact daemon editor and surface inventory.", providerId: "aetheria.daemon", providerKind: "editor.daemon", transport: "cultmesh-record"),
+            Surface(AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId, "Aetheria Daemon", AetheriaRuntimeVerseRecordKeys.DaemonGameSurface.ToString(), "player", "Authoritative daemon game surface.", providerId: "aetheria.daemon", providerKind: "game.daemon", transport: "cultmesh-record", surfaceKind: "interactive-world", worldInteraction: WorldInteraction("provider-authored-world-surface")),
+            Surface(AetheriaRuntimeDaemonGameSurfaceBuilder.TuiSurfaceId, "Aetheria Daemon TUI", AetheriaRuntimeVerseRecordKeys.DaemonGameTuiSurface.ToString(), "agent", "Compact daemon game surface for dense inspection.", providerId: "aetheria.daemon", providerKind: "game.daemon", transport: "cultmesh-record", surfaceKind: "interactive-world", worldInteraction: WorldInteraction("provider-authored-world-surface")),
+            Surface(AetheriaRuntimeDaemonEditorSurfaceBuilder.SurfaceId, "Aetheria Daemon Editor", AetheriaRuntimeVerseRecordKeys.DaemonEditorSurface.ToString(), "operator", "Daemon editor and surface inventory.", providerId: "aetheria.daemon", providerKind: "editor.daemon", transport: "cultmesh-record", surfaceKind: "interactive-world-editor", worldInteraction: WorldInteraction("provider-authored-world-editor-surface")),
+            Surface(AetheriaRuntimeDaemonEditorSurfaceBuilder.TuiSurfaceId, "Aetheria Daemon Editor TUI", AetheriaRuntimeVerseRecordKeys.DaemonEditorTuiSurface.ToString(), "agent", "Compact daemon editor and surface inventory.", providerId: "aetheria.daemon", providerKind: "editor.daemon", transport: "cultmesh-record", surfaceKind: "interactive-world-editor", worldInteraction: WorldInteraction("provider-authored-world-editor-surface")),
             Surface(AetheriaRuntimeMainMenuCommands.RootSurfaceId, "Main Menu", AetheriaRuntimeVerseRecordKeys.MainMenuSurface.ToString(), "player", "Runtime main menu root.", transport: "cultmesh-record"),
             Surface(AetheriaRuntimeMainMenuCommands.SettingsSurfaceId, "Main Menu Settings", AetheriaRuntimeVerseRecordKeys.MainMenuSettingsSurface.ToString(), "player", "Runtime main menu settings panel.", transport: "cultmesh-record"),
             Surface(AetheriaRuntimeMainMenuCommands.InputSettingsSurfaceId, "Main Menu Input Settings", AetheriaRuntimeVerseRecordKeys.MainMenuInputSettingsSurface.ToString(), "player", "Main menu input settings panel.", transport: "cultmesh-record"),
@@ -92,6 +120,16 @@ namespace GameCult.Aetheria.State.Verse
 
         public static IReadOnlyList<string> SurfaceSchemas { get; } = new[] { SurfaceSchema };
 
+        public static AetheriaRuntimeEveSurfaceAdvertisement? Find(string surfaceId)
+        {
+            if (string.IsNullOrWhiteSpace(surfaceId))
+                return null;
+
+            return Surfaces.FirstOrDefault(surface =>
+                surface != null &&
+                string.Equals(surface.SurfaceId, surfaceId, StringComparison.Ordinal));
+        }
+
         private static AetheriaRuntimeEveSurfaceAdvertisement Surface(
             string surfaceId,
             string title,
@@ -100,7 +138,17 @@ namespace GameCult.Aetheria.State.Verse
             string summary,
             params string[] commands)
         {
-            return Surface(surfaceId, title, recordRef, audience, summary, "aetheria", "game.runtime", "cultmesh-managed", "available", commands);
+            return Surface(
+                surfaceId,
+                title,
+                recordRef,
+                audience,
+                summary,
+                "aetheria",
+                "game.runtime",
+                "cultmesh-managed",
+                "available",
+                commands: commands);
         }
 
         private static AetheriaRuntimeEveSurfaceAdvertisement Surface(
@@ -113,6 +161,8 @@ namespace GameCult.Aetheria.State.Verse
             string providerKind = "game.runtime",
             string transport = "cultmesh-managed",
             string status = "available",
+            string surfaceKind = "",
+            AetheriaRuntimeEveWorldInteractionAdvertisement? worldInteraction = null,
             params string[] commands)
         {
             return new AetheriaRuntimeEveSurfaceAdvertisement
@@ -127,7 +177,33 @@ namespace GameCult.Aetheria.State.Verse
                 Audience = audience,
                 Mode = "interactive",
                 Summary = summary,
-                Commands = commands?.Where(command => !string.IsNullOrWhiteSpace(command)).ToArray() ?? Array.Empty<string>()
+                Commands = commands?.Where(command => !string.IsNullOrWhiteSpace(command)).ToArray() ?? Array.Empty<string>(),
+                SurfaceKind = surfaceKind ?? "",
+                WorldInteraction = worldInteraction
+            };
+        }
+
+        private static AetheriaRuntimeEveWorldInteractionAdvertisement WorldInteraction(string projectionKind)
+        {
+            return new AetheriaRuntimeEveWorldInteractionAdvertisement
+            {
+                ProjectionKind = projectionKind ?? "",
+                StateSchemas = new[]
+                {
+                    AetheriaRuntimeDaemonSchemas.Frame,
+                    AetheriaRuntimeDaemonSchemas.AssetManifest
+                },
+                LoweringTargets = new[]
+                {
+                    "web-reference",
+                    "unity-uitoolkit",
+                    "unity-scene",
+                    "electron-shell",
+                    "tui"
+                },
+                CommandBoundary = "aetheria.daemon.commands",
+                ReceiptSchema = AetheriaRuntimeDaemonSchemas.EveCommandAcceptanceStatus,
+                Ownership = "provider-owns-world-state-assets-command-acceptance-and-receipts"
             };
         }
     }
