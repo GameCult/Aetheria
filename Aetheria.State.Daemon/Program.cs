@@ -1193,6 +1193,10 @@ static async Task PublishDaemonApiDocumentsAsync(
         await node.MutableDocument<AetheriaRuntimeDaemonCommandBoundaryDocument>(AetheriaRuntimeVerseRecordKeys.DaemonCommandBoundary)
             .ReplaceAsync(result.CommandBoundary)
             .ConfigureAwait(false);
+    if (result.AssetManifest != null)
+        await node.MutableDocument<AetheriaRuntimeAssetManifestDocument>(AetheriaRuntimeVerseRecordKeys.DaemonAssetManifest)
+            .ReplaceAsync(result.AssetManifest)
+            .ConfigureAwait(false);
     if (result.StarbridgeSessionSummary != null)
         await node.MutableDocument<AetheriaRuntimeStarbridgeSessionSummaryDocument>(AetheriaRuntimeVerseRecordKeys.StarbridgeSessionSummary)
             .ReplaceAsync(result.StarbridgeSessionSummary)

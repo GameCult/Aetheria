@@ -47,6 +47,7 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeDaemonProviderAdvertisementDocument? providerAdvertisement = null,
             AetheriaRuntimeDaemonHealthDocument? health = null,
             AetheriaRuntimeDaemonCommandBoundaryDocument? commandBoundary = null,
+            AetheriaRuntimeAssetManifestDocument? assetManifest = null,
             AetheriaRuntimeStarbridgeSessionSummaryDocument? starbridgeSessionSummary = null,
             AetheriaRuntimeSurfaceDocument? gameSurface = null,
             AetheriaRuntimeSurfaceDocument? gameTuiSurface = null,
@@ -63,6 +64,7 @@ namespace GameCult.Aetheria.State.Verse
             ProviderAdvertisement = providerAdvertisement;
             Health = health;
             CommandBoundary = commandBoundary;
+            AssetManifest = assetManifest;
             StarbridgeSessionSummary = starbridgeSessionSummary;
             GameSurface = gameSurface;
             GameTuiSurface = gameTuiSurface;
@@ -77,6 +79,7 @@ namespace GameCult.Aetheria.State.Verse
         public AetheriaRuntimeDaemonProviderAdvertisementDocument? ProviderAdvertisement { get; }
         public AetheriaRuntimeDaemonHealthDocument? Health { get; }
         public AetheriaRuntimeDaemonCommandBoundaryDocument? CommandBoundary { get; }
+        public AetheriaRuntimeAssetManifestDocument? AssetManifest { get; }
         public AetheriaRuntimeStarbridgeSessionSummaryDocument? StarbridgeSessionSummary { get; }
         public AetheriaRuntimeSurfaceDocument? GameSurface { get; }
         public AetheriaRuntimeSurfaceDocument? GameTuiSurface { get; }
@@ -210,6 +213,10 @@ namespace GameCult.Aetheria.State.Verse
                 Array.Empty<AetheriaRuntimeCatalogItem>(),
                 Array.Empty<AetheriaRuntimeCorporation>(),
                 Array.Empty<AetheriaRuntimeNameFile>());
+            var assetManifest = AetheriaRuntimeAssets.ProjectManifest(
+                catalog,
+                frame.Run?.RunId ?? "",
+                "cultmesh://aetheria.local/assets");
             var starbridgeSummary = AetheriaRuntimeStarbridgeDocuments.SessionSummary(
                 frame,
                 options.StarbridgeScenario,
@@ -238,6 +245,7 @@ namespace GameCult.Aetheria.State.Verse
                 providerAdvertisement,
                 health,
                 commandBoundary,
+                assetManifest,
                 starbridgeSummary,
                 gameSurface,
                 gameSurface,

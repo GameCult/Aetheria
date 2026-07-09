@@ -193,11 +193,7 @@ namespace GameCult.Aetheria.EveRuntime
 
         private EveUnityPlayableWorldAssetManifestDocument ReadAssetManifest(AetheriaClientState runtimeState)
         {
-            var catalog = runtimeState.Catalog.Latest();
-            var manifest = AetheriaRuntimeAssets.ProjectManifest(
-                catalog,
-                runId: "",
-                baseUri: "cultmesh://aetheria.local/assets");
+            var manifest = runtimeState.AssetManifest.Latest();
             return ToUnityPlayableWorldAssetManifest(manifest);
         }
 

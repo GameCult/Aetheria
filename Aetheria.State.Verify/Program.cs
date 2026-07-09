@@ -961,7 +961,9 @@ static void RequireSharedRuntimeSurfaceCommandsUseCultMeshTransport(string root)
     }
 
     var unityToolkitTransportHits = runtimeSources
-        .Where(pair => pair.Value.Contains("\"unity-uitoolkit\"", StringComparison.Ordinal))
+        .Where(pair =>
+            pair.Value.Contains("\"unity-uitoolkit\"", StringComparison.Ordinal) &&
+            pair.Value.Contains("AetheriaRuntimeSurfaceCommandTemplate", StringComparison.Ordinal))
         .Select(pair => pair.Key)
         .ToArray();
     if (unityToolkitTransportHits.Length > 0)
@@ -12083,6 +12085,7 @@ static void RequireDaemonVersePublication(string root)
         "node.MutableDocument<AetheriaRuntimeDaemonProviderAdvertisementDocument>(AetheriaRuntimeVerseRecordKeys.DaemonProviderAdvertisement)",
         "node.MutableDocument<AetheriaRuntimeDaemonHealthDocument>(AetheriaRuntimeVerseRecordKeys.DaemonHealth)",
         "node.MutableDocument<AetheriaRuntimeDaemonCommandBoundaryDocument>(AetheriaRuntimeVerseRecordKeys.DaemonCommandBoundary)",
+        "node.MutableDocument<AetheriaRuntimeAssetManifestDocument>(AetheriaRuntimeVerseRecordKeys.DaemonAssetManifest)",
         "node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.DaemonGameSurface)",
         "node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.DaemonGameTuiSurface)",
         "node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.DaemonEditorSurface)",
@@ -12091,6 +12094,7 @@ static void RequireDaemonVersePublication(string root)
         ".ReplaceAsync(result.Frame)",
         ".ReplaceAsync(result.SoaView)",
         ".ReplaceAsync(result.Health)",
+        ".ReplaceAsync(result.AssetManifest)",
         ".ReplaceAsync(result.StarbridgeSessionSummary)",
         "InjectEveSurfaceSnapshotAsync(",
         "ReadEveSurfacePublicationAsync(",

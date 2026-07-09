@@ -603,6 +603,12 @@ public class DaemonRuntimeDocumentTests
             command.Transport == "cultmesh"));
         Assert.IsFalse(editorSurface.Commands.Any(command =>
             command.Command == "aetheria.daemon.commands.TransferCargoItem"));
+        var assetManifest = result.AssetManifest;
+        Assert.IsNotNull(assetManifest);
+        Assert.AreEqual(AetheriaRuntimeDaemonSchemas.AssetManifest, assetManifest.Schema);
+        Assert.IsTrue(assetManifest.Assets.Any(asset =>
+            asset.Ref.AssetKey == "prefab.entity.ship" &&
+            asset.Ref.Kind == AetheriaRuntimeAssetKinds.Prefab));
         var editorTuiSurface = result.EditorTuiSurface;
         Assert.AreEqual("aetheria.daemon", editorTuiSurface.ProviderId);
         Assert.AreEqual("editor.daemon", editorTuiSurface.ProviderKind);
@@ -617,6 +623,11 @@ public class DaemonRuntimeDocumentTests
         var unityGameTuiSurfaceState = ReadLatest(client.State.GameTuiSurface);
         var unityEditorSurfaceState = ReadLatest(client.State.EditorSurface);
         var unityEditorTuiSurfaceState = ReadLatest(client.State.EditorTuiSurface);
+        var unityAssetManifest = ReadLatest(client.State.AssetManifest);
+        Assert.AreEqual(AetheriaRuntimeDaemonSchemas.AssetManifest, unityAssetManifest.Schema);
+        Assert.IsTrue(unityAssetManifest.Assets.Any(asset =>
+            asset.Ref.AssetKey == "prefab.entity.ship" &&
+            asset.Ref.Kind == AetheriaRuntimeAssetKinds.Prefab));
         var surfaceResolver = client.State.CreateEveSurfaceCultMeshStateRefResolver();
         var unityGameSurface = AetheriaRuntimeSurfaceDocuments.ToEveSurfaceDocument(
             unityGameSurfaceState,
@@ -5028,6 +5039,15 @@ public class DaemonRuntimeDocumentTests
             .ReplaceAsync(AetheriaRuntimeSurfaceDocuments.ToPortableSurface(result.EditorTuiSurface))
             .GetAwaiter()
             .GetResult();
+        if (result.AssetManifest != null)
+        {
+            client
+                .MutableDocument<AetheriaRuntimeAssetManifestDocument>(
+                    AetheriaRuntimeVerseRecordKeys.DaemonAssetManifest)
+                .ReplaceAsync(result.AssetManifest)
+                .GetAwaiter()
+                .GetResult();
+        }
         client.FlushAsync()
             .GetAwaiter()
             .GetResult();

@@ -39,6 +39,7 @@ namespace GameCult.Aetheria.State.Verse
             CultMeshDocumentHandle<AetheriaRuntimeDaemonProviderAdvertisementDocument> providerAdvertisement,
             CultMeshDocumentHandle<AetheriaRuntimeDaemonHealthDocument> health,
             CultMeshDocumentHandle<AetheriaRuntimeDaemonCommandBoundaryDocument> commandBoundary,
+            CultMeshDocumentHandle<AetheriaRuntimeAssetManifestDocument> assetManifest,
             CultMeshDocumentHandle<AetheriaRuntimeVerseAuthorityPolicyDocument> authorityPolicy,
             CultMeshDocumentHandle<AetheriaRuntimeDaemonFrameDocument> daemonFrame,
             CultMeshDocumentHandle<AetheriaRuntimeDaemonSoaViewDocument> daemonSoaView,
@@ -76,6 +77,7 @@ namespace GameCult.Aetheria.State.Verse
             ProviderAdvertisement = providerAdvertisement ?? throw new ArgumentNullException(nameof(providerAdvertisement));
             Health = health ?? throw new ArgumentNullException(nameof(health));
             CommandBoundary = commandBoundary ?? throw new ArgumentNullException(nameof(commandBoundary));
+            AssetManifest = assetManifest ?? throw new ArgumentNullException(nameof(assetManifest));
             AuthorityPolicy = authorityPolicy ?? throw new ArgumentNullException(nameof(authorityPolicy));
             DaemonFrame = daemonFrame ?? throw new ArgumentNullException(nameof(daemonFrame));
             DaemonSoaView = daemonSoaView ?? throw new ArgumentNullException(nameof(daemonSoaView));
@@ -116,6 +118,8 @@ namespace GameCult.Aetheria.State.Verse
         public CultMeshDocumentHandle<AetheriaRuntimeDaemonHealthDocument> Health { get; }
 
         public CultMeshDocumentHandle<AetheriaRuntimeDaemonCommandBoundaryDocument> CommandBoundary { get; }
+
+        public CultMeshDocumentHandle<AetheriaRuntimeAssetManifestDocument> AssetManifest { get; }
 
         public CultMeshDocumentHandle<AetheriaRuntimeVerseAuthorityPolicyDocument> AuthorityPolicy { get; }
 

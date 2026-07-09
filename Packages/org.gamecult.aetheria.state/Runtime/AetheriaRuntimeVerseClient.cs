@@ -443,6 +443,8 @@ namespace GameCult.Aetheria.State.Verse
                     AetheriaRuntimeVerseRecordKeys.DaemonHealth),
                 Document<AetheriaRuntimeDaemonCommandBoundaryDocument>(
                     AetheriaRuntimeVerseRecordKeys.DaemonCommandBoundary),
+                Document<AetheriaRuntimeAssetManifestDocument>(
+                    AetheriaRuntimeVerseRecordKeys.DaemonAssetManifest),
                 Document<AetheriaRuntimeVerseAuthorityPolicyDocument>(
                     AetheriaRuntimeVerseRecordKeys.VerseAuthorityPolicy),
                 latestFrameDocument,
