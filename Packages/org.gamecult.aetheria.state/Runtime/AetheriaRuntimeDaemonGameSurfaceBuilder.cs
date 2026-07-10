@@ -283,7 +283,7 @@ namespace GameCult.Aetheria.State.Verse
             {
                 ["label"] = string.IsNullOrWhiteSpace(zone.Name) ? "Aetheria World" : zone.Name,
                 ["statePointerId"] = AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest.ToString(),
-                ["assetManifest"] = AetheriaRuntimeVerseRecordKeys.DaemonAssetManifest.ToString(),
+                ["assetManifest"] = AetheriaRuntimeVerseRecordKeys.EveAssetCatalog.ToString(),
                 ["inputProfile"] = "arpg.pointer-keyboard.v1",
                 ["cameraRig"] = "arpg.orbital-follow.v1",
                 ["playerEntityId"] = playerEntityId,

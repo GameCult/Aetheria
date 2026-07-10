@@ -305,6 +305,7 @@ static RudpCultNetSchemaServer StartClientCultMeshHost(
     AetheriaDaemonHostOptions options,
     Func<AetheriaRuntimeDaemonFrameDocument?> latestFrame)
 {
+    var bundleCdnDocuments = BuildBundleCdnDocuments(node, options);
     var socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
     socket.Bind(new IPEndPoint(ParseBindAddress(options.ClientCultMeshHost), options.ClientCultMeshPort));
     var server = new RudpCultNetSchemaServer(new RudpCultNetSchemaServerOptions
@@ -313,7 +314,7 @@ static RudpCultNetSchemaServer StartClientCultMeshHost(
         Socket = socket,
         ConnectionId = 0x43554c54,
         TransportId = "aetheria-client-rudp",
-        MaxFragmentBytes = 1200,
+        MaxFragmentBytes = 2048,
         MaxPendingReliablePackets = 512
     });
     server.OnCultNet<CultNetSnapshotRequestMessage>(async (request, peer) =>
@@ -708,7 +709,7 @@ static RudpCultNetSchemaServer StartClientCultMeshHost(
                 }
             }
 
-            await InjectCultMeshCdnAssetSnapshotsAsync(options, request, response).ConfigureAwait(false);
+            await InjectCultMeshCdnAssetSnapshotsAsync(options, bundleCdnDocuments, request, response).ConfigureAwait(false);
             peer.SendCultNet(response);
         }
         catch (Exception ex)
@@ -736,15 +737,11 @@ static RudpCultNetSchemaServer StartClientCultMeshHost(
 
 static async Task InjectCultMeshCdnAssetSnapshotsAsync(
     AetheriaDaemonHostOptions options,
+    IReadOnlyDictionary<string, CultNetRawDocumentRecord> bundleCdnDocuments,
     CultNetSnapshotRequestMessage request,
     CultNetSnapshotResponseRawMessage response)
 {
     var schemaIds = request.SchemaIds ?? Array.Empty<string>();
-    if (schemaIds.Length > 0 &&
-        !schemaIds.Contains(AetheriaRuntimeDaemonSchemas.CultMeshCdnAssetBlob, StringComparer.Ordinal))
-    {
-        return;
-    }
 
     var recordKeys = request.RecordKeys ?? Array.Empty<string>();
     if (recordKeys.Length == 0)
@@ -753,6 +750,14 @@ static async Task InjectCultMeshCdnAssetSnapshotsAsync(
     var documents = new List<CultNetRawDocumentRecord>();
     foreach (var recordKey in recordKeys.Distinct(StringComparer.Ordinal))
     {
+        if (bundleCdnDocuments.TryGetValue(recordKey, out var bundleDocument))
+        {
+            documents.Add(bundleDocument);
+            continue;
+        }
+        if (schemaIds.Length > 0 &&
+            !schemaIds.Contains(AetheriaRuntimeDaemonSchemas.CultMeshCdnAssetBlob, StringComparer.Ordinal))
+            continue;
         if (!TryResolveCultMeshCdnAssetPath(options, recordKey, out var filePath, out var mimeType, out var canonicalUri))
             continue;
 
@@ -782,10 +787,39 @@ static async Task InjectCultMeshCdnAssetSnapshotsAsync(
 
     var keys = documents.Select(document => document.RecordKey).ToHashSet(StringComparer.Ordinal);
     response.Documents = response.Documents
-        .Where(document => !string.Equals(document.SchemaId, AetheriaRuntimeDaemonSchemas.CultMeshCdnAssetBlob, StringComparison.Ordinal) ||
-            !keys.Contains(document.RecordKey))
+        .Where(document => !keys.Contains(document.RecordKey))
         .Concat(documents)
         .ToArray();
+}
+
+static IReadOnlyDictionary<string, CultNetRawDocumentRecord> BuildBundleCdnDocuments(
+    AetheriaStateNode node,
+    AetheriaDaemonHostOptions options)
+{
+    var documents = new Dictionary<string, CultNetRawDocumentRecord>(StringComparer.Ordinal);
+    foreach (var bundle in FindAssetBundles(options))
+    {
+        var artifact = PackAssetBundle(bundle.Path, bundle.Platform);
+        Add(artifact.ManifestKey, artifact.Manifest);
+        foreach (var chunk in artifact.Chunks)
+            Add(CultMeshCdnArtifactChunk.CreateRecordKey(chunk), chunk);
+    }
+    return documents;
+
+    void Add<T>(CultRecordKey recordKey, T document) where T : class
+    {
+        var put = node.Database.Documents.CreateRawDocumentPutMessage(
+            $"aetheria-cdn:{recordKey.Value}",
+            new CultRecordHandle<T>(recordKey),
+            document,
+            new CultNetDocumentMessageOptions
+            {
+                SourceRuntimeId = options.DaemonId,
+                SourceRole = "aetheria-cultmesh-cdn",
+                Tags = ["aetheria", "cultmesh-cdn", "asset-bundle"]
+            });
+        documents[recordKey.Value] = put.Document;
+    }
 }
 
 static bool TryResolveCultMeshCdnAssetPath(
@@ -1266,9 +1300,14 @@ static async Task PublishDaemonApiDocumentsAsync(
             .ReplaceAsync(result.CommandBoundary)
             .ConfigureAwait(false);
     if (result.AssetManifest != null)
+    {
         await node.MutableDocument<AetheriaRuntimeAssetManifestDocument>(AetheriaRuntimeVerseRecordKeys.DaemonAssetManifest)
             .ReplaceAsync(result.AssetManifest)
             .ConfigureAwait(false);
+        await node.MutableDocument<EveAssetCatalogDocument>(AetheriaRuntimeVerseRecordKeys.EveAssetCatalog)
+            .ReplaceAsync(BuildCoreAssetCatalog(options, result.AssetManifest))
+            .ConfigureAwait(false);
+    }
     if (result.StarbridgeSessionSummary != null)
         await node.MutableDocument<AetheriaRuntimeStarbridgeSessionSummaryDocument>(AetheriaRuntimeVerseRecordKeys.StarbridgeSessionSummary)
             .ReplaceAsync(result.StarbridgeSessionSummary)
@@ -1315,7 +1354,7 @@ static EveProviderAdvertisementDocument BuildCoreProviderAdvertisement(
         AetheriaRuntimeVerseRecordKeys.EveCommandRecordPrefix,
         EveCommandReceiptDocument.SchemaId,
         AetheriaRuntimeVerseRecordKeys.EveReceiptRecordPrefix,
-        AetheriaRuntimeVerseRecordKeys.DaemonAssetManifest.ToString(),
+        AetheriaRuntimeVerseRecordKeys.EveAssetCatalog.ToString(),
         new[] { "unity-scene", "web-reference", "electron-shell", "tui" },
         "provider-owns-world-state-command-acceptance-and-receipts");
     return new EveProviderAdvertisementDocument(
@@ -1331,7 +1370,8 @@ static EveProviderAdvertisementDocument BuildCoreProviderAdvertisement(
         {
             EveSurfaceDocument.SchemaId,
             EveSurfaceCommandRequest.SchemaId,
-            EveCommandReceiptDocument.SchemaId
+            EveCommandReceiptDocument.SchemaId,
+            EveAssetCatalogDocument.SchemaId
         },
         Array.Empty<GameCult.Eve.Surface.EveProviderWitness>(),
         new[]
@@ -1791,6 +1831,82 @@ static async Task PublishOdinSurfaceAnnouncementsAsync(
     {
         Console.WriteLine($"Aetheria Odin announcement skipped for {options.OdinCultMeshUri}: {ex.GetType().Name}: {ex.Message}");
     }
+}
+
+static EveAssetCatalogDocument BuildCoreAssetCatalog(
+    AetheriaDaemonHostOptions options,
+    AetheriaRuntimeAssetManifestDocument source)
+{
+    var variants = FindAssetBundles(options).Select(bundle =>
+    {
+        var artifact = PackAssetBundle(bundle.Path, bundle.Platform);
+        return new
+        {
+            bundle.Platform,
+            Uri = artifact.ManifestKey.Value,
+            Hash = $"sha256:{artifact.Manifest.ContentHash}",
+            Size = artifact.Manifest.SizeBytes
+        };
+    }).ToArray();
+
+    var assets = (source.Assets ?? Array.Empty<AetheriaRuntimeAssetManifestEntry>())
+        .Where(entry => entry?.Ref != null &&
+            string.Equals(entry.Ref.Kind, AetheriaRuntimeAssetKinds.Prefab, StringComparison.Ordinal) &&
+            entry.Ref.Metadata.TryGetValue("resourcesPath", out _))
+        .Select(entry =>
+        {
+            var resourcesPath = entry.Ref.Metadata["resourcesPath"];
+            return new EveAssetCatalogEntry(
+                entry.Ref.AssetKey,
+                entry.Ref.Kind,
+                variants.Select(bundle => new EveAssetVariant(
+                    "unity-scene",
+                    bundle.Platform,
+                    "unity-assetbundle",
+                    bundle.Uri,
+                    bundle.Hash,
+                    bundle.Size,
+                    $"Assets/Resources/{resourcesPath}.prefab"))
+                    .ToArray(),
+                new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    ["mimeType"] = entry.Ref.MimeType ?? ""
+                });
+        })
+        .OrderBy(entry => entry.AssetRef, StringComparer.Ordinal)
+        .ToArray();
+    return new EveAssetCatalogDocument(
+        "aetheria.daemon",
+        AetheriaRuntimeVerseRecordKeys.EveAssetCatalog.ToString(),
+        1,
+        source.PublishedAtUtc,
+        assets);
+}
+
+static IReadOnlyList<(string Path, string Platform)> FindAssetBundles(AetheriaDaemonHostOptions options)
+{
+    const string bundleName = "aetheria-world";
+    return Directory.Exists(options.AssetBundleRoot)
+        ? Directory.GetFiles(options.AssetBundleRoot, bundleName, SearchOption.AllDirectories)
+            .OrderBy(path => path, StringComparer.Ordinal)
+            .Select(path => (path, new DirectoryInfo(Path.GetDirectoryName(path)!).Name))
+            .ToArray()
+        : Array.Empty<(string, string)>();
+}
+
+static CultMeshCdnArtifact PackAssetBundle(string path, string platform)
+{
+    return CultMeshCdn.PackArtifact(
+        $"aetheria/world/{platform}/aetheria-world",
+        File.ReadAllBytes(path),
+        new CultMeshCdnPackOptions
+        {
+            ChunkSizeBytes = 56 * 1024,
+            Kind = CultMeshCdnArtifactKinds.Asset,
+            Version = "1",
+            MimeType = "application/vnd.unity.assetbundle",
+            Tags = ["aetheria", "unity-scene", platform]
+        });
 }
 
 static CultNetDocumentPutRawMessage CreateOdinRawPut(
@@ -2669,6 +2785,7 @@ internal sealed class AetheriaDaemonHostOptions
     public string ClientCultMeshAdvertiseHost { get; init; } = "127.0.0.1";
     public int ClientCultMeshPort { get; init; } = 3076;
     public string AetheriaResourcesRoot { get; init; } = "";
+    public string AssetBundleRoot { get; init; } = "";
     public string OdinCultMeshUri { get; init; } = "cultmesh://odin/rendezvous/provider-catalog";
     public bool EnableOdinAnnouncements { get; init; } = true;
     public TimeSpan TickInterval { get; init; } = TimeSpan.FromMilliseconds(20);
@@ -2699,6 +2816,7 @@ internal sealed class AetheriaDaemonHostOptions
         var clientCultMeshAdvertiseHost = ReadOption(args, "--client-cultmesh-advertise-host");
         var clientCultMeshPort = ReadNonNegativeInt(args, "--client-cultmesh-port") ?? 3076;
         var aetheriaResourcesRoot = ReadOption(args, "--aetheria-resources-root");
+        var assetBundleRoot = ReadOption(args, "--asset-bundle-root");
         RejectRemovedOption(args, "--rts-cultmesh-port", "--client-cultmesh-port");
         RejectRemovedOption(args, "--peer-cultmesh-endpoint", "Odin-discovered CultMesh peer documents");
         RejectRemovedOption(args, "--odin-cultmesh-rudp", "--odin-cultmesh-uri");
@@ -2728,6 +2846,9 @@ internal sealed class AetheriaDaemonHostOptions
             AetheriaResourcesRoot = string.IsNullOrWhiteSpace(aetheriaResourcesRoot)
                 ? Path.GetFullPath(Path.Combine(root, "Assets", "Resources"))
                 : Path.GetFullPath(aetheriaResourcesRoot),
+            AssetBundleRoot = string.IsNullOrWhiteSpace(assetBundleRoot)
+                ? Path.GetFullPath(Path.Combine(root, "Build", "EveAssets"))
+                : Path.GetFullPath(assetBundleRoot),
             OdinCultMeshUri = noOdinAnnouncements
                 ? ""
                 : string.IsNullOrWhiteSpace(odinCultMeshUri)

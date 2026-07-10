@@ -38,6 +38,9 @@ namespace GameCult.Aetheria.State.Verse
         public static CultRecordKey DaemonAssetManifest { get; } =
             new CultRecordKey("daemon:aetheria.asset_manifest.latest.v1");
 
+        public static CultRecordKey EveAssetCatalog { get; } =
+            new CultRecordKey("eve:assets:aetheria.daemon");
+
         public static CultRecordKey VerseAuthorityPolicy { get; } =
             new CultRecordKey(AetheriaRuntimeVerseAuthorityPolicyDocument.DocumentKey);
 
@@ -166,6 +169,7 @@ namespace GameCult.Aetheria.State.Verse
             typeof(EveSurfaceDocument),
             typeof(EveSurfaceCommandRequest),
             typeof(EveCommandReceiptDocument),
+            typeof(EveAssetCatalogDocument),
             typeof(AetheriaRuntimeDaemonCommandDocument),
             typeof(AetheriaRuntimeEveCommandDocument),
             typeof(AetheriaRuntimeCommittedCommandFactDocument)
