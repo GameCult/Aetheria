@@ -695,7 +695,7 @@ static void RequireSharedEvePackagesImportedFromEveRepo(string root)
         "GameCult.Aetheria.State.Unity.asmdef");
     var localSurfacePath = Path.Combine(root, "Packages", "org.gamecult.eve.surface");
     var localUnityUiToolkitPath = Path.Combine(root, "Packages", "org.gamecult.eve.unity-uitoolkit");
-    var evePackagesRoot = Path.GetFullPath(Path.Combine(root, "..", "Eve", "packages"));
+    var evePackagesRoot = Path.GetFullPath(Path.Combine(root, "..", "EveUnity", "packages"));
     var upstreamSurfacePath = Path.Combine(evePackagesRoot, "org.gamecult.eve.surface", "package.json");
     var upstreamSurfaceDocumentPath = Path.Combine(
         evePackagesRoot,
@@ -792,8 +792,8 @@ static void RequireSharedEvePackagesImportedFromEveRepo(string root)
 
     var requiredManifestSymbols = new[]
     {
-        "\"org.gamecult.eve.surface\": \"file:../../Eve/packages/org.gamecult.eve.surface\"",
-        "\"org.gamecult.eve.unity-uitoolkit\": \"file:../../Eve/packages/org.gamecult.eve.unity-uitoolkit\""
+        "\"org.gamecult.eve.surface\": \"https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.surface#eveunity-surface-v0.1.0\"",
+        "\"org.gamecult.eve.unity-uitoolkit\": \"https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.unity-uitoolkit#eveunity-uitoolkit-v0.1.0\""
     };
 
     var missingManifestSymbols = requiredManifestSymbols
@@ -803,15 +803,15 @@ static void RequireSharedEvePackagesImportedFromEveRepo(string root)
     if (missingManifestSymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "Aetheria manifest no longer imports the shared Eve Unity packages from the neighboring Eve repo: " +
+            "Aetheria manifest no longer imports tagged packages from EveUnity: " +
             string.Join(", ", missingManifestSymbols));
     }
 
     var requiredLockSymbols = new[]
     {
-        "\"version\": \"file:../../Eve/packages/org.gamecult.eve.surface\"",
-        "\"version\": \"file:../../Eve/packages/org.gamecult.eve.unity-uitoolkit\"",
-        "\"source\": \"local\""
+        "eveunity-surface-v0.1.0",
+        "eveunity-uitoolkit-v0.1.0",
+        "\"source\": \"git\""
     };
 
     var missingLockSymbols = requiredLockSymbols
@@ -821,7 +821,7 @@ static void RequireSharedEvePackagesImportedFromEveRepo(string root)
     if (missingLockSymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "Unity lockfile no longer records the shared Eve packages as sibling-repo local imports: " +
+            "Unity lockfile no longer records the tagged EveUnity package imports: " +
             string.Join(", ", missingLockSymbols));
     }
 
@@ -834,11 +834,11 @@ static void RequireSharedEvePackagesImportedFromEveRepo(string root)
     if (!File.Exists(upstreamSurfacePath) || !File.Exists(upstreamUnityUiToolkitPath))
     {
         throw new InvalidOperationException(
-            "The neighboring Eve repo is missing the shared Unity package roots Aetheria imports.");
+            "The neighboring EveUnity repo is missing the shared Unity package roots Aetheria imports.");
     }
 
-    if (!unityGeneratedProject.Contains("GameCult.Eve.Surface.csproj", StringComparison.Ordinal) ||
-        !unityGeneratedProject.Contains("<Name>GameCult.Eve.Surface</Name>", StringComparison.Ordinal) ||
+    if (!unityGeneratedProject.Contains("<Reference Include=\"GameCult.Eve.Surface\">", StringComparison.Ordinal) ||
+        !unityGeneratedProject.Contains("GameCult.Eve.Surface.dll", StringComparison.Ordinal) ||
         !unityAsmdef.Contains("\"GameCult.Eve.Surface\"", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
