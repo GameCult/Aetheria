@@ -491,13 +491,14 @@ namespace GameCult.Aetheria.State.Verse
             string activeSurfaceId)
         {
             activeSurfaceId = NormalizeMainMenuSurfaceId(activeSurfaceId);
+            var activeSurfaceRecordRef = $"eve:surface:{activeSurfaceId}";
             return new AetheriaRuntimeSurfaceComponent(
                 id,
                 "surface.slot",
                 new Dictionary<string, string>(StringComparer.Ordinal)
                 {
                     ["slotId"] = "mainMenuPanel",
-                    ["documentId"] = activeSurfaceId,
+                    ["documentId"] = activeSurfaceRecordRef,
                     ["schemaId"] = "gamecult.eve.surface.v1",
                     ["presentationKind"] = "menu.overlay"
                 },
@@ -507,7 +508,7 @@ namespace GameCult.Aetheria.State.Verse
                 {
                     new AetheriaRuntimeEmbeddedDocumentSlot(
                         "mainMenuPanel",
-                        activeSurfaceId,
+                        activeSurfaceRecordRef,
                         "gamecult.eve.surface.v1",
                         "menu.overlay")
                 },

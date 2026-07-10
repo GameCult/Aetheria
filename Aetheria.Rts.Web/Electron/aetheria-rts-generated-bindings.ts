@@ -128,11 +128,11 @@ export const AetheriaRtsIpcChannels = {
   setTarget: "aetheria-rts:set-target",
   surfaceCatalog: "aetheria-rts:surface-catalog",
   surfaceCatalogIndex: "aetheria-rts:surface-catalog-index",
-  eveSurface: "aetheria-rts:eve-surface",
+  eveSurface: "eve:surface",
   eveProviderAdvertisement: "eve:provider-advertisement",
   eveDocument: "eve:embedded-document",
-  submitEveCommand: "aetheria-rts:submit-eve-command",
-  windowControl: "aetheria-rts:window-control",
+  submitEveCommand: "eve:submit-command",
+  windowControl: "eve-electron:window-control",
   health: "aetheria-rts:health",
 } as const;
 

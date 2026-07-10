@@ -19,8 +19,6 @@ const sources = [
   resolve(repoRoot, "Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeVerseAuthorityPolicy.cs"),
 ];
 const outputPath = resolve(root, "Electron/aetheria-rts-generated-bindings.ts");
-const rendererContractPath = resolve(root, "Client/aetheria-rts-contract.ts");
-const preloadPath = resolve(root, "Electron/preload.cjs");
 const check = process.argv.includes("--check");
 
 const ipcChannels = [
@@ -41,11 +39,11 @@ const ipcChannels = [
   ["setTarget", "aetheria-rts:set-target"],
   ["surfaceCatalog", "aetheria-rts:surface-catalog"],
   ["surfaceCatalogIndex", "aetheria-rts:surface-catalog-index"],
-  ["eveSurface", "aetheria-rts:eve-surface"],
+  ["eveSurface", "eve:surface"],
   ["eveProviderAdvertisement", "eve:provider-advertisement"],
   ["eveDocument", "eve:embedded-document"],
-  ["submitEveCommand", "aetheria-rts:submit-eve-command"],
-  ["windowControl", "aetheria-rts:window-control"],
+  ["submitEveCommand", "eve:submit-command"],
+  ["windowControl", "eve-electron:window-control"],
   ["health", "aetheria-rts:health"],
 ];
 
@@ -311,21 +309,15 @@ const documents = [
 }));
 
 const generated = render(enums, documents);
-const rendererContract = renderRendererContract();
-const preload = renderPreload();
 const existing = readExisting(outputPath);
-const existingRendererContract = readExisting(rendererContractPath);
-const existingPreload = readExisting(preloadPath);
 
 if (check) {
-  if (existing !== generated || existingRendererContract !== rendererContract || existingPreload !== preload) {
+  if (existing !== generated) {
     console.error("RTS generated bindings are stale. Run `npm run generate:rts-bindings`.");
     process.exit(1);
   }
 } else {
   writeFileSync(outputPath, generated, "utf8");
-  writeFileSync(rendererContractPath, rendererContract, "utf8");
-  writeFileSync(preloadPath, preload, "utf8");
 }
 
 function readExisting(path) {

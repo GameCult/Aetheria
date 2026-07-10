@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import {
   AetheriaCultMeshClient,
 } from "./aetheria-cultmesh.js";
-import { AetheriaRtsIpcChannels, registerAetheriaRtsIpcHandlers } from "./aetheria-rts-generated-bindings.js";
+import { AetheriaRtsIpcChannels } from "./aetheria-rts-generated-bindings.js";
 import { createEveElectronWindow, registerEveWindowControls } from "@gamecult/eve-electron";
 import { EveCultMeshProviderClient } from "@gamecult/eve-electron/provider-client";
 import { CultMesh } from "cultmesh-ts";
@@ -148,7 +148,7 @@ function createWindow(): BrowserWindow {
     show: !electronSmoke,
     backgroundColor: "#0b1016",
     title: "Aetheria Starbridge",
-    preload: resolve(__dirname, "preload.cjs"),
+    preload: resolve(projectRoot, "node_modules", "@gamecult", "eve-electron", "src", "eve-provider-preload-entry.cjs"),
   }, { BrowserWindow, shell });
 }
 
@@ -159,7 +159,6 @@ async function runElectronSmoke(window: BrowserWindow): Promise<Record<string, u
     lastResult = await window.webContents.executeJavaScript(`
       (async () => {
         await new Promise(resolve => setTimeout(resolve, 100));
-        const api = window.aetheriaRts;
         const eveProvider = window.eveProvider;
         const status = document.querySelector("#status")?.textContent ?? "";
         const bodyMode = document.body.className;
@@ -169,15 +168,6 @@ async function runElectronSmoke(window: BrowserWindow): Promise<Record<string, u
         const controlledWorldEntityCount = worldScene?.querySelectorAll('.cultui-world-entity[data-controlled="true"]').length ?? 0;
         const providerAdvertisement = eveProvider ? await eveProvider.providerAdvertisement() : null;
         const eveSurface = eveProvider ? await eveProvider.surface({ recordKey: "eve:surface:aetheria.daemon.game" }) : null;
-        const health = api ? await api.daemonHealth() : null;
-        const authority = api ? await api.authorityStatus() : null;
-        const starbridge = api ? await api.starbridgeSession() : null;
-        const assetManifest = api ? await api.assetManifest() : null;
-        const surfaceCatalog = api ? await api.surfaceCatalog() : null;
-        const surfaceCatalogIndex = api ? await api.surfaceCatalogIndex() : null;
-        const viewport = api ? await api.mapViewport({ minX: -5000, minY: -5000, maxX: 5000, maxY: 5000 }) : null;
-        const renderSplatsViewport = api ? await api.renderSplatsViewport({ minX: -1500, minY: -1000, maxX: 1500, maxY: 1000 }) : null;
-        const actor = viewport?.objects?.find(object => object.controlled) ?? viewport?.objects?.[0] ?? null;
         const findComponent = (component, predicate) => {
           if (!component || typeof component !== "object") return null;
           if (predicate(component)) return component;
@@ -189,6 +179,13 @@ async function runElectronSmoke(window: BrowserWindow): Promise<Record<string, u
         };
         const eveFieldSurface = findComponent(eveSurface?.surface?.root, component =>
           component.kind === "field.surface2d" || component.kind === "gravity.surface");
+        const embedded = slotId => eveFieldSurface?.embeddedDocuments?.find(slot => slot.slotId === slotId) ?? null;
+        const resolveEmbedded = async slot => slot ? eveProvider.document({ documentId: slot.documentId, schemaId: slot.schemaId }) : null;
+        const [renderSplatsResolved, gravityResolved, objectsResolved] = await Promise.all([
+          resolveEmbedded(embedded("renderSplats")),
+          resolveEmbedded(embedded("gravity")),
+          resolveEmbedded(embedded("objects")),
+        ]);
         const eveReceipt = eveProvider ? await eveProvider.submitCommand({
           providerId: "aetheria.daemon",
           surfaceId: "aetheria.game",
@@ -197,20 +194,7 @@ async function runElectronSmoke(window: BrowserWindow): Promise<Record<string, u
           payload: {},
         }) : null;
         return {
-          hasApi: !!api &&
-            typeof api.mapViewport === "function" &&
-            typeof api.objectsViewport === "function" &&
-            typeof api.gravityViewport === "function" &&
-            typeof api.renderSplatsViewport === "function" &&
-            typeof api.selectedObject === "function" &&
-            typeof api.inventory === "function" &&
-            typeof api.daemonHealth === "function" &&
-            typeof api.authorityStatus === "function" &&
-            typeof api.starbridgeSession === "function" &&
-            typeof api.assetManifest === "function" &&
-            typeof api.surfaceCatalog === "function" &&
-            typeof api.surfaceCatalogIndex === "function" &&
-            !!eveProvider &&
+          hasApi: !!eveProvider &&
             typeof eveProvider.providerAdvertisement === "function" &&
             typeof eveProvider.document === "function" &&
             typeof eveProvider.surface === "function" &&
@@ -223,15 +207,9 @@ async function runElectronSmoke(window: BrowserWindow): Promise<Record<string, u
           controlledWorldEntityCount,
           providerAdvertisement,
           eveSurface,
-          health,
-          authority,
-          starbridge,
-          assetManifest,
-          surfaceCatalog,
-          surfaceCatalogIndex,
-          viewport,
-          renderSplatsViewport,
-          actor,
+          renderSplatsResolved,
+          gravityResolved,
+          objectsResolved,
           eveFieldSurface,
           eveReceipt
         };
@@ -252,14 +230,10 @@ function isElectronSmokeReady(result: Record<string, unknown>): boolean {
   const eveHostText = stringValue(result.eveHostText);
   const eveSurface = objectValue(result.eveSurface);
   const providerAdvertisement = objectValue(result.providerAdvertisement);
-  const health = objectValue(result.health);
-  const authority = objectValue(result.authority);
-  const starbridge = objectValue(result.starbridge);
-  const surfaceCatalog = objectValue(result.surfaceCatalog);
-  const surfaceCatalogIndex = objectValue(result.surfaceCatalogIndex);
-  const viewport = objectValue(result.viewport);
+  const renderSplatsResolved = objectValue(result.renderSplatsResolved);
+  const gravityResolved = objectValue(result.gravityResolved);
+  const objectsResolved = objectValue(result.objectsResolved);
   const renderSplatsViewport = objectValue(result.renderSplatsViewport);
-  const actor = objectValue(result.actor);
   const eveFieldSurface = objectValue(result.eveFieldSurface);
   const eveReceipt = objectValue(result.eveReceipt);
   return result.hasApi === true &&
@@ -272,13 +246,12 @@ function isElectronSmokeReady(result: Record<string, unknown>): boolean {
     eveHostText.includes("Typed Command Boundary") &&
     arrayValue(providerAdvertisement?.surfaces).some(surface => objectValue(surface)?.surfaceId === "aetheria.game") &&
     objectValue(eveSurface?.surface)?.id === "aetheria.game" &&
-    health?.status === "healthy" &&
-    authority?.policyId === "aetheria.trusted-coop.v1" &&
-    starbridge?.scenarioName === "Frontier Fabricator Defense" &&
-    arrayValue(viewport?.objects).length > 0 &&
-    renderSplatsViewport?.schema === "gamecult.aetheria.render_splats_viewport.v1" &&
-    arrayValue(renderSplatsViewport?.layers).some(layer =>
-      objectValue(layer)?.layerKey === "fog.tint") &&
+    stringValue(renderSplatsResolved?.documentId).length > 0 &&
+    stringValue(gravityResolved?.documentId).length > 0 &&
+    stringValue(objectsResolved?.documentId).length > 0 &&
+    renderSplatsResolved?.schemaId === "gamecult.aetheria.render_splats_viewport.v1" &&
+    gravityResolved?.schemaId === "gamecult.aetheria.gravity_viewport.v1" &&
+    objectsResolved?.schemaId === "gamecult.aetheria.objects_viewport.v1" &&
     stringValue(eveFieldSurface?.id).length > 0 &&
     arrayValue(eveFieldSurface?.embeddedDocuments).some(slot =>
       objectValue(slot)?.slotId === "renderSplats") &&
@@ -286,11 +259,6 @@ function isElectronSmokeReady(result: Record<string, unknown>): boolean {
       objectValue(slot)?.slotId === "gravity") &&
     arrayValue(eveFieldSurface?.embeddedDocuments).some(slot =>
       objectValue(slot)?.slotId === "objects") &&
-    stringValue(actor?.entityKey).length > 0 &&
-    surfaceCatalog?.catalogId === "gamecult.aetheria.surfaces.v1" &&
-    arrayValue(surfaceCatalogIndex?.queries).length > 0 &&
-    arrayValue(surfaceCatalogIndex?.operations).some(surface =>
-      objectValue(surface)?.surfaceId === "gamecult.aetheria.pilot.set_move_vector.v1") &&
     stringValue(eveReceipt?.commandId).length > 0 &&
     objectValue(eveReceipt?.route)?.kind === "network" &&
     eveReceipt?.accepted === true;
@@ -329,23 +297,10 @@ function exitElectronSmoke(exitCode: number): void {
   daemonProcess = null;
   mainWindow?.destroy();
   mainWindow = null;
-  setImmediate(() => app.exit(exitCode));
+  app.exit(exitCode);
 }
 
 function registerIpc(): void {
-  registerAetheriaRtsIpcHandlers(
-    ipcMain,
-    requireClient,
-    () => ({
-      status: "ok",
-      transport: "cultmesh-rudp",
-      endpoint: daemonCultMeshUri,
-      verseId,
-      daemonId,
-      peerEndpoints: [],
-      daemonRunning: daemonProcess != null && !daemonProcess.killed,
-      daemonMode: launchLocalDaemon ? "local" : "remote",
-    }));
   ipcMain.handle(AetheriaRtsIpcChannels.eveProviderAdvertisement, () => requireEveProviderClient().providerAdvertisement());
   ipcMain.handle(AetheriaRtsIpcChannels.eveSurface, (_event, request: { surfaceId?: string }) =>
     requireEveProviderClient().surface(request?.surfaceId));
@@ -356,7 +311,7 @@ function registerIpc(): void {
   });
   ipcMain.handle(AetheriaRtsIpcChannels.eveDocument, (_event, request) =>
     requireEveProviderClient().resolveDocument(request));
-  registerEveWindowControls(ipcMain, BrowserWindow, "aetheria-rts:window-control");
+  registerEveWindowControls(ipcMain, BrowserWindow, "eve-electron:window-control");
 }
 
 function requireEveProviderClient(): EveCultMeshProviderClient {

@@ -13,9 +13,7 @@ if (-not (Get-Content wwwroot\index.html -Raw).Contains('eve-surface-host')) {
 }
 
 $appText = Get-Content wwwroot\app.js -Raw
-if (-not $appText.Contains('window.eveProvider.providerAdvertisement') -or
-    -not $appText.Contains('EveBrowserProviderHost') -or
-    -not $appText.Contains('window.eveProvider.document') -or
+if (-not $appText.Contains('mountEveElectronProvider') -or
     $appText.Contains('window.aetheriaRts.eveProviderAdvertisement') -or
     $appText.Contains('window.aetheriaRts.eveDocument') -or
     $appText.Contains('eve:surface:aetheria.daemon.game') -or
@@ -27,23 +25,31 @@ if (-not $appText.Contains('window.eveProvider.providerAdvertisement') -or
     $appText.Contains('main-menu-mode')) {
     Write-Error "Stage 7C Electron RTS verifier failed: renderer is not daemon-Eve-only."
 }
+$rendererRuntimeText = Get-Content node_modules\@gamecult\eve-electron\src\eve-electron-renderer.mjs -Raw
+if (-not $rendererRuntimeText.Contains('EveBrowserProviderHost') -or
+    -not $rendererRuntimeText.Contains('eveProvider.providerAdvertisement') -or
+    -not $rendererRuntimeText.Contains('eveProvider.document')) {
+    Write-Error "Stage 7C Electron RTS verifier failed: EveElectron does not own the generic provider renderer bootstrap."
+}
 if ($appText.Contains('aetheria.rts.electron') -or
     $appText.Contains('Aetheria RTS')) {
     Write-Error "Stage 7C Electron RTS verifier failed: renderer still advertises an RTS-branded client identity."
 }
 
 $mainText = Get-Content Electron\main.ts -Raw
-if (-not $mainText.Contains('await api.surfaceCatalog()') -or -not $mainText.Contains('await api.surfaceCatalogIndex()')) {
-    Write-Error "Stage 7C Electron RTS verifier failed: Electron smoke does not call the preload CultMesh surface catalog APIs."
+if (-not $mainText.Contains('eve-provider-preload-entry.cjs') -or (Test-Path Electron\preload.cjs)) {
+    Write-Error "Stage 7C Electron RTS verifier failed: Electron does not consume the EveElectron-owned preload entry."
 }
 if (-not $mainText.Contains('await eveProvider.providerAdvertisement()')) {
     Write-Error "Stage 7C Electron RTS verifier failed: Electron smoke does not verify provider advertisement discovery through preload."
 }
 
-if (-not $mainText.Contains('await api.renderSplatsViewport') -or
+if (-not $mainText.Contains('resolveEmbedded') -or
+    -not $mainText.Contains('renderSplatsResolved') -or
+    -not $mainText.Contains('gravityResolved') -or
+    -not $mainText.Contains('objectsResolved') -or
     -not $mainText.Contains('eveFieldSurface') -or
-    -not $mainText.Contains('embeddedDocuments') -or
-    -not $mainText.Contains('fog.tint')) {
+    -not $mainText.Contains('embeddedDocuments')) {
     Write-Error "Stage 7C Electron RTS verifier failed: Electron smoke does not verify daemon Eve field document lowering."
 }
 

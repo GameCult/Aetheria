@@ -5,9 +5,9 @@
   "type": "module",
   "main": "electron-dist/main.js",
   "scripts": {
-    "build": "C:\\Progra~1\\nodejs\\node.exe ./node_modules/typescript/bin/tsc -p tsconfig.json && C:\\Progra~1\\nodejs\\node.exe ./node_modules/typescript/bin/tsc -p tsconfig.electron.json && C:\\Progra~1\\nodejs\\node.exe scripts/copy-electron-preload.mjs",
+    "build": "C:\\Progra~1\\nodejs\\node.exe ./node_modules/typescript/bin/tsc -p tsconfig.json && C:\\Progra~1\\nodejs\\node.exe ./node_modules/typescript/bin/tsc -p tsconfig.electron.json",
     "build:renderer": "C:\\Progra~1\\nodejs\\node.exe ./node_modules/typescript/bin/tsc -p tsconfig.json",
-    "build:electron": "C:\\Progra~1\\nodejs\\node.exe ./node_modules/typescript/bin/tsc -p tsconfig.electron.json && C:\\Progra~1\\nodejs\\node.exe scripts/copy-electron-preload.mjs",
+    "build:electron": "C:\\Progra~1\\nodejs\\node.exe ./node_modules/typescript/bin/tsc -p tsconfig.electron.json",
     "generate:rts-bindings": "C:\\Progra~1\\nodejs\\node.exe scripts/generate-rts-bindings.mjs",
     "check:rts-bindings": "C:\\Progra~1\\nodejs\\node.exe scripts/generate-rts-bindings.mjs --check",
     "verify:stage7b": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\\verify-stage7b-rts-client.ps1",
