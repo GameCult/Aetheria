@@ -317,6 +317,25 @@ static RudpCultNetSchemaServer StartClientCultMeshHost(
         MaxFragmentBytes = 2048,
         MaxPendingReliablePackets = 512
     });
+    var advertisedEndpoint = $"rudp://{options.ClientCultMeshAdvertiseHost}:{((IPEndPoint)socket.LocalEndPoint!).Port}";
+    server.OnCultNet<CultMeshVerseCatalogRequestMessage>((request, peer) =>
+    {
+        var descriptor = new CultMeshVerseDescriptor(
+            options.VerseId,
+            "Aetheria",
+            CultMeshVerseAuthorityModel.OperatorCluster,
+            new CultMeshVerseCompatibility(
+                "cultmesh.v0",
+                CultMeshVerseDescriptor.ComputeRulesHash("aetheria", "runtime-world.v1")),
+            discoveryEndpoints: new[] { advertisedEndpoint },
+            authorityRuntimeIds: new[] { options.DaemonId },
+            description: "Aetheria provider Verse");
+        peer.SendCultNet(new CultMeshVerseCatalogResponseMessage
+        {
+            MessageId = string.IsNullOrWhiteSpace(request.MessageId) ? Guid.NewGuid().ToString("N") : request.MessageId,
+            Verses = new[] { descriptor.ToMessage() }
+        });
+    });
     server.OnCultNet<CultNetSnapshotRequestMessage>(async (request, peer) =>
     {
         try
