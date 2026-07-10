@@ -7,7 +7,7 @@
   "version": 1,
   "updatedAtUtc": "2026-07-08T00:00:00Z",
   "surface": {
-    "id": "aetheria.daemon.game",
+    "id": "aetheria.starbridge.pilot",
     "root": {
       "id": "aetheria.daemon.game.root",
       "kind": "surface",
