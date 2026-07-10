@@ -1,225 +1,66 @@
 using System;
-using System.Collections.Generic;
 using GameCult.Aetheria.State.Verse;
-using Unity.Mathematics;
+using GameCult.Eve.PluginFields;
+using GameCult.Eve.UnityScene.Fields;
 using UnityEngine;
-using UnityEngine.Experimental.Rendering;
 using UnityEngine.UI;
 
 public sealed class AetheriaRenderSplatLayerRenderer : MonoBehaviour
 {
-    [SerializeField]
-    private AetheriaRenderSplatRasterizer rasterizer;
-
-    [SerializeField]
-    private AetheriaRenderSplatLayerBinding[] bindings =
+    [SerializeField] private EveFieldsSplatLayerRenderer renderer;
+    [SerializeField] private AetheriaRenderSplatLayerBinding[] bindings =
     {
-        new AetheriaRenderSplatLayerBinding
-        {
-            LayerKey = AetheriaRuntimeRenderSplatLayerKeys.GravityHeight,
-            MaterialTextureProperty = "_DetailTex",
-            GlobalTextureName = "_AetheriaGravityHeight"
-        },
-        new AetheriaRenderSplatLayerBinding
-        {
-            LayerKey = AetheriaRuntimeRenderSplatLayerKeys.FogTint,
-            MaterialTextureProperty = "_DetailTex",
-            GlobalTextureName = "_NebulaTint"
-        },
-        new AetheriaRenderSplatLayerBinding
-        {
-            LayerKey = AetheriaRuntimeRenderSplatLayerKeys.FogSurfaceHeight,
-            GlobalTextureName = "_NebulaSurfaceHeight",
-            WidthScale = 0.5f,
-            HeightScale = 0.5f
-        },
-        new AetheriaRenderSplatLayerBinding
-        {
-            LayerKey = AetheriaRuntimeRenderSplatLayerKeys.FogPatchHeight,
-            GlobalTextureName = "_NebulaPatchHeight",
-            WidthScale = 0.5f,
-            HeightScale = 0.5f
-        },
-        new AetheriaRenderSplatLayerBinding
-        {
-            LayerKey = AetheriaRuntimeRenderSplatLayerKeys.FogPatch,
-            GlobalTextureName = "_NebulaPatch",
-            WidthScale = 0.5f,
-            HeightScale = 0.5f
-        },
-        new AetheriaRenderSplatLayerBinding
-        {
-            LayerKey = AetheriaRuntimeRenderSplatLayerKeys.Influence,
-            MaterialTextureProperty = "_DetailTex",
-            GlobalTextureName = "_AetheriaInfluence"
-        }
+        Binding(EveFieldsSplatLayerKeys.GravityHeight, "_AetheriaGravityHeight"),
+        Binding(EveFieldsSplatLayerKeys.FogTint, "_NebulaTint"),
+        Binding(EveFieldsSplatLayerKeys.FogSurfaceHeight, "_NebulaSurfaceHeight", 0.5f),
+        Binding(EveFieldsSplatLayerKeys.FogPatchHeight, "_NebulaPatchHeight", 0.5f),
+        Binding(EveFieldsSplatLayerKeys.FogPatch, "_NebulaPatch", 0.5f),
+        Binding(EveFieldsSplatLayerKeys.Influence, "_AetheriaInfluence")
     };
-
-    private readonly Dictionary<string, RenderTexture> _texturesByLayerKey =
-        new Dictionary<string, RenderTexture>(StringComparer.Ordinal);
-
-    private void Reset()
-    {
-        rasterizer = GetComponent<AetheriaRenderSplatRasterizer>();
-    }
 
     public bool TryGetTexture(string layerKey, out RenderTexture texture)
     {
-        return _texturesByLayerKey.TryGetValue(layerKey ?? "", out texture);
+        ResolveRenderer();
+        return renderer != null && renderer.TryGetTexture(layerKey, out texture);
     }
 
-    public void Render(
-        AetheriaRuntimeRenderSplatsViewportDocument document,
-        int width,
-        int height)
+    public void Render(AetheriaRuntimeRenderSplatsViewportDocument document, int width, int height)
     {
-        if (document == null)
-            return;
-
-        ResolveRasterizer();
-        if (rasterizer == null)
-            return;
-
-        var layers = document.Layers ?? Array.Empty<AetheriaRuntimeRenderSplatLayerDefinition>();
-        for (var layerIndex = 0; layerIndex < layers.Count; layerIndex++)
+        if (document == null) return;
+        ResolveRenderer();
+        if (renderer == null) return;
+        var targets = new EveFieldsSplatLayerTarget[bindings?.Length ?? 0];
+        for (var index = 0; index < targets.Length; index++) targets[index] = bindings[index]?.CreateTarget();
+        renderer.Render(document, targets, width, height);
+        for (var index = 0; index < targets.Length; index++)
         {
-            var layer = layers[layerIndex];
-            if (layer == null || string.IsNullOrWhiteSpace(layer.LayerKey))
-                continue;
-
-            foreach (var binding in bindings ?? Array.Empty<AetheriaRenderSplatLayerBinding>())
-            {
-                if (binding == null ||
-                    !binding.Enabled ||
-                    !string.Equals(binding.LayerKey, layer.LayerKey, StringComparison.Ordinal))
-                {
-                    continue;
-                }
-
-                var texture = EnsureTexture(binding, layer, width, height);
-                rasterizer.RenderLayerToTarget(
-                    document,
-                    texture,
-                    layerIndex,
-                    ResolveMaterialPass(layer.BlendMode),
-                    ResolveClearColor(layer));
-                ApplyBinding(binding, texture);
-                _texturesByLayerKey[layer.LayerKey] = texture;
-            }
+            var binding = bindings[index];
+            var target = targets[index];
+            if (binding == null || target?.TargetTexture == null) continue;
+            binding.TargetTexture = target.TargetTexture;
+            ApplyBinding(binding, target.TargetTexture);
         }
     }
 
-    private void ResolveRasterizer()
+    private void ResolveRenderer()
     {
-        if (rasterizer != null)
-            return;
-
-        rasterizer = GetComponent<AetheriaRenderSplatRasterizer>();
-        if (rasterizer == null)
-            rasterizer = gameObject.AddComponent<AetheriaRenderSplatRasterizer>();
+        if (renderer != null) return;
+        renderer = GetComponent<EveFieldsSplatLayerRenderer>();
+        if (renderer == null) renderer = gameObject.AddComponent<EveFieldsSplatLayerRenderer>();
     }
 
-    private RenderTexture EnsureTexture(
-        AetheriaRenderSplatLayerBinding binding,
-        AetheriaRuntimeRenderSplatLayerDefinition layer,
-        int width,
-        int height)
-    {
-        var targetWidth = math.max(1, Mathf.RoundToInt(width * Mathf.Max(0.01f, binding.WidthScale)));
-        var targetHeight = math.max(1, Mathf.RoundToInt(height * Mathf.Max(0.01f, binding.HeightScale)));
-        var format = ResolveGraphicsFormat(binding.GraphicsFormatOverride, layer.GraphicsFormat);
-        var existing = binding.TargetTexture;
-        if (existing != null &&
-            existing.width == targetWidth &&
-            existing.height == targetHeight &&
-            existing.graphicsFormat == format)
-        {
-            return existing;
-        }
-
-        if (existing != null)
-        {
-            existing.Release();
-            Destroy(existing);
-        }
-
-        var descriptor = new RenderTextureDescriptor(targetWidth, targetHeight)
-        {
-            depthBufferBits = 0,
-            graphicsFormat = format,
-            msaaSamples = 1,
-            sRGB = false,
-            useMipMap = binding.UseMipMaps,
-            autoGenerateMips = binding.UseMipMaps
-        };
-        binding.TargetTexture = new RenderTexture(descriptor)
-        {
-            name = $"Aetheria {layer.LayerKey}",
-            filterMode = binding.FilterMode,
-            wrapMode = TextureWrapMode.Clamp
-        };
-        binding.TargetTexture.Create();
-        return binding.TargetTexture;
-    }
-
-    private static GraphicsFormat ResolveGraphicsFormat(string bindingOverride, string layerFormat)
-    {
-        var value = string.IsNullOrWhiteSpace(bindingOverride) ? layerFormat : bindingOverride;
-        return Enum.TryParse(value, out GraphicsFormat format)
-            ? format
-            : GraphicsFormat.R16_SFloat;
-    }
-
-    private static int ResolveMaterialPass(string blendMode)
-    {
-        switch (blendMode)
-        {
-            case AetheriaRuntimeRenderSplatBlendModes.Max:
-                return 1;
-            case AetheriaRuntimeRenderSplatBlendModes.Alpha:
-                return 2;
-            default:
-                return 0;
-        }
-    }
-
-    private static Color ResolveClearColor(AetheriaRuntimeRenderSplatLayerDefinition layer)
-    {
-        return new Color(
-            (float)layer.ClearR,
-            (float)layer.ClearG,
-            (float)layer.ClearB,
-            (float)layer.ClearA);
-    }
+    private static AetheriaRenderSplatLayerBinding Binding(string layerKey, string globalTextureName, float scale = 1f) =>
+        new AetheriaRenderSplatLayerBinding { LayerKey = layerKey, GlobalTextureName = globalTextureName, WidthScale = scale, HeightScale = scale };
 
     private static void ApplyBinding(AetheriaRenderSplatLayerBinding binding, RenderTexture texture)
     {
         if (binding.Display != null)
         {
             var material = binding.Display.material;
-            if (material != null && !string.IsNullOrWhiteSpace(binding.MaterialTextureProperty))
-                material.SetTexture(binding.MaterialTextureProperty, texture);
-            else
-                binding.Display.material.mainTexture = texture;
+            if (material != null && !string.IsNullOrWhiteSpace(binding.MaterialTextureProperty)) material.SetTexture(binding.MaterialTextureProperty, texture);
+            else binding.Display.material.mainTexture = texture;
         }
-
-        if (!string.IsNullOrWhiteSpace(binding.GlobalTextureName))
-            Shader.SetGlobalTexture(binding.GlobalTextureName, texture);
-    }
-
-    private void OnDisable()
-    {
-        foreach (var binding in bindings ?? Array.Empty<AetheriaRenderSplatLayerBinding>())
-        {
-            if (binding?.TargetTexture == null)
-                continue;
-
-            binding.TargetTexture.Release();
-            Destroy(binding.TargetTexture);
-            binding.TargetTexture = null;
-        }
-
-        _texturesByLayerKey.Clear();
+        if (!string.IsNullOrWhiteSpace(binding.GlobalTextureName)) Shader.SetGlobalTexture(binding.GlobalTextureName, texture);
     }
 }
 
@@ -232,10 +73,21 @@ public sealed class AetheriaRenderSplatLayerBinding
     public string MaterialTextureProperty = "_DetailTex";
     public string GlobalTextureName = "";
     public string GraphicsFormatOverride = "";
-    public float WidthScale = 1.0f;
-    public float HeightScale = 1.0f;
+    public float WidthScale = 1f;
+    public float HeightScale = 1f;
     public bool UseMipMaps;
     public FilterMode FilterMode = FilterMode.Bilinear;
-    [NonSerialized]
-    public RenderTexture TargetTexture;
+    [NonSerialized] public RenderTexture TargetTexture;
+
+    public EveFieldsSplatLayerTarget CreateTarget() => new EveFieldsSplatLayerTarget
+    {
+        Enabled = Enabled,
+        LayerKey = LayerKey,
+        GraphicsFormatOverride = GraphicsFormatOverride,
+        WidthScale = WidthScale,
+        HeightScale = HeightScale,
+        UseMipMaps = UseMipMaps,
+        FilterMode = FilterMode,
+        TargetTexture = TargetTexture
+    };
 }
