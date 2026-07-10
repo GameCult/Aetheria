@@ -323,7 +323,7 @@
       "dependencies": {}
     },
     "org.gamecult.eve.surface": {
-      "version": "file:../../Eve/packages/org.gamecult.eve.surface",
+      "version": "file:../../EveUnity/packages/org.gamecult.eve.surface",
       "depth": 0,
       "source": "local",
       "dependencies": {
@@ -335,11 +335,12 @@
       "depth": 0,
       "source": "local",
       "dependencies": {
+        "org.gamecult.cultlib": "1.0.3",
         "org.gamecult.eve.surface": "0.1.0"
       }
     },
     "org.gamecult.eve.unity-uitoolkit": {
-      "version": "file:../../Eve/packages/org.gamecult.eve.unity-uitoolkit",
+      "version": "file:../../EveUnity/packages/org.gamecult.eve.unity-uitoolkit",
       "depth": 0,
       "source": "local",
       "dependencies": {
