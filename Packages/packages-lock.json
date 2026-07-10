@@ -333,14 +333,14 @@
       "hash": "e10821f1cc81f619479c6507438f6a097d1f0ce2"
     },
     "org.gamecult.eve.unity-scene": {
-      "version": "https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.unity-scene#eveunity-scene-v0.1.0",
+      "version": "https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.unity-scene#eveunity-scene-v0.1.1",
       "depth": 0,
       "source": "git",
       "dependencies": {
         "org.gamecult.cultlib": "1.0.3",
         "org.gamecult.eve.surface": "0.1.0"
       },
-      "hash": "e10821f1cc81f619479c6507438f6a097d1f0ce2"
+      "hash": "7e65154d7f42cf1c4ac55871c35676e7ccd2e5b2"
     },
     "org.gamecult.eve.unity-uitoolkit": {
       "version": "https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.unity-uitoolkit#eveunity-uitoolkit-v0.1.0",
