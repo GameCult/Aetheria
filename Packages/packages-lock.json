@@ -323,7 +323,7 @@
       "dependencies": {}
     },
     "org.gamecult.eve.unity-scene": {
-      "version": "file:../../Eve/runtimes/incubating/eve-unity-scene",
+      "version": "file:../../EveUnity/packages/org.gamecult.eve.unity-scene",
       "depth": 0,
       "source": "local",
       "dependencies": {
