@@ -8,10 +8,10 @@
   "purpose": "Proves Aetheria interactive world clients consume provider advertisements, lower provider-owned game surfaces, issue command intents through the daemon boundary, and receive provider-owned receipts.",
   "requires": {
     "fixtures": ["aetheria-world"],
-    "surfaces": ["aetheria.starbridge.pilot", "aetheria.starbridge.commander", "aetheria.daemon.editor"],
+    "surfaces": ["aetheria.pilot", "aetheria.starbridge.commander", "aetheria.daemon.editor"],
     "worldSurfaces": [
       {
-        "surfaceId": "aetheria.starbridge.pilot",
+        "surfaceId": "aetheria.pilot",
         "surfaceKind": "interactive-world",
         "projectionKind": "provider-authored-world-surface",
         "commandBoundary": "aetheria.daemon.commands",

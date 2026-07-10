@@ -537,7 +537,7 @@ internal sealed class AuthoritySmokeChecks
         Require(summary.WaveForecast.Length == 1 && summary.WaveForecast[0].DisplayName == "Bomber Line", "starbridge wave forecast should start at current wave");
         Require(summary.RuntimeRoles.Any(role => role.RuntimeId == "commander-client" && role.Role == "commander"), "starbridge runtime roles should project scenario roles");
 
-        var gameSurface = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(
+        var gameSurface = AetheriaRuntimeDaemonGameSurfaceBuilder.BuildCommander(
             frame,
             new AetheriaRuntimeDaemonHealthDocument
             {

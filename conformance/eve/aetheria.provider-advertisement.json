@@ -95,7 +95,7 @@
     },
     {
       "schema": "gamecult.eve.surface.v1",
-      "surfaceId": "aetheria.starbridge.pilot",
+      "surfaceId": "aetheria.pilot",
       "key": "AetheriaRuntimeVerseRecordKeys.DaemonGameSurface",
       "transport": "cultmesh-record",
       "status": "available",
@@ -115,7 +115,7 @@
         "loweringTargets": ["web-reference", "unity-uitoolkit", "unity-scene", "electron-shell", "tui"],
         "ownership": "provider-owns-world-state-assets-command-acceptance-and-receipts"
       },
-      "summary": "Embodied Starbridge pilot surface lowered by generic Eve runtimes."
+      "summary": "Embodied pilot surface shared by Terminus and Starbridge and lowered by generic Eve runtimes."
     },
     {
       "schema": "gamecult.eve.surface.v1",
@@ -143,7 +143,7 @@
     },
     {
       "schema": "gamecult.eve.surface.v1",
-      "surfaceId": "aetheria.starbridge.pilot.tui",
+      "surfaceId": "aetheria.pilot.tui",
       "key": "AetheriaRuntimeVerseRecordKeys.DaemonGameTuiSurface",
       "transport": "cultmesh-record",
       "status": "available",

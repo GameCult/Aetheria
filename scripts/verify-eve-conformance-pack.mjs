@@ -12,7 +12,7 @@ const advertisement = read(pack.advertisementPath);
 assert.equal(advertisement.providerId, pack.providerId);
 const starbridgeSurfaces = advertisement.surfaces.filter((surface) =>
   surface.surfaceId === "aetheria.starbridge.commander" ||
-  surface.surfaceId === "aetheria.starbridge.pilot");
+  surface.surfaceId === "aetheria.pilot");
 assert.equal(starbridgeSurfaces.length, 2);
 assert.deepEqual(new Set(starbridgeSurfaces.map((surface) => surface.audience)), new Set(["commander", "pilot"]));
 for (const surface of starbridgeSurfaces) {
@@ -21,6 +21,10 @@ for (const surface of starbridgeSurfaces) {
   assert.ok(surface.worldInteraction?.loweringTargets.includes("electron-shell"));
   assert.ok(surface.worldInteraction?.loweringTargets.includes("unity-scene"));
 }
+const pilotSurface = advertisement.surfaces.find((surface) => surface.surfaceId === "aetheria.pilot");
+assert.ok(pilotSurface);
+assert.match(pilotSurface.summary, /Terminus and Starbridge/);
+assert.doesNotMatch(pilotSurface.surfaceId, /starbridge|terminus/);
 assert.ok(advertisement.surfaces.some((surface) => surface.surfaceId === "aetheria.daemon.editor" && surface.worldInteraction?.projectionKind === "provider-authored-world-editor-surface"));
 
 for (const fixture of pack.fixtures) {

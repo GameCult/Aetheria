@@ -225,8 +225,7 @@ namespace GameCult.Aetheria.State.Verse
             var gameSurface = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(
                 frame,
                 health,
-                commandBoundary,
-                starbridgeSummary);
+                commandBoundary);
             var designerSurfaces = new[]
             {
                 AetheriaRuntimeStatRecipeSurfaceBuilder.BuildFromCatalog(catalog),

@@ -1343,7 +1343,6 @@ static async Task PublishDaemonApiDocumentsAsync(
         result.Frame,
         result.Health ?? new AetheriaRuntimeDaemonHealthDocument(),
         result.CommandBoundary ?? AetheriaRuntimeDaemonCommandBoundaryDocument.Create(options.DaemonId),
-        result.StarbridgeSessionSummary,
         activeMainMenuSurfaceId);
     await node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.DaemonGameSurface)
         .ReplaceAsync(AetheriaRuntimeSurfaceDocuments.ToPortableSurface(gameSurface))

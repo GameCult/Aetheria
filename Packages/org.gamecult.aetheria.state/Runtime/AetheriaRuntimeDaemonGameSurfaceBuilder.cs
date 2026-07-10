@@ -9,23 +9,20 @@ namespace GameCult.Aetheria.State.Verse
 {
     public static class AetheriaRuntimeDaemonGameSurfaceBuilder
     {
-        public const string PilotSurfaceId = "aetheria.starbridge.pilot";
+        public const string PilotSurfaceId = "aetheria.pilot";
         public const string CommanderSurfaceId = "aetheria.starbridge.commander";
         public const string SurfaceId = PilotSurfaceId;
-        public const string TuiSurfaceId = "aetheria.starbridge.pilot.tui";
+        public const string TuiSurfaceId = "aetheria.pilot.tui";
 
         public static AetheriaRuntimeSurfaceDocument Build(
             AetheriaRuntimeDaemonFrameDocument frame,
             AetheriaRuntimeDaemonHealthDocument health,
             AetheriaRuntimeDaemonCommandBoundaryDocument commandBoundary,
-            AetheriaRuntimeStarbridgeSessionSummaryDocument? starbridge = null,
             string activeMainMenuSurfaceId = AetheriaRuntimeMainMenuCommands.RootSurfaceId)
         {
             frame ??= new AetheriaRuntimeDaemonFrameDocument();
             health ??= new AetheriaRuntimeDaemonHealthDocument();
             commandBoundary ??= AetheriaRuntimeDaemonCommandBoundaryDocument.Create(frame.DaemonId);
-            starbridge ??= AetheriaRuntimeStarbridgeDocuments.SessionSummary(frame);
-
             var run = frame.Run ?? new AetheriaRuntimeRunCheckpointCommit();
             var zone = FindCurrentZone(run);
             var entity = FindCurrentEntity(run, zone);
@@ -49,22 +46,6 @@ namespace GameCult.Aetheria.State.Verse
                     Metric("aetheria.daemon.game.frame.observed_commands", "Observed Commands", health.ObservedCommandCount.ToString(CultureInfo.InvariantCulture), AetheriaRuntimeDaemonStateRefs.FrameObservedCommands),
                     Metric("aetheria.daemon.game.frame.applied", "Applied", health.AppliedCommandCount.ToString(CultureInfo.InvariantCulture), AetheriaRuntimeDaemonStateRefs.FrameAppliedCommands),
                     Metric("aetheria.daemon.game.frame.rejected", "Rejected", health.RejectedCommandCount.ToString(CultureInfo.InvariantCulture), AetheriaRuntimeDaemonStateRefs.FrameRejectedCommands)),
-                Node(
-                    "aetheria.daemon.game.starbridge",
-                    "card",
-                    new[] { ("title", "Starbridge Session") },
-                    Metric("aetheria.daemon.game.starbridge.scenario", "Scenario", starbridge.ScenarioName),
-                    Metric("aetheria.daemon.game.starbridge.session", "Session", starbridge.SessionId),
-                    Metric("aetheria.daemon.game.starbridge.phase", "Phase", starbridge.Phase),
-                    Metric("aetheria.daemon.game.starbridge.wave", "Wave", starbridge.CurrentWaveIndex.ToString(CultureInfo.InvariantCulture)),
-                    Metric("aetheria.daemon.game.starbridge.zone", "Zone", starbridge.ZoneName),
-                    Metric("aetheria.daemon.game.starbridge.base", "Base", starbridge.BaseStatus?.DisplayName ?? ""),
-                    Metric("aetheria.daemon.game.starbridge.base_hull", "Base Hull", FormatNumber(starbridge.BaseStatus?.Hull ?? 0)),
-                    Metric("aetheria.daemon.game.starbridge.base_shield", "Base Shield", FormatNumber(starbridge.BaseStatus?.Shield ?? 0)),
-                    Metric("aetheria.daemon.game.starbridge.base_heat", "Base Heat", FormatNumber(starbridge.BaseStatus?.Heat ?? 0))),
-                BuildStarbridgeStationStockCard(starbridge),
-                BuildStarbridgeWaveForecastCard(starbridge),
-                BuildStarbridgeRuntimeRolesCard(starbridge),
                 Node(
                     "aetheria.daemon.game.player",
                     "card",
