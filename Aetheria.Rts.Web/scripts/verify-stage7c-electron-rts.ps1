@@ -30,6 +30,9 @@ $mainText = Get-Content Electron\main.ts -Raw
 if (-not $mainText.Contains('await api.surfaceCatalog()') -or -not $mainText.Contains('await api.surfaceCatalogIndex()')) {
     Write-Error "Stage 7C Electron RTS verifier failed: Electron smoke does not call the preload CultMesh surface catalog APIs."
 }
+if (-not $mainText.Contains('await api.eveProviderAdvertisement()')) {
+    Write-Error "Stage 7C Electron RTS verifier failed: Electron smoke does not verify provider advertisement discovery through preload."
+}
 
 if (-not $mainText.Contains('await api.renderSplatsViewport') -or
     -not $mainText.Contains('eveFieldSurface') -or

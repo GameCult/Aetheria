@@ -84,7 +84,7 @@ app.whenReady().then(async () => {
     showStartup("Launching Aetheria Starbridge", "Waiting for the daemon CultMesh frame.");
     await aetheriaClient.waitForFrame(30000);
     await mainWindow.loadFile(rendererIndex, {
-      query: { surface: process.env.EVE_SURFACE_ID || "aetheria.daemon.game" },
+      query: { surface: process.env.EVE_SURFACE_ID || "aetheria.game" },
     });
     if (electronSmoke) {
       const result = await runElectronSmoke(mainWindow);
@@ -152,6 +152,7 @@ async function runElectronSmoke(window: BrowserWindow): Promise<Record<string, u
         const status = document.querySelector("#status")?.textContent ?? "";
         const bodyMode = document.body.className;
         const eveHostText = document.querySelector("#eve-surface-host")?.textContent ?? "";
+        const providerAdvertisement = api ? await api.eveProviderAdvertisement() : null;
         const eveSurface = api ? await api.eveSurface({ recordKey: "eve:surface:aetheria.daemon.game" }) : null;
         const health = api ? await api.daemonHealth() : null;
         const authority = api ? await api.authorityStatus() : null;
@@ -194,11 +195,13 @@ async function runElectronSmoke(window: BrowserWindow): Promise<Record<string, u
             typeof api.assetManifest === "function" &&
             typeof api.surfaceCatalog === "function" &&
             typeof api.surfaceCatalogIndex === "function" &&
+            typeof api.eveProviderAdvertisement === "function" &&
             typeof api.eveSurface === "function" &&
             typeof api.submitEveCommand === "function",
           status,
           bodyMode,
           eveHostText,
+          providerAdvertisement,
           eveSurface,
           health,
           authority,
@@ -228,6 +231,7 @@ function isElectronSmokeReady(result: Record<string, unknown>): boolean {
   const bodyMode = stringValue(result.bodyMode);
   const eveHostText = stringValue(result.eveHostText);
   const eveSurface = objectValue(result.eveSurface);
+  const providerAdvertisement = objectValue(result.providerAdvertisement);
   const health = objectValue(result.health);
   const authority = objectValue(result.authority);
   const starbridge = objectValue(result.starbridge);
@@ -243,6 +247,7 @@ function isElectronSmokeReady(result: Record<string, unknown>): boolean {
     bodyMode.includes("eve-game-mode") &&
     eveHostText.includes("Daemon Frame") &&
     eveHostText.includes("Typed Command Boundary") &&
+    arrayValue(providerAdvertisement?.surfaces).some(surface => objectValue(surface)?.surfaceId === "aetheria.game") &&
     objectValue(eveSurface?.surface)?.id === "aetheria.game" &&
     health?.status === "healthy" &&
     authority?.policyId === "aetheria.trusted-coop.v1" &&
