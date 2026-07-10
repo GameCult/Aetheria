@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using GameCult.Caching;
+using GameCult.Eve.PluginFields;
 using MessagePack;
 
 #nullable enable
@@ -52,7 +53,7 @@ namespace GameCult.Aetheria.State.Verse
 
     [CultDocument("gamecult.fields.splats", "gamecult.fields.splats.v1")]
     [MessagePackObject]
-    public sealed class AetheriaRuntimeRenderSplatsViewportDocument
+    public sealed class AetheriaRuntimeRenderSplatsViewportDocument : IEveFieldsSplatsDocument
     {
         [Key(0)]
         public string Schema { get; set; } = AetheriaRuntimeDaemonSchemas.RenderSplatsViewport;
@@ -84,10 +85,14 @@ namespace GameCult.Aetheria.State.Verse
 
         [Key(9)]
         public AetheriaRuntimeRenderSplatSoa Splats { get; set; } = new AetheriaRuntimeRenderSplatSoa();
+
+        IEveFieldsViewport IEveFieldsSplatsDocument.Viewport => Viewport;
+        IReadOnlyList<IEveFieldsSplatLayer> IEveFieldsSplatsDocument.Layers => Layers;
+        IEveFieldsSplatSoa IEveFieldsSplatsDocument.Splats => Splats;
     }
 
     [MessagePackObject]
-    public sealed class AetheriaRuntimeRenderSplatLayerDefinition
+    public sealed class AetheriaRuntimeRenderSplatLayerDefinition : IEveFieldsSplatLayer
     {
         [Key(0)]
         public string LayerKey { get; set; } = "";
@@ -121,7 +126,7 @@ namespace GameCult.Aetheria.State.Verse
     }
 
     [MessagePackObject]
-    public sealed class AetheriaRuntimeRenderSplatSoa
+    public sealed class AetheriaRuntimeRenderSplatSoa : IEveFieldsSplatSoa
     {
         [Key(0)]
         public int Count { get; set; }

@@ -3,6 +3,7 @@
     "rootNamespace": "GameCult.Aetheria.State.Unity",
     "references": [
         "GameCult.Eve.Surface",
+        "GameCult.Eve.PluginFields",
         "GameCult.Mesh",
         "CultMath",
         "MessagePack"

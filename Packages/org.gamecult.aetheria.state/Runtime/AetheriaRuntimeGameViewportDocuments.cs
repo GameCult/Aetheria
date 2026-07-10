@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using GameCult.Caching;
+using GameCult.Eve.PluginFields;
 using MessagePack;
 
 #nullable enable
@@ -1305,7 +1306,7 @@ namespace GameCult.Aetheria.State.Verse
     }
 
     [MessagePackObject]
-    public sealed class AetheriaRuntimeViewportBounds
+    public sealed class AetheriaRuntimeViewportBounds : IEveFieldsViewport
     {
         [Key(0)]
         public double MinX { get; set; }
