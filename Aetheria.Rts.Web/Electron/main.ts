@@ -7,9 +7,7 @@ import { fileURLToPath } from "node:url";
 import {
   AetheriaCultMeshClient,
 } from "./aetheria-cultmesh.js";
-import { AetheriaRtsIpcChannels } from "./aetheria-rts-generated-bindings.js";
-import { createEveElectronWindow, registerEveWindowControls } from "@gamecult/eve-electron";
-import { EveCultMeshProviderClient } from "@gamecult/eve-electron/provider-client";
+import { startEveElectronProviderHost } from "@gamecult/eve-electron/live-provider-host";
 import { CultMesh } from "cultmesh-ts";
 import { encode } from "@msgpack/msgpack";
 
@@ -36,20 +34,15 @@ const assetProtocol = "aetheria-cdn";
 let daemonProcess: ChildProcessWithoutNullStreams | null = null;
 let mainWindow: BrowserWindow | null = null;
 let aetheriaClient: AetheriaCultMeshClient | null = null;
-let eveProviderClient: EveCultMeshProviderClient | null = null;
+let eveHost: { close(): Promise<void>; window: BrowserWindow } | null = null;
 let isQuitting = false;
 
 app.whenReady().then(async () => {
   writeElectronSmokeResult({ ok: false, stage: "electron-ready" });
-  mainWindow = createWindow();
-  registerIpc();
-  registerAssetProtocol();
-  showStartup("Preparing Aetheria Starbridge", "Building daemon if needed.");
 
   try {
     if (launchLocalDaemon) {
       await ensureDotnetBuild();
-      showStartup("Launching Aetheria Starbridge", "Starting the Aetheria daemon.");
       mkdirSync(runtimeRoot, { recursive: true });
       daemonProcess = startDotnet("aetheria-daemon", daemonDll, [
         "--state",
@@ -71,7 +64,6 @@ app.whenReady().then(async () => {
         "--no-odin-announcements",
       ]);
     } else {
-      showStartup("Connecting Aetheria Starbridge", `Using daemon ${daemonCultMeshUri}.`);
       mkdirSync(runtimeRoot, { recursive: true });
     }
 
@@ -87,22 +79,28 @@ app.whenReady().then(async () => {
       "aetheria-electron-client",
       { publicationMode: launchLocalDaemon ? "local" : "remote" });
 
-    eveProviderClient = new EveCultMeshProviderClient({
-      providerId: "aetheria.daemon",
-      advertisementRecordRef: "eve:provider:aetheria.daemon",
-      peerId: daemonId,
-      verseId,
-      role: "aetheria-daemon",
-      endpoints: localDaemonRudpEndpoint ? [localDaemonRudpEndpoint] : [],
-    }, { CultMesh, encode }, { runtimeId: "eve-electron-aetheria" });
-    writeElectronSmokeResult({ ok: false, stage: "provider-clients-ready" });
-
-    showStartup("Launching Aetheria Starbridge", "Waiting for the daemon CultMesh frame.");
-    await aetheriaClient.waitForFrame(30000);
-    writeElectronSmokeResult({ ok: false, stage: "daemon-frame-ready" });
-    await mainWindow.loadFile(rendererIndex, {
-      query: { surface: process.env.EVE_SURFACE_ID || "aetheria.game" },
+    registerAssetProtocol();
+    eveHost = await startEveElectronProviderHost({
+      electron: { app, BrowserWindow, ipcMain, shell },
+      dependencies: { CultMesh, encode },
+      providerTarget: {
+        providerId: "aetheria.daemon",
+        advertisementRecordRef: "eve:provider:aetheria.daemon",
+        peerId: daemonId,
+        verseId,
+        role: "aetheria-daemon",
+        endpoints: localDaemonRudpEndpoint ? [localDaemonRudpEndpoint] : [],
+      },
+      renderer: rendererIndex,
+      runtimeId: "eve-electron-aetheria",
+      surfaceId: process.env.EVE_SURFACE_ID || "aetheria.game",
+      window: {
+        show: !electronSmoke,
+        backgroundColor: "#0b1016",
+        title: "Aetheria Starbridge",
+      },
     });
+    mainWindow = eveHost.window;
     writeElectronSmokeResult({ ok: false, stage: "renderer-loaded" });
     if (electronSmoke) {
       await withTimeout(mainWindow.webContents.executeJavaScript("window.eveProvider.providerAdvertisement()"), 10000, "provider advertisement smoke");
@@ -120,7 +118,6 @@ app.whenReady().then(async () => {
       exitElectronSmoke(0);
     }
   } catch (error) {
-    await showFailure(error);
     if (electronSmoke) {
       writeElectronSmokeResult({
         ok: false,
@@ -128,29 +125,17 @@ app.whenReady().then(async () => {
       });
       console.error(error instanceof Error ? error.stack ?? error.message : String(error));
       exitElectronSmoke(1);
+    } else {
+      console.error(error instanceof Error ? error.stack ?? error.message : String(error));
     }
   }
-});
-
-app.on("window-all-closed", () => {
-  app.quit();
 });
 
 app.on("before-quit", () => {
   isQuitting = true;
   void aetheriaClient?.close();
-  void eveProviderClient?.close();
   stopChild(daemonProcess);
 });
-
-function createWindow(): BrowserWindow {
-  return createEveElectronWindow({
-    show: !electronSmoke,
-    backgroundColor: "#0b1016",
-    title: "Aetheria Starbridge",
-    preload: resolve(projectRoot, "node_modules", "@gamecult", "eve-electron", "src", "eve-provider-preload-entry.cjs"),
-  }, { BrowserWindow, shell });
-}
 
 async function runElectronSmoke(window: BrowserWindow): Promise<Record<string, unknown>> {
   const started = Date.now();
@@ -233,7 +218,6 @@ function isElectronSmokeReady(result: Record<string, unknown>): boolean {
   const renderSplatsResolved = objectValue(result.renderSplatsResolved);
   const gravityResolved = objectValue(result.gravityResolved);
   const objectsResolved = objectValue(result.objectsResolved);
-  const renderSplatsViewport = objectValue(result.renderSplatsViewport);
   const eveFieldSurface = objectValue(result.eveFieldSurface);
   const eveReceipt = objectValue(result.eveReceipt);
   return result.hasApi === true &&
@@ -268,10 +252,6 @@ function stringValue(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
 
-function numberValue(value: unknown): number {
-  return typeof value === "number" && Number.isFinite(value) ? value : 0;
-}
-
 function objectValue(value: unknown): Record<string, unknown> | null {
   return value != null && typeof value === "object" ? value as Record<string, unknown> : null;
 }
@@ -291,52 +271,13 @@ function exitElectronSmoke(exitCode: number): void {
   isQuitting = true;
   void aetheriaClient?.close();
   aetheriaClient = null;
-  void eveProviderClient?.close();
-  eveProviderClient = null;
+  void eveHost?.close();
+  eveHost = null;
   stopChild(daemonProcess);
   daemonProcess = null;
   mainWindow?.destroy();
   mainWindow = null;
   app.exit(exitCode);
-}
-
-function registerIpc(): void {
-  ipcMain.handle(AetheriaRtsIpcChannels.eveProviderAdvertisement, () => requireEveProviderClient().providerAdvertisement());
-  ipcMain.handle(AetheriaRtsIpcChannels.eveSurface, (_event, request: { surfaceId?: string }) =>
-    requireEveProviderClient().surface(request?.surfaceId));
-  ipcMain.handle(AetheriaRtsIpcChannels.submitEveCommand, async (_event, request: Record<string, unknown>) => {
-    const submission = await requireEveProviderClient().submitCommand(request);
-    const receipt = await waitForEveReceipt(submission, 5000);
-    return { ...submission, ...receipt, commandId: submission.commandId, accepted: receiptStateAccepted(receipt) };
-  });
-  ipcMain.handle(AetheriaRtsIpcChannels.eveDocument, (_event, request) =>
-    requireEveProviderClient().resolveDocument(request));
-  registerEveWindowControls(ipcMain, BrowserWindow, "eve-electron:window-control");
-}
-
-function requireEveProviderClient(): EveCultMeshProviderClient {
-  if (!eveProviderClient)
-    throw new Error("Eve CultMesh provider client is not initialized.");
-  return eveProviderClient;
-}
-
-async function waitForEveReceipt(submission: Record<string, unknown>, timeoutMs: number): Promise<Record<string, unknown>> {
-  const started = Date.now();
-  let lastError: unknown;
-  while (Date.now() - started < timeoutMs) {
-    try {
-      return objectValue(await requireEveProviderClient().receipt(submission)) ?? {};
-    } catch (error) {
-      lastError = error;
-      await delay(50);
-    }
-  }
-  throw lastError ?? new Error(`Timed out waiting for Eve receipt ${String(submission.commandId ?? "")}.`);
-}
-
-function receiptStateAccepted(receipt: Record<string, unknown>): boolean {
-  const state = stringValue(receipt.state ?? receipt[4]).toLowerCase();
-  return state === "accepted" || state === "reconciled";
 }
 
 function withTimeout<T>(work: Promise<T>, timeoutMs: number, label: string): Promise<T> {
@@ -470,10 +411,6 @@ function stopChild(child: ChildProcessWithoutNullStreams | null): void {
 
 function delay(milliseconds: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, milliseconds));
-}
-
-function showStartup(title: string, detail: string): void {
-  void mainWindow?.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(startupHtml(title, detail))}`);
 }
 
 async function showFailure(error: unknown): Promise<void> {

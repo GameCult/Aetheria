@@ -37,8 +37,14 @@ if ($appText.Contains('aetheria.rts.electron') -or
 }
 
 $mainText = Get-Content Electron\main.ts -Raw
-if (-not $mainText.Contains('eve-provider-preload-entry.cjs') -or (Test-Path Electron\preload.cjs)) {
+if (-not $mainText.Contains('startEveElectronProviderHost') -or (Test-Path Electron\preload.cjs)) {
     Write-Error "Stage 7C Electron RTS verifier failed: Electron does not consume the EveElectron-owned preload entry."
+}
+$hostRuntimeText = Get-Content node_modules\@gamecult\eve-electron\src\live-provider-host.mjs -Raw
+if (-not $hostRuntimeText.Contains('eve-provider-preload-entry.cjs') -or
+    -not $hostRuntimeText.Contains('registerEveProviderIpc') -or
+    -not $hostRuntimeText.Contains('createEveElectronWindow')) {
+    Write-Error "Stage 7C Electron RTS verifier failed: EveElectron does not own the live provider host lifecycle."
 }
 if (-not $mainText.Contains('await eveProvider.providerAdvertisement()')) {
     Write-Error "Stage 7C Electron RTS verifier failed: Electron smoke does not verify provider advertisement discovery through preload."
