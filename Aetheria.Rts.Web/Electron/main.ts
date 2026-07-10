@@ -152,6 +152,9 @@ async function runElectronSmoke(window: BrowserWindow): Promise<Record<string, u
         const status = document.querySelector("#status")?.textContent ?? "";
         const bodyMode = document.body.className;
         const eveHostText = document.querySelector("#eve-surface-host")?.textContent ?? "";
+        const worldScene = document.querySelector(".cultui-world-scene");
+        const worldEntityCount = worldScene?.querySelectorAll(".cultui-world-entity").length ?? 0;
+        const controlledWorldEntityCount = worldScene?.querySelectorAll('.cultui-world-entity[data-controlled="true"]').length ?? 0;
         const providerAdvertisement = api ? await api.eveProviderAdvertisement() : null;
         const eveSurface = api ? await api.eveSurface({ recordKey: "eve:surface:aetheria.daemon.game" }) : null;
         const health = api ? await api.daemonHealth() : null;
@@ -201,6 +204,9 @@ async function runElectronSmoke(window: BrowserWindow): Promise<Record<string, u
           status,
           bodyMode,
           eveHostText,
+          worldSceneReady: !!worldScene,
+          worldEntityCount,
+          controlledWorldEntityCount,
           providerAdvertisement,
           eveSurface,
           health,
@@ -245,6 +251,9 @@ function isElectronSmokeReady(result: Record<string, unknown>): boolean {
   return result.hasApi === true &&
     status.includes("Aetheria Daemon") &&
     bodyMode.includes("eve-game-mode") &&
+    result.worldSceneReady === true &&
+    Number(result.worldEntityCount) > 0 &&
+    Number(result.controlledWorldEntityCount) === 1 &&
     eveHostText.includes("Daemon Frame") &&
     eveHostText.includes("Typed Command Boundary") &&
     arrayValue(providerAdvertisement?.surfaces).some(surface => objectValue(surface)?.surfaceId === "aetheria.game") &&
