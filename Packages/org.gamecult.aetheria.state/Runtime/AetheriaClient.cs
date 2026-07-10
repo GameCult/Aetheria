@@ -52,6 +52,30 @@ namespace GameCult.Aetheria.State.Verse
             return new AetheriaClient(verse, runtimeId, sessionId);
         }
 
+        public static async Task<AetheriaClient> OpenRemoteAsync(
+            string replicaStatePath,
+            string endpoint,
+            string runtimeId = AetheriaRuntimeVerseClient.DefaultRuntimeId,
+            string sessionId = "remote",
+            bool synchronizeOnOpen = true)
+        {
+            var verse = await AetheriaRuntimeVerseClient
+                .OpenRemoteAsync(
+                    replicaStatePath,
+                    endpoint,
+                    runtimeId,
+                    pullOnOpen: false,
+                    synchronizeOnOpen: synchronizeOnOpen)
+                .ConfigureAwait(false);
+            return new AetheriaClient(verse, runtimeId, sessionId);
+        }
+
+        public Task<int> RefreshRemoteAsync()
+        {
+            ThrowIfDisposed();
+            return _verse.RefreshRemoteAsync();
+        }
+
         public static Task<AetheriaClient> OpenLocalAsync(
             DirectoryInfo gameDataDirectory,
             string runtimeId,

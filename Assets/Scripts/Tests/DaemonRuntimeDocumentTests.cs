@@ -437,6 +437,13 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual("cultnet://127.0.0.1:39751", verse.RemoteEndpoint);
         Assert.IsFalse(shard.IsPrimary);
         CollectionAssert.Contains(shard.PrimaryEndpoints, verse.RemoteEndpoint);
+
+        using var bridge = new AetheriaEveUnitySceneProviderBridge(
+            statePath,
+            AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId,
+            "unity-remote-test",
+            verse.RemoteEndpoint);
+        Assert.AreEqual("aetheria-remote-cultmesh-replica", bridge.TransportKind);
     }
 
     [Test]
@@ -2952,7 +2959,7 @@ public class DaemonRuntimeDocumentTests
 
             var presentation = runtime.Connect();
 
-            Assert.AreEqual("aetheria-cultmesh-cultcache-transport", liveBridge.TransportKind);
+            Assert.AreEqual("aetheria-local-cultmesh-replica", liveBridge.TransportKind);
             Assert.AreEqual(AetheriaRuntimeVerseRecordKeys.DaemonGameSurface.ToString(), liveBridge.SurfacePointer);
             Assert.AreEqual(AetheriaRuntimeVerseRecordKeys.DaemonAssetManifest.ToString(), liveBridge.AssetManifestPointer);
             Assert.AreEqual("interactive-world", liveBridge.CurrentSurfaceDocument.AdvertisedSurface.SurfaceKind);

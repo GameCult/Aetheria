@@ -18,6 +18,7 @@ namespace GameCult.Aetheria.EveRuntime
         IDisposable
     {
         [SerializeField] private string stateFilePathOverride = "";
+        [SerializeField] private string cultMeshEndpoint = "";
         [SerializeField] private string surfaceId = AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId;
         [SerializeField] private string runtimeId = "unity-scene";
         [SerializeField] private bool refreshOnEnable = true;
@@ -84,7 +85,8 @@ namespace GameCult.Aetheria.EveRuntime
         public void Configure(
             string stateFilePath,
             string surfaceId = AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId,
-            string runtimeId = "unity-scene")
+            string runtimeId = "unity-scene",
+            string endpoint = "")
         {
             Dispose();
             stateFilePathOverride = stateFilePath ?? "";
@@ -94,6 +96,7 @@ namespace GameCult.Aetheria.EveRuntime
             this.runtimeId = string.IsNullOrWhiteSpace(runtimeId)
                 ? "unity-scene"
                 : runtimeId;
+            cultMeshEndpoint = endpoint ?? "";
         }
 
         public override void Connect()
@@ -136,7 +139,8 @@ namespace GameCult.Aetheria.EveRuntime
                     _bridge = new AetheriaEveUnitySceneProviderBridge(
                         stateFilePathOverride,
                         surfaceId,
-                        runtimeId);
+                        runtimeId,
+                        cultMeshEndpoint);
                 }
 
                 return _bridge;

@@ -24,20 +24,24 @@ namespace GameCult.Aetheria.EveRuntime
         private readonly string _stateFilePathOverride;
         private readonly string _surfaceId;
         private readonly string _runtimeId;
+        private readonly string _cultMeshEndpoint;
         private AetheriaRuntimeStateBootReport? _stateBoot;
         private AetheriaClientState? _runtimeState;
+        private AetheriaClient? _remoteClient;
         private event Action<EveUnityPlayableWorldAssetManifestDocument>? AssetManifestDocumentAvailable;
 
         public AetheriaEveUnitySceneProviderBridge(
             string stateFilePathOverride = "",
             string surfaceId = AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId,
-            string runtimeId = "unity-scene")
+            string runtimeId = "unity-scene",
+            string cultMeshEndpoint = "")
         {
             _stateFilePathOverride = stateFilePathOverride ?? "";
             _surfaceId = string.IsNullOrWhiteSpace(surfaceId)
                 ? AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId
                 : surfaceId;
             _runtimeId = string.IsNullOrWhiteSpace(runtimeId) ? "unity-scene" : runtimeId;
+            _cultMeshEndpoint = cultMeshEndpoint?.Trim() ?? "";
             CurrentDocument = CreateSurfaceDocument(AetheriaRuntimeSurfaceDocuments.EmptySurface(_surfaceId), 0);
             CurrentDocumentManifest = new EveUnityPlayableWorldAssetManifestDocument(
                 AetheriaRuntimeVerseRecordKeys.DaemonAssetManifest.ToString(),
@@ -45,7 +49,9 @@ namespace GameCult.Aetheria.EveRuntime
                 "aetheria.daemon");
         }
 
-        public string TransportKind => "aetheria-local-cultmesh-replica";
+        public string TransportKind => IsRemote
+            ? "aetheria-remote-cultmesh-replica"
+            : "aetheria-local-cultmesh-replica";
 
         public string SurfacePointer => CurrentDocument.SourcePointer;
 
@@ -107,11 +113,25 @@ namespace GameCult.Aetheria.EveRuntime
 
         public void Refresh()
         {
+            if (IsRemote)
+            {
+                var remote = ResolveRemoteClient();
+                remote.RefreshRemoteAsync().GetAwaiter().GetResult();
+                RefreshFromRuntimeState(remote.State, null);
+                return;
+            }
+
             var stateBoot = ResolveStateBoot();
             if (!stateBoot.SupportsLocalStateFileRead || !stateBoot.StateFileExists)
                 return;
 
-            var runtimeState = ResolveRuntimeState(stateBoot);
+            RefreshFromRuntimeState(ResolveRuntimeState(stateBoot), stateBoot);
+        }
+
+        private void RefreshFromRuntimeState(
+            AetheriaClientState runtimeState,
+            AetheriaRuntimeStateBootReport? stateBoot)
+        {
             var surface = ReadSurface(runtimeState, stateBoot);
             if (surface != null)
             {
@@ -130,6 +150,17 @@ namespace GameCult.Aetheria.EveRuntime
         {
             if (request == null) throw new ArgumentNullException(nameof(request));
             var clientId = string.IsNullOrWhiteSpace(request.ClientId) ? _runtimeId : request.ClientId;
+            if (IsRemote)
+            {
+                var remote = ResolveRemoteClient();
+                if (!remote.Control.TrySubmitSurfaceCommand(request, out var submitted))
+                    throw new InvalidOperationException($"Aetheria daemon did not advertise command {request.Operation?.OperationId ?? "unknown"}.");
+
+                Debug.Log(
+                    $"Forwarded Aetheria operation to remote CultMesh authority: {submitted!.Kind} {submitted.CommandId}");
+                return;
+            }
+
             var stateBoot = ResolveStateBoot();
             var control = AetheriaEveRuntimeUnityHooks.RequireControl(stateBoot, clientId);
             if (control.TrySubmitSurfaceCommand(request, out var daemonEnvelope))
@@ -156,6 +187,30 @@ namespace GameCult.Aetheria.EveRuntime
 
         public void Dispose()
         {
+            _remoteClient?.Dispose();
+            _remoteClient = null;
+        }
+
+        private bool IsRemote => !string.IsNullOrWhiteSpace(_cultMeshEndpoint);
+
+        private AetheriaClient ResolveRemoteClient()
+        {
+            if (_remoteClient != null)
+                return _remoteClient;
+
+            var replicaPath = string.IsNullOrWhiteSpace(_stateFilePathOverride)
+                ? System.IO.Path.Combine(Application.persistentDataPath, "aetheria-remote-replica.cc")
+                : _stateFilePathOverride;
+            _remoteClient = AetheriaClient
+                .OpenRemoteAsync(
+                    replicaPath,
+                    _cultMeshEndpoint,
+                    _runtimeId,
+                    sessionId: "eve-unity",
+                    synchronizeOnOpen: false)
+                .GetAwaiter()
+                .GetResult();
+            return _remoteClient;
         }
 
         private AetheriaRuntimeStateBootReport ResolveStateBoot()
@@ -174,7 +229,7 @@ namespace GameCult.Aetheria.EveRuntime
 
         private EveSurfaceDocument? ReadSurface(
             AetheriaClientState runtimeState,
-            AetheriaRuntimeStateBootReport stateBoot)
+            AetheriaRuntimeStateBootReport? stateBoot)
         {
             try
             {
@@ -182,7 +237,9 @@ namespace GameCult.Aetheria.EveRuntime
                 if (handle == null)
                     return null;
 
-                var resolver = AetheriaEveRuntimeUnityHooks.TryCreateStateRefResolver(stateBoot, _runtimeId);
+                var resolver = stateBoot == null
+                    ? null
+                    : AetheriaEveRuntimeUnityHooks.TryCreateStateRefResolver(stateBoot.Value, _runtimeId);
                 return AetheriaRuntimeSurfaceDocuments.ToEveSurfaceDocument(handle.Latest(), resolver);
             }
             catch (KeyNotFoundException)
