@@ -45,7 +45,7 @@ namespace GameCult.Aetheria.EveRuntime
                 "aetheria.daemon");
         }
 
-        public string TransportKind => "aetheria-cultmesh-cultcache-transport";
+        public string TransportKind => "aetheria-local-cultmesh-replica";
 
         public string SurfacePointer => CurrentDocument.SourcePointer;
 

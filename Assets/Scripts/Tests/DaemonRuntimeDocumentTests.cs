@@ -415,6 +415,31 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
+    public void AetheriaRuntimeVerseClientRemoteModeCreatesNonAuthoritativeReplicaShard()
+    {
+        var statePath = Path.Combine(
+            Path.GetTempPath(),
+            "aetheria-remote-verse-client-tests",
+            Path.GetRandomFileName(),
+            "replica.cc");
+
+        using var verse = AetheriaRuntimeVerseClient
+            .OpenRemoteAsync(
+                statePath,
+                "cultnet://127.0.0.1:39751",
+                "unity-remote-test",
+                synchronizeOnOpen: false)
+            .GetAwaiter()
+            .GetResult();
+
+        var shard = verse.Database.Shards.Single();
+        Assert.IsTrue(verse.IsRemoteReplica);
+        Assert.AreEqual("cultnet://127.0.0.1:39751", verse.RemoteEndpoint);
+        Assert.IsFalse(shard.IsPrimary);
+        CollectionAssert.Contains(shard.PrimaryEndpoints, verse.RemoteEndpoint);
+    }
+
+    [Test]
     public void TickRunnerAppliesObservedCommandsAndPublishesFrame()
     {
         var statePath = Path.Combine(

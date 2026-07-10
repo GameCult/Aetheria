@@ -169,6 +169,7 @@ namespace GameCult.Aetheria.State.Verse
     public sealed class AetheriaRuntimeVerseClient : IDisposable
     {
         public const string DefaultRuntimeId = "aetheria-verse-client";
+        private const string RemoteShardId = "primary";
 
         private readonly CultMeshNode _node;
         private AetheriaClientState? _aetheriaState;
@@ -196,6 +197,10 @@ namespace GameCult.Aetheria.State.Verse
         public CultCache Cache => _node.Cache;
 
         public CultNetDatabase Database => _node.Database;
+
+        public string RemoteEndpoint { get; private set; } = "";
+
+        public bool IsRemoteReplica => !string.IsNullOrWhiteSpace(RemoteEndpoint);
 
         public static async Task<AetheriaRuntimeVerseClient> OpenAsync(
             string statePath,
@@ -231,6 +236,88 @@ namespace GameCult.Aetheria.State.Verse
                 .ConfigureAwait(false);
 
             return new AetheriaRuntimeVerseClient(fullPath, effectiveRuntimeId, node);
+        }
+
+        public static async Task<AetheriaRuntimeVerseClient> OpenRemoteAsync(
+            string replicaStatePath,
+            string endpoint,
+            string runtimeId = DefaultRuntimeId,
+            bool pullOnOpen = false,
+            bool synchronizeOnOpen = true)
+        {
+            if (string.IsNullOrWhiteSpace(endpoint))
+                throw new ArgumentException("CultMesh endpoint must be non-empty.", nameof(endpoint));
+
+            var fullPath = Path.GetFullPath(replicaStatePath ?? throw new ArgumentNullException(nameof(replicaStatePath)));
+            var effectiveRuntimeId = string.IsNullOrWhiteSpace(runtimeId) ? DefaultRuntimeId : runtimeId;
+            var registry = AetheriaRuntimeVerseContractRegistry.CreateCultCacheRegistry();
+            var shard = new CultNetShardDescriptor(
+                RemoteShardId,
+                "aetheria-daemon",
+                epoch: 1,
+                isPrimary: false,
+                primaryEndpoints: new[] { endpoint.Trim() });
+            var node = await CultMesh.CreateNodeAsync(
+                    fullPath,
+                    new CultMeshNodeOptions
+                    {
+                        StartServer = false,
+                        EnableDurableShardLogs = true,
+                        CacheOptions = new CultCacheOpenOptions
+                        {
+                            Registry = registry,
+                            PullOnOpen = pullOnOpen,
+                            StoreFlushOnDispose = true,
+                            UseDirectoryStore = true
+                        },
+                        DatabaseOptions = new CultNetDatabaseOptions
+                        {
+                            RuntimeId = effectiveRuntimeId,
+                            Shards = new[] { shard },
+                            DocumentRegistry = AetheriaRuntimeVerseContractRegistry.CreateCultNetRegistry(registry)
+                        }
+                    })
+                .ConfigureAwait(false);
+
+            var client = new AetheriaRuntimeVerseClient(fullPath, effectiveRuntimeId, node)
+            {
+                RemoteEndpoint = endpoint.Trim()
+            };
+            if (synchronizeOnOpen)
+                await client.RefreshRemoteAsync().ConfigureAwait(false);
+            return client;
+        }
+
+        public async Task<int> RefreshRemoteAsync(
+            IReadOnlyList<string>? recordKeys = null,
+            TimeSpan? connectTimeout = null,
+            TimeSpan? responseTimeout = null)
+        {
+            ThrowIfDisposed();
+            if (!IsRemoteReplica)
+                throw new InvalidOperationException("Remote refresh requires a client opened with OpenRemoteAsync.");
+
+            var snapshot = CultMesh.SnapshotEndpoint(
+                RemoteEndpoint,
+                new CultMeshSnapshotEndpointOptions
+                {
+                    Context = CultMesh.Verse("aetheria.remote", RuntimeId).Context,
+                    DocumentRegistry = AetheriaRuntimeVerseContractRegistry.CreateCultNetRegistry(),
+                    Request = new CultMeshSnapshotRequestOptions
+                    {
+                        RecordKeys = recordKeys,
+                        ShardId = RemoteShardId,
+                        ShardEpoch = 1,
+                        ConnectTimeout = connectTimeout ?? TimeSpan.FromSeconds(5),
+                        ResponseTimeout = responseTimeout ?? TimeSpan.FromSeconds(10),
+                        MessageIdPrefix = "aetheria-unity",
+                        RudpRuntimeId = RuntimeId,
+                        RudpMaxFragmentBytes = 1200
+                    }
+                });
+            var result = await snapshot.SyncSnapshotAsync(_node).ConfigureAwait(false);
+            await _node.FlushAsync().ConfigureAwait(false);
+            return result.AppliedCount;
         }
 
         public AetheriaClientState Aetheria()

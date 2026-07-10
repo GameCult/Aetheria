@@ -3,6 +3,14 @@
 This package mounts provider-owned Eve surfaces from Aetheria's typed
 CultCache state into Unity UI Toolkit.
 
+`AetheriaEveUnitySceneProviderBridge` is the local-replica adapter. It reads a
+provider-owned `.cc` replica in the Unity process; it is not evidence of a
+network connection to the daemon. Remote clients open
+`AetheriaRuntimeVerseClient.OpenRemoteAsync`, synchronize published documents
+through CultMesh, and forward writes to the daemon's primary shard. The generic
+EveUnity PlayMode client must compose that remote path before this package can
+claim live daemon playability.
+
 `AetheriaEveSurfacePresenter` is a typed surface document lowerer:
 
 - it resolves the active client target from `GameData/aetheria-client.cc`;

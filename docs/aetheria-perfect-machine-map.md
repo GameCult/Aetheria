@@ -1485,6 +1485,12 @@ First Aetheria surfaces to publish:
    - Keep any transport bridge only if it delegates to CultMesh and protects a
      named external compatibility contract.
    - Publish Verse descriptors and state subscriptions through CultMesh.
+   - In progress: the Unity state client can now open an explicit remote
+     replica with `AetheriaRuntimeVerseClient.OpenRemoteAsync`. Snapshot reads
+     arrive through CultMesh and non-primary writes route to the daemon shard;
+     the local `.cc` scene adapter is no longer described as a live daemon
+     transport. The remaining proof is a separately running daemon, observed
+     receipts, and PlayMode reconciliation in an EveUnity-owned client.
 
 6. Eve UI
    - Done: publish the typed catalog operator surface from `Aetheria.State`.
