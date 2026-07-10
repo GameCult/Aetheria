@@ -43,6 +43,13 @@ public sealed class AetheriaRuntimeDaemonOperationsClient
             return submit(client, frame);
         });
         var accepted = operations.TrySubmitSurfaceCommand(request, out _);
+        var actorEntityKey = ReadPayloadString(request, "entityId", "");
+        if (translated != null && !string.IsNullOrWhiteSpace(actorEntityKey))
+            translated.ActorEntityKey = actorEntityKey;
+        if (string.Equals(Environment.GetEnvironmentVariable("AETHERIA_TRACE_EVE_SNAPSHOTS"), "1", StringComparison.Ordinal))
+            Console.WriteLine(
+                $"Eve command translated command={request.Command} actor={translated?.ActorEntityKey ?? "missing"} " +
+                $"direction={translated?.DirectionX},{translated?.DirectionY} scalar={translated?.ScalarValue}");
         command = translated;
         return accepted && command != null;
     }

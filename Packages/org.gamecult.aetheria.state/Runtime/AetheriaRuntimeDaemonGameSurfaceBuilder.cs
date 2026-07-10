@@ -563,16 +563,37 @@ namespace GameCult.Aetheria.State.Verse
             if (AetheriaRuntimeRunCheckpointCommit.TryParseEntityKey(
                     currentEntityKey ?? "",
                     out var zoneIndex,
-                    out var entityIndex))
+                    out var entityIndex) &&
+                IsPlayerEntity(zone, entityIndex))
             {
                 return run.EntityRecordKey(zoneIndex, entityIndex);
             }
 
             var parsedEntityIndex = TryParseEntityIndex(currentEntityKey ?? "");
-            if (parsedEntityIndex >= 0)
+            if (parsedEntityIndex >= 0 && IsPlayerEntity(zone, parsedEntityIndex))
                 return run.EntityRecordKey(zone?.ZoneIndex ?? run.CurrentZoneIndex, parsedEntityIndex);
 
-            return currentEntityKey ?? "";
+            var player = (zone?.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
+                .FirstOrDefault(IsControllablePlayerEntity);
+            return player == null
+                ? currentEntityKey ?? ""
+                : run.EntityRecordKey(zone?.ZoneIndex ?? run.CurrentZoneIndex, player.EntityIndex);
+        }
+
+        private static bool IsPlayerEntity(AetheriaRuntimeZoneSnapshotCommit zone, int entityIndex)
+        {
+            return (zone?.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
+                .Any(entity => entity != null &&
+                    entity.EntityIndex == entityIndex &&
+                    IsControllablePlayerEntity(entity));
+        }
+
+        private static bool IsControllablePlayerEntity(AetheriaRuntimeEntitySnapshotCommit entity)
+        {
+            return entity != null &&
+                entity.IsActive &&
+                !string.Equals(entity.Kind, "station", StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(entity.FactionKey, "player", StringComparison.OrdinalIgnoreCase);
         }
 
         private static string ViewportDocumentId(string prefix, AetheriaRuntimeViewportBounds viewport)

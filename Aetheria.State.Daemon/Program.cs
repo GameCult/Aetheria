@@ -128,7 +128,7 @@ static async Task<AetheriaRuntimeDaemonTickResult> TickAsync(
     var sessionId = string.IsNullOrWhiteSpace(currentFrame?.SessionId)
         ? options.SessionId
         : currentFrame.SessionId;
-    var run = HasPlayableRun(currentFrame?.Run) && HasStarbridgeScenario(currentFrame?.Run)
+    var run = HasPlayableRun(currentFrame?.Run)
         ? currentFrame!.Run
         : await ReadRuntimeRunCheckpointAsync(node, options.RenderSettings).ConfigureAwait(false) ?? new AetheriaRuntimeRunCheckpointCommit();
     ApplyDaemonRenderSettings(run, options.RenderSettings);
@@ -187,6 +187,18 @@ static async Task<AetheriaRuntimeDaemonTickResult> TickAsync(
                 LoadoutTemplates = loadoutTemplates
             }
         });
+    if (string.Equals(Environment.GetEnvironmentVariable("AETHERIA_TRACE_EVE_SNAPSHOTS"), "1", StringComparison.Ordinal) &&
+        result.Frame.AppliedCommandIds.Count > 0)
+    {
+        foreach (var entity in (result.Frame.Run?.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>())
+                     .SelectMany(zone => zone.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
+                     .Where(entity => string.Equals(entity.FactionKey, "player", StringComparison.OrdinalIgnoreCase)))
+        {
+            Console.WriteLine(
+                $"Eve command result entity={entity.EntityIndex} position={entity.PositionX},{entity.PositionZ} " +
+                $"velocity={entity.VelocityX},{entity.VelocityY}");
+        }
+    }
     if (options.UseAbstractCombatKernel)
     {
         AetheriaDaemonCombatKernel.Step(
@@ -901,10 +913,18 @@ static async Task InjectEveSurfaceSnapshotAsync(
     string surfaceKind)
 {
     const string EveSurfaceSchema = "gamecult.eve.surface.v1";
+    var trace = string.Equals(Environment.GetEnvironmentVariable("AETHERIA_TRACE_EVE_SNAPSHOTS"), "1", StringComparison.Ordinal);
     if (!SnapshotWants(request, EveSurfaceSchema, recordKey))
         return;
 
     var surfaceState = await ReadEveSurfacePublicationAsync(node, surfaceKind).ConfigureAwait(false);
+    if (trace)
+    {
+        Console.WriteLine(
+            $"Eve snapshot request kind={surfaceKind} schemas=[{string.Join(",", request.SchemaIds ?? Array.Empty<string>())}] " +
+            $"records=[{string.Join(",", request.RecordKeys ?? Array.Empty<string>())}] surface={(surfaceState == null ? "missing" : surfaceState.Surface.Id)} " +
+            $"playerPosition={(surfaceState == null ? "missing" : FindControllablePosition(surfaceState.Surface.Root))}");
+    }
     if (surfaceState == null)
         return;
 
@@ -921,6 +941,22 @@ static async Task InjectEveSurfaceSnapshotAsync(
         .Where(document => !string.Equals(document.RecordKey, surfacePut.Document.RecordKey, StringComparison.Ordinal))
         .Concat(new[] { surfacePut.Document })
         .ToArray();
+    if (trace)
+        Console.WriteLine($"Eve snapshot response schema={surfacePut.Document.SchemaId} record={surfacePut.Document.RecordKey}");
+}
+
+static string FindControllablePosition(EveSurfaceComponent component)
+{
+    if (component.Props.TryGetValue("controllable", out var controllable) &&
+        string.Equals(controllable, "true", StringComparison.OrdinalIgnoreCase))
+        return component.GetProp("position", "missing");
+    foreach (var child in component.Children)
+    {
+        var position = FindControllablePosition(child);
+        if (!string.Equals(position, "missing", StringComparison.Ordinal))
+            return position;
+    }
+    return "missing";
 }
 
 static Task<EveSurfaceDocument?> ReadEveSurfacePublicationAsync(AetheriaStateNode node, string surfaceKind)
