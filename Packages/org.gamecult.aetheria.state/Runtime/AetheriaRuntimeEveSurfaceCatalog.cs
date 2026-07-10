@@ -48,6 +48,29 @@ namespace GameCult.Aetheria.State.Verse
 
         [Key(12)]
         public AetheriaRuntimeEveWorldInteractionAdvertisement? WorldInteraction { get; set; }
+
+        [Key(13)]
+        public IReadOnlyList<AetheriaRuntimeEvePluginRequirement> RequiresPlugins { get; set; } =
+            Array.Empty<AetheriaRuntimeEvePluginRequirement>();
+    }
+
+    [MessagePackObject]
+    public sealed class AetheriaRuntimeEvePluginRequirement
+    {
+        [Key(0)]
+        public string PluginId { get; set; } = "";
+
+        [Key(1)]
+        public string VersionRange { get; set; } = "";
+
+        [Key(2)]
+        public string Availability { get; set; } = "required";
+
+        [Key(3)]
+        public IReadOnlyList<string> RequiredCapabilities { get; set; } = Array.Empty<string>();
+
+        [Key(4)]
+        public IReadOnlyList<string> OptionalCapabilities { get; set; } = Array.Empty<string>();
     }
 
     [MessagePackObject]
@@ -87,11 +110,11 @@ namespace GameCult.Aetheria.State.Verse
                 AetheriaRuntimePlayerSettingsCommands.IncrementSignificantDigits,
                 AetheriaRuntimePlayerSettingsCommands.CycleNebulaQuality,
                 AetheriaRuntimePlayerSettingsCommands.ToggleShowAsteroidsInMinimap),
-            Surface(AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId, "Aetheria Daemon", AetheriaRuntimeVerseRecordKeys.DaemonGameSurface.ToString(), "player", "Authoritative daemon game surface.", providerId: "aetheria.daemon", providerKind: "game.daemon", transport: "cultmesh-record", surfaceKind: "interactive-world", worldInteraction: WorldInteraction("provider-authored-world-surface")),
+            Surface(AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId, "Aetheria Daemon", AetheriaRuntimeVerseRecordKeys.DaemonGameSurface.ToString(), "player", "Authoritative daemon game surface.", providerId: "aetheria.daemon", providerKind: "game.daemon", transport: "cultmesh-record", surfaceKind: "interactive-world", worldInteraction: WorldInteraction("provider-authored-world-surface"), requiresPlugins: FieldPluginRequirements()),
             Surface(AetheriaRuntimeDaemonGameSurfaceBuilder.TuiSurfaceId, "Aetheria Daemon TUI", AetheriaRuntimeVerseRecordKeys.DaemonGameTuiSurface.ToString(), "agent", "Compact daemon game surface for dense inspection.", providerId: "aetheria.daemon", providerKind: "game.daemon", transport: "cultmesh-record", surfaceKind: "interactive-world", worldInteraction: WorldInteraction("provider-authored-world-surface")),
             Surface(AetheriaRuntimeDaemonEditorSurfaceBuilder.SurfaceId, "Aetheria Daemon Editor", AetheriaRuntimeVerseRecordKeys.DaemonEditorSurface.ToString(), "operator", "Daemon editor and surface inventory.", providerId: "aetheria.daemon", providerKind: "editor.daemon", transport: "cultmesh-record", surfaceKind: "interactive-world-editor", worldInteraction: WorldInteraction("provider-authored-world-editor-surface")),
             Surface(AetheriaRuntimeDaemonEditorSurfaceBuilder.TuiSurfaceId, "Aetheria Daemon Editor TUI", AetheriaRuntimeVerseRecordKeys.DaemonEditorTuiSurface.ToString(), "agent", "Compact daemon editor and surface inventory.", providerId: "aetheria.daemon", providerKind: "editor.daemon", transport: "cultmesh-record", surfaceKind: "interactive-world-editor", worldInteraction: WorldInteraction("provider-authored-world-editor-surface")),
-            Surface(AetheriaRuntimeMainMenuCommands.RootSurfaceId, "Main Menu", AetheriaRuntimeVerseRecordKeys.MainMenuSurface.ToString(), "player", "Runtime main menu root.", transport: "cultmesh-record"),
+            Surface(AetheriaRuntimeMainMenuCommands.RootSurfaceId, "Main Menu", AetheriaRuntimeVerseRecordKeys.MainMenuSurface.ToString(), "player", "Runtime main menu root.", transport: "cultmesh-record", requiresPlugins: FieldPluginRequirements()),
             Surface(AetheriaRuntimeMainMenuCommands.SettingsSurfaceId, "Main Menu Settings", AetheriaRuntimeVerseRecordKeys.MainMenuSettingsSurface.ToString(), "player", "Runtime main menu settings panel.", transport: "cultmesh-record"),
             Surface(AetheriaRuntimeMainMenuCommands.InputSettingsSurfaceId, "Main Menu Input Settings", AetheriaRuntimeVerseRecordKeys.MainMenuInputSettingsSurface.ToString(), "player", "Main menu input settings panel.", transport: "cultmesh-record"),
             Surface(AetheriaRuntimeMainMenuCommands.PlayerSettingsSurfaceId, "Main Menu Player Settings", AetheriaRuntimeVerseRecordKeys.MainMenuPlayerSettingsSurface.ToString(), "player", "Main menu player settings panel.", transport: "cultmesh-record"),
@@ -163,6 +186,7 @@ namespace GameCult.Aetheria.State.Verse
             string status = "available",
             string surfaceKind = "",
             AetheriaRuntimeEveWorldInteractionAdvertisement? worldInteraction = null,
+            IReadOnlyList<AetheriaRuntimeEvePluginRequirement>? requiresPlugins = null,
             params string[] commands)
         {
             return new AetheriaRuntimeEveSurfaceAdvertisement
@@ -179,7 +203,22 @@ namespace GameCult.Aetheria.State.Verse
                 Summary = summary,
                 Commands = commands?.Where(command => !string.IsNullOrWhiteSpace(command)).ToArray() ?? Array.Empty<string>(),
                 SurfaceKind = surfaceKind ?? "",
-                WorldInteraction = worldInteraction
+                WorldInteraction = worldInteraction,
+                RequiresPlugins = requiresPlugins ?? Array.Empty<AetheriaRuntimeEvePluginRequirement>()
+            };
+        }
+
+        private static IReadOnlyList<AetheriaRuntimeEvePluginRequirement> FieldPluginRequirements()
+        {
+            return new[]
+            {
+                new AetheriaRuntimeEvePluginRequirement
+                {
+                    PluginId = "fields.surface",
+                    VersionRange = "^0.1.0",
+                    Availability = "required",
+                    RequiredCapabilities = new[] { "field.surface2d", "gravity.surface" }
+                }
             };
         }
 
