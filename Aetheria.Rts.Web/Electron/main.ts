@@ -221,9 +221,9 @@ function isElectronSmokeReady(result: Record<string, unknown>): boolean {
     stringValue(renderSplatsResolved?.documentId).length > 0 &&
     stringValue(gravityResolved?.documentId).length > 0 &&
     stringValue(objectsResolved?.documentId).length > 0 &&
-    renderSplatsResolved?.schemaId === "gamecult.aetheria.render_splats_viewport.v1" &&
-    gravityResolved?.schemaId === "gamecult.aetheria.gravity_viewport.v1" &&
-    objectsResolved?.schemaId === "gamecult.aetheria.objects_viewport.v1" &&
+    renderSplatsResolved?.schemaId === "gamecult.fields.splats.v1" &&
+    gravityResolved?.schemaId === "gamecult.fields.gravity.v1" &&
+    objectsResolved?.schemaId === "gamecult.fields.objects.v1" &&
     objectValue(result.assetProbe)?.loaded === true &&
     Number(objectValue(result.assetProbe)?.width) > 0 &&
     Number(objectValue(result.assetProbe)?.height) > 0 &&

@@ -50,7 +50,7 @@ namespace GameCult.Aetheria.State.Verse
         public const int InverseSmooth = 3;
     }
 
-    [CultDocument("gamecult.aetheria.render_splats_viewport", "gamecult.aetheria.render_splats_viewport.v1")]
+    [CultDocument("gamecult.fields.splats", "gamecult.fields.splats.v1")]
     [MessagePackObject]
     public sealed class AetheriaRuntimeRenderSplatsViewportDocument
     {

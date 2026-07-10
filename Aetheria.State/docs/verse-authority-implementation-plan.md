@@ -1796,8 +1796,8 @@ Progress:
   `AetheriaClient.InventoryAsync` project those documents directly from the
   latest frame instead of building a whole-zone RTS viewport first.
 - Slice S1 now has first-class typed projection documents for
-  `gamecult.aetheria.objects_viewport.v1` and
-  `gamecult.aetheria.gravity_viewport.v1`. `AetheriaClient.ObjectsViewportAsync`
+  `gamecult.fields.objects.v1` and
+  `gamecult.fields.gravity.v1`. `AetheriaClient.ObjectsViewportAsync`
   returns the controlled-unit visibility union, and
   `AetheriaClient.GravityViewportAsync` returns intersecting XY gravity brushes
   and body views. The older RTS map viewport is now a compatibility composition

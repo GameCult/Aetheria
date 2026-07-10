@@ -89,9 +89,9 @@ if (!Number.isFinite(viewport.frameId))
   throw new Error("Viewport query did not produce a frame id.");
 if (!Array.isArray(viewport.objects) || viewport.objects.length === 0)
   throw new Error("Viewport query did not expose visible objects.");
-if (objectsViewport.schema !== "gamecult.aetheria.objects_viewport.v1")
+if (objectsViewport.schema !== "gamecult.fields.objects.v1")
   throw new Error(`Objects viewport used unexpected schema: ${objectsViewport.schema}`);
-if (gravityViewport.schema !== "gamecult.aetheria.gravity_viewport.v1")
+if (gravityViewport.schema !== "gamecult.fields.gravity.v1")
   throw new Error(`Gravity viewport used unexpected schema: ${gravityViewport.schema}`);
 if (!Array.isArray(objectsViewport.objects) || objectsViewport.objects.length !== viewport.objects.length)
   throw new Error("Objects viewport did not match composed map object set.");
@@ -149,7 +149,7 @@ if (!Array.isArray(surfaceIndex.operations) || surfaceIndex.operations.length < 
   throw new Error("RTS surface catalog index did not group operation surfaces.");
 if (!Array.isArray(surfaceIndex.liveFeeds) || !surfaceIndex.liveFeeds.some(surface => surface.surfaceId === "gamecult.aetheria.viewport_feed.v1"))
   throw new Error("Aetheria surface catalog index did not group the viewport live feed.");
-if (!Array.isArray(surfaceIndex.queries) || !surfaceIndex.queries.some(surface => surface.surfaceId === "gamecult.aetheria.objects_viewport.v1"))
+if (!Array.isArray(surfaceIndex.queries) || !surfaceIndex.queries.some(surface => surface.surfaceId === "gamecult.fields.objects.v1"))
   throw new Error("RTS surface catalog index did not group generated query surfaces.");
 if (!Array.isArray(surfaceIndex.documents) || !surfaceIndex.documents.some(surface => surface.surfaceId === "daemon:aetheria.frame.latest.v1"))
   throw new Error("RTS surface catalog index did not group generated document surfaces.");

@@ -403,7 +403,7 @@ namespace GameCult.Aetheria.State.Verse
                 ("minY", F(viewport.MinY)),
                 ("maxX", F(viewport.MaxX)),
                 ("maxY", F(viewport.MaxY)),
-                ("fieldModel", "aetheria.fields2d.v1"),
+                ("fieldModel", "gamecult.fields.surface2d.v1"),
                 ("scalarField", "gravity.height"),
                 ("scalarFieldSlot", "gravity"),
                 ("scalarFieldSchemaId", AetheriaRuntimeDaemonSchemas.GravityViewport),

@@ -55,7 +55,7 @@ namespace GameCult.Aetheria.State.Verse
             Array.Empty<AetheriaRuntimeBodyView>();
     }
 
-    [CultDocument("gamecult.aetheria.objects_viewport", "gamecult.aetheria.objects_viewport.v1")]
+    [CultDocument("gamecult.fields.objects", "gamecult.fields.objects.v1")]
     [MessagePackObject]
     public sealed class AetheriaRuntimeObjectsViewportDocument
     {
@@ -94,7 +94,7 @@ namespace GameCult.Aetheria.State.Verse
             Array.Empty<AetheriaRuntimeViewportObject>();
     }
 
-    [CultDocument("gamecult.aetheria.gravity_viewport", "gamecult.aetheria.gravity_viewport.v1")]
+    [CultDocument("gamecult.fields.gravity", "gamecult.fields.gravity.v1")]
     [MessagePackObject]
     public sealed class AetheriaRuntimeGravityViewportDocument
     {

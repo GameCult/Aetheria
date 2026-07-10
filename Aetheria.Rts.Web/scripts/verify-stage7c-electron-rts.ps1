@@ -17,9 +17,9 @@ if (-not $appText.Contains('mountEveElectronProvider') -or
     $appText.Contains('window.aetheriaRts.eveProviderAdvertisement') -or
     $appText.Contains('window.aetheriaRts.eveDocument') -or
     $appText.Contains('eve:surface:aetheria.daemon.game') -or
-    $appText.Contains('gamecult.aetheria.gravity_viewport.v1') -or
-    $appText.Contains('gamecult.aetheria.render_splats_viewport.v1') -or
-    $appText.Contains('gamecult.aetheria.objects_viewport.v1') -or
+    $appText.Contains('gamecult.fields.gravity.v1') -or
+    $appText.Contains('gamecult.fields.splats.v1') -or
+    $appText.Contains('gamecult.fields.objects.v1') -or
     $appText.Contains('legacyViewportMode') -or
     $appText.Contains('mainMenuSurface') -or
     $appText.Contains('main-menu-mode')) {
