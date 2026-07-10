@@ -95,11 +95,11 @@
     },
     {
       "schema": "gamecult.eve.surface.v1",
-      "surfaceId": "aetheria.daemon.game",
+      "surfaceId": "aetheria.starbridge.pilot",
       "key": "AetheriaRuntimeVerseRecordKeys.DaemonGameSurface",
       "transport": "cultmesh-record",
       "status": "available",
-      "audience": "player",
+      "audience": "pilot",
       "mode": "interactive",
       "surfaceKind": "interactive-world",
       "interactionModel": "provider-command-receipts",
@@ -115,11 +115,35 @@
         "loweringTargets": ["web-reference", "unity-uitoolkit", "unity-scene", "electron-shell", "tui"],
         "ownership": "provider-owns-world-state-assets-command-acceptance-and-receipts"
       },
-      "summary": "Authoritative daemon game surface consumed by Unity, Electron, and web lowerers."
+      "summary": "Embodied Starbridge pilot surface lowered by generic Eve runtimes."
     },
     {
       "schema": "gamecult.eve.surface.v1",
-      "surfaceId": "aetheria.daemon.game.tui",
+      "surfaceId": "aetheria.starbridge.commander",
+      "key": "AetheriaRuntimeVerseRecordKeys.StarbridgeCommanderSurface",
+      "transport": "cultmesh-record",
+      "status": "available",
+      "audience": "commander",
+      "mode": "interactive",
+      "surfaceKind": "interactive-world",
+      "interactionModel": "provider-command-receipts",
+      "worldInteraction": {
+        "projectionKind": "provider-authored-world-surface",
+        "stateSchemas": [
+          "aetheria.world_state.v1",
+          "aetheria.runtime.daemon.frame.v1",
+          "aetheria.runtime.daemon.soa_view.v1"
+        ],
+        "commandBoundary": "aetheria.daemon.commands",
+        "receiptSchema": "aetheria.eve_command_acceptance_status.v1",
+        "loweringTargets": ["web-reference", "unity-uitoolkit", "unity-scene", "electron-shell", "tui"],
+        "ownership": "provider-owns-world-state-assets-command-acceptance-and-receipts"
+      },
+      "summary": "Strategic Starbridge surface lowered full-screen by Electron or embedded by Unity."
+    },
+    {
+      "schema": "gamecult.eve.surface.v1",
+      "surfaceId": "aetheria.starbridge.pilot.tui",
       "key": "AetheriaRuntimeVerseRecordKeys.DaemonGameTuiSurface",
       "transport": "cultmesh-record",
       "status": "available",

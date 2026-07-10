@@ -9,8 +9,10 @@ namespace GameCult.Aetheria.State.Verse
 {
     public static class AetheriaRuntimeDaemonGameSurfaceBuilder
     {
-        public const string SurfaceId = "aetheria.game";
-        public const string TuiSurfaceId = "aetheria.game.tui";
+        public const string PilotSurfaceId = "aetheria.starbridge.pilot";
+        public const string CommanderSurfaceId = "aetheria.starbridge.commander";
+        public const string SurfaceId = PilotSurfaceId;
+        public const string TuiSurfaceId = "aetheria.starbridge.pilot.tui";
 
         public static AetheriaRuntimeSurfaceDocument Build(
             AetheriaRuntimeDaemonFrameDocument frame,
@@ -124,6 +126,75 @@ namespace GameCult.Aetheria.State.Verse
                         new AetheriaRuntimeSurfaceCommandTemplate("aetheria.main_menu.root.quit", "Quit", "cultmesh")
                     })
                     .ToArray());
+        }
+
+        public static AetheriaRuntimeSurfaceDocument BuildCommander(
+            AetheriaRuntimeDaemonFrameDocument frame,
+            AetheriaRuntimeDaemonHealthDocument health,
+            AetheriaRuntimeDaemonCommandBoundaryDocument commandBoundary,
+            AetheriaRuntimeStarbridgeSessionSummaryDocument? starbridge = null)
+        {
+            frame ??= new AetheriaRuntimeDaemonFrameDocument();
+            health ??= new AetheriaRuntimeDaemonHealthDocument();
+            commandBoundary ??= AetheriaRuntimeDaemonCommandBoundaryDocument.Create(frame.DaemonId);
+            starbridge ??= AetheriaRuntimeStarbridgeDocuments.SessionSummary(frame);
+            var run = frame.Run ?? new AetheriaRuntimeRunCheckpointCommit();
+            var zone = FindCurrentZone(run);
+
+            var root = SurfaceRoot(
+                "aetheria.starbridge.commander.root",
+                StrategicWorldSurface("aetheria.starbridge.commander.world", run, zone),
+                BuildStarbridgeStationStockCard(starbridge),
+                BuildStarbridgeWaveForecastCard(starbridge),
+                BuildStarbridgeRuntimeRolesCard(starbridge));
+
+            return new AetheriaRuntimeSurfaceDocument(
+                "aetheria.daemon",
+                "game.daemon",
+                "Starbridge Commander",
+                frame.FrameId,
+                frame.PublishedAtUtc,
+                new AetheriaRuntimeSurfaceTree(
+                    CommanderSurfaceId,
+                    root,
+                    Array.Empty<AetheriaRuntimeSurfaceStyleToken>()),
+                commandBoundary.Commands
+                    .Where(entry => AetheriaRuntimeDaemonSurfaceCommandCatalog.IsArgumentlessCommand(entry.Kind))
+                    .Select(entry => new AetheriaRuntimeSurfaceCommandTemplate(
+                        AetheriaRuntimeDaemonSurfaceCommandCatalog.CommandName(entry.Kind),
+                        AetheriaRuntimeDaemonSurfaceCommandCatalog.Label(entry.Kind),
+                        "cultmesh"))
+                    .ToArray());
+        }
+
+        private static AetheriaRuntimeSurfaceComponent StrategicWorldSurface(
+            string id,
+            AetheriaRuntimeRunCheckpointCommit run,
+            AetheriaRuntimeZoneSnapshotCommit zone)
+        {
+            var props = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["label"] = string.IsNullOrWhiteSpace(zone.Name) ? "Starbridge" : zone.Name,
+                ["statePointerId"] = AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest.ToString(),
+                ["assetManifest"] = AetheriaRuntimeVerseRecordKeys.EveAssetCatalog.ToString(),
+                ["inputProfile"] = "rts.pointer-keyboard.v1",
+                ["cameraRig"] = "rts.top-down.v1",
+                ["zoneIndex"] = zone.ZoneIndex.ToString(CultureInfo.InvariantCulture),
+                ["runId"] = run.RunId ?? ""
+            };
+            var entities = (zone.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
+                .Where(entity => entity != null && entity.IsActive)
+                .Select(entity => PlayableWorldEntity(entity, run, zone, run.CurrentEntityKey))
+                .ToArray();
+            return new AetheriaRuntimeSurfaceComponent(
+                id,
+                "world.scene2d",
+                props,
+                entities,
+                AetheriaRuntimeSurfaceStateBindings.FromProps(props),
+                Array.Empty<AetheriaRuntimeEmbeddedDocumentSlot>(),
+                Layout(("position", "absolute"), ("inset", "0"), ("width", "100%"), ("height", "100%")),
+                new Dictionary<string, string> { ["background"] = "transparent" });
         }
 
         private static AetheriaRuntimeSurfaceComponent BuildStarbridgeStationStockCard(

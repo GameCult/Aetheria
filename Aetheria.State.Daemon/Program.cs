@@ -1348,6 +1348,14 @@ static async Task PublishDaemonApiDocumentsAsync(
     await node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.DaemonGameSurface)
         .ReplaceAsync(AetheriaRuntimeSurfaceDocuments.ToPortableSurface(gameSurface))
         .ConfigureAwait(false);
+    var commanderSurface = AetheriaRuntimeDaemonGameSurfaceBuilder.BuildCommander(
+        result.Frame,
+        result.Health ?? new AetheriaRuntimeDaemonHealthDocument(),
+        result.CommandBoundary ?? AetheriaRuntimeDaemonCommandBoundaryDocument.Create(options.DaemonId),
+        result.StarbridgeSessionSummary);
+    await node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.StarbridgeCommanderSurface)
+        .ReplaceAsync(AetheriaRuntimeSurfaceDocuments.ToPortableSurface(commanderSurface))
+        .ConfigureAwait(false);
     if (result.GameTuiSurface != null)
         await node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.DaemonGameTuiSurface)
             .ReplaceAsync(AetheriaRuntimeSurfaceDocuments.ToPortableSurface(result.GameTuiSurface))
@@ -1398,9 +1406,17 @@ static EveProviderAdvertisementDocument BuildCoreProviderAdvertisement(
         new[]
         {
             new EveAdvertisedSurface(
-                AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId,
+                AetheriaRuntimeDaemonGameSurfaceBuilder.PilotSurfaceId,
                 EveSurfaceDocument.SchemaId,
                 AetheriaRuntimeVerseRecordKeys.DaemonGameSurface.ToString(),
+                "cultmesh-record",
+                "active",
+                "interactive-world",
+                interaction),
+            new EveAdvertisedSurface(
+                AetheriaRuntimeDaemonGameSurfaceBuilder.CommanderSurfaceId,
+                EveSurfaceDocument.SchemaId,
+                AetheriaRuntimeVerseRecordKeys.StarbridgeCommanderSurface.ToString(),
                 "cultmesh-record",
                 "active",
                 "interactive-world",

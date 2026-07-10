@@ -75,7 +75,7 @@ app.whenReady().then(async () => {
       },
       renderer: rendererIndex,
       runtimeId: "eve-electron-aetheria",
-      surfaceId: process.env.EVE_SURFACE_ID || "aetheria.game",
+      surfaceId: process.env.EVE_SURFACE_ID || "aetheria.starbridge.commander",
       window: {
         show: !electronSmoke,
         backgroundColor: "#0b1016",
@@ -87,10 +87,10 @@ app.whenReady().then(async () => {
     if (electronSmoke) {
       await withTimeout(mainWindow.webContents.executeJavaScript("window.eveProvider.providerAdvertisement()"), 10000, "provider advertisement smoke");
       writeElectronSmokeResult({ ok: false, stage: "provider-advertisement-readable" });
-      await withTimeout(mainWindow.webContents.executeJavaScript("window.eveProvider.surface({ surfaceId: 'aetheria.game' })"), 10000, "surface smoke");
+      await withTimeout(mainWindow.webContents.executeJavaScript("window.eveProvider.surface({ surfaceId: 'aetheria.starbridge.commander' })"), 10000, "surface smoke");
       writeElectronSmokeResult({ ok: false, stage: "provider-surface-readable" });
       await withTimeout(mainWindow.webContents.executeJavaScript(`window.eveProvider.submitCommand({
-        providerId: 'aetheria.daemon', surfaceId: 'aetheria.game', command: 'aetheria.daemon.commands.SensorPing',
+        providerId: 'aetheria.daemon', surfaceId: 'aetheria.starbridge.commander', command: 'aetheria.daemon.commands.SensorPing',
         clientId: 'aetheria-electron-smoke-preflight', payload: {}
       })`), 10000, "command receipt smoke");
       writeElectronSmokeResult({ ok: false, stage: "provider-command-receipt-readable" });
@@ -160,7 +160,7 @@ async function runElectronSmoke(window: BrowserWindow): Promise<Record<string, u
         });
         const eveReceipt = eveProvider ? await eveProvider.submitCommand({
           providerId: "aetheria.daemon",
-          surfaceId: "aetheria.game",
+          surfaceId: "aetheria.starbridge.commander",
           command: "aetheria.daemon.commands.SensorPing",
           clientId: "aetheria-electron-smoke",
           payload: {},
@@ -214,10 +214,10 @@ function isElectronSmokeReady(result: Record<string, unknown>): boolean {
     result.worldSceneReady === true &&
     Number(result.worldEntityCount) > 0 &&
     Number(result.controlledWorldEntityCount) === 1 &&
-    eveHostText.includes("Daemon Frame") &&
-    eveHostText.includes("Typed Command Boundary") &&
-    arrayValue(providerAdvertisement?.surfaces).some(surface => objectValue(surface)?.surfaceId === "aetheria.game") &&
-    objectValue(eveSurface?.surface)?.id === "aetheria.game" &&
+    eveHostText.includes("Station Stock") &&
+    eveHostText.includes("Wave Forecast") &&
+    arrayValue(providerAdvertisement?.surfaces).some(surface => objectValue(surface)?.surfaceId === "aetheria.starbridge.commander") &&
+    objectValue(eveSurface?.surface)?.id === "aetheria.starbridge.commander" &&
     stringValue(renderSplatsResolved?.documentId).length > 0 &&
     stringValue(gravityResolved?.documentId).length > 0 &&
     stringValue(objectsResolved?.documentId).length > 0 &&
