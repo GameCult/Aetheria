@@ -37,7 +37,7 @@ namespace GameCult.Aetheria.State.Verse
                 StepRaiderAi(entities);
                 StepTargetPursuit(entities, settings);
                 StepMovement(entities, deltaSeconds);
-                StepCombat(zone, entities, deltaSeconds, settings);
+                StepCombat(run, zone, entities, intents, deltaSeconds, settings);
                 RefreshContacts(entities, settings);
             }
         }
@@ -141,8 +141,10 @@ namespace GameCult.Aetheria.State.Verse
         }
 
         private static void StepCombat(
+            AetheriaRuntimeRunCheckpointCommit run,
             AetheriaRuntimeZoneSnapshotCommit zone,
             IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities,
+            AetheriaRuntimeDaemonIntentState intents,
             double deltaSeconds,
             AetheriaRuntimeDaemonSimulationSettings settings)
         {
@@ -173,6 +175,9 @@ namespace GameCult.Aetheria.State.Verse
                 if (weaponState.CooldownProgress > 0)
                     continue;
 
+                if (IsPlayerOwned(attacker) && !WantsFire(run, zone, attacker, intents))
+                    continue;
+
                 SpawnProjectile(zone, attacker, target, settings);
                 weaponState.Firing = true;
                 weaponState.CoolingDown = true;
@@ -199,6 +204,23 @@ namespace GameCult.Aetheria.State.Verse
                     entity.TargetEntityIndex = -1;
                 }
             }
+        }
+
+        private static bool WantsFire(
+            AetheriaRuntimeRunCheckpointCommit run,
+            AetheriaRuntimeZoneSnapshotCommit zone,
+            AetheriaRuntimeEntitySnapshotCommit attacker,
+            AetheriaRuntimeDaemonIntentState intents)
+        {
+            var actorKey = run.EntityRecordKey(zone.ZoneIndex, attacker.EntityIndex);
+            return (intents == null
+                    ? Enumerable.Empty<AetheriaRuntimeDaemonWeaponGroupIntent>()
+                    : intents.WeaponGroups)
+                .Any(intent => intent != null &&
+                    string.Equals(intent.ActorEntityKey, actorKey, StringComparison.Ordinal) &&
+                    intent.WeaponGroup == 0 &&
+                    intent.Fire &&
+                    intent.Active);
         }
 
         private static AetheriaRuntimeWeaponStateCommit EnsureDaemonWeaponState(

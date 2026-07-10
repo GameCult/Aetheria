@@ -752,6 +752,8 @@ static async Task InjectCultMeshCdnAssetSnapshotsAsync(
     {
         if (bundleCdnDocuments.TryGetValue(recordKey, out var bundleDocument))
         {
+            if (string.Equals(Environment.GetEnvironmentVariable("AETHERIA_TRACE_EVE_SNAPSHOTS"), "1", StringComparison.Ordinal))
+                Console.WriteLine($"Eve CDN snapshot schema={bundleDocument.SchemaId} record={recordKey}");
             documents.Add(bundleDocument);
             continue;
         }
@@ -1901,7 +1903,7 @@ static CultMeshCdnArtifact PackAssetBundle(string path, string platform)
         File.ReadAllBytes(path),
         new CultMeshCdnPackOptions
         {
-            ChunkSizeBytes = 56 * 1024,
+            ChunkSizeBytes = 24 * 1024,
             Kind = CultMeshCdnArtifactKinds.Asset,
             Version = "1",
             MimeType = "application/vnd.unity.assetbundle",

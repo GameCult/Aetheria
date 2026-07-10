@@ -1008,7 +1008,12 @@ namespace GameCult.Aetheria.State.Verse
         private static bool HasWeaponGroup(AetheriaRuntimeEntitySnapshotCommit entity, int weaponGroup)
         {
             var weaponGroups = entity.WeaponGroups ?? Array.Empty<IReadOnlyList<int>>();
-            return weaponGroup >= 0 && weaponGroup < weaponGroups.Count;
+            if (weaponGroup >= 0 && weaponGroup < weaponGroups.Count)
+                return true;
+            return weaponGroup == 0 &&
+                   (entity.WeaponStates ?? Array.Empty<AetheriaRuntimeWeaponStateCommit>())
+                   .Any(state => state != null &&
+                       string.Equals(state.BehaviorKind, "ProjectileWeapon", StringComparison.Ordinal));
         }
 
         private static bool HasEquipmentBehavior(
