@@ -151,7 +151,8 @@ namespace GameCult.Aetheria.State.Verse
             typeof(AetheriaRuntimeSurfaceDocument),
             typeof(EveSurfaceDocument),
             typeof(AetheriaRuntimeDaemonCommandDocument),
-            typeof(AetheriaRuntimeEveCommandDocument)
+            typeof(AetheriaRuntimeEveCommandDocument),
+            typeof(AetheriaRuntimeCommittedCommandFactDocument)
         };
 
         public static CultDocumentRegistry CreateCultCacheRegistry()
@@ -1051,6 +1052,12 @@ namespace GameCult.Aetheria.State.Verse
         private AetheriaRuntimeCatalogSnapshot BootstrapRuntimeCatalogSnapshot()
         {
             return AetheriaRuntimeCatalogStore.OpenReadOnly(StatePath);
+        }
+
+        public IReadOnlyList<AetheriaRuntimeCommittedCommandFactDocument> CommittedCommandFacts()
+        {
+            ThrowIfDisposed();
+            return Cache.GetAll<AetheriaRuntimeCommittedCommandFactDocument>().ToArray();
         }
 
         private AetheriaRuntimeLoadoutTemplatesDocument BootstrapLoadoutTemplatesDocument()

@@ -28,6 +28,8 @@ namespace GameCult.Aetheria.EveRuntime
         private AetheriaRuntimeStateBootReport? _stateBoot;
         private AetheriaClientState? _runtimeState;
         private AetheriaClient? _remoteClient;
+        private readonly AetheriaEveUnityRemoteReceiptTracker _remoteReceipts =
+            new AetheriaEveUnityRemoteReceiptTracker();
         private event Action<EveUnityPlayableWorldAssetManifestDocument>? AssetManifestDocumentAvailable;
 
         public AetheriaEveUnitySceneProviderBridge(
@@ -144,6 +146,7 @@ namespace GameCult.Aetheria.EveRuntime
 
             CurrentDocumentManifest = ReadAssetManifest(runtimeState);
             AssetManifestDocumentAvailable?.Invoke(CurrentDocumentManifest);
+            ReconcileRemoteReceipts();
         }
 
         public void Submit(EveSurfaceCommandRequest request)
@@ -158,6 +161,7 @@ namespace GameCult.Aetheria.EveRuntime
 
                 Debug.Log(
                     $"Forwarded Aetheria operation to remote CultMesh authority: {submitted!.Kind} {submitted.CommandId}");
+                _remoteReceipts.Track(submitted.CommandId, request);
                 return;
             }
 
@@ -189,6 +193,7 @@ namespace GameCult.Aetheria.EveRuntime
         {
             _remoteClient?.Dispose();
             _remoteClient = null;
+            _remoteReceipts.Clear();
         }
 
         private bool IsRemote => !string.IsNullOrWhiteSpace(_cultMeshEndpoint);
@@ -211,6 +216,17 @@ namespace GameCult.Aetheria.EveRuntime
                 .GetAwaiter()
                 .GetResult();
             return _remoteClient;
+        }
+
+        private void ReconcileRemoteReceipts()
+        {
+            if (!IsRemote || !_remoteReceipts.HasPending || _remoteClient == null)
+                return;
+
+            foreach (var receipt in _remoteReceipts.Reconcile(
+                         _remoteClient.CommittedCommandFacts(),
+                         CurrentDocument.Version))
+                ReceiptAvailable?.Invoke(receipt);
         }
 
         private AetheriaRuntimeStateBootReport ResolveStateBoot()
@@ -376,6 +392,67 @@ namespace GameCult.Aetheria.EveRuntime
             return string.IsNullOrWhiteSpace(asset.AssetKey)
                 ? ""
                 : asset.AssetKey.Replace('.', '/');
+        }
+    }
+
+    public sealed class AetheriaEveUnityRemoteReceiptTracker
+    {
+        private readonly Dictionary<string, EveSurfaceCommandRequest> _pending =
+            new Dictionary<string, EveSurfaceCommandRequest>(StringComparer.Ordinal);
+
+        public bool HasPending => _pending.Count > 0;
+
+        public void Track(string commandId, EveSurfaceCommandRequest request)
+        {
+            if (string.IsNullOrWhiteSpace(commandId))
+                throw new ArgumentException("Remote command id must be non-empty.", nameof(commandId));
+            _pending[commandId] = request ?? throw new ArgumentNullException(nameof(request));
+        }
+
+        public IReadOnlyList<EveUnitySceneCommandReceipt> Reconcile(
+            IReadOnlyList<AetheriaRuntimeCommittedCommandFactDocument> facts,
+            long observedSurfaceVersion)
+        {
+            if (facts == null) throw new ArgumentNullException(nameof(facts));
+            var receipts = new List<EveUnitySceneCommandReceipt>();
+            var byCommandId = facts
+                .Where(fact => fact != null && !string.IsNullOrWhiteSpace(fact.CommandId))
+                .GroupBy(fact => fact.CommandId, StringComparer.Ordinal)
+                .ToDictionary(
+                    group => group.Key,
+                    group => group.OrderByDescending(fact => fact.SourceFrameId).First(),
+                    StringComparer.Ordinal);
+            foreach (var commandId in _pending.Keys.ToArray())
+            {
+                if (!byCommandId.TryGetValue(commandId, out var fact) ||
+                    observedSurfaceVersion < fact.SourceFrameId)
+                    continue;
+
+                var request = _pending[commandId];
+                _pending.Remove(commandId);
+                var accepted = string.Equals(
+                    fact.Outcome,
+                    AetheriaRuntimeCommandFactOutcomes.Applied,
+                    StringComparison.Ordinal);
+                receipts.Add(new EveUnitySceneCommandReceipt(
+                    fact.FactId,
+                    request.Operation?.OperationId ?? "",
+                    commandId,
+                    accepted ? "accepted" : "denied",
+                    "Aetheria",
+                    fact.SourceDaemonId,
+                    AetheriaRuntimeDaemonSchemas.CommittedCommandFact,
+                    request.ProviderId,
+                    request.SurfaceId,
+                    accepted ? "Command applied by authoritative daemon." : "Command rejected by authoritative daemon.",
+                    DateTimeOffset.TryParse(fact.CommittedAtUtc, out var committedAt) ? committedAt : request.IssuedAt));
+            }
+            return receipts;
+        }
+
+        public void Clear()
+        {
+            _pending.Clear();
         }
     }
 }

@@ -246,13 +246,9 @@ static async Task PublishCommittedCommandFactsAsync(
                 options.VerseId)).ConfigureAwait(false);
     }
 
-    var policyRejectedIds = new HashSet<string>(
-        policyRejectedCommandIds ?? Array.Empty<string>(),
-        StringComparer.Ordinal);
     foreach (var commandId in frame.RejectedCommandIds ?? Array.Empty<string>())
     {
         if (string.IsNullOrWhiteSpace(commandId) ||
-            !policyRejectedIds.Contains(commandId) ||
             !byCommandId.TryGetValue(commandId, out var command))
             continue;
 

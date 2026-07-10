@@ -1491,6 +1491,10 @@ First Aetheria surfaces to publish:
      the local `.cc` scene adapter is no longer described as a live daemon
      transport. The remaining proof is a separately running daemon, observed
      receipts, and PlayMode reconciliation in an EveUnity-owned client.
+   - Done: publish committed facts for every applied or rejected daemon command,
+     including operation-level rejection. The remote Unity adapter correlates
+     those facts by command ID and emits a terminal receipt only after the
+     synchronized game surface reaches the fact's source frame.
 
 6. Eve UI
    - Done: publish the typed catalog operator surface from `Aetheria.State`.

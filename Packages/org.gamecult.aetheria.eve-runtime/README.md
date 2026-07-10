@@ -11,6 +11,12 @@ through CultMesh, and forward writes to the daemon's primary shard. The generic
 EveUnity PlayMode client must compose that remote path before this package can
 claim live daemon playability.
 
+Remote command completion is derived only from provider-owned
+`gamecult.aetheria.committed_command_fact.v1` documents. The adapter correlates
+`CommandId` and waits until the synchronized game surface version reaches the
+fact's `SourceFrameId` before emitting a terminal EveUnity receipt. Submission
+success is never treated as command acceptance.
+
 `AetheriaEveSurfacePresenter` is a typed surface document lowerer:
 
 - it resolves the active client target from `GameData/aetheria-client.cc`;

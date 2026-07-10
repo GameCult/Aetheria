@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 using GameCult.Eve.Surface;
@@ -74,6 +75,12 @@ namespace GameCult.Aetheria.State.Verse
         {
             ThrowIfDisposed();
             return _verse.RefreshRemoteAsync();
+        }
+
+        public IReadOnlyList<AetheriaRuntimeCommittedCommandFactDocument> CommittedCommandFacts()
+        {
+            ThrowIfDisposed();
+            return _verse.CommittedCommandFacts();
         }
 
         public static Task<AetheriaClient> OpenLocalAsync(

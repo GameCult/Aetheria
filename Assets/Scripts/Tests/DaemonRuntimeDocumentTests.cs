@@ -447,6 +447,44 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
+    public void RemoteReceiptTrackerWaitsForAuthoritativeDaemonFrame()
+    {
+        var tracker = new AetheriaEveUnityRemoteReceiptTracker();
+        var request = new EveSurfaceCommandRequest(
+            "aetheria.daemon",
+            AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId,
+            CultMesh.OperationInvocation("aetheria.daemon.commands.SetMoveVector"),
+            CultMesh.OperationPayload(("directionX", "1.0"), ("directionY", "0.0")),
+            DateTimeOffset.Parse("2026-07-10T03:00:00Z"),
+            "unity-remote-test",
+            "aetheria.daemon.commands",
+            AetheriaRuntimeDaemonSchemas.Frame);
+        tracker.Track("move-remote-1", request);
+
+        Assert.AreEqual(
+            0,
+            tracker.Reconcile(Array.Empty<AetheriaRuntimeCommittedCommandFactDocument>(), 10).Count);
+        Assert.IsTrue(tracker.HasPending);
+
+        var acceptedFrame = AetheriaRuntimeDaemonFrameDocument.Create(
+            RunWithTwoEntities(), "aetheria-daemon", "session", 11, 1.02, 0.02);
+        var fact = AetheriaRuntimeCommittedCommandFactDocument.FromAppliedCommand(
+            acceptedFrame,
+            new AetheriaRuntimeDaemonCommandDocument { CommandId = "move-remote-1" },
+            "aetheria.local");
+        Assert.AreEqual(0, tracker.Reconcile(new[] { fact }, 10).Count);
+        var receipts = tracker.Reconcile(new[] { fact }, 11);
+
+        Assert.AreEqual(1, receipts.Count);
+        Assert.AreEqual("accepted", receipts[0].State);
+        Assert.AreEqual("move-remote-1", receipts[0].CommandId);
+        Assert.AreEqual("aetheria-daemon", receipts[0].Authority);
+        Assert.AreEqual(AetheriaRuntimeDaemonSchemas.CommittedCommandFact, receipts[0].Schema);
+        Assert.IsFalse(tracker.HasPending);
+        Assert.AreEqual(0, tracker.Reconcile(new[] { fact }, 11).Count);
+    }
+
+    [Test]
     public void TickRunnerAppliesObservedCommandsAndPublishesFrame()
     {
         var statePath = Path.Combine(
@@ -553,7 +591,7 @@ public class DaemonRuntimeDocumentTests
             advertisedGameSurface.WorldInteraction.ProjectionKind);
         Assert.AreEqual("aetheria.daemon.commands", advertisedGameSurface.WorldInteraction.CommandBoundary);
         Assert.AreEqual(
-            AetheriaRuntimeDaemonSchemas.EveCommandAcceptanceStatus,
+            AetheriaRuntimeDaemonSchemas.CommittedCommandFact,
             advertisedGameSurface.WorldInteraction.ReceiptSchema);
         Assert.AreEqual(
             "provider-owns-world-state-assets-command-acceptance-and-receipts",
@@ -2970,7 +3008,7 @@ public class DaemonRuntimeDocumentTests
                 "aetheria.daemon.commands",
                 liveBridge.CurrentSurfaceDocument.AdvertisedSurface.WorldInteraction.CommandBoundary);
             Assert.AreEqual(
-                AetheriaRuntimeDaemonSchemas.EveCommandAcceptanceStatus,
+                AetheriaRuntimeDaemonSchemas.CommittedCommandFact,
                 liveBridge.CurrentSurfaceDocument.AdvertisedSurface.WorldInteraction.ReceiptSchema);
             Assert.AreEqual(1, presentation.ActiveEntities);
             Assert.AreEqual(1, sceneSink.Upserts.Count);
@@ -2978,7 +3016,7 @@ public class DaemonRuntimeDocumentTests
             Assert.IsNotNull(runtime.ActiveProjection);
             Assert.AreEqual("provider-authored-world-surface", runtime.ActiveProjection.ProjectionKind);
             Assert.AreEqual("aetheria.daemon.commands", runtime.ActiveProjection.CommandBoundary);
-            Assert.AreEqual(AetheriaRuntimeDaemonSchemas.EveCommandAcceptanceStatus, runtime.ActiveProjection.ReceiptSchema);
+            Assert.AreEqual(AetheriaRuntimeDaemonSchemas.CommittedCommandFact, runtime.ActiveProjection.ReceiptSchema);
             Assert.AreEqual(
                 AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest.ToString(),
                 runtime.ActiveWorld.StatePointerId);
@@ -3014,7 +3052,7 @@ public class DaemonRuntimeDocumentTests
             Assert.AreEqual("aetheria.daemon", moveIntent.ProviderId);
             Assert.AreEqual(AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId, moveIntent.SurfaceId);
             Assert.AreEqual("aetheria.daemon.commands", moveIntent.CommandBoundary);
-            Assert.AreEqual(AetheriaRuntimeDaemonSchemas.EveCommandAcceptanceStatus, moveIntent.ReceiptSchema);
+            Assert.AreEqual(AetheriaRuntimeDaemonSchemas.CommittedCommandFact, moveIntent.ReceiptSchema);
             Assert.AreEqual(
                 AetheriaRuntimeDaemonSurfaceCommandCatalog.CommandName(AetheriaRuntimeDaemonCommandKinds.SetMoveVector),
                 moveIntent.Payload.GetString("commandId"));

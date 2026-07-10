@@ -202,7 +202,7 @@ namespace GameCult.Aetheria.State.Verse
                     "tui"
                 },
                 CommandBoundary = "aetheria.daemon.commands",
-                ReceiptSchema = AetheriaRuntimeDaemonSchemas.EveCommandAcceptanceStatus,
+                ReceiptSchema = AetheriaRuntimeDaemonSchemas.CommittedCommandFact,
                 Ownership = "provider-owns-world-state-assets-command-acceptance-and-receipts"
             };
         }
