@@ -8,6 +8,7 @@ import {
   AetheriaCultMeshClient,
 } from "./aetheria-cultmesh.js";
 import { registerAetheriaRtsIpcHandlers } from "./aetheria-rts-generated-bindings.js";
+import { createEveElectronWindow, registerEveWindowControls } from "@gamecult/eve-electron";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..");
@@ -116,29 +117,12 @@ app.on("before-quit", () => {
 });
 
 function createWindow(): BrowserWindow {
-  const window = new BrowserWindow({
-    width: 1440,
-    height: 900,
-    minWidth: 1000,
-    minHeight: 640,
+  return createEveElectronWindow({
     show: !electronSmoke,
     backgroundColor: "#0b1016",
     title: "Aetheria Starbridge",
-    frame: false,
-    autoHideMenuBar: true,
-    webPreferences: {
-      contextIsolation: true,
-      nodeIntegration: false,
-      preload: resolve(__dirname, "preload.cjs"),
-    },
-  });
-
-  window.webContents.setWindowOpenHandler(({ url }) => {
-    void shell.openExternal(url);
-    return { action: "deny" };
-  });
-
-  return window;
+    preload: resolve(__dirname, "preload.cjs"),
+  }, { BrowserWindow, shell });
 }
 
 async function runElectronSmoke(window: BrowserWindow): Promise<Record<string, unknown>> {
@@ -149,14 +133,15 @@ async function runElectronSmoke(window: BrowserWindow): Promise<Record<string, u
       (async () => {
         await new Promise(resolve => setTimeout(resolve, 100));
         const api = window.aetheriaRts;
+        const eveProvider = window.eveProvider;
         const status = document.querySelector("#status")?.textContent ?? "";
         const bodyMode = document.body.className;
         const eveHostText = document.querySelector("#eve-surface-host")?.textContent ?? "";
         const worldScene = document.querySelector(".cultui-world-scene");
         const worldEntityCount = worldScene?.querySelectorAll(".cultui-world-entity").length ?? 0;
         const controlledWorldEntityCount = worldScene?.querySelectorAll('.cultui-world-entity[data-controlled="true"]').length ?? 0;
-        const providerAdvertisement = api ? await api.eveProviderAdvertisement() : null;
-        const eveSurface = api ? await api.eveSurface({ recordKey: "eve:surface:aetheria.daemon.game" }) : null;
+        const providerAdvertisement = eveProvider ? await eveProvider.providerAdvertisement() : null;
+        const eveSurface = eveProvider ? await eveProvider.surface({ recordKey: "eve:surface:aetheria.daemon.game" }) : null;
         const health = api ? await api.daemonHealth() : null;
         const authority = api ? await api.authorityStatus() : null;
         const starbridge = api ? await api.starbridgeSession() : null;
@@ -177,7 +162,7 @@ async function runElectronSmoke(window: BrowserWindow): Promise<Record<string, u
         };
         const eveFieldSurface = findComponent(eveSurface?.surface?.root, component =>
           component.kind === "field.surface2d" || component.kind === "gravity.surface");
-        const eveReceipt = api ? await api.submitEveCommand({
+        const eveReceipt = eveProvider ? await eveProvider.submitCommand({
           providerId: "aetheria.daemon",
           surfaceId: "aetheria.game",
           command: "sensor_ping",
@@ -198,10 +183,11 @@ async function runElectronSmoke(window: BrowserWindow): Promise<Record<string, u
             typeof api.assetManifest === "function" &&
             typeof api.surfaceCatalog === "function" &&
             typeof api.surfaceCatalogIndex === "function" &&
-            typeof api.eveProviderAdvertisement === "function" &&
-            typeof api.eveDocument === "function" &&
-            typeof api.eveSurface === "function" &&
-            typeof api.submitEveCommand === "function",
+            !!eveProvider &&
+            typeof eveProvider.providerAdvertisement === "function" &&
+            typeof eveProvider.document === "function" &&
+            typeof eveProvider.surface === "function" &&
+            typeof eveProvider.submitCommand === "function",
           status,
           bodyMode,
           eveHostText,
@@ -331,28 +317,7 @@ function registerIpc(): void {
       daemonRunning: daemonProcess != null && !daemonProcess.killed,
       daemonMode: launchLocalDaemon ? "local" : "remote",
     }));
-  ipcMain.handle("aetheria-rts:window-control", (event, action: string) => {
-    const window = BrowserWindow.fromWebContents(event.sender);
-    if (!window)
-      return;
-
-    switch (action) {
-      case "minimize":
-        window.minimize();
-        return;
-      case "maximize":
-        if (window.isMaximized())
-          window.unmaximize();
-        else
-          window.maximize();
-        return;
-      case "close":
-        window.close();
-        return;
-      default:
-        throw new Error(`Unknown window control '${action}'.`);
-    }
-  });
+  registerEveWindowControls(ipcMain, BrowserWindow, "aetheria-rts:window-control");
 }
 
 function registerAssetProtocol(): void {

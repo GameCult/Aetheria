@@ -14,6 +14,13 @@ export {};
 declare global {
   interface Window {
     aetheriaRts: AetheriaRtsApi;
+    eveProvider: {
+      providerAdvertisement: AetheriaRtsApi["eveProviderAdvertisement"];
+      surface: AetheriaRtsApi["eveSurface"];
+      document: AetheriaRtsApi["eveDocument"];
+      submitCommand: AetheriaRtsApi["submitEveCommand"];
+      windowControl: AetheriaRtsApi["windowControl"];
+    };
   }
 }
 
@@ -38,8 +45,8 @@ async function showDaemonEveSurface(): Promise<void> {
   host.setAttribute("aria-label", "Aetheria daemon Eve surface");
   const requestedSurfaceId = new URLSearchParams(location.search).get("surface") || "";
   const providerHost = new EveBrowserProviderHost(host, {
-    providerAdvertisement: () => window.aetheriaRts.eveProviderAdvertisement(),
-    surface: surface => window.aetheriaRts.eveSurface(surfaceRequest(surface)),
+    providerAdvertisement: () => window.eveProvider.providerAdvertisement(),
+    surface: surface => window.eveProvider.surface(surfaceRequest(surface)),
     submitCommand: submitEveCommand,
     resolveDocument: resolveEveDocument,
     resolveAssetUrl: resolveAetheriaAssetUrl,
@@ -64,7 +71,7 @@ async function resolveEveDocument(
   request: EveEmbeddedDocumentRequest,
   component: EveSurfaceComponent,
 ): ReturnType<AetheriaRtsApi["eveDocument"]> {
-  return window.aetheriaRts.eveDocument({
+  return window.eveProvider.document({
     ...request,
     context: { viewport: viewportFromComponent(component) },
   });
@@ -103,7 +110,7 @@ function resolveAetheriaAssetUrl(uri: string): string {
 
 async function submitEveCommand(intent: EveCommandIntent): Promise<void> {
   try {
-    const receipt = await window.aetheriaRts.submitEveCommand({
+    const receipt = await window.eveProvider.submitCommand({
       providerId: intent.providerId,
       surfaceId: intent.surfaceId,
       command: intent.command,
@@ -126,7 +133,7 @@ function wireWindowControls(): void {
     button.addEventListener("click", () => {
       const action = button.dataset.windowControl as "minimize" | "maximize" | "close" | undefined;
       if (action) {
-        void window.aetheriaRts.windowControl(action);
+        void window.eveProvider.windowControl(action);
       }
     });
   });

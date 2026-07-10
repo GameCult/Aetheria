@@ -13,9 +13,11 @@ if (-not (Get-Content wwwroot\index.html -Raw).Contains('eve-surface-host')) {
 }
 
 $appText = Get-Content wwwroot\app.js -Raw
-if (-not $appText.Contains('window.aetheriaRts.eveProviderAdvertisement') -or
+if (-not $appText.Contains('window.eveProvider.providerAdvertisement') -or
     -not $appText.Contains('EveBrowserProviderHost') -or
-    -not $appText.Contains('window.aetheriaRts.eveDocument') -or
+    -not $appText.Contains('window.eveProvider.document') -or
+    $appText.Contains('window.aetheriaRts.eveProviderAdvertisement') -or
+    $appText.Contains('window.aetheriaRts.eveDocument') -or
     $appText.Contains('eve:surface:aetheria.daemon.game') -or
     $appText.Contains('gamecult.aetheria.gravity_viewport.v1') -or
     $appText.Contains('gamecult.aetheria.render_splats_viewport.v1') -or
@@ -34,7 +36,7 @@ $mainText = Get-Content Electron\main.ts -Raw
 if (-not $mainText.Contains('await api.surfaceCatalog()') -or -not $mainText.Contains('await api.surfaceCatalogIndex()')) {
     Write-Error "Stage 7C Electron RTS verifier failed: Electron smoke does not call the preload CultMesh surface catalog APIs."
 }
-if (-not $mainText.Contains('await api.eveProviderAdvertisement()')) {
+if (-not $mainText.Contains('await eveProvider.providerAdvertisement()')) {
     Write-Error "Stage 7C Electron RTS verifier failed: Electron smoke does not verify provider advertisement discovery through preload."
 }
 
@@ -45,7 +47,7 @@ if (-not $mainText.Contains('await api.renderSplatsViewport') -or
     Write-Error "Stage 7C Electron RTS verifier failed: Electron smoke does not verify daemon Eve field document lowering."
 }
 
-if (-not $mainText.Contains('await api.submitEveCommand') -or
+if (-not $mainText.Contains('await eveProvider.submitCommand') -or
     -not $mainText.Contains('eveReceipt?.commandId') -or
     -not $mainText.Contains('eveReceipt?.accepted') -or
     -not $mainText.Contains('eveReceipt?.route')) {
