@@ -296,7 +296,7 @@ static async Task PublishCommittedFactAsync(
         applied ? "Command applied by authoritative daemon." : "Command rejected by authoritative daemon.",
         fact.CommittedAtUtc,
         Math.Max(fact.SourceFrameId, 0));
-    await node.Database.PutAsync(AetheriaRuntimeVerseRecordKeys.EveReceipt(receipt.ReceiptId), receipt)
+    await node.Database.PutAsync(AetheriaRuntimeVerseRecordKeys.EveReceiptForCommand(receipt.CommandId), receipt)
         .ConfigureAwait(false);
 }
 
@@ -1694,7 +1694,7 @@ static async Task AcceptCoreEveInvocationsAsync(
             "Command is not advertised by the Aetheria daemon surface.",
             DateTimeOffset.UtcNow.ToString("O"),
             Math.Max(currentFrame?.FrameId ?? 0, 0));
-        await node.Database.PutAsync(AetheriaRuntimeVerseRecordKeys.EveReceipt(denied.ReceiptId), denied)
+        await node.Database.PutAsync(AetheriaRuntimeVerseRecordKeys.EveReceiptForCommand(denied.CommandId), denied)
             .ConfigureAwait(false);
     }
 }

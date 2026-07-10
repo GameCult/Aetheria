@@ -3,6 +3,8 @@
     "target": "ES2022",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
+    "preserveSymlinks": true,
+    "skipLibCheck": true,
     "strict": true,
     "noEmitOnError": true,
     "outDir": "electron-dist",

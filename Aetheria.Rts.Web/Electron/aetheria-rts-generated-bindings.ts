@@ -2055,10 +2055,7 @@ export type AetheriaRtsMainClient = {
   watchViewportFeed(request: AetheriaRuntimeViewportFeedRequest, callback: (snapshot: AetheriaRuntimeViewportFeedSnapshot) => void): CultMeshUnsubscribe;
   setMoveVector(request: AetheriaRuntimeSetMoveVectorRequest): Promise<AetheriaRuntimeDaemonCommandReceipt>;
   setTarget(request: AetheriaRuntimeSetTargetRequest): Promise<AetheriaRuntimeDaemonCommandReceipt>;
-  eveSurface(request: AetheriaEveSurfaceRequest): Promise<AetheriaMenuSurfaceDocument>;
-  eveProviderAdvertisement(): Promise<EveProviderAdvertisement>;
   eveDocument(request: EveEmbeddedDocumentRequest): Promise<EveResolvedDocument | undefined>;
-  submitEveCommand(request: AetheriaEveCommandRequest): Promise<AetheriaRuntimeDaemonCommandReceipt>;
   surfaceCatalogDiagnostics(): CultMeshSurfaceCatalogDiagnostic;
   surfaceCatalogIndexDiagnostics(): CultMeshSurfaceCatalogIndexDiagnostic;
 };
@@ -2105,14 +2102,6 @@ export function registerAetheriaRtsIpcHandlers(
     getClient().setMoveVector(request));
   ipcMain.handle(AetheriaRtsIpcChannels.setTarget, async (_event, request: AetheriaRuntimeSetTargetRequest) =>
     getClient().setTarget(request));
-  ipcMain.handle(AetheriaRtsIpcChannels.eveSurface, async (_event, request: AetheriaEveSurfaceRequest) =>
-    getClient().eveSurface(request));
-  ipcMain.handle(AetheriaRtsIpcChannels.eveProviderAdvertisement, async () =>
-    getClient().eveProviderAdvertisement());
-  ipcMain.handle(AetheriaRtsIpcChannels.eveDocument, async (_event, request: EveEmbeddedDocumentRequest) =>
-    getClient().eveDocument(request));
-  ipcMain.handle(AetheriaRtsIpcChannels.submitEveCommand, async (_event, request: AetheriaEveCommandRequest) =>
-    getClient().submitEveCommand(request));
   ipcMain.handle(AetheriaRtsIpcChannels.surfaceCatalog, () => getClient().surfaceCatalogDiagnostics());
   ipcMain.handle(AetheriaRtsIpcChannels.surfaceCatalogIndex, () => getClient().surfaceCatalogIndexDiagnostics());
   ipcMain.handle(AetheriaRtsIpcChannels.health, () => getHealth());

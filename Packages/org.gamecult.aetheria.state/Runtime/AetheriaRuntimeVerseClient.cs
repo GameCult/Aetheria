@@ -113,9 +113,11 @@ namespace GameCult.Aetheria.State.Verse
             return new CultRecordKey($"eve:commands:{StableToken(commandId)}:gamecult.eve.command.v1");
         }
 
-        public static CultRecordKey EveReceipt(string receiptId)
+        public static CultRecordKey EveReceiptForCommand(string commandId)
         {
-            return new CultRecordKey($"{EveReceiptRecordPrefix}:{StableToken(receiptId)}");
+            if (string.IsNullOrWhiteSpace(commandId))
+                throw new ArgumentException("Eve receipt command id must be non-empty.", nameof(commandId));
+            return new CultRecordKey($"{EveReceiptRecordPrefix}:{commandId}");
         }
 
         public static string StableToken(string value)

@@ -16,7 +16,6 @@ import type {
 } from "cultnet-ts";
 import {
   AetheriaRtsSchemas,
-  aetheriaRuntimeEveCommandDocumentSlots,
   createAetheriaRuntimeGameDocuments,
   createAetheriaRuntimeGameOperationHandles,
   createAetheriaRuntimeGameVerseHandles,
@@ -62,10 +61,6 @@ import {
 } from "./aetheria-rts-local-documents.js";
 
 const connectionId = 0x43554c54;
-const eveSurfaceSchemaId = "gamecult.eve.surface.v1";
-const eveProviderAdvertisementSchemaId = "gamecult.eve.provider_advertisement.v1";
-const eveProviderAdvertisementRecordKey = "eve:provider:aetheria";
-const defaultEveSurfaceRecordKey = "eve:surface:aetheria.daemon.game";
 const cultMeshCdnAssetBlobSchemaId = "gamecult.cultmesh.cdn.asset_blob.v1";
 
 type AetheriaPublicationDocumentSpec = CultMeshPublicationDocumentBinding & {
@@ -99,11 +94,6 @@ export type AetheriaCultMeshDaemonTarget = {
   readonly endpoints?: readonly string[];
 };
 
-export type AetheriaEveSurfaceRequest = {
-  surfaceId?: string;
-  recordKey?: string;
-};
-
 export type EveEmbeddedDocumentRequest = {
   documentId: string;
   schemaId?: string;
@@ -116,60 +106,6 @@ export type EveResolvedDocument = {
   documentId: string;
   schemaId: string;
   document?: unknown;
-  surface?: AetheriaMenuSurfaceDocument["surface"];
-};
-
-export type AetheriaEveCommandRequest = {
-  providerId?: string;
-  surfaceId?: string;
-  command?: string;
-  clientId?: string;
-  issuedAtUtc?: string;
-  payload?: Record<string, unknown>;
-};
-
-export type AetheriaMenuSurfaceDocument = {
-  providerId: string;
-  providerKind: string;
-  title: string;
-  version: number;
-  updatedAtUtc: string;
-  surface: AetheriaMenuSurfaceTree;
-  commands: AetheriaMenuSurfaceCommand[];
-};
-
-export type AetheriaMenuSurfaceTree = {
-  id: string;
-  root: AetheriaMenuSurfaceComponent;
-  styles: AetheriaMenuStyleToken[];
-};
-
-export type AetheriaMenuSurfaceComponent = {
-  id: string;
-  kind: string;
-  props: Record<string, string>;
-  layout?: Record<string, string>;
-  style?: Record<string, string>;
-  embeddedDocuments?: AetheriaMenuEmbeddedDocumentSlot[];
-  children: AetheriaMenuSurfaceComponent[];
-};
-
-export type AetheriaMenuEmbeddedDocumentSlot = {
-  slotId: string;
-  documentId: string;
-  schemaId: string;
-  presentationKind: string;
-};
-
-export type AetheriaMenuStyleToken = {
-  name: string;
-  value: string;
-};
-
-export type AetheriaMenuSurfaceCommand = {
-  command: string;
-  label: string;
-  transport: string;
 };
 
 export type {
@@ -377,58 +313,9 @@ export class AetheriaCultMeshClient {
     };
   }
 
-  public async eveSurface(request: AetheriaEveSurfaceRequest = {}): Promise<AetheriaMenuSurfaceDocument> {
-    const recordKey = eveSurfaceRecordKey(request);
-    const document = CultMesh.documentFromPublication(
-      {
-        kind: "peer-snapshot",
-        peer: () => this.peer(),
-        endpoint: this.resolvedRudpEndpoint(),
-      },
-      eveSurfaceSchemaId,
-      recordKey,
-      {
-        documentId: recordKey,
-        routeHint: this.queryVerse.context.routeHint,
-        sourceId: recordKey,
-        timeoutMs: 1500,
-        pollMs: 50,
-        messageIdPrefix: `${this.runtimeId}:eve-surface`,
-      },
-    );
-
-    return normalizeEveSurfaceDocument(await document.latest(this.queryContext()));
-  }
-
-  public async eveProviderAdvertisement(): Promise<import("./aetheria-rts-generated-bindings.js").EveProviderAdvertisement> {
-    const document = CultMesh.documentFromPublication(
-      {
-        kind: "peer-snapshot",
-        peer: () => this.peer(),
-        endpoint: this.resolvedRudpEndpoint(),
-      },
-      eveProviderAdvertisementSchemaId,
-      eveProviderAdvertisementRecordKey,
-      {
-        documentId: eveProviderAdvertisementRecordKey,
-        routeHint: this.queryVerse.context.routeHint,
-        sourceId: eveProviderAdvertisementRecordKey,
-        timeoutMs: 1500,
-        pollMs: 50,
-        messageIdPrefix: `${this.runtimeId}:eve-provider`,
-      },
-    );
-    return normalizeEveProviderAdvertisement(await document.latest(this.queryContext()));
-  }
-
   public async eveDocument(request: EveEmbeddedDocumentRequest): Promise<EveResolvedDocument | undefined> {
     const schemaId = request?.schemaId?.trim() || "";
     if (!request?.documentId?.trim()) throw new Error("Eve embedded document request is missing documentId.");
-    if (schemaId === eveSurfaceSchemaId || request.slotId === "mainMenuPanel") {
-      const surface = await this.eveSurface({ surfaceId: request.documentId });
-      return { documentId: request.documentId, schemaId: eveSurfaceSchemaId, surface: surface.surface };
-    }
-
     const viewport = viewportFromEmbeddedDocumentContext(request.context);
     if (schemaId === AetheriaRtsSchemas.renderSplatsViewport || request.slotId === "renderSplats") {
       return { documentId: request.documentId, schemaId: AetheriaRtsSchemas.renderSplatsViewport, document: await this.renderSplatsViewport(viewport) };
@@ -440,45 +327,6 @@ export class AetheriaCultMeshClient {
       return { documentId: request.documentId, schemaId: AetheriaRtsSchemas.objectsViewport, document: await this.objectsViewport(viewport) };
     }
     return undefined;
-  }
-
-  public async submitEveCommand(request: AetheriaEveCommandRequest): Promise<AetheriaRuntimeDaemonCommandReceipt> {
-    const issuedAtUtc = request?.issuedAtUtc || new Date().toISOString();
-    const commandId = `${this.runtimeId}:eve:${Date.now().toString(36)}:${Math.random().toString(36).slice(2)}`;
-    const command: unknown[] = [];
-    command[aetheriaRuntimeEveCommandDocumentSlots.schema] = AetheriaRtsSchemas.eveCommand;
-    command[aetheriaRuntimeEveCommandDocumentSlots.commandId] = commandId;
-    command[aetheriaRuntimeEveCommandDocumentSlots.providerId] = request?.providerId ?? "";
-    command[aetheriaRuntimeEveCommandDocumentSlots.surfaceId] = request?.surfaceId ?? "";
-    command[aetheriaRuntimeEveCommandDocumentSlots.command] = request?.command ?? "";
-    command[aetheriaRuntimeEveCommandDocumentSlots.issuedAtUtc] = issuedAtUtc;
-    command[aetheriaRuntimeEveCommandDocumentSlots.clientId] = request?.clientId || this.runtimeId;
-    command[aetheriaRuntimeEveCommandDocumentSlots.payload] = normalizeCommandPayload(request?.payload);
-
-    const message: CultNetDocumentPutRawMessage = {
-      schemaVersion: "cultnet.document_put_raw.v0",
-      messageId: commandId,
-      document: {
-        schemaId: AetheriaRtsSchemas.eveCommand,
-        recordKey: `daemon:eve-commands:${stableToken(commandId)}:${AetheriaRtsSchemas.eveCommand}`,
-        storedAt: issuedAtUtc,
-        payloadEncoding: "messagepack",
-        payload: encode(command),
-        sourceRuntimeId: this.runtimeId,
-        sourceRole: "aetheria-client",
-        tags: ["aetheria", "eve-command"],
-      },
-    };
-    const peer = await this.peer();
-    peer.send(message);
-    await delay(80);
-    return {
-      commandId,
-      operationId: commandId,
-      accepted: true,
-      route: this.commandVerse.context.routeHint,
-      diagnostic: "submitted Eve surface command",
-    };
   }
 
   public queryDiagnostics(): Readonly<Record<string, AetheriaRuntimeGameQueryDiagnostic>> {
@@ -981,28 +829,6 @@ function createAetheriaPublicationDocuments(
     : document);
 }
 
-function eveSurfaceRecordKey(request: AetheriaEveSurfaceRequest): string {
-  if (request?.recordKey && request.recordKey.trim())
-    return request.recordKey.trim();
-
-  const surfaceId = request?.surfaceId?.trim();
-  return surfaceId ? `eve:surface:${surfaceId}` : defaultEveSurfaceRecordKey;
-}
-
-function normalizeEveProviderAdvertisement(document: unknown): import("./aetheria-rts-generated-bindings.js").EveProviderAdvertisement {
-  return {
-    providerId: stringOr(readField(document, "providerId", 1), ""),
-    title: stringOr(readField(document, "title", 8), ""),
-    kind: stringOr(readField(document, "kind", 9), ""),
-    surfaces: arrayValue(readField(document, "surfaces", 14)).map(surface => ({
-      surfaceId: stringOr(readField(surface, "surfaceId", 1), ""),
-      key: stringOr(readField(surface, "key", 2), ""),
-      transport: stringOr(readField(surface, "transport", 3), "cultmesh"),
-      status: stringOr(readField(surface, "status", 4), "available"),
-    })).filter(surface => surface.surfaceId && surface.key),
-  };
-}
-
 function viewportFromEmbeddedDocumentContext(context: Record<string, unknown> | undefined): ViewportRequest {
   const source = objectValue(context?.viewport);
   return {
@@ -1010,72 +836,6 @@ function viewportFromEmbeddedDocumentContext(context: Record<string, unknown> | 
     minY: numberOr(source.minY, -1000),
     maxX: numberOr(source.maxX, 1500),
     maxY: numberOr(source.maxY, 1000),
-  };
-}
-
-function normalizeEveSurfaceDocument(document: unknown): AetheriaMenuSurfaceDocument {
-  const portableSlots = Array.isArray(document) &&
-    typeof document[1] === "string" &&
-    document[1] === eveSurfaceSchemaId;
-  const providerSlot = portableSlots ? 2 : 0;
-  const providerKindSlot = portableSlots ? 3 : 1;
-  const titleSlot = portableSlots ? 4 : 2;
-  const versionSlot = portableSlots ? 5 : 3;
-  const updatedAtSlot = portableSlots ? 6 : 4;
-  const surfaceSlot = portableSlots ? 7 : 5;
-  const commandsSlot = portableSlots ? 8 : 6;
-  const surface = readField(document, "surface", surfaceSlot);
-  const surfaceId = stringOr(readField(surface, "id", 0), "aetheria.surface.missing");
-  return {
-    providerId: stringOr(readField(document, "providerId", providerSlot), "aetheria.daemon"),
-    providerKind: stringOr(readField(document, "providerKind", providerKindSlot), "daemon"),
-    title: stringOr(readField(document, "title", titleSlot), surfaceId),
-    version: numberOr(readField(document, "version", versionSlot), 0),
-    updatedAtUtc: stringOr(readField(document, "updatedAtUtc", updatedAtSlot), ""),
-    surface: {
-      id: surfaceId,
-      root: normalizeEveComponent(readField(surface, "root", 1), `${surfaceId}.root`),
-      styles: arrayValue(readField(surface, "styles", 2))
-        .map(token => ({
-          name: stringOr(readField(token, "name", 0), ""),
-          value: stringOr(readField(token, "value", 1), ""),
-        })),
-    },
-    commands: arrayValue(readField(document, "commands", commandsSlot))
-      .map(command => {
-        const operation = readField(command, "operation", 0);
-        const routeHint = readField(operation, "routeHint", 3);
-        return {
-          command: stringOr(readField(operation, "operationId", 0), ""),
-          label: stringOr(readField(operation, "label", 1), ""),
-          transport: stringOr(readField(routeHint, "description", 1), "cultmesh"),
-        };
-      })
-      .filter(command => command.command.length > 0),
-  };
-}
-
-function normalizeEveComponent(component: unknown, fallbackId: string): AetheriaMenuSurfaceComponent {
-  return {
-    id: stringOr(readField(component, "id", 0), fallbackId),
-    kind: stringOr(readField(component, "kind", 1), "surface"),
-    props: stringRecord(readField(component, "props", 2)),
-    layout: stringRecord(readField(component, "layout", 6)),
-    style: stringRecord(readField(component, "style", 7)),
-    embeddedDocuments: arrayValue(readField(component, "embeddedDocuments", 5))
-      .map(normalizeEmbeddedDocumentSlot)
-      .filter(slot => slot.documentId.length > 0),
-    children: arrayValue(readField(component, "children", 3))
-      .map((child, index) => normalizeEveComponent(child, `${fallbackId}.${index}`)),
-  };
-}
-
-function normalizeEmbeddedDocumentSlot(slot: unknown): AetheriaMenuEmbeddedDocumentSlot {
-  return {
-    slotId: stringOr(readField(slot, "slotId", 0), ""),
-    documentId: stringOr(readField(slot, "documentId", 1), ""),
-    schemaId: stringOr(readField(slot, "schemaId", 2), ""),
-    presentationKind: stringOr(readField(slot, "presentationKind", 3), ""),
   };
 }
 

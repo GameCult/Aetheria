@@ -7,8 +7,11 @@ import { fileURLToPath } from "node:url";
 import {
   AetheriaCultMeshClient,
 } from "./aetheria-cultmesh.js";
-import { registerAetheriaRtsIpcHandlers } from "./aetheria-rts-generated-bindings.js";
+import { AetheriaRtsIpcChannels, registerAetheriaRtsIpcHandlers } from "./aetheria-rts-generated-bindings.js";
 import { createEveElectronWindow, registerEveWindowControls } from "@gamecult/eve-electron";
+import { EveCultMeshProviderClient } from "@gamecult/eve-electron/provider-client";
+import { CultMesh } from "cultmesh-ts";
+import { encode } from "@msgpack/msgpack";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..");
@@ -33,9 +36,11 @@ const assetProtocol = "aetheria-cdn";
 let daemonProcess: ChildProcessWithoutNullStreams | null = null;
 let mainWindow: BrowserWindow | null = null;
 let aetheriaClient: AetheriaCultMeshClient | null = null;
+let eveProviderClient: EveCultMeshProviderClient | null = null;
 let isQuitting = false;
 
 app.whenReady().then(async () => {
+  writeElectronSmokeResult({ ok: false, stage: "electron-ready" });
   mainWindow = createWindow();
   registerIpc();
   registerAssetProtocol();
@@ -82,12 +87,33 @@ app.whenReady().then(async () => {
       "aetheria-electron-client",
       { publicationMode: launchLocalDaemon ? "local" : "remote" });
 
+    eveProviderClient = new EveCultMeshProviderClient({
+      providerId: "aetheria.daemon",
+      advertisementRecordRef: "eve:provider:aetheria.daemon",
+      peerId: daemonId,
+      verseId,
+      role: "aetheria-daemon",
+      endpoints: localDaemonRudpEndpoint ? [localDaemonRudpEndpoint] : [],
+    }, { CultMesh, encode }, { runtimeId: "eve-electron-aetheria" });
+    writeElectronSmokeResult({ ok: false, stage: "provider-clients-ready" });
+
     showStartup("Launching Aetheria Starbridge", "Waiting for the daemon CultMesh frame.");
     await aetheriaClient.waitForFrame(30000);
+    writeElectronSmokeResult({ ok: false, stage: "daemon-frame-ready" });
     await mainWindow.loadFile(rendererIndex, {
       query: { surface: process.env.EVE_SURFACE_ID || "aetheria.game" },
     });
+    writeElectronSmokeResult({ ok: false, stage: "renderer-loaded" });
     if (electronSmoke) {
+      await withTimeout(mainWindow.webContents.executeJavaScript("window.eveProvider.providerAdvertisement()"), 10000, "provider advertisement smoke");
+      writeElectronSmokeResult({ ok: false, stage: "provider-advertisement-readable" });
+      await withTimeout(mainWindow.webContents.executeJavaScript("window.eveProvider.surface({ surfaceId: 'aetheria.game' })"), 10000, "surface smoke");
+      writeElectronSmokeResult({ ok: false, stage: "provider-surface-readable" });
+      await withTimeout(mainWindow.webContents.executeJavaScript(`window.eveProvider.submitCommand({
+        providerId: 'aetheria.daemon', surfaceId: 'aetheria.game', command: 'aetheria.daemon.commands.SensorPing',
+        clientId: 'aetheria-electron-smoke-preflight', payload: {}
+      })`), 10000, "command receipt smoke");
+      writeElectronSmokeResult({ ok: false, stage: "provider-command-receipt-readable" });
       const result = await runElectronSmoke(mainWindow);
       writeElectronSmokeResult({ ok: true, result });
       console.log(JSON.stringify(result, null, 2));
@@ -113,6 +139,7 @@ app.on("window-all-closed", () => {
 app.on("before-quit", () => {
   isQuitting = true;
   void aetheriaClient?.close();
+  void eveProviderClient?.close();
   stopChild(daemonProcess);
 });
 
@@ -165,7 +192,7 @@ async function runElectronSmoke(window: BrowserWindow): Promise<Record<string, u
         const eveReceipt = eveProvider ? await eveProvider.submitCommand({
           providerId: "aetheria.daemon",
           surfaceId: "aetheria.game",
-          command: "sensor_ping",
+          command: "aetheria.daemon.commands.SensorPing",
           clientId: "aetheria-electron-smoke",
           payload: {},
         }) : null;
@@ -296,6 +323,8 @@ function exitElectronSmoke(exitCode: number): void {
   isQuitting = true;
   void aetheriaClient?.close();
   aetheriaClient = null;
+  void eveProviderClient?.close();
+  eveProviderClient = null;
   stopChild(daemonProcess);
   daemonProcess = null;
   mainWindow?.destroy();
@@ -317,7 +346,50 @@ function registerIpc(): void {
       daemonRunning: daemonProcess != null && !daemonProcess.killed,
       daemonMode: launchLocalDaemon ? "local" : "remote",
     }));
+  ipcMain.handle(AetheriaRtsIpcChannels.eveProviderAdvertisement, () => requireEveProviderClient().providerAdvertisement());
+  ipcMain.handle(AetheriaRtsIpcChannels.eveSurface, (_event, request: { surfaceId?: string }) =>
+    requireEveProviderClient().surface(request?.surfaceId));
+  ipcMain.handle(AetheriaRtsIpcChannels.submitEveCommand, async (_event, request: Record<string, unknown>) => {
+    const submission = await requireEveProviderClient().submitCommand(request);
+    const receipt = await waitForEveReceipt(submission, 5000);
+    return { ...submission, ...receipt, commandId: submission.commandId, accepted: receiptStateAccepted(receipt) };
+  });
+  // Embedded viewport documents remain provider-specific until their record
+  // references are published by the interactive-world surface contract.
+  ipcMain.handle(AetheriaRtsIpcChannels.eveDocument, (_event, request) => requireClient().eveDocument(request));
   registerEveWindowControls(ipcMain, BrowserWindow, "aetheria-rts:window-control");
+}
+
+function requireEveProviderClient(): EveCultMeshProviderClient {
+  if (!eveProviderClient)
+    throw new Error("Eve CultMesh provider client is not initialized.");
+  return eveProviderClient;
+}
+
+async function waitForEveReceipt(submission: Record<string, unknown>, timeoutMs: number): Promise<Record<string, unknown>> {
+  const started = Date.now();
+  let lastError: unknown;
+  while (Date.now() - started < timeoutMs) {
+    try {
+      return objectValue(await requireEveProviderClient().receipt(submission)) ?? {};
+    } catch (error) {
+      lastError = error;
+      await delay(50);
+    }
+  }
+  throw lastError ?? new Error(`Timed out waiting for Eve receipt ${String(submission.commandId ?? "")}.`);
+}
+
+function receiptStateAccepted(receipt: Record<string, unknown>): boolean {
+  const state = stringValue(receipt.state ?? receipt[4]).toLowerCase();
+  return state === "accepted" || state === "reconciled";
+}
+
+function withTimeout<T>(work: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+  return Promise.race([
+    work,
+    new Promise<T>((_resolve, reject) => setTimeout(() => reject(new Error(`Timed out during ${label}.`)), timeoutMs)),
+  ]);
 }
 
 function registerAssetProtocol(): void {
