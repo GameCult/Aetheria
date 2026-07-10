@@ -43,8 +43,14 @@ if (-not $mainText.Contains('startEveElectronProviderHost') -or (Test-Path Elect
 $hostRuntimeText = Get-Content node_modules\@gamecult\eve-electron\src\live-provider-host.mjs -Raw
 if (-not $hostRuntimeText.Contains('eve-provider-preload-entry.cjs') -or
     -not $hostRuntimeText.Contains('registerEveProviderIpc') -or
+    -not $hostRuntimeText.Contains('registerEveAssetProtocol') -or
     -not $hostRuntimeText.Contains('createEveElectronWindow')) {
     Write-Error "Stage 7C Electron RTS verifier failed: EveElectron does not own the live provider host lifecycle."
+}
+if (-not $mainText.Contains('eve-asset://asset') -or
+    -not $mainText.Contains('assetProbe') -or
+    $mainText.Contains('aetheria-cdn')) {
+    Write-Error "Stage 7C Electron RTS verifier failed: Electron smoke does not verify EveElectron-owned provider asset delivery."
 }
 if (-not $mainText.Contains('await eveProvider.providerAdvertisement()')) {
     Write-Error "Stage 7C Electron RTS verifier failed: Electron smoke does not verify provider advertisement discovery through preload."

@@ -4,9 +4,6 @@ import { createWriteStream, existsSync, mkdirSync, readdirSync, statSync, writeF
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import {
-  AetheriaCultMeshClient,
-} from "./aetheria-cultmesh.js";
 import { startEveElectronProviderHost } from "@gamecult/eve-electron/live-provider-host";
 import { CultMesh } from "cultmesh-ts";
 import { encode } from "@msgpack/msgpack";
@@ -29,11 +26,9 @@ const clientCultMeshAdvertiseHost = process.env.AETHERIA_CLIENT_CULTMESH_ADVERTI
 const localDaemonRudpEndpoint = launchLocalDaemon ? `rudp://127.0.0.1:${clientCultMeshPort}` : "";
 const electronSmoke = process.env.AETHERIA_ELECTRON_SMOKE === "1";
 const electronSmokeResultPath = process.env.AETHERIA_ELECTRON_SMOKE_RESULT;
-const assetProtocol = "aetheria-cdn";
 
 let daemonProcess: ChildProcessWithoutNullStreams | null = null;
 let mainWindow: BrowserWindow | null = null;
-let aetheriaClient: AetheriaCultMeshClient | null = null;
 let eveHost: { close(): Promise<void>; window: BrowserWindow } | null = null;
 let isQuitting = false;
 
@@ -67,21 +62,8 @@ app.whenReady().then(async () => {
       mkdirSync(runtimeRoot, { recursive: true });
     }
 
-    aetheriaClient = new AetheriaCultMeshClient(
-      {
-        uri: daemonCultMeshUri,
-        peerId: daemonId,
-        verseId,
-        role: "aetheria-daemon",
-        endpoints: localDaemonRudpEndpoint ? [localDaemonRudpEndpoint] : [],
-      },
-      runtimeStatePath,
-      "aetheria-electron-client",
-      { publicationMode: launchLocalDaemon ? "local" : "remote" });
-
-    registerAssetProtocol();
     eveHost = await startEveElectronProviderHost({
-      electron: { app, BrowserWindow, ipcMain, shell },
+      electron: { app, BrowserWindow, ipcMain, protocol, shell },
       dependencies: { CultMesh, encode },
       providerTarget: {
         providerId: "aetheria.daemon",
@@ -133,7 +115,6 @@ app.whenReady().then(async () => {
 
 app.on("before-quit", () => {
   isQuitting = true;
-  void aetheriaClient?.close();
   stopChild(daemonProcess);
 });
 
@@ -171,6 +152,12 @@ async function runElectronSmoke(window: BrowserWindow): Promise<Record<string, u
           resolveEmbedded(embedded("gravity")),
           resolveEmbedded(embedded("objects")),
         ]);
+        const assetProbe = await new Promise(resolve => {
+          const image = new Image();
+          image.onload = () => resolve({ loaded: true, width: image.naturalWidth, height: image.naturalHeight });
+          image.onerror = () => resolve({ loaded: false, width: 0, height: 0 });
+          image.src = "eve-asset://asset?uri=" + encodeURIComponent("cultmesh://aetheria/assets/map/entity/player");
+        });
         const eveReceipt = eveProvider ? await eveProvider.submitCommand({
           providerId: "aetheria.daemon",
           surfaceId: "aetheria.game",
@@ -195,6 +182,7 @@ async function runElectronSmoke(window: BrowserWindow): Promise<Record<string, u
           renderSplatsResolved,
           gravityResolved,
           objectsResolved,
+          assetProbe,
           eveFieldSurface,
           eveReceipt
         };
@@ -236,6 +224,9 @@ function isElectronSmokeReady(result: Record<string, unknown>): boolean {
     renderSplatsResolved?.schemaId === "gamecult.aetheria.render_splats_viewport.v1" &&
     gravityResolved?.schemaId === "gamecult.aetheria.gravity_viewport.v1" &&
     objectsResolved?.schemaId === "gamecult.aetheria.objects_viewport.v1" &&
+    objectValue(result.assetProbe)?.loaded === true &&
+    Number(objectValue(result.assetProbe)?.width) > 0 &&
+    Number(objectValue(result.assetProbe)?.height) > 0 &&
     stringValue(eveFieldSurface?.id).length > 0 &&
     arrayValue(eveFieldSurface?.embeddedDocuments).some(slot =>
       objectValue(slot)?.slotId === "renderSplats") &&
@@ -269,8 +260,6 @@ function writeElectronSmokeResult(result: Record<string, unknown>): void {
 
 function exitElectronSmoke(exitCode: number): void {
   isQuitting = true;
-  void aetheriaClient?.close();
-  aetheriaClient = null;
   void eveHost?.close();
   eveHost = null;
   stopChild(daemonProcess);
@@ -285,35 +274,6 @@ function withTimeout<T>(work: Promise<T>, timeoutMs: number, label: string): Pro
     work,
     new Promise<T>((_resolve, reject) => setTimeout(() => reject(new Error(`Timed out during ${label}.`)), timeoutMs)),
   ]);
-}
-
-function registerAssetProtocol(): void {
-  protocol.handle(assetProtocol, async request => {
-    try {
-      const uri = new URL(request.url).searchParams.get("uri") ?? "";
-      if (!aetheriaClient) {
-        return new Response("Aetheria CultMesh client is not initialized.", { status: 503 });
-      }
-
-      const asset = await aetheriaClient.assetBlob(uri);
-      const body = Uint8Array.from(asset.bytes).buffer as ArrayBuffer;
-      return new Response(body, {
-        status: 200,
-        headers: {
-          "content-type": asset.mimeType,
-          "cache-control": "no-store",
-        },
-      });
-    } catch (error) {
-      return new Response(error instanceof Error ? error.message : String(error), { status: 404 });
-    }
-  });
-}
-
-function requireClient(): AetheriaCultMeshClient {
-  if (!aetheriaClient)
-    throw new Error("Aetheria CultMesh client is not initialized.");
-  return aetheriaClient;
 }
 
 async function ensureDotnetBuild(): Promise<void> {
