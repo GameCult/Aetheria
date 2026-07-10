@@ -6,9 +6,7 @@ import {
   type EveSurfaceComponent,
 } from "../node_modules/@gamecult/eve-browser-lowering/dist/index.js";
 import type {
-  AetheriaMenuSurfaceDocument,
   AetheriaRtsApi,
-  Viewport,
 } from "./aetheria-rts-contract.js";
 
 export {};
@@ -65,44 +63,14 @@ function surfaceRequest(surface: EveProviderSurfaceAdvertisement): { surfaceId?:
 async function resolveEveDocument(
   request: EveEmbeddedDocumentRequest,
   component: EveSurfaceComponent,
-): Promise<{ document?: unknown; documentId: string; schemaId: string; surface?: AetheriaMenuSurfaceDocument["surface"] } | undefined> {
-  if (request.schemaId === "gamecult.eve.surface.v1" || request.slotId === "mainMenuPanel") {
-    const surface = await window.aetheriaRts.eveSurface({
-      surfaceId: request.documentId,
-    });
-    return {
-      documentId: request.documentId,
-      schemaId: "gamecult.eve.surface.v1",
-      surface: surface.surface,
-    };
-  }
-
-  const viewport = viewportFromComponent(component);
-  if (request.schemaId === "gamecult.aetheria.render_splats_viewport.v1" || request.slotId === "renderSplats") {
-    return {
-      document: await window.aetheriaRts.renderSplatsViewport(viewport),
-      documentId: request.documentId,
-      schemaId: "gamecult.aetheria.render_splats_viewport.v1",
-    };
-  }
-  if (request.schemaId === "gamecult.aetheria.gravity_viewport.v1" || request.slotId === "gravity") {
-    return {
-      document: await window.aetheriaRts.gravityViewport(viewport),
-      documentId: request.documentId,
-      schemaId: "gamecult.aetheria.gravity_viewport.v1",
-    };
-  }
-  if (request.schemaId === "gamecult.aetheria.objects_viewport.v1" || request.slotId === "objects") {
-    return {
-      document: await window.aetheriaRts.objectsViewport(viewport),
-      documentId: request.documentId,
-      schemaId: "gamecult.aetheria.objects_viewport.v1",
-    };
-  }
-  return undefined;
+): ReturnType<AetheriaRtsApi["eveDocument"]> {
+  return window.aetheriaRts.eveDocument({
+    ...request,
+    context: { viewport: viewportFromComponent(component) },
+  });
 }
 
-function viewportFromComponent(component: EveSurfaceComponent): Viewport {
+function viewportFromComponent(component: EveSurfaceComponent): Record<string, number> {
   const props = component.props ?? {};
   return {
     minX: numberProp(props.minX, -1500),

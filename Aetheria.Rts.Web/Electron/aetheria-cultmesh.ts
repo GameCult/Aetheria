@@ -104,6 +104,21 @@ export type AetheriaEveSurfaceRequest = {
   recordKey?: string;
 };
 
+export type EveEmbeddedDocumentRequest = {
+  documentId: string;
+  schemaId?: string;
+  slotId?: string;
+  presentationKind?: string;
+  context?: Record<string, unknown>;
+};
+
+export type EveResolvedDocument = {
+  documentId: string;
+  schemaId: string;
+  document?: unknown;
+  surface?: AetheriaMenuSurfaceDocument["surface"];
+};
+
 export type AetheriaEveCommandRequest = {
   providerId?: string;
   surfaceId?: string;
@@ -404,6 +419,27 @@ export class AetheriaCultMeshClient {
       },
     );
     return normalizeEveProviderAdvertisement(await document.latest(this.queryContext()));
+  }
+
+  public async eveDocument(request: EveEmbeddedDocumentRequest): Promise<EveResolvedDocument | undefined> {
+    const schemaId = request?.schemaId?.trim() || "";
+    if (!request?.documentId?.trim()) throw new Error("Eve embedded document request is missing documentId.");
+    if (schemaId === eveSurfaceSchemaId || request.slotId === "mainMenuPanel") {
+      const surface = await this.eveSurface({ surfaceId: request.documentId });
+      return { documentId: request.documentId, schemaId: eveSurfaceSchemaId, surface: surface.surface };
+    }
+
+    const viewport = viewportFromEmbeddedDocumentContext(request.context);
+    if (schemaId === AetheriaRtsSchemas.renderSplatsViewport || request.slotId === "renderSplats") {
+      return { documentId: request.documentId, schemaId: AetheriaRtsSchemas.renderSplatsViewport, document: await this.renderSplatsViewport(viewport) };
+    }
+    if (schemaId === AetheriaRtsSchemas.gravityViewport || request.slotId === "gravity") {
+      return { documentId: request.documentId, schemaId: AetheriaRtsSchemas.gravityViewport, document: await this.gravityViewport(viewport) };
+    }
+    if (schemaId === AetheriaRtsSchemas.objectsViewport || request.slotId === "objects") {
+      return { documentId: request.documentId, schemaId: AetheriaRtsSchemas.objectsViewport, document: await this.objectsViewport(viewport) };
+    }
+    return undefined;
   }
 
   public async submitEveCommand(request: AetheriaEveCommandRequest): Promise<AetheriaRuntimeDaemonCommandReceipt> {
@@ -964,6 +1000,16 @@ function normalizeEveProviderAdvertisement(document: unknown): import("./aetheri
       transport: stringOr(readField(surface, "transport", 3), "cultmesh"),
       status: stringOr(readField(surface, "status", 4), "available"),
     })).filter(surface => surface.surfaceId && surface.key),
+  };
+}
+
+function viewportFromEmbeddedDocumentContext(context: Record<string, unknown> | undefined): ViewportRequest {
+  const source = objectValue(context?.viewport);
+  return {
+    minX: numberOr(source.minX, -1500),
+    minY: numberOr(source.minY, -1000),
+    maxX: numberOr(source.maxX, 1500),
+    maxY: numberOr(source.maxY, 1000),
   };
 }
 

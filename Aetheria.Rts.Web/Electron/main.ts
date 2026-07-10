@@ -199,6 +199,7 @@ async function runElectronSmoke(window: BrowserWindow): Promise<Record<string, u
             typeof api.surfaceCatalog === "function" &&
             typeof api.surfaceCatalogIndex === "function" &&
             typeof api.eveProviderAdvertisement === "function" &&
+            typeof api.eveDocument === "function" &&
             typeof api.eveSurface === "function" &&
             typeof api.submitEveCommand === "function",
           status,
