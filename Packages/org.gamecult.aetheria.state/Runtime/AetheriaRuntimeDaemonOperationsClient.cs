@@ -16,6 +16,37 @@ public sealed class AetheriaRuntimeDaemonOperationsClient
         _submit = submit ?? throw new ArgumentNullException(nameof(submit));
     }
 
+    public static bool TryCreateSurfaceCommandDocument(
+        EveSurfaceCommandRequest request,
+        AetheriaRuntimeDaemonFrameDocument? frame,
+        string stateFilePath,
+        string clientId,
+        string sessionId,
+        out AetheriaRuntimeDaemonCommandDocument? command)
+    {
+        command = null;
+        if (request == null)
+            return false;
+
+        AetheriaRuntimeDaemonCommandDocument? translated = null;
+        var operations = new AetheriaRuntimeDaemonOperationsClient(submit =>
+        {
+            var client = new AetheriaRuntimeDaemonOperationClient(
+                string.IsNullOrWhiteSpace(stateFilePath) ? "." : stateFilePath,
+                clientId,
+                sessionId,
+                document =>
+                {
+                    translated = document;
+                    return AetheriaRuntimeDaemonOperationClient.ToEnvelope(document);
+                });
+            return submit(client, frame);
+        });
+        var accepted = operations.TrySubmitSurfaceCommand(request, out _);
+        command = translated;
+        return accepted && command != null;
+    }
+
     public AetheriaRuntimeDaemonCommandEnvelope SetTarget(string targetEntityKey)
     {
         return Submit((client, frame) => client.SetTarget(frame, targetEntityKey));

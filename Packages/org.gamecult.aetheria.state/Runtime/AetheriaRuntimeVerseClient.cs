@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using GameCult.Caching;
 using GameCult.Caching.MessagePack;
+using GameCult.Eve.Surface;
 using GameCult.Mesh;
 using GameCult.Networking;
 using R3;
@@ -20,6 +21,13 @@ namespace GameCult.Aetheria.State.Verse
     {
         public static CultRecordKey DaemonProviderAdvertisement { get; } =
             new CultRecordKey("daemon:aetheria.provider_advertisement.v1");
+
+        public static CultRecordKey EveProviderAdvertisement { get; } =
+            new CultRecordKey("eve:provider:aetheria.daemon");
+
+        public const string EveCommandRecordPrefix = "eve:commands:aetheria.daemon";
+
+        public const string EveReceiptRecordPrefix = "eve:receipts:aetheria.daemon";
 
         public static CultRecordKey DaemonHealth { get; } =
             new CultRecordKey("daemon:aetheria.health.v1");
@@ -102,6 +110,11 @@ namespace GameCult.Aetheria.State.Verse
             return new CultRecordKey($"eve:commands:{StableToken(commandId)}:gamecult.eve.command.v1");
         }
 
+        public static CultRecordKey EveReceipt(string receiptId)
+        {
+            return new CultRecordKey($"{EveReceiptRecordPrefix}:{StableToken(receiptId)}");
+        }
+
         public static string StableToken(string value)
         {
             if (string.IsNullOrWhiteSpace(value))
@@ -149,7 +162,10 @@ namespace GameCult.Aetheria.State.Verse
             typeof(AetheriaRuntimePlayerSettingsDocument),
             typeof(AetheriaRuntimeVerseHostSettingsDocument),
             typeof(AetheriaRuntimeSurfaceDocument),
+            typeof(EveProviderAdvertisementDocument),
             typeof(EveSurfaceDocument),
+            typeof(EveSurfaceCommandRequest),
+            typeof(EveCommandReceiptDocument),
             typeof(AetheriaRuntimeDaemonCommandDocument),
             typeof(AetheriaRuntimeEveCommandDocument),
             typeof(AetheriaRuntimeCommittedCommandFactDocument)

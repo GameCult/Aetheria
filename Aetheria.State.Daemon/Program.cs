@@ -117,6 +117,7 @@ static async Task<AetheriaRuntimeDaemonTickResult> TickAsync(
     AetheriaRuntimeDaemonFrameDocument? currentFrame,
     bool buildPublications)
 {
+    await AcceptCoreEveInvocationsAsync(node, options, currentFrame).ConfigureAwait(false);
     await AcceptEveCommandsAsync(node, options).ConfigureAwait(false);
 
     var fixedDeltaSeconds = currentFrame?.FixedDeltaSeconds > 0
@@ -239,7 +240,8 @@ static async Task PublishCommittedCommandFactsAsync(
         if (string.IsNullOrWhiteSpace(commandId) || !byCommandId.TryGetValue(commandId, out var command))
             continue;
 
-        await node.PutCommittedCommandFactAsync(
+        await PublishCommittedFactAsync(
+            node,
             AetheriaRuntimeCommittedCommandFactDocument.FromAppliedCommand(
                 frame,
                 command,
@@ -252,12 +254,38 @@ static async Task PublishCommittedCommandFactsAsync(
             !byCommandId.TryGetValue(commandId, out var command))
             continue;
 
-        await node.PutCommittedCommandFactAsync(
+        await PublishCommittedFactAsync(
+            node,
             AetheriaRuntimeCommittedCommandFactDocument.FromRejectedCommand(
                 frame,
                 command,
                 options.VerseId)).ConfigureAwait(false);
     }
+}
+
+static async Task PublishCommittedFactAsync(
+    AetheriaStateNode node,
+    AetheriaRuntimeCommittedCommandFactDocument fact)
+{
+    await node.PutCommittedCommandFactAsync(fact).ConfigureAwait(false);
+    var applied = string.Equals(
+        fact.Outcome,
+        AetheriaRuntimeCommandFactOutcomes.Applied,
+        StringComparison.Ordinal);
+    var receipt = new EveCommandReceiptDocument(
+        fact.FactId,
+        fact.CommandId,
+        fact.CommandKind.ToString(),
+        applied ? "reconciled" : "denied",
+        "Aetheria",
+        fact.SourceDaemonId,
+        "aetheria.daemon",
+        AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId,
+        applied ? "Command applied by authoritative daemon." : "Command rejected by authoritative daemon.",
+        fact.CommittedAtUtc,
+        Math.Max(fact.SourceFrameId, 0));
+    await node.Database.PutAsync(AetheriaRuntimeVerseRecordKeys.EveReceipt(receipt.ReceiptId), receipt)
+        .ConfigureAwait(false);
 }
 
 static RudpCultNetSchemaServer StartClientCultMeshHost(
@@ -890,31 +918,40 @@ static async Task InjectEveSurfaceSnapshotAsync(
             SourceRole = "aetheria-daemon"
         });
     response.Documents = response.Documents
-        .Where(document => !string.Equals(document.SchemaId, surfacePut.Document.SchemaId, StringComparison.Ordinal) ||
-            !string.Equals(document.RecordKey, surfacePut.Document.RecordKey, StringComparison.Ordinal))
+        .Where(document => !string.Equals(document.RecordKey, surfacePut.Document.RecordKey, StringComparison.Ordinal))
         .Concat(new[] { surfacePut.Document })
         .ToArray();
 }
 
 static Task<EveSurfaceDocument?> ReadEveSurfacePublicationAsync(AetheriaStateNode node, string surfaceKind)
 {
-    return surfaceKind switch
+    var key = surfaceKind switch
     {
-        "game" => node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.DaemonGameSurface).ReadAsync(),
-        "game-tui" => node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.DaemonGameTuiSurface).ReadAsync(),
-        "editor" => node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.DaemonEditorSurface).ReadAsync(),
-        "editor-tui" => node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.DaemonEditorTuiSurface).ReadAsync(),
-        "main-menu" => node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.MainMenuSurface).ReadAsync(),
-        "main-menu-settings" => node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.MainMenuSettingsSurface).ReadAsync(),
-        "main-menu-input-settings" => node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.MainMenuInputSettingsSurface).ReadAsync(),
-        "main-menu-player-settings" => node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.MainMenuPlayerSettingsSurface).ReadAsync(),
-        "main-menu-verse-settings" => node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.MainMenuVerseSettingsSurface).ReadAsync(),
-        "inventory-panel" => node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.InventoryPanelSurface).ReadAsync(),
-        "inventory-dropdown" => node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.InventoryDropdownSurface).ReadAsync(),
-        "map-menu" => node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.MapMenuSurface).ReadAsync(),
-        "trade-menu" => node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.TradeMenuSurface).ReadAsync(),
+        "game" => AetheriaRuntimeVerseRecordKeys.DaemonGameSurface,
+        "game-tui" => AetheriaRuntimeVerseRecordKeys.DaemonGameTuiSurface,
+        "editor" => AetheriaRuntimeVerseRecordKeys.DaemonEditorSurface,
+        "editor-tui" => AetheriaRuntimeVerseRecordKeys.DaemonEditorTuiSurface,
+        "main-menu" => AetheriaRuntimeVerseRecordKeys.MainMenuSurface,
+        "main-menu-settings" => AetheriaRuntimeVerseRecordKeys.MainMenuSettingsSurface,
+        "main-menu-input-settings" => AetheriaRuntimeVerseRecordKeys.MainMenuInputSettingsSurface,
+        "main-menu-player-settings" => AetheriaRuntimeVerseRecordKeys.MainMenuPlayerSettingsSurface,
+        "main-menu-verse-settings" => AetheriaRuntimeVerseRecordKeys.MainMenuVerseSettingsSurface,
+        "inventory-panel" => AetheriaRuntimeVerseRecordKeys.InventoryPanelSurface,
+        "inventory-dropdown" => AetheriaRuntimeVerseRecordKeys.InventoryDropdownSurface,
+        "map-menu" => AetheriaRuntimeVerseRecordKeys.MapMenuSurface,
+        "trade-menu" => AetheriaRuntimeVerseRecordKeys.TradeMenuSurface,
         _ => throw new ArgumentOutOfRangeException(nameof(surfaceKind), surfaceKind, "Unknown Eve surface publication.")
     };
+    return ReadPortableSurfaceAsync(node, key);
+}
+
+static async Task<EveSurfaceDocument?> ReadPortableSurfaceAsync(AetheriaStateNode node, CultRecordKey key)
+{
+    var portableSurface = await node.MutableDocument<EveSurfaceDocument>(key).ReadAsync().ConfigureAwait(false);
+    if (portableSurface != null)
+        return portableSurface;
+    var providerSurface = await node.MutableDocument<AetheriaRuntimeSurfaceDocument>(key).ReadAsync().ConfigureAwait(false);
+    return providerSurface == null ? null : AetheriaRuntimeSurfaceDocuments.ToEveSurfaceDocument(providerSurface);
 }
 
 static async Task RunClientCultMeshPumpAsync(
@@ -1181,6 +1218,9 @@ static async Task PublishDaemonApiDocumentsAsync(
         await node.MutableDocument<AetheriaRuntimeDaemonProviderAdvertisementDocument>(AetheriaRuntimeVerseRecordKeys.DaemonProviderAdvertisement)
             .ReplaceAsync(result.ProviderAdvertisement)
             .ConfigureAwait(false);
+    await node.MutableDocument<EveProviderAdvertisementDocument>(AetheriaRuntimeVerseRecordKeys.EveProviderAdvertisement)
+        .ReplaceAsync(BuildCoreProviderAdvertisement(options, result.Frame.PublishedAtUtc))
+        .ConfigureAwait(false);
     if (result.Health != null)
         await node.MutableDocument<AetheriaRuntimeDaemonHealthDocument>(AetheriaRuntimeVerseRecordKeys.DaemonHealth)
             .ReplaceAsync(result.Health)
@@ -1203,18 +1243,15 @@ static async Task PublishDaemonApiDocumentsAsync(
     var activeMainMenuSurfaceId = string.IsNullOrWhiteSpace(mainMenuState?.ActiveSurfaceId)
         ? AetheriaRuntimeMainMenuCommands.RootSurfaceId
         : mainMenuState.ActiveSurfaceId;
-    if (result.GameSurface != null)
-    {
-        var gameSurface = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(
-            result.Frame,
-            result.Health ?? new AetheriaRuntimeDaemonHealthDocument(),
-            result.CommandBoundary ?? AetheriaRuntimeDaemonCommandBoundaryDocument.Create(options.DaemonId),
-            result.StarbridgeSessionSummary,
-            activeMainMenuSurfaceId);
-        await node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.DaemonGameSurface)
-            .ReplaceAsync(AetheriaRuntimeSurfaceDocuments.ToPortableSurface(gameSurface))
-            .ConfigureAwait(false);
-    }
+    var gameSurface = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(
+        result.Frame,
+        result.Health ?? new AetheriaRuntimeDaemonHealthDocument(),
+        result.CommandBoundary ?? AetheriaRuntimeDaemonCommandBoundaryDocument.Create(options.DaemonId),
+        result.StarbridgeSessionSummary,
+        activeMainMenuSurfaceId);
+    await node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.DaemonGameSurface)
+        .ReplaceAsync(AetheriaRuntimeSurfaceDocuments.ToPortableSurface(gameSurface))
+        .ConfigureAwait(false);
     if (result.GameTuiSurface != null)
         await node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.DaemonGameTuiSurface)
             .ReplaceAsync(AetheriaRuntimeSurfaceDocuments.ToPortableSurface(result.GameTuiSurface))
@@ -1229,6 +1266,50 @@ static async Task PublishDaemonApiDocumentsAsync(
             .ConfigureAwait(false);
 
     await PublishDaemonMenuSurfacesAsync(node, options, result.Frame).ConfigureAwait(false);
+}
+
+static EveProviderAdvertisementDocument BuildCoreProviderAdvertisement(
+    AetheriaDaemonHostOptions options,
+    string updatedAtUtc)
+{
+    var interaction = new EveWorldInteractionAdvertisement(
+        "provider-authored-world-surface",
+        new[] { AetheriaRuntimeDaemonSchemas.Frame },
+        "aetheria.daemon.commands",
+        AetheriaRuntimeVerseRecordKeys.EveCommandRecordPrefix,
+        EveCommandReceiptDocument.SchemaId,
+        AetheriaRuntimeVerseRecordKeys.EveReceiptRecordPrefix,
+        AetheriaRuntimeVerseRecordKeys.DaemonAssetManifest.ToString(),
+        new[] { "unity-scene", "web-reference", "electron-shell", "tui" },
+        "provider-owns-world-state-command-acceptance-and-receipts");
+    return new EveProviderAdvertisementDocument(
+        "aetheria.daemon",
+        options.DaemonId,
+        options.VerseId,
+        "Aetheria Daemon",
+        "game.daemon",
+        options.CultMeshAddress,
+        updatedAtUtc,
+        new GameCult.Eve.Surface.EveProviderFreshness("fresh", updatedAtUtc, 5000),
+        new[]
+        {
+            EveSurfaceDocument.SchemaId,
+            EveSurfaceCommandRequest.SchemaId,
+            EveCommandReceiptDocument.SchemaId
+        },
+        Array.Empty<GameCult.Eve.Surface.EveProviderWitness>(),
+        new[]
+        {
+            new EveAdvertisedSurface(
+                AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId,
+                EveSurfaceDocument.SchemaId,
+                AetheriaRuntimeVerseRecordKeys.DaemonGameSurface.ToString(),
+                "cultmesh-record",
+                "active",
+                "interactive-world",
+                interaction)
+        },
+        Array.Empty<EveAdvertisedCommand>());
 }
 
 static async Task PublishDaemonMenuSurfacesAsync(
@@ -1468,6 +1549,57 @@ static AetheriaRuntimeSurfaceComponent SurfaceNode(
         kind,
         props.ToDictionary(prop => prop.Key, prop => prop.Value),
         children);
+}
+
+static async Task AcceptCoreEveInvocationsAsync(
+    AetheriaStateNode node,
+    AetheriaDaemonHostOptions options,
+    AetheriaRuntimeDaemonFrameDocument? currentFrame)
+{
+    var accounted = new HashSet<string>(
+        currentFrame?.AccountedCommandIds ?? Array.Empty<string>(),
+        StringComparer.Ordinal);
+    var receipted = node.Documents<EveCommandReceiptDocument>()
+        .Where(receipt => !string.IsNullOrWhiteSpace(receipt.CommandId))
+        .Select(receipt => receipt.CommandId)
+        .ToHashSet(StringComparer.Ordinal);
+    foreach (var request in node.Documents<EveSurfaceCommandRequest>()
+                 .Where(request => request != null && !string.IsNullOrWhiteSpace(request.CommandId))
+                 .OrderBy(request => request.IssuedAt))
+    {
+        if (accounted.Contains(request.CommandId) || receipted.Contains(request.CommandId))
+            continue;
+
+        if (AetheriaRuntimeDaemonOperationsClient.TryCreateSurfaceCommandDocument(
+                request,
+                currentFrame,
+                node.StatePath,
+                request.ClientId,
+                currentFrame?.SessionId ?? options.SessionId,
+                out var command) && command != null)
+        {
+            command.CommandId = request.CommandId;
+            command.ClientId = request.ClientId;
+            command.AuthorRuntimeId = request.ClientId;
+            await node.SubmitDaemonCommandAsync(command).ConfigureAwait(false);
+            continue;
+        }
+
+        var denied = new EveCommandReceiptDocument(
+            $"receipt:{request.CommandId}:denied",
+            request.CommandId,
+            request.Command,
+            "denied",
+            "Aetheria",
+            options.DaemonId,
+            request.ProviderId,
+            request.SurfaceId,
+            "Command is not advertised by the Aetheria daemon surface.",
+            DateTimeOffset.UtcNow.ToString("O"),
+            Math.Max(currentFrame?.FrameId ?? 0, 0));
+        await node.Database.PutAsync(AetheriaRuntimeVerseRecordKeys.EveReceipt(denied.ReceiptId), denied)
+            .ConfigureAwait(false);
+    }
 }
 
 static async Task AcceptEveCommandsAsync(AetheriaStateNode node, AetheriaDaemonHostOptions options)
