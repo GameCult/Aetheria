@@ -354,9 +354,8 @@ function registerIpc(): void {
     const receipt = await waitForEveReceipt(submission, 5000);
     return { ...submission, ...receipt, commandId: submission.commandId, accepted: receiptStateAccepted(receipt) };
   });
-  // Embedded viewport documents remain provider-specific until their record
-  // references are published by the interactive-world surface contract.
-  ipcMain.handle(AetheriaRtsIpcChannels.eveDocument, (_event, request) => requireClient().eveDocument(request));
+  ipcMain.handle(AetheriaRtsIpcChannels.eveDocument, (_event, request) =>
+    requireEveProviderClient().resolveDocument(request));
   registerEveWindowControls(ipcMain, BrowserWindow, "aetheria-rts:window-control");
 }
 

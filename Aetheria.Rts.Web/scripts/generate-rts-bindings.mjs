@@ -581,7 +581,6 @@ export type AetheriaRtsMainClient = {
   watchViewportFeed(request: AetheriaRuntimeViewportFeedRequest, callback: (snapshot: AetheriaRuntimeViewportFeedSnapshot) => void): CultMeshUnsubscribe;
   setMoveVector(request: AetheriaRuntimeSetMoveVectorRequest): Promise<AetheriaRuntimeDaemonCommandReceipt>;
   setTarget(request: AetheriaRuntimeSetTargetRequest): Promise<AetheriaRuntimeDaemonCommandReceipt>;
-  eveDocument(request: EveEmbeddedDocumentRequest): Promise<EveResolvedDocument | undefined>;
   surfaceCatalogDiagnostics(): CultMeshSurfaceCatalogDiagnostic;
   surfaceCatalogIndexDiagnostics(): CultMeshSurfaceCatalogIndexDiagnostic;
 };

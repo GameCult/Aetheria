@@ -94,20 +94,6 @@ export type AetheriaCultMeshDaemonTarget = {
   readonly endpoints?: readonly string[];
 };
 
-export type EveEmbeddedDocumentRequest = {
-  documentId: string;
-  schemaId?: string;
-  slotId?: string;
-  presentationKind?: string;
-  context?: Record<string, unknown>;
-};
-
-export type EveResolvedDocument = {
-  documentId: string;
-  schemaId: string;
-  document?: unknown;
-};
-
 export type {
   BodyView,
   EntityStatus,
@@ -311,22 +297,6 @@ export class AetheriaCultMeshClient {
       bytes,
       mimeType: resolveAssetMimeType(recordKey, manifest),
     };
-  }
-
-  public async eveDocument(request: EveEmbeddedDocumentRequest): Promise<EveResolvedDocument | undefined> {
-    const schemaId = request?.schemaId?.trim() || "";
-    if (!request?.documentId?.trim()) throw new Error("Eve embedded document request is missing documentId.");
-    const viewport = viewportFromEmbeddedDocumentContext(request.context);
-    if (schemaId === AetheriaRtsSchemas.renderSplatsViewport || request.slotId === "renderSplats") {
-      return { documentId: request.documentId, schemaId: AetheriaRtsSchemas.renderSplatsViewport, document: await this.renderSplatsViewport(viewport) };
-    }
-    if (schemaId === AetheriaRtsSchemas.gravityViewport || request.slotId === "gravity") {
-      return { documentId: request.documentId, schemaId: AetheriaRtsSchemas.gravityViewport, document: await this.gravityViewport(viewport) };
-    }
-    if (schemaId === AetheriaRtsSchemas.objectsViewport || request.slotId === "objects") {
-      return { documentId: request.documentId, schemaId: AetheriaRtsSchemas.objectsViewport, document: await this.objectsViewport(viewport) };
-    }
-    return undefined;
   }
 
   public queryDiagnostics(): Readonly<Record<string, AetheriaRuntimeGameQueryDiagnostic>> {
@@ -827,16 +797,6 @@ function createAetheriaPublicationDocuments(
         recordKey: document.remoteRecordKey,
       }
     : document);
-}
-
-function viewportFromEmbeddedDocumentContext(context: Record<string, unknown> | undefined): ViewportRequest {
-  const source = objectValue(context?.viewport);
-  return {
-    minX: numberOr(source.minX, -1500),
-    minY: numberOr(source.minY, -1000),
-    maxX: numberOr(source.maxX, 1500),
-    maxY: numberOr(source.maxY, 1000),
-  };
 }
 
 function readField(value: unknown, property: string, index: number): unknown {
