@@ -42,6 +42,7 @@ const ipcChannels = [
   ["surfaceCatalog", "aetheria-rts:surface-catalog"],
   ["surfaceCatalogIndex", "aetheria-rts:surface-catalog-index"],
   ["eveSurface", "aetheria-rts:eve-surface"],
+  ["eveProviderAdvertisement", "eve:provider-advertisement"],
   ["submitEveCommand", "aetheria-rts:submit-eve-command"],
   ["windowControl", "aetheria-rts:window-control"],
   ["health", "aetheria-rts:health"],
@@ -485,6 +486,18 @@ export type AetheriaEveSurfaceRequest = {
   recordKey?: string;
 };
 
+export type EveProviderAdvertisement = {
+  providerId: string;
+  title: string;
+  kind: string;
+  surfaces: Array<{
+    surfaceId: string;
+    key: string;
+    transport: string;
+    status: string;
+  }>;
+};
+
 export type AetheriaEveCommandRequest = {
   providerId?: string;
   surfaceId?: string;
@@ -553,6 +566,7 @@ export type AetheriaRtsMainClient = {
   setMoveVector(request: AetheriaRuntimeSetMoveVectorRequest): Promise<AetheriaRuntimeDaemonCommandReceipt>;
   setTarget(request: AetheriaRuntimeSetTargetRequest): Promise<AetheriaRuntimeDaemonCommandReceipt>;
   eveSurface(request: AetheriaEveSurfaceRequest): Promise<AetheriaMenuSurfaceDocument>;
+  eveProviderAdvertisement(): Promise<EveProviderAdvertisement>;
   submitEveCommand(request: AetheriaEveCommandRequest): Promise<AetheriaRuntimeDaemonCommandReceipt>;
   surfaceCatalogDiagnostics(): CultMeshSurfaceCatalogDiagnostic;
   surfaceCatalogIndexDiagnostics(): CultMeshSurfaceCatalogIndexDiagnostic;
@@ -602,6 +616,8 @@ export function registerAetheriaRtsIpcHandlers(
     getClient().setTarget(request));
   ipcMain.handle(AetheriaRtsIpcChannels.eveSurface, async (_event, request: AetheriaEveSurfaceRequest) =>
     getClient().eveSurface(request));
+  ipcMain.handle(AetheriaRtsIpcChannels.eveProviderAdvertisement, async () =>
+    getClient().eveProviderAdvertisement());
   ipcMain.handle(AetheriaRtsIpcChannels.submitEveCommand, async (_event, request: AetheriaEveCommandRequest) =>
     getClient().submitEveCommand(request));
   ipcMain.handle(AetheriaRtsIpcChannels.surfaceCatalog, () => getClient().surfaceCatalogDiagnostics());
@@ -1148,6 +1164,18 @@ export type AetheriaEveSurfaceRequest = {
   recordKey?: string;
 };
 
+export type EveProviderAdvertisement = {
+  providerId: string;
+  title: string;
+  kind: string;
+  surfaces: Array<{
+    surfaceId: string;
+    key: string;
+    transport: string;
+    status: string;
+  }>;
+};
+
 export type AetheriaEveCommandRequest = {
   providerId?: string;
   surfaceId?: string;
@@ -1216,6 +1244,7 @@ export type AetheriaRtsApi = {
   surfaceCatalog(): Promise<CultMeshSurfaceCatalogDiagnostic>;
   surfaceCatalogIndex(): Promise<CultMeshSurfaceCatalogIndexDiagnostic>;
   eveSurface(request: AetheriaEveSurfaceRequest): Promise<AetheriaMenuSurfaceDocument>;
+  eveProviderAdvertisement(): Promise<EveProviderAdvertisement>;
   submitEveCommand(request: AetheriaEveCommandRequest): Promise<AetheriaRuntimeDaemonCommandReceipt>;
   windowControl(action: "minimize" | "maximize" | "close"): Promise<void>;
   health(): Promise<unknown>;

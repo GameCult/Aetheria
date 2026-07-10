@@ -348,6 +348,18 @@ export type AetheriaEveSurfaceRequest = {
   recordKey?: string;
 };
 
+export type EveProviderAdvertisement = {
+  providerId: string;
+  title: string;
+  kind: string;
+  surfaces: Array<{
+    surfaceId: string;
+    key: string;
+    transport: string;
+    status: string;
+  }>;
+};
+
 export type AetheriaEveCommandRequest = {
   providerId?: string;
   surfaceId?: string;
@@ -416,6 +428,7 @@ export type AetheriaRtsApi = {
   surfaceCatalog(): Promise<CultMeshSurfaceCatalogDiagnostic>;
   surfaceCatalogIndex(): Promise<CultMeshSurfaceCatalogIndexDiagnostic>;
   eveSurface(request: AetheriaEveSurfaceRequest): Promise<AetheriaMenuSurfaceDocument>;
+  eveProviderAdvertisement(): Promise<EveProviderAdvertisement>;
   submitEveCommand(request: AetheriaEveCommandRequest): Promise<AetheriaRuntimeDaemonCommandReceipt>;
   windowControl(action: "minimize" | "maximize" | "close"): Promise<void>;
   health(): Promise<unknown>;

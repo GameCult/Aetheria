@@ -1,6 +1,7 @@
 import {
-  renderEveSurface,
+  EveBrowserProviderHost,
   type EveCommandIntent,
+  type EveProviderSurfaceAdvertisement,
   type EveEmbeddedDocumentRequest,
   type EveSurfaceComponent,
 } from "../node_modules/@gamecult/eve-browser-lowering/dist/index.js";
@@ -20,9 +21,6 @@ declare global {
 
 const host = requiredElement<HTMLElement>("#eve-surface-host");
 const statusEl = requiredElement<HTMLElement>("#status");
-let latestEveSurfaceKey = "";
-let renderDaemonEveSurfaceNow: (() => Promise<void>) | null = null;
-let eveSurfacePoll: number | null = null;
 
 function requiredElement<TElement extends Element>(selector: string): TElement {
   const element = document.querySelector<TElement>(selector);
@@ -40,40 +38,28 @@ function setStatus(text: string): void {
 async function showDaemonEveSurface(): Promise<void> {
   document.body.classList.add("eve-game-mode");
   host.setAttribute("aria-label", "Aetheria daemon Eve surface");
+  const requestedSurfaceId = new URLSearchParams(location.search).get("surface") || "";
+  const providerHost = new EveBrowserProviderHost(host, {
+    providerAdvertisement: () => window.aetheriaRts.eveProviderAdvertisement(),
+    surface: surface => window.aetheriaRts.eveSurface(surfaceRequest(surface)),
+    submitCommand: submitEveCommand,
+    resolveDocument: resolveEveDocument,
+    resolveAssetUrl: resolveAetheriaAssetUrl,
+  }, {
+    body: document.body,
+    clientId: "eve-electron-client",
+    pollMs: 250,
+    requestedSurfaceId,
+    source: "CultMesh provider",
+    statusElement: statusEl,
+  });
+  await providerHost.start();
+  wireWindowControls();
+  new MutationObserver(wireWindowControls).observe(host, { childList: true, subtree: true });
+}
 
-  const renderLatest = async () => {
-    try {
-      const surface = await window.aetheriaRts.eveSurface({
-        recordKey: "eve:surface:aetheria.daemon.game",
-      });
-      const surfaceKey = `${surface.providerId}:${surface.surface.id}:${surface.version}:${surface.updatedAtUtc}`;
-      if (surfaceKey === latestEveSurfaceKey) {
-        return;
-      }
-
-      latestEveSurfaceKey = surfaceKey;
-      renderEveSurface(surface, host, {
-        body: document.body,
-        assetUrlResolver: resolveAetheriaAssetUrl,
-        clientId: "aetheria-electron-client",
-        commandSink: intent => submitEveCommand(intent),
-        documentResolver: resolveEveDocument,
-        source: "Aetheria Daemon",
-        statusElement: statusEl,
-      });
-      wireWindowControls();
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Aetheria daemon Eve surface unavailable.");
-    }
-  };
-
-  renderDaemonEveSurfaceNow = renderLatest;
-  await renderLatest();
-  if (eveSurfacePoll == null) {
-    eveSurfacePoll = window.setInterval(() => {
-      void renderLatest();
-    }, 250);
-  }
+function surfaceRequest(surface: EveProviderSurfaceAdvertisement): { surfaceId?: string; recordKey?: string } {
+  return surface.key ? { recordKey: surface.key } : { surfaceId: surface.surfaceId };
 }
 
 async function resolveEveDocument(
@@ -158,12 +144,6 @@ async function submitEveCommand(intent: EveCommandIntent): Promise<void> {
       payload: intent.payload,
     });
     setStatus(`${intent.command}: ${receipt.accepted ? "submitted" : "rejected"}`);
-    latestEveSurfaceKey = "";
-    if (renderDaemonEveSurfaceNow) {
-      window.setTimeout(() => {
-        void renderDaemonEveSurfaceNow?.();
-      }, 120);
-    }
   } catch (error) {
     setStatus(error instanceof Error ? error.message : `Failed to submit ${intent.command}.`);
   }

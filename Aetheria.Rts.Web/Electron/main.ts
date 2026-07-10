@@ -83,7 +83,9 @@ app.whenReady().then(async () => {
 
     showStartup("Launching Aetheria Starbridge", "Waiting for the daemon CultMesh frame.");
     await aetheriaClient.waitForFrame(30000);
-    await mainWindow.loadFile(rendererIndex);
+    await mainWindow.loadFile(rendererIndex, {
+      query: { surface: process.env.EVE_SURFACE_ID || "aetheria.daemon.game" },
+    });
     if (electronSmoke) {
       const result = await runElectronSmoke(mainWindow);
       writeElectronSmokeResult({ ok: true, result });

@@ -63,6 +63,8 @@ import {
 
 const connectionId = 0x43554c54;
 const eveSurfaceSchemaId = "gamecult.eve.surface.v1";
+const eveProviderAdvertisementSchemaId = "gamecult.eve.provider_advertisement.v1";
+const eveProviderAdvertisementRecordKey = "eve:provider:aetheria";
 const defaultEveSurfaceRecordKey = "eve:surface:aetheria.daemon.game";
 const cultMeshCdnAssetBlobSchemaId = "gamecult.cultmesh.cdn.asset_blob.v1";
 
@@ -381,6 +383,27 @@ export class AetheriaCultMeshClient {
     );
 
     return normalizeEveSurfaceDocument(await document.latest(this.queryContext()));
+  }
+
+  public async eveProviderAdvertisement(): Promise<import("./aetheria-rts-generated-bindings.js").EveProviderAdvertisement> {
+    const document = CultMesh.documentFromPublication(
+      {
+        kind: "peer-snapshot",
+        peer: () => this.peer(),
+        endpoint: this.resolvedRudpEndpoint(),
+      },
+      eveProviderAdvertisementSchemaId,
+      eveProviderAdvertisementRecordKey,
+      {
+        documentId: eveProviderAdvertisementRecordKey,
+        routeHint: this.queryVerse.context.routeHint,
+        sourceId: eveProviderAdvertisementRecordKey,
+        timeoutMs: 1500,
+        pollMs: 50,
+        messageIdPrefix: `${this.runtimeId}:eve-provider`,
+      },
+    );
+    return normalizeEveProviderAdvertisement(await document.latest(this.queryContext()));
   }
 
   public async submitEveCommand(request: AetheriaEveCommandRequest): Promise<AetheriaRuntimeDaemonCommandReceipt> {
@@ -928,6 +951,20 @@ function eveSurfaceRecordKey(request: AetheriaEveSurfaceRequest): string {
 
   const surfaceId = request?.surfaceId?.trim();
   return surfaceId ? `eve:surface:${surfaceId}` : defaultEveSurfaceRecordKey;
+}
+
+function normalizeEveProviderAdvertisement(document: unknown): import("./aetheria-rts-generated-bindings.js").EveProviderAdvertisement {
+  return {
+    providerId: stringOr(readField(document, "providerId", 1), ""),
+    title: stringOr(readField(document, "title", 8), ""),
+    kind: stringOr(readField(document, "kind", 9), ""),
+    surfaces: arrayValue(readField(document, "surfaces", 14)).map(surface => ({
+      surfaceId: stringOr(readField(surface, "surfaceId", 1), ""),
+      key: stringOr(readField(surface, "key", 2), ""),
+      transport: stringOr(readField(surface, "transport", 3), "cultmesh"),
+      status: stringOr(readField(surface, "status", 4), "available"),
+    })).filter(surface => surface.surfaceId && surface.key),
+  };
 }
 
 function normalizeEveSurfaceDocument(document: unknown): AetheriaMenuSurfaceDocument {

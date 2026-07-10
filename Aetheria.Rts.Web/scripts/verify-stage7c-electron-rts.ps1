@@ -13,7 +13,9 @@ if (-not (Get-Content wwwroot\index.html -Raw).Contains('eve-surface-host')) {
 }
 
 $appText = Get-Content wwwroot\app.js -Raw
-if (-not $appText.Contains('window.aetheriaRts.eveSurface') -or
+if (-not $appText.Contains('window.aetheriaRts.eveProviderAdvertisement') -or
+    -not $appText.Contains('EveBrowserProviderHost') -or
+    $appText.Contains('eve:surface:aetheria.daemon.game') -or
     $appText.Contains('legacyViewportMode') -or
     $appText.Contains('mainMenuSurface') -or
     $appText.Contains('main-menu-mode')) {
