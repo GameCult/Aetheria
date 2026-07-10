@@ -1,0 +1,201 @@
+{
+  "schema": "gamecult.eve.provider_advertisement.v1",
+  "providerId": "aetheria",
+  "serviceId": "aetheria.service",
+  "verseId": "aetheria.local",
+  "rootVerse": "asgard",
+  "canonicalService": "aetheria",
+  "locatedService": "aetheria.local",
+  "cultMeshAddress": "cultmesh://aetheria.local/eve/providers/aetheria",
+  "title": "Aetheria",
+  "kind": "game.runtime",
+  "updatedAtUtc": "2026-07-08T00:00:00Z",
+  "freshness": {
+    "state": "fixture",
+    "lastSeenAtUtc": "2026-07-08T00:00:00Z",
+    "maxAgeMs": 15000
+  },
+  "schemas": [
+    "aetheria.world_state.v1",
+    "aetheria.item_definition.v1",
+    "aetheria.corporation.v2",
+    "aetheria.name_file.v2",
+    "aetheria.trade_value_policy.v1",
+    "aetheria.player_settings.v1",
+    "aetheria.loadout_template.v1",
+    "aetheria.run_state.v1",
+    "aetheria.zone_state.v1",
+    "aetheria.entity_snapshot.v1",
+    "aetheria.verse_host_settings.v1",
+    "aetheria.runtime_session.v1",
+    "aetheria.eve_command_acceptance_status.v1",
+    "aetheria.runtime.daemon.provider_advertisement.v1",
+    "aetheria.runtime.daemon.frame.v1",
+    "aetheria.runtime.daemon.soa_view.v1",
+    "aetheria.runtime.daemon.health.v1",
+    "aetheria.runtime.daemon.command_boundary.v1",
+    "aetheria.runtime.daemon.game_surface.v1",
+    "aetheria.runtime.daemon.editor_surface.v1",
+    "aetheria.runtime.daemon.command.v1",
+    "gamecult.eve.surface.v1",
+    "gamecult.eve.command.v1",
+    "gamecult.eve.command_invocation.v1",
+    "gamecult.eve.unity_playable_world_asset_manifest.v1"
+  ],
+  "witnesses": [
+    {
+      "kind": "repo",
+      "ref": "E:\\Projects\\Aetheria",
+      "summary": "Aetheria owns daemon state, Unity/web clients, assets, receipts, and provider scenarios."
+    },
+    {
+      "kind": "source",
+      "ref": "E:\\Projects\\Aetheria\\Aetheria.State\\AetheriaEveSurfaceDocuments.cs",
+      "summary": "BuildProviderAdvertisement publishes the live provider advertisement from typed Aetheria state."
+    },
+    {
+      "kind": "cultcache",
+      "ref": "aetheria-world.cc",
+      "summary": "Typed Aetheria state file; local fixture stands in for smoke-created path."
+    },
+    {
+      "kind": "cultmesh-record",
+      "ref": "AetheriaRuntimeVerseRecordKeys.DaemonGameSurface",
+      "summary": "Aetheria daemon game Eve GUI surface record."
+    },
+    {
+      "kind": "cultmesh-record",
+      "ref": "AetheriaRuntimeVerseRecordKeys.DaemonCommandBoundary",
+      "summary": "Aetheria daemon typed command boundary record."
+    },
+    {
+      "kind": "cultmesh-record",
+      "ref": "cultmesh://aetheria/assets/manifest",
+      "summary": "Provider-authored Unity playable-world asset manifest consumed by EveUnity without importing Aetheria prefab classes."
+    }
+  ],
+  "surfaces": [
+    {
+      "schema": "gamecult.eve.surface.v1",
+      "surfaceId": "aetheria.catalog.operator",
+      "key": "eve:surface:aetheria.catalog.operator",
+      "transport": "cultmesh-managed",
+      "status": "available",
+      "audience": "operator",
+      "mode": "interactive"
+    },
+    {
+      "schema": "gamecult.eve.surface.v1",
+      "surfaceId": "aetheria.operations",
+      "key": "eve:surface:aetheria.operations",
+      "transport": "cultmesh-managed",
+      "status": "available",
+      "audience": "operator",
+      "mode": "interactive"
+    },
+    {
+      "schema": "gamecult.eve.surface.v1",
+      "surfaceId": "aetheria.daemon.game",
+      "key": "AetheriaRuntimeVerseRecordKeys.DaemonGameSurface",
+      "transport": "cultmesh-record",
+      "status": "available",
+      "audience": "player",
+      "mode": "interactive",
+      "surfaceKind": "interactive-world",
+      "interactionModel": "provider-command-receipts",
+      "worldInteraction": {
+        "projectionKind": "provider-authored-world-surface",
+        "stateSchemas": [
+          "aetheria.world_state.v1",
+          "aetheria.runtime.daemon.frame.v1",
+          "aetheria.runtime.daemon.soa_view.v1"
+        ],
+        "commandBoundary": "aetheria.daemon.commands",
+        "receiptSchema": "aetheria.eve_command_acceptance_status.v1",
+        "loweringTargets": ["web-reference", "unity-uitoolkit", "unity-scene", "electron-shell", "tui"],
+        "ownership": "provider-owns-world-state-assets-command-acceptance-and-receipts"
+      },
+      "summary": "Authoritative daemon game surface consumed by Unity, Electron, and web lowerers."
+    },
+    {
+      "schema": "gamecult.eve.surface.v1",
+      "surfaceId": "aetheria.daemon.game.tui",
+      "key": "AetheriaRuntimeVerseRecordKeys.DaemonGameTuiSurface",
+      "transport": "cultmesh-record",
+      "status": "available",
+      "audience": "agent",
+      "mode": "interactive"
+    },
+    {
+      "schema": "gamecult.eve.surface.v1",
+      "surfaceId": "aetheria.daemon.editor",
+      "key": "AetheriaRuntimeVerseRecordKeys.DaemonEditorSurface",
+      "transport": "cultmesh-record",
+      "status": "available",
+      "audience": "operator",
+      "mode": "interactive",
+      "surfaceKind": "interactive-world-editor",
+      "interactionModel": "provider-command-receipts",
+      "worldInteraction": {
+        "projectionKind": "provider-authored-world-editor-surface",
+        "stateSchemas": [
+          "aetheria.world_state.v1",
+          "aetheria.runtime.daemon.editor_surface.v1",
+          "aetheria.runtime.daemon.command_boundary.v1"
+        ],
+        "commandBoundary": "aetheria.daemon.commands",
+        "receiptSchema": "aetheria.eve_command_acceptance_status.v1",
+        "loweringTargets": ["web-reference", "unity-uitoolkit", "electron-shell", "tui"],
+        "ownership": "provider-owns-editor-state-assets-command-acceptance-and-receipts"
+      }
+    }
+  ],
+  "commands": [
+    {
+      "command": "aetheria.daemon.commands",
+      "transport": "cultmesh",
+      "summary": "Aetheria daemon typed command boundary."
+    },
+    {
+      "command": "aetheria.catalog.refresh",
+      "transport": "cultmesh",
+      "summary": "Refresh catalog state."
+    },
+    {
+      "command": "aetheria.operations.refresh",
+      "transport": "cultmesh",
+      "summary": "Refresh operations state."
+    },
+    {
+      "command": "aetheria.player_settings.refresh",
+      "transport": "cultmesh",
+      "summary": "Refresh player settings state."
+    }
+  ],
+  "conformanceScenarios": [
+    {
+      "scenarioId": "aetheria-world-command-replay",
+      "schema": "gamecult.eve.provider_scenario.v1",
+      "path": "conformance/eve/aetheria-world-scenario.json",
+      "summary": "Interactive world replay through provider advertisement, daemon game surface, and provider-owned command receipts."
+    }
+  ],
+  "styleCapabilities": [
+    {
+      "styleProfile": "aetheria.daemon.world",
+      "preferredLowerings": ["unity-uitoolkit", "web-reference", "electron-shell", "tui"],
+      "tokenGroups": ["aetheria.world", "aetheria.daemon", "aetheria.commandBoundary"],
+      "lossiness": {
+        "web-reference": "proves generic Eve lowering and command/binding shape; does not own Aetheria assets or simulation truth",
+        "electron-shell": "projects the same Eve surface tree inside a generic Electron shell; does not own Aetheria assets, IPC truth, or simulation truth",
+        "tui": "dense command/state inspection only"
+      }
+    }
+  ],
+  "contacts": [
+    {
+      "kind": "repo",
+      "path": "E:\\Projects\\Aetheria"
+    }
+  ]
+}

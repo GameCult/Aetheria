@@ -1,0 +1,21 @@
+{
+  "schema": "gamecult.eve.unity_playable_world_asset_manifest.v1",
+  "providerId": "aetheria",
+  "manifestRef": "cultmesh://aetheria/assets/manifest",
+  "entries": [
+    {
+      "assetRef": "cultmesh://aetheria/assets/map/entity/player",
+      "entityKind": "player",
+      "resourcesPath": "resources://Aetheria/Entities/Vanguard.prefab",
+      "prefabKey": "aetheria.vanguard",
+      "presentationKind": "provider-asset-ref"
+    },
+    {
+      "assetRef": "cultmesh://aetheria/assets/map/entity/raider",
+      "entityKind": "enemy",
+      "resourcesPath": "resources://Aetheria/Entities/Raider.prefab",
+      "prefabKey": "aetheria.raider",
+      "presentationKind": "provider-asset-ref"
+    }
+  ]
+}

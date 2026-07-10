@@ -1,0 +1,87 @@
+{
+  "schema": "gamecult.eve.provider_scenario.v1",
+  "scenarioId": "aetheria-world-command-replay",
+  "providerId": "aetheria",
+  "ownerRepo": "Aetheria",
+  "advertisementPath": "conformance/eve/aetheria.provider-advertisement.json",
+  "surfaceFixture": "aetheria-world",
+  "purpose": "Proves Aetheria interactive world clients consume provider advertisements, lower provider-owned game surfaces, issue command intents through the daemon boundary, and receive provider-owned receipts.",
+  "requires": {
+    "fixtures": ["aetheria-world"],
+    "surfaces": ["aetheria.daemon.game", "aetheria.daemon.editor"],
+    "worldSurfaces": [
+      {
+        "surfaceId": "aetheria.daemon.game",
+        "surfaceKind": "interactive-world",
+        "projectionKind": "provider-authored-world-surface",
+        "commandBoundary": "aetheria.daemon.commands",
+        "receiptSchema": "aetheria.eve_command_acceptance_status.v1"
+      },
+      {
+        "surfaceId": "aetheria.daemon.editor",
+        "surfaceKind": "interactive-world-editor",
+        "projectionKind": "provider-authored-world-editor-surface",
+        "commandBoundary": "aetheria.daemon.commands",
+        "receiptSchema": "aetheria.eve_command_acceptance_status.v1"
+      }
+    ],
+    "commands": ["aetheria.daemon.commands"],
+    "schemas": ["gamecult.eve.surface.v1", "gamecult.eve.command.v1", "gamecult.eve.command_invocation.v1", "aetheria.eve_command_acceptance_status.v1"]
+  },
+  "commandIntents": [
+    {
+      "command": "aetheria.daemon.commands",
+      "commandId": "aetheria.daemon.focus",
+      "operation": "focus_entity",
+      "payload": {
+        "entityId": "GateRelay"
+      }
+    },
+    {
+      "command": "aetheria.daemon.commands",
+      "commandId": "aetheria.daemon.move_intent",
+      "operation": "set_move_vector",
+      "payload": {
+        "vector": [0.28, 0.0, 0.64]
+      }
+    },
+    {
+      "command": "aetheria.daemon.commands",
+      "commandId": "aetheria.daemon.editor.inspect",
+      "operation": "inspect_world_entity",
+      "payload": {
+        "surfaceId": "aetheria.daemon.editor",
+        "entityId": "GateRelay"
+      }
+    }
+  ],
+  "expectedReceipts": [
+    {
+      "receiptId": "aetheria.daemon.focus.accepted",
+      "command": "aetheria.daemon.commands",
+      "commandId": "aetheria.daemon.focus",
+      "state": "accepted",
+      "authority": "AetheriaRuntimeDaemonCommandBoundaryDocument",
+      "ownerRepo": "Aetheria",
+      "schema": "aetheria.eve_command_acceptance_status.v1"
+    },
+    {
+      "receiptId": "aetheria.daemon.move_intent.reconciled",
+      "command": "aetheria.daemon.commands",
+      "commandId": "aetheria.daemon.move_intent",
+      "state": "reconciled",
+      "authority": "AetheriaRuntimeDaemonCommandBoundaryDocument",
+      "ownerRepo": "Aetheria",
+      "schema": "aetheria.eve_command_acceptance_status.v1"
+    },
+    {
+      "receiptId": "aetheria.daemon.editor.inspect.pending",
+      "command": "aetheria.daemon.commands",
+      "commandId": "aetheria.daemon.editor.inspect",
+      "state": "pending",
+      "authority": "AetheriaRuntimeDaemonCommandBoundaryDocument",
+      "ownerRepo": "Aetheria",
+      "schema": "aetheria.eve_command_acceptance_status.v1"
+    }
+  ]
+}
