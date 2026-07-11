@@ -42,7 +42,7 @@ validation proves contract shape, not wiring, exclusivity, lowering, or parity.
 | Starbridge | original/shared architecture intent | one daemon session | pilot + commander surfaces | Unity + Electron | commander task board and autonomous explore execution wired; Electron Eve lowering and split-target proof missing | commander orders plus four pilots and autonomous workers |
 | Behavior engine | `ServerShared/Behaviors` composition | daemon | executable action/status projection | action bar and feedback | tick reconciles equipped catalog payloads into persistent behavior state; shared evaluated-stat query proven; execution families remain partial | every behavior family, ordering, resource transaction and modifier lifecycle |
 | Sensors/visibility | decaying sources and observer information thresholds | daemon | contacts and ping events | indicators/maps | reference | threshold, decay, ping and classification timelines |
-| AI/tasks | corporation task scheduler plus agent state machines | daemon | commander task board, corporation survey ledger, and shared semantic controls | Eve commander/pilot clients | point exploration, attack, same-zone haul, mining/offload, resource surveying, physical station towing, and persistent orbit patrol wired through shared commands; capability/priority assignment and rejection behavior proven | optimum-range control, cross-zone logistics, cancellation, reconnect, and live commander lowering |
+| AI/tasks | corporation task scheduler plus agent state machines | daemon | commander task board, corporation survey ledger, and shared semantic controls | Eve commander/pilot clients | point exploration, attack with optimum-range control, same-zone haul, mining/offload, resource surveying, physical station towing, persistent orbit patrol, route-aware assignment, and autonomous return home wired through shared commands; capability/priority assignment and rejection behavior proven; generic Electron commander lowering proves the worker roster | cross-zone logistics execution, cancellation, reconnect, and multi-client command transfer |
 | Consumables | cargo-backed timed behavior containers | daemon | dynamic actions and active effects | action bar/schematic | reference | consume, stacking, duration and cleanup |
 
 ## Ownership Invariants
@@ -60,6 +60,10 @@ validation proves contract shape, not wiring, exclusivity, lowering, or parity.
 6. Transient feedback has authoritative event identity so reconnect and refresh
    cannot duplicate hits, drops, purchases, or deaths.
 7. RTS, minimap, and pilot views are projections of one world state.
+8. Restored agent combat and future pilot cognition share semantic ship actions,
+   command validation, and Ymir execution. They do not share an implicit combat
+   authority: RTS task scheduling assigns work, while pilot cognition proposes
+   actions from observer-local knowledge under daemon-owned doctrine.
 
 ## Migration Order
 
@@ -73,6 +77,15 @@ validation proves contract shape, not wiring, exclusivity, lowering, or parity.
    generic primitives and provider assets.
 6. Run scenario parity against the fossil and preserve captures, receipts, and
    state timelines in conformance packs.
+
+Original-game parity is the substrate, not the final pilot command model. New
+combat work must follow `cockpit-doctrine-combat.md`: preserve semantic weapon
+actions and physical constraints, then place daemon-hosted cognition planning
+above them. The planner may propose sensing, maneuver, and fire-control actions;
+the daemon command gate alone accepts them, and Ymir alone resolves spatial
+motion and collision. Do not spend migration effort rebuilding manual aiming as
+the primary skill test or let a Unity presentation path become a second combat
+owner.
 
 ## Current P0 Faults
 
