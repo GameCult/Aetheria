@@ -161,6 +161,7 @@ namespace GameCult.Aetheria.State.Verse
                 ["label"] = string.IsNullOrWhiteSpace(zone.Name) ? "Starbridge" : zone.Name,
                 ["statePointerId"] = AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest.ToString(),
                 ["assetManifest"] = AetheriaRuntimeVerseRecordKeys.EveAssetCatalog.ToString(),
+                ["inputCapability"] = AetheriaRuntimeVerseRecordKeys.PilotInputCapability.ToString(),
                 ["inputProfile"] = "rts.pointer-keyboard.v1",
                 ["cameraRig"] = "rts.top-down.v1",
                 ["zoneIndex"] = zone.ZoneIndex.ToString(CultureInfo.InvariantCulture),
