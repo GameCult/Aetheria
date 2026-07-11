@@ -194,7 +194,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             new AetheriaYmirWorldPhysics(),
             new AetheriaRuntimeCatalogSnapshot([CatalogItem("test-charged", payload)], [], []), 0, 0);
 
-        Require(zone.Projectiles.Count == 0 && !run.GameEvents.Any(value => value.Kind == "projectile.launched"),
+        Require(zone.Projectiles.Count == 0 && !run.GameEvents.Any(value => value.Kind == "shot.committed"),
             "pressing an authored ChargedWeapon must not bypass charging through the instant weapon resolver");
         Require(Math.Abs(Stat(target, "hull") - 100) < 0.000001,
             "charged weapon admission must not apply damage before a daemon-owned release commits the shot");
@@ -206,7 +206,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 new AetheriaRuntimeCatalogSnapshot([CatalogItem("test-charged", payload)], [], []), frame, frame * 0.1);
         Require(state.Charging && state.Charged && state.Charge >= 1 && state.ChargeHoldSeconds > 0,
             "one semantic request must precharge without a firing solution and enter persisted hold state");
-        Require(!run.GameEvents.Any(value => value.Kind == "projectile.launched"),
+        Require(!run.GameEvents.Any(value => value.Kind == "shot.committed"),
             "ready charged weapon must hold rather than invent a firing solution");
         source.TargetEntityIndex = target.EntityIndex;
         AetheriaRuntimeDaemonSimulation.Step(run, new AetheriaRuntimeDaemonIntentState(), 0.1,
@@ -214,7 +214,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             new AetheriaYmirWorldPhysics(),
             new AetheriaRuntimeCatalogSnapshot([CatalogItem("test-charged", payload)], [], []), 11, 1.1);
         Require(run.GameEvents.Count(value => value.Kind == "weapon.charge.committed") == 1 &&
-                run.GameEvents.Any(value => value.Kind == "projectile.launched" &&
+                run.GameEvents.Any(value => value.Kind == "shot.committed" &&
                     value.ItemKey == "test-charged" && Math.Abs(value.ScalarValue - 40) < 0.000001),
             "stored full charge must commit automatically when a firing solution becomes available");
         var surface = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(
@@ -271,7 +271,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         Require(run.GameEvents.Count(value => value.Kind == "weapon.charge.malfunctioned" &&
                 value.SubjectKey == "hold-risk" && value.ItemKey == item.ItemKey) == 1,
             "charged hold risk must emit one authoritative malfunction event");
-        Require(!run.GameEvents.Any(value => value.Kind == "projectile.launched"),
+        Require(!run.GameEvents.Any(value => value.Kind == "shot.committed"),
             "malfunction without a firing solution must never leak a projectile");
     }
 
@@ -927,7 +927,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             var weapon = (agent.WeaponStates ?? Array.Empty<AetheriaRuntimeWeaponStateCommit>())
                 .Single(value => value.OwnerKind == AetheriaRuntimeBehaviorStateProjector.EquipmentOwnerKind);
             sawPartialLock |= weapon.LockProgress > 0 && weapon.LockProgress < 0.99;
-            if (firstLaunchFrame < 0 && run.GameEvents.Any(value => value.Kind == "projectile.launched"))
+            if (firstLaunchFrame < 0 && run.GameEvents.Any(value => value.Kind == "shot.committed"))
                 firstLaunchFrame = frame;
             if (string.Equals(run.AgentTasks.Single().Status, AetheriaRuntimeAgentTaskStatuses.Completed, StringComparison.Ordinal))
                 break;
@@ -937,9 +937,9 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         Require(sawFireCommand, "attack agent must fire through the shared weapon-group command");
         Require(sawPartialLock, "attack agent must acquire a persisted partial weapon lock before firing");
         Require(firstLaunchFrame > 1, "accepted fire intent must not bypass progressive weapon lock acquisition");
-        Require(run.GameEvents.Any(value => value.Kind == "projectile.launched" && value.SourceEntityIndex == agent.EntityIndex),
-            "accepted fire control must emit authoritative projectile launch chronology");
-        Require(run.GameEvents.Any(value => value.Kind == "projectile.launched" &&
+        Require(run.GameEvents.Any(value => value.Kind == "shot.committed" && value.SourceEntityIndex == agent.EntityIndex),
+            "accepted fire control must emit authoritative shot commitment chronology");
+        Require(run.GameEvents.Any(value => value.Kind == "shot.committed" &&
                 value.ItemKey == "test-lock-cannon" && Math.Abs(value.ScalarValue - (7.0 / 3.0)) < 0.000001),
             "daemon combat must divide authored damage across the configured burst rounds");
         Require((agent.WeaponStates ?? Array.Empty<AetheriaRuntimeWeaponStateCommit>()).Any(value => value.OwnerKind == AetheriaRuntimeBehaviorStateProjector.EquipmentOwnerKind &&
@@ -953,8 +953,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             0.000001, "two authored bursts must drain exactly their combined energy from canonical capacitor state");
         RequireEqual(1, CargoQuantity(agent, "test-ammo"),
             "one empty magazine must consume exactly one reserve cargo commodity before reload");
-        Require(run.GameEvents.Count(value => value.Kind == "projectile.launched" && value.ItemKey == "test-lock-cannon") >= 6,
-            "two authored bursts must emit all six due rounds through the projectile owner");
+        Require(run.GameEvents.Count(value => value.Kind == "shot.committed" && value.ItemKey == "test-lock-cannon") >= 6,
+            "two authored bursts must commit all six due rounds through the shot resolver");
         Require(run.ShotReceipts.Count(value => value.WeaponItemKey == "test-lock-cannon") >= 6 &&
                 run.ShotReceipts.All(value => value.Hit && value.AppliedDamage == value.NominalDamage),
             "zero-spread authored rounds must commit immutable certain-hit receipts before presentation travel");
@@ -967,8 +967,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         var reloadStarted = run.GameEvents.Single(value => value.Kind == "weapon.reload.started").FrameId;
         var reloadCompleted = run.GameEvents.Single(value => value.Kind == "weapon.reload.completed").FrameId;
         Require(reloadCompleted > reloadStarted && !run.GameEvents.Any(value =>
-                value.Kind == "projectile.launched" && value.FrameId > reloadStarted && value.FrameId < reloadCompleted),
-            "reload interval must be a projectile-free authoritative timeline, not a cosmetic client delay");
+                value.Kind == "shot.committed" && value.FrameId > reloadStarted && value.FrameId < reloadCompleted),
+            "reload interval must be a shot-free authoritative timeline, not a cosmetic client delay");
         Require(!target.IsActive,
             $"attack task must end through daemon shot resolution before presentation projectile contacts; hull={Stat(target, "hull"):0.###} " +
             $"agent={agent.PositionX:0.###},{agent.PositionZ:0.###} target={target.PositionX:0.###},{target.PositionZ:0.###} " +

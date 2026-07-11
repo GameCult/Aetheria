@@ -327,7 +327,11 @@ namespace GameCult.Aetheria.State.Verse
                         ("hitRoll", FormatNumber(value.HitRoll)),
                         ("hit", value.Hit ? "true" : "false"),
                         ("nominalDamage", FormatNumber(value.NominalDamage)),
-                        ("appliedDamage", FormatNumber(value.AppliedDamage))
+                        ("appliedDamage", FormatNumber(value.AppliedDamage)),
+                        ("origin", string.Join(",", FormatNumber(value.OriginX), FormatNumber(value.OriginZ))),
+                        ("endpoint", string.Join(",", FormatNumber(value.EndpointX), FormatNumber(value.EndpointZ))),
+                        ("presentationDuration", FormatNumber(value.PresentationDurationSeconds)),
+                        ("presentationKind", value.PresentationKind)
                     }))
                 .ToArray();
             return Node("aetheria.daemon.game.shots", "shot.receipt-stream",

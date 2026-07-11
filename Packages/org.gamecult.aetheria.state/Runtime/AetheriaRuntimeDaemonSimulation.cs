@@ -323,9 +323,9 @@ namespace GameCult.Aetheria.State.Verse
                         }
                         weapon.State.BurstRemaining--;
                         weapon.State.BurstTimer -= weapon.State.BurstInterval;
-                        var projectile = SpawnProjectile(zone, attacker, target, weapon, settings);
-                        CommitShotResolution(run, zone, attacker, target, weapon, projectile.ProjectileId, frameId);
-                        AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit { EventId = $"projectile:{projectile.ProjectileId}:launched", Kind = "projectile.launched", FrameId = frameId, ZoneIndex = zone.ZoneIndex, SourceEntityIndex = attacker.EntityIndex, TargetEntityIndex = target.EntityIndex, SubjectKey = projectile.ProjectileId, ItemKey = projectile.WeaponKind, ScalarValue = projectile.Damage, PositionX = projectile.PositionX, PositionZ = projectile.PositionZ });
+                        var shotId = NextShotId(zone, attacker, weapon);
+                        CommitShotResolution(run, zone, attacker, target, weapon, shotId, frameId);
+                        AppendShotCommittedEvent(run, zone, attacker, target, weapon, shotId, frameId);
                         weapon.State.Firing = true;
                         AetheriaRuntimeThermalSimulation.AddHeat(attacker, weapon.Heat);
                     }
@@ -481,16 +481,9 @@ namespace GameCult.Aetheria.State.Verse
                     }
                     state.BurstRemaining--;
                     state.BurstTimer -= state.BurstInterval;
-                    var projectile = SpawnProjectile(zone, attacker, solutionTarget, shot, settings);
-                    CommitShotResolution(run, zone, attacker, solutionTarget, shot, projectile.ProjectileId, frameId);
-                    AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit
-                    {
-                        EventId = $"projectile:{projectile.ProjectileId}:launched", Kind = "projectile.launched",
-                        FrameId = frameId, ZoneIndex = zone.ZoneIndex, SourceEntityIndex = attacker.EntityIndex,
-                        TargetEntityIndex = solutionTarget.EntityIndex, SubjectKey = projectile.ProjectileId,
-                        ItemKey = projectile.WeaponKind, ScalarValue = projectile.Damage,
-                        PositionX = projectile.PositionX, PositionZ = projectile.PositionZ
-                    });
+                    var shotId = NextShotId(zone, attacker, shot);
+                    CommitShotResolution(run, zone, attacker, solutionTarget, shot, shotId, frameId);
+                    AppendShotCommittedEvent(run, zone, attacker, solutionTarget, shot, shotId, frameId);
                     state.Firing = true;
                     AetheriaRuntimeThermalSimulation.AddHeat(attacker, shot.Heat);
                 }
@@ -642,8 +635,9 @@ namespace GameCult.Aetheria.State.Verse
                 weapon.State.LastRefusalReason = "";
                 AetheriaRuntimeThermalSimulation.AddHeat(attacker, weapon.Heat * deltaSeconds);
                 var shot = weapon.ResolutionShot(deltaSeconds);
-                var shotId = $"shot:{zone.ZoneIndex}:{frameId}:{attacker.EntityIndex}:{weapon.State.OwnerIndex}:{weapon.State.BehaviorIndex}";
+                var shotId = NextShotId(zone, attacker, shot);
                 CommitShotResolution(run, zone, attacker, selectedTarget!, shot, shotId, frameId);
+                AppendShotCommittedEvent(run, zone, attacker, selectedTarget!, shot, shotId, frameId);
             }
         }
 
@@ -922,7 +916,11 @@ namespace GameCult.Aetheria.State.Verse
                 LockQuality = lockQuality, RangeFactor = rangeFactor, MotionFactor = motionFactor,
                 DispersionFactor = dispersionFactor, HitProbability = probability, HitRoll = roll,
                 Hit = hit, NominalDamage = weapon.Damage, AppliedDamage = appliedDamage,
-                Outcome = hit ? "hit" : "miss"
+                Outcome = hit ? "hit" : "miss",
+                OriginX = attacker.PositionX, OriginZ = attacker.PositionZ,
+                EndpointX = target.PositionX, EndpointZ = target.PositionZ,
+                PresentationDurationSeconds = distance / Math.Max(1, weapon.ProjectileSpeed),
+                PresentationKind = weapon.ItemKey
             });
             AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit
             {
@@ -949,6 +947,26 @@ namespace GameCult.Aetheria.State.Verse
                     TargetEntityIndex = target.EntityIndex, SubjectKey = shotId,
                     ItemKey = weapon.ItemKey, PositionX = target.PositionX, PositionZ = target.PositionZ
                 });
+        }
+
+        private static string NextShotId(AetheriaRuntimeZoneSnapshotCommit zone,
+            AetheriaRuntimeEntitySnapshotCommit attacker, ResolvedWeapon weapon)
+        {
+            weapon.State.ShotSequence++;
+            return $"shot:{zone.ZoneIndex}:{attacker.EntityIndex}:{weapon.State.OwnerIndex}:{weapon.State.BehaviorIndex}:{weapon.State.ShotSequence}";
+        }
+
+        private static void AppendShotCommittedEvent(AetheriaRuntimeRunCheckpointCommit run,
+            AetheriaRuntimeZoneSnapshotCommit zone, AetheriaRuntimeEntitySnapshotCommit attacker,
+            AetheriaRuntimeEntitySnapshotCommit target, ResolvedWeapon weapon, string shotId, long frameId)
+        {
+            AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit
+            {
+                EventId = $"shot:{shotId}:committed", Kind = "shot.committed", FrameId = frameId,
+                ZoneIndex = zone.ZoneIndex, SourceEntityIndex = attacker.EntityIndex,
+                TargetEntityIndex = target.EntityIndex, SubjectKey = shotId, ItemKey = weapon.ItemKey,
+                ScalarValue = weapon.Damage, PositionX = attacker.PositionX, PositionZ = attacker.PositionZ
+            });
         }
 
         private static double ShotRoll(uint seed, string shotId, string salt)
@@ -1081,57 +1099,6 @@ namespace GameCult.Aetheria.State.Verse
             states.Add(state);
             entity.WeaponStates = states.ToArray();
             return state;
-        }
-
-        private static AetheriaRuntimeProjectileCommit SpawnProjectile(
-            AetheriaRuntimeZoneSnapshotCommit zone,
-            AetheriaRuntimeEntitySnapshotCommit attacker,
-            AetheriaRuntimeEntitySnapshotCommit target,
-            ResolvedWeapon weapon,
-            AetheriaRuntimeDaemonSimulationSettings settings)
-        {
-            var direction = Normalize(target.PositionX - attacker.PositionX, target.PositionZ - attacker.PositionZ);
-            if (Math.Abs(direction.X) + Math.Abs(direction.Y) <= 0.0001)
-                direction = Normalize(attacker.DirectionX, attacker.DirectionY);
-            if (Math.Abs(direction.X) + Math.Abs(direction.Y) <= 0.0001)
-                direction = (0, 1);
-
-            var projectiles = (zone.Projectiles ?? Array.Empty<AetheriaRuntimeProjectileCommit>())
-                .Where(projectile => projectile != null && projectile.Active)
-                .ToList();
-            var projectile = new AetheriaRuntimeProjectileCommit
-            {
-                ProjectileId = CreateProjectileId(zone, attacker, target, projectiles.Count),
-                SourceEntityIndex = attacker.EntityIndex,
-                TargetEntityIndex = target.EntityIndex,
-                FactionKey = attacker.FactionKey ?? "",
-                PositionX = attacker.PositionX + direction.X * settings.ProjectileSpawnOffset,
-                PositionY = attacker.PositionY,
-                PositionZ = attacker.PositionZ + direction.Y * settings.ProjectileSpawnOffset,
-                DirectionX = direction.X,
-                DirectionY = direction.Y,
-                VelocityX = direction.X * weapon.ProjectileSpeed,
-                VelocityY = direction.Y * weapon.ProjectileSpeed,
-                Damage = weapon.Damage,
-                Radius = settings.ProjectileRadius,
-                LifetimeSeconds = settings.ProjectileLifetimeSeconds,
-                Guided = true,
-                Active = true,
-                WeaponKind = weapon.ItemKey
-            };
-            projectiles.Add(projectile);
-            zone.Projectiles = projectiles.ToArray();
-            return projectile;
-        }
-
-        private static string CreateProjectileId(
-            AetheriaRuntimeZoneSnapshotCommit zone,
-            AetheriaRuntimeEntitySnapshotCommit attacker,
-            AetheriaRuntimeEntitySnapshotCommit target,
-            int ordinal)
-        {
-            var tick = Math.Max(0, (long)Math.Round(zone.SimulationTimeSeconds * 1000.0));
-            return $"projectile:{zone.ZoneIndex}:{tick}:{attacker.EntityIndex}:{target.EntityIndex}:{ordinal}";
         }
 
         private static double ResolveProjectileDamage(

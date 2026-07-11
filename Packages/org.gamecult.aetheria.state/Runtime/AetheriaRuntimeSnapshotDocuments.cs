@@ -474,6 +474,12 @@ namespace GameCult.Aetheria.State.Verse
         [Key(16)] public double NominalDamage { get; set; }
         [Key(17)] public double AppliedDamage { get; set; }
         [Key(18)] public string Outcome { get; set; } = "";
+        [Key(19)] public double OriginX { get; set; }
+        [Key(20)] public double OriginZ { get; set; }
+        [Key(21)] public double EndpointX { get; set; }
+        [Key(22)] public double EndpointZ { get; set; }
+        [Key(23)] public double PresentationDurationSeconds { get; set; }
+        [Key(24)] public string PresentationKind { get; set; } = "";
     }
 
     [MessagePackObject]
@@ -1148,6 +1154,7 @@ namespace GameCult.Aetheria.State.Verse
         [Key(20)] public double ChargeHoldSeconds { get; set; }
         [Key(21)] public int ChargeRiskChecks { get; set; }
         [Key(22)] public double ChargeMalfunctionRisk { get; set; }
+        [Key(23)] public long ShotSequence { get; set; }
     }
 
     [MessagePackObject]
