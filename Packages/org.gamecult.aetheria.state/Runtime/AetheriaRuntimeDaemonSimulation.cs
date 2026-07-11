@@ -17,7 +17,10 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeDaemonIntentState intents,
             double deltaSeconds,
             AetheriaRuntimeDaemonSimulationSettings settings,
-            IAetheriaRuntimeProjectilePhysics projectilePhysics)
+            IAetheriaRuntimeProjectilePhysics projectilePhysics,
+            AetheriaRuntimeCatalogSnapshot? catalog = null,
+            long frameId = 0,
+            double simulationTimeSeconds = 0)
         {
             if (run == null || deltaSeconds <= 0)
                 return;
@@ -44,6 +47,7 @@ namespace GameCult.Aetheria.State.Verse
                 StepTargetPursuit(entities, settings);
                 StepMovement(entities, deltaSeconds);
                 StepCombat(run, zone, entities, intents, deltaSeconds, settings, projectilePhysics);
+                AetheriaRuntimeMiningSimulation.Step(run, zone, entities, intents, catalog, frameId, simulationTimeSeconds, deltaSeconds);
                 StepTractorSalvage(run, zone, entities, settings);
                 RefreshContacts(entities, settings);
             }

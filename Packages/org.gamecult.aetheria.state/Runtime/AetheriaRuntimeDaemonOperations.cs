@@ -1095,7 +1095,9 @@ namespace GameCult.Aetheria.State.Verse
                 ActorEntityKey = actor,
                 EquipmentIndex = command.EquipmentIndex,
                 BehaviorIndex = command.BehaviorIndex,
-                Active = command.ScalarValue > 0.5
+                Active = command.ScalarValue > 0.5,
+                TargetBodyKey = command.TextValue ?? "",
+                TargetAsteroidIndex = (int)command.PositionX
             });
             return true;
         }

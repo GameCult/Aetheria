@@ -21,6 +21,45 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         RejectedHaulTransferDoesNotAdvanceTask();
         AgentPatrolsHistoricalOrbitCircuitThroughMovementCommands();
         TickReconcilesAndEvaluatesCatalogBehaviors();
+        AgentMinesAsteroidThroughEquippedBehavior();
+    }
+
+    private static void AgentMinesAsteroidThroughEquippedBehavior()
+    {
+        var miner = Entity(0, 0, "workers");
+        miner.AgentTaskCapabilities = [AetheriaRuntimeAgentTaskTypes.Mine];
+        miner.Equipment = [new AetheriaRuntimeLoadoutItemSlotCommit { Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = "mining-tool", Enabled = true, Quality = 1, Durability = 1 } }];
+        var catalog = new AetheriaRuntimeCatalogSnapshot(
+            [CatalogItem("mining-tool", new AetheriaRuntimeBehaviorPayload(0, "MiningTool", 0,
+                [new AetheriaRuntimeBehaviorField(1, PerformanceStat(1000)), new AetheriaRuntimeBehaviorField(2, PerformanceStat(1000000000)), new AetheriaRuntimeBehaviorField(3, PerformanceStat(2)), new AetheriaRuntimeBehaviorField(4, PerformanceStat(1000))]))],
+            [], []);
+        var asteroid = new AetheriaRuntimeAsteroidCommit { Distance = 0, Size = 6 };
+        var zone = new AetheriaRuntimeZoneSnapshotCommit
+        {
+            ZoneIndex = 0,
+            Entities = [miner],
+            Bodies = [new AetheriaRuntimeBodySnapshotCommit { BodyKey = "belt", Kind = "asteroid_belt", Asteroids = [asteroid], Resources = [new AetheriaRuntimeBodyResourceCommit { ItemKey = "iron", Amount = 1 }] }]
+        };
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            GenerationSeed = 7,
+            CurrentZoneIndex = 0,
+            CurrentEntityKey = "zone.0.entity.0",
+            Zones = [zone],
+            AgentTasks = [new AetheriaRuntimeAgentTaskCommit { TaskId = "mine-1", CorporationKey = "workers", TaskType = AetheriaRuntimeAgentTaskTypes.Mine, ZoneIndex = 0, Status = AetheriaRuntimeAgentTaskStatuses.Queued, TargetBodyKeys = ["belt"] }]
+        };
+
+        var result = AetheriaRuntimeDaemonTickRunner.Tick(Path.Combine(Path.GetTempPath(), "aetheria-mining-smoke.cc"), run,
+            new AetheriaRuntimeDaemonTickOptions { FrameId = 1, FixedDeltaSeconds = 1, SimulationTimeSeconds = 1, Catalog = catalog, BuildPublications = false });
+
+        Require(run.AgentTasks[0].Phase == "mining", "mining task must activate its equipped tool");
+        Require(result.OperationResult.Intents.Behaviors.Count == 1,
+            $"mining behavior command must become daemon intent (applied={string.Join(',', result.Frame.AppliedCommandIds)}, rejected={string.Join(',', result.Frame.RejectedCommandIds)})");
+        var committedMiner = run.Zones[0].Entities.Single(entity => entity.EntityIndex == 0);
+        var committedAsteroid = run.Zones[0].Bodies[0].Asteroids[0];
+        Require(committedAsteroid.RespawnTimer > 0, $"mining damage must deplete the asteroid and start historical respawn (damage={committedAsteroid.Damage}, respawn={committedAsteroid.RespawnTimer})");
+        Require(committedMiner.CargoContents.SelectMany(bay => bay.Items).Any(slot => slot.Item.ItemKey == "iron" && slot.Item.Quantity > 0),
+            "historical mining yield must enter daemon-owned cargo");
     }
 
     private static void TickReconcilesAndEvaluatesCatalogBehaviors()

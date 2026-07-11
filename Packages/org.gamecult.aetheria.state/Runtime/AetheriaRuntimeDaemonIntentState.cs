@@ -56,6 +56,8 @@ namespace GameCult.Aetheria.State.Verse
         public int EquipmentIndex { get; set; } = -1;
         public int BehaviorIndex { get; set; } = -1;
         public bool Active { get; set; }
+        public string TargetBodyKey { get; set; } = "";
+        public int TargetAsteroidIndex { get; set; } = -1;
     }
 
     public sealed class AetheriaRuntimeDaemonConsumableIntent

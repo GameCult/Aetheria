@@ -82,14 +82,16 @@ namespace GameCult.Aetheria.State.Verse
 
         public static IReadOnlyList<AetheriaRuntimeDaemonCommandDocument> AssignAndPlan(
             AetheriaRuntimeRunCheckpointCommit run,
-            long frameId)
+            long frameId,
+            AetheriaRuntimeCatalogSnapshot? catalog = null,
+            double simulationTimeSeconds = 0)
         {
             if (run == null)
                 return Array.Empty<AetheriaRuntimeDaemonCommandDocument>();
 
             ReleaseInvalidAssignments(run);
             AssignQueuedTasks(run, frameId);
-            return PlanAssignedTasks(run, frameId);
+            return PlanAssignedTasks(run, frameId, catalog, simulationTimeSeconds);
         }
 
         public static void Reconcile(
@@ -164,7 +166,9 @@ namespace GameCult.Aetheria.State.Verse
 
         private static IReadOnlyList<AetheriaRuntimeDaemonCommandDocument> PlanAssignedTasks(
             AetheriaRuntimeRunCheckpointCommit run,
-            long frameId)
+            long frameId,
+            AetheriaRuntimeCatalogSnapshot? catalog,
+            double simulationTimeSeconds)
         {
             var commands = new List<AetheriaRuntimeDaemonCommandDocument>();
             foreach (var task in (run.AgentTasks ?? Array.Empty<AetheriaRuntimeAgentTaskCommit>())
@@ -179,6 +183,11 @@ namespace GameCult.Aetheria.State.Verse
                 if (string.Equals(task.TaskType, AetheriaRuntimeAgentTaskTypes.Haul, StringComparison.Ordinal))
                 {
                     commands.AddRange(PlanHaul(run, zone!, task, agent, frameId));
+                    continue;
+                }
+                if (string.Equals(task.TaskType, AetheriaRuntimeAgentTaskTypes.Mine, StringComparison.Ordinal))
+                {
+                    commands.AddRange(PlanMining(zone!, task, agent, frameId, catalog, simulationTimeSeconds));
                     continue;
                 }
                 if (string.Equals(task.TaskType, AetheriaRuntimeAgentTaskTypes.Defend, StringComparison.Ordinal))
@@ -221,6 +230,53 @@ namespace GameCult.Aetheria.State.Verse
                 }
             }
             return commands;
+        }
+
+        private static IReadOnlyList<AetheriaRuntimeDaemonCommandDocument> PlanMining(
+            AetheriaRuntimeZoneSnapshotCommit zone,
+            AetheriaRuntimeAgentTaskCommit task,
+            AetheriaRuntimeEntitySnapshotCommit agent,
+            long frameId,
+            AetheriaRuntimeCatalogSnapshot? catalog,
+            double simulationTimeSeconds)
+        {
+            var tool = AetheriaRuntimeEquippedBehaviorQueries.Find(agent, catalog, "MiningTool").FirstOrDefault();
+            var bodyKey = (task.TargetBodyKeys ?? Array.Empty<string>()).FirstOrDefault() ?? "";
+            var body = (zone.Bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>())
+                .FirstOrDefault(candidate => candidate != null && string.Equals(candidate.BodyKey, bodyKey, StringComparison.Ordinal));
+            if (tool == null || body == null)
+            {
+                Fail(task, agent);
+                return Array.Empty<AetheriaRuntimeDaemonCommandDocument>();
+            }
+
+            var asteroid = AetheriaRuntimeDaemonRenderQueries.QueryAsteroidInstancePoses(zone, bodyKey, simulationTimeSeconds)
+                .Where(pose => pose.AsteroidIndex >= 0 && pose.AsteroidIndex < body.Asteroids.Count && body.Asteroids[pose.AsteroidIndex].RespawnTimer <= 0)
+                .OrderBy(pose => Math.Pow(pose.PositionX - agent.PositionX, 2) + Math.Pow(pose.PositionZ - agent.PositionZ, 2))
+                .FirstOrDefault();
+            if (asteroid.BodyKey == null)
+                return new[] { Movement(task, agent, frameId, 0, 0, 0) };
+
+            var dx = asteroid.PositionX - agent.PositionX;
+            var dz = asteroid.PositionZ - agent.PositionZ;
+            var distance = Math.Sqrt(dx * dx + dz * dz);
+            var range = Math.Max(0.01, tool.EvaluateStat(4));
+            if (distance > range)
+                return new[] { Movement(task, agent, frameId, dx, dz, 1) };
+
+            task.Phase = "mining";
+            return new[]
+            {
+                Movement(task, agent, frameId, 0, 0, 0),
+                Command(task, agent, frameId, AetheriaRuntimeDaemonCommandKinds.SetBehaviorActive, "mine", command =>
+                {
+                    command.EquipmentIndex = tool.EquipmentIndex;
+                    command.BehaviorIndex = tool.BehaviorIndex;
+                    command.ScalarValue = 1;
+                    command.TextValue = bodyKey;
+                    command.PositionX = asteroid.AsteroidIndex;
+                })
+            };
         }
 
         private static IReadOnlyList<AetheriaRuntimeDaemonCommandDocument> PlanHaul(

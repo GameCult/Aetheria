@@ -134,7 +134,11 @@ namespace GameCult.Aetheria.State.Verse
                         .ToArray(),
                     operationResult.Intents);
             }
-            var agentCommands = AetheriaRuntimeAgentScheduler.AssignAndPlan(operationResult.Run, options.FrameId);
+            var agentCommands = AetheriaRuntimeAgentScheduler.AssignAndPlan(
+                operationResult.Run,
+                options.FrameId,
+                options.Catalog,
+                options.SimulationTimeSeconds);
             if (agentCommands.Count > 0)
             {
                 var agentResult = AetheriaRuntimeDaemonOperations.Execute(
@@ -157,7 +161,10 @@ namespace GameCult.Aetheria.State.Verse
                 operationResult.Intents,
                 options.FixedDeltaSeconds,
                 options.SimulationSettings,
-                options.ProjectilePhysics);
+                options.ProjectilePhysics,
+                options.Catalog,
+                options.FrameId,
+                options.SimulationTimeSeconds);
             StampZoneSimulationTime(operationResult.Run, options.SimulationTimeSeconds);
 
             var frame = AetheriaRuntimeDaemonFrameDocument.Create(
