@@ -711,6 +711,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
     private static void AgentTraversesGalaxyRouteBeforeExecutingTask()
     {
         var agent = Entity(0, 0, "workers");
+        agent.EntityId = "worker.cross-zone.stable";
         agent.AgentTaskCapabilities = [AetheriaRuntimeAgentTaskTypes.Explore];
         var task = AgentTask("cross-zone", 10);
         task.ZoneIndex = 2;
@@ -753,6 +754,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             "agent must traverse each galaxy edge through the shared wormhole command boundary");
         Require(run.Zones.Single(zone => zone.ZoneIndex == 2).Entities.Count == 1,
             "assigned agent must arrive in the task zone without a parallel teleport owner");
+        RequireEqual("worker.cross-zone.stable", run.Zones.Single(zone => zone.ZoneIndex == 2).Entities.Single().EntityId,
+            "zone transfer must preserve stable entity identity while projection indices change");
         RequireEqual(AetheriaRuntimeAgentTaskStatuses.Completed, task.Status,
             "agent must execute the task only after arriving in its destination zone");
     }

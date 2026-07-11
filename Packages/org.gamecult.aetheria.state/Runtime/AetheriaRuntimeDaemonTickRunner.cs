@@ -105,6 +105,7 @@ namespace GameCult.Aetheria.State.Verse
             options ??= new AetheriaRuntimeDaemonTickOptions();
             options.OperationContext ??= new AetheriaRuntimeDaemonOperationContext();
             options.OperationContext.Catalog = options.Catalog;
+            EnsureEntityIds(run);
             EnsureBehaviorStates(run, options.Catalog);
 
             var observedCommands = (options.ObservedCommands ?? Array.Empty<AetheriaRuntimeDaemonCommandDocument>())
@@ -282,6 +283,21 @@ namespace GameCult.Aetheria.State.Verse
                 gameSurface,
                 editorSurface,
                 editorSurface);
+        }
+
+        private static void EnsureEntityIds(AetheriaRuntimeRunCheckpointCommit run)
+        {
+            var used = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var zone in run.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>())
+            foreach (var entity in zone?.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
+            {
+                if (entity == null)
+                    continue;
+                if (string.IsNullOrWhiteSpace(entity.EntityId))
+                    entity.EntityId = $"aetheria.entity:{(string.IsNullOrWhiteSpace(run.RunId) ? "local" : run.RunId)}:{zone.ZoneIndex}:{entity.EntityIndex}";
+                if (!used.Add(entity.EntityId))
+                    throw new InvalidOperationException($"Duplicate runtime entity identity '{entity.EntityId}'.");
+            }
         }
 
         private static void EnsureBehaviorStates(

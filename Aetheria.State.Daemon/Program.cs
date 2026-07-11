@@ -2493,7 +2493,7 @@ static async Task<AetheriaRuntimeZoneSnapshotCommit> ToRuntimeZoneAsync(
     {
         var entity = await node.MutableDocument<AetheriaEntitySnapshot>(new CultRecordKey(entityKeys[entityIndex])).ReadAsync().ConfigureAwait(false);
         if (entity != null)
-            entities.Add(ToRuntimeEntity(entity, entityIndex, entityIndices, catalog));
+            entities.Add(ToRuntimeEntity(entityKeys[entityIndex], entity, entityIndex, entityIndices, catalog));
     }
 
     return new AetheriaRuntimeZoneSnapshotCommit
@@ -2519,6 +2519,7 @@ static async Task<AetheriaRuntimeZoneSnapshotCommit> ToRuntimeZoneAsync(
 }
 
 static AetheriaRuntimeEntitySnapshotCommit ToRuntimeEntity(
+    string entityKey,
     AetheriaEntitySnapshot entity,
     int entityIndex,
     IReadOnlyDictionary<string, int> entityIndices,
@@ -2527,6 +2528,7 @@ static AetheriaRuntimeEntitySnapshotCommit ToRuntimeEntity(
     var equipment = ToEntitySlotCommits(entity.Equipment);
     var runtimeEntity = new AetheriaRuntimeEntitySnapshotCommit
     {
+        EntityId = entityKey ?? "",
         EntityIndex = entityIndex,
         Name = entity.Name ?? "",
         Kind = entity.Kind ?? "",
