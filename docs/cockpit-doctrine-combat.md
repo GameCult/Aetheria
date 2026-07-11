@@ -51,7 +51,7 @@ Cognition does not inspect hidden truth. It plans from faction-local observation
 
 ### Daemon And Ymir
 
-The player authors doctrine intent. The Aetheria daemon validates and owns its accepted canonical state along with cognition allocation, observations, accepted semantic actions, equipment state, damage, and combat outcomes. Ymir owns authoritative spatial physics and collision. Clients submit typed intent and lower daemon-authored state through Eve; they do not aim locally, infer hits from effects, or maintain a private combat result.
+The player authors doctrine intent. The Aetheria daemon validates and owns its accepted canonical state along with cognition allocation, observations, accepted semantic actions, equipment state, deterministic probabilistic shot resolution, damage, and combat outcomes. Ymir owns authoritative world geometry and kinematics used by firing solutions, plus motion and collision for persistent physical payloads. Ordinary weapon damage does not wait for a presentation projectile to collide. Clients submit typed intent and lower daemon-authored state through Eve; they do not aim locally, infer hits from effects, or maintain a private combat result. The normative resolver and cut line are defined in `deterministic-combat-resolution.md`.
 
 ## Cockpit View
 
