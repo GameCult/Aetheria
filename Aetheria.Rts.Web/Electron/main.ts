@@ -132,8 +132,10 @@ async function runElectronSmoke(window: BrowserWindow): Promise<Record<string, u
         const worldScene = document.querySelector(".cultui-world-scene");
         const worldEntityCount = worldScene?.querySelectorAll(".cultui-world-entity").length ?? 0;
         const controlledWorldEntityCount = worldScene?.querySelectorAll('.cultui-world-entity[data-controlled="true"]').length ?? 0;
+        const workerRosterCount = document.querySelectorAll('.cultui-list-item[data-component-kind="agent.item"]').length;
         const providerAdvertisement = eveProvider ? await eveProvider.providerAdvertisement() : null;
-        const eveSurface = eveProvider ? await eveProvider.surface({ recordKey: "eve:surface:aetheria.daemon.game" }) : null;
+        const eveSurface = eveProvider ? await eveProvider.surface({ surfaceId: "aetheria.starbridge.commander" }) : null;
+        const pilotSurface = eveProvider ? await eveProvider.surface({ surfaceId: "aetheria.pilot" }) : null;
         const findComponent = (component, predicate) => {
           if (!component || typeof component !== "object") return null;
           if (predicate(component)) return component;
@@ -143,7 +145,7 @@ async function runElectronSmoke(window: BrowserWindow): Promise<Record<string, u
           }
           return null;
         };
-        const eveFieldSurface = findComponent(eveSurface?.surface?.root, component =>
+        const eveFieldSurface = findComponent(pilotSurface?.surface?.root, component =>
           component.kind === "field.surface2d" || component.kind === "gravity.surface");
         const embedded = slotId => eveFieldSurface?.embeddedDocuments?.find(slot => slot.slotId === slotId) ?? null;
         const resolveEmbedded = async slot => slot ? eveProvider.document({ documentId: slot.documentId, schemaId: slot.schemaId }) : null;
@@ -177,8 +179,10 @@ async function runElectronSmoke(window: BrowserWindow): Promise<Record<string, u
           worldSceneReady: !!worldScene,
           worldEntityCount,
           controlledWorldEntityCount,
+          workerRosterCount,
           providerAdvertisement,
           eveSurface,
+          pilotSurface,
           renderSplatsResolved,
           gravityResolved,
           objectsResolved,
@@ -209,11 +213,12 @@ function isElectronSmokeReady(result: Record<string, unknown>): boolean {
   const eveFieldSurface = objectValue(result.eveFieldSurface);
   const eveReceipt = objectValue(result.eveReceipt);
   return result.hasApi === true &&
-    status.includes("Aetheria Daemon") &&
+    status.includes("Starbridge Commander") &&
     bodyMode.includes("eve-game-mode") &&
     result.worldSceneReady === true &&
     Number(result.worldEntityCount) > 0 &&
     Number(result.controlledWorldEntityCount) === 1 &&
+    Number(result.workerRosterCount) > 0 &&
     eveHostText.includes("Station Stock") &&
     eveHostText.includes("Wave Forecast") &&
     arrayValue(providerAdvertisement?.surfaces).some(surface => objectValue(surface)?.surfaceId === "aetheria.starbridge.commander") &&
