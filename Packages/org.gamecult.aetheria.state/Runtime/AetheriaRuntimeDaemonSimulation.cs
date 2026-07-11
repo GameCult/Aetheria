@@ -292,6 +292,7 @@ namespace GameCult.Aetheria.State.Verse
                             var triggerResult = CommitWeaponRound(attacker, weapon);
                             if (triggerResult == WeaponRoundResult.ReloadStarted)
                                 AppendWeaponEvent(run, zone, attacker, weapon, frameId, "weapon.reload.started");
+                            PublishWeaponRoundResult(run, zone, attacker, weapon, frameId, triggerResult);
                             if (triggerResult != WeaponRoundResult.Fired) continue;
                         }
                         weapon.State.BurstRemaining = weapon.BurstCount;
@@ -309,6 +310,7 @@ namespace GameCult.Aetheria.State.Verse
                             var roundResult = CommitWeaponRound(attacker, weapon);
                             if (roundResult == WeaponRoundResult.ReloadStarted)
                                 AppendWeaponEvent(run, zone, attacker, weapon, frameId, "weapon.reload.started");
+                            PublishWeaponRoundResult(run, zone, attacker, weapon, frameId, roundResult);
                             if (roundResult != WeaponRoundResult.Fired)
                             {
                                 weapon.State.BurstRemaining = 0;
@@ -374,6 +376,39 @@ namespace GameCult.Aetheria.State.Verse
                 ZoneIndex = zone.ZoneIndex,
                 SourceEntityIndex = entity.EntityIndex,
                 SubjectKey = weapon.ItemKey,
+                ItemKey = weapon.ItemKey,
+                ScalarValue = weapon.State.Ammo
+            });
+        }
+
+        private static void PublishWeaponRoundResult(
+            AetheriaRuntimeRunCheckpointCommit run,
+            AetheriaRuntimeZoneSnapshotCommit zone,
+            AetheriaRuntimeEntitySnapshotCommit entity,
+            ResolvedWeapon weapon,
+            long frameId,
+            WeaponRoundResult result)
+        {
+            var reason = result == WeaponRoundResult.InsufficientEnergy ? "insufficient-energy" :
+                result == WeaponRoundResult.NoAmmo ? "no-ammunition" : "";
+            if (string.IsNullOrEmpty(reason))
+            {
+                weapon.State.LastRefusalReason = "";
+                return;
+            }
+            if (string.Equals(weapon.State.LastRefusalReason, reason, StringComparison.Ordinal))
+                return;
+
+            weapon.State.LastRefusalReason = reason;
+            AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit
+            {
+                EventId = $"frame:{frameId}:zone:{zone.ZoneIndex}:entity:{entity.EntityIndex}:weapon:{weapon.State.OwnerIndex}:{weapon.State.BehaviorIndex}:refused:{reason}",
+                Kind = "weapon.fire.refused",
+                FrameId = frameId,
+                ZoneIndex = zone.ZoneIndex,
+                SourceEntityIndex = entity.EntityIndex,
+                TargetEntityIndex = entity.TargetEntityIndex,
+                SubjectKey = reason,
                 ItemKey = weapon.ItemKey,
                 ScalarValue = weapon.State.Ammo
             });

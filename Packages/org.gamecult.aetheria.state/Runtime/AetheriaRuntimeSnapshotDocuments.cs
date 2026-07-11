@@ -1113,6 +1113,9 @@ namespace GameCult.Aetheria.State.Verse
 
         [Key(18)]
         public int LockTargetEntityIndex { get; set; } = -1;
+
+        [Key(19)]
+        public string LastRefusalReason { get; set; } = "";
     }
 
     [MessagePackObject]
