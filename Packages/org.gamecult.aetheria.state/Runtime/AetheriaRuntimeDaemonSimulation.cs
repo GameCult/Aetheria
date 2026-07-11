@@ -46,43 +46,25 @@ namespace GameCult.Aetheria.State.Verse
                     AetheriaRuntimeThermalSimulation.EnsureState(entity);
                 foreach (var movement in intents?.Movements ?? Enumerable.Empty<AetheriaRuntimeDaemonMovementIntent>())
                     ApplyMovementIntent(run, entities, movement, settings);
+                StepTractorPower(entities, deltaSeconds);
                 StepRaiderAi(entities);
                 StepTargetPursuit(entities, settings);
                 StepWorldPhysics(zone, entities, deltaSeconds, worldPhysics);
                 StepCombat(run, zone, entities, intents, deltaSeconds, settings, projectilePhysics);
                 AetheriaRuntimeMiningSimulation.Step(run, zone, entities, intents, catalog, frameId, simulationTimeSeconds, deltaSeconds);
                 AetheriaRuntimeSurveySimulation.Step(run, zone, entities, intents, catalog, frameId, simulationTimeSeconds, deltaSeconds);
-                StepTractorSalvage(run, zone, entities, settings);
                 RefreshContacts(entities, settings);
             }
         }
 
-        private static void StepTractorSalvage(
-            AetheriaRuntimeRunCheckpointCommit run,
-            AetheriaRuntimeZoneSnapshotCommit zone,
-            IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities,
-            AetheriaRuntimeDaemonSimulationSettings settings)
+        private static void StepTractorPower(IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities, double deltaSeconds)
         {
-            if (!TryParseEntityIndex(run.CurrentEntityKey, out var actorIndex))
-                return;
-            var actor = entities.FirstOrDefault(entity => entity.EntityIndex == actorIndex && IsAlive(entity));
-            if (actor == null || actor.TractorPower <= 0 || actor.TargetEntityIndex < 0)
-                return;
-            var wreck = entities.FirstOrDefault(entity => entity.EntityIndex == actor.TargetEntityIndex && !IsAlive(entity));
-            if (wreck == null || DistanceSq(actor, wreck) > settings.AttackRange * settings.AttackRange)
-                return;
-
-            var loot = (wreck.CargoContents ?? Array.Empty<AetheriaRuntimeCargoBayLoadoutCommit>())
-                .SelectMany(bay => bay?.Items ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>())
-                .ToArray();
-            if (loot.Length == 0)
-                return;
-            var bays = (actor.CargoContents ?? Array.Empty<AetheriaRuntimeCargoBayLoadoutCommit>()).ToList();
-            if (bays.Count == 0)
-                bays.Add(new AetheriaRuntimeCargoBayLoadoutCommit());
-            bays[0].Items = (bays[0].Items ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>()).Concat(loot).ToArray();
-            actor.CargoContents = bays.ToArray();
-            wreck.CargoContents = Array.Empty<AetheriaRuntimeCargoBayLoadoutCommit>();
+            foreach (var entity in entities)
+            {
+                var delta = entity.TractorTargetPower - entity.TractorPower;
+                entity.TractorPower += Math.Sign(delta) * Math.Min(Math.Abs(delta), deltaSeconds * 2.0);
+                entity.TractorPower = Clamp01(entity.TractorPower);
+            }
         }
 
         private static void ApplyMovementIntent(

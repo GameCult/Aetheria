@@ -13,6 +13,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         DaemonSimulationAppliesYmirHit();
         MissingPhysicsOwnerCannotAdvanceProjectiles();
         MissingWorldPhysicsOwnerCannotAdvanceShips();
+        TractorRampsAndPullsThroughYmirWithoutTeleportingCargo();
         ThermalCellsUseFossilConductionAndRadiation();
         MultipleActorsUseTheSameMovementLever();
         AgentClaimsAndCompletesExploreTaskThroughCommands();
@@ -795,6 +796,23 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             return;
         }
         throw new InvalidOperationException("daemon advanced a ship without an authoritative world physics owner");
+    }
+
+    private static void TractorRampsAndPullsThroughYmirWithoutTeleportingCargo()
+    {
+        var ship = Entity(0, 0, "player");
+        var wreck = Entity(1, 60, "wreck");
+        wreck.CargoContents = [Cargo(("salvage", 1, 0, 0))];
+        ship.TargetEntityIndex = 1;
+        var run = new AetheriaRuntimeRunCheckpointCommit { CurrentZoneIndex = 0, CurrentEntityKey = "zone.0.entity.0", Zones = [new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [ship, wreck] }] };
+        var command = AetheriaRuntimeDaemonCommandDocument.Create(AetheriaRuntimeDaemonCommandKinds.SetTractorPower, "pilot", "tractor-smoke", 0, "zone.0.entity.0");
+        command.CommandId = "tractor-on"; command.ScalarValue = 1;
+        AetheriaRuntimeDaemonTickRunner.Tick(Path.Combine(Path.GetTempPath(), "aetheria-tractor-smoke.cc"), run,
+            new AetheriaRuntimeDaemonTickOptions { WorldPhysics = new AetheriaYmirWorldPhysics(), FrameId = 1, FixedDeltaSeconds = 0.25, SimulationTimeSeconds = 0.25, ObservedCommands = [command], ProjectilePhysics = AetheriaRuntimeProjectilePhysicsUnavailable.Instance, BuildPublications = false });
+        RequireNear(0.5, ship.TractorPower, 0.000001, "tractor power must use the fossil two-per-second ramp");
+        Require(wreck.VelocityX < 0 && wreck.PositionX < 60, "Ymir must pull the targeted body toward the tractor source");
+        RequireEqual(1, CargoQuantity(wreck, "salvage"), "tractor force must not teleport target cargo");
+        RequireEqual(0, CargoQuantity(ship, "salvage"), "scooping must remain a separate capacity-checked transaction");
     }
 
     private static (AetheriaRuntimeRunCheckpointCommit Run, AetheriaRuntimeZoneSnapshotCommit Zone, AetheriaRuntimeEntitySnapshotCommit Target) Scenario()

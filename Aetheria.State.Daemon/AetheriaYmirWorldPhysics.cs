@@ -5,6 +5,9 @@ namespace Aetheria.State.Daemon;
 
 public sealed class AetheriaYmirWorldPhysics : IAetheriaRuntimeWorldPhysics
 {
+    public const double TractorRadius = 25;
+    public const double TractorTraction = 25;
+    public const double TractorDistance = 75;
     private const string Prefix = "aetheria.daemon.entity.";
     private readonly YmirSimulator _simulator;
     public AetheriaYmirWorldPhysics(YmirSimulator? simulator = null) => _simulator = simulator ?? new YmirSimulator();
@@ -15,8 +18,21 @@ public sealed class AetheriaYmirWorldPhysics : IAetheriaRuntimeWorldPhysics
         ArgumentNullException.ThrowIfNull(zone);
         if (deltaSeconds <= 0) throw new ArgumentOutOfRangeException(nameof(deltaSeconds));
         var attached = (entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>()).SelectMany(entity => entity.ChildEntityIndices ?? Array.Empty<int>()).ToHashSet();
-        var bodies = (entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>()).Where(entity => entity.IsActive && !attached.Contains(entity.EntityIndex))
-            .Select(entity => new PhysicsBody(Prefix + entity.EntityIndex, new Vec2((float)entity.PositionX, (float)entity.PositionZ), new Vec2((float)entity.VelocityX, (float)entity.VelocityY),
+        var active = (entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>()).Where(entity => entity.IsActive && !attached.Contains(entity.EntityIndex)).ToArray();
+        var velocity = active.ToDictionary(entity => entity.EntityIndex, entity => new Vec2((float)entity.VelocityX, (float)entity.VelocityY));
+        foreach (var actor in active.Where(entity => entity.TractorPower > 0 && entity.TargetEntityIndex >= 0))
+        {
+            var target = active.FirstOrDefault(entity => entity.EntityIndex == actor.TargetEntityIndex);
+            if (target == null) continue;
+            var dx = actor.PositionX - target.PositionX; var dz = actor.PositionZ - target.PositionZ;
+            var distance = Math.Sqrt(dx * dx + dz * dz);
+            if (distance <= 0.001 || distance > TractorDistance + TractorRadius) continue;
+            var impulse = TractorTraction * actor.TractorPower * deltaSeconds;
+            var current = velocity[target.EntityIndex];
+            velocity[target.EntityIndex] = new Vec2(current.X + (float)(dx / distance * impulse), current.Y + (float)(dz / distance * impulse));
+        }
+        var bodies = active
+            .Select(entity => new PhysicsBody(Prefix + entity.EntityIndex, new Vec2((float)entity.PositionX, (float)entity.PositionZ), velocity[entity.EntityIndex],
                 string.Equals(entity.Kind, "station", StringComparison.OrdinalIgnoreCase) ? 48 : 20, 1,
                 IsStatic: string.Equals(entity.Kind, "station", StringComparison.OrdinalIgnoreCase), Restitution: 0.2f,
                 Direction: new Vec2((float)entity.DirectionX, (float)entity.DirectionY))).ToArray();

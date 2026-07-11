@@ -925,6 +925,9 @@ namespace GameCult.Aetheria.State.Verse
 
         [Key(40)]
         public string OrbitKey { get; set; } = "";
+
+        [Key(41)]
+        public double TractorTargetPower { get; set; }
     }
 
     [MessagePackObject]

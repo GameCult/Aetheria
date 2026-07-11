@@ -101,7 +101,7 @@ namespace GameCult.Aetheria.State.Verse
                         return false;
 
                     return ApplyCurrentEntity(run, command, entity =>
-                        entity.TractorPower = command.ScalarValue);
+                        entity.TractorTargetPower = command.ScalarValue);
                 case AetheriaRuntimeDaemonCommandKinds.SetHeatsinksEnabled:
                     return ApplyCurrentEntity(run, command, entity =>
                         entity.HeatsinksEnabled = command.ScalarValue > 0.5);
