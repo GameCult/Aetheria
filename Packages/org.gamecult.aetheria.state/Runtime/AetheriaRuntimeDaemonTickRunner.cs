@@ -133,6 +133,19 @@ namespace GameCult.Aetheria.State.Verse
                         .ToArray(),
                     operationResult.Intents);
             }
+            var agentCommands = AetheriaRuntimeAgentScheduler.AssignAndPlan(operationResult.Run, options.FrameId);
+            if (agentCommands.Count > 0)
+            {
+                var agentResult = AetheriaRuntimeDaemonOperations.Execute(
+                    operationResult.Run,
+                    agentCommands,
+                    options.OperationContext);
+                operationResult = new AetheriaRuntimeDaemonOperationResult(
+                    agentResult.Run,
+                    operationResult.AppliedCommandIds.Concat(agentResult.AppliedCommandIds).ToArray(),
+                    operationResult.RejectedCommandIds.Concat(agentResult.RejectedCommandIds).ToArray(),
+                    agentResult.Intents);
+            }
             AetheriaRuntimeDaemonSimulation.Step(
                 operationResult.Run,
                 operationResult.Intents,

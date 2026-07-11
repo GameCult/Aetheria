@@ -309,6 +309,9 @@ namespace GameCult.Aetheria.State.Verse
                     return AetheriaRuntimeClaimKinds.Metadata;
                 case AetheriaRuntimeDaemonCommandKinds.DestroyEntity:
                     return AetheriaRuntimeClaimKinds.System;
+                case AetheriaRuntimeDaemonCommandKinds.IssueAgentTask:
+                case AetheriaRuntimeDaemonCommandKinds.CancelAgentTask:
+                    return AetheriaRuntimeClaimKinds.Ai;
                 case AetheriaRuntimeDaemonCommandKinds.Interact:
                 case AetheriaRuntimeDaemonCommandKinds.SetDockedCurrentShip:
                     return AetheriaRuntimeClaimKinds.Interaction;

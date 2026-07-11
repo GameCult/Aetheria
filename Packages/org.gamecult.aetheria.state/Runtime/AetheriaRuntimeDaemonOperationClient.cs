@@ -571,5 +571,28 @@ namespace GameCult.Aetheria.State.Verse
             command.StoreItem.HasDestinationPosition = hasDestinationPosition;
             return Send(command);
         }
+
+        internal AetheriaRuntimeDaemonCommandEnvelope IssueAgentTask(
+            AetheriaRuntimeDaemonFrameDocument? frame,
+            AetheriaRuntimeAgentTaskCommand task)
+        {
+            task ??= new AetheriaRuntimeAgentTaskCommand();
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.IssueAgentTask, frame);
+            command.AgentTask = task;
+            command.SubjectKey = string.IsNullOrWhiteSpace(task.CorporationKey)
+                ? "aetheria.tasks"
+                : $"aetheria.tasks.{task.CorporationKey}";
+            return Send(command);
+        }
+
+        internal AetheriaRuntimeDaemonCommandEnvelope CancelAgentTask(
+            AetheriaRuntimeDaemonFrameDocument? frame,
+            string taskId)
+        {
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.CancelAgentTask, frame);
+            command.AgentTask.TaskId = taskId ?? "";
+            command.SubjectKey = "aetheria.tasks";
+            return Send(command);
+        }
     }
 }

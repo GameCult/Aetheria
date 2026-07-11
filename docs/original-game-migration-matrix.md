@@ -39,10 +39,10 @@ validation proves contract shape, not wiring, exclusivity, lowering, or parity.
 | Assets | `Assets/Resources` | Aetheria provider | asset catalog + CultMesh CDN | runtime cache/load | wired; basic lowering; not live-proven remotely | cold/warm remote-only live load and cache proof |
 | Save/resume | original persistence paths | daemon/CultCache | published current state | clients rehydrate | owner-exists; not parity-proven | mid-loop restart |
 | Terminus loop | original game composition | daemon/Ymir/Eve | pilot surface | Aetheria.Unity | incomplete; no scenario proof | fly/fire/loot/dock/trade |
-| Starbridge | original/shared architecture intent | one daemon session | pilot + commander surfaces | Unity + Electron | incomplete; split-target proof missing | commander plus four pilots |
+| Starbridge | original/shared architecture intent | one daemon session | pilot + commander surfaces | Unity + Electron | commander task board and autonomous explore execution wired; Electron Eve lowering and split-target proof missing | commander orders plus four pilots and autonomous workers |
 | Behavior engine | `ServerShared/Behaviors` composition | daemon | executable action/status projection | action bar and feedback | reference | every behavior family and modifier lifecycle |
 | Sensors/visibility | decaying sources and observer information thresholds | daemon | contacts and ping events | indicators/maps | reference | threshold, decay, ping and classification timelines |
-| AI/tasks | agent state/task framework | daemon | observable intent/state only | no decision authority | reference | combat range control and civilian tasks |
+| AI/tasks | corporation task scheduler plus agent state machines | daemon | commander task board and shared semantic controls | Eve commander/pilot clients | explore task queue, capability/priority assignment, and shared-command execution wired; remaining task families reference | combat range control, mine/haul/tow/defend/attack timelines, cancellation and reconnect |
 | Consumables | cargo-backed timed behavior containers | daemon | dynamic actions and active effects | action bar/schematic | reference | consume, stacking, duration and cleanup |
 
 ## Ownership Invariants

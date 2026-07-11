@@ -195,6 +195,10 @@ namespace GameCult.Aetheria.State.Verse
         [Key(11)]
         public int Credits { get; set; }
 
+        [Key(12)]
+        public IReadOnlyList<AetheriaRuntimeAgentTaskCommit> AgentTasks { get; set; } =
+            Array.Empty<AetheriaRuntimeAgentTaskCommit>();
+
         public AetheriaRuntimeLoadoutTemplateCommit CreateLoadoutTemplate(string entityKey)
         {
             return TryParseEntityKey(entityKey, out var zoneIndex, out var entityIndex)
@@ -899,6 +903,12 @@ namespace GameCult.Aetheria.State.Verse
 
         [Key(37)]
         public double ShutdownPerformance { get; set; }
+
+        [Key(38)]
+        public IReadOnlyList<string> AgentTaskCapabilities { get; set; } = Array.Empty<string>();
+
+        [Key(39)]
+        public string AssignedAgentTaskId { get; set; } = "";
     }
 
     [MessagePackObject]

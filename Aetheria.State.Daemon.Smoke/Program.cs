@@ -14,6 +14,114 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         MissingPhysicsOwnerCannotAdvanceProjectiles();
         ThermalCellsUseFossilConductionAndRadiation();
         MultipleActorsUseTheSameMovementLever();
+        AgentClaimsAndCompletesExploreTaskThroughCommands();
+        SchedulerAssignsHighestPriorityCompatibleTask();
+    }
+
+    private static void SchedulerAssignsHighestPriorityCompatibleTask()
+    {
+        var agent = Entity(0, 0, "workers");
+        agent.AgentTaskCapabilities = [AetheriaRuntimeAgentTaskTypes.Explore];
+        var low = AgentTask("low", 1);
+        var high = AgentTask("high", 99);
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "agent-priority-smoke",
+            Zones = [new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [agent] }],
+            AgentTasks = [low, high]
+        };
+
+        AetheriaRuntimeAgentScheduler.AssignAndPlan(run, 4);
+
+        RequireEqual(AetheriaRuntimeAgentTaskStatuses.Assigned, high.Status,
+            "highest priority compatible task must claim the available agent");
+        RequireEqual(AetheriaRuntimeAgentTaskStatuses.Queued, low.Status,
+            "lower priority task must remain queued when no controller remains");
+        RequireEqual("high", agent.AssignedAgentTaskId, "agent assignment must point at the selected task");
+    }
+
+    private static AetheriaRuntimeAgentTaskCommit AgentTask(string id, int priority) => new()
+    {
+        TaskId = id,
+        CorporationKey = "workers",
+        TaskType = AetheriaRuntimeAgentTaskTypes.Explore,
+        Priority = priority,
+        ZoneIndex = 0,
+        TargetPositionX = 100,
+        CompletionRadius = 5
+    };
+
+    private static void AgentClaimsAndCompletesExploreTaskThroughCommands()
+    {
+        var agent = Entity(0, 0, "workers");
+        agent.AgentTaskCapabilities = [AetheriaRuntimeAgentTaskTypes.Explore];
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "agent-task-smoke",
+            CurrentZoneIndex = 0,
+            CurrentEntityKey = "zone.0.entity.0",
+            Zones = [new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [agent] }]
+        };
+        var issue = AetheriaRuntimeDaemonCommandDocument.Create(
+            AetheriaRuntimeDaemonCommandKinds.IssueAgentTask,
+            "commander-smoke",
+            "starbridge-smoke",
+            0,
+            "");
+        issue.CommandId = "issue-explore";
+        issue.AgentTask = new AetheriaRuntimeAgentTaskCommand
+        {
+            TaskId = "explore-east",
+            CorporationKey = "workers",
+            TaskType = AetheriaRuntimeAgentTaskTypes.Explore,
+            Priority = 50,
+            ZoneIndex = 0,
+            TargetPositionX = 50,
+            TargetPositionZ = 0,
+            CompletionRadius = 5
+        };
+        var completed = false;
+        for (var frame = 0; frame <= 20; frame++)
+        {
+            var tick = AetheriaRuntimeDaemonTickRunner.Tick(
+                Path.Combine(Path.GetTempPath(), "aetheria-agent-task-smoke.cc"),
+                run,
+                new AetheriaRuntimeDaemonTickOptions
+                {
+                    FrameId = frame,
+                    FixedDeltaSeconds = 0.1,
+                    SimulationTimeSeconds = frame * 0.1,
+                    ObservedCommands = frame == 0 ? [issue] : Array.Empty<AetheriaRuntimeDaemonCommandDocument>(),
+                    ProjectilePhysics = AetheriaRuntimeProjectilePhysicsUnavailable.Instance,
+                    BuildPublications = false
+                });
+            if (frame == 0)
+            {
+                Require(tick.OperationResult.AppliedCommandIds.Contains("issue-explore"),
+                    "commander task command must enter the normal tick reducer");
+                Require(tick.OperationResult.AppliedCommandIds.Any(id => id.Contains(":explore-east:0:move", StringComparison.Ordinal)),
+                    "agent movement must return through the same command receipts");
+            }
+            completed = string.Equals(run.AgentTasks.Single().Status, AetheriaRuntimeAgentTaskStatuses.Completed, StringComparison.Ordinal);
+            if (completed)
+                break;
+        }
+
+        Require(completed, "agent must complete an explore task without direct position mutation");
+        Require(string.IsNullOrWhiteSpace(agent.AssignedAgentTaskId), "completed task must release the agent");
+        Require(agent.PositionX >= 45, "agent must reach the task through repeated movement commands");
+
+        var frameDocument = new AetheriaRuntimeDaemonFrameDocument { FrameId = 21, Run = run };
+        var commander = AetheriaRuntimeDaemonGameSurfaceBuilder.BuildCommander(
+            frameDocument,
+            new AetheriaRuntimeDaemonHealthDocument(),
+            AetheriaRuntimeDaemonCommandBoundaryDocument.Create("agent-task-smoke"));
+        var taskNode = Flatten(commander.Surface.Root)
+            .Single(component => string.Equals(component.Id, "aetheria.starbridge.commander.tasks.explore_east", StringComparison.Ordinal));
+        RequireEqual(AetheriaRuntimeAgentTaskStatuses.Completed, taskNode.Props["status"],
+            "commander Eve surface must publish authoritative task status");
+        Require(commander.Commands.Any(command => string.Equals(command.Command, "aetheria.daemon.issue_agent_task", StringComparison.Ordinal)),
+            "commander Eve surface must advertise task issue command");
     }
 
     private static void MultipleActorsUseTheSameMovementLever()
@@ -223,6 +331,14 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
 
     private static double GridValue(AetheriaRuntimeEntitySnapshotCommit entity, string name, int index) =>
         entity.StatGrids.Single(grid => string.Equals(grid.Name, name, StringComparison.OrdinalIgnoreCase)).Values[index];
+
+    private static IEnumerable<AetheriaRuntimeSurfaceComponent> Flatten(AetheriaRuntimeSurfaceComponent root)
+    {
+        yield return root;
+        foreach (var child in root.Children)
+        foreach (var descendant in Flatten(child))
+            yield return descendant;
+    }
 
     private static double Stat(AetheriaRuntimeEntitySnapshotCommit entity, string name) =>
         entity.StatGrids.Single(grid => string.Equals(grid.Name, name, StringComparison.OrdinalIgnoreCase)).Values[0];

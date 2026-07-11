@@ -94,6 +94,15 @@ towing, survey, and wandering.
 AI reads the same contacts, behavior graph, physics, and command primitives as
 players. It does not use privileged damage or movement shortcuts.
 
+The original corporation scheduler is preserved in commit `ab8aa5fb`,
+`ServerShared/GameContext.cs`. For each corporation it filters unreserved
+tasks, groups them by task type, discards groups with no compatible available
+controller, orders jobs by descending priority, zips them with compatible
+controllers, flattens the assignments, reserves each task, and calls the
+controller's ordinary `AssignTask` entry point. The daemon scheduler must retain
+that queue/capability/priority/availability contract. Assignment state is
+durable; task execution drives the same semantic controls used by players.
+
 ## Quality And Progression
 
 Crafted items carry continuous quality. Quality changes performance, durability
@@ -107,9 +116,10 @@ contacts, impulses, projectile trajectories, and spatial placement candidates.
 The daemon owns equipment interpretation, accepted controls, resource costs,
 damage meaning, lifecycle, inventory, and persistence.
 
-The current Aetheria-local `AetheriaRuntimeYmirProjectilePhysics` does not call
-standalone `Ymir.Core`; it is migration scaffolding, not completion of this
-boundary.
+Daemon projectile integration and contact detection now call standalone
+`Ymir.Core`. Ship flight, gravity, tractor interaction, docking placement, and
+the remaining Unity query bridge still need to enter that same world before
+the boundary is complete.
 
 ## Simulation Pipeline
 

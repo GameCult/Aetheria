@@ -92,6 +92,16 @@ public sealed class AetheriaRuntimeDaemonOperationsClient
         return Submit((client, frame) => client.SetMoveVector(frame, directionX, directionY, scalarValue));
     }
 
+    public AetheriaRuntimeDaemonCommandEnvelope IssueAgentTask(AetheriaRuntimeAgentTaskCommand task)
+    {
+        return Submit((client, frame) => client.IssueAgentTask(frame, task));
+    }
+
+    public AetheriaRuntimeDaemonCommandEnvelope CancelAgentTask(string taskId)
+    {
+        return Submit((client, frame) => client.CancelAgentTask(frame, taskId));
+    }
+
     public CultMeshOperationReceipt SetLookDirection(double directionX, double directionY, double directionZ)
     {
         return Send((client, frame) => client.SetLookDirection(frame, directionX, directionY, directionZ));
@@ -484,6 +494,24 @@ public sealed class AetheriaRuntimeDaemonOperationsClient
             AetheriaRuntimeDaemonCommandKinds.SetTarget => client.SetTarget(
                 frame,
                 ReadPayloadString(request, "targetEntityId", ReadPayloadString(request, "entityId", ""))),
+            AetheriaRuntimeDaemonCommandKinds.IssueAgentTask => client.IssueAgentTask(
+                frame,
+                new AetheriaRuntimeAgentTaskCommand
+                {
+                    TaskId = ReadPayloadString(request, "taskId", ""),
+                    CorporationKey = ReadPayloadString(request, "corporation", ""),
+                    TaskType = ReadPayloadString(request, "taskType", ""),
+                    Priority = (int)ReadPayloadDouble(request, "priority", 0),
+                    ZoneIndex = (int)ReadPayloadDouble(request, "zoneIndex", -1),
+                    TargetEntityIndex = (int)ReadPayloadDouble(request, "targetEntityIndex", -1),
+                    TargetPositionX = ReadPayloadDouble(request, "targetPositionX", 0),
+                    TargetPositionZ = ReadPayloadDouble(request, "targetPositionZ", 0),
+                    CompletionRadius = ReadPayloadDouble(request, "completionRadius", 10),
+                    WeaponGroup = (int)ReadPayloadDouble(request, "weaponGroup", 0)
+                }),
+            AetheriaRuntimeDaemonCommandKinds.CancelAgentTask => client.CancelAgentTask(
+                frame,
+                ReadPayloadString(request, "taskId", "")),
             _ => AetheriaRuntimeDaemonSurfaceCommandCatalog.TrySubmitArgumentless(
                     client,
                     frame,

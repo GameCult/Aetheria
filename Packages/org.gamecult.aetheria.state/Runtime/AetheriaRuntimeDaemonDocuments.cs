@@ -192,7 +192,9 @@ namespace GameCult.Aetheria.State.Verse
         SetOverrideShutdown,
         SetHeatsinksEnabled,
         SetShutdownPerformance,
-        ToggleShieldEnabled
+        ToggleShieldEnabled,
+        IssueAgentTask,
+        CancelAgentTask
     }
 
     [CultDocument("gamecult.aetheria.daemon_provider_advertisement", "gamecult.aetheria.daemon_provider_advertisement.v1")]
@@ -660,6 +662,9 @@ namespace GameCult.Aetheria.State.Verse
 
         [Key(29)]
         public string ClaimKind { get; set; } = "";
+
+        [Key(30)]
+        public AetheriaRuntimeAgentTaskCommand AgentTask { get; set; } = new AetheriaRuntimeAgentTaskCommand();
 
         public static AetheriaRuntimeDaemonCommandDocument Create(
             AetheriaRuntimeDaemonCommandKinds kind,

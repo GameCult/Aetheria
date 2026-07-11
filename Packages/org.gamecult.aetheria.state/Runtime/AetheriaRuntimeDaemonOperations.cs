@@ -176,9 +176,80 @@ namespace GameCult.Aetheria.State.Verse
                     return ApplyEnterWormholeIntent(run, command, context.Intents);
                 case AetheriaRuntimeDaemonCommandKinds.TowToStation:
                     return ApplyTowToStationIntent(run, command, context.Intents);
+                case AetheriaRuntimeDaemonCommandKinds.IssueAgentTask:
+                    return ApplyIssueAgentTask(run, command);
+                case AetheriaRuntimeDaemonCommandKinds.CancelAgentTask:
+                    return ApplyCancelAgentTask(run, command);
                 default:
                     return false;
             }
+        }
+
+        private static bool ApplyIssueAgentTask(
+            AetheriaRuntimeRunCheckpointCommit run,
+            AetheriaRuntimeDaemonCommandDocument command)
+        {
+            var request = command.AgentTask ?? new AetheriaRuntimeAgentTaskCommand();
+            var taskId = string.IsNullOrWhiteSpace(request.TaskId) ? command.CommandId : request.TaskId;
+            var taskType = (request.TaskType ?? "").Trim().ToLowerInvariant();
+            if (string.IsNullOrWhiteSpace(taskId) ||
+                string.IsNullOrWhiteSpace(request.CorporationKey) ||
+                !AetheriaRuntimeAgentTaskTypes.All.Contains(taskType, StringComparer.Ordinal) ||
+                request.ZoneIndex < 0 ||
+                !(run.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>()).Any(zone =>
+                    zone != null && zone.ZoneIndex == request.ZoneIndex) ||
+                (run.AgentTasks ?? Array.Empty<AetheriaRuntimeAgentTaskCommit>()).Any(task =>
+                    task != null && string.Equals(task.TaskId, taskId, StringComparison.Ordinal)))
+            {
+                return false;
+            }
+
+            run.AgentTasks = (run.AgentTasks ?? Array.Empty<AetheriaRuntimeAgentTaskCommit>())
+                .Concat(new[]
+                {
+                    new AetheriaRuntimeAgentTaskCommit
+                    {
+                        TaskId = taskId,
+                        CorporationKey = request.CorporationKey ?? "",
+                        TaskType = taskType,
+                        Priority = request.Priority,
+                        ZoneIndex = request.ZoneIndex,
+                        TargetEntityIndex = request.TargetEntityIndex,
+                        TargetPositionX = request.TargetPositionX,
+                        TargetPositionZ = request.TargetPositionZ,
+                        CompletionRadius = request.CompletionRadius > 0 ? request.CompletionRadius : 10,
+                        WeaponGroup = request.WeaponGroup,
+                        Status = AetheriaRuntimeAgentTaskStatuses.Queued
+                    }
+                })
+                .ToArray();
+            return true;
+        }
+
+        private static bool ApplyCancelAgentTask(
+            AetheriaRuntimeRunCheckpointCommit run,
+            AetheriaRuntimeDaemonCommandDocument command)
+        {
+            var taskId = command.AgentTask?.TaskId ?? command.TextValue ?? "";
+            var task = (run.AgentTasks ?? Array.Empty<AetheriaRuntimeAgentTaskCommit>())
+                .FirstOrDefault(candidate => candidate != null && string.Equals(candidate.TaskId, taskId, StringComparison.Ordinal));
+            if (task == null ||
+                string.Equals(task.Status, AetheriaRuntimeAgentTaskStatuses.Completed, StringComparison.Ordinal) ||
+                string.Equals(task.Status, AetheriaRuntimeAgentTaskStatuses.Cancelled, StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            foreach (var entity in (run.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>())
+                .Where(zone => zone != null)
+                .SelectMany(zone => zone.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>()))
+            {
+                if (string.Equals(entity.AssignedAgentTaskId, task.TaskId, StringComparison.Ordinal))
+                    entity.AssignedAgentTaskId = "";
+            }
+            task.Status = AetheriaRuntimeAgentTaskStatuses.Cancelled;
+            task.AssignedEntityIndex = -1;
+            return true;
         }
 
         private static bool ApplySetTarget(

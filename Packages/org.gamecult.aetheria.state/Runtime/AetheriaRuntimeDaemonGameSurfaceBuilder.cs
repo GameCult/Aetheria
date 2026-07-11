@@ -133,6 +133,7 @@ namespace GameCult.Aetheria.State.Verse
             var root = SurfaceRoot(
                 "aetheria.starbridge.commander.root",
                 StrategicWorldSurface("aetheria.starbridge.commander.world", run, zone),
+                BuildAgentTaskBoard(run),
                 BuildStarbridgeStationStockCard(starbridge),
                 BuildStarbridgeWaveForecastCard(starbridge),
                 BuildStarbridgeRuntimeRolesCard(starbridge));
@@ -153,8 +154,60 @@ namespace GameCult.Aetheria.State.Verse
                         AetheriaRuntimeDaemonSurfaceCommandCatalog.CommandName(entry.Kind),
                         AetheriaRuntimeDaemonSurfaceCommandCatalog.Label(entry.Kind),
                         "cultmesh"))
+                    .Concat(new[]
+                    {
+                        new AetheriaRuntimeSurfaceCommandTemplate("aetheria.daemon.issue_agent_task", "Issue Task", "cultmesh"),
+                        new AetheriaRuntimeSurfaceCommandTemplate("aetheria.daemon.cancel_agent_task", "Cancel Task", "cultmesh")
+                    })
                     .ToArray());
         }
+
+        private static AetheriaRuntimeSurfaceComponent BuildAgentTaskBoard(AetheriaRuntimeRunCheckpointCommit run)
+        {
+            var tasks = (run.AgentTasks ?? Array.Empty<AetheriaRuntimeAgentTaskCommit>())
+                .Where(task => task != null)
+                .OrderBy(task => TaskStatusOrder(task.Status))
+                .ThenByDescending(task => task.Priority)
+                .ThenBy(task => task.TaskId, StringComparer.Ordinal)
+                .Select(task => Node(
+                    $"aetheria.starbridge.commander.tasks.{SurfaceToken(task.TaskId)}",
+                    "list.item",
+                    new[]
+                    {
+                        ("label", task.TaskType),
+                        ("taskId", task.TaskId),
+                        ("corporation", task.CorporationKey),
+                        ("status", task.Status),
+                        ("priority", task.Priority.ToString(CultureInfo.InvariantCulture)),
+                        ("zoneIndex", task.ZoneIndex.ToString(CultureInfo.InvariantCulture)),
+                        ("assignedEntityIndex", task.AssignedEntityIndex.ToString(CultureInfo.InvariantCulture)),
+                        ("targetEntityIndex", task.TargetEntityIndex.ToString(CultureInfo.InvariantCulture)),
+                        ("targetPosition", string.Join(",", new[]
+                        {
+                            task.TargetPositionX.ToString("0.###", CultureInfo.InvariantCulture),
+                            task.TargetPositionZ.ToString("0.###", CultureInfo.InvariantCulture)
+                        })),
+                        ("cancelCommand", "aetheria.daemon.cancel_agent_task")
+                    }))
+                .ToArray();
+            return Node(
+                "aetheria.starbridge.commander.tasks",
+                "list",
+                new[]
+                {
+                    ("title", "Orders"),
+                    ("issueCommand", "aetheria.daemon.issue_agent_task"),
+                    ("taskTypes", string.Join(",", AetheriaRuntimeAgentTaskTypes.All))
+                },
+                tasks);
+        }
+
+        private static int TaskStatusOrder(string status) =>
+            string.Equals(status, AetheriaRuntimeAgentTaskStatuses.Assigned, StringComparison.Ordinal) ? 0 :
+            string.Equals(status, AetheriaRuntimeAgentTaskStatuses.Queued, StringComparison.Ordinal) ? 1 : 2;
+
+        private static string SurfaceToken(string value) => new string(
+            (value ?? "").Select(character => char.IsLetterOrDigit(character) ? character : '_').ToArray());
 
         private static AetheriaRuntimeSurfaceComponent StrategicWorldSurface(
             string id,

@@ -71,6 +71,8 @@ export const AetheriaRuntimeDaemonCommandKinds = {
   setHeatsinksEnabled: 37,
   setShutdownPerformance: 38,
   toggleShieldEnabled: 39,
+  issueAgentTask: 40,
+  cancelAgentTask: 41,
 } as const;
 
 export const AetheriaRuntimeEveCommandKinds = {
@@ -165,7 +167,8 @@ export type AetheriaRuntimeDaemonCommandDocumentSlot =
   | "storeItem"
   | "authorRuntimeId"
   | "subjectKey"
-  | "claimKind";
+  | "claimKind"
+  | "agentTask";
 
 export const aetheriaRuntimeDaemonCommandDocumentSlots: Record<AetheriaRuntimeDaemonCommandDocumentSlot, number> = {
   schema: 0,
@@ -197,6 +200,7 @@ export const aetheriaRuntimeDaemonCommandDocumentSlots: Record<AetheriaRuntimeDa
   authorRuntimeId: 27,
   subjectKey: 28,
   claimKind: 29,
+  agentTask: 30,
 };
 
 export type AetheriaRuntimeEveCommandDocumentSlot =
@@ -950,7 +954,8 @@ export type AetheriaRuntimeRunCheckpointCommitSlot =
   | "factionRelationships"
   | "generationSeed"
   | "currentEntityKey"
-  | "credits";
+  | "credits"
+  | "agentTasks";
 
 export const aetheriaRuntimeRunCheckpointCommitSlots: Record<AetheriaRuntimeRunCheckpointCommitSlot, number> = {
   runId: 0,
@@ -964,6 +969,7 @@ export const aetheriaRuntimeRunCheckpointCommitSlots: Record<AetheriaRuntimeRunC
   generationSeed: 9,
   currentEntityKey: 10,
   credits: 11,
+  agentTasks: 12,
 };
 
 export type AetheriaRuntimeZoneSnapshotCommitSlot =
@@ -1043,7 +1049,9 @@ export type AetheriaRuntimeEntitySnapshotCommitSlot =
   | "contacts"
   | "hullItemKey"
   | "factionKey"
-  | "shutdownPerformance";
+  | "shutdownPerformance"
+  | "agentTaskCapabilities"
+  | "assignedAgentTaskId";
 
 export const aetheriaRuntimeEntitySnapshotCommitSlots: Record<AetheriaRuntimeEntitySnapshotCommitSlot, number> = {
   entityIndex: 0,
@@ -1082,6 +1090,8 @@ export const aetheriaRuntimeEntitySnapshotCommitSlots: Record<AetheriaRuntimeEnt
   hullItemKey: 35,
   factionKey: 36,
   shutdownPerformance: 37,
+  agentTaskCapabilities: 38,
+  assignedAgentTaskId: 39,
 };
 
 export type AetheriaRuntimeProjectileCommitSlot =
