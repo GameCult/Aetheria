@@ -707,7 +707,7 @@ namespace GameCult.Aetheria.State.Verse
             var hardpointType = ReadFieldString(ref reader, fields, 12);
             var hullType = ReadFieldString(ref reader, fields, 13);
             var behaviorKinds = ReadFieldStringArray(ref reader, fields, 14);
-            SkipField(ref reader, fields, 15);
+            var hullCapacity = ReadFieldBehaviorValue(ref reader, fields, 15);
             var maxStack = ReadFieldInt32(ref reader, fields, 16);
             var stackable = ReadFieldBool(ref reader, fields, 17);
             var duration = ReadFieldDouble(ref reader, fields, 18);
@@ -792,7 +792,8 @@ namespace GameCult.Aetheria.State.Verse
                 audioStats,
                 effectivenessCurveKeys,
                 simpleCommodityCategory,
-                compoundCommodityCategory);
+                compoundCommodityCategory,
+                hullCapacity);
         }
 
         private static AetheriaRuntimeCorporation ReadCorporation(byte[] payload)

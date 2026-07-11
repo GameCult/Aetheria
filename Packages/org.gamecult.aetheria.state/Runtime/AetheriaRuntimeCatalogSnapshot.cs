@@ -185,7 +185,8 @@ namespace GameCult.Aetheria.State.Verse
             IReadOnlyList<AetheriaRuntimeAudioStat> audioStats,
             IReadOnlyList<AetheriaRuntimeCurveKey> effectivenessCurveKeys,
             string simpleCommodityCategory,
-            string compoundCommodityCategory)
+            string compoundCommodityCategory,
+            AetheriaRuntimeBehaviorValue? hullCapacity = null)
         {
             ItemKey = itemKey;
             Name = name;
@@ -235,6 +236,10 @@ namespace GameCult.Aetheria.State.Verse
             EffectivenessCurveKeys = effectivenessCurveKeys;
             SimpleCommodityCategory = simpleCommodityCategory;
             CompoundCommodityCategory = compoundCommodityCategory;
+            HullCapacity = hullCapacity ?? new AetheriaRuntimeBehaviorValue(
+                "", "", 0, false, "", "",
+                Array.Empty<AetheriaRuntimeBehaviorValue>(),
+                Array.Empty<AetheriaRuntimeBehaviorMapEntry>());
         }
 
         public string ItemKey { get; set; }
@@ -247,6 +252,7 @@ namespace GameCult.Aetheria.State.Verse
         public double SpecificHeat { get; set; }
         public double Conductivity { get; set; }
         public double Volume { get; set; }
+        public AetheriaRuntimeBehaviorValue HullCapacity { get; set; }
         public int ShapeWidth { get; set; }
         public int ShapeHeight { get; set; }
         public int OccupiedCells { get; set; }

@@ -22,6 +22,29 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         AgentPatrolsHistoricalOrbitCircuitThroughMovementCommands();
         TickReconcilesAndEvaluatesCatalogBehaviors();
         AgentMinesAsteroidThroughEquippedBehavior();
+        CargoCapacityComesFromHullAndCatalogVolumes();
+    }
+
+    private static void CargoCapacityComesFromHullAndCatalogVolumes()
+    {
+        var hull = CatalogItem("hauler-hull");
+        hull.HullCapacity = PerformanceStat(20);
+        var gear = CatalogItem("scanner");
+        gear.Volume = 3;
+        var ore = CatalogItem("ore");
+        ore.Volume = 2;
+        var catalog = new AetheriaRuntimeCatalogSnapshot([hull, gear, ore], [], []);
+        var entity = Entity(0, 0, "workers");
+        entity.HullItemKey = hull.ItemKey;
+        entity.Equipment = [new AetheriaRuntimeLoadoutItemSlotCommit { Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = gear.ItemKey } }];
+        entity.CargoContents = [new AetheriaRuntimeCargoBayLoadoutCommit { Items = [new AetheriaRuntimeLoadoutItemSlotCommit { Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = ore.ItemKey, Quantity = 4 } }] }];
+
+        RequireNear(20, AetheriaRuntimeCargoCapacityQueries.Capacity(entity, catalog), 0.000001,
+            "cargo capacity must evaluate the authored hull performance stat");
+        RequireNear(11, AetheriaRuntimeCargoCapacityQueries.Occupied(entity, catalog), 0.000001,
+            "equipment and stacked cargo must consume catalog volume");
+        RequireEqual(4, AetheriaRuntimeCargoCapacityQueries.UnitsThatFit(entity, catalog, ore.ItemKey),
+            "available cargo volume must determine whole units that fit");
     }
 
     private static void AgentMinesAsteroidThroughEquippedBehavior()
