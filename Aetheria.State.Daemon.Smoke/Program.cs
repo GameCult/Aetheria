@@ -124,11 +124,11 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             "empty constant weapon magazine must start reload and stop the held effect once");
         Require(state.Reloading && !state.Firing,
             "constant weapon reload must remain authoritative persisted state");
-        Require(Stat(blocker, "hull") < 100 && Math.Abs(Stat(selectedTarget, "hull") - 100) < 0.000001,
-            "Ymir beam contact must damage the intervening body rather than the selected target");
-        Require(run.GameEvents.Any(value => value.Kind == "weapon.beam.damage" &&
-                value.TargetEntityIndex == blocker.EntityIndex && value.ItemKey == "test-beam"),
-            "daemon must publish accepted continuous beam damage with authored weapon identity");
+        Require(Math.Abs(Stat(blocker, "hull") - 100) < 0.000001 && Stat(selectedTarget, "hull") < 100,
+            "constant weapon must resolve against its firing solution rather than a presentation collider");
+        Require(run.ShotReceipts.Any(value => value.TargetEntityIndex == selectedTarget.EntityIndex &&
+                value.WeaponItemKey == "test-beam" && value.Hit),
+            "daemon must publish accepted continuous shot receipts with authored beam identity");
         Require(CargoQuantity(source, "beam-ammo") == 0,
             "constant weapon reload must consume its reserve cargo through the shared transaction");
         Require(source.BehaviorStates.Single(value => value.BehaviorKind == "Capacitor").CapacitorCharge < 10,

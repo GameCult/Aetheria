@@ -242,8 +242,8 @@ namespace GameCult.Aetheria.State.Verse
                 var weaponGroup = ResolveFireGroup(run, zone, attacker, intents);
                 StepChargedWeapons(run, zone, attacker, byIndex, weaponGroup, deltaSeconds,
                     settings, catalog, frameId);
-                StepConstantWeapons(run, zone, entities, byIndex, attacker, weaponGroup, deltaSeconds,
-                    settings, projectilePhysics, catalog, frameId);
+                StepConstantWeapons(run, zone, byIndex, attacker, weaponGroup, deltaSeconds,
+                    settings, catalog, frameId);
                 var weapons = ResolveWeapons(attacker, weaponGroup, catalog, settings);
                 foreach (var weapon in weapons)
                 {
@@ -324,7 +324,7 @@ namespace GameCult.Aetheria.State.Verse
                         weapon.State.BurstRemaining--;
                         weapon.State.BurstTimer -= weapon.State.BurstInterval;
                         var projectile = SpawnProjectile(zone, attacker, target, weapon, settings);
-                        CommitShotResolution(run, zone, attacker, target, weapon, projectile, frameId);
+                        CommitShotResolution(run, zone, attacker, target, weapon, projectile.ProjectileId, frameId);
                         AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit { EventId = $"projectile:{projectile.ProjectileId}:launched", Kind = "projectile.launched", FrameId = frameId, ZoneIndex = zone.ZoneIndex, SourceEntityIndex = attacker.EntityIndex, TargetEntityIndex = target.EntityIndex, SubjectKey = projectile.ProjectileId, ItemKey = projectile.WeaponKind, ScalarValue = projectile.Damage, PositionX = projectile.PositionX, PositionZ = projectile.PositionZ });
                         weapon.State.Firing = true;
                         AetheriaRuntimeThermalSimulation.AddHeat(attacker, weapon.Heat);
@@ -482,7 +482,7 @@ namespace GameCult.Aetheria.State.Verse
                     state.BurstRemaining--;
                     state.BurstTimer -= state.BurstInterval;
                     var projectile = SpawnProjectile(zone, attacker, solutionTarget, shot, settings);
-                    CommitShotResolution(run, zone, attacker, solutionTarget, shot, projectile, frameId);
+                    CommitShotResolution(run, zone, attacker, solutionTarget, shot, projectile.ProjectileId, frameId);
                     AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit
                     {
                         EventId = $"projectile:{projectile.ProjectileId}:launched", Kind = "projectile.launched",
@@ -560,13 +560,11 @@ namespace GameCult.Aetheria.State.Verse
         private static void StepConstantWeapons(
             AetheriaRuntimeRunCheckpointCommit run,
             AetheriaRuntimeZoneSnapshotCommit zone,
-            IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities,
             IReadOnlyDictionary<int, AetheriaRuntimeEntitySnapshotCommit> byIndex,
             AetheriaRuntimeEntitySnapshotCommit attacker,
             int weaponGroup,
             double deltaSeconds,
             AetheriaRuntimeDaemonSimulationSettings settings,
-            IAetheriaRuntimeProjectilePhysics physics,
             AetheriaRuntimeCatalogSnapshot? catalog,
             long frameId)
         {
@@ -583,9 +581,9 @@ namespace GameCult.Aetheria.State.Verse
                     }
                 }
 
+                byIndex.TryGetValue(attacker.TargetEntityIndex, out var selectedTarget);
                 var validTarget = IsAlive(attacker) && weaponGroup >= 0 &&
-                    attacker.TargetEntityIndex >= 0 &&
-                    byIndex.TryGetValue(attacker.TargetEntityIndex, out var selectedTarget) &&
+                    attacker.TargetEntityIndex >= 0 && selectedTarget != null &&
                     IsAlive(selectedTarget) && Hostile(attacker, selectedTarget) &&
                     DistanceSq(attacker, selectedTarget) <= weapon.Range * weapon.Range;
                 var shouldFire = weapon.Selected && validTarget && !weapon.State.Reloading;
@@ -643,31 +641,9 @@ namespace GameCult.Aetheria.State.Verse
 
                 weapon.State.LastRefusalReason = "";
                 AetheriaRuntimeThermalSimulation.AddHeat(attacker, weapon.Heat * deltaSeconds);
-                var direction = Normalize(attacker.DirectionX, attacker.DirectionY);
-                var hit = physics.TraceBeam(zone, entities, attacker.EntityIndex,
-                    attacker.PositionX, attacker.PositionZ, direction.X, direction.Y, weapon.Range, 0.1);
-                if (hit == null || !byIndex.TryGetValue(hit.TargetEntityIndex, out var hitEntity) || !IsAlive(hitEntity))
-                    continue;
-
-                var damage = weapon.Damage * deltaSeconds;
-                var aliveBefore = IsAlive(hitEntity);
-                Damage(hitEntity, damage);
-                AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit
-                {
-                    EventId = $"frame:{frameId}:zone:{zone.ZoneIndex}:entity:{attacker.EntityIndex}:weapon:{weapon.State.OwnerIndex}:{weapon.State.BehaviorIndex}:beam:{hit.TargetEntityIndex}",
-                    Kind = "weapon.beam.damage", FrameId = frameId, ZoneIndex = zone.ZoneIndex,
-                    SourceEntityIndex = attacker.EntityIndex, TargetEntityIndex = hit.TargetEntityIndex,
-                    SubjectKey = hit.TargetBodyId, ItemKey = weapon.ItemKey, ScalarValue = damage,
-                    PositionX = hit.PointX, PositionZ = hit.PointZ
-                });
-                if (aliveBefore && !IsAlive(hitEntity))
-                    AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit
-                    {
-                        EventId = $"frame:{frameId}:zone:{zone.ZoneIndex}:entity:{attacker.EntityIndex}:weapon:{weapon.State.OwnerIndex}:{weapon.State.BehaviorIndex}:beam-destroyed:{hit.TargetEntityIndex}",
-                        Kind = "entity.destroyed", FrameId = frameId, ZoneIndex = zone.ZoneIndex,
-                        SourceEntityIndex = attacker.EntityIndex, TargetEntityIndex = hit.TargetEntityIndex,
-                        SubjectKey = weapon.ItemKey, PositionX = hit.PointX, PositionZ = hit.PointZ
-                    });
+                var shot = weapon.ResolutionShot(deltaSeconds);
+                var shotId = $"shot:{zone.ZoneIndex}:{frameId}:{attacker.EntityIndex}:{weapon.State.OwnerIndex}:{weapon.State.BehaviorIndex}";
+                CommitShotResolution(run, zone, attacker, selectedTarget!, shot, shotId, frameId);
             }
         }
 
@@ -892,7 +868,9 @@ namespace GameCult.Aetheria.State.Verse
                         Math.Max(0, behavior.EvaluateStat(10)),
                         ReadItemKey(behavior.Payload, 12), magazineSize,
                         PositiveOr(ReadNumber(behavior.Payload, 14), 1),
-                        PositiveOr(ReadNumber(behavior.Payload, 17), 1));
+                        PositiveOr(ReadNumber(behavior.Payload, 17), 1),
+                        Math.Max(0, behavior.EvaluateStat(5)),
+                        Math.Max(0, behavior.EvaluateStat(15)));
                 })
                 .ToArray();
         }
@@ -903,10 +881,9 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeEntitySnapshotCommit attacker,
             AetheriaRuntimeEntitySnapshotCommit target,
             ResolvedWeapon weapon,
-            AetheriaRuntimeProjectileCommit presentation,
+            string shotId,
             long frameId)
         {
-            var shotId = presentation.ProjectileId;
             if ((run.ShotReceipts ?? Array.Empty<AetheriaRuntimeShotReceiptCommit>())
                 .Any(value => value != null && string.Equals(value.ShotId, shotId, StringComparison.Ordinal)))
                 return;
@@ -1294,13 +1271,18 @@ namespace GameCult.Aetheria.State.Verse
         {
             public ResolvedConstantWeapon(AetheriaRuntimeWeaponStateCommit state, string itemKey,
                 bool selected, double damage, double range, double energy, double heat, string ammoItemKey,
-                int magazineSize, double reloadTime, double ammoIntervalDuration)
+                int magazineSize, double reloadTime, double ammoIntervalDuration,
+                double minRange, double spread)
             {
                 State = state; ItemKey = itemKey; Selected = selected; Damage = damage; Range = range;
                 Energy = energy; Heat = heat; AmmoItemKey = ammoItemKey;
                 MagazineSize = magazineSize; ReloadTime = reloadTime;
-                AmmoIntervalDuration = ammoIntervalDuration;
+                AmmoIntervalDuration = ammoIntervalDuration; MinRange = minRange; Spread = spread;
             }
+
+            public ResolvedWeapon ResolutionShot(double deltaSeconds) => new ResolvedWeapon(
+                State, ItemKey, Damage * deltaSeconds, Range, 0, 1, 0, 0, "", 0, 0,
+                1, 0, false, 1, 0, 180, 0, 0, MinRange, Spread);
 
             public AetheriaRuntimeWeaponStateCommit State { get; }
             public string ItemKey { get; }
@@ -1313,6 +1295,8 @@ namespace GameCult.Aetheria.State.Verse
             public int MagazineSize { get; }
             public double ReloadTime { get; }
             public double AmmoIntervalDuration { get; }
+            public double MinRange { get; }
+            public double Spread { get; }
         }
 
         private sealed class ResolvedChargedWeapon
