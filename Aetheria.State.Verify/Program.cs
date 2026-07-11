@@ -1242,7 +1242,9 @@ static void RequireDaemonPlayableRunGenerationAuthority(string root)
         "Math.Pow(item.Price, _priceExponent)",
         "Distance(_zoneIndex, _homeZones[item.ManufacturerKey])",
         "FitsHardpoint(candidate, hardpoint)",
-        "HasBehavior(candidate, controllerKind)"
+        "HasBehavior(candidate, controllerKind)",
+        "for (var draw = 0; draw < 16 && pool.Count > 0; draw++)",
+        "FindFit(interiorCells, width, height, item, occupied)"
     };
 
     var daemonText = daemonProgram + "\n" + daemonZoneGenerator + "\n" + daemonLoadoutGenerator;

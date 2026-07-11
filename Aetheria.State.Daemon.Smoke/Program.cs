@@ -274,12 +274,28 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         unavailableHull.HardpointType = "Hull";
         unavailableHull.HullType = "Ship"; unavailableHull.ShapeWidth = 4; unavailableHull.ShapeHeight = 4;
         unavailableHull.OccupiedCells = 16; unavailableHull.ShapeCells = cells4;
+        var stationHull = Item("station-hull", AetheriaRuntimeItemCategories.Hull, "forge", 120);
+        stationHull.HardpointType = "Hull"; stationHull.HullType = "Station";
+        stationHull.ShapeWidth = 4; stationHull.ShapeHeight = 4; stationHull.OccupiedCells = 16;
+        stationHull.ShapeCells = cells4;
+        stationHull.Hardpoints =
+        [
+            new AetheriaRuntimeHardpoint("ControlModule", 0, 0, 1, 1, 1, one, "", "None", 0)
+        ];
         var cockpit = Item("cockpit", AetheriaRuntimeItemCategories.Gear, "forge", 20, "ControlModule", "Cockpit");
         var wrongController = Item("cheap-turret-controller", AetheriaRuntimeItemCategories.Gear, "forge", 1,
             "ControlModule", "TurretController");
         var weapon = Item("cannon", AetheriaRuntimeItemCategories.Weapon, "forge", 40, "Weapon", "LockWeapon");
         var cargo = Item("cargo-bay", AetheriaRuntimeItemCategories.CargoBay, "forge", 30);
         cargo.HardpointType = "Internal";
+        cargo.InteriorShapeWidth = 2; cargo.InteriorShapeHeight = 2; cargo.InteriorOccupiedCells = 4;
+        cargo.InteriorShapeCells =
+        [
+            new AetheriaRuntimeShapeCell(0, 0), new AetheriaRuntimeShapeCell(1, 0),
+            new AetheriaRuntimeShapeCell(0, 1), new AetheriaRuntimeShapeCell(1, 1)
+        ];
+        var docking = Item("docking-bay", AetheriaRuntimeItemCategories.DockingBay, "forge", 35);
+        docking.HardpointType = "Internal";
         var capacitor = Item("capacitor", AetheriaRuntimeItemCategories.Gear, "forge", 25, "", "Capacitor");
         capacitor.HardpointType = "Internal";
         var faction = new AetheriaRuntimeCorporation("forge", "Forge", "F", "", "", "", 1, 1,
@@ -287,13 +303,14 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         var foreign = new AetheriaRuntimeCorporation("foreign", "Foreign", "X", "", "", "", 1, 1,
             [new AetheriaRuntimeCorporationAllegiance("foreign", 1)]);
         var catalog = new AetheriaRuntimeCatalogSnapshot(
-            [availableHull, unavailableHull, cockpit, wrongController, weapon, cargo, capacitor],
+            [availableHull, unavailableHull, stationHull, cockpit, wrongController, weapon, cargo, docking, capacitor],
             [faction, foreign], Array.Empty<AetheriaRuntimeNameFile>());
         var homes = new Dictionary<string, int> { ["forge"] = 0, ["foreign"] = 1 };
         var adjacency = new Dictionary<int, IReadOnlyList<int>> { [0] = [1], [1] = [0] };
 
         var first = new AetheriaDaemonLoadoutGenerator(catalog, 42, 0, homes, adjacency).Build("ship", "forge", []);
         var second = new AetheriaDaemonLoadoutGenerator(catalog, 42, 0, homes, adjacency).Build("ship", "forge", []);
+        var station = new AetheriaDaemonLoadoutGenerator(catalog, 84, 0, homes, adjacency).Build("station", "forge", []);
 
         RequireEqual("available-hull", first.HullItemKey,
             "loadout generation must exclude manufacturers outside the faction allegiance graph");
@@ -307,6 +324,13 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         Require(first.HullItemKey == second.HullItemKey &&
                 first.Equipment.Select(value => value.ItemKey).SequenceEqual(second.Equipment.Select(value => value.ItemKey)),
             "same seed, map, faction and catalog must produce the same loadout");
+        Require(station.Equipment.Any(value => value.ItemKey == "docking-bay") &&
+                station.Equipment.Any(value => value.ItemKey == "cargo-bay") &&
+                station.Equipment.Any(value => value.ItemKey == "capacitor") &&
+                station.Equipment.Any(value => value.ItemKey == "cheap-turret-controller"),
+            "stations must fit docking, cargo, capacitor, and turret-controller roles before inventory generation");
+        Require(station.Cargo.Length == 4 && station.Cargo.All(value => value.Item.ItemKey != "cheap-foreign-hull"),
+            "station inventory draws must be packed to cargo capacity and exclude unavailable manufacturers");
     }
 
     private static AetheriaRuntimeBehaviorValue PerformanceStat(double value) => new(

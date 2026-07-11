@@ -70,19 +70,17 @@ public sealed class AetheriaDaemonLoadoutGenerator
             previous.Add(item);
         }
 
-        AddFreeSpaceItem(hull, availabilityFactionKey, occupied, slots, 3, item =>
+        var cargoBay = AddFreeSpaceItem(hull, availabilityFactionKey, occupied, slots, 3, item =>
             string.Equals(item.Category, AetheriaRuntimeItemCategories.CargoBay, StringComparison.Ordinal));
         AddFreeSpaceItem(hull, availabilityFactionKey, occupied, slots, 2, item =>
             IsGear(item) && HasBehavior(item, "Capacitor"));
 
-        var cargo = (scenarioCargo ?? Array.Empty<string>())
-            .Where(key => !string.IsNullOrWhiteSpace(key) && _catalog.FindItem(key) != null)
-            .Select((key, index) => CargoSlot(index, key))
-            .ToArray();
+        var cargo = PackCargo(cargoBay, availabilityFactionKey, scenarioCargo,
+            string.Equals(entityKind, "station", StringComparison.OrdinalIgnoreCase));
         return new AetheriaDaemonLoadout(hull.ItemKey, slots.ToArray(), cargo);
     }
 
-    private void AddFreeSpaceItem(
+    private AetheriaRuntimeCatalogItem AddFreeSpaceItem(
         AetheriaRuntimeCatalogItem hull,
         string factionKey,
         HashSet<(int X, int Y)> occupied,
@@ -102,6 +100,51 @@ public sealed class AetheriaDaemonLoadoutGenerator
         var fit = selected.Fit.Value;
         slots.Add(Slot(fit.X, fit.Y, selected.Item.ItemKey));
         Reserve(occupied, selected.Item, fit.X, fit.Y, fit.Rotation);
+        return selected.Item;
+    }
+
+    private AetheriaLoadoutItemSlot[] PackCargo(
+        AetheriaRuntimeCatalogItem cargoBay,
+        string factionKey,
+        IReadOnlyList<string> scenarioCargo,
+        bool includeStationInventory)
+    {
+        var candidates = new List<AetheriaRuntimeCatalogItem>();
+        foreach (var key in scenarioCargo ?? Array.Empty<string>())
+        {
+            var item = _catalog.FindItem(key);
+            if (item != null) candidates.Add(item);
+        }
+        if (includeStationInventory)
+        {
+            var pool = Available(factionKey)
+                .Where(item => !string.Equals(item.Category, AetheriaRuntimeItemCategories.CargoBay, StringComparison.Ordinal) &&
+                    !string.Equals(item.Category, AetheriaRuntimeItemCategories.DockingBay, StringComparison.Ordinal) &&
+                    (!string.Equals(item.Category, AetheriaRuntimeItemCategories.Hull, StringComparison.Ordinal) ||
+                     string.Equals(item.HullType, "Ship", StringComparison.Ordinal)))
+                .ToList();
+            for (var draw = 0; draw < 16 && pool.Count > 0; draw++)
+            {
+                var selected = PickWeighted(pool, 1, factionKey, item => item);
+                if (selected == null) break;
+                candidates.Add(selected);
+                pool.Remove(selected);
+            }
+        }
+
+        var interiorCells = Cells(cargoBay.InteriorShapeCells);
+        var width = Math.Max(1, cargoBay.InteriorShapeWidth);
+        var height = Math.Max(1, cargoBay.InteriorShapeHeight);
+        var occupied = new HashSet<(int X, int Y)>();
+        var packed = new List<AetheriaLoadoutItemSlot>();
+        foreach (var item in candidates.OrderByDescending(value => value.OccupiedCells))
+        {
+            var fit = FindFit(interiorCells, width, height, item, occupied);
+            if (!fit.HasValue) continue;
+            Reserve(occupied, item, fit.Value.X, fit.Value.Y, fit.Value.Rotation);
+            packed.Add(CargoSlot(fit.Value.X, fit.Value.Y, item.ItemKey));
+        }
+        return packed.ToArray();
     }
 
     private AetheriaRuntimeCatalogItem? Pick(
@@ -191,14 +234,23 @@ public sealed class AetheriaDaemonLoadoutGenerator
         AetheriaRuntimeCatalogItem item,
         HashSet<(int X, int Y)> occupied)
     {
-        var hullCells = Cells(hull.ShapeCells);
+        return FindFit(Cells(hull.ShapeCells), Math.Max(1, hull.ShapeWidth), Math.Max(1, hull.ShapeHeight), item, occupied);
+    }
+
+    private static (int X, int Y, int Rotation)? FindFit(
+        HashSet<(int X, int Y)> targetCells,
+        int width,
+        int height,
+        AetheriaRuntimeCatalogItem item,
+        HashSet<(int X, int Y)> occupied)
+    {
         for (var rotation = 0; rotation < 4; rotation++)
         {
             var cells = RotatedCells(item, rotation).ToArray();
-            for (var y = 0; y < Math.Max(1, hull.ShapeHeight); y++)
-            for (var x = 0; x < Math.Max(1, hull.ShapeWidth); x++)
+            for (var y = 0; y < height; y++)
+            for (var x = 0; x < width; x++)
             {
-                if (cells.All(cell => hullCells.Contains((cell.X + x, cell.Y + y)) &&
+                if (cells.All(cell => targetCells.Contains((cell.X + x, cell.Y + y)) &&
                     !occupied.Contains((cell.X + x, cell.Y + y))))
                     return (x, y, rotation);
             }
@@ -249,9 +301,12 @@ public sealed class AetheriaDaemonLoadoutGenerator
         Quality = 1, Durability = 1, Quantity = 1, Enabled = true
     };
 
-    private static AetheriaLoadoutItemSlot CargoSlot(int index, string itemKey) => new()
+    private static AetheriaLoadoutItemSlot CargoSlot(int index, string itemKey) =>
+        CargoSlot(index % 4, index / 4, itemKey);
+
+    private static AetheriaLoadoutItemSlot CargoSlot(int x, int y, string itemKey) => new()
     {
-        Position = new AetheriaGridCoord { X = index % 4, Y = index / 4 },
+        Position = new AetheriaGridCoord { X = x, Y = y },
         Item = new AetheriaLoadoutItem { ItemKey = itemKey, Quality = 1, Durability = 1, Quantity = 1, Enabled = true }
     };
 }
