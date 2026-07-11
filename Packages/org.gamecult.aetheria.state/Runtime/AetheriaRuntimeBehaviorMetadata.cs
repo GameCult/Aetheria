@@ -74,7 +74,12 @@ namespace GameCult.Aetheria.State.Verse
             {
                 Behavior("AetherDrive", "", Stat("MaximumRpm", 3), Stat("CouplingEfficiency", 6), Stat("Torque", 7), Stat("EnergyDraw", 9), Stat("PassiveCoupling", 10)),
                 Behavior("Capacitor", "", Stat("Capacity", 1), Stat("Efficiency", 2)),
-                Behavior("ChargedWeapon", AetheriaRuntimeBehaviorKinds.InstantWeapon, With(InstantWeaponFields, Stat("ChargeTime", 21), Stat("ChargeEnergy", 22), Stat("ChargeHeat", 23))),
+                Behavior("ChargedWeapon", AetheriaRuntimeBehaviorKinds.InstantWeapon, With(InstantWeaponFields,
+                    Stat("ChargeTime", 21), Stat("ChargeEnergy", 22), Stat("ChargeHeat", 23),
+                    Boolean("CanFireEarly", 24), Number("FailureCharge", 25), Number("FailureDamage", 26),
+                    Number("ChargeDamageMultiplier", 27), Number("ChargeSpreadMultiplier", 28),
+                    Number("ChargeBurstCountMultiplier", 29), Number("ChargeVisibilityMultiplier", 30),
+                    Number("ChargeVelocityMultiplier", 31), Number("ChargeHeatMultiplier", 32))),
                 Behavior("Cockpit", ""),
                 Behavior("ConstantWeapon", "Weapon", With(WeaponFields, Number("AmmoIntervalDuration", 17))),
                 Behavior(AetheriaRuntimeBehaviorKinds.GuidedWeapon, AetheriaRuntimeBehaviorKinds.InstantWeapon, With(InstantWeaponFields, Stat("MissileVelocity", 26))),

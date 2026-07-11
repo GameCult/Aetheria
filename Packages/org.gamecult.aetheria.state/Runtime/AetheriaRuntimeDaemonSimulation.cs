@@ -712,6 +712,7 @@ namespace GameCult.Aetheria.State.Verse
                 ? entity.WeaponGroups[weaponGroup] ?? Array.Empty<int>()
                 : Array.Empty<int>();
             var authored = AetheriaRuntimeEquippedBehaviorQueries.Find(entity, catalog, AetheriaRuntimeBehaviorKinds.InstantWeapon)
+                .Where(behavior => !string.Equals(behavior.Payload.Kind, AetheriaRuntimeBehaviorKinds.ChargedWeapon, StringComparison.Ordinal))
                 .Where(behavior => equipmentIndices.Contains(behavior.EquipmentIndex))
                 .Select(behavior => ResolveAuthoredWeapon(entity, behavior, settings))
                 .ToArray();

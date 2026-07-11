@@ -13,6 +13,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         YmirMovesProjectileAndReportsStableContact();
         YmirBeamTraceReturnsFirstSpatialContact();
         ConstantWeaponRunsOnDaemonThroughYmirBeamContact();
+        ChargedWeaponCannotBypassChargeLifecycle();
         DaemonSimulationAppliesYmirHit();
         ProjectileDeathEmitsOnce();
         MissingPhysicsOwnerCannotAdvanceProjectiles();
@@ -151,6 +152,51 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         Require(Flatten(surface.Surface.Root).Any(node => node.Kind == "feedback.event" &&
                 node.Props["eventKind"] == "weapon.firing.started" && node.Props["itemKey"] == "test-beam"),
             "Eve feedback stream must project continuous weapon transition chronology");
+    }
+
+    private static void ChargedWeaponCannotBypassChargeLifecycle()
+    {
+        var source = Entity(0, 0, "player");
+        source.DirectionX = 1;
+        source.TargetEntityIndex = 1;
+        source.WeaponGroups = [new[] { 0 }];
+        source.Equipment = [new AetheriaRuntimeLoadoutItemSlotCommit
+        {
+            Item = new AetheriaRuntimeLoadoutItemCommit
+                { ItemKey = "test-charged", Quality = 1, Durability = 1, Enabled = true }
+        }];
+        var target = Entity(1, 80, "raider");
+        var zone = new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [source, target] };
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "charged-weapon-admission-smoke", CurrentZoneIndex = 0,
+            CurrentEntityKey = "zone.0.entity.0", Zones = [zone]
+        };
+        var payload = new AetheriaRuntimeBehaviorPayload(0, AetheriaRuntimeBehaviorKinds.ChargedWeapon, 0,
+        [
+            new AetheriaRuntimeBehaviorField(2, PerformanceStat(20)),
+            new AetheriaRuntimeBehaviorField(6, PerformanceStat(150)),
+            new AetheriaRuntimeBehaviorField(16, PerformanceStat(200)),
+            new AetheriaRuntimeBehaviorField(17, PerformanceStat(1)),
+            new AetheriaRuntimeBehaviorField(19, PerformanceStat(0.5)),
+            new AetheriaRuntimeBehaviorField(21, PerformanceStat(1)),
+            new AetheriaRuntimeBehaviorField(24, new AetheriaRuntimeBehaviorValue("bool", "", 0, true, "", "", [], [])),
+            new AetheriaRuntimeBehaviorField(27, Number(2))
+        ]);
+        var intents = new AetheriaRuntimeDaemonIntentState();
+        intents.WeaponGroups.Add(new AetheriaRuntimeDaemonWeaponGroupIntent
+        {
+            ActorEntityKey = "zone.0.entity.0", WeaponGroup = 0, Fire = true, Active = true
+        });
+        AetheriaRuntimeDaemonSimulation.Step(run, intents, 0.1,
+            new AetheriaRuntimeDaemonSimulationSettings(), new AetheriaYmirProjectilePhysics(),
+            new AetheriaYmirWorldPhysics(),
+            new AetheriaRuntimeCatalogSnapshot([CatalogItem("test-charged", payload)], [], []), 0, 0);
+
+        Require(zone.Projectiles.Count == 0 && !run.GameEvents.Any(value => value.Kind == "projectile.launched"),
+            "pressing an authored ChargedWeapon must not bypass charging through the instant weapon resolver");
+        Require(Math.Abs(Stat(target, "hull") - 100) < 0.000001,
+            "charged weapon admission must not apply damage before a daemon-owned release commits the shot");
     }
 
     private static void AgentTowsStationIntoPersistentOrbit()
