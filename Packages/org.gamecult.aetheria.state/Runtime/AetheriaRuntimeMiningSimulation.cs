@@ -65,7 +65,8 @@ namespace GameCult.Aetheria.State.Verse
                     if (efficiency * Roll(run.GenerationSeed, frameId, minerIndex, intent.TargetAsteroidIndex, "yield") * accumulator.Amount * resources.Length / MiningDifficulty > 1)
                     {
                         accumulator.Amount = 0;
-                        AddCargo(miner, resource.ItemKey);
+                        if (AetheriaRuntimeCargoCapacityQueries.UnitsThatFit(miner, catalog, resource.ItemKey) > 0)
+                            AddCargo(miner, resource.ItemKey);
                     }
                 }
 

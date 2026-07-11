@@ -103,6 +103,7 @@ namespace GameCult.Aetheria.State.Verse
             run ??= new AetheriaRuntimeRunCheckpointCommit();
             options ??= new AetheriaRuntimeDaemonTickOptions();
             options.OperationContext ??= new AetheriaRuntimeDaemonOperationContext();
+            options.OperationContext.Catalog = options.Catalog;
             EnsureBehaviorStates(run, options.Catalog);
 
             var observedCommands = (options.ObservedCommands ?? Array.Empty<AetheriaRuntimeDaemonCommandDocument>())

@@ -50,17 +50,29 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
     private static void AgentMinesAsteroidThroughEquippedBehavior()
     {
         var miner = Entity(0, 0, "workers");
+        var home = Entity(1, 0, "workers");
         miner.AgentTaskCapabilities = [AetheriaRuntimeAgentTaskTypes.Mine];
         miner.Equipment = [new AetheriaRuntimeLoadoutItemSlotCommit { Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = "mining-tool", Enabled = true, Quality = 1, Durability = 1 } }];
+        var minerHull = CatalogItem("miner-hull");
+        minerHull.HullCapacity = PerformanceStat(2);
+        var homeHull = CatalogItem("home-hull");
+        homeHull.HullCapacity = PerformanceStat(100);
+        var iron = CatalogItem("iron");
+        iron.SimpleCommodityCategory = "ore";
+        iron.Volume = 1;
+        miner.HullItemKey = minerHull.ItemKey;
+        home.HullItemKey = homeHull.ItemKey;
+        miner.CargoContents = [new AetheriaRuntimeCargoBayLoadoutCommit()];
+        home.CargoContents = [new AetheriaRuntimeCargoBayLoadoutCommit()];
         var catalog = new AetheriaRuntimeCatalogSnapshot(
-            [CatalogItem("mining-tool", new AetheriaRuntimeBehaviorPayload(0, "MiningTool", 0,
+            [minerHull, homeHull, iron, CatalogItem("mining-tool", new AetheriaRuntimeBehaviorPayload(0, "MiningTool", 0,
                 [new AetheriaRuntimeBehaviorField(1, PerformanceStat(1000)), new AetheriaRuntimeBehaviorField(2, PerformanceStat(1000000000)), new AetheriaRuntimeBehaviorField(3, PerformanceStat(2)), new AetheriaRuntimeBehaviorField(4, PerformanceStat(1000))]))],
             [], []);
         var asteroid = new AetheriaRuntimeAsteroidCommit { Distance = 0, Size = 6 };
         var zone = new AetheriaRuntimeZoneSnapshotCommit
         {
             ZoneIndex = 0,
-            Entities = [miner],
+            Entities = [miner, home],
             Bodies = [new AetheriaRuntimeBodySnapshotCommit { BodyKey = "belt", Kind = "asteroid_belt", Asteroids = [asteroid], Resources = [new AetheriaRuntimeBodyResourceCommit { ItemKey = "iron", Amount = 1 }] }]
         };
         var run = new AetheriaRuntimeRunCheckpointCommit
@@ -69,7 +81,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             CurrentZoneIndex = 0,
             CurrentEntityKey = "zone.0.entity.0",
             Zones = [zone],
-            AgentTasks = [new AetheriaRuntimeAgentTaskCommit { TaskId = "mine-1", CorporationKey = "workers", TaskType = AetheriaRuntimeAgentTaskTypes.Mine, ZoneIndex = 0, Status = AetheriaRuntimeAgentTaskStatuses.Queued, TargetBodyKeys = ["belt"] }]
+            AgentTasks = [new AetheriaRuntimeAgentTaskCommit { TaskId = "mine-1", CorporationKey = "workers", TaskType = AetheriaRuntimeAgentTaskTypes.Mine, ZoneIndex = 0, OriginEntityIndex = 1, CompletionRadius = 10, Status = AetheriaRuntimeAgentTaskStatuses.Queued, TargetBodyKeys = ["belt"] }]
         };
 
         var result = AetheriaRuntimeDaemonTickRunner.Tick(Path.Combine(Path.GetTempPath(), "aetheria-mining-smoke.cc"), run,
@@ -83,6 +95,15 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         Require(committedAsteroid.RespawnTimer > 0, $"mining damage must deplete the asteroid and start historical respawn (damage={committedAsteroid.Damage}, respawn={committedAsteroid.RespawnTimer})");
         Require(committedMiner.CargoContents.SelectMany(bay => bay.Items).Any(slot => slot.Item.ItemKey == "iron" && slot.Item.Quantity > 0),
             "historical mining yield must enter daemon-owned cargo");
+
+        AetheriaRuntimeDaemonTickRunner.Tick(Path.Combine(Path.GetTempPath(), "aetheria-mining-offload-smoke.cc"), run,
+            new AetheriaRuntimeDaemonTickOptions { FrameId = 2, FixedDeltaSeconds = 1, SimulationTimeSeconds = 2, Catalog = catalog, BuildPublications = false });
+        Require(!run.Zones[0].Entities[0].CargoContents.SelectMany(bay => bay.Items).Any(),
+            "full miner must offload through the shared cargo transfer command");
+        Require(run.Zones[0].Entities[1].CargoContents.SelectMany(bay => bay.Items).Any(slot => slot.Item.ItemKey == "iron" && slot.Item.Quantity == 1),
+            "home storage must receive the mined commodity");
+        RequireEqual(AetheriaRuntimeAgentTaskStatuses.Assigned, run.AgentTasks[0].Status,
+            "miner must remain assigned after a successful offload");
     }
 
     private static void TickReconcilesAndEvaluatesCatalogBehaviors()

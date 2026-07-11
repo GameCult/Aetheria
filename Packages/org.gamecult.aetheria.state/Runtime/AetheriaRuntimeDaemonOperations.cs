@@ -39,6 +39,7 @@ namespace GameCult.Aetheria.State.Verse
         public double DockingDistance { get; set; } = AetheriaRuntimeDaemonOperationContext.DefaultDockingDistance;
 
         public double WormholeExitRadius { get; set; } = AetheriaRuntimeDaemonOperationContext.DefaultWormholeExitRadius;
+        public AetheriaRuntimeCatalogSnapshot? Catalog { get; set; }
     }
 
     public static class AetheriaRuntimeDaemonOperations
@@ -134,7 +135,7 @@ namespace GameCult.Aetheria.State.Verse
                 case AetheriaRuntimeDaemonCommandKinds.SetDockedCurrentShip:
                     return ApplySetDockedCurrentShip(run, command.TargetEntityKey);
                 case AetheriaRuntimeDaemonCommandKinds.TransferCargoItem:
-                    return ApplyTransferCargoItem(run, command);
+                    return ApplyTransferCargoItem(run, command, context.Catalog);
                 case AetheriaRuntimeDaemonCommandKinds.EquipItem:
                     return ApplyEquipItem(run, command);
                 case AetheriaRuntimeDaemonCommandKinds.StoreItem:
@@ -649,7 +650,8 @@ namespace GameCult.Aetheria.State.Verse
 
         private static bool ApplyTransferCargoItem(
             AetheriaRuntimeRunCheckpointCommit run,
-            AetheriaRuntimeDaemonCommandDocument command)
+            AetheriaRuntimeDaemonCommandDocument command,
+            AetheriaRuntimeCatalogSnapshot? catalog)
         {
             var transfer = command.CargoTransfer ?? new AetheriaRuntimeCargoTransferCommand();
             if (!TryResolveCargoBay(
@@ -682,6 +684,8 @@ namespace GameCult.Aetheria.State.Verse
             var quantity = transfer.Quantity > 0
                 ? transfer.Quantity
                 : (int)Math.Round(command.ScalarValue);
+            if (quantity <= 0 || quantity > AetheriaRuntimeCargoCapacityQueries.UnitsThatFit(destinationEntity, catalog, command.TextValue))
+                return false;
             if (!TryRemoveCargoItemQuantity(
                     originEntity,
                     originCargoIndex,

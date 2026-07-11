@@ -128,6 +128,15 @@ namespace GameCult.Aetheria.State.Verse
                 if (rejected.Contains(pickupId) || rejected.Contains(deliveryId))
                     task.PendingQuantity = 0;
             }
+            foreach (var task in (run?.AgentTasks ?? Array.Empty<AetheriaRuntimeAgentTaskCommit>())
+                .Where(task => task != null && string.Equals(task.TaskType, AetheriaRuntimeAgentTaskTypes.Mine, StringComparison.Ordinal)))
+            {
+                if (!rejected.Contains(CommandId(task, frameId, "offload")))
+                    continue;
+                var agent = FindEntity(run, task.ZoneIndex, task.AssignedEntityIndex);
+                if (agent != null)
+                    Complete(task, agent, frameId);
+            }
         }
 
         private static void AssignQueuedTasks(AetheriaRuntimeRunCheckpointCommit run, long frameId)
@@ -240,6 +249,59 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeCatalogSnapshot? catalog,
             double simulationTimeSeconds)
         {
+            var home = zone.Entities.FirstOrDefault(entity => entity != null && entity.EntityIndex == task.OriginEntityIndex);
+            if (string.Equals(task.Phase, "offload", StringComparison.Ordinal) ||
+                AetheriaRuntimeCargoCapacityQueries.Available(agent, catalog) < 1)
+            {
+                if (home == null)
+                {
+                    Fail(task, agent);
+                    return Array.Empty<AetheriaRuntimeDaemonCommandDocument>();
+                }
+                task.Phase = "offload";
+                var homeDx = home.PositionX - agent.PositionX;
+                var homeDz = home.PositionZ - agent.PositionZ;
+                if (Math.Sqrt(homeDx * homeDx + homeDz * homeDz) > Math.Max(0.01, task.CompletionRadius))
+                    return new[] { Movement(task, agent, frameId, homeDx, homeDz, 1) };
+
+                var commodity = (agent.CargoContents ?? Array.Empty<AetheriaRuntimeCargoBayLoadoutCommit>())
+                    .SelectMany((bay, bayIndex) => (bay?.Items ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>())
+                        .Where(slot => slot?.Item != null && !string.IsNullOrWhiteSpace(catalog?.FindItem(slot.Item.ItemKey)?.SimpleCommodityCategory))
+                        .Select(slot => (BayIndex: bayIndex, Slot: slot)))
+                    .FirstOrDefault();
+                if (commodity.Slot == null)
+                {
+                    task.Phase = "mining";
+                    return new[] { Movement(task, agent, frameId, 0, 0, 0) };
+                }
+                var quantity = Math.Min(commodity.Slot.Item.Quantity,
+                    AetheriaRuntimeCargoCapacityQueries.UnitsThatFit(home, catalog, commodity.Slot.Item.ItemKey));
+                if (quantity <= 0)
+                {
+                    Complete(task, agent, frameId);
+                    return new[] { Movement(task, agent, frameId, 0, 0, 0) };
+                }
+                return new[]
+                {
+                    Movement(task, agent, frameId, 0, 0, 0),
+                    Command(task, agent, frameId, AetheriaRuntimeDaemonCommandKinds.TransferCargoItem, "offload", command =>
+                    {
+                        command.TextValue = commodity.Slot.Item.ItemKey;
+                        command.ScalarValue = quantity;
+                        command.TargetEntityKey = $"zone.{task.ZoneIndex}.entity.{home.EntityIndex}";
+                        command.CargoTransfer = new AetheriaRuntimeCargoTransferCommand
+                        {
+                            OriginEntityKey = $"zone.{task.ZoneIndex}.entity.{agent.EntityIndex}",
+                            OriginCargoIndex = commodity.BayIndex,
+                            DestinationEntityKey = $"zone.{task.ZoneIndex}.entity.{home.EntityIndex}",
+                            DestinationCargoIndex = 0,
+                            SourceX = commodity.Slot.X,
+                            SourceY = commodity.Slot.Y,
+                            Quantity = quantity
+                        };
+                    })
+                };
+            }
             var tool = AetheriaRuntimeEquippedBehaviorQueries.Find(agent, catalog, "MiningTool").FirstOrDefault();
             var bodyKey = (task.TargetBodyKeys ?? Array.Empty<string>()).FirstOrDefault() ?? "";
             var body = (zone.Bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>())
