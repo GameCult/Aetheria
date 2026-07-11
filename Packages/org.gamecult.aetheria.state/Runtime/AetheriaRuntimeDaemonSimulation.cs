@@ -48,6 +48,7 @@ namespace GameCult.Aetheria.State.Verse
                 StepMovement(entities, deltaSeconds);
                 StepCombat(run, zone, entities, intents, deltaSeconds, settings, projectilePhysics);
                 AetheriaRuntimeMiningSimulation.Step(run, zone, entities, intents, catalog, frameId, simulationTimeSeconds, deltaSeconds);
+                AetheriaRuntimeSurveySimulation.Step(run, zone, entities, intents, catalog, frameId, simulationTimeSeconds, deltaSeconds);
                 StepTractorSalvage(run, zone, entities, settings);
                 RefreshContacts(entities, settings);
             }

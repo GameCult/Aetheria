@@ -134,6 +134,7 @@ namespace GameCult.Aetheria.State.Verse
                 "aetheria.starbridge.commander.root",
                 StrategicWorldSurface("aetheria.starbridge.commander.world", run, zone),
                 BuildAgentTaskBoard(run),
+                BuildSurveyKnowledge(run),
                 BuildStarbridgeStationStockCard(starbridge),
                 BuildStarbridgeWaveForecastCard(starbridge),
                 BuildStarbridgeRuntimeRolesCard(starbridge));
@@ -207,6 +208,27 @@ namespace GameCult.Aetheria.State.Verse
                     ("taskTypes", string.Join(",", AetheriaRuntimeAgentTaskTypes.All))
                 },
                 tasks);
+        }
+
+        private static AetheriaRuntimeSurfaceComponent BuildSurveyKnowledge(AetheriaRuntimeRunCheckpointCommit run)
+        {
+            var entries = (run.CorporationSurveys ?? Array.Empty<AetheriaRuntimeCorporationSurveyCommit>())
+                .Where(value => value != null)
+                .OrderBy(value => value.CorporationKey, StringComparer.Ordinal)
+                .ThenBy(value => value.BodyKey, StringComparer.Ordinal)
+                .Select(value => Node(
+                    $"aetheria.starbridge.commander.surveys.{SurfaceToken(value.CorporationKey)}.{SurfaceToken(value.BodyKey)}",
+                    "list.item",
+                    new[]
+                    {
+                        ("label", value.BodyKey),
+                        ("corporation", value.CorporationKey),
+                        ("bodyKey", value.BodyKey),
+                        ("densityFloor", value.DensityFloor.ToString("0.###", CultureInfo.InvariantCulture)),
+                        ("completedFrameId", value.CompletedFrameId.ToString(CultureInfo.InvariantCulture))
+                    }))
+                .ToArray();
+            return Node("aetheria.starbridge.commander.surveys", "list", new[] { ("title", "Survey Knowledge") }, entries);
         }
 
         private static int TaskStatusOrder(string status) =>

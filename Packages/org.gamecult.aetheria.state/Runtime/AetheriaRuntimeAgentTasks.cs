@@ -199,6 +199,12 @@ namespace GameCult.Aetheria.State.Verse
                     commands.AddRange(PlanMining(zone!, task, agent, frameId, catalog, simulationTimeSeconds));
                     continue;
                 }
+                if (string.Equals(task.TaskType, AetheriaRuntimeAgentTaskTypes.Explore, StringComparison.Ordinal) &&
+                    (task.TargetBodyKeys ?? Array.Empty<string>()).Any(key => !string.IsNullOrWhiteSpace(key)))
+                {
+                    commands.AddRange(PlanSurvey(run, zone!, task, agent, frameId, catalog, simulationTimeSeconds));
+                    continue;
+                }
                 if (string.Equals(task.TaskType, AetheriaRuntimeAgentTaskTypes.Defend, StringComparison.Ordinal))
                 {
                     commands.AddRange(PlanPatrol(zone!, task, agent, frameId));
@@ -337,6 +343,52 @@ namespace GameCult.Aetheria.State.Verse
                     command.ScalarValue = 1;
                     command.TextValue = bodyKey;
                     command.PositionX = asteroid.AsteroidIndex;
+                })
+            };
+        }
+
+        private static IReadOnlyList<AetheriaRuntimeDaemonCommandDocument> PlanSurvey(
+            AetheriaRuntimeRunCheckpointCommit run,
+            AetheriaRuntimeZoneSnapshotCommit zone,
+            AetheriaRuntimeAgentTaskCommit task,
+            AetheriaRuntimeEntitySnapshotCommit agent,
+            long frameId,
+            AetheriaRuntimeCatalogSnapshot? catalog,
+            double simulationTimeSeconds)
+        {
+            var scanner = AetheriaRuntimeEquippedBehaviorQueries.Find(agent, catalog, "ResourceScanner").FirstOrDefault();
+            if (scanner == null) { Fail(task, agent); return Array.Empty<AetheriaRuntimeDaemonCommandDocument>(); }
+            var minimumDensity = scanner.EvaluateStat(2);
+            var surveyed = new HashSet<string>((run.CorporationSurveys ?? Array.Empty<AetheriaRuntimeCorporationSurveyCommit>())
+                .Where(value => string.Equals(value.CorporationKey, task.CorporationKey, StringComparison.Ordinal) && value.DensityFloor + 0.5 >= minimumDensity)
+                .Select(value => value.BodyKey), StringComparer.Ordinal);
+            var targets = (task.TargetBodyKeys ?? Array.Empty<string>()).Where(key => !surveyed.Contains(key)).ToArray();
+            if (targets.Length == 0) { Complete(task, agent, frameId); return new[] { Movement(task, agent, frameId, 0, 0, 0) }; }
+
+            var candidates = targets.SelectMany(key =>
+            {
+                var body = (zone.Bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>()).FirstOrDefault(value => value != null && string.Equals(value.BodyKey, key, StringComparison.Ordinal));
+                if (body == null) return Array.Empty<(string Key, int Asteroid, double X, double Z)>();
+                if (string.Equals(body.Kind, "asteroid_belt", StringComparison.OrdinalIgnoreCase))
+                    return AetheriaRuntimeDaemonRenderQueries.QueryAsteroidInstancePoses(zone, key, simulationTimeSeconds)
+                        .Select(pose => (Key: key, Asteroid: pose.AsteroidIndex, X: pose.PositionX, Z: pose.PositionZ)).ToArray();
+                var pose = AetheriaRuntimeDaemonRenderQueries.QueryBodyPoses(zone).FirstOrDefault(value => string.Equals(value.BodyKey, key, StringComparison.Ordinal));
+                return string.IsNullOrWhiteSpace(pose.BodyKey)
+                    ? Array.Empty<(string Key, int Asteroid, double X, double Z)>()
+                    : new[] { (Key: key, Asteroid: -1, X: pose.CenterX, Z: pose.CenterZ) };
+            }).OrderBy(value => Math.Pow(value.X - agent.PositionX, 2) + Math.Pow(value.Z - agent.PositionZ, 2)).FirstOrDefault();
+            if (string.IsNullOrWhiteSpace(candidates.Key)) { Fail(task, agent); return Array.Empty<AetheriaRuntimeDaemonCommandDocument>(); }
+            var dx = candidates.X - agent.PositionX; var dz = candidates.Z - agent.PositionZ;
+            if (Math.Sqrt(dx * dx + dz * dz) >= Math.Max(0.01, scanner.EvaluateStat(1)))
+                return new[] { Movement(task, agent, frameId, dx, dz, 1) };
+            task.Phase = "scanning";
+            return new[]
+            {
+                Movement(task, agent, frameId, 0, 0, 0),
+                Command(task, agent, frameId, AetheriaRuntimeDaemonCommandKinds.SetBehaviorActive, "scan", command =>
+                {
+                    command.EquipmentIndex = scanner.EquipmentIndex; command.BehaviorIndex = scanner.BehaviorIndex;
+                    command.ScalarValue = 1; command.TextValue = candidates.Key; command.PositionX = candidates.Asteroid;
                 })
             };
         }

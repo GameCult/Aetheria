@@ -23,6 +23,39 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         TickReconcilesAndEvaluatesCatalogBehaviors();
         AgentMinesAsteroidThroughEquippedBehavior();
         CargoCapacityComesFromHullAndCatalogVolumes();
+        AgentSurveysBodyIntoCorporationKnowledge();
+    }
+
+    private static void AgentSurveysBodyIntoCorporationKnowledge()
+    {
+        var surveyor = Entity(0, 0, "workers");
+        surveyor.AgentTaskCapabilities = [AetheriaRuntimeAgentTaskTypes.Explore];
+        surveyor.Equipment = [new AetheriaRuntimeLoadoutItemSlotCommit { Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = "scanner", Enabled = true } }];
+        var scanner = CatalogItem("scanner", new AetheriaRuntimeBehaviorPayload(0, "ResourceScanner", 0,
+            [new AetheriaRuntimeBehaviorField(1, PerformanceStat(100)), new AetheriaRuntimeBehaviorField(2, PerformanceStat(4)), new AetheriaRuntimeBehaviorField(3, PerformanceStat(0.5))]));
+        var catalog = new AetheriaRuntimeCatalogSnapshot([scanner], [], []);
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            CurrentZoneIndex = 0, CurrentEntityKey = "zone.0.entity.0",
+            Zones = [new AetheriaRuntimeZoneSnapshotCommit
+            {
+                ZoneIndex = 0, Entities = [surveyor],
+                Orbits = [new AetheriaRuntimeOrbitSnapshotCommit { OrbitKey = "survey-orbit", FixedPositionX = 10 }],
+                Bodies = [new AetheriaRuntimeBodySnapshotCommit { BodyKey = "survey-world", Kind = "planet", OrbitKey = "survey-orbit" }]
+            }],
+            AgentTasks = [new AetheriaRuntimeAgentTaskCommit { TaskId = "survey-1", CorporationKey = "workers", TaskType = AetheriaRuntimeAgentTaskTypes.Explore, ZoneIndex = 0, Status = AetheriaRuntimeAgentTaskStatuses.Queued, TargetBodyKeys = ["survey-world"] }]
+        };
+        AetheriaRuntimeDaemonTickRunner.Tick(Path.Combine(Path.GetTempPath(), "aetheria-survey-smoke.cc"), run,
+            new AetheriaRuntimeDaemonTickOptions { FrameId = 1, FixedDeltaSeconds = 1, SimulationTimeSeconds = 1, Catalog = catalog, BuildPublications = false });
+        var knowledge = run.CorporationSurveys.Single();
+        RequireEqual("workers", knowledge.CorporationKey, "survey knowledge must belong to the agent corporation");
+        RequireEqual("survey-world", knowledge.BodyKey, "survey knowledge must identify the scanned body");
+        RequireNear(4, knowledge.DensityFloor, 0.000001, "survey must publish the scanner minimum density");
+
+        AetheriaRuntimeDaemonTickRunner.Tick(Path.Combine(Path.GetTempPath(), "aetheria-survey-complete-smoke.cc"), run,
+            new AetheriaRuntimeDaemonTickOptions { FrameId = 2, FixedDeltaSeconds = 1, SimulationTimeSeconds = 2, Catalog = catalog, BuildPublications = false });
+        RequireEqual(AetheriaRuntimeAgentTaskStatuses.Completed, run.AgentTasks[0].Status,
+            "survey order must complete when corporation knowledge satisfies the scanner threshold");
     }
 
     private static void CargoCapacityComesFromHullAndCatalogVolumes()
