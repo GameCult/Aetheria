@@ -70,6 +70,9 @@ namespace GameCult.Aetheria.State.Verse
         public static CultRecordKey StarbridgeCommanderSurface { get; } =
             new CultRecordKey("eve:surface:aetheria.starbridge.commander");
 
+        public static CultRecordKey PilotInputCapability { get; } =
+            new CultRecordKey("eve:input:aetheria.pilot");
+
         public static CultRecordKey DaemonGameTuiSurface { get; } =
             new CultRecordKey("eve:surface:aetheria.daemon.game.tui");
 

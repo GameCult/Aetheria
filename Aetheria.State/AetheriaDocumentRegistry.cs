@@ -60,6 +60,7 @@ public static class AetheriaDocumentRegistry
         typeof(AetheriaRuntimeStarbridgeScenarioDocument),
         typeof(AetheriaRuntimeStarbridgeSessionDocument),
         typeof(AetheriaRuntimeStarbridgeSessionSummaryDocument),
+        typeof(AetheriaRuntimeInputCapabilityDocument),
         typeof(AetheriaRuntimeDaemonSoaViewDocument),
         typeof(AetheriaRuntimeVerseAuthorityPolicyDocument),
         typeof(AetheriaRuntimeAuthorityLeaseDocument),
