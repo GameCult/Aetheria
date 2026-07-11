@@ -328,7 +328,8 @@ public sealed class AetheriaRuntimeDaemonOperationsClient
         int quantity,
         double positionX,
         double positionY,
-        double positionZ)
+        double positionZ,
+        int pickupIndex = -1)
     {
         return Send((client, frame) => client.PickUpLoot(
             frame,
@@ -337,7 +338,8 @@ public sealed class AetheriaRuntimeDaemonOperationsClient
             quantity,
             positionX,
             positionY,
-            positionZ));
+            positionZ,
+            pickupIndex));
     }
 
     public CultMeshOperationReceipt RestoreLoadout(

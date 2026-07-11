@@ -14,6 +14,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         MissingPhysicsOwnerCannotAdvanceProjectiles();
         MissingWorldPhysicsOwnerCannotAdvanceShips();
         TractorRampsAndPullsThroughYmirWithoutTeleportingCargo();
+        PickupIsCapacityCheckedExactlyOnceAndExpires();
         ThermalCellsUseFossilConductionAndRadiation();
         MultipleActorsUseTheSameMovementLever();
         AgentClaimsAndCompletesExploreTaskThroughCommands();
@@ -813,6 +814,34 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         Require(wreck.VelocityX < 0 && wreck.PositionX < 60, "Ymir must pull the targeted body toward the tractor source");
         RequireEqual(1, CargoQuantity(wreck, "salvage"), "tractor force must not teleport target cargo");
         RequireEqual(0, CargoQuantity(ship, "salvage"), "scooping must remain a separate capacity-checked transaction");
+    }
+
+    private static void PickupIsCapacityCheckedExactlyOnceAndExpires()
+    {
+        var hull = CatalogItem("pickup-hull"); hull.HullCapacity = PerformanceStat(1);
+        var salvage = CatalogItem("salvage"); salvage.Volume = 1;
+        var catalog = new AetheriaRuntimeCatalogSnapshot([hull, salvage], [], []);
+        var ship = Entity(0, 0, "player"); ship.HullItemKey = hull.ItemKey; ship.CargoContents = [Cargo()];
+        var zone = new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [ship], DroppedPickups = [new AetheriaRuntimeDroppedPickupCommit { PickupIndex = 7, PositionX = 10, Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = salvage.ItemKey, Quantity = 1 }, LifetimeSeconds = 30 }] };
+        var run = new AetheriaRuntimeRunCheckpointCommit { CurrentZoneIndex = 0, CurrentEntityKey = "zone.0.entity.0", Zones = [zone] };
+        AetheriaRuntimeDaemonCommandDocument Pickup(string id, int index)
+        {
+            var command = AetheriaRuntimeDaemonCommandDocument.Create(AetheriaRuntimeDaemonCommandKinds.PickUpLoot, "pilot", "pickup-smoke", 0, "zone.0.entity.0");
+            command.CommandId = id; command.TargetEntityKey = "zone.0.entity.0"; command.LootPickup.ItemKey = salvage.ItemKey; command.LootPickup.Quantity = 1; command.LootPickup.PickupIndex = index; return command;
+        }
+        var first = AetheriaRuntimeDaemonOperations.Execute(run, [Pickup("pickup-first", 7)], new AetheriaRuntimeDaemonOperationContext { Catalog = catalog });
+        Require(first.AppliedCommandIds.Contains("pickup-first"), "nearby pickup with capacity must apply");
+        RequireEqual(1, CargoQuantity(ship, salvage.ItemKey), "successful pickup must enter cargo");
+        var duplicate = AetheriaRuntimeDaemonOperations.Execute(run, [Pickup("pickup-duplicate", 7)], new AetheriaRuntimeDaemonOperationContext { Catalog = catalog });
+        Require(duplicate.RejectedCommandIds.Contains("pickup-duplicate"), "consumed pickup identity must reject duplicate collection");
+
+        zone.DroppedPickups = [new AetheriaRuntimeDroppedPickupCommit { PickupIndex = 8, PositionX = 10, Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = salvage.ItemKey, Quantity = 1 }, LifetimeSeconds = 30 }];
+        var full = AetheriaRuntimeDaemonOperations.Execute(run, [Pickup("pickup-full", 8)], new AetheriaRuntimeDaemonOperationContext { Catalog = catalog });
+        Require(full.RejectedCommandIds.Contains("pickup-full") && zone.DroppedPickups.Count == 1,
+            "full cargo must reject without deleting pickup");
+        AetheriaRuntimeDaemonTickRunner.Tick(Path.Combine(Path.GetTempPath(), "aetheria-pickup-expiry-smoke.cc"), run,
+            new AetheriaRuntimeDaemonTickOptions { WorldPhysics = new AetheriaYmirWorldPhysics(), FrameId = 1, FixedDeltaSeconds = 30, SimulationTimeSeconds = 30, ProjectilePhysics = AetheriaRuntimeProjectilePhysicsUnavailable.Instance, BuildPublications = false });
+        RequireEqual(0, zone.DroppedPickups.Count, "pickup must expire after the fossil thirty-second lifetime");
     }
 
     private static (AetheriaRuntimeRunCheckpointCommit Run, AetheriaRuntimeZoneSnapshotCommit Zone, AetheriaRuntimeEntitySnapshotCommit Target) Scenario()

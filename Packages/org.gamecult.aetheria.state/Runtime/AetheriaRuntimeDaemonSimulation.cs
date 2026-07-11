@@ -41,6 +41,8 @@ namespace GameCult.Aetheria.State.Verse
                 if (entities.Length == 0)
                     continue;
 
+                StepPickupLifetimes(zone, deltaSeconds);
+
                 EnsureStats(entities, settings);
                 foreach (var entity in entities)
                     AetheriaRuntimeThermalSimulation.EnsureState(entity);
@@ -55,6 +57,15 @@ namespace GameCult.Aetheria.State.Verse
                 AetheriaRuntimeSurveySimulation.Step(run, zone, entities, intents, catalog, frameId, simulationTimeSeconds, deltaSeconds);
                 RefreshContacts(entities, settings);
             }
+        }
+
+        private static void StepPickupLifetimes(AetheriaRuntimeZoneSnapshotCommit zone, double deltaSeconds)
+        {
+            foreach (var pickup in zone.DroppedPickups ?? Array.Empty<AetheriaRuntimeDroppedPickupCommit>())
+                if (pickup != null) pickup.AgeSeconds += deltaSeconds;
+            zone.DroppedPickups = (zone.DroppedPickups ?? Array.Empty<AetheriaRuntimeDroppedPickupCommit>())
+                .Where(pickup => pickup != null && pickup.AgeSeconds < pickup.LifetimeSeconds)
+                .ToArray();
         }
 
         private static void StepTractorPower(IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities, double deltaSeconds)

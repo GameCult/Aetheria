@@ -905,6 +905,9 @@ namespace GameCult.Aetheria.State.Verse
 
         [Key(4)]
         public double PositionZ { get; set; }
+
+        [Key(5)]
+        public int PickupIndex { get; set; } = -1;
     }
 
     [MessagePackObject]

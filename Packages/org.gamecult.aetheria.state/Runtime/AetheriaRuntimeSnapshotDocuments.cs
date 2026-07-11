@@ -592,6 +592,12 @@ namespace GameCult.Aetheria.State.Verse
 
         [Key(7)]
         public AetheriaRuntimeLoadoutItemCommit Item { get; set; } = new AetheriaRuntimeLoadoutItemCommit();
+
+        [Key(8)]
+        public double AgeSeconds { get; set; }
+
+        [Key(9)]
+        public double LifetimeSeconds { get; set; } = 30;
     }
 
     [MessagePackObject]

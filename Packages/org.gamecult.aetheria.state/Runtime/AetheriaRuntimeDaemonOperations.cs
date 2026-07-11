@@ -141,7 +141,7 @@ namespace GameCult.Aetheria.State.Verse
                 case AetheriaRuntimeDaemonCommandKinds.StoreItem:
                     return ApplyStoreItem(run, command);
                 case AetheriaRuntimeDaemonCommandKinds.PickUpLoot:
-                    return ApplyPickUpLoot(run, command);
+                    return ApplyPickUpLoot(run, command, context.Catalog);
                 case AetheriaRuntimeDaemonCommandKinds.ToggleHullConductivity:
                     return ApplyToggleHullConductivity(run, command);
                 case AetheriaRuntimeDaemonCommandKinds.TradePurchase:
@@ -786,7 +786,8 @@ namespace GameCult.Aetheria.State.Verse
 
         private static bool ApplyPickUpLoot(
             AetheriaRuntimeRunCheckpointCommit run,
-            AetheriaRuntimeDaemonCommandDocument command)
+            AetheriaRuntimeDaemonCommandDocument command,
+            AetheriaRuntimeCatalogSnapshot? catalog)
         {
             if (!TryResolveEntity(run, command.TargetEntityKey, out var zoneIndex, out _, out var entity))
                 return false;
@@ -802,6 +803,11 @@ namespace GameCult.Aetheria.State.Verse
                 return false;
 
             var pickup = pickups[pickupIndex];
+            var quantity = Math.Max(1, pickup.Item?.Quantity ?? command.LootPickup.Quantity);
+            if (pickup.AgeSeconds >= pickup.LifetimeSeconds ||
+                Math.Pow(pickup.PositionX - entity.PositionX, 2) + Math.Pow(pickup.PositionZ - entity.PositionZ, 2) > 25 * 25 ||
+                quantity > AetheriaRuntimeCargoCapacityQueries.UnitsThatFit(entity, catalog, pickup.Item?.ItemKey ?? command.LootPickup.ItemKey))
+                return false;
             pickups.RemoveAt(pickupIndex);
             zone.DroppedPickups = pickups.ToArray();
 
@@ -1955,6 +1961,9 @@ namespace GameCult.Aetheria.State.Verse
             var pickupCommand = command.LootPickup ?? new AetheriaRuntimeLootPickupCommand();
             if (pickup == null || !IsItemMatch(pickup.Item, pickupCommand.ItemKey))
                 return false;
+
+            if (pickupCommand.PickupIndex >= 0)
+                return pickup.PickupIndex == pickupCommand.PickupIndex;
 
             var expectedX = pickupCommand.PositionX;
             var expectedY = pickupCommand.PositionY;
