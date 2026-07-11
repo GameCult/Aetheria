@@ -24,6 +24,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         SchedulerAssignsHighestPriorityCompatibleTask();
         SchedulerAssignsShortestGalaxyRoute();
         AgentTraversesGalaxyRouteBeforeExecutingTask();
+        AttackAgentControlsOptimumRangeThroughMovementLever();
         AgentCompletesAttackTaskThroughTargetFireAndYmir();
         AgentCompletesHaulTaskThroughMovementAndCargoCommands();
         RejectedHaulTransferDoesNotAdvanceTask();
@@ -535,6 +536,50 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             $"projectiles={run.Zones[0].Projectiles.Count} task={run.AgentTasks.Single().Status}");
         RequireEqual(AetheriaRuntimeAgentTaskStatuses.Completed, run.AgentTasks.Single().Status,
             "attack task must complete when its target dies");
+    }
+
+    private static void AttackAgentControlsOptimumRangeThroughMovementLever()
+    {
+        var settings = AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault;
+        var optimum = settings.AttackRange * settings.AttackHoldRatio;
+
+        var closing = AttackMovementAtDistance(optimum + 30);
+        Require(closing.DirectionX > 0.99 && closing.ScalarValue > 0,
+            "attack agent outside optimum range must close through the shared movement lever");
+
+        var retreating = AttackMovementAtDistance(optimum - 30);
+        Require(retreating.DirectionX < -0.99 && retreating.ScalarValue > 0,
+            "attack agent inside optimum range must retreat through the shared movement lever");
+
+        var holding = AttackMovementAtDistance(optimum);
+        Require(Math.Abs(holding.DirectionX) < 0.001 && Math.Abs(holding.ScalarValue) < 0.001,
+            "attack agent in the optimum band must hold range instead of charging the target");
+    }
+
+    private static AetheriaRuntimeDaemonCommandDocument AttackMovementAtDistance(double distance)
+    {
+        var agent = Entity(0, 0, "workers");
+        agent.AgentTaskCapabilities = [AetheriaRuntimeAgentTaskTypes.Attack];
+        agent.WeaponGroups = [new[] { 0 }];
+        var target = Entity(1, distance, "raiders");
+        var task = new AetheriaRuntimeAgentTaskCommit
+        {
+            TaskId = "range-control",
+            CorporationKey = "workers",
+            TaskType = AetheriaRuntimeAgentTaskTypes.Attack,
+            ZoneIndex = 0,
+            TargetEntityIndex = 1,
+            WeaponGroup = 0
+        };
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "agent-range-control-smoke",
+            Zones = [new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [agent, target] }],
+            AgentTasks = [task]
+        };
+
+        return AetheriaRuntimeAgentScheduler.AssignAndPlan(run, 1)
+            .Single(command => command.Kind == AetheriaRuntimeDaemonCommandKinds.SetMoveVector);
     }
 
     private static void SchedulerAssignsHighestPriorityCompatibleTask()

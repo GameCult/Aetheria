@@ -288,6 +288,11 @@ namespace GameCult.Aetheria.State.Verse
                 var dx = targetX - agent.PositionX;
                 var dz = targetZ - agent.PositionZ;
                 var distance = Math.Sqrt(dx * dx + dz * dz);
+                if (string.Equals(task.TaskType, AetheriaRuntimeAgentTaskTypes.Attack, StringComparison.Ordinal) && target != null)
+                {
+                    commands.AddRange(PlanAttack(run, task, agent, target, frameId, dx, dz, distance));
+                    continue;
+                }
                 if (distance <= Math.Max(0.01, task.CompletionRadius) &&
                     !string.Equals(task.TaskType, AetheriaRuntimeAgentTaskTypes.Attack, StringComparison.Ordinal))
                 {
@@ -298,14 +303,35 @@ namespace GameCult.Aetheria.State.Verse
 
                 var magnitude = distance <= 0.0001 ? 0 : 1;
                 commands.Add(Movement(task, agent, frameId, dx, dz, magnitude));
-                if (string.Equals(task.TaskType, AetheriaRuntimeAgentTaskTypes.Attack, StringComparison.Ordinal) && target != null)
-                {
-                    commands.Add(Command(task, agent, frameId, AetheriaRuntimeDaemonCommandKinds.SetTarget, "target", command =>
-                        command.TargetEntityKey = EntityKey(run, task.ZoneIndex, target.EntityIndex)));
-                    commands.Add(Command(task, agent, frameId, AetheriaRuntimeDaemonCommandKinds.FireWeaponGroup, "fire", command =>
-                        command.WeaponGroup = Math.Max(0, task.WeaponGroup)));
-                }
             }
+            return commands;
+        }
+
+        private static IReadOnlyList<AetheriaRuntimeDaemonCommandDocument> PlanAttack(
+            AetheriaRuntimeRunCheckpointCommit run,
+            AetheriaRuntimeAgentTaskCommit task,
+            AetheriaRuntimeEntitySnapshotCommit agent,
+            AetheriaRuntimeEntitySnapshotCommit target,
+            long frameId,
+            double dx,
+            double dz,
+            double distance)
+        {
+            var settings = AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault;
+            var optimum = settings.AttackRange * settings.AttackHoldRatio;
+            var tolerance = Math.Max(1.0, settings.AttackRange * 0.04);
+            var radial = distance > optimum + tolerance ? 1.0 : distance < optimum - tolerance ? -1.0 : 0.0;
+            var thrust = radial == 0 ? 0 : Math.Min(1.0, Math.Abs(distance - optimum) / settings.AttackRange);
+            task.Phase = radial > 0 ? "closing-range" : radial < 0 ? "opening-range" : "holding-range";
+            var commands = new List<AetheriaRuntimeDaemonCommandDocument>
+            {
+                Movement(task, agent, frameId, dx * radial, dz * radial, thrust),
+                Command(task, agent, frameId, AetheriaRuntimeDaemonCommandKinds.SetTarget, "target", command =>
+                    command.TargetEntityKey = EntityKey(run, task.ZoneIndex, target.EntityIndex))
+            };
+            if (distance <= settings.AttackRange)
+                commands.Add(Command(task, agent, frameId, AetheriaRuntimeDaemonCommandKinds.FireWeaponGroup, "fire", command =>
+                    command.WeaponGroup = Math.Max(0, task.WeaponGroup)));
             return commands;
         }
 
