@@ -958,6 +958,9 @@ namespace GameCult.Aetheria.State.Verse
 
         [Key(42)]
         public string EntityId { get; set; } = "";
+
+        [Key(43)]
+        public string HomeEntityId { get; set; } = "";
     }
 
     [MessagePackObject]

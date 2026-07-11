@@ -600,6 +600,10 @@ public sealed class AetheriaEntitySnapshot
 
     [Key(29)]
     public AetheriaEntityContactSnapshot[] Contacts { get; set; } = [];
+
+    [Key(30)]
+    [CultReference(typeof(AetheriaEntitySnapshot))]
+    public string HomeEntityKey { get; set; } = "";
 }
 
 [MessagePackObject]

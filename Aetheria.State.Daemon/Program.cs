@@ -2529,6 +2529,7 @@ static AetheriaRuntimeEntitySnapshotCommit ToRuntimeEntity(
     var runtimeEntity = new AetheriaRuntimeEntitySnapshotCommit
     {
         EntityId = entityKey ?? "",
+        HomeEntityId = entity.HomeEntityKey ?? "",
         EntityIndex = entityIndex,
         Name = entity.Name ?? "",
         Kind = entity.Kind ?? "",
