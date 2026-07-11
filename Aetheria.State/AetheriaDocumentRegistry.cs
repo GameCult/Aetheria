@@ -38,6 +38,7 @@ public static class AetheriaDocumentRegistry
         typeof(AetheriaEntitySnapshot),
         typeof(AetheriaVerseHostSettings),
         typeof(AetheriaMainMenuState),
+        typeof(AetheriaGameSessionState),
         typeof(AetheriaEveCommandAcceptanceStatus),
         typeof(AetheriaRuntimeDaemonProviderAdvertisementDocument),
         typeof(AetheriaRuntimeDaemonHealthDocument),

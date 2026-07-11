@@ -1567,7 +1567,7 @@ namespace GameCult.Aetheria.State.Verse
             var zone = zones.FirstOrDefault(candidate => candidate.ZoneIndex == run.CurrentZoneIndex) ??
                 zones.FirstOrDefault() ??
                 new AetheriaRuntimeZoneSnapshotCommit();
-            var runId = string.IsNullOrWhiteSpace(run.RunId) ? "local-starbridge" : run.RunId;
+            var runId = string.IsNullOrWhiteSpace(run.RunId) ? "local-terminus" : run.RunId;
             return new DocumentContext(run, zone, runId);
         }
 

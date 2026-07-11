@@ -31,7 +31,7 @@ await EnsureWorldDocumentAsync(node).ConfigureAwait(false);
 await EnsureTradeValuePolicyAsync(node, startedAtUtc).ConfigureAwait(false);
 await node.FlushAsync().ConfigureAwait(false);
 await EnsurePlayableRunDocumentsAsync(node, options, startedAtUtc).ConfigureAwait(false);
-await EnsureStarbridgeSessionDocumentsAsync(node, options).ConfigureAwait(false);
+await EnsureTerminusGameSessionAsync(node, options, startedAtUtc).ConfigureAwait(false);
 var verseHost = await EnsureVerseHostSettingsAsync(node, options, startedAtUtc).ConfigureAwait(false);
 await EnsureVerseAuthorityPolicyAsync(node, options).ConfigureAwait(false);
 discoveryHost.Update(verseHost);
@@ -119,6 +119,8 @@ static async Task<AetheriaRuntimeDaemonTickResult> TickAsync(
 {
     await AcceptCoreEveInvocationsAsync(node, options, currentFrame).ConfigureAwait(false);
     await AcceptEveCommandsAsync(node, options).ConfigureAwait(false);
+    if (await ApplyRequestedTerminusSessionAsync(node, options).ConfigureAwait(false))
+        currentFrame = null;
 
     var fixedDeltaSeconds = currentFrame?.FixedDeltaSeconds > 0
         ? currentFrame.FixedDeltaSeconds
@@ -2211,7 +2213,7 @@ static async Task EnsurePlayableRunDocumentsAsync(
     if (!string.IsNullOrWhiteSpace(settings?.ActiveRunKey))
     {
         var existingRun = await ReadRuntimeRunCheckpointAsync(node, options.RenderSettings).ConfigureAwait(false);
-        if (HasPlayableRun(existingRun) && HasStarbridgeScenario(existingRun))
+        if (HasPlayableRun(existingRun) && HasTerminusRun(existingRun))
             return;
     }
 
@@ -2220,6 +2222,63 @@ static async Task EnsurePlayableRunDocumentsAsync(
             node.RuntimeCatalog().Latest(),
             now)
         .ConfigureAwait(false);
+}
+
+static async Task EnsureTerminusGameSessionAsync(
+    AetheriaStateNode node,
+    AetheriaDaemonHostOptions options,
+    string now)
+{
+    var existing = await node.MutableDocument<AetheriaGameSessionState>(AetheriaStateNode.GameSessionStateKey)
+        .ReadAsync().ConfigureAwait(false);
+    if (existing != null &&
+        string.Equals(existing.Mode, AetheriaGameSessionState.TerminusMode, StringComparison.Ordinal) &&
+        !string.IsNullOrWhiteSpace(existing.ControlledEntityKey))
+        return;
+
+    await node.MutableDocument<AetheriaGameSessionState>(AetheriaStateNode.GameSessionStateKey)
+        .ReplaceAsync(new AetheriaGameSessionState
+        {
+            Mode = AetheriaGameSessionState.TerminusMode,
+            SessionId = options.SessionId,
+            RunId = AetheriaDaemonZoneGenerator.RunId,
+            ControlledEntityKey = AetheriaDaemonZoneGenerator.EntityKey(0, 1),
+            EntrySurfaceId = AetheriaRuntimeDaemonGameSurfaceBuilder.PilotSurfaceId,
+            UpdatedAtUtc = now
+        }).ConfigureAwait(false);
+    await node.FlushAsync().ConfigureAwait(false);
+}
+
+static async Task<bool> ApplyRequestedTerminusSessionAsync(
+    AetheriaStateNode node,
+    AetheriaDaemonHostOptions options)
+{
+    var menu = await node.MutableDocument<AetheriaMainMenuState>(AetheriaStateNode.MainMenuStateKey)
+        .ReadAsync().ConfigureAwait(false);
+    if (menu == null ||
+        !string.Equals(menu.LastCommand, AetheriaRuntimeMainMenuCommands.NewGame, StringComparison.Ordinal) ||
+        string.IsNullOrWhiteSpace(menu.LastCommandId))
+        return false;
+
+    var session = await node.MutableDocument<AetheriaGameSessionState>(AetheriaStateNode.GameSessionStateKey)
+        .ReadAsync().ConfigureAwait(false) ?? new AetheriaGameSessionState();
+    if (string.Equals(session.LastStartCommandId, menu.LastCommandId, StringComparison.Ordinal))
+        return false;
+
+    var now = DateTimeOffset.UtcNow.ToString("O");
+    await AetheriaDaemonZoneGenerator.WritePlayableRunAsync(node, node.RuntimeCatalog().Latest(), now)
+        .ConfigureAwait(false);
+    session.Mode = AetheriaGameSessionState.TerminusMode;
+    session.SessionId = options.SessionId;
+    session.RunId = AetheriaDaemonZoneGenerator.RunId;
+    session.ControlledEntityKey = AetheriaDaemonZoneGenerator.EntityKey(0, 1);
+    session.EntrySurfaceId = AetheriaRuntimeDaemonGameSurfaceBuilder.PilotSurfaceId;
+    session.LastStartCommandId = menu.LastCommandId;
+    session.UpdatedAtUtc = now;
+    await node.MutableDocument<AetheriaGameSessionState>(AetheriaStateNode.GameSessionStateKey)
+        .ReplaceAsync(session).ConfigureAwait(false);
+    await node.FlushAsync().ConfigureAwait(false);
+    return true;
 }
 
 static async Task EnsureStarbridgeSessionDocumentsAsync(
@@ -2674,7 +2733,7 @@ static bool HasPlayableRun(AetheriaRuntimeRunCheckpointCommit? run)
         .Any(zone => (zone.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>()).Count > 0);
 }
 
-static bool HasStarbridgeScenario(AetheriaRuntimeRunCheckpointCommit? run)
+static bool HasTerminusRun(AetheriaRuntimeRunCheckpointCommit? run)
 {
     var zones = run?.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>();
     var entities = zones.SelectMany(zone => zone.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>()).ToArray();

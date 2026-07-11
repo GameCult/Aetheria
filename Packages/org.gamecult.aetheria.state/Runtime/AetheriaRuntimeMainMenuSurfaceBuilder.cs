@@ -709,7 +709,7 @@ namespace GameCult.Aetheria.State.Verse
                 .Where(entity => entity != null && entity.IsActive)
                 .Select(entity =>
                 {
-                    var entityKey = AetheriaRuntimeRunCheckpointCommit.EntityRecordKey(run?.RunId ?? "local-starbridge", currentZone.ZoneIndex, entity.EntityIndex);
+                    var entityKey = AetheriaRuntimeRunCheckpointCommit.EntityRecordKey(run?.RunId ?? "local-terminus", currentZone.ZoneIndex, entity.EntityIndex);
                     return new AetheriaMainMenuGravityObject(
                         entityKey,
                         entity.Kind,

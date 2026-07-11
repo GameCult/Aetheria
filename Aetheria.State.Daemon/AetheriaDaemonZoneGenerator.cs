@@ -5,7 +5,7 @@ using GameCult.Caching;
 
 internal static class AetheriaDaemonZoneGenerator
 {
-    public const string RunId = "local-starbridge";
+    public const string RunId = "local-terminus";
     public const uint GenerationSeed = 0xA37E_2026u;
 
     public static async Task WritePlayableRunAsync(
@@ -25,7 +25,7 @@ internal static class AetheriaDaemonZoneGenerator
             .ReadAsync()
             .ConfigureAwait(false) ?? new AetheriaPlayerSettings();
         settings.ActiveRunKey = runKey.ToString();
-        settings.PlayerName = string.IsNullOrWhiteSpace(settings.PlayerName) ? "Starbridge Commander" : settings.PlayerName;
+        settings.PlayerName = string.IsNullOrWhiteSpace(settings.PlayerName) ? "Terminus Pilot" : settings.PlayerName;
         settings.TutorialPassed = true;
         settings.LastUpdatedAtUtc = now;
         await node.MutableDocument<AetheriaPlayerSettings>(AetheriaStateNode.PlayerSettingsKey)
@@ -41,7 +41,7 @@ internal static class AetheriaDaemonZoneGenerator
             DiscoveredZoneIndices = [0],
             ZoneKeys = [zoneKey.ToString()],
             GenerationSeed = GenerationSeed,
-            CurrentEntityKey = entityKeys[0],
+            CurrentEntityKey = entityKeys[1],
             UpdatedAtUtc = now
         }).ConfigureAwait(false);
 
@@ -218,7 +218,7 @@ internal static class AetheriaDaemonZoneGenerator
             HullItemKey = loadout.HullItemKey,
             IsActive = true,
             HeatsinksEnabled = true,
-            TractorPower = 1,
+            TractorPower = 0,
             Visibility = visibility,
             VisibilitySourceCount = 1,
             TargetEntityKey = target,

@@ -38,8 +38,37 @@ namespace GameCult.Aetheria.State.Verse
                 StepTargetPursuit(entities, settings);
                 StepMovement(entities, deltaSeconds);
                 StepCombat(run, zone, entities, intents, deltaSeconds, settings);
+                StepTractorSalvage(run, zone, entities, settings);
                 RefreshContacts(entities, settings);
             }
+        }
+
+        private static void StepTractorSalvage(
+            AetheriaRuntimeRunCheckpointCommit run,
+            AetheriaRuntimeZoneSnapshotCommit zone,
+            IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities,
+            AetheriaRuntimeDaemonSimulationSettings settings)
+        {
+            if (!TryParseEntityIndex(run.CurrentEntityKey, out var actorIndex))
+                return;
+            var actor = entities.FirstOrDefault(entity => entity.EntityIndex == actorIndex && IsAlive(entity));
+            if (actor == null || actor.TractorPower <= 0 || actor.TargetEntityIndex < 0)
+                return;
+            var wreck = entities.FirstOrDefault(entity => entity.EntityIndex == actor.TargetEntityIndex && !IsAlive(entity));
+            if (wreck == null || DistanceSq(actor, wreck) > settings.AttackRange * settings.AttackRange)
+                return;
+
+            var loot = (wreck.CargoContents ?? Array.Empty<AetheriaRuntimeCargoBayLoadoutCommit>())
+                .SelectMany(bay => bay?.Items ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>())
+                .ToArray();
+            if (loot.Length == 0)
+                return;
+            var bays = (actor.CargoContents ?? Array.Empty<AetheriaRuntimeCargoBayLoadoutCommit>()).ToList();
+            if (bays.Count == 0)
+                bays.Add(new AetheriaRuntimeCargoBayLoadoutCommit());
+            bays[0].Items = (bays[0].Items ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>()).Concat(loot).ToArray();
+            actor.CargoContents = bays.ToArray();
+            wreck.CargoContents = Array.Empty<AetheriaRuntimeCargoBayLoadoutCommit>();
         }
 
         private static void ApplyMovementIntent(

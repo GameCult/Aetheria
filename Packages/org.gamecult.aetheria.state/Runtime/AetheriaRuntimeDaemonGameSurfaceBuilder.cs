@@ -78,6 +78,9 @@ namespace GameCult.Aetheria.State.Verse
                         CommandButton("aetheria.daemon.game.commands.move", "Move", AetheriaRuntimeDaemonCommandKinds.SetMoveVector),
                         CommandButton("aetheria.daemon.game.commands.target", "Target Nearest", AetheriaRuntimeDaemonCommandKinds.TargetNearest),
                         CommandButton("aetheria.daemon.game.commands.fire", "Fire", AetheriaRuntimeDaemonCommandKinds.FireWeaponGroup),
+                        CommandButton("aetheria.daemon.game.commands.tractor", "Scoop", AetheriaRuntimeDaemonCommandKinds.SetTractorPower),
+                        CommandButton("aetheria.daemon.game.commands.dock", "Dock", AetheriaRuntimeDaemonCommandKinds.DockNearest),
+                        CommandButton("aetheria.daemon.game.commands.undock", "Undock", AetheriaRuntimeDaemonCommandKinds.Undock),
                         CommandButton("aetheria.daemon.game.commands.ping", "Sensor Ping", AetheriaRuntimeDaemonCommandKinds.SensorPing)))
             };
 
@@ -343,6 +346,9 @@ namespace GameCult.Aetheria.State.Verse
                 ["focusCommand"] = CommandName(AetheriaRuntimeDaemonCommandKinds.TargetNearest),
                 ["targetCommand"] = CommandName(AetheriaRuntimeDaemonCommandKinds.SetTarget),
                 ["actionCommand"] = CommandName(AetheriaRuntimeDaemonCommandKinds.FireWeaponGroup),
+                ["tractorCommand"] = CommandName(AetheriaRuntimeDaemonCommandKinds.SetTractorPower),
+                ["dockCommand"] = CommandName(AetheriaRuntimeDaemonCommandKinds.DockNearest),
+                ["undockCommand"] = CommandName(AetheriaRuntimeDaemonCommandKinds.Undock),
                 ["zoneIndex"] = zone.ZoneIndex.ToString(CultureInfo.InvariantCulture),
                 ["runId"] = run.RunId ?? ""
             };

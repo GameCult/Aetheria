@@ -37,6 +37,7 @@
     "aetheria.runtime.daemon.game_surface.v1",
     "aetheria.runtime.daemon.editor_surface.v1",
     "aetheria.runtime.daemon.command.v1",
+    "aetheria.game_session.v1",
     "gamecult.eve.surface.v1",
     "gamecult.eve.command.v1",
     "gamecult.eve.command_invocation.v1",

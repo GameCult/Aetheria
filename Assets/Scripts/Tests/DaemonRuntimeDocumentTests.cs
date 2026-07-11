@@ -2160,6 +2160,64 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
+    public void TerminusPilotTractorScoopsCargoFromTargetedWreck()
+    {
+        var loot = new AetheriaRuntimeLoadoutItemSlotCommit
+        {
+            Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = "raider-salvage" }
+        };
+        var pilot = new AetheriaRuntimeEntitySnapshotCommit
+        {
+            EntityIndex = 1,
+            Kind = "ship",
+            FactionKey = "player",
+            IsActive = true,
+            TargetEntityIndex = 6,
+            TractorPower = 1,
+            CargoContents = new[] { new AetheriaRuntimeCargoBayLoadoutCommit() }
+        };
+        var wreck = new AetheriaRuntimeEntitySnapshotCommit
+        {
+            EntityIndex = 6,
+            Kind = "ship",
+            FactionKey = "raider",
+            IsActive = false,
+            PositionX = 10,
+            CargoContents = new[]
+            {
+                new AetheriaRuntimeCargoBayLoadoutCommit { Items = new[] { loot } }
+            },
+            StatGrids = new[]
+            {
+                new AetheriaRuntimeEntityStatGridCommit { Name = "hull", Values = new[] { 0.0 } }
+            }
+        };
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "local-terminus",
+            CurrentZoneIndex = 0,
+            CurrentEntityKey = "global:aetheria.run_state.local-terminus.zone.0.entity.1.v1",
+            Zones = new[]
+            {
+                new AetheriaRuntimeZoneSnapshotCommit
+                {
+                    ZoneIndex = 0,
+                    Entities = new[] { pilot, wreck }
+                }
+            }
+        };
+
+        AetheriaRuntimeDaemonSimulation.Step(
+            run,
+            new AetheriaRuntimeDaemonIntentState(),
+            0.1,
+            AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault);
+
+        Assert.IsTrue(pilot.CargoContents.SelectMany(bay => bay.Items).Any(slot => slot.Item.ItemKey == "raider-salvage"));
+        Assert.IsEmpty(wreck.CargoContents);
+    }
+
+    [Test]
     public void SoaViewIndexRejectsInvalidRenderGroups()
     {
         var view = AetheriaRuntimeDaemonSoaViewDocument.Create(
