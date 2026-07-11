@@ -509,6 +509,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         };
         var sawTargetCommand = false;
         var sawFireCommand = false;
+        var sawPartialLock = false;
+        var firstLaunchFrame = -1;
         for (var frame = 0; frame < 60; frame++)
         {
             var tick = AetheriaRuntimeDaemonTickRunner.Tick(
@@ -526,12 +528,18 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 });
             sawTargetCommand |= tick.OperationResult.AppliedCommandIds.Any(id => id.EndsWith(":target", StringComparison.Ordinal));
             sawFireCommand |= tick.OperationResult.AppliedCommandIds.Any(id => id.EndsWith(":fire", StringComparison.Ordinal));
+            var weapon = (agent.WeaponStates ?? Array.Empty<AetheriaRuntimeWeaponStateCommit>()).Single();
+            sawPartialLock |= weapon.LockProgress > 0 && weapon.LockProgress < 0.99;
+            if (firstLaunchFrame < 0 && run.GameEvents.Any(value => value.Kind == "projectile.launched"))
+                firstLaunchFrame = frame;
             if (string.Equals(run.AgentTasks.Single().Status, AetheriaRuntimeAgentTaskStatuses.Completed, StringComparison.Ordinal))
                 break;
         }
 
         Require(sawTargetCommand, "attack agent must target through the shared target command");
         Require(sawFireCommand, "attack agent must fire through the shared weapon-group command");
+        Require(sawPartialLock, "attack agent must acquire a persisted partial weapon lock before firing");
+        Require(firstLaunchFrame > 1, "accepted fire intent must not bypass progressive weapon lock acquisition");
         Require(run.GameEvents.Any(value => value.Kind == "projectile.launched" && value.SourceEntityIndex == agent.EntityIndex),
             "accepted fire control must emit authoritative projectile launch chronology");
         Require(!target.IsActive,

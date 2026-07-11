@@ -249,15 +249,15 @@ namespace GameCult.Aetheria.State.Verse
                     !IsAlive(target) ||
                     !Hostile(attacker, target))
                 {
+                    weaponState.LockTargetEntityIndex = -1;
+                    weaponState.LockProgress = 0;
                     continue;
                 }
 
-                if (DistanceSq(attacker, target) > settings.AttackRange * settings.AttackRange)
+                UpdateWeaponLock(attacker, target, weaponState, deltaSeconds, settings);
+                if (DistanceSq(attacker, target) > settings.AttackRange * settings.AttackRange ||
+                    weaponState.LockProgress <= 0.99)
                     continue;
-
-                Face(attacker, target.PositionX - attacker.PositionX, target.PositionZ - attacker.PositionZ);
-                weaponState.LockTargetEntityIndex = target.EntityIndex;
-                weaponState.LockProgress = 1.0;
 
                 if (weaponState.CooldownProgress > 0)
                     continue;
@@ -306,6 +306,43 @@ namespace GameCult.Aetheria.State.Verse
                     entity.TargetEntityIndex = -1;
                 }
             }
+        }
+
+        private static void UpdateWeaponLock(
+            AetheriaRuntimeEntitySnapshotCommit attacker,
+            AetheriaRuntimeEntitySnapshotCommit target,
+            AetheriaRuntimeWeaponStateCommit weaponState,
+            double deltaSeconds,
+            AetheriaRuntimeDaemonSimulationSettings settings)
+        {
+            if (weaponState.LockTargetEntityIndex != target.EntityIndex)
+            {
+                weaponState.LockTargetEntityIndex = target.EntityIndex;
+                weaponState.LockProgress = 0;
+            }
+
+            var targetDirection = Normalize(target.PositionX - attacker.PositionX, target.PositionZ - attacker.PositionZ);
+            var lookDirection = Normalize(attacker.DirectionX, attacker.DirectionY);
+            var dot = Math.Max(-1.0, Math.Min(1.0,
+                targetDirection.X * lookDirection.X + targetDirection.Y * lookDirection.Y));
+            var angleDegrees = Math.Acos(dot) * 180.0 / Math.PI;
+            if (angleDegrees >= settings.WeaponLockAngleDegrees)
+            {
+                weaponState.LockProgress = Clamp01(
+                    weaponState.LockProgress - deltaSeconds * settings.WeaponLockDecayPerSecond);
+                return;
+            }
+
+            var contact = (attacker.Contacts ?? Array.Empty<AetheriaRuntimeEntityContactCommit>())
+                .FirstOrDefault(candidate => candidate != null && candidate.TargetEntityIndex == target.EntityIndex);
+            var information = Clamp01(contact?.InfoGathered ?? 0);
+            var directionalQuality = Math.Max(0, 1.0 - angleDegrees / 90.0);
+            var acquisition =
+                Math.Pow(directionalQuality, settings.WeaponLockDirectionImpact) *
+                deltaSeconds *
+                settings.WeaponLockSpeed *
+                Math.Pow(information, settings.WeaponLockSensorImpact);
+            weaponState.LockProgress = Clamp01(weaponState.LockProgress + acquisition);
         }
 
         private static void PrepareProjectiles(

@@ -29,7 +29,12 @@ namespace GameCult.Aetheria.State.Verse
                 playerEntityHull: 120.0,
                 raiderEntityHull: 80.0,
                 stationShield: 120.0,
-                entityShield: 45.0);
+                entityShield: 45.0,
+                weaponLockSpeed: 2.0,
+                weaponLockSensorImpact: 1.0,
+                weaponLockAngleDegrees: 45.0,
+                weaponLockDirectionImpact: 1.0,
+                weaponLockDecayPerSecond: 1.0);
 
         public AetheriaRuntimeDaemonSimulationSettings(
             double pawnSpeed,
@@ -52,7 +57,12 @@ namespace GameCult.Aetheria.State.Verse
             double playerEntityHull,
             double raiderEntityHull,
             double stationShield,
-            double entityShield)
+            double entityShield,
+            double weaponLockSpeed = AetheriaDefaultRaw.WeaponLockSpeed,
+            double weaponLockSensorImpact = AetheriaDefaultRaw.WeaponLockSensorImpact,
+            double weaponLockAngleDegrees = AetheriaDefaultRaw.WeaponLockAngleDegrees,
+            double weaponLockDirectionImpact = AetheriaDefaultRaw.WeaponLockDirectionImpact,
+            double weaponLockDecayPerSecond = AetheriaDefaultRaw.WeaponLockDecayPerSecond)
         {
             PawnSpeed = PositiveOr(pawnSpeed, AetheriaDefaultRaw.PawnSpeed);
             RaiderSpeed = PositiveOr(raiderSpeed, AetheriaDefaultRaw.RaiderSpeed);
@@ -75,6 +85,11 @@ namespace GameCult.Aetheria.State.Verse
             RaiderEntityHull = PositiveOr(raiderEntityHull, AetheriaDefaultRaw.RaiderEntityHull);
             StationShield = NonNegativeOr(stationShield, AetheriaDefaultRaw.StationShield);
             EntityShield = NonNegativeOr(entityShield, AetheriaDefaultRaw.EntityShield);
+            WeaponLockSpeed = PositiveOr(weaponLockSpeed, AetheriaDefaultRaw.WeaponLockSpeed);
+            WeaponLockSensorImpact = NonNegativeOr(weaponLockSensorImpact, AetheriaDefaultRaw.WeaponLockSensorImpact);
+            WeaponLockAngleDegrees = PositiveOr(weaponLockAngleDegrees, AetheriaDefaultRaw.WeaponLockAngleDegrees);
+            WeaponLockDirectionImpact = NonNegativeOr(weaponLockDirectionImpact, AetheriaDefaultRaw.WeaponLockDirectionImpact);
+            WeaponLockDecayPerSecond = NonNegativeOr(weaponLockDecayPerSecond, AetheriaDefaultRaw.WeaponLockDecayPerSecond);
         }
 
         public double PawnSpeed { get; }
@@ -98,6 +113,11 @@ namespace GameCult.Aetheria.State.Verse
         public double RaiderEntityHull { get; }
         public double StationShield { get; }
         public double EntityShield { get; }
+        public double WeaponLockSpeed { get; }
+        public double WeaponLockSensorImpact { get; }
+        public double WeaponLockAngleDegrees { get; }
+        public double WeaponLockDirectionImpact { get; }
+        public double WeaponLockDecayPerSecond { get; }
 
         private static double PositiveOr(double value, double fallback)
         {
@@ -137,6 +157,11 @@ namespace GameCult.Aetheria.State.Verse
             public const double RaiderEntityHull = 80.0;
             public const double StationShield = 120.0;
             public const double EntityShield = 45.0;
+            public const double WeaponLockSpeed = 2.0;
+            public const double WeaponLockSensorImpact = 1.0;
+            public const double WeaponLockAngleDegrees = 45.0;
+            public const double WeaponLockDirectionImpact = 1.0;
+            public const double WeaponLockDecayPerSecond = 1.0;
         }
     }
 }
