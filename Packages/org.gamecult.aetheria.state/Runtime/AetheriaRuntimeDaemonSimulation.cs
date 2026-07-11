@@ -51,7 +51,8 @@ namespace GameCult.Aetheria.State.Verse
                 StepTractorPower(entities, deltaSeconds);
                 StepRaiderAi(entities);
                 StepTargetPursuit(entities, settings);
-                StepWorldPhysics(zone, entities, deltaSeconds, worldPhysics);
+                var worldStep = StepWorldPhysics(zone, entities, deltaSeconds, worldPhysics);
+                ResolvePickupContacts(zone, entities, worldStep, catalog);
                 StepCombat(run, zone, entities, intents, deltaSeconds, settings, projectilePhysics);
                 AetheriaRuntimeMiningSimulation.Step(run, zone, entities, intents, catalog, frameId, simulationTimeSeconds, deltaSeconds);
                 AetheriaRuntimeSurveySimulation.Step(run, zone, entities, intents, catalog, frameId, simulationTimeSeconds, deltaSeconds);
@@ -158,7 +159,7 @@ namespace GameCult.Aetheria.State.Verse
             }
         }
 
-        private static void StepWorldPhysics(
+        private static AetheriaRuntimeWorldStep StepWorldPhysics(
             AetheriaRuntimeZoneSnapshotCommit zone,
             IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities,
             double deltaSeconds,
@@ -173,6 +174,14 @@ namespace GameCult.Aetheria.State.Verse
                 entity.VelocityX = body.VelocityX; entity.VelocityY = body.VelocityY;
                 entity.DirectionX = body.DirectionX; entity.DirectionY = body.DirectionY;
             }
+            var pickups = (zone.DroppedPickups ?? Array.Empty<AetheriaRuntimeDroppedPickupCommit>())
+                .Where(pickup => pickup != null).ToDictionary(pickup => pickup.PickupIndex);
+            foreach (var body in result.Pickups)
+            {
+                if (!pickups.TryGetValue(body.PickupIndex, out var pickup)) continue;
+                pickup.PositionX = body.PositionX; pickup.PositionZ = body.PositionZ;
+                pickup.VelocityX = body.VelocityX; pickup.VelocityZ = body.VelocityZ;
+            }
             foreach (var parent in entities)
             foreach (var childIndex in parent.ChildEntityIndices ?? Array.Empty<int>())
             {
@@ -180,6 +189,30 @@ namespace GameCult.Aetheria.State.Verse
                 if (child == null) continue;
                 child.PositionX = parent.PositionX; child.PositionZ = parent.PositionZ;
                 child.VelocityX = parent.VelocityX; child.VelocityY = parent.VelocityY;
+            }
+            return result;
+        }
+
+        private static void ResolvePickupContacts(
+            AetheriaRuntimeZoneSnapshotCommit zone,
+            IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities,
+            AetheriaRuntimeWorldStep worldStep,
+            AetheriaRuntimeCatalogSnapshot? catalog)
+        {
+            foreach (var contact in worldStep.Contacts.Where(contact => contact.PickupIndex >= 0))
+            {
+                var entityIndex = Math.Max(contact.EntityAIndex, contact.EntityBIndex);
+                var entity = entities.FirstOrDefault(value => value.EntityIndex == entityIndex && value.IsActive);
+                var pickup = (zone.DroppedPickups ?? Array.Empty<AetheriaRuntimeDroppedPickupCommit>())
+                    .FirstOrDefault(value => value != null && value.PickupIndex == contact.PickupIndex);
+                if (entity == null || pickup == null) continue;
+                if (AetheriaRuntimePickupTransactions.TryCollect(zone, entity, pickup.PickupIndex, catalog, requireRange: false))
+                    continue;
+                var dx = pickup.PositionX - entity.PositionX; var dz = pickup.PositionZ - entity.PositionZ;
+                var length = Math.Sqrt(dx * dx + dz * dz);
+                if (length < 0.001) { dx = 1; dz = 0; length = 1; }
+                pickup.VelocityX += dx / length * 25;
+                pickup.VelocityZ += dz / length * 25;
             }
         }
 

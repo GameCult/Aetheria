@@ -803,23 +803,7 @@ namespace GameCult.Aetheria.State.Verse
                 return false;
 
             var pickup = pickups[pickupIndex];
-            var quantity = Math.Max(1, pickup.Item?.Quantity ?? command.LootPickup.Quantity);
-            if (pickup.AgeSeconds >= pickup.LifetimeSeconds ||
-                Math.Pow(pickup.PositionX - entity.PositionX, 2) + Math.Pow(pickup.PositionZ - entity.PositionZ, 2) > 25 * 25 ||
-                quantity > AetheriaRuntimeCargoCapacityQueries.UnitsThatFit(entity, catalog, pickup.Item?.ItemKey ?? command.LootPickup.ItemKey))
-                return false;
-            pickups.RemoveAt(pickupIndex);
-            zone.DroppedPickups = pickups.ToArray();
-
-            AddCargoItem(entity, 0, new AetheriaRuntimeLoadoutItemSlotCommit
-            {
-                Item = pickup.Item ?? new AetheriaRuntimeLoadoutItemCommit
-                {
-                    ItemKey = command.LootPickup.ItemKey ?? "",
-                    Quantity = command.LootPickup.Quantity
-                }
-            });
-            return true;
+            return AetheriaRuntimePickupTransactions.TryCollect(zone, entity, pickup.PickupIndex, catalog);
         }
 
         private static bool ApplyToggleHullConductivity(

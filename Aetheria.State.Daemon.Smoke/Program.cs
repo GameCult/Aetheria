@@ -15,6 +15,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         MissingWorldPhysicsOwnerCannotAdvanceShips();
         TractorRampsAndPullsThroughYmirWithoutTeleportingCargo();
         PickupIsCapacityCheckedExactlyOnceAndExpires();
+        PickupShieldContactCollectsOrBounces();
         ThermalCellsUseFossilConductionAndRadiation();
         MultipleActorsUseTheSameMovementLever();
         AgentClaimsAndCompletesExploreTaskThroughCommands();
@@ -802,17 +803,16 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
     private static void TractorRampsAndPullsThroughYmirWithoutTeleportingCargo()
     {
         var ship = Entity(0, 0, "player");
-        var wreck = Entity(1, 60, "wreck");
-        wreck.CargoContents = [Cargo(("salvage", 1, 0, 0))];
-        ship.TargetEntityIndex = 1;
-        var run = new AetheriaRuntimeRunCheckpointCommit { CurrentZoneIndex = 0, CurrentEntityKey = "zone.0.entity.0", Zones = [new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [ship, wreck] }] };
+        ship.DirectionX = 1; ship.DirectionY = 0;
+        var pickup = new AetheriaRuntimeDroppedPickupCommit { PickupIndex = 3, PositionX = 60, Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = "salvage", Quantity = 1 }, LifetimeSeconds = 30 };
+        var run = new AetheriaRuntimeRunCheckpointCommit { CurrentZoneIndex = 0, CurrentEntityKey = "zone.0.entity.0", Zones = [new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [ship], DroppedPickups = [pickup] }] };
         var command = AetheriaRuntimeDaemonCommandDocument.Create(AetheriaRuntimeDaemonCommandKinds.SetTractorPower, "pilot", "tractor-smoke", 0, "zone.0.entity.0");
         command.CommandId = "tractor-on"; command.ScalarValue = 1;
         AetheriaRuntimeDaemonTickRunner.Tick(Path.Combine(Path.GetTempPath(), "aetheria-tractor-smoke.cc"), run,
             new AetheriaRuntimeDaemonTickOptions { WorldPhysics = new AetheriaYmirWorldPhysics(), FrameId = 1, FixedDeltaSeconds = 0.25, SimulationTimeSeconds = 0.25, ObservedCommands = [command], ProjectilePhysics = AetheriaRuntimeProjectilePhysicsUnavailable.Instance, BuildPublications = false });
         RequireNear(0.5, ship.TractorPower, 0.000001, "tractor power must use the fossil two-per-second ramp");
-        Require(wreck.VelocityX < 0 && wreck.PositionX < 60, "Ymir must pull the targeted body toward the tractor source");
-        RequireEqual(1, CargoQuantity(wreck, "salvage"), "tractor force must not teleport target cargo");
+        Require(pickup.VelocityX < 0 && pickup.PositionX < 60, "Ymir must pull a pickup inside the forward tractor volume toward the ship");
+        RequireEqual(1, pickup.Item.Quantity, "tractor force must not consume the pickup item");
         RequireEqual(0, CargoQuantity(ship, "salvage"), "scooping must remain a separate capacity-checked transaction");
     }
 
@@ -842,6 +842,30 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         AetheriaRuntimeDaemonTickRunner.Tick(Path.Combine(Path.GetTempPath(), "aetheria-pickup-expiry-smoke.cc"), run,
             new AetheriaRuntimeDaemonTickOptions { WorldPhysics = new AetheriaYmirWorldPhysics(), FrameId = 1, FixedDeltaSeconds = 30, SimulationTimeSeconds = 30, ProjectilePhysics = AetheriaRuntimeProjectilePhysicsUnavailable.Instance, BuildPublications = false });
         RequireEqual(0, zone.DroppedPickups.Count, "pickup must expire after the fossil thirty-second lifetime");
+    }
+
+    private static void PickupShieldContactCollectsOrBounces()
+    {
+        var hull = CatalogItem("contact-hull"); hull.HullCapacity = PerformanceStat(1);
+        var salvage = CatalogItem("contact-salvage"); salvage.Volume = 1;
+        var catalog = new AetheriaRuntimeCatalogSnapshot([hull, salvage], [], []);
+        AetheriaRuntimeRunCheckpointCommit Scenario(bool full)
+        {
+            var ship = Entity(0, 0, "player"); ship.HullItemKey = hull.ItemKey;
+            ship.CargoContents = [full ? Cargo((salvage.ItemKey, 1, 0, 0)) : Cargo()];
+            return new AetheriaRuntimeRunCheckpointCommit { CurrentZoneIndex = 0, CurrentEntityKey = "zone.0.entity.0", Zones = [new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [ship], DroppedPickups = [new AetheriaRuntimeDroppedPickupCommit { PickupIndex = 10, PositionX = 20, Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = salvage.ItemKey, Quantity = 1 }, LifetimeSeconds = 30 }] }] };
+        }
+        var open = Scenario(false);
+        AetheriaRuntimeDaemonTickRunner.Tick(Path.Combine(Path.GetTempPath(), "aetheria-pickup-contact-open.cc"), open,
+            new AetheriaRuntimeDaemonTickOptions { WorldPhysics = new AetheriaYmirWorldPhysics(), FrameId = 1, FixedDeltaSeconds = 0.1, SimulationTimeSeconds = 0.1, Catalog = catalog, ProjectilePhysics = AetheriaRuntimeProjectilePhysicsUnavailable.Instance, BuildPublications = false });
+        RequireEqual(0, open.Zones[0].DroppedPickups.Count, "shield contact with capacity must collect pickup automatically");
+        RequireEqual(1, CargoQuantity(open.Zones[0].Entities[0], salvage.ItemKey), "contact collection must commit cargo once");
+
+        var full = Scenario(true);
+        AetheriaRuntimeDaemonTickRunner.Tick(Path.Combine(Path.GetTempPath(), "aetheria-pickup-contact-full.cc"), full,
+            new AetheriaRuntimeDaemonTickOptions { WorldPhysics = new AetheriaYmirWorldPhysics(), FrameId = 1, FixedDeltaSeconds = 0.1, SimulationTimeSeconds = 0.1, Catalog = catalog, ProjectilePhysics = AetheriaRuntimeProjectilePhysicsUnavailable.Instance, BuildPublications = false });
+        RequireEqual(1, full.Zones[0].DroppedPickups.Count, "full hold must leave contacted pickup alive");
+        Require(full.Zones[0].DroppedPickups[0].VelocityX > 20, "failed pickup must receive the fossil outward kick");
     }
 
     private static (AetheriaRuntimeRunCheckpointCommit Run, AetheriaRuntimeZoneSnapshotCommit Zone, AetheriaRuntimeEntitySnapshotCommit Target) Scenario()
