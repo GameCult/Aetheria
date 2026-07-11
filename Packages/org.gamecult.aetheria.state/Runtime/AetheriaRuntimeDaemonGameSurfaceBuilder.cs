@@ -461,6 +461,9 @@ namespace GameCult.Aetheria.State.Verse
                 .Concat((zone.Projectiles ?? Array.Empty<AetheriaRuntimeProjectileCommit>())
                     .Where(projectile => projectile != null && projectile.LifetimeSeconds > 0)
                     .Select(projectile => PlayableWorldProjectile(projectile, run, zone)))
+                .Concat((zone.DroppedPickups ?? Array.Empty<AetheriaRuntimeDroppedPickupCommit>())
+                    .Where(pickup => pickup != null && pickup.AgeSeconds < pickup.LifetimeSeconds)
+                    .Select(pickup => PlayableWorldPickup(pickup, run, zone)))
                 .ToArray();
 
             return new AetheriaRuntimeSurfaceComponent(
@@ -584,6 +587,36 @@ namespace GameCult.Aetheria.State.Verse
             };
             return new AetheriaRuntimeSurfaceComponent(
                 $"aetheria.daemon.game.world.projectile.{projectile.ProjectileId}",
+                "world.entity3d",
+                props,
+                Array.Empty<AetheriaRuntimeSurfaceComponent>());
+        }
+
+        private static AetheriaRuntimeSurfaceComponent PlayableWorldPickup(
+            AetheriaRuntimeDroppedPickupCommit pickup,
+            AetheriaRuntimeRunCheckpointCommit run,
+            AetheriaRuntimeZoneSnapshotCommit zone)
+        {
+            var pickupId = $"{run.RunId}:zone:{zone.ZoneIndex}:pickup:{pickup.PickupIndex}";
+            var props = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["entityId"] = pickupId,
+                ["entityKind"] = "pickup",
+                ["label"] = pickup.Item?.ItemKey ?? "Pickup",
+                ["itemKey"] = pickup.Item?.ItemKey ?? "",
+                ["quantity"] = Math.Max(1, pickup.Item?.Quantity ?? 1).ToString(CultureInfo.InvariantCulture),
+                ["assetRef"] = "prefab.entity.pickup",
+                ["position"] = string.Join(",", new[] { pickup.PositionX.ToString("0.###", CultureInfo.InvariantCulture), pickup.PositionY.ToString("0.###", CultureInfo.InvariantCulture), pickup.PositionZ.ToString("0.###", CultureInfo.InvariantCulture) }),
+                ["velocity"] = string.Join(",", new[] { pickup.VelocityX.ToString("0.###", CultureInfo.InvariantCulture), pickup.VelocityY.ToString("0.###", CultureInfo.InvariantCulture), pickup.VelocityZ.ToString("0.###", CultureInfo.InvariantCulture) }),
+                ["radius"] = "5",
+                ["age"] = FormatNumber(pickup.AgeSeconds),
+                ["lifetime"] = FormatNumber(pickup.LifetimeSeconds),
+                ["remainingLifetime"] = FormatNumber(Math.Max(0, pickup.LifetimeSeconds - pickup.AgeSeconds)),
+                ["selectable"] = "false",
+                ["controllable"] = "false"
+            };
+            return new AetheriaRuntimeSurfaceComponent(
+                $"aetheria.daemon.game.world.pickup.{pickup.PickupIndex}",
                 "world.entity3d",
                 props,
                 Array.Empty<AetheriaRuntimeSurfaceComponent>());

@@ -1,5 +1,6 @@
 using Aetheria.State.Daemon;
 using GameCult.Aetheria.State.Verse;
+using System.Globalization;
 
 var checks = new AetheriaDaemonYmirSmokeChecks();
 checks.Run();
@@ -814,6 +815,15 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         Require(pickup.VelocityX < 0 && pickup.PositionX < 60, "Ymir must pull a pickup inside the forward tractor volume toward the ship");
         RequireEqual(1, pickup.Item.Quantity, "tractor force must not consume the pickup item");
         RequireEqual(0, CargoQuantity(ship, "salvage"), "scooping must remain a separate capacity-checked transaction");
+        var frame = new AetheriaRuntimeDaemonFrameDocument { FrameId = 1, Run = run };
+        var surface = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(frame, new AetheriaRuntimeDaemonHealthDocument(), AetheriaRuntimeDaemonCommandBoundaryDocument.Create("daemon"));
+        var pickupNode = Flatten(surface.Surface.Root).Single(node => node.Id == "aetheria.daemon.game.world.pickup.3");
+        RequireEqual("prefab.entity.pickup", pickupNode.Props["assetRef"], "Eve world must reference provider-owned pickup asset semantics");
+        RequireEqual("salvage", pickupNode.Props["itemKey"], "Eve pickup must expose item identity");
+        Require(double.Parse(pickupNode.Props["remainingLifetime"], CultureInfo.InvariantCulture) < 30,
+            "Eve pickup must expose daemon-owned remaining lifetime");
+        Require(AetheriaRuntimeAssets.ProjectManifest(null).Assets.Any(asset => asset.Ref.AssetKey == "prefab.entity.pickup"),
+            "provider asset manifest must advertise the pickup visual used by Eve");
     }
 
     private static void PickupIsCapacityCheckedExactlyOnceAndExpires()
