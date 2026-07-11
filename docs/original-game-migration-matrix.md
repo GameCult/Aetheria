@@ -20,7 +20,7 @@ validation proves contract shape, not wiring, exclusivity, lowering, or parity.
 | Flight intent | `Ship`, `Thruster`, `AetherDrive`, input paths | daemon intent + Ymir physics | analog movement/look/tractor | EveUnity input driver | simplified daemon path wired; Ymir not wired | thrust allocation, torque, energy, heat, drag and gravity |
 | Collision | Unity physics and entity handlers | Ymir | collision/result facts | visual interpolation only | owner-exists; not wired; not exclusive | link Aetheria to Ymir.Core/service, share one world, and fail old-writer negative checks |
 | Targeting/contacts | sensors + `ActionGameManager` | daemon | contact/target semantics | target HUD and indicators | simplified owner wired/projected; not parity | visibility/nearest/explicit/lock cases |
-| Projectile flight | weapon/projectile classes | Ymir | projectile entity/event projection | native projectile visual | local substitutes only | remove both Aetheria-local steppers; prove spawn/travel/hit/despawn through one Ymir world |
+| Projectile flight | weapon/projectile classes | Ymir | projectile entity/event projection | native projectile visual | Ymir.Core adapter wired for spawn/travel/contact/despawn; native presentation and broader weapon parity incomplete | prove every authored projectile family and runtime visual lifecycle |
 | Shield/hull damage | energy-funded shield, armor cells, equipment and hull | daemon | entity status + damage events | meters, impacts, damage VFX | synthetic scalar owner wired; not parity | typed absorption, penetration, item damage and death causes |
 | Thermal/energy | cell conduction and capacitor/reactor/radiator network | daemon | ship/equipment status and warnings | schematic/post effects | cell conduction/radiation wired; energy network and medical thresholds remain reference | capacitor/reactor/radiator ordering, shared energy and medical timelines |
 | Weapons | ServerShared behaviors + Unity effects | daemon + Ymir where spatial | action capability, weapon state, attack events | effects/audio/HUD | one synthetic weapon wired; original engine reference-only | each weapon family |
@@ -42,7 +42,7 @@ validation proves contract shape, not wiring, exclusivity, lowering, or parity.
 | Starbridge | original/shared architecture intent | one daemon session | pilot + commander surfaces | Unity + Electron | commander task board and autonomous explore execution wired; Electron Eve lowering and split-target proof missing | commander orders plus four pilots and autonomous workers |
 | Behavior engine | `ServerShared/Behaviors` composition | daemon | executable action/status projection | action bar and feedback | tick reconciles equipped catalog payloads into persistent behavior state; shared evaluated-stat query proven; execution families remain partial | every behavior family, ordering, resource transaction and modifier lifecycle |
 | Sensors/visibility | decaying sources and observer information thresholds | daemon | contacts and ping events | indicators/maps | reference | threshold, decay, ping and classification timelines |
-| AI/tasks | corporation task scheduler plus agent state machines | daemon | commander task board and shared semantic controls | Eve commander/pilot clients | explore, attack, same-zone haul, and persistent orbit patrol wired through shared commands; capability/priority assignment and rejected-transfer behavior proven | original optimum-range control, cross-zone haul, mining, towing, survey-tool timelines, cancellation and reconnect |
+| AI/tasks | corporation task scheduler plus agent state machines | daemon | commander task board, corporation survey ledger, and shared semantic controls | Eve commander/pilot clients | point exploration, attack, same-zone haul, mining/offload, resource surveying, physical station towing, and persistent orbit patrol wired through shared commands; capability/priority assignment and rejection behavior proven | optimum-range control, cross-zone logistics, cancellation, reconnect, and live commander lowering |
 | Consumables | cargo-backed timed behavior containers | daemon | dynamic actions and active effects | action bar/schematic | reference | consume, stacking, duration and cleanup |
 
 ## Ownership Invariants
@@ -78,36 +78,33 @@ validation proves contract shape, not wiring, exclusivity, lowering, or parity.
 
 These are source-confirmed ownership failures, not feature backlog:
 
-1. **Split combat writers.** Normal daemon simulation and the optional abstract
-   combat kernel can both mutate combat state in one tick. Select one combat
-   owner and delete the other's write path.
-2. **Physics delegation is incomplete.** Daemon projectile integration and
+1. **Physics delegation is incomplete.** Daemon projectile integration and
    contacts now use `Ymir.Core`, but ship flight, tractor, gravity, docking
    placement, and the Unity bridge/query path remain outside that authority.
-3. **Persisted behavior is not executable behavior.** Snapshot schemas preserve
+2. **Persisted behavior is not executable behavior.** Snapshot schemas preserve
    broad equipment/behavior state while active simulation executes one
    synthetic projectile weapon and simplified raider pursuit.
-4. **Client feedback lacks authoritative chronology.** Hits, lock transitions,
+3. **Client feedback lacks authoritative chronology.** Hits, lock transitions,
    damage topology, weapon transitions, death causes, effects, and drops have
    no complete deduplicated event stream.
-5. **View composition is implicit.** Provider prefabs contain pilot and map
+4. **View composition is implicit.** Provider prefabs contain pilot and map
    subviews, but portable render channels, entity presentation graphs, effects,
    attachment sockets, and map products are not yet first-class contracts.
-6. **The game loop has no single daemon owner.** Exploration, discovery,
+5. **The game loop has no single daemon owner.** Exploration, discovery,
    encounter, loot, docking, trade, refit, narrative, boss progression,
    completion, failure, and continue exist as pieces rather than one explicit
    run-state machine.
-7. **Two Aetheria-local spatial owners.** Daemon projectile stepping and the
+6. **Two Aetheria-local spatial owners.** Daemon ship movement and the
    Unity bridge/query path independently implement Ymir-shaped behavior and can
    disagree while standalone Ymir remains unwired.
-8. **Live conformance has no complete owner.** Static provider packs can pass
+7. **Live conformance has no complete owner.** Static provider packs can pass
    while daemon, runtime, or split-target dependencies are absent. The current
    Eve consumer smoke fails because its expected EveElectron proof is missing.
-9. **Normative native presentation has no implemented owner.** Render channels,
+8. **Normative native presentation has no implemented owner.** Render channels,
    presentation graphs, map products, attachment/effect lifecycles, material
    profiles, and source-version diagnostics are assigned in specification but
    lack complete Eve contracts and EveUnity lowerers.
-10. **Original-game acceptance lacks an evidence ledger.** No current owner
+9. **Original-game acceptance lacks an evidence ledger.** No current owner
     records fossil baseline, target state timeline, commands/receipts, rendered
     captures, and negative-writer checks as one scenario result.
 
