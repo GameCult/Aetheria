@@ -31,7 +31,12 @@ namespace GameCult.Aetheria.State.Verse
             activeMainMenuSurfaceId = NormalizeMainMenuSurfaceId(activeMainMenuSurfaceId);
             var surfaceChildren = new List<AetheriaRuntimeSurfaceComponent>
             {
-                PlayableWorldSurface("aetheria.daemon.game.world", run, zone, run.CurrentEntityKey),
+                PlayableWorldSurface(
+                    "aetheria.daemon.game.world",
+                    run,
+                    zone,
+                    run.CurrentEntityKey,
+                    frame.SimulationSettings),
                 GravityFieldSurface("aetheria.daemon.game.field"),
                 MainMenuOverlay("aetheria.daemon.game.main_menu", activeMainMenuSurfaceId),
                 Node(
@@ -169,7 +174,12 @@ namespace GameCult.Aetheria.State.Verse
             };
             var entities = (zone.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
                 .Where(entity => entity != null && entity.IsActive)
-                .Select(entity => PlayableWorldEntity(entity, run, zone, run.CurrentEntityKey))
+                .Select(entity => PlayableWorldEntity(
+                    entity,
+                    run,
+                    zone,
+                    run.CurrentEntityKey,
+                    AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault))
                 .ToArray();
             return new AetheriaRuntimeSurfaceComponent(
                 id,
@@ -330,7 +340,8 @@ namespace GameCult.Aetheria.State.Verse
             string id,
             AetheriaRuntimeRunCheckpointCommit run,
             AetheriaRuntimeZoneSnapshotCommit zone,
-            string currentEntityKey)
+            string currentEntityKey,
+            AetheriaRuntimeDaemonSimulationSettings simulationSettings)
         {
             run ??= new AetheriaRuntimeRunCheckpointCommit();
             zone ??= new AetheriaRuntimeZoneSnapshotCommit();
@@ -342,6 +353,7 @@ namespace GameCult.Aetheria.State.Verse
                 ["assetManifest"] = AetheriaRuntimeVerseRecordKeys.EveAssetCatalog.ToString(),
                 ["inputProfile"] = "arpg.pointer-keyboard.v1",
                 ["cameraRig"] = "arpg.orbital-follow.v1",
+                ["viewId"] = "pilot",
                 ["playerEntityId"] = playerEntityId,
                 ["movementCommand"] = CommandName(AetheriaRuntimeDaemonCommandKinds.SetMoveVector),
                 ["focusCommand"] = CommandName(AetheriaRuntimeDaemonCommandKinds.TargetNearest),
@@ -356,7 +368,15 @@ namespace GameCult.Aetheria.State.Verse
 
             var entities = (zone.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
                 .Where(candidate => candidate != null && candidate.IsActive)
-                .Select(candidate => PlayableWorldEntity(candidate, run, zone, currentEntityKey))
+                .Select(candidate => PlayableWorldEntity(
+                    candidate,
+                    run,
+                    zone,
+                    currentEntityKey,
+                    simulationSettings))
+                .Concat((zone.Projectiles ?? Array.Empty<AetheriaRuntimeProjectileCommit>())
+                    .Where(projectile => projectile != null && projectile.LifetimeSeconds > 0)
+                    .Select(projectile => PlayableWorldProjectile(projectile, run, zone)))
                 .ToArray();
 
             return new AetheriaRuntimeSurfaceComponent(
@@ -384,10 +404,27 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeEntitySnapshotCommit entity,
             AetheriaRuntimeRunCheckpointCommit run,
             AetheriaRuntimeZoneSnapshotCommit zone,
-            string currentEntityKey)
+            string currentEntityKey,
+            AetheriaRuntimeDaemonSimulationSettings simulationSettings)
         {
             var entityId = run.EntityRecordKey(zone.ZoneIndex, entity.EntityIndex);
             var playerEntityId = PlayableWorldEntityId(run, zone, currentEntityKey);
+            var player = FindCurrentEntity(run, zone);
+            var targetEntityId = entity.TargetEntityIndex < 0
+                ? ""
+                : run.EntityRecordKey(zone.ZoneIndex, entity.TargetEntityIndex);
+            var hull = EntityStat(entity, "hull");
+            var shield = EntityStat(entity, "shield");
+            var heat = EntityStat(entity, "heat");
+            var minimumTemperature = EntityStat(entity, AetheriaRuntimeThermalSimulation.MinimumTemperatureGrid);
+            var maximumTemperature = EntityStat(entity, AetheriaRuntimeThermalSimulation.MaximumTemperatureGrid);
+            var thermalVisibility = EntityStat(entity, "thermal-visibility");
+            var maximumHull = MaximumHull(entity, simulationSettings);
+            var maximumShield = MaximumShield(entity, simulationSettings);
+            var weaponCooldown = (entity.WeaponStates ?? Array.Empty<AetheriaRuntimeWeaponStateCommit>())
+                .Select(state => state?.CooldownProgress ?? 0)
+                .DefaultIfEmpty(0)
+                .Max();
             var props = new Dictionary<string, string>(StringComparer.Ordinal)
             {
                 ["entityId"] = entityId,
@@ -398,6 +435,23 @@ namespace GameCult.Aetheria.State.Verse
                 ["position"] = FormatPosition(entity),
                 ["rotationY"] = HeadingYaw(entity).ToString("0.###", CultureInfo.InvariantCulture),
                 ["radius"] = PlayableWorldRadius(entity).ToString("0.###", CultureInfo.InvariantCulture),
+                ["hull"] = FormatNumber(hull),
+                ["maximumHull"] = FormatNumber(maximumHull),
+                ["hullRatio"] = FormatRatio(hull, maximumHull),
+                ["shield"] = FormatNumber(shield),
+                ["maximumShield"] = FormatNumber(maximumShield),
+                ["shieldRatio"] = FormatRatio(shield, maximumShield),
+                ["heat"] = FormatNumber(heat),
+                ["meanTemperature"] = FormatNumber(heat),
+                ["minimumTemperature"] = FormatNumber(minimumTemperature),
+                ["maximumTemperature"] = FormatNumber(maximumTemperature),
+                ["thermalVisibility"] = FormatNumber(thermalVisibility),
+                ["heatstroke"] = FormatRatio(entity.Heatstroke, 1),
+                ["hypothermia"] = FormatRatio(entity.Hypothermia, 1),
+                ["visibility"] = FormatNumber(entity.Visibility),
+                ["targetEntityId"] = targetEntityId,
+                ["targetedByPlayer"] = player != null && player.TargetEntityIndex == entity.EntityIndex ? "true" : "false",
+                ["weaponCooldown"] = FormatNumber(weaponCooldown),
                 ["selectable"] = "true",
                 ["controllable"] = string.Equals(entityId, playerEntityId, StringComparison.Ordinal) ? "true" : "false",
                 ["focusCommand"] = CommandName(AetheriaRuntimeDaemonCommandKinds.TargetNearest),
@@ -408,6 +462,44 @@ namespace GameCult.Aetheria.State.Verse
 
             return new AetheriaRuntimeSurfaceComponent(
                 $"aetheria.daemon.game.world.entity.{entity.EntityIndex}",
+                "world.entity3d",
+                props,
+                Array.Empty<AetheriaRuntimeSurfaceComponent>());
+        }
+
+        private static AetheriaRuntimeSurfaceComponent PlayableWorldProjectile(
+            AetheriaRuntimeProjectileCommit projectile,
+            AetheriaRuntimeRunCheckpointCommit run,
+            AetheriaRuntimeZoneSnapshotCommit zone)
+        {
+            var projectileId = $"{run.RunId}:zone:{zone.ZoneIndex}:projectile:{projectile.ProjectileId}";
+            var targetEntityId = projectile.TargetEntityIndex < 0
+                ? ""
+                : run.EntityRecordKey(zone.ZoneIndex, projectile.TargetEntityIndex);
+            var props = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["entityId"] = projectileId,
+                ["entityKind"] = "projectile",
+                ["label"] = projectile.WeaponKind ?? "Projectile",
+                ["faction"] = "",
+                ["assetRef"] = "prefab.entity.projectile",
+                ["position"] = string.Join(",", new[]
+                {
+                    projectile.PositionX.ToString("0.###", CultureInfo.InvariantCulture),
+                    "0",
+                    projectile.PositionZ.ToString("0.###", CultureInfo.InvariantCulture)
+                }),
+                ["rotationY"] = HeadingDegrees(projectile.VelocityX, projectile.VelocityY).ToString("0.###", CultureInfo.InvariantCulture),
+                ["radius"] = Math.Max(0.01, projectile.Radius).ToString("0.###", CultureInfo.InvariantCulture),
+                ["sourceEntityId"] = run.EntityRecordKey(zone.ZoneIndex, projectile.SourceEntityIndex),
+                ["targetEntityId"] = targetEntityId,
+                ["damage"] = FormatNumber(projectile.Damage),
+                ["remainingLifetime"] = FormatNumber(projectile.LifetimeSeconds),
+                ["selectable"] = "false",
+                ["controllable"] = "false"
+            };
+            return new AetheriaRuntimeSurfaceComponent(
+                $"aetheria.daemon.game.world.projectile.{projectile.ProjectileId}",
                 "world.entity3d",
                 props,
                 Array.Empty<AetheriaRuntimeSurfaceComponent>());
@@ -446,8 +538,38 @@ namespace GameCult.Aetheria.State.Verse
                 return 0.0;
             if (Math.Abs(entity.DirectionX) <= 0.0001 && Math.Abs(entity.DirectionY) <= 0.0001)
                 return 0.0;
-            return Math.Atan2(entity.DirectionX, entity.DirectionY);
+            return HeadingDegrees(entity.DirectionX, entity.DirectionY);
         }
+
+        private static double HeadingDegrees(double x, double y) =>
+            Math.Atan2(x, y) * (180.0 / Math.PI);
+
+        private static double EntityStat(AetheriaRuntimeEntitySnapshotCommit entity, string name) =>
+            (entity.StatGrids ?? Array.Empty<AetheriaRuntimeEntityStatGridCommit>())
+            .FirstOrDefault(grid => string.Equals(grid?.Name, name, StringComparison.OrdinalIgnoreCase))
+            ?.Values?.FirstOrDefault() ?? 0;
+
+        private static double MaximumHull(
+            AetheriaRuntimeEntitySnapshotCommit entity,
+            AetheriaRuntimeDaemonSimulationSettings settings) =>
+            string.Equals(entity.Kind, "station", StringComparison.OrdinalIgnoreCase)
+                ? (string.Equals(entity.FactionKey, "player", StringComparison.OrdinalIgnoreCase)
+                    ? settings.PlayerStationHull
+                    : settings.HostileStationHull)
+                : string.Equals(entity.FactionKey, "raider", StringComparison.OrdinalIgnoreCase)
+                    ? settings.RaiderEntityHull
+                    : settings.PlayerEntityHull;
+
+        private static double MaximumShield(
+            AetheriaRuntimeEntitySnapshotCommit entity,
+            AetheriaRuntimeDaemonSimulationSettings settings) =>
+            string.Equals(entity.Kind, "station", StringComparison.OrdinalIgnoreCase)
+                ? settings.StationShield
+                : settings.EntityShield;
+
+        private static string FormatRatio(double value, double maximum) =>
+            (maximum <= 0 ? 0 : Math.Max(0, Math.Min(1, value / maximum)))
+            .ToString("0.###", CultureInfo.InvariantCulture);
 
         private static AetheriaRuntimeSurfaceComponent GravityFieldSurface(string id)
         {

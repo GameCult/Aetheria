@@ -36,6 +36,8 @@ namespace GameCult.Aetheria.State.Verse
                     continue;
 
                 EnsureStats(entities, settings);
+                foreach (var entity in entities)
+                    AetheriaRuntimeThermalSimulation.EnsureState(entity);
                 ApplyMovementIntent(run, entities, intents?.Movement, settings);
                 StepRaiderAi(entities);
                 StepTargetPursuit(entities, settings);
@@ -215,7 +217,9 @@ namespace GameCult.Aetheria.State.Verse
                 weaponState.Firing = true;
                 weaponState.CoolingDown = true;
                 weaponState.CooldownProgress = settings.WeaponCooldownSeconds;
-                SetStat(attacker, Heat, Math.Min(100, GetStat(attacker, Heat) + ResolveProjectileDamage(attacker, settings) * settings.ProjectileHeatScale));
+                AetheriaRuntimeThermalSimulation.AddHeat(
+                    attacker,
+                    ResolveProjectileDamage(attacker, settings) * settings.ProjectileHeatScale);
             }
 
             PrepareProjectiles(zone, byIndex, deltaSeconds);
@@ -233,7 +237,7 @@ namespace GameCult.Aetheria.State.Verse
 
             foreach (var entity in entities)
             {
-                SetStat(entity, Heat, Math.Max(0, GetStat(entity, Heat) - settings.HeatDissipationPerSecond * deltaSeconds));
+                AetheriaRuntimeThermalSimulation.Step(entity, deltaSeconds);
                 entity.IsActive = IsAlive(entity);
                 if (!entity.IsActive)
                 {

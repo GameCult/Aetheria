@@ -22,7 +22,7 @@ validation proves contract shape, not wiring, exclusivity, lowering, or parity.
 | Targeting/contacts | sensors + `ActionGameManager` | daemon | contact/target semantics | target HUD and indicators | simplified owner wired/projected; not parity | visibility/nearest/explicit/lock cases |
 | Projectile flight | weapon/projectile classes | Ymir | projectile entity/event projection | native projectile visual | local substitutes only | remove both Aetheria-local steppers; prove spawn/travel/hit/despawn through one Ymir world |
 | Shield/hull damage | energy-funded shield, armor cells, equipment and hull | daemon | entity status + damage events | meters, impacts, damage VFX | synthetic scalar owner wired; not parity | typed absorption, penetration, item damage and death causes |
-| Thermal/energy | cell conduction and capacitor/reactor/radiator network | daemon | ship/equipment status and warnings | schematic/post effects | reference | cell heat, shared energy and medical thresholds |
+| Thermal/energy | cell conduction and capacitor/reactor/radiator network | daemon | ship/equipment status and warnings | schematic/post effects | cell conduction/radiation wired; energy network and medical thresholds remain reference | capacitor/reactor/radiator ordering, shared energy and medical timelines |
 | Weapons | ServerShared behaviors + Unity effects | daemon + Ymir where spatial | action capability, weapon state, attack events | effects/audio/HUD | one synthetic weapon wired; original engine reference-only | each weapon family |
 | Destruction/drops | entity death and pickup paths | daemon | death/drop events and world entities | effects and pickups | fragments wired; chronology and original drop transaction absent | exactly-once drops and cleanup |
 | Tractor/scoop | analog tractor and physical timed pickups | daemon + Ymir | tractor intent, pickup entity and receipt | beam/interaction feedback | command wired; spatial/original pickup semantics absent | ramp, range, failed capacity, lifetime and pickup once |
@@ -81,10 +81,9 @@ These are source-confirmed ownership failures, not feature backlog:
 1. **Split combat writers.** Normal daemon simulation and the optional abstract
    combat kernel can both mutate combat state in one tick. Select one combat
    owner and delete the other's write path.
-2. **Physics is not actually delegated.** Aetheria's local
-   `AetheriaRuntimeYmirProjectilePhysics` reimplements projectile stepping; it
-   does not use standalone `Ymir.Core`. Ship flight, tractor, gravity, docking
-   placement, and most collision remain outside Ymir.
+2. **Physics delegation is incomplete.** Daemon projectile integration and
+   contacts now use `Ymir.Core`, but ship flight, tractor, gravity, docking
+   placement, and the Unity bridge/query path remain outside that authority.
 3. **Persisted behavior is not executable behavior.** Snapshot schemas preserve
    broad equipment/behavior state while active simulation executes one
    synthetic projectile weapon and simplified raider pursuit.

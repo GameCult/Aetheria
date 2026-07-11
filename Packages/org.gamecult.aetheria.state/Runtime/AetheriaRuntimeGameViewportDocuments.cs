@@ -291,6 +291,18 @@ namespace GameCult.Aetheria.State.Verse
 
         [Key(17)]
         public double AetherDriveMaximumRpm { get; set; }
+
+        [Key(18)]
+        public double MeanTemperature { get; set; }
+
+        [Key(19)]
+        public double MinimumTemperature { get; set; }
+
+        [Key(20)]
+        public double MaximumTemperature { get; set; }
+
+        [Key(21)]
+        public double ThermalVisibility { get; set; }
     }
 
     [CultDocument("gamecult.aetheria.current_docking", "gamecult.aetheria.current_docking.v1")]

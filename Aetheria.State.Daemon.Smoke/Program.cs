@@ -12,6 +12,50 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         YmirMovesProjectileAndReportsStableContact();
         DaemonSimulationAppliesYmirHit();
         MissingPhysicsOwnerCannotAdvanceProjectiles();
+        ThermalCellsUseFossilConductionAndRadiation();
+    }
+
+    private static void ThermalCellsUseFossilConductionAndRadiation()
+    {
+        var entity = Entity(7, 0, "player");
+        entity.StatGrids =
+        [
+            Grid(AetheriaRuntimeThermalSimulation.TemperatureGrid, 2, 1, 300, 280),
+            Grid(AetheriaRuntimeThermalSimulation.ThermalMassGrid, 2, 1, 1, 1),
+            Grid(AetheriaRuntimeThermalSimulation.ConductivityGrid, 2, 1, 1, 1)
+        ];
+
+        AetheriaRuntimeThermalSimulation.AddHeat(entity, 20);
+        RequireNear(310, GridValue(entity, AetheriaRuntimeThermalSimulation.TemperatureGrid, 0), 0.000001,
+            "heat energy must be divided across cells and thermal mass");
+        RequireNear(290, GridValue(entity, AetheriaRuntimeThermalSimulation.TemperatureGrid, 1), 0.000001,
+            "heat energy must be divided across cells and thermal mass");
+
+        AetheriaRuntimeThermalSimulation.Step(entity, 0.1);
+        var expectedHot = (310 / 0.01 + 290) / 101;
+        expectedHot -= Math.Pow(expectedHot, 3) * 0.00000001 * 0.1;
+        var expectedCool = (290 / 0.01 + 310) / 101;
+        expectedCool -= Math.Pow(expectedCool, 3) * 0.00000001 * 0.1;
+        RequireNear(expectedHot, GridValue(entity, AetheriaRuntimeThermalSimulation.TemperatureGrid, 0), 0.000001,
+            "hot cell must follow fossil conduction and radiation");
+        RequireNear(expectedCool, GridValue(entity, AetheriaRuntimeThermalSimulation.TemperatureGrid, 1), 0.000001,
+            "cool cell must follow fossil conduction and radiation");
+        RequireNear((expectedHot + expectedCool) / 2, Stat(entity, "heat"), 0.000001,
+            "legacy heat scalar must be derived from cell temperature");
+
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "thermal-projection-smoke",
+            CurrentZoneIndex = 0,
+            CurrentEntityKey = "zone.0.entity.7",
+            Zones = [new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [entity] }]
+        };
+        var document = AetheriaRuntimeGameDocuments.CurrentEntity(new AetheriaRuntimeDaemonFrameDocument { Run = run });
+        RequireNear(Stat(entity, "heat"), document.Hud.MeanTemperature, 0.000001,
+            "Eve current-entity state must publish mean temperature");
+        RequireNear(GridValue(entity, AetheriaRuntimeThermalSimulation.TemperatureGrid, 0), document.Hud.MaximumTemperature, 0.000001,
+            "Eve current-entity state must publish maximum temperature");
+        Require(document.Hud.ThermalVisibility > 0, "Eve current-entity state must publish thermal visibility");
     }
 
     private static void YmirMovesProjectileAndReportsStableContact()
@@ -118,12 +162,35 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         Values = [value]
     };
 
+    private static AetheriaRuntimeEntityStatGridCommit Grid(string name, int width, int height, params double[] values) => new()
+    {
+        Name = name,
+        Width = width,
+        Height = height,
+        Values = values
+    };
+
+    private static double GridValue(AetheriaRuntimeEntitySnapshotCommit entity, string name, int index) =>
+        entity.StatGrids.Single(grid => string.Equals(grid.Name, name, StringComparison.OrdinalIgnoreCase)).Values[index];
+
     private static double Stat(AetheriaRuntimeEntitySnapshotCommit entity, string name) =>
         entity.StatGrids.Single(grid => string.Equals(grid.Name, name, StringComparison.OrdinalIgnoreCase)).Values[0];
 
     private static void RequireEqual<T>(T expected, T actual, string message)
     {
         if (!EqualityComparer<T>.Default.Equals(expected, actual))
+            throw new InvalidOperationException($"{message}. Expected {expected}; actual {actual}.");
+    }
+
+    private static void Require(bool condition, string message)
+    {
+        if (!condition)
+            throw new InvalidOperationException(message);
+    }
+
+    private static void RequireNear(double expected, double actual, double tolerance, string message)
+    {
+        if (Math.Abs(expected - actual) > tolerance)
             throw new InvalidOperationException($"{message}. Expected {expected}; actual {actual}.");
     }
 }
