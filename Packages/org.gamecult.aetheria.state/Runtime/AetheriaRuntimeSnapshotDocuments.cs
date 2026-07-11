@@ -480,6 +480,8 @@ namespace GameCult.Aetheria.State.Verse
         [Key(22)] public double EndpointZ { get; set; }
         [Key(23)] public double PresentationDurationSeconds { get; set; }
         [Key(24)] public string PresentationKind { get; set; } = "";
+        [Key(25)] public double ImpactAngleRoll { get; set; }
+        [Key(26)] public double ImpactRadiusRoll { get; set; }
     }
 
     [MessagePackObject]

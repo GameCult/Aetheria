@@ -331,7 +331,9 @@ namespace GameCult.Aetheria.State.Verse
                         ("origin", string.Join(",", FormatNumber(value.OriginX), FormatNumber(value.OriginZ))),
                         ("endpoint", string.Join(",", FormatNumber(value.EndpointX), FormatNumber(value.EndpointZ))),
                         ("presentationDuration", FormatNumber(value.PresentationDurationSeconds)),
-                        ("presentationKind", value.PresentationKind)
+                        ("presentationKind", value.PresentationKind),
+                        ("impactAngleRoll", FormatNumber(value.ImpactAngleRoll)),
+                        ("impactRadiusRoll", FormatNumber(value.ImpactRadiusRoll))
                     }))
                 .ToArray();
             return Node("aetheria.daemon.game.shots", "shot.receipt-stream",

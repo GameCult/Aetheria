@@ -903,6 +903,15 @@ namespace GameCult.Aetheria.State.Verse
                 : Clamp01(information * (0.5 + 0.5 * lockQuality) * rangeFactor * motionFactor * dispersionFactor);
             var roll = ShotRoll(run.GenerationSeed, shotId, "hit");
             var hit = roll < probability;
+            var angleRoll = ShotRoll(run.GenerationSeed, shotId, "impact-angle");
+            var radiusRoll = ShotRoll(run.GenerationSeed, shotId, "impact-radius");
+            var angle = angleRoll * Math.PI * 2;
+            var targetRadius = string.Equals(target.Kind, "station", StringComparison.OrdinalIgnoreCase) ? 48.0 : 20.0;
+            var impactRadius = hit
+                ? Math.Sqrt(radiusRoll) * targetRadius
+                : targetRadius + (0.25 + radiusRoll) * Math.Max(targetRadius, weapon.Spread * distance);
+            var endpointX = target.PositionX + Math.Cos(angle) * impactRadius;
+            var endpointZ = target.PositionZ + Math.Sin(angle) * impactRadius;
             var appliedDamage = hit ? weapon.Damage : 0;
             var aliveBefore = IsAlive(target);
             if (hit) Damage(target, appliedDamage);
@@ -918,9 +927,10 @@ namespace GameCult.Aetheria.State.Verse
                 Hit = hit, NominalDamage = weapon.Damage, AppliedDamage = appliedDamage,
                 Outcome = hit ? "hit" : "miss",
                 OriginX = attacker.PositionX, OriginZ = attacker.PositionZ,
-                EndpointX = target.PositionX, EndpointZ = target.PositionZ,
+                EndpointX = endpointX, EndpointZ = endpointZ,
                 PresentationDurationSeconds = distance / Math.Max(1, weapon.ProjectileSpeed),
-                PresentationKind = weapon.ItemKey
+                PresentationKind = weapon.ItemKey,
+                ImpactAngleRoll = angleRoll, ImpactRadiusRoll = radiusRoll
             });
             AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit
             {

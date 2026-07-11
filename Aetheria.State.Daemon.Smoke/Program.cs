@@ -177,6 +177,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         [
             new AetheriaRuntimeBehaviorField(2, PerformanceStat(20)),
             new AetheriaRuntimeBehaviorField(6, PerformanceStat(150)),
+            new AetheriaRuntimeBehaviorField(15, PerformanceStat(1000000000)),
             new AetheriaRuntimeBehaviorField(16, PerformanceStat(200)),
             new AetheriaRuntimeBehaviorField(17, PerformanceStat(1)),
             new AetheriaRuntimeBehaviorField(19, PerformanceStat(0.5)),
@@ -217,6 +218,15 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 run.GameEvents.Any(value => value.Kind == "shot.committed" &&
                     value.ItemKey == "test-charged" && Math.Abs(value.ScalarValue - 40) < 0.000001),
             "stored full charge must commit automatically when a firing solution becomes available");
+        var miss = run.ShotReceipts.Single(value => value.WeaponItemKey == "test-charged");
+        var missDx = miss.EndpointX - target.PositionX;
+        var missDz = miss.EndpointZ - target.PositionZ;
+        Require(!miss.Hit && miss.AppliedDamage == 0 && miss.HitRoll > miss.HitProbability,
+            "extreme authored dispersion must deterministically resolve a miss without damage");
+        Require(Math.Sqrt(missDx * missDx + missDz * missDz) > 20 &&
+                miss.ImpactAngleRoll >= 0 && miss.ImpactAngleRoll < 1 &&
+                miss.ImpactRadiusRoll >= 0 && miss.ImpactRadiusRoll < 1,
+            "miss receipt must carry independent named impact rolls and an endpoint outside the target silhouette");
         var surface = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(
             new AetheriaRuntimeDaemonFrameDocument { FrameId = 11, Run = run },
             new AetheriaRuntimeDaemonHealthDocument(),
