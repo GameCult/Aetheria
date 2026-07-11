@@ -604,6 +604,9 @@ public sealed class AetheriaEntitySnapshot
     [Key(30)]
     [CultReference(typeof(AetheriaEntitySnapshot))]
     public string HomeEntityKey { get; set; } = "";
+
+    [Key(31)]
+    public string[] AgentTaskCapabilities { get; set; } = [];
 }
 
 [MessagePackObject]

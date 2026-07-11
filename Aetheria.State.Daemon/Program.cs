@@ -2530,6 +2530,7 @@ static AetheriaRuntimeEntitySnapshotCommit ToRuntimeEntity(
     {
         EntityId = entityKey ?? "",
         HomeEntityId = entity.HomeEntityKey ?? "",
+        AgentTaskCapabilities = (entity.AgentTaskCapabilities ?? Array.Empty<string>()).ToArray(),
         EntityIndex = entityIndex,
         Name = entity.Name ?? "",
         Kind = entity.Kind ?? "",

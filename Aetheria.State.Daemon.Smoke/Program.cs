@@ -27,6 +27,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         SchedulerAssignsShortestGalaxyRoute();
         AgentTraversesGalaxyRouteBeforeExecutingTask();
         IdleAgentReturnsToCanonicalHomeAndDocks();
+        ControlledShipDoesNotReceiveAutonomousHelmCommands();
         AttackAgentControlsOptimumRangeThroughMovementLever();
         AgentCompletesAttackTaskThroughTargetFireAndYmir();
         AgentCompletesHaulTaskThroughMovementAndCargoCommands();
@@ -53,7 +54,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         };
         var run = new AetheriaRuntimeRunCheckpointCommit
         {
-            CurrentZoneIndex = 0, CurrentEntityKey = "zone.0.entity.0", Zones = [zone],
+            CurrentZoneIndex = 0, CurrentEntityKey = "", Zones = [zone],
             AgentTasks = [new AetheriaRuntimeAgentTaskCommit { TaskId = "tow-1", CorporationKey = "workers", TaskType = AetheriaRuntimeAgentTaskTypes.Tow, ZoneIndex = 0, Status = AetheriaRuntimeAgentTaskStatuses.Queued, TargetEntityIndex = 1, OrbitParentKey = "parent-body", OrbitDistance = 20, CompletionRadius = 5 }]
         };
         AetheriaRuntimeDaemonTickRunner.Tick(Path.Combine(Path.GetTempPath(), "aetheria-tow-attach-smoke.cc"), run,
@@ -80,7 +81,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         var catalog = new AetheriaRuntimeCatalogSnapshot([scanner], [], []);
         var run = new AetheriaRuntimeRunCheckpointCommit
         {
-            CurrentZoneIndex = 0, CurrentEntityKey = "zone.0.entity.0",
+            CurrentZoneIndex = 0, CurrentEntityKey = "",
             Zones = [new AetheriaRuntimeZoneSnapshotCommit
             {
                 ZoneIndex = 0, Entities = [surveyor],
@@ -156,7 +157,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         {
             GenerationSeed = 7,
             CurrentZoneIndex = 0,
-            CurrentEntityKey = "zone.0.entity.0",
+            CurrentEntityKey = "",
             Zones = [zone],
             AgentTasks = [new AetheriaRuntimeAgentTaskCommit { TaskId = "mine-1", CorporationKey = "workers", TaskType = AetheriaRuntimeAgentTaskTypes.Mine, ZoneIndex = 0, OriginEntityIndex = 1, CompletionRadius = 10, Status = AetheriaRuntimeAgentTaskStatuses.Queued, TargetBodyKeys = ["belt"] }]
         };
@@ -218,7 +219,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         {
             RunId = "behavior-query-smoke",
             CurrentZoneIndex = 0,
-            CurrentEntityKey = "zone.0.entity.0",
+            CurrentEntityKey = "",
             Zones = [new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [entity] }]
         };
 
@@ -279,7 +280,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         {
             RunId = "agent-patrol-smoke",
             CurrentZoneIndex = 0,
-            CurrentEntityKey = "zone.0.entity.0",
+            CurrentEntityKey = "",
             Zones =
             [
                 new AetheriaRuntimeZoneSnapshotCommit
@@ -403,7 +404,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         {
             RunId = "agent-haul-smoke",
             CurrentZoneIndex = 0,
-            CurrentEntityKey = "zone.0.entity.1",
+            CurrentEntityKey = "",
             Zones = [new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [origin, agent, destination] }]
         };
         var issue = AetheriaRuntimeDaemonCommandDocument.Create(
@@ -485,7 +486,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         {
             RunId = "agent-attack-smoke",
             CurrentZoneIndex = 0,
-            CurrentEntityKey = "zone.0.entity.0",
+            CurrentEntityKey = "",
             Zones = [new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [agent, target] }]
         };
         var issue = AetheriaRuntimeDaemonCommandDocument.Create(
@@ -827,6 +828,33 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             "docked worker must not emit a perpetual homecoming repair loop");
     }
 
+    private static void ControlledShipDoesNotReceiveAutonomousHelmCommands()
+    {
+        var controlled = Entity(0, 100, "workers");
+        controlled.EntityId = "controlled-worker";
+        controlled.HomeEntityId = "controlled-home";
+        controlled.AgentTaskCapabilities = [AetheriaRuntimeAgentTaskTypes.Explore];
+        var home = Entity(1, 0, "workers");
+        home.EntityId = "controlled-home";
+        home.Kind = "station";
+        var task = AgentTask("controlled-task", 10);
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "controlled-agent-authority-smoke",
+            CurrentZoneIndex = 0,
+            CurrentEntityKey = "zone.0.entity.0",
+            Zones = [new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [controlled, home] }],
+            AgentTasks = [task]
+        };
+
+        var commands = AetheriaRuntimeAgentScheduler.AssignAndPlan(run, 1);
+
+        RequireEqual(AetheriaRuntimeAgentTaskStatuses.Queued, task.Status,
+            "manual helm owner must not be conscripted into autonomous corporation work");
+        Require(commands.Count == 0,
+            "controlled ship must emit no task or return-home commands without delegated helm authority");
+    }
+
     private static void AgentClaimsAndCompletesExploreTaskThroughCommands()
     {
         var agent = Entity(0, 0, "workers");
@@ -835,7 +863,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         {
             RunId = "agent-task-smoke",
             CurrentZoneIndex = 0,
-            CurrentEntityKey = "zone.0.entity.0",
+            CurrentEntityKey = "",
             Zones = [new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [agent] }]
         };
         var issue = AetheriaRuntimeDaemonCommandDocument.Create(

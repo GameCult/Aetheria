@@ -175,8 +175,8 @@ internal static class AetheriaDaemonZoneGenerator
             .Select(index => EntityKey(0, index))
             .ToArray();
 
-        return
-        [
+        var entities = new[]
+        {
             Entity(loadouts, "Anchor Station", "station", -170, -80, 0, 0, "player", 760, keys[6], [keys[1], keys[2], keys[3], keys[4], keys[6], keys[7], keys[11]], ["repair-parts", "reactor-fuel", "drone-core"]),
             Entity(loadouts, "Vanguard One", "ship", -40, -30, 10, 4, "player", 540, keys[6], [keys[0], keys[2], keys[4], keys[6], keys[7]], ["coilgun-ammo", "field-rations"]),
             Entity(loadouts, "Wing Two", "ship", 145, 125, -5, 7, "player", 450, keys[6], [keys[0], keys[1], keys[6], keys[8]], ["sensor-buoy", "shield-cell"]),
@@ -189,7 +189,13 @@ internal static class AetheriaDaemonZoneGenerator
             Entity(loadouts, "Vesper Sloop", "ship", 960, 620, -3, -5, "raider", 250, keys[4], [keys[4]], ["stolen-map-fragment"]),
             Entity(loadouts, "Survey Skiff", "ship", -610, -365, 3, 5, "neutral", 210, "", [keys[4], keys[5]], ["soil-sample", "deep-scan"]),
             Entity(loadouts, "Lagrange Beacon", "station", 105, 510, 0, 0, "neutral", 190, "", [keys[0], keys[1], keys[6]], ["navigation-key"])
-        ];
+        };
+        foreach (var index in new[] { 1, 2, 3, 4 })
+            entities[index].HomeEntityKey = keys[0];
+        entities[2].AgentTaskCapabilities = ["attack", "defend", "explore"];
+        entities[3].AgentTaskCapabilities = ["attack", "defend"];
+        entities[4].AgentTaskCapabilities = ["mine", "haul", "tow", "explore"];
+        return entities;
     }
 
     private static AetheriaEntitySnapshot Entity(

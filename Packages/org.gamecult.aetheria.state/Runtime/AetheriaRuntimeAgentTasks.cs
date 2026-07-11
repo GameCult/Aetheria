@@ -171,6 +171,7 @@ namespace GameCult.Aetheria.State.Verse
             {
                 var available = entities
                     .Where(pair => pair.Entity.IsActive && string.IsNullOrWhiteSpace(pair.Entity.AssignedAgentTaskId))
+                    .Where(pair => !IsCurrentEntity(run, pair.ZoneIndex, pair.Entity.EntityIndex))
                     .Where(pair => string.Equals(pair.Entity.FactionKey ?? "", corporation.Key, StringComparison.Ordinal))
                     .Where(pair => (pair.Entity.AgentTaskCapabilities ?? Array.Empty<string>()).Contains(taskType.Key, StringComparer.Ordinal))
                     .OrderBy(pair => pair.ZoneIndex)
@@ -207,6 +208,8 @@ namespace GameCult.Aetheria.State.Verse
             {
                 var assignment = FindAssignedEntity(run, task);
                 if (assignment.Entity == null || assignment.Zone == null || !assignment.Entity.IsActive)
+                    continue;
+                if (IsCurrentEntity(run, assignment.Zone.ZoneIndex, assignment.Entity.EntityIndex))
                     continue;
                 task.AssignedEntityIndex = assignment.Entity.EntityIndex;
                 if (assignment.Zone.ZoneIndex != task.ZoneIndex)
@@ -353,6 +356,7 @@ namespace GameCult.Aetheria.State.Verse
                 .ToDictionary(value => value.Entity.EntityId, StringComparer.Ordinal);
             foreach (var worker in locations
                 .Where(value => value.Entity.IsActive)
+                .Where(value => !IsCurrentEntity(run, value.Zone.ZoneIndex, value.Entity.EntityIndex))
                 .Where(value => (value.Entity.AgentTaskCapabilities ?? Array.Empty<string>()).Count > 0)
                 .Where(value => string.IsNullOrWhiteSpace(value.Entity.AssignedAgentTaskId))
                 .Where(value => !string.IsNullOrWhiteSpace(value.Entity.HomeEntityId)))
@@ -394,6 +398,10 @@ namespace GameCult.Aetheria.State.Verse
             }
             return commands;
         }
+
+        private static bool IsCurrentEntity(AetheriaRuntimeRunCheckpointCommit run, int zoneIndex, int entityIndex) =>
+            AetheriaRuntimeRunCheckpointCommit.TryParseEntityKey(run.CurrentEntityKey, out var currentZoneIndex, out var currentEntityIndex) &&
+            currentZoneIndex == zoneIndex && currentEntityIndex == entityIndex;
 
         private static AetheriaRuntimeDaemonCommandDocument IdleMovement(
             int zoneIndex,
