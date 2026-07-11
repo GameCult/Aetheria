@@ -625,9 +625,11 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 new AetheriaRuntimeBehaviorField(12, new AetheriaRuntimeBehaviorValue(
                     "item-key", "", 0, false, "", "test-ammo",
                     Array.Empty<AetheriaRuntimeBehaviorValue>(), Array.Empty<AetheriaRuntimeBehaviorMapEntry>())),
-                new AetheriaRuntimeBehaviorField(13, Number(2)),
+                new AetheriaRuntimeBehaviorField(13, Number(6)),
                 new AetheriaRuntimeBehaviorField(14, Number(0.3)),
                 new AetheriaRuntimeBehaviorField(16, PerformanceStat(330)),
+                new AetheriaRuntimeBehaviorField(17, PerformanceStat(3)),
+                new AetheriaRuntimeBehaviorField(18, PerformanceStat(0.3)),
                 new AetheriaRuntimeBehaviorField(19, PerformanceStat(0.2)),
                 new AetheriaRuntimeBehaviorField(21, PerformanceStat(2)),
                 new AetheriaRuntimeBehaviorField(22, PerformanceStat(1)),
@@ -705,19 +707,21 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         Require(run.GameEvents.Any(value => value.Kind == "projectile.launched" && value.SourceEntityIndex == agent.EntityIndex),
             "accepted fire control must emit authoritative projectile launch chronology");
         Require(run.GameEvents.Any(value => value.Kind == "projectile.launched" &&
-                value.ItemKey == "test-lock-cannon" && Math.Abs(value.ScalarValue - 7) < 0.000001),
-            "daemon combat must launch the equipped catalog weapon with its authored damage");
+                value.ItemKey == "test-lock-cannon" && Math.Abs(value.ScalarValue - (7.0 / 3.0)) < 0.000001),
+            "daemon combat must divide authored damage across the configured burst rounds");
         Require((agent.WeaponStates ?? Array.Empty<AetheriaRuntimeWeaponStateCommit>()).Any(value => value.OwnerKind == AetheriaRuntimeBehaviorStateProjector.EquipmentOwnerKind &&
                 value.OwnerIndex == 0 && value.BehaviorKind == "LockWeapon"),
             "weapon progress must belong to the equipped authored behavior instead of a synthetic entity weapon");
         var authoredWeapon = agent.WeaponStates.Single(value =>
             value.OwnerKind == AetheriaRuntimeBehaviorStateProjector.EquipmentOwnerKind);
-        RequireEqual(1, authoredWeapon.Ammo,
-            "a committed authored weapon round must decrement exactly one magazine round");
+        RequireEqual(3, authoredWeapon.Ammo,
+            "a three-round authored burst must decrement one magazine round per committed projectile");
         RequireNear(45, agent.BehaviorStates.Single(value => value.BehaviorKind == "Capacitor").CapacitorCharge,
             0.000001, "a committed authored weapon round must drain its energy from canonical capacitor state");
         RequireEqual(2, CargoQuantity(agent, "test-ammo"),
             "cargo ammunition must pay for reload, not each magazine round");
+        Require(run.GameEvents.Count(value => value.Kind == "projectile.launched" && value.ItemKey == "test-lock-cannon") >= 3,
+            "authored burst count and interval must emit every due round through the projectile owner");
         Require(!target.IsActive,
             $"attack task must end through daemon damage after Ymir projectile contacts; hull={Stat(target, "hull"):0.###} " +
             $"agent={agent.PositionX:0.###},{agent.PositionZ:0.###} target={target.PositionX:0.###},{target.PositionZ:0.###} " +

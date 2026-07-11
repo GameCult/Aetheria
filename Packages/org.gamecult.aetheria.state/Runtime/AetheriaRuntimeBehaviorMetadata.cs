@@ -8,6 +8,7 @@ namespace GameCult.Aetheria.State.Verse
     {
         Number,
         Integer,
+        Boolean,
         PerformanceStat,
         Temperature
     }
@@ -62,7 +63,7 @@ namespace GameCult.Aetheria.State.Verse
         };
 
         private static readonly AetheriaRuntimeBehaviorFieldMetadata[] InstantWeaponFields =
-            With(WeaponFields, Stat("BurstCount", 17), Stat("BurstTime", 18), Stat("Cooldown", 19));
+            With(WeaponFields, Stat("BurstCount", 17), Stat("BurstTime", 18), Stat("Cooldown", 19), Boolean("SingleAmmoBurst", 20));
 
         private static readonly AetheriaRuntimeBehaviorFieldMetadata[] LockWeaponFields =
             With(InstantWeaponFields, Stat("LockSpeed", 21), Stat("SensorImpact", 22), Stat("LockAngle", 23),
@@ -159,6 +160,11 @@ namespace GameCult.Aetheria.State.Verse
         private static AetheriaRuntimeBehaviorFieldMetadata Integer(string name, int key)
         {
             return new AetheriaRuntimeBehaviorFieldMetadata(name, key, AetheriaRuntimeBehaviorFieldValueKind.Integer);
+        }
+
+        private static AetheriaRuntimeBehaviorFieldMetadata Boolean(string name, int key)
+        {
+            return new AetheriaRuntimeBehaviorFieldMetadata(name, key, AetheriaRuntimeBehaviorFieldValueKind.Boolean);
         }
 
         private static AetheriaRuntimeBehaviorFieldMetadata Temperature(string name, int key)

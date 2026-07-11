@@ -279,18 +279,37 @@ namespace GameCult.Aetheria.State.Verse
                     UpdateWeaponLock(attacker, target, weapon, deltaSeconds, settings);
                     if (DistanceSq(attacker, target) > weapon.Range * weapon.Range ||
                         weapon.State.LockProgress <= 0.99 ||
-                        weapon.State.CooldownProgress > 0 ||
                         weapon.State.Reloading)
                         continue;
 
-                    if (CommitWeaponRound(attacker, weapon) != WeaponRoundResult.Fired)
-                        continue;
-                    var projectile = SpawnProjectile(zone, attacker, target, weapon, settings);
-                    AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit { EventId = $"projectile:{projectile.ProjectileId}:launched", Kind = "projectile.launched", FrameId = frameId, ZoneIndex = zone.ZoneIndex, SourceEntityIndex = attacker.EntityIndex, TargetEntityIndex = target.EntityIndex, SubjectKey = projectile.ProjectileId, ItemKey = projectile.WeaponKind, ScalarValue = projectile.Damage, PositionX = projectile.PositionX, PositionZ = projectile.PositionZ });
-                    weapon.State.Firing = true;
-                    weapon.State.CoolingDown = true;
-                    weapon.State.CooldownProgress = weapon.Cooldown;
-                    AetheriaRuntimeThermalSimulation.AddHeat(attacker, weapon.Heat);
+                    if (weapon.State.BurstRemaining <= 0)
+                    {
+                        if (weapon.State.CooldownProgress > 0)
+                            continue;
+                        if (weapon.SingleAmmoBurst && CommitWeaponRound(attacker, weapon) != WeaponRoundResult.Fired)
+                            continue;
+                        weapon.State.BurstRemaining = weapon.BurstCount;
+                        weapon.State.BurstInterval = weapon.BurstTime / weapon.BurstCount;
+                        weapon.State.BurstTimer = 0;
+                        weapon.State.CoolingDown = true;
+                        weapon.State.CooldownProgress = weapon.Cooldown;
+                    }
+
+                    weapon.State.BurstTimer += deltaSeconds;
+                    while (weapon.State.BurstRemaining > 0 && weapon.State.BurstTimer > 0)
+                    {
+                        if (!weapon.SingleAmmoBurst && CommitWeaponRound(attacker, weapon) != WeaponRoundResult.Fired)
+                        {
+                            weapon.State.BurstRemaining = 0;
+                            break;
+                        }
+                        weapon.State.BurstRemaining--;
+                        weapon.State.BurstTimer -= weapon.State.BurstInterval;
+                        var projectile = SpawnProjectile(zone, attacker, target, weapon, settings);
+                        AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit { EventId = $"projectile:{projectile.ProjectileId}:launched", Kind = "projectile.launched", FrameId = frameId, ZoneIndex = zone.ZoneIndex, SourceEntityIndex = attacker.EntityIndex, TargetEntityIndex = target.EntityIndex, SubjectKey = projectile.ProjectileId, ItemKey = projectile.WeaponKind, ScalarValue = projectile.Damage, PositionX = projectile.PositionX, PositionZ = projectile.PositionZ });
+                        weapon.State.Firing = true;
+                        AetheriaRuntimeThermalSimulation.AddHeat(attacker, weapon.Heat);
+                    }
                 }
             }
 
@@ -465,15 +484,19 @@ namespace GameCult.Aetheria.State.Verse
             return new ResolvedWeapon(
                 state,
                 behavior.Item.ItemKey,
-                PositiveOr(behavior.EvaluateStat(2), ResolveProjectileDamage(entity, settings)),
+                PositiveOr(behavior.EvaluateStat(2), ResolveProjectileDamage(entity, settings)) /
+                    Math.Max(1, (int)Math.Round(behavior.EvaluateStat(17))),
                 PositiveOr(behavior.EvaluateStat(6), settings.AttackRange),
                 PositiveOr(behavior.EvaluateStat(19), settings.WeaponCooldownSeconds),
                 PositiveOr(behavior.EvaluateStat(16), settings.ProjectileSpeed),
-                Math.Max(0, behavior.EvaluateStat(10)),
-                Math.Max(0, behavior.EvaluateStat(9)),
+                Math.Max(0, behavior.EvaluateStat(10)) / Math.Max(1, (int)Math.Round(behavior.EvaluateStat(17))),
+                Math.Max(0, behavior.EvaluateStat(9)) / Math.Max(1, (int)Math.Round(behavior.EvaluateStat(17))),
                 ReadItemKey(behavior.Payload, 12),
                 Math.Max(0, (int)Math.Round(ReadNumber(behavior.Payload, 13))),
                 PositiveOr(ReadNumber(behavior.Payload, 14), settings.WeaponCooldownSeconds),
+                Math.Max(1, (int)Math.Round(behavior.EvaluateStat(17))),
+                Math.Max(0, behavior.EvaluateStat(18)),
+                ReadBool(behavior.Payload, 20),
                 PositiveOr(behavior.EvaluateStat(21), settings.WeaponLockSpeed),
                 Math.Max(0, behavior.EvaluateStat(22)),
                 PositiveOr(behavior.EvaluateStat(23), settings.WeaponLockAngleDegrees),
@@ -491,6 +514,7 @@ namespace GameCult.Aetheria.State.Verse
                 ResolveProjectileDamage(entity, settings), settings.AttackRange, settings.WeaponCooldownSeconds,
                 settings.ProjectileSpeed, ResolveProjectileDamage(entity, settings) * settings.ProjectileHeatScale,
                 0, "", -1, settings.WeaponCooldownSeconds,
+                1, 0, false,
                 settings.WeaponLockSpeed, settings.WeaponLockSensorImpact, settings.WeaponLockAngleDegrees,
                 settings.WeaponLockDirectionImpact, settings.WeaponLockDecayPerSecond);
         }
@@ -603,6 +627,12 @@ namespace GameCult.Aetheria.State.Verse
                 .FirstOrDefault(field => field != null && field.Key == key)?.Value?.NumberValue ?? 0;
         }
 
+        private static bool ReadBool(AetheriaRuntimeBehaviorPayload payload, int key)
+        {
+            return (payload.Fields ?? Array.Empty<AetheriaRuntimeBehaviorField>())
+                .FirstOrDefault(field => field != null && field.Key == key)?.Value?.BoolValue ?? false;
+        }
+
         private static WeaponRoundResult CommitWeaponRound(
             AetheriaRuntimeEntitySnapshotCommit entity,
             ResolvedWeapon weapon)
@@ -670,12 +700,14 @@ namespace GameCult.Aetheria.State.Verse
         {
             public ResolvedWeapon(AetheriaRuntimeWeaponStateCommit state, string itemKey, double damage, double range,
                 double cooldown, double projectileSpeed, double heat, double energy, string ammoItemKey,
-                int magazineSize, double reloadTime, double lockSpeed, double lockSensorImpact,
+                int magazineSize, double reloadTime, int burstCount, double burstTime, bool singleAmmoBurst,
+                double lockSpeed, double lockSensorImpact,
                 double lockAngleDegrees, double lockDirectionImpact, double lockDecayPerSecond)
             {
                 State = state; ItemKey = itemKey; Damage = damage; Range = range; Cooldown = cooldown;
                 ProjectileSpeed = projectileSpeed; Heat = heat; Energy = energy; AmmoItemKey = ammoItemKey;
                 MagazineSize = magazineSize; ReloadTime = reloadTime; LockSpeed = lockSpeed;
+                BurstCount = burstCount; BurstTime = burstTime; SingleAmmoBurst = singleAmmoBurst;
                 LockSensorImpact = lockSensorImpact; LockAngleDegrees = lockAngleDegrees;
                 LockDirectionImpact = lockDirectionImpact; LockDecayPerSecond = lockDecayPerSecond;
             }
@@ -691,6 +723,9 @@ namespace GameCult.Aetheria.State.Verse
             public string AmmoItemKey { get; }
             public int MagazineSize { get; }
             public double ReloadTime { get; }
+            public int BurstCount { get; }
+            public double BurstTime { get; }
+            public bool SingleAmmoBurst { get; }
             public double LockSpeed { get; }
             public double LockSensorImpact { get; }
             public double LockAngleDegrees { get; }
