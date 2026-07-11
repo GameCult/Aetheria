@@ -822,7 +822,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         RequireEqual("salvage", pickupNode.Props["itemKey"], "Eve pickup must expose item identity");
         Require(double.Parse(pickupNode.Props["remainingLifetime"], CultureInfo.InvariantCulture) < 30,
             "Eve pickup must expose daemon-owned remaining lifetime");
-        Require(AetheriaRuntimeAssets.ProjectManifest(null).Assets.Any(asset => asset.Ref.AssetKey == "prefab.entity.pickup"),
+        var pickupAsset = AetheriaRuntimeAssets.ProjectManifest(null).Assets.Single(asset => asset.Ref.AssetKey == "prefab.entity.pickup");
+        Require(pickupAsset.Ref.Metadata.TryGetValue("unityAssetPath", out var pickupPath) && pickupPath == "Assets/Prefabs/RPG/Pickups/Tetrahedron.prefab",
             "provider asset manifest must advertise the pickup visual used by Eve");
     }
 

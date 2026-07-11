@@ -27,7 +27,7 @@ namespace GameCult.Aetheria.State.Verse
             Add(entries, MapPrefab("prefab.entity.station", "Station", "Prefabs/Stations/AsteroidOutpost"));
             Add(entries, MapPrefab("prefab.entity.orbital", "Orbital", "Prefabs/Stations/Zenith"));
             Add(entries, MapPrefab("prefab.entity.projectile", "Projectile", "Prefabs/Lightning"));
-            Add(entries, MapPrefab("prefab.entity.pickup", "Pickup", "Assets/Prefabs/RPG/Pickups/Tetrahedron"));
+            Add(entries, MapProjectPrefab("prefab.entity.pickup", "Pickup", "Assets/Prefabs/RPG/Pickups/Tetrahedron.prefab"));
             foreach (var inventoryAsset in InventoryUiAssets())
                 Add(entries, inventoryAsset);
 
@@ -169,6 +169,28 @@ namespace GameCult.Aetheria.State.Verse
             return new AetheriaRuntimeAssetManifestEntry
             {
                 Ref = Prefab(key, resourcePath),
+                Tags = new[] { "world", "prefab", label }
+            };
+        }
+
+        private static AetheriaRuntimeAssetManifestEntry MapProjectPrefab(
+            string key,
+            string label,
+            string unityAssetPath)
+        {
+            return new AetheriaRuntimeAssetManifestEntry
+            {
+                Ref = new AetheriaRuntimeAssetRef
+                {
+                    AssetKey = key,
+                    Kind = AetheriaRuntimeAssetKinds.Prefab,
+                    Uri = CultMeshAssetUri(key),
+                    MimeType = "application/vnd.unity.prefab",
+                    Metadata = new Dictionary<string, string>(StringComparer.Ordinal)
+                    {
+                        ["unityAssetPath"] = (unityAssetPath ?? "").Replace('\\', '/')
+                    }
+                },
                 Tags = new[] { "world", "prefab", label }
             };
         }

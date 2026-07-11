@@ -1887,10 +1887,12 @@ static EveAssetCatalogDocument BuildCoreAssetCatalog(
     var assets = (source.Assets ?? Array.Empty<AetheriaRuntimeAssetManifestEntry>())
         .Where(entry => entry?.Ref != null &&
             string.Equals(entry.Ref.Kind, AetheriaRuntimeAssetKinds.Prefab, StringComparison.Ordinal) &&
-            entry.Ref.Metadata.TryGetValue("resourcesPath", out _))
+            (entry.Ref.Metadata.TryGetValue("resourcesPath", out _) || entry.Ref.Metadata.TryGetValue("unityAssetPath", out _)))
         .Select(entry =>
         {
-            var resourcesPath = entry.Ref.Metadata["resourcesPath"];
+            var unityAssetPath = entry.Ref.Metadata.TryGetValue("unityAssetPath", out var explicitPath)
+                ? explicitPath
+                : $"Assets/Resources/{entry.Ref.Metadata["resourcesPath"]}.prefab";
             return new EveAssetCatalogEntry(
                 entry.Ref.AssetKey,
                 entry.Ref.Kind,
@@ -1901,7 +1903,7 @@ static EveAssetCatalogDocument BuildCoreAssetCatalog(
                     bundle.Uri,
                     bundle.Hash,
                     bundle.Size,
-                    $"Assets/Resources/{resourcesPath}.prefab",
+                    unityAssetPath,
                     new Dictionary<string, string>(StringComparer.Ordinal)
                     {
                         ["view.pilot.excludeUnityLayers"] = "14"
