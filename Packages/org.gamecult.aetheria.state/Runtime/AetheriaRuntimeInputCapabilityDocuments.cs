@@ -34,6 +34,7 @@ namespace GameCult.Aetheria.State.Verse
         [Key(4)] public string Category { get; set; } = "ship";
         [Key(5)] public string Availability { get; set; } = "available";
         [Key(6)] public string SourceRef { get; set; } = "";
+        [Key(7)] public Dictionary<string, string> Payload { get; set; } = new Dictionary<string, string>(StringComparer.Ordinal);
     }
 
     [MessagePackObject]
@@ -64,24 +65,24 @@ namespace GameCult.Aetheria.State.Verse
             var actions = CoreActions().ToList();
             if (entity != null)
             {
-                actions.AddRange((entity.WeaponGroups ?? Array.Empty<IReadOnlyList<int>>()).Select((_, index) => Action($"weapon-group.{index}.fire", $"Fire Weapon Group {index + 1}", "FireWeaponGroup", "weapon-group", $"{run.CurrentEntityKey}#weapon-group/{index}")));
-                actions.AddRange((entity.Equipment ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>()).Where(slot => slot?.Item != null).Select((slot, index) => Action($"equipment.{index}.activate", $"Activate {slot.Item.ItemKey}", "SetBehaviorActive", "equipment", $"{run.CurrentEntityKey}#equipment/{index}")));
-                actions.AddRange((entity.CargoContents ?? Array.Empty<AetheriaRuntimeCargoBayLoadoutCommit>()).SelectMany(bay => bay.Items).Where(slot => slot?.Item != null).Select((slot, index) => Action($"cargo.{slot.Item.ItemKey}.{index}.use", $"Use {slot.Item.ItemKey}", "ActivateConsumable", "consumable", $"{run.CurrentEntityKey}#cargo/{index}")));
+                actions.AddRange((entity.WeaponGroups ?? Array.Empty<IReadOnlyList<int>>()).Select((_, index) => Action($"weapon-group.{index}.fire", $"Fire Weapon Group {index + 1}", "FireWeaponGroup", "weapon-group", $"{run.CurrentEntityKey}#weapon-group/{index}", ("weaponGroup", index.ToString()))));
+                actions.AddRange((entity.Equipment ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>()).Where(slot => slot?.Item != null).Select((slot, index) => Action($"equipment.{index}.activate", $"Activate {slot.Item.ItemKey}", "SetBehaviorActive", "equipment", $"{run.CurrentEntityKey}#equipment/{index}", ("equipmentIndex", index.ToString()), ("behaviorIndex", "0"), ("active", "true"))));
+                actions.AddRange((entity.CargoContents ?? Array.Empty<AetheriaRuntimeCargoBayLoadoutCommit>()).SelectMany(bay => bay.Items).Where(slot => slot?.Item != null).Select((slot, index) => Action($"cargo.{slot.Item.ItemKey}.{index}.use", $"Use {slot.Item.ItemKey}", "ActivateConsumable", "consumable", $"{run.CurrentEntityKey}#cargo/{index}", ("itemKey", slot.Item.ItemKey))));
             }
             return new AetheriaRuntimeInputCapabilityDocument { Version = frame?.FrameId ?? 0, Actions = actions.ToArray(), DefaultProfiles = BuildDefaultProfiles() };
         }
 
         private static IEnumerable<AetheriaRuntimeInputActionDocument> CoreActions()
         {
-            yield return Action("pilot.fire", "Fire", "FireWeaponGroup", "combat", "pilot");
-            yield return Action("pilot.scoop", "Scoop", "SetTractorPower", "ship", "pilot");
+            yield return Action("pilot.fire", "Fire", "FireWeaponGroup", "combat", "pilot", ("weaponGroup", "0"));
+            yield return Action("pilot.scoop", "Scoop", "SetTractorPower", "ship", "pilot", ("scalarValue", "1"));
             yield return Action("pilot.dock", "Dock", "DockNearest", "ship", "pilot");
             yield return Action("pilot.undock", "Undock", "Undock", "ship", "pilot");
             yield return Action("pilot.target-nearest", "Target Nearest", "TargetNearest", "targeting", "pilot");
         }
 
-        private static AetheriaRuntimeInputActionDocument Action(string id, string label, string operation, string category, string source) =>
-            new AetheriaRuntimeInputActionDocument { ActionId = id, Label = label, Operation = "aetheria.daemon.commands." + operation, Category = category, SourceRef = source };
+        private static AetheriaRuntimeInputActionDocument Action(string id, string label, string operation, string category, string source, params (string Key, string Value)[] payload) =>
+            new AetheriaRuntimeInputActionDocument { ActionId = id, Label = label, Operation = "aetheria.daemon.commands." + operation, Category = category, SourceRef = source, Payload = payload.ToDictionary(entry => entry.Key, entry => entry.Value, StringComparer.Ordinal) };
 
         private static AetheriaRuntimeInputProfileDocument[] BuildDefaultProfiles() => new[]
         {
