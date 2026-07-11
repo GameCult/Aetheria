@@ -165,23 +165,30 @@ namespace GameCult.Aetheria.State.Verse
             foreach (var corporation in tasks
                 .Where(task => string.Equals(task.Status, AetheriaRuntimeAgentTaskStatuses.Queued, StringComparison.Ordinal))
                 .GroupBy(task => task.CorporationKey ?? "", StringComparer.Ordinal))
-            foreach (var typeAndZone in corporation.GroupBy(task => (TaskType: task.TaskType ?? "", task.ZoneIndex)))
+            foreach (var taskType in corporation.GroupBy(task => task.TaskType ?? "", StringComparer.Ordinal))
             {
                 var available = entities
                     .Where(pair => pair.Entity.IsActive && string.IsNullOrWhiteSpace(pair.Entity.AssignedAgentTaskId))
                     .Where(pair => string.Equals(pair.Entity.FactionKey ?? "", corporation.Key, StringComparison.Ordinal))
-                    .Where(pair => pair.ZoneIndex == typeAndZone.Key.ZoneIndex)
-                    .Where(pair => (pair.Entity.AgentTaskCapabilities ?? Array.Empty<string>()).Contains(typeAndZone.Key.TaskType, StringComparer.Ordinal))
+                    .Where(pair => (pair.Entity.AgentTaskCapabilities ?? Array.Empty<string>()).Contains(taskType.Key, StringComparer.Ordinal))
                     .OrderBy(pair => pair.ZoneIndex)
                     .ThenBy(pair => pair.Entity.EntityIndex)
-                    .ToArray();
-                var orderedTasks = typeAndZone.OrderByDescending(task => task.Priority).ThenBy(task => task.TaskId, StringComparer.Ordinal);
-                foreach (var assignment in orderedTasks.Zip(available, (task, agent) => (task, agent)))
+                    .ToList();
+                foreach (var task in taskType.OrderByDescending(task => task.Priority).ThenBy(task => task.TaskId, StringComparer.Ordinal))
                 {
-                    assignment.task.Status = AetheriaRuntimeAgentTaskStatuses.Assigned;
-                    assignment.task.AssignedEntityIndex = assignment.agent.Entity.EntityIndex;
-                    assignment.task.AssignedFrameId = frameId;
-                    assignment.agent.Entity.AssignedAgentTaskId = assignment.task.TaskId;
+                    var assignment = available
+                        .Select(agent => (Agent: agent, Route: FindZoneRoute(run, agent.ZoneIndex, task.ZoneIndex)))
+                        .Where(candidate => candidate.Route.Count > 0)
+                        .OrderBy(candidate => candidate.Route.Count)
+                        .ThenBy(candidate => candidate.Agent.Entity.EntityIndex)
+                        .FirstOrDefault();
+                    if (assignment.Route == null || assignment.Route.Count == 0)
+                        continue;
+                    available.Remove(assignment.Agent);
+                    task.Status = AetheriaRuntimeAgentTaskStatuses.Assigned;
+                    task.AssignedEntityIndex = assignment.Agent.Entity.EntityIndex;
+                    task.AssignedFrameId = frameId;
+                    assignment.Agent.Entity.AssignedAgentTaskId = task.TaskId;
                 }
             }
         }
@@ -196,9 +203,46 @@ namespace GameCult.Aetheria.State.Verse
             foreach (var task in (run.AgentTasks ?? Array.Empty<AetheriaRuntimeAgentTaskCommit>())
                 .Where(task => task != null && string.Equals(task.Status, AetheriaRuntimeAgentTaskStatuses.Assigned, StringComparison.Ordinal)))
             {
+                var assignment = FindAssignedEntity(run, task);
+                if (assignment.Entity == null || assignment.Zone == null || !assignment.Entity.IsActive)
+                    continue;
+                task.AssignedEntityIndex = assignment.Entity.EntityIndex;
+                if (assignment.Zone.ZoneIndex != task.ZoneIndex)
+                {
+                    var route = FindZoneRoute(run, assignment.Zone.ZoneIndex, task.ZoneIndex);
+                    if (route.Count < 2)
+                        continue;
+                    var settings = AetheriaRuntimeDaemonRenderSettings.AetheriaDefault;
+                    var exit = AetheriaRuntimeDaemonRenderQueries.QueryWormholeExits(
+                            run,
+                            assignment.Zone,
+                            AetheriaRuntimeDaemonRenderQueries.ResolveZoneRenderRadius(assignment.Zone, 1200),
+                            settings.WormholeDistanceRatio)
+                        .First(candidate => candidate.TargetZoneIndex == route[1]);
+                    var travelDx = exit.PositionX - assignment.Entity.PositionX;
+                    var travelDz = exit.PositionZ - assignment.Entity.PositionZ;
+                    var travelDistance = Math.Sqrt(travelDx * travelDx + travelDz * travelDz);
+                    if (travelDistance > AetheriaRuntimeDaemonOperationContext.DefaultWormholeExitRadius * 0.8)
+                    {
+                        commands.Add(MovementFromZone(task, assignment.Zone.ZoneIndex, assignment.Entity, frameId, travelDx, travelDz));
+                    }
+                    else
+                    {
+                        var travel = AetheriaRuntimeDaemonCommandDocument.Create(
+                            AetheriaRuntimeDaemonCommandKinds.EnterWormhole,
+                            RuntimeId,
+                            "daemon-agent-scheduler",
+                            frameId,
+                            $"zone.{assignment.Zone.ZoneIndex}.entity.{assignment.Entity.EntityIndex}");
+                        travel.CommandId = CommandId(task, frameId, "travel");
+                        travel.TargetZoneIndex = route[1];
+                        commands.Add(travel);
+                    }
+                    continue;
+                }
                 var zone = (run.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>())
                     .FirstOrDefault(candidate => candidate != null && candidate.ZoneIndex == task.ZoneIndex);
-                var agent = zone?.Entities?.FirstOrDefault(entity => entity != null && entity.EntityIndex == task.AssignedEntityIndex);
+                var agent = assignment.Entity;
                 if (agent == null || !agent.IsActive)
                     continue;
 
@@ -263,6 +307,51 @@ namespace GameCult.Aetheria.State.Verse
                 }
             }
             return commands;
+        }
+
+        private static (AetheriaRuntimeZoneSnapshotCommit? Zone, AetheriaRuntimeEntitySnapshotCommit? Entity) FindAssignedEntity(
+            AetheriaRuntimeRunCheckpointCommit run,
+            AetheriaRuntimeAgentTaskCommit task)
+        {
+            foreach (var zone in run.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>())
+            foreach (var entity in zone?.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
+                if (entity != null && string.Equals(entity.AssignedAgentTaskId, task.TaskId, StringComparison.Ordinal))
+                    return (zone, entity);
+            return (null, null);
+        }
+
+        private static IReadOnlyList<int> FindZoneRoute(AetheriaRuntimeRunCheckpointCommit run, int source, int target)
+        {
+            if (source == target)
+                return new[] { source };
+            var zones = (run.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>())
+                .Where(zone => zone != null)
+                .ToDictionary(zone => zone.ZoneIndex);
+            if (!zones.ContainsKey(source) || !zones.ContainsKey(target))
+                return Array.Empty<int>();
+            var previous = new Dictionary<int, int> { [source] = source };
+            var queue = new Queue<int>();
+            queue.Enqueue(source);
+            while (queue.Count > 0)
+            {
+                var current = queue.Dequeue();
+                foreach (var adjacent in zones[current].AdjacentZoneIndices ?? Array.Empty<int>())
+                {
+                    if (!zones.ContainsKey(adjacent) || previous.ContainsKey(adjacent))
+                        continue;
+                    previous[adjacent] = current;
+                    if (adjacent == target)
+                    {
+                        var route = new List<int> { target };
+                        for (var cursor = target; cursor != source; cursor = previous[cursor])
+                            route.Add(previous[cursor]);
+                        route.Reverse();
+                        return route;
+                    }
+                    queue.Enqueue(adjacent);
+                }
+            }
+            return Array.Empty<int>();
         }
 
         private static IReadOnlyList<AetheriaRuntimeDaemonCommandDocument> PlanMining(
@@ -561,6 +650,28 @@ namespace GameCult.Aetheria.State.Verse
                 command.DirectionY = length <= 0.0001 ? 0 : dz / length;
                 command.ScalarValue = magnitude;
             });
+        }
+
+        private static AetheriaRuntimeDaemonCommandDocument MovementFromZone(
+            AetheriaRuntimeAgentTaskCommit task,
+            int zoneIndex,
+            AetheriaRuntimeEntitySnapshotCommit agent,
+            long frameId,
+            double dx,
+            double dz)
+        {
+            var command = AetheriaRuntimeDaemonCommandDocument.Create(
+                AetheriaRuntimeDaemonCommandKinds.SetMoveVector,
+                RuntimeId,
+                "daemon-agent-scheduler",
+                frameId,
+                $"zone.{zoneIndex}.entity.{agent.EntityIndex}");
+            command.CommandId = CommandId(task, frameId, "travel-approach");
+            var length = Math.Sqrt(dx * dx + dz * dz);
+            command.DirectionX = length <= 0.0001 ? 0 : dx / length;
+            command.DirectionY = length <= 0.0001 ? 0 : dz / length;
+            command.ScalarValue = length <= 0.0001 ? 0 : 1;
+            return command;
         }
 
         private static double InteractionRadius(AetheriaRuntimeEntitySnapshotCommit entity) =>

@@ -22,6 +22,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         MultipleActorsUseTheSameMovementLever();
         AgentClaimsAndCompletesExploreTaskThroughCommands();
         SchedulerAssignsHighestPriorityCompatibleTask();
+        SchedulerAssignsShortestGalaxyRoute();
+        AgentTraversesGalaxyRouteBeforeExecutingTask();
         AgentCompletesAttackTaskThroughTargetFireAndYmir();
         AgentCompletesHaulTaskThroughMovementAndCargoCommands();
         RejectedHaulTransferDoesNotAdvanceTask();
@@ -567,6 +569,84 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         TargetPositionX = 100,
         CompletionRadius = 5
     };
+
+    private static void SchedulerAssignsShortestGalaxyRoute()
+    {
+        var distant = Entity(0, 0, "workers");
+        distant.AgentTaskCapabilities = [AetheriaRuntimeAgentTaskTypes.Explore];
+        var nearby = Entity(0, 0, "workers");
+        nearby.AgentTaskCapabilities = [AetheriaRuntimeAgentTaskTypes.Explore];
+        var task = AgentTask("route-choice", 10);
+        task.ZoneIndex = 2;
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "agent-route-choice-smoke",
+            Zones =
+            [
+                new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, PositionX = 0, GravityTerrainRadius = 100, AdjacentZoneIndices = [1], Entities = [distant] },
+                new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 1, PositionX = 100, GravityTerrainRadius = 100, AdjacentZoneIndices = [0, 2], Entities = Array.Empty<AetheriaRuntimeEntitySnapshotCommit>() },
+                new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 2, PositionX = 200, GravityTerrainRadius = 100, AdjacentZoneIndices = [1, 3], Entities = Array.Empty<AetheriaRuntimeEntitySnapshotCommit>() },
+                new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 3, PositionX = 300, GravityTerrainRadius = 100, AdjacentZoneIndices = [2], Entities = [nearby] }
+            ],
+            AgentTasks = [task]
+        };
+
+        AetheriaRuntimeAgentScheduler.AssignAndPlan(run, 1);
+
+        RequireEqual("route-choice", nearby.AssignedAgentTaskId,
+            "scheduler must reserve the controller with the shortest galaxy route to the task zone");
+        Require(string.IsNullOrWhiteSpace(distant.AssignedAgentTaskId),
+            "longer-route controller must remain available");
+    }
+
+    private static void AgentTraversesGalaxyRouteBeforeExecutingTask()
+    {
+        var agent = Entity(0, 0, "workers");
+        agent.AgentTaskCapabilities = [AetheriaRuntimeAgentTaskTypes.Explore];
+        var task = AgentTask("cross-zone", 10);
+        task.ZoneIndex = 2;
+        task.TargetPositionX = 0;
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "agent-route-travel-smoke",
+            Zones =
+            [
+                new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, PositionX = 0, GravityTerrainRadius = 100, AdjacentZoneIndices = [1], Entities = [agent] },
+                new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 1, PositionX = 100, GravityTerrainRadius = 100, AdjacentZoneIndices = [0, 2], Entities = Array.Empty<AetheriaRuntimeEntitySnapshotCommit>() },
+                new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 2, PositionX = 200, GravityTerrainRadius = 100, AdjacentZoneIndices = [1], Entities = Array.Empty<AetheriaRuntimeEntitySnapshotCommit>() }
+            ],
+            AgentTasks = [task]
+        };
+        var appliedTravelCommands = 0;
+        var appliedApproachCommands = 0;
+        for (var frame = 0; frame < 24; frame++)
+        {
+            var tick = AetheriaRuntimeDaemonTickRunner.Tick(
+                Path.Combine(Path.GetTempPath(), "aetheria-agent-route-travel-smoke.cc"),
+                run,
+                new AetheriaRuntimeDaemonTickOptions
+                {
+                    WorldPhysics = new AetheriaYmirWorldPhysics(),
+                    FrameId = frame,
+                    FixedDeltaSeconds = 0.1,
+                    SimulationTimeSeconds = frame * 0.1,
+                    BuildPublications = false
+                });
+            appliedTravelCommands += tick.OperationResult.AppliedCommandIds.Count(id => id.EndsWith(":travel", StringComparison.Ordinal));
+            appliedApproachCommands += tick.OperationResult.AppliedCommandIds.Count(id => id.EndsWith(":travel-approach", StringComparison.Ordinal));
+            if (string.Equals(task.Status, AetheriaRuntimeAgentTaskStatuses.Completed, StringComparison.Ordinal))
+                break;
+        }
+
+        Require(appliedApproachCommands > 0,
+            "agent must approach wormholes through shared movement commands and Ymir before transition");
+        RequireEqual(2, appliedTravelCommands,
+            "agent must traverse each galaxy edge through the shared wormhole command boundary");
+        Require(run.Zones.Single(zone => zone.ZoneIndex == 2).Entities.Count == 1,
+            "assigned agent must arrive in the task zone without a parallel teleport owner");
+        RequireEqual(AetheriaRuntimeAgentTaskStatuses.Completed, task.Status,
+            "agent must execute the task only after arriving in its destination zone");
+    }
 
     private static void AgentClaimsAndCompletesExploreTaskThroughCommands()
     {
