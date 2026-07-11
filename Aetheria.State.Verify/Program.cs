@@ -1244,7 +1244,9 @@ static void RequireDaemonPlayableRunGenerationAuthority(string root)
         "FitsHardpoint(candidate, hardpoint)",
         "HasBehavior(candidate, controllerKind)",
         "for (var draw = 0; draw < 16 && pool.Count > 0; draw++)",
-        "FindFit(interiorCells, width, height, item, occupied)"
+        "FindFit(interiorCells, width, height, item, occupied)",
+        "AetheriaLoadoutGenerationReceipt",
+        "Selections = selectedKeys.Select"
     };
 
     var daemonText = daemonProgram + "\n" + daemonZoneGenerator + "\n" + daemonLoadoutGenerator;

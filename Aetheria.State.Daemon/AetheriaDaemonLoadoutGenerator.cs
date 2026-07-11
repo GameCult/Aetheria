@@ -6,6 +6,7 @@ public sealed class AetheriaDaemonLoadoutGenerator
 {
     private readonly AetheriaRuntimeCatalogSnapshot _catalog;
     private readonly Random _random;
+    private readonly uint _seed;
     private readonly int _zoneIndex;
     private readonly IReadOnlyDictionary<string, int> _homeZones;
     private readonly IReadOnlyDictionary<int, IReadOnlyList<int>> _adjacency;
@@ -20,7 +21,8 @@ public sealed class AetheriaDaemonLoadoutGenerator
         double priceExponent = 0.5)
     {
         _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
-        _random = new Random(seed == 0 ? 1u : seed);
+        _seed = seed == 0 ? 1u : seed;
+        _random = new Random(_seed);
         _zoneIndex = zoneIndex;
         _homeZones = homeZones ?? throw new ArgumentNullException(nameof(homeZones));
         _adjacency = adjacency ?? throw new ArgumentNullException(nameof(adjacency));
@@ -77,7 +79,37 @@ public sealed class AetheriaDaemonLoadoutGenerator
 
         var cargo = PackCargo(cargoBay, availabilityFactionKey, scenarioCargo,
             string.Equals(entityKind, "station", StringComparison.OrdinalIgnoreCase));
-        return new AetheriaDaemonLoadout(hull.ItemKey, slots.ToArray(), cargo);
+        var selectedKeys = new[] { (Role: "hull", Key: hull.ItemKey) }
+            .Concat(slots.Select(value => (Role: "equipment", Key: value.ItemKey)))
+            .Concat(cargo.Select(value => (Role: "cargo", Key: value.Item.ItemKey)));
+        var receipt = new AetheriaLoadoutGenerationReceipt
+        {
+            Seed = _seed,
+            SourceZoneIndex = _zoneIndex,
+            AvailabilityFactionKey = availabilityFactionKey,
+            PriceExponent = _priceExponent,
+            Selections = selectedKeys.Select(value => Selection(value.Role, value.Key, availabilityFactionKey)).ToArray()
+        };
+        return new AetheriaDaemonLoadout(hull.ItemKey, slots.ToArray(), cargo, receipt);
+    }
+
+    private AetheriaLoadoutGenerationSelection Selection(string role, string itemKey, string factionKey)
+    {
+        var item = _catalog.FindItem(itemKey) ?? throw new InvalidOperationException($"Generated item {itemKey} left the catalog.");
+        var faction = _catalog.FindCorporation(factionKey);
+        var allegiance = string.Equals(item.ManufacturerKey, factionKey, StringComparison.Ordinal)
+            ? 1
+            : (faction?.Allegiances ?? Array.Empty<AetheriaRuntimeCorporationAllegiance>())
+                .FirstOrDefault(value => value.CorporationKey == item.ManufacturerKey)?.Weight ?? 0;
+        return new AetheriaLoadoutGenerationSelection
+        {
+            Role = role,
+            ItemKey = item.ItemKey,
+            ManufacturerKey = item.ManufacturerKey,
+            Price = item.Price,
+            ManufacturerDistance = _homeZones.TryGetValue(item.ManufacturerKey, out var home) ? Distance(_zoneIndex, home) : 1,
+            Allegiance = allegiance
+        };
     }
 
     private AetheriaRuntimeCatalogItem AddFreeSpaceItem(
@@ -314,4 +346,5 @@ public sealed class AetheriaDaemonLoadoutGenerator
 public sealed record AetheriaDaemonLoadout(
     string HullItemKey,
     AetheriaEntityItemSlot[] Equipment,
-    AetheriaLoadoutItemSlot[] Cargo);
+    AetheriaLoadoutItemSlot[] Cargo,
+    AetheriaLoadoutGenerationReceipt Receipt);

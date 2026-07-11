@@ -607,6 +607,30 @@ public sealed class AetheriaEntitySnapshot
 
     [Key(31)]
     public string[] AgentTaskCapabilities { get; set; } = [];
+
+    [Key(32)]
+    public AetheriaLoadoutGenerationReceipt? LoadoutGeneration { get; set; }
+}
+
+[MessagePackObject]
+public sealed class AetheriaLoadoutGenerationReceipt
+{
+    [Key(0)] public uint Seed { get; set; }
+    [Key(1)] public int SourceZoneIndex { get; set; }
+    [Key(2)] public string AvailabilityFactionKey { get; set; } = "";
+    [Key(3)] public double PriceExponent { get; set; }
+    [Key(4)] public AetheriaLoadoutGenerationSelection[] Selections { get; set; } = [];
+}
+
+[MessagePackObject]
+public sealed class AetheriaLoadoutGenerationSelection
+{
+    [Key(0)] public string Role { get; set; } = "";
+    [Key(1)] public string ItemKey { get; set; } = "";
+    [Key(2)] public string ManufacturerKey { get; set; } = "";
+    [Key(3)] public int Price { get; set; }
+    [Key(4)] public int ManufacturerDistance { get; set; }
+    [Key(5)] public double Allegiance { get; set; }
 }
 
 [MessagePackObject]

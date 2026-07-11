@@ -961,6 +961,30 @@ namespace GameCult.Aetheria.State.Verse
 
         [Key(43)]
         public string HomeEntityId { get; set; } = "";
+
+        [Key(44)]
+        public AetheriaRuntimeLoadoutGenerationReceiptCommit? LoadoutGeneration { get; set; }
+    }
+
+    [MessagePackObject]
+    public sealed class AetheriaRuntimeLoadoutGenerationReceiptCommit
+    {
+        [Key(0)] public uint Seed { get; set; }
+        [Key(1)] public int SourceZoneIndex { get; set; }
+        [Key(2)] public string AvailabilityFactionKey { get; set; } = "";
+        [Key(3)] public double PriceExponent { get; set; }
+        [Key(4)] public IReadOnlyList<AetheriaRuntimeLoadoutGenerationSelectionCommit> Selections { get; set; } = Array.Empty<AetheriaRuntimeLoadoutGenerationSelectionCommit>();
+    }
+
+    [MessagePackObject]
+    public sealed class AetheriaRuntimeLoadoutGenerationSelectionCommit
+    {
+        [Key(0)] public string Role { get; set; } = "";
+        [Key(1)] public string ItemKey { get; set; } = "";
+        [Key(2)] public string ManufacturerKey { get; set; } = "";
+        [Key(3)] public int Price { get; set; }
+        [Key(4)] public int ManufacturerDistance { get; set; }
+        [Key(5)] public double Allegiance { get; set; }
     }
 
     [MessagePackObject]

@@ -2598,7 +2598,24 @@ static AetheriaRuntimeEntitySnapshotCommit ToRuntimeEntity(
         Contacts = (entity.Contacts ?? Array.Empty<AetheriaEntityContactSnapshot>())
             .Select(contact => ToRuntimeContact(contact, entityIndices))
             .Where(contact => contact.TargetEntityIndex >= 0)
-            .ToArray()
+            .ToArray(),
+        LoadoutGeneration = entity.LoadoutGeneration == null ? null : new AetheriaRuntimeLoadoutGenerationReceiptCommit
+        {
+            Seed = entity.LoadoutGeneration.Seed,
+            SourceZoneIndex = entity.LoadoutGeneration.SourceZoneIndex,
+            AvailabilityFactionKey = entity.LoadoutGeneration.AvailabilityFactionKey ?? "",
+            PriceExponent = entity.LoadoutGeneration.PriceExponent,
+            Selections = (entity.LoadoutGeneration.Selections ?? Array.Empty<AetheriaLoadoutGenerationSelection>())
+                .Select(value => new AetheriaRuntimeLoadoutGenerationSelectionCommit
+                {
+                    Role = value.Role ?? "",
+                    ItemKey = value.ItemKey ?? "",
+                    ManufacturerKey = value.ManufacturerKey ?? "",
+                    Price = value.Price,
+                    ManufacturerDistance = value.ManufacturerDistance,
+                    Allegiance = value.Allegiance
+                }).ToArray()
+        }
     };
     AetheriaRuntimeBehaviorStateProjector.EnsureEquipmentBehaviorStates(runtimeEntity, catalog);
     return runtimeEntity;

@@ -324,6 +324,11 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         Require(first.HullItemKey == second.HullItemKey &&
                 first.Equipment.Select(value => value.ItemKey).SequenceEqual(second.Equipment.Select(value => value.ItemKey)),
             "same seed, map, faction and catalog must produce the same loadout");
+        Require(first.Receipt.Seed == 42 && first.Receipt.SourceZoneIndex == 0 &&
+                first.Receipt.AvailabilityFactionKey == "forge" &&
+                first.Receipt.Selections.Any(value => value.Role == "hull" && value.ItemKey == "available-hull" &&
+                    value.ManufacturerKey == "forge" && value.ManufacturerDistance == 1 && value.Allegiance == 1),
+            "generated loadouts must carry daemon-authored source and selection provenance");
         Require(station.Equipment.Any(value => value.ItemKey == "docking-bay") &&
                 station.Equipment.Any(value => value.ItemKey == "cargo-bay") &&
                 station.Equipment.Any(value => value.ItemKey == "capacitor") &&

@@ -242,6 +242,7 @@ internal static class AetheriaDaemonZoneGenerator
             Velocity = Vec2(vx, vy),
             FactionKey = faction,
             HullItemKey = loadout.HullItemKey,
+            LoadoutGeneration = loadout.Receipt,
             IsActive = true,
             HeatsinksEnabled = true,
             TractorPower = 0,
