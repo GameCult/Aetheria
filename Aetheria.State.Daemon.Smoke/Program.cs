@@ -625,7 +625,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 new AetheriaRuntimeBehaviorField(12, new AetheriaRuntimeBehaviorValue(
                     "item-key", "", 0, false, "", "test-ammo",
                     Array.Empty<AetheriaRuntimeBehaviorValue>(), Array.Empty<AetheriaRuntimeBehaviorMapEntry>())),
-                new AetheriaRuntimeBehaviorField(13, Number(6)),
+                new AetheriaRuntimeBehaviorField(13, Number(3)),
                 new AetheriaRuntimeBehaviorField(14, Number(0.3)),
                 new AetheriaRuntimeBehaviorField(16, PerformanceStat(330)),
                 new AetheriaRuntimeBehaviorField(17, PerformanceStat(3)),
@@ -643,7 +643,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             Array.Empty<AetheriaRuntimeNameFile>());
         var target = Entity(1, 105, "raider");
         target.Kind = "station";
-        target.StatGrids = [Grid("hull", 7), Grid("shield", 0), Grid("heat", 0)];
+        target.StatGrids = [Grid("hull", 14), Grid("shield", 0), Grid("heat", 0)];
         var run = new AetheriaRuntimeRunCheckpointCommit
         {
             RunId = "agent-attack-smoke",
@@ -714,14 +714,22 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             "weapon progress must belong to the equipped authored behavior instead of a synthetic entity weapon");
         var authoredWeapon = agent.WeaponStates.Single(value =>
             value.OwnerKind == AetheriaRuntimeBehaviorStateProjector.EquipmentOwnerKind);
-        RequireEqual(3, authoredWeapon.Ammo,
-            "a three-round authored burst must decrement one magazine round per committed projectile");
-        RequireNear(45, agent.BehaviorStates.Single(value => value.BehaviorKind == "Capacitor").CapacitorCharge,
-            0.000001, "a committed authored weapon round must drain its energy from canonical capacitor state");
-        RequireEqual(2, CargoQuantity(agent, "test-ammo"),
-            "cargo ammunition must pay for reload, not each magazine round");
-        Require(run.GameEvents.Count(value => value.Kind == "projectile.launched" && value.ItemKey == "test-lock-cannon") >= 3,
-            "authored burst count and interval must emit every due round through the projectile owner");
+        RequireEqual(0, authoredWeapon.Ammo,
+            "two three-round authored bursts must consume both complete magazines");
+        RequireNear(40, agent.BehaviorStates.Single(value => value.BehaviorKind == "Capacitor").CapacitorCharge,
+            0.000001, "two authored bursts must drain exactly their combined energy from canonical capacitor state");
+        RequireEqual(1, CargoQuantity(agent, "test-ammo"),
+            "one empty magazine must consume exactly one reserve cargo commodity before reload");
+        Require(run.GameEvents.Count(value => value.Kind == "projectile.launched" && value.ItemKey == "test-lock-cannon") >= 6,
+            "two authored bursts must emit all six due rounds through the projectile owner");
+        Require(run.GameEvents.Count(value => value.Kind == "weapon.reload.started") == 1 &&
+                run.GameEvents.Count(value => value.Kind == "weapon.reload.completed") == 1,
+            "empty magazine transition must publish one authoritative reload start and completion pair");
+        var reloadStarted = run.GameEvents.Single(value => value.Kind == "weapon.reload.started").FrameId;
+        var reloadCompleted = run.GameEvents.Single(value => value.Kind == "weapon.reload.completed").FrameId;
+        Require(reloadCompleted > reloadStarted && !run.GameEvents.Any(value =>
+                value.Kind == "projectile.launched" && value.FrameId > reloadStarted && value.FrameId < reloadCompleted),
+            "reload interval must be a projectile-free authoritative timeline, not a cosmetic client delay");
         Require(!target.IsActive,
             $"attack task must end through daemon damage after Ymir projectile contacts; hull={Stat(target, "hull"):0.###} " +
             $"agent={agent.PositionX:0.###},{agent.PositionZ:0.###} target={target.PositionX:0.###},{target.PositionZ:0.###} " +

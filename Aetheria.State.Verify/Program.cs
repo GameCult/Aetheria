@@ -16602,6 +16602,8 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
             "weapon.State.BurstRemaining = weapon.BurstCount",
             "weapon.State.BurstTimer += deltaSeconds",
             "weapon.SingleAmmoBurst",
+            "weapon.reload.started",
+            "weapon.reload.completed",
             "AetheriaRuntimeCargoTransactions.TryRemoveQuantity(",
             "CommitEnergy(entity, weapon.Energy)",
             "SpawnProjectile(zone, attacker, target, weapon, settings)",

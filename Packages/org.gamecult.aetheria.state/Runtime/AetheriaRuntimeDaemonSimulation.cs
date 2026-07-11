@@ -251,6 +251,7 @@ namespace GameCult.Aetheria.State.Verse
                         {
                             weapon.State.Reloading = false;
                             weapon.State.Ammo = weapon.MagazineSize;
+                            AppendWeaponEvent(run, zone, attacker, weapon, frameId, "weapon.reload.completed");
                         }
                     }
                     weapon.State.CooldownProgress = Math.Max(0, weapon.State.CooldownProgress - deltaSeconds);
@@ -286,8 +287,13 @@ namespace GameCult.Aetheria.State.Verse
                     {
                         if (weapon.State.CooldownProgress > 0)
                             continue;
-                        if (weapon.SingleAmmoBurst && CommitWeaponRound(attacker, weapon) != WeaponRoundResult.Fired)
-                            continue;
+                        if (weapon.SingleAmmoBurst)
+                        {
+                            var triggerResult = CommitWeaponRound(attacker, weapon);
+                            if (triggerResult == WeaponRoundResult.ReloadStarted)
+                                AppendWeaponEvent(run, zone, attacker, weapon, frameId, "weapon.reload.started");
+                            if (triggerResult != WeaponRoundResult.Fired) continue;
+                        }
                         weapon.State.BurstRemaining = weapon.BurstCount;
                         weapon.State.BurstInterval = weapon.BurstTime / weapon.BurstCount;
                         weapon.State.BurstTimer = 0;
@@ -298,10 +304,16 @@ namespace GameCult.Aetheria.State.Verse
                     weapon.State.BurstTimer += deltaSeconds;
                     while (weapon.State.BurstRemaining > 0 && weapon.State.BurstTimer > 0)
                     {
-                        if (!weapon.SingleAmmoBurst && CommitWeaponRound(attacker, weapon) != WeaponRoundResult.Fired)
+                        if (!weapon.SingleAmmoBurst)
                         {
-                            weapon.State.BurstRemaining = 0;
-                            break;
+                            var roundResult = CommitWeaponRound(attacker, weapon);
+                            if (roundResult == WeaponRoundResult.ReloadStarted)
+                                AppendWeaponEvent(run, zone, attacker, weapon, frameId, "weapon.reload.started");
+                            if (roundResult != WeaponRoundResult.Fired)
+                            {
+                                weapon.State.BurstRemaining = 0;
+                                break;
+                            }
                         }
                         weapon.State.BurstRemaining--;
                         weapon.State.BurstTimer -= weapon.State.BurstInterval;
@@ -344,6 +356,27 @@ namespace GameCult.Aetheria.State.Verse
                     entity.TargetEntityIndex = -1;
                 }
             }
+        }
+
+        private static void AppendWeaponEvent(
+            AetheriaRuntimeRunCheckpointCommit run,
+            AetheriaRuntimeZoneSnapshotCommit zone,
+            AetheriaRuntimeEntitySnapshotCommit entity,
+            ResolvedWeapon weapon,
+            long frameId,
+            string kind)
+        {
+            AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit
+            {
+                EventId = $"frame:{frameId}:zone:{zone.ZoneIndex}:entity:{entity.EntityIndex}:weapon:{weapon.State.OwnerIndex}:{weapon.State.BehaviorIndex}:{kind}",
+                Kind = kind,
+                FrameId = frameId,
+                ZoneIndex = zone.ZoneIndex,
+                SourceEntityIndex = entity.EntityIndex,
+                SubjectKey = weapon.ItemKey,
+                ItemKey = weapon.ItemKey,
+                ScalarValue = weapon.State.Ammo
+            });
         }
 
         private static void UpdateWeaponLock(
