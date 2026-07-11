@@ -16580,9 +16580,10 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
         {
             "public static class AetheriaRuntimeDaemonSimulation",
             "AetheriaRuntimeDaemonSimulationSettings settings",
-            "StepCombat(run, zone, entities, intents, deltaSeconds, settings, projectilePhysics)",
-            "EnsureDaemonWeaponState(",
-            "SpawnProjectile(zone, attacker, target, settings)",
+            "StepCombat(run, zone, entities, intents, deltaSeconds, settings, projectilePhysics, catalog, frameId)",
+            "AetheriaRuntimeEquippedBehaviorQueries.Find(entity, catalog, AetheriaRuntimeBehaviorKinds.InstantWeapon)",
+            "EnsureWeaponState(",
+            "SpawnProjectile(zone, attacker, target, weapon, settings)",
             "projectilePhysics.Step(zone, entities, deltaSeconds)",
             "Damage(target, hit.Projectile.Damage)"
         },

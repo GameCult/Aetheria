@@ -49,16 +49,22 @@ namespace GameCult.Aetheria.State.Verse
         {
             Stat("Damage", 2),
             Stat("Penetration", 3),
+            Stat("DamageSpread", 4),
+            Stat("MinRange", 5),
+            Stat("Range", 6),
             Stat("Energy", 9),
             Stat("Heat", 10),
-            Stat("Visibility", 11)
+            Stat("Visibility", 11),
+            Stat("Spread", 15),
+            Stat("Velocity", 16)
         };
 
         private static readonly AetheriaRuntimeBehaviorFieldMetadata[] InstantWeaponFields =
-            With(WeaponFields, Stat("Cooldown", 19));
+            With(WeaponFields, Stat("BurstCount", 17), Stat("BurstTime", 18), Stat("Cooldown", 19));
 
         private static readonly AetheriaRuntimeBehaviorFieldMetadata[] LockWeaponFields =
-            With(InstantWeaponFields, Stat("LockSpeed", 21), Stat("LockAngle", 23));
+            With(InstantWeaponFields, Stat("LockSpeed", 21), Stat("SensorImpact", 22), Stat("LockAngle", 23),
+                Stat("DirectionImpact", 24), Stat("Decay", 25));
 
         private static readonly IReadOnlyDictionary<string, AetheriaRuntimeBehaviorMetadata> ByKind =
             new[]

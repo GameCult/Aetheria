@@ -480,6 +480,36 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         var agent = Entity(0, 0, "player");
         agent.AgentTaskCapabilities = [AetheriaRuntimeAgentTaskTypes.Attack];
         agent.WeaponGroups = [new[] { 0 }];
+        agent.Equipment =
+        [
+            new AetheriaRuntimeLoadoutItemSlotCommit
+            {
+                Item = new AetheriaRuntimeLoadoutItemCommit
+                {
+                    ItemKey = "test-lock-cannon", Quality = 1, Durability = 1, Enabled = true
+                }
+            }
+        ];
+        var weaponPayload = new AetheriaRuntimeBehaviorPayload(
+            0,
+            "LockWeapon",
+            0,
+            [
+                new AetheriaRuntimeBehaviorField(2, PerformanceStat(7)),
+                new AetheriaRuntimeBehaviorField(6, PerformanceStat(145)),
+                new AetheriaRuntimeBehaviorField(10, PerformanceStat(3)),
+                new AetheriaRuntimeBehaviorField(16, PerformanceStat(330)),
+                new AetheriaRuntimeBehaviorField(19, PerformanceStat(0.2)),
+                new AetheriaRuntimeBehaviorField(21, PerformanceStat(2)),
+                new AetheriaRuntimeBehaviorField(22, PerformanceStat(1)),
+                new AetheriaRuntimeBehaviorField(23, PerformanceStat(45)),
+                new AetheriaRuntimeBehaviorField(24, PerformanceStat(1)),
+                new AetheriaRuntimeBehaviorField(25, PerformanceStat(1))
+            ]);
+        var catalog = new AetheriaRuntimeCatalogSnapshot(
+            [CatalogItem("test-lock-cannon", weaponPayload)],
+            Array.Empty<AetheriaRuntimeCorporation>(),
+            Array.Empty<AetheriaRuntimeNameFile>());
         var target = Entity(1, 105, "raider");
         target.Kind = "station";
         target.StatGrids = [Grid("hull", 24), Grid("shield", 0), Grid("heat", 0)];
@@ -524,12 +554,14 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                     FixedDeltaSeconds = 0.1,
                     SimulationTimeSeconds = frame * 0.1,
                     ObservedCommands = frame == 0 ? [issue] : Array.Empty<AetheriaRuntimeDaemonCommandDocument>(),
+                    Catalog = catalog,
                     ProjectilePhysics = new AetheriaYmirProjectilePhysics(),
                     BuildPublications = false
                 });
             sawTargetCommand |= tick.OperationResult.AppliedCommandIds.Any(id => id.EndsWith(":target", StringComparison.Ordinal));
             sawFireCommand |= tick.OperationResult.AppliedCommandIds.Any(id => id.EndsWith(":fire", StringComparison.Ordinal));
-            var weapon = (agent.WeaponStates ?? Array.Empty<AetheriaRuntimeWeaponStateCommit>()).Single();
+            var weapon = (agent.WeaponStates ?? Array.Empty<AetheriaRuntimeWeaponStateCommit>())
+                .Single(value => value.OwnerKind == AetheriaRuntimeBehaviorStateProjector.EquipmentOwnerKind);
             sawPartialLock |= weapon.LockProgress > 0 && weapon.LockProgress < 0.99;
             if (firstLaunchFrame < 0 && run.GameEvents.Any(value => value.Kind == "projectile.launched"))
                 firstLaunchFrame = frame;
@@ -543,6 +575,12 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         Require(firstLaunchFrame > 1, "accepted fire intent must not bypass progressive weapon lock acquisition");
         Require(run.GameEvents.Any(value => value.Kind == "projectile.launched" && value.SourceEntityIndex == agent.EntityIndex),
             "accepted fire control must emit authoritative projectile launch chronology");
+        Require(run.GameEvents.Any(value => value.Kind == "projectile.launched" &&
+                value.ItemKey == "test-lock-cannon" && Math.Abs(value.ScalarValue - 7) < 0.000001),
+            "daemon combat must launch the equipped catalog weapon with its authored damage");
+        Require((agent.WeaponStates ?? Array.Empty<AetheriaRuntimeWeaponStateCommit>()).Any(value => value.OwnerKind == AetheriaRuntimeBehaviorStateProjector.EquipmentOwnerKind &&
+                value.OwnerIndex == 0 && value.BehaviorKind == "LockWeapon"),
+            "weapon progress must belong to the equipped authored behavior instead of a synthetic entity weapon");
         Require(!target.IsActive,
             $"attack task must end through daemon damage after Ymir projectile contacts; hull={Stat(target, "hull"):0.###} " +
             $"agent={agent.PositionX:0.###},{agent.PositionZ:0.###} target={target.PositionX:0.###},{target.PositionZ:0.###} " +
