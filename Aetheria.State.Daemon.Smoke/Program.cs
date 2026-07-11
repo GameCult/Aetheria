@@ -927,6 +927,18 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             "commander Eve surface must publish authoritative task status");
         Require(commander.Commands.Any(command => string.Equals(command.Command, "aetheria.daemon.issue_agent_task", StringComparison.Ordinal)),
             "commander Eve surface must advertise task issue command");
+        var roster = Flatten(commander.Surface.Root)
+            .Single(component => string.Equals(component.Kind, "agent.roster", StringComparison.Ordinal));
+        var worker = Flatten(roster)
+            .Single(component => string.Equals(component.Kind, "agent.item", StringComparison.Ordinal));
+        Require(!string.IsNullOrWhiteSpace(worker.Props["entityId"]),
+            "commander Eve roster must expose stable provider-owned worker identity");
+        Require(worker.Props["capabilities"].Split(',').Contains(AetheriaRuntimeAgentTaskTypes.Explore),
+            "commander Eve roster must expose provider-owned capability claims");
+        RequireEqual("", worker.Props["assignedTaskId"],
+            "completed worker assignment must be visible as released on the Eve roster");
+        RequireEqual("false", worker.Props["controlled"],
+            "commander Eve roster must distinguish autonomous workers from manual helm authority");
     }
 
     private static void MultipleActorsUseTheSameMovementLever()

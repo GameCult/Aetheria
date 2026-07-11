@@ -134,6 +134,7 @@ namespace GameCult.Aetheria.State.Verse
             var root = SurfaceRoot(
                 "aetheria.starbridge.commander.root",
                 StrategicWorldSurface("aetheria.starbridge.commander.world", run, zone),
+                BuildAgentRoster(run),
                 BuildAgentTaskBoard(run),
                 BuildSurveyKnowledge(run),
                 BuildStarbridgeStationStockCard(starbridge),
@@ -211,6 +212,57 @@ namespace GameCult.Aetheria.State.Verse
                     ("taskTypes", string.Join(",", AetheriaRuntimeAgentTaskTypes.All))
                 },
                 tasks);
+        }
+
+        private static AetheriaRuntimeSurfaceComponent BuildAgentRoster(AetheriaRuntimeRunCheckpointCommit run)
+        {
+            var agents = (run.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>())
+                .Where(zone => zone != null)
+                .SelectMany(zone => (zone.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
+                    .Where(entity => entity != null && (entity.AgentTaskCapabilities ?? Array.Empty<string>()).Count > 0)
+                    .Select(entity => (Zone: zone, Entity: entity)))
+                .OrderBy(value => value.Entity.Name, StringComparer.Ordinal)
+                .Select(value =>
+                {
+                    var controlled = AetheriaRuntimeRunCheckpointCommit.TryParseEntityKey(
+                        run.CurrentEntityKey, out var controlledZone, out var controlledEntity) &&
+                        controlledZone == value.Zone.ZoneIndex && controlledEntity == value.Entity.EntityIndex;
+                    var home = FindEntityById(run, value.Entity.HomeEntityId);
+                    var atHome = home.Entity != null && home.Zone != null &&
+                        home.Zone.ZoneIndex == value.Zone.ZoneIndex &&
+                        (home.Entity.DockingBayAssignments ?? Array.Empty<int>()).Contains(value.Entity.EntityIndex);
+                    return Node(
+                        $"aetheria.starbridge.commander.agents.{SurfaceToken(value.Entity.EntityId)}",
+                        "agent.item",
+                        new[]
+                        {
+                            ("label", value.Entity.Name),
+                            ("entityId", value.Entity.EntityId),
+                            ("zoneIndex", value.Zone.ZoneIndex.ToString(CultureInfo.InvariantCulture)),
+                            ("entityIndex", value.Entity.EntityIndex.ToString(CultureInfo.InvariantCulture)),
+                            ("capabilities", string.Join(",", value.Entity.AgentTaskCapabilities ?? Array.Empty<string>())),
+                            ("assignedTaskId", value.Entity.AssignedAgentTaskId),
+                            ("homeEntityId", value.Entity.HomeEntityId),
+                            ("controlled", controlled ? "true" : "false"),
+                            ("active", value.Entity.IsActive ? "true" : "false"),
+                            ("atHome", atHome ? "true" : "false")
+                        });
+                })
+                .ToArray();
+            return Node("aetheria.starbridge.commander.agents", "agent.roster", new[] { ("title", "Workers") }, agents);
+        }
+
+        private static (AetheriaRuntimeZoneSnapshotCommit? Zone, AetheriaRuntimeEntitySnapshotCommit? Entity) FindEntityById(
+            AetheriaRuntimeRunCheckpointCommit run,
+            string entityId)
+        {
+            if (string.IsNullOrWhiteSpace(entityId))
+                return (null, null);
+            foreach (var zone in run.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>())
+            foreach (var entity in zone?.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
+                if (entity != null && string.Equals(entity.EntityId, entityId, StringComparison.Ordinal))
+                    return (zone, entity);
+            return (null, null);
         }
 
         private static AetheriaRuntimeSurfaceComponent FeedbackStream(AetheriaRuntimeRunCheckpointCommit run, long frameId)
@@ -545,6 +597,10 @@ namespace GameCult.Aetheria.State.Verse
                 ["entityKind"] = entity.Kind ?? "",
                 ["label"] = string.IsNullOrWhiteSpace(entity.Name) ? entityId : entity.Name,
                 ["faction"] = entity.FactionKey ?? "",
+                ["providerEntityId"] = entity.EntityId ?? "",
+                ["homeEntityId"] = entity.HomeEntityId ?? "",
+                ["agentCapabilities"] = string.Join(",", entity.AgentTaskCapabilities ?? Array.Empty<string>()),
+                ["assignedTaskId"] = entity.AssignedAgentTaskId ?? "",
                 ["assetRef"] = PlayableWorldAssetRef(entity),
                 ["position"] = FormatPosition(entity),
                 ["rotationY"] = HeadingYaw(entity).ToString("0.###", CultureInfo.InvariantCulture),
