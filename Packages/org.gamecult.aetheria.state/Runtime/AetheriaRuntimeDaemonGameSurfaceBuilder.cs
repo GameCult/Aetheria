@@ -187,6 +187,8 @@ namespace GameCult.Aetheria.State.Verse
                         ("requestedQuantity", task.RequestedQuantity.ToString(CultureInfo.InvariantCulture)),
                         ("deliveredQuantity", task.DeliveredQuantity.ToString(CultureInfo.InvariantCulture)),
                         ("phase", task.Phase),
+                        ("targetBodyKeys", string.Join(",", task.TargetBodyKeys ?? Array.Empty<string>())),
+                        ("circuitIndex", task.CircuitIndex.ToString(CultureInfo.InvariantCulture)),
                         ("targetPosition", string.Join(",", new[]
                         {
                             task.TargetPositionX.ToString("0.###", CultureInfo.InvariantCulture),

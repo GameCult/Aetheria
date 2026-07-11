@@ -510,7 +510,12 @@ public sealed class AetheriaRuntimeDaemonOperationsClient
                     WeaponGroup = (int)ReadPayloadDouble(request, "weaponGroup", 0),
                     OriginEntityIndex = (int)ReadPayloadDouble(request, "originEntityIndex", -1),
                     ItemKey = ReadPayloadString(request, "itemKey", ""),
-                    Quantity = (int)ReadPayloadDouble(request, "quantity", 0)
+                    Quantity = (int)ReadPayloadDouble(request, "quantity", 0),
+                    TargetBodyKeys = ReadPayloadString(request, "targetBodyKeys", "")
+                        .Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
+                        .Select(key => key.Trim())
+                        .Where(key => !string.IsNullOrWhiteSpace(key))
+                        .ToArray()
                 }),
             AetheriaRuntimeDaemonCommandKinds.CancelAgentTask => client.CancelAgentTask(
                 frame,

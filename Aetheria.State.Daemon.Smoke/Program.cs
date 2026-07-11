@@ -19,6 +19,82 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         AgentCompletesAttackTaskThroughTargetFireAndYmir();
         AgentCompletesHaulTaskThroughMovementAndCargoCommands();
         RejectedHaulTransferDoesNotAdvanceTask();
+        AgentPatrolsHistoricalOrbitCircuitThroughMovementCommands();
+    }
+
+    private static void AgentPatrolsHistoricalOrbitCircuitThroughMovementCommands()
+    {
+        var agent = Entity(0, 0, "workers");
+        agent.AgentTaskCapabilities = [AetheriaRuntimeAgentTaskTypes.Defend];
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "agent-patrol-smoke",
+            CurrentZoneIndex = 0,
+            CurrentEntityKey = "zone.0.entity.0",
+            Zones =
+            [
+                new AetheriaRuntimeZoneSnapshotCommit
+                {
+                    ZoneIndex = 0,
+                    Entities = [agent],
+                    Orbits =
+                    [
+                        new AetheriaRuntimeOrbitSnapshotCommit { OrbitKey = "orbit:east", FixedPositionX = 20 },
+                        new AetheriaRuntimeOrbitSnapshotCommit { OrbitKey = "orbit:west", FixedPositionX = -20 }
+                    ],
+                    Bodies =
+                    [
+                        new AetheriaRuntimeBodySnapshotCommit { BodyKey = "body:east", OrbitKey = "orbit:east", Kind = "planet" },
+                        new AetheriaRuntimeBodySnapshotCommit { BodyKey = "body:west", OrbitKey = "orbit:west", Kind = "planet" }
+                    ]
+                }
+            ]
+        };
+        var issue = AetheriaRuntimeDaemonCommandDocument.Create(
+            AetheriaRuntimeDaemonCommandKinds.IssueAgentTask,
+            "commander-smoke",
+            "starbridge-smoke",
+            0,
+            "");
+        issue.CommandId = "issue-patrol";
+        issue.AgentTask = new AetheriaRuntimeAgentTaskCommand
+        {
+            TaskId = "patrol-orbits",
+            CorporationKey = "workers",
+            TaskType = AetheriaRuntimeAgentTaskTypes.Defend,
+            Priority = 10,
+            ZoneIndex = 0,
+            CompletionRadius = 5,
+            TargetBodyKeys = ["body:east", "body:west"]
+        };
+        var sawWestLeg = false;
+        var sawReturnToEast = false;
+        for (var frame = 0; frame < 30; frame++)
+        {
+            var tick = AetheriaRuntimeDaemonTickRunner.Tick(
+                Path.Combine(Path.GetTempPath(), "aetheria-agent-patrol-smoke.cc"),
+                run,
+                new AetheriaRuntimeDaemonTickOptions
+                {
+                    FrameId = frame,
+                    FixedDeltaSeconds = 0.1,
+                    SimulationTimeSeconds = frame * 0.1,
+                    ObservedCommands = frame == 0 ? [issue] : Array.Empty<AetheriaRuntimeDaemonCommandDocument>(),
+                    ProjectilePhysics = AetheriaRuntimeProjectilePhysicsUnavailable.Instance,
+                    BuildPublications = false
+                });
+            Require(tick.OperationResult.AppliedCommandIds.Any(id => id.EndsWith(":move", StringComparison.Ordinal)),
+                "patrol controller must drive the shared movement command every tick");
+            var cursor = run.AgentTasks.Single().CircuitIndex;
+            sawWestLeg |= cursor == 1;
+            sawReturnToEast |= sawWestLeg && cursor == 0;
+            if (sawReturnToEast)
+                break;
+        }
+
+        Require(sawWestLeg && sawReturnToEast, "patrol must advance through and wrap its authored orbit circuit");
+        RequireEqual(AetheriaRuntimeAgentTaskStatuses.Assigned, run.AgentTasks.Single().Status,
+            "patrol is persistent work and must remain assigned after one circuit");
     }
 
     private static void RejectedHaulTransferDoesNotAdvanceTask()

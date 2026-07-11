@@ -53,6 +53,8 @@ namespace GameCult.Aetheria.State.Verse
         [Key(17)] public int DeliveredQuantity { get; set; }
         [Key(18)] public int PendingQuantity { get; set; }
         [Key(19)] public string Phase { get; set; } = "";
+        [Key(20)] public IReadOnlyList<string> TargetBodyKeys { get; set; } = Array.Empty<string>();
+        [Key(21)] public int CircuitIndex { get; set; }
     }
 
     [MessagePackObject]
@@ -71,6 +73,7 @@ namespace GameCult.Aetheria.State.Verse
         [Key(10)] public int OriginEntityIndex { get; set; } = -1;
         [Key(11)] public string ItemKey { get; set; } = "";
         [Key(12)] public int Quantity { get; set; }
+        [Key(13)] public IReadOnlyList<string> TargetBodyKeys { get; set; } = Array.Empty<string>();
     }
 
     public static class AetheriaRuntimeAgentScheduler
@@ -178,6 +181,11 @@ namespace GameCult.Aetheria.State.Verse
                     commands.AddRange(PlanHaul(run, zone!, task, agent, frameId));
                     continue;
                 }
+                if (string.Equals(task.TaskType, AetheriaRuntimeAgentTaskTypes.Defend, StringComparison.Ordinal))
+                {
+                    commands.AddRange(PlanPatrol(zone!, task, agent, frameId));
+                    continue;
+                }
 
                 var target = task.TargetEntityIndex < 0
                     ? null
@@ -275,6 +283,44 @@ namespace GameCult.Aetheria.State.Verse
                 Movement(task, agent, frameId, 0, 0, 0),
                 transfer
             };
+        }
+
+        private static IReadOnlyList<AetheriaRuntimeDaemonCommandDocument> PlanPatrol(
+            AetheriaRuntimeZoneSnapshotCommit zone,
+            AetheriaRuntimeAgentTaskCommit task,
+            AetheriaRuntimeEntitySnapshotCommit agent,
+            long frameId)
+        {
+            var circuit = (task.TargetBodyKeys ?? Array.Empty<string>())
+                .Where(key => !string.IsNullOrWhiteSpace(key))
+                .ToArray();
+            if (circuit.Length == 0)
+            {
+                Fail(task, agent);
+                return Array.Empty<AetheriaRuntimeDaemonCommandDocument>();
+            }
+
+            task.CircuitIndex = ((task.CircuitIndex % circuit.Length) + circuit.Length) % circuit.Length;
+            var body = AetheriaRuntimeDaemonRenderQueries.QueryBodyPoses(zone)
+                .FirstOrDefault(candidate => string.Equals(candidate.BodyKey, circuit[task.CircuitIndex], StringComparison.Ordinal));
+            if (string.IsNullOrWhiteSpace(body.BodyKey))
+            {
+                Fail(task, agent);
+                return Array.Empty<AetheriaRuntimeDaemonCommandDocument>();
+            }
+
+            var dx = body.CenterX - agent.PositionX;
+            var dz = body.CenterZ - agent.PositionZ;
+            var distance = Math.Sqrt(dx * dx + dz * dz);
+            if (distance <= Math.Max(0.01, task.CompletionRadius))
+            {
+                task.CircuitIndex = (task.CircuitIndex + 1) % circuit.Length;
+                var next = AetheriaRuntimeDaemonRenderQueries.QueryBodyPoses(zone)
+                    .First(candidate => string.Equals(candidate.BodyKey, circuit[task.CircuitIndex], StringComparison.Ordinal));
+                dx = next.CenterX - agent.PositionX;
+                dz = next.CenterZ - agent.PositionZ;
+            }
+            return new[] { Movement(task, agent, frameId, dx, dz, 1) };
         }
 
         private static AetheriaRuntimeDaemonCommandDocument Movement(

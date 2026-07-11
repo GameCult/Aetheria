@@ -209,6 +209,11 @@ namespace GameCult.Aetheria.State.Verse
             {
                 return false;
             }
+            if (string.Equals(taskType, AetheriaRuntimeAgentTaskTypes.Defend, StringComparison.Ordinal) &&
+                !(request.TargetBodyKeys ?? Array.Empty<string>()).Any(key => !string.IsNullOrWhiteSpace(key)))
+            {
+                return false;
+            }
 
             run.AgentTasks = (run.AgentTasks ?? Array.Empty<AetheriaRuntimeAgentTaskCommit>())
                 .Concat(new[]
@@ -231,6 +236,7 @@ namespace GameCult.Aetheria.State.Verse
                         Phase = string.Equals(taskType, AetheriaRuntimeAgentTaskTypes.Haul, StringComparison.Ordinal)
                             ? "pickup"
                             : "",
+                        TargetBodyKeys = request.TargetBodyKeys ?? Array.Empty<string>(),
                         Status = AetheriaRuntimeAgentTaskStatuses.Queued
                     }
                 })
