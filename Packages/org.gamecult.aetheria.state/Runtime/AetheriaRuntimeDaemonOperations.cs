@@ -1858,38 +1858,8 @@ namespace GameCult.Aetheria.State.Verse
             int quantity,
             out AetheriaRuntimeLoadoutItemSlotCommit slot)
         {
-            slot = null!;
-            var cargoContents = (entity.CargoContents ?? Array.Empty<AetheriaRuntimeCargoBayLoadoutCommit>()).ToArray();
-            if (cargoIndex < 0 || cargoIndex >= cargoContents.Length || cargoContents[cargoIndex] == null)
-                return false;
-
-            var items = (cargoContents[cargoIndex].Items ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>()).ToList();
-            var itemIndex = items.FindIndex(candidate => IsCargoSlotMatch(candidate, itemKey, x, y));
-            if (itemIndex < 0)
-                return false;
-
-            var source = items[itemIndex];
-            var sourceQuantity = Math.Max(1, source.Item?.Quantity ?? 1);
-            if (quantity <= 0 || quantity > sourceQuantity)
-                return false;
-
-            slot = CloneSlot(source);
-            slot.Item.Quantity = quantity;
-            if (quantity == sourceQuantity)
-            {
-                items.RemoveAt(itemIndex);
-            }
-            else
-            {
-                source.Item.Quantity = sourceQuantity - quantity;
-            }
-
-            cargoContents[cargoIndex] = new AetheriaRuntimeCargoBayLoadoutCommit
-            {
-                Items = items.ToArray()
-            };
-            entity.CargoContents = cargoContents;
-            return true;
+            return AetheriaRuntimeCargoTransactions.TryRemoveQuantity(
+                entity, cargoIndex, itemKey, x, y, quantity, out slot);
         }
 
         private static void AddCargoItem(

@@ -55,6 +55,8 @@ namespace GameCult.Aetheria.State.Verse
             Stat("Energy", 9),
             Stat("Heat", 10),
             Stat("Visibility", 11),
+            Integer("MagazineSize", 13),
+            Number("ReloadTime", 14),
             Stat("Spread", 15),
             Stat("Velocity", 16)
         };
@@ -152,6 +154,11 @@ namespace GameCult.Aetheria.State.Verse
         private static AetheriaRuntimeBehaviorFieldMetadata Number(string name, int key)
         {
             return new AetheriaRuntimeBehaviorFieldMetadata(name, key, AetheriaRuntimeBehaviorFieldValueKind.Number);
+        }
+
+        private static AetheriaRuntimeBehaviorFieldMetadata Integer(string name, int key)
+        {
+            return new AetheriaRuntimeBehaviorFieldMetadata(name, key, AetheriaRuntimeBehaviorFieldValueKind.Integer);
         }
 
         private static AetheriaRuntimeBehaviorFieldMetadata Temperature(string name, int key)

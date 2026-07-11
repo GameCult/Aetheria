@@ -16598,6 +16598,9 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
             "StepCombat(run, zone, entities, intents, deltaSeconds, settings, projectilePhysics, catalog, frameId)",
             "AetheriaRuntimeEquippedBehaviorQueries.Find(entity, catalog, AetheriaRuntimeBehaviorKinds.InstantWeapon)",
             "EnsureWeaponState(",
+            "CommitWeaponRound(attacker, weapon)",
+            "AetheriaRuntimeCargoTransactions.TryRemoveQuantity(",
+            "CommitEnergy(entity, weapon.Energy)",
             "SpawnProjectile(zone, attacker, target, weapon, settings)",
             "projectilePhysics.Step(zone, entities, deltaSeconds)",
             "Damage(target, hit.Projectile.Damage)"

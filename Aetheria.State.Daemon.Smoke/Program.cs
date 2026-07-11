@@ -604,6 +604,15 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 }
             }
         ];
+        agent.BehaviorStates =
+        [
+            new AetheriaRuntimeBehaviorStateCommit
+            {
+                OwnerKind = "fixture", OwnerIndex = 0, BehaviorIndex = 0,
+                BehaviorKind = "Capacitor", CapacitorCharge = 50, CapacitorCapacity = 50, CapacitorEfficiency = 1
+            }
+        ];
+        agent.CargoContents = [Cargo(("test-ammo", 2, 0, 0))];
         var weaponPayload = new AetheriaRuntimeBehaviorPayload(
             0,
             "LockWeapon",
@@ -611,7 +620,13 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             [
                 new AetheriaRuntimeBehaviorField(2, PerformanceStat(7)),
                 new AetheriaRuntimeBehaviorField(6, PerformanceStat(145)),
+                new AetheriaRuntimeBehaviorField(9, PerformanceStat(5)),
                 new AetheriaRuntimeBehaviorField(10, PerformanceStat(3)),
+                new AetheriaRuntimeBehaviorField(12, new AetheriaRuntimeBehaviorValue(
+                    "item-key", "", 0, false, "", "test-ammo",
+                    Array.Empty<AetheriaRuntimeBehaviorValue>(), Array.Empty<AetheriaRuntimeBehaviorMapEntry>())),
+                new AetheriaRuntimeBehaviorField(13, Number(2)),
+                new AetheriaRuntimeBehaviorField(14, Number(0.3)),
                 new AetheriaRuntimeBehaviorField(16, PerformanceStat(330)),
                 new AetheriaRuntimeBehaviorField(19, PerformanceStat(0.2)),
                 new AetheriaRuntimeBehaviorField(21, PerformanceStat(2)),
@@ -626,7 +641,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             Array.Empty<AetheriaRuntimeNameFile>());
         var target = Entity(1, 105, "raider");
         target.Kind = "station";
-        target.StatGrids = [Grid("hull", 24), Grid("shield", 0), Grid("heat", 0)];
+        target.StatGrids = [Grid("hull", 7), Grid("shield", 0), Grid("heat", 0)];
         var run = new AetheriaRuntimeRunCheckpointCommit
         {
             RunId = "agent-attack-smoke",
@@ -695,6 +710,14 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         Require((agent.WeaponStates ?? Array.Empty<AetheriaRuntimeWeaponStateCommit>()).Any(value => value.OwnerKind == AetheriaRuntimeBehaviorStateProjector.EquipmentOwnerKind &&
                 value.OwnerIndex == 0 && value.BehaviorKind == "LockWeapon"),
             "weapon progress must belong to the equipped authored behavior instead of a synthetic entity weapon");
+        var authoredWeapon = agent.WeaponStates.Single(value =>
+            value.OwnerKind == AetheriaRuntimeBehaviorStateProjector.EquipmentOwnerKind);
+        RequireEqual(1, authoredWeapon.Ammo,
+            "a committed authored weapon round must decrement exactly one magazine round");
+        RequireNear(45, agent.BehaviorStates.Single(value => value.BehaviorKind == "Capacitor").CapacitorCharge,
+            0.000001, "a committed authored weapon round must drain its energy from canonical capacitor state");
+        RequireEqual(2, CargoQuantity(agent, "test-ammo"),
+            "cargo ammunition must pay for reload, not each magazine round");
         Require(!target.IsActive,
             $"attack task must end through daemon damage after Ymir projectile contacts; hull={Stat(target, "hull"):0.###} " +
             $"agent={agent.PositionX:0.###},{agent.PositionZ:0.###} target={target.PositionX:0.###},{target.PositionZ:0.###} " +

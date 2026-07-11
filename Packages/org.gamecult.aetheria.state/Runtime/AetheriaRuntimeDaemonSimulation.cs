@@ -244,6 +244,15 @@ namespace GameCult.Aetheria.State.Verse
                 foreach (var weapon in weapons)
                 {
                     weapon.State.Firing = false;
+                    if (weapon.State.Reloading)
+                    {
+                        weapon.State.ReloadProgress = Math.Max(0, weapon.State.ReloadProgress - deltaSeconds);
+                        if (weapon.State.ReloadProgress <= 0)
+                        {
+                            weapon.State.Reloading = false;
+                            weapon.State.Ammo = weapon.MagazineSize;
+                        }
+                    }
                     weapon.State.CooldownProgress = Math.Max(0, weapon.State.CooldownProgress - deltaSeconds);
                     weapon.State.CoolingDown = weapon.State.CooldownProgress > 0;
                 }
@@ -270,9 +279,12 @@ namespace GameCult.Aetheria.State.Verse
                     UpdateWeaponLock(attacker, target, weapon, deltaSeconds, settings);
                     if (DistanceSq(attacker, target) > weapon.Range * weapon.Range ||
                         weapon.State.LockProgress <= 0.99 ||
-                        weapon.State.CooldownProgress > 0)
+                        weapon.State.CooldownProgress > 0 ||
+                        weapon.State.Reloading)
                         continue;
 
+                    if (CommitWeaponRound(attacker, weapon) != WeaponRoundResult.Fired)
+                        continue;
                     var projectile = SpawnProjectile(zone, attacker, target, weapon, settings);
                     AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit { EventId = $"projectile:{projectile.ProjectileId}:launched", Kind = "projectile.launched", FrameId = frameId, ZoneIndex = zone.ZoneIndex, SourceEntityIndex = attacker.EntityIndex, TargetEntityIndex = target.EntityIndex, SubjectKey = projectile.ProjectileId, ItemKey = projectile.WeaponKind, ScalarValue = projectile.Damage, PositionX = projectile.PositionX, PositionZ = projectile.PositionZ });
                     weapon.State.Firing = true;
@@ -448,7 +460,8 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeDaemonSimulationSettings settings)
         {
             var state = EnsureWeaponState(entity, AetheriaRuntimeBehaviorStateProjector.EquipmentOwnerKind,
-                behavior.EquipmentIndex, behavior.BehaviorIndex, behavior.Payload.Kind, settings);
+                behavior.EquipmentIndex, behavior.BehaviorIndex, behavior.Payload.Kind,
+                Math.Max(0, (int)Math.Round(ReadNumber(behavior.Payload, 13))), settings);
             return new ResolvedWeapon(
                 state,
                 behavior.Item.ItemKey,
@@ -457,6 +470,10 @@ namespace GameCult.Aetheria.State.Verse
                 PositiveOr(behavior.EvaluateStat(19), settings.WeaponCooldownSeconds),
                 PositiveOr(behavior.EvaluateStat(16), settings.ProjectileSpeed),
                 Math.Max(0, behavior.EvaluateStat(10)),
+                Math.Max(0, behavior.EvaluateStat(9)),
+                ReadItemKey(behavior.Payload, 12),
+                Math.Max(0, (int)Math.Round(ReadNumber(behavior.Payload, 13))),
+                PositiveOr(ReadNumber(behavior.Payload, 14), settings.WeaponCooldownSeconds),
                 PositiveOr(behavior.EvaluateStat(21), settings.WeaponLockSpeed),
                 Math.Max(0, behavior.EvaluateStat(22)),
                 PositiveOr(behavior.EvaluateStat(23), settings.WeaponLockAngleDegrees),
@@ -468,11 +485,12 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeEntitySnapshotCommit entity,
             AetheriaRuntimeDaemonSimulationSettings settings)
         {
-            var state = EnsureWeaponState(entity, "daemon-simulation", entity.EntityIndex, 0, "ProjectileWeapon", settings);
+            var state = EnsureWeaponState(entity, "daemon-simulation", entity.EntityIndex, 0, "ProjectileWeapon", -1, settings);
             return new ResolvedWeapon(state,
                 IsPlayerOwned(entity) ? "vanguard-bolt" : "raider-bolt",
                 ResolveProjectileDamage(entity, settings), settings.AttackRange, settings.WeaponCooldownSeconds,
                 settings.ProjectileSpeed, ResolveProjectileDamage(entity, settings) * settings.ProjectileHeatScale,
+                0, "", -1, settings.WeaponCooldownSeconds,
                 settings.WeaponLockSpeed, settings.WeaponLockSensorImpact, settings.WeaponLockAngleDegrees,
                 settings.WeaponLockDirectionImpact, settings.WeaponLockDecayPerSecond);
         }
@@ -483,6 +501,7 @@ namespace GameCult.Aetheria.State.Verse
             int ownerIndex,
             int behaviorIndex,
             string behaviorKind,
+            int initialAmmo,
             AetheriaRuntimeDaemonSimulationSettings settings)
         {
             var states = (entity.WeaponStates ?? Array.Empty<AetheriaRuntimeWeaponStateCommit>()).ToList();
@@ -500,7 +519,7 @@ namespace GameCult.Aetheria.State.Verse
                 OwnerIndex = ownerIndex,
                 BehaviorIndex = behaviorIndex,
                 BehaviorKind = behaviorKind,
-                Ammo = -1,
+                Ammo = initialAmmo,
                 BurstRemaining = 0,
                 BurstInterval = settings.WeaponCooldownSeconds,
                 LockTargetEntityIndex = -1
@@ -571,14 +590,92 @@ namespace GameCult.Aetheria.State.Verse
         private static double PositiveOr(double value, double fallback) =>
             double.IsFinite(value) && value > 0 ? value : fallback;
 
+        private static string ReadItemKey(AetheriaRuntimeBehaviorPayload payload, int key)
+        {
+            var value = (payload.Fields ?? Array.Empty<AetheriaRuntimeBehaviorField>())
+                .FirstOrDefault(field => field != null && field.Key == key)?.Value;
+            return value?.ItemKeyValue ?? value?.StringValue ?? "";
+        }
+
+        private static double ReadNumber(AetheriaRuntimeBehaviorPayload payload, int key)
+        {
+            return (payload.Fields ?? Array.Empty<AetheriaRuntimeBehaviorField>())
+                .FirstOrDefault(field => field != null && field.Key == key)?.Value?.NumberValue ?? 0;
+        }
+
+        private static WeaponRoundResult CommitWeaponRound(
+            AetheriaRuntimeEntitySnapshotCommit entity,
+            ResolvedWeapon weapon)
+        {
+            if (weapon.MagazineSize > 1 && weapon.State.Ammo <= 0)
+            {
+                if (!string.IsNullOrWhiteSpace(weapon.AmmoItemKey))
+                {
+                    if (!AetheriaRuntimeCargoTransactions.TryFind(entity, weapon.AmmoItemKey,
+                            out var cargoIndex, out var x, out var y) ||
+                        !AetheriaRuntimeCargoTransactions.TryRemoveQuantity(
+                            entity, cargoIndex, weapon.AmmoItemKey, x, y, 1, out _))
+                        return WeaponRoundResult.NoAmmo;
+                }
+                weapon.State.Reloading = true;
+                weapon.State.ReloadProgress = weapon.ReloadTime;
+                return WeaponRoundResult.ReloadStarted;
+            }
+
+            if (!CanSupplyEnergy(entity, weapon.Energy))
+                return WeaponRoundResult.InsufficientEnergy;
+            CommitEnergy(entity, weapon.Energy);
+            if (weapon.MagazineSize > 1)
+                weapon.State.Ammo--;
+            return WeaponRoundResult.Fired;
+        }
+
+        private static bool CanSupplyEnergy(AetheriaRuntimeEntitySnapshotCommit entity, double demand)
+        {
+            if (demand < 0.01) return true;
+            var states = entity.BehaviorStates ?? Array.Empty<AetheriaRuntimeBehaviorStateCommit>();
+            var charge = states.Where(value => value != null && value.BehaviorKind == "Capacitor")
+                .Sum(value => Math.Max(0, value.CapacitorCharge));
+            return charge >= demand || states.Any(value => value != null && value.BehaviorKind == "Reactor");
+        }
+
+        private static void CommitEnergy(AetheriaRuntimeEntitySnapshotCommit entity, double demand)
+        {
+            if (demand < 0.01) return;
+            var capacitors = (entity.BehaviorStates ?? Array.Empty<AetheriaRuntimeBehaviorStateCommit>())
+                .Where(value => value != null && value.BehaviorKind == "Capacitor" && value.CapacitorCharge > 0)
+                .ToList();
+            var remaining = demand;
+            while (remaining > 0.000001 && capacitors.Count > 0)
+            {
+                var share = remaining / capacitors.Count;
+                foreach (var capacitor in capacitors.ToArray())
+                {
+                    var drained = Math.Min(share, capacitor.CapacitorCharge);
+                    capacitor.CapacitorCharge -= drained;
+                    remaining -= drained;
+                    if (capacitor.CapacitorCharge <= 0.000001) capacitors.Remove(capacitor);
+                }
+            }
+            var reactors = (entity.BehaviorStates ?? Array.Empty<AetheriaRuntimeBehaviorStateCommit>())
+                .Where(value => value != null && value.BehaviorKind == "Reactor")
+                .ToArray();
+            if (remaining > 0.000001 && reactors.Length > 0)
+                foreach (var reactor in reactors) reactor.ReactorDraw += remaining / reactors.Length;
+        }
+
+        private enum WeaponRoundResult { Fired, ReloadStarted, InsufficientEnergy, NoAmmo }
+
         private sealed class ResolvedWeapon
         {
             public ResolvedWeapon(AetheriaRuntimeWeaponStateCommit state, string itemKey, double damage, double range,
-                double cooldown, double projectileSpeed, double heat, double lockSpeed, double lockSensorImpact,
+                double cooldown, double projectileSpeed, double heat, double energy, string ammoItemKey,
+                int magazineSize, double reloadTime, double lockSpeed, double lockSensorImpact,
                 double lockAngleDegrees, double lockDirectionImpact, double lockDecayPerSecond)
             {
                 State = state; ItemKey = itemKey; Damage = damage; Range = range; Cooldown = cooldown;
-                ProjectileSpeed = projectileSpeed; Heat = heat; LockSpeed = lockSpeed;
+                ProjectileSpeed = projectileSpeed; Heat = heat; Energy = energy; AmmoItemKey = ammoItemKey;
+                MagazineSize = magazineSize; ReloadTime = reloadTime; LockSpeed = lockSpeed;
                 LockSensorImpact = lockSensorImpact; LockAngleDegrees = lockAngleDegrees;
                 LockDirectionImpact = lockDirectionImpact; LockDecayPerSecond = lockDecayPerSecond;
             }
@@ -590,6 +687,10 @@ namespace GameCult.Aetheria.State.Verse
             public double Cooldown { get; }
             public double ProjectileSpeed { get; }
             public double Heat { get; }
+            public double Energy { get; }
+            public string AmmoItemKey { get; }
+            public int MagazineSize { get; }
+            public double ReloadTime { get; }
             public double LockSpeed { get; }
             public double LockSensorImpact { get; }
             public double LockAngleDegrees { get; }
