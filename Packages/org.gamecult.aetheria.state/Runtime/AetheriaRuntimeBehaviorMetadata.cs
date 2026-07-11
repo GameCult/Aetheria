@@ -76,7 +76,7 @@ namespace GameCult.Aetheria.State.Verse
                 Behavior("Capacitor", "", Stat("Capacity", 1), Stat("Efficiency", 2)),
                 Behavior("ChargedWeapon", AetheriaRuntimeBehaviorKinds.InstantWeapon, With(InstantWeaponFields, Stat("ChargeTime", 21), Stat("ChargeEnergy", 22), Stat("ChargeHeat", 23))),
                 Behavior("Cockpit", ""),
-                Behavior("ConstantWeapon", "Weapon", WeaponFields),
+                Behavior("ConstantWeapon", "Weapon", With(WeaponFields, Number("AmmoIntervalDuration", 17))),
                 Behavior(AetheriaRuntimeBehaviorKinds.GuidedWeapon, AetheriaRuntimeBehaviorKinds.InstantWeapon, With(InstantWeaponFields, Stat("MissileVelocity", 26))),
                 Behavior(AetheriaRuntimeBehaviorKinds.Launcher, "LockWeapon", With(LockWeaponFields, Stat("MissileVelocity", 31))),
                 Behavior("LockWeapon", AetheriaRuntimeBehaviorKinds.InstantWeapon, LockWeaponFields),

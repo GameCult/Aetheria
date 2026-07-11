@@ -13,6 +13,17 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeZoneSnapshotCommit zone,
             IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities,
             double deltaSeconds);
+
+        AetheriaRuntimeBeamHit? TraceBeam(
+            AetheriaRuntimeZoneSnapshotCommit zone,
+            IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities,
+            int sourceEntityIndex,
+            double originX,
+            double originZ,
+            double directionX,
+            double directionZ,
+            double range,
+            double radius);
     }
 
     public sealed class AetheriaRuntimeProjectilePhysicsUnavailable : IAetheriaRuntimeProjectilePhysics
@@ -34,6 +45,18 @@ namespace GameCult.Aetheria.State.Verse
             throw new InvalidOperationException(
                 "Aetheria projectile simulation requires an injected authoritative physics owner.");
         }
+
+        public AetheriaRuntimeBeamHit? TraceBeam(
+            AetheriaRuntimeZoneSnapshotCommit zone,
+            IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities,
+            int sourceEntityIndex,
+            double originX,
+            double originZ,
+            double directionX,
+            double directionZ,
+            double range,
+            double radius) => throw new InvalidOperationException(
+                "Aetheria beam tracing requires an injected authoritative physics owner.");
     }
 
     public sealed class AetheriaRuntimeProjectileStep
@@ -69,5 +92,16 @@ namespace GameCult.Aetheria.State.Verse
         public double NormalX { get; set; }
 
         public double NormalZ { get; set; }
+    }
+
+    public sealed class AetheriaRuntimeBeamHit
+    {
+        public int TargetEntityIndex { get; set; } = -1;
+        public string TargetBodyId { get; set; } = "";
+        public double PointX { get; set; }
+        public double PointZ { get; set; }
+        public double NormalX { get; set; }
+        public double NormalZ { get; set; }
+        public double Distance { get; set; }
     }
 }

@@ -109,6 +109,51 @@ public sealed class AetheriaYmirProjectilePhysics : IAetheriaRuntimeProjectilePh
         return new AetheriaRuntimeProjectileStep(survivors, hits);
     }
 
+    public AetheriaRuntimeBeamHit? TraceBeam(
+        AetheriaRuntimeZoneSnapshotCommit zone,
+        IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities,
+        int sourceEntityIndex,
+        double originX,
+        double originZ,
+        double directionX,
+        double directionZ,
+        double range,
+        double radius)
+    {
+        ArgumentNullException.ThrowIfNull(zone);
+        var entityByBodyId = (entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
+            .Where(entity => entity is { IsActive: true } && entity.EntityIndex != sourceEntityIndex)
+            .ToDictionary(entity => EntityBodyId(entity.EntityIndex), StringComparer.Ordinal);
+        var world = new YmirWorld((float)zone.SimulationTimeSeconds,
+            entityByBodyId.Select(pair => new PhysicsBody(
+                pair.Key,
+                new Vec2((float)pair.Value.PositionX, (float)pair.Value.PositionZ),
+                Vec2.Zero,
+                ResolveEntityRadius(pair.Value),
+                1.0f,
+                IsStatic: true)).ToArray(),
+            Array.Empty<RadialField>());
+        var hit = _simulator.CastCircle(new CircleCastQueryRequest(
+                new Vec2((float)originX, (float)originZ),
+                new Vec2((float)directionX, (float)directionZ),
+                (float)range,
+                (float)Math.Max(0, radius),
+                world))
+            .Hits.FirstOrDefault(candidate => entityByBodyId.ContainsKey(candidate.BodyId));
+        if (hit == null || !entityByBodyId.TryGetValue(hit.BodyId, out var target))
+            return null;
+        return new AetheriaRuntimeBeamHit
+        {
+            TargetEntityIndex = target.EntityIndex,
+            TargetBodyId = hit.BodyId,
+            PointX = hit.Point.X,
+            PointZ = hit.Point.Y,
+            NormalX = hit.Normal.X,
+            NormalZ = hit.Normal.Y,
+            Distance = hit.Distance
+        };
+    }
+
     private static string ProjectileBodyId(string? projectileId) =>
         ProjectileBodyPrefix + (projectileId ?? "");
 

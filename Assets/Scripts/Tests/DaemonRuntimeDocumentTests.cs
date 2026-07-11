@@ -5574,5 +5574,16 @@ public class DaemonRuntimeDocumentTests
                 zone.Projectiles,
                 Array.Empty<AetheriaRuntimeProjectileHit>());
         }
+
+        public AetheriaRuntimeBeamHit TraceBeam(
+            AetheriaRuntimeZoneSnapshotCommit zone,
+            IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities,
+            int sourceEntityIndex,
+            double originX,
+            double originZ,
+            double directionX,
+            double directionZ,
+            double range,
+            double radius) => null;
     }
 }

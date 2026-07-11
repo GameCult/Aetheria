@@ -11,6 +11,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
     public void Run()
     {
         YmirMovesProjectileAndReportsStableContact();
+        YmirBeamTraceReturnsFirstSpatialContact();
         DaemonSimulationAppliesYmirHit();
         ProjectileDeathEmitsOnce();
         MissingPhysicsOwnerCannotAdvanceProjectiles();
@@ -40,6 +41,27 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         CargoCapacityComesFromHullAndCatalogVolumes();
         AgentSurveysBodyIntoCorporationKnowledge();
         AgentTowsStationIntoPersistentOrbit();
+    }
+
+    private static void YmirBeamTraceReturnsFirstSpatialContact()
+    {
+        var source = Entity(0, 0, "player");
+        var blocker = Entity(1, 40, "raider");
+        var selectedTarget = Entity(2, 90, "raider");
+        var zone = new AetheriaRuntimeZoneSnapshotCommit
+        {
+            ZoneIndex = 0,
+            Entities = [source, blocker, selectedTarget]
+        };
+        var hit = new AetheriaYmirProjectilePhysics().TraceBeam(
+            zone, zone.Entities, source.EntityIndex,
+            source.PositionX, source.PositionZ, 1, 0, 150, 0.1);
+
+        Require(hit != null, "Ymir beam trace must report an intersected body");
+        RequireEqual(blocker.EntityIndex, hit!.TargetEntityIndex,
+            "beam trace must return the first spatial contact rather than the selected target");
+        Require(hit.Distance > 0 && hit.Distance < 90,
+            "beam trace must publish the physical impact distance");
     }
 
     private static void AgentTowsStationIntoPersistentOrbit()
