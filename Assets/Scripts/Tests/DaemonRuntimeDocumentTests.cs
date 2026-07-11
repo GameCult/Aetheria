@@ -529,8 +529,8 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual(2, result.OperationResult.AppliedCommandIds.Count);
         Assert.AreEqual(0, result.OperationResult.RejectedCommandIds.Count);
         Assert.AreEqual(1, run.Zones[0].Entities[0].TargetEntityIndex);
-        Assert.AreEqual("zone.0.entity.0", result.Intents.Movement.ActorEntityKey);
-        Assert.AreEqual(1.0, result.Intents.Movement.DirectionX, 0.0001);
+        Assert.AreEqual("zone.0.entity.0", result.Intents.Movements.Single().ActorEntityKey);
+        Assert.AreEqual(1.0, result.Intents.Movements.Single().DirectionX, 0.0001);
         Assert.AreEqual(12.5, result.Run.Zones[0].SimulationTimeSeconds, 0.0001);
         var frame = result.Frame;
         Assert.AreEqual("test-daemon", frame.DaemonId);
@@ -4646,10 +4646,10 @@ public class DaemonRuntimeDocumentTests
 
         Assert.AreEqual(5, result.AppliedCommandIds.Count);
         Assert.IsTrue(result.Intents.HasAny);
-        Assert.AreEqual("zone.0.entity.0", result.Intents.Movement.ActorEntityKey);
-        Assert.AreEqual(0.25, result.Intents.Movement.DirectionX, 0.0001);
-        Assert.AreEqual(-0.5, result.Intents.Movement.DirectionY, 0.0001);
-        Assert.AreEqual(0.75, result.Intents.Movement.Magnitude, 0.0001);
+        Assert.AreEqual("zone.0.entity.0", result.Intents.Movements.Single().ActorEntityKey);
+        Assert.AreEqual(0.25, result.Intents.Movements.Single().DirectionX, 0.0001);
+        Assert.AreEqual(-0.5, result.Intents.Movements.Single().DirectionY, 0.0001);
+        Assert.AreEqual(0.75, result.Intents.Movements.Single().Magnitude, 0.0001);
         Assert.AreEqual(1, result.Intents.WeaponGroups.Count);
         Assert.IsTrue(result.Intents.WeaponGroups[0].Fire);
         Assert.AreEqual(1, result.Intents.WeaponGroups[0].WeaponGroup);

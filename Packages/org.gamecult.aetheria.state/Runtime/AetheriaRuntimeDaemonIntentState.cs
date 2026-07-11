@@ -7,7 +7,8 @@ namespace GameCult.Aetheria.State.Verse
 {
     public sealed class AetheriaRuntimeDaemonIntentState
     {
-        public AetheriaRuntimeDaemonMovementIntent? Movement { get; set; }
+        public List<AetheriaRuntimeDaemonMovementIntent> Movements { get; } =
+            new List<AetheriaRuntimeDaemonMovementIntent>();
         public List<AetheriaRuntimeDaemonWeaponGroupIntent> WeaponGroups { get; } =
             new List<AetheriaRuntimeDaemonWeaponGroupIntent>();
         public List<AetheriaRuntimeDaemonBehaviorIntent> Behaviors { get; } =
@@ -23,7 +24,7 @@ namespace GameCult.Aetheria.State.Verse
         public bool SensorPingRequested { get; set; }
 
         public bool HasAny =>
-            Movement != null ||
+            Movements.Count > 0 ||
             SensorPingRequested ||
             WeaponGroups.Count > 0 ||
             Behaviors.Count > 0 ||

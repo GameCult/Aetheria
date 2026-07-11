@@ -13,6 +13,57 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         DaemonSimulationAppliesYmirHit();
         MissingPhysicsOwnerCannotAdvanceProjectiles();
         ThermalCellsUseFossilConductionAndRadiation();
+        MultipleActorsUseTheSameMovementLever();
+    }
+
+    private static void MultipleActorsUseTheSameMovementLever()
+    {
+        var player = Entity(0, 0, "player");
+        var agent = Entity(1, 0, "worker");
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "shared-lever-smoke",
+            CurrentZoneIndex = 0,
+            CurrentEntityKey = "zone.0.entity.0",
+            Zones = [new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [player, agent] }]
+        };
+        var commands = new[]
+        {
+            MovementCommand("player-move", "zone.0.entity.0", 1, 0),
+            MovementCommand("agent-move", "zone.0.entity.1", 0, 1)
+        };
+        var operation = AetheriaRuntimeDaemonOperations.Execute(run, commands);
+
+        RequireEqual(2, operation.Intents.Movements.Count, "movement intent must retain one lever position per actor");
+        AetheriaRuntimeDaemonSimulation.Step(
+            run,
+            operation.Intents,
+            0.1,
+            AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
+            AetheriaRuntimeProjectilePhysicsUnavailable.Instance);
+        Require(player.VelocityX > 0 && Math.Abs(player.VelocityY) < 0.001,
+            "player command must drive its actor through the shared movement lever");
+        Require(agent.VelocityY > 0 && Math.Abs(agent.VelocityX) < 0.001,
+            "agent command must drive its actor through the shared movement lever");
+    }
+
+    private static AetheriaRuntimeDaemonCommandDocument MovementCommand(
+        string commandId,
+        string actor,
+        double x,
+        double y)
+    {
+        var command = AetheriaRuntimeDaemonCommandDocument.Create(
+            AetheriaRuntimeDaemonCommandKinds.SetMoveVector,
+            "shared-control-smoke",
+            "shared-control-session",
+            0,
+            actor);
+        command.CommandId = commandId;
+        command.DirectionX = x;
+        command.DirectionY = y;
+        command.ScalarValue = 1;
+        return command;
     }
 
     private static void ThermalCellsUseFossilConductionAndRadiation()

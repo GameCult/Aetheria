@@ -38,7 +38,8 @@ namespace GameCult.Aetheria.State.Verse
                 EnsureStats(entities, settings);
                 foreach (var entity in entities)
                     AetheriaRuntimeThermalSimulation.EnsureState(entity);
-                ApplyMovementIntent(run, entities, intents?.Movement, settings);
+                foreach (var movement in intents?.Movements ?? Enumerable.Empty<AetheriaRuntimeDaemonMovementIntent>())
+                    ApplyMovementIntent(run, entities, movement, settings);
                 StepRaiderAi(entities);
                 StepTargetPursuit(entities, settings);
                 StepMovement(entities, deltaSeconds);
@@ -86,7 +87,7 @@ namespace GameCult.Aetheria.State.Verse
                 return;
 
             var entity = entities.FirstOrDefault(candidate => candidate.EntityIndex == entityIndex);
-            if (entity == null || !IsPlayerOwned(entity) || !IsAlive(entity))
+            if (entity == null || !IsAlive(entity))
                 return;
 
             var magnitude = Clamp01(movement.Magnitude);

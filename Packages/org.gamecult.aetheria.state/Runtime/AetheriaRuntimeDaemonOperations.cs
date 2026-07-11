@@ -927,13 +927,15 @@ namespace GameCult.Aetheria.State.Verse
                 return false;
             }
 
-            intents.Movement = new AetheriaRuntimeDaemonMovementIntent
+            intents.Movements.RemoveAll(intent =>
+                string.Equals(intent.ActorEntityKey, actor, StringComparison.Ordinal));
+            intents.Movements.Add(new AetheriaRuntimeDaemonMovementIntent
             {
                 ActorEntityKey = actor,
                 DirectionX = command.DirectionX,
                 DirectionY = command.DirectionY,
                 Magnitude = command.ScalarValue
-            };
+            });
             return true;
         }
 
