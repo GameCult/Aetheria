@@ -178,6 +178,14 @@ namespace GameCult.Aetheria.State.Verse
                 if (Math.Abs(entity.VelocityX) + Math.Abs(entity.VelocityY) > 0.01)
                     Face(entity, entity.VelocityX, entity.VelocityY);
             }
+            foreach (var parent in entities)
+            foreach (var childIndex in parent.ChildEntityIndices ?? Array.Empty<int>())
+            {
+                var child = entities.FirstOrDefault(value => value.EntityIndex == childIndex);
+                if (child == null) continue;
+                child.PositionX = parent.PositionX; child.PositionZ = parent.PositionZ;
+                child.VelocityX = parent.VelocityX; child.VelocityY = parent.VelocityY;
+            }
         }
 
         private static void StepCombat(

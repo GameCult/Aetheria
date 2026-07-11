@@ -19,8 +19,6 @@ namespace GameCult.Aetheria.State.Verse
             new List<AetheriaRuntimeDaemonDockingIntent>();
         public List<AetheriaRuntimeDaemonWormholeIntent> Wormholes { get; } =
             new List<AetheriaRuntimeDaemonWormholeIntent>();
-        public List<AetheriaRuntimeDaemonTowIntent> Towing { get; } =
-            new List<AetheriaRuntimeDaemonTowIntent>();
         public bool SensorPingRequested { get; set; }
 
         public bool HasAny =>
@@ -30,8 +28,7 @@ namespace GameCult.Aetheria.State.Verse
             Behaviors.Count > 0 ||
             Consumables.Count > 0 ||
             Docking.Count > 0 ||
-            Wormholes.Count > 0 ||
-            Towing.Count > 0;
+            Wormholes.Count > 0;
     }
 
     public sealed class AetheriaRuntimeDaemonMovementIntent
@@ -82,12 +79,4 @@ namespace GameCult.Aetheria.State.Verse
         public double PositionY { get; set; }
     }
 
-    public sealed class AetheriaRuntimeDaemonTowIntent
-    {
-        public string ActorEntityKey { get; set; } = "";
-        public string StationEntityKey { get; set; } = "";
-        public int TargetZoneIndex { get; set; } = -1;
-        public double PositionX { get; set; }
-        public double PositionY { get; set; }
-    }
 }

@@ -515,7 +515,9 @@ public sealed class AetheriaRuntimeDaemonOperationsClient
                         .Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
                         .Select(key => key.Trim())
                         .Where(key => !string.IsNullOrWhiteSpace(key))
-                        .ToArray()
+                        .ToArray(),
+                    OrbitParentKey = ReadPayloadString(request, "orbitParentKey", ""),
+                    OrbitDistance = ReadPayloadDouble(request, "orbitDistance", 0)
                 }),
             AetheriaRuntimeDaemonCommandKinds.CancelAgentTask => client.CancelAgentTask(
                 frame,

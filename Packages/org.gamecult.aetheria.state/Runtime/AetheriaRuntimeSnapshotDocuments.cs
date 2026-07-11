@@ -922,6 +922,9 @@ namespace GameCult.Aetheria.State.Verse
 
         [Key(39)]
         public string AssignedAgentTaskId { get; set; } = "";
+
+        [Key(40)]
+        public string OrbitKey { get; set; } = "";
     }
 
     [MessagePackObject]

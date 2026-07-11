@@ -55,6 +55,8 @@ namespace GameCult.Aetheria.State.Verse
         [Key(19)] public string Phase { get; set; } = "";
         [Key(20)] public IReadOnlyList<string> TargetBodyKeys { get; set; } = Array.Empty<string>();
         [Key(21)] public int CircuitIndex { get; set; }
+        [Key(22)] public string OrbitParentKey { get; set; } = "";
+        [Key(23)] public double OrbitDistance { get; set; }
     }
 
     [MessagePackObject]
@@ -74,6 +76,8 @@ namespace GameCult.Aetheria.State.Verse
         [Key(11)] public string ItemKey { get; set; } = "";
         [Key(12)] public int Quantity { get; set; }
         [Key(13)] public IReadOnlyList<string> TargetBodyKeys { get; set; } = Array.Empty<string>();
+        [Key(14)] public string OrbitParentKey { get; set; } = "";
+        [Key(15)] public double OrbitDistance { get; set; }
     }
 
     public static class AetheriaRuntimeAgentScheduler
@@ -136,6 +140,15 @@ namespace GameCult.Aetheria.State.Verse
                 var agent = FindEntity(run, task.ZoneIndex, task.AssignedEntityIndex);
                 if (agent != null)
                     Complete(task, agent, frameId);
+            }
+            foreach (var task in (run?.AgentTasks ?? Array.Empty<AetheriaRuntimeAgentTaskCommit>())
+                .Where(task => task != null && string.Equals(task.TaskType, AetheriaRuntimeAgentTaskTypes.Tow, StringComparison.Ordinal)))
+            {
+                var detach = CommandId(task, frameId, "detach");
+                var agent = FindEntity(run, task.ZoneIndex, task.AssignedEntityIndex);
+                if (agent == null) continue;
+                if (applied.Contains(detach)) Complete(task, agent, frameId);
+                else if (rejected.Contains(detach)) Fail(task, agent);
             }
         }
 
@@ -208,6 +221,11 @@ namespace GameCult.Aetheria.State.Verse
                 if (string.Equals(task.TaskType, AetheriaRuntimeAgentTaskTypes.Defend, StringComparison.Ordinal))
                 {
                     commands.AddRange(PlanPatrol(zone!, task, agent, frameId));
+                    continue;
+                }
+                if (string.Equals(task.TaskType, AetheriaRuntimeAgentTaskTypes.Tow, StringComparison.Ordinal))
+                {
+                    commands.AddRange(PlanTow(run, zone!, task, agent, frameId));
                     continue;
                 }
 
@@ -453,6 +471,41 @@ namespace GameCult.Aetheria.State.Verse
                 Movement(task, agent, frameId, 0, 0, 0),
                 transfer
             };
+        }
+
+        private static IReadOnlyList<AetheriaRuntimeDaemonCommandDocument> PlanTow(
+            AetheriaRuntimeRunCheckpointCommit run,
+            AetheriaRuntimeZoneSnapshotCommit zone,
+            AetheriaRuntimeAgentTaskCommit task,
+            AetheriaRuntimeEntitySnapshotCommit agent,
+            long frameId)
+        {
+            var station = zone.Entities.FirstOrDefault(value => value != null && value.EntityIndex == task.TargetEntityIndex);
+            var parentBody = (zone.Bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>())
+                .FirstOrDefault(value => value != null && string.Equals(value.BodyKey, task.OrbitParentKey, StringComparison.Ordinal));
+            var parent = AetheriaRuntimeDaemonRenderQueries.QueryBodyPoses(zone)
+                .FirstOrDefault(value => string.Equals(value.BodyKey, task.OrbitParentKey, StringComparison.Ordinal));
+            if (station == null || parentBody == null || string.IsNullOrWhiteSpace(parent.BodyKey) || string.IsNullOrWhiteSpace(parentBody.OrbitKey)) { Fail(task, agent); return Array.Empty<AetheriaRuntimeDaemonCommandDocument>(); }
+            var attached = (agent.ChildEntityIndices ?? Array.Empty<int>()).Contains(station.EntityIndex);
+            if (!attached)
+            {
+                var dx = station.PositionX - agent.PositionX; var dz = station.PositionZ - agent.PositionZ;
+                if (Math.Sqrt(dx * dx + dz * dz) > Math.Max(0.01, task.CompletionRadius))
+                    return new[] { Movement(task, agent, frameId, dx, dz, 1) };
+                task.Phase = "pickup";
+                return new[] { Movement(task, agent, frameId, 0, 0, 0), Command(task, agent, frameId, AetheriaRuntimeDaemonCommandKinds.TowToStation, "attach", command => { command.TargetEntityKey = EntityKey(run, task.ZoneIndex, station.EntityIndex); command.TextValue = "attach"; }) };
+            }
+            task.Phase = "delivery";
+            var radialX = agent.PositionX - parent.CenterX; var radialZ = agent.PositionZ - parent.CenterZ;
+            var length = Math.Sqrt(radialX * radialX + radialZ * radialZ);
+            if (length < 0.001) { radialX = 1; radialZ = 0; length = 1; }
+            var destinationX = parent.CenterX + radialX / length * task.OrbitDistance;
+            var destinationZ = parent.CenterZ + radialZ / length * task.OrbitDistance;
+            var dxDelivery = destinationX - agent.PositionX; var dzDelivery = destinationZ - agent.PositionZ;
+            if (Math.Sqrt(dxDelivery * dxDelivery + dzDelivery * dzDelivery) > Math.Max(0.01, task.CompletionRadius))
+                return new[] { Movement(task, agent, frameId, dxDelivery, dzDelivery, 1) };
+            task.Phase = "detach";
+            return new[] { Movement(task, agent, frameId, 0, 0, 0), Command(task, agent, frameId, AetheriaRuntimeDaemonCommandKinds.TowToStation, "detach", command => { command.TargetEntityKey = EntityKey(run, task.ZoneIndex, station.EntityIndex); command.TextValue = "detach"; command.SubjectKey = parentBody.OrbitKey; command.ScalarValue = task.OrbitDistance; command.PositionX = destinationX; command.PositionZ = destinationZ; }) };
         }
 
         private static IReadOnlyList<AetheriaRuntimeDaemonCommandDocument> PlanPatrol(

@@ -24,6 +24,38 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         AgentMinesAsteroidThroughEquippedBehavior();
         CargoCapacityComesFromHullAndCatalogVolumes();
         AgentSurveysBodyIntoCorporationKnowledge();
+        AgentTowsStationIntoPersistentOrbit();
+    }
+
+    private static void AgentTowsStationIntoPersistentOrbit()
+    {
+        var tug = Entity(0, 0, "workers");
+        var station = Entity(1, 0, "workers");
+        station.Kind = "station";
+        tug.AgentTaskCapabilities = [AetheriaRuntimeAgentTaskTypes.Tow];
+        var zone = new AetheriaRuntimeZoneSnapshotCommit
+        {
+            ZoneIndex = 0, Entities = [tug, station],
+            Orbits = [new AetheriaRuntimeOrbitSnapshotCommit { OrbitKey = "parent-orbit", FixedPositionX = 20 }],
+            Bodies = [new AetheriaRuntimeBodySnapshotCommit { BodyKey = "parent-body", Kind = "planet", OrbitKey = "parent-orbit" }]
+        };
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            CurrentZoneIndex = 0, CurrentEntityKey = "zone.0.entity.0", Zones = [zone],
+            AgentTasks = [new AetheriaRuntimeAgentTaskCommit { TaskId = "tow-1", CorporationKey = "workers", TaskType = AetheriaRuntimeAgentTaskTypes.Tow, ZoneIndex = 0, Status = AetheriaRuntimeAgentTaskStatuses.Queued, TargetEntityIndex = 1, OrbitParentKey = "parent-body", OrbitDistance = 20, CompletionRadius = 5 }]
+        };
+        AetheriaRuntimeDaemonTickRunner.Tick(Path.Combine(Path.GetTempPath(), "aetheria-tow-attach-smoke.cc"), run,
+            new AetheriaRuntimeDaemonTickOptions { FrameId = 1, FixedDeltaSeconds = 0.1, SimulationTimeSeconds = 1, BuildPublications = false });
+        Require(run.Zones[0].Entities[0].ChildEntityIndices.Contains(1), "tow pickup must attach station to tug parentage");
+        RequireEqual("", run.Zones[0].Entities[1].OrbitKey, "attached station must no longer own an orbit");
+
+        AetheriaRuntimeDaemonTickRunner.Tick(Path.Combine(Path.GetTempPath(), "aetheria-tow-detach-smoke.cc"), run,
+            new AetheriaRuntimeDaemonTickOptions { FrameId = 2, FixedDeltaSeconds = 0.1, SimulationTimeSeconds = 2, BuildPublications = false });
+        Require(!run.Zones[0].Entities[0].ChildEntityIndices.Contains(1), "tow delivery must detach station parentage");
+        Require(!string.IsNullOrWhiteSpace(run.Zones[0].Entities[1].OrbitKey), "delivered station must own a persistent orbit");
+        Require(run.Zones[0].Orbits.Any(orbit => orbit.OrbitKey == run.Zones[0].Entities[1].OrbitKey && orbit.ParentOrbitKey == "parent-orbit" && Math.Abs(orbit.Distance - 20) < 0.001),
+            "delivered orbit must preserve requested parent and radius");
+        RequireEqual(AetheriaRuntimeAgentTaskStatuses.Completed, run.AgentTasks[0].Status, "tow task must complete only after detach applies");
     }
 
     private static void AgentSurveysBodyIntoCorporationKnowledge()

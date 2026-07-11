@@ -176,7 +176,7 @@ namespace GameCult.Aetheria.State.Verse
                 case AetheriaRuntimeDaemonCommandKinds.EnterWormhole:
                     return ApplyEnterWormholeIntent(run, command, context.Intents);
                 case AetheriaRuntimeDaemonCommandKinds.TowToStation:
-                    return ApplyTowToStationIntent(run, command, context.Intents);
+                    return ApplyTowToStation(run, command, context.DockingDistance);
                 case AetheriaRuntimeDaemonCommandKinds.IssueAgentTask:
                     return ApplyIssueAgentTask(run, command);
                 case AetheriaRuntimeDaemonCommandKinds.CancelAgentTask:
@@ -215,6 +215,9 @@ namespace GameCult.Aetheria.State.Verse
             {
                 return false;
             }
+            if (string.Equals(taskType, AetheriaRuntimeAgentTaskTypes.Tow, StringComparison.Ordinal) &&
+                (request.TargetEntityIndex < 0 || string.IsNullOrWhiteSpace(request.OrbitParentKey) || request.OrbitDistance <= 0))
+                return false;
 
             run.AgentTasks = (run.AgentTasks ?? Array.Empty<AetheriaRuntimeAgentTaskCommit>())
                 .Concat(new[]
@@ -238,6 +241,8 @@ namespace GameCult.Aetheria.State.Verse
                             ? "pickup"
                             : "",
                         TargetBodyKeys = request.TargetBodyKeys ?? Array.Empty<string>(),
+                        OrbitParentKey = request.OrbitParentKey ?? "",
+                        OrbitDistance = request.OrbitDistance,
                         Status = AetheriaRuntimeAgentTaskStatuses.Queued
                     }
                 })
@@ -1498,38 +1503,29 @@ namespace GameCult.Aetheria.State.Verse
             return true;
         }
 
-        private static bool ApplyTowToStationIntent(
+        private static bool ApplyTowToStation(
             AetheriaRuntimeRunCheckpointCommit run,
             AetheriaRuntimeDaemonCommandDocument command,
-            AetheriaRuntimeDaemonIntentState intents)
+            double attachmentDistance)
         {
             var actor = ResolveActorEntityKey(run, command);
-            if (string.IsNullOrWhiteSpace(actor) ||
-                string.IsNullOrWhiteSpace(command.TargetEntityKey) ||
-                !TryResolveEntity(
-                    run,
-                    command.TargetEntityKey,
-                    out var stationZoneIndex,
-                    out _,
-                    out var station))
-            {
+            if (!TryResolveEntity(run, actor, out var actorZone, out _, out var towing) ||
+                !TryResolveEntity(run, command.TargetEntityKey, out var stationZone, out var stationIndex, out var station) || actorZone != stationZone)
                 return false;
+            var children = (towing.ChildEntityIndices ?? Array.Empty<int>()).ToList();
+            if (string.Equals(command.TextValue, "attach", StringComparison.Ordinal))
+            {
+                if (children.Contains(stationIndex) || Math.Pow(station.PositionX - towing.PositionX, 2) + Math.Pow(station.PositionZ - towing.PositionZ, 2) > attachmentDistance * attachmentDistance)
+                    return false;
+                children.Add(stationIndex); towing.ChildEntityIndices = children; station.OrbitKey = ""; station.PositionX = towing.PositionX; station.PositionZ = towing.PositionZ; return true;
             }
-
-            var destinationX = station.PositionX;
-            var destinationY = station.PositionZ;
-            if (!MoveEntityToZone(run, actor, stationZoneIndex, destinationX, destinationY, out var movedEntityKey))
+            if (!string.Equals(command.TextValue, "detach", StringComparison.Ordinal) || !children.Remove(stationIndex) || string.IsNullOrWhiteSpace(command.SubjectKey) || command.ScalarValue <= 0)
                 return false;
-
-            intents.Towing.Add(new AetheriaRuntimeDaemonTowIntent
-            {
-                ActorEntityKey = movedEntityKey,
-                StationEntityKey = command.TargetEntityKey ?? "",
-                TargetZoneIndex = stationZoneIndex,
-                PositionX = destinationX,
-                PositionY = destinationY
-            });
-            return true;
+            towing.ChildEntityIndices = children; station.PositionX = command.PositionX; station.PositionZ = command.PositionZ;
+            var zone = run.Zones.First(value => value.ZoneIndex == actorZone);
+            var orbitKey = $"tow:{command.CommandId}";
+            zone.Orbits = (zone.Orbits ?? Array.Empty<AetheriaRuntimeOrbitSnapshotCommit>()).Concat(new[] { new AetheriaRuntimeOrbitSnapshotCommit { OrbitKey = orbitKey, ParentOrbitKey = command.SubjectKey, Distance = command.ScalarValue, FixedPositionX = command.PositionX, FixedPositionY = command.PositionZ } }).ToArray();
+            station.OrbitKey = orbitKey; return true;
         }
 
         private static bool MoveEntityToZone(
