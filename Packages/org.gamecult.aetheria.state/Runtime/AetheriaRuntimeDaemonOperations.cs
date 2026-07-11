@@ -203,6 +203,12 @@ namespace GameCult.Aetheria.State.Verse
             {
                 return false;
             }
+            if (string.Equals(taskType, AetheriaRuntimeAgentTaskTypes.Haul, StringComparison.Ordinal) &&
+                (request.OriginEntityIndex < 0 || request.TargetEntityIndex < 0 ||
+                 string.IsNullOrWhiteSpace(request.ItemKey) || request.Quantity <= 0))
+            {
+                return false;
+            }
 
             run.AgentTasks = (run.AgentTasks ?? Array.Empty<AetheriaRuntimeAgentTaskCommit>())
                 .Concat(new[]
@@ -219,6 +225,12 @@ namespace GameCult.Aetheria.State.Verse
                         TargetPositionZ = request.TargetPositionZ,
                         CompletionRadius = request.CompletionRadius > 0 ? request.CompletionRadius : 10,
                         WeaponGroup = request.WeaponGroup,
+                        OriginEntityIndex = request.OriginEntityIndex,
+                        ItemKey = request.ItemKey ?? "",
+                        RequestedQuantity = request.Quantity,
+                        Phase = string.Equals(taskType, AetheriaRuntimeAgentTaskTypes.Haul, StringComparison.Ordinal)
+                            ? "pickup"
+                            : "",
                         Status = AetheriaRuntimeAgentTaskStatuses.Queued
                     }
                 })
@@ -661,12 +673,16 @@ namespace GameCult.Aetheria.State.Verse
 
             var sourceX = transfer.SourceX;
             var sourceY = transfer.SourceY;
-            if (!TryRemoveCargoItem(
+            var quantity = transfer.Quantity > 0
+                ? transfer.Quantity
+                : (int)Math.Round(command.ScalarValue);
+            if (!TryRemoveCargoItemQuantity(
                     originEntity,
                     originCargoIndex,
                     command.TextValue,
                     sourceX,
                     sourceY,
+                    quantity,
                     out var slot))
             {
                 return false;

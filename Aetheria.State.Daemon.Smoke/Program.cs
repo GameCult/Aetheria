@@ -17,7 +17,134 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         AgentClaimsAndCompletesExploreTaskThroughCommands();
         SchedulerAssignsHighestPriorityCompatibleTask();
         AgentCompletesAttackTaskThroughTargetFireAndYmir();
+        AgentCompletesHaulTaskThroughMovementAndCargoCommands();
+        RejectedHaulTransferDoesNotAdvanceTask();
     }
+
+    private static void RejectedHaulTransferDoesNotAdvanceTask()
+    {
+        var origin = Entity(0, 0, "workers");
+        origin.CargoContents = [Cargo(("ore", 2, 0, 0))];
+        var agent = Entity(1, 0, "workers");
+        agent.AgentTaskCapabilities = [AetheriaRuntimeAgentTaskTypes.Haul];
+        agent.CargoContents = Array.Empty<AetheriaRuntimeCargoBayLoadoutCommit>();
+        var destination = Entity(2, 20, "workers");
+        destination.CargoContents = [Cargo()];
+        var task = new AetheriaRuntimeAgentTaskCommit
+        {
+            TaskId = "rejected-haul",
+            CorporationKey = "workers",
+            TaskType = AetheriaRuntimeAgentTaskTypes.Haul,
+            Priority = 1,
+            ZoneIndex = 0,
+            OriginEntityIndex = 0,
+            TargetEntityIndex = 2,
+            ItemKey = "ore",
+            RequestedQuantity = 1,
+            CompletionRadius = 5,
+            Phase = "pickup"
+        };
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "rejected-haul-smoke",
+            Zones = [new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [origin, agent, destination] }],
+            AgentTasks = [task]
+        };
+
+        var planned = AetheriaRuntimeAgentScheduler.AssignAndPlan(run, 1);
+        var reduced = AetheriaRuntimeDaemonOperations.Execute(run, planned);
+        AetheriaRuntimeAgentScheduler.Reconcile(run, 1, reduced.AppliedCommandIds, reduced.RejectedCommandIds);
+
+        Require(reduced.RejectedCommandIds.Any(id => id.EndsWith(":pickup", StringComparison.Ordinal)),
+            "invalid pickup must be rejected by the normal cargo reducer");
+        RequireEqual("pickup", task.Phase, "rejected pickup must not advance the haul task");
+        RequireEqual(0, task.PendingQuantity, "rejected pickup must clear pending transfer state");
+        RequireEqual(2, CargoQuantity(origin, "ore"), "rejected pickup must leave origin cargo untouched");
+    }
+
+    private static void AgentCompletesHaulTaskThroughMovementAndCargoCommands()
+    {
+        var origin = Entity(0, 0, "workers");
+        origin.Kind = "station";
+        origin.CargoContents = [Cargo(("ore", 5, 2, 3))];
+        var agent = Entity(1, 0, "workers");
+        agent.AgentTaskCapabilities = [AetheriaRuntimeAgentTaskTypes.Haul];
+        agent.CargoContents = [Cargo()];
+        var destination = Entity(2, 50, "workers");
+        destination.Kind = "station";
+        destination.CargoContents = [Cargo()];
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "agent-haul-smoke",
+            CurrentZoneIndex = 0,
+            CurrentEntityKey = "zone.0.entity.1",
+            Zones = [new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [origin, agent, destination] }]
+        };
+        var issue = AetheriaRuntimeDaemonCommandDocument.Create(
+            AetheriaRuntimeDaemonCommandKinds.IssueAgentTask,
+            "commander-smoke",
+            "starbridge-smoke",
+            0,
+            "");
+        issue.CommandId = "issue-haul";
+        issue.AgentTask = new AetheriaRuntimeAgentTaskCommand
+        {
+            TaskId = "haul-ore",
+            CorporationKey = "workers",
+            TaskType = AetheriaRuntimeAgentTaskTypes.Haul,
+            Priority = 40,
+            ZoneIndex = 0,
+            OriginEntityIndex = 0,
+            TargetEntityIndex = 2,
+            ItemKey = "ore",
+            Quantity = 3,
+            CompletionRadius = 5
+        };
+        var sawPickup = false;
+        var sawDelivery = false;
+        for (var frame = 0; frame < 30; frame++)
+        {
+            var tick = AetheriaRuntimeDaemonTickRunner.Tick(
+                Path.Combine(Path.GetTempPath(), "aetheria-agent-haul-smoke.cc"),
+                run,
+                new AetheriaRuntimeDaemonTickOptions
+                {
+                    FrameId = frame,
+                    FixedDeltaSeconds = 0.1,
+                    SimulationTimeSeconds = frame * 0.1,
+                    ObservedCommands = frame == 0 ? [issue] : Array.Empty<AetheriaRuntimeDaemonCommandDocument>(),
+                    ProjectilePhysics = AetheriaRuntimeProjectilePhysicsUnavailable.Instance,
+                    BuildPublications = false
+                });
+            sawPickup |= tick.OperationResult.AppliedCommandIds.Any(id => id.EndsWith(":pickup", StringComparison.Ordinal));
+            sawDelivery |= tick.OperationResult.AppliedCommandIds.Any(id => id.EndsWith(":delivery", StringComparison.Ordinal));
+            if (string.Equals(run.AgentTasks.Single().Status, AetheriaRuntimeAgentTaskStatuses.Completed, StringComparison.Ordinal))
+                break;
+        }
+
+        Require(sawPickup && sawDelivery, "haul task must use accepted pickup and delivery cargo commands");
+        RequireEqual(AetheriaRuntimeAgentTaskStatuses.Completed, run.AgentTasks.Single().Status,
+            "haul task must complete only after accepted delivery");
+        RequireEqual(2, CargoQuantity(origin, "ore"), "origin must retain the unrequested stack quantity");
+        RequireEqual(3, CargoQuantity(destination, "ore"), "destination must receive exactly the requested quantity");
+        RequireEqual(0, CargoQuantity(agent, "ore"), "hauler must finish with no in-transit cargo");
+    }
+
+    private static AetheriaRuntimeCargoBayLoadoutCommit Cargo(params (string ItemKey, int Quantity, int X, int Y)[] items) => new()
+    {
+        Items = items.Select(item => new AetheriaRuntimeLoadoutItemSlotCommit
+        {
+            X = item.X,
+            Y = item.Y,
+            Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = item.ItemKey, Quantity = item.Quantity }
+        }).ToArray()
+    };
+
+    private static int CargoQuantity(AetheriaRuntimeEntitySnapshotCommit entity, string itemKey) =>
+        (entity.CargoContents ?? Array.Empty<AetheriaRuntimeCargoBayLoadoutCommit>())
+            .SelectMany(bay => bay.Items)
+            .Where(slot => string.Equals(slot.Item.ItemKey, itemKey, StringComparison.Ordinal))
+            .Sum(slot => slot.Item.Quantity);
 
     private static void AgentCompletesAttackTaskThroughTargetFireAndYmir()
     {

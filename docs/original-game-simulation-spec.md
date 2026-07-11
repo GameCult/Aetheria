@@ -103,6 +103,13 @@ controller's ordinary `AssignTask` entry point. The daemon scheduler must retain
 that queue/capability/priority/availability contract. Assignment state is
 durable; task execution drives the same semantic controls used by players.
 
+The historical hauling controller (`991d411c`) travels to the origin, docks,
+loads up to available capacity and outstanding quantity, waits, travels to the
+destination, docks, unloads, and repeats until the requested quantity is
+delivered. Daemon task phases may advance only from accepted movement,
+docking, and cargo-transfer results. A rejected transfer leaves both cargo and
+task phase unchanged.
+
 ## Quality And Progression
 
 Crafted items carry continuous quality. Quality changes performance, durability

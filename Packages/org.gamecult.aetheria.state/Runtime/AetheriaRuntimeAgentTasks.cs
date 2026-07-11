@@ -47,6 +47,12 @@ namespace GameCult.Aetheria.State.Verse
         [Key(11)] public int WeaponGroup { get; set; }
         [Key(12)] public long AssignedFrameId { get; set; } = -1;
         [Key(13)] public long CompletedFrameId { get; set; } = -1;
+        [Key(14)] public int OriginEntityIndex { get; set; } = -1;
+        [Key(15)] public string ItemKey { get; set; } = "";
+        [Key(16)] public int RequestedQuantity { get; set; }
+        [Key(17)] public int DeliveredQuantity { get; set; }
+        [Key(18)] public int PendingQuantity { get; set; }
+        [Key(19)] public string Phase { get; set; } = "";
     }
 
     [MessagePackObject]
@@ -62,6 +68,9 @@ namespace GameCult.Aetheria.State.Verse
         [Key(7)] public double TargetPositionZ { get; set; }
         [Key(8)] public double CompletionRadius { get; set; } = 10;
         [Key(9)] public int WeaponGroup { get; set; }
+        [Key(10)] public int OriginEntityIndex { get; set; } = -1;
+        [Key(11)] public string ItemKey { get; set; } = "";
+        [Key(12)] public int Quantity { get; set; }
     }
 
     public static class AetheriaRuntimeAgentScheduler
@@ -78,6 +87,42 @@ namespace GameCult.Aetheria.State.Verse
             ReleaseInvalidAssignments(run);
             AssignQueuedTasks(run, frameId);
             return PlanAssignedTasks(run, frameId);
+        }
+
+        public static void Reconcile(
+            AetheriaRuntimeRunCheckpointCommit run,
+            long frameId,
+            IReadOnlyCollection<string> appliedCommandIds,
+            IReadOnlyCollection<string> rejectedCommandIds)
+        {
+            var applied = new HashSet<string>(appliedCommandIds ?? Array.Empty<string>(), StringComparer.Ordinal);
+            var rejected = new HashSet<string>(rejectedCommandIds ?? Array.Empty<string>(), StringComparer.Ordinal);
+            foreach (var task in (run?.AgentTasks ?? Array.Empty<AetheriaRuntimeAgentTaskCommit>())
+                .Where(task => task != null && string.Equals(task.TaskType, AetheriaRuntimeAgentTaskTypes.Haul, StringComparison.Ordinal)))
+            {
+                var pickupId = CommandId(task, frameId, "pickup");
+                var deliveryId = CommandId(task, frameId, "delivery");
+                if (applied.Contains(pickupId))
+                {
+                    task.Phase = "delivery";
+                    continue;
+                }
+                if (applied.Contains(deliveryId))
+                {
+                    task.DeliveredQuantity += task.PendingQuantity;
+                    task.PendingQuantity = 0;
+                    task.Phase = task.DeliveredQuantity >= task.RequestedQuantity ? "complete" : "pickup";
+                    if (string.Equals(task.Phase, "complete", StringComparison.Ordinal))
+                    {
+                        var agent = FindEntity(run, task.ZoneIndex, task.AssignedEntityIndex);
+                        if (agent != null)
+                            Complete(task, agent, frameId);
+                    }
+                    continue;
+                }
+                if (rejected.Contains(pickupId) || rejected.Contains(deliveryId))
+                    task.PendingQuantity = 0;
+            }
         }
 
         private static void AssignQueuedTasks(AetheriaRuntimeRunCheckpointCommit run, long frameId)
@@ -128,6 +173,12 @@ namespace GameCult.Aetheria.State.Verse
                 if (agent == null || !agent.IsActive)
                     continue;
 
+                if (string.Equals(task.TaskType, AetheriaRuntimeAgentTaskTypes.Haul, StringComparison.Ordinal))
+                {
+                    commands.AddRange(PlanHaul(run, zone!, task, agent, frameId));
+                    continue;
+                }
+
                 var target = task.TargetEntityIndex < 0
                     ? null
                     : zone!.Entities.FirstOrDefault(entity => entity != null && entity.EntityIndex == task.TargetEntityIndex);
@@ -164,6 +215,68 @@ namespace GameCult.Aetheria.State.Verse
             return commands;
         }
 
+        private static IReadOnlyList<AetheriaRuntimeDaemonCommandDocument> PlanHaul(
+            AetheriaRuntimeRunCheckpointCommit run,
+            AetheriaRuntimeZoneSnapshotCommit zone,
+            AetheriaRuntimeAgentTaskCommit task,
+            AetheriaRuntimeEntitySnapshotCommit agent,
+            long frameId)
+        {
+            var pickup = !string.Equals(task.Phase, "delivery", StringComparison.Ordinal);
+            var endpointIndex = pickup ? task.OriginEntityIndex : task.TargetEntityIndex;
+            var endpoint = zone.Entities.FirstOrDefault(entity => entity != null && entity.EntityIndex == endpointIndex);
+            if (endpoint == null)
+            {
+                Fail(task, agent);
+                return Array.Empty<AetheriaRuntimeDaemonCommandDocument>();
+            }
+
+            var dx = endpoint.PositionX - agent.PositionX;
+            var dz = endpoint.PositionZ - agent.PositionZ;
+            var distance = Math.Sqrt(dx * dx + dz * dz);
+            if (distance > Math.Max(0.01, task.CompletionRadius))
+                return new[] { Movement(task, agent, frameId, dx, dz, 1) };
+
+            var source = pickup ? endpoint : agent;
+            var destination = pickup ? agent : endpoint;
+            var sourceSlot = (source.CargoContents ?? Array.Empty<AetheriaRuntimeCargoBayLoadoutCommit>())
+                .SelectMany((bay, bayIndex) => (bay?.Items ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>())
+                    .Where(slot => string.Equals(slot?.Item?.ItemKey, task.ItemKey, StringComparison.Ordinal))
+                    .Select(slot => (BayIndex: bayIndex, Slot: slot)))
+                .FirstOrDefault();
+            if (sourceSlot.Slot == null)
+            {
+                Fail(task, agent);
+                return Array.Empty<AetheriaRuntimeDaemonCommandDocument>();
+            }
+
+            var remaining = task.RequestedQuantity - task.DeliveredQuantity;
+            var quantity = Math.Min(remaining, Math.Max(1, sourceSlot.Slot.Item.Quantity));
+            task.PendingQuantity = quantity;
+            var transfer = Command(task, agent, frameId, AetheriaRuntimeDaemonCommandKinds.TransferCargoItem,
+                pickup ? "pickup" : "delivery", command =>
+                {
+                    command.TextValue = task.ItemKey;
+                    command.ScalarValue = quantity;
+                    command.TargetEntityKey = EntityKey(run, task.ZoneIndex, destination.EntityIndex);
+                    command.CargoTransfer = new AetheriaRuntimeCargoTransferCommand
+                    {
+                        OriginEntityKey = EntityKey(run, task.ZoneIndex, source.EntityIndex),
+                        OriginCargoIndex = sourceSlot.BayIndex,
+                        DestinationEntityKey = EntityKey(run, task.ZoneIndex, destination.EntityIndex),
+                        DestinationCargoIndex = 0,
+                        SourceX = sourceSlot.Slot.X,
+                        SourceY = sourceSlot.Slot.Y,
+                        Quantity = quantity
+                    };
+                });
+            return new[]
+            {
+                Movement(task, agent, frameId, 0, 0, 0),
+                transfer
+            };
+        }
+
         private static AetheriaRuntimeDaemonCommandDocument Movement(
             AetheriaRuntimeAgentTaskCommit task,
             AetheriaRuntimeEntitySnapshotCommit agent,
@@ -191,7 +304,7 @@ namespace GameCult.Aetheria.State.Verse
         {
             var actor = $"zone.{task.ZoneIndex}.entity.{agent.EntityIndex}";
             var command = AetheriaRuntimeDaemonCommandDocument.Create(kind, RuntimeId, "daemon-agent-scheduler", frameId, actor);
-            command.CommandId = string.Join(":", RuntimeId, task.TaskId, frameId.ToString(CultureInfo.InvariantCulture), phase);
+            command.CommandId = CommandId(task, frameId, phase);
             configure(command);
             return command;
         }
@@ -202,6 +315,24 @@ namespace GameCult.Aetheria.State.Verse
             task.CompletedFrameId = frameId;
             agent.AssignedAgentTaskId = "";
         }
+
+        private static void Fail(AetheriaRuntimeAgentTaskCommit task, AetheriaRuntimeEntitySnapshotCommit agent)
+        {
+            task.Status = AetheriaRuntimeAgentTaskStatuses.Failed;
+            task.PendingQuantity = 0;
+            agent.AssignedAgentTaskId = "";
+        }
+
+        private static string CommandId(AetheriaRuntimeAgentTaskCommit task, long frameId, string phase) =>
+            string.Join(":", RuntimeId, task.TaskId, frameId.ToString(CultureInfo.InvariantCulture), phase);
+
+        private static AetheriaRuntimeEntitySnapshotCommit? FindEntity(
+            AetheriaRuntimeRunCheckpointCommit run,
+            int zoneIndex,
+            int entityIndex) =>
+            (run.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>())
+                .FirstOrDefault(zone => zone != null && zone.ZoneIndex == zoneIndex)
+                ?.Entities?.FirstOrDefault(entity => entity != null && entity.EntityIndex == entityIndex);
 
         private static void ReleaseInvalidAssignments(AetheriaRuntimeRunCheckpointCommit run)
         {

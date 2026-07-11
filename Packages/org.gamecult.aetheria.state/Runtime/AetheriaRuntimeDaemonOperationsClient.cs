@@ -507,7 +507,10 @@ public sealed class AetheriaRuntimeDaemonOperationsClient
                     TargetPositionX = ReadPayloadDouble(request, "targetPositionX", 0),
                     TargetPositionZ = ReadPayloadDouble(request, "targetPositionZ", 0),
                     CompletionRadius = ReadPayloadDouble(request, "completionRadius", 10),
-                    WeaponGroup = (int)ReadPayloadDouble(request, "weaponGroup", 0)
+                    WeaponGroup = (int)ReadPayloadDouble(request, "weaponGroup", 0),
+                    OriginEntityIndex = (int)ReadPayloadDouble(request, "originEntityIndex", -1),
+                    ItemKey = ReadPayloadString(request, "itemKey", ""),
+                    Quantity = (int)ReadPayloadDouble(request, "quantity", 0)
                 }),
             AetheriaRuntimeDaemonCommandKinds.CancelAgentTask => client.CancelAgentTask(
                 frame,

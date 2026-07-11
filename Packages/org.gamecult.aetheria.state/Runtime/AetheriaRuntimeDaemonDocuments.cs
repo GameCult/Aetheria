@@ -843,6 +843,9 @@ namespace GameCult.Aetheria.State.Verse
 
         [Key(8)]
         public bool HasDestinationPosition { get; set; }
+
+        [Key(9)]
+        public int Quantity { get; set; }
     }
 
     [MessagePackObject]

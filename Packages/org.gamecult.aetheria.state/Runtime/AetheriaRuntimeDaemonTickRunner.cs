@@ -140,6 +140,11 @@ namespace GameCult.Aetheria.State.Verse
                     operationResult.Run,
                     agentCommands,
                     options.OperationContext);
+                AetheriaRuntimeAgentScheduler.Reconcile(
+                    agentResult.Run,
+                    options.FrameId,
+                    agentResult.AppliedCommandIds,
+                    agentResult.RejectedCommandIds);
                 operationResult = new AetheriaRuntimeDaemonOperationResult(
                     agentResult.Run,
                     operationResult.AppliedCommandIds.Concat(agentResult.AppliedCommandIds).ToArray(),

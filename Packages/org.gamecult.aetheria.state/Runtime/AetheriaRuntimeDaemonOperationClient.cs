@@ -435,6 +435,7 @@ namespace GameCult.Aetheria.State.Verse
             command.CargoTransfer.DestinationX = destinationX;
             command.CargoTransfer.DestinationY = destinationY;
             command.CargoTransfer.HasDestinationPosition = hasDestinationPosition;
+            command.CargoTransfer.Quantity = quantity;
             return Send(command);
         }
 

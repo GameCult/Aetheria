@@ -182,6 +182,11 @@ namespace GameCult.Aetheria.State.Verse
                         ("zoneIndex", task.ZoneIndex.ToString(CultureInfo.InvariantCulture)),
                         ("assignedEntityIndex", task.AssignedEntityIndex.ToString(CultureInfo.InvariantCulture)),
                         ("targetEntityIndex", task.TargetEntityIndex.ToString(CultureInfo.InvariantCulture)),
+                        ("originEntityIndex", task.OriginEntityIndex.ToString(CultureInfo.InvariantCulture)),
+                        ("itemKey", task.ItemKey),
+                        ("requestedQuantity", task.RequestedQuantity.ToString(CultureInfo.InvariantCulture)),
+                        ("deliveredQuantity", task.DeliveredQuantity.ToString(CultureInfo.InvariantCulture)),
+                        ("phase", task.Phase),
                         ("targetPosition", string.Join(",", new[]
                         {
                             task.TargetPositionX.ToString("0.###", CultureInfo.InvariantCulture),
