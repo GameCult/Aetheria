@@ -443,6 +443,9 @@ namespace GameCult.Aetheria.State.Verse
         [Key(6)] public int PickupIndex { get; set; } = -1;
         [Key(7)] public string ItemKey { get; set; } = "";
         [Key(8)] public double ScalarValue { get; set; }
+        [Key(9)] public string SubjectKey { get; set; } = "";
+        [Key(10)] public double PositionX { get; set; }
+        [Key(11)] public double PositionZ { get; set; }
     }
 
     [MessagePackObject]

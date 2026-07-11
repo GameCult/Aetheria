@@ -12,6 +12,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
     {
         YmirMovesProjectileAndReportsStableContact();
         DaemonSimulationAppliesYmirHit();
+        ProjectileDeathEmitsOnce();
         MissingPhysicsOwnerCannotAdvanceProjectiles();
         MissingWorldPhysicsOwnerCannotAdvanceShips();
         TractorRampsAndPullsThroughYmirWithoutTeleportingCargo();
@@ -524,6 +525,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
 
         Require(sawTargetCommand, "attack agent must target through the shared target command");
         Require(sawFireCommand, "attack agent must fire through the shared weapon-group command");
+        Require(run.GameEvents.Any(value => value.Kind == "projectile.launched" && value.SourceEntityIndex == agent.EntityIndex),
+            "accepted fire control must emit authoritative projectile launch chronology");
         Require(!target.IsActive,
             $"attack task must end through daemon damage after Ymir projectile contacts; hull={Stat(target, "hull"):0.###} " +
             $"agent={agent.PositionX:0.###},{agent.PositionZ:0.###} target={target.PositionX:0.###},{target.PositionZ:0.###} " +
@@ -760,6 +763,27 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
 
         RequireEqual(88.0, Stat(target, "hull"), "Aetheria must interpret the Ymir contact as damage");
         RequireEqual(0, run.Zones[0].Projectiles.Count, "spent projectile must leave daemon state");
+        RequireEqual(1, run.GameEvents.Count(value => value.Kind == "projectile.impact" && value.SubjectKey == "smoke-projectile"),
+            "Ymir contact must emit one projectile-identity impact event");
+        RequireEqual(1, run.GameEvents.Count(value => value.Kind == "entity.damaged" && value.TargetEntityIndex == target.EntityIndex),
+            "daemon damage interpretation must emit one target damage event");
+        var feedback = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(
+            new AetheriaRuntimeDaemonFrameDocument { FrameId = 0, Run = run },
+            new AetheriaRuntimeDaemonHealthDocument(),
+            AetheriaRuntimeDaemonCommandBoundaryDocument.Create("daemon"));
+        Require(Flatten(feedback.Surface.Root).Any(node => node.Kind == "feedback.event" && node.Props["eventKind"] == "projectile.impact" && node.Props["subjectKey"] == "smoke-projectile"),
+            "Eve feedback must project authoritative projectile impact identity");
+    }
+
+    private static void ProjectileDeathEmitsOnce()
+    {
+        var (run, _, target) = Scenario();
+        target.StatGrids.Single(grid => grid.Name == "hull").Values = [5];
+        AetheriaRuntimeDaemonSimulation.Step(run, new AetheriaRuntimeDaemonIntentState(), 0.1,
+            AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault, new AetheriaYmirProjectilePhysics(), new AetheriaYmirWorldPhysics(), frameId: 9);
+        Require(!target.IsActive, "lethal Ymir projectile contact must deactivate target");
+        RequireEqual(1, run.GameEvents.Count(value => value.Kind == "entity.destroyed" && value.TargetEntityIndex == target.EntityIndex),
+            "alive-to-dead transition must emit one destruction event");
     }
 
     private static void MissingPhysicsOwnerCannotAdvanceProjectiles()

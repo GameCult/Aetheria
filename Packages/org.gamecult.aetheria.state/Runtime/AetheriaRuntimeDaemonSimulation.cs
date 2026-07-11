@@ -53,7 +53,7 @@ namespace GameCult.Aetheria.State.Verse
                 StepTargetPursuit(entities, settings);
                 var worldStep = StepWorldPhysics(zone, entities, deltaSeconds, worldPhysics);
                 ResolvePickupContacts(run, zone, entities, worldStep, catalog, frameId);
-                StepCombat(run, zone, entities, intents, deltaSeconds, settings, projectilePhysics);
+                StepCombat(run, zone, entities, intents, deltaSeconds, settings, projectilePhysics, frameId);
                 AetheriaRuntimeMiningSimulation.Step(run, zone, entities, intents, catalog, frameId, simulationTimeSeconds, deltaSeconds);
                 AetheriaRuntimeSurveySimulation.Step(run, zone, entities, intents, catalog, frameId, simulationTimeSeconds, deltaSeconds);
                 RefreshContacts(entities, settings);
@@ -232,7 +232,8 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeDaemonIntentState intents,
             double deltaSeconds,
             AetheriaRuntimeDaemonSimulationSettings settings,
-            IAetheriaRuntimeProjectilePhysics projectilePhysics)
+            IAetheriaRuntimeProjectilePhysics projectilePhysics,
+            long frameId)
         {
             var byIndex = entities.ToDictionary(entity => entity.EntityIndex);
             foreach (var attacker in entities)
@@ -264,7 +265,8 @@ namespace GameCult.Aetheria.State.Verse
                 if (IsPlayerOwned(attacker) && !WantsFire(run, zone, attacker, intents))
                     continue;
 
-                SpawnProjectile(zone, attacker, target, settings);
+                var projectile = SpawnProjectile(zone, attacker, target, settings);
+                AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit { EventId = $"projectile:{projectile.ProjectileId}:launched", Kind = "projectile.launched", FrameId = frameId, ZoneIndex = zone.ZoneIndex, SourceEntityIndex = attacker.EntityIndex, TargetEntityIndex = target.EntityIndex, SubjectKey = projectile.ProjectileId, ItemKey = projectile.WeaponKind, ScalarValue = projectile.Damage, PositionX = projectile.PositionX, PositionZ = projectile.PositionZ });
                 weaponState.Firing = true;
                 weaponState.CoolingDown = true;
                 weaponState.CooldownProgress = settings.WeaponCooldownSeconds;
@@ -283,7 +285,14 @@ namespace GameCult.Aetheria.State.Verse
             foreach (var hit in projectileStep.Hits)
             {
                 if (byIndex.TryGetValue(hit.TargetEntityIndex, out var target))
+                {
+                    var aliveBefore = IsAlive(target);
                     Damage(target, hit.Projectile.Damage);
+                    AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit { EventId = $"projectile:{hit.Projectile.ProjectileId}:impact", Kind = "projectile.impact", FrameId = frameId, ZoneIndex = zone.ZoneIndex, SourceEntityIndex = hit.Projectile.SourceEntityIndex, TargetEntityIndex = target.EntityIndex, SubjectKey = hit.Projectile.ProjectileId, ItemKey = hit.Projectile.WeaponKind, ScalarValue = hit.Projectile.Damage, PositionX = hit.PointX, PositionZ = hit.PointZ });
+                    AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit { EventId = $"projectile:{hit.Projectile.ProjectileId}:damage", Kind = "entity.damaged", FrameId = frameId, ZoneIndex = zone.ZoneIndex, SourceEntityIndex = hit.Projectile.SourceEntityIndex, TargetEntityIndex = target.EntityIndex, SubjectKey = hit.Projectile.ProjectileId, ScalarValue = hit.Projectile.Damage, PositionX = hit.PointX, PositionZ = hit.PointZ });
+                    if (aliveBefore && !IsAlive(target))
+                        AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit { EventId = $"projectile:{hit.Projectile.ProjectileId}:destroyed:{target.EntityIndex}", Kind = "entity.destroyed", FrameId = frameId, ZoneIndex = zone.ZoneIndex, SourceEntityIndex = hit.Projectile.SourceEntityIndex, TargetEntityIndex = target.EntityIndex, SubjectKey = hit.Projectile.ProjectileId, PositionX = hit.PointX, PositionZ = hit.PointZ });
+                }
             }
 
             foreach (var entity in entities)
@@ -397,7 +406,7 @@ namespace GameCult.Aetheria.State.Verse
             return state;
         }
 
-        private static void SpawnProjectile(
+        private static AetheriaRuntimeProjectileCommit SpawnProjectile(
             AetheriaRuntimeZoneSnapshotCommit zone,
             AetheriaRuntimeEntitySnapshotCommit attacker,
             AetheriaRuntimeEntitySnapshotCommit target,
@@ -412,7 +421,7 @@ namespace GameCult.Aetheria.State.Verse
             var projectiles = (zone.Projectiles ?? Array.Empty<AetheriaRuntimeProjectileCommit>())
                 .Where(projectile => projectile != null && projectile.Active)
                 .ToList();
-            projectiles.Add(new AetheriaRuntimeProjectileCommit
+            var projectile = new AetheriaRuntimeProjectileCommit
             {
                 ProjectileId = CreateProjectileId(zone, attacker, target, projectiles.Count),
                 SourceEntityIndex = attacker.EntityIndex,
@@ -431,8 +440,10 @@ namespace GameCult.Aetheria.State.Verse
                 Guided = true,
                 Active = true,
                 WeaponKind = IsPlayerOwned(attacker) ? "vanguard-bolt" : "raider-bolt"
-            });
+            };
+            projectiles.Add(projectile);
             zone.Projectiles = projectiles.ToArray();
+            return projectile;
         }
 
         private static string CreateProjectileId(

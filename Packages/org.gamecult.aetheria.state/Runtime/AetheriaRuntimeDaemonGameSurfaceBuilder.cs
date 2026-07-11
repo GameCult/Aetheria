@@ -231,6 +231,8 @@ namespace GameCult.Aetheria.State.Verse
                         ("targetEntityIndex", value.TargetEntityIndex.ToString(CultureInfo.InvariantCulture)),
                         ("pickupIndex", value.PickupIndex.ToString(CultureInfo.InvariantCulture)),
                         ("itemKey", value.ItemKey), ("scalarValue", FormatNumber(value.ScalarValue)),
+                        ("subjectKey", value.SubjectKey),
+                        ("position", string.Join(",", new[] { FormatNumber(value.PositionX), FormatNumber(value.PositionZ) })),
                         ("currentFrameId", frameId.ToString(CultureInfo.InvariantCulture))
                     }))
                 .ToArray();
