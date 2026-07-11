@@ -26,6 +26,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         SchedulerCollapsesDuplicateAssignmentMarkers();
         SchedulerAssignsShortestGalaxyRoute();
         AgentTraversesGalaxyRouteBeforeExecutingTask();
+        IdleAgentReturnsToCanonicalHomeAndDocks();
         AttackAgentControlsOptimumRangeThroughMovementLever();
         AgentCompletesAttackTaskThroughTargetFireAndYmir();
         AgentCompletesHaulTaskThroughMovementAndCargoCommands();
@@ -758,6 +759,72 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             "zone transfer must preserve stable entity identity while projection indices change");
         RequireEqual(AetheriaRuntimeAgentTaskStatuses.Completed, task.Status,
             "agent must execute the task only after arriving in its destination zone");
+    }
+
+    private static void IdleAgentReturnsToCanonicalHomeAndDocks()
+    {
+        var worker = Entity(0, 0, "workers");
+        worker.EntityId = "worker.return-home";
+        worker.HomeEntityId = "station.home";
+        worker.AgentTaskCapabilities = [AetheriaRuntimeAgentTaskTypes.Haul];
+        var home = Entity(0, 60, "workers");
+        home.EntityId = "station.home";
+        home.Kind = "station";
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "agent-return-home-smoke",
+            Zones =
+            [
+                new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, PositionX = 0, GravityTerrainRadius = 100, AdjacentZoneIndices = [1], Entities = [worker] },
+                new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 1, PositionX = 100, GravityTerrainRadius = 100, AdjacentZoneIndices = [0, 2], Entities = Array.Empty<AetheriaRuntimeEntitySnapshotCommit>() },
+                new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 2, PositionX = 200, GravityTerrainRadius = 100, AdjacentZoneIndices = [1], Entities = [home] }
+            ]
+        };
+        var sawApproach = false;
+        var travelCount = 0;
+        var sawDock = false;
+        var rejectedHomeCommands = new List<string>();
+        for (var frame = 0; frame < 40; frame++)
+        {
+            var tick = AetheriaRuntimeDaemonTickRunner.Tick(
+                Path.Combine(Path.GetTempPath(), "aetheria-agent-return-home-smoke.cc"),
+                run,
+                new AetheriaRuntimeDaemonTickOptions
+                {
+                    WorldPhysics = new AetheriaYmirWorldPhysics(),
+                    FrameId = frame,
+                    FixedDeltaSeconds = 0.1,
+                    SimulationTimeSeconds = frame * 0.1,
+                    BuildPublications = false
+                });
+            sawApproach |= tick.OperationResult.AppliedCommandIds.Any(id => id.Contains(":home-approach", StringComparison.Ordinal));
+            travelCount += tick.OperationResult.AppliedCommandIds.Count(id => id.EndsWith(":home-travel", StringComparison.Ordinal));
+            sawDock |= tick.OperationResult.AppliedCommandIds.Any(id => id.EndsWith(":home-dock", StringComparison.Ordinal));
+            rejectedHomeCommands.AddRange(tick.OperationResult.RejectedCommandIds.Where(id => id.Contains(":home-", StringComparison.Ordinal)));
+            if (sawDock)
+                break;
+        }
+
+        var homeZone = run.Zones.Single(zone => zone.ZoneIndex == 2);
+        var arrivedWorker = homeZone.Entities.Single(entity => entity.EntityId == "worker.return-home");
+        var arrivedHome = homeZone.Entities.Single(entity => entity.EntityId == "station.home");
+        Require(sawApproach, "idle worker must approach its route and home through shared movement commands");
+        RequireEqual(2, travelCount, "idle worker must traverse the shortest route to its canonical home");
+        Require(sawDock,
+            $"idle worker must dock through the daemon docking command; worker={arrivedWorker.PositionX:0.###},{arrivedWorker.PositionZ:0.###} home={arrivedHome.PositionX:0.###},{arrivedHome.PositionZ:0.###} rejected={string.Join(",", rejectedHomeCommands)}");
+        Require(arrivedHome.DockingBayAssignments.Contains(arrivedWorker.EntityIndex),
+            "home docking parentage must be the authoritative completion fact");
+
+        var settled = AetheriaRuntimeDaemonTickRunner.Tick(
+            Path.Combine(Path.GetTempPath(), "aetheria-agent-return-home-settled-smoke.cc"),
+            run,
+            new AetheriaRuntimeDaemonTickOptions
+            {
+                WorldPhysics = new AetheriaYmirWorldPhysics(), FrameId = 41,
+                FixedDeltaSeconds = 0.1, SimulationTimeSeconds = 4.1, BuildPublications = false
+            });
+        Require(!settled.OperationResult.AppliedCommandIds.Any(id => id.Contains(":home-", StringComparison.Ordinal)),
+            "docked worker must not emit a perpetual homecoming repair loop");
     }
 
     private static void AgentClaimsAndCompletesExploreTaskThroughCommands()

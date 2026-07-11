@@ -95,7 +95,9 @@ namespace GameCult.Aetheria.State.Verse
 
             ReleaseInvalidAssignments(run);
             AssignQueuedTasks(run, frameId);
-            return PlanAssignedTasks(run, frameId, catalog, simulationTimeSeconds);
+            var commands = PlanAssignedTasks(run, frameId, catalog, simulationTimeSeconds).ToList();
+            commands.AddRange(PlanIdleReturns(run, frameId));
+            return commands;
         }
 
         public static void Reconcile(
@@ -333,6 +335,96 @@ namespace GameCult.Aetheria.State.Verse
                 commands.Add(Command(task, agent, frameId, AetheriaRuntimeDaemonCommandKinds.FireWeaponGroup, "fire", command =>
                     command.WeaponGroup = Math.Max(0, task.WeaponGroup)));
             return commands;
+        }
+
+        private static IReadOnlyList<AetheriaRuntimeDaemonCommandDocument> PlanIdleReturns(
+            AetheriaRuntimeRunCheckpointCommit run,
+            long frameId)
+        {
+            var commands = new List<AetheriaRuntimeDaemonCommandDocument>();
+            var locations = (run.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>())
+                .Where(zone => zone != null)
+                .SelectMany(zone => (zone.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
+                    .Where(entity => entity != null)
+                    .Select(entity => (Zone: zone, Entity: entity)))
+                .ToArray();
+            var byId = locations
+                .Where(value => !string.IsNullOrWhiteSpace(value.Entity.EntityId))
+                .ToDictionary(value => value.Entity.EntityId, StringComparer.Ordinal);
+            foreach (var worker in locations
+                .Where(value => value.Entity.IsActive)
+                .Where(value => (value.Entity.AgentTaskCapabilities ?? Array.Empty<string>()).Count > 0)
+                .Where(value => string.IsNullOrWhiteSpace(value.Entity.AssignedAgentTaskId))
+                .Where(value => !string.IsNullOrWhiteSpace(value.Entity.HomeEntityId)))
+            {
+                if (!byId.TryGetValue(worker.Entity.HomeEntityId, out var home) || !home.Entity.IsActive)
+                    continue;
+                if (worker.Zone.ZoneIndex != home.Zone.ZoneIndex)
+                {
+                    var route = FindZoneRoute(run, worker.Zone.ZoneIndex, home.Zone.ZoneIndex);
+                    if (route.Count < 2)
+                        continue;
+                    var settings = AetheriaRuntimeDaemonRenderSettings.AetheriaDefault;
+                    var exit = AetheriaRuntimeDaemonRenderQueries.QueryWormholeExits(
+                            run,
+                            worker.Zone,
+                            AetheriaRuntimeDaemonRenderQueries.ResolveZoneRenderRadius(worker.Zone, 1200),
+                            settings.WormholeDistanceRatio)
+                        .First(candidate => candidate.TargetZoneIndex == route[1]);
+                    var dx = exit.PositionX - worker.Entity.PositionX;
+                    var dz = exit.PositionZ - worker.Entity.PositionZ;
+                    if (Math.Sqrt(dx * dx + dz * dz) > AetheriaRuntimeDaemonOperationContext.DefaultWormholeExitRadius * 0.8)
+                        commands.Add(IdleMovement(worker.Zone.ZoneIndex, worker.Entity, frameId, dx, dz, "home-approach-wormhole"));
+                    else
+                        commands.Add(IdleCommand(worker.Zone.ZoneIndex, worker.Entity, frameId,
+                            AetheriaRuntimeDaemonCommandKinds.EnterWormhole, "home-travel", command => command.TargetZoneIndex = route[1]));
+                    continue;
+                }
+                if ((home.Entity.DockingBayAssignments ?? Array.Empty<int>()).Contains(worker.Entity.EntityIndex))
+                    continue;
+                var homeDx = home.Entity.PositionX - worker.Entity.PositionX;
+                var homeDz = home.Entity.PositionZ - worker.Entity.PositionZ;
+                var dockingContactDistance = InteractionRadius(home.Entity) + InteractionRadius(worker.Entity);
+                if (Math.Sqrt(homeDx * homeDx + homeDz * homeDz) > dockingContactDistance + 0.5)
+                    commands.Add(IdleMovement(worker.Zone.ZoneIndex, worker.Entity, frameId, homeDx, homeDz, "home-approach"));
+                else
+                    commands.Add(IdleCommand(worker.Zone.ZoneIndex, worker.Entity, frameId,
+                        AetheriaRuntimeDaemonCommandKinds.Dock, "home-dock",
+                        command => command.TargetEntityKey = EntityKey(run, home.Zone.ZoneIndex, home.Entity.EntityIndex)));
+            }
+            return commands;
+        }
+
+        private static AetheriaRuntimeDaemonCommandDocument IdleMovement(
+            int zoneIndex,
+            AetheriaRuntimeEntitySnapshotCommit entity,
+            long frameId,
+            double dx,
+            double dz,
+            string phase)
+        {
+            var length = Math.Sqrt(dx * dx + dz * dz);
+            return IdleCommand(zoneIndex, entity, frameId, AetheriaRuntimeDaemonCommandKinds.SetMoveVector, phase, command =>
+            {
+                command.DirectionX = length <= 0.0001 ? 0 : dx / length;
+                command.DirectionY = length <= 0.0001 ? 0 : dz / length;
+                command.ScalarValue = length <= 0.0001 ? 0 : 1;
+            });
+        }
+
+        private static AetheriaRuntimeDaemonCommandDocument IdleCommand(
+            int zoneIndex,
+            AetheriaRuntimeEntitySnapshotCommit entity,
+            long frameId,
+            AetheriaRuntimeDaemonCommandKinds kind,
+            string phase,
+            Action<AetheriaRuntimeDaemonCommandDocument> configure)
+        {
+            var command = AetheriaRuntimeDaemonCommandDocument.Create(
+                kind, RuntimeId, "daemon-agent-scheduler", frameId, $"zone.{zoneIndex}.entity.{entity.EntityIndex}");
+            command.CommandId = string.Join(":", RuntimeId, entity.EntityId, frameId.ToString(CultureInfo.InvariantCulture), phase);
+            configure(command);
+            return command;
         }
 
         private static (AetheriaRuntimeZoneSnapshotCommit? Zone, AetheriaRuntimeEntitySnapshotCommit? Entity) FindAssignedEntity(
