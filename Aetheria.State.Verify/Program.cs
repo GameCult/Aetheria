@@ -16446,12 +16446,14 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
         "org.gamecult.aetheria.state",
         "Runtime",
         "AetheriaRuntimeDaemonSimulationSettings.cs");
-    var ymirProjectilePhysicsPath = Path.Combine(
+    var projectilePhysicsContractPath = Path.Combine(
         root,
         "Packages",
         "org.gamecult.aetheria.state",
         "Runtime",
-        "AetheriaRuntimeYmirProjectilePhysics.cs");
+        "AetheriaRuntimeProjectilePhysics.cs");
+    var ymirProjectilePhysicsPath = Path.Combine(root, "Aetheria.State.Daemon", "AetheriaYmirProjectilePhysics.cs");
+    var daemonProjectPath = Path.Combine(root, "Aetheria.State.Daemon", "Aetheria.State.Daemon.csproj");
     var gameDocumentsPath = Path.Combine(
         root,
         "Packages",
@@ -16504,9 +16506,13 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
     var daemonSimulationSettings = File.Exists(daemonSimulationSettingsPath)
         ? File.ReadAllText(daemonSimulationSettingsPath)
         : throw new InvalidOperationException("Cannot verify daemon simulation authority; daemon simulation settings are missing.");
+    var projectilePhysicsContract = File.Exists(projectilePhysicsContractPath)
+        ? File.ReadAllText(projectilePhysicsContractPath)
+        : throw new InvalidOperationException("Cannot verify daemon projectile authority; shared physics port is missing.");
     var ymirProjectilePhysics = File.Exists(ymirProjectilePhysicsPath)
         ? File.ReadAllText(ymirProjectilePhysicsPath)
-        : throw new InvalidOperationException("Cannot verify daemon projectile authority; Ymir projectile physics boundary is missing.");
+        : throw new InvalidOperationException("Cannot verify daemon projectile authority; daemon Ymir adapter is missing.");
+    var daemonProject = File.ReadAllText(daemonProjectPath);
     var gameDocuments = File.Exists(gameDocumentsPath)
         ? File.ReadAllText(gameDocumentsPath)
         : throw new InvalidOperationException("Cannot verify daemon projectile authority; game viewport documents are missing.");
@@ -16574,10 +16580,10 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
         {
             "public static class AetheriaRuntimeDaemonSimulation",
             "AetheriaRuntimeDaemonSimulationSettings settings",
-            "StepCombat(zone, entities, deltaSeconds, settings)",
+            "StepCombat(run, zone, entities, intents, deltaSeconds, settings, projectilePhysics)",
             "EnsureDaemonWeaponState(",
             "SpawnProjectile(zone, attacker, target, settings)",
-            "AetheriaRuntimeYmirProjectilePhysics.Step(zone, entities, deltaSeconds)",
+            "projectilePhysics.Step(zone, entities, deltaSeconds)",
             "Damage(target, hit.Projectile.Damage)"
         },
         [daemonSimulationSettingsPath] = new[]
@@ -16587,14 +16593,29 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
             "public double ProjectileSpeed { get; }",
             "public double AttackRange { get; }"
         },
+        [projectilePhysicsContractPath] = new[]
+        {
+            "public interface IAetheriaRuntimeProjectilePhysics",
+            "public sealed class AetheriaRuntimeProjectilePhysicsUnavailable",
+            "public sealed class AetheriaRuntimeProjectileStep",
+            "public sealed class AetheriaRuntimeProjectileHit"
+        },
         [ymirProjectilePhysicsPath] = new[]
         {
-            "public static class AetheriaRuntimeYmirProjectilePhysics",
-            "public static AetheriaRuntimeYmirProjectileStep Step(",
+            "public sealed class AetheriaYmirProjectilePhysics : IAetheriaRuntimeProjectilePhysics",
+            "private readonly YmirSimulator _simulator",
             "ProjectileBodyPrefix",
-            "DaemonEntityBodyPrefix",
-            "TryResolveProjectileContact(",
-            "public sealed class AetheriaRuntimeYmirProjectileHit"
+            "EntityBodyPrefix",
+            "_simulator.Step(new SimulationStepRequest("
+        },
+        [daemonProjectPath] = new[]
+        {
+            "Ymir.Core.csproj"
+        },
+        [daemonProgramPath] = new[]
+        {
+            "var projectilePhysics = new AetheriaYmirProjectilePhysics();",
+            "ProjectilePhysics = projectilePhysics"
         },
         [gameDocumentsPath] = new[]
         {
@@ -16614,7 +16635,10 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
             var text = pair.Key == snapshotDocumentsPath ? snapshotDocuments :
                 pair.Key == daemonSimulationPath ? daemonSimulation :
                 pair.Key == daemonSimulationSettingsPath ? daemonSimulationSettings :
+                pair.Key == projectilePhysicsContractPath ? projectilePhysicsContract :
                 pair.Key == ymirProjectilePhysicsPath ? ymirProjectilePhysics :
+                pair.Key == daemonProjectPath ? daemonProject :
+                pair.Key == daemonProgramPath ? daemonProgram :
                 pair.Key == gameDocumentsPath ? gameDocuments :
                 gameViewportDocuments;
             return pair.Value

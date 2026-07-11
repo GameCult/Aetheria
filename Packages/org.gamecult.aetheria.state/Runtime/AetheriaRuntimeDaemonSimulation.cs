@@ -16,10 +16,13 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeRunCheckpointCommit run,
             AetheriaRuntimeDaemonIntentState intents,
             double deltaSeconds,
-            AetheriaRuntimeDaemonSimulationSettings settings)
+            AetheriaRuntimeDaemonSimulationSettings settings,
+            IAetheriaRuntimeProjectilePhysics projectilePhysics)
         {
             if (run == null || deltaSeconds <= 0)
                 return;
+            if (projectilePhysics == null)
+                throw new ArgumentNullException(nameof(projectilePhysics));
 
             foreach (var zone in run.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>())
             {
@@ -37,7 +40,7 @@ namespace GameCult.Aetheria.State.Verse
                 StepRaiderAi(entities);
                 StepTargetPursuit(entities, settings);
                 StepMovement(entities, deltaSeconds);
-                StepCombat(run, zone, entities, intents, deltaSeconds, settings);
+                StepCombat(run, zone, entities, intents, deltaSeconds, settings, projectilePhysics);
                 StepTractorSalvage(run, zone, entities, settings);
                 RefreshContacts(entities, settings);
             }
@@ -175,7 +178,8 @@ namespace GameCult.Aetheria.State.Verse
             IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities,
             AetheriaRuntimeDaemonIntentState intents,
             double deltaSeconds,
-            AetheriaRuntimeDaemonSimulationSettings settings)
+            AetheriaRuntimeDaemonSimulationSettings settings,
+            IAetheriaRuntimeProjectilePhysics projectilePhysics)
         {
             var byIndex = entities.ToDictionary(entity => entity.EntityIndex);
             foreach (var attacker in entities)
@@ -214,7 +218,12 @@ namespace GameCult.Aetheria.State.Verse
                 SetStat(attacker, Heat, Math.Min(100, GetStat(attacker, Heat) + ResolveProjectileDamage(attacker, settings) * settings.ProjectileHeatScale));
             }
 
-            var projectileStep = AetheriaRuntimeYmirProjectilePhysics.Step(zone, entities, deltaSeconds);
+            PrepareProjectiles(zone, byIndex, deltaSeconds);
+            var projectileStep = zone.Projectiles.Count == 0
+                ? new AetheriaRuntimeProjectileStep(
+                    Array.Empty<AetheriaRuntimeProjectileCommit>(),
+                    Array.Empty<AetheriaRuntimeProjectileHit>())
+                : projectilePhysics.Step(zone, entities, deltaSeconds);
             zone.Projectiles = projectileStep.Projectiles;
             foreach (var hit in projectileStep.Hits)
             {
@@ -233,6 +242,56 @@ namespace GameCult.Aetheria.State.Verse
                     entity.TargetEntityIndex = -1;
                 }
             }
+        }
+
+        private static void PrepareProjectiles(
+            AetheriaRuntimeZoneSnapshotCommit zone,
+            IReadOnlyDictionary<int, AetheriaRuntimeEntitySnapshotCommit> entities,
+            double deltaSeconds)
+        {
+            var active = new List<AetheriaRuntimeProjectileCommit>();
+            foreach (var projectile in zone.Projectiles ?? Array.Empty<AetheriaRuntimeProjectileCommit>())
+            {
+                if (projectile == null || !projectile.Active)
+                    continue;
+
+                projectile.AgeSeconds += deltaSeconds;
+                if (projectile.AgeSeconds >= projectile.LifetimeSeconds)
+                    continue;
+
+                if (projectile.Guided &&
+                    projectile.TargetEntityIndex >= 0 &&
+                    entities.TryGetValue(projectile.TargetEntityIndex, out var target) &&
+                    IsAlive(target))
+                {
+                    GuideProjectile(projectile, target);
+                }
+
+                active.Add(projectile);
+            }
+            zone.Projectiles = active;
+        }
+
+        private static void GuideProjectile(
+            AetheriaRuntimeProjectileCommit projectile,
+            AetheriaRuntimeEntitySnapshotCommit target)
+        {
+            var speed = Math.Sqrt(
+                projectile.VelocityX * projectile.VelocityX +
+                projectile.VelocityY * projectile.VelocityY);
+            if (speed <= 0.0001)
+                return;
+
+            var x = target.PositionX - projectile.PositionX;
+            var y = target.PositionZ - projectile.PositionZ;
+            var magnitude = Math.Sqrt(x * x + y * y);
+            if (magnitude <= 0.0001)
+                return;
+
+            projectile.DirectionX = x / magnitude;
+            projectile.DirectionY = y / magnitude;
+            projectile.VelocityX = projectile.DirectionX * speed;
+            projectile.VelocityY = projectile.DirectionY * speed;
         }
 
         private static bool WantsFire(

@@ -9,5 +9,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Aetheria.State.Daemon\Aetheria.State.Daemon.csproj" />
+    <ProjectReference Include="..\..\Ymir\src\Ymir.Core\Ymir.Core.csproj" />
   </ItemGroup>
 </Project>

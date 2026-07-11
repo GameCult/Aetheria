@@ -522,6 +522,7 @@ public class DaemonRuntimeDocumentTests
                 FrameId = 42,
                 SimulationTimeSeconds = 12.5,
                 FixedDeltaSeconds = 0.02,
+                ProjectilePhysics = new PassthroughProjectilePhysics(),
                 ObservedCommands = new[] { targetCommand, movementCommand }
             });
 
@@ -942,6 +943,7 @@ public class DaemonRuntimeDocumentTests
                 FrameId = 43,
                 SimulationTimeSeconds = 12.52,
                 FixedDeltaSeconds = 0.02,
+                ProjectilePhysics = new PassthroughProjectilePhysics(),
                 ObservedCommands = new[] { targetCommand },
                 AccountedCommandIds = new[] { targetCommand.CommandId }
             });
@@ -2030,7 +2032,8 @@ public class DaemonRuntimeDocumentTests
             run,
             new AetheriaRuntimeDaemonIntentState(),
             0.1,
-            AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault);
+            AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
+            new PassthroughProjectilePhysics());
 
         var zone = FindZone(run, 0);
         Assert.IsNotEmpty(zone.Projectiles);
@@ -2131,7 +2134,8 @@ public class DaemonRuntimeDocumentTests
             run,
             new AetheriaRuntimeDaemonIntentState(),
             0.1,
-            settings);
+            settings,
+            new PassthroughProjectilePhysics());
 
         var zone = FindZone(run, 0);
         var projectile = zone.Projectiles.Single(projectile => projectile.SourceEntityIndex == 0);
@@ -2211,7 +2215,8 @@ public class DaemonRuntimeDocumentTests
             run,
             new AetheriaRuntimeDaemonIntentState(),
             0.1,
-            AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault);
+            AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
+            new PassthroughProjectilePhysics());
 
         Assert.IsTrue(pilot.CargoContents.SelectMany(bay => bay.Items).Any(slot => slot.Item.ItemKey == "raider-salvage"));
         Assert.IsEmpty(wreck.CargoContents);
@@ -3021,7 +3026,8 @@ public class DaemonRuntimeDocumentTests
                 CultMeshAddress = "cultmesh://aetheria.local/eve/providers/aetheria.daemon",
                 FrameId = frame.FrameId,
                 SimulationTimeSeconds = frame.SimulationTimeSeconds,
-                FixedDeltaSeconds = frame.FixedDeltaSeconds
+                FixedDeltaSeconds = frame.FixedDeltaSeconds,
+                ProjectilePhysics = new PassthroughProjectilePhysics()
             });
         PublishLatestFrameThroughVerseClient(statePath, tickResult.Frame);
         PublishDaemonSurfacesThroughVerseClient(statePath, tickResult);
@@ -3176,7 +3182,8 @@ public class DaemonRuntimeDocumentTests
                 CultMeshAddress = "cultmesh://aetheria.local/eve/providers/aetheria.daemon",
                 FrameId = frame.FrameId,
                 SimulationTimeSeconds = frame.SimulationTimeSeconds,
-                FixedDeltaSeconds = frame.FixedDeltaSeconds
+                FixedDeltaSeconds = frame.FixedDeltaSeconds,
+                ProjectilePhysics = new PassthroughProjectilePhysics()
             });
         PublishLatestFrameThroughVerseClient(statePath, tickResult.Frame);
         PublishDaemonSurfacesThroughVerseClient(statePath, tickResult);
@@ -5552,5 +5559,20 @@ public class DaemonRuntimeDocumentTests
         where TDocument : class
     {
         return document.LatestAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+    }
+
+    private sealed class PassthroughProjectilePhysics : IAetheriaRuntimeProjectilePhysics
+    {
+        public string AuthorityId => "test.passthrough";
+
+        public AetheriaRuntimeProjectileStep Step(
+            AetheriaRuntimeZoneSnapshotCommit zone,
+            IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities,
+            double deltaSeconds)
+        {
+            return new AetheriaRuntimeProjectileStep(
+                zone.Projectiles,
+                Array.Empty<AetheriaRuntimeProjectileHit>());
+        }
     }
 }

@@ -1,194 +1,125 @@
+using Aetheria.State.Daemon;
 using GameCult.Aetheria.State.Verse;
 
-var checks = new AetheriaDaemonCombatKernelSmokeChecks();
+var checks = new AetheriaDaemonYmirSmokeChecks();
 checks.Run();
-Console.WriteLine("Daemon combat kernel smoke passed.");
+Console.WriteLine("Daemon Ymir projectile smoke passed.");
 
-internal sealed class AetheriaDaemonCombatKernelSmokeChecks
+internal sealed class AetheriaDaemonYmirSmokeChecks
 {
     public void Run()
     {
-        DeterministicTicksProduceSameSnapshot();
-        ActionableUnresolvedTrackCanFireBeforeVisibility();
-        KernelWritesNativeSnapshotRows();
+        YmirMovesProjectileAndReportsStableContact();
+        DaemonSimulationAppliesYmirHit();
+        MissingPhysicsOwnerCannotAdvanceProjectiles();
     }
 
-    private static void DeterministicTicksProduceSameSnapshot()
+    private static void YmirMovesProjectileAndReportsStableContact()
     {
-        var left = Scenario();
-        var right = Scenario();
-        var settings = AetheriaDaemonCombatKernelSettings.Default;
+        var (run, zone, target) = Scenario();
+        var step = new AetheriaYmirProjectilePhysics().Step(zone, zone.Entities, 0.1);
 
-        for (var i = 0; i < 8; i++)
+        RequireEqual("ymir.core", new AetheriaYmirProjectilePhysics().AuthorityId, "adapter must identify its owner");
+        RequireEqual(0, step.Projectiles.Count, "contacted projectile must not survive");
+        RequireEqual(1, step.Hits.Count, "Ymir must report one projectile contact");
+        RequireEqual(target.EntityIndex, step.Hits[0].TargetEntityIndex, "contact must resolve the daemon entity");
+        RequireEqual("aetheria.projectile.smoke-projectile", step.Hits[0].ProjectileBodyId, "projectile body id must be stable");
+        RequireEqual("aetheria.daemon.entity.2", step.Hits[0].TargetBodyId, "entity body id must be stable");
+    }
+
+    private static void DaemonSimulationAppliesYmirHit()
+    {
+        var (run, _, target) = Scenario();
+
+        AetheriaRuntimeDaemonSimulation.Step(
+            run,
+            new AetheriaRuntimeDaemonIntentState(),
+            0.1,
+            AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
+            new AetheriaYmirProjectilePhysics());
+
+        RequireEqual(88.0, Stat(target, "hull"), "Aetheria must interpret the Ymir contact as damage");
+        RequireEqual(0, run.Zones[0].Projectiles.Count, "spent projectile must leave daemon state");
+    }
+
+    private static void MissingPhysicsOwnerCannotAdvanceProjectiles()
+    {
+        var (run, _, _) = Scenario();
+        try
         {
-            AetheriaDaemonCombatKernel.Step(left, null, 0.25, catalog: null, settings);
-            AetheriaDaemonCombatKernel.Step(right, null, 0.25, catalog: null, settings);
+            AetheriaRuntimeDaemonSimulation.Step(
+                run,
+                new AetheriaRuntimeDaemonIntentState(),
+                0.1,
+                AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
+                AetheriaRuntimeProjectilePhysicsUnavailable.Instance);
+        }
+        catch (InvalidOperationException)
+        {
+            return;
         }
 
-        RequireEqual(Snapshot(left), Snapshot(right), "combat kernel should be deterministic for the same native state");
+        throw new InvalidOperationException("daemon advanced a projectile without an authoritative physics owner");
     }
 
-    private static void ActionableUnresolvedTrackCanFireBeforeVisibility()
+    private static (AetheriaRuntimeRunCheckpointCommit Run, AetheriaRuntimeZoneSnapshotCommit Zone, AetheriaRuntimeEntitySnapshotCommit Target) Scenario()
     {
-        var run = Scenario(
-            attackerContactConfidence: 0.35,
-            targetShield: 0.0);
-        var settings = new AetheriaDaemonCombatKernelSettings
+        var source = Entity(1, 0, "player");
+        var target = Entity(2, 30, "raider");
+        var zone = new AetheriaRuntimeZoneSnapshotCommit
         {
-            TrackResolutionPerSecond = 0.0,
-            LaunchTrackThreshold = 0.3,
-            VisibleTrackThreshold = 0.8,
-            AbstractWeaponRange = 500.0,
-            DefaultWeaponDamage = 10.0,
-            WeaponCooldownSeconds = 1.0
-        };
-
-        var report = AetheriaDaemonCombatKernel.Step(run, null, 0.2, catalog: null, settings);
-        var attacker = Entity(run, 1);
-        var target = Entity(run, 2);
-        var contact = attacker.Contacts.Single(contact => contact.TargetEntityIndex == 2);
-
-        RequireEqual(1, report.ShotCount, "actionable unresolved track should permit a committed shot");
-        Require(!contact.Visible, "track should remain unresolved below visibility threshold");
-        Require(Stat(target, "hull") < 100.0, "shot should apply native hull damage");
-    }
-
-    private static void KernelWritesNativeSnapshotRows()
-    {
-        var run = Scenario();
-        var report = AetheriaDaemonCombatKernel.Step(run, null, 0.5, catalog: null);
-        var attacker = Entity(run, 1);
-
-        Require(report.ResolvedContactCount > 0, "kernel should resolve contacts into native contact rows");
-        Require(attacker.Contacts.Count > 0, "contacts should live on AetheriaRuntimeEntitySnapshotCommit");
-        Require(attacker.WeaponStates.Any(state => state.OwnerKind == "daemon-combat-kernel"), "weapon state should be a native weapon state row");
-        Require(attacker.StatGrids.Any(grid => grid.Name == "cognitive-load"), "cognition pressure should be a native stat grid row");
-        Require(attacker.StatGrids.Any(grid => grid.Name == "heat-capacity"), "thermal capacity should be a native stat grid row");
-    }
-
-    private static AetheriaRuntimeRunCheckpointCommit Scenario(
-        double attackerContactConfidence = 0.7,
-        double targetShield = 15.0)
-    {
-        return new AetheriaRuntimeRunCheckpointCommit
-        {
-            RunId = "daemon-combat-smoke",
-            CurrentZoneIndex = 0,
-            CurrentEntityKey = "zone.0.entity.1",
-            Zones =
+            ZoneIndex = 0,
+            Entities = [source, target],
+            Projectiles =
             [
-                new AetheriaRuntimeZoneSnapshotCommit
+                new AetheriaRuntimeProjectileCommit
                 {
-                    ZoneIndex = 0,
-                    SimulationTimeSeconds = 0,
-                    Entities =
-                    [
-                        new AetheriaRuntimeEntitySnapshotCommit
-                        {
-                            EntityIndex = 1,
-                            Name = "Cold hunter",
-                            Kind = "ship",
-                            FactionKey = "player",
-                            PositionX = 0,
-                            PositionZ = 0,
-                            DirectionX = 1,
-                            DirectionY = 0,
-                            TargetEntityIndex = 2,
-                            IsActive = true,
-                            Contacts =
-                            [
-                                new AetheriaRuntimeEntityContactCommit
-                                {
-                                    TargetEntityIndex = 2,
-                                    InfoGathered = attackerContactConfidence,
-                                    Hostile = true,
-                                    Visible = attackerContactConfidence >= 0.62
-                                }
-                            ],
-                            StatGrids =
-                            [
-                                Grid("hull", 100.0),
-                                Grid("shield", 20.0),
-                                Grid("heat", 4.0),
-                                Grid("sensor-sensitivity", 1.3),
-                                Grid("cognition", 1.4),
-                                Grid("fire-control", 1.2),
-                                Grid("signature-masking", 0.3)
-                            ]
-                        },
-                        new AetheriaRuntimeEntitySnapshotCommit
-                        {
-                            EntityIndex = 2,
-                            Name = "Hot brute",
-                            Kind = "ship",
-                            FactionKey = "raider",
-                            PositionX = 180,
-                            PositionZ = 0,
-                            DirectionX = -1,
-                            DirectionY = 0,
-                            TargetEntityIndex = 1,
-                            IsActive = true,
-                            StatGrids =
-                            [
-                                Grid("hull", 100.0),
-                                Grid("shield", targetShield),
-                                Grid("heat", 18.0),
-                                Grid("heat-capacity", 180.0),
-                                Grid("signature", 1.4),
-                                Grid("signature-masking", 0.05),
-                                Grid("sensor-sensitivity", 0.9),
-                                Grid("cognition", 0.85),
-                                Grid("fire-control", 1.05)
-                            ]
-                        }
-                    ]
+                    ProjectileId = "smoke-projectile",
+                    SourceEntityIndex = 1,
+                    TargetEntityIndex = 2,
+                    PositionX = 0,
+                    PositionZ = 0,
+                    VelocityX = 100,
+                    VelocityY = 0,
+                    Radius = 1,
+                    Damage = 12,
+                    LifetimeSeconds = 5,
+                    Active = true
                 }
             ]
         };
-    }
-
-    private static AetheriaRuntimeEntitySnapshotCommit Entity(AetheriaRuntimeRunCheckpointCommit run, int index)
-    {
-        return run.Zones
-            .SelectMany(zone => zone.Entities)
-            .Single(entity => entity.EntityIndex == index);
-    }
-
-    private static AetheriaRuntimeEntityStatGridCommit Grid(string name, double value)
-    {
-        return new AetheriaRuntimeEntityStatGridCommit
+        var run = new AetheriaRuntimeRunCheckpointCommit
         {
-            Name = name,
-            Width = 1,
-            Height = 1,
-            Values = [value]
+            RunId = "ymir-projectile-smoke",
+            CurrentZoneIndex = 0,
+            CurrentEntityKey = "zone.0.entity.1",
+            Zones = [zone]
         };
+        return (run, zone, target);
     }
 
-    private static double Stat(AetheriaRuntimeEntitySnapshotCommit entity, string name)
+    private static AetheriaRuntimeEntitySnapshotCommit Entity(int index, double x, string faction) => new()
     {
-        return entity.StatGrids
-            .First(grid => string.Equals(grid.Name, name, StringComparison.OrdinalIgnoreCase))
-            .Values
-            .First();
-    }
+        EntityIndex = index,
+        Kind = "ship",
+        FactionKey = faction,
+        PositionX = x,
+        PositionZ = 0,
+        TargetEntityIndex = -1,
+        IsActive = true,
+        StatGrids = [Grid("hull", 100), Grid("shield", 0), Grid("heat", 0)]
+    };
 
-    private static string Snapshot(AetheriaRuntimeRunCheckpointCommit run)
+    private static AetheriaRuntimeEntityStatGridCommit Grid(string name, double value) => new()
     {
-        return string.Join(
-            "|",
-            run.Zones
-                .SelectMany(zone => zone.Entities)
-                .OrderBy(entity => entity.EntityIndex)
-                .Select(entity =>
-                    $"{entity.EntityIndex}:{Stat(entity, "hull"):0.000}:{Stat(entity, "shield"):0.000}:{Stat(entity, "heat"):0.000}:{Stat(entity, "cognitive-load"):0.000}:{entity.Contacts.Count}:{entity.WeaponStates.Count}"));
-    }
+        Name = name,
+        Width = 1,
+        Height = 1,
+        Values = [value]
+    };
 
-    private static void Require(bool condition, string message)
-    {
-        if (!condition)
-            throw new InvalidOperationException(message);
-    }
+    private static double Stat(AetheriaRuntimeEntitySnapshotCommit entity, string name) =>
+        entity.StatGrids.Single(grid => string.Equals(grid.Name, name, StringComparison.OrdinalIgnoreCase)).Values[0];
 
     private static void RequireEqual<T>(T expected, T actual, string message)
     {

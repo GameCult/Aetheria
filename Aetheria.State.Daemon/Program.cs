@@ -1,5 +1,6 @@
 using Aetheria.State;
 using Aetheria.State.Documents;
+using Aetheria.State.Daemon;
 using GameCult.Aetheria.State.Verse;
 using GameCult.Caching;
 using GameCult.Eve.Surface;
@@ -12,6 +13,7 @@ using System.Net.Sockets;
 
 var options = AetheriaDaemonHostOptions.Parse(args);
 var startedAtUtc = DateTimeOffset.UtcNow.ToString("O");
+var projectilePhysics = new AetheriaYmirProjectilePhysics();
 
 Console.WriteLine($"Aetheria Verse daemon starting: {options.StatePath}");
 Console.WriteLine(options.EnableOdinAnnouncements
@@ -42,7 +44,7 @@ using var cultMeshRudpHost = StartClientCultMeshHost(node, options, () => latest
 using var clientPumpCancellation = new CancellationTokenSource();
 var clientPump = RunClientCultMeshPumpAsync(cultMeshRudpHost, clientPumpCancellation.Token);
 var nextApiPublicationUtc = DateTimeOffset.UtcNow;
-var firstTick = await TickAsync(node, options, latestFrame, buildPublications: true).ConfigureAwait(false);
+var firstTick = await TickAsync(node, options, projectilePhysics, latestFrame, buildPublications: true).ConfigureAwait(false);
 ThrowIfClientPumpFaulted(clientPump);
 latestFrame = firstTick.Frame;
 nextApiPublicationUtc = DateTimeOffset.UtcNow.Add(options.ApiPublicationInterval);
@@ -79,7 +81,7 @@ while (!stopped.Task.IsCompleted)
     }
 
     var buildPublications = DateTimeOffset.UtcNow >= nextApiPublicationUtc;
-    var tick = await TickAsync(node, options, latestFrame, buildPublications).ConfigureAwait(false);
+    var tick = await TickAsync(node, options, projectilePhysics, latestFrame, buildPublications).ConfigureAwait(false);
     ThrowIfClientPumpFaulted(clientPump);
     latestFrame = tick.Frame;
     nextTickUtc += options.TickInterval;
@@ -114,6 +116,7 @@ static void ThrowIfClientPumpFaulted(Task clientPump)
 static async Task<AetheriaRuntimeDaemonTickResult> TickAsync(
     AetheriaStateNode node,
     AetheriaDaemonHostOptions options,
+    IAetheriaRuntimeProjectilePhysics projectilePhysics,
     AetheriaRuntimeDaemonFrameDocument? currentFrame,
     bool buildPublications)
 {
@@ -181,6 +184,7 @@ static async Task<AetheriaRuntimeDaemonTickResult> TickAsync(
             Catalog = node.RuntimeCatalog().Latest(),
             RenderSettings = options.RenderSettings,
             SimulationSettings = options.SimulationSettings,
+            ProjectilePhysics = projectilePhysics,
             StarbridgeScenario = starbridgeScenario,
             StarbridgeSession = starbridgeSession,
             BuildPublications = buildPublications,
@@ -200,19 +204,6 @@ static async Task<AetheriaRuntimeDaemonTickResult> TickAsync(
                 $"Eve command result entity={entity.EntityIndex} position={entity.PositionX},{entity.PositionZ} " +
                 $"velocity={entity.VelocityX},{entity.VelocityY}");
         }
-    }
-    if (options.UseAbstractCombatKernel)
-    {
-        AetheriaDaemonCombatKernel.Step(
-            result.Frame.Run,
-            result.Intents,
-            fixedDeltaSeconds,
-            node.RuntimeCatalog().Latest(),
-            options.CombatKernelSettings);
-        result.Frame.Capabilities = (result.Frame.Capabilities ?? Array.Empty<string>())
-            .Concat(new[] { "aetheria.daemon.abstract_combat_kernel.v1" })
-            .Distinct(StringComparer.Ordinal)
-            .ToArray();
     }
     result.Frame.CumulativeImportedFactIds =
         currentFrame?.CumulativeImportedFactIds ?? Array.Empty<string>();
@@ -1907,7 +1898,11 @@ static EveAssetCatalogDocument BuildCoreAssetCatalog(
                     bundle.Uri,
                     bundle.Hash,
                     bundle.Size,
-                    $"Assets/Resources/{resourcesPath}.prefab"))
+                    $"Assets/Resources/{resourcesPath}.prefab",
+                    new Dictionary<string, string>(StringComparer.Ordinal)
+                    {
+                        ["view.pilot.excludeUnityLayers"] = "14"
+                    }))
                     .ToArray(),
                 new Dictionary<string, string>(StringComparer.Ordinal)
                 {
@@ -2893,9 +2888,6 @@ internal sealed class AetheriaDaemonHostOptions
         AetheriaRuntimeDaemonRenderSettings.AetheriaDefault;
     public AetheriaRuntimeDaemonSimulationSettings SimulationSettings { get; init; } =
         AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault;
-    public AetheriaDaemonCombatKernelSettings CombatKernelSettings { get; init; } =
-        AetheriaDaemonCombatKernelSettings.Default;
-    public bool UseAbstractCombatKernel { get; init; }
     public bool Once { get; init; }
 
     public static AetheriaDaemonHostOptions Parse(IReadOnlyList<string> args)
@@ -2956,7 +2948,6 @@ internal sealed class AetheriaDaemonHostOptions
             TickInterval = TimeSpan.FromMilliseconds(intervalMs),
             ApiPublicationInterval = TimeSpan.FromMilliseconds(apiPublicationIntervalMs),
             FixedDeltaSeconds = fixedDeltaMs / 1000.0,
-            UseAbstractCombatKernel = HasFlag(args, "--abstract-combat-kernel"),
             Once = HasFlag(args, "--once")
         };
     }

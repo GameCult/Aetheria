@@ -34,6 +34,8 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeDaemonRenderSettings.AetheriaDefault;
         public AetheriaRuntimeDaemonSimulationSettings SimulationSettings { get; set; } =
             AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault;
+        public IAetheriaRuntimeProjectilePhysics ProjectilePhysics { get; set; } =
+            AetheriaRuntimeProjectilePhysicsUnavailable.Instance;
         public bool BuildPublications { get; set; } = true;
     }
 
@@ -135,7 +137,8 @@ namespace GameCult.Aetheria.State.Verse
                 operationResult.Run,
                 operationResult.Intents,
                 options.FixedDeltaSeconds,
-                options.SimulationSettings);
+                options.SimulationSettings,
+                options.ProjectilePhysics);
             StampZoneSimulationTime(operationResult.Run, options.SimulationTimeSeconds);
 
             var frame = AetheriaRuntimeDaemonFrameDocument.Create(
