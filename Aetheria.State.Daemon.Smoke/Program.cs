@@ -12,6 +12,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         YmirMovesProjectileAndReportsStableContact();
         DaemonSimulationAppliesYmirHit();
         MissingPhysicsOwnerCannotAdvanceProjectiles();
+        MissingWorldPhysicsOwnerCannotAdvanceShips();
         ThermalCellsUseFossilConductionAndRadiation();
         MultipleActorsUseTheSameMovementLever();
         AgentClaimsAndCompletesExploreTaskThroughCommands();
@@ -45,12 +46,12 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             AgentTasks = [new AetheriaRuntimeAgentTaskCommit { TaskId = "tow-1", CorporationKey = "workers", TaskType = AetheriaRuntimeAgentTaskTypes.Tow, ZoneIndex = 0, Status = AetheriaRuntimeAgentTaskStatuses.Queued, TargetEntityIndex = 1, OrbitParentKey = "parent-body", OrbitDistance = 20, CompletionRadius = 5 }]
         };
         AetheriaRuntimeDaemonTickRunner.Tick(Path.Combine(Path.GetTempPath(), "aetheria-tow-attach-smoke.cc"), run,
-            new AetheriaRuntimeDaemonTickOptions { FrameId = 1, FixedDeltaSeconds = 0.1, SimulationTimeSeconds = 1, BuildPublications = false });
+            new AetheriaRuntimeDaemonTickOptions { WorldPhysics = new AetheriaYmirWorldPhysics(), FrameId = 1, FixedDeltaSeconds = 0.1, SimulationTimeSeconds = 1, BuildPublications = false });
         Require(run.Zones[0].Entities[0].ChildEntityIndices.Contains(1), "tow pickup must attach station to tug parentage");
         RequireEqual("", run.Zones[0].Entities[1].OrbitKey, "attached station must no longer own an orbit");
 
         AetheriaRuntimeDaemonTickRunner.Tick(Path.Combine(Path.GetTempPath(), "aetheria-tow-detach-smoke.cc"), run,
-            new AetheriaRuntimeDaemonTickOptions { FrameId = 2, FixedDeltaSeconds = 0.1, SimulationTimeSeconds = 2, BuildPublications = false });
+            new AetheriaRuntimeDaemonTickOptions { WorldPhysics = new AetheriaYmirWorldPhysics(), FrameId = 2, FixedDeltaSeconds = 0.1, SimulationTimeSeconds = 2, BuildPublications = false });
         Require(!run.Zones[0].Entities[0].ChildEntityIndices.Contains(1), "tow delivery must detach station parentage");
         Require(!string.IsNullOrWhiteSpace(run.Zones[0].Entities[1].OrbitKey), "delivered station must own a persistent orbit");
         Require(run.Zones[0].Orbits.Any(orbit => orbit.OrbitKey == run.Zones[0].Entities[1].OrbitKey && orbit.ParentOrbitKey == "parent-orbit" && Math.Abs(orbit.Distance - 20) < 0.001),
@@ -78,14 +79,14 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             AgentTasks = [new AetheriaRuntimeAgentTaskCommit { TaskId = "survey-1", CorporationKey = "workers", TaskType = AetheriaRuntimeAgentTaskTypes.Explore, ZoneIndex = 0, Status = AetheriaRuntimeAgentTaskStatuses.Queued, TargetBodyKeys = ["survey-world"] }]
         };
         AetheriaRuntimeDaemonTickRunner.Tick(Path.Combine(Path.GetTempPath(), "aetheria-survey-smoke.cc"), run,
-            new AetheriaRuntimeDaemonTickOptions { FrameId = 1, FixedDeltaSeconds = 1, SimulationTimeSeconds = 1, Catalog = catalog, BuildPublications = false });
+            new AetheriaRuntimeDaemonTickOptions { WorldPhysics = new AetheriaYmirWorldPhysics(), FrameId = 1, FixedDeltaSeconds = 1, SimulationTimeSeconds = 1, Catalog = catalog, BuildPublications = false });
         var knowledge = run.CorporationSurveys.Single();
         RequireEqual("workers", knowledge.CorporationKey, "survey knowledge must belong to the agent corporation");
         RequireEqual("survey-world", knowledge.BodyKey, "survey knowledge must identify the scanned body");
         RequireNear(4, knowledge.DensityFloor, 0.000001, "survey must publish the scanner minimum density");
 
         AetheriaRuntimeDaemonTickRunner.Tick(Path.Combine(Path.GetTempPath(), "aetheria-survey-complete-smoke.cc"), run,
-            new AetheriaRuntimeDaemonTickOptions { FrameId = 2, FixedDeltaSeconds = 1, SimulationTimeSeconds = 2, Catalog = catalog, BuildPublications = false });
+            new AetheriaRuntimeDaemonTickOptions { WorldPhysics = new AetheriaYmirWorldPhysics(), FrameId = 2, FixedDeltaSeconds = 1, SimulationTimeSeconds = 2, Catalog = catalog, BuildPublications = false });
         RequireEqual(AetheriaRuntimeAgentTaskStatuses.Completed, run.AgentTasks[0].Status,
             "survey order must complete when corporation knowledge satisfies the scanner threshold");
     }
@@ -150,7 +151,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         };
 
         var result = AetheriaRuntimeDaemonTickRunner.Tick(Path.Combine(Path.GetTempPath(), "aetheria-mining-smoke.cc"), run,
-            new AetheriaRuntimeDaemonTickOptions { FrameId = 1, FixedDeltaSeconds = 1, SimulationTimeSeconds = 1, Catalog = catalog, BuildPublications = false });
+            new AetheriaRuntimeDaemonTickOptions { WorldPhysics = new AetheriaYmirWorldPhysics(), FrameId = 1, FixedDeltaSeconds = 1, SimulationTimeSeconds = 1, Catalog = catalog, BuildPublications = false });
 
         Require(run.AgentTasks[0].Phase == "mining", "mining task must activate its equipped tool");
         Require(result.OperationResult.Intents.Behaviors.Count == 1,
@@ -162,7 +163,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             "historical mining yield must enter daemon-owned cargo");
 
         AetheriaRuntimeDaemonTickRunner.Tick(Path.Combine(Path.GetTempPath(), "aetheria-mining-offload-smoke.cc"), run,
-            new AetheriaRuntimeDaemonTickOptions { FrameId = 2, FixedDeltaSeconds = 1, SimulationTimeSeconds = 2, Catalog = catalog, BuildPublications = false });
+            new AetheriaRuntimeDaemonTickOptions { WorldPhysics = new AetheriaYmirWorldPhysics(), FrameId = 2, FixedDeltaSeconds = 1, SimulationTimeSeconds = 2, Catalog = catalog, BuildPublications = false });
         Require(!run.Zones[0].Entities[0].CargoContents.SelectMany(bay => bay.Items).Any(),
             "full miner must offload through the shared cargo transfer command");
         Require(run.Zones[0].Entities[1].CargoContents.SelectMany(bay => bay.Items).Any(slot => slot.Item.ItemKey == "iron" && slot.Item.Quantity == 1),
@@ -215,6 +216,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             run,
             new AetheriaRuntimeDaemonTickOptions
             {
+                WorldPhysics = new AetheriaYmirWorldPhysics(),
                 FrameId = 1,
                 FixedDeltaSeconds = 0,
                 Catalog = catalog,
@@ -312,6 +314,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 run,
                 new AetheriaRuntimeDaemonTickOptions
                 {
+                    WorldPhysics = new AetheriaYmirWorldPhysics(),
                     FrameId = frame,
                     FixedDeltaSeconds = 0.1,
                     SimulationTimeSeconds = frame * 0.1,
@@ -421,6 +424,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 run,
                 new AetheriaRuntimeDaemonTickOptions
                 {
+                    WorldPhysics = new AetheriaYmirWorldPhysics(),
                     FrameId = frame,
                     FixedDeltaSeconds = 0.1,
                     SimulationTimeSeconds = frame * 0.1,
@@ -500,6 +504,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 run,
                 new AetheriaRuntimeDaemonTickOptions
                 {
+                    WorldPhysics = new AetheriaYmirWorldPhysics(),
                     FrameId = frame,
                     FixedDeltaSeconds = 0.1,
                     SimulationTimeSeconds = frame * 0.1,
@@ -593,6 +598,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 run,
                 new AetheriaRuntimeDaemonTickOptions
                 {
+                    WorldPhysics = new AetheriaYmirWorldPhysics(),
                     FrameId = frame,
                     FixedDeltaSeconds = 0.1,
                     SimulationTimeSeconds = frame * 0.1,
@@ -653,7 +659,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             operation.Intents,
             0.1,
             AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
-            AetheriaRuntimeProjectilePhysicsUnavailable.Instance);
+            AetheriaRuntimeProjectilePhysicsUnavailable.Instance,
+            new AetheriaYmirWorldPhysics());
         Require(player.VelocityX > 0 && Math.Abs(player.VelocityY) < 0.001,
             "player command must drive its actor through the shared movement lever");
         Require(agent.VelocityY > 0 && Math.Abs(agent.VelocityX) < 0.001,
@@ -744,7 +751,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             new AetheriaRuntimeDaemonIntentState(),
             0.1,
             AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
-            new AetheriaYmirProjectilePhysics());
+            new AetheriaYmirProjectilePhysics(),
+            new AetheriaYmirWorldPhysics());
 
         RequireEqual(88.0, Stat(target, "hull"), "Aetheria must interpret the Ymir contact as damage");
         RequireEqual(0, run.Zones[0].Projectiles.Count, "spent projectile must leave daemon state");
@@ -760,7 +768,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 new AetheriaRuntimeDaemonIntentState(),
                 0.1,
                 AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
-                AetheriaRuntimeProjectilePhysicsUnavailable.Instance);
+                AetheriaRuntimeProjectilePhysicsUnavailable.Instance,
+                new AetheriaYmirWorldPhysics());
         }
         catch (InvalidOperationException)
         {
@@ -770,10 +779,28 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         throw new InvalidOperationException("daemon advanced a projectile without an authoritative physics owner");
     }
 
+    private static void MissingWorldPhysicsOwnerCannotAdvanceShips()
+    {
+        var entity = Entity(0, 0, "player");
+        entity.VelocityX = 10;
+        var run = new AetheriaRuntimeRunCheckpointCommit { CurrentZoneIndex = 0, CurrentEntityKey = "zone.0.entity.0", Zones = [new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [entity] }] };
+        try
+        {
+            AetheriaRuntimeDaemonTickRunner.Tick(Path.Combine(Path.GetTempPath(), "aetheria-missing-world-physics.cc"), run,
+                new AetheriaRuntimeDaemonTickOptions { FrameId = 1, FixedDeltaSeconds = 0.1, ProjectilePhysics = AetheriaRuntimeProjectilePhysicsUnavailable.Instance, BuildPublications = false });
+        }
+        catch (InvalidOperationException)
+        {
+            RequireNear(0, entity.PositionX, 0.000001, "ship must not advance without Ymir world authority");
+            return;
+        }
+        throw new InvalidOperationException("daemon advanced a ship without an authoritative world physics owner");
+    }
+
     private static (AetheriaRuntimeRunCheckpointCommit Run, AetheriaRuntimeZoneSnapshotCommit Zone, AetheriaRuntimeEntitySnapshotCommit Target) Scenario()
     {
-        var source = Entity(1, 0, "player");
-        var target = Entity(2, 30, "raider");
+        var source = Entity(1, -100, "player");
+        var target = Entity(2, 30, "enemy");
         var zone = new AetheriaRuntimeZoneSnapshotCommit
         {
             ZoneIndex = 0,

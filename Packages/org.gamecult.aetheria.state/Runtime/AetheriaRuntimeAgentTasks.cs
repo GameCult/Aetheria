@@ -285,7 +285,7 @@ namespace GameCult.Aetheria.State.Verse
                 task.Phase = "offload";
                 var homeDx = home.PositionX - agent.PositionX;
                 var homeDz = home.PositionZ - agent.PositionZ;
-                if (Math.Sqrt(homeDx * homeDx + homeDz * homeDz) > Math.Max(0.01, task.CompletionRadius))
+                if (Math.Max(0, Math.Sqrt(homeDx * homeDx + homeDz * homeDz) - InteractionRadius(agent) - InteractionRadius(home)) > Math.Max(0.01, task.CompletionRadius))
                     return new[] { Movement(task, agent, frameId, homeDx, homeDz, 1) };
 
                 var commodity = (agent.CargoContents ?? Array.Empty<AetheriaRuntimeCargoBayLoadoutCommit>())
@@ -429,7 +429,7 @@ namespace GameCult.Aetheria.State.Verse
 
             var dx = endpoint.PositionX - agent.PositionX;
             var dz = endpoint.PositionZ - agent.PositionZ;
-            var distance = Math.Sqrt(dx * dx + dz * dz);
+            var distance = Math.Max(0, Math.Sqrt(dx * dx + dz * dz) - InteractionRadius(agent) - InteractionRadius(endpoint));
             if (distance > Math.Max(0.01, task.CompletionRadius))
                 return new[] { Movement(task, agent, frameId, dx, dz, 1) };
 
@@ -562,6 +562,9 @@ namespace GameCult.Aetheria.State.Verse
                 command.ScalarValue = magnitude;
             });
         }
+
+        private static double InteractionRadius(AetheriaRuntimeEntitySnapshotCommit entity) =>
+            string.Equals(entity.Kind, "station", StringComparison.OrdinalIgnoreCase) ? 48 : 20;
 
         private static AetheriaRuntimeDaemonCommandDocument Command(
             AetheriaRuntimeAgentTaskCommit task,

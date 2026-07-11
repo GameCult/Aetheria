@@ -18,6 +18,7 @@ namespace GameCult.Aetheria.State.Verse
             double deltaSeconds,
             AetheriaRuntimeDaemonSimulationSettings settings,
             IAetheriaRuntimeProjectilePhysics projectilePhysics,
+            IAetheriaRuntimeWorldPhysics worldPhysics,
             AetheriaRuntimeCatalogSnapshot? catalog = null,
             long frameId = 0,
             double simulationTimeSeconds = 0)
@@ -26,6 +27,8 @@ namespace GameCult.Aetheria.State.Verse
                 return;
             if (projectilePhysics == null)
                 throw new ArgumentNullException(nameof(projectilePhysics));
+            if (worldPhysics == null)
+                throw new ArgumentNullException(nameof(worldPhysics));
 
             foreach (var zone in run.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>())
             {
@@ -45,7 +48,7 @@ namespace GameCult.Aetheria.State.Verse
                     ApplyMovementIntent(run, entities, movement, settings);
                 StepRaiderAi(entities);
                 StepTargetPursuit(entities, settings);
-                StepMovement(entities, deltaSeconds);
+                StepWorldPhysics(zone, entities, deltaSeconds, worldPhysics);
                 StepCombat(run, zone, entities, intents, deltaSeconds, settings, projectilePhysics);
                 AetheriaRuntimeMiningSimulation.Step(run, zone, entities, intents, catalog, frameId, simulationTimeSeconds, deltaSeconds);
                 AetheriaRuntimeSurveySimulation.Step(run, zone, entities, intents, catalog, frameId, simulationTimeSeconds, deltaSeconds);
@@ -162,21 +165,20 @@ namespace GameCult.Aetheria.State.Verse
             }
         }
 
-        private static void StepMovement(
+        private static void StepWorldPhysics(
+            AetheriaRuntimeZoneSnapshotCommit zone,
             IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities,
-            double deltaSeconds)
+            double deltaSeconds,
+            IAetheriaRuntimeWorldPhysics worldPhysics)
         {
-            foreach (var entity in entities)
+            var result = worldPhysics.Step(zone, entities, deltaSeconds);
+            var byIndex = entities.ToDictionary(entity => entity.EntityIndex);
+            foreach (var body in result.Bodies)
             {
-                if (!IsAlive(entity))
-                    continue;
-
-                entity.PositionX += entity.VelocityX * deltaSeconds;
-                entity.PositionZ += entity.VelocityY * deltaSeconds;
-                entity.VelocityX *= 0.992;
-                entity.VelocityY *= 0.992;
-                if (Math.Abs(entity.VelocityX) + Math.Abs(entity.VelocityY) > 0.01)
-                    Face(entity, entity.VelocityX, entity.VelocityY);
+                if (!byIndex.TryGetValue(body.EntityIndex, out var entity)) continue;
+                entity.PositionX = body.PositionX; entity.PositionZ = body.PositionZ;
+                entity.VelocityX = body.VelocityX; entity.VelocityY = body.VelocityY;
+                entity.DirectionX = body.DirectionX; entity.DirectionY = body.DirectionY;
             }
             foreach (var parent in entities)
             foreach (var childIndex in parent.ChildEntityIndices ?? Array.Empty<int>())

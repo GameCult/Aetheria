@@ -36,6 +36,7 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault;
         public IAetheriaRuntimeProjectilePhysics ProjectilePhysics { get; set; } =
             AetheriaRuntimeProjectilePhysicsUnavailable.Instance;
+        public IAetheriaRuntimeWorldPhysics? WorldPhysics { get; set; }
         public bool BuildPublications { get; set; } = true;
     }
 
@@ -163,6 +164,7 @@ namespace GameCult.Aetheria.State.Verse
                 options.FixedDeltaSeconds,
                 options.SimulationSettings,
                 options.ProjectilePhysics,
+                options.WorldPhysics ?? throw new InvalidOperationException("Ymir world physics owner is required."),
                 options.Catalog,
                 options.FrameId,
                 options.SimulationTimeSeconds);

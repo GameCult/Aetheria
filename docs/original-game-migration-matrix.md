@@ -17,8 +17,8 @@ validation proves contract shape, not wiring, exclusivity, lowering, or parity.
 |---|---|---|---|---|---|---|
 | Run/session state | `ServerShared`, `ActionGameManager` | Aetheria daemon/CultCache | provider/session advertisement | all clients | owner-exists; wired; projected; not proven | restart and multi-client convergence |
 | Entity identity/loadout | `ServerShared/Entity*` | daemon | typed entity and inventory surfaces | EveUnity/Electron | owner-exists; wired; projected; not proven | loadout round trip and reconnect |
-| Flight intent | `Ship`, `Thruster`, `AetherDrive`, input paths | daemon intent + Ymir physics | analog movement/look/tractor | EveUnity input driver | simplified daemon path wired; Ymir not wired | thrust allocation, torque, energy, heat, drag and gravity |
-| Collision | Unity physics and entity handlers | Ymir | collision/result facts | visual interpolation only | owner-exists; not wired; not exclusive | link Aetheria to Ymir.Core/service, share one world, and fail old-writer negative checks |
+| Flight intent | `Ship`, `Thruster`, `AetherDrive`, input paths | daemon intent + Ymir physics | analog movement/look/tractor | EveUnity input driver | movement intents feed Ymir-owned body integration; authored thrust allocation, torque, energy and heat remain simplified | prove original drive/equipment behavior ordering and runtime interpolation |
+| Collision | Unity physics and entity handlers | Ymir | collision/result facts | visual interpolation only | Ymir.Core world stepping wired for entity bodies, radial fields and contacts; missing-owner negative proof passes | publish authoritative collision events and prove Unity cannot write transforms back |
 | Targeting/contacts | sensors + `ActionGameManager` | daemon | contact/target semantics | target HUD and indicators | simplified owner wired/projected; not parity | visibility/nearest/explicit/lock cases |
 | Projectile flight | weapon/projectile classes | Ymir | projectile entity/event projection | native projectile visual | Ymir.Core adapter wired for spawn/travel/contact/despawn; native presentation and broader weapon parity incomplete | prove every authored projectile family and runtime visual lifecycle |
 | Shield/hull damage | energy-funded shield, armor cells, equipment and hull | daemon | entity status + damage events | meters, impacts, damage VFX | synthetic scalar owner wired; not parity | typed absorption, penetration, item damage and death causes |
@@ -78,9 +78,10 @@ validation proves contract shape, not wiring, exclusivity, lowering, or parity.
 
 These are source-confirmed ownership failures, not feature backlog:
 
-1. **Physics delegation is incomplete.** Daemon projectile integration and
-   contacts now use `Ymir.Core`, but ship flight, tractor, gravity, docking
-   placement, and the Unity bridge/query path remain outside that authority.
+1. **Physics delegation is incomplete.** Daemon projectile and entity-world
+   integration now use `Ymir.Core`, including radial fields and body contacts,
+   but tractor forces, docking placement, authored drive torque, and the Unity
+   bridge/query path still need full authority and parity proofs.
 2. **Persisted behavior is not executable behavior.** Snapshot schemas preserve
    broad equipment/behavior state while active simulation executes one
    synthetic projectile weapon and simplified raider pursuit.
@@ -94,9 +95,10 @@ These are source-confirmed ownership failures, not feature backlog:
    encounter, loot, docking, trade, refit, narrative, boss progression,
    completion, failure, and continue exist as pieces rather than one explicit
    run-state machine.
-6. **Two Aetheria-local spatial owners.** Daemon ship movement and the
-   Unity bridge/query path independently implement Ymir-shaped behavior and can
-   disagree while standalone Ymir remains unwired.
+6. **Unity spatial feedback remains insufficiently fenced.** The daemon now
+   requires Ymir for world advancement, but the Unity bridge/query path still
+   needs a negative proof that presentation transforms cannot write spatial
+   truth back into provider state.
 7. **Live conformance has no complete owner.** Static provider packs can pass
    while daemon, runtime, or split-target dependencies are absent. The current
    Eve consumer smoke fails because its expected EveElectron proof is missing.
