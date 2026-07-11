@@ -231,12 +231,21 @@ namespace GameCult.Aetheria.State.Verse
                     var atHome = home.Entity != null && home.Zone != null &&
                         home.Zone.ZoneIndex == value.Zone.ZoneIndex &&
                         (home.Entity.DockingBayAssignments ?? Array.Empty<int>()).Contains(value.Entity.EntityIndex);
+                    var hasHome = !string.IsNullOrWhiteSpace(value.Entity.HomeEntityId);
+                    var status = !value.Entity.IsActive ? "offline" : controlled ? "manual" :
+                        !string.IsNullOrWhiteSpace(value.Entity.AssignedAgentTaskId) ? "working" : atHome ? "home" : hasHome ? "returning" : "idle";
+                    var detail = !string.IsNullOrWhiteSpace(value.Entity.AssignedAgentTaskId)
+                        ? $"Assigned {value.Entity.AssignedAgentTaskId}"
+                        : atHome ? "Docked at home" : controlled ? "Manual helm" : hasHome ? "Returning home" : "Awaiting orders";
                     return Node(
                         $"aetheria.starbridge.commander.agents.{SurfaceToken(value.Entity.EntityId)}",
                         "agent.item",
                         new[]
                         {
                             ("label", value.Entity.Name),
+                            ("status", status),
+                            ("detail", detail),
+                            ("badges", string.Join(",", value.Entity.AgentTaskCapabilities ?? Array.Empty<string>())),
                             ("entityId", value.Entity.EntityId),
                             ("zoneIndex", value.Zone.ZoneIndex.ToString(CultureInfo.InvariantCulture)),
                             ("entityIndex", value.Entity.EntityIndex.ToString(CultureInfo.InvariantCulture)),

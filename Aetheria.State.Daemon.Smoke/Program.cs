@@ -935,6 +935,10 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             "commander Eve roster must expose stable provider-owned worker identity");
         Require(worker.Props["capabilities"].Split(',').Contains(AetheriaRuntimeAgentTaskTypes.Explore),
             "commander Eve roster must expose provider-owned capability claims");
+        RequireEqual("idle", worker.Props["status"],
+            "commander Eve roster must publish generic status for runtime-independent lowering");
+        Require(worker.Props["badges"].Split(',').Contains(AetheriaRuntimeAgentTaskTypes.Explore),
+            "commander Eve roster must publish capability badges through the generic item contract");
         RequireEqual("", worker.Props["assignedTaskId"],
             "completed worker assignment must be visible as released on the Eve roster");
         RequireEqual("false", worker.Props["controlled"],
