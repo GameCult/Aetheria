@@ -2,11 +2,15 @@
 
 Status: source-derived living specification
 
-Authority: `origin/master` is the executable reference for original behavior.
+Authority: the executable fossil has two normative strata. The original RTS
+lineage is pinned immediately before the ARPG port at `d12d7c5c^`; the current
+ARPG lineage is pinned at `origin/master`. Removed RTS mechanics remain part of
+Starbridge even when the ARPG rebuild no longer contains their bodies.
 This document describes that behavior without granting the fossil Unity project
 authority in the target architecture.
 
-Pinned baseline: `ab2c294464bb30b9b5c8987cdb9108204821a92d`.
+Pinned ARPG baseline: `ab2c294464bb30b9b5c8987cdb9108204821a92d`.
+Pinned RTS baseline: `d12d7c5c^`.
 
 Subsystem specifications:
 
@@ -36,7 +40,9 @@ boundaries or implementation accidents.
 
 ## Evidence Rules
 
-Each normative behavior must cite at least one source path in `origin/master`.
+Each normative behavior must cite an executable source path in the applicable
+pinned lineage. Git history is authoritative evidence when the ARPG port
+deleted an implemented RTS mechanic.
 Timing, thresholds, formulas, and ordering must cite the defining source rather
 than a caller that merely observes the result. Scene and prefab evidence is
 valid for composition, layer, camera, and feedback behavior. Current-branch

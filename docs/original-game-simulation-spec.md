@@ -1,6 +1,6 @@
 # Original Game Simulation Specification
 
-Baseline: `origin/master` at `ab2c2944`.
+Baselines: RTS `d12d7c5c^`; ARPG `origin/master` at `ab2c2944`.
 
 ## Entity Lifecycle
 
@@ -109,6 +109,26 @@ destination, docks, unloads, and repeats until the requested quantity is
 delivered. Daemon task phases may advance only from accepted movement,
 docking, and cargo-transfer results. A rejected transfer leaves both cargo and
 task phase unchanged.
+
+The remaining implemented RTS controllers at `d12d7c5c^` are normative:
+
+- `MiningController` selects the nearest extant asteroid, approaches tool
+  range, aims and activates the mining switch, chooses another depleted
+  asteroid, and returns home to unload when cargo is full.
+- `SurveyController` chooses the nearest unsurveyed planet or belt asteroid,
+  approaches scanner range while matching target motion, aims and scans until
+  the corporation survey floor satisfies scanner density, then advances.
+- `TowingController` travels to the station, parents the station to the tug,
+  carries it to the requested orbital radius, detaches it, creates the orbit,
+  and completes.
+- `PatrolController` continuously selects orbital targets and uses locomotion
+  until it reaches the configured target distance.
+- `WanderController` chooses random planets or orbitals; orbital wandering can
+  dock for a randomized duration before selecting another target.
+
+Evidence: `d12d7c5c^:Assets/Scripts/ServerShared/Behaviors/{Mining,
+Survey,Towing,Patrol,Wander,Hauling}Controller.cs` and
+`ab8aa5fb:Assets/Scripts/ServerShared/GameContext.cs`.
 
 ## Quality And Progression
 

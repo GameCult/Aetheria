@@ -1,6 +1,6 @@
 # Original Game World, Economy, And Progression Specification
 
-Baseline: `origin/master` at `ab2c2944`.
+Baselines: RTS `d12d7c5c^`; ARPG `origin/master` at `ab2c2944`.
 
 ## Docking
 
