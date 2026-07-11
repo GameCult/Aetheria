@@ -15,8 +15,25 @@ internal static class AetheriaDaemonZoneGenerator
     {
         var runKey = new CultRecordKey($"global:aetheria.run_state.{RunId}.v1");
         var zoneKey = new CultRecordKey($"global:aetheria.zone_state.{RunId}.0.v1");
-        var loadouts = new DaemonLoadoutGenerator(catalog);
-        var entities = GenerateEntities(loadouts);
+        var corporationKeys = (catalog.Corporations ?? Array.Empty<AetheriaRuntimeCorporation>())
+            .Select(value => value.CorporationKey)
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .OrderBy(value => value, StringComparer.Ordinal)
+            .ToArray();
+        var homeZones = corporationKeys.ToDictionary(value => value, _ => 0, StringComparer.Ordinal);
+        var loadouts = new AetheriaDaemonLoadoutGenerator(
+            catalog,
+            GenerationSeed,
+            0,
+            homeZones,
+            new Dictionary<int, IReadOnlyList<int>> { [0] = Array.Empty<int>() });
+        var availabilityFactions = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["player"] = corporationKeys.ElementAtOrDefault(0) ?? "",
+            ["raider"] = corporationKeys.ElementAtOrDefault(1) ?? corporationKeys.ElementAtOrDefault(0) ?? "",
+            ["neutral"] = corporationKeys.ElementAtOrDefault(2) ?? corporationKeys.ElementAtOrDefault(0) ?? ""
+        };
+        var entities = GenerateEntities(loadouts, availabilityFactions);
         var entityKeys = Enumerable.Range(0, entities.Length)
             .Select(index => EntityKey(0, index))
             .ToArray();
@@ -169,7 +186,9 @@ internal static class AetheriaDaemonZoneGenerator
             waveSpeed);
     }
 
-    private static AetheriaEntitySnapshot[] GenerateEntities(DaemonLoadoutGenerator loadouts)
+    private static AetheriaEntitySnapshot[] GenerateEntities(
+        AetheriaDaemonLoadoutGenerator loadouts,
+        IReadOnlyDictionary<string, string> availabilityFactions)
     {
         var keys = Enumerable.Range(0, 12)
             .Select(index => EntityKey(0, index))
@@ -177,18 +196,18 @@ internal static class AetheriaDaemonZoneGenerator
 
         var entities = new[]
         {
-            Entity(loadouts, "Anchor Station", "station", -170, -80, 0, 0, "player", 760, keys[6], [keys[1], keys[2], keys[3], keys[4], keys[6], keys[7], keys[11]], ["repair-parts", "reactor-fuel", "drone-core"]),
-            Entity(loadouts, "Vanguard One", "ship", -40, -30, 10, 4, "player", 540, keys[6], [keys[0], keys[2], keys[4], keys[6], keys[7]], ["coilgun-ammo", "field-rations"]),
-            Entity(loadouts, "Wing Two", "ship", 145, 125, -5, 7, "player", 450, keys[6], [keys[0], keys[1], keys[6], keys[8]], ["sensor-buoy", "shield-cell"]),
-            Entity(loadouts, "Torch Three", "ship", -235, 210, 8, -4, "player", 500, keys[7], [keys[0], keys[1], keys[7]], ["micro-missile", "coolant-pack"]),
-            Entity(loadouts, "Foundry Tug", "ship", 330, -155, -2, 3, "player", 390, keys[6], [keys[0], keys[1], keys[6], keys[10]], ["ore-canister", "field-rations"]),
-            Entity(loadouts, "Derelict Relay", "station", -390, 270, 0, 0, "neutral", 160, "", [keys[0], keys[3]], ["ancient-transponder"]),
-            Entity(loadouts, "Ash Raider", "ship", 455, 180, -5, -2, "raider", 320, keys[1], [keys[0], keys[1], keys[2], keys[4]], ["scrap-metal", "stolen-capacitor"]),
-            Entity(loadouts, "Cinder Knife", "ship", 585, -115, -7, 1, "raider", 280, keys[3], [keys[0], keys[3]], ["volatile-fuel"]),
-            Entity(loadouts, "Blackwake", "ship", 690, 300, -4, -3, "raider", 230, keys[2], [keys[2]], ["ore-cache", "burned-relay-core"]),
-            Entity(loadouts, "Vesper Sloop", "ship", 960, 620, -3, -5, "raider", 250, keys[4], [keys[4]], ["stolen-map-fragment"]),
-            Entity(loadouts, "Survey Skiff", "ship", -610, -365, 3, 5, "neutral", 210, "", [keys[4], keys[5]], ["soil-sample", "deep-scan"]),
-            Entity(loadouts, "Lagrange Beacon", "station", 105, 510, 0, 0, "neutral", 190, "", [keys[0], keys[1], keys[6]], ["navigation-key"])
+            Entity(loadouts, availabilityFactions, "Anchor Station", "station", -170, -80, 0, 0, "player", 760, keys[6], [keys[1], keys[2], keys[3], keys[4], keys[6], keys[7], keys[11]], ["repair-parts", "reactor-fuel", "drone-core"]),
+            Entity(loadouts, availabilityFactions, "Vanguard One", "ship", -40, -30, 10, 4, "player", 540, keys[6], [keys[0], keys[2], keys[4], keys[6], keys[7]], ["coilgun-ammo", "field-rations"]),
+            Entity(loadouts, availabilityFactions, "Wing Two", "ship", 145, 125, -5, 7, "player", 450, keys[6], [keys[0], keys[1], keys[6], keys[8]], ["sensor-buoy", "shield-cell"]),
+            Entity(loadouts, availabilityFactions, "Torch Three", "ship", -235, 210, 8, -4, "player", 500, keys[7], [keys[0], keys[1], keys[7]], ["micro-missile", "coolant-pack"]),
+            Entity(loadouts, availabilityFactions, "Foundry Tug", "ship", 330, -155, -2, 3, "player", 390, keys[6], [keys[0], keys[1], keys[6], keys[10]], ["ore-canister", "field-rations"]),
+            Entity(loadouts, availabilityFactions, "Derelict Relay", "station", -390, 270, 0, 0, "neutral", 160, "", [keys[0], keys[3]], ["ancient-transponder"]),
+            Entity(loadouts, availabilityFactions, "Ash Raider", "ship", 455, 180, -5, -2, "raider", 320, keys[1], [keys[0], keys[1], keys[2], keys[4]], ["scrap-metal", "stolen-capacitor"]),
+            Entity(loadouts, availabilityFactions, "Cinder Knife", "ship", 585, -115, -7, 1, "raider", 280, keys[3], [keys[0], keys[3]], ["volatile-fuel"]),
+            Entity(loadouts, availabilityFactions, "Blackwake", "ship", 690, 300, -4, -3, "raider", 230, keys[2], [keys[2]], ["ore-cache", "burned-relay-core"]),
+            Entity(loadouts, availabilityFactions, "Vesper Sloop", "ship", 960, 620, -3, -5, "raider", 250, keys[4], [keys[4]], ["stolen-map-fragment"]),
+            Entity(loadouts, availabilityFactions, "Survey Skiff", "ship", -610, -365, 3, 5, "neutral", 210, "", [keys[4], keys[5]], ["soil-sample", "deep-scan"]),
+            Entity(loadouts, availabilityFactions, "Lagrange Beacon", "station", 105, 510, 0, 0, "neutral", 190, "", [keys[0], keys[1], keys[6]], ["navigation-key"])
         };
         foreach (var index in new[] { 1, 2, 3, 4 })
             entities[index].HomeEntityKey = keys[0];
@@ -199,7 +218,8 @@ internal static class AetheriaDaemonZoneGenerator
     }
 
     private static AetheriaEntitySnapshot Entity(
-        DaemonLoadoutGenerator loadouts,
+        AetheriaDaemonLoadoutGenerator loadouts,
+        IReadOnlyDictionary<string, string> availabilityFactions,
         string name,
         string kind,
         double x,
@@ -212,7 +232,7 @@ internal static class AetheriaDaemonZoneGenerator
         string[] contactKeys,
         string[] cargo)
     {
-        var loadout = loadouts.Build(kind, faction, cargo);
+        var loadout = loadouts.Build(kind, availabilityFactions[faction], cargo);
         return new AetheriaEntitySnapshot
         {
             Name = name,
@@ -347,127 +367,4 @@ internal static class AetheriaDaemonZoneGenerator
         double WaveDepth,
         double WaveSpeed);
 
-    private sealed class DaemonLoadoutGenerator
-    {
-        private readonly AetheriaRuntimeCatalogSnapshot _catalog;
-
-        public DaemonLoadoutGenerator(AetheriaRuntimeCatalogSnapshot? catalog)
-        {
-            _catalog = catalog ?? new AetheriaRuntimeCatalogSnapshot();
-        }
-
-        public DaemonLoadout Build(string entityKind, string factionKey, IReadOnlyList<string> scenarioCargo)
-        {
-            var hullType = string.Equals(entityKind, "station", StringComparison.OrdinalIgnoreCase)
-                ? "Station"
-                : "Ship";
-            var hull = PickHull(hullType, factionKey);
-            var equipment = PickEquipment(hull, factionKey)
-                .Select((item, index) => Slot(index, item.ItemKey))
-                .ToArray();
-            var cargo = PickCargo(scenarioCargo)
-                .Select((itemKey, index) => CargoSlot(index, itemKey))
-                .ToArray();
-
-            return new DaemonLoadout(
-                hull?.ItemKey ?? FallbackHull(entityKind, factionKey),
-                equipment,
-                cargo);
-        }
-
-        private AetheriaRuntimeCatalogItem? PickHull(string hullType, string factionKey)
-        {
-            return _catalog.Items
-                .Where(item => string.Equals(item.HullType, hullType, StringComparison.OrdinalIgnoreCase))
-                .OrderByDescending(item => ManufacturerScore(item, factionKey))
-                .ThenBy(item => item.Price <= 0 ? int.MaxValue : item.Price)
-                .ThenBy(item => item.ItemKey, StringComparer.OrdinalIgnoreCase)
-                .FirstOrDefault();
-        }
-
-        private IEnumerable<AetheriaRuntimeCatalogItem> PickEquipment(
-            AetheriaRuntimeCatalogItem? hull,
-            string factionKey)
-        {
-            var hardpoints = hull?.Hardpoints ?? Array.Empty<AetheriaRuntimeHardpoint>();
-            foreach (var hardpoint in hardpoints.Take(6))
-            {
-                var item = _catalog.FindItemsByHardpoint(hardpoint.Type)
-                    .Where(candidate => candidate.Price > 0)
-                    .OrderByDescending(candidate => ManufacturerScore(candidate, factionKey))
-                    .ThenBy(candidate => candidate.Price)
-                    .ThenBy(candidate => candidate.ItemKey, StringComparer.OrdinalIgnoreCase)
-                    .FirstOrDefault();
-                if (item != null)
-                    yield return item;
-            }
-        }
-
-        private IEnumerable<string> PickCargo(IReadOnlyList<string> scenarioCargo)
-        {
-            if (scenarioCargo != null && scenarioCargo.Count > 0)
-                return scenarioCargo.Where(itemKey => !string.IsNullOrWhiteSpace(itemKey));
-
-            var catalogCargo = _catalog.TradeItems
-                .Where(item => item.MaxStack != 1 || string.Equals(item.Category, AetheriaRuntimeItemCategories.Gear, StringComparison.OrdinalIgnoreCase))
-                .OrderBy(item => item.Price <= 0 ? int.MaxValue : item.Price)
-                .ThenBy(item => item.ItemKey, StringComparer.OrdinalIgnoreCase)
-                .Select(item => item.ItemKey)
-                .Take(4)
-                .ToArray();
-            return catalogCargo;
-        }
-
-        private static int ManufacturerScore(AetheriaRuntimeCatalogItem item, string factionKey)
-        {
-            if (item == null || string.IsNullOrWhiteSpace(factionKey))
-                return 0;
-
-            return string.Equals(item.ManufacturerKey, factionKey, StringComparison.OrdinalIgnoreCase) ? 2 :
-                string.IsNullOrWhiteSpace(item.ManufacturerKey) ? 0 : 1;
-        }
-
-        private static string FallbackHull(string entityKind, string factionKey)
-        {
-            if (string.Equals(entityKind, "station", StringComparison.OrdinalIgnoreCase))
-                return "station-hull";
-            return string.Equals(factionKey, "raider", StringComparison.OrdinalIgnoreCase)
-                ? "raider-hull"
-                : "ship-hull";
-        }
-
-        private static AetheriaEntityItemSlot Slot(int index, string itemKey)
-        {
-            return new AetheriaEntityItemSlot
-            {
-                Position = new AetheriaGridCoord { X = index % 4, Y = index / 4 },
-                ItemKey = itemKey,
-                Quality = 1,
-                Durability = 1,
-                Quantity = 1,
-                Enabled = true
-            };
-        }
-
-        private static AetheriaLoadoutItemSlot CargoSlot(int index, string itemKey)
-        {
-            return new AetheriaLoadoutItemSlot
-            {
-                Position = new AetheriaGridCoord { X = index % 4, Y = index / 4 },
-                Item = new AetheriaLoadoutItem
-                {
-                    ItemKey = itemKey,
-                    Quality = 1,
-                    Durability = 1,
-                    Quantity = 1,
-                    Enabled = true
-                }
-            };
-        }
-    }
-
-    private sealed record DaemonLoadout(
-        string HullItemKey,
-        AetheriaEntityItemSlot[] Equipment,
-        AetheriaLoadoutItemSlot[] Cargo);
 }

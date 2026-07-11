@@ -35,6 +35,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         RejectedHaulTransferDoesNotAdvanceTask();
         AgentPatrolsHistoricalOrbitCircuitThroughMovementCommands();
         TickReconcilesAndEvaluatesCatalogBehaviors();
+        DaemonLoadoutsRespectFactionAvailabilityAndHullRoles();
         AgentMinesAsteroidThroughEquippedBehavior();
         CargoCapacityComesFromHullAndCatalogVolumes();
         AgentSurveysBodyIntoCorporationKnowledge();
@@ -241,6 +242,71 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             "tick must reconcile equipped catalog payloads into persistent behavior state");
         RequireNear(12, behavior.EvaluateStat(1), 0.000001, "behavior query must evaluate mining damage from catalog");
         RequireNear(50, behavior.EvaluateStat(4), 0.000001, "behavior query must evaluate mining range from catalog");
+    }
+
+    private static void DaemonLoadoutsRespectFactionAvailabilityAndHullRoles()
+    {
+        var cells4 = Enumerable.Range(0, 4).SelectMany(y => Enumerable.Range(0, 4)
+            .Select(x => new AetheriaRuntimeShapeCell(x, y))).ToArray();
+        var one = new[] { new AetheriaRuntimeShapeCell(0, 0) };
+
+        AetheriaRuntimeCatalogItem Item(string key, string category, string manufacturer, int price,
+            string hardpointType = "", params string[] behaviors)
+        {
+            var item = CatalogItem(key, behaviors.Select((kind, index) =>
+                new AetheriaRuntimeBehaviorPayload(index, kind, 0, Array.Empty<AetheriaRuntimeBehaviorField>())).ToArray());
+            item.Category = category; item.ManufacturerKey = manufacturer; item.Price = price;
+            item.HardpointType = hardpointType; item.ShapeWidth = 1; item.ShapeHeight = 1;
+            item.OccupiedCells = 1; item.ShapeCells = one; item.BehaviorKinds = behaviors;
+            return item;
+        }
+
+        var availableHull = Item("available-hull", AetheriaRuntimeItemCategories.Hull, "forge", 100);
+        availableHull.HardpointType = "Hull";
+        availableHull.HullType = "Ship"; availableHull.ShapeWidth = 4; availableHull.ShapeHeight = 4;
+        availableHull.OccupiedCells = 16; availableHull.ShapeCells = cells4;
+        availableHull.Hardpoints =
+        [
+            new AetheriaRuntimeHardpoint("ControlModule", 0, 0, 1, 1, 1, one, "", "None", 0),
+            new AetheriaRuntimeHardpoint("Weapon", 1, 0, 1, 1, 1, one, "", "None", 0)
+        ];
+        var unavailableHull = Item("cheap-foreign-hull", AetheriaRuntimeItemCategories.Hull, "foreign", 1);
+        unavailableHull.HardpointType = "Hull";
+        unavailableHull.HullType = "Ship"; unavailableHull.ShapeWidth = 4; unavailableHull.ShapeHeight = 4;
+        unavailableHull.OccupiedCells = 16; unavailableHull.ShapeCells = cells4;
+        var cockpit = Item("cockpit", AetheriaRuntimeItemCategories.Gear, "forge", 20, "ControlModule", "Cockpit");
+        var wrongController = Item("cheap-turret-controller", AetheriaRuntimeItemCategories.Gear, "forge", 1,
+            "ControlModule", "TurretController");
+        var weapon = Item("cannon", AetheriaRuntimeItemCategories.Weapon, "forge", 40, "Weapon", "LockWeapon");
+        var cargo = Item("cargo-bay", AetheriaRuntimeItemCategories.CargoBay, "forge", 30);
+        cargo.HardpointType = "Internal";
+        var capacitor = Item("capacitor", AetheriaRuntimeItemCategories.Gear, "forge", 25, "", "Capacitor");
+        capacitor.HardpointType = "Internal";
+        var faction = new AetheriaRuntimeCorporation("forge", "Forge", "F", "", "", "", 1, 1,
+            [new AetheriaRuntimeCorporationAllegiance("forge", 1)]);
+        var foreign = new AetheriaRuntimeCorporation("foreign", "Foreign", "X", "", "", "", 1, 1,
+            [new AetheriaRuntimeCorporationAllegiance("foreign", 1)]);
+        var catalog = new AetheriaRuntimeCatalogSnapshot(
+            [availableHull, unavailableHull, cockpit, wrongController, weapon, cargo, capacitor],
+            [faction, foreign], Array.Empty<AetheriaRuntimeNameFile>());
+        var homes = new Dictionary<string, int> { ["forge"] = 0, ["foreign"] = 1 };
+        var adjacency = new Dictionary<int, IReadOnlyList<int>> { [0] = [1], [1] = [0] };
+
+        var first = new AetheriaDaemonLoadoutGenerator(catalog, 42, 0, homes, adjacency).Build("ship", "forge", []);
+        var second = new AetheriaDaemonLoadoutGenerator(catalog, 42, 0, homes, adjacency).Build("ship", "forge", []);
+
+        RequireEqual("available-hull", first.HullItemKey,
+            "loadout generation must exclude manufacturers outside the faction allegiance graph");
+        Require(first.Equipment.Any(value => value.ItemKey == "cockpit") &&
+                first.Equipment.All(value => value.ItemKey != "cheap-turret-controller"),
+            "ship control hardpoints must require the cockpit role even when the wrong controller is cheaper");
+        Require(first.Equipment.Any(value => value.ItemKey == "cannon") &&
+                first.Equipment.Any(value => value.ItemKey == "cargo-bay") &&
+                first.Equipment.Any(value => value.ItemKey == "capacitor"),
+            "generated ships must fit hardpoint equipment, a cargo bay, and a capacitor");
+        Require(first.HullItemKey == second.HullItemKey &&
+                first.Equipment.Select(value => value.ItemKey).SequenceEqual(second.Equipment.Select(value => value.ItemKey)),
+            "same seed, map, faction and catalog must produce the same loadout");
     }
 
     private static AetheriaRuntimeBehaviorValue PerformanceStat(double value) => new(
