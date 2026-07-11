@@ -300,8 +300,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         capacitor.HardpointType = "Internal";
         var faction = new AetheriaRuntimeCorporation("forge", "Forge", "F", "", "", "", 1, 1,
             [new AetheriaRuntimeCorporationAllegiance("forge", 1)]);
-        var foreign = new AetheriaRuntimeCorporation("foreign", "Foreign", "X", "", "", "", 1, 1,
-            [new AetheriaRuntimeCorporationAllegiance("foreign", 1)]);
+        var foreign = new AetheriaRuntimeCorporation("foreign", "Foreign", "X", "", "", "", 1, 2,
+            [new AetheriaRuntimeCorporationAllegiance("foreign", 1), new AetheriaRuntimeCorporationAllegiance("forge", 0.5)]);
         var catalog = new AetheriaRuntimeCatalogSnapshot(
             [availableHull, unavailableHull, stationHull, cockpit, wrongController, weapon, cargo, docking, capacitor],
             [faction, foreign], Array.Empty<AetheriaRuntimeNameFile>());
@@ -311,6 +311,17 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         var first = new AetheriaDaemonLoadoutGenerator(catalog, 42, 0, homes, adjacency).Build("ship", "forge", []);
         var second = new AetheriaDaemonLoadoutGenerator(catalog, 42, 0, homes, adjacency).Build("ship", "forge", []);
         var station = new AetheriaDaemonLoadoutGenerator(catalog, 84, 0, homes, adjacency).Build("station", "forge", []);
+        var uninterruptedForge = new AetheriaDaemonLoadoutGenerator(catalog, 101, 0, homes, adjacency);
+        var interleavedForge = new AetheriaDaemonLoadoutGenerator(catalog, 101, 0, homes, adjacency);
+        var foreignStream = new AetheriaDaemonLoadoutGenerator(catalog, 202, 1, homes, adjacency);
+        var uninterruptedSequence = new[]
+        {
+            uninterruptedForge.Build("ship", "forge", []),
+            uninterruptedForge.Build("ship", "forge", [])
+        };
+        var interleavedFirst = interleavedForge.Build("ship", "forge", []);
+        foreignStream.Build("ship", "foreign", []);
+        var interleavedSecond = interleavedForge.Build("ship", "forge", []);
 
         RequireEqual("available-hull", first.HullItemKey,
             "loadout generation must exclude manufacturers outside the faction allegiance graph");
@@ -336,7 +347,15 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             "stations must fit docking, cargo, capacitor, and turret-controller roles before inventory generation");
         Require(station.Cargo.Length == 4 && station.Cargo.All(value => value.Item.ItemKey != "cheap-foreign-hull"),
             "station inventory draws must be packed to cargo capacity and exclude unavailable manufacturers");
+        Require(LoadoutKeys(uninterruptedSequence[0]).SequenceEqual(LoadoutKeys(interleavedFirst)) &&
+                LoadoutKeys(uninterruptedSequence[1]).SequenceEqual(LoadoutKeys(interleavedSecond)),
+            "generation in another faction stream must not perturb this faction's continuing loadout sequence");
     }
+
+    private static IEnumerable<string> LoadoutKeys(AetheriaDaemonLoadout loadout) =>
+        new[] { loadout.HullItemKey }
+            .Concat(loadout.Equipment.Select(value => value.ItemKey))
+            .Concat(loadout.Cargo.Select(value => value.Item.ItemKey));
 
     private static AetheriaRuntimeBehaviorValue PerformanceStat(double value) => new(
         "performance-stat",

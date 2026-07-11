@@ -21,18 +21,27 @@ internal static class AetheriaDaemonZoneGenerator
             .OrderBy(value => value, StringComparer.Ordinal)
             .ToArray();
         var homeZones = corporationKeys.ToDictionary(value => value, _ => 0, StringComparer.Ordinal);
-        var loadouts = new AetheriaDaemonLoadoutGenerator(
-            catalog,
-            GenerationSeed,
-            0,
-            homeZones,
-            new Dictionary<int, IReadOnlyList<int>> { [0] = Array.Empty<int>() });
         var availabilityFactions = new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["player"] = corporationKeys.ElementAtOrDefault(0) ?? "",
             ["raider"] = corporationKeys.ElementAtOrDefault(1) ?? corporationKeys.ElementAtOrDefault(0) ?? "",
             ["neutral"] = corporationKeys.ElementAtOrDefault(2) ?? corporationKeys.ElementAtOrDefault(0) ?? ""
         };
+        var rootRandom = new CultMath.Random(GenerationSeed);
+        var adjacency = new Dictionary<int, IReadOnlyList<int>> { [0] = Array.Empty<int>() };
+        var loadouts = availabilityFactions.Values
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(value => value, StringComparer.Ordinal)
+            .ToDictionary(
+                value => value,
+                _ => new AetheriaDaemonLoadoutGenerator(
+                    catalog,
+                    (uint)rootRandom.NextInt(1, int.MaxValue),
+                    0,
+                    homeZones,
+                    adjacency),
+                StringComparer.Ordinal);
         var entities = GenerateEntities(loadouts, availabilityFactions);
         var entityKeys = Enumerable.Range(0, entities.Length)
             .Select(index => EntityKey(0, index))
@@ -187,7 +196,7 @@ internal static class AetheriaDaemonZoneGenerator
     }
 
     private static AetheriaEntitySnapshot[] GenerateEntities(
-        AetheriaDaemonLoadoutGenerator loadouts,
+        IReadOnlyDictionary<string, AetheriaDaemonLoadoutGenerator> loadouts,
         IReadOnlyDictionary<string, string> availabilityFactions)
     {
         var keys = Enumerable.Range(0, 12)
@@ -218,7 +227,7 @@ internal static class AetheriaDaemonZoneGenerator
     }
 
     private static AetheriaEntitySnapshot Entity(
-        AetheriaDaemonLoadoutGenerator loadouts,
+        IReadOnlyDictionary<string, AetheriaDaemonLoadoutGenerator> loadouts,
         IReadOnlyDictionary<string, string> availabilityFactions,
         string name,
         string kind,
@@ -232,7 +241,8 @@ internal static class AetheriaDaemonZoneGenerator
         string[] contactKeys,
         string[] cargo)
     {
-        var loadout = loadouts.Build(kind, availabilityFactions[faction], cargo);
+        var availabilityFaction = availabilityFactions[faction];
+        var loadout = loadouts[availabilityFaction].Build(kind, availabilityFaction, cargo);
         return new AetheriaEntitySnapshot
         {
             Name = name,

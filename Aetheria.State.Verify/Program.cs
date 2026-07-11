@@ -1239,6 +1239,8 @@ static void RequireDaemonPlayableRunGenerationAuthority(string root)
         "internal static class AetheriaDaemonZoneGenerator",
         "new AetheriaDaemonLoadoutGenerator(",
         "GenerateEntities(loadouts, availabilityFactions)",
+        "var rootRandom = new CultMath.Random(GenerationSeed)",
+        "(uint)rootRandom.NextInt(1, int.MaxValue)",
         "Math.Pow(item.Price, _priceExponent)",
         "Distance(_zoneIndex, _homeZones[item.ManufacturerKey])",
         "FitsHardpoint(candidate, hardpoint)",
