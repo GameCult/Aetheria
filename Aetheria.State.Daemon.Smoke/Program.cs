@@ -29,6 +29,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         IdleAgentReturnsToCanonicalHomeAndDocks();
         ControlledShipDoesNotReceiveAutonomousHelmCommands();
         AttackAgentControlsOptimumRangeThroughMovementLever();
+        AttackTaskAdmissionRejectsImpossibleWork();
         AgentCompletesAttackTaskThroughTargetFireAndYmir();
         AgentCompletesHaulTaskThroughMovementAndCargoCommands();
         RejectedHaulTransferDoesNotAdvanceTask();
@@ -548,6 +549,53 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             $"projectiles={run.Zones[0].Projectiles.Count} task={run.AgentTasks.Single().Status}");
         RequireEqual(AetheriaRuntimeAgentTaskStatuses.Completed, run.AgentTasks.Single().Status,
             "attack task must complete when its target dies");
+    }
+
+    private static void AttackTaskAdmissionRejectsImpossibleWork()
+    {
+        var agent = Entity(0, 0, "player");
+        agent.AgentTaskCapabilities = [AetheriaRuntimeAgentTaskTypes.Attack];
+        agent.WeaponGroups = [new[] { 0 }];
+        var hostile = Entity(1, 100, "raider");
+        var friendly = Entity(2, 100, "player");
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "attack-admission-smoke",
+            CurrentEntityKey = "",
+            Zones = [new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [agent, hostile, friendly] }]
+        };
+
+        AetheriaRuntimeDaemonCommandDocument Command(string id, int targetIndex, int weaponGroup)
+        {
+            var command = AetheriaRuntimeDaemonCommandDocument.Create(
+                AetheriaRuntimeDaemonCommandKinds.IssueAgentTask, "commander-smoke", "starbridge-smoke", 0, "");
+            command.CommandId = id;
+            command.AgentTask = new AetheriaRuntimeAgentTaskCommand
+            {
+                TaskId = id,
+                CorporationKey = "player",
+                TaskType = AetheriaRuntimeAgentTaskTypes.Attack,
+                ZoneIndex = 0,
+                TargetEntityIndex = targetIndex,
+                WeaponGroup = weaponGroup
+            };
+            return command;
+        }
+
+        var result = AetheriaRuntimeDaemonOperations.Execute(run,
+        [
+            Command("missing-target", 99, 0),
+            Command("friendly-target", 2, 0),
+            Command("missing-group", 1, 1),
+            Command("valid-attack", 1, 0)
+        ]);
+
+        Require(result.RejectedCommandIds.SequenceEqual(new[] { "missing-target", "friendly-target", "missing-group" }),
+            "attack admission must reject missing/friendly targets and unavailable weapon groups");
+        Require(result.AppliedCommandIds.SequenceEqual(new[] { "valid-attack" }),
+            "attack admission must accept executable hostile work");
+        Require(run.AgentTasks.Count == 1 && run.AgentTasks[0].TaskId == "valid-attack",
+            "rejected attack orders must not enter the durable corporation queue");
     }
 
     private static void AttackAgentControlsOptimumRangeThroughMovementLever()

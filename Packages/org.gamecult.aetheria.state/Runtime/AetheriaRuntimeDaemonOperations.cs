@@ -218,6 +218,9 @@ namespace GameCult.Aetheria.State.Verse
             if (string.Equals(taskType, AetheriaRuntimeAgentTaskTypes.Tow, StringComparison.Ordinal) &&
                 (request.TargetEntityIndex < 0 || string.IsNullOrWhiteSpace(request.OrbitParentKey) || request.OrbitDistance <= 0))
                 return false;
+            if (string.Equals(taskType, AetheriaRuntimeAgentTaskTypes.Attack, StringComparison.Ordinal) &&
+                !CanIssueAttackTask(run, request))
+                return false;
 
             run.AgentTasks = (run.AgentTasks ?? Array.Empty<AetheriaRuntimeAgentTaskCommit>())
                 .Concat(new[]
@@ -248,6 +251,57 @@ namespace GameCult.Aetheria.State.Verse
                 })
                 .ToArray();
             return true;
+        }
+
+        private static bool CanIssueAttackTask(
+            AetheriaRuntimeRunCheckpointCommit run,
+            AetheriaRuntimeAgentTaskCommand request)
+        {
+            if (request.TargetEntityIndex < 0 || request.WeaponGroup < 0)
+                return false;
+
+            var zone = (run.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>())
+                .FirstOrDefault(candidate => candidate != null && candidate.ZoneIndex == request.ZoneIndex);
+            var target = (zone?.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
+                .FirstOrDefault(candidate => candidate != null && candidate.EntityIndex == request.TargetEntityIndex);
+            if (target == null || !target.IsActive || !IsAttackHostile(request.CorporationKey, target.FactionKey))
+                return false;
+
+            return (run.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>())
+                .Where(candidate => candidate != null)
+                .SelectMany(candidate => (candidate.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
+                    .Select(entity => (ZoneIndex: candidate.ZoneIndex, Entity: entity)))
+                .Any(candidate =>
+                    candidate.Entity != null &&
+                    candidate.Entity.IsActive &&
+                    !IsCurrentEntity(run, candidate.ZoneIndex, candidate.Entity.EntityIndex) &&
+                    string.Equals(candidate.Entity.FactionKey ?? "", request.CorporationKey ?? "", StringComparison.Ordinal) &&
+                    (candidate.Entity.AgentTaskCapabilities ?? Array.Empty<string>())
+                        .Contains(AetheriaRuntimeAgentTaskTypes.Attack, StringComparer.Ordinal) &&
+                    request.WeaponGroup < (candidate.Entity.WeaponGroups ?? Array.Empty<IReadOnlyList<int>>()).Count &&
+                    (candidate.Entity.WeaponGroups[request.WeaponGroup] ?? Array.Empty<int>()).Count > 0);
+        }
+
+        private static bool IsAttackHostile(string? corporationKey, string? targetFactionKey)
+        {
+            var corporationIsPlayer = string.Equals(corporationKey, "player", StringComparison.OrdinalIgnoreCase);
+            var targetIsPlayer = string.Equals(targetFactionKey, "player", StringComparison.OrdinalIgnoreCase);
+            return corporationIsPlayer != targetIsPlayer &&
+                (string.Equals(corporationKey, "raider", StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(targetFactionKey, "raider", StringComparison.OrdinalIgnoreCase));
+        }
+
+        private static bool IsCurrentEntity(
+            AetheriaRuntimeRunCheckpointCommit run,
+            int zoneIndex,
+            int entityIndex)
+        {
+            return AetheriaRuntimeRunCheckpointCommit.TryParseEntityKey(
+                    run.CurrentEntityKey,
+                    out var currentZoneIndex,
+                    out var currentEntityIndex) &&
+                currentZoneIndex == zoneIndex &&
+                currentEntityIndex == entityIndex;
         }
 
         private static bool ApplyCancelAgentTask(
