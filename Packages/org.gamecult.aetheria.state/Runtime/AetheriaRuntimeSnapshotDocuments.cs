@@ -1116,6 +1116,10 @@ namespace GameCult.Aetheria.State.Verse
 
         [Key(19)]
         public string LastRefusalReason { get; set; } = "";
+
+        [Key(20)] public double ChargeHoldSeconds { get; set; }
+        [Key(21)] public int ChargeRiskChecks { get; set; }
+        [Key(22)] public double ChargeMalfunctionRisk { get; set; }
     }
 
     [MessagePackObject]

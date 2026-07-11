@@ -693,7 +693,10 @@ namespace GameCult.Aetheria.State.Verse
                             ("reloadProgress", FormatNumber(value.ReloadProgress)),
                             ("lockProgress", FormatNumber(value.LockProgress)),
                             ("targetEntityId", targetEntityId),
-                            ("lastRefusalReason", value.LastRefusalReason)
+                            ("lastRefusalReason", value.LastRefusalReason),
+                            ("chargeHoldSeconds", FormatNumber(value.ChargeHoldSeconds)),
+                            ("chargeRiskChecks", value.ChargeRiskChecks.ToString(CultureInfo.InvariantCulture)),
+                            ("chargeMalfunctionRisk", FormatNumber(value.ChargeMalfunctionRisk))
                         });
                 })
                 .ToArray();

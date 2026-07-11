@@ -1073,7 +1073,10 @@ namespace GameCult.Aetheria.State.Verse
                 var ammoIntervalProgress = ReadFieldDouble(ref reader, weaponFields, 16);
                 var lockProgress = ReadFieldDouble(ref reader, weaponFields, 17);
                 var lockTargetEntityKey = ReadFieldString(ref reader, weaponFields, 18);
-                SkipRemaining(ref reader, weaponFields, 19);
+                var chargeHoldSeconds = ReadFieldDouble(ref reader, weaponFields, 19);
+                var chargeRiskChecks = ReadFieldInt32(ref reader, weaponFields, 20);
+                var chargeMalfunctionRisk = ReadFieldDouble(ref reader, weaponFields, 21);
+                SkipRemaining(ref reader, weaponFields, 22);
                 weaponStates[weapon] = new AetheriaRuntimeWeaponStateSnapshot(
                     ownerKind,
                     ownerIndex,
@@ -1093,7 +1096,10 @@ namespace GameCult.Aetheria.State.Verse
                     reloadProgress,
                     ammoIntervalProgress,
                     lockProgress,
-                    lockTargetEntityKey);
+                    lockTargetEntityKey,
+                    chargeHoldSeconds,
+                    chargeRiskChecks,
+                    chargeMalfunctionRisk);
             }
 
             return weaponStates;

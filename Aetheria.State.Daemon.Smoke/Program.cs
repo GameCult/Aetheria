@@ -14,6 +14,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         YmirBeamTraceReturnsFirstSpatialContact();
         ConstantWeaponRunsOnDaemonThroughYmirBeamContact();
         ChargedWeaponCannotBypassChargeLifecycle();
+        ChargedWeaponHoldRiskMalfunctionsDeterministically();
         DaemonSimulationAppliesYmirHit();
         ProjectileDeathEmitsOnce();
         MissingPhysicsOwnerCannotAdvanceProjectiles();
@@ -158,7 +159,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
     {
         var source = Entity(0, 0, "player");
         source.DirectionX = 1;
-        source.TargetEntityIndex = 1;
+        source.TargetEntityIndex = -1;
         source.WeaponGroups = [new[] { 0 }];
         source.Equipment = [new AetheriaRuntimeLoadoutItemSlotCommit
         {
@@ -197,6 +198,81 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             "pressing an authored ChargedWeapon must not bypass charging through the instant weapon resolver");
         Require(Math.Abs(Stat(target, "hull") - 100) < 0.000001,
             "charged weapon admission must not apply damage before a daemon-owned release commits the shot");
+        var state = source.WeaponStates.Single(value => value.BehaviorKind == AetheriaRuntimeBehaviorKinds.ChargedWeapon);
+        for (var frame = 1; frame < 11; frame++)
+            AetheriaRuntimeDaemonSimulation.Step(run, new AetheriaRuntimeDaemonIntentState(), 0.1,
+                new AetheriaRuntimeDaemonSimulationSettings(), new AetheriaYmirProjectilePhysics(),
+                new AetheriaYmirWorldPhysics(),
+                new AetheriaRuntimeCatalogSnapshot([CatalogItem("test-charged", payload)], [], []), frame, frame * 0.1);
+        Require(state.Charging && state.Charged && state.Charge >= 1 && state.ChargeHoldSeconds > 0,
+            "one semantic request must precharge without a firing solution and enter persisted hold state");
+        Require(!run.GameEvents.Any(value => value.Kind == "projectile.launched"),
+            "ready charged weapon must hold rather than invent a firing solution");
+        source.TargetEntityIndex = target.EntityIndex;
+        AetheriaRuntimeDaemonSimulation.Step(run, new AetheriaRuntimeDaemonIntentState(), 0.1,
+            new AetheriaRuntimeDaemonSimulationSettings(), new AetheriaYmirProjectilePhysics(),
+            new AetheriaYmirWorldPhysics(),
+            new AetheriaRuntimeCatalogSnapshot([CatalogItem("test-charged", payload)], [], []), 11, 1.1);
+        Require(run.GameEvents.Count(value => value.Kind == "weapon.charge.committed") == 1 &&
+                run.GameEvents.Any(value => value.Kind == "projectile.launched" &&
+                    value.ItemKey == "test-charged" && Math.Abs(value.ScalarValue - 40) < 0.000001),
+            "stored full charge must commit automatically when a firing solution becomes available");
+        var surface = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(
+            new AetheriaRuntimeDaemonFrameDocument { FrameId = 11, Run = run },
+            new AetheriaRuntimeDaemonHealthDocument(),
+            AetheriaRuntimeDaemonCommandBoundaryDocument.Create("daemon"));
+        Require(Flatten(surface.Surface.Root).Any(node => node.Kind == "weapon.state" &&
+                node.Props.ContainsKey("chargeMalfunctionRisk")),
+            "Eve must expose charged hold duration and malfunction risk generically");
+        Require(Flatten(surface.Surface.Root).Any(node => node.Kind == "feedback.event" &&
+                node.Props["eventKind"] == "weapon.charge.committed"),
+            "Eve feedback must expose charged solution commit chronology");
+    }
+
+    private static void ChargedWeaponHoldRiskMalfunctionsDeterministically()
+    {
+        var source = Entity(0, 0, "player");
+        source.WeaponGroups = [new[] { 0 }];
+        var item = new AetheriaRuntimeLoadoutItemCommit
+            { ItemKey = "risk-charger", Quality = 1, Durability = 1, Enabled = true };
+        source.Equipment = [new AetheriaRuntimeLoadoutItemSlotCommit { Item = item }];
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "charged-risk-smoke", GenerationSeed = 17,
+            CurrentZoneIndex = 0, CurrentEntityKey = "zone.0.entity.0",
+            Zones = [new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [source] }]
+        };
+        var payload = new AetheriaRuntimeBehaviorPayload(0, AetheriaRuntimeBehaviorKinds.ChargedWeapon, 0,
+        [
+            new AetheriaRuntimeBehaviorField(2, PerformanceStat(20)),
+            new AetheriaRuntimeBehaviorField(6, PerformanceStat(150)),
+            new AetheriaRuntimeBehaviorField(17, PerformanceStat(1)),
+            new AetheriaRuntimeBehaviorField(19, PerformanceStat(0.5)),
+            new AetheriaRuntimeBehaviorField(21, PerformanceStat(1)),
+            new AetheriaRuntimeBehaviorField(25, Number(1)),
+            new AetheriaRuntimeBehaviorField(26, Number(0.25))
+        ]);
+        var catalog = new AetheriaRuntimeCatalogSnapshot([CatalogItem(item.ItemKey, payload)], [], []);
+        for (var frame = 0; frame < 21; frame++)
+        {
+            var intents = new AetheriaRuntimeDaemonIntentState();
+            if (frame == 0) intents.WeaponGroups.Add(new AetheriaRuntimeDaemonWeaponGroupIntent
+                { ActorEntityKey = "zone.0.entity.0", WeaponGroup = 0, Fire = true, Active = true });
+            AetheriaRuntimeDaemonSimulation.Step(run, intents, 0.1,
+                new AetheriaRuntimeDaemonSimulationSettings(), new AetheriaYmirProjectilePhysics(),
+                new AetheriaYmirWorldPhysics(), catalog, frame, frame * 0.1);
+        }
+        var state = source.WeaponStates.Single(value => value.BehaviorKind == AetheriaRuntimeBehaviorKinds.ChargedWeapon);
+        Require(!state.Charging && !state.Charged && state.CoolingDown && state.ChargeRiskChecks == 1 &&
+                Math.Abs(state.ChargeMalfunctionRisk - 1) < 0.000001,
+            "held full charge must persist its risk check and fail when authored risk reaches certainty");
+        RequireNear(0.75, item.Durability, 0.000001,
+            "charged malfunction must damage canonical equipped-item durability");
+        Require(run.GameEvents.Count(value => value.Kind == "weapon.charge.malfunctioned" &&
+                value.SubjectKey == "hold-risk" && value.ItemKey == item.ItemKey) == 1,
+            "charged hold risk must emit one authoritative malfunction event");
+        Require(!run.GameEvents.Any(value => value.Kind == "projectile.launched"),
+            "malfunction without a firing solution must never leak a projectile");
     }
 
     private static void AgentTowsStationIntoPersistentOrbit()

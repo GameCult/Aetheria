@@ -1111,7 +1111,10 @@ namespace GameCult.Aetheria.State.Verse
             double reloadProgress,
             double ammoIntervalProgress,
             double lockProgress,
-            string lockTargetEntityKey)
+            string lockTargetEntityKey,
+            double chargeHoldSeconds,
+            int chargeRiskChecks,
+            double chargeMalfunctionRisk)
         {
             OwnerKind = ownerKind;
             OwnerIndex = ownerIndex;
@@ -1132,6 +1135,9 @@ namespace GameCult.Aetheria.State.Verse
             AmmoIntervalProgress = ammoIntervalProgress;
             LockProgress = lockProgress;
             LockTargetEntityKey = lockTargetEntityKey;
+            ChargeHoldSeconds = chargeHoldSeconds;
+            ChargeRiskChecks = chargeRiskChecks;
+            ChargeMalfunctionRisk = chargeMalfunctionRisk;
         }
 
         public string OwnerKind { get; set; }
@@ -1153,6 +1159,9 @@ namespace GameCult.Aetheria.State.Verse
         public double AmmoIntervalProgress { get; set; }
         public double LockProgress { get; set; }
         public string LockTargetEntityKey { get; set; }
+        public double ChargeHoldSeconds { get; set; }
+        public int ChargeRiskChecks { get; set; }
+        public double ChargeMalfunctionRisk { get; set; }
     }
 
     [MessagePackObject(true)]

@@ -240,6 +240,8 @@ namespace GameCult.Aetheria.State.Verse
             foreach (var attacker in entities)
             {
                 var weaponGroup = ResolveFireGroup(run, zone, attacker, intents);
+                StepChargedWeapons(run, zone, attacker, byIndex, weaponGroup, deltaSeconds,
+                    settings, catalog, frameId);
                 StepConstantWeapons(run, zone, entities, byIndex, attacker, weaponGroup, deltaSeconds,
                     settings, projectilePhysics, catalog, frameId);
                 var weapons = ResolveWeapons(attacker, weaponGroup, catalog, settings);
@@ -359,6 +361,202 @@ namespace GameCult.Aetheria.State.Verse
                     entity.VelocityY = 0;
                     entity.TargetEntityIndex = -1;
                 }
+            }
+        }
+
+        private static void StepChargedWeapons(
+            AetheriaRuntimeRunCheckpointCommit run,
+            AetheriaRuntimeZoneSnapshotCommit zone,
+            AetheriaRuntimeEntitySnapshotCommit attacker,
+            IReadOnlyDictionary<int, AetheriaRuntimeEntitySnapshotCommit> byIndex,
+            int requestedWeaponGroup,
+            double deltaSeconds,
+            AetheriaRuntimeDaemonSimulationSettings settings,
+            AetheriaRuntimeCatalogSnapshot? catalog,
+            long frameId)
+        {
+            foreach (var weapon in ResolveChargedWeapons(attacker, requestedWeaponGroup, catalog, settings))
+            {
+                var state = weapon.Base.State;
+                state.Firing = false;
+                state.CooldownProgress = Math.Max(0, state.CooldownProgress - deltaSeconds);
+                state.CoolingDown = state.CooldownProgress > 0;
+                if (state.Reloading)
+                {
+                    state.ReloadProgress = Math.Max(0, state.ReloadProgress - deltaSeconds);
+                    if (state.ReloadProgress <= 0)
+                    {
+                        state.Reloading = false;
+                        state.Ammo = weapon.Base.MagazineSize;
+                        AppendChargedEvent(run, zone, attacker, weapon, frameId, "weapon.reload.completed", "", state.Ammo);
+                    }
+                }
+
+                if (weapon.Requested && IsAlive(attacker) && !state.Charging && !state.CoolingDown &&
+                    !state.Reloading && state.BurstRemaining <= 0)
+                {
+                    state.Charging = true;
+                    state.Charged = false;
+                    state.Charge = 0;
+                    state.ChargeHoldSeconds = 0;
+                    state.ChargeRiskChecks = 0;
+                    state.ChargeMalfunctionRisk = 0;
+                    state.LockTargetEntityIndex = -1;
+                    state.LastRefusalReason = "";
+                    AppendChargedEvent(run, zone, attacker, weapon, frameId, "weapon.charge.started", "committed", 0);
+                }
+
+                byIndex.TryGetValue(attacker.TargetEntityIndex, out var solutionTarget);
+                var hasSolution = solutionTarget != null && IsAlive(solutionTarget) && Hostile(attacker, solutionTarget) &&
+                    DistanceSq(attacker, solutionTarget) <= weapon.Base.Range * weapon.Base.Range;
+                if (state.Charging)
+                {
+                    var step = deltaSeconds / weapon.ChargeTime;
+                    if (!state.Charged)
+                    {
+                        var energy = weapon.ChargeEnergy * step;
+                        if (!CanSupplyEnergy(attacker, energy))
+                        {
+                            state.Charging = false;
+                            state.Charge = 0;
+                            PublishChargedRefusal(run, zone, attacker, weapon, frameId, "insufficient-charge-energy");
+                            continue;
+                        }
+                        CommitEnergy(attacker, energy);
+                        AetheriaRuntimeThermalSimulation.AddHeat(attacker, weapon.ChargeHeat * step);
+                    }
+                    state.Charge += step;
+                    if (!state.Charged && state.Charge >= 1)
+                    {
+                        state.Charged = true;
+                        state.ChargeHoldSeconds = 0;
+                        AppendChargedEvent(run, zone, attacker, weapon, frameId, "weapon.charge.ready", "holding", state.Charge);
+                    }
+                    if (state.Charged && hasSolution)
+                    {
+                        state.LockTargetEntityIndex = solutionTarget!.EntityIndex;
+                        state.Charging = false;
+                        state.ChargeHoldSeconds = 0;
+                        state.ChargeRiskChecks = 0;
+                        state.ChargeMalfunctionRisk = 0;
+                        TriggerChargedShot(run, zone, attacker, weapon, frameId);
+                    }
+                    else if (state.Charged)
+                    {
+                        state.ChargeHoldSeconds += deltaSeconds;
+                        var grace = Math.Max(0, weapon.FailureCharge - 1) * weapon.ChargeTime;
+                        var overdue = Math.Max(0, state.ChargeHoldSeconds - grace);
+                        var dueChecks = (int)Math.Floor(overdue);
+                        while (state.ChargeRiskChecks < dueChecks && state.Charging)
+                        {
+                            state.ChargeRiskChecks++;
+                            state.ChargeMalfunctionRisk = Clamp01(state.ChargeRiskChecks / weapon.ChargeTime);
+                            if (ChargedMalfunctionRoll(run.GenerationSeed, attacker.EntityIndex,
+                                    state.OwnerIndex, state.BehaviorIndex, state.ChargeRiskChecks) < state.ChargeMalfunctionRisk)
+                            {
+                                state.Charging = false;
+                                state.Charged = false;
+                                state.Charge = 0;
+                                state.CoolingDown = true;
+                                state.CooldownProgress = weapon.Base.Cooldown;
+                                weapon.Item.Durability = Math.Max(0, weapon.Item.Durability - weapon.FailureDamage);
+                                AppendChargedEvent(run, zone, attacker, weapon, frameId,
+                                    "weapon.charge.malfunctioned", "hold-risk", state.ChargeMalfunctionRisk);
+                            }
+                        }
+                    }
+                }
+
+                if (state.BurstRemaining > 0)
+                    byIndex.TryGetValue(state.LockTargetEntityIndex, out solutionTarget);
+                if (state.BurstRemaining <= 0 || solutionTarget == null || !IsAlive(solutionTarget))
+                    continue;
+                var shot = weapon.CommittedShot();
+                state.BurstTimer += deltaSeconds;
+                while (state.BurstRemaining > 0 && state.BurstTimer > 0)
+                {
+                    if (!shot.SingleAmmoBurst)
+                    {
+                        var result = CommitWeaponRound(attacker, shot);
+                        PublishWeaponRoundResult(run, zone, attacker, shot, frameId, result);
+                        if (result == WeaponRoundResult.ReloadStarted)
+                            AppendWeaponEvent(run, zone, attacker, shot, frameId, "weapon.reload.started");
+                        if (result != WeaponRoundResult.Fired) { state.BurstRemaining = 0; break; }
+                    }
+                    state.BurstRemaining--;
+                    state.BurstTimer -= state.BurstInterval;
+                    var projectile = SpawnProjectile(zone, attacker, solutionTarget, shot, settings);
+                    AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit
+                    {
+                        EventId = $"projectile:{projectile.ProjectileId}:launched", Kind = "projectile.launched",
+                        FrameId = frameId, ZoneIndex = zone.ZoneIndex, SourceEntityIndex = attacker.EntityIndex,
+                        TargetEntityIndex = solutionTarget.EntityIndex, SubjectKey = projectile.ProjectileId,
+                        ItemKey = projectile.WeaponKind, ScalarValue = projectile.Damage,
+                        PositionX = projectile.PositionX, PositionZ = projectile.PositionZ
+                    });
+                    state.Firing = true;
+                    AetheriaRuntimeThermalSimulation.AddHeat(attacker, shot.Heat);
+                }
+                if (state.BurstRemaining <= 0)
+                {
+                    state.Charged = false; state.Charge = 0; state.ChargeHoldSeconds = 0;
+                    state.ChargeRiskChecks = 0; state.ChargeMalfunctionRisk = 0;
+                }
+            }
+        }
+
+        private static void TriggerChargedShot(AetheriaRuntimeRunCheckpointCommit run,
+            AetheriaRuntimeZoneSnapshotCommit zone, AetheriaRuntimeEntitySnapshotCommit attacker,
+            ResolvedChargedWeapon weapon, long frameId)
+        {
+            var shot = weapon.CommittedShot();
+            if (shot.SingleAmmoBurst)
+            {
+                var result = CommitWeaponRound(attacker, shot);
+                PublishWeaponRoundResult(run, zone, attacker, shot, frameId, result);
+                if (result == WeaponRoundResult.ReloadStarted)
+                    AppendWeaponEvent(run, zone, attacker, shot, frameId, "weapon.reload.started");
+                if (result != WeaponRoundResult.Fired) { weapon.Base.State.Charged = false; weapon.Base.State.Charge = 0; return; }
+            }
+            weapon.Base.State.BurstRemaining = shot.BurstCount;
+            weapon.Base.State.BurstInterval = shot.BurstTime / shot.BurstCount;
+            weapon.Base.State.BurstTimer = 0;
+            weapon.Base.State.CoolingDown = true;
+            weapon.Base.State.CooldownProgress = shot.Cooldown;
+            AppendChargedEvent(run, zone, attacker, weapon, frameId, "weapon.charge.committed", "solution-acquired", 1);
+        }
+
+        private static void PublishChargedRefusal(AetheriaRuntimeRunCheckpointCommit run,
+            AetheriaRuntimeZoneSnapshotCommit zone, AetheriaRuntimeEntitySnapshotCommit entity,
+            ResolvedChargedWeapon weapon, long frameId, string reason)
+        {
+            if (string.Equals(weapon.Base.State.LastRefusalReason, reason, StringComparison.Ordinal)) return;
+            weapon.Base.State.LastRefusalReason = reason;
+            AppendChargedEvent(run, zone, entity, weapon, frameId, "weapon.fire.refused", reason, weapon.Base.State.Ammo);
+        }
+
+        private static void AppendChargedEvent(AetheriaRuntimeRunCheckpointCommit run,
+            AetheriaRuntimeZoneSnapshotCommit zone, AetheriaRuntimeEntitySnapshotCommit entity,
+            ResolvedChargedWeapon weapon, long frameId, string kind, string subject, double scalar)
+        {
+            AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit
+            {
+                EventId = $"frame:{frameId}:zone:{zone.ZoneIndex}:entity:{entity.EntityIndex}:weapon:{weapon.Base.State.OwnerIndex}:{weapon.Base.State.BehaviorIndex}:{kind}",
+                Kind = kind, FrameId = frameId, ZoneIndex = zone.ZoneIndex,
+                SourceEntityIndex = entity.EntityIndex, TargetEntityIndex = entity.TargetEntityIndex,
+                SubjectKey = subject, ItemKey = weapon.Base.ItemKey, ScalarValue = scalar
+            });
+        }
+
+        private static double ChargedMalfunctionRoll(uint seed, int entityIndex,
+            int ownerIndex, int behaviorIndex, int check)
+        {
+            unchecked
+            {
+                uint hash = seed ^ (uint)entityIndex * 2246822519u ^ (uint)ownerIndex * 3266489917u ^
+                            (uint)behaviorIndex * 668265263u ^ (uint)check * 374761393u;
+                hash ^= hash >> 16; hash *= 2246822519u; hash ^= hash >> 13;
+                return (hash + 1.0) / (uint.MaxValue + 2.0);
             }
         }
 
@@ -702,6 +900,25 @@ namespace GameCult.Aetheria.State.Verse
                 .ToArray();
         }
 
+        private static IReadOnlyList<ResolvedChargedWeapon> ResolveChargedWeapons(
+            AetheriaRuntimeEntitySnapshotCommit entity, int requestedWeaponGroup,
+            AetheriaRuntimeCatalogSnapshot? catalog, AetheriaRuntimeDaemonSimulationSettings settings)
+        {
+            var requestedEquipment = requestedWeaponGroup >= 0 && requestedWeaponGroup <
+                (entity.WeaponGroups ?? Array.Empty<IReadOnlyList<int>>()).Count
+                ? entity.WeaponGroups[requestedWeaponGroup] ?? Array.Empty<int>() : Array.Empty<int>();
+            return AetheriaRuntimeEquippedBehaviorQueries.Find(entity, catalog, AetheriaRuntimeBehaviorKinds.ChargedWeapon)
+                .Where(value => string.Equals(value.Payload.Kind, AetheriaRuntimeBehaviorKinds.ChargedWeapon, StringComparison.Ordinal))
+                .Select(value => new ResolvedChargedWeapon(
+                    ResolveAuthoredWeapon(entity, value, settings), value.Item,
+                    requestedEquipment.Contains(value.EquipmentIndex), PositiveOr(value.EvaluateStat(21), 1),
+                    Math.Max(0, value.EvaluateStat(22)), Math.Max(0, value.EvaluateStat(23)),
+                    ReadNumber(value.Payload, 25), PositiveOr(ReadNumber(value.Payload, 26), 1),
+                    PositiveOr(ReadNumber(value.Payload, 27), 1), PositiveOr(ReadNumber(value.Payload, 29), 1),
+                    PositiveOr(ReadNumber(value.Payload, 31), 1), PositiveOr(ReadNumber(value.Payload, 32), 1)))
+                .ToArray();
+        }
+
         private static IReadOnlyList<ResolvedWeapon> ResolveWeapons(
             AetheriaRuntimeEntitySnapshotCommit entity,
             int weaponGroup,
@@ -1005,6 +1222,43 @@ namespace GameCult.Aetheria.State.Verse
             public int MagazineSize { get; }
             public double ReloadTime { get; }
             public double AmmoIntervalDuration { get; }
+        }
+
+        private sealed class ResolvedChargedWeapon
+        {
+            public ResolvedChargedWeapon(ResolvedWeapon baseWeapon, AetheriaRuntimeLoadoutItemCommit item,
+                bool requested, double chargeTime, double chargeEnergy, double chargeHeat,
+                double failureCharge, double failureDamage, double damageMultiplier,
+                double burstMultiplier, double velocityMultiplier, double heatMultiplier)
+            {
+                Base = baseWeapon; Item = item; Requested = requested; ChargeTime = chargeTime;
+                ChargeEnergy = chargeEnergy; ChargeHeat = chargeHeat; FailureCharge = failureCharge;
+                FailureDamage = failureDamage; DamageMultiplier = damageMultiplier;
+                BurstMultiplier = burstMultiplier; VelocityMultiplier = velocityMultiplier;
+                HeatMultiplier = heatMultiplier;
+            }
+            public ResolvedWeapon CommittedShot()
+            {
+                var count = Math.Max(1, (int)Math.Round(Base.BurstCount * BurstMultiplier));
+                return new ResolvedWeapon(Base.State, Base.ItemKey,
+                    Base.Damage * Base.BurstCount * DamageMultiplier / count, Base.Range, Base.Cooldown,
+                    Base.ProjectileSpeed * VelocityMultiplier, Base.Heat * Base.BurstCount * HeatMultiplier / count,
+                    Base.Energy * Base.BurstCount / count, Base.AmmoItemKey, Base.MagazineSize, Base.ReloadTime,
+                    count, Base.BurstTime, Base.SingleAmmoBurst, Base.LockSpeed, Base.LockSensorImpact,
+                    Base.LockAngleDegrees, Base.LockDirectionImpact, Base.LockDecayPerSecond);
+            }
+            public ResolvedWeapon Base { get; }
+            public AetheriaRuntimeLoadoutItemCommit Item { get; }
+            public bool Requested { get; }
+            public double ChargeTime { get; }
+            public double ChargeEnergy { get; }
+            public double ChargeHeat { get; }
+            public double FailureCharge { get; }
+            public double FailureDamage { get; }
+            public double DamageMultiplier { get; }
+            public double BurstMultiplier { get; }
+            public double VelocityMultiplier { get; }
+            public double HeatMultiplier { get; }
         }
 
         private static void RefreshContacts(

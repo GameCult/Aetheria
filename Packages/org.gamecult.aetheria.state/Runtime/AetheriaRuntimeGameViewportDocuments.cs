@@ -1078,7 +1078,10 @@ namespace GameCult.Aetheria.State.Verse
                     state.ReloadProgress,
                     state.AmmoIntervalProgress,
                     state.LockProgress,
-                    state.LockTargetEntityIndex < 0 ? "" : EntityRecordKey(runId, zoneIndex, state.LockTargetEntityIndex)))
+                    state.LockTargetEntityIndex < 0 ? "" : EntityRecordKey(runId, zoneIndex, state.LockTargetEntityIndex),
+                    state.ChargeHoldSeconds,
+                    state.ChargeRiskChecks,
+                    state.ChargeMalfunctionRisk))
                 .ToArray();
         }
 
