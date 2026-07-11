@@ -103,6 +103,7 @@ namespace GameCult.Aetheria.State.Verse
             run ??= new AetheriaRuntimeRunCheckpointCommit();
             options ??= new AetheriaRuntimeDaemonTickOptions();
             options.OperationContext ??= new AetheriaRuntimeDaemonOperationContext();
+            EnsureBehaviorStates(run, options.Catalog);
 
             var observedCommands = (options.ObservedCommands ?? Array.Empty<AetheriaRuntimeDaemonCommandDocument>())
                 .Where(command => command != null)
@@ -271,6 +272,20 @@ namespace GameCult.Aetheria.State.Verse
                 gameSurface,
                 editorSurface,
                 editorSurface);
+        }
+
+        private static void EnsureBehaviorStates(
+            AetheriaRuntimeRunCheckpointCommit run,
+            AetheriaRuntimeCatalogSnapshot? catalog)
+        {
+            if (catalog == null)
+                return;
+            foreach (var entity in (run.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>())
+                .Where(zone => zone != null)
+                .SelectMany(zone => zone.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>()))
+            {
+                AetheriaRuntimeBehaviorStateProjector.EnsureEquipmentBehaviorStates(entity, catalog);
+            }
         }
 
         private static void StampZoneSimulationTime(

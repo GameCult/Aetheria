@@ -20,7 +20,95 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         AgentCompletesHaulTaskThroughMovementAndCargoCommands();
         RejectedHaulTransferDoesNotAdvanceTask();
         AgentPatrolsHistoricalOrbitCircuitThroughMovementCommands();
+        TickReconcilesAndEvaluatesCatalogBehaviors();
     }
+
+    private static void TickReconcilesAndEvaluatesCatalogBehaviors()
+    {
+        var entity = Entity(0, 0, "workers");
+        entity.Equipment =
+        [
+            new AetheriaRuntimeLoadoutItemSlotCommit
+            {
+                Item = new AetheriaRuntimeLoadoutItemCommit
+                {
+                    ItemKey = "mining-tool",
+                    Quality = 1,
+                    Durability = 1,
+                    Enabled = true
+                }
+            }
+        ];
+        entity.BehaviorStates = Array.Empty<AetheriaRuntimeBehaviorStateCommit>();
+        var payload = new AetheriaRuntimeBehaviorPayload(
+            0,
+            "MiningTool",
+            0,
+            [
+                new AetheriaRuntimeBehaviorField(1, PerformanceStat(12)),
+                new AetheriaRuntimeBehaviorField(2, PerformanceStat(0.8)),
+                new AetheriaRuntimeBehaviorField(3, PerformanceStat(2)),
+                new AetheriaRuntimeBehaviorField(4, PerformanceStat(50))
+            ]);
+        var catalog = new AetheriaRuntimeCatalogSnapshot(
+            [CatalogItem("mining-tool", payload)],
+            Array.Empty<AetheriaRuntimeCorporation>(),
+            Array.Empty<AetheriaRuntimeNameFile>());
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "behavior-query-smoke",
+            CurrentZoneIndex = 0,
+            CurrentEntityKey = "zone.0.entity.0",
+            Zones = [new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [entity] }]
+        };
+
+        AetheriaRuntimeDaemonTickRunner.Tick(
+            Path.Combine(Path.GetTempPath(), "aetheria-behavior-query-smoke.cc"),
+            run,
+            new AetheriaRuntimeDaemonTickOptions
+            {
+                FrameId = 1,
+                FixedDeltaSeconds = 0,
+                Catalog = catalog,
+                BuildPublications = false
+            });
+
+        var behavior = AetheriaRuntimeEquippedBehaviorQueries.Find(entity, catalog, "MiningTool").Single();
+        RequireEqual("MiningTool", behavior.State.BehaviorKind,
+            "tick must reconcile equipped catalog payloads into persistent behavior state");
+        RequireNear(12, behavior.EvaluateStat(1), 0.000001, "behavior query must evaluate mining damage from catalog");
+        RequireNear(50, behavior.EvaluateStat(4), 0.000001, "behavior query must evaluate mining range from catalog");
+    }
+
+    private static AetheriaRuntimeBehaviorValue PerformanceStat(double value) => new(
+        "performance-stat",
+        "",
+        0,
+        false,
+        "",
+        "",
+        [Number(value), Number(value), Number(0), Number(0), Number(0)],
+        Array.Empty<AetheriaRuntimeBehaviorMapEntry>());
+
+    private static AetheriaRuntimeBehaviorValue Number(double value) => new(
+        "number",
+        "",
+        value,
+        false,
+        "",
+        "",
+        Array.Empty<AetheriaRuntimeBehaviorValue>(),
+        Array.Empty<AetheriaRuntimeBehaviorMapEntry>());
+
+    private static AetheriaRuntimeCatalogItem CatalogItem(string itemKey, params AetheriaRuntimeBehaviorPayload[] payloads) => new(
+        itemKey, itemKey, "equipment", "", "", 0, 1, 1, 1, 1,
+        1, 1, 1, Array.Empty<AetheriaRuntimeShapeCell>(),
+        0, 0, 0, Array.Empty<AetheriaRuntimeShapeCell>(),
+        Array.Empty<AetheriaRuntimeHardpoint>(), payloads,
+        "utility", "", payloads.Select(payload => payload.Kind).ToArray(),
+        1, false, 0, 1, "", "", "", "", "",
+        0, 1000, Array.Empty<AetheriaRuntimeCurveKey>(), "", 1, 0, 0, 0, false,
+        0, 0, "", Array.Empty<AetheriaRuntimeAudioStat>(), Array.Empty<AetheriaRuntimeCurveKey>(), "", "");
 
     private static void AgentPatrolsHistoricalOrbitCircuitThroughMovementCommands()
     {
