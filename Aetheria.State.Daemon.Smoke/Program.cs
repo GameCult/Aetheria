@@ -22,6 +22,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         MultipleActorsUseTheSameMovementLever();
         AgentClaimsAndCompletesExploreTaskThroughCommands();
         SchedulerAssignsHighestPriorityCompatibleTask();
+        SchedulerRequeuesTaskFromDeadAgent();
+        SchedulerCollapsesDuplicateAssignmentMarkers();
         SchedulerAssignsShortestGalaxyRoute();
         AgentTraversesGalaxyRouteBeforeExecutingTask();
         AttackAgentControlsOptimumRangeThroughMovementLever();
@@ -602,6 +604,68 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         RequireEqual(AetheriaRuntimeAgentTaskStatuses.Queued, low.Status,
             "lower priority task must remain queued when no controller remains");
         RequireEqual("high", agent.AssignedAgentTaskId, "agent assignment must point at the selected task");
+    }
+
+    private static void SchedulerRequeuesTaskFromDeadAgent()
+    {
+        var dead = Entity(0, 0, "workers");
+        dead.IsActive = false;
+        dead.AssignedAgentTaskId = "recover-work";
+        var replacement = Entity(1, 0, "workers");
+        replacement.AgentTaskCapabilities = [AetheriaRuntimeAgentTaskTypes.Explore];
+        var task = new AetheriaRuntimeAgentTaskCommit
+        {
+            TaskId = "recover-work",
+            CorporationKey = "workers",
+            TaskType = AetheriaRuntimeAgentTaskTypes.Explore,
+            ZoneIndex = 0,
+            Status = AetheriaRuntimeAgentTaskStatuses.Assigned,
+            AssignedEntityIndex = 0,
+            TargetPositionX = 100,
+            DeliveredQuantity = 3,
+            RequestedQuantity = 5
+        };
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "agent-recovery-smoke",
+            Zones = [new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [dead, replacement] }],
+            AgentTasks = [task]
+        };
+
+        AetheriaRuntimeAgentScheduler.AssignAndPlan(run, 8);
+
+        RequireEqual(AetheriaRuntimeAgentTaskStatuses.Assigned, task.Status,
+            "work abandoned by an inactive agent must return to the corporation queue and be reassigned");
+        RequireEqual(replacement.EntityIndex, task.AssignedEntityIndex,
+            "compatible active replacement must receive abandoned work");
+        RequireEqual(3, task.DeliveredQuantity,
+            "reassignment must preserve authoritative task progress");
+        Require(string.IsNullOrWhiteSpace(dead.AssignedAgentTaskId),
+            "inactive agent must not retain reservation authority");
+    }
+
+    private static void SchedulerCollapsesDuplicateAssignmentMarkers()
+    {
+        var first = Entity(0, 0, "workers");
+        first.AssignedAgentTaskId = "single-owner";
+        var duplicate = Entity(1, 0, "workers");
+        duplicate.AssignedAgentTaskId = "single-owner";
+        var task = AgentTask("single-owner", 1);
+        task.Status = AetheriaRuntimeAgentTaskStatuses.Assigned;
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "agent-single-owner-smoke",
+            Zones = [new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [first, duplicate] }],
+            AgentTasks = [task]
+        };
+
+        AetheriaRuntimeAgentScheduler.AssignAndPlan(run, 9);
+
+        RequireEqual(1, run.Zones.SelectMany(zone => zone.Entities)
+                .Count(entity => string.Equals(entity.AssignedAgentTaskId, task.TaskId, StringComparison.Ordinal)),
+            "one task must have exactly one active carrier after reconciliation");
+        RequireEqual(first.EntityIndex, task.AssignedEntityIndex,
+            "duplicate assignment reconciliation must be deterministic");
     }
 
     private static AetheriaRuntimeAgentTaskCommit AgentTask(string id, int priority) => new()

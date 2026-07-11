@@ -745,16 +745,40 @@ namespace GameCult.Aetheria.State.Verse
 
         private static void ReleaseInvalidAssignments(AetheriaRuntimeRunCheckpointCommit run)
         {
-            var activeTaskIds = (run.AgentTasks ?? Array.Empty<AetheriaRuntimeAgentTaskCommit>())
+            var tasks = (run.AgentTasks ?? Array.Empty<AetheriaRuntimeAgentTaskCommit>())
+                .Where(task => task != null)
+                .ToArray();
+            var entities = (run.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>())
+                .Where(zone => zone != null)
+                .SelectMany(zone => zone.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
+                .Where(entity => entity != null)
+                .ToArray();
+            var activeTaskIds = tasks
                 .Where(task => task != null && string.Equals(task.Status, AetheriaRuntimeAgentTaskStatuses.Assigned, StringComparison.Ordinal))
                 .Select(task => task.TaskId)
                 .ToHashSet(StringComparer.Ordinal);
-            foreach (var entity in (run.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>())
-                .Where(zone => zone != null)
-                .SelectMany(zone => zone.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>()))
+            foreach (var entity in entities)
             {
-                if (!string.IsNullOrWhiteSpace(entity.AssignedAgentTaskId) && !activeTaskIds.Contains(entity.AssignedAgentTaskId))
+                if (!string.IsNullOrWhiteSpace(entity.AssignedAgentTaskId) &&
+                    (!entity.IsActive || !activeTaskIds.Contains(entity.AssignedAgentTaskId)))
                     entity.AssignedAgentTaskId = "";
+            }
+            foreach (var task in tasks.Where(task => string.Equals(task.Status, AetheriaRuntimeAgentTaskStatuses.Assigned, StringComparison.Ordinal)))
+            {
+                var carriers = entities
+                    .Where(entity => entity.IsActive && string.Equals(entity.AssignedAgentTaskId, task.TaskId, StringComparison.Ordinal))
+                    .OrderBy(entity => entity.EntityIndex)
+                    .ToArray();
+                if (carriers.Length == 0)
+                {
+                    task.Status = AetheriaRuntimeAgentTaskStatuses.Queued;
+                    task.AssignedEntityIndex = -1;
+                    task.AssignedFrameId = -1;
+                    continue;
+                }
+                task.AssignedEntityIndex = carriers[0].EntityIndex;
+                foreach (var duplicate in carriers.Skip(1))
+                    duplicate.AssignedAgentTaskId = "";
             }
         }
 
