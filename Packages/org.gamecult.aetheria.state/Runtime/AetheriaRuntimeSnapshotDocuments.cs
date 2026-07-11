@@ -207,6 +207,10 @@ namespace GameCult.Aetheria.State.Verse
         public IReadOnlyList<AetheriaRuntimeGameEventCommit> GameEvents { get; set; } =
             Array.Empty<AetheriaRuntimeGameEventCommit>();
 
+        [Key(15)]
+        public IReadOnlyList<AetheriaRuntimeShotReceiptCommit> ShotReceipts { get; set; } =
+            Array.Empty<AetheriaRuntimeShotReceiptCommit>();
+
         public AetheriaRuntimeLoadoutTemplateCommit CreateLoadoutTemplate(string entityKey)
         {
             return TryParseEntityKey(entityKey, out var zoneIndex, out var entityIndex)
@@ -446,6 +450,30 @@ namespace GameCult.Aetheria.State.Verse
         [Key(9)] public string SubjectKey { get; set; } = "";
         [Key(10)] public double PositionX { get; set; }
         [Key(11)] public double PositionZ { get; set; }
+    }
+
+    [MessagePackObject]
+    public sealed class AetheriaRuntimeShotReceiptCommit
+    {
+        [Key(0)] public string ShotId { get; set; } = "";
+        [Key(1)] public long FrameId { get; set; }
+        [Key(2)] public int ZoneIndex { get; set; } = -1;
+        [Key(3)] public int SourceEntityIndex { get; set; } = -1;
+        [Key(4)] public int TargetEntityIndex { get; set; } = -1;
+        [Key(5)] public string WeaponItemKey { get; set; } = "";
+        [Key(6)] public int WeaponOwnerIndex { get; set; } = -1;
+        [Key(7)] public int WeaponBehaviorIndex { get; set; } = -1;
+        [Key(8)] public double ContactInformation { get; set; }
+        [Key(9)] public double LockQuality { get; set; }
+        [Key(10)] public double RangeFactor { get; set; }
+        [Key(11)] public double MotionFactor { get; set; }
+        [Key(12)] public double DispersionFactor { get; set; }
+        [Key(13)] public double HitProbability { get; set; }
+        [Key(14)] public double HitRoll { get; set; }
+        [Key(15)] public bool Hit { get; set; }
+        [Key(16)] public double NominalDamage { get; set; }
+        [Key(17)] public double AppliedDamage { get; set; }
+        [Key(18)] public string Outcome { get; set; } = "";
     }
 
     [MessagePackObject]

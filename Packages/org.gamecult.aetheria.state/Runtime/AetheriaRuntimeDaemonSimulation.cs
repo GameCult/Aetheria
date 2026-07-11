@@ -324,6 +324,7 @@ namespace GameCult.Aetheria.State.Verse
                         weapon.State.BurstRemaining--;
                         weapon.State.BurstTimer -= weapon.State.BurstInterval;
                         var projectile = SpawnProjectile(zone, attacker, target, weapon, settings);
+                        CommitShotResolution(run, zone, attacker, target, weapon, projectile, frameId);
                         AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit { EventId = $"projectile:{projectile.ProjectileId}:launched", Kind = "projectile.launched", FrameId = frameId, ZoneIndex = zone.ZoneIndex, SourceEntityIndex = attacker.EntityIndex, TargetEntityIndex = target.EntityIndex, SubjectKey = projectile.ProjectileId, ItemKey = projectile.WeaponKind, ScalarValue = projectile.Damage, PositionX = projectile.PositionX, PositionZ = projectile.PositionZ });
                         weapon.State.Firing = true;
                         AetheriaRuntimeThermalSimulation.AddHeat(attacker, weapon.Heat);
@@ -342,12 +343,7 @@ namespace GameCult.Aetheria.State.Verse
             {
                 if (byIndex.TryGetValue(hit.TargetEntityIndex, out var target))
                 {
-                    var aliveBefore = IsAlive(target);
-                    Damage(target, hit.Projectile.Damage);
                     AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit { EventId = $"projectile:{hit.Projectile.ProjectileId}:impact", Kind = "projectile.impact", FrameId = frameId, ZoneIndex = zone.ZoneIndex, SourceEntityIndex = hit.Projectile.SourceEntityIndex, TargetEntityIndex = target.EntityIndex, SubjectKey = hit.Projectile.ProjectileId, ItemKey = hit.Projectile.WeaponKind, ScalarValue = hit.Projectile.Damage, PositionX = hit.PointX, PositionZ = hit.PointZ });
-                    AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit { EventId = $"projectile:{hit.Projectile.ProjectileId}:damage", Kind = "entity.damaged", FrameId = frameId, ZoneIndex = zone.ZoneIndex, SourceEntityIndex = hit.Projectile.SourceEntityIndex, TargetEntityIndex = target.EntityIndex, SubjectKey = hit.Projectile.ProjectileId, ScalarValue = hit.Projectile.Damage, PositionX = hit.PointX, PositionZ = hit.PointZ });
-                    if (aliveBefore && !IsAlive(target))
-                        AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit { EventId = $"projectile:{hit.Projectile.ProjectileId}:destroyed:{target.EntityIndex}", Kind = "entity.destroyed", FrameId = frameId, ZoneIndex = zone.ZoneIndex, SourceEntityIndex = hit.Projectile.SourceEntityIndex, TargetEntityIndex = target.EntityIndex, SubjectKey = hit.Projectile.ProjectileId, PositionX = hit.PointX, PositionZ = hit.PointZ });
                 }
             }
 
@@ -486,6 +482,7 @@ namespace GameCult.Aetheria.State.Verse
                     state.BurstRemaining--;
                     state.BurstTimer -= state.BurstInterval;
                     var projectile = SpawnProjectile(zone, attacker, solutionTarget, shot, settings);
+                    CommitShotResolution(run, zone, attacker, solutionTarget, shot, projectile, frameId);
                     AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit
                     {
                         EventId = $"projectile:{projectile.ProjectileId}:launched", Kind = "projectile.launched",
@@ -900,6 +897,94 @@ namespace GameCult.Aetheria.State.Verse
                 .ToArray();
         }
 
+        private static void CommitShotResolution(
+            AetheriaRuntimeRunCheckpointCommit run,
+            AetheriaRuntimeZoneSnapshotCommit zone,
+            AetheriaRuntimeEntitySnapshotCommit attacker,
+            AetheriaRuntimeEntitySnapshotCommit target,
+            ResolvedWeapon weapon,
+            AetheriaRuntimeProjectileCommit presentation,
+            long frameId)
+        {
+            var shotId = presentation.ProjectileId;
+            if ((run.ShotReceipts ?? Array.Empty<AetheriaRuntimeShotReceiptCommit>())
+                .Any(value => value != null && string.Equals(value.ShotId, shotId, StringComparison.Ordinal)))
+                return;
+
+            var contact = (attacker.Contacts ?? Array.Empty<AetheriaRuntimeEntityContactCommit>())
+                .FirstOrDefault(value => value != null && value.TargetEntityIndex == target.EntityIndex);
+            var information = Clamp01(contact?.InfoGathered ?? 0);
+            var lockQuality = Clamp01(weapon.State.LockProgress);
+            var distance = Math.Sqrt(DistanceSq(attacker, target));
+            var rangeSpan = Math.Max(0.001, weapon.Range - weapon.MinRange);
+            var normalizedRange = Clamp01((distance - weapon.MinRange) / rangeSpan);
+            var rangeFactor = distance < weapon.MinRange || distance > weapon.Range ? 0 : 1 - normalizedRange * 0.35;
+            var dx = target.PositionX - attacker.PositionX;
+            var dz = target.PositionZ - attacker.PositionZ;
+            var length = Math.Max(0.001, Math.Sqrt(dx * dx + dz * dz));
+            var relativeX = target.VelocityX - attacker.VelocityX;
+            var relativeZ = target.VelocityY - attacker.VelocityY;
+            var transverse = Math.Abs(relativeX * (-dz / length) + relativeZ * (dx / length));
+            var motionFactor = 1.0 / (1.0 + transverse / Math.Max(1, weapon.ProjectileSpeed));
+            var dispersionFactor = 1.0 / (1.0 + weapon.Spread);
+            var probability = weapon.Spread <= 0
+                ? 1
+                : Clamp01(information * (0.5 + 0.5 * lockQuality) * rangeFactor * motionFactor * dispersionFactor);
+            var roll = ShotRoll(run.GenerationSeed, shotId, "hit");
+            var hit = roll < probability;
+            var appliedDamage = hit ? weapon.Damage : 0;
+            var aliveBefore = IsAlive(target);
+            if (hit) Damage(target, appliedDamage);
+
+            AetheriaRuntimeShotReceipts.Append(run, new AetheriaRuntimeShotReceiptCommit
+            {
+                ShotId = shotId, FrameId = frameId, ZoneIndex = zone.ZoneIndex,
+                SourceEntityIndex = attacker.EntityIndex, TargetEntityIndex = target.EntityIndex,
+                WeaponItemKey = weapon.ItemKey, WeaponOwnerIndex = weapon.State.OwnerIndex,
+                WeaponBehaviorIndex = weapon.State.BehaviorIndex, ContactInformation = information,
+                LockQuality = lockQuality, RangeFactor = rangeFactor, MotionFactor = motionFactor,
+                DispersionFactor = dispersionFactor, HitProbability = probability, HitRoll = roll,
+                Hit = hit, NominalDamage = weapon.Damage, AppliedDamage = appliedDamage,
+                Outcome = hit ? "hit" : "miss"
+            });
+            AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit
+            {
+                EventId = $"shot:{shotId}:resolved", Kind = "shot.resolved", FrameId = frameId,
+                ZoneIndex = zone.ZoneIndex, SourceEntityIndex = attacker.EntityIndex,
+                TargetEntityIndex = target.EntityIndex, SubjectKey = hit ? "hit" : "miss",
+                ItemKey = weapon.ItemKey, ScalarValue = probability,
+                PositionX = target.PositionX, PositionZ = target.PositionZ
+            });
+            if (hit)
+                AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit
+                {
+                    EventId = $"shot:{shotId}:damage", Kind = "entity.damaged", FrameId = frameId,
+                    ZoneIndex = zone.ZoneIndex, SourceEntityIndex = attacker.EntityIndex,
+                    TargetEntityIndex = target.EntityIndex, SubjectKey = shotId,
+                    ItemKey = weapon.ItemKey, ScalarValue = appliedDamage,
+                    PositionX = target.PositionX, PositionZ = target.PositionZ
+                });
+            if (aliveBefore && !IsAlive(target))
+                AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit
+                {
+                    EventId = $"shot:{shotId}:destroyed:{target.EntityIndex}", Kind = "entity.destroyed",
+                    FrameId = frameId, ZoneIndex = zone.ZoneIndex, SourceEntityIndex = attacker.EntityIndex,
+                    TargetEntityIndex = target.EntityIndex, SubjectKey = shotId,
+                    ItemKey = weapon.ItemKey, PositionX = target.PositionX, PositionZ = target.PositionZ
+                });
+        }
+
+        private static double ShotRoll(uint seed, string shotId, string salt)
+        {
+            unchecked
+            {
+                uint hash = seed ^ 2166136261u;
+                foreach (var c in (shotId ?? "") + ":" + (salt ?? "")) hash = (hash ^ c) * 16777619u;
+                hash ^= hash >> 16; hash *= 2246822519u; hash ^= hash >> 13;
+                return (hash + 1.0) / (uint.MaxValue + 2.0);
+            }
+        }
+
         private static IReadOnlyList<ResolvedChargedWeapon> ResolveChargedWeapons(
             AetheriaRuntimeEntitySnapshotCommit entity, int requestedWeaponGroup,
             AetheriaRuntimeCatalogSnapshot? catalog, AetheriaRuntimeDaemonSimulationSettings settings)
@@ -967,7 +1052,9 @@ namespace GameCult.Aetheria.State.Verse
                 Math.Max(0, behavior.EvaluateStat(22)),
                 PositiveOr(behavior.EvaluateStat(23), settings.WeaponLockAngleDegrees),
                 PositiveOr(behavior.EvaluateStat(24), settings.WeaponLockDirectionImpact),
-                Math.Max(0, behavior.EvaluateStat(25)));
+                Math.Max(0, behavior.EvaluateStat(25)),
+                Math.Max(0, behavior.EvaluateStat(5)),
+                Math.Max(0, behavior.EvaluateStat(15)));
         }
 
         private static ResolvedWeapon ResolveFallbackWeapon(
@@ -1168,7 +1255,8 @@ namespace GameCult.Aetheria.State.Verse
                 double cooldown, double projectileSpeed, double heat, double energy, string ammoItemKey,
                 int magazineSize, double reloadTime, int burstCount, double burstTime, bool singleAmmoBurst,
                 double lockSpeed, double lockSensorImpact,
-                double lockAngleDegrees, double lockDirectionImpact, double lockDecayPerSecond)
+                double lockAngleDegrees, double lockDirectionImpact, double lockDecayPerSecond,
+                double minRange = 0, double spread = 0)
             {
                 State = state; ItemKey = itemKey; Damage = damage; Range = range; Cooldown = cooldown;
                 ProjectileSpeed = projectileSpeed; Heat = heat; Energy = energy; AmmoItemKey = ammoItemKey;
@@ -1176,6 +1264,7 @@ namespace GameCult.Aetheria.State.Verse
                 BurstCount = burstCount; BurstTime = burstTime; SingleAmmoBurst = singleAmmoBurst;
                 LockSensorImpact = lockSensorImpact; LockAngleDegrees = lockAngleDegrees;
                 LockDirectionImpact = lockDirectionImpact; LockDecayPerSecond = lockDecayPerSecond;
+                MinRange = minRange; Spread = spread;
             }
 
             public AetheriaRuntimeWeaponStateCommit State { get; }
@@ -1197,6 +1286,8 @@ namespace GameCult.Aetheria.State.Verse
             public double LockAngleDegrees { get; }
             public double LockDirectionImpact { get; }
             public double LockDecayPerSecond { get; }
+            public double MinRange { get; }
+            public double Spread { get; }
         }
 
         private sealed class ResolvedConstantWeapon
@@ -1245,7 +1336,8 @@ namespace GameCult.Aetheria.State.Verse
                     Base.ProjectileSpeed * VelocityMultiplier, Base.Heat * Base.BurstCount * HeatMultiplier / count,
                     Base.Energy * Base.BurstCount / count, Base.AmmoItemKey, Base.MagazineSize, Base.ReloadTime,
                     count, Base.BurstTime, Base.SingleAmmoBurst, Base.LockSpeed, Base.LockSensorImpact,
-                    Base.LockAngleDegrees, Base.LockDirectionImpact, Base.LockDecayPerSecond);
+                    Base.LockAngleDegrees, Base.LockDirectionImpact, Base.LockDecayPerSecond,
+                    Base.MinRange, Base.Spread);
             }
             public ResolvedWeapon Base { get; }
             public AetheriaRuntimeLoadoutItemCommit Item { get; }

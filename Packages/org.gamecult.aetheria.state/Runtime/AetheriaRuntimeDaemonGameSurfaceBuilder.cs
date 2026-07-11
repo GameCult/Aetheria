@@ -38,6 +38,7 @@ namespace GameCult.Aetheria.State.Verse
                     run.CurrentEntityKey,
                     frame.SimulationSettings),
                 FeedbackStream(run, frame.FrameId),
+                ShotReceiptStream(run),
                 GravityFieldSurface("aetheria.daemon.game.field"),
                 MainMenuOverlay("aetheria.daemon.game.main_menu", activeMainMenuSurfaceId),
                 Node(
@@ -298,6 +299,39 @@ namespace GameCult.Aetheria.State.Verse
                     }))
                 .ToArray();
             return Node("aetheria.daemon.game.feedback", "feedback.stream", new[] { ("retainedCount", events.Length.ToString(CultureInfo.InvariantCulture)) }, events);
+        }
+
+        private static AetheriaRuntimeSurfaceComponent ShotReceiptStream(AetheriaRuntimeRunCheckpointCommit run)
+        {
+            var receipts = (run.ShotReceipts ?? Array.Empty<AetheriaRuntimeShotReceiptCommit>())
+                .Where(value => value != null)
+                .OrderBy(value => value.FrameId)
+                .ThenBy(value => value.ShotId, StringComparer.Ordinal)
+                .Select(value => Node(
+                    $"aetheria.daemon.game.shots.{SurfaceToken(value.ShotId)}",
+                    "shot.receipt",
+                    new[]
+                    {
+                        ("shotId", value.ShotId), ("outcome", value.Outcome),
+                        ("frameId", value.FrameId.ToString(CultureInfo.InvariantCulture)),
+                        ("zoneIndex", value.ZoneIndex.ToString(CultureInfo.InvariantCulture)),
+                        ("sourceEntityIndex", value.SourceEntityIndex.ToString(CultureInfo.InvariantCulture)),
+                        ("targetEntityIndex", value.TargetEntityIndex.ToString(CultureInfo.InvariantCulture)),
+                        ("itemKey", value.WeaponItemKey),
+                        ("contactInformation", FormatNumber(value.ContactInformation)),
+                        ("lockQuality", FormatNumber(value.LockQuality)),
+                        ("rangeFactor", FormatNumber(value.RangeFactor)),
+                        ("motionFactor", FormatNumber(value.MotionFactor)),
+                        ("dispersionFactor", FormatNumber(value.DispersionFactor)),
+                        ("hitProbability", FormatNumber(value.HitProbability)),
+                        ("hitRoll", FormatNumber(value.HitRoll)),
+                        ("hit", value.Hit ? "true" : "false"),
+                        ("nominalDamage", FormatNumber(value.NominalDamage)),
+                        ("appliedDamage", FormatNumber(value.AppliedDamage))
+                    }))
+                .ToArray();
+            return Node("aetheria.daemon.game.shots", "shot.receipt-stream",
+                new[] { ("retainedCount", receipts.Length.ToString(CultureInfo.InvariantCulture)) }, receipts);
         }
 
         private static AetheriaRuntimeSurfaceComponent BuildSurveyKnowledge(AetheriaRuntimeRunCheckpointCommit run)

@@ -15,8 +15,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         ConstantWeaponRunsOnDaemonThroughYmirBeamContact();
         ChargedWeaponCannotBypassChargeLifecycle();
         ChargedWeaponHoldRiskMalfunctionsDeterministically();
-        DaemonSimulationAppliesYmirHit();
-        ProjectileDeathEmitsOnce();
+        DaemonSimulationTreatsYmirHitAsPresentationOnly();
+        ProjectileContactCannotKill();
         MissingPhysicsOwnerCannotAdvanceProjectiles();
         MissingWorldPhysicsOwnerCannotAdvanceShips();
         TractorRampsAndPullsThroughYmirWithoutTeleportingCargo();
@@ -955,6 +955,12 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             "one empty magazine must consume exactly one reserve cargo commodity before reload");
         Require(run.GameEvents.Count(value => value.Kind == "projectile.launched" && value.ItemKey == "test-lock-cannon") >= 6,
             "two authored bursts must emit all six due rounds through the projectile owner");
+        Require(run.ShotReceipts.Count(value => value.WeaponItemKey == "test-lock-cannon") >= 6 &&
+                run.ShotReceipts.All(value => value.Hit && value.AppliedDamage == value.NominalDamage),
+            "zero-spread authored rounds must commit immutable certain-hit receipts before presentation travel");
+        Require(run.ShotReceipts.Select(value => value.ShotId).Distinct(StringComparer.Ordinal).Count() ==
+                run.ShotReceipts.Count,
+            "every burst round must own a stable independent shot identity");
         Require(run.GameEvents.Count(value => value.Kind == "weapon.reload.started") == 1 &&
                 run.GameEvents.Count(value => value.Kind == "weapon.reload.completed") == 1,
             "empty magazine transition must publish one authoritative reload start and completion pair");
@@ -964,11 +970,18 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 value.Kind == "projectile.launched" && value.FrameId > reloadStarted && value.FrameId < reloadCompleted),
             "reload interval must be a projectile-free authoritative timeline, not a cosmetic client delay");
         Require(!target.IsActive,
-            $"attack task must end through daemon damage after Ymir projectile contacts; hull={Stat(target, "hull"):0.###} " +
+            $"attack task must end through daemon shot resolution before presentation projectile contacts; hull={Stat(target, "hull"):0.###} " +
             $"agent={agent.PositionX:0.###},{agent.PositionZ:0.###} target={target.PositionX:0.###},{target.PositionZ:0.###} " +
             $"projectiles={run.Zones[0].Projectiles.Count} task={run.AgentTasks.Single().Status}");
         RequireEqual(AetheriaRuntimeAgentTaskStatuses.Completed, run.AgentTasks.Single().Status,
             "attack task must complete when its target dies");
+        var shotSurface = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(
+            new AetheriaRuntimeDaemonFrameDocument { FrameId = 60, Run = run },
+            new AetheriaRuntimeDaemonHealthDocument(),
+            AetheriaRuntimeDaemonCommandBoundaryDocument.Create("daemon"));
+        Require(Flatten(shotSurface.Surface.Root).Any(node => node.Kind == "shot.receipt" &&
+                node.Props["itemKey"] == "test-lock-cannon" && node.Props["outcome"] == "hit"),
+            "Eve must project inspectable deterministic shot receipts without reconstructing combat");
     }
 
     private static void AttackTaskAdmissionRejectsImpossibleWork()
@@ -1528,7 +1541,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         RequireEqual("aetheria.daemon.entity.2", step.Hits[0].TargetBodyId, "entity body id must be stable");
     }
 
-    private static void DaemonSimulationAppliesYmirHit()
+    private static void DaemonSimulationTreatsYmirHitAsPresentationOnly()
     {
         var (run, _, target) = Scenario();
 
@@ -1540,12 +1553,12 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             new AetheriaYmirProjectilePhysics(),
             new AetheriaYmirWorldPhysics());
 
-        RequireEqual(88.0, Stat(target, "hull"), "Aetheria must interpret the Ymir contact as damage");
+        RequireEqual(100.0, Stat(target, "hull"), "presentation projectile contact must not write combat damage");
         RequireEqual(0, run.Zones[0].Projectiles.Count, "spent projectile must leave daemon state");
         RequireEqual(1, run.GameEvents.Count(value => value.Kind == "projectile.impact" && value.SubjectKey == "smoke-projectile"),
             "Ymir contact must emit one projectile-identity impact event");
-        RequireEqual(1, run.GameEvents.Count(value => value.Kind == "entity.damaged" && value.TargetEntityIndex == target.EntityIndex),
-            "daemon damage interpretation must emit one target damage event");
+        RequireEqual(0, run.GameEvents.Count(value => value.Kind == "entity.damaged" && value.TargetEntityIndex == target.EntityIndex),
+            "presentation projectile contact must not manufacture a damage event");
         var feedback = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(
             new AetheriaRuntimeDaemonFrameDocument { FrameId = 0, Run = run },
             new AetheriaRuntimeDaemonHealthDocument(),
@@ -1554,15 +1567,16 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             "Eve feedback must project authoritative projectile impact identity");
     }
 
-    private static void ProjectileDeathEmitsOnce()
+    private static void ProjectileContactCannotKill()
     {
         var (run, _, target) = Scenario();
         target.StatGrids.Single(grid => grid.Name == "hull").Values = [5];
         AetheriaRuntimeDaemonSimulation.Step(run, new AetheriaRuntimeDaemonIntentState(), 0.1,
             AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault, new AetheriaYmirProjectilePhysics(), new AetheriaYmirWorldPhysics(), frameId: 9);
-        Require(!target.IsActive, "lethal Ymir projectile contact must deactivate target");
-        RequireEqual(1, run.GameEvents.Count(value => value.Kind == "entity.destroyed" && value.TargetEntityIndex == target.EntityIndex),
-            "alive-to-dead transition must emit one destruction event");
+        Require(target.IsActive && Math.Abs(Stat(target, "hull") - 5) < 0.000001,
+            "even nominally lethal presentation contact must leave canonical target state untouched");
+        RequireEqual(0, run.GameEvents.Count(value => value.Kind == "entity.destroyed" && value.TargetEntityIndex == target.EntityIndex),
+            "presentation contact must not manufacture a destruction event");
     }
 
     private static void MissingPhysicsOwnerCannotAdvanceProjectiles()
