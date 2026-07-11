@@ -21,7 +21,9 @@ public sealed class AetheriaRenderSplatLayerRenderer : MonoBehaviour
     public bool TryGetTexture(string layerKey, out RenderTexture texture)
     {
         ResolveRenderer();
-        return renderer != null && renderer.TryGetTexture(layerKey, out texture);
+        if (renderer != null) return renderer.TryGetTexture(layerKey, out texture);
+        texture = null;
+        return false;
     }
 
     public void Render(AetheriaRuntimeRenderSplatsViewportDocument document, int width, int height)

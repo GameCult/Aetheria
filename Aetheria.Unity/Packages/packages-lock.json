@@ -1,0 +1,108 @@
+{
+  "dependencies": {
+    "com.unity.ext.nunit": {
+      "version": "2.0.5",
+      "depth": 1,
+      "source": "builtin",
+      "dependencies": {}
+    },
+    "com.unity.test-framework": {
+      "version": "1.6.0",
+      "depth": 0,
+      "source": "builtin",
+      "dependencies": {
+        "com.unity.ext.nunit": "2.0.3",
+        "com.unity.modules.imgui": "1.0.0",
+        "com.unity.modules.jsonserialize": "1.0.0"
+      }
+    },
+    "org.gamecult.cultlib": {
+      "version": "https://github.com/GameCult/CultLib.git?path=/unity/org.gamecult.cultlib#cultlib-unity-source-v1.0.3-r2",
+      "depth": 0,
+      "source": "git",
+      "dependencies": {},
+      "hash": "3a74e01d92f3e357205200edcba8f8a1c1b2dae1"
+    },
+    "org.gamecult.eve.plugin-fields": {
+      "version": "https://github.com/GameCult/EvePlugins.git?path=/plugins/eve-plugin-fields/unity/org.gamecult.eve.plugin-fields#eve-plugin-fields-unity-v0.1.1",
+      "depth": 0,
+      "source": "git",
+      "dependencies": {},
+      "hash": "0b099274a4e2b4c301eced4322166837792f585a"
+    },
+    "org.gamecult.eve.surface": {
+      "version": "https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.surface#eveunity-surface-v0.1.0",
+      "depth": 0,
+      "source": "git",
+      "dependencies": {
+        "org.gamecult.cultlib": "1.0.3"
+      },
+      "hash": "e10821f1cc81f619479c6507438f6a097d1f0ce2"
+    },
+    "org.gamecult.eve.unity-scene": {
+      "version": "https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.unity-scene#eveunity-scene-v0.1.4",
+      "depth": 0,
+      "source": "git",
+      "dependencies": {
+        "org.gamecult.cultlib": "1.0.3",
+        "org.gamecult.eve.plugin-fields": "0.1.1",
+        "org.gamecult.eve.surface": "0.1.0"
+      },
+      "hash": "093eb80d6c2a6da216b9e6b3fb921494e427102c"
+    },
+    "com.unity.modules.assetbundle": {
+      "version": "1.0.0",
+      "depth": 0,
+      "source": "builtin",
+      "dependencies": {}
+    },
+    "com.unity.modules.hierarchycore": {
+      "version": "1.0.0",
+      "depth": 1,
+      "source": "builtin",
+      "dependencies": {}
+    },
+    "com.unity.modules.imageconversion": {
+      "version": "1.0.0",
+      "depth": 0,
+      "source": "builtin",
+      "dependencies": {}
+    },
+    "com.unity.modules.imgui": {
+      "version": "1.0.0",
+      "depth": 1,
+      "source": "builtin",
+      "dependencies": {}
+    },
+    "com.unity.modules.jsonserialize": {
+      "version": "1.0.0",
+      "depth": 1,
+      "source": "builtin",
+      "dependencies": {}
+    },
+    "com.unity.modules.physics": {
+      "version": "1.0.0",
+      "depth": 0,
+      "source": "builtin",
+      "dependencies": {}
+    },
+    "com.unity.modules.ui": {
+      "version": "1.0.0",
+      "depth": 1,
+      "source": "builtin",
+      "dependencies": {}
+    },
+    "com.unity.modules.uielements": {
+      "version": "1.0.0",
+      "depth": 0,
+      "source": "builtin",
+      "dependencies": {
+        "com.unity.modules.ui": "1.0.0",
+        "com.unity.modules.imgui": "1.0.0",
+        "com.unity.modules.jsonserialize": "1.0.0",
+        "com.unity.modules.hierarchycore": "1.0.0",
+        "com.unity.modules.physics": "1.0.0"
+      }
+    }
+  }
+}
