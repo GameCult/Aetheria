@@ -22,6 +22,12 @@ must replace that graph with provider-owned typed documents:
 7. `presentation_events`: deduplicated hit, damage, lock, thermal, death,
    weapon, effect, and audio cues.
 
+The target doctrine-combat direction adds shared state for active doctrine,
+cognition allocation, fire-control assignments, subsystem intent, deployed
+platform orders, commitment exceptions, and structured decision reasons. See
+`cockpit-doctrine-combat.md`. These are gameplay state or named projections,
+not renderer-local interpretations of action-bar activity.
+
 Names are provisional; responsibilities are normative.
 
 ## Cockpit Schematic

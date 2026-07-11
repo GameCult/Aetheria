@@ -21,6 +21,16 @@ Subsystem specifications:
 - [Rendering and views](original-game-rendering-spec.md)
 - [Migration matrix](original-game-migration-matrix.md)
 
+Target gameplay evolution beyond fossil parity:
+
+- [Cockpit and doctrine combat](cockpit-doctrine-combat.md) defines the
+  post-parity target experience: an embodied cockpit, player-authored combat
+  intent, and cognition-mediated precision execution. Original manual controls
+  remain the parity baseline and an optional fallback/debug surface until that
+  direction passes its experience proofs. This target does not rewrite the
+  archaeology or parity scenarios; original semantic actions, simulation
+  constraints, and damage remain its execution substrate.
+
 ## Purpose
 
 The original Unity game contains the accumulated mechanics, timing, controls,

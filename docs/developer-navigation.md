@@ -35,6 +35,11 @@ Read these in this order:
    Unity and other clients.
 7. `Aetheria.State/docs/verse-authority-implementation-plan.md`
    Authority and Starbridge staged implementation map.
+8. `docs/cockpit-doctrine-combat.md`
+   Target pilot experience: first-person cockpit, direct and delegated helm,
+   doctrine-owned combat intent, cognition-owned precision execution, and the
+   typed state required to make delegation legible. This defines experience,
+   while the authority implementation plan remains authoritative for build order.
 
 Longer background/reference docs:
 
