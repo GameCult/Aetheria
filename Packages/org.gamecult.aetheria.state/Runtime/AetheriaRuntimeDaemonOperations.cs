@@ -803,7 +803,19 @@ namespace GameCult.Aetheria.State.Verse
                 return false;
 
             var pickup = pickups[pickupIndex];
-            return AetheriaRuntimePickupTransactions.TryCollect(zone, entity, pickup.PickupIndex, catalog);
+            var collected = AetheriaRuntimePickupTransactions.TryCollect(zone, entity, pickup.PickupIndex, catalog);
+            AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit
+            {
+                EventId = $"command:{command.CommandId}:{(collected ? "pickup-collected" : "pickup-rejected")}",
+                Kind = collected ? "pickup.collected" : "pickup.rejected",
+                FrameId = command.ObservedFrameId,
+                ZoneIndex = zoneIndex,
+                TargetEntityIndex = entity.EntityIndex,
+                PickupIndex = pickup.PickupIndex,
+                ItemKey = pickup.Item?.ItemKey ?? "",
+                ScalarValue = Math.Max(1, pickup.Item?.Quantity ?? 1)
+            });
+            return collected;
         }
 
         private static bool ApplyToggleHullConductivity(

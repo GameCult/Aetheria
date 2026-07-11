@@ -203,6 +203,10 @@ namespace GameCult.Aetheria.State.Verse
         public IReadOnlyList<AetheriaRuntimeCorporationSurveyCommit> CorporationSurveys { get; set; } =
             Array.Empty<AetheriaRuntimeCorporationSurveyCommit>();
 
+        [Key(14)]
+        public IReadOnlyList<AetheriaRuntimeGameEventCommit> GameEvents { get; set; } =
+            Array.Empty<AetheriaRuntimeGameEventCommit>();
+
         public AetheriaRuntimeLoadoutTemplateCommit CreateLoadoutTemplate(string entityKey)
         {
             return TryParseEntityKey(entityKey, out var zoneIndex, out var entityIndex)
@@ -425,6 +429,20 @@ namespace GameCult.Aetheria.State.Verse
                 Temperature = item?.Temperature ?? 0
             };
         }
+    }
+
+    [MessagePackObject]
+    public sealed class AetheriaRuntimeGameEventCommit
+    {
+        [Key(0)] public string EventId { get; set; } = "";
+        [Key(1)] public string Kind { get; set; } = "";
+        [Key(2)] public long FrameId { get; set; } = -1;
+        [Key(3)] public int ZoneIndex { get; set; } = -1;
+        [Key(4)] public int SourceEntityIndex { get; set; } = -1;
+        [Key(5)] public int TargetEntityIndex { get; set; } = -1;
+        [Key(6)] public int PickupIndex { get; set; } = -1;
+        [Key(7)] public string ItemKey { get; set; } = "";
+        [Key(8)] public double ScalarValue { get; set; }
     }
 
     [MessagePackObject]

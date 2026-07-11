@@ -37,6 +37,7 @@ namespace GameCult.Aetheria.State.Verse
                     zone,
                     run.CurrentEntityKey,
                     frame.SimulationSettings),
+                FeedbackStream(run, frame.FrameId),
                 GravityFieldSurface("aetheria.daemon.game.field"),
                 MainMenuOverlay("aetheria.daemon.game.main_menu", activeMainMenuSurfaceId),
                 Node(
@@ -210,6 +211,30 @@ namespace GameCult.Aetheria.State.Verse
                     ("taskTypes", string.Join(",", AetheriaRuntimeAgentTaskTypes.All))
                 },
                 tasks);
+        }
+
+        private static AetheriaRuntimeSurfaceComponent FeedbackStream(AetheriaRuntimeRunCheckpointCommit run, long frameId)
+        {
+            var events = (run.GameEvents ?? Array.Empty<AetheriaRuntimeGameEventCommit>())
+                .Where(value => value != null)
+                .OrderBy(value => value.FrameId)
+                .ThenBy(value => value.EventId, StringComparer.Ordinal)
+                .Select(value => Node(
+                    $"aetheria.daemon.game.feedback.{SurfaceToken(value.EventId)}",
+                    "feedback.event",
+                    new[]
+                    {
+                        ("eventId", value.EventId), ("eventKind", value.Kind),
+                        ("frameId", value.FrameId.ToString(CultureInfo.InvariantCulture)),
+                        ("zoneIndex", value.ZoneIndex.ToString(CultureInfo.InvariantCulture)),
+                        ("sourceEntityIndex", value.SourceEntityIndex.ToString(CultureInfo.InvariantCulture)),
+                        ("targetEntityIndex", value.TargetEntityIndex.ToString(CultureInfo.InvariantCulture)),
+                        ("pickupIndex", value.PickupIndex.ToString(CultureInfo.InvariantCulture)),
+                        ("itemKey", value.ItemKey), ("scalarValue", FormatNumber(value.ScalarValue)),
+                        ("currentFrameId", frameId.ToString(CultureInfo.InvariantCulture))
+                    }))
+                .ToArray();
+            return Node("aetheria.daemon.game.feedback", "feedback.stream", new[] { ("retainedCount", events.Length.ToString(CultureInfo.InvariantCulture)) }, events);
         }
 
         private static AetheriaRuntimeSurfaceComponent BuildSurveyKnowledge(AetheriaRuntimeRunCheckpointCommit run)

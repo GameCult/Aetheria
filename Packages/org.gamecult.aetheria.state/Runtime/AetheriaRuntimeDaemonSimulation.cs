@@ -41,7 +41,7 @@ namespace GameCult.Aetheria.State.Verse
                 if (entities.Length == 0)
                     continue;
 
-                StepPickupLifetimes(zone, deltaSeconds);
+                StepPickupLifetimes(run, zone, frameId, deltaSeconds);
 
                 EnsureStats(entities, settings);
                 foreach (var entity in entities)
@@ -52,7 +52,7 @@ namespace GameCult.Aetheria.State.Verse
                 StepRaiderAi(entities);
                 StepTargetPursuit(entities, settings);
                 var worldStep = StepWorldPhysics(zone, entities, deltaSeconds, worldPhysics);
-                ResolvePickupContacts(zone, entities, worldStep, catalog);
+                ResolvePickupContacts(run, zone, entities, worldStep, catalog, frameId);
                 StepCombat(run, zone, entities, intents, deltaSeconds, settings, projectilePhysics);
                 AetheriaRuntimeMiningSimulation.Step(run, zone, entities, intents, catalog, frameId, simulationTimeSeconds, deltaSeconds);
                 AetheriaRuntimeSurveySimulation.Step(run, zone, entities, intents, catalog, frameId, simulationTimeSeconds, deltaSeconds);
@@ -60,10 +60,13 @@ namespace GameCult.Aetheria.State.Verse
             }
         }
 
-        private static void StepPickupLifetimes(AetheriaRuntimeZoneSnapshotCommit zone, double deltaSeconds)
+        private static void StepPickupLifetimes(AetheriaRuntimeRunCheckpointCommit run, AetheriaRuntimeZoneSnapshotCommit zone, long frameId, double deltaSeconds)
         {
             foreach (var pickup in zone.DroppedPickups ?? Array.Empty<AetheriaRuntimeDroppedPickupCommit>())
                 if (pickup != null) pickup.AgeSeconds += deltaSeconds;
+            foreach (var pickup in (zone.DroppedPickups ?? Array.Empty<AetheriaRuntimeDroppedPickupCommit>())
+                .Where(pickup => pickup != null && pickup.AgeSeconds >= pickup.LifetimeSeconds))
+                AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit { EventId = $"frame:{frameId}:zone:{zone.ZoneIndex}:pickup:{pickup.PickupIndex}:expired", Kind = "pickup.expired", FrameId = frameId, ZoneIndex = zone.ZoneIndex, PickupIndex = pickup.PickupIndex, ItemKey = pickup.Item?.ItemKey ?? "" });
             zone.DroppedPickups = (zone.DroppedPickups ?? Array.Empty<AetheriaRuntimeDroppedPickupCommit>())
                 .Where(pickup => pickup != null && pickup.AgeSeconds < pickup.LifetimeSeconds)
                 .ToArray();
@@ -194,10 +197,12 @@ namespace GameCult.Aetheria.State.Verse
         }
 
         private static void ResolvePickupContacts(
+            AetheriaRuntimeRunCheckpointCommit run,
             AetheriaRuntimeZoneSnapshotCommit zone,
             IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities,
             AetheriaRuntimeWorldStep worldStep,
-            AetheriaRuntimeCatalogSnapshot? catalog)
+            AetheriaRuntimeCatalogSnapshot? catalog,
+            long frameId)
         {
             foreach (var contact in worldStep.Contacts.Where(contact => contact.PickupIndex >= 0))
             {
@@ -207,7 +212,11 @@ namespace GameCult.Aetheria.State.Verse
                     .FirstOrDefault(value => value != null && value.PickupIndex == contact.PickupIndex);
                 if (entity == null || pickup == null) continue;
                 if (AetheriaRuntimePickupTransactions.TryCollect(zone, entity, pickup.PickupIndex, catalog, requireRange: false))
+                {
+                    AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit { EventId = $"frame:{frameId}:zone:{zone.ZoneIndex}:entity:{entity.EntityIndex}:pickup:{pickup.PickupIndex}:collected", Kind = "pickup.collected", FrameId = frameId, ZoneIndex = zone.ZoneIndex, TargetEntityIndex = entity.EntityIndex, PickupIndex = pickup.PickupIndex, ItemKey = pickup.Item?.ItemKey ?? "", ScalarValue = Math.Max(1, pickup.Item?.Quantity ?? 1) });
                     continue;
+                }
+                AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit { EventId = $"frame:{frameId}:zone:{zone.ZoneIndex}:entity:{entity.EntityIndex}:pickup:{pickup.PickupIndex}:rejected", Kind = "pickup.rejected", FrameId = frameId, ZoneIndex = zone.ZoneIndex, TargetEntityIndex = entity.EntityIndex, PickupIndex = pickup.PickupIndex, ItemKey = pickup.Item?.ItemKey ?? "", ScalarValue = Math.Max(1, pickup.Item?.Quantity ?? 1) });
                 var dx = pickup.PositionX - entity.PositionX; var dz = pickup.PositionZ - entity.PositionZ;
                 var length = Math.Sqrt(dx * dx + dz * dz);
                 if (length < 0.001) { dx = 1; dz = 0; length = 1; }

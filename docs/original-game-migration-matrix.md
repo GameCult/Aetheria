@@ -35,7 +35,7 @@ validation proves contract shape, not wiring, exclusivity, lowering, or parity.
 | Minimap/tactical map | `ZoneRenderer`, map cameras | daemon world facts | explicit map projections | Unity and Electron | facts fragmented; generic lowerers absent | same state in both runtimes |
 | Fields/fog/gravity | zone renderer and shaders | daemon/plugin semantics | Fields plugin documents | EveUnity fields lowerer | owner-exists; basic lowering; composition parity absent | visual parity captures |
 | HUD/schematic | ARPG HUD and `SchematicDisplay` | Eve composition from daemon facts | semantic status/components | EveUnity UI | reference | source-fact and timing matrix |
-| Hit/lock/warnings | `ActionGameManager` feedback | daemon event facts | transient feedback stream | VFX/UI/audio | reference | event identity and duration |
+| Hit/lock/warnings | `ActionGameManager` feedback | daemon event facts | transient feedback stream | VFX/UI/audio | bounded deduplicated game-event ledger and Eve `feedback.stream` wired for pickup collected/rejected/expired chronology; combat and thermal families remain missing | add hit, lock, damage, death, thermal and docking event families with runtime effect consumption |
 | Assets | `Assets/Resources` | Aetheria provider | asset catalog + CultMesh CDN | runtime cache/load | wired; basic lowering; not live-proven remotely | cold/warm remote-only live load and cache proof |
 | Save/resume | original persistence paths | daemon/CultCache | published current state | clients rehydrate | owner-exists; not parity-proven | mid-loop restart |
 | Terminus loop | original game composition | daemon/Ymir/Eve | pilot surface | Aetheria.Unity | incomplete; no scenario proof | fly/fire/loot/dock/trade |
@@ -85,9 +85,10 @@ These are source-confirmed ownership failures, not feature backlog:
 2. **Persisted behavior is not executable behavior.** Snapshot schemas preserve
    broad equipment/behavior state while active simulation executes one
    synthetic projectile weapon and simplified raider pursuit.
-3. **Client feedback lacks authoritative chronology.** Hits, lock transitions,
-   damage topology, weapon transitions, death causes, effects, and drops have
-   no complete deduplicated event stream.
+3. **Client feedback chronology is incomplete.** Pickup collection, rejection,
+   and expiry now use a bounded deduplicated daemon ledger projected through
+   Eve, but hits, lock transitions, damage topology, weapon transitions, death
+   causes, thermal warnings, and docking effects still need event families.
 4. **View composition is implicit.** Provider prefabs contain pilot and map
    subviews, but portable render channels, entity presentation graphs, effects,
    attachment sockets, and map products are not yet first-class contracts.
