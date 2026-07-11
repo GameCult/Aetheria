@@ -16,6 +16,72 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         MultipleActorsUseTheSameMovementLever();
         AgentClaimsAndCompletesExploreTaskThroughCommands();
         SchedulerAssignsHighestPriorityCompatibleTask();
+        AgentCompletesAttackTaskThroughTargetFireAndYmir();
+    }
+
+    private static void AgentCompletesAttackTaskThroughTargetFireAndYmir()
+    {
+        var agent = Entity(0, 0, "player");
+        agent.AgentTaskCapabilities = [AetheriaRuntimeAgentTaskTypes.Attack];
+        agent.WeaponGroups = [new[] { 0 }];
+        var target = Entity(1, 105, "raider");
+        target.Kind = "station";
+        target.StatGrids = [Grid("hull", 24), Grid("shield", 0), Grid("heat", 0)];
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "agent-attack-smoke",
+            CurrentZoneIndex = 0,
+            CurrentEntityKey = "zone.0.entity.0",
+            Zones = [new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [agent, target] }]
+        };
+        var issue = AetheriaRuntimeDaemonCommandDocument.Create(
+            AetheriaRuntimeDaemonCommandKinds.IssueAgentTask,
+            "commander-smoke",
+            "starbridge-smoke",
+            0,
+            "");
+        issue.CommandId = "issue-attack";
+        issue.AgentTask = new AetheriaRuntimeAgentTaskCommand
+        {
+            TaskId = "attack-raider",
+            CorporationKey = "player",
+            TaskType = AetheriaRuntimeAgentTaskTypes.Attack,
+            Priority = 100,
+            ZoneIndex = 0,
+            TargetEntityIndex = 1,
+            CompletionRadius = 25,
+            WeaponGroup = 0
+        };
+        var sawTargetCommand = false;
+        var sawFireCommand = false;
+        for (var frame = 0; frame < 60; frame++)
+        {
+            var tick = AetheriaRuntimeDaemonTickRunner.Tick(
+                Path.Combine(Path.GetTempPath(), "aetheria-agent-attack-smoke.cc"),
+                run,
+                new AetheriaRuntimeDaemonTickOptions
+                {
+                    FrameId = frame,
+                    FixedDeltaSeconds = 0.1,
+                    SimulationTimeSeconds = frame * 0.1,
+                    ObservedCommands = frame == 0 ? [issue] : Array.Empty<AetheriaRuntimeDaemonCommandDocument>(),
+                    ProjectilePhysics = new AetheriaYmirProjectilePhysics(),
+                    BuildPublications = false
+                });
+            sawTargetCommand |= tick.OperationResult.AppliedCommandIds.Any(id => id.EndsWith(":target", StringComparison.Ordinal));
+            sawFireCommand |= tick.OperationResult.AppliedCommandIds.Any(id => id.EndsWith(":fire", StringComparison.Ordinal));
+            if (string.Equals(run.AgentTasks.Single().Status, AetheriaRuntimeAgentTaskStatuses.Completed, StringComparison.Ordinal))
+                break;
+        }
+
+        Require(sawTargetCommand, "attack agent must target through the shared target command");
+        Require(sawFireCommand, "attack agent must fire through the shared weapon-group command");
+        Require(!target.IsActive,
+            $"attack task must end through daemon damage after Ymir projectile contacts; hull={Stat(target, "hull"):0.###} " +
+            $"agent={agent.PositionX:0.###},{agent.PositionZ:0.###} target={target.PositionX:0.###},{target.PositionZ:0.###} " +
+            $"projectiles={run.Zones[0].Projectiles.Count} task={run.AgentTasks.Single().Status}");
+        RequireEqual(AetheriaRuntimeAgentTaskStatuses.Completed, run.AgentTasks.Single().Status,
+            "attack task must complete when its target dies");
     }
 
     private static void SchedulerAssignsHighestPriorityCompatibleTask()

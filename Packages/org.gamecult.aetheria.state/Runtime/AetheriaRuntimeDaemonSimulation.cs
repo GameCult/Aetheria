@@ -305,16 +305,19 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeEntitySnapshotCommit attacker,
             AetheriaRuntimeDaemonIntentState intents)
         {
-            var actorKey = run.EntityRecordKey(zone.ZoneIndex, attacker.EntityIndex);
             return (intents == null
                     ? Enumerable.Empty<AetheriaRuntimeDaemonWeaponGroupIntent>()
                     : intents.WeaponGroups)
                 .Any(intent => intent != null &&
-                    string.Equals(intent.ActorEntityKey, actorKey, StringComparison.Ordinal) &&
+                    ActorMatches(intent.ActorEntityKey, zone.ZoneIndex, attacker.EntityIndex) &&
                     intent.WeaponGroup == 0 &&
                     intent.Fire &&
                     intent.Active);
         }
+
+        private static bool ActorMatches(string actorEntityKey, int zoneIndex, int entityIndex) =>
+            AetheriaRuntimeRunCheckpointCommit.TryParseEntityKey(actorEntityKey, out var actorZoneIndex, out var actorEntityIndex) &&
+            actorZoneIndex == zoneIndex && actorEntityIndex == entityIndex;
 
         private static AetheriaRuntimeWeaponStateCommit EnsureDaemonWeaponState(
             AetheriaRuntimeEntitySnapshotCommit entity,

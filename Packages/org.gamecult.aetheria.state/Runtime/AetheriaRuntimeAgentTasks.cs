@@ -131,6 +131,13 @@ namespace GameCult.Aetheria.State.Verse
                 var target = task.TargetEntityIndex < 0
                     ? null
                     : zone!.Entities.FirstOrDefault(entity => entity != null && entity.EntityIndex == task.TargetEntityIndex);
+                if (string.Equals(task.TaskType, AetheriaRuntimeAgentTaskTypes.Attack, StringComparison.Ordinal) &&
+                    (target == null || !target.IsActive))
+                {
+                    Complete(task, agent, frameId);
+                    commands.Add(Movement(task, agent, frameId, 0, 0, 0));
+                    continue;
+                }
                 var targetX = target?.PositionX ?? task.TargetPositionX;
                 var targetZ = target?.PositionZ ?? task.TargetPositionZ;
                 var dx = targetX - agent.PositionX;
