@@ -12,6 +12,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
     {
         YmirMovesProjectileAndReportsStableContact();
         YmirBeamTraceReturnsFirstSpatialContact();
+        ConstantWeaponRunsOnDaemonThroughYmirBeamContact();
         DaemonSimulationAppliesYmirHit();
         ProjectileDeathEmitsOnce();
         MissingPhysicsOwnerCannotAdvanceProjectiles();
@@ -62,6 +63,94 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             "beam trace must return the first spatial contact rather than the selected target");
         Require(hit.Distance > 0 && hit.Distance < 90,
             "beam trace must publish the physical impact distance");
+    }
+
+    private static void ConstantWeaponRunsOnDaemonThroughYmirBeamContact()
+    {
+        var source = Entity(0, 0, "player");
+        source.DirectionX = 1;
+        source.DirectionY = 0;
+        source.TargetEntityIndex = 2;
+        source.WeaponGroups = [new[] { 0 }];
+        source.Equipment = [new AetheriaRuntimeLoadoutItemSlotCommit
+        {
+            Item = new AetheriaRuntimeLoadoutItemCommit
+                { ItemKey = "test-beam", Quality = 1, Durability = 1, Enabled = true }
+        }];
+        source.BehaviorStates = [new AetheriaRuntimeBehaviorStateCommit
+        {
+            OwnerKind = "fixture", OwnerIndex = 0, BehaviorIndex = 0,
+            BehaviorKind = "Capacitor", CapacitorCharge = 10, CapacitorCapacity = 10, CapacitorEfficiency = 1
+        }];
+        source.CargoContents = [Cargo(("beam-ammo", 1, 0, 0))];
+        var blocker = Entity(1, 40, "neutral");
+        var selectedTarget = Entity(2, 100, "raider");
+        var zone = new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [source, blocker, selectedTarget] };
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "constant-weapon-smoke", CurrentZoneIndex = 0,
+            CurrentEntityKey = "zone.0.entity.0", Zones = [zone]
+        };
+        var payload = new AetheriaRuntimeBehaviorPayload(0, AetheriaRuntimeBehaviorKinds.ConstantWeapon, 0,
+        [
+            new AetheriaRuntimeBehaviorField(2, PerformanceStat(10)),
+            new AetheriaRuntimeBehaviorField(6, PerformanceStat(150)),
+            new AetheriaRuntimeBehaviorField(9, PerformanceStat(2)),
+            new AetheriaRuntimeBehaviorField(10, PerformanceStat(3)),
+            new AetheriaRuntimeBehaviorField(12, new AetheriaRuntimeBehaviorValue(
+                "item-key", "", 0, false, "", "beam-ammo", [], [])),
+            new AetheriaRuntimeBehaviorField(13, Number(3)),
+            new AetheriaRuntimeBehaviorField(14, Number(0.3)),
+            new AetheriaRuntimeBehaviorField(17, Number(0.15))
+        ]);
+        var catalog = new AetheriaRuntimeCatalogSnapshot([CatalogItem("test-beam", payload)], [], []);
+        var intents = new AetheriaRuntimeDaemonIntentState();
+        intents.WeaponGroups.Add(new AetheriaRuntimeDaemonWeaponGroupIntent
+        {
+            ActorEntityKey = "zone.0.entity.0", WeaponGroup = 0, Fire = true, Active = true
+        });
+        for (var frame = 0; frame < 7; frame++)
+            AetheriaRuntimeDaemonSimulation.Step(run, intents, 0.1,
+                new AetheriaRuntimeDaemonSimulationSettings(), new AetheriaYmirProjectilePhysics(),
+                new AetheriaYmirWorldPhysics(), catalog, frame, frame * 0.1);
+
+        var state = source.WeaponStates.Single(value => value.BehaviorKind == AetheriaRuntimeBehaviorKinds.ConstantWeapon);
+        Require(run.GameEvents.Count(value => value.Kind == "weapon.firing.started") == 1,
+            "held constant fire must publish one start transition");
+        Require(run.GameEvents.Count(value => value.Kind == "weapon.reload.started") == 1 &&
+                run.GameEvents.Count(value => value.Kind == "weapon.firing.stopped") == 1,
+            "empty constant weapon magazine must start reload and stop the held effect once");
+        Require(state.Reloading && !state.Firing,
+            "constant weapon reload must remain authoritative persisted state");
+        Require(Stat(blocker, "hull") < 100 && Math.Abs(Stat(selectedTarget, "hull") - 100) < 0.000001,
+            "Ymir beam contact must damage the intervening body rather than the selected target");
+        Require(run.GameEvents.Any(value => value.Kind == "weapon.beam.damage" &&
+                value.TargetEntityIndex == blocker.EntityIndex && value.ItemKey == "test-beam"),
+            "daemon must publish accepted continuous beam damage with authored weapon identity");
+        Require(CargoQuantity(source, "beam-ammo") == 0,
+            "constant weapon reload must consume its reserve cargo through the shared transaction");
+        Require(source.BehaviorStates.Single(value => value.BehaviorKind == "Capacitor").CapacitorCharge < 10,
+            "constant weapon must pay elapsed-time energy through canonical capacitor state");
+        for (var frame = 7; frame < 11; frame++)
+            AetheriaRuntimeDaemonSimulation.Step(run, intents, 0.1,
+                new AetheriaRuntimeDaemonSimulationSettings(), new AetheriaYmirProjectilePhysics(),
+                new AetheriaYmirWorldPhysics(), catalog, frame, frame * 0.1);
+        AetheriaRuntimeDaemonSimulation.Step(run, new AetheriaRuntimeDaemonIntentState(), 0.1,
+            new AetheriaRuntimeDaemonSimulationSettings(), new AetheriaYmirProjectilePhysics(),
+            new AetheriaYmirWorldPhysics(), catalog, 11, 1.1);
+        Require(!state.Firing && run.GameEvents.Count(value => value.Kind == "weapon.firing.stopped") == 2,
+            "releasing held fire must stop the persisted constant weapon and publish its transition");
+        var surface = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(
+            new AetheriaRuntimeDaemonFrameDocument { FrameId = 11, Run = run },
+            new AetheriaRuntimeDaemonHealthDocument(),
+            AetheriaRuntimeDaemonCommandBoundaryDocument.Create("daemon"));
+        Require(Flatten(surface.Surface.Root).Any(node => node.Kind == "weapon.state" &&
+                node.Props["behaviorKind"] == AetheriaRuntimeBehaviorKinds.ConstantWeapon &&
+                node.Props["itemKey"] == "test-beam" && node.Props["firing"] == "false"),
+            "Eve world entity must project recoverable generic ConstantWeapon state");
+        Require(Flatten(surface.Surface.Root).Any(node => node.Kind == "feedback.event" &&
+                node.Props["eventKind"] == "weapon.firing.started" && node.Props["itemKey"] == "test-beam"),
+            "Eve feedback stream must project continuous weapon transition chronology");
     }
 
     private static void AgentTowsStationIntoPersistentOrbit()

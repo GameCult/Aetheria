@@ -240,6 +240,8 @@ namespace GameCult.Aetheria.State.Verse
             foreach (var attacker in entities)
             {
                 var weaponGroup = ResolveFireGroup(run, zone, attacker, intents);
+                StepConstantWeapons(run, zone, entities, byIndex, attacker, weaponGroup, deltaSeconds,
+                    settings, projectilePhysics, catalog, frameId);
                 var weapons = ResolveWeapons(attacker, weaponGroup, catalog, settings);
                 foreach (var weapon in weapons)
                 {
@@ -358,6 +360,154 @@ namespace GameCult.Aetheria.State.Verse
                     entity.TargetEntityIndex = -1;
                 }
             }
+        }
+
+        private static void StepConstantWeapons(
+            AetheriaRuntimeRunCheckpointCommit run,
+            AetheriaRuntimeZoneSnapshotCommit zone,
+            IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities,
+            IReadOnlyDictionary<int, AetheriaRuntimeEntitySnapshotCommit> byIndex,
+            AetheriaRuntimeEntitySnapshotCommit attacker,
+            int weaponGroup,
+            double deltaSeconds,
+            AetheriaRuntimeDaemonSimulationSettings settings,
+            IAetheriaRuntimeProjectilePhysics physics,
+            AetheriaRuntimeCatalogSnapshot? catalog,
+            long frameId)
+        {
+            foreach (var weapon in ResolveConstantWeapons(attacker, weaponGroup, catalog, settings))
+            {
+                if (weapon.State.Reloading)
+                {
+                    weapon.State.ReloadProgress = Math.Max(0, weapon.State.ReloadProgress - deltaSeconds);
+                    if (weapon.State.ReloadProgress <= 0)
+                    {
+                        weapon.State.Reloading = false;
+                        weapon.State.Ammo = weapon.MagazineSize;
+                        AppendConstantWeaponEvent(run, zone, attacker, weapon, frameId, "weapon.reload.completed", "");
+                    }
+                }
+
+                var validTarget = IsAlive(attacker) && weaponGroup >= 0 &&
+                    attacker.TargetEntityIndex >= 0 &&
+                    byIndex.TryGetValue(attacker.TargetEntityIndex, out var selectedTarget) &&
+                    IsAlive(selectedTarget) && Hostile(attacker, selectedTarget) &&
+                    DistanceSq(attacker, selectedTarget) <= weapon.Range * weapon.Range;
+                var shouldFire = weapon.Selected && validTarget && !weapon.State.Reloading;
+                if (!shouldFire)
+                {
+                    StopConstantWeapon(run, zone, attacker, weapon, frameId,
+                        weapon.State.Reloading ? "reload" : "inactive");
+                    continue;
+                }
+
+                if (!weapon.State.Firing)
+                {
+                    weapon.State.Firing = true;
+                    weapon.State.LastRefusalReason = "";
+                    AppendConstantWeaponEvent(run, zone, attacker, weapon, frameId, "weapon.firing.started", "");
+                }
+
+                var energy = weapon.Energy * deltaSeconds;
+                if (!CanSupplyEnergy(attacker, energy))
+                {
+                    PublishConstantWeaponRefusal(run, zone, attacker, weapon, frameId, "insufficient-energy");
+                    StopConstantWeapon(run, zone, attacker, weapon, frameId, "insufficient-energy");
+                    continue;
+                }
+                CommitEnergy(attacker, energy);
+
+                if (!string.IsNullOrWhiteSpace(weapon.AmmoItemKey))
+                {
+                    weapon.State.AmmoIntervalProgress -= deltaSeconds / weapon.AmmoIntervalDuration;
+                    if (weapon.State.AmmoIntervalProgress < 0)
+                    {
+                        weapon.State.AmmoIntervalProgress = 1;
+                        if (weapon.MagazineSize > 1 && weapon.State.Ammo > 0)
+                        {
+                            weapon.State.Ammo--;
+                        }
+                        else if (!AetheriaRuntimeCargoTransactions.TryFind(attacker, weapon.AmmoItemKey,
+                                     out var cargoIndex, out var x, out var y) ||
+                                 !AetheriaRuntimeCargoTransactions.TryRemoveQuantity(
+                                     attacker, cargoIndex, weapon.AmmoItemKey, x, y, 1, out _))
+                        {
+                            PublishConstantWeaponRefusal(run, zone, attacker, weapon, frameId, "no-ammunition");
+                            continue;
+                        }
+                        else if (weapon.MagazineSize > 1)
+                        {
+                            weapon.State.Reloading = true;
+                            weapon.State.ReloadProgress = weapon.ReloadTime;
+                            AppendConstantWeaponEvent(run, zone, attacker, weapon, frameId, "weapon.reload.started", "");
+                            StopConstantWeapon(run, zone, attacker, weapon, frameId, "reload");
+                            continue;
+                        }
+                    }
+                }
+
+                weapon.State.LastRefusalReason = "";
+                AetheriaRuntimeThermalSimulation.AddHeat(attacker, weapon.Heat * deltaSeconds);
+                var direction = Normalize(attacker.DirectionX, attacker.DirectionY);
+                var hit = physics.TraceBeam(zone, entities, attacker.EntityIndex,
+                    attacker.PositionX, attacker.PositionZ, direction.X, direction.Y, weapon.Range, 0.1);
+                if (hit == null || !byIndex.TryGetValue(hit.TargetEntityIndex, out var hitEntity) || !IsAlive(hitEntity))
+                    continue;
+
+                var damage = weapon.Damage * deltaSeconds;
+                var aliveBefore = IsAlive(hitEntity);
+                Damage(hitEntity, damage);
+                AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit
+                {
+                    EventId = $"frame:{frameId}:zone:{zone.ZoneIndex}:entity:{attacker.EntityIndex}:weapon:{weapon.State.OwnerIndex}:{weapon.State.BehaviorIndex}:beam:{hit.TargetEntityIndex}",
+                    Kind = "weapon.beam.damage", FrameId = frameId, ZoneIndex = zone.ZoneIndex,
+                    SourceEntityIndex = attacker.EntityIndex, TargetEntityIndex = hit.TargetEntityIndex,
+                    SubjectKey = hit.TargetBodyId, ItemKey = weapon.ItemKey, ScalarValue = damage,
+                    PositionX = hit.PointX, PositionZ = hit.PointZ
+                });
+                if (aliveBefore && !IsAlive(hitEntity))
+                    AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit
+                    {
+                        EventId = $"frame:{frameId}:zone:{zone.ZoneIndex}:entity:{attacker.EntityIndex}:weapon:{weapon.State.OwnerIndex}:{weapon.State.BehaviorIndex}:beam-destroyed:{hit.TargetEntityIndex}",
+                        Kind = "entity.destroyed", FrameId = frameId, ZoneIndex = zone.ZoneIndex,
+                        SourceEntityIndex = attacker.EntityIndex, TargetEntityIndex = hit.TargetEntityIndex,
+                        SubjectKey = weapon.ItemKey, PositionX = hit.PointX, PositionZ = hit.PointZ
+                    });
+            }
+        }
+
+        private static void StopConstantWeapon(
+            AetheriaRuntimeRunCheckpointCommit run, AetheriaRuntimeZoneSnapshotCommit zone,
+            AetheriaRuntimeEntitySnapshotCommit entity, ResolvedConstantWeapon weapon,
+            long frameId, string reason)
+        {
+            if (!weapon.State.Firing) return;
+            weapon.State.Firing = false;
+            AppendConstantWeaponEvent(run, zone, entity, weapon, frameId, "weapon.firing.stopped", reason);
+        }
+
+        private static void PublishConstantWeaponRefusal(
+            AetheriaRuntimeRunCheckpointCommit run, AetheriaRuntimeZoneSnapshotCommit zone,
+            AetheriaRuntimeEntitySnapshotCommit entity, ResolvedConstantWeapon weapon,
+            long frameId, string reason)
+        {
+            if (string.Equals(weapon.State.LastRefusalReason, reason, StringComparison.Ordinal)) return;
+            weapon.State.LastRefusalReason = reason;
+            AppendConstantWeaponEvent(run, zone, entity, weapon, frameId, "weapon.fire.refused", reason);
+        }
+
+        private static void AppendConstantWeaponEvent(
+            AetheriaRuntimeRunCheckpointCommit run, AetheriaRuntimeZoneSnapshotCommit zone,
+            AetheriaRuntimeEntitySnapshotCommit entity, ResolvedConstantWeapon weapon,
+            long frameId, string kind, string subject)
+        {
+            AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit
+            {
+                EventId = $"frame:{frameId}:zone:{zone.ZoneIndex}:entity:{entity.EntityIndex}:weapon:{weapon.State.OwnerIndex}:{weapon.State.BehaviorIndex}:{kind}",
+                Kind = kind, FrameId = frameId, ZoneIndex = zone.ZoneIndex,
+                SourceEntityIndex = entity.EntityIndex, TargetEntityIndex = entity.TargetEntityIndex,
+                SubjectKey = subject, ItemKey = weapon.ItemKey, ScalarValue = weapon.State.Ammo
+            });
         }
 
         private static void AppendWeaponEvent(
@@ -521,6 +671,36 @@ namespace GameCult.Aetheria.State.Verse
         private static bool ActorMatches(string actorEntityKey, int zoneIndex, int entityIndex) =>
             AetheriaRuntimeRunCheckpointCommit.TryParseEntityKey(actorEntityKey, out var actorZoneIndex, out var actorEntityIndex) &&
             actorZoneIndex == zoneIndex && actorEntityIndex == entityIndex;
+
+        private static IReadOnlyList<ResolvedConstantWeapon> ResolveConstantWeapons(
+            AetheriaRuntimeEntitySnapshotCommit entity,
+            int weaponGroup,
+            AetheriaRuntimeCatalogSnapshot? catalog,
+            AetheriaRuntimeDaemonSimulationSettings settings)
+        {
+            var equipmentIndices = weaponGroup >= 0 && weaponGroup < (entity.WeaponGroups ?? Array.Empty<IReadOnlyList<int>>()).Count
+                ? entity.WeaponGroups[weaponGroup] ?? Array.Empty<int>()
+                : Array.Empty<int>();
+            return AetheriaRuntimeEquippedBehaviorQueries.Find(entity, catalog, AetheriaRuntimeBehaviorKinds.ConstantWeapon)
+                .Select(behavior =>
+                {
+                    var magazineSize = Math.Max(0, (int)Math.Round(ReadNumber(behavior.Payload, 13)));
+                    var state = EnsureWeaponState(entity, AetheriaRuntimeBehaviorStateProjector.EquipmentOwnerKind,
+                        behavior.EquipmentIndex, behavior.BehaviorIndex, behavior.Payload.Kind,
+                        magazineSize > 1 ? magazineSize : 1,
+                        settings);
+                    return new ResolvedConstantWeapon(
+                        state, behavior.Item.ItemKey, equipmentIndices.Contains(behavior.EquipmentIndex),
+                        Math.Max(0, behavior.EvaluateStat(2)),
+                        PositiveOr(behavior.EvaluateStat(6), 1),
+                        Math.Max(0, behavior.EvaluateStat(9)),
+                        Math.Max(0, behavior.EvaluateStat(10)),
+                        ReadItemKey(behavior.Payload, 12), magazineSize,
+                        PositiveOr(ReadNumber(behavior.Payload, 14), 1),
+                        PositiveOr(ReadNumber(behavior.Payload, 17), 1));
+                })
+                .ToArray();
+        }
 
         private static IReadOnlyList<ResolvedWeapon> ResolveWeapons(
             AetheriaRuntimeEntitySnapshotCommit entity,
@@ -799,6 +979,31 @@ namespace GameCult.Aetheria.State.Verse
             public double LockAngleDegrees { get; }
             public double LockDirectionImpact { get; }
             public double LockDecayPerSecond { get; }
+        }
+
+        private sealed class ResolvedConstantWeapon
+        {
+            public ResolvedConstantWeapon(AetheriaRuntimeWeaponStateCommit state, string itemKey,
+                bool selected, double damage, double range, double energy, double heat, string ammoItemKey,
+                int magazineSize, double reloadTime, double ammoIntervalDuration)
+            {
+                State = state; ItemKey = itemKey; Selected = selected; Damage = damage; Range = range;
+                Energy = energy; Heat = heat; AmmoItemKey = ammoItemKey;
+                MagazineSize = magazineSize; ReloadTime = reloadTime;
+                AmmoIntervalDuration = ammoIntervalDuration;
+            }
+
+            public AetheriaRuntimeWeaponStateCommit State { get; }
+            public string ItemKey { get; }
+            public bool Selected { get; }
+            public double Damage { get; }
+            public double Range { get; }
+            public double Energy { get; }
+            public double Heat { get; }
+            public string AmmoItemKey { get; }
+            public int MagazineSize { get; }
+            public double ReloadTime { get; }
+            public double AmmoIntervalDuration { get; }
         }
 
         private static void RefreshContacts(

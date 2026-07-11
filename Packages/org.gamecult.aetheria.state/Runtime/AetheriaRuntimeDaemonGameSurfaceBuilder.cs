@@ -650,7 +650,53 @@ namespace GameCult.Aetheria.State.Verse
                 $"aetheria.daemon.game.world.entity.{entity.EntityIndex}",
                 "world.entity3d",
                 props,
-                LoadoutGenerationItems(entity));
+                LoadoutGenerationItems(entity).Concat(WeaponStateItems(entity, run, zone)).ToArray());
+        }
+
+        private static AetheriaRuntimeSurfaceComponent[] WeaponStateItems(
+            AetheriaRuntimeEntitySnapshotCommit entity,
+            AetheriaRuntimeRunCheckpointCommit run,
+            AetheriaRuntimeZoneSnapshotCommit zone)
+        {
+            return (entity.WeaponStates ?? Array.Empty<AetheriaRuntimeWeaponStateCommit>())
+                .Where(value => value != null)
+                .Select(value =>
+                {
+                    var itemKey = value.OwnerKind == AetheriaRuntimeBehaviorStateProjector.EquipmentOwnerKind &&
+                                  value.OwnerIndex >= 0 && value.OwnerIndex < (entity.Equipment?.Count ?? 0)
+                        ? entity.Equipment[value.OwnerIndex]?.Item?.ItemKey ?? ""
+                        : "";
+                    var targetEntityId = value.LockTargetEntityIndex < 0
+                        ? ""
+                        : run.EntityRecordKey(zone.ZoneIndex, value.LockTargetEntityIndex);
+                    return Node(
+                        $"aetheria.daemon.game.world.entity.{entity.EntityIndex}.weapon.{SurfaceToken(value.OwnerKind)}.{value.OwnerIndex}.{value.BehaviorIndex}",
+                        "weapon.state",
+                        new[]
+                        {
+                            ("ownerKind", value.OwnerKind),
+                            ("ownerIndex", value.OwnerIndex.ToString(CultureInfo.InvariantCulture)),
+                            ("behaviorIndex", value.BehaviorIndex.ToString(CultureInfo.InvariantCulture)),
+                            ("behaviorKind", value.BehaviorKind),
+                            ("itemKey", itemKey),
+                            ("firing", value.Firing ? "true" : "false"),
+                            ("ammo", value.Ammo.ToString(CultureInfo.InvariantCulture)),
+                            ("ammoIntervalProgress", FormatNumber(value.AmmoIntervalProgress)),
+                            ("burstRemaining", value.BurstRemaining.ToString(CultureInfo.InvariantCulture)),
+                            ("burstProgress", FormatNumber(value.BurstTimer)),
+                            ("cooldownProgress", FormatNumber(value.CooldownProgress)),
+                            ("coolingDown", value.CoolingDown ? "true" : "false"),
+                            ("charging", value.Charging ? "true" : "false"),
+                            ("charged", value.Charged ? "true" : "false"),
+                            ("charge", FormatNumber(value.Charge)),
+                            ("reloading", value.Reloading ? "true" : "false"),
+                            ("reloadProgress", FormatNumber(value.ReloadProgress)),
+                            ("lockProgress", FormatNumber(value.LockProgress)),
+                            ("targetEntityId", targetEntityId),
+                            ("lastRefusalReason", value.LastRefusalReason)
+                        });
+                })
+                .ToArray();
         }
 
         private static AetheriaRuntimeSurfaceComponent[] LoadoutGenerationItems(
