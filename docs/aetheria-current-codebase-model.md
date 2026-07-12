@@ -153,6 +153,9 @@ Current Ymir control flow:
 - `AetheriaYmirPhysicalPayloadPhysics` advances only objects whose continued
   physical motion is gameplay state. Aetheria interprets returned contacts;
   Ymir does not own damage policy.
+- The fossil `Projectile`, `GuidedProjectile`, their managers, Unity-side Ymir
+  stepping adapter, and dedicated proof tests are deleted. EveUnity lowers
+  ordinary weapon travel from daemon `shot.receipt` facts.
 - Target/zone hit queries call `TryOverlapTargetHulls`, `TryCastTargetHulls`,
   `TryOverlapZoneHulls`, or `TryCastZoneHulls`.
 - `TryBuildDaemonWorld` builds Ymir bodies from `AetheriaDaemonRenderNativeView`

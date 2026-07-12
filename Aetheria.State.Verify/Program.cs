@@ -17031,13 +17031,10 @@ static void RequireUnityPhysicsIsNotGameplayAuthority(string root)
 
     var ymirBridgePath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "Physics", "AetheriaYmirPhysicsBridge.cs");
     var projectilePath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "Weapons", "Projectile.cs");
-    var projectileManagerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "Weapons", "ProjectileManager.cs");
     var laserPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "Weapons", "Laser.cs");
     var laserManagerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "Weapons", "LaserManager.cs");
     var constantLaserPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "Weapons", "ConstantLaser.cs");
     var constantLaserManagerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "Weapons", "ConstantLaserManager.cs");
-    var guidedProjectilePath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "Weapons", "GuidedProjectile.cs");
-    var guidedProjectileManagerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "Weapons", "GuidedProjectileManager.cs");
     var hitscanPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "Weapons", "HitscanEffect.cs");
     var hitscanManagerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "Weapons", "HitscanManager.cs");
     var clickRaycasterPath = Path.Combine(root, "Assets", "Scripts", "UI", "ClickRaycaster.cs");
@@ -17046,27 +17043,19 @@ static void RequireUnityPhysicsIsNotGameplayAuthority(string root)
     {
         [ymirBridgePath] = new[]
         {
-            "YmirPhysicsQueries.Step(request)",
             "YmirPhysicsQueries.OverlapSphere(",
             "YmirPhysicsQueries.CastSphere(request)",
             "YmirPhysicsQueries.OverlapCircle(request)",
             "YmirPhysicsQueries.CastCircle(request)",
-            "TryStepProjectile(",
             "TryCastZoneHulls(",
             "TryBuildDaemonWorld(",
             "private const string DaemonEntityBodyPrefix = \"aetheria.daemon.entity.\"",
             "id = DaemonEntityBodyPrefix + daemonEntityIndex",
             "TryResolveDaemonEntityHull(zoneRenderer, hit.bodyId, out var hull)",
             "TryResolveTargetDaemonHull(target, hit.bodyId, out var hull)",
-            "TryResolveTargetDaemonHull(projectile.TargetInstance, otherBody, out var hull)",
             "TargetDaemonEntityIndex(",
             "onlyDaemonEntityIndex.HasValue && onlyDaemonEntityIndex.Value != daemonEntityIndex",
             "TryParseDaemonEntityBodyId("
-        },
-        [projectilePath] = new[]
-        {
-            "AetheriaYmirPhysicsBridge.Instance.TryStepProjectile",
-            "projectile killed instead of falling back to Unity physics."
         },
         [laserPath] = new[]
         {
@@ -17085,17 +17074,6 @@ static void RequireUnityPhysicsIsNotGameplayAuthority(string root)
             "ZoneRenderer,"
         },
         [constantLaserManagerPath] = new[]
-        {
-            "p.ZoneRenderer = source.ZoneRenderer"
-        },
-        [guidedProjectilePath] = new[]
-        {
-            "public ZoneRenderer ZoneRenderer { get; set; }",
-            "AetheriaYmirPhysicsBridge.Instance.TryCastZoneHulls",
-            "ZoneRenderer,",
-            "child.ZoneRenderer = ZoneRenderer"
-        },
-        [guidedProjectileManagerPath] = new[]
         {
             "p.ZoneRenderer = source.ZoneRenderer"
         },
@@ -17159,6 +17137,26 @@ static void RequireUnityPhysicsIsNotGameplayAuthority(string root)
             string.Join("; ", ymirTransportHits));
     }
 
+    var forbiddenUnityProjectileAuthorityPaths = new[]
+    {
+        projectilePath,
+        Path.Combine(root, "Assets", "Scripts", "Gameplay", "Weapons", "ProjectileManager.cs"),
+        Path.Combine(root, "Assets", "Scripts", "Gameplay", "Weapons", "GuidedProjectile.cs"),
+        Path.Combine(root, "Assets", "Scripts", "Gameplay", "Weapons", "GuidedProjectileManager.cs"),
+        Path.Combine(root, "Assets", "Scripts", "Gameplay", "Physics", "YmirUnityRuntimeProofTests.cs")
+    };
+    var survivingUnityProjectileAuthority = forbiddenUnityProjectileAuthorityPaths
+        .Where(File.Exists)
+        .Select(path => Path.GetRelativePath(root, path))
+        .ToArray();
+    if (survivingUnityProjectileAuthority.Length > 0 ||
+        File.ReadAllText(ymirBridgePath).Contains("TryStepProjectile", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Ordinary weapon travel is daemon receipt presentation, not Unity/Ymir projectile simulation: " +
+            string.Join(", ", survivingUnityProjectileAuthority));
+    }
+
     if (ymirBridge.Contains("BuildZoneWorld(", StringComparison.Ordinal) ||
         ymirBridge.Contains("BuildTargetWorld(", StringComparison.Ordinal) ||
         ymirBridge.Contains("_zoneBodies", StringComparison.Ordinal) ||
@@ -17181,8 +17179,6 @@ static void RequireUnityPhysicsIsNotGameplayAuthority(string root)
 
     var forbiddenWeaponZoneHandles = new Dictionary<string, string[]>
     {
-        [projectilePath] = new[] { "public Zone Zone", "Zone { get; set; }" },
-        [projectileManagerPath] = new[] { "p.Zone =", "source.Entity.Zone" },
         [hitscanPath] = new[] { "public Zone Zone", "Zone { get; set; }" },
         [hitscanManagerPath] = new[] { "p.Zone =", "source.Entity.Zone" }
     };

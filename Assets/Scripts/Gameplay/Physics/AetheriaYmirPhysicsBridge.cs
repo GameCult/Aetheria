@@ -4,18 +4,14 @@ using UnityEngine;
 
 public sealed class AetheriaYmirPhysicsBridge : MonoBehaviour
 {
-    private const string ProjectileBodyId = "aetheria.projectile";
     private const string DaemonEntityBodyPrefix = "aetheria.daemon.entity.";
 
     private static AetheriaYmirPhysicsBridge _instance;
 
     public bool EnableProjectileCutover = true;
-    public float ProjectileRadius = 0.1f;
-    public float ProjectileMass = 1.0f;
     public AetheriaDaemonObserver DaemonObserver;
     public IYmirDaemonBodySource DaemonBodySource { get; set; }
 
-    private readonly List<YmirPhysicsBody> _projectileBodies = new List<YmirPhysicsBody>();
     private readonly List<YmirPhysicsBody> _daemonBodies = new List<YmirPhysicsBody>();
     private readonly List<YmirSphereQueryBody> _clickableBodies = new List<YmirSphereQueryBody>();
     private readonly Dictionary<string, HullCollider> _hullBodyMap = new Dictionary<string, HullCollider>(StringComparer.Ordinal);
@@ -35,60 +31,6 @@ public sealed class AetheriaYmirPhysicsBridge : MonoBehaviour
             _instance = bridge.AddComponent<AetheriaYmirPhysicsBridge>();
             return _instance;
         }
-    }
-
-    public bool TryStepProjectile(Projectile projectile, float deltaTime, out AetheriaYmirProjectileStep step)
-    {
-        step = default;
-        if (!EnableProjectileCutover || projectile == null || deltaTime <= 0)
-            return false;
-
-        var request = BuildProjectileRequest(projectile, deltaTime);
-        if (request.world.bodies.Length == 0)
-            return false;
-
-        YmirStepResult result;
-        try
-        {
-            result = YmirPhysicsQueries.Step(request);
-        }
-        catch (Exception error)
-        {
-            Debug.LogWarning($"Ymir projectile typed step failed: {error.Message}");
-            return false;
-        }
-
-        if (result == null || result.world == null)
-            return false;
-
-        var projectileBody = FindBody(result.world, ProjectileBodyId);
-        if (projectileBody == null)
-            return false;
-
-        step.Position = new Vector3(projectileBody.position.x, projectile.transform.position.y, projectileBody.position.y);
-        step.Velocity = new Vector3(projectileBody.velocity.x, projectile.Velocity.y, projectileBody.velocity.y);
-
-        foreach (var contact in result.contacts ?? Array.Empty<YmirContactEvent>())
-        {
-            var otherBody = string.Equals(contact.bodyA, ProjectileBodyId, StringComparison.Ordinal)
-                ? contact.bodyB
-                : string.Equals(contact.bodyB, ProjectileBodyId, StringComparison.Ordinal)
-                    ? contact.bodyA
-                    : "";
-            if (string.IsNullOrWhiteSpace(otherBody))
-                continue;
-
-            if (!TryResolveTargetDaemonHull(projectile.TargetInstance, otherBody, out var hull))
-                continue;
-
-            step.Hit = new AetheriaYmirProjectileHit(
-                hull,
-                new Vector3(contact.point.x, projectile.transform.position.y, contact.point.y),
-                new Vector3(contact.normal.x, 0, contact.normal.y).normalized);
-            break;
-        }
-
-        return true;
     }
 
     public bool TryOverlapDaemonBodies(
@@ -384,54 +326,6 @@ public sealed class AetheriaYmirPhysicsBridge : MonoBehaviour
 
         hits = resolved;
         return true;
-    }
-
-    private YmirStepRequest BuildProjectileRequest(Projectile projectile, float deltaTime)
-    {
-        var transform = projectile.transform;
-        _projectileBodies.Clear();
-        _projectileBodies.Add(new YmirPhysicsBody
-        {
-            id = ProjectileBodyId,
-            position = ToVec2(transform.position),
-            velocity = ToVec2(projectile.Velocity),
-            direction = ToVec2(transform.forward),
-            angularVelocity = 0,
-            torque = 0,
-            momentOfInertia = 1,
-            radius = Mathf.Max(ProjectileRadius, 0.001f),
-            mass = Mathf.Max(ProjectileMass, 0.001f),
-            isStatic = false,
-            restitution = 0
-        });
-
-        var targetDaemonEntityIndex = TargetDaemonEntityIndex(projectile.TargetInstance);
-        if (targetDaemonEntityIndex < 0 ||
-            !TryBuildDaemonWorld(projectile.SourceEntity, targetDaemonEntityIndex, out var targetWorld))
-        {
-            return new YmirStepRequest
-            {
-                deltaTime = deltaTime,
-                world = new YmirWorld
-                {
-                    time = projectile.YmirWorldTime,
-                    bodies = Array.Empty<YmirPhysicsBody>(),
-                    fields = Array.Empty<YmirRadialField>()
-                }
-            };
-        }
-
-        _projectileBodies.AddRange(targetWorld.bodies);
-        return new YmirStepRequest
-        {
-            deltaTime = deltaTime,
-            world = new YmirWorld
-            {
-                time = projectile.YmirWorldTime,
-                bodies = _projectileBodies.ToArray(),
-                fields = Array.Empty<YmirRadialField>()
-            }
-        };
     }
 
     private bool TryBuildDaemonWorld(Entity sourceEntity, int? onlyDaemonEntityIndex, out YmirWorld world)
@@ -739,28 +633,6 @@ public interface IYmirDaemonBodySource
         Entity sourceEntity,
         int? onlyDaemonEntityIndex,
         List<YmirPhysicsBody> bodies);
-}
-
-public struct AetheriaYmirProjectileStep
-{
-    public Vector3 Position;
-    public Vector3 Velocity;
-    public AetheriaYmirProjectileHit Hit;
-    public bool HasHit => Hit.Hull != null;
-}
-
-public readonly struct AetheriaYmirProjectileHit
-{
-    public AetheriaYmirProjectileHit(HullCollider hull, Vector3 point, Vector3 normal)
-    {
-        Hull = hull;
-        Point = point;
-        Normal = normal;
-    }
-
-    public HullCollider Hull { get; }
-    public Vector3 Point { get; }
-    public Vector3 Normal { get; }
 }
 
 public readonly struct AetheriaYmirOverlapHit
