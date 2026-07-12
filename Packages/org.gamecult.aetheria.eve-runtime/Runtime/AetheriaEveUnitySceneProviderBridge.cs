@@ -379,6 +379,11 @@ namespace GameCult.Aetheria.EveRuntime
 
         private static string EntityKind(AetheriaRuntimeAssetManifestEntry entry)
         {
+            if (entry.Ref.Metadata != null &&
+                entry.Ref.Metadata.TryGetValue("presentationRole", out var role) &&
+                !string.IsNullOrWhiteSpace(role))
+                return role;
+
             return (entry.Tags ?? Array.Empty<string>())
                 .FirstOrDefault(tag => !string.IsNullOrWhiteSpace(tag) && !string.Equals(tag, "map", StringComparison.OrdinalIgnoreCase) && !string.Equals(tag, "icon", StringComparison.OrdinalIgnoreCase))
                 ?? "";

@@ -22,11 +22,10 @@ namespace GameCult.Aetheria.State.Verse
             Add(entries, MapIcon("body.planet", "Planet", "Sprites/Icons/Stroked/Planet"));
             Add(entries, MapIcon("body.sun", "Sun", "Sprites/Icons/Stroked/Sun"));
             Add(entries, MapIcon("body.asteroid", "Asteroid", "Sprites/Icons/Stroked/Planet"));
-            Add(entries, MapPrefab("prefab.entity.player", "Player Ship", "Prefabs/Ships/Djinni"));
-            Add(entries, MapPrefab("prefab.entity.ship", "Ship", "Prefabs/Ships/Djinni"));
-            Add(entries, MapPrefab("prefab.entity.station", "Station", "Prefabs/Stations/AsteroidOutpost"));
-            Add(entries, MapPrefab("prefab.entity.orbital", "Orbital", "Prefabs/Stations/Zenith"));
-            Add(entries, MapPrefab("prefab.entity.projectile", "Projectile", "Prefabs/Lightning"));
+            Add(entries, MapPrefab("prefab.entity.player", "Player Ship", "Prefabs/Ships/Djinni", "player"));
+            Add(entries, MapPrefab("prefab.entity.ship", "Ship", "Prefabs/Ships/Djinni", "ship"));
+            Add(entries, MapPrefab("prefab.entity.station", "Station", "Prefabs/Stations/AsteroidOutpost", "station"));
+            Add(entries, MapPrefab("prefab.entity.orbital", "Orbital", "Prefabs/Stations/Zenith", "orbital"));
             Add(entries, MapProjectPrefab("prefab.entity.pickup", "Pickup", "Assets/Prefabs/RPG/Pickups/Tetrahedron.prefab"));
             foreach (var inventoryAsset in InventoryUiAssets())
                 Add(entries, inventoryAsset);
@@ -164,11 +163,16 @@ namespace GameCult.Aetheria.State.Verse
         private static AetheriaRuntimeAssetManifestEntry MapPrefab(
             string key,
             string label,
-            string resourcePath)
+            string resourcePath,
+            string presentationRole)
         {
+            var asset = Prefab(key, resourcePath);
+            asset.Metadata = asset.Metadata
+                .Concat(new[] { new KeyValuePair<string, string>("presentationRole", presentationRole ?? "") })
+                .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
             return new AetheriaRuntimeAssetManifestEntry
             {
-                Ref = Prefab(key, resourcePath),
+                Ref = asset,
                 Tags = new[] { "world", "prefab", label }
             };
         }

@@ -1635,6 +1635,10 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         var pickupAsset = AetheriaRuntimeAssets.ProjectManifest(null).Assets.Single(asset => asset.Ref.AssetKey == "prefab.entity.pickup");
         Require(pickupAsset.Ref.Metadata.TryGetValue("unityAssetPath", out var pickupPath) && pickupPath == "Assets/Prefabs/RPG/Pickups/Tetrahedron.prefab",
             "provider asset manifest must advertise the pickup visual used by Eve");
+        var assets = AetheriaRuntimeAssets.ProjectManifest(null).Assets;
+        var playerAsset = assets.Single(asset => asset.Ref.AssetKey == "prefab.entity.player");
+        RequireEqual("player", playerAsset.Ref.Metadata["presentationRole"],
+            "entity prefab fallback must use a specific presentation role instead of the generic world tag");
     }
 
     private static void PickupIsCapacityCheckedExactlyOnceAndExpires()
