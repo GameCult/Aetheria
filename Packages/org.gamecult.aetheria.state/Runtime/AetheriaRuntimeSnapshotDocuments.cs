@@ -1045,6 +1045,24 @@ namespace GameCult.Aetheria.State.Verse
 
         [Key(46)]
         public long DestroyedFrameId { get; set; } = -1;
+
+        [Key(47)]
+        public IReadOnlyList<AetheriaRuntimeEquipmentStateCommit> EquipmentStates { get; set; } =
+            Array.Empty<AetheriaRuntimeEquipmentStateCommit>();
+    }
+
+    [MessagePackObject]
+    public sealed class AetheriaRuntimeEquipmentStateCommit
+    {
+        [Key(0)] public int EquipmentIndex { get; set; } = -1;
+        [Key(1)] public double Temperature { get; set; }
+        [Key(2)] public double PreviousTemperature { get; set; }
+        [Key(3)] public double ThermalPerformance { get; set; } = 1;
+        [Key(4)] public double DurabilityPerformance { get; set; } = 1;
+        [Key(5)] public double Wear { get; set; }
+        [Key(6)] public bool ThermalOnline { get; set; } = true;
+        [Key(7)] public bool DurabilityOnline { get; set; } = true;
+        [Key(8)] public bool Online { get; set; } = true;
     }
 
     [MessagePackObject]

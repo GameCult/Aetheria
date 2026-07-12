@@ -47,7 +47,12 @@ namespace GameCult.Aetheria.State.Verse
 
                 EnsureStats(entities, settings, catalog);
                 foreach (var entity in entities)
+                {
+                    AetheriaRuntimeThermalSimulation.EnsureTopology(entity, catalog);
                     AetheriaRuntimeThermalSimulation.EnsureState(entity);
+                    AetheriaRuntimeThermalSimulation.UpdateEquipmentStates(entity, catalog, deltaSeconds);
+                    AetheriaRuntimeEnergySimulation.BeginTick(entity, catalog);
+                }
                 foreach (var movement in intents?.Movements ?? Enumerable.Empty<AetheriaRuntimeDaemonMovementIntent>())
                     ApplyMovementIntent(run, entities, movement, settings);
                 StepTractorPower(entities, deltaSeconds);
@@ -300,7 +305,7 @@ namespace GameCult.Aetheria.State.Verse
                             continue;
                         if (weapon.SingleAmmoBurst)
                         {
-                            var triggerResult = CommitWeaponRound(attacker, weapon);
+                            var triggerResult = CommitWeaponRound(attacker, weapon, catalog);
                             if (triggerResult == WeaponRoundResult.ReloadStarted)
                                 AppendWeaponEvent(run, zone, attacker, weapon, frameId, "weapon.reload.started");
                             PublishWeaponRoundResult(run, zone, attacker, weapon, frameId, triggerResult);
@@ -318,7 +323,7 @@ namespace GameCult.Aetheria.State.Verse
                     {
                         if (!weapon.SingleAmmoBurst)
                         {
-                            var roundResult = CommitWeaponRound(attacker, weapon);
+                            var roundResult = CommitWeaponRound(attacker, weapon, catalog);
                             if (roundResult == WeaponRoundResult.ReloadStarted)
                                 AppendWeaponEvent(run, zone, attacker, weapon, frameId, "weapon.reload.started");
                             PublishWeaponRoundResult(run, zone, attacker, weapon, frameId, roundResult);
@@ -334,7 +339,9 @@ namespace GameCult.Aetheria.State.Verse
                         CommitShotResolution(run, zone, attacker, target, weapon, shotId, frameId, catalog, settings);
                         AppendShotCommittedEvent(run, zone, attacker, target, weapon, shotId, frameId);
                         weapon.State.Firing = true;
-                        AetheriaRuntimeThermalSimulation.AddHeat(attacker, weapon.Heat);
+                        AetheriaRuntimeThermalSimulation.AddHeatToEquipment(attacker, catalog,
+                            weapon.State.OwnerIndex, weapon.Heat);
+                        ApplyWeaponWear(attacker, weapon.State, 1);
                     }
                 }
             }
@@ -366,7 +373,9 @@ namespace GameCult.Aetheria.State.Verse
 
             foreach (var entity in entities)
             {
-                AetheriaRuntimeThermalSimulation.Step(entity, deltaSeconds);
+                AetheriaRuntimeEnergySimulation.StepRadiators(entity, catalog, deltaSeconds);
+                AetheriaRuntimeEnergySimulation.SettleReactors(entity, catalog, deltaSeconds);
+                AetheriaRuntimeThermalSimulation.Step(entity, deltaSeconds, catalog);
                 entity.IsActive = IsAlive(entity);
                 if (!entity.IsActive)
                 {
@@ -395,7 +404,7 @@ namespace GameCult.Aetheria.State.Verse
                 weapon.State.CoolingDown = weapon.State.CooldownProgress > 0;
                 if (!IsAlive(attacker) || weaponGroup < 0 || weapon.State.CooldownProgress > 0) continue;
 
-                var result = CommitWeaponRound(attacker, weapon);
+                var result = CommitWeaponRound(attacker, weapon, catalog);
                 PublishWeaponRoundResult(run, zone, attacker, weapon, frameId, result);
                 if (result != WeaponRoundResult.Fired) continue;
 
@@ -434,7 +443,9 @@ namespace GameCult.Aetheria.State.Verse
                 weapon.State.Firing = true;
                 weapon.State.CoolingDown = true;
                 weapon.State.CooldownProgress = weapon.Cooldown;
-                AetheriaRuntimeThermalSimulation.AddHeat(attacker, weapon.Heat);
+                AetheriaRuntimeThermalSimulation.AddHeatToEquipment(attacker, catalog,
+                    weapon.State.OwnerIndex, weapon.Heat);
+                ApplyWeaponWear(attacker, weapon.State, 1);
                 AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit { EventId = $"physical-payload:{payloadId}:deployed", Kind = "deployable.deployed", FrameId = frameId, ZoneIndex = zone.ZoneIndex, SourceEntityIndex = attacker.EntityIndex, SubjectKey = payloadId, ItemKey = weapon.ItemKey, PositionX = attacker.PositionX, PositionZ = attacker.PositionZ });
             }
         }
@@ -552,15 +563,16 @@ namespace GameCult.Aetheria.State.Verse
                     if (!state.Charged)
                     {
                         var energy = weapon.ChargeEnergy * step;
-                        if (!CanSupplyEnergy(attacker, energy))
+                        if (!CanSupplyEnergy(attacker, catalog, energy))
                         {
                             state.Charging = false;
                             state.Charge = 0;
                             PublishChargedRefusal(run, zone, attacker, weapon, frameId, "insufficient-charge-energy");
                             continue;
                         }
-                        CommitEnergy(attacker, energy);
-                        AetheriaRuntimeThermalSimulation.AddHeat(attacker, weapon.ChargeHeat * step);
+                        CommitEnergy(attacker, catalog, energy);
+                        AetheriaRuntimeThermalSimulation.AddHeatToEquipment(attacker, catalog,
+                            weapon.Base.State.OwnerIndex, weapon.ChargeHeat * step);
                     }
                     state.Charge += step;
                     if (!state.Charged && state.Charge >= 1)
@@ -576,7 +588,7 @@ namespace GameCult.Aetheria.State.Verse
                         state.ChargeHoldSeconds = 0;
                         state.ChargeRiskChecks = 0;
                         state.ChargeMalfunctionRisk = 0;
-                        TriggerChargedShot(run, zone, attacker, weapon, frameId);
+                        TriggerChargedShot(run, zone, attacker, weapon, frameId, catalog);
                     }
                     else if (state.Charged)
                     {
@@ -614,7 +626,7 @@ namespace GameCult.Aetheria.State.Verse
                 {
                     if (!shot.SingleAmmoBurst)
                     {
-                        var result = CommitWeaponRound(attacker, shot);
+                        var result = CommitWeaponRound(attacker, shot, catalog);
                         PublishWeaponRoundResult(run, zone, attacker, shot, frameId, result);
                         if (result == WeaponRoundResult.ReloadStarted)
                             AppendWeaponEvent(run, zone, attacker, shot, frameId, "weapon.reload.started");
@@ -626,7 +638,9 @@ namespace GameCult.Aetheria.State.Verse
                     CommitShotResolution(run, zone, attacker, solutionTarget, shot, shotId, frameId, catalog, settings);
                     AppendShotCommittedEvent(run, zone, attacker, solutionTarget, shot, shotId, frameId);
                     state.Firing = true;
-                    AetheriaRuntimeThermalSimulation.AddHeat(attacker, shot.Heat);
+                    AetheriaRuntimeThermalSimulation.AddHeatToEquipment(attacker, catalog,
+                        shot.State.OwnerIndex, shot.Heat);
+                    ApplyWeaponWear(attacker, shot.State, 1);
                 }
                 if (state.BurstRemaining <= 0)
                 {
@@ -638,12 +652,12 @@ namespace GameCult.Aetheria.State.Verse
 
         private static void TriggerChargedShot(AetheriaRuntimeRunCheckpointCommit run,
             AetheriaRuntimeZoneSnapshotCommit zone, AetheriaRuntimeEntitySnapshotCommit attacker,
-            ResolvedChargedWeapon weapon, long frameId)
+            ResolvedChargedWeapon weapon, long frameId, AetheriaRuntimeCatalogSnapshot? catalog)
         {
             var shot = weapon.CommittedShot();
             if (shot.SingleAmmoBurst)
             {
-                var result = CommitWeaponRound(attacker, shot);
+                var result = CommitWeaponRound(attacker, shot, catalog);
                 PublishWeaponRoundResult(run, zone, attacker, shot, frameId, result);
                 if (result == WeaponRoundResult.ReloadStarted)
                     AppendWeaponEvent(run, zone, attacker, shot, frameId, "weapon.reload.started");
@@ -736,13 +750,13 @@ namespace GameCult.Aetheria.State.Verse
                 }
 
                 var energy = weapon.Energy * deltaSeconds;
-                if (!CanSupplyEnergy(attacker, energy))
+                if (!CanSupplyEnergy(attacker, catalog, energy))
                 {
                     PublishConstantWeaponRefusal(run, zone, attacker, weapon, frameId, "insufficient-energy");
                     StopConstantWeapon(run, zone, attacker, weapon, frameId, "insufficient-energy");
                     continue;
                 }
-                CommitEnergy(attacker, energy);
+                CommitEnergy(attacker, catalog, energy);
 
                 if (!string.IsNullOrWhiteSpace(weapon.AmmoItemKey))
                 {
@@ -774,7 +788,9 @@ namespace GameCult.Aetheria.State.Verse
                 }
 
                 weapon.State.LastRefusalReason = "";
-                AetheriaRuntimeThermalSimulation.AddHeat(attacker, weapon.Heat * deltaSeconds);
+                AetheriaRuntimeThermalSimulation.AddHeatToEquipment(attacker, catalog,
+                    weapon.State.OwnerIndex, weapon.Heat * deltaSeconds);
+                ApplyWeaponWear(attacker, weapon.State, deltaSeconds);
                 var shot = weapon.ResolutionShot(deltaSeconds);
                 var shotId = NextShotId(zone, attacker, shot);
                 CommitShotResolution(run, zone, attacker, selectedTarget!, shot, shotId, frameId, catalog, settings);
@@ -1538,7 +1554,8 @@ namespace GameCult.Aetheria.State.Verse
 
         private static WeaponRoundResult CommitWeaponRound(
             AetheriaRuntimeEntitySnapshotCommit entity,
-            ResolvedWeapon weapon)
+            ResolvedWeapon weapon,
+            AetheriaRuntimeCatalogSnapshot? catalog)
         {
             if (weapon.MagazineSize > 1 && weapon.State.Ammo <= 0)
             {
@@ -1555,46 +1572,29 @@ namespace GameCult.Aetheria.State.Verse
                 return WeaponRoundResult.ReloadStarted;
             }
 
-            if (!CanSupplyEnergy(entity, weapon.Energy))
+            if (!CanSupplyEnergy(entity, catalog, weapon.Energy))
                 return WeaponRoundResult.InsufficientEnergy;
-            CommitEnergy(entity, weapon.Energy);
+            CommitEnergy(entity, catalog, weapon.Energy);
             if (weapon.MagazineSize > 1)
                 weapon.State.Ammo--;
             return WeaponRoundResult.Fired;
         }
 
-        private static bool CanSupplyEnergy(AetheriaRuntimeEntitySnapshotCommit entity, double demand)
-        {
-            if (demand < 0.01) return true;
-            var states = entity.BehaviorStates ?? Array.Empty<AetheriaRuntimeBehaviorStateCommit>();
-            var charge = states.Where(value => value != null && value.BehaviorKind == "Capacitor")
-                .Sum(value => Math.Max(0, value.CapacitorCharge));
-            return charge >= demand || states.Any(value => value != null && value.BehaviorKind == "Reactor");
-        }
+        private static bool CanSupplyEnergy(AetheriaRuntimeEntitySnapshotCommit entity,
+            AetheriaRuntimeCatalogSnapshot? catalog, double demand) =>
+            AetheriaRuntimeEnergySimulation.CanSupply(entity, catalog, demand);
 
-        private static void CommitEnergy(AetheriaRuntimeEntitySnapshotCommit entity, double demand)
+        private static void CommitEnergy(AetheriaRuntimeEntitySnapshotCommit entity,
+            AetheriaRuntimeCatalogSnapshot? catalog, double demand) =>
+            AetheriaRuntimeEnergySimulation.TryConsume(entity, catalog, demand);
+
+        private static void ApplyWeaponWear(AetheriaRuntimeEntitySnapshotCommit entity,
+            AetheriaRuntimeWeaponStateCommit state, double multiplier)
         {
-            if (demand < 0.01) return;
-            var capacitors = (entity.BehaviorStates ?? Array.Empty<AetheriaRuntimeBehaviorStateCommit>())
-                .Where(value => value != null && value.BehaviorKind == "Capacitor" && value.CapacitorCharge > 0)
-                .ToList();
-            var remaining = demand;
-            while (remaining > 0.000001 && capacitors.Count > 0)
-            {
-                var share = remaining / capacitors.Count;
-                foreach (var capacitor in capacitors.ToArray())
-                {
-                    var drained = Math.Min(share, capacitor.CapacitorCharge);
-                    capacitor.CapacitorCharge -= drained;
-                    remaining -= drained;
-                    if (capacitor.CapacitorCharge <= 0.000001) capacitors.Remove(capacitor);
-                }
-            }
-            var reactors = (entity.BehaviorStates ?? Array.Empty<AetheriaRuntimeBehaviorStateCommit>())
-                .Where(value => value != null && value.BehaviorKind == "Reactor")
-                .ToArray();
-            if (remaining > 0.000001 && reactors.Length > 0)
-                foreach (var reactor in reactors) reactor.ReactorDraw += remaining / reactors.Length;
+            if (state == null || state.OwnerKind != AetheriaRuntimeBehaviorStateProjector.EquipmentOwnerKind) return;
+            var wear = (entity.EquipmentStates ?? Array.Empty<AetheriaRuntimeEquipmentStateCommit>())
+                .FirstOrDefault(value => value != null && value.EquipmentIndex == state.OwnerIndex)?.Wear ?? 0;
+            AetheriaRuntimeThermalSimulation.ApplyWear(entity, state.OwnerIndex, wear * multiplier);
         }
 
         private enum WeaponRoundResult { Fired, ReloadStarted, InsufficientEnergy, NoAmmo }
@@ -1815,10 +1815,10 @@ namespace GameCult.Aetheria.State.Verse
                 var energyDemand = damage * energyUsage;
                 shield.State.ShieldEfficiency = efficiency;
                 shield.State.ShieldEnergyUsage = energyUsage;
-                if (!CanSupplyEnergy(target, energyDemand))
+                if (!CanSupplyEnergy(target, catalog, energyDemand))
                     continue;
 
-                CommitEnergy(target, energyDemand);
+                CommitEnergy(target, catalog, energyDemand);
                 var heat = damage / efficiency;
                 AetheriaRuntimeThermalSimulation.AddHeat(target, heat);
                 RefreshShieldProjection(target, catalog);

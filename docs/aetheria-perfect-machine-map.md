@@ -1937,6 +1937,15 @@ First Aetheria surfaces to publish:
 
 - `rg "Newtonsoft|JsonObject|JsonProperty|JsonConvert|JsonKnownTypes|RethinkDb|RethinkTable|DatabaseCache"` is zero outside migration quarantine and docs.
 - `rg "DatabaseEntry|DatabaseLink|InspectableDatabaseLink|ServerShared\\\\CultCache" Assets Economy.*` shows no live runtime ownership path.
+- `AetheriaRuntimeEnergySimulation` owns the equipped capacitor/reactor/radiator
+  network. `AetheriaRuntimeThermalSimulation` owns catalog-derived cell topology,
+  equipment-local temperature/performance, shutdown, wear, conduction, and
+  radiation. The daemon orders radiator pumping before reactor settlement and
+  thermal conduction; client operations have no direct energy, heat, wear, or
+  equipment-online writer. The Eve game surface publishes the resulting power,
+  radiator, temperature, wear, and offline-equipment facts. Cockpit medical
+  consequences, rotated equipment footprints, and parent/child radiation remain
+  migration work rather than presentation authority.
 - `dotnet list package --vulnerable --include-transitive` is clean for active
   maintained projects.
 - CultCache smoke proves write, flush, reopen, query, and typed reference

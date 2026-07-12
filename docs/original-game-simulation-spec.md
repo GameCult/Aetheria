@@ -42,12 +42,28 @@ performance and online state derive from local temperature.
 Cockpit temperature advances heatstroke/hypothermia accumulation and recovery.
 Threshold crossings and death are authoritative events.
 
+The daemon derives the grid from the equipped catalog, rather than accepting a
+renderer-authored heat scalar. Hull mass and specific heat are distributed over
+the hull shape; installed equipment contributes thermal mass and replaces the
+conductivity of its occupied cells. Equipment temperature is the mean of those
+cells. Authored thermal-performance curves and durability derive each item's
+current performance and online state. Generic wear and weapon-triggered wear
+consume the same temperature-derived wear potential.
+
 ## Energy Network
 
 Capacitors store charge. A demand drains charged capacitors evenly first, then
 divides unmet demand among online reactors. Behaviors succeed or fail according
 to the actual transaction. Radiators consume energy to pump heat and produce
 waste heat. Shields consume energy per intercepted damage.
+
+Per daemon tick, equipment performance is derived before behavior execution and
+all energy consumers transact against the same equipped network. Radiators then
+pump heat and add their demand, reactors settle baseline output, overload,
+capacitor refill, throttling and equipment heat, and finally the thermal grid
+conducts and radiates. Thermal and radiator radiation are independently replaced
+visibility contributions; they are not cumulative scalar drift. A client may
+request semantic controls, but cannot set charge, heat, wear, or online state.
 
 ## Behavior Execution
 

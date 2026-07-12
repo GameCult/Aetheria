@@ -653,6 +653,23 @@ namespace GameCult.Aetheria.State.Verse
             var thermalVisibility = EntityStat(entity, "thermal-visibility");
             var maximumHull = MaximumHull(entity, simulationSettings);
             var maximumShield = MaximumShield(entity, simulationSettings);
+            var behaviorStates = entity.BehaviorStates ?? Array.Empty<AetheriaRuntimeBehaviorStateCommit>();
+            var capacitorCharge = behaviorStates.Where(value => value != null && value.BehaviorKind == "Capacitor")
+                .Sum(value => Math.Max(0, value.CapacitorCharge));
+            var capacitorCapacity = behaviorStates.Where(value => value != null && value.BehaviorKind == "Capacitor")
+                .Sum(value => Math.Max(0, value.CapacitorCapacity));
+            var reactorDraw = behaviorStates.Where(value => value != null && value.BehaviorKind == "Reactor")
+                .Sum(value => value.ReactorDraw);
+            var reactorLoad = behaviorStates.Where(value => value != null && value.BehaviorKind == "Reactor")
+                .Select(value => value.ReactorLoadRatio).DefaultIfEmpty(0).Max();
+            var radiatorTemperature = behaviorStates.Where(value => value != null && value.BehaviorKind == "Radiator")
+                .Select(value => value.RadiatorTemperature).DefaultIfEmpty(0).Max();
+            var equipmentStates = entity.EquipmentStates ?? Array.Empty<AetheriaRuntimeEquipmentStateCommit>();
+            var minimumThermalPerformance = equipmentStates.Where(value => value != null)
+                .Select(value => value.ThermalPerformance).DefaultIfEmpty(1).Min();
+            var maximumWear = equipmentStates.Where(value => value != null)
+                .Select(value => value.Wear).DefaultIfEmpty(0).Max();
+            var offlineEquipmentCount = equipmentStates.Count(value => value != null && !value.Online);
             var weaponCooldown = (entity.WeaponStates ?? Array.Empty<AetheriaRuntimeWeaponStateCommit>())
                 .Select(state => state?.CooldownProgress ?? 0)
                 .DefaultIfEmpty(0)
@@ -683,6 +700,16 @@ namespace GameCult.Aetheria.State.Verse
                 ["shield"] = FormatNumber(shield),
                 ["maximumShield"] = FormatNumber(maximumShield),
                 ["shieldRatio"] = FormatRatio(shield, maximumShield),
+                ["capacitorCharge"] = FormatNumber(capacitorCharge),
+                ["capacitorCapacity"] = FormatNumber(capacitorCapacity),
+                ["capacitorRatio"] = FormatRatio(capacitorCharge, capacitorCapacity),
+                ["reactorDraw"] = FormatNumber(reactorDraw),
+                ["reactorLoadRatio"] = FormatNumber(reactorLoad),
+                ["radiatorTemperature"] = FormatNumber(radiatorTemperature),
+                ["radiatorVisibility"] = FormatNumber(EntityStat(entity, "radiator-visibility")),
+                ["minimumEquipmentThermalPerformance"] = FormatNumber(minimumThermalPerformance),
+                ["maximumEquipmentWear"] = FormatNumber(maximumWear),
+                ["offlineEquipmentCount"] = offlineEquipmentCount.ToString(CultureInfo.InvariantCulture),
                 ["heat"] = FormatNumber(heat),
                 ["meanTemperature"] = FormatNumber(heat),
                 ["minimumTemperature"] = FormatNumber(minimumTemperature),

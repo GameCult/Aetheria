@@ -75,6 +75,7 @@ RequireMainMenuVerseHostDocumentAccess(root);
 RequireMainMenuContinueRunState(root);
 RequireUnityObserverDoesNotTickLocalSimulation(root);
 RequireUnityDoesNotCallSharedSimulationTicks(root);
+RequireDaemonEnergyAndThermalAuthority(root);
 RequireUnityPhysicsIsNotGameplayAuthority(root);
 RequireDeadPropertiesPanelShellDeleted(root);
 RequireTypedBehaviorMetadataCoverage(root);
@@ -16325,6 +16326,104 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
             "MainMenu no longer boots gameplay strictly from an authoritative daemon frame: " +
             string.Join(", ", missingMenuSymbols));
     }
+}
+
+static void RequireDaemonEnergyAndThermalAuthority(string root)
+{
+    var runtime = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime");
+    var energyPath = Path.Combine(runtime, "AetheriaRuntimeEnergySimulation.cs");
+    var thermalPath = Path.Combine(runtime, "AetheriaRuntimeThermalSimulation.cs");
+    var simulationPath = Path.Combine(runtime, "AetheriaRuntimeDaemonSimulation.cs");
+    var snapshotPath = Path.Combine(runtime, "AetheriaRuntimeSnapshotDocuments.cs");
+    var surfacePath = Path.Combine(runtime, "AetheriaRuntimeDaemonGameSurfaceBuilder.cs");
+    var operationsPath = Path.Combine(runtime, "AetheriaRuntimeDaemonOperations.cs");
+
+    var sources = new Dictionary<string, string>
+    {
+        [energyPath] = File.Exists(energyPath) ? File.ReadAllText(energyPath) : "",
+        [thermalPath] = File.Exists(thermalPath) ? File.ReadAllText(thermalPath) : "",
+        [simulationPath] = File.Exists(simulationPath) ? File.ReadAllText(simulationPath) : "",
+        [snapshotPath] = File.Exists(snapshotPath) ? File.ReadAllText(snapshotPath) : "",
+        [surfacePath] = File.Exists(surfacePath) ? File.ReadAllText(surfacePath) : ""
+    };
+    var required = new Dictionary<string, string[]>
+    {
+        [energyPath] = new[]
+        {
+            "public static class AetheriaRuntimeEnergySimulation",
+            "public static bool TryConsume(",
+            "public static void StepRadiators(",
+            "public static void SettleReactors(",
+            "AddCapacitorCharge("
+        },
+        [thermalPath] = new[]
+        {
+            "public static void EnsureTopology(",
+            "public static void UpdateEquipmentStates(",
+            "public static void AddHeatToEquipment(",
+            "public static void ApplyWear("
+        },
+        [simulationPath] = new[]
+        {
+            "AetheriaRuntimeThermalSimulation.EnsureTopology(entity, catalog)",
+            "AetheriaRuntimeThermalSimulation.UpdateEquipmentStates(entity, catalog, deltaSeconds)",
+            "AetheriaRuntimeEnergySimulation.BeginTick(entity, catalog)",
+            "AetheriaRuntimeEnergySimulation.StepRadiators(entity, catalog, deltaSeconds)",
+            "AetheriaRuntimeEnergySimulation.SettleReactors(entity, catalog, deltaSeconds)",
+            "AetheriaRuntimeThermalSimulation.Step(entity, deltaSeconds, catalog)",
+            "AetheriaRuntimeEnergySimulation.TryConsume(entity, catalog, demand)"
+        },
+        [snapshotPath] = new[]
+        {
+            "public IReadOnlyList<AetheriaRuntimeEquipmentStateCommit> EquipmentStates",
+            "public sealed class AetheriaRuntimeEquipmentStateCommit",
+            "public double ThermalPerformance",
+            "public double Wear",
+            "public bool Online"
+        },
+        [surfacePath] = new[]
+        {
+            "[\"capacitorCharge\"]",
+            "[\"reactorDraw\"]",
+            "[\"radiatorTemperature\"]",
+            "[\"minimumEquipmentThermalPerformance\"]",
+            "[\"offlineEquipmentCount\"]"
+        }
+    };
+    var missing = required.SelectMany(pair => pair.Value
+        .Where(symbol => !sources[pair.Key].Contains(symbol, StringComparison.Ordinal))
+        .Select(symbol => $"{Path.GetRelativePath(root, pair.Key)}: missing {symbol}"))
+        .ToArray();
+    if (missing.Length > 0)
+        throw new InvalidOperationException(
+            "Daemon energy and thermal authority must execute one catalog-derived network and publish its facts through Eve: " +
+            string.Join("; ", missing));
+
+    var operations = File.Exists(operationsPath) ? File.ReadAllText(operationsPath) : "";
+    var forbiddenOperations = new[]
+    {
+        "ApplyCommitEnergy(",
+        "ApplySetHeat(",
+        "ApplySetEquipmentOnline(",
+        "ApplyEquipmentWear("
+    };
+    var surviving = forbiddenOperations.Where(symbol => operations.Contains(symbol, StringComparison.Ordinal)).ToArray();
+    if (surviving.Length > 0)
+        throw new InvalidOperationException(
+            "Client commands may request semantic behavior but may not directly write daemon energy, heat, wear, or equipment online state: " +
+            string.Join(", ", surviving));
+
+    var simulation = sources[simulationPath];
+    var ordered = new[]
+    {
+        "AetheriaRuntimeEnergySimulation.StepRadiators(entity, catalog, deltaSeconds)",
+        "AetheriaRuntimeEnergySimulation.SettleReactors(entity, catalog, deltaSeconds)",
+        "AetheriaRuntimeThermalSimulation.Step(entity, deltaSeconds, catalog)"
+    };
+    if (!(simulation.IndexOf(ordered[0], StringComparison.Ordinal) < simulation.IndexOf(ordered[1], StringComparison.Ordinal) &&
+          simulation.IndexOf(ordered[1], StringComparison.Ordinal) < simulation.IndexOf(ordered[2], StringComparison.Ordinal)))
+        throw new InvalidOperationException(
+            "Daemon tick order must pump radiators before reactor settlement, then conduct and radiate the resulting cell heat.");
 }
 
 static void RequireUnityDoesNotCallSharedSimulationTicks(string root)

@@ -28,6 +28,10 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         PickupIsCapacityCheckedExactlyOnceAndExpires();
         PickupShieldContactCollectsOrBounces();
         ThermalCellsUseFossilConductionAndRadiation();
+        EnergyNetworkSettlesReactorAfterConsumers();
+        RadiatorPumpsHeatBeforeReactorSettlement();
+        EquipmentThermalPerformanceOwnsShutdownAndWear();
+        ThermalTopologyComesFromHullAndEquipment();
         MultipleActorsUseTheSameMovementLever();
         AgentClaimsAndCompletesExploreTaskThroughCommands();
         SchedulerAssignsHighestPriorityCompatibleTask();
@@ -58,14 +62,16 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         source.DirectionY = 0;
         source.TargetEntityIndex = 2;
         source.WeaponGroups = [new[] { 0 }];
-        source.Equipment = [new AetheriaRuntimeLoadoutItemSlotCommit
-        {
-            Item = new AetheriaRuntimeLoadoutItemCommit
-                { ItemKey = "test-beam", Quality = 1, Durability = 1, Enabled = true }
-        }];
+        source.Equipment =
+        [
+            new AetheriaRuntimeLoadoutItemSlotCommit { Item = new AetheriaRuntimeLoadoutItemCommit
+                { ItemKey = "test-beam", Quality = 1, Durability = 1, Enabled = true } },
+            new AetheriaRuntimeLoadoutItemSlotCommit { Item = new AetheriaRuntimeLoadoutItemCommit
+                { ItemKey = "test-beam-capacitor", Quality = 1, Durability = 1, Enabled = true } }
+        ];
         source.BehaviorStates = [new AetheriaRuntimeBehaviorStateCommit
         {
-            OwnerKind = "fixture", OwnerIndex = 0, BehaviorIndex = 0,
+            OwnerKind = AetheriaRuntimeBehaviorStateProjector.EquipmentOwnerKind, OwnerIndex = 1, BehaviorIndex = 0,
             BehaviorKind = "Capacitor", CapacitorCharge = 10, CapacitorCapacity = 10, CapacitorEfficiency = 1
         }];
         source.CargoContents = [Cargo(("beam-ammo", 1, 0, 0))];
@@ -89,7 +95,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             new AetheriaRuntimeBehaviorField(14, Number(0.3)),
             new AetheriaRuntimeBehaviorField(17, Number(0.15))
         ]);
-        var catalog = new AetheriaRuntimeCatalogSnapshot([CatalogItem("test-beam", payload)], [], []);
+        var catalog = new AetheriaRuntimeCatalogSnapshot(
+            [CatalogItem("test-beam", payload), CatalogItem("test-beam-capacitor", CapacitorPayload(10, 1))], [], []);
         var intents = new AetheriaRuntimeDaemonIntentState();
         intents.WeaponGroups.Add(new AetheriaRuntimeDaemonWeaponGroupIntent
         {
@@ -382,14 +389,16 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
     {
         var source = Entity(0, -50, "player");
         var target = Entity(1, 0, "neutral");
-        target.Equipment = [new AetheriaRuntimeLoadoutItemSlotCommit
-        {
-            Item = new AetheriaRuntimeLoadoutItemCommit
-                { ItemKey = "test-energy-shield", Quality = 1, Durability = 1, Enabled = true }
-        }];
+        target.Equipment =
+        [
+            new AetheriaRuntimeLoadoutItemSlotCommit { Item = new AetheriaRuntimeLoadoutItemCommit
+                { ItemKey = "test-energy-shield", Quality = 1, Durability = 1, Enabled = true } },
+            new AetheriaRuntimeLoadoutItemSlotCommit { Item = new AetheriaRuntimeLoadoutItemCommit
+                { ItemKey = "test-shield-capacitor", Quality = 1, Durability = 1, Enabled = true } }
+        ];
         target.BehaviorStates = [new AetheriaRuntimeBehaviorStateCommit
         {
-            OwnerKind = "fixture", OwnerIndex = 0, BehaviorIndex = 0,
+            OwnerKind = AetheriaRuntimeBehaviorStateProjector.EquipmentOwnerKind, OwnerIndex = 1, BehaviorIndex = 0,
             BehaviorKind = "Capacitor", CapacitorCharge = 100, CapacitorCapacity = 100,
             CapacitorEfficiency = 1
         }];
@@ -399,7 +408,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             new AetheriaRuntimeBehaviorField(2, PerformanceStat(3))
         ]);
         var catalog = new AetheriaRuntimeCatalogSnapshot(
-            [CatalogItem("test-energy-shield", shield)], [], []);
+            [CatalogItem("test-energy-shield", shield), CatalogItem("test-shield-capacitor", CapacitorPayload(100, 1))], [], []);
         var zone = new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [source, target] };
         var run = new AetheriaRuntimeRunCheckpointCommit
         {
@@ -959,6 +968,13 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         Array.Empty<AetheriaRuntimeBehaviorValue>(),
         Array.Empty<AetheriaRuntimeBehaviorMapEntry>());
 
+    private static AetheriaRuntimeBehaviorPayload CapacitorPayload(double capacity, double efficiency) => new(
+        0, "Capacitor", 0,
+        [
+            new AetheriaRuntimeBehaviorField(1, PerformanceStat(capacity)),
+            new AetheriaRuntimeBehaviorField(2, PerformanceStat(efficiency))
+        ]);
+
     private static AetheriaRuntimeCatalogItem CatalogItem(string itemKey, params AetheriaRuntimeBehaviorPayload[] payloads) => new(
         itemKey, itemKey, "equipment", "", "", 0, 1, 1, 1, 1,
         1, 1, 1, Array.Empty<AetheriaRuntimeShapeCell>(),
@@ -1216,13 +1232,15 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 {
                     ItemKey = "test-lock-cannon", Quality = 1, Durability = 1, Enabled = true
                 }
-            }
+            },
+            new AetheriaRuntimeLoadoutItemSlotCommit { Item = new AetheriaRuntimeLoadoutItemCommit
+                { ItemKey = "test-attack-capacitor", Quality = 1, Durability = 1, Enabled = true } }
         ];
         agent.BehaviorStates =
         [
             new AetheriaRuntimeBehaviorStateCommit
             {
-                OwnerKind = "fixture", OwnerIndex = 0, BehaviorIndex = 0,
+            OwnerKind = AetheriaRuntimeBehaviorStateProjector.EquipmentOwnerKind, OwnerIndex = 1, BehaviorIndex = 0,
                 BehaviorKind = "Capacitor", CapacitorCharge = 50, CapacitorCapacity = 50, CapacitorEfficiency = 1
             }
         ];
@@ -1255,7 +1273,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 new AetheriaRuntimeBehaviorField(25, PerformanceStat(1))
             ]);
         var catalog = new AetheriaRuntimeCatalogSnapshot(
-            [CatalogItem("test-lock-cannon", weaponPayload)],
+            [CatalogItem("test-lock-cannon", weaponPayload), CatalogItem("test-attack-capacitor", CapacitorPayload(50, 1))],
             Array.Empty<AetheriaRuntimeCorporation>(),
             Array.Empty<AetheriaRuntimeNameFile>());
         var target = Entity(1, 105, "raider");
@@ -1873,6 +1891,223 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         command.DirectionY = y;
         command.ScalarValue = 1;
         return command;
+    }
+
+    private static void EnergyNetworkSettlesReactorAfterConsumers()
+    {
+        var entity = Entity(0, 0, "player");
+        entity.Equipment =
+        [
+            new AetheriaRuntimeLoadoutItemSlotCommit { Item = new AetheriaRuntimeLoadoutItemCommit
+                { ItemKey = "ledger-capacitor", Quality = 1, Durability = 1, Enabled = true } },
+            new AetheriaRuntimeLoadoutItemSlotCommit { Item = new AetheriaRuntimeLoadoutItemCommit
+                { ItemKey = "ledger-reactor", Quality = 1, Durability = 1, Enabled = true } }
+        ];
+        entity.BehaviorStates =
+        [
+            new AetheriaRuntimeBehaviorStateCommit
+            {
+                OwnerKind = AetheriaRuntimeBehaviorStateProjector.EquipmentOwnerKind,
+                OwnerIndex = 0, BehaviorIndex = 0, BehaviorKind = "Capacitor",
+                CapacitorCharge = 2, CapacitorCapacity = 10, CapacitorEfficiency = 0.5
+            },
+            new AetheriaRuntimeBehaviorStateCommit
+            {
+                OwnerKind = AetheriaRuntimeBehaviorStateProjector.EquipmentOwnerKind,
+                OwnerIndex = 1, BehaviorIndex = 0, BehaviorKind = "Reactor"
+            }
+        ];
+        entity.StatGrids =
+        [
+            Grid("hull", 100), Grid("shield", 0), Grid("heat", 280),
+            Grid("temperature", 280), Grid("thermal-mass", 1), Grid("conductivity", 1)
+        ];
+        var capacitorItem = CatalogItem("ledger-capacitor", CapacitorPayload(10, 0.5));
+        capacitorItem.ShapeCells = [new AetheriaRuntimeShapeCell(0, 0)];
+        var reactorPayload = new AetheriaRuntimeBehaviorPayload(0, "Reactor", 100,
+        [
+            new AetheriaRuntimeBehaviorField(1, PerformanceStat(4)),
+            new AetheriaRuntimeBehaviorField(2, PerformanceStat(2)),
+            new AetheriaRuntimeBehaviorField(3, PerformanceStat(0.5)),
+            new AetheriaRuntimeBehaviorField(4, PerformanceStat(2))
+        ]);
+        var reactorItem = CatalogItem("ledger-reactor", reactorPayload);
+        reactorItem.ShapeCells = [new AetheriaRuntimeShapeCell(0, 0)];
+        var catalog = new AetheriaRuntimeCatalogSnapshot([capacitorItem, reactorItem], [], []);
+
+        AetheriaRuntimeEnergySimulation.BeginTick(entity, catalog);
+        Require(AetheriaRuntimeEnergySimulation.TryConsume(entity, catalog, 5),
+            "online reactor must accept residual demand after capacitors drain");
+        var capacitor = entity.BehaviorStates.Single(value => value.BehaviorKind == "Capacitor");
+        var reactor = entity.BehaviorStates.Single(value => value.BehaviorKind == "Reactor");
+        RequireNear(0, capacitor.CapacitorCharge, 0.000001,
+            "consumers must drain capacitors before adding reactor draw");
+        RequireNear(3, reactor.ReactorDraw, 0.000001,
+            "residual demand must accumulate on the last-running reactor");
+
+        AetheriaRuntimeEnergySimulation.SettleReactors(entity, catalog, 1);
+        RequireNear(1, capacitor.CapacitorCharge, 0.000001,
+            "baseline reactor surplus must refill non-full capacitors after demand settles");
+        RequireNear(0, reactor.ReactorDraw, 0.000001,
+            "reactor settlement must consume and reset the per-tick demand ledger");
+        RequireNear(283.5, GridValue(entity, "temperature", 0), 0.000001,
+            "capacitor discharge/refill losses and reactor baseline heat must reach canonical item cells");
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "energy-ledger-smoke", CurrentZoneIndex = 0, CurrentEntityKey = "zone.0.entity.0",
+            Zones = [new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [entity] }]
+        };
+        var surface = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(
+            new AetheriaRuntimeDaemonFrameDocument { FrameId = 1, Run = run },
+            new AetheriaRuntimeDaemonHealthDocument(),
+            AetheriaRuntimeDaemonCommandBoundaryDocument.Create("daemon"));
+        var worldEntity = Flatten(surface.Surface.Root).Single(node =>
+            node.Id == "aetheria.daemon.game.world.entity.0");
+        RequireEqual("1", worldEntity.Props["capacitorCharge"],
+            "Eve must expose the settled canonical capacitor charge");
+        RequireEqual("0", worldEntity.Props["reactorDraw"],
+            "Eve must expose the reset post-settlement reactor ledger");
+    }
+
+    private static void RadiatorPumpsHeatBeforeReactorSettlement()
+    {
+        var entity = Entity(0, 0, "player");
+        entity.HeatsinksEnabled = true;
+        entity.Equipment =
+        [
+            new AetheriaRuntimeLoadoutItemSlotCommit { Item = new AetheriaRuntimeLoadoutItemCommit
+                { ItemKey = "radiator-capacitor", Quality = 1, Durability = 1, Enabled = true } },
+            new AetheriaRuntimeLoadoutItemSlotCommit { Item = new AetheriaRuntimeLoadoutItemCommit
+                { ItemKey = "radiator", Quality = 1, Durability = 1, Enabled = true } }
+        ];
+        entity.BehaviorStates =
+        [
+            new AetheriaRuntimeBehaviorStateCommit
+            {
+                OwnerKind = AetheriaRuntimeBehaviorStateProjector.EquipmentOwnerKind,
+                OwnerIndex = 0, BehaviorIndex = 0, BehaviorKind = "Capacitor", CapacitorCharge = 10
+            },
+            new AetheriaRuntimeBehaviorStateCommit
+            {
+                OwnerKind = AetheriaRuntimeBehaviorStateProjector.EquipmentOwnerKind,
+                OwnerIndex = 1, BehaviorIndex = 0, BehaviorKind = "Radiator", RadiatorTemperature = 280
+            }
+        ];
+        entity.StatGrids =
+        [
+            Grid("hull", 100), Grid("shield", 0), Grid("heat", 400),
+            Grid("temperature", 400), Grid("thermal-mass", 1), Grid("conductivity", 1)
+        ];
+        var capacitor = CatalogItem("radiator-capacitor", CapacitorPayload(10, 1));
+        capacitor.ShapeCells = [new AetheriaRuntimeShapeCell(0, 0)];
+        var radiatorPayload = new AetheriaRuntimeBehaviorPayload(0, "Radiator", 0,
+        [
+            new AetheriaRuntimeBehaviorField(1, PerformanceStat(0)),
+            new AetheriaRuntimeBehaviorField(2, PerformanceStat(1)),
+            new AetheriaRuntimeBehaviorField(3, Number(300)),
+            new AetheriaRuntimeBehaviorField(4, PerformanceStat(0.5)),
+            new AetheriaRuntimeBehaviorField(5, PerformanceStat(1)),
+            new AetheriaRuntimeBehaviorField(6, PerformanceStat(10))
+        ]);
+        var radiator = CatalogItem("radiator", radiatorPayload);
+        radiator.ShapeCells = [new AetheriaRuntimeShapeCell(0, 0)];
+        var catalog = new AetheriaRuntimeCatalogSnapshot([capacitor, radiator], [], []);
+
+        AetheriaRuntimeEnergySimulation.BeginTick(entity, catalog);
+        AetheriaRuntimeEnergySimulation.StepRadiators(entity, catalog, 1);
+
+        RequireNear(9, entity.BehaviorStates.Single(value => value.BehaviorKind == "Capacitor").CapacitorCharge,
+            0.000001, "radiator pump must consume authored energy before reactor settlement");
+        RequireNear(300.5, GridValue(entity, "temperature", 0), 0.000001,
+            "radiator must remove pumped heat and return authored waste heat to its item cells");
+        RequireNear(290, entity.BehaviorStates.Single(value => value.BehaviorKind == "Radiator").RadiatorTemperature,
+            0.000001, "pumped heat must accumulate in radiator thermal mass before radiation");
+    }
+
+    private static void EquipmentThermalPerformanceOwnsShutdownAndWear()
+    {
+        var entity = Entity(0, 0, "player");
+        entity.ShutdownPerformance = 0.25;
+        var item = new AetheriaRuntimeLoadoutItemCommit
+            { ItemKey = "thermal-wear-item", Quality = 0, Durability = 10, Enabled = true };
+        entity.Equipment = [new AetheriaRuntimeLoadoutItemSlotCommit { Item = item }];
+        entity.StatGrids =
+        [
+            Grid("hull", 100), Grid("shield", 0), Grid("heat", 300),
+            Grid("temperature", 300), Grid("thermal-mass", 1), Grid("conductivity", 1)
+        ];
+        var wearPayload = new AetheriaRuntimeBehaviorPayload(0, "Wear", 0,
+            [new AetheriaRuntimeBehaviorField(1, new AetheriaRuntimeBehaviorValue(
+                "bool", "", 0, true, "", "", [], []))]);
+        var typed = CatalogItem("thermal-wear-item", wearPayload);
+        typed.ShapeCells = [new AetheriaRuntimeShapeCell(0, 0)];
+        typed.Durability = 10;
+        typed.ThermalResilience = 2;
+        typed.MinimumTemperature = 200;
+        typed.MaximumTemperature = 400;
+        typed.ThermalPerformanceCurveKeys =
+        [
+            new AetheriaRuntimeCurveKey(0, 1, 0, 0),
+            new AetheriaRuntimeCurveKey(1, 0, 0, 0)
+        ];
+        var catalog = new AetheriaRuntimeCatalogSnapshot([typed], [], []);
+
+        AetheriaRuntimeThermalSimulation.UpdateEquipmentStates(entity, catalog, 1);
+        var state = entity.EquipmentStates.Single();
+        RequireNear(0.5, state.ThermalPerformance, 0.000001,
+            "item thermal performance must come from mean occupied-cell temperature and authored curve");
+        Require(state.ThermalOnline && state.Online,
+            "item above shutdown performance with positive durability must remain online");
+        RequireNear(10 - state.Wear, item.Durability, 0.000001,
+            "generic Wear behavior must apply the computed thermal wear potential at its authored cadence");
+
+        var temperature = entity.StatGrids.Single(value => value.Name == "temperature");
+        temperature.Values = [380];
+        item.OverrideShutdown = false;
+        entity.OverrideShutdown = true;
+        AetheriaRuntimeThermalSimulation.UpdateEquipmentStates(entity, catalog, 1);
+        state = entity.EquipmentStates.Single();
+        Require(!state.ThermalOnline && !state.Online,
+            "entity override alone must not bypass item thermal shutdown");
+        item.OverrideShutdown = true;
+        AetheriaRuntimeThermalSimulation.UpdateEquipmentStates(entity, catalog, 1);
+        Require(entity.EquipmentStates.Single().ThermalOnline,
+            "thermal shutdown bypass must require both entity-wide and item-local override");
+    }
+
+    private static void ThermalTopologyComesFromHullAndEquipment()
+    {
+        var entity = Entity(0, 0, "player");
+        entity.HullItemKey = "thermal-hull";
+        entity.Equipment = [new AetheriaRuntimeLoadoutItemSlotCommit
+        {
+            X = 0, Y = 0, Item = new AetheriaRuntimeLoadoutItemCommit
+                { ItemKey = "thermal-gear", Quality = 1, Durability = 1, Enabled = true }
+        }];
+        var hull = HullCatalogItem("thermal-hull", 2, 1, 0);
+        hull.Mass = 10;
+        hull.SpecificHeat = 2;
+        hull.Conductivity = 4;
+        hull.InteriorShapeCells = [new AetheriaRuntimeShapeCell(0, 0)];
+        var gear = CatalogItem("thermal-gear");
+        gear.ShapeCells = [new AetheriaRuntimeShapeCell(0, 0)];
+        gear.Mass = 4;
+        gear.SpecificHeat = 5;
+        gear.Conductivity = 3;
+        var catalog = new AetheriaRuntimeCatalogSnapshot([hull, gear], [], []);
+
+        AetheriaRuntimeThermalSimulation.EnsureTopology(entity, catalog);
+
+        var mass = entity.StatGrids.Single(value => value.Name == "thermal-mass");
+        var conductivity = entity.StatGrids.Single(value => value.Name == "conductivity");
+        RequireNear(30, mass.Values[0], 0.000001,
+            "occupied cell thermal mass must include its proportional equipment mass");
+        RequireNear(10, mass.Values[1], 0.000001,
+            "hull thermal mass must be divided across authored hull cells");
+        RequireNear(3, conductivity.Values[0], 0.000001,
+            "occupied cell conductivity must come from installed equipment");
+        RequireNear(280, entity.StatGrids.Single(value => value.Name == "temperature").Values[1], 0.000001,
+            "authored hull topology must initialize each occupied cell at the fossil temperature");
     }
 
     private static void ThermalCellsUseFossilConductionAndRadiation()
