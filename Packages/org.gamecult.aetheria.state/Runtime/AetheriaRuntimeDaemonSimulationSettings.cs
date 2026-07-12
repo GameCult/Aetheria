@@ -34,7 +34,10 @@ namespace GameCult.Aetheria.State.Verse
                 weaponLockSensorImpact: 1.0,
                 weaponLockAngleDegrees: 45.0,
                 weaponLockDirectionImpact: 1.0,
-                weaponLockDecayPerSecond: 1.0);
+                weaponLockDecayPerSecond: 1.0,
+                lootDropProbability: 0.25,
+                lootDropVelocity: 25.0,
+                pickupLifetimeSeconds: 30.0);
 
         public AetheriaRuntimeDaemonSimulationSettings(
             double pawnSpeed,
@@ -62,7 +65,10 @@ namespace GameCult.Aetheria.State.Verse
             double weaponLockSensorImpact = AetheriaDefaultRaw.WeaponLockSensorImpact,
             double weaponLockAngleDegrees = AetheriaDefaultRaw.WeaponLockAngleDegrees,
             double weaponLockDirectionImpact = AetheriaDefaultRaw.WeaponLockDirectionImpact,
-            double weaponLockDecayPerSecond = AetheriaDefaultRaw.WeaponLockDecayPerSecond)
+            double weaponLockDecayPerSecond = AetheriaDefaultRaw.WeaponLockDecayPerSecond,
+            double lootDropProbability = AetheriaDefaultRaw.LootDropProbability,
+            double lootDropVelocity = AetheriaDefaultRaw.LootDropVelocity,
+            double pickupLifetimeSeconds = AetheriaDefaultRaw.PickupLifetimeSeconds)
         {
             PawnSpeed = PositiveOr(pawnSpeed, AetheriaDefaultRaw.PawnSpeed);
             RaiderSpeed = PositiveOr(raiderSpeed, AetheriaDefaultRaw.RaiderSpeed);
@@ -90,6 +96,9 @@ namespace GameCult.Aetheria.State.Verse
             WeaponLockAngleDegrees = PositiveOr(weaponLockAngleDegrees, AetheriaDefaultRaw.WeaponLockAngleDegrees);
             WeaponLockDirectionImpact = NonNegativeOr(weaponLockDirectionImpact, AetheriaDefaultRaw.WeaponLockDirectionImpact);
             WeaponLockDecayPerSecond = NonNegativeOr(weaponLockDecayPerSecond, AetheriaDefaultRaw.WeaponLockDecayPerSecond);
+            LootDropProbability = Clamp01Or(lootDropProbability, AetheriaDefaultRaw.LootDropProbability);
+            LootDropVelocity = NonNegativeOr(lootDropVelocity, AetheriaDefaultRaw.LootDropVelocity);
+            PickupLifetimeSeconds = PositiveOr(pickupLifetimeSeconds, AetheriaDefaultRaw.PickupLifetimeSeconds);
         }
 
         public double PawnSpeed { get; }
@@ -118,6 +127,9 @@ namespace GameCult.Aetheria.State.Verse
         public double WeaponLockAngleDegrees { get; }
         public double WeaponLockDirectionImpact { get; }
         public double WeaponLockDecayPerSecond { get; }
+        public double LootDropProbability { get; }
+        public double LootDropVelocity { get; }
+        public double PickupLifetimeSeconds { get; }
 
         private static double PositiveOr(double value, double fallback)
         {
@@ -162,6 +174,9 @@ namespace GameCult.Aetheria.State.Verse
             public const double WeaponLockAngleDegrees = 45.0;
             public const double WeaponLockDirectionImpact = 1.0;
             public const double WeaponLockDecayPerSecond = 1.0;
+            public const double LootDropProbability = 0.25;
+            public const double LootDropVelocity = 25.0;
+            public const double PickupLifetimeSeconds = 30.0;
         }
     }
 }

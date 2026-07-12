@@ -47,7 +47,7 @@
       "hash": "e10821f1cc81f619479c6507438f6a097d1f0ce2"
     },
     "org.gamecult.eve.unity-scene": {
-      "version": "https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.unity-scene#0d97dcf56c8b813de50d319ebce10a93595ad5c4",
+      "version": "https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.unity-scene#290b384703d19b4deee79fe015d80957ec5f8eb6",
       "depth": 0,
       "source": "git",
       "dependencies": {

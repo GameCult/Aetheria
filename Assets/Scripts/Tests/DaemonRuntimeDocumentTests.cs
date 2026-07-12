@@ -4303,7 +4303,7 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
-    public void DaemonOperationsDestroysEntityInDaemonState()
+    public void DaemonOperationsRejectsClientAuthoredEntityDestruction()
     {
         var run = RunWithTwoEntities();
         run.CurrentEntityKey = "zone.0.entity.1";
@@ -4338,18 +4338,19 @@ public class DaemonRuntimeDocumentTests
 
         var result = AetheriaRuntimeDaemonOperations.Execute(run, new[] { command });
 
-        Assert.AreEqual(1, result.AppliedCommandIds.Count);
-        Assert.AreEqual(2, run.Zones[0].Entities.Count);
+        Assert.AreEqual(0, result.AppliedCommandIds.Count);
+        Assert.AreEqual(1, result.RejectedCommandIds.Count);
+        Assert.AreEqual(3, run.Zones[0].Entities.Count);
         Assert.AreEqual("Player", run.Zones[0].Entities[0].Name);
         Assert.AreEqual(0, run.Zones[0].Entities[0].EntityIndex);
-        Assert.AreEqual("Reindexed", run.Zones[0].Entities[1].Name);
-        Assert.AreEqual(1, run.Zones[0].Entities[1].EntityIndex);
-        Assert.AreEqual(-1, run.Zones[0].Entities[0].TargetEntityIndex);
-        Assert.AreEqual(0, run.Zones[0].Entities[0].ChildEntityIndices.Count);
-        Assert.AreEqual(-1, run.Zones[0].Entities[0].DockingBayAssignments[0]);
+        Assert.AreEqual("Target", run.Zones[0].Entities[1].Name);
+        Assert.AreEqual("Reindexed", run.Zones[0].Entities[2].Name);
+        Assert.AreEqual(1, run.Zones[0].Entities[0].TargetEntityIndex);
+        Assert.AreEqual(1, run.Zones[0].Entities[0].ChildEntityIndices.Single());
+        Assert.AreEqual(1, run.Zones[0].Entities[0].DockingBayAssignments[0]);
         Assert.AreEqual(-1, run.Zones[0].Entities[0].DockingBayAssignments[1]);
-        Assert.AreEqual(0, run.Zones[0].Entities[0].Contacts.Count);
-        Assert.AreEqual("", run.CurrentEntityKey);
+        Assert.AreEqual(1, run.Zones[0].Entities[0].Contacts.Single().TargetEntityIndex);
+        Assert.AreEqual("zone.0.entity.1", run.CurrentEntityKey);
     }
 
     [Test]

@@ -154,6 +154,15 @@ the shape. Splash payloads such as mines preserve the fossil's distinct rule:
 they select the source-facing half of the hull schematic, then enter the same
 layer transaction.
 
+Lethal damage commits destruction in the same daemon transaction boundary.
+The target receives one durable destruction identity, leaves the active Eve
+world, clears combat/docking references, and emits deterministic pickups. The
+fossil rules are preserved: every cargo stack drops, each equipped item rolls
+independently against `0.25`, launch velocity has magnitude `25`, and pickup
+lifetime is `30` seconds. A retained entity row is a non-rendered tombstone for
+stable identity and exactly-once replay protection; it is not a wreck or a
+second gameplay owner. The reserved `DestroyEntity` command is rejected.
+
 ## Armor-Cell Authority Map
 
 - Owner: the daemon's canonical damage transaction owns shield interception,
@@ -253,6 +262,8 @@ drop or simplify an effect. It may not promote a visual collision into damage.
 - a repair loop may not reconcile client-observed impacts into daemon health.
 - direct and deployable callers may not bypass the shared layer transaction
   with scalar hull damage.
+- Unity, Eve, and command clients may not remove an entity or manufacture its
+  loot after observing a destruction effect.
 
 ## Cut Line
 

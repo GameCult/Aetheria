@@ -11281,8 +11281,7 @@ static void RequireUnityPublicRequestVocabulary(string root)
     var checkedRoots = new[]
     {
         Path.Combine(root, "Assets", "Scripts", "Gameplay"),
-        Path.Combine(root, "Assets", "Scripts", "UI"),
-        Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime")
+        Path.Combine(root, "Assets", "Scripts", "UI")
     };
 
     var commitPattern = new System.Text.RegularExpressions.Regex(
@@ -16730,6 +16729,31 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
         throw new InvalidOperationException(
             "Daemon damage must resolve shield, armor cells, installed equipment, then hull through one typed transaction: " +
             string.Join(", ", missingArmorTransactionSymbols));
+    }
+
+    var daemonOperations = File.ReadAllText(Path.Combine(
+        root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonOperations.cs"));
+    var requiredDestructionTransactionSymbols = new[]
+    {
+        "CommitDestruction(run, zone, target",
+        "target.DestructionId = destructionId",
+        "settings.LootDropProbability",
+        "settings.LootDropVelocity",
+        "settings.PickupLifetimeSeconds",
+        "Kind = \"pickup.dropped\"",
+        "Kind = \"entity.destroyed\"",
+        "zone.DroppedPickups = pickups"
+    };
+    var missingDestructionTransactionSymbols = requiredDestructionTransactionSymbols
+        .Where(symbol => !daemonSimulation.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingDestructionTransactionSymbols.Length > 0 ||
+        daemonOperations.Contains("ApplyDestroyEntity(", StringComparison.Ordinal) ||
+        daemonOperations.Contains("case AetheriaRuntimeDaemonCommandKinds.DestroyEntity:", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Lethal daemon damage must own exactly-once destruction, loot drops, and cleanup; clients may not command entity erasure: " +
+            string.Join(", ", missingDestructionTransactionSymbols));
     }
 
     if (daemonSimulation.Contains("AetheriaRuntimeRtsSimulation", StringComparison.Ordinal) ||

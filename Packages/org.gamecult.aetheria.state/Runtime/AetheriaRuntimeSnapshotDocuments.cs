@@ -1039,6 +1039,12 @@ namespace GameCult.Aetheria.State.Verse
 
         [Key(44)]
         public AetheriaRuntimeLoadoutGenerationReceiptCommit? LoadoutGeneration { get; set; }
+
+        [Key(45)]
+        public string DestructionId { get; set; } = "";
+
+        [Key(46)]
+        public long DestroyedFrameId { get; set; } = -1;
     }
 
     [MessagePackObject]

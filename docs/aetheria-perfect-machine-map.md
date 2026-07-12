@@ -750,6 +750,24 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   transaction mutates them thereafter. Penetration always advances by a
   half-cell step, eliminating the fossil's non-advancing infinite loop.
 
+### Daemon Destruction Transaction
+
+- Owner: lethal daemon damage owns one destruction identity, active-world
+  removal, reference cleanup, loot rolls, pickup state, and chronology.
+- Inputs: canonical hull result, run seed, entity equipment/cargo, fossil loot
+  settings (`0.25` equipment probability, `25` launch speed, `30` second life).
+- Outputs: an inactive identity-stable tombstone, deterministic typed pickups,
+  `entity.destroyed` and `pickup.dropped` events, and Eve world removal/effects.
+- Derived state: the retained entity row exists only for stable indexing and
+  replay protection. It is not rendered, targetable, salvageable, or alive.
+- Forbidden writers: Unity destruction callbacks, Eve feedback renderers, and
+  the reserved `DestroyEntity` command cannot erase entities or create loot.
+- Shared paths: direct shots and deployable splash invoke the same destruction
+  commit after the shared damage resolver crosses zero hull.
+- Cut line: client-commanded removal and presentation-triggered loot are dead;
+  EveUnity resolves `effect.feedback.entity.destroyed` only after the provider
+  has published authoritative destruction chronology.
+
 - Owner: `Aetheria.State` owns the new typed state spine for durable state.
   The embedded `GameCult.Aetheria.State.Unity` package owns Unity's runtime
   typed state file path plus the boot-time state-file probe, and is the landing

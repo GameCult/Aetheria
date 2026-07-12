@@ -130,8 +130,6 @@ namespace GameCult.Aetheria.State.Verse
                 case AetheriaRuntimeDaemonCommandKinds.SetEntityName:
                     return ApplyTargetEntity(run, command.TargetEntityKey, entity =>
                         entity.Name = command.TextValue ?? "");
-                case AetheriaRuntimeDaemonCommandKinds.DestroyEntity:
-                    return ApplyDestroyEntity(run, command);
                 case AetheriaRuntimeDaemonCommandKinds.SetDockedCurrentShip:
                     return ApplySetDockedCurrentShip(run, command.TargetEntityKey);
                 case AetheriaRuntimeDaemonCommandKinds.TransferCargoItem:
@@ -1660,30 +1658,6 @@ namespace GameCult.Aetheria.State.Verse
                 discovered.Add(targetZoneIndex);
                 run.DiscoveredZoneIndices = discovered.ToArray();
             }
-
-            return true;
-        }
-
-        private static bool ApplyDestroyEntity(
-            AetheriaRuntimeRunCheckpointCommit run,
-            AetheriaRuntimeDaemonCommandDocument command)
-        {
-            if (!AetheriaRuntimeRunCheckpointCommit.TryParseEntityKey(command.TargetEntityKey, out var zoneIndex, out var entityIndex))
-                return false;
-
-            var zones = (run.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>()).ToList();
-            var zone = zones.FirstOrDefault(candidate => candidate != null && candidate.ZoneIndex == zoneIndex);
-            if (zone == null)
-                return false;
-
-            var entities = (zone.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>()).ToList();
-            if (entityIndex < 0 || entityIndex >= entities.Count)
-                return false;
-
-            entities.RemoveAt(entityIndex);
-            zone.Entities = entities.ToArray();
-            ReindexZoneAfterEntityRemoval(zone, entityIndex);
-            ReindexCurrentEntityKeyAfterRemoval(run, zoneIndex, entityIndex);
 
             return true;
         }

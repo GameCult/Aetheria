@@ -331,7 +331,7 @@ namespace GameCult.Aetheria.State.Verse
                         weapon.State.BurstRemaining--;
                         weapon.State.BurstTimer -= weapon.State.BurstInterval;
                         var shotId = NextShotId(zone, attacker, weapon);
-                        CommitShotResolution(run, zone, attacker, target, weapon, shotId, frameId, catalog);
+                        CommitShotResolution(run, zone, attacker, target, weapon, shotId, frameId, catalog, settings);
                         AppendShotCommittedEvent(run, zone, attacker, target, weapon, shotId, frameId);
                         weapon.State.Firing = true;
                         AetheriaRuntimeThermalSimulation.AddHeat(attacker, weapon.Heat);
@@ -362,7 +362,7 @@ namespace GameCult.Aetheria.State.Verse
                     }
                 }
             }
-            ResolveDeployableDetonations(run, zone, entities, frameId, simulationTimeSeconds, catalog);
+            ResolveDeployableDetonations(run, zone, entities, frameId, simulationTimeSeconds, catalog, settings);
 
             foreach (var entity in entities)
             {
@@ -445,7 +445,8 @@ namespace GameCult.Aetheria.State.Verse
             IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities,
             long frameId,
             double simulationTimeSeconds,
-            AetheriaRuntimeCatalogSnapshot? catalog)
+            AetheriaRuntimeCatalogSnapshot? catalog,
+            AetheriaRuntimeDaemonSimulationSettings settings)
         {
             var survivors = new List<AetheriaRuntimePhysicalPayloadCommit>();
             foreach (var payload in zone.PhysicalPayloads ?? Array.Empty<AetheriaRuntimePhysicalPayloadCommit>())
@@ -464,6 +465,7 @@ namespace GameCult.Aetheria.State.Verse
                     var dz = target.PositionZ - payload.PositionZ;
                     if (dx * dx + dz * dz > payload.BlastRadius * payload.BlastRadius) continue;
                     var source = entities.FirstOrDefault(value => value.EntityIndex == payload.SourceEntityIndex);
+                    var aliveBefore = IsAlive(target);
                     var damage = ResolveDamage(target, payload.PayloadMagnitude, payload.DamageType,
                         payload.Penetration, payload.DamageSpread, source,
                         payload.PositionX, payload.PositionZ, true, catalog);
@@ -490,6 +492,9 @@ namespace GameCult.Aetheria.State.Verse
                             Reason = payload.DamageType,
                             PositionX = payload.PositionX, PositionZ = payload.PositionZ
                         });
+                    if (aliveBefore && !IsAlive(target))
+                        CommitDestruction(run, zone, target, payload.SourceEntityIndex,
+                            payload.PayloadId, payload.WeaponItemKey, frameId, settings);
                 }
                 AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit { EventId = $"physical-payload:{payload.PayloadId}:detonated", Kind = "deployable.detonated", FrameId = frameId, ZoneIndex = zone.ZoneIndex, SourceEntityIndex = payload.SourceEntityIndex, SubjectKey = payload.PayloadId, ItemKey = payload.WeaponItemKey, Reason = payload.TriggerReason, ScalarValue = payload.PayloadMagnitude, PositionX = payload.PositionX, PositionZ = payload.PositionZ });
             }
@@ -618,7 +623,7 @@ namespace GameCult.Aetheria.State.Verse
                     state.BurstRemaining--;
                     state.BurstTimer -= state.BurstInterval;
                     var shotId = NextShotId(zone, attacker, shot);
-                    CommitShotResolution(run, zone, attacker, solutionTarget, shot, shotId, frameId, catalog);
+                    CommitShotResolution(run, zone, attacker, solutionTarget, shot, shotId, frameId, catalog, settings);
                     AppendShotCommittedEvent(run, zone, attacker, solutionTarget, shot, shotId, frameId);
                     state.Firing = true;
                     AetheriaRuntimeThermalSimulation.AddHeat(attacker, shot.Heat);
@@ -772,7 +777,7 @@ namespace GameCult.Aetheria.State.Verse
                 AetheriaRuntimeThermalSimulation.AddHeat(attacker, weapon.Heat * deltaSeconds);
                 var shot = weapon.ResolutionShot(deltaSeconds);
                 var shotId = NextShotId(zone, attacker, shot);
-                CommitShotResolution(run, zone, attacker, selectedTarget!, shot, shotId, frameId, catalog);
+                CommitShotResolution(run, zone, attacker, selectedTarget!, shot, shotId, frameId, catalog, settings);
                 AppendShotCommittedEvent(run, zone, attacker, selectedTarget!, shot, shotId, frameId);
             }
         }
@@ -1096,7 +1101,8 @@ namespace GameCult.Aetheria.State.Verse
             ResolvedWeapon weapon,
             string shotId,
             long frameId,
-            AetheriaRuntimeCatalogSnapshot? catalog)
+            AetheriaRuntimeCatalogSnapshot? catalog,
+            AetheriaRuntimeDaemonSimulationSettings settings)
         {
             if ((run.ShotReceipts ?? Array.Empty<AetheriaRuntimeShotReceiptCommit>())
                 .Any(value => value != null && string.Equals(value.ShotId, shotId, StringComparison.Ordinal)))
@@ -1196,13 +1202,7 @@ namespace GameCult.Aetheria.State.Verse
                     PositionX = target.PositionX, PositionZ = target.PositionZ
                 });
             if (aliveBefore && !IsAlive(target))
-                AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit
-                {
-                    EventId = $"shot:{shotId}:destroyed:{target.EntityIndex}", Kind = "entity.destroyed",
-                    FrameId = frameId, ZoneIndex = zone.ZoneIndex, SourceEntityIndex = attacker.EntityIndex,
-                    TargetEntityIndex = target.EntityIndex, SubjectKey = shotId,
-                    ItemKey = weapon.ItemKey, PositionX = target.PositionX, PositionZ = target.PositionZ
-                });
+                CommitDestruction(run, zone, target, attacker.EntityIndex, shotId, weapon.ItemKey, frameId, settings);
         }
 
         private static string NextShotId(AetheriaRuntimeZoneSnapshotCommit zone,
@@ -1210,6 +1210,130 @@ namespace GameCult.Aetheria.State.Verse
         {
             weapon.State.ShotSequence++;
             return $"shot:{zone.ZoneIndex}:{attacker.EntityIndex}:{weapon.State.OwnerIndex}:{weapon.State.BehaviorIndex}:{weapon.State.ShotSequence}";
+        }
+
+        private static void CommitDestruction(
+            AetheriaRuntimeRunCheckpointCommit run,
+            AetheriaRuntimeZoneSnapshotCommit zone,
+            AetheriaRuntimeEntitySnapshotCommit target,
+            int sourceEntityIndex,
+            string subjectKey,
+            string weaponItemKey,
+            long frameId,
+            AetheriaRuntimeDaemonSimulationSettings settings)
+        {
+            if (!string.IsNullOrWhiteSpace(target.DestructionId)) return;
+
+            var destructionId = $"destruction:{run.RunId}:{zone.ZoneIndex}:{target.EntityIndex}:{frameId}";
+            target.DestructionId = destructionId;
+            target.DestroyedFrameId = frameId;
+            target.IsActive = false;
+            target.TargetEntityIndex = -1;
+            target.TractorPower = 0;
+            target.TractorTargetPower = 0;
+            foreach (var state in target.WeaponStates ?? Array.Empty<AetheriaRuntimeWeaponStateCommit>())
+            {
+                state.Firing = false;
+                state.Charging = false;
+                state.Charged = false;
+                state.LockTargetEntityIndex = -1;
+            }
+
+            var pickups = (zone.DroppedPickups ?? Array.Empty<AetheriaRuntimeDroppedPickupCommit>()).ToList();
+            var nextPickupIndex = pickups.Count == 0 ? 0 : pickups.Max(value => value.PickupIndex) + 1;
+            void Drop(AetheriaRuntimeLoadoutItemCommit item, string sourceKind, int sourceIndex)
+            {
+                var velocity = DestructionVelocity(run.GenerationSeed, destructionId,
+                    $"{sourceKind}:{sourceIndex}", settings.LootDropVelocity);
+                var pickup = new AetheriaRuntimeDroppedPickupCommit
+                {
+                    PickupIndex = nextPickupIndex++, PositionX = target.PositionX, PositionY = target.PositionY,
+                    PositionZ = target.PositionZ, VelocityX = velocity.X, VelocityY = velocity.Y,
+                    VelocityZ = velocity.Z, Item = CloneItem(item), AgeSeconds = 0,
+                    LifetimeSeconds = settings.PickupLifetimeSeconds
+                };
+                pickups.Add(pickup);
+                AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit
+                {
+                    EventId = $"{destructionId}:pickup:{pickup.PickupIndex}", Kind = "pickup.dropped",
+                    FrameId = frameId, ZoneIndex = zone.ZoneIndex, SourceEntityIndex = sourceEntityIndex,
+                    TargetEntityIndex = target.EntityIndex, PickupIndex = pickup.PickupIndex,
+                    ItemKey = pickup.Item.ItemKey, ScalarValue = Math.Max(1, pickup.Item.Quantity),
+                    SubjectKey = destructionId, Reason = sourceKind,
+                    PositionX = target.PositionX, PositionZ = target.PositionZ
+                });
+            }
+
+            if (!string.IsNullOrWhiteSpace(target.HullItemKey) &&
+                ShotRoll(run.GenerationSeed, destructionId, "equipment:hull") < settings.LootDropProbability)
+                Drop(new AetheriaRuntimeLoadoutItemCommit
+                {
+                    ItemKey = target.HullItemKey, Quality = 1, Durability = 0,
+                    Quantity = 1, Enabled = false
+                }, "equipment", -1);
+            var equipment = target.Equipment ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>();
+            for (var index = 0; index < equipment.Count; index++)
+            {
+                var slot = equipment[index];
+                if (slot?.Item == null ||
+                    ShotRoll(run.GenerationSeed, destructionId, $"equipment:{index}") >= settings.LootDropProbability)
+                    continue;
+                Drop(slot.Item, "equipment", index);
+            }
+            var cargoIndex = 0;
+            foreach (var slot in (target.CargoContents ?? Array.Empty<AetheriaRuntimeCargoBayLoadoutCommit>())
+                .Where(bay => bay != null)
+                .SelectMany(bay => bay.Items ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>()))
+            {
+                if (slot?.Item != null) Drop(slot.Item, "cargo", cargoIndex);
+                cargoIndex++;
+            }
+            zone.DroppedPickups = pickups;
+
+            target.Equipment = Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>();
+            target.CargoContents = Array.Empty<AetheriaRuntimeCargoBayLoadoutCommit>();
+            target.CargoBays = Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>();
+            target.DockingBays = Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>();
+            target.DockingBayContents = Array.Empty<AetheriaRuntimeCargoBayLoadoutCommit>();
+            target.DockingBayAssignments = Array.Empty<int>();
+            foreach (var entity in zone.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
+            {
+                if (entity == null || entity.EntityIndex == target.EntityIndex) continue;
+                if (entity.TargetEntityIndex == target.EntityIndex) entity.TargetEntityIndex = -1;
+                entity.ChildEntityIndices = (entity.ChildEntityIndices ?? Array.Empty<int>())
+                    .Where(index => index != target.EntityIndex).ToArray();
+                entity.DockingBayAssignments = (entity.DockingBayAssignments ?? Array.Empty<int>())
+                    .Select(index => index == target.EntityIndex ? -1 : index).ToArray();
+                entity.Contacts = (entity.Contacts ?? Array.Empty<AetheriaRuntimeEntityContactCommit>())
+                    .Where(contact => contact != null && contact.TargetEntityIndex != target.EntityIndex).ToArray();
+            }
+            if (run.CurrentZoneIndex == zone.ZoneIndex && TryParseEntityIndex(run.CurrentEntityKey, out var currentIndex) &&
+                currentIndex == target.EntityIndex)
+                run.CurrentEntityKey = "";
+
+            AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit
+            {
+                EventId = destructionId, Kind = "entity.destroyed", FrameId = frameId,
+                ZoneIndex = zone.ZoneIndex, SourceEntityIndex = sourceEntityIndex,
+                TargetEntityIndex = target.EntityIndex, SubjectKey = subjectKey,
+                ItemKey = weaponItemKey, PositionX = target.PositionX, PositionZ = target.PositionZ
+            });
+        }
+
+        private static AetheriaRuntimeLoadoutItemCommit CloneItem(AetheriaRuntimeLoadoutItemCommit item) => new()
+        {
+            ItemKey = item.ItemKey ?? "", Quality = item.Quality, Durability = item.Durability,
+            Quantity = item.Quantity, Enabled = item.Enabled, OverrideShutdown = item.OverrideShutdown,
+            Temperature = item.Temperature
+        };
+
+        private static (double X, double Y, double Z) DestructionVelocity(
+            uint seed, string destructionId, string itemKey, double speed)
+        {
+            var z = ShotRoll(seed, destructionId, $"{itemKey}:velocity-z") * 2 - 1;
+            var angle = ShotRoll(seed, destructionId, $"{itemKey}:velocity-angle") * Math.PI * 2;
+            var radius = Math.Sqrt(Math.Max(0, 1 - z * z));
+            return (Math.Cos(angle) * radius * speed, z * speed, Math.Sin(angle) * radius * speed);
         }
 
         private static void AppendShotCommittedEvent(AetheriaRuntimeRunCheckpointCommit run,

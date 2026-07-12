@@ -19,6 +19,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         CanonicalCatalogPublishesRecoveredMineLauncher();
         EnergyFundedShieldInterceptsDamageBeforeHull();
         ArmorCellsResolveBeforeEquipmentAndHull();
+        DestructionDropsLootExactlyOnce();
         DaemonSimulationTreatsYmirHitAsPresentationOnly();
         ProjectileContactCannotKill();
         MissingPhysicsOwnerCannotAdvanceProjectiles();
@@ -504,6 +505,79 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             "Eve world projection must expose the exact daemon-owned schematic grid");
     }
 
+    private static void DestructionDropsLootExactlyOnce()
+    {
+        var source = Entity(0, -100, "player");
+        var target = Entity(1, 0, "raider");
+        target.HullItemKey = "drop-hull";
+        target.StatGrids = [Grid("hull", 1), Grid("shield", 0), Grid("heat", 0)];
+        target.Equipment = [new AetheriaRuntimeLoadoutItemSlotCommit
+        {
+            Item = new AetheriaRuntimeLoadoutItemCommit
+                { ItemKey = "drop-gear", Quality = 0.8, Durability = 0.6, Quantity = 1, Enabled = true }
+        }];
+        target.CargoContents = [Cargo(("drop-cargo", 4, 0, 0))];
+        var zone = new AetheriaRuntimeZoneSnapshotCommit
+        {
+            ZoneIndex = 0, Entities = [source, target],
+            PhysicalPayloads = [new AetheriaRuntimePhysicalPayloadCommit
+            {
+                PayloadId = "destruction-mine", PayloadKind = "mine", WeaponItemKey = "destruction-charge",
+                SourceEntityIndex = 0, PositionX = 0, PositionZ = 0, BlastRadius = 200,
+                PayloadMagnitude = 20, TriggeredAtSeconds = 0, DetonationDelaySeconds = 0,
+                LifetimeSeconds = 30, Active = true, Stationary = true
+            }]
+        };
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "destruction-smoke", GenerationSeed = 29, CurrentZoneIndex = 0,
+            CurrentEntityKey = "zone.0.entity.0", Zones = [zone]
+        };
+        var settings = LootSettings(1);
+
+        AetheriaRuntimeDaemonSimulation.Step(run, new AetheriaRuntimeDaemonIntentState(), 0.1, settings,
+            new AetheriaYmirPhysicalPayloadPhysics(), new AetheriaYmirWorldPhysics(), null, 1, 0.1);
+
+        Require(!target.IsActive && target.DestroyedFrameId == 1 &&
+                !string.IsNullOrWhiteSpace(target.DestructionId),
+            "lethal daemon damage must commit one durable destruction identity and deactivate the entity");
+        RequireEqual(3, zone.DroppedPickups.Count,
+            "guaranteed fossil loot roll must drop hull, equipment, and every cargo stack");
+        RequireEqual(4, zone.DroppedPickups.Single(value => value.Item.ItemKey == "drop-cargo").Item.Quantity,
+            "cargo drops must preserve exact stack quantity");
+        Require(zone.DroppedPickups.All(value => Math.Abs(Math.Sqrt(
+                    value.VelocityX * value.VelocityX + value.VelocityY * value.VelocityY +
+                    value.VelocityZ * value.VelocityZ) - 25) < 0.000001 &&
+                Math.Abs(value.LifetimeSeconds - 30) < 0.000001),
+            "destruction pickups must retain fossil launch speed and lifetime");
+        RequireEqual(3, run.GameEvents.Count(value => value.Kind == "pickup.dropped"),
+            "each durable pickup must publish one drop event");
+        RequireEqual(1, run.GameEvents.Count(value => value.Kind == "entity.destroyed"),
+            "destruction chronology must publish exactly once");
+
+        var surface = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(
+            new AetheriaRuntimeDaemonFrameDocument { FrameId = 1, Run = run },
+            new AetheriaRuntimeDaemonHealthDocument(),
+            AetheriaRuntimeDaemonCommandBoundaryDocument.Create("daemon"));
+        Require(!Flatten(surface.Surface.Root).Any(node => node.Id == "aetheria.daemon.game.world.entity.1"),
+            "Eve must not project a destroyed tombstone as an active world entity");
+        RequireEqual(3, Flatten(surface.Surface.Root).Count(node => node.Kind == "world.entity3d" &&
+            node.Props.TryGetValue("entityKind", out var kind) && kind == "pickup"),
+            "Eve must project every daemon-owned destruction pickup");
+        var destructionAsset = AetheriaRuntimeAssets.ProjectManifest(null).Assets.Single(value =>
+            value.Ref.Metadata.TryGetValue("presentationRole", out var role) &&
+            role == "effect.feedback.entity.destroyed");
+        RequireEqual("prefab.effect.entity.destroyed", destructionAsset.Ref.AssetKey,
+            "provider must advertise the original destruction effect by semantic feedback role");
+
+        AetheriaRuntimeDaemonSimulation.Step(run, new AetheriaRuntimeDaemonIntentState(), 0.1, settings,
+            new AetheriaYmirPhysicalPayloadPhysics(), new AetheriaYmirWorldPhysics(), null, 2, 0.2);
+        RequireEqual(3, zone.DroppedPickups.Count,
+            "later ticks must not duplicate an already committed destruction transaction");
+        RequireEqual(1, run.GameEvents.Count(value => value.Kind == "entity.destroyed"),
+            "later ticks must not duplicate destruction chronology");
+    }
+
     private static void ChargedWeaponHoldRiskMalfunctionsDeterministically()
     {
         var source = Entity(0, 0, "player");
@@ -909,6 +983,22 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             1, false, 0, 1, "", "", "", "", "",
             0, 1000, Array.Empty<AetheriaRuntimeCurveKey>(), "", 1, 0, armor, 0, false,
             0, 0, "", Array.Empty<AetheriaRuntimeAudioStat>(), Array.Empty<AetheriaRuntimeCurveKey>(), "", "");
+    }
+
+    private static AetheriaRuntimeDaemonSimulationSettings LootSettings(double probability)
+    {
+        var value = AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault;
+        return new AetheriaRuntimeDaemonSimulationSettings(
+            value.PawnSpeed, value.RaiderSpeed, value.AttackRange, value.AttackHoldRatio,
+            value.PawnProjectileDamage, value.RaiderProjectileDamage, value.WeaponCooldownSeconds,
+            value.ProjectileSpeed, value.ProjectileRadius, value.ProjectileLifetimeSeconds,
+            value.ProjectileSpawnOffset, value.ProjectileHeatScale, value.HeatDissipationPerSecond,
+            value.StationSensorRange, value.EntitySensorRange, value.PlayerStationHull,
+            value.HostileStationHull, value.PlayerEntityHull, value.RaiderEntityHull,
+            value.StationShield, value.EntityShield, value.WeaponLockSpeed,
+            value.WeaponLockSensorImpact, value.WeaponLockAngleDegrees,
+            value.WeaponLockDirectionImpact, value.WeaponLockDecayPerSecond,
+            probability, value.LootDropVelocity, value.PickupLifetimeSeconds);
     }
 
     private static void AgentPatrolsHistoricalOrbitCircuitThroughMovementCommands()
