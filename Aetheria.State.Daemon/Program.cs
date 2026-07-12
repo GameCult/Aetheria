@@ -1390,8 +1390,8 @@ static async Task PublishDaemonApiDocumentsAsync(
         await node.MutableDocument<AetheriaRuntimeStarbridgeSessionSummaryDocument>(AetheriaRuntimeVerseRecordKeys.StarbridgeSessionSummary)
             .ReplaceAsync(result.StarbridgeSessionSummary)
             .ConfigureAwait(false);
-    await node.MutableDocument<AetheriaRuntimeInputCapabilityDocument>(AetheriaRuntimeVerseRecordKeys.PilotInputCapability)
-        .ReplaceAsync(AetheriaRuntimeInputCapabilityDocument.FromFrame(result.Frame))
+    await node.MutableDocument<EveInputCapabilityDocument>(AetheriaRuntimeVerseRecordKeys.PilotInputCapability)
+        .ReplaceAsync(AetheriaRuntimeInputCapabilityDocument.FromFrame(result.Frame).ToEveDocument())
         .ConfigureAwait(false);
     var mainMenuState = await node.MutableDocument<AetheriaMainMenuState>(AetheriaStateNode.MainMenuStateKey)
         .ReadAsync()

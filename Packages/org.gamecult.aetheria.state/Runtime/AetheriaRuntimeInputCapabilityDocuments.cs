@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using GameCult.Caching;
+using GameCult.Eve.Surface;
 using MessagePack;
 
 namespace GameCult.Aetheria.State.Verse
@@ -45,7 +46,6 @@ namespace GameCult.Aetheria.State.Verse
         [Key(2)] public AetheriaRuntimeInputBindingDocument[] Bindings { get; set; } = Array.Empty<AetheriaRuntimeInputBindingDocument>();
     }
 
-    [CultDocument("gamecult.eve.input_capability", "gamecult.eve.input_capability.v1")]
     [MessagePackObject]
     public sealed class AetheriaRuntimeInputCapabilityDocument
     {
@@ -69,12 +69,11 @@ namespace GameCult.Aetheria.State.Verse
                 actions.AddRange((entity.Equipment ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>()).Where(slot => slot?.Item != null).Select((slot, index) => Action($"equipment.{index}.activate", $"Activate {slot.Item.ItemKey}", "SetBehaviorActive", "equipment", $"{run.CurrentEntityKey}#equipment/{index}", ("equipmentIndex", index.ToString()), ("behaviorIndex", "0"), ("active", "true"))));
                 actions.AddRange((entity.CargoContents ?? Array.Empty<AetheriaRuntimeCargoBayLoadoutCommit>()).SelectMany(bay => bay.Items).Where(slot => slot?.Item != null).Select((slot, index) => Action($"cargo.{slot.Item.ItemKey}.{index}.use", $"Use {slot.Item.ItemKey}", "ActivateConsumable", "consumable", $"{run.CurrentEntityKey}#cargo/{index}", ("itemKey", slot.Item.ItemKey))));
             }
-            return new AetheriaRuntimeInputCapabilityDocument { Version = frame?.FrameId ?? 0, Actions = actions.ToArray(), DefaultProfiles = BuildDefaultProfiles() };
+            return new AetheriaRuntimeInputCapabilityDocument { Version = frame?.FrameId ?? 0, Actions = actions.ToArray(), DefaultProfiles = BuildDefaultProfiles(actions) };
         }
 
         private static IEnumerable<AetheriaRuntimeInputActionDocument> CoreActions()
         {
-            yield return Action("pilot.fire", "Fire", "FireWeaponGroup", "combat", "pilot", ("weaponGroup", "0"));
             yield return Action("pilot.scoop", "Scoop", "SetTractorPower", "ship", "pilot", ("scalarValue", "1"));
             yield return Action("pilot.dock", "Dock", "DockNearest", "ship", "pilot");
             yield return Action("pilot.undock", "Undock", "Undock", "ship", "pilot");
@@ -84,10 +83,68 @@ namespace GameCult.Aetheria.State.Verse
         private static AetheriaRuntimeInputActionDocument Action(string id, string label, string operation, string category, string source, params (string Key, string Value)[] payload) =>
             new AetheriaRuntimeInputActionDocument { ActionId = id, Label = label, Operation = "aetheria.daemon.commands." + operation, Category = category, SourceRef = source, Payload = payload.ToDictionary(entry => entry.Key, entry => entry.Value, StringComparer.Ordinal) };
 
-        private static AetheriaRuntimeInputProfileDocument[] BuildDefaultProfiles() => new[]
+        private static AetheriaRuntimeInputProfileDocument[] BuildDefaultProfiles(IReadOnlyCollection<AetheriaRuntimeInputActionDocument> actions)
         {
-            Profile("keyboard-mouse", "keyboard-mouse", Binding("fire.mouse", "pilot.fire", "direct", "mouse.primary"), Binding("scoop.shift", "pilot.scoop", "direct", "keyboard.leftShift"), Binding("dock.r", "pilot.dock", "direct", "keyboard.r")),
-            Profile("gamepad", "gamepad", Binding("fire.trigger", "pilot.fire", "direct", "gamepad.rightTrigger"), Binding("scoop.sequence", "pilot.scoop", "sequence", "gamepad.dpad.down", "gamepad.dpad.right"), Binding("dock.sequence", "pilot.dock", "sequence", "gamepad.dpad.down", "gamepad.dpad.up"))
+            return new[]
+            {
+                Profile("keyboard-mouse", "keyboard-mouse", DefaultBindings(actions, "mouse.primary", "gamepad.rightTrigger", keyboard: true)),
+                Profile("gamepad", "gamepad", DefaultBindings(actions, "mouse.primary", "gamepad.rightTrigger", keyboard: false))
+            };
+        }
+
+        private static AetheriaRuntimeInputBindingDocument[] DefaultBindings(
+            IReadOnlyCollection<AetheriaRuntimeInputActionDocument> actions,
+            string keyboardFireControl,
+            string gamepadFireControl,
+            bool keyboard)
+        {
+            var bindings = new List<AetheriaRuntimeInputBindingDocument>();
+            var fire = actions.FirstOrDefault(action => string.Equals(action.Category, "weapon-group", StringComparison.Ordinal));
+            if (fire != null)
+                bindings.Add(Binding("fire.default", fire.ActionId, "direct", keyboard ? keyboardFireControl : gamepadFireControl));
+            bindings.Add(keyboard
+                ? Binding("scoop.shift", "pilot.scoop", "direct", "keyboard.leftShift")
+                : Binding("scoop.sequence", "pilot.scoop", "sequence", "gamepad.dpad.down", "gamepad.dpad.right"));
+            bindings.Add(keyboard
+                ? Binding("dock.r", "pilot.dock", "direct", "keyboard.r")
+                : Binding("dock.sequence", "pilot.dock", "sequence", "gamepad.dpad.down", "gamepad.dpad.up"));
+            return bindings.ToArray();
+        }
+
+        public EveInputCapabilityDocument ToEveDocument() => new EveInputCapabilityDocument
+        {
+            ProviderId = ProviderId,
+            CapabilityId = CapabilityId,
+            Version = Version,
+            Actions = Actions.Select(action => new EveInputActionDocument
+            {
+                ActionId = action.ActionId,
+                Label = action.Label,
+                Operation = action.Operation,
+                Context = action.Context,
+                Category = action.Category,
+                Availability = action.Availability,
+                SourceRef = action.SourceRef,
+                Payload = new Dictionary<string, string>(action.Payload, StringComparer.Ordinal)
+            }).ToArray(),
+            DefaultProfiles = DefaultProfiles.Select(profile => new EveInputProfileDocument
+            {
+                ProfileId = profile.ProfileId,
+                DeviceClass = profile.DeviceClass,
+                Bindings = profile.Bindings.Select(binding => new EveInputBindingDocument
+                {
+                    BindingId = binding.BindingId,
+                    ActionId = binding.ActionId,
+                    ActionBar = binding.ActionBar,
+                    Gesture = new EveInputGestureDocument
+                    {
+                        Kind = binding.Gesture.Kind,
+                        Controls = binding.Gesture.Controls,
+                        MaxStepIntervalMs = binding.Gesture.MaxStepIntervalMs,
+                        CompletionControl = binding.Gesture.CompletionControl
+                    }
+                }).ToArray()
+            }).ToArray()
         };
 
         private static AetheriaRuntimeInputProfileDocument Profile(string id, string device, params AetheriaRuntimeInputBindingDocument[] bindings) => new AetheriaRuntimeInputProfileDocument { ProfileId = id, DeviceClass = device, Bindings = bindings };

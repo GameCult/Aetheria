@@ -76,7 +76,18 @@ namespace GameCult.Aetheria.State.Verse
                 layout.CreateDirtyRanges(count, generation),
                 backend: AetheriaRuntimeDaemonSoaBackends.MemoryMappedFile,
                 synchronizationMode: AetheriaRuntimeDaemonSoaSynchronizationModes.ImmutableFrame,
-                renderGroups: CreateRenderGroups(entities));
+                renderGroups: CreateRenderGroups(entities),
+                identities: entities.Select(entity => new AetheriaRuntimeDaemonSoaIdentityDocument
+                {
+                    EntityIndex = entity.EntityIndex,
+                    EntityId = entity.EntityId,
+                    Kind = entity.Kind,
+                    Label = entity.Name,
+                    Faction = entity.FactionKey,
+                    Selectable = true,
+                    Controllable = string.Equals(entity.EntityId, run.CurrentEntityKey, StringComparison.Ordinal),
+                    AssetRef = AetheriaRuntimeAssets.ResolveEntityPrefabAssetRef(entity)
+                }).ToArray());
 
             return view;
         }

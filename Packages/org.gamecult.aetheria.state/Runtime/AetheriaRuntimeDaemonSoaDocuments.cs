@@ -97,6 +97,10 @@ namespace GameCult.Aetheria.State.Verse
         public IReadOnlyList<AetheriaRuntimeDaemonRenderGroupDocument> RenderGroups { get; set; } =
             Array.Empty<AetheriaRuntimeDaemonRenderGroupDocument>();
 
+        [Key(13)]
+        public IReadOnlyList<AetheriaRuntimeDaemonSoaIdentityDocument> Identities { get; set; } =
+            Array.Empty<AetheriaRuntimeDaemonSoaIdentityDocument>();
+
         public static AetheriaRuntimeDaemonSoaViewDocument Create(
             string daemonId,
             string sessionId,
@@ -108,7 +112,8 @@ namespace GameCult.Aetheria.State.Verse
             string backend = AetheriaRuntimeDaemonSoaBackends.CultCache,
             string synchronizationMode = AetheriaRuntimeDaemonSoaSynchronizationModes.ImmutableFrame,
             bool isAuthoritative = true,
-            IReadOnlyList<AetheriaRuntimeDaemonRenderGroupDocument>? renderGroups = null)
+            IReadOnlyList<AetheriaRuntimeDaemonRenderGroupDocument>? renderGroups = null,
+            IReadOnlyList<AetheriaRuntimeDaemonSoaIdentityDocument>? identities = null)
         {
             return new AetheriaRuntimeDaemonSoaViewDocument
             {
@@ -125,9 +130,23 @@ namespace GameCult.Aetheria.State.Verse
                 Buffers = buffers ?? Array.Empty<AetheriaRuntimeDaemonSoaBufferDocument>(),
                 Columns = columns ?? Array.Empty<AetheriaRuntimeDaemonSoaColumnDocument>(),
                 DirtyRanges = dirtyRanges ?? Array.Empty<AetheriaRuntimeDaemonSoaDirtyRangeDocument>(),
-                RenderGroups = renderGroups ?? Array.Empty<AetheriaRuntimeDaemonRenderGroupDocument>()
+                RenderGroups = renderGroups ?? Array.Empty<AetheriaRuntimeDaemonRenderGroupDocument>(),
+                Identities = identities ?? Array.Empty<AetheriaRuntimeDaemonSoaIdentityDocument>()
             };
         }
+    }
+
+    [MessagePackObject]
+    public sealed class AetheriaRuntimeDaemonSoaIdentityDocument
+    {
+        [Key(0)] public int EntityIndex { get; set; } = -1;
+        [Key(1)] public string EntityId { get; set; } = "";
+        [Key(2)] public string Kind { get; set; } = "";
+        [Key(3)] public string Label { get; set; } = "";
+        [Key(4)] public string Faction { get; set; } = "";
+        [Key(5)] public bool Selectable { get; set; } = true;
+        [Key(6)] public bool Controllable { get; set; }
+        [Key(7)] public string AssetRef { get; set; } = "";
     }
 
     [MessagePackObject]

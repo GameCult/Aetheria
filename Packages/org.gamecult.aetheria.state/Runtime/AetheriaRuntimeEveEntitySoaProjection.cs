@@ -70,6 +70,18 @@ namespace GameCult.Aetheria.State.Verse
                         ShadowMode = group.ShadowMode,
                         ReceiveShadows = group.ReceiveShadows,
                         Lod = group.Lod
+                    }).ToArray(),
+                Identities = (source.Identities ?? Array.Empty<AetheriaRuntimeDaemonSoaIdentityDocument>())
+                    .Select(identity => new EveEntitySoaIdentity
+                    {
+                        EntityIndex = identity.EntityIndex,
+                        EntityId = identity.EntityId,
+                        Kind = identity.Kind,
+                        Label = identity.Label,
+                        Faction = identity.Faction,
+                        Selectable = identity.Selectable,
+                        Controllable = identity.Controllable,
+                        AssetRef = identity.AssetRef
                     }).ToArray()
             };
         }

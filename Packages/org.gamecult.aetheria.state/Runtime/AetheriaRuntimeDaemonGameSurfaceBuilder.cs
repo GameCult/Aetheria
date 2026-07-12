@@ -576,6 +576,7 @@ namespace GameCult.Aetheria.State.Verse
                 ["zoneRenderPointerId"] = AetheriaRuntimeVerseRecordKeys.ZoneRenderLatest.ToString(),
                 ["zoneRenderSchema"] = AetheriaRuntimeDaemonSchemas.ZoneRender,
                 ["assetManifest"] = AetheriaRuntimeVerseRecordKeys.EveAssetCatalog.ToString(),
+                ["inputCapability"] = AetheriaRuntimeVerseRecordKeys.PilotInputCapability.ToString(),
                 ["inputProfile"] = "arpg.pointer-keyboard.v1",
                 ["cameraRig"] = "arpg.orbital-follow.v1",
                 ["viewId"] = "pilot",
@@ -878,21 +879,7 @@ namespace GameCult.Aetheria.State.Verse
         }
 
         private static string PlayableWorldAssetRef(AetheriaRuntimeEntitySnapshotCommit entity)
-        {
-            if (entity == null)
-                return "";
-
-            var kind = (entity.Kind ?? "").Trim().ToLowerInvariant();
-            if (kind.Contains("station"))
-                return "prefab.entity.station";
-            if (kind.Contains("projectile"))
-                return "prefab.entity.projectile";
-            if (kind.Contains("orbital"))
-                return "prefab.entity.orbital";
-            if (string.Equals(entity.FactionKey, "player", StringComparison.OrdinalIgnoreCase))
-                return "prefab.entity.player";
-            return "prefab.entity.ship";
-        }
+            => AetheriaRuntimeAssets.ResolveEntityPrefabAssetRef(entity);
 
         private static double PlayableWorldRadius(AetheriaRuntimeEntitySnapshotCommit entity)
         {

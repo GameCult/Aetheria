@@ -8,6 +8,17 @@ namespace GameCult.Aetheria.State.Verse
 {
     public static class AetheriaRuntimeAssets
     {
+        public static string ResolveEntityPrefabAssetRef(AetheriaRuntimeEntitySnapshotCommit entity)
+        {
+            if (entity == null) return "";
+            var kind = (entity.Kind ?? "").Trim().ToLowerInvariant();
+            if (kind.Contains("station")) return "prefab.entity.station";
+            if (kind.Contains("projectile")) return "prefab.entity.projectile";
+            if (kind.Contains("orbital")) return "prefab.entity.orbital";
+            return string.Equals(entity.FactionKey, "player", StringComparison.OrdinalIgnoreCase)
+                ? "prefab.entity.player"
+                : "prefab.entity.ship";
+        }
         public static AetheriaRuntimeAssetManifestDocument ProjectManifest(
             AetheriaRuntimeCatalogSnapshot? catalog,
             string runId = "",
