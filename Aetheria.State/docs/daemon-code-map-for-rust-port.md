@@ -4,7 +4,7 @@ This is a map of the current C# daemon as a reference API to document, measure, 
 
 The rebuild target is a clean cross-runtime Aetheria surface: a Rust-native daemon and Ymir body, with useful abstractions hoisted into CultMesh/CultLib so typed state, operations, queries, native slices, authority, and UI state pointers are shared library primitives. Clients should feel like they are holding reactive, native Aetheria state, not hand-pulling snapshots, decoding array slots, reading local publication files, or building bespoke command packets.
 
-This also means Ymir needs a Rust body. Aetheria cannot become a Rust-native simulation daemon while physics remains a C# or Unity-shaped side service. The C# Ymir contracts and Unity bridge are useful reference material, but the rebuilt daemon needs Rust Ymir beside it as the authoritative physics library/service.
+This also means Ymir needs a Rust body. Aetheria cannot become a Rust-native simulation daemon while spatial computation remains a C# or Unity-shaped side service. The C# Ymir contracts and Unity bridge are useful reference material, but the rebuilt daemon needs an embedded Rust Ymir kernel behind its injected physics ports.
 
 ## Rebuild Doctrine
 
@@ -83,7 +83,7 @@ These files define the deprecated reference surface. They should be treated as A
 | Command application | `Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeDaemonOperations.cs` | Current meaning of every gameplay command and rejection. |
 | Tick composition | `Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeDaemonTickRunner.cs` | Current order of command filtering, operation execution, sim step, frame creation, publication payloads. |
 | Daemon sim | `Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeDaemonSimulation.cs` | Gameplay intents, hostile AI, combat meaning, heat, and projection of mandatory Ymir world results. |
-| Ymir world adapter | `Aetheria.State.Daemon/AetheriaYmirWorldPhysics.cs` | Entity bodies, radial fields, collision resolution, and authoritative position/velocity advancement. |
+| Ymir world adapter | `Aetheria.State.Daemon/AetheriaYmirWorldPhysics.cs` | Projects daemon state into Ymir and returns candidate body, field, contact, position, and velocity results for the daemon to commit. |
 | Game viewport documents | `Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeGameViewportDocuments.cs` | Existing map, object, gravity, selected object, docking, refit, sector, and inventory projections. |
 | Client facade | `Packages/org.gamecult.aetheria.state/Runtime/AetheriaClient.cs` | C# client observation and typed operation ergonomics. |
 | Verse client | `Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeVerseClient.cs` | Current lower-level typed document reads/watches and command submission. |
@@ -190,7 +190,8 @@ flowchart TD
 
     Verse --> State
     Ops --> State
-    State --> Ymir
+    State --> Sim
+    Sim --> Ymir
     Ymir --> Sim
     Sim --> State
     State --> Queries
@@ -212,7 +213,7 @@ Desired properties:
 - Unity receives native render views and typed state handles, not gameplay ownership.
 - Browser clients can run as observers, controllers, or simulation hosts depending on Verse authority configuration.
 - The daemon owns simulation and projections as state-native behavior, not as publication side effects.
-- Ymir owns physical truth in Rust: stepping, overlaps, casts, contacts, broadphase, and spatial query acceleration.
+- The Aetheria simulation owns committed physical truth and performs stepping, overlaps, casts, contacts, broadphase, and spatial-field computation through Rust Ymir.
 - CultMesh authority is explicit per Verse, with server-authoritative, trusted distributed, lease, quorum, and browser/WASM host structures remaining open.
 
 ## Ymir Rust Body
@@ -233,7 +234,7 @@ Rust Ymir should provide:
 
 - canonical `Vec2`, `Vec3`, `Rect`, `Circle`, `Sphere`, and body handles from CultMath-compatible primitives
 - deterministic step for Aetheria body motion
-- contacts and collision response for gameplay authority
+- contacts and collision response for the calling simulation transaction
 - `overlap_circle`, `cast_circle`, `overlap_sphere`, `cast_sphere`
 - viewport/intersection queries for gravity brushes and render/query visibility
 - sparse-cluster-friendly broadphase and spatial acceleration
@@ -251,7 +252,11 @@ let hits = ymir
     .collect();
 ```
 
-That is the bar. Unity can keep a bridge for click affordances and presentation, but physical truth belongs to Rust Ymir and is consumed by Aetheria through typed state/query handles.
+That is the bar. Unity can keep a bridge for click affordances and presentation,
+but committed physical truth belongs to the active Aetheria simulation
+authority. Its Rust daemon invokes Ymir through a narrow in-process port and
+commits the result in the same tick. A remote implementation may preserve that
+port, but must not create a parallel Aetheria world or writer.
 
 ## CultMesh Ergonomic Lessons
 

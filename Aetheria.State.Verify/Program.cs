@@ -614,7 +614,7 @@ Console.WriteLine("Verse settings shell: client target edits and Verse-host visi
 Console.WriteLine("Main-menu Verse document access: the Unity Eve shell composes daemon-owned verse identity from typed documents instead of ad-libbing local menu copy");
 Console.WriteLine("Unity observer authority: gameplay scenes restore daemon frames and do not tick local simulation");
 Console.WriteLine("Shared simulation authority: Zone/Entity/Agent ticks stay out of Unity gameplay callers");
-Console.WriteLine("Ymir physics authority: gameplay code uses Ymir queries and has no Unity collision callback fallback");
+Console.WriteLine("Ymir spatial kernel: authoritative gameplay physics uses Ymir computation and has no Unity collision callback fallback");
 Console.WriteLine("Runtime simulation tuning authority: UI sends daemon operations instead of local simulation mutation");
 Console.WriteLine("Hull conductivity authority: inventory UI sends daemon operations for toggles instead of checkpoint rewrites");
 Console.WriteLine("Inventory entity rename authority: UI sends daemon operations for renames instead of local graph edits");
@@ -17379,7 +17379,7 @@ static void RequireUnityPhysicsIsNotGameplayAuthority(string root)
     if (weaponCombatAuthorityHits.Length > 0)
     {
         throw new InvalidOperationException(
-            "Unity weapon effects are presentation only; combat damage, penetration, spread, and damage type belong to daemon/Ymir state: " +
+            "Unity weapon effects are presentation only; combat damage, penetration, spread, and damage type belong to daemon state: " +
             string.Join("; ", weaponCombatAuthorityHits));
     }
 

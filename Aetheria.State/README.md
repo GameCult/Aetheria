@@ -50,8 +50,9 @@ renderer-side commit authority.
 publishes `starting`, `running`, and `stopping` states through `Aetheria.State`;
 legacy outbox status remains operation telemetry, not daemon-session ownership.
 The daemon has one combat writer in `AetheriaRuntimeDaemonSimulation`.
-Projectile movement and contact are delegated to Ymir through the projectile
-physics port. Combat state remains in the native run/zone/entity snapshot graph;
+Projectile movement and contact are computed by Ymir through the injected
+physics port and committed by that same daemon writer. Combat state remains in
+the native run/zone/entity snapshot graph;
 there is no separate abstract combat save model or optional second writer.
 Unity Eve surfaces construct typed `gamecult.eve.command.v1` command documents.
 `AetheriaRuntimeVerseClient` is the shared CultMesh client boundary for

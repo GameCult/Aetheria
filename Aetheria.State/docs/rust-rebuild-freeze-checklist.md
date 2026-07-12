@@ -42,7 +42,8 @@ The first rebuild milestone is accepted only when the new architecture demonstra
 2. A TS client can submit typed operations through shared CultMesh operation handles without constructing command documents, record keys, or raw MessagePack payloads.
 3. A browser client can render map state by watching shared typed object/gravity query surfaces, not by reading local `.cc` files or duplicating projection code.
 4. A Unity client can consume a shared typed render view as native arrays without owning gameplay state or running Unity physics for authority.
-5. Rust Ymir owns physical truth for step, overlap, cast, contact, and broadphase queries.
+5. The Rust daemon owns committed physical truth and performs step, overlap,
+   cast, contact, and broadphase computation through embedded Rust Ymir.
 6. Eve/CultUI surfaces can bind to shared CultMesh state pointers and typed operations without manual state-ref resolver glue in client code.
 7. Authority policy is configured through shared CultMesh authority primitives and changes who may author claims without changing operation schemas.
 8. The API can run in native daemon mode and expose a WASM-compatible surface for browser simulation host mode.

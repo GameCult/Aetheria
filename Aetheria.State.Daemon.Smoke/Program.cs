@@ -2264,7 +2264,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         var (run, zone, target) = Scenario();
         var step = new AetheriaYmirPhysicalPayloadPhysics().Step(zone, zone.Entities, 0.1);
 
-        RequireEqual("ymir.core", new AetheriaYmirPhysicalPayloadPhysics().AuthorityId, "adapter must identify its owner");
+        RequireEqual("ymir.core", new AetheriaYmirPhysicalPayloadPhysics().ImplementationId, "adapter must identify its spatial implementation");
         RequireEqual(0, step.PhysicalPayloads.Count, "contacted projectile must not survive");
         RequireEqual(1, step.Hits.Count, "Ymir must report one projectile contact");
         RequireEqual(target.EntityIndex, step.Hits[0].TargetEntityIndex, "contact must resolve the daemon entity");

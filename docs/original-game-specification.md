@@ -38,7 +38,8 @@ rendering decisions, and player feedback that define Aetheria as a game. The
 target is behavioral parity through a different machine:
 
 - the Aetheria daemon owns game state and simulation decisions;
-- Ymir owns authoritative spatial physics and collision;
+- the Aetheria simulation owns committed physical state and computes spatial
+  integration, queries, and collision through Ymir;
 - Eve surfaces expose everything a client needs to understand and present;
 - EveUnity lowers those semantics into Unity rendering and interaction;
 - provider assets retain authored visual, audio, and material content;
@@ -400,7 +401,8 @@ different semantic commands, but neither owns a private copy of the world.
 ## Required Scenario Proofs
 
 1. **Flight:** launch Terminus, fly, turn, stop, exercise installed propulsion
-   actions, and collide; daemon/Ymir state and visible motion agree throughout.
+   actions, and collide; daemon-committed state and visible Ymir-computed motion
+   agree throughout.
 2. **Target and combat:** acquire a hostile, lock where required, fire each
    weapon family, observe effects and hit feedback, take return fire, and
    destroy the target.

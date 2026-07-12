@@ -580,7 +580,8 @@ Gates:
 The migration is MVP-complete when:
 
 - Aetheria daemon owns gameplay simulation state.
-- Ymir owns physics state and gameplay physics queries.
+- Aetheria owns committed physics state and performs gameplay physics queries
+  and integration through Ymir.
 - Unity is rendering/input focused.
 - RTS/Electron is a thin CultMesh client, not a parallel gameplay implementation.
 - Eve/CultUI surfaces use typed state pointers and typed operation handles.

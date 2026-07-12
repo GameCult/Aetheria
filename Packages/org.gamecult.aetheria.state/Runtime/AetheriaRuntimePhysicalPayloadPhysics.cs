@@ -7,7 +7,7 @@ namespace GameCult.Aetheria.State.Verse
 {
     public interface IAetheriaRuntimePhysicalPayloadPhysics
     {
-        string AuthorityId { get; }
+        string ImplementationId { get; }
 
         AetheriaRuntimePhysicalPayloadStep Step(
             AetheriaRuntimeZoneSnapshotCommit zone,
@@ -25,7 +25,7 @@ namespace GameCult.Aetheria.State.Verse
         {
         }
 
-        public string AuthorityId => "unavailable";
+        public string ImplementationId => "unavailable";
 
         public AetheriaRuntimePhysicalPayloadStep Step(
             AetheriaRuntimeZoneSnapshotCommit zone,

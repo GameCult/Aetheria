@@ -205,7 +205,8 @@ dexterity test that agents solve differently from humans.
 
 ## Ymir Boundary
 
-Ymir owns world geometry and kinematics. At commitment, the resolver may query
+The Aetheria simulation owns committed world geometry and kinematics and uses
+Ymir as its deterministic spatial kernel. At commitment, the resolver may invoke
 Ymir for relative transforms, motion, body bounds, occlusion, and line-of-fire
 constraints. Ordinary weapon damage does not wait for a projectile body to
 overlap a target.
@@ -213,15 +214,15 @@ overlap a target.
 Physical entities remain appropriate when their continued existence changes
 the world: mines, drones, interceptable missiles, torpedoes, debris, boarding
 craft, area fields, and recoverable or destructible payloads. Those objects are
-not exempt from deterministic fire-control receipts; Ymir owns their later
-motion and collision after launch.
+not exempt from deterministic fire-control receipts. Their later motion and
+collision are computed by Ymir and committed by the Aetheria simulation.
 
 For deployables, physics contact is evidence rather than consequence. Aetheria
 authors deployment, arming, trigger and detonation clocks, target eligibility,
 blast magnitude, damage, and event chronology. The injected Ymir implementation
-owns integration and overlap/contact facts. The production daemon currently
-embeds that implementation in-process; moving it across CultNet must not change
-either authority or the persisted state contract.
+computes integration and overlap/contact facts inside that transaction. The
+production daemon currently embeds it in-process; moving the computation across
+CultNet must not create another persisted world or change simulation authority.
 
 Mine lifetime and source-relative range expiry are also daemon-owned trigger
 causes. They enter the same detonation transaction as proximity triggers and

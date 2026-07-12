@@ -5563,7 +5563,7 @@ public class DaemonRuntimeDocumentTests
 
     private sealed class PassthroughPhysicalPayloadPhysics : IAetheriaRuntimePhysicalPayloadPhysics
     {
-        public string AuthorityId => "test.passthrough";
+        public string ImplementationId => "test.passthrough";
 
         public AetheriaRuntimePhysicalPayloadStep Step(
             AetheriaRuntimeZoneSnapshotCommit zone,
@@ -5579,7 +5579,7 @@ public class DaemonRuntimeDocumentTests
 
     private sealed class PassthroughWorldPhysics : IAetheriaRuntimeWorldPhysics
     {
-        public string AuthorityId => "test.world-passthrough";
+        public string ImplementationId => "test.world-passthrough";
 
         public AetheriaRuntimeWorldStep Step(AetheriaRuntimeZoneSnapshotCommit zone,
             IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities, double deltaSeconds)

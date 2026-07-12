@@ -12,7 +12,7 @@ public sealed class AetheriaYmirWorldPhysics : IAetheriaRuntimeWorldPhysics
     private const string PickupPrefix = "aetheria.daemon.pickup.";
     private readonly YmirSimulator _simulator;
     public AetheriaYmirWorldPhysics(YmirSimulator? simulator = null) => _simulator = simulator ?? new YmirSimulator();
-    public string AuthorityId => "ymir.core";
+    public string ImplementationId => "ymir.core";
 
     public AetheriaRuntimeWorldStep Step(AetheriaRuntimeZoneSnapshotCommit zone, IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities, double deltaSeconds)
     {

@@ -39,7 +39,8 @@ Aetheria daemon owns committed game state and rules.
 Inputs:
 The daemon may read typed CultCache/CultMesh documents, catalog data, authority
 policy, player/client operation documents, simulation clock input, deterministic
-generation seeds, asset manifests, and physics-service results.
+generation seeds and asset manifests. Its simulation transaction may invoke the
+embedded Ymir spatial kernel, but Ymir does not become a second state owner.
 
 Outputs:
 The daemon publishes typed state documents, committed facts, operation receipts,
@@ -70,6 +71,25 @@ Deletion line:
 Before adding new client behavior, delete or demote any path that lets a client
 invent gameplay state, reconstruct daemon-owned documents from broader frames,
 or patch missing Eve semantics with Aetheria-specific renderer code.
+
+## Spatial Kernel Boundary
+
+The active Aetheria simulation authority owns committed transforms, velocities,
+contacts that affect gameplay, and every consequence derived from them. All
+authoritative integration, overlap, cast, contact, broadphase, and spatial-field
+computation is performed through Ymir. In the production daemon Ymir is an
+embedded deterministic kernel, not an independently persistent Aetheria world.
+
+The daemon passes an explicit simulation slice to Ymir and commits the returned
+spatial facts as part of the same tick transaction. Ymir neither reads Aetheria
+state behind the daemon's back nor writes CultMesh documents of its own. Combat,
+docking, sensors, AI decisions, damage, inventory, triggers, and event chronology
+remain Aetheria rules even when they consume Ymir results.
+
+A remote Ymir host is an optional deployment of the same computation port. It
+does not earn state authority merely by crossing CultNet. Separate persistence
+or leases are justified only for a future shared spatial Verse with an explicit
+owner and lifecycle; they are not part of the Aetheria daemon contract.
 
 ## Current Mechanism
 

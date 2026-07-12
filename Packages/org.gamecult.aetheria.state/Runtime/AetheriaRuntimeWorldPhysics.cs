@@ -7,7 +7,7 @@ namespace GameCult.Aetheria.State.Verse
 {
     public interface IAetheriaRuntimeWorldPhysics
     {
-        string AuthorityId { get; }
+        string ImplementationId { get; }
         AetheriaRuntimeWorldStep Step(AetheriaRuntimeZoneSnapshotCommit zone, IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities, double deltaSeconds);
     }
 

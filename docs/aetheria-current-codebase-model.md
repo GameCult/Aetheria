@@ -150,7 +150,8 @@ Current Ymir control flow:
   tests can supply another deterministic implementation without changing game
   authority.
 - The daemon projects ships, pickups, fields, and explicitly physical payloads
-  into Ymir. Ymir owns integration, collision, and spatial contact facts.
+  into Ymir. Ymir computes integration, collision, and spatial contact results;
+  the daemon commits and interprets them in the same simulation transaction.
 - Ordinary direct, constant, and charged weapon fire resolves through
   deterministic shot receipts. It does not create a Ymir body or derive damage
   from collision.

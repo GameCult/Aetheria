@@ -14,7 +14,7 @@ public sealed class AetheriaYmirPhysicalPayloadPhysics : IAetheriaRuntimePhysica
         _simulator = simulator ?? new YmirSimulator();
     }
 
-    public string AuthorityId => "ymir.core";
+    public string ImplementationId => "ymir.core";
 
     public AetheriaRuntimePhysicalPayloadStep Step(
         AetheriaRuntimeZoneSnapshotCommit zone,
