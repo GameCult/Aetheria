@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using Aetheria.State;
 using Aetheria.State.Documents;
 using Aetheria.State.Migration;
+using GameCult.Aetheria.State.Verse;
 using MessagePack;
 
 var root = args.Length > 0 ? Path.GetFullPath(args[0]) : Directory.GetCurrentDirectory();
@@ -13,17 +14,25 @@ var outputStatePath = Path.GetRelativePath(root, statePath).Replace('\\', '/');
 
 var gameData = Path.Combine(root, "GameData");
 var catalogPath = Path.Combine(gameData, "AetherDB.msgpack");
+var supplementalCatalogPath = Path.Combine(gameData, "Legacy", "AetherDB.2021-03-05.msgpack");
 var nameFilesRoot = Path.Combine(gameData, "NameFile");
 var capturedAtUtc = DateTimeOffset.UtcNow.ToString("O");
 
 var catalog = CaptureFile(root, catalogPath);
+var supplementalCatalog = CaptureFile(root, supplementalCatalogPath);
 var nameFiles = Directory.Exists(nameFilesRoot)
     ? Directory.EnumerateFiles(nameFilesRoot, "*.msgpack", SearchOption.TopDirectoryOnly)
         .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
         .Select(path => CaptureFile(root, path))
         .ToArray()
     : [];
-var entries = LegacyCatalogReader.Read(catalogPath);
+var currentEntries = LegacyCatalogReader.Read(catalogPath);
+var currentLegacyIds = currentEntries.Select(entry => entry.Summary.LegacyId).ToHashSet(StringComparer.Ordinal);
+var supplementalMineEntries = LegacyCatalogReader.Read(supplementalCatalogPath)
+    .Where(entry => entry.ItemDefinition != null && IsMineItem(entry.ItemDefinition))
+    .Where(entry => !currentLegacyIds.Contains(entry.Summary.LegacyId))
+    .ToArray();
+var entries = currentEntries.Concat(supplementalMineEntries).ToArray();
 var nameFileEntries = Directory.Exists(nameFilesRoot)
     ? Directory.EnumerateFiles(nameFilesRoot, "*.msgpack", SearchOption.TopDirectoryOnly)
         .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
@@ -32,7 +41,7 @@ var nameFileEntries = Directory.Exists(nameFilesRoot)
     : [];
 var itemDefinitions = entries
     .Where(entry => entry.ItemDefinition != null)
-    .Select(entry => entry.ItemDefinition!)
+    .Select(entry => ProjectDeployableWeapon(entry.ItemDefinition!))
     .ToArray();
 var corporations = entries
     .Where(entry => entry.Corporation != null)
@@ -42,6 +51,97 @@ var parsedNameFiles = entries.Concat(nameFileEntries)
     .Where(entry => entry.NameFile != null)
     .Select(entry => entry.NameFile!)
     .ToArray();
+
+static AetheriaItemDefinition ProjectDeployableWeapon(AetheriaItemDefinition item)
+{
+    if (!IsMineItem(item))
+        return item;
+
+    item.WeaponType = "Mine";
+    item.BehaviorPayloads = (item.BehaviorPayloads ?? [])
+        .Select(behavior => string.Equals(behavior.Kind, "InstantWeapon", StringComparison.Ordinal)
+            ? new AetheriaBehaviorPayload
+            {
+                UnionKey = behavior.UnionKey,
+                Kind = "DeployableWeapon",
+                Group = behavior.Group,
+                Fields = behavior.Fields
+                    .Where(field => field.Key < 26 || field.Key > 30)
+                    .Concat([
+                        NumberBehaviorField(26, 2),
+                        NumberBehaviorField(27, 30),
+                        PerformanceBehaviorField(28, 25),
+                        NumberBehaviorField(29, 2),
+                        PerformanceBehaviorField(30, 25)
+                    ])
+                    .OrderBy(field => field.Key)
+                    .ToArray()
+            }
+            : behavior)
+        .ToArray();
+    item.BehaviorKinds = item.BehaviorPayloads
+        .Select(behavior => behavior.Kind)
+        .Distinct(StringComparer.Ordinal)
+        .OrderBy(kind => kind, StringComparer.Ordinal)
+        .ToArray();
+    item.BehaviorCount = item.BehaviorPayloads.Length;
+    item.Tags = (item.Tags ?? [])
+        .Where(tag => !string.Equals(tag, "behavior:InstantWeapon", StringComparison.Ordinal))
+        .Concat(["behavior:DeployableWeapon"])
+        .Distinct(StringComparer.Ordinal)
+        .ToArray();
+    return item;
+}
+
+static bool IsMineItem(AetheriaItemDefinition item)
+{
+    var hasMineEffect = (item.BehaviorPayloads ?? []).Any(behavior =>
+        string.Equals(behavior.Kind, "InstantWeapon", StringComparison.Ordinal) &&
+        behavior.Fields.Any(field => field.Key == 8 &&
+            field.Value.StringValue.EndsWith("/Mine Launcher.prefab", StringComparison.OrdinalIgnoreCase)));
+    return string.Equals(item.WeaponType, "Mine", StringComparison.Ordinal) || hasMineEffect;
+}
+
+static AetheriaBehaviorField NumberBehaviorField(int key, double value) => new()
+{
+    Key = key,
+    Value = new AetheriaBehaviorValue { Kind = "number", NumberValue = value }
+};
+
+static AetheriaBehaviorField PerformanceBehaviorField(int key, double value) => new()
+{
+    Key = key,
+    Value = new AetheriaBehaviorValue
+    {
+        Kind = "performance-stat",
+        Children =
+        [
+            new AetheriaBehaviorValue { Kind = "number", NumberValue = value },
+            new AetheriaBehaviorValue { Kind = "number", NumberValue = value },
+            new AetheriaBehaviorValue { Kind = "number" },
+            new AetheriaBehaviorValue { Kind = "number" },
+            new AetheriaBehaviorValue { Kind = "number" }
+        ]
+    }
+};
+
+if (args.Any(argument => string.Equals(argument, "--merge-mine", StringComparison.Ordinal)))
+{
+    var mine = itemDefinitions.SingleOrDefault(item => string.Equals(item.WeaponType, "Mine", StringComparison.Ordinal))
+        ?? throw new InvalidDataException("Supplemental catalog did not contain the recovered Mine Launcher item.");
+    await using var mergeNode = await AetheriaStateNode.OpenAsync(statePath, "aetheria-mine-catalog-merge");
+    await mergeNode.MutableDocument<AetheriaItemDefinition>(AetheriaCatalogKeys.ItemDefinitionFromLegacyId(mine.LegacyId))
+        .ReplaceAsync(mine);
+    await mergeNode.FlushAsync();
+    var merged = await mergeNode.RuntimeCatalog().LatestAsync().ConfigureAwait(false);
+    var mergedMine = merged.FindItem(mine.ItemKey);
+    if (mergedMine == null || !mergedMine.BehaviorPayloads.Any(behavior =>
+            string.Equals(behavior.Kind, "DeployableWeapon", StringComparison.Ordinal)))
+        throw new InvalidDataException("Mine Launcher merge did not become visible through the runtime catalog.");
+    Console.WriteLine($"Merged Mine Launcher into typed state: {statePath}");
+    Console.WriteLine($"Item: {mine.ItemKey}");
+    return;
+}
 
 ResetMaterializedStateOutput(statePath);
 
@@ -56,10 +156,12 @@ await node.MutableDocument<AetheriaLegacyCatalogQuarantine>(AetheriaStateNode.Le
     CatalogFingerprint = catalog.Fingerprint,
     CatalogBytes = catalog.Bytes,
     NameFiles = nameFiles,
+    SupplementalCatalogFiles = supplementalCatalog.Bytes > 0 ? [supplementalCatalog] : [],
     Notes =
     [
         "This document quarantines legacy catalog file facts and records the bounded raw payload mapping pass. It does not grant old MessagePack files runtime state authority.",
-        "AetherDB.msgpack and NameFile/*.msgpack remain migration inputs until Unity runtime reads typed Aetheria catalog documents directly."
+        "AetherDB.msgpack and NameFile/*.msgpack remain migration inputs until Unity runtime reads typed Aetheria catalog documents directly.",
+        "The 2021-03-05 supplemental catalog contributes only the missing Mine Launcher item and remains quarantined provenance, not runtime authority."
     ]
 });
 
@@ -131,6 +233,21 @@ foreach (var nameFile in parsedNameFiles)
 
 await node.FlushAsync();
 var runtimeCatalog = await node.RuntimeCatalog().LatestAsync().ConfigureAwait(false);
+var runtimeMines = runtimeCatalog.Items
+    .Where(item => string.Equals(item.WeaponType, "Mine", StringComparison.Ordinal))
+    .ToArray();
+if (runtimeMines.Any(item => !item.BehaviorPayloads.Any(behavior =>
+        string.Equals(behavior.Kind, "DeployableWeapon", StringComparison.Ordinal) &&
+        HasNumber(behavior, 26, 2) &&
+        HasNumber(behavior, 27, 30) &&
+        HasPerformanceStat(behavior, 28, 25) &&
+        HasNumber(behavior, 29, 2) &&
+        HasPerformanceStat(behavior, 30, 25))))
+{
+    var diagnostic = string.Join("; ", runtimeMines.Select(item =>
+        $"{item.Name} [{string.Join(",", item.BehaviorPayloads.Select(behavior => behavior.Kind + ":" + string.Join("/", behavior.Fields.Select(field => field.Key))))}]"));
+    throw new InvalidDataException($"Mine catalog import did not preserve the canonical deployable lifecycle: {diagnostic}");
+}
 await node.MutableDocument<AetheriaTradeValuePolicy>(AetheriaStateNode.TradeValuePolicyKey)
     .ReplaceAsync(AetheriaRuntimeStateMapper.ToTradeValuePolicy(
         runtimeCatalog.TradeValueSettings,
@@ -146,6 +263,18 @@ Console.WriteLine($"Name files: {nameFiles.Length}");
 Console.WriteLine($"Mapped items: {itemDefinitions.Length}");
 Console.WriteLine($"Mapped factions: {corporations.Length}");
 Console.WriteLine($"Mapped name files: {parsedNameFiles.Length}");
+Console.WriteLine($"Mapped mine weapons: {string.Join(", ", runtimeMines.Select(item => item.Name + " (" + item.ItemKey + ")"))}");
+
+static bool HasNumber(AetheriaRuntimeBehaviorPayload behavior, int key, double expected) =>
+    behavior.Fields.Any(field => field.Key == key && Math.Abs(field.Value.NumberValue - expected) < 0.000001);
+
+static bool HasPerformanceStat(AetheriaRuntimeBehaviorPayload behavior, int key, double expected)
+{
+    var field = behavior.Fields.FirstOrDefault(candidate => candidate.Key == key);
+    return field?.Value.Children.Count >= 2 &&
+        Math.Abs(field.Value.Children[0].NumberValue - expected) < 0.000001 &&
+        Math.Abs(field.Value.Children[1].NumberValue - expected) < 0.000001;
+}
 
 static AetheriaLegacyCatalogFile CaptureFile(string root, string path)
 {

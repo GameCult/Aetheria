@@ -163,6 +163,11 @@ owns integration and overlap/contact facts. The production daemon currently
 embeds that implementation in-process; moving it across CultNet must not change
 either authority or the persisted state contract.
 
+Mine lifetime and source-relative range expiry are also daemon-owned trigger
+causes. They enter the same detonation transaction as proximity triggers and
+retain their reason in the event chronology. Ymir movement happens before the
+range check, matching the original simulation ordering.
+
 ## Eve Presentation
 
 Eve receives:

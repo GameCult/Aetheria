@@ -32,6 +32,9 @@ public sealed class AetheriaLegacyCatalogQuarantine
 
     [Key(7)]
     public string[] Notes { get; set; } = [];
+
+    [Key(8)]
+    public AetheriaLegacyCatalogFile[] SupplementalCatalogFiles { get; set; } = [];
 }
 
 [MessagePackObject]

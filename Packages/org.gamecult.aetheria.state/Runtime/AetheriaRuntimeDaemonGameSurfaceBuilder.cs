@@ -293,7 +293,7 @@ namespace GameCult.Aetheria.State.Verse
                         ("targetEntityIndex", value.TargetEntityIndex.ToString(CultureInfo.InvariantCulture)),
                         ("pickupIndex", value.PickupIndex.ToString(CultureInfo.InvariantCulture)),
                         ("itemKey", value.ItemKey), ("scalarValue", FormatNumber(value.ScalarValue)),
-                        ("subjectKey", value.SubjectKey),
+                        ("subjectKey", value.SubjectKey), ("reason", value.Reason),
                         ("position", string.Join(",", new[] { FormatNumber(value.PositionX), FormatNumber(value.PositionZ) })),
                         ("currentFrameId", frameId.ToString(CultureInfo.InvariantCulture))
                     }))
@@ -783,7 +783,9 @@ namespace GameCult.Aetheria.State.Verse
                 ["payloadKind"] = projectile.PayloadKind ?? "",
                 ["label"] = projectile.PayloadKind ?? "Projectile",
                 ["faction"] = "",
-                ["assetRef"] = "prefab.entity.projectile",
+                ["assetRef"] = string.Equals(projectile.PayloadKind, "mine", StringComparison.Ordinal)
+                    ? "prefab.entity.mine"
+                    : "prefab.entity.projectile",
                 ["position"] = string.Join(",", new[]
                 {
                     projectile.PositionX.ToString("0.###", CultureInfo.InvariantCulture),
@@ -806,6 +808,16 @@ namespace GameCult.Aetheria.State.Verse
                 ["blastRadius"] = FormatNumber(projectile.BlastRadius),
                 ["payloadMagnitude"] = FormatNumber(projectile.PayloadMagnitude),
                 ["stationary"] = projectile.Stationary ? "true" : "false",
+                ["maximumSourceDistance"] = FormatNumber(projectile.MaximumSourceDistance),
+                ["weaponItemKey"] = projectile.WeaponItemKey ?? "",
+                ["triggerReason"] = projectile.TriggerReason ?? "",
+                ["presentationState"] = projectile.TriggeredAtSeconds >= 0
+                    ? "triggered"
+                    : projectile.AgeSeconds >= projectile.ActivationDelaySeconds ? "active" : "deploying",
+                ["activePulseSeconds"] = "1",
+                ["triggeredPulseSeconds"] = "0.25",
+                ["activeEmission"] = "100",
+                ["triggeredEmission"] = "1000",
                 ["selectable"] = "false",
                 ["controllable"] = "false"
             };

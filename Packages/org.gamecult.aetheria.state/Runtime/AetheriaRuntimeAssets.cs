@@ -28,6 +28,7 @@ namespace GameCult.Aetheria.State.Verse
             Add(entries, MapPrefab("prefab.entity.orbital", "Orbital", "Prefabs/Stations/Zenith", "orbital"));
             Add(entries, MapPrefab("prefab.effect.shot.bolt", "Bolt", "Prefabs/Lightning", "effect.shot.bolt"));
             Add(entries, MapProjectPrefab("prefab.entity.pickup", "Pickup", "Assets/Prefabs/RPG/Pickups/Tetrahedron.prefab"));
+            Add(entries, MinePrefab());
             foreach (var inventoryAsset in InventoryUiAssets())
                 Add(entries, inventoryAsset);
 
@@ -198,6 +199,23 @@ namespace GameCult.Aetheria.State.Verse
                 },
                 Tags = new[] { "world", "prefab", label }
             };
+        }
+
+        private static AetheriaRuntimeAssetManifestEntry MinePrefab()
+        {
+            var entry = MapProjectPrefab(
+                "prefab.entity.mine",
+                "Mine",
+                "Assets/Prefabs/RPG/Effects/Mine.prefab");
+            entry.Ref.Metadata = new Dictionary<string, string>(entry.Ref.Metadata, StringComparer.Ordinal)
+            {
+                ["presentationRole"] = "physical-payload.mine",
+                ["activePulseSeconds"] = "1",
+                ["triggeredPulseSeconds"] = "0.25",
+                ["activeEmission"] = "100",
+                ["triggeredEmission"] = "1000"
+            };
+            return entry;
         }
 
         private static AetheriaRuntimeAssetRef Sprite(string key, string resourcePath)

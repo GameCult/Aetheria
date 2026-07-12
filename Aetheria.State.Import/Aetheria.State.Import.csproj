@@ -9,5 +9,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Aetheria.State\Aetheria.State.csproj" />
+    <ProjectReference Include="..\..\EvePlugins\plugins\eve-plugin-fields\GameCult.Eve.PluginFields.csproj" />
   </ItemGroup>
 </Project>

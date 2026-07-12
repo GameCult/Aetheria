@@ -17110,7 +17110,10 @@ static void RequireUnityPhysicsIsNotGameplayAuthority(string root)
         Path.Combine(root, "Assets", "Scripts", "Gameplay", "Weapons", "ConstantLightningManager.cs"),
         Path.Combine(root, "Assets", "Scripts", "Gameplay", "Weapons", "ConstantParticleWeapon.cs"),
         Path.Combine(root, "Assets", "Scripts", "Gameplay", "Weapons", "ConstantParticleWeaponManager.cs"),
-        Path.Combine(root, "Assets", "Scripts", "Gameplay", "Weapons", "ConstantWeaponEffectManager.cs")
+        Path.Combine(root, "Assets", "Scripts", "Gameplay", "Weapons", "ConstantWeaponEffectManager.cs"),
+        Path.Combine(root, "Assets", "Scripts", "Gameplay", "Weapons", "InstantWeaponEffectManager.cs"),
+        Path.Combine(root, "Assets", "Scripts", "Gameplay", "Weapons", "Mine.cs"),
+        Path.Combine(root, "Assets", "Scripts", "Gameplay", "Weapons", "MineManager.cs")
     };
     var survivingUnityProjectileAuthority = forbiddenUnityProjectileAuthorityPaths
         .Where(File.Exists)

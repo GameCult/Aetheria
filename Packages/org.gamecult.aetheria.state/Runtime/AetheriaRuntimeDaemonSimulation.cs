@@ -342,6 +342,7 @@ namespace GameCult.Aetheria.State.Verse
                     Array.Empty<AetheriaRuntimePhysicalPayloadHit>())
                 : physicalPayloadPhysics.Step(zone, entities, deltaSeconds);
             zone.PhysicalPayloads = projectileStep.PhysicalPayloads;
+            TriggerExpiredDeployables(run, zone, byIndex, frameId, simulationTimeSeconds);
             foreach (var hit in projectileStep.Hits)
             {
                 if (byIndex.TryGetValue(hit.TargetEntityIndex, out var target))
@@ -352,7 +353,8 @@ namespace GameCult.Aetheria.State.Verse
                         hit.Payload.TriggeredAtSeconds < 0)
                     {
                         hit.Payload.TriggeredAtSeconds = simulationTimeSeconds;
-                        AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit { EventId = $"physical-payload:{hit.Payload.PayloadId}:triggered", Kind = "deployable.triggered", FrameId = frameId, ZoneIndex = zone.ZoneIndex, SourceEntityIndex = hit.Payload.SourceEntityIndex, TargetEntityIndex = target.EntityIndex, SubjectKey = hit.Payload.PayloadId, ItemKey = hit.Payload.PayloadKind, PositionX = hit.Payload.PositionX, PositionZ = hit.Payload.PositionZ });
+                        hit.Payload.TriggerReason = "proximity";
+                        AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit { EventId = $"physical-payload:{hit.Payload.PayloadId}:triggered", Kind = "deployable.triggered", FrameId = frameId, ZoneIndex = zone.ZoneIndex, SourceEntityIndex = hit.Payload.SourceEntityIndex, TargetEntityIndex = target.EntityIndex, SubjectKey = hit.Payload.PayloadId, ItemKey = hit.Payload.WeaponItemKey, PositionX = hit.Payload.PositionX, PositionZ = hit.Payload.PositionZ });
                     }
                 }
             }
@@ -417,7 +419,9 @@ namespace GameCult.Aetheria.State.Verse
                     TriggerRadius = deployable.TriggerRadius,
                     DetonationDelaySeconds = deployable.DetonationDelaySeconds,
                     BlastRadius = deployable.BlastRadius,
-                    PayloadMagnitude = weapon.Damage
+                    PayloadMagnitude = weapon.Damage,
+                    MaximumSourceDistance = weapon.Range,
+                    WeaponItemKey = weapon.ItemKey
                 });
                 zone.PhysicalPayloads = payloads;
                 weapon.State.Firing = true;
@@ -453,7 +457,7 @@ namespace GameCult.Aetheria.State.Verse
                     if (dx * dx + dz * dz > payload.BlastRadius * payload.BlastRadius) continue;
                     Damage(target, payload.PayloadMagnitude);
                 }
-                AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit { EventId = $"physical-payload:{payload.PayloadId}:detonated", Kind = "deployable.detonated", FrameId = frameId, ZoneIndex = zone.ZoneIndex, SourceEntityIndex = payload.SourceEntityIndex, SubjectKey = payload.PayloadId, ItemKey = payload.PayloadKind, ScalarValue = payload.PayloadMagnitude, PositionX = payload.PositionX, PositionZ = payload.PositionZ });
+                AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit { EventId = $"physical-payload:{payload.PayloadId}:detonated", Kind = "deployable.detonated", FrameId = frameId, ZoneIndex = zone.ZoneIndex, SourceEntityIndex = payload.SourceEntityIndex, SubjectKey = payload.PayloadId, ItemKey = payload.WeaponItemKey, Reason = payload.TriggerReason, ScalarValue = payload.PayloadMagnitude, PositionX = payload.PositionX, PositionZ = payload.PositionZ });
             }
             zone.PhysicalPayloads = survivors;
         }
@@ -877,8 +881,11 @@ namespace GameCult.Aetheria.State.Verse
                     continue;
 
                 projectile.AgeSeconds += deltaSeconds;
-                if (projectile.AgeSeconds >= projectile.LifetimeSeconds)
+                if (!string.Equals(projectile.PayloadKind, "mine", StringComparison.Ordinal) &&
+                    projectile.AgeSeconds >= projectile.LifetimeSeconds)
+                {
                     continue;
+                }
 
                 if (string.Equals(projectile.PayloadKind, "mine", StringComparison.Ordinal) &&
                     projectile.AgeSeconds >= projectile.ActivationDelaySeconds)
@@ -900,6 +907,56 @@ namespace GameCult.Aetheria.State.Verse
                 active.Add(projectile);
             }
             zone.PhysicalPayloads = active;
+        }
+
+        private static void TriggerExpiredDeployables(
+            AetheriaRuntimeRunCheckpointCommit run,
+            AetheriaRuntimeZoneSnapshotCommit zone,
+            IReadOnlyDictionary<int, AetheriaRuntimeEntitySnapshotCommit> entities,
+            long frameId,
+            double simulationTimeSeconds)
+        {
+            foreach (var payload in zone.PhysicalPayloads ?? Array.Empty<AetheriaRuntimePhysicalPayloadCommit>())
+            {
+                if (!string.Equals(payload.PayloadKind, "mine", StringComparison.Ordinal) ||
+                    payload.TriggeredAtSeconds >= 0)
+                    continue;
+
+                var expired = payload.AgeSeconds >= payload.LifetimeSeconds;
+                var outOfRange = payload.MaximumSourceDistance > 0 &&
+                    entities.TryGetValue(payload.SourceEntityIndex, out var source) &&
+                    PositionDistanceSq(payload.PositionX, payload.PositionZ, source.PositionX, source.PositionZ) >
+                        payload.MaximumSourceDistance * payload.MaximumSourceDistance;
+                if (!expired && !outOfRange)
+                    continue;
+
+                payload.TriggeredAtSeconds = simulationTimeSeconds;
+                payload.DetonationDelaySeconds = 0;
+                payload.TriggerReason = expired ? "lifetime" : "range";
+                payload.Stationary = true;
+                payload.VelocityX = 0;
+                payload.VelocityY = 0;
+                AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit
+                {
+                    EventId = $"physical-payload:{payload.PayloadId}:expired",
+                    Kind = "deployable.expired",
+                    FrameId = frameId,
+                    ZoneIndex = zone.ZoneIndex,
+                    SourceEntityIndex = payload.SourceEntityIndex,
+                    SubjectKey = payload.PayloadId,
+                    ItemKey = payload.WeaponItemKey,
+                    Reason = payload.TriggerReason,
+                    PositionX = payload.PositionX,
+                    PositionZ = payload.PositionZ
+                });
+            }
+        }
+
+        private static double PositionDistanceSq(double leftX, double leftZ, double rightX, double rightZ)
+        {
+            var dx = leftX - rightX;
+            var dz = leftZ - rightZ;
+            return dx * dx + dz * dz;
         }
 
         private static void GuidePhysicalPayload(

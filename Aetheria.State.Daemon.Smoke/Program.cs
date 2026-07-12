@@ -15,6 +15,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         ChargedWeaponCannotBypassChargeLifecycle();
         ChargedWeaponHoldRiskMalfunctionsDeterministically();
         DeployableWeaponRunsThroughYmirAndDetonatesOnDaemon();
+        DeployableRangeExpiryDetonatesAfterYmirMovement();
+        CanonicalCatalogPublishesRecoveredMineLauncher();
         DaemonSimulationTreatsYmirHitAsPresentationOnly();
         ProjectileContactCannotKill();
         MissingPhysicsOwnerCannotAdvanceProjectiles();
@@ -240,7 +242,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         var payload = new AetheriaRuntimeBehaviorPayload(0, AetheriaRuntimeBehaviorKinds.DeployableWeapon, 0,
         [
             new AetheriaRuntimeBehaviorField(2, PerformanceStat(35)),
-            new AetheriaRuntimeBehaviorField(6, PerformanceStat(10)),
+            new AetheriaRuntimeBehaviorField(6, PerformanceStat(100)),
+            new AetheriaRuntimeBehaviorField(16, PerformanceStat(10)),
             new AetheriaRuntimeBehaviorField(17, PerformanceStat(1)),
             new AetheriaRuntimeBehaviorField(19, PerformanceStat(1)),
             new AetheriaRuntimeBehaviorField(26, Number(0.2)),
@@ -299,6 +302,77 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             "Aetheria must apply authored blast damage after the delay");
         Require(run.GameEvents.Count(value => value.Kind == "deployable.detonated") == 1,
             "daemon must publish one authoritative detonation event");
+    }
+
+    private static void DeployableRangeExpiryDetonatesAfterYmirMovement()
+    {
+        var source = Entity(0, -50, "player");
+        var target = Entity(1, 35, "neutral");
+        var zone = new AetheriaRuntimeZoneSnapshotCommit
+        {
+            ZoneIndex = 0,
+            Entities = [source, target],
+            PhysicalPayloads = [new AetheriaRuntimePhysicalPayloadCommit
+            {
+                PayloadId = "range-expiry-mine",
+                PayloadKind = "mine",
+                WeaponItemKey = "canonical-mine",
+                SourceEntityIndex = source.EntityIndex,
+                PositionX = 5,
+                VelocityX = 20,
+                Radius = 1,
+                ActivationDelaySeconds = 10,
+                LifetimeSeconds = 30,
+                MaximumSourceDistance = 6,
+                BlastRadius = 50,
+                PayloadMagnitude = 15,
+                TriggeredAtSeconds = -1,
+                Active = true
+            }]
+        };
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "range-expiry-smoke", CurrentZoneIndex = 0,
+            CurrentEntityKey = "zone.0.entity.0", Zones = [zone]
+        };
+
+        AetheriaRuntimeDaemonSimulation.Step(run, new AetheriaRuntimeDaemonIntentState(), 0.1,
+            AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
+            new AetheriaYmirPhysicalPayloadPhysics(), new AetheriaYmirWorldPhysics(), frameId: 4,
+            simulationTimeSeconds: 0.1);
+
+        RequireEqual(0, zone.PhysicalPayloads.Count,
+            "mine crossing source-relative range after Ymir movement must detonate in the same tick");
+        RequireNear(85, Stat(target, "hull"), 0.000001,
+            "range expiry must preserve the fossil splash consequence");
+        Require(run.GameEvents.Any(value => value.Kind == "deployable.expired" &&
+                value.Reason == "range" && value.ItemKey == "canonical-mine"),
+            "daemon must explain range-triggered expiry with stable item identity");
+        Require(run.GameEvents.Any(value => value.Kind == "deployable.detonated" &&
+                value.Reason == "range" && value.ItemKey == "canonical-mine"),
+            "range expiry must flow through the shared detonation transaction");
+    }
+
+    private static void CanonicalCatalogPublishesRecoveredMineLauncher()
+    {
+        var catalog = AetheriaRuntimeCatalogStore.OpenReadOnly(
+            Path.Combine(Directory.GetCurrentDirectory(), "GameData", "aetheria-world.cc"));
+        var mine = catalog.Items.Single(item =>
+            item.ItemKey == "aetheria.item_definition:legacy:e78d3670-3ac6-4d9b-834c-1da4228ac311");
+        RequireEqual("Mine Launcher", mine.Name, "recovered item must retain fossil identity");
+        RequireEqual("Mine", mine.WeaponType, "recovered item must publish normalized semantic weapon type");
+        var behavior = mine.BehaviorPayloads.Single(value =>
+            value.Kind == AetheriaRuntimeBehaviorKinds.DeployableWeapon);
+        RequireNear(2, behavior.Fields.Single(field => field.Key == 26).Value.NumberValue, 0.000001,
+            "catalog mine must retain two-second activation delay");
+        RequireNear(30, behavior.Fields.Single(field => field.Key == 27).Value.NumberValue, 0.000001,
+            "catalog mine must retain thirty-second lifetime");
+        var manifest = AetheriaRuntimeAssets.ProjectManifest(catalog);
+        var asset = manifest.Assets.Single(value => value.Ref.AssetKey == "prefab.entity.mine");
+        RequireEqual("physical-payload.mine", asset.Ref.Metadata["presentationRole"],
+            "provider must advertise the script-free mine presentation role");
+        RequireEqual("0.25", asset.Ref.Metadata["triggeredPulseSeconds"],
+            "mine presentation must retain the fossil triggered pulse cadence");
     }
 
     private static void ChargedWeaponHoldRiskMalfunctionsDeterministically()

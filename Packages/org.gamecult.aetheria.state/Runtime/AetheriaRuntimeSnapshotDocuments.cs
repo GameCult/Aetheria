@@ -450,6 +450,7 @@ namespace GameCult.Aetheria.State.Verse
         [Key(9)] public string SubjectKey { get; set; } = "";
         [Key(10)] public double PositionX { get; set; }
         [Key(11)] public double PositionZ { get; set; }
+        [Key(12)] public string Reason { get; set; } = "";
     }
 
     [MessagePackObject]
@@ -631,6 +632,9 @@ namespace GameCult.Aetheria.State.Verse
         [Key(22)] public double BlastRadius { get; set; }
         [Key(23)] public double PayloadMagnitude { get; set; }
         [Key(24)] public bool Stationary { get; set; }
+        [Key(25)] public double MaximumSourceDistance { get; set; }
+        [Key(26)] public string WeaponItemKey { get; set; } = "";
+        [Key(27)] public string TriggerReason { get; set; } = "";
     }
 
     [MessagePackObject]

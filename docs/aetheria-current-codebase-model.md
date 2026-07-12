@@ -181,11 +181,14 @@ Remaining debt:
 - Clickable raycasts still construct query bodies from Unity click bounds. That
   is presentation picking, not simulation authority, but it should stay clearly
   labeled as renderer/UI picking.
-- The fossil `Mine`, `MineManager`, and `InstantWeaponEffectManager` remain as
-  one serialized bundle on `Mine Launcher.prefab`. Replace that prefab's
-  runtime script component with a provider-owned presentation asset and migrate
-  its real catalog behavior before deleting the bundle; deleting the scripts
-  alone would merely manufacture a missing Unity component.
+- The original `Mine Launcher` item was recovered from the quarantined
+  2021-03-05 catalog by stable legacy ID, normalized from its historical effect
+  reference to `DeployableWeapon`, and merged into canonical typed provider
+  state. The supplemental MessagePack file is migration provenance only.
+- `Mine`, `MineManager`, `InstantWeaponEffectManager`, and their serialized
+  launcher prefab are deleted. A script-free provider prefab supplies the
+  original mesh/materials. Eve publishes lifecycle and pulse properties;
+  EveUnity generically lowers those semantic properties to material emission.
 
 ## Gravity Terrain
 
