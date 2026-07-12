@@ -340,6 +340,17 @@ static RudpCultNetSchemaServer StartClientCultMeshHost(
                 node.Cache,
                 string.IsNullOrWhiteSpace(request.MessageId) ? Guid.NewGuid().ToString("N") : request.MessageId,
                 request);
+            if (TryGetScopedEveSurfaceRequest(request, out var scopedRecordKey, out var scopedSurfaceKind))
+            {
+                if (!response.Documents.Any(document =>
+                        string.Equals(document.RecordKey, scopedRecordKey, StringComparison.Ordinal)))
+                {
+                    await InjectEveSurfaceSnapshotAsync(
+                        node, options, request, response, scopedRecordKey, scopedSurfaceKind).ConfigureAwait(false);
+                }
+                peer.SendCultNet(response);
+                return;
+            }
             var frame = latestFrame();
             var hasFrame = frame != null;
             if (hasFrame && frame != null && SnapshotWants(
@@ -1008,6 +1019,40 @@ static string FindControllablePosition(EveSurfaceComponent component)
             return position;
     }
     return "missing";
+}
+
+static bool TryGetScopedEveSurfaceRequest(
+    CultNetSnapshotRequestMessage request,
+    out string recordKey,
+    out string surfaceKind)
+{
+    recordKey = "";
+    surfaceKind = "";
+    if (request.RecordKeys is not { Length: 1 })
+        return false;
+    if (request.SchemaIds is { Length: > 0 } &&
+        !request.SchemaIds.Contains(EveSurfaceDocument.SchemaId, StringComparer.Ordinal))
+        return false;
+
+    recordKey = request.RecordKeys[0];
+    surfaceKind = recordKey switch
+    {
+        var value when value == AetheriaRuntimeVerseRecordKeys.DaemonGameSurface.ToString() => "game",
+        var value when value == AetheriaRuntimeVerseRecordKeys.DaemonGameTuiSurface.ToString() => "game-tui",
+        var value when value == AetheriaRuntimeVerseRecordKeys.DaemonEditorSurface.ToString() => "editor",
+        var value when value == AetheriaRuntimeVerseRecordKeys.DaemonEditorTuiSurface.ToString() => "editor-tui",
+        var value when value == AetheriaRuntimeVerseRecordKeys.MainMenuSurface.ToString() => "main-menu",
+        var value when value == AetheriaRuntimeVerseRecordKeys.MainMenuSettingsSurface.ToString() => "main-menu-settings",
+        var value when value == AetheriaRuntimeVerseRecordKeys.MainMenuInputSettingsSurface.ToString() => "main-menu-input-settings",
+        var value when value == AetheriaRuntimeVerseRecordKeys.MainMenuPlayerSettingsSurface.ToString() => "main-menu-player-settings",
+        var value when value == AetheriaRuntimeVerseRecordKeys.MainMenuVerseSettingsSurface.ToString() => "main-menu-verse-settings",
+        var value when value == AetheriaRuntimeVerseRecordKeys.InventoryPanelSurface.ToString() => "inventory-panel",
+        var value when value == AetheriaRuntimeVerseRecordKeys.InventoryDropdownSurface.ToString() => "inventory-dropdown",
+        var value when value == AetheriaRuntimeVerseRecordKeys.MapMenuSurface.ToString() => "map-menu",
+        var value when value == AetheriaRuntimeVerseRecordKeys.TradeMenuSurface.ToString() => "trade-menu",
+        _ => ""
+    };
+    return surfaceKind.Length > 0;
 }
 
 static Task<EveSurfaceDocument?> ReadEveSurfacePublicationAsync(AetheriaStateNode node, string surfaceKind)
