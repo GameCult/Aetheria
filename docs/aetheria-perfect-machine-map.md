@@ -1950,9 +1950,14 @@ First Aetheria surfaces to publish:
   EveUnity now lowers the original severe heatstroke pulse and retained thermal
   death chronology into a renderer-neutral native sink frame, including an
   immediate settled result on reconnect rather than replaying stale death.
-  Rotated equipment footprints, parent/child radiation, provider-advertised
-  native volume profiles, schematic composition, and canonical sink wiring
-  remain migration work rather than presentation authority.
+  Aetheria deterministically translates the five broken legacy thermal/death
+  profiles into clean URP profiles and advertises those generated assets through
+  its CultMesh CDN catalog. EveUnity resolves arbitrary typed native assets by
+  semantic role, and the canonical client sink only binds profiles and applies
+  normalized weights. Legacy SSR/AO/roundness equivalents, rotated equipment
+  footprints, parent/child radiation, schematic composition, canonical
+  render-pipeline activation, and rendered capture remain migration work rather
+  than presentation authority.
 - `dotnet list package --vulnerable --include-transitive` is clean for active
   maintained projects.
 - CultCache smoke proves write, flush, reopen, query, and typed reference

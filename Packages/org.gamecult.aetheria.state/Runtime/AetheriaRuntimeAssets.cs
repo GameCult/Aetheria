@@ -31,6 +31,7 @@ namespace GameCult.Aetheria.State.Verse
             Add(entries, DestructionEffect());
             Add(entries, MapProjectPrefab("prefab.entity.pickup", "Pickup", "Assets/Prefabs/RPG/Pickups/Tetrahedron.prefab"));
             Add(entries, MinePrefab());
+            foreach (var profile in ThermalPresentationProfiles()) Add(entries, profile);
             foreach (var inventoryAsset in InventoryUiAssets())
                 Add(entries, inventoryAsset);
 
@@ -202,6 +203,44 @@ namespace GameCult.Aetheria.State.Verse
                 Tags = new[] { "world", "prefab", label }
             };
         }
+
+        private static AetheriaRuntimeAssetManifestEntry MapProjectAsset(
+            string key, string kind, string label, string unityAssetPath, string presentationRole)
+        {
+            return new AetheriaRuntimeAssetManifestEntry
+            {
+                Ref = new AetheriaRuntimeAssetRef
+                {
+                    AssetKey = key, Kind = kind ?? "", Uri = CultMeshAssetUri(key),
+                    MimeType = "application/vnd.unity.asset",
+                    Metadata = new Dictionary<string, string>(StringComparer.Ordinal)
+                    {
+                        ["unityAssetPath"] = (unityAssetPath ?? "").Replace('\\', '/'),
+                        ["presentationRole"] = presentationRole ?? ""
+                    }
+                },
+                Tags = new[] { "presentation", "thermal", label ?? "" }
+            };
+        }
+
+        private static IReadOnlyList<AetheriaRuntimeAssetManifestEntry> ThermalPresentationProfiles() =>
+            new[]
+            {
+                MapProjectAsset("profile.thermal.heatstroke", AetheriaRuntimeAssetKinds.VolumeProfile,
+                    "Heatstroke", "Assets/Generated/Eve/Thermal/Heatstroke.asset",
+                    "post.thermal.heatstroke"),
+                MapProjectAsset("profile.thermal.severe-heatstroke", AetheriaRuntimeAssetKinds.VolumeProfile,
+                    "Severe heatstroke", "Assets/Generated/Eve/Thermal/Severe Heatstroke.asset",
+                    "post.thermal.severe-heatstroke"),
+                MapProjectAsset("profile.thermal.hypothermia", AetheriaRuntimeAssetKinds.VolumeProfile,
+                    "Hypothermia", "Assets/Generated/Eve/Thermal/Hypothermia.asset",
+                    "post.thermal.hypothermia"),
+                MapProjectAsset("profile.thermal.severe-hypothermia", AetheriaRuntimeAssetKinds.VolumeProfile,
+                    "Severe hypothermia", "Assets/Generated/Eve/Thermal/Severe Hypothermia.asset",
+                    "post.thermal.severe-hypothermia"),
+                MapProjectAsset("profile.death", AetheriaRuntimeAssetKinds.VolumeProfile,
+                    "Death", "Assets/Generated/Eve/Thermal/Death.asset", "post.death")
+            };
 
         private static AetheriaRuntimeAssetManifestEntry MinePrefab()
         {

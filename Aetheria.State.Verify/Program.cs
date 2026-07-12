@@ -76,6 +76,7 @@ RequireMainMenuContinueRunState(root);
 RequireUnityObserverDoesNotTickLocalSimulation(root);
 RequireUnityDoesNotCallSharedSimulationTicks(root);
 RequireDaemonEnergyAndThermalAuthority(root);
+RequireThermalPresentationAssetAuthority(root);
 RequireUnityPhysicsIsNotGameplayAuthority(root);
 RequireDeadPropertiesPanelShellDeleted(root);
 RequireTypedBehaviorMetadataCoverage(root);
@@ -16460,6 +16461,39 @@ static void RequireDaemonEnergyAndThermalAuthority(string root)
           simulation.IndexOf(ordered[1], StringComparison.Ordinal) < simulation.IndexOf(ordered[2], StringComparison.Ordinal)))
         throw new InvalidOperationException(
             "Daemon tick order must pump radiators before reactor settlement, then conduct and radiate the resulting cell heat.");
+}
+
+static void RequireThermalPresentationAssetAuthority(string root)
+{
+    var assets = File.ReadAllText(Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeAssets.cs"));
+    var daemon = File.ReadAllText(Path.Combine(root, "Aetheria.State.Daemon", "Program.cs"));
+    var builder = File.ReadAllText(Path.Combine(root, "Assets", "Editor", "EveAssetBundleBuilder.cs"));
+    var migrator = File.ReadAllText(Path.Combine(root, "Assets", "Editor", "EveThermalProfileMigrator.cs"));
+    var sink = File.ReadAllText(Path.Combine(root, "Aetheria.Unity", "Assets", "AetheriaUnityThermalPresentationSink.cs"));
+    var manifest = File.ReadAllText(Path.Combine(root, "Aetheria.Unity", "Packages", "manifest.json"));
+    var required = new[]
+    {
+        "post.thermal.heatstroke", "post.thermal.severe-heatstroke",
+        "post.thermal.hypothermia", "post.thermal.severe-hypothermia", "post.death",
+        "Assets/Generated/Eve/Thermal/Heatstroke.asset",
+        "EveThermalProfileMigrator.EnsureGenerated()",
+        "[\"presentationRole\"] = entry.Ref.Metadata.TryGetValue",
+        "IEveUnityThermalPresentationAssetSink",
+        "assets.Heatstroke as VolumeProfile",
+        "_death.weight = frame.DeathWeight",
+        "b112acb34d1e2561f1e770a9088bd0123e6614ab"
+    };
+    var body = assets + daemon + builder + migrator + sink + manifest;
+    var missing = required.Where(symbol => !body.Contains(symbol, StringComparison.Ordinal)).ToArray();
+    if (missing.Length > 0)
+        throw new InvalidOperationException(
+            "Thermal presentation assets must remain provider-owned, role-addressed CDN artifacts lowered by the generic EveUnity sink contract: " +
+            string.Join(", ", missing));
+    if (sink.Contains("HeatstrokeTemperature", StringComparison.Ordinal) ||
+        sink.Contains("HypothermiaTemperature", StringComparison.Ordinal) ||
+        sink.Contains("Mathf.Sin", StringComparison.Ordinal))
+        throw new InvalidOperationException(
+            "The Aetheria Unity thermal sink may bind profiles and weights but may not reconstruct medical or phasing authority.");
 }
 
 static void RequireUnityDoesNotCallSharedSimulationTicks(string root)

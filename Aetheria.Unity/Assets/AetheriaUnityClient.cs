@@ -3,6 +3,8 @@ using System.Collections;
 using System.IO;
 using GameCult.Eve.UnityScene;
 using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
 
 public sealed class AetheriaUnityClient : MonoBehaviour
 {
@@ -18,6 +20,7 @@ public sealed class AetheriaUnityClient : MonoBehaviour
         var replicaPath = Path.Combine(Application.persistentDataPath, "aetheria-unity.cc");
 
         CreateView();
+        gameObject.AddComponent<AetheriaUnityThermalPresentationSink>();
         _provider = gameObject.AddComponent<EveUnityCultMeshPlayableWorldProvider>();
         _provider.Configure(
             endpoint,
@@ -41,8 +44,12 @@ public sealed class AetheriaUnityClient : MonoBehaviour
 
     private static void CreateView()
     {
+        var pipeline = UniversalRenderPipelineAsset.Create();
+        GraphicsSettings.defaultRenderPipeline = pipeline;
+        QualitySettings.renderPipeline = pipeline;
         var cameraObject = new GameObject("Main Camera") { tag = "MainCamera" };
         var camera = cameraObject.AddComponent<Camera>();
+        cameraObject.AddComponent<UniversalAdditionalCameraData>().renderPostProcessing = true;
         camera.clearFlags = CameraClearFlags.SolidColor;
         camera.backgroundColor = new Color(0.025f, 0.035f, 0.055f);
         camera.nearClipPlane = 0.05f;

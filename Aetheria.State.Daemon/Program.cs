@@ -1886,8 +1886,9 @@ static EveAssetCatalogDocument BuildCoreAssetCatalog(
 
     var assets = (source.Assets ?? Array.Empty<AetheriaRuntimeAssetManifestEntry>())
         .Where(entry => entry?.Ref != null &&
-            string.Equals(entry.Ref.Kind, AetheriaRuntimeAssetKinds.Prefab, StringComparison.Ordinal) &&
-            (entry.Ref.Metadata.TryGetValue("resourcesPath", out _) || entry.Ref.Metadata.TryGetValue("unityAssetPath", out _)))
+            (entry.Ref.Metadata.TryGetValue("unityAssetPath", out _) ||
+             string.Equals(entry.Ref.Kind, AetheriaRuntimeAssetKinds.Prefab, StringComparison.Ordinal) &&
+             entry.Ref.Metadata.TryGetValue("resourcesPath", out _)))
         .Select(entry =>
         {
             var unityAssetPath = entry.Ref.Metadata.TryGetValue("unityAssetPath", out var explicitPath)
@@ -1911,7 +1912,8 @@ static EveAssetCatalogDocument BuildCoreAssetCatalog(
                     .ToArray(),
                 new Dictionary<string, string>(StringComparer.Ordinal)
                 {
-                    ["mimeType"] = entry.Ref.MimeType ?? ""
+                    ["mimeType"] = entry.Ref.MimeType ?? "",
+                    ["presentationRole"] = entry.Ref.Metadata.TryGetValue("presentationRole", out var role) ? role : ""
                 });
         })
         .OrderBy(entry => entry.AssetRef, StringComparer.Ordinal)

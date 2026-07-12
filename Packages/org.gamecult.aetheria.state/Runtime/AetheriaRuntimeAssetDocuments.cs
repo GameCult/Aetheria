@@ -16,6 +16,7 @@ namespace GameCult.Aetheria.State.Verse
         public const string Shader = "shader";
         public const string Audio = "audio";
         public const string Prefab = "prefab";
+        public const string VolumeProfile = "unity.volume-profile";
     }
 
     public static class AetheriaRuntimeAssetTransports

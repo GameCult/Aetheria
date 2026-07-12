@@ -2380,6 +2380,14 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         var boltEffect = assets.Single(asset => asset.Ref.AssetKey == "prefab.effect.shot.bolt");
         RequireEqual("effect.shot.bolt", boltEffect.Ref.Metadata["presentationRole"],
             "provider manifest must bind semantic shot feedback to its graduated EveUnity effect");
+        var thermalProfiles = assets.Where(asset =>
+            string.Equals(asset.Ref.Kind, AetheriaRuntimeAssetKinds.VolumeProfile, StringComparison.Ordinal)).ToArray();
+        RequireEqual(5, thermalProfiles.Length,
+            "provider manifest must advertise every original thermal and death volume profile");
+        Require(thermalProfiles.All(asset =>
+                asset.Ref.Metadata.ContainsKey("unityAssetPath") &&
+                asset.Ref.Metadata.ContainsKey("presentationRole")),
+            "thermal profiles must cross the CDN boundary with exact Unity paths and semantic roles");
     }
 
     private static void PickupIsCapacityCheckedExactlyOnceAndExpires()

@@ -113,6 +113,16 @@ and no hypothermia lockout was connected. Thermal exposure therefore does not
 silently attenuate or reject semantic controls. The daemon owns medical state
 and death; the runtime owns only meter, volume, and transition lowering.
 
+The serialized fossil profiles target a retired post-processing schema and
+contain missing script references in the current Unity body. They are evidence,
+not deployable assets. `EveThermalProfileMigrator` deterministically generates
+clean URP profiles with the supported authored values: vignette color/intensity/
+smoothness, white balance, exposure, contrast, saturation, bloom, grain, and
+depth of field. Legacy vignette roundness, screen-space reflections, and ambient
+occlusion have no equivalent portable volume parameter; they remain explicit
+renderer-feature parity gaps. The generated profiles, not the broken fossil
+files, are the assets advertised through CultMesh CDN.
+
 ## Effects And Audio
 
 Weapon and impact effects consume semantic event facts and provider asset refs.

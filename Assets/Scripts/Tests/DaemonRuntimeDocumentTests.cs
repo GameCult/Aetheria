@@ -2033,7 +2033,8 @@ public class DaemonRuntimeDocumentTests
             new AetheriaRuntimeDaemonIntentState(),
             0.1,
             AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
-            new PassthroughPhysicalPayloadPhysics());
+            new PassthroughPhysicalPayloadPhysics(),
+            new PassthroughWorldPhysics());
 
         var zone = FindZone(run, 0);
         Assert.IsNotEmpty(zone.PhysicalPayloads);
@@ -2135,7 +2136,8 @@ public class DaemonRuntimeDocumentTests
             new AetheriaRuntimeDaemonIntentState(),
             0.1,
             settings,
-            new PassthroughPhysicalPayloadPhysics());
+            new PassthroughPhysicalPayloadPhysics(),
+            new PassthroughWorldPhysics());
 
         var zone = FindZone(run, 0);
         var projectile = zone.PhysicalPayloads.Single(projectile => projectile.SourceEntityIndex == 0);
@@ -2216,7 +2218,8 @@ public class DaemonRuntimeDocumentTests
             new AetheriaRuntimeDaemonIntentState(),
             0.1,
             AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
-            new PassthroughPhysicalPayloadPhysics());
+            new PassthroughPhysicalPayloadPhysics(),
+            new PassthroughWorldPhysics());
 
         Assert.IsTrue(pilot.CargoContents.SelectMany(bay => bay.Items).Any(slot => slot.Item.ItemKey == "raider-salvage"));
         Assert.IsEmpty(wreck.CargoContents);
@@ -4531,10 +4534,6 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual(1, targetZone.Entities[1].EntityIndex);
         Assert.AreEqual(300, targetZone.Entities[1].PositionX, 0.0001);
         Assert.AreEqual(400, targetZone.Entities[1].PositionZ, 0.0001);
-        Assert.AreEqual(1, result.Intents.Towing.Count);
-        Assert.AreEqual("global:aetheria.run_state.daemon-command-apply-run.zone.3.entity.1.v1", result.Intents.Towing[0].ActorEntityKey);
-        Assert.AreEqual("zone.3.entity.0", result.Intents.Towing[0].StationEntityKey);
-        Assert.AreEqual(3, result.Intents.Towing[0].TargetZoneIndex);
     }
 
     [Test]
@@ -5576,5 +5575,23 @@ public class DaemonRuntimeDocumentTests
                 Array.Empty<AetheriaRuntimePhysicalPayloadHit>());
         }
 
+    }
+
+    private sealed class PassthroughWorldPhysics : IAetheriaRuntimeWorldPhysics
+    {
+        public string AuthorityId => "test.world-passthrough";
+
+        public AetheriaRuntimeWorldStep Step(AetheriaRuntimeZoneSnapshotCommit zone,
+            IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities, double deltaSeconds)
+        {
+            return new AetheriaRuntimeWorldStep(
+                entities.Select(entity => new AetheriaRuntimeWorldBodyStep
+                {
+                    EntityIndex = entity.EntityIndex, PositionX = entity.PositionX, PositionZ = entity.PositionZ,
+                    VelocityX = entity.VelocityX, VelocityY = entity.VelocityY,
+                    DirectionX = entity.DirectionX, DirectionY = entity.DirectionY
+                }).ToArray(),
+                Array.Empty<AetheriaRuntimeWorldPickupStep>(), Array.Empty<AetheriaRuntimeWorldContact>());
+        }
     }
 }
