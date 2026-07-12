@@ -42,6 +42,7 @@ await PublishRuntimeSessionAsync(node, options, startedAtUtc, "starting").Config
 await PublishStateSurfacesAsync(node, options, startedAtUtc).ConfigureAwait(false);
 var latestFrame = await node.MutableDocument<AetheriaRuntimeDaemonFrameDocument>(AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest).ReadAsync().ConfigureAwait(false);
 using var cultMeshRudpHost = StartClientCultMeshHost(node, options, () => latestFrame);
+using var clientSubscriptions = new CultNetDatabaseSubscriptionServer(cultMeshRudpHost, node.Database);
 using var clientPumpCancellation = new CancellationTokenSource();
 var clientPump = RunClientCultMeshPumpAsync(cultMeshRudpHost, clientPumpCancellation.Token);
 var nextApiPublicationUtc = DateTimeOffset.UtcNow;
