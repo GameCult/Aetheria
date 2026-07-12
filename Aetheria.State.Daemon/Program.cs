@@ -1338,11 +1338,17 @@ static async Task PublishDaemonApiDocumentsAsync(
     await node.MutableDocument<AetheriaRuntimeDaemonFrameDocument>(AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest)
         .ReplaceAsync(result.Frame)
         .ConfigureAwait(false);
+    await node.MutableDocument<AetheriaRuntimeZoneRenderDocument>(AetheriaRuntimeVerseRecordKeys.ZoneRenderLatest)
+        .ReplaceAsync(AetheriaRuntimeGameDocuments.ZoneRender(result.Frame))
+        .ConfigureAwait(false);
     if (result.SoaView != null &&
         string.Equals(result.SoaView.Schema, AetheriaRuntimeDaemonSchemas.SoaView, StringComparison.Ordinal))
     {
         await node.MutableDocument<AetheriaRuntimeDaemonSoaViewDocument>(AetheriaRuntimeVerseRecordKeys.DaemonSoaViewLatest)
             .ReplaceAsync(result.SoaView)
+            .ConfigureAwait(false);
+        await node.MutableDocument<EveEntitySoaViewDocument>(AetheriaRuntimeVerseRecordKeys.EveEntitySoaViewLatest)
+            .ReplaceAsync(AetheriaRuntimeEveEntitySoaProjection.Project(result.SoaView))
             .ConfigureAwait(false);
     }
 

@@ -11,6 +11,7 @@ using System.IO.MemoryMappedFiles;
 using System.Linq;
 using UnityEngine;
 using EveCommandTemplate = GameCult.Eve.Surface.EveCommandTemplate;
+using EveEntitySoaViewDocument = GameCult.Eve.Surface.EveEntitySoaViewDocument;
 using EveStyleToken = GameCult.Eve.Surface.EveStyleToken;
 using EveSurfaceCommandRequest = GameCult.Eve.Surface.EveSurfaceCommandRequest;
 using EveSurfaceComponent = GameCult.Eve.Surface.EveSurfaceComponent;
@@ -482,6 +483,32 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual(AetheriaRuntimeDaemonSchemas.CommittedCommandFact, receipts[0].Schema);
         Assert.IsFalse(tracker.HasPending);
         Assert.AreEqual(0, tracker.Reconcile(new[] { fact }, 11).Count);
+    }
+
+    [Test]
+    public void EveWorldSurfacePointsToPortableEntitySoaInsteadOfEmbeddingEntities()
+    {
+        var run = RunWithTwoEntities();
+        var frame = AetheriaRuntimeDaemonFrameDocument.Create(
+            run, "test-daemon", "session", 42, 1.0, 0.02);
+        var surface = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(
+            frame,
+            new AetheriaRuntimeDaemonHealthDocument(),
+            AetheriaRuntimeDaemonCommandBoundaryDocument.Create("test-daemon"));
+        var source = AetheriaRuntimeDaemonSoaViewDocument.Create(
+            "test-daemon", "session", 42, 42,
+            new[] { new AetheriaRuntimeDaemonSoaBufferDocument { BufferId = "hot", Location = "mmf:test" } },
+            new[] { new AetheriaRuntimeDaemonSoaColumnDocument { ColumnId = "position", Kind = AetheriaRuntimeDaemonSoaColumnKinds.Position, BufferId = "hot", ScalarType = "float32", ElementStride = 12, ElementCount = 2 } });
+        var portable = AetheriaRuntimeEveEntitySoaProjection.Project(source);
+
+        Assert.IsTrue(ContainsSurfaceProp(surface.Surface.Root, "entityViewPointerId",
+            AetheriaRuntimeVerseRecordKeys.EveEntitySoaViewLatest.ToString()));
+        Assert.IsTrue(ContainsSurfaceProp(surface.Surface.Root, "entityViewSchema",
+            EveEntitySoaViewDocument.SchemaId));
+        Assert.IsFalse(ContainsSurfaceKind(surface.Surface.Root, "world.entity3d"));
+        Assert.AreEqual(EveEntitySoaViewDocument.SchemaId, portable.Schema);
+        Assert.AreEqual(42, portable.Generation);
+        Assert.AreEqual(AetheriaRuntimeDaemonSoaColumnKinds.Position, portable.Columns.Single().Semantic);
     }
 
     [Test]
@@ -5488,6 +5515,12 @@ public class DaemonRuntimeDocumentTests
         }
 
         return component.Children.Any(child => ContainsSurfaceProp(child, key, value));
+    }
+
+    private static bool ContainsSurfaceKind(AetheriaRuntimeSurfaceComponent component, string kind)
+    {
+        return string.Equals(component.Kind, kind, StringComparison.Ordinal) ||
+            component.Children.Any(child => ContainsSurfaceKind(child, kind));
     }
 
     private static bool ContainsSurfaceStateBinding(

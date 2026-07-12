@@ -50,6 +50,12 @@ namespace GameCult.Aetheria.State.Verse
         public static CultRecordKey DaemonSoaViewLatest { get; } =
             new CultRecordKey("daemon:aetheria.soa_view.latest.v1");
 
+        public static CultRecordKey EveEntitySoaViewLatest { get; } =
+            new CultRecordKey("eve:entity-view:aetheria.daemon.pilot");
+
+        public static CultRecordKey ZoneRenderLatest { get; } =
+            new CultRecordKey("daemon:aetheria.zone_render.latest.v1");
+
         public static CultRecordKey StarbridgeScenarioLatest { get; } =
             new CultRecordKey("starbridge:aetheria.scenario.latest.v1");
 
@@ -178,6 +184,7 @@ namespace GameCult.Aetheria.State.Verse
             typeof(EveSurfaceCommandRequest),
             typeof(EveCommandReceiptDocument),
             typeof(EveAssetCatalogDocument),
+            typeof(EveEntitySoaViewDocument),
             typeof(AetheriaRuntimeDaemonCommandDocument),
             typeof(AetheriaRuntimeEveCommandDocument),
             typeof(AetheriaRuntimeCommittedCommandFactDocument)

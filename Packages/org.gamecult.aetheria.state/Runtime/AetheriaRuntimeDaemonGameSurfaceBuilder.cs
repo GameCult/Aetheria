@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using GameCult.Eve.Surface;
 
 #nullable enable
 
@@ -390,6 +391,10 @@ namespace GameCult.Aetheria.State.Verse
             {
                 ["label"] = string.IsNullOrWhiteSpace(zone.Name) ? "Starbridge" : zone.Name,
                 ["statePointerId"] = AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest.ToString(),
+                ["entityViewPointerId"] = AetheriaRuntimeVerseRecordKeys.EveEntitySoaViewLatest.ToString(),
+                ["entityViewSchema"] = EveEntitySoaViewDocument.SchemaId,
+                ["zoneRenderPointerId"] = AetheriaRuntimeVerseRecordKeys.ZoneRenderLatest.ToString(),
+                ["zoneRenderSchema"] = AetheriaRuntimeDaemonSchemas.ZoneRender,
                 ["assetManifest"] = AetheriaRuntimeVerseRecordKeys.EveAssetCatalog.ToString(),
                 ["inputCapability"] = AetheriaRuntimeVerseRecordKeys.PilotInputCapability.ToString(),
                 ["inputProfile"] = "rts.pointer-keyboard.v1",
@@ -397,20 +402,11 @@ namespace GameCult.Aetheria.State.Verse
                 ["zoneIndex"] = zone.ZoneIndex.ToString(CultureInfo.InvariantCulture),
                 ["runId"] = run.RunId ?? ""
             };
-            var entities = (zone.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
-                .Where(entity => entity != null && entity.IsActive)
-                .Select(entity => PlayableWorldEntity(
-                    entity,
-                    run,
-                    zone,
-                    run.CurrentEntityKey,
-                    AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault))
-                .ToArray();
             return new AetheriaRuntimeSurfaceComponent(
                 id,
                 "world.scene2d",
                 props,
-                entities,
+                Array.Empty<AetheriaRuntimeSurfaceComponent>(),
                 AetheriaRuntimeSurfaceStateBindings.FromProps(props),
                 Array.Empty<AetheriaRuntimeEmbeddedDocumentSlot>(),
                 Layout(("position", "absolute"), ("inset", "0"), ("width", "100%"), ("height", "100%")),
@@ -575,6 +571,10 @@ namespace GameCult.Aetheria.State.Verse
             {
                 ["label"] = string.IsNullOrWhiteSpace(zone.Name) ? "Aetheria World" : zone.Name,
                 ["statePointerId"] = AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest.ToString(),
+                ["entityViewPointerId"] = AetheriaRuntimeVerseRecordKeys.EveEntitySoaViewLatest.ToString(),
+                ["entityViewSchema"] = EveEntitySoaViewDocument.SchemaId,
+                ["zoneRenderPointerId"] = AetheriaRuntimeVerseRecordKeys.ZoneRenderLatest.ToString(),
+                ["zoneRenderSchema"] = AetheriaRuntimeDaemonSchemas.ZoneRender,
                 ["assetManifest"] = AetheriaRuntimeVerseRecordKeys.EveAssetCatalog.ToString(),
                 ["inputProfile"] = "arpg.pointer-keyboard.v1",
                 ["cameraRig"] = "arpg.orbital-follow.v1",
@@ -591,27 +591,11 @@ namespace GameCult.Aetheria.State.Verse
                 ["runId"] = run.RunId ?? ""
             };
 
-            var entities = (zone.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
-                .Where(candidate => candidate != null && candidate.IsActive)
-                .Select(candidate => PlayableWorldEntity(
-                    candidate,
-                    run,
-                    zone,
-                    currentEntityKey,
-                    simulationSettings))
-                .Concat((zone.PhysicalPayloads ?? Array.Empty<AetheriaRuntimePhysicalPayloadCommit>())
-                    .Where(projectile => projectile != null && projectile.LifetimeSeconds > 0)
-                    .Select(projectile => PlayableWorldProjectile(projectile, run, zone)))
-                .Concat((zone.DroppedPickups ?? Array.Empty<AetheriaRuntimeDroppedPickupCommit>())
-                    .Where(pickup => pickup != null && pickup.AgeSeconds < pickup.LifetimeSeconds)
-                    .Select(pickup => PlayableWorldPickup(pickup, run, zone)))
-                .ToArray();
-
             return new AetheriaRuntimeSurfaceComponent(
                 id,
                 "world.scene3d",
                 props,
-                entities,
+                Array.Empty<AetheriaRuntimeSurfaceComponent>(),
                 AetheriaRuntimeSurfaceStateBindings.FromProps(props),
                 Array.Empty<AetheriaRuntimeEmbeddedDocumentSlot>(),
                 Layout(
