@@ -239,6 +239,8 @@ namespace GameCult.Aetheria.State.Verse
             double simulationTimeSeconds)
         {
             var byIndex = entities.ToDictionary(entity => entity.EntityIndex);
+            foreach (var entity in entities)
+                RefreshShieldProjection(entity, catalog);
             foreach (var attacker in entities)
             {
                 var weaponGroup = ResolveFireGroup(run, zone, attacker, intents);
@@ -327,7 +329,7 @@ namespace GameCult.Aetheria.State.Verse
                         weapon.State.BurstRemaining--;
                         weapon.State.BurstTimer -= weapon.State.BurstInterval;
                         var shotId = NextShotId(zone, attacker, weapon);
-                        CommitShotResolution(run, zone, attacker, target, weapon, shotId, frameId);
+                        CommitShotResolution(run, zone, attacker, target, weapon, shotId, frameId, catalog);
                         AppendShotCommittedEvent(run, zone, attacker, target, weapon, shotId, frameId);
                         weapon.State.Firing = true;
                         AetheriaRuntimeThermalSimulation.AddHeat(attacker, weapon.Heat);
@@ -358,7 +360,7 @@ namespace GameCult.Aetheria.State.Verse
                     }
                 }
             }
-            ResolveDeployableDetonations(run, zone, entities, frameId, simulationTimeSeconds);
+            ResolveDeployableDetonations(run, zone, entities, frameId, simulationTimeSeconds, catalog);
 
             foreach (var entity in entities)
             {
@@ -437,7 +439,8 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeZoneSnapshotCommit zone,
             IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities,
             long frameId,
-            double simulationTimeSeconds)
+            double simulationTimeSeconds,
+            AetheriaRuntimeCatalogSnapshot? catalog)
         {
             var survivors = new List<AetheriaRuntimePhysicalPayloadCommit>();
             foreach (var payload in zone.PhysicalPayloads ?? Array.Empty<AetheriaRuntimePhysicalPayloadCommit>())
@@ -455,7 +458,28 @@ namespace GameCult.Aetheria.State.Verse
                     var dx = target.PositionX - payload.PositionX;
                     var dz = target.PositionZ - payload.PositionZ;
                     if (dx * dx + dz * dz > payload.BlastRadius * payload.BlastRadius) continue;
-                    Damage(target, payload.PayloadMagnitude);
+                    var damage = ResolveDamage(target, payload.PayloadMagnitude, catalog);
+                    if (damage.ShieldAbsorbedDamage > 0)
+                        AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit
+                        {
+                            EventId = $"physical-payload:{payload.PayloadId}:shield:{target.EntityIndex}",
+                            Kind = "shield.absorbed", FrameId = frameId, ZoneIndex = zone.ZoneIndex,
+                            SourceEntityIndex = payload.SourceEntityIndex, TargetEntityIndex = target.EntityIndex,
+                            SubjectKey = payload.PayloadId, ItemKey = payload.WeaponItemKey,
+                            ScalarValue = damage.ShieldAbsorbedDamage,
+                            AuxiliaryValue = damage.ShieldHeatGenerated,
+                            PositionX = payload.PositionX, PositionZ = payload.PositionZ
+                        });
+                    if (damage.HullAppliedDamage > 0)
+                        AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit
+                        {
+                            EventId = $"physical-payload:{payload.PayloadId}:damage:{target.EntityIndex}",
+                            Kind = "entity.damaged", FrameId = frameId, ZoneIndex = zone.ZoneIndex,
+                            SourceEntityIndex = payload.SourceEntityIndex, TargetEntityIndex = target.EntityIndex,
+                            SubjectKey = payload.PayloadId, ItemKey = payload.WeaponItemKey,
+                            ScalarValue = damage.HullAppliedDamage,
+                            PositionX = payload.PositionX, PositionZ = payload.PositionZ
+                        });
                 }
                 AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit { EventId = $"physical-payload:{payload.PayloadId}:detonated", Kind = "deployable.detonated", FrameId = frameId, ZoneIndex = zone.ZoneIndex, SourceEntityIndex = payload.SourceEntityIndex, SubjectKey = payload.PayloadId, ItemKey = payload.WeaponItemKey, Reason = payload.TriggerReason, ScalarValue = payload.PayloadMagnitude, PositionX = payload.PositionX, PositionZ = payload.PositionZ });
             }
@@ -584,7 +608,7 @@ namespace GameCult.Aetheria.State.Verse
                     state.BurstRemaining--;
                     state.BurstTimer -= state.BurstInterval;
                     var shotId = NextShotId(zone, attacker, shot);
-                    CommitShotResolution(run, zone, attacker, solutionTarget, shot, shotId, frameId);
+                    CommitShotResolution(run, zone, attacker, solutionTarget, shot, shotId, frameId, catalog);
                     AppendShotCommittedEvent(run, zone, attacker, solutionTarget, shot, shotId, frameId);
                     state.Firing = true;
                     AetheriaRuntimeThermalSimulation.AddHeat(attacker, shot.Heat);
@@ -738,7 +762,7 @@ namespace GameCult.Aetheria.State.Verse
                 AetheriaRuntimeThermalSimulation.AddHeat(attacker, weapon.Heat * deltaSeconds);
                 var shot = weapon.ResolutionShot(deltaSeconds);
                 var shotId = NextShotId(zone, attacker, shot);
-                CommitShotResolution(run, zone, attacker, selectedTarget!, shot, shotId, frameId);
+                CommitShotResolution(run, zone, attacker, selectedTarget!, shot, shotId, frameId, catalog);
                 AppendShotCommittedEvent(run, zone, attacker, selectedTarget!, shot, shotId, frameId);
             }
         }
@@ -1061,7 +1085,8 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeEntitySnapshotCommit target,
             ResolvedWeapon weapon,
             string shotId,
-            long frameId)
+            long frameId,
+            AetheriaRuntimeCatalogSnapshot? catalog)
         {
             if ((run.ShotReceipts ?? Array.Empty<AetheriaRuntimeShotReceiptCommit>())
                 .Any(value => value != null && string.Equals(value.ShotId, shotId, StringComparison.Ordinal)))
@@ -1098,10 +1123,8 @@ namespace GameCult.Aetheria.State.Verse
             var endpointX = target.PositionX + Math.Cos(angle) * impactRadius;
             var endpointZ = target.PositionZ + Math.Sin(angle) * impactRadius;
             var presentationKind = ResolveShotPresentationKind(weapon.State.BehaviorKind);
-            var appliedDamage = hit ? weapon.Damage : 0;
-            var shieldBefore = Math.Max(0, GetStat(target, Shield));
             var aliveBefore = IsAlive(target);
-            if (hit) Damage(target, appliedDamage);
+            var damage = hit ? ResolveDamage(target, weapon.Damage, catalog) : DamageResolution.None;
 
             AetheriaRuntimeShotReceipts.Append(run, new AetheriaRuntimeShotReceiptCommit
             {
@@ -1111,8 +1134,8 @@ namespace GameCult.Aetheria.State.Verse
                 WeaponBehaviorIndex = weapon.State.BehaviorIndex, ContactInformation = information,
                 LockQuality = lockQuality, RangeFactor = rangeFactor, MotionFactor = motionFactor,
                 DispersionFactor = dispersionFactor, HitProbability = probability, HitRoll = roll,
-                Hit = hit, NominalDamage = weapon.Damage, AppliedDamage = appliedDamage,
-                Outcome = hit ? "hit" : "miss",
+                Hit = hit, NominalDamage = weapon.Damage, AppliedDamage = damage.HullAppliedDamage,
+                Outcome = !hit ? "miss" : damage.ShieldAbsorbedDamage > 0 ? "shielded" : "hit",
                 OriginX = attacker.PositionX, OriginZ = attacker.PositionZ,
                 EndpointX = endpointX, EndpointZ = endpointZ,
                 PresentationDurationSeconds = presentationKind == "stream"
@@ -1120,8 +1143,12 @@ namespace GameCult.Aetheria.State.Verse
                     : distance / Math.Max(1, weapon.ProjectileSpeed),
                 PresentationKind = presentationKind,
                 ImpactAngleRoll = angleRoll, ImpactRadiusRoll = radiusRoll,
-                ImpactKind = !hit ? "none" : shieldBefore > 0 ? "shield" : "hull",
-                PresentationIntensity = Math.Max(0.1, weapon.Damage)
+                ImpactKind = !hit ? "none" : damage.ShieldAbsorbedDamage > 0 ? "shield" : "hull",
+                PresentationIntensity = Math.Max(0.1, weapon.Damage),
+                ShieldAbsorbedDamage = damage.ShieldAbsorbedDamage,
+                HullAppliedDamage = damage.HullAppliedDamage,
+                ShieldEnergyConsumed = damage.ShieldEnergyConsumed,
+                ShieldHeatGenerated = damage.ShieldHeatGenerated
             });
             AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit
             {
@@ -1131,13 +1158,22 @@ namespace GameCult.Aetheria.State.Verse
                 ItemKey = weapon.ItemKey, ScalarValue = probability,
                 PositionX = target.PositionX, PositionZ = target.PositionZ
             });
-            if (hit)
+            if (damage.ShieldAbsorbedDamage > 0)
+                AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit
+                {
+                    EventId = $"shot:{shotId}:shield", Kind = "shield.absorbed", FrameId = frameId,
+                    ZoneIndex = zone.ZoneIndex, SourceEntityIndex = attacker.EntityIndex,
+                    TargetEntityIndex = target.EntityIndex, SubjectKey = shotId,
+                    ItemKey = weapon.ItemKey, ScalarValue = damage.ShieldAbsorbedDamage,
+                    PositionX = endpointX, PositionZ = endpointZ
+                });
+            if (damage.HullAppliedDamage > 0)
                 AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit
                 {
                     EventId = $"shot:{shotId}:damage", Kind = "entity.damaged", FrameId = frameId,
                     ZoneIndex = zone.ZoneIndex, SourceEntityIndex = attacker.EntityIndex,
                     TargetEntityIndex = target.EntityIndex, SubjectKey = shotId,
-                    ItemKey = weapon.ItemKey, ScalarValue = appliedDamage,
+                    ItemKey = weapon.ItemKey, ScalarValue = damage.HullAppliedDamage,
                     PositionX = target.PositionX, PositionZ = target.PositionZ
                 });
             if (aliveBefore && !IsAlive(target))
@@ -1591,18 +1627,75 @@ namespace GameCult.Aetheria.State.Verse
             }
         }
 
-        private static void Damage(AetheriaRuntimeEntitySnapshotCommit target, double damage)
+        private static DamageResolution ResolveDamage(
+            AetheriaRuntimeEntitySnapshotCommit target,
+            double damage,
+            AetheriaRuntimeCatalogSnapshot? catalog)
         {
-            var shield = GetStat(target, Shield);
-            var shieldDamage = Math.Min(shield, damage);
-            if (shieldDamage > 0)
+            damage = Math.Max(0, damage);
+            if (damage <= 0)
+                return DamageResolution.None;
+
+            foreach (var shield in AetheriaRuntimeEquippedBehaviorQueries.Find(target, catalog, "Shield")
+                .Where(value => value.Item.Enabled))
             {
-                SetStat(target, Shield, shield - shieldDamage);
-                damage -= shieldDamage;
+                var efficiency = Math.Max(0.000001, shield.EvaluateStat(1));
+                var energyUsage = Math.Max(0, shield.EvaluateStat(2));
+                var energyDemand = damage * energyUsage;
+                shield.State.ShieldEfficiency = efficiency;
+                shield.State.ShieldEnergyUsage = energyUsage;
+                if (!CanSupplyEnergy(target, energyDemand))
+                    continue;
+
+                CommitEnergy(target, energyDemand);
+                var heat = damage / efficiency;
+                AetheriaRuntimeThermalSimulation.AddHeat(target, heat);
+                RefreshShieldProjection(target, catalog);
+                return new DamageResolution(damage, 0, energyDemand, heat);
             }
 
-            if (damage > 0)
-                SetStat(target, Hull, Math.Max(0, GetStat(target, Hull) - damage));
+            var hullBefore = Math.Max(0, GetStat(target, Hull));
+            var hullApplied = Math.Min(hullBefore, damage);
+            SetStat(target, Hull, hullBefore - hullApplied);
+            return new DamageResolution(0, hullApplied, 0, 0);
+        }
+
+        private static void RefreshShieldProjection(
+            AetheriaRuntimeEntitySnapshotCommit entity,
+            AetheriaRuntimeCatalogSnapshot? catalog)
+        {
+            var shield = AetheriaRuntimeEquippedBehaviorQueries.Find(entity, catalog, "Shield")
+                .FirstOrDefault(value => value.Item.Enabled);
+            if (shield == null)
+            {
+                SetStat(entity, Shield, 0);
+                return;
+            }
+
+            var energyUsage = Math.Max(0, shield.EvaluateStat(2));
+            var availableEnergy = (entity.BehaviorStates ?? Array.Empty<AetheriaRuntimeBehaviorStateCommit>())
+                .Where(value => value != null && value.BehaviorKind == "Capacitor")
+                .Sum(value => Math.Max(0, value.CapacitorCharge));
+            SetStat(entity, Shield, energyUsage <= 0 ? 1 : availableEnergy / energyUsage);
+        }
+
+        private readonly struct DamageResolution
+        {
+            public static DamageResolution None { get; } = new DamageResolution(0, 0, 0, 0);
+
+            public DamageResolution(double shieldAbsorbedDamage, double hullAppliedDamage,
+                double shieldEnergyConsumed, double shieldHeatGenerated)
+            {
+                ShieldAbsorbedDamage = shieldAbsorbedDamage;
+                HullAppliedDamage = hullAppliedDamage;
+                ShieldEnergyConsumed = shieldEnergyConsumed;
+                ShieldHeatGenerated = shieldHeatGenerated;
+            }
+
+            public double ShieldAbsorbedDamage { get; }
+            public double HullAppliedDamage { get; }
+            public double ShieldEnergyConsumed { get; }
+            public double ShieldHeatGenerated { get; }
         }
 
         private static bool IsAlive(AetheriaRuntimeEntitySnapshotCommit entity)

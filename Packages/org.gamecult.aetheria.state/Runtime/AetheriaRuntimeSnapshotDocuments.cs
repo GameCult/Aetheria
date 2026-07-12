@@ -451,6 +451,7 @@ namespace GameCult.Aetheria.State.Verse
         [Key(10)] public double PositionX { get; set; }
         [Key(11)] public double PositionZ { get; set; }
         [Key(12)] public string Reason { get; set; } = "";
+        [Key(13)] public double AuxiliaryValue { get; set; }
     }
 
     [MessagePackObject]
@@ -485,6 +486,10 @@ namespace GameCult.Aetheria.State.Verse
         [Key(26)] public double ImpactRadiusRoll { get; set; }
         [Key(27)] public string ImpactKind { get; set; } = "none";
         [Key(28)] public double PresentationIntensity { get; set; } = 1;
+        [Key(29)] public double ShieldAbsorbedDamage { get; set; }
+        [Key(30)] public double HullAppliedDamage { get; set; }
+        [Key(31)] public double ShieldEnergyConsumed { get; set; }
+        [Key(32)] public double ShieldHeatGenerated { get; set; }
     }
 
     [MessagePackObject]

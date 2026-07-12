@@ -16595,7 +16595,7 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
         {
             "public static class AetheriaRuntimeDaemonSimulation",
             "AetheriaRuntimeDaemonSimulationSettings settings",
-            "StepCombat(run, zone, entities, intents, deltaSeconds, settings, physicalPayloadPhysics, catalog, frameId)",
+            "StepCombat(run, zone, entities, intents, deltaSeconds, settings, physicalPayloadPhysics, catalog,",
             "AetheriaRuntimeEquippedBehaviorQueries.Find(entity, catalog, AetheriaRuntimeBehaviorKinds.InstantWeapon)",
             "EnsureWeaponState(",
             "CommitWeaponRound(attacker, weapon)",
@@ -16694,6 +16694,18 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
         throw new InvalidOperationException(
             "Ymir physical payload contacts may report physics facts but may not decide ordinary weapon damage: " +
             string.Join(", ", survivingPhysicalPayloadDamageSymbols));
+    }
+
+    var shotReceiptDocument = File.ReadAllText(snapshotDocumentsPath);
+    if (daemonSimulation.Contains("var shield = GetStat(target, Shield)", StringComparison.Ordinal) ||
+        daemonSimulation.Contains("SetStat(target, Shield, shield -", StringComparison.Ordinal) ||
+        !daemonSimulation.Contains("damage * energyUsage", StringComparison.Ordinal) ||
+        !daemonSimulation.Contains("damage / efficiency", StringComparison.Ordinal) ||
+        !shotReceiptDocument.Contains("ShieldAbsorbedDamage", StringComparison.Ordinal) ||
+        !shotReceiptDocument.Contains("ShieldEnergyConsumed", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Shield authority must be the equipped energy-funded behavior transaction, not a scalar shield hitpoint pool.");
     }
 
     if (daemonSimulation.Contains("AetheriaRuntimeRtsSimulation", StringComparison.Ordinal) ||

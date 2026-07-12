@@ -168,6 +168,14 @@ causes. They enter the same detonation transaction as proximity triggers and
 retain their reason in the event chronology. Ymir movement happens before the
 range check, matching the original simulation ordering.
 
+Shield interception follows the original behavior contract rather than a
+synthetic shield hitpoint pool. An enabled equipped Shield behavior may absorb
+the full incoming damage only when canonical capacitors can fund
+`damage * EnergyUsage`; absorption consumes that energy and adds
+`damage / Efficiency` heat. Otherwise damage reaches the hull transaction.
+Receipts publish absorbed damage, hull-applied damage, energy consumed, heat
+generated, and the semantic `shield` or `hull` impact kind.
+
 ## Eve Presentation
 
 Eve receives:

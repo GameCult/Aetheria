@@ -17,6 +17,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         DeployableWeaponRunsThroughYmirAndDetonatesOnDaemon();
         DeployableRangeExpiryDetonatesAfterYmirMovement();
         CanonicalCatalogPublishesRecoveredMineLauncher();
+        EnergyFundedShieldInterceptsDamageBeforeHull();
         DaemonSimulationTreatsYmirHitAsPresentationOnly();
         ProjectileContactCannotKill();
         MissingPhysicsOwnerCannotAdvanceProjectiles();
@@ -373,6 +374,83 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             "provider must advertise the script-free mine presentation role");
         RequireEqual("0.25", asset.Ref.Metadata["triggeredPulseSeconds"],
             "mine presentation must retain the fossil triggered pulse cadence");
+    }
+
+    private static void EnergyFundedShieldInterceptsDamageBeforeHull()
+    {
+        var source = Entity(0, -50, "player");
+        var target = Entity(1, 0, "neutral");
+        target.Equipment = [new AetheriaRuntimeLoadoutItemSlotCommit
+        {
+            Item = new AetheriaRuntimeLoadoutItemCommit
+                { ItemKey = "test-energy-shield", Quality = 1, Durability = 1, Enabled = true }
+        }];
+        target.BehaviorStates = [new AetheriaRuntimeBehaviorStateCommit
+        {
+            OwnerKind = "fixture", OwnerIndex = 0, BehaviorIndex = 0,
+            BehaviorKind = "Capacitor", CapacitorCharge = 100, CapacitorCapacity = 100,
+            CapacitorEfficiency = 1
+        }];
+        var shield = new AetheriaRuntimeBehaviorPayload(0, "Shield", 0,
+        [
+            new AetheriaRuntimeBehaviorField(1, PerformanceStat(2)),
+            new AetheriaRuntimeBehaviorField(2, PerformanceStat(3))
+        ]);
+        var catalog = new AetheriaRuntimeCatalogSnapshot(
+            [CatalogItem("test-energy-shield", shield)], [], []);
+        var zone = new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [source, target] };
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "energy-shield-smoke", CurrentZoneIndex = 0,
+            CurrentEntityKey = "zone.0.entity.0", Zones = [zone]
+        };
+
+        void AddDetonatingPayload(string id, double damage)
+        {
+            zone.PhysicalPayloads = [new AetheriaRuntimePhysicalPayloadCommit
+            {
+                PayloadId = id, PayloadKind = "mine", WeaponItemKey = "test-blast",
+                SourceEntityIndex = source.EntityIndex, PositionX = target.PositionX,
+                LifetimeSeconds = 30, BlastRadius = 10, PayloadMagnitude = damage,
+                TriggeredAtSeconds = 0, DetonationDelaySeconds = 0, Stationary = true, Active = true
+            }];
+        }
+
+        AddDetonatingPayload("shielded-blast", 20);
+        AetheriaRuntimeDaemonSimulation.Step(run, new AetheriaRuntimeDaemonIntentState(), 0.1,
+            AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
+            new AetheriaYmirPhysicalPayloadPhysics(), new AetheriaYmirWorldPhysics(), catalog, 1, 0.1);
+        var capacitor = target.BehaviorStates.Single(value => value.BehaviorKind == "Capacitor");
+        RequireNear(100, Stat(target, "hull"), 0.000001,
+            "funded shield must intercept damage before hull");
+        RequireNear(40, capacitor.CapacitorCharge, 0.000001,
+            "shield must consume damage multiplied by authored energy usage");
+        RequireNear(40.0 / 3.0, Stat(target, "shield"), 0.000001,
+            "legacy shield meter must be derived from remaining funded absorption, not own hit points");
+        Require(run.GameEvents.Any(value => value.Kind == "shield.absorbed" &&
+                Math.Abs(value.ScalarValue - 20) < 0.000001 &&
+                Math.Abs(value.AuxiliaryValue - 10) < 0.000001),
+            "shield outcome must publish absorbed damage and authored heat contribution");
+        var surface = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(
+            new AetheriaRuntimeDaemonFrameDocument { FrameId = 1, Run = run },
+            new AetheriaRuntimeDaemonHealthDocument(),
+            AetheriaRuntimeDaemonCommandBoundaryDocument.Create("daemon"));
+        Require(Flatten(surface.Surface.Root).Any(node => node.Kind == "feedback.event" &&
+                node.Props["eventKind"] == "shield.absorbed" &&
+                node.Props["scalarValue"] == "20" && node.Props["auxiliaryValue"] == "10"),
+            "Eve feedback must expose exact shield absorption and heat facts");
+        var shieldAsset = AetheriaRuntimeAssets.ProjectManifest(catalog).Assets.Single(value =>
+            value.Ref.Metadata.TryGetValue("presentationRole", out var role) && role == "effect.impact.shield");
+        RequireEqual("prefab.effect.impact.shield", shieldAsset.Ref.AssetKey,
+            "provider must advertise the authored shield visual by semantic impact role");
+
+        capacitor.CapacitorCharge = 0;
+        AddDetonatingPayload("unfunded-blast", 20);
+        AetheriaRuntimeDaemonSimulation.Step(run, new AetheriaRuntimeDaemonIntentState(), 0.1,
+            AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
+            new AetheriaYmirPhysicalPayloadPhysics(), new AetheriaYmirWorldPhysics(), catalog, 2, 0.2);
+        RequireNear(80, Stat(target, "hull"), 0.000001,
+            "unfunded shield must not manufacture absorption");
     }
 
     private static void ChargedWeaponHoldRiskMalfunctionsDeterministically()
@@ -1102,8 +1180,9 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         Require(run.GameEvents.Count(value => value.Kind == "shot.committed" && value.ItemKey == "test-lock-cannon") >= 6,
             "two authored bursts must commit all six due rounds through the shot resolver");
         Require(run.ShotReceipts.Count(value => value.WeaponItemKey == "test-lock-cannon") >= 6 &&
-                run.ShotReceipts.All(value => value.Hit && value.AppliedDamage == value.NominalDamage),
-            "zero-spread authored rounds must commit immutable certain-hit receipts before presentation travel");
+                run.ShotReceipts.All(value => value.Hit && value.HullAppliedDamage >= 0 &&
+                    value.HullAppliedDamage <= value.NominalDamage && value.ShieldAbsorbedDamage == 0),
+            "zero-spread authored rounds must commit exact certain-hit damage receipts before presentation travel");
         Require(run.ShotReceipts.Select(value => value.ShotId).Distinct(StringComparer.Ordinal).Count() ==
                 run.ShotReceipts.Count,
             "every burst round must own a stable independent shot identity");

@@ -293,6 +293,7 @@ namespace GameCult.Aetheria.State.Verse
                         ("targetEntityIndex", value.TargetEntityIndex.ToString(CultureInfo.InvariantCulture)),
                         ("pickupIndex", value.PickupIndex.ToString(CultureInfo.InvariantCulture)),
                         ("itemKey", value.ItemKey), ("scalarValue", FormatNumber(value.ScalarValue)),
+                        ("auxiliaryValue", FormatNumber(value.AuxiliaryValue)),
                         ("subjectKey", value.SubjectKey), ("reason", value.Reason),
                         ("position", string.Join(",", new[] { FormatNumber(value.PositionX), FormatNumber(value.PositionZ) })),
                         ("currentFrameId", frameId.ToString(CultureInfo.InvariantCulture))
@@ -328,6 +329,10 @@ namespace GameCult.Aetheria.State.Verse
                         ("hit", value.Hit ? "true" : "false"),
                         ("nominalDamage", FormatNumber(value.NominalDamage)),
                         ("appliedDamage", FormatNumber(value.AppliedDamage)),
+                        ("shieldAbsorbedDamage", FormatNumber(value.ShieldAbsorbedDamage)),
+                        ("hullAppliedDamage", FormatNumber(value.HullAppliedDamage)),
+                        ("shieldEnergyConsumed", FormatNumber(value.ShieldEnergyConsumed)),
+                        ("shieldHeatGenerated", FormatNumber(value.ShieldHeatGenerated)),
                         ("origin", string.Join(",", FormatNumber(value.OriginX), FormatNumber(value.OriginZ))),
                         ("endpoint", string.Join(",", FormatNumber(value.EndpointX), FormatNumber(value.EndpointZ))),
                         ("presentationDuration", FormatNumber(value.PresentationDurationSeconds)),
