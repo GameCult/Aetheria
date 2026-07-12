@@ -744,19 +744,13 @@ namespace GameCult.Aetheria.State.Verse
                 ["targetCommand"] = CommandName(AetheriaRuntimeDaemonCommandKinds.SetTarget),
                 ["actionCommand"] = CommandName(AetheriaRuntimeDaemonCommandKinds.FireWeaponGroup)
             };
-            if (entity.LoadoutGeneration != null)
-            {
-                props["loadoutGenerationSeed"] = entity.LoadoutGeneration.Seed.ToString(CultureInfo.InvariantCulture);
-                props["loadoutGenerationZone"] = entity.LoadoutGeneration.SourceZoneIndex.ToString(CultureInfo.InvariantCulture);
-                props["loadoutAvailabilityFaction"] = entity.LoadoutGeneration.AvailabilityFactionKey ?? "";
-                props["loadoutPriceExponent"] = entity.LoadoutGeneration.PriceExponent.ToString("0.###", CultureInfo.InvariantCulture);
-            }
-
             return new AetheriaRuntimeSurfaceComponent(
                 $"aetheria.daemon.game.world.entity.{entity.EntityIndex}",
                 "world.entity3d",
                 props,
-                LoadoutGenerationItems(entity).Concat(WeaponStateItems(entity, run, zone)).ToArray());
+                string.Equals(entityId, playerEntityId, StringComparison.Ordinal)
+                    ? WeaponStateItems(entity, run, zone)
+                    : Array.Empty<AetheriaRuntimeSurfaceComponent>());
         }
 
         private static AetheriaRuntimeSurfaceComponent[] WeaponStateItems(
@@ -805,29 +799,6 @@ namespace GameCult.Aetheria.State.Verse
                             ("chargeMalfunctionRisk", FormatNumber(value.ChargeMalfunctionRisk))
                         });
                 })
-                .ToArray();
-        }
-
-        private static AetheriaRuntimeSurfaceComponent[] LoadoutGenerationItems(
-            AetheriaRuntimeEntitySnapshotCommit entity)
-        {
-            return (entity.LoadoutGeneration?.Selections ?? Array.Empty<AetheriaRuntimeLoadoutGenerationSelectionCommit>())
-                .Select((value, index) => new AetheriaRuntimeSurfaceComponent(
-                    $"aetheria.daemon.game.world.entity.{entity.EntityIndex}.loadout.{index}",
-                    "loadout.item",
-                    new Dictionary<string, string>(StringComparer.Ordinal)
-                    {
-                        ["label"] = value.ItemKey ?? "",
-                        ["status"] = value.Role ?? "",
-                        ["detail"] = $"{value.ManufacturerKey} | {value.Price} credits | distance {value.ManufacturerDistance}",
-                        ["badges"] = $"allegiance:{value.Allegiance:0.###}",
-                        ["itemKey"] = value.ItemKey ?? "",
-                        ["manufacturerKey"] = value.ManufacturerKey ?? "",
-                        ["price"] = value.Price.ToString(CultureInfo.InvariantCulture),
-                        ["manufacturerDistance"] = value.ManufacturerDistance.ToString(CultureInfo.InvariantCulture),
-                        ["allegiance"] = value.Allegiance.ToString("0.###", CultureInfo.InvariantCulture)
-                    },
-                    Array.Empty<AetheriaRuntimeSurfaceComponent>()))
                 .ToArray();
         }
 
