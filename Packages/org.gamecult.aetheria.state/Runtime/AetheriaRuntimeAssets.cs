@@ -26,6 +26,7 @@ namespace GameCult.Aetheria.State.Verse
             Add(entries, MapPrefab("prefab.entity.ship", "Ship", "Prefabs/Ships/Djinni", "ship"));
             Add(entries, MapPrefab("prefab.entity.station", "Station", "Prefabs/Stations/AsteroidOutpost", "station"));
             Add(entries, MapPrefab("prefab.entity.orbital", "Orbital", "Prefabs/Stations/Zenith", "orbital"));
+            Add(entries, MapPrefab("prefab.effect.shot.bolt", "Bolt", "Prefabs/Lightning", "effect.shot.bolt"));
             Add(entries, MapProjectPrefab("prefab.entity.pickup", "Pickup", "Assets/Prefabs/RPG/Pickups/Tetrahedron.prefab"));
             foreach (var inventoryAsset in InventoryUiAssets())
                 Add(entries, inventoryAsset);

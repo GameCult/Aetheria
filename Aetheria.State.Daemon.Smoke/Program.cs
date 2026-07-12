@@ -1639,6 +1639,9 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         var playerAsset = assets.Single(asset => asset.Ref.AssetKey == "prefab.entity.player");
         RequireEqual("player", playerAsset.Ref.Metadata["presentationRole"],
             "entity prefab fallback must use a specific presentation role instead of the generic world tag");
+        var boltEffect = assets.Single(asset => asset.Ref.AssetKey == "prefab.effect.shot.bolt");
+        RequireEqual("effect.shot.bolt", boltEffect.Ref.Metadata["presentationRole"],
+            "provider manifest must bind semantic shot feedback to its graduated EveUnity effect");
     }
 
     private static void PickupIsCapacityCheckedExactlyOnceAndExpires()

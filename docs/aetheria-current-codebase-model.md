@@ -138,12 +138,10 @@ presentation objects only where GameObject views are still unavoidable.
 Unity physics is already fenced as forbidden gameplay authority by
 `Aetheria.State.Verify`.
 
-The fossil `Assets/Resources/Prefabs/Lightning.prefab` is not yet a portable
-effect asset: it embeds the Aetheria-owned `LightningCompute` component and its
-compute/material dependencies. The component and shader bundle must graduate
-to EveUnity together before Aetheria advertises that prefab under an
-`effect.shot.*` presentation role. CultMesh transport does not erase serialized
-code dependencies.
+`Assets/Resources/Prefabs/Lightning.prefab` is published under the
+`effect.shot.bolt` presentation role. Its `LightningCompute` component and
+shader/material bundle are owned by EveUnity with their original Unity GUIDs;
+Aetheria owns only the configured prefab and its asset-manifest advertisement.
 
 Current Ymir control flow:
 
