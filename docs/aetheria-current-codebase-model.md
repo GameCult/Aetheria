@@ -156,24 +156,18 @@ Current Ymir control flow:
 - The fossil `Projectile`, `GuidedProjectile`, their managers, Unity-side Ymir
   stepping adapter, and dedicated proof tests are deleted. EveUnity lowers
   ordinary weapon travel from daemon `shot.receipt` facts.
-- Target/zone hit queries call `TryOverlapTargetHulls`, `TryCastTargetHulls`,
-  `TryOverlapZoneHulls`, or `TryCastZoneHulls`.
-- `TryBuildDaemonWorld` builds Ymir bodies from `AetheriaDaemonRenderNativeView`
-  rather than from Unity `HullCollider` geometry.
-- Ymir step/overlap/cast requests execute through the typed
-  `YmirPhysicsQueries` surface in `YmirPhysicsContracts.cs`.
-- Query results are resolved back to Unity presentation hulls through daemon
-  entity ids, so visual effects still have a GameObject to attach to.
+- Fossil laser, lightning, hitscan, and constant weapon effect managers are
+  also deleted. They no longer cast against Ymir from Unity to choose endpoints
+  or shield responses; EveUnity consumes the receipt trajectory, impact kind,
+  intensity, and provider presentation-role assets.
+- The remaining Unity `AetheriaYmirPhysicsBridge` lowers clickable presentation
+  bounds into `YmirPhysicsQueries.CastSphere`; it knows nothing about daemon
+  entities, hulls, shields, targets, zones, or combat.
 
-This is the right authority direction: Ymir receives bodies derived from daemon
-SoA, and Unity hulls are presentation targets. Remaining debt:
+This is the right authority direction: daemon physics enters Ymir from daemon
+state, while Unity only asks Ymir a local presentation-picking question.
+Remaining debt:
 
-- `AetheriaYmirPhysicsBridge` requires daemon `EntityIndex` and
-  `PhysicsBodyRadius` columns before it builds Ymir bodies; stable entity
-  identity is required for daemon/Ymir correspondence.
-- Ymir query requests no longer use Unity-owned JSON endpoint calls. The
-  remaining durable target is exposing the same typed query semantics through
-  CultNet/CultMesh query handles.
 - Clickable raycasts still construct query bodies from Unity click bounds. That
   is presentation picking, not simulation authority, but it should stay clearly
   labeled as renderer/UI picking.

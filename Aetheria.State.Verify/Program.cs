@@ -17031,61 +17031,15 @@ static void RequireUnityPhysicsIsNotGameplayAuthority(string root)
 
     var ymirBridgePath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "Physics", "AetheriaYmirPhysicsBridge.cs");
     var projectilePath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "Weapons", "Projectile.cs");
-    var laserPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "Weapons", "Laser.cs");
-    var laserManagerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "Weapons", "LaserManager.cs");
-    var constantLaserPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "Weapons", "ConstantLaser.cs");
-    var constantLaserManagerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "Weapons", "ConstantLaserManager.cs");
-    var hitscanPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "Weapons", "HitscanEffect.cs");
-    var hitscanManagerPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "Weapons", "HitscanManager.cs");
     var clickRaycasterPath = Path.Combine(root, "Assets", "Scripts", "UI", "ClickRaycaster.cs");
 
     var requiredSymbols = new Dictionary<string, string[]>
     {
         [ymirBridgePath] = new[]
         {
-            "YmirPhysicsQueries.OverlapSphere(",
-            "YmirPhysicsQueries.CastSphere(request)",
-            "YmirPhysicsQueries.OverlapCircle(request)",
-            "YmirPhysicsQueries.CastCircle(request)",
-            "TryCastZoneHulls(",
-            "TryBuildDaemonWorld(",
-            "private const string DaemonEntityBodyPrefix = \"aetheria.daemon.entity.\"",
-            "id = DaemonEntityBodyPrefix + daemonEntityIndex",
-            "TryResolveDaemonEntityHull(zoneRenderer, hit.bodyId, out var hull)",
-            "TryResolveTargetDaemonHull(target, hit.bodyId, out var hull)",
-            "TargetDaemonEntityIndex(",
-            "onlyDaemonEntityIndex.HasValue && onlyDaemonEntityIndex.Value != daemonEntityIndex",
-            "TryParseDaemonEntityBodyId("
-        },
-        [laserPath] = new[]
-        {
-            "public ZoneRenderer ZoneRenderer { get; set; }",
-            "AetheriaYmirPhysicsBridge.Instance.TryCastZoneHulls",
-            "ZoneRenderer,"
-        },
-        [laserManagerPath] = new[]
-        {
-            "p.ZoneRenderer = source.ZoneRenderer"
-        },
-        [constantLaserPath] = new[]
-        {
-            "public ZoneRenderer ZoneRenderer { get; set; }",
-            "AetheriaYmirPhysicsBridge.Instance.TryCastZoneHulls",
-            "ZoneRenderer,"
-        },
-        [constantLaserManagerPath] = new[]
-        {
-            "p.ZoneRenderer = source.ZoneRenderer"
-        },
-        [hitscanPath] = new[]
-        {
-            "public ZoneRenderer ZoneRenderer { get; set; }",
-            "AetheriaYmirPhysicsBridge.Instance.TryCastZoneHulls",
-            "ZoneRenderer,"
-        },
-        [hitscanManagerPath] = new[]
-        {
-            "p.ZoneRenderer = source.ZoneRenderer"
+            "public bool TryCastClickables(",
+            "YmirPhysicsQueries.CastSphere(new YmirSphereCastRequest",
+            "private readonly Dictionary<string, ClickableCollider> _clickableBodyMap"
         },
         [clickRaycasterPath] = new[]
         {
@@ -17107,7 +17061,7 @@ static void RequireUnityPhysicsIsNotGameplayAuthority(string root)
     if (missingSymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "Ymir gameplay query bridge is incomplete: " +
+            "Ymir presentation picking bridge is incomplete: " +
             string.Join("; ", missingSymbols));
     }
 
@@ -17133,7 +17087,7 @@ static void RequireUnityPhysicsIsNotGameplayAuthority(string root)
     if (ymirTransportHits.Length > 0)
     {
         throw new InvalidOperationException(
-            "Ymir gameplay queries must use the typed query surface, not a local HTTP transport shortcut: " +
+            "Ymir presentation queries must use the typed query surface, not a local HTTP transport shortcut: " +
             string.Join("; ", ymirTransportHits));
     }
 
@@ -17143,7 +17097,20 @@ static void RequireUnityPhysicsIsNotGameplayAuthority(string root)
         Path.Combine(root, "Assets", "Scripts", "Gameplay", "Weapons", "ProjectileManager.cs"),
         Path.Combine(root, "Assets", "Scripts", "Gameplay", "Weapons", "GuidedProjectile.cs"),
         Path.Combine(root, "Assets", "Scripts", "Gameplay", "Weapons", "GuidedProjectileManager.cs"),
-        Path.Combine(root, "Assets", "Scripts", "Gameplay", "Physics", "YmirUnityRuntimeProofTests.cs")
+        Path.Combine(root, "Assets", "Scripts", "Gameplay", "Physics", "YmirUnityRuntimeProofTests.cs"),
+        Path.Combine(root, "Assets", "Scripts", "Gameplay", "Weapons", "Laser.cs"),
+        Path.Combine(root, "Assets", "Scripts", "Gameplay", "Weapons", "LaserManager.cs"),
+        Path.Combine(root, "Assets", "Scripts", "Gameplay", "Weapons", "Lightning.cs"),
+        Path.Combine(root, "Assets", "Scripts", "Gameplay", "Weapons", "LightningGunManager.cs"),
+        Path.Combine(root, "Assets", "Scripts", "Gameplay", "Weapons", "HitscanEffect.cs"),
+        Path.Combine(root, "Assets", "Scripts", "Gameplay", "Weapons", "HitscanManager.cs"),
+        Path.Combine(root, "Assets", "Scripts", "Gameplay", "Weapons", "ConstantLaser.cs"),
+        Path.Combine(root, "Assets", "Scripts", "Gameplay", "Weapons", "ConstantLaserManager.cs"),
+        Path.Combine(root, "Assets", "Scripts", "Gameplay", "Weapons", "ConstantLightning.cs"),
+        Path.Combine(root, "Assets", "Scripts", "Gameplay", "Weapons", "ConstantLightningManager.cs"),
+        Path.Combine(root, "Assets", "Scripts", "Gameplay", "Weapons", "ConstantParticleWeapon.cs"),
+        Path.Combine(root, "Assets", "Scripts", "Gameplay", "Weapons", "ConstantParticleWeaponManager.cs"),
+        Path.Combine(root, "Assets", "Scripts", "Gameplay", "Weapons", "ConstantWeaponEffectManager.cs")
     };
     var survivingUnityProjectileAuthority = forbiddenUnityProjectileAuthorityPaths
         .Where(File.Exists)
@@ -17155,49 +17122,6 @@ static void RequireUnityPhysicsIsNotGameplayAuthority(string root)
         throw new InvalidOperationException(
             "Ordinary weapon travel is daemon receipt presentation, not Unity/Ymir projectile simulation: " +
             string.Join(", ", survivingUnityProjectileAuthority));
-    }
-
-    if (ymirBridge.Contains("BuildZoneWorld(", StringComparison.Ordinal) ||
-        ymirBridge.Contains("BuildTargetWorld(", StringComparison.Ordinal) ||
-        ymirBridge.Contains("_zoneBodies", StringComparison.Ordinal) ||
-        ymirBridge.Contains("_targetBodies", StringComparison.Ordinal) ||
-        ymirBridge.Contains("TargetBodyPrefix", StringComparison.Ordinal) ||
-        ymirBridge.Contains("bodyMap[bodyId] = hull", StringComparison.Ordinal) ||
-        ymirBridge.Contains("TargetRadiusPadding", StringComparison.Ordinal) ||
-        ymirBridge.Contains("view.HasEntityIndex ? view.EntityIndex[i] : i", StringComparison.Ordinal))
-    {
-        throw new InvalidOperationException(
-            "Ymir gameplay target/zone queries must be built from daemon SOA entity bodies with explicit daemon entity ids, not Unity HullCollider presentation geometry or row-order fallbacks.");
-    }
-
-    if (!ymirBridge.Contains("!view.IsCreated || !view.HasEntityIndex || !view.HasPhysicsRadius", StringComparison.Ordinal) ||
-        !ymirBridge.Contains("var daemonEntityIndex = view.EntityIndex[i];", StringComparison.Ordinal))
-    {
-        throw new InvalidOperationException(
-            "Ymir daemon body construction must require the daemon EntityIndex SoA column and derive body ids from that column.");
-    }
-
-    var forbiddenWeaponZoneHandles = new Dictionary<string, string[]>
-    {
-        [hitscanPath] = new[] { "public Zone Zone", "Zone { get; set; }" },
-        [hitscanManagerPath] = new[] { "p.Zone =", "source.Entity.Zone" }
-    };
-    var weaponZoneHandleHits = forbiddenWeaponZoneHandles
-        .Where(pair => File.Exists(pair.Key))
-        .SelectMany(pair =>
-        {
-            var text = File.ReadAllText(pair.Key);
-            return pair.Value
-                .Where(symbol => text.Contains(symbol, StringComparison.Ordinal))
-                .Select(symbol => $"{Path.GetRelativePath(root, pair.Key)}: {symbol}");
-        })
-        .ToArray();
-
-    if (weaponZoneHandleHits.Length > 0)
-    {
-        throw new InvalidOperationException(
-            "Unity weapon effects must query Ymir/renderer state directly instead of carrying renderer-local Zone handles: " +
-            string.Join("; ", weaponZoneHandleHits));
     }
 
     var weaponEffectRoot = Path.Combine(root, "Assets", "Scripts", "Gameplay", "Weapons");
