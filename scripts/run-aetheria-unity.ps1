@@ -10,7 +10,9 @@ $project = Join-Path $root "Aetheria.Unity"
 $artifacts = Join-Path $project "Build\Logs"
 $clientExe = Join-Path $project "Build\Windows\Aetheria.exe"
 $daemonProject = Join-Path $root "Aetheria.State.Daemon\Aetheria.State.Daemon.csproj"
+$importProject = Join-Path $root "Aetheria.State.Import\Aetheria.State.Import.csproj"
 $state = Join-Path $project "Build\aetheria-unity.cc"
+$stateRecords = "$state.records"
 New-Item -ItemType Directory -Force $artifacts | Out-Null
 
 if (-not $SkipBuild) {
@@ -38,6 +40,12 @@ if (-not $SkipBuild) {
 }
 
 if (-not (Test-Path $clientExe)) { throw "Client executable not found. Run without -SkipBuild first." }
+if (-not (Test-Path $stateRecords)) {
+  dotnet run --project $importProject -- $root $state
+  if ($LASTEXITCODE -ne 0 -or -not (Test-Path $stateRecords)) {
+    throw "Aetheria typed state import failed with exit code $LASTEXITCODE"
+  }
+}
 $daemonLog = Join-Path $artifacts "daemon.log"
 $daemon = Start-Process dotnet -ArgumentList @(
   "run", "--project", $daemonProject, "--",

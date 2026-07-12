@@ -44,9 +44,8 @@ public sealed class AetheriaUnityClient : MonoBehaviour
 
     private static void CreateView()
     {
-        var pipeline = UniversalRenderPipelineAsset.Create();
-        GraphicsSettings.defaultRenderPipeline = pipeline;
-        QualitySettings.renderPipeline = pipeline;
+        if (GraphicsSettings.currentRenderPipeline is not UniversalRenderPipelineAsset)
+            throw new InvalidOperationException("Aetheria Unity requires the project-configured Universal Render Pipeline asset.");
         var cameraObject = new GameObject("Main Camera") { tag = "MainCamera" };
         var camera = cameraObject.AddComponent<Camera>();
         cameraObject.AddComponent<UniversalAdditionalCameraData>().renderPostProcessing = true;
