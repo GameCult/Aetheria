@@ -311,11 +311,11 @@
       }
     },
     "org.gamecult.cultlib": {
-      "version": "https://github.com/GameCult/CultLib.git?path=/unity/org.gamecult.cultlib#cultlib-unity-v1.0.6",
+      "version": "https://github.com/GameCult/CultLib.git?path=/unity/org.gamecult.cultlib#cultlib-unity-v1.0.7",
       "depth": 0,
       "source": "git",
       "dependencies": {},
-      "hash": "a18a7400fb1355054cd5ed543b453dadde0c5cf9"
+      "hash": "1f8f832a788e2bdf59df90fb91da583574d3a42d"
     },
     "org.gamecult.cultmath": {
       "version": "file:../../CultMath",
