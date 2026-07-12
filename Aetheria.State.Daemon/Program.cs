@@ -310,8 +310,8 @@ static RudpCultNetSchemaServer StartClientCultMeshHost(
         Socket = socket,
         ConnectionId = 0x43554c54,
         TransportId = "aetheria-client-rudp",
-        MaxFragmentBytes = 2048,
-        MaxPendingReliablePackets = 512
+        MaxFragmentBytes = 1024,
+        MaxPendingReliablePackets = 8192
     });
     var advertisedEndpoint = $"rudp://{options.ClientCultMeshAdvertiseHost}:{((IPEndPoint)socket.LocalEndPoint!).Port}";
     server.OnCultNet<CultMeshVerseCatalogRequestMessage>((request, peer) =>
