@@ -522,7 +522,7 @@ public class DaemonRuntimeDocumentTests
                 FrameId = 42,
                 SimulationTimeSeconds = 12.5,
                 FixedDeltaSeconds = 0.02,
-                ProjectilePhysics = new PassthroughProjectilePhysics(),
+                PhysicalPayloadPhysics = new PassthroughPhysicalPayloadPhysics(),
                 ObservedCommands = new[] { targetCommand, movementCommand }
             });
 
@@ -943,7 +943,7 @@ public class DaemonRuntimeDocumentTests
                 FrameId = 43,
                 SimulationTimeSeconds = 12.52,
                 FixedDeltaSeconds = 0.02,
-                ProjectilePhysics = new PassthroughProjectilePhysics(),
+                PhysicalPayloadPhysics = new PassthroughPhysicalPayloadPhysics(),
                 ObservedCommands = new[] { targetCommand },
                 AccountedCommandIds = new[] { targetCommand.CommandId }
             });
@@ -2033,12 +2033,12 @@ public class DaemonRuntimeDocumentTests
             new AetheriaRuntimeDaemonIntentState(),
             0.1,
             AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
-            new PassthroughProjectilePhysics());
+            new PassthroughPhysicalPayloadPhysics());
 
         var zone = FindZone(run, 0);
-        Assert.IsNotEmpty(zone.Projectiles);
-        Assert.IsTrue(zone.Projectiles.All(projectile => projectile.Active));
-        Assert.IsTrue(zone.Projectiles.Any(projectile => projectile.SourceEntityIndex == 0 && projectile.TargetEntityIndex == 1));
+        Assert.IsNotEmpty(zone.PhysicalPayloads);
+        Assert.IsTrue(zone.PhysicalPayloads.All(projectile => projectile.Active));
+        Assert.IsTrue(zone.PhysicalPayloads.Any(projectile => projectile.SourceEntityIndex == 0 && projectile.TargetEntityIndex == 1));
         Assert.IsTrue(zone.Entities.All(entity => entity.WeaponStates.Any(weapon =>
             weapon.OwnerKind == "daemon-simulation" &&
             weapon.BehaviorKind == "ProjectileWeapon")));
@@ -2060,7 +2060,7 @@ public class DaemonRuntimeDocumentTests
         var zoneRender = AetheriaRuntimeGameDocuments.ZoneRender(frame);
         var objectsViewport = AetheriaRuntimeGameDocuments.ObjectsViewport(frame, viewport);
 
-        Assert.AreEqual(zone.Projectiles.Count, zoneRender.Projectiles.Count);
+        Assert.AreEqual(zone.PhysicalPayloads.Count, zoneRender.PhysicalPayloads.Count);
         Assert.IsTrue(objectsViewport.Objects.Any(obj =>
             obj.Kind == "projectile" &&
             obj.IconAsset.AssetKey == "aetheria.asset.sprite.game.projectile"));
@@ -2135,13 +2135,13 @@ public class DaemonRuntimeDocumentTests
             new AetheriaRuntimeDaemonIntentState(),
             0.1,
             settings,
-            new PassthroughProjectilePhysics());
+            new PassthroughPhysicalPayloadPhysics());
 
         var zone = FindZone(run, 0);
-        var projectile = zone.Projectiles.Single(projectile => projectile.SourceEntityIndex == 0);
+        var projectile = zone.PhysicalPayloads.Single(projectile => projectile.SourceEntityIndex == 0);
         Assert.AreEqual(21, projectile.PositionX, 0.0001);
         Assert.AreEqual(444, projectile.VelocityX, 0.0001);
-        Assert.AreEqual(33, projectile.Damage, 0.0001);
+        Assert.AreEqual(33, projectile.ContactMagnitude, 0.0001);
         Assert.AreEqual(9, projectile.Radius, 0.0001);
         Assert.AreEqual(3.5, projectile.LifetimeSeconds, 0.0001);
         var weapon = zone.Entities[0].WeaponStates.Single();
@@ -2216,7 +2216,7 @@ public class DaemonRuntimeDocumentTests
             new AetheriaRuntimeDaemonIntentState(),
             0.1,
             AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
-            new PassthroughProjectilePhysics());
+            new PassthroughPhysicalPayloadPhysics());
 
         Assert.IsTrue(pilot.CargoContents.SelectMany(bay => bay.Items).Any(slot => slot.Item.ItemKey == "raider-salvage"));
         Assert.IsEmpty(wreck.CargoContents);
@@ -3027,7 +3027,7 @@ public class DaemonRuntimeDocumentTests
                 FrameId = frame.FrameId,
                 SimulationTimeSeconds = frame.SimulationTimeSeconds,
                 FixedDeltaSeconds = frame.FixedDeltaSeconds,
-                ProjectilePhysics = new PassthroughProjectilePhysics()
+                PhysicalPayloadPhysics = new PassthroughPhysicalPayloadPhysics()
             });
         PublishLatestFrameThroughVerseClient(statePath, tickResult.Frame);
         PublishDaemonSurfacesThroughVerseClient(statePath, tickResult);
@@ -3183,7 +3183,7 @@ public class DaemonRuntimeDocumentTests
                 FrameId = frame.FrameId,
                 SimulationTimeSeconds = frame.SimulationTimeSeconds,
                 FixedDeltaSeconds = frame.FixedDeltaSeconds,
-                ProjectilePhysics = new PassthroughProjectilePhysics()
+                PhysicalPayloadPhysics = new PassthroughPhysicalPayloadPhysics()
             });
         PublishLatestFrameThroughVerseClient(statePath, tickResult.Frame);
         PublishDaemonSurfacesThroughVerseClient(statePath, tickResult);
@@ -5561,29 +5561,19 @@ public class DaemonRuntimeDocumentTests
         return document.LatestAsync().ConfigureAwait(false).GetAwaiter().GetResult();
     }
 
-    private sealed class PassthroughProjectilePhysics : IAetheriaRuntimeProjectilePhysics
+    private sealed class PassthroughPhysicalPayloadPhysics : IAetheriaRuntimePhysicalPayloadPhysics
     {
         public string AuthorityId => "test.passthrough";
 
-        public AetheriaRuntimeProjectileStep Step(
+        public AetheriaRuntimePhysicalPayloadStep Step(
             AetheriaRuntimeZoneSnapshotCommit zone,
             IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities,
             double deltaSeconds)
         {
-            return new AetheriaRuntimeProjectileStep(
-                zone.Projectiles,
-                Array.Empty<AetheriaRuntimeProjectileHit>());
+            return new AetheriaRuntimePhysicalPayloadStep(
+                zone.PhysicalPayloads,
+                Array.Empty<AetheriaRuntimePhysicalPayloadHit>());
         }
 
-        public AetheriaRuntimeBeamHit TraceBeam(
-            AetheriaRuntimeZoneSnapshotCommit zone,
-            IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities,
-            int sourceEntityIndex,
-            double originX,
-            double originZ,
-            double directionX,
-            double directionZ,
-            double range,
-            double radius) => null;
     }
 }

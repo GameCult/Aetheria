@@ -561,15 +561,15 @@ namespace GameCult.Aetheria.State.Verse
         public double SimulationTimeSeconds { get; set; }
 
         [Key(17)]
-        public IReadOnlyList<AetheriaRuntimeProjectileCommit> Projectiles { get; set; } =
-            Array.Empty<AetheriaRuntimeProjectileCommit>();
+        public IReadOnlyList<AetheriaRuntimePhysicalPayloadCommit> PhysicalPayloads { get; set; } =
+            Array.Empty<AetheriaRuntimePhysicalPayloadCommit>();
     }
 
     [MessagePackObject]
-    public sealed class AetheriaRuntimeProjectileCommit
+    public sealed class AetheriaRuntimePhysicalPayloadCommit
     {
         [Key(0)]
-        public string ProjectileId { get; set; } = "";
+        public string PayloadId { get; set; } = "";
 
         [Key(1)]
         public int SourceEntityIndex { get; set; } = -1;
@@ -602,7 +602,7 @@ namespace GameCult.Aetheria.State.Verse
         public double VelocityY { get; set; }
 
         [Key(11)]
-        public double Damage { get; set; }
+        public double ContactMagnitude { get; set; }
 
         [Key(12)]
         public double Radius { get; set; }
@@ -620,7 +620,7 @@ namespace GameCult.Aetheria.State.Verse
         public bool Active { get; set; } = true;
 
         [Key(17)]
-        public string WeaponKind { get; set; } = "";
+        public string PayloadKind { get; set; } = "";
     }
 
     [MessagePackObject]

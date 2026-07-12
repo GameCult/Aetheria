@@ -44,7 +44,7 @@ namespace GameCult.Aetheria.State.Verse
             var run = context.Run;
             var zone = context.Zone;
             var entities = zone.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>();
-            var projectiles = zone.Projectiles ?? Array.Empty<AetheriaRuntimeProjectileCommit>();
+            var projectiles = zone.PhysicalPayloads ?? Array.Empty<AetheriaRuntimePhysicalPayloadCommit>();
             var controlledEntityIndices = entities
                 .Where(IsPlayerControlled)
                 .Select(entity => entity.EntityIndex)
@@ -731,7 +731,7 @@ namespace GameCult.Aetheria.State.Verse
                 Bodies = (zone.Bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>())
                     .Where(body => body != null)
                     .ToArray(),
-                Projectiles = (zone.Projectiles ?? Array.Empty<AetheriaRuntimeProjectileCommit>())
+                PhysicalPayloads = (zone.PhysicalPayloads ?? Array.Empty<AetheriaRuntimePhysicalPayloadCommit>())
                     .Where(projectile => projectile != null && projectile.Active)
                     .ToArray()
             };
@@ -804,7 +804,7 @@ namespace GameCult.Aetheria.State.Verse
         }
 
         public static bool IntersectsViewport(
-            AetheriaRuntimeProjectileCommit projectile,
+            AetheriaRuntimePhysicalPayloadCommit projectile,
             AetheriaRuntimeViewportBounds viewport)
         {
             return projectile.PositionX >= viewport.MinX &&
@@ -867,13 +867,13 @@ namespace GameCult.Aetheria.State.Verse
         }
 
         private static AetheriaRuntimeViewportObject ToViewportObject(
-            AetheriaRuntimeProjectileCommit projectile)
+            AetheriaRuntimePhysicalPayloadCommit projectile)
         {
             return new AetheriaRuntimeViewportObject
             {
                 EntityIndex = -1,
-                EntityKey = projectile.ProjectileId ?? "",
-                DisplayName = projectile.WeaponKind ?? "projectile",
+                EntityKey = projectile.PayloadId ?? "",
+                DisplayName = projectile.PayloadKind ?? "projectile",
                 Kind = "projectile",
                 FactionKey = projectile.FactionKey ?? "",
                 X = projectile.PositionX,
@@ -889,7 +889,7 @@ namespace GameCult.Aetheria.State.Verse
                 Visibility = projectile.Radius,
                 Status = new AetheriaRuntimeEntityStatus
                 {
-                    Hull = projectile.Damage,
+                    Hull = projectile.ContactMagnitude,
                     Shield = 0,
                     Heat = projectile.AgeSeconds
                 },

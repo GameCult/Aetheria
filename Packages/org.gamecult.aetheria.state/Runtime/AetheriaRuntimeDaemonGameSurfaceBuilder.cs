@@ -586,7 +586,7 @@ namespace GameCult.Aetheria.State.Verse
                     zone,
                     currentEntityKey,
                     simulationSettings))
-                .Concat((zone.Projectiles ?? Array.Empty<AetheriaRuntimeProjectileCommit>())
+                .Concat((zone.PhysicalPayloads ?? Array.Empty<AetheriaRuntimePhysicalPayloadCommit>())
                     .Where(projectile => projectile != null && projectile.LifetimeSeconds > 0)
                     .Select(projectile => PlayableWorldProjectile(projectile, run, zone)))
                 .Concat((zone.DroppedPickups ?? Array.Empty<AetheriaRuntimeDroppedPickupCommit>())
@@ -766,11 +766,11 @@ namespace GameCult.Aetheria.State.Verse
         }
 
         private static AetheriaRuntimeSurfaceComponent PlayableWorldProjectile(
-            AetheriaRuntimeProjectileCommit projectile,
+            AetheriaRuntimePhysicalPayloadCommit projectile,
             AetheriaRuntimeRunCheckpointCommit run,
             AetheriaRuntimeZoneSnapshotCommit zone)
         {
-            var projectileId = $"{run.RunId}:zone:{zone.ZoneIndex}:projectile:{projectile.ProjectileId}";
+            var projectileId = $"{run.RunId}:zone:{zone.ZoneIndex}:physical-payload:{projectile.PayloadId}";
             var targetEntityId = projectile.TargetEntityIndex < 0
                 ? ""
                 : run.EntityRecordKey(zone.ZoneIndex, projectile.TargetEntityIndex);
@@ -778,7 +778,7 @@ namespace GameCult.Aetheria.State.Verse
             {
                 ["entityId"] = projectileId,
                 ["entityKind"] = "projectile",
-                ["label"] = projectile.WeaponKind ?? "Projectile",
+                ["label"] = projectile.PayloadKind ?? "Projectile",
                 ["faction"] = "",
                 ["assetRef"] = "prefab.entity.projectile",
                 ["position"] = string.Join(",", new[]
@@ -791,13 +791,13 @@ namespace GameCult.Aetheria.State.Verse
                 ["radius"] = Math.Max(0.01, projectile.Radius).ToString("0.###", CultureInfo.InvariantCulture),
                 ["sourceEntityId"] = run.EntityRecordKey(zone.ZoneIndex, projectile.SourceEntityIndex),
                 ["targetEntityId"] = targetEntityId,
-                ["damage"] = FormatNumber(projectile.Damage),
+                ["contactMagnitude"] = FormatNumber(projectile.ContactMagnitude),
                 ["remainingLifetime"] = FormatNumber(projectile.LifetimeSeconds),
                 ["selectable"] = "false",
                 ["controllable"] = "false"
             };
             return new AetheriaRuntimeSurfaceComponent(
-                $"aetheria.daemon.game.world.projectile.{projectile.ProjectileId}",
+                $"aetheria.daemon.game.world.projectile.{projectile.PayloadId}",
                 "world.entity3d",
                 props,
                 Array.Empty<AetheriaRuntimeSurfaceComponent>());

@@ -16461,13 +16461,13 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
         "org.gamecult.aetheria.state",
         "Runtime",
         "AetheriaRuntimeDaemonSimulationSettings.cs");
-    var projectilePhysicsContractPath = Path.Combine(
+    var physicalPayloadPhysicsContractPath = Path.Combine(
         root,
         "Packages",
         "org.gamecult.aetheria.state",
         "Runtime",
-        "AetheriaRuntimeProjectilePhysics.cs");
-    var ymirProjectilePhysicsPath = Path.Combine(root, "Aetheria.State.Daemon", "AetheriaYmirProjectilePhysics.cs");
+        "AetheriaRuntimePhysicalPayloadPhysics.cs");
+    var ymirPhysicalPayloadPhysicsPath = Path.Combine(root, "Aetheria.State.Daemon", "AetheriaYmirPhysicalPayloadPhysics.cs");
     var daemonProjectPath = Path.Combine(root, "Aetheria.State.Daemon", "Aetheria.State.Daemon.csproj");
     var gameDocumentsPath = Path.Combine(
         root,
@@ -16521,11 +16521,11 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
     var daemonSimulationSettings = File.Exists(daemonSimulationSettingsPath)
         ? File.ReadAllText(daemonSimulationSettingsPath)
         : throw new InvalidOperationException("Cannot verify daemon simulation authority; daemon simulation settings are missing.");
-    var projectilePhysicsContract = File.Exists(projectilePhysicsContractPath)
-        ? File.ReadAllText(projectilePhysicsContractPath)
+    var physicalPayloadPhysicsContract = File.Exists(physicalPayloadPhysicsContractPath)
+        ? File.ReadAllText(physicalPayloadPhysicsContractPath)
         : throw new InvalidOperationException("Cannot verify daemon projectile authority; shared physics port is missing.");
-    var ymirProjectilePhysics = File.Exists(ymirProjectilePhysicsPath)
-        ? File.ReadAllText(ymirProjectilePhysicsPath)
+    var ymirPhysicalPayloadPhysics = File.Exists(ymirPhysicalPayloadPhysicsPath)
+        ? File.ReadAllText(ymirPhysicalPayloadPhysicsPath)
         : throw new InvalidOperationException("Cannot verify daemon projectile authority; daemon Ymir adapter is missing.");
     var daemonProject = File.ReadAllText(daemonProjectPath);
     var gameDocuments = File.Exists(gameDocumentsPath)
@@ -16584,18 +16584,18 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
         ? File.ReadAllText(freezePath)
         : throw new InvalidOperationException("Cannot verify daemon transport vocabulary; freeze harness is missing.");
 
-    var requiredProjectileAuthoritySymbols = new Dictionary<string, string[]>
+    var requiredPhysicalPayloadAuthoritySymbols = new Dictionary<string, string[]>
     {
         [snapshotDocumentsPath] = new[]
         {
-            "public IReadOnlyList<AetheriaRuntimeProjectileCommit> Projectiles",
-            "public sealed class AetheriaRuntimeProjectileCommit"
+            "public IReadOnlyList<AetheriaRuntimePhysicalPayloadCommit> PhysicalPayloads",
+            "public sealed class AetheriaRuntimePhysicalPayloadCommit"
         },
         [daemonSimulationPath] = new[]
         {
             "public static class AetheriaRuntimeDaemonSimulation",
             "AetheriaRuntimeDaemonSimulationSettings settings",
-            "StepCombat(run, zone, entities, intents, deltaSeconds, settings, projectilePhysics, catalog, frameId)",
+            "StepCombat(run, zone, entities, intents, deltaSeconds, settings, physicalPayloadPhysics, catalog, frameId)",
             "AetheriaRuntimeEquippedBehaviorQueries.Find(entity, catalog, AetheriaRuntimeBehaviorKinds.InstantWeapon)",
             "EnsureWeaponState(",
             "CommitWeaponRound(attacker, weapon)",
@@ -16606,9 +16606,10 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
             "weapon.reload.completed",
             "AetheriaRuntimeCargoTransactions.TryRemoveQuantity(",
             "CommitEnergy(entity, weapon.Energy)",
-            "SpawnProjectile(zone, attacker, target, weapon, settings)",
-            "projectilePhysics.Step(zone, entities, deltaSeconds)",
-            "Damage(target, hit.Projectile.Damage)"
+            "CommitShotResolution(run, zone, attacker, target, weapon, shotId, frameId)",
+            "PreparePhysicalPayloads(zone, byIndex, deltaSeconds)",
+            "physicalPayloadPhysics.Step(zone, entities, deltaSeconds)",
+            "Kind = \"physical-payload.contact\""
         },
         [daemonSimulationSettingsPath] = new[]
         {
@@ -16617,18 +16618,18 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
             "public double ProjectileSpeed { get; }",
             "public double AttackRange { get; }"
         },
-        [projectilePhysicsContractPath] = new[]
+        [physicalPayloadPhysicsContractPath] = new[]
         {
-            "public interface IAetheriaRuntimeProjectilePhysics",
-            "public sealed class AetheriaRuntimeProjectilePhysicsUnavailable",
-            "public sealed class AetheriaRuntimeProjectileStep",
-            "public sealed class AetheriaRuntimeProjectileHit"
+            "public interface IAetheriaRuntimePhysicalPayloadPhysics",
+            "public sealed class AetheriaRuntimePhysicalPayloadPhysicsUnavailable",
+            "public sealed class AetheriaRuntimePhysicalPayloadStep",
+            "public sealed class AetheriaRuntimePhysicalPayloadHit"
         },
-        [ymirProjectilePhysicsPath] = new[]
+        [ymirPhysicalPayloadPhysicsPath] = new[]
         {
-            "public sealed class AetheriaYmirProjectilePhysics : IAetheriaRuntimeProjectilePhysics",
+            "public sealed class AetheriaYmirPhysicalPayloadPhysics : IAetheriaRuntimePhysicalPayloadPhysics",
             "private readonly YmirSimulator _simulator",
-            "ProjectileBodyPrefix",
+            "PhysicalPayloadBodyPrefix",
             "EntityBodyPrefix",
             "_simulator.Step(new SimulationStepRequest("
         },
@@ -16638,29 +16639,29 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
         },
         [daemonProgramPath] = new[]
         {
-            "var projectilePhysics = new AetheriaYmirProjectilePhysics();",
-            "ProjectilePhysics = projectilePhysics"
+            "var physicalPayloadPhysics = new AetheriaYmirPhysicalPayloadPhysics();",
+            "PhysicalPayloadPhysics = physicalPayloadPhysics"
         },
         [gameDocumentsPath] = new[]
         {
-            "var projectiles = zone.Projectiles",
+            "var projectiles = zone.PhysicalPayloads",
             ".Concat(projectiles",
             "private static AetheriaRuntimeViewportObject ToViewportObject(",
-            "AetheriaRuntimeProjectileCommit projectile)"
+            "AetheriaRuntimePhysicalPayloadCommit projectile)"
         },
         [gameViewportDocumentsPath] = new[]
         {
-            "public IReadOnlyList<AetheriaRuntimeProjectileCommit> Projectiles"
+            "public IReadOnlyList<AetheriaRuntimePhysicalPayloadCommit> PhysicalPayloads"
         }
     };
-    var missingProjectileAuthoritySymbols = requiredProjectileAuthoritySymbols
+    var missingPhysicalPayloadAuthoritySymbols = requiredPhysicalPayloadAuthoritySymbols
         .SelectMany(pair =>
         {
             var text = pair.Key == snapshotDocumentsPath ? snapshotDocuments :
                 pair.Key == daemonSimulationPath ? daemonSimulation :
                 pair.Key == daemonSimulationSettingsPath ? daemonSimulationSettings :
-                pair.Key == projectilePhysicsContractPath ? projectilePhysicsContract :
-                pair.Key == ymirProjectilePhysicsPath ? ymirProjectilePhysics :
+                pair.Key == physicalPayloadPhysicsContractPath ? physicalPayloadPhysicsContract :
+                pair.Key == ymirPhysicalPayloadPhysicsPath ? ymirPhysicalPayloadPhysics :
                 pair.Key == daemonProjectPath ? daemonProject :
                 pair.Key == daemonProgramPath ? daemonProgram :
                 pair.Key == gameDocumentsPath ? gameDocuments :
@@ -16670,11 +16671,29 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
                 .Select(symbol => $"{Path.GetRelativePath(root, pair.Key)}: missing {symbol}");
         })
         .ToArray();
-    if (missingProjectileAuthoritySymbols.Length > 0)
+    if (missingPhysicalPayloadAuthoritySymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "Daemon combat must publish moving typed projectiles instead of invisible local/direct-damage shortcuts: " +
-            string.Join("; ", missingProjectileAuthoritySymbols));
+            "Daemon combat must resolve ordinary shots as receipts while Ymir owns only typed physical payload motion: " +
+            string.Join("; ", missingPhysicalPayloadAuthoritySymbols));
+    }
+
+    var forbiddenPhysicalPayloadDamageSymbols = new[]
+    {
+        "Damage(target, hit.Payload",
+        "SpawnProjectile(zone, attacker",
+        "TraceBeam("
+    };
+    var survivingPhysicalPayloadDamageSymbols = forbiddenPhysicalPayloadDamageSymbols
+        .Where(symbol => daemonSimulation.Contains(symbol, StringComparison.Ordinal) ||
+            physicalPayloadPhysicsContract.Contains(symbol, StringComparison.Ordinal) ||
+            ymirPhysicalPayloadPhysics.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (survivingPhysicalPayloadDamageSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Ymir physical payload contacts may report physics facts but may not decide ordinary weapon damage: " +
+            string.Join(", ", survivingPhysicalPayloadDamageSymbols));
     }
 
     if (daemonSimulation.Contains("AetheriaRuntimeRtsSimulation", StringComparison.Ordinal) ||

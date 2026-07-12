@@ -3,20 +3,20 @@ using Ymir.Core;
 
 namespace Aetheria.State.Daemon;
 
-public sealed class AetheriaYmirProjectilePhysics : IAetheriaRuntimeProjectilePhysics
+public sealed class AetheriaYmirPhysicalPayloadPhysics : IAetheriaRuntimePhysicalPayloadPhysics
 {
-    private const string ProjectileBodyPrefix = "aetheria.projectile.";
+    private const string PhysicalPayloadBodyPrefix = "aetheria.physical-payload.";
     private const string EntityBodyPrefix = "aetheria.daemon.entity.";
     private readonly YmirSimulator _simulator;
 
-    public AetheriaYmirProjectilePhysics(YmirSimulator? simulator = null)
+    public AetheriaYmirPhysicalPayloadPhysics(YmirSimulator? simulator = null)
     {
         _simulator = simulator ?? new YmirSimulator();
     }
 
     public string AuthorityId => "ymir.core";
 
-    public AetheriaRuntimeProjectileStep Step(
+    public AetheriaRuntimePhysicalPayloadStep Step(
         AetheriaRuntimeZoneSnapshotCommit zone,
         IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities,
         double deltaSeconds)
@@ -28,15 +28,15 @@ public sealed class AetheriaYmirProjectilePhysics : IAetheriaRuntimeProjectilePh
         var entityByBodyId = (entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
             .Where(entity => entity is { IsActive: true })
             .ToDictionary(entity => EntityBodyId(entity.EntityIndex), StringComparer.Ordinal);
-        var survivors = new List<AetheriaRuntimeProjectileCommit>();
-        var hits = new List<AetheriaRuntimeProjectileHit>();
+        var survivors = new List<AetheriaRuntimePhysicalPayloadCommit>();
+        var hits = new List<AetheriaRuntimePhysicalPayloadHit>();
 
-        foreach (var projectile in zone.Projectiles ?? Array.Empty<AetheriaRuntimeProjectileCommit>())
+        foreach (var projectile in zone.PhysicalPayloads ?? Array.Empty<AetheriaRuntimePhysicalPayloadCommit>())
         {
             if (projectile is not { Active: true })
                 continue;
 
-            var projectileBodyId = ProjectileBodyId(projectile.ProjectileId);
+            var projectileBodyId = PhysicalPayloadBodyId(projectile.PayloadId);
             var bodies = new List<PhysicsBody>
             {
                 new(
@@ -93,10 +93,10 @@ public sealed class AetheriaYmirProjectilePhysics : IAetheriaRuntimeProjectilePh
             var normal = string.Equals(contact.BodyA, projectileBodyId, StringComparison.Ordinal)
                 ? contact.Normal
                 : new Vec2(-contact.Normal.X, -contact.Normal.Y);
-            hits.Add(new AetheriaRuntimeProjectileHit
+            hits.Add(new AetheriaRuntimePhysicalPayloadHit
             {
-                Projectile = projectile,
-                ProjectileBodyId = projectileBodyId,
+                Payload = projectile,
+                PhysicalPayloadBodyId = projectileBodyId,
                 TargetEntityIndex = target.EntityIndex,
                 TargetBodyId = targetBodyId,
                 PointX = contact.Point.X,
@@ -106,56 +106,11 @@ public sealed class AetheriaYmirProjectilePhysics : IAetheriaRuntimeProjectilePh
             });
         }
 
-        return new AetheriaRuntimeProjectileStep(survivors, hits);
+        return new AetheriaRuntimePhysicalPayloadStep(survivors, hits);
     }
 
-    public AetheriaRuntimeBeamHit? TraceBeam(
-        AetheriaRuntimeZoneSnapshotCommit zone,
-        IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities,
-        int sourceEntityIndex,
-        double originX,
-        double originZ,
-        double directionX,
-        double directionZ,
-        double range,
-        double radius)
-    {
-        ArgumentNullException.ThrowIfNull(zone);
-        var entityByBodyId = (entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
-            .Where(entity => entity is { IsActive: true } && entity.EntityIndex != sourceEntityIndex)
-            .ToDictionary(entity => EntityBodyId(entity.EntityIndex), StringComparer.Ordinal);
-        var world = new YmirWorld((float)zone.SimulationTimeSeconds,
-            entityByBodyId.Select(pair => new PhysicsBody(
-                pair.Key,
-                new Vec2((float)pair.Value.PositionX, (float)pair.Value.PositionZ),
-                Vec2.Zero,
-                ResolveEntityRadius(pair.Value),
-                1.0f,
-                IsStatic: true)).ToArray(),
-            Array.Empty<RadialField>());
-        var hit = _simulator.CastCircle(new CircleCastQueryRequest(
-                new Vec2((float)originX, (float)originZ),
-                new Vec2((float)directionX, (float)directionZ),
-                (float)range,
-                (float)Math.Max(0, radius),
-                world))
-            .Hits.FirstOrDefault(candidate => entityByBodyId.ContainsKey(candidate.BodyId));
-        if (hit == null || !entityByBodyId.TryGetValue(hit.BodyId, out var target))
-            return null;
-        return new AetheriaRuntimeBeamHit
-        {
-            TargetEntityIndex = target.EntityIndex,
-            TargetBodyId = hit.BodyId,
-            PointX = hit.Point.X,
-            PointZ = hit.Point.Y,
-            NormalX = hit.Normal.X,
-            NormalZ = hit.Normal.Y,
-            Distance = hit.Distance
-        };
-    }
-
-    private static string ProjectileBodyId(string? projectileId) =>
-        ProjectileBodyPrefix + (projectileId ?? "");
+    private static string PhysicalPayloadBodyId(string? projectileId) =>
+        PhysicalPayloadBodyPrefix + (projectileId ?? "");
 
     private static string EntityBodyId(int entityIndex) =>
         EntityBodyPrefix + entityIndex;

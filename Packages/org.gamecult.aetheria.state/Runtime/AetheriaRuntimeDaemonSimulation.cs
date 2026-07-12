@@ -17,7 +17,7 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeDaemonIntentState intents,
             double deltaSeconds,
             AetheriaRuntimeDaemonSimulationSettings settings,
-            IAetheriaRuntimeProjectilePhysics projectilePhysics,
+            IAetheriaRuntimePhysicalPayloadPhysics physicalPayloadPhysics,
             IAetheriaRuntimeWorldPhysics worldPhysics,
             AetheriaRuntimeCatalogSnapshot? catalog = null,
             long frameId = 0,
@@ -25,8 +25,8 @@ namespace GameCult.Aetheria.State.Verse
         {
             if (run == null || deltaSeconds <= 0)
                 return;
-            if (projectilePhysics == null)
-                throw new ArgumentNullException(nameof(projectilePhysics));
+            if (physicalPayloadPhysics == null)
+                throw new ArgumentNullException(nameof(physicalPayloadPhysics));
             if (worldPhysics == null)
                 throw new ArgumentNullException(nameof(worldPhysics));
 
@@ -53,7 +53,7 @@ namespace GameCult.Aetheria.State.Verse
                 StepTargetPursuit(entities, settings);
                 var worldStep = StepWorldPhysics(zone, entities, deltaSeconds, worldPhysics);
                 ResolvePickupContacts(run, zone, entities, worldStep, catalog, frameId);
-                StepCombat(run, zone, entities, intents, deltaSeconds, settings, projectilePhysics, catalog, frameId);
+                StepCombat(run, zone, entities, intents, deltaSeconds, settings, physicalPayloadPhysics, catalog, frameId);
                 AetheriaRuntimeMiningSimulation.Step(run, zone, entities, intents, catalog, frameId, simulationTimeSeconds, deltaSeconds);
                 AetheriaRuntimeSurveySimulation.Step(run, zone, entities, intents, catalog, frameId, simulationTimeSeconds, deltaSeconds);
                 RefreshContacts(entities, settings);
@@ -232,7 +232,7 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeDaemonIntentState intents,
             double deltaSeconds,
             AetheriaRuntimeDaemonSimulationSettings settings,
-            IAetheriaRuntimeProjectilePhysics projectilePhysics,
+            IAetheriaRuntimePhysicalPayloadPhysics physicalPayloadPhysics,
             AetheriaRuntimeCatalogSnapshot? catalog,
             long frameId)
         {
@@ -332,18 +332,18 @@ namespace GameCult.Aetheria.State.Verse
                 }
             }
 
-            PrepareProjectiles(zone, byIndex, deltaSeconds);
-            var projectileStep = zone.Projectiles.Count == 0
-                ? new AetheriaRuntimeProjectileStep(
-                    Array.Empty<AetheriaRuntimeProjectileCommit>(),
-                    Array.Empty<AetheriaRuntimeProjectileHit>())
-                : projectilePhysics.Step(zone, entities, deltaSeconds);
-            zone.Projectiles = projectileStep.Projectiles;
+            PreparePhysicalPayloads(zone, byIndex, deltaSeconds);
+            var projectileStep = zone.PhysicalPayloads.Count == 0
+                ? new AetheriaRuntimePhysicalPayloadStep(
+                    Array.Empty<AetheriaRuntimePhysicalPayloadCommit>(),
+                    Array.Empty<AetheriaRuntimePhysicalPayloadHit>())
+                : physicalPayloadPhysics.Step(zone, entities, deltaSeconds);
+            zone.PhysicalPayloads = projectileStep.PhysicalPayloads;
             foreach (var hit in projectileStep.Hits)
             {
                 if (byIndex.TryGetValue(hit.TargetEntityIndex, out var target))
                 {
-                    AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit { EventId = $"projectile:{hit.Projectile.ProjectileId}:impact", Kind = "projectile.impact", FrameId = frameId, ZoneIndex = zone.ZoneIndex, SourceEntityIndex = hit.Projectile.SourceEntityIndex, TargetEntityIndex = target.EntityIndex, SubjectKey = hit.Projectile.ProjectileId, ItemKey = hit.Projectile.WeaponKind, ScalarValue = hit.Projectile.Damage, PositionX = hit.PointX, PositionZ = hit.PointZ });
+                    AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit { EventId = $"physical-payload:{hit.Payload.PayloadId}:contact", Kind = "physical-payload.contact", FrameId = frameId, ZoneIndex = zone.ZoneIndex, SourceEntityIndex = hit.Payload.SourceEntityIndex, TargetEntityIndex = target.EntityIndex, SubjectKey = hit.Payload.PayloadId, ItemKey = hit.Payload.PayloadKind, ScalarValue = hit.Payload.ContactMagnitude, PositionX = hit.PointX, PositionZ = hit.PointZ });
                 }
             }
 
@@ -767,13 +767,13 @@ namespace GameCult.Aetheria.State.Verse
             weaponState.LockProgress = Clamp01(weaponState.LockProgress + acquisition);
         }
 
-        private static void PrepareProjectiles(
+        private static void PreparePhysicalPayloads(
             AetheriaRuntimeZoneSnapshotCommit zone,
             IReadOnlyDictionary<int, AetheriaRuntimeEntitySnapshotCommit> entities,
             double deltaSeconds)
         {
-            var active = new List<AetheriaRuntimeProjectileCommit>();
-            foreach (var projectile in zone.Projectiles ?? Array.Empty<AetheriaRuntimeProjectileCommit>())
+            var active = new List<AetheriaRuntimePhysicalPayloadCommit>();
+            foreach (var projectile in zone.PhysicalPayloads ?? Array.Empty<AetheriaRuntimePhysicalPayloadCommit>())
             {
                 if (projectile == null || !projectile.Active)
                     continue;
@@ -787,16 +787,16 @@ namespace GameCult.Aetheria.State.Verse
                     entities.TryGetValue(projectile.TargetEntityIndex, out var target) &&
                     IsAlive(target))
                 {
-                    GuideProjectile(projectile, target);
+                    GuidePhysicalPayload(projectile, target);
                 }
 
                 active.Add(projectile);
             }
-            zone.Projectiles = active;
+            zone.PhysicalPayloads = active;
         }
 
-        private static void GuideProjectile(
-            AetheriaRuntimeProjectileCommit projectile,
+        private static void GuidePhysicalPayload(
+            AetheriaRuntimePhysicalPayloadCommit projectile,
             AetheriaRuntimeEntitySnapshotCommit target)
         {
             var speed = Math.Sqrt(

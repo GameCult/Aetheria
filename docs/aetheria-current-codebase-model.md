@@ -140,10 +140,14 @@ Unity physics is already fenced as forbidden gameplay authority by
 
 Current Ymir control flow:
 
-- Projectiles ask `AetheriaYmirPhysicsBridge.TryStepProjectile`.
-- Daemon RTS combat spawns typed projectile state, but projectile motion and
-  contact discovery route through `AetheriaRuntimeYmirProjectilePhysics` before
-  Aetheria applies damage policy. Combat does not own projectile kinematics.
+- The daemon projects ships, pickups, fields, and explicitly physical payloads
+  into Ymir. Ymir owns integration, collision, and spatial contact facts.
+- Ordinary direct, constant, and charged weapon fire resolves through
+  deterministic shot receipts. It does not create a Ymir body or derive damage
+  from collision.
+- `AetheriaYmirPhysicalPayloadPhysics` advances only objects whose continued
+  physical motion is gameplay state. Aetheria interprets returned contacts;
+  Ymir does not own damage policy.
 - Target/zone hit queries call `TryOverlapTargetHulls`, `TryCastTargetHulls`,
   `TryOverlapZoneHulls`, or `TryCastZoneHulls`.
 - `TryBuildDaemonWorld` builds Ymir bodies from `AetheriaDaemonRenderNativeView`

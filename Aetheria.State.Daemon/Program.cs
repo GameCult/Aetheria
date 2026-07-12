@@ -13,7 +13,7 @@ using System.Net.Sockets;
 
 var options = AetheriaDaemonHostOptions.Parse(args);
 var startedAtUtc = DateTimeOffset.UtcNow.ToString("O");
-var projectilePhysics = new AetheriaYmirProjectilePhysics();
+var physicalPayloadPhysics = new AetheriaYmirPhysicalPayloadPhysics();
 var worldPhysics = new AetheriaYmirWorldPhysics();
 
 Console.WriteLine($"Aetheria Verse daemon starting: {options.StatePath}");
@@ -45,7 +45,7 @@ using var cultMeshRudpHost = StartClientCultMeshHost(node, options, () => latest
 using var clientPumpCancellation = new CancellationTokenSource();
 var clientPump = RunClientCultMeshPumpAsync(cultMeshRudpHost, clientPumpCancellation.Token);
 var nextApiPublicationUtc = DateTimeOffset.UtcNow;
-var firstTick = await TickAsync(node, options, projectilePhysics, worldPhysics, latestFrame, buildPublications: true).ConfigureAwait(false);
+var firstTick = await TickAsync(node, options, physicalPayloadPhysics, worldPhysics, latestFrame, buildPublications: true).ConfigureAwait(false);
 ThrowIfClientPumpFaulted(clientPump);
 latestFrame = firstTick.Frame;
 nextApiPublicationUtc = DateTimeOffset.UtcNow.Add(options.ApiPublicationInterval);
@@ -82,7 +82,7 @@ while (!stopped.Task.IsCompleted)
     }
 
     var buildPublications = DateTimeOffset.UtcNow >= nextApiPublicationUtc;
-    var tick = await TickAsync(node, options, projectilePhysics, worldPhysics, latestFrame, buildPublications).ConfigureAwait(false);
+    var tick = await TickAsync(node, options, physicalPayloadPhysics, worldPhysics, latestFrame, buildPublications).ConfigureAwait(false);
     ThrowIfClientPumpFaulted(clientPump);
     latestFrame = tick.Frame;
     nextTickUtc += options.TickInterval;
@@ -117,7 +117,7 @@ static void ThrowIfClientPumpFaulted(Task clientPump)
 static async Task<AetheriaRuntimeDaemonTickResult> TickAsync(
     AetheriaStateNode node,
     AetheriaDaemonHostOptions options,
-    IAetheriaRuntimeProjectilePhysics projectilePhysics,
+    IAetheriaRuntimePhysicalPayloadPhysics physicalPayloadPhysics,
     IAetheriaRuntimeWorldPhysics worldPhysics,
     AetheriaRuntimeDaemonFrameDocument? currentFrame,
     bool buildPublications)
@@ -186,7 +186,7 @@ static async Task<AetheriaRuntimeDaemonTickResult> TickAsync(
             Catalog = node.RuntimeCatalog().Latest(),
             RenderSettings = options.RenderSettings,
             SimulationSettings = options.SimulationSettings,
-            ProjectilePhysics = projectilePhysics,
+            PhysicalPayloadPhysics = physicalPayloadPhysics,
             WorldPhysics = worldPhysics,
             StarbridgeScenario = starbridgeScenario,
             StarbridgeSession = starbridgeSession,

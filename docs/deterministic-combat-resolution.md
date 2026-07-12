@@ -172,7 +172,7 @@ drop or simplify an effect. It may not promote a visual collision into damage.
 
 ## Forbidden Writers
 
-- `IAetheriaRuntimeProjectilePhysics.Step` may not decide ordinary weapon
+- `IAetheriaRuntimePhysicalPayloadPhysics.Step` may not decide ordinary weapon
   damage.
 - Unity physics, effect managers, colliders, and particle systems may not report
   hits back as combat truth.
@@ -182,15 +182,15 @@ drop or simplify an effect. It may not promote a visual collision into damage.
 
 ## Cut Line
 
-The current `StepCombat` path that spawns an authoritative projectile, advances
-it through `IAetheriaRuntimeProjectilePhysics`, and applies damage from returned
-contacts must be removed as the ordinary weapon authority. It is replaced by a
-shot resolver and damage transaction. Projectile documents survive only as
-derived presentation or as explicitly physical persistent payloads.
+Ordinary weapon authority is the shot resolver and damage transaction. It does
+not spawn a physical payload, advance one through Ymir, or apply damage from a
+returned contact. Physical payload documents exist only for objects whose
+continued motion and contact are gameplay state; their contact facts do not
+implicitly carry weapon damage authority.
 
-The cut is complete only when a projectile contact can no longer alter ordinary
-weapon damage and a missing presentation projectile cannot suppress a resolved
-hit.
+The cut is complete only when a physical payload contact can no longer alter
+ordinary weapon damage and a missing presentation trajectory cannot suppress a
+resolved hit.
 
 ## Conformance
 

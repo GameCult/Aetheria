@@ -894,8 +894,8 @@ namespace GameCult.Aetheria.State.Verse
             Array.Empty<AetheriaRuntimeBodySnapshotCommit>();
 
         [Key(20)]
-        public IReadOnlyList<AetheriaRuntimeProjectileCommit> Projectiles { get; set; } =
-            Array.Empty<AetheriaRuntimeProjectileCommit>();
+        public IReadOnlyList<AetheriaRuntimePhysicalPayloadCommit> PhysicalPayloads { get; set; } =
+            Array.Empty<AetheriaRuntimePhysicalPayloadCommit>();
 
         public static string EntityRecordKey(string runId, int zoneIndex, int entityIndex)
         {
