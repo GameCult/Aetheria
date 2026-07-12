@@ -12,6 +12,7 @@ namespace GameCult.Aetheria.State.Verse
         public const string ConstantWeapon = "ConstantWeapon";
         public const string ChargedWeapon = "ChargedWeapon";
         public const string AutoWeapon = "AutoWeapon";
+        public const string DeployableWeapon = "DeployableWeapon";
 
         private static readonly ISet<string> WeaponKinds = new HashSet<string>(StringComparer.Ordinal)
         {
@@ -20,7 +21,8 @@ namespace GameCult.Aetheria.State.Verse
             InstantWeapon,
             ConstantWeapon,
             ChargedWeapon,
-            AutoWeapon
+            AutoWeapon,
+            DeployableWeapon
         };
 
         public static bool IsWeapon(string kind)

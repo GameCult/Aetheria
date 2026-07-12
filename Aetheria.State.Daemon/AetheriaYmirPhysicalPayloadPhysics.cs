@@ -45,6 +45,7 @@ public sealed class AetheriaYmirPhysicalPayloadPhysics : IAetheriaRuntimePhysica
                     new Vec2((float)projectile.VelocityX, (float)projectile.VelocityY),
                     (float)Math.Max(0.001, projectile.Radius),
                     1.0f,
+                    IsStatic: projectile.Stationary,
                     Restitution: 0.0f)
             };
             foreach (var pair in entityByBodyId)
@@ -104,6 +105,13 @@ public sealed class AetheriaYmirPhysicalPayloadPhysics : IAetheriaRuntimePhysica
                 NormalX = normal.X,
                 NormalZ = normal.Y
             });
+            if (string.Equals(projectile.PayloadKind, "mine", StringComparison.Ordinal))
+            {
+                projectile.Stationary = true;
+                projectile.VelocityX = 0;
+                projectile.VelocityY = 0;
+                survivors.Add(projectile);
+            }
         }
 
         return new AetheriaRuntimePhysicalPayloadStep(survivors, hits);

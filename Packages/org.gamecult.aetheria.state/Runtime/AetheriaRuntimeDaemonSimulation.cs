@@ -53,7 +53,8 @@ namespace GameCult.Aetheria.State.Verse
                 StepTargetPursuit(entities, settings);
                 var worldStep = StepWorldPhysics(zone, entities, deltaSeconds, worldPhysics);
                 ResolvePickupContacts(run, zone, entities, worldStep, catalog, frameId);
-                StepCombat(run, zone, entities, intents, deltaSeconds, settings, physicalPayloadPhysics, catalog, frameId);
+                StepCombat(run, zone, entities, intents, deltaSeconds, settings, physicalPayloadPhysics, catalog,
+                    frameId, simulationTimeSeconds);
                 AetheriaRuntimeMiningSimulation.Step(run, zone, entities, intents, catalog, frameId, simulationTimeSeconds, deltaSeconds);
                 AetheriaRuntimeSurveySimulation.Step(run, zone, entities, intents, catalog, frameId, simulationTimeSeconds, deltaSeconds);
                 RefreshContacts(entities, settings);
@@ -234,12 +235,14 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeDaemonSimulationSettings settings,
             IAetheriaRuntimePhysicalPayloadPhysics physicalPayloadPhysics,
             AetheriaRuntimeCatalogSnapshot? catalog,
-            long frameId)
+            long frameId,
+            double simulationTimeSeconds)
         {
             var byIndex = entities.ToDictionary(entity => entity.EntityIndex);
             foreach (var attacker in entities)
             {
                 var weaponGroup = ResolveFireGroup(run, zone, attacker, intents);
+                StepDeployableWeapons(run, zone, attacker, weaponGroup, deltaSeconds, settings, catalog, frameId);
                 StepChargedWeapons(run, zone, attacker, byIndex, weaponGroup, deltaSeconds,
                     settings, catalog, frameId);
                 StepConstantWeapons(run, zone, byIndex, attacker, weaponGroup, deltaSeconds,
@@ -344,8 +347,16 @@ namespace GameCult.Aetheria.State.Verse
                 if (byIndex.TryGetValue(hit.TargetEntityIndex, out var target))
                 {
                     AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit { EventId = $"physical-payload:{hit.Payload.PayloadId}:contact", Kind = "physical-payload.contact", FrameId = frameId, ZoneIndex = zone.ZoneIndex, SourceEntityIndex = hit.Payload.SourceEntityIndex, TargetEntityIndex = target.EntityIndex, SubjectKey = hit.Payload.PayloadId, ItemKey = hit.Payload.PayloadKind, ScalarValue = hit.Payload.ContactMagnitude, PositionX = hit.PointX, PositionZ = hit.PointZ });
+                    if (string.Equals(hit.Payload.PayloadKind, "mine", StringComparison.Ordinal) &&
+                        hit.Payload.AgeSeconds >= hit.Payload.ActivationDelaySeconds &&
+                        hit.Payload.TriggeredAtSeconds < 0)
+                    {
+                        hit.Payload.TriggeredAtSeconds = simulationTimeSeconds;
+                        AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit { EventId = $"physical-payload:{hit.Payload.PayloadId}:triggered", Kind = "deployable.triggered", FrameId = frameId, ZoneIndex = zone.ZoneIndex, SourceEntityIndex = hit.Payload.SourceEntityIndex, TargetEntityIndex = target.EntityIndex, SubjectKey = hit.Payload.PayloadId, ItemKey = hit.Payload.PayloadKind, PositionX = hit.Payload.PositionX, PositionZ = hit.Payload.PositionZ });
+                    }
                 }
             }
+            ResolveDeployableDetonations(run, zone, entities, frameId, simulationTimeSeconds);
 
             foreach (var entity in entities)
             {
@@ -358,6 +369,93 @@ namespace GameCult.Aetheria.State.Verse
                     entity.TargetEntityIndex = -1;
                 }
             }
+        }
+
+        private static void StepDeployableWeapons(
+            AetheriaRuntimeRunCheckpointCommit run,
+            AetheriaRuntimeZoneSnapshotCommit zone,
+            AetheriaRuntimeEntitySnapshotCommit attacker,
+            int weaponGroup,
+            double deltaSeconds,
+            AetheriaRuntimeDaemonSimulationSettings settings,
+            AetheriaRuntimeCatalogSnapshot? catalog,
+            long frameId)
+        {
+            foreach (var deployable in ResolveDeployableWeapons(attacker, weaponGroup, catalog, settings))
+            {
+                var weapon = deployable.Weapon;
+                weapon.State.Firing = false;
+                weapon.State.CooldownProgress = Math.Max(0, weapon.State.CooldownProgress - deltaSeconds);
+                weapon.State.CoolingDown = weapon.State.CooldownProgress > 0;
+                if (!IsAlive(attacker) || weaponGroup < 0 || weapon.State.CooldownProgress > 0) continue;
+
+                var result = CommitWeaponRound(attacker, weapon);
+                PublishWeaponRoundResult(run, zone, attacker, weapon, frameId, result);
+                if (result != WeaponRoundResult.Fired) continue;
+
+                var direction = Normalize(attacker.DirectionX, attacker.DirectionY);
+                if (Math.Abs(direction.X) + Math.Abs(direction.Y) < 0.0001) direction = (0, 1);
+                var payloadId = NextShotId(zone, attacker, weapon);
+                var payloads = (zone.PhysicalPayloads ?? Array.Empty<AetheriaRuntimePhysicalPayloadCommit>()).ToList();
+                payloads.Add(new AetheriaRuntimePhysicalPayloadCommit
+                {
+                    PayloadId = payloadId,
+                    SourceEntityIndex = attacker.EntityIndex,
+                    FactionKey = attacker.FactionKey ?? "",
+                    PositionX = attacker.PositionX + direction.X * 2,
+                    PositionY = attacker.PositionY,
+                    PositionZ = attacker.PositionZ + direction.Y * 2,
+                    DirectionX = direction.X,
+                    DirectionY = direction.Y,
+                    VelocityX = direction.X * weapon.ProjectileSpeed,
+                    VelocityY = direction.Y * weapon.ProjectileSpeed,
+                    Radius = 1,
+                    LifetimeSeconds = deployable.LifetimeSeconds,
+                    Active = true,
+                    PayloadKind = "mine",
+                    ActivationDelaySeconds = deployable.ActivationDelaySeconds,
+                    TriggerRadius = deployable.TriggerRadius,
+                    DetonationDelaySeconds = deployable.DetonationDelaySeconds,
+                    BlastRadius = deployable.BlastRadius,
+                    PayloadMagnitude = weapon.Damage
+                });
+                zone.PhysicalPayloads = payloads;
+                weapon.State.Firing = true;
+                weapon.State.CoolingDown = true;
+                weapon.State.CooldownProgress = weapon.Cooldown;
+                AetheriaRuntimeThermalSimulation.AddHeat(attacker, weapon.Heat);
+                AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit { EventId = $"physical-payload:{payloadId}:deployed", Kind = "deployable.deployed", FrameId = frameId, ZoneIndex = zone.ZoneIndex, SourceEntityIndex = attacker.EntityIndex, SubjectKey = payloadId, ItemKey = weapon.ItemKey, PositionX = attacker.PositionX, PositionZ = attacker.PositionZ });
+            }
+        }
+
+        private static void ResolveDeployableDetonations(
+            AetheriaRuntimeRunCheckpointCommit run,
+            AetheriaRuntimeZoneSnapshotCommit zone,
+            IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities,
+            long frameId,
+            double simulationTimeSeconds)
+        {
+            var survivors = new List<AetheriaRuntimePhysicalPayloadCommit>();
+            foreach (var payload in zone.PhysicalPayloads ?? Array.Empty<AetheriaRuntimePhysicalPayloadCommit>())
+            {
+                if (!string.Equals(payload.PayloadKind, "mine", StringComparison.Ordinal) ||
+                    payload.TriggeredAtSeconds < 0 ||
+                    simulationTimeSeconds < payload.TriggeredAtSeconds + payload.DetonationDelaySeconds)
+                {
+                    survivors.Add(payload);
+                    continue;
+                }
+
+                foreach (var target in entities.Where(value => value.IsActive && value.EntityIndex != payload.SourceEntityIndex))
+                {
+                    var dx = target.PositionX - payload.PositionX;
+                    var dz = target.PositionZ - payload.PositionZ;
+                    if (dx * dx + dz * dz > payload.BlastRadius * payload.BlastRadius) continue;
+                    Damage(target, payload.PayloadMagnitude);
+                }
+                AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit { EventId = $"physical-payload:{payload.PayloadId}:detonated", Kind = "deployable.detonated", FrameId = frameId, ZoneIndex = zone.ZoneIndex, SourceEntityIndex = payload.SourceEntityIndex, SubjectKey = payload.PayloadId, ItemKey = payload.PayloadKind, ScalarValue = payload.PayloadMagnitude, PositionX = payload.PositionX, PositionZ = payload.PositionZ });
+            }
+            zone.PhysicalPayloads = survivors;
         }
 
         private static void StepChargedWeapons(
@@ -782,6 +880,15 @@ namespace GameCult.Aetheria.State.Verse
                 if (projectile.AgeSeconds >= projectile.LifetimeSeconds)
                     continue;
 
+                if (string.Equals(projectile.PayloadKind, "mine", StringComparison.Ordinal) &&
+                    projectile.AgeSeconds >= projectile.ActivationDelaySeconds)
+                {
+                    projectile.Radius = Math.Max(1, projectile.TriggerRadius);
+                    projectile.Stationary = true;
+                    projectile.VelocityX = 0;
+                    projectile.VelocityY = 0;
+                }
+
                 if (projectile.Guided &&
                     projectile.TargetEntityIndex >= 0 &&
                     entities.TryGetValue(projectile.TargetEntityIndex, out var target) &&
@@ -866,6 +973,27 @@ namespace GameCult.Aetheria.State.Verse
                         Math.Max(0, behavior.EvaluateStat(5)),
                         Math.Max(0, behavior.EvaluateStat(15)));
                 })
+                .ToArray();
+        }
+
+        private static IReadOnlyList<ResolvedDeployableWeapon> ResolveDeployableWeapons(
+            AetheriaRuntimeEntitySnapshotCommit entity,
+            int weaponGroup,
+            AetheriaRuntimeCatalogSnapshot? catalog,
+            AetheriaRuntimeDaemonSimulationSettings settings)
+        {
+            var equipmentIndices = weaponGroup >= 0 && weaponGroup < (entity.WeaponGroups ?? Array.Empty<IReadOnlyList<int>>()).Count
+                ? entity.WeaponGroups[weaponGroup] ?? Array.Empty<int>()
+                : Array.Empty<int>();
+            return AetheriaRuntimeEquippedBehaviorQueries.Find(entity, catalog, AetheriaRuntimeBehaviorKinds.DeployableWeapon)
+                .Where(behavior => equipmentIndices.Contains(behavior.EquipmentIndex))
+                .Select(behavior => new ResolvedDeployableWeapon(
+                    ResolveAuthoredWeapon(entity, behavior, settings),
+                    Math.Max(0, ReadNumber(behavior.Payload, 26)),
+                    PositiveOr(ReadNumber(behavior.Payload, 27), 30),
+                    PositiveOr(behavior.EvaluateStat(28), 25),
+                    Math.Max(0, ReadNumber(behavior.Payload, 29)),
+                    PositiveOr(behavior.EvaluateStat(30), 25)))
                 .ToArray();
         }
 
@@ -1026,6 +1154,7 @@ namespace GameCult.Aetheria.State.Verse
                 : Array.Empty<int>();
             var authored = AetheriaRuntimeEquippedBehaviorQueries.Find(entity, catalog, AetheriaRuntimeBehaviorKinds.InstantWeapon)
                 .Where(behavior => !string.Equals(behavior.Payload.Kind, AetheriaRuntimeBehaviorKinds.ChargedWeapon, StringComparison.Ordinal))
+                .Where(behavior => !string.Equals(behavior.Payload.Kind, AetheriaRuntimeBehaviorKinds.DeployableWeapon, StringComparison.Ordinal))
                 .Where(behavior => equipmentIndices.Contains(behavior.EquipmentIndex))
                 .Select(behavior => ResolveAuthoredWeapon(entity, behavior, settings))
                 .ToArray();
@@ -1291,6 +1420,27 @@ namespace GameCult.Aetheria.State.Verse
             public double AmmoIntervalDuration { get; }
             public double MinRange { get; }
             public double Spread { get; }
+        }
+
+        private sealed class ResolvedDeployableWeapon
+        {
+            public ResolvedDeployableWeapon(ResolvedWeapon weapon, double activationDelaySeconds,
+                double lifetimeSeconds, double triggerRadius, double detonationDelaySeconds, double blastRadius)
+            {
+                Weapon = weapon;
+                ActivationDelaySeconds = activationDelaySeconds;
+                LifetimeSeconds = lifetimeSeconds;
+                TriggerRadius = triggerRadius;
+                DetonationDelaySeconds = detonationDelaySeconds;
+                BlastRadius = blastRadius;
+            }
+
+            public ResolvedWeapon Weapon { get; }
+            public double ActivationDelaySeconds { get; }
+            public double LifetimeSeconds { get; }
+            public double TriggerRadius { get; }
+            public double DetonationDelaySeconds { get; }
+            public double BlastRadius { get; }
         }
 
         private sealed class ResolvedChargedWeapon

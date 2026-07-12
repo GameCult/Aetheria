@@ -14,6 +14,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         ConstantWeaponRunsOnDaemonThroughYmirBeamContact();
         ChargedWeaponCannotBypassChargeLifecycle();
         ChargedWeaponHoldRiskMalfunctionsDeterministically();
+        DeployableWeaponRunsThroughYmirAndDetonatesOnDaemon();
         DaemonSimulationTreatsYmirHitAsPresentationOnly();
         ProjectileContactCannotKill();
         MissingPhysicsOwnerCannotAdvanceProjectiles();
@@ -217,6 +218,87 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         Require(Flatten(surface.Surface.Root).Any(node => node.Kind == "feedback.event" &&
                 node.Props["eventKind"] == "weapon.charge.committed"),
             "Eve feedback must expose charged solution commit chronology");
+    }
+
+    private static void DeployableWeaponRunsThroughYmirAndDetonatesOnDaemon()
+    {
+        var source = Entity(0, 0, "player");
+        source.DirectionX = 1;
+        source.WeaponGroups = [new[] { 0 }];
+        source.Equipment = [new AetheriaRuntimeLoadoutItemSlotCommit
+        {
+            Item = new AetheriaRuntimeLoadoutItemCommit
+                { ItemKey = "test-mine-layer", Quality = 1, Durability = 1, Enabled = true }
+        }];
+        var target = Entity(1, 50, "neutral");
+        var zone = new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [source, target] };
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "deployable-smoke", CurrentZoneIndex = 0,
+            CurrentEntityKey = "zone.0.entity.0", Zones = [zone]
+        };
+        var payload = new AetheriaRuntimeBehaviorPayload(0, AetheriaRuntimeBehaviorKinds.DeployableWeapon, 0,
+        [
+            new AetheriaRuntimeBehaviorField(2, PerformanceStat(35)),
+            new AetheriaRuntimeBehaviorField(6, PerformanceStat(10)),
+            new AetheriaRuntimeBehaviorField(17, PerformanceStat(1)),
+            new AetheriaRuntimeBehaviorField(19, PerformanceStat(1)),
+            new AetheriaRuntimeBehaviorField(26, Number(0.2)),
+            new AetheriaRuntimeBehaviorField(27, Number(5)),
+            new AetheriaRuntimeBehaviorField(28, PerformanceStat(30)),
+            new AetheriaRuntimeBehaviorField(29, Number(0.2)),
+            new AetheriaRuntimeBehaviorField(30, PerformanceStat(50))
+        ]);
+        var catalog = new AetheriaRuntimeCatalogSnapshot(
+            [CatalogItem("test-mine-layer", payload)], [], []);
+        var fire = new AetheriaRuntimeDaemonIntentState();
+        fire.WeaponGroups.Add(new AetheriaRuntimeDaemonWeaponGroupIntent
+            { ActorEntityKey = "zone.0.entity.0", WeaponGroup = 0, Fire = true, Active = true });
+
+        AetheriaRuntimeDaemonSimulation.Step(run, fire, 0.1,
+            AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
+            new AetheriaYmirPhysicalPayloadPhysics(), new AetheriaYmirWorldPhysics(), catalog, 1, 0.1);
+        RequireEqual(1, zone.PhysicalPayloads.Count, "deployable fire must create one persistent physical payload");
+        Require(!run.ShotReceipts.Any(), "deployable fire must not masquerade as an ordinary shot receipt");
+        var mine = zone.PhysicalPayloads.Single();
+        Require(mine.PositionX > 2 && mine.TriggeredAtSeconds < 0,
+            "Ymir must advance the unarmed mine without inventing a trigger");
+
+        AetheriaRuntimeDaemonSimulation.Step(run, new AetheriaRuntimeDaemonIntentState(), 0.1,
+            AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
+            new AetheriaYmirPhysicalPayloadPhysics(), new AetheriaYmirWorldPhysics(), catalog, 2, 0.2);
+        mine = zone.PhysicalPayloads.Single();
+        Require(mine.Stationary && mine.TriggeredAtSeconds >= 0 &&
+                run.GameEvents.Count(value => value.Kind == "deployable.triggered") == 1,
+            "an armed Ymir contact must become one daemon-owned trigger transition");
+        RequireNear(100, Stat(target, "hull"), 0.000001,
+            "trigger contact must not bypass the authored detonation delay");
+
+        var surface = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(
+            new AetheriaRuntimeDaemonFrameDocument { FrameId = 2, Run = run },
+            new AetheriaRuntimeDaemonHealthDocument(),
+            AetheriaRuntimeDaemonCommandBoundaryDocument.Create("daemon"));
+        var mineNode = Flatten(surface.Surface.Root).Single(node =>
+            node.Id == $"aetheria.daemon.game.world.projectile.{mine.PayloadId}");
+        RequireEqual("physical-payload", mineNode.Props["entityKind"],
+            "Eve must describe the semantic object rather than pretend every payload is a projectile");
+        RequireEqual("mine", mineNode.Props["payloadKind"], "Eve must expose deployable kind");
+        RequireEqual("true", mineNode.Props["armed"], "Eve must expose daemon-owned arming state");
+        RequireEqual("true", mineNode.Props["triggered"], "Eve must expose daemon-owned trigger state");
+        RequireEqual("true", mineNode.Props["stationary"], "Eve must expose Ymir-derived motion state");
+        RequireNear(35, mine.PayloadMagnitude, 0.000001, "deployable must retain authored payload magnitude");
+        RequireNear(50, mine.BlastRadius, 0.000001, "deployable must retain authored blast radius");
+        Require(Math.Abs(target.PositionX - mine.PositionX) <= mine.BlastRadius,
+            $"triggered target must remain inside authored blast radius (mine {mine.PositionX}, target {target.PositionX})");
+
+        AetheriaRuntimeDaemonSimulation.Step(run, new AetheriaRuntimeDaemonIntentState(), 0.21,
+            AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
+            new AetheriaYmirPhysicalPayloadPhysics(), new AetheriaYmirWorldPhysics(), catalog, 3, 0.41);
+        RequireEqual(0, zone.PhysicalPayloads.Count, "detonated mine must leave canonical payload state");
+        RequireNear(65, Stat(target, "hull"), 0.000001,
+            "Aetheria must apply authored blast damage after the delay");
+        Require(run.GameEvents.Count(value => value.Kind == "deployable.detonated") == 1,
+            "daemon must publish one authoritative detonation event");
     }
 
     private static void ChargedWeaponHoldRiskMalfunctionsDeterministically()

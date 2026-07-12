@@ -145,6 +145,10 @@ Aetheria owns only the configured prefab and its asset-manifest advertisement.
 
 Current Ymir control flow:
 
+- Aetheria depends on injected physics ports, not on a Ymir daemon topology.
+  The default daemon process constructs the Ymir implementations in-process;
+  tests can supply another deterministic implementation without changing game
+  authority.
 - The daemon projects ships, pickups, fields, and explicitly physical payloads
   into Ymir. Ymir owns integration, collision, and spatial contact facts.
 - Ordinary direct, constant, and charged weapon fire resolves through
@@ -153,6 +157,12 @@ Current Ymir control flow:
 - `AetheriaYmirPhysicalPayloadPhysics` advances only objects whose continued
   physical motion is gameplay state. Aetheria interprets returned contacts;
   Ymir does not own damage policy.
+- Authored `DeployableWeapon` behavior now creates retained mine payloads.
+  Aetheria owns deployment admission, arming time, trigger transition,
+  detonation delay, blast selection, damage, and lifecycle events. Ymir moves
+  the unarmed payload and reports overlap/contact facts after it becomes a
+  stationary trigger body. Eve projects the payload kind, age, armed,
+  triggered, stationary, radius, delay, and magnitude state.
 - The fossil `Projectile`, `GuidedProjectile`, their managers, Unity-side Ymir
   stepping adapter, and dedicated proof tests are deleted. EveUnity lowers
   ordinary weapon travel from daemon `shot.receipt` facts.
@@ -171,6 +181,11 @@ Remaining debt:
 - Clickable raycasts still construct query bodies from Unity click bounds. That
   is presentation picking, not simulation authority, but it should stay clearly
   labeled as renderer/UI picking.
+- The fossil `Mine`, `MineManager`, and `InstantWeaponEffectManager` remain as
+  one serialized bundle on `Mine Launcher.prefab`. Replace that prefab's
+  runtime script component with a provider-owned presentation asset and migrate
+  its real catalog behavior before deleting the bundle; deleting the scripts
+  alone would merely manufacture a missing Unity component.
 
 ## Gravity Terrain
 

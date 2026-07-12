@@ -623,6 +623,14 @@ namespace GameCult.Aetheria.State.Verse
 
         [Key(17)]
         public string PayloadKind { get; set; } = "";
+
+        [Key(18)] public double ActivationDelaySeconds { get; set; }
+        [Key(19)] public double TriggerRadius { get; set; }
+        [Key(20)] public double DetonationDelaySeconds { get; set; }
+        [Key(21)] public double TriggeredAtSeconds { get; set; } = -1;
+        [Key(22)] public double BlastRadius { get; set; }
+        [Key(23)] public double PayloadMagnitude { get; set; }
+        [Key(24)] public bool Stationary { get; set; }
     }
 
     [MessagePackObject]

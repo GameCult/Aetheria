@@ -156,6 +156,13 @@ craft, area fields, and recoverable or destructible payloads. Those objects are
 not exempt from deterministic fire-control receipts; Ymir owns their later
 motion and collision after launch.
 
+For deployables, physics contact is evidence rather than consequence. Aetheria
+authors deployment, arming, trigger and detonation clocks, target eligibility,
+blast magnitude, damage, and event chronology. The injected Ymir implementation
+owns integration and overlap/contact facts. The production daemon currently
+embeds that implementation in-process; moving it across CultNet must not change
+either authority or the persisted state contract.
+
 ## Eve Presentation
 
 Eve receives:

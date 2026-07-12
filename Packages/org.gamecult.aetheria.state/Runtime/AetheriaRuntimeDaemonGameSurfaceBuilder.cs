@@ -779,7 +779,8 @@ namespace GameCult.Aetheria.State.Verse
             var props = new Dictionary<string, string>(StringComparer.Ordinal)
             {
                 ["entityId"] = projectileId,
-                ["entityKind"] = "projectile",
+                ["entityKind"] = "physical-payload",
+                ["payloadKind"] = projectile.PayloadKind ?? "",
                 ["label"] = projectile.PayloadKind ?? "Projectile",
                 ["faction"] = "",
                 ["assetRef"] = "prefab.entity.projectile",
@@ -794,7 +795,17 @@ namespace GameCult.Aetheria.State.Verse
                 ["sourceEntityId"] = run.EntityRecordKey(zone.ZoneIndex, projectile.SourceEntityIndex),
                 ["targetEntityId"] = targetEntityId,
                 ["contactMagnitude"] = FormatNumber(projectile.ContactMagnitude),
-                ["remainingLifetime"] = FormatNumber(projectile.LifetimeSeconds),
+                ["age"] = FormatNumber(projectile.AgeSeconds),
+                ["remainingLifetime"] = FormatNumber(Math.Max(0, projectile.LifetimeSeconds - projectile.AgeSeconds)),
+                ["activationDelay"] = FormatNumber(projectile.ActivationDelaySeconds),
+                ["armed"] = projectile.AgeSeconds >= projectile.ActivationDelaySeconds ? "true" : "false",
+                ["triggerRadius"] = FormatNumber(projectile.TriggerRadius),
+                ["triggered"] = projectile.TriggeredAtSeconds >= 0 ? "true" : "false",
+                ["triggeredAt"] = FormatNumber(projectile.TriggeredAtSeconds),
+                ["detonationDelay"] = FormatNumber(projectile.DetonationDelaySeconds),
+                ["blastRadius"] = FormatNumber(projectile.BlastRadius),
+                ["payloadMagnitude"] = FormatNumber(projectile.PayloadMagnitude),
+                ["stationary"] = projectile.Stationary ? "true" : "false",
                 ["selectable"] = "false",
                 ["controllable"] = "false"
             };
