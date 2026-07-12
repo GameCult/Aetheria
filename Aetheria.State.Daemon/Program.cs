@@ -15,6 +15,10 @@ var options = AetheriaDaemonHostOptions.Parse(args);
 var startedAtUtc = DateTimeOffset.UtcNow.ToString("O");
 var physicalPayloadPhysics = new AetheriaYmirPhysicalPayloadPhysics();
 var worldPhysics = new AetheriaYmirWorldPhysics();
+var traceClientRudp = string.Equals(
+    Environment.GetEnvironmentVariable("AETHERIA_TRACE_CLIENT_RUDP"),
+    "1",
+    StringComparison.Ordinal);
 
 Console.WriteLine($"Aetheria Verse daemon starting: {options.StatePath}");
 Console.WriteLine(options.EnableOdinAnnouncements
@@ -95,8 +99,13 @@ while (!stopped.Task.IsCompleted)
         discoveryHost.Update(await node.MutableDocument<AetheriaVerseHostSettings>(AetheriaStateNode.VerseHostSettingsKey).ReadAsync().ConfigureAwait(false));
         await PublishRuntimeSessionAsync(node, options, startedAtUtc, "running").ConfigureAwait(false);
     }
-    if (tick.Frame.FrameId % 120 == 0)
-        Console.WriteLine($"Aetheria Verse daemon published frame {tick.Frame.FrameId} at {tick.Frame.SimulationTimeSeconds:0.00}s.");
+    if (tick.Frame.FrameId % (traceClientRudp ? 10 : 120) == 0)
+    {
+        var clientStats = cultMeshRudpHost.Stats;
+        Console.WriteLine(
+            $"Aetheria Verse daemon published frame {tick.Frame.FrameId} at {tick.Frame.SimulationTimeSeconds:0.00}s; " +
+            $"client peers={cultMeshRudpHost.Peers.Count} rx={clientStats.BytesReceived} tx={clientStats.BytesSent}.");
+    }
 }
 
 await PublishRuntimeSessionAsync(node, options, startedAtUtc, "stopping").ConfigureAwait(false);
