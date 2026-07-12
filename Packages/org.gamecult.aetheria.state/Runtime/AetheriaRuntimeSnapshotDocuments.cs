@@ -1049,6 +1049,9 @@ namespace GameCult.Aetheria.State.Verse
         [Key(47)]
         public IReadOnlyList<AetheriaRuntimeEquipmentStateCommit> EquipmentStates { get; set; } =
             Array.Empty<AetheriaRuntimeEquipmentStateCommit>();
+
+        [Key(48)]
+        public string CauseOfDeath { get; set; } = "";
     }
 
     [MessagePackObject]

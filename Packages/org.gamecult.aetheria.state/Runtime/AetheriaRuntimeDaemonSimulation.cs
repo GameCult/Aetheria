@@ -376,6 +376,12 @@ namespace GameCult.Aetheria.State.Verse
                 AetheriaRuntimeEnergySimulation.StepRadiators(entity, catalog, deltaSeconds);
                 AetheriaRuntimeEnergySimulation.SettleReactors(entity, catalog, deltaSeconds);
                 AetheriaRuntimeThermalSimulation.Step(entity, deltaSeconds, catalog);
+                var medical = AetheriaRuntimeThermalMedicalSimulation.Step(
+                    entity, catalog, deltaSeconds, settings);
+                PublishThermalMedicalEvents(run, zone, entity, medical, frameId);
+                if (medical.Died)
+                    CommitDestruction(run, zone, entity, -1,
+                        $"thermal:{medical.DeathCause}", "", frameId, settings, medical.DeathCause);
                 entity.IsActive = IsAlive(entity);
                 if (!entity.IsActive)
                 {
@@ -448,6 +454,29 @@ namespace GameCult.Aetheria.State.Verse
                 ApplyWeaponWear(attacker, weapon.State, 1);
                 AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit { EventId = $"physical-payload:{payloadId}:deployed", Kind = "deployable.deployed", FrameId = frameId, ZoneIndex = zone.ZoneIndex, SourceEntityIndex = attacker.EntityIndex, SubjectKey = payloadId, ItemKey = weapon.ItemKey, PositionX = attacker.PositionX, PositionZ = attacker.PositionZ });
             }
+        }
+
+        private static void PublishThermalMedicalEvents(
+            AetheriaRuntimeRunCheckpointCommit run,
+            AetheriaRuntimeZoneSnapshotCommit zone,
+            AetheriaRuntimeEntitySnapshotCommit entity,
+            AetheriaRuntimeThermalMedicalResult result,
+            long frameId)
+        {
+            void Append(string kind, double exposure)
+            {
+                AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit
+                {
+                    EventId = $"frame:{frameId}:zone:{zone.ZoneIndex}:entity:{entity.EntityIndex}:{kind}",
+                    Kind = kind, FrameId = frameId, ZoneIndex = zone.ZoneIndex,
+                    TargetEntityIndex = entity.EntityIndex, SubjectKey = entity.EntityId,
+                    ScalarValue = exposure, AuxiliaryValue = result.CockpitTemperature,
+                    PositionX = entity.PositionX, PositionZ = entity.PositionZ
+                });
+            }
+
+            if (result.HeatstrokeRiskCrossed) Append("pilot.heatstroke.risk", entity.Heatstroke);
+            if (result.HypothermiaRiskCrossed) Append("pilot.hypothermia.risk", entity.Hypothermia);
         }
 
         private static void ResolveDeployableDetonations(
@@ -1236,13 +1265,15 @@ namespace GameCult.Aetheria.State.Verse
             string subjectKey,
             string weaponItemKey,
             long frameId,
-            AetheriaRuntimeDaemonSimulationSettings settings)
+            AetheriaRuntimeDaemonSimulationSettings settings,
+            string causeOfDeath = "hull-destroyed")
         {
             if (!string.IsNullOrWhiteSpace(target.DestructionId)) return;
 
             var destructionId = $"destruction:{run.RunId}:{zone.ZoneIndex}:{target.EntityIndex}:{frameId}";
             target.DestructionId = destructionId;
             target.DestroyedFrameId = frameId;
+            target.CauseOfDeath = causeOfDeath ?? "";
             target.IsActive = false;
             target.TargetEntityIndex = -1;
             target.TractorPower = 0;
@@ -1332,7 +1363,8 @@ namespace GameCult.Aetheria.State.Verse
                 EventId = destructionId, Kind = "entity.destroyed", FrameId = frameId,
                 ZoneIndex = zone.ZoneIndex, SourceEntityIndex = sourceEntityIndex,
                 TargetEntityIndex = target.EntityIndex, SubjectKey = subjectKey,
-                ItemKey = weaponItemKey, PositionX = target.PositionX, PositionZ = target.PositionZ
+                ItemKey = weaponItemKey, Reason = target.CauseOfDeath,
+                PositionX = target.PositionX, PositionZ = target.PositionZ
             });
         }
 

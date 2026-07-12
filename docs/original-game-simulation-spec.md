@@ -42,6 +42,15 @@ performance and online state derive from local temperature.
 Cockpit temperature advances heatstroke/hypothermia accumulation and recovery.
 Threshold crossings and death are authoritative events.
 
+Above 330 K, heatstroke advances by `(temperature - 330)^2 * 0.00001 * dt`;
+below the threshold it recovers by `0.2 * dt`. Below 273 K, hypothermia advances
+by `(273 - temperature)^2 * 0.00001 * dt`; above the threshold it also recovers
+by `0.2 * dt`. Values saturate to `[0,1]`, severe risk crosses at `0.25`, and a
+value above `0.99` kills through the ordinary entity death path. The fossil's
+hypothermia risk comparison accidentally read heatstroke; the daemon implements
+the intended symmetric threshold crossing while retaining the exact exposure
+and death formulas.
+
 The daemon derives the grid from the equipped catalog, rather than accepting a
 renderer-authored heat scalar. Hull mass and specific heat are distributed over
 the hull shape; installed equipment contributes thermal mass and replaces the

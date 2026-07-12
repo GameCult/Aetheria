@@ -32,6 +32,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         RadiatorPumpsHeatBeforeReactorSettlement();
         EquipmentThermalPerformanceOwnsShutdownAndWear();
         ThermalTopologyComesFromHullAndEquipment();
+        ThermalMedicalExposureUsesCockpitTemperature();
+        ThermalMedicalDeathUsesOrdinaryDestructionPath();
         MultipleActorsUseTheSameMovementLever();
         AgentClaimsAndCompletesExploreTaskThroughCommands();
         SchedulerAssignsHighestPriorityCompatibleTask();
@@ -2108,6 +2110,106 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             "occupied cell conductivity must come from installed equipment");
         RequireNear(280, entity.StatGrids.Single(value => value.Name == "temperature").Values[1], 0.000001,
             "authored hull topology must initialize each occupied cell at the fossil temperature");
+    }
+
+    private static void ThermalMedicalExposureUsesCockpitTemperature()
+    {
+        var entity = Entity(0, 0, "player");
+        entity.Equipment = [new AetheriaRuntimeLoadoutItemSlotCommit
+        {
+            Item = new AetheriaRuntimeLoadoutItemCommit
+                { ItemKey = "medical-cockpit", Quality = 1, Durability = 1, Enabled = true }
+        }];
+        entity.StatGrids =
+        [
+            Grid("hull", 100), Grid("temperature", 340),
+            Grid("thermal-mass", 1), Grid("conductivity", 1)
+        ];
+        var cockpit = CatalogItem("medical-cockpit",
+            new AetheriaRuntimeBehaviorPayload(0, "Cockpit", 0, []));
+        cockpit.ShapeCells = [new AetheriaRuntimeShapeCell(0, 0)];
+        var catalog = new AetheriaRuntimeCatalogSnapshot([cockpit], [], []);
+        var settings = AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault;
+
+        var heat = AetheriaRuntimeThermalMedicalSimulation.Step(entity, catalog, 300, settings);
+        RequireNear(0.3, entity.Heatstroke, 0.000001,
+            "cockpit heat must accumulate nonlinear heatstroke at the fossil rate");
+        Require(heat.HeatstrokeRiskCrossed,
+            "heatstroke must emit one upward severe-risk crossing");
+        RequireNear(340, Stat(entity, "cockpit-temperature"), 0.000001,
+            "cockpit cell temperature must become an authoritative Eve-readable fact");
+
+        entity.StatGrids.Single(value => value.Name == "temperature").Values = [280];
+        AetheriaRuntimeThermalMedicalSimulation.Step(entity, catalog, 1, settings);
+        RequireNear(0.1, entity.Heatstroke, 0.000001,
+            "heatstroke must recover linearly below the authored threshold");
+
+        entity.StatGrids.Single(value => value.Name == "temperature").Values = [263];
+        var cold = AetheriaRuntimeThermalMedicalSimulation.Step(entity, catalog, 300, settings);
+        RequireNear(0.3, entity.Hypothermia, 0.000001,
+            "cockpit cold must accumulate nonlinear hypothermia at the fossil rate");
+        Require(cold.HypothermiaRiskCrossed,
+            "hypothermia must use its own exposure for the intended severe-risk crossing");
+
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "thermal-medical-surface", CurrentZoneIndex = 0,
+            CurrentEntityKey = "zone.0.entity.0",
+            Zones = [new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [entity] }]
+        };
+        var surface = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(
+            new AetheriaRuntimeDaemonFrameDocument { FrameId = 1, Run = run },
+            new AetheriaRuntimeDaemonHealthDocument(),
+            AetheriaRuntimeDaemonCommandBoundaryDocument.Create("daemon"));
+        var worldEntity = Flatten(surface.Surface.Root).Single(node =>
+            node.Id == "aetheria.daemon.game.world.entity.0");
+        RequireEqual("263", worldEntity.Props["cockpitTemperature"],
+            "Eve must publish canonical cockpit temperature rather than deriving it from effects");
+        RequireEqual("true", worldEntity.Props["hypothermiaRisk"],
+            "Eve must publish the current severe cold-risk state");
+        Require(worldEntity.Props.ContainsKey("heatstrokePostWeight") &&
+                worldEntity.Props.ContainsKey("severeHeatstrokeWeight"),
+            "Eve must publish the exact source weights used by the original heatstroke presentation");
+    }
+
+    private static void ThermalMedicalDeathUsesOrdinaryDestructionPath()
+    {
+        var entity = Entity(0, 0, "player");
+        entity.EntityId = "thermal-pilot";
+        entity.Equipment = [new AetheriaRuntimeLoadoutItemSlotCommit
+        {
+            Item = new AetheriaRuntimeLoadoutItemCommit
+                { ItemKey = "lethal-cockpit", Quality = 1, Durability = 1, Enabled = true }
+        }];
+        entity.StatGrids =
+        [
+            Grid("hull", 100), Grid("temperature", 700),
+            Grid("thermal-mass", 1), Grid("conductivity", 1)
+        ];
+        var cockpit = CatalogItem("lethal-cockpit",
+            new AetheriaRuntimeBehaviorPayload(0, "Cockpit", 0, []));
+        cockpit.ShapeCells = [new AetheriaRuntimeShapeCell(0, 0)];
+        var catalog = new AetheriaRuntimeCatalogSnapshot([cockpit], [], []);
+        var zone = new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [entity] };
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "thermal-death", CurrentZoneIndex = 0,
+            CurrentEntityKey = "zone.0.entity.0", Zones = [zone]
+        };
+
+        AetheriaRuntimeDaemonSimulation.Step(run, new AetheriaRuntimeDaemonIntentState(), 1,
+            AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
+            new AetheriaYmirPhysicalPayloadPhysics(), new AetheriaYmirWorldPhysics(), catalog, frameId: 17);
+
+        RequireEqual("heatstroke", entity.CauseOfDeath,
+            "lethal cockpit heat must persist the typed cause of death");
+        Require(!entity.IsActive && !string.IsNullOrWhiteSpace(entity.DestructionId),
+            "thermal death must enter the ordinary exactly-once destruction path");
+        var death = run.GameEvents.Single(value => value.Kind == "entity.destroyed");
+        RequireEqual("heatstroke", death.Reason,
+            "Eve feedback must carry the thermal cause needed for the original death transition");
+        Require(run.GameEvents.Any(value => value.Kind == "pilot.heatstroke.risk"),
+            "a lethal step crossing the severe threshold must publish risk before death");
     }
 
     private static void ThermalCellsUseFossilConductionAndRadiation()

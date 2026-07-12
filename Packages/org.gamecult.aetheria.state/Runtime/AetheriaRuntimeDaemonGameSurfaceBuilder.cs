@@ -670,6 +670,13 @@ namespace GameCult.Aetheria.State.Verse
             var maximumWear = equipmentStates.Where(value => value != null)
                 .Select(value => value.Wear).DefaultIfEmpty(0).Max();
             var offlineEquipmentCount = equipmentStates.Count(value => value != null && !value.Online);
+            var cockpitTemperature = EntityStat(entity, "cockpit-temperature");
+            var thermalRiskThreshold = simulationSettings.SevereThermalRiskThreshold;
+            var heatstrokePostWeight = thermalRiskThreshold <= 0 ? 1 :
+                Math.Max(0, Math.Min(1, entity.Heatstroke / thermalRiskThreshold));
+            var severeHeatstrokeWeight = thermalRiskThreshold >= 1 ? 0 :
+                Math.Max(0, Math.Min(1,
+                    (entity.Heatstroke - thermalRiskThreshold) / (1 - thermalRiskThreshold)));
             var weaponCooldown = (entity.WeaponStates ?? Array.Empty<AetheriaRuntimeWeaponStateCommit>())
                 .Select(state => state?.CooldownProgress ?? 0)
                 .DefaultIfEmpty(0)
@@ -715,8 +722,14 @@ namespace GameCult.Aetheria.State.Verse
                 ["minimumTemperature"] = FormatNumber(minimumTemperature),
                 ["maximumTemperature"] = FormatNumber(maximumTemperature),
                 ["thermalVisibility"] = FormatNumber(thermalVisibility),
+                ["cockpitTemperature"] = FormatNumber(cockpitTemperature),
                 ["heatstroke"] = FormatRatio(entity.Heatstroke, 1),
                 ["hypothermia"] = FormatRatio(entity.Hypothermia, 1),
+                ["heatstrokeRisk"] = entity.Heatstroke > thermalRiskThreshold ? "true" : "false",
+                ["hypothermiaRisk"] = entity.Hypothermia > thermalRiskThreshold ? "true" : "false",
+                ["heatstrokePostWeight"] = FormatNumber(heatstrokePostWeight),
+                ["severeHeatstrokeWeight"] = FormatNumber(severeHeatstrokeWeight),
+                ["causeOfDeath"] = entity.CauseOfDeath ?? "",
                 ["visibility"] = FormatNumber(entity.Visibility),
                 ["targetEntityId"] = targetEntityId,
                 ["targetedByPlayer"] = player != null && player.TargetEntityIndex == entity.EntityIndex ? "true" : "false",

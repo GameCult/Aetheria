@@ -37,7 +37,16 @@ namespace GameCult.Aetheria.State.Verse
                 weaponLockDecayPerSecond: 1.0,
                 lootDropProbability: 0.25,
                 lootDropVelocity: 25.0,
-                pickupLifetimeSeconds: 30.0);
+                pickupLifetimeSeconds: 30.0,
+                severeThermalRiskThreshold: 0.25,
+                heatstrokeTemperature: 330.0,
+                heatstrokeMultiplier: 0.00001,
+                heatstrokeExponent: 2.0,
+                heatstrokeRecoveryPerSecond: 0.2,
+                hypothermiaTemperature: 273.0,
+                hypothermiaMultiplier: 0.00001,
+                hypothermiaExponent: 2.0,
+                hypothermiaRecoveryPerSecond: 0.2);
 
         public AetheriaRuntimeDaemonSimulationSettings(
             double pawnSpeed,
@@ -68,7 +77,16 @@ namespace GameCult.Aetheria.State.Verse
             double weaponLockDecayPerSecond = AetheriaDefaultRaw.WeaponLockDecayPerSecond,
             double lootDropProbability = AetheriaDefaultRaw.LootDropProbability,
             double lootDropVelocity = AetheriaDefaultRaw.LootDropVelocity,
-            double pickupLifetimeSeconds = AetheriaDefaultRaw.PickupLifetimeSeconds)
+            double pickupLifetimeSeconds = AetheriaDefaultRaw.PickupLifetimeSeconds,
+            double severeThermalRiskThreshold = AetheriaDefaultRaw.SevereThermalRiskThreshold,
+            double heatstrokeTemperature = AetheriaDefaultRaw.HeatstrokeTemperature,
+            double heatstrokeMultiplier = AetheriaDefaultRaw.HeatstrokeMultiplier,
+            double heatstrokeExponent = AetheriaDefaultRaw.HeatstrokeExponent,
+            double heatstrokeRecoveryPerSecond = AetheriaDefaultRaw.HeatstrokeRecoveryPerSecond,
+            double hypothermiaTemperature = AetheriaDefaultRaw.HypothermiaTemperature,
+            double hypothermiaMultiplier = AetheriaDefaultRaw.HypothermiaMultiplier,
+            double hypothermiaExponent = AetheriaDefaultRaw.HypothermiaExponent,
+            double hypothermiaRecoveryPerSecond = AetheriaDefaultRaw.HypothermiaRecoveryPerSecond)
         {
             PawnSpeed = PositiveOr(pawnSpeed, AetheriaDefaultRaw.PawnSpeed);
             RaiderSpeed = PositiveOr(raiderSpeed, AetheriaDefaultRaw.RaiderSpeed);
@@ -99,6 +117,15 @@ namespace GameCult.Aetheria.State.Verse
             LootDropProbability = Clamp01Or(lootDropProbability, AetheriaDefaultRaw.LootDropProbability);
             LootDropVelocity = NonNegativeOr(lootDropVelocity, AetheriaDefaultRaw.LootDropVelocity);
             PickupLifetimeSeconds = PositiveOr(pickupLifetimeSeconds, AetheriaDefaultRaw.PickupLifetimeSeconds);
+            SevereThermalRiskThreshold = Clamp01Or(severeThermalRiskThreshold, AetheriaDefaultRaw.SevereThermalRiskThreshold);
+            HeatstrokeTemperature = PositiveOr(heatstrokeTemperature, AetheriaDefaultRaw.HeatstrokeTemperature);
+            HeatstrokeMultiplier = NonNegativeOr(heatstrokeMultiplier, AetheriaDefaultRaw.HeatstrokeMultiplier);
+            HeatstrokeExponent = PositiveOr(heatstrokeExponent, AetheriaDefaultRaw.HeatstrokeExponent);
+            HeatstrokeRecoveryPerSecond = NonNegativeOr(heatstrokeRecoveryPerSecond, AetheriaDefaultRaw.HeatstrokeRecoveryPerSecond);
+            HypothermiaTemperature = PositiveOr(hypothermiaTemperature, AetheriaDefaultRaw.HypothermiaTemperature);
+            HypothermiaMultiplier = NonNegativeOr(hypothermiaMultiplier, AetheriaDefaultRaw.HypothermiaMultiplier);
+            HypothermiaExponent = PositiveOr(hypothermiaExponent, AetheriaDefaultRaw.HypothermiaExponent);
+            HypothermiaRecoveryPerSecond = NonNegativeOr(hypothermiaRecoveryPerSecond, AetheriaDefaultRaw.HypothermiaRecoveryPerSecond);
         }
 
         public double PawnSpeed { get; }
@@ -130,6 +157,15 @@ namespace GameCult.Aetheria.State.Verse
         public double LootDropProbability { get; }
         public double LootDropVelocity { get; }
         public double PickupLifetimeSeconds { get; }
+        public double SevereThermalRiskThreshold { get; }
+        public double HeatstrokeTemperature { get; }
+        public double HeatstrokeMultiplier { get; }
+        public double HeatstrokeExponent { get; }
+        public double HeatstrokeRecoveryPerSecond { get; }
+        public double HypothermiaTemperature { get; }
+        public double HypothermiaMultiplier { get; }
+        public double HypothermiaExponent { get; }
+        public double HypothermiaRecoveryPerSecond { get; }
 
         private static double PositiveOr(double value, double fallback)
         {
@@ -177,6 +213,15 @@ namespace GameCult.Aetheria.State.Verse
             public const double LootDropProbability = 0.25;
             public const double LootDropVelocity = 25.0;
             public const double PickupLifetimeSeconds = 30.0;
+            public const double SevereThermalRiskThreshold = 0.25;
+            public const double HeatstrokeTemperature = 330.0;
+            public const double HeatstrokeMultiplier = 0.00001;
+            public const double HeatstrokeExponent = 2.0;
+            public const double HeatstrokeRecoveryPerSecond = 0.2;
+            public const double HypothermiaTemperature = 273.0;
+            public const double HypothermiaMultiplier = 0.00001;
+            public const double HypothermiaExponent = 2.0;
+            public const double HypothermiaRecoveryPerSecond = 0.2;
         }
     }
 }

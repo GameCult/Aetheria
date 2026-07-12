@@ -16333,6 +16333,8 @@ static void RequireDaemonEnergyAndThermalAuthority(string root)
     var runtime = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime");
     var energyPath = Path.Combine(runtime, "AetheriaRuntimeEnergySimulation.cs");
     var thermalPath = Path.Combine(runtime, "AetheriaRuntimeThermalSimulation.cs");
+    var medicalPath = Path.Combine(runtime, "AetheriaRuntimeThermalMedicalSimulation.cs");
+    var settingsPath = Path.Combine(runtime, "AetheriaRuntimeDaemonSimulationSettings.cs");
     var simulationPath = Path.Combine(runtime, "AetheriaRuntimeDaemonSimulation.cs");
     var snapshotPath = Path.Combine(runtime, "AetheriaRuntimeSnapshotDocuments.cs");
     var surfacePath = Path.Combine(runtime, "AetheriaRuntimeDaemonGameSurfaceBuilder.cs");
@@ -16342,6 +16344,8 @@ static void RequireDaemonEnergyAndThermalAuthority(string root)
     {
         [energyPath] = File.Exists(energyPath) ? File.ReadAllText(energyPath) : "",
         [thermalPath] = File.Exists(thermalPath) ? File.ReadAllText(thermalPath) : "",
+        [medicalPath] = File.Exists(medicalPath) ? File.ReadAllText(medicalPath) : "",
+        [settingsPath] = File.Exists(settingsPath) ? File.ReadAllText(settingsPath) : "",
         [simulationPath] = File.Exists(simulationPath) ? File.ReadAllText(simulationPath) : "",
         [snapshotPath] = File.Exists(snapshotPath) ? File.ReadAllText(snapshotPath) : "",
         [surfacePath] = File.Exists(surfacePath) ? File.ReadAllText(surfacePath) : ""
@@ -16363,6 +16367,24 @@ static void RequireDaemonEnergyAndThermalAuthority(string root)
             "public static void AddHeatToEquipment(",
             "public static void ApplyWear("
         },
+        [medicalPath] = new[]
+        {
+            "public static class AetheriaRuntimeThermalMedicalSimulation",
+            "temperature > settings.HeatstrokeTemperature",
+            "settings.HeatstrokeRecoveryPerSecond * deltaSeconds",
+            "temperature < settings.HypothermiaTemperature",
+            "settings.HypothermiaRecoveryPerSecond * deltaSeconds",
+            "entity.Heatstroke > 0.99",
+            "entity.Hypothermia > 0.99"
+        },
+        [settingsPath] = new[]
+        {
+            "public double SevereThermalRiskThreshold",
+            "public double HeatstrokeTemperature",
+            "public double HeatstrokeMultiplier",
+            "public double HypothermiaTemperature",
+            "public double HypothermiaMultiplier"
+        },
         [simulationPath] = new[]
         {
             "AetheriaRuntimeThermalSimulation.EnsureTopology(entity, catalog)",
@@ -16371,6 +16393,10 @@ static void RequireDaemonEnergyAndThermalAuthority(string root)
             "AetheriaRuntimeEnergySimulation.StepRadiators(entity, catalog, deltaSeconds)",
             "AetheriaRuntimeEnergySimulation.SettleReactors(entity, catalog, deltaSeconds)",
             "AetheriaRuntimeThermalSimulation.Step(entity, deltaSeconds, catalog)",
+            "AetheriaRuntimeThermalMedicalSimulation.Step(",
+            "PublishThermalMedicalEvents(",
+            "CommitDestruction(run, zone, entity, -1,",
+            "Reason = target.CauseOfDeath",
             "AetheriaRuntimeEnergySimulation.TryConsume(entity, catalog, demand)"
         },
         [snapshotPath] = new[]
@@ -16379,7 +16405,8 @@ static void RequireDaemonEnergyAndThermalAuthority(string root)
             "public sealed class AetheriaRuntimeEquipmentStateCommit",
             "public double ThermalPerformance",
             "public double Wear",
-            "public bool Online"
+            "public bool Online",
+            "public string CauseOfDeath"
         },
         [surfacePath] = new[]
         {
@@ -16387,7 +16414,11 @@ static void RequireDaemonEnergyAndThermalAuthority(string root)
             "[\"reactorDraw\"]",
             "[\"radiatorTemperature\"]",
             "[\"minimumEquipmentThermalPerformance\"]",
-            "[\"offlineEquipmentCount\"]"
+            "[\"offlineEquipmentCount\"]",
+            "[\"cockpitTemperature\"]",
+            "[\"heatstrokeRisk\"]",
+            "[\"hypothermiaRisk\"]",
+            "[\"causeOfDeath\"]"
         }
     };
     var missing = required.SelectMany(pair => pair.Value
@@ -16405,7 +16436,10 @@ static void RequireDaemonEnergyAndThermalAuthority(string root)
         "ApplyCommitEnergy(",
         "ApplySetHeat(",
         "ApplySetEquipmentOnline(",
-        "ApplyEquipmentWear("
+        "ApplyEquipmentWear(",
+        "ApplySetHeatstroke(",
+        "ApplySetHypothermia(",
+        "ApplySetCauseOfDeath("
     };
     var surviving = forbiddenOperations.Where(symbol => operations.Contains(symbol, StringComparison.Ordinal)).ToArray();
     if (surviving.Length > 0)

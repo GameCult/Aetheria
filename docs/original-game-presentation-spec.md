@@ -97,6 +97,22 @@ Death unbinds gameplay input, presents cause, and transitions to appropriate
 menu/restart flow. The client cannot clear or save authoritative world state as
 a side effect of playing the animation.
 
+The fossil's live heatstroke presentation uses two volume weights. Base weight
+is `saturate(heatstroke / severeRiskThreshold)`. Severe weight is the normalized
+amount above that threshold, with an authored sinusoidal pulse applied by the
+lowerer. Heatstroke and hypothermia each have schematic exposure meters, while
+cockpit temperature drives the shared thermal-limit meter. The scene contains
+hypothermia volumes, but the inspected live update never drove them before
+death; do not invent continuous hypothermia post processing as historical
+parity. Cause-specific death fades cross the applicable thermal volumes into
+the death volume over one authored second.
+
+The current fossil settings still declare heatstroke and hypothermia control
+limits, but the implemented heatstroke cockpit lockout was deliberately removed
+and no hypothermia lockout was connected. Thermal exposure therefore does not
+silently attenuate or reject semantic controls. The daemon owns medical state
+and death; the runtime owns only meter, volume, and transition lowering.
+
 ## Effects And Audio
 
 Weapon and impact effects consume semantic event facts and provider asset refs.

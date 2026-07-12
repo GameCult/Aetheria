@@ -1942,9 +1942,13 @@ First Aetheria surfaces to publish:
   equipment-local temperature/performance, shutdown, wear, conduction, and
   radiation. The daemon orders radiator pumping before reactor settlement and
   thermal conduction; client operations have no direct energy, heat, wear, or
-  equipment-online writer. The Eve game surface publishes the resulting power,
-  radiator, temperature, wear, and offline-equipment facts. Cockpit medical
-  consequences, rotated equipment footprints, and parent/child radiation remain
+  equipment-online writer. `AetheriaRuntimeThermalMedicalSimulation` derives
+  cockpit exposure, recovery, severe-risk crossings, and thermal death from the
+  cockpit's canonical cells; all death causes use the same destruction commit.
+  The Eve game surface publishes the resulting power, radiator, temperature,
+  wear, offline-equipment, cockpit, risk, render-weight, and typed death facts.
+  Rotated equipment footprints, parent/child radiation, schematic composition,
+  native thermal post effects, and the cause-specific death fade remain
   migration work rather than presentation authority.
 - `dotnet list package --vulnerable --include-transitive` is clean for active
   maintained projects.
