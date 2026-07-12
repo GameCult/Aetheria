@@ -912,7 +912,9 @@ namespace GameCult.Aetheria.State.Verse
                 : targetRadius + (0.25 + radiusRoll) * Math.Max(targetRadius, weapon.Spread * distance);
             var endpointX = target.PositionX + Math.Cos(angle) * impactRadius;
             var endpointZ = target.PositionZ + Math.Sin(angle) * impactRadius;
+            var presentationKind = ResolveShotPresentationKind(weapon.State.BehaviorKind);
             var appliedDamage = hit ? weapon.Damage : 0;
+            var shieldBefore = Math.Max(0, GetStat(target, Shield));
             var aliveBefore = IsAlive(target);
             if (hit) Damage(target, appliedDamage);
 
@@ -928,9 +930,13 @@ namespace GameCult.Aetheria.State.Verse
                 Outcome = hit ? "hit" : "miss",
                 OriginX = attacker.PositionX, OriginZ = attacker.PositionZ,
                 EndpointX = endpointX, EndpointZ = endpointZ,
-                PresentationDurationSeconds = distance / Math.Max(1, weapon.ProjectileSpeed),
-                PresentationKind = weapon.ItemKey,
-                ImpactAngleRoll = angleRoll, ImpactRadiusRoll = radiusRoll
+                PresentationDurationSeconds = presentationKind == "stream"
+                    ? 0.12
+                    : distance / Math.Max(1, weapon.ProjectileSpeed),
+                PresentationKind = presentationKind,
+                ImpactAngleRoll = angleRoll, ImpactRadiusRoll = radiusRoll,
+                ImpactKind = !hit ? "none" : shieldBefore > 0 ? "shield" : "hull",
+                PresentationIntensity = Math.Max(0.1, weapon.Damage)
             });
             AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit
             {
@@ -1120,6 +1126,17 @@ namespace GameCult.Aetheria.State.Verse
 
         private static double PositiveOr(double value, double fallback) =>
             double.IsFinite(value) && value > 0 ? value : fallback;
+
+        private static string ResolveShotPresentationKind(string behaviorKind)
+        {
+            if (string.Equals(behaviorKind, AetheriaRuntimeBehaviorKinds.GuidedWeapon, StringComparison.Ordinal))
+                return "guided";
+            if (string.Equals(behaviorKind, AetheriaRuntimeBehaviorKinds.ConstantWeapon, StringComparison.Ordinal))
+                return "stream";
+            if (string.Equals(behaviorKind, AetheriaRuntimeBehaviorKinds.Launcher, StringComparison.Ordinal))
+                return "bolt";
+            return "bolt";
+        }
 
         private static string ReadItemKey(AetheriaRuntimeBehaviorPayload payload, int key)
         {

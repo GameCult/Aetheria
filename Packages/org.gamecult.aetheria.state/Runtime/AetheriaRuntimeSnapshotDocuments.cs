@@ -482,6 +482,8 @@ namespace GameCult.Aetheria.State.Verse
         [Key(24)] public string PresentationKind { get; set; } = "";
         [Key(25)] public double ImpactAngleRoll { get; set; }
         [Key(26)] public double ImpactRadiusRoll { get; set; }
+        [Key(27)] public string ImpactKind { get; set; } = "none";
+        [Key(28)] public double PresentationIntensity { get; set; } = 1;
     }
 
     [MessagePackObject]

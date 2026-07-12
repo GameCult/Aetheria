@@ -332,6 +332,8 @@ namespace GameCult.Aetheria.State.Verse
                         ("endpoint", string.Join(",", FormatNumber(value.EndpointX), FormatNumber(value.EndpointZ))),
                         ("presentationDuration", FormatNumber(value.PresentationDurationSeconds)),
                         ("presentationKind", value.PresentationKind),
+                        ("presentationIntensity", FormatNumber(value.PresentationIntensity)),
+                        ("impactKind", value.ImpactKind),
                         ("impactAngleRoll", FormatNumber(value.ImpactAngleRoll)),
                         ("impactRadiusRoll", FormatNumber(value.ImpactRadiusRoll))
                     }))

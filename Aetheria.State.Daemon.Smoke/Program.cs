@@ -201,6 +201,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         var missDz = miss.EndpointZ - target.PositionZ;
         Require(!miss.Hit && miss.AppliedDamage == 0 && miss.HitRoll > miss.HitProbability,
             "extreme authored dispersion must deterministically resolve a miss without damage");
+        RequireEqual("none", miss.ImpactKind, "a miss must not advertise a fabricated impact response");
+        RequireEqual("bolt", miss.PresentationKind, "instant weapon receipts must advertise a runtime-neutral travelling effect");
         Require(Math.Sqrt(missDx * missDx + missDz * missDz) > 20 &&
                 miss.ImpactAngleRoll >= 0 && miss.ImpactAngleRoll < 1 &&
                 miss.ImpactRadiusRoll >= 0 && miss.ImpactRadiusRoll < 1,
@@ -968,7 +970,10 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             new AetheriaRuntimeDaemonHealthDocument(),
             AetheriaRuntimeDaemonCommandBoundaryDocument.Create("daemon"));
         Require(Flatten(shotSurface.Surface.Root).Any(node => node.Kind == "shot.receipt" &&
-                node.Props["itemKey"] == "test-lock-cannon" && node.Props["outcome"] == "hit"),
+                node.Props["itemKey"] == "test-lock-cannon" && node.Props["outcome"] == "hit" &&
+                node.Props["presentationKind"] == "bolt" &&
+                node.Props.ContainsKey("presentationIntensity") &&
+                node.Props.ContainsKey("impactKind")),
             "Eve must project inspectable deterministic shot receipts without reconstructing combat");
     }
 
