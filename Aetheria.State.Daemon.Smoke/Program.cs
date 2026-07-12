@@ -2170,6 +2170,10 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         Require(worldEntity.Props.ContainsKey("heatstrokePostWeight") &&
                 worldEntity.Props.ContainsKey("severeHeatstrokeWeight"),
             "Eve must publish the exact source weights used by the original heatstroke presentation");
+        RequireEqual("5", worldEntity.Props["heatstrokePhasingFrequency"],
+            "Eve must publish the provider-authored severe heatstroke pulse frequency");
+        RequireEqual("1", worldEntity.Props["deathTransitionSeconds"],
+            "Eve must publish the original thermal death crossfade duration");
     }
 
     private static void ThermalMedicalDeathUsesOrdinaryDestructionPath()

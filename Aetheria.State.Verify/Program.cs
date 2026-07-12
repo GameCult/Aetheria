@@ -16418,6 +16418,8 @@ static void RequireDaemonEnergyAndThermalAuthority(string root)
             "[\"cockpitTemperature\"]",
             "[\"heatstrokeRisk\"]",
             "[\"hypothermiaRisk\"]",
+            "[\"heatstrokePhasingFrequency\"]",
+            "[\"deathTransitionSeconds\"]",
             "[\"causeOfDeath\"]"
         }
     };

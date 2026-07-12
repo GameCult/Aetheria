@@ -47,7 +47,7 @@
       "hash": "e10821f1cc81f619479c6507438f6a097d1f0ce2"
     },
     "org.gamecult.eve.unity-scene": {
-      "version": "https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.unity-scene#290b384703d19b4deee79fe015d80957ec5f8eb6",
+      "version": "https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.unity-scene#580af5328d4c5db4295432cb918402ce762c960a",
       "depth": 0,
       "source": "git",
       "dependencies": {
@@ -56,7 +56,7 @@
         "org.gamecult.eve.surface": "0.1.0",
         "com.unity.mathematics": "1.3.2"
       },
-      "hash": "0d97dcf56c8b813de50d319ebce10a93595ad5c4"
+      "hash": "580af5328d4c5db4295432cb918402ce762c960a"
     },
     "com.unity.modules.assetbundle": {
       "version": "1.0.0",
