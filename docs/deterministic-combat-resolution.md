@@ -1,6 +1,6 @@
 # Deterministic Combat Resolution
 
-Status: target authority map
+Status: daemon armor-cell damage ownership implemented; broader combat parity remains
 
 ## Objective
 
@@ -20,6 +20,11 @@ execution path because it is human-controlled.
 The daemon combat resolver owns shot identity, solution quality, seeded outcome,
 impact distribution, damage transaction, and combat receipts.
 
+For committed direct and deployable hits, the daemon damage transaction is the
+single owner of layer ordering and mutation. It applies one shared
+`shield -> armor cell -> equipment -> scalar hull` transaction; neither the
+weapon path nor the deployable path owns a second damage model.
+
 ### Inputs
 
 The resolver may read:
@@ -35,6 +40,10 @@ The resolver may read:
   countermeasures, and only those defenses exposed by gathered information;
 - doctrine constraints and accepted semantic action parameters;
 - a deterministic entropy key derived from run seed and stable shot identity.
+- the target hull shape and hardpoint catalog topology used to initialize its
+  armor and maximum-armor grids;
+- the resolved impact position and direction supplied by the direct-shot or
+  deployable detonation path.
 
 Missing knowledge remains uncertainty. The resolver must not replace an
 observer's weak contact with canonical target internals when constructing its
@@ -59,6 +68,11 @@ One committed shot produces an immutable receipt containing:
 
 Receipts are CultCache/CultMesh state. Eve projects them without becoming a
 second combat model.
+
+The daemon also publishes the mutated armor and maximum-armor grids. Aggregate
+armor is derived from those cells for compact Eve status; exact cell values are
+available for the schematic. Scalar hull health is the terminal remainder of
+the transaction, not a substitute armor owner.
 
 ## Pipeline
 
@@ -126,6 +140,43 @@ does not secretly reveal the canonical component location. The sampled impact
 then enters the target's shield, armor, hull-cell, equipment, thermal, and crew
 damage pipeline.
 
+The implemented damage transaction maps the deterministic impact onto the
+target schematic. Damage spread expands through orthogonally adjacent cells.
+Penetration advances through the schematic in 0.5-cell increments, including
+the fix for the fossil path that could fail to advance and loop forever. Damage
+type remains typed and is passed through state and receipts, but does not apply
+resistance modifiers: the fossil carried damage types but never used them for
+resistance.
+
+Direct hits begin at the deterministic impact cell; a hit on a hardpoint begins
+with that hardpoint's complete footprint before spread and penetration expand
+the shape. Splash payloads such as mines preserve the fossil's distinct rule:
+they select the source-facing half of the hull schematic, then enter the same
+layer transaction.
+
+## Armor-Cell Authority Map
+
+- Owner: the daemon's canonical damage transaction owns shield interception,
+  schematic impact mapping, armor-cell mutation, equipment damage, and scalar
+  hull remainder for both direct and deployable damage.
+- Inputs: hull and hardpoint catalog topology, initialized armor and
+  maximum-armor grids, authoritative target state, deterministic impact and
+  direction, damage amount, spread, penetration, and typed damage type.
+- Outputs: atomically mutated shield resources, armor cells, equipment state,
+  scalar hull, aggregate/exact Eve armor facts, and shot/damage receipts with
+  the layers reached and damage applied at each layer.
+- Derived state: aggregate armor, schematic presentation, impact effects,
+  meters, and scalar summaries are views of the canonical transaction. Damage
+  type is currently pass-through evidence, not a resistance table.
+- Forbidden writers: direct-weapon handlers, deployable detonation handlers,
+  Ymir contacts, Unity/Eve presentation, scalar-hull helpers, and repair loops
+  may not independently order layers or mutate armor/equipment/hull.
+- Shared paths: direct shots and deployable detonations submit the same damage
+  transaction after producing their authoritative impact facts.
+- Cut line: the old scalar-hull-only and per-caller damage paths no longer own
+  damage. Catalog topology initializes the grids once; after initialization,
+  only the daemon damage transaction mutates them.
+
 ## Charged Weapons
 
 A charged fire request commits time before it commits a shot:
@@ -182,6 +233,7 @@ Eve receives:
 
 - persistent firing-solution and weapon state;
 - immutable shot and damage receipts;
+- aggregate armor status and the exact armor/maximum-armor schematic grid;
 - hit/miss, impact, malfunction, refusal, and destruction chronology;
 - derived trajectory hints such as origin, impact/miss endpoint, launch time,
   impact time, effect identity, and view channels.
@@ -199,6 +251,8 @@ drop or simplify an effect. It may not promote a visual collision into damage.
 - cognition and agents may propose shots but may not sample or apply outcomes.
 - Eve lowerers may not reconstruct hit probability from presentation props.
 - a repair loop may not reconcile client-observed impacts into daemon health.
+- direct and deployable callers may not bypass the shared layer transaction
+  with scalar hull damage.
 
 ## Cut Line
 
@@ -223,7 +277,8 @@ Required proofs:
 4. Cognition quality, range, aspect, and target motion contribute independently
    and are visible in the receipt.
 5. Hit and miss both consume the committed weapon resources.
-6. Impact distribution reaches shield, armor, hull-cell, and equipment damage.
+6. Direct and deployable impacts share the shield, armor-cell, equipment, and
+   scalar-hull transaction, with layer facts preserved in receipts.
 7. Removing all projectile presentation still produces the same damage receipt.
 8. Injecting a fake visual collision cannot produce damage.
 9. Charged hold risk replays exactly and commits immediately when a valid

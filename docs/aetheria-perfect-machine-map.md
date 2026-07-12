@@ -725,6 +725,31 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
 
 ## Current Authority Map
 
+### Daemon Damage Transaction
+
+- Owner: the daemon's canonical damage transaction owns damage-layer ordering
+  and mutation for direct weapons and deployables.
+- Inputs: hull and hardpoint catalog topology; initialized armor and
+  maximum-armor grids; shield, equipment, and scalar hull state; deterministic
+  impact position/direction; damage amount, orthogonal spread, 0.5-cell
+  penetration, and typed damage type.
+- Outputs: one atomic `shield -> armor cell -> equipment -> scalar hull`
+  result, mutated canonical grids/equipment/hull state, and receipts recording
+  which layers were reached and how much each layer absorbed or received.
+- Derived state: aggregate armor and exact schematic armor/maximum-armor facts
+  are Eve projections of canonical cell state. Scalar hull is the terminal
+  remainder, not an armor surrogate. Damage type is typed/pass-through; no
+  resistance authority exists because the fossil did not apply resistances.
+- Forbidden writers: direct-fire code, deployable handlers, Ymir contacts,
+  Unity components, Eve lowerers, scalar-health helpers, and reconciliation
+  loops cannot independently apply or repair armor, equipment, or hull damage.
+- Shared paths: direct and deployable impacts enter the same transaction after
+  their respective authoritative impact facts are resolved.
+- Cut line: scalar-hull-only and caller-specific damage paths are no longer
+  owners. Hull/hardpoint topology initializes armor grids; only the daemon
+  transaction mutates them thereafter. Penetration always advances by a
+  half-cell step, eliminating the fossil's non-advancing infinite loop.
+
 - Owner: `Aetheria.State` owns the new typed state spine for durable state.
   The embedded `GameCult.Aetheria.State.Unity` package owns Unity's runtime
   typed state file path plus the boot-time state-file probe, and is the landing

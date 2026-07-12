@@ -16708,6 +16708,30 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
             "Shield authority must be the equipped energy-funded behavior transaction, not a scalar shield hitpoint pool.");
     }
 
+    var requiredArmorTransactionSymbols = new[]
+    {
+        "EnsureArmorState(entity, catalog)",
+        "ResolveDamageCells(target, hull, impactX, impactZ, source, penetration, spread, splash)",
+        "ApplyGridDamage(armor, cell.X, cell.Y, remaining)",
+        "FindEquipmentAt(target, catalog, cell.X, cell.Y)",
+        "for (var distance = 0.5; distance < penetration; distance += 0.5)",
+        "ArmorAppliedDamage",
+        "EquipmentAppliedDamage",
+        "DamageCells = damage.Cells"
+    };
+    var missingArmorTransactionSymbols = requiredArmorTransactionSymbols
+        .Where(symbol => !daemonSimulation.Contains(symbol, StringComparison.Ordinal) &&
+            !shotReceiptDocument.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingArmorTransactionSymbols.Length > 0 ||
+        daemonSimulation.Contains("ResolveDamage(target, weapon.Damage, catalog)", StringComparison.Ordinal) ||
+        daemonSimulation.Contains("ResolveDamage(target, payload.PayloadMagnitude, catalog)", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Daemon damage must resolve shield, armor cells, installed equipment, then hull through one typed transaction: " +
+            string.Join(", ", missingArmorTransactionSymbols));
+    }
+
     if (daemonSimulation.Contains("AetheriaRuntimeRtsSimulation", StringComparison.Ordinal) ||
         daemonSimulation.Contains("daemon-rts", StringComparison.Ordinal) ||
         daemonSimulation.Contains("rts-commander", StringComparison.Ordinal) ||

@@ -333,6 +333,12 @@ namespace GameCult.Aetheria.State.Verse
                         ("hullAppliedDamage", FormatNumber(value.HullAppliedDamage)),
                         ("shieldEnergyConsumed", FormatNumber(value.ShieldEnergyConsumed)),
                         ("shieldHeatGenerated", FormatNumber(value.ShieldHeatGenerated)),
+                        ("damageType", value.DamageType),
+                        ("penetration", FormatNumber(value.Penetration)),
+                        ("damageSpread", FormatNumber(value.DamageSpread)),
+                        ("armorAppliedDamage", FormatNumber(value.ArmorAppliedDamage)),
+                        ("equipmentAppliedDamage", FormatNumber(value.EquipmentAppliedDamage)),
+                        ("damageCellCount", (value.DamageCells?.Count ?? 0).ToString(CultureInfo.InvariantCulture)),
                         ("origin", string.Join(",", FormatNumber(value.OriginX), FormatNumber(value.OriginZ))),
                         ("endpoint", string.Join(",", FormatNumber(value.EndpointX), FormatNumber(value.EndpointZ))),
                         ("presentationDuration", FormatNumber(value.PresentationDurationSeconds)),
@@ -638,6 +644,10 @@ namespace GameCult.Aetheria.State.Verse
             var hull = EntityStat(entity, "hull");
             var shield = EntityStat(entity, "shield");
             var heat = EntityStat(entity, "heat");
+            var armorGrid = EntityGrid(entity, "armor");
+            var maximumArmorGrid = EntityGrid(entity, "maximumArmor");
+            var armor = armorGrid?.Values?.Sum() ?? 0;
+            var maximumArmor = maximumArmorGrid?.Values?.Sum() ?? 0;
             var minimumTemperature = EntityStat(entity, AetheriaRuntimeThermalSimulation.MinimumTemperatureGrid);
             var maximumTemperature = EntityStat(entity, AetheriaRuntimeThermalSimulation.MaximumTemperatureGrid);
             var thermalVisibility = EntityStat(entity, "thermal-visibility");
@@ -664,6 +674,12 @@ namespace GameCult.Aetheria.State.Verse
                 ["hull"] = FormatNumber(hull),
                 ["maximumHull"] = FormatNumber(maximumHull),
                 ["hullRatio"] = FormatRatio(hull, maximumHull),
+                ["armor"] = FormatNumber(armor),
+                ["maximumArmor"] = FormatNumber(maximumArmor),
+                ["armorRatio"] = FormatRatio(armor, maximumArmor),
+                ["armorGridWidth"] = (armorGrid?.Width ?? 0).ToString(CultureInfo.InvariantCulture),
+                ["armorGridHeight"] = (armorGrid?.Height ?? 0).ToString(CultureInfo.InvariantCulture),
+                ["armorGrid"] = string.Join(",", (armorGrid?.Values ?? Array.Empty<double>()).Select(FormatNumber)),
                 ["shield"] = FormatNumber(shield),
                 ["maximumShield"] = FormatNumber(maximumShield),
                 ["shieldRatio"] = FormatRatio(shield, maximumShield),
@@ -906,6 +922,11 @@ namespace GameCult.Aetheria.State.Verse
             (entity.StatGrids ?? Array.Empty<AetheriaRuntimeEntityStatGridCommit>())
             .FirstOrDefault(grid => string.Equals(grid?.Name, name, StringComparison.OrdinalIgnoreCase))
             ?.Values?.FirstOrDefault() ?? 0;
+
+        private static AetheriaRuntimeEntityStatGridCommit? EntityGrid(
+            AetheriaRuntimeEntitySnapshotCommit entity, string name) =>
+            (entity.StatGrids ?? Array.Empty<AetheriaRuntimeEntityStatGridCommit>())
+            .FirstOrDefault(grid => string.Equals(grid?.Name, name, StringComparison.OrdinalIgnoreCase));
 
         private static double MaximumHull(
             AetheriaRuntimeEntitySnapshotCommit entity,

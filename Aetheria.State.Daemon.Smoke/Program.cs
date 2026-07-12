@@ -18,6 +18,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         DeployableRangeExpiryDetonatesAfterYmirMovement();
         CanonicalCatalogPublishesRecoveredMineLauncher();
         EnergyFundedShieldInterceptsDamageBeforeHull();
+        ArmorCellsResolveBeforeEquipmentAndHull();
         DaemonSimulationTreatsYmirHitAsPresentationOnly();
         ProjectileContactCannotKill();
         MissingPhysicsOwnerCannotAdvanceProjectiles();
@@ -453,6 +454,56 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             "unfunded shield must not manufacture absorption");
     }
 
+    private static void ArmorCellsResolveBeforeEquipmentAndHull()
+    {
+        var source = Entity(0, -100, "player");
+        var target = Entity(1, 0, "neutral");
+        target.HullItemKey = "test-cell-hull";
+        target.Equipment = [new AetheriaRuntimeLoadoutItemSlotCommit
+        {
+            X = 0, Y = 1,
+            Item = new AetheriaRuntimeLoadoutItemCommit
+                { ItemKey = "test-cell-gear", Quality = 1, Durability = 2, Enabled = true }
+        }];
+        var hull = HullCatalogItem("test-cell-hull", 3, 3, 5);
+        var gear = CatalogItem("test-cell-gear");
+        gear.ShapeCells = [new AetheriaRuntimeShapeCell(0, 0)];
+        var catalog = new AetheriaRuntimeCatalogSnapshot([hull, gear], [], []);
+        var zone = new AetheriaRuntimeZoneSnapshotCommit
+            { ZoneIndex = 0, Entities = [source, target], PhysicalPayloads = [new AetheriaRuntimePhysicalPayloadCommit
+            {
+                PayloadId = "armor-blast", PayloadKind = "mine", WeaponItemKey = "test-cannon",
+                SourceEntityIndex = source.EntityIndex, PositionX = target.PositionX, PositionZ = target.PositionZ,
+                LifetimeSeconds = 30, BlastRadius = 200, PayloadMagnitude = 20,
+                DamageType = "Corrosive", Penetration = 0, DamageSpread = 0,
+                TriggeredAtSeconds = 0, DetonationDelaySeconds = 0, Stationary = true, Active = true
+            }] };
+        var run = new AetheriaRuntimeRunCheckpointCommit
+            { RunId = "armor-cell-smoke", CurrentZoneIndex = 0,
+                CurrentEntityKey = "zone.0.entity.0", Zones = [zone] };
+
+        AetheriaRuntimeDaemonSimulation.Step(run, new AetheriaRuntimeDaemonIntentState(), 0.1,
+            AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
+            new AetheriaYmirPhysicalPayloadPhysics(), new AetheriaYmirWorldPhysics(), catalog, 1, 0.1);
+
+        var armor = target.StatGrids.Single(value => value.Name == "armor");
+        RequireNear(0, armor.Values[3], 0.000001, "source-facing splash cells must absorb damage first");
+        RequireNear(1.0 / 3.0, target.Equipment.Single().Item.Durability, 0.000001,
+            "installed equipment at the impact cell must receive residual damage second");
+        RequireNear(100 - (10.0 / 3.0), Stat(target, "hull"), 0.000001,
+            "only residual damage after armor and equipment may reach hull durability");
+        var surface = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(
+            new AetheriaRuntimeDaemonFrameDocument { FrameId = 1, Run = run },
+            new AetheriaRuntimeDaemonHealthDocument(),
+            AetheriaRuntimeDaemonCommandBoundaryDocument.Create("daemon"));
+        var targetNode = Flatten(surface.Surface.Root).Single(node =>
+            node.Id == "aetheria.daemon.game.world.entity.1");
+        RequireEqual("30", targetNode.Props["armor"],
+            "Eve world projection must expose aggregate armor as derived presentation state");
+        RequireEqual("0,5,5,0,5,5,0,5,5", targetNode.Props["armorGrid"],
+            "Eve world projection must expose the exact daemon-owned schematic grid");
+    }
+
     private static void ChargedWeaponHoldRiskMalfunctionsDeterministically()
     {
         var source = Entity(0, 0, "player");
@@ -844,6 +895,22 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         0, 1000, Array.Empty<AetheriaRuntimeCurveKey>(), "", 1, 0, 0, 0, false,
         0, 0, "", Array.Empty<AetheriaRuntimeAudioStat>(), Array.Empty<AetheriaRuntimeCurveKey>(), "", "");
 
+    private static AetheriaRuntimeCatalogItem HullCatalogItem(string itemKey, int width, int height, double armor)
+    {
+        var cells = Enumerable.Range(0, height)
+            .SelectMany(y => Enumerable.Range(0, width).Select(x => new AetheriaRuntimeShapeCell(x, y)))
+            .ToArray();
+        return new AetheriaRuntimeCatalogItem(
+            itemKey, itemKey, "hull", "", "", 0, 1, 1, 1, 1,
+            width, height, cells.Length, cells,
+            width, height, cells.Length, cells,
+            Array.Empty<AetheriaRuntimeHardpoint>(), Array.Empty<AetheriaRuntimeBehaviorPayload>(),
+            "", "ship", Array.Empty<string>(),
+            1, false, 0, 1, "", "", "", "", "",
+            0, 1000, Array.Empty<AetheriaRuntimeCurveKey>(), "", 1, 0, armor, 0, false,
+            0, 0, "", Array.Empty<AetheriaRuntimeAudioStat>(), Array.Empty<AetheriaRuntimeCurveKey>(), "", "");
+    }
+
     private static void AgentPatrolsHistoricalOrbitCircuitThroughMovementCommands()
     {
         var agent = Entity(0, 0, "workers");
@@ -1075,7 +1142,10 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             "LockWeapon",
             0,
             [
+                new AetheriaRuntimeBehaviorField(1, Number(1)),
                 new AetheriaRuntimeBehaviorField(2, PerformanceStat(7)),
+                new AetheriaRuntimeBehaviorField(3, PerformanceStat(1.5)),
+                new AetheriaRuntimeBehaviorField(4, PerformanceStat(2)),
                 new AetheriaRuntimeBehaviorField(6, PerformanceStat(145)),
                 new AetheriaRuntimeBehaviorField(9, PerformanceStat(5)),
                 new AetheriaRuntimeBehaviorField(10, PerformanceStat(3)),
@@ -1181,8 +1251,10 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             "two authored bursts must commit all six due rounds through the shot resolver");
         Require(run.ShotReceipts.Count(value => value.WeaponItemKey == "test-lock-cannon") >= 6 &&
                 run.ShotReceipts.All(value => value.Hit && value.HullAppliedDamage >= 0 &&
-                    value.HullAppliedDamage <= value.NominalDamage && value.ShieldAbsorbedDamage == 0),
-            "zero-spread authored rounds must commit exact certain-hit damage receipts before presentation travel");
+                    value.HullAppliedDamage <= value.NominalDamage && value.ShieldAbsorbedDamage == 0 &&
+                    value.DamageType == "Corrosive" && Math.Abs(value.Penetration - 1.5) < 0.000001 &&
+                    Math.Abs(value.DamageSpread - 2) < 0.000001),
+            "authored rounds must retain damage type, penetration, spread, and exact damage receipts before presentation travel");
         Require(run.ShotReceipts.Select(value => value.ShotId).Distinct(StringComparer.Ordinal).Count() ==
                 run.ShotReceipts.Count,
             "every burst round must own a stable independent shot identity");

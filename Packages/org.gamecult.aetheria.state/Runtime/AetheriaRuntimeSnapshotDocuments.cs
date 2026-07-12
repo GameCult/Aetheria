@@ -490,6 +490,23 @@ namespace GameCult.Aetheria.State.Verse
         [Key(30)] public double HullAppliedDamage { get; set; }
         [Key(31)] public double ShieldEnergyConsumed { get; set; }
         [Key(32)] public double ShieldHeatGenerated { get; set; }
+        [Key(33)] public string DamageType { get; set; } = "Kinetic";
+        [Key(34)] public double Penetration { get; set; }
+        [Key(35)] public double DamageSpread { get; set; }
+        [Key(36)] public double ArmorAppliedDamage { get; set; }
+        [Key(37)] public double EquipmentAppliedDamage { get; set; }
+        [Key(38)] public IReadOnlyList<AetheriaRuntimeDamageCellCommit> DamageCells { get; set; } = Array.Empty<AetheriaRuntimeDamageCellCommit>();
+    }
+
+    [MessagePackObject]
+    public sealed class AetheriaRuntimeDamageCellCommit
+    {
+        [Key(0)] public int X { get; set; }
+        [Key(1)] public int Y { get; set; }
+        [Key(2)] public double ArmorAppliedDamage { get; set; }
+        [Key(3)] public int EquipmentIndex { get; set; } = -1;
+        [Key(4)] public double EquipmentAppliedDamage { get; set; }
+        [Key(5)] public double HullAppliedDamage { get; set; }
     }
 
     [MessagePackObject]
@@ -640,6 +657,9 @@ namespace GameCult.Aetheria.State.Verse
         [Key(25)] public double MaximumSourceDistance { get; set; }
         [Key(26)] public string WeaponItemKey { get; set; } = "";
         [Key(27)] public string TriggerReason { get; set; } = "";
+        [Key(28)] public string DamageType { get; set; } = "Kinetic";
+        [Key(29)] public double Penetration { get; set; }
+        [Key(30)] public double DamageSpread { get; set; }
     }
 
     [MessagePackObject]
