@@ -17,5 +17,5 @@ public sealed class AetheriaGameSessionState
     [Key(4)] public string EntrySurfaceId { get; set; } = "aetheria.pilot";
     [Key(5)] public string LastStartCommandId { get; set; } = "";
     [Key(6)] public string UpdatedAtUtc { get; set; } = "";
-    [Key(7)] public double SimulationRate { get; set; }
+    [Key(7)] public double SimulationRate { get; set; } = 1;
 }

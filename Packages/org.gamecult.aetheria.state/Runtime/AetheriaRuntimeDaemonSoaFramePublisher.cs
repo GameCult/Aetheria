@@ -61,7 +61,8 @@ namespace GameCult.Aetheria.State.Verse
             if (cache == null) throw new ArgumentNullException(nameof(cache));
             _localPublisher = new CultMeshFrameBodyPublisher(
                 BodyId, BodySchemaId, LayoutVersion, Capacity, producerEpoch,
-                checked((int)EntityHotSlabLayout.Create(Capacity).TotalByteLength));
+                checked((int)EntityHotSlabLayout.Create(Capacity).TotalByteLength),
+                TimeSpan.FromSeconds(30));
             _networkPublisher = new CultMeshNetworkBodyPublisher(
                 cache,
                 generation => string.Equals(generation.ProducerId, ProducerId, StringComparison.Ordinal));

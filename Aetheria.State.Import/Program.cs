@@ -298,6 +298,16 @@ foreach (var nameFile in parsedNameFiles)
 
 await node.FlushAsync();
 var runtimeCatalog = await node.RuntimeCatalog().LatestAsync().ConfigureAwait(false);
+var importedCorporationKeys = runtimeCatalog.Corporations
+    .Select(corporation => corporation.CorporationKey)
+    .Where(key => !string.IsNullOrWhiteSpace(key))
+    .Distinct(StringComparer.Ordinal)
+    .ToArray();
+if (importedCorporationKeys.Length != corporations.Length)
+{
+    throw new InvalidDataException(
+        $"Runtime catalog projected {importedCorporationKeys.Length} corporation keys from {corporations.Length} typed corporation documents.");
+}
 var runtimeMines = runtimeCatalog.Items
     .Where(item => string.Equals(item.WeaponType, "Mine", StringComparison.Ordinal))
     .ToArray();
@@ -327,6 +337,7 @@ Console.WriteLine($"Catalog: {catalog.RelativePath} {catalog.Bytes} bytes {catal
 Console.WriteLine($"Name files: {nameFiles.Length}");
 Console.WriteLine($"Mapped items: {itemDefinitions.Length}");
 Console.WriteLine($"Mapped factions: {corporations.Length}");
+Console.WriteLine($"Runtime corporation keys: {string.Join(", ", importedCorporationKeys)}");
 Console.WriteLine($"Mapped name files: {parsedNameFiles.Length}");
 Console.WriteLine($"Mapped mine weapons: {string.Join(", ", runtimeMines.Select(item => item.Name + " (" + item.ItemKey + ")"))}");
 

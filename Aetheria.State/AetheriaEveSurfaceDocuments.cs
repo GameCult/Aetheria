@@ -5,6 +5,7 @@ using Aetheria.State.Documents;
 using GameCult.Aetheria.State.Verse;
 using GameCult.Mesh;
 using EveCommandTemplate = GameCult.Eve.Surface.EveCommandTemplate;
+using EveCommandReceiptDocument = GameCult.Eve.Surface.EveCommandReceiptDocument;
 using EveAdvertisedCommand = GameCult.Eve.Surface.EveAdvertisedCommand;
 using EveAdvertisedSurface = GameCult.Eve.Surface.EveAdvertisedSurface;
 using EveProviderAdvertisementDocument = GameCult.Eve.Surface.EveProviderAdvertisementDocument;
@@ -295,7 +296,8 @@ public static class AetheriaEveSurfaceDocuments
             schemas,
             witnesses,
             AetheriaRuntimeEveSurfaceCatalog.All.Select(ToProviderSurface).ToArray(),
-            commands);
+            commands,
+            new[] { AetheriaRuntimeDaemonSoaFramePublisher.ProducerId });
     }
 
     private static EveProviderWitness Witness(string kind, string reference, string summary) =>
@@ -313,9 +315,9 @@ public static class AetheriaEveSurfaceDocuments
                 surface.WorldInteraction.StateSchemas,
                 surface.WorldInteraction.CommandBoundary,
                 AetheriaRuntimeVerseRecordKeys.DaemonCommandBoundary.ToString(),
-                surface.WorldInteraction.ReceiptSchema,
-                "",
-                "",
+                EveCommandReceiptDocument.SchemaId,
+                AetheriaRuntimeVerseRecordKeys.EveReceiptRecordPrefix,
+                AetheriaRuntimeVerseRecordKeys.EveAssetCatalog.ToString(),
                 surface.WorldInteraction.LoweringTargets,
                 surface.WorldInteraction.Ownership);
         return new EveAdvertisedSurface(

@@ -99,7 +99,7 @@ namespace GameCult.Aetheria.State.Verse
                     WeaponStateItems(entity, run, zone)));
 
             return new AetheriaRuntimeSurfaceDocument(
-                providerId: "aetheria.daemon",
+                providerId: "aetheria",
                 providerKind: "game.daemon",
                 title: "Aetheria Daemon",
                 version: frame.FrameId,
@@ -150,7 +150,7 @@ namespace GameCult.Aetheria.State.Verse
                 BuildStarbridgeRuntimeRolesCard(starbridge));
 
             return new AetheriaRuntimeSurfaceDocument(
-                "aetheria.daemon",
+                "aetheria",
                 "game.daemon",
                 "Starbridge Commander",
                 frame.FrameId,

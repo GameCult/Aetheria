@@ -20,6 +20,11 @@ internal static class AetheriaDaemonZoneGenerator
             .Where(value => !string.IsNullOrWhiteSpace(value))
             .OrderBy(value => value, StringComparer.Ordinal)
             .ToArray();
+        if (corporationKeys.Length == 0)
+        {
+            throw new InvalidDataException(
+                "Terminus generation requires at least one typed corporation with a stable corporation key.");
+        }
         var homeZones = corporationKeys.ToDictionary(value => value, _ => 0, StringComparer.Ordinal);
         var availabilityFactions = new Dictionary<string, string>(StringComparer.Ordinal)
         {

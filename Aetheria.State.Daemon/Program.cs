@@ -449,13 +449,15 @@ static async Task PublishCommittedFactAsync(
         applied ? "reconciled" : "denied",
         "Aetheria",
         fact.SourceDaemonId,
-        "aetheria.daemon",
+        "aetheria",
         AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId,
         applied ? "Command applied by authoritative daemon." : "Command rejected by authoritative daemon.",
         fact.CommittedAtUtc,
         Math.Max(fact.SourceFrameId, 0));
     await node.Database.PutAsync(AetheriaRuntimeVerseRecordKeys.EveReceiptForCommand(receipt.CommandId), receipt)
         .ConfigureAwait(false);
+    if (string.Equals(Environment.GetEnvironmentVariable("AETHERIA_TRACE_EVE_SNAPSHOTS"), "1", StringComparison.Ordinal))
+        Console.WriteLine($"Eve command receipt command={receipt.CommandId} state={receipt.State} provider={receipt.ProviderId}");
 }
 
 static RudpCultNetSchemaServer StartClientCultMeshHost(
@@ -1644,7 +1646,8 @@ static EveProviderAdvertisementDocument BuildCoreProviderAdvertisement(
                 "interactive-world",
                 interaction)
         },
-        Array.Empty<EveAdvertisedCommand>());
+        Array.Empty<EveAdvertisedCommand>(),
+        new[] { AetheriaRuntimeDaemonSoaFramePublisher.ProducerId });
 }
 
 static async Task PublishDaemonMenuSurfacesAsync(
