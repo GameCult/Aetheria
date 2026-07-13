@@ -179,10 +179,17 @@ namespace GameCult.Aetheria.State.Verse
                     return ApplyIssueAgentTask(run, command);
                 case AetheriaRuntimeDaemonCommandKinds.CancelAgentTask:
                     return ApplyCancelAgentTask(run, command);
+                case AetheriaRuntimeDaemonCommandKinds.SetSimulationRate:
+                    return IsSupportedSimulationRate(command.ScalarValue);
                 default:
                     return false;
             }
         }
+
+        public static readonly double[] SupportedSimulationRates = { 0, 0.25, 0.5, 1, 2, 4, 8, 16 };
+
+        public static bool IsSupportedSimulationRate(double value) =>
+            SupportedSimulationRates.Any(rate => Math.Abs(value - rate) < 0.000001);
 
         private static bool ApplyIssueAgentTask(
             AetheriaRuntimeRunCheckpointCommit run,

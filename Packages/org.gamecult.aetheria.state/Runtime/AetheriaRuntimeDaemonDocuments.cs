@@ -194,7 +194,8 @@ namespace GameCult.Aetheria.State.Verse
         SetShutdownPerformance,
         ToggleShieldEnabled,
         IssueAgentTask,
-        CancelAgentTask
+        CancelAgentTask,
+        SetSimulationRate
     }
 
     [CultDocument("gamecult.aetheria.daemon_provider_advertisement", "gamecult.aetheria.daemon_provider_advertisement.v1")]

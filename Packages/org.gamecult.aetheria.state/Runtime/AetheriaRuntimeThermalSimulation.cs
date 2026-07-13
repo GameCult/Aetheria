@@ -150,8 +150,17 @@ namespace GameCult.Aetheria.State.Verse
         {
             EnsureState(entity);
             var temperature = Find(entity.StatGrids, TemperatureGrid)!;
-            var cells = EquipmentCellIndices(entity, catalog, equipmentIndex).ToArray();
-            return cells.Length == 0 ? Mean(temperature.Values) : cells.Average(index => temperature.Values[index]);
+            var thermalMass = Find(entity.StatGrids, ThermalMassGrid)!;
+            var cells = EquipmentCellIndices(entity, catalog, equipmentIndex)
+                .Where(index => index >= 0 && index < thermalMass.Values.Count && thermalMass.Values[index] > 0)
+                .ToArray();
+            if (cells.Length > 0)
+                return cells.Average(index => temperature.Values[index]);
+            return Enumerable.Range(0, temperature.Values.Count)
+                .Where(index => index < thermalMass.Values.Count && thermalMass.Values[index] > 0)
+                .Select(index => temperature.Values[index])
+                .DefaultIfEmpty(InitialTemperature)
+                .Average();
         }
 
         public static void UpdateEquipmentStates(AetheriaRuntimeEntitySnapshotCommit entity,

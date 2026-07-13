@@ -156,6 +156,15 @@ namespace GameCult.Aetheria.State.Verse
             return Send(command);
         }
 
+        internal AetheriaRuntimeDaemonCommandEnvelope SetSimulationRate(
+            AetheriaRuntimeDaemonFrameDocument? frame,
+            double rate)
+        {
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.SetSimulationRate, frame);
+            command.ScalarValue = rate;
+            return Send(command);
+        }
+
         internal AetheriaRuntimeDaemonCommandEnvelope SetLookDirection(
             AetheriaRuntimeDaemonFrameDocument? frame,
             double directionX,

@@ -40,8 +40,21 @@ namespace GameCult.Aetheria.State.Verse
             var run = frame.Run ?? new AetheriaRuntimeRunCheckpointCommit();
             var zone = (run.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>())
                 .FirstOrDefault(candidate => candidate != null && candidate.ZoneIndex == run.CurrentZoneIndex);
+            AetheriaRuntimeRunCheckpointCommit.TryParseEntityKey(
+                run.CurrentEntityKey,
+                out var controlledZoneIndex,
+                out var controlledEntityIndex);
+            var controlled = controlledZoneIndex == run.CurrentZoneIndex
+                ? (zone?.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
+                    .FirstOrDefault(entity => entity != null && entity.EntityIndex == controlledEntityIndex)
+                : null;
+            var visibleEntityIndices = (controlled?.Contacts ?? Array.Empty<AetheriaRuntimeEntityContactCommit>())
+                .Where(contact => contact != null && contact.Visible)
+                .Select(contact => contact.TargetEntityIndex)
+                .Append(controlled?.EntityIndex ?? -1)
+                .ToHashSet();
             var entities = (zone?.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
-                .Where(entity => entity != null)
+                .Where(entity => entity != null && visibleEntityIndices.Contains(entity.EntityIndex))
                 .OrderBy(entity => entity.EntityIndex)
                 .ToArray();
             var count = entities.Length;
@@ -84,8 +97,8 @@ namespace GameCult.Aetheria.State.Verse
                     Kind = entity.Kind,
                     Label = entity.Name,
                     Faction = entity.FactionKey,
-                    Selectable = true,
-                    Controllable = string.Equals(entity.EntityId, run.CurrentEntityKey, StringComparison.Ordinal),
+                    Selectable = entity.EntityIndex != controlled?.EntityIndex,
+                    Controllable = entity.EntityIndex == controlled?.EntityIndex,
                     AssetRef = AetheriaRuntimeAssets.ResolveEntityPrefabAssetRef(entity)
                 }).ToArray());
 

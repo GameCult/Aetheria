@@ -38,6 +38,8 @@ namespace GameCult.Aetheria.State.Verse
         public IAetheriaRuntimePhysicalPayloadPhysics PhysicalPayloadPhysics { get; set; } =
             AetheriaRuntimePhysicalPayloadPhysicsUnavailable.Instance;
         public IAetheriaRuntimeWorldPhysics? WorldPhysics { get; set; }
+        public bool AdvanceSimulation { get; set; } = true;
+        public int SimulationStepCount { get; set; } = 1;
         public bool BuildPublications { get; set; } = true;
     }
 
@@ -148,41 +150,47 @@ namespace GameCult.Aetheria.State.Verse
                         .ToArray(),
                     operationResult.Intents);
             }
-            var agentCommands = AetheriaRuntimeAgentScheduler.AssignAndPlan(
-                operationResult.Run,
-                options.FrameId,
-                options.Catalog,
-                options.SimulationTimeSeconds);
-            Trace("agent-planning");
-            if (agentCommands.Count > 0)
+            var simulationStepCount = options.AdvanceSimulation ? Math.Max(1, options.SimulationStepCount) : 0;
+            for (var simulationStep = 0; simulationStep < simulationStepCount; simulationStep++)
             {
-                var agentResult = AetheriaRuntimeDaemonOperations.Execute(
+                var stepTime = options.SimulationTimeSeconds -
+                    ((simulationStepCount - simulationStep - 1) * options.FixedDeltaSeconds);
+                var agentCommands = AetheriaRuntimeAgentScheduler.AssignAndPlan(
                     operationResult.Run,
-                    agentCommands,
-                    options.OperationContext);
-                AetheriaRuntimeAgentScheduler.Reconcile(
-                    agentResult.Run,
                     options.FrameId,
-                    agentResult.AppliedCommandIds,
-                    agentResult.RejectedCommandIds);
-                operationResult = new AetheriaRuntimeDaemonOperationResult(
-                    agentResult.Run,
-                    operationResult.AppliedCommandIds.Concat(agentResult.AppliedCommandIds).ToArray(),
-                    operationResult.RejectedCommandIds.Concat(agentResult.RejectedCommandIds).ToArray(),
-                    MergeIntents(operationResult.Intents, agentResult.Intents));
+                    options.Catalog,
+                    stepTime);
+                Trace("agent-planning");
+                if (agentCommands.Count > 0)
+                {
+                    var agentResult = AetheriaRuntimeDaemonOperations.Execute(
+                        operationResult.Run,
+                        agentCommands,
+                        options.OperationContext);
+                    AetheriaRuntimeAgentScheduler.Reconcile(
+                        agentResult.Run,
+                        options.FrameId,
+                        agentResult.AppliedCommandIds,
+                        agentResult.RejectedCommandIds);
+                    operationResult = new AetheriaRuntimeDaemonOperationResult(
+                        agentResult.Run,
+                        operationResult.AppliedCommandIds.Concat(agentResult.AppliedCommandIds).ToArray(),
+                        operationResult.RejectedCommandIds.Concat(agentResult.RejectedCommandIds).ToArray(),
+                        MergeIntents(operationResult.Intents, agentResult.Intents));
+                }
+                AetheriaRuntimeDaemonSimulation.Step(
+                    operationResult.Run,
+                    operationResult.Intents,
+                    options.FixedDeltaSeconds,
+                    options.SimulationSettings,
+                    options.PhysicalPayloadPhysics,
+                    options.WorldPhysics ?? throw new InvalidOperationException("Ymir world physics owner is required."),
+                    options.Catalog,
+                    options.FrameId,
+                    options.SimulationTimeSeconds);
+                Trace("world-step");
+                StampZoneSimulationTime(operationResult.Run, options.SimulationTimeSeconds);
             }
-            AetheriaRuntimeDaemonSimulation.Step(
-                operationResult.Run,
-                operationResult.Intents,
-                options.FixedDeltaSeconds,
-                options.SimulationSettings,
-                options.PhysicalPayloadPhysics,
-                options.WorldPhysics ?? throw new InvalidOperationException("Ymir world physics owner is required."),
-                options.Catalog,
-                options.FrameId,
-                options.SimulationTimeSeconds);
-            Trace("world-step");
-            StampZoneSimulationTime(operationResult.Run, options.SimulationTimeSeconds);
 
             var frame = AetheriaRuntimeDaemonFrameDocument.Create(
                 operationResult.Run,

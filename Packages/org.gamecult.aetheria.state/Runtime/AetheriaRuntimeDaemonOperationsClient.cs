@@ -479,6 +479,9 @@ public sealed class AetheriaRuntimeDaemonOperationsClient
                 ReadPayloadDouble(request, "directionX", 0.0),
                 ReadPayloadDouble(request, "directionY", 0.0),
                 ReadPayloadDouble(request, "scalarValue", 1.0)),
+            AetheriaRuntimeDaemonCommandKinds.SetSimulationRate => client.SetSimulationRate(
+                frame,
+                ReadPayloadDouble(request, "scalarValue", 0.0)),
             AetheriaRuntimeDaemonCommandKinds.SetLookDirection => client.SetLookDirection(
                 frame,
                 ReadPayloadDouble(request, "directionX", 0.0),

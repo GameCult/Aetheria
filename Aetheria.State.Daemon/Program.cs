@@ -167,7 +167,6 @@ static async Task<AetheriaRuntimeDaemonTickResult> TickAsync(
         ? currentFrame.FixedDeltaSeconds
         : options.FixedDeltaSeconds;
     var nextFrameId = (currentFrame?.FrameId ?? -1) + 1;
-    var simulationTimeSeconds = (currentFrame?.SimulationTimeSeconds ?? 0) + fixedDeltaSeconds;
     var sessionId = string.IsNullOrWhiteSpace(currentFrame?.SessionId)
         ? options.SessionId
         : currentFrame.SessionId;
@@ -198,6 +197,31 @@ static async Task<AetheriaRuntimeDaemonTickResult> TickAsync(
         authorityLeases,
         options.DaemonId,
         policyRejectedCommandIds);
+    var terminus = string.Equals(ingressState.GameMode, AetheriaGameSessionState.TerminusMode, StringComparison.Ordinal);
+    var simulationClockCommands = authorizedCommands
+        .Where(command => command.Kind == AetheriaRuntimeDaemonCommandKinds.SetSimulationRate)
+        .ToArray();
+    if (!terminus && simulationClockCommands.Length > 0)
+    {
+        policyRejectedCommandIds.AddRange(simulationClockCommands.Select(command => command.CommandId));
+        authorizedCommands = authorizedCommands
+            .Where(command => command.Kind != AetheriaRuntimeDaemonCommandKinds.SetSimulationRate)
+            .ToArray();
+    }
+    else if (simulationClockCommands.Length > 0)
+    {
+        await ApplySimulationClockCommandsAsync(node, ingressState, simulationClockCommands).ConfigureAwait(false);
+    }
+    var simulationStepCount = terminus ? ingressState.TakeTerminusSimulationSteps() : 1;
+    var advanceSimulation = simulationStepCount > 0;
+    if (terminus && !advanceSimulation)
+    {
+        authorizedCommands = authorizedCommands
+            .Where(command => command.Kind == AetheriaRuntimeDaemonCommandKinds.SetSimulationRate)
+            .ToArray();
+    }
+    var simulationTimeSeconds = (currentFrame?.SimulationTimeSeconds ?? 0) +
+        (simulationStepCount * fixedDeltaSeconds);
     TracePhase("tick-inputs");
 
     var result = AetheriaRuntimeDaemonTickRunner.Tick(
@@ -222,6 +246,8 @@ static async Task<AetheriaRuntimeDaemonTickResult> TickAsync(
             SimulationSettings = options.SimulationSettings,
             PhysicalPayloadPhysics = physicalPayloadPhysics,
             WorldPhysics = worldPhysics,
+            AdvanceSimulation = advanceSimulation,
+            SimulationStepCount = simulationStepCount,
             StarbridgeScenario = starbridgeScenario,
             StarbridgeSession = starbridgeSession,
             BuildPublications = buildPublications,
@@ -259,7 +285,7 @@ static async Task<AetheriaRuntimeDaemonTickResult> TickAsync(
 
     if (buildPublications)
     {
-        await PublishDaemonApiDocumentsAsync(node, options, result).ConfigureAwait(false);
+        await PublishDaemonApiDocumentsAsync(node, options, result, publishTopology: true).ConfigureAwait(false);
         TracePhase("api-publication");
         await PublishStateSurfacesAsync(node, options, result.Frame.PublishedAtUtc).ConfigureAwait(false);
         TracePhase("state-surfaces");
@@ -305,15 +331,17 @@ static async Task PublishPreparedDocumentsAsync(
     AetheriaDaemonHostOptions options,
     AetheriaRuntimeDaemonTickResult publication)
 {
-    await PublishDaemonApiDocumentsAsync(node, options, publication).ConfigureAwait(false);
-    await PublishStateSurfacesAsync(node, options, publication.Frame.PublishedAtUtc).ConfigureAwait(false);
-    await PublishOdinSurfaceAnnouncementsAsync(node, options, publication.Frame.PublishedAtUtc).ConfigureAwait(false);
+    await PublishDaemonApiDocumentsAsync(node, options, publication, publishTopology: false).ConfigureAwait(false);
 }
 
 static async Task RefreshControlPlaneInputsAsync(
     AetheriaStateNode node,
     AetheriaDaemonIngressState ingressState)
 {
+    var gameSession = await node.MutableDocument<AetheriaGameSessionState>(AetheriaStateNode.GameSessionStateKey)
+        .ReadAsync().ConfigureAwait(false);
+    ingressState.GameMode = gameSession?.Mode ?? "";
+    ingressState.SimulationRate = gameSession?.SimulationRate ?? 0;
     ingressState.LoadoutTemplates = node.Cache
         .GetAll<AetheriaLoadoutTemplate>()
         .Select(ToLoadoutTemplateCommit)
@@ -330,6 +358,24 @@ static async Task RefreshControlPlaneInputsAsync(
         .ReadAsync().ConfigureAwait(false);
     ingressState.AuthorityLeases = node.Documents<AetheriaRuntimeAuthorityLeaseDocument>().ToArray();
     ingressState.ControlPlaneInitialized = true;
+}
+
+static async Task ApplySimulationClockCommandsAsync(
+    AetheriaStateNode node,
+    AetheriaDaemonIngressState ingressState,
+    IReadOnlyList<AetheriaRuntimeDaemonCommandDocument> commands)
+{
+    var session = await node.MutableDocument<AetheriaGameSessionState>(AetheriaStateNode.GameSessionStateKey)
+        .ReadAsync().ConfigureAwait(false) ?? new AetheriaGameSessionState();
+    foreach (var command in commands.OrderBy(command => command.IssuedAtUtc, StringComparer.Ordinal))
+    {
+        if (AetheriaRuntimeDaemonOperations.IsSupportedSimulationRate(command.ScalarValue))
+            session.SimulationRate = command.ScalarValue;
+    }
+    session.UpdatedAtUtc = DateTimeOffset.UtcNow.ToString("O");
+    await node.MutableDocument<AetheriaGameSessionState>(AetheriaStateNode.GameSessionStateKey)
+        .ReplaceAsync(session).ConfigureAwait(false);
+    ingressState.SimulationRate = session.SimulationRate;
 }
 
 static async Task PublishCommittedCommandFactsAsync(
@@ -1429,7 +1475,8 @@ static bool TryGetDouble(
 static async Task PublishDaemonApiDocumentsAsync(
     AetheriaStateNode node,
     AetheriaDaemonHostOptions options,
-    AetheriaRuntimeDaemonTickResult result)
+    AetheriaRuntimeDaemonTickResult result,
+    bool publishTopology)
 {
     await node.MutableDocument<AetheriaRuntimeDaemonFrameDocument>(AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest)
         .ReplaceAsync(result.Frame)
@@ -1448,13 +1495,14 @@ static async Task PublishDaemonApiDocumentsAsync(
             .ConfigureAwait(false);
     }
 
-    if (result.ProviderAdvertisement != null)
+    if (publishTopology && result.ProviderAdvertisement != null)
         await node.MutableDocument<AetheriaRuntimeDaemonProviderAdvertisementDocument>(AetheriaRuntimeVerseRecordKeys.DaemonProviderAdvertisement)
             .ReplaceAsync(result.ProviderAdvertisement)
             .ConfigureAwait(false);
-    await node.MutableDocument<EveProviderAdvertisementDocument>(AetheriaRuntimeVerseRecordKeys.EveProviderAdvertisement)
-        .ReplaceAsync(BuildCoreProviderAdvertisement(options, result.Frame.PublishedAtUtc))
-        .ConfigureAwait(false);
+    if (publishTopology)
+        await node.MutableDocument<EveProviderAdvertisementDocument>(AetheriaRuntimeVerseRecordKeys.EveProviderAdvertisement)
+            .ReplaceAsync(BuildCoreProviderAdvertisement(options, result.Frame.PublishedAtUtc))
+            .ConfigureAwait(false);
     if (result.Health != null)
         await node.MutableDocument<AetheriaRuntimeDaemonHealthDocument>(AetheriaRuntimeVerseRecordKeys.DaemonHealth)
             .ReplaceAsync(result.Health)
@@ -1463,7 +1511,7 @@ static async Task PublishDaemonApiDocumentsAsync(
         await node.MutableDocument<AetheriaRuntimeDaemonCommandBoundaryDocument>(AetheriaRuntimeVerseRecordKeys.DaemonCommandBoundary)
             .ReplaceAsync(result.CommandBoundary)
             .ConfigureAwait(false);
-    if (result.AssetManifest != null)
+    if (publishTopology && result.AssetManifest != null)
     {
         await node.MutableDocument<AetheriaRuntimeAssetManifestDocument>(AetheriaRuntimeVerseRecordKeys.DaemonAssetManifest)
             .ReplaceAsync(result.AssetManifest)
@@ -1476,8 +1524,12 @@ static async Task PublishDaemonApiDocumentsAsync(
         await node.MutableDocument<AetheriaRuntimeStarbridgeSessionSummaryDocument>(AetheriaRuntimeVerseRecordKeys.StarbridgeSessionSummary)
             .ReplaceAsync(result.StarbridgeSessionSummary)
             .ConfigureAwait(false);
+    var gameSession = await node.MutableDocument<AetheriaGameSessionState>(AetheriaStateNode.GameSessionStateKey)
+        .ReadAsync().ConfigureAwait(false);
     await node.MutableDocument<EveInputCapabilityDocument>(AetheriaRuntimeVerseRecordKeys.PilotInputCapability)
-        .ReplaceAsync(AetheriaRuntimeInputCapabilityDocument.FromFrame(result.Frame).ToEveDocument())
+        .ReplaceAsync(AetheriaRuntimeInputCapabilityDocument.FromFrame(
+            result.Frame,
+            string.Equals(gameSession?.Mode, AetheriaGameSessionState.TerminusMode, StringComparison.Ordinal)).ToEveDocument())
         .ConfigureAwait(false);
     var mainMenuState = await node.MutableDocument<AetheriaMainMenuState>(AetheriaStateNode.MainMenuStateKey)
         .ReadAsync()
@@ -1493,6 +1545,9 @@ static async Task PublishDaemonApiDocumentsAsync(
     await node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.DaemonGameSurface)
         .ReplaceAsync(AetheriaRuntimeSurfaceDocuments.ToPortableSurface(gameSurface))
         .ConfigureAwait(false);
+    if (!publishTopology)
+        return;
+
     var commanderSurface = AetheriaRuntimeDaemonGameSurfaceBuilder.BuildCommander(
         result.Frame,
         result.Health ?? new AetheriaRuntimeDaemonHealthDocument(),
@@ -1821,11 +1876,15 @@ static async Task AcceptCoreEveInvocationsAsync(
         .Where(receipt => !string.IsNullOrWhiteSpace(receipt.CommandId))
         .Select(receipt => receipt.CommandId)
         .ToHashSet(StringComparer.Ordinal);
+    var submitted = node.Documents<AetheriaRuntimeDaemonCommandDocument>()
+        .Where(command => command != null && !string.IsNullOrWhiteSpace(command.CommandId))
+        .Select(command => command.CommandId)
+        .ToHashSet(StringComparer.Ordinal);
     foreach (var request in node.Documents<EveSurfaceCommandRequest>()
                  .Where(request => request != null && !string.IsNullOrWhiteSpace(request.CommandId))
                  .OrderBy(request => request.IssuedAt))
     {
-        if (accounted.Contains(request.CommandId) || receipted.Contains(request.CommandId))
+        if (accounted.Contains(request.CommandId) || receipted.Contains(request.CommandId) || submitted.Contains(request.CommandId))
             continue;
 
         if (AetheriaRuntimeDaemonOperationsClient.TryCreateSurfaceCommandDocument(
@@ -1840,6 +1899,7 @@ static async Task AcceptCoreEveInvocationsAsync(
             command.ClientId = request.ClientId;
             command.AuthorRuntimeId = request.ClientId;
             await node.SubmitDaemonCommandAsync(command).ConfigureAwait(false);
+            submitted.Add(command.CommandId);
             continue;
         }
 
@@ -3052,12 +3112,23 @@ internal sealed class AetheriaDaemonIngressState
 {
     public int ObservedEveCommandCount { get; set; } = -1;
     public bool ControlPlaneInitialized { get; set; }
+    public string GameMode { get; set; } = "";
+    public double SimulationRate { get; set; }
+    public double SimulationStepAccumulator { get; set; }
     public AetheriaRuntimeLoadoutTemplateCommit[] LoadoutTemplates { get; set; } = [];
     public AetheriaRuntimeCatalogSnapshot? Catalog { get; set; }
     public AetheriaRuntimeVerseAuthorityPolicyDocument? AuthorityPolicy { get; set; }
     public AetheriaRuntimeStarbridgeScenarioDocument? StarbridgeScenario { get; set; }
     public AetheriaRuntimeStarbridgeSessionDocument? StarbridgeSession { get; set; }
     public AetheriaRuntimeAuthorityLeaseDocument[] AuthorityLeases { get; set; } = [];
+
+    public int TakeTerminusSimulationSteps()
+    {
+        SimulationStepAccumulator += Math.Max(0, SimulationRate);
+        var steps = (int)Math.Floor(SimulationStepAccumulator);
+        SimulationStepAccumulator -= steps;
+        return steps;
+    }
 }
 
 internal sealed class AetheriaDaemonHostOptions

@@ -57,12 +57,25 @@ namespace GameCult.Aetheria.State.Verse
         [Key(4)] public AetheriaRuntimeInputActionDocument[] Actions { get; set; } = Array.Empty<AetheriaRuntimeInputActionDocument>();
         [Key(5)] public AetheriaRuntimeInputProfileDocument[] DefaultProfiles { get; set; } = Array.Empty<AetheriaRuntimeInputProfileDocument>();
 
-        public static AetheriaRuntimeInputCapabilityDocument FromFrame(AetheriaRuntimeDaemonFrameDocument frame)
+        public static AetheriaRuntimeInputCapabilityDocument FromFrame(
+            AetheriaRuntimeDaemonFrameDocument frame,
+            bool includeSimulationClock = false)
         {
             var run = frame?.Run ?? new AetheriaRuntimeRunCheckpointCommit();
             var entity = run.Zones.SelectMany(zone => zone.Entities).FirstOrDefault(candidate =>
                 string.Equals(run.EntityRecordKey(run.CurrentZoneIndex, candidate.EntityIndex), run.CurrentEntityKey, StringComparison.Ordinal));
             var actions = CoreActions().ToList();
+            if (includeSimulationClock)
+            {
+                actions.Add(Action("simulation.pause", "Pause", "SetSimulationRate", "simulation", "terminus-clock", ("scalarValue", "0")));
+                actions.Add(Action("simulation.rate.quarter", "Quarter Speed", "SetSimulationRate", "simulation", "terminus-clock", ("scalarValue", "0.25")));
+                actions.Add(Action("simulation.rate.half", "Half Speed", "SetSimulationRate", "simulation", "terminus-clock", ("scalarValue", "0.5")));
+                actions.Add(Action("simulation.rate.realtime", "Real Time", "SetSimulationRate", "simulation", "terminus-clock", ("scalarValue", "1")));
+                actions.Add(Action("simulation.rate.double", "2x Speed", "SetSimulationRate", "simulation", "terminus-clock", ("scalarValue", "2")));
+                actions.Add(Action("simulation.rate.quadruple", "4x Speed", "SetSimulationRate", "simulation", "terminus-clock", ("scalarValue", "4")));
+                actions.Add(Action("simulation.rate.eight", "8x Speed", "SetSimulationRate", "simulation", "terminus-clock", ("scalarValue", "8")));
+                actions.Add(Action("simulation.rate.sixteen", "16x Speed", "SetSimulationRate", "simulation", "terminus-clock", ("scalarValue", "16")));
+            }
             if (entity != null)
             {
                 actions.AddRange((entity.WeaponGroups ?? Array.Empty<IReadOnlyList<int>>()).Select((_, index) => Action($"weapon-group.{index}.fire", $"Fire Weapon Group {index + 1}", "FireWeaponGroup", "weapon-group", $"{run.CurrentEntityKey}#weapon-group/{index}", ("weaponGroup", index.ToString()))));
@@ -108,6 +121,10 @@ namespace GameCult.Aetheria.State.Verse
             bindings.Add(keyboard
                 ? Binding("dock.r", "pilot.dock", "direct", "keyboard.r")
                 : Binding("dock.sequence", "pilot.dock", "sequence", "gamepad.dpad.down", "gamepad.dpad.up"));
+            if (actions.Any(action => string.Equals(action.ActionId, "simulation.pause", StringComparison.Ordinal)))
+                bindings.Add(keyboard
+                    ? Binding("simulation.pause", "simulation.pause", "direct", "keyboard.pause")
+                    : Binding("simulation.pause.sequence", "simulation.pause", "sequence", "gamepad.dpad.left", "gamepad.dpad.left"));
             return bindings.ToArray();
         }
 

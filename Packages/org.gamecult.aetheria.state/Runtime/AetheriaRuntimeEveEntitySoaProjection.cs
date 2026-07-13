@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using GameCult.Eve.Surface;
+using GameCult.Mesh;
 
 #nullable enable
 
@@ -11,6 +12,7 @@ namespace GameCult.Aetheria.State.Verse
         public static EveEntitySoaViewDocument Project(AetheriaRuntimeDaemonSoaViewDocument source)
         {
             if (source == null) throw new ArgumentNullException(nameof(source));
+            var primaryBuffer = (source.Buffers ?? Array.Empty<AetheriaRuntimeDaemonSoaBufferDocument>()).FirstOrDefault();
             return new EveEntitySoaViewDocument
             {
                 ProviderId = "aetheria.daemon",
@@ -20,6 +22,24 @@ namespace GameCult.Aetheria.State.Verse
                 PublishedAtUtc = source.PublishedAtUtc,
                 Backend = source.Backend,
                 SynchronizationMode = source.SynchronizationMode,
+                Body = primaryBuffer == null ? null : new CultMeshBodyDescriptor
+                {
+                    BodyId = $"eve:entity-soa:{source.DaemonId}:{source.SessionId}:pilot",
+                    SchemaId = EveEntitySoaViewDocument.SchemaId + ".body.v1",
+                    LayoutVersion = 1,
+                    ByteSize = primaryBuffer.ByteLength,
+                    Capacity = (source.Columns ?? Array.Empty<AetheriaRuntimeDaemonSoaColumnDocument>())
+                        .Select(column => column.ElementCount)
+                        .DefaultIfEmpty(0)
+                        .Max(),
+                    ProducerEpoch = StableEpoch(source.SessionId),
+                    Sequence = source.Generation,
+                    AccessMode = CultMeshBodyAccessMode.ReadOnly,
+                    Synchronization = CultMeshBodySynchronization.ImmutableSequence,
+                    LeaseExpiresAtUnixMs = DateTimeOffset.UtcNow.AddSeconds(5).ToUnixTimeMilliseconds(),
+                    TransportKind = CultMeshBodyTransportKind.SharedMemory,
+                    CapabilityToken = primaryBuffer.Location
+                },
                 Buffers = (source.Buffers ?? Array.Empty<AetheriaRuntimeDaemonSoaBufferDocument>())
                     .Select(buffer => new EveEntitySoaBuffer
                     {
@@ -84,6 +104,22 @@ namespace GameCult.Aetheria.State.Verse
                         AssetRef = identity.AssetRef
                     }).ToArray()
             };
+        }
+
+        private static long StableEpoch(string value)
+        {
+            unchecked
+            {
+                const long offset = 1469598103934665603;
+                const long prime = 1099511628211;
+                var hash = offset;
+                foreach (var character in value ?? string.Empty)
+                {
+                    hash ^= character;
+                    hash *= prime;
+                }
+                return hash & long.MaxValue;
+            }
         }
     }
 }
