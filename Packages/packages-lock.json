@@ -311,7 +311,7 @@
       }
     },
     "org.gamecult.cultlib": {
-      "version": "file:E:/Projects/CultLib-codex-cultmesh-reliability/artifacts/unity/org.gamecult.cultlib",
+      "version": "file:../../CultLib/artifacts/unity/org.gamecult.cultlib",
       "depth": 0,
       "source": "local",
       "dependencies": {}
@@ -330,7 +330,7 @@
       "hash": "0b099274a4e2b4c301eced4322166837792f585a"
     },
     "org.gamecult.eve.surface": {
-      "version": "file:E:/Projects/EveUnity-codex-cultmesh-sessions/packages/org.gamecult.eve.surface",
+      "version": "file:../../EveUnity/packages/org.gamecult.eve.surface",
       "depth": 0,
       "source": "local",
       "dependencies": {
@@ -338,7 +338,7 @@
       }
     },
     "org.gamecult.eve.unity-scene": {
-      "version": "file:E:/Projects/EveUnity-codex-cultmesh-sessions/packages/org.gamecult.eve.unity-scene",
+      "version": "file:../../EveUnity/packages/org.gamecult.eve.unity-scene",
       "depth": 0,
       "source": "local",
       "dependencies": {
