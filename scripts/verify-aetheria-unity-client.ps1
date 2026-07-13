@@ -20,8 +20,8 @@ $expected = @{
         "https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.surface#eveunity-surface-v0.2.0",
         "010ddeff90b70ce5278da373ce2dd0bb2c9eb9ac")
     "org.gamecult.eve.unity-scene" = @(
-        "https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.unity-scene#eveunity-scene-v0.2.1",
-        "d9c1de9130419103d7421d95fb2c6789a0921f46")
+        "https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.unity-scene#eveunity-scene-v0.2.2",
+        "eae2e896c7396798b29e2dd3f819d63f22137a91")
 }
 
 foreach ($packageName in $expected.Keys) {
