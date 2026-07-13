@@ -132,7 +132,18 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   fallback icon selection, and finally fall back to a generic tool icon when
   typed facets are incomplete. The current legacy catalog has zero populated
   custom action-bar icon paths, but the typed field is present and owns that
-  surface when data appears. Player camera articulation grouping now classifies
+  surface when data appears.
+
+  Every active effect owns a stable daemon `EffectId`; each authored payload
+  owns a stable `BehaviorId` and nested scalar state beneath that effect. Array
+  position is execution order, never identity. `Cooldown` follows the fossil's
+  update-before-chain semantics: every cooldown ages before ordered execution,
+  readiness is strictly below zero, successful execution resets it to one, and
+  an earlier failed behavior cannot freeze it. Unity reconciles active-effect
+  presentation objects by `EffectId` and removes absent effects. It does not
+  restore active-consumable behavior state through the flattened equipment
+  behavior table and cannot become a second cooldown owner.
+  Player camera articulation grouping now classifies
   equipped non-launcher weapons through typed behavior kind rows instead of
   inspecting runtime behavior config classes. Unity boot reads typed player
   settings back through the package-owned CultCache reader before falling back

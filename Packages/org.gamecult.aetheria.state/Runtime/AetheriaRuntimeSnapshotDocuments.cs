@@ -1127,6 +1127,9 @@ namespace GameCult.Aetheria.State.Verse
     [MessagePackObject]
     public sealed class AetheriaRuntimeActiveConsumableCommit
     {
+        [Key(0)]
+        public string EffectId { get; set; } = "";
+
         [Key(1)]
         public double Quality { get; set; } = 1.0;
 
@@ -1138,6 +1141,26 @@ namespace GameCult.Aetheria.State.Verse
 
         [Key(4)]
         public string ItemKey { get; set; } = "";
+
+        [Key(5)]
+        public IReadOnlyList<AetheriaRuntimeConsumableBehaviorStateCommit> BehaviorStates { get; set; } =
+            Array.Empty<AetheriaRuntimeConsumableBehaviorStateCommit>();
+    }
+
+    [MessagePackObject]
+    public sealed class AetheriaRuntimeConsumableBehaviorStateCommit
+    {
+        [Key(0)]
+        public int BehaviorIndex { get; set; } = -1;
+
+        [Key(1)]
+        public string BehaviorKind { get; set; } = "";
+
+        [Key(2)]
+        public double ScalarState { get; set; }
+
+        [Key(3)]
+        public string BehaviorId { get; set; } = "";
     }
 
     [MessagePackObject]

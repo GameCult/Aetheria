@@ -14217,6 +14217,8 @@ static void RequireMainMenuContinueRunState(string root)
         "entity.RestoreStatGrids(entitySnapshot.StatGrids)",
         "entity.RestoreThermalExposure((float)entitySnapshot.Heatstroke, (float)entitySnapshot.Hypothermia)",
         "RestoreActiveConsumables(entity, entitySnapshot)",
+        "activeEffectIds.Add(activeConsumable.EffectId)",
+        "entity.RetainActiveConsumables(activeEffectIds)",
         "RestoreRuntimeBehaviorState(entity, entitySnapshot, restoredEntities)",
         "_entityIndex.PresentationEntitiesByRecordKey",
         "ResolveRuntimeBehavior(entity, weaponState.OwnerKind, weaponState.OwnerIndex, weaponState.BehaviorIndex)",
@@ -14431,6 +14433,13 @@ static void RequireMainMenuContinueRunState(string root)
         throw new InvalidOperationException(
             "Observed Unity target/contact query lowering must live in AetheriaUnityTargetPresentation instead of ActionGameManager: " +
             string.Join(", ", missingTargetContactQuerySymbols));
+    }
+
+
+    if (observedEntityRestorer.Contains("case \"active_consumable\":", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Unity still restores daemon active-consumable behavior state by transient list index.");
     }
 
     if (targetPresentation.Contains("CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument>", StringComparison.Ordinal) ||
@@ -14947,9 +14956,11 @@ static void RequireMainMenuContinueRunState(string root)
     {
         "RestoreThermalExposure",
         "RestoreActiveConsumable",
+        "FindActiveConsumableByEffectId",
+        "RetainActiveConsumables",
         "RestoreStatGrids",
         "RestoreHullConductivityGrid",
-        "new ConsumableItemEffect(item, this, remainingDuration, duration)"
+        "new ConsumableItemEffect(item, this, effectId, remainingDuration, duration)"
     };
     var missingEntityRestoreSymbols = requiredEntityRestoreSymbols
         .Where(symbol => !entitySource.Contains(symbol, StringComparison.Ordinal))

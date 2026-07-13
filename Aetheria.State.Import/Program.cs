@@ -65,6 +65,7 @@ static AetheriaItemDefinition ProjectDeployableWeapon(AetheriaItemDefinition ite
                 UnionKey = behavior.UnionKey,
                 Kind = "DeployableWeapon",
                 Group = behavior.Group,
+                BehaviorId = behavior.BehaviorId,
                 Fields = behavior.Fields
                     .Where(field => field.Key < 26 || field.Key > 30)
                     .Concat([
@@ -1029,11 +1030,15 @@ internal static class LegacyCatalogReader
             return [];
         }
 
-        return behaviors
+        var result = behaviors
             .Select(ReadBehaviorPayload)
             .Where(behavior => behavior != null)
             .Cast<AetheriaBehaviorPayload>()
             .ToArray();
+        for (var index = 0; index < result.Length; index++)
+            if (string.IsNullOrWhiteSpace(result[index].BehaviorId))
+                result[index].BehaviorId = $"behavior:{index}:{result[index].Kind}";
+        return result;
     }
 
     private static AetheriaBehaviorPayload? ReadBehaviorPayload(object? value)

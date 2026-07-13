@@ -2802,10 +2802,20 @@ static AetheriaRuntimeEntitySnapshotCommit ToRuntimeEntity(
         ActiveConsumables = (entity.ActiveConsumables ?? Array.Empty<AetheriaActiveConsumableSnapshot>())
             .Select(consumable => new AetheriaRuntimeActiveConsumableCommit
             {
+                EffectId = consumable.EffectId ?? "",
                 ItemKey = consumable.ItemKey ?? "",
                 Quality = consumable.Quality,
                 RemainingDuration = consumable.RemainingDuration,
-                Duration = consumable.Duration
+                Duration = consumable.Duration,
+                BehaviorStates = (consumable.BehaviorStates ?? Array.Empty<AetheriaConsumableBehaviorStateSnapshot>())
+                    .Select(state => new AetheriaRuntimeConsumableBehaviorStateCommit
+                    {
+                        BehaviorIndex = state.BehaviorIndex,
+                        BehaviorKind = state.BehaviorKind ?? "",
+                        ScalarState = state.ScalarState,
+                        BehaviorId = state.BehaviorId ?? ""
+                    })
+                    .ToArray()
             })
             .ToArray(),
         BehaviorProgress = (entity.BehaviorProgress ?? Array.Empty<AetheriaBehaviorProgressSnapshot>())

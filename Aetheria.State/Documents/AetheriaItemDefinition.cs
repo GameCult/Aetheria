@@ -277,6 +277,9 @@ public sealed class AetheriaBehaviorPayload
 
     [Key(3)]
     public AetheriaBehaviorField[] Fields { get; set; } = [];
+
+    [Key(4)]
+    public string BehaviorId { get; set; } = "";
 }
 
 [MessagePackObject]

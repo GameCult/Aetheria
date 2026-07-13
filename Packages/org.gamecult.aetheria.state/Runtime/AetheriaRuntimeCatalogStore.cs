@@ -401,7 +401,7 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeBehaviorPayload payload,
             IReadOnlyDictionary<string, AetheriaRuntimeStatRecipeState> recipes)
         {
-            writer.WriteArrayHeader(4);
+            writer.WriteArrayHeader(5);
             writer.Write(payload.UnionKey);
             writer.Write(payload.Kind ?? "");
             writer.Write(payload.Group);
@@ -416,6 +416,7 @@ namespace GameCult.Aetheria.State.Verse
                     ref writer,
                     recipes.TryGetValue(recipeKey, out var recipe) ? WithStatRecipe(field.Value, recipe) : field.Value);
             }
+            writer.Write(payload.BehaviorId ?? "");
         }
 
         private static AetheriaRuntimeBehaviorValue WithStatRecipe(
@@ -1015,11 +1016,36 @@ namespace GameCult.Aetheria.State.Verse
                 var quality = ReadFieldDouble(ref reader, consumableFields, 1, 1);
                 var remainingDuration = ReadFieldDouble(ref reader, consumableFields, 2);
                 var duration = ReadFieldDouble(ref reader, consumableFields, 3);
-                SkipRemaining(ref reader, consumableFields, 4);
-                consumables[consumable] = new AetheriaRuntimeActiveConsumableSnapshot(itemKey, quality, remainingDuration, duration);
+                var effectId = ReadFieldString(ref reader, consumableFields, 4);
+                var behaviorStates = ReadFieldConsumableBehaviorStates(ref reader, consumableFields, 5);
+                SkipRemaining(ref reader, consumableFields, 6);
+                consumables[consumable] = new AetheriaRuntimeActiveConsumableSnapshot(
+                    itemKey, quality, remainingDuration, duration, effectId, behaviorStates);
             }
 
             return consumables;
+        }
+
+        private static IReadOnlyList<AetheriaRuntimeConsumableBehaviorStateSnapshot> ReadFieldConsumableBehaviorStates(
+            ref MessagePackReader reader,
+            int fields,
+            int index)
+        {
+            if (index >= fields) return Array.Empty<AetheriaRuntimeConsumableBehaviorStateSnapshot>();
+            var count = reader.ReadArrayHeader();
+            var states = new AetheriaRuntimeConsumableBehaviorStateSnapshot[count];
+            for (var stateIndex = 0; stateIndex < count; stateIndex++)
+            {
+                var stateFields = reader.ReadArrayHeader();
+                var behaviorIndex = ReadFieldInt32(ref reader, stateFields, 0);
+                var behaviorKind = ReadFieldString(ref reader, stateFields, 1);
+                var scalarState = ReadFieldDouble(ref reader, stateFields, 2);
+                var behaviorId = ReadFieldString(ref reader, stateFields, 3);
+                SkipRemaining(ref reader, stateFields, 4);
+                states[stateIndex] = new AetheriaRuntimeConsumableBehaviorStateSnapshot(
+                    behaviorIndex, behaviorKind, scalarState, behaviorId);
+            }
+            return states;
         }
 
         private static IReadOnlyList<AetheriaRuntimeBehaviorProgressSnapshot> ReadFieldBehaviorProgress(ref MessagePackReader reader, int fields, int index)
@@ -1677,8 +1703,11 @@ namespace GameCult.Aetheria.State.Verse
                 var kind = ReadFieldString(ref reader, payloadFields, 1);
                 var group = ReadFieldInt32(ref reader, payloadFields, 2);
                 var fieldsValue = ReadFieldBehaviorFields(ref reader, payloadFields, 3);
-                SkipRemaining(ref reader, payloadFields, 4);
-                payloads[payload] = new AetheriaRuntimeBehaviorPayload(unionKey, kind, group, fieldsValue);
+                var behaviorId = ReadFieldString(ref reader, payloadFields, 4);
+                SkipRemaining(ref reader, payloadFields, 5);
+                if (string.IsNullOrWhiteSpace(behaviorId))
+                    behaviorId = $"legacy:{payload}:{kind}";
+                payloads[payload] = new AetheriaRuntimeBehaviorPayload(unionKey, kind, group, fieldsValue, behaviorId);
             }
 
             return payloads;

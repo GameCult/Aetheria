@@ -135,8 +135,16 @@ public sealed class AetheriaUnityObservedEntityRestorer
 
     private void RestoreActiveConsumables(Entity entity, AetheriaRuntimeEntitySnapshot snapshot)
     {
+        var activeEffectIds = new HashSet<string>(StringComparer.Ordinal);
         foreach (var activeConsumable in snapshot.ActiveConsumables)
         {
+            if (string.IsNullOrWhiteSpace(activeConsumable.EffectId))
+            {
+                _logWarning($"Typed active consumable {activeConsumable.ItemKey} has no daemon effect identity on restored entity {snapshot.RecordKey}.");
+                continue;
+            }
+
+            activeEffectIds.Add(activeConsumable.EffectId);
             var item = _createLoadoutItem(new AetheriaRuntimeLoadoutItemSnapshot(
                 activeConsumable.ItemKey,
                 activeConsumable.Quality,
@@ -151,10 +159,13 @@ public sealed class AetheriaUnityObservedEntityRestorer
             }
 
             entity.RestoreActiveConsumable(
+                activeConsumable.EffectId,
                 item,
                 (float)activeConsumable.RemainingDuration,
                 (float)activeConsumable.Duration);
         }
+
+        entity.RetainActiveConsumables(activeEffectIds);
     }
 
     private static void RestoreRuntimeBehaviorState(
@@ -328,8 +339,6 @@ public sealed class AetheriaUnityObservedEntityRestorer
         {
             case "equipment":
                 return ownerIndex < entity.Equipment.Count ? entity.Equipment[ownerIndex].Behaviors : null;
-            case "active_consumable":
-                return ownerIndex < entity.ActiveConsumables.Count ? entity.ActiveConsumables[ownerIndex].Behaviors : null;
             default:
                 return null;
         }

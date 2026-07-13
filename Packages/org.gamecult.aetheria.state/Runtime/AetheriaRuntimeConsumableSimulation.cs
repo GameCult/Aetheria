@@ -53,13 +53,14 @@ namespace GameCult.Aetheria.State.Verse
                     .ToArray();
                 for (var index = 0; index < active.Length; index++)
                 {
-                    ExecuteBehaviors(run, zone, entity, active[index], catalog, frameId, index, deltaSeconds);
+                    EnsureEffectIdentity(zone, entity, active[index], index);
+                    ExecuteBehaviors(run, zone, entity, active[index], catalog, frameId, deltaSeconds);
                     active[index].RemainingDuration -= deltaSeconds;
                     if (active[index].RemainingDuration < 0)
                     {
                         AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit
                         {
-                            EventId = $"frame:{frameId}:zone:{zone.ZoneIndex}:entity:{entity.EntityIndex}:consumable:{index}:expired",
+                            EventId = $"frame:{frameId}:zone:{zone.ZoneIndex}:entity:{entity.EntityIndex}:consumable:{active[index].EffectId}:expired",
                             Kind = "consumable.expired",
                             FrameId = frameId,
                             ZoneIndex = zone.ZoneIndex,
@@ -79,13 +80,12 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeActiveConsumableCommit effect,
             AetheriaRuntimeCatalogSnapshot? catalog,
             long frameId,
-            int effectIndex,
             double deltaSeconds)
         {
             var item = catalog?.FindItem(effect.ItemKey);
             if (item == null)
             {
-                BehaviorStopped(run, zone, entity, effect, frameId, effectIndex, -1, "missing-catalog-item");
+                BehaviorStopped(run, zone, entity, effect, frameId, -1, "missing-catalog-item");
                 return;
             }
 
@@ -96,15 +96,22 @@ namespace GameCult.Aetheria.State.Verse
                 ? 1
                 : AetheriaRuntimeDaemonItemStatQueries.SampleCurve(item.EffectivenessCurveKeys, elapsed);
             var payloads = item.BehaviorPayloads ?? Array.Empty<AetheriaRuntimeBehaviorPayload>();
+            if (!ReconcileBehaviorStates(effect, payloads))
+            {
+                BehaviorStopped(run, zone, entity, effect, frameId, -1, "duplicate-behavior-id");
+                return;
+            }
+            UpdateAlwaysUpdatedBehaviors(effect, payloads, effectiveness, deltaSeconds);
             for (var behaviorIndex = 0; behaviorIndex < payloads.Count; behaviorIndex++)
             {
                 var payload = payloads[behaviorIndex];
                 if (payload == null)
                     continue;
-                if (ExecuteBehavior(entity, effect, payload, catalog, effectiveness, deltaSeconds, out var reason))
+                if (ExecuteBehavior(
+                    entity, effect, payload, behaviorIndex, catalog, effectiveness, deltaSeconds, out var reason))
                     continue;
 
-                BehaviorStopped(run, zone, entity, effect, frameId, effectIndex, behaviorIndex, reason);
+                BehaviorStopped(run, zone, entity, effect, frameId, behaviorIndex, reason);
                 break;
             }
         }
@@ -113,6 +120,7 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeEntitySnapshotCommit entity,
             AetheriaRuntimeActiveConsumableCommit effect,
             AetheriaRuntimeBehaviorPayload payload,
+            int behaviorIndex,
             AetheriaRuntimeCatalogSnapshot? catalog,
             double effectiveness,
             double deltaSeconds,
@@ -121,6 +129,17 @@ namespace GameCult.Aetheria.State.Verse
             reason = "";
             switch (payload.Kind)
             {
+                case "Cooldown":
+                {
+                    var state = FindBehaviorState(effect, behaviorIndex, payload);
+                    if (state.ScalarState < 0)
+                    {
+                        state.ScalarState = 1;
+                        return true;
+                    }
+                    reason = "cooldown";
+                    return false;
+                }
                 case "EnergyDraw":
                 {
                     var demand = Evaluate(payload, 1, effect, effectiveness) * (ReadBool(payload, 2) ? deltaSeconds : 1);
@@ -148,6 +167,88 @@ namespace GameCult.Aetheria.State.Verse
                     reason = "unsupported-behavior:" + (payload.Kind ?? "");
                     return false;
             }
+        }
+
+        private static bool ReconcileBehaviorStates(
+            AetheriaRuntimeActiveConsumableCommit effect,
+            IReadOnlyList<AetheriaRuntimeBehaviorPayload> payloads)
+        {
+            var identities = payloads
+                .Select((payload, behaviorIndex) => BehaviorIdentity(payload, behaviorIndex))
+                .ToArray();
+            if (identities.Distinct(StringComparer.Ordinal).Count() != identities.Length)
+                return false;
+
+            var previousStates = (effect.BehaviorStates ?? Array.Empty<AetheriaRuntimeConsumableBehaviorStateCommit>())
+                .Where(state => state != null)
+                .ToArray();
+            var previousById = previousStates
+                .Where(state => !string.IsNullOrWhiteSpace(state.BehaviorId))
+                .GroupBy(state => state.BehaviorId, StringComparer.Ordinal)
+                .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
+            effect.BehaviorStates = payloads
+                .Select((payload, behaviorIndex) =>
+                {
+                    var kind = payload?.Kind ?? "";
+                    var behaviorId = identities[behaviorIndex];
+                    if (!previousById.TryGetValue(behaviorId, out var state))
+                        state = previousStates.FirstOrDefault(candidate =>
+                            string.IsNullOrWhiteSpace(candidate.BehaviorId) &&
+                            candidate.BehaviorIndex == behaviorIndex &&
+                            string.Equals(candidate.BehaviorKind, kind, StringComparison.Ordinal));
+                    state ??= new AetheriaRuntimeConsumableBehaviorStateCommit
+                        {
+                            ScalarState = 0
+                        };
+                    state.BehaviorId = behaviorId;
+                    state.BehaviorIndex = behaviorIndex;
+                    state.BehaviorKind = kind;
+                    return state;
+                })
+                .ToArray();
+            return true;
+        }
+
+        private static string BehaviorIdentity(AetheriaRuntimeBehaviorPayload? payload, int behaviorIndex) =>
+            !string.IsNullOrWhiteSpace(payload?.BehaviorId)
+                ? payload.BehaviorId
+                : $"legacy:{behaviorIndex}:{payload?.Kind ?? ""}";
+
+        private static void UpdateAlwaysUpdatedBehaviors(
+            AetheriaRuntimeActiveConsumableCommit effect,
+            IReadOnlyList<AetheriaRuntimeBehaviorPayload> payloads,
+            double effectiveness,
+            double deltaSeconds)
+        {
+            for (var behaviorIndex = 0; behaviorIndex < payloads.Count; behaviorIndex++)
+            {
+                var payload = payloads[behaviorIndex];
+                if (payload == null || !string.Equals(payload.Kind, "Cooldown", StringComparison.Ordinal))
+                    continue;
+
+                var duration = Evaluate(payload, 1, effect, effectiveness);
+                FindBehaviorState(effect, behaviorIndex, payload).ScalarState -= deltaSeconds / duration;
+            }
+        }
+
+        private static AetheriaRuntimeConsumableBehaviorStateCommit FindBehaviorState(
+            AetheriaRuntimeActiveConsumableCommit effect,
+            int behaviorIndex,
+            AetheriaRuntimeBehaviorPayload payload) =>
+            (effect.BehaviorStates ?? Array.Empty<AetheriaRuntimeConsumableBehaviorStateCommit>())
+                .Single(state => state != null &&
+                    string.Equals(state.BehaviorId, BehaviorIdentity(payload, behaviorIndex),
+                        StringComparison.Ordinal));
+
+        private static void EnsureEffectIdentity(
+            AetheriaRuntimeZoneSnapshotCommit zone,
+            AetheriaRuntimeEntitySnapshotCommit entity,
+            AetheriaRuntimeActiveConsumableCommit effect,
+            int legacyIndex)
+        {
+            if (!string.IsNullOrWhiteSpace(effect.EffectId))
+                return;
+            effect.EffectId = $"legacy:zone:{zone.ZoneIndex}:entity:{entity.EntityIndex}:effect:{legacyIndex}";
         }
 
         private static double Evaluate(
@@ -179,13 +280,12 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeEntitySnapshotCommit entity,
             AetheriaRuntimeActiveConsumableCommit effect,
             long frameId,
-            int effectIndex,
             int behaviorIndex,
             string reason)
         {
             AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit
             {
-                EventId = $"frame:{frameId}:zone:{zone.ZoneIndex}:entity:{entity.EntityIndex}:consumable:{effectIndex}:behavior:{behaviorIndex}:stopped",
+                EventId = $"frame:{frameId}:zone:{zone.ZoneIndex}:entity:{entity.EntityIndex}:consumable:{effect.EffectId}:behavior:{behaviorIndex}:stopped",
                 Kind = "consumable.behavior.stopped",
                 FrameId = frameId,
                 ZoneIndex = zone.ZoneIndex,
@@ -252,6 +352,7 @@ namespace GameCult.Aetheria.State.Verse
                 .Where(active => active != null)
                 .Append(new AetheriaRuntimeActiveConsumableCommit
                 {
+                    EffectId = $"effect:frame:{frameId}:zone:{zone.ZoneIndex}:entity:{entity.EntityIndex}:intent:{intentIndex}",
                     ItemKey = item.ItemKey,
                     Quality = consumed.Item.Quality,
                     Duration = item.Duration,

@@ -981,7 +981,15 @@ namespace GameCult.Aetheria.State.Verse
                         consumable.ItemKey ?? "",
                         consumable.Quality,
                         consumable.RemainingDuration,
-                        consumable.Duration))
+                        consumable.Duration,
+                        consumable.EffectId ?? "",
+                        (consumable.BehaviorStates ?? Array.Empty<AetheriaRuntimeConsumableBehaviorStateCommit>())
+                            .Select(state => new AetheriaRuntimeConsumableBehaviorStateSnapshot(
+                                state.BehaviorIndex,
+                                state.BehaviorKind ?? "",
+                                state.ScalarState,
+                                state.BehaviorId ?? ""))
+                            .ToArray()))
                     .ToArray(),
                 (entity.BehaviorProgress ?? Array.Empty<AetheriaRuntimeBehaviorProgressCommit>())
                     .Select(progress => new AetheriaRuntimeBehaviorProgressSnapshot(

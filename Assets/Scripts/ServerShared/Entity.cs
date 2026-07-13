@@ -396,12 +396,31 @@ public abstract class Entity
         Hypothermia = AetheriaScalar.Saturate(hypothermia);
     }
 
-    public void RestoreActiveConsumable(ConsumableItem item, float remainingDuration, float duration)
+    public void RestoreActiveConsumable(string effectId, ConsumableItem item, float remainingDuration, float duration)
     {
-        if (item == null)
+        if (string.IsNullOrWhiteSpace(effectId) || item == null)
             return;
 
-        _activeConsumables.Add(new ConsumableItemEffect(item, this, remainingDuration, duration));
+        var activeConsumable = FindActiveConsumableByEffectId(effectId);
+        if (activeConsumable != null)
+        {
+            activeConsumable.RestorePresentationState(remainingDuration, duration);
+            return;
+        }
+
+        _activeConsumables.Add(new ConsumableItemEffect(item, this, effectId, remainingDuration, duration));
+    }
+
+    public void RetainActiveConsumables(IReadOnlyCollection<string> effectIds)
+    {
+        if (effectIds == null)
+        {
+            _activeConsumables.Clear();
+            return;
+        }
+
+        _activeConsumables.RemoveAll(effect =>
+            string.IsNullOrWhiteSpace(effect.EffectId) || !effectIds.Contains(effect.EffectId));
     }
 
     public void RestoreStatGrids(IReadOnlyList<AetheriaRuntimeEntityStatGridSnapshot> grids)
@@ -439,6 +458,13 @@ public abstract class Entity
     public ConsumableItemEffect FindActiveConsumable(string itemKey)
     {
         return _activeConsumables.FirstOrDefault(ac => ac.Item?.ItemKey == itemKey);
+    }
+
+    public ConsumableItemEffect FindActiveConsumableByEffectId(string effectId)
+    {
+        return string.IsNullOrWhiteSpace(effectId)
+            ? null
+            : _activeConsumables.FirstOrDefault(active => active.EffectId == effectId);
     }
 
     private static void RestoreFloatGrid(AetheriaRuntimeEntityStatGridSnapshot grid, float[,] target)
@@ -1331,6 +1357,7 @@ public abstract class Entity
 public class ConsumableItemEffect
 {
     public float RemainingDuration { get; private set; }
+    public string EffectId { get; }
     public Entity Entity { get; }
     public ConsumableItem Item { get; }
     public Behavior[] Behaviors { get; }
@@ -1341,14 +1368,20 @@ public class ConsumableItemEffect
     private readonly BezierCurve _effectiveness;
 
     public ConsumableItemEffect(ConsumableItem item, Entity entity)
-        : this(item, entity, null, null)
+        : this(item, entity, "", null, null)
     {
     }
 
-    public ConsumableItemEffect(ConsumableItem item, Entity entity, float? remainingDuration, float? duration)
+    public ConsumableItemEffect(
+        ConsumableItem item,
+        Entity entity,
+        string effectId,
+        float? remainingDuration,
+        float? duration)
     {
         Item = item;
         Entity = entity;
+        EffectId = effectId ?? "";
         RuntimeItem = entity.ItemManager.GetRuntimeItem(item);
         _duration = duration.GetValueOrDefault(RuntimeItem?.Duration > 0 ? (float)RuntimeItem.Duration : 0);
         _effectiveness = CreateEffectivenessCurve(RuntimeItem);
@@ -1357,6 +1390,11 @@ public class ConsumableItemEffect
             : _duration;
 
         Behaviors = entity.ItemManager.CreateRuntimeBehaviors(this);
+    }
+
+    public void RestorePresentationState(float remainingDuration, float duration)
+    {
+        RemainingDuration = AetheriaScalar.Clamp(remainingDuration, 0, Math.Max(duration, float.Epsilon));
     }
 
     public void Update(float delta)

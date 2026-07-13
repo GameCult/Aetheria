@@ -429,12 +429,14 @@ namespace GameCult.Aetheria.State.Verse
             int unionKey,
             string kind,
             int group,
-            IReadOnlyList<AetheriaRuntimeBehaviorField> fields)
+            IReadOnlyList<AetheriaRuntimeBehaviorField> fields,
+            string behaviorId = "")
         {
             UnionKey = unionKey;
             Kind = kind;
             Group = group;
             Fields = fields;
+            BehaviorId = behaviorId;
         }
 
         public int UnionKey { get; set; }
@@ -444,6 +446,7 @@ namespace GameCult.Aetheria.State.Verse
         public int Group { get; set; }
 
         public IReadOnlyList<AetheriaRuntimeBehaviorField> Fields { get; set; }
+        public string BehaviorId { get; set; }
     }
 
     [MessagePackObject(true)]
@@ -1056,18 +1059,49 @@ namespace GameCult.Aetheria.State.Verse
     [MessagePackObject(true)]
     public sealed class AetheriaRuntimeActiveConsumableSnapshot
     {
-        public AetheriaRuntimeActiveConsumableSnapshot(string itemKey, double quality, double remainingDuration, double duration)
+        public AetheriaRuntimeActiveConsumableSnapshot(
+            string itemKey,
+            double quality,
+            double remainingDuration,
+            double duration,
+            string effectId = "",
+            IReadOnlyList<AetheriaRuntimeConsumableBehaviorStateSnapshot>? behaviorStates = null)
         {
             ItemKey = itemKey;
             Quality = quality;
             RemainingDuration = remainingDuration;
             Duration = duration;
+            EffectId = effectId;
+            BehaviorStates = behaviorStates ?? Array.Empty<AetheriaRuntimeConsumableBehaviorStateSnapshot>();
         }
 
         public string ItemKey { get; set; }
         public double Quality { get; set; }
         public double RemainingDuration { get; set; }
         public double Duration { get; set; }
+        public string EffectId { get; set; }
+        public IReadOnlyList<AetheriaRuntimeConsumableBehaviorStateSnapshot> BehaviorStates { get; set; }
+    }
+
+    [MessagePackObject(true)]
+    public sealed class AetheriaRuntimeConsumableBehaviorStateSnapshot
+    {
+        public AetheriaRuntimeConsumableBehaviorStateSnapshot(
+            int behaviorIndex,
+            string behaviorKind,
+            double scalarState,
+            string behaviorId = "")
+        {
+            BehaviorIndex = behaviorIndex;
+            BehaviorKind = behaviorKind;
+            ScalarState = scalarState;
+            BehaviorId = behaviorId;
+        }
+
+        public int BehaviorIndex { get; set; }
+        public string BehaviorKind { get; set; }
+        public double ScalarState { get; set; }
+        public string BehaviorId { get; set; }
     }
 
     [MessagePackObject(true)]

@@ -719,6 +719,28 @@ public sealed class AetheriaActiveConsumableSnapshot
 
     [Key(3)]
     public double Duration { get; set; }
+
+    [Key(4)]
+    public string EffectId { get; set; } = "";
+
+    [Key(5)]
+    public AetheriaConsumableBehaviorStateSnapshot[] BehaviorStates { get; set; } = [];
+}
+
+[MessagePackObject]
+public sealed class AetheriaConsumableBehaviorStateSnapshot
+{
+    [Key(0)]
+    public int BehaviorIndex { get; set; } = -1;
+
+    [Key(1)]
+    public string BehaviorKind { get; set; } = "";
+
+    [Key(2)]
+    public double ScalarState { get; set; }
+
+    [Key(3)]
+    public string BehaviorId { get; set; } = "";
 }
 
 [MessagePackObject]

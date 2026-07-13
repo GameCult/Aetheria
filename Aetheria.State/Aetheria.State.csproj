@@ -16,7 +16,7 @@
     <ProjectReference Include="$(CultLibRoot)\src\GameCult.Mesh\GameCult.Mesh.csproj" />
     <ProjectReference Include="$(CultLibRoot)\src\GameCult.Networking\GameCult.Networking.csproj" />
     <ProjectReference Include="..\..\CultMath\src\CultMath\CultMath.csproj" />
-    <ProjectReference Include="$(EveUnityRoot)\packages\org.gamecult.eve.surface\GameCult.Eve.Contracts.csproj" />
+    <ProjectReference Include="$(EveUnityRoot)\packages\org.gamecult.eve.surface\GameCult.Eve.Surface.csproj" />
     <ProjectReference Include="..\..\EvePlugins\plugins\eve-plugin-fields\GameCult.Eve.PluginFields.csproj" />
   </ItemGroup>
 </Project>

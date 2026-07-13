@@ -121,7 +121,8 @@ namespace GameCult.Aetheria.State.Verse
             var weightedQuality = stat.QualityExponent == 0
                 ? 1
                 : Math.Pow(Clamp01(quality), stat.QualityExponent);
-            return Lerp(stat.Min, stat.Max, Clamp01(effectiveness) * weightedQuality);
+            var result = Lerp(stat.Min, stat.Max, Clamp01(effectiveness) * weightedQuality);
+            return double.IsNaN(result) ? stat.Min : result;
         }
 
         public static double SampleCurve(IReadOnlyList<AetheriaRuntimeCurveKey>? keys, double value)

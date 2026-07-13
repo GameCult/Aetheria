@@ -5045,6 +5045,8 @@ public class DaemonRuntimeDocumentTests
 
         Assert.AreEqual(1, actor.CargoContents[0].Items[0].Item.Quantity);
         Assert.AreEqual(1, actor.ActiveConsumables.Count);
+        Assert.IsFalse(string.IsNullOrWhiteSpace(actor.ActiveConsumables[0].EffectId));
+        var effectId = actor.ActiveConsumables[0].EffectId;
         Assert.AreEqual(0.73, actor.ActiveConsumables[0].Quality, 0.0001);
         Assert.AreEqual(1.5, actor.ActiveConsumables[0].RemainingDuration, 0.0001);
         Assert.AreEqual("consumable.activated", run.GameEvents.Single().Kind);
@@ -5054,6 +5056,7 @@ public class DaemonRuntimeDocumentTests
         AetheriaRuntimeConsumableSimulation.Step(run, Array.Empty<AetheriaRuntimeDaemonConsumableIntent>(), catalog, 42, 0.01);
         Assert.AreEqual(0, actor.ActiveConsumables.Count);
         Assert.AreEqual(1, run.GameEvents.Count(value => value.Kind == "consumable.expired"));
+        StringAssert.Contains(effectId, run.GameEvents.Single(value => value.Kind == "consumable.expired").EventId);
     }
 
     [Test]
@@ -5234,6 +5237,107 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual(3, result, 0.0001);
         Assert.AreEqual(0.75, AetheriaRuntimeDaemonItemStatQueries.SampleCurve(curve, 0.5), 0.0001,
             "Typed effectiveness curves must preserve Unity AnimationCurve tangents.");
+    }
+
+    [Test]
+    public void ConsumableCooldownOwnsStableStateAcrossBlockedChainsAndBehaviorReordering()
+    {
+        var run = RunWithTwoEntities();
+        var actor = run.Zones[0].Entities[0];
+        actor.ActiveConsumables = new[]
+        {
+            new AetheriaRuntimeActiveConsumableCommit
+            {
+                EffectId = "effect:stable",
+                ItemKey = "field-kit",
+                Quality = 1,
+                Duration = 10,
+                RemainingDuration = 10
+            }
+        };
+        var energy = BehaviorPayloadId("energy", "EnergyDraw", PerformanceStatField(1, 5), BoolField(2, false));
+        var cooldown = BehaviorPayloadId("cooldown", "Cooldown", PerformanceStatField(1, 1));
+        var originalCatalog = new AetheriaRuntimeCatalogSnapshot(
+            new[] { CatalogItem("field-kit", new[] { energy, cooldown }, category: AetheriaRuntimeItemCategories.Consumable, duration: 10) },
+            Array.Empty<AetheriaRuntimeCorporation>(),
+            Array.Empty<AetheriaRuntimeNameFile>());
+
+        AetheriaRuntimeConsumableSimulation.Step(
+            run, Array.Empty<AetheriaRuntimeDaemonConsumableIntent>(), originalCatalog, 90, 0.25);
+
+        var state = actor.ActiveConsumables[0].BehaviorStates.Single(value => value.BehaviorId == "cooldown");
+        Assert.AreEqual(-0.25, state.ScalarState, 0.0001,
+            "Always-updated cooldowns must age before an earlier behavior stops the chain.");
+
+        var reorderedCatalog = new AetheriaRuntimeCatalogSnapshot(
+            new[] { CatalogItem("field-kit", new[] { cooldown, energy }, category: AetheriaRuntimeItemCategories.Consumable, duration: 10) },
+            Array.Empty<AetheriaRuntimeCorporation>(),
+            Array.Empty<AetheriaRuntimeNameFile>());
+        AetheriaRuntimeConsumableSimulation.Step(
+            run, Array.Empty<AetheriaRuntimeDaemonConsumableIntent>(), reorderedCatalog, 91, 0.1);
+
+        state = actor.ActiveConsumables[0].BehaviorStates.Single(value => value.BehaviorId == "cooldown");
+        Assert.AreEqual(0, state.BehaviorIndex, "Authored order is projection, not behavior identity.");
+        Assert.AreEqual(1, state.ScalarState, 0.0001,
+            "The ready cooldown should execute immediately when the reordered chain reaches it.");
+
+        AetheriaRuntimeConsumableSimulation.Step(
+            run, Array.Empty<AetheriaRuntimeDaemonConsumableIntent>(), reorderedCatalog, 92, 0.5);
+        Assert.AreEqual(0.5, state.ScalarState, 0.0001);
+        Assert.AreEqual("cooldown", run.GameEvents.Last(value => value.FrameId == 92).Reason);
+
+        AetheriaRuntimeConsumableSimulation.Step(
+            run, Array.Empty<AetheriaRuntimeDaemonConsumableIntent>(), reorderedCatalog, 93, 0.5);
+        Assert.AreEqual(0, state.ScalarState, 0.0001);
+        Assert.AreEqual("cooldown", run.GameEvents.Last(value => value.FrameId == 93).Reason,
+            "Exact zero remains blocked in the fossil contract.");
+
+        AetheriaRuntimeConsumableSimulation.Step(
+            run, Array.Empty<AetheriaRuntimeDaemonConsumableIntent>(), reorderedCatalog, 94, 0.01);
+        Assert.AreEqual(1, state.ScalarState, 0.0001);
+    }
+
+    [Test]
+    public void ExpiringConsumableCannotTransferIdentityOrBehaviorStateToItsNeighbor()
+    {
+        var run = RunWithTwoEntities();
+        var actor = run.Zones[0].Entities[0];
+        actor.ActiveConsumables = new[]
+        {
+            new AetheriaRuntimeActiveConsumableCommit
+            {
+                EffectId = "effect:expires", ItemKey = "empty", Duration = 1, RemainingDuration = 0
+            },
+            new AetheriaRuntimeActiveConsumableCommit
+            {
+                EffectId = "effect:survives", ItemKey = "empty", Duration = 3, RemainingDuration = 2,
+                BehaviorStates = new[]
+                {
+                    new AetheriaRuntimeConsumableBehaviorStateCommit
+                    {
+                        BehaviorId = "remember-me", BehaviorIndex = 0, BehaviorKind = "Cooldown", ScalarState = 0.42
+                    }
+                }
+            }
+        };
+        var catalog = new AetheriaRuntimeCatalogSnapshot(
+            new[]
+            {
+                CatalogItem("empty", new[]
+                {
+                    BehaviorPayloadId("remember-me", "Cooldown", PerformanceStatField(1, 1))
+                }, category: AetheriaRuntimeItemCategories.Consumable, stackable: true, duration: 3)
+            },
+            Array.Empty<AetheriaRuntimeCorporation>(),
+            Array.Empty<AetheriaRuntimeNameFile>());
+
+        AetheriaRuntimeConsumableSimulation.Step(
+            run, Array.Empty<AetheriaRuntimeDaemonConsumableIntent>(), catalog, 95, 0.1);
+
+        Assert.AreEqual(1, actor.ActiveConsumables.Count);
+        Assert.AreEqual("effect:survives", actor.ActiveConsumables[0].EffectId);
+        Assert.AreEqual(0.32, actor.ActiveConsumables[0].BehaviorStates.Single().ScalarState, 0.0001,
+            "The surviving effect keeps and advances its own nested state after array compaction.");
     }
 
     [Test]
@@ -6031,6 +6135,12 @@ public class DaemonRuntimeDocumentTests
         string kind,
         params AetheriaRuntimeBehaviorField[] fields) =>
         new AetheriaRuntimeBehaviorPayload(0, kind, 0, fields);
+
+    private static AetheriaRuntimeBehaviorPayload BehaviorPayloadId(
+        string behaviorId,
+        string kind,
+        params AetheriaRuntimeBehaviorField[] fields) =>
+        new AetheriaRuntimeBehaviorPayload(0, kind, 0, fields, behaviorId);
 
     private static AetheriaRuntimeBehaviorField PerformanceStatField(int key, double value) =>
         new AetheriaRuntimeBehaviorField(key, PerformanceStatValue(value, value));
