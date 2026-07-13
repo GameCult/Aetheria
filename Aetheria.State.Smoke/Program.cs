@@ -4,6 +4,8 @@ using Aetheria.State.Migration;
 using GameCult.Caching;
 using GameCult.Aetheria.State.Verse;
 using GameCult.Mesh;
+using GameCult.Eve.Surface;
+using EveProviderAdvertisementState = GameCult.Eve.Surface.EveProviderAdvertisementDocument;
 using EveSurfaceDocument = GameCult.Eve.Surface.EveSurfaceDocument;
 
 var root = args.Length > 0 ? args[0] : Directory.GetCurrentDirectory();
@@ -707,22 +709,22 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
     }
 
     if (advertisement?.ProviderId != AetheriaEveSurfaceDocuments.ProviderId ||
-        advertisement.Surfaces.Length < 7 ||
+        advertisement.Surfaces.Count < 7 ||
         !advertisement.Surfaces.Any(surface => surface.SurfaceId == AetheriaEveSurfaceDocuments.CatalogSurfaceId) ||
         !advertisement.Surfaces.Any(surface => surface.SurfaceId == AetheriaEveSurfaceDocuments.OperationsSurfaceId) ||
         !advertisement.Surfaces.Any(surface => surface.SurfaceId == AetheriaEveSurfaceDocuments.PlayerSettingsSurfaceId) ||
         !advertisement.Surfaces.Any(surface =>
             surface.SurfaceId == AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId &&
-            surface.Key == AetheriaEveSurfaceDocuments.DaemonGameSurfaceKey) ||
+            surface.RecordRef == AetheriaEveSurfaceDocuments.DaemonGameSurfaceKey) ||
         !advertisement.Surfaces.Any(surface =>
             surface.SurfaceId == AetheriaRuntimeDaemonGameSurfaceBuilder.TuiSurfaceId &&
-            surface.Key == AetheriaEveSurfaceDocuments.DaemonGameTuiSurfaceKey) ||
+            surface.RecordRef == AetheriaEveSurfaceDocuments.DaemonGameTuiSurfaceKey) ||
         !advertisement.Surfaces.Any(surface =>
             surface.SurfaceId == AetheriaRuntimeDaemonEditorSurfaceBuilder.SurfaceId &&
-            surface.Key == AetheriaEveSurfaceDocuments.DaemonEditorSurfaceKey) ||
+            surface.RecordRef == AetheriaEveSurfaceDocuments.DaemonEditorSurfaceKey) ||
         !advertisement.Surfaces.Any(surface =>
             surface.SurfaceId == AetheriaRuntimeDaemonEditorSurfaceBuilder.TuiSurfaceId &&
-            surface.Key == AetheriaEveSurfaceDocuments.DaemonEditorTuiSurfaceKey) ||
+            surface.RecordRef == AetheriaEveSurfaceDocuments.DaemonEditorTuiSurfaceKey) ||
         !advertisement.Schemas.Contains("aetheria.runtime_session.v1") ||
         !advertisement.Schemas.Contains(AetheriaRuntimeDaemonSchemas.ProviderAdvertisement) ||
         !advertisement.Schemas.Contains(AetheriaRuntimeDaemonSchemas.Frame) ||
@@ -733,13 +735,13 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
         !advertisement.Schemas.Contains(AetheriaRuntimeDaemonSchemas.EditorSurface) ||
         !advertisement.Witnesses.Any(witness =>
             witness.Kind == "cultcache" &&
-            witness.Ref == statePath) ||
+            witness.Reference == statePath) ||
         !advertisement.Witnesses.Any(witness =>
             witness.Kind == "cultmesh-record" &&
-            witness.Ref == AetheriaRuntimeVerseRecordKeys.DaemonProviderAdvertisement.ToString()) ||
+            witness.Reference == AetheriaRuntimeVerseRecordKeys.DaemonProviderAdvertisement.ToString()) ||
         !advertisement.Witnesses.Any(witness =>
             witness.Kind == "cultmesh-record" &&
-            witness.Ref == AetheriaRuntimeVerseRecordKeys.DaemonCommandBoundary.ToString()) ||
+            witness.Reference == AetheriaRuntimeVerseRecordKeys.DaemonCommandBoundary.ToString()) ||
         !advertisement.Commands.Any(command =>
             command.Command == "aetheria.daemon.commands" &&
             command.Transport == "cultmesh") ||
@@ -926,4 +928,131 @@ if (!advertisedActionIds.Contains("weapon-group.0.fire") ||
     throw new InvalidOperationException("Portable Eve input capability did not preserve weapon groups and valid default bindings.");
 }
 
+await ProveDirectSoaPublicationPipeline();
+
 Console.WriteLine($"Aetheria typed state smoke passed: {statePath}");
+
+static async Task ProveDirectSoaPublicationPipeline()
+{
+    using var cache = new CultCache();
+    var frame = new AetheriaRuntimeDaemonFrameDocument
+    {
+        DaemonId = "aetheria-daemon",
+        SessionId = "soa-pipeline-smoke",
+        FrameId = 41,
+        Run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "soa-pipeline-smoke",
+            CurrentZoneIndex = 0,
+            CurrentEntityKey = AetheriaRuntimeRunCheckpointCommit.EntityRecordKey("soa-pipeline-smoke", 0, 12),
+            Zones =
+            [
+                new AetheriaRuntimeZoneSnapshotCommit
+                {
+                    ZoneIndex = 0,
+                    Entities =
+                    [
+                        new AetheriaRuntimeEntitySnapshotCommit
+                        {
+                            EntityIndex = 12,
+                            EntityId = "ship:soa-witness",
+                            Name = "SoA Witness",
+                            Kind = "ship",
+                            FactionKey = "faction:smoke",
+                            PositionX = 1.25,
+                            PositionY = -2.5,
+                            PositionZ = 7.75,
+                            IsActive = true
+                        }
+                    ]
+                }
+            ]
+        }
+    };
+
+    using var publisher = new AetheriaRuntimeDaemonSoaFramePublisher(cache, producerEpoch: 9);
+    var built = publisher.BuildCurrentZoneEntities(frame);
+    if (cache.Get<EveEntitySoaViewDocument>(AetheriaRuntimeVerseRecordKeys.EveEntitySoaViewLatest) != null)
+        throw new InvalidOperationException("SoA view became visible before its body publication.");
+
+    var published = await publisher.PublishAsync(built);
+    if (cache.Get<EveEntitySoaViewDocument>(AetheriaRuntimeVerseRecordKeys.EveEntitySoaViewLatest) != null)
+        throw new InvalidOperationException("Building a CultMesh body publication made the Eve view visible before commit.");
+
+    await cache.UpsertAsync(
+        published.Body,
+        new CultRecordHandle<CultMeshBodyPublicationDocument>(published.Body.RecordKey));
+    if (cache.Get<EveEntitySoaViewDocument>(AetheriaRuntimeVerseRecordKeys.EveEntitySoaViewLatest) != null)
+        throw new InvalidOperationException("Publishing the body record alone made the Eve view visible.");
+    await cache.UpsertAsync(
+        published.View,
+        new CultRecordHandle<EveEntitySoaViewDocument>(AetheriaRuntimeVerseRecordKeys.EveEntitySoaViewLatest));
+
+    var body = cache.Get<CultMeshBodyPublicationDocument>(published.Body.RecordKey)
+        ?? throw new InvalidOperationException("Typed CultMesh body publication did not roundtrip through CultCache.");
+    var view = cache.Get<EveEntitySoaViewDocument>(AetheriaRuntimeVerseRecordKeys.EveEntitySoaViewLatest)
+        ?? throw new InvalidOperationException("Typed Eve SoA view did not become visible after body publication.");
+    if (body.PreferredLocal.TransportKind != CultMeshBodyTransportKind.SharedMemory ||
+        body.NetworkFallback.TransportKind != CultMeshBodyTransportKind.Network ||
+        body.PreferredLocal.TransportKind == CultMeshBodyTransportKind.SharedFileMapping ||
+        body.NetworkFallback.TransportKind == CultMeshBodyTransportKind.SharedFileMapping)
+        throw new InvalidOperationException("Direct SoA publication used an Aetheria file-mapping convention.");
+
+    var request = new CultMeshBodyValidationRequest
+    {
+        BodyId = body.BodyId,
+        SchemaId = body.SchemaId,
+        LayoutVersion = body.LayoutVersion,
+        ProducerEpoch = body.ProducerEpoch,
+        Sequence = body.Sequence,
+        Capacity = body.Capacity,
+        AccessMode = CultMeshBodyAccessMode.ReadOnly,
+        NowUtc = DateTimeOffset.UtcNow
+    };
+    using var localLease = new CultMeshBodyPublicationResolver(new CultMeshBodyTransportService(
+        new ICultMeshBodyTransportAdapter[]
+        {
+            new CultMeshSharedMemoryBodyAdapter(),
+            new CultMeshNetworkBodyAdapter(new CultMeshNetworkBodyResolver(cache).CreateFetchDelegate())
+        },
+        (producerId, _) => producerId == AetheriaRuntimeDaemonSoaFramePublisher.ProducerId))
+        .ResolveReadOnly(body, request);
+    using var networkLease = new CultMeshBodyPublicationResolver(new CultMeshBodyTransportService(
+        new ICultMeshBodyTransportAdapter[]
+        {
+            new CultMeshNetworkBodyAdapter(new CultMeshNetworkBodyResolver(cache).CreateFetchDelegate())
+        },
+        (producerId, _) => producerId == AetheriaRuntimeDaemonSoaFramePublisher.ProducerId))
+        .ResolveReadOnly(body, request);
+
+    var localEntityIndex = ReadInt32(view, localLease, "entity.index", 0);
+    var networkEntityIndex = ReadInt32(view, networkLease, "entity.index", 0);
+    var localPosition = ReadFloat3(view, localLease, "transform.position", 0);
+    var networkPosition = ReadFloat3(view, networkLease, "transform.position", 0);
+    var identity = view.Identities.Single(candidate => candidate.Index == localEntityIndex);
+    if (localLease.TransportKind != CultMeshBodyTransportKind.SharedMemory ||
+        networkLease.TransportKind != CultMeshBodyTransportKind.Network ||
+        localEntityIndex != 12 || networkEntityIndex != localEntityIndex ||
+        localPosition != (1.25f, -2.5f, 7.75f) || networkPosition != localPosition ||
+        identity.EntityId != "ship:soa-witness" || identity.Label != "SoA Witness")
+        throw new InvalidOperationException("Local and network SoA views were not logically equivalent.");
+}
+
+static int ReadInt32(EveEntitySoaViewDocument view, ICultMeshBodyReadLease lease, string semantic, int row)
+{
+    var column = view.Columns.Single(candidate => candidate.Semantic == semantic);
+    var buffer = view.Buffers.Single(candidate => candidate.BufferId == column.BufferId);
+    return lease.ReadInt32(buffer.ByteOffset + column.ByteOffset + (long)row * column.ElementStride);
+}
+
+static (float X, float Y, float Z) ReadFloat3(
+    EveEntitySoaViewDocument view,
+    ICultMeshBodyReadLease lease,
+    string semantic,
+    int row)
+{
+    var column = view.Columns.Single(candidate => candidate.Semantic == semantic);
+    var buffer = view.Buffers.Single(candidate => candidate.BufferId == column.BufferId);
+    var offset = buffer.ByteOffset + column.ByteOffset + (long)row * column.ElementStride;
+    return (lease.ReadSingle(offset), lease.ReadSingle(offset + 4), lease.ReadSingle(offset + 8));
+}
