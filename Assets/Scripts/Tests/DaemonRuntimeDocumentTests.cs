@@ -2523,7 +2523,7 @@ public class DaemonRuntimeDocumentTests
             {
                 RunId = "run-soa-frame",
                 CurrentZoneIndex = 2,
-                CurrentEntityKey = "entity:player",
+                CurrentEntityKey = "zone.2.entity.7",
                 Zones = new[]
                 {
                     new AetheriaRuntimeZoneSnapshotCommit
@@ -2553,7 +2553,15 @@ public class DaemonRuntimeDocumentTests
                                 DirectionY = 0,
                                 VelocityX = 5,
                                 VelocityY = 6,
-                                IsActive = true
+                                IsActive = true,
+                                Contacts = new[]
+                                {
+                                    new AetheriaRuntimeEntityContactCommit
+                                    {
+                                        TargetEntityIndex = 3,
+                                        Visible = true
+                                    }
+                                }
                             },
                             new AetheriaRuntimeEntitySnapshotCommit
                             {
@@ -2562,6 +2570,19 @@ public class DaemonRuntimeDocumentTests
                                 PositionY = 4,
                                 PositionZ = -8,
                                 IsActive = false
+                            }
+                        },
+                        DroppedPickups = new[]
+                        {
+                            new AetheriaRuntimeDroppedPickupCommit
+                            {
+                                PickupIndex = 5,
+                                PositionX = 20,
+                                PositionY = 1,
+                                PositionZ = 30,
+                                VelocityX = 2,
+                                VelocityZ = 4,
+                                Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = "salvage", Quantity = 1 }
                             }
                         }
                     }
@@ -2579,7 +2600,12 @@ public class DaemonRuntimeDocumentTests
         Assert.IsFalse(view.Buffers[0].ObserverWritable);
         Assert.AreEqual(11, view.Columns.Count);
         Assert.AreEqual(1, view.RenderGroups.Count);
-        Assert.AreEqual(2, view.RenderGroups[0].InstanceCount);
+        Assert.AreEqual(3, view.RenderGroups[0].InstanceCount);
+        Assert.IsTrue(view.Identities.Any(identity =>
+            identity.EntityIndex == 13 &&
+            identity.EntityId == "pickup:2:5" &&
+            identity.Kind == "pickup" &&
+            identity.AssetRef == "prefab.entity.pickup"));
 
         var index = AetheriaRuntimeDaemonSoaViewIndex.Build(view);
         Assert.IsTrue(index.IsValid, string.Join("\n", index.ValidationErrors));
@@ -2597,8 +2623,12 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual(12f, accessor.ReadSingle(position.AbsoluteByteOffset + position.Column.ElementStride), 0.0001f);
         Assert.AreEqual(34f, accessor.ReadSingle(position.AbsoluteByteOffset + position.Column.ElementStride + 8), 0.0001f);
         Assert.AreEqual(6f, accessor.ReadSingle(velocity.AbsoluteByteOffset + velocity.Column.ElementStride + 8), 0.0001f);
+        Assert.AreEqual(13, accessor.ReadInt32(entityIndex.AbsoluteByteOffset + entityIndex.Column.ElementStride * 2));
+        Assert.AreEqual(20f, accessor.ReadSingle(position.AbsoluteByteOffset + position.Column.ElementStride * 2), 0.0001f);
+        Assert.AreEqual(30f, accessor.ReadSingle(position.AbsoluteByteOffset + position.Column.ElementStride * 2 + 8), 0.0001f);
         Assert.AreEqual(0, accessor.ReadByte(visibility.AbsoluteByteOffset));
         Assert.AreEqual(1, accessor.ReadByte(visibility.AbsoluteByteOffset + visibility.Column.ElementStride));
+        Assert.AreEqual(1, accessor.ReadByte(visibility.AbsoluteByteOffset + visibility.Column.ElementStride * 2));
     }
 
     [Test]

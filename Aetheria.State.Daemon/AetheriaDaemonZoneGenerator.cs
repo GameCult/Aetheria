@@ -84,7 +84,17 @@ internal static class AetheriaDaemonZoneGenerator
             GravityTerrainDepth = -7,
             GravityTerrainDepthExponent = 1.18,
             GravityTerrainBoundaryFog = 0.25,
-            GravityTerrainWaveFrequency = 0.55
+            GravityTerrainWaveFrequency = 0.55,
+            DroppedPickups =
+            [
+                new AetheriaDroppedPickupSnapshot
+                {
+                    PickupIndex = 0,
+                    Position = Vec3(-15, 0, -5),
+                    Velocity = Vec3(0, 0, 0),
+                    Item = new AetheriaLoadoutItem { ItemKey = "scrap-metal", Quantity = 1 }
+                }
+            ]
         }).ConfigureAwait(false);
 
         for (var i = 0; i < entities.Length; i++)

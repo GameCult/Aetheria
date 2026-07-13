@@ -57,13 +57,19 @@ namespace GameCult.Aetheria.State.Verse
                 .Where(entity => entity != null && visibleEntityIndices.Contains(entity.EntityIndex))
                 .OrderBy(entity => entity.EntityIndex)
                 .ToArray();
-            var count = entities.Length;
+            var pickups = (zone?.DroppedPickups ?? Array.Empty<AetheriaRuntimeDroppedPickupCommit>())
+                .Where(pickup => pickup != null)
+                .OrderBy(pickup => pickup.PickupIndex)
+                .ToArray();
+            var firstPickupEntityIndex = entities.Length == 0 ? 0 : entities.Max(entity => entity.EntityIndex) + 1;
+            var count = entities.Length + pickups.Length;
             var generation = Math.Max(frame.FrameId, 0);
             var layout = EntityHotSlabLayout.Create(count);
             var location = CreateLocation(stateFilePath, frame.SessionId, generation);
 
             var buffer = RetainBuffer(location, layout.TotalByteLength);
             WriteEntities(buffer.Accessor, layout, entities);
+            WritePickups(buffer.Accessor, layout, pickups, entities.Length, firstPickupEntityIndex);
 
             var view = AetheriaRuntimeDaemonSoaViewDocument.Create(
                 string.IsNullOrWhiteSpace(frame.DaemonId) ? "aetheria-daemon" : frame.DaemonId,
@@ -89,34 +95,50 @@ namespace GameCult.Aetheria.State.Verse
                 layout.CreateDirtyRanges(count, generation),
                 backend: AetheriaRuntimeDaemonSoaBackends.MemoryMappedFile,
                 synchronizationMode: AetheriaRuntimeDaemonSoaSynchronizationModes.ImmutableFrame,
-                renderGroups: CreateRenderGroups(entities),
+                renderGroups: CreateRenderGroups(entities, pickups),
                 identities: entities.Select(entity => new AetheriaRuntimeDaemonSoaIdentityDocument
-                {
-                    EntityIndex = entity.EntityIndex,
-                    EntityId = entity.EntityId,
-                    Kind = entity.Kind,
-                    Label = entity.Name,
-                    Faction = entity.FactionKey,
-                    Selectable = entity.EntityIndex != controlled?.EntityIndex,
-                    Controllable = entity.EntityIndex == controlled?.EntityIndex,
-                    AssetRef = AetheriaRuntimeAssets.ResolveEntityPrefabAssetRef(entity)
-                }).ToArray());
+                    {
+                        EntityIndex = entity.EntityIndex,
+                        EntityId = entity.EntityId,
+                        Kind = entity.Kind,
+                        Label = entity.Name,
+                        Faction = entity.FactionKey,
+                        Selectable = entity.EntityIndex != controlled?.EntityIndex,
+                        Controllable = entity.EntityIndex == controlled?.EntityIndex,
+                        AssetRef = AetheriaRuntimeAssets.ResolveEntityPrefabAssetRef(entity)
+                    })
+                    .Concat(pickups.Select(pickup => new AetheriaRuntimeDaemonSoaIdentityDocument
+                    {
+                        EntityIndex = firstPickupEntityIndex + pickup.PickupIndex,
+                        EntityId = $"pickup:{run.CurrentZoneIndex}:{pickup.PickupIndex}",
+                        Kind = "pickup",
+                        Label = string.IsNullOrWhiteSpace(pickup.Item?.ItemKey) ? "Pickup" : pickup.Item.ItemKey,
+                        Faction = "",
+                        Selectable = true,
+                        Controllable = false,
+                        AssetRef = "prefab.entity.pickup"
+                    }))
+                    .ToArray());
 
             return view;
         }
 
         private static IReadOnlyList<AetheriaRuntimeDaemonRenderGroupDocument> CreateRenderGroups(
-            IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities)
+            IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities,
+            IReadOnlyList<AetheriaRuntimeDroppedPickupCommit> pickups)
         {
-            if (entities.Count == 0)
+            if (entities.Count == 0 && pickups.Count == 0)
                 return Array.Empty<AetheriaRuntimeDaemonRenderGroupDocument>();
 
-            var minX = entities.Min(entity => (float)entity.PositionX);
-            var minY = entities.Min(entity => (float)entity.PositionY);
-            var minZ = entities.Min(entity => (float)entity.PositionZ);
-            var maxX = entities.Max(entity => (float)entity.PositionX);
-            var maxY = entities.Max(entity => (float)entity.PositionY);
-            var maxZ = entities.Max(entity => (float)entity.PositionZ);
+            var positions = entities.Select(entity => (entity.PositionX, entity.PositionY, entity.PositionZ))
+                .Concat(pickups.Select(pickup => (pickup.PositionX, pickup.PositionY, pickup.PositionZ)))
+                .ToArray();
+            var minX = positions.Min(position => (float)position.PositionX);
+            var minY = positions.Min(position => (float)position.PositionY);
+            var minZ = positions.Min(position => (float)position.PositionZ);
+            var maxX = positions.Max(position => (float)position.PositionX);
+            var maxY = positions.Max(position => (float)position.PositionY);
+            var maxZ = positions.Max(position => (float)position.PositionZ);
             const float padding = 16.0f;
 
             return new[]
@@ -140,7 +162,7 @@ namespace GameCult.Aetheria.State.Verse
                     Layer = 0,
                     ShaderKey = "aetheria.daemon.entity-proxy",
                     DisplayName = "Daemon current-zone entities",
-                    InstanceCount = entities.Count,
+                    InstanceCount = entities.Count + pickups.Count,
                     BoundsCenterX = (minX + maxX) * 0.5f,
                     BoundsCenterY = (minY + maxY) * 0.5f,
                     BoundsCenterZ = (minZ + maxZ) * 0.5f,
@@ -174,6 +196,31 @@ namespace GameCult.Aetheria.State.Verse
                 accessor.Write(layout.RenderVisibility + index * ByteStride, (byte)(entity.IsActive ? 1 : 0));
                 accessor.Write(layout.RenderLod + index * IntStride, 0);
                 accessor.Write(layout.RenderGroupId + index * IntStride, (uint)EntityRenderGroupId);
+            }
+        }
+
+        private static void WritePickups(
+            MemoryMappedViewAccessor accessor,
+            EntityHotSlabLayout layout,
+            IReadOnlyList<AetheriaRuntimeDroppedPickupCommit> pickups,
+            int rowOffset,
+            int firstPickupEntityIndex)
+        {
+            for (var pickupRow = 0; pickupRow < pickups.Count; pickupRow++)
+            {
+                var pickup = pickups[pickupRow];
+                var row = rowOffset + pickupRow;
+                accessor.Write(layout.EntityIndex + row * IntStride, firstPickupEntityIndex + pickup.PickupIndex);
+                WriteFloat3(accessor, layout.Position, row, pickup.PositionX, pickup.PositionY, pickup.PositionZ);
+                WriteFloat(accessor, layout.RotationRadians, row, 0.0);
+                WriteFloat3(accessor, layout.Velocity, row, pickup.VelocityX, pickup.VelocityY, pickup.VelocityZ);
+                WriteFloat(accessor, layout.PhysicsBodyRadius, row, 0.5);
+                WriteFloat(accessor, layout.PhysicsBodyMass, row, 0.25);
+                WriteFloat(accessor, layout.PhysicsBodyInverseMass, row, 4.0);
+                WriteFloat(accessor, layout.RenderScale, row, 1.0);
+                accessor.Write(layout.RenderVisibility + row * ByteStride, (byte)1);
+                accessor.Write(layout.RenderLod + row * IntStride, 0);
+                accessor.Write(layout.RenderGroupId + row * IntStride, (uint)EntityRenderGroupId);
             }
         }
 
