@@ -9,46 +9,29 @@ namespace GameCult.Aetheria.State.Verse
 {
     public static class AetheriaRuntimeEveEntitySoaProjection
     {
-        public static EveEntitySoaViewDocument Project(AetheriaRuntimeDaemonSoaViewDocument source)
+        public static EveEntitySoaViewDocument Project(
+            AetheriaRuntimeDaemonSoaViewDocument source,
+            CultMeshBodyGeneration generation)
         {
             if (source == null) throw new ArgumentNullException(nameof(source));
-            var primaryBuffer = (source.Buffers ?? Array.Empty<AetheriaRuntimeDaemonSoaBufferDocument>()).FirstOrDefault();
+            if (generation == null) throw new ArgumentNullException(nameof(generation));
             return new EveEntitySoaViewDocument
             {
-                ProviderId = "aetheria.daemon",
+                ProviderId = generation.ProducerId,
                 ViewId = "pilot",
                 FrameId = source.FrameId,
-                Generation = source.Generation,
                 PublishedAtUtc = source.PublishedAtUtc,
-                Backend = source.Backend,
-                SynchronizationMode = source.SynchronizationMode,
-                Body = primaryBuffer == null ? null : new CultMeshBodyDescriptor
-                {
-                    BodyId = $"eve:entity-soa:{source.DaemonId}:{source.SessionId}:pilot",
-                    SchemaId = EveEntitySoaViewDocument.SchemaId + ".body.v1",
-                    LayoutVersion = 1,
-                    ByteSize = primaryBuffer.ByteLength,
-                    Capacity = (source.Columns ?? Array.Empty<AetheriaRuntimeDaemonSoaColumnDocument>())
-                        .Select(column => column.ElementCount)
-                        .DefaultIfEmpty(0)
-                        .Max(),
-                    ProducerEpoch = StableEpoch(source.SessionId),
-                    Sequence = source.Generation,
-                    AccessMode = CultMeshBodyAccessMode.ReadOnly,
-                    Synchronization = CultMeshBodySynchronization.ImmutableSequence,
-                    LeaseExpiresAtUnixMs = DateTimeOffset.UtcNow.AddSeconds(5).ToUnixTimeMilliseconds(),
-                    TransportKind = CultMeshBodyTransportKind.SharedMemory,
-                    CapabilityToken = primaryBuffer.Location
-                },
+                BodySchemaId = generation.SchemaId,
+                LayoutVersion = generation.LayoutVersion,
+                ProducerEpoch = generation.ProducerEpoch,
+                Sequence = generation.Sequence,
+                Capacity = generation.Capacity,
                 Buffers = (source.Buffers ?? Array.Empty<AetheriaRuntimeDaemonSoaBufferDocument>())
                     .Select(buffer => new EveEntitySoaBuffer
                     {
                         BufferId = buffer.BufferId,
-                        Backend = buffer.Backend,
-                        Location = buffer.Location,
                         ByteOffset = buffer.ByteOffset,
-                        ByteLength = buffer.ByteLength,
-                        Generation = buffer.Generation
+                        ByteLength = buffer.ByteLength
                     }).ToArray(),
                 Columns = (source.Columns ?? Array.Empty<AetheriaRuntimeDaemonSoaColumnDocument>())
                     .Select(column => new EveEntitySoaColumn
@@ -69,7 +52,7 @@ namespace GameCult.Aetheria.State.Verse
                         ColumnId = range.ColumnId,
                         StartIndex = range.StartIndex,
                         Count = range.Count,
-                        Generation = range.Generation
+                        Sequence = generation.Sequence
                     }).ToArray(),
                 RenderGroups = (source.RenderGroups ?? Array.Empty<AetheriaRuntimeDaemonRenderGroupDocument>())
                     .Select(group => new EveEntityRenderGroup
@@ -92,11 +75,11 @@ namespace GameCult.Aetheria.State.Verse
                         Lod = group.Lod
                     }).ToArray(),
                 Identities = (source.Identities ?? Array.Empty<AetheriaRuntimeDaemonSoaIdentityDocument>())
-                    .Select(identity => new EveEntitySoaIdentity
+                    .Select(identity => new EveEntityIdentity
                     {
-                        EntityIndex = identity.EntityIndex,
+                        Index = identity.EntityIndex,
                         EntityId = identity.EntityId,
-                        Kind = identity.Kind,
+                        EntityKind = identity.Kind,
                         Label = identity.Label,
                         Faction = identity.Faction,
                         Selectable = identity.Selectable,
@@ -106,20 +89,5 @@ namespace GameCult.Aetheria.State.Verse
             };
         }
 
-        private static long StableEpoch(string value)
-        {
-            unchecked
-            {
-                const long offset = 1469598103934665603;
-                const long prime = 1099511628211;
-                var hash = offset;
-                foreach (var character in value ?? string.Empty)
-                {
-                    hash ^= character;
-                    hash *= prime;
-                }
-                return hash & long.MaxValue;
-            }
-        }
     }
 }

@@ -33,6 +33,9 @@ await using var node = await AetheriaStateNode.OpenAsync(
     runtimeId: options.DaemonId,
     startServer: true,
     enableDurableShardLogs: false).ConfigureAwait(false);
+using var soaPublisher = new AetheriaRuntimeDaemonSoaFramePublisher(
+    node.Cache,
+    DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
 using var discoveryHost = new AetheriaVerseDiscoveryHost(node);
 
 await EnsureWorldDocumentAsync(node).ConfigureAwait(false);
@@ -52,7 +55,7 @@ using var clientPumpCancellation = new CancellationTokenSource();
 var clientPump = RunClientCultMeshPumpAsync(cultMeshRudpHost, clientPumpCancellation.Token);
 var nextApiPublicationUtc = DateTimeOffset.UtcNow;
 var ingressState = new AetheriaDaemonIngressState();
-var firstTick = await TickAsync(node, options, physicalPayloadPhysics, worldPhysics, latestFrame, ingressState, buildPublications: true).ConfigureAwait(false);
+var firstTick = await TickAsync(node, options, physicalPayloadPhysics, worldPhysics, soaPublisher, latestFrame, ingressState, buildPublications: true).ConfigureAwait(false);
 ThrowIfClientPumpFaulted(clientPump);
 latestFrame = firstTick.Frame;
 nextApiPublicationUtc = DateTimeOffset.UtcNow.Add(options.ApiPublicationInterval);
@@ -90,7 +93,7 @@ while (!stopped.Task.IsCompleted)
     }
 
     var buildPublications = DateTimeOffset.UtcNow >= nextApiPublicationUtc;
-    var tick = await TickAsync(node, options, physicalPayloadPhysics, worldPhysics, latestFrame, ingressState, buildPublications: false).ConfigureAwait(false);
+    var tick = await TickAsync(node, options, physicalPayloadPhysics, worldPhysics, soaPublisher, latestFrame, ingressState, buildPublications: false).ConfigureAwait(false);
     ThrowIfClientPumpFaulted(clientPump);
     latestFrame = tick.Frame;
     nextTickUtc += options.TickInterval;
@@ -100,8 +103,8 @@ while (!stopped.Task.IsCompleted)
     {
         if (publicationTask.IsFaulted)
             await publicationTask.ConfigureAwait(false);
-        var publication = PreparePublication(node.StatePath, options, tick, ingressState);
-        publicationTask = PublishPreparedDocumentsAsync(node, options, publication);
+        var publication = PreparePublication(node.StatePath, options, soaPublisher, tick, ingressState);
+        publicationTask = PublishPreparedDocumentsAsync(node, options, soaPublisher, publication);
         nextApiPublicationUtc = DateTimeOffset.UtcNow.Add(options.ApiPublicationInterval);
     }
     if (tick.Frame.FrameId % (traceClientRudp ? 10 : 120) == 0)
@@ -135,6 +138,7 @@ static async Task<AetheriaRuntimeDaemonTickResult> TickAsync(
     AetheriaDaemonHostOptions options,
     IAetheriaRuntimePhysicalPayloadPhysics physicalPayloadPhysics,
     IAetheriaRuntimeWorldPhysics worldPhysics,
+    AetheriaRuntimeDaemonSoaFramePublisher soaPublisher,
     AetheriaRuntimeDaemonFrameDocument? currentFrame,
     AetheriaDaemonIngressState ingressState,
     bool buildPublications)
@@ -253,6 +257,7 @@ static async Task<AetheriaRuntimeDaemonTickResult> TickAsync(
             StarbridgeScenario = starbridgeScenario,
             StarbridgeSession = starbridgeSession,
             BuildPublications = buildPublications,
+            SoaFramePublisher = soaPublisher,
             OperationContext = new AetheriaRuntimeDaemonOperationContext
             {
                 LoadoutTemplates = loadoutTemplates
@@ -287,7 +292,7 @@ static async Task<AetheriaRuntimeDaemonTickResult> TickAsync(
 
     if (buildPublications)
     {
-        await PublishDaemonApiDocumentsAsync(node, options, result, publishTopology: true).ConfigureAwait(false);
+        await PublishDaemonApiDocumentsAsync(node, options, soaPublisher, result, publishTopology: true).ConfigureAwait(false);
         TracePhase("api-publication");
         await PublishStateSurfacesAsync(node, options, result.Frame.PublishedAtUtc).ConfigureAwait(false);
         TracePhase("state-surfaces");
@@ -301,6 +306,7 @@ static async Task<AetheriaRuntimeDaemonTickResult> TickAsync(
 static AetheriaRuntimeDaemonTickResult PreparePublication(
     string statePath,
     AetheriaDaemonHostOptions options,
+    AetheriaRuntimeDaemonSoaFramePublisher soaPublisher,
     AetheriaRuntimeDaemonTickResult tick,
     AetheriaDaemonIngressState ingressState)
 {
@@ -323,7 +329,8 @@ static AetheriaRuntimeDaemonTickResult PreparePublication(
             StarbridgeScenario = ingressState.StarbridgeScenario,
             StarbridgeSession = ingressState.StarbridgeSession,
             RenderSettings = options.RenderSettings,
-            SimulationSettings = options.SimulationSettings
+            SimulationSettings = options.SimulationSettings,
+            SoaFramePublisher = soaPublisher
         },
         frame.AccountedCommandIds?.Count ?? 0);
 }
@@ -331,9 +338,10 @@ static AetheriaRuntimeDaemonTickResult PreparePublication(
 static async Task PublishPreparedDocumentsAsync(
     AetheriaStateNode node,
     AetheriaDaemonHostOptions options,
+    AetheriaRuntimeDaemonSoaFramePublisher soaPublisher,
     AetheriaRuntimeDaemonTickResult publication)
 {
-    await PublishDaemonApiDocumentsAsync(node, options, publication, publishTopology: false).ConfigureAwait(false);
+    await PublishDaemonApiDocumentsAsync(node, options, soaPublisher, publication, publishTopology: false).ConfigureAwait(false);
 }
 
 static async Task RefreshControlPlaneInputsAsync(
@@ -1482,6 +1490,7 @@ static bool TryGetDouble(
 static async Task PublishDaemonApiDocumentsAsync(
     AetheriaStateNode node,
     AetheriaDaemonHostOptions options,
+    AetheriaRuntimeDaemonSoaFramePublisher soaPublisher,
     AetheriaRuntimeDaemonTickResult result,
     bool publishTopology)
 {
@@ -1491,14 +1500,18 @@ static async Task PublishDaemonApiDocumentsAsync(
     await node.MutableDocument<AetheriaRuntimeZoneRenderDocument>(AetheriaRuntimeVerseRecordKeys.ZoneRenderLatest)
         .ReplaceAsync(AetheriaRuntimeGameDocuments.ZoneRender(result.Frame))
         .ConfigureAwait(false);
-    if (result.SoaView != null &&
+    if (result.SoaFrame != null && result.SoaView != null &&
         string.Equals(result.SoaView.Schema, AetheriaRuntimeDaemonSchemas.SoaView, StringComparison.Ordinal))
     {
         await node.MutableDocument<AetheriaRuntimeDaemonSoaViewDocument>(AetheriaRuntimeVerseRecordKeys.DaemonSoaViewLatest)
             .ReplaceAsync(result.SoaView)
             .ConfigureAwait(false);
+        var soaPublication = await soaPublisher.PublishAsync(result.SoaFrame).ConfigureAwait(false);
+        await node.MutableDocument<CultMeshBodyPublicationDocument>(soaPublication.Body.RecordKey)
+            .ReplaceAsync(soaPublication.Body)
+            .ConfigureAwait(false);
         await node.MutableDocument<EveEntitySoaViewDocument>(AetheriaRuntimeVerseRecordKeys.EveEntitySoaViewLatest)
-            .ReplaceAsync(AetheriaRuntimeEveEntitySoaProjection.Project(result.SoaView))
+            .ReplaceAsync(soaPublication.View)
             .ConfigureAwait(false);
     }
 

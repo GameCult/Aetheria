@@ -185,6 +185,10 @@ namespace GameCult.Aetheria.State.Verse
             typeof(EveCommandReceiptDocument),
             typeof(EveAssetCatalogDocument),
             typeof(EveEntitySoaViewDocument),
+            typeof(CultMeshBodyPublicationDocument),
+            typeof(CultMeshNetworkBodyDocument),
+            typeof(CultMeshCdnArtifactManifest),
+            typeof(CultMeshCdnArtifactChunk),
             typeof(AetheriaRuntimeDaemonCommandDocument),
             typeof(AetheriaRuntimeEveCommandDocument),
             typeof(AetheriaRuntimeCommittedCommandFactDocument)

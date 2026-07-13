@@ -10,6 +10,7 @@ namespace GameCult.Aetheria.State.Verse
     public static class AetheriaRuntimeDaemonSoaBackends
     {
         public const string CultCache = "cultcache";
+        public const string CultMesh = "cultmesh";
         public const string MemoryMappedFile = "memory_mapped_file";
         public const string SharedNativeMemory = "shared_native_memory";
     }

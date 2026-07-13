@@ -1,39 +1,75 @@
 using System;
 using System.Collections.Generic;
-using System.IO.MemoryMappedFiles;
 using System.Linq;
-using System.Security.Cryptography;
-using System.Text;
+using System.Threading.Tasks;
+using GameCult.Caching;
+using GameCult.Eve.Surface;
+using GameCult.Mesh;
 
 #nullable enable
 
 namespace GameCult.Aetheria.State.Verse
 {
-    public static class AetheriaRuntimeDaemonSoaFramePublisher
+    public sealed class AetheriaRuntimeDaemonSoaFrame
     {
-        private const string BufferId = "current-zone-entities-hot";
+        public AetheriaRuntimeDaemonSoaFrame(AetheriaRuntimeDaemonSoaViewDocument view, byte[] bytes)
+        {
+            View = view ?? throw new ArgumentNullException(nameof(view));
+            Bytes = bytes ?? throw new ArgumentNullException(nameof(bytes));
+        }
+
+        public AetheriaRuntimeDaemonSoaViewDocument View { get; }
+        public byte[] Bytes { get; }
+    }
+
+    public sealed class AetheriaRuntimeDaemonSoaPublication
+    {
+        public AetheriaRuntimeDaemonSoaPublication(
+            CultMeshBodyPublicationDocument body,
+            EveEntitySoaViewDocument view)
+        {
+            Body = body ?? throw new ArgumentNullException(nameof(body));
+            View = view ?? throw new ArgumentNullException(nameof(view));
+        }
+
+        public CultMeshBodyPublicationDocument Body { get; }
+        public EveEntitySoaViewDocument View { get; }
+    }
+
+    public sealed class AetheriaRuntimeDaemonSoaFramePublisher : IDisposable
+    {
+        public const string BodyId = "eve:entity-soa:aetheria.daemon:pilot";
+        public const string ProducerId = "aetheria.daemon";
+        public const string BodySchemaId = "gamecult.eve.entity_soa.body.v2";
+        public const int LayoutVersion = 2;
+        private const int Capacity = 4096;
         private const int EntityRenderGroupId = 1;
         private const int FloatStride = 4;
         private const int Float3Stride = 12;
         private const int IntStride = 4;
         private const int ByteStride = 1;
-        private const int RetainedBufferCount = 4;
         private const string EntityProxyMeshAssetKey = "daemon.entity_proxy.mesh";
         private const string EntityProxyMaterialAssetKey = "daemon.entity_proxy.material";
         private const string EntityProxyMeshUri = "cultmesh://aetheria/assets/daemon/entity_proxy/mesh";
         private const string EntityProxyMaterialUri = "cultmesh://aetheria/assets/daemon/entity_proxy/material";
 
-        private static readonly object Sync = new object();
-        private static readonly Dictionary<string, RetainedMappedBuffer> RetainedBuffers =
-            new Dictionary<string, RetainedMappedBuffer>(StringComparer.Ordinal);
-        private static long RetainedBufferUseSequence;
+        private readonly CultMeshFrameBodyPublisher _localPublisher;
+        private readonly CultMeshNetworkBodyPublisher _networkPublisher;
 
-        public static AetheriaRuntimeDaemonSoaViewDocument BuildCurrentZoneEntities(
-            string stateFilePath,
+        public AetheriaRuntimeDaemonSoaFramePublisher(CultCache cache, long producerEpoch)
+        {
+            if (cache == null) throw new ArgumentNullException(nameof(cache));
+            _localPublisher = new CultMeshFrameBodyPublisher(
+                BodyId, BodySchemaId, LayoutVersion, Capacity, producerEpoch,
+                checked((int)EntityHotSlabLayout.Create(Capacity).TotalByteLength));
+            _networkPublisher = new CultMeshNetworkBodyPublisher(
+                cache,
+                generation => string.Equals(generation.ProducerId, ProducerId, StringComparison.Ordinal));
+        }
+
+        public AetheriaRuntimeDaemonSoaFrame BuildCurrentZoneEntities(
             AetheriaRuntimeDaemonFrameDocument frame)
         {
-            if (string.IsNullOrWhiteSpace(stateFilePath))
-                throw new ArgumentException("State file path must be non-empty.", nameof(stateFilePath));
             if (frame == null)
                 throw new ArgumentNullException(nameof(frame));
 
@@ -69,13 +105,13 @@ namespace GameCult.Aetheria.State.Verse
                 .ToArray();
             var firstPickupEntityIndex = entities.Length == 0 ? 0 : entities.Max(entity => entity.EntityIndex) + 1;
             var count = entities.Length + pickups.Length;
+            if (count > Capacity)
+                throw new InvalidOperationException($"Aetheria entity SoA capacity {Capacity} was exceeded by {count} rows.");
             var generation = Math.Max(frame.FrameId, 0);
             var layout = EntityHotSlabLayout.Create(count);
-            var location = CreateLocation(stateFilePath, frame.SessionId, generation);
-
-            var buffer = RetainBuffer(location, layout.TotalByteLength);
-            WriteEntities(buffer.Accessor, layout, entities);
-            WritePickups(buffer.Accessor, layout, pickups, entities.Length, firstPickupEntityIndex);
+            var bytes = new byte[layout.TotalByteLength];
+            WriteEntities(bytes, layout, entities);
+            WritePickups(bytes, layout, pickups, entities.Length, firstPickupEntityIndex);
 
             var view = AetheriaRuntimeDaemonSoaViewDocument.Create(
                 string.IsNullOrWhiteSpace(frame.DaemonId) ? "aetheria-daemon" : frame.DaemonId,
@@ -86,10 +122,8 @@ namespace GameCult.Aetheria.State.Verse
                 {
                     new AetheriaRuntimeDaemonSoaBufferDocument
                     {
-                        BufferId = BufferId,
+                        BufferId = BodyId,
                         DisplayName = "Current zone daemon entity hot slab",
-                        Backend = AetheriaRuntimeDaemonSoaBackends.MemoryMappedFile,
-                        Location = location,
                         ByteOffset = 0,
                         ByteLength = layout.TotalByteLength,
                         Generation = generation,
@@ -99,7 +133,7 @@ namespace GameCult.Aetheria.State.Verse
                 },
                 layout.CreateColumns(count),
                 layout.CreateDirtyRanges(count, generation),
-                backend: AetheriaRuntimeDaemonSoaBackends.MemoryMappedFile,
+                backend: AetheriaRuntimeDaemonSoaBackends.CultMesh,
                 synchronizationMode: AetheriaRuntimeDaemonSoaSynchronizationModes.ImmutableFrame,
                 renderGroups: CreateRenderGroups(entities, pickups),
                 identities: entities.Select(entity => new AetheriaRuntimeDaemonSoaIdentityDocument
@@ -126,8 +160,52 @@ namespace GameCult.Aetheria.State.Verse
                     }))
                     .ToArray());
 
-            return view;
+            return new AetheriaRuntimeDaemonSoaFrame(view, bytes);
         }
+
+        public async Task<AetheriaRuntimeDaemonSoaPublication> PublishAsync(AetheriaRuntimeDaemonSoaFrame frame)
+        {
+            if (frame == null) throw new ArgumentNullException(nameof(frame));
+            var now = DateTimeOffset.UtcNow;
+            if (!_localPublisher.TryPublish(frame.Bytes, now, out var local))
+                throw new InvalidOperationException("CultMesh has no unleased frame slot for the Aetheria SoA generation.");
+            var generation = new CultMeshBodyGeneration
+            {
+                BodyId = BodyId,
+                ProducerId = ProducerId,
+                SchemaId = BodySchemaId,
+                LayoutVersion = LayoutVersion,
+                Capacity = Capacity,
+                ProducerEpoch = local.ProducerEpoch,
+                Sequence = local.Sequence,
+                Synchronization = local.Synchronization,
+                LeaseExpiresAtUnixMs = local.LeaseExpiresAtUnixMs
+            };
+            var network = await _networkPublisher.PublishAsync(generation, frame.Bytes).ConfigureAwait(false);
+            var publication = new CultMeshBodyPublicationDocument
+            {
+                BodyId = BodyId,
+                ProducerId = ProducerId,
+                SchemaId = BodySchemaId,
+                LayoutVersion = LayoutVersion,
+                ByteSize = local.ByteSize,
+                Capacity = Capacity,
+                ProducerEpoch = local.ProducerEpoch,
+                Sequence = local.Sequence,
+                Synchronization = local.Synchronization,
+                LivenessExpiresAtUnixMs = local.LeaseExpiresAtUnixMs,
+                PreferredLocal = local,
+                NetworkFallback = network
+            };
+            CultMeshBodyPublicationValidator.Validate(publication, BodyId);
+            var view = AetheriaRuntimeEveEntitySoaProjection.Project(frame.View, generation);
+            if (view.Buffers.Length != 1 || !string.Equals(view.Buffers[0].BufferId, publication.BodyId, StringComparison.Ordinal) ||
+                view.Columns.Any(column => !string.Equals(column.BufferId, publication.BodyId, StringComparison.Ordinal)))
+                throw new InvalidOperationException("Aetheria Eve SoA layout does not reference its published logical body identity.");
+            return new AetheriaRuntimeDaemonSoaPublication(publication, view);
+        }
+
+        public void Dispose() => _localPublisher.Dispose();
 
         private static IReadOnlyList<AetheriaRuntimeDaemonRenderGroupDocument> CreateRenderGroups(
             IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities,
@@ -184,30 +262,30 @@ namespace GameCult.Aetheria.State.Verse
         }
 
         private static void WriteEntities(
-            MemoryMappedViewAccessor accessor,
+            byte[] bytes,
             EntityHotSlabLayout layout,
             IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities)
         {
             for (var index = 0; index < entities.Count; index++)
             {
                 var entity = entities[index];
-                accessor.Write(layout.EntityIndex + index * IntStride, entity.EntityIndex);
-                accessor.Write(layout.CargoQuantity + index * IntStride, CountCargoUnits(entity));
-                WriteFloat3(accessor, layout.Position, index, entity.PositionX, entity.PositionY, entity.PositionZ);
-                WriteFloat(accessor, layout.RotationRadians, index, Math.Atan2(entity.DirectionX, entity.DirectionY));
-                WriteFloat3(accessor, layout.Velocity, index, entity.VelocityX, 0.0, entity.VelocityY);
-                WriteFloat(accessor, layout.PhysicsBodyRadius, index, 1.0);
-                WriteFloat(accessor, layout.PhysicsBodyMass, index, 1.0);
-                WriteFloat(accessor, layout.PhysicsBodyInverseMass, index, 1.0);
-                WriteFloat(accessor, layout.RenderScale, index, 1.0);
-                accessor.Write(layout.RenderVisibility + index * ByteStride, (byte)(entity.IsActive ? 1 : 0));
-                accessor.Write(layout.RenderLod + index * IntStride, 0);
-                accessor.Write(layout.RenderGroupId + index * IntStride, (uint)EntityRenderGroupId);
+                WriteInt32(bytes, layout.EntityIndex + index * IntStride, entity.EntityIndex);
+                WriteInt32(bytes, layout.CargoQuantity + index * IntStride, CountCargoUnits(entity));
+                WriteFloat3(bytes, layout.Position, index, entity.PositionX, entity.PositionY, entity.PositionZ);
+                WriteFloat(bytes, layout.RotationRadians, index, Math.Atan2(entity.DirectionX, entity.DirectionY));
+                WriteFloat3(bytes, layout.Velocity, index, entity.VelocityX, 0.0, entity.VelocityY);
+                WriteFloat(bytes, layout.PhysicsBodyRadius, index, 1.0);
+                WriteFloat(bytes, layout.PhysicsBodyMass, index, 1.0);
+                WriteFloat(bytes, layout.PhysicsBodyInverseMass, index, 1.0);
+                WriteFloat(bytes, layout.RenderScale, index, 1.0);
+                bytes[checked((int)(layout.RenderVisibility + index * ByteStride))] = (byte)(entity.IsActive ? 1 : 0);
+                WriteInt32(bytes, layout.RenderLod + index * IntStride, 0);
+                WriteUInt32(bytes, layout.RenderGroupId + index * IntStride, EntityRenderGroupId);
             }
         }
 
         private static void WritePickups(
-            MemoryMappedViewAccessor accessor,
+            byte[] bytes,
             EntityHotSlabLayout layout,
             IReadOnlyList<AetheriaRuntimeDroppedPickupCommit> pickups,
             int rowOffset,
@@ -217,28 +295,28 @@ namespace GameCult.Aetheria.State.Verse
             {
                 var pickup = pickups[pickupRow];
                 var row = rowOffset + pickupRow;
-                accessor.Write(layout.EntityIndex + row * IntStride, firstPickupEntityIndex + pickup.PickupIndex);
-                accessor.Write(layout.CargoQuantity + row * IntStride, 0);
-                WriteFloat3(accessor, layout.Position, row, pickup.PositionX, pickup.PositionY, pickup.PositionZ);
-                WriteFloat(accessor, layout.RotationRadians, row, 0.0);
-                WriteFloat3(accessor, layout.Velocity, row, pickup.VelocityX, pickup.VelocityY, pickup.VelocityZ);
-                WriteFloat(accessor, layout.PhysicsBodyRadius, row, 0.5);
-                WriteFloat(accessor, layout.PhysicsBodyMass, row, 0.25);
-                WriteFloat(accessor, layout.PhysicsBodyInverseMass, row, 4.0);
-                WriteFloat(accessor, layout.RenderScale, row, 1.0);
-                accessor.Write(layout.RenderVisibility + row * ByteStride, (byte)1);
-                accessor.Write(layout.RenderLod + row * IntStride, 0);
-                accessor.Write(layout.RenderGroupId + row * IntStride, (uint)EntityRenderGroupId);
+                WriteInt32(bytes, layout.EntityIndex + row * IntStride, firstPickupEntityIndex + pickup.PickupIndex);
+                WriteInt32(bytes, layout.CargoQuantity + row * IntStride, 0);
+                WriteFloat3(bytes, layout.Position, row, pickup.PositionX, pickup.PositionY, pickup.PositionZ);
+                WriteFloat(bytes, layout.RotationRadians, row, 0.0);
+                WriteFloat3(bytes, layout.Velocity, row, pickup.VelocityX, pickup.VelocityY, pickup.VelocityZ);
+                WriteFloat(bytes, layout.PhysicsBodyRadius, row, 0.5);
+                WriteFloat(bytes, layout.PhysicsBodyMass, row, 0.25);
+                WriteFloat(bytes, layout.PhysicsBodyInverseMass, row, 4.0);
+                WriteFloat(bytes, layout.RenderScale, row, 1.0);
+                bytes[checked((int)(layout.RenderVisibility + row * ByteStride))] = 1;
+                WriteInt32(bytes, layout.RenderLod + row * IntStride, 0);
+                WriteUInt32(bytes, layout.RenderGroupId + row * IntStride, EntityRenderGroupId);
             }
         }
 
-        private static void WriteFloat(MemoryMappedViewAccessor accessor, long byteOffset, int index, double value)
+        private static void WriteFloat(byte[] bytes, long byteOffset, int index, double value)
         {
-            accessor.Write(byteOffset + index * FloatStride, IsFinite(value) ? (float)value : 0.0f);
+            WriteBytes(bytes, byteOffset + index * FloatStride, BitConverter.GetBytes(IsFinite(value) ? (float)value : 0.0f));
         }
 
         private static void WriteFloat3(
-            MemoryMappedViewAccessor accessor,
+            byte[] bytes,
             long byteOffset,
             int index,
             double x,
@@ -246,10 +324,19 @@ namespace GameCult.Aetheria.State.Verse
             double z)
         {
             var elementOffset = byteOffset + index * Float3Stride;
-            accessor.Write(elementOffset, IsFinite(x) ? (float)x : 0.0f);
-            accessor.Write(elementOffset + FloatStride, IsFinite(y) ? (float)y : 0.0f);
-            accessor.Write(elementOffset + FloatStride * 2, IsFinite(z) ? (float)z : 0.0f);
+            WriteFloat(bytes, elementOffset, 0, x);
+            WriteFloat(bytes, elementOffset + FloatStride, 0, y);
+            WriteFloat(bytes, elementOffset + FloatStride * 2, 0, z);
         }
+
+        private static void WriteInt32(byte[] bytes, long offset, int value) =>
+            WriteBytes(bytes, offset, BitConverter.GetBytes(value));
+
+        private static void WriteUInt32(byte[] bytes, long offset, int value) =>
+            WriteBytes(bytes, offset, BitConverter.GetBytes((uint)value));
+
+        private static void WriteBytes(byte[] destination, long offset, byte[] source) =>
+            Buffer.BlockCopy(source, 0, destination, checked((int)offset), source.Length);
 
         private static bool IsFinite(double value)
         {
@@ -263,76 +350,6 @@ namespace GameCult.Aetheria.State.Verse
                 .SelectMany(bay => bay.Items ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>())
                 .Where(slot => slot?.Item != null)
                 .Sum(slot => Math.Max(0, slot.Item.Quantity));
-        }
-
-        private static RetainedMappedBuffer RetainBuffer(string location, long byteLength)
-        {
-            lock (Sync)
-            {
-                if (RetainedBuffers.TryGetValue(location, out var existing))
-                {
-                    existing.MarkUsed(++RetainedBufferUseSequence);
-                    return existing;
-                }
-
-                var memory = MemoryMappedFile.CreateOrOpen(location, byteLength, MemoryMappedFileAccess.ReadWrite);
-                var accessor = memory.CreateViewAccessor(0, byteLength, MemoryMappedFileAccess.ReadWrite);
-                var buffer = new RetainedMappedBuffer(memory, accessor, ++RetainedBufferUseSequence);
-                RetainedBuffers[location] = buffer;
-                TrimRetainedBuffers(location);
-                return buffer;
-            }
-        }
-
-        private static void TrimRetainedBuffers(string retainedLocation)
-        {
-            if (RetainedBuffers.Count <= RetainedBufferCount)
-                return;
-
-            foreach (var key in RetainedBuffers
-                .Where(pair => !string.Equals(pair.Key, retainedLocation, StringComparison.Ordinal))
-                .OrderBy(pair => pair.Value.LastUsedSequence)
-                .Select(pair => pair.Key)
-                .Take(RetainedBuffers.Count - RetainedBufferCount)
-                .ToArray())
-            {
-                RetainedBuffers[key].Dispose();
-                RetainedBuffers.Remove(key);
-            }
-        }
-
-        private static string CreateLocation(string stateFilePath, string sessionId, long generation)
-        {
-            using var sha = SHA256.Create();
-            var identity = $"{stateFilePath}|{sessionId}|{generation}";
-            var hash = sha.ComputeHash(Encoding.UTF8.GetBytes(identity));
-            return "Aetheria.Daemon.Soa." + BitConverter.ToString(hash, 0, 12).Replace("-", "");
-        }
-
-        private sealed class RetainedMappedBuffer : IDisposable
-        {
-            private readonly MemoryMappedFile _memory;
-            public RetainedMappedBuffer(MemoryMappedFile memory, MemoryMappedViewAccessor accessor, long lastUsedSequence)
-            {
-                _memory = memory;
-                Accessor = accessor;
-                LastUsedSequence = lastUsedSequence;
-            }
-
-            public MemoryMappedViewAccessor Accessor { get; }
-
-            public long LastUsedSequence { get; private set; }
-
-            public void MarkUsed(long sequence)
-            {
-                LastUsedSequence = sequence;
-            }
-
-            public void Dispose()
-            {
-                Accessor.Dispose();
-                _memory.Dispose();
-            }
         }
 
         private readonly struct EntityHotSlabLayout
@@ -460,7 +477,7 @@ namespace GameCult.Aetheria.State.Verse
                 {
                     ColumnId = columnId,
                     Kind = kind,
-                    BufferId = BufferId,
+                    BufferId = BodyId,
                     ScalarType = scalarType,
                     ByteOffset = byteOffset,
                     ElementStride = stride,

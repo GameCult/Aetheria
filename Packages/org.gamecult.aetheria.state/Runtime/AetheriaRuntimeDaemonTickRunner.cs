@@ -41,6 +41,7 @@ namespace GameCult.Aetheria.State.Verse
         public bool AdvanceSimulation { get; set; } = true;
         public int SimulationStepCount { get; set; } = 1;
         public bool BuildPublications { get; set; } = true;
+        public AetheriaRuntimeDaemonSoaFramePublisher? SoaFramePublisher { get; set; }
     }
 
     public sealed class AetheriaRuntimeDaemonTickResult
@@ -49,7 +50,7 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeRunCheckpointCommit run,
             AetheriaRuntimeDaemonOperationResult operationResult,
             AetheriaRuntimeDaemonFrameDocument frame,
-            AetheriaRuntimeDaemonSoaViewDocument? soaView = null,
+            AetheriaRuntimeDaemonSoaFrame? soaFrame = null,
             AetheriaRuntimeDaemonProviderAdvertisementDocument? providerAdvertisement = null,
             AetheriaRuntimeDaemonHealthDocument? health = null,
             AetheriaRuntimeDaemonCommandBoundaryDocument? commandBoundary = null,
@@ -66,7 +67,7 @@ namespace GameCult.Aetheria.State.Verse
                 Array.Empty<string>(),
                 Array.Empty<string>());
             Frame = frame ?? new AetheriaRuntimeDaemonFrameDocument();
-            SoaView = soaView;
+            SoaFrame = soaFrame;
             ProviderAdvertisement = providerAdvertisement;
             Health = health;
             CommandBoundary = commandBoundary;
@@ -81,7 +82,8 @@ namespace GameCult.Aetheria.State.Verse
         public AetheriaRuntimeRunCheckpointCommit Run { get; }
         public AetheriaRuntimeDaemonOperationResult OperationResult { get; }
         public AetheriaRuntimeDaemonFrameDocument Frame { get; }
-        public AetheriaRuntimeDaemonSoaViewDocument? SoaView { get; }
+        public AetheriaRuntimeDaemonSoaFrame? SoaFrame { get; }
+        public AetheriaRuntimeDaemonSoaViewDocument? SoaView => SoaFrame?.View;
         public AetheriaRuntimeDaemonProviderAdvertisementDocument? ProviderAdvertisement { get; }
         public AetheriaRuntimeDaemonHealthDocument? Health { get; }
         public AetheriaRuntimeDaemonCommandBoundaryDocument? CommandBoundary { get; }
@@ -252,7 +254,9 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeDaemonTickOptions options,
             int observedCommandCount)
         {
-            var soaView = AetheriaRuntimeDaemonSoaFramePublisher.BuildCurrentZoneEntities(stateFilePath, frame);
+            var soaPublisher = options.SoaFramePublisher ??
+                throw new InvalidOperationException("The daemon-lifetime Aetheria SoA publisher is required.");
+            var soaFrame = soaPublisher.BuildCurrentZoneEntities(frame);
             var commandBoundary = AetheriaRuntimeDaemonCommandBoundaryDocument.Create(options.DaemonId);
             var providerAdvertisement = AetheriaRuntimeDaemonProviderAdvertisementDocument.Create(
                 stateFilePath,
@@ -305,7 +309,7 @@ namespace GameCult.Aetheria.State.Verse
                 operationResult.Run,
                 operationResult,
                 frame,
-                soaView,
+                soaFrame,
                 providerAdvertisement,
                 health,
                 commandBoundary,

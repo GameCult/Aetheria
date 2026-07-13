@@ -11495,6 +11495,7 @@ static void RequireDaemonVersePublication(string root)
     var daemonTickRunnerPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonTickRunner.cs");
     var daemonSoaDocumentsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonSoaDocuments.cs");
     var daemonSoaFramePublisherPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonSoaFramePublisher.cs");
+    var eveSoaProjectionPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeEveEntitySoaProjection.cs");
     var assetDocumentsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeAssetDocuments.cs");
     var runtimeAssetsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeAssets.cs");
     var runtimeGameDocumentsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeGameDocuments.cs");
@@ -11528,6 +11529,7 @@ static void RequireDaemonVersePublication(string root)
         daemonTickRunnerPath,
         daemonSoaDocumentsPath,
         daemonSoaFramePublisherPath,
+        eveSoaProjectionPath,
         assetDocumentsPath,
         runtimeAssetsPath,
         runtimeGameDocumentsPath,
@@ -11569,6 +11571,7 @@ static void RequireDaemonVersePublication(string root)
     var daemonTickRunner = File.ReadAllText(daemonTickRunnerPath);
     var daemonSoaDocuments = File.ReadAllText(daemonSoaDocumentsPath);
     var daemonSoaFramePublisher = File.ReadAllText(daemonSoaFramePublisherPath);
+    var eveSoaProjection = File.ReadAllText(eveSoaProjectionPath);
     var assetDocuments = File.ReadAllText(assetDocumentsPath);
     var runtimeAssets = File.ReadAllText(runtimeAssetsPath);
     var runtimeGameDocuments = File.ReadAllText(runtimeGameDocumentsPath);
@@ -11661,10 +11664,13 @@ static void RequireDaemonVersePublication(string root)
 
     var requiredSoaFramePublisherSymbols = new[]
     {
-        "public static class AetheriaRuntimeDaemonSoaFramePublisher",
+        "public sealed class AetheriaRuntimeDaemonSoaFramePublisher : IDisposable",
         "BuildCurrentZoneEntities(",
-        "AetheriaRuntimeDaemonSoaBackends.MemoryMappedFile",
-        "MemoryMappedFile.CreateOrOpen(",
+        "new CultMeshFrameBodyPublisher(",
+        "new CultMeshNetworkBodyPublisher(",
+        "CultMeshBodyPublicationValidator.Validate(publication, BodyId)",
+        "view.Buffers[0].BufferId, publication.BodyId",
+        "view.Columns.Any(column => !string.Equals(column.BufferId, publication.BodyId",
         "ObserverWritable = false",
         "AetheriaRuntimeDaemonSoaColumnKinds.EntityIndex",
         "AetheriaRuntimeDaemonSoaColumnKinds.Position",
@@ -11681,6 +11687,45 @@ static void RequireDaemonVersePublication(string root)
         throw new InvalidOperationException(
             "Daemon SoA frame publisher no longer turns authoritative frames into observer-readable direct-memory slabs: " +
             string.Join(", ", missingSoaFramePublisherSymbols));
+    }
+    var forbiddenSoaPublisherSymbols = new[]
+    {
+        "MemoryMappedFile",
+        "RetainedMappedBuffer",
+        "CreateLocation("
+    };
+    var forbiddenSoaPublisherHits = forbiddenSoaPublisherSymbols
+        .Where(symbol => daemonSoaFramePublisher.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (forbiddenSoaPublisherHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Aetheria still owns SoA mapping location or retention instead of CultMesh: " +
+            string.Join(", ", forbiddenSoaPublisherHits));
+    }
+    var forbiddenProjectionSymbols = new[]
+    {
+        "CultMeshBodyDescriptor",
+        "TransportKind",
+        "CapabilityToken",
+        "Backend =",
+        "Location =",
+        "StableEpoch("
+    };
+    var forbiddenProjectionHits = forbiddenProjectionSymbols
+        .Where(symbol => eveSoaProjection.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (forbiddenProjectionHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Eve SoA layout projection still owns transport material or producer epoch: " +
+            string.Join(", ", forbiddenProjectionHits));
+    }
+    if (!daemonHostProgram.Contains("MutableDocument<CultMeshBodyPublicationDocument>(soaPublication.Body.RecordKey)", StringComparison.Ordinal) ||
+        daemonHostProgram.IndexOf("MutableDocument<CultMeshBodyPublicationDocument>(soaPublication.Body.RecordKey)", StringComparison.Ordinal) >
+        daemonHostProgram.IndexOf("MutableDocument<EveEntitySoaViewDocument>(AetheriaRuntimeVerseRecordKeys.EveEntitySoaViewLatest)", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException("CultMesh body publication must precede the Eve entity SoA layout record.");
     }
     if (File.Exists(legacyProviderAdvertisementPath))
     {
@@ -12027,7 +12072,7 @@ static void RequireDaemonVersePublication(string root)
         "CultMeshAddress",
         "BuildPublications",
         "AetheriaRuntimeDaemonCommandBoundaryDocument.Create",
-        "AetheriaRuntimeDaemonSoaFramePublisher.BuildCurrentZoneEntities(stateFilePath, frame)",
+        "soaPublisher.BuildCurrentZoneEntities(frame)",
         "AetheriaRuntimeDaemonProviderAdvertisementDocument.Create",
         "AetheriaRuntimeStarbridgeDocuments.SessionSummary(",
         "StarbridgeScenario",
