@@ -4,6 +4,13 @@ Baselines: RTS `d12d7c5c^`; ARPG `origin/master` at `ab2c2944`.
 
 ## Docking
 
+While docked, a pilot shares the dock parent's sensor-derived contact set. This
+is not a special station-quality multiplier: stations can spend their greater
+size, mass, power, cooling, and equipment capacity on sensor apertures and
+support systems that ships cannot economically carry. The daemon unions the
+ship and dock-parent contact sets; Eve receives only the resulting authoritative
+visibility projection.
+
 Contextual interact first considers a nearby wormhole, then docking. Docking is
 proximity-based, requires the ship to be unparented, iterates nearby entities,
 and uses the first bay accepting `TryDock`. Success changes zone/parent

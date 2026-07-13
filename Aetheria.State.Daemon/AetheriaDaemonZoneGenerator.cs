@@ -215,13 +215,13 @@ internal static class AetheriaDaemonZoneGenerator
 
         var entities = new[]
         {
-            Entity(loadouts, availabilityFactions, "Anchor Station", "station", -170, -80, 0, 0, "player", 760, keys[6], [keys[1], keys[2], keys[3], keys[4], keys[6], keys[7], keys[11]], ["repair-parts", "reactor-fuel", "drone-core"]),
+            Entity(loadouts, availabilityFactions, "Anchor Station", "station", -50, -30, 0, 0, "player", 760, keys[6], [keys[1], keys[2], keys[3], keys[4], keys[6], keys[7], keys[11]], ["repair-parts", "reactor-fuel", "drone-core"]),
             Entity(loadouts, availabilityFactions, "Vanguard One", "ship", -40, -30, 10, 4, "player", 540, keys[6], [keys[0], keys[2], keys[4], keys[6], keys[7]], ["coilgun-ammo", "field-rations"]),
             Entity(loadouts, availabilityFactions, "Wing Two", "ship", 145, 125, -5, 7, "player", 450, keys[6], [keys[0], keys[1], keys[6], keys[8]], ["sensor-buoy", "shield-cell"]),
             Entity(loadouts, availabilityFactions, "Torch Three", "ship", -235, 210, 8, -4, "player", 500, keys[7], [keys[0], keys[1], keys[7]], ["micro-missile", "coolant-pack"]),
             Entity(loadouts, availabilityFactions, "Foundry Tug", "ship", 330, -155, -2, 3, "player", 390, keys[6], [keys[0], keys[1], keys[6], keys[10]], ["ore-canister", "field-rations"]),
             Entity(loadouts, availabilityFactions, "Derelict Relay", "station", -390, 270, 0, 0, "neutral", 160, "", [keys[0], keys[3]], ["ancient-transponder"]),
-            Entity(loadouts, availabilityFactions, "Ash Raider", "ship", 100, -30, -5, -2, "raider", 320, "", [keys[0], keys[1], keys[2], keys[4]], ["scrap-metal", "stolen-capacitor"]),
+            Entity(loadouts, availabilityFactions, "Ash Raider", "ship", 20, -30, -5, -2, "raider", 320, "", [keys[0], keys[1], keys[2], keys[4]], ["scrap-metal", "stolen-capacitor"]),
             Entity(loadouts, availabilityFactions, "Cinder Knife", "ship", 585, -115, -7, 1, "raider", 280, "", [keys[0], keys[3]], ["volatile-fuel"]),
             Entity(loadouts, availabilityFactions, "Blackwake", "ship", 690, 300, -4, -3, "raider", 230, "", [keys[2]], ["ore-cache", "burned-relay-core"]),
             Entity(loadouts, availabilityFactions, "Vesper Sloop", "ship", 960, 620, -3, -5, "raider", 250, "", [keys[4]], ["stolen-map-fragment"]),

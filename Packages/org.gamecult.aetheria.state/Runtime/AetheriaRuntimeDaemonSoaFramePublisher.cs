@@ -48,11 +48,18 @@ namespace GameCult.Aetheria.State.Verse
                 ? (zone?.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
                     .FirstOrDefault(entity => entity != null && entity.EntityIndex == controlledEntityIndex)
                 : null;
-            var visibleEntityIndices = (controlled?.Contacts ?? Array.Empty<AetheriaRuntimeEntityContactCommit>())
+            var dockParent = (zone?.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
+                .FirstOrDefault(entity => entity != null && controlled != null &&
+                    (entity.DockingBayAssignments ?? Array.Empty<int>()).Contains(controlled.EntityIndex));
+            var visibleContacts = (controlled?.Contacts ?? Array.Empty<AetheriaRuntimeEntityContactCommit>())
+                .Concat(dockParent?.Contacts ?? Array.Empty<AetheriaRuntimeEntityContactCommit>());
+            var visibleEntityIndices = visibleContacts
                 .Where(contact => contact != null && contact.Visible)
                 .Select(contact => contact.TargetEntityIndex)
                 .Append(controlled?.EntityIndex ?? -1)
                 .ToHashSet();
+            if (dockParent != null)
+                visibleEntityIndices.Add(dockParent.EntityIndex);
             var entities = (zone?.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
                 .Where(entity => entity != null && visibleEntityIndices.Contains(entity.EntityIndex))
                 .OrderBy(entity => entity.EntityIndex)

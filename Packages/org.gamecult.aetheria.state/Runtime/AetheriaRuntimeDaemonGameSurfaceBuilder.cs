@@ -573,6 +573,12 @@ namespace GameCult.Aetheria.State.Verse
             run ??= new AetheriaRuntimeRunCheckpointCommit();
             zone ??= new AetheriaRuntimeZoneSnapshotCommit();
             var playerEntityId = PlayableWorldEntityId(run, zone, currentEntityKey);
+            var playerEntityIndex = TryParseEntityIndex(playerEntityId);
+            var dockParent = FindDockParent(zone, playerEntityIndex);
+            var isDocked = dockParent != null;
+            var cameraTargetEntityId = isDocked
+                ? run.EntityRecordKey(zone.ZoneIndex, dockParent!.EntityIndex)
+                : playerEntityId;
             var props = new Dictionary<string, string>(StringComparer.Ordinal)
             {
                 ["label"] = string.IsNullOrWhiteSpace(zone.Name) ? "Aetheria World" : zone.Name,
@@ -587,6 +593,10 @@ namespace GameCult.Aetheria.State.Verse
                 ["cameraRig"] = "arpg.orbital-follow.v1",
                 ["viewId"] = "pilot",
                 ["playerEntityId"] = playerEntityId,
+                ["cameraTargetEntityId"] = cameraTargetEntityId,
+                ["subjectVisible"] = isDocked ? "false" : "true",
+                ["movementEnabled"] = isDocked ? "false" : "true",
+                ["presentationMode"] = isDocked ? "docked" : "world",
                 ["movementCommand"] = CommandName(AetheriaRuntimeDaemonCommandKinds.SetMoveVector),
                 ["focusCommand"] = CommandName(AetheriaRuntimeDaemonCommandKinds.TargetNearest),
                 ["targetCommand"] = CommandName(AetheriaRuntimeDaemonCommandKinds.SetTarget),
@@ -1139,6 +1149,18 @@ namespace GameCult.Aetheria.State.Verse
                 .Any(entity => entity != null &&
                     entity.EntityIndex == entityIndex &&
                     IsControllablePlayerEntity(entity));
+        }
+
+        private static AetheriaRuntimeEntitySnapshotCommit? FindDockParent(
+            AetheriaRuntimeZoneSnapshotCommit zone,
+            int childEntityIndex)
+        {
+            if (childEntityIndex < 0)
+                return null;
+
+            return (zone?.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
+                .FirstOrDefault(entity => entity != null &&
+                    (entity.DockingBayAssignments ?? Array.Empty<int>()).Contains(childEntityIndex));
         }
 
         private static bool IsControllablePlayerEntity(AetheriaRuntimeEntitySnapshotCommit entity)
