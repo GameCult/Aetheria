@@ -1246,6 +1246,8 @@ static void RequireDaemonPlayableRunGenerationAuthority(string root)
         "Math.Pow(item.Price, _priceExponent)",
         "Distance(_zoneIndex, _homeZones[item.ManufacturerKey])",
         "FitsHardpoint(candidate, hardpoint)",
+        "PickHardpoint(availabilityFactionKey, hardpoint",
+        "var largestFootprint = candidates.Max(item => item.OccupiedCells)",
         "HasBehavior(candidate, controllerKind)",
         "for (var draw = 0; draw < 16 && pool.Count > 0; draw++)",
         "FindFit(interiorCells, width, height, item, occupied)",
@@ -1271,7 +1273,9 @@ static void RequireDaemonPlayableRunGenerationAuthority(string root)
         "Assets.Scripts.ServerShared",
         "ServerShared.LoadoutGenerator",
         "ManufacturerScore(",
-        "FallbackHull("
+        "FallbackHull(",
+        "sensorArrayCount",
+        "item.OccupiedCells != hardpoint.OccupiedCells"
     };
     var survivingDaemonSymbols = forbiddenDaemonSymbols
         .Where(symbol => daemonText.Contains(symbol, StringComparison.Ordinal))
@@ -1288,6 +1292,12 @@ static void RequireDaemonPlayableRunGenerationAuthority(string root)
     {
         throw new InvalidOperationException(
             "Legacy Unity LoadoutGenerator must not carry commented constructor scars; Git history owns removed APIs.");
+    }
+
+    if (sharedLoadoutGenerator.Contains("item.OccupiedCells == hardpoint.OccupiedCells", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Hardpoint fit is same-type geometric containment; smaller equipment remains legal in larger mounts.");
     }
 }
 
@@ -12845,6 +12855,9 @@ static void RequireCatalogSurfaceUsesManagedRuntimeCatalog(string root)
         "node.MutableDocument<AetheriaNameFile>(AetheriaCatalogKeys.NameFileFromLegacyId(nameFile.LegacyId))",
         "node.MutableDocument<AetheriaTradeValuePolicy>(AetheriaStateNode.TradeValuePolicyKey)",
         "AetheriaRuntimeStateMapper.ToTradeValuePolicy(",
+        "TryReadRectangularShape(columns, out var rectangularShape)",
+        "ProjectStationSensorMount(ProjectDeployableWeapon(entry.ItemDefinition!))",
+        "--merge-station-sensor",
         "await node.CatalogSurface().LatestAsync().ConfigureAwait(false);"
     };
     var missingImportSymbols = requiredImportSymbols

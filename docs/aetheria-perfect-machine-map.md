@@ -287,7 +287,12 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   `Sensor` behavior sensitivity. Arrays combine by root-sum-square, so larger
   hulls can buy reach by devoting real equipment volume, mass, power, cooling,
   and computation to sensing. Entity kind is not an input. Cargo is not
-  installed equipment. Contact refresh consumes this derived reach but does
+  installed equipment. Hull-authored `Sensors` hardpoints own the physical
+  installation envelope: a smaller same-type array may occupy a larger mount,
+  while generated loadouts choose the largest compatible footprint before
+  applying faction, distance, and price weighting. Station-scale reach emerges
+  from station-scale hardpoints and gear rather than a station multiplier or
+  sensor-count branch. Contact refresh consumes this derived reach but does
   not write `Visibility`; emitted signature remains owned by thermal,
   propulsion, weapons, reflectors, explicit visibility sources, and pings.
 - The daemon observation query owns docked sensor sharing. A docked controlled

@@ -219,7 +219,6 @@ public class LoadoutGenerator
         return item != null &&
                hardpoint != null &&
                string.Equals(item.HardpointType, hardpoint.Type, StringComparison.Ordinal) &&
-               item.OccupiedCells == hardpoint.OccupiedCells &&
                FitsWithin(item, ToShape(hardpoint), GetRotation(hardpoint));
     }
 

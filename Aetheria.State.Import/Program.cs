@@ -41,7 +41,7 @@ var nameFileEntries = Directory.Exists(nameFilesRoot)
     : [];
 var itemDefinitions = entries
     .Where(entry => entry.ItemDefinition != null)
-    .Select(entry => ProjectDeployableWeapon(entry.ItemDefinition!))
+    .Select(entry => ProjectStationSensorMount(ProjectDeployableWeapon(entry.ItemDefinition!)))
     .ToArray();
 var corporations = entries
     .Where(entry => entry.Corporation != null)
@@ -94,6 +94,48 @@ static AetheriaItemDefinition ProjectDeployableWeapon(AetheriaItemDefinition ite
     return item;
 }
 
+static AetheriaItemDefinition ProjectStationSensorMount(AetheriaItemDefinition item)
+{
+    const string stationHullLegacyId = "82efc0a5-1ba5-4ff3-a281-b2e6e247521d";
+    if (!string.Equals(item.LegacyId, stationHullLegacyId, StringComparison.OrdinalIgnoreCase) ||
+        (item.Hardpoints ?? []).Any(hardpoint => string.Equals(hardpoint.Type, "Sensors", StringComparison.Ordinal)))
+    {
+        return item;
+    }
+
+    const int positionX = 5;
+    const int positionY = 1;
+    var mountCells = new[]
+    {
+        new AetheriaShapeCell { X = 0, Y = 0 },
+        new AetheriaShapeCell { X = 1, Y = 0 },
+        new AetheriaShapeCell { X = 0, Y = 1 },
+        new AetheriaShapeCell { X = 1, Y = 1 }
+    };
+    var hullCells = (item.ShapeCells ?? [])
+        .Select(cell => (cell.X, cell.Y))
+        .ToHashSet();
+    if (mountCells.Any(cell => !hullCells.Contains((positionX + cell.X, positionY + cell.Y))))
+    {
+        throw new InvalidDataException("Recovered station sensor mount does not fit the decoded station hull shape.");
+    }
+
+    item.Hardpoints = (item.Hardpoints ?? [])
+        .Append(new AetheriaItemHardpoint
+        {
+            Type = "Sensors",
+            PositionX = positionX,
+            PositionY = positionY,
+            ShapeWidth = 2,
+            ShapeHeight = 2,
+            OccupiedCells = 4,
+            ShapeCells = mountCells,
+            Rotation = "None"
+        })
+        .ToArray();
+    return item;
+}
+
 static bool IsMineItem(AetheriaItemDefinition item)
 {
     var hasMineEffect = (item.BehaviorPayloads ?? []).Any(behavior =>
@@ -141,6 +183,28 @@ if (args.Any(argument => string.Equals(argument, "--merge-mine", StringCompariso
         throw new InvalidDataException("Mine Launcher merge did not become visible through the runtime catalog.");
     Console.WriteLine($"Merged Mine Launcher into typed state: {statePath}");
     Console.WriteLine($"Item: {mine.ItemKey}");
+    return;
+}
+
+if (args.Any(argument => string.Equals(argument, "--merge-station-sensor", StringComparison.Ordinal)))
+{
+    const string stationHullLegacyId = "82efc0a5-1ba5-4ff3-a281-b2e6e247521d";
+    var stationHull = itemDefinitions.Single(item =>
+        string.Equals(item.LegacyId, stationHullLegacyId, StringComparison.OrdinalIgnoreCase));
+    await using var mergeNode = await AetheriaStateNode.OpenAsync(statePath, "aetheria-station-sensor-catalog-merge");
+    await mergeNode.MutableDocument<AetheriaItemDefinition>(AetheriaCatalogKeys.ItemDefinitionFromLegacyId(stationHull.LegacyId))
+        .ReplaceAsync(stationHull);
+    await mergeNode.FlushAsync();
+    var merged = await mergeNode.RuntimeCatalog().LatestAsync().ConfigureAwait(false);
+    var mergedHull = merged.FindItem(stationHull.ItemKey);
+    if (mergedHull == null || !(mergedHull.Hardpoints ?? []).Any(hardpoint =>
+            string.Equals(hardpoint.Type, "Sensors", StringComparison.Ordinal) &&
+            hardpoint.OccupiedCells == 4))
+    {
+        throw new InvalidDataException("Station sensor hardpoint merge did not become visible through the runtime catalog.");
+    }
+    Console.WriteLine($"Merged station sensor hardpoint into typed state: {statePath}");
+    Console.WriteLine($"Hull: {stationHull.ItemKey}");
     return;
 }
 
@@ -1193,6 +1257,11 @@ internal static class LegacyCatalogReader
             return ShapeFacts.Empty;
         }
 
+        if (TryReadRectangularShape(columns, out var rectangularShape))
+        {
+            return rectangularShape;
+        }
+
         var width = columns.Length;
         var height = 0;
         var cellsByRow = new List<AetheriaShapeCell>();
@@ -1230,6 +1299,39 @@ internal static class LegacyCatalogReader
                 .OrderBy(cell => cell.Y)
                 .ThenBy(cell => cell.X)
                 .ToArray());
+    }
+
+    private static bool TryReadRectangularShape(object?[] envelope, out ShapeFacts shape)
+    {
+        shape = ShapeFacts.Empty;
+        if (envelope.Length != 3 ||
+            envelope[2] is not Array flattened)
+        {
+            return false;
+        }
+
+        var width = ReadIntValue(envelope[0]);
+        var height = ReadIntValue(envelope[1]);
+        if (width <= 0 || height <= 0 || flattened.Length != width * height)
+        {
+            return false;
+        }
+
+        var cells = new List<AetheriaShapeCell>();
+        for (var x = 0; x < width; x++)
+        for (var y = 0; y < height; y++)
+        {
+            if (flattened.GetValue(x * height + y) is true)
+            {
+                cells.Add(new AetheriaShapeCell { X = x, Y = y });
+            }
+        }
+
+        shape = new ShapeFacts(width, height, cells
+            .OrderBy(cell => cell.Y)
+            .ThenBy(cell => cell.X)
+            .ToArray());
+        return true;
     }
 
     private static object? UnwrapShapeMatrix(object? value)

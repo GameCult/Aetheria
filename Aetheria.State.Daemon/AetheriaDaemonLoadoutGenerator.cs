@@ -57,7 +57,7 @@ public sealed class AetheriaDaemonLoadoutGenerator
                 ? string.Equals(entityKind, "ship", StringComparison.OrdinalIgnoreCase) ? "Cockpit" : "TurretController"
                 : "";
             var item = previous.FirstOrDefault(candidate => FitsHardpoint(candidate, hardpoint));
-            item ??= Pick(availabilityFactionKey, 2, candidate =>
+            item ??= PickHardpoint(availabilityFactionKey, hardpoint, candidate =>
                 IsGear(candidate) && FitsHardpoint(candidate, hardpoint) &&
                 (controllerKind.Length == 0 || HasBehavior(candidate, controllerKind)));
             if (item == null)
@@ -82,10 +82,6 @@ public sealed class AetheriaDaemonLoadoutGenerator
 
         var cargo = PackCargo(cargoBay, availabilityFactionKey, scenarioCargo,
             string.Equals(entityKind, "station", StringComparison.OrdinalIgnoreCase));
-        var sensorArrayCount = string.Equals(entityKind, "station", StringComparison.OrdinalIgnoreCase) ? 2 : 1;
-        for (var sensorIndex = 0; sensorIndex < sensorArrayCount; sensorIndex++)
-            TryAddFreeSpaceItem(hull, availabilityFactionKey, occupied, slots, 2, item =>
-                IsGear(item) && HasBehavior(item, "Sensor"));
         var selectedKeys = new[] { (Role: "hull", Key: hull.ItemKey) }
             .Concat(slots.Select(value => (Role: "equipment", Key: value.ItemKey)))
             .Concat(cargo.Select(value => (Role: "cargo", Key: value.Item.ItemKey)));
@@ -225,6 +221,22 @@ public sealed class AetheriaDaemonLoadoutGenerator
         return PickWeighted(Available(factionKey).Where(filter).ToArray(), sizeExponent, factionKey, item => item);
     }
 
+    private AetheriaRuntimeCatalogItem? PickHardpoint(
+        string factionKey,
+        AetheriaRuntimeHardpoint hardpoint,
+        Func<AetheriaRuntimeCatalogItem, bool> filter)
+    {
+        var candidates = Available(factionKey).Where(filter).ToArray();
+        if (candidates.Length == 0)
+            return null;
+        var largestFootprint = candidates.Max(item => item.OccupiedCells);
+        return PickWeighted(
+            candidates.Where(item => item.OccupiedCells == largestFootprint).ToArray(),
+            2,
+            factionKey,
+            item => item);
+    }
+
     private T PickWeighted<T>(
         IReadOnlyList<T> values,
         double sizeExponent,
@@ -292,8 +304,7 @@ public sealed class AetheriaDaemonLoadoutGenerator
 
     private static bool FitsHardpoint(AetheriaRuntimeCatalogItem item, AetheriaRuntimeHardpoint hardpoint)
     {
-        if (!string.Equals(item.HardpointType, hardpoint.Type, StringComparison.Ordinal) ||
-            item.OccupiedCells != hardpoint.OccupiedCells)
+        if (!string.Equals(item.HardpointType, hardpoint.Type, StringComparison.Ordinal))
             return false;
         var target = Cells(hardpoint.ShapeCells);
         return RotatedCells(item, ParseRotation(hardpoint.Rotation)).All(target.Contains);

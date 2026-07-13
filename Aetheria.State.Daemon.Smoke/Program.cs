@@ -3,11 +3,21 @@ using GameCult.Aetheria.State.Verse;
 using System.Globalization;
 
 var checks = new AetheriaDaemonYmirSmokeChecks();
-checks.Run();
-Console.WriteLine("Daemon Ymir physical payload smoke passed.");
+if (args.Contains("--loadout", StringComparer.Ordinal))
+{
+    checks.RunLoadout();
+    Console.WriteLine("Daemon loadout hardpoint smoke passed.");
+}
+else
+{
+    checks.Run();
+    Console.WriteLine("Daemon Ymir physical payload smoke passed.");
+}
 
 internal sealed class AetheriaDaemonYmirSmokeChecks
 {
+    public void RunLoadout() => DaemonLoadoutsRespectFactionAvailabilityAndHullRoles();
+
     public void Run()
     {
         YmirMovesProjectileAndReportsStableContact();
@@ -902,6 +912,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         var cells4 = Enumerable.Range(0, 4).SelectMany(y => Enumerable.Range(0, 4)
             .Select(x => new AetheriaRuntimeShapeCell(x, y))).ToArray();
         var one = new[] { new AetheriaRuntimeShapeCell(0, 0) };
+        var cells2 = Enumerable.Range(0, 2).SelectMany(y => Enumerable.Range(0, 2)
+            .Select(x => new AetheriaRuntimeShapeCell(x, y))).ToArray();
 
         AetheriaRuntimeCatalogItem Item(string key, string category, string manufacturer, int price,
             string hardpointType = "", params string[] behaviors)
@@ -921,7 +933,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         availableHull.Hardpoints =
         [
             new AetheriaRuntimeHardpoint("ControlModule", 0, 0, 1, 1, 1, one, "", "None", 0),
-            new AetheriaRuntimeHardpoint("Weapon", 1, 0, 1, 1, 1, one, "", "None", 0)
+            new AetheriaRuntimeHardpoint("Weapon", 1, 0, 1, 1, 1, one, "", "None", 0),
+            new AetheriaRuntimeHardpoint("Sensors", 2, 0, 1, 1, 1, one, "", "None", 0)
         ];
         var unavailableHull = Item("cheap-foreign-hull", AetheriaRuntimeItemCategories.Hull, "foreign", 1);
         unavailableHull.HardpointType = "Hull";
@@ -933,20 +946,22 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         stationHull.ShapeCells = cells4;
         stationHull.Hardpoints =
         [
-            new AetheriaRuntimeHardpoint("ControlModule", 0, 0, 1, 1, 1, one, "", "None", 0)
+            new AetheriaRuntimeHardpoint("ControlModule", 0, 0, 1, 1, 1, one, "", "None", 0),
+            new AetheriaRuntimeHardpoint("Sensors", 1, 1, 2, 2, 4, cells2, "", "None", 0)
         ];
         var cockpit = Item("cockpit", AetheriaRuntimeItemCategories.Gear, "forge", 20, "ControlModule", "Cockpit");
         var wrongController = Item("cheap-turret-controller", AetheriaRuntimeItemCategories.Gear, "forge", 1,
             "ControlModule", "TurretController");
         var weapon = Item("cannon", AetheriaRuntimeItemCategories.Weapon, "forge", 40, "Weapon", "LockWeapon");
+        var shipSensor = Item("ship-sensor", AetheriaRuntimeItemCategories.Gear, "forge", 15, "Sensors", "Sensor");
+        var stationSensor = Item("station-sensor", AetheriaRuntimeItemCategories.Gear, "forge", 80, "Sensors", "Sensor");
+        stationSensor.ShapeWidth = 2; stationSensor.ShapeHeight = 2;
+        stationSensor.OccupiedCells = 4; stationSensor.ShapeCells = cells2;
         var cargo = Item("cargo-bay", AetheriaRuntimeItemCategories.CargoBay, "forge", 30);
         cargo.HardpointType = "Internal";
-        cargo.InteriorShapeWidth = 2; cargo.InteriorShapeHeight = 2; cargo.InteriorOccupiedCells = 4;
-        cargo.InteriorShapeCells =
-        [
-            new AetheriaRuntimeShapeCell(0, 0), new AetheriaRuntimeShapeCell(1, 0),
-            new AetheriaRuntimeShapeCell(0, 1), new AetheriaRuntimeShapeCell(1, 1)
-        ];
+        cargo.InteriorShapeWidth = 3; cargo.InteriorShapeHeight = 3; cargo.InteriorOccupiedCells = 9;
+        cargo.InteriorShapeCells = Enumerable.Range(0, 3).SelectMany(y => Enumerable.Range(0, 3)
+            .Select(x => new AetheriaRuntimeShapeCell(x, y))).ToArray();
         var docking = Item("docking-bay", AetheriaRuntimeItemCategories.DockingBay, "forge", 35);
         docking.HardpointType = "Internal";
         var capacitor = Item("capacitor", AetheriaRuntimeItemCategories.Gear, "forge", 25, "", "Capacitor");
@@ -955,8 +970,13 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             [new AetheriaRuntimeCorporationAllegiance("forge", 1)]);
         var foreign = new AetheriaRuntimeCorporation("foreign", "Foreign", "X", "", "", "", 1, 2,
             [new AetheriaRuntimeCorporationAllegiance("foreign", 1), new AetheriaRuntimeCorporationAllegiance("forge", 0.5)]);
+        var reactor = Item("reactor", AetheriaRuntimeItemCategories.Gear, "forge", 25, "", "Reactor");
+        reactor.HardpointType = "Internal";
         var catalog = new AetheriaRuntimeCatalogSnapshot(
-            [availableHull, unavailableHull, stationHull, cockpit, wrongController, weapon, cargo, docking, capacitor],
+            [availableHull, unavailableHull, stationHull, cockpit, wrongController, weapon, shipSensor, stationSensor, cargo, docking, capacitor, reactor],
+            [faction, foreign], Array.Empty<AetheriaRuntimeNameFile>());
+        var fallbackCatalog = new AetheriaRuntimeCatalogSnapshot(
+            [availableHull, unavailableHull, stationHull, cockpit, wrongController, weapon, shipSensor, cargo, docking, capacitor, reactor],
             [faction, foreign], Array.Empty<AetheriaRuntimeNameFile>());
         var homes = new Dictionary<string, int> { ["forge"] = 0, ["foreign"] = 1 };
         var adjacency = new Dictionary<int, IReadOnlyList<int>> { [0] = [1], [1] = [0] };
@@ -964,6 +984,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         var first = new AetheriaDaemonLoadoutGenerator(catalog, 42, 0, homes, adjacency).Build("ship", "forge", []);
         var second = new AetheriaDaemonLoadoutGenerator(catalog, 42, 0, homes, adjacency).Build("ship", "forge", []);
         var station = new AetheriaDaemonLoadoutGenerator(catalog, 84, 0, homes, adjacency).Build("station", "forge", []);
+        var fallbackStation = new AetheriaDaemonLoadoutGenerator(fallbackCatalog, 84, 0, homes, adjacency)
+            .Build("station", "forge", []);
         var uninterruptedForge = new AetheriaDaemonLoadoutGenerator(catalog, 101, 0, homes, adjacency);
         var interleavedForge = new AetheriaDaemonLoadoutGenerator(catalog, 101, 0, homes, adjacency);
         var foreignStream = new AetheriaDaemonLoadoutGenerator(catalog, 202, 1, homes, adjacency);
@@ -983,8 +1005,10 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             "ship control hardpoints must require the cockpit role even when the wrong controller is cheaper");
         Require(first.Equipment.Any(value => value.ItemKey == "cannon") &&
                 first.Equipment.Any(value => value.ItemKey == "cargo-bay") &&
-                first.Equipment.Any(value => value.ItemKey == "capacitor"),
-            "generated ships must fit hardpoint equipment, a cargo bay, and a capacitor");
+                first.Equipment.Any(value => value.ItemKey == "capacitor") &&
+                first.Equipment.Any(value => value.ItemKey == "ship-sensor") &&
+                first.Equipment.All(value => value.ItemKey != "station-sensor"),
+            "generated ships must fit hardpoint equipment and reject station-sized sensor gear");
         Require(first.HullItemKey == second.HullItemKey &&
                 first.Equipment.Select(value => value.ItemKey).SequenceEqual(second.Equipment.Select(value => value.ItemKey)),
             "same seed, map, faction and catalog must produce the same loadout");
@@ -996,10 +1020,15 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         Require(station.Equipment.Any(value => value.ItemKey == "docking-bay") &&
                 station.Equipment.Any(value => value.ItemKey == "cargo-bay") &&
                 station.Equipment.Any(value => value.ItemKey == "capacitor") &&
-                station.Equipment.Any(value => value.ItemKey == "cheap-turret-controller"),
-            "stations must fit docking, cargo, capacitor, and turret-controller roles before inventory generation");
-        Require(station.Cargo.Length == 4 && station.Cargo.All(value => value.Item.ItemKey != "cheap-foreign-hull"),
-            "station inventory draws must be packed to cargo capacity and exclude unavailable manufacturers");
+                station.Equipment.Any(value => value.ItemKey == "cheap-turret-controller") &&
+                station.Equipment.Any(value => value.ItemKey == "station-sensor") &&
+                station.Equipment.All(value => value.ItemKey != "ship-sensor"),
+            "station generation must fill a large sensor hardpoint with the largest available compatible array");
+        Require(fallbackStation.Equipment.Any(value => value.ItemKey == "ship-sensor"),
+            "a smaller sensor must remain a valid fallback when it fits inside a larger same-type hardpoint");
+        Require(station.Cargo.Length > 0 && station.Cargo.Length <= cargo.InteriorOccupiedCells &&
+                station.Cargo.All(value => value.Item.ItemKey != "cheap-foreign-hull"),
+            "station inventory draws must respect cargo capacity and exclude unavailable manufacturers");
         Require(LoadoutKeys(uninterruptedSequence[0]).SequenceEqual(LoadoutKeys(interleavedFirst)) &&
                 LoadoutKeys(uninterruptedSequence[1]).SequenceEqual(LoadoutKeys(interleavedSecond)),
             "generation in another faction stream must not perturb this faction's continuing loadout sequence");
