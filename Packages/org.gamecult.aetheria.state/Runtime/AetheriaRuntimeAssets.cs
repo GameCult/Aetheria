@@ -184,7 +184,11 @@ namespace GameCult.Aetheria.State.Verse
         {
             var asset = Prefab(key, resourcePath);
             asset.Metadata = asset.Metadata
-                .Concat(new[] { new KeyValuePair<string, string>("presentationRole", presentationRole ?? "") })
+                .Concat(new[]
+                {
+                    new KeyValuePair<string, string>("presentationRole", presentationRole ?? ""),
+                    new KeyValuePair<string, string>("bundleAssetPath", PresentationPrefabPath(key))
+                })
                 .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
             return new AetheriaRuntimeAssetManifestEntry
             {
@@ -208,7 +212,8 @@ namespace GameCult.Aetheria.State.Verse
                     MimeType = "application/vnd.unity.prefab",
                     Metadata = new Dictionary<string, string>(StringComparer.Ordinal)
                     {
-                        ["unityAssetPath"] = (unityAssetPath ?? "").Replace('\\', '/')
+                        ["unityAssetPath"] = (unityAssetPath ?? "").Replace('\\', '/'),
+                        ["bundleAssetPath"] = PresentationPrefabPath(key)
                     }
                 },
                 Tags = new[] { "world", "prefab", label }
@@ -337,6 +342,15 @@ namespace GameCult.Aetheria.State.Verse
         {
             var path = (key ?? "").Trim().Replace('.', '/').Replace('\\', '/').Trim('/');
             return $"cultmesh://aetheria/assets/{path}";
+        }
+
+        private static string PresentationPrefabPath(string key)
+        {
+            var fileName = string.Concat((key ?? "").Select(character =>
+                char.IsLetterOrDigit(character) || character == '.' || character == '-'
+                    ? character
+                    : '_'));
+            return $"Assets/Generated/Eve/ProviderPrefabs/{fileName}.prefab";
         }
 
         private static string NormalizeResourcePath(string path)

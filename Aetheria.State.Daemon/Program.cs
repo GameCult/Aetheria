@@ -2132,9 +2132,11 @@ static EveAssetCatalogDocument BuildCoreAssetCatalog(
              entry.Ref.Metadata.TryGetValue("resourcesPath", out _)))
         .Select(entry =>
         {
-            var unityAssetPath = entry.Ref.Metadata.TryGetValue("unityAssetPath", out var explicitPath)
-                ? explicitPath
-                : $"Assets/Resources/{entry.Ref.Metadata["resourcesPath"]}.prefab";
+            var unityAssetPath = entry.Ref.Metadata.TryGetValue("bundleAssetPath", out var bundleAssetPath)
+                ? bundleAssetPath
+                : entry.Ref.Metadata.TryGetValue("unityAssetPath", out var explicitPath)
+                    ? explicitPath
+                    : $"Assets/Resources/{entry.Ref.Metadata["resourcesPath"]}.prefab";
             return new EveAssetCatalogEntry(
                 entry.Ref.AssetKey,
                 entry.Ref.Kind,

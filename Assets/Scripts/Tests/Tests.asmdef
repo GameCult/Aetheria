@@ -48,7 +48,7 @@
     ],
     "autoReferenced": false,
     "defineConstraints": [
-        "UNITY_INCLUDE_TESTS"
+        "AETHERIA_FOSSIL_TESTS"
     ],
     "versionDefines": [],
     "noEngineReferences": false
