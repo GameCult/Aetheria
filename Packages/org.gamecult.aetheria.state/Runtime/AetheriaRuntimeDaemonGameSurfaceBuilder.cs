@@ -592,6 +592,7 @@ namespace GameCult.Aetheria.State.Verse
                 ["inputProfile"] = "arpg.pointer-keyboard.v1",
                 ["cameraRig"] = "arpg.orbital-follow.v1",
                 ["viewId"] = "pilot",
+                ["excludedRenderChannels"] = "map",
                 ["playerEntityId"] = playerEntityId,
                 ["cameraTargetEntityId"] = cameraTargetEntityId,
                 ["subjectVisible"] = isDocked ? "false" : "true",

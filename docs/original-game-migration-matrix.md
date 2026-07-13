@@ -32,7 +32,7 @@ validation proves contract shape, not wiring, exclusivity, lowering, or parity.
 | Trade | trade UI/economy | daemon | stock, quote, purchase commands | generic UI | daemon derives station, stock row, catalog item, current price, quantity, credits, target capacity, and hull-vs-cargo result; Eve advertises only currently available stock actions; generic Unity live witness receives an authoritative purchase receipt while paused | sell flow, quote expiry, contested stock, and full trade surface parity |
 | Action bar/input | input shell and rebinding UI | daemon advertises actions; client owns bindings | input capability and action descriptors | universal binding UI | contracts wired; cargo actions are catalog-filtered to consumables the current actor can actually activate, including suppression of active non-stackable items | dynamic equipment behavior validity and runtime action-bar quantity/fill proof |
 | Pilot camera | ARPG follow/dock cameras | Eve view semantics + runtime | camera rig and semantic view id | EveUnity camera rig | basic follow lowered; dock/view parity absent | authored framing and dock transition |
-| Render channels | Unity layers/culling masks | provider variant + runtime | semantic view id | native layer policy | specification work; incomplete uncommitted prototype | no map glyphs in pilot view |
+| Render channels | Unity layers/culling masks | provider surface policy + runtime asset variant | semantic channel exclusions | EveUnity native layer mapping | wired, exclusive, and lowered: the pilot surface excludes the semantic `map` channel; the Unity asset variant maps `map` to its authored native layer; EveUnity subtracts that layer from the configured camera mask; portable state contains no Unity layer or mask; package tests and the clean-client dependency verifier pass | live pilot capture proving no map glyphs while the map camera retains them |
 | Minimap/tactical map | `ZoneRenderer`, map cameras | daemon world facts | explicit map projections | Unity and Electron | facts fragmented; generic lowerers absent | same state in both runtimes |
 | Fields/fog/gravity | zone renderer and shaders | daemon/plugin semantics | Fields plugin documents | EveUnity fields lowerer | owner-exists; basic lowering; composition parity absent | visual parity captures |
 | HUD/schematic | ARPG HUD and `SchematicDisplay` | Eve composition from daemon facts | semantic status/components | EveUnity UI | reference | source-fact and timing matrix |
@@ -104,9 +104,11 @@ These are source-confirmed ownership failures, not feature backlog:
    expiry, projectile launch/impact, damage, and destruction now use a bounded
    deduplicated daemon ledger projected through Eve, but lock transitions,
    damage topology, thermal warnings, and docking effects still need event families.
-4. **View composition is implicit.** Provider prefabs contain pilot and map
-   subviews, but portable render channels, entity presentation graphs, effects,
-   attachment sockets, and map products are not yet first-class contracts.
+4. **View composition remains partial.** Pilot surfaces now exclude semantic
+   render channels and runtime asset variants map those channels to native
+   layers without leaking Unity masks into portable state. Entity presentation
+   graphs, attachment sockets, map products, and richer effect composition are
+   not yet first-class contracts.
 5. **The game loop has no single daemon owner.** Exploration, discovery,
    encounter, loot, docking, trade, refit, narrative, boss progression,
    completion, failure, and continue exist as pieces rather than one explicit
@@ -118,10 +120,11 @@ These are source-confirmed ownership failures, not feature backlog:
 7. **Live conformance has no complete owner.** Static provider packs can pass
    while daemon, runtime, or split-target dependencies are absent. The current
    Eve consumer smoke fails because its expected EveElectron proof is missing.
-8. **Normative native presentation has no implemented owner.** Render channels,
+8. **Normative native presentation is incomplete.** EveUnity owns semantic
+   render-channel lowering and immutable presented-entity generations. General
    presentation graphs, map products, attachment/effect lifecycles, material
-   profiles, and source-version diagnostics are assigned in specification but
-   lack complete Eve contracts and EveUnity lowerers.
+   profiles, and source-version diagnostics still lack complete Eve contracts
+   and generic runtime lowerers.
 9. **Original-game acceptance lacks an evidence ledger.** No current owner
     records fossil baseline, target state timeline, commands/receipts, rendered
     captures, and negative-writer checks as one scenario result.
@@ -145,9 +148,9 @@ These are source-confirmed ownership failures, not feature backlog:
     `ActionGameManager`, and `ZoneRenderer` remain reference and asset-authoring
     inputs in the original Unity project. They are absent from the canonical
     `Aetheria.Unity` client, whose verifier rejects Aetheria, ServerShared, and
-    gameplay assemblies. EveUnity still needs a read-only presented-entity
-    registry before richer camera, selection, and HUD adapters can avoid
-    rebuilding a parallel presentation index.
+    gameplay assemblies. EveUnity now publishes each committed SoA generation
+    through a read-only presented-entity registry; richer selection and HUD
+    adapters still need to consume it instead of rebuilding parallel indexes.
 11. **Remote provider asset delivery remains unproven.** The authoring build now
     derives deterministic presentation-only variants, strips missing and
     non-Eve scripts, verifies the saved prefabs and loaded AssetBundle, and the

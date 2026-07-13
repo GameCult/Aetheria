@@ -2150,7 +2150,7 @@ static EveAssetCatalogDocument BuildCoreAssetCatalog(
                     unityAssetPath,
                     new Dictionary<string, string>(StringComparer.Ordinal)
                     {
-                        ["view.pilot.excludeUnityLayers"] = "14"
+                        ["renderChannel.map.unityLayer"] = "14"
                     }))
                     .ToArray(),
                 new Dictionary<string, string>(StringComparer.Ordinal)
