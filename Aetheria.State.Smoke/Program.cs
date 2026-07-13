@@ -891,4 +891,39 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
     }
 }
 
+var capabilityRun = new AetheriaRuntimeRunCheckpointCommit
+{
+    RunId = "capability-smoke",
+    CurrentZoneIndex = 0,
+    CurrentEntityKey = AetheriaRuntimeRunCheckpointCommit.EntityRecordKey("capability-smoke", 0, 7),
+    Zones =
+    [
+        new AetheriaRuntimeZoneSnapshotCommit
+        {
+            ZoneIndex = 0,
+            Entities =
+            [
+                new AetheriaRuntimeEntitySnapshotCommit
+                {
+                    EntityIndex = 7,
+                    EntityId = AetheriaRuntimeRunCheckpointCommit.EntityRecordKey("capability-smoke", 0, 7),
+                    WeaponGroups = [new[] { 2 }]
+                }
+            ]
+        }
+    ]
+};
+var capability = AetheriaRuntimeInputCapabilityDocument.FromFrame(new AetheriaRuntimeDaemonFrameDocument
+{
+    FrameId = 12,
+    Run = capabilityRun
+}).ToEveDocument();
+var advertisedActionIds = capability.Actions.Select(action => action.ActionId).ToHashSet(StringComparer.Ordinal);
+if (!advertisedActionIds.Contains("weapon-group.0.fire") ||
+    capability.DefaultProfiles.SelectMany(profile => profile.Bindings)
+        .Any(binding => !advertisedActionIds.Contains(binding.ActionId)))
+{
+    throw new InvalidOperationException("Portable Eve input capability did not preserve weapon groups and valid default bindings.");
+}
+
 Console.WriteLine($"Aetheria typed state smoke passed: {statePath}");

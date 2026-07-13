@@ -75,6 +75,8 @@ public sealed class AetheriaDaemonLoadoutGenerator
         var cargoBay = AddFreeSpaceItem(hull, availabilityFactionKey, occupied, slots, 3, item =>
             string.Equals(item.Category, AetheriaRuntimeItemCategories.CargoBay, StringComparison.Ordinal));
         AddFreeSpaceItem(hull, availabilityFactionKey, occupied, slots, 2, item =>
+            IsGear(item) && HasBehavior(item, "Reactor"));
+        AddFreeSpaceItem(hull, availabilityFactionKey, occupied, slots, 2, item =>
             IsGear(item) && HasBehavior(item, "Capacitor"));
 
         var cargo = PackCargo(cargoBay, availabilityFactionKey, scenarioCargo,
@@ -90,7 +92,16 @@ public sealed class AetheriaDaemonLoadoutGenerator
             PriceExponent = _priceExponent,
             Selections = selectedKeys.Select(value => Selection(value.Role, value.Key, availabilityFactionKey)).ToArray()
         };
-        return new AetheriaDaemonLoadout(hull.ItemKey, slots.ToArray(), cargo, receipt);
+        var equipment = slots.ToArray();
+        var defaultWeaponGroup = equipment
+            .Select((slot, index) => (slot, index))
+            .Where(value => IsWeapon(_catalog.FindItem(value.slot.ItemKey)))
+            .Select(value => value.index)
+            .ToArray();
+        var weaponGroups = defaultWeaponGroup.Length == 0
+            ? Array.Empty<int[]>()
+            : new[] { defaultWeaponGroup };
+        return new AetheriaDaemonLoadout(hull.ItemKey, equipment, cargo, weaponGroups, receipt);
     }
 
     private AetheriaLoadoutGenerationSelection Selection(string role, string itemKey, string factionKey)
@@ -327,6 +338,12 @@ public sealed class AetheriaDaemonLoadoutGenerator
         string.Equals(item.Category, AetheriaRuntimeItemCategories.Gear, StringComparison.Ordinal) ||
         string.Equals(item.Category, AetheriaRuntimeItemCategories.Weapon, StringComparison.Ordinal);
 
+    private static bool IsWeapon(AetheriaRuntimeCatalogItem? item) =>
+        item != null &&
+        (string.Equals(item.Category, AetheriaRuntimeItemCategories.Weapon, StringComparison.Ordinal) ||
+         (item.BehaviorKinds ?? Array.Empty<string>()).Any(kind =>
+             kind.Contains("Weapon", StringComparison.Ordinal)));
+
     private static AetheriaEntityItemSlot Slot(int x, int y, string itemKey) => new()
     {
         Position = new AetheriaGridCoord { X = x, Y = y }, ItemKey = itemKey,
@@ -347,4 +364,5 @@ public sealed record AetheriaDaemonLoadout(
     string HullItemKey,
     AetheriaEntityItemSlot[] Equipment,
     AetheriaLoadoutItemSlot[] Cargo,
+    int[][] WeaponGroups,
     AetheriaLoadoutGenerationReceipt Receipt);

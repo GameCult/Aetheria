@@ -11,6 +11,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
     public void Run()
     {
         YmirMovesProjectileAndReportsStableContact();
+        InstantWeaponRequestSurvivesLockAcquisition();
         ConstantWeaponRunsOnDaemonThroughYmirBeamContact();
         ChargedWeaponCannotBypassChargeLifecycle();
         ChargedWeaponHoldRiskMalfunctionsDeterministically();
@@ -83,7 +84,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         var run = new AetheriaRuntimeRunCheckpointCommit
         {
             RunId = "constant-weapon-smoke", CurrentZoneIndex = 0,
-            CurrentEntityKey = "zone.0.entity.0", Zones = [zone]
+            CurrentEntityKey = AetheriaRuntimeRunCheckpointCommit.EntityRecordKey("constant-weapon-smoke", 0, 0),
+            Zones = [zone]
         };
         var payload = new AetheriaRuntimeBehaviorPayload(0, AetheriaRuntimeBehaviorKinds.ConstantWeapon, 0,
         [
@@ -139,10 +141,11 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             new AetheriaRuntimeDaemonFrameDocument { FrameId = 11, Run = run },
             new AetheriaRuntimeDaemonHealthDocument(),
             AetheriaRuntimeDaemonCommandBoundaryDocument.Create("daemon"));
-        Require(Flatten(surface.Surface.Root).Any(node => node.Kind == "weapon.state" &&
+        var weaponNodes = Flatten(surface.Surface.Root).Where(node => node.Kind == "weapon.state").ToArray();
+        Require(weaponNodes.Any(node =>
                 node.Props["behaviorKind"] == AetheriaRuntimeBehaviorKinds.ConstantWeapon &&
                 node.Props["itemKey"] == "test-beam" && node.Props["firing"] == "false"),
-            "Eve world entity must project recoverable generic ConstantWeapon state");
+            $"Eve world entity must project recoverable generic ConstantWeapon state; nodes={string.Join(";", weaponNodes.Select(node => string.Join(",", node.Props.Select(pair => $"{pair.Key}={pair.Value}"))))}");
         Require(Flatten(surface.Surface.Root).Any(node => node.Kind == "feedback.event" &&
                 node.Props["eventKind"] == "weapon.firing.started" && node.Props["itemKey"] == "test-beam"),
             "Eve feedback stream must project continuous weapon transition chronology");
@@ -232,6 +235,63 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         Require(Flatten(surface.Surface.Root).Any(node => node.Kind == "feedback.event" &&
                 node.Props["eventKind"] == "weapon.charge.committed"),
             "Eve feedback must expose charged solution commit chronology");
+    }
+
+    private static void InstantWeaponRequestSurvivesLockAcquisition()
+    {
+        var source = Entity(0, 0, "player");
+        source.DirectionX = 1;
+        source.VelocityX = 1;
+        source.TargetEntityIndex = 1;
+        source.Contacts = [new AetheriaRuntimeEntityContactCommit
+        {
+            TargetEntityIndex = 1, InfoGathered = 1, Hostile = true, Visible = true
+        }];
+        source.WeaponGroups = [new[] { 0 }];
+        source.Equipment = [new AetheriaRuntimeLoadoutItemSlotCommit
+        {
+            Item = new AetheriaRuntimeLoadoutItemCommit
+                { ItemKey = "test-instant", Quality = 1, Durability = 1, Enabled = true }
+        }];
+        var target = Entity(1, 80, "raider");
+        var zone = new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [source, target] };
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "instant-trigger-smoke", CurrentZoneIndex = 0,
+            CurrentEntityKey = "zone.0.entity.0", Zones = [zone]
+        };
+        var payload = new AetheriaRuntimeBehaviorPayload(0, AetheriaRuntimeBehaviorKinds.InstantWeapon, 0,
+        [
+            new AetheriaRuntimeBehaviorField(2, PerformanceStat(20)),
+            new AetheriaRuntimeBehaviorField(6, PerformanceStat(150)),
+            new AetheriaRuntimeBehaviorField(15, PerformanceStat(0)),
+            new AetheriaRuntimeBehaviorField(16, PerformanceStat(200)),
+            new AetheriaRuntimeBehaviorField(17, PerformanceStat(1)),
+            new AetheriaRuntimeBehaviorField(19, PerformanceStat(0.5)),
+            new AetheriaRuntimeBehaviorField(23, PerformanceStat(360)),
+            new AetheriaRuntimeBehaviorField(24, PerformanceStat(0))
+        ]);
+        var catalog = new AetheriaRuntimeCatalogSnapshot([CatalogItem("test-instant", payload)], [], []);
+        var fire = new AetheriaRuntimeDaemonIntentState();
+        fire.WeaponGroups.Add(new AetheriaRuntimeDaemonWeaponGroupIntent
+        {
+            ActorEntityKey = "zone.0.entity.0", WeaponGroup = 0, Fire = true, Active = true
+        });
+
+        AetheriaRuntimeDaemonSimulation.Step(run, fire, 0.1,
+            AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault, new AetheriaYmirPhysicalPayloadPhysics(),
+            new AetheriaYmirWorldPhysics(), catalog, 0, 0);
+        for (var frame = 1; frame < 12 && run.ShotReceipts.Count == 0; frame++)
+            AetheriaRuntimeDaemonSimulation.Step(run, new AetheriaRuntimeDaemonIntentState(), 0.1,
+                AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault, new AetheriaYmirPhysicalPayloadPhysics(),
+                new AetheriaYmirWorldPhysics(), catalog, frame, frame * 0.1);
+
+        Require(run.ShotReceipts.Count == 1 && run.ShotReceipts[0].SourceEntityIndex == source.EntityIndex,
+            $"one instant weapon request must remain pending until daemon lock acquisition commits its shot; " +
+            $"receipts={run.ShotReceipts.Count}, direction={source.DirectionX},{source.DirectionY}, contacts={string.Join(";", (source.Contacts ?? []).Select(value => $"{value.TargetEntityIndex}:{value.InfoGathered}"))}, states={string.Join(";", (source.WeaponStates ?? []).Select(value => $"{value.BehaviorKind}:pending={value.TriggerPending}:lock={value.LockProgress}:target={value.LockTargetEntityIndex}:burst={value.BurstRemaining}"))}");
+        var state = source.WeaponStates.Single(value => value.BehaviorKind == AetheriaRuntimeBehaviorKinds.InstantWeapon);
+        Require(!state.TriggerPending,
+            "instant weapon request must clear after the committed burst begins");
     }
 
     private static void DeployableWeaponRunsThroughYmirAndDetonatesOnDaemon()

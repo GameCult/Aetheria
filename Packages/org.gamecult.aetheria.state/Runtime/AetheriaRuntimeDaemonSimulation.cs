@@ -56,8 +56,6 @@ namespace GameCult.Aetheria.State.Verse
                 foreach (var movement in intents?.Movements ?? Enumerable.Empty<AetheriaRuntimeDaemonMovementIntent>())
                     ApplyMovementIntent(run, entities, movement, settings);
                 StepTractorPower(entities, deltaSeconds);
-                StepRaiderAi(entities);
-                StepTargetPursuit(entities, settings);
                 var worldStep = StepWorldPhysics(zone, entities, deltaSeconds, worldPhysics);
                 ResolvePickupContacts(run, zone, entities, worldStep, catalog, frameId);
                 StepCombat(run, zone, entities, intents, deltaSeconds, settings, physicalPayloadPhysics, catalog,
@@ -112,62 +110,6 @@ namespace GameCult.Aetheria.State.Verse
                 entity.TargetEntityIndex = -1;
             else
                 Face(entity, normalized.X, normalized.Y);
-        }
-
-        private static void StepRaiderAi(IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities)
-        {
-            foreach (var raider in entities.Where(entity => string.Equals(entity.FactionKey, "raider", StringComparison.OrdinalIgnoreCase)))
-            {
-                if (!IsAlive(raider))
-                    continue;
-
-                var target = entities
-                    .Where(IsPlayerOwned)
-                    .Where(IsAlive)
-                    .OrderBy(candidate => DistanceSq(raider, candidate))
-                    .FirstOrDefault();
-                if (target == null)
-                    continue;
-
-                raider.TargetEntityIndex = target.EntityIndex;
-            }
-        }
-
-        private static void StepTargetPursuit(
-            IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities,
-            AetheriaRuntimeDaemonSimulationSettings settings)
-        {
-            var byIndex = entities.ToDictionary(entity => entity.EntityIndex);
-            foreach (var entity in entities)
-            {
-                if (!IsAlive(entity) ||
-                    entity.TargetEntityIndex < 0 ||
-                    !byIndex.TryGetValue(entity.TargetEntityIndex, out var target) ||
-                    !IsAlive(target))
-                {
-                    continue;
-                }
-
-                var dx = target.PositionX - entity.PositionX;
-                var dy = target.PositionZ - entity.PositionZ;
-                var distance = Math.Sqrt(dx * dx + dy * dy);
-                if (distance <= settings.AttackRange * settings.AttackHoldRatio)
-                {
-                    entity.VelocityX *= 0.72;
-                    entity.VelocityY *= 0.72;
-                    Face(entity, dx, dy);
-                    continue;
-                }
-
-                if (string.Equals(entity.FactionKey, "raider", StringComparison.OrdinalIgnoreCase))
-                {
-                    var direction = Normalize(dx, dy);
-                    var speed = ResolveSpeed(entity, settings);
-                    entity.VelocityX = direction.X * speed;
-                    entity.VelocityY = direction.Y * speed;
-                    Face(entity, direction.X, direction.Y);
-                }
-            }
         }
 
         private static AetheriaRuntimeWorldStep StepWorldPhysics(
@@ -260,6 +202,8 @@ namespace GameCult.Aetheria.State.Verse
                 foreach (var weapon in weapons)
                 {
                     weapon.State.Firing = false;
+                    if (weaponGroup >= 0)
+                        weapon.State.TriggerPending = true;
                     if (weapon.State.Reloading)
                     {
                         weapon.State.ReloadProgress = Math.Max(0, weapon.State.ReloadProgress - deltaSeconds);
@@ -284,18 +228,21 @@ namespace GameCult.Aetheria.State.Verse
                     {
                         weapon.State.LockTargetEntityIndex = -1;
                         weapon.State.LockProgress = 0;
+                        weapon.State.TriggerPending = false;
                     }
                     continue;
                 }
 
-                if (IsPlayerOwned(attacker) && weaponGroup < 0)
-                    continue;
-
                 foreach (var weapon in weapons)
                 {
                     UpdateWeaponLock(attacker, target, weapon, deltaSeconds, settings);
-                    if (DistanceSq(attacker, target) > weapon.Range * weapon.Range ||
-                        weapon.State.LockProgress <= 0.99 ||
+                    if (DistanceSq(attacker, target) > weapon.Range * weapon.Range)
+                    {
+                        weapon.State.LastRefusalReason = "out-of-range";
+                        weapon.State.TriggerPending = false;
+                        continue;
+                    }
+                    if (weapon.State.LockProgress <= 0.99 ||
                         weapon.State.Reloading)
                         continue;
 
@@ -309,7 +256,11 @@ namespace GameCult.Aetheria.State.Verse
                             if (triggerResult == WeaponRoundResult.ReloadStarted)
                                 AppendWeaponEvent(run, zone, attacker, weapon, frameId, "weapon.reload.started");
                             PublishWeaponRoundResult(run, zone, attacker, weapon, frameId, triggerResult);
-                            if (triggerResult != WeaponRoundResult.Fired) continue;
+                            if (triggerResult != WeaponRoundResult.Fired)
+                            {
+                                weapon.State.TriggerPending = false;
+                                continue;
+                            }
                         }
                         weapon.State.BurstRemaining = weapon.BurstCount;
                         weapon.State.BurstInterval = weapon.BurstTime / weapon.BurstCount;
@@ -339,6 +290,7 @@ namespace GameCult.Aetheria.State.Verse
                         CommitShotResolution(run, zone, attacker, target, weapon, shotId, frameId, catalog, settings);
                         AppendShotCommittedEvent(run, zone, attacker, target, weapon, shotId, frameId);
                         weapon.State.Firing = true;
+                        weapon.State.TriggerPending = false;
                         AetheriaRuntimeThermalSimulation.AddHeatToEquipment(attacker, catalog,
                             weapon.State.OwnerIndex, weapon.Heat);
                         ApplyWeaponWear(attacker, weapon.State, 1);
@@ -1439,8 +1391,10 @@ namespace GameCult.Aetheria.State.Verse
             var authored = AetheriaRuntimeEquippedBehaviorQueries.Find(entity, catalog, AetheriaRuntimeBehaviorKinds.InstantWeapon)
                 .Where(behavior => !string.Equals(behavior.Payload.Kind, AetheriaRuntimeBehaviorKinds.ChargedWeapon, StringComparison.Ordinal))
                 .Where(behavior => !string.Equals(behavior.Payload.Kind, AetheriaRuntimeBehaviorKinds.DeployableWeapon, StringComparison.Ordinal))
-                .Where(behavior => equipmentIndices.Contains(behavior.EquipmentIndex))
                 .Select(behavior => ResolveAuthoredWeapon(entity, behavior, settings))
+                .Where(weapon => weaponGroup >= 0
+                    ? equipmentIndices.Contains(weapon.State.OwnerIndex)
+                    : weapon.State.TriggerPending || weapon.State.BurstRemaining > 0)
                 .ToArray();
             if (catalog != null)
                 return authored;

@@ -211,10 +211,10 @@ internal static class AetheriaDaemonZoneGenerator
             Entity(loadouts, availabilityFactions, "Torch Three", "ship", -235, 210, 8, -4, "player", 500, keys[7], [keys[0], keys[1], keys[7]], ["micro-missile", "coolant-pack"]),
             Entity(loadouts, availabilityFactions, "Foundry Tug", "ship", 330, -155, -2, 3, "player", 390, keys[6], [keys[0], keys[1], keys[6], keys[10]], ["ore-canister", "field-rations"]),
             Entity(loadouts, availabilityFactions, "Derelict Relay", "station", -390, 270, 0, 0, "neutral", 160, "", [keys[0], keys[3]], ["ancient-transponder"]),
-            Entity(loadouts, availabilityFactions, "Ash Raider", "ship", 455, 180, -5, -2, "raider", 320, keys[1], [keys[0], keys[1], keys[2], keys[4]], ["scrap-metal", "stolen-capacitor"]),
-            Entity(loadouts, availabilityFactions, "Cinder Knife", "ship", 585, -115, -7, 1, "raider", 280, keys[3], [keys[0], keys[3]], ["volatile-fuel"]),
-            Entity(loadouts, availabilityFactions, "Blackwake", "ship", 690, 300, -4, -3, "raider", 230, keys[2], [keys[2]], ["ore-cache", "burned-relay-core"]),
-            Entity(loadouts, availabilityFactions, "Vesper Sloop", "ship", 960, 620, -3, -5, "raider", 250, keys[4], [keys[4]], ["stolen-map-fragment"]),
+            Entity(loadouts, availabilityFactions, "Ash Raider", "ship", 100, -30, -5, -2, "raider", 320, "", [keys[0], keys[1], keys[2], keys[4]], ["scrap-metal", "stolen-capacitor"]),
+            Entity(loadouts, availabilityFactions, "Cinder Knife", "ship", 585, -115, -7, 1, "raider", 280, "", [keys[0], keys[3]], ["volatile-fuel"]),
+            Entity(loadouts, availabilityFactions, "Blackwake", "ship", 690, 300, -4, -3, "raider", 230, "", [keys[2]], ["ore-cache", "burned-relay-core"]),
+            Entity(loadouts, availabilityFactions, "Vesper Sloop", "ship", 960, 620, -3, -5, "raider", 250, "", [keys[4]], ["stolen-map-fragment"]),
             Entity(loadouts, availabilityFactions, "Survey Skiff", "ship", -610, -365, 3, 5, "neutral", 210, "", [keys[4], keys[5]], ["soil-sample", "deep-scan"]),
             Entity(loadouts, availabilityFactions, "Lagrange Beacon", "station", 105, 510, 0, 0, "neutral", 190, "", [keys[0], keys[1], keys[6]], ["navigation-key"])
         };
@@ -272,6 +272,9 @@ internal static class AetheriaDaemonZoneGenerator
                 StatGrid("heat", 0)
             ],
             Equipment = loadout.Equipment,
+            WeaponGroups = loadout.WeaponGroups
+                .Select(indices => new AetheriaWeaponGroupSnapshot { EquipmentIndices = indices })
+                .ToArray(),
             CargoContents =
             [
                 new AetheriaCargoBayLoadout

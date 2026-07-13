@@ -91,6 +91,12 @@ namespace GameCult.Aetheria.State.Verse
                         CommandButton("aetheria.daemon.game.commands.undock", "Undock", AetheriaRuntimeDaemonCommandKinds.Undock),
                         CommandButton("aetheria.daemon.game.commands.ping", "Sensor Ping", AetheriaRuntimeDaemonCommandKinds.SensorPing)))
             };
+            if (entity != null)
+                surfaceChildren.Add(Node(
+                    "aetheria.daemon.game.weapon-state",
+                    "state.group",
+                    Array.Empty<(string Key, string Value)>(),
+                    WeaponStateItems(entity, run, zone)));
 
             return new AetheriaRuntimeSurfaceDocument(
                 providerId: "aetheria.daemon",
@@ -765,6 +771,7 @@ namespace GameCult.Aetheria.State.Verse
                             ("behaviorKind", value.BehaviorKind),
                             ("itemKey", itemKey),
                             ("firing", value.Firing ? "true" : "false"),
+                            ("triggerPending", value.TriggerPending ? "true" : "false"),
                             ("ammo", value.Ammo.ToString(CultureInfo.InvariantCulture)),
                             ("ammoIntervalProgress", FormatNumber(value.AmmoIntervalProgress)),
                             ("burstRemaining", value.BurstRemaining.ToString(CultureInfo.InvariantCulture)),

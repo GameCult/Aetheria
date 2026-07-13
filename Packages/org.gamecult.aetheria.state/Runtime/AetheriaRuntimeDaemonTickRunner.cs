@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 
 #nullable enable
@@ -105,8 +106,17 @@ namespace GameCult.Aetheria.State.Verse
             options ??= new AetheriaRuntimeDaemonTickOptions();
             options.OperationContext ??= new AetheriaRuntimeDaemonOperationContext();
             options.OperationContext.Catalog = options.Catalog;
+            var trace = string.Equals(Environment.GetEnvironmentVariable("AETHERIA_TRACE_TICK_PHASES"), "1", StringComparison.Ordinal);
+            var phase = Stopwatch.StartNew();
+            void Trace(string name)
+            {
+                if (trace && phase.ElapsedMilliseconds >= 20)
+                    Console.WriteLine($"Aetheria simulation phase {name} took {phase.ElapsedMilliseconds}ms.");
+                phase.Restart();
+            }
             EnsureEntityIds(run);
             EnsureBehaviorStates(run, options.Catalog);
+            Trace("state-projection");
 
             var observedCommands = (options.ObservedCommands ?? Array.Empty<AetheriaRuntimeDaemonCommandDocument>())
                 .Where(command => command != null)
@@ -122,6 +132,7 @@ namespace GameCult.Aetheria.State.Verse
                 run,
                 commands,
                 options.OperationContext);
+            Trace("command-execution");
             var preRejectedCommandIds = (options.PreRejectedCommandIds ?? Array.Empty<string>())
                 .Where(commandId => !string.IsNullOrWhiteSpace(commandId))
                 .Distinct(StringComparer.Ordinal)
@@ -142,6 +153,7 @@ namespace GameCult.Aetheria.State.Verse
                 options.FrameId,
                 options.Catalog,
                 options.SimulationTimeSeconds);
+            Trace("agent-planning");
             if (agentCommands.Count > 0)
             {
                 var agentResult = AetheriaRuntimeDaemonOperations.Execute(
@@ -157,7 +169,7 @@ namespace GameCult.Aetheria.State.Verse
                     agentResult.Run,
                     operationResult.AppliedCommandIds.Concat(agentResult.AppliedCommandIds).ToArray(),
                     operationResult.RejectedCommandIds.Concat(agentResult.RejectedCommandIds).ToArray(),
-                    agentResult.Intents);
+                    MergeIntents(operationResult.Intents, agentResult.Intents));
             }
             AetheriaRuntimeDaemonSimulation.Step(
                 operationResult.Run,
@@ -169,6 +181,7 @@ namespace GameCult.Aetheria.State.Verse
                 options.Catalog,
                 options.FrameId,
                 options.SimulationTimeSeconds);
+            Trace("world-step");
             StampZoneSimulationTime(operationResult.Run, options.SimulationTimeSeconds);
 
             var frame = AetheriaRuntimeDaemonFrameDocument.Create(
@@ -180,6 +193,7 @@ namespace GameCult.Aetheria.State.Verse
                 options.FixedDeltaSeconds,
                 renderSettings: options.RenderSettings,
                 simulationSettings: options.SimulationSettings);
+            Trace("frame-projection");
             frame.AppliedCommandIds = operationResult.AppliedCommandIds;
             frame.RejectedCommandIds = operationResult.RejectedCommandIds;
             frame.AccountedCommandIds = accountedBeforeTick
@@ -220,6 +234,16 @@ namespace GameCult.Aetheria.State.Verse
                     frame);
             }
 
+            return BuildPublications(stateFilePath, operationResult, frame, options, observedCommands.Length);
+        }
+
+        public static AetheriaRuntimeDaemonTickResult BuildPublications(
+            string stateFilePath,
+            AetheriaRuntimeDaemonOperationResult operationResult,
+            AetheriaRuntimeDaemonFrameDocument frame,
+            AetheriaRuntimeDaemonTickOptions options,
+            int observedCommandCount)
+        {
             var soaView = AetheriaRuntimeDaemonSoaFramePublisher.BuildCurrentZoneEntities(stateFilePath, frame);
             var commandBoundary = AetheriaRuntimeDaemonCommandBoundaryDocument.Create(options.DaemonId);
             var providerAdvertisement = AetheriaRuntimeDaemonProviderAdvertisementDocument.Create(
@@ -234,7 +258,7 @@ namespace GameCult.Aetheria.State.Verse
                 PublishedAtUtc = DateTime.UtcNow.ToString("O"),
                 StatePath = stateFilePath,
                 FrameId = frame.FrameId,
-                ObservedCommandCount = observedCommands.Length,
+                ObservedCommandCount = observedCommandCount,
                 AppliedCommandCount = operationResult.AppliedCommandIds.Count,
                 RejectedCommandCount = operationResult.RejectedCommandIds.Count,
                 Status = operationResult.RejectedCommandIds.Count == 0 ? "healthy" : "commands-rejected",
@@ -283,6 +307,29 @@ namespace GameCult.Aetheria.State.Verse
                 gameSurface,
                 editorSurface,
                 editorSurface);
+        }
+
+        private static AetheriaRuntimeDaemonIntentState MergeIntents(
+            AetheriaRuntimeDaemonIntentState commands,
+            AetheriaRuntimeDaemonIntentState agents)
+        {
+            var merged = new AetheriaRuntimeDaemonIntentState
+            {
+                SensorPingRequested = commands.SensorPingRequested || agents.SensorPingRequested
+            };
+            merged.Movements.AddRange(commands.Movements);
+            merged.Movements.AddRange(agents.Movements);
+            merged.WeaponGroups.AddRange(commands.WeaponGroups);
+            merged.WeaponGroups.AddRange(agents.WeaponGroups);
+            merged.Behaviors.AddRange(commands.Behaviors);
+            merged.Behaviors.AddRange(agents.Behaviors);
+            merged.Consumables.AddRange(commands.Consumables);
+            merged.Consumables.AddRange(agents.Consumables);
+            merged.Docking.AddRange(commands.Docking);
+            merged.Docking.AddRange(agents.Docking);
+            merged.Wormholes.AddRange(commands.Wormholes);
+            merged.Wormholes.AddRange(agents.Wormholes);
+            return merged;
         }
 
         private static void EnsureEntityIds(AetheriaRuntimeRunCheckpointCommit run)

@@ -1223,6 +1223,7 @@ namespace GameCult.Aetheria.State.Verse
         [Key(21)] public int ChargeRiskChecks { get; set; }
         [Key(22)] public double ChargeMalfunctionRisk { get; set; }
         [Key(23)] public long ShotSequence { get; set; }
+        [Key(24)] public bool TriggerPending { get; set; }
     }
 
     [MessagePackObject]

@@ -8,6 +8,7 @@ using GameCult.Mesh;
 using GameCult.Networking;
 using MessagePack;
 using System.Globalization;
+using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 
@@ -50,7 +51,8 @@ using var clientSubscriptions = new CultNetDatabaseSubscriptionServer(cultMeshRu
 using var clientPumpCancellation = new CancellationTokenSource();
 var clientPump = RunClientCultMeshPumpAsync(cultMeshRudpHost, clientPumpCancellation.Token);
 var nextApiPublicationUtc = DateTimeOffset.UtcNow;
-var firstTick = await TickAsync(node, options, physicalPayloadPhysics, worldPhysics, latestFrame, buildPublications: true).ConfigureAwait(false);
+var ingressState = new AetheriaDaemonIngressState();
+var firstTick = await TickAsync(node, options, physicalPayloadPhysics, worldPhysics, latestFrame, ingressState, buildPublications: true).ConfigureAwait(false);
 ThrowIfClientPumpFaulted(clientPump);
 latestFrame = firstTick.Frame;
 nextApiPublicationUtc = DateTimeOffset.UtcNow.Add(options.ApiPublicationInterval);
@@ -75,6 +77,7 @@ await PublishRuntimeSessionAsync(node, options, startedAtUtc, "running").Configu
 Console.WriteLine("Aetheria Verse daemon is running. Press Ctrl+C to stop.");
 
 var nextTickUtc = DateTimeOffset.UtcNow.Add(options.TickInterval);
+Task publicationTask = Task.CompletedTask;
 while (!stopped.Task.IsCompleted)
 {
     ThrowIfClientPumpFaulted(clientPump);
@@ -87,17 +90,19 @@ while (!stopped.Task.IsCompleted)
     }
 
     var buildPublications = DateTimeOffset.UtcNow >= nextApiPublicationUtc;
-    var tick = await TickAsync(node, options, physicalPayloadPhysics, worldPhysics, latestFrame, buildPublications).ConfigureAwait(false);
+    var tick = await TickAsync(node, options, physicalPayloadPhysics, worldPhysics, latestFrame, ingressState, buildPublications: false).ConfigureAwait(false);
     ThrowIfClientPumpFaulted(clientPump);
     latestFrame = tick.Frame;
     nextTickUtc += options.TickInterval;
     if (nextTickUtc < DateTimeOffset.UtcNow - options.TickInterval)
         nextTickUtc = DateTimeOffset.UtcNow;
-    if (buildPublications)
+    if (buildPublications && publicationTask.IsCompleted)
     {
+        if (publicationTask.IsFaulted)
+            await publicationTask.ConfigureAwait(false);
+        var publication = PreparePublication(node.StatePath, options, tick, ingressState);
+        publicationTask = PublishPreparedDocumentsAsync(node, options, publication);
         nextApiPublicationUtc = DateTimeOffset.UtcNow.Add(options.ApiPublicationInterval);
-        discoveryHost.Update(await node.MutableDocument<AetheriaVerseHostSettings>(AetheriaStateNode.VerseHostSettingsKey).ReadAsync().ConfigureAwait(false));
-        await PublishRuntimeSessionAsync(node, options, startedAtUtc, "running").ConfigureAwait(false);
     }
     if (tick.Frame.FrameId % (traceClientRudp ? 10 : 120) == 0)
     {
@@ -109,6 +114,7 @@ while (!stopped.Task.IsCompleted)
 }
 
 await PublishRuntimeSessionAsync(node, options, startedAtUtc, "stopping").ConfigureAwait(false);
+await publicationTask.ConfigureAwait(false);
 clientPumpCancellation.Cancel();
 await clientPump.ConfigureAwait(false);
 Console.WriteLine("Aetheria Verse daemon stopping.");
@@ -130,12 +136,32 @@ static async Task<AetheriaRuntimeDaemonTickResult> TickAsync(
     IAetheriaRuntimePhysicalPayloadPhysics physicalPayloadPhysics,
     IAetheriaRuntimeWorldPhysics worldPhysics,
     AetheriaRuntimeDaemonFrameDocument? currentFrame,
+    AetheriaDaemonIngressState ingressState,
     bool buildPublications)
 {
+    var traceTickPhases = string.Equals(
+        Environment.GetEnvironmentVariable("AETHERIA_TRACE_TICK_PHASES"),
+        "1",
+        StringComparison.Ordinal);
+    var phase = Stopwatch.StartNew();
+    void TracePhase(string name)
+    {
+        if (traceTickPhases && phase.ElapsedMilliseconds >= 20)
+            Console.WriteLine($"Aetheria tick phase {name} took {phase.ElapsedMilliseconds}ms.");
+        phase.Restart();
+    }
+
     await AcceptCoreEveInvocationsAsync(node, options, currentFrame).ConfigureAwait(false);
-    await AcceptEveCommandsAsync(node, options).ConfigureAwait(false);
+    TracePhase("core-ingress");
+    await AcceptEveCommandsAsync(node, options, ingressState).ConfigureAwait(false);
+    TracePhase("provider-ingress");
     if (await ApplyRequestedTerminusSessionAsync(node, options).ConfigureAwait(false))
+    {
         currentFrame = null;
+        ingressState.ControlPlaneInitialized = false;
+    }
+    if (!ingressState.ControlPlaneInitialized || buildPublications)
+        await RefreshControlPlaneInputsAsync(node, ingressState).ConfigureAwait(false);
 
     var fixedDeltaSeconds = currentFrame?.FixedDeltaSeconds > 0
         ? currentFrame.FixedDeltaSeconds
@@ -150,10 +176,7 @@ static async Task<AetheriaRuntimeDaemonTickResult> TickAsync(
         : await ReadRuntimeRunCheckpointAsync(node, options.RenderSettings).ConfigureAwait(false) ?? new AetheriaRuntimeRunCheckpointCommit();
     ApplyDaemonRenderSettings(run, options.RenderSettings);
 
-    var loadoutTemplates = node.Cache
-        .GetAll<AetheriaLoadoutTemplate>()
-        .Select(ToLoadoutTemplateCommit)
-        .ToArray();
+    var loadoutTemplates = ingressState.LoadoutTemplates;
     var observedCommands = node.Documents<AetheriaRuntimeDaemonCommandDocument>()
         .OrderBy(command => command.IssuedAtUtc ?? "", StringComparer.Ordinal)
         .ThenBy(command => command.CommandId ?? "", StringComparer.Ordinal)
@@ -165,16 +188,17 @@ static async Task<AetheriaRuntimeDaemonTickResult> TickAsync(
         .Where(command => command != null && !accountedCommandIds.Contains(command.CommandId ?? ""))
         .ToArray();
     var policyRejectedCommandIds = new List<string>();
-    var authorityPolicy = await node.MutableDocument<AetheriaRuntimeVerseAuthorityPolicyDocument>(AetheriaRuntimeVerseRecordKeys.VerseAuthorityPolicy).ReadAsync().ConfigureAwait(false);
-    var starbridgeScenario = await node.MutableDocument<AetheriaRuntimeStarbridgeScenarioDocument>(AetheriaRuntimeVerseRecordKeys.StarbridgeScenarioLatest).ReadAsync().ConfigureAwait(false);
-    var starbridgeSession = await node.MutableDocument<AetheriaRuntimeStarbridgeSessionDocument>(AetheriaRuntimeVerseRecordKeys.StarbridgeSessionLatest).ReadAsync().ConfigureAwait(false);
-    var authorityLeases = node.Documents<AetheriaRuntimeAuthorityLeaseDocument>();
+    var authorityPolicy = ingressState.AuthorityPolicy;
+    var starbridgeScenario = ingressState.StarbridgeScenario;
+    var starbridgeSession = ingressState.StarbridgeSession;
+    var authorityLeases = ingressState.AuthorityLeases;
     var authorizedCommands = AetheriaRuntimeAuthorityRouter.AuthorizedCommands(
         pendingObservedCommands,
         authorityPolicy,
         authorityLeases,
         options.DaemonId,
         policyRejectedCommandIds);
+    TracePhase("tick-inputs");
 
     var result = AetheriaRuntimeDaemonTickRunner.Tick(
         node.StatePath,
@@ -193,7 +217,7 @@ static async Task<AetheriaRuntimeDaemonTickResult> TickAsync(
             PreRejectedCommandIds = policyRejectedCommandIds,
             CumulativeAppliedCommandIds = currentFrame?.CumulativeAppliedCommandIds ?? currentFrame?.AppliedCommandIds ?? Array.Empty<string>(),
             CumulativeRejectedCommandIds = currentFrame?.CumulativeRejectedCommandIds ?? currentFrame?.RejectedCommandIds ?? Array.Empty<string>(),
-            Catalog = node.RuntimeCatalog().Latest(),
+            Catalog = ingressState.Catalog,
             RenderSettings = options.RenderSettings,
             SimulationSettings = options.SimulationSettings,
             PhysicalPayloadPhysics = physicalPayloadPhysics,
@@ -206,6 +230,7 @@ static async Task<AetheriaRuntimeDaemonTickResult> TickAsync(
                 LoadoutTemplates = loadoutTemplates
             }
         });
+    TracePhase("simulation");
     if (string.Equals(Environment.GetEnvironmentVariable("AETHERIA_TRACE_EVE_SNAPSHOTS"), "1", StringComparison.Ordinal) &&
         result.Frame.AppliedCommandIds.Count > 0)
     {
@@ -230,15 +255,81 @@ static async Task<AetheriaRuntimeDaemonTickResult> TickAsync(
         pendingObservedCommands,
         authorizedCommands,
         policyRejectedCommandIds).ConfigureAwait(false);
+    TracePhase("command-facts");
 
     if (buildPublications)
     {
         await PublishDaemonApiDocumentsAsync(node, options, result).ConfigureAwait(false);
+        TracePhase("api-publication");
         await PublishStateSurfacesAsync(node, options, result.Frame.PublishedAtUtc).ConfigureAwait(false);
+        TracePhase("state-surfaces");
         await PublishOdinSurfaceAnnouncementsAsync(node, options, result.Frame.PublishedAtUtc).ConfigureAwait(false);
+        TracePhase("odin-announcements");
     }
 
     return result;
+}
+
+static AetheriaRuntimeDaemonTickResult PreparePublication(
+    string statePath,
+    AetheriaDaemonHostOptions options,
+    AetheriaRuntimeDaemonTickResult tick,
+    AetheriaDaemonIngressState ingressState)
+{
+    var frameBytes = MessagePackSerializer.Serialize(tick.Frame);
+    var frame = MessagePackSerializer.Deserialize<AetheriaRuntimeDaemonFrameDocument>(frameBytes);
+    var operation = new AetheriaRuntimeDaemonOperationResult(
+        frame.Run ?? new AetheriaRuntimeRunCheckpointCommit(),
+        tick.OperationResult.AppliedCommandIds.ToArray(),
+        tick.OperationResult.RejectedCommandIds.ToArray());
+    return AetheriaRuntimeDaemonTickRunner.BuildPublications(
+        statePath,
+        operation,
+        frame,
+        new AetheriaRuntimeDaemonTickOptions
+        {
+            DaemonId = options.DaemonId,
+            VerseId = options.VerseId,
+            CultMeshAddress = options.CultMeshAddress,
+            Catalog = ingressState.Catalog,
+            StarbridgeScenario = ingressState.StarbridgeScenario,
+            StarbridgeSession = ingressState.StarbridgeSession,
+            RenderSettings = options.RenderSettings,
+            SimulationSettings = options.SimulationSettings
+        },
+        frame.AccountedCommandIds?.Count ?? 0);
+}
+
+static async Task PublishPreparedDocumentsAsync(
+    AetheriaStateNode node,
+    AetheriaDaemonHostOptions options,
+    AetheriaRuntimeDaemonTickResult publication)
+{
+    await PublishDaemonApiDocumentsAsync(node, options, publication).ConfigureAwait(false);
+    await PublishStateSurfacesAsync(node, options, publication.Frame.PublishedAtUtc).ConfigureAwait(false);
+    await PublishOdinSurfaceAnnouncementsAsync(node, options, publication.Frame.PublishedAtUtc).ConfigureAwait(false);
+}
+
+static async Task RefreshControlPlaneInputsAsync(
+    AetheriaStateNode node,
+    AetheriaDaemonIngressState ingressState)
+{
+    ingressState.LoadoutTemplates = node.Cache
+        .GetAll<AetheriaLoadoutTemplate>()
+        .Select(ToLoadoutTemplateCommit)
+        .ToArray();
+    ingressState.Catalog = node.RuntimeCatalog().Latest();
+    ingressState.AuthorityPolicy = await node
+        .MutableDocument<AetheriaRuntimeVerseAuthorityPolicyDocument>(AetheriaRuntimeVerseRecordKeys.VerseAuthorityPolicy)
+        .ReadAsync().ConfigureAwait(false);
+    ingressState.StarbridgeScenario = await node
+        .MutableDocument<AetheriaRuntimeStarbridgeScenarioDocument>(AetheriaRuntimeVerseRecordKeys.StarbridgeScenarioLatest)
+        .ReadAsync().ConfigureAwait(false);
+    ingressState.StarbridgeSession = await node
+        .MutableDocument<AetheriaRuntimeStarbridgeSessionDocument>(AetheriaRuntimeVerseRecordKeys.StarbridgeSessionLatest)
+        .ReadAsync().ConfigureAwait(false);
+    ingressState.AuthorityLeases = node.Documents<AetheriaRuntimeAuthorityLeaseDocument>().ToArray();
+    ingressState.ControlPlaneInitialized = true;
 }
 
 static async Task PublishCommittedCommandFactsAsync(
@@ -1774,9 +1865,15 @@ static async Task AcceptCoreEveInvocationsAsync(
     }
 }
 
-static async Task AcceptEveCommandsAsync(AetheriaStateNode node, AetheriaDaemonHostOptions options)
+static async Task AcceptEveCommandsAsync(
+    AetheriaStateNode node,
+    AetheriaDaemonHostOptions options,
+    AetheriaDaemonIngressState ingressState)
 {
     var commandCountBefore = node.Documents<AetheriaRuntimeEveCommandDocument>().Count;
+    if (commandCountBefore == ingressState.ObservedEveCommandCount)
+        return;
+    ingressState.ObservedEveCommandCount = commandCountBefore;
     var now = DateTimeOffset.UtcNow.ToString("O");
     try
     {
@@ -2954,6 +3051,18 @@ static AetheriaRuntimeLoadoutItemCommit ToLoadoutItemCommit(AetheriaLoadoutItem?
         Enabled = item?.Enabled ?? false,
         OverrideShutdown = item?.OverrideShutdown ?? false
     };
+}
+
+internal sealed class AetheriaDaemonIngressState
+{
+    public int ObservedEveCommandCount { get; set; } = -1;
+    public bool ControlPlaneInitialized { get; set; }
+    public AetheriaRuntimeLoadoutTemplateCommit[] LoadoutTemplates { get; set; } = [];
+    public AetheriaRuntimeCatalogSnapshot? Catalog { get; set; }
+    public AetheriaRuntimeVerseAuthorityPolicyDocument? AuthorityPolicy { get; set; }
+    public AetheriaRuntimeStarbridgeScenarioDocument? StarbridgeScenario { get; set; }
+    public AetheriaRuntimeStarbridgeSessionDocument? StarbridgeSession { get; set; }
+    public AetheriaRuntimeAuthorityLeaseDocument[] AuthorityLeases { get; set; } = [];
 }
 
 internal sealed class AetheriaDaemonHostOptions
