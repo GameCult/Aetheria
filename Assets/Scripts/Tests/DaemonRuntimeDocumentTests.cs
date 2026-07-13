@@ -2036,6 +2036,8 @@ public class DaemonRuntimeDocumentTests
                             FactionKey = "player",
                             IsActive = true,
                             TargetEntityIndex = 1,
+                            Visibility = 0.37,
+                            VisibilitySourceCount = 2,
                             PositionX = 0,
                             PositionZ = 0
                         },
@@ -2178,7 +2180,9 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual(1.25, weapon.BurstInterval, 0.0001);
         Assert.AreEqual(88, zone.Entities[0].StatGrids.Single(grid => grid.Name == "hull").Values[0], 0.0001);
         Assert.AreEqual(66, zone.Entities[1].StatGrids.Single(grid => grid.Name == "hull").Values[0], 0.0001);
-        Assert.AreEqual(222, zone.Entities[0].Visibility, 0.0001);
+        Assert.AreEqual(0.37, zone.Entities[0].Visibility, 0.0001);
+        Assert.AreEqual(2, zone.Entities[0].VisibilitySourceCount);
+        Assert.IsTrue(zone.Entities[0].Contacts.Single(contact => contact.TargetEntityIndex == 1).Visible);
 
         var frame = AetheriaRuntimeDaemonFrameDocument.Create(
             run,
@@ -2190,6 +2194,84 @@ public class DaemonRuntimeDocumentTests
             simulationSettings: settings);
         Assert.AreEqual(444, frame.SimulationSettings.ProjectileSpeed, 0.0001);
         Assert.AreEqual(120, frame.SimulationSettings.AttackRange, 0.0001);
+    }
+
+    [Test]
+    public void SensorReachDerivesFromInstalledEquipmentRatherThanEntityKind()
+    {
+        var unitStat = new AetheriaRuntimeBehaviorValue(
+            "performance-stat", "", 0, false, "", "",
+            new[]
+            {
+                NumberValue(1), NumberValue(1), NumberValue(1),
+                NumberValue(0), NumberValue(1), EmptyBehaviorValue("stat-recipe")
+            },
+            Array.Empty<AetheriaRuntimeBehaviorMapEntry>());
+        var catalog = new AetheriaRuntimeCatalogSnapshot(
+            new[]
+            {
+                CatalogItem("sensor", new[]
+                {
+                    new AetheriaRuntimeBehaviorPayload(
+                        0, "Sensor", 1,
+                        new[] { new AetheriaRuntimeBehaviorField(3, unitStat) })
+                })
+            },
+            Array.Empty<AetheriaRuntimeCorporation>(),
+            Array.Empty<AetheriaRuntimeNameFile>());
+        AetheriaRuntimeLoadoutItemSlotCommit Sensor() => new()
+        {
+            Item = new AetheriaRuntimeLoadoutItemCommit
+            {
+                ItemKey = "sensor", Quality = 1, Durability = 1, Enabled = true
+            }
+        };
+        var ship = new AetheriaRuntimeEntitySnapshotCommit
+        {
+            EntityIndex = 0, Kind = "ship", FactionKey = "player", IsActive = true,
+            Equipment = new[] { Sensor() }, Visibility = 0.4
+        };
+        var station = new AetheriaRuntimeEntitySnapshotCommit
+        {
+            EntityIndex = 1, Kind = "station", FactionKey = "player", IsActive = true,
+            Equipment = new[] { Sensor() }, PositionZ = 10, Visibility = 0.6
+        };
+        var arrayShip = new AetheriaRuntimeEntitySnapshotCommit
+        {
+            EntityIndex = 2, Kind = "ship", FactionKey = "player", IsActive = true,
+            Equipment = new[] { Sensor(), Sensor() }, PositionZ = 20, Visibility = 0.8
+        };
+        var target = new AetheriaRuntimeEntitySnapshotCommit
+        {
+            EntityIndex = 3, Kind = "ship", FactionKey = "neutral", IsActive = true,
+            PositionX = 250
+        };
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            CurrentZoneIndex = 0,
+            Zones = new[] { new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = new[] { ship, station, arrayShip, target } } }
+        };
+        var defaults = AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault;
+        var settings = new AetheriaRuntimeDaemonSimulationSettings(
+            defaults.PawnSpeed, defaults.RaiderSpeed, defaults.AttackRange, defaults.AttackHoldRatio,
+            defaults.PawnProjectileDamage, defaults.RaiderProjectileDamage, defaults.WeaponCooldownSeconds,
+            defaults.ProjectileSpeed, defaults.ProjectileRadius, defaults.ProjectileLifetimeSeconds,
+            defaults.ProjectileSpawnOffset, defaults.ProjectileHeatScale, defaults.HeatDissipationPerSecond,
+            999, 200, defaults.PlayerStationHull, defaults.HostileStationHull, defaults.PlayerEntityHull,
+            defaults.RaiderEntityHull, defaults.StationShield, defaults.EntityShield);
+
+        AetheriaRuntimeDaemonSimulation.Step(
+            run, new AetheriaRuntimeDaemonIntentState(), 0.1, settings,
+            new PassthroughPhysicalPayloadPhysics(), new PassthroughWorldPhysics(), catalog);
+
+        Assert.IsFalse(ship.Contacts.Single(contact => contact.TargetEntityIndex == 3).Visible);
+        Assert.IsFalse(station.Contacts.Single(contact => contact.TargetEntityIndex == 3).Visible,
+            "Entity kind must not grant a station privileged sensor reach.");
+        Assert.IsTrue(arrayShip.Contacts.Single(contact => contact.TargetEntityIndex == 3).Visible,
+            "Additional installed arrays should increase reach regardless of entity kind.");
+        Assert.AreEqual(0.4, ship.Visibility, 0.0001);
+        Assert.AreEqual(0.6, station.Visibility, 0.0001);
+        Assert.AreEqual(0.8, arrayShip.Visibility, 0.0001);
     }
 
     [Test]
@@ -4191,9 +4273,35 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
+    public void DaemonOperationsClassifiesPausedCommandsBySimulationDependency()
+    {
+        Assert.IsFalse(AetheriaRuntimeDaemonOperations.RequiresSimulationStep(
+            AetheriaRuntimeDaemonCommandKinds.TradePurchase));
+        Assert.IsFalse(AetheriaRuntimeDaemonOperations.RequiresSimulationStep(
+            AetheriaRuntimeDaemonCommandKinds.SetTarget));
+        Assert.IsFalse(AetheriaRuntimeDaemonOperations.RequiresSimulationStep(
+            AetheriaRuntimeDaemonCommandKinds.TransferCargoItem));
+        Assert.IsFalse(AetheriaRuntimeDaemonOperations.RequiresSimulationStep(
+            AetheriaRuntimeDaemonCommandKinds.SetSimulationRate));
+        Assert.IsFalse(AetheriaRuntimeDaemonOperations.RequiresSimulationStep(
+            AetheriaRuntimeDaemonCommandKinds.AdvanceSimulationStep));
+        Assert.IsTrue(AetheriaRuntimeDaemonOperations.RequiresSimulationStep(
+            AetheriaRuntimeDaemonCommandKinds.SetMoveVector));
+        Assert.IsTrue(AetheriaRuntimeDaemonOperations.RequiresSimulationStep(
+            AetheriaRuntimeDaemonCommandKinds.FireWeaponGroup));
+        Assert.IsTrue(AetheriaRuntimeDaemonOperations.RequiresSimulationStep(
+            AetheriaRuntimeDaemonCommandKinds.DockNearest));
+        Assert.IsTrue(AetheriaRuntimeDaemonOperations.RequiresSimulationStep(
+            AetheriaRuntimeDaemonCommandKinds.Undock));
+    }
+
+    [Test]
     public void DaemonOperationsOwnsTradePurchaseCreditsAndCargoInDaemonState()
     {
         var run = RunWithTwoEntities();
+        run.CurrentEntityKey = "zone.0.entity.1";
+        run.Zones[0].Entities[0].DockingBayAssignments = new[] { 1 };
+        run.Zones[0].Entities[0].ChildEntityIndices = new[] { 1 };
         var command = AetheriaRuntimeDaemonCommandDocument.Create(
             AetheriaRuntimeDaemonCommandKinds.TradePurchase,
             "codex",
@@ -4206,8 +4314,8 @@ public class DaemonRuntimeDocumentTests
         command.TradePurchase.PurchaseKind = "commodity";
         command.TradePurchase.ItemKey = "ore";
         command.TradePurchase.Quantity = 5;
-        command.TradePurchase.UnitPrice = 40;
-        command.TradePurchase.TotalPrice = 200;
+        command.TradePurchase.UnitPrice = 0;
+        command.TradePurchase.TotalPrice = 0;
         command.TradePurchase.StationEntityKey = "zone.0.entity.0";
         command.TradePurchase.StationCargoIndex = 0;
         command.TradePurchase.TargetEntityKey = "zone.0.entity.1";
@@ -4216,7 +4324,16 @@ public class DaemonRuntimeDocumentTests
         command.TradePurchase.SourceY = 3;
         command.TradePurchase.CreatesDockedShip = false;
 
-        var result = AetheriaRuntimeDaemonOperations.Execute(run, new[] { command });
+        var result = AetheriaRuntimeDaemonOperations.Execute(
+            run,
+            new[] { command },
+            new AetheriaRuntimeDaemonOperationContext
+            {
+                Catalog = new AetheriaRuntimeCatalogSnapshot(
+                    new[] { CatalogItem("ore", Array.Empty<AetheriaRuntimeBehaviorPayload>(), price: 40) },
+                    Array.Empty<AetheriaRuntimeCorporation>(),
+                    Array.Empty<AetheriaRuntimeNameFile>())
+            });
 
         var stationCargo = run.Zones[0].Entities[0].CargoContents[0].Items;
         var targetCargo = run.Zones[0].Entities[1].CargoContents[0].Items;
@@ -4230,9 +4347,57 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
+    public void DaemonOperationsRejectsTradeWhenCurrentEntityIsNotDockedWithoutMutatingState()
+    {
+        var run = RunWithTwoEntities();
+        var command = AetheriaRuntimeDaemonCommandDocument.Create(
+            AetheriaRuntimeDaemonCommandKinds.TradePurchase,
+            "codex",
+            "session-trade-undocked",
+            30,
+            "zone.0.entity.1");
+        command.TradePurchase.ItemKey = "ore";
+        command.TradePurchase.Quantity = 1;
+        command.TradePurchase.StationEntityKey = "zone.0.entity.0";
+        command.TradePurchase.StationCargoIndex = 0;
+        command.TradePurchase.TargetEntityKey = "zone.0.entity.1";
+        command.TradePurchase.TargetCargoIndex = 0;
+        command.TradePurchase.SourceX = 2;
+        command.TradePurchase.SourceY = 3;
+
+        var result = AetheriaRuntimeDaemonOperations.Execute(
+            run,
+            new[] { command },
+            new AetheriaRuntimeDaemonOperationContext
+            {
+                Catalog = new AetheriaRuntimeCatalogSnapshot(
+                    new[] { CatalogItem("ore", Array.Empty<AetheriaRuntimeBehaviorPayload>(), price: 40) },
+                    Array.Empty<AetheriaRuntimeCorporation>(),
+                    Array.Empty<AetheriaRuntimeNameFile>())
+            });
+
+        Assert.AreEqual(0, result.AppliedCommandIds.Count);
+        Assert.AreEqual(1, result.RejectedCommandIds.Count);
+        Assert.AreEqual(1000, run.Credits);
+        Assert.AreEqual(12, run.Zones[0].Entities[0].CargoContents[0].Items[0].Item.Quantity);
+        Assert.AreEqual(0, run.Zones[0].Entities[1].CargoContents[0].Items.Count);
+    }
+
+    [Test]
     public void DaemonOperationsCreatesPurchasedDockedShipInDaemonState()
     {
         var run = RunWithTwoEntities();
+        run.Zones[0].Entities[1].DockingBayAssignments = new[] { 0, -1 };
+        run.Zones[0].Entities[1].ChildEntityIndices = new[] { 0 };
+        run.Zones[0].Entities[1].CargoContents[0].Items = new[]
+        {
+            new AetheriaRuntimeLoadoutItemSlotCommit
+            {
+                X = 4,
+                Y = 5,
+                Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = "starter-hull", Quantity = 1 }
+            }
+        };
         var command = AetheriaRuntimeDaemonCommandDocument.Create(
             AetheriaRuntimeDaemonCommandKinds.TradePurchase,
             "codex",
@@ -4247,10 +4412,23 @@ public class DaemonRuntimeDocumentTests
         command.TradePurchase.Quantity = 1;
         command.TradePurchase.UnitPrice = 300;
         command.TradePurchase.TotalPrice = 300;
+        command.TradePurchase.StationEntityKey = "zone.0.entity.1";
+        command.TradePurchase.StationCargoIndex = 0;
         command.TradePurchase.TargetEntityKey = "zone.0.entity.1";
+        command.TradePurchase.SourceX = 4;
+        command.TradePurchase.SourceY = 5;
         command.TradePurchase.CreatesDockedShip = true;
 
-        var result = AetheriaRuntimeDaemonOperations.Execute(run, new[] { command });
+        var result = AetheriaRuntimeDaemonOperations.Execute(
+            run,
+            new[] { command },
+            new AetheriaRuntimeDaemonOperationContext
+            {
+                Catalog = new AetheriaRuntimeCatalogSnapshot(
+                    new[] { CatalogItem("starter-hull", Array.Empty<AetheriaRuntimeBehaviorPayload>(), price: 300, hullType: "ship") },
+                    Array.Empty<AetheriaRuntimeCorporation>(),
+                    Array.Empty<AetheriaRuntimeNameFile>())
+            });
 
         var zone = run.Zones[0];
         Assert.AreEqual(1, result.AppliedCommandIds.Count);
@@ -5437,7 +5615,9 @@ public class DaemonRuntimeDocumentTests
 
     private static AetheriaRuntimeCatalogItem CatalogItem(
         string itemKey,
-        IReadOnlyList<AetheriaRuntimeBehaviorPayload> behaviorPayloads)
+        IReadOnlyList<AetheriaRuntimeBehaviorPayload> behaviorPayloads,
+        int price = 0,
+        string hullType = "")
     {
         return new AetheriaRuntimeCatalogItem(
             itemKey,
@@ -5445,7 +5625,7 @@ public class DaemonRuntimeDocumentTests
             "",
             "",
             "",
-            0,
+            price,
             0,
             0,
             0,
@@ -5461,7 +5641,7 @@ public class DaemonRuntimeDocumentTests
             Array.Empty<AetheriaRuntimeHardpoint>(),
             behaviorPayloads,
             "",
-            "",
+            hullType,
             behaviorPayloads.Select(payload => payload.Kind).ToArray(),
             1,
             false,

@@ -90,7 +90,7 @@ internal static class AetheriaDaemonZoneGenerator
                 new AetheriaDroppedPickupSnapshot
                 {
                     PickupIndex = 0,
-                    Position = Vec3(-15, 0, -5),
+                    Position = Vec3(-40, 0, -29),
                     Velocity = Vec3(0, 0, 0),
                     Item = new AetheriaLoadoutItem { ItemKey = "scrap-metal", Quantity = 1 }
                 }
@@ -216,7 +216,7 @@ internal static class AetheriaDaemonZoneGenerator
         var entities = new[]
         {
             Entity(loadouts, availabilityFactions, "Anchor Station", "station", -50, -30, 0, 0, "player", 760, keys[6], [keys[1], keys[2], keys[3], keys[4], keys[6], keys[7], keys[11]], ["repair-parts", "reactor-fuel", "drone-core"]),
-            Entity(loadouts, availabilityFactions, "Vanguard One", "ship", -40, -30, 10, 4, "player", 540, keys[6], [keys[0], keys[2], keys[4], keys[6], keys[7]], ["coilgun-ammo", "field-rations"]),
+            Entity(loadouts, availabilityFactions, "Vanguard One", "ship", -40, -30, 0, 0, "player", 540, keys[6], [keys[0], keys[2], keys[4], keys[6], keys[7]], ["coilgun-ammo", "field-rations"]),
             Entity(loadouts, availabilityFactions, "Wing Two", "ship", 145, 125, -5, 7, "player", 450, keys[6], [keys[0], keys[1], keys[6], keys[8]], ["sensor-buoy", "shield-cell"]),
             Entity(loadouts, availabilityFactions, "Torch Three", "ship", -235, 210, 8, -4, "player", 500, keys[7], [keys[0], keys[1], keys[7]], ["micro-missile", "coolant-pack"]),
             Entity(loadouts, availabilityFactions, "Foundry Tug", "ship", 330, -155, -2, 3, "player", 390, keys[6], [keys[0], keys[1], keys[6], keys[10]], ["ore-canister", "field-rations"]),
@@ -230,6 +230,13 @@ internal static class AetheriaDaemonZoneGenerator
         };
         foreach (var index in new[] { 1, 2, 3, 4 })
             entities[index].HomeEntityKey = keys[0];
+        entities[1].CargoContents =
+        [
+            new AetheriaCargoBayLoadout
+            {
+                Items = Array.Empty<AetheriaLoadoutItemSlot>()
+            }
+        ];
         entities[2].AgentTaskCapabilities = ["attack", "defend", "explore"];
         entities[3].AgentTaskCapabilities = ["attack", "defend"];
         entities[4].AgentTaskCapabilities = ["mine", "haul", "tow", "explore"];

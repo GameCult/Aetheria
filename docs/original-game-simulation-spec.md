@@ -103,10 +103,18 @@ consume another configured cargo item.
 ## Sensors And Visibility
 
 Visibility sources are independently identified and decayed. Passive sensors
-accumulate observer-relative information from sensitivity, signature, and
-range. Threshold transitions create/remove classified contacts. Ping consumes
+accumulate observer-relative information from installed sensor sensitivity,
+target signature, and distance. Passive reach is derived from enabled installed
+sensor arrays; multiple arrays combine with diminishing returns. Stations have
+no class bonus: their advantage comes from spending hull volume, mass, power,
+cooling, and computation on sensor equipment ships cannot afford. Cargo-held
+sensors contribute nothing. Threshold transitions create/remove classified contacts. Ping consumes
 energy, raises source visibility, expands in space, and grants information on
 crossing. Hostility uses faction ownership, security, and presence rules.
+
+Sensor reach and emitted visibility are separate quantities. Contact refresh
+must never overwrite the thermal, propulsion, weapon, reflector, and ping
+sources that make an entity detectable.
 
 ## AI
 

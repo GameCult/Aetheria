@@ -81,6 +81,10 @@ public sealed class AetheriaDaemonLoadoutGenerator
 
         var cargo = PackCargo(cargoBay, availabilityFactionKey, scenarioCargo,
             string.Equals(entityKind, "station", StringComparison.OrdinalIgnoreCase));
+        var sensorArrayCount = string.Equals(entityKind, "station", StringComparison.OrdinalIgnoreCase) ? 2 : 1;
+        for (var sensorIndex = 0; sensorIndex < sensorArrayCount; sensorIndex++)
+            TryAddFreeSpaceItem(hull, availabilityFactionKey, occupied, slots, 2, item =>
+                IsGear(item) && HasBehavior(item, "Sensor"));
         var selectedKeys = new[] { (Role: "hull", Key: hull.ItemKey) }
             .Concat(slots.Select(value => (Role: "equipment", Key: value.ItemKey)))
             .Concat(cargo.Select(value => (Role: "cargo", Key: value.Item.ItemKey)));
@@ -140,6 +144,28 @@ public sealed class AetheriaDaemonLoadoutGenerator
             value => value.Item);
         if (selected.Item == null || !selected.Fit.HasValue)
             throw new InvalidOperationException("No available mandatory equipment fits the remaining hull space.");
+        var fit = selected.Fit.Value;
+        slots.Add(Slot(fit.X, fit.Y, selected.Item.ItemKey));
+        Reserve(occupied, selected.Item, fit.X, fit.Y, fit.Rotation);
+        return selected.Item;
+    }
+
+    private AetheriaRuntimeCatalogItem? TryAddFreeSpaceItem(
+        AetheriaRuntimeCatalogItem hull,
+        string factionKey,
+        HashSet<(int X, int Y)> occupied,
+        List<AetheriaEntityItemSlot> slots,
+        double sizeExponent,
+        Func<AetheriaRuntimeCatalogItem, bool> filter)
+    {
+        var candidates = Available(factionKey)
+            .Where(filter)
+            .Select(item => (Item: item, Fit: FindFit(hull, item, occupied)))
+            .Where(value => value.Fit.HasValue)
+            .ToArray();
+        var selected = PickWeighted(candidates, sizeExponent, factionKey, value => value.Item);
+        if (selected.Item == null || !selected.Fit.HasValue)
+            return null;
         var fit = selected.Fit.Value;
         slots.Add(Slot(fit.X, fit.Y, selected.Item.ItemKey));
         Reserve(occupied, selected.Item, fit.X, fit.Y, fit.Rotation);

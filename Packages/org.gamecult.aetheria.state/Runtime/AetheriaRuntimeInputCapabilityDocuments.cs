@@ -59,7 +59,8 @@ namespace GameCult.Aetheria.State.Verse
 
         public static AetheriaRuntimeInputCapabilityDocument FromFrame(
             AetheriaRuntimeDaemonFrameDocument frame,
-            bool includeSimulationClock = false)
+            bool includeSimulationClock = false,
+            AetheriaRuntimeCatalogSnapshot? catalog = null)
         {
             var run = frame?.Run ?? new AetheriaRuntimeRunCheckpointCommit();
             var entity = run.Zones.SelectMany(zone => zone.Entities).FirstOrDefault(candidate =>
@@ -68,6 +69,7 @@ namespace GameCult.Aetheria.State.Verse
             if (includeSimulationClock)
             {
                 actions.Add(Action("simulation.pause", "Pause", "SetSimulationRate", "simulation", "terminus-clock", ("scalarValue", "0")));
+                actions.Add(Action("simulation.step", "Advance One Step", "AdvanceSimulationStep", "simulation", "terminus-clock"));
                 actions.Add(Action("simulation.rate.quarter", "Quarter Speed", "SetSimulationRate", "simulation", "terminus-clock", ("scalarValue", "0.25")));
                 actions.Add(Action("simulation.rate.half", "Half Speed", "SetSimulationRate", "simulation", "terminus-clock", ("scalarValue", "0.5")));
                 actions.Add(Action("simulation.rate.realtime", "Real Time", "SetSimulationRate", "simulation", "terminus-clock", ("scalarValue", "1")));
@@ -84,9 +86,71 @@ namespace GameCult.Aetheria.State.Verse
                 actions.AddRange((entity.WeaponGroups ?? Array.Empty<IReadOnlyList<int>>()).Select((_, index) => Action($"weapon-group.{index}.fire", $"Fire Weapon Group {index + 1}", "FireWeaponGroup", "weapon-group", $"{run.CurrentEntityKey}#weapon-group/{index}", ("weaponGroup", index.ToString()))));
                 actions.AddRange((entity.Equipment ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>()).Where(slot => slot?.Item != null).Select((slot, index) => Action($"equipment.{index}.activate", $"Activate {slot.Item.ItemKey}", "SetBehaviorActive", "equipment", $"{run.CurrentEntityKey}#equipment/{index}", ("equipmentIndex", index.ToString()), ("behaviorIndex", "0"), ("active", "true"))));
                 actions.AddRange((entity.CargoContents ?? Array.Empty<AetheriaRuntimeCargoBayLoadoutCommit>()).SelectMany(bay => bay.Items).Where(slot => slot?.Item != null).Select((slot, index) => Action($"cargo.{slot.Item.ItemKey}.{index}.use", $"Use {slot.Item.ItemKey}", "ActivateConsumable", "consumable", $"{run.CurrentEntityKey}#cargo/{index}", ("itemKey", slot.Item.ItemKey))));
+                actions.AddRange(TradeActions(run, entity, catalog));
             }
             return new AetheriaRuntimeInputCapabilityDocument { Version = frame?.FrameId ?? 0, Actions = actions.ToArray(), DefaultProfiles = BuildDefaultProfiles(actions) };
         }
+
+        private static IEnumerable<AetheriaRuntimeInputActionDocument> TradeActions(
+            AetheriaRuntimeRunCheckpointCommit run,
+            AetheriaRuntimeEntitySnapshotCommit entity,
+            AetheriaRuntimeCatalogSnapshot? catalog)
+        {
+            if (catalog == null)
+                yield break;
+            var zone = (run.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>())
+                .FirstOrDefault(candidate => candidate != null && candidate.ZoneIndex == run.CurrentZoneIndex);
+            var parent = (zone?.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
+                .FirstOrDefault(candidate => candidate != null &&
+                    (candidate.DockingBayAssignments ?? Array.Empty<int>()).Contains(entity.EntityIndex));
+            if (parent == null)
+                yield break;
+
+            var stationKey = AetheriaRuntimeRunCheckpointCommit.EntityRecordKey(
+                run.RunId,
+                run.CurrentZoneIndex,
+                parent.EntityIndex);
+            var cargo = parent.CargoContents ?? Array.Empty<AetheriaRuntimeCargoBayLoadoutCommit>();
+            for (var bayIndex = 0; bayIndex < cargo.Count; bayIndex++)
+            {
+                foreach (var slot in cargo[bayIndex]?.Items ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>())
+                {
+                    var itemKey = slot?.Item?.ItemKey ?? "";
+                    var typedItem = catalog.FindItem(itemKey);
+                    if (typedItem == null || slot?.Item == null || slot.Item.Quantity <= 0)
+                        continue;
+                    var value = AetheriaRuntimeDaemonTradeItemQueries.TradeItemValue(
+                        typedItem,
+                        slot.Item,
+                        catalog.TradeValueSettings).Price;
+                    var createsShip = !string.IsNullOrWhiteSpace(typedItem.HullType);
+                    var canReceive = createsShip
+                        ? (parent.DockingBayAssignments ?? Array.Empty<int>()).Any(index => index < 0)
+                        : AetheriaRuntimeCargoCapacityQueries.UnitsThatFit(entity, catalog, itemKey, 0) > 0;
+                    var action = Action(
+                        $"trade.buy.{StableToken(itemKey)}.{bayIndex}.{slot.X}.{slot.Y}",
+                        $"Buy {typedItem.Name} ({value})",
+                        "TradePurchase",
+                        "trade",
+                        $"{stationKey}#cargo/{bayIndex}/{slot.X}/{slot.Y}",
+                        ("itemKey", itemKey),
+                        ("quantity", "1"),
+                        ("stationEntityKey", stationKey),
+                        ("stationCargoIndex", bayIndex.ToString()),
+                        ("targetEntityKey", run.CurrentEntityKey),
+                        ("targetCargoIndex", "0"),
+                        ("sourceX", slot.X.ToString()),
+                        ("sourceY", slot.Y.ToString()));
+                    action.Availability = value >= 0 && run.Credits >= value && canReceive
+                        ? "available"
+                        : "unavailable";
+                    yield return action;
+                }
+            }
+        }
+
+        private static string StableToken(string value) =>
+            new string((value ?? "").Select(character => char.IsLetterOrDigit(character) ? char.ToLowerInvariant(character) : '-').ToArray()).Trim('-');
 
         private static IEnumerable<AetheriaRuntimeInputActionDocument> CoreActions()
         {

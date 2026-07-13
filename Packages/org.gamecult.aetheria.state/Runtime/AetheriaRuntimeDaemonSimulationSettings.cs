@@ -141,7 +141,9 @@ namespace GameCult.Aetheria.State.Verse
         public double ProjectileSpawnOffset { get; }
         public double ProjectileHeatScale { get; }
         public double HeatDissipationPerSecond { get; }
+        [System.Obsolete("Sensor reach derives from installed equipment. Retained only for snapshot compatibility.")]
         public double StationSensorRange { get; }
+        public double FallbackSensorRange => EntitySensorRange;
         public double EntitySensorRange { get; }
         public double PlayerStationHull { get; }
         public double HostileStationHull { get; }

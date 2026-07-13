@@ -199,13 +199,15 @@ static async Task<AetheriaRuntimeDaemonTickResult> TickAsync(
         policyRejectedCommandIds);
     var terminus = string.Equals(ingressState.GameMode, AetheriaGameSessionState.TerminusMode, StringComparison.Ordinal);
     var simulationClockCommands = authorizedCommands
-        .Where(command => command.Kind == AetheriaRuntimeDaemonCommandKinds.SetSimulationRate)
+        .Where(command => command.Kind == AetheriaRuntimeDaemonCommandKinds.SetSimulationRate ||
+            command.Kind == AetheriaRuntimeDaemonCommandKinds.AdvanceSimulationStep)
         .ToArray();
     if (!terminus && simulationClockCommands.Length > 0)
     {
         policyRejectedCommandIds.AddRange(simulationClockCommands.Select(command => command.CommandId));
         authorizedCommands = authorizedCommands
-            .Where(command => command.Kind != AetheriaRuntimeDaemonCommandKinds.SetSimulationRate)
+            .Where(command => command.Kind != AetheriaRuntimeDaemonCommandKinds.SetSimulationRate &&
+                command.Kind != AetheriaRuntimeDaemonCommandKinds.AdvanceSimulationStep)
             .ToArray();
     }
     else if (simulationClockCommands.Length > 0)
@@ -217,7 +219,7 @@ static async Task<AetheriaRuntimeDaemonTickResult> TickAsync(
     if (terminus && !advanceSimulation)
     {
         authorizedCommands = authorizedCommands
-            .Where(command => command.Kind == AetheriaRuntimeDaemonCommandKinds.SetSimulationRate)
+            .Where(command => !AetheriaRuntimeDaemonOperations.RequiresSimulationStep(command.Kind))
             .ToArray();
     }
     var simulationTimeSeconds = (currentFrame?.SimulationTimeSeconds ?? 0) +
@@ -369,6 +371,11 @@ static async Task ApplySimulationClockCommandsAsync(
         .ReadAsync().ConfigureAwait(false) ?? new AetheriaGameSessionState();
     foreach (var command in commands.OrderBy(command => command.IssuedAtUtc, StringComparer.Ordinal))
     {
+        if (command.Kind == AetheriaRuntimeDaemonCommandKinds.AdvanceSimulationStep)
+        {
+            ingressState.SimulationStepAccumulator += 1;
+            continue;
+        }
         if (AetheriaRuntimeDaemonOperations.IsSupportedSimulationRate(command.ScalarValue))
             session.SimulationRate = command.ScalarValue;
     }
@@ -1526,10 +1533,12 @@ static async Task PublishDaemonApiDocumentsAsync(
             .ConfigureAwait(false);
     var gameSession = await node.MutableDocument<AetheriaGameSessionState>(AetheriaStateNode.GameSessionStateKey)
         .ReadAsync().ConfigureAwait(false);
+    var inputCatalog = AetheriaRuntimeCatalogStore.OpenReadOnly(node.StatePath);
     await node.MutableDocument<EveInputCapabilityDocument>(AetheriaRuntimeVerseRecordKeys.PilotInputCapability)
         .ReplaceAsync(AetheriaRuntimeInputCapabilityDocument.FromFrame(
             result.Frame,
-            string.Equals(gameSession?.Mode, AetheriaGameSessionState.TerminusMode, StringComparison.Ordinal)).ToEveDocument())
+            string.Equals(gameSession?.Mode, AetheriaGameSessionState.TerminusMode, StringComparison.Ordinal),
+            inputCatalog).ToEveDocument())
         .ConfigureAwait(false);
     var mainMenuState = await node.MutableDocument<AetheriaMainMenuState>(AetheriaStateNode.MainMenuStateKey)
         .ReadAsync()
@@ -2687,7 +2696,7 @@ static async Task<AetheriaRuntimeRunCheckpointCommit?> ReadRuntimeRunCheckpointA
             .ToArray(),
         GenerationSeed = run.GenerationSeed,
         CurrentEntityKey = run.CurrentEntityKey ?? "",
-        Credits = 1000
+        Credits = 1000000
     };
 }
 

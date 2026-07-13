@@ -99,6 +99,12 @@ compression so a physically larger world does not require the player to watch
 uneventful coasting in real time. Supported requested rates currently range from
 pause through `128x`; Starbridge remains real-time-owned.
 
+While paused, `AdvanceSimulationStep` advances exactly one fixed daemon step
+without changing the persistent requested rate. Eve advertises this as
+`simulation.step`, giving players, bots, and conformance fixtures a precise
+tactical inspection primitive instead of briefly unpausing and racing the
+publication cadence.
+
 The requested simulation rate is not a renderer time scale. The daemon advances
 the deterministic fixed-step simulation repeatedly and publishes one coherent
 sample of the resulting state. Unity, Electron, bots, and other Eve clients may

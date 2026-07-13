@@ -482,6 +482,7 @@ public sealed class AetheriaRuntimeDaemonOperationsClient
             AetheriaRuntimeDaemonCommandKinds.SetSimulationRate => client.SetSimulationRate(
                 frame,
                 ReadPayloadDouble(request, "scalarValue", 0.0)),
+            AetheriaRuntimeDaemonCommandKinds.AdvanceSimulationStep => client.AdvanceSimulationStep(frame),
             AetheriaRuntimeDaemonCommandKinds.SetLookDirection => client.SetLookDirection(
                 frame,
                 ReadPayloadDouble(request, "directionX", 0.0),
@@ -528,6 +529,20 @@ public sealed class AetheriaRuntimeDaemonOperationsClient
             AetheriaRuntimeDaemonCommandKinds.CancelAgentTask => client.CancelAgentTask(
                 frame,
                 ReadPayloadString(request, "taskId", "")),
+            AetheriaRuntimeDaemonCommandKinds.TradePurchase => client.TradePurchase(
+                frame,
+                "",
+                ReadPayloadString(request, "itemKey", ""),
+                (int)ReadPayloadDouble(request, "quantity", 1),
+                0,
+                0,
+                ReadPayloadString(request, "stationEntityKey", ""),
+                (int)ReadPayloadDouble(request, "stationCargoIndex", -1),
+                ReadPayloadString(request, "targetEntityKey", ""),
+                (int)ReadPayloadDouble(request, "targetCargoIndex", -1),
+                (int)ReadPayloadDouble(request, "sourceX", int.MinValue),
+                (int)ReadPayloadDouble(request, "sourceY", int.MinValue),
+                false),
             _ => AetheriaRuntimeDaemonSurfaceCommandCatalog.TrySubmitArgumentless(
                     client,
                     frame,

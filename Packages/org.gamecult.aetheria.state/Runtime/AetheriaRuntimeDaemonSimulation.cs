@@ -62,7 +62,7 @@ namespace GameCult.Aetheria.State.Verse
                     frameId, simulationTimeSeconds);
                 AetheriaRuntimeMiningSimulation.Step(run, zone, entities, intents, catalog, frameId, simulationTimeSeconds, deltaSeconds);
                 AetheriaRuntimeSurveySimulation.Step(run, zone, entities, intents, catalog, frameId, simulationTimeSeconds, deltaSeconds);
-                RefreshContacts(entities, settings);
+                RefreshContacts(entities, settings, catalog);
             }
         }
 
@@ -1724,10 +1724,12 @@ namespace GameCult.Aetheria.State.Verse
 
         private static void RefreshContacts(
             IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities,
-            AetheriaRuntimeDaemonSimulationSettings settings)
+            AetheriaRuntimeDaemonSimulationSettings settings,
+            AetheriaRuntimeCatalogSnapshot? catalog)
         {
             foreach (var observer in entities)
             {
+                var sensorRange = ResolveSensorRange(observer, settings, catalog);
                 var contacts = new List<AetheriaRuntimeEntityContactCommit>();
                 foreach (var target in entities)
                 {
@@ -1735,7 +1737,7 @@ namespace GameCult.Aetheria.State.Verse
                         continue;
 
                     var distance = Math.Sqrt(DistanceSq(observer, target));
-                    var visible = distance <= ResolveSensorRange(observer, settings);
+                    var visible = distance <= sensorRange;
                     if (!visible && !Hostile(observer, target))
                         continue;
 
@@ -1749,8 +1751,6 @@ namespace GameCult.Aetheria.State.Verse
                 }
 
                 observer.Contacts = contacts;
-                observer.Visibility = observer.IsActive ? ResolveSensorRange(observer, settings) : 0;
-                observer.VisibilitySourceCount = observer.IsActive ? 1 : 0;
             }
         }
 
@@ -2066,10 +2066,27 @@ namespace GameCult.Aetheria.State.Verse
 
         private static double ResolveSensorRange(
             AetheriaRuntimeEntitySnapshotCommit entity,
-            AetheriaRuntimeDaemonSimulationSettings settings)
+            AetheriaRuntimeDaemonSimulationSettings settings,
+            AetheriaRuntimeCatalogSnapshot? catalog)
         {
-            return string.Equals(entity.Kind, "station", StringComparison.OrdinalIgnoreCase)
-                ? settings.StationSensorRange
+            if (!entity.IsActive)
+                return 0;
+
+            var equipmentStates = (entity.EquipmentStates ?? Array.Empty<AetheriaRuntimeEquipmentStateCommit>())
+                .Where(state => state != null)
+                .ToDictionary(state => state.EquipmentIndex);
+            var sensitivitySquared = AetheriaRuntimeEquippedBehaviorQueries.Find(entity, catalog, "Sensor")
+                .Where(sensor => sensor.Item.Enabled && sensor.Item.Durability > 0 &&
+                    (!equipmentStates.TryGetValue(sensor.EquipmentIndex, out var state) || state.Online))
+                .Select(sensor => Math.Max(0, sensor.EvaluateStat(
+                    3,
+                    equipmentStates.TryGetValue(sensor.EquipmentIndex, out var state)
+                        ? state.ThermalPerformance
+                        : 1)))
+                .Select(sensitivity => sensitivity * sensitivity)
+                .Sum();
+            return sensitivitySquared > 0
+                ? settings.EntitySensorRange * Math.Sqrt(sensitivitySquared)
                 : settings.EntitySensorRange;
         }
 

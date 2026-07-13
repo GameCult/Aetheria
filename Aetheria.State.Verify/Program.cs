@@ -11054,7 +11054,7 @@ static void RequireTypedDaemonCommandPayloads(string root)
         "return Submit((client, frame) => client.SetTarget(frame, targetEntityKey));",
         "return Send((client, frame) => client.TransferCargoItem(",
         "command.CargoTransfer.OriginEntityKey",
-        "command.TradePurchase.TotalPrice",
+        "ReadPayloadString(request, \"itemKey\", \"\")",
         "command.LootPickup.ItemKey",
         "command.LoadoutRestore.TemplateName",
         "command.EquipmentTransfer.SourceKind",

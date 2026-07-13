@@ -165,6 +165,12 @@ namespace GameCult.Aetheria.State.Verse
             return Send(command);
         }
 
+        internal AetheriaRuntimeDaemonCommandEnvelope AdvanceSimulationStep(
+            AetheriaRuntimeDaemonFrameDocument? frame)
+        {
+            return Send(Create(AetheriaRuntimeDaemonCommandKinds.AdvanceSimulationStep, frame));
+        }
+
         internal AetheriaRuntimeDaemonCommandEnvelope SetLookDirection(
             AetheriaRuntimeDaemonFrameDocument? frame,
             double directionX,

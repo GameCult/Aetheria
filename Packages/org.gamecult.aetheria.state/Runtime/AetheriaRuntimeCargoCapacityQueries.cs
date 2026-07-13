@@ -37,8 +37,30 @@ namespace GameCult.Aetheria.State.Verse
 
         public static int UnitsThatFit(AetheriaRuntimeEntitySnapshotCommit? entity, AetheriaRuntimeCatalogSnapshot? catalog, string itemKey)
         {
+            return UnitsThatFit(entity, catalog, itemKey, 0);
+        }
+
+        public static int UnitsThatFit(
+            AetheriaRuntimeEntitySnapshotCommit? entity,
+            AetheriaRuntimeCatalogSnapshot? catalog,
+            string itemKey,
+            int cargoIndex)
+        {
             var volume = catalog?.FindItem(itemKey ?? "")?.Volume ?? 0;
-            return volume <= 0 ? int.MaxValue : Math.Max(0, (int)Math.Floor(Available(entity, catalog) / volume));
+            if (volume <= 0)
+                return int.MaxValue;
+            var cargoBays = (entity?.Equipment ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>())
+                .Select(slot => catalog?.FindItem(slot?.Item?.ItemKey ?? ""))
+                .Where(item => item != null && item.InteriorOccupiedCells > 0)
+                .ToArray();
+            if (cargoIndex < 0 || cargoIndex >= cargoBays.Length)
+                return 0;
+            var capacity = cargoBays[cargoIndex]!.InteriorOccupiedCells;
+            var bay = (entity?.CargoContents ?? Array.Empty<AetheriaRuntimeCargoBayLoadoutCommit>())
+                .ElementAtOrDefault(cargoIndex);
+            var occupied = (bay?.Items ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>())
+                .Sum(slot => Volume(slot?.Item, catalog!));
+            return Math.Max(0, (int)Math.Floor((capacity - occupied) / volume));
         }
 
         private static double Volume(AetheriaRuntimeLoadoutItemCommit? item, AetheriaRuntimeCatalogSnapshot catalog) =>

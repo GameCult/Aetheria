@@ -176,6 +176,13 @@ Visibility is simulated and observer-relative. Sensors accumulate information,
 contacts distinguish visible/known/hostile state, pings alter visibility, and
 target selection is constrained by available contacts and game rules.
 
+Passive sensor capability belongs to installed equipment, not to the `station`
+or `ship` entity kind. A station generally sees farther because its size and
+mass budget supports more and larger arrays together with the required power,
+cooling, and computation. An equivalently equipped ship and station have the
+same capability. Docked craft may consume the station's contact picture, but
+do not inherit a magical range value.
+
 The pilot can select explicitly, cycle or choose nearest targets, and obtain a
 lock where required by equipment. The UI distinguishes target existence,
 visibility to target, target visibility, hostility, lock progress, shields, and

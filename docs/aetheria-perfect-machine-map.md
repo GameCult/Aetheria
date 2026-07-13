@@ -255,6 +255,13 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   equipped-item and active-consumable behavior instances through narrow
   behavior-owned restore methods; construction/loadout blueprints do not own
   behavior replay.
+- Passive contact reach is daemon-owned and derived from enabled installed
+  `Sensor` behavior sensitivity. Arrays combine by root-sum-square, so larger
+  hulls can buy reach by devoting real equipment volume, mass, power, cooling,
+  and computation to sensing. Entity kind is not an input. Cargo is not
+  installed equipment. Contact refresh consumes this derived reach but does
+  not write `Visibility`; emitted signature remains owned by thermal,
+  propulsion, weapons, reflectors, explicit visibility sources, and pings.
   `EntityConstructionBlueprint` still exists for construction/loadout projection,
   but those live hull grids and session scalars are not blueprint fields and
   cannot be restored by the old blueprint projector path.

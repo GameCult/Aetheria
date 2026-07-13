@@ -143,7 +143,7 @@ namespace GameCult.Aetheria.State.Verse
                 case AetheriaRuntimeDaemonCommandKinds.ToggleHullConductivity:
                     return ApplyToggleHullConductivity(run, command);
                 case AetheriaRuntimeDaemonCommandKinds.TradePurchase:
-                    return ApplyTradePurchase(run, command);
+                    return ApplyTradePurchase(run, command, context.Catalog);
                 case AetheriaRuntimeDaemonCommandKinds.RestoreLoadout:
                     return ApplyRestoreLoadout(run, command, context);
                 case AetheriaRuntimeDaemonCommandKinds.SetMoveVector:
@@ -181,6 +181,8 @@ namespace GameCult.Aetheria.State.Verse
                     return ApplyCancelAgentTask(run, command);
                 case AetheriaRuntimeDaemonCommandKinds.SetSimulationRate:
                     return IsSupportedSimulationRate(command.ScalarValue);
+                case AetheriaRuntimeDaemonCommandKinds.AdvanceSimulationStep:
+                    return true;
                 default:
                     return false;
             }
@@ -190,6 +192,27 @@ namespace GameCult.Aetheria.State.Verse
 
         public static bool IsSupportedSimulationRate(double value) =>
             SupportedSimulationRates.Any(rate => Math.Abs(value - rate) < 0.000001);
+
+        public static bool RequiresSimulationStep(AetheriaRuntimeDaemonCommandKinds kind)
+        {
+            switch (kind)
+            {
+                case AetheriaRuntimeDaemonCommandKinds.SetMoveVector:
+                case AetheriaRuntimeDaemonCommandKinds.FireWeaponGroup:
+                case AetheriaRuntimeDaemonCommandKinds.SetWeaponGroupActive:
+                case AetheriaRuntimeDaemonCommandKinds.SetBehaviorActive:
+                case AetheriaRuntimeDaemonCommandKinds.ActivateConsumable:
+                case AetheriaRuntimeDaemonCommandKinds.SensorPing:
+                case AetheriaRuntimeDaemonCommandKinds.Dock:
+                case AetheriaRuntimeDaemonCommandKinds.DockNearest:
+                case AetheriaRuntimeDaemonCommandKinds.Undock:
+                case AetheriaRuntimeDaemonCommandKinds.Interact:
+                case AetheriaRuntimeDaemonCommandKinds.EnterWormhole:
+                    return true;
+                default:
+                    return false;
+            }
+        }
 
         private static bool ApplyIssueAgentTask(
             AetheriaRuntimeRunCheckpointCommit run,
@@ -748,7 +771,7 @@ namespace GameCult.Aetheria.State.Verse
             var quantity = transfer.Quantity > 0
                 ? transfer.Quantity
                 : (int)Math.Round(command.ScalarValue);
-            if (quantity <= 0 || quantity > AetheriaRuntimeCargoCapacityQueries.UnitsThatFit(destinationEntity, catalog, command.TextValue))
+            if (quantity <= 0 || quantity > AetheriaRuntimeCargoCapacityQueries.UnitsThatFit(destinationEntity, catalog, command.TextValue, destinationCargoIndex))
                 return false;
             if (!TryRemoveCargoItemQuantity(
                     originEntity,
@@ -917,18 +940,58 @@ namespace GameCult.Aetheria.State.Verse
 
         private static bool ApplyTradePurchase(
             AetheriaRuntimeRunCheckpointCommit run,
-            AetheriaRuntimeDaemonCommandDocument command)
+            AetheriaRuntimeDaemonCommandDocument command,
+            AetheriaRuntimeCatalogSnapshot? catalog)
         {
             var purchase = command.TradePurchase ?? new AetheriaRuntimeTradePurchaseCommand();
-            var totalPrice = purchase.TotalPrice;
-            if (totalPrice < 0 || run.Credits < totalPrice)
+            var itemKey = purchase.ItemKey ?? "";
+            var typedItem = catalog?.FindItem(itemKey);
+            var quantity = Math.Max(1, purchase.Quantity);
+            if (typedItem == null ||
+                !TryResolveDockParent(run, run.CurrentEntityKey, out var dockParentKey, out var dockParent))
                 return false;
 
-            if (purchase.CreatesDockedShip)
+            if (!TryFindStationStock(
+                    dockParent,
+                    itemKey,
+                    purchase.StationCargoIndex,
+                    purchase.SourceX,
+                    purchase.SourceY,
+                    out var stationCargoIndex,
+                    out var stockSlot))
             {
-                if (!ApplyCreateDockedShipPurchase(run, purchase, out var purchasedShipKey))
-                    return false;
+                return false;
+            }
+            var stationEntity = dockParent;
 
+            var unitPrice = AetheriaRuntimeDaemonTradeItemQueries.TradeItemValue(
+                typedItem,
+                stockSlot.Item,
+                catalog.TradeValueSettings).Price;
+            var totalPrice = checked(unitPrice * quantity);
+            if (unitPrice < 0 || run.Credits < totalPrice)
+                return false;
+
+            var createsDockedShip = !string.IsNullOrWhiteSpace(typedItem.HullType);
+            if (createsDockedShip)
+            {
+                if (quantity != 1 || !HasAvailableDockingBay(dockParent))
+                    return false;
+                purchase.TargetEntityKey = dockParentKey;
+                if (!TryRemoveCargoItemQuantity(
+                        stationEntity,
+                        stationCargoIndex,
+                        itemKey,
+                        purchase.SourceX,
+                        purchase.SourceY,
+                        1,
+                        out var purchasedHull))
+                    return false;
+                if (!ApplyCreateDockedShipPurchase(run, purchase, out var purchasedShipKey))
+                {
+                    AddCargoItem(stationEntity, stationCargoIndex, purchasedHull);
+                    return false;
+                }
                 run.CurrentEntityKey = purchasedShipKey;
                 run.Credits -= totalPrice;
                 return true;
@@ -936,24 +999,17 @@ namespace GameCult.Aetheria.State.Verse
 
             if (!TryResolveCargoBay(
                     run,
-                    purchase.StationEntityKey,
-                    purchase.StationCargoIndex,
-                    out var stationEntity,
-                    out var stationCargoIndex,
-                    out _) ||
-                !TryResolveCargoBay(
-                    run,
-                    purchase.TargetEntityKey,
-                    purchase.TargetCargoIndex,
+                    run.CurrentEntityKey,
+                    Math.Max(0, purchase.TargetCargoIndex),
                     out var targetEntity,
                     out var targetCargoIndex,
-                    out _))
+                    out _) ||
+                !IsEntityDockedAt(run, run.CurrentEntityKey, dockParent) ||
+                quantity > AetheriaRuntimeCargoCapacityQueries.UnitsThatFit(targetEntity, catalog, itemKey, targetCargoIndex))
             {
                 return false;
             }
 
-            var itemKey = purchase.ItemKey ?? "";
-            var quantity = Math.Max(1, purchase.Quantity);
             if (!TryRemoveCargoItemQuantity(
                     stationEntity,
                     stationCargoIndex,
@@ -971,6 +1027,79 @@ namespace GameCult.Aetheria.State.Verse
             AddCargoItem(targetEntity, targetCargoIndex, purchasedSlot);
             run.Credits -= totalPrice;
             return true;
+        }
+
+        private static bool TryResolveDockParent(
+            AetheriaRuntimeRunCheckpointCommit run,
+            string childEntityKey,
+            out string parentEntityKey,
+            out AetheriaRuntimeEntitySnapshotCommit parent)
+        {
+            parentEntityKey = "";
+            parent = null!;
+            if (!TryResolveEntity(run, childEntityKey, out var zoneIndex, out var childIndex, out _))
+                return false;
+            var zone = (run.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>())
+                .FirstOrDefault(candidate => candidate != null && candidate.ZoneIndex == zoneIndex);
+            parent = (zone?.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
+                .FirstOrDefault(entity => entity != null &&
+                    (entity.DockingBayAssignments ?? Array.Empty<int>()).Contains(childIndex))!;
+            if (parent == null)
+                return false;
+            parentEntityKey = AetheriaRuntimeRunCheckpointCommit.EntityRecordKey(run.RunId, zoneIndex, parent.EntityIndex);
+            return true;
+        }
+
+        private static bool IsEntityDockedAt(
+            AetheriaRuntimeRunCheckpointCommit run,
+            string entityKey,
+            AetheriaRuntimeEntitySnapshotCommit parent)
+        {
+            return TryResolveEntity(run, entityKey, out _, out var entityIndex, out _) &&
+                (parent.DockingBayAssignments ?? Array.Empty<int>()).Contains(entityIndex);
+        }
+
+        private static bool HasAvailableDockingBay(AetheriaRuntimeEntitySnapshotCommit parent) =>
+            (parent.DockingBayAssignments ?? Array.Empty<int>()).Any(index => index < 0);
+
+        private static bool TryFindCargoItem(
+            AetheriaRuntimeCargoBayLoadoutCommit cargo,
+            string itemKey,
+            int x,
+            int y,
+            out AetheriaRuntimeLoadoutItemSlotCommit slot)
+        {
+            slot = (cargo?.Items ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>())
+                .FirstOrDefault(candidate => candidate?.Item != null &&
+                    string.Equals(candidate.Item.ItemKey ?? "", itemKey, StringComparison.Ordinal) &&
+                    candidate.X == x && candidate.Y == y)!;
+            return slot != null;
+        }
+
+        private static bool TryFindStationStock(
+            AetheriaRuntimeEntitySnapshotCommit station,
+            string itemKey,
+            int requestedCargoIndex,
+            int requestedX,
+            int requestedY,
+            out int cargoIndex,
+            out AetheriaRuntimeLoadoutItemSlotCommit slot)
+        {
+            cargoIndex = -1;
+            slot = null!;
+            var cargo = station.CargoContents ?? Array.Empty<AetheriaRuntimeCargoBayLoadoutCommit>();
+            IEnumerable<int> indices = requestedCargoIndex >= 0 && requestedCargoIndex < cargo.Count
+                ? new[] { requestedCargoIndex }
+                : Enumerable.Range(0, cargo.Count);
+            foreach (var index in indices)
+            {
+                if (TryFindCargoItem(cargo[index], itemKey, requestedX, requestedY, out slot))
+                {
+                    cargoIndex = index;
+                    return true;
+                }
+            }
+            return false;
         }
 
         private static bool ApplyCreateDockedShipPurchase(
