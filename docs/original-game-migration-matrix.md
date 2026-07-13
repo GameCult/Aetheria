@@ -37,7 +37,7 @@ validation proves contract shape, not wiring, exclusivity, lowering, or parity.
 | Fields/fog/gravity | zone renderer and shaders | daemon/plugin semantics | Fields plugin documents | EveUnity fields lowerer | owner-exists; basic lowering; composition parity absent | visual parity captures |
 | HUD/schematic | ARPG HUD and `SchematicDisplay` | Eve composition from daemon facts | semantic status/components | EveUnity UI | reference | source-fact and timing matrix |
 | Hit/lock/warnings | `ActionGameManager` feedback | daemon event facts | transient feedback stream | VFX/UI/audio | bounded deduplicated game-event ledger and Eve `feedback.stream` wired for pickup outcomes, projectile launch/impact, entity damage, alive-to-dead destruction, authoritative weapon reload chronology, and episode-deduplicated `weapon.fire.refused` facts for insufficient energy or missing ammunition; refusal identity, authored weapon, target, reason, and remaining magazine state are runtime-independent cockpit inputs | add lock transitions, thermal and docking event families, negative transaction fixtures, and runtime effect consumption |
-| Assets | `Assets/Resources` | Aetheria provider | asset catalog + CultMesh CDN | runtime cache/load | wired; basic lowering; not live-proven remotely | cold/warm remote-only live load and cache proof |
+| Assets | `Assets/Resources` | Aetheria provider | asset catalog + CultMesh CDN | runtime cache/load | provider manifests now name deterministic bundle-internal paths; the authoring build derives presentation-only prefabs, strips missing and non-Eve `MonoBehaviour` components, verifies both saved prefabs and the loaded bundle, and publishes the immutable bundle through CultMesh; remote cold/warm loading remains unproven | cold/warm remote-only live load, cache proof, and rendered identity capture |
 | Save/resume | original persistence paths | daemon/CultCache | published current state | clients rehydrate | owner-exists; not parity-proven | mid-loop restart |
 | Terminus loop | original game composition | daemon/Ymir/Eve | pilot surface | Aetheria.Unity | live minimum-loop proof: generic Unity discovers the provider, lowers the pilot world/assets, single-steps dock and undock while paused, buys daemon-priced station stock, single-steps Ymir salvage collection, resumes, moves, targets, fires, and presents authoritative receipts/shot outcome | destruction-created loot pickup, richer trade content, docking transitions, and sustained combat encounters |
 | Starbridge | original/shared architecture intent | one daemon session | pilot + commander surfaces | Unity + Electron | commander task board and autonomous explore execution wired; Electron Eve lowering and split-target proof missing | commander orders plus four pilots and autonomous workers |
@@ -140,18 +140,20 @@ These are source-confirmed ownership failures, not feature backlog:
 - Conformance scenarios must preserve source baseline, authoritative state
   timeline, Ymir timeline, command/receipt chronology, rendered capture,
     runtime/package versions, and negative-authority results together.
-10. **Unity still reconstructs a mutable gameplay graph.**
+10. **The fossil authoring project still contains a mutable gameplay graph.**
     `AetheriaUnityObservedEntityRestorer`, `AetheriaUnityObservedFrameApplier`,
-    `ActionGameManager`, and `ZoneRenderer` can derive or repair state instead of
-    merely lowering Eve facts. The migration must first publish every required
-    presentation fact, then delete those writers and make Eve entity/node IDs
-    the only presentation identity.
-11. **Provider asset delivery still contains fossil gameplay scripts.** The
-    daemon publishes semantic asset descriptions and CDN records, but current
-    bundles deserialize prefabs containing missing or Aetheria-specific
-    `MonoBehaviour` components. The first asset conformance slice is the
-    player/ship/station/orbital presentation set, packaged as immutable
-    presentation-only variants and cold-loaded by a clean EveUnity client.
+    `ActionGameManager`, and `ZoneRenderer` remain reference and asset-authoring
+    inputs in the original Unity project. They are absent from the canonical
+    `Aetheria.Unity` client, whose verifier rejects Aetheria, ServerShared, and
+    gameplay assemblies. EveUnity still needs a read-only presented-entity
+    registry before richer camera, selection, and HUD adapters can avoid
+    rebuilding a parallel presentation index.
+11. **Remote provider asset delivery remains unproven.** The authoring build now
+    derives deterministic presentation-only variants, strips missing and
+    non-Eve scripts, verifies the saved prefabs and loaded AssetBundle, and the
+    daemon advertises those bundle-internal paths. A clean EveUnity client must
+    still prove cold download, content verification, cache reuse, and rendered
+    identity without access to the authoring project.
 12. **The negotiated local SoA fast path remains unproven.** The daemon publishes
     exact immutable generations; the external Unity client rejects stale or
     mismatched bodies and now resolves the same generation through the
