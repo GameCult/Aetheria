@@ -481,6 +481,7 @@ namespace GameCult.Aetheria.State.Verse
             var entityMap = entities
                 .Where(entity => entity != null && entity.EntityIndex >= 0)
                 .ToDictionary(entity => entity.EntityIndex, entity => entity);
+            var currentEntityIndex = TryParseEntityIndex(context.Run.CurrentEntityKey);
 
             return new AetheriaRuntimeZoneContactsDocument
             {
@@ -497,12 +498,25 @@ namespace GameCult.Aetheria.State.Verse
                     .Select(entity => ToZoneTargetRow(entity, entityMap[entity.TargetEntityIndex]))
                     .ToArray(),
                 Contacts = entities
-                    .Where(entity => entity != null)
+                    .Where(entity => entity != null && entity.EntityIndex != currentEntityIndex)
                     .SelectMany(entity => (entity.Contacts ?? Array.Empty<AetheriaRuntimeEntityContactCommit>())
                         .Where(contact => contact != null &&
                                           contact.TargetEntityIndex >= 0 &&
                                           entityMap.ContainsKey(contact.TargetEntityIndex))
-                        .Select(contact => ProjectZoneContactRow(entity, entityMap[contact.TargetEntityIndex], contact)))
+                        .Select(contact => ProjectZoneContactRow(
+                            entity.EntityIndex,
+                            entity.EntityIndex,
+                            entity,
+                            entityMap[contact.TargetEntityIndex],
+                            contact)))
+                    .Concat(AetheriaRuntimeDaemonRenderQueries.QueryEffectiveContacts(context.Zone, currentEntityIndex)
+                        .Where(effective => entityMap.ContainsKey(effective.Contact.TargetEntityIndex))
+                        .Select(effective => ProjectZoneContactRow(
+                            effective.ObserverEntityIndex,
+                            effective.PrimarySensorSourceEntityIndex,
+                            entityMap[currentEntityIndex],
+                            entityMap[effective.Contact.TargetEntityIndex],
+                            effective.Contact)))
                     .ToArray()
             };
         }
@@ -588,6 +602,8 @@ namespace GameCult.Aetheria.State.Verse
         }
 
         private static AetheriaRuntimeZoneContactRow ProjectZoneContactRow(
+            int observerEntityIndex,
+            int primarySensorSourceEntityIndex,
             AetheriaRuntimeEntitySnapshotCommit observer,
             AetheriaRuntimeEntitySnapshotCommit target,
             AetheriaRuntimeEntityContactCommit contact)
@@ -597,7 +613,8 @@ namespace GameCult.Aetheria.State.Verse
             var deltaZ = target.PositionZ - observer.PositionZ;
             return new AetheriaRuntimeZoneContactRow
             {
-                ObserverEntityIndex = observer.EntityIndex,
+                ObserverEntityIndex = observerEntityIndex,
+                PrimarySensorSourceEntityIndex = primarySensorSourceEntityIndex,
                 TargetEntityIndex = target.EntityIndex,
                 InfoGathered = contact.InfoGathered,
                 Hostile = contact.Hostile,

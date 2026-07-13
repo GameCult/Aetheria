@@ -51,11 +51,10 @@ namespace GameCult.Aetheria.State.Verse
             var dockParent = (zone?.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
                 .FirstOrDefault(entity => entity != null && controlled != null &&
                     (entity.DockingBayAssignments ?? Array.Empty<int>()).Contains(controlled.EntityIndex));
-            var visibleContacts = (controlled?.Contacts ?? Array.Empty<AetheriaRuntimeEntityContactCommit>())
-                .Concat(dockParent?.Contacts ?? Array.Empty<AetheriaRuntimeEntityContactCommit>());
-            var visibleEntityIndices = visibleContacts
-                .Where(contact => contact != null && contact.Visible)
-                .Select(contact => contact.TargetEntityIndex)
+            var visibleEntityIndices = AetheriaRuntimeDaemonRenderQueries
+                .QueryEffectiveContacts(zone, controlled?.EntityIndex ?? -1)
+                .Where(contact => contact.Contact.Visible)
+                .Select(contact => contact.Contact.TargetEntityIndex)
                 .Append(controlled?.EntityIndex ?? -1)
                 .ToHashSet();
             if (dockParent != null)

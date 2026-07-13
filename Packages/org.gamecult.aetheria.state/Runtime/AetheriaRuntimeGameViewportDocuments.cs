@@ -461,6 +461,9 @@ namespace GameCult.Aetheria.State.Verse
 
         [Key(11)]
         public double Distance { get; set; }
+
+        [Key(12)]
+        public int PrimarySensorSourceEntityIndex { get; set; } = -1;
     }
 
     [CultDocument("gamecult.aetheria.station_refit", "gamecult.aetheria.station_refit.v1")]

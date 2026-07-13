@@ -2275,6 +2275,96 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
+    public void DockedPilotConsumesStationContactPictureThroughEveAndSoa()
+    {
+        var pilot = new AetheriaRuntimeEntitySnapshotCommit
+        {
+            EntityIndex = 7, Kind = "ship", FactionKey = "player", IsActive = true,
+            Contacts = new[]
+            {
+                new AetheriaRuntimeEntityContactCommit
+                {
+                    TargetEntityIndex = 3, InfoGathered = 0.2, Hostile = true, Visible = false
+                }
+            }
+        };
+        var station = new AetheriaRuntimeEntitySnapshotCommit
+        {
+            EntityIndex = 2, Kind = "station", FactionKey = "player", IsActive = true,
+            DockingBayAssignments = new[] { 7 },
+            Contacts = new[]
+            {
+                new AetheriaRuntimeEntityContactCommit
+                {
+                    TargetEntityIndex = 3, InfoGathered = 0.9, Visible = true
+                },
+                new AetheriaRuntimeEntityContactCommit
+                {
+                    TargetEntityIndex = 4, InfoGathered = 0.7, Visible = true
+                }
+            }
+        };
+        var unrelatedObserver = new AetheriaRuntimeEntitySnapshotCommit
+        {
+            EntityIndex = 8, Kind = "ship", IsActive = true,
+            Contacts = new[]
+            {
+                new AetheriaRuntimeEntityContactCommit
+                {
+                    TargetEntityIndex = 5, InfoGathered = 1, Visible = true
+                }
+            }
+        };
+        var zone = new AetheriaRuntimeZoneSnapshotCommit
+        {
+            ZoneIndex = 2,
+            Entities = new[]
+            {
+                station,
+                pilot,
+                unrelatedObserver,
+                new AetheriaRuntimeEntitySnapshotCommit { EntityIndex = 3, IsActive = true },
+                new AetheriaRuntimeEntitySnapshotCommit { EntityIndex = 4, IsActive = true },
+                new AetheriaRuntimeEntitySnapshotCommit { EntityIndex = 5, IsActive = true }
+            }
+        };
+        var frame = AetheriaRuntimeDaemonFrameDocument.Create(
+            new AetheriaRuntimeRunCheckpointCommit
+            {
+                RunId = "docked-sensors",
+                CurrentZoneIndex = 2,
+                CurrentEntityKey = "global:aetheria.run_state.docked-sensors.zone.2.entity.7.v1",
+                Zones = new[] { zone }
+            },
+            "aetheria-daemon",
+            "session-docked-sensors",
+            51,
+            1,
+            0.02);
+
+        var contacts = AetheriaRuntimeGameDocuments.ZoneContacts(frame);
+        var pilotContacts = contacts.Contacts
+            .Where(contact => contact.ObserverEntityIndex == 7)
+            .OrderBy(contact => contact.TargetEntityIndex)
+            .ToArray();
+        Assert.AreEqual(2, pilotContacts.Length);
+        Assert.AreEqual(3, pilotContacts[0].TargetEntityIndex);
+        Assert.AreEqual(0.9, pilotContacts[0].InfoGathered, 0.0001);
+        Assert.IsTrue(pilotContacts[0].Visible);
+        Assert.IsTrue(pilotContacts[0].Hostile, "Contact facts from both sensor sources must merge.");
+        Assert.AreEqual(2, pilotContacts[0].PrimarySensorSourceEntityIndex);
+        Assert.AreEqual(4, pilotContacts[1].TargetEntityIndex);
+        Assert.AreEqual(2, pilotContacts[1].PrimarySensorSourceEntityIndex);
+        Assert.IsFalse(pilotContacts.Any(contact => contact.TargetEntityIndex == 5),
+            "An unrelated observer's contacts must not enter the pilot picture.");
+
+        var statePath = Path.Combine(Path.GetTempPath(), "aetheria-docked-sensors", Path.GetRandomFileName(), "state.cc");
+        var view = AetheriaRuntimeDaemonSoaFramePublisher.BuildCurrentZoneEntities(statePath, frame);
+        CollectionAssert.AreEquivalent(new[] { 2, 3, 4, 7 },
+            view.Identities.Select(identity => identity.EntityIndex).ToArray());
+    }
+
+    [Test]
     public void TerminusPilotTractorScoopsCargoFromTargetedWreck()
     {
         var loot = new AetheriaRuntimeLoadoutItemSlotCommit

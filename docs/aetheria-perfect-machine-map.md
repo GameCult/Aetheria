@@ -279,6 +279,12 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   installed equipment. Contact refresh consumes this derived reach but does
   not write `Visibility`; emitted signature remains owned by thermal,
   propulsion, weapons, reflectors, explicit visibility sources, and pings.
+- The daemon observation query owns docked sensor sharing. A docked controlled
+  craft's effective contact picture merges its own contacts with the dock
+  parent's contacts, retains the primary sensor source on every projected row,
+  and resolves duplicate targets to the strongest gathered information.
+  Eve contact documents and SoA render bodies consume this same query; runtime
+  clients do not discover docking relationships or union sensor state.
   `EntityConstructionBlueprint` still exists for construction/loadout projection,
   but those live hull grids and session scalars are not blueprint fields and
   cannot be restored by the old blueprint projector path.

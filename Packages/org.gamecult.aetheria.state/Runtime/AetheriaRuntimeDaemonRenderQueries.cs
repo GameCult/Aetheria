@@ -676,8 +676,92 @@ namespace GameCult.Aetheria.State.Verse
         public double DepthRange { get; }
     }
 
+    public readonly struct AetheriaRuntimeEffectiveContact
+    {
+        public AetheriaRuntimeEffectiveContact(
+            int observerEntityIndex,
+            int primarySensorSourceEntityIndex,
+            AetheriaRuntimeEntityContactCommit contact)
+        {
+            ObserverEntityIndex = observerEntityIndex;
+            PrimarySensorSourceEntityIndex = primarySensorSourceEntityIndex;
+            Contact = contact ?? throw new ArgumentNullException(nameof(contact));
+        }
+
+        public int ObserverEntityIndex { get; }
+        public int PrimarySensorSourceEntityIndex { get; }
+        public AetheriaRuntimeEntityContactCommit Contact { get; }
+    }
+
     public static class AetheriaRuntimeDaemonRenderQueries
     {
+        public static AetheriaRuntimeEffectiveContact[] QueryEffectiveContacts(
+            AetheriaRuntimeZoneSnapshotCommit? zone,
+            int observerEntityIndex)
+        {
+            if (zone == null || observerEntityIndex < 0)
+                return Array.Empty<AetheriaRuntimeEffectiveContact>();
+
+            var entities = zone.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>();
+            var observer = entities.FirstOrDefault(entity =>
+                entity != null && entity.EntityIndex == observerEntityIndex);
+            if (observer == null)
+                return Array.Empty<AetheriaRuntimeEffectiveContact>();
+
+            var sources = new List<AetheriaRuntimeEntitySnapshotCommit> { observer };
+            var dockParent = entities.FirstOrDefault(entity => entity != null &&
+                (entity.DockingBayAssignments ?? Array.Empty<int>()).Contains(observerEntityIndex));
+            if (dockParent != null && dockParent.EntityIndex != observerEntityIndex)
+                sources.Add(dockParent);
+
+            var contacts = new Dictionary<int, AetheriaRuntimeEffectiveContact>();
+            foreach (var source in sources)
+            foreach (var contact in source.Contacts ?? Array.Empty<AetheriaRuntimeEntityContactCommit>())
+            {
+                if (contact == null || contact.TargetEntityIndex < 0)
+                    continue;
+
+                if (!contacts.TryGetValue(contact.TargetEntityIndex, out var previous))
+                {
+                    contacts.Add(contact.TargetEntityIndex, Effective(observerEntityIndex, source.EntityIndex, contact));
+                    continue;
+                }
+
+                var previousContact = previous.Contact;
+                var sourceWins = contact.InfoGathered > previousContact.InfoGathered ||
+                    (contact.InfoGathered == previousContact.InfoGathered && contact.Visible && !previousContact.Visible);
+                contacts[contact.TargetEntityIndex] = new AetheriaRuntimeEffectiveContact(
+                    observerEntityIndex,
+                    sourceWins ? source.EntityIndex : previous.PrimarySensorSourceEntityIndex,
+                    new AetheriaRuntimeEntityContactCommit
+                    {
+                        TargetEntityIndex = contact.TargetEntityIndex,
+                        InfoGathered = Math.Max(previousContact.InfoGathered, contact.InfoGathered),
+                        Hostile = previousContact.Hostile || contact.Hostile,
+                        Visible = previousContact.Visible || contact.Visible
+                    });
+            }
+
+            return contacts.Values
+                .OrderBy(contact => contact.Contact.TargetEntityIndex)
+                .ToArray();
+        }
+
+        private static AetheriaRuntimeEffectiveContact Effective(
+            int observerEntityIndex,
+            int primarySensorSourceEntityIndex,
+            AetheriaRuntimeEntityContactCommit contact) =>
+            new AetheriaRuntimeEffectiveContact(
+                observerEntityIndex,
+                primarySensorSourceEntityIndex,
+                new AetheriaRuntimeEntityContactCommit
+                {
+                    TargetEntityIndex = contact.TargetEntityIndex,
+                    InfoGathered = contact.InfoGathered,
+                    Hostile = contact.Hostile,
+                    Visible = contact.Visible
+                });
+
         public static double ResolveZoneRenderRadius(
             AetheriaRuntimeZoneSnapshotCommit? zone,
             double fallbackRadius)
