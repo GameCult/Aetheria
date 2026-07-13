@@ -152,7 +152,10 @@ These are source-confirmed ownership failures, not feature backlog:
     `MonoBehaviour` components. The first asset conformance slice is the
     player/ship/station/orbital presentation set, packaged as immutable
     presentation-only variants and cold-loaded by a clean EveUnity client.
-12. **Local SoA negotiation is not yet an end-to-end process boundary.** The
-    daemon publishes exact immutable generations and the client rejects stale or
-    mismatched bodies, but the live external client still falls through to an
-    unimplemented network byte reader when it cannot redeem the local capability.
+12. **The negotiated local SoA fast path remains unproven.** The daemon publishes
+    exact immutable generations; the external Unity client rejects stale or
+    mismatched bodies and now resolves the same generation through the
+    Verse-owned network binding, manifest, and content-addressed chunks. The live
+    witness proves remote/fallback correctness. Shared-memory handle exchange and
+    proof that a same-machine client selected the zero-copy representation remain
+    CultMesh work rather than EveUnity policy.

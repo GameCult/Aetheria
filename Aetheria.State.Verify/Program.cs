@@ -792,7 +792,7 @@ static void RequireSharedEvePackagesImportedFromEveRepo(string root)
     {
         "\"org.gamecult.cultlib\": \"https://github.com/GameCult/CultLib.git?path=/unity/org.gamecult.cultlib#cultlib-unity-v1.0.9\"",
         "\"org.gamecult.eve.surface\": \"https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.surface#eveunity-surface-v0.2.0\"",
-        "\"org.gamecult.eve.unity-scene\": \"https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.unity-scene#eveunity-scene-v0.2.2\""
+        "\"org.gamecult.eve.unity-scene\": \"https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.unity-scene#eveunity-scene-v0.2.3\""
     };
 
     var missingManifestSymbols = requiredManifestSymbols
@@ -810,7 +810,7 @@ static void RequireSharedEvePackagesImportedFromEveRepo(string root)
     {
         "cultlib-unity-v1.0.9",
         "eveunity-surface-v0.2.0",
-        "eveunity-scene-v0.2.2",
+        "eveunity-scene-v0.2.3",
         "\"source\": \"git\""
     };
 
