@@ -686,9 +686,8 @@ static void RequireGameplaySourcePurity(string root)
 
 static void RequireSharedEvePackagesImportedFromEveRepo(string root)
 {
-    var manifestPath = Path.Combine(root, "Packages", "manifest.json");
-    var lockPath = Path.Combine(root, "Packages", "packages-lock.json");
-    var unityGeneratedProjectPath = Path.Combine(root, "GameCult.Aetheria.State.Unity.csproj");
+    var manifestPath = Path.Combine(root, "Aetheria.Unity", "Packages", "manifest.json");
+    var lockPath = Path.Combine(root, "Aetheria.Unity", "Packages", "packages-lock.json");
     var unityAsmdefPath = Path.Combine(
         root,
         "Packages",
@@ -758,9 +757,6 @@ static void RequireSharedEvePackagesImportedFromEveRepo(string root)
     var packageLock = File.Exists(lockPath)
         ? File.ReadAllText(lockPath)
         : throw new InvalidOperationException("Cannot verify shared Eve package ownership; packages-lock.json is missing.");
-    var unityGeneratedProject = File.Exists(unityGeneratedProjectPath)
-        ? File.ReadAllText(unityGeneratedProjectPath)
-        : throw new InvalidOperationException("Cannot verify shared Eve package ownership; GameCult.Aetheria.State.Unity.csproj is missing.");
     var unityAsmdef = File.Exists(unityAsmdefPath)
         ? File.ReadAllText(unityAsmdefPath)
         : throw new InvalidOperationException("Cannot verify shared Eve package ownership; GameCult.Aetheria.State.Unity.asmdef is missing.");
@@ -794,8 +790,9 @@ static void RequireSharedEvePackagesImportedFromEveRepo(string root)
 
     var requiredManifestSymbols = new[]
     {
-        "\"org.gamecult.eve.surface\": \"https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.surface#eveunity-surface-v0.1.0\"",
-        "\"org.gamecult.eve.unity-uitoolkit\": \"https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.unity-uitoolkit#eveunity-uitoolkit-v0.1.0\""
+        "\"org.gamecult.cultlib\": \"https://github.com/GameCult/CultLib.git?path=/unity/org.gamecult.cultlib#cultlib-unity-v1.0.9\"",
+        "\"org.gamecult.eve.surface\": \"https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.surface#eveunity-surface-v0.2.0\"",
+        "\"org.gamecult.eve.unity-scene\": \"https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.unity-scene#eveunity-scene-v0.2.1\""
     };
 
     var missingManifestSymbols = requiredManifestSymbols
@@ -811,8 +808,9 @@ static void RequireSharedEvePackagesImportedFromEveRepo(string root)
 
     var requiredLockSymbols = new[]
     {
-        "eveunity-surface-v0.1.0",
-        "eveunity-uitoolkit-v0.1.0",
+        "cultlib-unity-v1.0.9",
+        "eveunity-surface-v0.2.0",
+        "eveunity-scene-v0.2.1",
         "\"source\": \"git\""
     };
 
@@ -839,9 +837,7 @@ static void RequireSharedEvePackagesImportedFromEveRepo(string root)
             "The neighboring EveUnity repo is missing the shared Unity package roots Aetheria imports.");
     }
 
-    if (!unityGeneratedProject.Contains("<Reference Include=\"GameCult.Eve.Surface\">", StringComparison.Ordinal) ||
-        !unityGeneratedProject.Contains("GameCult.Eve.Surface.dll", StringComparison.Ordinal) ||
-        !unityAsmdef.Contains("\"GameCult.Eve.Surface\"", StringComparison.Ordinal))
+    if (!unityAsmdef.Contains("\"GameCult.Eve.Surface\"", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "Aetheria.State.Unity no longer references the shared Eve surface package assembly.");
@@ -11668,7 +11664,8 @@ static void RequireDaemonVersePublication(string root)
         "BuildCurrentZoneEntities(",
         "new CultMeshFrameBodyPublisher(",
         "new CultMeshNetworkBodyPublisher(",
-        "CultMeshBodyPublicationValidator.Validate(publication, BodyId)",
+        "new CultMeshBodyPublicationHandle(BodyId, publication.ProducerEpoch, publication.Sequence)",
+        ".Validate(publication)",
         "view.Buffers[0].BufferId, publication.BodyId",
         "view.Columns.Any(column => !string.Equals(column.BufferId, publication.BodyId",
         "ObserverWritable = false",
@@ -11726,6 +11723,15 @@ static void RequireDaemonVersePublication(string root)
         daemonHostProgram.IndexOf("MutableDocument<EveEntitySoaViewDocument>(AetheriaRuntimeVerseRecordKeys.EveEntitySoaViewLatest)", StringComparison.Ordinal))
     {
         throw new InvalidOperationException("CultMesh body publication must precede the Eve entity SoA layout record.");
+    }
+    if (!smoke.Contains("new CultMeshBodyPublicationHandle(", StringComparison.Ordinal) ||
+        !smoke.Contains("published.View.ProducerEpoch", StringComparison.Ordinal) ||
+        !smoke.Contains("published.View.Sequence", StringComparison.Ordinal) ||
+        !smoke.Contains("CreateLatestRecordKey", StringComparison.Ordinal) ||
+        !smoke.Contains("bodyHandle.Validate(body)", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "The Aetheria pipeline smoke must prove view N resolves its generation record while latest points at N+1.");
     }
     if (File.Exists(legacyProviderAdvertisementPath))
     {

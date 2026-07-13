@@ -979,17 +979,38 @@ static async Task ProveDirectSoaPublicationPipeline()
     if (cache.Get<EveEntitySoaViewDocument>(AetheriaRuntimeVerseRecordKeys.EveEntitySoaViewLatest) != null)
         throw new InvalidOperationException("Building a CultMesh body publication made the Eve view visible before commit.");
 
+    frame.FrameId++;
+    var next = await publisher.PublishAsync(publisher.BuildCurrentZoneEntities(frame));
+    if (published.Body.RecordKey.Equals(next.Body.RecordKey))
+        throw new InvalidOperationException("Distinct SoA generations collided on one CultMesh body publication key.");
+
     await cache.UpsertAsync(
         published.Body,
         new CultRecordHandle<CultMeshBodyPublicationDocument>(published.Body.RecordKey));
+    await cache.UpsertAsync(
+        next.Body,
+        new CultRecordHandle<CultMeshBodyPublicationDocument>(next.Body.RecordKey));
+    await cache.UpsertAsync(
+        next.Body,
+        new CultRecordHandle<CultMeshBodyPublicationDocument>(
+            CultMeshBodyPublicationDocument.CreateLatestRecordKey(next.Body.BodyId)));
     if (cache.Get<EveEntitySoaViewDocument>(AetheriaRuntimeVerseRecordKeys.EveEntitySoaViewLatest) != null)
         throw new InvalidOperationException("Publishing the body record alone made the Eve view visible.");
     await cache.UpsertAsync(
         published.View,
         new CultRecordHandle<EveEntitySoaViewDocument>(AetheriaRuntimeVerseRecordKeys.EveEntitySoaViewLatest));
 
-    var body = cache.Get<CultMeshBodyPublicationDocument>(published.Body.RecordKey)
+    var bodyHandle = new CultMeshBodyPublicationHandle(
+        published.View.Buffers[0].BufferId,
+        published.View.ProducerEpoch,
+        published.View.Sequence);
+    var body = cache.Get<CultMeshBodyPublicationDocument>(bodyHandle.RecordKey)
         ?? throw new InvalidOperationException("Typed CultMesh body publication did not roundtrip through CultCache.");
+    bodyHandle.Validate(body);
+    var latest = cache.Get<CultMeshBodyPublicationDocument>(
+        CultMeshBodyPublicationDocument.CreateLatestRecordKey(body.BodyId));
+    if (latest == null || latest.Sequence != next.Body.Sequence || body.Sequence == latest.Sequence)
+        throw new InvalidOperationException("The view generation was substituted by the latest CultMesh body publication.");
     var view = cache.Get<EveEntitySoaViewDocument>(AetheriaRuntimeVerseRecordKeys.EveEntitySoaViewLatest)
         ?? throw new InvalidOperationException("Typed Eve SoA view did not become visible after body publication.");
     if (body.PreferredLocal.TransportKind != CultMeshBodyTransportKind.SharedMemory ||

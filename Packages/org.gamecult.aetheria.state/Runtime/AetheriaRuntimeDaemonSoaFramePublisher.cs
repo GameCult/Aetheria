@@ -197,7 +197,8 @@ namespace GameCult.Aetheria.State.Verse
                 PreferredLocal = local,
                 NetworkFallback = network
             };
-            CultMeshBodyPublicationValidator.Validate(publication, BodyId);
+            new CultMeshBodyPublicationHandle(BodyId, publication.ProducerEpoch, publication.Sequence)
+                .Validate(publication);
             var view = AetheriaRuntimeEveEntitySoaProjection.Project(frame.View, generation);
             if (view.Buffers.Length != 1 || !string.Equals(view.Buffers[0].BufferId, publication.BodyId, StringComparison.Ordinal) ||
                 view.Columns.Any(column => !string.Equals(column.BufferId, publication.BodyId, StringComparison.Ordinal)))
