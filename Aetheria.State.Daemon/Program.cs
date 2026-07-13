@@ -1195,12 +1195,7 @@ static async Task RunClientCultMeshPumpAsync(
     {
         while (!cancellationToken.IsCancellationRequested)
         {
-            var delivered = false;
-            for (var i = 0; i < 64; i++)
-            {
-                delivered |= await server.PollOnceAsync().ConfigureAwait(false);
-            }
-
+            var delivered = await server.PollOnceAsync().ConfigureAwait(false);
             server.PollResends();
             if (!delivered)
                 await Task.Delay(1, cancellationToken).ConfigureAwait(false);
