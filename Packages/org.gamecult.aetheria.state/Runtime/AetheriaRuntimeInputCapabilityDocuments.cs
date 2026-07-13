@@ -85,7 +85,16 @@ namespace GameCult.Aetheria.State.Verse
             {
                 actions.AddRange((entity.WeaponGroups ?? Array.Empty<IReadOnlyList<int>>()).Select((_, index) => Action($"weapon-group.{index}.fire", $"Fire Weapon Group {index + 1}", "FireWeaponGroup", "weapon-group", $"{run.CurrentEntityKey}#weapon-group/{index}", ("weaponGroup", index.ToString()))));
                 actions.AddRange((entity.Equipment ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>()).Where(slot => slot?.Item != null).Select((slot, index) => Action($"equipment.{index}.activate", $"Activate {slot.Item.ItemKey}", "SetBehaviorActive", "equipment", $"{run.CurrentEntityKey}#equipment/{index}", ("equipmentIndex", index.ToString()), ("behaviorIndex", "0"), ("active", "true"))));
-                actions.AddRange((entity.CargoContents ?? Array.Empty<AetheriaRuntimeCargoBayLoadoutCommit>()).SelectMany(bay => bay.Items).Where(slot => slot?.Item != null).Select((slot, index) => Action($"cargo.{slot.Item.ItemKey}.{index}.use", $"Use {slot.Item.ItemKey}", "ActivateConsumable", "consumable", $"{run.CurrentEntityKey}#cargo/{index}", ("itemKey", slot.Item.ItemKey))));
+                actions.AddRange((entity.CargoContents ?? Array.Empty<AetheriaRuntimeCargoBayLoadoutCommit>())
+                    .SelectMany(bay => bay.Items)
+                    .Where(slot => slot?.Item != null && AetheriaRuntimeConsumableSimulation.CanActivate(entity, catalog, slot.Item.ItemKey))
+                    .GroupBy(slot => slot.Item.ItemKey, StringComparer.Ordinal)
+                    .Select((group, index) =>
+                    {
+                        var itemKey = group.Key;
+                        var item = catalog?.FindItem(itemKey);
+                        return Action($"cargo.{itemKey}.use", $"Use {item?.Name ?? itemKey}", "ActivateConsumable", "consumable", $"{run.CurrentEntityKey}#cargo/{index}", ("itemKey", itemKey));
+                    }));
                 actions.AddRange(TradeActions(run, entity, catalog));
             }
             return new AetheriaRuntimeInputCapabilityDocument { Version = frame?.FrameId ?? 0, Actions = actions.ToArray(), DefaultProfiles = BuildDefaultProfiles(actions) };

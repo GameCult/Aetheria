@@ -109,6 +109,15 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   of falling through to legacy DTO classification. Slot-binding drag/drop now
   routes through typed daemon operations, and rebuilt current-entity binds come from typed
   action-bar descriptor rows instead of stale slot-local `Entity` references.
+  `AetheriaRuntimeConsumableSimulation` is the sole live owner of consumable
+  activation and lifetime. It resolves semantic activation intents against the
+  typed catalog and the actor's concrete cargo, atomically removes one unit,
+  preserves that instance's quality, applies authored stackability, and creates
+  the canonical active-effect row. Daemon simulation time ages and expires those
+  rows and publishes lifecycle/refusal facts. Input capability projection derives
+  only currently activatable consumable actions from this state; Unity's restored
+  `ConsumableItemEffect` and action-bar fill are read models and cannot consume
+  cargo or advance timers.
   Consumable activation, active-duration fill, runtime duration, and effectiveness curves now use typed
   item rows with neutral defaults for missing optional facets. Gear action-bar bindings read custom icon resource
   paths from typed item rows, then use typed weapon and hardpoint facets for

@@ -4921,6 +4921,121 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
+    public void ConsumableSimulationAtomicallyConsumesCargoPreservesQualityAndExpires()
+    {
+        var run = RunWithTwoEntities();
+        var actor = run.Zones[0].Entities[0];
+        actor.CargoContents = new[]
+        {
+            new AetheriaRuntimeCargoBayLoadoutCommit
+            {
+                Items = new[]
+                {
+                    new AetheriaRuntimeLoadoutItemSlotCommit
+                    {
+                        X = 2,
+                        Y = 3,
+                        Item = new AetheriaRuntimeLoadoutItemCommit
+                        {
+                            ItemKey = "repair-gel",
+                            Quantity = 2,
+                            Quality = 0.73
+                        }
+                    }
+                }
+            }
+        };
+        var catalog = new AetheriaRuntimeCatalogSnapshot(
+            new[] { CatalogItem("repair-gel", Array.Empty<AetheriaRuntimeBehaviorPayload>(), category: AetheriaRuntimeItemCategories.Consumable, stackable: false, duration: 2) },
+            Array.Empty<AetheriaRuntimeCorporation>(),
+            Array.Empty<AetheriaRuntimeNameFile>());
+        var intents = new[] { new AetheriaRuntimeDaemonConsumableIntent { ActorEntityKey = "zone.0.entity.0", ItemKey = "repair-gel" } };
+
+        AetheriaRuntimeConsumableSimulation.Step(run, intents, catalog, 40, 0.5);
+
+        Assert.AreEqual(1, actor.CargoContents[0].Items[0].Item.Quantity);
+        Assert.AreEqual(1, actor.ActiveConsumables.Count);
+        Assert.AreEqual(0.73, actor.ActiveConsumables[0].Quality, 0.0001);
+        Assert.AreEqual(1.5, actor.ActiveConsumables[0].RemainingDuration, 0.0001);
+        Assert.AreEqual("consumable.activated", run.GameEvents.Single().Kind);
+
+        AetheriaRuntimeConsumableSimulation.Step(run, Array.Empty<AetheriaRuntimeDaemonConsumableIntent>(), catalog, 41, 1.5);
+        Assert.AreEqual(1, actor.ActiveConsumables.Count, "The fossil grants one final update at exactly zero duration.");
+        AetheriaRuntimeConsumableSimulation.Step(run, Array.Empty<AetheriaRuntimeDaemonConsumableIntent>(), catalog, 42, 0.01);
+        Assert.AreEqual(0, actor.ActiveConsumables.Count);
+        Assert.AreEqual(1, run.GameEvents.Count(value => value.Kind == "consumable.expired"));
+    }
+
+    [Test]
+    public void ConsumableSimulationRejectsDuplicateWithoutConsumingCargo()
+    {
+        var run = RunWithTwoEntities();
+        var actor = run.Zones[0].Entities[0];
+        actor.CargoContents = new[]
+        {
+            new AetheriaRuntimeCargoBayLoadoutCommit
+            {
+                Items = new[]
+                {
+                    new AetheriaRuntimeLoadoutItemSlotCommit
+                    {
+                        Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = "repair-gel", Quantity = 1, Quality = 1 }
+                    }
+                }
+            }
+        };
+        actor.ActiveConsumables = new[]
+        {
+            new AetheriaRuntimeActiveConsumableCommit { ItemKey = "repair-gel", Duration = 2, RemainingDuration = 1 }
+        };
+        var catalog = new AetheriaRuntimeCatalogSnapshot(
+            new[] { CatalogItem("repair-gel", Array.Empty<AetheriaRuntimeBehaviorPayload>(), category: AetheriaRuntimeItemCategories.Consumable, stackable: false, duration: 2) },
+            Array.Empty<AetheriaRuntimeCorporation>(),
+            Array.Empty<AetheriaRuntimeNameFile>());
+
+        AetheriaRuntimeConsumableSimulation.Step(run,
+            new[] { new AetheriaRuntimeDaemonConsumableIntent { ActorEntityKey = "zone.0.entity.0", ItemKey = "repair-gel" } },
+            catalog, 50, 0.25);
+
+        Assert.AreEqual(1, actor.CargoContents[0].Items[0].Item.Quantity);
+        Assert.AreEqual(1, actor.ActiveConsumables.Count);
+        Assert.AreEqual("already-active", run.GameEvents.Single(value => value.Kind == "consumable.activation.refused").Reason);
+    }
+
+    [Test]
+    public void InputCapabilitiesAdvertiseOnlyCurrentlyActivatableConsumables()
+    {
+        var run = RunWithTwoEntities();
+        run.CurrentEntityKey = run.EntityRecordKey(0, 0);
+        var actor = run.Zones[0].Entities[0];
+        actor.CargoContents = new[]
+        {
+            new AetheriaRuntimeCargoBayLoadoutCommit
+            {
+                Items = new[]
+                {
+                    new AetheriaRuntimeLoadoutItemSlotCommit { Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = "repair-gel", Quantity = 1 } },
+                    new AetheriaRuntimeLoadoutItemSlotCommit { Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = "ore", Quantity = 4 } }
+                }
+            }
+        };
+        var catalog = new AetheriaRuntimeCatalogSnapshot(
+            new[]
+            {
+                CatalogItem("repair-gel", Array.Empty<AetheriaRuntimeBehaviorPayload>(), category: AetheriaRuntimeItemCategories.Consumable, duration: 2),
+                CatalogItem("ore", Array.Empty<AetheriaRuntimeBehaviorPayload>(), category: AetheriaRuntimeItemCategories.SimpleCommodity)
+            },
+            Array.Empty<AetheriaRuntimeCorporation>(),
+            Array.Empty<AetheriaRuntimeNameFile>());
+        var frame = new AetheriaRuntimeDaemonFrameDocument { FrameId = 70, Run = run };
+
+        var capability = AetheriaRuntimeInputCapabilityDocument.FromFrame(frame, catalog: catalog);
+
+        Assert.IsTrue(capability.Actions.Any(action => action.Operation.EndsWith("ActivateConsumable", StringComparison.Ordinal) && action.Payload["itemKey"] == "repair-gel"));
+        Assert.IsFalse(capability.Actions.Any(action => action.Operation.EndsWith("ActivateConsumable", StringComparison.Ordinal) && action.Payload["itemKey"] == "ore"));
+    }
+
+    [Test]
     public void BehaviorStateProjectorDerivesEquipmentRowsFromCatalogPayloads()
     {
         var catalog = new AetheriaRuntimeCatalogSnapshot(
@@ -5642,12 +5757,15 @@ public class DaemonRuntimeDocumentTests
         string itemKey,
         IReadOnlyList<AetheriaRuntimeBehaviorPayload> behaviorPayloads,
         int price = 0,
-        string hullType = "")
+        string hullType = "",
+        string category = "",
+        bool stackable = false,
+        double duration = 0)
     {
         return new AetheriaRuntimeCatalogItem(
             itemKey,
             itemKey,
-            "",
+            category,
             "",
             "",
             price,
@@ -5669,8 +5787,8 @@ public class DaemonRuntimeDocumentTests
             hullType,
             behaviorPayloads.Select(payload => payload.Kind).ToArray(),
             1,
-            false,
-            0,
+            stackable,
+            duration,
             1,
             "",
             "",
