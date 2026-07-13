@@ -186,7 +186,7 @@ namespace GameCult.Aetheria.State.Verse
             }
         }
 
-        public static readonly double[] SupportedSimulationRates = { 0, 0.25, 0.5, 1, 2, 4, 8, 16 };
+        public static readonly double[] SupportedSimulationRates = { 0, 0.25, 0.5, 1, 2, 4, 8, 16, 32, 64, 128 };
 
         public static bool IsSupportedSimulationRate(double value) =>
             SupportedSimulationRates.Any(rate => Math.Abs(value - rate) < 0.000001);

@@ -91,6 +91,35 @@ does not earn state authority merely by crossing CultNet. Separate persistence
 or leases are justified only for a future shared spatial Verse with an explicit
 owner and lifecycle; they are not part of the Aetheria daemon contract.
 
+## Terminus Simulation Clock
+
+Terminus uses a daemon-owned, user-controllable simulation clock. Pause and slow
+rates provide unbounded tactical decision time. High rates provide transit time
+compression so a physically larger world does not require the player to watch
+uneventful coasting in real time. Supported requested rates currently range from
+pause through `128x`; Starbridge remains real-time-owned.
+
+The requested simulation rate is not a renderer time scale. The daemon advances
+the deterministic fixed-step simulation repeatedly and publishes one coherent
+sample of the resulting state. Unity, Electron, bots, and other Eve clients may
+interpolate presentation between samples, but cannot advance committed game
+time or invent intermediate outcomes.
+
+Time compression must eventually distinguish requested rate from effective
+rate. Decision-relevant daemon facts, including contact, hostile targeting,
+damage, weapon readiness, arrival, resource discovery, cargo events, docking,
+and failed orders, will clamp or pause the effective rate according to an
+explicit player policy. The interruption fact must name its reason and the
+simulation time at which it occurred; the daemon may not simulate past that
+boundary before publishing it. This attention policy is daemon-owned gameplay
+state, not client heuristics.
+
+Compressed stepping must not multiply control-plane traffic. Commands and
+receipts retain their ordinary typed CultMesh path, SoA consumers receive the
+latest complete leased frame, and reactive UI state is sampled at a bounded
+publication cadence. Internal fixed steps remain deterministic and testable
+without requiring a renderer or wall-clock delays.
+
 ## Current Mechanism
 
 The repo is mid-migration.

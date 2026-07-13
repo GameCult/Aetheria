@@ -75,6 +75,9 @@ namespace GameCult.Aetheria.State.Verse
                 actions.Add(Action("simulation.rate.quadruple", "4x Speed", "SetSimulationRate", "simulation", "terminus-clock", ("scalarValue", "4")));
                 actions.Add(Action("simulation.rate.eight", "8x Speed", "SetSimulationRate", "simulation", "terminus-clock", ("scalarValue", "8")));
                 actions.Add(Action("simulation.rate.sixteen", "16x Speed", "SetSimulationRate", "simulation", "terminus-clock", ("scalarValue", "16")));
+                actions.Add(Action("simulation.rate.thirty-two", "32x Speed", "SetSimulationRate", "simulation", "terminus-clock", ("scalarValue", "32")));
+                actions.Add(Action("simulation.rate.sixty-four", "64x Speed", "SetSimulationRate", "simulation", "terminus-clock", ("scalarValue", "64")));
+                actions.Add(Action("simulation.rate.one-twenty-eight", "128x Speed", "SetSimulationRate", "simulation", "terminus-clock", ("scalarValue", "128")));
             }
             if (entity != null)
             {
