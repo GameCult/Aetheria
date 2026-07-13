@@ -112,6 +112,52 @@ namespace GameCult.Aetheria.State.Verse
                 ConditionsFor(item, heat));
         }
 
+        public static double EvaluateConsumablePerformanceStat(
+            AetheriaRuntimeBehaviorValue? value,
+            double quality,
+            double effectiveness)
+        {
+            var stat = ReadPerformanceStat(value);
+            var weightedQuality = stat.QualityExponent == 0
+                ? 1
+                : Math.Pow(Clamp01(quality), stat.QualityExponent);
+            return Lerp(stat.Min, stat.Max, Clamp01(effectiveness) * weightedQuality);
+        }
+
+        public static double SampleCurve(IReadOnlyList<AetheriaRuntimeCurveKey>? keys, double value)
+        {
+            if (keys == null || keys.Count == 0)
+                return Clamp01(value);
+
+            var ordered = keys.OrderBy(key => key.Time).ToArray();
+            if (value <= ordered[0].Time)
+                return Clamp01(ordered[0].Value);
+
+            for (var index = 1; index < ordered.Length; index++)
+            {
+                var next = ordered[index];
+                var previous = ordered[index - 1];
+                if (value > next.Time)
+                    continue;
+
+                var span = next.Time - previous.Time;
+                var t = span <= double.Epsilon ? 1 : Clamp01((value - previous.Time) / span);
+                var t2 = t * t;
+                var t3 = t2 * t;
+                var h00 = 2 * t3 - 3 * t2 + 1;
+                var h10 = t3 - 2 * t2 + t;
+                var h01 = -2 * t3 + 3 * t2;
+                var h11 = t3 - t2;
+                return Clamp01(
+                    h00 * previous.Value +
+                    h10 * span * previous.OutTangent +
+                    h01 * next.Value +
+                    h11 * span * next.InTangent);
+            }
+
+            return Clamp01(ordered[ordered.Length - 1].Value);
+        }
+
         public static double EvaluatePerformanceStat(
             AetheriaRuntimePerformanceStat? stat,
             AetheriaRuntimeStatRecipePreviewState conditions)
@@ -268,30 +314,6 @@ namespace GameCult.Aetheria.State.Verse
             }
 
             return value;
-        }
-
-        private static double SampleCurve(IReadOnlyList<AetheriaRuntimeCurveKey>? keys, double value)
-        {
-            if (keys == null || keys.Count == 0)
-                return Clamp01(value);
-
-            var ordered = keys.OrderBy(key => key.Time).ToArray();
-            if (value <= ordered[0].Time)
-                return Clamp01(ordered[0].Value);
-
-            for (var index = 1; index < ordered.Length; index++)
-            {
-                var next = ordered[index];
-                var previous = ordered[index - 1];
-                if (value > next.Time)
-                    continue;
-
-                var span = next.Time - previous.Time;
-                var t = span <= double.Epsilon ? 1 : Clamp01((value - previous.Time) / span);
-                return Clamp01(Lerp(previous.Value, next.Value, t));
-            }
-
-            return Clamp01(ordered[ordered.Length - 1].Value);
         }
 
         private static double ChildNumber(AetheriaRuntimeBehaviorValue? value, int index)

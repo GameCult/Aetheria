@@ -18,15 +18,32 @@ namespace GameCult.Aetheria.State.Verse
             if (run == null || deltaSeconds <= 0)
                 return;
 
+            foreach (var zone in run.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>())
+                StepZone(run, zone, zone?.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>(), intents, catalog, frameId, deltaSeconds);
+        }
+
+        public static void StepZone(
+            AetheriaRuntimeRunCheckpointCommit run,
+            AetheriaRuntimeZoneSnapshotCommit? zone,
+            IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities,
+            IEnumerable<AetheriaRuntimeDaemonConsumableIntent> intents,
+            AetheriaRuntimeCatalogSnapshot? catalog,
+            long frameId,
+            double deltaSeconds)
+        {
+            if (run == null || zone == null || deltaSeconds <= 0)
+                return;
+
             var intentIndex = 0;
             foreach (var intent in intents ?? Enumerable.Empty<AetheriaRuntimeDaemonConsumableIntent>())
             {
-                Activate(run, intent, catalog, frameId, intentIndex);
+                if (AetheriaRuntimeRunCheckpointCommit.TryParseEntityKey(intent?.ActorEntityKey ?? "", out var intentZone, out _) &&
+                    intentZone == zone.ZoneIndex)
+                    Activate(run, intent, catalog, frameId, intentIndex);
                 intentIndex++;
             }
 
-            foreach (var zone in run.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>())
-            foreach (var entity in zone?.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
+            foreach (var entity in entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
             {
                 if (entity == null)
                     continue;
@@ -36,6 +53,7 @@ namespace GameCult.Aetheria.State.Verse
                     .ToArray();
                 for (var index = 0; index < active.Length; index++)
                 {
+                    ExecuteBehaviors(run, zone, entity, active[index], catalog, frameId, index, deltaSeconds);
                     active[index].RemainingDuration -= deltaSeconds;
                     if (active[index].RemainingDuration < 0)
                     {
@@ -52,6 +70,130 @@ namespace GameCult.Aetheria.State.Verse
                 }
                 entity.ActiveConsumables = active.Where(effect => effect.RemainingDuration >= 0).ToArray();
             }
+        }
+
+        private static void ExecuteBehaviors(
+            AetheriaRuntimeRunCheckpointCommit run,
+            AetheriaRuntimeZoneSnapshotCommit zone,
+            AetheriaRuntimeEntitySnapshotCommit entity,
+            AetheriaRuntimeActiveConsumableCommit effect,
+            AetheriaRuntimeCatalogSnapshot? catalog,
+            long frameId,
+            int effectIndex,
+            double deltaSeconds)
+        {
+            var item = catalog?.FindItem(effect.ItemKey);
+            if (item == null)
+            {
+                BehaviorStopped(run, zone, entity, effect, frameId, effectIndex, -1, "missing-catalog-item");
+                return;
+            }
+
+            var elapsed = effect.Duration <= 0
+                ? 1
+                : Math.Max(0, Math.Min(1, (effect.Duration - effect.RemainingDuration) / effect.Duration));
+            var effectiveness = item.EffectivenessCurveKeys == null || item.EffectivenessCurveKeys.Count == 0
+                ? 1
+                : AetheriaRuntimeDaemonItemStatQueries.SampleCurve(item.EffectivenessCurveKeys, elapsed);
+            var payloads = item.BehaviorPayloads ?? Array.Empty<AetheriaRuntimeBehaviorPayload>();
+            for (var behaviorIndex = 0; behaviorIndex < payloads.Count; behaviorIndex++)
+            {
+                var payload = payloads[behaviorIndex];
+                if (payload == null)
+                    continue;
+                if (ExecuteBehavior(entity, effect, payload, catalog, effectiveness, deltaSeconds, out var reason))
+                    continue;
+
+                BehaviorStopped(run, zone, entity, effect, frameId, effectIndex, behaviorIndex, reason);
+                break;
+            }
+        }
+
+        private static bool ExecuteBehavior(
+            AetheriaRuntimeEntitySnapshotCommit entity,
+            AetheriaRuntimeActiveConsumableCommit effect,
+            AetheriaRuntimeBehaviorPayload payload,
+            AetheriaRuntimeCatalogSnapshot? catalog,
+            double effectiveness,
+            double deltaSeconds,
+            out string reason)
+        {
+            reason = "";
+            switch (payload.Kind)
+            {
+                case "EnergyDraw":
+                {
+                    var demand = Evaluate(payload, 1, effect, effectiveness) * (ReadBool(payload, 2) ? deltaSeconds : 1);
+                    if (AetheriaRuntimeEnergySimulation.TryConsume(entity, catalog, demand))
+                        return true;
+                    reason = "insufficient-energy";
+                    return false;
+                }
+                case "Heat":
+                    // The fossil only added heat to equipped items; consumable heat was intentionally a no-op.
+                    return true;
+                case "ItemUsage":
+                {
+                    var itemKey = ReadItemKey(payload, 1);
+                    if (!string.IsNullOrWhiteSpace(itemKey) &&
+                        AetheriaRuntimeCargoTransactions.TryFind(entity, itemKey, out var cargoIndex, out var x, out var y) &&
+                        AetheriaRuntimeCargoTransactions.TryRemoveQuantity(entity, cargoIndex, itemKey, x, y, 1, out _))
+                        return true;
+                    reason = "missing-required-item";
+                    return false;
+                }
+                case "Wear":
+                    return true;
+                default:
+                    reason = "unsupported-behavior:" + (payload.Kind ?? "");
+                    return false;
+            }
+        }
+
+        private static double Evaluate(
+            AetheriaRuntimeBehaviorPayload payload,
+            int fieldKey,
+            AetheriaRuntimeActiveConsumableCommit effect,
+            double effectiveness) =>
+            AetheriaRuntimeDaemonItemStatQueries.EvaluateConsumablePerformanceStat(
+                Field(payload, fieldKey)?.Value,
+                effect.Quality,
+                effectiveness);
+
+        private static bool ReadBool(AetheriaRuntimeBehaviorPayload payload, int fieldKey) =>
+            Field(payload, fieldKey)?.Value?.BoolValue ?? false;
+
+        private static string ReadItemKey(AetheriaRuntimeBehaviorPayload payload, int fieldKey)
+        {
+            var value = Field(payload, fieldKey)?.Value;
+            return value?.ItemKeyValue ?? value?.StringValue ?? "";
+        }
+
+        private static AetheriaRuntimeBehaviorField? Field(AetheriaRuntimeBehaviorPayload payload, int fieldKey) =>
+            (payload.Fields ?? Array.Empty<AetheriaRuntimeBehaviorField>())
+                .FirstOrDefault(field => field != null && field.Key == fieldKey);
+
+        private static void BehaviorStopped(
+            AetheriaRuntimeRunCheckpointCommit run,
+            AetheriaRuntimeZoneSnapshotCommit zone,
+            AetheriaRuntimeEntitySnapshotCommit entity,
+            AetheriaRuntimeActiveConsumableCommit effect,
+            long frameId,
+            int effectIndex,
+            int behaviorIndex,
+            string reason)
+        {
+            AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit
+            {
+                EventId = $"frame:{frameId}:zone:{zone.ZoneIndex}:entity:{entity.EntityIndex}:consumable:{effectIndex}:behavior:{behaviorIndex}:stopped",
+                Kind = "consumable.behavior.stopped",
+                FrameId = frameId,
+                ZoneIndex = zone.ZoneIndex,
+                SourceEntityIndex = entity.EntityIndex,
+                ItemKey = effect.ItemKey,
+                ScalarValue = behaviorIndex,
+                Reason = reason
+            });
         }
 
         public static bool CanActivate(

@@ -118,6 +118,14 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   only currently activatable consumable actions from this state; Unity's restored
   `ConsumableItemEffect` and action-bar fill are read models and cannot consume
   cargo or advance timers.
+  Active effects execute their typed payload array in authored order after
+  capacitor/reactor tick initialization. `EnergyDraw` delegates to the shared
+  energy ledger and `ItemUsage` delegates to the shared cargo transaction; a
+  failed or unsupported payload stops every later payload and publishes the
+  exact behavior index and reason. Consumable performance stats preserve the
+  fossil's lifetime-effectiveness and quality weighting. Consumable `Heat`
+  remains a successful no-op because the fossil explicitly added heat only to
+  equipped items; changing that balance requires an explicit design decision.
   Consumable activation, active-duration fill, runtime duration, and effectiveness curves now use typed
   item rows with neutral defaults for missing optional facets. Gear action-bar bindings read custom icon resource
   paths from typed item rows, then use typed weapon and hardpoint facets for

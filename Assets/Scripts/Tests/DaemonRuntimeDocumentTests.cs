@@ -5036,6 +5036,117 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
+    public void ConsumableBehaviorsStopInAuthoredOrderWhenEnergyCannotBeDrawn()
+    {
+        var run = RunWithTwoEntities();
+        var actor = run.Zones[0].Entities[0];
+        actor.CargoContents = new[]
+        {
+            new AetheriaRuntimeCargoBayLoadoutCommit
+            {
+                Items = new[]
+                {
+                    new AetheriaRuntimeLoadoutItemSlotCommit
+                    {
+                        Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = "catalyst", Quantity = 2 }
+                    }
+                }
+            }
+        };
+        actor.ActiveConsumables = new[]
+        {
+            new AetheriaRuntimeActiveConsumableCommit
+            {
+                ItemKey = "field-kit",
+                Quality = 1,
+                Duration = 3,
+                RemainingDuration = 3
+            }
+        };
+        var catalog = new AetheriaRuntimeCatalogSnapshot(
+            new[]
+            {
+                CatalogItem("field-kit", new[]
+                {
+                    BehaviorPayload("EnergyDraw", PerformanceStatField(1, 5), BoolField(2, false)),
+                    BehaviorPayload("ItemUsage", ItemKeyField(1, "catalyst"))
+                }, category: AetheriaRuntimeItemCategories.Consumable, duration: 3),
+                CatalogItem("catalyst", Array.Empty<AetheriaRuntimeBehaviorPayload>())
+            },
+            Array.Empty<AetheriaRuntimeCorporation>(),
+            Array.Empty<AetheriaRuntimeNameFile>());
+
+        AetheriaRuntimeConsumableSimulation.Step(run, Array.Empty<AetheriaRuntimeDaemonConsumableIntent>(), catalog, 80, 0.5);
+
+        Assert.AreEqual(2, actor.CargoContents[0].Items[0].Item.Quantity);
+        Assert.AreEqual(2.5, actor.ActiveConsumables[0].RemainingDuration, 0.0001);
+        var stopped = run.GameEvents.Single(value => value.Kind == "consumable.behavior.stopped");
+        Assert.AreEqual("insufficient-energy", stopped.Reason);
+        Assert.AreEqual(0, stopped.ScalarValue);
+    }
+
+    [Test]
+    public void ConsumableBehaviorsConsumeOneItemThenStopAtUnsupportedPayload()
+    {
+        var run = RunWithTwoEntities();
+        var actor = run.Zones[0].Entities[0];
+        actor.CargoContents = new[]
+        {
+            new AetheriaRuntimeCargoBayLoadoutCommit
+            {
+                Items = new[]
+                {
+                    new AetheriaRuntimeLoadoutItemSlotCommit
+                    {
+                        Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = "catalyst", Quantity = 2 }
+                    }
+                }
+            }
+        };
+        actor.ActiveConsumables = new[]
+        {
+            new AetheriaRuntimeActiveConsumableCommit { ItemKey = "field-kit", Quality = 1, Duration = 3, RemainingDuration = 3 }
+        };
+        var catalog = new AetheriaRuntimeCatalogSnapshot(
+            new[]
+            {
+                CatalogItem("field-kit", new[]
+                {
+                    BehaviorPayload("ItemUsage", ItemKeyField(1, "catalyst")),
+                    BehaviorPayload("FutureBehavior"),
+                    BehaviorPayload("ItemUsage", ItemKeyField(1, "catalyst"))
+                }, category: AetheriaRuntimeItemCategories.Consumable, duration: 3),
+                CatalogItem("catalyst", Array.Empty<AetheriaRuntimeBehaviorPayload>())
+            },
+            Array.Empty<AetheriaRuntimeCorporation>(),
+            Array.Empty<AetheriaRuntimeNameFile>());
+
+        AetheriaRuntimeConsumableSimulation.Step(run, Array.Empty<AetheriaRuntimeDaemonConsumableIntent>(), catalog, 81, 0.25);
+
+        Assert.AreEqual(1, actor.CargoContents[0].Items[0].Item.Quantity);
+        var stopped = run.GameEvents.Single(value => value.Kind == "consumable.behavior.stopped");
+        Assert.AreEqual("unsupported-behavior:FutureBehavior", stopped.Reason);
+        Assert.AreEqual(1, stopped.ScalarValue);
+    }
+
+    [Test]
+    public void ConsumablePerformanceStatUsesEffectivenessAndQuality()
+    {
+        var value = PerformanceStatValue(2, 10, qualityExponent: 2);
+        var curve = new[]
+        {
+            new AetheriaRuntimeCurveKey(0, 0, 0, 2),
+            new AetheriaRuntimeCurveKey(1, 1, 0, 0)
+        };
+
+        var result = AetheriaRuntimeDaemonItemStatQueries.EvaluateConsumablePerformanceStat(value, 0.5, 0.5);
+
+        Assert.AreEqual(3, result, 0.0001);
+        Assert.AreEqual(0.75, AetheriaRuntimeDaemonItemStatQueries.SampleCurve(curve, 0.5), 0.0001,
+            "Typed effectiveness curves must preserve Unity AnimationCurve tangents.");
+    }
+
+    [Test]
     public void BehaviorStateProjectorDerivesEquipmentRowsFromCatalogPayloads()
     {
         var catalog = new AetheriaRuntimeCatalogSnapshot(
@@ -5825,6 +5936,43 @@ public class DaemonRuntimeDocumentTests
             Array.Empty<AetheriaRuntimeBehaviorValue>(),
             Array.Empty<AetheriaRuntimeBehaviorMapEntry>());
     }
+
+    private static AetheriaRuntimeBehaviorPayload BehaviorPayload(
+        string kind,
+        params AetheriaRuntimeBehaviorField[] fields) =>
+        new AetheriaRuntimeBehaviorPayload(0, kind, 0, fields);
+
+    private static AetheriaRuntimeBehaviorField PerformanceStatField(int key, double value) =>
+        new AetheriaRuntimeBehaviorField(key, PerformanceStatValue(value, value));
+
+    private static AetheriaRuntimeBehaviorField BoolField(int key, bool value) =>
+        new AetheriaRuntimeBehaviorField(key, new AetheriaRuntimeBehaviorValue(
+            "bool", "", 0, value, "", "",
+            Array.Empty<AetheriaRuntimeBehaviorValue>(),
+            Array.Empty<AetheriaRuntimeBehaviorMapEntry>()));
+
+    private static AetheriaRuntimeBehaviorField ItemKeyField(int key, string itemKey) =>
+        new AetheriaRuntimeBehaviorField(key, new AetheriaRuntimeBehaviorValue(
+            "item", "", 0, false, "", itemKey,
+            Array.Empty<AetheriaRuntimeBehaviorValue>(),
+            Array.Empty<AetheriaRuntimeBehaviorMapEntry>()));
+
+    private static AetheriaRuntimeBehaviorValue PerformanceStatValue(
+        double min,
+        double max,
+        double qualityExponent = 0) =>
+        new AetheriaRuntimeBehaviorValue(
+            "performance-stat", "", 0, false, "", "",
+            new[]
+            {
+                NumberValue(min),
+                NumberValue(max),
+                NumberValue(0),
+                NumberValue(0),
+                NumberValue(qualityExponent),
+                EmptyBehaviorValue("stat-recipe")
+            },
+            Array.Empty<AetheriaRuntimeBehaviorMapEntry>());
 
     private static AetheriaRuntimeBehaviorValue EmptyBehaviorValue(string kind)
     {

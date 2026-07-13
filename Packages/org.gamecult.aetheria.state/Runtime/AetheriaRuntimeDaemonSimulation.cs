@@ -32,13 +32,6 @@ namespace GameCult.Aetheria.State.Verse
             if (worldPhysics == null)
                 throw new ArgumentNullException(nameof(worldPhysics));
 
-            AetheriaRuntimeConsumableSimulation.Step(
-                run,
-                intents?.Consumables ?? Enumerable.Empty<AetheriaRuntimeDaemonConsumableIntent>(),
-                catalog,
-                frameId,
-                deltaSeconds);
-
             foreach (var zone in run.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>())
             {
                 if (zone == null)
@@ -60,6 +53,14 @@ namespace GameCult.Aetheria.State.Verse
                     AetheriaRuntimeThermalSimulation.UpdateEquipmentStates(entity, catalog, deltaSeconds);
                     AetheriaRuntimeEnergySimulation.BeginTick(entity, catalog);
                 }
+                AetheriaRuntimeConsumableSimulation.StepZone(
+                    run,
+                    zone,
+                    entities,
+                    intents?.Consumables ?? Enumerable.Empty<AetheriaRuntimeDaemonConsumableIntent>(),
+                    catalog,
+                    frameId,
+                    deltaSeconds);
                 foreach (var movement in intents?.Movements ?? Enumerable.Empty<AetheriaRuntimeDaemonMovementIntent>())
                     ApplyMovementIntent(run, entities, movement, settings);
                 StepTractorPower(entities, deltaSeconds);
