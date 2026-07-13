@@ -5,10 +5,16 @@ using Aetheria.State.Documents;
 using GameCult.Aetheria.State.Verse;
 using GameCult.Mesh;
 using EveCommandTemplate = GameCult.Eve.Surface.EveCommandTemplate;
+using EveAdvertisedCommand = GameCult.Eve.Surface.EveAdvertisedCommand;
+using EveAdvertisedSurface = GameCult.Eve.Surface.EveAdvertisedSurface;
+using EveProviderAdvertisementDocument = GameCult.Eve.Surface.EveProviderAdvertisementDocument;
+using EveProviderFreshness = GameCult.Eve.Surface.EveProviderFreshness;
+using EveProviderWitness = GameCult.Eve.Surface.EveProviderWitness;
 using EveStyleToken = GameCult.Eve.Surface.EveStyleToken;
 using EveSurfaceComponent = GameCult.Eve.Surface.EveSurfaceComponent;
 using EveSurfaceDocument = GameCult.Eve.Surface.EveSurfaceDocument;
 using EveSurfaceTree = GameCult.Eve.Surface.EveSurfaceTree;
+using EveWorldInteractionAdvertisement = GameCult.Eve.Surface.EveWorldInteractionAdvertisement;
 
 namespace Aetheria.State;
 
@@ -210,184 +216,118 @@ public static class AetheriaEveSurfaceDocuments
         return AetheriaRuntimeSurfaceDocuments.ToPortableSurface(surface);
     }
 
-    public static EveProviderAdvertisementState BuildProviderAdvertisement(
+    public static EveProviderAdvertisementDocument BuildProviderAdvertisement(
         AetheriaVerseHostSettings settings,
         string statePath,
         string updatedAtUtc)
     {
         var normalized = AetheriaVerseHostSettingsNormalizer.Normalize(settings);
-        return new EveProviderAdvertisementState
+        var schemas = new[]
         {
-            ProviderId = ProviderId,
-            ServiceId = normalized.ServiceId,
-            VerseId = normalized.VerseId,
-            RootVerse = normalized.RootVerse,
-            CanonicalService = normalized.CanonicalService,
-            LocatedService = normalized.LocatedService,
-            CultMeshAddress = normalized.CultMeshAddress,
-            Title = normalized.Title,
-            Kind = "game.runtime",
-            UpdatedAtUtc = updatedAtUtc,
-            Freshness = new EveProviderFreshness
-            {
-                State = "fresh",
-                LastSeenAtUtc = updatedAtUtc,
-                MaxAgeMs = 15000
-            },
-            Schemas =
-            [
-                "aetheria.world_state.v1",
-                "aetheria.item_definition.v1",
-                "aetheria.corporation.v2",
-                "aetheria.name_file.v2",
-                "aetheria.trade_value_policy.v1",
-                "aetheria.player_settings.v1",
-                "aetheria.loadout_template.v1",
-                "aetheria.run_state.v1",
-                "aetheria.zone_state.v1",
-                "aetheria.entity_snapshot.v1",
-                "aetheria.verse_host_settings.v1",
-                "aetheria.runtime_session.v1",
-                "aetheria.eve_command_acceptance_status.v1",
-                "gamecult.eve.surface.v1",
-                "gamecult.eve.command.v1",
-                AetheriaRuntimeDaemonSchemas.ProviderAdvertisement,
-                AetheriaRuntimeDaemonSchemas.Frame,
-                AetheriaRuntimeDaemonSchemas.SoaView,
-                AetheriaRuntimeDaemonSchemas.Health,
-                AetheriaRuntimeDaemonSchemas.CommandBoundary,
-                AetheriaRuntimeDaemonSchemas.GameSurface,
-                AetheriaRuntimeDaemonSchemas.EditorSurface,
-                AetheriaRuntimeDaemonSchemas.Command
-            ],
-            Witnesses =
-            [
-                new EveProviderWitness
-                {
-                    Kind = "cultcache",
-                    Ref = statePath,
-                    Summary = "Aetheria typed CultCache state file"
-                },
-                new EveProviderWitness
-                {
-                    Kind = DaemonRecordTransport,
-                    Ref = AetheriaRuntimeVerseRecordKeys.DaemonProviderAdvertisement.ToString(),
-                    Summary = "Aetheria daemon-owned provider advertisement record"
-                },
-                new EveProviderWitness
-                {
-                    Kind = DaemonRecordTransport,
-                    Ref = AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest.ToString(),
-                    Summary = "Aetheria daemon latest simulation frame record"
-                },
-                new EveProviderWitness
-                {
-                    Kind = DaemonRecordTransport,
-                    Ref = AetheriaRuntimeVerseRecordKeys.DaemonSoaViewLatest.ToString(),
-                    Summary = "Aetheria daemon latest SoA view record for thin clients"
-                },
-                new EveProviderWitness
-                {
-                    Kind = DaemonRecordTransport,
-                    Ref = AetheriaRuntimeVerseRecordKeys.DaemonHealth.ToString(),
-                    Summary = "Aetheria daemon health record"
-                },
-                new EveProviderWitness
-                {
-                    Kind = DaemonRecordTransport,
-                    Ref = AetheriaRuntimeVerseRecordKeys.DaemonCommandBoundary.ToString(),
-                    Summary = "Aetheria daemon typed command boundary record"
-                },
-                new EveProviderWitness
-                {
-                    Kind = DaemonRecordTransport,
-                    Ref = AetheriaRuntimeVerseRecordKeys.DaemonGameSurface.ToString(),
-                    Summary = "Aetheria daemon game Eve GUI surface record"
-                },
-                new EveProviderWitness
-                {
-                    Kind = DaemonRecordTransport,
-                    Ref = AetheriaRuntimeVerseRecordKeys.DaemonGameTuiSurface.ToString(),
-                    Summary = "Aetheria daemon game Eve TUI surface record"
-                },
-                new EveProviderWitness
-                {
-                    Kind = DaemonRecordTransport,
-                    Ref = AetheriaRuntimeVerseRecordKeys.DaemonEditorSurface.ToString(),
-                    Summary = "Aetheria daemon editor Eve GUI surface record"
-                },
-                new EveProviderWitness
-                {
-                    Kind = DaemonRecordTransport,
-                    Ref = AetheriaRuntimeVerseRecordKeys.DaemonEditorTuiSurface.ToString(),
-                    Summary = "Aetheria daemon editor Eve TUI surface record"
-                }
-            ],
-            Surfaces = AetheriaRuntimeEveSurfaceCatalog.All
-                .Select(ToProviderSurfaceRef)
-                .ToArray(),
-            Commands =
-            [
-                new EveProviderCommandRef
-                {
-                    Command = DaemonCommandBoundaryId,
-                    Transport = "cultmesh",
-                    Summary = "Aetheria daemon typed command boundary"
-                },
-                new EveProviderCommandRef
-                {
-                    Command = AetheriaRuntimeCatalogCommands.Refresh,
-                    Summary = "Refresh catalog state"
-                },
-                new EveProviderCommandRef
-                {
-                    Command = AetheriaRuntimeOperationsCommands.Refresh,
-                    Summary = "Refresh operations state"
-                },
-                new EveProviderCommandRef
-                {
-                    Command = AetheriaRuntimePlayerSettingsCommands.Refresh,
-                    Summary = "Refresh player settings state"
-                },
-                new EveProviderCommandRef
-                {
-                    Command = AetheriaRuntimePlayerSettingsCommands.CycleTemperatureUnit,
-                    Summary = "Cycle the typed player temperature unit"
-                },
-                new EveProviderCommandRef
-                {
-                    Command = AetheriaRuntimePlayerSettingsCommands.DecrementSignificantDigits,
-                    Summary = "Decrease typed player significant digits"
-                },
-                new EveProviderCommandRef
-                {
-                    Command = AetheriaRuntimePlayerSettingsCommands.IncrementSignificantDigits,
-                    Summary = "Increase typed player significant digits"
-                },
-                new EveProviderCommandRef
-                {
-                    Command = AetheriaRuntimePlayerSettingsCommands.CycleNebulaQuality,
-                    Summary = "Cycle typed player nebula quality"
-                },
-                new EveProviderCommandRef
-                {
-                    Command = AetheriaRuntimePlayerSettingsCommands.ToggleShowAsteroidsInMinimap,
-                    Summary = "Toggle typed player minimap asteroid visibility"
-                }
-            ]
+            "aetheria.world_state.v1",
+            "aetheria.item_definition.v1",
+            "aetheria.corporation.v2",
+            "aetheria.name_file.v2",
+            "aetheria.trade_value_policy.v1",
+            "aetheria.player_settings.v1",
+            "aetheria.loadout_template.v1",
+            "aetheria.run_state.v1",
+            "aetheria.zone_state.v1",
+            "aetheria.entity_snapshot.v1",
+            "aetheria.verse_host_settings.v1",
+            "aetheria.runtime_session.v1",
+            "aetheria.eve_command_acceptance_status.v1",
+            EveSurfaceDocument.SchemaId,
+            AetheriaRuntimeEveCommandDocument.SchemaId,
+            AetheriaRuntimeDaemonSchemas.ProviderAdvertisement,
+            AetheriaRuntimeDaemonSchemas.Frame,
+            AetheriaRuntimeDaemonSchemas.SoaView,
+            AetheriaRuntimeDaemonSchemas.Health,
+            AetheriaRuntimeDaemonSchemas.CommandBoundary,
+            AetheriaRuntimeDaemonSchemas.GameSurface,
+            AetheriaRuntimeDaemonSchemas.EditorSurface,
+            AetheriaRuntimeDaemonSchemas.Command
         };
+        var witnesses = new[]
+        {
+            Witness("cultcache", statePath, "Aetheria typed CultCache state file"),
+            Witness(DaemonRecordTransport, AetheriaRuntimeVerseRecordKeys.DaemonProviderAdvertisement.ToString(),
+                "Aetheria daemon-owned provider advertisement record"),
+            Witness(DaemonRecordTransport, AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest.ToString(),
+                "Aetheria daemon latest simulation frame record"),
+            Witness(DaemonRecordTransport, AetheriaRuntimeVerseRecordKeys.DaemonSoaViewLatest.ToString(),
+                "Aetheria daemon latest SoA view record for thin clients"),
+            Witness(DaemonRecordTransport, AetheriaRuntimeVerseRecordKeys.DaemonHealth.ToString(),
+                "Aetheria daemon health record"),
+            Witness(DaemonRecordTransport, AetheriaRuntimeVerseRecordKeys.DaemonCommandBoundary.ToString(),
+                "Aetheria daemon typed command boundary record"),
+            Witness(DaemonRecordTransport, AetheriaRuntimeVerseRecordKeys.DaemonGameSurface.ToString(),
+                "Aetheria daemon game Eve GUI surface record"),
+            Witness(DaemonRecordTransport, AetheriaRuntimeVerseRecordKeys.DaemonGameTuiSurface.ToString(),
+                "Aetheria daemon game Eve TUI surface record"),
+            Witness(DaemonRecordTransport, AetheriaRuntimeVerseRecordKeys.DaemonEditorSurface.ToString(),
+                "Aetheria daemon editor Eve GUI surface record"),
+            Witness(DaemonRecordTransport, AetheriaRuntimeVerseRecordKeys.DaemonEditorTuiSurface.ToString(),
+                "Aetheria daemon editor Eve TUI surface record")
+        };
+        var commands = new[]
+        {
+            Command(DaemonCommandBoundaryId, "", "Aetheria daemon typed command boundary"),
+            Command(AetheriaRuntimeCatalogCommands.Refresh, AetheriaRuntimeCatalogCommands.SurfaceId, "Refresh catalog state"),
+            Command(AetheriaRuntimeOperationsCommands.Refresh, AetheriaRuntimeOperationsCommands.SurfaceId, "Refresh operations state"),
+            Command(AetheriaRuntimePlayerSettingsCommands.Refresh, AetheriaRuntimePlayerSettingsCommands.SurfaceId, "Refresh player settings state"),
+            Command(AetheriaRuntimePlayerSettingsCommands.CycleTemperatureUnit, AetheriaRuntimePlayerSettingsCommands.SurfaceId, "Cycle the typed player temperature unit"),
+            Command(AetheriaRuntimePlayerSettingsCommands.DecrementSignificantDigits, AetheriaRuntimePlayerSettingsCommands.SurfaceId, "Decrease typed player significant digits"),
+            Command(AetheriaRuntimePlayerSettingsCommands.IncrementSignificantDigits, AetheriaRuntimePlayerSettingsCommands.SurfaceId, "Increase typed player significant digits"),
+            Command(AetheriaRuntimePlayerSettingsCommands.CycleNebulaQuality, AetheriaRuntimePlayerSettingsCommands.SurfaceId, "Cycle typed player nebula quality"),
+            Command(AetheriaRuntimePlayerSettingsCommands.ToggleShowAsteroidsInMinimap, AetheriaRuntimePlayerSettingsCommands.SurfaceId, "Toggle typed player minimap asteroid visibility")
+        };
+
+        return new EveProviderAdvertisementDocument(
+            ProviderId,
+            normalized.ServiceId,
+            normalized.VerseId,
+            normalized.Title,
+            "game.runtime",
+            normalized.CultMeshAddress,
+            updatedAtUtc,
+            new EveProviderFreshness("fresh", updatedAtUtc, 15000),
+            schemas,
+            witnesses,
+            AetheriaRuntimeEveSurfaceCatalog.All.Select(ToProviderSurface).ToArray(),
+            commands);
     }
 
-    private static EveProviderSurfaceRef ToProviderSurfaceRef(AetheriaRuntimeEveSurfaceAdvertisement surface)
+    private static EveProviderWitness Witness(string kind, string reference, string summary) =>
+        new(kind, reference, summary);
+
+    private static EveAdvertisedCommand Command(string command, string surfaceId, string summary) =>
+        new(command, surfaceId, "cultmesh", summary);
+
+    private static EveAdvertisedSurface ToProviderSurface(AetheriaRuntimeEveSurfaceAdvertisement surface)
     {
-        return new EveProviderSurfaceRef
-        {
-            SurfaceId = surface.SurfaceId,
-            Key = surface.RecordRef,
-            Transport = surface.Transport,
-            Status = surface.Status
-        };
+        var interaction = surface.WorldInteraction == null
+            ? null
+            : new EveWorldInteractionAdvertisement(
+                surface.WorldInteraction.ProjectionKind,
+                surface.WorldInteraction.StateSchemas,
+                surface.WorldInteraction.CommandBoundary,
+                AetheriaRuntimeVerseRecordKeys.DaemonCommandBoundary.ToString(),
+                surface.WorldInteraction.ReceiptSchema,
+                "",
+                "",
+                surface.WorldInteraction.LoweringTargets,
+                surface.WorldInteraction.Ownership);
+        return new EveAdvertisedSurface(
+            surface.SurfaceId,
+            EveSurfaceDocument.SchemaId,
+            surface.RecordRef,
+            surface.Transport,
+            surface.Status,
+            surface.SurfaceKind,
+            interaction);
     }
+
 
     private static string LatestTimestamp(params string?[] timestamps)
     {

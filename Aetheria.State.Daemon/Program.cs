@@ -2011,7 +2011,7 @@ static async Task PublishStateSurfacesAsync(
     await node.MutableDocument<EveSurfaceDocument>(AetheriaStateNode.PlayerSettingsSurfaceKey)
         .ReplaceAsync(AetheriaEveSurfaceDocuments.BuildPlayerSettingsSurface(playerSettings, playerSettingsUpdatedAt))
         .ConfigureAwait(false);
-    await node.MutableDocument<EveProviderAdvertisementState>(AetheriaStateNode.ProviderAdvertisementSurfaceKey)
+    await node.MutableDocument<EveProviderAdvertisementDocument>(AetheriaStateNode.ProviderAdvertisementSurfaceKey)
         .ReplaceAsync(AetheriaEveSurfaceDocuments.BuildProviderAdvertisement(verseHost, node.StatePath, updatedAtUtc))
         .ConfigureAwait(false);
     await node.FlushAsync().ConfigureAwait(false);
@@ -2045,6 +2045,9 @@ static async Task PublishOdinSurfaceAnnouncementsAsync(
     };
 
     var documents = new List<CultNetDocumentPutRawMessage>();
+    var providerAdvertisement = await node.MutableDocument<EveProviderAdvertisementDocument>(AetheriaStateNode.ProviderAdvertisementSurfaceKey)
+        .ReadAsync()
+        .ConfigureAwait(false);
     var assetManifest = await node.MutableDocument<AetheriaRuntimeAssetManifestDocument>(AetheriaRuntimeVerseRecordKeys.DaemonAssetManifest)
         .ReadAsync()
         .ConfigureAwait(false);
@@ -2063,10 +2066,13 @@ static async Task PublishOdinSurfaceAnnouncementsAsync(
         if (surface?.Surface?.Root == null)
             continue;
 
-        documents.Add(CreateOdinRawPut(
-            "gamecult.eve.provider_advertisement.v1",
-            providerId,
-            BuildOdinProviderAdvertisement(providerId, title, options, updatedAtUtc)));
+        if (providerAdvertisement != null)
+        {
+            documents.Add(CreateOdinRawPut(
+                EveProviderAdvertisementDocument.SchemaId,
+                providerId,
+                BuildOdinProviderAdvertisement(providerId, title, providerAdvertisement, updatedAtUtc)));
+        }
         documents.Add(CreateOdinRawPut(
             "gamecult.eve.surface_state.v1",
             providerId,
@@ -2174,10 +2180,10 @@ static CultMeshCdnArtifact PackAssetBundle(string path, string platform)
         });
 }
 
-static CultNetDocumentPutRawMessage CreateOdinRawPut(
+static CultNetDocumentPutRawMessage CreateOdinRawPut<T>(
     string schemaId,
     string recordKey,
-    object payload)
+    T payload)
 {
     var now = DateTimeOffset.UtcNow.ToString("O");
     return new CultNetDocumentPutRawMessage
@@ -2197,53 +2203,32 @@ static CultNetDocumentPutRawMessage CreateOdinRawPut(
     };
 }
 
-static Dictionary<string, object?> BuildOdinProviderAdvertisement(
+static EveProviderAdvertisementDocument BuildOdinProviderAdvertisement(
     string providerId,
     string title,
-    AetheriaDaemonHostOptions options,
+    EveProviderAdvertisementDocument canonical,
     string updatedAtUtc)
 {
-    return new Dictionary<string, object?>(StringComparer.Ordinal)
-    {
-        ["schema"] = "gamecult.eve.provider_advertisement.v1",
-        ["providerId"] = providerId,
-        ["serviceId"] = options.DaemonId,
-        ["verseId"] = options.VerseId,
-        ["rootVerse"] = "asgard",
-        ["canonicalService"] = "aetheria",
-        ["locatedService"] = options.DaemonId,
-        ["cultMeshAddress"] = options.CultMeshAddress,
-        ["title"] = title,
-        ["kind"] = "game.runtime",
-        ["status"] = "active",
-        ["updatedAt"] = string.IsNullOrWhiteSpace(updatedAtUtc) ? DateTimeOffset.UtcNow.ToString("O") : updatedAtUtc,
-        ["capabilities"] = new[] { "cultui-surface", "eve-surface", "cultmesh-cdn-assets", "aetheria-game-surface" },
-        ["routes"] = new[]
-        {
-            new Dictionary<string, object?>(StringComparer.Ordinal)
-            {
-                ["transport"] = "cultmesh",
-                ["address"] = options.OdinCultMeshUri,
-                ["resolver"] = "odin-cultmesh",
-                ["role"] = "odin-provider-announcement"
-            },
-            new Dictionary<string, object?>(StringComparer.Ordinal)
-            {
-                ["transport"] = "cultmesh-rudp",
-                ["address"] = $"rudp://{options.ClientCultMeshAdvertiseHost}:{options.ClientCultMeshPort}",
-                ["resolver"] = "provider-cultmesh-rudp",
-                ["role"] = "cultmesh-snapshot"
-            },
-            new Dictionary<string, object?>(StringComparer.Ordinal)
-            {
-                ["transport"] = "cultmesh-rudp",
-                ["address"] = $"rudp://{options.ClientCultMeshAdvertiseHost}:{options.ClientCultMeshPort}",
-                ["schemaId"] = AetheriaRuntimeDaemonSchemas.CultMeshCdnAssetBlob,
-                ["resolver"] = "provider-cultmesh-rudp",
-                ["role"] = "cultmesh-cdn"
-            }
-        }
-    };
+    var surfaces = canonical.Surfaces
+        .Where(surface => string.Equals(surface.SurfaceId, providerId, StringComparison.Ordinal))
+        .ToArray();
+    var commands = canonical.Commands
+        .Where(command => string.IsNullOrWhiteSpace(command.SurfaceId) ||
+            string.Equals(command.SurfaceId, providerId, StringComparison.Ordinal))
+        .ToArray();
+    return new EveProviderAdvertisementDocument(
+        providerId,
+        canonical.ServiceId,
+        canonical.VerseId,
+        title,
+        canonical.Kind,
+        canonical.CultMeshAddress,
+        string.IsNullOrWhiteSpace(updatedAtUtc) ? canonical.UpdatedAtUtc : updatedAtUtc,
+        canonical.Freshness,
+        canonical.Schemas,
+        canonical.Witnesses,
+        surfaces,
+        commands);
 }
 
 static object[] BuildOdinSurfaceState(

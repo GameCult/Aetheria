@@ -1,6 +1,7 @@
 using Aetheria.State.Documents;
 using GameCult.Aetheria.State.Verse;
 using GameCult.Mesh;
+using EveProviderAdvertisementDocument = GameCult.Eve.Surface.EveProviderAdvertisementDocument;
 using EveSurfaceDocument = GameCult.Eve.Surface.EveSurfaceDocument;
 
 namespace Aetheria.State;
@@ -304,7 +305,7 @@ public static class AetheriaEveCommandBridge
                 normalized,
                 runtimeSession))
             .ConfigureAwait(false);
-        await node.MutableDocument<EveProviderAdvertisementState>(AetheriaStateNode.ProviderAdvertisementSurfaceKey)
+        await node.MutableDocument<EveProviderAdvertisementDocument>(AetheriaStateNode.ProviderAdvertisementSurfaceKey)
             .ReplaceAsync(AetheriaEveSurfaceDocuments.BuildProviderAdvertisement(normalized, node.StatePath, command.IssuedAtUtc))
             .ConfigureAwait(false);
     }

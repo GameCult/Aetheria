@@ -72,7 +72,6 @@ public static class AetheriaDocumentRegistry
         typeof(EveSurfaceDocument),
         typeof(EveSurfaceCommandRequest),
         typeof(EveCommandReceiptDocument),
-        typeof(EveAssetCatalogDocument),
-        typeof(EveProviderAdvertisementState)
+        typeof(EveAssetCatalogDocument)
     ];
 }

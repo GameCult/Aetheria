@@ -10742,7 +10742,7 @@ static void RequireVerseSettingsShellAndBridge(string root)
         "ExecuteVerseHostCommandAsync",
         "node.MutableDocument<AetheriaVerseHostSettings>(AetheriaStateNode.VerseHostSettingsKey)",
         ".ReplaceAsync(normalized)",
-        "node.MutableDocument<EveProviderAdvertisementState>(AetheriaStateNode.ProviderAdvertisementSurfaceKey)",
+        "node.MutableDocument<EveProviderAdvertisementDocument>(AetheriaStateNode.ProviderAdvertisementSurfaceKey)",
         "AetheriaEveSurfaceDocuments.BuildOperationsSurface(",
         "switch (command.Kind)"
     };
@@ -11515,6 +11515,7 @@ static void RequireDaemonVersePublication(string root)
     var stateNodePath = Path.Combine(root, "Aetheria.State", "AetheriaStateNode.cs");
     var runtimeSurfaceDocumentsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeSurfaceDocuments.cs");
     var providerAdvertisementPath = Path.Combine(root, "Aetheria.State", "AetheriaEveSurfaceDocuments.cs");
+    var legacyProviderAdvertisementPath = Path.Combine(root, "Aetheria.State", "Documents", "EveProviderAdvertisementState.cs");
     var documentStorePath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeCultCacheDocumentStore.cs");
     var boundaryPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeStateBoundary.cs");
     var testsPath = Path.Combine(root, "Assets", "Scripts", "Tests", "DaemonRuntimeDocumentTests.cs");
@@ -11680,6 +11681,12 @@ static void RequireDaemonVersePublication(string root)
         throw new InvalidOperationException(
             "Daemon SoA frame publisher no longer turns authoritative frames into observer-readable direct-memory slabs: " +
             string.Join(", ", missingSoaFramePublisherSymbols));
+    }
+    if (File.Exists(legacyProviderAdvertisementPath))
+    {
+        throw new InvalidOperationException(
+            "The deleted Aetheria-specific EveProviderAdvertisementState writer has returned: " +
+            Path.GetRelativePath(root, legacyProviderAdvertisementPath));
     }
 
     if (assetDocuments.Contains("UnityAddressable", StringComparison.Ordinal) ||
@@ -12138,8 +12145,13 @@ static void RequireDaemonVersePublication(string root)
         "node.MutableDocument<AetheriaPlayerSettings>(AetheriaStateNode.PlayerSettingsKey).ReadAsync()",
         "node.MutableDocument<EveSurfaceDocument>(AetheriaStateNode.OperationsSurfaceKey)",
         "node.MutableDocument<EveSurfaceDocument>(AetheriaStateNode.PlayerSettingsSurfaceKey)",
-        "node.MutableDocument<EveProviderAdvertisementState>(AetheriaStateNode.ProviderAdvertisementSurfaceKey)",
+        "node.MutableDocument<EveProviderAdvertisementDocument>(AetheriaStateNode.ProviderAdvertisementSurfaceKey)",
         "AetheriaEveSurfaceDocuments.BuildProviderAdvertisement(verseHost, node.StatePath, updatedAtUtc)",
+        "static EveProviderAdvertisementDocument BuildOdinProviderAdvertisement(",
+        "static CultNetDocumentPutRawMessage CreateOdinRawPut<T>(",
+        "EveProviderAdvertisementDocument.SchemaId",
+        "EveProviderAdvertisementDocument canonical",
+        "MessagePackSerializer.Serialize(payload)",
         "AetheriaEveSurfaceDocuments.BuildOperationsSurface(eveStatus, verseHost, runtimeSession)",
         "AetheriaEveSurfaceDocuments.BuildPlayerSettingsSurface(playerSettings, playerSettingsUpdatedAt)",
         "Role = \"verse-daemon\"",
@@ -12188,6 +12200,25 @@ static void RequireDaemonVersePublication(string root)
     {
         throw new InvalidOperationException(
             "Remote committed fact import must pass the managed runtime catalog document into the tick importer instead of reopening catalog storage.");
+    }
+
+    var forbiddenEveProviderAdvertisementWriters = new[]
+    {
+        "EveProviderAdvertisementState",
+        "static Dictionary<string, object?> BuildOdinProviderAdvertisement(",
+        "[\"rootVerse\"]",
+        "[\"canonicalService\"]",
+        "[\"locatedService\"]",
+        "[\"routes\"]"
+    };
+    var survivingEveProviderAdvertisementWriters = forbiddenEveProviderAdvertisementWriters
+        .Where(symbol => daemonHostProgram.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (survivingEveProviderAdvertisementWriters.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Daemon Odin publication still writes the deleted Aetheria-specific Eve provider advertisement shape: " +
+            string.Join(", ", survivingEveProviderAdvertisementWriters));
     }
 
     if (committedFactImporter.Contains("AetheriaRuntimeCatalogStore.OpenReadOnly", StringComparison.Ordinal))
