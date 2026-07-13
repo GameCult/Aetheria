@@ -1,12 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="Aetheria.State.Dependencies.props" />
+
   <PropertyGroup>
     <TargetFramework>netstandard2.1</TargetFramework>
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
     <ImplicitUsings>enable</ImplicitUsings>
     <Description>Typed CultCache and CultMesh state spine for Aetheria.</Description>
-    <EveUnityRoot Condition="'$(EveUnityRoot)' == ''">$(MSBuildThisFileDirectory)..\..\EveUnity</EveUnityRoot>
-    <CultLibRoot Condition="'$(CultLibRoot)' == ''">$(MSBuildThisFileDirectory)..\..\CultLib</CultLibRoot>
   </PropertyGroup>
 
   <ItemGroup>
@@ -19,4 +19,6 @@
     <ProjectReference Include="$(EveUnityRoot)\packages\org.gamecult.eve.surface\GameCult.Eve.Surface.csproj" />
     <ProjectReference Include="..\..\EvePlugins\plugins\eve-plugin-fields\GameCult.Eve.PluginFields.csproj" />
   </ItemGroup>
+
+  <Import Project="Aetheria.State.Dependencies.targets" />
 </Project>
