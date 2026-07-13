@@ -86,10 +86,11 @@ state behind the daemon's back nor writes CultMesh documents of its own. Combat,
 docking, sensors, AI decisions, damage, inventory, triggers, and event chronology
 remain Aetheria rules even when they consume Ymir results.
 
-A remote Ymir host is an optional deployment of the same computation port. It
-does not earn state authority merely by crossing CultNet. Separate persistence
-or leases are justified only for a future shared spatial Verse with an explicit
-owner and lifecycle; they are not part of the Aetheria daemon contract.
+Ymir is linked into the production daemon as an in-process library behind a
+narrow injected physics port. That port exists for deterministic substitution
+and language interop, not to create another daemon, transport, lease domain, or
+copy of the world. Aetheria owns the input projection and every committed
+result.
 
 ## Terminus Simulation Clock
 
@@ -243,8 +244,16 @@ contract should not be designed as if all Aetheria views are flat maps.
 
 ## Asset Contract
 
-The daemon advertises assets through typed asset manifests and CultMesh CDN
-refs. Clients resolve those refs through their runtime asset bridge.
+The daemon advertises immutable runtime variants through `EveAssetCatalogDocument`
+and CultMesh CDN manifests/chunks. Each variant declares its content hash, byte
+size, platform, format, and internal asset key. Clients resolve those refs
+through their generic runtime asset bridge.
+
+Unity `Resources` paths and source-project asset paths are packaging inputs, not
+runtime identity. A migrated provider asset must load in a clean EveUnity client
+without Aetheria gameplay assemblies. Provider bundles therefore contain
+presentation-only prefabs and generic EveUnity components, never fossil gameplay
+`MonoBehaviour` scripts.
 
 Clients should not synthesize icon paths, substitute improvised SVGs, or embed
 fallback asset lore when the daemon fails to advertise an asset. A missing asset
@@ -264,9 +273,10 @@ own Aetheria gameplay semantics.
 
 Unity:
 Current ARPG reference client and migration source. It may own engine
-presentation, input capture, camera, GameObject restoration, native world-state
-lowering, and temporary adapters. It should not remain the owner of rules,
-state, level generation, physics truth, or UI/world semantics.
+presentation, input capture, camera, generic GameObject projection, native
+world-state lowering, and temporary adapters. It must not reconstruct mutable
+Aetheria `Entity`, `Zone`, `Behavior`, or item graphs, and it does not own rules,
+state, level generation, physics, visibility, or UI/world semantics.
 
 Godot:
 Future ARPG conformance runtime. It should prove the ARPG client can be rebuilt
@@ -294,6 +304,9 @@ simulation, and authority policy.
 6. Godot lowers the ARPG contract without Unity scene authority.
 7. Unity-only simulation, generation, physics, UI semantics, and asset fallback
    paths are deleted or demoted to renderer presentation.
+8. The generic Unity client loads provider-published presentation-only assets,
+   lowers exact CultMesh body generations, and contains no Aetheria gameplay
+   assembly reference.
 
 ## Verification Strategy
 

@@ -49,9 +49,9 @@ validation proves contract shape, not wiring, exclusivity, lowering, or parity.
 ## Ownership Invariants
 
 1. Unity objects never decide durable game state.
-2. Target invariant: Ymir will own spatial truth; the daemon owns game meaning
-   and persistence. Current state: Aetheria still owns multiple local spatial
-   implementations.
+2. Aetheria owns spatial state, game meaning, and persistence. The daemon calls
+   Ymir directly as an injected in-process physics library and commits its
+   deterministic results; Ymir never becomes a second daemon or state owner.
 3. Eve publishes semantic facts and commands, not Aetheria implementation
    objects or runtime-specific layer numbers.
 4. Runtime-specific asset metadata may map semantic view channels to native
@@ -70,12 +70,13 @@ validation proves contract shape, not wiring, exclusivity, lowering, or parity.
 
 1. Finish archaeology and replace every `reference` row with exact behavior,
    source anchors, state inputs, outputs, timing, and proof cases.
-2. Establish complete daemon/Ymir simulation parity before polishing clients.
+2. Establish complete daemon simulation parity using the injected Ymir physics
+   port before polishing clients.
 3. Publish combat, thermal, contact, equipment, docking, trade, and feedback
    facts through Eve without runtime-specific leakage.
 4. Implement generic EveUnity presentation primitives and plugin lowering.
-5. Reconstruct Aetheria's authored composition in `Aetheria.Unity` using those
-   generic primitives and provider assets.
+5. Delete Unity's reconstructed `Entity`/`Zone`/`Behavior` mirror, then compose
+   `Aetheria.Unity` from generic primitives and provider assets.
 6. Run scenario parity against the fossil and preserve captures, receipts, and
    state timelines in conformance packs.
 
@@ -138,4 +139,20 @@ These are source-confirmed ownership failures, not feature backlog:
   Aetheria-local spatial implementations.
 - Conformance scenarios must preserve source baseline, authoritative state
   timeline, Ymir timeline, command/receipt chronology, rendered capture,
-  runtime/package versions, and negative-authority results together.
+    runtime/package versions, and negative-authority results together.
+10. **Unity still reconstructs a mutable gameplay graph.**
+    `AetheriaUnityObservedEntityRestorer`, `AetheriaUnityObservedFrameApplier`,
+    `ActionGameManager`, and `ZoneRenderer` can derive or repair state instead of
+    merely lowering Eve facts. The migration must first publish every required
+    presentation fact, then delete those writers and make Eve entity/node IDs
+    the only presentation identity.
+11. **Provider asset delivery still contains fossil gameplay scripts.** The
+    daemon publishes semantic asset descriptions and CDN records, but current
+    bundles deserialize prefabs containing missing or Aetheria-specific
+    `MonoBehaviour` components. The first asset conformance slice is the
+    player/ship/station/orbital presentation set, packaged as immutable
+    presentation-only variants and cold-loaded by a clean EveUnity client.
+12. **Local SoA negotiation is not yet an end-to-end process boundary.** The
+    daemon publishes exact immutable generations and the client rejects stale or
+    mismatched bodies, but the live external client still falls through to an
+    unimplemented network byte reader when it cannot redeem the local capability.
