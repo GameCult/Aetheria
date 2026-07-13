@@ -193,6 +193,7 @@ namespace GameCult.Aetheria.State.Verse
             {
                 var entity = entities[index];
                 accessor.Write(layout.EntityIndex + index * IntStride, entity.EntityIndex);
+                accessor.Write(layout.CargoQuantity + index * IntStride, CountCargoUnits(entity));
                 WriteFloat3(accessor, layout.Position, index, entity.PositionX, entity.PositionY, entity.PositionZ);
                 WriteFloat(accessor, layout.RotationRadians, index, Math.Atan2(entity.DirectionX, entity.DirectionY));
                 WriteFloat3(accessor, layout.Velocity, index, entity.VelocityX, 0.0, entity.VelocityY);
@@ -218,6 +219,7 @@ namespace GameCult.Aetheria.State.Verse
                 var pickup = pickups[pickupRow];
                 var row = rowOffset + pickupRow;
                 accessor.Write(layout.EntityIndex + row * IntStride, firstPickupEntityIndex + pickup.PickupIndex);
+                accessor.Write(layout.CargoQuantity + row * IntStride, 0);
                 WriteFloat3(accessor, layout.Position, row, pickup.PositionX, pickup.PositionY, pickup.PositionZ);
                 WriteFloat(accessor, layout.RotationRadians, row, 0.0);
                 WriteFloat3(accessor, layout.Velocity, row, pickup.VelocityX, pickup.VelocityY, pickup.VelocityZ);
@@ -253,6 +255,15 @@ namespace GameCult.Aetheria.State.Verse
         private static bool IsFinite(double value)
         {
             return !double.IsNaN(value) && !double.IsInfinity(value);
+        }
+
+        private static int CountCargoUnits(AetheriaRuntimeEntitySnapshotCommit entity)
+        {
+            return (entity.CargoContents ?? Array.Empty<AetheriaRuntimeCargoBayLoadoutCommit>())
+                .Where(bay => bay != null)
+                .SelectMany(bay => bay.Items ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>())
+                .Where(slot => slot?.Item != null)
+                .Sum(slot => Math.Max(0, slot.Item.Quantity));
         }
 
         private static RetainedMappedBuffer RetainBuffer(string location, long byteLength)
@@ -329,6 +340,7 @@ namespace GameCult.Aetheria.State.Verse
         {
             private EntityHotSlabLayout(
                 long entityIndex,
+                long cargoQuantity,
                 long position,
                 long rotationRadians,
                 long velocity,
@@ -342,6 +354,7 @@ namespace GameCult.Aetheria.State.Verse
                 long totalByteLength)
             {
                 EntityIndex = entityIndex;
+                CargoQuantity = cargoQuantity;
                 Position = position;
                 RotationRadians = rotationRadians;
                 Velocity = velocity;
@@ -356,6 +369,7 @@ namespace GameCult.Aetheria.State.Verse
             }
 
             public long EntityIndex { get; }
+            public long CargoQuantity { get; }
             public long Position { get; }
             public long RotationRadians { get; }
             public long Velocity { get; }
@@ -373,6 +387,7 @@ namespace GameCult.Aetheria.State.Verse
                 count = Math.Max(0, count);
                 var offset = 0L;
                 var entityIndex = Take(ref offset, count, IntStride);
+                var cargoQuantity = Take(ref offset, count, IntStride);
                 var position = Take(ref offset, count, Float3Stride);
                 var rotationRadians = Take(ref offset, count, FloatStride);
                 var velocity = Take(ref offset, count, Float3Stride);
@@ -386,6 +401,7 @@ namespace GameCult.Aetheria.State.Verse
                 var renderGroupId = Take(ref offset, count, IntStride);
                 return new EntityHotSlabLayout(
                     entityIndex,
+                    cargoQuantity,
                     position,
                     rotationRadians,
                     velocity,
@@ -404,6 +420,7 @@ namespace GameCult.Aetheria.State.Verse
                 return new[]
                 {
                     Column("entity-index", AetheriaRuntimeDaemonSoaColumnKinds.EntityIndex, "int32", EntityIndex, IntStride, count, "index", "world"),
+                    Column("cargo-quantity", AetheriaRuntimeDaemonSoaColumnKinds.CargoQuantity, "int32", CargoQuantity, IntStride, count, "items", "entity"),
                     Column("position", AetheriaRuntimeDaemonSoaColumnKinds.Position, "float3", Position, Float3Stride, count, "world_units", "world"),
                     Column("rotation-radians", AetheriaRuntimeDaemonSoaColumnKinds.RotationRadians, "float32", RotationRadians, FloatStride, count, "radians", "world"),
                     Column("velocity", AetheriaRuntimeDaemonSoaColumnKinds.Velocity, "float3", Velocity, Float3Stride, count, "world_units_per_second", "world"),

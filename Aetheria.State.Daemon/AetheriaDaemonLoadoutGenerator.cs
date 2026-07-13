@@ -73,7 +73,8 @@ public sealed class AetheriaDaemonLoadoutGenerator
         }
 
         var cargoBay = AddFreeSpaceItem(hull, availabilityFactionKey, occupied, slots, 3, item =>
-            string.Equals(item.Category, AetheriaRuntimeItemCategories.CargoBay, StringComparison.Ordinal));
+            string.Equals(item.Category, AetheriaRuntimeItemCategories.CargoBay, StringComparison.Ordinal) &&
+            item.InteriorOccupiedCells >= 8);
         AddFreeSpaceItem(hull, availabilityFactionKey, occupied, slots, 2, item =>
             IsGear(item) && HasBehavior(item, "Reactor"));
         AddFreeSpaceItem(hull, availabilityFactionKey, occupied, slots, 2, item =>

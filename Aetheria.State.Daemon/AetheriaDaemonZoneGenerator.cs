@@ -85,12 +85,13 @@ internal static class AetheriaDaemonZoneGenerator
             GravityTerrainDepthExponent = 1.18,
             GravityTerrainBoundaryFog = 0.25,
             GravityTerrainWaveFrequency = 0.55,
+            NextPickupIndex = 1,
             DroppedPickups =
             [
                 new AetheriaDroppedPickupSnapshot
                 {
                     PickupIndex = 0,
-                    Position = Vec3(-40, 0, -29),
+                    Position = Vec3(-50, 0, 40),
                     Velocity = Vec3(0, 0, 0),
                     Item = new AetheriaLoadoutItem { ItemKey = "scrap-metal", Quantity = 1 }
                 }

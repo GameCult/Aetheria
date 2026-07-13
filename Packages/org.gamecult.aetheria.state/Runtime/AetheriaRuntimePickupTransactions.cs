@@ -8,7 +8,8 @@ namespace GameCult.Aetheria.State.Verse
     public static class AetheriaRuntimePickupTransactions
     {
         public static bool TryCollect(AetheriaRuntimeZoneSnapshotCommit zone, AetheriaRuntimeEntitySnapshotCommit entity,
-            int pickupIndex, AetheriaRuntimeCatalogSnapshot? catalog, bool requireRange = true)
+            int pickupIndex, AetheriaRuntimeCatalogSnapshot? catalog, bool requireRange = true,
+            double collectionRange = 25)
         {
             var pickups = (zone.DroppedPickups ?? Array.Empty<AetheriaRuntimeDroppedPickupCommit>()).ToList();
             var index = pickups.FindIndex(pickup => pickup != null && pickup.PickupIndex == pickupIndex);
@@ -16,7 +17,7 @@ namespace GameCult.Aetheria.State.Verse
             var pickup = pickups[index];
             var quantity = Math.Max(1, pickup.Item?.Quantity ?? 1);
             if (pickup.AgeSeconds >= pickup.LifetimeSeconds ||
-                (requireRange && Math.Pow(pickup.PositionX - entity.PositionX, 2) + Math.Pow(pickup.PositionZ - entity.PositionZ, 2) > 25 * 25) ||
+                (requireRange && Math.Pow(pickup.PositionX - entity.PositionX, 2) + Math.Pow(pickup.PositionZ - entity.PositionZ, 2) > collectionRange * collectionRange) ||
                 quantity > AetheriaRuntimeCargoCapacityQueries.UnitsThatFit(entity, catalog, pickup.Item?.ItemKey ?? ""))
                 return false;
             var bays = (entity.CargoContents ?? Array.Empty<AetheriaRuntimeCargoBayLoadoutCommit>()).ToList();

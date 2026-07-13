@@ -290,6 +290,9 @@ public sealed class AetheriaZoneState
 
     [Key(14)]
     public double SimulationTimeSeconds { get; set; }
+
+    [Key(15)]
+    public int NextPickupIndex { get; set; }
 }
 
 [MessagePackObject]

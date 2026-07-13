@@ -588,6 +588,9 @@ namespace GameCult.Aetheria.State.Verse
         [Key(17)]
         public IReadOnlyList<AetheriaRuntimePhysicalPayloadCommit> PhysicalPayloads { get; set; } =
             Array.Empty<AetheriaRuntimePhysicalPayloadCommit>();
+
+        [Key(18)]
+        public int NextPickupIndex { get; set; }
     }
 
     [MessagePackObject]

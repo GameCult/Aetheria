@@ -2738,7 +2738,13 @@ static async Task<AetheriaRuntimeZoneSnapshotCommit> ToRuntimeZoneAsync(
         GravityTerrainDepthExponent = zone.GravityTerrainDepthExponent,
         GravityTerrainBoundaryFog = zone.GravityTerrainBoundaryFog,
         GravityTerrainWaveFrequency = zone.GravityTerrainWaveFrequency,
-        SimulationTimeSeconds = zone.SimulationTimeSeconds
+        SimulationTimeSeconds = zone.SimulationTimeSeconds,
+        NextPickupIndex = Math.Max(
+            zone.NextPickupIndex,
+            (zone.DroppedPickups ?? Array.Empty<AetheriaDroppedPickupSnapshot>())
+                .Select(pickup => pickup?.PickupIndex ?? -1)
+                .DefaultIfEmpty(-1)
+                .Max() + 1)
     };
 }
 

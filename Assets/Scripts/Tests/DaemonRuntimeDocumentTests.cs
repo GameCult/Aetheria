@@ -2636,6 +2636,19 @@ public class DaemonRuntimeDocumentTests
                                 VelocityX = 5,
                                 VelocityY = 6,
                                 IsActive = true,
+                                CargoContents = new[]
+                                {
+                                    new AetheriaRuntimeCargoBayLoadoutCommit
+                                    {
+                                        Items = new[]
+                                        {
+                                            new AetheriaRuntimeLoadoutItemSlotCommit
+                                            {
+                                                Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = "ore", Quantity = 2 }
+                                            }
+                                        }
+                                    }
+                                },
                                 Contacts = new[]
                                 {
                                     new AetheriaRuntimeEntityContactCommit
@@ -2680,7 +2693,7 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual(AetheriaRuntimeDaemonSoaBackends.MemoryMappedFile, view.Backend);
         Assert.AreEqual(1, view.Buffers.Count);
         Assert.IsFalse(view.Buffers[0].ObserverWritable);
-        Assert.AreEqual(11, view.Columns.Count);
+        Assert.AreEqual(12, view.Columns.Count);
         Assert.AreEqual(1, view.RenderGroups.Count);
         Assert.AreEqual(3, view.RenderGroups[0].InstanceCount);
         Assert.IsTrue(view.Identities.Any(identity =>
@@ -2692,6 +2705,7 @@ public class DaemonRuntimeDocumentTests
         var index = AetheriaRuntimeDaemonSoaViewIndex.Build(view);
         Assert.IsTrue(index.IsValid, string.Join("\n", index.ValidationErrors));
         Assert.IsTrue(index.TryGetFirstColumnOfKind(AetheriaRuntimeDaemonSoaColumnKinds.EntityIndex, out var entityIndex));
+        Assert.IsTrue(index.TryGetFirstColumnOfKind(AetheriaRuntimeDaemonSoaColumnKinds.CargoQuantity, out var cargoQuantity));
         Assert.IsTrue(index.TryGetFirstColumnOfKind(AetheriaRuntimeDaemonSoaColumnKinds.Position, out var position));
         Assert.IsTrue(index.TryGetFirstColumnOfKind(AetheriaRuntimeDaemonSoaColumnKinds.Velocity, out var velocity));
         Assert.IsTrue(index.TryGetFirstColumnOfKind(AetheriaRuntimeDaemonSoaColumnKinds.RenderVisibility, out var visibility));
@@ -2700,6 +2714,9 @@ public class DaemonRuntimeDocumentTests
         using var accessor = memory.CreateViewAccessor(0, view.Buffers[0].ByteLength, MemoryMappedFileAccess.Read);
         Assert.AreEqual(3, accessor.ReadInt32(entityIndex.AbsoluteByteOffset));
         Assert.AreEqual(7, accessor.ReadInt32(entityIndex.AbsoluteByteOffset + entityIndex.Column.ElementStride));
+        Assert.AreEqual(0, accessor.ReadInt32(cargoQuantity.AbsoluteByteOffset));
+        Assert.AreEqual(2, accessor.ReadInt32(cargoQuantity.AbsoluteByteOffset + cargoQuantity.Column.ElementStride));
+        Assert.AreEqual(0, accessor.ReadInt32(cargoQuantity.AbsoluteByteOffset + cargoQuantity.Column.ElementStride * 2));
         Assert.AreEqual(-2f, accessor.ReadSingle(position.AbsoluteByteOffset), 0.0001f);
         Assert.AreEqual(-8f, accessor.ReadSingle(position.AbsoluteByteOffset + 8), 0.0001f);
         Assert.AreEqual(12f, accessor.ReadSingle(position.AbsoluteByteOffset + position.Column.ElementStride), 0.0001f);
@@ -4671,6 +4688,14 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual(1, undockResult.Intents.Docking.Count);
         Assert.IsTrue(undockResult.Intents.Docking[0].Undock);
         CollectionAssert.DoesNotContain(undockRun.Zones[0].Entities[1].DockingBayAssignments, 0);
+        var undockedActor = undockRun.Zones[0].Entities[0];
+        var dockParent = undockRun.Zones[0].Entities[1];
+        Assert.That(
+            Math.Sqrt(Math.Pow(undockedActor.PositionX - dockParent.PositionX, 2) +
+                      Math.Pow(undockedActor.PositionZ - dockParent.PositionZ, 2)),
+            Is.EqualTo(72).Within(0.001));
+        Assert.AreEqual(0, undockedActor.VelocityX);
+        Assert.AreEqual(0, undockedActor.VelocityY);
 
         var wormholeRun = RunWithTwoEntities();
         wormholeRun.Zones[0].AdjacentZoneIndices = new[] { 2 };

@@ -56,8 +56,8 @@ namespace GameCult.Aetheria.State.Verse
                 foreach (var movement in intents?.Movements ?? Enumerable.Empty<AetheriaRuntimeDaemonMovementIntent>())
                     ApplyMovementIntent(run, entities, movement, settings);
                 StepTractorPower(entities, deltaSeconds);
-                var worldStep = StepWorldPhysics(zone, entities, deltaSeconds, worldPhysics);
-                ResolvePickupContacts(run, zone, entities, worldStep, catalog, frameId);
+                StepWorldPhysics(zone, entities, deltaSeconds, worldPhysics);
+                ResolveTractorCollections(run, zone, entities, catalog, frameId);
                 StepCombat(run, zone, entities, intents, deltaSeconds, settings, physicalPayloadPhysics, catalog,
                     frameId, simulationTimeSeconds);
                 AetheriaRuntimeMiningSimulation.Step(run, zone, entities, intents, catalog, frameId, simulationTimeSeconds, deltaSeconds);
@@ -146,32 +146,40 @@ namespace GameCult.Aetheria.State.Verse
             return result;
         }
 
-        private static void ResolvePickupContacts(
+        private static void ResolveTractorCollections(
             AetheriaRuntimeRunCheckpointCommit run,
             AetheriaRuntimeZoneSnapshotCommit zone,
             IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities,
-            AetheriaRuntimeWorldStep worldStep,
             AetheriaRuntimeCatalogSnapshot? catalog,
             long frameId)
         {
-            foreach (var contact in worldStep.Contacts.Where(contact => contact.PickupIndex >= 0))
+            foreach (var entity in entities.Where(value =>
+                value != null && value.IsActive && value.TractorPower > 0.001))
             {
-                var entityIndex = Math.Max(contact.EntityAIndex, contact.EntityBIndex);
-                var entity = entities.FirstOrDefault(value => value.EntityIndex == entityIndex && value.IsActive);
-                var pickup = (zone.DroppedPickups ?? Array.Empty<AetheriaRuntimeDroppedPickupCommit>())
-                    .FirstOrDefault(value => value != null && value.PickupIndex == contact.PickupIndex);
-                if (entity == null || pickup == null) continue;
-                if (AetheriaRuntimePickupTransactions.TryCollect(zone, entity, pickup.PickupIndex, catalog, requireRange: false))
+                foreach (var pickup in (zone.DroppedPickups ?? Array.Empty<AetheriaRuntimeDroppedPickupCommit>())
+                    .Where(value => value != null)
+                    .ToArray())
                 {
-                    AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit { EventId = $"frame:{frameId}:zone:{zone.ZoneIndex}:entity:{entity.EntityIndex}:pickup:{pickup.PickupIndex}:collected", Kind = "pickup.collected", FrameId = frameId, ZoneIndex = zone.ZoneIndex, TargetEntityIndex = entity.EntityIndex, PickupIndex = pickup.PickupIndex, ItemKey = pickup.Item?.ItemKey ?? "", ScalarValue = Math.Max(1, pickup.Item?.Quantity ?? 1) });
-                    continue;
+                    if (!AetheriaRuntimePickupTransactions.TryCollect(
+                            zone,
+                            entity,
+                            pickup.PickupIndex,
+                            catalog,
+                            requireRange: true,
+                            collectionRange: 75))
+                        continue;
+                    AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit
+                    {
+                        EventId = $"frame:{frameId}:zone:{zone.ZoneIndex}:entity:{entity.EntityIndex}:pickup:{pickup.PickupIndex}:collected",
+                        Kind = "pickup.collected",
+                        FrameId = frameId,
+                        ZoneIndex = zone.ZoneIndex,
+                        TargetEntityIndex = entity.EntityIndex,
+                        PickupIndex = pickup.PickupIndex,
+                        ItemKey = pickup.Item?.ItemKey ?? "",
+                        ScalarValue = Math.Max(1, pickup.Item?.Quantity ?? 1)
+                    });
                 }
-                AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit { EventId = $"frame:{frameId}:zone:{zone.ZoneIndex}:entity:{entity.EntityIndex}:pickup:{pickup.PickupIndex}:rejected", Kind = "pickup.rejected", FrameId = frameId, ZoneIndex = zone.ZoneIndex, TargetEntityIndex = entity.EntityIndex, PickupIndex = pickup.PickupIndex, ItemKey = pickup.Item?.ItemKey ?? "", ScalarValue = Math.Max(1, pickup.Item?.Quantity ?? 1) });
-                var dx = pickup.PositionX - entity.PositionX; var dz = pickup.PositionZ - entity.PositionZ;
-                var length = Math.Sqrt(dx * dx + dz * dz);
-                if (length < 0.001) { dx = 1; dz = 0; length = 1; }
-                pickup.VelocityX += dx / length * 25;
-                pickup.VelocityZ += dz / length * 25;
             }
         }
 
@@ -1239,7 +1247,9 @@ namespace GameCult.Aetheria.State.Verse
             }
 
             var pickups = (zone.DroppedPickups ?? Array.Empty<AetheriaRuntimeDroppedPickupCommit>()).ToList();
-            var nextPickupIndex = pickups.Count == 0 ? 0 : pickups.Max(value => value.PickupIndex) + 1;
+            var nextPickupIndex = Math.Max(
+                zone.NextPickupIndex,
+                pickups.Select(value => value.PickupIndex).DefaultIfEmpty(-1).Max() + 1);
             void Drop(AetheriaRuntimeLoadoutItemCommit item, string sourceKind, int sourceIndex)
             {
                 var velocity = DestructionVelocity(run.GenerationSeed, destructionId,
@@ -1287,6 +1297,7 @@ namespace GameCult.Aetheria.State.Verse
                 if (slot?.Item != null) Drop(slot.Item, "cargo", cargoIndex);
                 cargoIndex++;
             }
+            zone.NextPickupIndex = nextPickupIndex;
             zone.DroppedPickups = pickups;
 
             target.Equipment = Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>();

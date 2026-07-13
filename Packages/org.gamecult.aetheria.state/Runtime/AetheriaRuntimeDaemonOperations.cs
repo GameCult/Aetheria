@@ -1601,10 +1601,28 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeRunCheckpointCommit run,
             string actorEntityKey)
         {
-            if (!TryResolveEntity(run, actorEntityKey, out var zoneIndex, out var actorIndex, out _))
+            if (!TryResolveEntity(run, actorEntityKey, out var zoneIndex, out var actorIndex, out var actor))
+                return false;
+            var zone = (run.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>())
+                .FirstOrDefault(candidate => candidate != null && candidate.ZoneIndex == zoneIndex);
+            var parent = (zone?.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
+                .FirstOrDefault(entity => entity != null &&
+                    ((entity.ChildEntityIndices ?? Array.Empty<int>()).Contains(actorIndex) ||
+                     (entity.DockingBayAssignments ?? Array.Empty<int>()).Contains(actorIndex)));
+            if (parent == null || !RemoveChildReferenceFromZone(run, zoneIndex, actorIndex))
                 return false;
 
-            return RemoveChildReferenceFromZone(run, zoneIndex, actorIndex);
+            var directionLength = Math.Sqrt(
+                parent.DirectionX * parent.DirectionX + parent.DirectionY * parent.DirectionY);
+            var directionX = directionLength < 0.001 ? 0 : parent.DirectionX / directionLength;
+            var directionZ = directionLength < 0.001 ? 1 : parent.DirectionY / directionLength;
+            actor.PositionX = parent.PositionX + directionX * 72;
+            actor.PositionZ = parent.PositionZ + directionZ * 72;
+            actor.VelocityX = 0;
+            actor.VelocityY = 0;
+            actor.DirectionX = directionX;
+            actor.DirectionY = directionZ;
+            return true;
         }
 
         private static bool IsChildReferencedInZone(
