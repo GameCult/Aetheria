@@ -900,7 +900,7 @@ static RudpCultNetSchemaServer StartClientCultMeshHost(
                 }
             }
 
-            await InjectCultMeshCdnAssetSnapshotsAsync(options, bundleCdnDocuments, request, response).ConfigureAwait(false);
+            InjectCultMeshCdnManifestSnapshots(bundleCdnDocuments, request, response);
             peer.SendCultNet(response);
         }
         catch (Exception ex)
@@ -926,14 +926,11 @@ static RudpCultNetSchemaServer StartClientCultMeshHost(
     return server;
 }
 
-static async Task InjectCultMeshCdnAssetSnapshotsAsync(
-    AetheriaDaemonHostOptions options,
+static void InjectCultMeshCdnManifestSnapshots(
     IReadOnlyDictionary<string, CultNetRawDocumentRecord> bundleCdnDocuments,
     CultNetSnapshotRequestMessage request,
     CultNetSnapshotResponseRawMessage response)
 {
-    var schemaIds = request.SchemaIds ?? Array.Empty<string>();
-
     var recordKeys = request.RecordKeys ?? Array.Empty<string>();
     if (recordKeys.Length == 0)
         return;
@@ -946,33 +943,7 @@ static async Task InjectCultMeshCdnAssetSnapshotsAsync(
             if (string.Equals(Environment.GetEnvironmentVariable("AETHERIA_TRACE_EVE_SNAPSHOTS"), "1", StringComparison.Ordinal))
                 Console.WriteLine($"Eve CDN snapshot schema={bundleDocument.SchemaId} record={recordKey}");
             documents.Add(bundleDocument);
-            continue;
         }
-        if (schemaIds.Length > 0 &&
-            !schemaIds.Contains(AetheriaRuntimeDaemonSchemas.CultMeshCdnAssetBlob, StringComparer.Ordinal))
-            continue;
-        if (!TryResolveCultMeshCdnAssetPath(options, recordKey, out var filePath, out var mimeType, out var canonicalUri))
-            continue;
-
-        var bytes = await File.ReadAllBytesAsync(filePath).ConfigureAwait(false);
-        documents.Add(new CultNetRawDocumentRecord
-        {
-            SchemaId = AetheriaRuntimeDaemonSchemas.CultMeshCdnAssetBlob,
-            RecordKey = recordKey,
-            StoredAt = DateTimeOffset.UtcNow.ToString("O"),
-            PayloadEncoding = "messagepack",
-            Payload = MessagePackSerializer.Serialize(bytes),
-            SourceRuntimeId = options.DaemonId,
-            SourceRole = "aetheria-cultmesh-cdn",
-            Tags =
-            [
-                "aetheria",
-                "cultmesh-cdn",
-                "asset",
-                $"mime:{mimeType}",
-                $"canonical:{canonicalUri}"
-            ]
-        });
     }
 
     if (documents.Count == 0)
@@ -1012,122 +983,6 @@ static IReadOnlyDictionary<string, CultNetRawDocumentRecord> BuildBundleCdnDocum
             });
         documents[recordKey.Value] = put.Document;
     }
-}
-
-static bool TryResolveCultMeshCdnAssetPath(
-    AetheriaDaemonHostOptions options,
-    string recordKey,
-    out string filePath,
-    out string mimeType,
-    out string canonicalUri)
-{
-    filePath = "";
-    mimeType = "application/octet-stream";
-    canonicalUri = "";
-
-    var assetPath = ParseCultMeshAssetPath(recordKey);
-    if (string.IsNullOrWhiteSpace(assetPath))
-        return false;
-
-    var relative = ResolveCultMeshAssetResourcePath(assetPath);
-    if (string.IsNullOrWhiteSpace(relative))
-        return false;
-
-    var candidates = new[]
-    {
-        Path.Combine(options.AetheriaResourcesRoot, relative),
-        Path.Combine(options.AetheriaResourcesRoot, relative + ".png"),
-        Path.Combine(options.AetheriaResourcesRoot, relative + ".PNG"),
-        Path.Combine(options.AetheriaResourcesRoot, relative + ".jpg"),
-        Path.Combine(options.AetheriaResourcesRoot, relative + ".jpeg"),
-        Path.Combine(options.AetheriaResourcesRoot, relative + ".psd")
-    };
-    filePath = candidates.FirstOrDefault(path =>
-        File.Exists(path) &&
-        Path.GetFullPath(path).StartsWith(Path.GetFullPath(options.AetheriaResourcesRoot), StringComparison.OrdinalIgnoreCase)) ?? "";
-    if (string.IsNullOrWhiteSpace(filePath))
-        return false;
-
-    mimeType = ContentTypeForPath(filePath);
-    canonicalUri = recordKey.StartsWith("cultmesh://", StringComparison.OrdinalIgnoreCase)
-        ? recordKey
-        : $"cultmesh://aetheria/assets/{assetPath.Trim('/')}";
-    return true;
-}
-
-static string ParseCultMeshAssetPath(string recordKey)
-{
-    var text = (recordKey ?? "").Trim();
-    if (text.Length == 0)
-        return "";
-
-    if (!text.StartsWith("cultmesh://", StringComparison.OrdinalIgnoreCase))
-        return text.Trim('/');
-
-    if (!Uri.TryCreate(text, UriKind.Absolute, out var uri))
-        return "";
-
-    var parts = uri.AbsolutePath.Trim('/').Split('/', StringSplitOptions.RemoveEmptyEntries);
-    var assetIndex = Array.FindIndex(parts, part => string.Equals(part, "assets", StringComparison.OrdinalIgnoreCase));
-    return string.Join("/", assetIndex >= 0 ? parts.Skip(assetIndex + 1) : parts);
-}
-
-static string ResolveCultMeshAssetResourcePath(string assetPath)
-{
-    var path = (assetPath ?? "").Trim('/').Replace('\\', '/');
-    var aliases = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-    {
-        ["icons/ui/sun"] = "Sprites/Icons/Stroked/Sun",
-        ["icons/ui/star"] = "Sprites/Icons/Stroked/Sun",
-        ["icons/ui/planet"] = "Sprites/Icons/Stroked/Planet",
-        ["icons/ui/gasgiant"] = "Sprites/Icons/Stroked/gasgiant",
-        ["icons/ui/asteroid"] = "Sprites/Icons/Stroked/Planet",
-        ["icons/ui/ship"] = "Sprites/Icons/Stroked/Ship",
-        ["icons/ui/player"] = "Sprites/Icons/Stroked/Ship",
-        ["icons/ui/station"] = "Sprites/Icons/station1",
-        ["icons/ui/orbital"] = "Sprites/Icons/Stroked/orbital",
-        ["map/entity/player"] = "Sprites/Icons/Stroked/Ship",
-        ["map/entity/ship"] = "Sprites/Icons/Stroked/Ship",
-        ["map/entity/orbital"] = "Sprites/Icons/Stroked/orbital",
-        ["map/entity/station"] = "Sprites/Icons/station1",
-        ["map/entity/projectile"] = "Sprites/Icons/Lightning Bolt",
-        ["map/body/planet"] = "Sprites/Icons/Stroked/Planet",
-        ["map/body/sun"] = "Sprites/Icons/Stroked/Sun",
-        ["map/body/asteroid"] = "Sprites/Icons/Stroked/Planet",
-        ["textures/tint_splat"] = "Sprites/Flat UI/areaFade2",
-        ["textures/perlines-nebula"] = "Sprites/Icons/Tech/Cloud",
-        ["inventory/cell/background_atlas"] = "Sprites/Flat UI/Nodes/Nodes8BG",
-        ["inventory/cell/foreground_atlas"] = "Sprites/Flat UI/Nodes/Nodes8",
-        ["inventory/cell/thermal_layer_atlas"] = "Sprites/Flat UI/pipes"
-    };
-    if (aliases.TryGetValue(path, out var relative))
-        return relative;
-
-    if (path.StartsWith("icons/star.", StringComparison.OrdinalIgnoreCase))
-        return "Sprites/Icons/Stroked/Sun";
-    if (path.StartsWith("icons/body.", StringComparison.OrdinalIgnoreCase))
-        return path.Contains("vesper", StringComparison.OrdinalIgnoreCase)
-            ? "Sprites/Icons/Stroked/gasgiant"
-            : "Sprites/Icons/Stroked/Planet";
-    if (path.StartsWith("icons/ship.", StringComparison.OrdinalIgnoreCase))
-        return "Sprites/Icons/Stroked/Ship";
-    if (path.StartsWith("icons/station.", StringComparison.OrdinalIgnoreCase))
-        return "Sprites/Icons/station1";
-
-    return path;
-}
-
-static string ContentTypeForPath(string filePath)
-{
-    return Path.GetExtension(filePath).ToLowerInvariant() switch
-    {
-        ".png" => "image/png",
-        ".jpg" => "image/jpeg",
-        ".jpeg" => "image/jpeg",
-        ".svg" => "image/svg+xml",
-        ".psd" => "image/vnd.adobe.photoshop",
-        _ => "application/octet-stream"
-    };
 }
 
 static async Task InjectEveSurfaceSnapshotAsync(

@@ -10,6 +10,7 @@ var statePath = args.Length > 1
     : AetheriaStatePaths.ResolveDefaultStatePath(root);
 
 RequireGameplaySourcePurity(root);
+RequireManagedContentOnlyAssetDelivery(root);
 RequirePackageSerializerBoundary(root);
 RequireSharedEvePackagesImportedFromEveRepo(root);
 RequireSharedRuntimeSurfaceCommandsUseCultMeshTransport(root);
@@ -20808,5 +20809,41 @@ static async Task RequireLegacyLookupAsync<T>(
     if (value == null)
     {
         throw new InvalidOperationException($"Typed legacy-id lookup failed for {label} {legacyId}.");
+    }
+}
+
+static void RequireManagedContentOnlyAssetDelivery(string root)
+{
+    var daemonPath = Path.Combine(root, "Aetheria.State.Daemon", "Program.cs");
+    var documentsPath = Path.Combine(
+        root,
+        "Packages",
+        "org.gamecult.aetheria.state",
+        "Runtime",
+        "AetheriaRuntimeDaemonDocuments.cs");
+    var daemon = File.ReadAllText(daemonPath);
+    var documents = File.ReadAllText(documentsPath);
+    var forbidden = new[]
+    {
+        "CultMeshCdnAssetBlob",
+        "gamecult.cultmesh.cdn.asset_blob.v1",
+        "TryResolveCultMeshCdnAssetPath"
+    };
+    var surviving = forbidden
+        .Where(symbol => daemon.Contains(symbol, StringComparison.Ordinal) ||
+                         documents.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (surviving.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Snapshot delivery regained a byte-body authority; managed content sessions must be the sole asset-body transport: " +
+            string.Join(", ", surviving));
+    }
+
+    if (!daemon.Contains("InjectCultMeshCdnManifestSnapshots", StringComparison.Ordinal) ||
+        !daemon.Contains("CultMeshContentServer", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Daemon asset delivery must publish snapshot manifests and host managed CultMesh content sessions.");
     }
 }

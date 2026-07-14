@@ -865,6 +865,26 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   height, and negative body splats. Released cold/warm witnesses exercise the
   persisted daemon path.
 
+### Daemon Asset Content Delivery
+
+- Owner: the Aetheria daemon owns bundle content and serves bytes only through
+  the managed `cultmesh.content.v1` session hosted by CultMesh.
+- Inputs: provider bundle path, packed artifact manifest, content hash, byte
+  length, negotiated chunk requests, and resumable client checkpoint.
+- Outputs: snapshot delivery publishes the typed artifact manifest only;
+  content-session requests return bounded byte ranges which the generic runtime
+  verifies and atomically promotes to a hash-named `.body`.
+- Derived state: Unity `AssetBundle` instances, native prefab lookup, cache
+  files, progress UI, and screenshots cannot publish or mutate provider bytes.
+- Forbidden writers: batched snapshot chunks and the former
+  `gamecult.cultmesh.cdn.asset_blob.v1` fallback are deleted. Eve surfaces and
+  renderer code cannot smuggle bundle bytes through state records.
+- Shared paths: cold transfer, resume, and warm cache reuse all resolve the same
+  advertised manifest and content hash through the generic runtime transport.
+- Cut line: CultMesh snapshots index manifests; managed content sessions are the
+  sole bundle-body transport until a negotiated mapped/network body transport
+  replaces their byte-copy implementation.
+
 - Owner: `Aetheria.State` owns the new typed state spine for durable state.
   The embedded `GameCult.Aetheria.State.Unity` package owns Unity's runtime
   typed state file path plus the boot-time state-file probe, and is the landing
