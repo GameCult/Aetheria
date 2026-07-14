@@ -10097,8 +10097,11 @@ static void RequireClientTargetBootAuthority(string root)
     {
         "private static AetheriaRuntimeSurfaceDocument BuildRoot(",
         "\"STARBRIDGE\"",
-        "AetheriaMainMenuGravityField.FromDaemonFrame(daemonFrame)",
-        "GravitySurface($"
+        "GravitySurface($",
+        "AetheriaRuntimeDaemonSchemas.RenderSplatsViewport",
+        "AetheriaRuntimeDaemonSchemas.GravityViewport",
+        "AetheriaRuntimeDaemonSchemas.ObjectsViewport",
+        "new AetheriaRuntimeEmbeddedDocumentSlot("
     };
     var missingMainMenuSymbols = requiredMainMenuSymbols
         .Where(symbol => !mainMenu.Contains(symbol, StringComparison.Ordinal))
@@ -13999,8 +14002,11 @@ static void RequireMainMenuVerseHostDocumentAccess(string root)
         "public static AetheriaRuntimeSurfaceDocument BuildRoot(",
         "AetheriaRuntimeStateBootReport stateBoot",
         "AetheriaRuntimeVerseHostSettingsDocument verseHost",
-        "AetheriaMainMenuGravityField.FromDaemonFrame(daemonFrame)",
         "GravitySurface($",
+        "AetheriaRuntimeDaemonSchemas.RenderSplatsViewport",
+        "AetheriaRuntimeDaemonSchemas.GravityViewport",
+        "AetheriaRuntimeDaemonSchemas.ObjectsViewport",
+        "new AetheriaRuntimeEmbeddedDocumentSlot(",
         "\"AETHERIA\"",
         "\"STARBRIDGE\"",
         "\"Aetheria Starbridge\""

@@ -193,25 +193,21 @@ Remaining debt:
 
 ## Gravity Terrain
 
-There are now shared daemon render queries for gravity influence brushes and
-terrain sampling. `ZoneRenderer` uses
-`AetheriaRuntimeDaemonRenderQueries.EvaluateGravityTerrainHeight` and
-`QueryGravityTerrainBand` for rendering.
+Daemon zone/body state owns gravity as positive depth magnitudes. The Ymir
+adapter passes `GravityWellDepth` directly into positive-strength radial fields,
+which attract. Shared render queries subtract those magnitudes into negative
+terrain wells, and `AetheriaRuntimeGameDocuments.RenderSplatsViewport` performs
+the same derived sign conversion for `gravity.height` splats.
 
-The old `Assets/Scripts/Gravity.cs` still exists. It samples Unity
-`GravityObject` materials and shader names directly. That path is a legacy
-Unity-local gravity evaluator. It should not own gameplay gravity or canonical
-terrain facts. The desirable shape is:
+`AetheriaRuntimeDaemonRenderQueries` owns gravity influence brushes, terrain
+sampling, and terrain bands. `ZoneRenderer` consumes those queries. The main
+menu embeds the typed gravity, render-splat, and object viewport documents; its
+old fallback body/object world has been deleted.
 
-- daemon zone state defines body/orbit/gravity influence data;
-- shared runtime query code answers viewport/intersection questions such as
-  "which influence brushes intersect this XZ area?";
-- Unity receives only the brushes and terrain samples needed for the current
-  camera/minimap/render pass;
-- Ymir receives physics-relevant fields from the same daemon state.
-
-`Aetheria.State.Verify` already checks for shared gravity influence query
-symbols and pushes `ZoneRenderer` away from mirrored Unity `Zone` math.
+The old `Assets/Scripts/Gravity.cs` remains a legacy Unity-local visual
+evaluator. It does not own gameplay gravity or canonical terrain facts. Unity
+receives provider projections for the active camera/minimap/render pass, while
+`AetheriaYmirWorldPhysics` receives physics fields from the same daemon state.
 
 ## Stats And Behaviors
 

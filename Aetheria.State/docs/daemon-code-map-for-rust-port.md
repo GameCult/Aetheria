@@ -83,7 +83,7 @@ These files define the deprecated reference surface. They should be treated as A
 | Command application | `Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeDaemonOperations.cs` | Current meaning of every gameplay command and rejection. |
 | Tick composition | `Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeDaemonTickRunner.cs` | Current order of command filtering, operation execution, sim step, frame creation, publication payloads. |
 | Daemon sim | `Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeDaemonSimulation.cs` | Gameplay intents, hostile AI, combat meaning, heat, and projection of mandatory Ymir world results. |
-| Ymir world adapter | `Aetheria.State.Daemon/AetheriaYmirWorldPhysics.cs` | Projects daemon state into Ymir and returns candidate body, field, contact, position, and velocity results for the daemon to commit. |
+| Ymir world adapter | `Aetheria.State.Daemon/AetheriaYmirWorldPhysics.cs` | Projects daemon state into Ymir. Positive daemon gravity-depth magnitudes become positive attracting radial strengths; the adapter returns body, contact, position, and velocity facts for the daemon to commit without owning sign policy. |
 | Game viewport documents | `Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeGameViewportDocuments.cs` | Existing map, object, gravity, selected object, docking, refit, sector, and inventory projections. |
 | Client facade | `Packages/org.gamecult.aetheria.state/Runtime/AetheriaClient.cs` | C# client observation and typed operation ergonomics. |
 | Verse client | `Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeVerseClient.cs` | Current lower-level typed document reads/watches and command submission. |

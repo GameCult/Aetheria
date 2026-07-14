@@ -3002,10 +3002,16 @@ static bool HasPlayableRun(AetheriaRuntimeRunCheckpointCommit? run)
 static bool HasTerminusRun(AetheriaRuntimeRunCheckpointCommit? run)
 {
     var zones = run?.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>();
+    var terminusZone = zones.FirstOrDefault(zone =>
+        string.Equals(zone.Name, "Daemon Generated Terminus", StringComparison.Ordinal));
     var entities = zones.SelectMany(zone => zone.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>()).ToArray();
     var bodies = zones.SelectMany(zone => zone.Bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>()).ToArray();
     return run?.GenerationSeed == AetheriaDaemonZoneGenerator.GenerationSeed &&
-        zones.Any(zone => string.Equals(zone.Name, "Daemon Generated Terminus", StringComparison.Ordinal)) &&
+        terminusZone != null &&
+        terminusZone.GravityTerrainDepth > 0 &&
+        (terminusZone.Bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>())
+            .Where(body => body.GravityInfluenceRadius > 0)
+            .All(body => body.GravityWellDepth > 0) &&
         entities.Any(entity => string.Equals(entity.Name, "Anchor Station", StringComparison.Ordinal)) &&
         entities.Count(entity => string.Equals(entity.FactionKey, "player", StringComparison.OrdinalIgnoreCase)) >= 4 &&
         entities.Count(entity => string.Equals(entity.FactionKey, "raider", StringComparison.OrdinalIgnoreCase)) >= 3 &&

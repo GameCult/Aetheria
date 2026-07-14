@@ -839,6 +839,32 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   are deleted. The old enum ordinal remains reserved only to avoid shifting
   serialized command values and is rejected by the daemon.
 
+### Daemon Gravity Field Contract
+
+- Owner: typed daemon zone/body state owns positive gravity-depth magnitudes;
+  embedded Ymir owns radial integration and contact facts without reinterpreting
+  their sign.
+- Inputs: body poses, influence radii, positive `GravityWellDepth`, positive
+  zone `GravityTerrainDepth`, exponents, waves, and fixed delta.
+- Outputs: Ymir produces inward acceleration, positions, velocities, and
+  contacts. Daemon projections publish typed gravity viewport and render-splat
+  documents from the same state.
+- Derived state: terrain samples and `gravity.height` splat values are negative
+  because presentation subtracts the positive magnitude. Bands, Eve fields,
+  Unity meshes, and cameras remain derived.
+- Forbidden writers: negative authored depths, adapter-side sign compensators,
+  Unity gravity scripts, Eve lowerers, main-menu fallback fixtures, and stale
+  persisted Terminus rows cannot author gravity semantics.
+- Shared paths: generated, restored, and imported worlds use the same magnitude
+  convention; physics and every render projection consume those canonical
+  values.
+- Cut line: the dead main-menu fallback world is deleted. Built-in Terminus
+  state with the old sign fails the current-scenario check and is regenerated;
+  only presentation conversion may negate depth.
+- Verification layer: daemon smoke proves inward Ymir velocity, negative sampled
+  height, and negative body splats. Released cold/warm witnesses exercise the
+  persisted daemon path.
+
 - Owner: `Aetheria.State` owns the new typed state spine for durable state.
   The embedded `GameCult.Aetheria.State.Unity` package owns Unity's runtime
   typed state file path plus the boot-time state-file probe, and is the landing

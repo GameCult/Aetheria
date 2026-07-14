@@ -42,7 +42,6 @@ namespace GameCult.Aetheria.State.Verse
         {
             return BuildRoot(
                 inGame,
-                gravityField: AetheriaMainMenuGravityField.Default(),
                 updatedAtUtc,
                 version);
         }
@@ -59,7 +58,6 @@ namespace GameCult.Aetheria.State.Verse
         {
             return BuildRoot(
                 inGame,
-                gravityField: AetheriaMainMenuGravityField.FromDaemonFrame(daemonFrame),
                 updatedAtUtc,
                 version);
         }
@@ -76,7 +74,6 @@ namespace GameCult.Aetheria.State.Verse
         {
             return BuildRoot(
                 inGame,
-                gravityField: AetheriaMainMenuGravityField.Default(),
                 updatedAtUtc,
                 version);
         }
@@ -112,11 +109,9 @@ namespace GameCult.Aetheria.State.Verse
 
         private static AetheriaRuntimeSurfaceDocument BuildRoot(
             bool inGame,
-            AetheriaMainMenuGravityField gravityField,
             string updatedAtUtc,
             long version)
         {
-            gravityField = gravityField.IsEmpty ? AetheriaMainMenuGravityField.Default() : gravityField;
             var actions = new List<AetheriaRuntimeSurfaceComponent>();
             if (!inGame)
                 actions.Add(MenuButton($"{AetheriaRuntimeMainMenuCommands.RootSurfaceId}.continue", "Continue", AetheriaRuntimeMainMenuCommands.ContinueRun));
@@ -135,7 +130,7 @@ namespace GameCult.Aetheria.State.Verse
                     ("height", "100vh"),
                     ("minHeight", "100vh")),
                 Style(("background", "#020606")),
-                GravitySurface($"{AetheriaRuntimeMainMenuCommands.RootSurfaceId}.gravity", gravityField),
+                GravitySurface($"{AetheriaRuntimeMainMenuCommands.RootSurfaceId}.gravity"),
                 Node(
                     $"{AetheriaRuntimeMainMenuCommands.RootSurfaceId}.menu",
                     "column",
@@ -419,9 +414,7 @@ namespace GameCult.Aetheria.State.Verse
                 style);
         }
 
-        private static AetheriaRuntimeSurfaceComponent GravitySurface(
-            string id,
-            AetheriaMainMenuGravityField gravityField)
+        private static AetheriaRuntimeSurfaceComponent GravitySurface(string id)
         {
             var viewport = MainMenuViewport();
             var renderSplatsDocumentId = ViewportDocumentId("aetheria.viewport.render_splats", viewport);
@@ -581,279 +574,6 @@ namespace GameCult.Aetheria.State.Verse
             return value.ToString("0.###", CultureInfo.InvariantCulture);
         }
 
-        private static string GravityBodies(IReadOnlyList<AetheriaMainMenuGravityBody> bodies)
-        {
-            return string.Join(
-                ";",
-                (bodies ?? Array.Empty<AetheriaMainMenuGravityBody>())
-                    .Select(body => string.Join(
-                        "|",
-                        body.Key,
-                        body.Kind,
-                        F(body.X),
-                        F(body.Y),
-                        F(body.Radius),
-                        F(body.Depth),
-                        F(body.Exponent),
-                        F(body.WaveRadius),
-                        F(body.WaveDepth),
-                        F(body.WaveSpeed),
-                        body.IconAssetUri,
-                        body.TintSplatAssetUri)));
-        }
-
-        private static string GravityObjects(IReadOnlyList<AetheriaMainMenuGravityObject> objects)
-        {
-            return string.Join(
-                ";",
-                (objects ?? Array.Empty<AetheriaMainMenuGravityObject>())
-                    .Select(obj => string.Join(
-                        "|",
-                        S(obj.Key),
-                        S(obj.Kind),
-                        S(obj.Label),
-                        F(obj.X),
-                        F(obj.Y),
-                        F(obj.DirectionX),
-                        F(obj.DirectionY),
-                        S(obj.FactionKey),
-                        obj.Controlled ? "1" : "0",
-                        F(obj.Visibility),
-                        S(obj.IconAssetUri))));
-        }
-
-        private static string S(string value)
-        {
-            return (value ?? "").Replace("|", "/").Replace(";", ",");
-        }
-    }
-
-    internal readonly struct AetheriaMainMenuGravityField
-    {
-        public AetheriaMainMenuGravityField(
-            double viewRadius,
-            double terrainRadius,
-            double terrainDepth,
-            double terrainDepthExponent,
-            double terrainWaveFrequency,
-            double simulationTimeSeconds,
-            IReadOnlyList<AetheriaMainMenuGravityBody> bodies,
-            IReadOnlyList<AetheriaMainMenuGravityObject>? objects = null)
-        {
-            ViewRadius = viewRadius;
-            TerrainRadius = terrainRadius;
-            TerrainDepth = terrainDepth;
-            TerrainDepthExponent = terrainDepthExponent <= 0 ? 1.0 : terrainDepthExponent;
-            TerrainWaveFrequency = terrainWaveFrequency;
-            SimulationTimeSeconds = simulationTimeSeconds;
-            Bodies = bodies ?? Array.Empty<AetheriaMainMenuGravityBody>();
-            Objects = objects ?? Array.Empty<AetheriaMainMenuGravityObject>();
-        }
-
-        public double ViewRadius { get; }
-        public double TerrainRadius { get; }
-        public double TerrainDepth { get; }
-        public double TerrainDepthExponent { get; }
-        public double TerrainWaveFrequency { get; }
-        public double SimulationTimeSeconds { get; }
-        public IReadOnlyList<AetheriaMainMenuGravityBody> Bodies { get; }
-        public IReadOnlyList<AetheriaMainMenuGravityObject> Objects { get; }
-        public bool IsEmpty => Bodies == null || Bodies.Count == 0;
-
-        public static AetheriaMainMenuGravityField Default()
-        {
-            return new AetheriaMainMenuGravityField(
-                1200,
-                1200,
-                -8,
-                1.2,
-                0.6,
-                0,
-                new[]
-                {
-                    new AetheriaMainMenuGravityBody("terminus-sun", "Sun", 0, 0, 900, -80, 3, 450, 10, 2),
-                    new AetheriaMainMenuGravityBody("anchor-moon", "Planet", 360, -180, 260, -22, 2.2, 180, 4, 1.4)
-                },
-                new[]
-                {
-                    new AetheriaMainMenuGravityObject("anchor-station", "station", "Anchor Station", -220, -90, 1, 0, "player", true, 1),
-                    new AetheriaMainMenuGravityObject("vanguard-one", "ship", "Vanguard One", -60, -40, 1, 0.2, "player", true, 1),
-                    new AetheriaMainMenuGravityObject("ash-raider", "ship", "Ash Raider", 420, 180, -0.8, -0.1, "raider", false, 1)
-                });
-        }
-
-        public static AetheriaMainMenuGravityField FromDaemonFrame(AetheriaRuntimeDaemonFrameDocument? frame)
-        {
-            var run = frame?.Run;
-            var zones = run?.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>();
-            var currentZone = zones.FirstOrDefault(zone => zone != null && zone.ZoneIndex == run?.CurrentZoneIndex)
-                ?? zones.FirstOrDefault(zone => zone != null);
-            if (currentZone == null)
-                return Default();
-
-            var bodies = (currentZone.Bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>())
-                .Where(body => body != null)
-                .Select(body => new AetheriaMainMenuGravityBody(
-                    string.IsNullOrWhiteSpace(body.BodyKey) ? body.Name : body.BodyKey,
-                    body.Kind,
-                    double.IsNaN(body.GravityInfluenceCenterX) ? 0 : body.GravityInfluenceCenterX,
-                    double.IsNaN(body.GravityInfluenceCenterZ) ? 0 : body.GravityInfluenceCenterZ,
-                    body.GravityInfluenceRadius > 0 ? body.GravityInfluenceRadius : Math.Max(160, body.GravityRadiusMultiplier * 220),
-                    body.GravityWellDepth,
-                    body.GravityDepthExponent <= 0 ? 1.0 : body.GravityDepthExponent,
-                    body.GravityWaveRadius,
-                    body.GravityWaveDepth,
-                    body.GravityWaveSpeed))
-                .ToArray();
-            var objects = (currentZone.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
-                .Where(entity => entity != null && entity.IsActive)
-                .Select(entity =>
-                {
-                    var entityKey = AetheriaRuntimeRunCheckpointCommit.EntityRecordKey(run?.RunId ?? "local-terminus", currentZone.ZoneIndex, entity.EntityIndex);
-                    return new AetheriaMainMenuGravityObject(
-                        entityKey,
-                        entity.Kind,
-                        string.IsNullOrWhiteSpace(entity.Name) ? $"entity {entity.EntityIndex.ToString(CultureInfo.InvariantCulture)}" : entity.Name,
-                        entity.PositionX,
-                        entity.PositionZ,
-                        entity.DirectionX,
-                        entity.DirectionY,
-                        entity.FactionKey,
-                        string.Equals(entity.FactionKey, "player", StringComparison.OrdinalIgnoreCase) ||
-                            string.Equals(entityKey, run?.CurrentEntityKey, StringComparison.Ordinal),
-                        entity.Visibility <= 0 ? 1 : entity.Visibility);
-                })
-                .ToArray();
-
-            return new AetheriaMainMenuGravityField(
-                Math.Max(900, AutoViewRadius(currentZone, bodies, objects)),
-                currentZone.GravityTerrainRadius > 0 ? currentZone.GravityTerrainRadius : 1200,
-                currentZone.GravityTerrainDepth == 0 ? 8 : currentZone.GravityTerrainDepth,
-                currentZone.GravityTerrainDepthExponent <= 0 ? 1.0 : currentZone.GravityTerrainDepthExponent,
-                currentZone.GravityTerrainWaveFrequency,
-                currentZone.SimulationTimeSeconds,
-                bodies.Length == 0 ? Default().Bodies : bodies,
-                objects);
-        }
-
-        private static double AutoViewRadius(
-            AetheriaRuntimeZoneSnapshotCommit currentZone,
-            IReadOnlyList<AetheriaMainMenuGravityBody> bodies,
-            IReadOnlyList<AetheriaMainMenuGravityObject> objects)
-        {
-            var radius = currentZone.GravityTerrainRadius > 0 ? currentZone.GravityTerrainRadius : 1200;
-            foreach (var body in bodies ?? Array.Empty<AetheriaMainMenuGravityBody>())
-                radius = Math.Max(radius, Math.Max(Math.Abs(body.X), Math.Abs(body.Y)) + body.Radius * 1.1);
-            foreach (var obj in objects ?? Array.Empty<AetheriaMainMenuGravityObject>())
-                radius = Math.Max(radius, Math.Max(Math.Abs(obj.X), Math.Abs(obj.Y)) + 220);
-            return radius;
-        }
-    }
-
-    internal readonly struct AetheriaMainMenuGravityBody
-    {
-        public AetheriaMainMenuGravityBody(
-            string key,
-            string kind,
-            double x,
-            double y,
-            double radius,
-            double depth,
-            double exponent,
-            double waveRadius,
-            double waveDepth,
-            double waveSpeed)
-        {
-            Key = key ?? "";
-            Kind = string.IsNullOrWhiteSpace(kind) ? "Body" : kind;
-            X = x;
-            Y = y;
-            Radius = radius <= 0 ? 1 : radius;
-            Depth = depth;
-            Exponent = exponent <= 0 ? 1.0 : exponent;
-            WaveRadius = waveRadius;
-            WaveDepth = waveDepth;
-            WaveSpeed = waveSpeed;
-            IconAssetUri = $"cultmesh://aetheria/assets/icons/ui/{IconKind(Kind)}";
-            TintSplatAssetUri = "cultmesh://aetheria/assets/textures/tint_splat";
-        }
-
-        public string Key { get; }
-        public string Kind { get; }
-        public double X { get; }
-        public double Y { get; }
-        public double Radius { get; }
-        public double Depth { get; }
-        public double Exponent { get; }
-        public double WaveRadius { get; }
-        public double WaveDepth { get; }
-        public double WaveSpeed { get; }
-        public string IconAssetUri { get; }
-        public string TintSplatAssetUri { get; }
-
-        private static string IconKind(string kind)
-        {
-            var normalized = kind?.ToLowerInvariant() ?? "";
-            if (normalized.Contains("sun") || normalized.Contains("star"))
-                return "sun";
-            if (normalized.Contains("gas"))
-                return "gasgiant";
-            if (normalized.Contains("moon"))
-                return "moon";
-            if (normalized.Contains("orbital") || normalized.Contains("station") || normalized.Contains("colony"))
-                return "orbital";
-            if (normalized.Contains("wormhole"))
-                return "wormhole";
-            return "planet";
-        }
-    }
-
-    internal readonly struct AetheriaMainMenuGravityObject
-    {
-        public AetheriaMainMenuGravityObject(
-            string key,
-            string kind,
-            string label,
-            double x,
-            double y,
-            double directionX,
-            double directionY,
-            string factionKey,
-            bool controlled,
-            double visibility)
-        {
-            Key = key ?? "";
-            Kind = string.IsNullOrWhiteSpace(kind) ? "object" : kind;
-            Label = label ?? "";
-            X = x;
-            Y = y;
-            DirectionX = directionX;
-            DirectionY = directionY;
-            FactionKey = factionKey ?? "";
-            Controlled = controlled;
-            Visibility = visibility <= 0 ? 1 : visibility;
-            IconAssetUri = $"cultmesh://aetheria/assets/icons/ui/{IconKind(Kind)}";
-        }
-
-        public string Key { get; }
-        public string Kind { get; }
-        public string Label { get; }
-        public double X { get; }
-        public double Y { get; }
-        public double DirectionX { get; }
-        public double DirectionY { get; }
-        public string FactionKey { get; }
-        public bool Controlled { get; }
-        public double Visibility { get; }
-        public string IconAssetUri { get; }
-
-        private static string IconKind(string kind)
-        {
-            var normalized = kind?.ToLowerInvariant() ?? "";
-            if (normalized.Contains("station") || normalized.Contains("colony"))
-                return "orbital";
-            return "ship";
-        }
     }
 
     public enum AetheriaRuntimeMainMenuCommandKind

@@ -220,7 +220,7 @@ namespace GameCult.Aetheria.State.Verse
                     radius,
                     AetheriaRuntimeRenderSplatChannels.Gravity,
                     AetheriaRuntimeRenderSplatFalloffs.InverseSmooth,
-                    body.GravityWellDepth,
+                    -body.GravityWellDepth,
                     0,
                     0,
                     1,

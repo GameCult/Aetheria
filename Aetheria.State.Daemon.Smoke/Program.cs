@@ -116,6 +116,22 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             "positive authored gravity depth must accelerate a body toward the well center through Ymir");
         Require(AetheriaRuntimeDaemonRenderQueries.EvaluateGravityTerrainHeight(zone, 10, 0, 0) < 0,
             "the same positive gravity-depth magnitude must project as a negative terrain well");
+        var splats = AetheriaRuntimeGameDocuments.RenderSplatsViewport(
+            new AetheriaRuntimeDaemonFrameDocument
+            {
+                Run = new AetheriaRuntimeRunCheckpointCommit
+                {
+                    RunId = "gravity-sign-smoke",
+                    CurrentZoneIndex = 0,
+                    Zones = [zone]
+                }
+            },
+            new AetheriaRuntimeViewportBounds { MinX = -20, MinY = -20, MaxX = 20, MaxY = 20 });
+        var bodySplatIndex = splats.Splats.SourceKey
+            .Select((sourceKey, index) => (sourceKey, index))
+            .Single(value => value.sourceKey == body.BodyKey).index;
+        Require(splats.Splats.ValueR[bodySplatIndex] < 0,
+            "render-splat projection must convert positive canonical body depth into a negative gravity-height value");
     }
 
     private static void ConstantWeaponRunsOnDaemonThroughYmirBeamContact()
