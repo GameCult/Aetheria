@@ -61,7 +61,6 @@ import {
 } from "./aetheria-rts-local-documents.js";
 
 const connectionId = 0x43554c54;
-const cultMeshCdnAssetBlobSchemaId = "gamecult.cultmesh.cdn.asset_blob.v1";
 
 type AetheriaPublicationDocumentSpec = CultMeshPublicationDocumentBinding & {
   readonly localPath: string;
@@ -270,33 +269,6 @@ export class AetheriaCultMeshClient {
 
   public async assetManifest(): Promise<AssetManifestDocument> {
     return this.aetheria.daemon.assetManifest();
-  }
-
-  public async assetBlob(uri: string): Promise<{ bytes: Uint8Array; mimeType: string }> {
-    const recordKey = normalizeCultMeshAssetUri(uri);
-    const document = CultMesh.documentFromPublication(
-      {
-        kind: "peer-snapshot",
-        peer: () => this.peer(),
-        endpoint: this.resolvedRudpEndpoint(),
-      },
-      cultMeshCdnAssetBlobSchemaId,
-      recordKey,
-      {
-        documentId: recordKey,
-        routeHint: this.queryVerse.context.routeHint,
-        sourceId: recordKey,
-        timeoutMs: 1500,
-        pollMs: 50,
-        messageIdPrefix: `${this.runtimeId}:asset`,
-      },
-    );
-    const bytes = normalizeAssetBlob(await document.latest(this.queryContext()));
-    const manifest = await this.assetManifest().catch(() => null);
-    return {
-      bytes,
-      mimeType: resolveAssetMimeType(recordKey, manifest),
-    };
   }
 
   public queryDiagnostics(): Readonly<Record<string, AetheriaRuntimeGameQueryDiagnostic>> {
@@ -623,14 +595,6 @@ function normalizeDaemonTarget(target: string | AetheriaCultMeshDaemonTarget): R
   };
 }
 
-function normalizeCultMeshAssetUri(uri: string): string {
-  const value = (uri ?? "").trim();
-  if (!value.toLowerCase().startsWith("cultmesh://")) {
-    throw new Error(`Aetheria asset URI must be CultMesh-native: ${value}`);
-  }
-  return value;
-}
-
 function managedViewportRecordKey(prefix: string, request: ViewportRequest): string {
   const minX = Math.min(finiteNumber(request.minX), finiteNumber(request.maxX));
   const minY = Math.min(finiteNumber(request.minY), finiteNumber(request.maxY));
@@ -649,30 +613,6 @@ function viewportToken(value: number): string {
 
 function finiteNumber(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
-}
-
-function normalizeAssetBlob(value: unknown): Uint8Array {
-  if (value instanceof Uint8Array)
-    return value;
-  if (Array.isArray(value))
-    return Uint8Array.from(value.map(entry => typeof entry === "number" ? entry : 0));
-  throw new Error("Aetheria CultMesh CDN asset blob did not decode to bytes.");
-}
-
-function resolveAssetMimeType(recordKey: string, manifest: AssetManifestDocument | null): string {
-  const entry = manifest?.assets.find(candidate => candidate.ref.uri === recordKey);
-  return entry?.ref.mimeType?.trim() || mimeTypeFromUri(recordKey);
-}
-
-function mimeTypeFromUri(uri: string): string {
-  const normalized = uri.toLowerCase();
-  if (normalized.endsWith(".jpg") || normalized.endsWith(".jpeg"))
-    return "image/jpeg";
-  if (normalized.endsWith(".svg"))
-    return "image/svg+xml";
-  if (normalized.endsWith(".png") || normalized.startsWith("cultmesh://"))
-    return "image/png";
-  return "application/octet-stream";
 }
 
 async function retryTransientPublicationRead<T>(read: () => Promise<T>): Promise<T> {

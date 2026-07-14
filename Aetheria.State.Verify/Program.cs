@@ -20821,8 +20821,10 @@ static void RequireManagedContentOnlyAssetDelivery(string root)
         "org.gamecult.aetheria.state",
         "Runtime",
         "AetheriaRuntimeDaemonDocuments.cs");
+    var electronPath = Path.Combine(root, "Aetheria.Rts.Web", "Electron", "aetheria-cultmesh.ts");
     var daemon = File.ReadAllText(daemonPath);
     var documents = File.ReadAllText(documentsPath);
+    var electron = File.ReadAllText(electronPath);
     var forbidden = new[]
     {
         "CultMeshCdnAssetBlob",
@@ -20831,7 +20833,8 @@ static void RequireManagedContentOnlyAssetDelivery(string root)
     };
     var surviving = forbidden
         .Where(symbol => daemon.Contains(symbol, StringComparison.Ordinal) ||
-                         documents.Contains(symbol, StringComparison.Ordinal))
+                         documents.Contains(symbol, StringComparison.Ordinal) ||
+                         electron.Contains(symbol, StringComparison.Ordinal))
         .ToArray();
     if (surviving.Length > 0)
     {

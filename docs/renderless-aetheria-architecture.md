@@ -45,8 +45,8 @@ embedded Ymir spatial kernel, but Ymir does not become a second state owner.
 Outputs:
 The daemon publishes typed state documents, committed facts, operation receipts,
 simulation frames, SoA/native view descriptors, scalar and vector field
-documents, render splats, entity/object render rows, asset manifests, CultMesh
-CDN asset blobs, and Eve/CultUI surfaces.
+documents, render splats, entity/object render rows, typed CultMesh artifact
+manifests, managed content sessions, and Eve/CultUI surfaces.
 
 Derived state:
 Unity GameObjects, Electron canvases, Hermodr browser nodes, Godot scene nodes,
