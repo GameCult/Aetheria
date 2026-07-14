@@ -8,6 +8,11 @@ if (args.Contains("--loadout", StringComparer.Ordinal))
     checks.RunLoadout();
     Console.WriteLine("Daemon loadout hardpoint smoke passed.");
 }
+else if (args.Contains("--pickup", StringComparer.Ordinal))
+{
+    checks.RunPickup();
+    Console.WriteLine("Daemon Ymir pickup-contact smoke passed.");
+}
 else
 {
     checks.Run();
@@ -17,6 +22,12 @@ else
 internal sealed class AetheriaDaemonYmirSmokeChecks
 {
     public void RunLoadout() => DaemonLoadoutsRespectFactionAvailabilityAndHullRoles();
+
+    public void RunPickup()
+    {
+        PickupIsCapacityCheckedExactlyOnceAndExpires();
+        PickupShieldContactCollectsOrBounces();
+    }
 
     public void Run()
     {
@@ -2483,27 +2494,36 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
     {
         var hull = CatalogItem("pickup-hull"); hull.HullCapacity = PerformanceStat(1);
         var salvage = CatalogItem("salvage"); salvage.Volume = 1;
-        var catalog = new AetheriaRuntimeCatalogSnapshot([hull, salvage], [], []);
+        var cargoBay = CatalogItem("pickup-cargo-bay"); cargoBay.InteriorOccupiedCells = 1;
+        var catalog = new AetheriaRuntimeCatalogSnapshot([hull, salvage, cargoBay], [], []);
         var ship = Entity(0, 0, "player"); ship.HullItemKey = hull.ItemKey; ship.CargoContents = [Cargo()];
+        ship.Equipment = [new AetheriaRuntimeLoadoutItemSlotCommit { Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = cargoBay.ItemKey, Quantity = 1 } }];
         var zone = new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [ship], DroppedPickups = [new AetheriaRuntimeDroppedPickupCommit { PickupIndex = 7, PositionX = 10, Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = salvage.ItemKey, Quantity = 1 }, LifetimeSeconds = 30 }] };
         var run = new AetheriaRuntimeRunCheckpointCommit { CurrentZoneIndex = 0, CurrentEntityKey = "zone.0.entity.0", Zones = [zone] };
-        AetheriaRuntimeDaemonCommandDocument Pickup(string id, int index)
-        {
-            var command = AetheriaRuntimeDaemonCommandDocument.Create(AetheriaRuntimeDaemonCommandKinds.PickUpLoot, "pilot", "pickup-smoke", 0, "zone.0.entity.0");
-            command.CommandId = id; command.TargetEntityKey = "zone.0.entity.0"; command.LootPickup.ItemKey = salvage.ItemKey; command.LootPickup.Quantity = 1; command.LootPickup.PickupIndex = index; return command;
-        }
-        var first = AetheriaRuntimeDaemonOperations.Execute(run, [Pickup("pickup-first", 7)], new AetheriaRuntimeDaemonOperationContext { Catalog = catalog });
-        Require(first.AppliedCommandIds.Contains("pickup-first"), "nearby pickup with capacity must apply");
-        RequireEqual(1, CargoQuantity(ship, salvage.ItemKey), "successful pickup must enter cargo");
-        var duplicate = AetheriaRuntimeDaemonOperations.Execute(run, [Pickup("pickup-duplicate", 7)], new AetheriaRuntimeDaemonOperationContext { Catalog = catalog });
-        Require(duplicate.RejectedCommandIds.Contains("pickup-duplicate"), "consumed pickup identity must reject duplicate collection");
+        var forbiddenCommand = AetheriaRuntimeDaemonCommandDocument.Create(AetheriaRuntimeDaemonCommandKinds.PickUpLoot, "pilot", "pickup-smoke", 0, "zone.0.entity.0");
+        forbiddenCommand.CommandId = "pickup-command-forbidden";
+        forbiddenCommand.TargetEntityKey = "zone.0.entity.0";
+        forbiddenCommand.LootPickup.PickupIndex = 7;
+        var forbidden = AetheriaRuntimeDaemonOperations.Execute(run, [forbiddenCommand], new AetheriaRuntimeDaemonOperationContext { Catalog = catalog });
+        Require(forbidden.RejectedCommandIds.Contains(forbiddenCommand.CommandId),
+            "client pickup commands must not own cargo collection");
+
+        AetheriaRuntimeDaemonTickRunner.Tick(Path.Combine(Path.GetTempPath(), "aetheria-pickup-no-contact.cc"), run,
+            new AetheriaRuntimeDaemonTickOptions { WorldPhysics = new ScriptedWorldPhysics(), FrameId = 1, FixedDeltaSeconds = 0.1, SimulationTimeSeconds = 0.1, Catalog = catalog, PhysicalPayloadPhysics = AetheriaRuntimePhysicalPayloadPhysicsUnavailable.Instance, BuildPublications = false });
+        RequireEqual(1, zone.DroppedPickups.Count, "nearby pickup without a Ymir contact fact must remain in the world");
+        RequireEqual(0, CargoQuantity(ship, salvage.ItemKey), "proximity must not mutate cargo");
+
+        var contact = new AetheriaRuntimeWorldContact { EntityAIndex = 0, PickupIndex = 7, NormalX = 1 };
+        AetheriaRuntimeDaemonTickRunner.Tick(Path.Combine(Path.GetTempPath(), "aetheria-pickup-contact-dedup.cc"), run,
+            new AetheriaRuntimeDaemonTickOptions { WorldPhysics = new ScriptedWorldPhysics(contact, contact), FrameId = 2, FixedDeltaSeconds = 0.1, SimulationTimeSeconds = 0.2, Catalog = catalog, PhysicalPayloadPhysics = AetheriaRuntimePhysicalPayloadPhysicsUnavailable.Instance, BuildPublications = false });
+        RequireEqual(0, zone.DroppedPickups.Count, "one Ymir contact must consume the pickup");
+        RequireEqual(1, CargoQuantity(ship, salvage.ItemKey), "duplicate contact facts must commit cargo exactly once");
+        RequireEqual(1, run.GameEvents.Count(value => value.Kind == "pickup.collected" && value.PickupIndex == 7),
+            "duplicate contact facts must emit one collection event");
 
         zone.DroppedPickups = [new AetheriaRuntimeDroppedPickupCommit { PickupIndex = 8, PositionX = 10, Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = salvage.ItemKey, Quantity = 1 }, LifetimeSeconds = 30 }];
-        var full = AetheriaRuntimeDaemonOperations.Execute(run, [Pickup("pickup-full", 8)], new AetheriaRuntimeDaemonOperationContext { Catalog = catalog });
-        Require(full.RejectedCommandIds.Contains("pickup-full") && zone.DroppedPickups.Count == 1,
-            "full cargo must reject without deleting pickup");
         AetheriaRuntimeDaemonTickRunner.Tick(Path.Combine(Path.GetTempPath(), "aetheria-pickup-expiry-smoke.cc"), run,
-            new AetheriaRuntimeDaemonTickOptions { WorldPhysics = new AetheriaYmirWorldPhysics(), FrameId = 1, FixedDeltaSeconds = 30, SimulationTimeSeconds = 30, PhysicalPayloadPhysics = AetheriaRuntimePhysicalPayloadPhysicsUnavailable.Instance, BuildPublications = false });
+            new AetheriaRuntimeDaemonTickOptions { WorldPhysics = new ScriptedWorldPhysics(), FrameId = 3, FixedDeltaSeconds = 30, SimulationTimeSeconds = 30, PhysicalPayloadPhysics = AetheriaRuntimePhysicalPayloadPhysicsUnavailable.Instance, BuildPublications = false });
         RequireEqual(0, zone.DroppedPickups.Count, "pickup must expire after the fossil thirty-second lifetime");
         Require(run.GameEvents.Any(value => value.Kind == "pickup.expired" && value.PickupIndex == 8),
             "daemon lifetime owner must emit authoritative pickup expiry event");
@@ -2513,10 +2533,12 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
     {
         var hull = CatalogItem("contact-hull"); hull.HullCapacity = PerformanceStat(1);
         var salvage = CatalogItem("contact-salvage"); salvage.Volume = 1;
-        var catalog = new AetheriaRuntimeCatalogSnapshot([hull, salvage], [], []);
+        var cargoBay = CatalogItem("contact-cargo-bay"); cargoBay.InteriorOccupiedCells = 1;
+        var catalog = new AetheriaRuntimeCatalogSnapshot([hull, salvage, cargoBay], [], []);
         AetheriaRuntimeRunCheckpointCommit Scenario(bool full)
         {
             var ship = Entity(0, 0, "player"); ship.HullItemKey = hull.ItemKey;
+            ship.Equipment = [new AetheriaRuntimeLoadoutItemSlotCommit { Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = cargoBay.ItemKey, Quantity = 1 } }];
             ship.CargoContents = [full ? Cargo((salvage.ItemKey, 1, 0, 0)) : Cargo()];
             return new AetheriaRuntimeRunCheckpointCommit { CurrentZoneIndex = 0, CurrentEntityKey = "zone.0.entity.0", Zones = [new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [ship], DroppedPickups = [new AetheriaRuntimeDroppedPickupCommit { PickupIndex = 10, PositionX = 20, Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = salvage.ItemKey, Quantity = 1 }, LifetimeSeconds = 30 }] }] };
         }
@@ -2637,5 +2659,15 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
     {
         if (Math.Abs(expected - actual) > tolerance)
             throw new InvalidOperationException($"{message}. Expected {expected}; actual {actual}.");
+    }
+
+    private sealed class ScriptedWorldPhysics(params AetheriaRuntimeWorldContact[] contacts) : IAetheriaRuntimeWorldPhysics
+    {
+        public string ImplementationId => "smoke.scripted-world";
+
+        public AetheriaRuntimeWorldStep Step(
+            AetheriaRuntimeZoneSnapshotCommit zone,
+            IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities,
+            double deltaSeconds) => new([], [], contacts);
     }
 }

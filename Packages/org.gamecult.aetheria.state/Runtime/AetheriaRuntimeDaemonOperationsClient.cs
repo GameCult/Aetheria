@@ -323,26 +323,6 @@ public sealed class AetheriaRuntimeDaemonOperationsClient
             createsDockedShip));
     }
 
-    public CultMeshOperationReceipt PickUpLoot(
-        string targetEntityKey,
-        string itemKey,
-        int quantity,
-        double positionX,
-        double positionY,
-        double positionZ,
-        int pickupIndex = -1)
-    {
-        return Send((client, frame) => client.PickUpLoot(
-            frame,
-            targetEntityKey,
-            itemKey,
-            quantity,
-            positionX,
-            positionY,
-            positionZ,
-            pickupIndex));
-    }
-
     public CultMeshOperationReceipt RestoreLoadout(
         string dockedEntityKey,
         string templateName,

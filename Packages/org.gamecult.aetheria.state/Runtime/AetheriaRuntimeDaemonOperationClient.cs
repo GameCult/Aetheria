@@ -491,32 +491,6 @@ namespace GameCult.Aetheria.State.Verse
             return Send(command);
         }
 
-        internal AetheriaRuntimeDaemonCommandEnvelope PickUpLoot(
-            AetheriaRuntimeDaemonFrameDocument? frame,
-            string targetEntityKey,
-            string itemKey,
-            int quantity,
-            double positionX,
-            double positionY,
-            double positionZ,
-            int pickupIndex = -1)
-        {
-            var command = Create(AetheriaRuntimeDaemonCommandKinds.PickUpLoot, frame);
-            command.TargetEntityKey = targetEntityKey ?? "";
-            command.TextValue = itemKey ?? "";
-            command.ScalarValue = quantity;
-            command.PositionX = positionX;
-            command.PositionY = positionY;
-            command.PositionZ = positionZ;
-            command.LootPickup.ItemKey = itemKey ?? "";
-            command.LootPickup.Quantity = quantity;
-            command.LootPickup.PositionX = positionX;
-            command.LootPickup.PositionY = positionY;
-            command.LootPickup.PositionZ = positionZ;
-            command.LootPickup.PickupIndex = pickupIndex;
-            return Send(command);
-        }
-
         internal AetheriaRuntimeDaemonCommandEnvelope RestoreLoadout(
             AetheriaRuntimeDaemonFrameDocument? frame,
             string dockedEntityKey,

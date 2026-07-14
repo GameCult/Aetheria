@@ -64,8 +64,8 @@ namespace GameCult.Aetheria.State.Verse
                 foreach (var movement in intents?.Movements ?? Enumerable.Empty<AetheriaRuntimeDaemonMovementIntent>())
                     ApplyMovementIntent(run, entities, movement, settings);
                 StepTractorPower(entities, deltaSeconds);
-                StepWorldPhysics(zone, entities, deltaSeconds, worldPhysics);
-                ResolveTractorCollections(run, zone, entities, catalog, frameId);
+                var worldStep = StepWorldPhysics(zone, entities, deltaSeconds, worldPhysics);
+                ResolvePickupContacts(run, zone, entities, worldStep.Contacts, catalog, frameId);
                 StepCombat(run, zone, entities, intents, deltaSeconds, settings, physicalPayloadPhysics, catalog,
                     frameId, simulationTimeSeconds);
                 AetheriaRuntimeMiningSimulation.Step(run, zone, entities, intents, catalog, frameId, simulationTimeSeconds, deltaSeconds);
@@ -154,40 +154,48 @@ namespace GameCult.Aetheria.State.Verse
             return result;
         }
 
-        private static void ResolveTractorCollections(
+        private static void ResolvePickupContacts(
             AetheriaRuntimeRunCheckpointCommit run,
             AetheriaRuntimeZoneSnapshotCommit zone,
             IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities,
+            IReadOnlyList<AetheriaRuntimeWorldContact> contacts,
             AetheriaRuntimeCatalogSnapshot? catalog,
             long frameId)
         {
-            foreach (var entity in entities.Where(value =>
-                value != null && value.IsActive && value.TractorPower > 0.001))
+            var entitiesByIndex = entities
+                .Where(value => value != null && value.IsActive)
+                .ToDictionary(value => value.EntityIndex);
+            foreach (var contact in (contacts ?? Array.Empty<AetheriaRuntimeWorldContact>())
+                .Where(value => value != null && value.PickupIndex >= 0)
+                .GroupBy(value => (value.EntityAIndex, value.EntityBIndex, value.PickupIndex))
+                .Select(group => group.First()))
             {
-                foreach (var pickup in (zone.DroppedPickups ?? Array.Empty<AetheriaRuntimeDroppedPickupCommit>())
-                    .Where(value => value != null)
-                    .ToArray())
+                var entityIndex = contact.EntityAIndex >= 0 ? contact.EntityAIndex : contact.EntityBIndex;
+                if (!entitiesByIndex.TryGetValue(entityIndex, out var entity))
+                    continue;
+                var pickup = (zone.DroppedPickups ?? Array.Empty<AetheriaRuntimeDroppedPickupCommit>())
+                    .FirstOrDefault(value => value != null && value.PickupIndex == contact.PickupIndex);
+                if (pickup == null)
+                    continue;
+                var itemKey = pickup.Item?.ItemKey ?? "";
+                var quantity = Math.Max(1, pickup.Item?.Quantity ?? 1);
+                var result = AetheriaRuntimePickupTransactions.ApplyContact(zone, entity, contact, catalog);
+                if (result == AetheriaRuntimePickupContactResult.Ignored)
+                    continue;
+                var kind = result == AetheriaRuntimePickupContactResult.Collected
+                    ? "pickup.collected"
+                    : "pickup.rejected";
+                AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit
                 {
-                    if (!AetheriaRuntimePickupTransactions.TryCollect(
-                            zone,
-                            entity,
-                            pickup.PickupIndex,
-                            catalog,
-                            requireRange: true,
-                            collectionRange: 75))
-                        continue;
-                    AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit
-                    {
-                        EventId = $"frame:{frameId}:zone:{zone.ZoneIndex}:entity:{entity.EntityIndex}:pickup:{pickup.PickupIndex}:collected",
-                        Kind = "pickup.collected",
-                        FrameId = frameId,
-                        ZoneIndex = zone.ZoneIndex,
-                        TargetEntityIndex = entity.EntityIndex,
-                        PickupIndex = pickup.PickupIndex,
-                        ItemKey = pickup.Item?.ItemKey ?? "",
-                        ScalarValue = Math.Max(1, pickup.Item?.Quantity ?? 1)
-                    });
-                }
+                    EventId = $"frame:{frameId}:zone:{zone.ZoneIndex}:entity:{entity.EntityIndex}:pickup:{contact.PickupIndex}:{kind}",
+                    Kind = kind,
+                    FrameId = frameId,
+                    ZoneIndex = zone.ZoneIndex,
+                    TargetEntityIndex = entity.EntityIndex,
+                    PickupIndex = contact.PickupIndex,
+                    ItemKey = itemKey,
+                    ScalarValue = quantity
+                });
             }
         }
 

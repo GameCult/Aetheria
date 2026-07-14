@@ -296,7 +296,6 @@ namespace GameCult.Aetheria.State.Verse
                 case AetheriaRuntimeDaemonCommandKinds.SetItemEnabled:
                 case AetheriaRuntimeDaemonCommandKinds.SetItemOverrideShutdown:
                 case AetheriaRuntimeDaemonCommandKinds.SetThermotoggleTargetTemperature:
-                case AetheriaRuntimeDaemonCommandKinds.PickUpLoot:
                 case AetheriaRuntimeDaemonCommandKinds.RestoreLoadout:
                 case AetheriaRuntimeDaemonCommandKinds.TransferCargoItem:
                 case AetheriaRuntimeDaemonCommandKinds.EquipItem:
@@ -352,7 +351,6 @@ namespace GameCult.Aetheria.State.Verse
                 case AetheriaRuntimeDaemonCommandKinds.TransferCargoItem:
                 case AetheriaRuntimeDaemonCommandKinds.EquipItem:
                 case AetheriaRuntimeDaemonCommandKinds.StoreItem:
-                case AetheriaRuntimeDaemonCommandKinds.PickUpLoot:
                 case AetheriaRuntimeDaemonCommandKinds.RestoreLoadout:
                     return true;
                 default:

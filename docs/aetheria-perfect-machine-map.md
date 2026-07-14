@@ -814,6 +814,31 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   EveUnity resolves `effect.feedback.entity.destroyed` only after the provider
   has published authoritative destruction chronology.
 
+### Daemon Pickup Contact Transaction
+
+- Owner: the daemon simulation owns pickup collection by interpreting typed
+  entity-pickup contact facts returned by embedded Ymir physics.
+- Inputs: the exact Ymir contact, canonical active entity and live pickup,
+  catalog-backed cargo capacity, and current frame identity. Tractor power and
+  range influence pickup motion only.
+- Outputs: capacity permits one atomic cargo insertion, pickup removal, and
+  `pickup.collected` event. Capacity refusal retains the pickup, applies the
+  fossil 25-unit outward kick along the contact normal, and emits
+  `pickup.rejected`.
+- Derived state: pickup transforms, tractor visuals, Eve world nodes, Unity
+  colliders, and client selection are presentation or control projections and
+  cannot admit collection.
+- Forbidden writers: the reserved `PickUpLoot` command, proximity/range scans,
+  Unity collision callbacks, and generic Eve lowerers cannot mutate cargo or
+  despawn pickups.
+- Shared paths: destruction drops, generated pickups, and restored live pickup
+  rows all enter the same next-tick Ymir body/contact path. Duplicate contact
+  facts for one entity-pickup pair in a frame reduce once; a collected pickup
+  identity cannot commit again.
+- Cut line: the command executor/builders and distance-based collection helper
+  are deleted. The old enum ordinal remains reserved only to avoid shifting
+  serialized command values and is rejected by the daemon.
+
 - Owner: `Aetheria.State` owns the new typed state spine for durable state.
   The embedded `GameCult.Aetheria.State.Unity` package owns Unity's runtime
   typed state file path plus the boot-time state-file probe, and is the landing

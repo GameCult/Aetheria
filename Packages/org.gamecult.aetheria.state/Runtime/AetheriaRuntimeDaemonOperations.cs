@@ -138,8 +138,6 @@ namespace GameCult.Aetheria.State.Verse
                     return ApplyEquipItem(run, command);
                 case AetheriaRuntimeDaemonCommandKinds.StoreItem:
                     return ApplyStoreItem(run, command);
-                case AetheriaRuntimeDaemonCommandKinds.PickUpLoot:
-                    return ApplyPickUpLoot(run, command, context.Catalog);
                 case AetheriaRuntimeDaemonCommandKinds.ToggleHullConductivity:
                     return ApplyToggleHullConductivity(run, command);
                 case AetheriaRuntimeDaemonCommandKinds.TradePurchase:
@@ -864,40 +862,6 @@ namespace GameCult.Aetheria.State.Verse
                 : slot.Y;
             AddCargoItem(destinationEntity, destinationCargoIndex, slot);
             return true;
-        }
-
-        private static bool ApplyPickUpLoot(
-            AetheriaRuntimeRunCheckpointCommit run,
-            AetheriaRuntimeDaemonCommandDocument command,
-            AetheriaRuntimeCatalogSnapshot? catalog)
-        {
-            if (!TryResolveEntity(run, command.TargetEntityKey, out var zoneIndex, out _, out var entity))
-                return false;
-
-            var zone = (run.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>())
-                .FirstOrDefault(candidate => candidate != null && candidate.ZoneIndex == zoneIndex);
-            if (zone == null)
-                return false;
-
-            var pickups = (zone.DroppedPickups ?? Array.Empty<AetheriaRuntimeDroppedPickupCommit>()).ToList();
-            var pickupIndex = pickups.FindIndex(pickup => IsPickupMatch(pickup, command));
-            if (pickupIndex < 0)
-                return false;
-
-            var pickup = pickups[pickupIndex];
-            var collected = AetheriaRuntimePickupTransactions.TryCollect(zone, entity, pickup.PickupIndex, catalog);
-            AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit
-            {
-                EventId = $"command:{command.CommandId}:{(collected ? "pickup-collected" : "pickup-rejected")}",
-                Kind = collected ? "pickup.collected" : "pickup.rejected",
-                FrameId = command.ObservedFrameId,
-                ZoneIndex = zoneIndex,
-                TargetEntityIndex = entity.EntityIndex,
-                PickupIndex = pickup.PickupIndex,
-                ItemKey = pickup.Item?.ItemKey ?? "",
-                ScalarValue = Math.Max(1, pickup.Item?.Quantity ?? 1)
-            });
-            return collected;
         }
 
         private static bool ApplyToggleHullConductivity(
@@ -2100,25 +2064,6 @@ namespace GameCult.Aetheria.State.Verse
             return item != null &&
                    (string.IsNullOrWhiteSpace(itemKey) ||
                     string.Equals(item.ItemKey ?? "", itemKey ?? "", StringComparison.Ordinal));
-        }
-
-        private static bool IsPickupMatch(
-            AetheriaRuntimeDroppedPickupCommit pickup,
-            AetheriaRuntimeDaemonCommandDocument command)
-        {
-            var pickupCommand = command.LootPickup ?? new AetheriaRuntimeLootPickupCommand();
-            if (pickup == null || !IsItemMatch(pickup.Item, pickupCommand.ItemKey))
-                return false;
-
-            if (pickupCommand.PickupIndex >= 0)
-                return pickup.PickupIndex == pickupCommand.PickupIndex;
-
-            var expectedX = pickupCommand.PositionX;
-            var expectedY = pickupCommand.PositionY;
-            var expectedZ = pickupCommand.PositionZ;
-            return Math.Abs(pickup.PositionX - expectedX) < 0.001 &&
-                   Math.Abs(pickup.PositionY - expectedY) < 0.001 &&
-                   Math.Abs(pickup.PositionZ - expectedZ) < 0.001;
         }
 
     }

@@ -190,15 +190,6 @@ namespace GameCult.Aetheria.State.Verse
                 sourceY,
                 createsDockedShip);
 
-        public CultMeshOperationReceipt PickUpLoot(
-            string targetEntityKey,
-            string itemKey,
-            int quantity,
-            double positionX,
-            double positionY,
-            double positionZ) =>
-            _operations.PickUpLoot(targetEntityKey, itemKey, quantity, positionX, positionY, positionZ);
-
         public CultMeshOperationReceipt RestoreLoadout(
             string dockedEntityKey,
             string templateName,

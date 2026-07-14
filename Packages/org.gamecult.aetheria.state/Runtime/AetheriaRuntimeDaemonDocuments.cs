@@ -173,7 +173,7 @@ namespace GameCult.Aetheria.State.Verse
         SetItemEnabled,
         SetItemOverrideShutdown,
         SetThermotoggleTargetTemperature,
-        PickUpLoot,
+        PickUpLoot, // Reserved serialized slot. Collection is owned by daemon interpretation of Ymir contacts.
         RestoreLoadout,
         Dock,
         DockNearest,
@@ -440,8 +440,6 @@ namespace GameCult.Aetheria.State.Verse
                     return nameof(AetheriaRuntimeCargoTransferCommand);
                 case AetheriaRuntimeDaemonCommandKinds.TradePurchase:
                     return nameof(AetheriaRuntimeTradePurchaseCommand);
-                case AetheriaRuntimeDaemonCommandKinds.PickUpLoot:
-                    return nameof(AetheriaRuntimeLootPickupCommand);
                 case AetheriaRuntimeDaemonCommandKinds.RestoreLoadout:
                     return nameof(AetheriaRuntimeLoadoutRestoreCommand);
                 case AetheriaRuntimeDaemonCommandKinds.EquipItem:
