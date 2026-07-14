@@ -8,16 +8,34 @@ namespace GameCult.Aetheria.State.Verse
     public interface IAetheriaRuntimeWorldPhysics
     {
         string ImplementationId { get; }
-        AetheriaRuntimeWorldStep Step(AetheriaRuntimeZoneSnapshotCommit zone, IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities, double deltaSeconds);
+        void RetainWorlds(string runId, IReadOnlyList<int> zoneIndices);
+        AetheriaRuntimeWorldPickupStep ApplyPickupRejection(
+            string runId,
+            int zoneIndex,
+            AetheriaRuntimeWorldBeginContact contact);
+        AetheriaRuntimeWorldStep Step(
+            string runId,
+            long frameId,
+            int simulationStepIndex,
+            AetheriaRuntimeZoneSnapshotCommit zone,
+            IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities,
+            double deltaSeconds);
     }
 
     public sealed class AetheriaRuntimeWorldStep
     {
-        public AetheriaRuntimeWorldStep(IReadOnlyList<AetheriaRuntimeWorldBodyStep> bodies, IReadOnlyList<AetheriaRuntimeWorldPickupStep> pickups, IReadOnlyList<AetheriaRuntimeWorldContact> contacts)
-        { Bodies = bodies ?? Array.Empty<AetheriaRuntimeWorldBodyStep>(); Pickups = pickups ?? Array.Empty<AetheriaRuntimeWorldPickupStep>(); Contacts = contacts ?? Array.Empty<AetheriaRuntimeWorldContact>(); }
+        public AetheriaRuntimeWorldStep(
+            IReadOnlyList<AetheriaRuntimeWorldBodyStep> bodies,
+            IReadOnlyList<AetheriaRuntimeWorldPickupStep> pickups,
+            IReadOnlyList<AetheriaRuntimeWorldBeginContact> beginContacts)
+        {
+            Bodies = bodies ?? Array.Empty<AetheriaRuntimeWorldBodyStep>();
+            Pickups = pickups ?? Array.Empty<AetheriaRuntimeWorldPickupStep>();
+            BeginContacts = beginContacts ?? Array.Empty<AetheriaRuntimeWorldBeginContact>();
+        }
         public IReadOnlyList<AetheriaRuntimeWorldBodyStep> Bodies { get; }
         public IReadOnlyList<AetheriaRuntimeWorldPickupStep> Pickups { get; }
-        public IReadOnlyList<AetheriaRuntimeWorldContact> Contacts { get; }
+        public IReadOnlyList<AetheriaRuntimeWorldBeginContact> BeginContacts { get; }
     }
 
     public sealed class AetheriaRuntimeWorldPickupStep
@@ -40,8 +58,11 @@ namespace GameCult.Aetheria.State.Verse
         public double DirectionY { get; set; }
     }
 
-    public sealed class AetheriaRuntimeWorldContact
+    public sealed class AetheriaRuntimeWorldBeginContact
     {
+        public string FactId { get; set; } = "";
+        public string EntityAId { get; set; } = "";
+        public string EntityBId { get; set; } = "";
         public int EntityAIndex { get; set; } = -1;
         public int EntityBIndex { get; set; } = -1;
         public int PickupIndex { get; set; } = -1;

@@ -32,8 +32,98 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
 
     public void RunPickup()
     {
+        RetainedWorldAdvancesEveryFixedSubstep();
+        StableEntityIdentitySurvivesCrossZoneReindex();
         PickupIsCapacityCheckedExactlyOnceAndExpires();
         PickupShieldContactCollectsOrBounces();
+    }
+
+    private static void RetainedWorldAdvancesEveryFixedSubstep()
+    {
+        var ship = Entity(0, 0, "player");
+        ship.VelocityX = 10;
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "retained-substep-smoke",
+            CurrentZoneIndex = 0,
+            CurrentEntityKey = "zone.0.entity.0",
+            Zones = [new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [ship] }]
+        };
+        using var physics = new AetheriaYmirWorldPhysics();
+        AetheriaRuntimeDaemonTickRunner.Tick(
+            Path.Combine(Path.GetTempPath(), "aetheria-retained-substeps.cc"),
+            run,
+            new AetheriaRuntimeDaemonTickOptions
+            {
+                WorldPhysics = physics,
+                FrameId = 1,
+                FixedDeltaSeconds = 0.1,
+                SimulationStepCount = 3,
+                SimulationTimeSeconds = 0.3,
+                PhysicalPayloadPhysics = AetheriaRuntimePhysicalPayloadPhysicsUnavailable.Instance,
+                BuildPublications = false
+            });
+        RequireNear(3, ship.PositionX, 0.05,
+            "one retained Box3D world must advance once for every fixed substep, not once per publication frame");
+    }
+
+    private static void StableEntityIdentitySurvivesCrossZoneReindex()
+    {
+        var departing = Entity(0, 0, "player");
+        departing.EntityId = "cross-zone.departing";
+        var survivor = Entity(1, 100, "player");
+        survivor.EntityId = "cross-zone.survivor";
+        var source = new AetheriaRuntimeZoneSnapshotCommit
+        {
+            ZoneIndex = 0,
+            Entities = [departing, survivor]
+        };
+        var destination = new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 1, Entities = [] };
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "cross-zone-retained-smoke",
+            CurrentZoneIndex = 0,
+            CurrentEntityKey = "zone.0.entity.0",
+            Zones = [source, destination]
+        };
+        using var physics = new AetheriaYmirWorldPhysics();
+        AetheriaRuntimeDaemonTickRunner.Tick(
+            Path.Combine(Path.GetTempPath(), "aetheria-cross-zone-before.cc"),
+            run,
+            new AetheriaRuntimeDaemonTickOptions
+            {
+                WorldPhysics = physics,
+                FrameId = 1,
+                FixedDeltaSeconds = 0.1,
+                SimulationTimeSeconds = 0.1,
+                PhysicalPayloadPhysics = AetheriaRuntimePhysicalPayloadPhysicsUnavailable.Instance,
+                BuildPublications = false
+            });
+
+        survivor.EntityIndex = 0;
+        departing.EntityIndex = 0;
+        departing.PositionX = 250;
+        source.Entities = [survivor];
+        destination.Entities = [departing];
+        run.CurrentZoneIndex = 1;
+        run.CurrentEntityKey = "zone.1.entity.0";
+        AetheriaRuntimeDaemonTickRunner.Tick(
+            Path.Combine(Path.GetTempPath(), "aetheria-cross-zone-after.cc"),
+            run,
+            new AetheriaRuntimeDaemonTickOptions
+            {
+                WorldPhysics = physics,
+                FrameId = 2,
+                FixedDeltaSeconds = 0.1,
+                SimulationTimeSeconds = 0.2,
+                PhysicalPayloadPhysics = AetheriaRuntimePhysicalPayloadPhysicsUnavailable.Instance,
+                BuildPublications = false
+            });
+
+        RequireNear(100, survivor.PositionX, 0.05,
+            "source-zone reindex must not give a survivor the departed entity's retained Box3D body");
+        RequireNear(250, departing.PositionX, 0.05,
+            "a cross-zone arrival must retain its stable identity while spawning in the destination session");
     }
 
     public void Run()
@@ -110,7 +200,9 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             GravityTerrainDepth = 5
         };
 
-        var step = new AetheriaYmirWorldPhysics().Step(zone, zone.Entities, 0.1);
+        using var physics = new AetheriaYmirWorldPhysics();
+        physics.RetainWorlds("gravity-sign-smoke", [zone.ZoneIndex]);
+        var step = physics.Step("gravity-sign-smoke", 1, 0, zone, zone.Entities, 0.1);
         var steppedActor = step.Bodies.Single(value => value.EntityIndex == actor.EntityIndex);
         Require(steppedActor.VelocityX < 0,
             "positive authored gravity depth must accelerate a body toward the well center through Ymir");
@@ -2568,13 +2660,21 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         RequireEqual(1, zone.DroppedPickups.Count, "nearby pickup without a Ymir contact fact must remain in the world");
         RequireEqual(0, CargoQuantity(ship, salvage.ItemKey), "proximity must not mutate cargo");
 
-        var contact = new AetheriaRuntimeWorldContact { EntityAIndex = 0, PickupIndex = 7, NormalX = 1 };
+        var contact = new AetheriaRuntimeWorldBeginContact
+        {
+            FactId = "ymir-fact-pickup-7",
+            EntityAIndex = 0,
+            PickupIndex = 7,
+            NormalX = 1
+        };
         AetheriaRuntimeDaemonTickRunner.Tick(Path.Combine(Path.GetTempPath(), "aetheria-pickup-contact-dedup.cc"), run,
             new AetheriaRuntimeDaemonTickOptions { WorldPhysics = new ScriptedWorldPhysics(contact, contact), FrameId = 2, FixedDeltaSeconds = 0.1, SimulationTimeSeconds = 0.2, Catalog = catalog, PhysicalPayloadPhysics = AetheriaRuntimePhysicalPayloadPhysicsUnavailable.Instance, BuildPublications = false });
         RequireEqual(0, zone.DroppedPickups.Count, "one Ymir contact must consume the pickup");
         RequireEqual(1, CargoQuantity(ship, salvage.ItemKey), "duplicate contact facts must commit cargo exactly once");
         RequireEqual(1, run.GameEvents.Count(value => value.Kind == "pickup.collected" && value.PickupIndex == 7),
             "duplicate contact facts must emit one collection event");
+        RequireEqual(1, run.PickupContactReceipts.Count(value => value.FactId == contact.FactId),
+            "duplicate delivery of one Ymir fact must persist one Aetheria consumption receipt");
 
         zone.DroppedPickups = [new AetheriaRuntimeDroppedPickupCommit { PickupIndex = 8, PositionX = 10, Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = salvage.ItemKey, Quantity = 1 }, LifetimeSeconds = 30 }];
         AetheriaRuntimeDaemonTickRunner.Tick(Path.Combine(Path.GetTempPath(), "aetheria-pickup-expiry-smoke.cc"), run,
@@ -2598,20 +2698,32 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             return new AetheriaRuntimeRunCheckpointCommit { CurrentZoneIndex = 0, CurrentEntityKey = "zone.0.entity.0", Zones = [new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [ship], DroppedPickups = [new AetheriaRuntimeDroppedPickupCommit { PickupIndex = 10, PositionX = 20, Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = salvage.ItemKey, Quantity = 1 }, LifetimeSeconds = 30 }] }] };
         }
         var open = Scenario(false);
+        using var openPhysics = new AetheriaYmirWorldPhysics();
         AetheriaRuntimeDaemonTickRunner.Tick(Path.Combine(Path.GetTempPath(), "aetheria-pickup-contact-open.cc"), open,
-            new AetheriaRuntimeDaemonTickOptions { WorldPhysics = new AetheriaYmirWorldPhysics(), FrameId = 1, FixedDeltaSeconds = 0.1, SimulationTimeSeconds = 0.1, Catalog = catalog, PhysicalPayloadPhysics = AetheriaRuntimePhysicalPayloadPhysicsUnavailable.Instance, BuildPublications = false });
+            new AetheriaRuntimeDaemonTickOptions { WorldPhysics = openPhysics, FrameId = 1, FixedDeltaSeconds = 0.1, SimulationTimeSeconds = 0.1, Catalog = catalog, PhysicalPayloadPhysics = AetheriaRuntimePhysicalPayloadPhysicsUnavailable.Instance, BuildPublications = false });
         RequireEqual(0, open.Zones[0].DroppedPickups.Count, "shield contact with capacity must collect pickup automatically");
         RequireEqual(1, CargoQuantity(open.Zones[0].Entities[0], salvage.ItemKey), "contact collection must commit cargo once");
         RequireEqual(1, open.GameEvents.Count(value => value.Kind == "pickup.collected" && value.PickupIndex == 10),
             "contact collection must emit one stable event");
+        RequireEqual(1, open.PickupContactReceipts.Count,
+            "a real Box3D Begin fact must persist one cargo-consumption receipt");
 
         var full = Scenario(true);
+        using var fullPhysics = new AetheriaYmirWorldPhysics();
         AetheriaRuntimeDaemonTickRunner.Tick(Path.Combine(Path.GetTempPath(), "aetheria-pickup-contact-full.cc"), full,
-            new AetheriaRuntimeDaemonTickOptions { WorldPhysics = new AetheriaYmirWorldPhysics(), FrameId = 1, FixedDeltaSeconds = 0.1, SimulationTimeSeconds = 0.1, Catalog = catalog, PhysicalPayloadPhysics = AetheriaRuntimePhysicalPayloadPhysicsUnavailable.Instance, BuildPublications = false });
+            new AetheriaRuntimeDaemonTickOptions { WorldPhysics = fullPhysics, FrameId = 1, FixedDeltaSeconds = 0.1, SimulationTimeSeconds = 0.1, Catalog = catalog, PhysicalPayloadPhysics = AetheriaRuntimePhysicalPayloadPhysicsUnavailable.Instance, BuildPublications = false });
         RequireEqual(1, full.Zones[0].DroppedPickups.Count, "full hold must leave contacted pickup alive");
         Require(full.Zones[0].DroppedPickups[0].VelocityX > 20, "failed pickup must receive the fossil outward kick");
         RequireEqual(1, full.GameEvents.Count(value => value.Kind == "pickup.rejected" && value.PickupIndex == 10),
             "capacity rejection must emit one stable event");
+        RequireEqual(1, full.PickupContactReceipts.Count,
+            "capacity rejection must consume its Box3D Begin fact exactly once");
+        AetheriaRuntimeDaemonTickRunner.Tick(Path.Combine(Path.GetTempPath(), "aetheria-pickup-contact-full-second.cc"), full,
+            new AetheriaRuntimeDaemonTickOptions { WorldPhysics = fullPhysics, FrameId = 2, FixedDeltaSeconds = 0.1, SimulationTimeSeconds = 0.2, Catalog = catalog, PhysicalPayloadPhysics = AetheriaRuntimePhysicalPayloadPhysicsUnavailable.Instance, BuildPublications = false });
+        RequireEqual(1, full.PickupContactReceipts.Count,
+            "persistent or separating contact must not replay an already consumed Begin fact");
+        RequireEqual(1, full.GameEvents.Count(value => value.Kind == "pickup.rejected" && value.PickupIndex == 10),
+            "a consumed rejection fact must not emit a second gameplay event");
         var feedback = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(
             new AetheriaRuntimeDaemonFrameDocument { FrameId = 1, Run = full },
             new AetheriaRuntimeDaemonHealthDocument(),
@@ -2659,6 +2771,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
     private static AetheriaRuntimeEntitySnapshotCommit Entity(int index, double x, string faction) => new()
     {
         EntityIndex = index,
+        EntityId = $"smoke.entity.{index}",
         Kind = "ship",
         FactionKey = faction,
         PositionX = x,
@@ -2716,11 +2829,22 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             throw new InvalidOperationException($"{message}. Expected {expected}; actual {actual}.");
     }
 
-    private sealed class ScriptedWorldPhysics(params AetheriaRuntimeWorldContact[] contacts) : IAetheriaRuntimeWorldPhysics
+    private sealed class ScriptedWorldPhysics(params AetheriaRuntimeWorldBeginContact[] contacts) : IAetheriaRuntimeWorldPhysics
     {
         public string ImplementationId => "smoke.scripted-world";
 
+        public void RetainWorlds(string runId, IReadOnlyList<int> zoneIndices) { }
+
+        public AetheriaRuntimeWorldPickupStep ApplyPickupRejection(
+            string runId,
+            int zoneIndex,
+            AetheriaRuntimeWorldBeginContact contact) =>
+            new() { PickupIndex = contact.PickupIndex, VelocityX = contact.NormalX * 25, VelocityZ = contact.NormalZ * 25 };
+
         public AetheriaRuntimeWorldStep Step(
+            string runId,
+            long frameId,
+            int simulationStepIndex,
             AetheriaRuntimeZoneSnapshotCommit zone,
             IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities,
             double deltaSeconds) => new([], [], contacts);

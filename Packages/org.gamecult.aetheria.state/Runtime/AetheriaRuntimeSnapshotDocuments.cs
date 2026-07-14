@@ -211,6 +211,10 @@ namespace GameCult.Aetheria.State.Verse
         public IReadOnlyList<AetheriaRuntimeShotReceiptCommit> ShotReceipts { get; set; } =
             Array.Empty<AetheriaRuntimeShotReceiptCommit>();
 
+        [Key(16)]
+        public IReadOnlyList<AetheriaRuntimePickupContactReceiptCommit> PickupContactReceipts { get; set; } =
+            Array.Empty<AetheriaRuntimePickupContactReceiptCommit>();
+
         public AetheriaRuntimeLoadoutTemplateCommit CreateLoadoutTemplate(string entityKey)
         {
             return TryParseEntityKey(entityKey, out var zoneIndex, out var entityIndex)
@@ -496,6 +500,18 @@ namespace GameCult.Aetheria.State.Verse
         [Key(36)] public double ArmorAppliedDamage { get; set; }
         [Key(37)] public double EquipmentAppliedDamage { get; set; }
         [Key(38)] public IReadOnlyList<AetheriaRuntimeDamageCellCommit> DamageCells { get; set; } = Array.Empty<AetheriaRuntimeDamageCellCommit>();
+    }
+
+    [MessagePackObject]
+    public sealed class AetheriaRuntimePickupContactReceiptCommit
+    {
+        [Key(0)] public string FactId { get; set; } = "";
+        [Key(1)] public long FrameId { get; set; }
+        [Key(2)] public int ZoneIndex { get; set; } = -1;
+        [Key(3)] public int EntityIndex { get; set; } = -1;
+        [Key(4)] public int PickupIndex { get; set; } = -1;
+        [Key(5)] public string Outcome { get; set; } = "";
+        [Key(6)] public string EntityId { get; set; } = "";
     }
 
     [MessagePackObject]

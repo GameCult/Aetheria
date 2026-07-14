@@ -17,7 +17,7 @@ namespace GameCult.Aetheria.State.Verse
         public static AetheriaRuntimePickupContactResult ApplyContact(
             AetheriaRuntimeZoneSnapshotCommit zone,
             AetheriaRuntimeEntitySnapshotCommit entity,
-            AetheriaRuntimeWorldContact contact,
+            AetheriaRuntimeWorldBeginContact contact,
             AetheriaRuntimeCatalogSnapshot? catalog)
         {
             if (zone == null || entity == null || contact == null || !entity.IsActive ||
@@ -42,19 +42,7 @@ namespace GameCult.Aetheria.State.Verse
                 .DefaultIfEmpty(-1)
                 .First();
             if (cargoIndex < 0)
-            {
-                var normalSign = contact.EntityAIndex == entity.EntityIndex ? 1.0 : -1.0;
-                var length = Math.Sqrt(contact.NormalX * contact.NormalX + contact.NormalZ * contact.NormalZ);
-                var normalX = length > 0.000001
-                    ? contact.NormalX / length * normalSign
-                    : pickup.PositionX >= entity.PositionX ? 1.0 : -1.0;
-                var normalZ = length > 0.000001
-                    ? contact.NormalZ / length * normalSign
-                    : 0.0;
-                pickup.VelocityX += normalX * 25.0;
-                pickup.VelocityZ += normalZ * 25.0;
                 return AetheriaRuntimePickupContactResult.RejectedCapacity;
-            }
             var bays = (entity.CargoContents ?? Array.Empty<AetheriaRuntimeCargoBayLoadoutCommit>()).ToList();
             while (bays.Count <= cargoIndex) bays.Add(new AetheriaRuntimeCargoBayLoadoutCommit());
             var slots = (bays[cargoIndex].Items ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>()).ToList();

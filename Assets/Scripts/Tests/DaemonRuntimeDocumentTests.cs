@@ -6315,7 +6315,16 @@ public class DaemonRuntimeDocumentTests
     {
         public string ImplementationId => "test.world-passthrough";
 
-        public AetheriaRuntimeWorldStep Step(AetheriaRuntimeZoneSnapshotCommit zone,
+        public void RetainWorlds(string runId, IReadOnlyList<int> zoneIndices) { }
+
+        public AetheriaRuntimeWorldPickupStep ApplyPickupRejection(
+            string runId,
+            int zoneIndex,
+            AetheriaRuntimeWorldBeginContact contact) =>
+            new() { PickupIndex = contact.PickupIndex };
+
+        public AetheriaRuntimeWorldStep Step(string runId, long frameId, int simulationStepIndex,
+            AetheriaRuntimeZoneSnapshotCommit zone,
             IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities, double deltaSeconds)
         {
             return new AetheriaRuntimeWorldStep(
@@ -6325,7 +6334,7 @@ public class DaemonRuntimeDocumentTests
                     VelocityX = entity.VelocityX, VelocityY = entity.VelocityY,
                     DirectionX = entity.DirectionX, DirectionY = entity.DirectionY
                 }).ToArray(),
-                Array.Empty<AetheriaRuntimeWorldPickupStep>(), Array.Empty<AetheriaRuntimeWorldContact>());
+                Array.Empty<AetheriaRuntimeWorldPickupStep>(), Array.Empty<AetheriaRuntimeWorldBeginContact>());
         }
     }
 }

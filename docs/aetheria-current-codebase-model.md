@@ -145,13 +145,25 @@ Aetheria owns only the configured prefab and its asset-manifest advertisement.
 
 Current Ymir control flow:
 
-- Aetheria depends on injected physics ports, not on a Ymir daemon topology.
-  The default daemon process constructs the Ymir implementations in-process;
-  tests can supply another deterministic implementation without changing game
-  authority.
-- The daemon projects ships, pickups, fields, and explicitly physical payloads
-  into Ymir. Ymir computes integration, collision, and spatial contact results;
-  the daemon commits and interprets them in the same simulation transaction.
+- Ymir is deliberately a Box3D wrapper and physics-daemon boundary; its name
+  means **Not Invented Here**. Box3D owns integration and contact lifecycle.
+  Ymir owns stable game-facing body identity, session revisions, command
+  receipts, and typed contact-fact identity.
+- `AetheriaYmirWorldPhysics` owns one retained `YmirSession` for each
+  `(RunId, ZoneIndex)`. Aetheria owns the active run/zone set and disposes
+  sessions when a run or zone leaves it. Each fixed simulation substep has its
+  own physics-step identity even when several substeps share one publication
+  frame. Entity bodies use stable `EntityId`, never mutable zone-list indices;
+  current indices are projection data and may change during cross-zone moves.
+- Session creation is the only full body bootstrap. Ordinary ticks lower
+  membership changes, movement/orientation changes, tractor forces, gravity
+  fields, and pickup-rejection velocity into explicit retained-session
+  commands. Post-step body values in the run checkpoint are projections from
+  Ymir, not an independent physics solver.
+- Cargo collection accepts only typed Ymir `Begin` facts. Aetheria persists one
+  pickup-contact receipt per Ymir `FactId` before exposing the resulting event,
+  so duplicate fact delivery cannot add cargo twice. Proximity and client loot
+  commands do not collect cargo.
 - Ordinary direct, constant, and charged weapon fire resolves through
   deterministic shot receipts. It does not create a Ymir body or derive damage
   from collision.
@@ -179,6 +191,15 @@ This is the right authority direction: daemon physics enters Ymir from daemon
 state, while Unity only asks Ymir a local presentation-picking question.
 Remaining debt:
 
+- `AetheriaYmirPhysicalPayloadPhysics` still creates isolated snapshot worlds
+  for retained mines and other explicitly physical payloads. Payload prepare,
+  zone step, and consequence resolution must be split so those bodies join the
+  same retained run/zone session. Until then the retained-session migration is
+  proven for ships and pickups, not complete for every physical payload.
+- The in-process session registry is the live daemon implementation. CultMesh
+  discovery/routing, durable Ymir command receipt storage, and complete Ymir
+  checkpoint reconstruction remain daemon-boundary work; the checkpoint keeps
+  Aetheria's durable pickup-fact consumption ledger.
 - Clickable raycasts still construct query bodies from Unity click bounds. That
   is presentation picking, not simulation authority, but it should stay clearly
   labeled as renderer/UI picking.

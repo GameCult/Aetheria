@@ -15,7 +15,7 @@ using System.Net.Sockets;
 var options = AetheriaDaemonHostOptions.Parse(args);
 var startedAtUtc = DateTimeOffset.UtcNow.ToString("O");
 var physicalPayloadPhysics = new AetheriaYmirPhysicalPayloadPhysics();
-var worldPhysics = new AetheriaYmirWorldPhysics();
+using var worldPhysics = new AetheriaYmirWorldPhysics();
 var traceClientRudp = string.Equals(
     Environment.GetEnvironmentVariable("AETHERIA_TRACE_CLIENT_RUDP"),
     "1",

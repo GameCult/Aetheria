@@ -189,7 +189,8 @@ namespace GameCult.Aetheria.State.Verse
                     options.WorldPhysics ?? throw new InvalidOperationException("Ymir world physics owner is required."),
                     options.Catalog,
                     options.FrameId,
-                    stepTime);
+                    stepTime,
+                    simulationStep);
                 Trace("world-step");
                 StampZoneSimulationTime(operationResult.Run, stepTime);
             }

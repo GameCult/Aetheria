@@ -23,7 +23,8 @@ namespace GameCult.Aetheria.State.Verse
             IAetheriaRuntimeWorldPhysics worldPhysics,
             AetheriaRuntimeCatalogSnapshot? catalog = null,
             long frameId = 0,
-            double simulationTimeSeconds = 0)
+            double simulationTimeSeconds = 0,
+            int simulationStepIndex = 0)
         {
             if (run == null || deltaSeconds <= 0)
                 return;
@@ -31,6 +32,13 @@ namespace GameCult.Aetheria.State.Verse
                 throw new ArgumentNullException(nameof(physicalPayloadPhysics));
             if (worldPhysics == null)
                 throw new ArgumentNullException(nameof(worldPhysics));
+
+            worldPhysics.RetainWorlds(
+                run.RunId,
+                (run.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>())
+                .Where(zone => zone != null)
+                .Select(zone => zone.ZoneIndex)
+                .ToArray());
 
             foreach (var zone in run.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>())
             {
@@ -40,8 +48,6 @@ namespace GameCult.Aetheria.State.Verse
                 var entities = (zone.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
                     .Where(entity => entity != null)
                     .ToArray();
-                if (entities.Length == 0)
-                    continue;
 
                 StepPickupLifetimes(run, zone, frameId, deltaSeconds);
 
@@ -64,8 +70,10 @@ namespace GameCult.Aetheria.State.Verse
                 foreach (var movement in intents?.Movements ?? Enumerable.Empty<AetheriaRuntimeDaemonMovementIntent>())
                     ApplyMovementIntent(run, entities, movement, settings);
                 StepTractorPower(entities, deltaSeconds);
-                var worldStep = StepWorldPhysics(zone, entities, deltaSeconds, worldPhysics);
-                ResolvePickupContacts(run, zone, entities, worldStep.Contacts, catalog, frameId);
+                var worldStep = StepWorldPhysics(
+                    run.RunId, frameId, simulationStepIndex, zone, entities, deltaSeconds, worldPhysics);
+                ResolvePickupContacts(
+                    run, zone, entities, worldStep.BeginContacts, worldPhysics, catalog, frameId);
                 StepCombat(run, zone, entities, intents, deltaSeconds, settings, physicalPayloadPhysics, catalog,
                     frameId, simulationTimeSeconds);
                 AetheriaRuntimeMiningSimulation.Step(run, zone, entities, intents, catalog, frameId, simulationTimeSeconds, deltaSeconds);
@@ -121,12 +129,15 @@ namespace GameCult.Aetheria.State.Verse
         }
 
         private static AetheriaRuntimeWorldStep StepWorldPhysics(
+            string runId,
+            long frameId,
+            int simulationStepIndex,
             AetheriaRuntimeZoneSnapshotCommit zone,
             IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities,
             double deltaSeconds,
             IAetheriaRuntimeWorldPhysics worldPhysics)
         {
-            var result = worldPhysics.Step(zone, entities, deltaSeconds);
+            var result = worldPhysics.Step(runId, frameId, simulationStepIndex, zone, entities, deltaSeconds);
             var byIndex = entities.ToDictionary(entity => entity.EntityIndex);
             foreach (var body in result.Bodies)
             {
@@ -158,40 +169,71 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeRunCheckpointCommit run,
             AetheriaRuntimeZoneSnapshotCommit zone,
             IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities,
-            IReadOnlyList<AetheriaRuntimeWorldContact> contacts,
+            IReadOnlyList<AetheriaRuntimeWorldBeginContact> beginContacts,
+            IAetheriaRuntimeWorldPhysics worldPhysics,
             AetheriaRuntimeCatalogSnapshot? catalog,
             long frameId)
         {
             var entitiesByIndex = entities
                 .Where(value => value != null && value.IsActive)
                 .ToDictionary(value => value.EntityIndex);
-            foreach (var contact in (contacts ?? Array.Empty<AetheriaRuntimeWorldContact>())
-                .Where(value => value != null && value.PickupIndex >= 0)
-                .GroupBy(value => (value.EntityAIndex, value.EntityBIndex, value.PickupIndex))
-                .Select(group => group.First()))
+            foreach (var contact in (beginContacts ?? Array.Empty<AetheriaRuntimeWorldBeginContact>())
+                .Where(value => value != null && value.PickupIndex >= 0 &&
+                    !string.IsNullOrWhiteSpace(value.FactId)))
             {
                 var entityIndex = contact.EntityAIndex >= 0 ? contact.EntityAIndex : contact.EntityBIndex;
-                if (!entitiesByIndex.TryGetValue(entityIndex, out var entity))
+                entitiesByIndex.TryGetValue(entityIndex, out var entity);
+                var entityId = entity?.EntityId ??
+                    (contact.EntityAIndex >= 0 ? contact.EntityAId : contact.EntityBId);
+                var priorReceipt = AetheriaRuntimePickupContactReceipts.Find(run, contact.FactId);
+                if (priorReceipt != null)
+                {
+                    if (priorReceipt.ZoneIndex != zone.ZoneIndex ||
+                        !string.Equals(priorReceipt.EntityId, entityId, StringComparison.Ordinal) ||
+                        priorReceipt.PickupIndex != contact.PickupIndex)
+                        throw new InvalidOperationException(
+                            $"Ymir fact id '{contact.FactId}' was reused for a different pickup contact.");
                     continue;
+                }
                 var pickup = (zone.DroppedPickups ?? Array.Empty<AetheriaRuntimeDroppedPickupCommit>())
                     .FirstOrDefault(value => value != null && value.PickupIndex == contact.PickupIndex);
-                if (pickup == null)
-                    continue;
-                var itemKey = pickup.Item?.ItemKey ?? "";
-                var quantity = Math.Max(1, pickup.Item?.Quantity ?? 1);
-                var result = AetheriaRuntimePickupTransactions.ApplyContact(zone, entity, contact, catalog);
-                if (result == AetheriaRuntimePickupContactResult.Ignored)
-                    continue;
+                var itemKey = pickup?.Item?.ItemKey ?? "";
+                var quantity = Math.Max(1, pickup?.Item?.Quantity ?? 1);
+                var result = entity == null
+                    ? AetheriaRuntimePickupContactResult.Ignored
+                    : AetheriaRuntimePickupTransactions.ApplyContact(zone, entity, contact, catalog);
                 var kind = result == AetheriaRuntimePickupContactResult.Collected
                     ? "pickup.collected"
-                    : "pickup.rejected";
+                    : result == AetheriaRuntimePickupContactResult.RejectedCapacity
+                        ? "pickup.rejected"
+                        : "pickup.ignored";
+                if (result == AetheriaRuntimePickupContactResult.RejectedCapacity && pickup != null)
+                {
+                    var rejected = worldPhysics.ApplyPickupRejection(run.RunId, zone.ZoneIndex, contact);
+                    pickup.PositionX = rejected.PositionX;
+                    pickup.PositionZ = rejected.PositionZ;
+                    pickup.VelocityX = rejected.VelocityX;
+                    pickup.VelocityZ = rejected.VelocityZ;
+                }
+                AetheriaRuntimePickupContactReceipts.Append(run, new AetheriaRuntimePickupContactReceiptCommit
+                {
+                    FactId = contact.FactId,
+                    FrameId = frameId,
+                    ZoneIndex = zone.ZoneIndex,
+                    EntityIndex = entityIndex,
+                    EntityId = entityId,
+                    PickupIndex = contact.PickupIndex,
+                    Outcome = kind
+                });
+                if (result == AetheriaRuntimePickupContactResult.Ignored)
+                    continue;
                 AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit
                 {
-                    EventId = $"frame:{frameId}:zone:{zone.ZoneIndex}:entity:{entity.EntityIndex}:pickup:{contact.PickupIndex}:{kind}",
+                    EventId = $"ymir-fact:{contact.FactId}:{kind}",
                     Kind = kind,
                     FrameId = frameId,
                     ZoneIndex = zone.ZoneIndex,
-                    TargetEntityIndex = entity.EntityIndex,
+                    TargetEntityIndex = entityIndex,
                     PickupIndex = contact.PickupIndex,
                     ItemKey = itemKey,
                     ScalarValue = quantity
