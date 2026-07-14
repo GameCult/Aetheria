@@ -34,15 +34,22 @@ foreach ($packageName in $expected.Keys) {
 
 $cultLibPackage = Get-ChildItem (Join-Path $ProjectPath "Library/PackageCache") -Directory |
     Where-Object Name -Like "org.gamecult.cultlib@*" |
+    Where-Object { (Get-Content (Join-Path $_.FullName "package.json") -Raw | ConvertFrom-Json).version -eq "1.0.12" } |
     Select-Object -First 1
 if (-not $cultLibPackage) { throw "Resolved CultLib package is missing from Library/PackageCache." }
 
 $meshAssembly = Join-Path $cultLibPackage.FullName "Runtime/Plugins/GameCult.Mesh.dll"
 if (-not (Test-Path $meshAssembly)) { throw "Resolved GameCult.Mesh.dll is missing." }
-$meshApi = & rg -a -o "CultMesh[A-Za-z]+" $meshAssembly 2>&1
+$meshApi = & rg -a -o "CultMesh[A-Za-z]+|ContentProvider" $meshAssembly 2>&1
 if ($LASTEXITCODE -ne 0) { throw "Unable to inspect GameCult.Mesh.dll metadata.`n$meshApi" }
-$bodyApiNames = @("CultMeshBodyPublicationDocument", "CultMeshBodyPublicationHandle", "CultMeshFrameBodyPublisher")
-foreach ($apiName in $bodyApiNames) {
+$requiredMeshApiNames = @(
+    "CultMeshBodyPublicationDocument",
+    "CultMeshBodyPublicationHandle",
+    "CultMeshFrameBodyPublisher",
+    "CultMeshContentServer",
+    "CultMeshSessionContentProviderOptions",
+    "ContentProvider")
+foreach ($apiName in $requiredMeshApiNames) {
     if (-not ($meshApi | Where-Object { $_ -eq $apiName })) {
         throw "Resolved GameCult.Mesh.dll does not expose $apiName."
     }
