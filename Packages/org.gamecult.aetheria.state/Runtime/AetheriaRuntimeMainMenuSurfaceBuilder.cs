@@ -728,7 +728,7 @@ namespace GameCult.Aetheria.State.Verse
             return new AetheriaMainMenuGravityField(
                 Math.Max(900, AutoViewRadius(currentZone, bodies, objects)),
                 currentZone.GravityTerrainRadius > 0 ? currentZone.GravityTerrainRadius : 1200,
-                currentZone.GravityTerrainDepth == 0 ? -8 : currentZone.GravityTerrainDepth,
+                currentZone.GravityTerrainDepth == 0 ? 8 : currentZone.GravityTerrainDepth,
                 currentZone.GravityTerrainDepthExponent <= 0 ? 1.0 : currentZone.GravityTerrainDepthExponent,
                 currentZone.GravityTerrainWaveFrequency,
                 currentZone.SimulationTimeSeconds,

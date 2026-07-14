@@ -277,6 +277,7 @@ public sealed class AetheriaZoneState
     public double GravityTerrainRadius { get; set; }
 
     [Key(10)]
+    // Positive magnitude. Terrain projection subtracts it to form a well.
     public double GravityTerrainDepth { get; set; }
 
     [Key(11)]
@@ -382,6 +383,7 @@ public sealed class AetheriaBodySnapshot
     public double GravityInfluenceRadius { get; set; }
 
     [Key(16)]
+    // Positive magnitude. Ymir radial fields interpret positive strength as attraction.
     public double GravityWellDepth { get; set; }
 
     [Key(17)]

@@ -571,6 +571,7 @@ namespace GameCult.Aetheria.State.Verse
         public double GravityTerrainRadius { get; set; }
 
         [Key(12)]
+        // Positive magnitude. Terrain projection subtracts it to form a well.
         public double GravityTerrainDepth { get; set; }
 
         [Key(13)]
@@ -773,6 +774,7 @@ namespace GameCult.Aetheria.State.Verse
         public double GravityInfluenceRadius { get; set; }
 
         [Key(18)]
+        // Positive magnitude. Ymir radial fields interpret positive strength as attraction.
         public double GravityWellDepth { get; set; }
 
         [Key(19)]

@@ -86,7 +86,7 @@ internal static class AetheriaDaemonZoneGenerator
             Orbits = GenerateOrbits(),
             Bodies = GenerateBodies(),
             GravityTerrainRadius = 1900,
-            GravityTerrainDepth = -7,
+            GravityTerrainDepth = 7,
             GravityTerrainDepthExponent = 1.18,
             GravityTerrainBoundaryFog = 0.25,
             GravityTerrainWaveFrequency = 0.55,
@@ -161,18 +161,18 @@ internal static class AetheriaDaemonZoneGenerator
     {
         return
         [
-            Body("local.sun", "", "sun", "Terminus", 0, 0, 1600, 2.8, 980, -92, 3.0, 480, 11, 1.8),
-            Body("local.inner", "local.sun", "planet", "Cairn", 250, 0.45, 110, 0.78, 230, -20, 2.2, 92, 3, 1.0),
-            Body("local.blue", "local.sun", "planet", "Blueglass", 440, 2.45, 260, 1.18, 360, -36, 2.55, 150, 5, 1.1),
-            Body("local.blue.moon", "local.blue", "moon", "Latch", 520, 2.78, 70, 0.58, 170, -15, 2.8, 70, 2.2, 1.7),
-            Body("local.ember", "local.sun", "planet", "Emberhook", 640, 3.78, 220, 1.05, 330, -31, 2.25, 128, 4.2, 1.3),
-            Body("local.ember.moon", "local.ember", "moon", "Ashwake", 735, 3.45, 86, 0.62, 185, -16, 2.7, 72, 2.4, 1.45),
-            Body("local.belt", "local.sun", "asteroid_belt", "Cinder Belt", 760, -0.28, 140, 1.0, 310, -24, 2.0, 122, 4, 0.8),
-            Body("local.green", "local.sun", "planet", "Marrow", 930, 1.28, 180, 0.96, 300, -26, 2.35, 112, 3.6, 1.0),
-            Body("local.outer", "local.sun", "gas_giant", "Vesper", 1120, 0.58, 420, 1.55, 500, -48, 2.4, 230, 7, 0.72),
-            Body("local.outer.moon.a", "local.outer", "moon", "Iris", 1240, 0.88, 92, 0.66, 195, -17, 2.75, 78, 2.5, 1.2),
-            Body("local.outer.moon.b", "local.outer", "moon", "Hush", 1025, 0.28, 76, 0.55, 180, -15, 2.9, 70, 2.1, 1.5),
-            Body("local.deep", "local.sun", "gas_giant", "Nacre", 1420, 5.72, 340, 1.36, 440, -41, 2.55, 200, 5.8, 0.95)
+            Body("local.sun", "", "sun", "Terminus", 0, 0, 1600, 2.8, 980, 92, 3.0, 480, 11, 1.8),
+            Body("local.inner", "local.sun", "planet", "Cairn", 250, 0.45, 110, 0.78, 230, 20, 2.2, 92, 3, 1.0),
+            Body("local.blue", "local.sun", "planet", "Blueglass", 440, 2.45, 260, 1.18, 360, 36, 2.55, 150, 5, 1.1),
+            Body("local.blue.moon", "local.blue", "moon", "Latch", 520, 2.78, 70, 0.58, 170, 15, 2.8, 70, 2.2, 1.7),
+            Body("local.ember", "local.sun", "planet", "Emberhook", 640, 3.78, 220, 1.05, 330, 31, 2.25, 128, 4.2, 1.3),
+            Body("local.ember.moon", "local.ember", "moon", "Ashwake", 735, 3.45, 86, 0.62, 185, 16, 2.7, 72, 2.4, 1.45),
+            Body("local.belt", "local.sun", "asteroid_belt", "Cinder Belt", 760, -0.28, 140, 1.0, 310, 24, 2.0, 122, 4, 0.8),
+            Body("local.green", "local.sun", "planet", "Marrow", 930, 1.28, 180, 0.96, 300, 26, 2.35, 112, 3.6, 1.0),
+            Body("local.outer", "local.sun", "gas_giant", "Vesper", 1120, 0.58, 420, 1.55, 500, 48, 2.4, 230, 7, 0.72),
+            Body("local.outer.moon.a", "local.outer", "moon", "Iris", 1240, 0.88, 92, 0.66, 195, 17, 2.75, 78, 2.5, 1.2),
+            Body("local.outer.moon.b", "local.outer", "moon", "Hush", 1025, 0.28, 76, 0.55, 180, 15, 2.9, 70, 2.1, 1.5),
+            Body("local.deep", "local.sun", "gas_giant", "Nacre", 1420, 5.72, 340, 1.36, 440, 41, 2.55, 200, 5.8, 0.95)
         ];
     }
 
@@ -192,6 +192,9 @@ internal static class AetheriaDaemonZoneGenerator
         double waveDepth,
         double waveSpeed)
     {
+        if (gravityDepth <= 0)
+            throw new ArgumentOutOfRangeException(nameof(gravityDepth), "Gravity depth is an unsigned well magnitude; Ymir positive radial strength attracts.");
+
         return new BodyPlan(
             key,
             parentKey,

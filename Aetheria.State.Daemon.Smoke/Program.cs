@@ -3,7 +3,12 @@ using GameCult.Aetheria.State.Verse;
 using System.Globalization;
 
 var checks = new AetheriaDaemonYmirSmokeChecks();
-if (args.Contains("--loadout", StringComparer.Ordinal))
+if (args.Contains("--gravity", StringComparer.Ordinal))
+{
+    checks.RunGravity();
+    Console.WriteLine("Daemon Ymir gravity-sign smoke passed.");
+}
+else if (args.Contains("--loadout", StringComparer.Ordinal))
 {
     checks.RunLoadout();
     Console.WriteLine("Daemon loadout hardpoint smoke passed.");
@@ -21,6 +26,8 @@ else
 
 internal sealed class AetheriaDaemonYmirSmokeChecks
 {
+    public void RunGravity() => PositiveGravityDepthAttractsAndProjectsAsAWell();
+
     public void RunLoadout() => DaemonLoadoutsRespectFactionAvailabilityAndHullRoles();
 
     public void RunPickup()
@@ -31,6 +38,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
 
     public void Run()
     {
+        PositiveGravityDepthAttractsAndProjectsAsAWell();
         YmirMovesProjectileAndReportsStableContact();
         InstantWeaponRequestSurvivesLockAcquisition();
         ConstantWeaponRunsOnDaemonThroughYmirBeamContact();
@@ -77,6 +85,37 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         CargoCapacityComesFromHullAndCatalogVolumes();
         AgentSurveysBodyIntoCorporationKnowledge();
         AgentTowsStationIntoPersistentOrbit();
+    }
+
+    private static void PositiveGravityDepthAttractsAndProjectsAsAWell()
+    {
+        var body = new AetheriaRuntimeBodySnapshotCommit
+        {
+            BodyKey = "gravity-owner",
+            GravityInfluenceCenterX = 0,
+            GravityInfluenceCenterZ = 0,
+            GravityInfluenceRadius = 100,
+            GravityWellDepth = 20
+        };
+        var actor = Entity(0, 10, "player");
+        actor.PositionZ = 0;
+        actor.VelocityX = 0;
+        actor.VelocityY = 0;
+        var zone = new AetheriaRuntimeZoneSnapshotCommit
+        {
+            ZoneIndex = 0,
+            Bodies = [body],
+            Entities = [actor],
+            GravityTerrainRadius = 100,
+            GravityTerrainDepth = 5
+        };
+
+        var step = new AetheriaYmirWorldPhysics().Step(zone, zone.Entities, 0.1);
+        var steppedActor = step.Bodies.Single(value => value.EntityIndex == actor.EntityIndex);
+        Require(steppedActor.VelocityX < 0,
+            "positive authored gravity depth must accelerate a body toward the well center through Ymir");
+        Require(AetheriaRuntimeDaemonRenderQueries.EvaluateGravityTerrainHeight(zone, 10, 0, 0) < 0,
+            "the same positive gravity-depth magnitude must project as a negative terrain well");
     }
 
     private static void ConstantWeaponRunsOnDaemonThroughYmirBeamContact()
