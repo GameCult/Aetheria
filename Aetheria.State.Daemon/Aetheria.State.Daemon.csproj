@@ -11,7 +11,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Aetheria.State\Aetheria.State.csproj" />
-    <ProjectReference Include="..\..\Ymir\src\Ymir.Core\Ymir.Core.csproj" />
+    <ProjectReference Include="$(YmirRoot)\src\Ymir.Core\Ymir.Core.csproj" />
   </ItemGroup>
 
   <Import Project="..\Aetheria.State\Aetheria.State.Dependencies.targets" />

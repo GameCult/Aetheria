@@ -37,6 +37,10 @@ public sealed class AetheriaYmirPhysicalPayloadPhysics : IAetheriaRuntimePhysica
                 continue;
 
             var projectileBodyId = PhysicalPayloadBodyId(projectile.PayloadId);
+            var startPosition = new Vec2((float)projectile.PositionX, (float)projectile.PositionZ);
+            var requestedTranslation = new Vec2(
+                (float)(projectile.VelocityX * deltaSeconds),
+                (float)(projectile.VelocityY * deltaSeconds));
             var bodies = new List<PhysicsBody>
             {
                 new(
@@ -76,32 +80,66 @@ public sealed class AetheriaYmirPhysicalPayloadPhysics : IAetheriaRuntimePhysica
             var contact = result.Contacts.FirstOrDefault(candidate =>
                 string.Equals(candidate.BodyA, projectileBodyId, StringComparison.Ordinal) ||
                 string.Equals(candidate.BodyB, projectileBodyId, StringComparison.Ordinal));
-            if (contact == null)
+            string? targetBodyId;
+            Vec2 point;
+            Vec2 normal;
+            if (contact != null)
+            {
+                targetBodyId = string.Equals(contact.BodyA, projectileBodyId, StringComparison.Ordinal)
+                    ? contact.BodyB
+                    : contact.BodyA;
+                point = contact.Point;
+                normal = string.Equals(contact.BodyA, projectileBodyId, StringComparison.Ordinal)
+                    ? contact.Normal
+                    : new Vec2(-contact.Normal.X, -contact.Normal.Y);
+            }
+            else
+            {
+                var queryBodies = bodies
+                    .Where(body => !string.Equals(body.Id, projectileBodyId, StringComparison.Ordinal))
+                    .ToArray();
+                var overlapHit = YmirQueries.OverlapCircle(new CircleOverlapQueryRequest(
+                        startPosition,
+                        (float)Math.Max(0.001, projectile.Radius),
+                        queryBodies))
+                    .Hits.FirstOrDefault();
+                var distance = MathF.Sqrt(
+                    requestedTranslation.X * requestedTranslation.X +
+                    requestedTranslation.Y * requestedTranslation.Y);
+                var castHit = overlapHit != null || distance <= 0.0f
+                    ? null
+                    : YmirQueries.CastCircle(new CircleCastQueryRequest(
+                            startPosition,
+                            requestedTranslation,
+                            distance,
+                            (float)Math.Max(0.001, projectile.Radius),
+                            queryBodies))
+                        .Hits.FirstOrDefault();
+                targetBodyId = overlapHit?.BodyId ?? castHit?.BodyId;
+                point = overlapHit?.Point ?? castHit?.Point ?? Vec2.Zero;
+                normal = overlapHit?.Normal ?? castHit?.Normal ?? Vec2.Zero;
+            }
+
+            if (targetBodyId == null)
             {
                 survivors.Add(projectile);
                 continue;
             }
 
-            var targetBodyId = string.Equals(contact.BodyA, projectileBodyId, StringComparison.Ordinal)
-                ? contact.BodyB
-                : contact.BodyA;
             if (!entityByBodyId.TryGetValue(targetBodyId, out var target))
             {
                 survivors.Add(projectile);
                 continue;
             }
 
-            var normal = string.Equals(contact.BodyA, projectileBodyId, StringComparison.Ordinal)
-                ? contact.Normal
-                : new Vec2(-contact.Normal.X, -contact.Normal.Y);
             hits.Add(new AetheriaRuntimePhysicalPayloadHit
             {
                 Payload = projectile,
                 PhysicalPayloadBodyId = projectileBodyId,
                 TargetEntityIndex = target.EntityIndex,
                 TargetBodyId = targetBodyId,
-                PointX = contact.Point.X,
-                PointZ = contact.Point.Y,
+                PointX = point.X,
+                PointZ = point.Y,
                 NormalX = normal.X,
                 NormalZ = normal.Y
             });
