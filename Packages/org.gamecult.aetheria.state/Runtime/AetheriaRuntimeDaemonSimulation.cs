@@ -19,7 +19,6 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeDaemonIntentState intents,
             double deltaSeconds,
             AetheriaRuntimeDaemonSimulationSettings settings,
-            IAetheriaRuntimePhysicalPayloadPhysics physicalPayloadPhysics,
             IAetheriaRuntimeWorldPhysics worldPhysics,
             AetheriaRuntimeCatalogSnapshot? catalog = null,
             long frameId = 0,
@@ -28,8 +27,6 @@ namespace GameCult.Aetheria.State.Verse
         {
             if (run == null || deltaSeconds <= 0)
                 return;
-            if (physicalPayloadPhysics == null)
-                throw new ArgumentNullException(nameof(physicalPayloadPhysics));
             if (worldPhysics == null)
                 throw new ArgumentNullException(nameof(worldPhysics));
 
@@ -74,8 +71,8 @@ namespace GameCult.Aetheria.State.Verse
                     run.RunId, frameId, simulationStepIndex, zone, entities, deltaSeconds, worldPhysics);
                 ResolvePickupContacts(
                     run, zone, entities, worldStep.BeginContacts, worldPhysics, catalog, frameId);
-                StepCombat(run, zone, entities, intents, deltaSeconds, settings, physicalPayloadPhysics, catalog,
-                    frameId, simulationTimeSeconds);
+                StepCombat(run, zone, entities, intents, deltaSeconds, settings, worldPhysics, catalog,
+                    frameId, simulationTimeSeconds, simulationStepIndex);
                 AetheriaRuntimeMiningSimulation.Step(run, zone, entities, intents, catalog, frameId, simulationTimeSeconds, deltaSeconds);
                 AetheriaRuntimeSurveySimulation.Step(run, zone, entities, intents, catalog, frameId, simulationTimeSeconds, deltaSeconds);
                 RefreshContacts(entities, settings, catalog);
@@ -248,10 +245,11 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeDaemonIntentState intents,
             double deltaSeconds,
             AetheriaRuntimeDaemonSimulationSettings settings,
-            IAetheriaRuntimePhysicalPayloadPhysics physicalPayloadPhysics,
+            IAetheriaRuntimeWorldPhysics worldPhysics,
             AetheriaRuntimeCatalogSnapshot? catalog,
             long frameId,
-            double simulationTimeSeconds)
+            double simulationTimeSeconds,
+            int simulationStepIndex)
         {
             var byIndex = entities.ToDictionary(entity => entity.EntityIndex);
             foreach (var entity in entities)
@@ -365,11 +363,13 @@ namespace GameCult.Aetheria.State.Verse
             }
 
             PreparePhysicalPayloads(zone, byIndex, deltaSeconds);
-            var projectileStep = zone.PhysicalPayloads.Count == 0
-                ? new AetheriaRuntimePhysicalPayloadStep(
-                    Array.Empty<AetheriaRuntimePhysicalPayloadCommit>(),
-                    Array.Empty<AetheriaRuntimePhysicalPayloadHit>())
-                : physicalPayloadPhysics.Step(zone, entities, deltaSeconds);
+            var projectileStep = worldPhysics.StepPhysicalPayloads(
+                run.RunId,
+                frameId,
+                simulationStepIndex,
+                zone,
+                entities,
+                deltaSeconds);
             zone.PhysicalPayloads = projectileStep.PhysicalPayloads;
             TriggerExpiredDeployables(run, zone, byIndex, frameId, simulationTimeSeconds);
             foreach (var hit in projectileStep.Hits)

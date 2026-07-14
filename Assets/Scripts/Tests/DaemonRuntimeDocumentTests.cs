@@ -549,7 +549,7 @@ public class DaemonRuntimeDocumentTests
                 FrameId = 42,
                 SimulationTimeSeconds = 12.5,
                 FixedDeltaSeconds = 0.02,
-                PhysicalPayloadPhysics = new PassthroughPhysicalPayloadPhysics(),
+                WorldPhysics = new PassthroughWorldPhysics(),
                 ObservedCommands = new[] { targetCommand, movementCommand }
             });
 
@@ -970,7 +970,7 @@ public class DaemonRuntimeDocumentTests
                 FrameId = 43,
                 SimulationTimeSeconds = 12.52,
                 FixedDeltaSeconds = 0.02,
-                PhysicalPayloadPhysics = new PassthroughPhysicalPayloadPhysics(),
+                WorldPhysics = new PassthroughWorldPhysics(),
                 ObservedCommands = new[] { targetCommand },
                 AccountedCommandIds = new[] { targetCommand.CommandId }
             });
@@ -2062,7 +2062,6 @@ public class DaemonRuntimeDocumentTests
             new AetheriaRuntimeDaemonIntentState(),
             0.1,
             AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
-            new PassthroughPhysicalPayloadPhysics(),
             new PassthroughWorldPhysics());
 
         var zone = FindZone(run, 0);
@@ -2165,7 +2164,6 @@ public class DaemonRuntimeDocumentTests
             new AetheriaRuntimeDaemonIntentState(),
             0.1,
             settings,
-            new PassthroughPhysicalPayloadPhysics(),
             new PassthroughWorldPhysics());
 
         var zone = FindZone(run, 0);
@@ -2262,7 +2260,7 @@ public class DaemonRuntimeDocumentTests
 
         AetheriaRuntimeDaemonSimulation.Step(
             run, new AetheriaRuntimeDaemonIntentState(), 0.1, settings,
-            new PassthroughPhysicalPayloadPhysics(), new PassthroughWorldPhysics(), catalog);
+            new PassthroughWorldPhysics(), catalog);
 
         Assert.IsFalse(ship.Contacts.Single(contact => contact.TargetEntityIndex == 3).Visible);
         Assert.IsFalse(station.Contacts.Single(contact => contact.TargetEntityIndex == 3).Visible,
@@ -2417,7 +2415,6 @@ public class DaemonRuntimeDocumentTests
             new AetheriaRuntimeDaemonIntentState(),
             0.1,
             AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
-            new PassthroughPhysicalPayloadPhysics(),
             new PassthroughWorldPhysics());
 
         Assert.IsTrue(pilot.CargoContents.SelectMany(bay => bay.Items).Any(slot => slot.Item.ItemKey == "raider-salvage"));
@@ -3276,7 +3273,7 @@ public class DaemonRuntimeDocumentTests
                 FrameId = frame.FrameId,
                 SimulationTimeSeconds = frame.SimulationTimeSeconds,
                 FixedDeltaSeconds = frame.FixedDeltaSeconds,
-                PhysicalPayloadPhysics = new PassthroughPhysicalPayloadPhysics()
+                WorldPhysics = new PassthroughWorldPhysics()
             });
         PublishLatestFrameThroughVerseClient(statePath, tickResult.Frame);
         PublishDaemonSurfacesThroughVerseClient(statePath, tickResult);
@@ -3432,7 +3429,7 @@ public class DaemonRuntimeDocumentTests
                 FrameId = frame.FrameId,
                 SimulationTimeSeconds = frame.SimulationTimeSeconds,
                 FixedDeltaSeconds = frame.FixedDeltaSeconds,
-                PhysicalPayloadPhysics = new PassthroughPhysicalPayloadPhysics()
+                WorldPhysics = new PassthroughWorldPhysics()
             });
         PublishLatestFrameThroughVerseClient(statePath, tickResult.Frame);
         PublishDaemonSurfacesThroughVerseClient(statePath, tickResult);
@@ -6295,22 +6292,6 @@ public class DaemonRuntimeDocumentTests
         return document.LatestAsync().ConfigureAwait(false).GetAwaiter().GetResult();
     }
 
-    private sealed class PassthroughPhysicalPayloadPhysics : IAetheriaRuntimePhysicalPayloadPhysics
-    {
-        public string ImplementationId => "test.passthrough";
-
-        public AetheriaRuntimePhysicalPayloadStep Step(
-            AetheriaRuntimeZoneSnapshotCommit zone,
-            IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities,
-            double deltaSeconds)
-        {
-            return new AetheriaRuntimePhysicalPayloadStep(
-                zone.PhysicalPayloads,
-                Array.Empty<AetheriaRuntimePhysicalPayloadHit>());
-        }
-
-    }
-
     private sealed class PassthroughWorldPhysics : IAetheriaRuntimeWorldPhysics
     {
         public string ImplementationId => "test.world-passthrough";
@@ -6336,5 +6317,13 @@ public class DaemonRuntimeDocumentTests
                 }).ToArray(),
                 Array.Empty<AetheriaRuntimeWorldPickupStep>(), Array.Empty<AetheriaRuntimeWorldBeginContact>());
         }
+
+        public AetheriaRuntimePhysicalPayloadStep StepPhysicalPayloads(
+            string runId,
+            long frameId,
+            int simulationStepIndex,
+            AetheriaRuntimeZoneSnapshotCommit zone,
+            IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities,
+            double deltaSeconds) => new(zone.PhysicalPayloads, Array.Empty<AetheriaRuntimePhysicalPayloadHit>());
     }
 }

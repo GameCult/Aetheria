@@ -149,12 +149,14 @@ Current Ymir control flow:
   means **Not Invented Here**. Box3D owns integration and contact lifecycle.
   Ymir owns stable game-facing body identity, session revisions, command
   receipts, and typed contact-fact identity.
-- `AetheriaYmirWorldPhysics` owns one retained `YmirSession` for each
-  `(RunId, ZoneIndex)`. Aetheria owns the active run/zone set and disposes
-  sessions when a run or zone leaves it. Each fixed simulation substep has its
-  own physics-step identity even when several substeps share one publication
-  frame. Entity bodies use stable `EntityId`, never mutable zone-list indices;
-  current indices are projection data and may change during cross-zone moves.
+- `AetheriaYmirWorldPhysics` owns the retained physics transaction for each
+  `(RunId, ZoneIndex)`: a world session for ships and pickups, and an isolated
+  payload session for ordnance. Aetheria owns the active run/zone set and
+  disposes both sessions when a run or zone leaves it. Each fixed simulation
+  substep has its own physics-step identity even when several substeps share
+  one publication frame. Entity bodies use stable `EntityId`, never mutable
+  zone-list indices; current indices are projection data and may change during
+  cross-zone moves.
 - Session creation is the only full body bootstrap. Ordinary ticks lower
   membership changes, movement/orientation changes, tractor forces, gravity
   fields, and pickup-rejection velocity into explicit retained-session
@@ -167,9 +169,11 @@ Current Ymir control flow:
 - Ordinary direct, constant, and charged weapon fire resolves through
   deterministic shot receipts. It does not create a Ymir body or derive damage
   from collision.
-- `AetheriaYmirPhysicalPayloadPhysics` advances only objects whose continued
-  physical motion is gameplay state. Aetheria interprets returned contacts;
-  Ymir does not own damage policy.
+- The payload phase follows the world phase in the same retained zone owner.
+  Ymir advances payload bodies without world fields or payload-to-payload
+  response, then revision-checked Box3D circle casts or overlaps query the
+  current world session against explicit stable entity-body candidates.
+  Aetheria interprets those query facts; Ymir does not own damage policy.
 - Authored `DeployableWeapon` behavior now creates retained mine payloads.
   Aetheria owns deployment admission, arming time, trigger transition,
   detonation delay, blast selection, damage, and lifecycle events. Ymir moves
@@ -191,11 +195,10 @@ This is the right authority direction: daemon physics enters Ymir from daemon
 state, while Unity only asks Ymir a local presentation-picking question.
 Remaining debt:
 
-- `AetheriaYmirPhysicalPayloadPhysics` still creates isolated snapshot worlds
-  for retained mines and other explicitly physical payloads. Payload prepare,
-  zone step, and consequence resolution must be split so those bodies join the
-  same retained run/zone session. Until then the retained-session migration is
-  proven for ships and pickups, not complete for every physical payload.
+- World and payload sessions are still in-process organs of the Aetheria
+  daemon. A future remote Ymir lowering must preserve the same ordered zone
+  transaction, stable body identities, revisions, and query facts rather than
+  restoring a second Aetheria physics authority.
 - The in-process session registry is the live daemon implementation. CultMesh
   discovery/routing, durable Ymir command receipt storage, and complete Ymir
   checkpoint reconstruction remain daemon-boundary work; the checkpoint keeps

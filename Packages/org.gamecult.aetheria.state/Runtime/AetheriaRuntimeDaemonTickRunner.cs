@@ -35,8 +35,6 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeDaemonRenderSettings.AetheriaDefault;
         public AetheriaRuntimeDaemonSimulationSettings SimulationSettings { get; set; } =
             AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault;
-        public IAetheriaRuntimePhysicalPayloadPhysics PhysicalPayloadPhysics { get; set; } =
-            AetheriaRuntimePhysicalPayloadPhysicsUnavailable.Instance;
         public IAetheriaRuntimeWorldPhysics? WorldPhysics { get; set; }
         public bool AdvanceSimulation { get; set; } = true;
         public int SimulationStepCount { get; set; } = 1;
@@ -185,7 +183,6 @@ namespace GameCult.Aetheria.State.Verse
                     operationResult.Intents,
                     options.FixedDeltaSeconds,
                     options.SimulationSettings,
-                    options.PhysicalPayloadPhysics,
                     options.WorldPhysics ?? throw new InvalidOperationException("Ymir world physics owner is required."),
                     options.Catalog,
                     options.FrameId,

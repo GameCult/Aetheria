@@ -11,6 +11,7 @@ public sealed class AetheriaYmirWorldPhysics : IAetheriaRuntimeWorldPhysics, IDi
 
     private const string EntityPrefix = "aetheria.daemon.entity.";
     private const string PickupPrefix = "aetheria.daemon.pickup.";
+    private const string PhysicalPayloadPrefix = "aetheria.physical-payload.";
     private readonly Dictionary<WorldKey, SessionState> _sessions = new();
 
     public string ImplementationId => "ymir.box3d.retained-session.v1";
@@ -23,7 +24,8 @@ public sealed class AetheriaYmirWorldPhysics : IAetheriaRuntimeWorldPhysics, IDi
                 !retainedZones.Contains(key.ZoneIndex))
             .ToArray())
         {
-            _sessions[key].Session.Dispose();
+            _sessions[key].WorldSession.Dispose();
+            _sessions[key].PayloadSession.Dispose();
             _sessions.Remove(key);
         }
     }
@@ -45,7 +47,7 @@ public sealed class AetheriaYmirWorldPhysics : IAetheriaRuntimeWorldPhysics, IDi
         if (string.IsNullOrWhiteSpace(stableEntityId))
             throw new InvalidOperationException($"Ymir Begin fact '{contact.FactId}' has no stable entity identity.");
         var entityId = EntityPrefix + stableEntityId;
-        var bodies = state.Session.Snapshot().Bodies.ToDictionary(body => body.Id, StringComparer.Ordinal);
+        var bodies = state.WorldSession.Snapshot().Bodies.ToDictionary(body => body.Id, StringComparer.Ordinal);
         if (!bodies.TryGetValue(pickupId, out var pickup) || !bodies.TryGetValue(entityId, out var entity))
             throw new InvalidOperationException($"Ymir Begin fact '{contact.FactId}' references a body outside its retained session.");
 
@@ -55,15 +57,15 @@ public sealed class AetheriaYmirWorldPhysics : IAetheriaRuntimeWorldPhysics, IDi
             contact.NormalZ * normalSign,
             pickup.Position.X >= entity.Position.X ? 1 : -1,
             0);
-        RequireAccepted(state.Session.SetVelocity(new YmirSetBodyVelocityCommand(
-            new YmirCommandHeader($"aetheria:fact:{contact.FactId}:pickup-rejection", state.Session.Info.Revision),
+        RequireAccepted(state.WorldSession.SetVelocity(new YmirSetBodyVelocityCommand(
+            new YmirCommandHeader($"aetheria:fact:{contact.FactId}:pickup-rejection", state.WorldSession.Info.Revision),
             pickupId,
             new Vec2(
                 pickup.Velocity.X + (float)(normal.X * 25.0),
                 pickup.Velocity.Y + (float)(normal.Y * 25.0)),
             pickup.AngularVelocity)));
 
-        var rejected = state.Session.Snapshot().Bodies.Single(body => body.Id == pickupId);
+        var rejected = state.WorldSession.Snapshot().Bodies.Single(body => body.Id == pickupId);
         return new AetheriaRuntimeWorldPickupStep
         {
             PickupIndex = contact.PickupIndex,
@@ -96,7 +98,7 @@ public sealed class AetheriaYmirWorldPhysics : IAetheriaRuntimeWorldPhysics, IDi
             (frameId < existing.LastFrameId ||
              (frameId == existing.LastFrameId && simulationStepIndex < existing.LastSimulationStepIndex)))
             throw new InvalidOperationException(
-                $"Ymir session '{existing.Session.Info.SessionId}' cannot step backward from " +
+                $"Ymir session '{existing.WorldSession.Info.SessionId}' cannot step backward from " +
                 $"frame/step {existing.LastFrameId}/{existing.LastSimulationStepIndex} to {frameId}/{simulationStepIndex}.");
 
         var active = ActiveEntities(entities);
@@ -107,11 +109,11 @@ public sealed class AetheriaYmirWorldPhysics : IAetheriaRuntimeWorldPhysics, IDi
             _sessions.Add(key, state);
 
         var commandOrdinal = 0;
-        Reconcile(state.Session, desiredBodies, frameId, simulationStepIndex, ref commandOrdinal);
-        ApplyTractorForces(state.Session, active, pickups, frameId, simulationStepIndex, ref commandOrdinal);
+        Reconcile(state.WorldSession, desiredBodies, frameId, simulationStepIndex, ref commandOrdinal);
+        ApplyTractorForces(state.WorldSession, active, pickups, frameId, simulationStepIndex, ref commandOrdinal);
 
-        var step = state.Session.Step(new YmirStepSessionCommand(
-            Header(state.Session, frameId, simulationStepIndex, "step", "world", ref commandOrdinal),
+        var step = state.WorldSession.Step(new YmirStepSessionCommand(
+            Header(state.WorldSession, frameId, simulationStepIndex, "step", "world", ref commandOrdinal),
             (float)deltaSeconds,
             GravityFields(zone)));
         var result = Lower(step, active);
@@ -121,10 +123,148 @@ public sealed class AetheriaYmirWorldPhysics : IAetheriaRuntimeWorldPhysics, IDi
         return result;
     }
 
+    public AetheriaRuntimePhysicalPayloadStep StepPhysicalPayloads(
+        string runId,
+        long frameId,
+        int simulationStepIndex,
+        AetheriaRuntimeZoneSnapshotCommit zone,
+        IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities,
+        double deltaSeconds)
+    {
+        ArgumentNullException.ThrowIfNull(zone);
+        if (!_sessions.TryGetValue(new WorldKey(runId, zone.ZoneIndex), out var state) ||
+            state.LastFrameId != frameId || state.LastSimulationStepIndex != simulationStepIndex)
+            throw new InvalidOperationException(
+                $"Payload phase requires the retained world phase for run '{runId}' zone {zone.ZoneIndex} " +
+                $"at frame/step {frameId}/{simulationStepIndex}.");
+        if (state.LastPayloadFrameId == frameId && state.LastPayloadSimulationStepIndex == simulationStepIndex)
+            return state.LastPayloadResult!;
+        if (deltaSeconds <= 0)
+            throw new ArgumentOutOfRangeException(nameof(deltaSeconds));
+
+        var payloads = (zone.PhysicalPayloads ?? Array.Empty<AetheriaRuntimePhysicalPayloadCommit>())
+            .Where(payload => payload != null && payload.Active)
+            .OrderBy(payload => payload.PayloadId, StringComparer.Ordinal)
+            .ToArray();
+        var desiredBodies = payloads.Select(PayloadBody).ToArray();
+        var commandOrdinal = 0;
+        Reconcile(state.PayloadSession, desiredBodies, frameId, simulationStepIndex, ref commandOrdinal);
+        var starts = state.PayloadSession.Snapshot().Bodies.ToDictionary(body => body.Id, StringComparer.Ordinal);
+        var stepped = state.PayloadSession.Step(new YmirStepSessionCommand(
+            Header(state.PayloadSession, frameId, simulationStepIndex, "step", "payloads", ref commandOrdinal),
+            (float)deltaSeconds,
+            []));
+        var moved = stepped.World.Bodies.ToDictionary(body => body.Id, StringComparer.Ordinal);
+        var activeEntities = ActiveEntities(entities);
+        var entitiesByBodyId = activeEntities.ToDictionary(BodyId, StringComparer.Ordinal);
+        var survivors = new List<AetheriaRuntimePhysicalPayloadCommit>();
+        var hits = new List<AetheriaRuntimePhysicalPayloadHit>();
+
+        foreach (var payload in payloads)
+        {
+            var payloadBodyId = PhysicalPayloadPrefix + payload.PayloadId;
+            var start = starts[payloadBodyId];
+            var body = moved[payloadBodyId];
+            payload.PositionX = body.Position.X;
+            payload.PositionZ = body.Position.Y;
+            payload.VelocityX = body.Velocity.X;
+            payload.VelocityY = body.Velocity.Y;
+
+            var candidates = activeEntities
+                .Where(entity => entity.EntityIndex != payload.SourceEntityIndex)
+                .Select(BodyId)
+                .OrderBy(id => id, StringComparer.Ordinal)
+                .ToArray();
+            var dx = body.Position.X - start.Position.X;
+            var dz = body.Position.Y - start.Position.Y;
+            var distance = MathF.Sqrt(dx * dx + dz * dz);
+            var queryId = $"aetheria:frame:{frameId}:step:{simulationStepIndex}:payload:{payload.PayloadId}";
+            CircleCastHit? castHit = null;
+            CircleOverlapHit? overlapHit = null;
+            if (distance > 1.0e-6f)
+            {
+                var cast = state.WorldSession.CastCircle(new YmirSessionCircleCastQuery(
+                    queryId + ":cast",
+                    state.WorldSession.Info.Revision,
+                    start.Position,
+                    new Vec2(dx, dz),
+                    distance,
+                    (float)payload.Radius,
+                    candidates));
+                RequireQuery(cast.Error, cast.QueryId);
+                castHit = cast.Hits.FirstOrDefault();
+                queryId = cast.QueryId;
+            }
+            else
+            {
+                var overlap = state.WorldSession.OverlapCircle(new YmirSessionCircleOverlapQuery(
+                    queryId + ":overlap",
+                    state.WorldSession.Info.Revision,
+                    body.Position,
+                    (float)payload.Radius,
+                    candidates));
+                RequireQuery(overlap.Error, overlap.QueryId);
+                overlapHit = overlap.Hits.FirstOrDefault();
+                queryId = overlap.QueryId;
+            }
+
+            var targetBodyId = castHit?.BodyId ?? overlapHit?.BodyId;
+            if (targetBodyId == null || !entitiesByBodyId.TryGetValue(targetBodyId, out var target))
+            {
+                survivors.Add(payload);
+                continue;
+            }
+
+            var point = castHit?.Point ?? overlapHit!.Point;
+            var normal = castHit?.Normal ?? overlapHit!.Normal;
+            hits.Add(new AetheriaRuntimePhysicalPayloadHit
+            {
+                Payload = payload,
+                QueryId = queryId,
+                PhysicalPayloadBodyId = payloadBodyId,
+                TargetEntityIndex = target.EntityIndex,
+                TargetBodyId = targetBodyId,
+                PointX = point.X,
+                PointZ = point.Y,
+                NormalX = normal.X,
+                NormalZ = normal.Y
+            });
+
+            if (string.Equals(payload.PayloadKind, "mine", StringComparison.Ordinal))
+            {
+                payload.Stationary = true;
+                payload.VelocityX = 0;
+                payload.VelocityY = 0;
+                if (!body.IsStatic)
+                    RequireAccepted(state.PayloadSession.SetVelocity(new YmirSetBodyVelocityCommand(
+                        Header(state.PayloadSession, frameId, simulationStepIndex, "stop", payload.PayloadId, ref commandOrdinal),
+                        payloadBodyId,
+                        Vec2.Zero,
+                        0)));
+                survivors.Add(payload);
+            }
+            else
+            {
+                RequireAccepted(state.PayloadSession.Remove(new YmirRemoveBodyCommand(
+                    Header(state.PayloadSession, frameId, simulationStepIndex, "remove-hit", payload.PayloadId, ref commandOrdinal),
+                    payloadBodyId)));
+            }
+        }
+
+        var result = new AetheriaRuntimePhysicalPayloadStep(survivors, hits);
+        state.LastPayloadFrameId = frameId;
+        state.LastPayloadSimulationStepIndex = simulationStepIndex;
+        state.LastPayloadResult = result;
+        return result;
+    }
+
     public void Dispose()
     {
         foreach (var state in _sessions.Values)
-            state.Session.Dispose();
+        {
+            state.WorldSession.Dispose();
+            state.PayloadSession.Dispose();
+        }
         _sessions.Clear();
     }
 
@@ -134,10 +274,15 @@ public sealed class AetheriaYmirWorldPhysics : IAetheriaRuntimeWorldPhysics, IDi
         IReadOnlyList<PhysicsBody> bodies)
     {
         var sessionId = $"aetheria.run.{key.RunId}.zone.{key.ZoneIndex}";
-        return new SessionState(YmirSession.Create(new YmirSessionCreateRequest(
-            sessionId,
-            bodies,
-            (float)zone.SimulationTimeSeconds)));
+        return new SessionState(
+            YmirSession.Create(new YmirSessionCreateRequest(
+                sessionId + ".world",
+                bodies,
+                (float)zone.SimulationTimeSeconds)),
+            YmirSession.Create(new YmirSessionCreateRequest(
+                sessionId + ".payloads",
+                [],
+                (float)zone.SimulationTimeSeconds)));
     }
 
     private static void Reconcile(
@@ -163,11 +308,25 @@ public sealed class AetheriaYmirWorldPhysics : IAetheriaRuntimeWorldPhysics, IDi
                 continue;
             }
 
+            if (present.IsBullet != body.IsBullet ||
+                present.ParticipatesInFields != body.ParticipatesInFields ||
+                present.CollisionCategoryBits != body.CollisionCategoryBits ||
+                present.CollisionMaskBits != body.CollisionMaskBits ||
+                present.CollisionGroupIndex != body.CollisionGroupIndex)
+            {
+                RequireAccepted(session.Remove(new YmirRemoveBodyCommand(
+                    Header(session, frameId, simulationStepIndex, "replace-profile", body.Id, ref commandOrdinal), body.Id)));
+                RequireAccepted(session.Spawn(new YmirSpawnBodyCommand(
+                    Header(session, frameId, simulationStepIndex, "respawn-profile", body.Id, ref commandOrdinal), body)));
+                continue;
+            }
+
             if (present.Radius != body.Radius || present.Mass != body.Mass ||
-                present.IsStatic != body.IsStatic || present.Restitution != body.Restitution)
+                present.IsStatic != body.IsStatic || present.IsKinematic != body.IsKinematic ||
+                present.Restitution != body.Restitution)
                 RequireAccepted(session.Configure(new YmirConfigureBodyCommand(
                     Header(session, frameId, simulationStepIndex, "configure", body.Id, ref commandOrdinal),
-                    body.Id, body.Radius, body.Mass, body.IsStatic, body.Restitution)));
+                    body.Id, body.Radius, body.Mass, body.IsStatic, body.Restitution, body.IsKinematic)));
 
             if (present.Direction != body.Direction)
                 RequireAccepted(session.Teleport(new YmirTeleportBodyCommand(
@@ -311,6 +470,20 @@ public sealed class AetheriaYmirWorldPhysics : IAetheriaRuntimeWorldPhysics, IDi
 
     private static string BodyId(AetheriaRuntimeEntitySnapshotCommit entity) => EntityPrefix + entity.EntityId;
 
+    private static PhysicsBody PayloadBody(AetheriaRuntimePhysicalPayloadCommit payload) => new(
+        PhysicalPayloadPrefix + payload.PayloadId,
+        new Vec2((float)payload.PositionX, (float)payload.PositionZ),
+        payload.Stationary ? Vec2.Zero : new Vec2((float)payload.VelocityX, (float)payload.VelocityY),
+        (float)payload.Radius,
+        1,
+        IsStatic: payload.Stationary,
+        Restitution: 0,
+        Direction: new Vec2(0, 1),
+        IsBullet: !payload.Stationary,
+        ParticipatesInFields: false,
+        CollisionCategoryBits: 2,
+        CollisionMaskBits: 0);
+
     private static IReadOnlyList<RadialField> GravityFields(AetheriaRuntimeZoneSnapshotCommit zone) =>
         AetheriaRuntimeDaemonRenderQueries.QueryBodyPoses(zone)
         .Select(pose => (Pose: pose, Body: (zone.Bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>())
@@ -339,6 +512,12 @@ public sealed class AetheriaYmirWorldPhysics : IAetheriaRuntimeWorldPhysics, IDi
                 $"Ymir rejected Aetheria command '{receipt.CommandId}' with {receipt.Error}.");
     }
 
+    private static void RequireQuery(YmirQueryError error, string queryId)
+    {
+        if (error != YmirQueryError.None)
+            throw new InvalidOperationException($"Ymir rejected Aetheria query '{queryId}' with {error}.");
+    }
+
     private static int ParseIndex(string id, string prefix) =>
         id.StartsWith(prefix, StringComparison.Ordinal) &&
         int.TryParse(id.AsSpan(prefix.Length), out var value)
@@ -355,12 +534,16 @@ public sealed class AetheriaYmirWorldPhysics : IAetheriaRuntimeWorldPhysics, IDi
         return length <= 0.001 ? (fallbackX, fallbackY) : (x / length, y / length);
     }
 
-    private sealed class SessionState(YmirSession session)
+    private sealed class SessionState(YmirSession worldSession, YmirSession payloadSession)
     {
-        public YmirSession Session { get; } = session;
+        public YmirSession WorldSession { get; } = worldSession;
+        public YmirSession PayloadSession { get; } = payloadSession;
         public long LastFrameId { get; set; } = -1;
         public int LastSimulationStepIndex { get; set; } = -1;
         public AetheriaRuntimeWorldStep? LastResult { get; set; }
+        public long LastPayloadFrameId { get; set; } = -1;
+        public int LastPayloadSimulationStepIndex { get; set; } = -1;
+        public AetheriaRuntimePhysicalPayloadStep? LastPayloadResult { get; set; }
     }
 
     private readonly record struct WorldKey(string RunId, int ZoneIndex);

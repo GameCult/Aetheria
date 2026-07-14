@@ -254,8 +254,8 @@ drop or simplify an effect. It may not promote a visual collision into damage.
 
 ## Forbidden Writers
 
-- `IAetheriaRuntimePhysicalPayloadPhysics.Step` may not decide ordinary weapon
-  damage.
+- `IAetheriaRuntimeWorldPhysics.StepPhysicalPayloads` may report Ymir-backed
+  motion and query facts but may not decide ordinary weapon damage.
 - Unity physics, effect managers, colliders, and particle systems may not report
   hits back as combat truth.
 - cognition and agents may propose shots but may not sample or apply outcomes.

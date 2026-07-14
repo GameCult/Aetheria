@@ -14,7 +14,6 @@ using System.Net.Sockets;
 
 var options = AetheriaDaemonHostOptions.Parse(args);
 var startedAtUtc = DateTimeOffset.UtcNow.ToString("O");
-var physicalPayloadPhysics = new AetheriaYmirPhysicalPayloadPhysics();
 using var worldPhysics = new AetheriaYmirWorldPhysics();
 var traceClientRudp = string.Equals(
     Environment.GetEnvironmentVariable("AETHERIA_TRACE_CLIENT_RUDP"),
@@ -55,7 +54,7 @@ using var clientPumpCancellation = new CancellationTokenSource();
 var clientPump = RunClientCultMeshPumpAsync(cultMeshRudpHost, clientPumpCancellation.Token);
 var nextApiPublicationUtc = DateTimeOffset.UtcNow;
 var ingressState = new AetheriaDaemonIngressState();
-var firstTick = await TickAsync(node, options, physicalPayloadPhysics, worldPhysics, soaPublisher, latestFrame, ingressState, buildPublications: true).ConfigureAwait(false);
+var firstTick = await TickAsync(node, options, worldPhysics, soaPublisher, latestFrame, ingressState, buildPublications: true).ConfigureAwait(false);
 ThrowIfClientPumpFaulted(clientPump);
 latestFrame = firstTick.Frame;
 nextApiPublicationUtc = DateTimeOffset.UtcNow.Add(options.ApiPublicationInterval);
@@ -93,7 +92,7 @@ while (!stopped.Task.IsCompleted)
     }
 
     var buildPublications = DateTimeOffset.UtcNow >= nextApiPublicationUtc;
-    var tick = await TickAsync(node, options, physicalPayloadPhysics, worldPhysics, soaPublisher, latestFrame, ingressState, buildPublications: false).ConfigureAwait(false);
+    var tick = await TickAsync(node, options, worldPhysics, soaPublisher, latestFrame, ingressState, buildPublications: false).ConfigureAwait(false);
     ThrowIfClientPumpFaulted(clientPump);
     latestFrame = tick.Frame;
     nextTickUtc += options.TickInterval;
@@ -136,7 +135,6 @@ static void ThrowIfClientPumpFaulted(Task clientPump)
 static async Task<AetheriaRuntimeDaemonTickResult> TickAsync(
     AetheriaStateNode node,
     AetheriaDaemonHostOptions options,
-    IAetheriaRuntimePhysicalPayloadPhysics physicalPayloadPhysics,
     IAetheriaRuntimeWorldPhysics worldPhysics,
     AetheriaRuntimeDaemonSoaFramePublisher soaPublisher,
     AetheriaRuntimeDaemonFrameDocument? currentFrame,
@@ -250,7 +248,6 @@ static async Task<AetheriaRuntimeDaemonTickResult> TickAsync(
             Catalog = ingressState.Catalog,
             RenderSettings = options.RenderSettings,
             SimulationSettings = options.SimulationSettings,
-            PhysicalPayloadPhysics = physicalPayloadPhysics,
             WorldPhysics = worldPhysics,
             AdvanceSimulation = advanceSimulation,
             SimulationStepCount = simulationStepCount,

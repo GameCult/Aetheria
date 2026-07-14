@@ -16742,13 +16742,18 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
         "org.gamecult.aetheria.state",
         "Runtime",
         "AetheriaRuntimeDaemonSimulationSettings.cs");
-    var physicalPayloadPhysicsContractPath = Path.Combine(
+    var worldPhysicsContractPath = Path.Combine(
         root,
         "Packages",
         "org.gamecult.aetheria.state",
         "Runtime",
-        "AetheriaRuntimePhysicalPayloadPhysics.cs");
-    var ymirPhysicalPayloadPhysicsPath = Path.Combine(root, "Aetheria.State.Daemon", "AetheriaYmirPhysicalPayloadPhysics.cs");
+        "AetheriaRuntimeWorldPhysics.cs");
+    var ymirWorldPhysicsPath = Path.Combine(root, "Aetheria.State.Daemon", "AetheriaYmirWorldPhysics.cs");
+    var obsoletePhysicalPayloadAuthorityPaths = new[]
+    {
+        Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimePhysicalPayloadPhysics.cs"),
+        Path.Combine(root, "Aetheria.State.Daemon", "AetheriaYmirPhysicalPayloadPhysics.cs")
+    };
     var daemonProjectPath = Path.Combine(root, "Aetheria.State.Daemon", "Aetheria.State.Daemon.csproj");
     var gameDocumentsPath = Path.Combine(
         root,
@@ -16802,12 +16807,12 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
     var daemonSimulationSettings = File.Exists(daemonSimulationSettingsPath)
         ? File.ReadAllText(daemonSimulationSettingsPath)
         : throw new InvalidOperationException("Cannot verify daemon simulation authority; daemon simulation settings are missing.");
-    var physicalPayloadPhysicsContract = File.Exists(physicalPayloadPhysicsContractPath)
-        ? File.ReadAllText(physicalPayloadPhysicsContractPath)
-        : throw new InvalidOperationException("Cannot verify daemon projectile authority; shared physics port is missing.");
-    var ymirPhysicalPayloadPhysics = File.Exists(ymirPhysicalPayloadPhysicsPath)
-        ? File.ReadAllText(ymirPhysicalPayloadPhysicsPath)
-        : throw new InvalidOperationException("Cannot verify daemon projectile authority; daemon Ymir adapter is missing.");
+    var worldPhysicsContract = File.Exists(worldPhysicsContractPath)
+        ? File.ReadAllText(worldPhysicsContractPath)
+        : throw new InvalidOperationException("Cannot verify daemon projectile authority; shared world physics port is missing.");
+    var ymirWorldPhysics = File.Exists(ymirWorldPhysicsPath)
+        ? File.ReadAllText(ymirWorldPhysicsPath)
+        : throw new InvalidOperationException("Cannot verify daemon projectile authority; retained daemon Ymir owner is missing.");
     var daemonProject = File.ReadAllText(daemonProjectPath);
     var gameDocuments = File.Exists(gameDocumentsPath)
         ? File.ReadAllText(gameDocumentsPath)
@@ -16876,7 +16881,7 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
         {
             "public static class AetheriaRuntimeDaemonSimulation",
             "AetheriaRuntimeDaemonSimulationSettings settings",
-            "StepCombat(run, zone, entities, intents, deltaSeconds, settings, physicalPayloadPhysics, catalog,",
+            "StepCombat(run, zone, entities, intents, deltaSeconds, settings, worldPhysics, catalog,",
             "AetheriaRuntimeEquippedBehaviorQueries.Find(entity, catalog, AetheriaRuntimeBehaviorKinds.InstantWeapon)",
             "EnsureWeaponState(",
             "CommitWeaponRound(attacker, weapon)",
@@ -16889,7 +16894,7 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
             "CommitEnergy(entity, weapon.Energy)",
             "CommitShotResolution(run, zone, attacker, target, weapon, shotId, frameId)",
             "PreparePhysicalPayloads(zone, byIndex, deltaSeconds)",
-            "physicalPayloadPhysics.Step(zone, entities, deltaSeconds)",
+            "worldPhysics.StepPhysicalPayloads(",
             "Kind = \"physical-payload.contact\""
         },
         [daemonSimulationSettingsPath] = new[]
@@ -16899,20 +16904,27 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
             "public double ProjectileSpeed { get; }",
             "public double AttackRange { get; }"
         },
-        [physicalPayloadPhysicsContractPath] = new[]
+        [worldPhysicsContractPath] = new[]
         {
-            "public interface IAetheriaRuntimePhysicalPayloadPhysics",
-            "public sealed class AetheriaRuntimePhysicalPayloadPhysicsUnavailable",
+            "public interface IAetheriaRuntimeWorldPhysics",
+            "AetheriaRuntimePhysicalPayloadStep StepPhysicalPayloads(",
             "public sealed class AetheriaRuntimePhysicalPayloadStep",
             "public sealed class AetheriaRuntimePhysicalPayloadHit"
         },
-        [ymirPhysicalPayloadPhysicsPath] = new[]
+        [ymirWorldPhysicsPath] = new[]
         {
-            "public sealed class AetheriaYmirPhysicalPayloadPhysics : IAetheriaRuntimePhysicalPayloadPhysics",
-            "private readonly YmirSimulator _simulator",
-            "PhysicalPayloadBodyPrefix",
-            "EntityBodyPrefix",
-            "_simulator.Step(new SimulationStepRequest("
+            "public sealed class AetheriaYmirWorldPhysics : IAetheriaRuntimeWorldPhysics, IDisposable",
+            "public YmirSession WorldSession { get; }",
+            "public YmirSession PayloadSession { get; }",
+            "state.PayloadSession.Step(new YmirStepSessionCommand(",
+            "state.WorldSession.CastCircle(new YmirSessionCircleCastQuery(",
+            "state.WorldSession.OverlapCircle(new YmirSessionCircleOverlapQuery(",
+            "PhysicalPayloadPrefix + payload.PayloadId",
+            "Payload phase requires the retained world phase",
+            "present.IsBullet != body.IsBullet",
+            "present.ParticipatesInFields != body.ParticipatesInFields",
+            "present.CollisionCategoryBits != body.CollisionCategoryBits",
+            "\"respawn-profile\""
         },
         [daemonProjectPath] = new[]
         {
@@ -16920,8 +16932,8 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
         },
         [daemonProgramPath] = new[]
         {
-            "var physicalPayloadPhysics = new AetheriaYmirPhysicalPayloadPhysics();",
-            "PhysicalPayloadPhysics = physicalPayloadPhysics"
+            "using var worldPhysics = new AetheriaYmirWorldPhysics();",
+            "WorldPhysics = worldPhysics"
         },
         [gameDocumentsPath] = new[]
         {
@@ -16941,8 +16953,8 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
             var text = pair.Key == snapshotDocumentsPath ? snapshotDocuments :
                 pair.Key == daemonSimulationPath ? daemonSimulation :
                 pair.Key == daemonSimulationSettingsPath ? daemonSimulationSettings :
-                pair.Key == physicalPayloadPhysicsContractPath ? physicalPayloadPhysicsContract :
-                pair.Key == ymirPhysicalPayloadPhysicsPath ? ymirPhysicalPayloadPhysics :
+                pair.Key == worldPhysicsContractPath ? worldPhysicsContract :
+                pair.Key == ymirWorldPhysicsPath ? ymirWorldPhysics :
                 pair.Key == daemonProjectPath ? daemonProject :
                 pair.Key == daemonProgramPath ? daemonProgram :
                 pair.Key == gameDocumentsPath ? gameDocuments :
@@ -16955,9 +16967,43 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
     if (missingPhysicalPayloadAuthoritySymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "Daemon combat must resolve ordinary shots as receipts while Ymir owns only typed physical payload motion: " +
+            "Daemon combat must resolve ordinary shots as receipts while the retained Ymir zone owner supplies typed payload motion and query facts: " +
             string.Join("; ", missingPhysicalPayloadAuthoritySymbols));
     }
+
+    var forbiddenObsoletePhysicalPayloadAuthorities = new[]
+    {
+        "IAetheriaRuntimePhysicalPayloadPhysics",
+        "AetheriaRuntimePhysicalPayloadPhysicsUnavailable",
+        "AetheriaYmirPhysicalPayloadPhysics",
+        "PhysicalPayloadPhysics =",
+        "private readonly YmirSimulator _simulator"
+    };
+    var survivingObsoletePhysicalPayloadAuthorities = forbiddenObsoletePhysicalPayloadAuthorities
+        .Where(symbol => daemonSimulation.Contains(symbol, StringComparison.Ordinal) ||
+            worldPhysicsContract.Contains(symbol, StringComparison.Ordinal) ||
+            ymirWorldPhysics.Contains(symbol, StringComparison.Ordinal) ||
+            daemonProgram.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (survivingObsoletePhysicalPayloadAuthorities.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Physical payloads must not retain a snapshot-world port or adapter beside the retained zone physics owner: " +
+            string.Join(", ", survivingObsoletePhysicalPayloadAuthorities));
+    }
+    var survivingObsoletePhysicalPayloadAuthorityFiles = obsoletePhysicalPayloadAuthorityPaths
+        .Where(File.Exists)
+        .Select(path => Path.GetRelativePath(root, path))
+        .ToArray();
+    if (survivingObsoletePhysicalPayloadAuthorityFiles.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "The snapshot-world physical payload authority must be deleted, not left available for reinjection: " +
+            string.Join(", ", survivingObsoletePhysicalPayloadAuthorityFiles));
+    }
+    if (daemonTickRunner.Contains("PhysicalPayloadPhysics", StringComparison.Ordinal))
+        throw new InvalidOperationException(
+            "The daemon tick runner must inject one world physics owner, not a second physical-payload authority.");
 
     var forbiddenPhysicalPayloadDamageSymbols = new[]
     {
@@ -16967,8 +17013,8 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
     };
     var survivingPhysicalPayloadDamageSymbols = forbiddenPhysicalPayloadDamageSymbols
         .Where(symbol => daemonSimulation.Contains(symbol, StringComparison.Ordinal) ||
-            physicalPayloadPhysicsContract.Contains(symbol, StringComparison.Ordinal) ||
-            ymirPhysicalPayloadPhysics.Contains(symbol, StringComparison.Ordinal))
+            worldPhysicsContract.Contains(symbol, StringComparison.Ordinal) ||
+            ymirWorldPhysics.Contains(symbol, StringComparison.Ordinal))
         .ToArray();
     if (survivingPhysicalPayloadDamageSymbols.Length > 0)
     {
