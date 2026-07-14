@@ -477,6 +477,7 @@ static RudpCultNetSchemaServer StartClientCultMeshHost(
         MaxFragmentBytes = 1024,
         MaxPendingReliablePackets = 8192
     });
+    _ = new CultMeshContentServer(server, node.Cache);
     var advertisedEndpoint = $"rudp://{options.ClientCultMeshAdvertiseHost}:{((IPEndPoint)socket.LocalEndPoint!).Port}";
     server.OnCultNet<CultMeshVerseCatalogRequestMessage>((request, peer) =>
     {
@@ -992,9 +993,8 @@ static IReadOnlyDictionary<string, CultNetRawDocumentRecord> BuildBundleCdnDocum
     foreach (var bundle in FindAssetBundles(options))
     {
         var artifact = PackAssetBundle(bundle.Path, bundle.Platform);
+        CultMeshCdn.PublishAsync(node.Cache, artifact).GetAwaiter().GetResult();
         Add(artifact.ManifestKey, artifact.Manifest);
-        foreach (var chunk in artifact.Chunks)
-            Add(CultMeshCdnArtifactChunk.CreateRecordKey(chunk), chunk);
     }
     return documents;
 
@@ -2190,7 +2190,6 @@ static CultMeshCdnArtifact PackAssetBundle(string path, string platform)
         File.ReadAllBytes(path),
         new CultMeshCdnPackOptions
         {
-            ChunkSizeBytes = 24 * 1024,
             Kind = CultMeshCdnArtifactKinds.Asset,
             Version = "1",
             MimeType = "application/vnd.unity.assetbundle",
