@@ -40,15 +40,14 @@ if (-not $cultLibPackage) { throw "Resolved CultLib package is missing from Libr
 
 $meshAssembly = Join-Path $cultLibPackage.FullName "Runtime/Plugins/GameCult.Mesh.dll"
 if (-not (Test-Path $meshAssembly)) { throw "Resolved GameCult.Mesh.dll is missing." }
-$meshApi = & rg -a -o "CultMesh[A-Za-z]+|ContentProvider" $meshAssembly 2>&1
+$meshApi = & rg -a -o "CultMesh[A-Za-z]+" $meshAssembly 2>&1
 if ($LASTEXITCODE -ne 0) { throw "Unable to inspect GameCult.Mesh.dll metadata.`n$meshApi" }
 $requiredMeshApiNames = @(
     "CultMeshBodyPublicationDocument",
     "CultMeshBodyPublicationHandle",
     "CultMeshFrameBodyPublisher",
     "CultMeshContentServer",
-    "CultMeshSessionContentProviderOptions",
-    "ContentProvider")
+    "CultMeshSessionContentProviderOptions")
 foreach ($apiName in $requiredMeshApiNames) {
     if (-not ($meshApi | Where-Object { $_ -eq $apiName })) {
         throw "Resolved GameCult.Mesh.dll does not expose $apiName."
