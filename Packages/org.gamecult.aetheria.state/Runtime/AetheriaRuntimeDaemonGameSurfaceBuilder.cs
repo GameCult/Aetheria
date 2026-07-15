@@ -928,6 +928,13 @@ namespace GameCult.Aetheria.State.Verse
                 .Select(value => value?.CooldownProgress ?? 0)
                 .DefaultIfEmpty(0)
                 .Max();
+            var targetLock = target == null
+                ? 0
+                : (entity?.WeaponStates ?? Array.Empty<AetheriaRuntimeWeaponStateCommit>())
+                    .Where(value => value != null && value.LockTargetEntityIndex == target.EntityIndex)
+                    .Select(value => value.LockProgress)
+                    .DefaultIfEmpty(0)
+                    .Max();
             var targetHull = target == null ? 0 : EntityStat(target, "hull");
             var targetShield = target == null ? 0 : EntityStat(target, "shield");
             var panelStyle = new Dictionary<string, string>(StringComparer.Ordinal)
@@ -961,6 +968,7 @@ namespace GameCult.Aetheria.State.Verse
                 Progress("aetheria.daemon.game.cockpit.weaponCooldown", "COOLDOWN", weaponCooldown.ToString("0.###", CultureInfo.InvariantCulture)),
                 Metric("aetheria.daemon.game.cockpit.weaponGroups", "GROUPS", Count(entity?.WeaponGroups).ToString(CultureInfo.InvariantCulture)),
                 Metric("aetheria.daemon.game.cockpit.target", "TARGET", string.IsNullOrWhiteSpace(target?.Name) ? "NO TARGET" : target!.Name),
+                Progress("aetheria.daemon.game.cockpit.targetLock", "TARGET LOCK", FormatNumber(targetLock)),
                 Progress("aetheria.daemon.game.cockpit.targetShield", "TARGET SHIELD", FormatRatio(targetShield, target == null ? 0 : MaximumShield(target, simulationSettings))),
                 Progress("aetheria.daemon.game.cockpit.targetHull", "TARGET HULL", FormatRatio(targetHull, target == null ? 0 : MaximumHull(target, simulationSettings))));
 

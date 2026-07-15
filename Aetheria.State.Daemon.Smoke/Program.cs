@@ -365,8 +365,10 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         Require(cockpit.Kind == "pane" && cockpit.Props["role"] == "pilot.cockpit" &&
                 cockpit.Layout["position"] == "absolute" && cockpit.Style["background"] == "transparent",
             "pilot surface must publish a transparent provider-authored cockpit overlay");
-        Require(Flatten(cockpit).Count(node => node.Kind == "progress") >= 6 &&
+        Require(Flatten(cockpit).Count(node => node.Kind == "progress") >= 7 &&
                 Flatten(cockpit).Any(node => node.Id == "aetheria.daemon.game.cockpit.capacitor") &&
+                Flatten(cockpit).Any(node => node.Id == "aetheria.daemon.game.cockpit.targetLock" &&
+                    node.Props["label"] == "TARGET LOCK") &&
                 Flatten(cockpit).Any(node => node.Id == "aetheria.daemon.game.cockpit.targetHull"),
             "pilot cockpit must expose native ship and target instrumentation through generic Eve progress components");
         Require(Flatten(surface.Surface.Root).Where(node =>
@@ -552,6 +554,11 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 combat.Props["targetHostile"] == "true" &&
                 double.Parse(combat.Props["lockProgress"], CultureInfo.InvariantCulture) > 0.99,
             "Eve combat presentation must expose daemon-owned selection, contact, and completed lock without duplicating body transforms");
+        var cockpitLock = Flatten(surface.Surface.Root).Single(node =>
+            node.Id == "aetheria.daemon.game.cockpit.targetLock");
+        Require(cockpitLock.Kind == "progress" && cockpitLock.Props["label"] == "TARGET LOCK" &&
+                double.Parse(cockpitLock.Props["value"], CultureInfo.InvariantCulture) > 0.99,
+            "provider cockpit must project the same completed daemon lock through a generic Eve progress component");
         Require(combat.Props["hitMarkerDurationSeconds"] == "0.25" &&
                 combat.Props["radialFillMinimum"] == "0.25" &&
                 combat.Props["radialFillMaximum"] == "0.75",
