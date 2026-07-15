@@ -2,26 +2,29 @@
 %TAG !u! tag:unity3d.com,2011:
 --- !u!21 &2100000
 Material:
-  serializedVersion: 6
+  serializedVersion: 8
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_Name: Radiators 1
   m_Shader: {fileID: 4800000, guid: d69ef48273708ef4680762f5cdcfc860, type: 3}
-  m_ShaderKeywords: 
+  m_Parent: {fileID: 0}
+  m_ModifiedSerializedProperties: 0
+  m_ValidKeywords: []
+  m_InvalidKeywords: []
   m_LightmapFlags: 4
   m_EnableInstancingVariants: 0
   m_DoubleSidedGI: 0
   m_CustomRenderQueue: -1
   stringTagMap: {}
   disabledShaderPasses: []
+  m_LockedProperties:
   m_SavedProperties:
     serializedVersion: 3
     m_TexEnvs:
     - _BumpMap:
-        m_Texture: {fileID: -812895718602229137, guid: b7e648471e9dfc44490bd41973711541,
-          type: 3}
+        m_Texture: {fileID: 2800000, guid: 8b981e6a4aa120b4a8fed57c334163eb, type: 3}
         m_Scale: {x: 8, y: 8}
         m_Offset: {x: 0, y: 0}
     - _DetailAlbedoMap:
@@ -37,17 +40,15 @@ Material:
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _EmissionMap:
-        m_Texture: {fileID: 0}
+        m_Texture: {fileID: 2800000, guid: 30b999db5c2a78a4ab18c8a83b4e2d83, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _MainTex:
-        m_Texture: {fileID: -6057190860509678031, guid: 2b42584452fe0cc4fa4e8a115230b156,
-          type: 3}
-        m_Scale: {x: 8, y: 8}
+        m_Texture: {fileID: 2800000, guid: 30b999db5c2a78a4ab18c8a83b4e2d83, type: 3}
+        m_Scale: {x: 2, y: 2}
         m_Offset: {x: 0, y: 0}
     - _MetallicGlossMap:
-        m_Texture: {fileID: -894214952450941493, guid: 2b42584452fe0cc4fa4e8a115230b156,
-          type: 3}
+        m_Texture: {fileID: 2800000, guid: 4f61d8871a560e04b9aa59ed0490e7f7, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _OcclusionMap:
@@ -58,6 +59,7 @@ Material:
         m_Texture: {fileID: 0}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
+    m_Ints: []
     m_Floats:
     - _BumpPower: 2
     - _BumpScale: 1
@@ -68,9 +70,9 @@ Material:
     - _EmissionFresnel: 4
     - _EmissionRoughnessFresnelPower: 0.5
     - _GlossMapScale: 1
-    - _Glossiness: 1
+    - _Glossiness: 0.62
     - _GlossyReflections: 1
-    - _Metallic: 0
+    - _Metallic: 0.85
     - _Mode: 0
     - _OcclusionStrength: 1
     - _Parallax: 0.02
@@ -82,6 +84,7 @@ Material:
     - _UVSec: 0
     - _ZWrite: 1
     m_Colors:
-    - _Color: {r: 1, g: 1, b: 1, a: 1}
-    - _EmissionColor: {r: 1, g: 0.40135294, b: 0, a: 1}
+    - _Color: {r: 0.28, g: 0.16, b: 0.06, a: 1}
+    - _EmissionColor: {r: 2.2, g: 0.55, b: 0.04, a: 1}
   m_BuildTextureStacks: []
+  m_AllowLocking: 1
