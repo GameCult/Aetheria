@@ -504,6 +504,15 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             new AetheriaRuntimeDaemonHealthDocument(),
             AetheriaRuntimeDaemonCommandBoundaryDocument.Create("daemon"));
         var combat = Flatten(surface.Surface.Root).Single(node => node.Kind == "combat.presentation");
+        var world = Flatten(surface.Surface.Root).Single(node => node.Kind == "world.scene3d");
+        var aim = Flatten(surface.Surface.Root).Single(node => node.Kind == "aim.presentation");
+        Require(!string.IsNullOrWhiteSpace(world.Props["lookCommand"]) &&
+                world.Props["lookSensitivityRadians"] == "-0.001",
+            "playable world must advertise the daemon-owned continuous look command and fossil pointer response");
+        Require(aim.Props["controlledEntityIndex"] == "0" &&
+                aim.Props["convergenceTargetEntityId"] == run.EntityRecordKey(0, 1) &&
+                aim.Props["minimumConvergenceDistance"] == "50",
+            "Eve aim presentation must bind the controlled body direction to the fossil convergence semantic");
         Require(combat.Props["controlledEntityIndex"] == "0" &&
                 combat.Props["selectedTargetEntityIndex"] == "1" &&
                 combat.Props["targetVisible"] == "true" &&

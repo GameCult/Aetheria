@@ -608,6 +608,8 @@ namespace GameCult.Aetheria.State.Verse
                 ["movementEnabled"] = isDocked ? "false" : "true",
                 ["presentationMode"] = isDocked ? "docked" : "world",
                 ["movementCommand"] = CommandName(AetheriaRuntimeDaemonCommandKinds.SetMoveVector),
+                ["lookCommand"] = CommandName(AetheriaRuntimeDaemonCommandKinds.SetLookDirection),
+                ["lookSensitivityRadians"] = "-0.001",
                 ["focusCommand"] = CommandName(AetheriaRuntimeDaemonCommandKinds.TargetNearest),
                 ["targetCommand"] = CommandName(AetheriaRuntimeDaemonCommandKinds.SetTarget),
                 ["actionCommand"] = CommandName(AetheriaRuntimeDaemonCommandKinds.FireWeaponGroup),
@@ -625,6 +627,9 @@ namespace GameCult.Aetheria.State.Verse
             var combatPresentation = CombatPresentation(run, zone, playerEntityId, simulationSettings);
             if (combatPresentation != null)
                 presentationChildren.Insert(0, combatPresentation);
+            var aimPresentation = AimPresentation(run, zone, playerEntityId);
+            if (aimPresentation != null)
+                presentationChildren.Insert(0, aimPresentation);
 
             return new AetheriaRuntimeSurfaceComponent(
                 id,
@@ -645,6 +650,30 @@ namespace GameCult.Aetheria.State.Verse
                 {
                     ["background"] = "transparent"
                 });
+        }
+
+        private static AetheriaRuntimeSurfaceComponent? AimPresentation(
+            AetheriaRuntimeRunCheckpointCommit run,
+            AetheriaRuntimeZoneSnapshotCommit zone,
+            string playerEntityId)
+        {
+            var player = FindCurrentEntity(run, zone);
+            if (player == null)
+                return null;
+
+            var target = FindTargetEntity(zone, player);
+            var props = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["controlledEntityId"] = playerEntityId,
+                ["controlledEntityIndex"] = player.EntityIndex.ToString(CultureInfo.InvariantCulture),
+                ["convergenceTargetEntityId"] = target == null
+                    ? ""
+                    : run.EntityRecordKey(zone.ZoneIndex, target.EntityIndex),
+                ["viewDotRole"] = "aim.marker.view-direction",
+                ["minimumConvergenceDistance"] = "50",
+                ["viewDotRadius"] = "0.8"
+            };
+            return Node("aetheria.daemon.game.world.aim", "aim.presentation", props.Select(value => (value.Key, value.Value)).ToArray());
         }
 
         private static AetheriaRuntimeSurfaceComponent? CombatPresentation(

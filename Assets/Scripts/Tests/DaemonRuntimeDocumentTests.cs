@@ -3771,8 +3771,8 @@ public class DaemonRuntimeDocumentTests
         var player = run.Zones[0].Entities[0];
         Assert.AreEqual(3, result.AppliedCommandIds.Count);
         Assert.AreEqual(0, result.RejectedCommandIds.Count);
-        Assert.AreEqual(0.25, player.DirectionX, 0.0001);
-        Assert.AreEqual(-0.75, player.DirectionY, 0.0001);
+        Assert.AreEqual(0.316227766, player.DirectionX, 0.0001);
+        Assert.AreEqual(-0.948683298, player.DirectionY, 0.0001);
         Assert.AreEqual(0.8, player.TractorPower, 0.0001);
         Assert.IsTrue(player.HeatsinksEnabled);
     }

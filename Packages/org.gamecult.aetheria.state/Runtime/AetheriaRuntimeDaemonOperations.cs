@@ -529,10 +529,16 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeRunCheckpointCommit run,
             AetheriaRuntimeDaemonCommandDocument command)
         {
+            if (!IsFinite(command.DirectionX) || !IsFinite(command.PositionZ))
+                return false;
+            var length = Math.Sqrt(command.DirectionX * command.DirectionX + command.PositionZ * command.PositionZ);
+            if (length <= 0.000001)
+                return false;
+
             return ApplyCurrentEntity(run, command, entity =>
             {
-                entity.DirectionX = command.DirectionX;
-                entity.DirectionY = command.PositionZ;
+                entity.DirectionX = command.DirectionX / length;
+                entity.DirectionY = command.PositionZ / length;
             });
         }
 
