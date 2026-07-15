@@ -347,7 +347,7 @@ public sealed class AetheriaYmirWorldPhysics : IAetheriaRuntimeWorldPhysics, IDi
         int simulationStepIndex,
         ref int commandOrdinal)
     {
-        foreach (var actor in active.Where(entity => entity.TractorPower > 0))
+        foreach (var actor in active.Where(entity => entity.TractorPower > 0.01))
         {
             var forward = Normalize(actor.DirectionX, actor.DirectionY, 0, 1);
             foreach (var pickup in pickups)
@@ -360,7 +360,7 @@ public sealed class AetheriaYmirWorldPhysics : IAetheriaRuntimeWorldPhysics, IDi
                 if (along < 0 || along > TractorDistance || lateral > TractorRadius || distance <= 0.001)
                     continue;
 
-                var force = TractorTraction * actor.TractorPower;
+                var force = TractorTraction;
                 var pickupId = PickupPrefix + pickup.PickupIndex;
                 RequireAccepted(session.ApplyForce(new YmirApplyForceCommand(
                     Header(session, frameId, simulationStepIndex, "tractor", $"{actor.EntityIndex}:{pickup.PickupIndex}", ref commandOrdinal),

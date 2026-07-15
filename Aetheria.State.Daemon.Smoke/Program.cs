@@ -42,6 +42,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
     {
         RunCheck(RetainedWorldAdvancesEveryFixedSubstep);
         RunCheck(StableEntityIdentitySurvivesCrossZoneReindex);
+        RunCheck(TractorRampsAndPullsThroughYmirWithoutTeleportingCargo);
         RunCheck(PickupIsCapacityCheckedExactlyOnceAndExpires);
         RunCheck(PickupShieldContactCollectsOrBounces);
     }
@@ -843,8 +844,10 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         Require(!target.IsActive && target.DestroyedFrameId == 1 &&
                 !string.IsNullOrWhiteSpace(target.DestructionId),
             "lethal daemon damage must commit one durable destruction identity and deactivate the entity");
-        RequireEqual(3, zone.DroppedPickups.Count,
-            "guaranteed fossil loot roll must drop hull, equipment, and every cargo stack");
+        RequireEqual(2, zone.DroppedPickups.Count,
+            "guaranteed fossil loot roll must drop non-hull equipment and every cargo stack");
+        Require(!zone.DroppedPickups.Any(value => value.Item.ItemKey == "drop-hull"),
+            "the equipped hull must remain excluded from fossil destruction loot");
         RequireEqual(4, zone.DroppedPickups.Single(value => value.Item.ItemKey == "drop-cargo").Item.Quantity,
             "cargo drops must preserve exact stack quantity");
         Require(zone.DroppedPickups.All(value => Math.Abs(Math.Sqrt(
@@ -852,7 +855,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                     value.VelocityZ * value.VelocityZ) - 25) < 0.000001 &&
                 Math.Abs(value.LifetimeSeconds - 30) < 0.000001),
             "destruction pickups must retain fossil launch speed and lifetime");
-        RequireEqual(3, run.GameEvents.Count(value => value.Kind == "pickup.dropped"),
+        RequireEqual(2, run.GameEvents.Count(value => value.Kind == "pickup.dropped"),
             "each durable pickup must publish one drop event");
         RequireEqual(1, run.GameEvents.Count(value => value.Kind == "entity.destroyed"),
             "destruction chronology must publish exactly once");
@@ -871,7 +874,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
 
         AetheriaRuntimeDaemonSimulation.Step(run, new AetheriaRuntimeDaemonIntentState(), 0.1, settings,
             NewPhysics(), null, 2, 0.2);
-        RequireEqual(3, zone.DroppedPickups.Count,
+        RequireEqual(2, zone.DroppedPickups.Count,
             "later ticks must not duplicate an already committed destruction transaction");
         RequireEqual(1, run.GameEvents.Count(value => value.Kind == "entity.destroyed"),
             "later ticks must not duplicate destruction chronology");
@@ -2801,6 +2804,41 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         RequireEqual(0, CargoQuantity(ship, "salvage"), "scooping must remain a separate capacity-checked transaction");
         Require(pickup.AgeSeconds > 0 && pickup.AgeSeconds < pickup.LifetimeSeconds,
             "daemon-owned pickup lifetime must advance independently of its SoA presentation");
+
+        double PulledVelocity(double power, int frameId)
+        {
+            var actor = Entity(0, 0, "player");
+            actor.DirectionX = 1;
+            actor.DirectionY = 0;
+            actor.TractorPower = power;
+            actor.TractorTargetPower = power;
+            var cargo = new AetheriaRuntimeDroppedPickupCommit
+            {
+                PickupIndex = 30 + frameId,
+                PositionX = 60,
+                Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = "salvage", Quantity = 1 },
+                LifetimeSeconds = 30
+            };
+            var scenario = new AetheriaRuntimeRunCheckpointCommit
+            {
+                RunId = $"tractor-power-{frameId}",
+                CurrentZoneIndex = 0,
+                CurrentEntityKey = "zone.0.entity.0",
+                Zones = [new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [actor], DroppedPickups = [cargo] }]
+            };
+            AetheriaRuntimeDaemonTickRunner.Tick(
+                Path.Combine(Path.GetTempPath(), $"aetheria-tractor-power-{frameId}.cc"),
+                scenario,
+                new AetheriaRuntimeDaemonTickOptions
+                {
+                    WorldPhysics = NewPhysics(), FrameId = frameId, FixedDeltaSeconds = 0.1,
+                    SimulationTimeSeconds = frameId * 0.1, BuildPublications = false
+                });
+            return cargo.VelocityX;
+        }
+
+        RequireNear(PulledVelocity(0.02, 20), PulledVelocity(1, 21), 0.000001,
+            "tractor power above the fossil threshold must gate full traction rather than scale force");
         var pickupAsset = AetheriaRuntimeAssets.ProjectManifest(null).Assets.Single(asset => asset.Ref.AssetKey == "prefab.entity.pickup");
         Require(pickupAsset.Ref.Metadata.TryGetValue("unityAssetPath", out var pickupPath) && pickupPath == "Assets/Prefabs/RPG/Pickups/Tetrahedron.prefab",
             "provider asset manifest must advertise the pickup visual used by Eve");

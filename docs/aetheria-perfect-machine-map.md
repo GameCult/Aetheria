@@ -2278,11 +2278,12 @@ instantiation, credits, dock assignment, current entity, and checkpoint. Docked
 current-ship selection follows the same rule: UI requests selection, and the
 daemon owns `CurrentEntity`, `DockingBay.DockedShip`, and checkpoint. Undocking
 also owns a collision-free departure pose and clears inherited velocity before
-the detached ship re-enters world physics. Loot pickup follows the same rule:
-an active tractor inside its operating envelope requests collection, and the
-daemon atomically owns capacity validation, cargo storage, pickup removal,
-monotonic pickup identity, and checkpoint. Physics moves loose bodies but does
-not decide inventory ownership. The portable Eve entity SoA publishes
+the detached ship re-enters world physics. Loot pickup is contact-gated: the
+tractor applies force to loose bodies, Ymir owns typed Begin contact facts, and
+the daemon alone interprets each persisted fact identity into capacity
+validation, cargo storage or rejection bounce, pickup removal, feedback, and
+checkpoint. Targeting, proximity, client commands, and presentation collisions
+cannot decide inventory ownership. The portable Eve entity SoA publishes
 `inventory.cargo.quantity`, allowing generic clients and witnesses to observe
 the committed cargo delta without reading Aetheria internals. Entity destruction follows
 the same rule: instance code observes death, and the daemon owns drop

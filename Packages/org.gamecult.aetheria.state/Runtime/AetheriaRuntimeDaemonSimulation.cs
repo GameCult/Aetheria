@@ -1333,13 +1333,6 @@ namespace GameCult.Aetheria.State.Verse
                 });
             }
 
-            if (!string.IsNullOrWhiteSpace(target.HullItemKey) &&
-                ShotRoll(run.GenerationSeed, destructionId, "equipment:hull") < settings.LootDropProbability)
-                Drop(new AetheriaRuntimeLoadoutItemCommit
-                {
-                    ItemKey = target.HullItemKey, Quality = 1, Durability = 0,
-                    Quantity = 1, Enabled = false
-                }, "equipment", -1);
             var equipment = target.Equipment ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>();
             for (var index = 0; index < equipment.Count; index++)
             {

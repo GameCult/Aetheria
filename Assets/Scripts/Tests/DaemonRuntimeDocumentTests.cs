@@ -2363,12 +2363,8 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
-    public void TerminusPilotTractorScoopsCargoFromTargetedWreck()
+    public void TractorProximityCannotCollectCargoWithoutYmirContact()
     {
-        var loot = new AetheriaRuntimeLoadoutItemSlotCommit
-        {
-            Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = "raider-salvage" }
-        };
         var pilot = new AetheriaRuntimeEntitySnapshotCommit
         {
             EntityIndex = 1,
@@ -2379,21 +2375,12 @@ public class DaemonRuntimeDocumentTests
             TractorPower = 1,
             CargoContents = new[] { new AetheriaRuntimeCargoBayLoadoutCommit() }
         };
-        var wreck = new AetheriaRuntimeEntitySnapshotCommit
+        var pickup = new AetheriaRuntimeDroppedPickupCommit
         {
-            EntityIndex = 6,
-            Kind = "ship",
-            FactionKey = "raider",
-            IsActive = false,
+            PickupIndex = 6,
             PositionX = 10,
-            CargoContents = new[]
-            {
-                new AetheriaRuntimeCargoBayLoadoutCommit { Items = new[] { loot } }
-            },
-            StatGrids = new[]
-            {
-                new AetheriaRuntimeEntityStatGridCommit { Name = "hull", Values = new[] { 0.0 } }
-            }
+            Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = "raider-salvage" },
+            LifetimeSeconds = 30
         };
         var run = new AetheriaRuntimeRunCheckpointCommit
         {
@@ -2405,7 +2392,8 @@ public class DaemonRuntimeDocumentTests
                 new AetheriaRuntimeZoneSnapshotCommit
                 {
                     ZoneIndex = 0,
-                    Entities = new[] { pilot, wreck }
+                    Entities = new[] { pilot },
+                    DroppedPickups = new[] { pickup }
                 }
             }
         };
@@ -2417,8 +2405,9 @@ public class DaemonRuntimeDocumentTests
             AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
             new PassthroughWorldPhysics());
 
-        Assert.IsTrue(pilot.CargoContents.SelectMany(bay => bay.Items).Any(slot => slot.Item.ItemKey == "raider-salvage"));
-        Assert.IsEmpty(wreck.CargoContents);
+        Assert.IsFalse(pilot.CargoContents.SelectMany(bay => bay.Items).Any(slot => slot.Item.ItemKey == "raider-salvage"));
+        Assert.AreEqual(1, run.Zones[0].DroppedPickups.Count,
+            "targeting, tractor power, and proximity must not replace a Ymir Begin contact fact");
     }
 
     [Test]
@@ -4246,9 +4235,23 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
-    public void DaemonOperationsPicksUpLootInDaemonState()
+    public void DaemonOperationsRejectsClientOwnedLootPickup()
     {
         var run = RunWithTwoEntities();
+        var zone = run.Zones[0];
+        zone.DroppedPickups = new[]
+        {
+            new AetheriaRuntimeDroppedPickupCommit
+            {
+                PickupIndex = 7,
+                PositionX = 10,
+                PositionY = 11,
+                PositionZ = 12,
+                Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = "loot-cell", Quantity = 1 },
+                LifetimeSeconds = 30
+            }
+        };
+        var cargoCount = zone.Entities[0].CargoContents[0].Items.Count;
         var command = AetheriaRuntimeDaemonCommandDocument.Create(
             AetheriaRuntimeDaemonCommandKinds.PickUpLoot,
             "codex",
@@ -4262,6 +4265,7 @@ public class DaemonRuntimeDocumentTests
         command.PositionZ = 12;
         command.ScalarValue = 1;
         command.LootPickup.ItemKey = "loot-cell";
+        command.LootPickup.PickupIndex = 7;
         command.LootPickup.Quantity = 1;
         command.LootPickup.PositionX = 10;
         command.LootPickup.PositionY = 11;
@@ -4269,12 +4273,11 @@ public class DaemonRuntimeDocumentTests
 
         var result = AetheriaRuntimeDaemonOperations.Execute(run, new[] { command });
 
-        var zone = run.Zones[0];
-        var cargo = zone.Entities[0].CargoContents[0].Items;
-        Assert.AreEqual(1, result.AppliedCommandIds.Count);
-        Assert.AreEqual(0, zone.DroppedPickups.Count);
-        Assert.AreEqual(2, cargo.Count);
-        Assert.AreEqual("loot-cell", cargo[1].Item.ItemKey);
+        Assert.AreEqual(0, result.AppliedCommandIds.Count);
+        CollectionAssert.Contains(result.RejectedCommandIds, command.CommandId);
+        Assert.AreEqual(1, zone.DroppedPickups.Count);
+        Assert.AreEqual(cargoCount, zone.Entities[0].CargoContents[0].Items.Count,
+            "client pickup commands must not mutate daemon cargo");
     }
 
     [Test]
