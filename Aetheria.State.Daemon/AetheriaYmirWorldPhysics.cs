@@ -92,8 +92,9 @@ public sealed class AetheriaYmirWorldPhysics : IAetheriaRuntimeWorldPhysics, IDi
 
         var key = new WorldKey(runId, zone.ZoneIndex);
         if (_sessions.TryGetValue(key, out var existing) &&
-            existing.LastFrameId == frameId && existing.LastSimulationStepIndex == simulationStepIndex)
-            return existing.LastResult!;
+            existing.LastFrameId == frameId && existing.LastSimulationStepIndex == simulationStepIndex &&
+            existing.LastResult != null)
+            return existing.LastResult;
         if (existing != null &&
             (frameId < existing.LastFrameId ||
              (frameId == existing.LastFrameId && simulationStepIndex < existing.LastSimulationStepIndex)))
@@ -137,8 +138,9 @@ public sealed class AetheriaYmirWorldPhysics : IAetheriaRuntimeWorldPhysics, IDi
             throw new InvalidOperationException(
                 $"Payload phase requires the retained world phase for run '{runId}' zone {zone.ZoneIndex} " +
                 $"at frame/step {frameId}/{simulationStepIndex}.");
-        if (state.LastPayloadFrameId == frameId && state.LastPayloadSimulationStepIndex == simulationStepIndex)
-            return state.LastPayloadResult!;
+        if (state.LastPayloadFrameId == frameId && state.LastPayloadSimulationStepIndex == simulationStepIndex &&
+            state.LastPayloadResult != null)
+            return state.LastPayloadResult;
         if (deltaSeconds <= 0)
             throw new ArgumentOutOfRangeException(nameof(deltaSeconds));
 

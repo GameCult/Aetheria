@@ -181,9 +181,13 @@ namespace GameCult.Aetheria.State.Verse
                     !string.IsNullOrWhiteSpace(value.FactId)))
             {
                 var entityIndex = contact.EntityAIndex >= 0 ? contact.EntityAIndex : contact.EntityBIndex;
+                var contactEntityId = contact.EntityAIndex >= 0 ? contact.EntityAId : contact.EntityBId;
                 entitiesByIndex.TryGetValue(entityIndex, out var entity);
-                var entityId = entity?.EntityId ??
-                    (contact.EntityAIndex >= 0 ? contact.EntityAId : contact.EntityBId);
+                if (entity != null && !string.Equals(contactEntityId, entity.EntityId, StringComparison.Ordinal))
+                    throw new InvalidOperationException(
+                        $"Ymir fact '{contact.FactId}' entity identity '{contactEntityId}' does not match " +
+                        $"live entity {entityIndex} identity '{entity.EntityId}'.");
+                var entityId = entity?.EntityId ?? contactEntityId;
                 var priorReceipt = AetheriaRuntimePickupContactReceipts.Find(run, contact.FactId);
                 if (priorReceipt != null)
                 {

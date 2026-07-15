@@ -2954,15 +2954,39 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         RequireEqual(1, zone.DroppedPickups.Count, "nearby pickup without a Ymir contact fact must remain in the world");
         RequireEqual(0, CargoQuantity(ship, salvage.ItemKey), "proximity must not mutate cargo");
 
+        var forgedContact = new AetheriaRuntimeWorldBeginContact
+        {
+            FactId = "ymir-fact-forged-identity",
+            EntityAIndex = 0,
+            EntityAId = "another-entity",
+            PickupIndex = 7,
+            NormalX = 1
+        };
+        var rejectedForgedIdentity = false;
+        try
+        {
+            AetheriaRuntimeDaemonTickRunner.Tick(Path.Combine(Path.GetTempPath(), "aetheria-pickup-forged-identity.cc"), run,
+                new AetheriaRuntimeDaemonTickOptions { WorldPhysics = new ScriptedWorldPhysics(forgedContact), FrameId = 2, FixedDeltaSeconds = 0.1, SimulationTimeSeconds = 0.2, Catalog = catalog, BuildPublications = false });
+        }
+        catch (InvalidOperationException)
+        {
+            rejectedForgedIdentity = true;
+        }
+        Require(rejectedForgedIdentity, "a Ymir contact whose stable identity disagrees with the live entity must fail closed");
+        RequireEqual(1, zone.DroppedPickups.Count, "forged contact identity must not remove the pickup");
+        RequireEqual(0, CargoQuantity(ship, salvage.ItemKey), "forged contact identity must not mutate cargo");
+        RequireEqual(0, run.PickupContactReceipts.Count, "forged contact identity must not mint a consumption receipt");
+
         var contact = new AetheriaRuntimeWorldBeginContact
         {
             FactId = "ymir-fact-pickup-7",
             EntityAIndex = 0,
+            EntityAId = ship.EntityId,
             PickupIndex = 7,
             NormalX = 1
         };
         AetheriaRuntimeDaemonTickRunner.Tick(Path.Combine(Path.GetTempPath(), "aetheria-pickup-contact-dedup.cc"), run,
-            new AetheriaRuntimeDaemonTickOptions { WorldPhysics = new ScriptedWorldPhysics(contact, contact), FrameId = 2, FixedDeltaSeconds = 0.1, SimulationTimeSeconds = 0.2, Catalog = catalog, BuildPublications = false });
+            new AetheriaRuntimeDaemonTickOptions { WorldPhysics = new ScriptedWorldPhysics(contact, contact), FrameId = 3, FixedDeltaSeconds = 0.1, SimulationTimeSeconds = 0.3, Catalog = catalog, BuildPublications = false });
         RequireEqual(0, zone.DroppedPickups.Count, "one Ymir contact must consume the pickup");
         RequireEqual(1, CargoQuantity(ship, salvage.ItemKey), "duplicate contact facts must commit cargo exactly once");
         RequireEqual(1, run.GameEvents.Count(value => value.Kind == "pickup.collected" && value.PickupIndex == 7),
@@ -2972,7 +2996,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
 
         zone.DroppedPickups = [new AetheriaRuntimeDroppedPickupCommit { PickupIndex = 8, PositionX = 10, Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = salvage.ItemKey, Quantity = 1 }, LifetimeSeconds = 30 }];
         AetheriaRuntimeDaemonTickRunner.Tick(Path.Combine(Path.GetTempPath(), "aetheria-pickup-expiry-smoke.cc"), run,
-            new AetheriaRuntimeDaemonTickOptions { WorldPhysics = new ScriptedWorldPhysics(), FrameId = 3, FixedDeltaSeconds = 30, SimulationTimeSeconds = 30, BuildPublications = false });
+            new AetheriaRuntimeDaemonTickOptions { WorldPhysics = new ScriptedWorldPhysics(), FrameId = 4, FixedDeltaSeconds = 30, SimulationTimeSeconds = 30, BuildPublications = false });
         RequireEqual(0, zone.DroppedPickups.Count, "pickup must expire after the fossil thirty-second lifetime");
         Require(run.GameEvents.Any(value => value.Kind == "pickup.expired" && value.PickupIndex == 8),
             "daemon lifetime owner must emit authoritative pickup expiry event");
