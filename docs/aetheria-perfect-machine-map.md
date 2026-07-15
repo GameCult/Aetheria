@@ -865,6 +865,38 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   height, and negative body splats. Released cold/warm witnesses exercise the
   persisted daemon path.
 
+### Gravity Fog Presentation Contract
+
+- Owner: Aetheria owns the gravity/fog splat values, authored volume tuning, and
+  provider shader asset. Eve Fields owns the portable splat document and
+  `field.volume3d` logical ports. EveUnity owns only the native render lifecycle.
+- Inputs: the canonical viewport splat document, logical surface-height,
+  patch-height, patch, tint, scalar/vector parameters, provider asset reference,
+  and the selected runtime asset variant's native program metadata.
+- Outputs: the generic runtime rasterizes logical field layers, executes the
+  advertised raymarch, optional temporal-history, and composite passes, and
+  presents pixels. No pass can emit gameplay state or commands.
+- Derived state: Unity materials, shader-property names, pass indices, keywords,
+  raymarch targets, ping-pong history textures, previous camera matrices, and
+  composite counters are runtime projections. They are neither daemon truth nor
+  portable Eve state.
+- Forbidden writers: the old `VolumeSampling`/`VolumeCloudRenderer` presentation
+  path, shader code, Unity cameras, and generic lowerers cannot calculate gravity,
+  move bodies, or publish world truth. EveUnity may not import an Aetheria assembly
+  or branch on Aetheria asset identities.
+- Shared paths: first frame, camera motion, reconnect, viewport resize, and warm
+  asset reuse all enter the same generic volume lifecycle. History resets on a
+  new node, program, or render size. A provider that advertises a temporal pass
+  without all required history ports fails closed.
+- Cut line: the portable surface contains logical field and parameter names only.
+  `_Nebula*`, `_PrevVP`, `_ResetHistory`, shader keywords, and pass indices live
+  exclusively in the provider's Unity asset-variant metadata.
+- Verification layer: EveUnity package tests prove two-pass compatibility,
+  complete temporal-program acceptance, partial-program rejection, and absence
+  of Aetheria assembly references. Aetheria daemon smoke proves the exact fossil
+  shader ABI is advertised outside the portable surface. A live capture is still
+  required for visual parity.
+
 ### Daemon Asset Content Delivery
 
 - Owner: the Aetheria daemon owns bundle content and serves bytes only through

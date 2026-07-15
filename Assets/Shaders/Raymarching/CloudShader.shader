@@ -267,9 +267,59 @@ Shader "Aetheria/CloudShader"
 				float4 frag(v2f i) : SV_Target
 				{
 					float3 vspos = float3(i.vsray, 1.0);
-					// float4 worldPos = mul(unity_CameraToWorld, float4(vspos, 1.0f));
-					// worldPos /= worldPos.w;
 					float4 raymarchResult = tex2D(_UndersampleCloudTex, i.uv);
+					if (_ResetHistory >= 0.5f)
+						return raymarchResult;
+
+					float distance;
+					float density;
+					float density2 = 0.0f;
+					unpack(raymarchResult.a, distance, density);
+					distance *= _ProjectionParams.z;
+
+					half outOfBound;
+					float3 previousWorldPosition = mul(
+						unity_CameraToWorld,
+						float4(normalize(vspos) * distance, 1.0f)).xyz;
+					float2 prevUV = PrevUV(float4(previousWorldPosition, 1.0f), outOfBound);
+					float4 prevSample = tex2D(_MainTex, prevUV);
+					float2 xoffset = float2(_UndersampleCloudTex_TexelSize.x, 0.0f);
+					float2 yoffset = float2(0.0f, _UndersampleCloudTex_TexelSize.y);
+					float4 m1 = 0.0f;
+					float4 m2 = 0.0f;
+
+					[unroll]
+					for (int x = -1; x <= 1; x++)
+					{
+						[unroll]
+						for (int y = -1; y <= 1; y++)
+						{
+							float4 value;
+							if (x == 0 && y == 0)
+							{
+								value = float4(raymarchResult.rgb, distance);
+							}
+							else
+							{
+								value = tex2Dlod(
+									_UndersampleCloudTex,
+									float4(i.uv + xoffset * x + yoffset * y, 0.0f, 0.0f));
+								float neighborDistance;
+								unpack(value.a, neighborDistance, density2);
+								value = float4(value.rgb, neighborDistance);
+							}
+							m1 += value;
+							m2 += value * value;
+						}
+					}
+
+					float4 mean = m1 / 9.0f;
+					float4 sigma = sqrt(abs(m2 / 9.0f - mean * mean));
+					prevSample = ClipAABB(mean - 0.5f * sigma, mean + 0.5f * sigma, prevSample);
+					raymarchResult = lerp(
+						float4(prevSample.rgb, density),
+						float4(raymarchResult.rgb, density2),
+						max(0.05f, outOfBound));
 					return 	raymarchResult;
 				}
 				ENDCG

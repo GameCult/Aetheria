@@ -226,7 +226,13 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         var shader = AetheriaRuntimeAssets.ProjectManifest(null).Assets.Single(asset =>
             asset.Ref.AssetKey == "shader.environment.gravity-fog");
         Require(shader.Ref.Metadata["unity.volume.texturePort.surfaceHeight"] == "_NebulaSurfaceHeight" &&
-                shader.Ref.Metadata["unity.volume.pass.raymarch"] == "0",
+                shader.Ref.Metadata["unity.volume.pass.raymarch"] == "0" &&
+                shader.Ref.Metadata["unity.volume.pass.temporal"] == "1" &&
+                shader.Ref.Metadata["unity.volume.pass.composite"] == "2" &&
+                shader.Ref.Metadata["unity.volume.texturePort.currentSample"] == "_UndersampleCloudTex" &&
+                shader.Ref.Metadata["unity.volume.texturePort.history"] == "_MainTex" &&
+                shader.Ref.Metadata["unity.volume.matrixPort.previousViewProjection"] == "_PrevVP" &&
+                shader.Ref.Metadata["unity.volume.floatPort.resetHistory"] == "_ResetHistory",
             "provider asset metadata must own the concrete Unity volume-program ABI projected into runtime variants");
     }
 

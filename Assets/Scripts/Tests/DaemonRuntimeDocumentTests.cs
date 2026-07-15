@@ -718,7 +718,10 @@ public class DaemonRuntimeDocumentTests
         Assert.IsTrue(assetManifest.Assets.Any(asset =>
             asset.Ref.AssetKey == "shader.environment.gravity-fog" &&
             asset.Ref.Kind == AetheriaRuntimeAssetKinds.Shader &&
-            asset.Ref.Metadata["unity.volume.texturePort.surfaceHeight"] == "_NebulaSurfaceHeight"));
+            asset.Ref.Metadata["unity.volume.texturePort.surfaceHeight"] == "_NebulaSurfaceHeight" &&
+            asset.Ref.Metadata["unity.volume.pass.temporal"] == "1" &&
+            asset.Ref.Metadata["unity.volume.texturePort.currentSample"] == "_UndersampleCloudTex" &&
+            asset.Ref.Metadata["unity.volume.texturePort.history"] == "_MainTex"));
         Assert.IsTrue(assetManifest.Assets.Any(asset =>
             asset.Ref.AssetKey == "texture.environment.volume-dither" &&
             asset.Ref.Kind == AetheriaRuntimeAssetKinds.Texture));
