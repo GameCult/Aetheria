@@ -511,6 +511,11 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 world.Props["lookModel"] == "planar-yaw.v1" &&
                 world.Props["lookSensitivityRadians"] == "-0.001",
             "playable world must advertise the daemon-owned continuous look command and fossil pointer response");
+        Require(world.Props["skyboxAssetRef"] == "material.environment.skybox" &&
+                world.Props["reflectionAssetRef"] == "texture.environment.reflection" &&
+                world.Props["reflectionIntensity"] == "1" &&
+                world.Props["ambientLightIntensity"] == "1.46",
+            "playable world must advertise the provider-owned fossil skybox and ambient response");
         Require(aim.Props["controlledEntityIndex"] == "0" &&
                 aim.Props["convergenceTargetEntityId"] == run.EntityRecordKey(0, 1) &&
                 aim.Props["minimumConvergenceDistance"] == "50",
@@ -681,6 +686,20 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         RequireNear(30, behavior.Fields.Single(field => field.Key == 27).Value.NumberValue, 0.000001,
             "catalog mine must retain thirty-second lifetime");
         var manifest = AetheriaRuntimeAssets.ProjectManifest(catalog);
+        var skybox = manifest.Assets.Single(value => value.Ref.AssetKey == "material.environment.skybox");
+        RequireEqual(AetheriaRuntimeAssetKinds.Material, skybox.Ref.Kind,
+            "provider must type the fossil skybox as a native material asset");
+        RequireEqual("environment.skybox", skybox.Ref.Metadata["presentationRole"],
+            "provider must advertise the generic skybox presentation role");
+        RequireEqual("Assets/Materials/Skybox.mat", skybox.Ref.Metadata["unityAssetPath"],
+            "provider bundle must own the fossil skybox material");
+        var reflection = manifest.Assets.Single(value => value.Ref.AssetKey == "texture.environment.reflection");
+        RequireEqual(AetheriaRuntimeAssetKinds.Texture, reflection.Ref.Kind,
+            "provider must type the pre-generated environment map as a texture asset");
+        RequireEqual("environment.reflection", reflection.Ref.Metadata["presentationRole"],
+            "provider must advertise the generic reflection presentation role");
+        RequireEqual("Assets/Textures/studio2.hdr", reflection.Ref.Metadata["unityAssetPath"],
+            "provider bundle must own the pre-generated reflection map without an importer plugin");
         var asset = manifest.Assets.Single(value => value.Ref.AssetKey == "prefab.entity.mine");
         RequireEqual("physical-payload.mine", asset.Ref.Metadata["presentationRole"],
             "provider must advertise the script-free mine presentation role");

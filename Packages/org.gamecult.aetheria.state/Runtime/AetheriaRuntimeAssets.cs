@@ -25,6 +25,8 @@ namespace GameCult.Aetheria.State.Verse
             string baseUri = "cultmesh://aetheria.local/assets")
         {
             var entries = new Dictionary<string, AetheriaRuntimeAssetManifestEntry>(StringComparer.Ordinal);
+            Add(entries, EnvironmentSkyboxMaterial());
+            Add(entries, EnvironmentReflectionCubemap());
             Add(entries, MapIcon("entity.player", "Player", "Sprites/Icons/Stroked/Ship"));
             Add(entries, MapIcon("entity.ship", "Ship", "Sprites/Icons/Stroked/Ship"));
             Add(entries, MapIcon("entity.orbital", "Orbital", "Sprites/Icons/Stroked/orbital"));
@@ -161,6 +163,46 @@ namespace GameCult.Aetheria.State.Verse
                     Ref = InventoryThermalLayerAtlas(),
                     Tags = new[] { "inventory", "thermal", "layer", "atlas" }
                 }
+            };
+        }
+
+        public static AetheriaRuntimeAssetManifestEntry EnvironmentSkyboxMaterial()
+        {
+            return new AetheriaRuntimeAssetManifestEntry
+            {
+                Ref = new AetheriaRuntimeAssetRef
+                {
+                    AssetKey = "material.environment.skybox",
+                    Kind = AetheriaRuntimeAssetKinds.Material,
+                    Uri = CultMeshAssetUri("material.environment.skybox"),
+                    MimeType = "application/vnd.unity.material",
+                    Metadata = new Dictionary<string, string>(StringComparer.Ordinal)
+                    {
+                        ["unityAssetPath"] = "Assets/Materials/Skybox.mat",
+                        ["presentationRole"] = "environment.skybox"
+                    }
+                },
+                Tags = new[] { "presentation", "environment", "skybox" }
+            };
+        }
+
+        public static AetheriaRuntimeAssetManifestEntry EnvironmentReflectionCubemap()
+        {
+            return new AetheriaRuntimeAssetManifestEntry
+            {
+                Ref = new AetheriaRuntimeAssetRef
+                {
+                    AssetKey = "texture.environment.reflection",
+                    Kind = AetheriaRuntimeAssetKinds.Texture,
+                    Uri = CultMeshAssetUri("texture.environment.reflection"),
+                    MimeType = "image/vnd.radiance",
+                    Metadata = new Dictionary<string, string>(StringComparer.Ordinal)
+                    {
+                        ["unityAssetPath"] = "Assets/Textures/studio2.hdr",
+                        ["presentationRole"] = "environment.reflection"
+                    }
+                },
+                Tags = new[] { "presentation", "environment", "reflection", "pre-generated" }
             };
         }
 

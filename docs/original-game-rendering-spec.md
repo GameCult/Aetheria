@@ -92,6 +92,20 @@ Material profiles describe intent such as opaque PBR, transparent, additive,
 field, shield, and celestial. They expose typed parameters and texture slots;
 they do not publish Unity shader names as portable authority.
 
+The current native environment seed packages the authored procedural skybox
+material at `Assets/Materials/Skybox.mat` and the pre-generated Radiance image
+at `Assets/Textures/studio2.hdr`. The HDR source is 4096 by 2048 pixels with
+SHA-256 `A2886F1024F67DCB082DA3C97741B4B0824A2E784A697807DBE5DCEB597F85E0`;
+it entered the reference project in commit `b53e4aec` on 2021-02-26. The
+repository contains no external license attribution for that file, so its
+redistribution clearance remains unverified. Treat it as migration material,
+not a provenance claim.
+
+Texture generation is an offline authoring concern. Aetheria consumes packaged,
+pre-generated textures today; the intended authoring path moves baking into
+Blender. Neither the daemon nor generic Eve runtimes depend on Substance
+archives or a Substance importer.
+
 ## Effects
 
 Effects are semantic burst, loop, beam, trail, impact, shield-hit, destruction,

@@ -499,13 +499,28 @@ namespace Aetheria.Editor
                 throw new InvalidOperationException($"Aetheria Eve bundle could not be loaded: {bundlePath}");
             try
             {
-                foreach (var assetPath in bundle.GetAllAssetNames().Where(path => path.EndsWith(".prefab", StringComparison.OrdinalIgnoreCase)))
+                var assetNames = bundle.GetAllAssetNames();
+                foreach (var assetPath in assetNames.Where(path => path.EndsWith(".prefab", StringComparison.OrdinalIgnoreCase)))
                     VerifyPrefab(bundle.LoadAsset<GameObject>(assetPath), assetPath);
+                var skybox = LoadAuthoredAsset<Material>(bundle, assetNames, "Assets/Materials/Skybox.mat");
+                if (skybox == null || skybox.shader == null || !skybox.shader.isSupported)
+                    throw new InvalidOperationException("Aetheria Eve bundle has no supported provider skybox material.");
+                var reflection = LoadAuthoredAsset<Cubemap>(bundle, assetNames, "Assets/Textures/studio2.hdr");
+                if (reflection == null)
+                    throw new InvalidOperationException("Aetheria Eve bundle has no provider reflection cubemap.");
             }
             finally
             {
                 bundle.Unload(true);
             }
+        }
+
+        private static T LoadAuthoredAsset<T>(AssetBundle bundle, IEnumerable<string> assetNames, string authoredPath)
+            where T : UnityEngine.Object
+        {
+            var nativePath = assetNames.FirstOrDefault(path =>
+                string.Equals(path, authoredPath, StringComparison.OrdinalIgnoreCase));
+            return string.IsNullOrWhiteSpace(nativePath) ? null : bundle.LoadAsset<T>(nativePath);
         }
     }
 }
