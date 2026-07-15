@@ -565,13 +565,15 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 world.Props["lookModel"] == "planar-yaw.v1" &&
                 world.Props["lookSensitivityRadians"] == "-0.001",
             "playable world must advertise the daemon-owned continuous look command and fossil pointer response");
-        Require(world.Props["cameraRig"] == "planar.top-down-follow.v1" &&
-                world.Props["cameraDistance"] == "70" &&
+        Require(world.Props["cameraRig"] == "perspective.entity-forward-follow.v1" &&
+                world.Props["cameraDistance"] == "30" &&
                 world.Props["cameraVerticalFieldOfViewDegrees"] == "60" &&
-                world.Props["cameraTargetScreenX"] == "0.66" &&
-                world.Props["cameraTargetScreenY"] == "0.55" &&
-                world.Props["cameraPositionDamping"] == "2",
-            "playable world must preserve the authored ARPG follow-camera composition rather than TestScene tuning");
+                world.Props["cameraTargetScreenX"] == "0.64" &&
+                world.Props["cameraTargetScreenY"] == "0.81" &&
+                world.Props["cameraPositionDamping"] == "0" &&
+                world.Props["cameraNearClipPlane"] == "1" &&
+                world.Props["cameraFarClipPlane"] == "4096",
+            "undocked world must preserve the authored ARPG Third Person Rig rather than the distinct Docked Rig");
         Require(world.Props["skyboxAssetRef"] == "material.environment.skybox" &&
                 world.Props["reflectionAssetRef"] == "texture.environment.reflection" &&
                 world.Props["reflectionIntensity"] == "1" &&

@@ -865,6 +865,24 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   height, and negative body splats. Released cold/warm witnesses exercise the
   persisted daemon path.
 
+### Pilot Camera Presentation Contract
+
+- Owner: the Aetheria daemon selects camera semantics from authoritative dock
+  state and publishes the fossil framing and lens values. EveUnity owns only the
+  native camera projection.
+- Inputs: controlled entity identity and rotation, dock parentage, presentation
+  mode, distance, field of view, target screen position, damping, and clip planes.
+- Outputs: undocked flight uses `perspective.entity-forward-follow.v1` with the
+  fossil `Third Person Rig` values. Docked presentation remains a distinct mode
+  and cannot lend its framing to flight.
+- Derived state: Unity camera position, rotation, matrices, culling mask, and
+  temporal fog history are presentation state.
+- Forbidden writers: Unity cameras cannot choose dock state, alter entity look
+  direction, or infer an Aetheria camera from product types. The old scene and
+  Cinemachine components are reference evidence, not runtime authorities.
+- Cut line: the unconditional `planar.top-down-follow.v1` projection no longer
+  collapses the fossil dock and flight cameras into one false top-down view.
+
 ### Gravity Fog Presentation Contract
 
 - Owner: Aetheria owns the gravity/fog splat values, authored volume tuning, and
