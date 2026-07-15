@@ -5,12 +5,14 @@ using System.Collections.Generic;
 using GameCult.Aetheria.State.Verse;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace Aetheria.Editor
 {
     public static class EveAssetBundleBuilder
     {
         public const string BundleName = "aetheria-world";
+        private const string ProviderMaterialsRoot = "Assets/Generated/Eve/ProviderMaterials";
 
         public static void BuildWindows()
         {
@@ -33,6 +35,7 @@ namespace Aetheria.Editor
             foreach (var entry in assets.Where(entry =>
                          string.Equals(entry.Ref.Kind, AetheriaRuntimeAssetKinds.Prefab, StringComparison.Ordinal)))
                 BuildPresentationPrefab(entry);
+            AssetDatabase.SaveAssets();
 
             var assetNames = assets
                 .Select(entry => entry.Ref.Metadata.TryGetValue("bundleAssetPath", out var presentationPath)
@@ -92,6 +95,8 @@ namespace Aetheria.Editor
             try
             {
                 StripNonPresentationScripts(root);
+                StripPresentationPhysics(root);
+                NormalizePresentationMaterials(root);
                 VerifyPrefab(root, outputPath);
                 PrefabUtility.SaveAsPrefabAsset(root, outputPath, out var saved);
                 if (!saved)
@@ -125,6 +130,334 @@ namespace Aetheria.Editor
                    assemblyName.StartsWith("GameCult.Eve", StringComparison.Ordinal);
         }
 
+        private static void StripPresentationPhysics(GameObject root)
+        {
+            foreach (var collider in root.GetComponentsInChildren<Collider>(true))
+                UnityEngine.Object.DestroyImmediate(collider, true);
+            foreach (var body in root.GetComponentsInChildren<Rigidbody>(true))
+                UnityEngine.Object.DestroyImmediate(body, true);
+        }
+
+        private static void NormalizePresentationMaterials(GameObject root)
+        {
+            Directory.CreateDirectory(ProviderMaterialsRoot);
+            var generated = new Dictionary<string, Material>(StringComparer.Ordinal);
+            foreach (var renderer in root.GetComponentsInChildren<Renderer>(true))
+            {
+                var materials = renderer.sharedMaterials;
+                for (var index = 0; index < materials.Length; index++)
+                {
+                    var source = materials[index];
+                    var particle = renderer is ParticleSystemRenderer || renderer is TrailRenderer || renderer is LineRenderer;
+                    if (source == null)
+                    {
+                        var defaultKey = particle ? "default-particle" : "default-lit";
+                        if (!generated.TryGetValue(defaultKey, out var defaultMaterial))
+                        {
+                            defaultMaterial = CreateDefaultPresentationMaterial(particle, defaultKey);
+                            generated.Add(defaultKey, defaultMaterial);
+                        }
+                        materials[index] = defaultMaterial;
+                        continue;
+                    }
+                    if (IsUniversalMaterial(source))
+                        continue;
+
+                    var key = PresentationMaterialKey(source, particle);
+                    if (!generated.TryGetValue(key, out var replacement))
+                    {
+                        replacement = CreatePresentationMaterial(source, particle, key);
+                        generated.Add(key, replacement);
+                    }
+                    materials[index] = replacement;
+                }
+                renderer.sharedMaterials = materials;
+            }
+        }
+
+        private static Material CreateDefaultPresentationMaterial(bool particle, string key)
+        {
+            var shaderName = particle
+                ? "Universal Render Pipeline/Particles/Unlit"
+                : "Universal Render Pipeline/Lit";
+            var shader = Shader.Find(shaderName);
+            if (shader == null || !shader.isSupported)
+                throw new InvalidOperationException($"Aetheria provider presentation shader is unavailable: {shaderName}");
+
+            var assetPath = $"{ProviderMaterialsRoot}/{key}.mat";
+            var material = AssetDatabase.LoadAssetAtPath<Material>(assetPath);
+            if (material == null)
+            {
+                material = new Material(shader);
+                AssetDatabase.CreateAsset(material, assetPath);
+            }
+            else
+            {
+                var clean = new Material(shader);
+                EditorUtility.CopySerialized(clean, material);
+                UnityEngine.Object.DestroyImmediate(clean);
+            }
+            material.name = "Eve URP Default";
+            if (material.HasProperty("_BaseColor")) material.SetColor("_BaseColor", Color.white);
+            if (material.HasProperty("_Surface")) material.SetFloat("_Surface", particle ? 1f : 0f);
+            if (particle)
+            {
+                material.SetFloat("_SrcBlend", (float)BlendMode.SrcAlpha);
+                material.SetFloat("_DstBlend", (float)BlendMode.OneMinusSrcAlpha);
+                material.SetFloat("_ZWrite", 0f);
+                material.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+                material.renderQueue = (int)RenderQueue.Transparent;
+            }
+            EditorUtility.SetDirty(material);
+            return material;
+        }
+
+        private static Material CreatePresentationMaterial(Material source, bool particle, string key)
+        {
+            var shaderName = particle
+                ? "Universal Render Pipeline/Particles/Unlit"
+                : "Universal Render Pipeline/Lit";
+            var shader = Shader.Find(shaderName);
+            if (shader == null || !shader.isSupported)
+                throw new InvalidOperationException($"Aetheria provider presentation shader is unavailable: {shaderName}");
+
+            var assetPath = $"{ProviderMaterialsRoot}/{key}.mat";
+            var material = AssetDatabase.LoadAssetAtPath<Material>(assetPath);
+            if (material == null)
+            {
+                material = new Material(shader);
+                AssetDatabase.CreateAsset(material, assetPath);
+            }
+            else
+            {
+                var clean = new Material(shader);
+                EditorUtility.CopySerialized(clean, material);
+                UnityEngine.Object.DestroyImmediate(clean);
+            }
+
+            material.name = source.name + " (Eve URP)";
+            CopyTexture(source, material, "_BaseMap", "_BaseMap", "_MainTex");
+            CopyColorOrWhite(source, material, "_BaseColor", "_BaseColor", "_Color", "_TintColor");
+            CopyFloat(source, material, "_Metallic", "_Metallic");
+            CopyFloat(source, material, "_Smoothness", "_Smoothness", "_Glossiness");
+            CopyTexture(source, material, "_MetallicGlossMap", "_MetallicGlossMap");
+            CopyTexture(source, material, "_BumpMap", "_BumpMap");
+            CopyFloat(source, material, "_BumpScale", "_BumpScale");
+            CopyTexture(source, material, "_OcclusionMap", "_OcclusionMap");
+            CopyFloat(source, material, "_OcclusionStrength", "_OcclusionStrength");
+            CopyTexture(source, material, "_EmissionMap", "_EmissionMap");
+            var emission = FirstNonBlackColor(source, "_EmissionColor", "_EdgeColor");
+            if (material.HasProperty("_EmissionColor"))
+                material.SetColor("_EmissionColor", emission);
+            if (emission.maxColorComponent > 0.001f ||
+                (material.HasProperty("_EmissionMap") && material.GetTexture("_EmissionMap") != null))
+                material.EnableKeyword("_EMISSION");
+            if (material.HasProperty("_BumpMap") && material.GetTexture("_BumpMap") != null)
+                material.EnableKeyword("_NORMALMAP");
+            if (material.HasProperty("_MetallicGlossMap") && material.GetTexture("_MetallicGlossMap") != null)
+                material.EnableKeyword("_METALLICSPECGLOSSMAP");
+
+            ConfigureSurface(source, material, particle);
+            EditorUtility.SetDirty(material);
+            return material;
+        }
+
+        private static void ConfigureSurface(Material source, Material target, bool particle)
+        {
+            var transparent = particle || source.renderQueue >= (int)RenderQueue.Transparent ||
+                (source.HasProperty("_Mode") && source.GetFloat("_Mode") > 0.5f) ||
+                string.Equals(source.GetTag("RenderType", false, ""), "Transparent", StringComparison.OrdinalIgnoreCase);
+            if (!target.HasProperty("_Surface"))
+                return;
+
+            var shaderName = source.shader?.name ?? "";
+            var sourceBlend = source.HasProperty("_SrcBlend") ? (BlendMode)source.GetFloat("_SrcBlend") : BlendMode.SrcAlpha;
+            var destinationBlend = source.HasProperty("_DstBlend") ? (BlendMode)source.GetFloat("_DstBlend") : BlendMode.OneMinusSrcAlpha;
+            var hasSavedMode = TryGetSavedFloat(source, "_Mode", out var savedMode);
+            var additive = shaderName.IndexOf("Additive", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                (hasSavedMode && savedMode >= 3.5f) ||
+                (transparent && destinationBlend == BlendMode.One);
+            var premultiplied = !additive &&
+                (shaderName.IndexOf("Premultiply", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                 (transparent && sourceBlend == BlendMode.One && destinationBlend == BlendMode.OneMinusSrcAlpha));
+            target.SetFloat("_Surface", transparent ? 1f : 0f);
+            if (target.HasProperty("_Blend"))
+                target.SetFloat("_Blend", additive ? 2f : premultiplied ? 1f : 0f);
+            target.SetFloat("_SrcBlend", transparent
+                ? (float)(premultiplied ? BlendMode.One : BlendMode.SrcAlpha)
+                : (float)BlendMode.One);
+            target.SetFloat("_DstBlend", transparent
+                ? (float)(additive ? BlendMode.One : BlendMode.OneMinusSrcAlpha)
+                : (float)BlendMode.Zero);
+            target.SetFloat("_ZWrite", transparent ? 0f : 1f);
+            target.renderQueue = transparent ? (int)RenderQueue.Transparent : -1;
+            if (transparent)
+                target.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+            else
+                target.DisableKeyword("_SURFACE_TYPE_TRANSPARENT");
+        }
+
+        private static bool TryGetSavedFloat(Material material, string propertyName, out float value)
+        {
+            var serialized = new SerializedObject(material);
+            var floats = serialized.FindProperty("m_SavedProperties.m_Floats");
+            if (floats != null)
+            {
+                for (var index = 0; index < floats.arraySize; index++)
+                {
+                    var entry = floats.GetArrayElementAtIndex(index);
+                    if (!string.Equals(entry.FindPropertyRelative("first")?.stringValue, propertyName, StringComparison.Ordinal))
+                        continue;
+                    value = entry.FindPropertyRelative("second").floatValue;
+                    return true;
+                }
+            }
+            value = 0f;
+            return false;
+        }
+
+        private static bool IsUniversalMaterial(Material material) =>
+            material.shader != null && material.shader.isSupported &&
+            (material.shader.name.StartsWith("Universal Render Pipeline/", StringComparison.Ordinal) ||
+             string.Equals(material.GetTag("RenderPipeline", true, ""), "UniversalPipeline", StringComparison.Ordinal));
+
+        private static string PresentationMaterialKey(Material material, bool particle)
+        {
+            if (!AssetDatabase.TryGetGUIDAndLocalFileIdentifier(material, out string guid, out long localId))
+                throw new InvalidOperationException($"Provider material has no stable asset identity: {material.name}");
+            return $"{guid}-{localId}-{(particle ? "particle" : "lit")}";
+        }
+
+        private static void CopyTexture(Material source, Material target, string targetProperty, params string[] sourceProperties)
+        {
+            if (!target.HasProperty(targetProperty)) return;
+            foreach (var sourceProperty in sourceProperties)
+            {
+                if (!TryGetSourceTexture(source, sourceProperty, out var texture, out var scale, out var offset)) continue;
+                target.SetTexture(targetProperty, texture);
+                target.SetTextureScale(targetProperty, scale);
+                target.SetTextureOffset(targetProperty, offset);
+                return;
+            }
+        }
+
+        private static void CopyColor(Material source, Material target, string targetProperty, params string[] sourceProperties)
+        {
+            if (!target.HasProperty(targetProperty)) return;
+            foreach (var sourceProperty in sourceProperties)
+            {
+                if (!TryGetSourceColor(source, sourceProperty, out var color)) continue;
+                target.SetColor(targetProperty, color);
+                return;
+            }
+        }
+
+        private static void CopyColorOrWhite(Material source, Material target, string targetProperty, params string[] sourceProperties)
+        {
+            if (!target.HasProperty(targetProperty)) return;
+            foreach (var sourceProperty in sourceProperties)
+            {
+                if (!TryGetSourceColor(source, sourceProperty, out var color)) continue;
+                target.SetColor(targetProperty, color);
+                return;
+            }
+            target.SetColor(targetProperty, Color.white);
+        }
+
+        private static Color FirstNonBlackColor(Material source, params string[] sourceProperties)
+        {
+            foreach (var sourceProperty in sourceProperties)
+            {
+                if (!TryGetSourceColor(source, sourceProperty, out var color)) continue;
+                if (color.maxColorComponent > 0.001f) return color;
+            }
+            return Color.black;
+        }
+
+        private static void CopyFloat(Material source, Material target, string targetProperty, params string[] sourceProperties)
+        {
+            if (!target.HasProperty(targetProperty)) return;
+            foreach (var sourceProperty in sourceProperties)
+            {
+                if (!TryGetSourceFloat(source, sourceProperty, out var value)) continue;
+                target.SetFloat(targetProperty, value);
+                return;
+            }
+        }
+
+        private static bool TryGetSourceFloat(Material material, string propertyName, out float value)
+        {
+            if (material.HasProperty(propertyName))
+            {
+                value = material.GetFloat(propertyName);
+                return true;
+            }
+            return TryGetSavedFloat(material, propertyName, out value);
+        }
+
+        private static bool TryGetSourceColor(Material material, string propertyName, out Color value)
+        {
+            if (material.HasProperty(propertyName))
+            {
+                value = material.GetColor(propertyName);
+                return true;
+            }
+
+            var serialized = new SerializedObject(material);
+            var colors = serialized.FindProperty("m_SavedProperties.m_Colors");
+            if (colors != null)
+            {
+                for (var index = 0; index < colors.arraySize; index++)
+                {
+                    var entry = colors.GetArrayElementAtIndex(index);
+                    if (!string.Equals(entry.FindPropertyRelative("first")?.stringValue, propertyName, StringComparison.Ordinal))
+                        continue;
+                    value = entry.FindPropertyRelative("second").colorValue;
+                    return true;
+                }
+            }
+            value = Color.black;
+            return false;
+        }
+
+        private static bool TryGetSourceTexture(
+            Material material,
+            string propertyName,
+            out Texture texture,
+            out Vector2 scale,
+            out Vector2 offset)
+        {
+            if (material.HasProperty(propertyName))
+            {
+                texture = material.GetTexture(propertyName);
+                scale = material.GetTextureScale(propertyName);
+                offset = material.GetTextureOffset(propertyName);
+                if (texture != null)
+                    return true;
+            }
+
+            var serialized = new SerializedObject(material);
+            var textures = serialized.FindProperty("m_SavedProperties.m_TexEnvs");
+            if (textures != null)
+            {
+                for (var index = 0; index < textures.arraySize; index++)
+                {
+                    var entry = textures.GetArrayElementAtIndex(index);
+                    if (!string.Equals(entry.FindPropertyRelative("first")?.stringValue, propertyName, StringComparison.Ordinal))
+                        continue;
+                    var value = entry.FindPropertyRelative("second");
+                    texture = value.FindPropertyRelative("m_Texture").objectReferenceValue as Texture;
+                    scale = value.FindPropertyRelative("m_Scale").vector2Value;
+                    offset = value.FindPropertyRelative("m_Offset").vector2Value;
+                    return texture != null;
+                }
+            }
+            texture = null;
+            scale = Vector2.one;
+            offset = Vector2.zero;
+            return false;
+        }
+
         private static void VerifyPrefab(GameObject root, string assetPath)
         {
             if (root == null)
@@ -141,6 +474,16 @@ namespace Aetheria.Editor
                     if (behaviour != null && !IsPresentationAssembly(behaviour.GetType().Assembly.GetName().Name))
                         violations.Add($"{transform.name}: {behaviour.GetType().FullName}");
                 }
+                foreach (var material in transform.GetComponents<Renderer>()
+                             .SelectMany(renderer => renderer.sharedMaterials))
+                {
+                    if (material == null)
+                        violations.Add($"{transform.name}: null material");
+                    else if (!IsUniversalMaterial(material))
+                        violations.Add($"{transform.name}: unsupported presentation shader {material.shader?.name ?? "<null>"}");
+                }
+                if (transform.GetComponent<Collider>() != null || transform.GetComponent<Rigidbody>() != null)
+                    violations.Add($"{transform.name}: gameplay physics component");
             }
             if (violations.Count > 0)
                 throw new InvalidOperationException(
