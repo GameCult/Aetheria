@@ -655,6 +655,7 @@ namespace GameCult.Aetheria.State.Verse
             var aimPresentation = AimPresentation(run, zone, playerEntityId);
             if (aimPresentation != null)
                 presentationChildren.Insert(0, aimPresentation);
+            presentationChildren.Insert(0, GravityFogVolume("aetheria.daemon.game.world.gravity-fog"));
 
             return new AetheriaRuntimeSurfaceComponent(
                 id,
@@ -675,6 +676,40 @@ namespace GameCult.Aetheria.State.Verse
                 {
                     ["background"] = "transparent"
                 });
+        }
+
+        private static AetheriaRuntimeSurfaceComponent GravityFogVolume(string id)
+        {
+            var viewport = DefaultViewport();
+            var props = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["label"] = "Gravity-shaped volumetric fog",
+                ["documentRef"] = ViewportDocumentId("aetheria.viewport.render_splats", viewport),
+                ["documentSchema"] = AetheriaRuntimeDaemonSchemas.RenderSplatsViewport,
+                ["materialAssetRef"] = "shader.environment.gravity-fog",
+                ["renderChannel"] = "world.transparent",
+                ["compositeMode"] = "premultiplied-alpha",
+                ["quality"] = "high",
+                ["features"] = "flow.global;noise.slope",
+                ["textureWidth"] = "1024",
+                ["textureHeight"] = "1024",
+                ["downsample"] = "0",
+                ["layerBindings"] = "gravity.height=surfaceHeight;fog.patch_height=patchHeight;fog.patch=patch;fog.tint=tint",
+                ["assetTextureBindings"] = "texture.environment.volume-dither=dither",
+                ["vectorParameters"] = "ditherCoordinates=0,0,0,0",
+                ["floatParameters"] = "fillDensity=0.000000001;fillDistance=120;fillExponent=5;fillOffset=70;" +
+                    "patchDensity=0.35;floorOffset=-20;floorBlend=10;patchBlend=25;luminance=1;extinction=0.5;" +
+                    "tintLodExponent=-0.45;safetyDistance=30;flowScale=512;flowAmplitude=15;flowPeriod=8;" +
+                    "flowSlopeAmplitude=0;flowSwirlAmplitude=0;noiseScale=414.2167;noiseAmplitude=-36.17;" +
+                    "noiseExponent=-0.25;noiseSpeed=0.0025;noiseSlopeExponent=0.15;dynamicSkyBoost=2;" +
+                    "dynamicLodHigh=7;dynamicLodLow=2;dynamicIntensity=0.5;compositeOpacity=0.3"
+            };
+            return new AetheriaRuntimeSurfaceComponent(
+                id,
+                "field.volume3d",
+                props,
+                Array.Empty<AetheriaRuntimeSurfaceComponent>(),
+                AetheriaRuntimeSurfaceStateBindings.FromProps(props));
         }
 
         private static AetheriaRuntimeSurfaceComponent? AimPresentation(

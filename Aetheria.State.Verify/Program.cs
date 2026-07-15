@@ -791,9 +791,10 @@ static void RequireSharedEvePackagesImportedFromEveRepo(string root)
 
     var requiredManifestSymbols = new[]
     {
-        "\"org.gamecult.cultlib\": \"https://github.com/GameCult/CultLib.git?path=/unity/org.gamecult.cultlib#cultlib-unity-v1.0.9\"",
-        "\"org.gamecult.eve.surface\": \"https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.surface#eveunity-surface-v0.2.0\"",
-        "\"org.gamecult.eve.unity-scene\": \"https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.unity-scene#eveunity-scene-v0.2.3\""
+        "\"org.gamecult.cultlib\": \"https://github.com/GameCult/CultLib.git?path=/unity/org.gamecult.cultlib#cultlib-unity-v1.0.13\"",
+        "\"org.gamecult.eve.plugin-fields\": \"https://github.com/GameCult/EvePlugins.git?path=/plugins/eve-plugin-fields/unity/org.gamecult.eve.plugin-fields#eve-plugin-fields-unity-v0.2.0\"",
+        "\"org.gamecult.eve.surface\": \"https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.surface#eveunity-surface-v0.2.2\"",
+        "\"org.gamecult.eve.unity-scene\": \"https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.unity-scene#eveunity-scene-v0.3.37\""
     };
 
     var missingManifestSymbols = requiredManifestSymbols
@@ -809,9 +810,10 @@ static void RequireSharedEvePackagesImportedFromEveRepo(string root)
 
     var requiredLockSymbols = new[]
     {
-        "cultlib-unity-v1.0.9",
-        "eveunity-surface-v0.2.0",
-        "eveunity-scene-v0.2.3",
+        "cultlib-unity-v1.0.13",
+        "eve-plugin-fields-unity-v0.2.0",
+        "eveunity-surface-v0.2.2",
+        "eveunity-scene-v0.3.37",
         "\"source\": \"git\""
     };
 
@@ -8141,7 +8143,7 @@ static void RequireUnitySharedDocumentAccessorErgonomics(string root)
     var forbiddenMapRendererSharedDocumentSymbols = new[]
     {
         "CultMeshReactiveDocument<AetheriaRuntimeObjectsViewportDocument> _objectsViewport",
-        "CultMeshReactiveDocument<AetheriaRuntimeRenderSplatsViewportDocument> _renderSplatsViewport",
+        "CultMeshReactiveDocument<EveFieldsSplatsDocument> _renderSplatsViewport",
         ".ReactiveObjectsViewport(viewport, \"unity-map-renderer\")",
         ".ReactiveRenderSplatsViewport(viewport, \"unity-map-renderer\")",
         "AetheriaRuntimeObjectsViewportSession _objectsViewport",
@@ -8653,7 +8655,7 @@ static void RequireUnityViewportAndMapReadsUseManagedAccessors(string root)
     var requiredClientSymbols = new[]
     {
         "public CultMeshDocumentHandle<AetheriaRuntimeObjectsViewportDocument> ObjectsViewport(",
-        "public CultMeshDocumentHandle<AetheriaRuntimeRenderSplatsViewportDocument> RenderSplatsViewport(",
+        "public CultMeshDocumentHandle<EveFieldsSplatsDocument> RenderSplatsViewport(",
         "public CultMeshDocumentHandle<AetheriaRuntimeZoneDetailsDocument> ZoneDetails("
     };
     var missingClientSymbols = requiredClientSymbols
@@ -8669,7 +8671,7 @@ static void RequireUnityViewportAndMapReadsUseManagedAccessors(string root)
     var forbiddenClientSymbols = new[]
     {
         "public CultMeshReactiveDocument<AetheriaRuntimeObjectsViewportDocument> ReactiveObjectsViewport(",
-        "public CultMeshReactiveDocument<AetheriaRuntimeRenderSplatsViewportDocument> ReactiveRenderSplatsViewport(",
+        "public CultMeshReactiveDocument<EveFieldsSplatsDocument> ReactiveRenderSplatsViewport(",
         "public CultMeshReactiveDocument<AetheriaRuntimeZoneDetailsDocument> ReactiveZoneDetails("
     };
     var survivingClientSymbols = forbiddenClientSymbols
@@ -8761,7 +8763,7 @@ static void RequireUnityViewportAndMapReadsUseManagedAccessors(string root)
             string.Join(", ", missingRenderSplatViewportSourceSymbols));
     }
 
-    if (renderSplatViewportSource.Contains("CultMeshReactiveDocument<AetheriaRuntimeRenderSplatsViewportDocument> _renderSplatsViewport", StringComparison.Ordinal) ||
+    if (renderSplatViewportSource.Contains("CultMeshReactiveDocument<EveFieldsSplatsDocument> _renderSplatsViewport", StringComparison.Ordinal) ||
         renderSplatViewportSource.Contains(".ReactiveRenderSplatsViewport(", StringComparison.Ordinal) ||
         renderSplatViewportSource.Contains("AetheriaRuntimeRenderSplatsViewportSession _renderSplatsViewport", StringComparison.Ordinal) ||
         renderSplatViewportSource.Contains(".ObserveRenderSplats(viewport)", StringComparison.Ordinal))
@@ -8772,7 +8774,7 @@ static void RequireUnityViewportAndMapReadsUseManagedAccessors(string root)
 
     if (renderSplatViewportSource.Contains("_fallbackRenderSplatsViewport", StringComparison.Ordinal) ||
         renderSplatViewportSource.Contains("EmptyRenderSplatsViewport", StringComparison.Ordinal) ||
-        renderSplatViewportSource.Contains("new AetheriaRuntimeRenderSplatsViewportDocument", StringComparison.Ordinal))
+        renderSplatViewportSource.Contains("new EveFieldsSplatsDocument", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "AetheriaUnityRenderSplatViewportSource must not fabricate renderer-local render splat documents; daemon/CultMesh viewport documents own render fields.");
@@ -8893,7 +8895,7 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
         "public CultMeshDocumentHandle<AetheriaRuntimeGameViewportDocument> GameViewport(",
         "public CultMeshDocumentHandle<AetheriaRuntimeObjectsViewportDocument> ObjectsViewport(",
         "public CultMeshDocumentHandle<AetheriaRuntimeGravityViewportDocument> GravityViewport(",
-        "public CultMeshDocumentHandle<AetheriaRuntimeRenderSplatsViewportDocument> RenderSplatsViewport(",
+        "public CultMeshDocumentHandle<EveFieldsSplatsDocument> RenderSplatsViewport(",
         "public CultMeshDocumentHandle<AetheriaRuntimeZoneDetailsDocument> ZoneDetails(",
         "public CultMeshDocumentHandle<AetheriaRuntimeSurfaceDocument> ZoneDetailsSurface(",
         "public CultMeshDocumentHandle<AetheriaRuntimeSurfaceDocument> InventoryPanelSurface(",
@@ -8948,7 +8950,7 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
         "public CultMeshReactiveDocument<AetheriaRuntimeGameViewportDocument> ReactiveGameViewport(",
         "public CultMeshReactiveDocument<AetheriaRuntimeObjectsViewportDocument> ReactiveObjectsViewport(",
         "public CultMeshReactiveDocument<AetheriaRuntimeGravityViewportDocument> ReactiveGravityViewport(",
-        "public CultMeshReactiveDocument<AetheriaRuntimeRenderSplatsViewportDocument> ReactiveRenderSplatsViewport(",
+        "public CultMeshReactiveDocument<EveFieldsSplatsDocument> ReactiveRenderSplatsViewport(",
         "public CultMeshReactiveDocument<AetheriaRuntimeZoneDetailsDocument> ReactiveZoneDetails(",
         "public CultMeshReactiveDocument<AetheriaRuntimeSurfaceDocument> ReactiveZoneDetailsSurface(",
         "public CultMeshReactiveDocument<AetheriaRuntimeSurfaceDocument> ReactiveInventoryPanelSurface(",
@@ -9011,7 +9013,7 @@ static void RequireAetheriaManagedStateAccessorsCoverDomainDocuments(string root
         "public AetheriaRuntimeGameViewportDocument CurrentGameViewport(",
         "public AetheriaRuntimeObjectsViewportDocument CurrentObjectsViewport(",
         "public AetheriaRuntimeGravityViewportDocument CurrentGravityViewport(",
-        "public AetheriaRuntimeRenderSplatsViewportDocument CurrentRenderSplatsViewport(",
+        "public EveFieldsSplatsDocument CurrentRenderSplatsViewport(",
         "public AetheriaRuntimeZoneDetailsDocument CurrentZoneDetails(",
         "public AetheriaRuntimeSurfaceDocument CurrentZoneDetailsSurface(",
         "public AetheriaRuntimeSurfaceDocument CurrentInventoryPanelSurface(",
@@ -10998,7 +11000,6 @@ static void RequireTypedDaemonCommandPayloads(string root)
         ["state node"] = stateNode,
         ["Unity daemon observer"] = observer,
         ["ActionGameManager"] = actionGameManager,
-        ["daemon command tests"] = tests,
         ["daemon surface commands"] = daemonSurfaceCommands
     };
     foreach (var source in liveSources)
@@ -18293,7 +18294,7 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
     if (runtimeClientProvider.Contains("public static CultMeshReactiveDocument<TDocument> Reactive<TDocument>", StringComparison.Ordinal) ||
         runtimeClientProvider.Contains("public static CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument> ReactiveZoneContacts(", StringComparison.Ordinal) ||
         runtimeClientProvider.Contains("public static CultMeshReactiveDocument<AetheriaRuntimeObjectsViewportDocument> ReactiveObjectsViewport(", StringComparison.Ordinal) ||
-        runtimeClientProvider.Contains("public static CultMeshReactiveDocument<AetheriaRuntimeRenderSplatsViewportDocument> ReactiveRenderSplatsViewport(", StringComparison.Ordinal) ||
+        runtimeClientProvider.Contains("public static CultMeshReactiveDocument<EveFieldsSplatsDocument> ReactiveRenderSplatsViewport(", StringComparison.Ordinal) ||
         runtimeClientProvider.Contains("public static CultMeshReactiveDocument<global::Aetheria.State.Documents.EveSurfaceState> ReactiveEveSurface(", StringComparison.Ordinal) ||
         runtimeClientProvider.Contains("private static CultMeshReactiveDocument<AetheriaRuntimePlayerSettingsDocument> _playerSettingsDocument", StringComparison.Ordinal) ||
         runtimeClientProvider.Contains("RuntimeState().ReactivePlayerSettingsDocument()", StringComparison.Ordinal) ||
@@ -18697,7 +18698,7 @@ static void RequireRuntimeStateReaderOwnsUnityStateAcquisition(string root)
         "public async Task<AetheriaRuntimeGameViewportDocument> MapViewportAsync(",
         "public async Task<AetheriaRuntimeObjectsViewportDocument> ObjectsViewportAsync(",
         "public async Task<AetheriaRuntimeGravityViewportDocument> GravityViewportAsync(",
-        "public async Task<AetheriaRuntimeRenderSplatsViewportDocument> RenderSplatsViewportAsync(",
+        "public async Task<EveFieldsSplatsDocument> RenderSplatsViewportAsync(",
         "public async Task<AetheriaRuntimeAssetManifestDocument> AssetManifestAsync()",
         "public async Task<AetheriaRuntimeCurrentZoneDocument> CurrentZoneAsync()",
         "public async Task<AetheriaRuntimeCurrentEntityDocument> CurrentEntityAsync()",

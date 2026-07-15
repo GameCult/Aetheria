@@ -506,6 +506,13 @@ public class DaemonRuntimeDocumentTests
         Assert.IsTrue(ContainsSurfaceProp(surface.Surface.Root, "entityViewSchema",
             EveEntitySoaViewDocument.SchemaId));
         Assert.IsFalse(ContainsSurfaceKind(surface.Surface.Root, "world.entity3d"));
+        Assert.IsTrue(ContainsSurfaceKind(surface.Surface.Root, "field.volume3d"));
+        Assert.IsTrue(ContainsSurfaceProp(surface.Surface.Root, "materialAssetRef",
+            "shader.environment.gravity-fog"));
+        Assert.IsTrue(ContainsSurfaceProp(surface.Surface.Root, "documentSchema",
+            AetheriaRuntimeDaemonSchemas.RenderSplatsViewport));
+        Assert.IsFalse(ContainsSurfaceValueFragment(surface.Surface.Root, "_Nebula"),
+            "The semantic Eve surface must not own Unity shader property names.");
         Assert.AreEqual(EveEntitySoaViewDocument.SchemaId, portable.Schema);
         Assert.AreEqual(42, portable.Generation);
         Assert.AreEqual(AetheriaRuntimeDaemonSoaColumnKinds.Position, portable.Columns.Single().Semantic);
@@ -708,6 +715,13 @@ public class DaemonRuntimeDocumentTests
         Assert.IsTrue(assetManifest.Assets.Any(asset =>
             asset.Ref.AssetKey == "prefab.entity.ship" &&
             asset.Ref.Kind == AetheriaRuntimeAssetKinds.Prefab));
+        Assert.IsTrue(assetManifest.Assets.Any(asset =>
+            asset.Ref.AssetKey == "shader.environment.gravity-fog" &&
+            asset.Ref.Kind == AetheriaRuntimeAssetKinds.Shader &&
+            asset.Ref.Metadata["unity.volume.texturePort.surfaceHeight"] == "_NebulaSurfaceHeight"));
+        Assert.IsTrue(assetManifest.Assets.Any(asset =>
+            asset.Ref.AssetKey == "texture.environment.volume-dither" &&
+            asset.Ref.Kind == AetheriaRuntimeAssetKinds.Texture));
         var editorTuiSurface = result.EditorTuiSurface;
         Assert.AreEqual("aetheria.daemon", editorTuiSurface.ProviderId);
         Assert.AreEqual("editor.daemon", editorTuiSurface.ProviderKind);
@@ -6222,6 +6236,14 @@ public class DaemonRuntimeDocumentTests
     {
         return string.Equals(component.Kind, kind, StringComparison.Ordinal) ||
             component.Children.Any(child => ContainsSurfaceKind(child, kind));
+    }
+
+    private static bool ContainsSurfaceValueFragment(AetheriaRuntimeSurfaceComponent component, string fragment)
+    {
+        if (component.Props.Values.Any(value =>
+                value != null && value.IndexOf(fragment, StringComparison.Ordinal) >= 0))
+            return true;
+        return component.Children.Any(child => ContainsSurfaceValueFragment(child, fragment));
     }
 
     private static bool ContainsSurfaceStateBinding(

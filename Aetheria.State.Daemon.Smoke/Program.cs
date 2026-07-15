@@ -149,6 +149,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         Action[] checks =
         [
             PositiveGravityDepthAttractsAndProjectsAsAWell,
+            VolumeSurfaceKeepsNativeShaderAbiInAssetVariant,
             YmirMovesProjectileAndReportsStableContact,
             InstantWeaponRequestSurvivesLockAcquisition,
             ConstantWeaponRunsOnDaemonThroughYmirBeamContact,
@@ -200,6 +201,32 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         ];
         foreach (var check in checks)
             RunCheck(check);
+    }
+
+    private static void VolumeSurfaceKeepsNativeShaderAbiInAssetVariant()
+    {
+        var player = Entity(0, 0, "player");
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "volume-program-ownership-smoke",
+            CurrentZoneIndex = 0,
+            CurrentEntityKey = "zone.0.entity.0",
+            Zones = [new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [player] }]
+        };
+        var surface = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(
+            new AetheriaRuntimeDaemonFrameDocument { FrameId = 1, Run = run },
+            new AetheriaRuntimeDaemonHealthDocument(),
+            AetheriaRuntimeDaemonCommandBoundaryDocument.Create("daemon"));
+        var volume = Flatten(surface.Surface.Root).Single(node => node.Kind == "field.volume3d");
+        Require(volume.Props.Values.All(value => value == null || !value.Contains("_Nebula", StringComparison.Ordinal)) &&
+                volume.Props["layerBindings"].Contains("gravity.height=surfaceHeight", StringComparison.Ordinal),
+            "portable Eve volume surfaces must name logical ports rather than Unity shader properties");
+
+        var shader = AetheriaRuntimeAssets.ProjectManifest(null).Assets.Single(asset =>
+            asset.Ref.AssetKey == "shader.environment.gravity-fog");
+        Require(shader.Ref.Metadata["unity.volume.texturePort.surfaceHeight"] == "_NebulaSurfaceHeight" &&
+                shader.Ref.Metadata["unity.volume.pass.raymarch"] == "0",
+            "provider asset metadata must own the concrete Unity volume-program ABI projected into runtime variants");
     }
 
     private static AetheriaYmirWorldPhysics NewPhysics()

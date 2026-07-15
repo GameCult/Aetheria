@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using GameCult.Mesh;
+using GameCult.Eve.PluginFields;
 using MessagePack;
 using EveSurfaceDocument = GameCult.Eve.Surface.EveSurfaceDocument;
 
@@ -21,7 +22,7 @@ namespace GameCult.Aetheria.State.Verse
         private readonly Func<AetheriaRuntimeViewportBounds, CultMeshDocumentHandle<AetheriaRuntimeGameViewportDocument>> _mapViewport;
         private readonly Func<AetheriaRuntimeViewportBounds, CultMeshDocumentHandle<AetheriaRuntimeObjectsViewportDocument>> _objectsViewport;
         private readonly Func<AetheriaRuntimeViewportBounds, CultMeshDocumentHandle<AetheriaRuntimeGravityViewportDocument>> _gravityViewport;
-        private readonly Func<AetheriaRuntimeViewportBounds, CultMeshDocumentHandle<AetheriaRuntimeRenderSplatsViewportDocument>> _renderSplatsViewport;
+        private readonly Func<AetheriaRuntimeViewportBounds, CultMeshDocumentHandle<EveFieldsSplatsDocument>> _renderSplatsViewport;
         private readonly Func<int, CultMeshDocumentHandle<AetheriaRuntimeZoneDetailsDocument>> _zoneDetails;
         private readonly Func<int, CultMeshDocumentHandle<AetheriaRuntimeSurfaceDocument>> _zoneDetailsSurface;
         private readonly Func<AetheriaRuntimeInventoryPanelSurfaceRequest, CultMeshDocumentHandle<AetheriaRuntimeSurfaceDocument>> _inventoryPanelSurface;
@@ -61,7 +62,7 @@ namespace GameCult.Aetheria.State.Verse
             Func<AetheriaRuntimeViewportBounds, CultMeshDocumentHandle<AetheriaRuntimeGameViewportDocument>> mapViewport,
             Func<AetheriaRuntimeViewportBounds, CultMeshDocumentHandle<AetheriaRuntimeObjectsViewportDocument>> objectsViewport,
             Func<AetheriaRuntimeViewportBounds, CultMeshDocumentHandle<AetheriaRuntimeGravityViewportDocument>> gravityViewport,
-            Func<AetheriaRuntimeViewportBounds, CultMeshDocumentHandle<AetheriaRuntimeRenderSplatsViewportDocument>> renderSplatsViewport,
+            Func<AetheriaRuntimeViewportBounds, CultMeshDocumentHandle<EveFieldsSplatsDocument>> renderSplatsViewport,
             Func<int, CultMeshDocumentHandle<AetheriaRuntimeZoneDetailsDocument>> zoneDetails,
             Func<int, CultMeshDocumentHandle<AetheriaRuntimeSurfaceDocument>> zoneDetailsSurface,
             Func<AetheriaRuntimeInventoryPanelSurfaceRequest, CultMeshDocumentHandle<AetheriaRuntimeSurfaceDocument>> inventoryPanelSurface,
@@ -229,7 +230,7 @@ namespace GameCult.Aetheria.State.Verse
             return _gravityViewport(viewport ?? new AetheriaRuntimeViewportBounds());
         }
 
-        public CultMeshDocumentHandle<AetheriaRuntimeRenderSplatsViewportDocument> RenderSplatsViewport(
+        public CultMeshDocumentHandle<EveFieldsSplatsDocument> RenderSplatsViewport(
             AetheriaRuntimeViewportBounds viewport)
         {
             return _renderSplatsViewport(viewport ?? new AetheriaRuntimeViewportBounds());

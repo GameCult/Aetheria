@@ -871,7 +871,7 @@ static RudpCultNetSchemaServer StartClientCultMeshHost(
                 {
                     var viewportPut = node.Database.Documents.CreateRawDocumentPutMessage(
                         response.MessageId,
-                        new CultRecordHandle<AetheriaRuntimeRenderSplatsViewportDocument>(
+                        new CultRecordHandle<GameCult.Eve.PluginFields.EveFieldsSplatsDocument>(
                             new CultRecordKey(viewportRecordKey)),
                         AetheriaRuntimeGameDocuments.RenderSplatsViewport(frame, viewport),
                         new CultNetDocumentMessageOptions
@@ -2051,10 +2051,11 @@ static EveAssetCatalogDocument BuildCoreAssetCatalog(
                     bundle.Hash,
                     bundle.Size,
                     unityAssetPath,
-                    new Dictionary<string, string>(StringComparer.Ordinal)
-                    {
-                        ["renderChannel.map.unityLayer"] = "14"
-                    }))
+                    new Dictionary<string, string>(
+                        entry.Ref.Metadata
+                            .Where(pair => pair.Key.StartsWith("unity.volume.", StringComparison.Ordinal))
+                            .Append(new KeyValuePair<string, string>("renderChannel.map.unityLayer", "14")),
+                        StringComparer.Ordinal)))
                     .ToArray(),
                 new Dictionary<string, string>(StringComparer.Ordinal)
                 {

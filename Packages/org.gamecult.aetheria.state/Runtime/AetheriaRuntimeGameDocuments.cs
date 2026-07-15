@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using GameCult.Eve.PluginFields;
 
 #nullable enable
 
@@ -110,7 +111,7 @@ namespace GameCult.Aetheria.State.Verse
             };
         }
 
-        public static AetheriaRuntimeRenderSplatsViewportDocument RenderSplatsViewport(
+        public static EveFieldsSplatsDocument RenderSplatsViewport(
             AetheriaRuntimeDaemonFrameDocument frame,
             AetheriaRuntimeViewportBounds viewport)
         {
@@ -219,7 +220,7 @@ namespace GameCult.Aetheria.State.Verse
                     radius,
                     radius,
                     AetheriaRuntimeRenderSplatChannels.Gravity,
-                    AetheriaRuntimeRenderSplatFalloffs.InverseSmooth,
+                    AetheriaRuntimeRenderSplatFalloffs.Smooth,
                     -body.GravityWellDepth,
                     0,
                     0,
@@ -245,7 +246,9 @@ namespace GameCult.Aetheria.State.Verse
 
                 if (IsBodyKind(body, "sun"))
                 {
-                    var tintRadius = Math.Max(radius, Math.Max(32, body.BodyRadiusMultiplier * 70) *
+                    var tintRadius = Math.Max(
+                        radius,
+                        Math.Pow(Math.Max(0, body.Mass), 0.25) * 300 *
                         Math.Max(0.01, body.SunVisual?.LightRadiusMultiplier ?? 1.0));
                     splats.Add(
                         layerIndices[AetheriaRuntimeRenderSplatLayerKeys.FogTint],
@@ -292,7 +295,7 @@ namespace GameCult.Aetheria.State.Verse
                     AetheriaRuntimeRunCheckpointCommit.EntityRecordKey(context.RunId, zone.ZoneIndex, entity.EntityIndex));
             }
 
-            return new AetheriaRuntimeRenderSplatsViewportDocument
+            return new EveFieldsSplatsDocument
             {
                 FrameId = frame.FrameId,
                 PublishedAtUtc = frame.PublishedAtUtc ?? "",
@@ -300,17 +303,23 @@ namespace GameCult.Aetheria.State.Verse
                 RunId = context.RunId,
                 ZoneIndex = zone.ZoneIndex,
                 ZoneName = string.IsNullOrWhiteSpace(zone.Name) ? $"Zone {zone.ZoneIndex}" : zone.Name,
-                Viewport = normalizedViewport,
+                Viewport = new EveFieldsViewport
+                {
+                    MinX = normalizedViewport.MinX,
+                    MinY = normalizedViewport.MinY,
+                    MaxX = normalizedViewport.MaxX,
+                    MaxY = normalizedViewport.MaxY
+                },
                 Layers = layers,
                 Splats = splats.Build()
             };
         }
 
-        private static IReadOnlyList<AetheriaRuntimeRenderSplatLayerDefinition> BuildDefaultRenderSplatLayers()
+        private static IReadOnlyList<EveFieldsSplatLayer> BuildDefaultRenderSplatLayers()
         {
             return new[]
             {
-                new AetheriaRuntimeRenderSplatLayerDefinition
+                new EveFieldsSplatLayer
                 {
                     LayerKey = AetheriaRuntimeRenderSplatLayerKeys.GravityHeight,
                     DisplayName = "Gravity Height",
@@ -318,7 +327,7 @@ namespace GameCult.Aetheria.State.Verse
                     BlendMode = AetheriaRuntimeRenderSplatBlendModes.Add,
                     GraphicsFormat = "R16_SFloat"
                 },
-                new AetheriaRuntimeRenderSplatLayerDefinition
+                new EveFieldsSplatLayer
                 {
                     LayerKey = AetheriaRuntimeRenderSplatLayerKeys.GravityWave,
                     DisplayName = "Gravity Wave",
@@ -326,7 +335,7 @@ namespace GameCult.Aetheria.State.Verse
                     BlendMode = AetheriaRuntimeRenderSplatBlendModes.Add,
                     GraphicsFormat = "R16_SFloat"
                 },
-                new AetheriaRuntimeRenderSplatLayerDefinition
+                new EveFieldsSplatLayer
                 {
                     LayerKey = AetheriaRuntimeRenderSplatLayerKeys.Visibility,
                     DisplayName = "Visibility Mask",
@@ -334,7 +343,7 @@ namespace GameCult.Aetheria.State.Verse
                     BlendMode = AetheriaRuntimeRenderSplatBlendModes.Max,
                     GraphicsFormat = "R16_SFloat"
                 },
-                new AetheriaRuntimeRenderSplatLayerDefinition
+                new EveFieldsSplatLayer
                 {
                     LayerKey = AetheriaRuntimeRenderSplatLayerKeys.FogSurfaceHeight,
                     DisplayName = "Fog Surface Height",
@@ -342,7 +351,7 @@ namespace GameCult.Aetheria.State.Verse
                     BlendMode = AetheriaRuntimeRenderSplatBlendModes.Add,
                     GraphicsFormat = "R16_SFloat"
                 },
-                new AetheriaRuntimeRenderSplatLayerDefinition
+                new EveFieldsSplatLayer
                 {
                     LayerKey = AetheriaRuntimeRenderSplatLayerKeys.FogPatchHeight,
                     DisplayName = "Fog Patch Height",
@@ -350,7 +359,7 @@ namespace GameCult.Aetheria.State.Verse
                     BlendMode = AetheriaRuntimeRenderSplatBlendModes.Add,
                     GraphicsFormat = "R16_SFloat"
                 },
-                new AetheriaRuntimeRenderSplatLayerDefinition
+                new EveFieldsSplatLayer
                 {
                     LayerKey = AetheriaRuntimeRenderSplatLayerKeys.FogPatch,
                     DisplayName = "Fog Patch",
@@ -358,7 +367,7 @@ namespace GameCult.Aetheria.State.Verse
                     BlendMode = AetheriaRuntimeRenderSplatBlendModes.Max,
                     GraphicsFormat = "R16_SFloat"
                 },
-                new AetheriaRuntimeRenderSplatLayerDefinition
+                new EveFieldsSplatLayer
                 {
                     LayerKey = AetheriaRuntimeRenderSplatLayerKeys.FogTint,
                     DisplayName = "Fog Tint",
@@ -366,7 +375,7 @@ namespace GameCult.Aetheria.State.Verse
                     BlendMode = AetheriaRuntimeRenderSplatBlendModes.Add,
                     GraphicsFormat = "B10G11R11_UFloatPack32"
                 },
-                new AetheriaRuntimeRenderSplatLayerDefinition
+                new EveFieldsSplatLayer
                 {
                     LayerKey = AetheriaRuntimeRenderSplatLayerKeys.Influence,
                     DisplayName = "Influence",
@@ -1547,9 +1556,9 @@ namespace GameCult.Aetheria.State.Verse
                 _sourceFlags.Add(sourceFlags);
             }
 
-            public AetheriaRuntimeRenderSplatSoa Build()
+            public EveFieldsSplatSoa Build()
             {
-                return new AetheriaRuntimeRenderSplatSoa
+                return new EveFieldsSplatSoa
                 {
                     Count = _centerX.Count,
                     CenterX = _centerX.ToArray(),

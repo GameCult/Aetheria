@@ -5,6 +5,13 @@ Shader "Aetheria/CloudShader"
 	Properties
 	{
 		_MainTex("MainTex",2D) = "white"{}
+		[HideInInspector] _DitheringTex("DitheringTex", 2D) = "white" {}
+		[HideInInspector] _NebulaSurfaceHeight("NebulaSurfaceHeight", 2D) = "black" {}
+		[HideInInspector] _NebulaPatchHeight("NebulaPatchHeight", 2D) = "black" {}
+		[HideInInspector] _NebulaPatch("NebulaPatch", 2D) = "black" {}
+		[HideInInspector] _NebulaTint("NebulaTint", 2D) = "black" {}
+		[HideInInspector] _CloudTex("CloudTex", 2D) = "black" {}
+		[HideInInspector] _CompositeOpacity("CompositeOpacity", Range(0, 1)) = 1
 	}
 
 		SubShader
@@ -86,7 +93,6 @@ Shader "Aetheria/CloudShader"
 				float density = c.a;
 				if (density <= 0.0f)
 				{
-					result.intTransmittance = 0;
 					return;
 				}
 				float extinction = _ExtinctionCoefficient * density / (1-fade);
@@ -94,7 +100,7 @@ Shader "Aetheria/CloudShader"
 				float clampedExtinction = max(extinction, 1e-7);
 				float transmittance = exp(-extinction * stepsize);
 				
-				float3 luminance = c.rgb * _NebulaLuminance;
+				float3 luminance = c.rgb * _NebulaLuminance * density;
 				float3 integScatt = (luminance - luminance * transmittance) / clampedExtinction;
 				float depthWeight = result.intTransmittance * (1-transmittance);		//Is it a better idea to use (1-transmittance) * intTransmittance as depth weight?
 
@@ -168,7 +174,6 @@ Shader "Aetheria/CloudShader"
 				//float sceneDepth = Linear01Depth(depthSample);
 				//bool occluded = GetRaymarchEndFromSceneDepth(sceneDepth, raymarchEnd);
 				float3 viewDir = normalize(worldPos.xyz - _WorldSpaceCameraPos);
-
 				//float blue = tex2D(_DitheringTex, screenPos * _DitheringCoords.xy + _DitheringCoords.zw).r;
 				float dither = tex2D(_DitheringTex, screenUV * _DitheringCoords.xy).r;
 				float offset = -fmod(_RaymarchOffset + dither, 1.0f);			//final offset combined. The value will be multiplied by sample step in GetDensity.
@@ -285,6 +290,7 @@ Shader "Aetheria/CloudShader"
 				sampler2D _CloudTex;	//The full resolution cloud tex we generated.
 				sampler2D _CameraDepthTexture;
 				float4 _ProjectionExtents;
+				float _CompositeOpacity;
 
 				struct v2f
 				{
@@ -312,7 +318,7 @@ Shader "Aetheria/CloudShader"
 					float distance;
 					float density;
 					unpack(currSample.a, distance, density);
-					return half4(currSample.rgb, saturate(density));
+					return half4(currSample.rgb * _CompositeOpacity, saturate(density) * _CompositeOpacity);
 				}
 					ENDCG
 				}

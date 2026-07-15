@@ -4,6 +4,7 @@
 
 using System;
 using GameCult.Aetheria.State.Verse;
+using GameCult.Eve.PluginFields;
 using UnityEngine;
 using Unity.Mathematics;
 using UnityEngine.Experimental.Rendering;
@@ -222,7 +223,7 @@ public class VolumeSampling : MonoBehaviour
         NebulaTint = ResolveLayerTexture(AetheriaRuntimeRenderSplatLayerKeys.FogTint, NebulaTint);
     }
 
-    private AetheriaRuntimeRenderSplatsViewportDocument ResolveSceneSplatDocument(Vector2 center, Vector2 size)
+    private EveFieldsSplatsDocument ResolveSceneSplatDocument(Vector2 center, Vector2 size)
     {
         if (SceneSplatSource == null)
             SceneSplatSource = GetComponent<AetheriaSceneRenderSplatSource>();
@@ -231,7 +232,7 @@ public class VolumeSampling : MonoBehaviour
             : null;
     }
 
-    private AetheriaRuntimeRenderSplatsViewportDocument ResolveRuntimeSplatDocument(Vector2 center, Vector2 size)
+    private EveFieldsSplatsDocument ResolveRuntimeSplatDocument(Vector2 center, Vector2 size)
     {
         if (SplatViewportSource == null)
             return null;

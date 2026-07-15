@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using GameCult.Aetheria.State.Verse;
+using GameCult.Eve.PluginFields;
 using UnityEngine;
 
 public sealed class AetheriaSceneRenderSplatSource : MonoBehaviour
@@ -43,7 +44,7 @@ public sealed class AetheriaSceneRenderSplatSource : MonoBehaviour
     [SerializeField]
     private AetheriaSceneRenderSplatFixture[] fixtures = Array.Empty<AetheriaSceneRenderSplatFixture>();
 
-    public AetheriaRuntimeRenderSplatsViewportDocument BuildDocument(AetheriaRuntimeViewportBounds viewport)
+    public EveFieldsSplatsDocument BuildDocument(AetheriaRuntimeViewportBounds viewport)
     {
         viewport ??= new AetheriaRuntimeViewportBounds();
         var normalizedViewport = Normalize(viewport);
@@ -58,13 +59,19 @@ public sealed class AetheriaSceneRenderSplatSource : MonoBehaviour
         foreach (var fixture in fixtures ?? Array.Empty<AetheriaSceneRenderSplatFixture>())
             fixture.AddTo(builder, layerIndices);
 
-        return new AetheriaRuntimeRenderSplatsViewportDocument
+        return new EveFieldsSplatsDocument
         {
             PublishedAtUtc = DateTimeOffset.UtcNow.ToString("O"),
             SimulationTimeSeconds = Application.isPlaying ? Time.timeAsDouble : 0,
             RunId = "scene",
             ZoneName = string.IsNullOrWhiteSpace(documentName) ? gameObject.scene.name : documentName,
-            Viewport = normalizedViewport,
+            Viewport = new EveFieldsViewport
+            {
+                MinX = normalizedViewport.MinX,
+                MinY = normalizedViewport.MinY,
+                MaxX = normalizedViewport.MaxX,
+                MaxY = normalizedViewport.MaxY
+            },
             Layers = layers,
             Splats = builder.Build()
         };
@@ -81,7 +88,7 @@ public sealed class AetheriaSceneRenderSplatSource : MonoBehaviour
         };
     }
 
-    private static AetheriaRuntimeRenderSplatLayerDefinition[] BuildLayers()
+    private static EveFieldsSplatLayer[] BuildLayers()
     {
         return new[]
         {
@@ -96,14 +103,14 @@ public sealed class AetheriaSceneRenderSplatSource : MonoBehaviour
         };
     }
 
-    private static AetheriaRuntimeRenderSplatLayerDefinition Layer(
+    private static EveFieldsSplatLayer Layer(
         string key,
         string displayName,
         int channel,
         string blendMode = AetheriaRuntimeRenderSplatBlendModes.Add,
         string graphicsFormat = "R16_SFloat")
     {
-        return new AetheriaRuntimeRenderSplatLayerDefinition
+        return new EveFieldsSplatLayer
         {
             LayerKey = key,
             DisplayName = displayName,
@@ -163,9 +170,9 @@ public sealed class AetheriaSceneRenderSplatSource : MonoBehaviour
             _sourceFlags.Add(splat.SourceFlags);
         }
 
-        public AetheriaRuntimeRenderSplatSoa Build()
+        public EveFieldsSplatSoa Build()
         {
-            return new AetheriaRuntimeRenderSplatSoa
+            return new EveFieldsSplatSoa
             {
                 Count = _centerX.Count,
                 CenterX = _centerX.ToArray(),

@@ -27,6 +27,8 @@ namespace GameCult.Aetheria.State.Verse
             var entries = new Dictionary<string, AetheriaRuntimeAssetManifestEntry>(StringComparer.Ordinal);
             Add(entries, EnvironmentSkyboxMaterial());
             Add(entries, EnvironmentReflectionCubemap());
+            Add(entries, EnvironmentGravityFogShader());
+            Add(entries, EnvironmentDitherTexture());
             Add(entries, MapIcon("entity.player", "Player", "Sprites/Icons/Stroked/Ship"));
             Add(entries, MapIcon("entity.ship", "Ship", "Sprites/Icons/Stroked/Ship"));
             Add(entries, MapIcon("entity.orbital", "Orbital", "Sprites/Icons/Stroked/orbital"));
@@ -204,6 +206,90 @@ namespace GameCult.Aetheria.State.Verse
                     }
                 },
                 Tags = new[] { "presentation", "environment", "reflection", "pre-generated" }
+            };
+        }
+
+        public static AetheriaRuntimeAssetManifestEntry EnvironmentGravityFogShader()
+        {
+            return new AetheriaRuntimeAssetManifestEntry
+            {
+                Ref = new AetheriaRuntimeAssetRef
+                {
+                    AssetKey = "shader.environment.gravity-fog",
+                    Kind = AetheriaRuntimeAssetKinds.Shader,
+                    Uri = CultMeshAssetUri("shader.environment.gravity-fog"),
+                    MimeType = "application/vnd.unity.shader",
+                    Metadata = new Dictionary<string, string>(StringComparer.Ordinal)
+                    {
+                        ["unityAssetPath"] = "Assets/Shaders/Raymarching/CloudShader.shader",
+                        ["presentationRole"] = "environment.gravity-fog.volume",
+                        ["unity.volume.pass.raymarch"] = "0",
+                        ["unity.volume.pass.composite"] = "2",
+                        ["unity.volume.quality.high.keyword"] = "HIGH_QUALITY",
+                        ["unity.volume.quality.normal.keyword"] = "MEDIUM_QUALITY",
+                        ["unity.volume.feature.flow.global.keyword"] = "FLOW_GLOBAL",
+                        ["unity.volume.feature.noise.slope.keyword"] = "NOISE_SLOPE",
+                        ["unity.volume.texturePort.surfaceHeight"] = "_NebulaSurfaceHeight",
+                        ["unity.volume.texturePort.patchHeight"] = "_NebulaPatchHeight",
+                        ["unity.volume.texturePort.patch"] = "_NebulaPatch",
+                        ["unity.volume.texturePort.tint"] = "_NebulaTint",
+                        ["unity.volume.texturePort.dither"] = "_DitheringTex",
+                        ["unity.volume.texturePort.cloud"] = "_CloudTex",
+                        ["unity.volume.vectorPort.viewportTransform"] = "_GridTransform",
+                        ["unity.volume.matrixPort.cameraInverseViewProjection"] = "_CamInvProj",
+                        ["unity.volume.vectorPort.cameraProjectionExtents"] = "_ProjectionExtents",
+                        ["unity.volume.floatPort.raymarchOffset"] = "_RaymarchOffset",
+                        ["unity.volume.vectorPort.ditherCoordinates"] = "_DitheringCoords",
+                        ["unity.volume.floatPort.fillDensity"] = "_NebulaFillDensity",
+                        ["unity.volume.floatPort.fillDistance"] = "_NebulaFillDistance",
+                        ["unity.volume.floatPort.fillExponent"] = "_NebulaFillExponent",
+                        ["unity.volume.floatPort.fillOffset"] = "_NebulaFillOffset",
+                        ["unity.volume.floatPort.patchDensity"] = "_NebulaPatchDensity",
+                        ["unity.volume.floatPort.floorOffset"] = "_NebulaFloorOffset",
+                        ["unity.volume.floatPort.floorBlend"] = "_NebulaFloorBlend",
+                        ["unity.volume.floatPort.patchBlend"] = "_NebulaPatchBlend",
+                        ["unity.volume.floatPort.luminance"] = "_NebulaLuminance",
+                        ["unity.volume.floatPort.extinction"] = "_ExtinctionCoefficient",
+                        ["unity.volume.floatPort.tintLodExponent"] = "_TintLodExponent",
+                        ["unity.volume.floatPort.safetyDistance"] = "_SafetyDistance",
+                        ["unity.volume.floatPort.flowScale"] = "_FlowScale",
+                        ["unity.volume.floatPort.flowAmplitude"] = "_FlowAmplitude",
+                        ["unity.volume.floatPort.flowPeriod"] = "_FlowPeriod",
+                        ["unity.volume.floatPort.flowSlopeAmplitude"] = "_FlowSlopeAmplitude",
+                        ["unity.volume.floatPort.flowSwirlAmplitude"] = "_FlowSwirlAmplitude",
+                        ["unity.volume.floatPort.noiseScale"] = "_NebulaNoiseScale",
+                        ["unity.volume.floatPort.noiseAmplitude"] = "_NebulaNoiseAmplitude",
+                        ["unity.volume.floatPort.noiseExponent"] = "_NebulaNoiseExponent",
+                        ["unity.volume.floatPort.noiseSpeed"] = "_NebulaNoiseSpeed",
+                        ["unity.volume.floatPort.noiseSlopeExponent"] = "_NebulaNoiseSlopeExponent",
+                        ["unity.volume.floatPort.dynamicSkyBoost"] = "_DynamicSkyBoost",
+                        ["unity.volume.floatPort.dynamicLodHigh"] = "_DynamicLodHigh",
+                        ["unity.volume.floatPort.dynamicLodLow"] = "_DynamicLodLow",
+                        ["unity.volume.floatPort.dynamicIntensity"] = "_DynamicIntensity",
+                        ["unity.volume.floatPort.compositeOpacity"] = "_CompositeOpacity"
+                    }
+                },
+                Tags = new[] { "presentation", "environment", "gravity", "fog", "volume" }
+            };
+        }
+
+        public static AetheriaRuntimeAssetManifestEntry EnvironmentDitherTexture()
+        {
+            return new AetheriaRuntimeAssetManifestEntry
+            {
+                Ref = new AetheriaRuntimeAssetRef
+                {
+                    AssetKey = "texture.environment.volume-dither",
+                    Kind = AetheriaRuntimeAssetKinds.Texture,
+                    Uri = CultMeshAssetUri("texture.environment.volume-dither"),
+                    MimeType = "image/png",
+                    Metadata = new Dictionary<string, string>(StringComparer.Ordinal)
+                    {
+                        ["unityAssetPath"] = "Assets/Resources/LDR_LLL1_0.png",
+                        ["presentationRole"] = "environment.volume.dither"
+                    }
+                },
+                Tags = new[] { "presentation", "environment", "volume", "pre-generated" }
             };
         }
 

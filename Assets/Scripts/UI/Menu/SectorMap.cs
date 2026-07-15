@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using GameCult.Aetheria.State.Verse;
+using GameCult.Eve.PluginFields;
 using GameCult.Mesh;
 using TMPro;
 using UniRx;
@@ -357,7 +358,7 @@ public class SectorMap : MonoBehaviour
         return InfluenceSplatRasterizer;
     }
 
-    private AetheriaRuntimeRenderSplatsViewportDocument BuildInfluenceSplatDocument(int factionIndex)
+    private EveFieldsSplatsDocument BuildInfluenceSplatDocument(int factionIndex)
     {
         var zones = (_sectorMap?.Zones ?? Array.Empty<AetheriaRuntimeSectorMapZone>()).ToArray();
         var minX = zones.Length > 0 ? zones.Min(zone => zone.X) : -1;
@@ -420,10 +421,10 @@ public class SectorMap : MonoBehaviour
             sourceFlags.Add(0);
         }
 
-        return new AetheriaRuntimeRenderSplatsViewportDocument
+        return new EveFieldsSplatsDocument
         {
             Schema = AetheriaRuntimeDaemonSchemas.RenderSplatsViewport,
-            Viewport = new AetheriaRuntimeViewportBounds
+            Viewport = new EveFieldsViewport
             {
                 MinX = minX - padding,
                 MinY = minY - padding,
@@ -432,7 +433,7 @@ public class SectorMap : MonoBehaviour
             },
             Layers = new[]
             {
-                new AetheriaRuntimeRenderSplatLayerDefinition
+                new EveFieldsSplatLayer
                 {
                     LayerKey = AetheriaRuntimeRenderSplatLayerKeys.Influence,
                     DisplayName = "Sector Influence",
@@ -441,7 +442,7 @@ public class SectorMap : MonoBehaviour
                     GraphicsFormat = "R16_SFloat"
                 }
             },
-            Splats = new AetheriaRuntimeRenderSplatSoa
+            Splats = new EveFieldsSplatSoa
             {
                 Count = centerX.Count,
                 CenterX = centerX,

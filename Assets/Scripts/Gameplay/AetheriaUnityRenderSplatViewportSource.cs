@@ -1,5 +1,6 @@
 using System;
 using GameCult.Aetheria.State.Verse;
+using GameCult.Eve.PluginFields;
 using UnityEngine;
 
 public sealed class AetheriaUnityRenderSplatViewportSource : MonoBehaviour
@@ -40,7 +41,7 @@ public sealed class AetheriaUnityRenderSplatViewportSource : MonoBehaviour
         }
     }
 
-    public AetheriaRuntimeRenderSplatsViewportDocument CurrentDocument =>
+    public EveFieldsSplatsDocument CurrentDocument =>
         _viewportDocuments?.CurrentRenderSplatsViewport;
 
     public bool RenderInLateUpdate

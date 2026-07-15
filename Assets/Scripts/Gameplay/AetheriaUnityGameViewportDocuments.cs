@@ -1,12 +1,13 @@
 using System;
 using GameCult.Aetheria.State.Verse;
+using GameCult.Eve.PluginFields;
 using GameCult.Mesh;
 
 public sealed class AetheriaUnityGameViewportDocuments : IDisposable
 {
     private readonly CultMeshReactiveDocument<AetheriaRuntimeZoneContactsDocument> _contacts;
     private readonly CultMeshReactiveDocument<AetheriaRuntimeObjectsViewportDocument> _objectsViewport;
-    private readonly CultMeshReactiveDocument<AetheriaRuntimeRenderSplatsViewportDocument> _renderSplatsViewport;
+    private readonly CultMeshReactiveDocument<EveFieldsSplatsDocument> _renderSplatsViewport;
 
     private AetheriaUnityGameViewportDocuments(
         AetheriaClientState state,
@@ -30,7 +31,7 @@ public sealed class AetheriaUnityGameViewportDocuments : IDisposable
 
     public AetheriaRuntimeZoneContactsDocument CurrentContacts => _contacts?.Current;
     public AetheriaRuntimeObjectsViewportDocument CurrentObjectsViewport => _objectsViewport?.Current;
-    public AetheriaRuntimeRenderSplatsViewportDocument CurrentRenderSplatsViewport => _renderSplatsViewport?.Current;
+    public EveFieldsSplatsDocument CurrentRenderSplatsViewport => _renderSplatsViewport?.Current;
 
     public static AetheriaUnityGameViewportDocuments OpenMap(
         AetheriaClientState state,

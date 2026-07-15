@@ -26,7 +26,7 @@ public sealed class AetheriaRenderSplatLayerRenderer : MonoBehaviour
         return false;
     }
 
-    public void Render(AetheriaRuntimeRenderSplatsViewportDocument document, int width, int height)
+    public void Render(EveFieldsSplatsDocument document, int width, int height)
     {
         if (document == null) return;
         ResolveRenderer();
