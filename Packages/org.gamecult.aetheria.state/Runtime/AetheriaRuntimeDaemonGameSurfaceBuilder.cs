@@ -38,11 +38,12 @@ namespace GameCult.Aetheria.State.Verse
                     zone,
                     run.CurrentEntityKey,
                     frame.SimulationSettings),
+                CockpitOverlay(entity, target, frame.SimulationSettings),
                 FeedbackStream(run, frame.FrameId),
                 ShotReceiptStream(run),
                 GravityFieldSurface("aetheria.daemon.game.field"),
                 MainMenuOverlay("aetheria.daemon.game.main_menu", activeMainMenuSurfaceId),
-                Node(
+                Hidden(Node(
                     "aetheria.daemon.game.frame",
                     "card",
                     new[] { ("title", "Daemon Frame") },
@@ -53,8 +54,8 @@ namespace GameCult.Aetheria.State.Verse
                     Metric("aetheria.daemon.game.frame.status", "Status", health.Status, AetheriaRuntimeDaemonStateRefs.FrameStatus),
                     Metric("aetheria.daemon.game.frame.observed_commands", "Observed Commands", health.ObservedCommandCount.ToString(CultureInfo.InvariantCulture), AetheriaRuntimeDaemonStateRefs.FrameObservedCommands),
                     Metric("aetheria.daemon.game.frame.applied", "Applied", health.AppliedCommandCount.ToString(CultureInfo.InvariantCulture), AetheriaRuntimeDaemonStateRefs.FrameAppliedCommands),
-                    Metric("aetheria.daemon.game.frame.rejected", "Rejected", health.RejectedCommandCount.ToString(CultureInfo.InvariantCulture), AetheriaRuntimeDaemonStateRefs.FrameRejectedCommands)),
-                Node(
+                    Metric("aetheria.daemon.game.frame.rejected", "Rejected", health.RejectedCommandCount.ToString(CultureInfo.InvariantCulture), AetheriaRuntimeDaemonStateRefs.FrameRejectedCommands))),
+                Hidden(Node(
                     "aetheria.daemon.game.player",
                     "card",
                     new[] { ("title", "Current Entity") },
@@ -66,8 +67,8 @@ namespace GameCult.Aetheria.State.Verse
                     Metric("aetheria.daemon.game.player.target", "Target", string.IsNullOrWhiteSpace(target?.Name) ? "(none)" : target!.Name, AetheriaRuntimeDaemonStateRefs.CurrentTargetName),
                     Metric("aetheria.daemon.game.player.equipment", "Equipment", Count(entity?.Equipment).ToString(CultureInfo.InvariantCulture), AetheriaRuntimeDaemonStateRefs.CurrentEquipmentCount),
                     Metric("aetheria.daemon.game.player.cargo", "Cargo Bays", Count(entity?.CargoContents).ToString(CultureInfo.InvariantCulture), AetheriaRuntimeDaemonStateRefs.CurrentCargoBayCount),
-                    Metric("aetheria.daemon.game.player.weaponGroups", "Weapon Groups", Count(entity?.WeaponGroups).ToString(CultureInfo.InvariantCulture), AetheriaRuntimeDaemonStateRefs.CurrentWeaponGroupCount)),
-                Node(
+                    Metric("aetheria.daemon.game.player.weaponGroups", "Weapon Groups", Count(entity?.WeaponGroups).ToString(CultureInfo.InvariantCulture), AetheriaRuntimeDaemonStateRefs.CurrentWeaponGroupCount))),
+                Hidden(Node(
                     "aetheria.daemon.game.commands",
                     "card",
                     new[] { ("title", "Typed Command Boundary") },
@@ -89,7 +90,7 @@ namespace GameCult.Aetheria.State.Verse
                         CommandButton("aetheria.daemon.game.commands.tractor", "Scoop", AetheriaRuntimeDaemonCommandKinds.SetTractorPower),
                         CommandButton("aetheria.daemon.game.commands.dock", "Dock", AetheriaRuntimeDaemonCommandKinds.DockNearest),
                         CommandButton("aetheria.daemon.game.commands.undock", "Undock", AetheriaRuntimeDaemonCommandKinds.Undock),
-                        CommandButton("aetheria.daemon.game.commands.ping", "Sensor Ping", AetheriaRuntimeDaemonCommandKinds.SensorPing)))
+                        CommandButton("aetheria.daemon.game.commands.ping", "Sensor Ping", AetheriaRuntimeDaemonCommandKinds.SensorPing))))
             };
             if (entity != null)
                 surfaceChildren.Add(Node(
@@ -106,7 +107,7 @@ namespace GameCult.Aetheria.State.Verse
                 updatedAtUtc: frame.PublishedAtUtc,
                 surface: new AetheriaRuntimeSurfaceTree(
                     SurfaceId,
-                    SurfaceRoot(
+                    PilotSurfaceRoot(
                         "aetheria.daemon.game.root",
                         surfaceChildren.ToArray()),
                     Array.Empty<AetheriaRuntimeSurfaceStyleToken>()),
@@ -907,6 +908,82 @@ namespace GameCult.Aetheria.State.Verse
                 .ToArray();
         }
 
+        private static AetheriaRuntimeSurfaceComponent CockpitOverlay(
+            AetheriaRuntimeEntitySnapshotCommit? entity,
+            AetheriaRuntimeEntitySnapshotCommit? target,
+            AetheriaRuntimeDaemonSimulationSettings simulationSettings)
+        {
+            var hull = entity == null ? 0 : EntityStat(entity, "hull");
+            var shield = entity == null ? 0 : EntityStat(entity, "shield");
+            var maximumHull = entity == null ? 0 : MaximumHull(entity, simulationSettings);
+            var maximumShield = entity == null ? 0 : MaximumShield(entity, simulationSettings);
+            var behaviorStates = entity?.BehaviorStates ?? Array.Empty<AetheriaRuntimeBehaviorStateCommit>();
+            var capacitorCharge = behaviorStates
+                .Where(value => value != null && value.BehaviorKind == "Capacitor")
+                .Sum(value => Math.Max(0, value.CapacitorCharge));
+            var capacitorCapacity = behaviorStates
+                .Where(value => value != null && value.BehaviorKind == "Capacitor")
+                .Sum(value => Math.Max(0, value.CapacitorCapacity));
+            var weaponCooldown = (entity?.WeaponStates ?? Array.Empty<AetheriaRuntimeWeaponStateCommit>())
+                .Select(value => value?.CooldownProgress ?? 0)
+                .DefaultIfEmpty(0)
+                .Max();
+            var targetHull = target == null ? 0 : EntityStat(target, "hull");
+            var targetShield = target == null ? 0 : EntityStat(target, "shield");
+            var panelStyle = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["background"] = "#07131ACC",
+                ["color"] = "#D9F8FF",
+                ["borderColor"] = "#4CCFE8AA",
+                ["borderWidth"] = "1",
+                ["borderRadius"] = "4",
+                ["fontSize"] = "13"
+            };
+
+            var systems = StyledNode(
+                "aetheria.daemon.game.cockpit.systems",
+                "pane",
+                new[] { ("title", string.IsNullOrWhiteSpace(entity?.Name) ? "PILOT" : entity!.Name.ToUpperInvariant()) },
+                Layout(("width", "280"), ("padding", "12")),
+                panelStyle,
+                Progress("aetheria.daemon.game.cockpit.hull", "HULL", FormatRatio(hull, maximumHull)),
+                Progress("aetheria.daemon.game.cockpit.shield", "SHIELD", FormatRatio(shield, maximumShield)),
+                Progress("aetheria.daemon.game.cockpit.capacitor", "CAPACITOR", FormatRatio(capacitorCharge, capacitorCapacity)),
+                Metric("aetheria.daemon.game.cockpit.temperature", "COCKPIT TEMP", FormatNumber(entity == null ? 0 : EntityStat(entity, "cockpit-temperature"))),
+                Metric("aetheria.daemon.game.cockpit.cargo", "CARGO BAYS", Count(entity?.CargoContents).ToString(CultureInfo.InvariantCulture)));
+
+            var weapons = StyledNode(
+                "aetheria.daemon.game.cockpit.weapons",
+                "pane",
+                new[] { ("title", "WEAPONS") },
+                Layout(("width", "240"), ("padding", "12")),
+                panelStyle,
+                Progress("aetheria.daemon.game.cockpit.weaponCooldown", "COOLDOWN", weaponCooldown.ToString("0.###", CultureInfo.InvariantCulture)),
+                Metric("aetheria.daemon.game.cockpit.weaponGroups", "GROUPS", Count(entity?.WeaponGroups).ToString(CultureInfo.InvariantCulture)),
+                Metric("aetheria.daemon.game.cockpit.target", "TARGET", string.IsNullOrWhiteSpace(target?.Name) ? "NO TARGET" : target!.Name),
+                Progress("aetheria.daemon.game.cockpit.targetShield", "TARGET SHIELD", FormatRatio(targetShield, target == null ? 0 : MaximumShield(target, simulationSettings))),
+                Progress("aetheria.daemon.game.cockpit.targetHull", "TARGET HULL", FormatRatio(targetHull, target == null ? 0 : MaximumHull(target, simulationSettings))));
+
+            return StyledNode(
+                "aetheria.daemon.game.cockpit",
+                "pane",
+                new[] { ("role", "pilot.cockpit") },
+                Layout(
+                    ("position", "absolute"),
+                    ("inset", "0"),
+                    ("direction", "row"),
+                    ("alignItems", "flex-end"),
+                    ("justifyContent", "space-between"),
+                    ("padding", "24")),
+                new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    ["background"] = "transparent",
+                    ["color"] = "#D9F8FF"
+                },
+                systems,
+                weapons);
+        }
+
         private static string PlayableWorldAssetRef(AetheriaRuntimeEntitySnapshotCommit entity)
             => AetheriaRuntimeAssets.ResolveEntityPrefabAssetRef(entity);
 
@@ -1191,6 +1268,52 @@ namespace GameCult.Aetheria.State.Verse
             return value.ToString("0.###", CultureInfo.InvariantCulture);
         }
 
+        private static AetheriaRuntimeSurfaceComponent Progress(string id, string label, string ratio)
+        {
+            return Node(
+                id,
+                "progress",
+                new[]
+                {
+                    ("label", label),
+                    ("ratio", ratio ?? "0"),
+                    ("value", ratio ?? "0")
+                });
+        }
+
+        private static AetheriaRuntimeSurfaceComponent StyledNode(
+            string id,
+            string kind,
+            IEnumerable<(string Key, string Value)> props,
+            IReadOnlyDictionary<string, string> layout,
+            IReadOnlyDictionary<string, string> style,
+            params AetheriaRuntimeSurfaceComponent[] children)
+        {
+            var values = props.ToDictionary(prop => prop.Key, prop => prop.Value ?? "", StringComparer.Ordinal);
+            return new AetheriaRuntimeSurfaceComponent(
+                id,
+                kind,
+                values,
+                children ?? Array.Empty<AetheriaRuntimeSurfaceComponent>(),
+                AetheriaRuntimeSurfaceStateBindings.FromProps(values),
+                Array.Empty<AetheriaRuntimeEmbeddedDocumentSlot>(),
+                layout,
+                style);
+        }
+
+        private static AetheriaRuntimeSurfaceComponent Hidden(AetheriaRuntimeSurfaceComponent component)
+        {
+            return new AetheriaRuntimeSurfaceComponent(
+                component.Id,
+                component.Kind,
+                component.Props,
+                component.Children,
+                component.StateBindings,
+                component.EmbeddedDocuments,
+                Layout(("display", "none")),
+                component.Style);
+        }
+
         private static AetheriaRuntimeSurfaceComponent Metric(string id, string label, string value, string stateRef = "")
         {
             var props = string.IsNullOrWhiteSpace(stateRef)
@@ -1288,6 +1411,30 @@ namespace GameCult.Aetheria.State.Verse
                 new Dictionary<string, string>
                 {
                     ["background"] = "#020606"
+                });
+        }
+
+        private static AetheriaRuntimeSurfaceComponent PilotSurfaceRoot(
+            string id,
+            params AetheriaRuntimeSurfaceComponent[] children)
+        {
+            var props = new Dictionary<string, string>(StringComparer.Ordinal);
+            return new AetheriaRuntimeSurfaceComponent(
+                id,
+                "surface",
+                props,
+                children ?? Array.Empty<AetheriaRuntimeSurfaceComponent>(),
+                AetheriaRuntimeSurfaceStateBindings.FromProps(props),
+                Array.Empty<AetheriaRuntimeEmbeddedDocumentSlot>(),
+                Layout(
+                    ("position", "relative"),
+                    ("overflow", "hidden"),
+                    ("width", "100%"),
+                    ("height", "100%"),
+                    ("minHeight", "100%")),
+                new Dictionary<string, string>
+                {
+                    ["background"] = "transparent"
                 });
         }
 

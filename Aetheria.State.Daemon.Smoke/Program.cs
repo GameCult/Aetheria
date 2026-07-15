@@ -361,6 +361,18 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         Require(Flatten(surface.Surface.Root).Any(node => node.Kind == "feedback.event" &&
                 node.Props["eventKind"] == "weapon.firing.started" && node.Props["itemKey"] == "test-beam"),
             "Eve feedback stream must project continuous weapon transition chronology");
+        var cockpit = Flatten(surface.Surface.Root).Single(node => node.Id == "aetheria.daemon.game.cockpit");
+        Require(cockpit.Kind == "pane" && cockpit.Props["role"] == "pilot.cockpit" &&
+                cockpit.Layout["position"] == "absolute" && cockpit.Style["background"] == "transparent",
+            "pilot surface must publish a transparent provider-authored cockpit overlay");
+        Require(Flatten(cockpit).Count(node => node.Kind == "progress") >= 6 &&
+                Flatten(cockpit).Any(node => node.Id == "aetheria.daemon.game.cockpit.capacitor") &&
+                Flatten(cockpit).Any(node => node.Id == "aetheria.daemon.game.cockpit.targetHull"),
+            "pilot cockpit must expose native ship and target instrumentation through generic Eve progress components");
+        Require(Flatten(surface.Surface.Root).Where(node =>
+                    node.Id is "aetheria.daemon.game.frame" or "aetheria.daemon.game.player" or "aetheria.daemon.game.commands")
+                .All(node => node.Layout.TryGetValue("display", out var display) && display == "none"),
+            "operator diagnostics must remain published state without becoming pilot-camera UI");
     }
 
     private static void ChargedWeaponCannotBypassChargeLifecycle()
