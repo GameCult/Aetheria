@@ -94,6 +94,7 @@ namespace Aetheria.Editor
             var root = PrefabUtility.LoadPrefabContents(sourcePath);
             try
             {
+                ExtractExternalizedEffects(root, entry.Ref.AssetKey);
                 StripNonPresentationScripts(root);
                 StripPresentationPhysics(root);
                 NormalizePresentationMaterials(root);
@@ -109,6 +110,26 @@ namespace Aetheria.Editor
 
             var savedRoot = AssetDatabase.LoadAssetAtPath<GameObject>(outputPath);
             VerifyPrefab(savedRoot, outputPath);
+        }
+
+        private static void ExtractExternalizedEffects(GameObject root, string assetKey)
+        {
+            if (!string.Equals(assetKey, "prefab.entity.player", StringComparison.Ordinal) &&
+                !string.Equals(assetKey, "prefab.entity.ship", StringComparison.Ordinal))
+                return;
+
+            var tractorEffects = root.GetComponentsInChildren<MonoBehaviour>(true)
+                .Where(behaviour => behaviour != null &&
+                    string.Equals(behaviour.GetType().Name, "TractorBeam", StringComparison.Ordinal))
+                .Select(behaviour => behaviour.gameObject)
+                .Distinct()
+                .ToArray();
+            if (tractorEffects.Length == 0)
+                throw new InvalidOperationException(
+                    $"Ship presentation source '{assetKey}' has no embedded tractor effect to externalize.");
+
+            foreach (var effect in tractorEffects)
+                UnityEngine.Object.DestroyImmediate(effect, true);
         }
 
         private static void StripNonPresentationScripts(GameObject root)
