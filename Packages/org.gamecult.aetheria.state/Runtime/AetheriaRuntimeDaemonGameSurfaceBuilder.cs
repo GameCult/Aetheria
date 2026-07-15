@@ -635,6 +635,9 @@ namespace GameCult.Aetheria.State.Verse
             var combatPresentation = CombatPresentation(run, zone, playerEntityId, simulationSettings);
             if (combatPresentation != null)
                 presentationChildren.Insert(0, combatPresentation);
+            var tractorPresentation = TractorPresentation(run, zone, playerEntityId);
+            if (tractorPresentation != null)
+                presentationChildren.Insert(0, tractorPresentation);
             var aimPresentation = AimPresentation(run, zone, playerEntityId);
             if (aimPresentation != null)
                 presentationChildren.Insert(0, aimPresentation);
@@ -682,6 +685,33 @@ namespace GameCult.Aetheria.State.Verse
                 ["viewDotRadius"] = "0.8"
             };
             return Node("aetheria.daemon.game.world.aim", "aim.presentation", props.Select(value => (value.Key, value.Value)).ToArray());
+        }
+
+        private static AetheriaRuntimeSurfaceComponent? TractorPresentation(
+            AetheriaRuntimeRunCheckpointCommit run,
+            AetheriaRuntimeZoneSnapshotCommit zone,
+            string playerEntityId)
+        {
+            var player = FindCurrentEntity(run, zone);
+            if (player == null)
+                return null;
+
+            return Node(
+                "aetheria.daemon.game.world.tractor",
+                "beam.presentation",
+                new[]
+                {
+                    ("sourceEntityId", playerEntityId),
+                    ("sourceEntityIndex", player.EntityIndex.ToString(CultureInfo.InvariantCulture)),
+                    ("assetRole", "effect.beam.tractor"),
+                    ("directionMode", "source-forward.v1"),
+                    ("renderChannel", "world.effects"),
+                    ("activationActionId", "pilot.scoop"),
+                    ("power", FormatNumber(player.TractorPower)),
+                    ("activationThreshold", FormatNumber(AetheriaRuntimeTractorMechanics.ActivationThreshold)),
+                    ("radius", FormatNumber(AetheriaRuntimeTractorMechanics.Radius)),
+                    ("maximumDistance", FormatNumber(AetheriaRuntimeTractorMechanics.Distance))
+                });
         }
 
         private static AetheriaRuntimeSurfaceComponent? CombatPresentation(

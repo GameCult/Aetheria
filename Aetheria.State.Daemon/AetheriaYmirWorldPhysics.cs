@@ -5,10 +5,6 @@ namespace Aetheria.State.Daemon;
 
 public sealed class AetheriaYmirWorldPhysics : IAetheriaRuntimeWorldPhysics, IDisposable
 {
-    public const double TractorRadius = 25;
-    public const double TractorTraction = 25;
-    public const double TractorDistance = 75;
-
     private const string EntityPrefix = "aetheria.daemon.entity.";
     private const string PickupPrefix = "aetheria.daemon.pickup.";
     private const string PhysicalPayloadPrefix = "aetheria.physical-payload.";
@@ -425,7 +421,8 @@ public sealed class AetheriaYmirWorldPhysics : IAetheriaRuntimeWorldPhysics, IDi
         int simulationStepIndex,
         ref int commandOrdinal)
     {
-        foreach (var actor in active.Where(entity => entity.TractorPower > 0.01))
+        foreach (var actor in active.Where(entity =>
+                     entity.TractorPower > AetheriaRuntimeTractorMechanics.ActivationThreshold))
         {
             var forward = Normalize(actor.DirectionX, actor.DirectionY, 0, 1);
             foreach (var pickup in pickups)
@@ -435,10 +432,11 @@ public sealed class AetheriaYmirWorldPhysics : IAetheriaRuntimeWorldPhysics, IDi
                 var along = dx * forward.X + dz * forward.Y;
                 var lateral = Math.Abs(dx * forward.Y - dz * forward.X);
                 var distance = Math.Sqrt(dx * dx + dz * dz);
-                if (along < 0 || along > TractorDistance || lateral > TractorRadius || distance <= 0.001)
+                if (along < 0 || along > AetheriaRuntimeTractorMechanics.Distance ||
+                    lateral > AetheriaRuntimeTractorMechanics.Radius || distance <= 0.001)
                     continue;
 
-                var force = TractorTraction;
+                var force = AetheriaRuntimeTractorMechanics.Traction;
                 var pickupId = PickupPrefix + pickup.PickupIndex;
                 RequireAccepted(session.ApplyForce(new YmirApplyForceCommand(
                     Header(session, frameId, simulationStepIndex, "tractor", $"{actor.EntityIndex}:{pickup.PickupIndex}", ref commandOrdinal),

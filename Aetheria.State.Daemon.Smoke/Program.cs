@@ -2909,6 +2909,18 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         RequireEqual(0, CargoQuantity(ship, "salvage"), "scooping must remain a separate capacity-checked transaction");
         Require(pickup.AgeSeconds > 0 && pickup.AgeSeconds < pickup.LifetimeSeconds,
             "daemon-owned pickup lifetime must advance independently of its SoA presentation");
+        var surface = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(
+            new AetheriaRuntimeDaemonFrameDocument { FrameId = 1, Run = run },
+            new AetheriaRuntimeDaemonHealthDocument(),
+            AetheriaRuntimeDaemonCommandBoundaryDocument.Create("daemon"));
+        var beam = Flatten(surface.Surface.Root).Single(node => node.Kind == "beam.presentation");
+        Require(beam.Props["sourceEntityId"] == run.EntityRecordKey(0, ship.EntityIndex) &&
+                beam.Props["assetRole"] == "effect.beam.tractor" &&
+                beam.Props["directionMode"] == "source-forward.v1" &&
+                beam.Props["activationActionId"] == "pilot.scoop" &&
+                beam.Props["power"] == "0.5" && beam.Props["radius"] == "25" &&
+                beam.Props["maximumDistance"] == "75",
+            "Eve beam presentation must project the same daemon tractor power and fossil volume without owning force or contact");
 
         double PulledVelocity(double power, int frameId)
         {
@@ -2954,6 +2966,9 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         var boltEffect = assets.Single(asset => asset.Ref.AssetKey == "prefab.effect.shot.bolt");
         RequireEqual("effect.shot.bolt", boltEffect.Ref.Metadata["presentationRole"],
             "provider manifest must bind semantic shot feedback to its graduated EveUnity effect");
+        var tractorEffect = assets.Single(asset => asset.Ref.AssetKey == "prefab.effect.beam.tractor");
+        RequireEqual("effect.beam.tractor", tractorEffect.Ref.Metadata["presentationRole"],
+            "provider manifest must bind the stripped fossil tractor prefab to the generic beam role");
         var thermalProfiles = assets.Where(asset =>
             string.Equals(asset.Ref.Kind, AetheriaRuntimeAssetKinds.VolumeProfile, StringComparison.Ordinal)).ToArray();
         RequireEqual(5, thermalProfiles.Length,

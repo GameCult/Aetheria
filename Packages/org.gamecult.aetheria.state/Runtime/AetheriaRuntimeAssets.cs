@@ -41,6 +41,7 @@ namespace GameCult.Aetheria.State.Verse
             Add(entries, MapPrefab("prefab.entity.orbital", "Orbital", "Prefabs/Stations/Zenith", "orbital"));
             Add(entries, MapPrefab("prefab.effect.shot.bolt", "Bolt", "Prefabs/Lightning", "effect.shot.bolt"));
             Add(entries, MapPrefab("prefab.effect.impact.shield", "Shield impact", "Prefabs/Shield", "effect.impact.shield"));
+            Add(entries, MapPrefab("prefab.effect.beam.tractor", "Tractor beam", "Prefabs/Tractor Beam", "effect.beam.tractor"));
             Add(entries, DestructionEffect());
             Add(entries, MapProjectPrefab("prefab.entity.pickup", "Pickup", "Assets/Prefabs/RPG/Pickups/Tetrahedron.prefab"));
             Add(entries, MinePrefab());

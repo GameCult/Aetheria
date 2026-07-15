@@ -2067,9 +2067,20 @@ static EveAssetCatalogDocument BuildCoreAssetCatalog(
     return new EveAssetCatalogDocument(
         "aetheria.daemon",
         AetheriaRuntimeVerseRecordKeys.EveAssetCatalog.ToString(),
-        1,
+        AssetCatalogVersion(source.PublishedAtUtc),
         source.PublishedAtUtc,
         assets);
+}
+
+static long AssetCatalogVersion(string publishedAtUtc)
+{
+    return DateTimeOffset.TryParse(
+            publishedAtUtc,
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.RoundtripKind,
+            out var publishedAt)
+        ? publishedAt.UtcDateTime.Ticks
+        : DateTimeOffset.UtcNow.UtcDateTime.Ticks;
 }
 
 static IReadOnlyList<(string Path, string Platform)> FindAssetBundles(AetheriaDaemonHostOptions options)

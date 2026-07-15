@@ -113,6 +113,13 @@ and screen-feedback lifecycles. Contracts declare source event, spawn space,
 attachment socket, channel, lifetime, pooling class, parameters, and start/
 update/stop bindings. Effect realization cannot mutate gameplay state.
 
+The current tractor lowering uses provider-owned, pre-generated particle
+textures and materials. `beam.presentation` carries source identity, provider
+asset role, daemon power, activation threshold, authored radius/distance,
+render channel, and an advertised activation action. EveUnity attaches and
+modulates that prefab; it does not raycast, apply force, infer contact, or move
+cargo. Ymir contact facts remain the only collection gate.
+
 Projectile simulation and projectile presentation are separate. The daemon and
 Ymir own identity/pose/contact; presentation owns visual asset, trail, impact,
 and visibility tags.

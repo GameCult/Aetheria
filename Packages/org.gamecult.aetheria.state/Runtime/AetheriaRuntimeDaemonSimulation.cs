@@ -96,7 +96,8 @@ namespace GameCult.Aetheria.State.Verse
             foreach (var entity in entities)
             {
                 var delta = entity.TractorTargetPower - entity.TractorPower;
-                entity.TractorPower += Math.Sign(delta) * Math.Min(Math.Abs(delta), deltaSeconds * 2.0);
+                entity.TractorPower += Math.Sign(delta) * Math.Min(
+                    Math.Abs(delta), deltaSeconds * AetheriaRuntimeTractorMechanics.PowerRampPerSecond);
                 entity.TractorPower = Clamp01(entity.TractorPower);
             }
         }
