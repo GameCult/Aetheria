@@ -144,7 +144,7 @@
       "hash": "140e1bd963a0033e66777a3b2c5fe6e9c97dfe32"
     },
     "org.gamecult.eve.unity-scene": {
-      "version": "https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.unity-scene#eveunity-scene-v0.3.39",
+      "version": "https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.unity-scene#eveunity-scene-v0.3.40",
       "depth": 0,
       "source": "git",
       "dependencies": {
@@ -154,7 +154,7 @@
         "com.unity.mathematics": "1.3.2",
         "com.unity.modules.particlesystem": "1.0.0"
       },
-      "hash": "35ff288aabc03130a61228579f1b09bac4345b5c"
+      "hash": "3c8d127ef8d0d8e6c9a45f92a8bbd553d87e6a07"
     },
     "com.unity.modules.assetbundle": {
       "version": "1.0.0",

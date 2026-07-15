@@ -220,7 +220,9 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             AetheriaRuntimeDaemonCommandBoundaryDocument.Create("daemon"));
         var volume = Flatten(surface.Surface.Root).Single(node => node.Kind == "field.volume3d");
         Require(volume.Props.Values.All(value => value == null || !value.Contains("_Nebula", StringComparison.Ordinal)) &&
-                volume.Props["layerBindings"].Contains("gravity.height=surfaceHeight", StringComparison.Ordinal),
+                volume.Props["layerBindings"].Contains("gravity.height=surfaceHeight", StringComparison.Ordinal) &&
+                volume.Props["viewportTextureScaleBindings"] == "ditherCoordinates=dither" &&
+                !volume.Props.ContainsKey("vectorParameters"),
             "portable Eve volume surfaces must name logical ports rather than Unity shader properties");
 
         var shader = AetheriaRuntimeAssets.ProjectManifest(null).Assets.Single(asset =>

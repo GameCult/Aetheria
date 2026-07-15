@@ -698,7 +698,7 @@ namespace GameCult.Aetheria.State.Verse
                 ["downsample"] = "0",
                 ["layerBindings"] = "gravity.height=surfaceHeight;fog.patch_height=patchHeight;fog.patch=patch;fog.tint=tint",
                 ["assetTextureBindings"] = "texture.environment.volume-dither=dither",
-                ["vectorParameters"] = "ditherCoordinates=0,0,0,0",
+                ["viewportTextureScaleBindings"] = "ditherCoordinates=dither",
                 ["floatParameters"] = "fillDensity=0.000000001;fillDistance=120;fillExponent=5;fillOffset=70;" +
                     "patchDensity=0.35;floorOffset=-20;floorBlend=10;patchBlend=25;luminance=1;extinction=0.5;" +
                     "tintLodExponent=-0.45;safetyDistance=30;flowScale=512;flowAmplitude=15;flowPeriod=8;" +
