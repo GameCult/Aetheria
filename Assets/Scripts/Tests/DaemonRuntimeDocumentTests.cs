@@ -4278,12 +4278,6 @@ public class DaemonRuntimeDocumentTests
         command.PositionY = 11;
         command.PositionZ = 12;
         command.ScalarValue = 1;
-        command.LootPickup.ItemKey = "loot-cell";
-        command.LootPickup.PickupIndex = 7;
-        command.LootPickup.Quantity = 1;
-        command.LootPickup.PositionX = 10;
-        command.LootPickup.PositionY = 11;
-        command.LootPickup.PositionZ = 12;
 
         var result = AetheriaRuntimeDaemonOperations.Execute(run, new[] { command });
 
@@ -4432,18 +4426,18 @@ public class DaemonRuntimeDocumentTests
         command.TargetEntityKey = "zone.0.entity.1";
         command.TextValue = "ore";
         command.ScalarValue = 200;
-        command.TradePurchase.PurchaseKind = "commodity";
         command.TradePurchase.ItemKey = "ore";
         command.TradePurchase.Quantity = 5;
-        command.TradePurchase.UnitPrice = 0;
-        command.TradePurchase.TotalPrice = 0;
-        command.TradePurchase.StationEntityKey = "zone.0.entity.0";
         command.TradePurchase.StationCargoIndex = 0;
-        command.TradePurchase.TargetEntityKey = "zone.0.entity.1";
         command.TradePurchase.TargetCargoIndex = 0;
         command.TradePurchase.SourceX = 2;
         command.TradePurchase.SourceY = 3;
-        command.TradePurchase.CreatesDockedShip = false;
+        command.TradePurchase.PurchaseKind = "docked_ship";
+        command.TradePurchase.UnitPrice = -999;
+        command.TradePurchase.TotalPrice = -999;
+        command.TradePurchase.StationEntityKey = "forged-station";
+        command.TradePurchase.TargetEntityKey = "forged-target";
+        command.TradePurchase.CreatesDockedShip = true;
 
         var result = AetheriaRuntimeDaemonOperations.Execute(
             run,
@@ -4479,9 +4473,7 @@ public class DaemonRuntimeDocumentTests
             "zone.0.entity.1");
         command.TradePurchase.ItemKey = "ore";
         command.TradePurchase.Quantity = 1;
-        command.TradePurchase.StationEntityKey = "zone.0.entity.0";
         command.TradePurchase.StationCargoIndex = 0;
-        command.TradePurchase.TargetEntityKey = "zone.0.entity.1";
         command.TradePurchase.TargetCargoIndex = 0;
         command.TradePurchase.SourceX = 2;
         command.TradePurchase.SourceY = 3;
@@ -4528,17 +4520,17 @@ public class DaemonRuntimeDocumentTests
         command.TargetEntityKey = "zone.0.entity.1";
         command.TextValue = "starter-hull";
         command.ScalarValue = 300;
-        command.TradePurchase.PurchaseKind = "docked_ship";
         command.TradePurchase.ItemKey = "starter-hull";
         command.TradePurchase.Quantity = 1;
-        command.TradePurchase.UnitPrice = 300;
-        command.TradePurchase.TotalPrice = 300;
-        command.TradePurchase.StationEntityKey = "zone.0.entity.1";
         command.TradePurchase.StationCargoIndex = 0;
-        command.TradePurchase.TargetEntityKey = "zone.0.entity.1";
         command.TradePurchase.SourceX = 4;
         command.TradePurchase.SourceY = 5;
-        command.TradePurchase.CreatesDockedShip = true;
+        command.TradePurchase.PurchaseKind = "commodity";
+        command.TradePurchase.UnitPrice = 0;
+        command.TradePurchase.TotalPrice = 0;
+        command.TradePurchase.StationEntityKey = "forged-station";
+        command.TradePurchase.TargetEntityKey = "forged-target";
+        command.TradePurchase.CreatesDockedShip = false;
 
         var result = AetheriaRuntimeDaemonOperations.Execute(
             run,

@@ -1747,10 +1747,11 @@ First Aetheria surfaces to publish:
      `InventoryPanel` may request a selected docked player ship and update the
      button color, but the daemon owns `CurrentEntity`, `DockingBay.DockedShip`,
      and the typed checkpoint.
-   - Done: route loot pickup through typed daemon operations. `ShieldManager`
-     may detect the collision and destroy the world pickup after a successful
-     commit, but it no longer stores items into cargo bays directly; the daemon
-     owns the cargo mutation and typed run checkpoint.
+   - Done: delete client-owned loot pickup submission. Tractor power influences
+     Ymir motion, but only an authenticated Ymir Begin contact fact can ask the
+     daemon pickup transaction to mutate cargo or remove a pickup. Unity
+     collision callbacks and the retired serialized command payload have no
+     writer authority.
    - Done: route entity destruction through typed daemon operations.
      `EntityInstance` observes hull death and may spawn the local destruction
      effect, but the daemon owns equipment/cargo drop decisions, zone entity
@@ -2271,8 +2272,12 @@ membership, and the daemon owns the group mutation and checkpoint. Inventory
 double-click transfer follows the same
 rule, and drag/drop placement now shares that commit family: UI requests
 cargo/equipment movement, and the daemon owns the move and checkpoint. Trade
-purchases follow the same rule: UI requests the purchase, and the daemon owns
-credit changes, cargo transfer, ship creation, and checkpoint. Runtime loadout
+purchases follow the same rule: UI requests only item, quantity, stock slot,
+and destination bay. The daemon derives the dock parent, current catalog price,
+product kind, capacity, hull-vs-cargo result, credit changes, cargo transfer,
+ship creation, and checkpoint. Historical price, station, target, purchase-kind,
+and `CreatesDockedShip` fields remain serialization tombstones only; live clients
+do not write them and daemon operations do not read them. Runtime loadout
 restore follows the same rule: UI requests restoration, and the daemon owns
 instantiation, credits, dock assignment, current entity, and checkpoint. Docked
 current-ship selection follows the same rule: UI requests selection, and the

@@ -294,33 +294,21 @@ public sealed class AetheriaRuntimeDaemonOperationsClient
     }
 
     public CultMeshOperationReceipt TradePurchase(
-        string purchaseKind,
         string itemKey,
         int quantity,
-        int unitPrice,
-        int totalPrice,
-        string stationEntityKey,
         int stationCargoIndex,
-        string targetEntityKey,
         int targetCargoIndex,
         int sourceX,
-        int sourceY,
-        bool createsDockedShip)
+        int sourceY)
     {
         return Send((client, frame) => client.TradePurchase(
             frame,
-            purchaseKind,
             itemKey,
             quantity,
-            unitPrice,
-            totalPrice,
-            stationEntityKey,
             stationCargoIndex,
-            targetEntityKey,
             targetCargoIndex,
             sourceX,
-            sourceY,
-            createsDockedShip));
+            sourceY));
     }
 
     public CultMeshOperationReceipt RestoreLoadout(
@@ -511,18 +499,12 @@ public sealed class AetheriaRuntimeDaemonOperationsClient
                 ReadPayloadString(request, "taskId", "")),
             AetheriaRuntimeDaemonCommandKinds.TradePurchase => client.TradePurchase(
                 frame,
-                "",
                 ReadPayloadString(request, "itemKey", ""),
                 (int)ReadPayloadDouble(request, "quantity", 1),
-                0,
-                0,
-                ReadPayloadString(request, "stationEntityKey", ""),
                 (int)ReadPayloadDouble(request, "stationCargoIndex", -1),
-                ReadPayloadString(request, "targetEntityKey", ""),
                 (int)ReadPayloadDouble(request, "targetCargoIndex", -1),
                 (int)ReadPayloadDouble(request, "sourceX", int.MinValue),
-                (int)ReadPayloadDouble(request, "sourceY", int.MinValue),
-                false),
+                (int)ReadPayloadDouble(request, "sourceY", int.MinValue)),
             _ => AetheriaRuntimeDaemonSurfaceCommandCatalog.TrySubmitArgumentless(
                     client,
                     frame,

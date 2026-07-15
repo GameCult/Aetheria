@@ -166,6 +166,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             MissingWorldPhysicsOwnerCannotAdvanceShips,
             TractorRampsAndPullsThroughYmirWithoutTeleportingCargo,
             PickupIsCapacityCheckedExactlyOnceAndExpires,
+            TradePurchaseDerivesAcceptanceFromDaemonState,
             StationBodiesCannotConsumePickups,
             PickupShieldContactCollectsOrBounces,
             YmirRestartDoesNotReplayConsumedPickupContact,
@@ -3043,7 +3044,6 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         var forbiddenCommand = AetheriaRuntimeDaemonCommandDocument.Create(AetheriaRuntimeDaemonCommandKinds.PickUpLoot, "pilot", "pickup-smoke", 0, "zone.0.entity.0");
         forbiddenCommand.CommandId = "pickup-command-forbidden";
         forbiddenCommand.TargetEntityKey = "zone.0.entity.0";
-        forbiddenCommand.LootPickup.PickupIndex = 7;
         var forbidden = AetheriaRuntimeDaemonOperations.Execute(run, [forbiddenCommand], new AetheriaRuntimeDaemonOperationContext { Catalog = catalog });
         Require(forbidden.RejectedCommandIds.Contains(forbiddenCommand.CommandId),
             "client pickup commands must not own cargo collection");
@@ -3113,6 +3113,73 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         RequireEqual(0, zone.DroppedPickups.Count, "pickup must expire after the fossil thirty-second lifetime");
         Require(run.GameEvents.Any(value => value.Kind == "pickup.expired" && value.PickupIndex == 8),
             "daemon lifetime owner must emit authoritative pickup expiry event");
+    }
+
+    private static void TradePurchaseDerivesAcceptanceFromDaemonState()
+    {
+        var ore = CatalogItem("trade-ore"); ore.Price = 40; ore.Volume = 1;
+        var cargoBay = CatalogItem("trade-cargo-bay"); cargoBay.InteriorOccupiedCells = 10;
+        var catalog = new AetheriaRuntimeCatalogSnapshot([ore, cargoBay], [], []);
+        var station = Entity(0, 0, "station");
+        station.Kind = "station";
+        station.CargoContents = [Cargo((ore.ItemKey, 10, 2, 3))];
+        station.DockingBayAssignments = [1];
+        station.ChildEntityIndices = [1];
+        var ship = Entity(1, 0, "player");
+        ship.Equipment = [new AetheriaRuntimeLoadoutItemSlotCommit
+        {
+            Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = cargoBay.ItemKey, Quantity = 1 }
+        }];
+        ship.CargoContents = [Cargo()];
+        var zone = new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [station, ship] };
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "trade-authority-smoke",
+            CurrentZoneIndex = 0,
+            CurrentEntityKey = "zone.0.entity.1",
+            Credits = 5000,
+            Zones = [zone]
+        };
+        var command = AetheriaRuntimeDaemonCommandDocument.Create(
+            AetheriaRuntimeDaemonCommandKinds.TradePurchase,
+            "pilot",
+            "trade-authority-smoke",
+            1,
+            run.CurrentEntityKey);
+        command.TradePurchase.ItemKey = ore.ItemKey;
+        command.TradePurchase.Quantity = 5;
+        command.TradePurchase.StationCargoIndex = 0;
+        command.TradePurchase.TargetCargoIndex = 0;
+        command.TradePurchase.SourceX = 2;
+        command.TradePurchase.SourceY = 3;
+        command.TradePurchase.PurchaseKind = "docked_ship";
+        command.TradePurchase.UnitPrice = -999;
+        command.TradePurchase.TotalPrice = -999;
+        command.TradePurchase.StationEntityKey = "forged-station";
+        command.TradePurchase.TargetEntityKey = "forged-target";
+        command.TradePurchase.CreatesDockedShip = true;
+
+        Require(AetheriaRuntimeRunCheckpointCommit.TryParseEntityKey(run.CurrentEntityKey, out _, out _),
+            "trade smoke current entity key must be daemon-resolvable");
+        RequireEqual(10, AetheriaRuntimeCargoCapacityQueries.UnitsThatFit(ship, catalog, ore.ItemKey, 0),
+            "trade smoke cargo fixture must have room for the requested commodity");
+        var daemonUnitPrice = AetheriaRuntimeDaemonTradeItemQueries.TradeItemValue(
+            ore,
+            station.CargoContents[0].Items[0].Item,
+            catalog.TradeValueSettings).Price;
+        Require(daemonUnitPrice > 0, "trade smoke daemon catalog price must be positive");
+
+        var result = AetheriaRuntimeDaemonOperations.Execute(
+            run,
+            [command],
+            new AetheriaRuntimeDaemonOperationContext { Catalog = catalog });
+
+        Require(result.AppliedCommandIds.Contains(command.CommandId),
+            "daemon must accept a valid commodity purchase regardless of forged compatibility opinions");
+        RequireEqual(5000 - daemonUnitPrice * 5, run.Credits,
+            "daemon catalog price must own trade credit mutation");
+        RequireEqual(5, CargoQuantity(ship, ore.ItemKey), "daemon cargo capacity and placement must own delivery");
+        RequireEqual(2, zone.Entities.Count, "forged ship-creation opinion must not materialize an entity");
     }
 
     private static void StationBodiesCannotConsumePickups()

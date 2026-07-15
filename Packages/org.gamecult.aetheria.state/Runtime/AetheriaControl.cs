@@ -164,31 +164,19 @@ namespace GameCult.Aetheria.State.Verse
                 hasDestinationPosition);
 
         public CultMeshOperationReceipt TradePurchase(
-            string purchaseKind,
             string itemKey,
             int quantity,
-            int unitPrice,
-            int totalPrice,
-            string stationEntityKey,
             int stationCargoIndex,
-            string targetEntityKey,
             int targetCargoIndex,
             int sourceX,
-            int sourceY,
-            bool createsDockedShip) =>
+            int sourceY) =>
             _operations.TradePurchase(
-                purchaseKind,
                 itemKey,
                 quantity,
-                unitPrice,
-                totalPrice,
-                stationEntityKey,
                 stationCargoIndex,
-                targetEntityKey,
                 targetCargoIndex,
                 sourceX,
-                sourceY,
-                createsDockedShip);
+                sourceY);
 
         public CultMeshOperationReceipt RestoreLoadout(
             string dockedEntityKey,

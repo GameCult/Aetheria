@@ -347,14 +347,9 @@ static IReadOnlyList<AetheriaRuntimeDaemonCommandDocument> BuildRefitCommands()
             command.PositionY = 0;
             command.ScalarValue = 25;
             command.TextValue = "reactor-fuel";
-            command.TradePurchase.PurchaseKind = "cargo";
             command.TradePurchase.ItemKey = "reactor-fuel";
             command.TradePurchase.Quantity = 1;
-            command.TradePurchase.UnitPrice = 25;
-            command.TradePurchase.TotalPrice = 25;
-            command.TradePurchase.StationEntityKey = station;
             command.TradePurchase.StationCargoIndex = 0;
-            command.TradePurchase.TargetEntityKey = actor;
             command.TradePurchase.TargetCargoIndex = 0;
             command.TradePurchase.SourceX = 1;
             command.TradePurchase.SourceY = 0;
@@ -399,11 +394,6 @@ static IReadOnlyList<AetheriaRuntimeDaemonCommandDocument> BuildRefitCommands()
             command.PositionX = -40;
             command.PositionY = 0;
             command.PositionZ = -35;
-            command.LootPickup.ItemKey = "loose-salvage";
-            command.LootPickup.Quantity = 2;
-            command.LootPickup.PositionX = -40;
-            command.LootPickup.PositionY = 0;
-            command.LootPickup.PositionZ = -35;
         }),
         Command("refit-008-restore-loadout", AetheriaRuntimeDaemonCommandKinds.RestoreLoadout, actor, command =>
         {

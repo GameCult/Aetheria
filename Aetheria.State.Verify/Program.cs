@@ -622,10 +622,10 @@ Console.WriteLine("Inventory entity rename authority: UI sends daemon operations
 Console.WriteLine("Weapon group authority: UI sends daemon operations for assignments instead of checkpoint rewrites");
 Console.WriteLine("Action-bar binding authority: Unity owns local input bindings; activations send daemon operations");
 Console.WriteLine("Inventory transfer authority: UI transfer and drag/drop send daemon operations");
-Console.WriteLine("Loot pickup authority: collision pickup sends daemon operations instead of local pickup disposal");
+Console.WriteLine("Loot pickup authority: daemon cargo collection occurs exactly once from an authenticated Ymir contact fact");
 Console.WriteLine("Entity destruction authority: hull-death observers send daemon operations instead of local graph deletion");
 Console.WriteLine("Dropped pickup state: daemon frames carry typed dropped-pickup snapshots and keyed live lowering");
-Console.WriteLine("Trade purchase authority: UI buy requests send daemon operations instead of checkpoint rewrites");
+Console.WriteLine("Trade purchase authority: UI requests item and placement; daemon derives price, station, product kind, capacity, and ship creation");
 Console.WriteLine("Inventory loadout restore authority: UI restore requests send daemon operations instead of local mutation");
 Console.WriteLine("Docked current-ship authority: UI selection requests send daemon operations instead of checkpoint rewrites");
 
@@ -6605,8 +6605,7 @@ static void RequireTradeItemValuesUseRuntimeQueries(string root)
         "public string TierColorHex => TradeValue.TierColorHex",
         "x.TypedItem.TryGetSimpleCommodityCategory(",
         "x.TypedItem.TryGetCompoundCommodityCategory(",
-        "x.TypedItem.TryGetHardpointType(",
-        "row.TypedItem.TryGetSimpleCommodityCategory(out SimpleCommodityCategory _)"
+        "x.TypedItem.TryGetHardpointType("
     };
     var missingTradeMenuSymbols = requiredTradeMenuSymbols
         .Where(symbol => !tradeMenu.Contains(symbol, StringComparison.Ordinal))
@@ -10971,7 +10970,6 @@ static void RequireTypedDaemonCommandPayloads(string root)
         "public enum AetheriaRuntimeDaemonCommandKinds",
         "public sealed class AetheriaRuntimeCargoTransferCommand",
         "public sealed class AetheriaRuntimeTradePurchaseCommand",
-        "public sealed class AetheriaRuntimeLootPickupCommand",
         "public sealed class AetheriaRuntimeLoadoutRestoreCommand",
         "public sealed class AetheriaRuntimeEquipmentTransferCommand",
         "public sealed class AetheriaRuntimeStoreItemCommand"
@@ -10984,6 +10982,41 @@ static void RequireTypedDaemonCommandPayloads(string root)
         throw new InvalidOperationException(
             "Daemon command document is missing typed command payloads: " +
             string.Join(", ", missingPayloadTypes));
+    }
+
+    if (!daemonDocuments.Contains("public sealed class AetheriaRuntimeLootPickupCommand", StringComparison.Ordinal) ||
+        !daemonDocuments.Contains("public AetheriaRuntimeLootPickupCommand LootPickup { get; set; }", StringComparison.Ordinal) ||
+        !daemonDocuments.Contains("Serialization tombstone", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "The retired loot-pickup payload must remain only as an explicit serialization tombstone for persisted command compatibility.");
+    }
+
+    var forbiddenRetiredCommandOpinionUses = new[]
+    {
+        ".LootPickup.",
+        "purchase.PurchaseKind",
+        "purchase.UnitPrice",
+        "purchase.TotalPrice",
+        "purchase.StationEntityKey",
+        "purchase.TargetEntityKey",
+        "purchase.CreatesDockedShip",
+        "command.TradePurchase.PurchaseKind",
+        "command.TradePurchase.UnitPrice",
+        "command.TradePurchase.TotalPrice",
+        "command.TradePurchase.StationEntityKey",
+        "command.TradePurchase.TargetEntityKey",
+        "command.TradePurchase.CreatesDockedShip"
+    };
+    var liveCommandImplementation = daemonClient + "\n" + daemonOperationsSource;
+    var survivingRetiredCommandOpinionUses = forbiddenRetiredCommandOpinionUses
+        .Where(symbol => liveCommandImplementation.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (survivingRetiredCommandOpinionUses.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Retired compatibility fields still influence live loot or trade command behavior: " +
+            string.Join(", ", survivingRetiredCommandOpinionUses));
     }
 
     if (daemonDocuments.Contains("public sealed class AetheriaRuntimeActionBarBindingCommand", StringComparison.Ordinal))
@@ -11066,7 +11099,6 @@ static void RequireTypedDaemonCommandPayloads(string root)
         "return Send((client, frame) => client.TransferCargoItem(",
         "command.CargoTransfer.OriginEntityKey",
         "ReadPayloadString(request, \"itemKey\", \"\")",
-        "command.LootPickup.ItemKey",
         "command.LoadoutRestore.TemplateName",
         "command.EquipmentTransfer.SourceKind",
         "command.StoreItem.SourceEquipmentIndex"
@@ -11513,6 +11545,7 @@ static void RequireDaemonVersePublication(string root)
     var daemonHostProjectPath = Path.Combine(root, "Aetheria.State.Daemon", "Aetheria.State.Daemon.csproj");
     var daemonHostProgramPath = Path.Combine(root, "Aetheria.State.Daemon", "Program.cs");
     var daemonZoneGeneratorPath = Path.Combine(root, "Aetheria.State.Daemon", "AetheriaDaemonZoneGenerator.cs");
+    var daemonLoadoutGeneratorPath = Path.Combine(root, "Aetheria.State.Daemon", "AetheriaDaemonLoadoutGenerator.cs");
     var documentRegistryPath = Path.Combine(root, "Aetheria.State", "AetheriaDocumentRegistry.cs");
     var stateNodePath = Path.Combine(root, "Aetheria.State", "AetheriaStateNode.cs");
     var runtimeSurfaceDocumentsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeSurfaceDocuments.cs");
@@ -11547,6 +11580,7 @@ static void RequireDaemonVersePublication(string root)
         daemonHostProjectPath,
         daemonHostProgramPath,
         daemonZoneGeneratorPath,
+        daemonLoadoutGeneratorPath,
         documentRegistryPath,
         stateNodePath,
         runtimeSurfaceDocumentsPath,
@@ -11589,6 +11623,7 @@ static void RequireDaemonVersePublication(string root)
     var daemonHostProject = File.ReadAllText(daemonHostProjectPath);
     var daemonHostProgram = File.ReadAllText(daemonHostProgramPath);
     var daemonZoneGenerator = File.ReadAllText(daemonZoneGeneratorPath);
+    var daemonLoadoutGenerator = File.ReadAllText(daemonLoadoutGeneratorPath);
     var documentRegistry = File.ReadAllText(documentRegistryPath);
     var stateNode = File.ReadAllText(stateNodePath);
     var runtimeSurfaceDocuments = File.ReadAllText(runtimeSurfaceDocumentsPath);
@@ -12093,7 +12128,6 @@ static void RequireDaemonVersePublication(string root)
         "AetheriaRuntimeStatRecipeSurfaceBuilder.BuildFromCatalog(catalog)",
         "AetheriaRuntimeTradeValuePolicySurfaceBuilder.BuildFromCatalog(catalog)",
         "AetheriaRuntimeDaemonEditorSurfaceBuilder.Build",
-        "SoaView = soaView",
         "ProviderAdvertisement = providerAdvertisement",
         "Health = health",
         "CommandBoundary = commandBoundary",
@@ -12102,7 +12136,7 @@ static void RequireDaemonVersePublication(string root)
         "ObservedCommands",
         "AccountedCommandIds",
         "frame.AccountedCommandIds = accountedBeforeTick",
-        "ObservedCommandCount = observedCommands.Length",
+        "ObservedCommandCount = observedCommandCount",
         "PublicationSource = \"daemon-published\"",
         "Transport = \"cultmesh-managed\"",
         "CommandBoundaryPath = AetheriaRuntimeVerseRecordKeys.DaemonCommandBoundary.ToString()"
@@ -12145,8 +12179,8 @@ static void RequireDaemonVersePublication(string root)
     }
 
     if (daemonZoneGenerator.Contains("fallbackCargo", StringComparison.Ordinal) ||
-        !daemonZoneGenerator.Contains("Build(string entityKind, string factionKey, IReadOnlyList<string> scenarioCargo)", StringComparison.Ordinal) ||
-        !daemonZoneGenerator.Contains("if (scenarioCargo != null && scenarioCargo.Count > 0)", StringComparison.Ordinal))
+        !daemonLoadoutGenerator.Contains("IReadOnlyList<string> scenarioCargo)", StringComparison.Ordinal) ||
+        !daemonLoadoutGenerator.Contains("foreach (var key in scenarioCargo ?? Array.Empty<string>())", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "Daemon zone generation must treat declared scenario cargo as authored state, not as a catalog-generation fallback.");
@@ -12167,9 +12201,7 @@ static void RequireDaemonVersePublication(string root)
         "StarbridgeScenario = starbridgeScenario",
         "StarbridgeSession = starbridgeSession",
         "BuildPublications = buildPublications",
-        "new AetheriaVerseDiscoveryHost(node)",
-        "discoveryHost.Update(",
-        "PublishDaemonApiDocumentsAsync(node, options, result)",
+        "PublishDaemonApiDocumentsAsync(node, options, soaPublisher, result",
         "node.MutableDocument<AetheriaRuntimeDaemonSoaViewDocument>(AetheriaRuntimeVerseRecordKeys.DaemonSoaViewLatest)",
         "node.MutableDocument<AetheriaRuntimeDaemonProviderAdvertisementDocument>(AetheriaRuntimeVerseRecordKeys.DaemonProviderAdvertisement)",
         "node.MutableDocument<AetheriaRuntimeDaemonHealthDocument>(AetheriaRuntimeVerseRecordKeys.DaemonHealth)",
@@ -12203,11 +12235,6 @@ static void RequireDaemonVersePublication(string root)
         "node.MutableDocument<EveSurfaceDocument>(AetheriaStateNode.PlayerSettingsSurfaceKey)",
         "node.MutableDocument<EveProviderAdvertisementDocument>(AetheriaStateNode.ProviderAdvertisementSurfaceKey)",
         "AetheriaEveSurfaceDocuments.BuildProviderAdvertisement(verseHost, node.StatePath, updatedAtUtc)",
-        "static EveProviderAdvertisementDocument BuildOdinProviderAdvertisement(",
-        "static CultNetDocumentPutRawMessage CreateOdinRawPut<T>(",
-        "EveProviderAdvertisementDocument.SchemaId",
-        "EveProviderAdvertisementDocument canonical",
-        "MessagePackSerializer.Serialize(payload)",
         "AetheriaEveSurfaceDocuments.BuildOperationsSurface(eveStatus, verseHost, runtimeSession)",
         "AetheriaEveSurfaceDocuments.BuildPlayerSettingsSurface(playerSettings, playerSettingsUpdatedAt)",
         "Role = \"verse-daemon\"",
@@ -12221,7 +12248,7 @@ static void RequireDaemonVersePublication(string root)
     if (missingDaemonHostSymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "Aetheria.State.Daemon no longer has Odin/VoidBot-shaped Verse daemon host authority: " +
+            "Aetheria.State.Daemon no longer exposes its direct CultMesh daemon host authority: " +
             string.Join(", ", missingDaemonHostSymbols));
     }
 
@@ -12322,7 +12349,7 @@ static void RequireDaemonVersePublication(string root)
     }
 
     if (!daemonTickBlock.Contains("if (buildPublications)", StringComparison.Ordinal) ||
-        !daemonTickBlock.Contains("PublishDaemonApiDocumentsAsync(node, options, result)", StringComparison.Ordinal))
+        !daemonTickBlock.Contains("PublishDaemonApiDocumentsAsync(node, options, soaPublisher, result", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "Daemon ticks must publish API cadence documents through managed AetheriaStateNode pointers.");
@@ -12488,8 +12515,10 @@ static void RequireDaemonVersePublication(string root)
 
     var requiredGameSurfaceSymbols = new[]
     {
-        "public const string SurfaceId = \"aetheria.game\"",
-        "public const string TuiSurfaceId = \"aetheria.game.tui\"",
+        "public const string PilotSurfaceId = \"aetheria.pilot\"",
+        "public const string CommanderSurfaceId = \"aetheria.starbridge.commander\"",
+        "public const string SurfaceId = PilotSurfaceId",
+        "public const string TuiSurfaceId = \"aetheria.pilot.tui\"",
         "AetheriaRuntimeDaemonFrameDocument frame",
         "AetheriaRuntimeDaemonHealthDocument health",
         "AetheriaRuntimeDaemonCommandBoundaryDocument commandBoundary",
@@ -12499,8 +12528,6 @@ static void RequireDaemonVersePublication(string root)
         "AetheriaRuntimeDaemonStateRefs.CurrentEntityName",
         "AetheriaRuntimeDaemonStateRefs.CurrentTargetName",
         "\"game.daemon\"",
-        "\"aetheria.daemon.game.starbridge\"",
-        "\"Starbridge Session\"",
         "\"Station Stock\"",
         "\"Wave Forecast\"",
         "\"Runtime Roles\"",
@@ -15979,7 +16006,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
     var requiredDaemonNavigationAuthoritySymbols = new[]
     {
         "ApplyEnterWormholeIntent(run, command, context.Intents)",
-        "ApplyTowToStationIntent(run, command, context.Intents)",
+        "ApplyTowToStation(run, command, context.DockingDistance)",
         "MoveEntityToZone(run, actor, command.TargetZoneIndex",
         "run.CurrentZoneIndex = targetZoneIndex",
         "run.CurrentEntityKey = movedEntityKey",
@@ -16371,14 +16398,14 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
     {
         "TowToStation",
         "AetheriaRuntimeDaemonCommandKinds.TowToStation",
-        "ApplyTowToStationIntent",
-        "out var stationZoneIndex",
-        "out var station",
-        "var destinationX = station.PositionX;",
-        "var destinationY = station.PositionZ;",
-        "MoveEntityToZone(run, actor, stationZoneIndex, destinationX, destinationY, out var movedEntityKey)",
-        "intents.Towing.Add",
-        "AetheriaRuntimeDaemonTowIntent",
+        "ApplyTowToStation(",
+        "double attachmentDistance",
+        "towing.ChildEntityIndices",
+        "command.TextValue, \"attach\"",
+        "attachmentDistance * attachmentDistance",
+        "command.TextValue, \"detach\"",
+        "zone.Orbits =",
+        "station.OrbitKey = orbitKey",
         "public CultMeshOperationReceipt TowToStation(string stationEntityKey)"
     };
 
@@ -16594,8 +16621,7 @@ static void RequireThermalPresentationAssetAuthority(string root)
         "[\"presentationRole\"] = entry.Ref.Metadata.TryGetValue",
         "IEveUnityThermalPresentationAssetSink",
         "assets.Heatstroke as VolumeProfile",
-        "_death.weight = frame.DeathWeight",
-        "b112acb34d1e2561f1e770a9088bd0123e6614ab"
+        "_death.weight = frame.DeathWeight"
     };
     var body = assets + daemon + builder + migrator + sink + manifest;
     var missing = required.Where(symbol => !body.Contains(symbol, StringComparison.Ordinal)).ToArray();
@@ -16885,15 +16911,15 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
             "StepCombat(run, zone, entities, intents, deltaSeconds, settings, worldPhysics, catalog,",
             "AetheriaRuntimeEquippedBehaviorQueries.Find(entity, catalog, AetheriaRuntimeBehaviorKinds.InstantWeapon)",
             "EnsureWeaponState(",
-            "CommitWeaponRound(attacker, weapon)",
+            "CommitWeaponRound(attacker, weapon, catalog)",
             "weapon.State.BurstRemaining = weapon.BurstCount",
             "weapon.State.BurstTimer += deltaSeconds",
             "weapon.SingleAmmoBurst",
             "weapon.reload.started",
             "weapon.reload.completed",
             "AetheriaRuntimeCargoTransactions.TryRemoveQuantity(",
-            "CommitEnergy(entity, weapon.Energy)",
-            "CommitShotResolution(run, zone, attacker, target, weapon, shotId, frameId)",
+            "CommitEnergy(entity, catalog, weapon.Energy)",
+            "CommitShotResolution(run, zone, attacker, target, weapon, shotId, frameId, catalog, settings)",
             "PreparePhysicalPayloads(zone, byIndex, deltaSeconds)",
             "worldPhysics.StepPhysicalPayloads(",
             "Kind = \"physical-payload.contact\""
@@ -16915,9 +16941,9 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
         [ymirWorldPhysicsPath] = new[]
         {
             "public sealed class AetheriaYmirWorldPhysics : IAetheriaRuntimeWorldPhysics, IDisposable",
-            "public YmirSession WorldSession { get; }",
-            "public YmirSession PayloadSession { get; }",
-            "state.PayloadSession.Step(new YmirStepSessionCommand(",
+            "public YmirSession WorldSession { get; } = worldSession",
+            "public YmirSession? PayloadSession { get; set; }",
+            "var stepped = payloadSession.Step(new YmirStepSessionCommand(",
             "state.WorldSession.CastCircle(new YmirSessionCircleCastQuery(",
             "state.WorldSession.OverlapCircle(new YmirSessionCircleOverlapQuery(",
             "PhysicalPayloadPrefix + payload.PayloadId",
@@ -17271,16 +17297,6 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
         throw new InvalidOperationException(
             "Electron document decoding must not fabricate fallback Aetheria asset refs; daemon-authored documents and CultMesh CDN own asset identity.");
     }
-    if (!rtsClientApp.Contains("aetheria-cdn://asset?uri=", StringComparison.Ordinal) ||
-        !rtsClientApp.Contains("uri.startsWith(\"cultmesh://\")", StringComparison.Ordinal) ||
-        !rtsElectronMain.Contains("protocol.handle(assetProtocol", StringComparison.Ordinal) ||
-        !rtsElectronMain.Contains("aetheriaClient.assetBlob(uri)", StringComparison.Ordinal) ||
-        !rtsElectronCultMesh.Contains("cultMeshCdnAssetBlobSchemaId", StringComparison.Ordinal) ||
-        !rtsElectronCultMesh.Contains("public async assetBlob(uri: string)", StringComparison.Ordinal))
-    {
-        throw new InvalidOperationException(
-            "Electron Eve lowering must resolve CultMesh asset refs through the daemon CultMesh CDN protocol bridge.");
-    }
     if (rtsElectronCultMesh.Contains("buildViewportDocumentFromFrame(await this.fetchLatestFrameDocument()", StringComparison.Ordinal) ||
         rtsElectronCultMesh.Contains("buildObjectsViewportDocumentFromFrame(await this.fetchLatestFrameDocument()", StringComparison.Ordinal) ||
         rtsElectronCultMesh.Contains("buildGravityViewportDocumentFromFrame(await this.fetchLatestFrameDocument()", StringComparison.Ordinal) ||
@@ -17290,13 +17306,6 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
     {
         throw new InvalidOperationException(
             "Electron queries must fetch daemon-authored managed documents, not rebuild field/view/selection/inventory documents from daemonFrame.");
-    }
-    if (rtsElectronCultMesh.Contains("switch (request?.surfaceId)", StringComparison.Ordinal) ||
-        rtsElectronCultMesh.Contains("case \"aetheria.", StringComparison.Ordinal) ||
-        !rtsElectronCultMesh.Contains("return surfaceId ? `eve:surface:${surfaceId}` : defaultEveSurfaceRecordKey;", StringComparison.Ordinal))
-    {
-        throw new InvalidOperationException(
-            "Electron Eve surface loading must not carry a hardcoded Aetheria panel catalog; Eve surface ids resolve through daemon-authored surface records.");
     }
     if (rtsLocalDocuments.Contains("buildViewportDocumentFromFrame", StringComparison.Ordinal) ||
         rtsLocalDocuments.Contains("buildObjectsViewportDocumentFromFrame", StringComparison.Ordinal) ||
@@ -19864,7 +19873,8 @@ static void RequireTradePurchaseRequestAuthority(string root)
     var requiredDaemonShipPurchaseSymbols = new[]
     {
         "ApplyCreateDockedShipPurchase(",
-        "purchase.CreatesDockedShip",
+        "var createsDockedShip = !string.IsNullOrWhiteSpace(typedItem.HullType)",
+        "ApplyCreateDockedShipPurchase(run, dockParentKey, itemKey, out var purchasedShipKey)",
         "run.CurrentEntityKey = purchasedShipKey",
         "HullItemKey = itemKey"
     };

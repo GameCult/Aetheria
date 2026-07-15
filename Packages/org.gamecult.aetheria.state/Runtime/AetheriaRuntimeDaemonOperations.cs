@@ -948,7 +948,6 @@ namespace GameCult.Aetheria.State.Verse
             {
                 if (quantity != 1 || !HasAvailableDockingBay(dockParent))
                     return false;
-                purchase.TargetEntityKey = dockParentKey;
                 if (!TryRemoveCargoItemQuantity(
                         stationEntity,
                         stationCargoIndex,
@@ -958,7 +957,7 @@ namespace GameCult.Aetheria.State.Verse
                         1,
                         out var purchasedHull))
                     return false;
-                if (!ApplyCreateDockedShipPurchase(run, purchase, out var purchasedShipKey))
+                if (!ApplyCreateDockedShipPurchase(run, dockParentKey, itemKey, out var purchasedShipKey))
                 {
                     AddCargoItem(stationEntity, stationCargoIndex, purchasedHull);
                     return false;
@@ -1075,13 +1074,13 @@ namespace GameCult.Aetheria.State.Verse
 
         private static bool ApplyCreateDockedShipPurchase(
             AetheriaRuntimeRunCheckpointCommit run,
-            AetheriaRuntimeTradePurchaseCommand purchase,
+            string dockParentKey,
+            string itemKey,
             out string purchasedShipKey)
         {
             purchasedShipKey = "";
-            var itemKey = purchase.ItemKey ?? "";
             if (string.IsNullOrWhiteSpace(itemKey) ||
-                !TryResolveEntity(run, purchase.TargetEntityKey, out var zoneIndex, out var parentIndex, out var parent))
+                !TryResolveEntity(run, dockParentKey, out var zoneIndex, out var parentIndex, out var parent))
             {
                 return false;
             }

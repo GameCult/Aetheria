@@ -409,99 +409,38 @@ public class TradeMenu : MonoBehaviour
             return;
         }
 
-        var createsDockedShip = !string.IsNullOrWhiteSpace(row.TypedItem.HullType);
-        if (createsDockedShip &&
-            !string.Equals(row.TypedItem.HullType, nameof(HullType.Ship), StringComparison.Ordinal))
-        {
-            ShowUnableToBuy("Unsupported hull purchase!");
-            return;
-        }
-
-        RequestTradePurchase(row, quantity, createsDockedShip);
+        RequestTradePurchase(row, quantity);
     }
 
     private void RequestTradePurchase(
         TradeRow row,
-        int quantity,
-        bool createsDockedShip)
+        int quantity)
     {
         if (row?.Stock == null ||
             string.IsNullOrWhiteSpace(row.ItemKey) ||
-            quantity <= 0 ||
-            row.Price < 0)
+            quantity <= 0)
         {
             return;
         }
 
-        var totalPrice = (long)quantity * row.Price;
-        if (totalPrice > int.MaxValue)
-            return;
-
-        var stationRefit = StationRefitSnapshot();
-        var stationEntityKey = stationRefit?.DockParentEntityKey ?? "";
         var stationCargoIndex = row.Stock.CargoBayIndex;
         var sourcePosition = new int2(row.Stock.X, row.Stock.Y);
-        if (string.IsNullOrWhiteSpace(stationEntityKey) ||
-            stationCargoIndex < 0 ||
+        if (stationCargoIndex < 0 ||
             sourcePosition.x < 0 ||
             sourcePosition.y < 0)
         {
             return;
         }
 
-        var targetEntityKey = _targetCargoEntityKey ?? "";
-        var targetCargoIndex = _targetCargoIndex;
-
-        if (createsDockedShip)
-        {
-            if (!TryResolveCurrentDockingTargetEntityKey(out targetEntityKey))
-            {
-                return;
-            }
-
-            targetCargoIndex = -1;
-        }
-        else if (string.IsNullOrWhiteSpace(targetEntityKey) ||
-                 targetCargoIndex < 0)
-        {
-            return;
-        }
-
-        var purchaseKind = createsDockedShip
-            ? "docked_ship"
-            : row.TypedItem.TryGetSimpleCommodityCategory(out SimpleCommodityCategory _)
-                ? "commodity"
-                : "crafted";
-
         TrySubmitOperation(
             operations => operations.TradePurchase(
-                purchaseKind,
                 row.ItemKey,
                 quantity,
-                row.Price,
-                (int)totalPrice,
-                stationEntityKey,
                 stationCargoIndex,
-                targetEntityKey,
-                targetCargoIndex,
+                _targetCargoIndex,
                 sourcePosition.x,
-                sourcePosition.y,
-                createsDockedShip),
+                sourcePosition.y),
             "trade purchase");
-    }
-
-    private bool TryResolveCurrentDockingTargetEntityKey(out string targetEntityKey)
-    {
-        targetEntityKey = "";
-        if (!TryResolveCurrentDocking(out var docking) ||
-            docking.IsDocked != true ||
-            string.IsNullOrWhiteSpace(docking.DockParentEntityKey))
-        {
-            return false;
-        }
-
-        targetEntityKey = docking.DockParentEntityKey;
-        return true;
     }
 
     private AetheriaRuntimeStationRefitDocument StationRefitSnapshot()

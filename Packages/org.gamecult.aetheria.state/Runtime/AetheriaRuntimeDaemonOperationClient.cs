@@ -456,38 +456,24 @@ namespace GameCult.Aetheria.State.Verse
 
         internal AetheriaRuntimeDaemonCommandEnvelope TradePurchase(
             AetheriaRuntimeDaemonFrameDocument? frame,
-            string purchaseKind,
             string itemKey,
             int quantity,
-            int unitPrice,
-            int totalPrice,
-            string stationEntityKey,
             int stationCargoIndex,
-            string targetEntityKey,
             int targetCargoIndex,
             int sourceX,
-            int sourceY,
-            bool createsDockedShip)
+            int sourceY)
         {
             var command = Create(AetheriaRuntimeDaemonCommandKinds.TradePurchase, frame);
-            command.TargetEntityKey = targetEntityKey ?? "";
             command.EquipmentIndex = targetCargoIndex;
             command.PositionX = sourceX;
             command.PositionY = sourceY;
-            command.ScalarValue = totalPrice;
             command.TextValue = itemKey ?? "";
-            command.TradePurchase.PurchaseKind = purchaseKind ?? "";
             command.TradePurchase.ItemKey = itemKey ?? "";
             command.TradePurchase.Quantity = quantity;
-            command.TradePurchase.UnitPrice = unitPrice;
-            command.TradePurchase.TotalPrice = totalPrice;
-            command.TradePurchase.StationEntityKey = stationEntityKey ?? "";
             command.TradePurchase.StationCargoIndex = stationCargoIndex;
-            command.TradePurchase.TargetEntityKey = targetEntityKey ?? "";
             command.TradePurchase.TargetCargoIndex = targetCargoIndex;
             command.TradePurchase.SourceX = sourceX;
             command.TradePurchase.SourceY = sourceY;
-            command.TradePurchase.CreatesDockedShip = createsDockedShip;
             return Send(command);
         }
 

@@ -641,6 +641,8 @@ namespace GameCult.Aetheria.State.Verse
         [Key(22)]
         public AetheriaRuntimeTradePurchaseCommand TradePurchase { get; set; } = new AetheriaRuntimeTradePurchaseCommand();
 
+        // Serialization tombstone: retained so old command documents remain readable.
+        // The daemon rejects PickUpLoot and no client operation writes this payload.
         [Key(23)]
         public AetheriaRuntimeLootPickupCommand LootPickup { get; set; } = new AetheriaRuntimeLootPickupCommand();
 
@@ -850,6 +852,8 @@ namespace GameCult.Aetheria.State.Verse
     [MessagePackObject]
     public sealed class AetheriaRuntimeTradePurchaseCommand
     {
+        // Keys 0, 3, 4, 5, 7, and 11 are serialization tombstones. The daemon
+        // derives product kind, price, station, target, and ship creation.
         [Key(0)]
         public string PurchaseKind { get; set; } = "";
 
@@ -885,6 +889,7 @@ namespace GameCult.Aetheria.State.Verse
 
         [Key(11)]
         public bool CreatesDockedShip { get; set; }
+
     }
 
     [MessagePackObject]
