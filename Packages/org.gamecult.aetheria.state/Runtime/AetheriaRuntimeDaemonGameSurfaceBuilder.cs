@@ -608,6 +608,7 @@ namespace GameCult.Aetheria.State.Verse
                 ["cameraRig"] = isDocked
                     ? "planar.top-down-follow.v1"
                     : "perspective.entity-forward-follow.v1",
+                ["cameraLookAt"] = isDocked ? "" : "aim.convergence-point.v1",
                 ["cameraDistance"] = isDocked ? "70" : "30",
                 ["cameraVerticalFieldOfViewDegrees"] = "60",
                 ["cameraTargetScreenX"] = isDocked ? "0.66" : "0.64",

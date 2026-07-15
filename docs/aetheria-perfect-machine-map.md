@@ -871,10 +871,11 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   state and publishes the fossil framing and lens values. EveUnity owns only the
   native camera projection.
 - Inputs: controlled entity identity and rotation, dock parentage, presentation
-  mode, distance, field of view, target screen position, damping, and clip planes.
+  mode, daemon-published aim convergence state, distance, field of view, target
+  screen position, damping, and clip planes.
 - Outputs: undocked flight uses `perspective.entity-forward-follow.v1` with the
-  fossil `Third Person Rig` values. Docked presentation remains a distinct mode
-  and cannot lend its framing to flight.
+  fossil `Third Person Rig` values and `aim.convergence-point.v1` look-at. Docked
+  presentation remains a distinct mode and cannot lend its framing to flight.
 - Derived state: Unity camera position, rotation, matrices, culling mask, and
   temporal fog history are presentation state.
 - Forbidden writers: Unity cameras cannot choose dock state, alter entity look

@@ -568,6 +568,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 world.Props["lookSensitivityRadians"] == "-0.001",
             "playable world must advertise the daemon-owned continuous look command and fossil pointer response");
         Require(world.Props["cameraRig"] == "perspective.entity-forward-follow.v1" &&
+                world.Props["cameraLookAt"] == "aim.convergence-point.v1" &&
                 world.Props["cameraDistance"] == "30" &&
                 world.Props["cameraVerticalFieldOfViewDegrees"] == "60" &&
                 world.Props["cameraTargetScreenX"] == "0.64" &&
