@@ -310,7 +310,7 @@ namespace GameCult.Aetheria.State.Verse
             {
                 var entity = entities[index];
                 WriteInt32(bytes, layout.EntityIndex + index * IntStride, entity.EntityIndex);
-                WriteInt32(bytes, layout.CargoQuantity + index * IntStride, CountCargoUnits(entity));
+                WriteInt32(bytes, layout.CargoQuantity + index * IntStride, AetheriaRuntimeCargoCapacityQueries.Quantity(entity));
                 WriteFloat3(bytes, layout.Position, index, entity.PositionX, entity.PositionY, entity.PositionZ);
                 WriteFloat(bytes, layout.RotationRadians, index, Math.Atan2(entity.DirectionX, entity.DirectionY));
                 WriteFloat3(bytes, layout.Velocity, index, entity.VelocityX, 0.0, entity.VelocityY);
@@ -421,15 +421,6 @@ namespace GameCult.Aetheria.State.Verse
         private static bool IsFinite(double value)
         {
             return !double.IsNaN(value) && !double.IsInfinity(value);
-        }
-
-        private static int CountCargoUnits(AetheriaRuntimeEntitySnapshotCommit entity)
-        {
-            return (entity.CargoContents ?? Array.Empty<AetheriaRuntimeCargoBayLoadoutCommit>())
-                .Where(bay => bay != null)
-                .SelectMany(bay => bay.Items ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>())
-                .Where(slot => slot?.Item != null)
-                .Sum(slot => Math.Max(0, slot.Item.Quantity));
         }
 
         private readonly struct EntityHotSlabLayout

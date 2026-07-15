@@ -302,12 +302,26 @@ namespace GameCult.Aetheria.State.Verse
                         ("pickupIndex", value.PickupIndex.ToString(CultureInfo.InvariantCulture)),
                         ("itemKey", value.ItemKey), ("scalarValue", FormatNumber(value.ScalarValue)),
                         ("auxiliaryValue", FormatNumber(value.AuxiliaryValue)),
+                        ("cargoQuantityBefore", PickupCargoQuantity(value, after: false)),
+                        ("cargoQuantityAfter", PickupCargoQuantity(value, after: true)),
                         ("subjectKey", value.SubjectKey), ("reason", value.Reason),
                         ("position", string.Join(",", new[] { FormatNumber(value.PositionX), FormatNumber(value.PositionZ) })),
                         ("currentFrameId", frameId.ToString(CultureInfo.InvariantCulture))
                     }))
                 .ToArray();
             return Node("aetheria.daemon.game.feedback", "feedback.stream", new[] { ("retainedCount", events.Length.ToString(CultureInfo.InvariantCulture)) }, events);
+        }
+
+        private static string PickupCargoQuantity(AetheriaRuntimeGameEventCommit gameEvent, bool after)
+        {
+            if (!string.Equals(gameEvent.Kind, "pickup.collected", StringComparison.Ordinal) &&
+                !string.Equals(gameEvent.Kind, "pickup.rejected", StringComparison.Ordinal))
+                return "";
+            var before = Math.Max(0, gameEvent.AuxiliaryValue);
+            var current = string.Equals(gameEvent.Kind, "pickup.collected", StringComparison.Ordinal)
+                ? before + Math.Max(0, gameEvent.ScalarValue)
+                : before;
+            return FormatNumber(after ? current : before);
         }
 
         private static AetheriaRuntimeSurfaceComponent ShotReceiptStream(AetheriaRuntimeRunCheckpointCommit run)

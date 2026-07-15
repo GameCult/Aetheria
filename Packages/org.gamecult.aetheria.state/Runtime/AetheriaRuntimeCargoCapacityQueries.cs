@@ -7,6 +7,13 @@ namespace GameCult.Aetheria.State.Verse
 {
     public static class AetheriaRuntimeCargoCapacityQueries
     {
+        public static int Quantity(AetheriaRuntimeEntitySnapshotCommit? entity) =>
+            (entity?.CargoContents ?? Array.Empty<AetheriaRuntimeCargoBayLoadoutCommit>())
+                .Where(bay => bay != null)
+                .SelectMany(bay => bay.Items ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>())
+                .Where(slot => slot?.Item != null)
+                .Sum(slot => Math.Max(0, slot.Item.Quantity));
+
         public static double Capacity(AetheriaRuntimeEntitySnapshotCommit? entity, AetheriaRuntimeCatalogSnapshot? catalog)
         {
             if (entity == null || catalog == null)

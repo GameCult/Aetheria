@@ -8,6 +8,9 @@ public sealed class AetheriaYmirWorldPhysics : IAetheriaRuntimeWorldPhysics, IDi
     private const string EntityPrefix = "aetheria.daemon.entity.";
     private const string PickupPrefix = "aetheria.daemon.pickup.";
     private const string PhysicalPayloadPrefix = "aetheria.physical-payload.";
+    private const ulong WorldEntityCollisionCategory = 1UL;
+    private const ulong ShipCollisionCategory = 2UL;
+    private const ulong PickupCollisionCategory = 4UL;
     private readonly Dictionary<WorldKey, SessionState> _sessions = new();
 
     public string ImplementationId => "ymir.box3d.retained-session.v1";
@@ -524,6 +527,7 @@ public sealed class AetheriaYmirWorldPhysics : IAetheriaRuntimeWorldPhysics, IDi
                 throw new InvalidOperationException(
                     $"Entity index {entity.EntityIndex} has no stable runtime identity for retained Ymir ownership.");
             var isStatic = string.Equals(entity.Kind, "station", StringComparison.OrdinalIgnoreCase);
+            var isShip = string.Equals(entity.Kind, "ship", StringComparison.OrdinalIgnoreCase);
             var direction = Normalize(entity.DirectionX, entity.DirectionY, 0, 1);
             return new PhysicsBody(
                 BodyId(entity),
@@ -533,14 +537,18 @@ public sealed class AetheriaYmirWorldPhysics : IAetheriaRuntimeWorldPhysics, IDi
                 1,
                 IsStatic: isStatic,
                 Restitution: 0.2f,
-                Direction: new Vec2((float)direction.X, (float)direction.Y));
+                Direction: new Vec2((float)direction.X, (float)direction.Y),
+                CollisionCategoryBits: isShip ? ShipCollisionCategory : WorldEntityCollisionCategory,
+                CollisionMaskBits: isShip ? ulong.MaxValue : ulong.MaxValue & ~PickupCollisionCategory);
         }).Concat(pickups.Select(pickup => new PhysicsBody(
             PickupPrefix + pickup.PickupIndex,
             new Vec2((float)pickup.PositionX, (float)pickup.PositionZ),
             new Vec2((float)pickup.VelocityX, (float)pickup.VelocityZ),
             5,
             1,
-            Restitution: 0.2f)))
+            Restitution: 0.2f,
+            CollisionCategoryBits: PickupCollisionCategory,
+            CollisionMaskBits: ShipCollisionCategory)))
         .ToArray();
 
     private static string BodyId(AetheriaRuntimeEntitySnapshotCommit entity) => EntityPrefix + entity.EntityId;

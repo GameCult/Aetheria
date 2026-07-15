@@ -203,6 +203,7 @@ namespace GameCult.Aetheria.State.Verse
                     .FirstOrDefault(value => value != null && value.PickupIndex == contact.PickupIndex);
                 var itemKey = pickup?.Item?.ItemKey ?? "";
                 var quantity = Math.Max(1, pickup?.Item?.Quantity ?? 1);
+                var cargoQuantityBefore = AetheriaRuntimeCargoCapacityQueries.Quantity(entity);
                 var result = entity == null
                     ? AetheriaRuntimePickupContactResult.Ignored
                     : AetheriaRuntimePickupTransactions.ApplyContact(zone, entity, contact, catalog);
@@ -240,7 +241,11 @@ namespace GameCult.Aetheria.State.Verse
                     TargetEntityIndex = entityIndex,
                     PickupIndex = contact.PickupIndex,
                     ItemKey = itemKey,
-                    ScalarValue = quantity
+                    ScalarValue = quantity,
+                    AuxiliaryValue = cargoQuantityBefore,
+                    Reason = result == AetheriaRuntimePickupContactResult.RejectedCapacity
+                        ? "cargo-capacity"
+                        : ""
                 });
             }
         }
