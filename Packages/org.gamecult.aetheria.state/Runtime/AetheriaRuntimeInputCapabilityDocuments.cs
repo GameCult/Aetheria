@@ -36,6 +36,14 @@ namespace GameCult.Aetheria.State.Verse
         [Key(5)] public string Availability { get; set; } = "available";
         [Key(6)] public string SourceRef { get; set; } = "";
         [Key(7)] public Dictionary<string, string> Payload { get; set; } = new Dictionary<string, string>(StringComparer.Ordinal);
+        [Key(8)] public AetheriaRuntimeInputValueDocument? InputValue { get; set; }
+    }
+
+    [MessagePackObject]
+    public sealed class AetheriaRuntimeInputValueDocument
+    {
+        [Key(0)] public string Model { get; set; } = "";
+        [Key(1)] public string PayloadKey { get; set; } = "";
     }
 
     [MessagePackObject]
@@ -163,7 +171,13 @@ namespace GameCult.Aetheria.State.Verse
 
         private static IEnumerable<AetheriaRuntimeInputActionDocument> CoreActions()
         {
-            yield return Action("pilot.scoop", "Scoop", "SetTractorPower", "ship", "pilot", ("scalarValue", "1"));
+            var scoop = Action("pilot.scoop", "Scoop", "SetTractorPower", "ship", "pilot", ("scalarValue", "0"));
+            scoop.InputValue = new AetheriaRuntimeInputValueDocument
+            {
+                Model = "button-hold.v1",
+                PayloadKey = "scalarValue"
+            };
+            yield return scoop;
             yield return Action("pilot.dock", "Dock", "DockNearest", "ship", "pilot");
             yield return Action("pilot.undock", "Undock", "Undock", "ship", "pilot");
             yield return Action("pilot.target-nearest", "Target Nearest", "TargetNearest", "targeting", "pilot");
@@ -218,7 +232,14 @@ namespace GameCult.Aetheria.State.Verse
                 Category = action.Category,
                 Availability = action.Availability,
                 SourceRef = action.SourceRef,
-                Payload = new Dictionary<string, string>(action.Payload, StringComparer.Ordinal)
+                Payload = new Dictionary<string, string>(action.Payload, StringComparer.Ordinal),
+                InputValue = action.InputValue == null
+                    ? null
+                    : new EveInputValueDocument
+                    {
+                        Model = action.InputValue.Model,
+                        PayloadKey = action.InputValue.PayloadKey
+                    }
             }).ToArray(),
             DefaultProfiles = DefaultProfiles.Select(profile => new EveInputProfileDocument
             {

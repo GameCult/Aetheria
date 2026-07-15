@@ -2909,6 +2909,28 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         RequireEqual(0, CargoQuantity(ship, "salvage"), "scooping must remain a separate capacity-checked transaction");
         Require(pickup.AgeSeconds > 0 && pickup.AgeSeconds < pickup.LifetimeSeconds,
             "daemon-owned pickup lifetime must advance independently of its SoA presentation");
+        var release = AetheriaRuntimeDaemonCommandDocument.Create(
+            AetheriaRuntimeDaemonCommandKinds.SetTractorPower,
+            "pilot",
+            "tractor-smoke",
+            1,
+            "zone.0.entity.0");
+        release.CommandId = "tractor-off";
+        release.ScalarValue = 0;
+        AetheriaRuntimeDaemonTickRunner.Tick(Path.Combine(Path.GetTempPath(), "aetheria-tractor-release-smoke.cc"), run,
+            new AetheriaRuntimeDaemonTickOptions { WorldPhysics = NewPhysics(), FrameId = 2, FixedDeltaSeconds = 0.25, SimulationTimeSeconds = 0.5, ObservedCommands = [release], BuildPublications = false });
+        RequireNear(0, ship.TractorTargetPower, 0.000001, "released tractor input must set daemon target power to zero");
+        RequireNear(0, ship.TractorPower, 0.000001, "daemon must ramp released tractor power back to zero at the fossil rate");
+        var inputCapability = AetheriaRuntimeInputCapabilityDocument
+            .FromFrame(new AetheriaRuntimeDaemonFrameDocument { FrameId = 2, Run = run })
+            .ToEveDocument();
+        var scoopAction = inputCapability.Actions.Single(action => action.ActionId == "pilot.scoop");
+        Require(scoopAction.InputValue?.Model == "button-hold.v1" &&
+                scoopAction.InputValue.PayloadKey == "scalarValue" &&
+                scoopAction.Payload["scalarValue"] == "0",
+            "tractor input must advertise press/release scalar ownership instead of a one-shot on command");
+        ship.TractorPower = 0.5;
+        ship.TractorTargetPower = 1;
         var surface = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(
             new AetheriaRuntimeDaemonFrameDocument { FrameId = 1, Run = run },
             new AetheriaRuntimeDaemonHealthDocument(),
