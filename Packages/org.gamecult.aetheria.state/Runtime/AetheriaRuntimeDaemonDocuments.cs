@@ -187,7 +187,7 @@ namespace GameCult.Aetheria.State.Verse
         StoreItem,
         ToggleHullConductivity,
         SetEntityName,
-        DestroyEntity,
+        DestroyEntity, // Reserved serialized slot. Lethal daemon simulation owns destruction.
         SetOverrideShutdown,
         SetHeatsinksEnabled,
         SetShutdownPerformance,

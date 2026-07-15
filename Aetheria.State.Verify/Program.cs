@@ -623,7 +623,7 @@ Console.WriteLine("Weapon group authority: UI sends daemon operations for assign
 Console.WriteLine("Action-bar binding authority: Unity owns local input bindings; activations send daemon operations");
 Console.WriteLine("Inventory transfer authority: UI transfer and drag/drop send daemon operations");
 Console.WriteLine("Loot pickup authority: daemon cargo collection occurs exactly once from an authenticated Ymir contact fact");
-Console.WriteLine("Entity destruction authority: hull-death observers send daemon operations instead of local graph deletion");
+Console.WriteLine("Entity destruction authority: lethal daemon simulation commits exactly-once destruction and loot; clients cannot request erasure");
 Console.WriteLine("Dropped pickup state: daemon frames carry typed dropped-pickup snapshots and keyed live lowering");
 Console.WriteLine("Trade purchase authority: UI requests item and placement; daemon derives price, station, product kind, capacity, and ship creation");
 Console.WriteLine("Inventory loadout restore authority: UI restore requests send daemon operations instead of local mutation");
@@ -20050,6 +20050,13 @@ static void RequireEntityDestroyedRequestAuthority(string root)
 
     if (entityInstance.Contains("ActionGameManager.Instance?.CommitEntityDestroyed", StringComparison.Ordinal))
         throw new InvalidOperationException("EntityInstance still routes destruction through Unity gameplay authority.");
+
+    var authorityPolicyPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeVerseAuthorityPolicy.cs");
+    var authorityPolicy = File.Exists(authorityPolicyPath)
+        ? File.ReadAllText(authorityPolicyPath)
+        : throw new InvalidOperationException("Cannot verify entity destruction authority; Verse authority policy is missing.");
+    if (authorityPolicy.Contains("case AetheriaRuntimeDaemonCommandKinds.DestroyEntity:", StringComparison.Ordinal))
+        throw new InvalidOperationException("The retired DestroyEntity value still participates in command claim or subject routing.");
 }
 
 static void RequireDroppedPickupCheckpointState(string root)

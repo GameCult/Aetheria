@@ -306,8 +306,6 @@ namespace GameCult.Aetheria.State.Verse
                     return AetheriaRuntimeClaimKinds.Economy;
                 case AetheriaRuntimeDaemonCommandKinds.SetEntityName:
                     return AetheriaRuntimeClaimKinds.Metadata;
-                case AetheriaRuntimeDaemonCommandKinds.DestroyEntity:
-                    return AetheriaRuntimeClaimKinds.System;
                 case AetheriaRuntimeDaemonCommandKinds.IssueAgentTask:
                 case AetheriaRuntimeDaemonCommandKinds.CancelAgentTask:
                     return AetheriaRuntimeClaimKinds.Ai;
@@ -344,7 +342,6 @@ namespace GameCult.Aetheria.State.Verse
             switch (kind)
             {
                 case AetheriaRuntimeDaemonCommandKinds.SetEntityName:
-                case AetheriaRuntimeDaemonCommandKinds.DestroyEntity:
                 case AetheriaRuntimeDaemonCommandKinds.SetDockedCurrentShip:
                 case AetheriaRuntimeDaemonCommandKinds.TowToStation:
                 case AetheriaRuntimeDaemonCommandKinds.TradePurchase:
