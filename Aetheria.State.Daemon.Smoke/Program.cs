@@ -3,6 +3,7 @@ using Aetheria.State.Daemon;
 using Aetheria.State.Documents;
 using GameCult.Aetheria.State.Verse;
 using GameCult.Caching;
+using GameCult.Eve.PluginFields;
 using System.Globalization;
 
 var checks = new AetheriaDaemonYmirSmokeChecks();
@@ -220,7 +221,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             AetheriaRuntimeDaemonCommandBoundaryDocument.Create("daemon"));
         var volume = Flatten(surface.Surface.Root).Single(node => node.Kind == "field.volume3d");
         Require(volume.Props.Values.All(value => value == null || !value.Contains("_Nebula", StringComparison.Ordinal)) &&
-                volume.Props["layerBindings"].Contains("gravity.height=surfaceHeight", StringComparison.Ordinal) &&
+                volume.Props["layerBindings"].Contains("fog.surface_height=surfaceHeight", StringComparison.Ordinal) &&
                 volume.Props["viewportTextureScaleBindings"] == "ditherCoordinates=dither" &&
                 !volume.Props.ContainsKey("vectorParameters"),
             "portable Eve volume surfaces must name logical ports rather than Unity shader properties");
@@ -304,8 +305,49 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         var bodySplatIndex = splats.Splats.SourceKey
             .Select((sourceKey, index) => (sourceKey, index))
             .Single(value => value.sourceKey == body.BodyKey).index;
+        var terrainSplatIndex = splats.Splats.SourceKey
+            .Select((sourceKey, index) => (sourceKey, index))
+            .Single(value => value.sourceKey == "environment.gravity_terrain").index;
+        var fogSurfaceSplatIndex = splats.Splats.SourceKey
+            .Select((sourceKey, index) => (sourceKey, index))
+            .Single(value => value.sourceKey == "environment.gravity_terrain:fog.surface_height").index;
         Require(splats.Splats.ValueR[bodySplatIndex] < 0,
             "render-splat projection must convert positive canonical body depth into a negative gravity-height value");
+        Require(splats.Splats.Falloff[terrainSplatIndex] == EveFieldsSplatFalloffs.PowerPulse &&
+                splats.Splats.CenterX[terrainSplatIndex] == 0 &&
+                splats.Splats.CenterY[terrainSplatIndex] == 0 &&
+                splats.Splats.HalfExtentX[terrainSplatIndex] == zone.GravityTerrainRadius &&
+                splats.Splats.FalloffScale[terrainSplatIndex] == 1,
+            "zone gravity terrain must remain the fossil radial PowerPulse rather than a viewport-sized solid slab");
+        Require(splats.Splats.Falloff[bodySplatIndex] == EveFieldsSplatFalloffs.PowerPulse &&
+                splats.Splats.FalloffScale[bodySplatIndex] == 2 &&
+                splats.Splats.FalloffExponent[bodySplatIndex] == body.GravityDepthExponent,
+            "body gravity wells must publish the fossil radial PowerPulse scale and exponent");
+        Require(splats.Splats.LayerIndex[fogSurfaceSplatIndex] != splats.Splats.LayerIndex[terrainSplatIndex] &&
+                splats.Splats.ValueR[fogSurfaceSplatIndex] == -splats.Splats.ValueR[terrainSplatIndex] &&
+                splats.Splats.ValueR[fogSurfaceSplatIndex] > 0 &&
+                splats.Splats.Falloff[fogSurfaceSplatIndex] == EveFieldsSplatFalloffs.PowerPulse,
+            "the fog surface must project positive fossil PowerBrush depth without changing negative gameplay terrain height");
+
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "gravity-height-smoke",
+            CurrentZoneIndex = zone.ZoneIndex,
+            Zones = [zone]
+        };
+        AetheriaRuntimeDaemonSimulation.Step(
+            run,
+            new AetheriaRuntimeDaemonIntentState(),
+            0.1,
+            new AetheriaRuntimeDaemonSimulationSettings(),
+            physics,
+            simulationTimeSeconds: 0.1);
+        RequireNear(
+            AetheriaRuntimeDaemonRenderQueries.EvaluateGravityTerrainHeight(
+                zone, actor.PositionX, actor.PositionZ, 0.1),
+            actor.PositionY,
+            0.0001,
+            "daemon entities must retain the fossil terrain-height projection while Ymir owns XZ physics");
     }
 
     private static void ConstantWeaponRunsOnDaemonThroughYmirBeamContact()

@@ -130,46 +130,40 @@ namespace GameCult.Aetheria.State.Verse
             var viewportCenterY = (normalizedViewport.MinY + normalizedViewport.MaxY) * 0.5;
             var viewportHalfX = Math.Max(0.0001, (normalizedViewport.MaxX - normalizedViewport.MinX) * 0.5);
             var viewportHalfY = Math.Max(0.0001, (normalizedViewport.MaxY - normalizedViewport.MinY) * 0.5);
-            if (zone.GravityTerrainDepth != 0)
+            if (zone.GravityTerrainRadius > 0 && zone.GravityTerrainDepth != 0)
             {
                 splats.Add(
                     layerIndices[AetheriaRuntimeRenderSplatLayerKeys.GravityHeight],
-                    viewportCenterX,
-                    viewportCenterY,
-                    viewportHalfX,
-                    viewportHalfY,
+                    0,
+                    0,
+                    zone.GravityTerrainRadius,
+                    zone.GravityTerrainRadius,
                     AetheriaRuntimeRenderSplatChannels.Gravity,
-                    AetheriaRuntimeRenderSplatFalloffs.Solid,
+                    EveFieldsSplatFalloffs.PowerPulse,
                     -zone.GravityTerrainDepth,
                     0,
                     0,
                     1,
                     "environment.gravity_terrain",
-                    sourceKind: AetheriaRuntimeRenderSplatSourceKinds.AnimatedSimplexNoise,
-                    frequencyX: 3.0,
-                    frequencyY: 3.0,
-                    animationSpeed: zone.GravityTerrainWaveFrequency * 0.025,
-                    sourceFlags: 1);
+                    falloffScale: 1,
+                    falloffExponent: Math.Max(0.0001, zone.GravityTerrainDepthExponent));
+                splats.Add(
+                    layerIndices[AetheriaRuntimeRenderSplatLayerKeys.FogSurfaceHeight],
+                    0,
+                    0,
+                    zone.GravityTerrainRadius,
+                    zone.GravityTerrainRadius,
+                    AetheriaRuntimeRenderSplatChannels.Gravity,
+                    EveFieldsSplatFalloffs.PowerPulse,
+                    zone.GravityTerrainDepth,
+                    0,
+                    0,
+                    1,
+                    "environment.gravity_terrain:fog.surface_height",
+                    falloffScale: 1,
+                    falloffExponent: Math.Max(0.0001, zone.GravityTerrainDepthExponent));
             }
 
-            splats.Add(
-                layerIndices[AetheriaRuntimeRenderSplatLayerKeys.FogSurfaceHeight],
-                viewportCenterX,
-                viewportCenterY,
-                viewportHalfX,
-                viewportHalfY,
-                AetheriaRuntimeRenderSplatChannels.Tint,
-                AetheriaRuntimeRenderSplatFalloffs.Solid,
-                1,
-                0,
-                0,
-                1,
-                "environment.fog_surface_height",
-                sourceKind: AetheriaRuntimeRenderSplatSourceKinds.AnimatedSimplexNoise,
-                frequencyX: 4.0,
-                frequencyY: 4.0,
-                animationSpeed: 0.015,
-                sourceFlags: 1);
             splats.Add(
                 layerIndices[AetheriaRuntimeRenderSplatLayerKeys.FogPatchHeight],
                 viewportCenterX,
@@ -220,12 +214,29 @@ namespace GameCult.Aetheria.State.Verse
                     radius,
                     radius,
                     AetheriaRuntimeRenderSplatChannels.Gravity,
-                    AetheriaRuntimeRenderSplatFalloffs.Smooth,
+                    EveFieldsSplatFalloffs.PowerPulse,
                     -body.GravityWellDepth,
                     0,
                     0,
                     1,
-                    body.BodyKey ?? "");
+                    body.BodyKey ?? "",
+                    falloffScale: 2,
+                    falloffExponent: Math.Max(0.0001, body.GravityDepthExponent));
+                splats.Add(
+                    layerIndices[AetheriaRuntimeRenderSplatLayerKeys.FogSurfaceHeight],
+                    body.GravityInfluenceCenterX,
+                    body.GravityInfluenceCenterZ,
+                    radius,
+                    radius,
+                    AetheriaRuntimeRenderSplatChannels.Gravity,
+                    EveFieldsSplatFalloffs.PowerPulse,
+                    body.GravityWellDepth,
+                    0,
+                    0,
+                    1,
+                    $"{body.BodyKey ?? ""}:fog.surface_height",
+                    falloffScale: 2,
+                    falloffExponent: Math.Max(0.0001, body.GravityDepthExponent));
 
                 if (body.GravityWaveRadius > 0 && body.GravityWaveDepth != 0)
                 {
@@ -1510,6 +1521,8 @@ namespace GameCult.Aetheria.State.Verse
             private readonly List<double> _phaseY = new List<double>();
             private readonly List<double> _animationSpeed = new List<double>();
             private readonly List<double> _sourceFlags = new List<double>();
+            private readonly List<double> _falloffScale = new List<double>();
+            private readonly List<double> _falloffExponent = new List<double>();
 
             public void Add(
                 int layerIndex,
@@ -1531,7 +1544,9 @@ namespace GameCult.Aetheria.State.Verse
                 double phaseX = 0,
                 double phaseY = 0,
                 double animationSpeed = 0,
-                double sourceFlags = 0)
+                double sourceFlags = 0,
+                double falloffScale = 1,
+                double falloffExponent = 1)
             {
                 _layerIndex.Add(Math.Max(0, layerIndex));
                 _centerX.Add(centerX);
@@ -1554,6 +1569,8 @@ namespace GameCult.Aetheria.State.Verse
                 _phaseY.Add(phaseY);
                 _animationSpeed.Add(animationSpeed);
                 _sourceFlags.Add(sourceFlags);
+                _falloffScale.Add(Math.Max(0, falloffScale));
+                _falloffExponent.Add(Math.Max(0.0001, falloffExponent));
             }
 
             public EveFieldsSplatSoa Build()
@@ -1581,7 +1598,9 @@ namespace GameCult.Aetheria.State.Verse
                     PhaseX = _phaseX.ToArray(),
                     PhaseY = _phaseY.ToArray(),
                     AnimationSpeed = _animationSpeed.ToArray(),
-                    SourceFlags = _sourceFlags.ToArray()
+                    SourceFlags = _sourceFlags.ToArray(),
+                    FalloffScale = _falloffScale.ToArray(),
+                    FalloffExponent = _falloffExponent.ToArray()
                 };
             }
         }

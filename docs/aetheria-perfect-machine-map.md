@@ -886,10 +886,12 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
 
 ### Gravity Fog Presentation Contract
 
-- Owner: Aetheria owns the gravity/fog splat values, authored volume tuning, and
-  provider shader asset. Eve Fields owns the portable splat document and
-  `field.volume3d` logical ports. EveUnity owns only the native render lifecycle.
-- Inputs: the canonical viewport splat document, logical surface-height,
+- Owner: Aetheria owns gravity/fog brush placement and values, authored volume
+  tuning, and the provider shader asset. Eve Fields owns the portable splat
+  document, radial falloff equations and parameters, and `field.volume3d`
+  logical ports. EveUnity owns only the native render lifecycle.
+- Inputs: daemon-derived brush centers, radii, depths and exponents; the
+  canonical viewport splat document; logical surface-height,
   patch-height, patch, tint, scalar parameters, viewport-to-texture scale
   relations, provider asset reference, and the selected runtime asset variant's
   native program metadata.
@@ -900,21 +902,33 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   raymarch targets, ping-pong history textures, previous camera matrices, and
   viewport-derived texture scales and composite counters are runtime projections.
   They are neither daemon truth nor portable Eve state.
+- Semantic split: `gravity.height` is the negative gameplay terrain projection;
+  `fog.surface_height` is the positive visual displacement the fossil
+  `PowerBrush` camera supplied to `_NebulaSurfaceHeight`. Both derive from the
+  same daemon-owned radial brushes, but neither may impersonate the other.
+- Entity altitude: after every Ymir XZ step, the daemon derives root entity Y as
+  fossil `gravity.height + HullGridOffset`; children inherit their parent's full
+  altitude. Eve clients consume the resulting 3D position and never sample or
+  recreate terrain height as gameplay truth.
 - Forbidden writers: the old `VolumeSampling`/`VolumeCloudRenderer` presentation
   path, shader code, Unity cameras, and generic lowerers cannot calculate gravity,
   move bodies, or publish world truth. EveUnity may not import an Aetheria assembly
-  or branch on Aetheria asset identities.
+  or branch on Aetheria asset identities. A viewport-sized solid splat cannot
+  stand in for the zone's radial gravity terrain.
 - Shared paths: first frame, camera motion, reconnect, viewport resize, and warm
   asset reuse all enter the same generic volume lifecycle. History resets on a
   new node, program, or render size. A provider that advertises a temporal pass
   without all required history ports, or a viewport scale relation with an
   unresolved logical port or texture, fails closed.
-- Cut line: the portable surface contains logical field and parameter names only.
+- Cut line: the daemon publishes the fossil zone and body `PowerPulse` brushes
+  directly; the former full-viewport solid gravity writer is deleted. The
+  portable surface contains logical field and parameter names only.
   `_Nebula*`, `_PrevVP`, `_ResetHistory`, shader keywords, and pass indices live
   exclusively in the provider's Unity asset-variant metadata.
 - Verification layer: EveUnity package tests prove two-pass compatibility,
-  complete temporal-program acceptance, partial-program rejection, and absence
-  of Aetheria assembly references. Aetheria daemon smoke proves the exact fossil
+  complete temporal-program acceptance, partial-program rejection, portable
+  `PowerPulse` GPU evaluation, and absence of Aetheria assembly references.
+  Aetheria daemon smoke proves radial brush parity and that the exact fossil
   shader ABI is advertised outside the portable surface. A live capture is still
   required for visual parity.
 

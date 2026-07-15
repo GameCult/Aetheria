@@ -69,6 +69,7 @@ namespace GameCult.Aetheria.State.Verse
                 StepTractorPower(entities, deltaSeconds);
                 var worldStep = StepWorldPhysics(
                     run.RunId, frameId, simulationStepIndex, zone, entities, deltaSeconds, worldPhysics);
+                ProjectEntityTerrainHeights(zone, entities, catalog, simulationTimeSeconds);
                 ResolvePickupContacts(
                     run, zone, entities, worldStep.BeginContacts, worldPhysics, catalog, frameId);
                 StepCombat(run, zone, entities, intents, deltaSeconds, settings, worldPhysics, catalog,
@@ -163,6 +164,50 @@ namespace GameCult.Aetheria.State.Verse
                 child.VelocityX = parent.VelocityX; child.VelocityY = parent.VelocityY;
             }
             return result;
+        }
+
+        private static void ProjectEntityTerrainHeights(
+            AetheriaRuntimeZoneSnapshotCommit zone,
+            IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities,
+            AetheriaRuntimeCatalogSnapshot? catalog,
+            double simulationTimeSeconds)
+        {
+            var byIndex = entities.ToDictionary(entity => entity.EntityIndex);
+            var parentByChild = new Dictionary<int, int>();
+            foreach (var parent in entities)
+            foreach (var childIndex in parent.ChildEntityIndices ?? Array.Empty<int>())
+            {
+                if (!parentByChild.TryAdd(childIndex, parent.EntityIndex))
+                    throw new InvalidOperationException($"Entity {childIndex} has multiple parents in zone {zone.ZoneIndex}.");
+            }
+
+            var resolved = new Dictionary<int, double>();
+            double Resolve(AetheriaRuntimeEntitySnapshotCommit entity, HashSet<int> path)
+            {
+                if (resolved.TryGetValue(entity.EntityIndex, out var height))
+                    return height;
+                if (!path.Add(entity.EntityIndex))
+                    throw new InvalidOperationException($"Entity parent cycle contains {entity.EntityIndex} in zone {zone.ZoneIndex}.");
+
+                if (parentByChild.TryGetValue(entity.EntityIndex, out var parentIndex) &&
+                    byIndex.TryGetValue(parentIndex, out var parent))
+                {
+                    height = Resolve(parent, path);
+                }
+                else
+                {
+                    height = AetheriaRuntimeDaemonRenderQueries.EvaluateGravityTerrainHeight(
+                        zone, entity.PositionX, entity.PositionZ, simulationTimeSeconds);
+                    height += catalog?.FindItem(entity.HullItemKey ?? "")?.HullGridOffset ?? 0;
+                }
+
+                path.Remove(entity.EntityIndex);
+                resolved[entity.EntityIndex] = height;
+                return height;
+            }
+
+            foreach (var entity in entities)
+                entity.PositionY = Resolve(entity, new HashSet<int>());
         }
 
         private static void ResolvePickupContacts(
