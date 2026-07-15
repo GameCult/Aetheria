@@ -515,6 +515,13 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 world.Props["lookModel"] == "planar-yaw.v1" &&
                 world.Props["lookSensitivityRadians"] == "-0.001",
             "playable world must advertise the daemon-owned continuous look command and fossil pointer response");
+        Require(world.Props["cameraRig"] == "planar.top-down-follow.v1" &&
+                world.Props["cameraDistance"] == "70" &&
+                world.Props["cameraVerticalFieldOfViewDegrees"] == "60" &&
+                world.Props["cameraTargetScreenX"] == "0.66" &&
+                world.Props["cameraTargetScreenY"] == "0.55" &&
+                world.Props["cameraPositionDamping"] == "2",
+            "playable world must preserve the authored ARPG follow-camera composition rather than TestScene tuning");
         Require(world.Props["skyboxAssetRef"] == "material.environment.skybox" &&
                 world.Props["reflectionAssetRef"] == "texture.environment.reflection" &&
                 world.Props["reflectionIntensity"] == "1" &&
