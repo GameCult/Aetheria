@@ -804,6 +804,9 @@ namespace GameCult.Aetheria.State.Verse
 
         [Key(22)]
         public double IconSize { get; set; }
+
+        [Key(23)]
+        public double GravityWaveFrequency { get; set; } = 1.0;
     }
 
     [MessagePackObject]

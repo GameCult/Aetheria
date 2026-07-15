@@ -705,7 +705,7 @@ namespace GameCult.Aetheria.State.Verse
                     "tintLodExponent=-0.45;safetyDistance=30;flowScale=512;flowAmplitude=15;flowPeriod=8;" +
                     "flowSlopeAmplitude=0;flowSwirlAmplitude=0;noiseScale=414.2167;noiseAmplitude=-36.17;" +
                     "noiseExponent=-0.25;noiseSpeed=0.0025;noiseSlopeExponent=0.15;dynamicSkyBoost=2;" +
-                    "dynamicLodHigh=7;dynamicLodLow=2;dynamicIntensity=0.5;compositeOpacity=0.3"
+                    "dynamicLodHigh=7;dynamicLodLow=2;dynamicIntensity=0.5;compositeOpacity=1"
             };
             return new AetheriaRuntimeSurfaceComponent(
                 id,

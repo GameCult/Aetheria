@@ -235,8 +235,13 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 shader.Ref.Metadata["unity.volume.texturePort.currentSample"] == "_UndersampleCloudTex" &&
                 shader.Ref.Metadata["unity.volume.texturePort.history"] == "_MainTex" &&
                 shader.Ref.Metadata["unity.volume.matrixPort.previousViewProjection"] == "_PrevVP" &&
-                shader.Ref.Metadata["unity.volume.floatPort.resetHistory"] == "_ResetHistory",
+            shader.Ref.Metadata["unity.volume.floatPort.resetHistory"] == "_ResetHistory",
             "provider asset metadata must own the concrete Unity volume-program ABI projected into runtime variants");
+        var fogVolume = Flatten(surface.Surface.Root)
+            .Single(component => string.Equals(component.Kind, "field.volume3d", StringComparison.Ordinal));
+        Require(fogVolume.Props.TryGetValue("floatParameters", out var fogParameters) &&
+                fogParameters.Contains("compositeOpacity=1", StringComparison.Ordinal),
+            "the portable fog surface must retain the fossil cloud shader's full-strength composite default");
     }
 
     private static AetheriaYmirWorldPhysics NewPhysics()
@@ -265,10 +270,15 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         var body = new AetheriaRuntimeBodySnapshotCommit
         {
             BodyKey = "gravity-owner",
+            Kind = "gas_giant",
             GravityInfluenceCenterX = 0,
             GravityInfluenceCenterZ = 0,
             GravityInfluenceRadius = 100,
-            GravityWellDepth = 20
+            GravityWellDepth = 20,
+            GravityWaveRadius = 80,
+            GravityWaveDepth = 3,
+            GravityWaveSpeed = 2,
+            GravityWaveFrequency = 6
         };
         var actor = Entity(0, 10, "player");
         actor.PositionZ = 0;
@@ -311,6 +321,15 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         var fogSurfaceSplatIndex = splats.Splats.SourceKey
             .Select((sourceKey, index) => (sourceKey, index))
             .Single(value => value.sourceKey == "environment.gravity_terrain:fog.surface_height").index;
+        var gravityWaveIndex = splats.Splats.SourceKey
+            .Select((sourceKey, index) => (sourceKey, index))
+            .Single(value => value.sourceKey == body.BodyKey + ":gravity.wave").index;
+        var fogSurfaceWaveIndex = splats.Splats.SourceKey
+            .Select((sourceKey, index) => (sourceKey, index))
+            .Single(value => value.sourceKey == body.BodyKey + ":fog.surface_height.wave").index;
+        var fogPatchWaveIndex = splats.Splats.SourceKey
+            .Select((sourceKey, index) => (sourceKey, index))
+            .Single(value => value.sourceKey == body.BodyKey + ":fog.patch_height.wave").index;
         Require(splats.Splats.ValueR[bodySplatIndex] < 0,
             "render-splat projection must convert positive canonical body depth into a negative gravity-height value");
         Require(splats.Splats.Falloff[terrainSplatIndex] == EveFieldsSplatFalloffs.PowerPulse &&
@@ -328,6 +347,81 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 splats.Splats.ValueR[fogSurfaceSplatIndex] > 0 &&
                 splats.Splats.Falloff[fogSurfaceSplatIndex] == EveFieldsSplatFalloffs.PowerPulse,
             "the fog surface must project positive fossil PowerBrush depth without changing negative gameplay terrain height");
+        foreach (var waveIndex in new[] { gravityWaveIndex, fogSurfaceWaveIndex, fogPatchWaveIndex })
+        {
+            Require(splats.Splats.SourceKind[waveIndex] == EveFieldsSplatSourceKinds.AnimatedRadialCosine &&
+                    splats.Splats.HalfExtentX[waveIndex] == body.GravityWaveRadius * 0.5 &&
+                    splats.Splats.FrequencyX[waveIndex] == body.GravityWaveFrequency &&
+                    splats.Splats.FrequencyY[waveIndex] == 1.25 &&
+                    splats.Splats.AnimationSpeed[waveIndex] == body.GravityWaveSpeed &&
+                    splats.Splats.Falloff[waveIndex] == EveFieldsSplatFalloffs.PowerPulse &&
+                    splats.Splats.FalloffExponent[waveIndex] == 8,
+                "gravity, fog surface, and fog patch height must share the exact fossil radial-wave source");
+        }
+        var patchLayerIndex = splats.Layers
+            .Select((layer, index) => (layer, index))
+            .Single(value => value.layer.LayerKey == EveFieldsSplatLayerKeys.FogPatch).index;
+        var patchLayer = splats.Layers[patchLayerIndex];
+        var patchMicroIndex = splats.Splats.SourceKey
+            .Select((sourceKey, index) => (sourceKey, index))
+            .Single(value => value.sourceKey == "environment.fog_patch.depth_micro").index;
+        var patchMacroIndex = splats.Splats.SourceKey
+            .Select((sourceKey, index) => (sourceKey, index))
+            .Single(value => value.sourceKey == "environment.fog_patch.depth_macro").index;
+        var ambientTintIndex = splats.Splats.SourceKey
+            .Select((sourceKey, index) => (sourceKey, index))
+            .Single(value => value.sourceKey == "environment.fog_tint.ambient").index;
+        Require(patchLayer.BlendMode == EveFieldsSplatBlendModes.Add,
+            "fossil patch depth brushes must add instead of taking the maximum");
+        Require(splats.Splats.SourceKind[patchMicroIndex] == EveFieldsSplatSourceKinds.AnimatedSimplexNoise &&
+                splats.Splats.SourceFlags[patchMicroIndex] == EveFieldsSplatSourceFlags.AbsoluteValue &&
+                splats.Splats.FrequencyX[patchMicroIndex] == 0.005 &&
+                splats.Splats.AnimationSpeed[patchMicroIndex] == 0.025 &&
+                splats.Splats.HalfExtentX[patchMicroIndex] == 1500,
+            "fog micro-patch must retain the fossil world-space animated absolute-simplex brush");
+        Require(splats.Splats.SourceKind[patchMacroIndex] == EveFieldsSplatSourceKinds.AnimatedCellNoiseB &&
+                splats.Splats.FrequencyX[patchMacroIndex] == 0.001 &&
+                splats.Splats.AnimationSpeed[patchMacroIndex] == 0.025 &&
+                splats.Splats.ValueR[patchMacroIndex] == 20,
+            "fog macro-patch must retain the fossil moving cellular-B brush");
+        Require(splats.Splats.ValueR[ambientTintIndex] > 0 &&
+                splats.Splats.ValueB[ambientTintIndex] > splats.Splats.ValueG[ambientTintIndex] &&
+                splats.Splats.ValueG[ambientTintIndex] > splats.Splats.ValueR[ambientTintIndex],
+            "fog tint must include the fossil ambient blue brush before local body lights");
+        Require(!splats.Splats.SourceKey.Contains("environment.fog_patch") &&
+                !splats.Splats.SourceKey.Contains("environment.fog_patch_height"),
+            "the viewport-local placeholder fog producers must remain deleted");
+        var ordinaryPlanetSplats = AetheriaRuntimeGameDocuments.RenderSplatsViewport(
+            new AetheriaRuntimeDaemonFrameDocument
+            {
+                Run = new AetheriaRuntimeRunCheckpointCommit
+                {
+                    CurrentZoneIndex = 0,
+                    Zones =
+                    [
+                        new AetheriaRuntimeZoneSnapshotCommit
+                        {
+                            ZoneIndex = 0,
+                            Bodies =
+                            [
+                                new AetheriaRuntimeBodySnapshotCommit
+                                {
+                                    BodyKey = "ordinary-planet",
+                                    Kind = "planet",
+                                    GravityInfluenceRadius = 20,
+                                    GravityWaveRadius = 20,
+                                    GravityWaveDepth = 4
+                                }
+                            ]
+                        }
+                    ]
+                }
+            },
+            new AetheriaRuntimeViewportBounds { MinX = -30, MinY = -30, MaxX = 30, MaxY = 30 });
+        Require(!ordinaryPlanetSplats.Splats.SourceKey.Any(key =>
+                key.StartsWith("ordinary-planet:", StringComparison.Ordinal) &&
+                key.EndsWith(".wave", StringComparison.Ordinal)),
+            "ordinary planets must not acquire gas-giant gravity-wave visuals merely because compatibility rows contain wave values");
 
         var run = new AetheriaRuntimeRunCheckpointCommit
         {

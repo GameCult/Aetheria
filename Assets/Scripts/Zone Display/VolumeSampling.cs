@@ -32,7 +32,6 @@ public class VolumeSampling : MonoBehaviour
     public RenderTexture NebulaTint;
     public AetheriaUnityRenderSplatViewportSource SplatViewportSource;
     public AetheriaRenderSplatLayerRenderer SplatLayerRenderer;
-    public AetheriaSceneRenderSplatSource SceneSplatSource;
 
     [SerializeField]
     private bool useRuntimeRenderSplats;
@@ -191,11 +190,11 @@ public class VolumeSampling : MonoBehaviour
         ResolveSplatRenderers();
         if (SplatLayerRenderer == null)
             return;
+        if (!useRuntimeRenderSplats)
+            return;
 
         ResolveSplatViewport(out var center, out var size);
-        var document = ResolveSceneSplatDocument(center, size);
-        if (document == null && useRuntimeRenderSplats)
-            document = ResolveRuntimeSplatDocument(center, size);
+        var document = ResolveRuntimeSplatDocument(center, size);
         if (document == null)
             return;
 
@@ -223,15 +222,6 @@ public class VolumeSampling : MonoBehaviour
         NebulaTint = ResolveLayerTexture(AetheriaRuntimeRenderSplatLayerKeys.FogTint, NebulaTint);
     }
 
-    private EveFieldsSplatsDocument ResolveSceneSplatDocument(Vector2 center, Vector2 size)
-    {
-        if (SceneSplatSource == null)
-            SceneSplatSource = GetComponent<AetheriaSceneRenderSplatSource>();
-        return SceneSplatSource != null
-            ? SceneSplatSource.BuildDocument(BuildViewportBounds(center, size))
-            : null;
-    }
-
     private EveFieldsSplatsDocument ResolveRuntimeSplatDocument(Vector2 center, Vector2 size)
     {
         if (SplatViewportSource == null)
@@ -249,18 +239,6 @@ public class VolumeSampling : MonoBehaviour
         center = _gridTransform != null
             ? new Vector2(_gridTransform.position.x, _gridTransform.position.z)
             : Vector2.zero;
-    }
-
-    private static AetheriaRuntimeViewportBounds BuildViewportBounds(Vector2 center, Vector2 size)
-    {
-        var halfSize = size * 0.5f;
-        return new AetheriaRuntimeViewportBounds
-        {
-            MinX = center.x - halfSize.x,
-            MinY = center.y - halfSize.y,
-            MaxX = center.x + halfSize.x,
-            MaxY = center.y + halfSize.y
-        };
     }
 
     private static bool Approximately(Vector2 lhs, Vector2 rhs)

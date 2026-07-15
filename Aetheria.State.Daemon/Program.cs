@@ -2875,6 +2875,7 @@ static AetheriaRuntimeBodySnapshotCommit ToRuntimeBody(
         GravityWaveRadius = body.GravityWaveRadius,
         GravityWaveDepth = body.GravityWaveDepth,
         GravityWaveSpeed = body.GravityWaveSpeed,
+        GravityWaveFrequency = renderSettings.ResolveGravityWaveFrequency(body.Mass),
         IconSize = renderSettings.ResolveBodyIconSize(body.Mass)
     };
 }
@@ -2886,7 +2887,10 @@ static void ApplyDaemonRenderSettings(
     foreach (var zone in run.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>())
     {
         foreach (var body in zone.Bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>())
+        {
             body.IconSize = renderSettings.ResolveBodyIconSize(body.Mass);
+            body.GravityWaveFrequency = renderSettings.ResolveGravityWaveFrequency(body.Mass);
+        }
     }
 }
 

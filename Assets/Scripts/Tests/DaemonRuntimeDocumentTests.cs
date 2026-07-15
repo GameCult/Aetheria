@@ -1339,9 +1339,39 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual(9, brushes[0].WaveRadius);
         Assert.AreEqual(3, brushes[0].WaveDepth);
         Assert.AreEqual(2, brushes[0].WaveSpeed);
+        Assert.AreEqual(1, brushes[0].WaveFrequency);
 
         var height = AetheriaRuntimeDaemonRenderQueries.EvaluateGravityTerrainHeight(zone, 4, 0, 0);
         Assert.AreEqual(-24.9968, height, 0.0001);
+    }
+
+    [Test]
+    public void GravityTerrainUsesBodyOwnedWaveFrequency()
+    {
+        var body = new AetheriaRuntimeBodySnapshotCommit
+        {
+            Kind = "gas_giant",
+            GravityInfluenceCenterX = 0,
+            GravityInfluenceCenterZ = 0,
+            GravityWaveRadius = 20,
+            GravityWaveDepth = 3,
+            GravityWaveSpeed = 0,
+            GravityWaveFrequency = 7
+        };
+        var zone = new AetheriaRuntimeZoneSnapshotCommit
+        {
+            GravityTerrainWaveFrequency = 0.125,
+            Bodies = new[] { body }
+        };
+        const double x = 3;
+        var normalized = x / body.GravityWaveRadius;
+        var doubled = normalized * 2;
+        var envelope = Math.Pow((doubled + 1) * (1 - doubled), 8);
+        var expected = -envelope * Math.Cos(Math.Pow(doubled, 1.25) * body.GravityWaveFrequency) * body.GravityWaveDepth;
+
+        Assert.AreEqual(expected,
+            AetheriaRuntimeDaemonRenderQueries.EvaluateGravityTerrainHeight(zone, x, 0, 0),
+            0.0001);
     }
 
     [Test]

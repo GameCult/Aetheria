@@ -378,7 +378,8 @@ namespace GameCult.Aetheria.State.Verse
             double gravityDepthExponent,
             double waveRadius,
             double waveDepth,
-            double waveSpeed)
+            double waveSpeed,
+            double waveFrequency)
         {
             BodyKey = bodyKey ?? "";
             OrbitKey = orbitKey ?? "";
@@ -391,6 +392,7 @@ namespace GameCult.Aetheria.State.Verse
             WaveRadius = Math.Max(0, waveRadius);
             WaveDepth = waveDepth;
             WaveSpeed = waveSpeed;
+            WaveFrequency = waveFrequency;
         }
 
         public string BodyKey { get; }
@@ -404,6 +406,7 @@ namespace GameCult.Aetheria.State.Verse
         public double WaveRadius { get; }
         public double WaveDepth { get; }
         public double WaveSpeed { get; }
+        public double WaveFrequency { get; }
     }
 
     public readonly struct AetheriaRuntimeDaemonBodyPose
@@ -829,7 +832,8 @@ namespace GameCult.Aetheria.State.Verse
                     body.GravityDepthExponent,
                     waveRadius,
                     ResolveWaveDepth(body),
-                    ResolveWaveSpeed(body)));
+                    ResolveWaveSpeed(body),
+                    ResolveWaveFrequency(body)));
             }
 
             return brushes.Count;
@@ -1769,7 +1773,7 @@ namespace GameCult.Aetheria.State.Verse
                         distance / brush.WaveRadius,
                         8.0,
                         1.25,
-                        zone.GravityTerrainWaveFrequency,
+                        brush.WaveFrequency,
                         simulationTimeSeconds * brush.WaveSpeed) * brush.WaveDepth;
                 }
             }
@@ -2058,6 +2062,13 @@ namespace GameCult.Aetheria.State.Verse
         private static double ResolveWaveSpeed(AetheriaRuntimeBodySnapshotCommit body)
         {
             return body.GravityWaveSpeed;
+        }
+
+        private static double ResolveWaveFrequency(AetheriaRuntimeBodySnapshotCommit body)
+        {
+            return body != null && IsFinite(body.GravityWaveFrequency) && body.GravityWaveFrequency > 0
+                ? body.GravityWaveFrequency
+                : 1.0;
         }
 
         private static double ResolveAsteroidBeltRadius(AetheriaRuntimeBodySnapshotCommit body)

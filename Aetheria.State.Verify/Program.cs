@@ -792,9 +792,9 @@ static void RequireSharedEvePackagesImportedFromEveRepo(string root)
     var requiredManifestSymbols = new[]
     {
         "\"org.gamecult.cultlib\": \"https://github.com/GameCult/CultLib.git?path=/unity/org.gamecult.cultlib#cultlib-unity-v1.0.13\"",
-        "\"org.gamecult.eve.plugin-fields\": \"https://github.com/GameCult/EvePlugins.git?path=/plugins/eve-plugin-fields/unity/org.gamecult.eve.plugin-fields#eve-plugin-fields-unity-v0.2.0\"",
+        "\"org.gamecult.eve.plugin-fields\": \"https://github.com/GameCult/EvePlugins.git?path=/plugins/eve-plugin-fields/unity/org.gamecult.eve.plugin-fields#eve-plugin-fields-unity-v0.2.3\"",
         "\"org.gamecult.eve.surface\": \"https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.surface#eveunity-surface-v0.2.2\"",
-        "\"org.gamecult.eve.unity-scene\": \"https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.unity-scene#eveunity-scene-v0.3.38\""
+        "\"org.gamecult.eve.unity-scene\": \"https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.unity-scene#eveunity-scene-v0.3.44\""
     };
 
     var missingManifestSymbols = requiredManifestSymbols
@@ -811,9 +811,9 @@ static void RequireSharedEvePackagesImportedFromEveRepo(string root)
     var requiredLockSymbols = new[]
     {
         "cultlib-unity-v1.0.13",
-        "eve-plugin-fields-unity-v0.2.0",
+        "eve-plugin-fields-unity-v0.2.3",
         "eveunity-surface-v0.2.2",
-        "eveunity-scene-v0.3.38",
+        "eveunity-scene-v0.3.44",
         "\"source\": \"git\""
     };
 
@@ -2400,7 +2400,7 @@ static void RequireDaemonRenderQueryAuthority(string root)
         "public static double ResolveZoneRenderRadius(",
         "public static AetheriaRuntimeGravityTerrainBand QueryGravityTerrainBand(",
         "zone.GravityTerrainRadius",
-        "zone.GravityTerrainWaveFrequency",
+        "brush.WaveFrequency",
         "public static AetheriaRuntimeDaemonBodyPose[] QueryBodyPoses(",
         "public static int QueryBodyPoses(",
         "new AetheriaRuntimeDaemonBodyPose(",
@@ -15728,6 +15728,15 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
     {
         throw new InvalidOperationException(
             "ActionGameManager must not expose presentation environment as manager-global gameplay state; visual sampling should read presentation settings directly.");
+    }
+
+    var sceneSplatSourcePath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaSceneRenderSplatSource.cs");
+    if (File.Exists(sceneSplatSourcePath) ||
+        volumeSampling.Contains("AetheriaSceneRenderSplatSource", StringComparison.Ordinal) ||
+        volumeSampling.Contains("ResolveSceneSplatDocument", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Unity scene mocks must not publish a competing fog-splat document; VolumeSampling may lower daemon-owned runtime splats only.");
     }
 
     var mapRendererPath = Path.Combine(root, "Assets", "Scripts", "UI", "Menu", "MapRenderer.cs");

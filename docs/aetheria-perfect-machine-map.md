@@ -906,6 +906,23 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   `fog.surface_height` is the positive visual displacement the fossil
   `PowerBrush` camera supplied to `_NebulaSurfaceHeight`. Both derive from the
   same daemon-owned radial brushes, but neither may impersonate the other.
+- Fossil producer map: layer 9 coarse displacement and layer 10 fine waves
+  compose `fog.surface_height`; those same producers plus layer 12 patch
+  displacement compose `fog.patch_height`; layer 11 simplex/cellular density
+  brushes compose `fog.patch`; layer 13 ambient and body light brushes compose
+  `fog.tint`. These are additive field producers, not Unity camera objects.
+- Procedural-source ownership: Eve Fields defines world-anchored Ashima simplex,
+  the fossil moving cellular-B function, published simulation-time animation,
+  splat-local animated radial cosine, absolute-value folding, and `PowerPulse`.
+  Aetheria owns each brush's extent, target layer, depth, constant offset,
+  frequency, speed, exponent, and color. The fossil brush objects use Unity's
+  one-unit built-in Quad (`fileID 10210`), so authored scale converts to half
+  extent by multiplying by `0.5`, not `5`. Canonical `ARPG.unity` scales the
+  gameplay `Zone Brushes` parent to `3000`, making its global half extent
+  `1500`; `TestScene`'s smaller `1024` value is not gameplay authority.
+  Constant offsets are separate constant splats. No provider texture reference
+  is introduced: the fossil materials carry a stale `_MainTex`, but their
+  shaders sample procedural functions and never read it.
 - Entity altitude: after every Ymir XZ step, the daemon derives root entity Y as
   fossil `gravity.height + HullGridOffset`; children inherit their parent's full
   altitude. Eve clients consume the resulting 3D position and never sample or
@@ -921,7 +938,10 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   without all required history ports, or a viewport scale relation with an
   unresolved logical port or texture, fails closed.
 - Cut line: the daemon publishes the fossil zone and body `PowerPulse` brushes
-  directly; the former full-viewport solid gravity writer is deleted. The
+  directly; the former full-viewport solid gravity writer is deleted. The two
+  invented viewport-local patch noises are also deleted before the fossil
+  producer stack is restored. Procedural samples are anchored to field-world
+  coordinates, so viewport motion cannot move the fog through the world. The
   portable surface contains logical field and parameter names only.
   `_Nebula*`, `_PrevVP`, `_ResetHistory`, shader keywords, and pass indices live
   exclusively in the provider's Unity asset-variant metadata.

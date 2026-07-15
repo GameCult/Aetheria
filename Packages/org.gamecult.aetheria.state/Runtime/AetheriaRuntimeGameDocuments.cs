@@ -9,6 +9,11 @@ namespace GameCult.Aetheria.State.Verse
 {
     public static class AetheriaRuntimeGameDocuments
     {
+        // Unity built-in mesh 10210 is a one-unit Quad; canonical ARPG.unity
+        // scales the gameplay Zone Brushes parent to 3000.
+        private const double FossilZoneBrushHalfExtent = 1500.0;
+        private const double FossilGlobalBrushExponent = 0.2;
+
         public static AetheriaRuntimeGameViewportDocument Viewport(
             AetheriaRuntimeDaemonFrameDocument frame,
             AetheriaRuntimeViewportBounds viewport)
@@ -126,10 +131,6 @@ namespace GameCult.Aetheria.State.Verse
                 .Select((layer, index) => (layer.LayerKey, index))
                 .ToDictionary(pair => pair.LayerKey, pair => pair.index, StringComparer.Ordinal);
             var splats = new RenderSplatBuilder();
-            var viewportCenterX = (normalizedViewport.MinX + normalizedViewport.MaxX) * 0.5;
-            var viewportCenterY = (normalizedViewport.MinY + normalizedViewport.MaxY) * 0.5;
-            var viewportHalfX = Math.Max(0.0001, (normalizedViewport.MaxX - normalizedViewport.MinX) * 0.5);
-            var viewportHalfY = Math.Max(0.0001, (normalizedViewport.MaxY - normalizedViewport.MinY) * 0.5);
             if (zone.GravityTerrainRadius > 0 && zone.GravityTerrainDepth != 0)
             {
                 splats.Add(
@@ -162,44 +163,24 @@ namespace GameCult.Aetheria.State.Verse
                     "environment.gravity_terrain:fog.surface_height",
                     falloffScale: 1,
                     falloffExponent: Math.Max(0.0001, zone.GravityTerrainDepthExponent));
+                splats.Add(
+                    layerIndices[AetheriaRuntimeRenderSplatLayerKeys.FogPatchHeight],
+                    0,
+                    0,
+                    zone.GravityTerrainRadius,
+                    zone.GravityTerrainRadius,
+                    AetheriaRuntimeRenderSplatChannels.Tint,
+                    EveFieldsSplatFalloffs.PowerPulse,
+                    zone.GravityTerrainDepth,
+                    0,
+                    0,
+                    1,
+                    "environment.gravity_terrain:fog.patch_height",
+                    falloffScale: 1,
+                    falloffExponent: Math.Max(0.0001, zone.GravityTerrainDepthExponent));
             }
 
-            splats.Add(
-                layerIndices[AetheriaRuntimeRenderSplatLayerKeys.FogPatchHeight],
-                viewportCenterX,
-                viewportCenterY,
-                viewportHalfX,
-                viewportHalfY,
-                AetheriaRuntimeRenderSplatChannels.Tint,
-                AetheriaRuntimeRenderSplatFalloffs.Solid,
-                1,
-                0,
-                0,
-                1,
-                "environment.fog_patch_height",
-                sourceKind: AetheriaRuntimeRenderSplatSourceKinds.AnimatedSimplexNoise,
-                frequencyX: 9.0,
-                frequencyY: 9.0,
-                animationSpeed: 0.02,
-                sourceFlags: 1);
-            splats.Add(
-                layerIndices[AetheriaRuntimeRenderSplatLayerKeys.FogPatch],
-                viewportCenterX,
-                viewportCenterY,
-                viewportHalfX,
-                viewportHalfY,
-                AetheriaRuntimeRenderSplatChannels.Tint,
-                AetheriaRuntimeRenderSplatFalloffs.Solid,
-                1,
-                0,
-                0,
-                1,
-                "environment.fog_patch",
-                sourceKind: AetheriaRuntimeRenderSplatSourceKinds.AnimatedSimplexNoise,
-                frequencyX: 6.0,
-                frequencyY: 6.0,
-                animationSpeed: 0.01,
-                sourceFlags: 1);
+            AddFossilGlobalFogBrushes(splats, layerIndices);
 
             foreach (var body in zone.Bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>())
             {
@@ -237,43 +218,65 @@ namespace GameCult.Aetheria.State.Verse
                     $"{body.BodyKey ?? ""}:fog.surface_height",
                     falloffScale: 2,
                     falloffExponent: Math.Max(0.0001, body.GravityDepthExponent));
+                splats.Add(
+                    layerIndices[AetheriaRuntimeRenderSplatLayerKeys.FogPatchHeight],
+                    body.GravityInfluenceCenterX,
+                    body.GravityInfluenceCenterZ,
+                    radius,
+                    radius,
+                    AetheriaRuntimeRenderSplatChannels.Tint,
+                    EveFieldsSplatFalloffs.PowerPulse,
+                    body.GravityWellDepth,
+                    0,
+                    0,
+                    1,
+                    $"{body.BodyKey ?? ""}:fog.patch_height",
+                    falloffScale: 2,
+                    falloffExponent: Math.Max(0.0001, body.GravityDepthExponent));
 
-                if (body.GravityWaveRadius > 0 && body.GravityWaveDepth != 0)
+                if ((IsBodyKind(body, "gas_giant") || IsBodyKind(body, "sun")) &&
+                    body.GravityWaveRadius > 0 && body.GravityWaveDepth != 0)
                 {
-                    splats.Add(
+                    AddFossilRadialWaveBrush(
+                        splats,
                         layerIndices[AetheriaRuntimeRenderSplatLayerKeys.GravityWave],
-                        body.GravityInfluenceCenterX,
-                        body.GravityInfluenceCenterZ,
-                        body.GravityWaveRadius,
-                        body.GravityWaveRadius,
+                        body,
                         AetheriaRuntimeRenderSplatChannels.GravityWave,
-                        AetheriaRuntimeRenderSplatFalloffs.Smooth,
-                        body.GravityWaveDepth,
-                        body.GravityWaveSpeed,
-                        0,
-                        1,
-                        body.BodyKey ?? "");
+                        $"{body.BodyKey ?? ""}:gravity.wave");
+                    AddFossilRadialWaveBrush(
+                        splats,
+                        layerIndices[AetheriaRuntimeRenderSplatLayerKeys.FogSurfaceHeight],
+                        body,
+                        AetheriaRuntimeRenderSplatChannels.Tint,
+                        $"{body.BodyKey ?? ""}:fog.surface_height.wave");
+                    AddFossilRadialWaveBrush(
+                        splats,
+                        layerIndices[AetheriaRuntimeRenderSplatLayerKeys.FogPatchHeight],
+                        body,
+                        AetheriaRuntimeRenderSplatChannels.Tint,
+                        $"{body.BodyKey ?? ""}:fog.patch_height.wave");
                 }
 
                 if (IsBodyKind(body, "sun"))
                 {
-                    var tintRadius = Math.Max(
-                        radius,
-                        Math.Pow(Math.Max(0, body.Mass), 0.25) * 300 *
-                        Math.Max(0.01, body.SunVisual?.LightRadiusMultiplier ?? 1.0));
+                    // The tint prefab also uses the one-unit built-in Quad.
+                    var tintHalfExtent = Math.Pow(Math.Max(0, body.Mass), 0.25) * 300 *
+                        Math.Max(0.01, body.SunVisual?.LightRadiusMultiplier ?? 1.0) * 0.5;
                     splats.Add(
                         layerIndices[AetheriaRuntimeRenderSplatLayerKeys.FogTint],
                         body.GravityInfluenceCenterX,
                         body.GravityInfluenceCenterZ,
-                        tintRadius,
-                        tintRadius,
+                        tintHalfExtent,
+                        tintHalfExtent,
                         AetheriaRuntimeRenderSplatChannels.Tint,
-                        AetheriaRuntimeRenderSplatFalloffs.Smooth,
-                        body.SunVisual?.FogTintColorX ?? 0,
-                        body.SunVisual?.FogTintColorY ?? 0,
-                        body.SunVisual?.FogTintColorZ ?? 0,
+                        EveFieldsSplatFalloffs.PowerPulse,
+                        (body.SunVisual?.FogTintColorX ?? 0) * 0.25,
+                        (body.SunVisual?.FogTintColorY ?? 0) * 0.25,
+                        (body.SunVisual?.FogTintColorZ ?? 0) * 0.25,
                         1,
-                        body.BodyKey ?? "");
+                        $"{body.BodyKey ?? ""}:fog.tint",
+                        falloffScale: 1,
+                        falloffExponent: 16);
                 }
             }
 
@@ -375,7 +378,7 @@ namespace GameCult.Aetheria.State.Verse
                     LayerKey = AetheriaRuntimeRenderSplatLayerKeys.FogPatch,
                     DisplayName = "Fog Patch",
                     Channel = AetheriaRuntimeRenderSplatChannels.Tint,
-                    BlendMode = AetheriaRuntimeRenderSplatBlendModes.Max,
+                    BlendMode = AetheriaRuntimeRenderSplatBlendModes.Add,
                     GraphicsFormat = "R16_SFloat"
                 },
                 new EveFieldsSplatLayer
@@ -395,6 +398,152 @@ namespace GameCult.Aetheria.State.Verse
                     GraphicsFormat = "R16_SFloat"
                 }
             };
+        }
+
+        private static void AddFossilGlobalFogBrushes(
+            RenderSplatBuilder splats,
+            IReadOnlyDictionary<string, int> layerIndices)
+        {
+            var surfaceHeight = layerIndices[AetheriaRuntimeRenderSplatLayerKeys.FogSurfaceHeight];
+            var patchHeight = layerIndices[AetheriaRuntimeRenderSplatLayerKeys.FogPatchHeight];
+            var patch = layerIndices[AetheriaRuntimeRenderSplatLayerKeys.FogPatch];
+            var tint = layerIndices[AetheriaRuntimeRenderSplatLayerKeys.FogTint];
+
+            AddFossilSimplexBrush(splats, surfaceHeight, "environment.fog_surface.wave_large", 2, -2.46, 0.02, 0.1);
+            AddFossilSimplexBrush(splats, surfaceHeight, "environment.fog_surface.wave_medium", 7.58, 1, 0.01, 0.0375);
+            AddFossilSimplexBrush(splats, surfaceHeight, "environment.fog_surface.wave_small", -16.75, 0, 0.005, 0.075);
+            AddFossilSimplexBrush(splats, patchHeight, "environment.fog_patch_height.wave_large", 2, -2.46, 0.02, 0.1);
+            AddFossilSimplexBrush(splats, patchHeight, "environment.fog_patch_height.wave_medium", 7.58, 1, 0.01, 0.0375);
+            AddFossilSimplexBrush(splats, patchHeight, "environment.fog_patch_height.wave_small", -16.75, 0, 0.005, 0.075);
+            AddFossilSimplexBrush(splats, patchHeight, "environment.fog_patch_height.displacement", 10, -1, 0.0002, 0.01);
+            AddFossilSimplexBrush(splats, patch, "environment.fog_patch.depth_micro", 10, 0, 0.005, 0.025);
+            AddFossilCellBrush(splats, patch, "environment.fog_patch.depth_macro", 20, 0.001, 0.025);
+
+            splats.Add(
+                tint,
+                0,
+                0,
+                FossilZoneBrushHalfExtent,
+                FossilZoneBrushHalfExtent,
+                AetheriaRuntimeRenderSplatChannels.Tint,
+                EveFieldsSplatFalloffs.PowerPulse,
+                0.025 * 0.496,
+                0.025 * 0.5813884,
+                0.025,
+                1,
+                "environment.fog_tint.ambient",
+                falloffScale: 1,
+                falloffExponent: 2);
+        }
+
+        private static void AddFossilSimplexBrush(
+            RenderSplatBuilder splats,
+            int layerIndex,
+            string sourceKey,
+            double depth,
+            double constant,
+            double frequency,
+            double speed)
+        {
+            if (constant != 0)
+            {
+                splats.Add(
+                    layerIndex,
+                    0,
+                    0,
+                    FossilZoneBrushHalfExtent,
+                    FossilZoneBrushHalfExtent,
+                    AetheriaRuntimeRenderSplatChannels.Tint,
+                    EveFieldsSplatFalloffs.PowerPulse,
+                    constant,
+                    0,
+                    0,
+                    1,
+                    sourceKey + ":constant",
+                    falloffScale: 1,
+                    falloffExponent: FossilGlobalBrushExponent);
+            }
+
+            splats.Add(
+                layerIndex,
+                0,
+                0,
+                FossilZoneBrushHalfExtent,
+                FossilZoneBrushHalfExtent,
+                AetheriaRuntimeRenderSplatChannels.Tint,
+                EveFieldsSplatFalloffs.PowerPulse,
+                depth,
+                0,
+                0,
+                1,
+                sourceKey,
+                sourceKind: EveFieldsSplatSourceKinds.AnimatedSimplexNoise,
+                frequencyX: frequency,
+                frequencyY: frequency,
+                animationSpeed: speed,
+                sourceFlags: EveFieldsSplatSourceFlags.AbsoluteValue,
+                falloffScale: 1,
+                falloffExponent: FossilGlobalBrushExponent);
+        }
+
+        private static void AddFossilCellBrush(
+            RenderSplatBuilder splats,
+            int layerIndex,
+            string sourceKey,
+            double depth,
+            double frequency,
+            double speed)
+        {
+            splats.Add(
+                layerIndex,
+                0,
+                0,
+                FossilZoneBrushHalfExtent,
+                FossilZoneBrushHalfExtent,
+                AetheriaRuntimeRenderSplatChannels.Tint,
+                EveFieldsSplatFalloffs.PowerPulse,
+                depth,
+                0,
+                0,
+                1,
+                sourceKey,
+                sourceKind: EveFieldsSplatSourceKinds.AnimatedCellNoiseB,
+                frequencyX: frequency,
+                frequencyY: frequency,
+                animationSpeed: speed,
+                falloffScale: 1,
+                falloffExponent: FossilGlobalBrushExponent);
+        }
+
+        private static void AddFossilRadialWaveBrush(
+            RenderSplatBuilder splats,
+            int layerIndex,
+            AetheriaRuntimeBodySnapshotCommit body,
+            int channel,
+            string sourceKey)
+        {
+            // The fossil scales a one-unit Quad by GravityWaveRadius. Local
+            // distance therefore reaches one at physical radius / 2.
+            var halfExtent = body.GravityWaveRadius * 0.5;
+            splats.Add(
+                layerIndex,
+                body.GravityInfluenceCenterX,
+                body.GravityInfluenceCenterZ,
+                halfExtent,
+                halfExtent,
+                channel,
+                EveFieldsSplatFalloffs.PowerPulse,
+                body.GravityWaveDepth,
+                0,
+                0,
+                1,
+                sourceKey,
+                sourceKind: EveFieldsSplatSourceKinds.AnimatedRadialCosine,
+                frequencyX: Math.Max(0.0001, body.GravityWaveFrequency),
+                frequencyY: 1.25,
+                animationSpeed: body.GravityWaveSpeed,
+                falloffScale: 1,
+                falloffExponent: 8);
         }
 
         public static AetheriaRuntimeCurrentZoneDocument CurrentZone(
