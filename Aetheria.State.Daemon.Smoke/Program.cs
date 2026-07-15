@@ -170,6 +170,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             ThermalMedicalExposureUsesCockpitTemperature,
             ThermalMedicalDeathUsesOrdinaryDestructionPath,
             MultipleActorsUseTheSameMovementLever,
+            LookDirectionRejectsInvalidVectorsWithoutMutatingTheShip,
             AgentClaimsAndCompletesExploreTaskThroughCommands,
             SchedulerAssignsHighestPriorityCompatibleTask,
             SchedulerRequeuesTaskFromDeadAgent,
@@ -507,6 +508,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         var world = Flatten(surface.Surface.Root).Single(node => node.Kind == "world.scene3d");
         var aim = Flatten(surface.Surface.Root).Single(node => node.Kind == "aim.presentation");
         Require(!string.IsNullOrWhiteSpace(world.Props["lookCommand"]) &&
+                world.Props["lookModel"] == "planar-yaw.v1" &&
                 world.Props["lookSensitivityRadians"] == "-0.001",
             "playable world must advertise the daemon-owned continuous look command and fossil pointer response");
         Require(aim.Props["controlledEntityIndex"] == "0" &&
@@ -2227,6 +2229,48 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             NewPhysics());
         RequireEqual(agent.EntityIndex, player.TargetEntityIndex,
             "releasing the movement lever must not steal targeting authority");
+    }
+
+    private static void LookDirectionRejectsInvalidVectorsWithoutMutatingTheShip()
+    {
+        var player = Entity(0, 0, "player");
+        player.DirectionX = 0.6;
+        player.DirectionY = 0.8;
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "invalid-look-smoke",
+            CurrentZoneIndex = 0,
+            CurrentEntityKey = "zone.0.entity.0",
+            Zones = [new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [player] }]
+        };
+
+        AetheriaRuntimeDaemonCommandDocument Look(string id, double x, double z)
+        {
+            var command = AetheriaRuntimeDaemonCommandDocument.Create(
+                AetheriaRuntimeDaemonCommandKinds.SetLookDirection,
+                "look-smoke",
+                "look-session",
+                0,
+                "zone.0.entity.0");
+            command.CommandId = id;
+            command.DirectionX = x;
+            command.PositionZ = z;
+            return command;
+        }
+
+        var operation = AetheriaRuntimeDaemonOperations.Execute(run,
+        [
+            Look("zero-look", 0, 0),
+            Look("nan-look", double.NaN, 1),
+            Look("infinite-look", 1, double.PositiveInfinity)
+        ]);
+
+        Require(operation.RejectedCommandIds.SequenceEqual(new[] { "zero-look", "nan-look", "infinite-look" }),
+            "zero and non-finite look intents must be rejected at the daemon authority boundary");
+        RequireNear(0.6, player.DirectionX, 0.000001,
+            "rejected look intents must not mutate the authoritative ship direction X");
+        RequireNear(0.8, player.DirectionY, 0.000001,
+            "rejected look intents must not mutate the authoritative ship direction Z");
     }
 
     private static AetheriaRuntimeDaemonCommandDocument MovementCommand(

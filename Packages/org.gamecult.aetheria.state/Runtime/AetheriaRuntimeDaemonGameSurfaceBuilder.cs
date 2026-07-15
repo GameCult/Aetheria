@@ -609,6 +609,7 @@ namespace GameCult.Aetheria.State.Verse
                 ["presentationMode"] = isDocked ? "docked" : "world",
                 ["movementCommand"] = CommandName(AetheriaRuntimeDaemonCommandKinds.SetMoveVector),
                 ["lookCommand"] = CommandName(AetheriaRuntimeDaemonCommandKinds.SetLookDirection),
+                ["lookModel"] = "planar-yaw.v1",
                 ["lookSensitivityRadians"] = "-0.001",
                 ["focusCommand"] = CommandName(AetheriaRuntimeDaemonCommandKinds.TargetNearest),
                 ["targetCommand"] = CommandName(AetheriaRuntimeDaemonCommandKinds.SetTarget),
