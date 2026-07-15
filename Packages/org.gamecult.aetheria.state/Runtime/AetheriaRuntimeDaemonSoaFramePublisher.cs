@@ -55,6 +55,9 @@ namespace GameCult.Aetheria.State.Verse
 
         private readonly CultMeshFrameBodyPublisher _localPublisher;
         private readonly CultMeshNetworkBodyPublisher _networkPublisher;
+        private readonly Dictionary<string, int> _syntheticEntityIndices =
+            new Dictionary<string, int>(StringComparer.Ordinal);
+        private int _nextSyntheticEntityIndex = -2;
 
         public AetheriaRuntimeDaemonSoaFramePublisher(CultCache cache, long producerEpoch)
         {
@@ -104,15 +107,37 @@ namespace GameCult.Aetheria.State.Verse
                 .Where(pickup => pickup != null)
                 .OrderBy(pickup => pickup.PickupIndex)
                 .ToArray();
-            var firstPickupEntityIndex = entities.Length == 0 ? 0 : entities.Max(entity => entity.EntityIndex) + 1;
-            var count = entities.Length + pickups.Length;
+            var payloads = (zone?.PhysicalPayloads ?? Array.Empty<AetheriaRuntimePhysicalPayloadCommit>())
+                .Where(payload => payload != null && payload.Active)
+                .OrderBy(payload => payload.PayloadId, StringComparer.Ordinal)
+                .ToArray();
+            var unsupportedPayload = payloads.FirstOrDefault(payload =>
+                !string.Equals(payload.PayloadKind, "mine", StringComparison.Ordinal));
+            if (unsupportedPayload != null)
+                throw new InvalidOperationException(
+                    $"Physical payload '{unsupportedPayload.PayloadId}' uses unsupported provider asset kind '{unsupportedPayload.PayloadKind}'.");
+            var pickupEntityIds = pickups
+                .Select(pickup => $"pickup:{run.CurrentZoneIndex}:{pickup.PickupIndex}")
+                .ToArray();
+            var payloadEntityIds = payloads
+                .Select(payload => $"{run.RunId}:zone:{run.CurrentZoneIndex}:physical-payload:{payload.PayloadId}")
+                .ToArray();
+            var syntheticEntityIds = pickupEntityIds.Concat(payloadEntityIds).ToArray();
+            if (syntheticEntityIds.Distinct(StringComparer.Ordinal).Count() != syntheticEntityIds.Length)
+                throw new InvalidOperationException("Current-zone synthetic SoA entity identities are not unique.");
+            var syntheticEntityIndices = syntheticEntityIds.ToDictionary(
+                entityId => entityId,
+                GetOrAllocateSyntheticEntityIndex,
+                StringComparer.Ordinal);
+            var count = entities.Length + pickups.Length + payloads.Length;
             if (count > Capacity)
                 throw new InvalidOperationException($"Aetheria entity SoA capacity {Capacity} was exceeded by {count} rows.");
             var generation = Math.Max(frame.FrameId, 0);
             var layout = EntityHotSlabLayout.Create(count);
             var bytes = new byte[layout.TotalByteLength];
             WriteEntities(bytes, layout, entities);
-            WritePickups(bytes, layout, pickups, entities.Length, firstPickupEntityIndex);
+            WritePickups(bytes, layout, pickups, pickupEntityIds, syntheticEntityIndices, entities.Length);
+            WritePayloads(bytes, layout, payloads, payloadEntityIds, syntheticEntityIndices, entities.Length + pickups.Length);
 
             var view = AetheriaRuntimeDaemonSoaViewDocument.Create(
                 string.IsNullOrWhiteSpace(frame.DaemonId) ? "aetheria-daemon" : frame.DaemonId,
@@ -136,7 +161,7 @@ namespace GameCult.Aetheria.State.Verse
                 layout.CreateDirtyRanges(count, generation),
                 backend: AetheriaRuntimeDaemonSoaBackends.CultMesh,
                 synchronizationMode: AetheriaRuntimeDaemonSoaSynchronizationModes.ImmutableFrame,
-                renderGroups: CreateRenderGroups(entities, pickups),
+                renderGroups: CreateRenderGroups(entities, pickups, payloads),
                 identities: entities.Select(entity => new AetheriaRuntimeDaemonSoaIdentityDocument
                     {
                         EntityIndex = entity.EntityIndex,
@@ -148,16 +173,27 @@ namespace GameCult.Aetheria.State.Verse
                         Controllable = entity.EntityIndex == controlled?.EntityIndex,
                         AssetRef = AetheriaRuntimeAssets.ResolveEntityPrefabAssetRef(entity)
                     })
-                    .Concat(pickups.Select(pickup => new AetheriaRuntimeDaemonSoaIdentityDocument
+                    .Concat(pickups.Select((pickup, pickupRow) => new AetheriaRuntimeDaemonSoaIdentityDocument
                     {
-                        EntityIndex = firstPickupEntityIndex + pickup.PickupIndex,
-                        EntityId = $"pickup:{run.CurrentZoneIndex}:{pickup.PickupIndex}",
+                        EntityIndex = syntheticEntityIndices[pickupEntityIds[pickupRow]],
+                        EntityId = pickupEntityIds[pickupRow],
                         Kind = "pickup",
                         Label = string.IsNullOrWhiteSpace(pickup.Item?.ItemKey) ? "Pickup" : pickup.Item.ItemKey,
                         Faction = "",
                         Selectable = true,
                         Controllable = false,
                         AssetRef = "prefab.entity.pickup"
+                    }))
+                    .Concat(payloads.Select((payload, payloadRow) => new AetheriaRuntimeDaemonSoaIdentityDocument
+                    {
+                        EntityIndex = syntheticEntityIndices[payloadEntityIds[payloadRow]],
+                        EntityId = payloadEntityIds[payloadRow],
+                        Kind = "physical-payload",
+                        Label = string.IsNullOrWhiteSpace(payload.PayloadKind) ? "Physical payload" : payload.PayloadKind,
+                        Faction = payload.FactionKey ?? "",
+                        Selectable = false,
+                        Controllable = false,
+                        AssetRef = "prefab.entity.mine"
                     }))
                     .ToArray());
 
@@ -211,13 +247,15 @@ namespace GameCult.Aetheria.State.Verse
 
         private static IReadOnlyList<AetheriaRuntimeDaemonRenderGroupDocument> CreateRenderGroups(
             IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities,
-            IReadOnlyList<AetheriaRuntimeDroppedPickupCommit> pickups)
+            IReadOnlyList<AetheriaRuntimeDroppedPickupCommit> pickups,
+            IReadOnlyList<AetheriaRuntimePhysicalPayloadCommit> payloads)
         {
-            if (entities.Count == 0 && pickups.Count == 0)
+            if (entities.Count == 0 && pickups.Count == 0 && payloads.Count == 0)
                 return Array.Empty<AetheriaRuntimeDaemonRenderGroupDocument>();
 
             var positions = entities.Select(entity => (entity.PositionX, entity.PositionY, entity.PositionZ))
                 .Concat(pickups.Select(pickup => (pickup.PositionX, pickup.PositionY, pickup.PositionZ)))
+                .Concat(payloads.Select(payload => (payload.PositionX, PositionY: payload.PositionY, payload.PositionZ)))
                 .ToArray();
             var minX = positions.Min(position => (float)position.PositionX);
             var minY = positions.Min(position => (float)position.PositionY);
@@ -248,7 +286,7 @@ namespace GameCult.Aetheria.State.Verse
                     Layer = 0,
                     ShaderKey = "aetheria.daemon.entity-proxy",
                     DisplayName = "Daemon current-zone entities",
-                    InstanceCount = entities.Count + pickups.Count,
+                    InstanceCount = entities.Count + pickups.Count + payloads.Count,
                     BoundsCenterX = (minX + maxX) * 0.5f,
                     BoundsCenterY = (minY + maxY) * 0.5f,
                     BoundsCenterZ = (minZ + maxZ) * 0.5f,
@@ -290,14 +328,15 @@ namespace GameCult.Aetheria.State.Verse
             byte[] bytes,
             EntityHotSlabLayout layout,
             IReadOnlyList<AetheriaRuntimeDroppedPickupCommit> pickups,
-            int rowOffset,
-            int firstPickupEntityIndex)
+            IReadOnlyList<string> pickupEntityIds,
+            IReadOnlyDictionary<string, int> syntheticEntityIndices,
+            int rowOffset)
         {
             for (var pickupRow = 0; pickupRow < pickups.Count; pickupRow++)
             {
                 var pickup = pickups[pickupRow];
                 var row = rowOffset + pickupRow;
-                WriteInt32(bytes, layout.EntityIndex + row * IntStride, firstPickupEntityIndex + pickup.PickupIndex);
+                WriteInt32(bytes, layout.EntityIndex + row * IntStride, syntheticEntityIndices[pickupEntityIds[pickupRow]]);
                 WriteInt32(bytes, layout.CargoQuantity + row * IntStride, 0);
                 WriteFloat3(bytes, layout.Position, row, pickup.PositionX, pickup.PositionY, pickup.PositionZ);
                 WriteFloat(bytes, layout.RotationRadians, row, 0.0);
@@ -310,6 +349,45 @@ namespace GameCult.Aetheria.State.Verse
                 WriteInt32(bytes, layout.RenderLod + row * IntStride, 0);
                 WriteUInt32(bytes, layout.RenderGroupId + row * IntStride, EntityRenderGroupId);
             }
+        }
+
+        private static void WritePayloads(
+            byte[] bytes,
+            EntityHotSlabLayout layout,
+            IReadOnlyList<AetheriaRuntimePhysicalPayloadCommit> payloads,
+            IReadOnlyList<string> payloadEntityIds,
+            IReadOnlyDictionary<string, int> syntheticEntityIndices,
+            int rowOffset)
+        {
+            for (var payloadRow = 0; payloadRow < payloads.Count; payloadRow++)
+            {
+                var payload = payloads[payloadRow];
+                var row = rowOffset + payloadRow;
+                WriteInt32(bytes, layout.EntityIndex + row * IntStride, syntheticEntityIndices[payloadEntityIds[payloadRow]]);
+                WriteInt32(bytes, layout.CargoQuantity + row * IntStride, 0);
+                WriteFloat3(bytes, layout.Position, row, payload.PositionX, payload.PositionY, payload.PositionZ);
+                WriteFloat(bytes, layout.RotationRadians, row, Math.Atan2(payload.DirectionX, payload.DirectionY));
+                WriteFloat3(bytes, layout.Velocity, row, payload.VelocityX, 0.0, payload.VelocityY);
+                WriteFloat(bytes, layout.PhysicsBodyRadius, row, Math.Max(0.01, payload.Radius));
+                WriteFloat(bytes, layout.PhysicsBodyMass, row, payload.Stationary ? 0.0 : 1.0);
+                WriteFloat(bytes, layout.PhysicsBodyInverseMass, row, payload.Stationary ? 0.0 : 1.0);
+                WriteFloat(bytes, layout.RenderScale, row, 1.0);
+                bytes[checked((int)(layout.RenderVisibility + row * ByteStride))] = 1;
+                WriteInt32(bytes, layout.RenderLod + row * IntStride, 0);
+                WriteUInt32(bytes, layout.RenderGroupId + row * IntStride, EntityRenderGroupId);
+            }
+        }
+
+        private int GetOrAllocateSyntheticEntityIndex(string entityId)
+        {
+            if (_syntheticEntityIndices.TryGetValue(entityId, out var existing))
+                return existing;
+            if (_nextSyntheticEntityIndex == int.MinValue)
+                throw new InvalidOperationException("Aetheria SoA synthetic entity index space is exhausted.");
+
+            var allocated = _nextSyntheticEntityIndex--;
+            _syntheticEntityIndices.Add(entityId, allocated);
+            return allocated;
         }
 
         private static void WriteFloat(byte[] bytes, long byteOffset, int index, double value)

@@ -1,5 +1,6 @@
 using Aetheria.State.Daemon;
 using GameCult.Aetheria.State.Verse;
+using GameCult.Caching;
 using System.Globalization;
 
 var checks = new AetheriaDaemonYmirSmokeChecks();
@@ -568,6 +569,16 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             "an armed Ymir contact must become one daemon-owned trigger transition");
         RequireNear(100, Stat(target, "hull"), 0.000001,
             "trigger contact must not bypass the authored detonation delay");
+
+        using var soaCache = new CultCache();
+        using var soaPublisher = new AetheriaRuntimeDaemonSoaFramePublisher(soaCache, producerEpoch: 1);
+        var soaFrame = soaPublisher.BuildCurrentZoneEntities(
+            new AetheriaRuntimeDaemonFrameDocument { FrameId = 2, Run = run });
+        var mineIdentity = soaFrame.View.Identities.Single(identity =>
+            identity.EntityId == $"{run.RunId}:zone:0:physical-payload:{mine.PayloadId}");
+        Require(mineIdentity.Kind == "physical-payload" && mineIdentity.AssetRef == "prefab.entity.mine" &&
+                !mineIdentity.Selectable && mineIdentity.EntityIndex < -1,
+            "the playable SoA must carry the retained Ymir mine through its provider-owned asset identity");
 
         var objects = AetheriaRuntimeGameDocuments.ObjectsViewport(
             new AetheriaRuntimeDaemonFrameDocument { FrameId = 2, Run = run },

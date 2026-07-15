@@ -972,6 +972,30 @@ static async Task ProveDirectSoaPublicationPipeline()
                             PositionZ = 7.75,
                             IsActive = true
                         }
+                    ],
+                    DroppedPickups =
+                    [
+                        new AetheriaRuntimeDroppedPickupCommit
+                        {
+                            PickupIndex = 3,
+                            PositionX = 4,
+                            PositionY = 5,
+                            PositionZ = 6
+                        }
+                    ],
+                    PhysicalPayloads =
+                    [
+                        new AetheriaRuntimePhysicalPayloadCommit
+                        {
+                            PayloadId = "mine:soa-witness",
+                            PayloadKind = "mine",
+                            FactionKey = "faction:smoke",
+                            PositionX = 9,
+                            PositionZ = 11,
+                            Radius = 2,
+                            Active = true,
+                            Stationary = true
+                        }
                     ]
                 }
             ]
@@ -980,6 +1004,16 @@ static async Task ProveDirectSoaPublicationPipeline()
 
     using var publisher = new AetheriaRuntimeDaemonSoaFramePublisher(cache, producerEpoch: 9);
     var built = publisher.BuildCurrentZoneEntities(frame);
+    var payloadIdentity = built.View.Identities.SingleOrDefault(identity =>
+        string.Equals(identity.EntityId, "soa-pipeline-smoke:zone:0:physical-payload:mine:soa-witness", StringComparison.Ordinal));
+    var pickupIdentity = built.View.Identities.Single(identity =>
+        string.Equals(identity.EntityId, "pickup:0:3", StringComparison.Ordinal));
+    if (payloadIdentity == null || !string.Equals(payloadIdentity.AssetRef, "prefab.entity.mine", StringComparison.Ordinal) ||
+        !string.Equals(payloadIdentity.Kind, "physical-payload", StringComparison.Ordinal) || payloadIdentity.Selectable ||
+        payloadIdentity.EntityIndex >= -1 || pickupIdentity.EntityIndex >= -1 ||
+        payloadIdentity.EntityIndex == pickupIdentity.EntityIndex ||
+        built.View.Columns.Any(column => column.ElementCount != 3))
+        throw new InvalidOperationException("Physical payload did not enter the authoritative SoA generation with its provider asset identity.");
     if (cache.Get<EveEntitySoaViewDocument>(AetheriaRuntimeVerseRecordKeys.EveEntitySoaViewLatest) != null)
         throw new InvalidOperationException("SoA view became visible before its body publication.");
 
@@ -988,7 +1022,13 @@ static async Task ProveDirectSoaPublicationPipeline()
         throw new InvalidOperationException("Building a CultMesh body publication made the Eve view visible before commit.");
 
     frame.FrameId++;
-    var next = await publisher.PublishAsync(publisher.BuildCurrentZoneEntities(frame));
+    var nextBuilt = publisher.BuildCurrentZoneEntities(frame);
+    var nextPayloadIdentity = nextBuilt.View.Identities.Single(identity => identity.EntityId == payloadIdentity.EntityId);
+    var nextPickupIdentity = nextBuilt.View.Identities.Single(identity => identity.EntityId == pickupIdentity.EntityId);
+    if (nextPayloadIdentity.EntityIndex != payloadIdentity.EntityIndex ||
+        nextPickupIdentity.EntityIndex != pickupIdentity.EntityIndex)
+        throw new InvalidOperationException("Synthetic SoA identity changed across immutable generations in one producer epoch.");
+    var next = await publisher.PublishAsync(nextBuilt);
     if (published.Body.RecordKey.Equals(next.Body.RecordKey))
         throw new InvalidOperationException("Distinct SoA generations collided on one CultMesh body publication key.");
 
@@ -1058,13 +1098,26 @@ static async Task ProveDirectSoaPublicationPipeline()
     var networkEntityIndex = ReadInt32(view, networkLease, "entity.index", 0);
     var localPosition = ReadFloat3(view, localLease, "transform.position", 0);
     var networkPosition = ReadFloat3(view, networkLease, "transform.position", 0);
+    var localPayloadEntityIndex = ReadInt32(view, localLease, "entity.index", 2);
+    var networkPayloadEntityIndex = ReadInt32(view, networkLease, "entity.index", 2);
+    var localPayloadPosition = ReadFloat3(view, localLease, "transform.position", 2);
+    var networkPayloadPosition = ReadFloat3(view, networkLease, "transform.position", 2);
     var identity = view.Identities.Single(candidate => candidate.Index == localEntityIndex);
     if (localLease.TransportKind != CultMeshBodyTransportKind.SharedMemory ||
         networkLease.TransportKind != CultMeshBodyTransportKind.Network ||
         localEntityIndex != 12 || networkEntityIndex != localEntityIndex ||
         localPosition != (1.25f, -2.5f, 7.75f) || networkPosition != localPosition ||
+        localPayloadEntityIndex != payloadIdentity.EntityIndex ||
+        networkPayloadEntityIndex != localPayloadEntityIndex ||
+        localPayloadPosition != (9f, 0f, 11f) || networkPayloadPosition != localPayloadPosition ||
         identity.EntityId != "ship:soa-witness" || identity.Label != "SoA Witness")
         throw new InvalidOperationException("Local and network SoA views were not logically equivalent.");
+
+    frame.Run.Zones[0].PhysicalPayloads[0].Active = false;
+    var withoutPayload = publisher.BuildCurrentZoneEntities(frame);
+    if (withoutPayload.View.Identities.Any(candidate => candidate.EntityId == payloadIdentity.EntityId) ||
+        withoutPayload.View.Identities.Single(candidate => candidate.EntityId == pickupIdentity.EntityId).EntityIndex != pickupIdentity.EntityIndex)
+        throw new InvalidOperationException("Inactive physical payload remained in SoA or disturbed a surviving synthetic identity.");
 }
 
 static int ReadInt32(EveEntitySoaViewDocument view, ICultMeshBodyReadLease lease, string semantic, int row)
