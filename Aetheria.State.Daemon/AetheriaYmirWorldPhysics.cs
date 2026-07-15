@@ -16,6 +16,82 @@ public sealed class AetheriaYmirWorldPhysics : IAetheriaRuntimeWorldPhysics, IDi
 
     public string ImplementationId => "ymir.box3d.retained-session.v1";
 
+    public AetheriaYmirZonePersistenceCapture CapturePersistence(
+        string runId,
+        int zoneIndex,
+        long frameId,
+        string persistedWorldSessionGeneration,
+        long persistedWorldJournalEntryCount,
+        string persistedPayloadSessionGeneration,
+        long persistedPayloadJournalEntryCount)
+    {
+        if (!_sessions.TryGetValue(new WorldKey(runId, zoneIndex), out var state) ||
+            state.LastFrameId != frameId)
+            throw new InvalidOperationException(
+                $"Cannot persist Ymir world for run '{runId}' zone {zoneIndex} at frame {frameId}.");
+        if (state.PayloadSession != null &&
+            (state.LastPayloadFrameId != frameId || state.LastPayloadSimulationStepIndex != state.LastSimulationStepIndex))
+            throw new InvalidOperationException(
+                $"Cannot persist Ymir payload world for run '{runId}' zone {zoneIndex} at frame {frameId}.");
+
+        return new AetheriaYmirZonePersistenceCapture(
+            runId,
+            zoneIndex,
+            frameId,
+            state.LastSimulationStepIndex,
+            state.WorldSession.CapturePersistence(
+                string.Equals(persistedWorldSessionGeneration, state.WorldSession.Info.SessionGeneration, StringComparison.Ordinal)
+                    ? persistedWorldJournalEntryCount
+                    : 0),
+            state.PayloadSession?.CapturePersistence(
+                string.Equals(persistedPayloadSessionGeneration, state.PayloadSession.Info.SessionGeneration, StringComparison.Ordinal)
+                    ? persistedPayloadJournalEntryCount
+                    : 0));
+    }
+
+    public void RestorePersistence(
+        string runId,
+        int zoneIndex,
+        long frameId,
+        int simulationStepIndex,
+        YmirSessionResumeDescriptor worldDescriptor,
+        IReadOnlyList<YmirSessionJournalChunk> worldChunks,
+        YmirSessionResumeDescriptor? payloadDescriptor,
+        IReadOnlyList<YmirSessionJournalChunk> payloadChunks)
+    {
+        var key = new WorldKey(runId, zoneIndex);
+        if (_sessions.ContainsKey(key))
+            throw new InvalidOperationException($"Ymir world for run '{runId}' zone {zoneIndex} is already live.");
+        var sessionId = $"aetheria.run.{runId}.zone.{zoneIndex}";
+        if (!string.Equals(worldDescriptor.SessionId, sessionId + ".world", StringComparison.Ordinal) ||
+            (payloadDescriptor != null &&
+             !string.Equals(payloadDescriptor.SessionId, sessionId + ".payloads", StringComparison.Ordinal)))
+            throw new InvalidOperationException("Aetheria Ymir resume belongs to another run or zone.");
+        if (payloadDescriptor == null && payloadChunks.Count > 0)
+            throw new InvalidOperationException("Aetheria Ymir resume has payload journal chunks without a descriptor.");
+
+        var world = YmirSession.Restore(worldDescriptor, worldChunks);
+        YmirSession? payload = null;
+        try
+        {
+            payload = payloadDescriptor == null ? null : YmirSession.Restore(payloadDescriptor, payloadChunks);
+            _sessions.Add(key, new SessionState(world)
+            {
+                PayloadSession = payload,
+                LastFrameId = frameId,
+                LastSimulationStepIndex = simulationStepIndex,
+                LastPayloadFrameId = payload == null ? -1 : frameId,
+                LastPayloadSimulationStepIndex = payload == null ? -1 : simulationStepIndex
+            });
+        }
+        catch
+        {
+            payload?.Dispose();
+            world.Dispose();
+            throw;
+        }
+    }
+
     public void RetainWorlds(string runId, IReadOnlyList<int> zoneIndices)
     {
         var retainedZones = (zoneIndices ?? Array.Empty<int>()).ToHashSet();

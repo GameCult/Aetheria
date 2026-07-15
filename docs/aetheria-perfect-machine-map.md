@@ -2294,3 +2294,28 @@ instead of rehydrating a parallel presentation list. Any
 predicate that still needs legacy DTO objects must earn that dependency by
 using behavior objects or simulation-only methods that typed facets do not yet
 expose.
+
+Ymir restart ownership is deliberately private and asymmetric:
+
+- Owner: `AetheriaYmirPersistenceCoordinator` owns reconstruction durability;
+  the public daemon frame still owns committed gameplay time.
+- Inputs: an immutable completed-tick Ymir capture, the prior durable journal
+  cursor, and the exact public `(RunId, FrameId, ZoneIndex)` boundary.
+- Outputs: checksummed immutable journal chunks and immutable bounded resume
+  records in `<state>.ymir.cc`.
+- Derived state: native Box3D worlds and handles are reconstructed process
+  state. Resume records are recovery inputs, not client world truth.
+- Forbidden writers: the public Aetheria CultCache, CultMesh subscriptions,
+  Eve surfaces, Unity, and broad public snapshots cannot store, enumerate, or
+  select private replay history.
+- Shared path: first publication and periodic publication both capture before a
+  later simulation tick, flush private chunks, flush private resumes, publish
+  and hard-flush the public frame, then activate fail-closed restart.
+- Cut line: the rejected design that embedded complete Ymir checkpoints in
+  every public zone/frame is absent; no public persistence document types are
+  registered.
+- Verification layer: daemon smoke tears down a live rejected-pickup contact,
+  restores the exact durable frame into fresh Ymir sessions, and proves the
+  next tick cannot duplicate its receipt, feedback event, or kick. Ymir unit
+  tests prove incremental suffix capture, exact chunk coverage, checksums, and
+  replay verifier convergence.

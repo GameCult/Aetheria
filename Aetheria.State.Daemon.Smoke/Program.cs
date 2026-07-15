@@ -1,4 +1,6 @@
+using Aetheria.State;
 using Aetheria.State.Daemon;
+using Aetheria.State.Documents;
 using GameCult.Aetheria.State.Verse;
 using GameCult.Caching;
 using System.Globalization;
@@ -45,6 +47,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         RunCheck(TractorRampsAndPullsThroughYmirWithoutTeleportingCargo);
         RunCheck(PickupIsCapacityCheckedExactlyOnceAndExpires);
         RunCheck(PickupShieldContactCollectsOrBounces);
+        RunCheck(YmirRestartDoesNotReplayConsumedPickupContact);
     }
 
     public void RunPayload()
@@ -162,6 +165,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             TractorRampsAndPullsThroughYmirWithoutTeleportingCargo,
             PickupIsCapacityCheckedExactlyOnceAndExpires,
             PickupShieldContactCollectsOrBounces,
+            YmirRestartDoesNotReplayConsumedPickupContact,
             ThermalCellsUseFossilConductionAndRadiation,
             EnergyNetworkSettlesReactorAfterConsumers,
             RadiatorPumpsHeatBeforeReactorSettlement,
@@ -3145,6 +3149,114 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
     {
         if (Math.Abs(expected - actual) > tolerance)
             throw new InvalidOperationException($"{message}. Expected {expected}; actual {actual}.");
+    }
+
+    private static void YmirRestartDoesNotReplayConsumedPickupContact()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "aetheria-ymir-restart-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        var statePath = Path.Combine(root, "world.cc");
+        try
+        {
+            var hull = CatalogItem("restart-contact-hull"); hull.HullCapacity = PerformanceStat(1);
+            var salvage = CatalogItem("restart-contact-salvage"); salvage.Volume = 1;
+            var cargoBay = CatalogItem("restart-contact-cargo-bay"); cargoBay.InteriorOccupiedCells = 1;
+            var catalog = new AetheriaRuntimeCatalogSnapshot([hull, salvage, cargoBay], [], []);
+            var ship = Entity(0, 0, "player"); ship.HullItemKey = hull.ItemKey;
+            ship.Equipment = [new AetheriaRuntimeLoadoutItemSlotCommit
+            {
+                Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = cargoBay.ItemKey, Quantity = 1 }
+            }];
+            ship.CargoContents = [Cargo((salvage.ItemKey, 1, 0, 0))];
+            var run = new AetheriaRuntimeRunCheckpointCommit
+            {
+                RunId = "ymir-restart-contact-smoke",
+                CurrentZoneIndex = 0,
+                CurrentEntityKey = "zone.0.entity.0",
+                Zones = [new AetheriaRuntimeZoneSnapshotCommit
+                {
+                    ZoneIndex = 0,
+                    Entities = [ship],
+                    DroppedPickups = [new AetheriaRuntimeDroppedPickupCommit
+                    {
+                        PickupIndex = 10,
+                        PositionX = 20,
+                        Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = salvage.ItemKey, Quantity = 1 },
+                        LifetimeSeconds = 30
+                    }]
+                }]
+            };
+            var frame = new AetheriaRuntimeDaemonFrameDocument
+            {
+                FrameId = 1,
+                FixedDeltaSeconds = 0.1,
+                SimulationTimeSeconds = 0.1,
+                Run = run
+            };
+
+            using (var physics = new AetheriaYmirWorldPhysics())
+            {
+                AetheriaRuntimeDaemonTickRunner.Tick(statePath, run,
+                    new AetheriaRuntimeDaemonTickOptions
+                    {
+                        WorldPhysics = physics,
+                        FrameId = 1,
+                        FixedDeltaSeconds = 0.1,
+                        SimulationTimeSeconds = 0.1,
+                        Catalog = catalog,
+                        BuildPublications = false
+                    });
+                RequireEqual(1, run.PickupContactReceipts.Count,
+                    "pre-restart rejection must consume exactly one Box3D Begin fact");
+                var rejectedVelocity = run.Zones[0].DroppedPickups.Single().VelocityX;
+                Require(rejectedVelocity > 20, "pre-restart rejection must persist the outward kick in world truth");
+
+                frame.Run = run;
+                using var node = AetheriaStateNode.OpenAsync(statePath).GetAwaiter().GetResult();
+                using var persistence = AetheriaYmirPersistenceCoordinator.OpenAsync(node, physics, null)
+                    .GetAwaiter().GetResult();
+                var capture = persistence.Capture(frame);
+                persistence.PersistPrivateAsync(capture).GetAwaiter().GetResult();
+                node.MutableDocument<AetheriaRuntimeDaemonFrameDocument>(AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest)
+                    .ReplaceAsync(frame).GetAwaiter().GetResult();
+                node.FlushAsync(soft: false).GetAwaiter().GetResult();
+                persistence.ActivateAsync().GetAwaiter().GetResult();
+                Require(!AetheriaDocumentRegistry.DocumentTypes.Contains(typeof(AetheriaYmirResumeDocument)),
+                    "daemon-private Ymir resume types must not enter the public Aetheria registry");
+                Require(!node.Cache.AllEntries.Any(value => value is AetheriaYmirResumeDocument or AetheriaYmirJournalChunkDocument),
+                    "public CultMesh cache must not enumerate daemon-private Ymir restart material");
+            }
+
+            using (var node = AetheriaStateNode.OpenAsync(statePath).GetAwaiter().GetResult())
+            {
+                var durable = node.MutableDocument<AetheriaRuntimeDaemonFrameDocument>(AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest)
+                    .ReadAsync().GetAwaiter().GetResult()
+                    ?? throw new InvalidOperationException("Durable restart smoke frame is missing.");
+                using var restoredPhysics = new AetheriaYmirWorldPhysics();
+                using var persistence = AetheriaYmirPersistenceCoordinator.OpenAsync(node, restoredPhysics, durable)
+                    .GetAwaiter().GetResult();
+                AetheriaRuntimeDaemonTickRunner.Tick(statePath, durable.Run,
+                    new AetheriaRuntimeDaemonTickOptions
+                    {
+                        WorldPhysics = restoredPhysics,
+                        FrameId = 2,
+                        FixedDeltaSeconds = 0.1,
+                        SimulationTimeSeconds = 0.2,
+                        Catalog = catalog,
+                        BuildPublications = false
+                    });
+                RequireEqual(1, durable.Run.PickupContactReceipts.Count,
+                    "restart must not replay an already consumed Box3D Begin fact");
+                RequireEqual(1, durable.Run.GameEvents.Count(value =>
+                        value.Kind == "pickup.rejected" && value.PickupIndex == 10),
+                    "restart must not duplicate authoritative pickup rejection feedback");
+            }
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+                Directory.Delete(root, recursive: true);
+        }
     }
 
     private sealed class ScriptedWorldPhysics(params AetheriaRuntimeWorldBeginContact[] contacts) : IAetheriaRuntimeWorldPhysics

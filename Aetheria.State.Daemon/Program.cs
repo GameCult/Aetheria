@@ -48,15 +48,33 @@ discoveryHost.Update(verseHost);
 await PublishRuntimeSessionAsync(node, options, startedAtUtc, "starting").ConfigureAwait(false);
 await PublishStateSurfacesAsync(node, options, startedAtUtc).ConfigureAwait(false);
 var latestFrame = await node.MutableDocument<AetheriaRuntimeDaemonFrameDocument>(AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest).ReadAsync().ConfigureAwait(false);
+using var physicsPersistence = await AetheriaYmirPersistenceCoordinator.OpenAsync(
+    node,
+    worldPhysics,
+    latestFrame).ConfigureAwait(false);
 using var cultMeshRudpHost = StartClientCultMeshHost(node, options, () => latestFrame);
 using var clientSubscriptions = new CultNetDatabaseSubscriptionServer(cultMeshRudpHost, node.Database);
 using var clientPumpCancellation = new CancellationTokenSource();
 var clientPump = RunClientCultMeshPumpAsync(cultMeshRudpHost, clientPumpCancellation.Token);
 var nextApiPublicationUtc = DateTimeOffset.UtcNow;
 var ingressState = new AetheriaDaemonIngressState();
-var firstTick = await TickAsync(node, options, worldPhysics, soaPublisher, latestFrame, ingressState, buildPublications: true).ConfigureAwait(false);
+var firstTick = await TickAsync(node, options, worldPhysics, soaPublisher, latestFrame, ingressState, buildPublications: false).ConfigureAwait(false);
 ThrowIfClientPumpFaulted(clientPump);
 latestFrame = firstTick.Frame;
+var firstPublication = PreparePublication(
+    node.StatePath,
+    options,
+    soaPublisher,
+    firstTick,
+    ingressState,
+    physicsPersistence);
+await PublishPreparedDocumentsAsync(
+    node,
+    options,
+    soaPublisher,
+    physicsPersistence,
+    firstPublication,
+    publishTopology: true).ConfigureAwait(false);
 nextApiPublicationUtc = DateTimeOffset.UtcNow.Add(options.ApiPublicationInterval);
 Console.WriteLine($"Aetheria Verse daemon published frame {firstTick.Frame.FrameId}.");
 Console.WriteLine($"Aetheria client CultMesh endpoint: rudp://{options.ClientCultMeshAdvertiseHost}:{cultMeshRudpHost.LocalEndPoint.Port}");
@@ -102,8 +120,20 @@ while (!stopped.Task.IsCompleted)
     {
         if (publicationTask.IsFaulted)
             await publicationTask.ConfigureAwait(false);
-        var publication = PreparePublication(node.StatePath, options, soaPublisher, tick, ingressState);
-        publicationTask = PublishPreparedDocumentsAsync(node, options, soaPublisher, publication);
+        var publication = PreparePublication(
+            node.StatePath,
+            options,
+            soaPublisher,
+            tick,
+            ingressState,
+            physicsPersistence);
+        publicationTask = PublishPreparedDocumentsAsync(
+            node,
+            options,
+            soaPublisher,
+            physicsPersistence,
+            publication,
+            publishTopology: false);
         nextApiPublicationUtc = DateTimeOffset.UtcNow.Add(options.ApiPublicationInterval);
     }
     if (tick.Frame.FrameId % (traceClientRudp ? 10 : 120) == 0)
@@ -300,20 +330,22 @@ static async Task<AetheriaRuntimeDaemonTickResult> TickAsync(
     return result;
 }
 
-static AetheriaRuntimeDaemonTickResult PreparePublication(
+static AetheriaPreparedPublication PreparePublication(
     string statePath,
     AetheriaDaemonHostOptions options,
     AetheriaRuntimeDaemonSoaFramePublisher soaPublisher,
     AetheriaRuntimeDaemonTickResult tick,
-    AetheriaDaemonIngressState ingressState)
+    AetheriaDaemonIngressState ingressState,
+    AetheriaYmirPersistenceCoordinator physicsPersistence)
 {
+    var physics = physicsPersistence.Capture(tick.Frame);
     var frameBytes = MessagePackSerializer.Serialize(tick.Frame);
     var frame = MessagePackSerializer.Deserialize<AetheriaRuntimeDaemonFrameDocument>(frameBytes);
     var operation = new AetheriaRuntimeDaemonOperationResult(
         frame.Run ?? new AetheriaRuntimeRunCheckpointCommit(),
         tick.OperationResult.AppliedCommandIds.ToArray(),
         tick.OperationResult.RejectedCommandIds.ToArray());
-    return AetheriaRuntimeDaemonTickRunner.BuildPublications(
+    var publication = AetheriaRuntimeDaemonTickRunner.BuildPublications(
         statePath,
         operation,
         frame,
@@ -330,15 +362,31 @@ static AetheriaRuntimeDaemonTickResult PreparePublication(
             SoaFramePublisher = soaPublisher
         },
         frame.AccountedCommandIds?.Count ?? 0);
+    return new AetheriaPreparedPublication(publication, physics);
 }
 
 static async Task PublishPreparedDocumentsAsync(
     AetheriaStateNode node,
     AetheriaDaemonHostOptions options,
     AetheriaRuntimeDaemonSoaFramePublisher soaPublisher,
-    AetheriaRuntimeDaemonTickResult publication)
+    AetheriaYmirPersistenceCoordinator physicsPersistence,
+    AetheriaPreparedPublication prepared,
+    bool publishTopology)
 {
-    await PublishDaemonApiDocumentsAsync(node, options, soaPublisher, publication, publishTopology: false).ConfigureAwait(false);
+    await physicsPersistence.PersistPrivateAsync(prepared.Physics).ConfigureAwait(false);
+    await PublishDaemonApiDocumentsAsync(
+        node,
+        options,
+        soaPublisher,
+        prepared.Publication,
+        publishTopology).ConfigureAwait(false);
+    if (publishTopology)
+    {
+        await PublishStateSurfacesAsync(node, options, prepared.Publication.Frame.PublishedAtUtc).ConfigureAwait(false);
+        await PublishOdinSurfaceAnnouncementsAsync(node, options, prepared.Publication.Frame.PublishedAtUtc).ConfigureAwait(false);
+    }
+    await node.FlushAsync(soft: false).ConfigureAwait(false);
+    await physicsPersistence.ActivateAsync().ConfigureAwait(false);
 }
 
 static async Task RefreshControlPlaneInputsAsync(
@@ -2992,6 +3040,10 @@ static AetheriaRuntimeLoadoutItemCommit ToLoadoutItemCommit(AetheriaLoadoutItem?
         OverrideShutdown = item?.OverrideShutdown ?? false
     };
 }
+
+internal sealed record AetheriaPreparedPublication(
+    AetheriaRuntimeDaemonTickResult Publication,
+    IReadOnlyList<AetheriaYmirZonePersistenceCapture> Physics);
 
 internal sealed class AetheriaDaemonIngressState
 {

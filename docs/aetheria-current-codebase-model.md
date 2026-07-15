@@ -143,6 +143,11 @@ Unity physics is already fenced as forbidden gameplay authority by
 shader/material bundle are owned by EveUnity with their original Unity GUIDs;
 Aetheria owns only the configured prefab and its asset-manifest advertisement.
 
+Texture production currently uses checked-in, pre-generated provider assets.
+Substance is not part of the toolchain. A later asset-pipeline pass may move
+texture generation into Blender baking, but that pipeline remains provider-side
+and cannot become an EveUnity runtime dependency.
+
 Current Ymir control flow:
 
 - Ymir is deliberately a Box3D wrapper and physics-daemon boundary; its name
@@ -162,6 +167,14 @@ Current Ymir control flow:
   fields, and pickup-rejection velocity into explicit retained-session
   commands. Post-step body values in the run checkpoint are projections from
   Ymir, not an independent physics solver.
+- Restart material lives in a second daemon-private CultCache at
+  `<public-state>.ymir.cc`; it is absent from the public Aetheria document
+  registry and client subscription database. Ymir emits immutable incremental
+  journal chunks plus bounded per-frame resume descriptors. The daemon flushes
+  chunks, then resumes, then the public frame. That public frame is the commit
+  marker. Startup restores the exact `(RunId, FrameId, ZoneIndex)` records
+  before the client CultMesh host starts, and fails closed on incomplete active
+  persistence.
 - Cargo collection accepts only typed Ymir `Begin` facts. Aetheria persists one
   pickup-contact receipt per Ymir `FactId` before exposing the resulting event,
   so duplicate fact delivery cannot add cargo twice. Proximity and client loot
@@ -199,10 +212,11 @@ Remaining debt:
   daemon. A future remote Ymir lowering must preserve the same ordered zone
   transaction, stable body identities, revisions, and query facts rather than
   restoring a second Aetheria physics authority.
-- The in-process session registry is the live daemon implementation. CultMesh
-  discovery/routing, durable Ymir command receipt storage, and complete Ymir
-  checkpoint reconstruction remain daemon-boundary work; the checkpoint keeps
-  Aetheria's durable pickup-fact consumption ledger.
+- The in-process session registry is the live daemon implementation. Private
+  replay reconstruction is wired and restart-proven for a consumed pickup
+  contact, including no duplicate receipt, event, or rejection kick. Ymir's
+  complete in-memory journal is not compacted yet; disk writes are incremental,
+  memory retention is not.
 - Clickable raycasts still construct query bodies from Unity click bounds. That
   is presentation picking, not simulation authority, but it should stay clearly
   labeled as renderer/UI picking.
