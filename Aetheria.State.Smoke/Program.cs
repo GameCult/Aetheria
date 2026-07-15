@@ -108,8 +108,16 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
     await node.MutableDocument<AetheriaVerseHostSettings>(AetheriaStateNode.VerseHostSettingsKey).ReplaceAsync(verseHostSettings);
     await node.MutableDocument<EveSurfaceDocument>(AetheriaStateNode.OperationsSurfaceKey)
         .ReplaceAsync(AetheriaEveSurfaceDocuments.BuildOperationsSurface(verseHostSettings: verseHostSettings));
+    var providerAdvertisement = AetheriaEveSurfaceDocuments.BuildProviderAdvertisement(verseHostSettings, statePath, now);
+    var pilotAdvertisement = providerAdvertisement.Surfaces.Single(surface =>
+        surface.SurfaceId == AetheriaRuntimeDaemonGameSurfaceBuilder.PilotSurfaceId);
+    if (pilotAdvertisement.WorldInteraction?.AssetManifestRecordRef !=
+        AetheriaRuntimeVerseRecordKeys.EveAssetCatalog.ToString())
+    {
+        throw new InvalidOperationException("Pilot surface does not advertise its provider-owned asset catalog.");
+    }
     await node.MutableDocument<EveProviderAdvertisementState>(AetheriaStateNode.ProviderAdvertisementSurfaceKey)
-        .ReplaceAsync(AetheriaEveSurfaceDocuments.BuildProviderAdvertisement(verseHostSettings, statePath, now));
+        .ReplaceAsync(providerAdvertisement);
     var daemonProvider = AetheriaRuntimeDaemonProviderAdvertisementDocument.Create(
         statePath,
         "smoke-daemon",
