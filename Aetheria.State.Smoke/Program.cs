@@ -153,6 +153,28 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
         daemonFrame,
         daemonHealth,
         daemonCommandBoundary);
+    var playableWorld = daemonGameSurface.Surface.Root.Children.Single(component =>
+        component.Id == "aetheria.daemon.game.world");
+    var expectedPlayableWorldProps = new Dictionary<string, string>(StringComparer.Ordinal)
+    {
+        ["cameraRig"] = "planar.top-down-follow.v1",
+        ["cameraTargetEntityId"] = entityKey.ToString(),
+        ["cameraDistance"] = "150",
+        ["cameraVerticalFieldOfViewDegrees"] = "60",
+        ["cameraTargetScreenX"] = "0.9",
+        ["cameraTargetScreenY"] = "0.55",
+        ["cameraPositionDamping"] = "5",
+        ["cameraNearClipPlane"] = "0.3",
+        ["cameraFarClipPlane"] = "4096",
+        ["ambientLightColor"] = "0.2,0.2,0.2",
+        ["ambientLightIntensity"] = "1"
+    };
+    if (expectedPlayableWorldProps.Any(expected =>
+            !playableWorld.Props.TryGetValue(expected.Key, out var actual) ||
+            !string.Equals(actual, expected.Value, StringComparison.Ordinal)))
+    {
+        throw new InvalidOperationException("Playable world did not publish the native camera and environment contract.");
+    }
     await node.MutableDocument<AetheriaRuntimeDaemonProviderAdvertisementDocument>(AetheriaRuntimeVerseRecordKeys.DaemonProviderAdvertisement)
         .ReplaceAsync(daemonProvider);
     await node.MutableDocument<AetheriaRuntimeDaemonHealthDocument>(AetheriaRuntimeVerseRecordKeys.DaemonHealth)
@@ -769,6 +791,29 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
         daemonGameSurface.Surface.Root.Id != "aetheria.daemon.game.root")
     {
         throw new InvalidOperationException("Daemon Verse API documents did not survive flush/reopen as typed CultCache records.");
+    }
+
+    var reopenedPlayableWorld = daemonGameSurface.Surface.Root.Children.Single(component =>
+        component.Id == "aetheria.daemon.game.world");
+    var expectedReopenedPlayableWorldProps = new Dictionary<string, string>(StringComparer.Ordinal)
+    {
+        ["cameraRig"] = "planar.top-down-follow.v1",
+        ["cameraTargetEntityId"] = entityKey.ToString(),
+        ["cameraDistance"] = "150",
+        ["cameraVerticalFieldOfViewDegrees"] = "60",
+        ["cameraTargetScreenX"] = "0.9",
+        ["cameraTargetScreenY"] = "0.55",
+        ["cameraPositionDamping"] = "5",
+        ["cameraNearClipPlane"] = "0.3",
+        ["cameraFarClipPlane"] = "4096",
+        ["ambientLightColor"] = "0.2,0.2,0.2",
+        ["ambientLightIntensity"] = "1"
+    };
+    if (expectedReopenedPlayableWorldProps.Any(expected =>
+            !reopenedPlayableWorld.Props.TryGetValue(expected.Key, out var actual) ||
+            !string.Equals(actual, expected.Value, StringComparison.Ordinal)))
+    {
+        throw new InvalidOperationException("Playable world camera and environment contract did not survive flush/reopen.");
     }
 
     if (runtimeSession?.RuntimeId != "smoke-runtime" ||
