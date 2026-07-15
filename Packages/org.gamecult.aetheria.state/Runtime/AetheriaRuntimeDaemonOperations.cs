@@ -58,6 +58,7 @@ namespace GameCult.Aetheria.State.Verse
         {
             run ??= new AetheriaRuntimeRunCheckpointCommit();
             context ??= new AetheriaRuntimeDaemonOperationContext();
+            context.Intents = new AetheriaRuntimeDaemonIntentState();
             var applied = new List<string>();
             var rejected = new List<string>();
 

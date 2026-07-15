@@ -119,9 +119,11 @@ namespace GameCult.Aetheria.State.Verse
             var speed = ResolveSpeed(entity, settings);
             entity.VelocityX = normalized.X * speed * magnitude;
             entity.VelocityY = normalized.Y * speed * magnitude;
-            if (magnitude <= 0.001)
-                entity.TargetEntityIndex = -1;
-            else
+            var target = entities.FirstOrDefault(candidate =>
+                candidate.EntityIndex == entity.TargetEntityIndex && IsAlive(candidate));
+            if (target != null)
+                Face(entity, target.PositionX - entity.PositionX, target.PositionZ - entity.PositionZ);
+            else if (magnitude > 0.001)
                 Face(entity, normalized.X, normalized.Y);
         }
 

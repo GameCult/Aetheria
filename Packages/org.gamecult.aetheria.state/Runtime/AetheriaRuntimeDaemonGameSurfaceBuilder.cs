@@ -609,11 +609,19 @@ namespace GameCult.Aetheria.State.Verse
                 ["runId"] = run.RunId ?? ""
             };
 
+            var presentationChildren = (zone.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
+                .Where(entity => entity != null && entity.IsActive)
+                .Select(entity => PlayableEntityPresentation(entity, run, zone, currentEntityKey, simulationSettings))
+                .ToList();
+            var combatPresentation = CombatPresentation(run, zone, playerEntityId, simulationSettings);
+            if (combatPresentation != null)
+                presentationChildren.Insert(0, combatPresentation);
+
             return new AetheriaRuntimeSurfaceComponent(
                 id,
                 "world.scene3d",
                 props,
-                Array.Empty<AetheriaRuntimeSurfaceComponent>(),
+                presentationChildren,
                 AetheriaRuntimeSurfaceStateBindings.FromProps(props),
                 Array.Empty<AetheriaRuntimeEmbeddedDocumentSlot>(),
                 Layout(
@@ -630,7 +638,59 @@ namespace GameCult.Aetheria.State.Verse
                 });
         }
 
-        private static AetheriaRuntimeSurfaceComponent PlayableWorldEntity(
+        private static AetheriaRuntimeSurfaceComponent? CombatPresentation(
+            AetheriaRuntimeRunCheckpointCommit run,
+            AetheriaRuntimeZoneSnapshotCommit zone,
+            string playerEntityId,
+            AetheriaRuntimeDaemonSimulationSettings simulationSettings)
+        {
+            var player = FindCurrentEntity(run, zone);
+            if (player == null)
+                return null;
+
+            var target = FindTargetEntity(zone, player);
+            var targetEntityId = target == null
+                ? ""
+                : run.EntityRecordKey(zone.ZoneIndex, target.EntityIndex);
+            var contact = target == null
+                ? null
+                : (player.Contacts ?? Array.Empty<AetheriaRuntimeEntityContactCommit>())
+                    .FirstOrDefault(value => value != null && value.TargetEntityIndex == target.EntityIndex);
+            var lockProgress = target == null
+                ? 0
+                : (player.WeaponStates ?? Array.Empty<AetheriaRuntimeWeaponStateCommit>())
+                    .Where(value => value != null && value.LockTargetEntityIndex == target.EntityIndex)
+                    .Select(value => value.LockProgress)
+                    .DefaultIfEmpty(0)
+                    .Max();
+            var shield = target == null ? 0 : EntityStat(target, "shield");
+            var hull = target == null ? 0 : EntityStat(target, "hull");
+            var props = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["controlledEntityId"] = playerEntityId,
+                ["controlledEntityIndex"] = player.EntityIndex.ToString(CultureInfo.InvariantCulture),
+                ["selectedTargetEntityId"] = targetEntityId,
+                ["selectedTargetEntityIndex"] = (target?.EntityIndex ?? -1).ToString(CultureInfo.InvariantCulture),
+                ["targetVisible"] = contact?.Visible == true ? "true" : "false",
+                ["targetHostile"] = contact?.Hostile == true ? "true" : "false",
+                ["contactInformation"] = FormatNumber(contact?.InfoGathered ?? 0),
+                ["shieldRatio"] = FormatRatio(shield, target == null ? 0 : MaximumShield(target, simulationSettings)),
+                ["hullRatio"] = FormatRatio(hull, target == null ? 0 : MaximumHull(target, simulationSettings)),
+                ["lockProgress"] = FormatNumber(lockProgress),
+                ["reticleRole"] = "combat.reticle.selected",
+                ["lockRole"] = "combat.reticle.lock",
+                ["shieldMeterRole"] = "combat.meter.shield",
+                ["hullMeterRole"] = "combat.meter.hull",
+                ["hitMarkerRole"] = "combat.marker.hit",
+                ["lockDisplayThreshold"] = "0.01",
+                ["hitMarkerDurationSeconds"] = "0.25",
+                ["radialFillMinimum"] = "0.25",
+                ["radialFillMaximum"] = "0.75"
+            };
+            return Node("aetheria.daemon.game.world.combat", "combat.presentation", props.Select(value => (value.Key, value.Value)).ToArray());
+        }
+
+        private static AetheriaRuntimeSurfaceComponent PlayableEntityPresentation(
             AetheriaRuntimeEntitySnapshotCommit entity,
             AetheriaRuntimeRunCheckpointCommit run,
             AetheriaRuntimeZoneSnapshotCommit zone,
@@ -694,9 +754,6 @@ namespace GameCult.Aetheria.State.Verse
                 ["agentCapabilities"] = string.Join(",", entity.AgentTaskCapabilities ?? Array.Empty<string>()),
                 ["assignedTaskId"] = entity.AssignedAgentTaskId ?? "",
                 ["assetRef"] = PlayableWorldAssetRef(entity),
-                ["position"] = FormatPosition(entity),
-                ["rotationY"] = HeadingYaw(entity).ToString("0.###", CultureInfo.InvariantCulture),
-                ["radius"] = PlayableWorldRadius(entity).ToString("0.###", CultureInfo.InvariantCulture),
                 ["hull"] = FormatNumber(hull),
                 ["maximumHull"] = FormatNumber(maximumHull),
                 ["hullRatio"] = FormatRatio(hull, maximumHull),
@@ -748,7 +805,7 @@ namespace GameCult.Aetheria.State.Verse
             };
             return new AetheriaRuntimeSurfaceComponent(
                 $"aetheria.daemon.game.world.entity.{entity.EntityIndex}",
-                "world.entity3d",
+                "entity.presentation",
                 props,
                 string.Equals(entityId, playerEntityId, StringComparison.Ordinal)
                     ? WeaponStateItems(entity, run, zone)
@@ -805,121 +862,8 @@ namespace GameCult.Aetheria.State.Verse
                 .ToArray();
         }
 
-        private static AetheriaRuntimeSurfaceComponent PlayableWorldProjectile(
-            AetheriaRuntimePhysicalPayloadCommit projectile,
-            AetheriaRuntimeRunCheckpointCommit run,
-            AetheriaRuntimeZoneSnapshotCommit zone)
-        {
-            var projectileId = $"{run.RunId}:zone:{zone.ZoneIndex}:physical-payload:{projectile.PayloadId}";
-            var targetEntityId = projectile.TargetEntityIndex < 0
-                ? ""
-                : run.EntityRecordKey(zone.ZoneIndex, projectile.TargetEntityIndex);
-            var props = new Dictionary<string, string>(StringComparer.Ordinal)
-            {
-                ["entityId"] = projectileId,
-                ["entityKind"] = "physical-payload",
-                ["payloadKind"] = projectile.PayloadKind ?? "",
-                ["label"] = projectile.PayloadKind ?? "Projectile",
-                ["faction"] = "",
-                ["assetRef"] = string.Equals(projectile.PayloadKind, "mine", StringComparison.Ordinal)
-                    ? "prefab.entity.mine"
-                    : "prefab.entity.projectile",
-                ["position"] = string.Join(",", new[]
-                {
-                    projectile.PositionX.ToString("0.###", CultureInfo.InvariantCulture),
-                    "0",
-                    projectile.PositionZ.ToString("0.###", CultureInfo.InvariantCulture)
-                }),
-                ["rotationY"] = HeadingDegrees(projectile.VelocityX, projectile.VelocityY).ToString("0.###", CultureInfo.InvariantCulture),
-                ["radius"] = Math.Max(0.01, projectile.Radius).ToString("0.###", CultureInfo.InvariantCulture),
-                ["sourceEntityId"] = run.EntityRecordKey(zone.ZoneIndex, projectile.SourceEntityIndex),
-                ["targetEntityId"] = targetEntityId,
-                ["contactMagnitude"] = FormatNumber(projectile.ContactMagnitude),
-                ["age"] = FormatNumber(projectile.AgeSeconds),
-                ["remainingLifetime"] = FormatNumber(Math.Max(0, projectile.LifetimeSeconds - projectile.AgeSeconds)),
-                ["activationDelay"] = FormatNumber(projectile.ActivationDelaySeconds),
-                ["armed"] = projectile.AgeSeconds >= projectile.ActivationDelaySeconds ? "true" : "false",
-                ["triggerRadius"] = FormatNumber(projectile.TriggerRadius),
-                ["triggered"] = projectile.TriggeredAtSeconds >= 0 ? "true" : "false",
-                ["triggeredAt"] = FormatNumber(projectile.TriggeredAtSeconds),
-                ["detonationDelay"] = FormatNumber(projectile.DetonationDelaySeconds),
-                ["blastRadius"] = FormatNumber(projectile.BlastRadius),
-                ["payloadMagnitude"] = FormatNumber(projectile.PayloadMagnitude),
-                ["stationary"] = projectile.Stationary ? "true" : "false",
-                ["maximumSourceDistance"] = FormatNumber(projectile.MaximumSourceDistance),
-                ["weaponItemKey"] = projectile.WeaponItemKey ?? "",
-                ["triggerReason"] = projectile.TriggerReason ?? "",
-                ["presentationState"] = projectile.TriggeredAtSeconds >= 0
-                    ? "triggered"
-                    : projectile.AgeSeconds >= projectile.ActivationDelaySeconds ? "active" : "deploying",
-                ["activePulseSeconds"] = "1",
-                ["triggeredPulseSeconds"] = "0.25",
-                ["activeEmission"] = "100",
-                ["triggeredEmission"] = "1000",
-                ["selectable"] = "false",
-                ["controllable"] = "false"
-            };
-            return new AetheriaRuntimeSurfaceComponent(
-                $"aetheria.daemon.game.world.projectile.{projectile.PayloadId}",
-                "world.entity3d",
-                props,
-                Array.Empty<AetheriaRuntimeSurfaceComponent>());
-        }
-
-        private static AetheriaRuntimeSurfaceComponent PlayableWorldPickup(
-            AetheriaRuntimeDroppedPickupCommit pickup,
-            AetheriaRuntimeRunCheckpointCommit run,
-            AetheriaRuntimeZoneSnapshotCommit zone)
-        {
-            var pickupId = $"{run.RunId}:zone:{zone.ZoneIndex}:pickup:{pickup.PickupIndex}";
-            var props = new Dictionary<string, string>(StringComparer.Ordinal)
-            {
-                ["entityId"] = pickupId,
-                ["entityKind"] = "pickup",
-                ["label"] = pickup.Item?.ItemKey ?? "Pickup",
-                ["itemKey"] = pickup.Item?.ItemKey ?? "",
-                ["quantity"] = Math.Max(1, pickup.Item?.Quantity ?? 1).ToString(CultureInfo.InvariantCulture),
-                ["assetRef"] = "prefab.entity.pickup",
-                ["position"] = string.Join(",", new[] { pickup.PositionX.ToString("0.###", CultureInfo.InvariantCulture), pickup.PositionY.ToString("0.###", CultureInfo.InvariantCulture), pickup.PositionZ.ToString("0.###", CultureInfo.InvariantCulture) }),
-                ["velocity"] = string.Join(",", new[] { pickup.VelocityX.ToString("0.###", CultureInfo.InvariantCulture), pickup.VelocityY.ToString("0.###", CultureInfo.InvariantCulture), pickup.VelocityZ.ToString("0.###", CultureInfo.InvariantCulture) }),
-                ["radius"] = "5",
-                ["age"] = FormatNumber(pickup.AgeSeconds),
-                ["lifetime"] = FormatNumber(pickup.LifetimeSeconds),
-                ["remainingLifetime"] = FormatNumber(Math.Max(0, pickup.LifetimeSeconds - pickup.AgeSeconds)),
-                ["selectable"] = "false",
-                ["controllable"] = "false"
-            };
-            return new AetheriaRuntimeSurfaceComponent(
-                $"aetheria.daemon.game.world.pickup.{pickup.PickupIndex}",
-                "world.entity3d",
-                props,
-                Array.Empty<AetheriaRuntimeSurfaceComponent>());
-        }
-
         private static string PlayableWorldAssetRef(AetheriaRuntimeEntitySnapshotCommit entity)
             => AetheriaRuntimeAssets.ResolveEntityPrefabAssetRef(entity);
-
-        private static double PlayableWorldRadius(AetheriaRuntimeEntitySnapshotCommit entity)
-        {
-            var kind = (entity.Kind ?? "").Trim().ToLowerInvariant();
-            if (kind.Contains("station"))
-                return 48.0;
-            if (kind.Contains("projectile"))
-                return Math.Max(1.0, entity.Visibility > 0.0 ? entity.Visibility : 3.0);
-            return 12.0;
-        }
-
-        private static double HeadingYaw(AetheriaRuntimeEntitySnapshotCommit entity)
-        {
-            if (entity == null)
-                return 0.0;
-            if (Math.Abs(entity.DirectionX) <= 0.0001 && Math.Abs(entity.DirectionY) <= 0.0001)
-                return 0.0;
-            return HeadingDegrees(entity.DirectionX, entity.DirectionY);
-        }
-
-        private static double HeadingDegrees(double x, double y) =>
-            Math.Atan2(x, y) * (180.0 / Math.PI);
 
         private static double EntityStat(AetheriaRuntimeEntitySnapshotCommit entity, string name) =>
             (entity.StatGrids ?? Array.Empty<AetheriaRuntimeEntityStatGridCommit>())

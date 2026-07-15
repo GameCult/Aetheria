@@ -31,24 +31,26 @@ else
 
 internal sealed class AetheriaDaemonYmirSmokeChecks
 {
-    public void RunGravity() => PositiveGravityDepthAttractsAndProjectsAsAWell();
+    private static readonly List<AetheriaYmirWorldPhysics> OwnedPhysics = [];
+
+    public void RunGravity() => RunCheck(PositiveGravityDepthAttractsAndProjectsAsAWell);
 
     public void RunLoadout() => DaemonLoadoutsRespectFactionAvailabilityAndHullRoles();
 
     public void RunPickup()
     {
-        RetainedWorldAdvancesEveryFixedSubstep();
-        StableEntityIdentitySurvivesCrossZoneReindex();
-        PickupIsCapacityCheckedExactlyOnceAndExpires();
-        PickupShieldContactCollectsOrBounces();
+        RunCheck(RetainedWorldAdvancesEveryFixedSubstep);
+        RunCheck(StableEntityIdentitySurvivesCrossZoneReindex);
+        RunCheck(PickupIsCapacityCheckedExactlyOnceAndExpires);
+        RunCheck(PickupShieldContactCollectsOrBounces);
     }
 
     public void RunPayload()
     {
-        YmirMovesProjectileAndReportsStableContact();
-        PayloadQueryExcludesItsSource();
-        PayloadBodiesDoNotCollideWithEachOther();
-        OverlappingMineRemainsQueryableAfterArming();
+        RunCheck(YmirMovesProjectileAndReportsStableContact);
+        RunCheck(PayloadQueryExcludesItsSource);
+        RunCheck(PayloadBodiesDoNotCollideWithEachOther);
+        RunCheck(OverlappingMineRemainsQueryableAfterArming);
     }
 
     private static void RetainedWorldAdvancesEveryFixedSubstep()
@@ -62,7 +64,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             CurrentEntityKey = "zone.0.entity.0",
             Zones = [new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [ship] }]
         };
-        using var physics = new AetheriaYmirWorldPhysics();
+        using var physics = NewPhysics();
         AetheriaRuntimeDaemonTickRunner.Tick(
             Path.Combine(Path.GetTempPath(), "aetheria-retained-substeps.cc"),
             run,
@@ -98,7 +100,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             CurrentEntityKey = "zone.0.entity.0",
             Zones = [source, destination]
         };
-        using var physics = new AetheriaYmirWorldPhysics();
+        using var physics = NewPhysics();
         AetheriaRuntimeDaemonTickRunner.Tick(
             Path.Combine(Path.GetTempPath(), "aetheria-cross-zone-before.cc"),
             run,
@@ -138,52 +140,78 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
 
     public void Run()
     {
-        PositiveGravityDepthAttractsAndProjectsAsAWell();
-        YmirMovesProjectileAndReportsStableContact();
-        InstantWeaponRequestSurvivesLockAcquisition();
-        ConstantWeaponRunsOnDaemonThroughYmirBeamContact();
-        ChargedWeaponCannotBypassChargeLifecycle();
-        ChargedWeaponHoldRiskMalfunctionsDeterministically();
-        DeployableWeaponRunsThroughYmirAndDetonatesOnDaemon();
-        DeployableRangeExpiryDetonatesAfterYmirMovement();
-        CanonicalCatalogPublishesRecoveredMineLauncher();
-        EnergyFundedShieldInterceptsDamageBeforeHull();
-        ArmorCellsResolveBeforeEquipmentAndHull();
-        DestructionDropsLootExactlyOnce();
-        DaemonSimulationTreatsYmirHitAsPresentationOnly();
-        ProjectileContactCannotKill();
-        MissingWorldPhysicsOwnerCannotAdvanceShips();
-        TractorRampsAndPullsThroughYmirWithoutTeleportingCargo();
-        PickupIsCapacityCheckedExactlyOnceAndExpires();
-        PickupShieldContactCollectsOrBounces();
-        ThermalCellsUseFossilConductionAndRadiation();
-        EnergyNetworkSettlesReactorAfterConsumers();
-        RadiatorPumpsHeatBeforeReactorSettlement();
-        EquipmentThermalPerformanceOwnsShutdownAndWear();
-        ThermalTopologyComesFromHullAndEquipment();
-        ThermalMedicalExposureUsesCockpitTemperature();
-        ThermalMedicalDeathUsesOrdinaryDestructionPath();
-        MultipleActorsUseTheSameMovementLever();
-        AgentClaimsAndCompletesExploreTaskThroughCommands();
-        SchedulerAssignsHighestPriorityCompatibleTask();
-        SchedulerRequeuesTaskFromDeadAgent();
-        SchedulerCollapsesDuplicateAssignmentMarkers();
-        SchedulerAssignsShortestGalaxyRoute();
-        AgentTraversesGalaxyRouteBeforeExecutingTask();
-        IdleAgentReturnsToCanonicalHomeAndDocks();
-        ControlledShipDoesNotReceiveAutonomousHelmCommands();
-        AttackAgentControlsOptimumRangeThroughMovementLever();
-        AttackTaskAdmissionRejectsImpossibleWork();
-        AgentCompletesAttackTaskThroughTargetFireAndYmir();
-        AgentCompletesHaulTaskThroughMovementAndCargoCommands();
-        RejectedHaulTransferDoesNotAdvanceTask();
-        AgentPatrolsHistoricalOrbitCircuitThroughMovementCommands();
-        TickReconcilesAndEvaluatesCatalogBehaviors();
-        DaemonLoadoutsRespectFactionAvailabilityAndHullRoles();
-        AgentMinesAsteroidThroughEquippedBehavior();
-        CargoCapacityComesFromHullAndCatalogVolumes();
-        AgentSurveysBodyIntoCorporationKnowledge();
-        AgentTowsStationIntoPersistentOrbit();
+        Action[] checks =
+        [
+            PositiveGravityDepthAttractsAndProjectsAsAWell,
+            YmirMovesProjectileAndReportsStableContact,
+            InstantWeaponRequestSurvivesLockAcquisition,
+            ConstantWeaponRunsOnDaemonThroughYmirBeamContact,
+            ChargedWeaponCannotBypassChargeLifecycle,
+            ChargedWeaponHoldRiskMalfunctionsDeterministically,
+            DeployableWeaponRunsThroughYmirAndDetonatesOnDaemon,
+            DeployableRangeExpiryDetonatesAfterYmirMovement,
+            CanonicalCatalogPublishesRecoveredMineLauncher,
+            EnergyFundedShieldInterceptsDamageBeforeHull,
+            ArmorCellsResolveBeforeEquipmentAndHull,
+            DestructionDropsLootExactlyOnce,
+            DaemonSimulationTreatsYmirHitAsPresentationOnly,
+            ProjectileContactCannotKill,
+            MissingWorldPhysicsOwnerCannotAdvanceShips,
+            TractorRampsAndPullsThroughYmirWithoutTeleportingCargo,
+            PickupIsCapacityCheckedExactlyOnceAndExpires,
+            PickupShieldContactCollectsOrBounces,
+            ThermalCellsUseFossilConductionAndRadiation,
+            EnergyNetworkSettlesReactorAfterConsumers,
+            RadiatorPumpsHeatBeforeReactorSettlement,
+            EquipmentThermalPerformanceOwnsShutdownAndWear,
+            ThermalTopologyComesFromHullAndEquipment,
+            ThermalMedicalExposureUsesCockpitTemperature,
+            ThermalMedicalDeathUsesOrdinaryDestructionPath,
+            MultipleActorsUseTheSameMovementLever,
+            AgentClaimsAndCompletesExploreTaskThroughCommands,
+            SchedulerAssignsHighestPriorityCompatibleTask,
+            SchedulerRequeuesTaskFromDeadAgent,
+            SchedulerCollapsesDuplicateAssignmentMarkers,
+            SchedulerAssignsShortestGalaxyRoute,
+            AgentTraversesGalaxyRouteBeforeExecutingTask,
+            IdleAgentReturnsToCanonicalHomeAndDocks,
+            ControlledShipDoesNotReceiveAutonomousHelmCommands,
+            AttackAgentControlsOptimumRangeThroughMovementLever,
+            AttackTaskAdmissionRejectsImpossibleWork,
+            AgentCompletesAttackTaskThroughTargetFireAndYmir,
+            AgentCompletesHaulTaskThroughMovementAndCargoCommands,
+            RejectedHaulTransferDoesNotAdvanceTask,
+            AgentPatrolsHistoricalOrbitCircuitThroughMovementCommands,
+            TickReconcilesAndEvaluatesCatalogBehaviors,
+            DaemonLoadoutsRespectFactionAvailabilityAndHullRoles,
+            AgentMinesAsteroidThroughEquippedBehavior,
+            CargoCapacityComesFromHullAndCatalogVolumes,
+            AgentSurveysBodyIntoCorporationKnowledge,
+            AgentTowsStationIntoPersistentOrbit
+        ];
+        foreach (var check in checks)
+            RunCheck(check);
+    }
+
+    private static AetheriaYmirWorldPhysics NewPhysics()
+    {
+        AetheriaYmirWorldPhysics physics = new();
+        OwnedPhysics.Add(physics);
+        return physics;
+    }
+
+    private static void RunCheck(Action check)
+    {
+        try
+        {
+            check();
+        }
+        finally
+        {
+            foreach (var physics in OwnedPhysics)
+                physics.Dispose();
+            OwnedPhysics.Clear();
+        }
     }
 
     private static void PositiveGravityDepthAttractsAndProjectsAsAWell()
@@ -209,7 +237,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             GravityTerrainDepth = 5
         };
 
-        using var physics = new AetheriaYmirWorldPhysics();
+        using var physics = NewPhysics();
         physics.RetainWorlds("gravity-sign-smoke", [zone.ZoneIndex]);
         var step = physics.Step("gravity-sign-smoke", 1, 0, zone, zone.Entities, 0.1);
         var steppedActor = step.Bodies.Single(value => value.EntityIndex == actor.EntityIndex);
@@ -286,7 +314,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         for (var frame = 0; frame < 7; frame++)
             AetheriaRuntimeDaemonSimulation.Step(run, intents, 0.1,
                 new AetheriaRuntimeDaemonSimulationSettings(),
-                new AetheriaYmirWorldPhysics(), catalog, frame, frame * 0.1);
+                NewPhysics(), catalog, frame, frame * 0.1);
 
         var state = source.WeaponStates.Single(value => value.BehaviorKind == AetheriaRuntimeBehaviorKinds.ConstantWeapon);
         Require(run.GameEvents.Count(value => value.Kind == "weapon.firing.started") == 1,
@@ -308,10 +336,10 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         for (var frame = 7; frame < 11; frame++)
             AetheriaRuntimeDaemonSimulation.Step(run, intents, 0.1,
                 new AetheriaRuntimeDaemonSimulationSettings(),
-                new AetheriaYmirWorldPhysics(), catalog, frame, frame * 0.1);
+                NewPhysics(), catalog, frame, frame * 0.1);
         AetheriaRuntimeDaemonSimulation.Step(run, new AetheriaRuntimeDaemonIntentState(), 0.1,
             new AetheriaRuntimeDaemonSimulationSettings(),
-            new AetheriaYmirWorldPhysics(), catalog, 11, 1.1);
+            NewPhysics(), catalog, 11, 1.1);
         Require(!state.Firing && run.GameEvents.Count(value => value.Kind == "weapon.firing.stopped") == 2,
             "releasing held fire must stop the persisted constant weapon and publish its transition");
         var surface = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(
@@ -365,7 +393,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         });
         AetheriaRuntimeDaemonSimulation.Step(run, intents, 0.1,
             new AetheriaRuntimeDaemonSimulationSettings(),
-            new AetheriaYmirWorldPhysics(),
+            NewPhysics(),
             new AetheriaRuntimeCatalogSnapshot([CatalogItem("test-charged", payload)], [], []), 0, 0);
 
         Require(zone.PhysicalPayloads.Count == 0 && !run.GameEvents.Any(value => value.Kind == "shot.committed"),
@@ -376,7 +404,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         for (var frame = 1; frame < 11; frame++)
             AetheriaRuntimeDaemonSimulation.Step(run, new AetheriaRuntimeDaemonIntentState(), 0.1,
                 new AetheriaRuntimeDaemonSimulationSettings(),
-                new AetheriaYmirWorldPhysics(),
+                NewPhysics(),
                 new AetheriaRuntimeCatalogSnapshot([CatalogItem("test-charged", payload)], [], []), frame, frame * 0.1);
         Require(state.Charging && state.Charged && state.Charge >= 1 && state.ChargeHoldSeconds > 0,
             "one semantic request must precharge without a firing solution and enter persisted hold state");
@@ -385,7 +413,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         source.TargetEntityIndex = target.EntityIndex;
         AetheriaRuntimeDaemonSimulation.Step(run, new AetheriaRuntimeDaemonIntentState(), 0.1,
             new AetheriaRuntimeDaemonSimulationSettings(),
-            new AetheriaYmirWorldPhysics(),
+            NewPhysics(),
             new AetheriaRuntimeCatalogSnapshot([CatalogItem("test-charged", payload)], [], []), 11, 1.1);
         Require(run.GameEvents.Count(value => value.Kind == "weapon.charge.committed") == 1 &&
                 run.GameEvents.Any(value => value.Kind == "shot.committed" &&
@@ -457,11 +485,11 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
 
         AetheriaRuntimeDaemonSimulation.Step(run, fire, 0.1,
             AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
-            new AetheriaYmirWorldPhysics(), catalog, 0, 0);
+            NewPhysics(), catalog, 0, 0);
         for (var frame = 1; frame < 12 && run.ShotReceipts.Count == 0; frame++)
             AetheriaRuntimeDaemonSimulation.Step(run, new AetheriaRuntimeDaemonIntentState(), 0.1,
                 AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
-                new AetheriaYmirWorldPhysics(), catalog, frame, frame * 0.1);
+                NewPhysics(), catalog, frame, frame * 0.1);
 
         Require(run.ShotReceipts.Count == 1 && run.ShotReceipts[0].SourceEntityIndex == source.EntityIndex,
             $"one instant weapon request must remain pending until daemon lock acquisition commits its shot; " +
@@ -469,6 +497,21 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         var state = source.WeaponStates.Single(value => value.BehaviorKind == AetheriaRuntimeBehaviorKinds.InstantWeapon);
         Require(!state.TriggerPending,
             "instant weapon request must clear after the committed burst begins");
+        var surface = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(
+            new AetheriaRuntimeDaemonFrameDocument { FrameId = 12, Run = run },
+            new AetheriaRuntimeDaemonHealthDocument(),
+            AetheriaRuntimeDaemonCommandBoundaryDocument.Create("daemon"));
+        var combat = Flatten(surface.Surface.Root).Single(node => node.Kind == "combat.presentation");
+        Require(combat.Props["controlledEntityIndex"] == "0" &&
+                combat.Props["selectedTargetEntityIndex"] == "1" &&
+                combat.Props["targetVisible"] == "true" &&
+                combat.Props["targetHostile"] == "true" &&
+                double.Parse(combat.Props["lockProgress"], CultureInfo.InvariantCulture) > 0.99,
+            "Eve combat presentation must expose daemon-owned selection, contact, and completed lock without duplicating body transforms");
+        Require(combat.Props["hitMarkerDurationSeconds"] == "0.25" &&
+                combat.Props["radialFillMinimum"] == "0.25" &&
+                combat.Props["radialFillMaximum"] == "0.75",
+            "Eve combat presentation must preserve the fossil's presentation timing and radial meter semantics");
     }
 
     private static void DeployableWeaponRunsThroughYmirAndDetonatesOnDaemon()
@@ -509,7 +552,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
 
         AetheriaRuntimeDaemonSimulation.Step(run, fire, 0.1,
             AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
-            new AetheriaYmirWorldPhysics(), catalog, 1, 0.1);
+            NewPhysics(), catalog, 1, 0.1);
         RequireEqual(1, zone.PhysicalPayloads.Count, "deployable fire must create one persistent physical payload");
         Require(!run.ShotReceipts.Any(), "deployable fire must not masquerade as an ordinary shot receipt");
         var mine = zone.PhysicalPayloads.Single();
@@ -518,7 +561,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
 
         AetheriaRuntimeDaemonSimulation.Step(run, new AetheriaRuntimeDaemonIntentState(), 0.1,
             AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
-            new AetheriaYmirWorldPhysics(), catalog, 2, 0.2);
+            NewPhysics(), catalog, 2, 0.2);
         mine = zone.PhysicalPayloads.Single();
         Require(mine.Stationary && mine.TriggeredAtSeconds >= 0 &&
                 run.GameEvents.Count(value => value.Kind == "deployable.triggered") == 1,
@@ -526,18 +569,16 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         RequireNear(100, Stat(target, "hull"), 0.000001,
             "trigger contact must not bypass the authored detonation delay");
 
-        var surface = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(
+        var objects = AetheriaRuntimeGameDocuments.ObjectsViewport(
             new AetheriaRuntimeDaemonFrameDocument { FrameId = 2, Run = run },
-            new AetheriaRuntimeDaemonHealthDocument(),
-            AetheriaRuntimeDaemonCommandBoundaryDocument.Create("daemon"));
-        var mineNode = Flatten(surface.Surface.Root).Single(node =>
-            node.Id == $"aetheria.daemon.game.world.projectile.{mine.PayloadId}");
-        RequireEqual("physical-payload", mineNode.Props["entityKind"],
-            "Eve must describe the semantic object rather than pretend every payload is a projectile");
-        RequireEqual("mine", mineNode.Props["payloadKind"], "Eve must expose deployable kind");
-        RequireEqual("true", mineNode.Props["armed"], "Eve must expose daemon-owned arming state");
-        RequireEqual("true", mineNode.Props["triggered"], "Eve must expose daemon-owned trigger state");
-        RequireEqual("true", mineNode.Props["stationary"], "Eve must expose Ymir-derived motion state");
+            new AetheriaRuntimeViewportBounds { MinX = -1000, MinY = -1000, MaxX = 1000, MaxY = 1000 });
+        var mineObject = objects.Objects.Single(value => value.EntityKey == mine.PayloadId);
+        RequireEqual("projectile", mineObject.Kind,
+            "the viewport projection must expose the retained physical payload without reviving world.scene3d as a transform authority");
+        Require(mineObject.IsActive && mineObject.IconAsset != null,
+            "the viewport projection must expose an active provider-authored presentation for the retained mine body");
+        Require(mine.Stationary && mine.TriggeredAtSeconds >= 0,
+            "daemon state must retain Ymir-derived motion and trigger state independently of presentation");
         RequireNear(35, mine.PayloadMagnitude, 0.000001, "deployable must retain authored payload magnitude");
         RequireNear(50, mine.BlastRadius, 0.000001, "deployable must retain authored blast radius");
         Require(Math.Abs(target.PositionX - mine.PositionX) <= mine.BlastRadius,
@@ -545,7 +586,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
 
         AetheriaRuntimeDaemonSimulation.Step(run, new AetheriaRuntimeDaemonIntentState(), 0.21,
             AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
-            new AetheriaYmirWorldPhysics(), catalog, 3, 0.41);
+            NewPhysics(), catalog, 3, 0.41);
         RequireEqual(0, zone.PhysicalPayloads.Count, "detonated mine must leave canonical payload state");
         RequireNear(65, Stat(target, "hull"), 0.000001,
             "Aetheria must apply authored blast damage after the delay");
@@ -587,7 +628,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
 
         AetheriaRuntimeDaemonSimulation.Step(run, new AetheriaRuntimeDaemonIntentState(), 0.1,
             AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
-            new AetheriaYmirWorldPhysics(), frameId: 4,
+            NewPhysics(), frameId: 4,
             simulationTimeSeconds: 0.1);
 
         RequireEqual(0, zone.PhysicalPayloads.Count,
@@ -669,7 +710,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         AddDetonatingPayload("shielded-blast", 20);
         AetheriaRuntimeDaemonSimulation.Step(run, new AetheriaRuntimeDaemonIntentState(), 0.1,
             AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
-            new AetheriaYmirWorldPhysics(), catalog, 1, 0.1);
+            NewPhysics(), catalog, 1, 0.1);
         var capacitor = target.BehaviorStates.Single(value => value.BehaviorKind == "Capacitor");
         RequireNear(100, Stat(target, "hull"), 0.000001,
             "funded shield must intercept damage before hull");
@@ -698,7 +739,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         AddDetonatingPayload("unfunded-blast", 20);
         AetheriaRuntimeDaemonSimulation.Step(run, new AetheriaRuntimeDaemonIntentState(), 0.1,
             AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
-            new AetheriaYmirWorldPhysics(), catalog, 2, 0.2);
+            NewPhysics(), catalog, 2, 0.2);
         RequireNear(80, Stat(target, "hull"), 0.000001,
             "unfunded shield must not manufacture absorption");
     }
@@ -733,7 +774,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
 
         AetheriaRuntimeDaemonSimulation.Step(run, new AetheriaRuntimeDaemonIntentState(), 0.1,
             AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
-            new AetheriaYmirWorldPhysics(), catalog, 1, 0.1);
+            NewPhysics(), catalog, 1, 0.1);
 
         var armor = target.StatGrids.Single(value => value.Name == "armor");
         RequireNear(0, armor.Values[3], 0.000001, "source-facing splash cells must absorb damage first");
@@ -747,6 +788,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             AetheriaRuntimeDaemonCommandBoundaryDocument.Create("daemon"));
         var targetNode = Flatten(surface.Surface.Root).Single(node =>
             node.Id == "aetheria.daemon.game.world.entity.1");
+        RequireEqual("entity.presentation", targetNode.Kind,
+            "Eve semantic entity facts must not become a second body-transform authority");
         RequireEqual("30", targetNode.Props["armor"],
             "Eve world projection must expose aggregate armor as derived presentation state");
         RequireEqual("0,5,5,0,5,5,0,5,5", targetNode.Props["armorGrid"],
@@ -784,7 +827,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         var settings = LootSettings(1);
 
         AetheriaRuntimeDaemonSimulation.Step(run, new AetheriaRuntimeDaemonIntentState(), 0.1, settings,
-            new AetheriaYmirWorldPhysics(), null, 1, 0.1);
+            NewPhysics(), null, 1, 0.1);
 
         Require(!target.IsActive && target.DestroyedFrameId == 1 &&
                 !string.IsNullOrWhiteSpace(target.DestructionId),
@@ -809,9 +852,6 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             AetheriaRuntimeDaemonCommandBoundaryDocument.Create("daemon"));
         Require(!Flatten(surface.Surface.Root).Any(node => node.Id == "aetheria.daemon.game.world.entity.1"),
             "Eve must not project a destroyed tombstone as an active world entity");
-        RequireEqual(3, Flatten(surface.Surface.Root).Count(node => node.Kind == "world.entity3d" &&
-            node.Props.TryGetValue("entityKind", out var kind) && kind == "pickup"),
-            "Eve must project every daemon-owned destruction pickup");
         var destructionAsset = AetheriaRuntimeAssets.ProjectManifest(null).Assets.Single(value =>
             value.Ref.Metadata.TryGetValue("presentationRole", out var role) &&
             role == "effect.feedback.entity.destroyed");
@@ -819,7 +859,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             "provider must advertise the original destruction effect by semantic feedback role");
 
         AetheriaRuntimeDaemonSimulation.Step(run, new AetheriaRuntimeDaemonIntentState(), 0.1, settings,
-            new AetheriaYmirWorldPhysics(), null, 2, 0.2);
+            NewPhysics(), null, 2, 0.2);
         RequireEqual(3, zone.DroppedPickups.Count,
             "later ticks must not duplicate an already committed destruction transaction");
         RequireEqual(1, run.GameEvents.Count(value => value.Kind == "entity.destroyed"),
@@ -857,7 +897,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 { ActorEntityKey = "zone.0.entity.0", WeaponGroup = 0, Fire = true, Active = true });
             AetheriaRuntimeDaemonSimulation.Step(run, intents, 0.1,
                 new AetheriaRuntimeDaemonSimulationSettings(),
-                new AetheriaYmirWorldPhysics(), catalog, frame, frame * 0.1);
+                NewPhysics(), catalog, frame, frame * 0.1);
         }
         var state = source.WeaponStates.Single(value => value.BehaviorKind == AetheriaRuntimeBehaviorKinds.ChargedWeapon);
         Require(!state.Charging && !state.Charged && state.CoolingDown && state.ChargeRiskChecks == 1 &&
@@ -890,12 +930,12 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             AgentTasks = [new AetheriaRuntimeAgentTaskCommit { TaskId = "tow-1", CorporationKey = "workers", TaskType = AetheriaRuntimeAgentTaskTypes.Tow, ZoneIndex = 0, Status = AetheriaRuntimeAgentTaskStatuses.Queued, TargetEntityIndex = 1, OrbitParentKey = "parent-body", OrbitDistance = 20, CompletionRadius = 5 }]
         };
         AetheriaRuntimeDaemonTickRunner.Tick(Path.Combine(Path.GetTempPath(), "aetheria-tow-attach-smoke.cc"), run,
-            new AetheriaRuntimeDaemonTickOptions { WorldPhysics = new AetheriaYmirWorldPhysics(), FrameId = 1, FixedDeltaSeconds = 0.1, SimulationTimeSeconds = 1, BuildPublications = false });
+            new AetheriaRuntimeDaemonTickOptions { WorldPhysics = NewPhysics(), FrameId = 1, FixedDeltaSeconds = 0.1, SimulationTimeSeconds = 1, BuildPublications = false });
         Require(run.Zones[0].Entities[0].ChildEntityIndices.Contains(1), "tow pickup must attach station to tug parentage");
         RequireEqual("", run.Zones[0].Entities[1].OrbitKey, "attached station must no longer own an orbit");
 
         AetheriaRuntimeDaemonTickRunner.Tick(Path.Combine(Path.GetTempPath(), "aetheria-tow-detach-smoke.cc"), run,
-            new AetheriaRuntimeDaemonTickOptions { WorldPhysics = new AetheriaYmirWorldPhysics(), FrameId = 2, FixedDeltaSeconds = 0.1, SimulationTimeSeconds = 2, BuildPublications = false });
+            new AetheriaRuntimeDaemonTickOptions { WorldPhysics = NewPhysics(), FrameId = 2, FixedDeltaSeconds = 0.1, SimulationTimeSeconds = 2, BuildPublications = false });
         Require(!run.Zones[0].Entities[0].ChildEntityIndices.Contains(1), "tow delivery must detach station parentage");
         Require(!string.IsNullOrWhiteSpace(run.Zones[0].Entities[1].OrbitKey), "delivered station must own a persistent orbit");
         Require(run.Zones[0].Orbits.Any(orbit => orbit.OrbitKey == run.Zones[0].Entities[1].OrbitKey && orbit.ParentOrbitKey == "parent-orbit" && Math.Abs(orbit.Distance - 20) < 0.001),
@@ -923,14 +963,14 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             AgentTasks = [new AetheriaRuntimeAgentTaskCommit { TaskId = "survey-1", CorporationKey = "workers", TaskType = AetheriaRuntimeAgentTaskTypes.Explore, ZoneIndex = 0, Status = AetheriaRuntimeAgentTaskStatuses.Queued, TargetBodyKeys = ["survey-world"] }]
         };
         AetheriaRuntimeDaemonTickRunner.Tick(Path.Combine(Path.GetTempPath(), "aetheria-survey-smoke.cc"), run,
-            new AetheriaRuntimeDaemonTickOptions { WorldPhysics = new AetheriaYmirWorldPhysics(), FrameId = 1, FixedDeltaSeconds = 1, SimulationTimeSeconds = 1, Catalog = catalog, BuildPublications = false });
+            new AetheriaRuntimeDaemonTickOptions { WorldPhysics = NewPhysics(), FrameId = 1, FixedDeltaSeconds = 1, SimulationTimeSeconds = 1, Catalog = catalog, BuildPublications = false });
         var knowledge = run.CorporationSurveys.Single();
         RequireEqual("workers", knowledge.CorporationKey, "survey knowledge must belong to the agent corporation");
         RequireEqual("survey-world", knowledge.BodyKey, "survey knowledge must identify the scanned body");
         RequireNear(4, knowledge.DensityFloor, 0.000001, "survey must publish the scanner minimum density");
 
         AetheriaRuntimeDaemonTickRunner.Tick(Path.Combine(Path.GetTempPath(), "aetheria-survey-complete-smoke.cc"), run,
-            new AetheriaRuntimeDaemonTickOptions { WorldPhysics = new AetheriaYmirWorldPhysics(), FrameId = 2, FixedDeltaSeconds = 1, SimulationTimeSeconds = 2, Catalog = catalog, BuildPublications = false });
+            new AetheriaRuntimeDaemonTickOptions { WorldPhysics = NewPhysics(), FrameId = 2, FixedDeltaSeconds = 1, SimulationTimeSeconds = 2, Catalog = catalog, BuildPublications = false });
         RequireEqual(AetheriaRuntimeAgentTaskStatuses.Completed, run.AgentTasks[0].Status,
             "survey order must complete when corporation knowledge satisfies the scanner threshold");
     }
@@ -941,12 +981,19 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         hull.HullCapacity = PerformanceStat(20);
         var gear = CatalogItem("scanner");
         gear.Volume = 3;
+        var cargoBay = CatalogItem("hauler-cargo");
+        cargoBay.Volume = 0;
+        cargoBay.InteriorOccupiedCells = 16;
         var ore = CatalogItem("ore");
         ore.Volume = 2;
-        var catalog = new AetheriaRuntimeCatalogSnapshot([hull, gear, ore], [], []);
+        var catalog = new AetheriaRuntimeCatalogSnapshot([hull, gear, cargoBay, ore], [], []);
         var entity = Entity(0, 0, "workers");
         entity.HullItemKey = hull.ItemKey;
-        entity.Equipment = [new AetheriaRuntimeLoadoutItemSlotCommit { Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = gear.ItemKey } }];
+        entity.Equipment =
+        [
+            new AetheriaRuntimeLoadoutItemSlotCommit { Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = gear.ItemKey } },
+            new AetheriaRuntimeLoadoutItemSlotCommit { Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = cargoBay.ItemKey } }
+        ];
         entity.CargoContents = [new AetheriaRuntimeCargoBayLoadoutCommit { Items = [new AetheriaRuntimeLoadoutItemSlotCommit { Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = ore.ItemKey, Quantity = 4 } }] }];
 
         RequireNear(20, AetheriaRuntimeCargoCapacityQueries.Capacity(entity, catalog), 0.000001,
@@ -954,7 +1001,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         RequireNear(11, AetheriaRuntimeCargoCapacityQueries.Occupied(entity, catalog), 0.000001,
             "equipment and stacked cargo must consume catalog volume");
         RequireEqual(4, AetheriaRuntimeCargoCapacityQueries.UnitsThatFit(entity, catalog, ore.ItemKey),
-            "available cargo volume must determine whole units that fit");
+            "the installed cargo bay's remaining volume must determine whole units that fit");
     }
 
     private static void AgentMinesAsteroidThroughEquippedBehavior()
@@ -962,20 +1009,32 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         var miner = Entity(0, 0, "workers");
         var home = Entity(1, 0, "workers");
         miner.AgentTaskCapabilities = [AetheriaRuntimeAgentTaskTypes.Mine];
-        miner.Equipment = [new AetheriaRuntimeLoadoutItemSlotCommit { Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = "mining-tool", Enabled = true, Quality = 1, Durability = 1 } }];
+        miner.Equipment =
+        [
+            new AetheriaRuntimeLoadoutItemSlotCommit { Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = "mining-tool", Enabled = true, Quality = 1, Durability = 1 } },
+            new AetheriaRuntimeLoadoutItemSlotCommit { Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = "miner-cargo", Enabled = true, Quality = 1, Durability = 1 } }
+        ];
+        home.Equipment =
+        [
+            new AetheriaRuntimeLoadoutItemSlotCommit { Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = "home-cargo", Enabled = true, Quality = 1, Durability = 1 } }
+        ];
         var minerHull = CatalogItem("miner-hull");
-        minerHull.HullCapacity = PerformanceStat(2);
+        minerHull.HullCapacity = PerformanceStat(3);
         var homeHull = CatalogItem("home-hull");
         homeHull.HullCapacity = PerformanceStat(100);
         var iron = CatalogItem("iron");
         iron.SimpleCommodityCategory = "ore";
         iron.Volume = 1;
+        var minerCargo = CatalogItem("miner-cargo");
+        minerCargo.InteriorOccupiedCells = 2;
+        var homeCargo = CatalogItem("home-cargo");
+        homeCargo.InteriorOccupiedCells = 100;
         miner.HullItemKey = minerHull.ItemKey;
         home.HullItemKey = homeHull.ItemKey;
         miner.CargoContents = [new AetheriaRuntimeCargoBayLoadoutCommit()];
         home.CargoContents = [new AetheriaRuntimeCargoBayLoadoutCommit()];
         var catalog = new AetheriaRuntimeCatalogSnapshot(
-            [minerHull, homeHull, iron, CatalogItem("mining-tool", new AetheriaRuntimeBehaviorPayload(0, "MiningTool", 0,
+            [minerHull, homeHull, iron, minerCargo, homeCargo, CatalogItem("mining-tool", new AetheriaRuntimeBehaviorPayload(0, "MiningTool", 0,
                 [new AetheriaRuntimeBehaviorField(1, PerformanceStat(1000)), new AetheriaRuntimeBehaviorField(2, PerformanceStat(1000000000)), new AetheriaRuntimeBehaviorField(3, PerformanceStat(2)), new AetheriaRuntimeBehaviorField(4, PerformanceStat(1000))]))],
             [], []);
         var asteroid = new AetheriaRuntimeAsteroidCommit { Distance = 0, Size = 6 };
@@ -995,11 +1054,11 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         };
 
         var result = AetheriaRuntimeDaemonTickRunner.Tick(Path.Combine(Path.GetTempPath(), "aetheria-mining-smoke.cc"), run,
-            new AetheriaRuntimeDaemonTickOptions { WorldPhysics = new AetheriaYmirWorldPhysics(), FrameId = 1, FixedDeltaSeconds = 1, SimulationTimeSeconds = 1, Catalog = catalog, BuildPublications = false });
+            new AetheriaRuntimeDaemonTickOptions { WorldPhysics = NewPhysics(), FrameId = 1, FixedDeltaSeconds = 1, SimulationTimeSeconds = 1, Catalog = catalog, BuildPublications = false });
 
         Require(run.AgentTasks[0].Phase == "mining", "mining task must activate its equipped tool");
         Require(result.OperationResult.Intents.Behaviors.Count == 1,
-            $"mining behavior command must become daemon intent (applied={string.Join(',', result.Frame.AppliedCommandIds)}, rejected={string.Join(',', result.Frame.RejectedCommandIds)})");
+            $"mining behavior command must become daemon intent (count={result.OperationResult.Intents.Behaviors.Count}, applied={string.Join(',', result.Frame.AppliedCommandIds)}, rejected={string.Join(',', result.Frame.RejectedCommandIds)})");
         var committedMiner = run.Zones[0].Entities.Single(entity => entity.EntityIndex == 0);
         var committedAsteroid = run.Zones[0].Bodies[0].Asteroids[0];
         Require(committedAsteroid.RespawnTimer > 0, $"mining damage must deplete the asteroid and start historical respawn (damage={committedAsteroid.Damage}, respawn={committedAsteroid.RespawnTimer})");
@@ -1007,7 +1066,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             "historical mining yield must enter daemon-owned cargo");
 
         AetheriaRuntimeDaemonTickRunner.Tick(Path.Combine(Path.GetTempPath(), "aetheria-mining-offload-smoke.cc"), run,
-            new AetheriaRuntimeDaemonTickOptions { WorldPhysics = new AetheriaYmirWorldPhysics(), FrameId = 2, FixedDeltaSeconds = 1, SimulationTimeSeconds = 2, Catalog = catalog, BuildPublications = false });
+            new AetheriaRuntimeDaemonTickOptions { WorldPhysics = NewPhysics(), FrameId = 2, FixedDeltaSeconds = 1, SimulationTimeSeconds = 2, Catalog = catalog, BuildPublications = false });
         Require(!run.Zones[0].Entities[0].CargoContents.SelectMany(bay => bay.Items).Any(),
             "full miner must offload through the shared cargo transfer command");
         Require(run.Zones[0].Entities[1].CargoContents.SelectMany(bay => bay.Items).Any(slot => slot.Item.ItemKey == "iron" && slot.Item.Quantity == 1),
@@ -1060,7 +1119,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             run,
             new AetheriaRuntimeDaemonTickOptions
             {
-                WorldPhysics = new AetheriaYmirWorldPhysics(),
+                WorldPhysics = NewPhysics(),
                 FrameId = 1,
                 FixedDeltaSeconds = 0,
                 Catalog = catalog,
@@ -1329,7 +1388,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 run,
                 new AetheriaRuntimeDaemonTickOptions
                 {
-                    WorldPhysics = new AetheriaYmirWorldPhysics(),
+                    WorldPhysics = NewPhysics(),
                     FrameId = frame,
                     FixedDeltaSeconds = 0.1,
                     SimulationTimeSeconds = frame * 0.1,
@@ -1438,7 +1497,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 run,
                 new AetheriaRuntimeDaemonTickOptions
                 {
-                    WorldPhysics = new AetheriaYmirWorldPhysics(),
+                    WorldPhysics = NewPhysics(),
                     FrameId = frame,
                     FixedDeltaSeconds = 0.1,
                     SimulationTimeSeconds = frame * 0.1,
@@ -1563,6 +1622,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         var sawTargetCommand = false;
         var sawFireCommand = false;
         var sawPartialLock = false;
+        var lockTrace = new List<double>();
+        var attackTrace = new List<string>();
         var firstLaunchFrame = -1;
         for (var frame = 0; frame < 60; frame++)
         {
@@ -1571,7 +1632,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 run,
                 new AetheriaRuntimeDaemonTickOptions
                 {
-                    WorldPhysics = new AetheriaYmirWorldPhysics(),
+                    WorldPhysics = NewPhysics(),
                     FrameId = frame,
                     FixedDeltaSeconds = 0.1,
                     SimulationTimeSeconds = frame * 0.1,
@@ -1583,6 +1644,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             sawFireCommand |= tick.OperationResult.AppliedCommandIds.Any(id => id.EndsWith(":fire", StringComparison.Ordinal));
             var weapon = (agent.WeaponStates ?? Array.Empty<AetheriaRuntimeWeaponStateCommit>())
                 .Single(value => value.OwnerKind == AetheriaRuntimeBehaviorStateProjector.EquipmentOwnerKind);
+            lockTrace.Add(weapon.LockProgress);
+            attackTrace.Add($"{frame}:{agent.TargetEntityIndex}:{agent.PositionX:0.##},{agent.PositionZ:0.##}:{agent.DirectionX:0.##},{agent.DirectionY:0.##}:{weapon.LockTargetEntityIndex}");
             sawPartialLock |= weapon.LockProgress > 0 && weapon.LockProgress < 0.99;
             if (firstLaunchFrame < 0 && run.GameEvents.Any(value => value.Kind == "shot.committed"))
                 firstLaunchFrame = frame;
@@ -1592,7 +1655,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
 
         Require(sawTargetCommand, "attack agent must target through the shared target command");
         Require(sawFireCommand, "attack agent must fire through the shared weapon-group command");
-        Require(sawPartialLock, "attack agent must acquire a persisted partial weapon lock before firing");
+        Require(sawPartialLock,
+            $"attack agent must acquire a persisted partial weapon lock before firing; locks={string.Join(',', lockTrace.Select(value => value.ToString("0.###", CultureInfo.InvariantCulture)))} states={string.Join('|', attackTrace)}");
         Require(firstLaunchFrame > 1, "accepted fire intent must not bypass progressive weapon lock acquisition");
         Require(run.GameEvents.Any(value => value.Kind == "shot.committed" && value.SourceEntityIndex == agent.EntityIndex),
             "accepted fire control must emit authoritative shot commitment chronology");
@@ -1836,8 +1900,10 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
     private static void SchedulerAssignsShortestGalaxyRoute()
     {
         var distant = Entity(0, 0, "workers");
+        distant.EntityId = "worker.route.distant";
         distant.AgentTaskCapabilities = [AetheriaRuntimeAgentTaskTypes.Explore];
         var nearby = Entity(0, 0, "workers");
+        nearby.EntityId = "worker.route.nearby";
         nearby.AgentTaskCapabilities = [AetheriaRuntimeAgentTaskTypes.Explore];
         var task = AgentTask("route-choice", 10);
         task.ZoneIndex = 2;
@@ -1890,7 +1956,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 run,
                 new AetheriaRuntimeDaemonTickOptions
                 {
-                    WorldPhysics = new AetheriaYmirWorldPhysics(),
+                    WorldPhysics = NewPhysics(),
                     FrameId = frame,
                     FixedDeltaSeconds = 0.1,
                     SimulationTimeSeconds = frame * 0.1,
@@ -1944,7 +2010,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 run,
                 new AetheriaRuntimeDaemonTickOptions
                 {
-                    WorldPhysics = new AetheriaYmirWorldPhysics(),
+                    WorldPhysics = NewPhysics(),
                     FrameId = frame,
                     FixedDeltaSeconds = 0.1,
                     SimulationTimeSeconds = frame * 0.1,
@@ -1973,7 +2039,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             run,
             new AetheriaRuntimeDaemonTickOptions
             {
-                WorldPhysics = new AetheriaYmirWorldPhysics(), FrameId = 41,
+                WorldPhysics = NewPhysics(), FrameId = 41,
                 FixedDeltaSeconds = 0.1, SimulationTimeSeconds = 4.1, BuildPublications = false
             });
         Require(!settled.OperationResult.AppliedCommandIds.Any(id => id.Contains(":home-", StringComparison.Ordinal)),
@@ -2044,7 +2110,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 run,
                 new AetheriaRuntimeDaemonTickOptions
                 {
-                    WorldPhysics = new AetheriaYmirWorldPhysics(),
+                    WorldPhysics = NewPhysics(),
                     FrameId = frame,
                     FixedDeltaSeconds = 0.1,
                     SimulationTimeSeconds = frame * 0.1,
@@ -2100,6 +2166,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
     {
         var player = Entity(0, 0, "player");
         var agent = Entity(1, 0, "worker");
+        player.TargetEntityIndex = agent.EntityIndex;
         var run = new AetheriaRuntimeRunCheckpointCommit
         {
             RunId = "shared-lever-smoke",
@@ -2120,11 +2187,23 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             operation.Intents,
             0.1,
             AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
-            new AetheriaYmirWorldPhysics());
+            NewPhysics());
         Require(player.VelocityX > 0 && Math.Abs(player.VelocityY) < 0.001,
             "player command must drive its actor through the shared movement lever");
         Require(agent.VelocityY > 0 && Math.Abs(agent.VelocityX) < 0.001,
             "agent command must drive its actor through the shared movement lever");
+
+        var release = MovementCommand("player-release", "zone.0.entity.0", 0, 0);
+        release.ScalarValue = 0;
+        var releaseOperation = AetheriaRuntimeDaemonOperations.Execute(run, [release]);
+        AetheriaRuntimeDaemonSimulation.Step(
+            run,
+            releaseOperation.Intents,
+            0.1,
+            AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
+            NewPhysics());
+        RequireEqual(agent.EntityIndex, player.TargetEntityIndex,
+            "releasing the movement lever must not steal targeting authority");
     }
 
     private static AetheriaRuntimeDaemonCommandDocument MovementCommand(
@@ -2454,7 +2533,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
 
         AetheriaRuntimeDaemonSimulation.Step(run, new AetheriaRuntimeDaemonIntentState(), 1,
             AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
-            new AetheriaYmirWorldPhysics(), catalog, frameId: 17);
+            NewPhysics(), catalog, frameId: 17);
 
         RequireEqual("heatstroke", entity.CauseOfDeath,
             "lethal cockpit heat must persist the typed cause of death");
@@ -2513,7 +2592,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
     private static void YmirMovesProjectileAndReportsStableContact()
     {
         var (run, zone, target) = Scenario();
-        using var physics = new AetheriaYmirWorldPhysics();
+        using var physics = NewPhysics();
         physics.RetainWorlds(run.RunId, [zone.ZoneIndex]);
         physics.Step(run.RunId, 0, 0, zone, zone.Entities, 0.1);
         var step = physics.StepPhysicalPayloads(run.RunId, 0, 0, zone, zone.Entities, 0.1);
@@ -2548,7 +2627,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 }
             ]
         };
-        using var physics = new AetheriaYmirWorldPhysics();
+        using var physics = NewPhysics();
         physics.RetainWorlds("source-exclusion-smoke", [zone.ZoneIndex]);
         physics.Step("source-exclusion-smoke", 1, 0, zone, zone.Entities, 0.1);
         var step = physics.StepPhysicalPayloads("source-exclusion-smoke", 1, 0, zone, zone.Entities, 0.1);
@@ -2587,7 +2666,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 }
             ]
         };
-        using var physics = new AetheriaYmirWorldPhysics();
+        using var physics = NewPhysics();
         physics.RetainWorlds("payload-isolation-smoke", [zone.ZoneIndex]);
         physics.Step("payload-isolation-smoke", 2, 0, zone, zone.Entities, 0.1);
         var step = physics.StepPhysicalPayloads("payload-isolation-smoke", 2, 0, zone, zone.Entities, 0.1);
@@ -2623,7 +2702,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             Entities = [target],
             PhysicalPayloads = [mine]
         };
-        using var physics = new AetheriaYmirWorldPhysics();
+        using var physics = NewPhysics();
         physics.RetainWorlds("mine-arming-overlap-smoke", [zone.ZoneIndex]);
         physics.Step("mine-arming-overlap-smoke", 1, 0, zone, zone.Entities, 0.5);
         var unarmed = physics.StepPhysicalPayloads("mine-arming-overlap-smoke", 1, 0, zone, zone.Entities, 0.5);
@@ -2649,7 +2728,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             new AetheriaRuntimeDaemonIntentState(),
             0.1,
             AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
-            new AetheriaYmirWorldPhysics());
+            NewPhysics());
 
         RequireEqual(100.0, Stat(target, "hull"), "presentation projectile contact must not write combat damage");
         RequireEqual(0, run.Zones[0].PhysicalPayloads.Count, "spent projectile must leave daemon state");
@@ -2670,7 +2749,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         var (run, _, target) = Scenario();
         target.StatGrids.Single(grid => grid.Name == "hull").Values = [5];
         AetheriaRuntimeDaemonSimulation.Step(run, new AetheriaRuntimeDaemonIntentState(), 0.1,
-            AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault, new AetheriaYmirWorldPhysics(), frameId: 9);
+            AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault, NewPhysics(), frameId: 9);
         Require(target.IsActive && Math.Abs(Stat(target, "hull") - 5) < 0.000001,
             "even nominally lethal presentation contact must leave canonical target state untouched");
         RequireEqual(0, run.GameEvents.Count(value => value.Kind == "entity.destroyed" && value.TargetEntityIndex == target.EntityIndex),
@@ -2704,18 +2783,13 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         var command = AetheriaRuntimeDaemonCommandDocument.Create(AetheriaRuntimeDaemonCommandKinds.SetTractorPower, "pilot", "tractor-smoke", 0, "zone.0.entity.0");
         command.CommandId = "tractor-on"; command.ScalarValue = 1;
         AetheriaRuntimeDaemonTickRunner.Tick(Path.Combine(Path.GetTempPath(), "aetheria-tractor-smoke.cc"), run,
-            new AetheriaRuntimeDaemonTickOptions { WorldPhysics = new AetheriaYmirWorldPhysics(), FrameId = 1, FixedDeltaSeconds = 0.25, SimulationTimeSeconds = 0.25, ObservedCommands = [command], BuildPublications = false });
+            new AetheriaRuntimeDaemonTickOptions { WorldPhysics = NewPhysics(), FrameId = 1, FixedDeltaSeconds = 0.25, SimulationTimeSeconds = 0.25, ObservedCommands = [command], BuildPublications = false });
         RequireNear(0.5, ship.TractorPower, 0.000001, "tractor power must use the fossil two-per-second ramp");
         Require(pickup.VelocityX < 0 && pickup.PositionX < 60, "Ymir must pull a pickup inside the forward tractor volume toward the ship");
         RequireEqual(1, pickup.Item.Quantity, "tractor force must not consume the pickup item");
         RequireEqual(0, CargoQuantity(ship, "salvage"), "scooping must remain a separate capacity-checked transaction");
-        var frame = new AetheriaRuntimeDaemonFrameDocument { FrameId = 1, Run = run };
-        var surface = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(frame, new AetheriaRuntimeDaemonHealthDocument(), AetheriaRuntimeDaemonCommandBoundaryDocument.Create("daemon"));
-        var pickupNode = Flatten(surface.Surface.Root).Single(node => node.Id == "aetheria.daemon.game.world.pickup.3");
-        RequireEqual("prefab.entity.pickup", pickupNode.Props["assetRef"], "Eve world must reference provider-owned pickup asset semantics");
-        RequireEqual("salvage", pickupNode.Props["itemKey"], "Eve pickup must expose item identity");
-        Require(double.Parse(pickupNode.Props["remainingLifetime"], CultureInfo.InvariantCulture) < 30,
-            "Eve pickup must expose daemon-owned remaining lifetime");
+        Require(pickup.AgeSeconds > 0 && pickup.AgeSeconds < pickup.LifetimeSeconds,
+            "daemon-owned pickup lifetime must advance independently of its SoA presentation");
         var pickupAsset = AetheriaRuntimeAssets.ProjectManifest(null).Assets.Single(asset => asset.Ref.AssetKey == "prefab.entity.pickup");
         Require(pickupAsset.Ref.Metadata.TryGetValue("unityAssetPath", out var pickupPath) && pickupPath == "Assets/Prefabs/RPG/Pickups/Tetrahedron.prefab",
             "provider asset manifest must advertise the pickup visual used by Eve");
@@ -2797,7 +2871,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             return new AetheriaRuntimeRunCheckpointCommit { CurrentZoneIndex = 0, CurrentEntityKey = "zone.0.entity.0", Zones = [new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [ship], DroppedPickups = [new AetheriaRuntimeDroppedPickupCommit { PickupIndex = 10, PositionX = 20, Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = salvage.ItemKey, Quantity = 1 }, LifetimeSeconds = 30 }] }] };
         }
         var open = Scenario(false);
-        using var openPhysics = new AetheriaYmirWorldPhysics();
+        using var openPhysics = NewPhysics();
         AetheriaRuntimeDaemonTickRunner.Tick(Path.Combine(Path.GetTempPath(), "aetheria-pickup-contact-open.cc"), open,
             new AetheriaRuntimeDaemonTickOptions { WorldPhysics = openPhysics, FrameId = 1, FixedDeltaSeconds = 0.1, SimulationTimeSeconds = 0.1, Catalog = catalog, BuildPublications = false });
         RequireEqual(0, open.Zones[0].DroppedPickups.Count, "shield contact with capacity must collect pickup automatically");
@@ -2808,7 +2882,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             "a real Box3D Begin fact must persist one cargo-consumption receipt");
 
         var full = Scenario(true);
-        using var fullPhysics = new AetheriaYmirWorldPhysics();
+        using var fullPhysics = NewPhysics();
         AetheriaRuntimeDaemonTickRunner.Tick(Path.Combine(Path.GetTempPath(), "aetheria-pickup-contact-full.cc"), full,
             new AetheriaRuntimeDaemonTickOptions { WorldPhysics = fullPhysics, FrameId = 1, FixedDeltaSeconds = 0.1, SimulationTimeSeconds = 0.1, Catalog = catalog, BuildPublications = false });
         RequireEqual(1, full.Zones[0].DroppedPickups.Count, "full hold must leave contacted pickup alive");
