@@ -781,6 +781,9 @@ namespace GameCult.Aetheria.State.Verse
                 ["layerTargetDescriptors"] = "fog.surface_height=2,2,false,bilinear;" +
                     "fog.tint=0.5,0.5,true,trilinear",
                 ["assetTextureBindings"] = "texture.environment.stardust-colors=hue",
+                ["materialAssetTextureBindings"] = "texture.environment.volume-dither=dither",
+                ["materialViewportTextureScaleBindings"] = "ditherCoordinates=dither",
+                ["materialRenderFrameIndexPort"] = "frameIndex",
                 ["viewportAnchor"] = "active-camera.xz",
                 ["cellWorldSize"] = "6",
                 ["gravityTexelsPerCell"] = "8",

@@ -253,6 +253,9 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 stardust.Props["particleStrideBytes"] == "28" &&
                 stardust.Props["viewportAnchor"] == "active-camera.xz" &&
                 stardust.Props["layerBindings"] == "fog.surface_height=surfaceHeight;fog.tint=tint" &&
+                stardust.Props["materialAssetTextureBindings"] == "texture.environment.volume-dither=dither" &&
+                stardust.Props["materialViewportTextureScaleBindings"] == "ditherCoordinates=dither" &&
+                stardust.Props["materialRenderFrameIndexPort"] == "frameIndex" &&
                 stardust.Props["cellWorldSize"] == "6" &&
                 stardust.Props["gravityTexelsPerCell"] == "8" &&
                 stardust.Props["viewportSnapLayer"] == "fog.surface_height" &&
@@ -302,6 +305,9 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 stardustCompute.Ref.Metadata["unity.particles.intPort.span"] == "span" &&
                 stardustMaterial.Ref.Metadata["unity.particles.bufferPort.particles"] == "particles" &&
                 stardustMaterial.Ref.Metadata["unity.particles.bufferPort.quadPoints"] == "quadPoints" &&
+                stardustMaterial.Ref.Metadata["unity.particles.texturePort.dither"] == "_DitheringTex" &&
+                stardustMaterial.Ref.Metadata["unity.particles.vectorPort.ditherCoordinates"] == "_DitheringCoords" &&
+                stardustMaterial.Ref.Metadata["unity.particles.intPort.frameIndex"] == "_FrameNumber" &&
                 stardustColors.Ref.Metadata["unityAssetPath"] == "Assets/Resources/Gradients/blackbody.png",
             "provider asset metadata must own the exact Stardust compute/render ABI and authored color ramp");
         var fogVolume = Flatten(surface.Surface.Root)

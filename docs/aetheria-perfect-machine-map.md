@@ -1102,7 +1102,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
 - Inputs: the same typed `gamecult.eve.fields.splats.v1` document used by the
   fog volume; gravity surface height and gravity-derived tint (not patch or
   patch-height layers); the provider compute shader, material, and blackbody
-  color texture; active camera XZ; and daemon simulation time.
+  color texture; the provider dither texture; active camera XZ; daemon
+  simulation time; and the client render-frame index used only for temporal
+  coverage.
 - Outputs: `field.particles3d` names the provider programs, logical field and
   asset ports, the 256-by-256 row-major particle grid, 128-thread dispatch,
   28-byte particle stride, exact fossil values, and camera-followed viewport
@@ -1128,7 +1130,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   generic lowerers call the same viewport-frame resolver and receive identical
   `EveFieldsViewport` bounds.
 - Derived state: GPU buffers, generated quads, raster targets, keywords, and
-  draw calls are client presentation state. They cannot feed simulation.
+  draw calls are client presentation state. The viewport-scaled dither
+  coordinates and render-frame index are also presentation state; they cannot
+  feed particle identity, phase, position, or simulation.
 - Forbidden writers: EveUnity cannot reseed, pool, randomly initialize, move,
   recolor, or CPU-generate particles. Aetheria cannot publish per-particle rows
   or make the field a gameplay body set.
@@ -1143,9 +1147,13 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   all seven particle floats bit-identical while the same buffer slot changes
   identity. The released witness must record 65,536 particles, one compute
   dispatch and one pilot-camera draw while the map camera remains isolated.
-  The released `0.3.56` witness additionally requires the live fog and particle
+  The released `0.3.57` witness additionally requires the live fog and particle
   grid centers to be equal and the leased pilot camera to report URP temporal
-  anti-aliasing with the advertised history and jitter values.
+  anti-aliasing with the advertised history and jitter values. It resolves the
+  material's logical ports from provider metadata and proves the cloned live
+  material holds the provider dither texture, pixel scale, and advancing render
+  frame. The bundle gate rejects a fixed `_AlphaClip` regression and requires
+  the fossil temporal-coverage, overwrite-blend, and depth-write source tokens.
 
 ### Gravity Fog Presentation Contract
 

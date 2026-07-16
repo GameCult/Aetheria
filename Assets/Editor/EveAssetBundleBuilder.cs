@@ -53,6 +53,11 @@ namespace Aetheria.Editor
                 .ToArray();
             if (assetNames.Length == 0)
                 throw new InvalidOperationException("Aetheria Eve bundle has no provider Unity assets.");
+            var authoredStardustMaterial = AssetDatabase.LoadAssetAtPath<Material>(
+                "Assets/Shaders/Compute/Stardust/Stardust.mat");
+            AetheriaStardustContinuityVerifier.VerifyTemporalDitherMaterial(
+                authoredStardustMaterial,
+                requireAuthoredSource: true);
 
             var manifest = BuildPipeline.BuildAssetBundles(
                 output,
@@ -593,6 +598,9 @@ namespace Aetheria.Editor
                     "Assets/Shaders/Compute/Stardust/Stardust.mat");
                 if (stardustMaterial == null || stardustMaterial.shader == null || !stardustMaterial.shader.isSupported)
                     throw new InvalidOperationException("Aetheria Eve bundle has no supported Stardust render material.");
+                AetheriaStardustContinuityVerifier.VerifyTemporalDitherMaterial(
+                    stardustMaterial,
+                    requireAuthoredSource: false);
                 var stardustColors = LoadAuthoredAsset<Texture2D>(bundle, assetNames,
                     "Assets/Resources/Gradients/blackbody.png");
                 if (stardustColors == null)

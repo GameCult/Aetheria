@@ -1,5 +1,7 @@
 using System;
+using System.IO;
 using System.Runtime.InteropServices;
+using UnityEditor;
 using UnityEngine;
 
 namespace Aetheria.Editor
@@ -16,6 +18,39 @@ namespace Aetheria.Editor
             public Vector3 Position;
             public Vector3 Color;
             public float Size;
+        }
+
+        internal static void VerifyTemporalDitherMaterial(Material material, bool requireAuthoredSource)
+        {
+            if (material == null || material.shader == null)
+                throw new ArgumentNullException(nameof(material));
+            if (!material.HasProperty("_DitheringTex"))
+                throw new InvalidOperationException("Stardust render material has no temporal dither texture port.");
+            var shaderPath = AssetDatabase.GetAssetPath(material.shader);
+            var source = string.IsNullOrWhiteSpace(shaderPath) || !File.Exists(shaderPath)
+                ? ""
+                : File.ReadAllText(shaderPath);
+            if (string.IsNullOrWhiteSpace(source))
+            {
+                if (requireAuthoredSource)
+                    throw new InvalidOperationException("Stardust authored shader source is unavailable for verification.");
+                return;
+            }
+            var required = new[]
+            {
+                "_FrameNumber",
+                "SAMPLE_TEXTURE2D",
+                "clip(alpha - dither",
+                "Blend One Zero",
+                "ZWrite On"
+            };
+            foreach (var token in required)
+                if (!source.Contains(token, StringComparison.Ordinal))
+                    throw new InvalidOperationException(
+                        $"Stardust render shader lost required temporal coverage token '{token}'.");
+            if (source.Contains("_AlphaClip", StringComparison.Ordinal))
+                throw new InvalidOperationException(
+                    "Stardust render shader regressed to a fixed alpha threshold instead of temporal coverage.");
         }
 
         internal static void VerifyOneCellShift(ComputeShader program)

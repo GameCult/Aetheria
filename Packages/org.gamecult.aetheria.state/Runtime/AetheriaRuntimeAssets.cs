@@ -411,7 +411,10 @@ namespace GameCult.Aetheria.State.Verse
                         ["presentationRole"] = "environment.stardust.render",
                         ["unity.particles.pass.render"] = "0",
                         ["unity.particles.bufferPort.particles"] = "particles",
-                        ["unity.particles.bufferPort.quadPoints"] = "quadPoints"
+                        ["unity.particles.bufferPort.quadPoints"] = "quadPoints",
+                        ["unity.particles.texturePort.dither"] = "_DitheringTex",
+                        ["unity.particles.vectorPort.ditherCoordinates"] = "_DitheringCoords",
+                        ["unity.particles.intPort.frameIndex"] = "_FrameNumber"
                     }
                 },
                 Tags = new[] { "presentation", "environment", "stardust", "particles", "material" }

@@ -7,15 +7,15 @@ Shader "Aetheria/Stardust (Compute)"
         _DistanceIntensityExponent ("Distance Intensity Exponent", Float) = 1
         _EmissionGain ("Emission Gain", Range(0, 1)) = 0.3
         _Power ("Power", Float) = 2
-        _AlphaClip ("Alpha Clip", Range(0, 1)) = 0.05
+        [HideInInspector] _DitheringTex ("Dithering Texture", 2D) = "white" {}
     }
 
     SubShader
     {
         Tags
         {
-            "Queue" = "Transparent"
-            "RenderType" = "Transparent"
+            "Queue" = "AlphaTest"
+            "RenderType" = "TransparentCutout"
             "IgnoreProjector" = "True"
             "RenderPipeline" = "UniversalPipeline"
         }
@@ -25,9 +25,9 @@ Shader "Aetheria/Stardust (Compute)"
             Name "Stardust"
             Tags { "LightMode" = "UniversalForward" }
 
-            Blend One One
+            Blend One Zero
             Cull Off
-            ZWrite Off
+            ZWrite On
 
             HLSLPROGRAM
             #pragma vertex Vert
@@ -52,13 +52,18 @@ Shader "Aetheria/Stardust (Compute)"
                 float _Power;
                 float _DistanceSizeExponent;
                 float _DistanceIntensityExponent;
-                float _AlphaClip;
             CBUFFER_END
+
+            TEXTURE2D(_DitheringTex);
+            SAMPLER(sampler_DitheringTex);
+            float4 _DitheringCoords;
+            int _FrameNumber;
 
             struct Varyings
             {
                 float4 positionCS : SV_POSITION;
                 float2 uv : TEXCOORD0;
+                float4 screenPosition : TEXCOORD1;
                 float4 color : COLOR;
             };
 
@@ -76,6 +81,7 @@ Shader "Aetheria/Stardust (Compute)"
 
                 output.positionCS = mul(UNITY_MATRIX_P, viewPosition + float4(quadPoint, 0.0));
                 output.uv = quadPoints[vertexId].xy + 0.5;
+                output.screenPosition = ComputeScreenPos(output.positionCS);
                 output.color = float4(
                     particles[instanceId].color * _TintColor.rgb,
                     100.0 * pow(100.0, _DistanceIntensityExponent) / pow(dist, _DistanceIntensityExponent));
@@ -92,8 +98,14 @@ Shader "Aetheria/Stardust (Compute)"
             float4 Frag(Varyings input) : SV_Target
             {
                 float emission = PowerPulse(length(input.uv - float2(0.5, 0.5)) * 2.0, _Power);
-                clip(emission * input.color.a - _AlphaClip);
-                return float4(input.color.rgb * emission * exp(_EmissionGain * 5.0), 1.0);
+                float2 screenUv = input.screenPosition.xy / input.screenPosition.w;
+                half dither = frac(SAMPLE_TEXTURE2D(
+                    _DitheringTex,
+                    sampler_DitheringTex,
+                    screenUv * _DitheringCoords.xy).r + _FrameNumber * 1.61803398875);
+                float alpha = emission * input.color.a;
+                clip(alpha - dither - 0.001 * (1.0 - ceil(alpha)));
+                return input.color * emission * exp(_EmissionGain * 5.0);
             }
             ENDHLSL
         }
