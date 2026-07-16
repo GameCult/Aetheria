@@ -233,6 +233,20 @@ namespace GameCult.Aetheria.State.Verse
 
         [Key(14)]
         public AetheriaRuntimeCurrentEntityHudStatus Hud { get; set; } = new AetheriaRuntimeCurrentEntityHudStatus();
+
+        [Key(15)]
+        public AetheriaRuntimeWormholeTransitionView? WormholeTransition { get; set; }
+    }
+
+    [MessagePackObject]
+    public sealed class AetheriaRuntimeWormholeTransitionView
+    {
+        [Key(0)] public string TransitionId { get; set; } = "";
+        [Key(1)] public string Phase { get; set; } = "";
+        [Key(2)] public double Progress { get; set; }
+        [Key(3)] public int SourceZoneIndex { get; set; } = -1;
+        [Key(4)] public int TargetZoneIndex { get; set; } = -1;
+        [Key(5)] public double VisualDepthOffset { get; set; }
     }
 
     [MessagePackObject]

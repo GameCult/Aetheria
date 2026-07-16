@@ -509,7 +509,8 @@ public sealed class AetheriaYmirWorldPhysics : IAetheriaRuntimeWorldPhysics, IDi
     {
         var source = entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>();
         var attached = source.SelectMany(entity => entity.ChildEntityIndices ?? Array.Empty<int>()).ToHashSet();
-        return source.Where(entity => entity.IsActive && !attached.Contains(entity.EntityIndex)).ToArray();
+        return source.Where(entity => entity.IsActive && entity.WormholeTransition == null &&
+            !attached.Contains(entity.EntityIndex)).ToArray();
     }
 
     private static IReadOnlyList<AetheriaRuntimeDroppedPickupCommit> ActivePickups(

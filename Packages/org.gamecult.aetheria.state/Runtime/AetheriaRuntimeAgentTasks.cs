@@ -228,7 +228,8 @@ namespace GameCult.Aetheria.State.Verse
                     var exit = AetheriaRuntimeDaemonRenderQueries.QueryWormholeExits(
                             run,
                             assignment.Zone,
-                            AetheriaRuntimeDaemonRenderQueries.ResolveZoneRenderRadius(assignment.Zone, 1200),
+                            AetheriaRuntimeDaemonRenderQueries.ResolveZoneRenderRadius(
+                                assignment.Zone, AetheriaRuntimeDaemonRenderQueries.DefaultZoneRenderRadius),
                             settings.WormholeDistanceRatio)
                         .First(candidate => candidate.TargetZoneIndex == route[1]);
                     var travelDx = exit.PositionX - assignment.Entity.PositionX;
@@ -681,7 +682,8 @@ namespace GameCult.Aetheria.State.Verse
                     var exit = AetheriaRuntimeDaemonRenderQueries.QueryWormholeExits(
                             run,
                             worker.Zone,
-                            AetheriaRuntimeDaemonRenderQueries.ResolveZoneRenderRadius(worker.Zone, 1200),
+                            AetheriaRuntimeDaemonRenderQueries.ResolveZoneRenderRadius(
+                                worker.Zone, AetheriaRuntimeDaemonRenderQueries.DefaultZoneRenderRadius),
                             settings.WormholeDistanceRatio)
                         .First(candidate => candidate.TargetZoneIndex == route[1]);
                     var dx = exit.PositionX - worker.Entity.PositionX;

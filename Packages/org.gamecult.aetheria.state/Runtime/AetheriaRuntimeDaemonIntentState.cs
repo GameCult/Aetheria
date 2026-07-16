@@ -74,9 +74,13 @@ namespace GameCult.Aetheria.State.Verse
     public sealed class AetheriaRuntimeDaemonWormholeIntent
     {
         public string ActorEntityKey { get; set; } = "";
+        public int SourceZoneIndex { get; set; } = -1;
         public int TargetZoneIndex { get; set; } = -1;
-        public double PositionX { get; set; }
-        public double PositionY { get; set; }
+        public double EntryWormholeX { get; set; }
+        public double EntryWormholeZ { get; set; }
+        public double ExitWormholeX { get; set; }
+        public double ExitWormholeZ { get; set; }
+        public string CommandId { get; set; } = "";
     }
 
 }

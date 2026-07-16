@@ -15170,6 +15170,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
     var daemonDocumentsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonDocuments.cs");
     var daemonOperationClientPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonOperationClient.cs");
     var daemonRuntimeOperationsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonOperations.cs");
+    var daemonRuntimeSimulationPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonSimulation.cs");
     var daemonIntentPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonIntentState.cs");
     var zoneRenderDocumentsPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeGameViewportDocuments.cs");
     var daemonObserverPath = Path.Combine(root, "Assets", "Scripts", "Gameplay", "AetheriaDaemonObserver.cs");
@@ -15208,6 +15209,9 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
     var daemonOperationsSource = File.Exists(daemonRuntimeOperationsPath)
         ? File.ReadAllText(daemonRuntimeOperationsPath)
         : throw new InvalidOperationException("Cannot verify Unity observer authority; daemon operations is missing.");
+    var daemonSimulationSource = File.Exists(daemonRuntimeSimulationPath)
+        ? File.ReadAllText(daemonRuntimeSimulationPath)
+        : throw new InvalidOperationException("Cannot verify Unity observer authority; daemon simulation is missing.");
     var daemonIntent = File.Exists(daemonIntentPath)
         ? File.ReadAllText(daemonIntentPath)
         : throw new InvalidOperationException("Cannot verify Unity observer authority; daemon intent state is missing.");
@@ -16072,20 +16076,25 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
 
     var requiredDaemonNavigationAuthoritySymbols = new[]
     {
-        "ApplyEnterWormholeIntent(run, command, context.Intents)",
+        "ApplyEnterWormholeIntent(run, command, context.Intents,",
         "ApplyTowToStation(run, command, context.DockingDistance)",
-        "MoveEntityToZone(run, actor, command.TargetZoneIndex",
+        "intents.Wormholes.Add",
+        "entity.WormholeTransition != null",
+        "StepWormholeTransitions(",
+        "AetheriaRuntimeDaemonOperations.MoveEntityToZone(",
+        "entity.WormholeTransition = null",
         "run.CurrentZoneIndex = targetZoneIndex",
         "run.CurrentEntityKey = movedEntityKey",
         "run.DiscoveredZoneIndices = discovered.ToArray()"
     };
+    var daemonNavigationCorpus = daemonOperationsSource + "\n" + daemonSimulationSource;
     var missingDaemonNavigationAuthoritySymbols = requiredDaemonNavigationAuthoritySymbols
-        .Where(symbol => !daemonOperationsSource.Contains(symbol, StringComparison.Ordinal))
+        .Where(symbol => !daemonNavigationCorpus.Contains(symbol, StringComparison.Ordinal))
         .ToArray();
     if (missingDaemonNavigationAuthoritySymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "Daemon navigation commands no longer mutate canonical run state inside the daemon operation layer: " +
+            "Daemon navigation no longer validates intent then commits canonical transition state inside daemon-owned operations/simulation: " +
             string.Join(", ", missingDaemonNavigationAuthoritySymbols));
     }
 

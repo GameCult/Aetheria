@@ -1092,6 +1092,29 @@ namespace GameCult.Aetheria.State.Verse
 
         [Key(52)]
         public double HelmForward { get; set; }
+
+        [Key(53)]
+        public AetheriaRuntimeWormholeTransitionCommit? WormholeTransition { get; set; }
+    }
+
+    [MessagePackObject]
+    public sealed class AetheriaRuntimeWormholeTransitionCommit
+    {
+        [Key(0)] public string TransitionId { get; set; } = "";
+        [Key(1)] public string Phase { get; set; } = "";
+        [Key(2)] public double Progress { get; set; }
+        [Key(3)] public int SourceZoneIndex { get; set; } = -1;
+        [Key(4)] public int TargetZoneIndex { get; set; } = -1;
+        [Key(5)] public double EntryStartX { get; set; }
+        [Key(6)] public double EntryStartZ { get; set; }
+        [Key(7)] public double EntryWormholeX { get; set; }
+        [Key(8)] public double EntryWormholeZ { get; set; }
+        [Key(9)] public double ExitWormholeX { get; set; }
+        [Key(10)] public double ExitWormholeZ { get; set; }
+        [Key(11)] public double ExitVelocityX { get; set; }
+        [Key(12)] public double ExitVelocityZ { get; set; }
+        [Key(13)] public double VisualDepthOffset { get; set; }
+        [Key(14)] public long StartedFrameId { get; set; } = -1;
     }
 
     [MessagePackObject]

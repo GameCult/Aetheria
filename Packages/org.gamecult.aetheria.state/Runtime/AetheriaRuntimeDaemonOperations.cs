@@ -39,6 +39,8 @@ namespace GameCult.Aetheria.State.Verse
         public double DockingDistance { get; set; } = AetheriaRuntimeDaemonOperationContext.DefaultDockingDistance;
 
         public double WormholeExitRadius { get; set; } = AetheriaRuntimeDaemonOperationContext.DefaultWormholeExitRadius;
+        public double WormholeDistanceRatio { get; set; } =
+            AetheriaRuntimeDaemonRenderSettings.AetheriaDefault.WormholeDistanceRatio;
         public AetheriaRuntimeCatalogSnapshot? Catalog { get; set; }
     }
 
@@ -169,9 +171,11 @@ namespace GameCult.Aetheria.State.Verse
                         command,
                         context.Intents,
                         context.DockingDistance,
-                        context.WormholeExitRadius);
+                        context.WormholeExitRadius,
+                        context.WormholeDistanceRatio);
                 case AetheriaRuntimeDaemonCommandKinds.EnterWormhole:
-                    return ApplyEnterWormholeIntent(run, command, context.Intents);
+                    return ApplyEnterWormholeIntent(run, command, context.Intents,
+                        context.WormholeExitRadius, context.WormholeDistanceRatio);
                 case AetheriaRuntimeDaemonCommandKinds.TowToStation:
                     return ApplyTowToStation(run, command, context.DockingDistance);
                 case AetheriaRuntimeDaemonCommandKinds.IssueAgentTask:
@@ -1401,7 +1405,8 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeDaemonCommandDocument command,
             AetheriaRuntimeDaemonIntentState intents,
             double defaultDockingDistance,
-            double defaultWormholeExitRadius)
+            double defaultWormholeExitRadius,
+            double wormholeDistanceRatio)
         {
             var actorKey = ResolveActorEntityKey(run, command);
             if (string.IsNullOrWhiteSpace(actorKey) ||
@@ -1417,14 +1422,14 @@ namespace GameCult.Aetheria.State.Verse
                     run,
                     actorKey,
                     ResolveInteractionDistance(command.PositionX, defaultWormholeExitRadius),
+                    wormholeDistanceRatio,
                     out var targetZoneIndex,
-                    out var entryX,
-                    out var entryY))
+                    out _,
+                    out _))
             {
                 command.TargetZoneIndex = targetZoneIndex;
-                command.PositionX = entryX;
-                command.PositionY = entryY;
-                return ApplyEnterWormholeIntent(run, command, intents);
+                return ApplyEnterWormholeIntent(run, command, intents,
+                    defaultWormholeExitRadius, wormholeDistanceRatio);
             }
 
             return ApplyDockNearestIntent(run, command, intents, defaultDockingDistance);
@@ -1486,6 +1491,7 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeRunCheckpointCommit run,
             string actorEntityKey,
             double maxDistance,
+            double wormholeDistanceRatio,
             out int targetZoneIndex,
             out double entryX,
             out double entryY)
@@ -1503,23 +1509,23 @@ namespace GameCult.Aetheria.State.Verse
 
             var maxDistanceSq = maxDistance > 0.0 ? maxDistance * maxDistance : double.PositiveInfinity;
             var closestDistanceSq = double.PositiveInfinity;
-            foreach (var adjacentZoneIndex in zone.AdjacentZoneIndices ?? Array.Empty<int>())
+            foreach (var exit in AetheriaRuntimeDaemonRenderQueries.QueryWormholeExits(
+                run,
+                zone,
+                AetheriaRuntimeDaemonRenderQueries.ResolveZoneRenderRadius(
+                    zone, AetheriaRuntimeDaemonRenderQueries.DefaultZoneRenderRadius),
+                wormholeDistanceRatio))
             {
-                var candidate = (run.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>())
-                    .FirstOrDefault(candidateZone => candidateZone != null && candidateZone.ZoneIndex == adjacentZoneIndex);
-                if (candidate == null)
-                    continue;
-
-                var deltaX = candidate.PositionX - actor.PositionX;
-                var deltaY = candidate.PositionY - actor.PositionZ;
+                var deltaX = exit.PositionX - actor.PositionX;
+                var deltaY = exit.PositionZ - actor.PositionZ;
                 var distanceSq = (deltaX * deltaX) + (deltaY * deltaY);
                 if (distanceSq >= maxDistanceSq || distanceSq >= closestDistanceSq)
                     continue;
 
                 closestDistanceSq = distanceSq;
-                targetZoneIndex = adjacentZoneIndex;
-                entryX = candidate.PositionX;
-                entryY = candidate.PositionY;
+                targetZoneIndex = exit.TargetZoneIndex;
+                entryX = exit.PositionX;
+                entryY = exit.PositionZ;
             }
 
             return targetZoneIndex >= 0;
@@ -1662,21 +1668,55 @@ namespace GameCult.Aetheria.State.Verse
         private static bool ApplyEnterWormholeIntent(
             AetheriaRuntimeRunCheckpointCommit run,
             AetheriaRuntimeDaemonCommandDocument command,
-            AetheriaRuntimeDaemonIntentState intents)
+            AetheriaRuntimeDaemonIntentState intents,
+            double maximumDistance,
+            double wormholeDistanceRatio)
         {
             var actor = ResolveActorEntityKey(run, command);
-            if (string.IsNullOrWhiteSpace(actor) || command.TargetZoneIndex < 0)
+            if (string.IsNullOrWhiteSpace(actor) || command.TargetZoneIndex < 0 ||
+                !TryResolveEntity(run, actor, out var sourceZoneIndex, out var sourceEntityIndex, out var entity) ||
+                IsChildReferencedInZone(run, sourceZoneIndex, sourceEntityIndex) ||
+                intents.Wormholes.Any(intent => string.Equals(intent.ActorEntityKey, actor, StringComparison.Ordinal)) ||
+                entity.WormholeTransition != null)
                 return false;
 
-            if (!MoveEntityToZone(run, actor, command.TargetZoneIndex, command.PositionX, command.PositionY, out var movedEntityKey))
+            var zone = (run.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>())
+                .FirstOrDefault(candidate => candidate != null && candidate.ZoneIndex == sourceZoneIndex);
+            var exit = AetheriaRuntimeDaemonRenderQueries.QueryWormholeExits(
+                    run,
+                    zone,
+                    AetheriaRuntimeDaemonRenderQueries.ResolveZoneRenderRadius(
+                        zone, AetheriaRuntimeDaemonRenderQueries.DefaultZoneRenderRadius),
+                    wormholeDistanceRatio)
+                .FirstOrDefault(candidate => candidate.TargetZoneIndex == command.TargetZoneIndex);
+            if (exit.TargetZoneIndex != command.TargetZoneIndex)
+                return false;
+            var dx = exit.PositionX - entity.PositionX;
+            var dz = exit.PositionZ - entity.PositionZ;
+            if (dx * dx + dz * dz >= maximumDistance * maximumDistance)
+                return false;
+            var targetZone = (run.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>())
+                .FirstOrDefault(candidate => candidate != null && candidate.ZoneIndex == command.TargetZoneIndex);
+            var returnExit = AetheriaRuntimeDaemonRenderQueries.QueryWormholeExits(
+                    run,
+                    targetZone,
+                    AetheriaRuntimeDaemonRenderQueries.ResolveZoneRenderRadius(
+                        targetZone, AetheriaRuntimeDaemonRenderQueries.DefaultZoneRenderRadius),
+                    wormholeDistanceRatio)
+                .FirstOrDefault(candidate => candidate.TargetZoneIndex == sourceZoneIndex);
+            if (returnExit.TargetZoneIndex != sourceZoneIndex)
                 return false;
 
             intents.Wormholes.Add(new AetheriaRuntimeDaemonWormholeIntent
             {
-                ActorEntityKey = movedEntityKey,
+                ActorEntityKey = actor,
+                SourceZoneIndex = sourceZoneIndex,
                 TargetZoneIndex = command.TargetZoneIndex,
-                PositionX = command.PositionX,
-                PositionY = command.PositionY
+                EntryWormholeX = exit.PositionX,
+                EntryWormholeZ = exit.PositionZ,
+                ExitWormholeX = returnExit.PositionX,
+                ExitWormholeZ = returnExit.PositionZ,
+                CommandId = command.CommandId ?? ""
             });
             return true;
         }
@@ -1706,7 +1746,7 @@ namespace GameCult.Aetheria.State.Verse
             station.OrbitKey = orbitKey; return true;
         }
 
-        private static bool MoveEntityToZone(
+        internal static bool MoveEntityToZone(
             AetheriaRuntimeRunCheckpointCommit run,
             string entityKey,
             int targetZoneIndex,

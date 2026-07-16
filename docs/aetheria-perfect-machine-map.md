@@ -1059,6 +1059,29 @@ projectile lead, hardpoint gating, progressive lock, and target destruction.
   thrust/turn feedback still
   require proof.
 
+### Daemon Wormhole Transition
+
+- Owner: the daemon persists one wormhole transition on the moving entity.
+- Inputs: actor identity, current and adjacent zones, canonical wormhole
+  positions, proximity, fixed simulation time, run seed, and the fossil timing
+  constants.
+- Outputs: four-second `entering`, authoritative zone transfer, four-second
+  `exiting`, and one-frame `completed` state; deterministic exit pose/velocity;
+  destination-adjacency discovery; and stable start/transfer/completion events.
+- Derived state: `VisualDepthOffset` is the fossil 1000-unit presentation lever.
+  Camera roll, corkscrew, fade, audio, and native effects may lower it but cannot
+  move the entity.
+- Forbidden writers: `ActionGameManager`, `Ship.EnterWormhole`, client
+  transforms, and command-supplied positions cannot transfer a ship.
+- Shared paths: player interact, explicit travel, agent task routing, and agent
+  homecoming all initialize the same canonical transition.
+- Cut line: command application no longer splices zone arrays. Flight and the
+  world-physics port exclude transitioning bodies, and Ymir resumes only on the
+  tick after completion.
+- Proof: daemon smoke serializes and rehydrates mid-entry, rejects a second
+  transition owner, verifies exact enter/transfer/exit timing and discovery,
+  and runs multi-edge task and home routes through the same boundary.
+
 ### Flight Post-Processing Contract
 
 - Owner: Aetheria selects the logical flight profile and owns its native asset

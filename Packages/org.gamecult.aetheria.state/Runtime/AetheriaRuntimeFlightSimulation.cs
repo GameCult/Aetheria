@@ -22,7 +22,7 @@ namespace GameCult.Aetheria.State.Verse
                 return;
 
             var active = (entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
-                .Where(entity => entity != null && entity.IsActive)
+                .Where(entity => entity != null && entity.IsActive && entity.WormholeTransition == null)
                 .ToArray();
             var byIndex = active.ToDictionary(entity => entity.EntityIndex);
             foreach (var movement in movements ?? Array.Empty<AetheriaRuntimeDaemonMovementIntent>())

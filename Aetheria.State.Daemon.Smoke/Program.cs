@@ -190,6 +190,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             SchedulerRequeuesTaskFromDeadAgent,
             SchedulerCollapsesDuplicateAssignmentMarkers,
             SchedulerAssignsShortestGalaxyRoute,
+            WormholeTraversalUsesPersistedEnterTransferExitPhases,
             AgentTraversesGalaxyRouteBeforeExecutingTask,
             IdleAgentReturnsToCanonicalHomeAndDocks,
             ControlledShipDoesNotReceiveAutonomousHelmCommands,
@@ -2781,7 +2782,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         var appliedTravelCommands = 0;
         var appliedApproachCommands = 0;
         var physics = NewPhysics();
-        for (var frame = 0; frame < 100; frame++)
+        for (var frame = 0; frame < 400; frame++)
         {
             var tick = AetheriaRuntimeDaemonTickRunner.Tick(
                 Path.Combine(Path.GetTempPath(), "aetheria-agent-route-travel-smoke.cc"),
@@ -2791,8 +2792,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                     WorldPhysics = physics,
                     Catalog = catalog,
                     FrameId = frame,
-                    FixedDeltaSeconds = 0.1,
-                    SimulationTimeSeconds = frame * 0.1,
+                    FixedDeltaSeconds = 0.25,
+                    SimulationTimeSeconds = frame * 0.25,
                     BuildPublications = false
                 });
             appliedTravelCommands += tick.OperationResult.AppliedCommandIds.Count(id => id.EndsWith(":travel", StringComparison.Ordinal));
@@ -2811,6 +2812,120 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             "zone transfer must preserve stable entity identity while projection indices change");
         RequireEqual(AetheriaRuntimeAgentTaskStatuses.Completed, task.Status,
             "agent must execute the task only after arriving in its destination zone");
+    }
+
+    private static void WormholeTraversalUsesPersistedEnterTransferExitPhases()
+    {
+        var ship = Entity(0, 75, "player");
+        ship.EntityId = "wormhole-traveler";
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "wormhole-transition-smoke",
+            GenerationSeed = 77,
+            CurrentZoneIndex = 0,
+            CurrentEntityKey = "zone.0.entity.0",
+            DiscoveredZoneIndices = [0],
+            Zones =
+            [
+                new AetheriaRuntimeZoneSnapshotCommit
+                {
+                    ZoneIndex = 0, PositionX = 0, GravityTerrainRadius = 100,
+                    AdjacentZoneIndices = [1], Entities = [ship]
+                },
+                new AetheriaRuntimeZoneSnapshotCommit
+                {
+                    ZoneIndex = 1, PositionX = 100, GravityTerrainRadius = 100,
+                    AdjacentZoneIndices = [0, 2], Entities = Array.Empty<AetheriaRuntimeEntitySnapshotCommit>()
+                },
+                new AetheriaRuntimeZoneSnapshotCommit
+                {
+                    ZoneIndex = 2, PositionX = 200, GravityTerrainRadius = 100,
+                    AdjacentZoneIndices = [1], Entities = Array.Empty<AetheriaRuntimeEntitySnapshotCommit>()
+                }
+            ]
+        };
+        AetheriaRuntimeDaemonCommandDocument Travel(string id)
+        {
+            var command = AetheriaRuntimeDaemonCommandDocument.Create(
+                AetheriaRuntimeDaemonCommandKinds.EnterWormhole,
+                "pilot",
+                id,
+                0,
+                run.CurrentEntityKey);
+            command.CommandId = id;
+            command.TargetZoneIndex = 1;
+            return command;
+        }
+        var physics = NewPhysics();
+        AetheriaRuntimeDaemonTickResult Tick(int frame, params AetheriaRuntimeDaemonCommandDocument[] commands) =>
+            AetheriaRuntimeDaemonTickRunner.Tick(
+                Path.Combine(Path.GetTempPath(), "aetheria-wormhole-transition-smoke.cc"),
+                run,
+                new AetheriaRuntimeDaemonTickOptions
+                {
+                    WorldPhysics = physics,
+                    FrameId = frame,
+                    FixedDeltaSeconds = 1,
+                    SimulationTimeSeconds = frame + 1,
+                    ObservedCommands = commands,
+                    BuildPublications = false
+                });
+
+        var entering = Tick(0, Travel("wormhole-start"), Travel("wormhole-same-batch"));
+        Require(entering.OperationResult.RejectedCommandIds.Any(id => id.Contains("wormhole-same-batch", StringComparison.Ordinal)),
+            "one command batch must not admit two competing transition intents for the same entity");
+        RequireEqual(0, run.CurrentZoneIndex,
+            "wormhole command acceptance must not splice the ship into the destination immediately");
+        RequireEqual("entering", ship.WormholeTransition?.Phase ?? "",
+            "daemon must persist the entering phase on the authoritative entity");
+        Require(Math.Abs((ship.WormholeTransition?.Progress ?? 0) - 0.25) < 0.0001,
+            "fossil four-second entry timing must advance from fixed daemon time");
+        Require(Math.Abs((ship.WormholeTransition?.VisualDepthOffset ?? 0) + 250) < 0.0001,
+            "transition must expose the fossil depth lever without making the client own motion");
+        var enteringView = AetheriaRuntimeGameDocuments.CurrentEntity(entering.Frame).WormholeTransition;
+        RequireEqual("entering", enteringView?.Phase ?? "",
+            "current-entity projection must expose the same transition state to Eve consumers");
+
+        run = MessagePack.MessagePackSerializer.Deserialize<AetheriaRuntimeRunCheckpointCommit>(
+            MessagePack.MessagePackSerializer.Serialize(run));
+        ship = run.Zones.Single(zone => zone.ZoneIndex == 0).Entities.Single();
+        physics.Dispose();
+        physics = NewPhysics();
+        RequireEqual("entering", ship.WormholeTransition?.Phase ?? "",
+            "daemon restart must retain the exact mid-entry phase instead of repairing it from client state");
+
+        var duplicate = Tick(1, Travel("wormhole-duplicate"));
+        Require(duplicate.OperationResult.RejectedCommandIds.Any(id => id.Contains("wormhole-duplicate", StringComparison.Ordinal)),
+            "an entity already inside a wormhole transition must reject a second traversal owner");
+        Tick(2);
+        Tick(3);
+        RequireEqual(1, run.CurrentZoneIndex,
+            "zone ownership must transfer only after the entering phase completes");
+        var arrived = run.Zones.Single(zone => zone.ZoneIndex == 1).Entities.Single();
+        RequireEqual("exiting", arrived.WormholeTransition?.Phase ?? "",
+            "transferred ship must persist a distinct exiting phase");
+        Require(run.DiscoveredZoneIndices.Contains(2),
+            "arrival must reveal the destination adjacency using the fossil discovery rule");
+
+        Tick(4);
+        Tick(5);
+        Tick(6);
+        Tick(7);
+        RequireEqual("completed", arrived.WormholeTransition?.Phase ?? "",
+            "the completion frame must preserve a presentation lever before normal physics resumes");
+        Require(Math.Abs(Math.Sqrt(arrived.VelocityX * arrived.VelocityX + arrived.VelocityY * arrived.VelocityY) - 20) < 0.0001,
+            "completed exit must restore the fossil twenty-unit launch velocity");
+        Require(Math.Abs(Math.Sqrt(Math.Pow(arrived.PositionX + 75, 2) + Math.Pow(arrived.PositionZ, 2)) - 50) < 0.001,
+            "completed exit must place the ship fifty units from the destination wormhole");
+        Tick(8);
+        Require(arrived.WormholeTransition == null,
+            "the tick after completion must release input and Ymir instead of leaving a permanent transition flag");
+        RequireEqual(1, run.GameEvents.Count(value => value.Kind == "wormhole.enter.started"),
+            "entry feedback must have stable exactly-once chronology");
+        RequireEqual(1, run.GameEvents.Count(value => value.Kind == "wormhole.transferred"),
+            "transfer feedback must have stable exactly-once chronology");
+        RequireEqual(1, run.GameEvents.Count(value => value.Kind == "wormhole.exit.completed"),
+            "exit feedback must have stable exactly-once chronology");
     }
 
     private static void IdleAgentReturnsToCanonicalHomeAndDocks()
@@ -2838,7 +2953,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         var sawDock = false;
         var rejectedHomeCommands = new List<string>();
         var physics = NewPhysics();
-        for (var frame = 0; frame < 120; frame++)
+        for (var frame = 0; frame < 500; frame++)
         {
             var tick = AetheriaRuntimeDaemonTickRunner.Tick(
                 Path.Combine(Path.GetTempPath(), "aetheria-agent-return-home-smoke.cc"),
@@ -2848,8 +2963,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                     WorldPhysics = physics,
                     Catalog = catalog,
                     FrameId = frame,
-                    FixedDeltaSeconds = 0.1,
-                    SimulationTimeSeconds = frame * 0.1,
+                    FixedDeltaSeconds = 0.25,
+                    SimulationTimeSeconds = frame * 0.25,
                     BuildPublications = false
                 });
             sawApproach |= tick.OperationResult.AppliedCommandIds.Any(id => id.Contains(":home-approach", StringComparison.Ordinal));
@@ -2875,8 +2990,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             run,
             new AetheriaRuntimeDaemonTickOptions
             {
-                WorldPhysics = physics, Catalog = catalog, FrameId = 121,
-                FixedDeltaSeconds = 0.1, SimulationTimeSeconds = 12.1, BuildPublications = false
+                WorldPhysics = physics, Catalog = catalog, FrameId = 501,
+                FixedDeltaSeconds = 0.25, SimulationTimeSeconds = 125.25, BuildPublications = false
             });
         Require(!settled.OperationResult.AppliedCommandIds.Any(id => id.Contains(":home-", StringComparison.Ordinal)),
             "docked worker must not emit a perpetual homecoming repair loop");

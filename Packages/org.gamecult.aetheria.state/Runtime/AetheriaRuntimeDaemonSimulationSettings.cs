@@ -50,7 +50,12 @@ namespace GameCult.Aetheria.State.Verse
                 agentRangeExponent: 0.25,
                 agentForwardLerp: 0.5,
                 agentMaxForwardDistance: 50,
-                agentDpsSampleCount: 32);
+                agentDpsSampleCount: 32,
+                wormholeAnimationDuration: 4,
+                wormholeExitCurveStart: 0.8,
+                wormholeExitVelocity: 20,
+                wormholeExitRadius: 50,
+                wormholeDepth: 1000);
 
         public AetheriaRuntimeDaemonSimulationSettings(
             double pawnSpeed,
@@ -98,7 +103,12 @@ namespace GameCult.Aetheria.State.Verse
             double agentRangeExponent = AetheriaDefaultRaw.AgentRangeExponent,
             double agentForwardLerp = AetheriaDefaultRaw.AgentForwardLerp,
             double agentMaxForwardDistance = AetheriaDefaultRaw.AgentMaxForwardDistance,
-            int agentDpsSampleCount = AetheriaDefaultRaw.AgentDpsSampleCount)
+            int agentDpsSampleCount = AetheriaDefaultRaw.AgentDpsSampleCount,
+            double wormholeAnimationDuration = AetheriaDefaultRaw.WormholeAnimationDuration,
+            double wormholeExitCurveStart = AetheriaDefaultRaw.WormholeExitCurveStart,
+            double wormholeExitVelocity = AetheriaDefaultRaw.WormholeExitVelocity,
+            double wormholeExitRadius = AetheriaDefaultRaw.WormholeExitRadius,
+            double wormholeDepth = AetheriaDefaultRaw.WormholeDepth)
         {
             PawnSpeed = PositiveOr(pawnSpeed, AetheriaDefaultRaw.PawnSpeed);
             RaiderSpeed = PositiveOr(raiderSpeed, AetheriaDefaultRaw.RaiderSpeed);
@@ -146,6 +156,11 @@ namespace GameCult.Aetheria.State.Verse
             AgentForwardLerp = Clamp01Or(agentForwardLerp, AetheriaDefaultRaw.AgentForwardLerp);
             AgentMaxForwardDistance = PositiveOr(agentMaxForwardDistance, AetheriaDefaultRaw.AgentMaxForwardDistance);
             AgentDpsSampleCount = agentDpsSampleCount > 0 ? agentDpsSampleCount : AetheriaDefaultRaw.AgentDpsSampleCount;
+            WormholeAnimationDuration = PositiveOr(wormholeAnimationDuration, AetheriaDefaultRaw.WormholeAnimationDuration);
+            WormholeExitCurveStart = Clamp01Or(wormholeExitCurveStart, AetheriaDefaultRaw.WormholeExitCurveStart);
+            WormholeExitVelocity = PositiveOr(wormholeExitVelocity, AetheriaDefaultRaw.WormholeExitVelocity);
+            WormholeExitRadius = PositiveOr(wormholeExitRadius, AetheriaDefaultRaw.WormholeExitRadius);
+            WormholeDepth = PositiveOr(wormholeDepth, AetheriaDefaultRaw.WormholeDepth);
         }
 
         public double PawnSpeed { get; }
@@ -196,6 +211,11 @@ namespace GameCult.Aetheria.State.Verse
         public double AgentForwardLerp { get; }
         public double AgentMaxForwardDistance { get; }
         public int AgentDpsSampleCount { get; }
+        public double WormholeAnimationDuration { get; }
+        public double WormholeExitCurveStart { get; }
+        public double WormholeExitVelocity { get; }
+        public double WormholeExitRadius { get; }
+        public double WormholeDepth { get; }
 
         private static double PositiveOr(double value, double fallback)
         {
@@ -260,6 +280,11 @@ namespace GameCult.Aetheria.State.Verse
             public const double AgentForwardLerp = 0.5;
             public const double AgentMaxForwardDistance = 50.0;
             public const int AgentDpsSampleCount = 32;
+            public const double WormholeAnimationDuration = 4.0;
+            public const double WormholeExitCurveStart = 0.8;
+            public const double WormholeExitVelocity = 20.0;
+            public const double WormholeExitRadius = 50.0;
+            public const double WormholeDepth = 1000.0;
         }
     }
 }

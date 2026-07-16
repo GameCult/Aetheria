@@ -108,6 +108,7 @@ namespace GameCult.Aetheria.State.Verse
             options ??= new AetheriaRuntimeDaemonTickOptions();
             options.OperationContext ??= new AetheriaRuntimeDaemonOperationContext();
             options.OperationContext.Catalog = options.Catalog;
+            options.OperationContext.WormholeDistanceRatio = options.RenderSettings.WormholeDistanceRatio;
             var trace = string.Equals(Environment.GetEnvironmentVariable("AETHERIA_TRACE_TICK_PHASES"), "1", StringComparison.Ordinal);
             var phase = Stopwatch.StartNew();
             void Trace(string name)

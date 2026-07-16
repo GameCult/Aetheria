@@ -606,7 +606,18 @@ namespace GameCult.Aetheria.State.Verse
                 Equipment = inventory.Where(item => string.Equals(item.Source, "equipment", StringComparison.Ordinal)).ToArray(),
                 Cargo = inventory.Where(item => string.Equals(item.Source, "cargo", StringComparison.Ordinal)).ToArray(),
                 ShutdownPerformance = entity?.ShutdownPerformance ?? 0,
-                Hud = CurrentEntityHudStatus(entity)
+                Hud = CurrentEntityHudStatus(entity),
+                WormholeTransition = entity?.WormholeTransition == null
+                    ? null
+                    : new AetheriaRuntimeWormholeTransitionView
+                    {
+                        TransitionId = entity.WormholeTransition.TransitionId,
+                        Phase = entity.WormholeTransition.Phase,
+                        Progress = entity.WormholeTransition.Progress,
+                        SourceZoneIndex = entity.WormholeTransition.SourceZoneIndex,
+                        TargetZoneIndex = entity.WormholeTransition.TargetZoneIndex,
+                        VisualDepthOffset = entity.WormholeTransition.VisualDepthOffset
+                    }
             };
         }
 
@@ -886,7 +897,8 @@ namespace GameCult.Aetheria.State.Verse
             var context = Context(frame);
             var run = context.Run;
             var zone = context.Zone;
-            var zoneRenderRadius = AetheriaRuntimeDaemonRenderQueries.ResolveZoneRenderRadius(zone, 2000);
+            var zoneRenderRadius = AetheriaRuntimeDaemonRenderQueries.ResolveZoneRenderRadius(
+                zone, AetheriaRuntimeDaemonRenderQueries.DefaultZoneRenderRadius);
 
             return new AetheriaRuntimeZoneRenderDocument
             {

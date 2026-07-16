@@ -4747,9 +4747,23 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
-    public void DaemonOperationsMovesEntityThroughWormholeInDaemonState()
+    public void DaemonOperationsQueuesCanonicalWormholeTransitionWithoutMovingEntity()
     {
         var run = RunWithTwoEntities();
+        run.Zones[0].GravityTerrainRadius = 100;
+        run.Zones[0].AdjacentZoneIndices = new[] { 2 };
+        run.Zones[0].Entities[0].PositionX = 100;
+        run.Zones = run.Zones.Concat(new[]
+        {
+            new AetheriaRuntimeZoneSnapshotCommit
+            {
+                ZoneIndex = 2,
+                PositionX = 100,
+                GravityTerrainRadius = 100,
+                AdjacentZoneIndices = new[] { 0 },
+                Entities = Array.Empty<AetheriaRuntimeEntitySnapshotCommit>()
+            }
+        }).ToArray();
         var command = AetheriaRuntimeDaemonCommandDocument.Create(
             AetheriaRuntimeDaemonCommandKinds.EnterWormhole,
             "codex",
@@ -4757,34 +4771,42 @@ public class DaemonRuntimeDocumentTests
             45,
             "zone.0.entity.0");
         command.TargetZoneIndex = 2;
-        command.PositionX = 100;
-        command.PositionY = 200;
 
         var result = AetheriaRuntimeDaemonOperations.Execute(run, new[] { command });
 
         var sourceZone = FindZone(run, 0);
         var targetZone = FindZone(run, 2);
         Assert.AreEqual(1, result.AppliedCommandIds.Count);
-        Assert.AreEqual(2, run.CurrentZoneIndex);
-        Assert.AreEqual("global:aetheria.run_state.daemon-command-apply-run.zone.2.entity.0.v1", run.CurrentEntityKey);
-        Assert.AreEqual(1, sourceZone.Entities.Count);
-        Assert.AreEqual("Target", sourceZone.Entities[0].Name);
-        Assert.AreEqual(0, sourceZone.Entities[0].EntityIndex);
-        Assert.AreEqual(1, targetZone.Entities.Count);
-        Assert.AreEqual("Player", targetZone.Entities[0].Name);
-        Assert.AreEqual(0, targetZone.Entities[0].EntityIndex);
-        Assert.AreEqual(100, targetZone.Entities[0].PositionX, 0.0001);
-        Assert.AreEqual(200, targetZone.Entities[0].PositionZ, 0.0001);
-        CollectionAssert.Contains(run.DiscoveredZoneIndices, 2);
+        Assert.AreEqual(0, run.CurrentZoneIndex);
+        Assert.AreEqual("zone.0.entity.0", run.CurrentEntityKey);
+        Assert.AreEqual(2, sourceZone.Entities.Count);
+        Assert.AreEqual(0, targetZone.Entities.Count);
         Assert.AreEqual(1, result.Intents.Wormholes.Count);
-        Assert.AreEqual("global:aetheria.run_state.daemon-command-apply-run.zone.2.entity.0.v1", result.Intents.Wormholes[0].ActorEntityKey);
+        Assert.AreEqual("zone.0.entity.0", result.Intents.Wormholes[0].ActorEntityKey);
+        Assert.AreEqual(0, result.Intents.Wormholes[0].SourceZoneIndex);
         Assert.AreEqual(2, result.Intents.Wormholes[0].TargetZoneIndex);
+        Assert.AreEqual(75, result.Intents.Wormholes[0].EntryWormholeX, 0.0001);
+        Assert.AreEqual(-75, result.Intents.Wormholes[0].ExitWormholeX, 0.0001);
     }
 
     [Test]
     public void DaemonOperationsRejectsWormholeMoveWhenEntityIsDocked()
     {
         var run = RunWithTwoEntities();
+        run.Zones[0].GravityTerrainRadius = 100;
+        run.Zones[0].AdjacentZoneIndices = new[] { 2 };
+        run.Zones[0].Entities[0].PositionX = 100;
+        run.Zones = run.Zones.Concat(new[]
+        {
+            new AetheriaRuntimeZoneSnapshotCommit
+            {
+                ZoneIndex = 2,
+                PositionX = 100,
+                GravityTerrainRadius = 100,
+                AdjacentZoneIndices = new[] { 0 },
+                Entities = Array.Empty<AetheriaRuntimeEntitySnapshotCommit>()
+            }
+        }).ToArray();
         run.Zones[0].Entities[1].ChildEntityIndices = new[] { 0 };
         run.Zones[0].Entities[1].DockingBayAssignments = new[] { 0, -1 };
         var command = AetheriaRuntimeDaemonCommandDocument.Create(
@@ -4836,6 +4858,7 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual(0, undockedActor.VelocityY);
 
         var wormholeRun = RunWithTwoEntities();
+        wormholeRun.Zones[0].GravityTerrainRadius = 10;
         wormholeRun.Zones[0].AdjacentZoneIndices = new[] { 2 };
         wormholeRun.Zones[0].Entities[0].PositionX = 0;
         wormholeRun.Zones[0].Entities[0].PositionZ = 0;
@@ -4846,7 +4869,9 @@ public class DaemonRuntimeDocumentTests
                 {
                     ZoneIndex = 2,
                     PositionX = 3,
-                    PositionY = 4
+                    PositionY = 4,
+                    GravityTerrainRadius = 10,
+                    AdjacentZoneIndices = new[] { 0 }
                 }
             })
             .ToArray();
@@ -4857,14 +4882,14 @@ public class DaemonRuntimeDocumentTests
             47,
             "zone.0.entity.0");
         wormhole.ScalarValue = 10;
-        wormhole.PositionX = 10;
+        wormhole.PositionX = 11;
 
         var wormholeResult = AetheriaRuntimeDaemonOperations.Execute(wormholeRun, new[] { wormhole });
         Assert.AreEqual(1, wormholeResult.AppliedCommandIds.Count);
         Assert.AreEqual(1, wormholeResult.Intents.Wormholes.Count);
-        Assert.AreEqual(2, wormholeRun.CurrentZoneIndex);
-        Assert.AreEqual(3, FindZone(wormholeRun, 2).Entities[0].PositionX, 0.0001);
-        Assert.AreEqual(4, FindZone(wormholeRun, 2).Entities[0].PositionZ, 0.0001);
+        Assert.AreEqual(0, wormholeRun.CurrentZoneIndex);
+        Assert.AreEqual(4.5, wormholeResult.Intents.Wormholes[0].EntryWormholeX, 0.0001);
+        Assert.AreEqual(6, wormholeResult.Intents.Wormholes[0].EntryWormholeZ, 0.0001);
 
         var dockRun = RunWithTwoEntities();
         dockRun.Zones[0].Entities[0].PositionX = 0;

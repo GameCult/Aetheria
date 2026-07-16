@@ -30,6 +30,15 @@ namespace GameCult.Aetheria.State.Verse
             if (worldPhysics == null)
                 throw new ArgumentNullException(nameof(worldPhysics));
 
+            StepWormholeTransitions(
+                run,
+                intents == null
+                    ? Array.Empty<AetheriaRuntimeDaemonWormholeIntent>()
+                    : intents.Wormholes,
+                deltaSeconds,
+                settings,
+                frameId);
+
             worldPhysics.RetainWorlds(
                 run.RunId,
                 (run.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>())
@@ -87,6 +96,181 @@ namespace GameCult.Aetheria.State.Verse
             }
         }
 
+        private static void StepWormholeTransitions(
+            AetheriaRuntimeRunCheckpointCommit run,
+            IReadOnlyList<AetheriaRuntimeDaemonWormholeIntent> intents,
+            double deltaSeconds,
+            AetheriaRuntimeDaemonSimulationSettings settings,
+            long frameId)
+        {
+            foreach (var intent in intents ?? Array.Empty<AetheriaRuntimeDaemonWormholeIntent>())
+            {
+                if (intent == null || !TryResolveEntity(run, intent.ActorEntityKey, out var entity) ||
+                    entity.WormholeTransition != null)
+                    continue;
+                entity.TargetEntityIndex = -1;
+                entity.VelocityX = 0;
+                entity.VelocityY = 0;
+                entity.HelmStrafe = 0;
+                entity.HelmForward = 0;
+                entity.WormholeTransition = new AetheriaRuntimeWormholeTransitionCommit
+                {
+                    TransitionId = string.IsNullOrWhiteSpace(intent.CommandId)
+                        ? $"wormhole:{entity.EntityId}:{frameId}"
+                        : $"wormhole:{intent.CommandId}",
+                    Phase = "entering",
+                    SourceZoneIndex = intent.SourceZoneIndex,
+                    TargetZoneIndex = intent.TargetZoneIndex,
+                    EntryStartX = entity.PositionX,
+                    EntryStartZ = entity.PositionZ,
+                    EntryWormholeX = intent.EntryWormholeX,
+                    EntryWormholeZ = intent.EntryWormholeZ,
+                    ExitWormholeX = intent.ExitWormholeX,
+                    ExitWormholeZ = intent.ExitWormholeZ,
+                    StartedFrameId = frameId
+                };
+                AppendWormholeEvent(run, entity, entity.WormholeTransition, frameId, "wormhole.enter.started");
+            }
+
+            var transitioning = (run.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>())
+                .Where(zone => zone != null)
+                .SelectMany(zone => (zone.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
+                    .Where(entity => entity?.WormholeTransition != null)
+                    .Select(entity => (Zone: zone, Entity: entity!)))
+                .ToArray();
+            foreach (var (zone, entity) in transitioning)
+            {
+                var transition = entity.WormholeTransition!;
+                if (string.Equals(transition.Phase, "completed", StringComparison.Ordinal))
+                {
+                    entity.WormholeTransition = null;
+                    continue;
+                }
+                transition.Progress = Math.Min(1, transition.Progress + deltaSeconds / settings.WormholeAnimationDuration);
+                if (string.Equals(transition.Phase, "entering", StringComparison.Ordinal))
+                {
+                    var entrySpan = Math.Max(0.000001, 1 - settings.WormholeExitCurveStart);
+                    var entry = SmootherStep(Math.Min(1, transition.Progress / entrySpan));
+                    entity.PositionX = Lerp(transition.EntryStartX, transition.EntryWormholeX, entry);
+                    entity.PositionZ = Lerp(transition.EntryStartZ, transition.EntryWormholeZ, entry);
+                    transition.VisualDepthOffset = -settings.WormholeDepth * transition.Progress;
+                    if (transition.Progress < 1)
+                        continue;
+
+                    var sourceEntityKey = AetheriaRuntimeRunCheckpointCommit.EntityRecordKey(
+                        run.RunId, zone.ZoneIndex, entity.EntityIndex);
+                    if (!AetheriaRuntimeDaemonOperations.MoveEntityToZone(
+                            run,
+                            sourceEntityKey,
+                            transition.TargetZoneIndex,
+                            transition.ExitWormholeX,
+                            transition.ExitWormholeZ,
+                            out _))
+                        throw new InvalidOperationException($"Wormhole transition '{transition.TransitionId}' could not transfer its entity.");
+                    var direction = StableDirection(run.GenerationSeed, transition.TransitionId);
+                    transition.ExitVelocityX = direction.X * settings.WormholeExitVelocity;
+                    transition.ExitVelocityZ = direction.Y * settings.WormholeExitVelocity;
+                    transition.Phase = "exiting";
+                    transition.Progress = 0;
+                    transition.VisualDepthOffset = -settings.WormholeDepth;
+                    DiscoverArrival(run, transition.TargetZoneIndex);
+                    AppendWormholeEvent(run, entity, transition, frameId, "wormhole.transferred");
+                    continue;
+                }
+
+                if (!string.Equals(transition.Phase, "exiting", StringComparison.Ordinal))
+                    continue;
+                var exitSpan = Math.Max(0.000001, 1 - settings.WormholeExitCurveStart);
+                var exit = SmootherStep(Math.Max(0, transition.Progress - settings.WormholeExitCurveStart) / exitSpan);
+                var velocityLength = Math.Sqrt(
+                    transition.ExitVelocityX * transition.ExitVelocityX +
+                    transition.ExitVelocityZ * transition.ExitVelocityZ);
+                var directionX = velocityLength <= 0.000001 ? 1 : transition.ExitVelocityX / velocityLength;
+                var directionZ = velocityLength <= 0.000001 ? 0 : transition.ExitVelocityZ / velocityLength;
+                entity.PositionX = transition.ExitWormholeX + directionX * exit * settings.WormholeExitRadius;
+                entity.PositionZ = transition.ExitWormholeZ + directionZ * exit * settings.WormholeExitRadius;
+                transition.VisualDepthOffset = -settings.WormholeDepth * (1 - transition.Progress);
+                if (transition.Progress < 1)
+                    continue;
+                entity.DirectionX = directionX;
+                entity.DirectionY = directionZ;
+                entity.LookDirectionX = directionX;
+                entity.LookDirectionY = directionZ;
+                entity.VelocityX = transition.ExitVelocityX;
+                entity.VelocityY = transition.ExitVelocityZ;
+                AppendWormholeEvent(run, entity, transition, frameId, "wormhole.exit.completed");
+                transition.Phase = "completed";
+            }
+        }
+
+        private static bool TryResolveEntity(
+            AetheriaRuntimeRunCheckpointCommit run,
+            string entityKey,
+            out AetheriaRuntimeEntitySnapshotCommit entity)
+        {
+            entity = null!;
+            if (!AetheriaRuntimeRunCheckpointCommit.TryParseEntityKey(entityKey, out var zoneIndex, out var entityIndex))
+                return false;
+            entity = (run.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>())
+                .FirstOrDefault(zone => zone != null && zone.ZoneIndex == zoneIndex)?
+                .Entities?.FirstOrDefault(candidate => candidate != null && candidate.EntityIndex == entityIndex)!;
+            return entity != null;
+        }
+
+        private static void DiscoverArrival(AetheriaRuntimeRunCheckpointCommit run, int zoneIndex)
+        {
+            var discovered = new HashSet<int>(run.DiscoveredZoneIndices ?? Array.Empty<int>()) { zoneIndex };
+            var zone = (run.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>())
+                .FirstOrDefault(candidate => candidate != null && candidate.ZoneIndex == zoneIndex);
+            foreach (var adjacent in zone?.AdjacentZoneIndices ?? Array.Empty<int>())
+                discovered.Add(adjacent);
+            run.DiscoveredZoneIndices = discovered.OrderBy(value => value).ToArray();
+        }
+
+        private static void AppendWormholeEvent(
+            AetheriaRuntimeRunCheckpointCommit run,
+            AetheriaRuntimeEntitySnapshotCommit entity,
+            AetheriaRuntimeWormholeTransitionCommit transition,
+            long frameId,
+            string kind)
+        {
+            AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit
+            {
+                EventId = $"{transition.TransitionId}:{kind}",
+                Kind = kind,
+                FrameId = frameId,
+                ZoneIndex = string.Equals(kind, "wormhole.enter.started", StringComparison.Ordinal)
+                    ? transition.SourceZoneIndex
+                    : transition.TargetZoneIndex,
+                SourceEntityIndex = entity.EntityIndex,
+                SubjectKey = transition.TransitionId,
+                ScalarValue = transition.Progress,
+                AuxiliaryValue = transition.VisualDepthOffset,
+                PositionX = entity.PositionX,
+                PositionZ = entity.PositionZ
+            });
+        }
+
+        private static (double X, double Y) StableDirection(uint seed, string value)
+        {
+            var hash = seed == 0 ? 2166136261u : seed;
+            foreach (var character in value ?? "")
+            {
+                hash ^= character;
+                hash *= 16777619u;
+            }
+            var angle = hash / ((double)uint.MaxValue + 1) * Math.PI * 2;
+            return (Math.Cos(angle), Math.Sin(angle));
+        }
+
+        private static double SmootherStep(double value)
+        {
+            value = Clamp01(value);
+            return value * value * value * (value * (value * 6 - 15) + 10);
+        }
+
+        private static double Lerp(double from, double to, double value) => from + (to - from) * value;
+
         private static void StepPickupLifetimes(AetheriaRuntimeRunCheckpointCommit run, AetheriaRuntimeZoneSnapshotCommit zone, long frameId, double deltaSeconds)
         {
             foreach (var pickup in zone.DroppedPickups ?? Array.Empty<AetheriaRuntimeDroppedPickupCommit>())
@@ -119,8 +303,11 @@ namespace GameCult.Aetheria.State.Verse
             double deltaSeconds,
             IAetheriaRuntimeWorldPhysics worldPhysics)
         {
-            var result = worldPhysics.Step(runId, frameId, simulationStepIndex, zone, entities, deltaSeconds);
-            var byIndex = entities.ToDictionary(entity => entity.EntityIndex);
+            var physicalEntities = entities
+                .Where(entity => entity.WormholeTransition == null)
+                .ToArray();
+            var result = worldPhysics.Step(runId, frameId, simulationStepIndex, zone, physicalEntities, deltaSeconds);
+            var byIndex = physicalEntities.ToDictionary(entity => entity.EntityIndex);
             foreach (var body in result.Bodies)
             {
                 if (!byIndex.TryGetValue(body.EntityIndex, out var entity)) continue;

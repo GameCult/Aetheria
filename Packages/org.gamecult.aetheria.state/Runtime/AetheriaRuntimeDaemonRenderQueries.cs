@@ -698,6 +698,8 @@ namespace GameCult.Aetheria.State.Verse
 
     public static class AetheriaRuntimeDaemonRenderQueries
     {
+        public const double DefaultZoneRenderRadius = 2000.0;
+
         public static AetheriaRuntimeEffectiveContact[] QueryEffectiveContacts(
             AetheriaRuntimeZoneSnapshotCommit? zone,
             int observerEntityIndex)
