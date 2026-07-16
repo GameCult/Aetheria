@@ -651,6 +651,7 @@ namespace GameCult.Aetheria.State.Verse
                 ["reflectionAssetRef"] = "texture.environment.reflection",
                 ["reflectionIntensity"] = "1",
                 ["postProcessProfileAssetRef"] = "profile.environment.flight",
+                ["colorGradingSpace"] = "hdr-before-tonemap.v1",
                 ["exposureMode"] = "histogram.v1",
                 ["exposureLowPercent"] = "47.37294",
                 ["exposureHighPercent"] = "99",

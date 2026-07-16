@@ -820,6 +820,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 world.Props["ambientLightColor"] == "0.5,0.75,1" &&
                 world.Props["reflectionAssetRef"] == "texture.environment.reflection" &&
                 world.Props["postProcessProfileAssetRef"] == "profile.environment.flight" &&
+                world.Props["colorGradingSpace"] == "hdr-before-tonemap.v1" &&
                 world.Props["exposureMode"] == "histogram.v1" &&
                 world.Props["exposureLowPercent"] == "47.37294" &&
                 world.Props["exposureHighPercent"] == "99" &&

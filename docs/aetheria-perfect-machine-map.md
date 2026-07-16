@@ -1193,7 +1193,7 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   generic runtime does not use local gameplay time or provider identifiers.
   The provider shader constructs both its raymarch and temporal-reprojection
   rays using the historical Unity shader camera transform, whose local forward
-  is positive Z. EveUnity `0.3.58` supplies that transform instead of the
+  is positive Z. EveUnity `0.3.62` supplies that transform instead of the
   negative-Z `Camera.cameraToWorldMatrix`; provider bundle verification rejects
   divergence between the two passes.
 - Semantic split: `gravity.height` is the negative gameplay terrain projection;
@@ -1249,19 +1249,23 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   shader ABI is advertised outside the portable surface. Released package
   `0.3.49` proves target topology, authoritative flow time, explicit camera
   transforms, float32 packed-output diagnostics, and both camera-channel masks.
-  The released warm capture proves a live fog horizon using the original
+  The released HD capture proves a live fog horizon using the original
   `-36.17` vertical-noise amplitude. The earlier opaque slab was caused by
   publishing Cinemachine's top-origin `0.81` as Eve bottom-origin `0.81`, which
   placed the camera below the fog surface. The controlled zero-noise run was a
   diagnostic, not the adopted rendering contract. Blue tint, luminance, patch
   structure, gravity-wave readability, and world geometry remain open visual
-  parity work. The restored historical-camera/scattering witness uses bundle
-  `e299b50ded9c9ba8964c567964c30342b9b13323665b20e740210b4806dd6e66`
-  with released EveUnity `0.3.58` and passes cold lowering in 51.0 seconds.
-  Its cloud structure and Stardust occupy the same projected gravity surface,
-  but the frame is severely overexposed. That is open evidence against the
-  current tint/post-process projection, not permission to alter the fossil
-  scattering law again.
+  parity work. Released EveUnity `0.3.62` also restores the provider-advertised
+  previous-view/current-projection temporal policy, the fossil ultra-quality
+  first history frame, adaptive histogram exposure, and HDR grading before
+  ACES. The alpha-fixed cold HD witness uses bundle
+  `a829e57731fbe08f4564fa131468148e99f6b4204708ad3e64498885532b5091`
+  and passes in 52.7 seconds. Its temporal history stores direct density in
+  alpha; bundle verification rejects any composite that again unpacks that
+  value as the raymarch pass's packed distance/density payload. Cloud structure
+  and Stardust occupy the same projected gravity surface. Remaining color and
+  composition differences are not permission to alter the fossil scattering
+  or tint inputs without stronger historical evidence.
 
 ### Daemon Asset Content Delivery
 
