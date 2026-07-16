@@ -809,7 +809,7 @@ static void RequireSharedEvePackagesImportedFromEveRepo(string root)
         "\"org.gamecult.cultlib\": \"https://github.com/GameCult/CultLib.git?path=/unity/org.gamecult.cultlib#cultlib-unity-v1.0.15\"",
         "\"org.gamecult.eve.plugin-fields\": \"https://github.com/GameCult/EvePlugins.git?path=/plugins/eve-plugin-fields/unity/org.gamecult.eve.plugin-fields#eve-plugin-fields-unity-v0.2.3\"",
         "\"org.gamecult.eve.surface\": \"https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.surface#eveunity-surface-v0.2.2\"",
-        "\"org.gamecult.eve.unity-scene\": \"https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.unity-scene#eveunity-scene-v0.3.53\""
+        "\"org.gamecult.eve.unity-scene\": \"https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.unity-scene#eveunity-scene-v0.3.55\""
     };
 
     var missingManifestSymbols = requiredManifestSymbols
@@ -828,7 +828,7 @@ static void RequireSharedEvePackagesImportedFromEveRepo(string root)
         "cultlib-unity-v1.0.15",
         "eve-plugin-fields-unity-v0.2.3",
         "eveunity-surface-v0.2.2",
-        "eveunity-scene-v0.3.53",
+        "eveunity-scene-v0.3.55",
         "\"source\": \"git\""
     };
 
