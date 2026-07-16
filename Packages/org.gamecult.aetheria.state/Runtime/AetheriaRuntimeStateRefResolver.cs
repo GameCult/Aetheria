@@ -56,6 +56,15 @@ namespace GameCult.Aetheria.State.Verse
                 case AetheriaRuntimeDaemonStateRefs.CurrentRunId:
                     value = run.RunId ?? "";
                     return true;
+                case AetheriaRuntimeDaemonStateRefs.CurrentRunLifecycle:
+                    value = run.LifecyclePhase ?? "";
+                    return true;
+                case AetheriaRuntimeDaemonStateRefs.CurrentRunTerminalReason:
+                    value = run.TerminalReason ?? "";
+                    return true;
+                case AetheriaRuntimeDaemonStateRefs.CurrentRunTerminalFrameId:
+                    value = run.TerminalFrameId.ToString(CultureInfo.InvariantCulture);
+                    return true;
                 case AetheriaRuntimeDaemonStateRefs.CurrentZoneIndex:
                     value = run.CurrentZoneIndex.ToString(CultureInfo.InvariantCulture);
                     return true;

@@ -246,15 +246,15 @@ static async Task<AetheriaRuntimeDaemonTickResult> TickAsync(
         await ApplySimulationClockCommandsAsync(node, ingressState, simulationClockCommands).ConfigureAwait(false);
     }
     var simulationStepCount = terminus ? ingressState.TakeTerminusSimulationSteps() : 1;
-    var advanceSimulation = simulationStepCount > 0;
-    if (terminus && !advanceSimulation)
+    var advanceSimulation = simulationStepCount > 0 && AetheriaRuntimeRunLifecycle.IsActive(run);
+    if (terminus && !advanceSimulation && AetheriaRuntimeRunLifecycle.IsActive(run))
     {
         authorizedCommands = authorizedCommands
             .Where(command => !AetheriaRuntimeDaemonOperations.RequiresSimulationStep(command.Kind))
             .ToArray();
     }
     var simulationTimeSeconds = (currentFrame?.SimulationTimeSeconds ?? 0) +
-        (simulationStepCount * fixedDeltaSeconds);
+        ((advanceSimulation ? simulationStepCount : 0) * fixedDeltaSeconds);
     TracePhase("tick-inputs");
 
     var result = AetheriaRuntimeDaemonTickRunner.Tick(
@@ -2590,6 +2590,11 @@ static async Task<AetheriaRuntimeRunCheckpointCommit?> ReadRuntimeRunCheckpointA
             .ToArray(),
         GenerationSeed = run.GenerationSeed,
         CurrentEntityKey = run.CurrentEntityKey ?? "",
+        LifecyclePhase = string.IsNullOrWhiteSpace(run.LifecyclePhase)
+            ? AetheriaRuntimeRunLifecycle.Active
+            : run.LifecyclePhase,
+        TerminalReason = run.TerminalReason ?? "",
+        TerminalFrameId = run.TerminalFrameId,
         Credits = 1000000
     };
 }

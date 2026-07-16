@@ -218,6 +218,15 @@ namespace GameCult.Aetheria.State.Verse
         public IReadOnlyList<AetheriaRuntimePickupContactReceiptCommit> PickupContactReceipts { get; set; } =
             Array.Empty<AetheriaRuntimePickupContactReceiptCommit>();
 
+        [Key(17)]
+        public string LifecyclePhase { get; set; } = AetheriaRuntimeRunLifecycle.Active;
+
+        [Key(18)]
+        public string TerminalReason { get; set; } = "";
+
+        [Key(19)]
+        public long TerminalFrameId { get; set; } = -1;
+
         public AetheriaRuntimeLoadoutTemplateCommit CreateLoadoutTemplate(string entityKey)
         {
             return TryParseEntityKey(entityKey, out var zoneIndex, out var entityIndex)
@@ -460,6 +469,29 @@ namespace GameCult.Aetheria.State.Verse
         [Key(11)] public double PositionZ { get; set; }
         [Key(12)] public string Reason { get; set; } = "";
         [Key(13)] public double AuxiliaryValue { get; set; }
+    }
+
+    public static class AetheriaRuntimeRunLifecycle
+    {
+        public const string Active = "active";
+        public const string Failed = "failed";
+
+        public static bool IsActive(AetheriaRuntimeRunCheckpointCommit? run) =>
+            run != null && string.Equals(run.LifecyclePhase, Active, StringComparison.Ordinal);
+
+        public static bool Fail(
+            AetheriaRuntimeRunCheckpointCommit? run,
+            string reason,
+            long frameId)
+        {
+            if (!IsActive(run))
+                return false;
+
+            run!.LifecyclePhase = Failed;
+            run.TerminalReason = reason ?? "";
+            run.TerminalFrameId = frameId;
+            return true;
+        }
     }
 
     [MessagePackObject]

@@ -151,7 +151,9 @@ namespace GameCult.Aetheria.State.Verse
                         .ToArray(),
                     operationResult.Intents);
             }
-            var simulationStepCount = options.AdvanceSimulation ? Math.Max(1, options.SimulationStepCount) : 0;
+            var simulationStepCount = options.AdvanceSimulation && AetheriaRuntimeRunLifecycle.IsActive(operationResult.Run)
+                ? Math.Max(1, options.SimulationStepCount)
+                : 0;
             for (var simulationStep = 0; simulationStep < simulationStepCount; simulationStep++)
             {
                 var stepTime = options.SimulationTimeSeconds -

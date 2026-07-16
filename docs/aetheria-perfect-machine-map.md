@@ -2829,6 +2829,33 @@ technology keys has been deleted. A future Starbridge mode must enter through
 the active daemon game-mode owner and typed catalogs; a dormant document seeder
 is not a game mode.
 
+Run-lifecycle ownership is deliberately narrower than a quest system:
+
+- Owner: the daemon run checkpoint owns whether the run is `active` or
+  terminal. The fossil supplied a failure transition on destruction of the
+  controlled entity; it did not supply a victory transition.
+- Inputs: the controlled entity key and the daemon's committed destruction
+  transaction, including its cause and frame.
+- Outputs: lifecycle phase, terminal reason, terminal frame, one durable
+  `run.failed` fact, command rejection, and a frozen world after the lethal
+  frame.
+- Derived state: docked, travelling, fighting, mining, looting, and refitting
+  remain projections of authoritative world facts. They are not durable run
+  phases and cannot advance the lifecycle.
+- Forbidden writers: Unity death callbacks, Eve surfaces, command payloads,
+  health documents, and menu navigation cannot end, revive, or complete a run.
+- Shared paths: every lethal hull, cockpit, heatstroke, and hypothermia path
+  must pass through the same daemon destruction commit. New Game replaces the
+  run through the existing daemon session bootstrap; Continue reads the latest
+  checkpoint.
+- Cut line: clearing `CurrentEntityKey` is no longer the implicit lifecycle
+  decision. It remains the controlled-entity consequence of the explicit
+  failure commit.
+- Verification layer: daemon smoke kills the controlled entity, serializes the
+  terminal checkpoint, restarts it, proves later commands are rejected and
+  simulation is frozen, and inspects the Eve surface state bindings. Completion
+  remains unimplemented until a source-backed game-mode rule owns it.
+
 Ymir restart ownership is deliberately private and asymmetric:
 
 - Owner: `AetheriaYmirPersistenceCoordinator` owns reconstruction durability;

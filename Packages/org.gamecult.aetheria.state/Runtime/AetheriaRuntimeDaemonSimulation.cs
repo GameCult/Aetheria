@@ -25,7 +25,7 @@ namespace GameCult.Aetheria.State.Verse
             double simulationTimeSeconds = 0,
             int simulationStepIndex = 0)
         {
-            if (run == null || deltaSeconds <= 0)
+            if (run == null || deltaSeconds <= 0 || !AetheriaRuntimeRunLifecycle.IsActive(run))
                 return;
             if (worldPhysics == null)
                 throw new ArgumentNullException(nameof(worldPhysics));
@@ -1707,9 +1707,16 @@ namespace GameCult.Aetheria.State.Verse
                 entity.Contacts = (entity.Contacts ?? Array.Empty<AetheriaRuntimeEntityContactCommit>())
                     .Where(contact => contact != null && contact.TargetEntityIndex != target.EntityIndex).ToArray();
             }
-            if (run.CurrentZoneIndex == zone.ZoneIndex && TryParseEntityIndex(run.CurrentEntityKey, out var currentIndex) &&
-                currentIndex == target.EntityIndex)
+            var controlledEntityDestroyed =
+                run.CurrentZoneIndex == zone.ZoneIndex &&
+                TryParseEntityIndex(run.CurrentEntityKey, out var currentIndex) &&
+                currentIndex == target.EntityIndex;
+            var runFailed = false;
+            if (controlledEntityDestroyed)
+            {
+                runFailed = AetheriaRuntimeRunLifecycle.Fail(run, target.CauseOfDeath, frameId);
                 run.CurrentEntityKey = "";
+            }
 
             AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit
             {
@@ -1719,6 +1726,22 @@ namespace GameCult.Aetheria.State.Verse
                 ItemKey = weaponItemKey, Reason = target.CauseOfDeath,
                 PositionX = target.PositionX, PositionZ = target.PositionZ
             });
+            if (runFailed)
+            {
+                AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit
+                {
+                    EventId = $"run:{run.RunId}:failed",
+                    Kind = "run.failed",
+                    FrameId = frameId,
+                    ZoneIndex = zone.ZoneIndex,
+                    SourceEntityIndex = sourceEntityIndex,
+                    TargetEntityIndex = target.EntityIndex,
+                    SubjectKey = run.RunId,
+                    Reason = target.CauseOfDeath,
+                    PositionX = target.PositionX,
+                    PositionZ = target.PositionZ
+                });
+            }
         }
 
         private static AetheriaRuntimeLoadoutItemCommit CloneItem(AetheriaRuntimeLoadoutItemCommit item) => new()

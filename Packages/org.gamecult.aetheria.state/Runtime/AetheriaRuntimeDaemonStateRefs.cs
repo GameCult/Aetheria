@@ -14,6 +14,9 @@ namespace GameCult.Aetheria.State.Verse
         public const string FrameRejectedCommands = Prefix + "/frame/rejectedCommands";
 
         public const string CurrentRunId = Prefix + "/current/runId";
+        public const string CurrentRunLifecycle = Prefix + "/current/runLifecycle";
+        public const string CurrentRunTerminalReason = Prefix + "/current/runTerminalReason";
+        public const string CurrentRunTerminalFrameId = Prefix + "/current/runTerminalFrameId";
         public const string CurrentZoneIndex = Prefix + "/current/zoneIndex";
         public const string CurrentEntityKey = Prefix + "/current/entityKey";
         public const string CurrentEntityName = Prefix + "/current/entityName";

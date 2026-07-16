@@ -69,6 +69,12 @@ namespace GameCult.Aetheria.State.Verse
                 if (command == null || string.IsNullOrWhiteSpace(command.CommandId))
                     continue;
 
+                if (!AetheriaRuntimeRunLifecycle.IsActive(run))
+                {
+                    rejected.Add(command.CommandId);
+                    continue;
+                }
+
                 if (ApplyOne(run, command, context))
                     applied.Add(command.CommandId);
                 else

@@ -1397,7 +1397,9 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         var cockpitRun = new AetheriaRuntimeRunCheckpointCommit
         {
             RunId = "cockpit-destruction-smoke", CurrentZoneIndex = 0,
-            CurrentEntityKey = "zone.0.entity.0", Zones = [cockpitZone]
+            CurrentEntityKey = AetheriaRuntimeRunCheckpointCommit.EntityRecordKey(
+                "cockpit-destruction-smoke", 0, cockpitTarget.EntityIndex),
+            Zones = [cockpitZone]
         };
 
         AetheriaRuntimeDaemonSimulation.Step(cockpitRun, new AetheriaRuntimeDaemonIntentState(), 0.1,
@@ -1412,6 +1414,63 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             .Select(value => value.Kind).ToArray();
         RequireEqual("equipment.destroyed,entity.destroyed", string.Join(",", chronology),
             "equipment destruction feedback must precede the cause-specific entity destruction fact");
+        RequireEqual(AetheriaRuntimeRunLifecycle.Failed, cockpitRun.LifecyclePhase,
+            "destruction of the controlled entity must end the daemon-owned run");
+        RequireEqual("cockpit-destroyed", cockpitRun.TerminalReason,
+            "the run terminal reason must preserve the fossil cause of death");
+        RequireEqual(1L, cockpitRun.TerminalFrameId,
+            "the run terminal frame must be committed with the lethal transaction");
+        RequireEqual("", cockpitRun.CurrentEntityKey,
+            "the failed run must release its controlled entity after recording the terminal cause");
+        RequireEqual(1, cockpitRun.GameEvents.Count(value => value.Kind == "run.failed" &&
+            value.Reason == "cockpit-destroyed"),
+            "the lethal transaction must publish one durable run failure fact");
+
+        var restartedRun = MessagePack.MessagePackSerializer.Deserialize<AetheriaRuntimeRunCheckpointCommit>(
+            MessagePack.MessagePackSerializer.Serialize(cockpitRun));
+        restartedRun.Zones[0].Entities[0].VelocityX = 10;
+        var sourcePosition = restartedRun.Zones[0].Entities[0].PositionX;
+        var rejectedAfterFailure = MovementCommand("move-after-run-failure", "zone.0.entity.0", 1, 0);
+        using var restartedPhysics = NewPhysics();
+        var restarted = AetheriaRuntimeDaemonTickRunner.Tick(
+            Path.Combine(Path.GetTempPath(), "aetheria-failed-run-restart.cc"),
+            restartedRun,
+            new AetheriaRuntimeDaemonTickOptions
+            {
+                FrameId = 2,
+                FixedDeltaSeconds = 0.1,
+                SimulationTimeSeconds = 0.2,
+                ObservedCommands = [rejectedAfterFailure],
+                WorldPhysics = restartedPhysics,
+                BuildPublications = false
+            });
+        Require(restarted.OperationResult.RejectedCommandIds.Contains("move-after-run-failure"),
+            "a terminal run must reject later gameplay commands after restart");
+        RequireNear(sourcePosition, restartedRun.Zones[0].Entities[0].PositionX, 0.000001,
+            "a terminal run must not advance surviving world bodies after restart");
+        RequireEqual(1, restartedRun.GameEvents.Count(value => value.Kind == "run.failed"),
+            "restart must not replay the run failure transition");
+
+        var failedSurface = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(
+            restarted.Frame,
+            new AetheriaRuntimeDaemonHealthDocument(),
+            AetheriaRuntimeDaemonCommandBoundaryDocument.Create("daemon"));
+        var failedWorld = Flatten(failedSurface.Surface.Root)
+            .Single(node => node.Id == "aetheria.daemon.game.world");
+        RequireEqual("terminal", failedWorld.Props["presentationMode"],
+            "the generic Eve world must receive a terminal presentation lever");
+        RequireEqual("false", failedWorld.Props["movementEnabled"],
+            "the generic Eve world must not advertise movement after run failure");
+        RequireEqual("cockpit-destroyed", failedWorld.Props["runTerminalReason"],
+            "the generic Eve world must receive the authoritative terminal cause");
+        Require(AetheriaRuntimeStateRefResolver.TryResolveDaemonStateRef(
+                restarted.Frame,
+                new AetheriaRuntimeDaemonHealthDocument(),
+                AetheriaRuntimeDaemonCommandBoundaryDocument.Create("daemon"),
+                AetheriaRuntimeDaemonStateRefs.CurrentRunLifecycle,
+                out var projectedLifecycle) &&
+            projectedLifecycle == AetheriaRuntimeRunLifecycle.Failed,
+            "Eve state bindings must resolve the daemon-owned run lifecycle without client inference");
     }
 
     private static void DestructionDropsLootExactlyOnce()
@@ -1465,6 +1524,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             "each durable pickup must publish one drop event");
         RequireEqual(1, run.GameEvents.Count(value => value.Kind == "entity.destroyed"),
             "destruction chronology must publish exactly once");
+        RequireEqual(AetheriaRuntimeRunLifecycle.Active, run.LifecyclePhase,
+            "destroying a non-controlled entity must not counterfeit a run failure");
 
         var surface = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(
             new AetheriaRuntimeDaemonFrameDocument { FrameId = 1, Run = run },

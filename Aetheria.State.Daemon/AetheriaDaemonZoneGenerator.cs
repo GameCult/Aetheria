@@ -96,6 +96,8 @@ internal static class AetheriaDaemonZoneGenerator
             ZoneKeys = [zoneKey.ToString()],
             GenerationSeed = GenerationSeed,
             CurrentEntityKey = entityKeys[1],
+            LifecyclePhase = AetheriaRuntimeRunLifecycle.Active,
+            TerminalFrameId = -1,
             UpdatedAtUtc = now
         }).ConfigureAwait(false);
 

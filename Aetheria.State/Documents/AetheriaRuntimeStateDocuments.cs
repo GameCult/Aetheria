@@ -241,6 +241,15 @@ public sealed class AetheriaRunState
     [Key(12)]
     [CultReference(typeof(AetheriaEntitySnapshot))]
     public string CurrentEntityKey { get; set; } = "";
+
+    [Key(13)]
+    public string LifecyclePhase { get; set; } = "active";
+
+    [Key(14)]
+    public string TerminalReason { get; set; } = "";
+
+    [Key(15)]
+    public long TerminalFrameId { get; set; } = -1;
 }
 
 [CultDocument("aetheria.zone_state", "aetheria.zone_state.v1")]
