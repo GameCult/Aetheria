@@ -8,6 +8,13 @@ var root = args.Length > 0 ? Path.GetFullPath(args[0]) : Directory.GetCurrentDir
 var statePath = args.Length > 1
     ? Path.GetFullPath(args[1])
     : AetheriaStatePaths.ResolveDefaultStatePath(root);
+var verificationDirectory = Path.Combine(
+    Path.GetTempPath(),
+    "aetheria-state-verify",
+    Guid.NewGuid().ToString("N"));
+Directory.CreateDirectory(verificationDirectory);
+var verificationStatePath = Path.Combine(verificationDirectory, "aetheria-world.cc");
+File.Copy(statePath, verificationStatePath, overwrite: true);
 
 RequireGameplaySourcePurity(root);
 RequireManagedContentOnlyAssetDelivery(root);
@@ -111,7 +118,7 @@ RequireAuthoritySmokeUsesManagedPointers(root);
 RequireAetheriaStateNodeUsesManagedPointers(root);
 
 await using var node = await AetheriaStateNode.OpenAsync(
-    statePath,
+    verificationStatePath,
     "aetheria-state-verify",
     enableDurableShardLogs: false);
 

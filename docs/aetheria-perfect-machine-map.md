@@ -526,9 +526,12 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
 - `Aetheria.State.Import` writes a typed quarantine manifest and migration
   ledger for the legacy catalog files. It also raw-decodes stable old
   MessagePack union fields into typed item/faction/name-file documents without
-  compiling the old Unity domain model into `Aetheria.State`. The current
-  checked-in catalog maps to 115 item definitions, 12 factions, and 12 name
-  files. Item definitions now carry legacy manufacturer IDs, price, shape
+  compiling the old Unity domain model into `Aetheria.State`. A full import
+  writes those documents into one monolithic, tracked `.cc`; ignored
+  `.cc.records` directories are runtime materializations and cannot be required
+  to open a fresh clone. The current checked-in catalog maps to 116 item
+  definitions, 12 factions, and 12 name files. Item definitions now carry
+  legacy manufacturer IDs, price, shape
   dimensions, occupied cell counts, full typed shape-cell masks, hardpoint
   type, hull type, interior shape masks for hull/cargo equipment, hull
   hardpoint definitions, behavior kind fingerprints, typed recursive behavior
@@ -630,7 +633,8 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   can redirect/disable the mount for diagnostics. Batchmode disables the
   bootstrap so verification runs do not create renderer state.
 - `GameData/aetheria-world.cc` is now materialized from the importer as the
-  project-local typed state file for the checked-in catalog. The importer stores
+  self-contained project-local typed state file for the checked-in catalog. The
+  importer stores
   relative provenance in the state document, not machine-local absolute paths.
   Unity resolves this path through the embedded `GameCult.Aetheria.State.Unity`
   runtime package, not through the legacy catalog boundary. Unity also asks the
@@ -638,10 +642,13 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   warning is notification-only and does not make legacy catalog data the typed
   state owner.
   Import rebuilds clear the generated `.cc`, `.cc.records`, and `.cultmesh`
-  outputs for the selected state path after capturing legacy inputs, so schema
-  evolution can rematerialize typed state instead of being blocked by stale
-  embedded schema catalogs.
-  `Aetheria.State.Verify` opens the materialized file and checks that migration
+  outputs for the selected state path after capturing legacy inputs, then writes
+  the release artifact with the monolithic store. Schema evolution can
+  rematerialize typed state instead of being blocked by stale embedded schema
+  catalogs. Mutable runtime nodes may materialize their private directory-store
+  overlay after deployment; that overlay is never release authority.
+  `Aetheria.State.Verify` copies the tracked monolith into a fresh temporary
+  directory before opening it and checks that migration
   ledger counts match actual typed catalog records, that name-file v2 records
   carry their full name arrays, that the legacy-ID lookup API resolves migrated
   item, corporation, and name-file documents, and that the expanded typed

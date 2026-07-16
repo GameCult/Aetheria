@@ -10,8 +10,10 @@ The first live state files are `GameData/aetheria-world.cc` for daemon-owned
 Verse state and `GameData/aetheria-client.cc` for the client-owned active Verse
 target. `Aetheria.State.Import` generates the daemon-owned world file from
 checked-in legacy catalog inputs without embedding machine-local absolute
-paths. Legacy files such as `GameData/AetherDB.msgpack` are migration inputs
-only.
+paths. A full import emits one self-contained monolithic `.cc` suitable for a
+fresh clone or released package. Runtime-created `.cc.records` directories are
+mutable materializations, not part of the release contract. Legacy files such
+as `GameData/AetherDB.msgpack` are migration inputs only.
 
 The typed runtime state model is split into player settings, loadout templates,
 run state, zone state, entity snapshots, item slots, weapon groups, action-bar
@@ -304,8 +306,10 @@ Legacy GUID references that are `Guid.Empty` are imported as absent references,
 not as resolvable catalog links.
 Before materializing state, the importer clears the generated `.cc`,
 `.cc.records`, and `.cultmesh` outputs for the selected state path. Legacy
-catalog inputs are captured first and are not deleted. This lets schema changes
-rebuild the typed artifact instead of failing on a stale embedded schema catalog.
+catalog inputs are captured first and are not deleted. Full import writes the
+result through the monolithic CultCache store; no ignored directory record may
+be required to open the artifact. This lets schema changes rebuild the typed
+artifact instead of failing on a stale embedded schema catalog.
 
 `AetheriaCatalogSnapshot` is the typed read surface over materialized catalog
 documents. It exposes trade items, legacy-ID migration lookup, typed

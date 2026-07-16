@@ -41,7 +41,8 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
         string statePath,
         string runtimeId = "aetheria-local",
         bool startServer = false,
-        bool enableDurableShardLogs = true)
+        bool enableDurableShardLogs = true,
+        bool useDirectoryStore = true)
     {
         if (string.IsNullOrWhiteSpace(statePath))
         {
@@ -62,7 +63,7 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
                     Registry = cacheRegistry,
                     PullOnOpen = true,
                     StoreFlushOnDispose = true,
-                    UseDirectoryStore = true
+                    UseDirectoryStore = useDirectoryStore
                 },
                 DatabaseOptions = new CultNetDatabaseOptions
                 {

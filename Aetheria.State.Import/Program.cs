@@ -210,7 +210,10 @@ if (args.Any(argument => string.Equals(argument, "--merge-station-sensor", Strin
 
 ResetMaterializedStateOutput(statePath);
 
-await using var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-legacy-catalog-import");
+await using var node = await AetheriaStateNode.OpenAsync(
+    statePath,
+    "aetheria-legacy-catalog-import",
+    useDirectoryStore: false);
 
 await node.MutableDocument<AetheriaLegacyCatalogQuarantine>(AetheriaStateNode.LegacyCatalogQuarantineKey)
     .ReplaceAsync(new AetheriaLegacyCatalogQuarantine

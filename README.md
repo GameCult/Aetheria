@@ -144,7 +144,7 @@ The state spine lives in `Aetheria.State`. It defines CultCache documents, CultN
 
 Use `Aetheria.State.Import` to quarantine the checked-in legacy catalog files and map stable MessagePack payload fields into typed CultCache state. The importer records path, size, and SHA-256 provenance for `GameData/AetherDB.msgpack` and `GameData/NameFile/*.msgpack`, then emits typed item, faction, and name-file records for the fields that have earned migration authority.
 
-Use `Aetheria.State.Verify` after import to prove the materialized `.cc` file is internally coherent: migration-ledger counts must match actual typed catalog records, and legacy-ID lookups must resolve through `Aetheria.State` rather than importer-local key strings.
+Use `Aetheria.State.Verify` after import to prove the materialized `.cc` file is internally coherent and self-contained. Verification opens a temporary copy of the tracked monolith, so ignored `.cc.records` files cannot accidentally satisfy the proof. Migration-ledger counts must match actual typed catalog records, and legacy-ID lookups must resolve through `Aetheria.State` rather than importer-local key strings.
 
 #### Editing Items
 
