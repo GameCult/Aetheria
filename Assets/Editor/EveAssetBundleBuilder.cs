@@ -104,10 +104,11 @@ namespace Aetheria.Editor
             try
             {
                 KeepAdvertisedPresentationVisual(root, entry);
-                ExtractExternalizedEffects(root, entry.Ref.AssetKey);
+                ExtractExternalizedEffects(root, entry);
                 StripNonPresentationScripts(root);
                 StripPresentationPhysics(root);
                 NormalizePresentationMaterials(root);
+                VerifyExternalizedShipEffects(root, entry);
                 VerifyPrefab(root, outputPath);
                 PrefabUtility.SaveAsPrefabAsset(root, outputPath, out var saved);
                 if (!saved)
@@ -139,10 +140,20 @@ namespace Aetheria.Editor
                 UnityEngine.Object.DestroyImmediate(child.gameObject, true);
         }
 
-        private static void ExtractExternalizedEffects(GameObject root, string assetKey)
+        private static void ExtractExternalizedEffects(
+            GameObject root,
+            AetheriaRuntimeAssetManifestEntry entry)
         {
-            if (!string.Equals(assetKey, "prefab.entity.player", StringComparison.Ordinal) &&
-                !string.Equals(assetKey, "prefab.entity.ship", StringComparison.Ordinal))
+            var assetKey = entry?.Ref?.AssetKey ?? "";
+            var presentationRole = entry?.Ref?.Metadata != null &&
+                entry.Ref.Metadata.TryGetValue("presentationRole", out var role)
+                    ? role ?? ""
+                    : "";
+            var strictLegacyShip =
+                string.Equals(presentationRole, "player", StringComparison.Ordinal) ||
+                string.Equals(presentationRole, "ship", StringComparison.Ordinal);
+            var catalogHull = string.Equals(presentationRole, "entity.hull", StringComparison.Ordinal);
+            if (!strictLegacyShip && !catalogHull)
                 return;
 
             var tractorEffects = root.GetComponentsInChildren<MonoBehaviour>(true)
@@ -151,7 +162,7 @@ namespace Aetheria.Editor
                 .Select(behaviour => behaviour.gameObject)
                 .Distinct()
                 .ToArray();
-            if (tractorEffects.Length == 0)
+            if (tractorEffects.Length == 0 && strictLegacyShip)
                 throw new InvalidOperationException(
                     $"Ship presentation source '{assetKey}' has no embedded tractor effect to externalize.");
 
@@ -167,12 +178,33 @@ namespace Aetheria.Editor
                 .Select(renderer => renderer.gameObject)
                 .Distinct()
                 .ToArray();
-            if (embeddedShieldVisuals.Length == 0)
+            if (embeddedShieldVisuals.Length == 0 && strictLegacyShip)
                 throw new InvalidOperationException(
                     $"Ship presentation source '{assetKey}' has no embedded shield visual to externalize.");
 
             foreach (var visual in embeddedShieldVisuals)
                 UnityEngine.Object.DestroyImmediate(visual, true);
+        }
+
+        private static void VerifyExternalizedShipEffects(
+            GameObject root,
+            AetheriaRuntimeAssetManifestEntry entry)
+        {
+            var presentationRole = entry?.Ref?.Metadata != null &&
+                entry.Ref.Metadata.TryGetValue("presentationRole", out var role)
+                    ? role ?? ""
+                    : "";
+            if (!string.Equals(presentationRole, "player", StringComparison.Ordinal) &&
+                !string.Equals(presentationRole, "ship", StringComparison.Ordinal) &&
+                !string.Equals(presentationRole, "entity.hull", StringComparison.Ordinal))
+                return;
+
+            var surviving = root.GetComponentsInChildren<Renderer>(true)
+                .FirstOrDefault(renderer => renderer != null &&
+                    string.Equals(renderer.gameObject.name, "Shield Visual", StringComparison.Ordinal));
+            if (surviving != null)
+                throw new InvalidOperationException(
+                    $"Ship presentation source '{entry.Ref.AssetKey}' retained an always-on shield envelope.");
         }
 
         private static void StripNonPresentationScripts(GameObject root)

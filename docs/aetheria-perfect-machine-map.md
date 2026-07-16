@@ -1088,14 +1088,15 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   skybox/ambient authority or infer shader models from Aetheria asset names.
 - Cut line: the obsolete provider skybox catalog entry and world binding are
   deleted, as is the invented `0.4,-1,0.25` warm key light. The embedded
-  fossil shield renderer is removed from ship presentation prefabs because its
+  fossil shield renderer is removed from legacy ship roles and catalog-backed
+  `entity.hull` presentation prefabs because its
   dithered collision response is already externalized as the provider-owned,
   receipt-driven shield-impact effect; it cannot remain permanently visible
   after generic material conversion.
 - Verification layer: daemon smoke proves the stellar color projection and
   negatively proves that neither skybox nor key-light fields are published. The released witness records flat
   ambient mode, the exact lowered color, zero directional intensity,
-  no player `Shield Visual`, twelve remaining player renderers, and a map-channel
+  no player `Shield Visual`, seven active player renderers, and a map-channel
   material using `Universal Render Pipeline/Unlit`; visual inspection shows ship
   hulls instead of opaque shield ellipsoids and readable map glyphs.
 
