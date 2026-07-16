@@ -1200,9 +1200,11 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   generic runtime does not use local gameplay time or provider identifiers.
   The provider shader constructs both its raymarch and temporal-reprojection
   rays using the historical Unity shader camera transform, whose local forward
-  is positive Z. EveUnity `0.3.62` supplies that transform instead of the
-  negative-Z `Camera.cameraToWorldMatrix`; provider bundle verification rejects
-  divergence between the two passes.
+  is positive Z. EveUnity `0.3.63` supplies that transform instead of the
+  negative-Z `Camera.cameraToWorldMatrix`. The provider also advertises
+  `non-render-target-projection.previous-view.v1`, preserving the historical
+  `Graphics.Blit` GPU-projection convention without making it a client guess;
+  provider bundle verification rejects divergence between the two passes.
 - Semantic split: `gravity.height` is the negative gameplay terrain projection;
   `fog.surface_height` is the positive visual displacement the fossil
   `PowerBrush` camera supplied to `_NebulaSurfaceHeight`. Both derive from the
@@ -1262,10 +1264,13 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   placed the camera below the fog surface. The controlled zero-noise run was a
   diagnostic, not the adopted rendering contract. Blue tint, luminance, patch
   structure, gravity-wave readability, and world geometry remain open visual
-  parity work. Released EveUnity `0.3.62` also restores the provider-advertised
+  parity work. Released EveUnity `0.3.63` also restores the provider-advertised
   previous-view/current-projection temporal policy, the fossil ultra-quality
   first history frame, adaptive histogram exposure, and HDR grading before
-  ACES. The alpha-fixed cold HD witness uses bundle
+  ACES, and lowers the provider-selected non-render-target temporal projection.
+  The released warm witness records 359 fog composites while retaining the
+  daemon gameplay assertions and camera-channel isolation. The alpha-fixed cold
+  HD witness uses bundle
   `a829e57731fbe08f4564fa131468148e99f6b4204708ad3e64498885532b5091`
   and passes in 52.7 seconds. Its temporal history stores direct density in
   alpha; bundle verification rejects any composite that again unpacks that

@@ -253,7 +253,7 @@ namespace GameCult.Aetheria.State.Verse
                         ["unity.volume.matrixPort.cameraInverseViewProjection"] = "_CamInvProj",
                         ["unity.volume.matrixPort.cameraToWorld"] = "_CamToWorld",
                         ["unity.volume.matrixPort.previousViewProjection"] = "_PrevVP",
-                        ["unity.volume.matrixSemantic.previousViewProjection"] = "current-projection.previous-view.v1",
+                        ["unity.volume.matrixSemantic.previousViewProjection"] = "non-render-target-projection.previous-view.v1",
                         ["unity.volume.vectorPort.cameraProjectionExtents"] = "_ProjectionExtents",
                         ["unity.volume.floatPort.raymarchOffset"] = "_RaymarchOffset",
                         ["unity.volume.floatPort.resetHistory"] = "_ResetHistory",
