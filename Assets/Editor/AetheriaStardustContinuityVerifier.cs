@@ -62,6 +62,8 @@ namespace Aetheria.Editor
             var kernel = program.FindKernel("UpdateParticles");
             using var particles = new ComputeBuffer(Span * Span, 7 * sizeof(float), ComputeBufferType.Structured);
             var field = ConstantTexture(new Color(0.5f, 0.5f, 0.5f, 1f));
+            var emptyField = ConstantTexture(Color.clear);
+            var positiveXField = PositiveXTexture();
             var tint = ConstantTexture(Color.white);
             var hue = ConstantTexture(Color.white);
             try
@@ -92,6 +94,15 @@ namespace Aetheria.Editor
                 program.SetFloat("_DynamicLodLow", 2f);
                 program.SetInt("span", Span);
 
+                program.SetFloat("_FlowAmplitude", 0f);
+                program.SetTexture(kernel, "_NebulaSurfaceHeight", emptyField);
+                var flat = DispatchAndRead(program, kernel, particles, 0f, 0f);
+                program.SetTexture(kernel, "_NebulaSurfaceHeight", positiveXField);
+                var oriented = DispatchAndRead(program, kernel, particles, 0f, 0f);
+                AssertPositiveWorldXSamplesPositiveTextureX(flat, oriented);
+
+                program.SetTexture(kernel, "_NebulaSurfaceHeight", field);
+                program.SetFloat("_FlowAmplitude", 15f);
                 var before = DispatchAndRead(program, kernel, particles, 0f, 0f);
                 AssertWholeBlockRemapIsInvisible(
                     before,
@@ -114,6 +125,8 @@ namespace Aetheria.Editor
             finally
             {
                 UnityEngine.Object.DestroyImmediate(field);
+                UnityEngine.Object.DestroyImmediate(emptyField);
+                UnityEngine.Object.DestroyImmediate(positiveXField);
                 UnityEngine.Object.DestroyImmediate(tint);
                 UnityEngine.Object.DestroyImmediate(hue);
             }
@@ -126,7 +139,11 @@ namespace Aetheria.Editor
             float gridCenterX,
             float gridCenterY)
         {
-            program.SetVector("_GridTransform", new Vector4(gridCenterX, gridCenterY, 1536f, 1536f));
+            program.SetVector("_GridTransform", new Vector4(
+                gridCenterX,
+                gridCenterY,
+                Span * Spacing,
+                Span * Spacing));
             program.Dispatch(kernel, Mathf.CeilToInt((float)(Span * Span) / GroupSize), 1, 1);
             var result = new Particle[Span * Span];
             particles.GetData(result);
@@ -162,6 +179,20 @@ namespace Aetheria.Editor
             }
         }
 
+        private static void AssertPositiveWorldXSamplesPositiveTextureX(
+            Particle[] flat,
+            Particle[] oriented)
+        {
+            const int positiveWorldCellX = 3;
+            const int worldCellY = 0;
+            var index = (worldCellY + Span / 2) * Span + positiveWorldCellX + Span / 2;
+            var displacement = oriented[index].Position.y - flat[index].Position.y;
+            if (displacement > -0.75f)
+                throw new InvalidOperationException(
+                    $"Stardust positive-world X sampled the wrong side of the typed gravity viewport; " +
+                    $"expected at least one unit of downward displacement, observed {displacement:R}.");
+        }
+
         private static bool BitwiseEqual(Particle left, Particle right) =>
             Bits(left.Position.x) == Bits(right.Position.x) &&
             Bits(left.Position.y) == Bits(right.Position.y) &&
@@ -183,6 +214,24 @@ namespace Aetheria.Editor
             };
             var pixels = new Color[16];
             for (var index = 0; index < pixels.Length; index++) pixels[index] = color;
+            texture.SetPixels(pixels);
+            texture.Apply(false, false);
+            return texture;
+        }
+
+        private static Texture2D PositiveXTexture()
+        {
+            const int size = 8;
+            var texture = new Texture2D(size, size, TextureFormat.RGBA32, false, true)
+            {
+                filterMode = FilterMode.Point,
+                wrapMode = TextureWrapMode.Clamp,
+                hideFlags = HideFlags.HideAndDontSave
+            };
+            var pixels = new Color[size * size];
+            for (var y = 0; y < size; y++)
+            for (var x = 0; x < size; x++)
+                pixels[y * size + x] = x >= size / 2 ? Color.white : Color.clear;
             texture.SetPixels(pixels);
             texture.Apply(false, false);
             return texture;

@@ -80,7 +80,10 @@ float parabola( float x, float k )
 
 float2 getUV(float2 pos)
 {
-    return -(pos-_GridTransform.xy)/_GridTransform.z + float2(.5,.5);
+    // Eve Fields rasterizes its typed viewport with positive world axes.
+    // The fossil gravity camera reversed both axes and required a leading
+    // minus here; that camera is no longer an authority in the daemon path.
+    return (pos-_GridTransform.xy)/_GridTransform.z + float2(.5,.5);
 }
 
 float2 getUVFluid(float2 pos)

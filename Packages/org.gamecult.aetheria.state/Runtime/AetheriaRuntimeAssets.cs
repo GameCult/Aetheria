@@ -33,7 +33,6 @@ namespace GameCult.Aetheria.State.Verse
             string baseUri = "cultmesh://aetheria.local/assets")
         {
             var entries = new Dictionary<string, AetheriaRuntimeAssetManifestEntry>(StringComparer.Ordinal);
-            Add(entries, EnvironmentSkyboxMaterial());
             Add(entries, EnvironmentReflectionCubemap());
             Add(entries, EnvironmentPostProcessProfile());
             Add(entries, EnvironmentGravityFogShader());
@@ -196,26 +195,6 @@ namespace GameCult.Aetheria.State.Verse
                     Ref = InventoryThermalLayerAtlas(),
                     Tags = new[] { "inventory", "thermal", "layer", "atlas" }
                 }
-            };
-        }
-
-        public static AetheriaRuntimeAssetManifestEntry EnvironmentSkyboxMaterial()
-        {
-            return new AetheriaRuntimeAssetManifestEntry
-            {
-                Ref = new AetheriaRuntimeAssetRef
-                {
-                    AssetKey = "material.environment.skybox",
-                    Kind = AetheriaRuntimeAssetKinds.Material,
-                    Uri = CultMeshAssetUri("material.environment.skybox"),
-                    MimeType = "application/vnd.unity.material",
-                    Metadata = new Dictionary<string, string>(StringComparer.Ordinal)
-                    {
-                        ["unityAssetPath"] = "Assets/Materials/Skybox.mat",
-                        ["presentationRole"] = "environment.skybox"
-                    }
-                },
-                Tags = new[] { "presentation", "environment", "skybox" }
             };
         }
 

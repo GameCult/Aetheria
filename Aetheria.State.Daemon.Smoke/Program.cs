@@ -727,7 +727,26 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 { ItemKey = "test-instant", Quality = 1, Durability = 1, Enabled = true }
         }];
         var target = Entity(1, 80, "raider");
-        var zone = new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [source, target] };
+        var zone = new AetheriaRuntimeZoneSnapshotCommit
+        {
+            ZoneIndex = 0,
+            Entities = [source, target],
+            Bodies =
+            [
+                new AetheriaRuntimeBodySnapshotCommit
+                {
+                    Kind = "sun",
+                    Mass = 16,
+                    SunVisual = new AetheriaRuntimeSunVisualCommit
+                    {
+                        LightColorX = 0.5,
+                        LightColorY = 0.75,
+                        LightColorZ = 1,
+                        LightRadiusMultiplier = 1
+                    }
+                }
+            ]
+        };
         var run = new AetheriaRuntimeRunCheckpointCommit
         {
             RunId = "instant-trigger-smoke", CurrentZoneIndex = 0,
@@ -797,7 +816,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 world.Props["cameraNearClipPlane"] == "1" &&
                 world.Props["cameraFarClipPlane"] == "4096",
             "undocked world must translate the authored ARPG Third Person Rig into bottom-origin Eve viewport coordinates");
-        Require(world.Props["skyboxAssetRef"] == "material.environment.skybox" &&
+        Require(!world.Props.ContainsKey("skyboxAssetRef") &&
+                world.Props["ambientLightColor"] == "0.5,0.75,1" &&
                 world.Props["reflectionAssetRef"] == "texture.environment.reflection" &&
                 world.Props["postProcessProfileAssetRef"] == "profile.environment.flight" &&
                 world.Props["cameraReconstruction"] == "temporal-reprojection.v1" &&
@@ -810,7 +830,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 !world.Props.ContainsKey("keyLightDirection") &&
                 !world.Props.ContainsKey("keyLightColor") &&
                 !world.Props.ContainsKey("keyLightIntensity"),
-            "playable world must advertise the provider-owned fossil skybox and reflection without inventing a scene light");
+            "playable world must light from stellar tint, use the studio HDRI only for reflections, and leave the raymarch pass in charge of the frame");
         Require(aim.Props["controlledEntityIndex"] == "0" &&
                 aim.Props["convergenceTargetEntityId"] == run.EntityRecordKey(0, 1) &&
                 aim.Props["minimumConvergenceDistance"] == "50",
@@ -1085,13 +1105,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         RequireNear(30, behavior.Fields.Single(field => field.Key == 27).Value.NumberValue, 0.000001,
             "catalog mine must retain thirty-second lifetime");
         var manifest = AetheriaRuntimeAssets.ProjectManifest(catalog);
-        var skybox = manifest.Assets.Single(value => value.Ref.AssetKey == "material.environment.skybox");
-        RequireEqual(AetheriaRuntimeAssetKinds.Material, skybox.Ref.Kind,
-            "provider must type the fossil skybox as a native material asset");
-        RequireEqual("environment.skybox", skybox.Ref.Metadata["presentationRole"],
-            "provider must advertise the generic skybox presentation role");
-        RequireEqual("Assets/Materials/Skybox.mat", skybox.Ref.Metadata["unityAssetPath"],
-            "provider bundle must own the fossil skybox material");
+        Require(!manifest.Assets.Any(value => value.Ref.AssetKey == "material.environment.skybox"),
+            "provider catalog must not retain the obsolete skybox authority when raymarched fog owns the frame");
         var reflection = manifest.Assets.Single(value => value.Ref.AssetKey == "texture.environment.reflection");
         RequireEqual(AetheriaRuntimeAssetKinds.Texture, reflection.Ref.Kind,
             "provider must type the pre-generated environment map as a texture asset");

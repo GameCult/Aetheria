@@ -576,9 +576,6 @@ namespace Aetheria.Editor
                 var assetNames = bundle.GetAllAssetNames();
                 foreach (var assetPath in assetNames.Where(path => path.EndsWith(".prefab", StringComparison.OrdinalIgnoreCase)))
                     VerifyPrefab(bundle.LoadAsset<GameObject>(assetPath), assetPath);
-                var skybox = LoadAuthoredAsset<Material>(bundle, assetNames, "Assets/Materials/Skybox.mat");
-                if (skybox == null || skybox.shader == null || !skybox.shader.isSupported)
-                    throw new InvalidOperationException("Aetheria Eve bundle has no supported provider skybox material.");
                 var reflection = LoadAuthoredAsset<Cubemap>(bundle, assetNames, "Assets/Textures/studio2.hdr");
                 if (reflection == null)
                     throw new InvalidOperationException("Aetheria Eve bundle has no provider reflection cubemap.");

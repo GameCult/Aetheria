@@ -1067,28 +1067,34 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
 
 ### Native Environment Lighting Contract
 
-- Owner: Aetheria owns the fossil scene's skybox, ambient intensity, custom
-  reflection cubemap, and each provider material's lit/unlit semantics. EveUnity
-  owns only the reversible application of those advertised environment facts.
-- Inputs: `ARPG.unity` render settings, `Assets/Materials/Skybox.mat`,
-  `Assets/Textures/studio2.hdr`, and source shader lighting models. The fossil
-  scene contains no Unity `Light` component.
-- Outputs: the world surface advertises skybox ambient intensity `1.46`, custom
-  reflection intensity `1`, and no key light. Provider material conversion maps
+- Owner: Aetheria owns stellar ambient tint, the gravity-fog frame fill, the
+  custom reflection cubemap, and each provider material's lit/unlit semantics.
+  EveUnity owns only the reversible application of those advertised environment
+  facts.
+- Inputs: daemon-owned sun `LightColor`, sun mass and light-radius multiplier,
+  `Assets/Textures/studio2.hdr`, the gravity-fog field, and source shader lighting
+  models. Multiple stellar tints blend by their authored light-radius weight.
+- Outputs: the world surface advertises stellar-tinted flat ambient lighting at
+  fossil intensity `1.46`, the studio HDRI as custom reflection at intensity `1`,
+  no skybox, and no invented directional key light. Provider material conversion maps
   particle sources to URP Particles/Unlit, unlit or sprite sources to URP/Unlit,
   and genuinely lit sources to URP/Lit.
-- Derived state: Unity ambient probes, custom-reflection state, runtime material
-  instances, and shader keywords are client presentation state.
+- Derived state: Unity ambient state, custom-reflection state, runtime material
+  instances, and shader keywords are client presentation state. The studio HDRI
+  textures reflected ambient light; it does not choose its color or own the
+  visible background. The raymarch pass fills the frame.
 - Forbidden writers: the daemon cannot invent a directional light to compensate
-  for broken material conversion. EveUnity cannot add product lighting or infer
-  shader models from Aetheria asset names.
-- Cut line: the invented `0.4,-1,0.25` warm key light is deleted. The embedded
+  for broken material conversion. EveUnity cannot promote the reflection HDRI to
+  skybox/ambient authority or infer shader models from Aetheria asset names.
+- Cut line: the obsolete provider skybox catalog entry and world binding are
+  deleted, as is the invented `0.4,-1,0.25` warm key light. The embedded
   fossil shield renderer is removed from ship presentation prefabs because its
   dithered collision response is already externalized as the provider-owned,
   receipt-driven shield-impact effect; it cannot remain permanently visible
   after generic material conversion.
-- Verification layer: daemon smoke negatively proves that no key-light fields
-  are published. The released cold witness records zero directional intensity,
+- Verification layer: daemon smoke proves the stellar color projection and
+  negatively proves that neither skybox nor key-light fields are published. The released witness records flat
+  ambient mode, the exact lowered color, zero directional intensity,
   no player `Shield Visual`, twelve remaining player renderers, and a map-channel
   material using `Universal Render Pipeline/Unlit`; visual inspection shows ship
   hulls instead of opaque shield ellipsoids and readable map glyphs.
@@ -1145,7 +1151,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   bundle verification dispatches the bundled HLSL and reindexes by world cell;
   705 overlapping cells across X, Y, and diagonal whole-buffer remaps must keep
   all seven particle floats bit-identical while the same buffer slot changes
-  identity. The released witness must record 65,536 particles, one compute
+  identity. An asymmetric gravity texture also proves positive-world X samples
+  positive texture X; the deleted fossil gravity camera's two-axis reversal is
+  not part of the typed Eve Fields viewport. The released witness must record 65,536 particles, one compute
   dispatch and one pilot-camera draw while the map camera remains isolated.
   The released `0.3.57` witness additionally requires the live fog and particle
   grid centers to be equal and the leased pilot camera to report URP temporal

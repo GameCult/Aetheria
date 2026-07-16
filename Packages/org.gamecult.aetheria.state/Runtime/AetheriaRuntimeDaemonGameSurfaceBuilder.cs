@@ -621,6 +621,7 @@ namespace GameCult.Aetheria.State.Verse
             var cameraTargetEntityId = isDocked
                 ? run.EntityRecordKey(zone.ZoneIndex, dockParent!.EntityIndex)
                 : playerEntityId;
+            var stellarAmbient = ResolveStellarAmbient(zone);
             var props = new Dictionary<string, string>(StringComparer.Ordinal)
             {
                 ["label"] = string.IsNullOrWhiteSpace(zone.Name) ? "Aetheria World" : zone.Name,
@@ -645,9 +646,8 @@ namespace GameCult.Aetheria.State.Verse
                 ["cameraPositionDamping"] = isDocked ? "2" : "0",
                 ["cameraNearClipPlane"] = isDocked ? "0.3" : "1",
                 ["cameraFarClipPlane"] = isDocked ? "2048" : "4096",
-                ["ambientLightColor"] = "0.2,0.2,0.2",
+                ["ambientLightColor"] = string.Join(",", F(stellarAmbient.X), F(stellarAmbient.Y), F(stellarAmbient.Z)),
                 ["ambientLightIntensity"] = "1.46",
-                ["skyboxAssetRef"] = "material.environment.skybox",
                 ["reflectionAssetRef"] = "texture.environment.reflection",
                 ["reflectionIntensity"] = "1",
                 ["postProcessProfileAssetRef"] = "profile.environment.flight",
@@ -1372,6 +1372,31 @@ namespace GameCult.Aetheria.State.Verse
                 MaxX = 768,
                 MaxY = 768
             };
+        }
+
+        private static (double X, double Y, double Z) ResolveStellarAmbient(
+            AetheriaRuntimeZoneSnapshotCommit zone)
+        {
+            var suns = (zone?.Bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>())
+                .Where(body => body != null &&
+                    string.Equals(body.Kind, "sun", StringComparison.OrdinalIgnoreCase) &&
+                    body.SunVisual != null)
+                .Select(body => new
+                {
+                    Visual = body.SunVisual,
+                    Weight = Math.Pow(Math.Max(0, body.Mass), 0.25) *
+                        Math.Max(0.01, body.SunVisual.LightRadiusMultiplier)
+                })
+                .Where(value => value.Weight > 0)
+                .ToArray();
+            if (suns.Length == 0)
+                return (0.2, 0.2, 0.2);
+
+            var weight = suns.Sum(value => value.Weight);
+            return (
+                suns.Sum(value => Math.Max(0, value.Visual.LightColorX) * value.Weight) / weight,
+                suns.Sum(value => Math.Max(0, value.Visual.LightColorY) * value.Weight) / weight,
+                suns.Sum(value => Math.Max(0, value.Visual.LightColorZ) * value.Weight) / weight);
         }
 
         private static string PlayableWorldEntityId(
