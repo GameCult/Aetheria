@@ -453,7 +453,10 @@ namespace GameCult.Aetheria.State.Verse
             int key)
         {
             var value = Field(payload, key);
-            return (value?.Children ?? Array.Empty<AetheriaRuntimeBehaviorValue>())
+            var serializedKeys = value?.Children != null && value.Children.Count > 0
+                ? value.Children[0].Children
+                : Array.Empty<AetheriaRuntimeBehaviorValue>();
+            return serializedKeys
                 .Select(curveKey => new AetheriaRuntimeCurveKey(
                     ChildNumber(curveKey, 0),
                     ChildNumber(curveKey, 1),

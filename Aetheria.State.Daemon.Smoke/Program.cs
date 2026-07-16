@@ -1730,7 +1730,15 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         false,
         "",
         "",
-        keys.Select(key => Vector(key.Time, key.Value, key.InTangent, key.OutTangent)).ToArray(),
+        [new AetheriaRuntimeBehaviorValue(
+            "array",
+            "",
+            0,
+            false,
+            "",
+            "",
+            keys.Select(key => Vector(key.Time, key.Value, key.InTangent, key.OutTangent)).ToArray(),
+            Array.Empty<AetheriaRuntimeBehaviorMapEntry>())],
         Array.Empty<AetheriaRuntimeBehaviorMapEntry>());
 
     private static AetheriaRuntimeBehaviorPayload AetherDrivePayload(
