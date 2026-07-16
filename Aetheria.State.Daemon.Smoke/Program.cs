@@ -230,6 +230,12 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 volume.Props["layerTargetDescriptors"].Contains("fog.surface_height=2,2,false,bilinear", StringComparison.Ordinal) &&
                 volume.Props["layerTargetDescriptors"].Contains("fog.tint=0.5,0.5,true,trilinear", StringComparison.Ordinal) &&
                 volume.Props["viewportTextureScaleBindings"] == "ditherCoordinates=dither" &&
+                volume.Props["viewportAnchor"] == stardust.Props["viewportAnchor"] &&
+                volume.Props["span"] == stardust.Props["span"] &&
+                volume.Props["cellWorldSize"] == stardust.Props["cellWorldSize"] &&
+                volume.Props["gravityTexelsPerCell"] == stardust.Props["gravityTexelsPerCell"] &&
+                volume.Props["viewportSnapLayer"] == stardust.Props["viewportSnapLayer"] &&
+                volume.Props["viewportSnapTexels"] == stardust.Props["viewportSnapTexels"] &&
                 volume.Props["documentFloatBindings"] == "simulationTimeSeconds=flowScroll,0.025,0" &&
                 !volume.Props.ContainsKey("vectorParameters"),
             "portable Eve volume surfaces must name logical ports rather than Unity shader properties");
@@ -788,6 +794,11 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         Require(world.Props["skyboxAssetRef"] == "material.environment.skybox" &&
                 world.Props["reflectionAssetRef"] == "texture.environment.reflection" &&
                 world.Props["postProcessProfileAssetRef"] == "profile.environment.flight" &&
+                world.Props["cameraReconstruction"] == "temporal-reprojection.v1" &&
+                world.Props["temporalQuality"] == "high" &&
+                world.Props["temporalHistoryBlend"] == "0.99" &&
+                world.Props["temporalJitterScale"] == "0.1" &&
+                world.Props["temporalSharpening"] == "0" &&
                 world.Props["reflectionIntensity"] == "1" &&
                 world.Props["ambientLightIntensity"] == "1.46" &&
                 !world.Props.ContainsKey("keyLightDirection") &&

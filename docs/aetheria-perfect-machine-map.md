@@ -1015,6 +1015,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   bloom, histogram dark-scene exposure bound, contrast, vignette, and grain.
 - Outputs: the generic Unity lowerer resolves a `VolumeProfile`, enables URP
   post-processing on the leased camera, and installs one global runtime volume.
+  The same world view advertises `temporal-reprojection.v1` with the fossil
+  pilot camera's `0.99` history blend, `0.1` jitter scale, zero sharpening, and
+  high quality; EveUnity lowers those neutral values to URP TAA.
 - Derived state: the Unity `Volume`, additional-camera data, and enabled flag are
   client presentation state. They restore or disappear when the camera lease
   ends.
@@ -1121,7 +1124,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   truncation toward zero. The snapped center becomes both the raster viewport
   center and `_GridTransform.xy`. A 2000-wide viewport is rejected because it
   aliases the gravity and particle lattices even when particle hashing itself
-  is correct.
+  is correct. Fog and particles do not separately project that frame: both
+  generic lowerers call the same viewport-frame resolver and receive identical
+  `EveFieldsViewport` bounds.
 - Derived state: GPU buffers, generated quads, raster targets, keywords, and
   draw calls are client presentation state. They cannot feed simulation.
 - Forbidden writers: EveUnity cannot reseed, pool, randomly initialize, move,
@@ -1138,6 +1143,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   all seven particle floats bit-identical while the same buffer slot changes
   identity. The released witness must record 65,536 particles, one compute
   dispatch and one pilot-camera draw while the map camera remains isolated.
+  The released `0.3.56` witness additionally requires the live fog and particle
+  grid centers to be equal and the leased pilot camera to report URP temporal
+  anti-aliasing with the advertised history and jitter values.
 
 ### Gravity Fog Presentation Contract
 
