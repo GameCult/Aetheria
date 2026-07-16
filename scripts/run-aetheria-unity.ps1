@@ -54,7 +54,7 @@ $daemon = Start-Process dotnet -ArgumentList @(
   "--client-cultmesh-host", "127.0.0.1",
   "--client-cultmesh-advertise-host", "127.0.0.1",
   "--client-cultmesh-port", $Port,
-  "--tick-interval-ms", 250,
+  "--tick-interval-ms", 20,
   "--fixed-delta-ms", 20,
   "--no-odin-announcements"
 ) -PassThru -WindowStyle Hidden -RedirectStandardOutput $daemonLog -RedirectStandardError "$daemonLog.error"

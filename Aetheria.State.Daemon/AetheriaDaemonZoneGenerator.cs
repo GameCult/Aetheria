@@ -90,17 +90,8 @@ internal static class AetheriaDaemonZoneGenerator
             GravityTerrainDepthExponent = 1.18,
             GravityTerrainBoundaryFog = 0.25,
             GravityTerrainWaveFrequency = 0.55,
-            NextPickupIndex = 1,
-            DroppedPickups =
-            [
-                new AetheriaDroppedPickupSnapshot
-                {
-                    PickupIndex = 0,
-                    Position = Vec3(-50, 0, 40),
-                    Velocity = Vec3(0, 0, 0),
-                    Item = new AetheriaLoadoutItem { ItemKey = "scrap-metal", Quantity = 1 }
-                }
-            ]
+            NextPickupIndex = 0,
+            DroppedPickups = Array.Empty<AetheriaDroppedPickupSnapshot>()
         }).ConfigureAwait(false);
 
         for (var i = 0; i < entities.Length; i++)
@@ -230,7 +221,7 @@ internal static class AetheriaDaemonZoneGenerator
             Entity(loadouts, availabilityFactions, "Torch Three", "ship", -235, 210, 8, -4, "player", 500, keys[7], [keys[0], keys[1], keys[7]], ["micro-missile", "coolant-pack"]),
             Entity(loadouts, availabilityFactions, "Foundry Tug", "ship", 330, -155, -2, 3, "player", 390, keys[6], [keys[0], keys[1], keys[6], keys[10]], ["ore-canister", "field-rations"]),
             Entity(loadouts, availabilityFactions, "Derelict Relay", "station", -390, 270, 0, 0, "neutral", 160, "", [keys[0], keys[3]], ["ancient-transponder"]),
-            Entity(loadouts, availabilityFactions, "Ash Raider", "ship", 20, -30, -5, -2, "raider", 320, "", [keys[0], keys[1], keys[2], keys[4]], ["scrap-metal", "stolen-capacitor"]),
+            Entity(loadouts, availabilityFactions, "Ash Raider", "ship", 20, -30, -5, -2, "raider", 320, "", [keys[0], keys[1], keys[2], keys[4]], []),
             Entity(loadouts, availabilityFactions, "Cinder Knife", "ship", 585, -115, -7, 1, "raider", 280, "", [keys[0], keys[3]], ["volatile-fuel"]),
             Entity(loadouts, availabilityFactions, "Blackwake", "ship", 690, 300, -4, -3, "raider", 230, "", [keys[2]], ["ore-cache", "burned-relay-core"]),
             Entity(loadouts, availabilityFactions, "Vesper Sloop", "ship", 960, 620, -3, -5, "raider", 250, "", [keys[4]], ["stolen-map-fragment"]),
@@ -246,6 +237,51 @@ internal static class AetheriaDaemonZoneGenerator
                 Items = Array.Empty<AetheriaLoadoutItemSlot>()
             }
         ];
+        entities[6].StatGrids =
+        [
+            StatGrid("hull", 1),
+            StatGrid("shield", 0),
+            StatGrid("heat", 0)
+        ];
+        var salvage = entities[6].Equipment.FirstOrDefault()
+            ?? throw new InvalidOperationException("The starter raider loadout produced no canonical salvage item.");
+        var salvageSelection = entities[6].LoadoutGeneration.Selections.First(selection =>
+            string.Equals(selection.Role, "equipment", StringComparison.Ordinal) &&
+            string.Equals(selection.ItemKey, salvage.ItemKey, StringComparison.Ordinal));
+        entities[6].CargoContents =
+        [
+            new AetheriaCargoBayLoadout
+            {
+                Items =
+                [
+                    new AetheriaLoadoutItemSlot
+                    {
+                        Item = new AetheriaLoadoutItem
+                        {
+                            ItemKey = salvage.ItemKey,
+                            Quality = salvage.Quality,
+                            Durability = salvage.Durability,
+                            Quantity = 1,
+                            Enabled = true
+                        }
+                    }
+                ]
+            }
+        ];
+        entities[6].Equipment = Array.Empty<AetheriaEntityItemSlot>();
+        entities[6].WeaponGroups = Array.Empty<AetheriaWeaponGroupSnapshot>();
+        entities[6].LoadoutGeneration.Selections = entities[6].LoadoutGeneration.Selections
+            .Where(selection => string.Equals(selection.Role, "hull", StringComparison.Ordinal))
+            .Append(new AetheriaLoadoutGenerationSelection
+            {
+                Role = "cargo",
+                ItemKey = salvageSelection.ItemKey,
+                ManufacturerKey = salvageSelection.ManufacturerKey,
+                Price = salvageSelection.Price,
+                ManufacturerDistance = salvageSelection.ManufacturerDistance,
+                Allegiance = salvageSelection.Allegiance
+            })
+            .ToArray();
         entities[2].AgentTaskCapabilities = ["attack", "defend", "explore"];
         entities[3].AgentTaskCapabilities = ["attack", "defend"];
         entities[4].AgentTaskCapabilities = ["mine", "haul", "tow", "explore"];

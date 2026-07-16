@@ -2433,6 +2433,21 @@ predicate that still needs legacy DTO objects must earn that dependency by
 using behavior objects or simulation-only methods that typed facets do not yet
 expose.
 
+The released-package proof keeps two lifecycle claims separate. The
+`cold-start-lowering` profile begins with an empty cache, receives and verifies
+the 46,412,384-byte provider body through `cultmesh.content.v1`, promotes the
+exact hash with no partial, and proves generic world, field-volume, movement,
+environment, and pilot/map camera lowering. The `full-session-gameplay` profile
+starts a fresh warm daemon session, begins with no pickup, destroys the
+deterministic salvage target, observes its canonical cargo drop, and collects
+it exactly once from a persisted Ymir Begin fact. Witness runners use the
+daemon's native 20 ms wall interval for its 20 ms simulation delta; download
+latency is not allowed to redefine transient world lifetime. The managed
+network content path is proven, while negotiated mapped/zero-copy body delivery
+remains CultMesh work. The fog contract and provider shader execute, but the
+current brown-black output is not visual parity with the fossil's blue gravity
+sea.
+
 Ymir restart ownership is deliberately private and asymmetric:
 
 - Owner: `AetheriaYmirPersistenceCoordinator` owns reconstruction durability;
