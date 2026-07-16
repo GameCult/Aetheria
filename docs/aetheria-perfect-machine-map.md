@@ -1161,7 +1161,8 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   length, negotiated chunk requests, and resumable client checkpoint.
 - Outputs: snapshot delivery publishes the typed artifact manifest only;
   content-session requests return bounded byte ranges which the generic runtime
-  verifies and atomically promotes to a hash-named `.body`.
+  verifies and atomically promotes to a hash-named `.body`, then binds to a
+  read-only mapped-body lease for Unity loading.
 - Derived state: Unity `AssetBundle` instances, native prefab lookup, cache
   files, progress UI, and screenshots cannot publish or mutate provider bytes.
 - Forbidden writers: batched snapshot chunks and the former
@@ -1169,9 +1170,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   renderer code cannot smuggle bundle bytes through state records.
 - Shared paths: cold transfer, resume, and warm cache reuse all resolve the same
   advertised manifest and content hash through the generic runtime transport.
-- Cut line: CultMesh snapshots index manifests; managed content sessions are the
-  sole bundle-body transport until a negotiated mapped/network body transport
-  replaces their byte-copy implementation.
+- Cut line: CultMesh snapshots index manifests; managed content sessions own
+  remote bytes, verification, and promotion. Mapped-body negotiation begins only
+  at the returned final path and cannot map partials or reconstruct cache names.
 
 - Owner: `Aetheria.State` owns the new typed state spine for durable state.
   The embedded `GameCult.Aetheria.State.Unity` package owns Unity's runtime
@@ -2590,16 +2591,18 @@ expose.
 
 The released-package proof keeps two lifecycle claims separate. The
 `cold-start-lowering` profile begins with an empty cache, receives and verifies
-the 46,412,384-byte provider body through `cultmesh.content.v1`, promotes the
-exact hash with no partial, and proves generic world, field-volume, movement,
+the 55,539,565-byte provider body through `cultmesh.content.v1`, promotes the
+exact hash with no partial, negotiates `SharedFileMapping` over the exact
+transfer-owned file, and proves generic world, field-volume, movement,
 environment, and pilot/map camera lowering. The `full-session-gameplay` profile
 starts a fresh warm daemon session, begins with no pickup, destroys the
 deterministic salvage target, observes its canonical cargo drop, and collects
 it exactly once from a persisted Ymir Begin fact. Witness runners use the
 daemon's native 20 ms wall interval for its 20 ms simulation delta; download
-latency is not allowed to redefine transient world lifetime. The managed
-network content path is proven, while negotiated mapped/zero-copy body delivery
-remains CultMesh work. The fog contract and provider shader execute. Terminus
+latency is not allowed to redefine transient world lifetime. Managed network
+delivery and verified local file mapping are proven. Provider-to-client network
+zero-copy, shared-memory delivery, and GPU zero-copy remain CultMesh/runtime
+work. The fog contract and provider shader execute. Terminus
 now publishes its blue fog tint from the daemon-owned sun visual rather than an
 unrelated brown calibration; the generic runtime applies the same field ABI.
 The warm witness records `225,293` changed pilot pixels, average luminance

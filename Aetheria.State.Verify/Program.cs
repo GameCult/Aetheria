@@ -696,6 +696,8 @@ static void RequireSharedEvePackagesImportedFromEveRepo(string root)
 {
     var manifestPath = Path.Combine(root, "Aetheria.Unity", "Packages", "manifest.json");
     var lockPath = Path.Combine(root, "Aetheria.Unity", "Packages", "packages-lock.json");
+    var authoringManifestPath = Path.Combine(root, "Packages", "manifest.json");
+    var authoringLockPath = Path.Combine(root, "Packages", "packages-lock.json");
     var unityAsmdefPath = Path.Combine(
         root,
         "Packages",
@@ -765,6 +767,12 @@ static void RequireSharedEvePackagesImportedFromEveRepo(string root)
     var packageLock = File.Exists(lockPath)
         ? File.ReadAllText(lockPath)
         : throw new InvalidOperationException("Cannot verify shared Eve package ownership; packages-lock.json is missing.");
+    var authoringManifest = File.Exists(authoringManifestPath)
+        ? File.ReadAllText(authoringManifestPath)
+        : throw new InvalidOperationException("Cannot verify asset-authoring package ownership; manifest.json is missing.");
+    var authoringPackageLock = File.Exists(authoringLockPath)
+        ? File.ReadAllText(authoringLockPath)
+        : throw new InvalidOperationException("Cannot verify asset-authoring package ownership; packages-lock.json is missing.");
     var unityAsmdef = File.Exists(unityAsmdefPath)
         ? File.ReadAllText(unityAsmdefPath)
         : throw new InvalidOperationException("Cannot verify shared Eve package ownership; GameCult.Aetheria.State.Unity.asmdef is missing.");
@@ -798,10 +806,10 @@ static void RequireSharedEvePackagesImportedFromEveRepo(string root)
 
     var requiredManifestSymbols = new[]
     {
-        "\"org.gamecult.cultlib\": \"https://github.com/GameCult/CultLib.git?path=/unity/org.gamecult.cultlib#cultlib-unity-v1.0.14\"",
+        "\"org.gamecult.cultlib\": \"https://github.com/GameCult/CultLib.git?path=/unity/org.gamecult.cultlib#cultlib-unity-v1.0.15\"",
         "\"org.gamecult.eve.plugin-fields\": \"https://github.com/GameCult/EvePlugins.git?path=/plugins/eve-plugin-fields/unity/org.gamecult.eve.plugin-fields#eve-plugin-fields-unity-v0.2.3\"",
         "\"org.gamecult.eve.surface\": \"https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.surface#eveunity-surface-v0.2.2\"",
-        "\"org.gamecult.eve.unity-scene\": \"https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.unity-scene#eveunity-scene-v0.3.52\""
+        "\"org.gamecult.eve.unity-scene\": \"https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.unity-scene#eveunity-scene-v0.3.53\""
     };
 
     var missingManifestSymbols = requiredManifestSymbols
@@ -817,10 +825,10 @@ static void RequireSharedEvePackagesImportedFromEveRepo(string root)
 
     var requiredLockSymbols = new[]
     {
-        "cultlib-unity-v1.0.14",
+        "cultlib-unity-v1.0.15",
         "eve-plugin-fields-unity-v0.2.3",
         "eveunity-surface-v0.2.2",
-        "eveunity-scene-v0.3.52",
+        "eveunity-scene-v0.3.53",
         "\"source\": \"git\""
     };
 
@@ -833,6 +841,16 @@ static void RequireSharedEvePackagesImportedFromEveRepo(string root)
         throw new InvalidOperationException(
             "Unity lockfile no longer records the tagged EveUnity package imports: " +
             string.Join(", ", missingLockSymbols));
+    }
+
+    const string requiredAuthoringCultLib =
+        "https://github.com/GameCult/CultLib.git?path=/unity/org.gamecult.cultlib#cultlib-unity-v1.0.15";
+    if (!authoringManifest.Contains(requiredAuthoringCultLib, StringComparison.Ordinal) ||
+        !authoringPackageLock.Contains(requiredAuthoringCultLib, StringComparison.Ordinal) ||
+        !authoringPackageLock.Contains("419053ebe2325848051c4f4d8ba352cd4286c424", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "The fossil asset-authoring Unity project is not pinned to the released CultLib body required by the generic scene package.");
     }
 
     if (Directory.Exists(localSurfacePath) || Directory.Exists(localUnityUiToolkitPath))
