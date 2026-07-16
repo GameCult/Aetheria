@@ -668,10 +668,10 @@ namespace Aetheria.Editor
                 throw new InvalidOperationException("Aetheria flight profile has no serialized ACES tonemapping component.");
             if (!profile.TryGet(out ColorAdjustments color) ||
                 !color.postExposure.overrideState ||
-                !Mathf.Approximately(color.postExposure.value, 2f) ||
+                !Mathf.Approximately(color.postExposure.value, 0f) ||
                 !color.contrast.overrideState ||
                 !Mathf.Approximately(color.contrast.value, 15f))
-                throw new InvalidOperationException("Aetheria flight profile has no serialized exposure/contrast component.");
+                throw new InvalidOperationException("Aetheria flight profile has no neutral exposure/contrast component.");
             if (!profile.TryGet(out Bloom bloom) ||
                 !bloom.intensity.overrideState ||
                 !Mathf.Approximately(bloom.intensity.value, 3f) ||

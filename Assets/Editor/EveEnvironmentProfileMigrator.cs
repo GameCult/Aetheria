@@ -23,10 +23,9 @@ namespace Aetheria.Editor
             tonemapping.mode.Override(TonemappingMode.ACES);
 
             var color = VolumeProfileFactory.CreateVolumeComponent<ColorAdjustments>(profile, true, false);
-            // The fossil histogram exposure clamps average luminance to 2^-3 and
-            // uses a 0.5 middle-grey key. At that dark-scene bound the resulting
-            // exposure is 4x, which is the fixed URP equivalent available here.
-            color.postExposure.Override(2f);
+            // Histogram exposure is lowered separately from the generic Eve
+            // camera contract. The static profile must not become a second owner.
+            color.postExposure.Override(0f);
             color.contrast.Override(15f);
 
             var bloom = VolumeProfileFactory.CreateVolumeComponent<Bloom>(profile, true, false);

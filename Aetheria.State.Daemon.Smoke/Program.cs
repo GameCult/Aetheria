@@ -820,6 +820,15 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 world.Props["ambientLightColor"] == "0.5,0.75,1" &&
                 world.Props["reflectionAssetRef"] == "texture.environment.reflection" &&
                 world.Props["postProcessProfileAssetRef"] == "profile.environment.flight" &&
+                world.Props["exposureMode"] == "histogram.v1" &&
+                world.Props["exposureLowPercent"] == "47.37294" &&
+                world.Props["exposureHighPercent"] == "99" &&
+                world.Props["exposureMinimumEv"] == "-3" &&
+                world.Props["exposureMaximumEv"] == "0.3" &&
+                world.Props["exposureKeyValue"] == "0.5" &&
+                world.Props["exposureAdaptation"] == "progressive" &&
+                world.Props["exposureSpeedUp"] == "2" &&
+                world.Props["exposureSpeedDown"] == "1" &&
                 world.Props["cameraReconstruction"] == "temporal-reprojection.v1" &&
                 world.Props["temporalQuality"] == "high" &&
                 world.Props["temporalHistoryBlend"] == "0.99" &&
