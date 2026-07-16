@@ -3,13 +3,16 @@ using System.IO;
 using System.Text;
 using GameCult.Aetheria.State.Verse;
 using UnityEditor;
+using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
 [InitializeOnLoad]
 public static class AetheriaRenderProbe
 {
-    private const string RelativeOutputDirectory = "Temp/AetheriaRenderProbe";
+    private const string RelativeOutputDirectory = "Library/AetheriaRenderProbe";
+    private const string ReferenceCaptureSessionKey = "AetheriaRenderProbe.CaptureArpgReference";
+    private const string ReferenceCaptureDeadlineSessionKey = "AetheriaRenderProbe.CaptureArpgReference.Deadline";
 
     private static string ProjectRoot =>
         Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
@@ -23,6 +26,7 @@ public static class AetheriaRenderProbe
     static AetheriaRenderProbe()
     {
         EditorApplication.update += Poll;
+        EditorApplication.update += CaptureArpgWhenReady;
     }
 
     private static void Poll()
@@ -72,6 +76,9 @@ public static class AetheriaRenderProbe
         if (camera != null)
             VolumeSampling.RenderForCamera(camera);
 
+        if (camera != null)
+            DumpCamera(camera, summary);
+
         DumpVolumeSamplers(summary);
         DumpVolumeCloudRenderers(camera, summary);
         DumpGlobalTexture(summary, "_NebulaSurfaceHeight", "nebula-surface-height.png");
@@ -80,12 +87,61 @@ public static class AetheriaRenderProbe
         DumpGlobalTexture(summary, "_NebulaTint", "nebula-tint.png");
         DumpGlobalTexture(summary, "_AetheriaGravityHeight", "gravity-height.png");
 
-        if (camera != null)
-            DumpCamera(camera, summary);
-
         File.WriteAllText(Path.Combine(OutputDirectory, "summary.txt"), summary.ToString());
         AssetDatabase.Refresh();
         Debug.Log($"Aetheria render probe wrote {Path.GetFullPath(OutputDirectory)}");
+    }
+
+    public static void CaptureArpgReference()
+    {
+        EditorSceneManager.OpenScene("Assets/Scenes/ARPG.unity", OpenSceneMode.Single);
+        AetheriaUrpBootstrap.EnsureUrpAssetsAndAssign();
+        SessionState.SetBool(ReferenceCaptureSessionKey, true);
+        SessionState.SetString(
+            ReferenceCaptureDeadlineSessionKey,
+            (EditorApplication.timeSinceStartup + 15.0).ToString("R", System.Globalization.CultureInfo.InvariantCulture));
+        EditorApplication.EnterPlaymode();
+    }
+
+    private static void CaptureArpgWhenReady()
+    {
+        if (!SessionState.GetBool(ReferenceCaptureSessionKey, false))
+            return;
+        if (!EditorApplication.isPlaying || EditorApplication.isCompiling)
+            return;
+
+        var rendered = false;
+        foreach (var renderer in Resources.FindObjectsOfTypeAll<VolumeCloudRenderer>())
+        {
+            if (renderer != null && renderer.gameObject.scene.IsValid() && renderer.DebugRenderCount > 0)
+            {
+                rendered = true;
+                break;
+            }
+        }
+
+        var deadlineText = SessionState.GetString(ReferenceCaptureDeadlineSessionKey, "0");
+        double.TryParse(
+            deadlineText,
+            System.Globalization.NumberStyles.Float,
+            System.Globalization.CultureInfo.InvariantCulture,
+            out var deadline);
+        if (!rendered && EditorApplication.timeSinceStartup < deadline)
+            return;
+
+        SessionState.SetBool(ReferenceCaptureSessionKey, false);
+        try
+        {
+            Capture();
+            EditorApplication.Exit(0);
+        }
+        catch (Exception error)
+        {
+            Directory.CreateDirectory(OutputDirectory);
+            File.WriteAllText(Path.Combine(OutputDirectory, "error.txt"), error.ToString());
+            Debug.LogException(error);
+            EditorApplication.Exit(1);
+        }
     }
 
     private static Camera ResolveCamera()
@@ -155,15 +211,16 @@ public static class AetheriaRenderProbe
 
             summary.AppendLine($"- {sampler.name} enabled={sampler.enabled} active={sampler.gameObject.activeInHierarchy}");
             summary.AppendLine($"  GridCamera={NameOf(sampler.GridCamera)} GridMesh={NameOf(sampler.GridMesh)}");
-            summary.AppendLine($"  SceneSplatSource={NameOf(sampler.SceneSplatSource)} SplatLayerRenderer={NameOf(sampler.SplatLayerRenderer)}");
+            summary.AppendLine($"  SplatLayerRenderer={NameOf(sampler.SplatLayerRenderer)}");
             summary.AppendLine($"  Surface={TextureFacts(sampler.NebulaSurfaceHeight)}");
             summary.AppendLine($"  PatchHeight={TextureFacts(sampler.NebulaPatchHeight)}");
             summary.AppendLine($"  Patch={TextureFacts(sampler.NebulaPatch)}");
             summary.AppendLine($"  Tint={TextureFacts(sampler.NebulaTint)}");
             DumpSamplerEnvironment(sampler, summary);
-
-            if (sampler.SceneSplatSource != null)
-                DumpSceneSplatDocument(sampler, summary);
+            SaveTextureExr(sampler.NebulaSurfaceHeight, Path.Combine(OutputDirectory, "fossil-nebula-surface-height.exr"));
+            SaveTextureExr(sampler.NebulaPatchHeight, Path.Combine(OutputDirectory, "fossil-nebula-patch-height.exr"));
+            SaveTextureExr(sampler.NebulaPatch, Path.Combine(OutputDirectory, "fossil-nebula-patch.exr"));
+            SaveTextureExr(sampler.NebulaTint, Path.Combine(OutputDirectory, "fossil-nebula-tint.exr"));
         }
     }
 
@@ -192,27 +249,6 @@ public static class AetheriaRenderProbe
             $"  Flow GlobalScale={environment.Flow.GlobalScale} GlobalAmplitude={environment.Flow.GlobalAmplitude} GlobalScrollSpeed={environment.Flow.GlobalScrollSpeed} Period={environment.Flow.Period} SlopeAmplitude={environment.Flow.SlopeAmplitude} SwirlAmplitude={environment.Flow.SwirlAmplitude}");
         summary.AppendLine(
             $"  Grid Enabled={environment.Grid.Enabled} Offset={environment.Grid.Offset}");
-    }
-
-    private static void DumpSceneSplatDocument(VolumeSampling sampler, StringBuilder summary)
-    {
-        var size = sampler.GridCamera != null
-            ? new Vector2(sampler.GridCamera.orthographicSize * 2f, sampler.GridCamera.orthographicSize * 2f)
-            : new Vector2(1024f, 1024f);
-        var centerTransform = sampler.GridCamera != null ? sampler.GridCamera.transform : sampler.transform;
-        var center = centerTransform != null
-            ? new Vector2(centerTransform.position.x, centerTransform.position.z)
-            : Vector2.zero;
-        var half = size * 0.5f;
-        var document = sampler.SceneSplatSource.BuildDocument(new AetheriaRuntimeViewportBounds
-        {
-            MinX = center.x - half.x,
-            MinY = center.y - half.y,
-            MaxX = center.x + half.x,
-            MaxY = center.y + half.y
-        });
-
-        summary.AppendLine($"  SceneDocument layers={document.Layers?.Count ?? 0} splats={document.Splats?.Count ?? 0}");
     }
 
     private static void DumpGlobalTexture(StringBuilder summary, string globalName, string fileName)
@@ -255,6 +291,37 @@ public static class AetheriaRenderProbe
         {
             Graphics.Blit(texture, target);
             SaveRenderTexture(target, path);
+        }
+        finally
+        {
+            RenderTexture.active = previous;
+            RenderTexture.ReleaseTemporary(target);
+        }
+    }
+
+    private static void SaveTextureExr(Texture texture, string path)
+    {
+        if (texture == null)
+            return;
+        var width = Mathf.Max(1, texture.width);
+        var height = Mathf.Max(1, texture.height);
+        var target = RenderTexture.GetTemporary(width, height, 0, RenderTextureFormat.ARGBFloat);
+        var previous = RenderTexture.active;
+        try
+        {
+            Graphics.Blit(texture, target);
+            RenderTexture.active = target;
+            var image = new Texture2D(width, height, TextureFormat.RGBAFloat, false, true);
+            try
+            {
+                image.ReadPixels(new Rect(0, 0, width, height), 0, 0);
+                image.Apply();
+                File.WriteAllBytes(path, image.EncodeToEXR(Texture2D.EXRFlags.OutputAsFloat));
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(image);
+            }
         }
         finally
         {

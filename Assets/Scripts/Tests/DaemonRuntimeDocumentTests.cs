@@ -719,12 +719,17 @@ public class DaemonRuntimeDocumentTests
             asset.Ref.AssetKey == "shader.environment.gravity-fog" &&
             asset.Ref.Kind == AetheriaRuntimeAssetKinds.Shader &&
             asset.Ref.Metadata["unity.volume.texturePort.surfaceHeight"] == "_NebulaSurfaceHeight" &&
+            asset.Ref.Metadata["unity.volume.matrixPort.cameraToWorld"] == "_CamToWorld" &&
             asset.Ref.Metadata["unity.volume.pass.temporal"] == "1" &&
             asset.Ref.Metadata["unity.volume.texturePort.currentSample"] == "_UndersampleCloudTex" &&
             asset.Ref.Metadata["unity.volume.texturePort.history"] == "_MainTex"));
         Assert.IsTrue(assetManifest.Assets.Any(asset =>
             asset.Ref.AssetKey == "texture.environment.volume-dither" &&
             asset.Ref.Kind == AetheriaRuntimeAssetKinds.Texture));
+        Assert.IsTrue(assetManifest.Assets.Any(asset =>
+            asset.Ref.AssetKey == "profile.environment.flight" &&
+            asset.Ref.Kind == AetheriaRuntimeAssetKinds.VolumeProfile &&
+            asset.Ref.Metadata["presentationRole"] == "environment.post-process.flight"));
         var editorTuiSurface = result.EditorTuiSurface;
         Assert.AreEqual("aetheria.daemon", editorTuiSurface.ProviderId);
         Assert.AreEqual("editor.daemon", editorTuiSurface.ProviderKind);

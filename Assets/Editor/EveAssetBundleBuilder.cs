@@ -28,6 +28,7 @@ namespace Aetheria.Editor
         private static void Build(BuildTarget target)
         {
             EveThermalProfileMigrator.EnsureGenerated();
+            EveEnvironmentProfileMigrator.EnsureGenerated();
             var output = ResolveOutput(target);
             Directory.CreateDirectory(output);
 
@@ -529,6 +530,9 @@ namespace Aetheria.Editor
                 var reflection = LoadAuthoredAsset<Cubemap>(bundle, assetNames, "Assets/Textures/studio2.hdr");
                 if (reflection == null)
                     throw new InvalidOperationException("Aetheria Eve bundle has no provider reflection cubemap.");
+                var postProcess = LoadAuthoredAsset<VolumeProfile>(bundle, assetNames, EveEnvironmentProfileMigrator.FlightProfilePath);
+                if (postProcess == null)
+                    throw new InvalidOperationException("Aetheria Eve bundle has no provider flight post-process profile.");
                 var gravityFog = LoadAuthoredAsset<Shader>(bundle, assetNames, "Assets/Shaders/Raymarching/CloudShader.shader");
                 if (gravityFog == null || !gravityFog.isSupported)
                     throw new InvalidOperationException("Aetheria Eve bundle has no supported gravity-fog volume shader.");

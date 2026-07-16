@@ -621,6 +621,7 @@ namespace GameCult.Aetheria.State.Verse
                 ["skyboxAssetRef"] = "material.environment.skybox",
                 ["reflectionAssetRef"] = "texture.environment.reflection",
                 ["reflectionIntensity"] = "1",
+                ["postProcessProfileAssetRef"] = "profile.environment.flight",
                 ["keyLightDirection"] = "0.4,-1,0.25",
                 ["keyLightColor"] = "1,0.95,0.9",
                 ["keyLightIntensity"] = "0.75",
@@ -698,8 +699,13 @@ namespace GameCult.Aetheria.State.Verse
                 ["textureHeight"] = "1024",
                 ["downsample"] = "0",
                 ["layerBindings"] = "fog.surface_height=surfaceHeight;fog.patch_height=patchHeight;fog.patch=patch;fog.tint=tint",
+                ["layerTargetDescriptors"] = "fog.surface_height=2,2,false,bilinear;" +
+                    "fog.patch_height=0.25,0.25,false,bilinear;" +
+                    "fog.patch=0.5,0.5,false,bilinear;" +
+                    "fog.tint=0.5,0.5,true,trilinear",
                 ["assetTextureBindings"] = "texture.environment.volume-dither=dither",
                 ["viewportTextureScaleBindings"] = "ditherCoordinates=dither",
+                ["documentFloatBindings"] = "simulationTimeSeconds=flowScroll,0.025,0",
                 ["floatParameters"] = "fillDensity=0.000000001;fillDistance=120;fillExponent=5;fillOffset=70;" +
                     "patchDensity=0.35;floorOffset=-20;floorBlend=10;patchBlend=25;luminance=1;extinction=0.5;" +
                     "tintLodExponent=-0.45;safetyDistance=30;flowScale=512;flowAmplitude=15;flowPeriod=8;" +

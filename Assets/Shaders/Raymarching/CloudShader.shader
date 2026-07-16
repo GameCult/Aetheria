@@ -11,6 +11,7 @@ Shader "Aetheria/CloudShader"
 		[HideInInspector] _NebulaPatch("NebulaPatch", 2D) = "black" {}
 		[HideInInspector] _NebulaTint("NebulaTint", 2D) = "black" {}
 		[HideInInspector] _CloudTex("CloudTex", 2D) = "black" {}
+		[HideInInspector] _UndersampleCloudTex("UndersampleCloudTex", 2D) = "black" {}
 		[HideInInspector] _CompositeOpacity("CompositeOpacity", Range(0, 1)) = 1
 	}
 
@@ -49,6 +50,7 @@ Shader "Aetheria/CloudShader"
 			sampler2D _DitheringTex;
 			float4 _DitheringCoords;
 			uniform float4x4 _CamInvProj;
+			uniform float4x4 _CamToWorld;
 
 			float _ExtinctionCoefficient;
 
@@ -164,7 +166,7 @@ Shader "Aetheria/CloudShader"
 			float4 frag (Interpolator i) : SV_Target
 			{
 				float3 vspos = float3(i.vsray, 1.0);
-				float4 worldPos = mul(unity_CameraToWorld,float4(vspos,1.0));
+				float4 worldPos = mul(_CamToWorld,float4(vspos,1.0));
 				worldPos /= worldPos.w;
 				float2 screenUV = i.screenPos.xy / i.screenPos.w;
 				float depthSample = tex2D(_CameraDepthTexture, screenUV).r;
@@ -205,6 +207,7 @@ Shader "Aetheria/CloudShader"
 				float4 _UndersampleCloudTex_TexelSize;
 
 				float4x4 _PrevVP;	//View projection matrix of last frame. Used to temporal reprojection.
+				float4x4 _CamToWorld;
 				float _ResetHistory;
 
 				//These values are needed for doing extra raymarch when out of bound.
@@ -279,7 +282,7 @@ Shader "Aetheria/CloudShader"
 
 					half outOfBound;
 					float3 previousWorldPosition = mul(
-						unity_CameraToWorld,
+						_CamToWorld,
 						float4(normalize(vspos) * distance, 1.0f)).xyz;
 					float2 prevUV = PrevUV(float4(previousWorldPosition, 1.0f), outOfBound);
 					float4 prevSample = tex2D(_MainTex, prevUV);

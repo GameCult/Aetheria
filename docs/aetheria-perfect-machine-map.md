@@ -884,6 +884,27 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
 - Cut line: the unconditional `planar.top-down-follow.v1` projection no longer
   collapses the fossil dock and flight cameras into one false top-down view.
 
+### Flight Post-Processing Contract
+
+- Owner: Aetheria selects the logical flight profile and owns its native asset
+  variants. EveUnity owns only a reversible lowering lease for the active world
+  camera.
+- Inputs: `postProcessProfileAssetRef` from the world surface and the matching
+  provider-catalog variant. The Unity authoring build derives
+  `profile.environment.flight` from the fossil ARPG global profile's ACES,
+  bloom, histogram dark-scene exposure bound, contrast, vignette, and grain.
+- Outputs: the generic Unity lowerer resolves a `VolumeProfile`, enables URP
+  post-processing on the leased camera, and installs one global runtime volume.
+- Derived state: the Unity `Volume`, additional-camera data, and enabled flag are
+  client presentation state. They restore or disappear when the camera lease
+  ends.
+- Forbidden writers: scene-local Aetheria scripts, provider-id checks, fog-color
+  heuristics, and client-authored exposure values cannot choose flight
+  presentation.
+- Cut line: the fossil scene's global `PostProcessVolume` is reference evidence,
+  not a surviving runtime owner. Missing or incompatible advertised profiles
+  fail closed instead of silently rendering a different look.
+
 ### Gravity Fog Presentation Contract
 
 - Owner: Aetheria owns gravity/fog brush placement and values, authored volume
@@ -902,6 +923,15 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   raymarch targets, ping-pong history textures, previous camera matrices, and
   viewport-derived texture scales and composite counters are runtime projections.
   They are neither daemon truth nor portable Eve state.
+- Native target topology: the provider advertises the fossil layer shapes rather
+  than letting the lowerer invent one common texture: surface height is
+  `2048x2048`, patch height is `256x256`, patch and tint are `512x512`, and only
+  tint is mipmapped/trilinear. EveUnity applies those descriptors without owning
+  the layer meanings.
+- Time and camera bindings: the splat document's daemon-authored simulation time
+  drives logical `flowScroll` through an advertised scale. The provider variant
+  maps logical camera-to-world and flow-scroll ports to native uniforms; the
+  generic runtime does not use local gameplay time or provider identifiers.
 - Semantic split: `gravity.height` is the negative gameplay terrain projection;
   `fog.surface_height` is the positive visual displacement the fossil
   `PowerBrush` camera supplied to `_NebulaSurfaceHeight`. Both derive from the
@@ -949,8 +979,14 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   complete temporal-program acceptance, partial-program rejection, portable
   `PowerPulse` GPU evaluation, and absence of Aetheria assembly references.
   Aetheria daemon smoke proves radial brush parity and that the exact fossil
-  shader ABI is advertised outside the portable surface. A live capture is still
-  required for visual parity.
+  shader ABI is advertised outside the portable surface. Released package
+  `0.3.49` proves target topology, authoritative flow time, explicit camera
+  transforms, float32 packed-output diagnostics, and both camera-channel masks.
+  The live warm capture remains visually failing: the fossil vertical-noise
+  displacement drives raymarch density to `1` within roughly three metres.
+  A controlled zero-amplitude run restores a fog horizon, isolating the open
+  parity defect to the noise/daemon-height interaction rather than transport,
+  pass ordering, camera pose, or missing field textures.
 
 ### Daemon Asset Content Delivery
 

@@ -222,13 +222,22 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         var volume = Flatten(surface.Surface.Root).Single(node => node.Kind == "field.volume3d");
         Require(volume.Props.Values.All(value => value == null || !value.Contains("_Nebula", StringComparison.Ordinal)) &&
                 volume.Props["layerBindings"].Contains("fog.surface_height=surfaceHeight", StringComparison.Ordinal) &&
+                volume.Props["layerTargetDescriptors"].Contains("fog.surface_height=2,2,false,bilinear", StringComparison.Ordinal) &&
+                volume.Props["layerTargetDescriptors"].Contains("fog.tint=0.5,0.5,true,trilinear", StringComparison.Ordinal) &&
                 volume.Props["viewportTextureScaleBindings"] == "ditherCoordinates=dither" &&
+                volume.Props["documentFloatBindings"] == "simulationTimeSeconds=flowScroll,0.025,0" &&
                 !volume.Props.ContainsKey("vectorParameters"),
             "portable Eve volume surfaces must name logical ports rather than Unity shader properties");
 
         var shader = AetheriaRuntimeAssets.ProjectManifest(null).Assets.Single(asset =>
             asset.Ref.AssetKey == "shader.environment.gravity-fog");
+        var postProcess = AetheriaRuntimeAssets.ProjectManifest(null).Assets.Single(asset =>
+            asset.Ref.AssetKey == "profile.environment.flight");
+        Require(postProcess.Ref.Kind == AetheriaRuntimeAssetKinds.VolumeProfile &&
+                postProcess.Ref.Metadata["presentationRole"] == "environment.post-process.flight",
+            "provider asset catalog must carry the advertised flight post-process profile variant");
         Require(shader.Ref.Metadata["unity.volume.texturePort.surfaceHeight"] == "_NebulaSurfaceHeight" &&
+                shader.Ref.Metadata["unity.volume.matrixPort.cameraToWorld"] == "_CamToWorld" &&
                 shader.Ref.Metadata["unity.volume.pass.raymarch"] == "0" &&
                 shader.Ref.Metadata["unity.volume.pass.temporal"] == "1" &&
                 shader.Ref.Metadata["unity.volume.pass.composite"] == "2" &&
@@ -715,6 +724,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             "undocked world must preserve the authored ARPG Third Person Rig rather than the distinct Docked Rig");
         Require(world.Props["skyboxAssetRef"] == "material.environment.skybox" &&
                 world.Props["reflectionAssetRef"] == "texture.environment.reflection" &&
+                world.Props["postProcessProfileAssetRef"] == "profile.environment.flight" &&
                 world.Props["reflectionIntensity"] == "1" &&
                 world.Props["ambientLightIntensity"] == "1.46" &&
                 world.Props["keyLightDirection"] == "0.4,-1,0.25" &&
@@ -3169,7 +3179,10 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         RequireEqual("effect.beam.tractor", tractorEffect.Ref.Metadata["presentationRole"],
             "provider manifest must bind the stripped fossil tractor prefab to the generic beam role");
         var thermalProfiles = assets.Where(asset =>
-            string.Equals(asset.Ref.Kind, AetheriaRuntimeAssetKinds.VolumeProfile, StringComparison.Ordinal)).ToArray();
+            string.Equals(asset.Ref.Kind, AetheriaRuntimeAssetKinds.VolumeProfile, StringComparison.Ordinal) &&
+            asset.Ref.Metadata.TryGetValue("presentationRole", out var role) &&
+            (role.StartsWith("post.thermal.", StringComparison.Ordinal) ||
+             string.Equals(role, "post.death", StringComparison.Ordinal))).ToArray();
         RequireEqual(5, thermalProfiles.Length,
             "provider manifest must advertise every original thermal and death volume profile");
         Require(thermalProfiles.All(asset =>

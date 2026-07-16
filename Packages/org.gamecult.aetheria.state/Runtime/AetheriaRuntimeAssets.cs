@@ -27,6 +27,7 @@ namespace GameCult.Aetheria.State.Verse
             var entries = new Dictionary<string, AetheriaRuntimeAssetManifestEntry>(StringComparer.Ordinal);
             Add(entries, EnvironmentSkyboxMaterial());
             Add(entries, EnvironmentReflectionCubemap());
+            Add(entries, EnvironmentPostProcessProfile());
             Add(entries, EnvironmentGravityFogShader());
             Add(entries, EnvironmentDitherTexture());
             Add(entries, MapIcon("entity.player", "Player", "Sprites/Icons/Stroked/Ship"));
@@ -240,6 +241,7 @@ namespace GameCult.Aetheria.State.Verse
                         ["unity.volume.texturePort.cloud"] = "_CloudTex",
                         ["unity.volume.vectorPort.viewportTransform"] = "_GridTransform",
                         ["unity.volume.matrixPort.cameraInverseViewProjection"] = "_CamInvProj",
+                        ["unity.volume.matrixPort.cameraToWorld"] = "_CamToWorld",
                         ["unity.volume.matrixPort.previousViewProjection"] = "_PrevVP",
                         ["unity.volume.vectorPort.cameraProjectionExtents"] = "_ProjectionExtents",
                         ["unity.volume.floatPort.raymarchOffset"] = "_RaymarchOffset",
@@ -259,6 +261,7 @@ namespace GameCult.Aetheria.State.Verse
                         ["unity.volume.floatPort.safetyDistance"] = "_SafetyDistance",
                         ["unity.volume.floatPort.flowScale"] = "_FlowScale",
                         ["unity.volume.floatPort.flowAmplitude"] = "_FlowAmplitude",
+                        ["unity.volume.floatPort.flowScroll"] = "_FlowScroll",
                         ["unity.volume.floatPort.flowPeriod"] = "_FlowPeriod",
                         ["unity.volume.floatPort.flowSlopeAmplitude"] = "_FlowSlopeAmplitude",
                         ["unity.volume.floatPort.flowSwirlAmplitude"] = "_FlowSwirlAmplitude",
@@ -275,6 +278,28 @@ namespace GameCult.Aetheria.State.Verse
                     }
                 },
                 Tags = new[] { "presentation", "environment", "gravity", "fog", "volume" }
+            };
+        }
+
+        public static AetheriaRuntimeAssetManifestEntry EnvironmentPostProcessProfile()
+        {
+            return new AetheriaRuntimeAssetManifestEntry
+            {
+                Ref = new AetheriaRuntimeAssetRef
+                {
+                    AssetKey = "profile.environment.flight",
+                    Kind = AetheriaRuntimeAssetKinds.VolumeProfile,
+                    Uri = CultMeshAssetUri("profile.environment.flight"),
+                    MimeType = "application/vnd.unity.volume-profile",
+                    Metadata = new Dictionary<string, string>(StringComparer.Ordinal)
+                    {
+                        ["unityAssetPath"] = "Assets/Generated/Eve/Environment/Flight.asset",
+                        ["presentationRole"] = "environment.post-process.flight",
+                        ["sourceProfile"] = "Assets/Scenes/ARPG_Profiles/Postprocessing Profile.asset",
+                        ["profileSemantics"] = "aces;bloom;fixed-dark-scene-exposure;contrast;vignette;grain"
+                    }
+                },
+                Tags = new[] { "presentation", "environment", "post-process", "flight" }
             };
         }
 
