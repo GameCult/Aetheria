@@ -16,7 +16,7 @@ namespace GameCult.Aetheria.State.Verse
             {
                 if (!intent.Active || !int.TryParse((intent.ActorEntityKey ?? "").Split('.').LastOrDefault(), out var index)) continue;
                 var entity = entities.FirstOrDefault(value => value.EntityIndex == index && value.IsActive);
-                var scanner = AetheriaRuntimeEquippedBehaviorQueries.Find(entity, catalog, "ResourceScanner")
+                var scanner = AetheriaRuntimeEquippedBehaviorQueries.FindOperational(entity, catalog, "ResourceScanner")
                     .FirstOrDefault(value => value.EquipmentIndex == intent.EquipmentIndex && value.BehaviorIndex == intent.BehaviorIndex);
                 if (entity == null || scanner == null) continue;
                 var body = (zone.Bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>()).FirstOrDefault(value => value != null && string.Equals(value.BodyKey, intent.TargetBodyKey, StringComparison.Ordinal));

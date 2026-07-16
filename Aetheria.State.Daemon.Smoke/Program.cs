@@ -161,6 +161,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             CanonicalCatalogPublishesRecoveredMineLauncher,
             EnergyFundedShieldInterceptsDamageBeforeHull,
             ArmorCellsResolveBeforeEquipmentAndHull,
+            EquipmentDestructionDisablesBehaviorAndCockpitKillsBeforeHull,
             DestructionDropsLootExactlyOnce,
             DaemonSimulationTreatsYmirHitAsPresentationOnly,
             ProjectileContactCannotKill,
@@ -1299,6 +1300,116 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             "Eve world projection must expose aggregate armor as derived presentation state");
         RequireEqual("0,5,5,0,5,5,0,5,5", targetNode.Props["armorGrid"],
             "Eve world projection must expose the exact daemon-owned schematic grid");
+    }
+
+    private static void EquipmentDestructionDisablesBehaviorAndCockpitKillsBeforeHull()
+    {
+        var source = Entity(0, -100, "player");
+        var target = Entity(1, 0, "neutral");
+        target.HullItemKey = "equipment-damage-hull";
+        target.Equipment = [new AetheriaRuntimeLoadoutItemSlotCommit
+        {
+            X = 0, Y = 0,
+            Item = new AetheriaRuntimeLoadoutItemCommit
+                { ItemKey = "damageable-weapon", Quality = 1, Durability = 1, Enabled = true }
+        }];
+        target.WeaponStates = [new AetheriaRuntimeWeaponStateCommit
+        {
+            OwnerKind = AetheriaRuntimeBehaviorStateProjector.EquipmentOwnerKind,
+            OwnerIndex = 0, BehaviorIndex = 0, BehaviorKind = "InstantWeapon",
+            Firing = true, TriggerPending = true, BurstRemaining = 2,
+            Charging = true, Charged = true, Charge = 1,
+            LockProgress = 1, LockTargetEntityIndex = source.EntityIndex
+        }];
+        var hull = HullCatalogItem("equipment-damage-hull", 1, 1, 0);
+        var weapon = CatalogItem("damageable-weapon", new AetheriaRuntimeBehaviorPayload(
+            0, "InstantWeapon", 0, []));
+        weapon.ShapeCells = [new AetheriaRuntimeShapeCell(0, 0)];
+        var catalog = new AetheriaRuntimeCatalogSnapshot([hull, weapon], [], []);
+        var zone = new AetheriaRuntimeZoneSnapshotCommit
+        {
+            ZoneIndex = 0, Entities = [source, target], PhysicalPayloads = [new AetheriaRuntimePhysicalPayloadCommit
+            {
+                PayloadId = "equipment-destruction", PayloadKind = "mine", WeaponItemKey = "test-cannon",
+                SourceEntityIndex = source.EntityIndex, PositionX = target.PositionX, PositionZ = target.PositionZ,
+                LifetimeSeconds = 30, BlastRadius = 200, PayloadMagnitude = 1,
+                TriggeredAtSeconds = 0, DetonationDelaySeconds = 0, Stationary = true, Active = true
+            }]
+        };
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "equipment-destruction-smoke", CurrentZoneIndex = 0,
+            CurrentEntityKey = "zone.0.entity.0", Zones = [zone]
+        };
+
+        AetheriaRuntimeDaemonSimulation.Step(run, new AetheriaRuntimeDaemonIntentState(), 0.1,
+            AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault, NewPhysics(), catalog, 1, 0.1);
+
+        Require(target.IsActive && Math.Abs(Stat(target, "hull") - 100) < 0.000001,
+            "destroying ordinary equipment must not manufacture hull damage or destroy the entity");
+        RequireNear(0, target.Equipment.Single().Item.Durability, 0.000001,
+            "equipment damage must durably cross into the fossil destroyed state");
+        RequireEqual(1, AetheriaRuntimeEquippedBehaviorQueries.Find(target, catalog, "InstantWeapon").Count,
+            "destroyed equipment must remain installed as durable loadout state");
+        RequireEqual(0, AetheriaRuntimeEquippedBehaviorQueries.FindOperational(target, catalog, "InstantWeapon").Count,
+            "destroyed equipment behavior must stop contributing immediately");
+        var destroyedWeaponState = target.WeaponStates.Single();
+        Require(!destroyedWeaponState.Firing && !destroyedWeaponState.TriggerPending &&
+                !destroyedWeaponState.Charging && !destroyedWeaponState.Charged &&
+                destroyedWeaponState.BurstRemaining == 0 && destroyedWeaponState.LockTargetEntityIndex < 0,
+            "destroyed weapon state must deactivate atomically instead of publishing a ghost firing effect");
+        RequireEqual(1, run.GameEvents.Count(value => value.Kind == "equipment.destroyed" &&
+            value.TargetEntityIndex == target.EntityIndex && value.ItemKey == "damageable-weapon"),
+            "the durability crossing must publish exactly one generic equipment destruction fact");
+        var surface = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(
+            new AetheriaRuntimeDaemonFrameDocument { FrameId = 1, Run = run },
+            new AetheriaRuntimeDaemonHealthDocument(),
+            AetheriaRuntimeDaemonCommandBoundaryDocument.Create("daemon"));
+        Require(Flatten(surface.Surface.Root).Any(node => node.Kind == "feedback.event" &&
+                node.Props["eventKind"] == "equipment.destroyed" &&
+                node.Props["itemKey"] == "damageable-weapon"),
+            "generic Eve clients must receive equipment destruction through provider feedback facts");
+
+        var cockpitTarget = Entity(2, 0, "neutral");
+        cockpitTarget.HullItemKey = "cockpit-damage-hull";
+        cockpitTarget.Equipment = [new AetheriaRuntimeLoadoutItemSlotCommit
+        {
+            X = 0, Y = 0,
+            Item = new AetheriaRuntimeLoadoutItemCommit
+                { ItemKey = "damageable-cockpit", Quality = 1, Durability = 1, Enabled = true }
+        }];
+        var cockpitHull = HullCatalogItem("cockpit-damage-hull", 1, 1, 0);
+        var cockpit = CatalogItem("damageable-cockpit", new AetheriaRuntimeBehaviorPayload(0, "Cockpit", 0, []));
+        cockpit.ShapeCells = [new AetheriaRuntimeShapeCell(0, 0)];
+        var cockpitCatalog = new AetheriaRuntimeCatalogSnapshot([cockpitHull, cockpit], [], []);
+        var cockpitZone = new AetheriaRuntimeZoneSnapshotCommit
+        {
+            ZoneIndex = 0, Entities = [source, cockpitTarget], PhysicalPayloads = [new AetheriaRuntimePhysicalPayloadCommit
+            {
+                PayloadId = "cockpit-destruction", PayloadKind = "mine", WeaponItemKey = "test-cannon",
+                SourceEntityIndex = source.EntityIndex, PositionX = cockpitTarget.PositionX, PositionZ = cockpitTarget.PositionZ,
+                LifetimeSeconds = 30, BlastRadius = 200, PayloadMagnitude = 1,
+                TriggeredAtSeconds = 0, DetonationDelaySeconds = 0, Stationary = true, Active = true
+            }]
+        };
+        var cockpitRun = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "cockpit-destruction-smoke", CurrentZoneIndex = 0,
+            CurrentEntityKey = "zone.0.entity.0", Zones = [cockpitZone]
+        };
+
+        AetheriaRuntimeDaemonSimulation.Step(cockpitRun, new AetheriaRuntimeDaemonIntentState(), 0.1,
+            AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault, NewPhysics(), cockpitCatalog, 1, 0.1);
+
+        Require(!cockpitTarget.IsActive && cockpitTarget.CauseOfDeath == "cockpit-destroyed",
+            "cockpit durability crossing must use the fossil cockpit death path before hull depletion");
+        RequireNear(100, Stat(cockpitTarget, "hull"), 0.000001,
+            "cockpit destruction must not counterfeit scalar hull depletion");
+        var chronology = cockpitRun.GameEvents.Where(value =>
+                value.Kind == "equipment.destroyed" || value.Kind == "entity.destroyed")
+            .Select(value => value.Kind).ToArray();
+        RequireEqual("equipment.destroyed,entity.destroyed", string.Join(",", chronology),
+            "equipment destruction feedback must precede the cause-specific entity destruction fact");
     }
 
     private static void DestructionDropsLootExactlyOnce()

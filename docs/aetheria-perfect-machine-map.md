@@ -821,8 +821,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   impact position/direction; damage amount, orthogonal spread, 0.5-cell
   penetration, and typed damage type.
 - Outputs: one atomic `shield -> armor cell -> equipment -> scalar hull`
-  result, mutated canonical grids/equipment/hull state, and receipts recording
-  which layers were reached and how much each layer absorbed or received.
+  result, mutated canonical grids/equipment/hull state, receipts recording
+  which layers were reached, and one `equipment.destroyed` fact whenever an
+  installed item crosses the fossil durability threshold.
 - Derived state: aggregate armor and exact schematic armor/maximum-armor facts
   are Eve projections of canonical cell state. Scalar hull is the terminal
   remainder, not an armor surrogate. Damage type is typed/pass-through; no
@@ -831,7 +832,10 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   Unity components, Eve lowerers, scalar-health helpers, and reconciliation
   loops cannot independently apply or repair armor, equipment, or hull damage.
 - Shared paths: direct and deployable impacts enter the same transaction after
-  their respective authoritative impact facts are resolved.
+  their respective authoritative impact facts are resolved. All behavior
+  consumers use the shared operational-equipment query, so disabled,
+  thermally-offline, and destroyed items cannot keep acting through a forgotten
+  subsystem-specific filter.
 - Cut line: scalar-hull-only and caller-specific damage paths are no longer
   owners. Hull/hardpoint topology initializes armor grids; only the daemon
   transaction mutates them thereafter. Penetration always advances by a
@@ -839,10 +843,11 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
 
 ### Daemon Destruction Transaction
 
-- Owner: lethal daemon damage owns one destruction identity, active-world
+- Owner: cause-specific daemon damage owns one destruction identity, active-world
   removal, reference cleanup, loot rolls, pickup state, and chronology.
-- Inputs: canonical hull result, run seed, entity equipment/cargo, fossil loot
-  settings (`0.25` equipment probability, `25` launch speed, `30` second life).
+- Inputs: canonical hull result or cockpit-destruction crossing, run seed,
+  entity equipment/cargo, and fossil loot settings (`0.25` equipment
+  probability, `25` launch speed, `30` second life).
 - Outputs: an inactive identity-stable tombstone, deterministic typed pickups,
   `entity.destroyed` and `pickup.dropped` events, and Eve world removal/effects.
 - Derived state: the retained entity row exists only for stable indexing and
@@ -850,7 +855,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
 - Forbidden writers: Unity destruction callbacks, Eve feedback renderers, and
   the reserved `DestroyEntity` command cannot erase entities or create loot.
 - Shared paths: direct shots and deployable splash invoke the same destruction
-  commit after the shared damage resolver crosses zero hull.
+  commit after the shared damage resolver crosses zero hull or destroys an
+  installed cockpit. Cockpit destruction preserves the remaining hull value and
+  publishes `equipment.destroyed` before `entity.destroyed(cockpit-destroyed)`.
 - Cut line: client-commanded removal and presentation-triggered loot are dead;
   EveUnity resolves `effect.feedback.entity.destroyed` only after the provider
   has published authoritative destruction chronology.

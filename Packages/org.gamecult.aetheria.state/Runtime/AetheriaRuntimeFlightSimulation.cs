@@ -426,16 +426,8 @@ namespace GameCult.Aetheria.State.Verse
         private static IReadOnlyList<AetheriaRuntimeEquippedBehavior> Online(
             AetheriaRuntimeEntitySnapshotCommit entity,
             AetheriaRuntimeCatalogSnapshot catalog,
-            string kind)
-        {
-            var states = (entity.EquipmentStates ?? Array.Empty<AetheriaRuntimeEquipmentStateCommit>())
-                .Where(state => state != null)
-                .ToDictionary(state => state.EquipmentIndex);
-            return AetheriaRuntimeEquippedBehaviorQueries.Find(entity, catalog, kind)
-                .Where(value => value.Item.Enabled && value.Item.Durability > 0.01 &&
-                    (!states.TryGetValue(value.EquipmentIndex, out var state) || state.Online))
-                .ToArray();
-        }
+            string kind) =>
+            AetheriaRuntimeEquippedBehaviorQueries.FindOperational(entity, catalog, kind);
 
         private static double ThermalPerformance(AetheriaRuntimeEntitySnapshotCommit entity, int equipmentIndex) =>
             (entity.EquipmentStates ?? Array.Empty<AetheriaRuntimeEquipmentStateCommit>())

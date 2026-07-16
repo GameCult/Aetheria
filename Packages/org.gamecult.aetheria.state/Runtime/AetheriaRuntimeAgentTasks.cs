@@ -544,7 +544,7 @@ namespace GameCult.Aetheria.State.Verse
                     })
                 };
             }
-            var tool = AetheriaRuntimeEquippedBehaviorQueries.Find(agent, catalog, "MiningTool").FirstOrDefault();
+            var tool = AetheriaRuntimeEquippedBehaviorQueries.FindOperational(agent, catalog, "MiningTool").FirstOrDefault();
             var bodyKey = (task.TargetBodyKeys ?? Array.Empty<string>()).FirstOrDefault() ?? "";
             var body = (zone.Bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>())
                 .FirstOrDefault(candidate => candidate != null && string.Equals(candidate.BodyKey, bodyKey, StringComparison.Ordinal));
@@ -592,7 +592,7 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeCatalogSnapshot? catalog,
             double simulationTimeSeconds)
         {
-            var scanner = AetheriaRuntimeEquippedBehaviorQueries.Find(agent, catalog, "ResourceScanner").FirstOrDefault();
+            var scanner = AetheriaRuntimeEquippedBehaviorQueries.FindOperational(agent, catalog, "ResourceScanner").FirstOrDefault();
             if (scanner == null) { Fail(task, agent); return Array.Empty<AetheriaRuntimeDaemonCommandDocument>(); }
             var minimumDensity = scanner.EvaluateStat(2);
             var surveyed = new HashSet<string>((run.CorporationSurveys ?? Array.Empty<AetheriaRuntimeCorporationSurveyCommit>())

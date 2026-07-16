@@ -90,5 +90,22 @@ namespace GameCult.Aetheria.State.Verse
             }
             return found;
         }
+
+        public static IReadOnlyList<AetheriaRuntimeEquippedBehavior> FindOperational(
+            AetheriaRuntimeEntitySnapshotCommit? entity,
+            AetheriaRuntimeCatalogSnapshot? catalog,
+            string behaviorKind)
+        {
+            if (entity == null)
+                return Array.Empty<AetheriaRuntimeEquippedBehavior>();
+
+            var equipmentStates = (entity.EquipmentStates ?? Array.Empty<AetheriaRuntimeEquipmentStateCommit>())
+                .Where(state => state != null)
+                .ToDictionary(state => state.EquipmentIndex);
+            return Find(entity, catalog, behaviorKind)
+                .Where(value => value.Item.Enabled && value.Item.Durability > 0.01 &&
+                    (!equipmentStates.TryGetValue(value.EquipmentIndex, out var state) || state.Online))
+                .ToArray();
+        }
     }
 }

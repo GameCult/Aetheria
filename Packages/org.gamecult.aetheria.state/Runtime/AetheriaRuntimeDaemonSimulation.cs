@@ -594,9 +594,12 @@ namespace GameCult.Aetheria.State.Verse
                             Reason = payload.DamageType,
                             PositionX = payload.PositionX, PositionZ = payload.PositionZ
                         });
-                    if (aliveBefore && !IsAlive(target))
+                    PublishEquipmentDestroyedEvents(run, zone, target, damage,
+                        payload.SourceEntityIndex, payload.PayloadId, frameId);
+                    if (aliveBefore && (damage.CockpitDestroyed || !IsAlive(target)))
                         CommitDestruction(run, zone, target, payload.SourceEntityIndex,
-                            payload.PayloadId, payload.WeaponItemKey, frameId, settings);
+                            payload.PayloadId, payload.WeaponItemKey, frameId, settings,
+                            damage.CockpitDestroyed ? "cockpit-destroyed" : "hull-destroyed");
                 }
                 AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit { EventId = $"physical-payload:{payload.PayloadId}:detonated", Kind = "deployable.detonated", FrameId = frameId, ZoneIndex = zone.ZoneIndex, SourceEntityIndex = payload.SourceEntityIndex, SubjectKey = payload.PayloadId, ItemKey = payload.WeaponItemKey, Reason = payload.TriggerReason, ScalarValue = payload.PayloadMagnitude, PositionX = payload.PositionX, PositionZ = payload.PositionZ });
             }
@@ -1232,7 +1235,7 @@ namespace GameCult.Aetheria.State.Verse
             var equipmentIndices = weaponGroup >= 0 && weaponGroup < (entity.WeaponGroups ?? Array.Empty<IReadOnlyList<int>>()).Count
                 ? entity.WeaponGroups[weaponGroup] ?? Array.Empty<int>()
                 : Array.Empty<int>();
-            return AetheriaRuntimeEquippedBehaviorQueries.Find(entity, catalog, AetheriaRuntimeBehaviorKinds.ConstantWeapon)
+            return AetheriaRuntimeEquippedBehaviorQueries.FindOperational(entity, catalog, AetheriaRuntimeBehaviorKinds.ConstantWeapon)
                 .Select(behavior =>
                 {
                     var magazineSize = Math.Max(0, (int)Math.Round(ReadNumber(behavior.Payload, 13)));
@@ -1264,7 +1267,7 @@ namespace GameCult.Aetheria.State.Verse
             var equipmentIndices = weaponGroup >= 0 && weaponGroup < (entity.WeaponGroups ?? Array.Empty<IReadOnlyList<int>>()).Count
                 ? entity.WeaponGroups[weaponGroup] ?? Array.Empty<int>()
                 : Array.Empty<int>();
-            return AetheriaRuntimeEquippedBehaviorQueries.Find(entity, catalog, AetheriaRuntimeBehaviorKinds.DeployableWeapon)
+            return AetheriaRuntimeEquippedBehaviorQueries.FindOperational(entity, catalog, AetheriaRuntimeBehaviorKinds.DeployableWeapon)
                 .Where(behavior => equipmentIndices.Contains(behavior.EquipmentIndex))
                 .Select(behavior => new ResolvedDeployableWeapon(
                     ResolveAuthoredWeapon(entity, behavior, settings),
@@ -1384,8 +1387,37 @@ namespace GameCult.Aetheria.State.Verse
                     AuxiliaryValue = damage.HullAppliedDamage, Reason = weapon.DamageType,
                     PositionX = target.PositionX, PositionZ = target.PositionZ
                 });
-            if (aliveBefore && !IsAlive(target))
-                CommitDestruction(run, zone, target, attacker.EntityIndex, shotId, weapon.ItemKey, frameId, settings);
+            PublishEquipmentDestroyedEvents(run, zone, target, damage,
+                attacker.EntityIndex, shotId, frameId);
+            if (aliveBefore && (damage.CockpitDestroyed || !IsAlive(target)))
+                CommitDestruction(run, zone, target, attacker.EntityIndex, shotId, weapon.ItemKey,
+                    frameId, settings, damage.CockpitDestroyed ? "cockpit-destroyed" : "hull-destroyed");
+        }
+
+        private static void PublishEquipmentDestroyedEvents(
+            AetheriaRuntimeRunCheckpointCommit run,
+            AetheriaRuntimeZoneSnapshotCommit zone,
+            AetheriaRuntimeEntitySnapshotCommit target,
+            DamageResolution damage,
+            int sourceEntityIndex,
+            string subjectKey,
+            long frameId)
+        {
+            foreach (var equipmentIndex in damage.DestroyedEquipmentIndices)
+            {
+                var item = equipmentIndex >= 0 && equipmentIndex < (target.Equipment?.Count ?? 0)
+                    ? target.Equipment[equipmentIndex]?.Item
+                    : null;
+                AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit
+                {
+                    EventId = $"{subjectKey}:equipment:{equipmentIndex}:destroyed",
+                    Kind = "equipment.destroyed", FrameId = frameId, ZoneIndex = zone.ZoneIndex,
+                    SourceEntityIndex = sourceEntityIndex, TargetEntityIndex = target.EntityIndex,
+                    SubjectKey = subjectKey, ItemKey = item?.ItemKey ?? "",
+                    ScalarValue = equipmentIndex, Reason = "durability-depleted",
+                    PositionX = target.PositionX, PositionZ = target.PositionZ
+                });
+            }
         }
 
         private static string NextShotId(AetheriaRuntimeZoneSnapshotCommit zone,
@@ -1549,7 +1581,7 @@ namespace GameCult.Aetheria.State.Verse
             var requestedEquipment = requestedWeaponGroup >= 0 && requestedWeaponGroup <
                 (entity.WeaponGroups ?? Array.Empty<IReadOnlyList<int>>()).Count
                 ? entity.WeaponGroups[requestedWeaponGroup] ?? Array.Empty<int>() : Array.Empty<int>();
-            return AetheriaRuntimeEquippedBehaviorQueries.Find(entity, catalog, AetheriaRuntimeBehaviorKinds.ChargedWeapon)
+            return AetheriaRuntimeEquippedBehaviorQueries.FindOperational(entity, catalog, AetheriaRuntimeBehaviorKinds.ChargedWeapon)
                 .Where(value => string.Equals(value.Payload.Kind, AetheriaRuntimeBehaviorKinds.ChargedWeapon, StringComparison.Ordinal))
                 .Select(value => new ResolvedChargedWeapon(
                     ResolveAuthoredWeapon(entity, value, settings), value.Item,
@@ -1566,7 +1598,7 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeCatalogSnapshot? catalog,
             AetheriaRuntimeDaemonSimulationSettings settings)
         {
-            var authored = AetheriaRuntimeEquippedBehaviorQueries.Find(entity, catalog, AetheriaRuntimeBehaviorKinds.InstantWeapon)
+            var authored = AetheriaRuntimeEquippedBehaviorQueries.FindOperational(entity, catalog, AetheriaRuntimeBehaviorKinds.InstantWeapon)
                 .Where(behavior => !string.Equals(behavior.Payload.Kind, AetheriaRuntimeBehaviorKinds.ChargedWeapon, StringComparison.Ordinal))
                 .Where(behavior => !string.Equals(behavior.Payload.Kind, AetheriaRuntimeBehaviorKinds.DeployableWeapon, StringComparison.Ordinal))
                 .Select(behavior => ResolveAuthoredWeapon(entity, behavior, settings))
@@ -1968,8 +2000,7 @@ namespace GameCult.Aetheria.State.Verse
             if (damage <= 0)
                 return DamageResolution.None;
 
-            foreach (var shield in AetheriaRuntimeEquippedBehaviorQueries.Find(target, catalog, "Shield")
-                .Where(value => value.Item.Enabled))
+            foreach (var shield in AetheriaRuntimeEquippedBehaviorQueries.FindOperational(target, catalog, "Shield"))
             {
                 var efficiency = Math.Max(0.000001, shield.EvaluateStat(1));
                 var energyUsage = Math.Max(0, shield.EvaluateStat(2));
@@ -1998,6 +2029,8 @@ namespace GameCult.Aetheria.State.Verse
             var equipmentApplied = 0.0;
             var hullRequested = 0.0;
             var receipts = new List<AetheriaRuntimeDamageCellCommit>(cells.Count);
+            var destroyedEquipmentIndices = new HashSet<int>();
+            var cockpitDestroyed = false;
             foreach (var cell in cells)
             {
                 var remaining = perCell;
@@ -2012,10 +2045,20 @@ namespace GameCult.Aetheria.State.Verse
                     if (equipment.Slot != null)
                     {
                         equipmentIndex = equipment.Index;
+                        var durabilityBefore = equipment.Slot.Item.Durability;
                         equipmentTaken = Math.Min(Math.Max(0, equipment.Slot.Item.Durability), remaining);
                         equipment.Slot.Item.Durability = Math.Max(0, equipment.Slot.Item.Durability - equipmentTaken);
                         equipmentApplied += equipmentTaken;
                         remaining -= equipmentTaken;
+                        if (durabilityBefore > 0.01 && equipment.Slot.Item.Durability <= 0.01)
+                        {
+                            destroyedEquipmentIndices.Add(equipmentIndex);
+                            DeactivateDestroyedEquipment(target, equipmentIndex);
+                            var catalogItem = catalog?.FindItem(equipment.Slot.Item.ItemKey ?? "");
+                            cockpitDestroyed |= (catalogItem?.BehaviorPayloads ?? Array.Empty<AetheriaRuntimeBehaviorPayload>())
+                                .Any(payload => payload != null &&
+                                    AetheriaRuntimeBehaviorMetadataCatalog.IsKindOrDescendant(payload.Kind, "Cockpit"));
+                        }
                     }
                 }
                 var cellHull = remaining > 0 ? remaining : 0;
@@ -2033,7 +2076,28 @@ namespace GameCult.Aetheria.State.Verse
                 foreach (var receipt in receipts)
                     receipt.HullAppliedDamage *= hullApplied / hullRequested;
             SetStat(target, Hull, hullBefore - hullApplied);
-            return new DamageResolution(0, armorApplied, equipmentApplied, hullApplied, 0, 0, receipts);
+            return new DamageResolution(0, armorApplied, equipmentApplied, hullApplied, 0, 0, receipts,
+                destroyedEquipmentIndices.OrderBy(value => value).ToArray(), cockpitDestroyed);
+        }
+
+        private static void DeactivateDestroyedEquipment(
+            AetheriaRuntimeEntitySnapshotCommit entity,
+            int equipmentIndex)
+        {
+            foreach (var state in entity.WeaponStates ?? Array.Empty<AetheriaRuntimeWeaponStateCommit>())
+            {
+                if (!string.Equals(state.OwnerKind, AetheriaRuntimeBehaviorStateProjector.EquipmentOwnerKind,
+                        StringComparison.Ordinal) || state.OwnerIndex != equipmentIndex)
+                    continue;
+                state.Firing = false;
+                state.TriggerPending = false;
+                state.BurstRemaining = 0;
+                state.Charging = false;
+                state.Charged = false;
+                state.Charge = 0;
+                state.LockProgress = 0;
+                state.LockTargetEntityIndex = -1;
+            }
         }
 
         private static void EnsureArmorState(AetheriaRuntimeEntitySnapshotCommit entity, AetheriaRuntimeCatalogSnapshot? catalog)
@@ -2163,8 +2227,8 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeEntitySnapshotCommit entity,
             AetheriaRuntimeCatalogSnapshot? catalog)
         {
-            var shield = AetheriaRuntimeEquippedBehaviorQueries.Find(entity, catalog, "Shield")
-                .FirstOrDefault(value => value.Item.Enabled);
+            var shield = AetheriaRuntimeEquippedBehaviorQueries.FindOperational(entity, catalog, "Shield")
+                .FirstOrDefault();
             if (shield == null)
             {
                 SetStat(entity, Shield, 0);
@@ -2181,12 +2245,14 @@ namespace GameCult.Aetheria.State.Verse
         private readonly struct DamageResolution
         {
             public static DamageResolution None { get; } = new DamageResolution(0, 0, 0, 0, 0, 0,
-                Array.Empty<AetheriaRuntimeDamageCellCommit>());
+                Array.Empty<AetheriaRuntimeDamageCellCommit>(), Array.Empty<int>(), false);
 
             public DamageResolution(double shieldAbsorbedDamage, double armorAppliedDamage,
                 double equipmentAppliedDamage, double hullAppliedDamage,
                 double shieldEnergyConsumed, double shieldHeatGenerated,
-                IReadOnlyList<AetheriaRuntimeDamageCellCommit> cells)
+                IReadOnlyList<AetheriaRuntimeDamageCellCommit> cells,
+                IReadOnlyList<int>? destroyedEquipmentIndices = null,
+                bool cockpitDestroyed = false)
             {
                 ShieldAbsorbedDamage = shieldAbsorbedDamage;
                 ArmorAppliedDamage = armorAppliedDamage;
@@ -2195,6 +2261,8 @@ namespace GameCult.Aetheria.State.Verse
                 ShieldEnergyConsumed = shieldEnergyConsumed;
                 ShieldHeatGenerated = shieldHeatGenerated;
                 Cells = cells;
+                DestroyedEquipmentIndices = destroyedEquipmentIndices ?? Array.Empty<int>();
+                CockpitDestroyed = cockpitDestroyed;
             }
 
             public double ShieldAbsorbedDamage { get; }
@@ -2204,6 +2272,8 @@ namespace GameCult.Aetheria.State.Verse
             public double ShieldEnergyConsumed { get; }
             public double ShieldHeatGenerated { get; }
             public IReadOnlyList<AetheriaRuntimeDamageCellCommit> Cells { get; }
+            public IReadOnlyList<int> DestroyedEquipmentIndices { get; }
+            public bool CockpitDestroyed { get; }
             public double TotalAppliedDamage =>
                 ArmorAppliedDamage + EquipmentAppliedDamage + HullAppliedDamage;
         }
@@ -2238,9 +2308,7 @@ namespace GameCult.Aetheria.State.Verse
             var equipmentStates = (entity.EquipmentStates ?? Array.Empty<AetheriaRuntimeEquipmentStateCommit>())
                 .Where(state => state != null)
                 .ToDictionary(state => state.EquipmentIndex);
-            var sensitivitySquared = AetheriaRuntimeEquippedBehaviorQueries.Find(entity, catalog, "Sensor")
-                .Where(sensor => sensor.Item.Enabled && sensor.Item.Durability > 0 &&
-                    (!equipmentStates.TryGetValue(sensor.EquipmentIndex, out var state) || state.Online))
+            var sensitivitySquared = AetheriaRuntimeEquippedBehaviorQueries.FindOperational(entity, catalog, "Sensor")
                 .Select(sensor => Math.Max(0, sensor.EvaluateStat(
                     3,
                     equipmentStates.TryGetValue(sensor.EquipmentIndex, out var state)

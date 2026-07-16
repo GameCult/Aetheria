@@ -147,11 +147,7 @@ namespace GameCult.Aetheria.State.Verse
 
         private static IReadOnlyList<AetheriaRuntimeEquippedBehavior> Online(
             AetheriaRuntimeEntitySnapshotCommit entity, AetheriaRuntimeCatalogSnapshot? catalog, string kind) =>
-            AetheriaRuntimeEquippedBehaviorQueries.Find(entity, catalog, kind)
-                .Where(value => (entity.EquipmentStates ?? Array.Empty<AetheriaRuntimeEquipmentStateCommit>())
-                    .FirstOrDefault(state => state != null && state.EquipmentIndex == value.EquipmentIndex)?.Online ??
-                    (value.Item.Enabled && value.Item.Durability > 0.01))
-                .ToArray();
+            AetheriaRuntimeEquippedBehaviorQueries.FindOperational(entity, catalog, kind);
 
         private static void AddCapacitorCharge(AetheriaRuntimeEntitySnapshotCommit entity,
             AetheriaRuntimeCatalogSnapshot? catalog, AetheriaRuntimeEquippedBehavior capacitor, double delta)
