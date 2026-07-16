@@ -1,5 +1,6 @@
 using System.IO;
 using UnityEditor;
+using UnityEditor.Rendering;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
@@ -34,38 +35,37 @@ namespace Aetheria.Editor
         {
             var path = $"{Root}/{name}.asset";
             AssetDatabase.DeleteAsset(path);
-            var profile = ScriptableObject.CreateInstance<VolumeProfile>();
-            AssetDatabase.CreateAsset(profile, path);
+            var profile = VolumeProfileFactory.CreateVolumeProfileAtPath(path);
 
-            var vignette = profile.Add<Vignette>(true);
+            var vignette = VolumeProfileFactory.CreateVolumeComponent<Vignette>(profile, true, false);
             vignette.color.overrideState = overrideVignetteColor;
             vignette.color.value = vignetteColor;
             vignette.intensity.Override(vignetteIntensity);
             vignette.smoothness.Override(vignetteSmoothness);
 
-            var color = profile.Add<ColorAdjustments>(true);
+            var color = VolumeProfileFactory.CreateVolumeComponent<ColorAdjustments>(profile, true, false);
             color.postExposure.Override(exposure);
             color.contrast.overrideState = contrast != 0;
             color.contrast.value = contrast;
             color.saturation.Override(saturation);
             if (temperature != 0)
             {
-                var balance = profile.Add<WhiteBalance>(true);
+                var balance = VolumeProfileFactory.CreateVolumeComponent<WhiteBalance>(profile, true, false);
                 balance.temperature.Override(temperature);
             }
 
-            var bloom = profile.Add<Bloom>(true);
+            var bloom = VolumeProfileFactory.CreateVolumeComponent<Bloom>(profile, true, false);
             bloom.intensity.Override(bloomIntensity);
             bloom.threshold.Override(1.5f);
             bloom.scatter.Override(1f);
 
-            var grain = profile.Add<FilmGrain>(true);
+            var grain = VolumeProfileFactory.CreateVolumeComponent<FilmGrain>(profile, true, false);
             grain.type.Override(FilmGrainLookup.Thin1);
             grain.intensity.Override(grainIntensity);
 
             if (depthOfField)
             {
-                var focus = profile.Add<DepthOfField>(true);
+                var focus = VolumeProfileFactory.CreateVolumeComponent<DepthOfField>(profile, true, false);
                 focus.mode.Override(DepthOfFieldMode.Bokeh);
                 focus.focusDistance.Override(0.1f);
                 focus.aperture.Override(0.1f);

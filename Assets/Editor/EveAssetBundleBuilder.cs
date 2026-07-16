@@ -6,6 +6,7 @@ using GameCult.Aetheria.State.Verse;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
 
 namespace Aetheria.Editor
 {
@@ -575,8 +576,7 @@ namespace Aetheria.Editor
                 if (reflection == null)
                     throw new InvalidOperationException("Aetheria Eve bundle has no provider reflection cubemap.");
                 var postProcess = LoadAuthoredAsset<VolumeProfile>(bundle, assetNames, EveEnvironmentProfileMigrator.FlightProfilePath);
-                if (postProcess == null)
-                    throw new InvalidOperationException("Aetheria Eve bundle has no provider flight post-process profile.");
+                VerifyFlightPostProcessProfile(postProcess);
                 var gravityFog = LoadAuthoredAsset<Shader>(bundle, assetNames, "Assets/Shaders/Raymarching/CloudShader.shader");
                 if (gravityFog == null || !gravityFog.isSupported)
                     throw new InvalidOperationException("Aetheria Eve bundle has no supported gravity-fog volume shader.");
@@ -609,6 +609,36 @@ namespace Aetheria.Editor
             var nativePath = assetNames.FirstOrDefault(path =>
                 string.Equals(path, authoredPath, StringComparison.OrdinalIgnoreCase));
             return string.IsNullOrWhiteSpace(nativePath) ? null : bundle.LoadAsset<T>(nativePath);
+        }
+
+        private static void VerifyFlightPostProcessProfile(VolumeProfile profile)
+        {
+            if (profile == null)
+                throw new InvalidOperationException("Aetheria Eve bundle has no provider flight post-process profile.");
+            if (!profile.TryGet(out Tonemapping tonemapping) ||
+                !tonemapping.mode.overrideState ||
+                tonemapping.mode.value != TonemappingMode.ACES)
+                throw new InvalidOperationException("Aetheria flight profile has no serialized ACES tonemapping component.");
+            if (!profile.TryGet(out ColorAdjustments color) ||
+                !color.postExposure.overrideState ||
+                !Mathf.Approximately(color.postExposure.value, 2f) ||
+                !color.contrast.overrideState ||
+                !Mathf.Approximately(color.contrast.value, 15f))
+                throw new InvalidOperationException("Aetheria flight profile has no serialized exposure/contrast component.");
+            if (!profile.TryGet(out Bloom bloom) ||
+                !bloom.intensity.overrideState ||
+                !Mathf.Approximately(bloom.intensity.value, 3f) ||
+                !bloom.threshold.overrideState ||
+                !Mathf.Approximately(bloom.threshold.value, 1.5f))
+                throw new InvalidOperationException("Aetheria flight profile has no serialized bloom component.");
+            if (!profile.TryGet(out Vignette vignette) ||
+                !vignette.intensity.overrideState ||
+                !Mathf.Approximately(vignette.intensity.value, 0.3f))
+                throw new InvalidOperationException("Aetheria flight profile has no serialized vignette component.");
+            if (!profile.TryGet(out FilmGrain grain) ||
+                !grain.intensity.overrideState ||
+                !Mathf.Approximately(grain.intensity.value, 0.1f))
+                throw new InvalidOperationException("Aetheria flight profile has no serialized film-grain component.");
         }
     }
 }
