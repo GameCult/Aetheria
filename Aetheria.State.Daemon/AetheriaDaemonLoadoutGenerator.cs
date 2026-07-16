@@ -4,8 +4,9 @@ using Random = CultMath.Random;
 
 public sealed class AetheriaDaemonLoadoutGenerator
 {
+    private const double RareGenerationWeight = 0.05;
     private readonly AetheriaRuntimeCatalogSnapshot _catalog;
-    private readonly Random _random;
+    private Random _random;
     private readonly uint _seed;
     private readonly int _zoneIndex;
     private readonly IReadOnlyDictionary<string, int> _homeZones;
@@ -274,8 +275,13 @@ public sealed class AetheriaDaemonLoadoutGenerator
             : faction.Allegiances.First(value => value.CorporationKey == item.ManufacturerKey).Weight /
               Math.Max(1, Distance(_zoneIndex, _homeZones[item.ManufacturerKey]));
         return allegiance * Math.Pow(Math.Max(1, item.OccupiedCells), sizeExponent) /
-            Math.Pow(item.Price, _priceExponent);
+            Math.Pow(item.Price, _priceExponent) * RarityWeight(item);
     }
+
+    private static double RarityWeight(AetheriaRuntimeCatalogItem item) =>
+        (item.Tags ?? Array.Empty<string>()).Contains("rarity:rare", StringComparer.Ordinal)
+            ? RareGenerationWeight
+            : 1;
 
     private int Distance(int start, int target)
     {

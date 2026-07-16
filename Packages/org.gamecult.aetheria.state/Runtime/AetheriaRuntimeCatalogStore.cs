@@ -699,7 +699,7 @@ namespace GameCult.Aetheria.State.Verse
             var description = ReadFieldString(ref reader, fields, 3);
             var mass = ReadFieldDouble(ref reader, fields, 4);
             var volume = ReadFieldDouble(ref reader, fields, 5);
-            SkipField(ref reader, fields, 6);
+            var tags = ReadFieldStringArray(ref reader, fields, 6);
             var manufacturerLegacyId = ReadFieldString(ref reader, fields, 7);
             var price = ReadFieldInt32(ref reader, fields, 8);
             var shapeWidth = ReadFieldInt32(ref reader, fields, 9);
@@ -795,7 +795,8 @@ namespace GameCult.Aetheria.State.Verse
                 effectivenessCurveKeys,
                 simpleCommodityCategory,
                 compoundCommodityCategory,
-                hullCapacity);
+                hullCapacity,
+                tags);
         }
 
         private static AetheriaRuntimeCorporation ReadCorporation(byte[] payload)

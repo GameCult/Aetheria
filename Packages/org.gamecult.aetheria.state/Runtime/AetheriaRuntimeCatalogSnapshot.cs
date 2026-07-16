@@ -188,7 +188,8 @@ namespace GameCult.Aetheria.State.Verse
             IReadOnlyList<AetheriaRuntimeCurveKey> effectivenessCurveKeys,
             string simpleCommodityCategory,
             string compoundCommodityCategory,
-            AetheriaRuntimeBehaviorValue? hullCapacity = null)
+            AetheriaRuntimeBehaviorValue? hullCapacity = null,
+            IReadOnlyList<string>? tags = null)
         {
             ItemKey = itemKey;
             Name = name;
@@ -238,6 +239,7 @@ namespace GameCult.Aetheria.State.Verse
             EffectivenessCurveKeys = effectivenessCurveKeys;
             SimpleCommodityCategory = simpleCommodityCategory;
             CompoundCommodityCategory = compoundCommodityCategory;
+            Tags = tags ?? Array.Empty<string>();
             HullCapacity = hullCapacity ?? new AetheriaRuntimeBehaviorValue(
                 "", "", 0, false, "", "",
                 Array.Empty<AetheriaRuntimeBehaviorValue>(),
@@ -247,6 +249,7 @@ namespace GameCult.Aetheria.State.Verse
         public string ItemKey { get; set; }
         public string Name { get; set; }
         public string Category { get; set; }
+        public IReadOnlyList<string> Tags { get; set; }
         public string Description { get; set; }
         public string ManufacturerKey { get; set; }
         public int Price { get; set; }

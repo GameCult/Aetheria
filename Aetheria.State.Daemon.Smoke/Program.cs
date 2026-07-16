@@ -1043,14 +1043,20 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             .Where(item => item.Hardpoints.Any(point => point.Type == "AetherDrive"))
             .ToArray();
         Require(drives.Length == 1 && drives[0].Name == "Traction" &&
-                drives[0].HardpointType == "AetherDrive" && drives[0].Price == 250000,
+                drives[0].HardpointType == "AetherDrive" && drives[0].Price == 250000 &&
+                drives[0].Tags.Contains("rarity:rare", StringComparer.Ordinal),
             "canonical AetherDrive must remain the singular expensive Traction retrofit");
         Require(driveHulls.Length == 1 && driveHulls[0].Name == "LonginusX" &&
-                driveHulls[0].Price == 7500000,
+                driveHulls[0].Price == 7500000 &&
+                driveHulls[0].Tags.Contains("rarity:rare", StringComparer.Ordinal),
             "canonical AetherDrive compatibility must remain confined to the rare modified LonginusX hull");
-        Require(catalog.Items.Count(item => !string.IsNullOrWhiteSpace(item.HullType) &&
-                item.Hardpoints.All(point => point.Type != "AetherDrive")) > driveHulls.Length,
-            "ordinary hull variants must outnumber and exclude the AetherDrive retrofit path");
+        var ordinaryShipHulls = catalog.Items.Where(item => item.HullType == "Ship" &&
+                item.Hardpoints.All(point => point.Type != "AetherDrive") &&
+                !item.Tags.Contains("rarity:rare", StringComparer.Ordinal))
+            .ToArray();
+        Require(ordinaryShipHulls.Any(item => item.Name == "Longinus") &&
+                ordinaryShipHulls.Any(item => item.Name == "Djinni"),
+            "the recovered common Longinus and Djinni must own ordinary ship generation");
         var mine = catalog.Items.Single(item =>
             item.ItemKey == "aetheria.item_definition:legacy:e78d3670-3ac6-4d9b-834c-1da4228ac311");
         RequireEqual("Mine Launcher", mine.Name, "recovered item must retain fossil identity");
@@ -1666,6 +1672,19 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         var homes = new Dictionary<string, int> { ["forge"] = 0, ["foreign"] = 1 };
         var adjacency = new Dictionary<int, IReadOnlyList<int>> { [0] = [1], [1] = [0] };
 
+        var rareHull = Item("rare-hull", AetheriaRuntimeItemCategories.Hull, "forge", 100);
+        rareHull.HardpointType = availableHull.HardpointType;
+        rareHull.HullType = availableHull.HullType;
+        rareHull.ShapeWidth = availableHull.ShapeWidth;
+        rareHull.ShapeHeight = availableHull.ShapeHeight;
+        rareHull.OccupiedCells = availableHull.OccupiedCells;
+        rareHull.ShapeCells = availableHull.ShapeCells;
+        rareHull.Hardpoints = availableHull.Hardpoints;
+        rareHull.Tags = ["rarity:rare"];
+        var rarityCatalog = new AetheriaRuntimeCatalogSnapshot(
+            [availableHull, rareHull, cockpit, wrongController, weapon, shipSensor, cargo, capacitor, reactor],
+            [faction], Array.Empty<AetheriaRuntimeNameFile>());
+
         var first = new AetheriaDaemonLoadoutGenerator(catalog, 42, 0, homes, adjacency).Build("ship", "forge");
         var second = new AetheriaDaemonLoadoutGenerator(catalog, 42, 0, homes, adjacency).Build("ship", "forge");
         var station = new AetheriaDaemonLoadoutGenerator(catalog, 84, 0, homes, adjacency).Build("station", "forge");
@@ -1682,6 +1701,11 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         var interleavedFirst = interleavedForge.Build("ship", "forge");
         foreignStream.Build("ship", "foreign");
         var interleavedSecond = interleavedForge.Build("ship", "forge");
+        var rarityGenerator = new AetheriaDaemonLoadoutGenerator(
+            rarityCatalog, 9001, 0, homes, adjacency);
+        var rareSelections = Enumerable.Range(0, 2000)
+            .Select(_ => rarityGenerator.Build("ship", "forge").HullItemKey)
+            .Count(key => key == "rare-hull");
 
         RequireEqual("available-hull", first.HullItemKey,
             "loadout generation must exclude manufacturers outside the faction allegiance graph");
@@ -1706,6 +1730,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 first.Receipt.Selections.Any(value => value.Role == "hull" && value.ItemKey == "available-hull" &&
                     value.ManufacturerKey == "forge" && value.ManufacturerDistance == 1 && value.Allegiance == 1),
             "generated loadouts must carry daemon-authored source and selection provenance");
+        Require(rareSelections > 0 && rareSelections < 200,
+            $"rare catalog candidates must remain possible without becoming a default loadout path (selected {rareSelections}/2000)");
         Require(station.Equipment.Any(value => value.ItemKey == "docking-bay") &&
                 station.Equipment.Any(value => value.ItemKey == "cargo-bay") &&
                 station.Equipment.Any(value => value.ItemKey == "capacitor") &&

@@ -15,11 +15,13 @@ var outputStatePath = Path.GetRelativePath(root, statePath).Replace('\\', '/');
 var gameData = Path.Combine(root, "GameData");
 var catalogPath = Path.Combine(gameData, "AetherDB.msgpack");
 var supplementalCatalogPath = Path.Combine(gameData, "Legacy", "AetherDB.2021-03-05.msgpack");
+var recoveredHullCatalogPath = Path.Combine(gameData, "Legacy", "AetherDB.2021-04-14.msgpack");
 var nameFilesRoot = Path.Combine(gameData, "NameFile");
 var capturedAtUtc = DateTimeOffset.UtcNow.ToString("O");
 
 var catalog = CaptureFile(root, catalogPath);
 var supplementalCatalog = CaptureFile(root, supplementalCatalogPath);
+var recoveredHullCatalog = CaptureFile(root, recoveredHullCatalogPath);
 var nameFiles = Directory.Exists(nameFilesRoot)
     ? Directory.EnumerateFiles(nameFilesRoot, "*.msgpack", SearchOption.TopDirectoryOnly)
         .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
@@ -32,7 +34,16 @@ var supplementalMineEntries = LegacyCatalogReader.Read(supplementalCatalogPath)
     .Where(entry => entry.ItemDefinition != null && IsMineItem(entry.ItemDefinition))
     .Where(entry => !currentLegacyIds.Contains(entry.Summary.LegacyId))
     .ToArray();
-var entries = currentEntries.Concat(supplementalMineEntries).ToArray();
+var recoveredGameplayEntries = LegacyCatalogReader.Read(
+        recoveredHullCatalogPath,
+        LegacyCatalogLayout.April2021)
+    .Where(entry => entry.ItemDefinition != null && IsRecoveredGameplayItem(entry.ItemDefinition))
+    .Where(entry => !currentLegacyIds.Contains(entry.Summary.LegacyId))
+    .ToArray();
+var entries = currentEntries
+    .Concat(supplementalMineEntries)
+    .Concat(recoveredGameplayEntries)
+    .ToArray();
 var nameFileEntries = Directory.Exists(nameFilesRoot)
     ? Directory.EnumerateFiles(nameFilesRoot, "*.msgpack", SearchOption.TopDirectoryOnly)
         .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
@@ -41,7 +52,7 @@ var nameFileEntries = Directory.Exists(nameFilesRoot)
     : [];
 var itemDefinitions = entries
     .Where(entry => entry.ItemDefinition != null)
-    .Select(entry => ProjectStationSensorMount(ProjectDeployableWeapon(entry.ItemDefinition!)))
+    .Select(entry => ProjectCatalogRarity(ProjectStationSensorMount(ProjectDeployableWeapon(entry.ItemDefinition!))))
     .ToArray();
 var corporations = entries
     .Where(entry => entry.Corporation != null)
@@ -145,6 +156,29 @@ static bool IsMineItem(AetheriaItemDefinition item)
     return string.Equals(item.WeaponType, "Mine", StringComparison.Ordinal) || hasMineEffect;
 }
 
+static bool IsRecoveredGameplayItem(AetheriaItemDefinition item)
+{
+    return string.Equals(item.LegacyId, "c4b20032-8cd3-4206-807f-97b296797425", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(item.LegacyId, "bb5d9f73-612f-4060-8fb4-f72d6b93b616", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(item.HardpointType, "Thruster", StringComparison.Ordinal);
+}
+
+static AetheriaItemDefinition ProjectCatalogRarity(AetheriaItemDefinition item)
+{
+    var tags = (item.Tags ?? []).AsEnumerable();
+    if (IsRecoveredGameplayItem(item))
+        tags = tags.Append("provenance:recovered:2021-04-14");
+    var isRareHull = string.Equals(item.Name, "LonginusX", StringComparison.Ordinal) &&
+        string.Equals(item.HullType, "Ship", StringComparison.Ordinal);
+    var isRareDrive = (item.BehaviorKinds ?? []).Contains("AetherDrive", StringComparer.Ordinal);
+    if (isRareHull || isRareDrive)
+        tags = tags.Append("rarity:rare");
+    item.Tags = tags
+        .Distinct(StringComparer.Ordinal)
+        .ToArray();
+    return item;
+}
+
 static AetheriaBehaviorField NumberBehaviorField(int key, double value) => new()
 {
     Key = key,
@@ -224,12 +258,15 @@ await node.MutableDocument<AetheriaLegacyCatalogQuarantine>(AetheriaStateNode.Le
     CatalogFingerprint = catalog.Fingerprint,
     CatalogBytes = catalog.Bytes,
     NameFiles = nameFiles,
-    SupplementalCatalogFiles = supplementalCatalog.Bytes > 0 ? [supplementalCatalog] : [],
+    SupplementalCatalogFiles = new[] { supplementalCatalog, recoveredHullCatalog }
+        .Where(file => file.Bytes > 0)
+        .ToArray(),
     Notes =
     [
         "This document quarantines legacy catalog file facts and records the bounded raw payload mapping pass. It does not grant old MessagePack files runtime state authority.",
         "AetherDB.msgpack and NameFile/*.msgpack remain migration inputs until Unity runtime reads typed Aetheria catalog documents directly.",
-        "The 2021-03-05 supplemental catalog contributes only the missing Mine Launcher item and remains quarantined provenance, not runtime authority."
+        "The 2021-03-05 supplemental catalog contributes only the missing Mine Launcher item and remains quarantined provenance, not runtime authority.",
+        "The 2021-04-14 catalog contributes only the missing common Longinus and Djinni hull rows plus missing Thruster equipment required to outfit their authored mounts. It preserves the post-drive catalog's distinct Longinus/LonginusX identities after the later modular database lost the common rows."
     ]
 });
 
@@ -277,6 +314,7 @@ await node.MutableDocument<AetheriaMigrationLedger>(AetheriaStateNode.MigrationL
     [
         "Legacy catalog quarantine captured file fingerprints and mapped stable old MessagePack union payload fields into typed CultCache documents.",
         "The mapper intentionally reads only stable scalar/catalog fields. Runtime object graphs, behavior payloads, and Unity-specific shapes remain legacy until dedicated typed documents exist.",
+        "Recovered common Longinus and Djinni hulls and their missing Thruster equipment come from the fingerprinted 2021-04-14 catalog; LonginusX and AetherDrive items are explicitly tagged as rare generation candidates.",
         $"State path: {outputStatePath}"
     ]
 });
@@ -403,6 +441,12 @@ static void DeleteDirectoryIfExists(string path)
     {
         Directory.Delete(path, recursive: true);
     }
+}
+
+internal enum LegacyCatalogLayout
+{
+    Current,
+    April2021
 }
 
 internal static class LegacyCatalogReader
@@ -548,7 +592,9 @@ internal static class LegacyCatalogReader
         [38] = "AutoWeapon"
     };
 
-    public static IReadOnlyList<LegacyCatalogEntry> Read(string catalogPath)
+    public static IReadOnlyList<LegacyCatalogEntry> Read(
+        string catalogPath,
+        LegacyCatalogLayout layout = LegacyCatalogLayout.Current)
     {
         if (!File.Exists(catalogPath))
         {
@@ -561,7 +607,7 @@ internal static class LegacyCatalogReader
         var entries = new List<LegacyCatalogEntry>(count);
         for (var i = 0; i < count; i++)
         {
-            entries.Add(ReadEntry(ref reader));
+            entries.Add(ReadEntry(ref reader, layout));
         }
 
         return entries;
@@ -571,10 +617,12 @@ internal static class LegacyCatalogReader
     {
         var bytes = File.ReadAllBytes(path);
         var reader = new MessagePackReader(bytes);
-        return ReadEntry(ref reader);
+        return ReadEntry(ref reader, LegacyCatalogLayout.Current);
     }
 
-    private static LegacyCatalogEntry ReadEntry(ref MessagePackReader reader)
+    private static LegacyCatalogEntry ReadEntry(
+        ref MessagePackReader reader,
+        LegacyCatalogLayout layout)
     {
         var unionHeader = reader.ReadArrayHeader();
         if (unionHeader != 2)
@@ -591,7 +639,9 @@ internal static class LegacyCatalogReader
         var shape = ReadShape(payload, 5);
         var interiorShape = ReadInteriorShape(unionKey, payload, shape);
         var dockingMaxSize = unionKey == 30 ? ReadPoint(payload, 25) : PointFacts.Empty;
-        var hardpoints = unionKey == 3 ? ReadHardpoints(payload, 23) : [];
+        var hardpoints = unionKey == 3
+            ? ReadHardpoints(payload, layout == LegacyCatalogLayout.April2021 ? 20 : 23)
+            : [];
         var behaviorKey = unionKey == 31 || unionKey is 2 or 3 or 29 or 30 ? 11 : 10;
         var behaviorPayloads = ReadBehaviorPayloads(payload, behaviorKey);
         var itemCategory = GetItemCategory(unionKey);
@@ -636,8 +686,10 @@ internal static class LegacyCatalogReader
                     InteriorShapeCells = interiorShape.Cells,
                     Hardpoints = hardpoints,
                     BehaviorPayloads = behaviorPayloads,
-                    HardpointType = GetHardpointType(unionKey, payload),
-                    HullType = unionKey == 3 ? GetEnumName(payload, 25, HullTypes) : "",
+                    HardpointType = GetHardpointType(unionKey, payload, layout),
+                    HullType = unionKey == 3
+                        ? GetEnumName(payload, layout == LegacyCatalogLayout.April2021 ? 22 : 25, HullTypes)
+                        : "",
                     BehaviorKinds = behaviorKinds,
                     BehaviorCount = behaviorPayloads.Length,
                     MaxStack = unionKey == 0 ? GetInt(payload, 9) : 0,
@@ -648,16 +700,28 @@ internal static class LegacyCatalogReader
                     MaximumTemperature = unionKey is 2 or 3 or 29 or 30 or 31 ? GetDouble(payload, 14) : 0,
                     ThermalPerformanceCurveKeys = unionKey is 2 or 3 or 29 or 30 or 31 ? ReadCurveKeys(payload, 17) : [],
                     ThermalResilience = unionKey is 2 or 3 or 29 or 30 or 31 ? GetPositiveDoubleOrDefault(payload, 18, 1) : 1,
-                    AudioStats = unionKey is 2 or 3 or 29 or 30 or 31 ? ReadAudioStats(payload, 22) : [],
+                    AudioStats = layout == LegacyCatalogLayout.Current && unionKey is 2 or 3 or 29 or 30 or 31
+                        ? ReadAudioStats(payload, 22)
+                        : [],
                     EffectivenessCurveKeys = isConsumable ? ReadCurveKeys(payload, 14) : [],
-                    HullPrefab = unionKey == 3 ? GetString(payload, 24) : "",
-                    HullGridOffset = unionKey == 3 ? GetDouble(payload, 26) : 0,
-                    HullArmor = unionKey == 3 ? GetDouble(payload, 27) : 0,
-                    HullDrag = unionKey == 3 ? GetDouble(payload, 28) : 0,
-                    HullCanTow = unionKey == 3 && GetBool(payload, 29),
+                    HullPrefab = unionKey == 3
+                        ? GetString(payload, layout == LegacyCatalogLayout.April2021 ? 21 : 24)
+                        : "",
+                    HullGridOffset = unionKey == 3
+                        ? GetDouble(payload, layout == LegacyCatalogLayout.April2021 ? 23 : 26)
+                        : 0,
+                    HullArmor = unionKey == 3
+                        ? GetDouble(payload, layout == LegacyCatalogLayout.April2021 ? 24 : 27)
+                        : 0,
+                    HullDrag = unionKey == 3
+                        ? GetDouble(payload, layout == LegacyCatalogLayout.April2021 ? 25 : 28)
+                        : 0,
+                    HullCanTow = layout == LegacyCatalogLayout.Current && unionKey == 3 && GetBool(payload, 29),
                     DockingMaxSizeX = dockingMaxSize.X,
                     DockingMaxSizeY = dockingMaxSize.Y,
-                    ActionBarIcon = unionKey is 2 or 3 or 29 or 30 or 31 ? GetString(payload, 20) : "",
+                    ActionBarIcon = layout == LegacyCatalogLayout.Current && unionKey is 2 or 3 or 29 or 30 or 31
+                        ? GetString(payload, 20)
+                        : "",
                     SimpleCommodityCategory = unionKey == 0 ? GetEnumName(payload, 10, SimpleCommodityCategories) : "",
                     CompoundCommodityCategory = unionKey == 1 ? GetEnumName(payload, 11, CompoundCommodityCategories) : "",
                     WeaponRange = unionKey == 31 ? GetEnumName(payload, 24, WeaponRanges) : "",
@@ -913,13 +977,19 @@ internal static class LegacyCatalogReader
         return payload.TryGetValue(key, out var value) && value is object?[] array ? array.Length : 0;
     }
 
-    private static string GetHardpointType(int unionKey, IReadOnlyDictionary<int, object?> payload)
+    private static string GetHardpointType(
+        int unionKey,
+        IReadOnlyDictionary<int, object?> payload,
+        LegacyCatalogLayout layout)
     {
         return unionKey switch
         {
             3 => "Hull",
             29 or 30 => "Tool",
-            2 or 31 => GetEnumName(payload, 23, HardpointTypes),
+            2 or 31 => GetEnumName(
+                payload,
+                layout == LegacyCatalogLayout.April2021 ? 20 : 23,
+                HardpointTypes),
             _ => ""
         };
     }

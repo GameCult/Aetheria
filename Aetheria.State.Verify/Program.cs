@@ -75,6 +75,7 @@ RequireTypedStatRecipeOperations(root);
 RequireTypedDaemonCommandPayloads(root);
 RequireUnityPublicRequestVocabulary(root);
 RequireCatalogSurfaceUsesManagedRuntimeCatalog(root);
+RequireDaemonLoadoutRarityAuthority(root);
 RequireDaemonVersePublication(root);
 RequireUnityRuntimeCatalogClientUsesManagedDocument(root);
 RequireAetheriaRuntimeVerseClientContract(root);
@@ -12998,7 +12999,12 @@ static void RequireCatalogSurfaceUsesManagedRuntimeCatalog(string root)
         "node.MutableDocument<AetheriaTradeValuePolicy>(AetheriaStateNode.TradeValuePolicyKey)",
         "AetheriaRuntimeStateMapper.ToTradeValuePolicy(",
         "TryReadRectangularShape(columns, out var rectangularShape)",
-        "ProjectStationSensorMount(ProjectDeployableWeapon(entry.ItemDefinition!))",
+        "ProjectCatalogRarity(ProjectStationSensorMount(ProjectDeployableWeapon(entry.ItemDefinition!)))",
+        "AetherDB.2021-04-14.msgpack",
+        "LegacyCatalogLayout.April2021",
+        "c4b20032-8cd3-4206-807f-97b296797425",
+        "bb5d9f73-612f-4060-8fb4-f72d6b93b616",
+        "rarity:rare",
         "--merge-station-sensor",
         "await node.CatalogSurface().LatestAsync().ConfigureAwait(false);"
     };
@@ -13033,6 +13039,27 @@ static void RequireCatalogSurfaceUsesManagedRuntimeCatalog(string root)
     }
 
     Console.WriteLine("Catalog Eve surface: refresh path uses the managed runtime catalog document");
+}
+
+static void RequireDaemonLoadoutRarityAuthority(string root)
+{
+    var generatorPath = Path.Combine(root, "Aetheria.State.Daemon", "AetheriaDaemonLoadoutGenerator.cs");
+    var generator = File.ReadAllText(generatorPath);
+    var required = new[]
+    {
+        "private Random _random;",
+        "RareGenerationWeight",
+        "rarity:rare",
+        "RarityWeight(item)"
+    };
+    var missing = required.Where(symbol => !generator.Contains(symbol, StringComparison.Ordinal)).ToArray();
+    if (missing.Length > 0)
+        throw new InvalidOperationException(
+            "Daemon loadout generation must own one advancing CultMath stream and apply typed rarity policy: " +
+            string.Join(", ", missing));
+    if (generator.Contains("private readonly Random _random;", StringComparison.Ordinal))
+        throw new InvalidOperationException(
+            "A readonly CultMath.Random field mutates a defensive copy and restarts weighted selection on every draw.");
 }
 
 static void RequireAetheriaRuntimeVerseClientContract(string root)

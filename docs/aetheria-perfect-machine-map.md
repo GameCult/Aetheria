@@ -953,9 +953,28 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
 - Variant invariant: AetherDrive is not baseline propulsion. The canonical
   catalog contains the single 250,000-credit `Traction` drive with hardpoint
   type `AetherDrive`, and only the 7,500,000-credit modified `LonginusX` hull
-  exposes that hardpoint. Its rotor RPM, coupling, torque curve, energy, heat,
-  and thrust run only when that rare equipment is actually installed. Ordinary
-  flight fixtures explicitly prove that no AetherDrive state is manufactured.
+  exposes that hardpoint. The fingerprinted 2021-04-14 catalog restores the
+  separate common `Longinus` row under its original GUID, including four
+  directional-thruster mounts, and restores `Djinni`; `LonginusX` and every
+  AetherDrive item carry typed `rarity:rare` catalog tags. The daemon applies a
+  0.05 generation multiplier to those tags. Its rotor RPM, coupling, torque
+  curve, energy, heat, and thrust run only when that rare equipment is actually
+  installed. Ordinary flight fixtures explicitly prove that no AetherDrive
+  state is manufactured.
+- Catalog recovery owner: `Aetheria.State.Import` alone turns the quarantined
+  April 2021 MessagePack fossil into typed hull documents. Its allowed inputs
+  are the fingerprinted historical blob and the explicit `April2021` field
+  layout; its outputs are ordinary typed item documents. The blob, Unity
+  database classes, and current fixture catalog are not runtime authorities.
+  Missing-row recovery is limited to the historical `Longinus` and `Djinni`
+  GUIDs plus missing `Thruster` equipment required to fill their authored
+  mounts, so the supplemental catalog cannot overwrite live rows or silently
+  revive unrelated obsolete content.
+- Generation owner: one daemon loadout generator owns one advancing mutable
+  CultMath random stream. A readonly struct field is forbidden because it
+  mutates a defensive copy and restarts every weighted draw. Price, allegiance,
+  graph distance, footprint, and typed rarity are inputs; selected hull and
+  immutable selection receipt are outputs. Eve and Unity only inspect them.
 - Derived state: Eve actuator rows, RPM gauges, plume/effect intensity, sound
   parameters, and interpolated transforms are presentation projections. They
   cannot write velocity, direction, heat, energy, or equipment state back.
@@ -976,10 +995,13 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   unfunded no-motion/no-plume behavior, progressive hardware turning before
   weapon lock, autonomous navigation and cross-zone travel through Ymir, and
   isolated rare AetherDrive spool/force on a modified-hull fixture. Canonical
-  catalog assertions lock the `Traction`/`LonginusX` rarity boundary.
+  catalog assertions lock the restored common hull identities and the
+  `Traction`/`LonginusX` rarity boundary; a 2,000-loadout deterministic witness
+  proves rare candidates remain possible without becoming the default path.
 - Open parity: hardpoint transform directions, exact per-equipment behavior
-  execution ordering, float32/CultMath parity against the fossil, production
-  generation-frequency evidence, and generic native thrust/turn feedback still
+  execution ordering, float32/CultMath parity against the fossil, live
+  production-world generation-frequency evidence, and generic native
+  thrust/turn feedback still
   require proof.
 
 ### Flight Post-Processing Contract
