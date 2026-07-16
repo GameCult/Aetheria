@@ -2444,9 +2444,15 @@ it exactly once from a persisted Ymir Begin fact. Witness runners use the
 daemon's native 20 ms wall interval for its 20 ms simulation delta; download
 latency is not allowed to redefine transient world lifetime. The managed
 network content path is proven, while negotiated mapped/zero-copy body delivery
-remains CultMesh work. The fog contract and provider shader execute, but the
-current brown-black output is not visual parity with the fossil's blue gravity
-sea.
+remains CultMesh work. The fog contract and provider shader execute. Terminus
+now publishes its blue fog tint from the daemon-owned sun visual rather than an
+unrelated brown calibration; the generic runtime applies the same field ABI.
+The warm witness records `225,293` changed pilot pixels, average luminance
+`0.11927`, 241 volume composites, intact pilot/map isolation, and the same
+authoritative destruction-loot path. The current volume still reads as a broad
+blue shelf against sparse world geometry, so patch readability, gravity-wave
+readability, surrounding geometry, and final luminance/composition remain open
+visual parity work.
 
 Generated loadouts accept no scenario-authored cargo strings. Catalog selection
 is the only loadout item-key owner: ordinary ships begin without generated

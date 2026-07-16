@@ -375,7 +375,7 @@ internal static class AetheriaDaemonZoneGenerator
             ? new AetheriaSunVisualState
             {
                 LightColor = Vec3(1, 0.86, 0.58),
-                FogTintColor = Vec3(0.45, 0.28, 0.16),
+                FogTintColor = Vec3(0.32, 0.52, 1),
                 LightRadiusMultiplier = 1.8
             }
             : new AetheriaSunVisualState();
