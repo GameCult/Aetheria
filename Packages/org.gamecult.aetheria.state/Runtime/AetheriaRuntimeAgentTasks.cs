@@ -331,6 +331,11 @@ namespace GameCult.Aetheria.State.Verse
             var commands = new List<AetheriaRuntimeDaemonCommandDocument>
             {
                 Movement(task, agent, frameId, dx * radial, dz * radial, thrust),
+                Command(task, agent, frameId, AetheriaRuntimeDaemonCommandKinds.SetLookDirection, "look", command =>
+                {
+                    command.DirectionX = dx;
+                    command.PositionZ = dz;
+                }),
                 Command(task, agent, frameId, AetheriaRuntimeDaemonCommandKinds.SetTarget, "target", command =>
                     command.TargetEntityKey = EntityKey(run, task.ZoneIndex, target.EntityIndex))
             };
@@ -414,9 +419,7 @@ namespace GameCult.Aetheria.State.Verse
             var length = Math.Sqrt(dx * dx + dz * dz);
             return IdleCommand(zoneIndex, entity, frameId, AetheriaRuntimeDaemonCommandKinds.SetMoveVector, phase, command =>
             {
-                command.DirectionX = length <= 0.0001 ? 0 : dx / length;
-                command.DirectionY = length <= 0.0001 ? 0 : dz / length;
-                command.ScalarValue = length <= 0.0001 ? 0 : 1;
+                SetLocalHelmAxes(command, entity, dx, dz, length <= 0.0001 ? 0 : 1);
             });
         }
 
@@ -771,10 +774,7 @@ namespace GameCult.Aetheria.State.Verse
         {
             return Command(task, agent, frameId, AetheriaRuntimeDaemonCommandKinds.SetMoveVector, "move", command =>
             {
-                var length = Math.Sqrt(dx * dx + dz * dz);
-                command.DirectionX = length <= 0.0001 ? 0 : dx / length;
-                command.DirectionY = length <= 0.0001 ? 0 : dz / length;
-                command.ScalarValue = magnitude;
+                SetLocalHelmAxes(command, agent, dx, dz, magnitude);
             });
         }
 
@@ -794,10 +794,37 @@ namespace GameCult.Aetheria.State.Verse
                 $"zone.{zoneIndex}.entity.{agent.EntityIndex}");
             command.CommandId = CommandId(task, frameId, "travel-approach");
             var length = Math.Sqrt(dx * dx + dz * dz);
-            command.DirectionX = length <= 0.0001 ? 0 : dx / length;
-            command.DirectionY = length <= 0.0001 ? 0 : dz / length;
-            command.ScalarValue = length <= 0.0001 ? 0 : 1;
+            SetLocalHelmAxes(command, agent, dx, dz, length <= 0.0001 ? 0 : 1);
             return command;
+        }
+
+        private static void SetLocalHelmAxes(
+            AetheriaRuntimeDaemonCommandDocument command,
+            AetheriaRuntimeEntitySnapshotCommit entity,
+            double worldX,
+            double worldZ,
+            double magnitude)
+        {
+            var desiredLength = Math.Sqrt(worldX * worldX + worldZ * worldZ);
+            if (desiredLength <= 0.0001 || magnitude <= 0)
+            {
+                command.DirectionX = 0;
+                command.DirectionY = 0;
+                command.ScalarValue = 0;
+                return;
+            }
+
+            var forwardLength = Math.Sqrt(
+                entity.DirectionX * entity.DirectionX + entity.DirectionY * entity.DirectionY);
+            var forwardX = forwardLength <= 0.0001 ? 0 : entity.DirectionX / forwardLength;
+            var forwardZ = forwardLength <= 0.0001 ? 1 : entity.DirectionY / forwardLength;
+            var desiredX = worldX / desiredLength;
+            var desiredZ = worldZ / desiredLength;
+            var rightX = forwardZ;
+            var rightZ = -forwardX;
+            command.DirectionX = desiredX * rightX + desiredZ * rightZ;
+            command.DirectionY = desiredX * forwardX + desiredZ * forwardZ;
+            command.ScalarValue = Math.Min(1, magnitude);
         }
 
         private static double InteractionRadius(AetheriaRuntimeEntitySnapshotCommit entity) =>

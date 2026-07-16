@@ -11,6 +11,7 @@ namespace GameCult.Aetheria.State.Verse
         public AetheriaRuntimeEquippedBehavior(
             int equipmentIndex,
             int behaviorIndex,
+            AetheriaRuntimeLoadoutItemSlotCommit slot,
             AetheriaRuntimeLoadoutItemCommit item,
             AetheriaRuntimeCatalogItem catalogItem,
             AetheriaRuntimeBehaviorPayload payload,
@@ -18,6 +19,7 @@ namespace GameCult.Aetheria.State.Verse
         {
             EquipmentIndex = equipmentIndex;
             BehaviorIndex = behaviorIndex;
+            Slot = slot;
             Item = item;
             CatalogItem = catalogItem;
             Payload = payload;
@@ -26,6 +28,7 @@ namespace GameCult.Aetheria.State.Verse
 
         public int EquipmentIndex { get; }
         public int BehaviorIndex { get; }
+        public AetheriaRuntimeLoadoutItemSlotCommit Slot { get; }
         public AetheriaRuntimeLoadoutItemCommit Item { get; }
         public AetheriaRuntimeCatalogItem CatalogItem { get; }
         public AetheriaRuntimeBehaviorPayload Payload { get; }
@@ -78,6 +81,7 @@ namespace GameCult.Aetheria.State.Verse
                     found.Add(new AetheriaRuntimeEquippedBehavior(
                         equipmentIndex,
                         behaviorIndex,
+                        equipment[equipmentIndex],
                         item,
                         catalogItem,
                         payload,

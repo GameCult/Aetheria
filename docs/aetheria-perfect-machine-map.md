@@ -930,6 +930,58 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
 - Cut line: the unconditional `planar.top-down-follow.v1` projection no longer
   collapses the fossil dock and flight cameras into one false top-down view.
 
+### Authoritative Flight Actuator Contract
+
+- Owner: Aetheria daemon owns persistent local helm axes, desired look
+  direction, installed-actuator evaluation, energy/heat/visibility consequences,
+  hull drag, and the velocity/direction submitted to physics. Ymir owns body
+  integration and contacts. Eve clients own input sampling and interpolation,
+  never accepted motion.
+- Inputs: accepted semantic movement/look commands; current hull direction and
+  velocity; catalog hull/item shapes and masses; equipment placement and
+  rotation; online/durability/thermal state; behavior payload performance stats;
+  capacitor/reactor availability; fixed delta.
+- Outputs: actual entity direction and velocity, persistent helm/look state,
+  typed Thruster/AetherDrive behavior state, equipment heat, plume visibility,
+  and the Ymir-integrated body pose.
+- Ordinary-flight invariant: standard ships fly through directional thrusters.
+  The daemon clears and reallocates their axes each tick using the fossil
+  forward/reverse/left/right rotation groups, symmetric lateral-torque
+  compensation, placement-derived torque, and desired-look turn demand. A
+  thruster that cannot fund its authored energy demand produces no force, heat,
+  or plume visibility.
+- Variant invariant: AetherDrive is not baseline propulsion. The canonical
+  catalog contains the single 250,000-credit `Traction` drive with hardpoint
+  type `AetherDrive`, and only the 7,500,000-credit modified `LonginusX` hull
+  exposes that hardpoint. Its rotor RPM, coupling, torque curve, energy, heat,
+  and thrust run only when that rare equipment is actually installed. Ordinary
+  flight fixtures explicitly prove that no AetherDrive state is manufactured.
+- Derived state: Eve actuator rows, RPM gauges, plume/effect intensity, sound
+  parameters, and interpolated transforms are presentation projections. They
+  cannot write velocity, direction, heat, energy, or equipment state back.
+- Forbidden writers: faction speed constants, command reducers, task planners,
+  Eve lowerers, and Unity transforms cannot assign accepted ship velocity or
+  heading. `SetLookDirection` now writes desired look only; physical actuators
+  turn the hull. World-space autonomous travel must be translated into the same
+  local strafe/forward helm axes used by a pilot.
+- Shared paths: manual movement, autonomous exploration/haul/patrol/attack,
+  cross-zone approach, and home docking all enter the same command reducer,
+  actuator step, and Ymir world step. AetherDrive and Thruster share mass,
+  thermal, energy, drag, and physics owners without pretending to be the same
+  equipment class.
+- Cut line: `ApplyMovementIntent` and faction `PawnSpeed`/`RaiderSpeed` motion
+  are gone. No compatibility fallback may restore direct velocity assignment.
+- Verification: daemon smoke proves local-axis dominance through ordinary
+  thrusters, placement-derived torque/thrust state, funded heat and plume,
+  unfunded no-motion/no-plume behavior, progressive hardware turning before
+  weapon lock, autonomous navigation and cross-zone travel through Ymir, and
+  isolated rare AetherDrive spool/force on a modified-hull fixture. Canonical
+  catalog assertions lock the `Traction`/`LonginusX` rarity boundary.
+- Open parity: hardpoint transform directions, exact per-equipment behavior
+  execution ordering, float32/CultMath parity against the fossil, production
+  generation-frequency evidence, and generic native thrust/turn feedback still
+  require proof.
+
 ### Flight Post-Processing Contract
 
 - Owner: Aetheria selects the logical flight profile and owns its native asset

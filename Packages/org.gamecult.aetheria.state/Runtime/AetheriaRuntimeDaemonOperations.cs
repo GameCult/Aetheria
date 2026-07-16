@@ -537,8 +537,8 @@ namespace GameCult.Aetheria.State.Verse
 
             return ApplyCurrentEntity(run, command, entity =>
             {
-                entity.DirectionX = command.DirectionX / length;
-                entity.DirectionY = command.PositionZ / length;
+                entity.LookDirectionX = command.DirectionX / length;
+                entity.LookDirectionY = command.PositionZ / length;
             });
         }
 

@@ -269,6 +269,8 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
         Kind = "ship",
         Position = new AetheriaVector3 { X = 12.5, Y = 0.0, Z = -3.25 },
         Direction = new AetheriaVector2 { X = 0.0, Y = 1.0 },
+        LookDirection = new AetheriaVector2 { X = 0.8, Y = 0.6 },
+        HelmInput = new AetheriaVector2 { X = -0.25, Y = 0.75 },
         FactionKey = factionKey.ToString(),
         HullItemKey = itemKey.ToString(),
         Equipment =
@@ -890,6 +892,10 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
     }
 
     if (entitySnapshot?.Kind != "ship" ||
+        entitySnapshot.LookDirection.X != 0.8 ||
+        entitySnapshot.LookDirection.Y != 0.6 ||
+        entitySnapshot.HelmInput.X != -0.25 ||
+        entitySnapshot.HelmInput.Y != 0.75 ||
         entitySnapshot.Equipment.Length != 1 ||
         entitySnapshot.Equipment[0].Quality != 0.9 ||
         entitySnapshot.Equipment[0].Durability != 0.8 ||

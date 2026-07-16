@@ -914,7 +914,11 @@ namespace GameCult.Aetheria.State.Verse
             double visibility,
             int visibilitySourceCount,
             IReadOnlyList<AetheriaRuntimeEntityContactSnapshot> contacts,
-            double shutdownPerformance)
+            double shutdownPerformance,
+            double lookDirectionX = 0,
+            double lookDirectionY = 0,
+            double helmStrafe = 0,
+            double helmForward = 0)
         {
             RecordKey = recordKey;
             EntityIndex = entityIndex;
@@ -953,6 +957,10 @@ namespace GameCult.Aetheria.State.Verse
             VisibilitySourceCount = visibilitySourceCount;
             Contacts = contacts;
             ShutdownPerformance = shutdownPerformance;
+            LookDirectionX = lookDirectionX;
+            LookDirectionY = lookDirectionY;
+            HelmStrafe = helmStrafe;
+            HelmForward = helmForward;
         }
 
         public string RecordKey { get; set; }
@@ -992,6 +1000,10 @@ namespace GameCult.Aetheria.State.Verse
         public int VisibilitySourceCount { get; set; }
         public IReadOnlyList<AetheriaRuntimeEntityContactSnapshot> Contacts { get; set; }
         public double ShutdownPerformance { get; set; }
+        public double LookDirectionX { get; set; }
+        public double LookDirectionY { get; set; }
+        public double HelmStrafe { get; set; }
+        public double HelmForward { get; set; }
     }
 
     [MessagePackObject(true)]

@@ -1080,6 +1080,18 @@ namespace GameCult.Aetheria.State.Verse
 
         [Key(48)]
         public string CauseOfDeath { get; set; } = "";
+
+        [Key(49)]
+        public double LookDirectionX { get; set; }
+
+        [Key(50)]
+        public double LookDirectionY { get; set; }
+
+        [Key(51)]
+        public double HelmStrafe { get; set; }
+
+        [Key(52)]
+        public double HelmForward { get; set; }
     }
 
     [MessagePackObject]

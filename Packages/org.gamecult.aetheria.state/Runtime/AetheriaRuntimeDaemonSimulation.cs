@@ -64,8 +64,15 @@ namespace GameCult.Aetheria.State.Verse
                     catalog,
                     frameId,
                     deltaSeconds);
-                foreach (var movement in intents?.Movements ?? Enumerable.Empty<AetheriaRuntimeDaemonMovementIntent>())
-                    ApplyMovementIntent(run, entities, movement, settings);
+                AetheriaRuntimeFlightSimulation.Step(
+                    entities,
+                    intents?.Movements,
+                    catalog,
+                    deltaSeconds,
+                    settings.AetherTorqueMultiplier,
+                    settings.AetherHeatMultiplier,
+                    settings.TorqueFloor,
+                    settings.TorqueMultiplier);
                 StepTractorPower(entities, deltaSeconds);
                 var worldStep = StepWorldPhysics(
                     run.RunId, frameId, simulationStepIndex, zone, entities, deltaSeconds, worldPhysics);
@@ -101,32 +108,6 @@ namespace GameCult.Aetheria.State.Verse
                     Math.Abs(delta), deltaSeconds * AetheriaRuntimeTractorMechanics.PowerRampPerSecond);
                 entity.TractorPower = Clamp01(entity.TractorPower);
             }
-        }
-
-        private static void ApplyMovementIntent(
-            AetheriaRuntimeRunCheckpointCommit run,
-            IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities,
-            AetheriaRuntimeDaemonMovementIntent? movement,
-            AetheriaRuntimeDaemonSimulationSettings settings)
-        {
-            if (movement == null || !TryParseEntityIndex(movement.ActorEntityKey, out var entityIndex))
-                return;
-
-            var entity = entities.FirstOrDefault(candidate => candidate.EntityIndex == entityIndex);
-            if (entity == null || !IsAlive(entity))
-                return;
-
-            var magnitude = Clamp01(movement.Magnitude);
-            var normalized = Normalize(movement.DirectionX, movement.DirectionY);
-            var speed = ResolveSpeed(entity, settings);
-            entity.VelocityX = normalized.X * speed * magnitude;
-            entity.VelocityY = normalized.Y * speed * magnitude;
-            var target = entities.FirstOrDefault(candidate =>
-                candidate.EntityIndex == entity.TargetEntityIndex && IsAlive(candidate));
-            if (target != null)
-                Face(entity, target.PositionX - entity.PositionX, target.PositionZ - entity.PositionZ);
-            else if (magnitude > 0.001)
-                Face(entity, normalized.X, normalized.Y);
         }
 
         private static AetheriaRuntimeWorldStep StepWorldPhysics(
@@ -2244,18 +2225,6 @@ namespace GameCult.Aetheria.State.Verse
             return IsPlayerOwned(left) != IsPlayerOwned(right) &&
                 (string.Equals(left.FactionKey, "raider", StringComparison.OrdinalIgnoreCase) ||
                  string.Equals(right.FactionKey, "raider", StringComparison.OrdinalIgnoreCase));
-        }
-
-        private static double ResolveSpeed(
-            AetheriaRuntimeEntitySnapshotCommit entity,
-            AetheriaRuntimeDaemonSimulationSettings settings)
-        {
-            if (string.Equals(entity.Kind, "station", StringComparison.OrdinalIgnoreCase))
-                return 0;
-
-            return string.Equals(entity.FactionKey, "raider", StringComparison.OrdinalIgnoreCase)
-                ? settings.RaiderSpeed
-                : settings.PawnSpeed;
         }
 
         private static double ResolveSensorRange(

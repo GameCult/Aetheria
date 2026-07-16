@@ -179,6 +179,9 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             ThermalMedicalExposureUsesCockpitTemperature,
             ThermalMedicalDeathUsesOrdinaryDestructionPath,
             MultipleActorsUseTheSameMovementLever,
+            DirectionalThrustersOwnOrdinaryFlightFeedback,
+            UnpoweredThrustersCannotMoveOrAdvertisePlume,
+            RareAetherDriveSpoolsOnlyOnModifiedHullFixture,
             LookDirectionRejectsInvalidVectorsWithoutMutatingTheShip,
             AgentClaimsAndCompletesExploreTaskThroughCommands,
             SchedulerAssignsHighestPriorityCompatibleTask,
@@ -1033,6 +1036,21 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
     {
         var catalog = AetheriaRuntimeCatalogStore.OpenReadOnly(
             Path.Combine(Directory.GetCurrentDirectory(), "GameData", "aetheria-world.cc"));
+        var drives = catalog.Items
+            .Where(item => item.BehaviorKinds.Contains(AetheriaRuntimeBehaviorKinds.AetherDrive))
+            .ToArray();
+        var driveHulls = catalog.Items
+            .Where(item => item.Hardpoints.Any(point => point.Type == "AetherDrive"))
+            .ToArray();
+        Require(drives.Length == 1 && drives[0].Name == "Traction" &&
+                drives[0].HardpointType == "AetherDrive" && drives[0].Price == 250000,
+            "canonical AetherDrive must remain the singular expensive Traction retrofit");
+        Require(driveHulls.Length == 1 && driveHulls[0].Name == "LonginusX" &&
+                driveHulls[0].Price == 7500000,
+            "canonical AetherDrive compatibility must remain confined to the rare modified LonginusX hull");
+        Require(catalog.Items.Count(item => !string.IsNullOrWhiteSpace(item.HullType) &&
+                item.Hardpoints.All(point => point.Type != "AetherDrive")) > driveHulls.Length,
+            "ordinary hull variants must outnumber and exclude the AetherDrive retrofit path");
         var mine = catalog.Items.Single(item =>
             item.ItemKey == "aetheria.item_definition:legacy:e78d3670-3ac6-4d9b-834c-1da4228ac311");
         RequireEqual("Mine Launcher", mine.Name, "recovered item must retain fossil identity");
@@ -1695,6 +1713,133 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         Array.Empty<AetheriaRuntimeBehaviorValue>(),
         Array.Empty<AetheriaRuntimeBehaviorMapEntry>());
 
+    private static AetheriaRuntimeBehaviorValue Vector(params double[] values) => new(
+        "float3",
+        "",
+        0,
+        false,
+        "",
+        "",
+        values.Select(Number).ToArray(),
+        Array.Empty<AetheriaRuntimeBehaviorMapEntry>());
+
+    private static AetheriaRuntimeBehaviorValue Curve(params AetheriaRuntimeCurveKey[] keys) => new(
+        "bezier-curve",
+        "",
+        0,
+        false,
+        "",
+        "",
+        keys.Select(key => Vector(key.Time, key.Value, key.InTangent, key.OutTangent)).ToArray(),
+        Array.Empty<AetheriaRuntimeBehaviorMapEntry>());
+
+    private static AetheriaRuntimeBehaviorPayload AetherDrivePayload(
+        double couplingEfficiency = 1,
+        double energyDraw = 0) => new(
+        0,
+        AetheriaRuntimeBehaviorKinds.AetherDrive,
+        0,
+        [
+            new AetheriaRuntimeBehaviorField(1, Vector(100, 100, 100)),
+            new AetheriaRuntimeBehaviorField(2, Vector(10, 10, 0.1)),
+            new AetheriaRuntimeBehaviorField(3, PerformanceStat(100)),
+            new AetheriaRuntimeBehaviorField(4, Vector(10, 10, 10)),
+            new AetheriaRuntimeBehaviorField(5, PerformanceStat(1)),
+            new AetheriaRuntimeBehaviorField(6, PerformanceStat(couplingEfficiency)),
+            new AetheriaRuntimeBehaviorField(7, PerformanceStat(10000)),
+            new AetheriaRuntimeBehaviorField(8, Curve(
+                new AetheriaRuntimeCurveKey(0, 1, 0, 0),
+                new AetheriaRuntimeCurveKey(1, 1, 0, 0))),
+            new AetheriaRuntimeBehaviorField(9, PerformanceStat(energyDraw)),
+            new AetheriaRuntimeBehaviorField(10, PerformanceStat(0))
+        ]);
+
+    private static AetheriaRuntimeBehaviorPayload ThrusterPayload() => new(
+        0,
+        AetheriaRuntimeBehaviorKinds.Thruster,
+        0,
+        [
+            new AetheriaRuntimeBehaviorField(1, PerformanceStat(90)),
+            new AetheriaRuntimeBehaviorField(2, PerformanceStat(2)),
+            new AetheriaRuntimeBehaviorField(3, PerformanceStat(1)),
+            new AetheriaRuntimeBehaviorField(4, PerformanceStat(0))
+        ]);
+
+    private static AetheriaRuntimeCatalogSnapshot EquipThrusterBank(
+        IEnumerable<AetheriaRuntimeEntitySnapshotCommit> entities,
+        params AetheriaRuntimeCatalogItem[] additionalItems)
+    {
+        var hull = HullCatalogItem("smoke-standard-thruster-hull", 5, 5, 0);
+        hull.HullDrag = 1;
+        var thruster = CatalogItem("smoke-directional-thruster", ThrusterPayload());
+        var placements = new[]
+        {
+            (0, 2, "None"), (4, 2, "None"),
+            (0, 1, "Half"), (4, 1, "Half"),
+            (2, 0, "CounterClockwise"), (2, 4, "CounterClockwise"),
+            (1, 0, "Clockwise"), (1, 4, "Clockwise")
+        };
+        foreach (var entity in entities.Where(entity => entity.Kind == "ship"))
+        {
+            if (string.IsNullOrWhiteSpace(entity.HullItemKey))
+                entity.HullItemKey = hull.ItemKey;
+            entity.Equipment = (entity.Equipment ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>())
+                .Concat(placements.Select(value => new AetheriaRuntimeLoadoutItemSlotCommit
+                {
+                    X = value.Item1,
+                    Y = value.Item2,
+                    Rotation = value.Item3,
+                    Item = new AetheriaRuntimeLoadoutItemCommit
+                    {
+                        ItemKey = thruster.ItemKey,
+                        Quantity = 1,
+                        Durability = 1,
+                        Enabled = true
+                    }
+                }))
+                .ToArray();
+        }
+        return new AetheriaRuntimeCatalogSnapshot(
+            additionalItems.Concat([hull, thruster]).ToArray(), [], []);
+    }
+
+    private static AetheriaRuntimeCatalogSnapshot EquipAetherDrive(
+        IEnumerable<AetheriaRuntimeEntitySnapshotCommit> entities,
+        params AetheriaRuntimeCatalogItem[] additionalItems)
+    {
+        var hull = HullCatalogItem("smoke-rare-aether-drive-hull", 3, 3, 0);
+        hull.Hardpoints =
+        [
+            new AetheriaRuntimeHardpoint(
+                "AetherDrive", 1, 1, 1, 1, 1,
+                [new AetheriaRuntimeShapeCell(0, 0)], "", "None", 0)
+        ];
+        var drive = CatalogItem("smoke-aether-drive", AetherDrivePayload());
+        drive.HardpointType = "AetherDrive";
+        foreach (var entity in entities.Where(entity => entity.Kind == "ship"))
+        {
+            if (string.IsNullOrWhiteSpace(entity.HullItemKey))
+                entity.HullItemKey = hull.ItemKey;
+            entity.Equipment = (entity.Equipment ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>())
+                .Concat([new AetheriaRuntimeLoadoutItemSlotCommit
+                {
+                    X = 1,
+                    Y = 1,
+                    Rotation = "None",
+                    Item = new AetheriaRuntimeLoadoutItemCommit
+                    {
+                        ItemKey = drive.ItemKey,
+                        Quantity = 1,
+                        Durability = 1,
+                        Enabled = true
+                    }
+                }])
+                .ToArray();
+        }
+        return new AetheriaRuntimeCatalogSnapshot(
+            additionalItems.Concat([hull, drive]).ToArray(), [], []);
+    }
+
     private static AetheriaRuntimeBehaviorPayload CapacitorPayload(double capacity, double efficiency) => new(
         0, "Capacitor", 0,
         [
@@ -1748,6 +1893,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
     {
         var agent = Entity(0, 0, "workers");
         agent.AgentTaskCapabilities = [AetheriaRuntimeAgentTaskTypes.Defend];
+        var catalog = EquipThrusterBank([agent]);
         var run = new AetheriaRuntimeRunCheckpointCommit
         {
             RunId = "agent-patrol-smoke",
@@ -1791,14 +1937,16 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         };
         var sawWestLeg = false;
         var sawReturnToEast = false;
-        for (var frame = 0; frame < 30; frame++)
+        var physics = NewPhysics();
+        for (var frame = 0; frame < 100; frame++)
         {
             var tick = AetheriaRuntimeDaemonTickRunner.Tick(
                 Path.Combine(Path.GetTempPath(), "aetheria-agent-patrol-smoke.cc"),
                 run,
                 new AetheriaRuntimeDaemonTickOptions
                 {
-                    WorldPhysics = NewPhysics(),
+                    WorldPhysics = physics,
+                    Catalog = catalog,
                     FrameId = frame,
                     FixedDeltaSeconds = 0.1,
                     SimulationTimeSeconds = frame * 0.1,
@@ -1997,10 +2145,10 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 new AetheriaRuntimeBehaviorField(24, PerformanceStat(1)),
                 new AetheriaRuntimeBehaviorField(25, PerformanceStat(1))
             ]);
-        var catalog = new AetheriaRuntimeCatalogSnapshot(
-            [CatalogItem("test-lock-cannon", weaponPayload), CatalogItem("test-attack-capacitor", CapacitorPayload(50, 1))],
-            Array.Empty<AetheriaRuntimeCorporation>(),
-            Array.Empty<AetheriaRuntimeNameFile>());
+        var catalog = EquipThrusterBank(
+            [agent],
+            CatalogItem("test-lock-cannon", weaponPayload),
+            CatalogItem("test-attack-capacitor", CapacitorPayload(50, 1)));
         var target = Entity(1, 105, "raider");
         target.Kind = "station";
         target.StatGrids = [Grid("hull", 14), Grid("shield", 0), Grid("heat", 0)];
@@ -2035,6 +2183,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         var lockTrace = new List<double>();
         var attackTrace = new List<string>();
         var firstLaunchFrame = -1;
+        var physics = NewPhysics();
         for (var frame = 0; frame < 60; frame++)
         {
             var tick = AetheriaRuntimeDaemonTickRunner.Tick(
@@ -2042,7 +2191,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 run,
                 new AetheriaRuntimeDaemonTickOptions
                 {
-                    WorldPhysics = NewPhysics(),
+                    WorldPhysics = physics,
                     FrameId = frame,
                     FixedDeltaSeconds = 0.1,
                     SimulationTimeSeconds = frame * 0.1,
@@ -2343,6 +2492,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         var agent = Entity(0, 0, "workers");
         agent.EntityId = "worker.cross-zone.stable";
         agent.AgentTaskCapabilities = [AetheriaRuntimeAgentTaskTypes.Explore];
+        var catalog = EquipThrusterBank([agent]);
         var task = AgentTask("cross-zone", 10);
         task.ZoneIndex = 2;
         task.TargetPositionX = 0;
@@ -2359,14 +2509,16 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         };
         var appliedTravelCommands = 0;
         var appliedApproachCommands = 0;
-        for (var frame = 0; frame < 24; frame++)
+        var physics = NewPhysics();
+        for (var frame = 0; frame < 100; frame++)
         {
             var tick = AetheriaRuntimeDaemonTickRunner.Tick(
                 Path.Combine(Path.GetTempPath(), "aetheria-agent-route-travel-smoke.cc"),
                 run,
                 new AetheriaRuntimeDaemonTickOptions
                 {
-                    WorldPhysics = NewPhysics(),
+                    WorldPhysics = physics,
+                    Catalog = catalog,
                     FrameId = frame,
                     FixedDeltaSeconds = 0.1,
                     SimulationTimeSeconds = frame * 0.1,
@@ -2399,6 +2551,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         var home = Entity(0, 60, "workers");
         home.EntityId = "station.home";
         home.Kind = "station";
+        var catalog = EquipThrusterBank([worker]);
         var run = new AetheriaRuntimeRunCheckpointCommit
         {
             RunId = "agent-return-home-smoke",
@@ -2413,14 +2566,16 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         var travelCount = 0;
         var sawDock = false;
         var rejectedHomeCommands = new List<string>();
-        for (var frame = 0; frame < 40; frame++)
+        var physics = NewPhysics();
+        for (var frame = 0; frame < 120; frame++)
         {
             var tick = AetheriaRuntimeDaemonTickRunner.Tick(
                 Path.Combine(Path.GetTempPath(), "aetheria-agent-return-home-smoke.cc"),
                 run,
                 new AetheriaRuntimeDaemonTickOptions
                 {
-                    WorldPhysics = NewPhysics(),
+                    WorldPhysics = physics,
+                    Catalog = catalog,
                     FrameId = frame,
                     FixedDeltaSeconds = 0.1,
                     SimulationTimeSeconds = frame * 0.1,
@@ -2449,8 +2604,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             run,
             new AetheriaRuntimeDaemonTickOptions
             {
-                WorldPhysics = NewPhysics(), FrameId = 41,
-                FixedDeltaSeconds = 0.1, SimulationTimeSeconds = 4.1, BuildPublications = false
+                WorldPhysics = physics, Catalog = catalog, FrameId = 121,
+                FixedDeltaSeconds = 0.1, SimulationTimeSeconds = 12.1, BuildPublications = false
             });
         Require(!settled.OperationResult.AppliedCommandIds.Any(id => id.Contains(":home-", StringComparison.Ordinal)),
             "docked worker must not emit a perpetual homecoming repair loop");
@@ -2487,6 +2642,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
     {
         var agent = Entity(0, 0, "workers");
         agent.AgentTaskCapabilities = [AetheriaRuntimeAgentTaskTypes.Explore];
+        var catalog = EquipThrusterBank([agent]);
         var run = new AetheriaRuntimeRunCheckpointCommit
         {
             RunId = "agent-task-smoke",
@@ -2513,18 +2669,20 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             CompletionRadius = 5
         };
         var completed = false;
-        for (var frame = 0; frame <= 20; frame++)
+        var physics = NewPhysics();
+        for (var frame = 0; frame <= 60; frame++)
         {
             var tick = AetheriaRuntimeDaemonTickRunner.Tick(
                 Path.Combine(Path.GetTempPath(), "aetheria-agent-task-smoke.cc"),
                 run,
                 new AetheriaRuntimeDaemonTickOptions
                 {
-                    WorldPhysics = NewPhysics(),
+                    WorldPhysics = physics,
                     FrameId = frame,
                     FixedDeltaSeconds = 0.1,
                     SimulationTimeSeconds = frame * 0.1,
                     ObservedCommands = frame == 0 ? [issue] : Array.Empty<AetheriaRuntimeDaemonCommandDocument>(),
+                    Catalog = catalog,
                     BuildPublications = false
                 });
             if (frame == 0)
@@ -2539,7 +2697,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 break;
         }
 
-        Require(completed, "agent must complete an explore task without direct position mutation");
+        Require(completed,
+            $"agent must complete an explore task without direct position mutation; position={agent.PositionX:0.###},{agent.PositionZ:0.###} velocity={agent.VelocityX:0.###},{agent.VelocityY:0.###}");
         Require(string.IsNullOrWhiteSpace(agent.AssignedAgentTaskId), "completed task must release the agent");
         Require(agent.PositionX >= 45, "agent must reach the task through repeated movement commands");
 
@@ -2575,7 +2734,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
     private static void MultipleActorsUseTheSameMovementLever()
     {
         var player = Entity(0, 0, "player");
-        var agent = Entity(1, 0, "worker");
+        var agent = Entity(1, 200, "worker");
+        var catalog = EquipThrusterBank([player, agent]);
         player.TargetEntityIndex = agent.EntityIndex;
         var run = new AetheriaRuntimeRunCheckpointCommit
         {
@@ -2592,16 +2752,20 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         var operation = AetheriaRuntimeDaemonOperations.Execute(run, commands);
 
         RequireEqual(2, operation.Intents.Movements.Count, "movement intent must retain one lever position per actor");
-        AetheriaRuntimeDaemonSimulation.Step(
-            run,
-            operation.Intents,
-            0.1,
-            AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
-            NewPhysics());
-        Require(player.VelocityX > 0 && Math.Abs(player.VelocityY) < 0.001,
-            "player command must drive its actor through the shared movement lever");
-        Require(agent.VelocityY > 0 && Math.Abs(agent.VelocityX) < 0.001,
-            "agent command must drive its actor through the shared movement lever");
+        var physics = NewPhysics();
+        for (var step = 0; step < 2; step++)
+            AetheriaRuntimeDaemonSimulation.Step(
+                run,
+                operation.Intents,
+                0.1,
+                AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
+                physics,
+                catalog,
+                step + 1);
+        Require(player.VelocityX > 0 && Math.Abs(player.VelocityY) < Math.Abs(player.VelocityX) * 0.1,
+            $"player command must drive its actor through the shared movement lever; velocity={player.VelocityX:0.###},{player.VelocityY:0.###}");
+        Require(agent.VelocityY > 0 && Math.Abs(agent.VelocityX) < Math.Abs(agent.VelocityY) * 0.1,
+            $"agent command must drive its actor through the shared movement lever; velocity={agent.VelocityX:0.###},{agent.VelocityY:0.###}");
 
         var release = MovementCommand("player-release", "zone.0.entity.0", 0, 0);
         release.ScalarValue = 0;
@@ -2611,9 +2775,122 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             releaseOperation.Intents,
             0.1,
             AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
-            NewPhysics());
+            physics,
+            catalog,
+            3);
         RequireEqual(agent.EntityIndex, player.TargetEntityIndex,
             "releasing the movement lever must not steal targeting authority");
+    }
+
+    private static void DirectionalThrustersOwnOrdinaryFlightFeedback()
+    {
+        var ship = Entity(0, 0, "player");
+        var catalog = EquipThrusterBank([ship]);
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "ordinary-thruster-flight-smoke",
+            CurrentZoneIndex = 0,
+            CurrentEntityKey = "zone.0.entity.0",
+            Zones = [new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [ship] }]
+        };
+        var operation = AetheriaRuntimeDaemonOperations.Execute(
+            run, [MovementCommand("forward-thrust", "zone.0.entity.0", 0, 1)]);
+        var physics = NewPhysics();
+        AetheriaRuntimeDaemonSimulation.Step(
+            run, operation.Intents, 0.1,
+            AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
+            physics, catalog, 1);
+
+        var thrusterStates = ship.BehaviorStates
+            .Where(value => value.BehaviorKind == AetheriaRuntimeBehaviorKinds.Thruster)
+            .ToArray();
+        RequireEqual(8, thrusterStates.Length,
+            "ordinary hull fixture must fly through its directional thruster bank");
+        Require(thrusterStates.Count(value => value.ThrusterAxis > 0.99) == 2 &&
+                thrusterStates.Where(value => value.ThrusterAxis > 0.99)
+                    .All(value => ship.Equipment[value.OwnerIndex].Rotation == "Half"),
+            "forward helm must fire only the reversed forward-thrust pair when no turn is requested");
+        Require(thrusterStates.Where(value => value.ThrusterAxis > 0.99)
+                .All(value => value.ThrusterThrust > 0 && Math.Abs(value.ThrusterTorque) > 0.5),
+            "thruster state must expose evaluated thrust and placement-derived torque");
+        Require(ship.VelocityY > 0 && Math.Abs(ship.VelocityX) < Math.Abs(ship.VelocityY) * 0.1,
+            "ordinary thrust must become Ymir-integrated forward velocity");
+        Require(ship.Visibility > 1.9,
+            "successful thruster execution must publish its maximum plume visibility");
+        Require(thrusterStates.Where(value => value.ThrusterAxis > 0.99)
+                .Any(value => AetheriaRuntimeThermalSimulation.EquipmentTemperature(
+                    ship, catalog, value.OwnerIndex) > ship.EquipmentStates
+                    .Single(state => state.EquipmentIndex == value.OwnerIndex).Temperature),
+            "successful thruster execution must deposit authored heat into daemon equipment cells");
+        Require(!ship.BehaviorStates.Any(value => value.BehaviorKind == AetheriaRuntimeBehaviorKinds.AetherDrive),
+            "ordinary flight must not manufacture an AetherDrive behavior");
+    }
+
+    private static void UnpoweredThrustersCannotMoveOrAdvertisePlume()
+    {
+        var ship = Entity(0, 0, "player");
+        var catalog = EquipThrusterBank([ship]);
+        var thruster = catalog.Items.Single(value => value.ItemKey == "smoke-directional-thruster");
+        thruster.BehaviorPayloads.Single().Fields = thruster.BehaviorPayloads.Single().Fields
+            .Select(field => field.Key == 4
+                ? new AetheriaRuntimeBehaviorField(4, PerformanceStat(10))
+                : field)
+            .ToArray();
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "unpowered-thruster-smoke",
+            CurrentZoneIndex = 0,
+            CurrentEntityKey = "zone.0.entity.0",
+            Zones = [new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [ship] }]
+        };
+        var operation = AetheriaRuntimeDaemonOperations.Execute(
+            run, [MovementCommand("unpowered-forward", "zone.0.entity.0", 0, 1)]);
+        AetheriaRuntimeDaemonSimulation.Step(
+            run, operation.Intents, 0.1,
+            AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
+            NewPhysics(), catalog, 1);
+
+        RequireNear(0, ship.VelocityX, 0.000001,
+            "an unfunded thruster bank must not create lateral velocity");
+        RequireNear(0, ship.VelocityY, 0.000001,
+            "an unfunded thruster bank must not create forward velocity");
+        RequireNear(0, ship.Visibility, 0.000001,
+            "an unfunded thruster bank must not advertise a plume that did not execute");
+    }
+
+    private static void RareAetherDriveSpoolsOnlyOnModifiedHullFixture()
+    {
+        var ship = Entity(0, 0, "player");
+        var catalog = EquipAetherDrive([ship]);
+        var hull = catalog.FindItem(ship.HullItemKey)!;
+        var drive = catalog.Items.Single(value => value.ItemKey == "smoke-aether-drive");
+        Require(drive.HardpointType == "AetherDrive" &&
+                hull.Hardpoints.Count(value => value.Type == drive.HardpointType) == 1,
+            "rare AetherDrive fixture must use an explicit modified-hull hardpoint instead of the ordinary hull path");
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "rare-aether-drive-smoke",
+            CurrentZoneIndex = 0,
+            CurrentEntityKey = "zone.0.entity.0",
+            Zones = [new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [ship] }]
+        };
+        var operation = AetheriaRuntimeDaemonOperations.Execute(
+            run, [MovementCommand("rare-drive-forward", "zone.0.entity.0", 0, 1)]);
+        var physics = NewPhysics();
+        for (var frame = 1; frame <= 2; frame++)
+            AetheriaRuntimeDaemonSimulation.Step(
+                run, operation.Intents, 0.1,
+                AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
+                physics, catalog, frame);
+
+        var state = ship.BehaviorStates.Single(value =>
+            value.BehaviorKind == AetheriaRuntimeBehaviorKinds.AetherDrive);
+        Require(state.AetherDriveRpmX > 0 && state.AetherDriveMaximumRpm > 0,
+            "rare installed drive must persist rotor spool state");
+        Require(ship.VelocityY > 0,
+            "rare installed drive must contribute force only after its rotor has spooled");
+        Require(!ship.BehaviorStates.Any(value => value.BehaviorKind == AetheriaRuntimeBehaviorKinds.Thruster),
+            "isolated AetherDrive proof must not conceal its force behind ordinary thrusters");
     }
 
     private static void LookDirectionRejectsInvalidVectorsWithoutMutatingTheShip()

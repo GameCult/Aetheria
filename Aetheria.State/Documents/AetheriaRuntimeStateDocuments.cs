@@ -618,6 +618,12 @@ public sealed class AetheriaEntitySnapshot
 
     [Key(32)]
     public AetheriaLoadoutGenerationReceipt? LoadoutGeneration { get; set; }
+
+    [Key(33)]
+    public AetheriaVector2 LookDirection { get; set; } = new();
+
+    [Key(34)]
+    public AetheriaVector2 HelmInput { get; set; } = new();
 }
 
 [MessagePackObject]

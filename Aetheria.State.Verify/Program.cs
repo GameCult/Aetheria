@@ -16805,6 +16805,12 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
         "org.gamecult.aetheria.state",
         "Runtime",
         "AetheriaRuntimeDaemonSimulationSettings.cs");
+    var flightSimulationPath = Path.Combine(
+        root,
+        "Packages",
+        "org.gamecult.aetheria.state",
+        "Runtime",
+        "AetheriaRuntimeFlightSimulation.cs");
     var worldPhysicsContractPath = Path.Combine(
         root,
         "Packages",
@@ -16870,6 +16876,9 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
     var daemonSimulationSettings = File.Exists(daemonSimulationSettingsPath)
         ? File.ReadAllText(daemonSimulationSettingsPath)
         : throw new InvalidOperationException("Cannot verify daemon simulation authority; daemon simulation settings are missing.");
+    var flightSimulation = File.Exists(flightSimulationPath)
+        ? File.ReadAllText(flightSimulationPath)
+        : throw new InvalidOperationException("Cannot verify daemon flight authority; actuator simulation is missing.");
     var worldPhysicsContract = File.Exists(worldPhysicsContractPath)
         ? File.ReadAllText(worldPhysicsContractPath)
         : throw new InvalidOperationException("Cannot verify daemon projectile authority; shared world physics port is missing.");
@@ -17160,6 +17169,41 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
     {
         throw new InvalidOperationException(
             "Daemon combat regressed to runtime-named simulation, hardcoded game feel, direct target damage, or local projectile physics instead of daemon settings plus Ymir-shaped projectile contact damage.");
+    }
+
+    var requiredFlightAuthoritySymbols = new[]
+    {
+        "ConfigureThrusterAxes(",
+        "StepThruster(",
+        "ResolveThrusterTorque(",
+        "AetheriaRuntimeEnergySimulation.TryConsume(",
+        "AetheriaRuntimeThermalSimulation.AddHeatToEquipment(",
+        "ApplyThrusterVisibility(",
+        "StepAetherDrive(",
+        "entity.HelmStrafe",
+        "entity.LookDirectionX"
+    };
+    var missingFlightAuthoritySymbols = requiredFlightAuthoritySymbols
+        .Where(symbol => !flightSimulation.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    var forbiddenDirectFlightSymbols = new[]
+    {
+        "ResolveSpeed(entity, settings)",
+        "entity.VelocityX = normalized.X * speed",
+        "entity.VelocityY = normalized.Y * speed",
+        "settings.PawnSpeed",
+        "settings.RaiderSpeed"
+    };
+    var directFlightHits = forbiddenDirectFlightSymbols
+        .Where(symbol => daemonSimulation.Contains(symbol, StringComparison.Ordinal) ||
+                         flightSimulation.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingFlightAuthoritySymbols.Length > 0 || directFlightHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Daemon flight must be owned by installed Thruster/AetherDrive actuators and may not restore faction-speed velocity assignment. Missing: " +
+            string.Join(", ", missingFlightAuthoritySymbols) + "; forbidden: " +
+            string.Join(", ", directFlightHits));
     }
 
     var forbiddenRuntimeSpecificAuthorityPolicySymbols = new[]

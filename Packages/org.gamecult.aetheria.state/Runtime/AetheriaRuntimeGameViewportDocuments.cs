@@ -1014,7 +1014,11 @@ namespace GameCult.Aetheria.State.Verse
                         contact.Hostile,
                         contact.Visible))
                     .ToArray(),
-                entity.ShutdownPerformance);
+                entity.ShutdownPerformance,
+                entity.LookDirectionX,
+                entity.LookDirectionY,
+                entity.HelmStrafe,
+                entity.HelmForward);
         }
 
         private static AetheriaRuntimeEntityItemSlotSnapshot[] CreateEntityItemSlots(

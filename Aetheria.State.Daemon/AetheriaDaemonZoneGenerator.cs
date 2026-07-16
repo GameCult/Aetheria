@@ -310,6 +310,7 @@ internal static class AetheriaDaemonZoneGenerator
             Kind = kind,
             Position = Vec3(x, 0, z),
             Direction = Vec2(vx == 0 && vy == 0 ? 0 : vx, vx == 0 && vy == 0 ? 1 : vy),
+            LookDirection = Vec2(vx == 0 && vy == 0 ? 0 : vx, vx == 0 && vy == 0 ? 1 : vy),
             Velocity = Vec2(vx, vy),
             FactionKey = faction,
             HullItemKey = loadout.HullItemKey,

@@ -13,6 +13,8 @@ namespace GameCult.Aetheria.State.Verse
         public const string ChargedWeapon = "ChargedWeapon";
         public const string AutoWeapon = "AutoWeapon";
         public const string DeployableWeapon = "DeployableWeapon";
+        public const string AetherDrive = "AetherDrive";
+        public const string Thruster = "Thruster";
 
         private static readonly ISet<string> WeaponKinds = new HashSet<string>(StringComparer.Ordinal)
         {

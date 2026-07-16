@@ -86,7 +86,11 @@ namespace GameCult.Aetheria.State.Verse
             double hypothermiaTemperature = AetheriaDefaultRaw.HypothermiaTemperature,
             double hypothermiaMultiplier = AetheriaDefaultRaw.HypothermiaMultiplier,
             double hypothermiaExponent = AetheriaDefaultRaw.HypothermiaExponent,
-            double hypothermiaRecoveryPerSecond = AetheriaDefaultRaw.HypothermiaRecoveryPerSecond)
+            double hypothermiaRecoveryPerSecond = AetheriaDefaultRaw.HypothermiaRecoveryPerSecond,
+            double aetherTorqueMultiplier = AetheriaDefaultRaw.AetherTorqueMultiplier,
+            double aetherHeatMultiplier = AetheriaDefaultRaw.AetherHeatMultiplier,
+            double torqueFloor = AetheriaDefaultRaw.TorqueFloor,
+            double torqueMultiplier = AetheriaDefaultRaw.TorqueMultiplier)
         {
             PawnSpeed = PositiveOr(pawnSpeed, AetheriaDefaultRaw.PawnSpeed);
             RaiderSpeed = PositiveOr(raiderSpeed, AetheriaDefaultRaw.RaiderSpeed);
@@ -126,6 +130,10 @@ namespace GameCult.Aetheria.State.Verse
             HypothermiaMultiplier = NonNegativeOr(hypothermiaMultiplier, AetheriaDefaultRaw.HypothermiaMultiplier);
             HypothermiaExponent = PositiveOr(hypothermiaExponent, AetheriaDefaultRaw.HypothermiaExponent);
             HypothermiaRecoveryPerSecond = NonNegativeOr(hypothermiaRecoveryPerSecond, AetheriaDefaultRaw.HypothermiaRecoveryPerSecond);
+            AetherTorqueMultiplier = NonNegativeOr(aetherTorqueMultiplier, AetheriaDefaultRaw.AetherTorqueMultiplier);
+            AetherHeatMultiplier = NonNegativeOr(aetherHeatMultiplier, AetheriaDefaultRaw.AetherHeatMultiplier);
+            TorqueFloor = NonNegativeOr(torqueFloor, AetheriaDefaultRaw.TorqueFloor);
+            TorqueMultiplier = NonNegativeOr(torqueMultiplier, AetheriaDefaultRaw.TorqueMultiplier);
         }
 
         public double PawnSpeed { get; }
@@ -168,6 +176,10 @@ namespace GameCult.Aetheria.State.Verse
         public double HypothermiaMultiplier { get; }
         public double HypothermiaExponent { get; }
         public double HypothermiaRecoveryPerSecond { get; }
+        public double AetherTorqueMultiplier { get; }
+        public double AetherHeatMultiplier { get; }
+        public double TorqueFloor { get; }
+        public double TorqueMultiplier { get; }
 
         private static double PositiveOr(double value, double fallback)
         {
@@ -224,6 +236,10 @@ namespace GameCult.Aetheria.State.Verse
             public const double HypothermiaMultiplier = 0.00001;
             public const double HypothermiaExponent = 2.0;
             public const double HypothermiaRecoveryPerSecond = 0.2;
+            public const double AetherTorqueMultiplier = 0.1;
+            public const double AetherHeatMultiplier = 0.25;
+            public const double TorqueFloor = 0.5;
+            public const double TorqueMultiplier = 0.1;
         }
     }
 }
