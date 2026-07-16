@@ -753,7 +753,7 @@ namespace GameCult.Aetheria.State.Verse
                 ["floatParameters"] = "period=2;minimumSize=0.25;maximumSize=0.75;spacing=6;" +
                     "ceilingHeight=0;floorHeight=-10;minHeadroom=25;maxHeadroom=100;heightExponent=3;" +
                     "fillDensity=0.000000001;fillDistance=120;fillExponent=5;fillOffset=70;" +
-                    "patchDensity=0.35;floorOffset=-20;floorBlend=10;patchBlend=25;luminance=1;" +
+                    "floorOffset=-20;floorBlend=10;luminance=1;" +
                     "tintLodExponent=-0.45;flowScale=512;flowAmplitude=15;flowPeriod=8;" +
                     "flowSlopeAmplitude=0;flowSwirlAmplitude=0;noiseScale=414.2167;" +
                     "noiseAmplitude=-36.17;noiseExponent=-0.25;noiseSpeed=0.0025;" +

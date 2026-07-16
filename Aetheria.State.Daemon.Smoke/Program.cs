@@ -254,7 +254,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 stardust.Props["floatParameters"].Contains(
                     "period=2;minimumSize=0.25;maximumSize=0.75;spacing=6;ceilingHeight=0;" +
                     "floorHeight=-10;minHeadroom=25;maxHeadroom=100;heightExponent=3",
-                    StringComparison.Ordinal),
+                    StringComparison.Ordinal) &&
+                !stardust.Props["floatParameters"].Contains("patch", StringComparison.OrdinalIgnoreCase),
             "portable Stardust semantics must preserve the grid/gravity lattice, dispatch, camera snap, time, and particle values exactly");
 
         var shader = AetheriaRuntimeAssets.ProjectManifest(null).Assets.Single(asset =>
@@ -285,6 +286,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 stardustCompute.Ref.Metadata["unity.particles.bufferPort.particles"] == "particles" &&
                 !stardustCompute.Ref.Metadata.ContainsKey("unity.particles.texturePort.patch") &&
                 !stardustCompute.Ref.Metadata.ContainsKey("unity.particles.texturePort.patchHeight") &&
+                !stardustCompute.Ref.Metadata.ContainsKey("unity.particles.floatPort.patchDensity") &&
+                !stardustCompute.Ref.Metadata.ContainsKey("unity.particles.floatPort.patchBlend") &&
                 stardustCompute.Ref.Metadata["unity.particles.vectorPort.viewportTransform"] == "_GridTransform" &&
                 stardustCompute.Ref.Metadata["unity.particles.vectorPort.timeVector"] == "_Time" &&
                 stardustCompute.Ref.Metadata["unity.particles.intPort.span"] == "span" &&
