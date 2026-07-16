@@ -6,6 +6,27 @@ using System.Linq;
 
 namespace GameCult.Aetheria.State.Verse
 {
+    public static class AetheriaRuntimeEquipmentRotation
+    {
+        public static int QuarterTurns(string? value)
+        {
+            if (string.Equals(value, "CounterClockwise", StringComparison.OrdinalIgnoreCase)) return 1;
+            if (string.Equals(value, "Half", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(value, "Reversed", StringComparison.OrdinalIgnoreCase)) return 2;
+            if (string.Equals(value, "Clockwise", StringComparison.OrdinalIgnoreCase)) return 3;
+            return 0;
+        }
+
+        public static (double X, double Y) RotateQuarter(double x, double y, int quarterTurns) =>
+            quarterTurns switch
+            {
+                1 => (-y, x),
+                2 => (-x, -y),
+                3 => (y, -x),
+                _ => (x, y)
+            };
+    }
+
     public sealed class AetheriaRuntimeEquippedBehavior
     {
         public AetheriaRuntimeEquippedBehavior(

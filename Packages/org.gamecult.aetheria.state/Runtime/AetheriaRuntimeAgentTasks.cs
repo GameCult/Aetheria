@@ -88,14 +88,20 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeRunCheckpointCommit run,
             long frameId,
             AetheriaRuntimeCatalogSnapshot? catalog = null,
-            double simulationTimeSeconds = 0)
+            double simulationTimeSeconds = 0,
+            AetheriaRuntimeDaemonSimulationSettings? simulationSettings = null)
         {
             if (run == null)
                 return Array.Empty<AetheriaRuntimeDaemonCommandDocument>();
 
             ReleaseInvalidAssignments(run);
             AssignQueuedTasks(run, frameId);
-            var commands = PlanAssignedTasks(run, frameId, catalog, simulationTimeSeconds).ToList();
+            var commands = PlanAssignedTasks(
+                run,
+                frameId,
+                catalog,
+                simulationTimeSeconds,
+                simulationSettings ?? AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault).ToList();
             commands.AddRange(PlanIdleReturns(run, frameId));
             return commands;
         }
@@ -200,7 +206,8 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeRunCheckpointCommit run,
             long frameId,
             AetheriaRuntimeCatalogSnapshot? catalog,
-            double simulationTimeSeconds)
+            double simulationTimeSeconds,
+            AetheriaRuntimeDaemonSimulationSettings simulationSettings)
         {
             var commands = new List<AetheriaRuntimeDaemonCommandDocument>();
             foreach (var task in (run.AgentTasks ?? Array.Empty<AetheriaRuntimeAgentTaskCommit>())
@@ -295,7 +302,8 @@ namespace GameCult.Aetheria.State.Verse
                 var distance = Math.Sqrt(dx * dx + dz * dz);
                 if (string.Equals(task.TaskType, AetheriaRuntimeAgentTaskTypes.Attack, StringComparison.Ordinal) && target != null)
                 {
-                    commands.AddRange(PlanAttack(run, task, agent, target, frameId, dx, dz, distance));
+                    commands.AddRange(PlanAttack(
+                        run, task, agent, target, frameId, dx, dz, distance, catalog, simulationSettings));
                     continue;
                 }
                 if (distance <= Math.Max(0.01, task.CompletionRadius) &&
@@ -320,29 +328,325 @@ namespace GameCult.Aetheria.State.Verse
             long frameId,
             double dx,
             double dz,
-            double distance)
+            double distance,
+            AetheriaRuntimeCatalogSnapshot? catalog,
+            AetheriaRuntimeDaemonSimulationSettings settings)
         {
-            var settings = AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault;
-            var optimum = settings.AttackRange * settings.AttackHoldRatio;
-            var tolerance = Math.Max(1.0, settings.AttackRange * 0.04);
-            var radial = distance > optimum + tolerance ? 1.0 : distance < optimum - tolerance ? -1.0 : 0.0;
-            var thrust = radial == 0 ? 0 : Math.Min(1.0, Math.Abs(distance - optimum) / settings.AttackRange);
-            task.Phase = radial > 0 ? "closing-range" : radial < 0 ? "opening-range" : "holding-range";
+            var weapons = ResolveAgentWeapons(agent, catalog);
+            if (weapons.Count == 0)
+            {
+                Fail(task, agent);
+                return Array.Empty<AetheriaRuntimeDaemonCommandDocument>();
+            }
+
+            var optimum = SampleOptimumRange(run, task, agent, weapons, settings);
+            var toTarget = Normalize(dx, dz, 0, 1);
+            var targetForward = Normalize(target.DirectionX, target.DirectionY, 0, 1);
+            var targetRight = new Vector2(targetForward.Y, -targetForward.X);
+            var targetPortAlignment = Dot(targetRight, toTarget);
+            var targetForeAlignment = Dot(new Vector2(-targetForward.X, -targetForward.Y), toTarget);
+            var optimumRangeDelta = Math.Abs(optimum - distance);
+            var forwardness = Clamp01(optimumRangeDelta / settings.AgentMaxForwardDistance) * settings.AgentForwardLerp;
+            if (targetForeAlignment > 0)
+                forwardness = Lerp(forwardness, 1, targetPortAlignment * targetPortAlignment);
+            var lateral = RotateQuarter(toTarget, targetPortAlignment > 0 ? 3 : 1);
+            var radial = distance > optimum ? toTarget : new Vector2(-toTarget.X, -toTarget.Y);
+            var movementDirection = Normalize(
+                Lerp(lateral.X, radial.X, forwardness),
+                Lerp(lateral.Y, radial.Y, forwardness),
+                lateral.X,
+                lateral.Y);
+            task.Phase = distance > optimum ? "closing-range" : distance < optimum ? "opening-range" : "orbiting";
+
+            var selected = SelectHighestDpsGroup(weapons, distance);
+            if (selected >= 0)
+                task.WeaponGroup = selected;
+            var aim = selected >= 0
+                ? InterceptDirection(agent, target, weapons.First(value => value.GroupIndex == selected))
+                : toTarget;
             var commands = new List<AetheriaRuntimeDaemonCommandDocument>
             {
-                Movement(task, agent, frameId, dx * radial, dz * radial, thrust),
+                Movement(task, agent, frameId, movementDirection.X, movementDirection.Y, 1),
                 Command(task, agent, frameId, AetheriaRuntimeDaemonCommandKinds.SetLookDirection, "look", command =>
                 {
-                    command.DirectionX = dx;
-                    command.PositionZ = dz;
+                    command.DirectionX = aim.X;
+                    command.PositionZ = aim.Y;
                 }),
                 Command(task, agent, frameId, AetheriaRuntimeDaemonCommandKinds.SetTarget, "target", command =>
                     command.TargetEntityKey = EntityKey(run, task.ZoneIndex, target.EntityIndex))
             };
-            if (distance <= settings.AttackRange)
-                commands.Add(Command(task, agent, frameId, AetheriaRuntimeDaemonCommandKinds.FireWeaponGroup, "fire", command =>
-                    command.WeaponGroup = Math.Max(0, task.WeaponGroup)));
+            var fireGroups = weapons
+                .Where(value => value.Locking && distance > value.MinRange && distance < value.Range)
+                .Select(value => value.GroupIndex)
+                .Distinct()
+                .ToList();
+            if (selected >= 0 && HardpointFaces(agent, weapons.First(value => value.GroupIndex == selected), aim))
+                fireGroups.Add(selected);
+            foreach (var group in fireGroups.Distinct().OrderBy(value => value))
+                commands.Add(Command(task, agent, frameId, AetheriaRuntimeDaemonCommandKinds.FireWeaponGroup,
+                    $"fire-{group}", command => command.WeaponGroup = group));
             return commands;
+        }
+
+        private static IReadOnlyList<AgentWeapon> ResolveAgentWeapons(
+            AetheriaRuntimeEntitySnapshotCommit agent,
+            AetheriaRuntimeCatalogSnapshot? catalog)
+        {
+            if (catalog == null)
+                return Array.Empty<AgentWeapon>();
+            var groups = agent.WeaponGroups ?? Array.Empty<IReadOnlyList<int>>();
+            return AetheriaRuntimeEquippedBehaviorQueries.FindOperational(agent, catalog, "Weapon")
+                .Where(value =>
+                    AetheriaRuntimeBehaviorMetadataCatalog.IsKindOrDescendant(value.Payload.Kind, AetheriaRuntimeBehaviorKinds.InstantWeapon) ||
+                    AetheriaRuntimeBehaviorMetadataCatalog.IsKindOrDescendant(value.Payload.Kind, "ConstantWeapon"))
+                .Select(value =>
+                {
+                    var group = Enumerable.Range(0, groups.Count)
+                        .Where(index => (groups[index] ?? Array.Empty<int>()).Contains(value.EquipmentIndex))
+                        .DefaultIfEmpty(-1)
+                        .First();
+                    return new AgentWeapon(
+                        agent,
+                        value,
+                        group,
+                        Math.Max(0, value.EvaluateStat(5)),
+                        Math.Max(0, value.EvaluateStat(6)),
+                        Math.Max(0, value.EvaluateStat(16)),
+                        Math.Max(0.000001, value.EvaluateStat(19)),
+                        AetheriaRuntimeBehaviorMetadataCatalog.IsKindOrDescendant(value.Payload.Kind, "ConstantWeapon"),
+                        AetheriaRuntimeBehaviorMetadataCatalog.IsKindOrDescendant(value.Payload.Kind, "LockWeapon"),
+                        AetheriaRuntimeBehaviorMetadataCatalog.IsKindOrDescendant(value.Payload.Kind, AetheriaRuntimeBehaviorKinds.ChargedWeapon));
+                })
+                .Where(value => value.GroupIndex >= 0 && value.Range > value.MinRange)
+                .ToArray();
+        }
+
+        private static double SampleOptimumRange(
+            AetheriaRuntimeRunCheckpointCommit run,
+            AetheriaRuntimeAgentTaskCommit task,
+            AetheriaRuntimeEntitySnapshotCommit agent,
+            IReadOnlyList<AgentWeapon> weapons,
+            AetheriaRuntimeDaemonSimulationSettings settings)
+        {
+            if (weapons.Count == 0)
+                return 0;
+            // Preserve the fossil CombatState interval: both ends come from authored maximum ranges.
+            var minimum = weapons.Min(value => value.Range);
+            var maximum = weapons.Max(value => value.Range);
+            var span = Math.Max(0, maximum - minimum);
+            var count = Math.Max(1, settings.AgentDpsSampleCount);
+            var step = span / count;
+            var offset = StableUnit(run.GenerationSeed, task.TaskId, agent.EntityId) * step;
+            var optimum = minimum;
+            var optimumScore = 0.0;
+            for (var index = 0; index < count; index++)
+            {
+                var range = offset + minimum + span * index / count;
+                var score = weapons.Sum(value => RangeDamagePerSecond(value, range));
+                score *= Math.Pow(Math.Max(0, range), settings.AgentRangeExponent);
+                if (score <= optimumScore)
+                    continue;
+                optimumScore = score;
+                optimum = range;
+            }
+            return optimum;
+        }
+
+        private static int SelectHighestDpsGroup(
+            IReadOnlyList<AgentWeapon> weapons,
+            double range)
+        {
+            return weapons
+                .Where(value => !value.Locking && WeaponReady(value))
+                .Where(value => range > value.MinRange && range < value.Range)
+                .GroupBy(value => value.GroupIndex)
+                .Select(group => (Group: group.Key, Dps: group.Sum(value => RangeDamagePerSecond(value, range))))
+                .Where(value => value.Dps > 0.1)
+                .OrderByDescending(value => value.Dps)
+                .ThenBy(value => value.Group)
+                .Select(value => value.Group)
+                .DefaultIfEmpty(-1)
+                .First();
+        }
+
+        private static bool WeaponReady(AgentWeapon weapon)
+        {
+            if (weapon.Constant)
+                return true;
+            var state = FindWeaponState(weapon);
+            return state == null || (!state.CoolingDown && !state.Reloading);
+        }
+
+        private static AetheriaRuntimeWeaponStateCommit? FindWeaponState(AgentWeapon weapon) =>
+            (weapon.Owner.WeaponStates ?? Array.Empty<AetheriaRuntimeWeaponStateCommit>())
+            .FirstOrDefault(value => value != null &&
+                value.OwnerKind == AetheriaRuntimeBehaviorStateProjector.EquipmentOwnerKind &&
+                value.OwnerIndex == weapon.Behavior.EquipmentIndex &&
+                value.BehaviorIndex == weapon.Behavior.BehaviorIndex);
+
+        private static double RangeDamagePerSecond(AgentWeapon weapon, double range)
+        {
+            if (range <= weapon.MinRange || range >= weapon.Range)
+                return 0;
+            var normalized = Clamp01((range - weapon.MinRange) / Math.Max(0.000001, weapon.Range - weapon.MinRange));
+            var damageField = (weapon.Behavior.Payload.Fields ?? Array.Empty<AetheriaRuntimeBehaviorField>())
+                .FirstOrDefault(value => value != null && value.Key == 2)?.Value;
+            var thermal = weapon.Owner.EquipmentStates?.FirstOrDefault(value =>
+                value != null && value.EquipmentIndex == weapon.Behavior.EquipmentIndex)?.ThermalPerformance ?? 1;
+            var damage = AetheriaRuntimeDaemonItemStatQueries.EvaluatePerformanceStat(
+                damageField,
+                AetheriaRuntimeDaemonItemStatQueries.ConditionsFor(
+                    weapon.Behavior.Item,
+                    heat: thermal,
+                    charge: WeaponCharge(weapon),
+                    range: normalized));
+            damage *= SampleDamageCurve(weapon.Behavior.Payload, normalized);
+            if (weapon.Constant)
+                return damage;
+            if (!weapon.Charged)
+                return damage / weapon.Cooldown;
+            var charge = WeaponCharge(weapon);
+            var multiplier = PositiveNumber(weapon.Behavior.Payload, 27, 1);
+            var chargeTime = Math.Max(0.000001, weapon.Behavior.EvaluateStat(21));
+            return damage * Lerp(1, multiplier, charge) * multiplier / (weapon.Cooldown + chargeTime);
+        }
+
+        private static double WeaponCharge(AgentWeapon weapon)
+        {
+            if (!weapon.Charged)
+                return 1;
+            return Clamp01(FindWeaponState(weapon)?.Charge ?? 0);
+        }
+
+        private static double PositiveNumber(AetheriaRuntimeBehaviorPayload payload, int key, double fallback)
+        {
+            var value = (payload.Fields ?? Array.Empty<AetheriaRuntimeBehaviorField>())
+                .FirstOrDefault(field => field != null && field.Key == key)?.Value?.NumberValue ?? fallback;
+            return value > 0 ? value : fallback;
+        }
+
+        private static double SampleDamageCurve(AetheriaRuntimeBehaviorPayload payload, double normalizedRange)
+        {
+            var value = (payload.Fields ?? Array.Empty<AetheriaRuntimeBehaviorField>())
+                .FirstOrDefault(field => field != null && field.Key == 7)?.Value;
+            var keys = value?.Children != null && value.Children.Count > 0 && value.Children[0].Children.Count > 0
+                ? value.Children[0].Children
+                : value?.Children ?? Array.Empty<AetheriaRuntimeBehaviorValue>();
+            var curve = keys
+                .Where(key => key?.Children != null && key.Children.Count >= 4)
+                .Select(key => new AetheriaRuntimeCurveKey(
+                    key.Children[0].NumberValue,
+                    key.Children[1].NumberValue,
+                    key.Children[2].NumberValue,
+                    key.Children[3].NumberValue))
+                .ToArray();
+            return curve.Length == 0 ? 1 : AetheriaRuntimeDaemonItemStatQueries.SampleCurve(curve, normalizedRange);
+        }
+
+        private static Vector2 InterceptDirection(
+            AetheriaRuntimeEntitySnapshotCommit agent,
+            AetheriaRuntimeEntitySnapshotCommit target,
+            AgentWeapon weapon)
+        {
+            if (weapon.Velocity <= 1)
+                return Normalize(target.PositionX - agent.PositionX, target.PositionZ - agent.PositionZ, 0, 1);
+            var relative = new CultMath.float3(
+                (float)(target.PositionX - agent.PositionX),
+                0,
+                (float)(target.PositionZ - agent.PositionZ));
+            var velocity = new CultMath.float3((float)target.VelocityX, 0, (float)target.VelocityY);
+            var time = CultMath.math.first_order_intercept_time((float)weapon.Velocity, relative, velocity);
+            return Normalize(relative.x + velocity.x * time, relative.z + velocity.z * time, relative.x, relative.z);
+        }
+
+        private static bool HardpointFaces(
+            AetheriaRuntimeEntitySnapshotCommit agent,
+            AgentWeapon weapon,
+            Vector2 aim)
+        {
+            var forward = Normalize(agent.DirectionX, agent.DirectionY, 0, 1);
+            var hardpoint = RotateQuarter(
+                forward,
+                AetheriaRuntimeEquipmentRotation.QuarterTurns(weapon.Behavior.Slot?.Rotation));
+            return Dot(hardpoint, aim) > 0.99;
+        }
+
+        private static Vector2 RotateQuarter(Vector2 value, int rotation)
+        {
+            var rotated = AetheriaRuntimeEquipmentRotation.RotateQuarter(value.X, value.Y, rotation);
+            return new Vector2(rotated.X, rotated.Y);
+        }
+
+        private static double StableUnit(uint seed, string taskId, string entityId)
+        {
+            var hash = seed == 0 ? 2166136261u : seed;
+            foreach (var character in (taskId ?? "") + "\n" + (entityId ?? ""))
+            {
+                hash ^= character;
+                hash *= 16777619u;
+            }
+            return hash / ((double)uint.MaxValue + 1);
+        }
+
+        private static double Dot(Vector2 left, Vector2 right) => left.X * right.X + left.Y * right.Y;
+        private static double Lerp(double from, double to, double value) => from + (to - from) * Clamp01(value);
+        private static double Clamp01(double value) => value < 0 ? 0 : value > 1 ? 1 : value;
+        private static Vector2 Normalize(double x, double y, double fallbackX, double fallbackY)
+        {
+            var length = Math.Sqrt(x * x + y * y);
+            if (length <= 0.000001)
+            {
+                var fallbackLength = Math.Sqrt(fallbackX * fallbackX + fallbackY * fallbackY);
+                return fallbackLength <= 0.000001
+                    ? new Vector2(0, 1)
+                    : new Vector2(fallbackX / fallbackLength, fallbackY / fallbackLength);
+            }
+            return new Vector2(x / length, y / length);
+        }
+
+        private readonly struct Vector2
+        {
+            public Vector2(double x, double y) { X = x; Y = y; }
+            public double X { get; }
+            public double Y { get; }
+        }
+
+        private sealed class AgentWeapon
+        {
+            public AgentWeapon(
+                AetheriaRuntimeEntitySnapshotCommit owner,
+                AetheriaRuntimeEquippedBehavior behavior,
+                int groupIndex,
+                double minRange,
+                double range,
+                double velocity,
+                double cooldown,
+                bool constant,
+                bool locking,
+                bool charged)
+            {
+                Owner = owner;
+                Behavior = behavior;
+                GroupIndex = groupIndex;
+                MinRange = minRange;
+                Range = range;
+                Velocity = velocity;
+                Cooldown = cooldown;
+                Constant = constant;
+                Locking = locking;
+                Charged = charged;
+            }
+
+            public AetheriaRuntimeEquippedBehavior Behavior { get; }
+            public AetheriaRuntimeEntitySnapshotCommit Owner { get; }
+            public int GroupIndex { get; }
+            public double MinRange { get; }
+            public double Range { get; }
+            public double Velocity { get; }
+            public double Cooldown { get; }
+            public bool Constant { get; }
+            public bool Locking { get; }
+            public bool Charged { get; }
         }
 
         private static IReadOnlyList<AetheriaRuntimeDaemonCommandDocument> PlanIdleReturns(

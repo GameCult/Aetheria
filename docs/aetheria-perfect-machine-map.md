@@ -966,6 +966,23 @@ cannot write cargo, hull, pickups, or feedback.
 - Cut line: the unconditional `planar.top-down-follow.v1` projection no longer
   collapses the fossil dock and flight cameras into one false top-down view.
 
+### Daemon Agent Combat Policy
+
+Agent combat uses the fossil `CombatState` policy inside the daemon scheduler,
+not a faction-wide attack radius. The planner reads operational typed weapon
+behaviors and durable group membership, samples 32 range points with the fossil
+`range^0.25` preference, evaluates range-conditioned damage and the authored
+damage curve, and selects the highest current DPS group. Movement blends
+target-relative strafe with closing/opening pressure using the fossil `0.5`
+forward lerp and 50-unit forward-distance scale. Projectile aim uses CultMath
+first-order intercept. Fire is emitted only through the shared weapon-group
+command when the selected equipment's catalog placement rotation faces the
+intercept direction; locking groups continue to request their daemon-owned
+progressive locks. Flight and agent combat share one equipment-rotation parser.
+The task's weapon-group field is now an observed last selection, not an attack
+policy owner. Daemon smoke proves close/open strafe, DPS group selection,
+projectile lead, hardpoint gating, progressive lock, and target destruction.
+
 ### Authoritative Flight Actuator Contract
 
 - Owner: Aetheria daemon owns persistent local helm axes, desired look
@@ -1034,8 +1051,10 @@ cannot write cargo, hull, pickups, or feedback.
   catalog assertions lock the restored common hull identities and the
   `Traction`/`LonginusX` rarity boundary; a 2,000-loadout deterministic witness
   proves rare candidates remain possible without becoming the default path.
-- Open parity: hardpoint transform directions, exact per-equipment behavior
-  execution ordering, float32/CultMath parity against the fossil, live
+- Open parity: model-local hardpoint transform directions (the daemon currently
+  has catalog placement rotation, not the old renderer-populated barrel
+  transform), exact per-equipment behavior execution ordering,
+  float32/CultMath parity against the fossil, live
   production-world generation-frequency evidence, and generic native
   thrust/turn feedback still
   require proof.

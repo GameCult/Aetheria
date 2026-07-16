@@ -290,12 +290,7 @@ namespace GameCult.Aetheria.State.Verse
 
         private static int Rotation(AetheriaRuntimeEquippedBehavior behavior)
         {
-            var rotation = behavior.Slot?.Rotation ?? "";
-            if (string.Equals(rotation, "CounterClockwise", StringComparison.OrdinalIgnoreCase)) return 1;
-            if (string.Equals(rotation, "Half", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(rotation, "Reversed", StringComparison.OrdinalIgnoreCase)) return 2;
-            if (string.Equals(rotation, "Clockwise", StringComparison.OrdinalIgnoreCase)) return 3;
-            return 0;
+            return AetheriaRuntimeEquipmentRotation.QuarterTurns(behavior.Slot?.Rotation);
         }
 
         private static void StepAetherDrive(
@@ -489,13 +484,11 @@ namespace GameCult.Aetheria.State.Verse
                 value.Y);
         }
 
-        private static Vector2 RotateQuarter(Vector2 value, int rotation) => rotation switch
+        private static Vector2 RotateQuarter(Vector2 value, int rotation)
         {
-            1 => new Vector2(-value.Y, value.X),
-            2 => new Vector2(-value.X, -value.Y),
-            3 => new Vector2(value.Y, -value.X),
-            _ => value
-        };
+            var rotated = AetheriaRuntimeEquipmentRotation.RotateQuarter(value.X, value.Y, rotation);
+            return new Vector2(rotated.X, rotated.Y);
+        }
 
         private static Vector3 Decay(Vector3 source, Vector3 lambda, double deltaSeconds) => new(
             source.X * Math.Exp(-lambda.X * deltaSeconds),

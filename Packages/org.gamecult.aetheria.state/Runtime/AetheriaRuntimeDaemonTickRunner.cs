@@ -159,7 +159,8 @@ namespace GameCult.Aetheria.State.Verse
                     operationResult.Run,
                     options.FrameId,
                     options.Catalog,
-                    stepTime);
+                    stepTime,
+                    options.SimulationSettings);
                 Trace("agent-planning");
                 if (agentCommands.Count > 0)
                 {

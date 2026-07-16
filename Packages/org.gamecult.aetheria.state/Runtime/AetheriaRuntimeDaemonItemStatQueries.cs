@@ -112,6 +112,13 @@ namespace GameCult.Aetheria.State.Verse
                 ConditionsFor(item, heat));
         }
 
+        public static double EvaluatePerformanceStat(
+            AetheriaRuntimeBehaviorValue? value,
+            AetheriaRuntimeStatRecipePreviewState conditions)
+        {
+            return EvaluatePerformanceStat(ReadPerformanceStat(value), conditions);
+        }
+
         public static double EvaluateConsumablePerformanceStat(
             AetheriaRuntimeBehaviorValue? value,
             double quality,

@@ -2427,7 +2427,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                     BuildPublications = false
                 });
             sawTargetCommand |= tick.OperationResult.AppliedCommandIds.Any(id => id.EndsWith(":target", StringComparison.Ordinal));
-            sawFireCommand |= tick.OperationResult.AppliedCommandIds.Any(id => id.EndsWith(":fire", StringComparison.Ordinal));
+            sawFireCommand |= tick.OperationResult.AppliedCommandIds.Any(id => id.Contains(":fire-", StringComparison.Ordinal));
             var weapon = (agent.WeaponStates ?? Array.Empty<AetheriaRuntimeWeaponStateCommit>())
                 .Single(value => value.OwnerKind == AetheriaRuntimeBehaviorStateProjector.EquipmentOwnerKind);
             lockTrace.Add(weapon.LockProgress);
@@ -2546,28 +2546,57 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
 
     private static void AttackAgentControlsOptimumRangeThroughMovementLever()
     {
-        var settings = AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault;
-        var optimum = settings.AttackRange * settings.AttackHoldRatio;
+        var closing = AttackPlanAtDistance(250, facingTarget: false);
+        var closingMove = closing.Commands.Single(command => command.Kind == AetheriaRuntimeDaemonCommandKinds.SetMoveVector);
+        Require(closingMove.DirectionX > 0.5 && closingMove.DirectionY < -0.5 && closingMove.ScalarValue > 0.99,
+            "loadout-derived long-range attack must blend closing motion with the fossil target-relative strafe");
 
-        var closing = AttackMovementAtDistance(optimum + 30);
-        Require(closing.DirectionX > 0.99 && closing.ScalarValue > 0,
-            "attack agent outside optimum range must close through the shared movement lever");
+        var retreating = AttackPlanAtDistance(50, facingTarget: false);
+        var retreatingMove = retreating.Commands.Single(command => command.Kind == AetheriaRuntimeDaemonCommandKinds.SetMoveVector);
+        Require(retreatingMove.DirectionX < -0.5 && retreatingMove.DirectionY < -0.5,
+            "loadout-derived short-range attack must blend opening motion with the fossil target-relative strafe");
 
-        var retreating = AttackMovementAtDistance(optimum - 30);
-        Require(retreating.DirectionX < -0.99 && retreating.ScalarValue > 0,
-            "attack agent inside optimum range must retreat through the shared movement lever");
+        var broadside = AttackPlanAtDistance(150, facingTarget: false);
+        Require(!broadside.Commands.Any(command => command.Kind == AetheriaRuntimeDaemonCommandKinds.FireWeaponGroup),
+            "an attack agent must not fire a selected group through a hardpoint facing away from its aim");
 
-        var holding = AttackMovementAtDistance(optimum);
-        Require(Math.Abs(holding.DirectionX) < 0.001 && Math.Abs(holding.ScalarValue) < 0.001,
-            "attack agent in the optimum band must hold range instead of charging the target");
+        var firing = AttackPlanAtDistance(150, facingTarget: true, targetVelocityZ: 8);
+        RequireEqual(1, firing.Task.WeaponGroup,
+            "agent combat must select the highest current range-DPS group from operational equipment");
+        var fire = firing.Commands.Single(command => command.Kind == AetheriaRuntimeDaemonCommandKinds.FireWeaponGroup);
+        RequireEqual(1, fire.WeaponGroup,
+            "the daemon must fire the derived group instead of the task's stale authored group");
+        var look = firing.Commands.Single(command => command.Kind == AetheriaRuntimeDaemonCommandKinds.SetLookDirection);
+        Require(look.DirectionX > 0.9 && look.PositionZ > 0.05,
+            "projectile agent aim must lead target velocity through CultMath first-order intercept semantics");
     }
 
-    private static AetheriaRuntimeDaemonCommandDocument AttackMovementAtDistance(double distance)
+    private static (IReadOnlyList<AetheriaRuntimeDaemonCommandDocument> Commands, AetheriaRuntimeAgentTaskCommit Task)
+        AttackPlanAtDistance(double distance, bool facingTarget, double targetVelocityZ = 0)
     {
         var agent = Entity(0, 0, "workers");
+        agent.DirectionX = facingTarget ? 1 : 0;
+        agent.DirectionY = facingTarget ? 0 : 1;
         agent.AgentTaskCapabilities = [AetheriaRuntimeAgentTaskTypes.Attack];
-        agent.WeaponGroups = [new[] { 0 }];
+        agent.Equipment =
+        [
+            new AetheriaRuntimeLoadoutItemSlotCommit
+            {
+                Rotation = "None",
+                Item = new AetheriaRuntimeLoadoutItemCommit
+                    { ItemKey = "agent-short-weapon", Quality = 1, Durability = 1, Enabled = true }
+            },
+            new AetheriaRuntimeLoadoutItemSlotCommit
+            {
+                Rotation = "None",
+                Item = new AetheriaRuntimeLoadoutItemCommit
+                    { ItemKey = "agent-long-weapon", Quality = 1, Durability = 1, Enabled = true }
+            }
+        ];
+        agent.WeaponGroups = [new[] { 0 }, new[] { 1 }];
         var target = Entity(1, distance, "raiders");
+        target.DirectionY = 1;
+        target.VelocityY = targetVelocityZ;
         var task = new AetheriaRuntimeAgentTaskCommit
         {
             TaskId = "range-control",
@@ -2577,15 +2606,30 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             TargetEntityIndex = 1,
             WeaponGroup = 0
         };
+        AetheriaRuntimeBehaviorPayload Weapon(double damage, double minimumRange, double range, double velocity) =>
+            new(0, AetheriaRuntimeBehaviorKinds.InstantWeapon, 0,
+            [
+                new AetheriaRuntimeBehaviorField(2, PerformanceStat(damage)),
+                new AetheriaRuntimeBehaviorField(5, PerformanceStat(minimumRange)),
+                new AetheriaRuntimeBehaviorField(6, PerformanceStat(range)),
+                new AetheriaRuntimeBehaviorField(16, PerformanceStat(velocity)),
+                new AetheriaRuntimeBehaviorField(17, PerformanceStat(1)),
+                new AetheriaRuntimeBehaviorField(19, PerformanceStat(1))
+            ]);
+        var catalog = new AetheriaRuntimeCatalogSnapshot(
+        [
+            CatalogItem("agent-short-weapon", Weapon(10, 5, 100, 80)),
+            CatalogItem("agent-long-weapon", Weapon(40, 25, 200, 100))
+        ], [], []);
         var run = new AetheriaRuntimeRunCheckpointCommit
         {
+            GenerationSeed = 123,
             RunId = "agent-range-control-smoke",
             Zones = [new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [agent, target] }],
             AgentTasks = [task]
         };
 
-        return AetheriaRuntimeAgentScheduler.AssignAndPlan(run, 1)
-            .Single(command => command.Kind == AetheriaRuntimeDaemonCommandKinds.SetMoveVector);
+        return (AetheriaRuntimeAgentScheduler.AssignAndPlan(run, 1, catalog), task);
     }
 
     private static void SchedulerAssignsHighestPriorityCompatibleTask()

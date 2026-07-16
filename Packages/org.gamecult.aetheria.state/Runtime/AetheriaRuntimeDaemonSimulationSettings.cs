@@ -46,7 +46,11 @@ namespace GameCult.Aetheria.State.Verse
                 hypothermiaTemperature: 273.0,
                 hypothermiaMultiplier: 0.00001,
                 hypothermiaExponent: 2.0,
-                hypothermiaRecoveryPerSecond: 0.2);
+                hypothermiaRecoveryPerSecond: 0.2,
+                agentRangeExponent: 0.25,
+                agentForwardLerp: 0.5,
+                agentMaxForwardDistance: 50,
+                agentDpsSampleCount: 32);
 
         public AetheriaRuntimeDaemonSimulationSettings(
             double pawnSpeed,
@@ -90,7 +94,11 @@ namespace GameCult.Aetheria.State.Verse
             double aetherTorqueMultiplier = AetheriaDefaultRaw.AetherTorqueMultiplier,
             double aetherHeatMultiplier = AetheriaDefaultRaw.AetherHeatMultiplier,
             double torqueFloor = AetheriaDefaultRaw.TorqueFloor,
-            double torqueMultiplier = AetheriaDefaultRaw.TorqueMultiplier)
+            double torqueMultiplier = AetheriaDefaultRaw.TorqueMultiplier,
+            double agentRangeExponent = AetheriaDefaultRaw.AgentRangeExponent,
+            double agentForwardLerp = AetheriaDefaultRaw.AgentForwardLerp,
+            double agentMaxForwardDistance = AetheriaDefaultRaw.AgentMaxForwardDistance,
+            int agentDpsSampleCount = AetheriaDefaultRaw.AgentDpsSampleCount)
         {
             PawnSpeed = PositiveOr(pawnSpeed, AetheriaDefaultRaw.PawnSpeed);
             RaiderSpeed = PositiveOr(raiderSpeed, AetheriaDefaultRaw.RaiderSpeed);
@@ -134,6 +142,10 @@ namespace GameCult.Aetheria.State.Verse
             AetherHeatMultiplier = NonNegativeOr(aetherHeatMultiplier, AetheriaDefaultRaw.AetherHeatMultiplier);
             TorqueFloor = NonNegativeOr(torqueFloor, AetheriaDefaultRaw.TorqueFloor);
             TorqueMultiplier = NonNegativeOr(torqueMultiplier, AetheriaDefaultRaw.TorqueMultiplier);
+            AgentRangeExponent = NonNegativeOr(agentRangeExponent, AetheriaDefaultRaw.AgentRangeExponent);
+            AgentForwardLerp = Clamp01Or(agentForwardLerp, AetheriaDefaultRaw.AgentForwardLerp);
+            AgentMaxForwardDistance = PositiveOr(agentMaxForwardDistance, AetheriaDefaultRaw.AgentMaxForwardDistance);
+            AgentDpsSampleCount = agentDpsSampleCount > 0 ? agentDpsSampleCount : AetheriaDefaultRaw.AgentDpsSampleCount;
         }
 
         public double PawnSpeed { get; }
@@ -180,6 +192,10 @@ namespace GameCult.Aetheria.State.Verse
         public double AetherHeatMultiplier { get; }
         public double TorqueFloor { get; }
         public double TorqueMultiplier { get; }
+        public double AgentRangeExponent { get; }
+        public double AgentForwardLerp { get; }
+        public double AgentMaxForwardDistance { get; }
+        public int AgentDpsSampleCount { get; }
 
         private static double PositiveOr(double value, double fallback)
         {
@@ -240,6 +256,10 @@ namespace GameCult.Aetheria.State.Verse
             public const double AetherHeatMultiplier = 0.25;
             public const double TorqueFloor = 0.5;
             public const double TorqueMultiplier = 0.1;
+            public const double AgentRangeExponent = 0.25;
+            public const double AgentForwardLerp = 0.5;
+            public const double AgentMaxForwardDistance = 50.0;
+            public const int AgentDpsSampleCount = 32;
         }
     }
 }
