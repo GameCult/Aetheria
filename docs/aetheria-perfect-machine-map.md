@@ -947,6 +947,34 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   with enabled provider renderers; seven celestial instances intersected the
   pilot frustum. This proves projection and lowering, not final art parity.
 
+### Native Environment Lighting Contract
+
+- Owner: Aetheria owns the fossil scene's skybox, ambient intensity, custom
+  reflection cubemap, and each provider material's lit/unlit semantics. EveUnity
+  owns only the reversible application of those advertised environment facts.
+- Inputs: `ARPG.unity` render settings, `Assets/Materials/Skybox.mat`,
+  `Assets/Textures/studio2.hdr`, and source shader lighting models. The fossil
+  scene contains no Unity `Light` component.
+- Outputs: the world surface advertises skybox ambient intensity `1.46`, custom
+  reflection intensity `1`, and no key light. Provider material conversion maps
+  particle sources to URP Particles/Unlit, unlit or sprite sources to URP/Unlit,
+  and genuinely lit sources to URP/Lit.
+- Derived state: Unity ambient probes, custom-reflection state, runtime material
+  instances, and shader keywords are client presentation state.
+- Forbidden writers: the daemon cannot invent a directional light to compensate
+  for broken material conversion. EveUnity cannot add product lighting or infer
+  shader models from Aetheria asset names.
+- Cut line: the invented `0.4,-1,0.25` warm key light is deleted. The embedded
+  fossil shield renderer is removed from ship presentation prefabs because its
+  dithered collision response is already externalized as the provider-owned,
+  receipt-driven shield-impact effect; it cannot remain permanently visible
+  after generic material conversion.
+- Verification layer: daemon smoke negatively proves that no key-light fields
+  are published. The released cold witness records zero directional intensity,
+  no player `Shield Visual`, twelve remaining player renderers, and a map-channel
+  material using `Universal Render Pipeline/Unlit`; visual inspection shows ship
+  hulls instead of opaque shield ellipsoids and readable map glyphs.
+
 ### Gravity Fog Presentation Contract
 
 - Owner: Aetheria owns gravity/fog brush placement and values, authored volume

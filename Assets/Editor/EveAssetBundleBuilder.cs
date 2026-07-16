@@ -149,6 +149,22 @@ namespace Aetheria.Editor
 
             foreach (var effect in tractorEffects)
                 UnityEngine.Object.DestroyImmediate(effect, true);
+
+            var embeddedShieldVisuals = root.GetComponentsInChildren<Renderer>(true)
+                .Where(renderer => renderer != null && renderer.sharedMaterials.Any(material =>
+                    material != null && string.Equals(
+                        material.shader?.name,
+                        "Aetheria/Shield",
+                        StringComparison.Ordinal)))
+                .Select(renderer => renderer.gameObject)
+                .Distinct()
+                .ToArray();
+            if (embeddedShieldVisuals.Length == 0)
+                throw new InvalidOperationException(
+                    $"Ship presentation source '{assetKey}' has no embedded shield visual to externalize.");
+
+            foreach (var visual in embeddedShieldVisuals)
+                UnityEngine.Object.DestroyImmediate(visual, true);
         }
 
         private static void StripNonPresentationScripts(GameObject root)
@@ -203,10 +219,11 @@ namespace Aetheria.Editor
                     if (IsUniversalMaterial(source))
                         continue;
 
-                    var key = PresentationMaterialKey(source, particle);
+                    var unlit = particle || IsUnlitMaterial(source);
+                    var key = PresentationMaterialKey(source, particle, unlit);
                     if (!generated.TryGetValue(key, out var replacement))
                     {
-                        replacement = CreatePresentationMaterial(source, particle, key);
+                        replacement = CreatePresentationMaterial(source, particle, unlit, key);
                         generated.Add(key, replacement);
                     }
                     materials[index] = replacement;
@@ -252,11 +269,13 @@ namespace Aetheria.Editor
             return material;
         }
 
-        private static Material CreatePresentationMaterial(Material source, bool particle, string key)
+        private static Material CreatePresentationMaterial(Material source, bool particle, bool unlit, string key)
         {
             var shaderName = particle
                 ? "Universal Render Pipeline/Particles/Unlit"
-                : "Universal Render Pipeline/Lit";
+                : unlit
+                    ? "Universal Render Pipeline/Unlit"
+                    : "Universal Render Pipeline/Lit";
             var shader = Shader.Find(shaderName);
             if (shader == null || !shader.isSupported)
                 throw new InvalidOperationException($"Aetheria provider presentation shader is unavailable: {shaderName}");
@@ -361,11 +380,18 @@ namespace Aetheria.Editor
             (material.shader.name.StartsWith("Universal Render Pipeline/", StringComparison.Ordinal) ||
              string.Equals(material.GetTag("RenderPipeline", true, ""), "UniversalPipeline", StringComparison.Ordinal));
 
-        private static string PresentationMaterialKey(Material material, bool particle)
+        private static bool IsUnlitMaterial(Material material)
+        {
+            var shaderName = material.shader?.name ?? "";
+            return shaderName.IndexOf("Unlit", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                   shaderName.IndexOf("Sprite", StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        private static string PresentationMaterialKey(Material material, bool particle, bool unlit)
         {
             if (!AssetDatabase.TryGetGUIDAndLocalFileIdentifier(material, out string guid, out long localId))
                 throw new InvalidOperationException($"Provider material has no stable asset identity: {material.name}");
-            return $"{guid}-{localId}-{(particle ? "particle" : "lit")}";
+            return $"{guid}-{localId}-{(particle ? "particle" : unlit ? "unlit" : "lit")}";
         }
 
         private static void CopyTexture(Material source, Material target, string targetProperty, params string[] sourceProperties)

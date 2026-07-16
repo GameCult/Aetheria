@@ -734,10 +734,10 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 world.Props["postProcessProfileAssetRef"] == "profile.environment.flight" &&
                 world.Props["reflectionIntensity"] == "1" &&
                 world.Props["ambientLightIntensity"] == "1.46" &&
-                world.Props["keyLightDirection"] == "0.4,-1,0.25" &&
-                world.Props["keyLightColor"] == "1,0.95,0.9" &&
-                world.Props["keyLightIntensity"] == "0.75",
-            "playable world must advertise the provider-owned fossil skybox, reflection, and key-light response");
+                !world.Props.ContainsKey("keyLightDirection") &&
+                !world.Props.ContainsKey("keyLightColor") &&
+                !world.Props.ContainsKey("keyLightIntensity"),
+            "playable world must advertise the provider-owned fossil skybox and reflection without inventing a scene light");
         Require(aim.Props["controlledEntityIndex"] == "0" &&
                 aim.Props["convergenceTargetEntityId"] == run.EntityRecordKey(0, 1) &&
                 aim.Props["minimumConvergenceDistance"] == "50",

@@ -791,10 +791,10 @@ static void RequireSharedEvePackagesImportedFromEveRepo(string root)
 
     var requiredManifestSymbols = new[]
     {
-        "\"org.gamecult.cultlib\": \"https://github.com/GameCult/CultLib.git?path=/unity/org.gamecult.cultlib#cultlib-unity-v1.0.13\"",
+        "\"org.gamecult.cultlib\": \"https://github.com/GameCult/CultLib.git?path=/unity/org.gamecult.cultlib#cultlib-unity-v1.0.14\"",
         "\"org.gamecult.eve.plugin-fields\": \"https://github.com/GameCult/EvePlugins.git?path=/plugins/eve-plugin-fields/unity/org.gamecult.eve.plugin-fields#eve-plugin-fields-unity-v0.2.3\"",
         "\"org.gamecult.eve.surface\": \"https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.surface#eveunity-surface-v0.2.2\"",
-        "\"org.gamecult.eve.unity-scene\": \"https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.unity-scene#eveunity-scene-v0.3.49\""
+        "\"org.gamecult.eve.unity-scene\": \"https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.unity-scene#eveunity-scene-v0.3.51\""
     };
 
     var missingManifestSymbols = requiredManifestSymbols
@@ -810,10 +810,10 @@ static void RequireSharedEvePackagesImportedFromEveRepo(string root)
 
     var requiredLockSymbols = new[]
     {
-        "cultlib-unity-v1.0.13",
+        "cultlib-unity-v1.0.14",
         "eve-plugin-fields-unity-v0.2.3",
         "eveunity-surface-v0.2.2",
-        "eveunity-scene-v0.3.49",
+        "eveunity-scene-v0.3.51",
         "\"source\": \"git\""
     };
 
@@ -12179,11 +12179,11 @@ static void RequireDaemonVersePublication(string root)
     }
 
     if (daemonZoneGenerator.Contains("fallbackCargo", StringComparison.Ordinal) ||
-        !daemonLoadoutGenerator.Contains("IReadOnlyList<string> scenarioCargo)", StringComparison.Ordinal) ||
-        !daemonLoadoutGenerator.Contains("foreach (var key in scenarioCargo ?? Array.Empty<string>())", StringComparison.Ordinal))
+        daemonZoneGenerator.Contains("scenarioCargo", StringComparison.Ordinal) ||
+        daemonLoadoutGenerator.Contains("scenarioCargo", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Daemon zone generation must treat declared scenario cargo as authored state, not as a catalog-generation fallback.");
+            "Daemon zone generation must not restore invented scenario cargo as a second item-identity authority.");
     }
 
     var requiredDaemonHostSymbols = new[]
@@ -12197,7 +12197,7 @@ static void RequireDaemonVersePublication(string root)
         "AetheriaDaemonZoneGenerator.WritePlayableRunAsync(",
         "node.MutableDocument<AetheriaRuntimeVerseAuthorityPolicyDocument>(AetheriaRuntimeVerseRecordKeys.VerseAuthorityPolicy)",
         "node.MutableDocument<AetheriaRuntimeStarbridgeScenarioDocument>(AetheriaRuntimeVerseRecordKeys.StarbridgeScenarioLatest)",
-        "node.MutableDocument<AetheriaRuntimeStarbridgeSessionDocument>(AetheriaRuntimeVerseRecordKeys.StarbridgeSessionLatest)",
+        "MutableDocument<AetheriaRuntimeStarbridgeSessionDocument>(AetheriaRuntimeVerseRecordKeys.StarbridgeSessionLatest)",
         "StarbridgeScenario = starbridgeScenario",
         "StarbridgeSession = starbridgeSession",
         "BuildPublications = buildPublications",
