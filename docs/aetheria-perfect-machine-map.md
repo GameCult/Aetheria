@@ -910,6 +910,43 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   not a surviving runtime owner. Missing or incompatible advertised profiles
   fail closed instead of silently rendering a different look.
 
+### Celestial World Presentation Contract
+
+- Owner: the daemon owns which celestial bodies and asteroid instances exist,
+  their authoritative orbit-derived XZ positions, terrain-derived altitude,
+  authored scale, and presentation identity. Aetheria's provider catalog owns
+  the native visual assets. EveUnity owns only generic entity instantiation.
+- Inputs: the current zone's typed body and asteroid rows, daemon simulation
+  time, canonical orbit evaluation, gravity-terrain evaluation, and daemon
+  render settings.
+- Outputs: planets, suns, gas giants, and asteroids occupy ordinary rows in the
+  shared Eve entity SoA generation. Stable synthetic identities distinguish
+  these presentation rows from simulation entities; each row carries a generic
+  entity kind and provider asset reference.
+- Derived state: the Unity `GameObject`, prefab instance, renderer bounds,
+  material instances, native layer, and pilot-frustum intersection are client
+  projections. Celestial synthetic identities are not selectable, controllable,
+  damageable, or valid command targets.
+- Forbidden writers: the fossil `ZoneRenderer`, planet scripts, Unity physics,
+  and runtime-side terrain sampling cannot create, position, scale, rotate, or
+  remove celestial rows. EveUnity cannot import Aetheria types or branch on
+  Aetheria celestial asset keys.
+- Shared paths: cold download, warm cache, reconnect, and every committed SoA
+  generation use the same provider assets and immutable generation swap as
+  ships, stations, pickups, and persistent payloads.
+- Cut line: the Aetheria-specific zone-render document is not a client ABI.
+  Provider packaging extracts only the advertised visual child from each fossil
+  celestial prefab, then applies the common script, physics, material, and
+  bundle verification pipeline. Gravity wells, map icons, runtime scripts, and
+  other fossil authorities do not hitch a ride inside the presentation prefab.
+- Verification layer: the daemon smoke proves stable, unique negative synthetic
+  indices, provider asset references, body/asteroid positions, and equivalent
+  local/network SoA bodies. The released generic-client witness records every
+  presented entity's kind, asset, scale, renderer count, and pilot-frustum
+  intersection. Its warm run instantiated eleven bodies and eighteen asteroids
+  with enabled provider renderers; seven celestial instances intersected the
+  pilot frustum. This proves projection and lowering, not final art parity.
+
 ### Gravity Fog Presentation Contract
 
 - Owner: Aetheria owns gravity/fog brush placement and values, authored volume

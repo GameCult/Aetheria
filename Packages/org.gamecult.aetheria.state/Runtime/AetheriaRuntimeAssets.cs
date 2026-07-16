@@ -47,6 +47,15 @@ namespace GameCult.Aetheria.State.Verse
             Add(entries, MapPrefab("prefab.effect.beam.tractor", "Tractor beam", "Prefabs/Tractor Beam", "effect.beam.tractor"));
             Add(entries, DestructionEffect());
             Add(entries, MapProjectPrefab("prefab.entity.pickup", "Pickup", "Assets/Prefabs/RPG/Pickups/Tetrahedron.prefab"));
+            Add(entries, MapCelestialPrefab(
+                "prefab.body.planet", "Planet", "Assets/Prefabs/RPG/Planets/Planet.prefab", "Terrain Mesh", "celestial.planet"));
+            Add(entries, MapCelestialPrefab(
+                "prefab.body.gas-giant", "Gas Giant", "Assets/Prefabs/RPG/Planets/Gas Giant.prefab", "Sphere", "celestial.gas-giant"));
+            Add(entries, MapCelestialPrefab(
+                "prefab.body.sun", "Sun", "Assets/Prefabs/RPG/Planets/Sun.prefab", "Sphere", "celestial.sun"));
+            Add(entries, MapCelestialPrefab(
+                "prefab.body.asteroid", "Asteroid",
+                "Assets/Plugins/LowPoly_AsteroidsPack/Prefabs/Asteroid_Huge_v01.prefab", "", "celestial.asteroid"));
             Add(entries, MinePrefab());
             foreach (var profile in ThermalPresentationProfiles()) Add(entries, profile);
             foreach (var inventoryAsset in InventoryUiAssets())
@@ -377,6 +386,23 @@ namespace GameCult.Aetheria.State.Verse
                 },
                 Tags = new[] { "world", "prefab", label }
             };
+        }
+
+        private static AetheriaRuntimeAssetManifestEntry MapCelestialPrefab(
+            string key,
+            string label,
+            string unityAssetPath,
+            string presentationVisualPath,
+            string presentationRole)
+        {
+            var entry = MapProjectPrefab(key, label, unityAssetPath);
+            var metadata = entry.Ref.Metadata.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
+            metadata["presentationRole"] = presentationRole ?? "";
+            if (!string.IsNullOrWhiteSpace(presentationVisualPath))
+                metadata["presentationVisualPath"] = presentationVisualPath;
+            entry.Ref.Metadata = metadata;
+            entry.Tags = new[] { "world", "prefab", "celestial", label };
+            return entry;
         }
 
         private static AetheriaRuntimeAssetManifestEntry MapProjectAsset(

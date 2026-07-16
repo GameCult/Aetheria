@@ -95,6 +95,7 @@ namespace Aetheria.Editor
             var root = PrefabUtility.LoadPrefabContents(sourcePath);
             try
             {
+                KeepAdvertisedPresentationVisual(root, entry);
                 ExtractExternalizedEffects(root, entry.Ref.AssetKey);
                 StripNonPresentationScripts(root);
                 StripPresentationPhysics(root);
@@ -111,6 +112,23 @@ namespace Aetheria.Editor
 
             var savedRoot = AssetDatabase.LoadAssetAtPath<GameObject>(outputPath);
             VerifyPrefab(savedRoot, outputPath);
+        }
+
+        private static void KeepAdvertisedPresentationVisual(
+            GameObject root,
+            AetheriaRuntimeAssetManifestEntry entry)
+        {
+            if (!entry.Ref.Metadata.TryGetValue("presentationVisualPath", out var visualPath) ||
+                string.IsNullOrWhiteSpace(visualPath))
+                return;
+
+            var visual = root.transform.Find(visualPath);
+            if (visual == null)
+                throw new InvalidOperationException(
+                    $"Prefab {entry.Ref.AssetKey} has no advertised presentation visual '{visualPath}'.");
+
+            foreach (var child in root.transform.Cast<Transform>().Where(child => child != visual).ToArray())
+                UnityEngine.Object.DestroyImmediate(child.gameObject, true);
         }
 
         private static void ExtractExternalizedEffects(GameObject root, string assetKey)

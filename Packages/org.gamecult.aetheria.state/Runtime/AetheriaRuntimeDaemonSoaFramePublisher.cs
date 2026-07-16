@@ -111,6 +111,8 @@ namespace GameCult.Aetheria.State.Verse
                 .Where(payload => payload != null && payload.Active)
                 .OrderBy(payload => payload.PayloadId, StringComparer.Ordinal)
                 .ToArray();
+            var celestialBodies = BuildCelestialBodies(frame, zone);
+            var asteroidInstances = BuildAsteroidInstances(frame, zone);
             var unsupportedPayload = payloads.FirstOrDefault(payload =>
                 !string.Equals(payload.PayloadKind, "mine", StringComparison.Ordinal));
             if (unsupportedPayload != null)
@@ -122,14 +124,19 @@ namespace GameCult.Aetheria.State.Verse
             var payloadEntityIds = payloads
                 .Select(payload => $"{run.RunId}:zone:{run.CurrentZoneIndex}:physical-payload:{payload.PayloadId}")
                 .ToArray();
-            var syntheticEntityIds = pickupEntityIds.Concat(payloadEntityIds).ToArray();
+            var syntheticEntityIds = pickupEntityIds
+                .Concat(payloadEntityIds)
+                .Concat(celestialBodies.Select(value => value.EntityId))
+                .Concat(asteroidInstances.Select(value => value.EntityId))
+                .ToArray();
             if (syntheticEntityIds.Distinct(StringComparer.Ordinal).Count() != syntheticEntityIds.Length)
                 throw new InvalidOperationException("Current-zone synthetic SoA entity identities are not unique.");
             var syntheticEntityIndices = syntheticEntityIds.ToDictionary(
                 entityId => entityId,
                 GetOrAllocateSyntheticEntityIndex,
                 StringComparer.Ordinal);
-            var count = entities.Length + pickups.Length + payloads.Length;
+            var count = entities.Length + pickups.Length + payloads.Length +
+                celestialBodies.Count + asteroidInstances.Count;
             if (count > Capacity)
                 throw new InvalidOperationException($"Aetheria entity SoA capacity {Capacity} was exceeded by {count} rows.");
             var generation = Math.Max(frame.FrameId, 0);
@@ -138,6 +145,18 @@ namespace GameCult.Aetheria.State.Verse
             WriteEntities(bytes, layout, entities);
             WritePickups(bytes, layout, pickups, pickupEntityIds, syntheticEntityIndices, entities.Length);
             WritePayloads(bytes, layout, payloads, payloadEntityIds, syntheticEntityIndices, entities.Length + pickups.Length);
+            WriteCelestialBodies(
+                bytes,
+                layout,
+                celestialBodies,
+                syntheticEntityIndices,
+                entities.Length + pickups.Length + payloads.Length);
+            WriteAsteroidInstances(
+                bytes,
+                layout,
+                asteroidInstances,
+                syntheticEntityIndices,
+                entities.Length + pickups.Length + payloads.Length + celestialBodies.Count);
 
             var view = AetheriaRuntimeDaemonSoaViewDocument.Create(
                 string.IsNullOrWhiteSpace(frame.DaemonId) ? "aetheria-daemon" : frame.DaemonId,
@@ -161,7 +180,7 @@ namespace GameCult.Aetheria.State.Verse
                 layout.CreateDirtyRanges(count, generation),
                 backend: AetheriaRuntimeDaemonSoaBackends.CultMesh,
                 synchronizationMode: AetheriaRuntimeDaemonSoaSynchronizationModes.ImmutableFrame,
-                renderGroups: CreateRenderGroups(entities, pickups, payloads),
+                renderGroups: CreateRenderGroups(entities, pickups, payloads, celestialBodies, asteroidInstances),
                 identities: entities.Select(entity => new AetheriaRuntimeDaemonSoaIdentityDocument
                     {
                         EntityIndex = entity.EntityIndex,
@@ -194,6 +213,28 @@ namespace GameCult.Aetheria.State.Verse
                         Selectable = false,
                         Controllable = false,
                         AssetRef = "prefab.entity.mine"
+                    }))
+                    .Concat(celestialBodies.Select(value => new AetheriaRuntimeDaemonSoaIdentityDocument
+                    {
+                        EntityIndex = syntheticEntityIndices[value.EntityId],
+                        EntityId = value.EntityId,
+                        Kind = value.EntityKind,
+                        Label = value.Label,
+                        Faction = "",
+                        Selectable = false,
+                        Controllable = false,
+                        AssetRef = value.AssetRef
+                    }))
+                    .Concat(asteroidInstances.Select(value => new AetheriaRuntimeDaemonSoaIdentityDocument
+                    {
+                        EntityIndex = syntheticEntityIndices[value.EntityId],
+                        EntityId = value.EntityId,
+                        Kind = "celestial.asteroid",
+                        Label = "Asteroid",
+                        Faction = "",
+                        Selectable = false,
+                        Controllable = false,
+                        AssetRef = "prefab.body.asteroid"
                     }))
                     .ToArray());
 
@@ -248,14 +289,19 @@ namespace GameCult.Aetheria.State.Verse
         private static IReadOnlyList<AetheriaRuntimeDaemonRenderGroupDocument> CreateRenderGroups(
             IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities,
             IReadOnlyList<AetheriaRuntimeDroppedPickupCommit> pickups,
-            IReadOnlyList<AetheriaRuntimePhysicalPayloadCommit> payloads)
+            IReadOnlyList<AetheriaRuntimePhysicalPayloadCommit> payloads,
+            IReadOnlyList<CelestialBodyPresentation> celestialBodies,
+            IReadOnlyList<AsteroidPresentation> asteroidInstances)
         {
-            if (entities.Count == 0 && pickups.Count == 0 && payloads.Count == 0)
+            if (entities.Count == 0 && pickups.Count == 0 && payloads.Count == 0 &&
+                celestialBodies.Count == 0 && asteroidInstances.Count == 0)
                 return Array.Empty<AetheriaRuntimeDaemonRenderGroupDocument>();
 
             var positions = entities.Select(entity => (entity.PositionX, entity.PositionY, entity.PositionZ))
                 .Concat(pickups.Select(pickup => (pickup.PositionX, pickup.PositionY, pickup.PositionZ)))
                 .Concat(payloads.Select(payload => (payload.PositionX, PositionY: payload.PositionY, payload.PositionZ)))
+                .Concat(celestialBodies.Select(value => (value.PositionX, value.PositionY, value.PositionZ)))
+                .Concat(asteroidInstances.Select(value => (value.PositionX, value.PositionY, value.PositionZ)))
                 .ToArray();
             var minX = positions.Min(position => (float)position.PositionX);
             var minY = positions.Min(position => (float)position.PositionY);
@@ -286,7 +332,8 @@ namespace GameCult.Aetheria.State.Verse
                     Layer = 0,
                     ShaderKey = "aetheria.daemon.entity-proxy",
                     DisplayName = "Daemon current-zone entities",
-                    InstanceCount = entities.Count + pickups.Count + payloads.Count,
+                    InstanceCount = entities.Count + pickups.Count + payloads.Count +
+                        celestialBodies.Count + asteroidInstances.Count,
                     BoundsCenterX = (minX + maxX) * 0.5f,
                     BoundsCenterY = (minY + maxY) * 0.5f,
                     BoundsCenterZ = (minZ + maxZ) * 0.5f,
@@ -378,6 +425,180 @@ namespace GameCult.Aetheria.State.Verse
             }
         }
 
+        private static IReadOnlyList<CelestialBodyPresentation> BuildCelestialBodies(
+            AetheriaRuntimeDaemonFrameDocument frame,
+            AetheriaRuntimeZoneSnapshotCommit? zone)
+        {
+            if (zone == null)
+                return Array.Empty<CelestialBodyPresentation>();
+
+            var poses = AetheriaRuntimeDaemonRenderQueries.QueryBodyPoses(zone)
+                .ToDictionary(pose => pose.BodyKey, StringComparer.Ordinal);
+            var values = new List<CelestialBodyPresentation>();
+            foreach (var body in zone.Bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>())
+            {
+                if (body == null ||
+                    string.Equals(body.Kind, "asteroid_belt", StringComparison.OrdinalIgnoreCase) ||
+                    string.IsNullOrWhiteSpace(body.BodyKey) ||
+                    !poses.TryGetValue(body.BodyKey, out var pose))
+                    continue;
+
+                var scale = Math.Max(
+                    0.1,
+                    frame.RenderSettings.ResolveBodyRadius(body.Mass) * Math.Max(0, body.BodyRadiusMultiplier));
+                var terrainHeight = AetheriaRuntimeDaemonRenderQueries.EvaluateGravityTerrainHeight(
+                    zone,
+                    pose.CenterX,
+                    pose.CenterZ,
+                    frame.SimulationTimeSeconds);
+                var kind = NormalizeCelestialKind(body.Kind);
+                values.Add(new CelestialBodyPresentation(
+                    $"{frame.Run.RunId}:zone:{zone.ZoneIndex}:body:{body.BodyKey}",
+                    kind,
+                    string.IsNullOrWhiteSpace(body.Name) ? body.BodyKey : body.Name,
+                    ResolveCelestialAssetRef(kind),
+                    pose.CenterX,
+                    terrainHeight + scale * 2.0,
+                    pose.CenterZ,
+                    frame.SimulationTimeSeconds * frame.RenderSettings.PlanetRotationSpeed * Math.PI / 180.0,
+                    scale));
+            }
+            return values;
+        }
+
+        private static IReadOnlyList<AsteroidPresentation> BuildAsteroidInstances(
+            AetheriaRuntimeDaemonFrameDocument frame,
+            AetheriaRuntimeZoneSnapshotCommit? zone)
+        {
+            if (zone == null)
+                return Array.Empty<AsteroidPresentation>();
+
+            var values = new List<AsteroidPresentation>();
+            foreach (var belt in zone.Bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>())
+            {
+                if (belt == null ||
+                    !string.Equals(belt.Kind, "asteroid_belt", StringComparison.OrdinalIgnoreCase) ||
+                    string.IsNullOrWhiteSpace(belt.BodyKey))
+                    continue;
+
+                foreach (var pose in AetheriaRuntimeDaemonRenderQueries.QueryAsteroidInstancePoses(
+                             zone,
+                             belt.BodyKey,
+                             frame.SimulationTimeSeconds))
+                {
+                    if (pose.Size <= 0)
+                        continue;
+                    var terrainHeight = AetheriaRuntimeDaemonRenderQueries.EvaluateGravityTerrainHeight(
+                        zone,
+                        pose.PositionX,
+                        pose.PositionZ,
+                        frame.SimulationTimeSeconds);
+                    values.Add(new AsteroidPresentation(
+                        $"{frame.Run.RunId}:zone:{zone.ZoneIndex}:asteroid:{belt.BodyKey}:{pose.AsteroidIndex}",
+                        pose.PositionX,
+                        terrainHeight + frame.RenderSettings.AsteroidVerticalOffset,
+                        pose.PositionZ,
+                        pose.Rotation,
+                        pose.Size));
+                }
+            }
+            return values;
+        }
+
+        private static string NormalizeCelestialKind(string? kind)
+        {
+            var normalized = (kind ?? "").Trim().ToLowerInvariant().Replace('_', '-');
+            return normalized switch
+            {
+                "sun" => "sun",
+                "gas-giant" => "gas-giant",
+                _ => "planet"
+            };
+        }
+
+        private static string ResolveCelestialAssetRef(string kind)
+        {
+            return kind switch
+            {
+                "sun" => "prefab.body.sun",
+                "gas-giant" => "prefab.body.gas-giant",
+                _ => "prefab.body.planet"
+            };
+        }
+
+        private static void WriteCelestialBodies(
+            byte[] bytes,
+            EntityHotSlabLayout layout,
+            IReadOnlyList<CelestialBodyPresentation> values,
+            IReadOnlyDictionary<string, int> syntheticEntityIndices,
+            int rowOffset)
+        {
+            for (var valueIndex = 0; valueIndex < values.Count; valueIndex++)
+            {
+                var value = values[valueIndex];
+                var row = rowOffset + valueIndex;
+                WritePresentationRow(
+                    bytes,
+                    layout,
+                    row,
+                    syntheticEntityIndices[value.EntityId],
+                    value.PositionX,
+                    value.PositionY,
+                    value.PositionZ,
+                    value.RotationRadians,
+                    value.Scale);
+            }
+        }
+
+        private static void WriteAsteroidInstances(
+            byte[] bytes,
+            EntityHotSlabLayout layout,
+            IReadOnlyList<AsteroidPresentation> values,
+            IReadOnlyDictionary<string, int> syntheticEntityIndices,
+            int rowOffset)
+        {
+            for (var valueIndex = 0; valueIndex < values.Count; valueIndex++)
+            {
+                var value = values[valueIndex];
+                var row = rowOffset + valueIndex;
+                WritePresentationRow(
+                    bytes,
+                    layout,
+                    row,
+                    syntheticEntityIndices[value.EntityId],
+                    value.PositionX,
+                    value.PositionY,
+                    value.PositionZ,
+                    value.RotationRadians,
+                    value.Scale);
+            }
+        }
+
+        private static void WritePresentationRow(
+            byte[] bytes,
+            EntityHotSlabLayout layout,
+            int row,
+            int entityIndex,
+            double positionX,
+            double positionY,
+            double positionZ,
+            double rotationRadians,
+            double scale)
+        {
+            WriteInt32(bytes, layout.EntityIndex + row * IntStride, entityIndex);
+            WriteInt32(bytes, layout.CargoQuantity + row * IntStride, 0);
+            WriteFloat3(bytes, layout.Position, row, positionX, positionY, positionZ);
+            WriteFloat(bytes, layout.RotationRadians, row, rotationRadians);
+            WriteFloat3(bytes, layout.Velocity, row, 0, 0, 0);
+            WriteFloat(bytes, layout.PhysicsBodyRadius, row, Math.Max(0.01, scale));
+            WriteFloat(bytes, layout.PhysicsBodyMass, row, 0);
+            WriteFloat(bytes, layout.PhysicsBodyInverseMass, row, 0);
+            WriteFloat(bytes, layout.RenderScale, row, Math.Max(0.01, scale));
+            bytes[checked((int)(layout.RenderVisibility + row * ByteStride))] = 1;
+            WriteInt32(bytes, layout.RenderLod + row * IntStride, 0);
+            WriteUInt32(bytes, layout.RenderGroupId + row * IntStride, EntityRenderGroupId);
+        }
+
         private int GetOrAllocateSyntheticEntityIndex(string entityId)
         {
             if (_syntheticEntityIndices.TryGetValue(entityId, out var existing))
@@ -388,6 +609,67 @@ namespace GameCult.Aetheria.State.Verse
             var allocated = _nextSyntheticEntityIndex--;
             _syntheticEntityIndices.Add(entityId, allocated);
             return allocated;
+        }
+
+        private sealed class CelestialBodyPresentation
+        {
+            public CelestialBodyPresentation(
+                string entityId,
+                string kind,
+                string label,
+                string assetRef,
+                double positionX,
+                double positionY,
+                double positionZ,
+                double rotationRadians,
+                double scale)
+            {
+                EntityId = entityId;
+                EntityKind = "celestial." + kind;
+                Label = label;
+                AssetRef = assetRef;
+                PositionX = positionX;
+                PositionY = positionY;
+                PositionZ = positionZ;
+                RotationRadians = rotationRadians;
+                Scale = scale;
+            }
+
+            public string EntityId { get; }
+            public string EntityKind { get; }
+            public string Label { get; }
+            public string AssetRef { get; }
+            public double PositionX { get; }
+            public double PositionY { get; }
+            public double PositionZ { get; }
+            public double RotationRadians { get; }
+            public double Scale { get; }
+        }
+
+        private sealed class AsteroidPresentation
+        {
+            public AsteroidPresentation(
+                string entityId,
+                double positionX,
+                double positionY,
+                double positionZ,
+                double rotationRadians,
+                double scale)
+            {
+                EntityId = entityId;
+                PositionX = positionX;
+                PositionY = positionY;
+                PositionZ = positionZ;
+                RotationRadians = rotationRadians;
+                Scale = scale;
+            }
+
+            public string EntityId { get; }
+            public double PositionX { get; }
+            public double PositionY { get; }
+            public double PositionZ { get; }
+            public double RotationRadians { get; }
+            public double Scale { get; }
         }
 
         private static void WriteFloat(byte[] bytes, long byteOffset, int index, double value)

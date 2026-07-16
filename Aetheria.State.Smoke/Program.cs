@@ -157,23 +157,29 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
         component.Id == "aetheria.daemon.game.world");
     var expectedPlayableWorldProps = new Dictionary<string, string>(StringComparer.Ordinal)
     {
-        ["cameraRig"] = "planar.top-down-follow.v1",
+        ["cameraRig"] = "perspective.entity-forward-follow.v1",
         ["cameraTargetEntityId"] = entityKey.ToString(),
-        ["cameraDistance"] = "150",
+        ["cameraDistance"] = "30",
         ["cameraVerticalFieldOfViewDegrees"] = "60",
-        ["cameraTargetScreenX"] = "0.9",
-        ["cameraTargetScreenY"] = "0.55",
-        ["cameraPositionDamping"] = "5",
-        ["cameraNearClipPlane"] = "0.3",
+        ["cameraTargetScreenX"] = "0.64",
+        ["cameraTargetScreenY"] = "0.19",
+        ["cameraPositionDamping"] = "0",
+        ["cameraNearClipPlane"] = "1",
         ["cameraFarClipPlane"] = "4096",
         ["ambientLightColor"] = "0.2,0.2,0.2",
-        ["ambientLightIntensity"] = "1"
+        ["ambientLightIntensity"] = "1.46"
     };
-    if (expectedPlayableWorldProps.Any(expected =>
+    var playableWorldMismatches = expectedPlayableWorldProps
+        .Where(expected =>
             !playableWorld.Props.TryGetValue(expected.Key, out var actual) ||
-            !string.Equals(actual, expected.Value, StringComparison.Ordinal)))
+            !string.Equals(actual, expected.Value, StringComparison.Ordinal))
+        .Select(expected =>
+            $"{expected.Key}: expected '{expected.Value}', actual '{(playableWorld.Props.TryGetValue(expected.Key, out var actual) ? actual : "<missing>")}'")
+        .ToArray();
+    if (playableWorldMismatches.Length > 0)
     {
-        throw new InvalidOperationException("Playable world did not publish the native camera and environment contract.");
+        throw new InvalidOperationException(
+            $"Playable world did not publish the native camera and environment contract: {string.Join("; ", playableWorldMismatches)}");
     }
     await node.MutableDocument<AetheriaRuntimeDaemonProviderAdvertisementDocument>(AetheriaRuntimeVerseRecordKeys.DaemonProviderAdvertisement)
         .ReplaceAsync(daemonProvider);
@@ -797,17 +803,17 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
         component.Id == "aetheria.daemon.game.world");
     var expectedReopenedPlayableWorldProps = new Dictionary<string, string>(StringComparer.Ordinal)
     {
-        ["cameraRig"] = "planar.top-down-follow.v1",
+        ["cameraRig"] = "perspective.entity-forward-follow.v1",
         ["cameraTargetEntityId"] = entityKey.ToString(),
-        ["cameraDistance"] = "150",
+        ["cameraDistance"] = "30",
         ["cameraVerticalFieldOfViewDegrees"] = "60",
-        ["cameraTargetScreenX"] = "0.9",
-        ["cameraTargetScreenY"] = "0.55",
-        ["cameraPositionDamping"] = "5",
-        ["cameraNearClipPlane"] = "0.3",
+        ["cameraTargetScreenX"] = "0.64",
+        ["cameraTargetScreenY"] = "0.19",
+        ["cameraPositionDamping"] = "0",
+        ["cameraNearClipPlane"] = "1",
         ["cameraFarClipPlane"] = "4096",
         ["ambientLightColor"] = "0.2,0.2,0.2",
-        ["ambientLightIntensity"] = "1"
+        ["ambientLightIntensity"] = "1.46"
     };
     if (expectedReopenedPlayableWorldProps.Any(expected =>
             !reopenedPlayableWorld.Props.TryGetValue(expected.Key, out var actual) ||
@@ -993,6 +999,7 @@ static async Task ProveDirectSoaPublicationPipeline()
         DaemonId = "aetheria-daemon",
         SessionId = "soa-pipeline-smoke",
         FrameId = 41,
+        SimulationTimeSeconds = 4,
         Run = new AetheriaRuntimeRunCheckpointCommit
         {
             RunId = "soa-pipeline-smoke",
@@ -1041,6 +1048,37 @@ static async Task ProveDirectSoaPublicationPipeline()
                             Active = true,
                             Stationary = true
                         }
+                    ],
+                    Bodies =
+                    [
+                        new AetheriaRuntimeBodySnapshotCommit
+                        {
+                            BodyKey = "body:soa-sun",
+                            Name = "SoA Sun",
+                            Kind = "sun",
+                            Mass = 100,
+                            BodyRadiusMultiplier = 1,
+                            GravityInfluenceCenterX = 20,
+                            GravityInfluenceCenterZ = 30
+                        },
+                        new AetheriaRuntimeBodySnapshotCommit
+                        {
+                            BodyKey = "body:soa-belt",
+                            Name = "SoA Belt",
+                            Kind = "asteroid_belt",
+                            GravityInfluenceCenterX = 40,
+                            GravityInfluenceCenterZ = 50,
+                            Asteroids =
+                            [
+                                new AetheriaRuntimeAsteroidCommit
+                                {
+                                    Distance = 5,
+                                    Phase = 0,
+                                    Size = 2,
+                                    RotationSpeed = 0.25
+                                }
+                            ]
+                        }
                     ]
                 }
             ]
@@ -1053,11 +1091,19 @@ static async Task ProveDirectSoaPublicationPipeline()
         string.Equals(identity.EntityId, "soa-pipeline-smoke:zone:0:physical-payload:mine:soa-witness", StringComparison.Ordinal));
     var pickupIdentity = built.View.Identities.Single(identity =>
         string.Equals(identity.EntityId, "pickup:0:3", StringComparison.Ordinal));
+    var sunIdentity = built.View.Identities.Single(identity =>
+        string.Equals(identity.Kind, "celestial.sun", StringComparison.Ordinal));
+    var asteroidIdentity = built.View.Identities.Single(identity =>
+        string.Equals(identity.Kind, "celestial.asteroid", StringComparison.Ordinal));
     if (payloadIdentity == null || !string.Equals(payloadIdentity.AssetRef, "prefab.entity.mine", StringComparison.Ordinal) ||
         !string.Equals(payloadIdentity.Kind, "physical-payload", StringComparison.Ordinal) || payloadIdentity.Selectable ||
         payloadIdentity.EntityIndex >= -1 || pickupIdentity.EntityIndex >= -1 ||
         payloadIdentity.EntityIndex == pickupIdentity.EntityIndex ||
-        built.View.Columns.Any(column => column.ElementCount != 3))
+        sunIdentity.AssetRef != "prefab.body.sun" || asteroidIdentity.AssetRef != "prefab.body.asteroid" ||
+        sunIdentity.Selectable || asteroidIdentity.Selectable ||
+        new[] { payloadIdentity.EntityIndex, pickupIdentity.EntityIndex, sunIdentity.EntityIndex, asteroidIdentity.EntityIndex }
+            .Distinct().Count() != 4 ||
+        built.View.Columns.Any(column => column.ElementCount != 5))
         throw new InvalidOperationException("Physical payload did not enter the authoritative SoA generation with its provider asset identity.");
     if (cache.Get<EveEntitySoaViewDocument>(AetheriaRuntimeVerseRecordKeys.EveEntitySoaViewLatest) != null)
         throw new InvalidOperationException("SoA view became visible before its body publication.");
@@ -1070,8 +1116,12 @@ static async Task ProveDirectSoaPublicationPipeline()
     var nextBuilt = publisher.BuildCurrentZoneEntities(frame);
     var nextPayloadIdentity = nextBuilt.View.Identities.Single(identity => identity.EntityId == payloadIdentity.EntityId);
     var nextPickupIdentity = nextBuilt.View.Identities.Single(identity => identity.EntityId == pickupIdentity.EntityId);
+    var nextSunIdentity = nextBuilt.View.Identities.Single(identity => identity.EntityId == sunIdentity.EntityId);
+    var nextAsteroidIdentity = nextBuilt.View.Identities.Single(identity => identity.EntityId == asteroidIdentity.EntityId);
     if (nextPayloadIdentity.EntityIndex != payloadIdentity.EntityIndex ||
-        nextPickupIdentity.EntityIndex != pickupIdentity.EntityIndex)
+        nextPickupIdentity.EntityIndex != pickupIdentity.EntityIndex ||
+        nextSunIdentity.EntityIndex != sunIdentity.EntityIndex ||
+        nextAsteroidIdentity.EntityIndex != asteroidIdentity.EntityIndex)
         throw new InvalidOperationException("Synthetic SoA identity changed across immutable generations in one producer epoch.");
     var next = await publisher.PublishAsync(nextBuilt);
     if (published.Body.RecordKey.Equals(next.Body.RecordKey))
@@ -1147,6 +1197,10 @@ static async Task ProveDirectSoaPublicationPipeline()
     var networkPayloadEntityIndex = ReadInt32(view, networkLease, "entity.index", 2);
     var localPayloadPosition = ReadFloat3(view, localLease, "transform.position", 2);
     var networkPayloadPosition = ReadFloat3(view, networkLease, "transform.position", 2);
+    var localSunPosition = ReadFloat3(view, localLease, "transform.position", 3);
+    var networkSunPosition = ReadFloat3(view, networkLease, "transform.position", 3);
+    var localAsteroidPosition = ReadFloat3(view, localLease, "transform.position", 4);
+    var networkAsteroidPosition = ReadFloat3(view, networkLease, "transform.position", 4);
     var identity = view.Identities.Single(candidate => candidate.Index == localEntityIndex);
     if (localLease.TransportKind != CultMeshBodyTransportKind.SharedMemory ||
         networkLease.TransportKind != CultMeshBodyTransportKind.Network ||
@@ -1155,6 +1209,9 @@ static async Task ProveDirectSoaPublicationPipeline()
         localPayloadEntityIndex != payloadIdentity.EntityIndex ||
         networkPayloadEntityIndex != localPayloadEntityIndex ||
         localPayloadPosition != (9f, 0f, 11f) || networkPayloadPosition != localPayloadPosition ||
+        localSunPosition.X != 20f || localSunPosition.Z != 30f || networkSunPosition != localSunPosition ||
+        localAsteroidPosition.X != 45f || localAsteroidPosition.Z != 50f ||
+        networkAsteroidPosition != localAsteroidPosition ||
         identity.EntityId != "ship:soa-witness" || identity.Label != "SoA Witness")
         throw new InvalidOperationException("Local and network SoA views were not logically equivalent.");
 
