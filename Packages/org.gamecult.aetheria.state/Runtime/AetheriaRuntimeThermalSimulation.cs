@@ -77,12 +77,19 @@ namespace GameCult.Aetheria.State.Verse
                 .Select(index => occupied.Contains(index) ? baseMass : 0).ToArray();
             var conductivity = Enumerable.Range(0, mass.Length)
                 .Select(index => occupied.Contains(index) ? 1.0 : 0).ToArray();
-            var equipment = entity.Equipment ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>();
-            for (var equipmentIndex = 0; equipmentIndex < equipment.Count; equipmentIndex++)
+            var installed = (entity.Equipment ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>())
+                .Concat(entity.CargoBays ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>())
+                .Concat(entity.DockingBays ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>())
+                .ToArray();
+            for (var equipmentIndex = 0; equipmentIndex < installed.Length; equipmentIndex++)
             {
-                var slot = equipment[equipmentIndex];
+                var slot = installed[equipmentIndex];
                 var item = catalog.FindItem(slot?.Item?.ItemKey ?? "");
-                var cells = item?.ShapeCells ?? Array.Empty<AetheriaRuntimeShapeCell>();
+                var cells = item == null
+                    ? Array.Empty<(int X, int Y)>()
+                    : AetheriaRuntimeEquipmentGridGeometry.RotatedCells(
+                        item,
+                        AetheriaRuntimeEquipmentGridGeometry.ParseRotation(slot?.Rotation));
                 var itemCellCount = Math.Max(1, cells.Count);
                 foreach (var cell in cells)
                 {

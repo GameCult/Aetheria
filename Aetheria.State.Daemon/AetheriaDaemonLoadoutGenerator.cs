@@ -83,8 +83,25 @@ public sealed class AetheriaDaemonLoadoutGenerator
 
         var cargo = PackCargo(cargoBay, availabilityFactionKey,
             string.Equals(entityKind, "station", StringComparison.OrdinalIgnoreCase));
+        var equipment = slots
+            .Where(value => !IsBay(_catalog.FindItem(value.ItemKey)))
+            .ToArray();
+        var cargoBays = slots
+            .Where(value => string.Equals(
+                _catalog.FindItem(value.ItemKey)?.Category,
+                AetheriaRuntimeItemCategories.CargoBay,
+                StringComparison.Ordinal))
+            .ToArray();
+        var dockingBays = slots
+            .Where(value => string.Equals(
+                _catalog.FindItem(value.ItemKey)?.Category,
+                AetheriaRuntimeItemCategories.DockingBay,
+                StringComparison.Ordinal))
+            .ToArray();
         var selectedKeys = new[] { (Role: "hull", Key: hull.ItemKey) }
-            .Concat(slots.Select(value => (Role: "equipment", Key: value.ItemKey)))
+            .Concat(equipment.Select(value => (Role: "equipment", Key: value.ItemKey)))
+            .Concat(cargoBays.Select(value => (Role: "cargo-bay", Key: value.ItemKey)))
+            .Concat(dockingBays.Select(value => (Role: "docking-bay", Key: value.ItemKey)))
             .Concat(cargo.Select(value => (Role: "cargo", Key: value.Item.ItemKey)));
         var receipt = new AetheriaLoadoutGenerationReceipt
         {
@@ -94,7 +111,6 @@ public sealed class AetheriaDaemonLoadoutGenerator
             PriceExponent = _priceExponent,
             Selections = selectedKeys.Select(value => Selection(value.Role, value.Key, availabilityFactionKey)).ToArray()
         };
-        var equipment = slots.ToArray();
         var defaultWeaponGroup = equipment
             .Select((slot, index) => (slot, index))
             .Where(value => IsWeapon(_catalog.FindItem(value.slot.ItemKey)))
@@ -103,7 +119,14 @@ public sealed class AetheriaDaemonLoadoutGenerator
         var weaponGroups = defaultWeaponGroup.Length == 0
             ? Array.Empty<int[]>()
             : new[] { defaultWeaponGroup };
-        return new AetheriaDaemonLoadout(hull.ItemKey, equipment, cargo, weaponGroups, receipt);
+        return new AetheriaDaemonLoadout(
+            hull.ItemKey,
+            equipment,
+            cargoBays,
+            dockingBays,
+            cargo,
+            weaponGroups,
+            receipt);
     }
 
     private AetheriaLoadoutGenerationSelection Selection(string role, string itemKey, string factionKey)
@@ -348,34 +371,13 @@ public sealed class AetheriaDaemonLoadoutGenerator
         (cells ?? Array.Empty<AetheriaRuntimeShapeCell>()).Select(value => (value.X, value.Y)).ToHashSet();
 
     private static IEnumerable<(int X, int Y)> RotatedCells(AetheriaRuntimeCatalogItem item, int rotation)
-    {
-        foreach (var cell in item.ShapeCells ?? Array.Empty<AetheriaRuntimeShapeCell>())
-        {
-            yield return rotation switch
-            {
-                1 => (item.ShapeHeight - 1 - cell.Y, cell.X),
-                2 => (item.ShapeWidth - 1 - cell.X, item.ShapeHeight - 1 - cell.Y),
-                3 => (cell.Y, item.ShapeWidth - 1 - cell.X),
-                _ => (cell.X, cell.Y)
-            };
-        }
-    }
+        => AetheriaRuntimeEquipmentGridGeometry.RotatedCells(item, rotation);
 
-    private static int ParseRotation(string value) => value switch
-    {
-        "Clockwise" or "Right" or "Rotate90" => 1,
-        "Half" or "Rotate180" => 2,
-        "CounterClockwise" or "Left" or "Rotate270" => 3,
-        _ => 0
-    };
+    private static int ParseRotation(string value) =>
+        AetheriaRuntimeEquipmentGridGeometry.ParseRotation(value);
 
-    private static string RotationName(int rotation) => (((rotation % 4) + 4) % 4) switch
-    {
-        1 => "Clockwise",
-        2 => "Half",
-        3 => "CounterClockwise",
-        _ => "None"
-    };
+    private static string RotationName(int rotation) =>
+        AetheriaRuntimeEquipmentGridGeometry.RotationName(rotation);
 
     private static bool HasBehavior(AetheriaRuntimeCatalogItem item, string kind) =>
         (item.BehaviorKinds ?? Array.Empty<string>()).Contains(kind, StringComparer.Ordinal);
@@ -389,6 +391,11 @@ public sealed class AetheriaDaemonLoadoutGenerator
         (string.Equals(item.Category, AetheriaRuntimeItemCategories.Weapon, StringComparison.Ordinal) ||
          (item.BehaviorKinds ?? Array.Empty<string>()).Any(kind =>
              kind.Contains("Weapon", StringComparison.Ordinal)));
+
+    private static bool IsBay(AetheriaRuntimeCatalogItem? item) =>
+        item != null &&
+        (string.Equals(item.Category, AetheriaRuntimeItemCategories.CargoBay, StringComparison.Ordinal) ||
+         string.Equals(item.Category, AetheriaRuntimeItemCategories.DockingBay, StringComparison.Ordinal));
 
     private static AetheriaEntityItemSlot Slot(int x, int y, string itemKey, int rotation = 0) => new()
     {
@@ -411,6 +418,8 @@ public sealed class AetheriaDaemonLoadoutGenerator
 public sealed record AetheriaDaemonLoadout(
     string HullItemKey,
     AetheriaEntityItemSlot[] Equipment,
+    AetheriaEntityItemSlot[] CargoBays,
+    AetheriaEntityItemSlot[] DockingBays,
     AetheriaLoadoutItemSlot[] Cargo,
     int[][] WeaponGroups,
     AetheriaLoadoutGenerationReceipt Receipt);

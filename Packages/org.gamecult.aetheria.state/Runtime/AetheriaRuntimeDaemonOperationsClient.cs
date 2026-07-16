@@ -353,7 +353,8 @@ public sealed class AetheriaRuntimeDaemonOperationsClient
         string itemKey,
         int destinationX,
         int destinationY,
-        bool hasDestinationPosition)
+        bool hasDestinationPosition,
+        string sourceKind = AetheriaRuntimeRefitSourceKinds.Equipment)
     {
         return Send((client, frame) => client.StoreItem(
             frame,
@@ -364,7 +365,8 @@ public sealed class AetheriaRuntimeDaemonOperationsClient
             itemKey,
             destinationX,
             destinationY,
-            hasDestinationPosition));
+            hasDestinationPosition,
+            sourceKind));
     }
 
     public bool TrySubmitSurfaceCommand(

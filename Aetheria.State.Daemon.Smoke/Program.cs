@@ -168,6 +168,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             ProjectileContactCannotKill,
             MissingWorldPhysicsOwnerCannotAdvanceShips,
             DockingUsesRealBaysAndFossilUndockRules,
+            RefitIsAtomicAndUsesTypedPlacement,
             TractorRampsAndPullsThroughYmirWithoutTeleportingCargo,
             PickupIsCapacityCheckedExactlyOnceAndExpires,
             TradePurchaseDerivesAcceptanceFromDaemonState,
@@ -391,6 +392,290 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             "undocking must preserve the ship pose, velocity, and direction instead of applying an invented launch");
         Require(!successRun.Zones[0].Entities[1].DockingBayAssignments.Contains(0),
             "successful undocking must release the exact occupied bay");
+    }
+
+    private static void RefitIsAtomicAndUsesTypedPlacement()
+    {
+        static AetheriaRuntimeCatalogItem ShapedItem(
+            string key,
+            string category,
+            string hardpointType,
+            int width,
+            int height,
+            params (int X, int Y)[] cells)
+        {
+            var item = CatalogItem(key);
+            item.Category = category;
+            item.HardpointType = hardpointType;
+            item.ShapeWidth = width;
+            item.ShapeHeight = height;
+            item.OccupiedCells = cells.Length;
+            item.ShapeCells = cells.Select(cell => new AetheriaRuntimeShapeCell(cell.X, cell.Y)).ToArray();
+            return item;
+        }
+
+        var hull = HullCatalogItem("refit-hull", 4, 3, 1);
+        hull.Hardpoints =
+        [
+            new AetheriaRuntimeHardpoint(
+                "Weapon",
+                2,
+                0,
+                1,
+                2,
+                2,
+                [new AetheriaRuntimeShapeCell(0, 0), new AetheriaRuntimeShapeCell(0, 1)],
+                "",
+                "Clockwise",
+                0)
+        ];
+        var weapon = ShapedItem(
+            "refit-weapon",
+            AetheriaRuntimeItemCategories.Weapon,
+            "Weapon",
+            2,
+            1,
+            (0, 0),
+            (1, 0));
+        var blocker = ShapedItem("refit-blocker", AetheriaRuntimeItemCategories.Gear, "", 1, 1, (0, 0));
+        var cargoBay = ShapedItem("refit-cargo-bay", AetheriaRuntimeItemCategories.CargoBay, "", 1, 1, (0, 0));
+        cargoBay.InteriorShapeWidth = 4;
+        cargoBay.InteriorShapeHeight = 3;
+        cargoBay.InteriorOccupiedCells = 12;
+        cargoBay.InteriorShapeCells = Enumerable.Range(0, 3)
+            .SelectMany(y => Enumerable.Range(0, 4).Select(x => new AetheriaRuntimeShapeCell(x, y)))
+            .ToArray();
+        var catalog = new AetheriaRuntimeCatalogSnapshot([hull, weapon, blocker, cargoBay], [], []);
+
+        var station = Entity(0, 0, "player");
+        station.Kind = "station";
+        station.CargoBays =
+        [
+            new AetheriaRuntimeLoadoutItemSlotCommit
+            {
+                Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = cargoBay.ItemKey, Quantity = 1 }
+            }
+        ];
+        station.CargoContents = [new AetheriaRuntimeCargoBayLoadoutCommit()];
+        station.DockingBays =
+        [
+            new AetheriaRuntimeLoadoutItemSlotCommit
+            {
+                Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = "station-refit-dock", Quantity = 1 }
+            }
+        ];
+        station.DockingBayAssignments = [1];
+        station.DockingBayContents = [new AetheriaRuntimeCargoBayLoadoutCommit()];
+        station.ChildEntityIndices = [1];
+
+        var ship = Entity(1, 0, "player");
+        ship.HullItemKey = hull.ItemKey;
+        ship.Equipment =
+        [
+            new AetheriaRuntimeLoadoutItemSlotCommit
+            {
+                X = 0,
+                Y = 0,
+                Item = new AetheriaRuntimeLoadoutItemCommit
+                {
+                    ItemKey = blocker.ItemKey,
+                    Quality = 0.8,
+                    Durability = 0.7,
+                    Quantity = 1,
+                    Enabled = false,
+                    OverrideShutdown = true,
+                    Temperature = 321
+                }
+            }
+        ];
+        ship.CargoBays =
+        [
+            new AetheriaRuntimeLoadoutItemSlotCommit
+            {
+                X = 3,
+                Y = 2,
+                Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = cargoBay.ItemKey, Quantity = 1 }
+            }
+        ];
+        ship.CargoContents =
+        [
+            new AetheriaRuntimeCargoBayLoadoutCommit
+            {
+                Items =
+                [
+                    new AetheriaRuntimeLoadoutItemSlotCommit
+                    {
+                        X = 0,
+                        Y = 0,
+                        Item = new AetheriaRuntimeLoadoutItemCommit
+                        {
+                            ItemKey = weapon.ItemKey,
+                            Quality = 0.9,
+                            Durability = 0.6,
+                            Quantity = 1,
+                            Enabled = true,
+                            Temperature = 444
+                        }
+                    },
+                    new AetheriaRuntimeLoadoutItemSlotCommit
+                    {
+                        X = 1,
+                        Y = 0,
+                        Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = blocker.ItemKey, Quantity = 1 }
+                    },
+                    new AetheriaRuntimeLoadoutItemSlotCommit
+                    {
+                        X = 2,
+                        Y = 0,
+                        Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = cargoBay.ItemKey, Quantity = 1 }
+                    }
+                ]
+            }
+        ];
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "refit-smoke",
+            CurrentZoneIndex = 0,
+            CurrentEntityKey = "zone.0.entity.1",
+            Zones = [new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [station, ship] }]
+        };
+        var context = new AetheriaRuntimeDaemonOperationContext { Catalog = catalog };
+
+        AetheriaRuntimeDaemonCommandDocument Equip(
+            string id,
+            string sourceKind,
+            int sourceIndex,
+            string itemKey,
+            int sourceX,
+            int sourceY,
+            int destinationX,
+            int destinationY)
+        {
+            var command = AetheriaRuntimeDaemonCommandDocument.Create(
+                AetheriaRuntimeDaemonCommandKinds.EquipItem,
+                "pilot",
+                run.RunId,
+                1,
+                run.CurrentEntityKey);
+            command.CommandId = id;
+            command.TextValue = itemKey;
+            command.EquipmentTransfer = new AetheriaRuntimeEquipmentTransferCommand
+            {
+                SourceKind = sourceKind,
+                OriginEntityKey = run.CurrentEntityKey,
+                OriginIndex = sourceIndex,
+                SourceX = sourceX,
+                SourceY = sourceY,
+                DestinationEntityKey = run.CurrentEntityKey,
+                DestinationX = destinationX,
+                DestinationY = destinationY,
+                HasDestinationPosition = true
+            };
+            return command;
+        }
+
+        var equipWeapon = AetheriaRuntimeDaemonOperations.Execute(
+            run,
+            [Equip("refit-weapon", AetheriaRuntimeRefitSourceKinds.Cargo, 0, weapon.ItemKey, 0, 0, 2, 0)],
+            context);
+        Require(equipWeapon.AppliedCommandIds.Contains("refit-weapon"),
+            "a docked cargo weapon must equip through the daemon transaction");
+        var equippedWeapon = ship.Equipment.Single(slot => slot.Item.ItemKey == weapon.ItemKey);
+        RequireEqual("Clockwise", equippedWeapon.Rotation,
+            "hardpoint equipment must inherit the authored hardpoint rotation");
+        RequireNear(0.9, equippedWeapon.Item.Quality, 0.000001,
+            "refit must preserve the exact item instance quality");
+        RequireNear(444, equippedWeapon.Item.Temperature, 0.000001,
+            "refit must preserve the exact item instance temperature");
+
+        var rejectedSource = ship.CargoContents[0].Items.Single(slot => slot.Item.ItemKey == blocker.ItemKey);
+        var rejectedBefore = (
+            Count: ship.CargoContents[0].Items.Count,
+            X: rejectedSource.X,
+            Y: rejectedSource.Y,
+            Quality: rejectedSource.Item.Quality,
+            Durability: rejectedSource.Item.Durability,
+            Temperature: rejectedSource.Item.Temperature);
+        var overlap = AetheriaRuntimeDaemonOperations.Execute(
+            run,
+            [Equip("refit-overlap", AetheriaRuntimeRefitSourceKinds.Cargo, 0, blocker.ItemKey, 1, 0, 0, 0)],
+            context);
+        RequireEqual(AetheriaRuntimeDaemonRejectionReasons.RefitNoFit,
+            overlap.RejectedCommandReasons["refit-overlap"],
+            "occupied interior cells must reject with the daemon-owned fit reason");
+        var rejectedAfter = ship.CargoContents[0].Items.Single(slot => slot.Item.ItemKey == blocker.ItemKey);
+        RequireEqual(rejectedBefore.Count, ship.CargoContents[0].Items.Count,
+            "rejected refit must not remove the source item");
+        Require(rejectedBefore.X == rejectedAfter.X && rejectedBefore.Y == rejectedAfter.Y &&
+                rejectedBefore.Quality == rejectedAfter.Item.Quality &&
+                rejectedBefore.Durability == rejectedAfter.Item.Durability &&
+                rejectedBefore.Temperature == rejectedAfter.Item.Temperature,
+            "rejected refit must preserve every source instance field");
+
+        var equipBay = AetheriaRuntimeDaemonOperations.Execute(
+            run,
+            [Equip("refit-bay", AetheriaRuntimeRefitSourceKinds.Cargo, 0, cargoBay.ItemKey, 2, 0, 1, 2)],
+            context);
+        Require(equipBay.AppliedCommandIds.Contains("refit-bay") && ship.CargoBays.Count == 2 && ship.CargoContents.Count == 2,
+            "catalog cargo-bay category must route into aligned typed bay and contents collections");
+
+        ship.CargoContents[1].Items =
+        [
+            new AetheriaRuntimeLoadoutItemSlotCommit
+            {
+                Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = blocker.ItemKey, Quantity = 1 }
+            }
+        ];
+        var storeBay = AetheriaRuntimeDaemonCommandDocument.Create(
+            AetheriaRuntimeDaemonCommandKinds.StoreItem,
+            "pilot",
+            run.RunId,
+            1,
+            run.CurrentEntityKey);
+        storeBay.CommandId = "refit-nonempty-bay";
+        storeBay.TextValue = cargoBay.ItemKey;
+        storeBay.StoreItem = new AetheriaRuntimeStoreItemCommand
+        {
+            SourceKind = AetheriaRuntimeRefitSourceKinds.CargoBay,
+            OriginEntityKey = run.CurrentEntityKey,
+            SourceEquipmentIndex = 1,
+            DestinationEntityKey = "zone.0.entity.0",
+            DestinationCargoIndex = 0,
+            DestinationX = 0,
+            DestinationY = 0,
+            HasDestinationPosition = true
+        };
+        var nonempty = AetheriaRuntimeDaemonOperations.Execute(run, [storeBay], context);
+        RequireEqual(AetheriaRuntimeDaemonRejectionReasons.RefitBayNotEmpty,
+            nonempty.RejectedCommandReasons[storeBay.CommandId],
+            "a nonempty cargo bay must reject unequip before any mutation");
+        RequireEqual(2, ship.CargoBays.Count,
+            "nonempty bay rejection must preserve the installed bay");
+
+        var frame = AetheriaRuntimeDaemonFrameDocument.Create(run, "daemon", "session", 8, 0.16, 0.02);
+        frame.RejectedCommandIds = nonempty.RejectedCommandIds;
+        frame.RejectedCommandReasons = nonempty.RejectedCommandReasons;
+        var fact = AetheriaRuntimeCommittedCommandFactDocument.FromRejectedCommand(frame, storeBay, "aetheria.local");
+        var receipt = AetheriaRuntimeDaemonReceiptProjector.Project(
+            fact,
+            AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId);
+        RequireEqual(AetheriaRuntimeDaemonRejectionReasons.RefitBayNotEmpty, fact.RejectionReason,
+            "refit rejection reason must survive the committed command fact");
+        Require(receipt.State == "denied" &&
+                receipt.Message.Contains(AetheriaRuntimeDaemonRejectionReasons.RefitBayNotEmpty, StringComparison.Ordinal),
+            "generic Eve receipt must expose the exact refit rejection reason");
+
+        station.DockingBayAssignments = [-1];
+        station.ChildEntityIndices = [];
+        var deployed = AetheriaRuntimeDaemonOperations.Execute(
+            run,
+            [Equip("refit-deployed", AetheriaRuntimeRefitSourceKinds.Equipment, 0, blocker.ItemKey, int.MinValue, int.MinValue, 1, 1)],
+            context);
+        RequireEqual(AetheriaRuntimeDaemonRejectionReasons.RefitRequiresDocked,
+            deployed.RejectedCommandReasons["refit-deployed"],
+            "deployed ships must not refit even when the requested placement would fit");
+        Require(ship.Equipment.Any(slot => slot.Item.ItemKey == blocker.ItemKey),
+            "deployed refit rejection must preserve installed equipment");
     }
 
     private static void VolumeSurfaceKeepsNativeShaderAbiInAssetVariant()
@@ -1854,9 +2139,9 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         entity.HullItemKey = hull.ItemKey;
         entity.Equipment =
         [
-            new AetheriaRuntimeLoadoutItemSlotCommit { Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = gear.ItemKey } },
-            new AetheriaRuntimeLoadoutItemSlotCommit { Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = cargoBay.ItemKey } }
+            new AetheriaRuntimeLoadoutItemSlotCommit { Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = gear.ItemKey } }
         ];
+        entity.CargoBays = [new AetheriaRuntimeLoadoutItemSlotCommit { Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = cargoBay.ItemKey } }];
         entity.CargoContents = [new AetheriaRuntimeCargoBayLoadoutCommit { Items = [new AetheriaRuntimeLoadoutItemSlotCommit { Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = ore.ItemKey, Quantity = 4 } }] }];
 
         RequireNear(20, AetheriaRuntimeCargoCapacityQueries.Capacity(entity, catalog), 0.000001,
@@ -1874,13 +2159,10 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         miner.AgentTaskCapabilities = [AetheriaRuntimeAgentTaskTypes.Mine];
         miner.Equipment =
         [
-            new AetheriaRuntimeLoadoutItemSlotCommit { Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = "mining-tool", Enabled = true, Quality = 1, Durability = 1 } },
-            new AetheriaRuntimeLoadoutItemSlotCommit { Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = "miner-cargo", Enabled = true, Quality = 1, Durability = 1 } }
+            new AetheriaRuntimeLoadoutItemSlotCommit { Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = "mining-tool", Enabled = true, Quality = 1, Durability = 1 } }
         ];
-        home.Equipment =
-        [
-            new AetheriaRuntimeLoadoutItemSlotCommit { Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = "home-cargo", Enabled = true, Quality = 1, Durability = 1 } }
-        ];
+        miner.CargoBays = [new AetheriaRuntimeLoadoutItemSlotCommit { Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = "miner-cargo", Enabled = true, Quality = 1, Durability = 1 } }];
+        home.CargoBays = [new AetheriaRuntimeLoadoutItemSlotCommit { Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = "home-cargo", Enabled = true, Quality = 1, Durability = 1 } }];
         var minerHull = CatalogItem("miner-hull");
         minerHull.HullCapacity = PerformanceStat(3);
         var homeHull = CatalogItem("home-hull");
@@ -2111,7 +2393,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 first.Equipment.All(value => value.ItemKey != "cheap-turret-controller"),
             "ship control hardpoints must require the cockpit role even when the wrong controller is cheaper");
         Require(first.Equipment.Any(value => value.ItemKey == "cannon") &&
-                first.Equipment.Any(value => value.ItemKey == "cargo-bay") &&
+                first.CargoBays.Any(value => value.ItemKey == "cargo-bay") &&
                 first.Equipment.Any(value => value.ItemKey == "capacitor") &&
                 first.Equipment.Any(value => value.ItemKey == "ship-sensor") &&
                 first.Equipment.All(value => value.ItemKey != "station-sensor"),
@@ -2130,8 +2412,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             "generated loadouts must carry daemon-authored source and selection provenance");
         Require(rareSelections > 0 && rareSelections < 200,
             $"rare catalog candidates must remain possible without becoming a default loadout path (selected {rareSelections}/2000)");
-        Require(station.Equipment.Any(value => value.ItemKey == "docking-bay") &&
-                station.Equipment.Any(value => value.ItemKey == "cargo-bay") &&
+        Require(station.DockingBays.Any(value => value.ItemKey == "docking-bay") &&
+                station.CargoBays.Any(value => value.ItemKey == "cargo-bay") &&
                 station.Equipment.Any(value => value.ItemKey == "capacitor") &&
                 station.Equipment.Any(value => value.ItemKey == "cheap-turret-controller") &&
                 station.Equipment.Any(value => value.ItemKey == "station-sensor") &&
@@ -2154,6 +2436,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
     private static IEnumerable<string> LoadoutKeys(AetheriaDaemonLoadout loadout) =>
         new[] { loadout.HullItemKey }
             .Concat(loadout.Equipment.Select(value => value.ItemKey))
+            .Concat(loadout.CargoBays.Select(value => value.ItemKey))
+            .Concat(loadout.DockingBays.Select(value => value.ItemKey))
             .Concat(loadout.Cargo.Select(value => value.Item.ItemKey));
 
     private static AetheriaRuntimeBehaviorValue PerformanceStat(double value) => new(
@@ -3794,6 +4078,11 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             X = 0, Y = 0, Item = new AetheriaRuntimeLoadoutItemCommit
                 { ItemKey = "thermal-gear", Quality = 1, Durability = 1, Enabled = true }
         }];
+        entity.CargoBays = [new AetheriaRuntimeLoadoutItemSlotCommit
+        {
+            X = 1, Y = 0, Item = new AetheriaRuntimeLoadoutItemCommit
+                { ItemKey = "thermal-cargo-bay", Quality = 1, Durability = 1, Enabled = true }
+        }];
         var hull = HullCatalogItem("thermal-hull", 2, 1, 0);
         hull.Mass = 10;
         hull.SpecificHeat = 2;
@@ -3804,7 +4093,13 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         gear.Mass = 4;
         gear.SpecificHeat = 5;
         gear.Conductivity = 3;
-        var catalog = new AetheriaRuntimeCatalogSnapshot([hull, gear], [], []);
+        var cargoBay = CatalogItem("thermal-cargo-bay");
+        cargoBay.Category = AetheriaRuntimeItemCategories.CargoBay;
+        cargoBay.ShapeCells = [new AetheriaRuntimeShapeCell(0, 0)];
+        cargoBay.Mass = 6;
+        cargoBay.SpecificHeat = 2;
+        cargoBay.Conductivity = 2;
+        var catalog = new AetheriaRuntimeCatalogSnapshot([hull, gear, cargoBay], [], []);
 
         AetheriaRuntimeThermalSimulation.EnsureTopology(entity, catalog);
 
@@ -3812,8 +4107,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         var conductivity = entity.StatGrids.Single(value => value.Name == "conductivity");
         RequireNear(30, mass.Values[0], 0.000001,
             "occupied cell thermal mass must include its proportional equipment mass");
-        RequireNear(10, mass.Values[1], 0.000001,
-            "hull thermal mass must be divided across authored hull cells");
+        RequireNear(22, mass.Values[1], 0.000001,
+            "typed cargo bays must contribute thermal mass at their authored hull cells");
         RequireNear(3, conductivity.Values[0], 0.000001,
             "occupied cell conductivity must come from installed equipment");
         RequireNear(280, entity.StatGrids.Single(value => value.Name == "temperature").Values[1], 0.000001,
@@ -4270,7 +4565,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         var cargoBay = CatalogItem("pickup-cargo-bay"); cargoBay.InteriorOccupiedCells = 1;
         var catalog = new AetheriaRuntimeCatalogSnapshot([hull, salvage, cargoBay], [], []);
         var ship = Entity(0, 0, "player"); ship.HullItemKey = hull.ItemKey; ship.CargoContents = [Cargo()];
-        ship.Equipment = [new AetheriaRuntimeLoadoutItemSlotCommit { Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = cargoBay.ItemKey, Quantity = 1 } }];
+        ship.CargoBays = [new AetheriaRuntimeLoadoutItemSlotCommit { Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = cargoBay.ItemKey, Quantity = 1 } }];
         var zone = new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [ship], DroppedPickups = [new AetheriaRuntimeDroppedPickupCommit { PickupIndex = 7, PositionX = 10, Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = salvage.ItemKey, Quantity = 1 }, LifetimeSeconds = 30 }] };
         var run = new AetheriaRuntimeRunCheckpointCommit { CurrentZoneIndex = 0, CurrentEntityKey = "zone.0.entity.0", Zones = [zone] };
         var forbiddenCommand = AetheriaRuntimeDaemonCommandDocument.Create(AetheriaRuntimeDaemonCommandKinds.PickUpLoot, "pilot", "pickup-smoke", 0, "zone.0.entity.0");
@@ -4358,7 +4653,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         station.DockingBayAssignments = [1];
         station.ChildEntityIndices = [1];
         var ship = Entity(1, 0, "player");
-        ship.Equipment = [new AetheriaRuntimeLoadoutItemSlotCommit
+        ship.CargoBays = [new AetheriaRuntimeLoadoutItemSlotCommit
         {
             Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = cargoBay.ItemKey, Quantity = 1 }
         }];
@@ -4423,7 +4718,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         var station = Entity(0, 0, "player");
         station.Kind = "station";
         station.HullItemKey = hull.ItemKey;
-        station.Equipment = [new AetheriaRuntimeLoadoutItemSlotCommit
+        station.CargoBays = [new AetheriaRuntimeLoadoutItemSlotCommit
         {
             Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = cargoBay.ItemKey, Quantity = 1 }
         }];
@@ -4478,7 +4773,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         AetheriaRuntimeRunCheckpointCommit Scenario(bool full)
         {
             var ship = Entity(0, 0, "player"); ship.HullItemKey = hull.ItemKey;
-            ship.Equipment = [new AetheriaRuntimeLoadoutItemSlotCommit { Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = cargoBay.ItemKey, Quantity = 1 } }];
+            ship.CargoBays = [new AetheriaRuntimeLoadoutItemSlotCommit { Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = cargoBay.ItemKey, Quantity = 1 } }];
             ship.CargoContents = [full ? Cargo((salvage.ItemKey, 1, 0, 0)) : Cargo()];
             return new AetheriaRuntimeRunCheckpointCommit { CurrentZoneIndex = 0, CurrentEntityKey = "zone.0.entity.0", Zones = [new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [ship], DroppedPickups = [new AetheriaRuntimeDroppedPickupCommit { PickupIndex = 10, PositionX = 20, Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = salvage.ItemKey, Quantity = 1 }, LifetimeSeconds = 30 }] }] };
         }
@@ -4634,7 +4929,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             var cargoBay = CatalogItem("restart-contact-cargo-bay"); cargoBay.InteriorOccupiedCells = 1;
             var catalog = new AetheriaRuntimeCatalogSnapshot([hull, salvage, cargoBay], [], []);
             var ship = Entity(0, 0, "player"); ship.HullItemKey = hull.ItemKey;
-            ship.Equipment = [new AetheriaRuntimeLoadoutItemSlotCommit
+            ship.CargoBays = [new AetheriaRuntimeLoadoutItemSlotCommit
             {
                 Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = cargoBay.ItemKey, Quantity = 1 }
             }];

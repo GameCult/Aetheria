@@ -420,16 +420,23 @@ internal static class AetheriaDaemonZoneGenerator
                 StatGrid("heat", 0)
             ],
             Equipment = loadout.Equipment,
+            CargoBays = loadout.CargoBays,
+            DockingBays = loadout.DockingBays,
             WeaponGroups = loadout.WeaponGroups
                 .Select(indices => new AetheriaWeaponGroupSnapshot { EquipmentIndices = indices })
                 .ToArray(),
-            CargoContents =
-            [
-                new AetheriaCargoBayLoadout
+            CargoContents = loadout.CargoBays
+                .Select((_, index) => new AetheriaCargoBayLoadout
                 {
-                    Items = loadout.Cargo
-                }
-            ]
+                    Items = index == 0 ? loadout.Cargo : []
+                })
+                .ToArray(),
+            DockingBayContents = loadout.DockingBays
+                .Select(_ => new AetheriaCargoBayLoadout())
+                .ToArray(),
+            DockingBayAssignments = loadout.DockingBays
+                .Select(_ => -1)
+                .ToArray()
         };
     }
 

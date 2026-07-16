@@ -71,6 +71,14 @@ namespace GameCult.Aetheria.State.Verse
         public const string MissingPropulsion = "missing-propulsion";
         public const string MissingReactor = "missing-reactor";
         public const string DockingBayCargoNotEmpty = "docking-bay-cargo-not-empty";
+        public const string RefitRequiresDocked = "refit-requires-docked";
+        public const string RefitAccessDenied = "refit-access-denied";
+        public const string InvalidRefitSource = "invalid-refit-source";
+        public const string InvalidRefitItem = "invalid-refit-item";
+        public const string RefitItemMustBeSingle = "refit-item-must-be-single";
+        public const string RefitBayNotEmpty = "refit-bay-not-empty";
+        public const string RefitNoFit = "refit-no-fit";
+        public const string InvalidCargoDestination = "invalid-cargo-destination";
     }
 
     public static class AetheriaRuntimeDaemonOperations
@@ -182,9 +190,9 @@ namespace GameCult.Aetheria.State.Verse
                 case AetheriaRuntimeDaemonCommandKinds.TransferCargoItem:
                     return ApplyTransferCargoItem(run, command, context.Catalog);
                 case AetheriaRuntimeDaemonCommandKinds.EquipItem:
-                    return ApplyEquipItem(run, command);
+                    return ApplyEquipItem(run, command, context);
                 case AetheriaRuntimeDaemonCommandKinds.StoreItem:
-                    return ApplyStoreItem(run, command);
+                    return ApplyStoreItem(run, command, context);
                 case AetheriaRuntimeDaemonCommandKinds.ToggleHullConductivity:
                     return ApplyToggleHullConductivity(run, command);
                 case AetheriaRuntimeDaemonCommandKinds.TradePurchase:
@@ -850,73 +858,77 @@ namespace GameCult.Aetheria.State.Verse
 
         private static bool ApplyEquipItem(
             AetheriaRuntimeRunCheckpointCommit run,
-            AetheriaRuntimeDaemonCommandDocument command)
+            AetheriaRuntimeDaemonCommandDocument command,
+            AetheriaRuntimeDaemonOperationContext context)
         {
             var transfer = command.EquipmentTransfer ?? new AetheriaRuntimeEquipmentTransferCommand();
-            var sourceKind = transfer.SourceKind ?? "";
-            var originEntityKey = transfer.OriginEntityKey ?? "";
-            var originIndex = transfer.OriginIndex;
-            var sourceX = transfer.SourceX;
-            var sourceY = transfer.SourceY;
+            var originKey = transfer.OriginEntityKey ?? "";
+            var destinationKey = transfer.DestinationEntityKey ?? "";
+            if (!TryResolveEntity(run, originKey, out _, out _, out var origin) ||
+                !TryResolveEntity(run, destinationKey, out _, out _, out var destination))
+                return context.Reject(AetheriaRuntimeDaemonRejectionReasons.InvalidRefitSource);
+            if (!TryResolveDockParent(run, destinationKey, out _, out var parent))
+                return context.Reject(AetheriaRuntimeDaemonRejectionReasons.RefitRequiresDocked);
 
-            AetheriaRuntimeLoadoutItemSlotCommit slot;
-            if (string.Equals(sourceKind, "equipment", StringComparison.Ordinal))
+            var sourceKind = string.IsNullOrWhiteSpace(transfer.SourceKind)
+                ? AetheriaRuntimeRefitSourceKinds.Cargo
+                : transfer.SourceKind;
+            var sourceIsCargo = string.Equals(sourceKind, AetheriaRuntimeRefitSourceKinds.Cargo, StringComparison.Ordinal);
+            if ((!sourceIsCargo && !ReferenceEquals(origin, destination)) ||
+                (sourceIsCargo &&
+                 !ReferenceEquals(origin, destination) &&
+                 !ReferenceEquals(origin, parent)))
             {
-                if (!TryRemoveEquipmentItem(run, originEntityKey, originIndex, command.TextValue, out slot))
-                    return false;
-            }
-            else
-            {
-                if (!TryResolveCargoBay(run, originEntityKey, originIndex, out var originEntity, out var originCargoIndex, out _) ||
-                    !TryRemoveCargoItem(originEntity, originCargoIndex, command.TextValue, sourceX, sourceY, out slot))
-                {
-                    return false;
-                }
+                return context.Reject(AetheriaRuntimeDaemonRejectionReasons.RefitAccessDenied);
             }
 
-            if (!TryResolveEntity(run, transfer.DestinationEntityKey, out _, out _, out var destinationEntity))
-                return false;
-
-            slot.X = transfer.HasDestinationPosition
-                ? transfer.DestinationX
-                : slot.X;
-            slot.Y = transfer.HasDestinationPosition
-                ? transfer.DestinationY
-                : slot.Y;
-            AddEquipmentItem(destinationEntity, slot);
-            return true;
+            return AetheriaRuntimeRefitTransactions.TryEquip(
+                    origin,
+                    sourceKind,
+                    transfer.OriginIndex,
+                    transfer.SourceX,
+                    transfer.SourceY,
+                    destination,
+                    command.TextValue ?? "",
+                    transfer.DestinationX,
+                    transfer.DestinationY,
+                    transfer.HasDestinationPosition,
+                    context.Catalog,
+                    out var reason)
+                || context.Reject(reason);
         }
 
         private static bool ApplyStoreItem(
             AetheriaRuntimeRunCheckpointCommit run,
-            AetheriaRuntimeDaemonCommandDocument command)
+            AetheriaRuntimeDaemonCommandDocument command,
+            AetheriaRuntimeDaemonOperationContext context)
         {
             var store = command.StoreItem ?? new AetheriaRuntimeStoreItemCommand();
-            if (!TryRemoveEquipmentItem(
-                    run,
-                    store.OriginEntityKey,
-                    store.SourceEquipmentIndex,
-                    command.TextValue,
-                    out var slot) ||
-                !TryResolveCargoBay(
-                    run,
-                    store.DestinationEntityKey,
-                    store.DestinationCargoIndex,
-                    out var destinationEntity,
-                    out var destinationCargoIndex,
-                    out _))
-            {
-                return false;
-            }
+            var originKey = store.OriginEntityKey ?? "";
+            var destinationKey = store.DestinationEntityKey ?? "";
+            if (!TryResolveEntity(run, originKey, out _, out _, out var origin) ||
+                !TryResolveEntity(run, destinationKey, out _, out _, out var destination))
+                return context.Reject(AetheriaRuntimeDaemonRejectionReasons.InvalidRefitSource);
+            if (!TryResolveDockParent(run, originKey, out _, out var parent))
+                return context.Reject(AetheriaRuntimeDaemonRejectionReasons.RefitRequiresDocked);
+            if (!ReferenceEquals(destination, origin) && !ReferenceEquals(destination, parent))
+                return context.Reject(AetheriaRuntimeDaemonRejectionReasons.RefitAccessDenied);
 
-            slot.X = store.HasDestinationPosition
-                ? store.DestinationX
-                : slot.X;
-            slot.Y = store.HasDestinationPosition
-                ? store.DestinationY
-                : slot.Y;
-            AddCargoItem(destinationEntity, destinationCargoIndex, slot);
-            return true;
+            return AetheriaRuntimeRefitTransactions.TryStore(
+                    origin,
+                    string.IsNullOrWhiteSpace(store.SourceKind)
+                        ? AetheriaRuntimeRefitSourceKinds.Equipment
+                        : store.SourceKind,
+                    store.SourceEquipmentIndex,
+                    destination,
+                    store.DestinationCargoIndex,
+                    command.TextValue ?? "",
+                    store.DestinationX,
+                    store.DestinationY,
+                    store.HasDestinationPosition,
+                    context.Catalog,
+                    out var reason)
+                || context.Reject(reason);
         }
 
         private static bool ApplyToggleHullConductivity(

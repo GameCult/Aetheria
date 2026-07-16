@@ -33,10 +33,17 @@ namespace GameCult.Aetheria.State.Verse
                 return 0;
             var equipment = (entity.Equipment ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>())
                 .Sum(slot => Volume(slot?.Item, catalog));
+            var cargoBays = (entity.CargoBays ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>())
+                .Sum(slot => Volume(slot?.Item, catalog));
+            var dockingBays = (entity.DockingBays ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>())
+                .Sum(slot => Volume(slot?.Item, catalog));
             var cargo = (entity.CargoContents ?? Array.Empty<AetheriaRuntimeCargoBayLoadoutCommit>())
                 .SelectMany(bay => bay?.Items ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>())
                 .Sum(slot => Volume(slot?.Item, catalog));
-            return equipment + cargo;
+            var dockingCargo = (entity.DockingBayContents ?? Array.Empty<AetheriaRuntimeCargoBayLoadoutCommit>())
+                .SelectMany(bay => bay?.Items ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>())
+                .Sum(slot => Volume(slot?.Item, catalog));
+            return equipment + cargoBays + dockingBays + cargo + dockingCargo;
         }
 
         public static double Available(AetheriaRuntimeEntitySnapshotCommit? entity, AetheriaRuntimeCatalogSnapshot? catalog) =>
@@ -56,9 +63,8 @@ namespace GameCult.Aetheria.State.Verse
             var volume = catalog?.FindItem(itemKey ?? "")?.Volume ?? 0;
             if (volume <= 0)
                 return int.MaxValue;
-            var cargoBays = (entity?.Equipment ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>())
+            var cargoBays = (entity?.CargoBays ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>())
                 .Select(slot => catalog?.FindItem(slot?.Item?.ItemKey ?? ""))
-                .Where(item => item != null && item.InteriorOccupiedCells > 0)
                 .ToArray();
             if (cargoIndex < 0 || cargoIndex >= cargoBays.Length)
                 return 0;

@@ -215,7 +215,8 @@ namespace GameCult.Aetheria.State.Verse
             string itemKey,
             int destinationX,
             int destinationY,
-            bool hasDestinationPosition) =>
+            bool hasDestinationPosition,
+            string sourceKind = AetheriaRuntimeRefitSourceKinds.Equipment) =>
             _operations.StoreItem(
                 originEntityKey,
                 sourceEquipmentIndex,
@@ -224,7 +225,8 @@ namespace GameCult.Aetheria.State.Verse
                 itemKey,
                 destinationX,
                 destinationY,
-                hasDestinationPosition);
+                hasDestinationPosition,
+                sourceKind);
 
         public bool TrySubmitSurfaceCommand(
             EveSurfaceCommandRequest request,

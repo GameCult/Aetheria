@@ -1025,5 +1025,8 @@ namespace GameCult.Aetheria.State.Verse
 
         [Key(6)]
         public bool HasDestinationPosition { get; set; }
+
+        [Key(7)]
+        public string SourceKind { get; set; } = AetheriaRuntimeRefitSourceKinds.Equipment;
     }
 }

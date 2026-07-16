@@ -532,7 +532,8 @@ namespace GameCult.Aetheria.State.Verse
             string itemKey,
             int destinationX,
             int destinationY,
-            bool hasDestinationPosition)
+            bool hasDestinationPosition,
+            string sourceKind = AetheriaRuntimeRefitSourceKinds.Equipment)
         {
             var command = Create(AetheriaRuntimeDaemonCommandKinds.StoreItem, frame);
             command.TargetEntityKey = destinationEntityKey ?? "";
@@ -547,6 +548,7 @@ namespace GameCult.Aetheria.State.Verse
             command.StoreItem.DestinationX = destinationX;
             command.StoreItem.DestinationY = destinationY;
             command.StoreItem.HasDestinationPosition = hasDestinationPosition;
+            command.StoreItem.SourceKind = sourceKind ?? AetheriaRuntimeRefitSourceKinds.Equipment;
             return Send(command);
         }
 

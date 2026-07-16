@@ -2889,6 +2889,36 @@ Docking ownership follows the fossil's entity and `ActionGameManager` path:
   contact collection; the live witness remains responsible for camera/effect
   timing.
 
+Docked refit ownership follows the fossil's `Entity.ItemFits`, `TryEquip`, and
+`TryUnequip` transaction:
+
+- Owner: one daemon refit transaction owns source selection, destination fit,
+  category routing, and the atomic equipment/cargo mutation.
+- Inputs: authoritative docking parentage, typed hull interior and hardpoint
+  geometry, typed item footprint/category/hardpoint type, current ordinary
+  equipment, cargo bays, docking bays and their contents, the exact source item
+  instance, and the requested destination cell.
+- Outputs: either one committed move preserving the item instance fields and
+  updating the category-owned collection, or one exact rejection reason that
+  reaches the command fact and Eve receipt.
+- Derived state: drag previews, valid-cell highlights, filters, sounds, and
+  animations are presentation. They may predict the daemon decision but cannot
+  commit it.
+- Forbidden writers: Unity occupancy checks, renderer inventory graphs,
+  client-supplied acceptance/rejection reasons, and remove-first mutation paths
+  cannot decide or repair a refit.
+- Shared paths: cargo-to-equipment equip, equipment reposition, equipment-to-
+  cargo store, reconnect, and loadout restore use the same typed collection and
+  placement semantics where their contracts overlap.
+- Cut line: generated cargo and docking bays no longer masquerade as ordinary
+  equipment; unconditional destination appends and source removal before
+  destination validation are removed from refit operations.
+- Verification layer: daemon smokes compare source and destination state before
+  and after rejection, cover hardpoint type/shape/rotation, interior occupancy,
+  deployed-state rejection, nonempty bay rejection, category routing, exact
+  receipts, and aligned typed bay collections. Reconnect remains a live proof
+  obligation.
+
 Ymir restart ownership is deliberately private and asymmetric:
 
 - Owner: `AetheriaYmirPersistenceCoordinator` owns reconstruction durability;

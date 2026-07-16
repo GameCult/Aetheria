@@ -33,9 +33,7 @@ namespace GameCult.Aetheria.State.Verse
             if (pickup.AgeSeconds >= pickup.LifetimeSeconds ||
                 pickup.Item == null)
                 return AetheriaRuntimePickupContactResult.Ignored;
-            var cargoBayCount = (entity.Equipment ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>())
-                .Select(slot => catalog?.FindItem(slot?.Item?.ItemKey ?? ""))
-                .Count(item => item != null && item.InteriorOccupiedCells > 0);
+            var cargoBayCount = entity.CargoBays?.Count ?? 0;
             var cargoIndex = Enumerable.Range(0, cargoBayCount)
                 .Where(index => quantity <= AetheriaRuntimeCargoCapacityQueries.UnitsThatFit(
                     entity, catalog, pickup.Item.ItemKey ?? "", index))
