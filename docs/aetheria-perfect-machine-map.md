@@ -1191,6 +1191,11 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   drives logical `flowScroll` through an advertised scale. The provider variant
   maps logical camera-to-world and flow-scroll ports to native uniforms; the
   generic runtime does not use local gameplay time or provider identifiers.
+  The provider shader constructs both its raymarch and temporal-reprojection
+  rays using the historical Unity shader camera transform, whose local forward
+  is positive Z. EveUnity `0.3.58` supplies that transform instead of the
+  negative-Z `Camera.cameraToWorldMatrix`; provider bundle verification rejects
+  divergence between the two passes.
 - Semantic split: `gravity.height` is the negative gameplay terrain projection;
   `fog.surface_height` is the positive visual displacement the fossil
   `PowerBrush` camera supplied to `_NebulaSurfaceHeight`. Both derive from the
@@ -1250,7 +1255,13 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   placed the camera below the fog surface. The controlled zero-noise run was a
   diagnostic, not the adopted rendering contract. Blue tint, luminance, patch
   structure, gravity-wave readability, and world geometry remain open visual
-  parity work.
+  parity work. The restored historical-camera/scattering witness uses bundle
+  `e299b50ded9c9ba8964c567964c30342b9b13323665b20e740210b4806dd6e66`
+  with released EveUnity `0.3.58` and passes cold lowering in 51.0 seconds.
+  Its cloud structure and Stardust occupy the same projected gravity surface,
+  but the frame is severely overexposed. That is open evidence against the
+  current tint/post-process projection, not permission to alter the fossil
+  scattering law again.
 
 ### Daemon Asset Content Delivery
 

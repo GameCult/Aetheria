@@ -58,6 +58,11 @@ namespace Aetheria.Editor
             AetheriaStardustContinuityVerifier.VerifyTemporalDitherMaterial(
                 authoredStardustMaterial,
                 requireAuthoredSource: true);
+            var authoredGravityFogShader = AssetDatabase.LoadAssetAtPath<Shader>(
+                "Assets/Shaders/Raymarching/CloudShader.shader");
+            AetheriaGravityFogVerifier.VerifyCameraProjection(
+                authoredGravityFogShader,
+                requireAuthoredSource: true);
 
             var manifest = BuildPipeline.BuildAssetBundles(
                 output,
@@ -616,6 +621,9 @@ namespace Aetheria.Editor
                 var gravityFog = LoadAuthoredAsset<Shader>(bundle, assetNames, "Assets/Shaders/Raymarching/CloudShader.shader");
                 if (gravityFog == null || !gravityFog.isSupported)
                     throw new InvalidOperationException("Aetheria Eve bundle has no supported gravity-fog volume shader.");
+                AetheriaGravityFogVerifier.VerifyCameraProjection(
+                    gravityFog,
+                    requireAuthoredSource: false);
                 var dither = LoadAuthoredAsset<Texture2D>(bundle, assetNames, "Assets/Resources/LDR_LLL1_0.png");
                 if (dither == null)
                     throw new InvalidOperationException("Aetheria Eve bundle has no pre-generated volume dither texture.");

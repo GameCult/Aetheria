@@ -95,6 +95,7 @@ Shader "Aetheria/CloudShader"
 				float density = c.a;
 				if (density <= 0.0f)
 				{
+					result.intTransmittance = 0;
 					return;
 				}
 				float extinction = _ExtinctionCoefficient * density / (1-fade);
@@ -102,7 +103,7 @@ Shader "Aetheria/CloudShader"
 				float clampedExtinction = max(extinction, 1e-7);
 				float transmittance = exp(-extinction * stepsize);
 				
-				float3 luminance = c.rgb * _NebulaLuminance * density;
+				float3 luminance = c.rgb * _NebulaLuminance;
 				float3 integScatt = (luminance - luminance * transmittance) / clampedExtinction;
 				float depthWeight = result.intTransmittance * (1-transmittance);		//Is it a better idea to use (1-transmittance) * intTransmittance as depth weight?
 
