@@ -812,6 +812,18 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   connects replicas directly, proves accepted/rejected policy outcomes, and
   proves committed-fact convergence with production Ymir physics injected.
 
+### Daemon Combat Lifecycle
+
+Weapon admission, pending trigger, progressive target lock, burst/reload/charge
+state, deterministic shot resolution, and transition chronology live in the
+public daemon run checkpoint. A restart restores that exact checkpoint rather
+than reconstructing combat from client input or replaying presentation events.
+Daemon smoke now persists a partial instant-weapon lock, reopens it, and proves
+the pending trigger completes exactly one shot with one `weapon.lock.started`,
+one `weapon.lock.acquired`, and one `shot.committed` event. Ymir reconstructs
+process-local bodies from committed world state; it does not own weapon
+lifecycle state.
+
 ### Daemon Damage Transaction
 
 - Owner: the daemon's canonical damage transaction owns damage-layer ordering

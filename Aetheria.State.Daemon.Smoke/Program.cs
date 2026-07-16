@@ -153,6 +153,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             VolumeSurfaceKeepsNativeShaderAbiInAssetVariant,
             YmirMovesProjectileAndReportsStableContact,
             InstantWeaponRequestSurvivesLockAcquisition,
+            CombatLockSurvivesPublicFrameRestart,
             ConstantWeaponRunsOnDaemonThroughYmirBeamContact,
             ChargedWeaponCannotBypassChargeLifecycle,
             ChargedWeaponHoldRiskMalfunctionsDeterministically,
@@ -4298,6 +4299,113 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 RequireEqual(1, durable.Run.GameEvents.Count(value =>
                         value.Kind == "pickup.rejected" && value.PickupIndex == 10),
                     "restart must not duplicate authoritative pickup rejection feedback");
+            }
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+                Directory.Delete(root, recursive: true);
+        }
+    }
+
+    private static void CombatLockSurvivesPublicFrameRestart()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "aetheria-combat-restart-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        var statePath = Path.Combine(root, "world.cc");
+        try
+        {
+            var source = Entity(0, 0, "player");
+            source.DirectionX = 1;
+            source.TargetEntityIndex = 1;
+            source.Contacts =
+            [
+                new AetheriaRuntimeEntityContactCommit
+                    { TargetEntityIndex = 1, InfoGathered = 1, Hostile = true, Visible = true }
+            ];
+            source.WeaponGroups = [new[] { 0 }];
+            source.Equipment =
+            [
+                new AetheriaRuntimeLoadoutItemSlotCommit
+                {
+                    Item = new AetheriaRuntimeLoadoutItemCommit
+                        { ItemKey = "restart-instant", Quality = 1, Durability = 1, Enabled = true }
+                }
+            ];
+            var target = Entity(1, 80, "raider");
+            var run = new AetheriaRuntimeRunCheckpointCommit
+            {
+                RunId = "combat-restart-smoke",
+                CurrentZoneIndex = 0,
+                CurrentEntityKey = "zone.0.entity.0",
+                Zones = [new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [source, target] }]
+            };
+            var payload = new AetheriaRuntimeBehaviorPayload(0, AetheriaRuntimeBehaviorKinds.InstantWeapon, 0,
+            [
+                new AetheriaRuntimeBehaviorField(2, PerformanceStat(20)),
+                new AetheriaRuntimeBehaviorField(6, PerformanceStat(150)),
+                new AetheriaRuntimeBehaviorField(15, PerformanceStat(0)),
+                new AetheriaRuntimeBehaviorField(16, PerformanceStat(200)),
+                new AetheriaRuntimeBehaviorField(17, PerformanceStat(1)),
+                new AetheriaRuntimeBehaviorField(19, PerformanceStat(0.5)),
+                new AetheriaRuntimeBehaviorField(23, PerformanceStat(45)),
+                new AetheriaRuntimeBehaviorField(24, PerformanceStat(0)),
+                new AetheriaRuntimeBehaviorField(25, PerformanceStat(1))
+            ]);
+            var catalog = new AetheriaRuntimeCatalogSnapshot([CatalogItem("restart-instant", payload)], [], []);
+            var fire = new AetheriaRuntimeDaemonIntentState();
+            fire.WeaponGroups.Add(new AetheriaRuntimeDaemonWeaponGroupIntent
+            {
+                ActorEntityKey = "zone.0.entity.0", WeaponGroup = 0, Fire = true, Active = true
+            });
+
+            using (var physics = new AetheriaYmirWorldPhysics())
+                AetheriaRuntimeDaemonSimulation.Step(run, fire, 0.1,
+                    AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
+                    physics, catalog, 1, 0.1);
+            var state = source.WeaponStates.Single(value =>
+                value.BehaviorKind == AetheriaRuntimeBehaviorKinds.InstantWeapon);
+            Require(state.TriggerPending && state.LockProgress > 0 && state.LockProgress < 0.99 &&
+                    run.ShotReceipts.Count == 0,
+                "combat restart fixture must stop with one pending trigger and a partial daemon lock");
+            var partialProgress = state.LockProgress;
+            var frame = new AetheriaRuntimeDaemonFrameDocument
+            {
+                FrameId = 1,
+                FixedDeltaSeconds = 0.1,
+                SimulationTimeSeconds = 0.1,
+                Run = run
+            };
+            using (var node = AetheriaStateNode.OpenAsync(statePath).GetAwaiter().GetResult())
+            {
+                node.MutableDocument<AetheriaRuntimeDaemonFrameDocument>(AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest)
+                    .ReplaceAsync(frame).GetAwaiter().GetResult();
+                node.FlushAsync(soft: false).GetAwaiter().GetResult();
+            }
+
+            using (var node = AetheriaStateNode.OpenAsync(statePath).GetAwaiter().GetResult())
+            {
+                var durable = node.MutableDocument<AetheriaRuntimeDaemonFrameDocument>(AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest)
+                    .ReadAsync().GetAwaiter().GetResult()
+                    ?? throw new InvalidOperationException("Durable combat restart frame is missing.");
+                var restoredSource = durable.Run.Zones[0].Entities[0];
+                var restoredState = restoredSource.WeaponStates.Single(value =>
+                    value.BehaviorKind == AetheriaRuntimeBehaviorKinds.InstantWeapon);
+                Require(restoredState.TriggerPending && Math.Abs(restoredState.LockProgress - partialProgress) < 0.000001,
+                    "public frame restart must retain the pending trigger and exact partial lock progress");
+                using var restoredPhysics = new AetheriaYmirWorldPhysics();
+                for (var frameId = 2; frameId < 12 && durable.Run.ShotReceipts.Count == 0; frameId++)
+                    AetheriaRuntimeDaemonSimulation.Step(durable.Run, new AetheriaRuntimeDaemonIntentState(), 0.1,
+                        AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
+                        restoredPhysics, catalog, frameId, frameId * 0.1);
+                RequireEqual(1, durable.Run.ShotReceipts.Count,
+                    "restart must complete one pending instant-weapon shot, not lose or duplicate it");
+                RequireEqual(1, durable.Run.GameEvents.Count(value => value.Kind == "weapon.lock.started"),
+                    "restart must not replay the pre-restart lock-start transition");
+                RequireEqual(1, durable.Run.GameEvents.Count(value => value.Kind == "weapon.lock.acquired"),
+                    "restart must publish one completed lock transition");
+                RequireEqual(1, durable.Run.GameEvents.Count(value => value.Kind == "shot.committed"),
+                    "restart must publish one committed-shot transition");
             }
         }
         finally
