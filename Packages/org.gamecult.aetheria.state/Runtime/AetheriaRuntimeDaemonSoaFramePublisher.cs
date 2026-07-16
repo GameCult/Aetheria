@@ -72,7 +72,8 @@ namespace GameCult.Aetheria.State.Verse
         }
 
         public AetheriaRuntimeDaemonSoaFrame BuildCurrentZoneEntities(
-            AetheriaRuntimeDaemonFrameDocument frame)
+            AetheriaRuntimeDaemonFrameDocument frame,
+            AetheriaRuntimeCatalogSnapshot? catalog = null)
         {
             if (frame == null)
                 throw new ArgumentNullException(nameof(frame));
@@ -190,7 +191,7 @@ namespace GameCult.Aetheria.State.Verse
                         Faction = entity.FactionKey,
                         Selectable = entity.EntityIndex != controlled?.EntityIndex,
                         Controllable = entity.EntityIndex == controlled?.EntityIndex,
-                        AssetRef = AetheriaRuntimeAssets.ResolveEntityPrefabAssetRef(entity)
+                        AssetRef = AetheriaRuntimeAssets.ResolveEntityPrefabAssetRef(entity, catalog)
                     })
                     .Concat(pickups.Select((pickup, pickupRow) => new AetheriaRuntimeDaemonSoaIdentityDocument
                     {

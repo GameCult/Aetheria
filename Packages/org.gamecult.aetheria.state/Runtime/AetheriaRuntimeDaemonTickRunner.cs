@@ -254,7 +254,11 @@ namespace GameCult.Aetheria.State.Verse
         {
             var soaPublisher = options.SoaFramePublisher ??
                 throw new InvalidOperationException("The daemon-lifetime Aetheria SoA publisher is required.");
-            var soaFrame = soaPublisher.BuildCurrentZoneEntities(frame);
+            var catalog = options.Catalog ?? new AetheriaRuntimeCatalogSnapshot(
+                Array.Empty<AetheriaRuntimeCatalogItem>(),
+                Array.Empty<AetheriaRuntimeCorporation>(),
+                Array.Empty<AetheriaRuntimeNameFile>());
+            var soaFrame = soaPublisher.BuildCurrentZoneEntities(frame, catalog);
             var commandBoundary = AetheriaRuntimeDaemonCommandBoundaryDocument.Create(options.DaemonId);
             var providerAdvertisement = AetheriaRuntimeDaemonProviderAdvertisementDocument.Create(
                 stateFilePath,
@@ -276,10 +280,6 @@ namespace GameCult.Aetheria.State.Verse
                 Transport = "cultmesh-managed",
                 CommandBoundaryPath = AetheriaRuntimeVerseRecordKeys.DaemonCommandBoundary.ToString()
             };
-            var catalog = options.Catalog ?? new AetheriaRuntimeCatalogSnapshot(
-                Array.Empty<AetheriaRuntimeCatalogItem>(),
-                Array.Empty<AetheriaRuntimeCorporation>(),
-                Array.Empty<AetheriaRuntimeNameFile>());
             var assetManifest = AetheriaRuntimeAssets.ProjectManifest(
                 catalog,
                 frame.Run?.RunId ?? "",
@@ -292,7 +292,8 @@ namespace GameCult.Aetheria.State.Verse
             var gameSurface = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(
                 frame,
                 health,
-                commandBoundary);
+                commandBoundary,
+                catalog: catalog);
             var designerSurfaces = new[]
             {
                 AetheriaRuntimeStatRecipeSurfaceBuilder.BuildFromCatalog(catalog),

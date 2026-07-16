@@ -1569,7 +1569,8 @@ static async Task PublishDaemonApiDocumentsAsync(
         result.Frame,
         result.Health ?? new AetheriaRuntimeDaemonHealthDocument(),
         result.CommandBoundary ?? AetheriaRuntimeDaemonCommandBoundaryDocument.Create(options.DaemonId),
-        activeMainMenuSurfaceId);
+        activeMainMenuSurfaceId,
+        inputCatalog);
     await node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.DaemonGameSurface)
         .ReplaceAsync(AetheriaRuntimeSurfaceDocuments.ToPortableSurface(gameSurface))
         .ConfigureAwait(false);

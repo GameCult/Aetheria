@@ -85,6 +85,7 @@ RequireUnityObserverDoesNotTickLocalSimulation(root);
 RequireUnityDoesNotCallSharedSimulationTicks(root);
 RequireDaemonEnergyAndThermalAuthority(root);
 RequireThermalPresentationAssetAuthority(root);
+RequireCatalogHullPresentationAuthority(root);
 RequireUnityPhysicsIsNotGameplayAuthority(root);
 RequireDeadPropertiesPanelShellDeleted(root);
 RequireTypedBehaviorMetadataCoverage(root);
@@ -12145,7 +12146,7 @@ static void RequireDaemonVersePublication(string root)
         "CultMeshAddress",
         "BuildPublications",
         "AetheriaRuntimeDaemonCommandBoundaryDocument.Create",
-        "soaPublisher.BuildCurrentZoneEntities(frame)",
+        "soaPublisher.BuildCurrentZoneEntities(frame, catalog)",
         "AetheriaRuntimeDaemonProviderAdvertisementDocument.Create",
         "AetheriaRuntimeStarbridgeDocuments.SessionSummary(",
         "StarbridgeScenario",
@@ -16670,6 +16671,37 @@ static void RequireThermalPresentationAssetAuthority(string root)
         sink.Contains("Mathf.Sin", StringComparison.Ordinal))
         throw new InvalidOperationException(
             "The Aetheria Unity thermal sink may bind profiles and weights but may not reconstruct medical or phasing authority.");
+}
+
+static void RequireCatalogHullPresentationAuthority(string root)
+{
+    var assets = File.ReadAllText(Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeAssets.cs"));
+    var surface = File.ReadAllText(Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonGameSurfaceBuilder.cs"));
+    var soa = File.ReadAllText(Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonSoaFramePublisher.cs"));
+    var tick = File.ReadAllText(Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonTickRunner.cs"));
+    var builder = File.ReadAllText(Path.Combine(root, "Assets", "Editor", "EveAssetBundleBuilder.cs"));
+    var required = new[]
+    {
+        "catalog?.FindItem(entity.HullItemKey",
+        "HullPrefabAssetKey(hull.ItemKey)",
+        "!string.IsNullOrWhiteSpace(item.HullPrefab)",
+        "ResolveEntityPrefabAssetRef(entity, catalog)",
+        "soaPublisher.BuildCurrentZoneEntities(frame, catalog)",
+        "AetheriaRuntimeCatalogStore.OpenReadOnly(",
+        "AetheriaRuntimeAssets.ProjectManifest(catalog).Assets"
+    };
+    var body = assets + surface + soa + tick + builder;
+    var missing = required.Where(symbol => !body.Contains(symbol, StringComparison.Ordinal)).ToArray();
+    if (missing.Length > 0)
+        throw new InvalidOperationException(
+            "Typed hull identity must choose one provider-owned catalog prefab across the manifest, Eve scene, and SoA paths: " +
+            string.Join(", ", missing));
+
+    var catalogLookup = assets.IndexOf("catalog?.FindItem(entity.HullItemKey", StringComparison.Ordinal);
+    var fallbackLookup = assets.IndexOf("var kind = (entity.Kind", StringComparison.Ordinal);
+    if (catalogLookup < 0 || fallbackLookup < 0 || catalogLookup > fallbackLookup)
+        throw new InvalidOperationException(
+            "Faction/category prefab fallbacks must not override an authored typed hull prefab.");
 }
 
 static void RequireUnityDoesNotCallSharedSimulationTicks(string root)

@@ -1081,6 +1081,45 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             "provider must advertise the script-free mine presentation role");
         RequireEqual("0.25", asset.Ref.Metadata["triggeredPulseSeconds"],
             "mine presentation must retain the fossil triggered pulse cadence");
+
+        var rareHull = driveHulls.Single();
+        var rareHullAssetKey = AetheriaRuntimeAssets.HullPrefabAssetKey(rareHull.ItemKey);
+        var rareHullAsset = manifest.Assets.Single(value => value.Ref.AssetKey == rareHullAssetKey);
+        var expectedHullResourcePath = rareHull.HullPrefab.Replace('\\', '/');
+        const string resourcesPrefix = "Assets/Resources/";
+        if (expectedHullResourcePath.StartsWith(resourcesPrefix, StringComparison.OrdinalIgnoreCase))
+            expectedHullResourcePath = expectedHullResourcePath[resourcesPrefix.Length..];
+        if (expectedHullResourcePath.EndsWith(".prefab", StringComparison.OrdinalIgnoreCase))
+            expectedHullResourcePath = expectedHullResourcePath[..^".prefab".Length];
+        RequireEqual("entity.hull", rareHullAsset.Ref.Metadata["presentationRole"],
+            "provider manifest must type catalog hull prefabs as generic hull presentation assets");
+        RequireEqual(expectedHullResourcePath, rareHullAsset.Ref.Metadata["resourcesPath"],
+            "provider hull asset must retain the catalog-authored prefab instead of a faction fallback");
+
+        var rareShip = Entity(0, 0, "player");
+        rareShip.HullItemKey = rareHull.ItemKey;
+        var rareRun = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "rare-hull-presentation-smoke",
+            CurrentZoneIndex = 0,
+            CurrentEntityKey = "zone.0.entity.0",
+            Zones = [new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [rareShip] }]
+        };
+        var rareFrame = new AetheriaRuntimeDaemonFrameDocument { FrameId = 1, Run = rareRun };
+        var rareSurface = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(
+            rareFrame,
+            new AetheriaRuntimeDaemonHealthDocument(),
+            AetheriaRuntimeDaemonCommandBoundaryDocument.Create("daemon"),
+            catalog: catalog);
+        var rareSurfaceEntity = Flatten(rareSurface.Surface.Root).Single(node =>
+            node.Id == "aetheria.daemon.game.world.entity.0");
+        RequireEqual(rareHullAssetKey, rareSurfaceEntity.Props["assetRef"],
+            "Eve scene projection must select the typed hull asset rather than the player Djinni fallback");
+        using var rareSoaCache = new CultCache();
+        using var rareSoaPublisher = new AetheriaRuntimeDaemonSoaFramePublisher(rareSoaCache, producerEpoch: 1);
+        var rareSoa = rareSoaPublisher.BuildCurrentZoneEntities(rareFrame, catalog);
+        RequireEqual(rareHullAssetKey, rareSoa.View.Identities.Single().AssetRef,
+            "SoA identity and Eve scene projection must share the catalog-owned hull asset key");
     }
 
     private static void EnergyFundedShieldInterceptsDamageBeforeHull()

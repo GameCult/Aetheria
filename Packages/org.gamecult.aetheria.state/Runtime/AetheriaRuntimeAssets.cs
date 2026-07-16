@@ -8,9 +8,14 @@ namespace GameCult.Aetheria.State.Verse
 {
     public static class AetheriaRuntimeAssets
     {
-        public static string ResolveEntityPrefabAssetRef(AetheriaRuntimeEntitySnapshotCommit entity)
+        public static string ResolveEntityPrefabAssetRef(
+            AetheriaRuntimeEntitySnapshotCommit entity,
+            AetheriaRuntimeCatalogSnapshot? catalog = null)
         {
             if (entity == null) return "";
+            var hull = catalog?.FindItem(entity.HullItemKey ?? "");
+            if (hull != null && !string.IsNullOrWhiteSpace(hull.HullPrefab))
+                return HullPrefabAssetKey(hull.ItemKey);
             var kind = (entity.Kind ?? "").Trim().ToLowerInvariant();
             if (kind.Contains("station")) return "prefab.entity.station";
             if (kind.Contains("projectile")) return "prefab.entity.projectile";
@@ -19,6 +24,9 @@ namespace GameCult.Aetheria.State.Verse
                 ? "prefab.entity.player"
                 : "prefab.entity.ship";
         }
+
+        public static string HullPrefabAssetKey(string hullItemKey) =>
+            string.IsNullOrWhiteSpace(hullItemKey) ? "" : $"prefab.hull.{hullItemKey.Trim()}";
         public static AetheriaRuntimeAssetManifestDocument ProjectManifest(
             AetheriaRuntimeCatalogSnapshot? catalog,
             string runId = "",
@@ -68,6 +76,15 @@ namespace GameCult.Aetheria.State.Verse
             {
                 if (item == null || string.IsNullOrWhiteSpace(item.ItemKey))
                     continue;
+
+                if (!string.IsNullOrWhiteSpace(item.HullPrefab))
+                {
+                    Add(entries, MapPrefab(
+                        HullPrefabAssetKey(item.ItemKey),
+                        string.IsNullOrWhiteSpace(item.Name) ? item.ItemKey : item.Name,
+                        item.HullPrefab,
+                        "entity.hull"));
+                }
 
                 var icon = AssetRefFromCatalogIcon(item.ActionBarIcon, $"item.{item.ItemKey}.icon");
                 if (!string.IsNullOrWhiteSpace(icon.AssetKey))

@@ -19,7 +19,8 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeDaemonFrameDocument frame,
             AetheriaRuntimeDaemonHealthDocument health,
             AetheriaRuntimeDaemonCommandBoundaryDocument commandBoundary,
-            string activeMainMenuSurfaceId = AetheriaRuntimeMainMenuCommands.RootSurfaceId)
+            string activeMainMenuSurfaceId = AetheriaRuntimeMainMenuCommands.RootSurfaceId,
+            AetheriaRuntimeCatalogSnapshot? catalog = null)
         {
             frame ??= new AetheriaRuntimeDaemonFrameDocument();
             health ??= new AetheriaRuntimeDaemonHealthDocument();
@@ -37,7 +38,8 @@ namespace GameCult.Aetheria.State.Verse
                     run,
                     zone,
                     run.CurrentEntityKey,
-                    frame.SimulationSettings),
+                    frame.SimulationSettings,
+                    catalog),
                 CockpitOverlay(entity, target, frame.SimulationSettings),
                 FeedbackStream(run, frame.FrameId),
                 ShotReceiptStream(run),
@@ -607,7 +609,8 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeRunCheckpointCommit run,
             AetheriaRuntimeZoneSnapshotCommit zone,
             string currentEntityKey,
-            AetheriaRuntimeDaemonSimulationSettings simulationSettings)
+            AetheriaRuntimeDaemonSimulationSettings simulationSettings,
+            AetheriaRuntimeCatalogSnapshot? catalog)
         {
             run ??= new AetheriaRuntimeRunCheckpointCommit();
             zone ??= new AetheriaRuntimeZoneSnapshotCommit();
@@ -671,7 +674,8 @@ namespace GameCult.Aetheria.State.Verse
 
             var presentationChildren = (zone.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
                 .Where(entity => entity != null && entity.IsActive)
-                .Select(entity => PlayableEntityPresentation(entity, run, zone, currentEntityKey, simulationSettings))
+                .Select(entity => PlayableEntityPresentation(
+                    entity, run, zone, currentEntityKey, simulationSettings, catalog))
                 .ToList();
             var combatPresentation = CombatPresentation(run, zone, playerEntityId, simulationSettings);
             if (combatPresentation != null)
@@ -900,7 +904,8 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeRunCheckpointCommit run,
             AetheriaRuntimeZoneSnapshotCommit zone,
             string currentEntityKey,
-            AetheriaRuntimeDaemonSimulationSettings simulationSettings)
+            AetheriaRuntimeDaemonSimulationSettings simulationSettings,
+            AetheriaRuntimeCatalogSnapshot? catalog)
         {
             var entityId = run.EntityRecordKey(zone.ZoneIndex, entity.EntityIndex);
             var playerEntityId = PlayableWorldEntityId(run, zone, currentEntityKey);
@@ -958,7 +963,7 @@ namespace GameCult.Aetheria.State.Verse
                 ["homeEntityId"] = entity.HomeEntityId ?? "",
                 ["agentCapabilities"] = string.Join(",", entity.AgentTaskCapabilities ?? Array.Empty<string>()),
                 ["assignedTaskId"] = entity.AssignedAgentTaskId ?? "",
-                ["assetRef"] = PlayableWorldAssetRef(entity),
+                ["assetRef"] = PlayableWorldAssetRef(entity, catalog),
                 ["hull"] = FormatNumber(hull),
                 ["maximumHull"] = FormatNumber(maximumHull),
                 ["hullRatio"] = FormatRatio(hull, maximumHull),
@@ -1151,8 +1156,10 @@ namespace GameCult.Aetheria.State.Verse
                 weapons);
         }
 
-        private static string PlayableWorldAssetRef(AetheriaRuntimeEntitySnapshotCommit entity)
-            => AetheriaRuntimeAssets.ResolveEntityPrefabAssetRef(entity);
+        private static string PlayableWorldAssetRef(
+            AetheriaRuntimeEntitySnapshotCommit entity,
+            AetheriaRuntimeCatalogSnapshot? catalog)
+            => AetheriaRuntimeAssets.ResolveEntityPrefabAssetRef(entity, catalog);
 
         private static double EntityStat(AetheriaRuntimeEntitySnapshotCommit entity, string name) =>
             (entity.StatGrids ?? Array.Empty<AetheriaRuntimeEntityStatGridCommit>())

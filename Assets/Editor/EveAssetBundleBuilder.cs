@@ -33,7 +33,9 @@ namespace Aetheria.Editor
             var output = ResolveOutput(target);
             Directory.CreateDirectory(output);
 
-            var assets = AetheriaRuntimeAssets.ProjectManifest(null).Assets;
+            var catalog = AetheriaRuntimeCatalogStore.OpenReadOnly(
+                Path.GetFullPath(Path.Combine("GameData", "aetheria-world.cc")));
+            var assets = AetheriaRuntimeAssets.ProjectManifest(catalog).Assets;
             foreach (var entry in assets.Where(entry =>
                          string.Equals(entry.Ref.Kind, AetheriaRuntimeAssetKinds.Prefab, StringComparison.Ordinal)))
                 BuildPresentationPrefab(entry);
