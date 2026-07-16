@@ -2697,7 +2697,7 @@ expose.
 
 The released-package proof keeps two lifecycle claims separate. The
 `cold-start-lowering` profile begins with an empty cache, receives and verifies
-the 55,539,565-byte provider body through `cultmesh.content.v1`, promotes the
+the 56,168,017-byte provider body through `cultmesh.content.v1`, promotes the
 exact hash with no partial, negotiates `SharedFileMapping` over the exact
 transfer-owned file, and proves generic world, field-volume, movement,
 environment, and pilot/map camera lowering. The `full-session-gameplay` profile
