@@ -30,6 +30,12 @@ namespace Aetheria.Editor
             if (second < 0)
                 throw new InvalidOperationException(
                     "Gravity-fog raymarching and temporal reprojection must both use the historical positive-Z Unity shader camera transform.");
+
+            const string directHistoryDensity = "saturate(currSample.a) * _CompositeOpacity";
+            if (source.IndexOf(directHistoryDensity, StringComparison.Ordinal) < 0 ||
+                source.IndexOf("unpack(currSample.a", StringComparison.Ordinal) >= 0)
+                throw new InvalidOperationException(
+                    "Gravity-fog composite must consume the temporal history's direct density alpha without unpacking it as a raymarch payload.");
         }
     }
 }

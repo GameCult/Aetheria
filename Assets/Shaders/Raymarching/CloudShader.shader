@@ -339,7 +339,6 @@ Shader "Aetheria/CloudShader"
 				#pragma fragment frag
 
 				#include "UnityCG.cginc"
-				#include "Assets/Shaders/PackFloat.cginc"
 
 				sampler2D _CloudTex;	//The full resolution cloud tex we generated.
 				sampler2D _CameraDepthTexture;
@@ -369,10 +368,9 @@ Shader "Aetheria/CloudShader"
 				half4 frag(v2f i) : SV_Target
 				{
 					float4 currSample = tex2D(_CloudTex, i.uv);
-					float distance;
-					float density;
-					unpack(currSample.a, distance, density);
-					return half4(currSample.rgb * _CompositeOpacity, saturate(density) * _CompositeOpacity);
+					return half4(
+						currSample.rgb * _CompositeOpacity,
+						saturate(currSample.a) * _CompositeOpacity);
 				}
 					ENDCG
 				}
