@@ -2053,7 +2053,7 @@ static EveAssetCatalogDocument BuildCoreAssetCatalog(
                     unityAssetPath,
                     new Dictionary<string, string>(
                         entry.Ref.Metadata
-                            .Where(pair => pair.Key.StartsWith("unity.volume.", StringComparison.Ordinal))
+                            .Where(pair => pair.Key.StartsWith("unity.", StringComparison.Ordinal))
                             .Append(new KeyValuePair<string, string>("renderChannel.map.unityLayer", "14")),
                         StringComparer.Ordinal)))
                     .ToArray(),
