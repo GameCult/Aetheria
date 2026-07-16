@@ -220,6 +220,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             new AetheriaRuntimeDaemonHealthDocument(),
             AetheriaRuntimeDaemonCommandBoundaryDocument.Create("daemon"));
         var volume = Flatten(surface.Surface.Root).Single(node => node.Kind == "field.volume3d");
+        var stardust = Flatten(surface.Surface.Root).Single(node => node.Kind == "field.particles3d");
         var gravityField = Flatten(surface.Surface.Root).Single(node => node.Kind == "field.surface2d");
         Require(volume.Props.Values.All(value => value == null || !value.Contains("_Nebula", StringComparison.Ordinal)) &&
                 volume.Props["layerBindings"].Contains("fog.surface_height=surfaceHeight", StringComparison.Ordinal) &&
@@ -229,17 +230,43 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 volume.Props["documentFloatBindings"] == "simulationTimeSeconds=flowScroll,0.025,0" &&
                 !volume.Props.ContainsKey("vectorParameters"),
             "portable Eve volume surfaces must name logical ports rather than Unity shader properties");
-        Require(gravityField.Props["minX"] == "-1000" &&
-                gravityField.Props["minY"] == "-1000" &&
-                gravityField.Props["maxX"] == "1000" &&
-                gravityField.Props["maxY"] == "1000" &&
+        Require(gravityField.Props["minX"] == "-768" &&
+                gravityField.Props["minY"] == "-768" &&
+                gravityField.Props["maxX"] == "768" &&
+                gravityField.Props["maxY"] == "768" &&
                 volume.Props["documentRef"] == gravityField.Props["renderSplatsDocumentId"],
-            "flight fog rasterization and native sampling must share the fossil 2000-square splat-camera viewport");
+            "flight fog rasterization must share the exact 256-by-6 Stardust lattice viewport");
+        Require(stardust.Props["documentRef"] == gravityField.Props["renderSplatsDocumentId"] &&
+                stardust.Props["computeProgramAssetRef"] == "compute.environment.stardust" &&
+                stardust.Props["materialAssetRef"] == "material.environment.stardust" &&
+                stardust.Props["span"] == "256" &&
+                stardust.Props["threadGroupSize"] == "128" &&
+                stardust.Props["particleStrideBytes"] == "28" &&
+                stardust.Props["viewportAnchor"] == "active-camera.xz" &&
+                stardust.Props["layerBindings"] == "fog.surface_height=surfaceHeight;fog.tint=tint" &&
+                stardust.Props["cellWorldSize"] == "6" &&
+                stardust.Props["gravityTexelsPerCell"] == "8" &&
+                stardust.Props["viewportSnapLayer"] == "fog.surface_height" &&
+                stardust.Props["viewportSnapTexels"] == "8" &&
+                stardust.Props["documentFloatBindings"] ==
+                    "simulationTimeSeconds=time,1,0;simulationTimeSeconds=flowScroll,0.025,0" &&
+                stardust.Props["documentTimeVectorPort"] == "timeVector" &&
+                stardust.Props["floatParameters"].Contains(
+                    "period=2;minimumSize=0.25;maximumSize=0.75;spacing=6;ceilingHeight=0;" +
+                    "floorHeight=-10;minHeadroom=25;maxHeadroom=100;heightExponent=3",
+                    StringComparison.Ordinal),
+            "portable Stardust semantics must preserve the grid/gravity lattice, dispatch, camera snap, time, and particle values exactly");
 
         var shader = AetheriaRuntimeAssets.ProjectManifest(null).Assets.Single(asset =>
             asset.Ref.AssetKey == "shader.environment.gravity-fog");
         var postProcess = AetheriaRuntimeAssets.ProjectManifest(null).Assets.Single(asset =>
             asset.Ref.AssetKey == "profile.environment.flight");
+        var stardustCompute = AetheriaRuntimeAssets.ProjectManifest(null).Assets.Single(asset =>
+            asset.Ref.AssetKey == "compute.environment.stardust");
+        var stardustMaterial = AetheriaRuntimeAssets.ProjectManifest(null).Assets.Single(asset =>
+            asset.Ref.AssetKey == "material.environment.stardust");
+        var stardustColors = AetheriaRuntimeAssets.ProjectManifest(null).Assets.Single(asset =>
+            asset.Ref.AssetKey == "texture.environment.stardust-colors");
         Require(postProcess.Ref.Kind == AetheriaRuntimeAssetKinds.VolumeProfile &&
                 postProcess.Ref.Metadata["presentationRole"] == "environment.post-process.flight",
             "provider asset catalog must carry the advertised flight post-process profile variant");
@@ -253,6 +280,18 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 shader.Ref.Metadata["unity.volume.matrixPort.previousViewProjection"] == "_PrevVP" &&
             shader.Ref.Metadata["unity.volume.floatPort.resetHistory"] == "_ResetHistory",
             "provider asset metadata must own the concrete Unity volume-program ABI projected into runtime variants");
+        Require(stardustCompute.Ref.Kind == AetheriaRuntimeAssetKinds.ComputeShader &&
+                stardustCompute.Ref.Metadata["unity.particles.kernel.update"] == "UpdateParticles" &&
+                stardustCompute.Ref.Metadata["unity.particles.bufferPort.particles"] == "particles" &&
+                !stardustCompute.Ref.Metadata.ContainsKey("unity.particles.texturePort.patch") &&
+                !stardustCompute.Ref.Metadata.ContainsKey("unity.particles.texturePort.patchHeight") &&
+                stardustCompute.Ref.Metadata["unity.particles.vectorPort.viewportTransform"] == "_GridTransform" &&
+                stardustCompute.Ref.Metadata["unity.particles.vectorPort.timeVector"] == "_Time" &&
+                stardustCompute.Ref.Metadata["unity.particles.intPort.span"] == "span" &&
+                stardustMaterial.Ref.Metadata["unity.particles.bufferPort.particles"] == "particles" &&
+                stardustMaterial.Ref.Metadata["unity.particles.bufferPort.quadPoints"] == "quadPoints" &&
+                stardustColors.Ref.Metadata["unityAssetPath"] == "Assets/Resources/Gradients/blackbody.png",
+            "provider asset metadata must own the exact Stardust compute/render ABI and authored color ramp");
         var fogVolume = Flatten(surface.Surface.Root)
             .Single(component => string.Equals(component.Kind, "field.volume3d", StringComparison.Ordinal));
         Require(fogVolume.Props.TryGetValue("floatParameters", out var fogParameters) &&

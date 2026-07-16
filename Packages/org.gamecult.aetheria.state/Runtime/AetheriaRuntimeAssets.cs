@@ -30,6 +30,9 @@ namespace GameCult.Aetheria.State.Verse
             Add(entries, EnvironmentPostProcessProfile());
             Add(entries, EnvironmentGravityFogShader());
             Add(entries, EnvironmentDitherTexture());
+            Add(entries, EnvironmentStardustComputeShader());
+            Add(entries, EnvironmentStardustMaterial());
+            Add(entries, EnvironmentStardustColorTexture());
             Add(entries, MapIcon("entity.player", "Player", "Sprites/Icons/Stroked/Ship"));
             Add(entries, MapIcon("entity.ship", "Ship", "Sprites/Icons/Stroked/Ship"));
             Add(entries, MapIcon("entity.orbital", "Orbital", "Sprites/Icons/Stroked/orbital"));
@@ -309,6 +312,114 @@ namespace GameCult.Aetheria.State.Verse
                     }
                 },
                 Tags = new[] { "presentation", "environment", "post-process", "flight" }
+            };
+        }
+
+        public static AetheriaRuntimeAssetManifestEntry EnvironmentStardustComputeShader()
+        {
+            return new AetheriaRuntimeAssetManifestEntry
+            {
+                Ref = new AetheriaRuntimeAssetRef
+                {
+                    AssetKey = "compute.environment.stardust",
+                    Kind = AetheriaRuntimeAssetKinds.ComputeShader,
+                    Uri = CultMeshAssetUri("compute.environment.stardust"),
+                    MimeType = "application/vnd.unity.compute-shader",
+                    Metadata = new Dictionary<string, string>(StringComparer.Ordinal)
+                    {
+                        ["unityAssetPath"] = "Assets/Shaders/Compute/Stardust/Stardust.compute",
+                        ["presentationRole"] = "environment.stardust.update",
+                        ["unity.particles.kernel.update"] = "UpdateParticles",
+                        ["unity.particles.feature.flow.global.keyword"] = "FLOW_GLOBAL",
+                        ["unity.particles.feature.noise.slope.keyword"] = "NOISE_SLOPE",
+                        ["unity.particles.texturePort.surfaceHeight"] = "_NebulaSurfaceHeight",
+                        ["unity.particles.texturePort.tint"] = "_NebulaTint",
+                        ["unity.particles.texturePort.hue"] = "HueTexture",
+                        ["unity.particles.bufferPort.particles"] = "particles",
+                        ["unity.particles.vectorPort.viewportTransform"] = "_GridTransform",
+                        ["unity.particles.vectorPort.timeVector"] = "_Time",
+                        ["unity.particles.floatPort.time"] = "time",
+                        ["unity.particles.floatPort.period"] = "period",
+                        ["unity.particles.floatPort.spacing"] = "spacing",
+                        ["unity.particles.floatPort.ceilingHeight"] = "ceilingHeight",
+                        ["unity.particles.floatPort.floorHeight"] = "floorHeight",
+                        ["unity.particles.floatPort.maximumSize"] = "maximumSize",
+                        ["unity.particles.floatPort.minimumSize"] = "minimumSize",
+                        ["unity.particles.floatPort.minHeadroom"] = "minHeadroom",
+                        ["unity.particles.floatPort.maxHeadroom"] = "maxHeadroom",
+                        ["unity.particles.floatPort.heightExponent"] = "heightExponent",
+                        ["unity.particles.intPort.span"] = "span",
+                        ["unity.particles.floatPort.fillDensity"] = "_NebulaFillDensity",
+                        ["unity.particles.floatPort.fillDistance"] = "_NebulaFillDistance",
+                        ["unity.particles.floatPort.fillExponent"] = "_NebulaFillExponent",
+                        ["unity.particles.floatPort.fillOffset"] = "_NebulaFillOffset",
+                        ["unity.particles.floatPort.patchDensity"] = "_NebulaPatchDensity",
+                        ["unity.particles.floatPort.floorOffset"] = "_NebulaFloorOffset",
+                        ["unity.particles.floatPort.floorBlend"] = "_NebulaFloorBlend",
+                        ["unity.particles.floatPort.patchBlend"] = "_NebulaPatchBlend",
+                        ["unity.particles.floatPort.luminance"] = "_NebulaLuminance",
+                        ["unity.particles.floatPort.tintLodExponent"] = "_TintLodExponent",
+                        ["unity.particles.floatPort.flowScale"] = "_FlowScale",
+                        ["unity.particles.floatPort.flowAmplitude"] = "_FlowAmplitude",
+                        ["unity.particles.floatPort.flowScroll"] = "_FlowScroll",
+                        ["unity.particles.floatPort.flowPeriod"] = "_FlowPeriod",
+                        ["unity.particles.floatPort.flowSlopeAmplitude"] = "_FlowSlopeAmplitude",
+                        ["unity.particles.floatPort.flowSwirlAmplitude"] = "_FlowSwirlAmplitude",
+                        ["unity.particles.floatPort.noiseScale"] = "_NebulaNoiseScale",
+                        ["unity.particles.floatPort.noiseAmplitude"] = "_NebulaNoiseAmplitude",
+                        ["unity.particles.floatPort.noiseExponent"] = "_NebulaNoiseExponent",
+                        ["unity.particles.floatPort.noiseSpeed"] = "_NebulaNoiseSpeed",
+                        ["unity.particles.floatPort.noiseSlopeExponent"] = "_NebulaNoiseSlopeExponent",
+                        ["unity.particles.floatPort.dynamicSkyBoost"] = "_DynamicSkyBoost",
+                        ["unity.particles.floatPort.dynamicLodHigh"] = "_DynamicLodHigh",
+                        ["unity.particles.floatPort.dynamicLodLow"] = "_DynamicLodLow",
+                        ["unity.particles.floatPort.dynamicIntensity"] = "_DynamicIntensity"
+                    }
+                },
+                Tags = new[] { "presentation", "environment", "stardust", "particles", "compute" }
+            };
+        }
+
+        public static AetheriaRuntimeAssetManifestEntry EnvironmentStardustMaterial()
+        {
+            return new AetheriaRuntimeAssetManifestEntry
+            {
+                Ref = new AetheriaRuntimeAssetRef
+                {
+                    AssetKey = "material.environment.stardust",
+                    Kind = AetheriaRuntimeAssetKinds.Material,
+                    Uri = CultMeshAssetUri("material.environment.stardust"),
+                    MimeType = "application/vnd.unity.material",
+                    Metadata = new Dictionary<string, string>(StringComparer.Ordinal)
+                    {
+                        ["unityAssetPath"] = "Assets/Shaders/Compute/Stardust/Stardust.mat",
+                        ["presentationRole"] = "environment.stardust.render",
+                        ["unity.particles.pass.render"] = "0",
+                        ["unity.particles.bufferPort.particles"] = "particles",
+                        ["unity.particles.bufferPort.quadPoints"] = "quadPoints"
+                    }
+                },
+                Tags = new[] { "presentation", "environment", "stardust", "particles", "material" }
+            };
+        }
+
+        public static AetheriaRuntimeAssetManifestEntry EnvironmentStardustColorTexture()
+        {
+            return new AetheriaRuntimeAssetManifestEntry
+            {
+                Ref = new AetheriaRuntimeAssetRef
+                {
+                    AssetKey = "texture.environment.stardust-colors",
+                    Kind = AetheriaRuntimeAssetKinds.Texture,
+                    Uri = CultMeshAssetUri("texture.environment.stardust-colors"),
+                    MimeType = "image/png",
+                    Metadata = new Dictionary<string, string>(StringComparer.Ordinal)
+                    {
+                        ["unityAssetPath"] = "Assets/Resources/Gradients/blackbody.png",
+                        ["presentationRole"] = "environment.stardust.colors"
+                    }
+                },
+                Tags = new[] { "presentation", "environment", "stardust", "pre-generated" }
             };
         }
 

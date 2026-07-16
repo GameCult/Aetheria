@@ -583,6 +583,19 @@ namespace Aetheria.Editor
                 var dither = LoadAuthoredAsset<Texture2D>(bundle, assetNames, "Assets/Resources/LDR_LLL1_0.png");
                 if (dither == null)
                     throw new InvalidOperationException("Aetheria Eve bundle has no pre-generated volume dither texture.");
+                var stardustCompute = LoadAuthoredAsset<ComputeShader>(bundle, assetNames,
+                    "Assets/Shaders/Compute/Stardust/Stardust.compute");
+                if (stardustCompute == null || !stardustCompute.HasKernel("UpdateParticles"))
+                    throw new InvalidOperationException("Aetheria Eve bundle has no supported Stardust update program.");
+                var stardustMaterial = LoadAuthoredAsset<Material>(bundle, assetNames,
+                    "Assets/Shaders/Compute/Stardust/Stardust.mat");
+                if (stardustMaterial == null || stardustMaterial.shader == null || !stardustMaterial.shader.isSupported)
+                    throw new InvalidOperationException("Aetheria Eve bundle has no supported Stardust render material.");
+                var stardustColors = LoadAuthoredAsset<Texture2D>(bundle, assetNames,
+                    "Assets/Resources/Gradients/blackbody.png");
+                if (stardustColors == null)
+                    throw new InvalidOperationException("Aetheria Eve bundle has no pre-generated Stardust color texture.");
+                AetheriaStardustContinuityVerifier.VerifyOneCellShift(stardustCompute);
             }
             finally
             {

@@ -975,6 +975,55 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   material using `Universal Render Pipeline/Unlit`; visual inspection shows ship
   hulls instead of opaque shield ellipsoids and readable map glyphs.
 
+### Stardust Field-Particle Contract
+
+- Owner: Aetheria owns the authored Stardust program, its exact scalar values,
+  its color ramp, and the choice to visualize the gravity-fog field with
+  stateless camera-relative particles. EveUnity owns only generic program
+  binding, compute dispatch, and procedural drawing.
+- Inputs: the same typed `gamecult.eve.fields.splats.v1` document used by the
+  fog volume; gravity surface height and gravity-derived tint (not patch or
+  patch-height layers); the provider compute shader, material, and blackbody
+  color texture; active camera XZ; and daemon simulation time.
+- Outputs: `field.particles3d` names the provider programs, logical field and
+  asset ports, the 256-by-256 row-major particle grid, 128-thread dispatch,
+  28-byte particle stride, exact fossil values, and camera-followed viewport
+  policy.
+- Hash invariant: no client CPU particle state exists. The provider compute
+  program retains `id % span`, `id / span`, truncation toward zero, the `65535`
+  unsigned cell offset, Wang/xorshift sequence, Perlin jitter, lifetime phase,
+  and float32 evaluation. Changing any of these creates a different field.
+  Buffer slots are not particle identities: after a one-cell X move,
+  `before[localX + 1, localY]` and `after[localX, localY]` must be the same
+  world-cell particle bit for bit. Every slot is reassigned while all
+  overlapping world particles remain visually motionless.
+- Viewport invariant: the particle grid and sampled gravity textures use one
+  transform and one integer lattice. The 256-by-256 particle grid at six world
+  units per cell owns a 1536-square viewport. The 2048-square surface-height
+  target is therefore 0.75 world units per texel and exactly eight gravity
+  texels per Stardust cell; the 512-square tint target is exactly two texels per
+  cell. Camera XZ snaps by one six-unit Stardust cell/eight gravity pixels using
+  truncation toward zero. The snapped center becomes both the raster viewport
+  center and `_GridTransform.xy`. A 2000-wide viewport is rejected because it
+  aliases the gravity and particle lattices even when particle hashing itself
+  is correct.
+- Derived state: GPU buffers, generated quads, raster targets, keywords, and
+  draw calls are client presentation state. They cannot feed simulation.
+- Forbidden writers: EveUnity cannot reseed, pool, randomly initialize, move,
+  recolor, or CPU-generate particles. Aetheria cannot publish per-particle rows
+  or make the field a gameplay body set.
+- Cut line: the fossil `Stardust` MonoBehaviour and renderer feature remain only
+  reference code. Generic clients execute advertised provider programs through
+  logical ABI metadata; no Aetheria type enters EveUnity.
+- Verification layer: daemon smoke locks every authored value and asset ref;
+  generic package tests lock ABI validation, repeated daemon-time bindings,
+  truncating camera snap, buffer layout, and dispatch dimensions. Provider
+  bundle verification dispatches the bundled HLSL and reindexes by world cell;
+  705 overlapping cells across X, Y, and diagonal whole-buffer remaps must keep
+  all seven particle floats bit-identical while the same buffer slot changes
+  identity. The released witness must record 65,536 particles, one compute
+  dispatch and one pilot-camera draw while the map camera remains isolated.
+
 ### Gravity Fog Presentation Contract
 
 - Owner: Aetheria owns gravity/fog brush placement and values, authored volume

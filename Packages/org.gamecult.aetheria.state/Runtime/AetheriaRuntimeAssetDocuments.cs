@@ -14,6 +14,7 @@ namespace GameCult.Aetheria.State.Verse
         public const string Mesh = "mesh";
         public const string Material = "material";
         public const string Shader = "shader";
+        public const string ComputeShader = "compute-shader";
         public const string Audio = "audio";
         public const string Prefab = "prefab";
         public const string VolumeProfile = "unity.volume-profile";

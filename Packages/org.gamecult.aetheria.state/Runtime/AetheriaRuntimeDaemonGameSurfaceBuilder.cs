@@ -659,6 +659,7 @@ namespace GameCult.Aetheria.State.Verse
             if (aimPresentation != null)
                 presentationChildren.Insert(0, aimPresentation);
             presentationChildren.Insert(0, GravityFogVolume("aetheria.daemon.game.world.gravity-fog"));
+            presentationChildren.Insert(1, StardustParticles("aetheria.daemon.game.world.stardust"));
 
             return new AetheriaRuntimeSurfaceComponent(
                 id,
@@ -715,6 +716,53 @@ namespace GameCult.Aetheria.State.Verse
             return new AetheriaRuntimeSurfaceComponent(
                 id,
                 "field.volume3d",
+                props,
+                Array.Empty<AetheriaRuntimeSurfaceComponent>(),
+                AetheriaRuntimeSurfaceStateBindings.FromProps(props));
+        }
+
+        private static AetheriaRuntimeSurfaceComponent StardustParticles(string id)
+        {
+            var viewport = DefaultViewport();
+            var props = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["label"] = "Gravity-field stardust",
+                ["documentRef"] = ViewportDocumentId("aetheria.viewport.render_splats", viewport),
+                ["documentSchema"] = AetheriaRuntimeDaemonSchemas.RenderSplatsViewport,
+                ["computeProgramAssetRef"] = "compute.environment.stardust",
+                ["materialAssetRef"] = "material.environment.stardust",
+                ["renderChannel"] = "world.transparent",
+                ["features"] = "flow.global;noise.slope",
+                ["span"] = "256",
+                ["threadGroupSize"] = "128",
+                ["particleStrideBytes"] = "28",
+                ["textureWidth"] = "1024",
+                ["textureHeight"] = "1024",
+                ["layerBindings"] = "fog.surface_height=surfaceHeight;fog.tint=tint",
+                ["layerTargetDescriptors"] = "fog.surface_height=2,2,false,bilinear;" +
+                    "fog.tint=0.5,0.5,true,trilinear",
+                ["assetTextureBindings"] = "texture.environment.stardust-colors=hue",
+                ["viewportAnchor"] = "active-camera.xz",
+                ["cellWorldSize"] = "6",
+                ["gravityTexelsPerCell"] = "8",
+                ["viewportSnapLayer"] = "fog.surface_height",
+                ["viewportSnapTexels"] = "8",
+                ["documentFloatBindings"] = "simulationTimeSeconds=time,1,0;" +
+                    "simulationTimeSeconds=flowScroll,0.025,0",
+                ["documentTimeVectorPort"] = "timeVector",
+                ["floatParameters"] = "period=2;minimumSize=0.25;maximumSize=0.75;spacing=6;" +
+                    "ceilingHeight=0;floorHeight=-10;minHeadroom=25;maxHeadroom=100;heightExponent=3;" +
+                    "fillDensity=0.000000001;fillDistance=120;fillExponent=5;fillOffset=70;" +
+                    "patchDensity=0.35;floorOffset=-20;floorBlend=10;patchBlend=25;luminance=1;" +
+                    "tintLodExponent=-0.45;flowScale=512;flowAmplitude=15;flowPeriod=8;" +
+                    "flowSlopeAmplitude=0;flowSwirlAmplitude=0;noiseScale=414.2167;" +
+                    "noiseAmplitude=-36.17;noiseExponent=-0.25;noiseSpeed=0.0025;" +
+                    "noiseSlopeExponent=0.15;dynamicSkyBoost=2;dynamicLodHigh=7;" +
+                    "dynamicLodLow=2;dynamicIntensity=0.5"
+            };
+            return new AetheriaRuntimeSurfaceComponent(
+                id,
+                "field.particles3d",
                 props,
                 Array.Empty<AetheriaRuntimeSurfaceComponent>(),
                 AetheriaRuntimeSurfaceStateBindings.FromProps(props));
@@ -1268,15 +1316,16 @@ namespace GameCult.Aetheria.State.Verse
 
         private static AetheriaRuntimeViewportBounds DefaultViewport()
         {
-            // The canonical flight scene renders every splat layer through an
-            // orthographic-size-1000 camera. The 3000-unit Zone Brushes mesh is
-            // deliberately oversized and is brush data, not the sampling viewport.
+            // Stardust owns a 256-cell camera-relative lattice at six world units
+            // per cell. Gravity is rasterized at eight texels per Stardust cell,
+            // so the 1536-square viewport maps exactly to the 2048-square surface
+            // target without either lattice crawling under the other.
             return new AetheriaRuntimeViewportBounds
             {
-                MinX = -1000,
-                MinY = -1000,
-                MaxX = 1000,
-                MaxY = 1000
+                MinX = -768,
+                MinY = -768,
+                MaxX = 768,
+                MaxY = 768
             };
         }
 
