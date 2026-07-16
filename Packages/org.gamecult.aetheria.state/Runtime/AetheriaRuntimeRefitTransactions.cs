@@ -58,6 +58,133 @@ namespace GameCult.Aetheria.State.Verse
 
     public static class AetheriaRuntimeRefitTransactions
     {
+        public static bool TryTransferCargo(
+            AetheriaRuntimeEntitySnapshotCommit origin,
+            int originCargoIndex,
+            int sourceX,
+            int sourceY,
+            AetheriaRuntimeEntitySnapshotCommit destination,
+            int destinationCargoIndex,
+            string itemKey,
+            int quantity,
+            int destinationX,
+            int destinationY,
+            bool hasDestinationPosition,
+            AetheriaRuntimeCatalogSnapshot? catalog,
+            out string rejectionReason)
+        {
+            rejectionReason = "";
+            if (origin == null || destination == null || catalog == null || quantity <= 0)
+                return Reject(AetheriaRuntimeDaemonRejectionReasons.InvalidCargoSource, out rejectionReason);
+
+            var originPlan = new EntityPlan(origin);
+            var destinationPlan = ReferenceEquals(origin, destination)
+                ? originPlan
+                : new EntityPlan(destination);
+            if (ReferenceEquals(originPlan, destinationPlan) &&
+                originCargoIndex == destinationCargoIndex &&
+                !hasDestinationPosition)
+            {
+                return Reject(AetheriaRuntimeDaemonRejectionReasons.InvalidCargoDestination, out rejectionReason);
+            }
+            if (originCargoIndex < 0 || originCargoIndex >= originPlan.CargoContents.Count)
+                return Reject(AetheriaRuntimeDaemonRejectionReasons.InvalidCargoSource, out rejectionReason);
+            if (destinationCargoIndex < 0 ||
+                destinationCargoIndex >= destinationPlan.CargoBays.Count ||
+                destinationCargoIndex >= destinationPlan.CargoContents.Count)
+            {
+                return Reject(AetheriaRuntimeDaemonRejectionReasons.InvalidCargoDestination, out rejectionReason);
+            }
+
+            var sourceItems = originPlan.CargoContents[originCargoIndex];
+            var sourceIndex = sourceItems.FindIndex(slot =>
+                slot?.Item != null &&
+                string.Equals(slot.Item.ItemKey ?? "", itemKey ?? "", StringComparison.Ordinal) &&
+                slot.X == sourceX && slot.Y == sourceY);
+            if (sourceIndex < 0 || sourceItems[sourceIndex].Item == null ||
+                quantity > Math.Max(0, sourceItems[sourceIndex].Item.Quantity))
+            {
+                return Reject(AetheriaRuntimeDaemonRejectionReasons.InvalidCargoSource, out rejectionReason);
+            }
+
+            if (ReferenceEquals(originPlan, destinationPlan) &&
+                originCargoIndex == destinationCargoIndex &&
+                hasDestinationPosition &&
+                sourceX == destinationX && sourceY == destinationY)
+            {
+                return true;
+            }
+
+            var sourceSlot = sourceItems[sourceIndex];
+            var moved = CloneSlot(sourceSlot);
+            moved.Item.Quantity = quantity;
+            if (quantity == sourceSlot.Item.Quantity)
+                sourceItems.RemoveAt(sourceIndex);
+            else
+                sourceSlot.Item.Quantity -= quantity;
+
+            var item = catalog.FindItem(itemKey ?? "");
+            var bay = catalog.FindItem(destinationPlan.CargoBays[destinationCargoIndex].Item?.ItemKey ?? "");
+            if (item == null || bay == null || Cells(item.ShapeCells).Count == 0)
+                return Reject(AetheriaRuntimeDaemonRejectionReasons.InvalidCargoDestination, out rejectionReason);
+
+            var destinationItems = destinationPlan.CargoContents[destinationCargoIndex];
+            if (hasDestinationPosition)
+            {
+                var stack = destinationItems.FirstOrDefault(slot =>
+                    SlotOccupies(slot, destinationX, destinationY, catalog) &&
+                    string.Equals(slot.Item?.ItemKey ?? "", itemKey ?? "", StringComparison.Ordinal));
+                if (stack != null)
+                {
+                    var maxStack = Math.Max(1, item.MaxStack);
+                    if (!item.Stackable || stack.Item.Quantity + quantity > maxStack)
+                        return Reject(AetheriaRuntimeDaemonRejectionReasons.CargoStackLimit, out rejectionReason);
+                    stack.Item.Quantity += quantity;
+                }
+                else if (!TryPlaceCargoSlot(
+                             destinationItems,
+                             bay,
+                             item,
+                             moved,
+                             destinationX,
+                             destinationY,
+                             true,
+                             catalog))
+                {
+                    return Reject(AetheriaRuntimeDaemonRejectionReasons.CargoNoFit, out rejectionReason);
+                }
+            }
+            else
+            {
+                var remaining = quantity;
+                if (item.Stackable)
+                {
+                    var maxStack = Math.Max(1, item.MaxStack);
+                    foreach (var stack in destinationItems.Where(slot =>
+                                 slot?.Item != null &&
+                                 string.Equals(slot.Item.ItemKey ?? "", itemKey ?? "", StringComparison.Ordinal)))
+                    {
+                        var transferred = Math.Min(remaining, Math.Max(0, maxStack - stack.Item.Quantity));
+                        stack.Item.Quantity += transferred;
+                        remaining -= transferred;
+                        if (remaining == 0) break;
+                    }
+                }
+
+                if (remaining > 0)
+                {
+                    moved.Item.Quantity = remaining;
+                    if (!TryPlaceCargoSlot(destinationItems, bay, item, moved, 0, 0, false, catalog))
+                        return Reject(AetheriaRuntimeDaemonRejectionReasons.CargoNoFit, out rejectionReason);
+                }
+            }
+
+            originPlan.ApplyCargoOnly();
+            if (!ReferenceEquals(originPlan, destinationPlan))
+                destinationPlan.ApplyCargoOnly();
+            return true;
+        }
+
         public static bool TryEquip(
             AetheriaRuntimeEntitySnapshotCommit origin,
             string sourceKind,
@@ -277,6 +404,51 @@ namespace GameCult.Aetheria.State.Verse
             return true;
         }
 
+        private static bool TryPlaceCargoSlot(
+            List<AetheriaRuntimeLoadoutItemSlotCommit> destinationItems,
+            AetheriaRuntimeCatalogItem bay,
+            AetheriaRuntimeCatalogItem item,
+            AetheriaRuntimeLoadoutItemSlotCommit slot,
+            int requestedX,
+            int requestedY,
+            bool hasRequestedPosition,
+            AetheriaRuntimeCatalogSnapshot catalog)
+        {
+            var occupied = OccupiedCargoCells(destinationItems, catalog);
+            var rotation = ParseRotation(slot.Rotation);
+            if (!TryFindPlacement(
+                    Cells(bay.InteriorShapeCells),
+                    Math.Max(0, bay.InteriorShapeWidth),
+                    Math.Max(0, bay.InteriorShapeHeight),
+                    item,
+                    rotation,
+                    occupied,
+                    requestedX,
+                    requestedY,
+                    hasRequestedPosition,
+                    out var x,
+                    out var y))
+            {
+                return false;
+            }
+            slot.X = x;
+            slot.Y = y;
+            destinationItems.Add(slot);
+            return true;
+        }
+
+        private static bool SlotOccupies(
+            AetheriaRuntimeLoadoutItemSlotCommit? slot,
+            int x,
+            int y,
+            AetheriaRuntimeCatalogSnapshot catalog)
+        {
+            var item = catalog.FindItem(slot?.Item?.ItemKey ?? "");
+            return slot != null && item != null &&
+                RotatedCells(item, ParseRotation(slot.Rotation))
+                    .Any(cell => slot.X + cell.X == x && slot.Y + cell.Y == y);
+        }
+
         private static bool TryFindPlacement(
             HashSet<(int X, int Y)> target,
             int width,
@@ -405,9 +577,12 @@ namespace GameCult.Aetheria.State.Verse
             public EntityPlan(AetheriaRuntimeEntitySnapshotCommit entity)
             {
                 _entity = entity;
-                Equipment = (entity.Equipment ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>()).ToList();
-                CargoBays = (entity.CargoBays ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>()).ToList();
-                DockingBays = (entity.DockingBays ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>()).ToList();
+                Equipment = (entity.Equipment ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>())
+                    .Select(CloneSlot).ToList();
+                CargoBays = (entity.CargoBays ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>())
+                    .Select(CloneSlot).ToList();
+                DockingBays = (entity.DockingBays ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>())
+                    .Select(CloneSlot).ToList();
                 CargoContents = CloneContents(entity.CargoContents, CargoBays.Count);
                 DockingContents = CloneContents(entity.DockingBayContents, DockingBays.Count);
                 DockingAssignments = (entity.DockingBayAssignments ?? Array.Empty<int>()).ToList();
@@ -547,12 +722,20 @@ namespace GameCult.Aetheria.State.Verse
                     .ToArray();
             }
 
+            public void ApplyCargoOnly()
+            {
+                _entity.CargoContents = CargoContents
+                    .Select(items => new AetheriaRuntimeCargoBayLoadoutCommit { Items = items.ToArray() })
+                    .ToArray();
+            }
+
             private static List<List<AetheriaRuntimeLoadoutItemSlotCommit>> CloneContents(
                 IReadOnlyList<AetheriaRuntimeCargoBayLoadoutCommit>? contents,
                 int count)
             {
                 var result = (contents ?? Array.Empty<AetheriaRuntimeCargoBayLoadoutCommit>())
-                    .Select(bay => (bay?.Items ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>()).ToList())
+                    .Select(bay => (bay?.Items ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>())
+                        .Select(CloneSlot).ToList())
                     .ToList();
                 while (result.Count < count) result.Add(new List<AetheriaRuntimeLoadoutItemSlotCommit>());
                 return result;

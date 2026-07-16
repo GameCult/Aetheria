@@ -2907,12 +2907,12 @@ Docked refit ownership follows the fossil's `Entity.ItemFits`, `TryEquip`, and
 - Forbidden writers: Unity occupancy checks, renderer inventory graphs,
   client-supplied acceptance/rejection reasons, and remove-first mutation paths
   cannot decide or repair a refit.
-- Shared paths: cargo-to-equipment equip, equipment reposition, equipment-to-
-  cargo store, reconnect, and loadout restore use the same typed collection and
-  placement semantics where their contracts overlap.
+- Shared paths: cargo-to-cargo transfer, cargo-to-equipment equip, equipment
+  reposition, equipment-to-cargo store, reconnect, and loadout restore use the
+  same typed collection and placement semantics where their contracts overlap.
 - Cut line: generated cargo and docking bays no longer masquerade as ordinary
   equipment; unconditional destination appends and source removal before
-  destination validation are removed from refit operations.
+  destination validation are removed from refit and cargo-transfer operations.
 - Verification layer: daemon smokes compare source and destination state before
   and after rejection, cover hardpoint type/shape/rotation, interior occupancy,
   deployed-state rejection, nonempty bay rejection, category routing, exact

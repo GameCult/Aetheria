@@ -169,6 +169,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             MissingWorldPhysicsOwnerCannotAdvanceShips,
             DockingUsesRealBaysAndFossilUndockRules,
             RefitIsAtomicAndUsesTypedPlacement,
+            CargoTransferUsesSpatialAtomicTransaction,
             TractorRampsAndPullsThroughYmirWithoutTeleportingCargo,
             PickupIsCapacityCheckedExactlyOnceAndExpires,
             TradePurchaseDerivesAcceptanceFromDaemonState,
@@ -676,6 +677,144 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             "deployed ships must not refit even when the requested placement would fit");
         Require(ship.Equipment.Any(slot => slot.Item.ItemKey == blocker.ItemKey),
             "deployed refit rejection must preserve installed equipment");
+    }
+
+    private static void CargoTransferUsesSpatialAtomicTransaction()
+    {
+        var cargoBay = CatalogItem("grid-cargo-bay");
+        cargoBay.Category = AetheriaRuntimeItemCategories.CargoBay;
+        cargoBay.ShapeWidth = 1;
+        cargoBay.ShapeHeight = 1;
+        cargoBay.ShapeCells = [new AetheriaRuntimeShapeCell(0, 0)];
+        cargoBay.InteriorShapeWidth = 2;
+        cargoBay.InteriorShapeHeight = 1;
+        cargoBay.InteriorOccupiedCells = 2;
+        cargoBay.InteriorShapeCells = [new AetheriaRuntimeShapeCell(0, 0), new AetheriaRuntimeShapeCell(1, 0)];
+        var commodity = CatalogItem("grid-commodity");
+        commodity.Category = AetheriaRuntimeItemCategories.SimpleCommodity;
+        commodity.ShapeWidth = 1;
+        commodity.ShapeHeight = 1;
+        commodity.ShapeCells = [new AetheriaRuntimeShapeCell(0, 0)];
+        commodity.Stackable = true;
+        commodity.MaxStack = 10;
+        var blocker = CatalogItem("grid-blocker");
+        blocker.ShapeWidth = 1;
+        blocker.ShapeHeight = 1;
+        blocker.ShapeCells = [new AetheriaRuntimeShapeCell(0, 0)];
+        var catalog = new AetheriaRuntimeCatalogSnapshot([cargoBay, commodity, blocker], [], []);
+
+        AetheriaRuntimeEntitySnapshotCommit CargoEntity(int index, params AetheriaRuntimeLoadoutItemSlotCommit[] items)
+        {
+            var entity = Entity(index, 0, "player");
+            entity.CargoBays =
+            [
+                new AetheriaRuntimeLoadoutItemSlotCommit
+                {
+                    Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = cargoBay.ItemKey, Quantity = 1 }
+                }
+            ];
+            entity.CargoContents = [new AetheriaRuntimeCargoBayLoadoutCommit { Items = items }];
+            return entity;
+        }
+
+        var source = CargoEntity(0, new AetheriaRuntimeLoadoutItemSlotCommit
+        {
+            X = 0,
+            Y = 0,
+            Rotation = "None",
+            Item = new AetheriaRuntimeLoadoutItemCommit
+            {
+                ItemKey = commodity.ItemKey,
+                Quantity = 4,
+                Quality = 0.75,
+                Durability = 0.5,
+                Temperature = 333
+            }
+        });
+        var destination = CargoEntity(
+            1,
+            new AetheriaRuntimeLoadoutItemSlotCommit
+            {
+                X = 0,
+                Y = 0,
+                Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = blocker.ItemKey, Quantity = 1 }
+            },
+            new AetheriaRuntimeLoadoutItemSlotCommit
+            {
+                X = 1,
+                Y = 0,
+                Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = commodity.ItemKey, Quantity = 8 }
+            });
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "cargo-grid-smoke",
+            CurrentZoneIndex = 0,
+            CurrentEntityKey = "zone.0.entity.0",
+            Zones = [new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [source, destination] }]
+        };
+        var context = new AetheriaRuntimeDaemonOperationContext { Catalog = catalog };
+
+        AetheriaRuntimeDaemonCommandDocument Transfer(string id, int quantity, int x, bool positioned = true)
+        {
+            var command = AetheriaRuntimeDaemonCommandDocument.Create(
+                AetheriaRuntimeDaemonCommandKinds.TransferCargoItem,
+                "pilot",
+                run.RunId,
+                0,
+                run.CurrentEntityKey);
+            command.CommandId = id;
+            command.TextValue = commodity.ItemKey;
+            command.CargoTransfer = new AetheriaRuntimeCargoTransferCommand
+            {
+                OriginEntityKey = "zone.0.entity.0",
+                OriginCargoIndex = 0,
+                DestinationEntityKey = "zone.0.entity.1",
+                DestinationCargoIndex = 0,
+                SourceX = 0,
+                SourceY = 0,
+                DestinationX = x,
+                DestinationY = 0,
+                HasDestinationPosition = positioned,
+                Quantity = quantity
+            };
+            return command;
+        }
+
+        var overfill = AetheriaRuntimeDaemonOperations.Execute(run, [Transfer("cargo-overfill", 3, 1)], context);
+        RequireEqual(AetheriaRuntimeDaemonRejectionReasons.CargoStackLimit,
+            overfill.RejectedCommandReasons["cargo-overfill"],
+            "an explicit commodity stack overfill must reject atomically");
+        RequireEqual(4, source.CargoContents[0].Items.Single().Item.Quantity,
+            "stack-limit rejection must not decrement the source stack");
+        RequireEqual(8, destination.CargoContents[0].Items.Single(slot => slot.Item.ItemKey == commodity.ItemKey).Item.Quantity,
+            "stack-limit rejection must not partially fill the destination stack");
+
+        var stacked = AetheriaRuntimeDaemonOperations.Execute(run, [Transfer("cargo-stack", 2, 1)], context);
+        Require(stacked.AppliedCommandIds.Contains("cargo-stack"),
+            "a complete explicit stack merge must commit");
+        RequireEqual(2, source.CargoContents[0].Items.Single().Item.Quantity,
+            "accepted stack merge must remove exactly the requested source quantity");
+        RequireEqual(10, destination.CargoContents[0].Items.Single(slot => slot.Item.ItemKey == commodity.ItemKey).Item.Quantity,
+            "accepted stack merge must fill the destination to the typed maximum");
+
+        var occupied = AetheriaRuntimeDaemonOperations.Execute(run, [Transfer("cargo-overlap", 1, 0)], context);
+        RequireEqual(AetheriaRuntimeDaemonRejectionReasons.CargoNoFit,
+            occupied.RejectedCommandReasons["cargo-overlap"],
+            "an occupied cell containing another item must reject spatial placement");
+        RequireEqual(2, source.CargoContents[0].Items.Single().Item.Quantity,
+            "spatial rejection must leave the source stack untouched");
+
+        destination.CargoContents[0].Items = [];
+        var placed = AetheriaRuntimeDaemonOperations.Execute(run, [Transfer("cargo-place", 2, 0, positioned: false)], context);
+        Require(placed.AppliedCommandIds.Contains("cargo-place") && source.CargoContents[0].Items.Count == 0,
+            "unpositioned transfer must commit only after finding the first authored interior cell");
+        var moved = destination.CargoContents[0].Items.Single();
+        Require(moved.X == 0 && moved.Y == 0 && moved.Item.Quantity == 2,
+            "unpositioned cargo placement must use deterministic interior order");
+        RequireNear(0.75, moved.Item.Quality, 0.000001,
+            "cargo transfer must preserve source instance quality");
+        RequireNear(333, moved.Item.Temperature, 0.000001,
+            "cargo transfer must preserve source instance temperature");
     }
 
     private static void VolumeSurfaceKeepsNativeShaderAbiInAssetVariant()
@@ -2169,11 +2308,33 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         homeHull.HullCapacity = PerformanceStat(100);
         var iron = CatalogItem("iron");
         iron.SimpleCommodityCategory = "ore";
+        iron.Category = AetheriaRuntimeItemCategories.SimpleCommodity;
+        iron.ShapeWidth = 1;
+        iron.ShapeHeight = 1;
+        iron.ShapeCells = [new AetheriaRuntimeShapeCell(0, 0)];
+        iron.Stackable = true;
+        iron.MaxStack = 100;
         iron.Volume = 1;
         var minerCargo = CatalogItem("miner-cargo");
+        minerCargo.Category = AetheriaRuntimeItemCategories.CargoBay;
+        minerCargo.ShapeWidth = 1;
+        minerCargo.ShapeHeight = 1;
+        minerCargo.ShapeCells = [new AetheriaRuntimeShapeCell(0, 0)];
+        minerCargo.InteriorShapeWidth = 2;
+        minerCargo.InteriorShapeHeight = 1;
         minerCargo.InteriorOccupiedCells = 2;
+        minerCargo.InteriorShapeCells = [new AetheriaRuntimeShapeCell(0, 0), new AetheriaRuntimeShapeCell(1, 0)];
         var homeCargo = CatalogItem("home-cargo");
+        homeCargo.Category = AetheriaRuntimeItemCategories.CargoBay;
+        homeCargo.ShapeWidth = 1;
+        homeCargo.ShapeHeight = 1;
+        homeCargo.ShapeCells = [new AetheriaRuntimeShapeCell(0, 0)];
+        homeCargo.InteriorShapeWidth = 10;
+        homeCargo.InteriorShapeHeight = 10;
         homeCargo.InteriorOccupiedCells = 100;
+        homeCargo.InteriorShapeCells = Enumerable.Range(0, 10)
+            .SelectMany(y => Enumerable.Range(0, 10).Select(x => new AetheriaRuntimeShapeCell(x, y)))
+            .ToArray();
         miner.HullItemKey = minerHull.ItemKey;
         home.HullItemKey = homeHull.ItemKey;
         miner.CargoContents = [new AetheriaRuntimeCargoBayLoadoutCommit()];
@@ -2765,14 +2926,40 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
 
     private static void AgentCompletesHaulTaskThroughMovementAndCargoCommands()
     {
+        var cargoBay = CatalogItem("haul-cargo-bay");
+        cargoBay.Category = AetheriaRuntimeItemCategories.CargoBay;
+        cargoBay.ShapeWidth = 1;
+        cargoBay.ShapeHeight = 1;
+        cargoBay.ShapeCells = [new AetheriaRuntimeShapeCell(0, 0)];
+        cargoBay.InteriorShapeWidth = 4;
+        cargoBay.InteriorShapeHeight = 4;
+        cargoBay.InteriorOccupiedCells = 16;
+        cargoBay.InteriorShapeCells = Enumerable.Range(0, 4)
+            .SelectMany(y => Enumerable.Range(0, 4).Select(x => new AetheriaRuntimeShapeCell(x, y)))
+            .ToArray();
+        var ore = CatalogItem("ore");
+        ore.Category = AetheriaRuntimeItemCategories.SimpleCommodity;
+        ore.ShapeWidth = 1;
+        ore.ShapeHeight = 1;
+        ore.ShapeCells = [new AetheriaRuntimeShapeCell(0, 0)];
+        ore.Stackable = true;
+        ore.MaxStack = 100;
+        var catalog = new AetheriaRuntimeCatalogSnapshot([cargoBay, ore], [], []);
+        AetheriaRuntimeLoadoutItemSlotCommit InstalledCargoBay() => new()
+        {
+            Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = cargoBay.ItemKey, Quantity = 1 }
+        };
         var origin = Entity(0, 0, "workers");
         origin.Kind = "station";
+        origin.CargoBays = [InstalledCargoBay()];
         origin.CargoContents = [Cargo(("ore", 5, 2, 3))];
         var agent = Entity(1, 0, "workers");
         agent.AgentTaskCapabilities = [AetheriaRuntimeAgentTaskTypes.Haul];
+        agent.CargoBays = [InstalledCargoBay()];
         agent.CargoContents = [Cargo()];
         var destination = Entity(2, 50, "workers");
         destination.Kind = "station";
+        destination.CargoBays = [InstalledCargoBay()];
         destination.CargoContents = [Cargo()];
         var run = new AetheriaRuntimeRunCheckpointCommit
         {
@@ -2815,6 +3002,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                     FixedDeltaSeconds = 0.1,
                     SimulationTimeSeconds = frame * 0.1,
                     ObservedCommands = frame == 0 ? [issue] : Array.Empty<AetheriaRuntimeDaemonCommandDocument>(),
+                    Catalog = catalog,
                     BuildPublications = false
                 });
             sawPickup |= tick.OperationResult.AppliedCommandIds.Any(id => id.EndsWith(":pickup", StringComparison.Ordinal));

@@ -79,6 +79,9 @@ namespace GameCult.Aetheria.State.Verse
         public const string RefitBayNotEmpty = "refit-bay-not-empty";
         public const string RefitNoFit = "refit-no-fit";
         public const string InvalidCargoDestination = "invalid-cargo-destination";
+        public const string InvalidCargoSource = "invalid-cargo-source";
+        public const string CargoNoFit = "cargo-no-fit";
+        public const string CargoStackLimit = "cargo-stack-limit";
     }
 
     public static class AetheriaRuntimeDaemonOperations
@@ -188,7 +191,7 @@ namespace GameCult.Aetheria.State.Verse
                 case AetheriaRuntimeDaemonCommandKinds.SetDockedCurrentShip:
                     return ApplySetDockedCurrentShip(run, command.TargetEntityKey);
                 case AetheriaRuntimeDaemonCommandKinds.TransferCargoItem:
-                    return ApplyTransferCargoItem(run, command, context.Catalog);
+                    return ApplyTransferCargoItem(run, command, context);
                 case AetheriaRuntimeDaemonCommandKinds.EquipItem:
                     return ApplyEquipItem(run, command, context);
                 case AetheriaRuntimeDaemonCommandKinds.StoreItem:
@@ -799,61 +802,31 @@ namespace GameCult.Aetheria.State.Verse
         private static bool ApplyTransferCargoItem(
             AetheriaRuntimeRunCheckpointCommit run,
             AetheriaRuntimeDaemonCommandDocument command,
-            AetheriaRuntimeCatalogSnapshot? catalog)
+            AetheriaRuntimeDaemonOperationContext context)
         {
             var transfer = command.CargoTransfer ?? new AetheriaRuntimeCargoTransferCommand();
-            if (!TryResolveCargoBay(
-                    run,
-                    transfer.OriginEntityKey,
-                    transfer.OriginCargoIndex,
-                    out var originEntity,
-                    out var originCargoIndex,
-                    out _) ||
-                !TryResolveCargoBay(
-                    run,
-                    transfer.DestinationEntityKey,
-                    transfer.DestinationCargoIndex,
-                    out var destinationEntity,
-                    out var destinationCargoIndex,
-                    out _))
-            {
-                return false;
-            }
-
-            if (!transfer.HasDestinationPosition &&
-                string.Equals(transfer.OriginEntityKey ?? "", transfer.DestinationEntityKey ?? "", StringComparison.Ordinal) &&
-                transfer.OriginCargoIndex == transfer.DestinationCargoIndex)
-            {
-                return false;
-            }
-
-            var sourceX = transfer.SourceX;
-            var sourceY = transfer.SourceY;
             var quantity = transfer.Quantity > 0
                 ? transfer.Quantity
                 : (int)Math.Round(command.ScalarValue);
-            if (quantity <= 0 || quantity > AetheriaRuntimeCargoCapacityQueries.UnitsThatFit(destinationEntity, catalog, command.TextValue, destinationCargoIndex))
-                return false;
-            if (!TryRemoveCargoItemQuantity(
-                    originEntity,
-                    originCargoIndex,
-                    command.TextValue,
-                    sourceX,
-                    sourceY,
-                    quantity,
-                    out var slot))
-            {
-                return false;
-            }
+            if (!TryResolveEntity(run, transfer.OriginEntityKey, out _, out _, out var origin) ||
+                !TryResolveEntity(run, transfer.DestinationEntityKey, out _, out _, out var destination))
+                return context.Reject(AetheriaRuntimeDaemonRejectionReasons.InvalidCargoSource);
 
-            slot.X = transfer.HasDestinationPosition
-                ? transfer.DestinationX
-                : slot.X;
-            slot.Y = transfer.HasDestinationPosition
-                ? transfer.DestinationY
-                : slot.Y;
-            AddCargoItem(destinationEntity, destinationCargoIndex, slot);
-            return true;
+            return AetheriaRuntimeRefitTransactions.TryTransferCargo(
+                    origin,
+                    transfer.OriginCargoIndex,
+                    transfer.SourceX,
+                    transfer.SourceY,
+                    destination,
+                    transfer.DestinationCargoIndex,
+                    command.TextValue ?? "",
+                    quantity,
+                    transfer.DestinationX,
+                    transfer.DestinationY,
+                    transfer.HasDestinationPosition,
+                    context.Catalog,
+                    out var reason)
+                || context.Reject(reason);
         }
 
         private static bool ApplyEquipItem(
