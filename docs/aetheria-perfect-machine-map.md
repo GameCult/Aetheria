@@ -876,6 +876,11 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
 - Outputs: undocked flight uses `perspective.entity-forward-follow.v1` with the
   fossil `Third Person Rig` values and `aim.convergence-point.v1` look-at. Docked
   presentation remains a distinct mode and cannot lend its framing to flight.
+- Coordinate boundary: Cinemachine serializes target screen Y from the top of
+  the frame, while Eve's canonical viewport follows Unity viewport coordinates
+  from the bottom. Aetheria translates fossil flight `0.81` to Eve `0.19` and
+  docked `0.55` to Eve `0.45` before publication. EveUnity receives only the
+  canonical value and has no Cinemachine compatibility branch.
 - Derived state: Unity camera position, rotation, matrices, culling mask, and
   temporal fog history are presentation state.
 - Forbidden writers: Unity cameras cannot choose dock state, alter entity look
@@ -950,6 +955,9 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   extent by multiplying by `0.5`, not `5`. Canonical `ARPG.unity` scales the
   gameplay `Zone Brushes` parent to `3000`, making its global half extent
   `1500`; `TestScene`'s smaller `1024` value is not gameplay authority.
+  The splat cameras independently use orthographic size `1000`, so the canonical
+  field viewport is a 2000-by-2000 square. Brush coverage and sampling extent
+  are separate provider-owned facts; the generic lowerer does not infer either.
   Constant offsets are separate constant splats. No provider texture reference
   is introduced: the fossil materials carry a stale `_MainTex`, but their
   shaders sample procedural functions and never read it.
@@ -982,11 +990,13 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   shader ABI is advertised outside the portable surface. Released package
   `0.3.49` proves target topology, authoritative flow time, explicit camera
   transforms, float32 packed-output diagnostics, and both camera-channel masks.
-  The live warm capture remains visually failing: the fossil vertical-noise
-  displacement drives raymarch density to `1` within roughly three metres.
-  A controlled zero-amplitude run restores a fog horizon, isolating the open
-  parity defect to the noise/daemon-height interaction rather than transport,
-  pass ordering, camera pose, or missing field textures.
+  The released warm capture proves a live fog horizon using the original
+  `-36.17` vertical-noise amplitude. The earlier opaque slab was caused by
+  publishing Cinemachine's top-origin `0.81` as Eve bottom-origin `0.81`, which
+  placed the camera below the fog surface. The controlled zero-noise run was a
+  diagnostic, not the adopted rendering contract. Blue tint, luminance, patch
+  structure, gravity-wave readability, and world geometry remain open visual
+  parity work.
 
 ### Daemon Asset Content Delivery
 

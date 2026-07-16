@@ -612,7 +612,9 @@ namespace GameCult.Aetheria.State.Verse
                 ["cameraDistance"] = isDocked ? "70" : "30",
                 ["cameraVerticalFieldOfViewDegrees"] = "60",
                 ["cameraTargetScreenX"] = isDocked ? "0.66" : "0.64",
-                ["cameraTargetScreenY"] = isDocked ? "0.55" : "0.81",
+                // Cinemachine serializes screen Y from the top edge; Eve camera
+                // surfaces use Unity viewport coordinates measured from the bottom.
+                ["cameraTargetScreenY"] = isDocked ? "0.45" : "0.19",
                 ["cameraPositionDamping"] = isDocked ? "2" : "0",
                 ["cameraNearClipPlane"] = isDocked ? "0.3" : "1",
                 ["cameraFarClipPlane"] = isDocked ? "2048" : "4096",
@@ -1269,11 +1271,14 @@ namespace GameCult.Aetheria.State.Verse
 
         private static AetheriaRuntimeViewportBounds DefaultViewport()
         {
+            // The canonical flight scene renders every splat layer through an
+            // orthographic-size-1000 camera. The 3000-unit Zone Brushes mesh is
+            // deliberately oversized and is brush data, not the sampling viewport.
             return new AetheriaRuntimeViewportBounds
             {
-                MinX = -1500,
+                MinX = -1000,
                 MinY = -1000,
-                MaxX = 1500,
+                MaxX = 1000,
                 MaxY = 1000
             };
         }

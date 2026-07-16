@@ -220,6 +220,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             new AetheriaRuntimeDaemonHealthDocument(),
             AetheriaRuntimeDaemonCommandBoundaryDocument.Create("daemon"));
         var volume = Flatten(surface.Surface.Root).Single(node => node.Kind == "field.volume3d");
+        var gravityField = Flatten(surface.Surface.Root).Single(node => node.Kind == "field.surface2d");
         Require(volume.Props.Values.All(value => value == null || !value.Contains("_Nebula", StringComparison.Ordinal)) &&
                 volume.Props["layerBindings"].Contains("fog.surface_height=surfaceHeight", StringComparison.Ordinal) &&
                 volume.Props["layerTargetDescriptors"].Contains("fog.surface_height=2,2,false,bilinear", StringComparison.Ordinal) &&
@@ -228,6 +229,12 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 volume.Props["documentFloatBindings"] == "simulationTimeSeconds=flowScroll,0.025,0" &&
                 !volume.Props.ContainsKey("vectorParameters"),
             "portable Eve volume surfaces must name logical ports rather than Unity shader properties");
+        Require(gravityField.Props["minX"] == "-1000" &&
+                gravityField.Props["minY"] == "-1000" &&
+                gravityField.Props["maxX"] == "1000" &&
+                gravityField.Props["maxY"] == "1000" &&
+                volume.Props["documentRef"] == gravityField.Props["renderSplatsDocumentId"],
+            "flight fog rasterization and native sampling must share the fossil 2000-square splat-camera viewport");
 
         var shader = AetheriaRuntimeAssets.ProjectManifest(null).Assets.Single(asset =>
             asset.Ref.AssetKey == "shader.environment.gravity-fog");
@@ -717,11 +724,11 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 world.Props["cameraDistance"] == "30" &&
                 world.Props["cameraVerticalFieldOfViewDegrees"] == "60" &&
                 world.Props["cameraTargetScreenX"] == "0.64" &&
-                world.Props["cameraTargetScreenY"] == "0.81" &&
+                world.Props["cameraTargetScreenY"] == "0.19" &&
                 world.Props["cameraPositionDamping"] == "0" &&
                 world.Props["cameraNearClipPlane"] == "1" &&
                 world.Props["cameraFarClipPlane"] == "4096",
-            "undocked world must preserve the authored ARPG Third Person Rig rather than the distinct Docked Rig");
+            "undocked world must translate the authored ARPG Third Person Rig into bottom-origin Eve viewport coordinates");
         Require(world.Props["skyboxAssetRef"] == "material.environment.skybox" &&
                 world.Props["reflectionAssetRef"] == "texture.environment.reflection" &&
                 world.Props["postProcessProfileAssetRef"] == "profile.environment.flight" &&
