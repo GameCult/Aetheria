@@ -149,7 +149,13 @@ namespace GameCult.Aetheria.State.Verse
                         .Concat(operationResult.RejectedCommandIds)
                         .Distinct(StringComparer.Ordinal)
                         .ToArray(),
-                    operationResult.Intents);
+                    operationResult.Intents,
+                    MergeRejectedReasons(
+                        operationResult.RejectedCommandReasons,
+                        preRejectedCommandIds.ToDictionary(
+                            commandId => commandId,
+                            _ => AetheriaRuntimeDaemonRejectionReasons.AuthorityDenied,
+                            StringComparer.Ordinal)));
             }
             var simulationStepCount = options.AdvanceSimulation && AetheriaRuntimeRunLifecycle.IsActive(operationResult.Run)
                 ? Math.Max(1, options.SimulationStepCount)
@@ -180,7 +186,10 @@ namespace GameCult.Aetheria.State.Verse
                         agentResult.Run,
                         operationResult.AppliedCommandIds.Concat(agentResult.AppliedCommandIds).ToArray(),
                         operationResult.RejectedCommandIds.Concat(agentResult.RejectedCommandIds).ToArray(),
-                        MergeIntents(operationResult.Intents, agentResult.Intents));
+                        MergeIntents(operationResult.Intents, agentResult.Intents),
+                        MergeRejectedReasons(
+                            operationResult.RejectedCommandReasons,
+                            agentResult.RejectedCommandReasons));
                 }
                 AetheriaRuntimeDaemonSimulation.Step(
                     operationResult.Run,
@@ -208,6 +217,7 @@ namespace GameCult.Aetheria.State.Verse
             Trace("frame-projection");
             frame.AppliedCommandIds = operationResult.AppliedCommandIds;
             frame.RejectedCommandIds = operationResult.RejectedCommandIds;
+            frame.RejectedCommandReasons = operationResult.RejectedCommandReasons;
             frame.AccountedCommandIds = accountedBeforeTick
                 .Concat(operationResult.AppliedCommandIds)
                 .Concat(operationResult.RejectedCommandIds)
@@ -344,6 +354,18 @@ namespace GameCult.Aetheria.State.Verse
             merged.Docking.AddRange(agents.Docking);
             merged.Wormholes.AddRange(commands.Wormholes);
             merged.Wormholes.AddRange(agents.Wormholes);
+            return merged;
+        }
+
+        private static IReadOnlyDictionary<string, string> MergeRejectedReasons(
+            IReadOnlyDictionary<string, string>? first,
+            IReadOnlyDictionary<string, string>? second)
+        {
+            var merged = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (var pair in first ?? new Dictionary<string, string>())
+                merged[pair.Key] = pair.Value ?? "";
+            foreach (var pair in second ?? new Dictionary<string, string>())
+                merged[pair.Key] = pair.Value ?? "";
             return merged;
         }
 

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using GameCult.Caching;
+using GameCult.Eve.Surface;
 using GameCult.Mesh;
 using MessagePack;
 
@@ -542,6 +543,10 @@ namespace GameCult.Aetheria.State.Verse
         public AetheriaRuntimeDaemonSimulationSettings SimulationSettings { get; set; } =
             AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault;
 
+        [Key(23)]
+        public IReadOnlyDictionary<string, string> RejectedCommandReasons { get; set; } =
+            new Dictionary<string, string>();
+
         public static AetheriaRuntimeDaemonFrameDocument Create(
             AetheriaRuntimeRunCheckpointCommit run,
             string daemonId,
@@ -742,6 +747,9 @@ namespace GameCult.Aetheria.State.Verse
         [Key(13)]
         public AetheriaRuntimeDaemonCommandDocument Command { get; set; } = new AetheriaRuntimeDaemonCommandDocument();
 
+        [Key(14)]
+        public string RejectionReason { get; set; } = "";
+
         public static AetheriaRuntimeCommittedCommandFactDocument FromAppliedCommand(
             AetheriaRuntimeDaemonFrameDocument frame,
             AetheriaRuntimeDaemonCommandDocument command,
@@ -795,6 +803,11 @@ namespace GameCult.Aetheria.State.Verse
                 ClaimKind = claimKind,
                 CommandKind = command.Kind,
                 Outcome = string.IsNullOrWhiteSpace(outcome) ? AetheriaRuntimeCommandFactOutcomes.Applied : outcome,
+                RejectionReason = string.Equals(outcome, AetheriaRuntimeCommandFactOutcomes.Rejected, StringComparison.Ordinal) &&
+                    (frame.RejectedCommandReasons ?? new Dictionary<string, string>())
+                    .TryGetValue(command.CommandId ?? "", out var rejectionReason)
+                        ? rejectionReason ?? ""
+                        : "",
                 CommittedAtUtc = DateTime.UtcNow.ToString("O"),
                 Command = command
             };
@@ -890,6 +903,37 @@ namespace GameCult.Aetheria.State.Verse
         [Key(11)]
         public bool CreatesDockedShip { get; set; }
 
+    }
+
+    public static class AetheriaRuntimeDaemonReceiptProjector
+    {
+        public static EveCommandReceiptDocument Project(
+            AetheriaRuntimeCommittedCommandFactDocument fact,
+            string surfaceId)
+        {
+            fact ??= new AetheriaRuntimeCommittedCommandFactDocument();
+            var applied = string.Equals(
+                fact.Outcome,
+                AetheriaRuntimeCommandFactOutcomes.Applied,
+                StringComparison.Ordinal);
+            var message = applied
+                ? "Command applied by authoritative daemon."
+                : string.IsNullOrWhiteSpace(fact.RejectionReason)
+                    ? "Command rejected by authoritative daemon."
+                    : $"Command rejected by authoritative daemon: {fact.RejectionReason}.";
+            return new EveCommandReceiptDocument(
+                fact.FactId,
+                fact.CommandId,
+                fact.CommandKind.ToString(),
+                applied ? "reconciled" : "denied",
+                "Aetheria",
+                fact.SourceDaemonId,
+                "aetheria",
+                surfaceId ?? "",
+                message,
+                fact.CommittedAtUtc,
+                Math.Max(fact.SourceFrameId, 0));
+        }
     }
 
     [MessagePackObject]

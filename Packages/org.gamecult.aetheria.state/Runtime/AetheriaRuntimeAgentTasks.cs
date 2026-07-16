@@ -699,8 +699,9 @@ namespace GameCult.Aetheria.State.Verse
                     continue;
                 var homeDx = home.Entity.PositionX - worker.Entity.PositionX;
                 var homeDz = home.Entity.PositionZ - worker.Entity.PositionZ;
-                var dockingContactDistance = InteractionRadius(home.Entity) + InteractionRadius(worker.Entity);
-                if (Math.Sqrt(homeDx * homeDx + homeDz * homeDz) > dockingContactDistance + 0.5)
+                var dockingCommandDistance =
+                    AetheriaRuntimeDaemonOperationContext.DefaultDockingDistance;
+                if (Math.Sqrt(homeDx * homeDx + homeDz * homeDz) > dockingCommandDistance)
                     commands.Add(IdleMovement(worker.Zone.ZoneIndex, worker.Entity, frameId, homeDx, homeDz, "home-approach"));
                 else
                     commands.Add(IdleCommand(worker.Zone.ZoneIndex, worker.Entity, frameId,
@@ -725,7 +726,22 @@ namespace GameCult.Aetheria.State.Verse
             var length = Math.Sqrt(dx * dx + dz * dz);
             return IdleCommand(zoneIndex, entity, frameId, AetheriaRuntimeDaemonCommandKinds.SetMoveVector, phase, command =>
             {
-                SetLocalHelmAxes(command, entity, dx, dz, length <= 0.0001 ? 0 : 1);
+                // Fossil MoveToState asks Agent.Accelerate for a target velocity; it does not
+                // blindly thrust toward the target position. Preserve that delta-v owner so
+                // an agent can brake through a close interaction radius instead of orbiting it.
+                const double defaultAgentTopSpeed = 100;
+                var desiredVelocityX = length <= 0.0001 ? 0 : dx / length * defaultAgentTopSpeed;
+                var desiredVelocityZ = length <= 0.0001 ? 0 : dz / length * defaultAgentTopSpeed;
+                var deltaVelocityX = desiredVelocityX - entity.VelocityX;
+                var deltaVelocityZ = desiredVelocityZ - entity.VelocityY;
+                var deltaVelocityLength = Math.Sqrt(
+                    deltaVelocityX * deltaVelocityX + deltaVelocityZ * deltaVelocityZ);
+                SetLocalHelmAxes(
+                    command,
+                    entity,
+                    deltaVelocityX,
+                    deltaVelocityZ,
+                    deltaVelocityLength <= 1 ? 0 : 1);
             });
         }
 

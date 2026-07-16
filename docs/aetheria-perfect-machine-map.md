@@ -2856,6 +2856,39 @@ Run-lifecycle ownership is deliberately narrower than a quest system:
   simulation is frozen, and inspects the Eve surface state bindings. Completion
   remains unimplemented until a source-backed game-mode rule owns it.
 
+Docking ownership follows the fossil's entity and `ActionGameManager` path:
+
+- Owner: daemon docking operations own bay selection, parentage, and the
+  dock/undock acceptance decision.
+- Inputs: zone entity order, the 25-unit interaction radius, real docking-bay
+  slots and assignments, occupied-bay cargo, installed Cockpit,
+  Thruster-or-AetherDrive, and Reactor behaviors, and the ship's preserved
+  authoritative pose, velocity, and direction. Ymir retains entity bodies for
+  fields and spatial queries, but ship/station bodies share a non-colliding
+  group because the fossil had no rigidbody entity collision response; pickup
+  bodies remain independently collidable with ships.
+- Outputs: exact parent/assignment mutation, docking intent, and an
+  authoritative rejection reason carried by the command fact and Eve receipt.
+- Derived state: camera target, subject visibility, movement suppression, menu
+  copy, and effects derive from dock parentage plus the receipt. They do not
+  decide whether docking happened.
+- Forbidden writers: Unity `TryDock`/`TryUndock`, camera transitions, client
+  proximity, command-supplied failure text, and renderer-local component checks
+  cannot mutate or explain docking truth.
+- Shared paths: explicit Dock, DockNearest, contextual Interact, autonomous
+  homecoming, reconnect, and purchased docked ships use the same assignment
+  representation; explicit Undock and contextual Interact use the same
+  prerequisite transaction.
+- Cut line: the daemon may not append a synthetic docking slot, select the
+  geometrically nearest ineligible entity, move a ship 72 units, zero its
+  velocity, overwrite its direction during undock, or let invented generic
+  circle radii make the authored center-distance rule unreachable.
+- Verification layer: operation tests cover every ordered rejection, bay cargo,
+  first-eligible selection, preserved pose/velocity/direction, exact receipt
+  reason, entity pass-through during home approach, and retained ship/pickup
+  contact collection; the live witness remains responsible for camera/effect
+  timing.
+
 Ymir restart ownership is deliberately private and asymmetric:
 
 - Owner: `AetheriaYmirPersistenceCoordinator` owns reconstruction durability;

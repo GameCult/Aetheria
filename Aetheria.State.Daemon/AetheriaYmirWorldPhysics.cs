@@ -540,7 +540,12 @@ public sealed class AetheriaYmirWorldPhysics : IAetheriaRuntimeWorldPhysics, IDi
                 Restitution: 0.2f,
                 Direction: new Vec2((float)direction.X, (float)direction.Y),
                 CollisionCategoryBits: isShip ? ShipCollisionCategory : WorldEntityCollisionCategory,
-                CollisionMaskBits: isShip ? ulong.MaxValue : ulong.MaxValue & ~PickupCollisionCategory);
+                CollisionMaskBits: isShip ? ulong.MaxValue : ulong.MaxValue & ~PickupCollisionCategory,
+                // The fossil moves entities directly and has no rigidbody collision response
+                // between ships/stations. Keep their Ymir bodies for fields and queries, but
+                // do not let invented circle radii hold a ship outside the 25-unit dock rule.
+                // Pickups retain group zero, so ship/pickup Begin contacts still own collection.
+                CollisionGroupIndex: -1);
         }).Concat(pickups.Select(pickup => new PhysicsBody(
             PickupPrefix + pickup.PickupIndex,
             new Vec2((float)pickup.PositionX, (float)pickup.PositionZ),

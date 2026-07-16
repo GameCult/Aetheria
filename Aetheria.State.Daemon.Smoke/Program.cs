@@ -167,6 +167,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             DaemonSimulationTreatsYmirHitAsPresentationOnly,
             ProjectileContactCannotKill,
             MissingWorldPhysicsOwnerCannotAdvanceShips,
+            DockingUsesRealBaysAndFossilUndockRules,
             TractorRampsAndPullsThroughYmirWithoutTeleportingCargo,
             PickupIsCapacityCheckedExactlyOnceAndExpires,
             TradePurchaseDerivesAcceptanceFromDaemonState,
@@ -209,6 +210,187 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         ];
         foreach (var check in checks)
             RunCheck(check);
+    }
+
+    private static void DockingUsesRealBaysAndFossilUndockRules()
+    {
+        var catalog = new AetheriaRuntimeCatalogSnapshot(
+        [
+            CatalogItem("dock-cockpit", new AetheriaRuntimeBehaviorPayload(0, "Cockpit", 0, [])),
+            CatalogItem("dock-thruster", new AetheriaRuntimeBehaviorPayload(0, "Thruster", 0, [])),
+            CatalogItem("dock-drive", new AetheriaRuntimeBehaviorPayload(0, "AetherDrive", 0, [])),
+            CatalogItem("dock-reactor", new AetheriaRuntimeBehaviorPayload(0, "Reactor", 0, []))
+        ], [], []);
+        var context = new AetheriaRuntimeDaemonOperationContext { Catalog = catalog };
+
+        static AetheriaRuntimeEntitySnapshotCommit DockTarget(int index, double x, bool hasBay)
+        {
+            var target = Entity(index, x, "station");
+            target.PositionZ = 0;
+            if (hasBay)
+            {
+                target.DockingBays = [new AetheriaRuntimeLoadoutItemSlotCommit
+                {
+                    Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = "dock-bay" }
+                }];
+                target.DockingBayAssignments = [-1];
+                target.DockingBayContents = [Cargo()];
+            }
+            return target;
+        }
+
+        var actor = Entity(0, 0, "player");
+        var ineligible = DockTarget(1, 5, false);
+        var outOfRange = DockTarget(2, 30, true);
+        var firstEligible = DockTarget(3, 20, true);
+        var nearerButLater = DockTarget(4, 10, true);
+        var selectionRun = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "dock-selection-smoke",
+            CurrentZoneIndex = 0,
+            CurrentEntityKey = "zone.0.entity.0",
+            Zones = [new AetheriaRuntimeZoneSnapshotCommit
+            {
+                ZoneIndex = 0,
+                Entities = [actor, ineligible, outOfRange, firstEligible, nearerButLater]
+            }]
+        };
+        var dock = AetheriaRuntimeDaemonCommandDocument.Create(
+            AetheriaRuntimeDaemonCommandKinds.DockNearest,
+            "pilot",
+            "dock-selection-smoke",
+            0,
+            selectionRun.CurrentEntityKey);
+        dock.ScalarValue = 100;
+        var dockResult = AetheriaRuntimeDaemonOperations.Execute(selectionRun, [dock], context);
+        RequireEqual(1, dockResult.AppliedCommandIds.Count,
+            "DockNearest must accept the first entity with a real empty bay inside the fossil radius");
+        RequireEqual(actor.EntityIndex, firstEligible.DockingBayAssignments.Single(),
+            "docking must use the first eligible entity in stable zone order instead of the closest entity");
+        RequireEqual(-1, nearerButLater.DockingBayAssignments.Single(),
+            "a later closer station must not override the fossil first-eligible selection");
+        RequireEqual(0, ineligible.DockingBayAssignments.Count,
+            "docking must not manufacture a bay assignment on an entity with no docking-bay equipment");
+        RequireEqual(-1, outOfRange.DockingBayAssignments.Single(),
+            "a client scalar must not widen the daemon-owned fossil docking radius");
+
+        AetheriaRuntimeRunCheckpointCommit DockedRun(
+            IReadOnlyList<string> itemKeys,
+            bool bayHasCargo = false)
+        {
+            var ship = Entity(0, 7, "player");
+            ship.PositionZ = 9;
+            ship.VelocityX = 3;
+            ship.VelocityY = -4;
+            ship.DirectionX = 0.6;
+            ship.DirectionY = 0.8;
+            ship.Equipment = itemKeys.Select(itemKey => new AetheriaRuntimeLoadoutItemSlotCommit
+            {
+                Item = new AetheriaRuntimeLoadoutItemCommit
+                {
+                    ItemKey = itemKey,
+                    Durability = 1,
+                    Enabled = true
+                }
+            }).ToArray();
+            var station = DockTarget(1, 7, true);
+            station.PositionZ = 9;
+            station.ChildEntityIndices = [0];
+            station.DockingBayAssignments = [0];
+            station.DockingBayContents = [bayHasCargo
+                ? Cargo(("forgotten-cargo", 1, 0, 0))
+                : Cargo()];
+            return new AetheriaRuntimeRunCheckpointCommit
+            {
+                RunId = "undock-parity-smoke",
+                CurrentZoneIndex = 0,
+                CurrentEntityKey = "zone.0.entity.0",
+                Zones = [new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [ship, station] }]
+            };
+        }
+
+        AetheriaRuntimeDaemonOperationResult RejectUndock(
+            IReadOnlyList<string> itemKeys,
+            string expectedReason,
+            bool bayHasCargo = false)
+        {
+            var run = DockedRun(itemKeys, bayHasCargo);
+            var command = AetheriaRuntimeDaemonCommandDocument.Create(
+                AetheriaRuntimeDaemonCommandKinds.Undock,
+                "pilot",
+                "undock-parity-smoke",
+                0,
+                run.CurrentEntityKey);
+            command.CommandId = $"undock:{expectedReason}";
+            var result = AetheriaRuntimeDaemonOperations.Execute(run, [command], context);
+            RequireEqual(expectedReason, result.RejectedCommandReasons[command.CommandId],
+                "undock rejection must retain the exact daemon-owned fossil reason");
+            Require(run.Zones[0].Entities[1].DockingBayAssignments.Contains(0),
+                "a rejected undock must leave parentage and bay assignment untouched");
+            return result;
+        }
+
+        RejectUndock(["dock-thruster", "dock-reactor"],
+            AetheriaRuntimeDaemonRejectionReasons.MissingCockpit);
+        RejectUndock(["dock-cockpit", "dock-reactor"],
+            AetheriaRuntimeDaemonRejectionReasons.MissingPropulsion);
+        RejectUndock(["dock-cockpit", "dock-thruster"],
+            AetheriaRuntimeDaemonRejectionReasons.MissingReactor);
+        var cargoRejected = RejectUndock(
+            ["dock-cockpit", "dock-thruster", "dock-reactor"],
+            AetheriaRuntimeDaemonRejectionReasons.DockingBayCargoNotEmpty,
+            bayHasCargo: true);
+
+        var cargoFrame = AetheriaRuntimeDaemonFrameDocument.Create(
+            cargoRejected.Run, "daemon", "session", 4, 0.08, 0.02);
+        cargoFrame.RejectedCommandIds = cargoRejected.RejectedCommandIds;
+        cargoFrame.RejectedCommandReasons = cargoRejected.RejectedCommandReasons;
+        var cargoCommand = AetheriaRuntimeDaemonCommandDocument.Create(
+            AetheriaRuntimeDaemonCommandKinds.Undock,
+            "pilot",
+            "undock-parity-smoke",
+            0,
+            cargoRejected.Run.CurrentEntityKey);
+        cargoCommand.CommandId = "undock:docking-bay-cargo-not-empty";
+        var fact = AetheriaRuntimeCommittedCommandFactDocument.FromRejectedCommand(
+            cargoFrame, cargoCommand, "aetheria.local");
+        RequireEqual(AetheriaRuntimeDaemonRejectionReasons.DockingBayCargoNotEmpty, fact.RejectionReason,
+            "the committed command fact must carry the daemon-owned undock rejection reason");
+        var receipt = AetheriaRuntimeDaemonReceiptProjector.Project(
+            fact, AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId);
+        Require(receipt.State == "denied" &&
+                receipt.Message.Contains(AetheriaRuntimeDaemonRejectionReasons.DockingBayCargoNotEmpty,
+                    StringComparison.Ordinal),
+            "the generic Eve receipt must expose the exact rejection reason without client reconstruction");
+
+        var successRun = DockedRun(["dock-cockpit", "dock-drive", "dock-reactor"]);
+        var successShip = successRun.Zones[0].Entities[0];
+        var poseBefore = (
+            successShip.PositionX,
+            successShip.PositionZ,
+            successShip.VelocityX,
+            successShip.VelocityY,
+            successShip.DirectionX,
+            successShip.DirectionY);
+        var undock = AetheriaRuntimeDaemonCommandDocument.Create(
+            AetheriaRuntimeDaemonCommandKinds.Undock,
+            "pilot",
+            "undock-parity-smoke",
+            0,
+            successRun.CurrentEntityKey);
+        var undockResult = AetheriaRuntimeDaemonOperations.Execute(successRun, [undock], context);
+        RequireEqual(1, undockResult.AppliedCommandIds.Count,
+            "AetherDrive must satisfy the fossil propulsion alternative for rare compatible ships");
+        RequireEqual(poseBefore, (
+                successShip.PositionX,
+                successShip.PositionZ,
+                successShip.VelocityX,
+                successShip.VelocityY,
+                successShip.DirectionX,
+                successShip.DirectionY),
+            "undocking must preserve the ship pose, velocity, and direction instead of applying an invented launch");
+        Require(!successRun.Zones[0].Entities[1].DockingBayAssignments.Contains(0),
+            "successful undocking must release the exact occupied bay");
     }
 
     private static void VolumeSurfaceKeepsNativeShaderAbiInAssetVariant()
@@ -2998,6 +3180,12 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         var home = Entity(0, 60, "workers");
         home.EntityId = "station.home";
         home.Kind = "station";
+        home.DockingBays = [new AetheriaRuntimeLoadoutItemSlotCommit
+        {
+            Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = "station-docking-bay" }
+        }];
+        home.DockingBayAssignments = [-1];
+        home.DockingBayContents = [Cargo()];
         var catalog = EquipThrusterBank([worker]);
         var run = new AetheriaRuntimeRunCheckpointCommit
         {
@@ -3013,6 +3201,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         var travelCount = 0;
         var sawDock = false;
         var rejectedHomeCommands = new List<string>();
+        var minimumHomeDistance = double.PositiveInfinity;
+        var maximumHomeSpeed = 0.0;
         var physics = NewPhysics();
         for (var frame = 0; frame < 500; frame++)
         {
@@ -3032,6 +3222,18 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             travelCount += tick.OperationResult.AppliedCommandIds.Count(id => id.EndsWith(":home-travel", StringComparison.Ordinal));
             sawDock |= tick.OperationResult.AppliedCommandIds.Any(id => id.EndsWith(":home-dock", StringComparison.Ordinal));
             rejectedHomeCommands.AddRange(tick.OperationResult.RejectedCommandIds.Where(id => id.Contains(":home-", StringComparison.Ordinal)));
+            var currentHomeZone = run.Zones.Single(zone => zone.ZoneIndex == 2);
+            var currentWorker = currentHomeZone.Entities.FirstOrDefault(entity => entity.EntityId == "worker.return-home");
+            var currentHome = currentHomeZone.Entities.FirstOrDefault(entity => entity.EntityId == "station.home");
+            if (currentWorker != null && currentHome != null)
+            {
+                minimumHomeDistance = Math.Min(minimumHomeDistance, Math.Sqrt(
+                    Math.Pow(currentWorker.PositionX - currentHome.PositionX, 2) +
+                    Math.Pow(currentWorker.PositionZ - currentHome.PositionZ, 2)));
+                maximumHomeSpeed = Math.Max(maximumHomeSpeed, Math.Sqrt(
+                    currentWorker.VelocityX * currentWorker.VelocityX +
+                    currentWorker.VelocityY * currentWorker.VelocityY));
+            }
             if (sawDock)
                 break;
         }
@@ -3042,7 +3244,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         Require(sawApproach, "idle worker must approach its route and home through shared movement commands");
         RequireEqual(2, travelCount, "idle worker must traverse the shortest route to its canonical home");
         Require(sawDock,
-            $"idle worker must dock through the daemon docking command; worker={arrivedWorker.PositionX:0.###},{arrivedWorker.PositionZ:0.###} home={arrivedHome.PositionX:0.###},{arrivedHome.PositionZ:0.###} rejected={string.Join(",", rejectedHomeCommands)}");
+            $"idle worker must dock through the daemon docking command; worker={arrivedWorker.PositionX:0.###},{arrivedWorker.PositionZ:0.###} home={arrivedHome.PositionX:0.###},{arrivedHome.PositionZ:0.###} minDistance={minimumHomeDistance:0.###} maxSpeed={maximumHomeSpeed:0.###} rejected={string.Join(",", rejectedHomeCommands)}");
         Require(arrivedHome.DockingBayAssignments.Contains(arrivedWorker.EntityIndex),
             "home docking parentage must be the authoritative completion fact");
 

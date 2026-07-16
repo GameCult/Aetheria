@@ -12,18 +12,21 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeRunCheckpointCommit run,
             IReadOnlyList<string> appliedCommandIds,
             IReadOnlyList<string> rejectedCommandIds,
-            AetheriaRuntimeDaemonIntentState? intents = null)
+            AetheriaRuntimeDaemonIntentState? intents = null,
+            IReadOnlyDictionary<string, string>? rejectedCommandReasons = null)
         {
             Run = run ?? new AetheriaRuntimeRunCheckpointCommit();
             AppliedCommandIds = appliedCommandIds ?? Array.Empty<string>();
             RejectedCommandIds = rejectedCommandIds ?? Array.Empty<string>();
             Intents = intents ?? new AetheriaRuntimeDaemonIntentState();
+            RejectedCommandReasons = rejectedCommandReasons ?? new Dictionary<string, string>();
         }
 
         public AetheriaRuntimeRunCheckpointCommit Run { get; }
         public IReadOnlyList<string> AppliedCommandIds { get; }
         public IReadOnlyList<string> RejectedCommandIds { get; }
         public AetheriaRuntimeDaemonIntentState Intents { get; }
+        public IReadOnlyDictionary<string, string> RejectedCommandReasons { get; }
     }
 
     public sealed class AetheriaRuntimeDaemonOperationContext
@@ -42,6 +45,32 @@ namespace GameCult.Aetheria.State.Verse
         public double WormholeDistanceRatio { get; set; } =
             AetheriaRuntimeDaemonRenderSettings.AetheriaDefault.WormholeDistanceRatio;
         public AetheriaRuntimeCatalogSnapshot? Catalog { get; set; }
+
+        internal string RejectionReason { get; private set; } = "";
+
+        internal void ResetRejectionReason() => RejectionReason = "";
+
+        internal bool Reject(string reason)
+        {
+            RejectionReason = reason ?? "";
+            return false;
+        }
+    }
+
+    public static class AetheriaRuntimeDaemonRejectionReasons
+    {
+        public const string InvalidCommandState = "invalid-command-state";
+        public const string RunTerminal = "run-terminal";
+        public const string AuthorityDenied = "authority-denied";
+        public const string InvalidDockActor = "invalid-dock-actor";
+        public const string InvalidDockTarget = "invalid-dock-target";
+        public const string AlreadyDocked = "already-docked";
+        public const string NoEligibleDockingBay = "no-eligible-docking-bay";
+        public const string NotDocked = "not-docked";
+        public const string MissingCockpit = "missing-cockpit";
+        public const string MissingPropulsion = "missing-propulsion";
+        public const string MissingReactor = "missing-reactor";
+        public const string DockingBayCargoNotEmpty = "docking-bay-cargo-not-empty";
     }
 
     public static class AetheriaRuntimeDaemonOperations
@@ -63,6 +92,7 @@ namespace GameCult.Aetheria.State.Verse
             context.Intents = new AetheriaRuntimeDaemonIntentState();
             var applied = new List<string>();
             var rejected = new List<string>();
+            var rejectedReasons = new Dictionary<string, string>(StringComparer.Ordinal);
 
             foreach (var command in commands ?? Enumerable.Empty<AetheriaRuntimeDaemonCommandDocument>())
             {
@@ -72,16 +102,24 @@ namespace GameCult.Aetheria.State.Verse
                 if (!AetheriaRuntimeRunLifecycle.IsActive(run))
                 {
                     rejected.Add(command.CommandId);
+                    rejectedReasons[command.CommandId] = AetheriaRuntimeDaemonRejectionReasons.RunTerminal;
                     continue;
                 }
 
+                context.ResetRejectionReason();
                 if (ApplyOne(run, command, context))
                     applied.Add(command.CommandId);
                 else
+                {
                     rejected.Add(command.CommandId);
+                    rejectedReasons[command.CommandId] = string.IsNullOrWhiteSpace(context.RejectionReason)
+                        ? AetheriaRuntimeDaemonRejectionReasons.InvalidCommandState
+                        : context.RejectionReason;
+                }
             }
 
-            return new AetheriaRuntimeDaemonOperationResult(run, applied, rejected, context.Intents);
+            return new AetheriaRuntimeDaemonOperationResult(
+                run, applied, rejected, context.Intents, rejectedReasons);
         }
 
         private static bool ApplyOne(
@@ -166,16 +204,16 @@ namespace GameCult.Aetheria.State.Verse
                 case AetheriaRuntimeDaemonCommandKinds.SensorPing:
                     return ApplySensorPing(run, command, context.Intents);
                 case AetheriaRuntimeDaemonCommandKinds.Dock:
-                    return ApplyDockIntent(run, command, context.Intents);
+                    return ApplyDockIntent(run, command, context, context.DockingDistance);
                 case AetheriaRuntimeDaemonCommandKinds.DockNearest:
-                    return ApplyDockNearestIntent(run, command, context.Intents, context.DockingDistance);
+                    return ApplyDockNearestIntent(run, command, context, context.DockingDistance);
                 case AetheriaRuntimeDaemonCommandKinds.Undock:
-                    return ApplyUndockIntent(run, command, context.Intents);
+                    return ApplyUndockIntent(run, command, context);
                 case AetheriaRuntimeDaemonCommandKinds.Interact:
                     return ApplyInteractIntent(
                         run,
                         command,
-                        context.Intents,
+                        context,
                         context.DockingDistance,
                         context.WormholeExitRadius,
                         context.WormholeDistanceRatio);
@@ -1039,8 +1077,17 @@ namespace GameCult.Aetheria.State.Verse
                 (parent.DockingBayAssignments ?? Array.Empty<int>()).Contains(entityIndex);
         }
 
-        private static bool HasAvailableDockingBay(AetheriaRuntimeEntitySnapshotCommit parent) =>
-            (parent.DockingBayAssignments ?? Array.Empty<int>()).Any(index => index < 0);
+        private static bool HasAvailableDockingBay(AetheriaRuntimeEntitySnapshotCommit parent)
+        {
+            var bays = parent.DockingBays ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>();
+            var assignments = parent.DockingBayAssignments ?? Array.Empty<int>();
+            for (var index = 0; index < bays.Count; index++)
+            {
+                if (index >= assignments.Count || assignments[index] < 0)
+                    return true;
+            }
+            return false;
+        }
 
         private static bool TryFindCargoItem(
             AetheriaRuntimeCargoBayLoadoutCommit cargo,
@@ -1347,16 +1394,19 @@ namespace GameCult.Aetheria.State.Verse
         private static bool ApplyDockIntent(
             AetheriaRuntimeRunCheckpointCommit run,
             AetheriaRuntimeDaemonCommandDocument command,
-            AetheriaRuntimeDaemonIntentState intents)
+            AetheriaRuntimeDaemonOperationContext context,
+            double maximumDistance)
         {
             var actor = ResolveActorEntityKey(run, command);
-            if (string.IsNullOrWhiteSpace(actor) || string.IsNullOrWhiteSpace(command.TargetEntityKey))
+            if (string.IsNullOrWhiteSpace(actor))
+                return context.Reject(AetheriaRuntimeDaemonRejectionReasons.InvalidDockActor);
+            if (string.IsNullOrWhiteSpace(command.TargetEntityKey))
+                return context.Reject(AetheriaRuntimeDaemonRejectionReasons.InvalidDockTarget);
+
+            if (!ApplyDockState(run, actor, command.TargetEntityKey, maximumDistance, context))
                 return false;
 
-            if (!ApplyDockState(run, actor, command.TargetEntityKey))
-                return false;
-
-            intents.Docking.Add(new AetheriaRuntimeDaemonDockingIntent
+            context.Intents.Docking.Add(new AetheriaRuntimeDaemonDockingIntent
             {
                 ActorEntityKey = actor,
                 TargetEntityKey = command.TargetEntityKey ?? "",
@@ -1368,37 +1418,40 @@ namespace GameCult.Aetheria.State.Verse
         private static bool ApplyDockNearestIntent(
             AetheriaRuntimeRunCheckpointCommit run,
             AetheriaRuntimeDaemonCommandDocument command,
-            AetheriaRuntimeDaemonIntentState intents,
+            AetheriaRuntimeDaemonOperationContext context,
             double defaultDockingDistance)
         {
             var actorKey = ResolveActorEntityKey(run, command);
             if (string.IsNullOrWhiteSpace(actorKey) ||
-                !TryFindNearestDockTarget(
+                !TryResolveEntity(run, actorKey, out _, out _, out _))
+                return context.Reject(AetheriaRuntimeDaemonRejectionReasons.InvalidDockActor);
+            // DockingDistance is daemon-owned gameplay state. A client-provided scalar must
+            // not widen or narrow the fossil's interaction rule.
+            var maximumDistance = defaultDockingDistance;
+            if (!TryFindFirstDockTarget(
                     run,
                     actorKey,
-                    ResolveInteractionDistance(command.ScalarValue, defaultDockingDistance),
+                    maximumDistance,
                     out var targetKey))
-            {
-                return false;
-            }
+                return context.Reject(AetheriaRuntimeDaemonRejectionReasons.NoEligibleDockingBay);
 
             command.TargetEntityKey = targetKey;
-            return ApplyDockIntent(run, command, intents);
+            return ApplyDockIntent(run, command, context, maximumDistance);
         }
 
         private static bool ApplyUndockIntent(
             AetheriaRuntimeRunCheckpointCommit run,
             AetheriaRuntimeDaemonCommandDocument command,
-            AetheriaRuntimeDaemonIntentState intents)
+            AetheriaRuntimeDaemonOperationContext context)
         {
             var actor = ResolveActorEntityKey(run, command);
             if (string.IsNullOrWhiteSpace(actor))
+                return context.Reject(AetheriaRuntimeDaemonRejectionReasons.InvalidDockActor);
+
+            if (!ApplyUndockState(run, actor, context))
                 return false;
 
-            if (!ApplyUndockState(run, actor))
-                return false;
-
-            intents.Docking.Add(new AetheriaRuntimeDaemonDockingIntent
+            context.Intents.Docking.Add(new AetheriaRuntimeDaemonDockingIntent
             {
                 ActorEntityKey = actor,
                 Undock = true
@@ -1409,7 +1462,7 @@ namespace GameCult.Aetheria.State.Verse
         private static bool ApplyInteractIntent(
             AetheriaRuntimeRunCheckpointCommit run,
             AetheriaRuntimeDaemonCommandDocument command,
-            AetheriaRuntimeDaemonIntentState intents,
+            AetheriaRuntimeDaemonOperationContext context,
             double defaultDockingDistance,
             double defaultWormholeExitRadius,
             double wormholeDistanceRatio)
@@ -1418,11 +1471,11 @@ namespace GameCult.Aetheria.State.Verse
             if (string.IsNullOrWhiteSpace(actorKey) ||
                 !TryResolveEntity(run, actorKey, out var zoneIndex, out var actorIndex, out _))
             {
-                return false;
+                return context.Reject(AetheriaRuntimeDaemonRejectionReasons.InvalidDockActor);
             }
 
             if (IsChildReferencedInZone(run, zoneIndex, actorIndex))
-                return ApplyUndockIntent(run, command, intents);
+                return ApplyUndockIntent(run, command, context);
 
             if (TryFindNearestWormholeTarget(
                     run,
@@ -1434,11 +1487,11 @@ namespace GameCult.Aetheria.State.Verse
                     out _))
             {
                 command.TargetZoneIndex = targetZoneIndex;
-                return ApplyEnterWormholeIntent(run, command, intents,
+                return ApplyEnterWormholeIntent(run, command, context.Intents,
                     defaultWormholeExitRadius, wormholeDistanceRatio);
             }
 
-            return ApplyDockNearestIntent(run, command, intents, defaultDockingDistance);
+            return ApplyDockNearestIntent(run, command, context, defaultDockingDistance);
         }
 
         private static double ResolveInteractionDistance(double commandDistance, double defaultDistance)
@@ -1451,7 +1504,7 @@ namespace GameCult.Aetheria.State.Verse
                 : double.PositiveInfinity;
         }
 
-        private static bool TryFindNearestDockTarget(
+        private static bool TryFindFirstDockTarget(
             AetheriaRuntimeRunCheckpointCommit run,
             string actorEntityKey,
             double maxDistance,
@@ -1467,30 +1520,25 @@ namespace GameCult.Aetheria.State.Verse
                 return false;
 
             var maxDistanceSq = maxDistance > 0.0 ? maxDistance * maxDistance : double.PositiveInfinity;
-            var closestDistanceSq = double.PositiveInfinity;
-            var closestIndex = -1;
             var entities = zone.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>();
             for (var index = 0; index < entities.Count; index++)
             {
                 var candidate = entities[index];
-                if (candidate == null || index == actorIndex)
+                if (candidate == null || candidate.EntityIndex == actorIndex || !HasAvailableDockingBay(candidate))
                     continue;
 
                 var deltaX = candidate.PositionX - actor.PositionX;
-                var deltaY = candidate.PositionY - actor.PositionY;
-                var distanceSq = (deltaX * deltaX) + (deltaY * deltaY);
-                if (distanceSq >= maxDistanceSq || distanceSq >= closestDistanceSq)
+                var deltaZ = candidate.PositionZ - actor.PositionZ;
+                var distanceSq = (deltaX * deltaX) + (deltaZ * deltaZ);
+                if (distanceSq >= maxDistanceSq)
                     continue;
 
-                closestDistanceSq = distanceSq;
-                closestIndex = index;
+                targetEntityKey = AetheriaRuntimeRunCheckpointCommit.EntityRecordKey(
+                    run.RunId, zoneIndex, candidate.EntityIndex);
+                return true;
             }
 
-            if (closestIndex < 0)
-                return false;
-
-            targetEntityKey = AetheriaRuntimeRunCheckpointCommit.EntityRecordKey(run.RunId, zoneIndex, closestIndex);
-            return true;
+            return false;
         }
 
         private static bool TryFindNearestWormholeTarget(
@@ -1540,72 +1588,109 @@ namespace GameCult.Aetheria.State.Verse
         private static bool ApplyDockState(
             AetheriaRuntimeRunCheckpointCommit run,
             string actorEntityKey,
-            string targetEntityKey)
+            string targetEntityKey,
+            double maximumDistance,
+            AetheriaRuntimeDaemonOperationContext context)
         {
-            if (!TryResolveEntity(run, actorEntityKey, out var actorZoneIndex, out var actorIndex, out _) ||
+            if (!TryResolveEntity(run, actorEntityKey, out var actorZoneIndex, out var actorIndex, out var actor))
+                return context.Reject(AetheriaRuntimeDaemonRejectionReasons.InvalidDockActor);
+            if (
                 !TryResolveEntity(run, targetEntityKey, out var targetZoneIndex, out var targetIndex, out var target))
-            {
-                return false;
-            }
+                return context.Reject(AetheriaRuntimeDaemonRejectionReasons.InvalidDockTarget);
 
             if (actorZoneIndex != targetZoneIndex || actorIndex == targetIndex)
-                return false;
+                return context.Reject(AetheriaRuntimeDaemonRejectionReasons.InvalidDockTarget);
 
             if (IsChildReferencedInZone(run, actorZoneIndex, actorIndex))
-                return false;
+                return context.Reject(AetheriaRuntimeDaemonRejectionReasons.AlreadyDocked);
 
-            RemoveChildReferenceFromZone(run, actorZoneIndex, actorIndex);
+            var deltaX = target.PositionX - actor.PositionX;
+            var deltaZ = target.PositionZ - actor.PositionZ;
+            var maximumDistanceSq = maximumDistance > 0
+                ? maximumDistance * maximumDistance
+                : double.PositiveInfinity;
+            if ((deltaX * deltaX) + (deltaZ * deltaZ) >= maximumDistanceSq)
+                return context.Reject(AetheriaRuntimeDaemonRejectionReasons.InvalidDockTarget);
+
+            var bays = target.DockingBays ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>();
+            var existingAssignments = target.DockingBayAssignments ?? Array.Empty<int>();
+            var bayIndex = -1;
+            for (var index = 0; index < bays.Count; index++)
+            {
+                if (index >= existingAssignments.Count || existingAssignments[index] < 0)
+                {
+                    bayIndex = index;
+                    break;
+                }
+            }
+            if (bayIndex < 0)
+                return context.Reject(AetheriaRuntimeDaemonRejectionReasons.NoEligibleDockingBay);
 
             var childIndices = (target.ChildEntityIndices ?? Array.Empty<int>()).ToList();
             if (!childIndices.Contains(actorIndex))
                 childIndices.Add(actorIndex);
             target.ChildEntityIndices = childIndices.ToArray();
 
-            var assignments = (target.DockingBayAssignments ?? Array.Empty<int>()).ToList();
-            var assigned = false;
-            for (var index = 0; index < assignments.Count; index++)
-            {
-                if (assignments[index] >= 0)
-                    continue;
-
-                assignments[index] = actorIndex;
-                assigned = true;
-                break;
-            }
-
-            if (!assigned)
-                assignments.Add(actorIndex);
+            var assignments = Enumerable.Range(0, bays.Count)
+                .Select(index => index < existingAssignments.Count ? existingAssignments[index] : -1)
+                .ToArray();
+            assignments[bayIndex] = actorIndex;
             target.DockingBayAssignments = assignments.ToArray();
             return true;
         }
 
         private static bool ApplyUndockState(
             AetheriaRuntimeRunCheckpointCommit run,
-            string actorEntityKey)
+            string actorEntityKey,
+            AetheriaRuntimeDaemonOperationContext context)
         {
             if (!TryResolveEntity(run, actorEntityKey, out var zoneIndex, out var actorIndex, out var actor))
-                return false;
+                return context.Reject(AetheriaRuntimeDaemonRejectionReasons.InvalidDockActor);
             var zone = (run.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>())
                 .FirstOrDefault(candidate => candidate != null && candidate.ZoneIndex == zoneIndex);
             var parent = (zone?.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
                 .FirstOrDefault(entity => entity != null &&
                     ((entity.ChildEntityIndices ?? Array.Empty<int>()).Contains(actorIndex) ||
                      (entity.DockingBayAssignments ?? Array.Empty<int>()).Contains(actorIndex)));
-            if (parent == null || !RemoveChildReferenceFromZone(run, zoneIndex, actorIndex))
-                return false;
+            if (parent == null)
+                return context.Reject(AetheriaRuntimeDaemonRejectionReasons.NotDocked);
 
-            var directionLength = Math.Sqrt(
-                parent.DirectionX * parent.DirectionX + parent.DirectionY * parent.DirectionY);
-            var directionX = directionLength < 0.001 ? 0 : parent.DirectionX / directionLength;
-            var directionZ = directionLength < 0.001 ? 1 : parent.DirectionY / directionLength;
-            actor.PositionX = parent.PositionX + directionX * 72;
-            actor.PositionZ = parent.PositionZ + directionZ * 72;
-            actor.VelocityX = 0;
-            actor.VelocityY = 0;
-            actor.DirectionX = directionX;
-            actor.DirectionY = directionZ;
+            var assignments = parent.DockingBayAssignments ?? Array.Empty<int>();
+            var dockingBayIndex = -1;
+            for (var index = 0; index < assignments.Count; index++)
+            {
+                if (assignments[index] == actorIndex)
+                {
+                    dockingBayIndex = index;
+                    break;
+                }
+            }
+            if (dockingBayIndex < 0)
+                return context.Reject(AetheriaRuntimeDaemonRejectionReasons.NotDocked);
+            if (!HasInstalledBehavior(actor, context.Catalog, "Cockpit"))
+                return context.Reject(AetheriaRuntimeDaemonRejectionReasons.MissingCockpit);
+            if (!HasInstalledBehavior(actor, context.Catalog, "Thruster") &&
+                !HasInstalledBehavior(actor, context.Catalog, "AetherDrive"))
+                return context.Reject(AetheriaRuntimeDaemonRejectionReasons.MissingPropulsion);
+            if (!HasInstalledBehavior(actor, context.Catalog, "Reactor"))
+                return context.Reject(AetheriaRuntimeDaemonRejectionReasons.MissingReactor);
+
+            var dockingBayContents = parent.DockingBayContents ?? Array.Empty<AetheriaRuntimeCargoBayLoadoutCommit>();
+            if (dockingBayIndex < dockingBayContents.Count &&
+                (dockingBayContents[dockingBayIndex]?.Items ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>())
+                .Any(slot => slot?.Item != null))
+                return context.Reject(AetheriaRuntimeDaemonRejectionReasons.DockingBayCargoNotEmpty);
+
+            if (!RemoveChildReferenceFromZone(run, zoneIndex, actorIndex))
+                return context.Reject(AetheriaRuntimeDaemonRejectionReasons.NotDocked);
             return true;
         }
+
+        private static bool HasInstalledBehavior(
+            AetheriaRuntimeEntitySnapshotCommit actor,
+            AetheriaRuntimeCatalogSnapshot? catalog,
+            string behaviorKind) =>
+            AetheriaRuntimeEquippedBehaviorQueries.Find(actor, catalog, behaviorKind).Count > 0;
 
         private static bool IsChildReferencedInZone(
             AetheriaRuntimeRunCheckpointCommit run,

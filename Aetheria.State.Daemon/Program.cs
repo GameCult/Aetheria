@@ -356,7 +356,8 @@ static AetheriaPreparedPublication PreparePublication(
     var operation = new AetheriaRuntimeDaemonOperationResult(
         frame.Run ?? new AetheriaRuntimeRunCheckpointCommit(),
         tick.OperationResult.AppliedCommandIds.ToArray(),
-        tick.OperationResult.RejectedCommandIds.ToArray());
+        tick.OperationResult.RejectedCommandIds.ToArray(),
+        rejectedCommandReasons: tick.OperationResult.RejectedCommandReasons);
     var publication = AetheriaRuntimeDaemonTickRunner.BuildPublications(
         statePath,
         operation,
@@ -495,22 +496,9 @@ static async Task PublishCommittedFactAsync(
     AetheriaRuntimeCommittedCommandFactDocument fact)
 {
     await node.PutCommittedCommandFactAsync(fact).ConfigureAwait(false);
-    var applied = string.Equals(
-        fact.Outcome,
-        AetheriaRuntimeCommandFactOutcomes.Applied,
-        StringComparison.Ordinal);
-    var receipt = new EveCommandReceiptDocument(
-        fact.FactId,
-        fact.CommandId,
-        fact.CommandKind.ToString(),
-        applied ? "reconciled" : "denied",
-        "Aetheria",
-        fact.SourceDaemonId,
-        "aetheria",
-        AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId,
-        applied ? "Command applied by authoritative daemon." : "Command rejected by authoritative daemon.",
-        fact.CommittedAtUtc,
-        Math.Max(fact.SourceFrameId, 0));
+    var receipt = AetheriaRuntimeDaemonReceiptProjector.Project(
+        fact,
+        AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId);
     await node.Database.PutAsync(AetheriaRuntimeVerseRecordKeys.EveReceiptForCommand(receipt.CommandId), receipt)
         .ConfigureAwait(false);
     if (string.Equals(Environment.GetEnvironmentVariable("AETHERIA_TRACE_EVE_SNAPSHOTS"), "1", StringComparison.Ordinal))

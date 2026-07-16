@@ -16268,11 +16268,12 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
         "AetheriaRuntimeDaemonCommandKinds.Interact",
         "internal AetheriaRuntimeDaemonCommandEnvelope DockNearest(",
         "internal AetheriaRuntimeDaemonCommandEnvelope Interact(",
-        "ApplyDockNearestIntent(run, command, context.Intents, context.DockingDistance)",
+        "ApplyDockNearestIntent(run, command, context, context.DockingDistance)",
         "context.WormholeExitRadius",
         "AetheriaRuntimeDaemonOperationContext.DefaultDockingDistance",
         "AetheriaRuntimeDaemonOperationContext.DefaultWormholeExitRadius",
-        "ResolveInteractionDistance(command.ScalarValue, defaultDockingDistance)",
+        "var maximumDistance = defaultDockingDistance;",
+        "TryFindFirstDockTarget(",
         "TryFindNearestWormholeTarget("
     };
     var daemonDockNearestSources = daemonDocuments + "\n" + daemonOperationClient + "\n" + daemonOperationsSource;
@@ -16282,7 +16283,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
     if (missingDaemonDockNearestSymbols.Length > 0)
     {
         throw new InvalidOperationException(
-            "Daemon no longer owns nearest docking target selection: " +
+            "Daemon no longer owns first-eligible docking target selection: " +
             string.Join(", ", missingDaemonDockNearestSymbols));
     }
 

@@ -4832,8 +4832,17 @@ public class DaemonRuntimeDocumentTests
     public void DaemonOperationsInteractPrioritizesUndockWormholeThenDock()
     {
         var undockRun = RunWithTwoEntities();
+        EnsureRealDockingBay(undockRun.Zones[0].Entities[1]);
         undockRun.Zones[0].Entities[1].ChildEntityIndices = new[] { 0 };
-        undockRun.Zones[0].Entities[1].DockingBayAssignments = new[] { 0, -1 };
+        undockRun.Zones[0].Entities[1].DockingBayAssignments = new[] { 0 };
+        var undockedActor = undockRun.Zones[0].Entities[0];
+        undockedActor.PositionX = 12;
+        undockedActor.PositionZ = -7;
+        undockedActor.VelocityX = 3;
+        undockedActor.VelocityY = -4;
+        undockedActor.DirectionX = 0.25;
+        undockedActor.DirectionY = 0.75;
+        var undockContext = InstallUndockPrerequisites(undockedActor);
         var undock = AetheriaRuntimeDaemonCommandDocument.Create(
             AetheriaRuntimeDaemonCommandKinds.Interact,
             "codex",
@@ -4843,19 +4852,17 @@ public class DaemonRuntimeDocumentTests
         undock.ScalarValue = 10;
         undock.PositionX = 10;
 
-        var undockResult = AetheriaRuntimeDaemonOperations.Execute(undockRun, new[] { undock });
+        var undockResult = AetheriaRuntimeDaemonOperations.Execute(undockRun, new[] { undock }, undockContext);
         Assert.AreEqual(1, undockResult.AppliedCommandIds.Count);
         Assert.AreEqual(1, undockResult.Intents.Docking.Count);
         Assert.IsTrue(undockResult.Intents.Docking[0].Undock);
         CollectionAssert.DoesNotContain(undockRun.Zones[0].Entities[1].DockingBayAssignments, 0);
-        var undockedActor = undockRun.Zones[0].Entities[0];
-        var dockParent = undockRun.Zones[0].Entities[1];
-        Assert.That(
-            Math.Sqrt(Math.Pow(undockedActor.PositionX - dockParent.PositionX, 2) +
-                      Math.Pow(undockedActor.PositionZ - dockParent.PositionZ, 2)),
-            Is.EqualTo(72).Within(0.001));
-        Assert.AreEqual(0, undockedActor.VelocityX);
-        Assert.AreEqual(0, undockedActor.VelocityY);
+        Assert.AreEqual(12, undockedActor.PositionX);
+        Assert.AreEqual(-7, undockedActor.PositionZ);
+        Assert.AreEqual(3, undockedActor.VelocityX);
+        Assert.AreEqual(-4, undockedActor.VelocityY);
+        Assert.AreEqual(0.25, undockedActor.DirectionX);
+        Assert.AreEqual(0.75, undockedActor.DirectionY);
 
         var wormholeRun = RunWithTwoEntities();
         wormholeRun.Zones[0].GravityTerrainRadius = 10;
@@ -5589,6 +5596,8 @@ public class DaemonRuntimeDocumentTests
     public void DaemonOperationsRecordsNavigationIntentsForDaemonLoop()
     {
         var run = RunWithTwoEntities();
+        EnsureRealDockingBay(run.Zones[0].Entities[1]);
+        var undockContext = InstallUndockPrerequisites(run.Zones[0].Entities[0]);
         var dock = AetheriaRuntimeDaemonCommandDocument.Create(
             AetheriaRuntimeDaemonCommandKinds.Dock,
             "codex",
@@ -5614,7 +5623,7 @@ public class DaemonRuntimeDocumentTests
             "session-navigation",
             40,
             "zone.0.entity.0");
-        var undockResult = AetheriaRuntimeDaemonOperations.Execute(run, new[] { undock });
+        var undockResult = AetheriaRuntimeDaemonOperations.Execute(run, new[] { undock }, undockContext);
 
         Assert.AreEqual(1, undockResult.AppliedCommandIds.Count);
         Assert.AreEqual(1, undockResult.Intents.Docking.Count);
@@ -5624,14 +5633,15 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
-    public void DaemonOperationsSelectsNearestDockTargetFromAuthoritativeSnapshot()
+    public void DaemonOperationsSelectsFirstEligibleDockTargetFromAuthoritativeSnapshot()
     {
         var run = RunWithTwoEntities();
         var zone = run.Zones[0];
         zone.Entities[0].PositionX = 0;
         zone.Entities[0].PositionY = 0;
-        zone.Entities[1].PositionX = 3;
-        zone.Entities[1].PositionY = 4;
+        zone.Entities[1].PositionX = 8;
+        zone.Entities[1].PositionZ = 0;
+        EnsureRealDockingBay(zone.Entities[1]);
         zone.Entities = zone.Entities
             .Concat(new[]
             {
@@ -5639,11 +5649,12 @@ public class DaemonRuntimeDocumentTests
                 {
                     EntityIndex = 2,
                     Name = "Far Dock",
-                    PositionX = 8,
-                    PositionY = 0
+                    PositionX = 3,
+                    PositionZ = 4
                 }
             })
             .ToArray();
+        EnsureRealDockingBay(zone.Entities[2]);
 
         var dock = AetheriaRuntimeDaemonCommandDocument.Create(
             AetheriaRuntimeDaemonCommandKinds.DockNearest,
@@ -5686,6 +5697,7 @@ public class DaemonRuntimeDocumentTests
     public void DaemonOperationsRejectsDockWhenEntityIsAlreadyDocked()
     {
         var run = RunWithTwoEntities();
+        EnsureRealDockingBay(run.Zones[0].Entities[1]);
         var dock = AetheriaRuntimeDaemonCommandDocument.Create(
             AetheriaRuntimeDaemonCommandKinds.Dock,
             "codex",
@@ -5758,6 +5770,62 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual(CultMeshLocalityKind.Ipc, restored.Invocation.RouteHint.Kind);
         Assert.AreEqual("Raven", restored.Payload.GetString("value"));
         Assert.AreEqual("Raven", restored.PlayerSettings.PlayerName);
+    }
+
+    private static void EnsureRealDockingBay(AetheriaRuntimeEntitySnapshotCommit target)
+    {
+        target.DockingBays = new[]
+        {
+            new AetheriaRuntimeLoadoutItemSlotCommit
+            {
+                Item = new AetheriaRuntimeLoadoutItemCommit
+                {
+                    ItemKey = "test-docking-bay",
+                    Enabled = true
+                }
+            }
+        };
+        target.DockingBayAssignments = new[] { -1 };
+        target.DockingBayContents = new[] { new AetheriaRuntimeCargoBayLoadoutCommit() };
+    }
+
+    private static AetheriaRuntimeDaemonOperationContext InstallUndockPrerequisites(
+        AetheriaRuntimeEntitySnapshotCommit actor)
+    {
+        actor.Equipment = (actor.Equipment ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>())
+            .Concat(new[]
+            {
+                EquippedItem("test-dock-cockpit"),
+                EquippedItem("test-dock-thruster"),
+                EquippedItem("test-dock-reactor")
+            })
+            .ToArray();
+        return new AetheriaRuntimeDaemonOperationContext
+        {
+            Catalog = new AetheriaRuntimeCatalogSnapshot(
+                new[]
+                {
+                    CatalogItem("test-dock-cockpit", new[] { BehaviorPayload("Cockpit") }),
+                    CatalogItem("test-dock-thruster", new[] { BehaviorPayload("Thruster") }),
+                    CatalogItem("test-dock-reactor", new[] { BehaviorPayload("Reactor") })
+                },
+                Array.Empty<AetheriaRuntimeCorporation>(),
+                Array.Empty<AetheriaRuntimeNameFile>())
+        };
+    }
+
+    private static AetheriaRuntimeLoadoutItemSlotCommit EquippedItem(string itemKey)
+    {
+        return new AetheriaRuntimeLoadoutItemSlotCommit
+        {
+            Item = new AetheriaRuntimeLoadoutItemCommit
+            {
+                ItemKey = itemKey,
+                Enabled = true,
+                Durability = 1,
+                Quantity = 1
+            }
+        };
     }
 
     private static AetheriaRuntimeRunCheckpointCommit RunWithTwoEntities()
