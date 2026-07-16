@@ -1478,22 +1478,22 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         var homes = new Dictionary<string, int> { ["forge"] = 0, ["foreign"] = 1 };
         var adjacency = new Dictionary<int, IReadOnlyList<int>> { [0] = [1], [1] = [0] };
 
-        var first = new AetheriaDaemonLoadoutGenerator(catalog, 42, 0, homes, adjacency).Build("ship", "forge", []);
-        var second = new AetheriaDaemonLoadoutGenerator(catalog, 42, 0, homes, adjacency).Build("ship", "forge", []);
-        var station = new AetheriaDaemonLoadoutGenerator(catalog, 84, 0, homes, adjacency).Build("station", "forge", []);
+        var first = new AetheriaDaemonLoadoutGenerator(catalog, 42, 0, homes, adjacency).Build("ship", "forge");
+        var second = new AetheriaDaemonLoadoutGenerator(catalog, 42, 0, homes, adjacency).Build("ship", "forge");
+        var station = new AetheriaDaemonLoadoutGenerator(catalog, 84, 0, homes, adjacency).Build("station", "forge");
         var fallbackStation = new AetheriaDaemonLoadoutGenerator(fallbackCatalog, 84, 0, homes, adjacency)
-            .Build("station", "forge", []);
+            .Build("station", "forge");
         var uninterruptedForge = new AetheriaDaemonLoadoutGenerator(catalog, 101, 0, homes, adjacency);
         var interleavedForge = new AetheriaDaemonLoadoutGenerator(catalog, 101, 0, homes, adjacency);
         var foreignStream = new AetheriaDaemonLoadoutGenerator(catalog, 202, 1, homes, adjacency);
         var uninterruptedSequence = new[]
         {
-            uninterruptedForge.Build("ship", "forge", []),
-            uninterruptedForge.Build("ship", "forge", [])
+            uninterruptedForge.Build("ship", "forge"),
+            uninterruptedForge.Build("ship", "forge")
         };
-        var interleavedFirst = interleavedForge.Build("ship", "forge", []);
-        foreignStream.Build("ship", "foreign", []);
-        var interleavedSecond = interleavedForge.Build("ship", "forge", []);
+        var interleavedFirst = interleavedForge.Build("ship", "forge");
+        foreignStream.Build("ship", "foreign");
+        var interleavedSecond = interleavedForge.Build("ship", "forge");
 
         RequireEqual("available-hull", first.HullItemKey,
             "loadout generation must exclude manufacturers outside the faction allegiance graph");
@@ -1509,6 +1509,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         Require(first.HullItemKey == second.HullItemKey &&
                 first.Equipment.Select(value => value.ItemKey).SequenceEqual(second.Equipment.Select(value => value.ItemKey)),
             "same seed, map, faction and catalog must produce the same loadout");
+        Require(first.Cargo.Length == 0 && first.Receipt.Selections.All(value => value.Role != "cargo"),
+            "ordinary generated ships must not acquire cargo from non-canonical scenario aliases");
         Require(first.Receipt.Seed == 42 && first.Receipt.SourceZoneIndex == 0 &&
                 first.Receipt.AvailabilityFactionKey == "forge" &&
                 first.Receipt.Selections.Any(value => value.Role == "hull" && value.ItemKey == "available-hull" &&
@@ -1524,8 +1526,12 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         Require(fallbackStation.Equipment.Any(value => value.ItemKey == "ship-sensor"),
             "a smaller sensor must remain a valid fallback when it fits inside a larger same-type hardpoint");
         Require(station.Cargo.Length > 0 && station.Cargo.Length <= cargo.InteriorOccupiedCells &&
-                station.Cargo.All(value => value.Item.ItemKey != "cheap-foreign-hull"),
-            "station inventory draws must respect cargo capacity and exclude unavailable manufacturers");
+                station.Cargo.All(value => value.Item.ItemKey != "cheap-foreign-hull" &&
+                    catalog.FindItem(value.Item.ItemKey) != null) &&
+                station.Receipt.Selections.Where(value => value.Role == "cargo")
+                    .Select(value => value.ItemKey)
+                    .SequenceEqual(station.Cargo.Select(value => value.Item.ItemKey)),
+            "station inventory draws must use canonical catalog keys, respect cargo capacity, exclude unavailable manufacturers, and preserve exact provenance");
         Require(LoadoutKeys(uninterruptedSequence[0]).SequenceEqual(LoadoutKeys(interleavedFirst)) &&
                 LoadoutKeys(uninterruptedSequence[1]).SequenceEqual(LoadoutKeys(interleavedSecond)),
             "generation in another faction stream must not perturb this faction's continuing loadout sequence");

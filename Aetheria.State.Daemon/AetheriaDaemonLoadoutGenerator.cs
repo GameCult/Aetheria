@@ -31,8 +31,7 @@ public sealed class AetheriaDaemonLoadoutGenerator
 
     public AetheriaDaemonLoadout Build(
         string entityKind,
-        string availabilityFactionKey,
-        IReadOnlyList<string> scenarioCargo)
+        string availabilityFactionKey)
     {
         var hullType = string.Equals(entityKind, "station", StringComparison.OrdinalIgnoreCase) ? "Station" : "Ship";
         var hull = Pick(availabilityFactionKey, 0, item =>
@@ -80,7 +79,7 @@ public sealed class AetheriaDaemonLoadoutGenerator
         AddFreeSpaceItem(hull, availabilityFactionKey, occupied, slots, 2, item =>
             IsGear(item) && HasBehavior(item, "Capacitor"));
 
-        var cargo = PackCargo(cargoBay, availabilityFactionKey, scenarioCargo,
+        var cargo = PackCargo(cargoBay, availabilityFactionKey,
             string.Equals(entityKind, "station", StringComparison.OrdinalIgnoreCase));
         var selectedKeys = new[] { (Role: "hull", Key: hull.ItemKey) }
             .Concat(slots.Select(value => (Role: "equipment", Key: value.ItemKey)))
@@ -172,15 +171,9 @@ public sealed class AetheriaDaemonLoadoutGenerator
     private AetheriaLoadoutItemSlot[] PackCargo(
         AetheriaRuntimeCatalogItem cargoBay,
         string factionKey,
-        IReadOnlyList<string> scenarioCargo,
         bool includeStationInventory)
     {
         var candidates = new List<AetheriaRuntimeCatalogItem>();
-        foreach (var key in scenarioCargo ?? Array.Empty<string>())
-        {
-            var item = _catalog.FindItem(key);
-            if (item != null) candidates.Add(item);
-        }
         if (includeStationInventory)
         {
             var pool = Available(factionKey)

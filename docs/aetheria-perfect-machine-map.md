@@ -2448,6 +2448,19 @@ remains CultMesh work. The fog contract and provider shader execute, but the
 current brown-black output is not visual parity with the fossil's blue gravity
 sea.
 
+Generated loadouts accept no scenario-authored cargo strings. Catalog selection
+is the only loadout item-key owner: ordinary ships begin without generated
+cargo, stations draw typed faction-available inventory, and both cargo slots and
+selection receipts carry the same canonical catalog keys. Scenario flavor may
+later select a typed loot table or authored item key, but it cannot silently
+invent identity. `scripts/verify-aetheria-daemon.ps1` restores and runs the
+daemon smoke with one explicit CultLib/EveUnity/Ymir root set so a stale NuGet
+project graph cannot substitute another worktree during `--no-restore`.
+The unused Starbridge bootstrap that wrote invented stock, attacker, boss, and
+technology keys has been deleted. A future Starbridge mode must enter through
+the active daemon game-mode owner and typed catalogs; a dormant document seeder
+is not a game mode.
+
 Ymir restart ownership is deliberately private and asymmetric:
 
 - Owner: `AetheriaYmirPersistenceCoordinator` owns reconstruction durability;
