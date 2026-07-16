@@ -319,11 +319,16 @@ namespace GameCult.Aetheria.State.Verse
                     settings, catalog, frameId);
                 StepConstantWeapons(run, zone, byIndex, attacker, weaponGroup, deltaSeconds,
                     settings, catalog, frameId);
-                var weapons = ResolveWeapons(attacker, weaponGroup, catalog, settings);
+                var weapons = ResolveWeapons(attacker, catalog, settings);
+                var requestedEquipment = weaponGroup >= 0 && weaponGroup <
+                    (attacker.WeaponGroups ?? Array.Empty<IReadOnlyList<int>>()).Count
+                    ? attacker.WeaponGroups[weaponGroup] ?? Array.Empty<int>()
+                    : Array.Empty<int>();
                 foreach (var weapon in weapons)
                 {
                     weapon.State.Firing = false;
-                    if (weaponGroup >= 0)
+                    if (weaponGroup >= 0 &&
+                        (catalog == null || requestedEquipment.Contains(weapon.State.OwnerIndex)))
                         weapon.State.TriggerPending = true;
                     if (weapon.State.Reloading)
                     {
@@ -347,8 +352,7 @@ namespace GameCult.Aetheria.State.Verse
                 {
                     foreach (var weapon in weapons)
                     {
-                        weapon.State.LockTargetEntityIndex = -1;
-                        weapon.State.LockProgress = 0;
+                        ResetWeaponLock(run, zone, attacker, weapon, frameId, "target-invalid");
                         weapon.State.TriggerPending = false;
                     }
                     continue;
@@ -356,7 +360,9 @@ namespace GameCult.Aetheria.State.Verse
 
                 foreach (var weapon in weapons)
                 {
-                    UpdateWeaponLock(attacker, target, weapon, deltaSeconds, settings);
+                    UpdateWeaponLock(run, zone, attacker, target, weapon, deltaSeconds, frameId);
+                    if (!weapon.State.TriggerPending && weapon.State.BurstRemaining <= 0)
+                        continue;
                     if (DistanceSq(attacker, target) > weapon.Range * weapon.Range)
                     {
                         weapon.State.LastRefusalReason = "out-of-range";
@@ -991,19 +997,22 @@ namespace GameCult.Aetheria.State.Verse
         }
 
         private static void UpdateWeaponLock(
+            AetheriaRuntimeRunCheckpointCommit run,
+            AetheriaRuntimeZoneSnapshotCommit zone,
             AetheriaRuntimeEntitySnapshotCommit attacker,
             AetheriaRuntimeEntitySnapshotCommit target,
             ResolvedWeapon weapon,
             double deltaSeconds,
-            AetheriaRuntimeDaemonSimulationSettings settings)
+            long frameId)
         {
             var weaponState = weapon.State;
             if (weaponState.LockTargetEntityIndex != target.EntityIndex)
             {
+                ResetWeaponLock(run, zone, attacker, weapon, frameId, "target-changed");
                 weaponState.LockTargetEntityIndex = target.EntityIndex;
-                weaponState.LockProgress = 0;
             }
 
+            var previousProgress = weaponState.LockProgress;
             var targetDirection = Normalize(target.PositionX - attacker.PositionX, target.PositionZ - attacker.PositionZ);
             var lookDirection = Normalize(attacker.DirectionX, attacker.DirectionY);
             var dot = Math.Max(-1.0, Math.Min(1.0,
@@ -1013,6 +1022,8 @@ namespace GameCult.Aetheria.State.Verse
             {
                 weaponState.LockProgress = Clamp01(
                     weaponState.LockProgress - deltaSeconds * weapon.LockDecayPerSecond);
+                PublishWeaponLockTransitions(run, zone, attacker, target.EntityIndex, weapon,
+                    previousProgress, weaponState.LockProgress, frameId, "angle");
                 return;
             }
 
@@ -1026,6 +1037,77 @@ namespace GameCult.Aetheria.State.Verse
                 weapon.LockSpeed *
                 Math.Pow(information, weapon.LockSensorImpact);
             weaponState.LockProgress = Clamp01(weaponState.LockProgress + acquisition);
+            PublishWeaponLockTransitions(run, zone, attacker, target.EntityIndex, weapon,
+                previousProgress, weaponState.LockProgress, frameId, "acquiring");
+        }
+
+        private static void ResetWeaponLock(
+            AetheriaRuntimeRunCheckpointCommit run,
+            AetheriaRuntimeZoneSnapshotCommit zone,
+            AetheriaRuntimeEntitySnapshotCommit attacker,
+            ResolvedWeapon weapon,
+            long frameId,
+            string reason)
+        {
+            var state = weapon.State;
+            var previousProgress = state.LockProgress;
+            var previousTarget = state.LockTargetEntityIndex;
+            state.LockTargetEntityIndex = -1;
+            state.LockProgress = 0;
+            if (previousProgress > 0.99 && previousTarget >= 0)
+                AppendWeaponLockEvent(run, zone, attacker, previousTarget, weapon, frameId,
+                    "weapon.lock.lost", reason, previousProgress, 0);
+        }
+
+        private static void PublishWeaponLockTransitions(
+            AetheriaRuntimeRunCheckpointCommit run,
+            AetheriaRuntimeZoneSnapshotCommit zone,
+            AetheriaRuntimeEntitySnapshotCommit attacker,
+            int targetEntityIndex,
+            ResolvedWeapon weapon,
+            double previousProgress,
+            double currentProgress,
+            long frameId,
+            string reason)
+        {
+            if (previousProgress <= 0 && currentProgress > 0)
+                AppendWeaponLockEvent(run, zone, attacker, targetEntityIndex, weapon, frameId,
+                    "weapon.lock.started", reason, previousProgress, currentProgress);
+            if (previousProgress <= 0.99 && currentProgress > 0.99)
+                AppendWeaponLockEvent(run, zone, attacker, targetEntityIndex, weapon, frameId,
+                    "weapon.lock.acquired", reason, previousProgress, currentProgress);
+            else if (previousProgress > 0.99 && currentProgress <= 0.99)
+                AppendWeaponLockEvent(run, zone, attacker, targetEntityIndex, weapon, frameId,
+                    "weapon.lock.lost", reason, previousProgress, currentProgress);
+        }
+
+        private static void AppendWeaponLockEvent(
+            AetheriaRuntimeRunCheckpointCommit run,
+            AetheriaRuntimeZoneSnapshotCommit zone,
+            AetheriaRuntimeEntitySnapshotCommit attacker,
+            int targetEntityIndex,
+            ResolvedWeapon weapon,
+            long frameId,
+            string kind,
+            string reason,
+            double previousProgress,
+            double currentProgress)
+        {
+            var state = weapon.State;
+            AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit
+            {
+                EventId = $"frame:{frameId}:zone:{zone.ZoneIndex}:entity:{attacker.EntityIndex}:weapon:{state.OwnerIndex}:{state.BehaviorIndex}:target:{targetEntityIndex}:{kind}",
+                Kind = kind,
+                FrameId = frameId,
+                ZoneIndex = zone.ZoneIndex,
+                SourceEntityIndex = attacker.EntityIndex,
+                TargetEntityIndex = targetEntityIndex,
+                ItemKey = weapon.ItemKey,
+                SubjectKey = $"{state.OwnerKind}:{state.OwnerIndex}:{state.BehaviorIndex}",
+                Reason = reason,
+                ScalarValue = currentProgress,
+                AuxiliaryValue = previousProgress
+            });
         }
 
         private static void PreparePhysicalPayloads(
@@ -1500,20 +1582,13 @@ namespace GameCult.Aetheria.State.Verse
 
         private static IReadOnlyList<ResolvedWeapon> ResolveWeapons(
             AetheriaRuntimeEntitySnapshotCommit entity,
-            int weaponGroup,
             AetheriaRuntimeCatalogSnapshot? catalog,
             AetheriaRuntimeDaemonSimulationSettings settings)
         {
-            var equipmentIndices = weaponGroup >= 0 && weaponGroup < (entity.WeaponGroups ?? Array.Empty<IReadOnlyList<int>>()).Count
-                ? entity.WeaponGroups[weaponGroup] ?? Array.Empty<int>()
-                : Array.Empty<int>();
             var authored = AetheriaRuntimeEquippedBehaviorQueries.Find(entity, catalog, AetheriaRuntimeBehaviorKinds.InstantWeapon)
                 .Where(behavior => !string.Equals(behavior.Payload.Kind, AetheriaRuntimeBehaviorKinds.ChargedWeapon, StringComparison.Ordinal))
                 .Where(behavior => !string.Equals(behavior.Payload.Kind, AetheriaRuntimeBehaviorKinds.DeployableWeapon, StringComparison.Ordinal))
                 .Select(behavior => ResolveAuthoredWeapon(entity, behavior, settings))
-                .Where(weapon => weaponGroup >= 0
-                    ? equipmentIndices.Contains(weapon.State.OwnerIndex)
-                    : weapon.State.TriggerPending || weapon.State.BurstRemaining > 0)
                 .ToArray();
             if (catalog != null)
                 return authored;

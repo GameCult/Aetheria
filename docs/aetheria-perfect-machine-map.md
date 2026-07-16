@@ -264,7 +264,14 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   Weapon behaviors now also publish typed runtime rows for firing state, ammo,
   burst timing, cooldown progress, charged-weapon charging/charge state,
   constant-weapon reload/ammo-interval state, and lock-weapon lock progress
-  plus target entity reference.
+  plus target entity reference. Authored instant lock behavior evaluates every
+  fixed daemon step whether or not that weapon currently owns a trigger or
+  burst; trigger selection owns permission to fire, not permission for lock
+  state to remain alive. Target changes, invalid targets, acquisition, and
+  angular decay commit through the same lock-state path and append stable
+  `weapon.lock.started`, `weapon.lock.acquired`, and `weapon.lock.lost` events
+  with prior/current progress. Eve projects those events generically while the
+  continuous combat presentation remains the reticle's state owner.
   Sensor, radiator, reactor, and capacitor behaviors publish typed state rows
   for ping state, radiator temperature/throughput, reactor draw/load, and
   capacitor charge/capacity/efficiency. Aether drives publish typed axis,

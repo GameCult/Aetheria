@@ -726,10 +726,16 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             new AetheriaRuntimeBehaviorField(16, PerformanceStat(200)),
             new AetheriaRuntimeBehaviorField(17, PerformanceStat(1)),
             new AetheriaRuntimeBehaviorField(19, PerformanceStat(0.5)),
-            new AetheriaRuntimeBehaviorField(23, PerformanceStat(360)),
-            new AetheriaRuntimeBehaviorField(24, PerformanceStat(0))
+            new AetheriaRuntimeBehaviorField(23, PerformanceStat(45)),
+            new AetheriaRuntimeBehaviorField(24, PerformanceStat(0)),
+            new AetheriaRuntimeBehaviorField(25, PerformanceStat(1))
         ]);
         var catalog = new AetheriaRuntimeCatalogSnapshot([CatalogItem("test-instant", payload)], [], []);
+        RequireNear(45,
+            AetheriaRuntimeEquippedBehaviorQueries.Find(source, catalog, AetheriaRuntimeBehaviorKinds.InstantWeapon)
+                .Single().EvaluateStat(23),
+            0.000001,
+            "lock-transition fixture must retain its authored 45-degree acquisition cone");
         var fire = new AetheriaRuntimeDaemonIntentState();
         fire.WeaponGroups.Add(new AetheriaRuntimeDaemonWeaponGroupIntent
         {
@@ -747,6 +753,11 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         Require(run.ShotReceipts.Count == 1 && run.ShotReceipts[0].SourceEntityIndex == source.EntityIndex,
             $"one instant weapon request must remain pending until daemon lock acquisition commits its shot; " +
             $"receipts={run.ShotReceipts.Count}, direction={source.DirectionX},{source.DirectionY}, contacts={string.Join(";", (source.Contacts ?? []).Select(value => $"{value.TargetEntityIndex}:{value.InfoGathered}"))}, states={string.Join(";", (source.WeaponStates ?? []).Select(value => $"{value.BehaviorKind}:pending={value.TriggerPending}:lock={value.LockProgress}:target={value.LockTargetEntityIndex}:burst={value.BurstRemaining}"))}");
+        Require(run.GameEvents.Count(value => value.Kind == "weapon.lock.started" &&
+                    value.SourceEntityIndex == 0 && value.TargetEntityIndex == 1) == 1 &&
+                run.GameEvents.Count(value => value.Kind == "weapon.lock.acquired" &&
+                    value.SourceEntityIndex == 0 && value.TargetEntityIndex == 1) == 1,
+            "daemon lock acquisition must publish one start and one completed transition instead of client-timed feedback");
         var state = source.WeaponStates.Single(value => value.BehaviorKind == AetheriaRuntimeBehaviorKinds.InstantWeapon);
         Require(!state.TriggerPending,
             "instant weapon request must clear after the committed burst begins");
@@ -799,6 +810,84 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 combat.Props["radialFillMinimum"] == "0.25" &&
                 combat.Props["radialFillMaximum"] == "0.75",
             "Eve combat presentation must preserve the fossil's presentation timing and radial meter semantics");
+
+        var secondTarget = Entity(2, 100, "raider");
+        zone.Entities = [source, target, secondTarget];
+        source.TargetEntityIndex = secondTarget.EntityIndex;
+        source.Contacts =
+        [
+            new AetheriaRuntimeEntityContactCommit
+                { TargetEntityIndex = 1, InfoGathered = 1, Hostile = true, Visible = true },
+            new AetheriaRuntimeEntityContactCommit
+                { TargetEntityIndex = 2, InfoGathered = 1, Hostile = true, Visible = true }
+        ];
+        AetheriaRuntimeDaemonSimulation.Step(run, new AetheriaRuntimeDaemonIntentState(), 0.1,
+            AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
+            NewPhysics(), catalog, 13, 1.3);
+        Require(state.LockTargetEntityIndex == 2 && state.LockProgress > 0 && state.LockProgress < 0.99 &&
+                run.GameEvents.Count(value => value.Kind == "weapon.lock.lost" &&
+                    value.TargetEntityIndex == 1 && value.Reason == "target-changed") == 1 &&
+                run.GameEvents.Count(value => value.Kind == "weapon.lock.started" &&
+                    value.TargetEntityIndex == 2) == 1 &&
+                run.GameEvents.Count(value => value.Kind == "weapon.lock.acquired" &&
+                    value.TargetEntityIndex == 2) == 0,
+            $"idle authored lock behavior must tick every daemon step and transfer chronology exactly once on target change; " +
+            $"target={state.LockTargetEntityIndex} progress={state.LockProgress:0.###} events={string.Join('|', run.GameEvents.Where(value => value.Kind.StartsWith("weapon.lock.", StringComparison.Ordinal)).Select(value => $"{value.Kind}:{value.TargetEntityIndex}:{value.Reason}:{value.AuxiliaryValue:0.###}->{value.ScalarValue:0.###}"))}");
+
+        for (var frame = 14; frame <= 17; frame++)
+            AetheriaRuntimeDaemonSimulation.Step(run, new AetheriaRuntimeDaemonIntentState(), 0.1,
+                AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
+                NewPhysics(), catalog, frame, frame * 0.1);
+        Require(state.LockProgress > 0.99 &&
+                run.GameEvents.Count(value => value.Kind == "weapon.lock.started" &&
+                    value.TargetEntityIndex == 2) == 1 &&
+                run.GameEvents.Count(value => value.Kind == "weapon.lock.acquired" &&
+                    value.TargetEntityIndex == 2) == 1,
+            "idle authored lock behavior must continue progressive acquisition without duplicating transition events");
+
+        source.DirectionX = -1;
+        AetheriaRuntimeDaemonSimulation.Step(run, new AetheriaRuntimeDaemonIntentState(), 0.1,
+            AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
+            NewPhysics(), catalog, 18, 1.8);
+        AetheriaRuntimeDaemonSimulation.Step(run, new AetheriaRuntimeDaemonIntentState(), 0.1,
+            AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
+            NewPhysics(), catalog, 19, 1.9);
+        Require(state.LockProgress < 0.99 &&
+                run.GameEvents.Count(value => value.Kind == "weapon.lock.lost" &&
+                    value.TargetEntityIndex == 2 && value.Reason == "angle") == 1,
+            $"crossing the authored lock angle must publish one loss transition while continued decay remains silent; " +
+            $"direction={source.DirectionX},{source.DirectionY} source={source.PositionX:0.###},{source.PositionZ:0.###} target={secondTarget.PositionX:0.###},{secondTarget.PositionZ:0.###} progress={state.LockProgress:0.###} events={string.Join('|', run.GameEvents.Where(value => value.Kind.StartsWith("weapon.lock.", StringComparison.Ordinal)).Select(value => $"{value.Kind}:{value.TargetEntityIndex}:{value.Reason}:{value.AuxiliaryValue:0.###}->{value.ScalarValue:0.###}"))}");
+
+        source.DirectionX = 1;
+        for (var frame = 20; frame <= 21; frame++)
+            AetheriaRuntimeDaemonSimulation.Step(run, new AetheriaRuntimeDaemonIntentState(), 0.1,
+                AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
+                NewPhysics(), catalog, frame, frame * 0.1);
+        Require(state.LockProgress > 0.99 &&
+                run.GameEvents.Count(value => value.Kind == "weapon.lock.acquired" &&
+                    value.TargetEntityIndex == 2) == 2,
+            "restored facing must reacquire through a second completed transition without replaying lock start");
+
+        zone.Entities = [source, target];
+        AetheriaRuntimeDaemonSimulation.Step(run, new AetheriaRuntimeDaemonIntentState(), 0.1,
+            AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
+            NewPhysics(), catalog, 22, 2.2);
+        Require(state.LockTargetEntityIndex == -1 && state.LockProgress == 0 &&
+                run.ShotReceipts.Count == 1 &&
+                run.GameEvents.Count(value => value.Kind == "weapon.lock.lost" &&
+                    value.TargetEntityIndex == 2 && value.Reason == "target-invalid") == 1,
+            $"an invalid target must clear an idle weapon's authoritative lock and publish one loss transition; " +
+            $"target={state.LockTargetEntityIndex} progress={state.LockProgress:0.###} shots={run.ShotReceipts.Count} events={string.Join('|', run.GameEvents.Where(value => value.Kind.StartsWith("weapon.lock.", StringComparison.Ordinal)).Select(value => $"{value.Kind}:{value.TargetEntityIndex}:{value.Reason}:{value.AuxiliaryValue:0.###}->{value.ScalarValue:0.###}"))}");
+        var resetSurface = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(
+            new AetheriaRuntimeDaemonFrameDocument { FrameId = 22, Run = run },
+            new AetheriaRuntimeDaemonHealthDocument(),
+            AetheriaRuntimeDaemonCommandBoundaryDocument.Create("daemon"));
+        Require(Flatten(resetSurface.Surface.Root).Any(node => node.Kind == "feedback.event" &&
+                node.Props["eventKind"] == "weapon.lock.lost" &&
+                node.Props["targetEntityIndex"] == "2" &&
+                node.Props["reason"] == "target-invalid" &&
+                double.Parse(node.Props["auxiliaryValue"], CultureInfo.InvariantCulture) > 0.99),
+            "Eve feedback must project the daemon lock-loss transition and its prior completed progress");
     }
 
     private static void DeployableWeaponRunsThroughYmirAndDetonatesOnDaemon()
