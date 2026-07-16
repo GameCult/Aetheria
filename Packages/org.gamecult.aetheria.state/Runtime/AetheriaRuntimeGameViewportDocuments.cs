@@ -1031,7 +1031,8 @@ namespace GameCult.Aetheria.State.Verse
                     slot.Item.Quantity,
                     slot.Item.Enabled,
                     slot.Item.OverrideShutdown,
-                    slot.Item.Temperature))
+                    slot.Item.Temperature,
+                    slot.Rotation ?? "None"))
                 .ToArray();
         }
 
@@ -1059,7 +1060,8 @@ namespace GameCult.Aetheria.State.Verse
                         slot.Item.Quantity,
                         slot.Item.Enabled,
                         slot.Item.OverrideShutdown,
-                        slot.Item.Temperature)))
+                        slot.Item.Temperature),
+                    slot.Rotation ?? "None"))
                 .ToArray();
         }
 

@@ -845,16 +845,22 @@ namespace GameCult.Aetheria.State.Verse
     [MessagePackObject(true)]
     public sealed class AetheriaRuntimeLoadoutItemSlotSnapshot
     {
-        public AetheriaRuntimeLoadoutItemSlotSnapshot(int x, int y, AetheriaRuntimeLoadoutItemSnapshot item)
+        public AetheriaRuntimeLoadoutItemSlotSnapshot(
+            int x,
+            int y,
+            AetheriaRuntimeLoadoutItemSnapshot item,
+            string rotation = "None")
         {
             X = x;
             Y = y;
             Item = item;
+            Rotation = rotation ?? "None";
         }
 
         public int X { get; set; }
         public int Y { get; set; }
         public AetheriaRuntimeLoadoutItemSnapshot Item { get; set; }
+        public string Rotation { get; set; }
     }
 
     [MessagePackObject(true)]
@@ -1017,7 +1023,8 @@ namespace GameCult.Aetheria.State.Verse
             int quantity,
             bool enabled,
             bool overrideShutdown,
-            double temperature = 0)
+            double temperature = 0,
+            string rotation = "None")
         {
             X = x;
             Y = y;
@@ -1028,6 +1035,7 @@ namespace GameCult.Aetheria.State.Verse
             Enabled = enabled;
             OverrideShutdown = overrideShutdown;
             Temperature = temperature;
+            Rotation = rotation ?? "None";
         }
 
         public int X { get; set; }
@@ -1039,6 +1047,7 @@ namespace GameCult.Aetheria.State.Verse
         public bool Enabled { get; set; }
         public bool OverrideShutdown { get; set; }
         public double Temperature { get; set; }
+        public string Rotation { get; set; }
     }
 
     [MessagePackObject(true)]

@@ -1983,6 +1983,7 @@ namespace GameCult.Aetheria.State.Verse
             {
                 X = slot?.X ?? 0,
                 Y = slot?.Y ?? 0,
+                Rotation = slot?.Rotation ?? "None",
                 Item = new AetheriaRuntimeLoadoutItemCommit
                 {
                     ItemKey = item?.ItemKey ?? "",

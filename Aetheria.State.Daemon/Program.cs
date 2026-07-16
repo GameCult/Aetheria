@@ -2916,6 +2916,7 @@ static AetheriaRuntimeLoadoutItemSlotCommit[] ToEntitySlotCommits(
         {
             X = slot.Position?.X ?? 0,
             Y = slot.Position?.Y ?? 0,
+            Rotation = slot.Rotation ?? "None",
             Item = new AetheriaRuntimeLoadoutItemCommit
             {
                 ItemKey = slot.ItemKey ?? "",
@@ -2996,6 +2997,7 @@ static AetheriaRuntimeLoadoutItemSlotCommit[] ToSlotCommits(
         {
             X = slot.Position?.X ?? 0,
             Y = slot.Position?.Y ?? 0,
+            Rotation = slot.Rotation ?? "None",
             Item = ToLoadoutItemCommit(slot.Item)
         })
         .ToArray();

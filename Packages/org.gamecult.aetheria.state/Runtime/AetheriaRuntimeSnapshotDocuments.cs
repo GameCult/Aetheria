@@ -150,6 +150,9 @@ namespace GameCult.Aetheria.State.Verse
 
         [Key(2)]
         public AetheriaRuntimeLoadoutItemCommit Item { get; set; } = new AetheriaRuntimeLoadoutItemCommit();
+
+        [Key(3)]
+        public string Rotation { get; set; } = "None";
     }
 
     [MessagePackObject]
@@ -420,6 +423,7 @@ namespace GameCult.Aetheria.State.Verse
             {
                 X = slot.X,
                 Y = slot.Y,
+                Rotation = slot.Rotation ?? "None",
                 Item = CloneItem(slot.Item)
             };
         }

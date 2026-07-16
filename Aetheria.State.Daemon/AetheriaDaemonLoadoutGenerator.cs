@@ -66,8 +66,9 @@ public sealed class AetheriaDaemonLoadoutGenerator
                 continue;
             }
 
-            slots.Add(Slot(hardpoint.PositionX, hardpoint.PositionY, item.ItemKey));
-            Reserve(occupied, item, hardpoint.PositionX, hardpoint.PositionY, ParseRotation(hardpoint.Rotation));
+            var rotation = ParseRotation(hardpoint.Rotation);
+            slots.Add(Slot(hardpoint.PositionX, hardpoint.PositionY, item.ItemKey, rotation));
+            Reserve(occupied, item, hardpoint.PositionX, hardpoint.PositionY, rotation);
             previous.Add(item);
         }
 
@@ -141,7 +142,7 @@ public sealed class AetheriaDaemonLoadoutGenerator
         if (selected.Item == null || !selected.Fit.HasValue)
             throw new InvalidOperationException("No available mandatory equipment fits the remaining hull space.");
         var fit = selected.Fit.Value;
-        slots.Add(Slot(fit.X, fit.Y, selected.Item.ItemKey));
+        slots.Add(Slot(fit.X, fit.Y, selected.Item.ItemKey, fit.Rotation));
         Reserve(occupied, selected.Item, fit.X, fit.Y, fit.Rotation);
         return selected.Item;
     }
@@ -163,7 +164,7 @@ public sealed class AetheriaDaemonLoadoutGenerator
         if (selected.Item == null || !selected.Fit.HasValue)
             return null;
         var fit = selected.Fit.Value;
-        slots.Add(Slot(fit.X, fit.Y, selected.Item.ItemKey));
+        slots.Add(Slot(fit.X, fit.Y, selected.Item.ItemKey, fit.Rotation));
         Reserve(occupied, selected.Item, fit.X, fit.Y, fit.Rotation);
         return selected.Item;
     }
@@ -201,7 +202,7 @@ public sealed class AetheriaDaemonLoadoutGenerator
             var fit = FindFit(interiorCells, width, height, item, occupied);
             if (!fit.HasValue) continue;
             Reserve(occupied, item, fit.Value.X, fit.Value.Y, fit.Value.Rotation);
-            packed.Add(CargoSlot(fit.Value.X, fit.Value.Y, item.ItemKey));
+            packed.Add(CargoSlot(fit.Value.X, fit.Value.Y, item.ItemKey, fit.Value.Rotation));
         }
         return packed.ToArray();
     }
@@ -362,6 +363,14 @@ public sealed class AetheriaDaemonLoadoutGenerator
         _ => 0
     };
 
+    private static string RotationName(int rotation) => (((rotation % 4) + 4) % 4) switch
+    {
+        1 => "Clockwise",
+        2 => "Half",
+        3 => "CounterClockwise",
+        _ => "None"
+    };
+
     private static bool HasBehavior(AetheriaRuntimeCatalogItem item, string kind) =>
         (item.BehaviorKinds ?? Array.Empty<string>()).Contains(kind, StringComparer.Ordinal);
 
@@ -375,19 +384,21 @@ public sealed class AetheriaDaemonLoadoutGenerator
          (item.BehaviorKinds ?? Array.Empty<string>()).Any(kind =>
              kind.Contains("Weapon", StringComparison.Ordinal)));
 
-    private static AetheriaEntityItemSlot Slot(int x, int y, string itemKey) => new()
+    private static AetheriaEntityItemSlot Slot(int x, int y, string itemKey, int rotation = 0) => new()
     {
         Position = new AetheriaGridCoord { X = x, Y = y }, ItemKey = itemKey,
-        Quality = 1, Durability = 1, Quantity = 1, Enabled = true
+        Quality = 1, Durability = 1, Quantity = 1, Enabled = true,
+        Rotation = RotationName(rotation)
     };
 
     private static AetheriaLoadoutItemSlot CargoSlot(int index, string itemKey) =>
         CargoSlot(index % 4, index / 4, itemKey);
 
-    private static AetheriaLoadoutItemSlot CargoSlot(int x, int y, string itemKey) => new()
+    private static AetheriaLoadoutItemSlot CargoSlot(int x, int y, string itemKey, int rotation = 0) => new()
     {
         Position = new AetheriaGridCoord { X = x, Y = y },
-        Item = new AetheriaLoadoutItem { ItemKey = itemKey, Quality = 1, Durability = 1, Quantity = 1, Enabled = true }
+        Item = new AetheriaLoadoutItem { ItemKey = itemKey, Quality = 1, Durability = 1, Quantity = 1, Enabled = true },
+        Rotation = RotationName(rotation)
     };
 }
 

@@ -190,6 +190,9 @@ public sealed class AetheriaLoadoutItemSlot
 
     [Key(1)]
     public AetheriaLoadoutItem Item { get; set; } = new();
+
+    [Key(2)]
+    public string Rotation { get; set; } = "None";
 }
 
 [MessagePackObject]
@@ -681,6 +684,9 @@ public sealed class AetheriaEntityItemSlot
 
     [Key(7)]
     public double Temperature { get; set; }
+
+    [Key(8)]
+    public string Rotation { get; set; } = "None";
 }
 
 [MessagePackObject]

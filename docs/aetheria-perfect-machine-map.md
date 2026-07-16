@@ -1246,6 +1246,13 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   before hydrating row projections. No live caller can enumerate
   legacy catalog entries or request catalog-shaped single entries through
   `ItemManager`.
+  Equipment placement rotation is durable semantic state, not an occupancy-loop
+  temporary. The daemon generator emits the same quarter-turn used to reserve a
+  hardpoint, free-space fit, or cargo fit; loadout documents, runtime commits,
+  catalog and viewport snapshots, state mapping, and clone/transfer paths retain
+  it. This is the required input for daemon-owned thruster direction and torque;
+  Unity may visualize the resulting actuator state but cannot reconstruct a
+  missing rotation from prefab transforms.
 - Inputs: Unity gameplay code, legacy catalog files, typed state documents, and
   CultMesh server state.
 - Outputs: `Aetheria.State` emits `.cc` state and CultMesh documents. Runtime

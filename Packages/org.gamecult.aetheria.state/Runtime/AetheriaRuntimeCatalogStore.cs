@@ -954,7 +954,9 @@ namespace GameCult.Aetheria.State.Verse
                 var enabled = ReadFieldBool(ref reader, slotFields, 5, true);
                 var overrideShutdown = ReadFieldBool(ref reader, slotFields, 6);
                 var temperature = ReadFieldDouble(ref reader, slotFields, 7);
-                SkipRemaining(ref reader, slotFields, 8);
+                var rotation = ReadFieldString(ref reader, slotFields, 8);
+                if (string.IsNullOrWhiteSpace(rotation)) rotation = "None";
+                SkipRemaining(ref reader, slotFields, 9);
                 slots[slot] = new AetheriaRuntimeEntityItemSlotSnapshot(
                     position.X,
                     position.Y,
@@ -964,7 +966,8 @@ namespace GameCult.Aetheria.State.Verse
                     quantity <= 0 ? 1 : quantity,
                     enabled,
                     overrideShutdown,
-                    temperature);
+                    temperature,
+                    rotation);
             }
 
             return slots;
@@ -1532,8 +1535,10 @@ namespace GameCult.Aetheria.State.Verse
             var slotFields = reader.ReadArrayHeader();
             var position = ReadFieldGridCoord(ref reader, slotFields, 0);
             var item = ReadFieldLoadoutItem(ref reader, slotFields, 1);
-            SkipRemaining(ref reader, slotFields, 2);
-            return new AetheriaRuntimeLoadoutItemSlotSnapshot(position.X, position.Y, item);
+            var rotation = ReadFieldString(ref reader, slotFields, 2);
+            if (string.IsNullOrWhiteSpace(rotation)) rotation = "None";
+            SkipRemaining(ref reader, slotFields, 3);
+            return new AetheriaRuntimeLoadoutItemSlotSnapshot(position.X, position.Y, item, rotation);
         }
 
         private static GridCoord ReadFieldGridCoord(ref MessagePackReader reader, int fields, int index)

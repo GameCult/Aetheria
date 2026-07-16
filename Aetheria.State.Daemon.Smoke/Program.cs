@@ -1561,7 +1561,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         availableHull.Hardpoints =
         [
             new AetheriaRuntimeHardpoint("ControlModule", 0, 0, 1, 1, 1, one, "", "None", 0),
-            new AetheriaRuntimeHardpoint("Weapon", 1, 0, 1, 1, 1, one, "", "None", 0),
+            new AetheriaRuntimeHardpoint("Weapon", 1, 0, 1, 1, 1, one, "", "Clockwise", 0),
             new AetheriaRuntimeHardpoint("Sensors", 2, 0, 1, 1, 1, one, "", "None", 0)
         ];
         var unavailableHull = Item("cheap-foreign-hull", AetheriaRuntimeItemCategories.Hull, "foreign", 1);
@@ -1637,6 +1637,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 first.Equipment.Any(value => value.ItemKey == "ship-sensor") &&
                 first.Equipment.All(value => value.ItemKey != "station-sensor"),
             "generated ships must fit hardpoint equipment and reject station-sized sensor gear");
+        RequireEqual("Clockwise", first.Equipment.Single(value => value.ItemKey == "cannon").Rotation,
+            "generated equipment must preserve the placement rotation used by hardpoint fitting");
         Require(first.HullItemKey == second.HullItemKey &&
                 first.Equipment.Select(value => value.ItemKey).SequenceEqual(second.Equipment.Select(value => value.ItemKey)),
             "same seed, map, faction and catalog must produce the same loadout");

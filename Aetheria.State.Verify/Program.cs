@@ -1275,6 +1275,8 @@ static void RequireDaemonPlayableRunGenerationAuthority(string root)
         "HasBehavior(candidate, controllerKind)",
         "for (var draw = 0; draw < 16 && pool.Count > 0; draw++)",
         "FindFit(interiorCells, width, height, item, occupied)",
+        "slots.Add(Slot(hardpoint.PositionX, hardpoint.PositionY, item.ItemKey, rotation))",
+        "Rotation = RotationName(rotation)",
         "AetheriaLoadoutGenerationReceipt",
         "Selections = selectedKeys.Select"
     };

@@ -120,6 +120,7 @@ public static class AetheriaRuntimeStateMapper
                     X = slot.X,
                     Y = slot.Y
                 },
+                Rotation = slot.Rotation ?? "None",
                 Item = ToLoadoutItem(slot.Item)
             })
             .ToArray();

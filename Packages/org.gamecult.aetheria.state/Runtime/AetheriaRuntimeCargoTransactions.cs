@@ -56,7 +56,7 @@ namespace GameCult.Aetheria.State.Verse
 
         private static AetheriaRuntimeLoadoutItemSlotCommit Clone(AetheriaRuntimeLoadoutItemSlotCommit source, int quantity) => new()
         {
-            X = source.X, Y = source.Y,
+            X = source.X, Y = source.Y, Rotation = source.Rotation ?? "None",
             Item = new AetheriaRuntimeLoadoutItemCommit
             {
                 ItemKey = source.Item.ItemKey, Quality = source.Item.Quality, Durability = source.Item.Durability,
