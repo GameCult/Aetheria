@@ -2459,14 +2459,15 @@ static async Task EnsurePlayableRunDocumentsAsync(
     if (!string.IsNullOrWhiteSpace(settings?.ActiveRunKey))
     {
         var existingRun = await ReadRuntimeRunCheckpointAsync(node, options.RenderSettings).ConfigureAwait(false);
-        if (HasPlayableRun(existingRun) && HasTerminusRun(existingRun))
+        if (HasPlayableRun(existingRun) && HasTerminusRun(existingRun, options.TerminusScenario))
             return;
     }
 
     await AetheriaDaemonZoneGenerator.WritePlayableRunAsync(
             node,
             node.RuntimeCatalog().Latest(),
-            now)
+            now,
+            options.TerminusScenario)
         .ConfigureAwait(false);
 }
 
@@ -2479,6 +2480,7 @@ static async Task EnsureTerminusGameSessionAsync(
         .ReadAsync().ConfigureAwait(false);
     if (existing != null &&
         string.Equals(existing.Mode, AetheriaGameSessionState.TerminusMode, StringComparison.Ordinal) &&
+        string.Equals(existing.RunId, AetheriaDaemonZoneGenerator.RunIdFor(options.TerminusScenario), StringComparison.Ordinal) &&
         !string.IsNullOrWhiteSpace(existing.ControlledEntityKey))
         return;
 
@@ -2487,8 +2489,8 @@ static async Task EnsureTerminusGameSessionAsync(
         {
             Mode = AetheriaGameSessionState.TerminusMode,
             SessionId = options.SessionId,
-            RunId = AetheriaDaemonZoneGenerator.RunId,
-            ControlledEntityKey = AetheriaDaemonZoneGenerator.EntityKey(0, 1),
+            RunId = AetheriaDaemonZoneGenerator.RunIdFor(options.TerminusScenario),
+            ControlledEntityKey = AetheriaDaemonZoneGenerator.EntityKey(options.TerminusScenario, 0, 1),
             EntrySurfaceId = AetheriaRuntimeDaemonGameSurfaceBuilder.PilotSurfaceId,
             UpdatedAtUtc = now
         }).ConfigureAwait(false);
@@ -2512,12 +2514,16 @@ static async Task<bool> ApplyRequestedTerminusSessionAsync(
         return false;
 
     var now = DateTimeOffset.UtcNow.ToString("O");
-    await AetheriaDaemonZoneGenerator.WritePlayableRunAsync(node, node.RuntimeCatalog().Latest(), now)
+    await AetheriaDaemonZoneGenerator.WritePlayableRunAsync(
+            node,
+            node.RuntimeCatalog().Latest(),
+            now,
+            options.TerminusScenario)
         .ConfigureAwait(false);
     session.Mode = AetheriaGameSessionState.TerminusMode;
     session.SessionId = options.SessionId;
-    session.RunId = AetheriaDaemonZoneGenerator.RunId;
-    session.ControlledEntityKey = AetheriaDaemonZoneGenerator.EntityKey(0, 1);
+    session.RunId = AetheriaDaemonZoneGenerator.RunIdFor(options.TerminusScenario);
+    session.ControlledEntityKey = AetheriaDaemonZoneGenerator.EntityKey(options.TerminusScenario, 0, 1);
     session.EntrySurfaceId = AetheriaRuntimeDaemonGameSurfaceBuilder.PilotSurfaceId;
     session.LastStartCommandId = menu.LastCommandId;
     session.UpdatedAtUtc = now;
@@ -2893,7 +2899,7 @@ static bool HasPlayableRun(AetheriaRuntimeRunCheckpointCommit? run)
         .Any(zone => (zone.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>()).Count > 0);
 }
 
-static bool HasTerminusRun(AetheriaRuntimeRunCheckpointCommit? run)
+static bool HasTerminusRun(AetheriaRuntimeRunCheckpointCommit? run, string scenario)
 {
     var zones = run?.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>();
     var terminusZone = zones.FirstOrDefault(zone =>
@@ -2901,6 +2907,7 @@ static bool HasTerminusRun(AetheriaRuntimeRunCheckpointCommit? run)
     var entities = zones.SelectMany(zone => zone.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>()).ToArray();
     var bodies = zones.SelectMany(zone => zone.Bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>()).ToArray();
     return run?.GenerationSeed == AetheriaDaemonZoneGenerator.GenerationSeed &&
+        string.Equals(run.RunId, AetheriaDaemonZoneGenerator.RunIdFor(scenario), StringComparison.Ordinal) &&
         terminusZone != null &&
         terminusZone.GravityTerrainDepth > 0 &&
         (terminusZone.Bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>())
@@ -3082,6 +3089,7 @@ internal sealed class AetheriaDaemonHostOptions
         AetheriaRuntimeDaemonRenderSettings.AetheriaDefault;
     public AetheriaRuntimeDaemonSimulationSettings SimulationSettings { get; init; } =
         AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault;
+    public string TerminusScenario { get; init; } = AetheriaDaemonTerminusScenarios.Standard;
     public bool Once { get; init; }
 
     public static AetheriaDaemonHostOptions Parse(IReadOnlyList<string> args)
@@ -3110,6 +3118,7 @@ internal sealed class AetheriaDaemonHostOptions
         var noOdinAnnouncements = HasFlag(args, "--no-odin-announcements");
         var apiPublicationIntervalMs = ReadPositiveInt(args, "--api-publication-interval-ms") ?? 1000;
         var sessionId = ReadOption(args, "--session-id");
+        var terminusScenario = AetheriaDaemonTerminusScenarios.Parse(ReadOption(args, "--terminus-scenario"));
 
         return new AetheriaDaemonHostOptions
         {
@@ -3140,6 +3149,7 @@ internal sealed class AetheriaDaemonHostOptions
             TickInterval = TimeSpan.FromMilliseconds(intervalMs),
             ApiPublicationInterval = TimeSpan.FromMilliseconds(apiPublicationIntervalMs),
             FixedDeltaSeconds = fixedDeltaMs / 1000.0,
+            TerminusScenario = terminusScenario,
             Once = HasFlag(args, "--once")
         };
     }

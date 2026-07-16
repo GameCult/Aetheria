@@ -3,6 +3,26 @@ using Aetheria.State.Documents;
 using GameCult.Aetheria.State.Verse;
 using GameCult.Caching;
 
+internal static class AetheriaDaemonTerminusScenarios
+{
+    public const string Standard = "standard";
+    public const string ReleasedClientProof = "released-client-proof";
+    public const string CargoCapacityRejectionProof = "cargo-capacity-rejection-proof";
+
+    public static string Parse(string? value)
+    {
+        var scenario = string.IsNullOrWhiteSpace(value) ? Standard : value.Trim().ToLowerInvariant();
+        return scenario switch
+        {
+            Standard => Standard,
+            ReleasedClientProof => ReleasedClientProof,
+            CargoCapacityRejectionProof => CargoCapacityRejectionProof,
+            _ => throw new ArgumentException(
+                $"Unknown Terminus scenario '{value}'. Expected {Standard}, {ReleasedClientProof}, or {CargoCapacityRejectionProof}.")
+        };
+    }
+}
+
 internal static class AetheriaDaemonZoneGenerator
 {
     public const string RunId = "local-terminus";
@@ -11,10 +31,13 @@ internal static class AetheriaDaemonZoneGenerator
     public static async Task WritePlayableRunAsync(
         AetheriaStateNode node,
         AetheriaRuntimeCatalogSnapshot catalog,
-        string now)
+        string now,
+        string scenario)
     {
-        var runKey = new CultRecordKey($"global:aetheria.run_state.{RunId}.v1");
-        var zoneKey = new CultRecordKey($"global:aetheria.zone_state.{RunId}.0.v1");
+        scenario = AetheriaDaemonTerminusScenarios.Parse(scenario);
+        var runId = RunIdFor(scenario);
+        var runKey = new CultRecordKey($"global:aetheria.run_state.{runId}.v1");
+        var zoneKey = new CultRecordKey($"global:aetheria.zone_state.{runId}.0.v1");
         var corporationKeys = (catalog.Corporations ?? Array.Empty<AetheriaRuntimeCorporation>())
             .Select(value => value.CorporationKey)
             .Where(value => !string.IsNullOrWhiteSpace(value))
@@ -47,9 +70,9 @@ internal static class AetheriaDaemonZoneGenerator
                     homeZones,
                     adjacency),
                 StringComparer.Ordinal);
-        var entities = GenerateEntities(loadouts, availabilityFactions);
+        var entities = GenerateEntities(loadouts, availabilityFactions, catalog, scenario);
         var entityKeys = Enumerable.Range(0, entities.Length)
-            .Select(index => EntityKey(0, index))
+            .Select(index => EntityKey(scenario, 0, index))
             .ToArray();
 
         var settings = await node.MutableDocument<AetheriaPlayerSettings>(AetheriaStateNode.PlayerSettingsKey)
@@ -65,7 +88,7 @@ internal static class AetheriaDaemonZoneGenerator
 
         await node.MutableDocument<AetheriaRunState>(runKey).ReplaceAsync(new AetheriaRunState
         {
-            RunId = RunId,
+            RunId = runId,
             EntranceZoneIndex = 0,
             ExitZoneIndex = 0,
             CurrentZoneIndex = 0,
@@ -104,9 +127,17 @@ internal static class AetheriaDaemonZoneGenerator
         await node.FlushAsync().ConfigureAwait(false);
     }
 
-    public static string EntityKey(int zoneIndex, int entityIndex)
+    public static string RunIdFor(string scenario)
     {
-        return $"global:aetheria.run_state.{RunId}.zone.{zoneIndex}.entity.{entityIndex}.v1";
+        scenario = AetheriaDaemonTerminusScenarios.Parse(scenario);
+        return string.Equals(scenario, AetheriaDaemonTerminusScenarios.Standard, StringComparison.Ordinal)
+            ? RunId
+            : $"{RunId}-{scenario}";
+    }
+
+    public static string EntityKey(string scenario, int zoneIndex, int entityIndex)
+    {
+        return $"global:aetheria.run_state.{RunIdFor(scenario)}.zone.{zoneIndex}.entity.{entityIndex}.v1";
     }
 
     private static AetheriaOrbitSnapshot[] GenerateOrbits()
@@ -207,10 +238,12 @@ internal static class AetheriaDaemonZoneGenerator
 
     private static AetheriaEntitySnapshot[] GenerateEntities(
         IReadOnlyDictionary<string, AetheriaDaemonLoadoutGenerator> loadouts,
-        IReadOnlyDictionary<string, string> availabilityFactions)
+        IReadOnlyDictionary<string, string> availabilityFactions,
+        AetheriaRuntimeCatalogSnapshot catalog,
+        string scenario)
     {
         var keys = Enumerable.Range(0, 12)
-            .Select(index => EntityKey(0, index))
+            .Select(index => EntityKey(scenario, 0, index))
             .ToArray();
 
         var entities = new[]
@@ -230,13 +263,20 @@ internal static class AetheriaDaemonZoneGenerator
         };
         foreach (var index in new[] { 1, 2, 3, 4 })
             entities[index].HomeEntityKey = keys[0];
-        entities[1].CargoContents =
-        [
-            new AetheriaCargoBayLoadout
-            {
-                Items = Array.Empty<AetheriaLoadoutItemSlot>()
-            }
-        ];
+        if (!string.Equals(scenario, AetheriaDaemonTerminusScenarios.Standard, StringComparison.Ordinal))
+            ApplyReleasedClientProofScenario(entities, catalog, scenario);
+        entities[2].AgentTaskCapabilities = ["attack", "defend", "explore"];
+        entities[3].AgentTaskCapabilities = ["attack", "defend"];
+        entities[4].AgentTaskCapabilities = ["mine", "haul", "tow", "explore"];
+        return entities;
+    }
+
+    private static void ApplyReleasedClientProofScenario(
+        AetheriaEntitySnapshot[] entities,
+        AetheriaRuntimeCatalogSnapshot catalog,
+        string scenario)
+    {
+        entities[1].CargoContents = [new AetheriaCargoBayLoadout()];
         entities[6].StatGrids =
         [
             StatGrid("hull", 1),
@@ -245,7 +285,10 @@ internal static class AetheriaDaemonZoneGenerator
         ];
         var salvage = entities[6].Equipment.FirstOrDefault()
             ?? throw new InvalidOperationException("The starter raider loadout produced no canonical salvage item.");
-        var salvageSelection = entities[6].LoadoutGeneration.Selections.First(selection =>
+        var generation = entities[6].LoadoutGeneration
+            ?? throw new InvalidOperationException("The starter raider loadout produced no generation receipt.");
+        var selections = generation.Selections ?? Array.Empty<AetheriaLoadoutGenerationSelection>();
+        var salvageSelection = selections.First(selection =>
             string.Equals(selection.Role, "equipment", StringComparison.Ordinal) &&
             string.Equals(selection.ItemKey, salvage.ItemKey, StringComparison.Ordinal));
         entities[6].CargoContents =
@@ -270,7 +313,7 @@ internal static class AetheriaDaemonZoneGenerator
         ];
         entities[6].Equipment = Array.Empty<AetheriaEntityItemSlot>();
         entities[6].WeaponGroups = Array.Empty<AetheriaWeaponGroupSnapshot>();
-        entities[6].LoadoutGeneration.Selections = entities[6].LoadoutGeneration.Selections
+        generation.Selections = selections
             .Where(selection => string.Equals(selection.Role, "hull", StringComparison.Ordinal))
             .Append(new AetheriaLoadoutGenerationSelection
             {
@@ -282,10 +325,51 @@ internal static class AetheriaDaemonZoneGenerator
                 Allegiance = salvageSelection.Allegiance
             })
             .ToArray();
-        entities[2].AgentTaskCapabilities = ["attack", "defend", "explore"];
-        entities[3].AgentTaskCapabilities = ["attack", "defend"];
-        entities[4].AgentTaskCapabilities = ["mine", "haul", "tow", "explore"];
-        return entities;
+
+        if (string.Equals(scenario, AetheriaDaemonTerminusScenarios.CargoCapacityRejectionProof, StringComparison.Ordinal))
+            FillCargoBays(entities[1], salvage.ItemKey, catalog);
+    }
+
+    private static void FillCargoBays(
+        AetheriaEntitySnapshot entity,
+        string itemKey,
+        AetheriaRuntimeCatalogSnapshot catalog)
+    {
+        var item = catalog.FindItem(itemKey)
+            ?? throw new InvalidOperationException($"The cargo-capacity proof item '{itemKey}' is absent from the typed catalog.");
+        if (item.Volume <= 0)
+            throw new InvalidOperationException($"The cargo-capacity proof item '{itemKey}' must have positive volume.");
+
+        var cargoBays = (entity.Equipment ?? Array.Empty<AetheriaEntityItemSlot>())
+            .Select(slot => catalog.FindItem(slot.ItemKey))
+            .Where(candidate => candidate != null && candidate.InteriorOccupiedCells > 0)
+            .ToArray();
+        if (cargoBays.Length == 0)
+            throw new InvalidOperationException("The cargo-capacity proof ship has no generated cargo bay.");
+
+        entity.CargoContents = cargoBays.Select((bay, index) =>
+        {
+            var quantity = (int)Math.Floor(bay!.InteriorOccupiedCells / item.Volume);
+            if (quantity <= 0)
+                throw new InvalidOperationException($"Cargo bay {index} cannot contain one '{itemKey}' proof item.");
+            return new AetheriaCargoBayLoadout
+            {
+                Items =
+                [
+                    new AetheriaLoadoutItemSlot
+                    {
+                        Item = new AetheriaLoadoutItem
+                        {
+                            ItemKey = itemKey,
+                            Quantity = quantity,
+                            Quality = 1,
+                            Durability = 1,
+                            Enabled = true
+                        }
+                    }
+                ]
+            };
+        }).ToArray();
     }
 
     private static AetheriaEntitySnapshot Entity(

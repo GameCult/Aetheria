@@ -811,7 +811,7 @@ static void RequireSharedEvePackagesImportedFromEveRepo(string root)
         "\"org.gamecult.cultlib\": \"https://github.com/GameCult/CultLib.git?path=/unity/org.gamecult.cultlib#cultlib-unity-v1.0.15\"",
         "\"org.gamecult.eve.plugin-fields\": \"https://github.com/GameCult/EvePlugins.git?path=/plugins/eve-plugin-fields/unity/org.gamecult.eve.plugin-fields#eve-plugin-fields-unity-v0.2.3\"",
         "\"org.gamecult.eve.surface\": \"https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.surface#eveunity-surface-v0.2.2\"",
-        "\"org.gamecult.eve.unity-scene\": \"https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.unity-scene#eveunity-scene-v0.3.55\""
+        "\"org.gamecult.eve.unity-scene\": \"https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.unity-scene#eveunity-scene-v0.3.63\""
     };
 
     var missingManifestSymbols = requiredManifestSymbols
@@ -830,7 +830,7 @@ static void RequireSharedEvePackagesImportedFromEveRepo(string root)
         "cultlib-unity-v1.0.15",
         "eve-plugin-fields-unity-v0.2.3",
         "eveunity-surface-v0.2.2",
-        "eveunity-scene-v0.3.55",
+        "eveunity-scene-v0.3.63",
         "\"source\": \"git\""
     };
 
@@ -1266,7 +1266,10 @@ static void RequireDaemonPlayableRunGenerationAuthority(string root)
         "await AetheriaDaemonZoneGenerator.WritePlayableRunAsync(",
         "internal static class AetheriaDaemonZoneGenerator",
         "new AetheriaDaemonLoadoutGenerator(",
-        "GenerateEntities(loadouts, availabilityFactions)",
+        "GenerateEntities(loadouts, availabilityFactions, catalog, scenario)",
+        "AetheriaDaemonTerminusScenarios.Parse",
+        "ApplyReleasedClientProofScenario(entities, catalog, scenario)",
+        "TerminusScenario = terminusScenario",
         "var rootRandom = new CultMath.Random(GenerationSeed)",
         "(uint)rootRandom.NextInt(1, int.MaxValue)",
         "Math.Pow(item.Price, _priceExponent)",
@@ -17013,7 +17016,7 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
             "public static class AetheriaRuntimeDaemonSimulation",
             "AetheriaRuntimeDaemonSimulationSettings settings",
             "StepCombat(run, zone, entities, intents, deltaSeconds, settings, worldPhysics, catalog,",
-            "AetheriaRuntimeEquippedBehaviorQueries.Find(entity, catalog, AetheriaRuntimeBehaviorKinds.InstantWeapon)",
+            "AetheriaRuntimeEquippedBehaviorQueries.FindOperational(entity, catalog, AetheriaRuntimeBehaviorKinds.InstantWeapon)",
             "EnsureWeaponState(",
             "CommitWeaponRound(attacker, weapon, catalog)",
             "weapon.State.BurstRemaining = weapon.BurstCount",

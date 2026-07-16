@@ -862,6 +862,17 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   EveUnity resolves `effect.feedback.entity.destroyed` only after the provider
   has published authoritative destruction chronology.
 
+### Daemon Terminus Scenario Ownership
+
+The generated Terminus world and deterministic released-client proofs are
+separate daemon-owned scenarios. `standard` preserves the generated ship
+loadouts. `released-client-proof` alone creates the one-hit raider and guaranteed
+salvage transaction; `cargo-capacity-rejection-proof` additionally fills every
+generated player cargo bay from typed catalog volume and bay capacity. The
+scenario selects a distinct run identity, so an existing proof run cannot
+impersonate ordinary play. Unity selects the scenario only as a launch input and
+cannot write cargo, hull, pickups, or feedback.
+
 ### Daemon Pickup Contact Transaction
 
 - Owner: the daemon simulation owns pickup collection by interpreting typed
@@ -886,6 +897,12 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
 - Cut line: the command executor/builders and distance-based collection helper
   are deleted. The old enum ordinal remains reserved only to avoid shifting
   serialized command values and is rejected by the daemon.
+- Verification layer: daemon/Ymir smoke proves one commit per consumed fact,
+  duplicate-fact suppression, collection, capacity refusal, and outward kick.
+  The released EveUnity `0.3.63` warm rejection witness proves full player cargo
+  remains `5 -> 5`, the pickup remains live, and distinct player recontacts
+  arrive as distinct `ymir-fact:` feedback identities without a player
+  collection event.
 
 ### Daemon Gravity Field Contract
 
