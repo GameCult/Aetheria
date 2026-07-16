@@ -8,6 +8,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Aetheria.State\Aetheria.State.csproj" />
+    <ProjectReference Include="..\Aetheria.State.Daemon\Aetheria.State.Daemon.csproj" />
   </ItemGroup>
 </Project>

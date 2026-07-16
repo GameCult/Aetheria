@@ -146,6 +146,7 @@ namespace GameCult.Aetheria.State.Verse
                 BuildAgentRoster(run),
                 BuildAgentTaskBoard(run),
                 BuildSurveyKnowledge(run),
+                BuildStarbridgeSessionCard(starbridge),
                 BuildStarbridgeStationStockCard(starbridge),
                 BuildStarbridgeWaveForecastCard(starbridge),
                 BuildStarbridgeRuntimeRolesCard(starbridge));
@@ -172,6 +173,29 @@ namespace GameCult.Aetheria.State.Verse
                         new AetheriaRuntimeSurfaceCommandTemplate("aetheria.daemon.cancel_agent_task", "Cancel Task", "cultmesh")
                     })
                     .ToArray());
+        }
+
+        private static AetheriaRuntimeSurfaceComponent BuildStarbridgeSessionCard(
+            AetheriaRuntimeStarbridgeSessionSummaryDocument starbridge)
+        {
+            starbridge ??= new AetheriaRuntimeStarbridgeSessionSummaryDocument();
+            return Node(
+                "aetheria.starbridge.commander.session",
+                "card",
+                new[] { ("title", "Starbridge Session") },
+                Metric("aetheria.starbridge.commander.session.scenario", "Scenario", starbridge.ScenarioName),
+                Metric("aetheria.starbridge.commander.session.id", "Session", starbridge.SessionId),
+                Metric("aetheria.starbridge.commander.session.phase", "Phase", starbridge.Phase),
+                Metric("aetheria.starbridge.commander.session.wave", "Wave",
+                    starbridge.CurrentWaveIndex.ToString(CultureInfo.InvariantCulture)),
+                Metric("aetheria.starbridge.commander.session.zone", "Zone", starbridge.ZoneName),
+                Metric("aetheria.starbridge.commander.session.base", "Base", starbridge.BaseStatus?.DisplayName ?? ""),
+                Metric("aetheria.starbridge.commander.session.base_hull", "Base Hull",
+                    FormatNumber(starbridge.BaseStatus?.Hull ?? 0)),
+                Metric("aetheria.starbridge.commander.session.base_shield", "Base Shield",
+                    FormatNumber(starbridge.BaseStatus?.Shield ?? 0)),
+                Metric("aetheria.starbridge.commander.session.base_heat", "Base Heat",
+                    FormatNumber(starbridge.BaseStatus?.Heat ?? 0)));
         }
 
         private static AetheriaRuntimeSurfaceComponent BuildAgentTaskBoard(AetheriaRuntimeRunCheckpointCommit run)

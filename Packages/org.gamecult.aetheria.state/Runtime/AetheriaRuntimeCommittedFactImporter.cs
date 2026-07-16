@@ -40,9 +40,13 @@ namespace GameCult.Aetheria.State.Verse
             string daemonId,
             string sessionId,
             string verseId,
+            IAetheriaRuntimeWorldPhysics worldPhysics,
             IEnumerable<string>? importedFactIds = null,
             AetheriaRuntimeCatalogSnapshot? catalog = null)
         {
+            if (worldPhysics == null)
+                throw new ArgumentNullException(nameof(worldPhysics));
+
             currentFrame ??= new AetheriaRuntimeDaemonFrameDocument
             {
                 Run = new AetheriaRuntimeRunCheckpointCommit(),
@@ -113,6 +117,7 @@ namespace GameCult.Aetheria.State.Verse
                     CumulativeAppliedCommandIds = currentFrame.CumulativeAppliedCommandIds,
                     CumulativeRejectedCommandIds = currentFrame.CumulativeRejectedCommandIds,
                     Catalog = catalog ?? EmptyCatalog(),
+                    WorldPhysics = worldPhysics,
                     BuildPublications = false
                 });
 

@@ -9,6 +9,7 @@ using MessagePack;
 namespace GameCult.Aetheria.State.Verse
 {
     [CultDocument("gamecult.aetheria.runtime_catalog", "gamecult.aetheria.runtime_catalog.v1")]
+    [MessagePackObject]
     public sealed class AetheriaRuntimeCatalogSnapshot
     {
         public const string SchemaId = "gamecult.aetheria.runtime_catalog.v1";
@@ -110,6 +111,7 @@ namespace GameCult.Aetheria.State.Verse
     }
 
     [CultDocument("gamecult.aetheria.loadout_templates", "gamecult.aetheria.loadout_templates.v1")]
+    [MessagePackObject]
     public sealed class AetheriaRuntimeLoadoutTemplatesDocument
     {
         public const string SchemaId = "gamecult.aetheria.loadout_templates.v1";

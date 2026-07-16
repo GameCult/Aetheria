@@ -297,10 +297,12 @@ The current UI direction is Eve/CultUI:
 - Brokkr should be considered just another daemon publishing Unity editor Eve
   surfaces, not a special Codex socket.
 
-The architectural note in `Aetheria.State/docs/verse-daemon-shape.md` is still
-the right boundary: Odin discovers/indexes providers, Bifrost hosts MCP tools
-for xeno agents, Eve/CultUI defines presentation, and the daemon owns side
-effects.
+The architectural note in `Aetheria.State/docs/verse-daemon-shape.md` still
+describes optional ecosystem indexing, but it is not the Aetheria session path.
+Aetheria clients connect directly to the daemon's advertised CultMesh endpoint;
+directly configured daemon peers exchange typed committed facts there as well.
+Odin may index the provider only when explicitly enabled. Eve/CultUI defines
+presentation, and the daemon owns side effects.
 
 Remaining UI debt is not mostly visual. It is resolution semantics: if an Eve
 surface contains a typed pointer to daemon state, the runtime should resolve it

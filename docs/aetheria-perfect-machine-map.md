@@ -22,9 +22,11 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   `AetheriaVerseDiscoveryHost`, accepts typed Eve command documents, advances
   authoritative daemon frames through `AetheriaRuntimeDaemonTickRunner`, and
   publishes provider advertisements, daemon health, command boundaries, and
-  Eve GUI/TUI witness surfaces. This is the Odin/VoidBot-shaped daemon
-  contract: the daemon owns the provider state and surfaces; Unity, Codex MCP
-  tools, and future clients lower or command that provider through CultMesh
+  Eve GUI/TUI witness surfaces. Aetheria clients connect directly to the
+  daemon's advertised CultMesh endpoint. Optional external indexes may ingest
+  the provider advertisement, but they are not on the client, command, state,
+  or cooperating-daemon path. The daemon owns provider state and surfaces;
+  Unity and future clients lower or command that provider through CultMesh
   rather than becoming state owners.
 - Unity client/runtime lives under `Assets/`. Gameplay now opens the typed
   runtime catalog from `GameData/aetheria-world.cc` and projects current
@@ -777,6 +779,31 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   replication, and editor mutation of the same state.
 
 ## Current Authority Map
+
+### Direct CultMesh Session And Peer Transport
+
+- Owner: each Aetheria daemon owns its advertised client CultMesh endpoint and
+  its explicitly configured direct daemon-peer endpoints.
+- Inputs: typed client sessions, commands, snapshot requests, committed facts,
+  and optional `--peer-cultmesh-endpoint` routes. Odin publication is disabled
+  unless an operator explicitly supplies `--odin-cultmesh-uri`.
+- Outputs: typed state/surface snapshots, receipts, provider-owned assets, and
+  policy-filtered committed-fact convergence between directly connected
+  daemons.
+- Derived state: discovery catalogs and external provider indexes may mirror
+  advertisements, but they do not grant authority or mediate an Aetheria
+  session.
+- Forbidden writers: Odin, Eve lowerers, Unity, and remote peers cannot apply a
+  fact directly. Imported facts pass the daemon authority policy and execute
+  through the daemon's required Ymir world-physics owner.
+- Shared paths: local commands and accepted remote facts enter the same daemon
+  command transaction and receipt chronology.
+- Cut line: the rejection that forced `--peer-cultmesh-endpoint` through Odin
+  is deleted. Direct CultMesh is the Aetheria path; Odin is optional external
+  indexing only.
+- Verification layer: `Aetheria.State.AuthoritySmoke` boots real child daemons,
+  connects replicas directly, proves accepted/rejected policy outcomes, and
+  proves committed-fact convergence with production Ymir physics injected.
 
 ### Daemon Damage Transaction
 

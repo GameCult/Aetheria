@@ -21,9 +21,8 @@ var traceClientRudp = string.Equals(
     StringComparison.Ordinal);
 
 Console.WriteLine($"Aetheria Verse daemon starting: {options.StatePath}");
-Console.WriteLine(options.EnableOdinAnnouncements
-    ? "Aetheria Verse daemon peers: Odin/CultMesh discovery"
-    : "Aetheria Verse daemon peers: local child-daemon transport");
+Console.WriteLine($"Aetheria Verse daemon direct peers: {options.PeerCultMeshEndpoints.Count} " +
+    $"[{string.Join(", ", options.PeerCultMeshEndpoints)}]");
 if (options.EnableOdinAnnouncements)
     Console.WriteLine($"Aetheria Odin announcement target: {options.OdinCultMeshUri}");
 
@@ -317,6 +316,19 @@ static async Task<AetheriaRuntimeDaemonTickResult> TickAsync(
         policyRejectedCommandIds).ConfigureAwait(false);
     TracePhase("command-facts");
 
+    if (options.PeerCultMeshEndpoints.Count > 0)
+    {
+        result = await ImportRemoteCommittedFactsAsync(
+            node,
+            options,
+            worldPhysics,
+            result.Frame,
+            result,
+            authorityPolicy,
+            authorityLeases).ConfigureAwait(false);
+        TracePhase("peer-facts");
+    }
+
     if (buildPublications)
     {
         await PublishDaemonApiDocumentsAsync(node, options, soaPublisher, result, publishTopology: true).ConfigureAwait(false);
@@ -503,6 +515,98 @@ static async Task PublishCommittedFactAsync(
         .ConfigureAwait(false);
     if (string.Equals(Environment.GetEnvironmentVariable("AETHERIA_TRACE_EVE_SNAPSHOTS"), "1", StringComparison.Ordinal))
         Console.WriteLine($"Eve command receipt command={receipt.CommandId} state={receipt.State} provider={receipt.ProviderId}");
+}
+
+static async Task<AetheriaRuntimeDaemonTickResult> ImportRemoteCommittedFactsAsync(
+    AetheriaStateNode node,
+    AetheriaDaemonHostOptions options,
+    IAetheriaRuntimeWorldPhysics worldPhysics,
+    AetheriaRuntimeDaemonFrameDocument frame,
+    AetheriaRuntimeDaemonTickResult currentResult,
+    AetheriaRuntimeVerseAuthorityPolicyDocument? authorityPolicy,
+    IReadOnlyList<AetheriaRuntimeAuthorityLeaseDocument> authorityLeases)
+{
+    var remoteFacts = new List<AetheriaRuntimeCommittedCommandFactDocument>();
+    foreach (var endpoint in options.PeerCultMeshEndpoints)
+    {
+        try
+        {
+            var endpointFacts = await AetheriaVerseReplica
+                .FetchScopedDocumentsAsync<AetheriaRuntimeCommittedCommandFactDocument>(
+                    endpoint,
+                    schemaIds: [AetheriaRuntimeDaemonSchemas.CommittedCommandFact],
+                    connectTimeout: options.PeerSyncTimeout,
+                    responseTimeout: options.PeerSyncTimeout).ConfigureAwait(false);
+            remoteFacts.AddRange(endpointFacts);
+        }
+        catch (Exception ex) when (
+            ex is IOException ||
+            ex is SocketException ||
+            ex is TimeoutException ||
+            ex is InvalidOperationException)
+        {
+            Console.WriteLine($"Aetheria direct peer fact sync skipped for {endpoint}: {ex.GetType().Name}: {ex.Message}");
+        }
+    }
+
+    var facts = remoteFacts
+        .Where(fact => fact != null)
+        .Where(fact => string.Equals(fact.VerseId, options.VerseId, StringComparison.Ordinal))
+        .Where(fact => !string.Equals(fact.SourceDaemonId, options.DaemonId, StringComparison.Ordinal))
+        .GroupBy(fact => fact.FactId ?? "", StringComparer.Ordinal)
+        .Where(group => !string.IsNullOrWhiteSpace(group.Key))
+        .Select(group => group.First())
+        .ToArray();
+    if (facts.Length == 0)
+        return currentResult;
+
+    var importedFactIds = (frame.CumulativeImportedFactIds ?? Array.Empty<string>())
+        .Concat(frame.CumulativeRejectedImportedFactIds ?? Array.Empty<string>())
+        .Distinct(StringComparer.Ordinal)
+        .ToArray();
+    var import = AetheriaRuntimeCommittedFactImporter.ImportIntoFrame(
+        node.StatePath,
+        frame,
+        facts,
+        authorityPolicy,
+        authorityLeases,
+        options.DaemonId,
+        options.DaemonId,
+        frame.SessionId,
+        options.VerseId,
+        worldPhysics,
+        importedFactIds,
+        node.RuntimeCatalog().Latest());
+
+    var importedFrame = import.Frame;
+    importedFrame.ImportedFactIds = import.AcceptedFactIds;
+    importedFrame.RejectedImportedFactIds = import.RejectedFactIds;
+    importedFrame.DuplicateImportedFactIds = import.DuplicateFactIds;
+    importedFrame.CumulativeImportedFactIds = (frame.CumulativeImportedFactIds ?? Array.Empty<string>())
+        .Concat(import.AcceptedFactIds)
+        .Distinct(StringComparer.Ordinal)
+        .ToArray();
+    importedFrame.CumulativeRejectedImportedFactIds = (frame.CumulativeRejectedImportedFactIds ?? Array.Empty<string>())
+        .Concat(import.RejectedFactIds)
+        .Distinct(StringComparer.Ordinal)
+        .ToArray();
+    importedFrame.CumulativeAppliedCommandIds = (frame.CumulativeAppliedCommandIds ?? Array.Empty<string>())
+        .Concat(importedFrame.CumulativeAppliedCommandIds ?? Array.Empty<string>())
+        .Distinct(StringComparer.Ordinal)
+        .ToArray();
+    importedFrame.CumulativeRejectedCommandIds = (frame.CumulativeRejectedCommandIds ?? Array.Empty<string>())
+        .Concat(importedFrame.CumulativeRejectedCommandIds ?? Array.Empty<string>())
+        .Distinct(StringComparer.Ordinal)
+        .ToArray();
+
+    if (import.AcceptedFactIds.Count > 0 || import.RejectedFactIds.Count > 0)
+    {
+        Console.WriteLine(
+            $"Aetheria imported direct peer facts: accepted={import.AcceptedFactIds.Count}, " +
+            $"rejected={import.RejectedFactIds.Count}, duplicates={import.DuplicateFactIds.Count}.");
+    }
+
+    return import.Tick;
 }
 
 static RudpCultNetSchemaServer StartClientCultMeshHost(
@@ -2960,8 +3064,10 @@ internal sealed class AetheriaDaemonHostOptions
     public int ClientCultMeshPort { get; init; } = 3076;
     public string AetheriaResourcesRoot { get; init; } = "";
     public string AssetBundleRoot { get; init; } = "";
-    public string OdinCultMeshUri { get; init; } = "cultmesh://odin/rendezvous/provider-catalog";
-    public bool EnableOdinAnnouncements { get; init; } = true;
+    public IReadOnlyList<string> PeerCultMeshEndpoints { get; init; } = Array.Empty<string>();
+    public TimeSpan PeerSyncTimeout { get; init; } = TimeSpan.FromMilliseconds(250);
+    public string OdinCultMeshUri { get; init; } = "";
+    public bool EnableOdinAnnouncements { get; init; }
     public TimeSpan TickInterval { get; init; } = TimeSpan.FromMilliseconds(20);
     public TimeSpan ApiPublicationInterval { get; init; } = TimeSpan.FromSeconds(1);
     public double FixedDeltaSeconds { get; init; } = 0.02;
@@ -2989,12 +3095,12 @@ internal sealed class AetheriaDaemonHostOptions
         var aetheriaResourcesRoot = ReadOption(args, "--aetheria-resources-root");
         var assetBundleRoot = ReadOption(args, "--asset-bundle-root");
         RejectRemovedOption(args, "--rts-cultmesh-port", "--client-cultmesh-port");
-        RejectRemovedOption(args, "--peer-cultmesh-endpoint", "Odin-discovered CultMesh peer documents");
+        var peerCultMeshEndpoints = ReadOptions(args, "--peer-cultmesh-endpoint");
+        var peerSyncTimeoutMs = ReadPositiveInt(args, "--peer-sync-timeout-ms") ?? 250;
         RejectRemovedOption(args, "--odin-cultmesh-rudp", "--odin-cultmesh-uri");
         RejectRemovedOption(args, "--odin-cultnet-rudp", "--odin-cultmesh-uri");
         var odinCultMeshUri = ReadOption(args, "--odin-cultmesh-uri");
         var noOdinAnnouncements = HasFlag(args, "--no-odin-announcements");
-        RejectRemovedOption(args, "--peer-sync-timeout-ms", "Odin-discovered CultMesh peer documents");
         var apiPublicationIntervalMs = ReadPositiveInt(args, "--api-publication-interval-ms") ?? 1000;
         var sessionId = ReadOption(args, "--session-id");
 
@@ -3020,12 +3126,10 @@ internal sealed class AetheriaDaemonHostOptions
             AssetBundleRoot = string.IsNullOrWhiteSpace(assetBundleRoot)
                 ? Path.GetFullPath(Path.Combine(root, "Build", "EveAssets"))
                 : Path.GetFullPath(assetBundleRoot),
-            OdinCultMeshUri = noOdinAnnouncements
-                ? ""
-                : string.IsNullOrWhiteSpace(odinCultMeshUri)
-                ? "cultmesh://odin/rendezvous/provider-catalog"
-                : odinCultMeshUri,
-            EnableOdinAnnouncements = !noOdinAnnouncements,
+            PeerCultMeshEndpoints = peerCultMeshEndpoints,
+            PeerSyncTimeout = TimeSpan.FromMilliseconds(peerSyncTimeoutMs),
+            OdinCultMeshUri = noOdinAnnouncements ? "" : odinCultMeshUri,
+            EnableOdinAnnouncements = !noOdinAnnouncements && !string.IsNullOrWhiteSpace(odinCultMeshUri),
             TickInterval = TimeSpan.FromMilliseconds(intervalMs),
             ApiPublicationInterval = TimeSpan.FromMilliseconds(apiPublicationIntervalMs),
             FixedDeltaSeconds = fixedDeltaMs / 1000.0,

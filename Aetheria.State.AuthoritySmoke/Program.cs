@@ -1,4 +1,6 @@
 using Aetheria.State;
+using Aetheria.State.Daemon;
+using Aetheria.State.Documents;
 using GameCult.Aetheria.State.Verse;
 using System.Diagnostics;
 using System.Net;
@@ -221,6 +223,7 @@ internal sealed class AuthoritySmokeChecks
     private static void PreRejectedCommandsEnterFrameReceipts()
     {
         var command = Command("pilot-client", "entity:raven");
+        using var physics = new AetheriaYmirWorldPhysics();
         var result = AetheriaRuntimeDaemonTickRunner.Tick(
             Path.Combine(Path.GetTempPath(), "aetheria-authority-smoke.cc"),
             new AetheriaRuntimeRunCheckpointCommit(),
@@ -231,6 +234,7 @@ internal sealed class AuthoritySmokeChecks
                 FrameId = 42,
                 SimulationTimeSeconds = 1,
                 FixedDeltaSeconds = 0.02,
+                WorldPhysics = physics,
                 ObservedCommands = Array.Empty<AetheriaRuntimeDaemonCommandDocument>(),
                 PreRejectedCommandIds = [command.CommandId],
                 BuildPublications = false
@@ -547,8 +551,8 @@ internal sealed class AuthoritySmokeChecks
             },
             AetheriaRuntimeDaemonCommandBoundaryDocument.Create("starbridge-daemon"),
             summary);
-        RequireSurfaceMetric(gameSurface, "aetheria.daemon.game.starbridge.scenario", "Frontier Fabricator Defense", "daemon game surface starbridge scenario");
-        RequireSurfaceMetric(gameSurface, "aetheria.daemon.game.starbridge.base", "Starbridge Base", "daemon game surface starbridge base");
+        RequireSurfaceMetric(gameSurface, "aetheria.starbridge.commander.session.scenario", "Frontier Fabricator Defense", "commander surface starbridge scenario");
+        RequireSurfaceMetric(gameSurface, "aetheria.starbridge.commander.session.base", "Starbridge Base", "commander surface starbridge base");
         RequireSurfaceMetric(gameSurface, "aetheria.daemon.game.starbridge.stock.0.item", "coolant-beam", "daemon game surface starbridge stock");
         RequireSurfaceMetric(gameSurface, "aetheria.daemon.game.starbridge.wave.0.name", "Bomber Line", "daemon game surface starbridge wave forecast");
         RequireSurfaceMetric(gameSurface, "aetheria.daemon.game.starbridge.role.0.runtime", "commander-client", "daemon game surface starbridge runtime role");
@@ -724,6 +728,7 @@ internal sealed class AuthoritySmokeChecks
         var clientCultMeshPort = GetFreeUdpPort();
         const string runtimeId = "starbridge-daemon-smoke";
 
+        await SeedCanonicalCatalogAsync(statePath, runtimeId).ConfigureAwait(false);
         await RunDaemonOnceAsync(statePath, runtimeId, clientCultMeshPort).ConfigureAwait(false);
 
         using var client = await AetheriaClient
@@ -1002,6 +1007,7 @@ internal sealed class AuthoritySmokeChecks
 
     private static void TrustedCommittedFactsConvergeLocalRuns()
     {
+        using var physics = new AetheriaYmirWorldPhysics();
         var smokeId = Guid.NewGuid().ToString("N");
         var policy = CoopPolicyWithMetadata();
         var ravenKey = EntityKey("coop-smoke", 0, 0);
@@ -1033,7 +1039,8 @@ internal sealed class AuthoritySmokeChecks
             localRuntimeId: "commander-local",
             daemonId: "commander-local",
             sessionId: "authority-smoke",
-            verseId: policy.VerseId);
+            verseId: policy.VerseId,
+            worldPhysics: physics);
 
         Require(commanderImport.AcceptedFactIds.Contains(ravenMovementFact.FactId), "Commander should accept Raven's committed Raven movement fact");
         Require(!commanderImport.RejectedFactIds.Contains(ravenMovementFact.FactId), "Commander should not reject Raven's authorized movement fact");
@@ -1065,7 +1072,8 @@ internal sealed class AuthoritySmokeChecks
             localRuntimeId: "pilot-local",
             daemonId: "pilot-local",
             sessionId: "authority-smoke",
-            verseId: policy.VerseId);
+            verseId: policy.VerseId,
+            worldPhysics: physics);
 
         Require(ravenImport.AcceptedFactIds.Contains(hostileRenameFact.FactId), "Raven should accept Commander's hostile metadata fact");
         RequireEqual("Commander Marked Hostile", Entity(ravenImport.Run, hostileKey).Name, "Raven local run should converge Commander hostile metadata into local state");
@@ -1090,7 +1098,8 @@ internal sealed class AuthoritySmokeChecks
             localRuntimeId: "commander-local",
             daemonId: "commander-local",
             sessionId: "authority-smoke",
-            verseId: policy.VerseId);
+            verseId: policy.VerseId,
+            worldPhysics: physics);
 
         Require(rejectedImport.RejectedFactIds.Contains(unauthorizedFact.FactId), "Commander should reject Raven-authored hostile metadata fact");
         RequireEqual("Commander Hostile", Entity(rejectedImport.Run, hostileKey).Name, "Rejected facts should not mutate local state");
@@ -1102,6 +1111,7 @@ internal sealed class AuthoritySmokeChecks
         AetheriaRuntimeVerseAuthorityPolicyDocument policy,
         IReadOnlyList<AetheriaRuntimeDaemonCommandDocument> commands)
     {
+        await SeedCanonicalCatalogAsync(statePath, runtimeId).ConfigureAwait(false);
         await using var node = await AetheriaStateNode.OpenAsync(
             statePath,
             runtimeId,
@@ -1125,6 +1135,185 @@ internal sealed class AuthoritySmokeChecks
                 fixedDeltaSeconds: 0.02))
             .ConfigureAwait(false);
         await node.FlushAsync().ConfigureAwait(false);
+    }
+
+    private static async Task SeedCanonicalCatalogAsync(string statePath, string runtimeId)
+    {
+        await using var node = await AetheriaStateNode.OpenAsync(
+            statePath,
+            runtimeId,
+            startServer: false,
+            enableDurableShardLogs: false).ConfigureAwait(false);
+
+        const string manufacturerLegacyId = "authority-smoke-player";
+        foreach (var corporationLegacyId in new[]
+                 {
+                     manufacturerLegacyId,
+                     "authority-smoke-raider",
+                     "authority-smoke-neutral"
+                 })
+        {
+            await node.MutableDocument<AetheriaCorporation>(
+                    AetheriaCatalogKeys.CorporationFromLegacyId(corporationLegacyId))
+                .ReplaceAsync(new AetheriaCorporation
+                {
+                    Name = corporationLegacyId,
+                    LegacyId = corporationLegacyId,
+                    ShortName = corporationLegacyId,
+                    InfluenceDistance = 1,
+                    AllegianceCount = 1,
+                    Allegiances =
+                    [
+                        new AetheriaCorporationAllegiance
+                        {
+                            CorporationLegacyId = manufacturerLegacyId,
+                            Weight = 1
+                        }
+                    ]
+                }).ConfigureAwait(false);
+        }
+
+        foreach (var item in AuthoritySmokeLoadoutItems(manufacturerLegacyId))
+        {
+            await node.MutableDocument<AetheriaItemDefinition>(
+                    AetheriaCatalogKeys.ItemDefinitionFromLegacyId(item.LegacyId))
+                .ReplaceAsync(item).ConfigureAwait(false);
+        }
+        var baseEntityKey = AetheriaRuntimeRunCheckpointCommit.EntityRecordKey("local-terminus", 0, 0);
+        const string scenarioId = "starbridge.frontier-fabricator";
+        await node.MutableDocument<AetheriaRuntimeStarbridgeScenarioDocument>(
+                AetheriaRuntimeVerseRecordKeys.StarbridgeScenarioLatest)
+            .ReplaceAsync(new AetheriaRuntimeStarbridgeScenarioDocument
+            {
+                ScenarioId = scenarioId,
+                DisplayName = "Frontier Fabricator Defense",
+                StartingBaseKey = baseEntityKey,
+                StationStock =
+                [
+                    new AetheriaRuntimeStarbridgeStationStockItem
+                    {
+                        ItemKey = "repair-parts",
+                        Quantity = 4,
+                        Quality = 1,
+                        Durability = 1
+                    }
+                ],
+                Waves =
+                [
+                    new AetheriaRuntimeStarbridgeWaveDefinition
+                    {
+                        WaveIndex = 0,
+                        DisplayName = "Scout Probe",
+                        AttackerKeys = ["scout"]
+                    }
+                ],
+                RuntimeRoles =
+                [
+                    new AetheriaRuntimeStarbridgeRuntimeRole { RuntimeId = "commander-client", Role = "commander" },
+                    new AetheriaRuntimeStarbridgeRuntimeRole
+                    {
+                        RuntimeId = "pilot-client",
+                        Role = "pilot",
+                        EntityKey = AetheriaRuntimeRunCheckpointCommit.EntityRecordKey("local-terminus", 0, 1)
+                    }
+                ]
+            }).ConfigureAwait(false);
+        await node.MutableDocument<AetheriaRuntimeStarbridgeSessionDocument>(
+                AetheriaRuntimeVerseRecordKeys.StarbridgeSessionLatest)
+            .ReplaceAsync(new AetheriaRuntimeStarbridgeSessionDocument
+            {
+                SessionId = "authority-smoke",
+                ScenarioId = scenarioId,
+                RunId = "local-terminus",
+                BaseEntityKey = baseEntityKey,
+                StationEntityKey = baseEntityKey,
+                Phase = "pre-wave"
+            }).ConfigureAwait(false);
+        await node.FlushAsync().ConfigureAwait(false);
+
+        var catalog = await node.RuntimeCatalog().LatestAsync().ConfigureAwait(false);
+        Require(catalog.Corporations.Any(corporation => !string.IsNullOrWhiteSpace(corporation.CorporationKey)),
+            "daemon fixture must contain a typed corporation key");
+        Require(catalog.Items.Any(item => item.HullType == "Ship") &&
+                catalog.Items.Any(item => item.HullType == "Station"),
+            "daemon fixture must contain typed ship and station hulls");
+    }
+
+    private static IReadOnlyList<AetheriaItemDefinition> AuthoritySmokeLoadoutItems(string manufacturerLegacyId)
+    {
+        static AetheriaShapeCell[] Rectangle(int width, int height) =>
+            Enumerable.Range(0, height)
+                .SelectMany(y => Enumerable.Range(0, width).Select(x => new AetheriaShapeCell { X = x, Y = y }))
+                .ToArray();
+
+        static AetheriaBehaviorPayload Behavior(string kind) => new()
+        {
+            Kind = kind,
+            BehaviorId = "authority-smoke." + kind.ToLowerInvariant()
+        };
+
+        AetheriaItemDefinition Item(
+            string legacyId,
+            string category,
+            string hardpointType,
+            string behaviorKind = "") => new()
+        {
+            Name = legacyId,
+            LegacyId = legacyId,
+            Category = category,
+            ManufacturerLegacyId = manufacturerLegacyId,
+            Price = 10,
+            Mass = 1,
+            Volume = 1,
+            ShapeWidth = 1,
+            ShapeHeight = 1,
+            OccupiedCells = 1,
+            ShapeCells = Rectangle(1, 1),
+            HardpointType = hardpointType,
+            BehaviorKinds = string.IsNullOrWhiteSpace(behaviorKind) ? [] : [behaviorKind],
+            BehaviorCount = string.IsNullOrWhiteSpace(behaviorKind) ? 0 : 1,
+            BehaviorPayloads = string.IsNullOrWhiteSpace(behaviorKind) ? [] : [Behavior(behaviorKind)]
+        };
+
+        AetheriaItemDefinition Hull(string legacyId, string hullType)
+        {
+            var hull = Item(legacyId, AetheriaRuntimeItemCategories.Hull, "Hull");
+            hull.HullType = hullType;
+            hull.ShapeWidth = 6;
+            hull.ShapeHeight = 6;
+            hull.OccupiedCells = 36;
+            hull.ShapeCells = Rectangle(6, 6);
+            hull.Hardpoints =
+            [
+                new AetheriaItemHardpoint
+                {
+                    Type = "ControlModule",
+                    ShapeWidth = 1,
+                    ShapeHeight = 1,
+                    OccupiedCells = 1,
+                    ShapeCells = Rectangle(1, 1)
+                }
+            ];
+            return hull;
+        }
+
+        var cargo = Item("authority-smoke-cargo", AetheriaRuntimeItemCategories.CargoBay, "Internal");
+        cargo.InteriorShapeWidth = 3;
+        cargo.InteriorShapeHeight = 3;
+        cargo.InteriorOccupiedCells = 9;
+        cargo.InteriorShapeCells = Rectangle(3, 3);
+
+        return
+        [
+            Hull("authority-smoke-ship", "Ship"),
+            Hull("authority-smoke-station", "Station"),
+            Item("authority-smoke-cockpit", AetheriaRuntimeItemCategories.Gear, "ControlModule", "Cockpit"),
+            Item("authority-smoke-turret-controller", AetheriaRuntimeItemCategories.Gear, "ControlModule", "TurretController"),
+            cargo,
+            Item("authority-smoke-docking", AetheriaRuntimeItemCategories.DockingBay, "Internal"),
+            Item("authority-smoke-reactor", AetheriaRuntimeItemCategories.Gear, "Internal", "Reactor"),
+            Item("authority-smoke-capacitor", AetheriaRuntimeItemCategories.Gear, "Internal", "Capacitor")
+        ];
     }
 
     private static async Task RunDaemonOnceAsync(
@@ -1509,6 +1698,7 @@ internal sealed class AuthoritySmokeChecks
             localRuntimeId: daemonId,
             rejectedCommandIds: rejectedIds);
 
+        using var physics = new AetheriaYmirWorldPhysics();
         var result = AetheriaRuntimeDaemonTickRunner.Tick(
             Path.Combine(Path.GetTempPath(), $"aetheria-authority-smoke-{daemonId}.cc"),
             run,
@@ -1520,6 +1710,7 @@ internal sealed class AuthoritySmokeChecks
                 FrameId = 1,
                 SimulationTimeSeconds = 0.02,
                 FixedDeltaSeconds = 0.02,
+                WorldPhysics = physics,
                 ObservedCommands = authorizedCommands,
                 PreRejectedCommandIds = rejectedIds,
                 BuildPublications = false
