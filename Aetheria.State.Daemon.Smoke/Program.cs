@@ -1369,6 +1369,54 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         ], [], []);
         var context = new AetheriaRuntimeDaemonOperationContext { Catalog = catalog };
 
+        var physicsShip = Entity(0, 24, "player");
+        var physicsStation = Entity(1, 0, "player");
+        physicsStation.Kind = "station";
+        physicsStation.DockingBays =
+        [
+            new AetheriaRuntimeLoadoutItemSlotCommit
+            {
+                Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = "dock-bay", Quantity = 1 }
+            }
+        ];
+        physicsStation.DockingBayAssignments = [-1];
+        physicsStation.DockingBayContents = [Cargo()];
+        var physicsZone = new AetheriaRuntimeZoneSnapshotCommit
+        {
+            ZoneIndex = 0,
+            Entities = [physicsShip, physicsStation]
+        };
+        var physicsStep = NewPhysics().Step(
+            "dock-collision-exclusion-smoke",
+            1,
+            0,
+            physicsZone,
+            physicsZone.Entities,
+            0.1);
+        var steppedShip = physicsStep.Bodies.Single(body => body.EntityIndex == physicsShip.EntityIndex);
+        RequireNear(24, steppedShip.PositionX, 0.000001,
+            "Ymir must not invent ship/station collision separation that pushes the fossil docking radius out of reach");
+        physicsShip.PositionX = steppedShip.PositionX;
+        physicsShip.PositionZ = steppedShip.PositionZ;
+        var physicsRun = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "dock-collision-exclusion-smoke",
+            CurrentZoneIndex = 0,
+            Zones = [physicsZone]
+        };
+        physicsRun.CurrentEntityKey = physicsRun.EntityRecordKey(0, physicsShip.EntityIndex);
+        var physicsDock = AetheriaRuntimeDaemonCommandDocument.Create(
+            AetheriaRuntimeDaemonCommandKinds.DockNearest,
+            "pilot",
+            physicsRun.RunId,
+            1,
+            physicsRun.CurrentEntityKey);
+        var physicsDockResult = AetheriaRuntimeDaemonOperations.Execute(physicsRun, [physicsDock], context);
+        Require(physicsDockResult.AppliedCommandIds.Contains(physicsDock.CommandId, StringComparer.Ordinal) &&
+                physicsStation.DockingBayAssignments.Single() == physicsShip.EntityIndex,
+            "the daemon must still accept docking after Ymir advances the overlapping ship/station bodies: " +
+            string.Join(",", physicsDockResult.RejectedCommandReasons.Values));
+
         static AetheriaRuntimeEntitySnapshotCommit DockTarget(int index, double x, bool hasBay)
         {
             var target = Entity(index, x, "station");

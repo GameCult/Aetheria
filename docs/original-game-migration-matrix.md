@@ -19,7 +19,7 @@ validation proves contract shape, not wiring, exclusivity, lowering, or parity.
 | Entity identity/loadout | `ServerShared/Entity*` | daemon | typed entity and inventory surfaces | EveUnity/Electron | daemon-owned hull identity, exact installed placement/rotation and instance state, cargo stacks, weapon membership/held state, equipment wear, executable behavior state, weapon chronology, active-effect state, and loadout-generation provenance survive a hard CultCache close/reopen through the durable latest-frame checkpoint. An advertised generic Eve equip operation now translates into the typed daemon transaction before that checkpoint; its accepted placement survives restart and its consumed station-cargo source does not resurrect. Generic Eve rebuilds weapon and scalar thermostat controls from that restored truth; legacy per-entity documents are bootstrap inputs only when no live frame exists | live client refit witness and multi-client convergence |
 | Loadout generation | map/faction availability, item cost, hull hardpoints and role constraints | daemon using canonical galaxy, faction knowledge/economy and typed catalog | generated loadout plus provenance/availability facts | Eve inspection and refit surfaces | daemon now uses the fossil candidate filter and seeded weighted selection: manufacturer must be present and allied, ally weight decays by home-zone graph distance, price uses the authored exponent, and hardpoints require matching semantic type, rotated footprint containment, and controller role; the April 2021 catalog fossil restores the distinct common `Longinus`, rare AetherDrive-compatible `LonginusX`, and `Djinni` rows with their original IDs, shapes, hardpoints, prices, drag, and prefabs, plus missing Thruster rows required to fill their authored mounts; typed `rarity:rare` tags apply a 0.05 generation multiplier to `LonginusX` and AetherDrive equipment; the generator owns one mutable CultMath stream, fixing the readonly-struct defensive-copy bug that restarted every weighted draw; placement rotation survives durable state and reconnect; generation fills the largest compatible footprint before economic weighting; cargo/capacitor plus station docking equipment must fit remaining hull space; stations pack faction-available inventory largest-first; ordinary ships begin without invented scenario cargo; every generated entity persists a source/selection receipt that reaches Eve as `loadout.item` semantics | multi-zone generated-world parity and exact root-to-zone stream sequencing against the fossil |
 | Flight intent | `Ship`, `Thruster`, `AetherDrive`, `VelocityConversion`, `VelocityLimit`, input paths | daemon actuator simulation + Ymir integration | analog local helm/look/tractor plus actuator state | generic Eve input and scene lowerers | direct faction-speed velocity ownership is deleted; daemon persists local strafe/forward helm and desired look, allocates ordinary directional thruster banks by authored rotation, derives torque from hull/item placement, compensates lateral torque, gates execution through the shared energy ledger, deposits equipment-cell heat, publishes plume visibility and actuator state, applies hull drag, then runs operational velocity conversion with the fossil exponential damp equation and clamps the result through evaluated velocity limits before giving velocity/direction to Ymir. The evaluated limit remains in durable behavior state for reconnect and Eve inspection. Autonomous tasks translate world travel into the same local helm axes and issue look commands instead of mutating heading. AetherDrive rotor/coupling simulation is additive and explicitly non-default: common `Longinus` and `Djinni` hulls use ordinary thrusters; the rare `LonginusX` replaces those mounts with the single rare `Traction` AetherDrive path | hardpoint-transform direction parity, exact cross-equipment behavior execution ordering, CultMath/float32 parity harness, live production-frequency evidence, generic thrust/turn feedback lowering, and live handling screenshots |
-| Collision | Unity physics and entity handlers | Ymir | collision/result facts | visual interpolation only | Ymir.Core world stepping wired for entity bodies, radial fields and contacts; missing-owner negative proof passes | publish authoritative collision events and prove Unity cannot write transforms back |
+| Collision | fossil entity code contains no ship/station collision gameplay callback; shield collision timing is presentation | Ymir | Ymir-owned contact facts for collidable pairs; immutable entity generations for presentation | visual interpolation only | Ymir world stepping owns entity poses, radial fields, ship/pickup Begin contacts, rejection kicks, and persistent physical-payload contacts. Ship and station bodies deliberately share one negative collision group: the fossil had no rigidbody entity response, and invented circle separation would make its 25-unit center-distance docking rule unreachable. Daemon smoke advances an overlapping ship/station pair, proves the ship remains at 24 units, then accepts docking. The released EveUnity scene sink consumes immutable presented generations and has no provider/command-transport dependency; the canonical Unity product contains no Aetheria or ServerShared gameplay assembly | upstream Box3D parity harness for any future solid-body pair and live interpolation timeline under packet delay |
 | Targeting/contacts | sensors + `ActionGameManager` | daemon | contact/target semantics | target HUD and indicators | simplified owner wired/projected; every authored instant lock behavior now evaluates on every daemon step independently of trigger/burst selection, so an idle weapon cannot retain a stale completed lock; acquisition and decay derive from facing, elapsed time, and observer-local contact confidence instead of granting an immediate perfect lock; target changes and invalid targets clear the daemon state; `weapon.lock.started`, `weapon.lock.acquired`, and `weapon.lock.lost` publish stable one-time chronology with target, weapon identity, reason, and prior/current progress through the generic feedback stream; the provider cockpit and generic combat reticle consume the same continuous selected-target lock without client smoothing or reconstruction | angular loss fixture, visibility/nearest/explicit targeting cases, provider audio/effect roles, and authored reticle parity |
 | Projectile flight | weapon/projectile classes | Eve presentation for ordinary tracers; Ymir for persistent physical payloads | receipt trajectory/effect facts or persistent payload state | native projectile visual | ordinary instant, charged, constant, GuidedWeapon, and Launcher execution creates no projectile body; each weapon state owns a stable shot sequence and receipts carry origin, endpoint, nominal duration, and effect identity for Eve presentation. Guided receipts additionally retain target-entity/look-direction mode, complete guidance/thrust/lift curves, evaluated thrust and top speed, and dodge frequency; these survive checkpoint restart and reach generic Eve shot facts. The fossil guided projectile only steered, split, faded, and selected hit visuals after the ordinary weapon event had committed damage, so the client path remains derived presentation rather than a Ymir gameplay body. `SpawnProjectile` and its alternate writer are deleted; Ymir projectile contacts are feedback-only for explicitly persisted payload rows and cannot write damage; Ymir.Core remains embedded for world integration, radial fields, circle contacts, pickups, and genuinely persistent/interceptable payloads | generic guided trajectory lowering, provider split/fade asset parameters, and removal of ordinary projectile terminology from runtime contracts |
 | Shield/armor/equipment/hull damage | energy-funded shield, schematic armor cells, equipment and scalar hull | daemon canonical damage transaction | aggregate/exact armor grid, entity status, and layer-aware shot/damage receipts | schematic, meters, impacts, damage VFX | owner-exists; wired; exclusive; projected: daemon initializes armor/maximum-armor grids from hull plus hardpoint catalog topology; direct and deployable damage share one `shield -> armor cell -> equipment -> scalar hull` transaction; direct impacts select a cell or complete hardpoint footprint before orthogonal spread and 0.5-cell penetration, while splash payloads select the source-facing hull half; the fossil penetration infinite-loop defect is fixed; damage type is typed/pass-through without resistances because the fossil never applied them; Eve exposes aggregate and exact armor state and receipts identify reached/applied layers; fake Ymir contacts and presentation cannot decide damage | fossil parity fixtures for topology, edge impacts, orthogonal spread, multi-cell penetration, equipment interception, and generic shield/equipment effect lifecycle |
@@ -96,9 +96,10 @@ owner.
 These are source-confirmed ownership failures, not feature backlog:
 
 1. **Physics parity is incomplete.** Daemon entity, pickup, tractor, physical
-   payload, and wormhole-exclusion paths now use the embedded Ymir owner, but
-   docking/undocking placement and the Unity bridge/query path still need full
-   authority and parity proofs.
+   payload, and wormhole-exclusion paths use the embedded Ymir owner. The
+   entity/entity collision exclusion required by fossil docking is now proven,
+   and the released Unity scene projection has no writeback dependency. The
+   upstream Box3D parity harness and broader shape/contact coverage remain open.
 2. **Executable behavior coverage remains partial.** Snapshot schemas preserve
    broad equipment/behavior state and the daemon executes the migrated weapon,
    propulsion, energy, thermal, consumable, mining, survey, and agent families;
@@ -119,19 +120,15 @@ These are source-confirmed ownership failures, not feature backlog:
    derived from world facts. The fossil contains boss placement and an exit
    zone, but no victory transition, so completion must be owned by an explicit
    game mode rather than inferred from reaching a zone.
-6. **Unity spatial feedback remains insufficiently fenced.** The daemon now
-   requires Ymir for world advancement, but the Unity bridge/query path still
-   needs a negative proof that presentation transforms cannot write spatial
-   truth back into provider state.
-7. **Live conformance has no complete owner.** Static provider packs can pass
+6. **Live conformance has no complete owner.** Static provider packs can pass
    while daemon, runtime, or split-target dependencies are absent. The current
    Eve consumer smoke fails because its expected EveElectron proof is missing.
-8. **Normative native presentation is incomplete.** EveUnity owns semantic
+7. **Normative native presentation is incomplete.** EveUnity owns semantic
    render-channel lowering and immutable presented-entity generations. General
    presentation graphs, map products, attachment/effect lifecycles, material
    profiles, and source-version diagnostics still lack complete Eve contracts
    and generic runtime lowerers.
-9. **Original-game acceptance lacks an evidence ledger.** No current owner
+8. **Original-game acceptance lacks an evidence ledger.** No current owner
     records fossil baseline, target state timeline, commands/receipts, rendered
     captures, and negative-writer checks as one scenario result.
 
@@ -149,7 +146,7 @@ These are source-confirmed ownership failures, not feature backlog:
 - Conformance scenarios must preserve source baseline, authoritative state
   timeline, Ymir timeline, command/receipt chronology, rendered capture,
     runtime/package versions, and negative-authority results together.
-10. **The fossil authoring project still contains a mutable gameplay graph.**
+9. **The fossil authoring project still contains a mutable gameplay graph.**
     `AetheriaUnityObservedEntityRestorer`, `AetheriaUnityObservedFrameApplier`,
     `ActionGameManager`, and `ZoneRenderer` remain reference and asset-authoring
     inputs in the original Unity project. They are absent from the canonical
@@ -157,7 +154,7 @@ These are source-confirmed ownership failures, not feature backlog:
     gameplay assemblies. EveUnity now publishes each committed SoA generation
     through a read-only presented-entity registry; richer selection and HUD
     adapters still need to consume it instead of rebuilding parallel indexes.
-11. **Remote provider asset delivery is proven through the managed content
+10. **Remote provider asset delivery is proven through the managed content
     session.** The authoring build derives deterministic presentation-only
     variants, strips missing and non-Eve scripts, verifies the saved prefabs and
     loaded AssetBundle, and the daemon advertises those bundle-internal paths.
@@ -165,7 +162,7 @@ These are source-confirmed ownership failures, not feature backlog:
     maps, reuses, and renders the provider body without access to the authoring
     project. The cold witness selects `SharedFileMapping` over the exact
     transfer-owned final path; network and GPU zero-copy are not claimed.
-12. **The negotiated local SoA fast path remains unproven.** The daemon publishes
+11. **The negotiated local SoA fast path remains unproven.** The daemon publishes
     exact immutable generations; the external Unity client rejects stale or
     mismatched bodies and now resolves the same generation through the
     Verse-owned network binding, manifest, and content-addressed chunks. The live

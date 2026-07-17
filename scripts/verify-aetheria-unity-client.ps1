@@ -80,6 +80,27 @@ foreach ($requiredInputContract in @("view-direction.v1", "BuildViewDirectionPay
     }
 }
 
+$sceneSinkSource = Get-Content (Join-Path $scenePackage.FullName "Runtime/EveUnityGameObjectPlayableWorldSceneSink.cs") -Raw
+$presentedEntitySource = Get-Content (Join-Path $scenePackage.FullName "Runtime/EveUnityPresentedEntities.cs") -Raw
+foreach ($requiredProjectionBoundary in @(
+    "IEveUnityPlayableWorldSceneSink",
+    "IEveUnityEntityGenerationSink",
+    "IEveUnityPresentedEntityRegistry",
+    "void ApplyGeneration(EveUnityPresentedEntityGeneration generation)",
+    "public Vector3 Position { get; }")) {
+    if (($sceneSinkSource + $presentedEntitySource) -notmatch [regex]::Escape($requiredProjectionBoundary)) {
+        throw "Resolved Eve Unity scene package is missing read-only presentation boundary '$requiredProjectionBoundary'."
+    }
+}
+foreach ($forbiddenWriteback in @(
+    "EveSurfaceCommandRequest",
+    "IEveUnitySurfaceCommandTransport",
+    "EveUnityCultMeshPlayableWorldProvider")) {
+    if (($sceneSinkSource + $presentedEntitySource) -match [regex]::Escape($forbiddenWriteback)) {
+        throw "Unity scene projection gained a forbidden provider writeback dependency '$forbiddenWriteback'."
+    }
+}
+
 $assemblies = Get-ChildItem (Join-Path $ProjectPath "Library/ScriptAssemblies") -Filter *.dll -ErrorAction Stop |
     Select-Object -ExpandProperty Name
 $forbidden = $assemblies | Where-Object { $_ -match "^(Aetheria|GameCult\.Aetheria)(\.|$)|ServerShared" }

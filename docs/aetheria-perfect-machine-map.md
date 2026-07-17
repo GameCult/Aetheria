@@ -3148,10 +3148,30 @@ Docking ownership follows the fossil's entity and `ActionGameManager` path:
   first-eligible selection, weapon disarm, docked fire-command rejection,
   preserved pose/velocity/direction, exact receipt reason, exactly one accepted
   transition fact, no false event on rejected undock, Eve feedback projection,
-  entity pass-through during home approach, and retained ship/pickup contact collection. Simulation
-  smoke proves both docked attacker and docked target subtraction despite stale
-  state and a forged pulse; the live witness remains responsible for
-  camera/effect timing.
+  entity pass-through during home approach, and retained ship/pickup contact
+  collection. A production-Ymir smoke advances an overlapping ship/station
+  pair, proves the negative collision group leaves the ship at the authored
+  24-unit pose, and then accepts docking through the ordinary daemon command.
+  Simulation smoke also proves both docked attacker and docked target
+  subtraction despite stale state and a forged pulse; the live witness remains
+  responsible for camera/effect timing.
+
+Unity spatial projection is a one-way boundary:
+
+- Owner: daemon/Ymir generations own entity pose; the generic EveUnity scene
+  sink owns only the current native presentation objects.
+- Inputs: immutable `EveUnityPresentedEntityGeneration` values containing
+  provider-authored identity, pose, velocity, scale, render group, and asset ref.
+- Outputs: Unity transforms and a read-only presented-entity registry for
+  cameras, attachments, effects, and inspection.
+- Forbidden writers: the scene sink and presented-entity registry may not know
+  `EveSurfaceCommandRequest`, `IEveUnitySurfaceCommandTransport`, or the
+  CultMesh playable-world provider. Local transform changes cannot become
+  daemon commands or provider state.
+- Verification layer: the released-package client gate inspects the resolved
+  EveUnity sources for the immutable generation/sink boundary and rejects any
+  provider or command-transport dependency; it separately rejects Aetheria and
+  ServerShared gameplay assemblies from the canonical Unity product.
 
 Docked refit ownership follows the fossil's `Entity.ItemFits`, `TryEquip`, and
 `TryUnequip` transaction:
