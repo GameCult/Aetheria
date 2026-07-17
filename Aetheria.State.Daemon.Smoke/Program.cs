@@ -6865,6 +6865,122 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             "daemon catalog price must own trade credit mutation");
         RequireEqual(5, CargoQuantity(ship, ore.ItemKey), "daemon cargo capacity and placement must own delivery");
         RequireEqual(2, zone.Entities.Count, "forged ship-creation opinion must not materialize an entity");
+
+        AetheriaRuntimeDaemonCommandDocument Contender(string clientId, string commandId)
+        {
+            var contender = AetheriaRuntimeDaemonCommandDocument.Create(
+                AetheriaRuntimeDaemonCommandKinds.TradePurchase,
+                clientId,
+                run.RunId,
+                2,
+                run.CurrentEntityKey);
+            contender.CommandId = commandId;
+            contender.TradePurchase.ItemKey = ore.ItemKey;
+            contender.TradePurchase.Quantity = 5;
+            contender.TradePurchase.StationCargoIndex = 0;
+            contender.TradePurchase.TargetCargoIndex = 0;
+            contender.TradePurchase.SourceX = 2;
+            contender.TradePurchase.SourceY = 3;
+            return contender;
+        }
+
+        var firstClient = Contender("pilot-a", "trade-contested-a");
+        var secondClient = Contender("pilot-b", "trade-contested-b");
+        var creditsBeforeContest = run.Credits;
+        var contested = AetheriaRuntimeDaemonOperations.Execute(
+            run,
+            [firstClient, secondClient],
+            new AetheriaRuntimeDaemonOperationContext { Catalog = catalog });
+
+        Require(contested.AppliedCommandIds.SequenceEqual([firstClient.CommandId]),
+            "the daemon batch reducer must serialize contested stock to exactly one winner");
+        Require(contested.RejectedCommandIds.SequenceEqual([secondClient.CommandId]),
+            "the command observing exhausted stock must be rejected exactly once");
+        RequireEqual(AetheriaRuntimeDaemonRejectionReasons.TradeStockUnavailable,
+            contested.RejectedCommandReasons[secondClient.CommandId],
+            "contested stock must retain the exact daemon-owned rejection reason");
+        RequireEqual(creditsBeforeContest - daemonUnitPrice * 5, run.Credits,
+            "contested stock must debit the shared run wallet exactly once");
+        RequireEqual(10, CargoQuantity(ship, ore.ItemKey),
+            "contested stock must deliver exactly one winning stack quantity");
+        RequireEqual(0, CargoQuantity(station, ore.ItemKey),
+            "the winning purchase must exhaust authoritative station stock");
+
+        var frame = AetheriaRuntimeDaemonFrameDocument.Create(
+            run, "daemon", "trade-contest", 2, 0.04, 0.02);
+        frame.AppliedCommandIds = contested.AppliedCommandIds;
+        frame.RejectedCommandIds = contested.RejectedCommandIds;
+        frame.RejectedCommandReasons = contested.RejectedCommandReasons;
+        var winnerFact = AetheriaRuntimeCommittedCommandFactDocument.FromAppliedCommand(
+            frame, firstClient, "aetheria.local");
+        var loserFact = AetheriaRuntimeCommittedCommandFactDocument.FromRejectedCommand(
+            frame, secondClient, "aetheria.local");
+        var winnerReceipt = AetheriaRuntimeDaemonReceiptProjector.Project(
+            winnerFact, AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId);
+        var loserReceipt = AetheriaRuntimeDaemonReceiptProjector.Project(
+            loserFact, AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId);
+        RequireEqual("reconciled", winnerReceipt.State,
+            "the winning client must receive an authoritative generic Eve receipt");
+        Require(loserReceipt.State == "denied" &&
+                loserReceipt.Message.Contains(
+                    AetheriaRuntimeDaemonRejectionReasons.TradeStockUnavailable,
+                    StringComparison.Ordinal),
+            "the losing client must receive the exact contested-stock reason through generic Eve");
+
+        var root = Path.Combine(Path.GetTempPath(), "aetheria-trade-contest-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        var statePath = Path.Combine(root, "world.cc");
+        try
+        {
+            using (var node = AetheriaStateNode.OpenAsync(statePath).GetAwaiter().GetResult())
+            {
+                node.MutableDocument<AetheriaRuntimeDaemonFrameDocument>(
+                        AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest)
+                    .ReplaceAsync(frame).GetAwaiter().GetResult();
+                node.MutableDocument<AetheriaRuntimeCommittedCommandFactDocument>(
+                        new CultRecordKey(AetheriaRuntimeCommittedCommandFactDocument.CreateRecordKey(winnerFact.FactId)))
+                    .ReplaceAsync(winnerFact).GetAwaiter().GetResult();
+                node.MutableDocument<AetheriaRuntimeCommittedCommandFactDocument>(
+                        new CultRecordKey(AetheriaRuntimeCommittedCommandFactDocument.CreateRecordKey(loserFact.FactId)))
+                    .ReplaceAsync(loserFact).GetAwaiter().GetResult();
+                node.FlushAsync(soft: false).GetAwaiter().GetResult();
+            }
+
+            using (var node = AetheriaStateNode.OpenAsync(statePath).GetAwaiter().GetResult())
+            {
+                var durableFrame = node.MutableDocument<AetheriaRuntimeDaemonFrameDocument>(
+                        AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest)
+                    .ReadAsync().GetAwaiter().GetResult()
+                    ?? throw new InvalidOperationException("Durable contested-trade frame is missing.");
+                var durableWinner = node.MutableDocument<AetheriaRuntimeCommittedCommandFactDocument>(
+                        new CultRecordKey(AetheriaRuntimeCommittedCommandFactDocument.CreateRecordKey(winnerFact.FactId)))
+                    .ReadAsync().GetAwaiter().GetResult()
+                    ?? throw new InvalidOperationException("Durable winning trade fact is missing.");
+                var durableLoser = node.MutableDocument<AetheriaRuntimeCommittedCommandFactDocument>(
+                        new CultRecordKey(AetheriaRuntimeCommittedCommandFactDocument.CreateRecordKey(loserFact.FactId)))
+                    .ReadAsync().GetAwaiter().GetResult()
+                    ?? throw new InvalidOperationException("Durable rejected trade fact is missing.");
+                var durableStation = durableFrame.Run.Zones.Single().Entities.Single(entity => entity.EntityIndex == 0);
+                var durableShip = durableFrame.Run.Zones.Single().Entities.Single(entity => entity.EntityIndex == 1);
+                RequireEqual(run.Credits, durableFrame.Run.Credits,
+                    "CultCache reconnect must preserve the single authoritative debit");
+                RequireEqual(0, CargoQuantity(durableStation, ore.ItemKey),
+                    "CultCache reconnect must not resurrect contested station stock");
+                RequireEqual(10, CargoQuantity(durableShip, ore.ItemKey),
+                    "CultCache reconnect must preserve the winning cargo delivery exactly once");
+                RequireEqual("reconciled", AetheriaRuntimeDaemonReceiptProjector.Project(
+                        durableWinner, AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId).State,
+                    "the winning generic Eve receipt must survive reconnect");
+                RequireEqual(AetheriaRuntimeDaemonRejectionReasons.TradeStockUnavailable,
+                    durableLoser.RejectionReason,
+                    "the losing generic Eve receipt reason must survive reconnect");
+            }
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+                Directory.Delete(root, recursive: true);
+        }
     }
 
     private static void TradeSaleIsDaemonPricedSpatialAndAtomic()

@@ -84,7 +84,11 @@ namespace GameCult.Aetheria.State.Verse
         public const string CargoNoFit = "cargo-no-fit";
         public const string CargoStackLimit = "cargo-stack-limit";
         public const string TradeRequiresDocked = "trade-requires-docked";
+        public const string InvalidTradeItem = "invalid-trade-item";
         public const string InvalidTradeSource = "invalid-trade-source";
+        public const string TradeStockUnavailable = "trade-stock-unavailable";
+        public const string TradeInsufficientCredits = "trade-insufficient-credits";
+        public const string TradeTargetNoFit = "trade-target-no-fit";
         public const string TradeStationNoFit = "trade-station-no-fit";
         public const string InvalidTradePayout = "invalid-trade-payout";
     }
@@ -204,7 +208,7 @@ namespace GameCult.Aetheria.State.Verse
                 case AetheriaRuntimeDaemonCommandKinds.ToggleHullConductivity:
                     return ApplyToggleHullConductivity(run, command);
                 case AetheriaRuntimeDaemonCommandKinds.TradePurchase:
-                    return ApplyTradePurchase(run, command, context.Catalog);
+                    return ApplyTradePurchase(run, command, context);
                 case AetheriaRuntimeDaemonCommandKinds.TradeSale:
                     return ApplyTradeSale(run, command, context);
                 case AetheriaRuntimeDaemonCommandKinds.RestoreLoadout:
@@ -1008,15 +1012,25 @@ namespace GameCult.Aetheria.State.Verse
         private static bool ApplyTradePurchase(
             AetheriaRuntimeRunCheckpointCommit run,
             AetheriaRuntimeDaemonCommandDocument command,
-            AetheriaRuntimeCatalogSnapshot? catalog)
+            AetheriaRuntimeDaemonOperationContext context)
         {
             var purchase = command.TradePurchase ?? new AetheriaRuntimeTradePurchaseCommand();
             var itemKey = purchase.ItemKey ?? "";
-            var typedItem = catalog?.FindItem(itemKey);
+            var catalog = context.Catalog;
             var quantity = Math.Max(1, purchase.Quantity);
-            if (typedItem == null ||
-                !TryResolveDockParent(run, run.CurrentEntityKey, out var dockParentKey, out var dockParent))
-                return false;
+            if (catalog == null)
+                return context.Reject(AetheriaRuntimeDaemonRejectionReasons.InvalidTradeItem);
+
+            var typedItem = catalog.FindItem(itemKey);
+            if (typedItem == null)
+                return context.Reject(AetheriaRuntimeDaemonRejectionReasons.InvalidTradeItem);
+
+            var actorKey = ResolveActorEntityKey(run, command);
+            if (!TryResolveDockParent(run, actorKey, out var dockParentKey, out var dockParent) ||
+                !IsEntityDockedAt(run, actorKey, dockParent))
+            {
+                return context.Reject(AetheriaRuntimeDaemonRejectionReasons.TradeRequiresDocked);
+            }
 
             if (!TryFindStationStock(
                     dockParent,
@@ -1027,7 +1041,7 @@ namespace GameCult.Aetheria.State.Verse
                     out var stationCargoIndex,
                     out var stockSlot))
             {
-                return false;
+                return context.Reject(AetheriaRuntimeDaemonRejectionReasons.TradeStockUnavailable);
             }
             var stationEntity = dockParent;
 
@@ -1037,13 +1051,13 @@ namespace GameCult.Aetheria.State.Verse
                 catalog.TradeValueSettings).Price;
             var totalPrice = checked(unitPrice * quantity);
             if (unitPrice < 0 || run.Credits < totalPrice)
-                return false;
+                return context.Reject(AetheriaRuntimeDaemonRejectionReasons.TradeInsufficientCredits);
 
             var createsDockedShip = !string.IsNullOrWhiteSpace(typedItem.HullType);
             if (createsDockedShip)
             {
                 if (quantity != 1 || !HasAvailableDockingBay(dockParent))
-                    return false;
+                    return context.Reject(AetheriaRuntimeDaemonRejectionReasons.NoEligibleDockingBay);
                 if (!TryRemoveCargoItemQuantity(
                         stationEntity,
                         stationCargoIndex,
@@ -1052,11 +1066,11 @@ namespace GameCult.Aetheria.State.Verse
                         purchase.SourceY,
                         1,
                         out var purchasedHull))
-                    return false;
+                    return context.Reject(AetheriaRuntimeDaemonRejectionReasons.TradeStockUnavailable);
                 if (!ApplyCreateDockedShipPurchase(run, dockParentKey, itemKey, out var purchasedShipKey))
                 {
                     AddCargoItem(stationEntity, stationCargoIndex, purchasedHull);
-                    return false;
+                    return context.Reject(AetheriaRuntimeDaemonRejectionReasons.NoEligibleDockingBay);
                 }
                 run.CurrentEntityKey = purchasedShipKey;
                 run.Credits -= totalPrice;
@@ -1065,15 +1079,14 @@ namespace GameCult.Aetheria.State.Verse
 
             if (!TryResolveCargoBay(
                     run,
-                    run.CurrentEntityKey,
+                    actorKey,
                     Math.Max(0, purchase.TargetCargoIndex),
                     out var targetEntity,
                     out var targetCargoIndex,
                     out _) ||
-                !IsEntityDockedAt(run, run.CurrentEntityKey, dockParent) ||
                 quantity > AetheriaRuntimeCargoCapacityQueries.UnitsThatFit(targetEntity, catalog, itemKey, targetCargoIndex))
             {
-                return false;
+                return context.Reject(AetheriaRuntimeDaemonRejectionReasons.TradeTargetNoFit);
             }
 
             if (!TryRemoveCargoItemQuantity(
@@ -1085,7 +1098,7 @@ namespace GameCult.Aetheria.State.Verse
                     quantity,
                     out var purchasedSlot))
             {
-                return false;
+                return context.Reject(AetheriaRuntimeDaemonRejectionReasons.TradeStockUnavailable);
             }
 
             purchasedSlot.X = 0;

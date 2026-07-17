@@ -3039,7 +3039,13 @@ and destination bay. The daemon derives the dock parent, current catalog price,
 product kind, capacity, hull-vs-cargo result, credit changes, cargo transfer,
 ship creation, and checkpoint. Historical price, station, target, purchase-kind,
 and `CreatesDockedShip` fields remain serialization tombstones only; live clients
-do not write them and daemon operations do not read them. Runtime loadout
+do not write them and daemon operations do not read them. The daemon's ordered
+command reducer is also the sole contested-stock serialization point. Each
+purchase reads the stock left by the preceding command in that frame, so two
+clients requesting the final stack produce one atomic debit/delivery and one
+typed `trade-stock-unavailable` rejection. World state and both committed
+command facts survive a hard CultCache close/reopen; generic Eve reconstructs
+the reconciled and denied receipts without owning economy logic. Runtime loadout
 restore follows the same rule: UI requests restoration, and the daemon owns
 instantiation, credits, dock assignment, current entity, and checkpoint. Docked
 current-ship selection follows the same rule: UI requests selection, and the
