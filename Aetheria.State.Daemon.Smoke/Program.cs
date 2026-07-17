@@ -165,6 +165,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             CanonicalCatalogPublishesRecoveredMineLauncher,
             EnergyFundedShieldInterceptsDamageBeforeHull,
             ArmorCellsResolveBeforeEquipmentAndHull,
+            PenetrationStopsAtFirstHullGap,
             ShipSchematicProjectsDaemonTopologyAndEquipmentState,
             EquipmentDestructionDisablesBehaviorAndCockpitKillsBeforeHull,
             DestructionDropsLootExactlyOnce,
@@ -3424,13 +3425,15 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         target.HullItemKey = "test-cell-hull";
         target.Equipment = [new AetheriaRuntimeLoadoutItemSlotCommit
         {
-            X = 0, Y = 1,
+            X = 0, Y = 0, Rotation = "Clockwise",
             Item = new AetheriaRuntimeLoadoutItemCommit
                 { ItemKey = "test-cell-gear", Quality = 1, Durability = 2, Enabled = true }
         }];
         var hull = HullCatalogItem("test-cell-hull", 3, 3, 5);
         var gear = CatalogItem("test-cell-gear");
-        gear.ShapeCells = [new AetheriaRuntimeShapeCell(0, 0)];
+        gear.ShapeWidth = 2;
+        gear.ShapeHeight = 1;
+        gear.ShapeCells = [new AetheriaRuntimeShapeCell(1, 0)];
         var catalog = new AetheriaRuntimeCatalogSnapshot([hull, gear], [], []);
         var zone = new AetheriaRuntimeZoneSnapshotCommit
             { ZoneIndex = 0, Entities = [source, target], PhysicalPayloads = [new AetheriaRuntimePhysicalPayloadCommit
@@ -3452,7 +3455,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         var armor = target.StatGrids.Single(value => value.Name == "armor");
         RequireNear(0, armor.Values[3], 0.000001, "source-facing splash cells must absorb damage first");
         RequireNear(1.0 / 3.0, target.Equipment.Single().Item.Durability, 0.000001,
-            "installed equipment at the impact cell must receive residual damage second");
+            "rotated installed equipment at the impact cell must receive residual damage second");
         RequireNear(100 - (10.0 / 3.0), Stat(target, "hull"), 0.000001,
             "only residual damage after armor and equipment may reach hull durability");
         var surface = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(
@@ -3467,6 +3470,79 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             "Eve world projection must expose aggregate armor as derived presentation state");
         RequireEqual("0,5,5,0,5,5,0,5,5", targetNode.Props["armorGrid"],
             "Eve world projection must expose the exact daemon-owned schematic grid");
+    }
+
+    private static void PenetrationStopsAtFirstHullGap()
+    {
+        var source = Entity(0, 0, "player");
+        source.DirectionX = 1;
+        source.VelocityX = 1;
+        source.TargetEntityIndex = 1;
+        source.Contacts = [new AetheriaRuntimeEntityContactCommit
+        {
+            TargetEntityIndex = 1, InfoGathered = 1, Hostile = true, Visible = true
+        }];
+        source.WeaponGroups = [new[] { 0 }];
+        source.Equipment = [new AetheriaRuntimeLoadoutItemSlotCommit
+        {
+            Item = new AetheriaRuntimeLoadoutItemCommit
+                { ItemKey = "gap-penetrator", Quality = 1, Durability = 10, Enabled = true }
+        }];
+        var target = Entity(1, 80, "raider");
+        target.HullItemKey = "disconnected-hull";
+        var hull = HullCatalogItem("disconnected-hull", 3, 1, 0);
+        hull.ShapeCells =
+        [
+            new AetheriaRuntimeShapeCell(0, 0),
+            new AetheriaRuntimeShapeCell(2, 0)
+        ];
+        var payload = new AetheriaRuntimeBehaviorPayload(0, AetheriaRuntimeBehaviorKinds.InstantWeapon, 0,
+        [
+            new AetheriaRuntimeBehaviorField(2, PerformanceStat(10)),
+            new AetheriaRuntimeBehaviorField(3, PerformanceStat(3)),
+            new AetheriaRuntimeBehaviorField(6, PerformanceStat(150)),
+            new AetheriaRuntimeBehaviorField(16, PerformanceStat(200)),
+            new AetheriaRuntimeBehaviorField(17, PerformanceStat(1)),
+            new AetheriaRuntimeBehaviorField(19, PerformanceStat(0.1)),
+            new AetheriaRuntimeBehaviorField(21, PerformanceStat(100)),
+            new AetheriaRuntimeBehaviorField(23, PerformanceStat(180)),
+            new AetheriaRuntimeBehaviorField(24, PerformanceStat(1)),
+            new AetheriaRuntimeBehaviorField(25, PerformanceStat(1))
+        ]);
+        var catalog = new AetheriaRuntimeCatalogSnapshot(
+            [WearableWeaponCatalogItem("gap-penetrator", payload), hull], [], []);
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "penetration-gap-smoke", GenerationSeed = 0, CurrentZoneIndex = 0,
+            CurrentEntityKey = "zone.0.entity.0",
+            Zones = [new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [source, target] }]
+        };
+        var fire = new AetheriaRuntimeDaemonIntentState();
+        fire.WeaponGroups.Add(new AetheriaRuntimeDaemonWeaponGroupIntent
+            { ActorEntityKey = run.CurrentEntityKey, WeaponGroup = 0, Fire = true, Active = true });
+
+        for (var frame = 0; frame < 12 && run.ShotReceipts.Count == 0; frame++)
+            AetheriaRuntimeDaemonSimulation.Step(run,
+                frame == 0 ? fire : new AetheriaRuntimeDaemonIntentState(), 0.1,
+                AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
+                NewPhysics(), catalog, frame, frame * 0.1);
+
+        var receipt = run.ShotReceipts.Single(value => value.WeaponItemKey == "gap-penetrator");
+        Require(receipt.Hit && receipt.DamageCells.Count == 1 &&
+                receipt.DamageCells[0].X == 0 && receipt.DamageCells[0].Y == 0,
+            $"penetration must stop at the first empty hull sample instead of damaging a disconnected island; " +
+            $"endpoint={receipt.EndpointX:0.###},{receipt.EndpointZ:0.###} " +
+            $"cells={string.Join(';', receipt.DamageCells.Select(cell => $"{cell.X},{cell.Y}"))}");
+        RequireNear(90, Stat(target, "hull"), 0.000001,
+            "a disconnected hull island must not divide or receive penetration damage beyond a gap");
+        var surface = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(
+            new AetheriaRuntimeDaemonFrameDocument { FrameId = receipt.FrameId, Run = run },
+            new AetheriaRuntimeDaemonHealthDocument(),
+            AetheriaRuntimeDaemonCommandBoundaryDocument.Create("daemon"));
+        var shot = Flatten(surface.Surface.Root).Single(node =>
+            node.Kind == "shot.receipt" && node.Props["itemKey"] == "gap-penetrator");
+        RequireEqual("1", shot.Props["damageCellCount"],
+            "generic Eve shot receipts must expose the daemon's contiguous penetration result");
     }
 
     private static void ShipSchematicProjectsDaemonTopologyAndEquipmentState()

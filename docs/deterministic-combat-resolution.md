@@ -143,8 +143,12 @@ damage pipeline.
 The implemented damage transaction maps the deterministic impact onto the
 target schematic. Damage spread expands through orthogonally adjacent cells.
 Penetration advances through the schematic in 0.5-cell increments, including
-the fix for the fossil path that could fail to advance and loop forever. Damage
-type remains typed and is passed through state and receipts, but does not apply
+the fix for the fossil path that could fail to advance and loop forever. It
+stops at the first sample outside occupied hull topology, preserving the
+fossil's contiguous penetration rule rather than tunnelling into a disconnected
+hull island. Equipment interception uses the same rotation-aware footprint as
+refit placement, thermal simulation, and schematic projection. Damage type
+remains typed and is passed through state and receipts, but does not apply
 resistance modifiers: the fossil carried damage types but never used them for
 resistance.
 

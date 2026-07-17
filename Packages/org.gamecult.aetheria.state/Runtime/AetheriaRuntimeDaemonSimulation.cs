@@ -2534,7 +2534,8 @@ namespace GameCult.Aetheria.State.Verse
                     pointX += penetrationX * 0.5;
                     pointY += penetrationY * 0.5;
                     var cell = ((int)Math.Floor(pointX), (int)Math.Floor(pointY));
-                    if (occupied.Contains(cell)) result.Add(cell);
+                    if (!occupied.Contains(cell)) break;
+                    result.Add(cell);
                 }
             }
             return result.OrderBy(cell => cell.Y).ThenBy(cell => cell.X).ToList();
@@ -2549,7 +2550,9 @@ namespace GameCult.Aetheria.State.Verse
                 var slot = equipment[index];
                 var item = catalog?.FindItem(slot.Item?.ItemKey ?? "");
                 if (item?.ShapeCells == null) continue;
-                if (item.ShapeCells.Any(cell => slot.X + cell.X == x && slot.Y + cell.Y == y)) return (slot, index);
+                var rotation = AetheriaRuntimeEquipmentGridGeometry.ParseRotation(slot.Rotation);
+                if (AetheriaRuntimeEquipmentGridGeometry.RotatedCells(item, rotation)
+                    .Any(cell => slot.X + cell.X == x && slot.Y + cell.Y == y)) return (slot, index);
             }
             return (null, -1);
         }

@@ -1026,11 +1026,18 @@ lifecycle state.
   their respective authoritative impact facts are resolved. All behavior
   consumers use the shared operational-equipment query, so disabled,
   thermally-offline, and destroyed items cannot keep acting through a forgotten
-  subsystem-specific filter.
+  subsystem-specific filter. Equipment interception derives occupied cells
+  from the same rotation-aware grid geometry as refit, thermal simulation, and
+  Eve schematic projection.
 - Cut line: scalar-hull-only and caller-specific damage paths are no longer
   owners. Hull/hardpoint topology initializes armor grids; only the daemon
   transaction mutates them thereafter. Penetration always advances by a
-  half-cell step, eliminating the fossil's non-advancing infinite loop.
+  half-cell step, eliminating the fossil's non-advancing infinite loop, and
+  terminates at the first empty sample instead of crossing a hull gap.
+- Verification: daemon smoke proves a rotated asymmetric equipment footprint
+  receives residual cell damage and a penetrating direct shot cannot reach a
+  disconnected hull island. The exact contiguous cell count remains visible in
+  the generic Eve shot receipt.
 
 ### Daemon Destruction Transaction
 
