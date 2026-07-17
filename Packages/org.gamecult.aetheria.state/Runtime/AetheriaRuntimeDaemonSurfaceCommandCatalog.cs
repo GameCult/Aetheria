@@ -25,6 +25,7 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeDaemonCommandKinds.SetHeatsinksEnabled,
             AetheriaRuntimeDaemonCommandKinds.SetOverrideShutdown,
             AetheriaRuntimeDaemonCommandKinds.ToggleShieldEnabled,
+            AetheriaRuntimeDaemonCommandKinds.Interact,
             AetheriaRuntimeDaemonCommandKinds.DockNearest,
             AetheriaRuntimeDaemonCommandKinds.Undock
         };
@@ -81,6 +82,7 @@ namespace GameCult.Aetheria.State.Verse
                     AetheriaRuntimeDaemonCommandKinds.SetHeatsinksEnabled => client.SetHeatsinksEnabled(frame, true),
                     AetheriaRuntimeDaemonCommandKinds.SetOverrideShutdown => client.SetOverrideShutdown(frame, true),
                     AetheriaRuntimeDaemonCommandKinds.ToggleShieldEnabled => client.ToggleShieldEnabled(frame),
+                    AetheriaRuntimeDaemonCommandKinds.Interact => client.Interact(frame),
                     AetheriaRuntimeDaemonCommandKinds.DockNearest => client.DockNearest(frame),
                     AetheriaRuntimeDaemonCommandKinds.Undock => client.Undock(frame),
                     _ => null

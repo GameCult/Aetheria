@@ -183,6 +183,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             InputCapabilityPublishesExactBehaviorLevers,
             InputCapabilityPublishesConsumableActionBarState,
             InputCapabilityPublishesHeldWeaponGroupLever,
+            InputCapabilityPublishesNativeTargetAndInteractControls,
             ReflectorUsesSharedStellarLightFieldWithoutAccumulating,
             SensorPingIsActorScopedEnergyGatedAndReconnectable,
             TurretControllerAcquiresAimsAndTriggersExactWeapons,
@@ -761,6 +762,88 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             "weapon release must deactivate the exact advertised group");
         Require(entity.ActiveWeaponGroups.SequenceEqual(new[] { false }),
             "weapon release must clear the daemon-owned held state");
+    }
+
+    private static void InputCapabilityPublishesNativeTargetAndInteractControls()
+    {
+        var actor = Entity(0, 0, "player");
+        var near = Entity(1, 0, "enemy");
+        near.PositionX = 4;
+        var far = Entity(2, 0, "enemy");
+        far.PositionX = 12;
+        actor.Contacts =
+        [
+            new AetheriaRuntimeEntityContactCommit
+                { TargetEntityIndex = near.EntityIndex, Visible = true, Hostile = true },
+            new AetheriaRuntimeEntityContactCommit
+                { TargetEntityIndex = far.EntityIndex, Visible = true, Hostile = true }
+        ];
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "native-input-smoke",
+            CurrentZoneIndex = 0,
+            Zones = [new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [actor, near, far] }]
+        };
+        run.CurrentEntityKey = run.EntityRecordKey(0, actor.EntityIndex);
+        var frame = AetheriaRuntimeDaemonFrameDocument.Create(run, "smoke", "native-input", 1, 0.1, 0.1);
+        var capability = AetheriaRuntimeInputCapabilityDocument.FromFrame(frame);
+        var targeting = capability.Actions.Where(value => value.Category == "targeting").ToArray();
+        Require(targeting.Select(value => value.ActionId).ToHashSet(StringComparer.Ordinal).SetEquals(
+            ["pilot.target-nearest", "pilot.target-previous", "pilot.target-next", "pilot.target-clear"]),
+            "portable input must advertise every argumentless daemon target-selection lever");
+        Require(targeting.Where(value => value.ActionId != "pilot.target-clear")
+                .All(value => value.Availability == "available" &&
+                              value.Payload["visibleHostileCount"] == "2" &&
+                              value.Payload["currentTargetEntityIndex"] == "-1") &&
+                targeting.Single(value => value.ActionId == "pilot.target-clear").Availability == "unavailable",
+            "target controls must derive availability and current selection from daemon contact truth");
+
+        var keyboard = capability.DefaultProfiles.Single(value => value.DeviceClass == "keyboard-mouse");
+        string Control(string actionId) => keyboard.Bindings.Single(value => value.ActionId == actionId).Gesture.Controls.Single();
+        RequireEqual("keyboard.f", Control("pilot.interact"),
+            "the generic default profile must preserve the fossil interaction key");
+        RequireEqual("keyboard.t", Control("pilot.target-nearest"),
+            "the generic default profile must preserve the fossil nearest-target key");
+        RequireEqual("keyboard.y", Control("pilot.target-previous"),
+            "the generic default profile must preserve the fossil previous-target key");
+        RequireEqual("keyboard.u", Control("pilot.target-next"),
+            "the generic default profile must preserve the fossil next-target key");
+        Require(!keyboard.Bindings.Any(value => value.Gesture.Controls.Contains("keyboard.r", StringComparer.Ordinal)),
+            "the advertised profile must not steal the fossil reticle-target key for docking");
+
+        AetheriaRuntimeDaemonCommandDocument Translate(AetheriaRuntimeInputActionDocument action)
+        {
+            var request = new EveSurfaceCommandRequest(
+                capability.ProviderId,
+                AetheriaRuntimeDaemonGameSurfaceBuilder.PilotSurfaceId,
+                CultMesh.OperationInvocation(action.Operation),
+                CultMesh.OperationPayload(("entityId", run.CurrentEntityKey)),
+                DateTimeOffset.UtcNow,
+                "native-input-smoke");
+            Require(AetheriaRuntimeDaemonOperationsClient.TryCreateSurfaceCommandDocument(
+                    request, frame, ".", "native-input-smoke", "native-input", out var command),
+                $"advertised action {action.ActionId} must translate through the generic Eve command path");
+            return command!;
+        }
+
+        var nearestCommand = Translate(targeting.Single(value => value.ActionId == "pilot.target-nearest"));
+        RequireEqual(AetheriaRuntimeDaemonCommandKinds.TargetNearest, nearestCommand.Kind,
+            "nearest target action must preserve daemon command identity");
+        var result = AetheriaRuntimeDaemonOperations.Execute(
+            run, [nearestCommand], new AetheriaRuntimeDaemonOperationContext());
+        RequireEqual(1, result.AppliedCommandIds.Count,
+            "the advertised target action must reach the daemon owner");
+        RequireEqual(near.EntityIndex, actor.TargetEntityIndex,
+            "nearest selection must remain daemon policy rather than client reconstruction");
+        var selected = AetheriaRuntimeInputCapabilityDocument.FromFrame(frame);
+        Require(selected.Actions.Single(value => value.ActionId == "pilot.target-clear").Availability == "available" &&
+                selected.Actions.Where(value => value.Category == "targeting")
+                    .All(value => value.Payload["currentTargetEntityIndex"] == near.EntityIndex.ToString()),
+            "all portable target levers must refresh from the newly selected daemon target");
+
+        var interact = capability.Actions.Single(value => value.ActionId == "pilot.interact");
+        RequireEqual(AetheriaRuntimeDaemonCommandKinds.Interact, Translate(interact).Kind,
+            "the fossil interaction binding must reach the shared wormhole-first/then-dock daemon command");
     }
 
     private static void DockedRefitSurfacePublishesGenericCommands()

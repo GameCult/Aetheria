@@ -73,7 +73,7 @@ namespace GameCult.Aetheria.State.Verse
             var run = frame?.Run ?? new AetheriaRuntimeRunCheckpointCommit();
             var entity = run.Zones.SelectMany(zone => zone.Entities).FirstOrDefault(candidate =>
                 string.Equals(run.EntityRecordKey(run.CurrentZoneIndex, candidate.EntityIndex), run.CurrentEntityKey, StringComparison.Ordinal));
-            var actions = CoreActions().ToList();
+            var actions = CoreActions(entity).ToList();
             if (includeSimulationClock)
             {
                 actions.Add(Action("simulation.pause", "Pause", "SetSimulationRate", "simulation", "terminus-clock", ("scalarValue", "0")));
@@ -365,7 +365,8 @@ namespace GameCult.Aetheria.State.Verse
         private static string StableToken(string value) =>
             new string((value ?? "").Select(character => char.IsLetterOrDigit(character) ? char.ToLowerInvariant(character) : '-').ToArray()).Trim('-');
 
-        private static IEnumerable<AetheriaRuntimeInputActionDocument> CoreActions()
+        private static IEnumerable<AetheriaRuntimeInputActionDocument> CoreActions(
+            AetheriaRuntimeEntitySnapshotCommit? entity)
         {
             var scoop = Action("pilot.scoop", "Scoop", "SetTractorPower", "ship", "pilot", ("scalarValue", "0"));
             scoop.InputValue = new AetheriaRuntimeInputValueDocument
@@ -374,9 +375,40 @@ namespace GameCult.Aetheria.State.Verse
                 PayloadKey = "scalarValue"
             };
             yield return scoop;
+            yield return Action("pilot.interact", "Interact", "Interact", "ship", "pilot");
             yield return Action("pilot.dock", "Dock", "DockNearest", "ship", "pilot");
             yield return Action("pilot.undock", "Undock", "Undock", "ship", "pilot");
-            yield return Action("pilot.target-nearest", "Target Nearest", "TargetNearest", "targeting", "pilot");
+            var visibleHostileCount = (entity?.Contacts ?? Array.Empty<AetheriaRuntimeEntityContactCommit>())
+                .Count(contact => contact != null && contact.Visible && contact.Hostile);
+            var currentTarget = entity?.TargetEntityIndex ?? -1;
+            yield return TargetAction("pilot.target-nearest", "Target Nearest", "TargetNearest",
+                visibleHostileCount > 0, currentTarget, visibleHostileCount);
+            yield return TargetAction("pilot.target-previous", "Target Previous", "TargetPrevious",
+                visibleHostileCount > 0, currentTarget, visibleHostileCount);
+            yield return TargetAction("pilot.target-next", "Target Next", "TargetNext",
+                visibleHostileCount > 0, currentTarget, visibleHostileCount);
+            yield return TargetAction("pilot.target-clear", "Clear Target", "ClearTarget",
+                currentTarget >= 0, currentTarget, visibleHostileCount);
+        }
+
+        private static AetheriaRuntimeInputActionDocument TargetAction(
+            string id,
+            string label,
+            string operation,
+            bool available,
+            int currentTarget,
+            int visibleHostileCount)
+        {
+            var action = Action(
+                id,
+                label,
+                operation,
+                "targeting",
+                "pilot",
+                ("currentTargetEntityIndex", currentTarget.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+                ("visibleHostileCount", visibleHostileCount.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+            action.Availability = available ? "available" : "unavailable";
+            return action;
         }
 
         private static AetheriaRuntimeInputActionDocument Action(string id, string label, string operation, string category, string source, params (string Key, string Value)[] payload) =>
@@ -405,8 +437,14 @@ namespace GameCult.Aetheria.State.Verse
                 ? Binding("scoop.shift", "pilot.scoop", "direct", "keyboard.leftShift")
                 : Binding("scoop.sequence", "pilot.scoop", "sequence", "gamepad.dpad.down", "gamepad.dpad.right"));
             bindings.Add(keyboard
-                ? Binding("dock.r", "pilot.dock", "direct", "keyboard.r")
-                : Binding("dock.sequence", "pilot.dock", "sequence", "gamepad.dpad.down", "gamepad.dpad.up"));
+                ? Binding("interact.f", "pilot.interact", "direct", "keyboard.f")
+                : Binding("interact.sequence", "pilot.interact", "sequence", "gamepad.dpad.down", "gamepad.dpad.up"));
+            if (keyboard)
+            {
+                bindings.Add(Binding("target.nearest.t", "pilot.target-nearest", "direct", "keyboard.t"));
+                bindings.Add(Binding("target.previous.y", "pilot.target-previous", "direct", "keyboard.y"));
+                bindings.Add(Binding("target.next.u", "pilot.target-next", "direct", "keyboard.u"));
+            }
             if (actions.Any(action => string.Equals(action.ActionId, "simulation.pause", StringComparison.Ordinal)))
                 bindings.Add(keyboard
                     ? Binding("simulation.pause", "simulation.pause", "direct", "keyboard.pause")
