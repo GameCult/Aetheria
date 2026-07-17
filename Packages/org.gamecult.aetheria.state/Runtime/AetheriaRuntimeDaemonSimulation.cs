@@ -495,22 +495,17 @@ namespace GameCult.Aetheria.State.Verse
                 RefreshShieldProjection(entity, catalog);
             foreach (var attacker in entities)
             {
-                var weaponGroup = ResolveFireGroup(run, zone, attacker, intents);
-                StepDeployableWeapons(run, zone, attacker, weaponGroup, deltaSeconds, settings, catalog, frameId);
-                StepChargedWeapons(run, zone, attacker, byIndex, weaponGroup, deltaSeconds,
+                var requestedWeapons = ResolveWeaponTriggers(zone, attacker, entities, intents, catalog);
+                StepDeployableWeapons(run, zone, attacker, requestedWeapons, deltaSeconds, settings, catalog, frameId);
+                StepChargedWeapons(run, zone, attacker, byIndex, requestedWeapons, deltaSeconds,
                     settings, catalog, frameId);
-                StepConstantWeapons(run, zone, byIndex, attacker, weaponGroup, deltaSeconds,
+                StepConstantWeapons(run, zone, byIndex, attacker, requestedWeapons, deltaSeconds,
                     settings, catalog, frameId);
                 var weapons = ResolveWeapons(attacker, catalog, settings);
-                var requestedEquipment = weaponGroup >= 0 && weaponGroup <
-                    (attacker.WeaponGroups ?? Array.Empty<IReadOnlyList<int>>()).Count
-                    ? attacker.WeaponGroups[weaponGroup] ?? Array.Empty<int>()
-                    : Array.Empty<int>();
                 foreach (var weapon in weapons)
                 {
                     weapon.State.Firing = false;
-                    if (weaponGroup >= 0 &&
-                        (catalog == null || requestedEquipment.Contains(weapon.State.OwnerIndex)))
+                    if (requestedWeapons.Contains(weapon.State.OwnerIndex, weapon.State.BehaviorIndex))
                         weapon.State.TriggerPending = true;
                     if (weapon.State.Reloading)
                     {
@@ -659,19 +654,19 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeRunCheckpointCommit run,
             AetheriaRuntimeZoneSnapshotCommit zone,
             AetheriaRuntimeEntitySnapshotCommit attacker,
-            int weaponGroup,
+            WeaponTriggerSet requestedWeapons,
             double deltaSeconds,
             AetheriaRuntimeDaemonSimulationSettings settings,
             AetheriaRuntimeCatalogSnapshot? catalog,
             long frameId)
         {
-            foreach (var deployable in ResolveDeployableWeapons(attacker, weaponGroup, catalog, settings))
+            foreach (var deployable in ResolveDeployableWeapons(attacker, requestedWeapons, catalog, settings))
             {
                 var weapon = deployable.Weapon;
                 weapon.State.Firing = false;
                 weapon.State.CooldownProgress = Math.Max(0, weapon.State.CooldownProgress - deltaSeconds);
                 weapon.State.CoolingDown = weapon.State.CooldownProgress > 0;
-                if (!IsAlive(attacker) || weaponGroup < 0 || weapon.State.CooldownProgress > 0) continue;
+                if (!IsAlive(attacker) || weapon.State.CooldownProgress > 0) continue;
 
                 var result = CommitWeaponRound(attacker, weapon, catalog);
                 PublishWeaponRoundResult(run, zone, attacker, weapon, frameId, result);
@@ -813,13 +808,13 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeZoneSnapshotCommit zone,
             AetheriaRuntimeEntitySnapshotCommit attacker,
             IReadOnlyDictionary<int, AetheriaRuntimeEntitySnapshotCommit> byIndex,
-            int requestedWeaponGroup,
+            WeaponTriggerSet requestedWeapons,
             double deltaSeconds,
             AetheriaRuntimeDaemonSimulationSettings settings,
             AetheriaRuntimeCatalogSnapshot? catalog,
             long frameId)
         {
-            foreach (var weapon in ResolveChargedWeapons(attacker, requestedWeaponGroup, catalog, settings))
+            foreach (var weapon in ResolveChargedWeapons(attacker, requestedWeapons, catalog, settings))
             {
                 var state = weapon.Base.State;
                 state.Firing = false;
@@ -1006,13 +1001,13 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeZoneSnapshotCommit zone,
             IReadOnlyDictionary<int, AetheriaRuntimeEntitySnapshotCommit> byIndex,
             AetheriaRuntimeEntitySnapshotCommit attacker,
-            int weaponGroup,
+            WeaponTriggerSet requestedWeapons,
             double deltaSeconds,
             AetheriaRuntimeDaemonSimulationSettings settings,
             AetheriaRuntimeCatalogSnapshot? catalog,
             long frameId)
         {
-            foreach (var weapon in ResolveConstantWeapons(attacker, weaponGroup, catalog, settings))
+            foreach (var weapon in ResolveConstantWeapons(attacker, requestedWeapons, catalog, settings))
             {
                 if (weapon.State.Reloading)
                 {
@@ -1026,7 +1021,7 @@ namespace GameCult.Aetheria.State.Verse
                 }
 
                 byIndex.TryGetValue(attacker.TargetEntityIndex, out var selectedTarget);
-                var validTarget = IsAlive(attacker) && weaponGroup >= 0 &&
+                var validTarget = IsAlive(attacker) &&
                     attacker.TargetEntityIndex >= 0 && selectedTarget != null &&
                     IsAlive(selectedTarget) && Hostile(attacker, selectedTarget) &&
                     DistanceSq(attacker, selectedTarget) <= weapon.Range * weapon.Range;
@@ -1408,20 +1403,33 @@ namespace GameCult.Aetheria.State.Verse
             projectile.VelocityY = projectile.DirectionY * speed;
         }
 
-        private static int ResolveFireGroup(
-            AetheriaRuntimeRunCheckpointCommit run,
+        private static WeaponTriggerSet ResolveWeaponTriggers(
             AetheriaRuntimeZoneSnapshotCommit zone,
             AetheriaRuntimeEntitySnapshotCommit attacker,
-            AetheriaRuntimeDaemonIntentState intents)
+            IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities,
+            AetheriaRuntimeDaemonIntentState intents,
+            AetheriaRuntimeCatalogSnapshot? catalog)
         {
-            var intent = (intents == null
+            var triggers = new WeaponTriggerSet();
+            var groups = attacker.WeaponGroups ?? Array.Empty<IReadOnlyList<int>>();
+            foreach (var intent in (intents == null
                     ? Enumerable.Empty<AetheriaRuntimeDaemonWeaponGroupIntent>()
                     : intents.WeaponGroups)
-                .LastOrDefault(intent => intent != null &&
+                .Where(intent => intent != null &&
                     ActorMatches(intent.ActorEntityKey, zone.ZoneIndex, attacker.EntityIndex) &&
                     intent.Fire &&
-                    intent.Active);
-            return intent?.WeaponGroup ?? (IsPlayerOwned(attacker) ? -1 : 0);
+                    intent.Active))
+            {
+                if (intent.WeaponGroup < 0 || intent.WeaponGroup >= groups.Count)
+                    continue;
+                foreach (var equipmentIndex in groups[intent.WeaponGroup] ?? Array.Empty<int>())
+                    triggers.RequestEquipment(equipmentIndex);
+            }
+
+            foreach (var request in AetheriaRuntimeTurretControllerSimulation.StepEntity(
+                         attacker, entities, catalog))
+                triggers.RequestBehavior(request.EquipmentIndex, request.BehaviorIndex);
+            return triggers;
         }
 
         private static bool ActorMatches(string actorEntityKey, int zoneIndex, int entityIndex) =>
@@ -1430,13 +1438,10 @@ namespace GameCult.Aetheria.State.Verse
 
         private static IReadOnlyList<ResolvedConstantWeapon> ResolveConstantWeapons(
             AetheriaRuntimeEntitySnapshotCommit entity,
-            int weaponGroup,
+            WeaponTriggerSet requestedWeapons,
             AetheriaRuntimeCatalogSnapshot? catalog,
             AetheriaRuntimeDaemonSimulationSettings settings)
         {
-            var equipmentIndices = weaponGroup >= 0 && weaponGroup < (entity.WeaponGroups ?? Array.Empty<IReadOnlyList<int>>()).Count
-                ? entity.WeaponGroups[weaponGroup] ?? Array.Empty<int>()
-                : Array.Empty<int>();
             return AetheriaRuntimeEquippedBehaviorQueries.FindOperational(entity, catalog, AetheriaRuntimeBehaviorKinds.ConstantWeapon)
                 .Select(behavior =>
                 {
@@ -1446,7 +1451,8 @@ namespace GameCult.Aetheria.State.Verse
                         magazineSize > 1 ? magazineSize : 1,
                         settings);
                     return new ResolvedConstantWeapon(
-                        state, behavior.Item.ItemKey, equipmentIndices.Contains(behavior.EquipmentIndex),
+                        state, behavior.Item.ItemKey,
+                        requestedWeapons.Contains(behavior.EquipmentIndex, behavior.BehaviorIndex),
                         Math.Max(0, behavior.EvaluateStat(2)),
                         PositiveOr(behavior.EvaluateStat(6), 1),
                         Math.Max(0, behavior.EvaluateStat(9)),
@@ -1463,15 +1469,12 @@ namespace GameCult.Aetheria.State.Verse
 
         private static IReadOnlyList<ResolvedDeployableWeapon> ResolveDeployableWeapons(
             AetheriaRuntimeEntitySnapshotCommit entity,
-            int weaponGroup,
+            WeaponTriggerSet requestedWeapons,
             AetheriaRuntimeCatalogSnapshot? catalog,
             AetheriaRuntimeDaemonSimulationSettings settings)
         {
-            var equipmentIndices = weaponGroup >= 0 && weaponGroup < (entity.WeaponGroups ?? Array.Empty<IReadOnlyList<int>>()).Count
-                ? entity.WeaponGroups[weaponGroup] ?? Array.Empty<int>()
-                : Array.Empty<int>();
             return AetheriaRuntimeEquippedBehaviorQueries.FindOperational(entity, catalog, AetheriaRuntimeBehaviorKinds.DeployableWeapon)
-                .Where(behavior => equipmentIndices.Contains(behavior.EquipmentIndex))
+                .Where(behavior => requestedWeapons.Contains(behavior.EquipmentIndex, behavior.BehaviorIndex))
                 .Select(behavior => new ResolvedDeployableWeapon(
                     ResolveAuthoredWeapon(entity, behavior, settings),
                     Math.Max(0, ReadNumber(behavior.Payload, 26)),
@@ -1815,17 +1818,15 @@ namespace GameCult.Aetheria.State.Verse
         }
 
         private static IReadOnlyList<ResolvedChargedWeapon> ResolveChargedWeapons(
-            AetheriaRuntimeEntitySnapshotCommit entity, int requestedWeaponGroup,
+            AetheriaRuntimeEntitySnapshotCommit entity, WeaponTriggerSet requestedWeapons,
             AetheriaRuntimeCatalogSnapshot? catalog, AetheriaRuntimeDaemonSimulationSettings settings)
         {
-            var requestedEquipment = requestedWeaponGroup >= 0 && requestedWeaponGroup <
-                (entity.WeaponGroups ?? Array.Empty<IReadOnlyList<int>>()).Count
-                ? entity.WeaponGroups[requestedWeaponGroup] ?? Array.Empty<int>() : Array.Empty<int>();
             return AetheriaRuntimeEquippedBehaviorQueries.FindOperational(entity, catalog, AetheriaRuntimeBehaviorKinds.ChargedWeapon)
                 .Where(value => string.Equals(value.Payload.Kind, AetheriaRuntimeBehaviorKinds.ChargedWeapon, StringComparison.Ordinal))
                 .Select(value => new ResolvedChargedWeapon(
                     ResolveAuthoredWeapon(entity, value, settings), value.Item,
-                    requestedEquipment.Contains(value.EquipmentIndex), PositiveOr(value.EvaluateStat(21), 1),
+                    requestedWeapons.Contains(value.EquipmentIndex, value.BehaviorIndex),
+                    PositiveOr(value.EvaluateStat(21), 1),
                     Math.Max(0, value.EvaluateStat(22)), Math.Max(0, value.EvaluateStat(23)),
                     ReadNumber(value.Payload, 25), PositiveOr(ReadNumber(value.Payload, 26), 1),
                     PositiveOr(ReadNumber(value.Payload, 27), 1), PositiveOr(ReadNumber(value.Payload, 29), 1),
@@ -2030,6 +2031,23 @@ namespace GameCult.Aetheria.State.Verse
             var wear = (entity.EquipmentStates ?? Array.Empty<AetheriaRuntimeEquipmentStateCommit>())
                 .FirstOrDefault(value => value != null && value.EquipmentIndex == state.OwnerIndex)?.Wear ?? 0;
             AetheriaRuntimeThermalSimulation.ApplyWear(entity, state.OwnerIndex, wear * multiplier);
+        }
+
+        private sealed class WeaponTriggerSet
+        {
+            private readonly HashSet<int> _requestedEquipment = new HashSet<int>();
+            private readonly HashSet<(int EquipmentIndex, int BehaviorIndex)> _requestedBehaviors =
+                new HashSet<(int EquipmentIndex, int BehaviorIndex)>();
+
+            public void RequestEquipment(int equipmentIndex) =>
+                _requestedEquipment.Add(equipmentIndex);
+
+            public void RequestBehavior(int equipmentIndex, int behaviorIndex) =>
+                _requestedBehaviors.Add((equipmentIndex, behaviorIndex));
+
+            public bool Contains(int equipmentIndex, int behaviorIndex) =>
+                _requestedEquipment.Contains(equipmentIndex) ||
+                _requestedBehaviors.Contains((equipmentIndex, behaviorIndex));
         }
 
         private enum WeaponRoundResult { Fired, ReloadStarted, InsufficientEnergy, NoAmmo }

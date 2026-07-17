@@ -830,6 +830,35 @@ one `weapon.lock.acquired`, and one `shot.committed` event. Ymir reconstructs
 process-local bodies from committed world state; it does not own weapon
 lifecycle state.
 
+### Daemon Orbital Turret Controller
+
+- Owner: each operational installed `TurretController` behavior owns automatic
+  target acquisition, predictive look direction, and its exact per-weapon
+  trigger set. Ship agent combat remains owned by the task planner and pilot
+  fire remains an accepted command; neither path impersonates an orbital
+  controller.
+- Inputs: visible hostile ship contacts in stable zone order, current target,
+  entity and target pose/velocity, operational weapon behaviors, evaluated
+  weapon range and velocity, and catalog placement rotation.
+- Outputs: selected target, daemon look direction, reconnectable controller
+  weapon count/shot speed/predictive flag, and behavior-granular weapon
+  requests consumed by the ordinary instant, constant, charged, and deployable
+  weapon lifecycle.
+- Derived state: turret tracking animation, barrel articulation, muzzle effects,
+  target indicators, and audio are Eve presentation of daemon aim, weapon state,
+  shot receipts, and feedback chronology.
+- Forbidden writers: faction identity, entity kind, Unity update loops, and
+  generic Eve lowerers cannot grant automatic fire. The deleted non-player
+  group-zero fallback is not a compatibility path.
+- Shared paths: pilot and ship-agent group commands expand to every weapon
+  behavior on their assigned equipment; turret control requests only the exact
+  aligned in-range behavior. All then enter the same lock, charge, burst,
+  energy, heat, wear, visibility, shot, and damage transactions.
+- Verification: daemon smoke proves no controller/no command means no hostile
+  auto-fire; acquisition does not fire in the same fossil tick; projectile
+  velocity enables CultMath first-order intercept; and a forward weapon fires
+  while the reversed behavior remains inactive.
+
 ### Daemon Damage Transaction
 
 - Owner: the daemon's canonical damage transaction owns damage-layer ordering

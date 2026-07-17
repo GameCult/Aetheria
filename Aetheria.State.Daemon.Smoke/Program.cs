@@ -176,6 +176,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             FossilVelocityBehaviorsRunInDaemonFlightStep,
             ReflectorUsesSharedStellarLightFieldWithoutAccumulating,
             SensorPingIsActorScopedEnergyGatedAndReconnectable,
+            TurretControllerAcquiresAimsAndTriggersExactWeapons,
             TractorRampsAndPullsThroughYmirWithoutTeleportingCargo,
             PickupIsCapacityCheckedExactlyOnceAndExpires,
             TradePurchaseDerivesAcceptanceFromDaemonState,
@@ -531,9 +532,9 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         Require(sensor.Pinging && !otherSensor.Pinging,
             "sensor ping intent must retain actor identity instead of activating every sensor");
         RequireEqual(2, sensor.PingedEntityCount,
-            "expanding ping must persist every crossed entity identity for reconnect-safe exactly-once boost");
+            "expanding ping must persist every crossed target index for reconnect-safe exactly-once boost");
         Require(sensor.PingedEntityIndices.SequenceEqual(new[] { 1, 2 }),
-            "pinged entity identities must survive in stable order rather than only an unverifiable count");
+            "pinged target indices must survive in stable order rather than only an unverifiable count");
         RequireNear(5, actor.BehaviorStates.Single(state => state.BehaviorKind == "Capacitor").CapacitorCharge,
             0.000001, "accepted ping must consume its authored energy exactly once");
         Require(actor.Contacts.Single(contact => contact.TargetEntityIndex == 2).Visible,
@@ -542,6 +543,118 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             0.000001, "ping must publish its authored transient visibility source");
         RequireEqual(1, run.GameEvents.Count(value => value.Kind == "sensor.ping.started"),
             "accepted ping must emit one provider-owned start event");
+    }
+
+    private static void TurretControllerAcquiresAimsAndTriggersExactWeapons()
+    {
+        var weaponPayload = new AetheriaRuntimeBehaviorPayload(
+            0,
+            AetheriaRuntimeBehaviorKinds.InstantWeapon,
+            0,
+            [
+                new AetheriaRuntimeBehaviorField(2, PerformanceStat(10)),
+                new AetheriaRuntimeBehaviorField(5, PerformanceStat(0)),
+                new AetheriaRuntimeBehaviorField(6, PerformanceStat(200)),
+                new AetheriaRuntimeBehaviorField(16, PerformanceStat(100)),
+                new AetheriaRuntimeBehaviorField(17, PerformanceStat(1)),
+                new AetheriaRuntimeBehaviorField(19, PerformanceStat(0.1)),
+                new AetheriaRuntimeBehaviorField(21, PerformanceStat(100)),
+                new AetheriaRuntimeBehaviorField(22, PerformanceStat(0)),
+                new AetheriaRuntimeBehaviorField(23, PerformanceStat(180)),
+                new AetheriaRuntimeBehaviorField(24, PerformanceStat(1)),
+                new AetheriaRuntimeBehaviorField(25, PerformanceStat(1))
+            ]);
+        var weaponItem = CatalogItem("turret-smoke-weapon", weaponPayload);
+        var controllerItem = CatalogItem(
+            "turret-smoke-controller",
+            new AetheriaRuntimeBehaviorPayload(0, AetheriaRuntimeBehaviorKinds.TurretController, 0, []));
+        var catalog = new AetheriaRuntimeCatalogSnapshot([controllerItem, weaponItem], [], []);
+
+        var uncontrolled = Entity(0, 0, "raider");
+        uncontrolled.DirectionX = 1;
+        uncontrolled.WeaponGroups = [new[] { 0 }];
+        uncontrolled.TargetEntityIndex = 1;
+        uncontrolled.Equipment = [new AetheriaRuntimeLoadoutItemSlotCommit
+        {
+            Item = new AetheriaRuntimeLoadoutItemCommit
+                { ItemKey = weaponItem.ItemKey, Quality = 1, Durability = 1, Enabled = true }
+        }];
+        uncontrolled.Contacts = [new AetheriaRuntimeEntityContactCommit
+            { TargetEntityIndex = 1, InfoGathered = 1, Visible = true, Hostile = true }];
+        var uncontrolledTarget = Entity(1, 100, "player");
+        var uncontrolledZone = new AetheriaRuntimeZoneSnapshotCommit
+            { ZoneIndex = 0, Entities = [uncontrolled, uncontrolledTarget] };
+        var uncontrolledRun = new AetheriaRuntimeRunCheckpointCommit
+            { RunId = "uncontrolled-hostile-smoke", Zones = [uncontrolledZone] };
+        using (var physics = NewPhysics())
+        {
+            for (var frame = 0; frame < 3; frame++)
+                AetheriaRuntimeDaemonSimulation.Step(
+                    uncontrolledRun,
+                    new AetheriaRuntimeDaemonIntentState(),
+                    0.1,
+                    new AetheriaRuntimeDaemonSimulationSettings(),
+                    physics,
+                    catalog,
+                    frame,
+                    frame * 0.1);
+        }
+        RequireEqual(0, uncontrolledRun.ShotReceipts.Count,
+            "non-player entities without a controller or command must not inherit the removed group-zero fire authority");
+
+        var turret = Entity(0, 0, "player");
+        turret.Kind = "station";
+        turret.DirectionX = 1;
+        turret.DirectionY = 0;
+        turret.Equipment =
+        [
+            new AetheriaRuntimeLoadoutItemSlotCommit
+            {
+                Item = new AetheriaRuntimeLoadoutItemCommit
+                    { ItemKey = controllerItem.ItemKey, Quality = 1, Durability = 1, Enabled = true }
+            },
+            new AetheriaRuntimeLoadoutItemSlotCommit
+            {
+                Rotation = "None",
+                Item = new AetheriaRuntimeLoadoutItemCommit
+                    { ItemKey = weaponItem.ItemKey, Quality = 1, Durability = 1, Enabled = true }
+            },
+            new AetheriaRuntimeLoadoutItemSlotCommit
+            {
+                Rotation = "Half",
+                Item = new AetheriaRuntimeLoadoutItemCommit
+                    { ItemKey = weaponItem.ItemKey, Quality = 1, Durability = 1, Enabled = true }
+            }
+        ];
+        turret.WeaponGroups = [new[] { 1, 2 }];
+        turret.Contacts = [new AetheriaRuntimeEntityContactCommit
+            { TargetEntityIndex = 1, InfoGathered = 1, Visible = true, Hostile = true }];
+        var target = Entity(1, 100, "raider");
+        target.VelocityY = 5;
+        var zone = new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [turret, target] };
+        var run = new AetheriaRuntimeRunCheckpointCommit { RunId = "turret-controller-smoke", Zones = [zone] };
+        using (var physics = NewPhysics())
+        {
+            AetheriaRuntimeDaemonSimulation.Step(run, new AetheriaRuntimeDaemonIntentState(), 0.1,
+                new AetheriaRuntimeDaemonSimulationSettings(), physics, catalog, 0, 0);
+            RequireEqual(target.EntityIndex, turret.TargetEntityIndex,
+                "an idle turret controller must acquire the first visible hostile ship without firing on the acquisition tick");
+            RequireEqual(0, run.ShotReceipts.Count,
+                "target acquisition must not smuggle an extra trigger into the same fossil controller tick");
+            AetheriaRuntimeDaemonSimulation.Step(run, new AetheriaRuntimeDaemonIntentState(), 0.1,
+                new AetheriaRuntimeDaemonSimulationSettings(), physics, catalog, 1, 0.1);
+        }
+
+        var controllerState = turret.BehaviorStates.Single(state =>
+            state.BehaviorKind == AetheriaRuntimeBehaviorKinds.TurretController);
+        RequireEqual(2, controllerState.TurretControllerWeaponCount,
+            "turret controller initialization must publish its exact operational weapon count");
+        Require(controllerState.TurretControllerPredictShots &&
+                Math.Abs(controllerState.TurretControllerShotSpeed - 100) < 0.000001 &&
+                turret.LookDirectionY > 0,
+            "projectile velocity must enable the fossil first-order intercept aim and persist its controller state");
+        Require(run.ShotReceipts.Count > 0 && run.ShotReceipts.All(receipt => receipt.WeaponOwnerIndex == 1),
+            "turret controller must trigger only the exact in-range aligned weapon behavior, not its group or reversed neighbor");
     }
 
     private static void DockingUsesRealBaysAndFossilUndockRules()
