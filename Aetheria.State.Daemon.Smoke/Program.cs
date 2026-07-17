@@ -209,6 +209,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             RareAetherDriveSpoolsOnlyOnModifiedHullFixture,
             LookDirectionRejectsInvalidVectorsWithoutMutatingTheShip,
             AgentClaimsAndCompletesExploreTaskThroughCommands,
+            AgentTaskSurvivesCultCacheRestart,
             SchedulerAssignsHighestPriorityCompatibleTask,
             SchedulerRequeuesTaskFromDeadAgent,
             SchedulerCollapsesDuplicateAssignmentMarkers,
@@ -5565,6 +5566,146 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             "completed worker assignment must be visible as released on the Eve roster");
         RequireEqual("false", worker.Props["controlled"],
             "commander Eve roster must distinguish autonomous workers from manual helm authority");
+    }
+
+    private static void AgentTaskSurvivesCultCacheRestart()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "aetheria-agent-restart-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        var statePath = Path.Combine(root, "world.cc");
+        try
+        {
+            var agent = Entity(0, 0, "workers");
+            agent.AgentTaskCapabilities = [AetheriaRuntimeAgentTaskTypes.Explore];
+            var catalog = EquipThrusterBank([agent]);
+            var run = new AetheriaRuntimeRunCheckpointCommit
+            {
+                RunId = "agent-task-restart-smoke",
+                CurrentZoneIndex = 0,
+                CurrentEntityKey = "",
+                Zones = [new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [agent] }]
+            };
+            var issue = AetheriaRuntimeDaemonCommandDocument.Create(
+                AetheriaRuntimeDaemonCommandKinds.IssueAgentTask,
+                "commander-smoke",
+                run.RunId,
+                0,
+                "");
+            issue.CommandId = "issue-restart-explore";
+            issue.AgentTask = new AetheriaRuntimeAgentTaskCommand
+            {
+                TaskId = "restart-explore-east",
+                CorporationKey = "workers",
+                TaskType = AetheriaRuntimeAgentTaskTypes.Explore,
+                Priority = 50,
+                ZoneIndex = 0,
+                TargetPositionX = 80,
+                TargetPositionZ = 0,
+                CompletionRadius = 5
+            };
+
+            var physics = NewPhysics();
+            for (var frameId = 0; frameId <= 8; frameId++)
+                AetheriaRuntimeDaemonTickRunner.Tick(
+                    statePath,
+                    run,
+                    new AetheriaRuntimeDaemonTickOptions
+                    {
+                        WorldPhysics = physics,
+                        FrameId = frameId,
+                        FixedDeltaSeconds = 0.1,
+                        SimulationTimeSeconds = frameId * 0.1,
+                        ObservedCommands = frameId == 0
+                            ? [issue]
+                            : Array.Empty<AetheriaRuntimeDaemonCommandDocument>(),
+                        Catalog = catalog,
+                        BuildPublications = false
+                    });
+
+            var taskBeforeRestart = run.AgentTasks.Single();
+            RequireEqual(AetheriaRuntimeAgentTaskStatuses.Assigned, taskBeforeRestart.Status,
+                "restart fixture must persist an actively assigned task rather than a queued or completed shell");
+            RequireEqual(taskBeforeRestart.TaskId, agent.AssignedAgentTaskId,
+                "restart fixture must persist the scheduler's single agent assignment");
+            Require(agent.PositionX > 0 && agent.PositionX < 75,
+                "restart fixture must stop during commanded Ymir travel");
+            var positionBeforeRestart = agent.PositionX;
+            var frame = new AetheriaRuntimeDaemonFrameDocument
+            {
+                FrameId = 8,
+                FixedDeltaSeconds = 0.1,
+                SimulationTimeSeconds = 0.8,
+                Run = run
+            };
+            using (var node = AetheriaStateNode.OpenAsync(statePath).GetAwaiter().GetResult())
+            {
+                node.MutableDocument<AetheriaRuntimeDaemonFrameDocument>(
+                        AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest)
+                    .ReplaceAsync(frame).GetAwaiter().GetResult();
+                node.FlushAsync(soft: false).GetAwaiter().GetResult();
+            }
+
+            using (var node = AetheriaStateNode.OpenAsync(statePath).GetAwaiter().GetResult())
+            {
+                frame = node.MutableDocument<AetheriaRuntimeDaemonFrameDocument>(
+                        AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest)
+                    .ReadAsync().GetAwaiter().GetResult()
+                    ?? throw new InvalidOperationException("Durable agent-task frame is missing.");
+            }
+            run = frame.Run;
+            agent = run.Zones.Single().Entities.Single();
+            var restoredTask = run.AgentTasks.Single();
+            RequireEqual(AetheriaRuntimeAgentTaskStatuses.Assigned, restoredTask.Status,
+                "CultCache restart must preserve the active task status");
+            RequireEqual(restoredTask.TaskId, agent.AssignedAgentTaskId,
+                "CultCache restart must preserve the task-to-agent ownership edge");
+            RequireNear(positionBeforeRestart, agent.PositionX, 0.000001,
+                "CultCache restart must preserve the last daemon/Ymir committed pose");
+
+            physics = NewPhysics();
+            var completed = false;
+            for (var frameId = 9; frameId <= 100; frameId++)
+            {
+                AetheriaRuntimeDaemonTickRunner.Tick(
+                    statePath,
+                    run,
+                    new AetheriaRuntimeDaemonTickOptions
+                    {
+                        WorldPhysics = physics,
+                        FrameId = frameId,
+                        FixedDeltaSeconds = 0.1,
+                        SimulationTimeSeconds = frameId * 0.1,
+                        Catalog = catalog,
+                        BuildPublications = false
+                    });
+                completed = string.Equals(
+                    run.AgentTasks.Single().Status,
+                    AetheriaRuntimeAgentTaskStatuses.Completed,
+                    StringComparison.Ordinal);
+                if (completed)
+                    break;
+            }
+
+            Require(completed && agent.PositionX >= 75,
+                "restored task must reconstruct Ymir from committed world truth and finish through scheduler movement commands");
+            RequireEqual(1, run.AgentTasks.Count,
+                "restart must not duplicate the durable task when the scheduler resumes");
+            RequireEqual("", agent.AssignedAgentTaskId,
+                "completed restored task must release scheduler control exactly once");
+            var commander = AetheriaRuntimeDaemonGameSurfaceBuilder.BuildCommander(
+                new AetheriaRuntimeDaemonFrameDocument { FrameId = 100, Run = run },
+                new AetheriaRuntimeDaemonHealthDocument(),
+                AetheriaRuntimeDaemonCommandBoundaryDocument.Create("agent-task-restart-smoke"));
+            var taskNode = Flatten(commander.Surface.Root).Single(node =>
+                node.Id == "aetheria.starbridge.commander.tasks.restart_explore_east");
+            RequireEqual(AetheriaRuntimeAgentTaskStatuses.Completed, taskNode.Props["status"],
+                "generic Eve commander reconnect must observe the restored task's authoritative completion");
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+                Directory.Delete(root, recursive: true);
+        }
     }
 
     private static void MultipleActorsUseTheSameMovementLever()

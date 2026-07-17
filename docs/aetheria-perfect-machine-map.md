@@ -1171,6 +1171,17 @@ list at the already-authoritative world position. Task status and phase are
 terminal facts after cancellation. They are not a repair signal that permits
 the previous controller state to survive for another tick.
 
+Task execution is restart-stable through the daemon's ordinary live-frame
+checkpoint. The frame owns the task row, its assigned status and phase, the
+agent's single assignment edge, persisted helm/target controls, and the last
+Ymir-committed pose. On restart, the scheduler reads that same graph and a fresh
+embedded Ymir session reconstructs ordinary motion from committed world truth;
+neither component reissues the task or invents a second carrier. Daemon smoke
+stops an explore task during travel, hard-flushes CultCache, closes and reopens
+the store, proves the ownership edge and pose, then completes through the same
+movement-command reducer, releases controls exactly once, and projects the
+completed row through the generic Eve commander surface.
+
 ### Authoritative Flight Actuator Contract
 
 - Owner: Aetheria daemon owns persistent local helm axes, desired look
