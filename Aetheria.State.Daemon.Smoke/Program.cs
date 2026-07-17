@@ -197,6 +197,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             MultipleActorsUseTheSameMovementLever,
             DirectionalThrustersOwnOrdinaryFlightFeedback,
             UnpoweredThrustersCannotMoveOrAdvertisePlume,
+            SpecializedBehaviorSuccessGatesTrailingWear,
             RareAetherDriveSpoolsOnlyOnModifiedHullFixture,
             LookDirectionRejectsInvalidVectorsWithoutMutatingTheShip,
             AgentClaimsAndCompletesExploreTaskThroughCommands,
@@ -415,7 +416,9 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             [
                 new AetheriaRuntimeBehaviorField(1, PerformanceStat(10)),
                 new AetheriaRuntimeBehaviorField(2, BoolValue(false))
-            ]));
+            ]),
+            new AetheriaRuntimeBehaviorPayload(3, "Wear", 0,
+                [new AetheriaRuntimeBehaviorField(1, BoolValue(true))]));
         var catalog = new AetheriaRuntimeCatalogSnapshot([thermostat], [], []);
         var entity = Entity(0, 0, "player");
         entity.HeatsinksEnabled = true;
@@ -427,6 +430,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         AetheriaRuntimeThermalSimulation.EnsureTopology(entity, catalog);
         AetheriaRuntimeThermalSimulation.EnsureState(entity);
         AetheriaRuntimeThermalSimulation.UpdateEquipmentStates(entity, catalog, 0.1);
+        entity.EquipmentStates.Single().Wear = 1;
         AetheriaRuntimeBehaviorStateProjector.EnsureEquipmentBehaviorStates(entity, catalog);
         var thermostatState = entity.BehaviorStates.Single(value => value.BehaviorKind == "Thermotoggle");
         RequireNear(300, thermostatState.ThermotoggleTargetTemperature, 0.000001,
@@ -444,22 +448,43 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         var before = AetheriaRuntimeThermalSimulation.EquipmentTemperature(entity, catalog, 0);
         AetheriaRuntimeBehaviorSimulation.Step(0, [entity], [], catalog, 0.1);
         AetheriaRuntimeEnergySimulation.StepRadiators(entity, catalog, 0.1);
+        AetheriaRuntimeBehaviorSimulation.CompleteDeferredChains(entity, catalog, 0.1);
         RequireNear(before, AetheriaRuntimeThermalSimulation.EquipmentTemperature(entity, catalog, 0), 0.000001,
             "a low-pass thermotoggle above its target must stop downstream heat");
         Require(!entity.BehaviorStates.Single(value => value.BehaviorKind == "Heat").ChainReached,
             "a closed thermostat must keep downstream specialized and common behaviors unreachable");
+        Require(!entity.BehaviorStates.Single(value => value.BehaviorKind == "Radiator").ChainSucceeded,
+            "a closed thermostat must keep the radiator Execute path from succeeding");
         RequireNear(0, entity.BehaviorStates.Single(value => value.BehaviorKind == "Radiator").PumpedHeat, 0.000001,
-            "a closed thermostat must keep the radiator subsystem from running");
+            "a closed thermostat must not refresh Execute-owned radiator throughput");
+        RequireNear(1, entity.Equipment[0].Item.Durability, 0.000001,
+            "a closed thermostat must not apply trailing wear");
 
         SetTarget(300, 2);
         AetheriaRuntimeBehaviorSimulation.Step(0, [entity], [], catalog, 0.1);
         AetheriaRuntimeEnergySimulation.StepRadiators(entity, catalog, 0.1);
+        AetheriaRuntimeBehaviorSimulation.CompleteDeferredChains(entity, catalog, 0.1);
         Require(AetheriaRuntimeThermalSimulation.EquipmentTemperature(entity, catalog, 0) > before,
             "a low-pass thermotoggle below its target must admit downstream heat");
         Require(entity.BehaviorStates.Single(value => value.BehaviorKind == "Heat").ChainReached,
             "an open thermostat must publish that the downstream behavior was reached this tick");
         RequireNear(1, entity.BehaviorStates.Single(value => value.BehaviorKind == "Radiator").PumpedHeat, 0.000001,
             "an open thermostat must admit the radiator subsystem through the same chain state");
+        RequireNear(0.9, entity.Equipment[0].Item.Durability, 0.000001,
+            "a successful radiator must apply its authored trailing wear exactly once");
+
+        var radiatorPayload = thermostat.BehaviorPayloads.Single(value => value.Kind == "Radiator");
+        radiatorPayload.Fields = radiatorPayload.Fields.Select(field => field.Key == 5
+            ? new AetheriaRuntimeBehaviorField(5, PerformanceStat(10))
+            : field).ToArray();
+        var durabilityBeforeEnergyRefusal = entity.Equipment[0].Item.Durability;
+        AetheriaRuntimeBehaviorSimulation.Step(0, [entity], [], catalog, 0.1);
+        AetheriaRuntimeEnergySimulation.StepRadiators(entity, catalog, 0.1);
+        AetheriaRuntimeBehaviorSimulation.CompleteDeferredChains(entity, catalog, 0.1);
+        Require(!entity.BehaviorStates.Single(value => value.BehaviorKind == "Radiator").ChainSucceeded,
+            "an unfunded radiator must report its fossil Execute failure");
+        RequireNear(durabilityBeforeEnergyRefusal, entity.Equipment[0].Item.Durability, 0.000001,
+            "an unfunded radiator must stop the chain before trailing wear");
 
         void SetTarget(double target, long sequence)
         {
@@ -4730,6 +4755,45 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             "an unfunded thruster bank must not create forward velocity");
         RequireNear(0, ship.Visibility, 0.000001,
             "an unfunded thruster bank must not advertise a plume that did not execute");
+    }
+
+    private static void SpecializedBehaviorSuccessGatesTrailingWear()
+    {
+        var ship = Entity(0, 0, "player");
+        var catalog = EquipThrusterBank([ship]);
+        var thrusterItem = catalog.Items.Single(value => value.ItemKey == "smoke-directional-thruster");
+        thrusterItem.BehaviorPayloads =
+        [
+            ThrusterPayload(),
+            new AetheriaRuntimeBehaviorPayload(1, "Wear", 0,
+                [new AetheriaRuntimeBehaviorField(1, BoolValue(true))])
+        ];
+        AetheriaRuntimeThermalSimulation.EnsureTopology(ship, catalog);
+        AetheriaRuntimeThermalSimulation.EnsureState(ship);
+        AetheriaRuntimeThermalSimulation.UpdateEquipmentStates(ship, catalog, 0.1);
+        foreach (var state in ship.EquipmentStates)
+            state.Wear = 1;
+
+        AetheriaRuntimeEnergySimulation.BeginTick(ship, catalog);
+        AetheriaRuntimeBehaviorSimulation.Step(0, [ship], [], catalog, 0.1);
+        AetheriaRuntimeFlightSimulation.Step([ship], [], catalog, 0.1, 1, 1, 0.001, 1);
+        AetheriaRuntimeBehaviorSimulation.CompleteDeferredChains(ship, catalog, 0.1);
+        Require(ship.Equipment.All(slot => Math.Abs(slot.Item.Durability - 1) < 0.000001),
+            "idle thrusters must return false and leave every trailing wear behavior unreachable");
+
+        ship.HelmForward = 1;
+        AetheriaRuntimeBehaviorSimulation.Step(0, [ship], [], catalog, 0.1);
+        AetheriaRuntimeFlightSimulation.Step([ship], [], catalog, 0.1, 1, 1, 0.001, 1);
+        AetheriaRuntimeBehaviorSimulation.CompleteDeferredChains(ship, catalog, 0.1);
+        RequireEqual(2, ship.Equipment.Count(slot => slot.Item.Durability < 1),
+            "only the two successful forward thrusters may resume into trailing wear");
+        Require(ship.Equipment.Where(slot => slot.Item.Durability < 1)
+                .All(slot => Math.Abs(slot.Item.Durability - 0.9) < 0.000001),
+            "each successful specialized behavior must resume its tail exactly once");
+        AetheriaRuntimeBehaviorSimulation.CompleteDeferredChains(ship, catalog, 0.1);
+        Require(ship.Equipment.Where(slot => slot.Item.Durability < 1)
+                .All(slot => Math.Abs(slot.Item.Durability - 0.9) < 0.000001),
+            "replaying deferred completion in the same tick must not apply trailing wear twice");
     }
 
     private static void RareAetherDriveSpoolsOnlyOnModifiedHullFixture()

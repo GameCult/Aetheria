@@ -59,6 +59,58 @@ namespace GameCult.Aetheria.State.Verse
             return baseline * multiplier + constant;
         }
 
+        public static void ReportSpecializedResult(
+            AetheriaRuntimeEquippedBehavior behavior,
+            bool succeeded)
+        {
+            if (behavior?.State == null || !behavior.State.ChainReached)
+                return;
+            behavior.State.ChainSucceeded = succeeded;
+        }
+
+        public static void CompleteDeferredChains(
+            AetheriaRuntimeEntitySnapshotCommit entity,
+            AetheriaRuntimeCatalogSnapshot? catalog,
+            double deltaSeconds)
+        {
+            if (entity == null || catalog == null || deltaSeconds <= 0)
+                return;
+
+            var states = EquipmentStates(entity);
+            var online = OnlineStates(entity);
+            var equipment = entity.Equipment ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>();
+            for (var equipmentIndex = 0; equipmentIndex < equipment.Count; equipmentIndex++)
+            {
+                var item = catalog.FindItem(equipment[equipmentIndex]?.Item?.ItemKey ?? "");
+                var payloads = item?.BehaviorPayloads ?? Array.Empty<AetheriaRuntimeBehaviorPayload>();
+                foreach (var group in Indexed(payloads).GroupBy(value => value.Payload.Group).OrderBy(value => value.Key))
+                {
+                    var entries = group.ToArray();
+                    var deferredOffset = Array.FindIndex(entries, entry =>
+                        states.TryGetValue((equipmentIndex, entry.Index), out var state) &&
+                        state.ChainReached && IsDeferred(entry.Payload.Kind));
+                    if (deferredOffset < 0)
+                        continue;
+                    var deferredState = states[(equipmentIndex, entries[deferredOffset].Index)];
+                    if (!deferredState.ChainSucceeded || deferredState.ChainCompleted)
+                        continue;
+                    deferredState.ChainCompleted = true;
+
+                    foreach (var entry in entries.Skip(deferredOffset + 1))
+                    {
+                        if (!states.TryGetValue((equipmentIndex, entry.Index), out var state))
+                            break;
+                        state.ChainReached = true;
+                        if (IsDeferred(entry.Payload.Kind) ||
+                            !ExecuteInline(entity, catalog, online, equipmentIndex, entry, state, deltaSeconds))
+                            break;
+                    }
+                }
+                ProjectModifierState(entity, catalog, equipmentIndex, payloads, states);
+            }
+            ProjectCooldownProgress(entity);
+        }
+
         public static int CountTargets(
             AetheriaRuntimeEntitySnapshotCommit entity,
             AetheriaRuntimeCatalogSnapshot catalog,
@@ -109,14 +161,14 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeCatalogSnapshot catalog,
             double deltaSeconds)
         {
-            var states = (entity.BehaviorStates ?? Array.Empty<AetheriaRuntimeBehaviorStateCommit>())
-                .Where(value => value != null && string.Equals(value.OwnerKind,
-                    AetheriaRuntimeBehaviorStateProjector.EquipmentOwnerKind, StringComparison.Ordinal))
-                .ToDictionary(value => (value.OwnerIndex, value.BehaviorIndex));
+            var states = EquipmentStates(entity);
             foreach (var state in states.Values)
+            {
                 state.ChainReached = false;
-            var online = (entity.EquipmentStates ?? Array.Empty<AetheriaRuntimeEquipmentStateCommit>())
-                .Where(value => value != null).ToDictionary(value => value.EquipmentIndex);
+                state.ChainSucceeded = false;
+                state.ChainCompleted = false;
+            }
+            var online = OnlineStates(entity);
             var equipment = entity.Equipment ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>();
             for (var equipmentIndex = 0; equipmentIndex < equipment.Count; equipmentIndex++)
             {
@@ -126,88 +178,26 @@ namespace GameCult.Aetheria.State.Verse
                     (!online.TryGetValue(equipmentIndex, out var equipmentState) || equipmentState.Online);
                 var payloads = item?.BehaviorPayloads ?? Array.Empty<AetheriaRuntimeBehaviorPayload>();
 
-                foreach (var entry in payloads.Select((payload, index) => (Payload: payload, Index: index)))
+                foreach (var entry in Indexed(payloads))
                     if (entry.Payload != null && string.Equals(entry.Payload.Kind, "StatModifier", StringComparison.Ordinal) &&
                         states.TryGetValue((equipmentIndex, entry.Index), out var modifierState))
                         modifierState.StatModifierExecuted = false;
 
                 if (operational)
-                foreach (var group in payloads.Select((payload, index) => (Payload: payload, Index: index))
-                    .Where(value => value.Payload != null).GroupBy(value => value.Payload.Group).OrderBy(value => value.Key))
+                foreach (var group in Indexed(payloads).GroupBy(value => value.Payload.Group).OrderBy(value => value.Key))
                 foreach (var entry in group)
                 {
                     if (!states.TryGetValue((equipmentIndex, entry.Index), out var state))
                         break;
                     state.ChainReached = true;
-                    if (string.Equals(entry.Payload.Kind, "Switch", StringComparison.Ordinal) && !state.SwitchActivated)
+                    if (IsDeferred(entry.Payload.Kind) ||
+                        !ExecuteInline(entity, catalog, online, equipmentIndex, entry, state, deltaSeconds))
                         break;
-                    if (string.Equals(entry.Payload.Kind, "Trigger", StringComparison.Ordinal))
-                    {
-                        if (!state.TriggerPulled)
-                            break;
-                        state.TriggerPulled = false;
-                    }
-                    if (string.Equals(entry.Payload.Kind, "Thermotoggle", StringComparison.Ordinal))
-                    {
-                        var temperature = AetheriaRuntimeThermalSimulation.EquipmentTemperature(
-                            entity, catalog, equipmentIndex);
-                        var highPass = ReadBool(entry.Payload, 2);
-                        if ((temperature < state.ThermotoggleTargetTemperature) ^ highPass)
-                        {
-                            // The fossil returns true for this branch.
-                        }
-                        else
-                        {
-                            break;
-                        }
-                    }
-                    if (string.Equals(entry.Payload.Kind, "Cooldown", StringComparison.Ordinal))
-                    {
-                        if (state.CooldownProgress >= 0)
-                            break;
-                        state.CooldownProgress = 1;
-                    }
-                    if (string.Equals(entry.Payload.Kind, "EnergyDraw", StringComparison.Ordinal))
-                    {
-                        var demand = Evaluate(entity, catalog, equipmentIndex, entry.Index, entry.Payload, state, 1) *
-                            (ReadBool(entry.Payload, 2) ? deltaSeconds : 1);
-                        if (!AetheriaRuntimeEnergySimulation.TryConsume(entity, catalog, demand))
-                            break;
-                    }
-                    if (string.Equals(entry.Payload.Kind, "Heat", StringComparison.Ordinal))
-                    {
-                        var heat = Evaluate(entity, catalog, equipmentIndex, entry.Index, entry.Payload, state, 1) *
-                            (ReadBool(entry.Payload, 2) ? deltaSeconds : 1);
-                        AetheriaRuntimeThermalSimulation.AddHeatToEquipment(entity, catalog, equipmentIndex, heat);
-                    }
-                    if (string.Equals(entry.Payload.Kind, "ItemUsage", StringComparison.Ordinal))
-                    {
-                        var itemKey = ReadItemKey(entry.Payload, 1);
-                        if (string.IsNullOrWhiteSpace(itemKey) ||
-                            !AetheriaRuntimeCargoTransactions.TryFind(entity, itemKey, out var cargoIndex, out var x, out var y) ||
-                            !AetheriaRuntimeCargoTransactions.TryRemoveQuantity(entity, cargoIndex, itemKey, x, y, 1, out _))
-                            break;
-                    }
-                    if (string.Equals(entry.Payload.Kind, "Wear", StringComparison.Ordinal))
-                    {
-                        var wear = online.TryGetValue(equipmentIndex, out var wearState) ? wearState.Wear : 0;
-                        AetheriaRuntimeThermalSimulation.ApplyWear(
-                            entity, equipmentIndex, wear * (ReadBool(entry.Payload, 1, true) ? deltaSeconds : 1));
-                    }
-                    if (string.Equals(entry.Payload.Kind, "StatModifier", StringComparison.Ordinal))
-                        state.StatModifierExecuted = true;
                 }
 
-                foreach (var entry in payloads.Select((payload, index) => (Payload: payload, Index: index)))
-                {
-                    if (entry.Payload == null || !string.Equals(entry.Payload.Kind, "StatModifier", StringComparison.Ordinal) ||
-                        !states.TryGetValue((equipmentIndex, entry.Index), out var state))
-                        continue;
-                    state.StatModifierApplied = state.StatModifierExecuted;
-                    state.StatModifierTargetStatCount = CountTargets(entity, catalog, entry.Payload);
-                }
+                ProjectModifierState(entity, catalog, equipmentIndex, payloads, states);
 
-                foreach (var entry in payloads.Select((payload, index) => (Payload: payload, Index: index)))
+                foreach (var entry in Indexed(payloads))
                 {
                     if (entry.Payload == null || !string.Equals(entry.Payload.Kind, "Cooldown", StringComparison.Ordinal) ||
                         !states.TryGetValue((equipmentIndex, entry.Index), out var state))
@@ -215,6 +205,106 @@ namespace GameCult.Aetheria.State.Verse
                     var duration = Evaluate(entity, catalog, equipmentIndex, entry.Index, entry.Payload, state, 1);
                     state.CooldownProgress -= deltaSeconds / Math.Max(double.Epsilon, duration);
                 }
+            }
+        }
+
+        private static bool ExecuteInline(
+            AetheriaRuntimeEntitySnapshotCommit entity,
+            AetheriaRuntimeCatalogSnapshot catalog,
+            IReadOnlyDictionary<int, AetheriaRuntimeEquipmentStateCommit> online,
+            int equipmentIndex,
+            (AetheriaRuntimeBehaviorPayload Payload, int Index) entry,
+            AetheriaRuntimeBehaviorStateCommit state,
+            double deltaSeconds)
+        {
+            if (string.Equals(entry.Payload.Kind, "Switch", StringComparison.Ordinal) && !state.SwitchActivated)
+                return false;
+            if (string.Equals(entry.Payload.Kind, "Trigger", StringComparison.Ordinal))
+            {
+                if (!state.TriggerPulled)
+                    return false;
+                state.TriggerPulled = false;
+            }
+            if (string.Equals(entry.Payload.Kind, "Thermotoggle", StringComparison.Ordinal))
+            {
+                var temperature = AetheriaRuntimeThermalSimulation.EquipmentTemperature(entity, catalog, equipmentIndex);
+                if (!((temperature < state.ThermotoggleTargetTemperature) ^ ReadBool(entry.Payload, 2)))
+                    return false;
+            }
+            if (string.Equals(entry.Payload.Kind, "Cooldown", StringComparison.Ordinal))
+            {
+                if (state.CooldownProgress >= 0)
+                    return false;
+                state.CooldownProgress = 1;
+            }
+            if (string.Equals(entry.Payload.Kind, "EnergyDraw", StringComparison.Ordinal))
+            {
+                var demand = Evaluate(entity, catalog, equipmentIndex, entry.Index, entry.Payload, state, 1) *
+                    (ReadBool(entry.Payload, 2) ? deltaSeconds : 1);
+                if (!AetheriaRuntimeEnergySimulation.TryConsume(entity, catalog, demand))
+                    return false;
+            }
+            if (string.Equals(entry.Payload.Kind, "Heat", StringComparison.Ordinal))
+            {
+                var heat = Evaluate(entity, catalog, equipmentIndex, entry.Index, entry.Payload, state, 1) *
+                    (ReadBool(entry.Payload, 2) ? deltaSeconds : 1);
+                AetheriaRuntimeThermalSimulation.AddHeatToEquipment(entity, catalog, equipmentIndex, heat);
+            }
+            if (string.Equals(entry.Payload.Kind, "ItemUsage", StringComparison.Ordinal))
+            {
+                var itemKey = ReadItemKey(entry.Payload, 1);
+                if (string.IsNullOrWhiteSpace(itemKey) ||
+                    !AetheriaRuntimeCargoTransactions.TryFind(entity, itemKey, out var cargoIndex, out var x, out var y) ||
+                    !AetheriaRuntimeCargoTransactions.TryRemoveQuantity(entity, cargoIndex, itemKey, x, y, 1, out _))
+                    return false;
+            }
+            if (string.Equals(entry.Payload.Kind, "Wear", StringComparison.Ordinal))
+            {
+                var wear = online.TryGetValue(equipmentIndex, out var wearState) ? wearState.Wear : 0;
+                AetheriaRuntimeThermalSimulation.ApplyWear(
+                    entity, equipmentIndex, wear * (ReadBool(entry.Payload, 1, true) ? deltaSeconds : 1));
+            }
+            if (string.Equals(entry.Payload.Kind, "StatModifier", StringComparison.Ordinal))
+                state.StatModifierExecuted = true;
+            return true;
+        }
+
+        private static bool IsDeferred(string? kind) =>
+            string.Equals(kind, AetheriaRuntimeBehaviorKinds.Thruster, StringComparison.Ordinal) ||
+            string.Equals(kind, AetheriaRuntimeBehaviorKinds.AetherDrive, StringComparison.Ordinal) ||
+            string.Equals(kind, "Radiator", StringComparison.Ordinal);
+
+        private static IEnumerable<(AetheriaRuntimeBehaviorPayload Payload, int Index)> Indexed(
+            IReadOnlyList<AetheriaRuntimeBehaviorPayload> payloads) =>
+            payloads.Select((payload, index) => (Payload: payload, Index: index))
+                .Where(value => value.Payload != null);
+
+        private static Dictionary<(int OwnerIndex, int BehaviorIndex), AetheriaRuntimeBehaviorStateCommit>
+            EquipmentStates(AetheriaRuntimeEntitySnapshotCommit entity) =>
+            (entity.BehaviorStates ?? Array.Empty<AetheriaRuntimeBehaviorStateCommit>())
+            .Where(value => value != null && string.Equals(value.OwnerKind,
+                AetheriaRuntimeBehaviorStateProjector.EquipmentOwnerKind, StringComparison.Ordinal))
+            .ToDictionary(value => (value.OwnerIndex, value.BehaviorIndex));
+
+        private static Dictionary<int, AetheriaRuntimeEquipmentStateCommit> OnlineStates(
+            AetheriaRuntimeEntitySnapshotCommit entity) =>
+            (entity.EquipmentStates ?? Array.Empty<AetheriaRuntimeEquipmentStateCommit>())
+            .Where(value => value != null).ToDictionary(value => value.EquipmentIndex);
+
+        private static void ProjectModifierState(
+            AetheriaRuntimeEntitySnapshotCommit entity,
+            AetheriaRuntimeCatalogSnapshot catalog,
+            int equipmentIndex,
+            IReadOnlyList<AetheriaRuntimeBehaviorPayload> payloads,
+            IReadOnlyDictionary<(int OwnerIndex, int BehaviorIndex), AetheriaRuntimeBehaviorStateCommit> states)
+        {
+            foreach (var entry in Indexed(payloads))
+            {
+                if (!string.Equals(entry.Payload.Kind, "StatModifier", StringComparison.Ordinal) ||
+                    !states.TryGetValue((equipmentIndex, entry.Index), out var state))
+                    continue;
+                state.StatModifierApplied = state.StatModifierExecuted;
+                state.StatModifierTargetStatCount = CountTargets(entity, catalog, entry.Payload);
             }
         }
 

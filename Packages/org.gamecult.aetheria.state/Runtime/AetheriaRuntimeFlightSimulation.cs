@@ -42,17 +42,23 @@ namespace GameCult.Aetheria.State.Verse
             {
                 var mass = ResolveMass(entity, byIndex, catalog, new HashSet<int>());
                 var deltaRotation = ResolveTurnAxis(entity, deltaSeconds);
-                var thrusters = Online(entity, catalog, AetheriaRuntimeBehaviorKinds.Thruster);
+                var thrusters = Executing(entity, catalog, AetheriaRuntimeBehaviorKinds.Thruster);
                 ConfigureThrusterAxes(entity, thrusters, catalog, deltaRotation, torqueFloor);
                 var activeThrusters = new List<AetheriaRuntimeEquippedBehavior>();
                 foreach (var thruster in thrusters)
-                    if (StepThruster(entity, thruster, mass, deltaSeconds, catalog, torqueMultiplier))
+                {
+                    var succeeded = StepThruster(entity, thruster, mass, deltaSeconds, catalog, torqueMultiplier);
+                    AetheriaRuntimeBehaviorSimulation.ReportSpecializedResult(thruster, succeeded);
+                    if (succeeded)
                         activeThrusters.Add(thruster);
+                }
                 ApplyThrusterVisibility(entity, activeThrusters);
                 SetDriveAxes(entity, catalog, deltaRotation);
-                foreach (var drive in Online(entity, catalog, AetheriaRuntimeBehaviorKinds.AetherDrive))
-                    StepAetherDrive(entity, drive, mass, deltaSeconds, catalog,
-                        aetherTorqueMultiplier, aetherHeatMultiplier);
+                foreach (var drive in Executing(entity, catalog, AetheriaRuntimeBehaviorKinds.AetherDrive))
+                    AetheriaRuntimeBehaviorSimulation.ReportSpecializedResult(
+                        drive,
+                        StepAetherDrive(entity, drive, mass, deltaSeconds, catalog,
+                            aetherTorqueMultiplier, aetherHeatMultiplier));
                 ApplyHullDrag(entity, catalog, deltaSeconds);
                 ApplyVelocityBehaviors(entity, catalog, deltaSeconds);
             }
@@ -326,7 +332,7 @@ namespace GameCult.Aetheria.State.Verse
             return AetheriaRuntimeEquipmentRotation.QuarterTurns(behavior.Slot?.Rotation);
         }
 
-        private static void StepAetherDrive(
+        private static bool StepAetherDrive(
             AetheriaRuntimeEntitySnapshotCommit entity,
             AetheriaRuntimeEquippedBehavior drive,
             double entityMass,
@@ -396,7 +402,8 @@ namespace GameCult.Aetheria.State.Verse
             var torqueRatio = DivideOrZero(actualRpmDelta, potentialRpmDelta);
             var energyDraw = Math.Max(0, drive.EvaluateStat(9, ThermalPerformance(entity, drive.EquipmentIndex)));
             var draw = (torqueRatio.X + torqueRatio.Y + torqueRatio.Z) * energyDraw / 3 * deltaSeconds;
-            if (AetheriaRuntimeEnergySimulation.TryConsume(entity, catalog, draw))
+            var succeeded = AetheriaRuntimeEnergySimulation.TryConsume(entity, catalog, draw);
+            if (succeeded)
                 rpm += actualRpmDelta;
 
             drive.State.AetherDriveThrustX = thrust.X;
@@ -408,6 +415,7 @@ namespace GameCult.Aetheria.State.Verse
             drive.State.AetherDriveMaximumRpm = maximumRpm;
             drive.State.AetherDriveThrustDirectionX = thrustDirection.X;
             drive.State.AetherDriveThrustDirectionY = thrustDirection.Y;
+            return succeeded;
         }
 
         private static void ApplyHullDrag(
@@ -456,6 +464,12 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeCatalogSnapshot catalog,
             string kind) =>
             AetheriaRuntimeEquippedBehaviorQueries.FindOperational(entity, catalog, kind);
+
+        private static IReadOnlyList<AetheriaRuntimeEquippedBehavior> Executing(
+            AetheriaRuntimeEntitySnapshotCommit entity,
+            AetheriaRuntimeCatalogSnapshot catalog,
+            string kind) =>
+            AetheriaRuntimeEquippedBehaviorQueries.FindExecuting(entity, catalog, kind);
 
         private static double ThermalPerformance(AetheriaRuntimeEntitySnapshotCommit entity, int equipmentIndex) =>
             (entity.EquipmentStates ?? Array.Empty<AetheriaRuntimeEquipmentStateCommit>())

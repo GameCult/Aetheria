@@ -62,31 +62,37 @@ namespace GameCult.Aetheria.State.Verse
         public static void StepRadiators(AetheriaRuntimeEntitySnapshotCommit entity,
             AetheriaRuntimeCatalogSnapshot? catalog, double deltaSeconds)
         {
-            if (entity == null || catalog == null || deltaSeconds <= 0 || !entity.HeatsinksEnabled) return;
-            foreach (var radiator in AetheriaRuntimeEquippedBehaviorQueries.FindExecuting(entity, catalog, "Radiator"))
+            if (entity == null || catalog == null || deltaSeconds <= 0) return;
+            foreach (var radiator in AetheriaRuntimeEquippedBehaviorQueries.FindOperational(entity, catalog, "Radiator"))
             {
                 var itemTemperature = AetheriaRuntimeThermalSimulation.EquipmentTemperature(
                     entity, catalog, radiator.EquipmentIndex);
                 if (radiator.State.RadiatorTemperature <= 0)
                     radiator.State.RadiatorTemperature = itemTemperature;
-                radiator.State.PumpedHeat = Math.Max(0, radiator.EvaluateStat(2));
-                radiator.State.WasteHeat = Math.Max(0, radiator.EvaluateStat(4));
-                radiator.State.EnergyUsage = Math.Max(0, radiator.EvaluateStat(5));
-                var tempRatio = Math.Max(radiator.State.RadiatorTemperature / Math.Max(0.000001, itemTemperature), 1);
-                if (radiator.State.WasteHeat > 0 &&
-                    tempRatio > radiator.State.PumpedHeat / radiator.State.WasteHeat)
-                    continue;
-                if (!TryConsume(entity, catalog, radiator.State.EnergyUsage * tempRatio * deltaSeconds))
-                    continue;
-                var temperatureFloor = ReadNumber(radiator.Payload, 3);
-                var pumped = radiator.State.PumpedHeat * Math.Max(itemTemperature - temperatureFloor, 0);
-                if (pumped >= 0.01)
+                if (entity.HeatsinksEnabled && radiator.State.ChainReached)
                 {
-                    var waste = radiator.State.WasteHeat * tempRatio;
-                    AetheriaRuntimeThermalSimulation.AddHeatToEquipment(
-                        entity, catalog, radiator.EquipmentIndex, (waste - pumped) * deltaSeconds);
-                    var thermalMass = Math.Max(0.000001, radiator.EvaluateStat(6));
-                    radiator.State.RadiatorTemperature += pumped / thermalMass * deltaSeconds;
+                    radiator.State.PumpedHeat = Math.Max(0, radiator.EvaluateStat(2));
+                    radiator.State.WasteHeat = Math.Max(0, radiator.EvaluateStat(4));
+                    radiator.State.EnergyUsage = Math.Max(0, radiator.EvaluateStat(5));
+                    var tempRatio = Math.Max(radiator.State.RadiatorTemperature / Math.Max(0.000001, itemTemperature), 1);
+                    var overwhelmed = radiator.State.WasteHeat > 0 &&
+                        tempRatio > radiator.State.PumpedHeat / radiator.State.WasteHeat;
+                    var succeeded = overwhelmed ||
+                        TryConsume(entity, catalog, radiator.State.EnergyUsage * tempRatio * deltaSeconds);
+                    AetheriaRuntimeBehaviorSimulation.ReportSpecializedResult(radiator, succeeded);
+                    if (succeeded && !overwhelmed)
+                    {
+                        var temperatureFloor = ReadNumber(radiator.Payload, 3);
+                        var pumped = radiator.State.PumpedHeat * Math.Max(itemTemperature - temperatureFloor, 0);
+                        if (pumped >= 0.01)
+                        {
+                            var waste = radiator.State.WasteHeat * tempRatio;
+                            AetheriaRuntimeThermalSimulation.AddHeatToEquipment(
+                                entity, catalog, radiator.EquipmentIndex, (waste - pumped) * deltaSeconds);
+                            var thermalMass = Math.Max(0.000001, radiator.EvaluateStat(6));
+                            radiator.State.RadiatorTemperature += pumped / thermalMass * deltaSeconds;
+                        }
+                    }
                 }
                 radiator.State.Emissivity = Math.Max(0, radiator.EvaluateStat(1));
                 var radiation = Math.Pow(Math.Max(0, radiator.State.RadiatorTemperature),

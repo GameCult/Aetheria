@@ -326,9 +326,13 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   Each behavior row also records whether ordered execution reached it during
   the current fixed step. Specialized subsystem handlers consume that daemon
   fact instead of equating "installed and online" with "admitted by the
-  chain". Radiators are the first migrated consumer: a closed thermostat makes
-  its downstream radiator unreachable, so the energy/thermal handler cannot
-  pump heat behind the gate.
+  chain". `Thruster`, `AetherDrive`, and `Radiator` pause their authored group,
+  report the fossil `Execute` return value from their owning simulation organ,
+  and let the behavior owner resume the common tail at most once. A failed
+  energy draw or idle thruster therefore cannot consume trailing wear. A closed
+  thermostat makes its radiator unreachable; an admitted but unfunded radiator
+  reports failure and also stops the tail. Radiator emissive cooling remains an
+  always-update effect, matching the fossil independently of chain admission.
 - Sensor contact information is daemon-owned. Each operational installed
   `Sensor` behavior executes the fossil information equation against target
   visibility, distance, observer-relative angle, its authored sensitivity
@@ -2678,7 +2682,9 @@ First Aetheria surfaces to publish:
   equipment-local temperature/performance, shutdown, wear, conduction, and
   radiation. The daemon orders radiator pumping before reactor settlement and
   thermal conduction; client operations have no direct energy, heat, wear, or
-  equipment-online writer. `AetheriaRuntimeThermalMedicalSimulation` derives
+  equipment-online writer. Radiator pumping reports its exact chain result,
+  while emissive cooling remains the behavior's independent always-update path.
+  `AetheriaRuntimeThermalMedicalSimulation` derives
   cockpit exposure, recovery, severe-risk crossings, and thermal death from the
   cockpit's canonical cells; all death causes use the same destruction commit.
   The Eve game surface publishes the resulting power, radiator, temperature,

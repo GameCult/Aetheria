@@ -1521,6 +1521,12 @@ namespace GameCult.Aetheria.State.Verse
         [Key(59)]
         public bool ChainReached { get; set; }
 
+        [Key(60)]
+        public bool ChainSucceeded { get; set; }
+
+        [Key(61)]
+        public bool ChainCompleted { get; set; }
+
         [Key(55)]
         public string ResourceScannerTargetBodyKey { get; set; } = "";
 

@@ -638,6 +638,7 @@ namespace GameCult.Aetheria.State.Verse
             foreach (var entity in entities)
             {
                 AetheriaRuntimeEnergySimulation.StepRadiators(entity, catalog, deltaSeconds);
+                AetheriaRuntimeBehaviorSimulation.CompleteDeferredChains(entity, catalog, deltaSeconds);
                 AetheriaRuntimeEnergySimulation.SettleReactors(entity, catalog, deltaSeconds);
                 AetheriaRuntimeThermalSimulation.Step(entity, deltaSeconds, catalog);
                 var medical = AetheriaRuntimeThermalMedicalSimulation.Step(
