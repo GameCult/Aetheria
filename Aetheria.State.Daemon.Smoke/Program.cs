@@ -957,8 +957,14 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         var weaponItem = CatalogItem("turret-smoke-weapon", weaponPayload);
         var controllerItem = CatalogItem(
             "turret-smoke-controller",
-            new AetheriaRuntimeBehaviorPayload(0, AetheriaRuntimeBehaviorKinds.TurretController, 0, []));
-        var catalog = new AetheriaRuntimeCatalogSnapshot([controllerItem, weaponItem], [], []);
+            new AetheriaRuntimeBehaviorPayload(0, "EnergyDraw", 0,
+            [
+                new AetheriaRuntimeBehaviorField(1, PerformanceStat(5)),
+                new AetheriaRuntimeBehaviorField(2, BoolValue(false))
+            ]),
+            new AetheriaRuntimeBehaviorPayload(1, AetheriaRuntimeBehaviorKinds.TurretController, 0, []));
+        var capacitorItem = CatalogItem("turret-smoke-capacitor", CapacitorPayload(20, 1));
+        var catalog = new AetheriaRuntimeCatalogSnapshot([controllerItem, weaponItem, capacitorItem], [], []);
 
         var uncontrolled = Entity(0, 0, "raider");
         uncontrolled.DirectionX = 1;
@@ -1014,6 +1020,11 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 Rotation = "Half",
                 Item = new AetheriaRuntimeLoadoutItemCommit
                     { ItemKey = weaponItem.ItemKey, Quality = 1, Durability = 1, Enabled = true }
+            },
+            new AetheriaRuntimeLoadoutItemSlotCommit
+            {
+                Item = new AetheriaRuntimeLoadoutItemCommit
+                    { ItemKey = capacitorItem.ItemKey, Quality = 1, Durability = 1, Enabled = true }
             }
         ];
         turret.WeaponGroups = [new[] { 1, 2 }];
@@ -1027,12 +1038,21 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         {
             AetheriaRuntimeDaemonSimulation.Step(run, new AetheriaRuntimeDaemonIntentState(), 0.1,
                 new AetheriaRuntimeDaemonSimulationSettings(), physics, catalog, 0, 0);
+            RequireEqual(-1, turret.TargetEntityIndex,
+                "an unfunded controller must remain unreachable behind its authored EnergyDraw gate");
+            RequireEqual(0, run.ShotReceipts.Count,
+                "an unfunded controller must not aim or trigger weapons behind the behavior chain");
+
+            var capacitor = turret.BehaviorStates.Single(state => state.BehaviorKind == "Capacitor");
+            capacitor.CapacitorCharge = 20;
+            AetheriaRuntimeDaemonSimulation.Step(run, new AetheriaRuntimeDaemonIntentState(), 0.1,
+                new AetheriaRuntimeDaemonSimulationSettings(), physics, catalog, 1, 0.1);
             RequireEqual(target.EntityIndex, turret.TargetEntityIndex,
                 "an idle turret controller must acquire the first visible hostile ship without firing on the acquisition tick");
             RequireEqual(0, run.ShotReceipts.Count,
                 "target acquisition must not smuggle an extra trigger into the same fossil controller tick");
             AetheriaRuntimeDaemonSimulation.Step(run, new AetheriaRuntimeDaemonIntentState(), 0.1,
-                new AetheriaRuntimeDaemonSimulationSettings(), physics, catalog, 1, 0.1);
+                new AetheriaRuntimeDaemonSimulationSettings(), physics, catalog, 2, 0.2);
         }
 
         var controllerState = turret.BehaviorStates.Single(state =>

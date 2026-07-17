@@ -881,12 +881,13 @@ lifecycle state.
 
 ### Daemon Orbital Turret Controller
 
-- Owner: each operational installed `TurretController` behavior owns automatic
+- Owner: each chain-admitted operational installed `TurretController` behavior owns automatic
   target acquisition, predictive look direction, and its exact per-weapon
   trigger set. Ship agent combat remains owned by the task planner and pilot
   fire remains an accepted command; neither path impersonates an orbital
   controller.
-- Inputs: visible hostile ship contacts in stable zone order, current target,
+- Inputs: authored preceding behavior-chain gates, including the canonical
+  `EnergyDraw`; visible hostile ship contacts in stable zone order, current target,
   entity and target pose/velocity, operational weapon behaviors, evaluated
   weapon range and velocity, and catalog placement rotation.
 - Outputs: selected target, daemon look direction, reconnectable controller
@@ -898,13 +899,16 @@ lifecycle state.
   shot receipts, and feedback chronology.
 - Forbidden writers: faction identity, entity kind, Unity update loops, and
   generic Eve lowerers cannot grant automatic fire. The deleted non-player
-  group-zero fallback is not a compatibility path.
+  group-zero fallback is not a compatibility path. Mere installation cannot
+  bypass a refused behavior-chain resource gate.
 - Shared paths: pilot and ship-agent group commands expand to every weapon
   behavior on their assigned equipment; turret control requests only the exact
   aligned in-range behavior. All then enter the same lock, charge, burst,
   energy, heat, wear, visibility, shot, and damage transactions.
 - Verification: daemon smoke proves no controller/no command means no hostile
-  auto-fire; acquisition does not fire in the same fossil tick; projectile
+  auto-fire; an empty capacitor prevents acquisition, aim, and fire through the
+  canonical `EnergyDraw -> TurretController` chain; restored power acquires
+  without firing in the same fossil tick; projectile
   velocity enables CultMath first-order intercept; and a forward weapon fires
   while the reversed behavior remains inactive.
 

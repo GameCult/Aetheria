@@ -25,7 +25,7 @@ namespace GameCult.Aetheria.State.Verse
             IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities,
             AetheriaRuntimeCatalogSnapshot? catalog)
         {
-            var controllers = AetheriaRuntimeEquippedBehaviorQueries.FindOperational(
+            var controllers = AetheriaRuntimeEquippedBehaviorQueries.FindExecuting(
                 entity, catalog, AetheriaRuntimeBehaviorKinds.TurretController);
             if (controllers.Count == 0)
                 return Array.Empty<AetheriaRuntimeTurretWeaponRequest>();
