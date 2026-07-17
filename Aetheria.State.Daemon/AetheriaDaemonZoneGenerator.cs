@@ -80,7 +80,6 @@ internal static class AetheriaDaemonZoneGenerator
             .ConfigureAwait(false) ?? new AetheriaPlayerSettings();
         settings.ActiveRunKey = runKey.ToString();
         settings.PlayerName = string.IsNullOrWhiteSpace(settings.PlayerName) ? "Terminus Pilot" : settings.PlayerName;
-        settings.TutorialPassed = true;
         settings.LastUpdatedAtUtc = now;
         await node.MutableDocument<AetheriaPlayerSettings>(AetheriaStateNode.PlayerSettingsKey)
             .ReplaceAsync(settings)

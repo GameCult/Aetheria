@@ -1076,6 +1076,12 @@ scenario selects a distinct run identity, so an existing proof run cannot
 impersonate ordinary play. Unity selects the scenario only as a launch input and
 cannot write cargo, hull, pickups, or feedback.
 
+Scenario generation may select an active run and default pilot name, but it is
+not tutorial progression authority. It preserves `TutorialPassed`; only a
+future daemon-owned tutorial completion transaction may cross that flag. The
+fossil selected tutorial New Game while the flag was false, so merely entering
+the Terminus proof arena cannot award completion.
+
 ### Daemon Pickup Contact Transaction
 
 - Owner: the daemon simulation owns pickup collection by interpreting typed

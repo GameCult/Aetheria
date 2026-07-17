@@ -12219,6 +12219,12 @@ static void RequireDaemonVersePublication(string root)
             "Daemon zone generation must not restore invented scenario cargo as a second item-identity authority.");
     }
 
+    if (daemonZoneGenerator.Contains("settings.TutorialPassed = true", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Generating a Terminus scenario must not award tutorial completion; progression requires its own daemon-owned completion fact.");
+    }
+
     var requiredDaemonHostSymbols = new[]
     {
         "<OutputType>Exe</OutputType>",
