@@ -29,6 +29,11 @@ else if (args.Contains("--payload", StringComparer.Ordinal))
     checks.RunPayload();
     Console.WriteLine("Daemon retained Ymir payload smoke passed.");
 }
+else if (args.Contains("--tutorial-topology", StringComparer.Ordinal))
+{
+    checks.RunTutorialTopology();
+    Console.WriteLine("Daemon tutorial topology smoke passed.");
+}
 else
 {
     checks.Run();
@@ -60,6 +65,60 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         RunCheck(PayloadQueryExcludesItsSource);
         RunCheck(PayloadBodiesDoNotCollideWithEachOther);
         RunCheck(OverlappingMineRemainsQueryableAfterArming);
+    }
+
+    public void RunTutorialTopology() => RunCheck(TutorialTopologyIsDeterministicConnectedAndRoleOwned);
+
+    private static void TutorialTopologyIsDeterministicConnectedAndRoleOwned()
+    {
+        AetheriaDaemonTutorialFactionInput Faction(string shortName, int influence = 2) =>
+            new($"faction.{shortName.ToLowerInvariant()}", shortName, shortName, influence);
+        var factions = new[]
+        {
+            Faction("Miss"),
+            Faction("Zhe"),
+            Faction("Luc"),
+            Faction("Aero"),
+            Faction("Finch"),
+            Faction("Adras")
+        };
+        var first = AetheriaDaemonTutorialTopologyGenerator.GenerateFossil(factions, 0xA37E_2026u);
+        var second = AetheriaDaemonTutorialTopologyGenerator.GenerateFossil(factions, 0xA37E_2026u);
+        RequireEqual(64, first.Zones.Count,
+            "the daemon tutorial must retain the authored 64-zone topology size");
+        Require(first.Zones.Select(zone => (zone.X, zone.Y, string.Join(',', zone.AdjacentZoneIndices)))
+                .SequenceEqual(second.Zones.Select(zone => (zone.X, zone.Y, string.Join(',', zone.AdjacentZoneIndices)))),
+            "tutorial topology must be deterministic for a fixed daemon seed and density field");
+        RequireNear(first.NoisePosition, second.NoisePosition, 0,
+            "the daemon seed must reproduce the authored tutorial cloud field position");
+        Require(AetheriaDaemonTutorialTopologyGenerator.TutorialCloudDensity(0.5f, 0.5f, first.NoisePosition) >= 0.5f,
+            "tutorial cloud selection must retain the fossil's dense-center admission gate");
+        RequireEqual(6, first.HomeZoneByFactionKey.Count,
+            "every authored tutorial faction role must receive one daemon-owned home zone");
+        Require(first.HomeZoneByFactionKey["faction.miss"] != first.HomeZoneByFactionKey["faction.zhe"],
+            "tutorial protagonist and antagonist homes must not collapse onto one zone");
+        Require(first.Zones[first.EntranceZoneIndex].OwnerFactionKey.Length == 0,
+            "the tutorial entrance must retain the fossil's unowned-zone rule");
+        Require(first.DiscoveredZoneIndices.SequenceEqual(
+                new[] { first.EntranceZoneIndex }
+                    .Concat(first.Zones[first.EntranceZoneIndex].AdjacentZoneIndices)
+                    .Distinct()
+                    .OrderBy(value => value)),
+            "initial tutorial discovery must contain exactly the entrance and its adjacent zones");
+        Require(first.Zones.All(zone => zone.AdjacentZoneIndices.Count > 0) &&
+                first.Zones.All(zone => zone.AdjacentZoneIndices.All(neighbor =>
+                    first.Zones[neighbor].AdjacentZoneIndices.Contains(zone.ZoneIndex))),
+            "tutorial link pruning must preserve one connected undirected graph");
+        var reachable = new HashSet<int> { first.EntranceZoneIndex };
+        var queue = new Queue<int>();
+        queue.Enqueue(first.EntranceZoneIndex);
+        while (queue.Count > 0)
+        {
+            foreach (var neighbor in first.Zones[queue.Dequeue()].AdjacentZoneIndices)
+                if (reachable.Add(neighbor)) queue.Enqueue(neighbor);
+        }
+        RequireEqual(first.Zones.Count, reachable.Count,
+            "tutorial link elimination must never strand a zone outside the playable graph");
     }
 
     private static void RetainedWorldAdvancesEveryFixedSubstep()
@@ -152,6 +211,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         Action[] checks =
         [
             PositiveGravityDepthAttractsAndProjectsAsAWell,
+            TutorialTopologyIsDeterministicConnectedAndRoleOwned,
             VolumeSurfaceKeepsNativeShaderAbiInAssetVariant,
             YmirMovesProjectileAndReportsStableContact,
             CompressedTerminusStopsAtAttentionBoundary,

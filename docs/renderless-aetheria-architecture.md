@@ -130,6 +130,22 @@ latest complete leased frame, and reactive UI state is sampled at a bounded
 publication cadence. Internal fixed steps remain deterministic and testable
 without requiring a renderer or wall-clock delays.
 
+## Tutorial Generation
+
+The fossil tutorial was not a scripted objective mode. Its surviving gameplay
+difference is a distinct generated galaxy selected while `TutorialPassed` is
+false: six authored faction roles, 64 weighted blue-noise zones, a pruned
+Delaunay link graph, faction influence and ownership, an unowned entrance, and
+initial discovery of the entrance plus its neighbors. The narrative processor
+was commented out and no source-backed tutorial-completion trigger survived.
+
+That topology now has a deterministic daemon owner driven by CultMath's
+Unity-compatible simplex noise. It remains a pre-materialization result until
+the fossil zone-body/entity generator is migrated; the daemon must not present
+an empty graph or the handcrafted Terminus proof arena as a completed tutorial.
+Once materialized, New Game may select it from player settings and Eve may lower
+its map and entry controls without becoming generation authority.
+
 ## Current Mechanism
 
 The repo is mid-migration.

@@ -1106,6 +1106,34 @@ the Terminus proof arena cannot award completion.
   requested steps, proves the causal damage commits at that step, proves later
   steps do not execute, and round-trips the clock/cause fields through Eve.
 
+### Daemon Tutorial Topology Ownership
+
+- Owner: the daemon tutorial topology generator owns the tutorial zone graph,
+  faction roles and homes, zone influence, entrance, and initial discovery.
+- Inputs: the authored six faction selectors, 64-zone/link-density settings,
+  typed corporation catalog, daemon generation seed, and the historical
+  ten-octave simplex cloud-density field.
+- Outputs: a deterministic connected zone graph with stable positions,
+  adjacency, faction presence/ownership, home zones, entrance, discovery set,
+  and the selected cloud-noise position.
+- Derived state: the sector map and eventual zone materialization consume this
+  topology. Names, bodies, stations, ships, and Eve map rendering do not get to
+  revise it.
+- Forbidden writers: Unity `MainMenu`, `Galaxy`, `ZoneGenerator`, scene objects,
+  and Eve clients cannot generate or repair tutorial topology.
+- Shared paths: generation and parity smoke use the same CultMath random stream,
+  Unity-compatible simplex semantics, weighted sample elimination, Delaunay
+  graph, connectivity-preserving link pruning, and faction placement owner.
+- Cut line: a generated Terminus proof arena cannot be relabelled as the
+  tutorial. The daemon topology exists as a distinct pre-materialization result;
+  it is not selected as a playable run until daemon zone contents are migrated.
+- Verification layer: smoke generates the authored 64-zone graph twice from one
+  seed, proves point/adjacency repeatability, a connected undirected graph, six
+  distinct role homes, an unowned entrance, and discovery containing exactly
+  that entrance and its neighbors. CultMath separately proves the C# simplex
+  implementation against Unity Mathematics vectors and carries the same
+  semantics in HLSL.
+
 ### Daemon Pickup Contact Transaction
 
 - Owner: the daemon simulation owns pickup collection by interpreting typed
