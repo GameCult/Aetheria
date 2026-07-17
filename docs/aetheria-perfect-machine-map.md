@@ -3033,8 +3033,17 @@ and checkpoint. Weapon group assignment follows the same rule: UI requests
 membership, and the daemon owns the group mutation and checkpoint. Inventory
 double-click transfer follows the same
 rule, and drag/drop placement now shares that commit family: UI requests
-cargo/equipment movement, and the daemon owns the move and checkpoint. Trade
-purchases follow the same rule: UI requests only item, quantity, stock slot,
+cargo/equipment movement, and the daemon owns the move and checkpoint. Target
+selection is likewise daemon policy:
+generic Eve supplies source and target identities or a view direction, while
+the daemon filters authoritative visible contacts and owns the selected index.
+The cycle order deliberately preserves the executable fossil rather than the
+input labels: `Target Nearest` used `MaxBy(distance)`, stable contact order
+breaks ties, and previous-from-no-selection uses the original array arithmetic.
+EveUnity's explicit `{sourceEntityId, targetEntityId}` request now retains both
+identities through translation; an unseen target commits `target-not-visible`
+and reaches Eve as a denied receipt without changing the previous selection.
+Trade purchases follow the same rule: UI requests only item, quantity, stock slot,
 and destination bay. The daemon derives the dock parent, current catalog price,
 product kind, capacity, hull-vs-cargo result, credit changes, cargo transfer,
 ship creation, and checkpoint. Historical price, station, target, purchase-kind,

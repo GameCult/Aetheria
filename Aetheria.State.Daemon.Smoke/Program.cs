@@ -788,12 +788,18 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         var actor = Entity(0, 0, "player");
         var near = Entity(1, 0, "enemy");
         near.PositionX = 4;
-        var far = Entity(2, 0, "enemy");
+        var middle = Entity(2, 0, "enemy");
+        middle.PositionX = 8;
+        var far = Entity(3, 0, "enemy");
         far.PositionZ = 12;
+        var hidden = Entity(4, 0, "enemy");
+        hidden.PositionX = 2;
         actor.Contacts =
         [
             new AetheriaRuntimeEntityContactCommit
                 { TargetEntityIndex = near.EntityIndex, Visible = true, Hostile = true },
+            new AetheriaRuntimeEntityContactCommit
+                { TargetEntityIndex = middle.EntityIndex, Visible = true, Hostile = true },
             new AetheriaRuntimeEntityContactCommit
                 { TargetEntityIndex = far.EntityIndex, Visible = true, Hostile = true }
         ];
@@ -801,7 +807,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         {
             RunId = "native-input-smoke",
             CurrentZoneIndex = 0,
-            Zones = [new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [actor, near, far] }]
+            Zones = [new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [actor, near, middle, far, hidden] }]
         };
         run.CurrentEntityKey = run.EntityRecordKey(0, actor.EntityIndex);
         var frame = AetheriaRuntimeDaemonFrameDocument.Create(run, "smoke", "native-input", 1, 0.1, 0.1);
@@ -812,7 +818,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             "portable input must advertise every daemon target-selection lever");
         Require(targeting.Where(value => value.ActionId != "pilot.target-clear")
                 .All(value => value.Availability == "available" &&
-                              value.Payload["visibleHostileCount"] == "2" &&
+                              value.Payload["visibleHostileCount"] == "3" &&
                               value.Payload["currentTargetEntityIndex"] == "-1") &&
                 targeting.Single(value => value.ActionId == "pilot.target-clear").Availability == "unavailable",
             "target controls must derive availability and current selection from daemon contact truth");
@@ -855,6 +861,20 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             return command!;
         }
 
+        var previousCommand = Translate(targeting.Single(value => value.ActionId == "pilot.target-previous"));
+        var previousResult = AetheriaRuntimeDaemonOperations.Execute(
+            run, [previousCommand], new AetheriaRuntimeDaemonOperationContext());
+        RequireEqual(1, previousResult.AppliedCommandIds.Count,
+            "the advertised previous-target action must reach the daemon owner");
+        RequireEqual(middle.EntityIndex, actor.TargetEntityIndex,
+            "previous from no selection must preserve the fossil's second-to-last index arithmetic");
+
+        var clearCommand = Translate(targeting.Single(value => value.ActionId == "pilot.target-clear"));
+        var clearResult = AetheriaRuntimeDaemonOperations.Execute(
+            run, [clearCommand], new AetheriaRuntimeDaemonOperationContext());
+        RequireEqual(1, clearResult.AppliedCommandIds.Count,
+            "the generic clear-target action must return selection ownership to the daemon");
+
         var nearestCommand = Translate(targeting.Single(value => value.ActionId == "pilot.target-nearest"));
         RequireEqual(AetheriaRuntimeDaemonCommandKinds.TargetNearest, nearestCommand.Kind,
             "nearest target action must preserve daemon command identity");
@@ -862,13 +882,19 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             run, [nearestCommand], new AetheriaRuntimeDaemonOperationContext());
         RequireEqual(1, result.AppliedCommandIds.Count,
             "the advertised target action must reach the daemon owner");
-        RequireEqual(near.EntityIndex, actor.TargetEntityIndex,
-            "nearest selection must remain daemon policy rather than client reconstruction");
+        RequireEqual(far.EntityIndex, actor.TargetEntityIndex,
+            "the historically misnamed nearest action must preserve the fossil's MaxBy-distance behavior");
         var selected = AetheriaRuntimeInputCapabilityDocument.FromFrame(frame);
         Require(selected.Actions.Single(value => value.ActionId == "pilot.target-clear").Availability == "available" &&
                 selected.Actions.Where(value => value.Category == "targeting")
-                    .All(value => value.Payload["currentTargetEntityIndex"] == near.EntityIndex.ToString()),
+                    .All(value => value.Payload["currentTargetEntityIndex"] == far.EntityIndex.ToString()),
             "all portable target levers must refresh from the newly selected daemon target");
+
+        var clearAfterNearest = AetheriaRuntimeDaemonOperations.Execute(
+            run, [Translate(selected.Actions.Single(value => value.ActionId == "pilot.target-clear"))],
+            new AetheriaRuntimeDaemonOperationContext());
+        RequireEqual(1, clearAfterNearest.AppliedCommandIds.Count,
+            "generic Eve must clear the fossil-selected target before the independent reticle selection proof");
 
         var reticleRequest = new EveSurfaceCommandRequest(
             capability.ProviderId,
@@ -891,6 +917,62 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             "the translated reticle action must reach the daemon target owner");
         RequireEqual(far.EntityIndex, actor.TargetEntityIndex,
             "reticle selection must rank visible hostile contacts from the advertised view ray inside the daemon");
+
+        EveSurfaceCommandRequest ExplicitTarget(string targetEntityKey) => new(
+            capability.ProviderId,
+            AetheriaRuntimeDaemonGameSurfaceBuilder.PilotSurfaceId,
+            CultMesh.OperationInvocation(AetheriaRuntimeDaemonSurfaceCommandCatalog.CommandName(
+                AetheriaRuntimeDaemonCommandKinds.SetTarget)),
+            CultMesh.OperationPayload(
+                ("sourceEntityId", run.CurrentEntityKey),
+                ("targetEntityId", targetEntityKey)),
+            DateTimeOffset.UtcNow,
+            "native-input-smoke");
+
+        Require(AetheriaRuntimeDaemonOperationsClient.TryCreateSurfaceCommandDocument(
+                ExplicitTarget(run.EntityRecordKey(0, near.EntityIndex)),
+                frame,
+                ".",
+                "native-input-smoke",
+                "native-input",
+                out var explicitTarget) &&
+                explicitTarget?.ActorEntityKey == run.CurrentEntityKey &&
+                explicitTarget.TargetEntityKey == run.EntityRecordKey(0, near.EntityIndex),
+            "generic Eve explicit targeting must preserve both source and target entity identities");
+        var explicitResult = AetheriaRuntimeDaemonOperations.Execute(
+            run, [explicitTarget!], new AetheriaRuntimeDaemonOperationContext());
+        Require(explicitResult.AppliedCommandIds.Contains(explicitTarget!.CommandId) &&
+                actor.TargetEntityIndex == near.EntityIndex,
+            "a generic scene click must select the visible entity through daemon contact truth");
+
+        Require(AetheriaRuntimeDaemonOperationsClient.TryCreateSurfaceCommandDocument(
+                ExplicitTarget(run.EntityRecordKey(0, hidden.EntityIndex)),
+                frame,
+                ".",
+                "native-input-smoke",
+                "native-input",
+                out var hiddenTarget),
+            "generic Eve must translate an explicit target attempt without deciding visibility client-side");
+        var hiddenResult = AetheriaRuntimeDaemonOperations.Execute(
+            run, [hiddenTarget!], new AetheriaRuntimeDaemonOperationContext());
+        RequireEqual(AetheriaRuntimeDaemonRejectionReasons.TargetNotVisible,
+            hiddenResult.RejectedCommandReasons[hiddenTarget!.CommandId],
+            "the daemon must reject a generic explicit target absent from authoritative visible contacts");
+        RequireEqual(near.EntityIndex, actor.TargetEntityIndex,
+            "a rejected explicit target must not disturb the prior valid selection");
+        var rejectedFrame = AetheriaRuntimeDaemonFrameDocument.Create(
+            run, "smoke", "native-input", 2, 0.2, 0.1);
+        rejectedFrame.RejectedCommandIds = hiddenResult.RejectedCommandIds;
+        rejectedFrame.RejectedCommandReasons = hiddenResult.RejectedCommandReasons;
+        var targetReceipt = AetheriaRuntimeDaemonReceiptProjector.Project(
+            AetheriaRuntimeCommittedCommandFactDocument.FromRejectedCommand(
+                rejectedFrame, hiddenTarget!, "aetheria.local"),
+            AetheriaRuntimeDaemonGameSurfaceBuilder.PilotSurfaceId);
+        Require(targetReceipt.State == "denied" &&
+                targetReceipt.Message.Contains(
+                    AetheriaRuntimeDaemonRejectionReasons.TargetNotVisible,
+                    StringComparison.Ordinal),
+            "generic Eve must receive the daemon's exact explicit-target rejection reason");
 
         var interact = capability.Actions.Single(value => value.ActionId == "pilot.interact");
         RequireEqual(AetheriaRuntimeDaemonCommandKinds.Interact, Translate(interact).Kind,

@@ -44,7 +44,10 @@ public sealed class AetheriaRuntimeDaemonOperationsClient
             return submit(client, frame);
         });
         var accepted = operations.TrySubmitSurfaceCommand(request, out _);
-        var actorEntityKey = ReadPayloadString(request, "entityId", "");
+        var actorEntityKey = ReadPayloadString(
+            request,
+            "entityId",
+            ReadPayloadString(request, "sourceEntityId", ""));
         if (translated != null && !string.IsNullOrWhiteSpace(actorEntityKey))
             translated.ActorEntityKey = actorEntityKey;
         if (string.Equals(Environment.GetEnvironmentVariable("AETHERIA_TRACE_EVE_SNAPSHOTS"), "1", StringComparison.Ordinal))

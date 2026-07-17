@@ -62,6 +62,8 @@ namespace GameCult.Aetheria.State.Verse
         public const string InvalidCommandState = "invalid-command-state";
         public const string RunTerminal = "run-terminal";
         public const string AuthorityDenied = "authority-denied";
+        public const string InvalidTargetSelection = "invalid-target-selection";
+        public const string TargetNotVisible = "target-not-visible";
         public const string InvalidDockActor = "invalid-dock-actor";
         public const string InvalidDockTarget = "invalid-dock-target";
         public const string AlreadyDocked = "already-docked";
@@ -150,7 +152,7 @@ namespace GameCult.Aetheria.State.Verse
             switch (command.Kind)
             {
                 case AetheriaRuntimeDaemonCommandKinds.SetTarget:
-                    return ApplySetTarget(run, command);
+                    return ApplySetTarget(run, command, context);
                 case AetheriaRuntimeDaemonCommandKinds.ClearTarget:
                     return ApplyClearTarget(run, command);
                 case AetheriaRuntimeDaemonCommandKinds.TargetNearest:
@@ -431,7 +433,8 @@ namespace GameCult.Aetheria.State.Verse
 
         private static bool ApplySetTarget(
             AetheriaRuntimeRunCheckpointCommit run,
-            AetheriaRuntimeDaemonCommandDocument command)
+            AetheriaRuntimeDaemonCommandDocument command,
+            AetheriaRuntimeDaemonOperationContext context)
         {
             var actorKey = string.IsNullOrWhiteSpace(command.ActorEntityKey)
                 ? run.CurrentEntityKey
@@ -441,13 +444,13 @@ namespace GameCult.Aetheria.State.Verse
                 actorZone != targetZone ||
                 actorIndex == targetIndex)
             {
-                return false;
+                return context.Reject(AetheriaRuntimeDaemonRejectionReasons.InvalidTargetSelection);
             }
 
             if (!(actor.Contacts ?? Array.Empty<AetheriaRuntimeEntityContactCommit>())
                     .Any(contact => contact != null && contact.TargetEntityIndex == targetIndex && contact.Visible))
             {
-                return false;
+                return context.Reject(AetheriaRuntimeDaemonRejectionReasons.TargetNotVisible);
             }
 
             actor.TargetEntityIndex = targetIndex;
@@ -477,25 +480,37 @@ namespace GameCult.Aetheria.State.Verse
             if (zone == null)
                 return false;
 
-            var orderedTargets = VisibleHostileTargets(zone, actor, actorIndex)
-                .OrderBy(target => target.DistanceSq)
-                .ThenBy(target => target.EntityIndex)
-                .ToArray();
-            if (orderedTargets.Length == 0)
+            var visibleTargets = VisibleHostileTargets(zone, actor, actorIndex).ToArray();
+            if (visibleTargets.Length == 0)
                 return false;
 
             if (mode == TargetCycleMode.Nearest)
             {
-                actor.TargetEntityIndex = orderedTargets[0].EntityIndex;
+                // Preserve the fossil exactly: the action was named "Target Nearest"
+                // but selected MaxBy(distance), retaining the first contact on a tie.
+                var selected = visibleTargets[0];
+                foreach (var candidate in visibleTargets.Skip(1))
+                {
+                    if (candidate.DistanceSq > selected.DistanceSq)
+                        selected = candidate;
+                }
+                actor.TargetEntityIndex = selected.EntityIndex;
                 return true;
             }
+
+            // LINQ OrderBy is stable, matching the fossil's VisibleHostiles order for ties.
+            var orderedTargets = visibleTargets
+                .OrderBy(target => target.DistanceSq)
+                .ToArray();
 
             var currentIndex = Array.FindIndex(
                 orderedTargets,
                 target => target.EntityIndex == actor.TargetEntityIndex);
             if (currentIndex < 0)
             {
-                actor.TargetEntityIndex = orderedTargets[0].EntityIndex;
+                actor.TargetEntityIndex = mode == TargetCycleMode.Previous
+                    ? orderedTargets[Math.Max(0, orderedTargets.Length - 2)].EntityIndex
+                    : orderedTargets[0].EntityIndex;
                 return true;
             }
 

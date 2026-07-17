@@ -3797,15 +3797,16 @@ public class DaemonRuntimeDocumentTests
 
         var nearestResult = AetheriaRuntimeDaemonOperations.Execute(run, new[] { nearest });
         Assert.AreEqual(1, nearestResult.AppliedCommandIds.Count);
-        Assert.AreEqual(2, zone.Entities[0].TargetEntityIndex);
+        Assert.AreEqual(1, zone.Entities[0].TargetEntityIndex,
+            "The fossil's Target Nearest action used MaxBy(distance) and therefore selected the farthest contact.");
 
         var nextResult = AetheriaRuntimeDaemonOperations.Execute(run, new[] { next });
         Assert.AreEqual(1, nextResult.AppliedCommandIds.Count);
-        Assert.AreEqual(1, zone.Entities[0].TargetEntityIndex);
+        Assert.AreEqual(2, zone.Entities[0].TargetEntityIndex);
 
         var previousResult = AetheriaRuntimeDaemonOperations.Execute(run, new[] { previous });
         Assert.AreEqual(1, previousResult.AppliedCommandIds.Count);
-        Assert.AreEqual(2, zone.Entities[0].TargetEntityIndex);
+        Assert.AreEqual(1, zone.Entities[0].TargetEntityIndex);
     }
 
     [Test]
