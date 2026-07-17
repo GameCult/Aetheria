@@ -18,4 +18,5 @@ public sealed class AetheriaGameSessionState
     [Key(5)] public string LastStartCommandId { get; set; } = "";
     [Key(6)] public string UpdatedAtUtc { get; set; } = "";
     [Key(7)] public double SimulationRate { get; set; } = 1;
+    [Key(8)] public double? EffectiveSimulationRate { get; set; } = 1;
 }

@@ -550,6 +550,21 @@ namespace GameCult.Aetheria.State.Verse
         public IReadOnlyDictionary<string, string> RejectedCommandReasons { get; set; } =
             new Dictionary<string, string>();
 
+        [Key(24)]
+        public string GameMode { get; set; } = "";
+
+        [Key(25)]
+        public double RequestedSimulationRate { get; set; } = 1;
+
+        [Key(26)]
+        public double EffectiveSimulationRate { get; set; } = 1;
+
+        [Key(27)]
+        public int SimulationStepsExecuted { get; set; }
+
+        [Key(28)]
+        public string AttentionCauseKind { get; set; } = "";
+
         public static AetheriaRuntimeDaemonFrameDocument Create(
             AetheriaRuntimeRunCheckpointCommit run,
             string daemonId,

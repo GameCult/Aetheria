@@ -1082,6 +1082,30 @@ future daemon-owned tutorial completion transaction may cross that flag. The
 fossil selected tutorial New Game while the flag was false, so merely entering
 the Terminus proof arena cannot award completion.
 
+### Daemon Terminus Clock And Attention Ownership
+
+- Owner: the daemon session clock owns requested rate, effective rate, fixed-step
+  execution, and the decision to interrupt compressed time.
+- Inputs: accepted clock commands, the active game mode, and new authoritative
+  gameplay facts committed by each fixed simulation step.
+- Outputs: committed simulation time, actual steps executed,
+  `simulation.interrupted`, effective pause state, and Eve scene properties that
+  expose the requested rate, effective rate, and cause without granting control
+  authority to the renderer.
+- Derived state: Unity interpolation and visible pause/attention affordances are
+  projections. They do not advance time or classify gameplay facts.
+- Forbidden writers: Eve lowerers, wall-clock cadence, publication batching, and
+  presentation effects cannot change the effective simulation clock.
+- Shared paths: compressed transit, single-step inspection, failure, combat,
+  docking, thermal, cargo, and wormhole events all commit through the same
+  daemon tick and event ledger.
+- Cut line: executing the full requested compressed batch before inspecting its
+  intermediate facts is dead. Requested rate is no longer overloaded as the
+  current effective rate.
+- Verification layer: daemon smoke detonates a mine in the first of four
+  requested steps, proves the causal damage commits at that step, proves later
+  steps do not execute, and round-trips the clock/cause fields through Eve.
+
 ### Daemon Pickup Contact Transaction
 
 - Owner: the daemon simulation owns pickup collection by interpreting typed

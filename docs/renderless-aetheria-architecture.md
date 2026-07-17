@@ -112,14 +112,17 @@ sample of the resulting state. Unity, Electron, bots, and other Eve clients may
 interpolate presentation between samples, but cannot advance committed game
 time or invent intermediate outcomes.
 
-Time compression must eventually distinguish requested rate from effective
-rate. Decision-relevant daemon facts, including contact, hostile targeting,
-damage, weapon readiness, arrival, resource discovery, cargo events, docking,
-and failed orders, will clamp or pause the effective rate according to an
-explicit player policy. The interruption fact must name its reason and the
-simulation time at which it occurred; the daemon may not simulate past that
-boundary before publishing it. This attention policy is daemon-owned gameplay
-state, not client heuristics.
+Time compression distinguishes the persistent requested rate from the effective
+rate currently being executed. During a compressed batch, the daemon inspects
+new gameplay facts after every fixed step. Damage, destruction, pickup outcomes,
+thermal risk, docking transitions, weapon failures, wormhole transitions, and
+run failure stop the batch at the causal step, publish `simulation.interrupted`,
+and set the effective rate to pause without erasing the requested rate. The
+interruption names its cause and exact simulation time; the daemon never commits
+later steps before publishing it. Contact, hostile targeting, weapon readiness,
+arrival, resource discovery, and failed-order coverage remain to be added to the
+explicit policy as their authoritative facts mature. This attention policy is
+daemon-owned gameplay state, not client heuristics.
 
 Compressed stepping must not multiply control-plane traffic. Commands and
 receipts retain their ordinary typed CultMesh path, SoA consumers receive the

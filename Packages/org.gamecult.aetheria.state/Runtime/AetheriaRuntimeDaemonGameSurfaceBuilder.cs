@@ -38,6 +38,7 @@ namespace GameCult.Aetheria.State.Verse
                     run,
                     zone,
                     run.CurrentEntityKey,
+                    frame,
                     frame.SimulationSettings,
                     catalog),
                 CockpitOverlay(entity, target, frame.SimulationSettings),
@@ -805,6 +806,7 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeRunCheckpointCommit run,
             AetheriaRuntimeZoneSnapshotCommit zone,
             string currentEntityKey,
+            AetheriaRuntimeDaemonFrameDocument frame,
             AetheriaRuntimeDaemonSimulationSettings simulationSettings,
             AetheriaRuntimeCatalogSnapshot? catalog)
         {
@@ -871,6 +873,11 @@ namespace GameCult.Aetheria.State.Verse
                 ["runLifecycle"] = run.LifecyclePhase ?? "",
                 ["runTerminalReason"] = run.TerminalReason ?? "",
                 ["runTerminalFrameId"] = run.TerminalFrameId.ToString(CultureInfo.InvariantCulture),
+                ["gameMode"] = frame.GameMode ?? "",
+                ["requestedSimulationRate"] = F(frame.RequestedSimulationRate),
+                ["effectiveSimulationRate"] = F(frame.EffectiveSimulationRate),
+                ["simulationStepsExecuted"] = frame.SimulationStepsExecuted.ToString(CultureInfo.InvariantCulture),
+                ["attentionCauseKind"] = frame.AttentionCauseKind ?? "",
                 ["presentationMode"] = !AetheriaRuntimeRunLifecycle.IsActive(run)
                     ? "terminal"
                     : isDocked ? "docked" : "world",

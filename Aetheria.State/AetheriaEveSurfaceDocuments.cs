@@ -231,6 +231,7 @@ public static class AetheriaEveSurfaceDocuments
             "aetheria.name_file.v2",
             "aetheria.trade_value_policy.v1",
             "aetheria.player_settings.v1",
+            "aetheria.game_session.v1",
             "aetheria.loadout_template.v1",
             "aetheria.run_state.v1",
             "aetheria.zone_state.v1",

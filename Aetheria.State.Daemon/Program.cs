@@ -280,6 +280,7 @@ static async Task<AetheriaRuntimeDaemonTickResult> TickAsync(
             WorldPhysics = worldPhysics,
             AdvanceSimulation = advanceSimulation,
             SimulationStepCount = simulationStepCount,
+            StopCompressedSimulationOnAttention = terminus && simulationStepCount > 1,
             StarbridgeScenario = starbridgeScenario,
             StarbridgeSession = starbridgeSession,
             BuildPublications = buildPublications,
@@ -289,6 +290,13 @@ static async Task<AetheriaRuntimeDaemonTickResult> TickAsync(
                 LoadoutTemplates = loadoutTemplates
             }
         });
+    if (terminus && result.AttentionInterruption != null)
+        await PauseTerminusForAttentionAsync(node, ingressState).ConfigureAwait(false);
+    result.Frame.GameMode = ingressState.GameMode;
+    result.Frame.RequestedSimulationRate = ingressState.RequestedSimulationRate;
+    result.Frame.EffectiveSimulationRate = ingressState.SimulationRate;
+    result.Frame.SimulationStepsExecuted = result.SimulationStepsExecuted;
+    result.Frame.AttentionCauseKind = result.AttentionInterruption?.CauseKind ?? "";
     TracePhase("simulation");
     if (string.Equals(Environment.GetEnvironmentVariable("AETHERIA_TRACE_EVE_SNAPSHOTS"), "1", StringComparison.Ordinal) &&
         result.Frame.AppliedCommandIds.Count > 0)
@@ -409,7 +417,8 @@ static async Task RefreshControlPlaneInputsAsync(
     var gameSession = await node.MutableDocument<AetheriaGameSessionState>(AetheriaStateNode.GameSessionStateKey)
         .ReadAsync().ConfigureAwait(false);
     ingressState.GameMode = gameSession?.Mode ?? "";
-    ingressState.SimulationRate = gameSession?.SimulationRate ?? 0;
+    ingressState.RequestedSimulationRate = gameSession?.SimulationRate ?? 0;
+    ingressState.SimulationRate = gameSession?.EffectiveSimulationRate ?? gameSession?.SimulationRate ?? 0;
     ingressState.LoadoutTemplates = node.Cache
         .GetAll<AetheriaLoadoutTemplate>()
         .Select(ToLoadoutTemplateCommit)
@@ -443,12 +452,30 @@ static async Task ApplySimulationClockCommandsAsync(
             continue;
         }
         if (AetheriaRuntimeDaemonOperations.IsSupportedSimulationRate(command.ScalarValue))
+        {
             session.SimulationRate = command.ScalarValue;
+            session.EffectiveSimulationRate = command.ScalarValue;
+        }
     }
     session.UpdatedAtUtc = DateTimeOffset.UtcNow.ToString("O");
     await node.MutableDocument<AetheriaGameSessionState>(AetheriaStateNode.GameSessionStateKey)
         .ReplaceAsync(session).ConfigureAwait(false);
-    ingressState.SimulationRate = session.SimulationRate;
+    ingressState.RequestedSimulationRate = session.SimulationRate;
+    ingressState.SimulationRate = session.EffectiveSimulationRate ?? session.SimulationRate;
+}
+
+static async Task PauseTerminusForAttentionAsync(
+    AetheriaStateNode node,
+    AetheriaDaemonIngressState ingressState)
+{
+    var session = await node.MutableDocument<AetheriaGameSessionState>(AetheriaStateNode.GameSessionStateKey)
+        .ReadAsync().ConfigureAwait(false) ?? new AetheriaGameSessionState();
+    session.EffectiveSimulationRate = 0;
+    session.UpdatedAtUtc = DateTimeOffset.UtcNow.ToString("O");
+    await node.MutableDocument<AetheriaGameSessionState>(AetheriaStateNode.GameSessionStateKey)
+        .ReplaceAsync(session).ConfigureAwait(false);
+    ingressState.SimulationRate = 0;
+    ingressState.SimulationStepAccumulator = 0;
 }
 
 static async Task PublishCommittedCommandFactsAsync(
@@ -2480,6 +2507,8 @@ static async Task EnsureTerminusGameSessionAsync(
             RunId = AetheriaDaemonZoneGenerator.RunIdFor(options.TerminusScenario),
             ControlledEntityKey = AetheriaDaemonZoneGenerator.EntityKey(options.TerminusScenario, 0, 1),
             EntrySurfaceId = AetheriaRuntimeDaemonGameSurfaceBuilder.PilotSurfaceId,
+            SimulationRate = 1,
+            EffectiveSimulationRate = 1,
             UpdatedAtUtc = now
         }).ConfigureAwait(false);
     await node.FlushAsync().ConfigureAwait(false);
@@ -2513,6 +2542,8 @@ static async Task<bool> ApplyRequestedTerminusSessionAsync(
     session.RunId = AetheriaDaemonZoneGenerator.RunIdFor(options.TerminusScenario);
     session.ControlledEntityKey = AetheriaDaemonZoneGenerator.EntityKey(options.TerminusScenario, 0, 1);
     session.EntrySurfaceId = AetheriaRuntimeDaemonGameSurfaceBuilder.PilotSurfaceId;
+    session.SimulationRate = 1;
+    session.EffectiveSimulationRate = 1;
     session.LastStartCommandId = menu.LastCommandId;
     session.UpdatedAtUtc = now;
     await node.MutableDocument<AetheriaGameSessionState>(AetheriaStateNode.GameSessionStateKey)
@@ -3041,6 +3072,7 @@ internal sealed class AetheriaDaemonIngressState
     public int ObservedEveCommandCount { get; set; } = -1;
     public bool ControlPlaneInitialized { get; set; }
     public string GameMode { get; set; } = "";
+    public double RequestedSimulationRate { get; set; }
     public double SimulationRate { get; set; }
     public double SimulationStepAccumulator { get; set; }
     public AetheriaRuntimeLoadoutTemplateCommit[] LoadoutTemplates { get; set; } = [];

@@ -154,6 +154,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             PositiveGravityDepthAttractsAndProjectsAsAWell,
             VolumeSurfaceKeepsNativeShaderAbiInAssetVariant,
             YmirMovesProjectileAndReportsStableContact,
+            CompressedTerminusStopsAtAttentionBoundary,
             InstantWeaponRequestSurvivesLockAcquisition,
             GuidedWeaponPublishesPresentationProfileWithoutPhysicalAuthority,
             CombatLockSurvivesPublicFrameRestart,
@@ -235,6 +236,96 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         ];
         foreach (var check in checks)
             RunCheck(check);
+    }
+
+    private static void CompressedTerminusStopsAtAttentionBoundary()
+    {
+        var source = Entity(0, -100, "player");
+        var target = Entity(1, 0, "raider");
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "terminus-attention-smoke",
+            CurrentZoneIndex = 0,
+            CurrentEntityKey = "zone.0.entity.0",
+            Zones = [new AetheriaRuntimeZoneSnapshotCommit
+            {
+                ZoneIndex = 0,
+                Entities = [source, target],
+                PhysicalPayloads = [new AetheriaRuntimePhysicalPayloadCommit
+                {
+                    PayloadId = "attention-mine",
+                    PayloadKind = "mine",
+                    WeaponItemKey = "attention-charge",
+                    SourceEntityIndex = source.EntityIndex,
+                    PositionX = target.PositionX,
+                    PositionZ = target.PositionZ,
+                    LifetimeSeconds = 30,
+                    BlastRadius = 200,
+                    PayloadMagnitude = 10,
+                    DamageType = "Kinetic",
+                    TriggeredAtSeconds = 0,
+                    DetonationDelaySeconds = 0,
+                    Stationary = true,
+                    Active = true
+                }]
+            }]
+        };
+
+        var tick = AetheriaRuntimeDaemonTickRunner.Tick(
+            Path.Combine(Path.GetTempPath(), "aetheria-terminus-attention-smoke.cc"),
+            run,
+            new AetheriaRuntimeDaemonTickOptions
+            {
+                FrameId = 7,
+                SimulationTimeSeconds = 0.4,
+                FixedDeltaSeconds = 0.1,
+                AdvanceSimulation = true,
+                SimulationStepCount = 4,
+                StopCompressedSimulationOnAttention = true,
+                WorldPhysics = NewPhysics(),
+                BuildPublications = false
+            });
+
+        RequireEqual(1, tick.SimulationStepsExecuted,
+            "compressed Terminus must stop on the internal step that produces a decision event");
+        RequireNear(0.1, tick.Frame.SimulationTimeSeconds, 0.000001,
+            "authoritative frame time must stop at the attention boundary instead of claiming the requested batch horizon");
+        Require(tick.AttentionInterruption != null &&
+                tick.AttentionInterruption.CauseKind == "entity.damaged" &&
+                Math.Abs(tick.AttentionInterruption.SimulationTimeSeconds - 0.1) < 0.000001,
+            "tick result must retain the exact event and simulation time that interrupted compression");
+        RequireNear(90, Stat(target, "hull"), 0.000001,
+            "the causal damage step must commit before compressed simulation pauses");
+        var interruption = run.GameEvents.Single(value => value.Kind == "simulation.interrupted");
+        Require(interruption.Reason == "entity.damaged" && interruption.ScalarValue == 4 &&
+                interruption.AuxiliaryValue == 1,
+            "daemon must publish requested versus executed steps with the attention cause");
+        tick.Frame.GameMode = "terminus";
+        tick.Frame.RequestedSimulationRate = 4;
+        tick.Frame.EffectiveSimulationRate = 0;
+        tick.Frame.SimulationStepsExecuted = tick.SimulationStepsExecuted;
+        tick.Frame.AttentionCauseKind = tick.AttentionInterruption?.CauseKind ?? "";
+        var surface = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(
+            tick.Frame,
+            new AetheriaRuntimeDaemonHealthDocument(),
+            AetheriaRuntimeDaemonCommandBoundaryDocument.Create("daemon"));
+        Require(Flatten(surface.Surface.Root).Any(node => node.Kind == "feedback.event" &&
+                node.Props["eventKind"] == "simulation.interrupted" &&
+                node.Props["reason"] == "entity.damaged" &&
+                node.Props["scalarValue"] == "4" && node.Props["auxiliaryValue"] == "1"),
+            "generic Eve feedback must expose why compressed world time stopped");
+        var world = Flatten(surface.Surface.Root).Single(node => node.Kind == "world.scene3d");
+        Require(world.Props["gameMode"] == "terminus" &&
+                world.Props["requestedSimulationRate"] == "4" &&
+                world.Props["effectiveSimulationRate"] == "0" &&
+                world.Props["simulationStepsExecuted"] == "1" &&
+                world.Props["attentionCauseKind"] == "entity.damaged",
+            "generic Eve world state must expose requested and effective clock state without owning it");
+        var restoredFrame = MessagePack.MessagePackSerializer.Deserialize<AetheriaRuntimeDaemonFrameDocument>(
+            MessagePack.MessagePackSerializer.Serialize(tick.Frame));
+        Require(restoredFrame.RequestedSimulationRate == 4 && restoredFrame.EffectiveSimulationRate == 0 &&
+                restoredFrame.SimulationStepsExecuted == 1 && restoredFrame.AttentionCauseKind == "entity.damaged",
+            "clock interruption state must survive authoritative frame serialization");
     }
 
     private static void BehaviorChainsGateAuthoritativeStatModifiers()

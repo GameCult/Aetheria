@@ -38,6 +38,7 @@ namespace GameCult.Aetheria.State.Verse
         public IAetheriaRuntimeWorldPhysics? WorldPhysics { get; set; }
         public bool AdvanceSimulation { get; set; } = true;
         public int SimulationStepCount { get; set; } = 1;
+        public bool StopCompressedSimulationOnAttention { get; set; }
         public bool BuildPublications { get; set; } = true;
         public AetheriaRuntimeDaemonSoaFramePublisher? SoaFramePublisher { get; set; }
     }
@@ -57,7 +58,9 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeSurfaceDocument? gameSurface = null,
             AetheriaRuntimeSurfaceDocument? gameTuiSurface = null,
             AetheriaRuntimeSurfaceDocument? editorSurface = null,
-            AetheriaRuntimeSurfaceDocument? editorTuiSurface = null)
+            AetheriaRuntimeSurfaceDocument? editorTuiSurface = null,
+            int simulationStepsExecuted = 0,
+            AetheriaRuntimeSimulationInterruption? attentionInterruption = null)
         {
             Run = run ?? new AetheriaRuntimeRunCheckpointCommit();
             OperationResult = operationResult ?? new AetheriaRuntimeDaemonOperationResult(
@@ -75,6 +78,8 @@ namespace GameCult.Aetheria.State.Verse
             GameTuiSurface = gameTuiSurface;
             EditorSurface = editorSurface;
             EditorTuiSurface = editorTuiSurface;
+            SimulationStepsExecuted = simulationStepsExecuted;
+            AttentionInterruption = attentionInterruption;
         }
 
         public AetheriaRuntimeRunCheckpointCommit Run { get; }
@@ -91,7 +96,52 @@ namespace GameCult.Aetheria.State.Verse
         public AetheriaRuntimeSurfaceDocument? GameTuiSurface { get; }
         public AetheriaRuntimeSurfaceDocument? EditorSurface { get; }
         public AetheriaRuntimeSurfaceDocument? EditorTuiSurface { get; }
+        public int SimulationStepsExecuted { get; }
+        public AetheriaRuntimeSimulationInterruption? AttentionInterruption { get; }
         public AetheriaRuntimeDaemonIntentState Intents => OperationResult.Intents;
+    }
+
+    public sealed class AetheriaRuntimeSimulationInterruption
+    {
+        public AetheriaRuntimeSimulationInterruption(string causeEventId, string causeKind, double simulationTimeSeconds)
+        {
+            CauseEventId = causeEventId ?? "";
+            CauseKind = causeKind ?? "";
+            SimulationTimeSeconds = simulationTimeSeconds;
+        }
+
+        public string CauseEventId { get; }
+        public string CauseKind { get; }
+        public double SimulationTimeSeconds { get; }
+    }
+
+    public static class AetheriaRuntimeTerminusAttentionPolicy
+    {
+        private static readonly HashSet<string> InterruptingKinds = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "consumable.activation.refused",
+            "entity.damaged",
+            "entity.destroyed",
+            "equipment.destroyed",
+            "pickup.collected",
+            "pickup.rejected",
+            "pilot.heatstroke.risk",
+            "pilot.hypothermia.risk",
+            "run.failed",
+            "ship.docked",
+            "ship.undocked",
+            "weapon.charge.malfunctioned",
+            "weapon.fire.refused",
+            "wormhole.transferred",
+            "wormhole.exit.completed"
+        };
+
+        public static AetheriaRuntimeGameEventCommit? FirstInterruptingEvent(
+            IEnumerable<AetheriaRuntimeGameEventCommit> events) =>
+            (events ?? Array.Empty<AetheriaRuntimeGameEventCommit>())
+                .Where(value => value != null && InterruptingKinds.Contains(value.Kind ?? ""))
+                .OrderBy(value => value.EventId, StringComparer.Ordinal)
+                .FirstOrDefault();
     }
 
     public static class AetheriaRuntimeDaemonTickRunner
@@ -160,10 +210,19 @@ namespace GameCult.Aetheria.State.Verse
             var simulationStepCount = options.AdvanceSimulation && AetheriaRuntimeRunLifecycle.IsActive(operationResult.Run)
                 ? Math.Max(1, options.SimulationStepCount)
                 : 0;
+            var simulationStartTimeSeconds = options.SimulationTimeSeconds -
+                simulationStepCount * options.FixedDeltaSeconds;
+            var simulationStepsExecuted = 0;
+            AetheriaRuntimeSimulationInterruption? attentionInterruption = null;
             for (var simulationStep = 0; simulationStep < simulationStepCount; simulationStep++)
             {
-                var stepTime = options.SimulationTimeSeconds -
-                    ((simulationStepCount - simulationStep - 1) * options.FixedDeltaSeconds);
+                var stepTime = simulationStartTimeSeconds +
+                    (simulationStep + 1) * options.FixedDeltaSeconds;
+                var eventIdsBeforeStep = new HashSet<string>(
+                    (operationResult.Run.GameEvents ?? Array.Empty<AetheriaRuntimeGameEventCommit>())
+                        .Where(value => value != null)
+                        .Select(value => value.EventId ?? ""),
+                    StringComparer.Ordinal);
                 var agentCommands = AetheriaRuntimeAgentScheduler.AssignAndPlan(
                     operationResult.Run,
                     options.FrameId,
@@ -204,14 +263,50 @@ namespace GameCult.Aetheria.State.Verse
                     options.RenderSettings);
                 Trace("world-step");
                 StampZoneSimulationTime(operationResult.Run, stepTime);
+                simulationStepsExecuted++;
+
+                if (options.StopCompressedSimulationOnAttention && simulationStepCount > 1)
+                {
+                    var cause = AetheriaRuntimeTerminusAttentionPolicy.FirstInterruptingEvent(
+                        (operationResult.Run.GameEvents ?? Array.Empty<AetheriaRuntimeGameEventCommit>())
+                            .Where(value => value != null && !eventIdsBeforeStep.Contains(value.EventId ?? "")));
+                    if (cause != null)
+                    {
+                        attentionInterruption = new AetheriaRuntimeSimulationInterruption(
+                            cause.EventId, cause.Kind, stepTime);
+                        AetheriaRuntimeGameEvents.Append(operationResult.Run, new AetheriaRuntimeGameEventCommit
+                        {
+                            EventId = $"frame:{options.FrameId}:simulation:interrupted:{cause.EventId}",
+                            Kind = "simulation.interrupted",
+                            FrameId = options.FrameId,
+                            ZoneIndex = cause.ZoneIndex,
+                            SourceEntityIndex = cause.SourceEntityIndex,
+                            TargetEntityIndex = cause.TargetEntityIndex,
+                            SubjectKey = cause.EventId,
+                            ItemKey = cause.ItemKey,
+                            Reason = cause.Kind,
+                            ScalarValue = simulationStepCount,
+                            AuxiliaryValue = simulationStepsExecuted,
+                            PositionX = cause.PositionX,
+                            PositionZ = cause.PositionZ
+                        });
+                        break;
+                    }
+                }
+
+                if (!AetheriaRuntimeRunLifecycle.IsActive(operationResult.Run))
+                    break;
             }
+
+            var committedSimulationTimeSeconds = simulationStartTimeSeconds +
+                simulationStepsExecuted * options.FixedDeltaSeconds;
 
             var frame = AetheriaRuntimeDaemonFrameDocument.Create(
                 operationResult.Run,
                 options.DaemonId,
                 options.SessionId,
                 options.FrameId,
-                options.SimulationTimeSeconds,
+                committedSimulationTimeSeconds,
                 options.FixedDeltaSeconds,
                 renderSettings: options.RenderSettings,
                 simulationSettings: options.SimulationSettings);
@@ -254,10 +349,19 @@ namespace GameCult.Aetheria.State.Verse
                 return new AetheriaRuntimeDaemonTickResult(
                     operationResult.Run,
                     operationResult,
-                    frame);
+                    frame,
+                    simulationStepsExecuted: simulationStepsExecuted,
+                    attentionInterruption: attentionInterruption);
             }
 
-            return BuildPublications(stateFilePath, operationResult, frame, options, observedCommands.Length);
+            return BuildPublications(
+                stateFilePath,
+                operationResult,
+                frame,
+                options,
+                observedCommands.Length,
+                simulationStepsExecuted,
+                attentionInterruption);
         }
 
         public static AetheriaRuntimeDaemonTickResult BuildPublications(
@@ -265,7 +369,9 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeDaemonOperationResult operationResult,
             AetheriaRuntimeDaemonFrameDocument frame,
             AetheriaRuntimeDaemonTickOptions options,
-            int observedCommandCount)
+            int observedCommandCount,
+            int simulationStepsExecuted = 0,
+            AetheriaRuntimeSimulationInterruption? attentionInterruption = null)
         {
             var soaPublisher = options.SoaFramePublisher ??
                 throw new InvalidOperationException("The daemon-lifetime Aetheria SoA publisher is required.");
@@ -332,7 +438,9 @@ namespace GameCult.Aetheria.State.Verse
                 gameSurface,
                 gameSurface,
                 editorSurface,
-                editorSurface);
+                editorSurface,
+                simulationStepsExecuted,
+                attentionInterruption);
         }
 
         private static AetheriaRuntimeDaemonIntentState MergeIntents(
