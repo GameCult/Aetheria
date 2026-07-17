@@ -30,6 +30,8 @@ namespace GameCult.Aetheria.State.Verse
     public sealed class AetheriaRuntimeEquippedBehavior
     {
         public AetheriaRuntimeEquippedBehavior(
+            AetheriaRuntimeEntitySnapshotCommit entity,
+            AetheriaRuntimeCatalogSnapshot catalog,
             int equipmentIndex,
             int behaviorIndex,
             AetheriaRuntimeLoadoutItemSlotCommit slot,
@@ -38,6 +40,8 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeBehaviorPayload payload,
             AetheriaRuntimeBehaviorStateCommit state)
         {
+            Entity = entity;
+            Catalog = catalog;
             EquipmentIndex = equipmentIndex;
             BehaviorIndex = behaviorIndex;
             Slot = slot;
@@ -47,6 +51,8 @@ namespace GameCult.Aetheria.State.Verse
             State = state;
         }
 
+        public AetheriaRuntimeEntitySnapshotCommit Entity { get; }
+        public AetheriaRuntimeCatalogSnapshot Catalog { get; }
         public int EquipmentIndex { get; }
         public int BehaviorIndex { get; }
         public AetheriaRuntimeLoadoutItemSlotCommit Slot { get; }
@@ -59,10 +65,12 @@ namespace GameCult.Aetheria.State.Verse
         {
             var field = (Payload.Fields ?? Array.Empty<AetheriaRuntimeBehaviorField>())
                 .FirstOrDefault(candidate => candidate != null && candidate.Key == fieldKey);
-            return AetheriaRuntimeDaemonItemStatQueries.EvaluatePerformanceStat(
+            var baseline = AetheriaRuntimeDaemonItemStatQueries.EvaluatePerformanceStat(
                 field?.Value,
                 Item,
                 Math.Max(0, Math.Min(1, thermalPerformance)));
+            return AetheriaRuntimeStatModifierSimulation.Apply(
+                Entity, Catalog, EquipmentIndex, Payload, fieldKey, baseline);
         }
     }
 
@@ -100,6 +108,8 @@ namespace GameCult.Aetheria.State.Verse
                         continue;
                     }
                     found.Add(new AetheriaRuntimeEquippedBehavior(
+                        entity,
+                        catalog,
                         equipmentIndex,
                         behaviorIndex,
                         equipment[equipmentIndex],

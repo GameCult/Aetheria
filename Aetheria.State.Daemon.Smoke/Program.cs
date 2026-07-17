@@ -174,6 +174,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             CargoTransferUsesSpatialAtomicTransaction,
             DockedRefitSurfacePublishesGenericCommands,
             FossilVelocityBehaviorsRunInDaemonFlightStep,
+            BehaviorChainsGateAuthoritativeStatModifiers,
             ReflectorUsesSharedStellarLightFieldWithoutAccumulating,
             SensorPingIsActorScopedEnergyGatedAndReconnectable,
             TurretControllerAcquiresAimsAndTriggersExactWeapons,
@@ -220,6 +221,70 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         ];
         foreach (var check in checks)
             RunCheck(check);
+    }
+
+    private static void BehaviorChainsGateAuthoritativeStatModifiers()
+    {
+        var thruster = CatalogItem("modifier-target", new AetheriaRuntimeBehaviorPayload(
+            0, "Thruster", 0,
+            [new AetheriaRuntimeBehaviorField(1, PerformanceStat(10))]));
+        var controls = CatalogItem("modifier-controls",
+            new AetheriaRuntimeBehaviorPayload(0, "Switch", 0, []),
+            new AetheriaRuntimeBehaviorPayload(1, "StatModifier", 0,
+            [
+                new AetheriaRuntimeBehaviorField(1, StatReference("ThrusterData", "Thrust")),
+                new AetheriaRuntimeBehaviorField(2, PerformanceStat(2)),
+                new AetheriaRuntimeBehaviorField(3, StringValue("Multiplier"))
+            ]),
+            new AetheriaRuntimeBehaviorPayload(2, "Trigger", 1, []),
+            new AetheriaRuntimeBehaviorPayload(3, "StatModifier", 1,
+            [
+                new AetheriaRuntimeBehaviorField(1, StatReference("Thruster", "Thrust")),
+                new AetheriaRuntimeBehaviorField(2, PerformanceStat(5)),
+                new AetheriaRuntimeBehaviorField(3, StringValue("Constant"))
+            ]));
+        var catalog = new AetheriaRuntimeCatalogSnapshot([thruster, controls], [], []);
+        var entity = Entity(0, 0, "player");
+        entity.Equipment =
+        [
+            new AetheriaRuntimeLoadoutItemSlotCommit { Item = new AetheriaRuntimeLoadoutItemCommit
+                { ItemKey = thruster.ItemKey, Enabled = true, Durability = 1, Quality = 1 } },
+            new AetheriaRuntimeLoadoutItemSlotCommit { Item = new AetheriaRuntimeLoadoutItemCommit
+                { ItemKey = controls.ItemKey, Enabled = true, Durability = 1, Quality = 1 } }
+        ];
+        var activate = new[]
+        {
+            new AetheriaRuntimeDaemonBehaviorIntent
+                { ActorEntityKey = "zone.0.entity.0", EquipmentIndex = 1, BehaviorIndex = 0, Active = true },
+            new AetheriaRuntimeDaemonBehaviorIntent
+                { ActorEntityKey = "zone.0.entity.0", EquipmentIndex = 1, BehaviorIndex = 2, Active = true }
+        };
+
+        AetheriaRuntimeStatModifierSimulation.Step(0, [entity],
+            [new AetheriaRuntimeDaemonBehaviorIntent
+                { ActorEntityKey = "zone.1.entity.0", EquipmentIndex = 1, BehaviorIndex = 0, Active = true }],
+            catalog);
+        var target = AetheriaRuntimeEquippedBehaviorQueries.FindOperational(entity, catalog, "Thruster").Single();
+        RequireNear(10, target.EvaluateStat(1), 0.000001,
+            "a behavior command for the same entity index in another zone must not cross-activate this ship");
+
+        AetheriaRuntimeStatModifierSimulation.Step(0, [entity], activate, catalog);
+        RequireNear(25, target.EvaluateStat(1), 0.000001,
+            "switch and one-shot trigger groups must multiply then add through the shared daemon stat path");
+        var modifierStates = entity.BehaviorStates.Where(value => value.BehaviorKind == "StatModifier").ToArray();
+        Require(modifierStates.All(value => value.StatModifierApplied && value.StatModifierTargetStatCount == 1),
+            "applied modifier state must name the exact live target count");
+
+        AetheriaRuntimeStatModifierSimulation.Step(0, [entity], [], catalog);
+        RequireNear(20, target.EvaluateStat(1), 0.000001,
+            "trigger modifiers must disappear on the next tick without another pull");
+
+        AetheriaRuntimeStatModifierSimulation.Step(0, [entity],
+            [new AetheriaRuntimeDaemonBehaviorIntent
+                { ActorEntityKey = "zone.0.entity.0", EquipmentIndex = 1, BehaviorIndex = 0, Active = false }],
+            catalog);
+        RequireNear(10, target.EvaluateStat(1), 0.000001,
+            "deactivating the switch must restore the unmodified authored stat exactly");
     }
 
     private static void DockedRefitSurfacePublishesGenericCommands()
@@ -3070,6 +3135,16 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         "",
         "",
         Array.Empty<AetheriaRuntimeBehaviorValue>(),
+        Array.Empty<AetheriaRuntimeBehaviorMapEntry>());
+
+    private static AetheriaRuntimeBehaviorValue StringValue(string value) => new(
+        "string", value, 0, false, "", "",
+        Array.Empty<AetheriaRuntimeBehaviorValue>(),
+        Array.Empty<AetheriaRuntimeBehaviorMapEntry>());
+
+    private static AetheriaRuntimeBehaviorValue StatReference(string target, string stat) => new(
+        "stat-reference", "", 0, false, "", "",
+        [StringValue(""), StringValue(target), StringValue(stat)],
         Array.Empty<AetheriaRuntimeBehaviorMapEntry>());
 
     private static AetheriaRuntimeBehaviorValue Vector(params double[] values) => new(

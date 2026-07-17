@@ -274,6 +274,13 @@ runtime by behavior and entity. This is a partial modifier system, but it is
 attached to the old `PerformanceStat` object graph rather than a compact
 blueprint/instance stat set.
 
+The daemon translation does not retain those object-owned dictionaries.
+`AetheriaRuntimeStatModifierSimulation` persists switch, trigger, and modifier
+lifecycle state in the authoritative snapshot. Runtime stat reads derive the
+fossil multiplier-product and constant-sum result from those sources, including
+required-behavior and descendant-kind targeting. This makes reconnect replay
+idempotent and keeps the Unity fossil out of the gameplay authority path.
+
 Migration target:
 
 - blueprint/catalog rows define base stat ids and default values;

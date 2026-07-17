@@ -101,6 +101,11 @@ namespace GameCult.Aetheria.State.Verse
                 BehaviorStopped(run, zone, entity, effect, frameId, -1, "duplicate-behavior-id");
                 return;
             }
+            for (var behaviorIndex = 0; behaviorIndex < payloads.Count; behaviorIndex++)
+                if (payloads[behaviorIndex] != null &&
+                    string.Equals(payloads[behaviorIndex].Kind, "StatModifier", StringComparison.Ordinal))
+                    FindBehaviorState(effect, behaviorIndex, payloads[behaviorIndex]).StatModifierTargetStatCount =
+                        AetheriaRuntimeStatModifierSimulation.CountTargets(entity, catalog!, payloads[behaviorIndex]);
             UpdateAlwaysUpdatedBehaviors(effect, payloads, effectiveness, deltaSeconds);
             for (var behaviorIndex = 0; behaviorIndex < payloads.Count; behaviorIndex++)
             {
@@ -129,6 +134,9 @@ namespace GameCult.Aetheria.State.Verse
             reason = "";
             switch (payload.Kind)
             {
+                case "StatModifier":
+                    FindBehaviorState(effect, behaviorIndex, payload).StatModifierExecuted = true;
+                    return true;
                 case "Cooldown":
                 {
                     var state = FindBehaviorState(effect, behaviorIndex, payload);
@@ -223,7 +231,18 @@ namespace GameCult.Aetheria.State.Verse
             for (var behaviorIndex = 0; behaviorIndex < payloads.Count; behaviorIndex++)
             {
                 var payload = payloads[behaviorIndex];
-                if (payload == null || !string.Equals(payload.Kind, "Cooldown", StringComparison.Ordinal))
+                if (payload == null)
+                    continue;
+
+                if (string.Equals(payload.Kind, "StatModifier", StringComparison.Ordinal))
+                {
+                    var state = FindBehaviorState(effect, behaviorIndex, payload);
+                    state.StatModifierApplied = state.StatModifierExecuted;
+                    state.StatModifierExecuted = false;
+                    continue;
+                }
+
+                if (!string.Equals(payload.Kind, "Cooldown", StringComparison.Ordinal))
                     continue;
 
                 var duration = Evaluate(payload, 1, effect, effectiveness);

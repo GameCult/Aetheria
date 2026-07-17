@@ -292,6 +292,19 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   equipped-item and active-consumable behavior instances through narrow
   behavior-owned restore methods; construction/loadout blueprints do not own
   behavior replay.
+- Behavior-chain and stat-modifier authority is daemon-owned. Typed behavior
+  activation intents mutate only the addressed equipment `Switch` or `Trigger`;
+  the daemon then executes each authored equipment group in stable payload
+  order. A false switch or unpulled trigger stops that group, a trigger is
+  consumed exactly once, and reached `StatModifier` behaviors commit applied
+  state plus their live target count. Equipped modifiers apply in that same
+  fixed step. Active-consumable modifiers retain the fossil's update-before-
+  execute ordering and therefore apply one step after first execution. Every
+  `AetheriaRuntimeEquippedBehavior.EvaluateStat` call derives constant and
+  multiplier sources from the persisted snapshot, multiplies all multiplier
+  values, sums all constants, and returns `base * product + sum`. There is no
+  client modifier owner and no reconnect-time mutable modifier cache to double
+  apply. Offline, disabled, or broken source equipment contributes nothing.
 - Sensor contact information is daemon-owned. Each operational installed
   `Sensor` behavior executes the fossil information equation against target
   visibility, distance, observer-relative angle, its authored sensitivity

@@ -1253,6 +1253,15 @@ namespace GameCult.Aetheria.State.Verse
 
         [Key(3)]
         public string BehaviorId { get; set; } = "";
+
+        [Key(4)]
+        public bool StatModifierApplied { get; set; }
+
+        [Key(5)]
+        public bool StatModifierExecuted { get; set; }
+
+        [Key(6)]
+        public int StatModifierTargetStatCount { get; set; }
     }
 
     [MessagePackObject]
