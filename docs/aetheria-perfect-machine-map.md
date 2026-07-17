@@ -2926,8 +2926,8 @@ restore follows the same rule: UI requests restoration, and the daemon owns
 instantiation, credits, dock assignment, current entity, and checkpoint. Docked
 current-ship selection follows the same rule: UI requests selection, and the
 daemon owns `CurrentEntity`, `DockingBay.DockedShip`, and checkpoint. Undocking
-also owns a collision-free departure pose and clears inherited velocity before
-the detached ship re-enters world physics. Loot pickup is contact-gated: the
+preserves the fossil ship pose, velocity, and direction when the detached ship
+re-enters world physics. Loot pickup is contact-gated: the
 tractor applies force to loose bodies, Ymir owns typed Begin contact facts, and
 the daemon alone interprets each persisted fact identity into capacity
 validation, cargo storage or rejection bounce, pickup removal, feedback, and
@@ -3009,8 +3009,10 @@ Run-lifecycle ownership is deliberately narrower than a quest system:
 
 Docking ownership follows the fossil's entity and `ActionGameManager` path:
 
-- Owner: daemon docking operations own bay selection, parentage, and the
-  dock/undock acceptance decision.
+- Owner: daemon docking operations own bay selection, parentage, the
+  dock/undock acceptance decision, and the disarm transition into docked state;
+  daemon combat derives its participant set by subtracting docked child
+  identities.
 - Inputs: zone entity order, the 25-unit interaction radius, real docking-bay
   slots and assignments, occupied-bay cargo, installed Cockpit,
   Thruster-or-AetherDrive, and Reactor behaviors, and the ship's preserved
@@ -3018,14 +3020,18 @@ Docking ownership follows the fossil's entity and `ActionGameManager` path:
   fields and spatial queries, but ship/station bodies share a non-colliding
   group because the fossil had no rigidbody entity collision response; pickup
   bodies remain independently collidable with ships.
-- Outputs: exact parent/assignment mutation, docking intent, and an
-  authoritative rejection reason carried by the command fact and Eve receipt.
+- Outputs: exact parent/assignment mutation, cleared held-group and transient
+  weapon state on dock, a world-combat participant set containing neither
+  docked attackers nor docked targets, docking intent, and an authoritative
+  rejection reason carried by the command fact and Eve receipt.
 - Derived state: camera target, subject visibility, movement suppression, menu
   copy, and effects derive from dock parentage plus the receipt. They do not
   decide whether docking happened.
 - Forbidden writers: Unity `TryDock`/`TryUndock`, camera transitions, client
   proximity, command-supplied failure text, and renderer-local component checks
-  cannot mutate or explain docking truth.
+  cannot mutate or explain docking truth. Stale input state, forged fire
+  intents, and installed turret controllers cannot make a docked child a combat
+  participant.
 - Shared paths: explicit Dock, DockNearest, contextual Interact, autonomous
   homecoming, reconnect, and purchased docked ships use the same assignment
   representation; explicit Undock and contextual Interact use the same
@@ -3035,10 +3041,12 @@ Docking ownership follows the fossil's entity and `ActionGameManager` path:
   velocity, overwrite its direction during undock, or let invented generic
   circle radii make the authored center-distance rule unreachable.
 - Verification layer: operation tests cover every ordered rejection, bay cargo,
-  first-eligible selection, preserved pose/velocity/direction, exact receipt
-  reason, entity pass-through during home approach, and retained ship/pickup
-  contact collection; the live witness remains responsible for camera/effect
-  timing.
+  first-eligible selection, weapon disarm, docked fire-command rejection,
+  preserved pose/velocity/direction, exact receipt reason, entity pass-through
+  during home approach, and retained ship/pickup contact collection. Simulation
+  smoke proves both docked attacker and docked target subtraction despite stale
+  state and a forged pulse; the live witness remains responsible for
+  camera/effect timing.
 
 Docked refit ownership follows the fossil's `Entity.ItemFits`, `TryEquip`, and
 `TryUnequip` transaction:

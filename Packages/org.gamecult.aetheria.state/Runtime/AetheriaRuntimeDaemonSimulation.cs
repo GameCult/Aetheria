@@ -496,10 +496,18 @@ namespace GameCult.Aetheria.State.Verse
             double simulationTimeSeconds,
             int simulationStepIndex)
         {
-            var byIndex = entities.ToDictionary(entity => entity.EntityIndex);
+            var dockedEntityIndices = (entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
+                .Where(entity => entity != null)
+                .SelectMany(entity => (entity.ChildEntityIndices ?? Array.Empty<int>())
+                    .Concat((entity.DockingBayAssignments ?? Array.Empty<int>()).Where(index => index >= 0)))
+                .ToHashSet();
+            var combatEntities = (entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
+                .Where(entity => entity != null && !dockedEntityIndices.Contains(entity.EntityIndex))
+                .ToArray();
+            var byIndex = combatEntities.ToDictionary(entity => entity.EntityIndex);
             foreach (var entity in entities)
                 RefreshShieldProjection(entity, catalog);
-            foreach (var attacker in entities)
+            foreach (var attacker in combatEntities)
             {
                 var requestedWeapons = ResolveWeaponTriggers(zone, attacker, entities, intents, catalog);
                 StepDeployableWeapons(run, zone, attacker, requestedWeapons, deltaSeconds, settings, catalog, frameId);
@@ -633,7 +641,7 @@ namespace GameCult.Aetheria.State.Verse
                     }
                 }
             }
-            ResolveDeployableDetonations(run, zone, entities, frameId, simulationTimeSeconds, catalog, settings);
+            ResolveDeployableDetonations(run, zone, combatEntities, frameId, simulationTimeSeconds, catalog, settings);
 
             foreach (var entity in entities)
             {
@@ -1680,12 +1688,20 @@ namespace GameCult.Aetheria.State.Verse
             target.TargetEntityIndex = -1;
             target.TractorPower = 0;
             target.TractorTargetPower = 0;
+            target.ActiveWeaponGroups = Array.Empty<bool>();
             foreach (var state in target.WeaponStates ?? Array.Empty<AetheriaRuntimeWeaponStateCommit>())
             {
                 state.Firing = false;
+                state.TriggerPending = false;
+                state.BurstRemaining = 0;
                 state.Charging = false;
                 state.Charged = false;
+                state.Charge = 0;
+                state.ChargeHoldSeconds = 0;
+                state.ChargeRiskChecks = 0;
+                state.ChargeMalfunctionRisk = 0;
                 state.LockTargetEntityIndex = -1;
+                state.LockProgress = 0;
             }
 
             var pickups = (zone.DroppedPickups ?? Array.Empty<AetheriaRuntimeDroppedPickupCommit>()).ToList();

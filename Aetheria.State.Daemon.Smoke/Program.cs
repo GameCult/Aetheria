@@ -170,6 +170,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             ProjectileContactCannotKill,
             MissingWorldPhysicsOwnerCannotAdvanceShips,
             DockingUsesRealBaysAndFossilUndockRules,
+            DockedEntitiesCannotAttackOrBeTargeted,
             RefitIsAtomicAndUsesTypedPlacement,
             CargoTransferUsesSpatialAtomicTransaction,
             DockedRefitSurfacePublishesGenericCommands,
@@ -1167,6 +1168,26 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         }
 
         var actor = Entity(0, 0, "player");
+        actor.WeaponGroups = [new[] { 0 }];
+        actor.ActiveWeaponGroups = [true];
+        actor.WeaponStates = [new AetheriaRuntimeWeaponStateCommit
+        {
+            OwnerKind = AetheriaRuntimeBehaviorStateProjector.EquipmentOwnerKind,
+            OwnerIndex = 0,
+            BehaviorIndex = 0,
+            BehaviorKind = AetheriaRuntimeBehaviorKinds.ChargedWeapon,
+            Firing = true,
+            TriggerPending = true,
+            BurstRemaining = 2,
+            Charging = true,
+            Charged = true,
+            Charge = 1,
+            ChargeHoldSeconds = 3,
+            ChargeRiskChecks = 2,
+            ChargeMalfunctionRisk = 0.5,
+            LockTargetEntityIndex = 4,
+            LockProgress = 1
+        }];
         var ineligible = DockTarget(1, 5, false);
         var outOfRange = DockTarget(2, 30, true);
         var firstEligible = DockTarget(3, 20, true);
@@ -1200,6 +1221,27 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             "docking must not manufacture a bay assignment on an entity with no docking-bay equipment");
         RequireEqual(-1, outOfRange.DockingBayAssignments.Single(),
             "a client scalar must not widen the daemon-owned fossil docking radius");
+        var disarmed = actor.WeaponStates.Single();
+        RequireEqual(0, actor.ActiveWeaponGroups.Count,
+            "docking must clear the daemon-owned held weapon-group latch");
+        Require(!disarmed.Firing && !disarmed.TriggerPending && disarmed.BurstRemaining == 0 &&
+                !disarmed.Charging && !disarmed.Charged && disarmed.Charge == 0 &&
+                disarmed.LockTargetEntityIndex < 0 && disarmed.LockProgress == 0,
+            "docking must cancel every transient weapon lifecycle before the ship enters its bay");
+
+        var dockedFire = AetheriaRuntimeDaemonCommandDocument.Create(
+            AetheriaRuntimeDaemonCommandKinds.SetWeaponGroupActive,
+            "pilot",
+            selectionRun.RunId,
+            1,
+            selectionRun.CurrentEntityKey);
+        dockedFire.CommandId = "docked-fire-forbidden";
+        dockedFire.WeaponGroup = 0;
+        dockedFire.ScalarValue = 1;
+        var dockedFireResult = AetheriaRuntimeDaemonOperations.Execute(selectionRun, [dockedFire], context);
+        Require(dockedFireResult.RejectedCommandIds.Contains(dockedFire.CommandId) &&
+                dockedFireResult.Intents.WeaponGroups.Count == 0 && actor.ActiveWeaponGroups.Count == 0,
+            "a docked actor must reject held-fire commands without rearming daemon state");
 
         AetheriaRuntimeRunCheckpointCommit DockedRun(
             IReadOnlyList<string> itemKeys,
@@ -1318,6 +1360,84 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             "undocking must preserve the ship pose, velocity, and direction instead of applying an invented launch");
         Require(!successRun.Zones[0].Entities[1].DockingBayAssignments.Contains(0),
             "successful undocking must release the exact occupied bay");
+    }
+
+    private static void DockedEntitiesCannotAttackOrBeTargeted()
+    {
+        var weaponPayload = new AetheriaRuntimeBehaviorPayload(
+            0,
+            AetheriaRuntimeBehaviorKinds.ConstantWeapon,
+            0,
+            [
+                new AetheriaRuntimeBehaviorField(2, PerformanceStat(10)),
+                new AetheriaRuntimeBehaviorField(6, PerformanceStat(200)),
+                new AetheriaRuntimeBehaviorField(9, PerformanceStat(0)),
+                new AetheriaRuntimeBehaviorField(10, PerformanceStat(0)),
+                new AetheriaRuntimeBehaviorField(11, PerformanceStat(0)),
+                new AetheriaRuntimeBehaviorField(13, Number(0)),
+                new AetheriaRuntimeBehaviorField(14, Number(1)),
+                new AetheriaRuntimeBehaviorField(17, Number(1))
+            ]);
+        var weapon = CatalogItem("docked-combat-weapon", weaponPayload);
+        var catalog = new AetheriaRuntimeCatalogSnapshot([weapon], [], []);
+
+        static AetheriaRuntimeEntitySnapshotCommit ArmedShip(int index, double x, string faction, string itemKey)
+        {
+            var ship = Entity(index, x, faction);
+            ship.WeaponGroups = [new[] { 0 }];
+            ship.ActiveWeaponGroups = [true];
+            ship.Equipment = [new AetheriaRuntimeLoadoutItemSlotCommit
+            {
+                Item = new AetheriaRuntimeLoadoutItemCommit
+                    { ItemKey = itemKey, Quality = 1, Durability = 1, Enabled = true }
+            }];
+            return ship;
+        }
+
+        var dockedAttacker = ArmedShip(0, 0, "player", weapon.ItemKey);
+        dockedAttacker.TargetEntityIndex = 2;
+        var station = Entity(1, 0, "player");
+        station.ChildEntityIndices = [0];
+        station.DockingBayAssignments = [0];
+        var exposedTarget = Entity(2, 50, "raider");
+        var attackerRun = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "docked-attacker-smoke",
+            CurrentZoneIndex = 0,
+            Zones = [new AetheriaRuntimeZoneSnapshotCommit
+                { ZoneIndex = 0, Entities = [dockedAttacker, station, exposedTarget] }]
+        };
+        var forgedIntent = new AetheriaRuntimeDaemonIntentState();
+        forgedIntent.WeaponGroups.Add(new AetheriaRuntimeDaemonWeaponGroupIntent
+            { ActorEntityKey = "zone.0.entity.0", WeaponGroup = 0, Fire = true, Active = true });
+        AetheriaRuntimeDaemonSimulation.Step(
+            attackerRun, forgedIntent, 0.1, new AetheriaRuntimeDaemonSimulationSettings(),
+            NewPhysics(), catalog, 0, 0);
+        RequireEqual(0, attackerRun.ShotReceipts.Count,
+            "combat must subtract docked attackers even when stale state and a forged pulse both request fire");
+        RequireNear(100, Stat(exposedTarget, "hull"), 0.000001,
+            "a docked child must not damage an exposed world entity");
+
+        var exposedAttacker = ArmedShip(0, 0, "player", weapon.ItemKey);
+        exposedAttacker.TargetEntityIndex = 1;
+        var dockedTarget = Entity(1, 50, "raider");
+        var hostileStation = Entity(2, 50, "raider");
+        hostileStation.ChildEntityIndices = [1];
+        hostileStation.DockingBayAssignments = [1];
+        var targetRun = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "docked-target-smoke",
+            CurrentZoneIndex = 0,
+            Zones = [new AetheriaRuntimeZoneSnapshotCommit
+                { ZoneIndex = 0, Entities = [exposedAttacker, dockedTarget, hostileStation] }]
+        };
+        AetheriaRuntimeDaemonSimulation.Step(
+            targetRun, new AetheriaRuntimeDaemonIntentState(), 0.1,
+            new AetheriaRuntimeDaemonSimulationSettings(), NewPhysics(), catalog, 0, 0);
+        RequireEqual(0, targetRun.ShotReceipts.Count,
+            "combat target lookup must subtract docked children from world participants");
+        RequireNear(100, Stat(dockedTarget, "hull"), 0.000001,
+            "a docked child must not receive ordinary world combat damage through stale targeting");
     }
 
     private static void RefitIsAtomicAndUsesTypedPlacement()

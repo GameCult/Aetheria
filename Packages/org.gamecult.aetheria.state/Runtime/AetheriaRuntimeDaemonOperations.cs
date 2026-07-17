@@ -1380,7 +1380,8 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeDaemonIntentState intents)
         {
             var actor = ResolveActorEntityKey(run, command);
-            if (!TryResolveEntity(run, actor, out _, out _, out var entity) ||
+            if (!TryResolveEntity(run, actor, out var zoneIndex, out var entityIndex, out var entity) ||
+                IsChildReferencedInZone(run, zoneIndex, entityIndex) ||
                 !HasWeaponGroup(entity, command.WeaponGroup))
             {
                 return false;
@@ -1402,7 +1403,8 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeDaemonIntentState intents)
         {
             var actor = ResolveActorEntityKey(run, command);
-            if (!TryResolveEntity(run, actor, out _, out _, out var entity) ||
+            if (!TryResolveEntity(run, actor, out var zoneIndex, out var entityIndex, out var entity) ||
+                IsChildReferencedInZone(run, zoneIndex, entityIndex) ||
                 !HasWeaponGroup(entity, command.WeaponGroup))
             {
                 return false;
@@ -1766,7 +1768,29 @@ namespace GameCult.Aetheria.State.Verse
                 .ToArray();
             assignments[bayIndex] = actorIndex;
             target.DockingBayAssignments = assignments.ToArray();
+            DisarmWeapons(actor);
             return true;
+        }
+
+        private static void DisarmWeapons(AetheriaRuntimeEntitySnapshotCommit entity)
+        {
+            entity.ActiveWeaponGroups = Array.Empty<bool>();
+            foreach (var state in entity.WeaponStates ?? Array.Empty<AetheriaRuntimeWeaponStateCommit>())
+            {
+                if (state == null)
+                    continue;
+                state.Firing = false;
+                state.TriggerPending = false;
+                state.BurstRemaining = 0;
+                state.Charging = false;
+                state.Charged = false;
+                state.Charge = 0;
+                state.ChargeHoldSeconds = 0;
+                state.ChargeRiskChecks = 0;
+                state.ChargeMalfunctionRisk = 0;
+                state.LockTargetEntityIndex = -1;
+                state.LockProgress = 0;
+            }
         }
 
         private static bool ApplyUndockState(
