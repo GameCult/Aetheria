@@ -2077,7 +2077,7 @@ namespace GameCult.Aetheria.State.Verse
             towing.ChildEntityIndices = children; station.PositionX = command.PositionX; station.PositionZ = command.PositionZ;
             var zone = run.Zones.First(value => value.ZoneIndex == actorZone);
             var orbitKey = $"tow:{command.CommandId}";
-            zone.Orbits = (zone.Orbits ?? Array.Empty<AetheriaRuntimeOrbitSnapshotCommit>()).Concat(new[] { new AetheriaRuntimeOrbitSnapshotCommit { OrbitKey = orbitKey, ParentOrbitKey = command.SubjectKey, Distance = command.ScalarValue, FixedPositionX = command.PositionX, FixedPositionY = command.PositionZ } }).ToArray();
+            zone.Orbits = (zone.Orbits ?? Array.Empty<AetheriaRuntimeOrbitSnapshotCommit>()).Concat(new[] { new AetheriaRuntimeOrbitSnapshotCommit { OrbitKey = orbitKey, ParentOrbitKey = command.SubjectKey, Distance = command.ScalarValue, Period = Math.Abs(command.ScalarValue), FixedPositionX = command.PositionX, FixedPositionY = command.PositionZ } }).ToArray();
             station.OrbitKey = orbitKey; return true;
         }
 

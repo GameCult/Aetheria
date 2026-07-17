@@ -1149,6 +1149,11 @@ the Terminus proof arena cannot award completion.
   orbit graph before persistence and deterministically distributes generated
   non-player ships through the fossil half-zone volume. The controlled starter
   alone enters at the origin; generic clients do not repair spawn positions.
+- Orbital motion: each generated orbit carries the fossil
+  `OrbitPeriod(distance) = distance` result. Every daemon fixed step advances
+  canonical phase, resolves the shared parent graph, and writes orbital entity
+  pose and velocity before Ymir. Bodies and Eve read that same advanced graph;
+  period-zero compatibility orbits remain fixed.
 - Derived state: wormhole exits derive from adjacency; generic Eve maps,
   cameras, scene objects, fog, and HUD state lower the persisted run.
 - Forbidden writers: Unity generators, menu callbacks, scene materializers, and
@@ -1160,8 +1165,9 @@ the Terminus proof arena cannot award completion.
   operation is dead. Celestial-only tutorial graphs are not playable runs.
 - Verification layer: focused smokes prove deterministic population, resolved
   orbital references and poses, distributed non-player spawns,
-  station/turret/agent presence, loadout provenance, all 64 persisted zones,
-  canonical starter identity, discovery, and adjacency.
+  fixed-step orbit phase/pose/velocity through Ymir, station/turret/agent
+  presence, loadout provenance, all 64 persisted zones, canonical starter
+  identity, discovery, and adjacency.
 
 ### Daemon Generated Zone Body Ownership
 

@@ -82,6 +82,7 @@ namespace GameCult.Aetheria.State.Verse
                     catalog,
                     frameId,
                     deltaSeconds);
+                AetheriaRuntimeOrbitSimulation.StepZone(zone, entities, deltaSeconds);
                 AetheriaRuntimeFlightSimulation.Step(
                     entities,
                     intents?.Movements,

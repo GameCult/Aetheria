@@ -779,6 +779,9 @@ namespace GameCult.Aetheria.State.Verse
 
         [Key(7)]
         public string ParentOrbitKey { get; set; } = "";
+
+        [Key(8)]
+        public double Period { get; set; }
     }
 
     [MessagePackObject]

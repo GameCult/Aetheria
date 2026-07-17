@@ -2830,6 +2830,7 @@ static AetheriaRuntimeOrbitSnapshotCommit ToRuntimeOrbit(AetheriaOrbitSnapshot o
         ParentOrbitKey = orbit.ParentOrbitKey ?? "",
         Distance = orbit.Distance,
         Phase = orbit.Phase,
+        Period = orbit.Period,
         FixedPositionX = orbit.FixedPosition?.X ?? 0,
         FixedPositionY = orbit.FixedPosition?.Y ?? 0
     };

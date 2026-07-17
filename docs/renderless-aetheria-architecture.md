@@ -152,6 +152,10 @@ zone with the fossil station-count curve, Lagrange station orbits, paired
 defensive turrets, and faction ships. The entrance additionally receives the
 controlled starter ship. Zone adjacency is the wormhole truth; exits remain a
 derived render/interaction query rather than counterfeit wormhole entities.
+Generated non-player ships are distributed through the fossil half-zone volume.
+Generated orbits carry the authored distance-derived period; each fixed daemon
+step advances canonical phase and projects orbital entity pose and velocity
+before Ymir. Body queries and Eve lower the same orbit graph.
 
 New Game now submits its advertised Eve operation, waits for a newly published
 daemon sector map, and selects the persisted 64-zone tutorial while

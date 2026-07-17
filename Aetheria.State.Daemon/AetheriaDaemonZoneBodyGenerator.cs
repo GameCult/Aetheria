@@ -108,7 +108,8 @@ public static class AetheriaDaemonZoneBodyGenerator
             ParentOrbitKey = planet.Parent == null ? "" : orbitKeys[nodeIndices[planet.Parent]],
             FixedPosition = new AetheriaVector2 { X = planet.FixedPosition.x, Y = planet.FixedPosition.y },
             Distance = planet.Distance,
-            Phase = planet.Phase
+            Phase = planet.Phase,
+            Period = planet.Distance
         }).ToArray();
 
         var bodies = new List<AetheriaBodySnapshot>();

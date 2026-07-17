@@ -92,6 +92,7 @@ public static class AetheriaDaemonTutorialWorldMaterializer
                     ParentOrbitKey = baseOrbit.ParentOrbitKey,
                     Distance = baseOrbit.Distance,
                     Phase = baseOrbit.Phase + MathF.PI / 3 * Sign(random.NextFloat() - 0.5f),
+                    Period = baseOrbit.Distance,
                     FixedPosition = new AetheriaVector2()
                 };
                 orbits.Add(stationOrbit);
@@ -115,6 +116,7 @@ public static class AetheriaDaemonTutorialWorldMaterializer
                         ParentOrbitKey = stationOrbit.ParentOrbitKey,
                         Distance = stationOrbit.Distance,
                         Phase = stationOrbit.Phase + 20f * distanceMultiplier / stationOrbit.Distance,
+                        Period = stationOrbit.Distance,
                         FixedPosition = new AetheriaVector2()
                     };
                     orbits.Add(turretOrbit);
@@ -197,6 +199,7 @@ public static class AetheriaDaemonTutorialWorldMaterializer
                 ParentOrbitKey = orbit.ParentOrbitKey,
                 Distance = orbit.Distance,
                 Phase = orbit.Phase,
+                Period = orbit.Period,
                 FixedPositionX = orbit.FixedPosition?.X ?? 0,
                 FixedPositionY = orbit.FixedPosition?.Y ?? 0
             }).ToArray()

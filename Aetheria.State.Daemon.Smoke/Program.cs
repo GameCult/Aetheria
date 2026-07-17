@@ -54,6 +54,11 @@ else if (args.Contains("--tutorial-run", StringComparer.Ordinal))
     checks.RunTutorialRun();
     Console.WriteLine("Daemon persisted tutorial-run smoke passed.");
 }
+else if (args.Contains("--orbits", StringComparer.Ordinal))
+{
+    checks.RunOrbits();
+    Console.WriteLine("Daemon dynamic-orbit smoke passed.");
+}
 else
 {
     checks.Run();
@@ -92,6 +97,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
     public void RunTutorialWorld() => RunCheck(TutorialWorldMaterializesEveryTopologyZone);
     public void RunTutorialMaterialization() => RunCheck(TutorialPopulationPreservesFossilEntityMechanics);
     public void RunTutorialRun() => RunCheck(TutorialRunPersistsCanonicalWorldTruth);
+    public void RunOrbits() => RunCheck(GeneratedOrbitsAdvanceOrbitalWorldTruth);
 
     private static void TutorialRunPersistsCanonicalWorldTruth()
     {
@@ -425,6 +431,66 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             "one retained Box3D world must advance once for every fixed substep, not once per publication frame");
     }
 
+    private static void GeneratedOrbitsAdvanceOrbitalWorldTruth()
+    {
+        var orbital = Entity(0, 0, "neutral");
+        orbital.Kind = "station";
+        orbital.OrbitKey = "orbit.station";
+        orbital.PositionX = 10;
+        var orbit = new AetheriaRuntimeOrbitSnapshotCommit
+        {
+            OrbitKey = orbital.OrbitKey,
+            Distance = 10,
+            Phase = 0,
+            Period = 10
+        };
+        var zone = new AetheriaRuntimeZoneSnapshotCommit
+        {
+            ZoneIndex = 0,
+            Entities = [orbital],
+            Orbits = [orbit]
+        };
+
+        AetheriaRuntimeOrbitSimulation.StepZone(zone, [orbital], 2);
+
+        RequireNear(0.2, orbit.Phase, 0.000001,
+            "the canonical orbit phase must advance by fixed delta divided by authored period");
+        var expectedX = Math.Cos(0.2 * Math.PI * 2) * 10;
+        var expectedZ = Math.Sin(0.2 * Math.PI * 2) * 10;
+        RequireNear(expectedX, orbital.PositionX, 0.000001,
+            "orbital entity X must derive from the same advanced orbit observed by render queries");
+        RequireNear(expectedZ, orbital.PositionZ, 0.000001,
+            "orbital entity Z must derive from the same advanced orbit observed by render queries");
+        RequireNear((expectedX - 10) / 2, orbital.VelocityX, 0.000001,
+            "orbital X velocity must be the fixed-step pose delta consumed by Ymir");
+        RequireNear(expectedZ / 2, orbital.VelocityY, 0.000001,
+            "orbital Z velocity must be the fixed-step pose delta consumed by Ymir");
+
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "dynamic-orbit-smoke",
+            CurrentZoneIndex = 0,
+            CurrentEntityKey = "zone.0.entity.0",
+            Zones = [zone]
+        };
+        using var physics = NewPhysics();
+        AetheriaRuntimeDaemonSimulation.Step(
+            run,
+            new AetheriaRuntimeDaemonIntentState(),
+            0.1,
+            AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
+            physics,
+            frameId: 1,
+            simulationTimeSeconds: 2.1);
+        var integratedPhase = 0.21;
+        RequireNear(integratedPhase, orbit.Phase, 0.000001,
+            "the complete daemon step must advance the canonical orbit before Ymir");
+        RequireNear(Math.Cos(integratedPhase * Math.PI * 2) * 10, orbital.PositionX, 0.05,
+            "Ymir must retain the daemon's advanced orbital X pose instead of restoring a stale body transform");
+        RequireNear(Math.Sin(integratedPhase * Math.PI * 2) * 10, orbital.PositionZ, 0.05,
+            "Ymir must retain the daemon's advanced orbital Z pose instead of restoring a stale body transform");
+    }
+
     private static void StableEntityIdentitySurvivesCrossZoneReindex()
     {
         var departing = Entity(0, 0, "player");
@@ -490,6 +556,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             TutorialTopologyIsDeterministicConnectedAndRoleOwned,
             GeneratedZoneBodiesPreserveFossilHierarchy,
             TutorialWorldMaterializesEveryTopologyZone,
+            GeneratedOrbitsAdvanceOrbitalWorldTruth,
             VolumeSurfaceKeepsNativeShaderAbiInAssetVariant,
             YmirMovesProjectileAndReportsStableContact,
             CompressedTerminusStopsAtAttentionBoundary,

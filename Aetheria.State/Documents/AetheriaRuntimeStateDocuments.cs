@@ -341,6 +341,9 @@ public sealed class AetheriaOrbitSnapshot
 
     [Key(4)]
     public AetheriaVector2 FixedPosition { get; set; } = new();
+
+    [Key(5)]
+    public double Period { get; set; }
 }
 
 [MessagePackObject]
