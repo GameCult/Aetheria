@@ -173,6 +173,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             RefitIsAtomicAndUsesTypedPlacement,
             CargoTransferUsesSpatialAtomicTransaction,
             DockedRefitSurfacePublishesGenericCommands,
+            FossilVelocityBehaviorsRunInDaemonFlightStep,
             TractorRampsAndPullsThroughYmirWithoutTeleportingCargo,
             PickupIsCapacityCheckedExactlyOnceAndExpires,
             TradePurchaseDerivesAcceptanceFromDaemonState,
@@ -337,6 +338,55 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 Enabled = true
             }
         };
+    }
+
+    private static void FossilVelocityBehaviorsRunInDaemonFlightStep()
+    {
+        var conversion = new AetheriaRuntimeBehaviorPayload(
+            0,
+            AetheriaRuntimeBehaviorKinds.VelocityConversion,
+            0,
+            [new AetheriaRuntimeBehaviorField(1, PerformanceStat(Math.Log(2)))]);
+        var limit = new AetheriaRuntimeBehaviorPayload(
+            1,
+            AetheriaRuntimeBehaviorKinds.VelocityLimit,
+            0,
+            [new AetheriaRuntimeBehaviorField(1, PerformanceStat(4))]);
+        var hull = HullCatalogItem("velocity-hull", 1, 1, 100);
+        var controller = CatalogItem("velocity-controller", conversion, limit);
+        var catalog = new AetheriaRuntimeCatalogSnapshot([hull, controller], [], []);
+        var ship = Entity(0, 0, "player");
+        ship.HullItemKey = hull.ItemKey;
+        ship.DirectionX = 1;
+        ship.DirectionY = 0;
+        ship.VelocityX = 0;
+        ship.VelocityY = 10;
+        ship.Equipment =
+        [
+            new AetheriaRuntimeLoadoutItemSlotCommit
+            {
+                Item = new AetheriaRuntimeLoadoutItemCommit
+                {
+                    ItemKey = controller.ItemKey,
+                    Quantity = 1,
+                    Quality = 1,
+                    Durability = 1,
+                    Enabled = true
+                }
+            }
+        ];
+
+        AetheriaRuntimeBehaviorStateProjector.EnsureEquipmentBehaviorStates(ship, catalog);
+        AetheriaRuntimeFlightSimulation.Step([ship], [], catalog, 1, 1, 1, 0, 1);
+
+        RequireNear(4, Math.Sqrt(ship.VelocityX * ship.VelocityX + ship.VelocityY * ship.VelocityY), 0.000001,
+            "VelocityLimit must clamp the post-conversion speed in the authoritative flight step");
+        RequireNear(ship.VelocityX, ship.VelocityY, 0.000001,
+            "VelocityConversion must exponentially align velocity toward the ship direction before limiting");
+        var limitState = ship.BehaviorStates.Single(state =>
+            state.BehaviorKind == AetheriaRuntimeBehaviorKinds.VelocityLimit);
+        RequireNear(4, limitState.VelocityLimit, 0.000001,
+            "VelocityLimit must publish its evaluated runtime value for Eve and reconnect");
     }
 
     private static void DockingUsesRealBaysAndFossilUndockRules()

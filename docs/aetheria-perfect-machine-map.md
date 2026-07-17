@@ -997,6 +997,13 @@ projectile lead, hardpoint gating, progressive lock, and target destruction.
 - Outputs: actual entity direction and velocity, persistent helm/look state,
   typed Thruster/AetherDrive behavior state, equipment heat, plume visibility,
   and the Ymir-integrated body pose.
+- Velocity-controller invariant: after thrust, drive force, and hull drag, each
+  operational `VelocityConversion` exponentially aligns the existing velocity
+  magnitude toward hull direction with the fossil `1 - exp(-lambda * delta)`
+  damp factor. Operational `VelocityLimit` behaviors then clamp that resulting
+  magnitude and publish the evaluated limit in durable behavior state. The
+  daemon owns both mutations before Ymir integrates the body; the client only
+  renders their consequences and controls their ordinary equipment state.
 - Ordinary-flight invariant: standard ships fly through directional thrusters.
   The daemon clears and reallocates their axes each tick using the fossil
   forward/reverse/left/right rotation groups, symmetric lateral-torque
@@ -1047,7 +1054,10 @@ projectile lead, hardpoint gating, progressive lock, and target destruction.
   thrusters, placement-derived torque/thrust state, funded heat and plume,
   unfunded no-motion/no-plume behavior, progressive hardware turning before
   weapon lock, autonomous navigation and cross-zone travel through Ymir, and
-  isolated rare AetherDrive spool/force on a modified-hull fixture. Canonical
+  isolated rare AetherDrive spool/force on a modified-hull fixture. It also
+  proves the fossil exponential velocity-conversion equation runs before the
+  evaluated velocity limit and that the limit survives in reconnectable
+  behavior state. Canonical
   catalog assertions lock the restored common hull identities and the
   `Traction`/`LonginusX` rarity boundary; a 2,000-loadout deterministic witness
   proves rare candidates remain possible without becoming the default path.

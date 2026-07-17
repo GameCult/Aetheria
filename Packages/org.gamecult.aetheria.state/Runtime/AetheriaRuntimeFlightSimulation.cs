@@ -54,6 +54,39 @@ namespace GameCult.Aetheria.State.Verse
                     StepAetherDrive(entity, drive, mass, deltaSeconds, catalog,
                         aetherTorqueMultiplier, aetherHeatMultiplier);
                 ApplyHullDrag(entity, catalog, deltaSeconds);
+                ApplyVelocityBehaviors(entity, catalog, deltaSeconds);
+            }
+        }
+
+        private static void ApplyVelocityBehaviors(
+            AetheriaRuntimeEntitySnapshotCommit entity,
+            AetheriaRuntimeCatalogSnapshot catalog,
+            double deltaSeconds)
+        {
+            foreach (var behavior in Online(entity, catalog, AetheriaRuntimeBehaviorKinds.VelocityConversion))
+            {
+                var speed = Math.Sqrt(entity.VelocityX * entity.VelocityX + entity.VelocityY * entity.VelocityY);
+                var direction = Normalize(entity.DirectionX, entity.DirectionY, 0, 1);
+                var targetX = direction.X * speed;
+                var targetY = direction.Y * speed;
+                var lambda = Math.Max(0, behavior.EvaluateStat(
+                    1, ThermalPerformance(entity, behavior.EquipmentIndex)));
+                var blend = 1 - Math.Exp(-lambda * deltaSeconds);
+                entity.VelocityX += (targetX - entity.VelocityX) * blend;
+                entity.VelocityY += (targetY - entity.VelocityY) * blend;
+            }
+
+            foreach (var behavior in Online(entity, catalog, AetheriaRuntimeBehaviorKinds.VelocityLimit))
+            {
+                var limit = Math.Max(0, behavior.EvaluateStat(
+                    1, ThermalPerformance(entity, behavior.EquipmentIndex)));
+                behavior.State.VelocityLimit = limit;
+                var speed = Math.Sqrt(entity.VelocityX * entity.VelocityX + entity.VelocityY * entity.VelocityY);
+                if (speed <= limit || speed <= 0.000001)
+                    continue;
+                var scale = limit / speed;
+                entity.VelocityX *= scale;
+                entity.VelocityY *= scale;
             }
         }
 
