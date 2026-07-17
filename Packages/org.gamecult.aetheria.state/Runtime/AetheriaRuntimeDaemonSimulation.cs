@@ -23,7 +23,8 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeCatalogSnapshot? catalog = null,
             long frameId = 0,
             double simulationTimeSeconds = 0,
-            int simulationStepIndex = 0)
+            int simulationStepIndex = 0,
+            AetheriaRuntimeDaemonRenderSettings? renderSettings = null)
         {
             if (run == null || deltaSeconds <= 0 || !AetheriaRuntimeRunLifecycle.IsActive(run))
                 return;
@@ -90,6 +91,7 @@ namespace GameCult.Aetheria.State.Verse
                     run, zone, entities, worldStep.BeginContacts, worldPhysics, catalog, frameId);
                 StepCombat(run, zone, entities, intents, deltaSeconds, settings, worldPhysics, catalog,
                     frameId, simulationTimeSeconds, simulationStepIndex);
+                AetheriaRuntimeVisibilitySimulation.StepZone(zone, entities, catalog, renderSettings);
                 AetheriaRuntimeMiningSimulation.Step(run, zone, entities, intents, catalog, frameId, simulationTimeSeconds, deltaSeconds);
                 AetheriaRuntimeSurveySimulation.Step(run, zone, entities, intents, catalog, frameId, simulationTimeSeconds, deltaSeconds);
                 RefreshContacts(entities, settings, catalog);

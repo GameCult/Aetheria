@@ -174,6 +174,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             CargoTransferUsesSpatialAtomicTransaction,
             DockedRefitSurfacePublishesGenericCommands,
             FossilVelocityBehaviorsRunInDaemonFlightStep,
+            ReflectorUsesSharedStellarLightFieldWithoutAccumulating,
             TractorRampsAndPullsThroughYmirWithoutTeleportingCargo,
             PickupIsCapacityCheckedExactlyOnceAndExpires,
             TradePurchaseDerivesAcceptanceFromDaemonState,
@@ -387,6 +388,69 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             state.BehaviorKind == AetheriaRuntimeBehaviorKinds.VelocityLimit);
         RequireNear(4, limitState.VelocityLimit, 0.000001,
             "VelocityLimit must publish its evaluated runtime value for Eve and reconnect");
+    }
+
+    private static void ReflectorUsesSharedStellarLightFieldWithoutAccumulating()
+    {
+        var reflector = new AetheriaRuntimeBehaviorPayload(
+            0,
+            AetheriaRuntimeBehaviorKinds.Reflector,
+            0,
+            [new AetheriaRuntimeBehaviorField(1, PerformanceStat(2))]);
+        var controller = CatalogItem("reflector-controller", reflector);
+        var catalog = new AetheriaRuntimeCatalogSnapshot([controller], [], []);
+        var ship = Entity(0, 250, "player");
+        ship.Visibility = 3;
+        ship.Equipment =
+        [
+            new AetheriaRuntimeLoadoutItemSlotCommit
+            {
+                Item = new AetheriaRuntimeLoadoutItemCommit
+                {
+                    ItemKey = controller.ItemKey,
+                    Quantity = 1,
+                    Quality = 1,
+                    Durability = 1,
+                    Enabled = true
+                }
+            }
+        ];
+        var zone = new AetheriaRuntimeZoneSnapshotCommit
+        {
+            ZoneIndex = 0,
+            Entities = [ship],
+            Orbits =
+            [
+                new AetheriaRuntimeOrbitSnapshotCommit
+                {
+                    OrbitKey = "sun-orbit",
+                    FixedPositionX = 100
+                }
+            ],
+            Bodies =
+            [
+                new AetheriaRuntimeBodySnapshotCommit
+                {
+                    Kind = "sun",
+                    Mass = 16,
+                    OrbitKey = "sun-orbit",
+                    SunVisual = new AetheriaRuntimeSunVisualCommit { LightRadiusMultiplier = 1 }
+                }
+            ]
+        };
+        var settings = AetheriaRuntimeDaemonRenderSettings.AetheriaDefault;
+        var radius = settings.ResolveLightRadius(16);
+        var pulseX = Math.Min(1, 150 / radius * 2);
+        var expectedReflection = 2 * Math.Pow((pulseX + 1) * (1 - pulseX), 8);
+
+        AetheriaRuntimeVisibilitySimulation.StepZone(zone, [ship], catalog, settings);
+        AetheriaRuntimeVisibilitySimulation.StepZone(zone, [ship], catalog, settings);
+
+        RequireNear(3 + expectedReflection, ship.Visibility, 0.000001,
+            "Reflector must use the fossil stellar PowerPulse at the shared resolved sun orbit without accumulating per tick");
+        var source = ship.StatGrids.Single(grid => grid.Name == "reflector-visibility");
+        RequireNear(expectedReflection, source.Values.Single(), 0.000001,
+            "Reflector visibility must remain an inspectable daemon-owned source for Eve and reconnect");
     }
 
     private static void DockingUsesRealBaysAndFossilUndockRules()

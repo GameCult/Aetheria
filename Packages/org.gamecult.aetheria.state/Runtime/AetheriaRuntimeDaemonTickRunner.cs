@@ -200,7 +200,8 @@ namespace GameCult.Aetheria.State.Verse
                     options.Catalog,
                     options.FrameId,
                     stepTime,
-                    simulationStep);
+                    simulationStep,
+                    options.RenderSettings);
                 Trace("world-step");
                 StampZoneSimulationTime(operationResult.Run, stepTime);
             }

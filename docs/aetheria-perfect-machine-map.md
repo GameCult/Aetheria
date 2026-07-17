@@ -1069,6 +1069,34 @@ projectile lead, hardpoint gating, progressive lock, and target destruction.
   thrust/turn feedback still
   require proof.
 
+### Authoritative Reflected Visibility Contract
+
+- Owner: the Aetheria daemon owns each entity's reflected stellar signature.
+  It evaluates operational `Reflector` cross-section after energy and thermal
+  state settle and before contact refresh. Eve and Unity only present the
+  resulting visibility and its named source.
+- Inputs: entity position, equipped reflector performance and thermal state,
+  daemon-owned sun mass, sun light-radius multiplier, the provider render
+  settings light-radius curve, and resolved orbit positions.
+- Outputs: aggregate entity visibility plus an inspectable, reconnectable
+  `reflector-visibility` source grid.
+- Shared-field invariant: daemon visibility and environment rendering resolve
+  body positions through `AetheriaRuntimeOrbitQueries`; gravity-center overrides
+  and nested authored orbits cannot silently put the visible sun and its
+  gameplay light field in different places. Light uses the fossil exponent-8
+  `PowerPulse` and the same provider-owned radius inputs exposed for rendering.
+- Derived state: light meshes, fog tint, ambient color, lens effects, and any
+  debug visualization of the stellar radius are client presentation. Their
+  parameters are levers; they do not decide whether another entity detects the
+  reflector.
+- Forbidden writers: contact refresh cannot overwrite emitted signature, and
+  clients cannot submit visibility, stellar light, or reflector results.
+- Verification: daemon smoke proves a displaced authored sun orbit, the fossil
+  pulse equation, evaluated reflector cross-section, named source publication,
+  and a second tick with no visibility accumulation.
+- Open parity: active consumable reflector effects and complete visibility-
+  source cardinality remain to be migrated.
+
 ### Daemon Wormhole Transition
 
 - Owner: the daemon persists one wormhole transition on the moving entity.

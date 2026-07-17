@@ -811,7 +811,7 @@ namespace GameCult.Aetheria.State.Verse
             if (zone == null)
                 return 0;
 
-            var orbitPositions = BuildOrbitPositions(zone);
+            var orbitPositions = AetheriaRuntimeOrbitQueries.BuildPositions(zone);
             foreach (var body in zone.Bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>())
             {
                 if (body == null || !TryResolveBodyCenter(body, orbitPositions, out var center))
@@ -858,7 +858,7 @@ namespace GameCult.Aetheria.State.Verse
             if (zone == null)
                 return 0;
 
-            var orbitPositions = BuildOrbitPositions(zone);
+            var orbitPositions = AetheriaRuntimeOrbitQueries.BuildPositions(zone);
             var orbits = BuildOrbitMap(zone);
             foreach (var body in zone.Bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>())
             {
@@ -869,7 +869,7 @@ namespace GameCult.Aetheria.State.Verse
                 var parentOrbitKey = orbits.TryGetValue(orbitKey, out var orbit) ? orbit.ParentOrbitKey ?? "" : "";
                 var parentCenter = orbitPositions.TryGetValue(parentOrbitKey, out var parent)
                     ? parent
-                    : new AetheriaRuntimeXzPoint(0, 0);
+                    : new AetheriaRuntimeOrbitPosition(0, 0);
                 poses.Add(new AetheriaRuntimeDaemonBodyPose(
                     body.BodyKey,
                     orbitKey,
@@ -942,7 +942,7 @@ namespace GameCult.Aetheria.State.Verse
             if (zone == null)
                 return 0;
 
-            var orbitPositions = BuildOrbitPositions(zone);
+            var orbitPositions = AetheriaRuntimeOrbitQueries.BuildPositions(zone);
             var orbits = BuildOrbitMap(zone);
             foreach (var body in zone.Bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>())
             {
@@ -963,7 +963,7 @@ namespace GameCult.Aetheria.State.Verse
                 var parentOrbitKey = orbits.TryGetValue(orbitKey, out var orbit) ? orbit.ParentOrbitKey ?? "" : "";
                 var parentCenter = orbitPositions.TryGetValue(parentOrbitKey, out var parent)
                     ? parent
-                    : new AetheriaRuntimeXzPoint(0, 0);
+                    : new AetheriaRuntimeOrbitPosition(0, 0);
                 var pose = new AetheriaRuntimeDaemonBodyPose(
                     body.BodyKey,
                     orbitKey,
@@ -1000,7 +1000,7 @@ namespace GameCult.Aetheria.State.Verse
             if (zone == null)
                 return 0;
 
-            var orbitPositions = BuildOrbitPositions(zone);
+            var orbitPositions = AetheriaRuntimeOrbitQueries.BuildPositions(zone);
             var orbits = BuildOrbitMap(zone);
             foreach (var body in zone.Bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>())
             {
@@ -1042,7 +1042,7 @@ namespace GameCult.Aetheria.State.Verse
             if (zone == null)
                 return 0;
 
-            var orbitPositions = BuildOrbitPositions(zone);
+            var orbitPositions = AetheriaRuntimeOrbitQueries.BuildPositions(zone);
             var orbits = BuildOrbitMap(zone);
             foreach (var body in zone.Bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>())
             {
@@ -1880,20 +1880,6 @@ namespace GameCult.Aetheria.State.Verse
             return zones;
         }
 
-        private static Dictionary<string, AetheriaRuntimeXzPoint> BuildOrbitPositions(AetheriaRuntimeZoneSnapshotCommit zone)
-        {
-            var source = BuildOrbitMap(zone);
-
-            var positions = new Dictionary<string, AetheriaRuntimeXzPoint>(StringComparer.Ordinal)
-            {
-                [""] = new AetheriaRuntimeXzPoint(0, 0)
-            };
-            foreach (var orbitKey in source.Keys)
-                ResolveOrbitPosition(orbitKey, source, positions);
-
-            return positions;
-        }
-
         private static Dictionary<string, AetheriaRuntimeOrbitSnapshotCommit> BuildOrbitMap(
             AetheriaRuntimeZoneSnapshotCommit zone)
         {
@@ -1903,26 +1889,7 @@ namespace GameCult.Aetheria.State.Verse
                 if (orbit != null && !string.IsNullOrWhiteSpace(orbit.OrbitKey))
                     source[orbit.OrbitKey] = orbit;
             }
-
             return source;
-        }
-
-        private static AetheriaRuntimeXzPoint ResolveOrbitPosition(
-            string orbitKey,
-            Dictionary<string, AetheriaRuntimeOrbitSnapshotCommit> source,
-            Dictionary<string, AetheriaRuntimeXzPoint> positions)
-        {
-            if (positions.TryGetValue(orbitKey ?? "", out var cached))
-                return cached;
-            if (!source.TryGetValue(orbitKey ?? "", out var orbit))
-                return new AetheriaRuntimeXzPoint(0, 0);
-
-            var parent = ResolveOrbitPosition(orbit.ParentOrbitKey ?? "", source, positions);
-            var position = new AetheriaRuntimeXzPoint(
-                parent.x + orbit.FixedPositionX + Math.Cos(orbit.Phase * Math.PI * 2) * orbit.Distance,
-                parent.z + orbit.FixedPositionY + Math.Sin(orbit.Phase * Math.PI * 2) * orbit.Distance);
-            positions[orbitKey ?? ""] = position;
-            return position;
         }
 
         private static bool IntersectsCircle(rect viewport, double centerX, double centerY, double radius)
@@ -2009,23 +1976,17 @@ namespace GameCult.Aetheria.State.Verse
 
         private static bool TryResolveBodyCenter(
             AetheriaRuntimeBodySnapshotCommit body,
-            Dictionary<string, AetheriaRuntimeXzPoint> orbitPositions,
-            out AetheriaRuntimeXzPoint center)
+            Dictionary<string, AetheriaRuntimeOrbitPosition> orbitPositions,
+            out AetheriaRuntimeOrbitPosition center)
         {
-            if (IsFinite(body.GravityInfluenceCenterX) && IsFinite(body.GravityInfluenceCenterZ))
-            {
-                center = new AetheriaRuntimeXzPoint(body.GravityInfluenceCenterX, body.GravityInfluenceCenterZ);
-                return true;
-            }
-
-            return orbitPositions.TryGetValue(body.OrbitKey ?? "", out center);
+            return AetheriaRuntimeOrbitQueries.TryResolveBodyPosition(body, orbitPositions, out center);
         }
 
         private static bool TryResolveAsteroidBeltCenter(
             AetheriaRuntimeBodySnapshotCommit body,
-            Dictionary<string, AetheriaRuntimeXzPoint> orbitPositions,
+            Dictionary<string, AetheriaRuntimeOrbitPosition> orbitPositions,
             Dictionary<string, AetheriaRuntimeOrbitSnapshotCommit> orbits,
-            out AetheriaRuntimeXzPoint center)
+            out AetheriaRuntimeOrbitPosition center)
         {
             if (orbits.TryGetValue(body.OrbitKey ?? "", out var orbit) &&
                 orbitPositions.TryGetValue(orbit.ParentOrbitKey ?? "", out center))
@@ -2124,16 +2085,5 @@ namespace GameCult.Aetheria.State.Verse
                 (a, b) = (b, a);
         }
 
-        private readonly struct AetheriaRuntimeXzPoint
-        {
-            public AetheriaRuntimeXzPoint(double x, double z)
-            {
-                this.x = x;
-                this.z = z;
-            }
-
-            public readonly double x;
-            public readonly double z;
-        }
     }
 }
