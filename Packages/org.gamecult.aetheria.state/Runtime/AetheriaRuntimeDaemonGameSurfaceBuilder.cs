@@ -103,6 +103,9 @@ namespace GameCult.Aetheria.State.Verse
                     "state.group",
                     Array.Empty<(string Key, string Value)>(),
                     WeaponStateItems(entity, run, zone)));
+            var refitPanel = DockedRefitPanel(run, zone, entity, catalog);
+            if (refitPanel != null)
+                surfaceChildren.Add(refitPanel);
 
             return new AetheriaRuntimeSurfaceDocument(
                 providerId: "aetheria",
@@ -124,6 +127,9 @@ namespace GameCult.Aetheria.State.Verse
                         "cultmesh"))
                     .Concat(new[]
                     {
+                        SurfaceCommand(AetheriaRuntimeDaemonCommandKinds.TransferCargoItem),
+                        SurfaceCommand(AetheriaRuntimeDaemonCommandKinds.EquipItem),
+                        SurfaceCommand(AetheriaRuntimeDaemonCommandKinds.StoreItem),
                         new AetheriaRuntimeSurfaceCommandTemplate("aetheria.main_menu.root.continue", "Continue", "cultmesh"),
                         new AetheriaRuntimeSurfaceCommandTemplate("aetheria.main_menu.root.new_game", "New Game", "cultmesh"),
                         new AetheriaRuntimeSurfaceCommandTemplate("aetheria.main_menu.root.show_settings", "Settings", "cultmesh"),
@@ -178,6 +184,163 @@ namespace GameCult.Aetheria.State.Verse
                         new AetheriaRuntimeSurfaceCommandTemplate("aetheria.daemon.cancel_agent_task", "Cancel Task", "cultmesh")
                     })
                     .ToArray());
+        }
+
+        private static AetheriaRuntimeSurfaceCommandTemplate SurfaceCommand(
+            AetheriaRuntimeDaemonCommandKinds kind) =>
+            new AetheriaRuntimeSurfaceCommandTemplate(
+                CommandName(kind),
+                AetheriaRuntimeDaemonSurfaceCommandCatalog.Label(kind),
+                "cultmesh");
+
+        private static AetheriaRuntimeSurfaceComponent? DockedRefitPanel(
+            AetheriaRuntimeRunCheckpointCommit run,
+            AetheriaRuntimeZoneSnapshotCommit zone,
+            AetheriaRuntimeEntitySnapshotCommit? entity,
+            AetheriaRuntimeCatalogSnapshot? catalog)
+        {
+            if (entity == null || catalog == null)
+                return null;
+
+            var parent = FindDockParent(zone, entity.EntityIndex);
+            if (parent == null)
+                return null;
+
+            var entityKey = run.EntityRecordKey(zone.ZoneIndex, entity.EntityIndex);
+            var parentKey = run.EntityRecordKey(zone.ZoneIndex, parent.EntityIndex);
+            var inventories = new List<AetheriaRuntimeSurfaceComponent>
+            {
+                EquipmentGrid("aetheria.daemon.game.refit.ship.equipment", entity, entityKey, catalog)
+            };
+            inventories.AddRange(CargoGrids("aetheria.daemon.game.refit.ship.cargo", entity, entityKey, catalog));
+            inventories.AddRange(CargoGrids("aetheria.daemon.game.refit.station.cargo", parent, parentKey, catalog));
+
+            return Node(
+                "aetheria.daemon.game.refit",
+                "panel.refit",
+                new[]
+                {
+                    ("title", "Docked Refit"),
+                    ("entityKey", entityKey),
+                    ("stationEntityKey", parentKey),
+                    ("visible", "true"),
+                    ("placement", "overlay"),
+                    ("anchor", "right"),
+                    ("overflow", "scroll")
+                },
+                inventories.ToArray());
+        }
+
+        private static AetheriaRuntimeSurfaceComponent EquipmentGrid(
+            string id,
+            AetheriaRuntimeEntitySnapshotCommit entity,
+            string entityKey,
+            AetheriaRuntimeCatalogSnapshot catalog)
+        {
+            var hull = catalog.FindItem(entity.HullItemKey ?? "");
+            var children = new List<AetheriaRuntimeSurfaceComponent>();
+            AddInventoryItems(children, id, entity.Equipment, AetheriaRuntimeRefitSourceKinds.Equipment, entityKey, catalog);
+            AddInventoryItems(children, id, entity.CargoBays, AetheriaRuntimeRefitSourceKinds.CargoBay, entityKey, catalog);
+            AddInventoryItems(children, id, entity.DockingBays, AetheriaRuntimeRefitSourceKinds.DockingBay, entityKey, catalog);
+            return Node(
+                id,
+                "inventory.grid",
+                new[]
+                {
+                    ("title", string.IsNullOrWhiteSpace(entity.Name) ? "Ship Equipment" : entity.Name + " Equipment"),
+                    ("targetKind", AetheriaRuntimeRefitSourceKinds.Equipment),
+                    ("targetEntityKey", entityKey),
+                    ("targetIndex", "-1"),
+                    ("columns", Math.Max(1, hull?.InteriorShapeWidth ?? 1).ToString(CultureInfo.InvariantCulture)),
+                    ("rows", Math.Max(1, hull?.InteriorShapeHeight ?? 1).ToString(CultureInfo.InvariantCulture)),
+                    ("cellSize", "36"),
+                    ("cellGap", "2"),
+                    ("dropCommand.cargo", CommandName(AetheriaRuntimeDaemonCommandKinds.EquipItem)),
+                    ("dropCommand.equipment", CommandName(AetheriaRuntimeDaemonCommandKinds.EquipItem)),
+                    ("dropCommand.cargo-bay", CommandName(AetheriaRuntimeDaemonCommandKinds.EquipItem)),
+                    ("dropCommand.docking-bay", CommandName(AetheriaRuntimeDaemonCommandKinds.EquipItem))
+                },
+                children.ToArray());
+        }
+
+        private static IEnumerable<AetheriaRuntimeSurfaceComponent> CargoGrids(
+            string idPrefix,
+            AetheriaRuntimeEntitySnapshotCommit entity,
+            string entityKey,
+            AetheriaRuntimeCatalogSnapshot catalog)
+        {
+            var bays = entity.CargoBays ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>();
+            var contents = entity.CargoContents ?? Array.Empty<AetheriaRuntimeCargoBayLoadoutCommit>();
+            for (var bayIndex = 0; bayIndex < bays.Count; bayIndex++)
+            {
+                var bay = bays[bayIndex];
+                var bayCatalog = catalog.FindItem(bay?.Item?.ItemKey ?? "");
+                var id = idPrefix + "." + bayIndex.ToString(CultureInfo.InvariantCulture);
+                var children = new List<AetheriaRuntimeSurfaceComponent>();
+                var items = bayIndex < contents.Count
+                    ? contents[bayIndex]?.Items ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>()
+                    : Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>();
+                AddInventoryItems(children, id, items, AetheriaRuntimeRefitSourceKinds.Cargo, entityKey, catalog, bayIndex);
+                yield return Node(
+                    id,
+                    "inventory.grid",
+                    new[]
+                    {
+                        ("title", (string.IsNullOrWhiteSpace(entity.Name) ? "Cargo" : entity.Name + " Cargo") + " " + (bayIndex + 1).ToString(CultureInfo.InvariantCulture)),
+                        ("targetKind", AetheriaRuntimeRefitSourceKinds.Cargo),
+                        ("targetEntityKey", entityKey),
+                        ("targetIndex", bayIndex.ToString(CultureInfo.InvariantCulture)),
+                        ("columns", Math.Max(1, bayCatalog?.InteriorShapeWidth ?? 1).ToString(CultureInfo.InvariantCulture)),
+                        ("rows", Math.Max(1, bayCatalog?.InteriorShapeHeight ?? 1).ToString(CultureInfo.InvariantCulture)),
+                        ("cellSize", "36"),
+                        ("cellGap", "2"),
+                        ("dropCommand.cargo", CommandName(AetheriaRuntimeDaemonCommandKinds.TransferCargoItem)),
+                        ("dropCommand.equipment", CommandName(AetheriaRuntimeDaemonCommandKinds.StoreItem)),
+                        ("dropCommand.cargo-bay", CommandName(AetheriaRuntimeDaemonCommandKinds.StoreItem)),
+                        ("dropCommand.docking-bay", CommandName(AetheriaRuntimeDaemonCommandKinds.StoreItem))
+                    },
+                    children.ToArray());
+            }
+        }
+
+        private static void AddInventoryItems(
+            ICollection<AetheriaRuntimeSurfaceComponent> destination,
+            string idPrefix,
+            IReadOnlyList<AetheriaRuntimeLoadoutItemSlotCommit> slots,
+            string sourceKind,
+            string sourceEntityKey,
+            AetheriaRuntimeCatalogSnapshot catalog,
+            int cargoBayIndex = -1)
+        {
+            slots ??= Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>();
+            for (var slotIndex = 0; slotIndex < slots.Count; slotIndex++)
+            {
+                var slot = slots[slotIndex];
+                if (slot?.Item == null || string.IsNullOrWhiteSpace(slot.Item.ItemKey))
+                    continue;
+                var item = catalog.FindItem(slot.Item.ItemKey);
+                var sourceIndex = string.Equals(sourceKind, AetheriaRuntimeRefitSourceKinds.Cargo, StringComparison.Ordinal)
+                    ? cargoBayIndex
+                    : slotIndex;
+                destination.Add(Node(
+                    idPrefix + "." + SurfaceToken(sourceKind) + ".item." + slotIndex.ToString(CultureInfo.InvariantCulture),
+                    "inventory.item",
+                    new[]
+                    {
+                        ("label", string.IsNullOrWhiteSpace(item?.Name) ? slot.Item.ItemKey : item!.Name),
+                        ("itemKey", slot.Item.ItemKey),
+                        ("quantity", Math.Max(1, slot.Item.Quantity).ToString(CultureInfo.InvariantCulture)),
+                        ("sourceKind", sourceKind),
+                        ("sourceEntityKey", sourceEntityKey),
+                        ("sourceIndex", sourceIndex.ToString(CultureInfo.InvariantCulture)),
+                        ("x", slot.X.ToString(CultureInfo.InvariantCulture)),
+                        ("y", slot.Y.ToString(CultureInfo.InvariantCulture)),
+                        ("rotation", slot.Rotation ?? "None"),
+                        ("shapeWidth", Math.Max(1, item?.ShapeWidth ?? 1).ToString(CultureInfo.InvariantCulture)),
+                        ("shapeHeight", Math.Max(1, item?.ShapeHeight ?? 1).ToString(CultureInfo.InvariantCulture)),
+                        ("draggable", "true")
+                    }));
+            }
         }
 
         private static AetheriaRuntimeSurfaceComponent BuildStarbridgeSessionCard(

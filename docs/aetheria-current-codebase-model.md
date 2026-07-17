@@ -292,8 +292,11 @@ The current UI direction is Eve/CultUI:
 - daemon publishes game/editor GUI and TUI surfaces;
 - compatibility state surfaces exist for operations, player settings, catalog,
   loadout templates, zone details, trade item details, and stat recipes;
-- Unity lowers local surfaces through UI Toolkit for many menu/inventory/trade
-  panels;
+- the daemon's pilot surface publishes docked spatial equipment and cargo grids
+  with generic Eve drop commands; Unity and browser lowerers own transient drag
+  state but not fit, access, mutation, or receipts;
+- Unity still lowers local surfaces through UI Toolkit for several remaining
+  menu/trade panels;
 - Brokkr should be considered just another daemon publishing Unity editor Eve
   surfaces, not a special Codex socket.
 

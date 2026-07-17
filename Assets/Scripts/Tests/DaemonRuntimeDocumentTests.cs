@@ -519,6 +519,68 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
+    public void DockedPilotSurfacePublishesGenericSpatialRefitControls()
+    {
+        var run = RunWithTwoEntities();
+        var ship = run.Zones[0].Entities[0];
+        var station = run.Zones[0].Entities[1];
+        ship.HullItemKey = "test-hull";
+        ship.CargoBays = new[] { EquippedItem("test-cargo-bay") };
+        station.Kind = "station";
+        station.DockingBayAssignments = new[] { ship.EntityIndex };
+        station.CargoBays = new[] { EquippedItem("test-cargo-bay") };
+        station.CargoContents = new[] { new AetheriaRuntimeCargoBayLoadoutCommit() };
+        var hull = CatalogItem("test-hull", Array.Empty<AetheriaRuntimeBehaviorPayload>());
+        hull.InteriorShapeWidth = 9;
+        hull.InteriorShapeHeight = 7;
+        var cargoBay = CatalogItem("test-cargo-bay", Array.Empty<AetheriaRuntimeBehaviorPayload>());
+        cargoBay.InteriorShapeWidth = 6;
+        cargoBay.InteriorShapeHeight = 4;
+        var catalog = new AetheriaRuntimeCatalogSnapshot(
+            new[] { hull, cargoBay, CatalogItem("ore", Array.Empty<AetheriaRuntimeBehaviorPayload>()) },
+            Array.Empty<AetheriaRuntimeCorporation>(),
+            Array.Empty<AetheriaRuntimeNameFile>());
+        var surface = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(
+            AetheriaRuntimeDaemonFrameDocument.Create(run, "test-daemon", "session", 42, 1.0, 0.02),
+            new AetheriaRuntimeDaemonHealthDocument(),
+            AetheriaRuntimeDaemonCommandBoundaryDocument.Create("test-daemon"),
+            catalog: catalog);
+        var shipKey = run.EntityRecordKey(0, ship.EntityIndex);
+        var stationKey = run.EntityRecordKey(0, station.EntityIndex);
+
+        var panel = FindSurfaceComponent(surface.Surface.Root, "aetheria.daemon.game.refit");
+        var equipment = FindSurfaceComponent(surface.Surface.Root, "aetheria.daemon.game.refit.ship.equipment");
+        var shipCargo = FindSurfaceComponent(surface.Surface.Root, "aetheria.daemon.game.refit.ship.cargo.0");
+        var stationCargo = FindSurfaceComponent(surface.Surface.Root, "aetheria.daemon.game.refit.station.cargo.0");
+        Assert.IsNotNull(panel);
+        Assert.AreEqual("panel.refit", panel.Kind);
+        Assert.AreEqual("inventory.grid", equipment.Kind);
+        Assert.AreEqual("9", equipment.Props["columns"]);
+        Assert.AreEqual("7", equipment.Props["rows"]);
+        Assert.AreEqual("6", shipCargo.Props["columns"]);
+        Assert.AreEqual("4", stationCargo.Props["rows"]);
+        Assert.AreEqual(shipKey, shipCargo.Props["targetEntityKey"]);
+        Assert.AreEqual(stationKey, stationCargo.Props["targetEntityKey"]);
+        Assert.AreEqual(
+            AetheriaRuntimeDaemonSurfaceCommandCatalog.CommandName(AetheriaRuntimeDaemonCommandKinds.TransferCargoItem),
+            shipCargo.Props["dropCommand.cargo"]);
+        Assert.IsTrue(surface.Commands.Any(command =>
+            command.Command == AetheriaRuntimeDaemonSurfaceCommandCatalog.CommandName(AetheriaRuntimeDaemonCommandKinds.TransferCargoItem)));
+        Assert.IsTrue(surface.Commands.Any(command =>
+            command.Command == AetheriaRuntimeDaemonSurfaceCommandCatalog.CommandName(AetheriaRuntimeDaemonCommandKinds.EquipItem)));
+        Assert.IsTrue(surface.Commands.Any(command =>
+            command.Command == AetheriaRuntimeDaemonSurfaceCommandCatalog.CommandName(AetheriaRuntimeDaemonCommandKinds.StoreItem)));
+
+        station.DockingBayAssignments = Array.Empty<int>();
+        var undocked = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(
+            AetheriaRuntimeDaemonFrameDocument.Create(run, "test-daemon", "session", 43, 1.02, 0.02),
+            new AetheriaRuntimeDaemonHealthDocument(),
+            AetheriaRuntimeDaemonCommandBoundaryDocument.Create("test-daemon"),
+            catalog: catalog);
+        Assert.IsNull(FindSurfaceComponent(undocked.Surface.Root, "aetheria.daemon.game.refit"));
+    }
+
+    [Test]
     public void TickRunnerAppliesObservedCommandsAndPublishesFrame()
     {
         var statePath = Path.Combine(
@@ -3569,39 +3631,47 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
-    public void DaemonEveSurfaceCommandRejectsUnsupportedArgumentlessOperation()
+    public void DaemonEveSurfaceCommandTranslatesGenericInventoryDrop()
     {
-        var statePath = Path.Combine(
-            Path.GetTempPath(),
-            "aetheria-daemon-surface-command-tests",
-            Path.GetRandomFileName(),
-            "state.cc");
         var frame = AetheriaRuntimeDaemonFrameDocument.Create(
-            new AetheriaRuntimeRunCheckpointCommit
-            {
-                CurrentEntityKey = "entity:surface-player"
-            },
+            RunWithTwoEntities(),
             "aetheria-daemon",
             "session-surface-command",
             78,
             1.5,
             0.02);
-        PublishLatestFrameThroughVerseClient(statePath, frame);
         var request = new EveSurfaceCommandRequest(
             "aetheria.daemon",
             AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId,
             CultMesh.OperationInvocation("aetheria.daemon.commands.TransferCargoItem"),
-            CultMesh.OperationPayload(),
+            CultMesh.OperationPayload(
+                ("entityId", "zone.0.entity.0"),
+                ("originEntityKey", "zone.0.entity.0"),
+                ("originCargoIndex", "0"),
+                ("destinationEntityKey", "zone.0.entity.1"),
+                ("destinationCargoIndex", "0"),
+                ("itemKey", "ore"),
+                ("quantity", "12"),
+                ("sourceX", "2"),
+                ("sourceY", "3"),
+                ("destinationX", "5"),
+                ("destinationY", "6"),
+                ("hasDestinationPosition", "true")),
             DateTimeOffset.UtcNow,
             "unity-uitoolkit");
 
-        using var client = AetheriaClient
-            .OpenAsync(statePath, "unity-uitoolkit", startServer: false, pullOnOpen: true)
-            .GetAwaiter()
-            .GetResult();
-
-        Assert.IsFalse(AetheriaRuntimeDaemonSurfaceCommands.TrySubmit(client, request, out var envelope));
-        Assert.IsNull(envelope);
+        Assert.IsTrue(AetheriaRuntimeDaemonOperationsClient.TryCreateSurfaceCommandDocument(
+            request, frame, ".", "unity-uitoolkit", "session-surface-command", out var command));
+        Assert.IsNotNull(command);
+        Assert.AreEqual(AetheriaRuntimeDaemonCommandKinds.TransferCargoItem, command.Kind);
+        Assert.AreEqual("zone.0.entity.0", command.ActorEntityKey);
+        Assert.AreEqual("zone.0.entity.0", command.CargoTransfer.OriginEntityKey);
+        Assert.AreEqual(0, command.CargoTransfer.OriginCargoIndex);
+        Assert.AreEqual("zone.0.entity.1", command.CargoTransfer.DestinationEntityKey);
+        Assert.AreEqual(0, command.CargoTransfer.DestinationCargoIndex);
+        Assert.AreEqual(5, command.CargoTransfer.DestinationX);
+        Assert.AreEqual(6, command.CargoTransfer.DestinationY);
+        Assert.IsTrue(command.CargoTransfer.HasDestinationPosition);
     }
 
     [Test]
@@ -4072,6 +4142,31 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual("ore", destinationCargo[0].Item.ItemKey);
         Assert.AreEqual(5, destinationCargo[0].X);
         Assert.AreEqual(6, destinationCargo[0].Y);
+    }
+
+    [Test]
+    public void DaemonOperationsRejectsCargoTransferWhenActorOwnsNeitherEndpoint()
+    {
+        var run = RunWithTwoEntities();
+        var command = AetheriaRuntimeDaemonCommandDocument.Create(
+            AetheriaRuntimeDaemonCommandKinds.TransferCargoItem,
+            "codex",
+            "session-inventory-access",
+            25,
+            "zone.0.entity.0");
+        command.TextValue = "ore";
+        command.CargoTransfer.OriginEntityKey = "zone.0.entity.1";
+        command.CargoTransfer.OriginCargoIndex = 0;
+        command.CargoTransfer.DestinationEntityKey = "zone.0.entity.1";
+        command.CargoTransfer.DestinationCargoIndex = 0;
+
+        var result = AetheriaRuntimeDaemonOperations.Execute(run, new[] { command });
+
+        Assert.AreEqual(0, result.AppliedCommandIds.Count);
+        Assert.AreEqual(1, result.RejectedCommandIds.Count);
+        Assert.AreEqual(
+            AetheriaRuntimeDaemonRejectionReasons.CargoAccessDenied,
+            result.RejectedCommandReasons[command.CommandId]);
     }
 
     [Test]
@@ -6363,6 +6458,17 @@ public class DaemonRuntimeDocumentTests
     {
         return string.Equals(component.Kind, kind, StringComparison.Ordinal) ||
             component.Children.Any(child => ContainsSurfaceKind(child, kind));
+    }
+
+    private static AetheriaRuntimeSurfaceComponent FindSurfaceComponent(
+        AetheriaRuntimeSurfaceComponent component,
+        string id)
+    {
+        if (string.Equals(component.Id, id, StringComparison.Ordinal))
+            return component;
+        return component.Children
+            .Select(child => FindSurfaceComponent(child, id))
+            .FirstOrDefault(child => child != null);
     }
 
     private static bool ContainsSurfaceValueFragment(AetheriaRuntimeSurfaceComponent component, string fragment)

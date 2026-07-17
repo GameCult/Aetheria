@@ -4,6 +4,8 @@ using Aetheria.State.Documents;
 using GameCult.Aetheria.State.Verse;
 using GameCult.Caching;
 using GameCult.Eve.PluginFields;
+using GameCult.Eve.Surface;
+using GameCult.Mesh;
 using System.Globalization;
 
 var checks = new AetheriaDaemonYmirSmokeChecks();
@@ -170,6 +172,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             DockingUsesRealBaysAndFossilUndockRules,
             RefitIsAtomicAndUsesTypedPlacement,
             CargoTransferUsesSpatialAtomicTransaction,
+            DockedRefitSurfacePublishesGenericCommands,
             TractorRampsAndPullsThroughYmirWithoutTeleportingCargo,
             PickupIsCapacityCheckedExactlyOnceAndExpires,
             TradePurchaseDerivesAcceptanceFromDaemonState,
@@ -213,6 +216,127 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         ];
         foreach (var check in checks)
             RunCheck(check);
+    }
+
+    private static void DockedRefitSurfacePublishesGenericCommands()
+    {
+        var hull = HullCatalogItem("surface-hull", 9, 7, 100);
+        var cargoBay = CatalogItem("surface-cargo-bay");
+        cargoBay.InteriorShapeWidth = 6;
+        cargoBay.InteriorShapeHeight = 4;
+        var catalog = new AetheriaRuntimeCatalogSnapshot([hull, cargoBay, CatalogItem("ore")], [], []);
+        var ship = Entity(0, 0, "player");
+        ship.Name = "Pilot";
+        ship.HullItemKey = hull.ItemKey;
+        ship.CargoBays = [ItemSlot(cargoBay.ItemKey)];
+        ship.CargoContents = [new AetheriaRuntimeCargoBayLoadoutCommit { Items = [ItemSlot("ore", 2, 3)] }];
+        var station = Entity(1, 0, "player");
+        station.Kind = "station";
+        station.Name = "Station";
+        station.DockingBayAssignments = [ship.EntityIndex];
+        station.CargoBays = [ItemSlot(cargoBay.ItemKey)];
+        station.CargoContents = [new AetheriaRuntimeCargoBayLoadoutCommit()];
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "generic-refit-surface-smoke",
+            CurrentZoneIndex = 0,
+            CurrentEntityKey = "zone.0.entity.0",
+            Zones = [new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [ship, station] }]
+        };
+        var frame = AetheriaRuntimeDaemonFrameDocument.Create(run, "smoke", "surface", 1, 0.02, 0.02);
+        var shipKey = run.EntityRecordKey(0, ship.EntityIndex);
+        var stationKey = run.EntityRecordKey(0, station.EntityIndex);
+        var surface = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(
+            frame,
+            new AetheriaRuntimeDaemonHealthDocument(),
+            AetheriaRuntimeDaemonCommandBoundaryDocument.Create("smoke"),
+            catalog: catalog);
+        var equipment = Find(surface.Surface.Root, "aetheria.daemon.game.refit.ship.equipment");
+        var shipCargo = Find(surface.Surface.Root, "aetheria.daemon.game.refit.ship.cargo.0");
+        var stationCargo = Find(surface.Surface.Root, "aetheria.daemon.game.refit.station.cargo.0");
+        Require(equipment != null && equipment.Kind == "inventory.grid" &&
+                equipment.Props["columns"] == "9" && equipment.Props["rows"] == "7",
+            "docked pilot surface must publish authored ship equipment geometry");
+        Require(shipCargo != null && stationCargo != null &&
+                shipCargo.Props["targetEntityKey"] == shipKey &&
+                stationCargo.Props["targetEntityKey"] == stationKey,
+            "docked pilot surface must publish both ship and station cargo targets");
+        Require(surface.Commands.Any(value => value.Command ==
+                AetheriaRuntimeDaemonSurfaceCommandCatalog.CommandName(AetheriaRuntimeDaemonCommandKinds.TransferCargoItem)) &&
+                surface.Commands.Any(value => value.Command ==
+                    AetheriaRuntimeDaemonSurfaceCommandCatalog.CommandName(AetheriaRuntimeDaemonCommandKinds.EquipItem)) &&
+                surface.Commands.Any(value => value.Command ==
+                    AetheriaRuntimeDaemonSurfaceCommandCatalog.CommandName(AetheriaRuntimeDaemonCommandKinds.StoreItem)),
+            "docked pilot surface must advertise all atomic refit operations");
+
+        var request = new EveSurfaceCommandRequest(
+            "aetheria",
+            AetheriaRuntimeDaemonGameSurfaceBuilder.PilotSurfaceId,
+            CultMesh.OperationInvocation(
+                AetheriaRuntimeDaemonSurfaceCommandCatalog.CommandName(AetheriaRuntimeDaemonCommandKinds.TransferCargoItem)),
+            CultMesh.OperationPayload(
+                ("entityId", shipKey),
+                ("originEntityKey", shipKey),
+                ("originCargoIndex", "0"),
+                ("destinationEntityKey", stationKey),
+                ("destinationCargoIndex", "0"),
+                ("itemKey", "ore"),
+                ("quantity", "1"),
+                ("sourceX", "2"),
+                ("sourceY", "3"),
+                ("destinationX", "0"),
+                ("destinationY", "0"),
+                ("hasDestinationPosition", "true")),
+            DateTimeOffset.UtcNow,
+            "generic-smoke");
+        Require(AetheriaRuntimeDaemonOperationsClient.TryCreateSurfaceCommandDocument(
+                request, frame, ".", "generic-smoke", "surface", out var translated) &&
+                translated?.CargoTransfer.OriginCargoIndex == 0 &&
+                translated.CargoTransfer.DestinationEntityKey == stationKey &&
+                translated.CargoTransfer.HasDestinationPosition,
+            "generic Eve inventory drop must translate into the exact typed daemon cargo command");
+
+        var unauthorized = AetheriaRuntimeDaemonCommandDocument.Create(
+            AetheriaRuntimeDaemonCommandKinds.TransferCargoItem,
+            "generic-smoke", "surface", 1, shipKey);
+        unauthorized.TextValue = "ore";
+        unauthorized.CargoTransfer.OriginEntityKey = stationKey;
+        unauthorized.CargoTransfer.DestinationEntityKey = stationKey;
+        unauthorized.CargoTransfer.OriginCargoIndex = 0;
+        unauthorized.CargoTransfer.DestinationCargoIndex = 0;
+        var rejected = AetheriaRuntimeDaemonOperations.Execute(run, [unauthorized],
+            new AetheriaRuntimeDaemonOperationContext { Catalog = catalog });
+        Require(rejected.RejectedCommandReasons[unauthorized.CommandId] ==
+                AetheriaRuntimeDaemonRejectionReasons.CargoAccessDenied,
+            "cargo transfer actor must own one endpoint even when the target is physically nearby");
+
+        station.DockingBayAssignments = [];
+        var undocked = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(
+            frame,
+            new AetheriaRuntimeDaemonHealthDocument(),
+            AetheriaRuntimeDaemonCommandBoundaryDocument.Create("smoke"),
+            catalog: catalog);
+        Require(Find(undocked.Surface.Root, "aetheria.daemon.game.refit") == null,
+            "undocked pilot surfaces must not expose station refit controls");
+
+        static AetheriaRuntimeSurfaceComponent? Find(AetheriaRuntimeSurfaceComponent component, string id) =>
+            component.Id == id
+                ? component
+                : component.Children.Select(child => Find(child, id)).FirstOrDefault(value => value != null);
+
+        static AetheriaRuntimeLoadoutItemSlotCommit ItemSlot(string itemKey, int x = 0, int y = 0) => new()
+        {
+            X = x,
+            Y = y,
+            Item = new AetheriaRuntimeLoadoutItemCommit
+            {
+                ItemKey = itemKey,
+                Quantity = 1,
+                Quality = 1,
+                Durability = 1,
+                Enabled = true
+            }
+        };
     }
 
     private static void DockingUsesRealBaysAndFossilUndockRules()

@@ -80,6 +80,7 @@ namespace GameCult.Aetheria.State.Verse
         public const string RefitNoFit = "refit-no-fit";
         public const string InvalidCargoDestination = "invalid-cargo-destination";
         public const string InvalidCargoSource = "invalid-cargo-source";
+        public const string CargoAccessDenied = "cargo-access-denied";
         public const string CargoNoFit = "cargo-no-fit";
         public const string CargoStackLimit = "cargo-stack-limit";
         public const string TradeRequiresDocked = "trade-requires-docked";
@@ -817,6 +818,9 @@ namespace GameCult.Aetheria.State.Verse
             if (!TryResolveEntity(run, transfer.OriginEntityKey, out _, out _, out var origin) ||
                 !TryResolveEntity(run, transfer.DestinationEntityKey, out _, out _, out var destination))
                 return context.Reject(AetheriaRuntimeDaemonRejectionReasons.InvalidCargoSource);
+            if (!CanAccessCargoTransfer(run, command.ActorEntityKey, transfer.OriginEntityKey, origin,
+                    transfer.DestinationEntityKey, destination))
+                return context.Reject(AetheriaRuntimeDaemonRejectionReasons.CargoAccessDenied);
 
             return AetheriaRuntimeRefitTransactions.TryTransferCargo(
                     origin,
@@ -834,6 +838,41 @@ namespace GameCult.Aetheria.State.Verse
                     out var reason)
                 || context.Reject(reason);
         }
+
+        private static bool CanAccessCargoTransfer(
+            AetheriaRuntimeRunCheckpointCommit run,
+            string actorEntityKey,
+            string originEntityKey,
+            AetheriaRuntimeEntitySnapshotCommit origin,
+            string destinationEntityKey,
+            AetheriaRuntimeEntitySnapshotCommit destination)
+        {
+            if (!TryResolveEntity(run, actorEntityKey, out var actorZoneIndex, out _, out var actor))
+                return false;
+            var actorIsOrigin = ReferenceEquals(actor, origin);
+            var actorIsDestination = ReferenceEquals(actor, destination);
+            if (!actorIsOrigin && !actorIsDestination)
+                return false;
+
+            var other = actorIsOrigin ? destination : origin;
+            var otherKey = actorIsOrigin ? destinationEntityKey : originEntityKey;
+            if (ReferenceEquals(actor, other) ||
+                (TryResolveDockParent(run, actorEntityKey, out _, out var actorParent) && ReferenceEquals(actorParent, other)) ||
+                (TryResolveDockParent(run, otherKey, out _, out var otherParent) && ReferenceEquals(otherParent, actor)))
+                return true;
+
+            if (!TryResolveEntity(run, otherKey, out var otherZoneIndex, out _, out _) ||
+                actorZoneIndex != otherZoneIndex)
+                return false;
+
+            var dx = actor.PositionX - other.PositionX;
+            var dz = actor.PositionZ - other.PositionZ;
+            var reach = CargoInteractionRadius(actor) + CargoInteractionRadius(other) + 10.0;
+            return dx * dx + dz * dz <= reach * reach;
+        }
+
+        private static double CargoInteractionRadius(AetheriaRuntimeEntitySnapshotCommit entity) =>
+            string.Equals(entity.Kind, "station", StringComparison.OrdinalIgnoreCase) ? 48.0 : 20.0;
 
         private static bool ApplyEquipItem(
             AetheriaRuntimeRunCheckpointCommit run,

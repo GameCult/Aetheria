@@ -19789,10 +19789,14 @@ static void RequireInventoryDoubleClickTransferRequestAuthority(string root)
         ? File.ReadAllText(operationClientPath)
         : throw new InvalidOperationException("Cannot verify inventory transfer authority; AetheriaRuntimeDaemonOperationClient.cs is missing.");
 
-    var panelSurfacePath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeInventoryPanelSurfaceBuilder.cs");
+    var panelSurfacePath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonGameSurfaceBuilder.cs");
     var panelSurface = File.Exists(panelSurfacePath)
         ? File.ReadAllText(panelSurfacePath)
-        : throw new InvalidOperationException("Cannot verify inventory transfer authority; AetheriaRuntimeInventoryPanelSurfaceBuilder.cs is missing.");
+        : throw new InvalidOperationException("Cannot verify inventory transfer authority; AetheriaRuntimeDaemonGameSurfaceBuilder.cs is missing.");
+    var surfaceCatalogPath = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeEveSurfaceCatalog.cs");
+    var surfaceCatalog = File.Exists(surfaceCatalogPath)
+        ? File.ReadAllText(surfaceCatalogPath)
+        : throw new InvalidOperationException("Cannot verify inventory transfer authority; AetheriaRuntimeEveSurfaceCatalog.cs is missing.");
 
     var requiredDaemonRequests = new[]
     {
@@ -19817,16 +19821,24 @@ static void RequireInventoryDoubleClickTransferRequestAuthority(string root)
 
     var requiredSurfaceSymbols = new[]
     {
-        "AetheriaRuntimeInventoryPanelSurfaceBuilder",
+        "DockedRefitPanel(",
         "\"inventory.grid\"",
         "\"inventory.item\"",
         "\"itemKey\"",
-        "\"source\"",
+        "\"sourceKind\"",
+        "\"sourceEntityKey\"",
         "\"sourceIndex\"",
+        "\"targetKind\"",
+        "\"targetEntityKey\"",
+        "\"targetIndex\"",
+        "\"dropCommand.cargo\"",
+        "\"dropCommand.equipment\"",
         "\"x\"",
         "\"y\"",
         "\"quantity\"",
-        "AetheriaRuntimeSurfaceCommandTemplate.CultMeshTransport"
+        "SurfaceCommand(AetheriaRuntimeDaemonCommandKinds.TransferCargoItem)",
+        "SurfaceCommand(AetheriaRuntimeDaemonCommandKinds.EquipItem)",
+        "SurfaceCommand(AetheriaRuntimeDaemonCommandKinds.StoreItem)"
     };
     var missingSurfaceSymbols = requiredSurfaceSymbols
         .Where(symbol => !panelSurface.Contains(symbol, StringComparison.Ordinal))
@@ -19836,6 +19848,13 @@ static void RequireInventoryDoubleClickTransferRequestAuthority(string root)
         throw new InvalidOperationException(
             "Inventory panel surface must publish typed item identity and command transport data through CultUI: " +
             string.Join(", ", missingSurfaceSymbols));
+    }
+    if (surfaceCatalog.Contains(
+            "Surface(AetheriaRuntimeInventoryPanelSurfaceBuilder.SurfaceId",
+            StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "The request-local Unity inventory panel is still advertised as a player gameplay surface.");
     }
 
     var forbiddenUnityInventoryAcceptanceSymbols = new[]

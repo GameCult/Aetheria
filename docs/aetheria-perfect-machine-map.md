@@ -2926,6 +2926,19 @@ Docked refit ownership follows the fossil's `Entity.ItemFits`, `TryEquip`, and
   receipts, and aligned typed bay collections. Reconnect remains a live proof
   obligation.
 
+The docked pilot surface is the provider-owned control projection for that
+transaction. While the current ship has an authoritative docking parent, the
+daemon publishes `inventory.grid` and `inventory.item` nodes for the ship
+equipment, each ship cargo bay, and each station cargo bay. Those nodes carry
+authored grid dimensions, item footprints, source/target identities, and
+`TransferCargoItem`, `EquipItem`, or `StoreItem` drop commands. Generic Eve
+lowerers own only transient pointer/keyboard drag state and visual prediction.
+The old request-local Unity inventory panel is no longer advertised as a
+player surface, and cannot become a second refit authority. Cargo transfers
+also require the command actor to own one endpoint and reach the other through
+docking parentage or physical interaction range, preserving autonomous haul
+tasks without permitting remote arbitrary inventory mutation.
+
 Ymir restart ownership is deliberately private and asymmetric:
 
 - Owner: `AetheriaYmirPersistenceCoordinator` owns reconstruction durability;
