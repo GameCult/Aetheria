@@ -34,6 +34,16 @@ else if (args.Contains("--tutorial-topology", StringComparer.Ordinal))
     checks.RunTutorialTopology();
     Console.WriteLine("Daemon tutorial topology smoke passed.");
 }
+else if (args.Contains("--zone-bodies", StringComparer.Ordinal))
+{
+    checks.RunZoneBodies();
+    Console.WriteLine("Daemon generated zone-body smoke passed.");
+}
+else if (args.Contains("--tutorial-world", StringComparer.Ordinal))
+{
+    checks.RunTutorialWorld();
+    Console.WriteLine("Daemon tutorial world-plan smoke passed.");
+}
 else
 {
     checks.Run();
@@ -68,6 +78,76 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
     }
 
     public void RunTutorialTopology() => RunCheck(TutorialTopologyIsDeterministicConnectedAndRoleOwned);
+    public void RunZoneBodies() => RunCheck(GeneratedZoneBodiesPreserveFossilHierarchy);
+    public void RunTutorialWorld() => RunCheck(TutorialWorldMaterializesEveryTopologyZone);
+
+    private static void TutorialWorldMaterializesEveryTopologyZone()
+    {
+        AetheriaDaemonTutorialFactionInput Faction(string shortName) =>
+            new($"faction.{shortName.ToLowerInvariant()}", shortName, shortName, 2)
+            {
+                TrainingNames = Enumerable.Range(0, 512).Select(index =>
+                    $"{(char)('a' + index % 26)}{(char)('a' + index / 26 % 26)}{(char)('a' + index / 676 % 26)}{shortName.ToLowerInvariant()}")
+                    .ToArray()
+            };
+        var factions = new[]
+        {
+            Faction("Miss"), Faction("Zhe"), Faction("Luc"),
+            Faction("Aero"), Faction("Finch"), Faction("Adras")
+        };
+        var world = AetheriaDaemonTutorialWorldGenerator.Generate(factions, 0xA37E_2026u);
+
+        RequireEqual(world.Topology.Zones.Count, world.Zones.Count,
+            "the daemon tutorial world plan must materialize every topology zone exactly once");
+        Require(world.Topology.Zones.All(zone => world.Zones.ContainsKey(zone.ZoneIndex)),
+            "tutorial topology identities must be the sole keys of generated zone plans");
+        Require(world.Zones.Values.All(zone => zone.Orbits.Length > 0 && zone.Bodies.Length > 0),
+            "no selectable tutorial zone may be published as an empty celestial shell");
+        Require(world.Zones.Values.All(zone =>
+                Math.Abs(zone.Mass - zone.HierarchyMass) <= Math.Max(0.01, zone.Mass * 0.00001)),
+            "every tutorial zone must conserve its authored mass independently");
+        Require(world.Zones.Values.SelectMany(zone => zone.Bodies).Any(body => body.Kind == "asteroid_belt"),
+            "the complete tutorial world must retain fossil asteroid-belt generation");
+        Require(world.Zones.Values.SelectMany(zone => zone.Bodies).Count(body => body.Kind == "sun") >= world.Zones.Count,
+            "every generated tutorial zone must contain at least one stellar primary");
+    }
+
+    private static void GeneratedZoneBodiesPreserveFossilHierarchy()
+    {
+        var zone = new AetheriaDaemonTutorialZoneTopology(
+            7,
+            "Morrowind",
+            0.42f,
+            0.63f,
+            new[] { 3, 8 },
+            new[] { "faction.miss" },
+            "faction.miss");
+        var first = AetheriaDaemonZoneBodyGenerator.Generate(0xA37E_2026u, zone, 1.25f);
+        var second = AetheriaDaemonZoneBodyGenerator.Generate(0xA37E_2026u, zone, 1.25f);
+
+        RequireEqual(first.GenerationSeed, second.GenerationSeed,
+            "daemon zone generation must derive one stable seed from galaxy and zone identity");
+        RequireNear(first.Radius, second.Radius, 0,
+            "fixed zone inputs must reproduce the authored radius curve exactly");
+        RequireNear(first.Mass, first.HierarchyMass, Math.Max(0.01, first.Mass * 0.00001),
+            "planet hierarchy normalization must conserve the generated zone mass");
+        Require(first.Radius >= 1000 && first.Radius <= 10000 && first.Mass >= 10000 && first.Mass <= 500000,
+            "zone radius and mass must remain inside the authored exponential-lerp bounds");
+        Require(first.Orbits.Length >= first.Bodies.Length && first.Orbits.Length > 1,
+            "rosette placeholders may own orbits without bodies, but every generated zone must retain its hierarchy");
+        var orbitKeys = first.Orbits.Select(orbit => orbit.OrbitKey).ToHashSet(StringComparer.Ordinal);
+        Require(first.Orbits.All(orbit => orbit.ParentOrbitKey.Length == 0 || orbitKeys.Contains(orbit.ParentOrbitKey)) &&
+                first.Bodies.All(body => orbitKeys.Contains(body.OrbitKey)),
+            "every generated parent and body orbit reference must resolve inside the daemon plan");
+        Require(first.Bodies.All(body => body.GravityInfluenceRadius > 0 && body.GravityWellDepth > 0 &&
+                body.GravityWaveRadius > 0 && body.GravityWaveDepth > 0),
+            "generated body mass must project the authored positive gravity and wave curves for Ymir and Eve");
+        Require(first.Bodies.Select(body => (body.BodyKey, body.Kind, body.Mass, body.OrbitKey, body.Asteroids.Length))
+                .SequenceEqual(second.Bodies.Select(body => (body.BodyKey, body.Kind, body.Mass, body.OrbitKey, body.Asteroids.Length))),
+            "body kinds, masses, identities, orbits, and asteroid cardinality must be deterministic");
+        Require(first.Bodies.Any(body => body.Kind == "sun") && first.Bodies.Any(body => body.Kind != "sun"),
+            "the fossil solar hierarchy must produce both a stellar primary and subordinate bodies");
+    }
 
     private static void TutorialTopologyIsDeterministicConnectedAndRoleOwned()
     {
@@ -220,6 +300,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         [
             PositiveGravityDepthAttractsAndProjectsAsAWell,
             TutorialTopologyIsDeterministicConnectedAndRoleOwned,
+            GeneratedZoneBodiesPreserveFossilHierarchy,
+            TutorialWorldMaterializesEveryTopologyZone,
             VolumeSurfaceKeepsNativeShaderAbiInAssetVariant,
             YmirMovesProjectileAndReportsStableContact,
             CompressedTerminusStopsAtAttentionBoundary,

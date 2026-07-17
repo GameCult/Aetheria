@@ -1135,6 +1135,36 @@ the Terminus proof arena cannot award completion.
   implementation against Unity Mathematics vectors and carries the same
   semantics in HLSL.
 
+### Daemon Generated Zone Body Ownership
+
+- Owner: the daemon zone-body generator owns each generated zone's radius,
+  mass, subzone packing, celestial hierarchy, orbit graph, body classification,
+  asteroid belts, gravity curves, and gas-giant/sun visual parameters.
+- Inputs: tutorial topology identity/name/position, galaxy seed, the canonical
+  cloud-density sample, and the authored `ZoneSettings`/`PlanetSettings` values.
+- Outputs: one deterministic zone plan containing stable orbit/body identities,
+  normalized hierarchy mass, explicit empty rosette orbit count, typed body and
+  asteroid snapshots, positive Ymir gravity magnitudes, and provider visual
+  parameters.
+- Derived state: Ymir radial fields, Eve celestial rows, field splats, lights,
+  asteroid presentation, and later station/ship placement consume the plan.
+  They cannot regenerate its hierarchy.
+- Forbidden writers: fossil `ZoneGenerator`/`GeneratorPlanet`, Unity prefabs,
+  scene scripts, render lowerers, and clients cannot author bodies or orbits.
+- Shared paths: a complete tutorial world plan materializes all 64 topology
+  zones through the same daemon generator. Rosettes, ordinary solar systems,
+  satellite passes, binaries, belt selection, and mass normalization share one
+  CultMath stream per zone.
+- Cut line: generated zones no longer depend on process-randomized
+  `string.GetHashCode`/`HashCode.Combine`; daemon generation derives a stable
+  FNV-1a seed from galaxy and typed zone identity. This intentionally
+  canonicalizes a nonportable fossil seed while retaining its mechanics.
+- Verification layer: focused smoke proves deterministic body kinds/masses,
+  connected parent references, mass conservation including empty rosette nodes,
+  positive gravity curves, and stable asteroid cardinality. Whole-world smoke
+  proves every topology zone has bodies/orbits, every zone has a stellar
+  primary, and the tutorial retains asteroid belts.
+
 ### Daemon Pickup Contact Transaction
 
 - Owner: the daemon simulation owns pickup collection by interpreting typed

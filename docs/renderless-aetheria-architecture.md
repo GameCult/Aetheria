@@ -140,11 +140,18 @@ initial discovery of the entrance plus its neighbors. The narrative processor
 was commented out and no source-backed tutorial-completion trigger survived.
 
 That topology now has a deterministic daemon owner driven by CultMath's
-Unity-compatible simplex noise. It remains a pre-materialization result until
-the fossil zone-body/entity generator is migrated; the daemon must not present
-an empty graph or the handcrafted Terminus proof arena as a completed tutorial.
-Once materialized, New Game may select it from player settings and Eve may lower
-its map and entry controls without becoming generation authority.
+Unity-compatible simplex noise. Every topology zone also has a daemon-owned
+celestial plan preserving the fossil's radius/mass curves, packed subzones,
+rosettes, solar systems, satellite and binary passes, asteroid belts, stable
+orbits, gravity curves, and sun/gas-giant presentation parameters. The old
+process-dependent string/hash seed has been replaced by a stable typed-zone
+seed; generated saves must reproduce across daemon processes.
+
+The world remains pre-session until station, ship, player-entry, and wormhole
+entities are materialized. The daemon must not present a celestial-only graph
+or the handcrafted Terminus proof arena as a completed tutorial. Once entity
+materialization is complete, New Game may select it from player settings and
+Eve may lower its map and entry controls without becoming generation authority.
 
 ## Current Mechanism
 
