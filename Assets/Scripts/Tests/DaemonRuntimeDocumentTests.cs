@@ -4584,12 +4584,34 @@ public class DaemonRuntimeDocumentTests
         run.CurrentEntityKey = "zone.0.entity.1";
         run.Zones[0].Entities[0].DockingBayAssignments = new[] { 1 };
         run.Zones[0].Entities[0].ChildEntityIndices = new[] { 1 };
+        var ore = CatalogItem("ore", Array.Empty<AetheriaRuntimeBehaviorPayload>(), price: 40, stackable: true);
+        ore.MaxStack = 10;
+        ore.ShapeWidth = 1;
+        ore.ShapeHeight = 1;
+        ore.OccupiedCells = 1;
+        ore.ShapeCells = new[] { new AetheriaRuntimeShapeCell(0, 0) };
+        var cargoBay = CatalogItem("trade-test-cargo-bay", Array.Empty<AetheriaRuntimeBehaviorPayload>());
+        cargoBay.InteriorShapeWidth = 1;
+        cargoBay.InteriorShapeHeight = 1;
+        cargoBay.InteriorOccupiedCells = 1;
+        cargoBay.InteriorShapeCells = new[] { new AetheriaRuntimeShapeCell(0, 0) };
+        run.Zones[0].Entities[1].CargoBays = new[]
+        {
+            new AetheriaRuntimeLoadoutItemSlotCommit
+            {
+                Item = new AetheriaRuntimeLoadoutItemCommit
+                {
+                    ItemKey = cargoBay.ItemKey,
+                    Quantity = 1
+                }
+            }
+        };
         var command = AetheriaRuntimeDaemonCommandDocument.Create(
             AetheriaRuntimeDaemonCommandKinds.TradePurchase,
             "codex",
             "session-trade",
             30,
-            "zone.0.entity.0");
+            "zone.0.entity.1");
         command.TargetEntityKey = "zone.0.entity.1";
         command.TextValue = "ore";
         command.ScalarValue = 200;
@@ -4612,7 +4634,7 @@ public class DaemonRuntimeDocumentTests
             new AetheriaRuntimeDaemonOperationContext
             {
                 Catalog = new AetheriaRuntimeCatalogSnapshot(
-                    new[] { CatalogItem("ore", Array.Empty<AetheriaRuntimeBehaviorPayload>(), price: 40) },
+                    new[] { ore, cargoBay },
                     Array.Empty<AetheriaRuntimeCorporation>(),
                     Array.Empty<AetheriaRuntimeNameFile>())
             });

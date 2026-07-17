@@ -3045,7 +3045,15 @@ purchase reads the stock left by the preceding command in that frame, so two
 clients requesting the final stack produce one atomic debit/delivery and one
 typed `trade-stock-unavailable` rejection. World state and both committed
 command facts survive a hard CultCache close/reopen; generic Eve reconstructs
-the reconciled and denied receipts without owning economy logic. Runtime loadout
+the reconciled and denied receipts without owning economy logic. Commodity
+delivery shares the inventory owner's cloned spatial transaction: existing
+compatible stacks fill first, remaining quantity splits at the catalog maximum,
+and each new stack claims the first fitting authored bay cells before stock,
+cargo, or credits commit. The old volume-only capacity proxy is no longer a
+trade writer. The fossil had no durable quote object or expiry transition; it
+displayed current value and bought immediately, so purchase execution derives
+the current authoritative value instead of adding a counterfeit quote owner.
+Runtime loadout
 restore follows the same rule: UI requests restoration, and the daemon owns
 instantiation, credits, dock assignment, current entity, and checkpoint. Docked
 current-ship selection follows the same rule: UI requests selection, and the

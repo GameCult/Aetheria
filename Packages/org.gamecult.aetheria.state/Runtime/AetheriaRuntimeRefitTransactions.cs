@@ -173,9 +173,15 @@ namespace GameCult.Aetheria.State.Verse
 
                 if (remaining > 0)
                 {
-                    moved.Item.Quantity = remaining;
-                    if (!TryPlaceCargoSlot(destinationItems, bay, item, moved, 0, 0, false, catalog))
-                        return Reject(AetheriaRuntimeDaemonRejectionReasons.CargoNoFit, out rejectionReason);
+                    var maxStack = item.Stackable ? Math.Max(1, item.MaxStack) : 1;
+                    while (remaining > 0)
+                    {
+                        var placed = CloneSlot(moved);
+                        placed.Item.Quantity = Math.Min(remaining, maxStack);
+                        if (!TryPlaceCargoSlot(destinationItems, bay, item, placed, 0, 0, false, catalog))
+                            return Reject(AetheriaRuntimeDaemonRejectionReasons.CargoNoFit, out rejectionReason);
+                        remaining -= placed.Item.Quantity;
+                    }
                 }
             }
 

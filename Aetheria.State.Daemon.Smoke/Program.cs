@@ -6802,12 +6802,26 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
 
     private static void TradePurchaseDerivesAcceptanceFromDaemonState()
     {
-        var ore = CatalogItem("trade-ore"); ore.Price = 40; ore.Volume = 1;
-        var cargoBay = CatalogItem("trade-cargo-bay"); cargoBay.InteriorOccupiedCells = 10;
+        var ore = CatalogItem("trade-ore");
+        ore.Price = 40;
+        ore.Volume = 1;
+        ore.Stackable = true;
+        ore.MaxStack = 4;
+        ore.ShapeCells = [new AetheriaRuntimeShapeCell(0, 0)];
+        var cargoBay = CatalogItem("trade-cargo-bay");
+        cargoBay.InteriorShapeWidth = 3;
+        cargoBay.InteriorShapeHeight = 1;
+        cargoBay.InteriorOccupiedCells = 3;
+        cargoBay.InteriorShapeCells =
+        [
+            new AetheriaRuntimeShapeCell(0, 0),
+            new AetheriaRuntimeShapeCell(1, 0),
+            new AetheriaRuntimeShapeCell(2, 0)
+        ];
         var catalog = new AetheriaRuntimeCatalogSnapshot([ore, cargoBay], [], []);
         var station = Entity(0, 0, "station");
         station.Kind = "station";
-        station.CargoContents = [Cargo((ore.ItemKey, 10, 2, 3))];
+        station.CargoContents = [Cargo((ore.ItemKey, 4, 2, 3), (ore.ItemKey, 4, 3, 3))];
         station.DockingBayAssignments = [1];
         station.ChildEntityIndices = [1];
         var ship = Entity(1, 0, "player");
@@ -6815,7 +6829,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         {
             Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = cargoBay.ItemKey, Quantity = 1 }
         }];
-        ship.CargoContents = [Cargo()];
+        ship.CargoContents = [Cargo((ore.ItemKey, 3, 0, 0))];
         var zone = new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [station, ship] };
         var run = new AetheriaRuntimeRunCheckpointCommit
         {
@@ -6832,7 +6846,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             1,
             run.CurrentEntityKey);
         command.TradePurchase.ItemKey = ore.ItemKey;
-        command.TradePurchase.Quantity = 5;
+        command.TradePurchase.Quantity = 4;
         command.TradePurchase.StationCargoIndex = 0;
         command.TradePurchase.TargetCargoIndex = 0;
         command.TradePurchase.SourceX = 2;
@@ -6846,8 +6860,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
 
         Require(AetheriaRuntimeRunCheckpointCommit.TryParseEntityKey(run.CurrentEntityKey, out _, out _),
             "trade smoke current entity key must be daemon-resolvable");
-        RequireEqual(10, AetheriaRuntimeCargoCapacityQueries.UnitsThatFit(ship, catalog, ore.ItemKey, 0),
-            "trade smoke cargo fixture must have room for the requested commodity");
+        RequireEqual(0, AetheriaRuntimeCargoCapacityQueries.UnitsThatFit(ship, catalog, ore.ItemKey, 0),
+            "the old volume-only capacity proxy must expose why it cannot own spatial stack placement");
         var daemonUnitPrice = AetheriaRuntimeDaemonTradeItemQueries.TradeItemValue(
             ore,
             station.CargoContents[0].Items[0].Item,
@@ -6861,9 +6875,14 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
 
         Require(result.AppliedCommandIds.Contains(command.CommandId),
             "daemon must accept a valid commodity purchase regardless of forged compatibility opinions");
-        RequireEqual(5000 - daemonUnitPrice * 5, run.Credits,
+        RequireEqual(5000 - daemonUnitPrice * 4, run.Credits,
             "daemon catalog price must own trade credit mutation");
-        RequireEqual(5, CargoQuantity(ship, ore.ItemKey), "daemon cargo capacity and placement must own delivery");
+        RequireEqual(7, CargoQuantity(ship, ore.ItemKey), "daemon cargo capacity and placement must own delivery");
+        Require(ship.CargoContents.Single().Items
+                .Where(slot => slot.Item.ItemKey == ore.ItemKey)
+                .Select(slot => (slot.X, slot.Y, slot.Item.Quantity))
+                .SequenceEqual([(0, 0, 4), (1, 0, 3)]),
+            "a purchase must fill an existing stack before placing the remainder in the first authored free cell");
         RequireEqual(2, zone.Entities.Count, "forged ship-creation opinion must not materialize an entity");
 
         AetheriaRuntimeDaemonCommandDocument Contender(string clientId, string commandId)
@@ -6876,10 +6895,10 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 run.CurrentEntityKey);
             contender.CommandId = commandId;
             contender.TradePurchase.ItemKey = ore.ItemKey;
-            contender.TradePurchase.Quantity = 5;
+            contender.TradePurchase.Quantity = 4;
             contender.TradePurchase.StationCargoIndex = 0;
             contender.TradePurchase.TargetCargoIndex = 0;
-            contender.TradePurchase.SourceX = 2;
+            contender.TradePurchase.SourceX = 3;
             contender.TradePurchase.SourceY = 3;
             return contender;
         }
@@ -6899,9 +6918,9 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         RequireEqual(AetheriaRuntimeDaemonRejectionReasons.TradeStockUnavailable,
             contested.RejectedCommandReasons[secondClient.CommandId],
             "contested stock must retain the exact daemon-owned rejection reason");
-        RequireEqual(creditsBeforeContest - daemonUnitPrice * 5, run.Credits,
+        RequireEqual(creditsBeforeContest - daemonUnitPrice * 4, run.Credits,
             "contested stock must debit the shared run wallet exactly once");
-        RequireEqual(10, CargoQuantity(ship, ore.ItemKey),
+        RequireEqual(11, CargoQuantity(ship, ore.ItemKey),
             "contested stock must deliver exactly one winning stack quantity");
         RequireEqual(0, CargoQuantity(station, ore.ItemKey),
             "the winning purchase must exhaust authoritative station stock");
@@ -6966,7 +6985,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                     "CultCache reconnect must preserve the single authoritative debit");
                 RequireEqual(0, CargoQuantity(durableStation, ore.ItemKey),
                     "CultCache reconnect must not resurrect contested station stock");
-                RequireEqual(10, CargoQuantity(durableShip, ore.ItemKey),
+                RequireEqual(11, CargoQuantity(durableShip, ore.ItemKey),
                     "CultCache reconnect must preserve the winning cargo delivery exactly once");
                 RequireEqual("reconciled", AetheriaRuntimeDaemonReceiptProjector.Project(
                         durableWinner, AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId).State,

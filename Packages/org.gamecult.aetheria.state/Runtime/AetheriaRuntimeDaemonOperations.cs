@@ -1083,27 +1083,32 @@ namespace GameCult.Aetheria.State.Verse
                     Math.Max(0, purchase.TargetCargoIndex),
                     out var targetEntity,
                     out var targetCargoIndex,
-                    out _) ||
-                quantity > AetheriaRuntimeCargoCapacityQueries.UnitsThatFit(targetEntity, catalog, itemKey, targetCargoIndex))
+                    out _))
             {
                 return context.Reject(AetheriaRuntimeDaemonRejectionReasons.TradeTargetNoFit);
             }
 
-            if (!TryRemoveCargoItemQuantity(
+            if (!AetheriaRuntimeRefitTransactions.TryTransferCargo(
                     stationEntity,
                     stationCargoIndex,
-                    itemKey,
                     purchase.SourceX,
                     purchase.SourceY,
+                    targetEntity,
+                    targetCargoIndex,
+                    itemKey,
                     quantity,
-                    out var purchasedSlot))
+                    0,
+                    0,
+                    false,
+                    catalog,
+                    out var cargoReason))
             {
-                return context.Reject(AetheriaRuntimeDaemonRejectionReasons.TradeStockUnavailable);
+                return context.Reject(
+                    string.Equals(cargoReason, AetheriaRuntimeDaemonRejectionReasons.InvalidCargoSource, StringComparison.Ordinal)
+                        ? AetheriaRuntimeDaemonRejectionReasons.TradeStockUnavailable
+                        : AetheriaRuntimeDaemonRejectionReasons.TradeTargetNoFit);
             }
 
-            purchasedSlot.X = 0;
-            purchasedSlot.Y = 0;
-            AddCargoItem(targetEntity, targetCargoIndex, purchasedSlot);
             run.Credits -= totalPrice;
             return true;
         }
