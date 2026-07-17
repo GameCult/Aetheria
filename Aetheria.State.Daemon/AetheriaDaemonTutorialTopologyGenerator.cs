@@ -4,7 +4,10 @@ public sealed record AetheriaDaemonTutorialFactionInput(
     string CorporationKey,
     string Name,
     string ShortName,
-    int InfluenceDistance);
+    int InfluenceDistance)
+{
+    public IReadOnlyList<string> TrainingNames { get; init; } = Array.Empty<string>();
+}
 
 public sealed record AetheriaDaemonTutorialTopologySettings(
     int ZoneCount,
@@ -27,6 +30,7 @@ public sealed record AetheriaDaemonTutorialTopologySettings(
 
 public sealed record AetheriaDaemonTutorialZoneTopology(
     int ZoneIndex,
+    string Name,
     float X,
     float Y,
     IReadOnlyList<int> AdjacentZoneIndices,
@@ -115,11 +119,17 @@ public static class AetheriaDaemonTutorialTopologyGenerator
                     string.Equals(value.CorporationKey, name, StringComparison.OrdinalIgnoreCase));
             if (match == null || string.IsNullOrWhiteSpace(match.CorporationKey))
                 throw new InvalidDataException($"Tutorial generation requires the authored faction '{name}'.");
+            var nameFile = catalog.FindNameFile(match.GeonameFileKey);
+            if (nameFile == null || nameFile.Names.Count == 0)
+                throw new InvalidDataException($"Tutorial faction '{name}' has no typed geoname corpus.");
             return new AetheriaDaemonTutorialFactionInput(
                 match.CorporationKey,
                 match.Name ?? "",
                 match.ShortName ?? "",
-                match.InfluenceDistance);
+                match.InfluenceDistance)
+            {
+                TrainingNames = nameFile.Names
+            };
         }).ToArray();
     }
 
@@ -178,9 +188,12 @@ public static class AetheriaDaemonTutorialTopologyGenerator
             .OrderBy(index => index)
             .ToArray();
 
+        var nameSeed = (uint)random.NextInt(1, int.MaxValue);
+        var zoneNames = GenerateNames(roles.All, owners, nameSeed);
         var zones = Enumerable.Range(0, points.Length)
             .Select(index => new AetheriaDaemonTutorialZoneTopology(
                 index,
+                zoneNames[index],
                 points[index].X,
                 points[index].Y,
                 Neighbors(index, links).OrderBy(value => value).ToArray(),
@@ -216,6 +229,44 @@ public static class AetheriaDaemonTutorialTopologyGenerator
         if (all.Length != 4 + neutrals.Length)
             throw new InvalidDataException("Tutorial faction roles must resolve to distinct corporations.");
         return new TutorialRoles(protagonist, antagonist, buffer, neutrals, quest, all);
+    }
+
+    private static string[] GenerateNames(
+        IReadOnlyList<AetheriaDaemonTutorialFactionInput> factions,
+        IReadOnlyList<string> ownerKeys,
+        uint seed)
+    {
+        var generators = new Dictionary<string, TutorialMarkovNameGenerator>(StringComparer.Ordinal);
+        foreach (var faction in factions)
+        {
+            if (faction.TrainingNames.Count == 0)
+                throw new InvalidDataException($"Tutorial faction '{faction.ShortName}' has no geoname training rows.");
+            generators[faction.CorporationKey] = new TutorialMarkovNameGenerator(
+                seed,
+                faction.TrainingNames,
+                order: 3,
+                minimumLength: 5,
+                maximumLength: 10);
+        }
+
+        var catalogRandom = new CultMath.Random(seed);
+        var used = new HashSet<string>(StringComparer.Ordinal);
+        var output = new string[ownerKeys.Count];
+        for (var zoneIndex = 0; zoneIndex < ownerKeys.Count; zoneIndex++)
+        {
+            var owner = ownerKeys[zoneIndex];
+            if (owner.Length == 0)
+            {
+                string candidate;
+                do candidate = $"EAC-{catalogRandom.NextInt(9999)}";
+                while (!used.Add(candidate));
+                output[zoneIndex] = candidate;
+                continue;
+            }
+
+            output[zoneIndex] = generators[owner].Next(used);
+        }
+        return output;
     }
 
     private static Point[] GeneratePoints(
@@ -580,4 +631,67 @@ public static class AetheriaDaemonTutorialTopologyGenerator
         IReadOnlyList<AetheriaDaemonTutorialFactionInput> Neutrals,
         AetheriaDaemonTutorialFactionInput Quest,
         AetheriaDaemonTutorialFactionInput[] All);
+
+    private sealed class TutorialMarkovNameGenerator
+    {
+        private readonly Dictionary<string, List<char>> _chains = new(StringComparer.Ordinal);
+        private readonly List<string> _samples = [];
+        private readonly int _order;
+        private readonly int _minimumLength;
+        private readonly int _maximumLength;
+        private CultMath.Random _random;
+
+        public TutorialMarkovNameGenerator(
+            uint seed,
+            IEnumerable<string> sampleNames,
+            int order,
+            int minimumLength,
+            int maximumLength)
+        {
+            _random = new CultMath.Random(seed);
+            _order = Math.Max(1, order);
+            _minimumLength = Math.Max(1, minimumLength);
+            _maximumLength = maximumLength;
+            var names = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var line in sampleNames)
+            foreach (var word in (line ?? "").ToUpperInvariant().Split(' ', ',', '.', '"'))
+                if (word.Length >= _minimumLength) names.Add(word);
+
+            foreach (var line in names)
+            foreach (var word in line.Split(' ', '\'', '(', ')'))
+            {
+                var lower = word.Trim().ToLowerInvariant();
+                if (lower.Length >= _order + 1) _samples.Add(lower + "|");
+            }
+            foreach (var word in _samples)
+            for (var letter = 0; letter < word.Length - _order; letter++)
+            {
+                var token = word.Substring(letter, _order);
+                if (!_chains.TryGetValue(token, out var row))
+                    _chains[token] = row = [];
+                row.Add(word[letter + _order]);
+            }
+            if (_samples.Count == 0)
+                throw new InvalidDataException("Tutorial geoname corpus contains no usable Markov samples.");
+        }
+
+        public string Next(ISet<string> used)
+        {
+            for (var attempt = 0; attempt < 1_000_000; attempt++)
+            {
+                var sample = _samples[_random.NextInt(0, _samples.Count)];
+                var value = sample.Substring(0, _order);
+                while (_chains.TryGetValue(value.Substring(value.Length - _order, _order), out var row))
+                {
+                    var next = row[_random.NextInt(0, row.Count)];
+                    if (next == '|') break;
+                    value += next;
+                }
+                value = char.ToUpperInvariant(value[0]) + value.Substring(1);
+                if (value.Length >= _minimumLength && value.Length <= _maximumLength && used.Add(value))
+                    return value;
+            }
+            throw new InvalidOperationException("Tutorial Markov corpus could not produce another unique zone name.");
+        }
+    }
 }

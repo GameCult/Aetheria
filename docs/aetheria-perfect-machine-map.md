@@ -1115,10 +1115,11 @@ the Terminus proof arena cannot award completion.
   ten-octave simplex cloud-density field.
 - Outputs: a deterministic connected zone graph with stable positions,
   adjacency, faction presence/ownership, home zones, entrance, discovery set,
-  and the selected cloud-noise position.
+  selected cloud-noise position, and unique faction-trained Markov names.
 - Derived state: the sector map and eventual zone materialization consume this
-  topology. Names, bodies, stations, ships, and Eve map rendering do not get to
-  revise it.
+  topology. Bodies, stations, ships, and Eve map rendering do not get to revise
+  it; names are generated once inside the topology owner from typed geoname
+  corpora because the fossil used them to seed later zone generation.
 - Forbidden writers: Unity `MainMenu`, `Galaxy`, `ZoneGenerator`, scene objects,
   and Eve clients cannot generate or repair tutorial topology.
 - Shared paths: generation and parity smoke use the same CultMath random stream,

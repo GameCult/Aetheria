@@ -72,7 +72,12 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
     private static void TutorialTopologyIsDeterministicConnectedAndRoleOwned()
     {
         AetheriaDaemonTutorialFactionInput Faction(string shortName, int influence = 2) =>
-            new($"faction.{shortName.ToLowerInvariant()}", shortName, shortName, influence);
+            new($"faction.{shortName.ToLowerInvariant()}", shortName, shortName, influence)
+            {
+                TrainingNames = Enumerable.Range(0, 512).Select(index =>
+                    $"{(char)('a' + index % 26)}{(char)('a' + index / 26 % 26)}{(char)('a' + index / 676 % 26)}{shortName.ToLowerInvariant()}")
+                    .ToArray()
+            };
         var factions = new[]
         {
             Faction("Miss"),
@@ -86,6 +91,9 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         var second = AetheriaDaemonTutorialTopologyGenerator.GenerateFossil(factions, 0xA37E_2026u);
         RequireEqual(64, first.Zones.Count,
             "the daemon tutorial must retain the authored 64-zone topology size");
+        Require(first.Zones.All(zone => !string.IsNullOrWhiteSpace(zone.Name)) &&
+                first.Zones.Select(zone => zone.Name).Distinct(StringComparer.Ordinal).Count() == first.Zones.Count,
+            "daemon tutorial naming must produce one stable unique catalog name per zone");
         Require(first.Zones.Select(zone => (zone.X, zone.Y, string.Join(',', zone.AdjacentZoneIndices)))
                 .SequenceEqual(second.Zones.Select(zone => (zone.X, zone.Y, string.Join(',', zone.AdjacentZoneIndices)))),
             "tutorial topology must be deterministic for a fixed daemon seed and density field");
