@@ -155,6 +155,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             VolumeSurfaceKeepsNativeShaderAbiInAssetVariant,
             YmirMovesProjectileAndReportsStableContact,
             InstantWeaponRequestSurvivesLockAcquisition,
+            GuidedWeaponPublishesPresentationProfileWithoutPhysicalAuthority,
             CombatLockSurvivesPublicFrameRestart,
             ConstantWeaponRunsOnDaemonThroughYmirBeamContact,
             ChargedWeaponCannotBypassChargeLifecycle,
@@ -2642,6 +2643,100 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 node.Props["reason"] == "target-invalid" &&
                 double.Parse(node.Props["auxiliaryValue"], CultureInfo.InvariantCulture) > 0.99),
             "Eve feedback must project the daemon lock-loss transition and its prior completed progress");
+    }
+
+    private static void GuidedWeaponPublishesPresentationProfileWithoutPhysicalAuthority()
+    {
+        var source = Entity(0, 0, "player");
+        source.DirectionX = 1;
+        source.TargetEntityIndex = 1;
+        source.Contacts = [new AetheriaRuntimeEntityContactCommit
+        {
+            TargetEntityIndex = 1, InfoGathered = 1, Hostile = true, Visible = true
+        }];
+        source.WeaponGroups = [new[] { 0 }];
+        source.Equipment = [new AetheriaRuntimeLoadoutItemSlotCommit
+        {
+            Item = new AetheriaRuntimeLoadoutItemCommit
+                { ItemKey = "test-launcher", Quality = 1, Durability = 1, Enabled = true }
+        }];
+        var target = Entity(1, 80, "raider");
+        var zone = new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [source, target] };
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "guided-presentation-smoke", CurrentZoneIndex = 0,
+            CurrentEntityKey = "zone.0.entity.0", Zones = [zone]
+        };
+        var guidance = Curve(
+            new AetheriaRuntimeCurveKey(0, 0.25, 0, 0),
+            new AetheriaRuntimeCurveKey(1, 1, 0, 0));
+        var thrust = Curve(
+            new AetheriaRuntimeCurveKey(0, 1, 0, 0),
+            new AetheriaRuntimeCurveKey(1, 0.5, 0, 0));
+        var lift = Curve(
+            new AetheriaRuntimeCurveKey(0, 0, 0, 0),
+            new AetheriaRuntimeCurveKey(1, 0.75, 0, 0));
+        var payload = new AetheriaRuntimeBehaviorPayload(0, AetheriaRuntimeBehaviorKinds.Launcher, 0,
+        [
+            new AetheriaRuntimeBehaviorField(2, PerformanceStat(10)),
+            new AetheriaRuntimeBehaviorField(6, PerformanceStat(150)),
+            new AetheriaRuntimeBehaviorField(16, PerformanceStat(20)),
+            new AetheriaRuntimeBehaviorField(17, PerformanceStat(1)),
+            new AetheriaRuntimeBehaviorField(19, PerformanceStat(0.1)),
+            new AetheriaRuntimeBehaviorField(21, PerformanceStat(100)),
+            new AetheriaRuntimeBehaviorField(22, PerformanceStat(0)),
+            new AetheriaRuntimeBehaviorField(23, PerformanceStat(180)),
+            new AetheriaRuntimeBehaviorField(24, PerformanceStat(1)),
+            new AetheriaRuntimeBehaviorField(25, PerformanceStat(1)),
+            new AetheriaRuntimeBehaviorField(26, guidance),
+            new AetheriaRuntimeBehaviorField(27, thrust),
+            new AetheriaRuntimeBehaviorField(28, lift),
+            new AetheriaRuntimeBehaviorField(29, PerformanceStat(5)),
+            new AetheriaRuntimeBehaviorField(30, Number(2)),
+            new AetheriaRuntimeBehaviorField(31, PerformanceStat(40))
+        ]);
+        var catalog = new AetheriaRuntimeCatalogSnapshot([CatalogItem("test-launcher", payload)], [], []);
+        var fire = new AetheriaRuntimeDaemonIntentState();
+        fire.WeaponGroups.Add(new AetheriaRuntimeDaemonWeaponGroupIntent
+            { ActorEntityKey = run.CurrentEntityKey, WeaponGroup = 0, Fire = true, Active = true });
+
+        for (var frame = 0; frame < 4 && run.ShotReceipts.Count == 0; frame++)
+            AetheriaRuntimeDaemonSimulation.Step(run,
+                frame == 0 ? fire : new AetheriaRuntimeDaemonIntentState(), 0.1,
+                AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
+                NewPhysics(), catalog, frame, frame * 0.1);
+
+        RequireEqual(0, zone.PhysicalPayloads.Count,
+            "fossil guided presentation must not be promoted into a damage-owning Ymir body");
+        var receipt = run.ShotReceipts.Single(value => value.WeaponItemKey == "test-launcher");
+        RequireEqual("guided", receipt.PresentationKind,
+            "Launcher receipts must select the generic guided presentation path");
+        RequireEqual("target-entity", receipt.GuidanceMode,
+            "Launcher guidance must retain its fossil target-entity mode");
+        RequireEqual(2, receipt.GuidanceCurve.Count,
+            "guided receipt must retain the complete authored guidance curve");
+        RequireNear(5, receipt.GuidanceThrust, 0.000001,
+            "guided receipt must retain evaluated authored thrust");
+        RequireNear(40, receipt.GuidanceTopSpeed, 0.000001,
+            "guided receipt must retain evaluated authored missile velocity");
+        RequireNear(2, receipt.GuidanceDodgeFrequency, 0.000001,
+            "guided receipt must retain authored dodge frequency");
+        var restored = MessagePack.MessagePackSerializer.Deserialize<AetheriaRuntimeRunCheckpointCommit>(
+            MessagePack.MessagePackSerializer.Serialize(run));
+        RequireEqual("target-entity", restored.ShotReceipts.Single().GuidanceMode,
+            "guided presentation levers must survive daemon checkpoint restart");
+        var surface = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(
+            new AetheriaRuntimeDaemonFrameDocument { FrameId = 4, Run = run },
+            new AetheriaRuntimeDaemonHealthDocument(),
+            AetheriaRuntimeDaemonCommandBoundaryDocument.Create("daemon"));
+        var shot = Flatten(surface.Surface.Root).Single(node =>
+            node.Kind == "shot.receipt" && node.Props.TryGetValue("itemKey", out var itemKey) &&
+            itemKey == "test-launcher");
+        Require(shot.Props["guidanceMode"] == "target-entity" &&
+                shot.Props["guidanceCurve"] == "0,0.25,0,0;1,1,0,0" &&
+                shot.Props["guidanceThrustCurve"] == "0,1,0,0;1,0.5,0,0" &&
+                shot.Props["guidanceLiftCurve"] == "0,0,0,0;1,0.75,0,0",
+            "generic Eve shot facts must expose the authored guidance curves without provider internals");
     }
 
     private static void DeployableWeaponRunsThroughYmirAndDetonatesOnDaemon()

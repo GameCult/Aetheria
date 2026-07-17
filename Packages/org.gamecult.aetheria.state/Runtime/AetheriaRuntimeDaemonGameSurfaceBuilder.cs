@@ -558,6 +558,13 @@ namespace GameCult.Aetheria.State.Verse
                         ("presentationDuration", FormatNumber(value.PresentationDurationSeconds)),
                         ("presentationKind", value.PresentationKind),
                         ("presentationIntensity", FormatNumber(value.PresentationIntensity)),
+                        ("guidanceMode", value.GuidanceMode),
+                        ("guidanceCurve", FormatCurve(value.GuidanceCurve)),
+                        ("guidanceThrustCurve", FormatCurve(value.GuidanceThrustCurve)),
+                        ("guidanceLiftCurve", FormatCurve(value.GuidanceLiftCurve)),
+                        ("guidanceThrust", FormatNumber(value.GuidanceThrust)),
+                        ("guidanceTopSpeed", FormatNumber(value.GuidanceTopSpeed)),
+                        ("guidanceDodgeFrequency", FormatNumber(value.GuidanceDodgeFrequency)),
                         ("impactKind", value.ImpactKind),
                         ("impactAngleRoll", FormatNumber(value.ImpactAngleRoll)),
                         ("impactRadiusRoll", FormatNumber(value.ImpactRadiusRoll))
@@ -756,6 +763,15 @@ namespace GameCult.Aetheria.State.Verse
         private static string FormatNumber(double value)
         {
             return value.ToString("0.###", CultureInfo.InvariantCulture);
+        }
+
+        private static string FormatCurve(IReadOnlyList<AetheriaRuntimeCurveKey>? keys)
+        {
+            return keys == null || keys.Count == 0
+                ? ""
+                : string.Join(";", keys.Select(key => string.Join(",",
+                    FormatNumber(key.Time), FormatNumber(key.Value),
+                    FormatNumber(key.InTangent), FormatNumber(key.OutTangent))));
         }
 
         private static string Join(IReadOnlyList<string>? values)

@@ -923,6 +923,30 @@ lifecycle state.
   weapon smokes also prove those side effects for instant, constant, charged,
   and deployable transactions, including the charged visibility multiplier.
 
+### Guided Shot Presentation Contract
+
+- Owner: the daemon's ordinary shot transaction owns hit and damage for
+  `GuidedWeapon` and `Launcher`, exactly as it does for the fossil weapon event.
+- Inputs: authored target mode, guidance/thrust/lift curves, thrust, missile top
+  speed, dodge frequency, range, origin, endpoint, and stable shot identity.
+- Outputs: a retained `shot.receipt` with `presentationKind=guided` and the
+  complete runtime-neutral guidance profile; it survives checkpoint restart and
+  reaches generic Eve shot facts.
+- Derived state: missile steering, split/fade particles, trail geometry, and hit
+  visuals are client presentation. Provider prefab parameters may style those
+  effects but cannot decide damage or contact.
+- Forbidden writers: Unity casts, visual missile transforms, and generic Eve
+  lowerers cannot damage, retarget canonical state, or create an ordinary Ymir
+  gameplay body.
+- Shared paths: `Launcher` retains target-entity guidance and `GuidedWeapon`
+  retains look-direction guidance; both commit through the same lock, resource,
+  wear, visibility, shot, and damage transactions as other instant weapons.
+- Cut line: the roadmap no longer asks for guided persistent payloads. The fossil
+  projectile was a visual follower after damage authority had already fired.
+- Verification: daemon smoke proves no physical payload is created, every
+  authored curve/scalar reaches the receipt and Eve surface, `Launcher` selects
+  the guided presentation kind, and the profile survives serialization.
+
 ### Daemon Damage Transaction
 
 - Owner: the daemon's canonical damage transaction owns damage-layer ordering

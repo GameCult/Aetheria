@@ -536,6 +536,13 @@ namespace GameCult.Aetheria.State.Verse
         [Key(36)] public double ArmorAppliedDamage { get; set; }
         [Key(37)] public double EquipmentAppliedDamage { get; set; }
         [Key(38)] public IReadOnlyList<AetheriaRuntimeDamageCellCommit> DamageCells { get; set; } = Array.Empty<AetheriaRuntimeDamageCellCommit>();
+        [Key(39)] public string GuidanceMode { get; set; } = "none";
+        [Key(40)] public IReadOnlyList<AetheriaRuntimeCurveKey> GuidanceCurve { get; set; } = Array.Empty<AetheriaRuntimeCurveKey>();
+        [Key(41)] public IReadOnlyList<AetheriaRuntimeCurveKey> GuidanceThrustCurve { get; set; } = Array.Empty<AetheriaRuntimeCurveKey>();
+        [Key(42)] public IReadOnlyList<AetheriaRuntimeCurveKey> GuidanceLiftCurve { get; set; } = Array.Empty<AetheriaRuntimeCurveKey>();
+        [Key(43)] public double GuidanceThrust { get; set; }
+        [Key(44)] public double GuidanceTopSpeed { get; set; }
+        [Key(45)] public double GuidanceDodgeFrequency { get; set; }
     }
 
     [MessagePackObject]

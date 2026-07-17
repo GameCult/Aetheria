@@ -1586,7 +1586,14 @@ namespace GameCult.Aetheria.State.Verse
                 DamageSpread = weapon.DamageSpread,
                 ArmorAppliedDamage = damage.ArmorAppliedDamage,
                 EquipmentAppliedDamage = damage.EquipmentAppliedDamage,
-                DamageCells = damage.Cells
+                DamageCells = damage.Cells,
+                GuidanceMode = weapon.Guidance?.Mode ?? "none",
+                GuidanceCurve = weapon.Guidance?.GuidanceCurve ?? Array.Empty<AetheriaRuntimeCurveKey>(),
+                GuidanceThrustCurve = weapon.Guidance?.ThrustCurve ?? Array.Empty<AetheriaRuntimeCurveKey>(),
+                GuidanceLiftCurve = weapon.Guidance?.LiftCurve ?? Array.Empty<AetheriaRuntimeCurveKey>(),
+                GuidanceThrust = weapon.Guidance?.Thrust ?? 0,
+                GuidanceTopSpeed = weapon.Guidance?.TopSpeed ?? 0,
+                GuidanceDodgeFrequency = weapon.Guidance?.DodgeFrequency ?? 0
             });
             AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit
             {
@@ -1913,7 +1920,24 @@ namespace GameCult.Aetheria.State.Verse
                 Math.Max(0, behavior.EvaluateStat(15)),
                 ReadEnumName(behavior.Payload, 1, "Kinetic"),
                 Math.Max(0, behavior.EvaluateStat(3)),
-                Math.Max(0, behavior.EvaluateStat(4)));
+                Math.Max(0, behavior.EvaluateStat(4)),
+                ResolveGuidedPresentation(behavior));
+        }
+
+        private static ResolvedGuidedPresentation? ResolveGuidedPresentation(
+            AetheriaRuntimeEquippedBehavior behavior)
+        {
+            if (string.Equals(behavior.Payload.Kind, AetheriaRuntimeBehaviorKinds.Launcher, StringComparison.Ordinal))
+                return new ResolvedGuidedPresentation(
+                    "target-entity", ReadCurve(behavior.Payload, 26), ReadCurve(behavior.Payload, 27),
+                    ReadCurve(behavior.Payload, 28), Math.Max(0, behavior.EvaluateStat(29)),
+                    Math.Max(0, behavior.EvaluateStat(31)), Math.Max(0, ReadNumber(behavior.Payload, 30)));
+            if (string.Equals(behavior.Payload.Kind, AetheriaRuntimeBehaviorKinds.GuidedWeapon, StringComparison.Ordinal))
+                return new ResolvedGuidedPresentation(
+                    "look-direction", ReadCurve(behavior.Payload, 21), ReadCurve(behavior.Payload, 22),
+                    ReadCurve(behavior.Payload, 23), Math.Max(0, behavior.EvaluateStat(24)),
+                    Math.Max(0, behavior.EvaluateStat(26)), Math.Max(0, ReadNumber(behavior.Payload, 25)));
+            return null;
         }
 
         private static ResolvedWeapon ResolveFallbackWeapon(
@@ -1983,7 +2007,7 @@ namespace GameCult.Aetheria.State.Verse
             if (string.Equals(behaviorKind, AetheriaRuntimeBehaviorKinds.ConstantWeapon, StringComparison.Ordinal))
                 return "stream";
             if (string.Equals(behaviorKind, AetheriaRuntimeBehaviorKinds.Launcher, StringComparison.Ordinal))
-                return "bolt";
+                return "guided";
             return "bolt";
         }
 
@@ -1998,6 +2022,22 @@ namespace GameCult.Aetheria.State.Verse
         {
             return (payload.Fields ?? Array.Empty<AetheriaRuntimeBehaviorField>())
                 .FirstOrDefault(field => field != null && field.Key == key)?.Value?.NumberValue ?? 0;
+        }
+
+        private static IReadOnlyList<AetheriaRuntimeCurveKey> ReadCurve(
+            AetheriaRuntimeBehaviorPayload payload, int key)
+        {
+            var value = (payload.Fields ?? Array.Empty<AetheriaRuntimeBehaviorField>())
+                .FirstOrDefault(field => field != null && field.Key == key)?.Value;
+            var children = value?.Children ?? Array.Empty<AetheriaRuntimeBehaviorValue>();
+            if (children.Count == 1 && children[0]?.Children?.Count > 0)
+                children = children[0].Children;
+            return children
+                .Where(child => child?.Children != null && child.Children.Count >= 4)
+                .Select(child => new AetheriaRuntimeCurveKey(
+                    child.Children[0].NumberValue, child.Children[1].NumberValue,
+                    child.Children[2].NumberValue, child.Children[3].NumberValue))
+                .ToArray();
         }
 
         private static bool ReadBool(AetheriaRuntimeBehaviorPayload payload, int key)
@@ -2102,7 +2142,8 @@ namespace GameCult.Aetheria.State.Verse
                 double lockSpeed, double lockSensorImpact,
                 double lockAngleDegrees, double lockDirectionImpact, double lockDecayPerSecond,
                 double visibility = 0, double minRange = 0, double spread = 0, string damageType = "Kinetic",
-                double penetration = 0, double damageSpread = 0)
+                double penetration = 0, double damageSpread = 0,
+                ResolvedGuidedPresentation? guidance = null)
             {
                 State = state; ItemKey = itemKey; Damage = damage; Range = range; Cooldown = cooldown;
                 ProjectileSpeed = projectileSpeed; Heat = heat; Energy = energy; AmmoItemKey = ammoItemKey;
@@ -2112,6 +2153,7 @@ namespace GameCult.Aetheria.State.Verse
                 LockDirectionImpact = lockDirectionImpact; LockDecayPerSecond = lockDecayPerSecond;
                 Visibility = visibility; MinRange = minRange; Spread = spread;
                 DamageType = damageType; Penetration = penetration; DamageSpread = damageSpread;
+                Guidance = guidance;
             }
 
             public AetheriaRuntimeWeaponStateCommit State { get; }
@@ -2139,6 +2181,36 @@ namespace GameCult.Aetheria.State.Verse
             public string DamageType { get; }
             public double Penetration { get; }
             public double DamageSpread { get; }
+            public ResolvedGuidedPresentation? Guidance { get; }
+        }
+
+        private sealed class ResolvedGuidedPresentation
+        {
+            public ResolvedGuidedPresentation(
+                string mode,
+                IReadOnlyList<AetheriaRuntimeCurveKey> guidanceCurve,
+                IReadOnlyList<AetheriaRuntimeCurveKey> thrustCurve,
+                IReadOnlyList<AetheriaRuntimeCurveKey> liftCurve,
+                double thrust,
+                double topSpeed,
+                double dodgeFrequency)
+            {
+                Mode = mode ?? "none";
+                GuidanceCurve = guidanceCurve ?? Array.Empty<AetheriaRuntimeCurveKey>();
+                ThrustCurve = thrustCurve ?? Array.Empty<AetheriaRuntimeCurveKey>();
+                LiftCurve = liftCurve ?? Array.Empty<AetheriaRuntimeCurveKey>();
+                Thrust = thrust;
+                TopSpeed = topSpeed;
+                DodgeFrequency = dodgeFrequency;
+            }
+
+            public string Mode { get; }
+            public IReadOnlyList<AetheriaRuntimeCurveKey> GuidanceCurve { get; }
+            public IReadOnlyList<AetheriaRuntimeCurveKey> ThrustCurve { get; }
+            public IReadOnlyList<AetheriaRuntimeCurveKey> LiftCurve { get; }
+            public double Thrust { get; }
+            public double TopSpeed { get; }
+            public double DodgeFrequency { get; }
         }
 
         private sealed class ResolvedConstantWeapon
