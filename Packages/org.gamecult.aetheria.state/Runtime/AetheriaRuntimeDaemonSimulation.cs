@@ -115,6 +115,38 @@ namespace GameCult.Aetheria.State.Verse
                     settings.SecureAreaRadiusMultiplier);
                 AetheriaRuntimeMiningSimulation.Step(run, zone, entities, intents, catalog, frameId, simulationTimeSeconds, deltaSeconds);
                 AetheriaRuntimeSurveySimulation.Step(run, zone, entities, intents, catalog, frameId, simulationTimeSeconds, deltaSeconds);
+                FinalizeBehaviorChainsAndThermal(run, zone, entities, catalog, deltaSeconds, settings, frameId);
+            }
+        }
+
+        private static void FinalizeBehaviorChainsAndThermal(
+            AetheriaRuntimeRunCheckpointCommit run,
+            AetheriaRuntimeZoneSnapshotCommit zone,
+            IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities,
+            AetheriaRuntimeCatalogSnapshot? catalog,
+            double deltaSeconds,
+            AetheriaRuntimeDaemonSimulationSettings settings,
+            long frameId)
+        {
+            foreach (var entity in entities)
+            {
+                AetheriaRuntimeEnergySimulation.StepRadiators(entity, catalog, deltaSeconds);
+                AetheriaRuntimeBehaviorSimulation.CompleteDeferredChains(entity, catalog, deltaSeconds);
+                AetheriaRuntimeEnergySimulation.SettleReactors(entity, catalog, deltaSeconds);
+                AetheriaRuntimeThermalSimulation.Step(entity, deltaSeconds, catalog);
+                var medical = AetheriaRuntimeThermalMedicalSimulation.Step(
+                    entity, catalog, deltaSeconds, settings);
+                PublishThermalMedicalEvents(run, zone, entity, medical, frameId);
+                if (medical.Died)
+                    CommitDestruction(run, zone, entity, -1,
+                        $"thermal:{medical.DeathCause}", "", frameId, settings, medical.DeathCause);
+                entity.IsActive = IsAlive(entity);
+                if (!entity.IsActive)
+                {
+                    entity.VelocityX = 0;
+                    entity.VelocityY = 0;
+                    entity.TargetEntityIndex = -1;
+                }
             }
         }
 
@@ -654,26 +686,6 @@ namespace GameCult.Aetheria.State.Verse
             }
             ResolveDeployableDetonations(run, zone, combatEntities, frameId, simulationTimeSeconds, catalog, settings);
 
-            foreach (var entity in entities)
-            {
-                AetheriaRuntimeEnergySimulation.StepRadiators(entity, catalog, deltaSeconds);
-                AetheriaRuntimeBehaviorSimulation.CompleteDeferredChains(entity, catalog, deltaSeconds);
-                AetheriaRuntimeEnergySimulation.SettleReactors(entity, catalog, deltaSeconds);
-                AetheriaRuntimeThermalSimulation.Step(entity, deltaSeconds, catalog);
-                var medical = AetheriaRuntimeThermalMedicalSimulation.Step(
-                    entity, catalog, deltaSeconds, settings);
-                PublishThermalMedicalEvents(run, zone, entity, medical, frameId);
-                if (medical.Died)
-                    CommitDestruction(run, zone, entity, -1,
-                        $"thermal:{medical.DeathCause}", "", frameId, settings, medical.DeathCause);
-                entity.IsActive = IsAlive(entity);
-                if (!entity.IsActive)
-                {
-                    entity.VelocityX = 0;
-                    entity.VelocityY = 0;
-                    entity.TargetEntityIndex = -1;
-                }
-            }
         }
 
         private static void StepDeployableWeapons(

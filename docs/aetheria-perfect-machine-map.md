@@ -920,6 +920,33 @@ lifecycle state.
   behavior state plus an accepted generic Eve equipment placement and consumed
   source, then rebuilds generic Eve input capabilities from the restored frame.
 
+### Daemon Resource Behavior Chains
+
+- Owner: `MiningTool` and `ResourceScanner` each own the success or failure of
+  their authored behavior-chain position. Generic behavior execution pauses at
+  that position until the specialized daemon subsystem evaluates the requested
+  world target.
+- Inputs: chain admission from preceding switch/cooldown/resource gates, the
+  exact behavior intent, operational equipment state, authoritative body or
+  asteroid identity and pose, actor position, and evaluated range.
+- Outputs: a successful in-range mining or scanning transaction reports one
+  specialized success and resumes the remaining group once. Missing, expired,
+  or out-of-range targets report no success, so trailing heat, item use, wear,
+  or modifiers remain unreachable.
+- Derived state: scan progress, mining feedback, effects, audio, and UI progress
+  are projections of daemon behavior state and world transactions.
+- Forbidden writers: Unity behavior instances, agent presentation, Eve
+  lowerers, and a later reconciliation pass cannot declare the resource action
+  successful or execute its tail.
+- Shared order: inline gates run first; flight, combat, sensor, mining, and
+  survey owners evaluate their specialized work; deferred tails then complete;
+  reactors settle the complete tick's energy ledger; thermal integration and
+  medical consequences run last. Resource work can no longer occur after the
+  tick has already settled its energy and heat.
+- Verification: daemon smoke proves successful mining and scanning each consume
+  one authored trailing item, while otherwise identical out-of-range attempts
+  preserve cargo and leave the trailing behavior's `ChainReached` false.
+
 ### Daemon Orbital Turret Controller
 
 - Owner: each chain-admitted operational installed `TurretController` behavior owns automatic

@@ -16,7 +16,7 @@ namespace GameCult.Aetheria.State.Verse
             {
                 if (!intent.Active || !int.TryParse((intent.ActorEntityKey ?? "").Split('.').LastOrDefault(), out var index)) continue;
                 var entity = entities.FirstOrDefault(value => value.EntityIndex == index && value.IsActive);
-                var scanner = AetheriaRuntimeEquippedBehaviorQueries.FindOperational(entity, catalog, "ResourceScanner")
+                var scanner = AetheriaRuntimeEquippedBehaviorQueries.FindExecuting(entity, catalog, "ResourceScanner")
                     .FirstOrDefault(value => value.EquipmentIndex == intent.EquipmentIndex && value.BehaviorIndex == intent.BehaviorIndex);
                 if (entity == null || scanner == null) continue;
                 var body = (zone.Bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>()).FirstOrDefault(value => value != null && string.Equals(value.BodyKey, intent.TargetBodyKey, StringComparison.Ordinal));
@@ -34,6 +34,7 @@ namespace GameCult.Aetheria.State.Verse
                 }
                 var range = Math.Max(0, scanner.EvaluateStat(1));
                 if (Math.Pow(x - entity.PositionX, 2) + Math.Pow(z - entity.PositionZ, 2) >= range * range) continue;
+                AetheriaRuntimeBehaviorSimulation.ReportSpecializedResult(scanner, true);
                 var state = scanner.State;
                 if (!string.Equals(state.ResourceScannerTargetBodyKey, body.BodyKey, StringComparison.Ordinal)) state.ResourceScannerScanTime = 0;
                 state.ResourceScannerTargetBodyKey = body.BodyKey; state.ResourceScannerAsteroidIndex = intent.TargetAsteroidIndex;

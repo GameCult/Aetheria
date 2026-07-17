@@ -29,7 +29,7 @@ namespace GameCult.Aetheria.State.Verse
                 if (!intent.Active || !TryEntityIndex(intent.ActorEntityKey, out var minerIndex))
                     continue;
                 var miner = entities.FirstOrDefault(entity => entity.EntityIndex == minerIndex && entity.IsActive);
-                var tool = AetheriaRuntimeEquippedBehaviorQueries.FindOperational(miner, catalog, "MiningTool")
+                var tool = AetheriaRuntimeEquippedBehaviorQueries.FindExecuting(miner, catalog, "MiningTool")
                     .FirstOrDefault(candidate => candidate.EquipmentIndex == intent.EquipmentIndex && candidate.BehaviorIndex == intent.BehaviorIndex);
                 var body = (zone.Bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>())
                     .FirstOrDefault(candidate => candidate != null && string.Equals(candidate.BodyKey, intent.TargetBodyKey, StringComparison.Ordinal));
@@ -44,6 +44,7 @@ namespace GameCult.Aetheria.State.Verse
                 if (Math.Pow(pose.PositionX - miner.PositionX, 2) + Math.Pow(pose.PositionZ - miner.PositionZ, 2) > range * range)
                     continue;
 
+                AetheriaRuntimeBehaviorSimulation.ReportSpecializedResult(tool, true);
                 var damage = Math.Max(0, tool.EvaluateStat(1)) * deltaSeconds;
                 var efficiency = Math.Max(0, tool.EvaluateStat(2));
                 var penetration = Math.Max(0.001, tool.EvaluateStat(3));

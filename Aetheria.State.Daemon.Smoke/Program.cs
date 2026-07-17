@@ -798,6 +798,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             FossilVelocityBehaviorsRunInDaemonFlightStep,
             BehaviorChainsGateAuthoritativeStatModifiers,
             ResourceBehaviorsStopEquipmentChainsInAuthoredOrder,
+            MiningAndScanningResultsGateTrailingBehaviorChains,
             ThermotoggleSeedsAndGatesFromDaemonOwnedTarget,
             InputCapabilityPublishesExactBehaviorLevers,
             InputCapabilityPublishesConsumableActionBarState,
@@ -1111,6 +1112,190 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             Item = new AetheriaRuntimeLoadoutItemCommit
                 { ItemKey = itemKey, Enabled = true, Durability = 1, Quality = 1 }
         };
+    }
+
+    private static void MiningAndScanningResultsGateTrailingBehaviorChains()
+    {
+        var miningSuccess = MiningScenario(0, "mining-chain-success");
+        AetheriaRuntimeDaemonSimulation.Step(
+            miningSuccess.Run,
+            miningSuccess.Intents,
+            0.1,
+            AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
+            NewPhysics(),
+            miningSuccess.Catalog,
+            1,
+            0.1);
+        RequireEqual(0, CargoQuantity(miningSuccess.Entity, "mining-chain-charge"),
+            "a successful in-range MiningTool must resume its authored trailing ItemUsage exactly once");
+        var successfulMiningState = miningSuccess.Entity.BehaviorStates.Single(value =>
+            value.BehaviorKind == "MiningTool");
+        Require(successfulMiningState.ChainReached && successfulMiningState.ChainSucceeded &&
+                successfulMiningState.ChainCompleted,
+            "MiningTool success must be the explicit owner that completes its deferred behavior group");
+
+        var miningFailure = MiningScenario(100, "mining-chain-failure");
+        AetheriaRuntimeDaemonSimulation.Step(
+            miningFailure.Run,
+            miningFailure.Intents,
+            0.1,
+            AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
+            NewPhysics(),
+            miningFailure.Catalog,
+            1,
+            0.1);
+        RequireEqual(1, CargoQuantity(miningFailure.Entity, "mining-chain-charge"),
+            "an out-of-range MiningTool must stop before trailing cargo mutation");
+        Require(!miningFailure.Entity.BehaviorStates.Single(value =>
+                value.BehaviorKind == "MiningTool").ChainSucceeded &&
+                !miningFailure.Entity.BehaviorStates.Single(value =>
+                    value.BehaviorKind == "ItemUsage").ChainReached,
+            "MiningTool failure must leave every trailing behavior unreachable");
+
+        var scanSuccess = ScannerScenario(0, "scanner-chain-success");
+        AetheriaRuntimeDaemonSimulation.Step(
+            scanSuccess.Run,
+            scanSuccess.Intents,
+            0.1,
+            AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
+            NewPhysics(),
+            scanSuccess.Catalog,
+            1,
+            0.1);
+        RequireEqual(0, CargoQuantity(scanSuccess.Entity, "scanner-chain-charge"),
+            "a successful in-range ResourceScanner must resume its authored trailing ItemUsage exactly once");
+        var successfulScannerState = scanSuccess.Entity.BehaviorStates.Single(value =>
+            value.BehaviorKind == "ResourceScanner");
+        Require(successfulScannerState.ChainReached && successfulScannerState.ChainSucceeded &&
+                successfulScannerState.ChainCompleted,
+            "ResourceScanner success must be the explicit owner that completes its deferred behavior group");
+
+        var scanFailure = ScannerScenario(100, "scanner-chain-failure");
+        AetheriaRuntimeDaemonSimulation.Step(
+            scanFailure.Run,
+            scanFailure.Intents,
+            0.1,
+            AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
+            NewPhysics(),
+            scanFailure.Catalog,
+            1,
+            0.1);
+        RequireEqual(1, CargoQuantity(scanFailure.Entity, "scanner-chain-charge"),
+            "an out-of-range ResourceScanner must stop before trailing cargo mutation");
+        Require(!scanFailure.Entity.BehaviorStates.Single(value =>
+                value.BehaviorKind == "ResourceScanner").ChainSucceeded &&
+                !scanFailure.Entity.BehaviorStates.Single(value =>
+                    value.BehaviorKind == "ItemUsage").ChainReached,
+            "ResourceScanner failure must leave every trailing behavior unreachable");
+
+        static (AetheriaRuntimeRunCheckpointCommit Run,
+            AetheriaRuntimeDaemonIntentState Intents,
+            AetheriaRuntimeCatalogSnapshot Catalog,
+            AetheriaRuntimeEntitySnapshotCommit Entity) MiningScenario(double entityX, string runId)
+        {
+            var entity = Entity(0, entityX, "workers");
+            entity.Equipment = [new AetheriaRuntimeLoadoutItemSlotCommit
+            {
+                Item = new AetheriaRuntimeLoadoutItemCommit
+                    { ItemKey = "mining-chain-tool", Enabled = true, Durability = 1, Quality = 1 }
+            }];
+            entity.CargoContents = [Cargo(("mining-chain-charge", 1, 0, 0))];
+            var tool = CatalogItem("mining-chain-tool",
+                new AetheriaRuntimeBehaviorPayload(0, "MiningTool", 0,
+                [
+                    new AetheriaRuntimeBehaviorField(1, PerformanceStat(0)),
+                    new AetheriaRuntimeBehaviorField(2, PerformanceStat(0)),
+                    new AetheriaRuntimeBehaviorField(3, PerformanceStat(1)),
+                    new AetheriaRuntimeBehaviorField(4, PerformanceStat(10))
+                ]),
+                new AetheriaRuntimeBehaviorPayload(1, "ItemUsage", 0,
+                    [new AetheriaRuntimeBehaviorField(1, ItemKeyValue("mining-chain-charge"))]));
+            var catalog = new AetheriaRuntimeCatalogSnapshot(
+                [tool, CatalogItem("mining-chain-charge")], [], []);
+            var run = new AetheriaRuntimeRunCheckpointCommit
+            {
+                RunId = runId,
+                CurrentZoneIndex = 0,
+                CurrentEntityKey = "zone.0.entity.0",
+                Zones = [new AetheriaRuntimeZoneSnapshotCommit
+                {
+                    ZoneIndex = 0,
+                    Entities = [entity],
+                    Bodies = [new AetheriaRuntimeBodySnapshotCommit
+                    {
+                        BodyKey = "mining-chain-belt",
+                        Kind = "asteroid_belt",
+                        Asteroids = [new AetheriaRuntimeAsteroidCommit { Distance = 0, Size = 6 }]
+                    }]
+                }]
+            };
+            var intents = new AetheriaRuntimeDaemonIntentState();
+            intents.Behaviors.Add(new AetheriaRuntimeDaemonBehaviorIntent
+            {
+                ActorEntityKey = run.CurrentEntityKey,
+                EquipmentIndex = 0,
+                BehaviorIndex = 0,
+                Active = true,
+                TargetBodyKey = "mining-chain-belt",
+                TargetAsteroidIndex = 0
+            });
+            return (run, intents, catalog, entity);
+        }
+
+        static (AetheriaRuntimeRunCheckpointCommit Run,
+            AetheriaRuntimeDaemonIntentState Intents,
+            AetheriaRuntimeCatalogSnapshot Catalog,
+            AetheriaRuntimeEntitySnapshotCommit Entity) ScannerScenario(double entityX, string runId)
+        {
+            var entity = Entity(0, entityX, "workers");
+            entity.Equipment = [new AetheriaRuntimeLoadoutItemSlotCommit
+            {
+                Item = new AetheriaRuntimeLoadoutItemCommit
+                    { ItemKey = "scanner-chain-tool", Enabled = true, Durability = 1, Quality = 1 }
+            }];
+            entity.CargoContents = [Cargo(("scanner-chain-charge", 1, 0, 0))];
+            var scanner = CatalogItem("scanner-chain-tool",
+                new AetheriaRuntimeBehaviorPayload(0, "ResourceScanner", 0,
+                [
+                    new AetheriaRuntimeBehaviorField(1, PerformanceStat(10)),
+                    new AetheriaRuntimeBehaviorField(2, PerformanceStat(1)),
+                    new AetheriaRuntimeBehaviorField(3, PerformanceStat(10))
+                ]),
+                new AetheriaRuntimeBehaviorPayload(1, "ItemUsage", 0,
+                    [new AetheriaRuntimeBehaviorField(1, ItemKeyValue("scanner-chain-charge"))]));
+            var catalog = new AetheriaRuntimeCatalogSnapshot(
+                [scanner, CatalogItem("scanner-chain-charge")], [], []);
+            var run = new AetheriaRuntimeRunCheckpointCommit
+            {
+                RunId = runId,
+                CurrentZoneIndex = 0,
+                CurrentEntityKey = "zone.0.entity.0",
+                Zones = [new AetheriaRuntimeZoneSnapshotCommit
+                {
+                    ZoneIndex = 0,
+                    Entities = [entity],
+                    Orbits = [new AetheriaRuntimeOrbitSnapshotCommit
+                        { OrbitKey = "scanner-chain-orbit", FixedPositionX = 0, FixedPositionY = 0 }],
+                    Bodies = [new AetheriaRuntimeBodySnapshotCommit
+                    {
+                        BodyKey = "scanner-chain-world",
+                        Kind = "planet",
+                        OrbitKey = "scanner-chain-orbit"
+                    }]
+                }]
+            };
+            var intents = new AetheriaRuntimeDaemonIntentState();
+            intents.Behaviors.Add(new AetheriaRuntimeDaemonBehaviorIntent
+            {
+                ActorEntityKey = run.CurrentEntityKey,
+                EquipmentIndex = 0,
+                BehaviorIndex = 0,
+                Active = true,
+                TargetBodyKey = "scanner-chain-world",
+                TargetAsteroidIndex = -1
+            });
+            return (run, intents, catalog, entity);
+        }
     }
 
     private static void ThermotoggleSeedsAndGatesFromDaemonOwnedTarget()

@@ -272,7 +272,9 @@ namespace GameCult.Aetheria.State.Verse
         private static bool IsDeferred(string? kind) =>
             string.Equals(kind, AetheriaRuntimeBehaviorKinds.Thruster, StringComparison.Ordinal) ||
             string.Equals(kind, AetheriaRuntimeBehaviorKinds.AetherDrive, StringComparison.Ordinal) ||
-            string.Equals(kind, "Radiator", StringComparison.Ordinal);
+            string.Equals(kind, "Radiator", StringComparison.Ordinal) ||
+            string.Equals(kind, "MiningTool", StringComparison.Ordinal) ||
+            string.Equals(kind, "ResourceScanner", StringComparison.Ordinal);
 
         private static IEnumerable<(AetheriaRuntimeBehaviorPayload Payload, int Index)> Indexed(
             IReadOnlyList<AetheriaRuntimeBehaviorPayload> payloads) =>
