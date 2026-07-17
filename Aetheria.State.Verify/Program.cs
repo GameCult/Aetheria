@@ -3,6 +3,7 @@ using Aetheria.State.Documents;
 using GameCult.Aetheria.State.Verse;
 using GameCult.Eve.Surface;
 using GameCult.Mesh;
+using System.Text.Json;
 
 var root = args.Length > 0 ? Path.GetFullPath(args[0]) : Directory.GetCurrentDirectory();
 var statePath = args.Length > 1
@@ -807,43 +808,48 @@ static void RequireSharedEvePackagesImportedFromEveRepo(string root)
         ? File.ReadAllText(operationsSurfaceDocumentsPath)
         : throw new InvalidOperationException("Cannot verify shared Eve package ownership; AetheriaEveSurfaceDocuments.cs is missing.");
 
-    var requiredManifestSymbols = new[]
+    using var manifestDocument = JsonDocument.Parse(manifest);
+    using var lockDocument = JsonDocument.Parse(packageLock);
+    var manifestDependencies = manifestDocument.RootElement.GetProperty("dependencies");
+    var lockedDependencies = lockDocument.RootElement.GetProperty("dependencies");
+    var releasedPackageTags = new Dictionary<string, string>(StringComparer.Ordinal)
     {
-        "\"org.gamecult.cultlib\": \"https://github.com/GameCult/CultLib.git?path=/unity/org.gamecult.cultlib#cultlib-unity-v1.0.15\"",
-        "\"org.gamecult.eve.plugin-fields\": \"https://github.com/GameCult/EvePlugins.git?path=/plugins/eve-plugin-fields/unity/org.gamecult.eve.plugin-fields#eve-plugin-fields-unity-v0.2.3\"",
-        "\"org.gamecult.eve.surface\": \"https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.surface#eveunity-surface-v0.2.2\"",
-        "\"org.gamecult.eve.unity-scene\": \"https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.unity-scene#eveunity-scene-v0.3.63\""
+        ["org.gamecult.cultlib"] =
+            "https://github.com/GameCult/CultLib.git?path=/unity/org.gamecult.cultlib#cultlib-unity-v",
+        ["org.gamecult.eve.plugin-fields"] =
+            "https://github.com/GameCult/EvePlugins.git?path=/plugins/eve-plugin-fields/unity/org.gamecult.eve.plugin-fields#eve-plugin-fields-unity-v",
+        ["org.gamecult.eve.surface"] =
+            "https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.surface#eveunity-surface-v",
+        ["org.gamecult.eve.unity-scene"] =
+            "https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.unity-scene#eveunity-scene-v"
     };
 
-    var missingManifestSymbols = requiredManifestSymbols
-        .Where(symbol => !manifest.Contains(symbol, StringComparison.Ordinal))
-        .ToArray();
-
-    if (missingManifestSymbols.Length > 0)
+    foreach (var (packageId, taggedUrlPrefix) in releasedPackageTags)
     {
-        throw new InvalidOperationException(
-            "Aetheria manifest no longer imports tagged packages from EveUnity: " +
-            string.Join(", ", missingManifestSymbols));
-    }
+        if (!manifestDependencies.TryGetProperty(packageId, out var manifestVersionElement))
+            throw new InvalidOperationException($"Aetheria manifest does not import required released package '{packageId}'.");
 
-    var requiredLockSymbols = new[]
-    {
-        "cultlib-unity-v1.0.15",
-        "eve-plugin-fields-unity-v0.2.3",
-        "eveunity-surface-v0.2.2",
-        "eveunity-scene-v0.3.63",
-        "\"source\": \"git\""
-    };
+        var manifestVersion = manifestVersionElement.GetString() ?? "";
+        if (!manifestVersion.StartsWith(taggedUrlPrefix, StringComparison.Ordinal) ||
+            manifestVersion.Length == taggedUrlPrefix.Length)
+        {
+            throw new InvalidOperationException(
+                $"Aetheria package '{packageId}' must use a released Git tag under '{taggedUrlPrefix}'.");
+        }
 
-    var missingLockSymbols = requiredLockSymbols
-        .Where(symbol => !packageLock.Contains(symbol, StringComparison.Ordinal))
-        .ToArray();
+        if (!lockedDependencies.TryGetProperty(packageId, out var lockedPackage) ||
+            !string.Equals(lockedPackage.GetProperty("source").GetString(), "git", StringComparison.Ordinal) ||
+            !string.Equals(lockedPackage.GetProperty("version").GetString(), manifestVersion, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                $"Unity lockfile does not resolve '{packageId}' from the exact tagged manifest version '{manifestVersion}'.");
+        }
 
-    if (missingLockSymbols.Length > 0)
-    {
-        throw new InvalidOperationException(
-            "Unity lockfile no longer records the tagged EveUnity package imports: " +
-            string.Join(", ", missingLockSymbols));
+        var resolvedHash = lockedPackage.TryGetProperty("hash", out var hashElement)
+            ? hashElement.GetString() ?? ""
+            : "";
+        if (resolvedHash.Length != 40 || resolvedHash.Any(value => !Uri.IsHexDigit(value)))
+            throw new InvalidOperationException($"Unity lockfile has no immutable Git commit hash for '{packageId}'.");
     }
 
     const string requiredAuthoringCultLib =
@@ -1274,7 +1280,7 @@ static void RequireDaemonPlayableRunGenerationAuthority(string root)
         "var rootRandom = new CultMath.Random(GenerationSeed)",
         "(uint)rootRandom.NextInt(1, int.MaxValue)",
         "Math.Pow(item.Price, _priceExponent)",
-        "Distance(_zoneIndex, _homeZones[item.ManufacturerKey])",
+        "ManufacturerDistance = _homeZones.TryGetValue(item.ManufacturerKey, out var home) ? Distance(_zoneIndex, home) : 1",
         "FitsHardpoint(candidate, hardpoint)",
         "PickHardpoint(availabilityFactionKey, hardpoint",
         "var largestFootprint = candidates.Max(item => item.OccupiedCells)",
@@ -16380,7 +16386,7 @@ static void RequireUnityObserverDoesNotTickLocalSimulation(string root)
 
     var requiredTargetAuthoritySymbols = new[]
     {
-        "ApplySetTarget(run, command)",
+        "ApplySetTarget(run, command, context)",
         "ApplyTargetCycle(run, command, TargetCycleMode.Nearest)",
         "ApplyTargetCycle(run, command, TargetCycleMode.Next)",
         "ApplyTargetCycle(run, command, TargetCycleMode.Previous)",
