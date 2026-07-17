@@ -292,18 +292,24 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   equipped-item and active-consumable behavior instances through narrow
   behavior-owned restore methods; construction/loadout blueprints do not own
   behavior replay.
-- Passive contact reach is daemon-owned and derived from enabled installed
-  `Sensor` behavior sensitivity. Arrays combine by root-sum-square, so larger
-  hulls can buy reach by devoting real equipment volume, mass, power, cooling,
-  and computation to sensing. Entity kind is not an input. Cargo is not
-  installed equipment. Hull-authored `Sensors` hardpoints own the physical
-  installation envelope: a smaller same-type array may occupy a larger mount,
-  while generated loadouts choose the largest compatible footprint before
-  applying faction, distance, and price weighting. Station-scale reach emerges
-  from station-scale hardpoints and gear rather than a station multiplier or
-  sensor-count branch. Contact refresh consumes this derived reach but does
-  not write `Visibility`; emitted signature remains owned by thermal,
-  propulsion, weapons, reflectors, explicit visibility sources, and pings.
+- Sensor contact information is daemon-owned. Each operational installed
+  `Sensor` behavior executes the fossil information equation against target
+  visibility, distance, observer-relative angle, its authored sensitivity
+  curve, and fixed simulation time, then applies the authored information
+  decay. Contacts become visible only when accumulated information crosses the
+  provider-owned detection threshold. Entity kind is not an input. Cargo is
+  not installed equipment. Hull-authored `Sensors` hardpoints own only the
+  installation envelope; generated loadouts still choose compatible equipment
+  through the ordinary footprint, faction, distance, and price rules.
+- Active ping is the same behavior's actor-scoped daemon command path. The last
+  operational installed sensor owns the request, energy gate, cooldown,
+  expanding radius, and persistent set of already-crossed target indices.
+  A target receives the fossil ping boost and named transient signature once
+  per expansion crossing, including after reconnect; clients cannot replay the
+  boost by resending or rehydrating a request. Manual and future autonomous
+  pings must enter this same typed intent. The removed actorless ping flag and
+  range-based perfect-information refresh are forbidden writers and no longer
+  decide contacts.
 - The daemon observation query owns docked sensor sharing. A docked controlled
   craft's effective contact picture merges its own contacts with the dock
   parent's contacts, retains the primary sensor source on every projected row,
@@ -1069,17 +1075,22 @@ projectile lead, hardpoint gating, progressive lock, and target destruction.
   thrust/turn feedback still
   require proof.
 
-### Authoritative Reflected Visibility Contract
+### Authoritative Visibility Contract
 
-- Owner: the Aetheria daemon owns each entity's equipment and reflected stellar
-  signature. It evaluates operational `Visibility` and `Reflector` behaviors
-  after energy and thermal state settle and before contact refresh. Eve and
-  Unity only present the resulting visibility and named sources.
-- Inputs: entity position, equipped reflector performance and thermal state,
-  daemon-owned sun mass, sun light-radius multiplier, the provider render
-  settings light-radius curve, and resolved orbit positions.
-- Outputs: aggregate entity visibility plus inspectable, reconnectable
-  `equipment-visibility` and `reflector-visibility` source grids.
+- Owner: the Aetheria daemon owns each entity's emitted, weapon, ping, and
+  reflected stellar signature. It decays named transient sources, evaluates
+  operational `Visibility` and `Reflector` behaviors after energy and thermal
+  state settle, applies authored weapon visibility when a shot commits, and
+  executes sensor pings before contact projection. Eve and Unity only present
+  the resulting visibility and named sources.
+- Inputs: fixed simulation time, authored visibility-decay setting, entity
+  position, equipped visibility and reflector performance, thermal state,
+  committed weapon visibility (including the charged-weapon multiplier), ping
+  visibility, daemon-owned sun mass, sun light-radius multiplier, the provider
+  render settings light-radius curve, and resolved orbit positions.
+- Outputs: aggregate entity visibility plus inspectable, reconnectable constant
+  equipment, reflector, weapon, and ping source grids. Transient source values
+  follow the fossil exponential decay and disappear below its cutoff.
 - Shared-field invariant: daemon visibility and environment rendering resolve
   body positions through `AetheriaRuntimeOrbitQueries`; gravity-center overrides
   and nested authored orbits cannot silently put the visible sun and its
@@ -1090,11 +1101,13 @@ projectile lead, hardpoint gating, progressive lock, and target destruction.
   parameters are levers; they do not decide whether another entity detects the
   reflector.
 - Forbidden writers: contact refresh cannot overwrite emitted signature, and
-  clients cannot submit visibility, stellar light, or reflector results.
+  clients cannot submit visibility, transient decay, stellar light, ping
+  crossings, weapon flashes, or reflector results.
 - Verification: daemon smoke proves evaluated constant equipment visibility, a
   displaced authored sun orbit, the fossil pulse equation, evaluated reflector
-  cross-section, named source publication, and a second tick with no visibility
-  accumulation.
+  cross-section, named source publication without accumulation, actor-scoped
+  energy-gated ping with reconnect-stable crossed-target state, committed weapon
+  visibility, and exact exponential transient decay.
 - Open parity: active consumable reflector effects and complete visibility-
   source cardinality remain to be migrated.
 

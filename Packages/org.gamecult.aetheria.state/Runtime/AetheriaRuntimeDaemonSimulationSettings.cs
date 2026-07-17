@@ -108,7 +108,9 @@ namespace GameCult.Aetheria.State.Verse
             double wormholeExitCurveStart = AetheriaDefaultRaw.WormholeExitCurveStart,
             double wormholeExitVelocity = AetheriaDefaultRaw.WormholeExitVelocity,
             double wormholeExitRadius = AetheriaDefaultRaw.WormholeExitRadius,
-            double wormholeDepth = AetheriaDefaultRaw.WormholeDepth)
+            double wormholeDepth = AetheriaDefaultRaw.WormholeDepth,
+            double visibilityDecay = AetheriaDefaultRaw.VisibilityDecay,
+            double targetInfoDecay = AetheriaDefaultRaw.TargetInfoDecay)
         {
             PawnSpeed = PositiveOr(pawnSpeed, AetheriaDefaultRaw.PawnSpeed);
             RaiderSpeed = PositiveOr(raiderSpeed, AetheriaDefaultRaw.RaiderSpeed);
@@ -161,6 +163,8 @@ namespace GameCult.Aetheria.State.Verse
             WormholeExitVelocity = PositiveOr(wormholeExitVelocity, AetheriaDefaultRaw.WormholeExitVelocity);
             WormholeExitRadius = PositiveOr(wormholeExitRadius, AetheriaDefaultRaw.WormholeExitRadius);
             WormholeDepth = PositiveOr(wormholeDepth, AetheriaDefaultRaw.WormholeDepth);
+            VisibilityDecay = NonNegativeOr(visibilityDecay, AetheriaDefaultRaw.VisibilityDecay);
+            TargetInfoDecay = NonNegativeOr(targetInfoDecay, AetheriaDefaultRaw.TargetInfoDecay);
         }
 
         public double PawnSpeed { get; }
@@ -216,6 +220,8 @@ namespace GameCult.Aetheria.State.Verse
         public double WormholeExitVelocity { get; }
         public double WormholeExitRadius { get; }
         public double WormholeDepth { get; }
+        public double VisibilityDecay { get; }
+        public double TargetInfoDecay { get; }
 
         private static double PositiveOr(double value, double fallback)
         {
@@ -285,6 +291,8 @@ namespace GameCult.Aetheria.State.Verse
             public const double WormholeExitVelocity = 20.0;
             public const double WormholeExitRadius = 50.0;
             public const double WormholeDepth = 1000.0;
+            public const double VisibilityDecay = 0.5;
+            public const double TargetInfoDecay = 0.5;
         }
     }
 }

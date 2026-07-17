@@ -19,6 +19,7 @@ namespace GameCult.Aetheria.State.Verse
         public const string VelocityLimit = "VelocityLimit";
         public const string Reflector = "Reflector";
         public const string Visibility = "Visibility";
+        public const string Sensor = "Sensor";
 
         private static readonly ISet<string> WeaponKinds = new HashSet<string>(StringComparer.Ordinal)
         {

@@ -339,10 +339,7 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeDaemonIntentState commands,
             AetheriaRuntimeDaemonIntentState agents)
         {
-            var merged = new AetheriaRuntimeDaemonIntentState
-            {
-                SensorPingRequested = commands.SensorPingRequested || agents.SensorPingRequested
-            };
+            var merged = new AetheriaRuntimeDaemonIntentState();
             merged.Movements.AddRange(commands.Movements);
             merged.Movements.AddRange(agents.Movements);
             merged.WeaponGroups.AddRange(commands.WeaponGroups);
@@ -355,6 +352,8 @@ namespace GameCult.Aetheria.State.Verse
             merged.Docking.AddRange(agents.Docking);
             merged.Wormholes.AddRange(commands.Wormholes);
             merged.Wormholes.AddRange(agents.Wormholes);
+            merged.SensorPings.AddRange(commands.SensorPings);
+            merged.SensorPings.AddRange(agents.SensorPings);
             return merged;
         }
 

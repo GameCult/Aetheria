@@ -5182,7 +5182,7 @@ public class DaemonRuntimeDocumentTests
         Assert.IsTrue(result.Intents.Behaviors[0].Active);
         Assert.AreEqual(1, result.Intents.Consumables.Count);
         Assert.AreEqual("repair-gel", result.Intents.Consumables[0].ItemKey);
-        Assert.IsTrue(result.Intents.SensorPingRequested);
+        Assert.AreEqual("zone.0.entity.0", result.Intents.SensorPings.Single().ActorEntityKey);
     }
 
     [Test]

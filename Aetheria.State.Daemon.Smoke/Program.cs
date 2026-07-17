@@ -175,6 +175,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             DockedRefitSurfacePublishesGenericCommands,
             FossilVelocityBehaviorsRunInDaemonFlightStep,
             ReflectorUsesSharedStellarLightFieldWithoutAccumulating,
+            SensorPingIsActorScopedEnergyGatedAndReconnectable,
             TractorRampsAndPullsThroughYmirWithoutTeleportingCargo,
             PickupIsCapacityCheckedExactlyOnceAndExpires,
             TradePurchaseDerivesAcceptanceFromDaemonState,
@@ -459,6 +460,88 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         var source = ship.StatGrids.Single(grid => grid.Name == "reflector-visibility");
         RequireNear(expectedReflection, source.Values.Single(), 0.000001,
             "Reflector visibility must remain an inspectable daemon-owned source for Eve and reconnect");
+    }
+
+    private static void SensorPingIsActorScopedEnergyGatedAndReconnectable()
+    {
+        var sensorItem = CatalogItem("sensor-ping-array", SensorPayload(
+            sensitivity: 0.01,
+            pingBoost: 1,
+            pingEnergy: 5,
+            pingVisibility: 4,
+            pingRange: 200,
+            pingCooldown: 1,
+            pingDuration: 1,
+            pingRadiusExponent: 1));
+        var capacitorItem = CatalogItem("sensor-ping-capacitor", CapacitorPayload(10, 1));
+        var catalog = new AetheriaRuntimeCatalogSnapshot([sensorItem, capacitorItem], [], []);
+
+        static AetheriaRuntimeEntitySnapshotCommit Observer(int index, string sensorKey, string capacitorKey)
+        {
+            var entity = Entity(index, 0, "player");
+            entity.Equipment =
+            [
+                new AetheriaRuntimeLoadoutItemSlotCommit { Item = new AetheriaRuntimeLoadoutItemCommit
+                    { ItemKey = sensorKey, Quality = 1, Durability = 1, Enabled = true } },
+                new AetheriaRuntimeLoadoutItemSlotCommit { Item = new AetheriaRuntimeLoadoutItemCommit
+                    { ItemKey = capacitorKey, Quality = 1, Durability = 1, Enabled = true } }
+            ];
+            entity.BehaviorStates =
+            [
+                new AetheriaRuntimeBehaviorStateCommit
+                {
+                    OwnerKind = AetheriaRuntimeBehaviorStateProjector.EquipmentOwnerKind,
+                    OwnerIndex = 1,
+                    BehaviorIndex = 0,
+                    BehaviorKind = "Capacitor",
+                    CapacitorCharge = 10,
+                    CapacitorCapacity = 10,
+                    CapacitorEfficiency = 1
+                }
+            ];
+            return entity;
+        }
+
+        var actor = Observer(0, sensorItem.ItemKey, capacitorItem.ItemKey);
+        var other = Observer(1, sensorItem.ItemKey, capacitorItem.ItemKey);
+        var target = Entity(2, 40, "raider");
+        target.Visibility = 1;
+        var zone = new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [actor, other, target] };
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "sensor-ping-smoke",
+            Zones = [zone]
+        };
+
+        AetheriaRuntimeSensorSimulation.StepZone(
+            run, zone, [actor, other, target], [], catalog, 0.25, 0.5, 0.1, 1);
+        AetheriaRuntimeSensorSimulation.StepZone(
+            run,
+            zone,
+            [actor, other, target],
+            [new AetheriaRuntimeDaemonSensorPingIntent { ActorEntityKey = "zone.0.entity.0" }],
+            catalog,
+            0.25,
+            0.5,
+            0.1,
+            2);
+
+        var sensor = actor.BehaviorStates.Single(state => state.BehaviorKind == AetheriaRuntimeBehaviorKinds.Sensor);
+        var otherSensor = other.BehaviorStates.Single(state => state.BehaviorKind == AetheriaRuntimeBehaviorKinds.Sensor);
+        Require(sensor.Pinging && !otherSensor.Pinging,
+            "sensor ping intent must retain actor identity instead of activating every sensor");
+        RequireEqual(2, sensor.PingedEntityCount,
+            "expanding ping must persist every crossed entity identity for reconnect-safe exactly-once boost");
+        Require(sensor.PingedEntityIndices.SequenceEqual(new[] { 1, 2 }),
+            "pinged entity identities must survive in stable order rather than only an unverifiable count");
+        RequireNear(5, actor.BehaviorStates.Single(state => state.BehaviorKind == "Capacitor").CapacitorCharge,
+            0.000001, "accepted ping must consume its authored energy exactly once");
+        Require(actor.Contacts.Single(contact => contact.TargetEntityIndex == 2).Visible,
+            "ping boost must cross the daemon-owned detection threshold");
+        RequireNear(4, actor.StatGrids.Single(grid => grid.Name == "transient-visibility:sensor:0:0").Values.Single(),
+            0.000001, "ping must publish its authored transient visibility source");
+        RequireEqual(1, run.GameEvents.Count(value => value.Kind == "sensor.ping.started"),
+            "accepted ping must emit one provider-owned start event");
     }
 
     private static void DockingUsesRealBaysAndFossilUndockRules()
@@ -1612,6 +1695,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         [
             new AetheriaRuntimeBehaviorField(2, PerformanceStat(20)),
             new AetheriaRuntimeBehaviorField(6, PerformanceStat(150)),
+            new AetheriaRuntimeBehaviorField(11, PerformanceStat(8)),
             new AetheriaRuntimeBehaviorField(15, PerformanceStat(0)),
             new AetheriaRuntimeBehaviorField(16, PerformanceStat(200)),
             new AetheriaRuntimeBehaviorField(17, PerformanceStat(1)),
@@ -1651,6 +1735,13 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         var state = source.WeaponStates.Single(value => value.BehaviorKind == AetheriaRuntimeBehaviorKinds.InstantWeapon);
         Require(!state.TriggerPending,
             "instant weapon request must clear after the committed burst begins");
+        var weaponVisibility = source.StatGrids.Single(grid =>
+            grid.Name == "transient-visibility:weapon:equipment:0:0");
+        RequireNear(8, weaponVisibility.Values.Single(), 0.000001,
+            "committed instant shot must publish its authored visibility as a named transient source");
+        AetheriaRuntimeVisibilitySimulation.BeginTick([source], 1, 0.5);
+        RequireNear(8 * Math.Exp(-0.5), weaponVisibility.Values.Single(), 0.000001,
+            "weapon visibility must use the fossil exponential source decay rather than vanish with the effect");
         var surface = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(
             new AetheriaRuntimeDaemonFrameDocument { FrameId = 12, Run = run },
             new AetheriaRuntimeDaemonHealthDocument(),
@@ -3010,6 +3101,30 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             new AetheriaRuntimeBehaviorField(2, PerformanceStat(efficiency))
         ]);
 
+    private static AetheriaRuntimeBehaviorPayload SensorPayload(
+        double sensitivity = 1,
+        double pingBoost = 1,
+        double pingEnergy = 0,
+        double pingVisibility = 3,
+        double pingRange = 200,
+        double pingCooldown = 1,
+        double pingDuration = 2,
+        double pingRadiusExponent = 0.5) => new(
+        0, AetheriaRuntimeBehaviorKinds.Sensor, 0,
+        [
+            new AetheriaRuntimeBehaviorField(3, PerformanceStat(sensitivity)),
+            new AetheriaRuntimeBehaviorField(4, Curve(
+                new AetheriaRuntimeCurveKey(0, 1, 0, 0),
+                new AetheriaRuntimeCurveKey(1, 1, 0, 0))),
+            new AetheriaRuntimeBehaviorField(5, PerformanceStat(pingBoost)),
+            new AetheriaRuntimeBehaviorField(6, PerformanceStat(pingEnergy)),
+            new AetheriaRuntimeBehaviorField(7, PerformanceStat(pingVisibility)),
+            new AetheriaRuntimeBehaviorField(8, PerformanceStat(pingRange)),
+            new AetheriaRuntimeBehaviorField(9, PerformanceStat(pingCooldown)),
+            new AetheriaRuntimeBehaviorField(10, Number(pingDuration)),
+            new AetheriaRuntimeBehaviorField(11, Number(pingRadiusExponent))
+        ]);
+
     private static AetheriaRuntimeCatalogItem CatalogItem(string itemKey, params AetheriaRuntimeBehaviorPayload[] payloads) => new(
         itemKey, itemKey, "equipment", "", "", 0, 1, 1, 1, 1,
         1, 1, 1, Array.Empty<AetheriaRuntimeShapeCell>(),
@@ -3297,7 +3412,9 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 }
             },
             new AetheriaRuntimeLoadoutItemSlotCommit { Item = new AetheriaRuntimeLoadoutItemCommit
-                { ItemKey = "test-attack-capacitor", Quality = 1, Durability = 1, Enabled = true } }
+                { ItemKey = "test-attack-capacitor", Quality = 1, Durability = 1, Enabled = true } },
+            new AetheriaRuntimeLoadoutItemSlotCommit { Item = new AetheriaRuntimeLoadoutItemCommit
+                { ItemKey = "test-attack-sensor", Quality = 1, Durability = 1, Enabled = true } }
         ];
         agent.BehaviorStates =
         [
@@ -3338,9 +3455,11 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         var catalog = EquipThrusterBank(
             [agent],
             CatalogItem("test-lock-cannon", weaponPayload),
-            CatalogItem("test-attack-capacitor", CapacitorPayload(50, 1)));
+            CatalogItem("test-attack-capacitor", CapacitorPayload(50, 1)),
+            CatalogItem("test-attack-sensor", SensorPayload()));
         var target = Entity(1, 105, "raider");
         target.Kind = "station";
+        target.Visibility = 10;
         target.StatGrids = [Grid("hull", 14), Grid("shield", 0), Grid("heat", 0)];
         var run = new AetheriaRuntimeRunCheckpointCommit
         {

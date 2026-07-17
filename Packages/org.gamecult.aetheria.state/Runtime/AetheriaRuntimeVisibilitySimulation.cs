@@ -8,8 +8,50 @@ namespace GameCult.Aetheria.State.Verse
 {
     public static class AetheriaRuntimeVisibilitySimulation
     {
+        private const string TransientVisibilityPrefix = "transient-visibility:";
         private const string ReflectorVisibilityGrid = "reflector-visibility";
         private const string EquipmentVisibilityGrid = "equipment-visibility";
+
+        public static void BeginTick(
+            IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit>? entities,
+            double deltaSeconds,
+            double visibilityDecay)
+        {
+            if (deltaSeconds <= 0)
+                return;
+            foreach (var entity in entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
+            {
+                if (entity == null)
+                    continue;
+                var grids = (entity.StatGrids ?? Array.Empty<AetheriaRuntimeEntityStatGridCommit>()).ToList();
+                foreach (var grid in grids.Where(candidate =>
+                             candidate != null &&
+                             (candidate.Name ?? "").StartsWith(TransientVisibilityPrefix, StringComparison.Ordinal)).ToArray())
+                {
+                    var previous = grid.Values.FirstOrDefault();
+                    var next = previous * Math.Exp(-Math.Max(0, visibilityDecay) * deltaSeconds);
+                    if (next < 0.1)
+                    {
+                        next = 0;
+                        grids.Remove(grid);
+                    }
+                    else
+                    {
+                        grid.Values = [next];
+                    }
+                    entity.Visibility = Math.Max(0, entity.Visibility - previous) + next;
+                }
+                entity.StatGrids = grids;
+            }
+        }
+
+        public static void SetTransientSource(
+            AetheriaRuntimeEntitySnapshotCommit entity,
+            string sourceKey,
+            double value)
+        {
+            SetVisibilitySource(entity, TransientVisibilityPrefix + (sourceKey ?? ""), Math.Max(0, value));
+        }
 
         public static void StepZone(
             AetheriaRuntimeZoneSnapshotCommit? zone,

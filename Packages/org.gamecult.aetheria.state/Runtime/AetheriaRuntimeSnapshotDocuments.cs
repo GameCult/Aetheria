@@ -1511,5 +1511,8 @@ namespace GameCult.Aetheria.State.Verse
 
         [Key(56)]
         public string MiningToolAsteroidBeltKey { get; set; } = "";
+
+        [Key(57)]
+        public IReadOnlyList<int> PingedEntityIndices { get; set; } = Array.Empty<int>();
     }
 }

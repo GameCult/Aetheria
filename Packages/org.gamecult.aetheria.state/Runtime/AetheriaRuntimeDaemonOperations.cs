@@ -1484,10 +1484,14 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeDaemonCommandDocument command,
             AetheriaRuntimeDaemonIntentState intents)
         {
-            if (string.IsNullOrWhiteSpace(ResolveActorEntityKey(run, command)))
+            var actor = ResolveActorEntityKey(run, command);
+            if (string.IsNullOrWhiteSpace(actor))
                 return false;
 
-            intents.SensorPingRequested = true;
+            intents.SensorPings.Add(new AetheriaRuntimeDaemonSensorPingIntent
+            {
+                ActorEntityKey = actor
+            });
             return true;
         }
 

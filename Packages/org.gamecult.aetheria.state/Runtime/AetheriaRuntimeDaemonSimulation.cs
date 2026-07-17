@@ -59,6 +59,8 @@ namespace GameCult.Aetheria.State.Verse
                 StepPickupLifetimes(run, zone, frameId, deltaSeconds);
 
                 EnsureStats(entities, settings, catalog);
+                AetheriaRuntimeVisibilitySimulation.BeginTick(
+                    entities, deltaSeconds, settings.VisibilityDecay);
                 foreach (var entity in entities)
                 {
                     AetheriaRuntimeThermalSimulation.EnsureTopology(entity, catalog);
@@ -92,9 +94,19 @@ namespace GameCult.Aetheria.State.Verse
                 StepCombat(run, zone, entities, intents, deltaSeconds, settings, worldPhysics, catalog,
                     frameId, simulationTimeSeconds, simulationStepIndex);
                 AetheriaRuntimeVisibilitySimulation.StepZone(zone, entities, catalog, renderSettings);
+                var activeRenderSettings = renderSettings ?? AetheriaRuntimeDaemonRenderSettings.AetheriaDefault;
+                AetheriaRuntimeSensorSimulation.StepZone(
+                    run,
+                    zone,
+                    entities,
+                    intents?.SensorPings,
+                    catalog,
+                    deltaSeconds,
+                    settings.TargetInfoDecay,
+                    activeRenderSettings.TargetDetectionInfoThreshold,
+                    frameId);
                 AetheriaRuntimeMiningSimulation.Step(run, zone, entities, intents, catalog, frameId, simulationTimeSeconds, deltaSeconds);
                 AetheriaRuntimeSurveySimulation.Step(run, zone, entities, intents, catalog, frameId, simulationTimeSeconds, deltaSeconds);
-                RefreshContacts(entities, settings, catalog);
             }
         }
 
@@ -700,6 +712,7 @@ namespace GameCult.Aetheria.State.Verse
                 weapon.State.Firing = true;
                 weapon.State.CoolingDown = true;
                 weapon.State.CooldownProgress = weapon.Cooldown;
+                PublishWeaponVisibility(attacker, weapon);
                 AetheriaRuntimeThermalSimulation.AddHeatToEquipment(attacker, catalog,
                     weapon.State.OwnerIndex, weapon.Heat);
                 ApplyWeaponWear(attacker, weapon.State, 1);
@@ -1438,6 +1451,7 @@ namespace GameCult.Aetheria.State.Verse
                         PositiveOr(behavior.EvaluateStat(6), 1),
                         Math.Max(0, behavior.EvaluateStat(9)),
                         Math.Max(0, behavior.EvaluateStat(10)),
+                        Math.Max(0, behavior.EvaluateStat(11)),
                         ReadItemKey(behavior.Payload, 12), magazineSize,
                         PositiveOr(ReadNumber(behavior.Payload, 14), 1),
                         PositiveOr(ReadNumber(behavior.Payload, 17), 1),
@@ -1482,6 +1496,8 @@ namespace GameCult.Aetheria.State.Verse
             if ((run.ShotReceipts ?? Array.Empty<AetheriaRuntimeShotReceiptCommit>())
                 .Any(value => value != null && string.Equals(value.ShotId, shotId, StringComparison.Ordinal)))
                 return;
+
+            PublishWeaponVisibility(attacker, weapon);
 
             var contact = (attacker.Contacts ?? Array.Empty<AetheriaRuntimeEntityContactCommit>())
                 .FirstOrDefault(value => value != null && value.TargetEntityIndex == target.EntityIndex);
@@ -1581,6 +1597,18 @@ namespace GameCult.Aetheria.State.Verse
             if (aliveBefore && (damage.CockpitDestroyed || !IsAlive(target)))
                 CommitDestruction(run, zone, target, attacker.EntityIndex, shotId, weapon.ItemKey,
                     frameId, settings, damage.CockpitDestroyed ? "cockpit-destroyed" : "hull-destroyed");
+        }
+
+        private static void PublishWeaponVisibility(
+            AetheriaRuntimeEntitySnapshotCommit entity,
+            ResolvedWeapon weapon)
+        {
+            if (weapon.Visibility <= 0)
+                return;
+            AetheriaRuntimeVisibilitySimulation.SetTransientSource(
+                entity,
+                $"weapon:{weapon.State.OwnerKind}:{weapon.State.OwnerIndex}:{weapon.State.BehaviorIndex}",
+                weapon.Visibility);
         }
 
         private static void PublishEquipmentDestroyedEvents(
@@ -1801,7 +1829,8 @@ namespace GameCult.Aetheria.State.Verse
                     Math.Max(0, value.EvaluateStat(22)), Math.Max(0, value.EvaluateStat(23)),
                     ReadNumber(value.Payload, 25), PositiveOr(ReadNumber(value.Payload, 26), 1),
                     PositiveOr(ReadNumber(value.Payload, 27), 1), PositiveOr(ReadNumber(value.Payload, 29), 1),
-                    PositiveOr(ReadNumber(value.Payload, 31), 1), PositiveOr(ReadNumber(value.Payload, 32), 1)))
+                    PositiveOr(ReadNumber(value.Payload, 30), 1), PositiveOr(ReadNumber(value.Payload, 31), 1),
+                    PositiveOr(ReadNumber(value.Payload, 32), 1)))
                 .ToArray();
         }
 
@@ -1850,6 +1879,7 @@ namespace GameCult.Aetheria.State.Verse
                 PositiveOr(behavior.EvaluateStat(23), settings.WeaponLockAngleDegrees),
                 PositiveOr(behavior.EvaluateStat(24), settings.WeaponLockDirectionImpact),
                 Math.Max(0, behavior.EvaluateStat(25)),
+                Math.Max(0, behavior.EvaluateStat(11)),
                 Math.Max(0, behavior.EvaluateStat(5)),
                 Math.Max(0, behavior.EvaluateStat(15)),
                 ReadEnumName(behavior.Payload, 1, "Kinetic"),
@@ -1870,7 +1900,7 @@ namespace GameCult.Aetheria.State.Verse
                 1, 0, false,
                 settings.WeaponLockSpeed, settings.WeaponLockSensorImpact, settings.WeaponLockAngleDegrees,
                 settings.WeaponLockDirectionImpact, settings.WeaponLockDecayPerSecond,
-                0, 0, "Kinetic", 0, 0);
+                0, 0, 0, "Kinetic", 0, 0);
         }
 
         private static AetheriaRuntimeWeaponStateCommit EnsureWeaponState(
@@ -2011,7 +2041,7 @@ namespace GameCult.Aetheria.State.Verse
                 int magazineSize, double reloadTime, int burstCount, double burstTime, bool singleAmmoBurst,
                 double lockSpeed, double lockSensorImpact,
                 double lockAngleDegrees, double lockDirectionImpact, double lockDecayPerSecond,
-                double minRange = 0, double spread = 0, string damageType = "Kinetic",
+                double visibility = 0, double minRange = 0, double spread = 0, string damageType = "Kinetic",
                 double penetration = 0, double damageSpread = 0)
             {
                 State = state; ItemKey = itemKey; Damage = damage; Range = range; Cooldown = cooldown;
@@ -2020,7 +2050,7 @@ namespace GameCult.Aetheria.State.Verse
                 BurstCount = burstCount; BurstTime = burstTime; SingleAmmoBurst = singleAmmoBurst;
                 LockSensorImpact = lockSensorImpact; LockAngleDegrees = lockAngleDegrees;
                 LockDirectionImpact = lockDirectionImpact; LockDecayPerSecond = lockDecayPerSecond;
-                MinRange = minRange; Spread = spread;
+                Visibility = visibility; MinRange = minRange; Spread = spread;
                 DamageType = damageType; Penetration = penetration; DamageSpread = damageSpread;
             }
 
@@ -2043,6 +2073,7 @@ namespace GameCult.Aetheria.State.Verse
             public double LockAngleDegrees { get; }
             public double LockDirectionImpact { get; }
             public double LockDecayPerSecond { get; }
+            public double Visibility { get; }
             public double MinRange { get; }
             public double Spread { get; }
             public string DamageType { get; }
@@ -2053,19 +2084,19 @@ namespace GameCult.Aetheria.State.Verse
         private sealed class ResolvedConstantWeapon
         {
             public ResolvedConstantWeapon(AetheriaRuntimeWeaponStateCommit state, string itemKey,
-                bool selected, double damage, double range, double energy, double heat, string ammoItemKey,
+                bool selected, double damage, double range, double energy, double heat, double visibility, string ammoItemKey,
                 int magazineSize, double reloadTime, double ammoIntervalDuration,
                 double minRange, double spread)
             {
                 State = state; ItemKey = itemKey; Selected = selected; Damage = damage; Range = range;
-                Energy = energy; Heat = heat; AmmoItemKey = ammoItemKey;
+                Energy = energy; Heat = heat; Visibility = visibility; AmmoItemKey = ammoItemKey;
                 MagazineSize = magazineSize; ReloadTime = reloadTime;
                 AmmoIntervalDuration = ammoIntervalDuration; MinRange = minRange; Spread = spread;
             }
 
             public ResolvedWeapon ResolutionShot(double deltaSeconds) => new ResolvedWeapon(
                 State, ItemKey, Damage * deltaSeconds, Range, 0, 1, 0, 0, "", 0, 0,
-                1, 0, false, 1, 0, 180, 0, 0, MinRange, Spread, "Kinetic", 0, 0);
+                1, 0, false, 1, 0, 180, 0, 0, Visibility, MinRange, Spread, "Kinetic", 0, 0);
 
             public AetheriaRuntimeWeaponStateCommit State { get; }
             public string ItemKey { get; }
@@ -2074,6 +2105,7 @@ namespace GameCult.Aetheria.State.Verse
             public double Range { get; }
             public double Energy { get; }
             public double Heat { get; }
+            public double Visibility { get; }
             public string AmmoItemKey { get; }
             public int MagazineSize { get; }
             public double ReloadTime { get; }
@@ -2108,12 +2140,13 @@ namespace GameCult.Aetheria.State.Verse
             public ResolvedChargedWeapon(ResolvedWeapon baseWeapon, AetheriaRuntimeLoadoutItemCommit item,
                 bool requested, double chargeTime, double chargeEnergy, double chargeHeat,
                 double failureCharge, double failureDamage, double damageMultiplier,
-                double burstMultiplier, double velocityMultiplier, double heatMultiplier)
+                double burstMultiplier, double visibilityMultiplier, double velocityMultiplier, double heatMultiplier)
             {
                 Base = baseWeapon; Item = item; Requested = requested; ChargeTime = chargeTime;
                 ChargeEnergy = chargeEnergy; ChargeHeat = chargeHeat; FailureCharge = failureCharge;
                 FailureDamage = failureDamage; DamageMultiplier = damageMultiplier;
-                BurstMultiplier = burstMultiplier; VelocityMultiplier = velocityMultiplier;
+                BurstMultiplier = burstMultiplier; VisibilityMultiplier = visibilityMultiplier;
+                VelocityMultiplier = velocityMultiplier;
                 HeatMultiplier = heatMultiplier;
             }
             public ResolvedWeapon CommittedShot()
@@ -2125,6 +2158,7 @@ namespace GameCult.Aetheria.State.Verse
                     Base.Energy * Base.BurstCount / count, Base.AmmoItemKey, Base.MagazineSize, Base.ReloadTime,
                     count, Base.BurstTime, Base.SingleAmmoBurst, Base.LockSpeed, Base.LockSensorImpact,
                     Base.LockAngleDegrees, Base.LockDirectionImpact, Base.LockDecayPerSecond,
+                    Base.Visibility * VisibilityMultiplier,
                     Base.MinRange, Base.Spread, Base.DamageType, Base.Penetration, Base.DamageSpread);
             }
             public ResolvedWeapon Base { get; }
@@ -2137,40 +2171,9 @@ namespace GameCult.Aetheria.State.Verse
             public double FailureDamage { get; }
             public double DamageMultiplier { get; }
             public double BurstMultiplier { get; }
+            public double VisibilityMultiplier { get; }
             public double VelocityMultiplier { get; }
             public double HeatMultiplier { get; }
-        }
-
-        private static void RefreshContacts(
-            IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities,
-            AetheriaRuntimeDaemonSimulationSettings settings,
-            AetheriaRuntimeCatalogSnapshot? catalog)
-        {
-            foreach (var observer in entities)
-            {
-                var sensorRange = ResolveSensorRange(observer, settings, catalog);
-                var contacts = new List<AetheriaRuntimeEntityContactCommit>();
-                foreach (var target in entities)
-                {
-                    if (target.EntityIndex == observer.EntityIndex)
-                        continue;
-
-                    var distance = Math.Sqrt(DistanceSq(observer, target));
-                    var visible = distance <= sensorRange;
-                    if (!visible && !Hostile(observer, target))
-                        continue;
-
-                    contacts.Add(new AetheriaRuntimeEntityContactCommit
-                    {
-                        TargetEntityIndex = target.EntityIndex,
-                        InfoGathered = visible ? 1.0 : 0.25,
-                        Hostile = Hostile(observer, target),
-                        Visible = visible
-                    });
-                }
-
-                observer.Contacts = contacts;
-            }
         }
 
         private static void EnsureStats(
@@ -2507,30 +2510,6 @@ namespace GameCult.Aetheria.State.Verse
             return IsPlayerOwned(left) != IsPlayerOwned(right) &&
                 (string.Equals(left.FactionKey, "raider", StringComparison.OrdinalIgnoreCase) ||
                  string.Equals(right.FactionKey, "raider", StringComparison.OrdinalIgnoreCase));
-        }
-
-        private static double ResolveSensorRange(
-            AetheriaRuntimeEntitySnapshotCommit entity,
-            AetheriaRuntimeDaemonSimulationSettings settings,
-            AetheriaRuntimeCatalogSnapshot? catalog)
-        {
-            if (!entity.IsActive)
-                return 0;
-
-            var equipmentStates = (entity.EquipmentStates ?? Array.Empty<AetheriaRuntimeEquipmentStateCommit>())
-                .Where(state => state != null)
-                .ToDictionary(state => state.EquipmentIndex);
-            var sensitivitySquared = AetheriaRuntimeEquippedBehaviorQueries.FindOperational(entity, catalog, "Sensor")
-                .Select(sensor => Math.Max(0, sensor.EvaluateStat(
-                    3,
-                    equipmentStates.TryGetValue(sensor.EquipmentIndex, out var state)
-                        ? state.ThermalPerformance
-                        : 1)))
-                .Select(sensitivity => sensitivity * sensitivity)
-                .Sum();
-            return sensitivitySquared > 0
-                ? settings.EntitySensorRange * Math.Sqrt(sensitivitySquared)
-                : settings.EntitySensorRange;
         }
 
         private static double DefaultHull(

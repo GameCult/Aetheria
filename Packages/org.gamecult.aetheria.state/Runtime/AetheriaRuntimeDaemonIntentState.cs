@@ -19,11 +19,12 @@ namespace GameCult.Aetheria.State.Verse
             new List<AetheriaRuntimeDaemonDockingIntent>();
         public List<AetheriaRuntimeDaemonWormholeIntent> Wormholes { get; } =
             new List<AetheriaRuntimeDaemonWormholeIntent>();
-        public bool SensorPingRequested { get; set; }
+        public List<AetheriaRuntimeDaemonSensorPingIntent> SensorPings { get; } =
+            new List<AetheriaRuntimeDaemonSensorPingIntent>();
 
         public bool HasAny =>
             Movements.Count > 0 ||
-            SensorPingRequested ||
+            SensorPings.Count > 0 ||
             WeaponGroups.Count > 0 ||
             Behaviors.Count > 0 ||
             Consumables.Count > 0 ||
@@ -45,6 +46,11 @@ namespace GameCult.Aetheria.State.Verse
         public int WeaponGroup { get; set; } = -1;
         public bool Fire { get; set; }
         public bool Active { get; set; }
+    }
+
+    public sealed class AetheriaRuntimeDaemonSensorPingIntent
+    {
+        public string ActorEntityKey { get; set; } = "";
     }
 
     public sealed class AetheriaRuntimeDaemonBehaviorIntent
