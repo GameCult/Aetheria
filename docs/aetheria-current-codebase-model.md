@@ -275,11 +275,14 @@ attached to the old `PerformanceStat` object graph rather than a compact
 blueprint/instance stat set.
 
 The daemon translation does not retain those object-owned dictionaries.
-`AetheriaRuntimeStatModifierSimulation` persists switch, trigger, and modifier
+`AetheriaRuntimeBehaviorSimulation` persists switch, trigger, and modifier
 lifecycle state in the authoritative snapshot. Runtime stat reads derive the
 fossil multiplier-product and constant-sum result from those sources, including
 required-behavior and descendant-kind targeting. This makes reconnect replay
 idempotent and keeps the Unity fossil out of the gameplay authority path.
+The same daemon organ executes common resource gates in group order. Energy,
+thermal cells, cargo, and durability remain owned by their narrow transaction
+subsystems; behavior composition decides only whether and when to call them.
 
 Migration target:
 

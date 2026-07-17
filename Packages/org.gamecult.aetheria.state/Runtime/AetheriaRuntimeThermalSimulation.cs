@@ -214,14 +214,6 @@ namespace GameCult.Aetheria.State.Verse
                 state.PreviousTemperature = temperature;
                 states.Add(state);
 
-                var wearPayload = (typed.BehaviorPayloads ?? Array.Empty<AetheriaRuntimeBehaviorPayload>())
-                    .FirstOrDefault(value => value != null && value.Kind == "Wear");
-                if (state.Online && wearPayload != null)
-                {
-                    var perSecond = (wearPayload.Fields ?? Array.Empty<AetheriaRuntimeBehaviorField>())
-                        .FirstOrDefault(field => field != null && field.Key == 1)?.Value?.BoolValue ?? true;
-                    ApplyWear(entity, index, state.Wear * (perSecond ? deltaSeconds : 1));
-                }
             }
             entity.EquipmentStates = states;
         }

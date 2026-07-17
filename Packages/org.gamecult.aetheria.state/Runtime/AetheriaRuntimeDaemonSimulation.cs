@@ -68,11 +68,12 @@ namespace GameCult.Aetheria.State.Verse
                     AetheriaRuntimeThermalSimulation.UpdateEquipmentStates(entity, catalog, deltaSeconds);
                     AetheriaRuntimeEnergySimulation.BeginTick(entity, catalog);
                 }
-                AetheriaRuntimeStatModifierSimulation.Step(
+                AetheriaRuntimeBehaviorSimulation.Step(
                     zone.ZoneIndex,
                     entities,
                     intents?.Behaviors,
-                    catalog);
+                    catalog,
+                    deltaSeconds);
                 AetheriaRuntimeConsumableSimulation.StepZone(
                     run,
                     zone,

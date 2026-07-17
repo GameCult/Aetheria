@@ -69,7 +69,7 @@ namespace GameCult.Aetheria.State.Verse
                 field?.Value,
                 Item,
                 Math.Max(0, Math.Min(1, thermalPerformance)));
-            return AetheriaRuntimeStatModifierSimulation.Apply(
+            return AetheriaRuntimeBehaviorSimulation.Apply(
                 Entity, Catalog, EquipmentIndex, Payload, fieldKey, baseline);
         }
     }

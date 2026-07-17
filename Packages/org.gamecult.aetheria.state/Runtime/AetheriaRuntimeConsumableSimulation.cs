@@ -105,7 +105,7 @@ namespace GameCult.Aetheria.State.Verse
                 if (payloads[behaviorIndex] != null &&
                     string.Equals(payloads[behaviorIndex].Kind, "StatModifier", StringComparison.Ordinal))
                     FindBehaviorState(effect, behaviorIndex, payloads[behaviorIndex]).StatModifierTargetStatCount =
-                        AetheriaRuntimeStatModifierSimulation.CountTargets(entity, catalog!, payloads[behaviorIndex]);
+                        AetheriaRuntimeBehaviorSimulation.CountTargets(entity, catalog!, payloads[behaviorIndex]);
             UpdateAlwaysUpdatedBehaviors(effect, payloads, effectiveness, deltaSeconds);
             for (var behaviorIndex = 0; behaviorIndex < payloads.Count; behaviorIndex++)
             {

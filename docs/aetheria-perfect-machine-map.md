@@ -305,6 +305,16 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   values, sums all constants, and returns `base * product + sum`. There is no
   client modifier owner and no reconnect-time mutable modifier cache to double
   apply. Offline, disabled, or broken source equipment contributes nothing.
+  The same executor owns the fossil common resource behaviors in authored group
+  order. `Cooldown` persists its normalized scalar and publishes generic
+  behavior progress; `EnergyDraw` transacts against the capacitor/reactor
+  owner; `Heat` writes the source equipment's thermal cells; `ItemUsage`
+  removes exactly one cargo item through the atomic cargo transaction; and
+  `Wear` applies thermal simulation's computed wear pressure at its authored
+  cadence. A refused cooldown, energy draw, or item use stops the group before
+  downstream heat, wear, or modifiers. Thermal simulation computes wear but is
+  no longer allowed to apply it merely because an item contains a `Wear`
+  payload.
 - Sensor contact information is daemon-owned. Each operational installed
   `Sensor` behavior executes the fossil information equation against target
   visibility, distance, observer-relative angle, its authored sensitivity

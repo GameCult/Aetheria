@@ -1515,6 +1515,9 @@ namespace GameCult.Aetheria.State.Verse
         [Key(54)]
         public bool TurretControllerPredictShots { get; set; }
 
+        [Key(58)]
+        public double CooldownProgress { get; set; }
+
         [Key(55)]
         public string ResourceScannerTargetBodyKey { get; set; } = "";
 

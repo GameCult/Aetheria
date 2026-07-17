@@ -6,15 +6,16 @@ using System.Linq;
 
 namespace GameCult.Aetheria.State.Verse
 {
-    public static class AetheriaRuntimeStatModifierSimulation
+    public static class AetheriaRuntimeBehaviorSimulation
     {
         public static void Step(
             int zoneIndex,
             IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities,
             IEnumerable<AetheriaRuntimeDaemonBehaviorIntent>? intents,
-            AetheriaRuntimeCatalogSnapshot? catalog)
+            AetheriaRuntimeCatalogSnapshot? catalog,
+            double deltaSeconds)
         {
-            if (catalog == null)
+            if (catalog == null || deltaSeconds <= 0)
                 return;
 
             var intentArray = (intents ?? Enumerable.Empty<AetheriaRuntimeDaemonBehaviorIntent>()).ToArray();
@@ -25,7 +26,8 @@ namespace GameCult.Aetheria.State.Verse
 
                 AetheriaRuntimeBehaviorStateProjector.EnsureEquipmentBehaviorStates(entity, catalog);
                 ApplyControlIntents(zoneIndex, entity, intentArray);
-                ExecuteEquipmentChains(entity, catalog);
+                ExecuteEquipmentChains(entity, catalog, deltaSeconds);
+                ProjectCooldownProgress(entity);
             }
         }
 
@@ -104,7 +106,8 @@ namespace GameCult.Aetheria.State.Verse
 
         private static void ExecuteEquipmentChains(
             AetheriaRuntimeEntitySnapshotCommit entity,
-            AetheriaRuntimeCatalogSnapshot catalog)
+            AetheriaRuntimeCatalogSnapshot catalog,
+            double deltaSeconds)
         {
             var states = (entity.BehaviorStates ?? Array.Empty<AetheriaRuntimeBehaviorStateCommit>())
                 .Where(value => value != null && string.Equals(value.OwnerKind,
@@ -141,6 +144,39 @@ namespace GameCult.Aetheria.State.Verse
                             break;
                         state.TriggerPulled = false;
                     }
+                    if (string.Equals(entry.Payload.Kind, "Cooldown", StringComparison.Ordinal))
+                    {
+                        if (state.CooldownProgress >= 0)
+                            break;
+                        state.CooldownProgress = 1;
+                    }
+                    if (string.Equals(entry.Payload.Kind, "EnergyDraw", StringComparison.Ordinal))
+                    {
+                        var demand = Evaluate(entity, catalog, equipmentIndex, entry.Index, entry.Payload, state, 1) *
+                            (ReadBool(entry.Payload, 2) ? deltaSeconds : 1);
+                        if (!AetheriaRuntimeEnergySimulation.TryConsume(entity, catalog, demand))
+                            break;
+                    }
+                    if (string.Equals(entry.Payload.Kind, "Heat", StringComparison.Ordinal))
+                    {
+                        var heat = Evaluate(entity, catalog, equipmentIndex, entry.Index, entry.Payload, state, 1) *
+                            (ReadBool(entry.Payload, 2) ? deltaSeconds : 1);
+                        AetheriaRuntimeThermalSimulation.AddHeatToEquipment(entity, catalog, equipmentIndex, heat);
+                    }
+                    if (string.Equals(entry.Payload.Kind, "ItemUsage", StringComparison.Ordinal))
+                    {
+                        var itemKey = ReadItemKey(entry.Payload, 1);
+                        if (string.IsNullOrWhiteSpace(itemKey) ||
+                            !AetheriaRuntimeCargoTransactions.TryFind(entity, itemKey, out var cargoIndex, out var x, out var y) ||
+                            !AetheriaRuntimeCargoTransactions.TryRemoveQuantity(entity, cargoIndex, itemKey, x, y, 1, out _))
+                            break;
+                    }
+                    if (string.Equals(entry.Payload.Kind, "Wear", StringComparison.Ordinal))
+                    {
+                        var wear = online.TryGetValue(equipmentIndex, out var wearState) ? wearState.Wear : 0;
+                        AetheriaRuntimeThermalSimulation.ApplyWear(
+                            entity, equipmentIndex, wear * (ReadBool(entry.Payload, 1, true) ? deltaSeconds : 1));
+                    }
                     if (string.Equals(entry.Payload.Kind, "StatModifier", StringComparison.Ordinal))
                         state.StatModifierExecuted = true;
                 }
@@ -153,7 +189,64 @@ namespace GameCult.Aetheria.State.Verse
                     state.StatModifierApplied = state.StatModifierExecuted;
                     state.StatModifierTargetStatCount = CountTargets(entity, catalog, entry.Payload);
                 }
+
+                foreach (var entry in payloads.Select((payload, index) => (Payload: payload, Index: index)))
+                {
+                    if (entry.Payload == null || !string.Equals(entry.Payload.Kind, "Cooldown", StringComparison.Ordinal) ||
+                        !states.TryGetValue((equipmentIndex, entry.Index), out var state))
+                        continue;
+                    var duration = Evaluate(entity, catalog, equipmentIndex, entry.Index, entry.Payload, state, 1);
+                    state.CooldownProgress -= deltaSeconds / Math.Max(double.Epsilon, duration);
+                }
             }
+        }
+
+        private static double Evaluate(
+            AetheriaRuntimeEntitySnapshotCommit entity,
+            AetheriaRuntimeCatalogSnapshot catalog,
+            int equipmentIndex,
+            int behaviorIndex,
+            AetheriaRuntimeBehaviorPayload payload,
+            AetheriaRuntimeBehaviorStateCommit state,
+            int fieldKey)
+        {
+            var equipment = entity.Equipment ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>();
+            if (equipmentIndex < 0 || equipmentIndex >= equipment.Count || equipment[equipmentIndex]?.Item == null)
+                return 0;
+            var item = equipment[equipmentIndex].Item;
+            var typed = catalog.FindItem(item.ItemKey ?? "");
+            if (typed == null)
+                return 0;
+            var behavior = new AetheriaRuntimeEquippedBehavior(
+                entity, catalog, equipmentIndex, behaviorIndex, equipment[equipmentIndex], item, typed, payload, state);
+            var thermal = (entity.EquipmentStates ?? Array.Empty<AetheriaRuntimeEquipmentStateCommit>())
+                .FirstOrDefault(value => value?.EquipmentIndex == equipmentIndex)?.ThermalPerformance ?? 1;
+            return behavior.EvaluateStat(fieldKey, thermal);
+        }
+
+        private static void ProjectCooldownProgress(AetheriaRuntimeEntitySnapshotCommit entity)
+        {
+            var retained = (entity.BehaviorProgress ?? Array.Empty<AetheriaRuntimeBehaviorProgressCommit>())
+                .Where(value => value != null &&
+                    !(string.Equals(value.OwnerKind, AetheriaRuntimeBehaviorStateProjector.EquipmentOwnerKind, StringComparison.Ordinal) &&
+                      string.Equals(value.BehaviorKind, "Cooldown", StringComparison.Ordinal)));
+            var cooldowns = (entity.BehaviorStates ?? Array.Empty<AetheriaRuntimeBehaviorStateCommit>())
+                .Where(value => value != null &&
+                    string.Equals(value.OwnerKind, AetheriaRuntimeBehaviorStateProjector.EquipmentOwnerKind, StringComparison.Ordinal) &&
+                    string.Equals(value.BehaviorKind, "Cooldown", StringComparison.Ordinal))
+                .Select(value => new AetheriaRuntimeBehaviorProgressCommit
+                {
+                    OwnerKind = value.OwnerKind,
+                    OwnerIndex = value.OwnerIndex,
+                    BehaviorIndex = value.BehaviorIndex,
+                    BehaviorKind = value.BehaviorKind,
+                    Progress = Math.Max(0, Math.Min(1, value.CooldownProgress))
+                });
+            entity.BehaviorProgress = retained.Concat(cooldowns)
+                .OrderBy(value => value.OwnerKind, StringComparer.Ordinal)
+                .ThenBy(value => value.OwnerIndex)
+                .ThenBy(value => value.BehaviorIndex)
+                .ToArray();
         }
 
         private static IEnumerable<ModifierValue> ActiveEquippedModifiers(
@@ -242,6 +335,20 @@ namespace GameCult.Aetheria.State.Verse
 
         private static AetheriaRuntimeBehaviorField? Field(AetheriaRuntimeBehaviorPayload payload, int key) =>
             (payload?.Fields ?? Array.Empty<AetheriaRuntimeBehaviorField>()).FirstOrDefault(value => value?.Key == key);
+
+        private static bool ReadBool(AetheriaRuntimeBehaviorPayload payload, int key, bool fallback = false)
+        {
+            var field = Field(payload, key);
+            return field == null ? fallback : field.Value?.BoolValue ?? fallback;
+        }
+
+        private static string ReadItemKey(AetheriaRuntimeBehaviorPayload payload, int key)
+        {
+            var value = Field(payload, key)?.Value;
+            return !string.IsNullOrWhiteSpace(value?.ItemKeyValue)
+                ? value.ItemKeyValue
+                : ReadString(value);
+        }
 
         private static string ChildString(AetheriaRuntimeBehaviorValue? value, int index) =>
             value != null && value.Children != null && value.Children.Count > index

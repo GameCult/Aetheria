@@ -175,6 +175,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             DockedRefitSurfacePublishesGenericCommands,
             FossilVelocityBehaviorsRunInDaemonFlightStep,
             BehaviorChainsGateAuthoritativeStatModifiers,
+            ResourceBehaviorsStopEquipmentChainsInAuthoredOrder,
             ReflectorUsesSharedStellarLightFieldWithoutAccumulating,
             SensorPingIsActorScopedEnergyGatedAndReconnectable,
             TurretControllerAcquiresAimsAndTriggersExactWeapons,
@@ -260,31 +261,135 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 { ActorEntityKey = "zone.0.entity.0", EquipmentIndex = 1, BehaviorIndex = 2, Active = true }
         };
 
-        AetheriaRuntimeStatModifierSimulation.Step(0, [entity],
+        AetheriaRuntimeBehaviorSimulation.Step(0, [entity],
             [new AetheriaRuntimeDaemonBehaviorIntent
                 { ActorEntityKey = "zone.1.entity.0", EquipmentIndex = 1, BehaviorIndex = 0, Active = true }],
-            catalog);
+            catalog, 0.1);
         var target = AetheriaRuntimeEquippedBehaviorQueries.FindOperational(entity, catalog, "Thruster").Single();
         RequireNear(10, target.EvaluateStat(1), 0.000001,
             "a behavior command for the same entity index in another zone must not cross-activate this ship");
 
-        AetheriaRuntimeStatModifierSimulation.Step(0, [entity], activate, catalog);
+        AetheriaRuntimeBehaviorSimulation.Step(0, [entity], activate, catalog, 0.1);
         RequireNear(25, target.EvaluateStat(1), 0.000001,
             "switch and one-shot trigger groups must multiply then add through the shared daemon stat path");
         var modifierStates = entity.BehaviorStates.Where(value => value.BehaviorKind == "StatModifier").ToArray();
         Require(modifierStates.All(value => value.StatModifierApplied && value.StatModifierTargetStatCount == 1),
             "applied modifier state must name the exact live target count");
 
-        AetheriaRuntimeStatModifierSimulation.Step(0, [entity], [], catalog);
+        AetheriaRuntimeBehaviorSimulation.Step(0, [entity], [], catalog, 0.1);
         RequireNear(20, target.EvaluateStat(1), 0.000001,
             "trigger modifiers must disappear on the next tick without another pull");
 
-        AetheriaRuntimeStatModifierSimulation.Step(0, [entity],
+        AetheriaRuntimeBehaviorSimulation.Step(0, [entity],
             [new AetheriaRuntimeDaemonBehaviorIntent
                 { ActorEntityKey = "zone.0.entity.0", EquipmentIndex = 1, BehaviorIndex = 0, Active = false }],
-            catalog);
+            catalog, 0.1);
         RequireNear(10, target.EvaluateStat(1), 0.000001,
             "deactivating the switch must restore the unmodified authored stat exactly");
+    }
+
+    private static void ResourceBehaviorsStopEquipmentChainsInAuthoredOrder()
+    {
+        var targetItem = CatalogItem("resource-target", new AetheriaRuntimeBehaviorPayload(
+            0, "Thruster", 0, [new AetheriaRuntimeBehaviorField(1, PerformanceStat(10))]));
+        var controlItem = CatalogItem("resource-controls",
+            new AetheriaRuntimeBehaviorPayload(0, "Switch", 0, []),
+            new AetheriaRuntimeBehaviorPayload(1, "Cooldown", 0,
+                [new AetheriaRuntimeBehaviorField(1, PerformanceStat(1))]),
+            new AetheriaRuntimeBehaviorPayload(2, "EnergyDraw", 0,
+            [
+                new AetheriaRuntimeBehaviorField(1, PerformanceStat(5)),
+                new AetheriaRuntimeBehaviorField(2, BoolValue(false))
+            ]),
+            new AetheriaRuntimeBehaviorPayload(3, "Heat", 0,
+            [
+                new AetheriaRuntimeBehaviorField(1, PerformanceStat(10)),
+                new AetheriaRuntimeBehaviorField(2, BoolValue(false))
+            ]),
+            new AetheriaRuntimeBehaviorPayload(4, "ItemUsage", 0,
+                [new AetheriaRuntimeBehaviorField(1, ItemKeyValue("resource-ammo"))]),
+            new AetheriaRuntimeBehaviorPayload(5, "Wear", 0,
+                [new AetheriaRuntimeBehaviorField(1, BoolValue(true))]),
+            new AetheriaRuntimeBehaviorPayload(6, "StatModifier", 0,
+            [
+                new AetheriaRuntimeBehaviorField(1, StatReference("Thruster", "Thrust")),
+                new AetheriaRuntimeBehaviorField(2, PerformanceStat(2)),
+                new AetheriaRuntimeBehaviorField(3, StringValue("Multiplier"))
+            ]));
+        var capacitorItem = CatalogItem("resource-capacitor", CapacitorPayload(10, 1));
+        var ammoItem = CatalogItem("resource-ammo");
+        var catalog = new AetheriaRuntimeCatalogSnapshot(
+            [targetItem, controlItem, capacitorItem, ammoItem], [], []);
+        var entity = Entity(0, 0, "player");
+        entity.Equipment =
+        [
+            Equipment(targetItem.ItemKey),
+            Equipment(controlItem.ItemKey),
+            Equipment(capacitorItem.ItemKey)
+        ];
+        entity.CargoContents = [new AetheriaRuntimeCargoBayLoadoutCommit
+        {
+            Items = [new AetheriaRuntimeLoadoutItemSlotCommit
+                { Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = ammoItem.ItemKey, Quantity = 2 } }]
+        }];
+        AetheriaRuntimeThermalSimulation.EnsureTopology(entity, catalog);
+        AetheriaRuntimeThermalSimulation.EnsureState(entity);
+        AetheriaRuntimeThermalSimulation.UpdateEquipmentStates(entity, catalog, 0.1);
+        AetheriaRuntimeBehaviorStateProjector.EnsureEquipmentBehaviorStates(entity, catalog);
+        AetheriaRuntimeEnergySimulation.BeginTick(entity, catalog);
+        var capacitor = AetheriaRuntimeEquippedBehaviorQueries.Find(entity, catalog, "Capacitor").Single();
+        capacitor.State.CapacitorCharge = 10;
+        var controlEquipmentState = entity.EquipmentStates.Single(value => value.EquipmentIndex == 1);
+        controlEquipmentState.Wear = 2;
+        var initialTemperature = AetheriaRuntimeThermalSimulation.EquipmentTemperature(entity, catalog, 1);
+        var target = AetheriaRuntimeEquippedBehaviorQueries.FindOperational(entity, catalog, "Thruster").Single();
+
+        AetheriaRuntimeBehaviorSimulation.Step(0, [entity],
+            [new AetheriaRuntimeDaemonBehaviorIntent
+                { ActorEntityKey = "zone.0.entity.0", EquipmentIndex = 1, BehaviorIndex = 0, Active = true }],
+            catalog, 0.1);
+        RequireNear(10, capacitor.State.CapacitorCharge, 0.000001,
+            "a newly constructed cooldown must stop its group before any resource transaction");
+        RequireEqual(2, CargoQuantity(entity, ammoItem.ItemKey),
+            "cooldown must stop item usage before cargo mutation");
+
+        AetheriaRuntimeBehaviorSimulation.Step(0, [entity], [], catalog, 0.1);
+        RequireNear(5, capacitor.State.CapacitorCharge, 0.000001,
+            "energy draw must debit the daemon capacitor exactly once when the cooldown opens");
+        RequireEqual(1, CargoQuantity(entity, ammoItem.ItemKey),
+            "item usage must remove exactly one authored cargo item");
+        RequireNear(0.8, entity.Equipment[1].Item.Durability, 0.000001,
+            "wear must use the thermal owner's pressure only after preceding gates succeed");
+        Require(AetheriaRuntimeThermalSimulation.EquipmentTemperature(entity, catalog, 1) > initialTemperature,
+            "heat must enter the source equipment's authoritative thermal cells");
+        RequireNear(20, target.EvaluateStat(1), 0.000001,
+            "downstream modifiers must apply only after every preceding resource gate succeeds");
+        RequireNear(0.9, entity.BehaviorProgress.Single(value =>
+                value.OwnerIndex == 1 && value.BehaviorKind == "Cooldown").Progress, 0.000001,
+            "cooldown state must project a generic Eve progress lever from the authoritative behavior row");
+
+        var cooldown = entity.BehaviorStates.Single(value =>
+            value.OwnerIndex == 1 && value.BehaviorKind == "Cooldown");
+        cooldown.CooldownProgress = -1;
+        capacitor.State.CapacitorCharge = 0;
+        var temperatureBeforeRefusal = AetheriaRuntimeThermalSimulation.EquipmentTemperature(entity, catalog, 1);
+        var durabilityBeforeRefusal = entity.Equipment[1].Item.Durability;
+        AetheriaRuntimeBehaviorSimulation.Step(0, [entity], [], catalog, 0.1);
+        RequireEqual(1, CargoQuantity(entity, ammoItem.ItemKey),
+            "an empty capacitor must stop the group before item usage");
+        RequireNear(durabilityBeforeRefusal, entity.Equipment[1].Item.Durability, 0.000001,
+            "an empty capacitor must stop the group before wear");
+        RequireNear(temperatureBeforeRefusal,
+            AetheriaRuntimeThermalSimulation.EquipmentTemperature(entity, catalog, 1), 0.000001,
+            "an empty capacitor must stop the group before heat");
+        RequireNear(10, target.EvaluateStat(1), 0.000001,
+            "an empty capacitor must remove a downstream modifier instead of leaving stale application state");
+
+        static AetheriaRuntimeLoadoutItemSlotCommit Equipment(string itemKey) => new()
+        {
+            Item = new AetheriaRuntimeLoadoutItemCommit
+                { ItemKey = itemKey, Enabled = true, Durability = 1, Quality = 1 }
+        };
     }
 
     private static void DockedRefitSurfacePublishesGenericCommands()
@@ -3142,6 +3247,16 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         Array.Empty<AetheriaRuntimeBehaviorValue>(),
         Array.Empty<AetheriaRuntimeBehaviorMapEntry>());
 
+    private static AetheriaRuntimeBehaviorValue BoolValue(bool value) => new(
+        "bool", "", 0, value, "", "",
+        Array.Empty<AetheriaRuntimeBehaviorValue>(),
+        Array.Empty<AetheriaRuntimeBehaviorMapEntry>());
+
+    private static AetheriaRuntimeBehaviorValue ItemKeyValue(string value) => new(
+        "item-key", "", 0, false, "", value,
+        Array.Empty<AetheriaRuntimeBehaviorValue>(),
+        Array.Empty<AetheriaRuntimeBehaviorMapEntry>());
+
     private static AetheriaRuntimeBehaviorValue StatReference(string target, string stat) => new(
         "stat-reference", "", 0, false, "", "",
         [StringValue(""), StringValue(target), StringValue(stat)],
@@ -4794,6 +4909,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             "item thermal performance must come from mean occupied-cell temperature and authored curve");
         Require(state.ThermalOnline && state.Online,
             "item above shutdown performance with positive durability must remain online");
+        AetheriaRuntimeBehaviorSimulation.Step(0, [entity], [], catalog, 1);
         RequireNear(10 - state.Wear, item.Durability, 0.000001,
             "generic Wear behavior must apply the computed thermal wear potential at its authored cadence");
 
