@@ -22,6 +22,7 @@ public class MainMenu : MonoBehaviour
     private UIDocument _menuSurfaceDocument;
     private Func<bool> _canOpenRuntimeInputScreen;
     private Action _openRuntimeInputScreen;
+    private IDisposable _newGameWait;
     private readonly List<MenuHoverButton> _hoverButtons = new List<MenuHoverButton>();
     private readonly AetheriaEveUnitySurfaceChrome _menuSurfaceChrome = new AetheriaEveUnitySurfaceChrome
     {
@@ -75,7 +76,7 @@ public class MainMenu : MonoBehaviour
                 ContinueGame();
                 return;
             case AetheriaRuntimeMainMenuCommandKind.NewGame:
-                StartNewGame();
+                StartNewGame(request);
                 return;
             case AetheriaRuntimeMainMenuCommandKind.ShowSettings:
                 ShowSettings(true);
@@ -89,12 +90,39 @@ public class MainMenu : MonoBehaviour
         }
     }
 
-    private void StartNewGame()
+    private void StartNewGame(EveSurfaceCommandRequest request)
     {
-        if (!TryStartDaemonObservedGame("Starting Daemon Run"))
+        var before = ResolveSectorMap(CurrentStateBoot());
+        if (!SendKnownAetheriaEveCommand(request, "new-game"))
         {
             ShowMain(false);
+            return;
         }
+
+        var publishedBefore = before?.PublishedAtUtc ?? "";
+        var generatorState = "Waiting for daemon world generation";
+        HideMenuSurface();
+        Dialog.Clear();
+        Dialog.Title.text = "Generating Aetheria";
+        Dialog.AddProperty(() => generatorState);
+        Dialog.Show();
+        _newGameWait?.Dispose();
+        _newGameWait = Observable.EveryUpdate()
+            .Select(_ => ResolveSectorMap(CurrentStateBoot()))
+            .Where(sectorMap => sectorMap != null &&
+                sectorMap.IsTutorial &&
+                !string.Equals(sectorMap.PublishedAtUtc, publishedBefore, StringComparison.Ordinal))
+            .Take(1)
+            .ObserveOnMainThread()
+            .Subscribe(sectorMap =>
+            {
+                generatorState = $"Entering {sectorMap.Zones.Count}-zone tutorial";
+                SceneManager.LoadScene("ARPG");
+            }, ex =>
+            {
+                Debug.LogError($"Failed while waiting for daemon New Game state: {ex}");
+                ShowMain(false);
+            });
     }
 
     private bool TryStartDaemonObservedGame(string title)
@@ -670,16 +698,16 @@ public class MainMenu : MonoBehaviour
         }
     }
 
-    private void SendKnownAetheriaEveCommand(
+    private bool SendKnownAetheriaEveCommand(
         EveSurfaceCommandRequest request,
         string label)
     {
         if (request == null)
-            return;
+            return false;
 
         var stateBoot = CurrentStateBoot();
         if (!CanSendLocalEveCommand(stateBoot, label))
-            return;
+            return false;
 
         try
         {
@@ -690,10 +718,12 @@ public class MainMenu : MonoBehaviour
                 .GetResult();
 
             Debug.Log($"Submitted Aetheria {label} Eve operation: {submitted.OperationId}");
+            return true;
         }
         catch (Exception ex)
         {
             Debug.LogError($"Failed to send Aetheria {label} Eve command: {ex}");
+            return false;
         }
     }
 
@@ -713,6 +743,7 @@ public class MainMenu : MonoBehaviour
 
     private void OnDestroy()
     {
+        _newGameWait?.Dispose();
         if (_menuSurfaceDocument != null)
         {
             Destroy(_menuSurfaceDocument.gameObject);

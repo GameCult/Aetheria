@@ -147,11 +147,18 @@ orbits, gravity curves, and sun/gas-giant presentation parameters. The old
 process-dependent string/hash seed has been replaced by a stable typed-zone
 seed; generated saves must reproduce across daemon processes.
 
-The world remains pre-session until station, ship, player-entry, and wormhole
-entities are materialized. The daemon must not present a celestial-only graph
-or the handcrafted Terminus proof arena as a completed tutorial. Once entity
-materialization is complete, New Game may select it from player settings and
-Eve may lower its map and entry controls without becoming generation authority.
+The daemon continues the exact post-celestial random stream to populate each
+zone with the fossil station-count curve, Lagrange station orbits, paired
+defensive turrets, and faction ships. The entrance additionally receives the
+controlled starter ship. Zone adjacency is the wormhole truth; exits remain a
+derived render/interaction query rather than counterfeit wormhole entities.
+
+New Game now submits its advertised Eve operation, waits for a newly published
+daemon sector map, and selects the persisted 64-zone tutorial while
+`TutorialPassed` is false. The handcrafted Terminus arena remains a proof
+fixture and the fallback for the still-unmigrated post-tutorial sector path.
+No surviving source defines tutorial completion, so entering this run does not
+change `TutorialPassed`.
 
 ## Current Mechanism
 

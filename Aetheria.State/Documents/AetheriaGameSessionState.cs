@@ -9,6 +9,7 @@ namespace Aetheria.State.Documents;
 public sealed class AetheriaGameSessionState
 {
     public const string TerminusMode = "terminus";
+    public const string AetheriaMode = "aetheria";
 
     [Key(0)] public string Mode { get; set; } = TerminusMode;
     [Key(1)] public string SessionId { get; set; } = "";

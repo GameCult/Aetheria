@@ -112,13 +112,17 @@ public static class AetheriaDaemonTutorialTopologyGenerator
 
         return requested.Select(name =>
         {
-            var match = (catalog.Corporations ?? Array.Empty<AetheriaRuntimeCorporation>())
-                .FirstOrDefault(value =>
-                    string.Equals(value.ShortName, name, StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(value.Name, name, StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(value.CorporationKey, name, StringComparison.OrdinalIgnoreCase));
-            if (match == null || string.IsNullOrWhiteSpace(match.CorporationKey))
+            var matches = (catalog.Corporations ?? Array.Empty<AetheriaRuntimeCorporation>())
+                .Where(value => MatchesAuthoredSelector(value, name))
+                .ToArray();
+            if (matches.Length == 0)
                 throw new InvalidDataException($"Tutorial generation requires the authored faction '{name}'.");
+            if (matches.Length > 1)
+                throw new InvalidDataException(
+                    $"Tutorial faction selector '{name}' is ambiguous: {string.Join(", ", matches.Select(value => value.Name))}.");
+            var match = matches[0];
+            if (string.IsNullOrWhiteSpace(match.CorporationKey))
+                throw new InvalidDataException($"Tutorial faction '{name}' has no stable corporation key.");
             var nameFile = catalog.FindNameFile(match.GeonameFileKey);
             if (nameFile == null || nameFile.Names.Count == 0)
                 throw new InvalidDataException($"Tutorial faction '{name}' has no typed geoname corpus.");
@@ -132,6 +136,17 @@ public static class AetheriaDaemonTutorialTopologyGenerator
             };
         }).ToArray();
     }
+
+    private static bool MatchesAuthoredSelector(AetheriaRuntimeCorporation corporation, string selector)
+    {
+        return string.Equals(corporation.CorporationKey, selector, StringComparison.OrdinalIgnoreCase) ||
+               StartsWithSelector(corporation.ShortName, selector) ||
+               StartsWithSelector(corporation.Name, selector);
+    }
+
+    private static bool StartsWithSelector(string? value, string selector) =>
+        !string.IsNullOrWhiteSpace(value) &&
+        value.StartsWith(selector, StringComparison.OrdinalIgnoreCase);
 
     public static AetheriaDaemonTutorialTopology Generate(
         IReadOnlyList<AetheriaDaemonTutorialFactionInput> factions,
@@ -209,11 +224,17 @@ public static class AetheriaDaemonTutorialTopologyGenerator
     {
         AetheriaDaemonTutorialFactionInput Resolve(string name)
         {
-            return factions.FirstOrDefault(value =>
-                       string.Equals(value.ShortName, name, StringComparison.OrdinalIgnoreCase) ||
-                       string.Equals(value.Name, name, StringComparison.OrdinalIgnoreCase) ||
-                       string.Equals(value.CorporationKey, name, StringComparison.OrdinalIgnoreCase))
-                   ?? throw new InvalidDataException($"Tutorial topology is missing faction '{name}'.");
+            var matches = factions.Where(value =>
+                    string.Equals(value.CorporationKey, name, StringComparison.OrdinalIgnoreCase) ||
+                    StartsWithSelector(value.ShortName, name) ||
+                    StartsWithSelector(value.Name, name))
+                .ToArray();
+            if (matches.Length == 0)
+                throw new InvalidDataException($"Tutorial topology is missing faction '{name}'.");
+            if (matches.Length > 1)
+                throw new InvalidDataException(
+                    $"Tutorial topology faction selector '{name}' is ambiguous: {string.Join(", ", matches.Select(value => value.Name))}.");
+            return matches[0];
         }
 
         var protagonist = Resolve(settings.ProtagonistFaction);

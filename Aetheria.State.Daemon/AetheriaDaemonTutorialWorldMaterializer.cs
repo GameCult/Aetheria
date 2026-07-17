@@ -66,7 +66,8 @@ public static class AetheriaDaemonTutorialWorldMaterializer
                         (uint)random.NextInt(1, int.MaxValue),
                         topology.ZoneIndex,
                         homes,
-                        adjacency);
+                        adjacency,
+                        isPrelude: true);
                     generators.Add(factionKey, generator);
                 }
                 return generator;
@@ -148,7 +149,8 @@ public static class AetheriaDaemonTutorialWorldMaterializer
                     world.Topology.GenerationSeed ^ 0x50A7_EA11u,
                     topology.ZoneIndex,
                     homes,
-                    adjacency).Build("ship", protagonist.CorporationKey);
+                    adjacency,
+                    isPrelude: true).Build("ship", protagonist.CorporationKey);
                 localPlayerIndex = entities.Count;
                 entities.Add(AetheriaDaemonGeneratedEntityFactory.Create(
                     "Pilot",

@@ -12,6 +12,7 @@ public sealed class AetheriaDaemonLoadoutGenerator
     private readonly IReadOnlyDictionary<string, int> _homeZones;
     private readonly IReadOnlyDictionary<int, IReadOnlyList<int>> _adjacency;
     private readonly double _priceExponent;
+    private readonly bool _isPrelude;
 
     public AetheriaDaemonLoadoutGenerator(
         AetheriaRuntimeCatalogSnapshot catalog,
@@ -19,7 +20,8 @@ public sealed class AetheriaDaemonLoadoutGenerator
         int zoneIndex,
         IReadOnlyDictionary<string, int> homeZones,
         IReadOnlyDictionary<int, IReadOnlyList<int>> adjacency,
-        double priceExponent = 0.5)
+        double priceExponent = 0.5,
+        bool isPrelude = false)
     {
         _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
         _seed = seed == 0 ? 1u : seed;
@@ -28,6 +30,7 @@ public sealed class AetheriaDaemonLoadoutGenerator
         _homeZones = homeZones ?? throw new ArgumentNullException(nameof(homeZones));
         _adjacency = adjacency ?? throw new ArgumentNullException(nameof(adjacency));
         _priceExponent = priceExponent;
+        _isPrelude = isPrelude;
     }
 
     public AetheriaDaemonLoadout Build(
@@ -283,8 +286,10 @@ public sealed class AetheriaDaemonLoadoutGenerator
             .ToDictionary(value => value.CorporationKey, value => value.Weight, StringComparer.Ordinal);
         foreach (var item in _catalog.EquipmentItems)
         {
-            if (item.Price <= 0 || string.IsNullOrWhiteSpace(item.ManufacturerKey) ||
-                !_homeZones.ContainsKey(item.ManufacturerKey) || !allegiances.ContainsKey(item.ManufacturerKey))
+            if (item.Price <= 0 || string.IsNullOrWhiteSpace(item.ManufacturerKey))
+                continue;
+            if (!_isPrelude &&
+                (!_homeZones.ContainsKey(item.ManufacturerKey) || !allegiances.ContainsKey(item.ManufacturerKey)))
                 continue;
             yield return item;
         }
@@ -293,10 +298,20 @@ public sealed class AetheriaDaemonLoadoutGenerator
     private double Weight(AetheriaRuntimeCatalogItem item, string factionKey, double sizeExponent)
     {
         var faction = _catalog.Corporations.First(value => value.CorporationKey == factionKey);
-        var allegiance = string.Equals(item.ManufacturerKey, factionKey, StringComparison.Ordinal)
-            ? 1
-            : faction.Allegiances.First(value => value.CorporationKey == item.ManufacturerKey).Weight /
-              Math.Max(1, Distance(_zoneIndex, _homeZones[item.ManufacturerKey]));
+        double allegiance;
+        if (string.Equals(item.ManufacturerKey, factionKey, StringComparison.Ordinal))
+        {
+            allegiance = 1;
+        }
+        else
+        {
+            var authoredWeight = (faction.Allegiances ?? Array.Empty<AetheriaRuntimeCorporationAllegiance>())
+                .FirstOrDefault(value => value.CorporationKey == item.ManufacturerKey)?.Weight ?? 0;
+            var distance = _homeZones.TryGetValue(item.ManufacturerKey, out var home)
+                ? Distance(_zoneIndex, home)
+                : 1;
+            allegiance = authoredWeight / Math.Max(1, distance);
+        }
         return allegiance * Math.Pow(Math.Max(1, item.OccupiedCells), sizeExponent) /
             Math.Pow(item.Price, _priceExponent) * RarityWeight(item);
     }

@@ -40,7 +40,7 @@ await EnsureWorldDocumentAsync(node).ConfigureAwait(false);
 await EnsureTradeValuePolicyAsync(node, startedAtUtc).ConfigureAwait(false);
 await node.FlushAsync().ConfigureAwait(false);
 await EnsurePlayableRunDocumentsAsync(node, options, startedAtUtc).ConfigureAwait(false);
-await EnsureTerminusGameSessionAsync(node, options, startedAtUtc).ConfigureAwait(false);
+await EnsureGameSessionAsync(node, options, startedAtUtc).ConfigureAwait(false);
 var verseHost = await EnsureVerseHostSettingsAsync(node, options, startedAtUtc).ConfigureAwait(false);
 await EnsureVerseAuthorityPolicyAsync(node, options).ConfigureAwait(false);
 discoveryHost.Update(verseHost);
@@ -186,7 +186,7 @@ static async Task<AetheriaRuntimeDaemonTickResult> TickAsync(
     TracePhase("core-ingress");
     await AcceptEveCommandsAsync(node, options, ingressState).ConfigureAwait(false);
     TracePhase("provider-ingress");
-    if (await ApplyRequestedTerminusSessionAsync(node, options).ConfigureAwait(false))
+    if (await ApplyRequestedNewGameSessionAsync(node, options).ConfigureAwait(false))
     {
         currentFrame = null;
         ingressState.ControlPlaneInitialized = false;
@@ -2474,38 +2474,43 @@ static async Task EnsurePlayableRunDocumentsAsync(
     if (!string.IsNullOrWhiteSpace(settings?.ActiveRunKey))
     {
         var existingRun = await ReadRuntimeRunCheckpointAsync(node, options.RenderSettings).ConfigureAwait(false);
-        if (HasPlayableRun(existingRun) && HasTerminusRun(existingRun, options.TerminusScenario))
+        if (HasPlayableRun(existingRun))
             return;
     }
 
-    await AetheriaDaemonZoneGenerator.WritePlayableRunAsync(
-            node,
-            node.RuntimeCatalog().Latest(),
-            now,
-            options.TerminusScenario)
-        .ConfigureAwait(false);
+    await WriteNewRunAsync(node, options, now).ConfigureAwait(false);
 }
 
-static async Task EnsureTerminusGameSessionAsync(
+static async Task EnsureGameSessionAsync(
     AetheriaStateNode node,
     AetheriaDaemonHostOptions options,
     string now)
 {
+    var player = await node.MutableDocument<AetheriaPlayerSettings>(AetheriaStateNode.PlayerSettingsKey)
+        .ReadAsync().ConfigureAwait(false);
+    if (string.IsNullOrWhiteSpace(player?.ActiveRunKey))
+        throw new InvalidDataException("Aetheria game session requires an active daemon run.");
+    var run = await node.MutableDocument<AetheriaRunState>(new CultRecordKey(player.ActiveRunKey))
+        .ReadAsync().ConfigureAwait(false)
+        ?? throw new InvalidDataException($"Active Aetheria run is missing: {player.ActiveRunKey}");
+    var expectedMode = run.IsTutorial
+        ? AetheriaGameSessionState.AetheriaMode
+        : AetheriaGameSessionState.TerminusMode;
     var existing = await node.MutableDocument<AetheriaGameSessionState>(AetheriaStateNode.GameSessionStateKey)
         .ReadAsync().ConfigureAwait(false);
     if (existing != null &&
-        string.Equals(existing.Mode, AetheriaGameSessionState.TerminusMode, StringComparison.Ordinal) &&
-        string.Equals(existing.RunId, AetheriaDaemonZoneGenerator.RunIdFor(options.TerminusScenario), StringComparison.Ordinal) &&
-        !string.IsNullOrWhiteSpace(existing.ControlledEntityKey))
+        string.Equals(existing.Mode, expectedMode, StringComparison.Ordinal) &&
+        string.Equals(existing.RunId, run.RunId, StringComparison.Ordinal) &&
+        string.Equals(existing.ControlledEntityKey, run.CurrentEntityKey, StringComparison.Ordinal))
         return;
 
     await node.MutableDocument<AetheriaGameSessionState>(AetheriaStateNode.GameSessionStateKey)
         .ReplaceAsync(new AetheriaGameSessionState
         {
-            Mode = AetheriaGameSessionState.TerminusMode,
+            Mode = expectedMode,
             SessionId = options.SessionId,
-            RunId = AetheriaDaemonZoneGenerator.RunIdFor(options.TerminusScenario),
-            ControlledEntityKey = AetheriaDaemonZoneGenerator.EntityKey(options.TerminusScenario, 0, 1),
+            RunId = run.RunId,
+            ControlledEntityKey = run.CurrentEntityKey,
             EntrySurfaceId = AetheriaRuntimeDaemonGameSurfaceBuilder.PilotSurfaceId,
             SimulationRate = 1,
             EffectiveSimulationRate = 1,
@@ -2514,7 +2519,7 @@ static async Task EnsureTerminusGameSessionAsync(
     await node.FlushAsync().ConfigureAwait(false);
 }
 
-static async Task<bool> ApplyRequestedTerminusSessionAsync(
+static async Task<bool> ApplyRequestedNewGameSessionAsync(
     AetheriaStateNode node,
     AetheriaDaemonHostOptions options)
 {
@@ -2531,16 +2536,11 @@ static async Task<bool> ApplyRequestedTerminusSessionAsync(
         return false;
 
     var now = DateTimeOffset.UtcNow.ToString("O");
-    await AetheriaDaemonZoneGenerator.WritePlayableRunAsync(
-            node,
-            node.RuntimeCatalog().Latest(),
-            now,
-            options.TerminusScenario)
-        .ConfigureAwait(false);
-    session.Mode = AetheriaGameSessionState.TerminusMode;
+    var written = await WriteNewRunAsync(node, options, now).ConfigureAwait(false);
+    session.Mode = written.IsTutorial ? AetheriaGameSessionState.AetheriaMode : AetheriaGameSessionState.TerminusMode;
     session.SessionId = options.SessionId;
-    session.RunId = AetheriaDaemonZoneGenerator.RunIdFor(options.TerminusScenario);
-    session.ControlledEntityKey = AetheriaDaemonZoneGenerator.EntityKey(options.TerminusScenario, 0, 1);
+    session.RunId = written.RunId;
+    session.ControlledEntityKey = written.CurrentEntityKey;
     session.EntrySurfaceId = AetheriaRuntimeDaemonGameSurfaceBuilder.PilotSurfaceId;
     session.SimulationRate = 1;
     session.EffectiveSimulationRate = 1;
@@ -2550,6 +2550,29 @@ static async Task<bool> ApplyRequestedTerminusSessionAsync(
         .ReplaceAsync(session).ConfigureAwait(false);
     await node.FlushAsync().ConfigureAwait(false);
     return true;
+}
+
+static async Task<AetheriaDaemonWrittenRun> WriteNewRunAsync(
+    AetheriaStateNode node,
+    AetheriaDaemonHostOptions options,
+    string now)
+{
+    var settings = await node.MutableDocument<AetheriaPlayerSettings>(AetheriaStateNode.PlayerSettingsKey)
+        .ReadAsync().ConfigureAwait(false) ?? new AetheriaPlayerSettings();
+    var catalog = node.RuntimeCatalog().Latest();
+    if (!settings.TutorialPassed)
+        return await AetheriaDaemonTutorialRunWriter.WriteAsync(node, catalog, now).ConfigureAwait(false);
+
+    await AetheriaDaemonZoneGenerator.WritePlayableRunAsync(
+        node,
+        catalog,
+        now,
+        options.TerminusScenario).ConfigureAwait(false);
+    return new AetheriaDaemonWrittenRun(
+        AetheriaDaemonZoneGenerator.RunIdFor(options.TerminusScenario),
+        $"global:aetheria.run_state.{AetheriaDaemonZoneGenerator.RunIdFor(options.TerminusScenario)}.v1",
+        AetheriaDaemonZoneGenerator.EntityKey(options.TerminusScenario, 0, 1),
+        false);
 }
 
 static async Task EnsureVerseAuthorityPolicyAsync(
@@ -2924,27 +2947,6 @@ static bool HasPlayableRun(AetheriaRuntimeRunCheckpointCommit? run)
 {
     return (run?.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>())
         .Any(zone => (zone.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>()).Count > 0);
-}
-
-static bool HasTerminusRun(AetheriaRuntimeRunCheckpointCommit? run, string scenario)
-{
-    var zones = run?.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>();
-    var terminusZone = zones.FirstOrDefault(zone =>
-        string.Equals(zone.Name, "Daemon Generated Terminus", StringComparison.Ordinal));
-    var entities = zones.SelectMany(zone => zone.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>()).ToArray();
-    var bodies = zones.SelectMany(zone => zone.Bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>()).ToArray();
-    return run?.GenerationSeed == AetheriaDaemonZoneGenerator.GenerationSeed &&
-        string.Equals(run.RunId, AetheriaDaemonZoneGenerator.RunIdFor(scenario), StringComparison.Ordinal) &&
-        terminusZone != null &&
-        terminusZone.GravityTerrainDepth > 0 &&
-        (terminusZone.Bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>())
-            .Where(body => body.GravityInfluenceRadius > 0)
-            .All(body => body.GravityWellDepth > 0) &&
-        entities.Any(entity => string.Equals(entity.Name, "Anchor Station", StringComparison.Ordinal)) &&
-        entities.Count(entity => string.Equals(entity.FactionKey, "player", StringComparison.OrdinalIgnoreCase)) >= 4 &&
-        entities.Count(entity => string.Equals(entity.FactionKey, "raider", StringComparison.OrdinalIgnoreCase)) >= 3 &&
-        bodies.Any(body => string.Equals(body.BodyKey, "local.outer", StringComparison.Ordinal)) &&
-        bodies.Length >= 10;
 }
 
 static AetheriaRuntimeLoadoutItemSlotCommit[] ToEntitySlotCommits(

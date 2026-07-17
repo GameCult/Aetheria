@@ -49,6 +49,11 @@ else if (args.Contains("--tutorial-materialization", StringComparer.Ordinal))
     checks.RunTutorialMaterialization();
     Console.WriteLine("Daemon tutorial entity-materialization smoke passed.");
 }
+else if (args.Contains("--tutorial-run", StringComparer.Ordinal))
+{
+    checks.RunTutorialRun();
+    Console.WriteLine("Daemon persisted tutorial-run smoke passed.");
+}
 else
 {
     checks.Run();
@@ -86,6 +91,47 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
     public void RunZoneBodies() => RunCheck(GeneratedZoneBodiesPreserveFossilHierarchy);
     public void RunTutorialWorld() => RunCheck(TutorialWorldMaterializesEveryTopologyZone);
     public void RunTutorialMaterialization() => RunCheck(TutorialPopulationPreservesFossilEntityMechanics);
+    public void RunTutorialRun() => RunCheck(TutorialRunPersistsCanonicalWorldTruth);
+
+    private static void TutorialRunPersistsCanonicalWorldTruth()
+    {
+        var catalog = TutorialPopulationCatalog(out _);
+        var root = Path.Combine(Path.GetTempPath(), $"aetheria-tutorial-run-{Guid.NewGuid():N}");
+        var statePath = Path.Combine(root, "aetheria.cc");
+        Directory.CreateDirectory(root);
+        try
+        {
+            using var node = AetheriaStateNode.OpenAsync(statePath).GetAwaiter().GetResult();
+            var written = AetheriaDaemonTutorialRunWriter.WriteAsync(
+                node, catalog, "2026-07-17T00:00:00.0000000Z").GetAwaiter().GetResult();
+            var run = node.MutableDocument<AetheriaRunState>(new CultRecordKey(written.RunKey))
+                .ReadAsync().GetAwaiter().GetResult();
+            var settings = node.MutableDocument<AetheriaPlayerSettings>(AetheriaStateNode.PlayerSettingsKey)
+                .ReadAsync().GetAwaiter().GetResult();
+            Require(run != null && run.IsTutorial && run.ZoneKeys.Length == 64 &&
+                    run.EntranceZoneIndex == run.CurrentZoneIndex && run.ExitZoneIndex == -1,
+                "persisted New Game truth must be the complete authored tutorial graph, not the Terminus witness fixture");
+            Require(settings != null && settings.ActiveRunKey == written.RunKey && !settings.TutorialPassed,
+                "tutorial persistence must select the new run without falsely awarding completion");
+            Require(run!.CurrentEntityKey == written.CurrentEntityKey,
+                "the run and session handoff must share one canonical controlled-entity identity");
+            var entrance = node.MutableDocument<AetheriaZoneState>(
+                    new CultRecordKey(run.ZoneKeys[run.EntranceZoneIndex]))
+                .ReadAsync().GetAwaiter().GetResult();
+            Require(entrance != null && entrance.AdjacentZoneIndices.Length > 0 &&
+                    entrance.EntityKeys.Contains(run.CurrentEntityKey, StringComparer.Ordinal) &&
+                    entrance.Bodies.Length > 0 && entrance.Orbits.Length >= entrance.Bodies.Length,
+                "the persisted entrance must contain the starter ship, celestial hierarchy, and derived wormhole adjacency");
+            var player = node.MutableDocument<AetheriaEntitySnapshot>(new CultRecordKey(run.CurrentEntityKey))
+                .ReadAsync().GetAwaiter().GetResult();
+            Require(player != null && player.Kind == "ship" && player.LoadoutGeneration != null,
+                "the persisted current entity must be a playable daemon-generated ship with loadout provenance");
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
 
     private static void TutorialPopulationPreservesFossilEntityMechanics()
     {
@@ -135,7 +181,10 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         var one = new[] { new AetheriaRuntimeShapeCell(0, 0) };
         var hullCells = Enumerable.Range(0, 6).SelectMany(y => Enumerable.Range(0, 6)
             .Select(x => new AetheriaRuntimeShapeCell(x, y))).ToArray();
-        var manufacturer = "faction.miss";
+        // The recovered tutorial catalog includes allied manufacturers which do
+        // not own one of the six prelude home zones. Prelude availability must
+        // retain those authored items without inventing another faction home.
+        var manufacturer = "manufacturer.common";
 
         AetheriaRuntimeCatalogItem Item(string key, string category, string hardpointType = "", params string[] behaviors)
         {
@@ -184,18 +233,25 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         var reactor = Item("tutorial-reactor", AetheriaRuntimeItemCategories.Gear, "Internal", "Reactor");
         var capacitor = Item("tutorial-capacitor", AetheriaRuntimeItemCategories.Gear, "Internal", "Capacitor");
         var names = new[] { "Miss", "Zhe", "Luc", "Aero", "Finch", "Adras" };
-        var corporations = names.Select(name => new AetheriaRuntimeCorporation(
+        var tutorialCorporations = names.Select(name => new AetheriaRuntimeCorporation(
             $"faction.{name.ToLowerInvariant()}", name, name, "", $"names.{name}", "", 4, 1,
             [new AetheriaRuntimeCorporationAllegiance(manufacturer, 1)])).ToArray();
+        var corporations = tutorialCorporations.Append(new AetheriaRuntimeCorporation(
+            manufacturer, "Common Manufacturer", "Common", "", "", "", 0, 0,
+            Array.Empty<AetheriaRuntimeCorporationAllegiance>())).ToArray();
         factions = names.Select((name, index) => new AetheriaDaemonTutorialFactionInput(
-            corporations[index].CorporationKey, name, name, 4)
+            tutorialCorporations[index].CorporationKey, name, name, 4)
         {
             TrainingNames = Enumerable.Range(0, 128).Select(value => $"{name}{value:D3}").ToArray()
         }).ToArray();
+        var nameFiles = names.Select(name => new AetheriaRuntimeNameFile(
+            $"names.{name}", name, 128,
+            Enumerable.Range(0, 8).Select(value => $"{name}{value:D3}").ToArray(),
+            Enumerable.Range(0, 128).Select(value => $"{name}{value:D3}").ToArray())).ToArray();
         return new AetheriaRuntimeCatalogSnapshot(
             [shipHull, stationHull, cockpit, turret, weapon, cargo, docking, reactor, capacitor],
             corporations,
-            []);
+            nameFiles);
     }
 
     private static void TutorialWorldMaterializesEveryTopologyZone()
@@ -268,21 +324,25 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
 
     private static void TutorialTopologyIsDeterministicConnectedAndRoleOwned()
     {
-        AetheriaDaemonTutorialFactionInput Faction(string shortName, int influence = 2) =>
-            new($"faction.{shortName.ToLowerInvariant()}", shortName, shortName, influence)
+        AetheriaDaemonTutorialFactionInput Faction(
+            string selector,
+            string name,
+            string shortName,
+            int influence = 2) =>
+            new($"faction.{selector.ToLowerInvariant()}", name, shortName, influence)
             {
                 TrainingNames = Enumerable.Range(0, 512).Select(index =>
-                    $"{(char)('a' + index % 26)}{(char)('a' + index / 26 % 26)}{(char)('a' + index / 676 % 26)}{shortName.ToLowerInvariant()}")
+                    $"{(char)('a' + index % 26)}{(char)('a' + index / 26 % 26)}{(char)('a' + index / 676 % 26)}{selector.ToLowerInvariant()}")
                     .ToArray()
             };
         var factions = new[]
         {
-            Faction("Miss"),
-            Faction("Zhe"),
-            Faction("Luc"),
-            Faction("Aero"),
-            Faction("Finch"),
-            Faction("Adras")
+            Faction("Miss", "Miss Terri's Sugariffic Snack Company", "Miss Terri's"),
+            Faction("Zhe", "Zhestokost", "Zhestokost"),
+            Faction("Luc", "Lucent Media", "Lucent"),
+            Faction("Aero", "Aeronautics Unlimited", "AU"),
+            Faction("Finch", "Finch Cybernetics", "Finch"),
+            Faction("Adras", "Adrasteia", "Adrasteia")
         };
         var first = AetheriaDaemonTutorialTopologyGenerator.GenerateFossil(factions, 0xA37E_2026u);
         var second = AetheriaDaemonTutorialTopologyGenerator.GenerateFossil(factions, 0xA37E_2026u);

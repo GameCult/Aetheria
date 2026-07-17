@@ -1126,14 +1126,37 @@ the Terminus proof arena cannot award completion.
   Unity-compatible simplex semantics, weighted sample elimination, Delaunay
   graph, connectivity-preserving link pruning, and faction placement owner.
 - Cut line: a generated Terminus proof arena cannot be relabelled as the
-  tutorial. The daemon topology exists as a distinct pre-materialization result;
-  it is not selected as a playable run until daemon zone contents are migrated.
+  tutorial. New Game selects the daemon-persisted tutorial while completion is
+  false; Terminus remains a witness fixture.
 - Verification layer: smoke generates the authored 64-zone graph twice from one
   seed, proves point/adjacency repeatability, a connected undirected graph, six
   distinct role homes, an unowned entrance, and discovery containing exactly
   that entrance and its neighbors. CultMath separately proves the C# simplex
   implementation against Unity Mathematics vectors and carries the same
   semantics in HLSL.
+
+### Daemon Tutorial Population And Run Ownership
+
+- Owner: the daemon tutorial materializer owns station, turret, faction-ship,
+  starter-ship, orbit, and run persistence decisions.
+- Inputs: the immutable tutorial topology, each celestial plan and its exact
+  post-body CultMath state, typed faction/catalog data, player settings, and the
+  accepted New Game command.
+- Outputs: 64 canonical zone documents, stable entity records, loadout
+  generation receipts, one controlled entrance ship, tutorial discovery state,
+  and an Aetheria-mode game session.
+- Derived state: wormhole exits derive from adjacency; generic Eve maps,
+  cameras, scene objects, fog, and HUD state lower the persisted run.
+- Forbidden writers: Unity generators, menu callbacks, scene materializers, and
+  Terminus scenarios cannot create or select gameplay entities for this run.
+- Shared paths: fresh daemon boot and accepted New Game use the same tutorial
+  run writer; the Unity product shell submits the Eve command and waits for a
+  newer tutorial sector-map publication before entering the scene.
+- Cut line: New Game reloading the previous frame without sending its advertised
+  operation is dead. Celestial-only tutorial graphs are not playable runs.
+- Verification layer: focused smokes prove deterministic population, resolved
+  orbital references, station/turret/agent presence, loadout provenance, all 64
+  persisted zones, canonical starter identity, discovery, and adjacency.
 
 ### Daemon Generated Zone Body Ownership
 
