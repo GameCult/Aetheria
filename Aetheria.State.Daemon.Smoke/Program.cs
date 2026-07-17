@@ -5192,57 +5192,130 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
 
     private static void AgentTraversesGalaxyRouteBeforeExecutingTask()
     {
-        var agent = Entity(0, 0, "workers");
-        agent.EntityId = "worker.cross-zone.stable";
-        agent.AgentTaskCapabilities = [AetheriaRuntimeAgentTaskTypes.Explore];
-        var catalog = EquipThrusterBank([agent]);
-        var task = AgentTask("cross-zone", 10);
-        task.ZoneIndex = 2;
-        task.TargetPositionX = 0;
-        var run = new AetheriaRuntimeRunCheckpointCommit
+        var root = Path.Combine(Path.GetTempPath(), "aetheria-agent-route-restart-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        var statePath = Path.Combine(root, "world.cc");
+        try
         {
-            RunId = "agent-route-travel-smoke",
-            Zones =
-            [
-                new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, PositionX = 0, GravityTerrainRadius = 100, AdjacentZoneIndices = [1], Entities = [agent] },
-                new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 1, PositionX = 100, GravityTerrainRadius = 100, AdjacentZoneIndices = [0, 2], Entities = Array.Empty<AetheriaRuntimeEntitySnapshotCommit>() },
-                new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 2, PositionX = 200, GravityTerrainRadius = 100, AdjacentZoneIndices = [1], Entities = Array.Empty<AetheriaRuntimeEntitySnapshotCommit>() }
-            ],
-            AgentTasks = [task]
-        };
-        var appliedTravelCommands = 0;
-        var appliedApproachCommands = 0;
-        var physics = NewPhysics();
-        for (var frame = 0; frame < 400; frame++)
-        {
-            var tick = AetheriaRuntimeDaemonTickRunner.Tick(
-                Path.Combine(Path.GetTempPath(), "aetheria-agent-route-travel-smoke.cc"),
-                run,
-                new AetheriaRuntimeDaemonTickOptions
-                {
-                    WorldPhysics = physics,
-                    Catalog = catalog,
-                    FrameId = frame,
-                    FixedDeltaSeconds = 0.25,
-                    SimulationTimeSeconds = frame * 0.25,
-                    BuildPublications = false
-                });
-            appliedTravelCommands += tick.OperationResult.AppliedCommandIds.Count(id => id.EndsWith(":travel", StringComparison.Ordinal));
-            appliedApproachCommands += tick.OperationResult.AppliedCommandIds.Count(id => id.EndsWith(":travel-approach", StringComparison.Ordinal));
-            if (string.Equals(task.Status, AetheriaRuntimeAgentTaskStatuses.Completed, StringComparison.Ordinal))
-                break;
-        }
+            var agent = Entity(0, 0, "workers");
+            agent.EntityId = "worker.cross-zone.stable";
+            agent.AgentTaskCapabilities = [AetheriaRuntimeAgentTaskTypes.Explore];
+            var catalog = EquipThrusterBank([agent]);
+            var task = AgentTask("cross-zone", 10);
+            task.ZoneIndex = 2;
+            task.TargetPositionX = 0;
+            var run = new AetheriaRuntimeRunCheckpointCommit
+            {
+                RunId = "agent-route-travel-smoke",
+                Zones =
+                [
+                    new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, PositionX = 0, GravityTerrainRadius = 100, AdjacentZoneIndices = [1], Entities = [agent] },
+                    new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 1, PositionX = 100, GravityTerrainRadius = 100, AdjacentZoneIndices = [0, 2], Entities = Array.Empty<AetheriaRuntimeEntitySnapshotCommit>() },
+                    new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 2, PositionX = 200, GravityTerrainRadius = 100, AdjacentZoneIndices = [1], Entities = Array.Empty<AetheriaRuntimeEntitySnapshotCommit>() }
+                ],
+                AgentTasks = [task]
+            };
+            var appliedTravelCommands = 0;
+            var appliedApproachCommands = 0;
+            var restarted = false;
+            var physics = NewPhysics();
+            for (var frameId = 0; frameId < 400; frameId++)
+            {
+                var tick = AetheriaRuntimeDaemonTickRunner.Tick(
+                    statePath,
+                    run,
+                    new AetheriaRuntimeDaemonTickOptions
+                    {
+                        WorldPhysics = physics,
+                        Catalog = catalog,
+                        FrameId = frameId,
+                        FixedDeltaSeconds = 0.25,
+                        SimulationTimeSeconds = frameId * 0.25,
+                        BuildPublications = false
+                    });
+                appliedTravelCommands += tick.OperationResult.AppliedCommandIds.Count(id => id.EndsWith(":travel", StringComparison.Ordinal));
+                appliedApproachCommands += tick.OperationResult.AppliedCommandIds.Count(id => id.EndsWith(":travel-approach", StringComparison.Ordinal));
+                agent = run.Zones.SelectMany(zone => zone.Entities)
+                    .Single(entity => entity.EntityId == "worker.cross-zone.stable");
 
-        Require(appliedApproachCommands > 0,
-            "agent must approach wormholes through shared movement commands and Ymir before transition");
-        RequireEqual(2, appliedTravelCommands,
-            "agent must traverse each galaxy edge through the shared wormhole command boundary");
-        Require(run.Zones.Single(zone => zone.ZoneIndex == 2).Entities.Count == 1,
-            "assigned agent must arrive in the task zone without a parallel teleport owner");
-        RequireEqual("worker.cross-zone.stable", run.Zones.Single(zone => zone.ZoneIndex == 2).Entities.Single().EntityId,
-            "zone transfer must preserve stable entity identity while projection indices change");
-        RequireEqual(AetheriaRuntimeAgentTaskStatuses.Completed, task.Status,
-            "agent must execute the task only after arriving in its destination zone");
+                if (!restarted && string.Equals(agent.WormholeTransition?.Phase, "entering", StringComparison.Ordinal))
+                {
+                    var eventCountsBefore = (
+                        Started: run.GameEvents.Count(value => value.Kind == "wormhole.enter.started"),
+                        Transferred: run.GameEvents.Count(value => value.Kind == "wormhole.transferred"),
+                        Completed: run.GameEvents.Count(value => value.Kind == "wormhole.exit.completed"));
+                    var durableFrame = new AetheriaRuntimeDaemonFrameDocument
+                    {
+                        FrameId = frameId,
+                        FixedDeltaSeconds = 0.25,
+                        SimulationTimeSeconds = frameId * 0.25,
+                        Run = run
+                    };
+                    using (var node = AetheriaStateNode.OpenAsync(statePath).GetAwaiter().GetResult())
+                    {
+                        node.MutableDocument<AetheriaRuntimeDaemonFrameDocument>(
+                                AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest)
+                            .ReplaceAsync(durableFrame).GetAwaiter().GetResult();
+                        node.FlushAsync(soft: false).GetAwaiter().GetResult();
+                    }
+                    using (var node = AetheriaStateNode.OpenAsync(statePath).GetAwaiter().GetResult())
+                    {
+                        durableFrame = node.MutableDocument<AetheriaRuntimeDaemonFrameDocument>(
+                                AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest)
+                            .ReadAsync().GetAwaiter().GetResult()
+                            ?? throw new InvalidOperationException("Durable cross-zone agent frame is missing.");
+                    }
+
+                    run = durableFrame.Run;
+                    task = run.AgentTasks.Single();
+                    agent = run.Zones.SelectMany(zone => zone.Entities)
+                        .Single(entity => entity.EntityId == "worker.cross-zone.stable");
+                    physics.Dispose();
+                    physics = NewPhysics();
+                    RequireEqual(AetheriaRuntimeAgentTaskStatuses.Assigned, task.Status,
+                        "cross-zone restart must preserve the assigned task during wormhole entry");
+                    RequireEqual(task.TaskId, agent.AssignedAgentTaskId,
+                        "cross-zone restart must preserve the task carrier edge");
+                    RequireEqual("entering", agent.WormholeTransition?.Phase ?? "",
+                        "cross-zone restart must preserve the exact wormhole phase");
+                    Require(eventCountsBefore == (
+                            run.GameEvents.Count(value => value.Kind == "wormhole.enter.started"),
+                            run.GameEvents.Count(value => value.Kind == "wormhole.transferred"),
+                            run.GameEvents.Count(value => value.Kind == "wormhole.exit.completed")),
+                        "CultCache reopen must not replay wormhole chronology before the next daemon tick");
+                    restarted = true;
+                }
+
+                if (string.Equals(task.Status, AetheriaRuntimeAgentTaskStatuses.Completed, StringComparison.Ordinal))
+                    break;
+            }
+
+            Require(restarted,
+                "cross-zone task proof must hard-restart while the worker is inside the wormhole timeline");
+            Require(appliedApproachCommands > 0,
+                "agent must approach wormholes through shared movement commands and Ymir before transition");
+            RequireEqual(2, appliedTravelCommands,
+                "agent must traverse each galaxy edge through the shared wormhole command boundary");
+            RequireEqual(2, run.GameEvents.Count(value => value.Kind == "wormhole.enter.started"),
+                "two route edges must publish exactly two retained entry events across restart");
+            RequireEqual(2, run.GameEvents.Count(value => value.Kind == "wormhole.transferred"),
+                "two route edges must publish exactly two retained transfer events across restart");
+            RequireEqual(2, run.GameEvents.Count(value => value.Kind == "wormhole.exit.completed"),
+                "two route edges must publish exactly two retained completion events across restart");
+            RequireEqual(1, run.Zones.Sum(zone => zone.Entities.Count),
+                "cross-zone restart must not clone the durable worker into another zone");
+            Require(run.Zones.Single(zone => zone.ZoneIndex == 2).Entities.Count == 1,
+                "assigned agent must arrive in the task zone without a parallel teleport owner");
+            RequireEqual("worker.cross-zone.stable", run.Zones.Single(zone => zone.ZoneIndex == 2).Entities.Single().EntityId,
+                "zone transfer must preserve stable entity identity while projection indices change");
+            RequireEqual(AetheriaRuntimeAgentTaskStatuses.Completed, task.Status,
+                "agent must execute the task only after arriving in its destination zone");
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+                Directory.Delete(root, recursive: true);
+        }
     }
 
     private static void WormholeTraversalUsesPersistedEnterTransferExitPhases()

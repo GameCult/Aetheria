@@ -1180,7 +1180,10 @@ neither component reissues the task or invents a second carrier. Daemon smoke
 stops an explore task during travel, hard-flushes CultCache, closes and reopens
 the store, proves the ownership edge and pose, then completes through the same
 movement-command reducer, releases controls exactly once, and projects the
-completed row through the generic Eve commander surface.
+completed row through the generic Eve commander surface. A second proof stops
+a three-zone assignment during its first persisted `entering` phase, replaces
+the run/task object graph and Ymir owner from CultCache, and finishes both route
+edges with one worker and exactly two start/transfer/completion event triplets.
 
 ### Authoritative Flight Actuator Contract
 
@@ -1323,9 +1326,11 @@ completed row through the generic Eve commander surface.
 - Cut line: command application no longer splices zone arrays. Flight and the
   world-physics port exclude transitioning bodies, and Ymir resumes only on the
   tick after completion.
-- Proof: daemon smoke serializes and rehydrates mid-entry, rejects a second
-  transition owner, verifies exact enter/transfer/exit timing and discovery,
-  and runs multi-edge task and home routes through the same boundary.
+- Proof: daemon smoke rejects a second transition owner and verifies exact
+  enter/transfer/exit timing and discovery. The multi-edge agent route performs
+  a real CultCache hard flush, close, and reopen during entry, reconstructs a
+  fresh embedded Ymir owner, preserves task/carrier/phase state, and proves
+  exactly-once chronology plus single-entity arrival before completing work.
 
 ### Flight Post-Processing Contract
 
