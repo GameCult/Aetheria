@@ -4101,9 +4101,39 @@ public class DaemonRuntimeDocumentTests
         command.BehaviorIndex = 0;
         command.ScalarValue = 450.0;
 
-        var result = AetheriaRuntimeDaemonOperations.Execute(run, new[] { command });
+        var thermotoggle = BehaviorPayload(
+            "Thermotoggle",
+            new AetheriaRuntimeBehaviorField(1, NumberValue(300)),
+            BoolField(2, false),
+            BoolField(3, true));
+        var context = new AetheriaRuntimeDaemonOperationContext
+        {
+            Catalog = new AetheriaRuntimeCatalogSnapshot(
+                new[] { CatalogItem("reactor", new[] { thermotoggle }) },
+                Array.Empty<AetheriaRuntimeCorporation>(),
+                Array.Empty<AetheriaRuntimeNameFile>())
+        };
+
+        var result = AetheriaRuntimeDaemonOperations.Execute(run, new[] { command }, context);
 
         Assert.AreEqual(1, result.AppliedCommandIds.Count);
+        Assert.AreEqual(450.0, run.Zones[0].Entities[0].BehaviorStates[0].ThermotoggleTargetTemperature, 0.0001);
+
+        thermotoggle.Fields = new[]
+        {
+            new AetheriaRuntimeBehaviorField(1, NumberValue(300)),
+            BoolField(2, false),
+            BoolField(3, false)
+        };
+        var rejected = AetheriaRuntimeDaemonCommandDocument.Create(
+            AetheriaRuntimeDaemonCommandKinds.SetThermotoggleTargetTemperature,
+            "codex", "session-thermotoggle", 24, "zone.0.entity.0");
+        rejected.TargetEntityKey = "zone.0.entity.0";
+        rejected.EquipmentIndex = 0;
+        rejected.BehaviorIndex = 0;
+        rejected.ScalarValue = 500;
+        result = AetheriaRuntimeDaemonOperations.Execute(run, new[] { rejected }, context);
+        Assert.AreEqual(1, result.RejectedCommandIds.Count);
         Assert.AreEqual(450.0, run.Zones[0].Entities[0].BehaviorStates[0].ThermotoggleTargetTemperature, 0.0001);
     }
 

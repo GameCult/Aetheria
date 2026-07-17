@@ -144,6 +144,20 @@ namespace GameCult.Aetheria.State.Verse
                             break;
                         state.TriggerPulled = false;
                     }
+                    if (string.Equals(entry.Payload.Kind, "Thermotoggle", StringComparison.Ordinal))
+                    {
+                        var temperature = AetheriaRuntimeThermalSimulation.EquipmentTemperature(
+                            entity, catalog, equipmentIndex);
+                        var highPass = ReadBool(entry.Payload, 2);
+                        if ((temperature < state.ThermotoggleTargetTemperature) ^ highPass)
+                        {
+                            // The fossil returns true for this branch.
+                        }
+                        else
+                        {
+                            break;
+                        }
+                    }
                     if (string.Equals(entry.Payload.Kind, "Cooldown", StringComparison.Ordinal))
                     {
                         if (state.CooldownProgress >= 0)

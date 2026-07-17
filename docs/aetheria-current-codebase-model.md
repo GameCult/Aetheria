@@ -283,6 +283,9 @@ idempotent and keeps the Unity fossil out of the gameplay authority path.
 The same daemon organ executes common resource gates in group order. Energy,
 thermal cells, cargo, and durability remain owned by their narrow transaction
 subsystems; behavior composition decides only whether and when to call them.
+Thermotoggle target temperature is also daemon-owned behavior state. Authored
+data seeds it, adjustable commands mutate it, and its high/low-pass predicate
+gates the same ordered chain.
 
 Migration target:
 

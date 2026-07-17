@@ -315,6 +315,14 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   downstream heat, wear, or modifiers. Thermal simulation computes wear but is
   no longer allowed to apply it merely because an item contains a `Wear`
   payload.
+  `Thermotoggle` is another chain gate, not a renderer hint. New state seeds its
+  target from authored field 1, evaluates the fossil
+  `(temperature < target) XOR highPass` predicate against source-equipment
+  temperature, and stops its group when false. The target-temperature command
+  mutates only an exact installed `Thermotoggle` whose authored field 3 grants
+  adjustment; non-finite values, wrong behavior indices, missing catalogs, and
+  fixed thermostats fail closed. Eve receives the live target as ordinary
+  behavior state and remains presentation-only.
 - Sensor contact information is daemon-owned. Each operational installed
   `Sensor` behavior executes the fossil information equation against target
   visibility, distance, observer-relative angle, its authored sensitivity

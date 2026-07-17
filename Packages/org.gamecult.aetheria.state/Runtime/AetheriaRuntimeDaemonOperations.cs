@@ -189,7 +189,7 @@ namespace GameCult.Aetheria.State.Verse
                 case AetheriaRuntimeDaemonCommandKinds.SetWeaponGroupMembership:
                     return ApplySetWeaponGroupMembership(run, command);
                 case AetheriaRuntimeDaemonCommandKinds.SetThermotoggleTargetTemperature:
-                    return ApplySetThermotoggleTargetTemperature(run, command);
+                    return ApplySetThermotoggleTargetTemperature(run, command, context);
                 case AetheriaRuntimeDaemonCommandKinds.SetEntityName:
                     return ApplyTargetEntity(run, command.TargetEntityKey, entity =>
                         entity.Name = command.TextValue ?? "");
@@ -753,9 +753,11 @@ namespace GameCult.Aetheria.State.Verse
 
         private static bool ApplySetThermotoggleTargetTemperature(
             AetheriaRuntimeRunCheckpointCommit run,
-            AetheriaRuntimeDaemonCommandDocument command)
+            AetheriaRuntimeDaemonCommandDocument command,
+            AetheriaRuntimeDaemonOperationContext context)
         {
-            if (!TryResolveEntity(run, command.TargetEntityKey, out _, out _, out var entity))
+            if (!double.IsFinite(command.ScalarValue) ||
+                !TryResolveEntity(run, command.TargetEntityKey, out _, out _, out var entity))
                 return false;
 
             var behavior = (entity.BehaviorStates ?? Array.Empty<AetheriaRuntimeBehaviorStateCommit>())
@@ -764,7 +766,21 @@ namespace GameCult.Aetheria.State.Verse
                     string.Equals(candidate.OwnerKind, "equipment", StringComparison.Ordinal) &&
                     candidate.OwnerIndex == command.EquipmentIndex &&
                     candidate.BehaviorIndex == command.BehaviorIndex);
-            if (behavior == null)
+            var equipment = entity.Equipment ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>();
+            var item = command.EquipmentIndex >= 0 && command.EquipmentIndex < equipment.Count
+                ? equipment[command.EquipmentIndex]?.Item
+                : null;
+            var payloads = context.Catalog?.FindItem(item?.ItemKey ?? "")?.BehaviorPayloads ??
+                Array.Empty<AetheriaRuntimeBehaviorPayload>();
+            var payload = command.BehaviorIndex >= 0 && command.BehaviorIndex < payloads.Count
+                ? payloads[command.BehaviorIndex]
+                : null;
+            var adjustable = (payload?.Fields ?? Array.Empty<AetheriaRuntimeBehaviorField>())
+                .FirstOrDefault(field => field != null && field.Key == 3)?.Value?.BoolValue ?? false;
+            if (behavior == null ||
+                !string.Equals(behavior.BehaviorKind, "Thermotoggle", StringComparison.Ordinal) ||
+                !string.Equals(payload?.Kind, "Thermotoggle", StringComparison.Ordinal) ||
+                !adjustable)
                 return false;
 
             behavior.ThermotoggleTargetTemperature = command.ScalarValue;

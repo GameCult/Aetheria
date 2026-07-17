@@ -69,13 +69,17 @@ namespace GameCult.Aetheria.State.Verse
                 if (payload == null || string.IsNullOrWhiteSpace(payload.Kind))
                     continue;
 
-                yield return new AetheriaRuntimeBehaviorStateCommit
+                var state = new AetheriaRuntimeBehaviorStateCommit
                 {
                     OwnerKind = EquipmentOwnerKind,
                     OwnerIndex = equipmentIndex,
                     BehaviorIndex = behaviorIndex,
                     BehaviorKind = payload.Kind
                 };
+                if (string.Equals(payload.Kind, "Thermotoggle", StringComparison.Ordinal))
+                    state.ThermotoggleTargetTemperature = (payload.Fields ?? Array.Empty<AetheriaRuntimeBehaviorField>())
+                        .FirstOrDefault(field => field != null && field.Key == 1)?.Value?.NumberValue ?? 0;
+                yield return state;
             }
         }
 

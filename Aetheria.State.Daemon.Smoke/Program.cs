@@ -176,6 +176,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             FossilVelocityBehaviorsRunInDaemonFlightStep,
             BehaviorChainsGateAuthoritativeStatModifiers,
             ResourceBehaviorsStopEquipmentChainsInAuthoredOrder,
+            ThermotoggleSeedsAndGatesFromDaemonOwnedTarget,
             ReflectorUsesSharedStellarLightFieldWithoutAccumulating,
             SensorPingIsActorScopedEnergyGatedAndReconnectable,
             TurretControllerAcquiresAimsAndTriggersExactWeapons,
@@ -390,6 +391,69 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             Item = new AetheriaRuntimeLoadoutItemCommit
                 { ItemKey = itemKey, Enabled = true, Durability = 1, Quality = 1 }
         };
+    }
+
+    private static void ThermotoggleSeedsAndGatesFromDaemonOwnedTarget()
+    {
+        var thermostat = CatalogItem("thermostat",
+            new AetheriaRuntimeBehaviorPayload(0, "Thermotoggle", 0,
+            [
+                new AetheriaRuntimeBehaviorField(1, Number(300)),
+                new AetheriaRuntimeBehaviorField(2, BoolValue(false)),
+                new AetheriaRuntimeBehaviorField(3, BoolValue(true))
+            ]),
+            new AetheriaRuntimeBehaviorPayload(1, "Heat", 0,
+            [
+                new AetheriaRuntimeBehaviorField(1, PerformanceStat(10)),
+                new AetheriaRuntimeBehaviorField(2, BoolValue(false))
+            ]));
+        var catalog = new AetheriaRuntimeCatalogSnapshot([thermostat], [], []);
+        var entity = Entity(0, 0, "player");
+        entity.Equipment = [new AetheriaRuntimeLoadoutItemSlotCommit
+        {
+            Item = new AetheriaRuntimeLoadoutItemCommit
+                { ItemKey = thermostat.ItemKey, Enabled = true, Durability = 1, Quality = 1 }
+        }];
+        AetheriaRuntimeThermalSimulation.EnsureTopology(entity, catalog);
+        AetheriaRuntimeThermalSimulation.EnsureState(entity);
+        AetheriaRuntimeThermalSimulation.UpdateEquipmentStates(entity, catalog, 0.1);
+        AetheriaRuntimeBehaviorStateProjector.EnsureEquipmentBehaviorStates(entity, catalog);
+        var thermostatState = entity.BehaviorStates.Single(value => value.BehaviorKind == "Thermotoggle");
+        RequireNear(300, thermostatState.ThermotoggleTargetTemperature, 0.000001,
+            "new thermotoggle state must seed from the authored target instead of zero");
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "thermotoggle-smoke",
+            CurrentZoneIndex = 0,
+            CurrentEntityKey = "zone.0.entity.0",
+            Zones = [new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [entity] }]
+        };
+        var context = new AetheriaRuntimeDaemonOperationContext { Catalog = catalog };
+
+        SetTarget(200, 1);
+        var before = AetheriaRuntimeThermalSimulation.EquipmentTemperature(entity, catalog, 0);
+        AetheriaRuntimeBehaviorSimulation.Step(0, [entity], [], catalog, 0.1);
+        RequireNear(before, AetheriaRuntimeThermalSimulation.EquipmentTemperature(entity, catalog, 0), 0.000001,
+            "a low-pass thermotoggle above its target must stop downstream heat");
+
+        SetTarget(300, 2);
+        AetheriaRuntimeBehaviorSimulation.Step(0, [entity], [], catalog, 0.1);
+        Require(AetheriaRuntimeThermalSimulation.EquipmentTemperature(entity, catalog, 0) > before,
+            "a low-pass thermotoggle below its target must admit downstream heat");
+
+        void SetTarget(double target, long sequence)
+        {
+            var command = AetheriaRuntimeDaemonCommandDocument.Create(
+                AetheriaRuntimeDaemonCommandKinds.SetThermotoggleTargetTemperature,
+                "smoke", "thermostat-session", sequence, "zone.0.entity.0");
+            command.TargetEntityKey = "zone.0.entity.0";
+            command.EquipmentIndex = 0;
+            command.BehaviorIndex = 0;
+            command.ScalarValue = target;
+            var result = AetheriaRuntimeDaemonOperations.Execute(run, [command], context);
+            RequireEqual(1, result.AppliedCommandIds.Count,
+                "an installed adjustable thermotoggle must accept its typed daemon command");
+        }
     }
 
     private static void DockedRefitSurfacePublishesGenericCommands()
