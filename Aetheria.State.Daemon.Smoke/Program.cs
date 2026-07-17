@@ -1018,6 +1018,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 new AetheriaRuntimeBehaviorField(2, PerformanceStat(10)),
                 new AetheriaRuntimeBehaviorField(5, PerformanceStat(0)),
                 new AetheriaRuntimeBehaviorField(6, PerformanceStat(200)),
+                new AetheriaRuntimeBehaviorField(11, PerformanceStat(7)),
                 new AetheriaRuntimeBehaviorField(16, PerformanceStat(100)),
                 new AetheriaRuntimeBehaviorField(17, PerformanceStat(1)),
                 new AetheriaRuntimeBehaviorField(19, PerformanceStat(0.1)),
@@ -1027,7 +1028,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 new AetheriaRuntimeBehaviorField(24, PerformanceStat(1)),
                 new AetheriaRuntimeBehaviorField(25, PerformanceStat(1))
             ]);
-        var weaponItem = CatalogItem("turret-smoke-weapon", weaponPayload);
+        var weaponItem = WearableWeaponCatalogItem("turret-smoke-weapon", weaponPayload);
         var controllerItem = CatalogItem(
             "turret-smoke-controller",
             new AetheriaRuntimeBehaviorPayload(0, "EnergyDraw", 0,
@@ -1046,7 +1047,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         uncontrolled.Equipment = [new AetheriaRuntimeLoadoutItemSlotCommit
         {
             Item = new AetheriaRuntimeLoadoutItemCommit
-                { ItemKey = weaponItem.ItemKey, Quality = 1, Durability = 1, Enabled = true }
+                { ItemKey = weaponItem.ItemKey, Quality = 0, Durability = 1, Enabled = true }
         }];
         uncontrolled.Contacts = [new AetheriaRuntimeEntityContactCommit
             { TargetEntityIndex = 1, InfoGathered = 1, Visible = true, Hostile = true }];
@@ -1086,13 +1087,13 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             {
                 Rotation = "None",
                 Item = new AetheriaRuntimeLoadoutItemCommit
-                    { ItemKey = weaponItem.ItemKey, Quality = 1, Durability = 1, Enabled = true }
+                    { ItemKey = weaponItem.ItemKey, Quality = 0, Durability = 1, Enabled = true }
             },
             new AetheriaRuntimeLoadoutItemSlotCommit
             {
                 Rotation = "Half",
                 Item = new AetheriaRuntimeLoadoutItemCommit
-                    { ItemKey = weaponItem.ItemKey, Quality = 1, Durability = 1, Enabled = true }
+                    { ItemKey = weaponItem.ItemKey, Quality = 0, Durability = 1, Enabled = true }
             },
             new AetheriaRuntimeLoadoutItemSlotCommit
             {
@@ -1138,6 +1139,12 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             "projectile velocity must enable the fossil first-order intercept aim and persist its controller state");
         Require(run.ShotReceipts.Count > 0 && run.ShotReceipts.All(receipt => receipt.WeaponOwnerIndex == 1),
             "turret controller must trigger only the exact in-range aligned weapon behavior, not its group or reversed neighbor");
+        RequireNear(7, turret.StatGrids.Single(grid =>
+                grid.Name == "transient-visibility:weapon:equipment:1:0").Values.Single(), 0.000001,
+            "turret-triggered fire must publish the selected weapon's authored visibility through the shared shot transaction");
+        Require(turret.Equipment[1].Item!.Durability < 1 &&
+                Math.Abs(turret.Equipment[2].Item!.Durability - 1) < 0.000001,
+            "turret-triggered fire must wear only the exact weapon that committed a shot");
     }
 
     private static void DockingUsesRealBaysAndFossilUndockRules()
@@ -2181,7 +2188,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         source.Equipment =
         [
             new AetheriaRuntimeLoadoutItemSlotCommit { Item = new AetheriaRuntimeLoadoutItemCommit
-                { ItemKey = "test-beam", Quality = 1, Durability = 1, Enabled = true } },
+                { ItemKey = "test-beam", Quality = 0, Durability = 1, Enabled = true } },
             new AetheriaRuntimeLoadoutItemSlotCommit { Item = new AetheriaRuntimeLoadoutItemCommit
                 { ItemKey = "test-beam-capacitor", Quality = 1, Durability = 1, Enabled = true } }
         ];
@@ -2206,6 +2213,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             new AetheriaRuntimeBehaviorField(6, PerformanceStat(150)),
             new AetheriaRuntimeBehaviorField(9, PerformanceStat(2)),
             new AetheriaRuntimeBehaviorField(10, PerformanceStat(3)),
+            new AetheriaRuntimeBehaviorField(11, PerformanceStat(6)),
             new AetheriaRuntimeBehaviorField(12, new AetheriaRuntimeBehaviorValue(
                 "item-key", "", 0, false, "", "beam-ammo", [], [])),
             new AetheriaRuntimeBehaviorField(13, Number(3)),
@@ -2213,7 +2221,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             new AetheriaRuntimeBehaviorField(17, Number(0.15))
         ]);
         var catalog = new AetheriaRuntimeCatalogSnapshot(
-            [CatalogItem("test-beam", payload), CatalogItem("test-beam-capacitor", CapacitorPayload(10, 1))], [], []);
+            [WearableWeaponCatalogItem("test-beam", payload), CatalogItem("test-beam-capacitor", CapacitorPayload(10, 1))], [], []);
         var press = AetheriaRuntimeDaemonCommandDocument.Create(
             AetheriaRuntimeDaemonCommandKinds.SetWeaponGroupActive,
             "pilot",
@@ -2248,6 +2256,11 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             "constant weapon reload must consume its reserve cargo through the shared transaction");
         Require(source.BehaviorStates.Single(value => value.BehaviorKind == "Capacitor").CapacitorCharge < 10,
             "constant weapon must pay elapsed-time energy through canonical capacitor state");
+        RequireNear(6, source.StatGrids.Single(grid =>
+                grid.Name == "transient-visibility:weapon:equipment:0:0").Values.Single(), 0.000001,
+            "constant fire must refresh its authored weapon visibility while the beam is committed");
+        Require(source.Equipment[0].Item!.Durability < 1,
+            "constant fire must apply elapsed-time wear only while its beam transaction commits");
         for (var frame = 7; frame < 11; frame++)
             AetheriaRuntimeDaemonSimulation.Step(run, new AetheriaRuntimeDaemonIntentState(), 0.1,
                 new AetheriaRuntimeDaemonSimulationSettings(),
@@ -2305,7 +2318,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         source.Equipment = [new AetheriaRuntimeLoadoutItemSlotCommit
         {
             Item = new AetheriaRuntimeLoadoutItemCommit
-                { ItemKey = "test-charged", Quality = 1, Durability = 1, Enabled = true }
+                { ItemKey = "test-charged", Quality = 0, Durability = 1, Enabled = true }
         }];
         var target = Entity(1, 80, "raider");
         var zone = new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [source, target] };
@@ -2318,14 +2331,18 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         [
             new AetheriaRuntimeBehaviorField(2, PerformanceStat(20)),
             new AetheriaRuntimeBehaviorField(6, PerformanceStat(150)),
+            new AetheriaRuntimeBehaviorField(11, PerformanceStat(5)),
             new AetheriaRuntimeBehaviorField(15, PerformanceStat(1000000000)),
             new AetheriaRuntimeBehaviorField(16, PerformanceStat(200)),
             new AetheriaRuntimeBehaviorField(17, PerformanceStat(1)),
             new AetheriaRuntimeBehaviorField(19, PerformanceStat(0.5)),
             new AetheriaRuntimeBehaviorField(21, PerformanceStat(1)),
             new AetheriaRuntimeBehaviorField(24, new AetheriaRuntimeBehaviorValue("bool", "", 0, true, "", "", [], [])),
-            new AetheriaRuntimeBehaviorField(27, Number(2))
+            new AetheriaRuntimeBehaviorField(27, Number(2)),
+            new AetheriaRuntimeBehaviorField(30, Number(3))
         ]);
+        var catalog = new AetheriaRuntimeCatalogSnapshot(
+            [WearableWeaponCatalogItem("test-charged", payload)], [], []);
         var intents = new AetheriaRuntimeDaemonIntentState();
         intents.WeaponGroups.Add(new AetheriaRuntimeDaemonWeaponGroupIntent
         {
@@ -2334,7 +2351,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         AetheriaRuntimeDaemonSimulation.Step(run, intents, 0.1,
             new AetheriaRuntimeDaemonSimulationSettings(),
             NewPhysics(),
-            new AetheriaRuntimeCatalogSnapshot([CatalogItem("test-charged", payload)], [], []), 0, 0);
+            catalog, 0, 0);
 
         Require(zone.PhysicalPayloads.Count == 0 && !run.GameEvents.Any(value => value.Kind == "shot.committed"),
             "pressing an authored ChargedWeapon must not bypass charging through the instant weapon resolver");
@@ -2345,7 +2362,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             AetheriaRuntimeDaemonSimulation.Step(run, new AetheriaRuntimeDaemonIntentState(), 0.1,
                 new AetheriaRuntimeDaemonSimulationSettings(),
                 NewPhysics(),
-                new AetheriaRuntimeCatalogSnapshot([CatalogItem("test-charged", payload)], [], []), frame, frame * 0.1);
+                catalog, frame, frame * 0.1);
         Require(state.Charging && state.Charged && state.Charge >= 1 && state.ChargeHoldSeconds > 0,
             "one semantic request must precharge without a firing solution and enter persisted hold state");
         Require(!run.GameEvents.Any(value => value.Kind == "shot.committed"),
@@ -2354,11 +2371,16 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         AetheriaRuntimeDaemonSimulation.Step(run, new AetheriaRuntimeDaemonIntentState(), 0.1,
             new AetheriaRuntimeDaemonSimulationSettings(),
             NewPhysics(),
-            new AetheriaRuntimeCatalogSnapshot([CatalogItem("test-charged", payload)], [], []), 11, 1.1);
+            catalog, 11, 1.1);
         Require(run.GameEvents.Count(value => value.Kind == "weapon.charge.committed") == 1 &&
                 run.GameEvents.Any(value => value.Kind == "shot.committed" &&
                     value.ItemKey == "test-charged" && Math.Abs(value.ScalarValue - 40) < 0.000001),
             "stored full charge must commit automatically when a firing solution becomes available");
+        RequireNear(15, source.StatGrids.Single(grid =>
+                grid.Name == "transient-visibility:weapon:equipment:0:0").Values.Single(), 0.000001,
+            "charged fire must publish base visibility multiplied by its committed charge modifier");
+        Require(source.Equipment[0].Item!.Durability < 1,
+            "charged hold must not suppress wear when the stored shot finally commits");
         var miss = run.ShotReceipts.Single(value => value.WeaponItemKey == "test-charged");
         var missDx = miss.EndpointX - target.PositionX;
         var missDz = miss.EndpointZ - target.PositionZ;
@@ -2396,7 +2418,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         source.Equipment = [new AetheriaRuntimeLoadoutItemSlotCommit
         {
             Item = new AetheriaRuntimeLoadoutItemCommit
-                { ItemKey = "test-instant", Quality = 1, Durability = 1, Enabled = true }
+                { ItemKey = "test-instant", Quality = 0, Durability = 1, Enabled = true }
         }];
         var target = Entity(1, 80, "raider");
         var zone = new AetheriaRuntimeZoneSnapshotCommit
@@ -2437,7 +2459,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             new AetheriaRuntimeBehaviorField(24, PerformanceStat(0)),
             new AetheriaRuntimeBehaviorField(25, PerformanceStat(1))
         ]);
-        var catalog = new AetheriaRuntimeCatalogSnapshot([CatalogItem("test-instant", payload)], [], []);
+        var catalog = new AetheriaRuntimeCatalogSnapshot([WearableWeaponCatalogItem("test-instant", payload)], [], []);
         RequireNear(45,
             AetheriaRuntimeEquippedBehaviorQueries.Find(source, catalog, AetheriaRuntimeBehaviorKinds.InstantWeapon)
                 .Single().EvaluateStat(23),
@@ -2472,6 +2494,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             grid.Name == "transient-visibility:weapon:equipment:0:0");
         RequireNear(8, weaponVisibility.Values.Single(), 0.000001,
             "committed instant shot must publish its authored visibility as a named transient source");
+        Require(source.Equipment[0].Item!.Durability < 1,
+            "committed instant shot must apply one round of thermal wear to its owning equipment");
         AetheriaRuntimeVisibilitySimulation.BeginTick([source], 1, 0.5);
         RequireNear(8 * Math.Exp(-0.5), weaponVisibility.Values.Single(), 0.000001,
             "weapon visibility must use the fossil exponential source decay rather than vanish with the effect");
@@ -2628,7 +2652,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         source.Equipment = [new AetheriaRuntimeLoadoutItemSlotCommit
         {
             Item = new AetheriaRuntimeLoadoutItemCommit
-                { ItemKey = "test-mine-layer", Quality = 1, Durability = 1, Enabled = true }
+                { ItemKey = "test-mine-layer", Quality = 0, Durability = 1, Enabled = true }
         }];
         var target = Entity(1, 50, "neutral");
         var zone = new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [source, target] };
@@ -2641,6 +2665,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         [
             new AetheriaRuntimeBehaviorField(2, PerformanceStat(35)),
             new AetheriaRuntimeBehaviorField(6, PerformanceStat(100)),
+            new AetheriaRuntimeBehaviorField(11, PerformanceStat(4)),
             new AetheriaRuntimeBehaviorField(16, PerformanceStat(10)),
             new AetheriaRuntimeBehaviorField(17, PerformanceStat(1)),
             new AetheriaRuntimeBehaviorField(19, PerformanceStat(1)),
@@ -2651,7 +2676,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             new AetheriaRuntimeBehaviorField(30, PerformanceStat(50))
         ]);
         var catalog = new AetheriaRuntimeCatalogSnapshot(
-            [CatalogItem("test-mine-layer", payload)], [], []);
+            [WearableWeaponCatalogItem("test-mine-layer", payload)], [], []);
         var fire = new AetheriaRuntimeDaemonIntentState();
         fire.WeaponGroups.Add(new AetheriaRuntimeDaemonWeaponGroupIntent
             { ActorEntityKey = "zone.0.entity.0", WeaponGroup = 0, Fire = true, Active = true });
@@ -2661,6 +2686,11 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             NewPhysics(), catalog, 1, 0.1);
         RequireEqual(1, zone.PhysicalPayloads.Count, "deployable fire must create one persistent physical payload");
         Require(!run.ShotReceipts.Any(), "deployable fire must not masquerade as an ordinary shot receipt");
+        RequireNear(4, source.StatGrids.Single(grid =>
+                grid.Name == "transient-visibility:weapon:equipment:0:0").Values.Single(), 0.000001,
+            "successful deployment must publish the launcher's authored weapon visibility");
+        Require(source.Equipment[0].Item!.Durability < 1,
+            "successful deployment must apply one round of thermal wear to its launcher");
         var mine = zone.PhysicalPayloads.Single();
         Require(mine.PositionX > 2 && mine.TriggeredAtSeconds < 0,
             "Ymir must advance the unarmed mine without inventing a trigger");
@@ -3887,6 +3917,22 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         1, false, 0, 1, "", "", "", "", "",
         0, 1000, Array.Empty<AetheriaRuntimeCurveKey>(), "", 1, 0, 0, 0, false,
         0, 0, "", Array.Empty<AetheriaRuntimeAudioStat>(), Array.Empty<AetheriaRuntimeCurveKey>(), "", "");
+
+    private static AetheriaRuntimeCatalogItem WearableWeaponCatalogItem(
+        string itemKey, params AetheriaRuntimeBehaviorPayload[] payloads)
+    {
+        var item = CatalogItem(itemKey, payloads);
+        item.Durability = 1;
+        item.ThermalResilience = 1;
+        item.MinimumTemperature = 0;
+        item.MaximumTemperature = 1;
+        item.ThermalPerformanceCurveKeys =
+        [
+            new AetheriaRuntimeCurveKey(0, 0.9, 0, 0),
+            new AetheriaRuntimeCurveKey(1, 0.9, 0, 0)
+        ];
+        return item;
+    }
 
     private static AetheriaRuntimeCatalogItem HullCatalogItem(string itemKey, int width, int height, double armor)
     {

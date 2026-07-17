@@ -918,7 +918,10 @@ lifecycle state.
   canonical `EnergyDraw -> TurretController` chain; restored power acquires
   without firing in the same fossil tick; projectile
   velocity enables CultMath first-order intercept; and a forward weapon fires
-  while the reversed behavior remains inactive.
+  while the reversed behavior remains inactive. That exact forward weapon alone
+  receives thermal wear and publishes its authored transient visibility. Shared
+  weapon smokes also prove those side effects for instant, constant, charged,
+  and deployable transactions, including the charged visibility multiplier.
 
 ### Daemon Damage Transaction
 
