@@ -59,7 +59,7 @@ namespace GameCult.Aetheria.State.Verse
     {
         public const string SchemaId = "gamecult.eve.input_capability.v1";
         [Key(0)] public string Schema { get; set; } = SchemaId;
-        [Key(1)] public string ProviderId { get; set; } = "aetheria.daemon";
+        [Key(1)] public string ProviderId { get; set; } = "aetheria";
         [Key(2)] public string CapabilityId { get; set; } = "aetheria.pilot.input";
         [Key(3)] public long Version { get; set; }
         [Key(4)] public AetheriaRuntimeInputActionDocument[] Actions { get; set; } = Array.Empty<AetheriaRuntimeInputActionDocument>();
@@ -92,7 +92,7 @@ namespace GameCult.Aetheria.State.Verse
             if (entity != null)
             {
                 actions.AddRange((entity.WeaponGroups ?? Array.Empty<IReadOnlyList<int>>()).Select((_, index) => Action($"weapon-group.{index}.fire", $"Fire Weapon Group {index + 1}", "FireWeaponGroup", "weapon-group", $"{run.CurrentEntityKey}#weapon-group/{index}", ("weaponGroup", index.ToString()))));
-                actions.AddRange((entity.Equipment ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>()).Where(slot => slot?.Item != null).Select((slot, index) => Action($"equipment.{index}.activate", $"Activate {slot.Item.ItemKey}", "SetBehaviorActive", "equipment", $"{run.CurrentEntityKey}#equipment/{index}", ("equipmentIndex", index.ToString()), ("behaviorIndex", "0"), ("active", "true"))));
+                actions.AddRange(EquipmentBehaviorActions(run, entity, catalog));
                 actions.AddRange((entity.CargoContents ?? Array.Empty<AetheriaRuntimeCargoBayLoadoutCommit>())
                     .SelectMany(bay => bay.Items)
                     .Where(slot => slot?.Item != null && AetheriaRuntimeConsumableSimulation.CanActivate(entity, catalog, slot.Item.ItemKey))
@@ -107,6 +107,90 @@ namespace GameCult.Aetheria.State.Verse
             }
             return new AetheriaRuntimeInputCapabilityDocument { Version = frame?.FrameId ?? 0, Actions = actions.ToArray(), DefaultProfiles = BuildDefaultProfiles(actions) };
         }
+
+        private static IEnumerable<AetheriaRuntimeInputActionDocument> EquipmentBehaviorActions(
+            AetheriaRuntimeRunCheckpointCommit run,
+            AetheriaRuntimeEntitySnapshotCommit entity,
+            AetheriaRuntimeCatalogSnapshot? catalog)
+        {
+            if (catalog == null)
+                yield break;
+
+            var states = (entity.BehaviorStates ?? Array.Empty<AetheriaRuntimeBehaviorStateCommit>())
+                .Where(value => value != null && string.Equals(value.OwnerKind,
+                    AetheriaRuntimeBehaviorStateProjector.EquipmentOwnerKind, StringComparison.Ordinal))
+                .ToDictionary(value => (value.OwnerIndex, value.BehaviorIndex));
+            var online = (entity.EquipmentStates ?? Array.Empty<AetheriaRuntimeEquipmentStateCommit>())
+                .Where(value => value != null).ToDictionary(value => value.EquipmentIndex);
+            var equipment = entity.Equipment ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>();
+            for (var equipmentIndex = 0; equipmentIndex < equipment.Count; equipmentIndex++)
+            {
+                var installed = equipment[equipmentIndex]?.Item;
+                var item = catalog.FindItem(installed?.ItemKey ?? "");
+                if (installed == null || item == null)
+                    continue;
+                var available = installed.Enabled && installed.Durability > 0.01 &&
+                    (!online.TryGetValue(equipmentIndex, out var equipmentState) || equipmentState.Online);
+                var payloads = item.BehaviorPayloads ?? Array.Empty<AetheriaRuntimeBehaviorPayload>();
+                for (var behaviorIndex = 0; behaviorIndex < payloads.Count; behaviorIndex++)
+                {
+                    var payload = payloads[behaviorIndex];
+                    if (payload == null || !states.TryGetValue((equipmentIndex, behaviorIndex), out var state))
+                        continue;
+                    var source = $"{run.CurrentEntityKey}#equipment/{equipmentIndex}/behavior/{behaviorIndex}";
+                    var actionId = $"equipment.{equipmentIndex}.behavior.{behaviorIndex}";
+                    if (string.Equals(payload.Kind, "Switch", StringComparison.Ordinal) ||
+                        string.Equals(payload.Kind, "Trigger", StringComparison.Ordinal))
+                    {
+                        var action = Action(
+                            actionId,
+                            $"{(payload.Kind == "Trigger" ? "Trigger" : "Activate")} {item.Name}",
+                            "SetBehaviorActive",
+                            "equipment",
+                            source,
+                            ("equipmentIndex", equipmentIndex.ToString()),
+                            ("behaviorIndex", behaviorIndex.ToString()),
+                            ("active", "0"),
+                            ("currentValue", state.SwitchActivated ? "1" : "0"));
+                        action.Availability = available ? "available" : "unavailable";
+                        action.InputValue = new AetheriaRuntimeInputValueDocument
+                        {
+                            Model = "button-hold.v1",
+                            PayloadKey = "active"
+                        };
+                        yield return action;
+                        continue;
+                    }
+
+                    if (!string.Equals(payload.Kind, "Thermotoggle", StringComparison.Ordinal) ||
+                        !ReadBool(payload, 3))
+                        continue;
+                    var thermostat = Action(
+                        actionId,
+                        $"Set {item.Name} Target Temperature",
+                        "SetThermotoggleTargetTemperature",
+                        "equipment",
+                        source,
+                        ("targetEntityKey", run.CurrentEntityKey),
+                        ("equipmentIndex", equipmentIndex.ToString()),
+                        ("behaviorIndex", behaviorIndex.ToString()),
+                        ("scalarValue", state.ThermotoggleTargetTemperature.ToString("R", System.Globalization.CultureInfo.InvariantCulture)),
+                        ("currentValue", state.ThermotoggleTargetTemperature.ToString("R", System.Globalization.CultureInfo.InvariantCulture)),
+                        ("unit", "kelvin"));
+                    thermostat.Availability = available ? "available" : "unavailable";
+                    thermostat.InputValue = new AetheriaRuntimeInputValueDocument
+                    {
+                        Model = "scalar.v1",
+                        PayloadKey = "scalarValue"
+                    };
+                    yield return thermostat;
+                }
+            }
+        }
+
+        private static bool ReadBool(AetheriaRuntimeBehaviorPayload payload, int key) =>
+            (payload.Fields ?? Array.Empty<AetheriaRuntimeBehaviorField>())
+            .FirstOrDefault(field => field != null && field.Key == key)?.Value?.BoolValue ?? false;
 
         private static IEnumerable<AetheriaRuntimeInputActionDocument> TradeActions(
             AetheriaRuntimeRunCheckpointCommit run,

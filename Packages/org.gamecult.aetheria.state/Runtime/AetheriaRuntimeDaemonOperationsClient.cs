@@ -484,6 +484,19 @@ public sealed class AetheriaRuntimeDaemonOperationsClient
                 frame,
                 ReadWeaponGroup(request),
                 ReadPayloadBool(request, "active", true)),
+            AetheriaRuntimeDaemonCommandKinds.SetBehaviorActive => client.SetBehaviorActive(
+                frame,
+                (int)ReadPayloadDouble(request, "equipmentIndex", -1),
+                (int)ReadPayloadDouble(request, "behaviorIndex", -1),
+                ReadPayloadBool(request, "active", true)),
+            AetheriaRuntimeDaemonCommandKinds.SetThermotoggleTargetTemperature =>
+                client.SetThermotoggleTargetTemperature(
+                    frame,
+                    ReadPayloadString(request, "targetEntityKey",
+                        ReadPayloadString(request, "entityId", "")),
+                    (int)ReadPayloadDouble(request, "equipmentIndex", -1),
+                    (int)ReadPayloadDouble(request, "behaviorIndex", -1),
+                    ReadPayloadDouble(request, "scalarValue", double.NaN)),
             AetheriaRuntimeDaemonCommandKinds.SetTarget => client.SetTarget(
                 frame,
                 ReadPayloadString(request, "targetEntityId", ReadPayloadString(request, "entityId", ""))),

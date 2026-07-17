@@ -107,8 +107,16 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   methods instead of writing the input collections directly. The
   action bar also uses typed runtime catalog category rows to reject
   non-consumable inventory drops and creates consumable bindings around typed
-  catalog rows. Missing typed rows are rejected for consumable binding instead
-  of falling through to legacy DTO classification. Slot-binding drag/drop now
+  catalog rows. The provider input capability derives equipment controls from
+  exact installed payload indices: `Switch` and `Trigger` publish generic
+  `button-hold.v1` values, while adjustable `Thermotoggle` publishes a
+  `scalar.v1` Kelvin target with the daemon-owned current value. Fixed and
+  non-interactive behaviors publish no counterfeit action; offline equipment
+  retains stable action identity but is unavailable. Generic Eve requests for
+  both operations translate into their typed daemon commands. The capability
+  identifies provider `aetheria`; `aetheria.daemon.commands` remains only the
+  operation boundary and cannot replace provider identity. Missing typed rows
+  are rejected for consumable binding instead of falling through to legacy DTO classification. Slot-binding drag/drop now
   routes through typed daemon operations, and rebuilt current-entity binds come from typed
   action-bar descriptor rows instead of stale slot-local `Entity` references.
   `AetheriaRuntimeConsumableSimulation` is the sole live owner of consumable

@@ -177,6 +177,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             BehaviorChainsGateAuthoritativeStatModifiers,
             ResourceBehaviorsStopEquipmentChainsInAuthoredOrder,
             ThermotoggleSeedsAndGatesFromDaemonOwnedTarget,
+            InputCapabilityPublishesExactBehaviorLevers,
             ReflectorUsesSharedStellarLightFieldWithoutAccumulating,
             SensorPingIsActorScopedEnergyGatedAndReconnectable,
             TurretControllerAcquiresAimsAndTriggersExactWeapons,
@@ -499,6 +500,116 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             RequireEqual(1, result.AppliedCommandIds.Count,
                 "an installed adjustable thermotoggle must accept its typed daemon command");
         }
+    }
+
+    private static void InputCapabilityPublishesExactBehaviorLevers()
+    {
+        var controls = CatalogItem("behavior-controls",
+            new AetheriaRuntimeBehaviorPayload(0, "Thruster", 0, []),
+            new AetheriaRuntimeBehaviorPayload(1, "Switch", 1, []),
+            new AetheriaRuntimeBehaviorPayload(2, "Trigger", 2, []),
+            new AetheriaRuntimeBehaviorPayload(3, "Thermotoggle", 3,
+            [
+                new AetheriaRuntimeBehaviorField(1, Number(300)),
+                new AetheriaRuntimeBehaviorField(2, BoolValue(false)),
+                new AetheriaRuntimeBehaviorField(3, BoolValue(true))
+            ]),
+            new AetheriaRuntimeBehaviorPayload(4, "Thermotoggle", 4,
+            [
+                new AetheriaRuntimeBehaviorField(1, Number(350)),
+                new AetheriaRuntimeBehaviorField(2, BoolValue(false)),
+                new AetheriaRuntimeBehaviorField(3, BoolValue(false))
+            ]));
+        controls.Name = "Climate Control";
+        var catalog = new AetheriaRuntimeCatalogSnapshot([controls], [], []);
+        var entity = Entity(0, 0, "player");
+        entity.Equipment = [new AetheriaRuntimeLoadoutItemSlotCommit
+        {
+            Item = new AetheriaRuntimeLoadoutItemCommit
+                { ItemKey = controls.ItemKey, Enabled = true, Durability = 1, Quality = 1 }
+        }];
+        AetheriaRuntimeBehaviorStateProjector.EnsureEquipmentBehaviorStates(entity, catalog);
+        entity.EquipmentStates = [new AetheriaRuntimeEquipmentStateCommit
+            { EquipmentIndex = 0, Online = true }];
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "behavior-input-smoke",
+            CurrentZoneIndex = 0,
+            Zones = [new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [entity] }]
+        };
+        run.CurrentEntityKey = run.EntityRecordKey(0, entity.EntityIndex);
+        var frame = AetheriaRuntimeDaemonFrameDocument.Create(run, "smoke", "behavior-input", 1, 0.1, 0.1);
+        var capability = AetheriaRuntimeInputCapabilityDocument.FromFrame(frame, catalog: catalog);
+        RequireEqual("aetheria", capability.ProviderId,
+            "input capability must retain provider identity instead of substituting daemon service identity");
+        var actions = capability.Actions.Where(value => value.Category == "equipment").ToArray();
+        RequireEqual(3, actions.Length,
+            "input capability must omit non-interactive and fixed behaviors instead of activating behavior zero blindly");
+        var switchAction = actions.Single(value => value.ActionId == "equipment.0.behavior.1");
+        var triggerAction = actions.Single(value => value.ActionId == "equipment.0.behavior.2");
+        var thermostatAction = actions.Single(value => value.ActionId == "equipment.0.behavior.3");
+        RequireEqual("button-hold.v1", switchAction.InputValue?.Model ?? "",
+            "switch controls must advertise the fossil press/release input model");
+        RequireEqual("active", triggerAction.InputValue?.PayloadKey ?? "",
+            "trigger controls must route their input value into the typed active field");
+        RequireEqual("scalar.v1", thermostatAction.InputValue?.Model ?? "",
+            "adjustable thermostats must advertise a runtime-neutral scalar lever");
+        RequireEqual("300", thermostatAction.Payload["currentValue"],
+            "thermostat controls must publish the daemon-owned current target");
+
+        var switchRequest = new EveSurfaceCommandRequest(
+            capability.ProviderId,
+            AetheriaRuntimeDaemonGameSurfaceBuilder.PilotSurfaceId,
+            CultMesh.OperationInvocation(switchAction.Operation),
+            CultMesh.OperationPayload(
+                ("entityId", run.CurrentEntityKey),
+                ("equipmentIndex", "0"),
+                ("behaviorIndex", "1"),
+                ("active", "1")),
+            DateTimeOffset.UtcNow,
+            "behavior-input-smoke");
+        var switchTranslated = AetheriaRuntimeDaemonOperationsClient.TryCreateSurfaceCommandDocument(
+                switchRequest, frame, ".", "behavior-input-smoke", "behavior-input", out var switchCommand);
+        Require(switchTranslated &&
+                switchCommand?.Kind == AetheriaRuntimeDaemonCommandKinds.SetBehaviorActive &&
+                switchCommand.EquipmentIndex == 0 && switchCommand.BehaviorIndex == 1 &&
+                switchCommand.ScalarValue > 0.5,
+            $"the generic Eve action must translate into the exact typed switch command; accepted={switchTranslated}, kind={switchCommand?.Kind}, equipment={switchCommand?.EquipmentIndex}, behavior={switchCommand?.BehaviorIndex}, scalar={switchCommand?.ScalarValue}");
+        var switchResult = AetheriaRuntimeDaemonOperations.Execute(
+            run, [switchCommand!], new AetheriaRuntimeDaemonOperationContext { Catalog = catalog });
+        AetheriaRuntimeBehaviorSimulation.Step(0, [entity], switchResult.Intents.Behaviors, catalog, 0.1);
+        Require(entity.BehaviorStates.Single(value => value.BehaviorIndex == 1).SwitchActivated,
+            "the advertised switch lever must reach the daemon behavior owner");
+
+        var thermostatRequest = new EveSurfaceCommandRequest(
+            capability.ProviderId,
+            AetheriaRuntimeDaemonGameSurfaceBuilder.PilotSurfaceId,
+            CultMesh.OperationInvocation(thermostatAction.Operation),
+            CultMesh.OperationPayload(
+                ("entityId", run.CurrentEntityKey),
+                ("targetEntityKey", run.CurrentEntityKey),
+                ("equipmentIndex", "0"),
+                ("behaviorIndex", "3"),
+                ("scalarValue", "425")),
+            DateTimeOffset.UtcNow,
+            "behavior-input-smoke");
+        Require(AetheriaRuntimeDaemonOperationsClient.TryCreateSurfaceCommandDocument(
+                thermostatRequest, frame, ".", "behavior-input-smoke", "behavior-input", out var thermostatCommand) &&
+                thermostatCommand?.Kind == AetheriaRuntimeDaemonCommandKinds.SetThermotoggleTargetTemperature,
+            "the generic Eve scalar lever must translate into the typed thermostat command");
+        var thermostatResult = AetheriaRuntimeDaemonOperations.Execute(
+            run, [thermostatCommand!], new AetheriaRuntimeDaemonOperationContext { Catalog = catalog });
+        RequireEqual(1, thermostatResult.AppliedCommandIds.Count,
+            "the translated thermostat command must pass daemon catalog authorization");
+        RequireNear(425, entity.BehaviorStates.Single(value => value.BehaviorIndex == 3)
+                .ThermotoggleTargetTemperature, 0.000001,
+            "the advertised scalar lever must mutate only daemon-owned thermostat state");
+
+        entity.EquipmentStates[0].Online = false;
+        var offline = AetheriaRuntimeInputCapabilityDocument.FromFrame(frame, catalog: catalog);
+        Require(offline.Actions.Where(value => value.Category == "equipment")
+                .All(value => value.Availability == "unavailable"),
+            "offline equipment must retain stable action identity while advertising current unavailability");
     }
 
     private static void DockedRefitSurfacePublishesGenericCommands()
