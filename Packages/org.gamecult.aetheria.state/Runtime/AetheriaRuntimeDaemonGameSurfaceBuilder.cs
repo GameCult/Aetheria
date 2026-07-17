@@ -568,7 +568,21 @@ namespace GameCult.Aetheria.State.Verse
                         ("impactKind", value.ImpactKind),
                         ("impactAngleRoll", FormatNumber(value.ImpactAngleRoll)),
                         ("impactRadiusRoll", FormatNumber(value.ImpactRadiusRoll))
-                    }))
+                    },
+                    (value.DamageCells ?? Array.Empty<AetheriaRuntimeDamageCellCommit>())
+                        .Select((cell, index) => Node(
+                            $"aetheria.daemon.game.shots.{SurfaceToken(value.ShotId)}.damage.{index}",
+                            "shot.damage-cell",
+                            new[]
+                            {
+                                ("x", cell.X.ToString(CultureInfo.InvariantCulture)),
+                                ("y", cell.Y.ToString(CultureInfo.InvariantCulture)),
+                                ("armorAppliedDamage", FormatNumber(cell.ArmorAppliedDamage)),
+                                ("equipmentIndex", cell.EquipmentIndex.ToString(CultureInfo.InvariantCulture)),
+                                ("equipmentAppliedDamage", FormatNumber(cell.EquipmentAppliedDamage)),
+                                ("hullAppliedDamage", FormatNumber(cell.HullAppliedDamage))
+                            }))
+                        .ToArray()))
                 .ToArray();
             return Node("aetheria.daemon.game.shots", "shot.receipt-stream",
                 new[] { ("retainedCount", receipts.Length.ToString(CultureInfo.InvariantCulture)) }, receipts);

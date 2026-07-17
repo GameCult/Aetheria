@@ -3543,6 +3543,13 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             node.Kind == "shot.receipt" && node.Props["itemKey"] == "gap-penetrator");
         RequireEqual("1", shot.Props["damageCellCount"],
             "generic Eve shot receipts must expose the daemon's contiguous penetration result");
+        var damageCell = shot.Children.Single(node => node.Kind == "shot.damage-cell");
+        Require(damageCell.Props["x"] == "0" && damageCell.Props["y"] == "0" &&
+                damageCell.Props["armorAppliedDamage"] == "0" &&
+                damageCell.Props["equipmentIndex"] == "-1" &&
+                damageCell.Props["equipmentAppliedDamage"] == "0" &&
+                damageCell.Props["hullAppliedDamage"] == "10",
+            "generic Eve must retain the exact per-cell layer outcome without reconstructing damage");
     }
 
     private static void ShipSchematicProjectsDaemonTopologyAndEquipmentState()

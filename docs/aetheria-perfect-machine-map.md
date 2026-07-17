@@ -1017,8 +1017,11 @@ lifecycle state.
   installed item crosses the fossil durability threshold.
 - Derived state: aggregate armor and exact schematic armor/maximum-armor facts
   are Eve projections of canonical cell state. Scalar hull is the terminal
-  remainder, not an armor surrogate. Damage type is typed/pass-through; no
-  resistance authority exists because the fossil did not apply resistances.
+  remainder, not an armor surrogate. Every direct-shot receipt projects stable
+  `shot.damage-cell` children with coordinates and exact armor, equipment, and
+  hull application so presentation never reconstructs the transaction. Damage
+  type is typed/pass-through; no resistance authority exists because the fossil
+  did not apply resistances.
 - Forbidden writers: direct-fire code, deployable handlers, Ymir contacts,
   Unity components, Eve lowerers, scalar-health helpers, and reconciliation
   loops cannot independently apply or repair armor, equipment, or hull damage.
@@ -1036,8 +1039,8 @@ lifecycle state.
   terminates at the first empty sample instead of crossing a hull gap.
 - Verification: daemon smoke proves a rotated asymmetric equipment footprint
   receives residual cell damage and a penetrating direct shot cannot reach a
-  disconnected hull island. The exact contiguous cell count remains visible in
-  the generic Eve shot receipt.
+  disconnected hull island. The exact contiguous cell count and per-layer cell
+  outcome remain visible in the generic Eve shot receipt.
 
 ### Daemon Destruction Transaction
 
