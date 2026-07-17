@@ -1009,8 +1009,9 @@ lifecycle state.
   and mutation for direct weapons and deployables.
 - Inputs: hull and hardpoint catalog topology; initialized armor and
   maximum-armor grids; shield, equipment, and scalar hull state; deterministic
-  impact position/direction; damage amount, orthogonal spread, 0.5-cell
-  penetration, and typed damage type.
+  impact position/direction; fossil full-width/full-height schematic UV
+  scaling; damage amount, orthogonal spread, 0.5-cell penetration, and typed
+  damage type.
 - Outputs: one atomic `shield -> armor cell -> equipment -> scalar hull`
   result, mutated canonical grids/equipment/hull state, receipts recording
   which layers were reached, and one `equipment.destroyed` fact whenever an
@@ -1038,9 +1039,10 @@ lifecycle state.
   half-cell step, eliminating the fossil's non-advancing infinite loop, and
   terminates at the first empty sample instead of crossing a hull gap.
 - Verification: daemon smoke proves a rotated asymmetric equipment footprint
-  receives residual cell damage and a penetrating direct shot cannot reach a
-  disconnected hull island. The exact contiguous cell count and per-layer cell
-  outcome remain visible in the generic Eve shot receipt.
+  receives residual cell damage, a deterministic UV lands on the cell selected
+  by the fossil's full-dimension arithmetic, and a penetrating direct shot
+  cannot reach a disconnected hull island. The exact contiguous cell count and
+  per-layer cell outcome remain visible in the generic Eve shot receipt.
 
 ### Daemon Destruction Transaction
 

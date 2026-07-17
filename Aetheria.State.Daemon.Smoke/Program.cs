@@ -3490,11 +3490,12 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         }];
         var target = Entity(1, 80, "raider");
         target.HullItemKey = "disconnected-hull";
-        var hull = HullCatalogItem("disconnected-hull", 3, 1, 0);
+        var hull = HullCatalogItem("disconnected-hull", 4, 1, 0);
         hull.ShapeCells =
         [
             new AetheriaRuntimeShapeCell(0, 0),
-            new AetheriaRuntimeShapeCell(2, 0)
+            new AetheriaRuntimeShapeCell(1, 0),
+            new AetheriaRuntimeShapeCell(3, 0)
         ];
         var payload = new AetheriaRuntimeBehaviorPayload(0, AetheriaRuntimeBehaviorKinds.InstantWeapon, 0,
         [
@@ -3513,7 +3514,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             [WearableWeaponCatalogItem("gap-penetrator", payload), hull], [], []);
         var run = new AetheriaRuntimeRunCheckpointCommit
         {
-            RunId = "penetration-gap-smoke", GenerationSeed = 0, CurrentZoneIndex = 0,
+            RunId = "penetration-gap-smoke", GenerationSeed = 91, CurrentZoneIndex = 0,
             CurrentEntityKey = "zone.0.entity.0",
             Zones = [new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [source, target] }]
         };
@@ -3529,8 +3530,9 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
 
         var receipt = run.ShotReceipts.Single(value => value.WeaponItemKey == "gap-penetrator");
         Require(receipt.Hit && receipt.DamageCells.Count == 1 &&
-                receipt.DamageCells[0].X == 0 && receipt.DamageCells[0].Y == 0,
-            $"penetration must stop at the first empty hull sample instead of damaging a disconnected island; " +
+                receipt.DamageCells[0].X == 1 && receipt.DamageCells[0].Y == 0,
+            $"impact UV must scale by the full fossil schematic dimensions and penetration must stop " +
+            $"at the first empty hull sample instead of damaging a disconnected island; " +
             $"endpoint={receipt.EndpointX:0.###},{receipt.EndpointZ:0.###} " +
             $"cells={string.Join(';', receipt.DamageCells.Select(cell => $"{cell.X},{cell.Y}"))}");
         RequireNear(90, Stat(target, "hull"), 0.000001,
@@ -3544,7 +3546,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         RequireEqual("1", shot.Props["damageCellCount"],
             "generic Eve shot receipts must expose the daemon's contiguous penetration result");
         var damageCell = shot.Children.Single(node => node.Kind == "shot.damage-cell");
-        Require(damageCell.Props["x"] == "0" && damageCell.Props["y"] == "0" &&
+        Require(damageCell.Props["x"] == "1" && damageCell.Props["y"] == "0" &&
                 damageCell.Props["armorAppliedDamage"] == "0" &&
                 damageCell.Props["equipmentIndex"] == "-1" &&
                 damageCell.Props["equipmentAppliedDamage"] == "0" &&

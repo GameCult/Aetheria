@@ -2502,8 +2502,8 @@ namespace GameCult.Aetheria.State.Verse
             var localX = dx * right.X + dz * right.Y;
             var localY = dx * forward.X + dz * forward.Y;
             var radius = string.Equals(target.Kind, "station", StringComparison.OrdinalIgnoreCase) ? 48.0 : 20.0;
-            var schematicX = (localX / (radius * 2) + 0.5) * Math.Max(1, hull.ShapeWidth - 1);
-            var schematicY = (localY / (radius * 2) + 0.5) * Math.Max(1, hull.ShapeHeight - 1);
+            var schematicX = (localX / (radius * 2) + 0.5) * Math.Max(1, hull.ShapeWidth);
+            var schematicY = (localY / (radius * 2) + 0.5) * Math.Max(1, hull.ShapeHeight);
             var first = hull.ShapeCells.OrderBy(cell =>
                 (cell.X - schematicX) * (cell.X - schematicX) + (cell.Y - schematicY) * (cell.Y - schematicY)).First();
             result.Add((first.X, first.Y));

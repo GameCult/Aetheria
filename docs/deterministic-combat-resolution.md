@@ -141,7 +141,9 @@ then enters the target's shield, armor, hull-cell, equipment, thermal, and crew
 damage pipeline.
 
 The implemented damage transaction maps the deterministic impact onto the
-target schematic. Damage spread expands through orthogonally adjacent cells.
+target schematic using the fossil's normalized UV multiplied by the complete
+schematic width and height before nearest-cell selection. Damage spread expands
+through orthogonally adjacent cells.
 Penetration advances through the schematic in 0.5-cell increments, including
 the fix for the fossil path that could fail to advance and loop forever. It
 stops at the first sample outside occupied hull topology, preserving the
