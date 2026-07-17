@@ -240,7 +240,11 @@ namespace GameCult.Aetheria.State.Verse
                 return false;
             }
 
-            destinationPlan.AddInstalled(placed, item.Category, source.PreservedWeaponGroups);
+            destinationPlan.AddInstalled(
+                placed,
+                item.Category,
+                source.PreservedWeaponGroups,
+                ReferenceEquals(originPlan, destinationPlan) ? source.OriginalEquipmentIndex : -1);
             originPlan.Apply();
             if (!ReferenceEquals(originPlan, destinationPlan))
                 destinationPlan.Apply();
@@ -567,18 +571,21 @@ namespace GameCult.Aetheria.State.Verse
         {
             public AetheriaRuntimeLoadoutItemSlotCommit Slot { get; set; } = null!;
             public IReadOnlyList<int> PreservedWeaponGroups { get; set; } = Array.Empty<int>();
+            public int OriginalEquipmentIndex { get; set; } = -1;
         }
 
         private sealed class EntityPlan
         {
             private readonly AetheriaRuntimeEntitySnapshotCommit _entity;
             private readonly List<List<int>> _weaponGroups;
+            private readonly List<int> _equipmentOrigins;
 
             public EntityPlan(AetheriaRuntimeEntitySnapshotCommit entity)
             {
                 _entity = entity;
                 Equipment = (entity.Equipment ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>())
                     .Select(CloneSlot).ToList();
+                _equipmentOrigins = Enumerable.Range(0, Equipment.Count).ToList();
                 CargoBays = (entity.CargoBays ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>())
                     .Select(CloneSlot).ToList();
                 DockingBays = (entity.DockingBays ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>())
@@ -624,8 +631,12 @@ namespace GameCult.Aetheria.State.Verse
 
                 if (string.Equals(sourceKind, AetheriaRuntimeRefitSourceKinds.Equipment, StringComparison.Ordinal))
                 {
+                    var originalEquipmentIndex = sourceIndex >= 0 && sourceIndex < _equipmentOrigins.Count
+                        ? _equipmentOrigins[sourceIndex]
+                        : -1;
                     if (!TryTake(Equipment, sourceIndex, itemKey, out var slot))
                         return Reject(AetheriaRuntimeDaemonRejectionReasons.InvalidRefitSource, out rejectionReason);
+                    _equipmentOrigins.RemoveAt(sourceIndex);
                     var preservedGroups = _weaponGroups
                         .Select((group, index) => (group, index))
                         .Where(value => value.group.Contains(sourceIndex))
@@ -637,7 +648,12 @@ namespace GameCult.Aetheria.State.Verse
                         for (var index = 0; index < group.Count; index++)
                             if (group[index] > sourceIndex) group[index]--;
                     }
-                    source = new SourceSelection { Slot = CloneSlot(slot), PreservedWeaponGroups = preservedGroups };
+                    source = new SourceSelection
+                    {
+                        Slot = CloneSlot(slot),
+                        PreservedWeaponGroups = preservedGroups,
+                        OriginalEquipmentIndex = originalEquipmentIndex
+                    };
                     return true;
                 }
 
@@ -677,7 +693,8 @@ namespace GameCult.Aetheria.State.Verse
             public void AddInstalled(
                 AetheriaRuntimeLoadoutItemSlotCommit slot,
                 string? category,
-                IReadOnlyList<int> preservedWeaponGroups)
+                IReadOnlyList<int> preservedWeaponGroups,
+                int originalEquipmentIndex)
             {
                 if (string.Equals(category, AetheriaRuntimeItemCategories.CargoBay, StringComparison.Ordinal))
                 {
@@ -695,6 +712,7 @@ namespace GameCult.Aetheria.State.Verse
 
                 var equipmentIndex = Equipment.Count;
                 Equipment.Add(slot);
+                _equipmentOrigins.Add(originalEquipmentIndex);
                 foreach (var groupIndex in preservedWeaponGroups)
                     if (groupIndex >= 0 && groupIndex < _weaponGroups.Count)
                         _weaponGroups[groupIndex].Add(equipmentIndex);
@@ -715,10 +733,45 @@ namespace GameCult.Aetheria.State.Verse
                 _entity.WeaponGroups = _weaponGroups
                     .Select(group => (IReadOnlyList<int>)group.Distinct().OrderBy(index => index).ToArray())
                     .ToArray();
-                _entity.WeaponStates = Array.Empty<AetheriaRuntimeWeaponStateCommit>();
+                RemapEquipmentOwnedState();
+            }
+
+            private void RemapEquipmentOwnedState()
+            {
+                var newIndices = _equipmentOrigins
+                    .Select((originalIndex, newIndex) => (originalIndex, newIndex))
+                    .Where(value => value.originalIndex >= 0)
+                    .ToDictionary(value => value.originalIndex, value => value.newIndex);
+
+                _entity.EquipmentStates = (_entity.EquipmentStates ?? Array.Empty<AetheriaRuntimeEquipmentStateCommit>())
+                    .Where(state => state != null && newIndices.ContainsKey(state.EquipmentIndex))
+                    .Select(state =>
+                    {
+                        state.EquipmentIndex = newIndices[state.EquipmentIndex];
+                        return state;
+                    })
+                    .ToArray();
                 _entity.BehaviorStates = (_entity.BehaviorStates ?? Array.Empty<AetheriaRuntimeBehaviorStateCommit>())
                     .Where(state => state != null &&
-                        !string.Equals(state.OwnerKind, AetheriaRuntimeBehaviorStateProjector.EquipmentOwnerKind, StringComparison.Ordinal))
+                        (!string.Equals(state.OwnerKind, AetheriaRuntimeBehaviorStateProjector.EquipmentOwnerKind, StringComparison.Ordinal) ||
+                         newIndices.ContainsKey(state.OwnerIndex)))
+                    .Select(state =>
+                    {
+                        if (string.Equals(state.OwnerKind, AetheriaRuntimeBehaviorStateProjector.EquipmentOwnerKind, StringComparison.Ordinal))
+                            state.OwnerIndex = newIndices[state.OwnerIndex];
+                        return state;
+                    })
+                    .ToArray();
+                _entity.WeaponStates = (_entity.WeaponStates ?? Array.Empty<AetheriaRuntimeWeaponStateCommit>())
+                    .Where(state => state != null &&
+                        (!string.Equals(state.OwnerKind, AetheriaRuntimeBehaviorStateProjector.EquipmentOwnerKind, StringComparison.Ordinal) ||
+                         newIndices.ContainsKey(state.OwnerIndex)))
+                    .Select(state =>
+                    {
+                        if (string.Equals(state.OwnerKind, AetheriaRuntimeBehaviorStateProjector.EquipmentOwnerKind, StringComparison.Ordinal))
+                            state.OwnerIndex = newIndices[state.OwnerIndex];
+                        return state;
+                    })
                     .ToArray();
             }
 

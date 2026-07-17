@@ -896,7 +896,9 @@ lifecycle state.
 - Inputs: accepted daemon transactions plus the complete runtime entity state:
   hull, installed placement and rotation, per-instance item fields, cargo and
   bay contents, weapon groups, equipment/behavior/weapon/consumable state, and
-  loadout-generation receipts.
+  loadout-generation receipts. Generic Eve refit requests enter through the
+  advertised operation and are translated into that same typed transaction;
+  Eve never writes the checkpoint directly.
 - Outputs: one typed CultCache frame that can be closed, reopened in a fresh
   state node, resumed by the daemon, and projected into Eve without rebuilding
   gameplay state from Unity objects or client input.
@@ -904,13 +906,15 @@ lifecycle state.
   durability, thermal state, cargo quantity, held groups, wear, specialized
   chain chronology, ammunition, shot sequence, active-effect execution state,
   and generation provenance survive the real directory store. Restored Eve
-  weapon and thermostat levers derive from that same frame.
+  weapon and thermostat levers derive from that same frame. A refit preserves
+  state owned by surviving equipment indices, removes state owned by removed
+  equipment, and gives newly installed cargo no invented runtime history.
 - Forbidden writers: Unity loadout mirrors, Eve lowerers, and bootstrap entity
   documents cannot overwrite an active latest-frame checkpoint.
 - Verification layer: daemon smoke hard-flushes the frame, disposes the first
   `AetheriaStateNode`, opens a second node, verifies the complete loadout and
-  behavior state, then rebuilds generic Eve input capabilities from the
-  restored frame.
+  behavior state plus an accepted generic Eve equipment placement and consumed
+  source, then rebuilds generic Eve input capabilities from the restored frame.
 
 ### Daemon Orbital Turret Controller
 

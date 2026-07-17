@@ -6953,9 +6953,20 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                     new AetheriaRuntimeBehaviorField(3, BoolValue(true))
                 ]));
             controller.Name = "Reconnect Controller";
-            var catalog = new AetheriaRuntimeCatalogSnapshot([controller], [], []);
+            var hull = HullCatalogItem("reconnect-hull", 9, 7, 100);
+            var cargoBay = CatalogItem("reconnect-cargo-bay");
+            cargoBay.InteriorShapeWidth = 6;
+            cargoBay.InteriorShapeHeight = 4;
+            var addedModule = CatalogItem("reconnect-added-module");
+            addedModule.ShapeWidth = 1;
+            addedModule.ShapeHeight = 1;
+            addedModule.OccupiedCells = 1;
+            addedModule.ShapeCells = [new AetheriaRuntimeShapeCell(0, 0)];
+            addedModule.HardpointType = "";
+            var catalog = new AetheriaRuntimeCatalogSnapshot(
+                [hull, cargoBay, controller, addedModule], [], []);
             var ship = Entity(0, 0, "player");
-            ship.HullItemKey = "reconnect-hull";
+            ship.HullItemKey = hull.ItemKey;
             ship.Equipment =
             [
                 new AetheriaRuntimeLoadoutItemSlotCommit
@@ -6981,7 +6992,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 {
                     Item = new AetheriaRuntimeLoadoutItemCommit
                     {
-                        ItemKey = "reconnect-cargo-bay",
+                        ItemKey = cargoBay.ItemKey,
                         Quantity = 1,
                         Quality = 1,
                         Durability = 1,
@@ -7079,15 +7090,85 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                     }
                 ]
             };
+            var station = Entity(1, 0, "player");
+            station.Kind = "station";
+            station.DockingBayAssignments = [ship.EntityIndex];
+            station.CargoBays =
+            [
+                new AetheriaRuntimeLoadoutItemSlotCommit
+                {
+                    Item = new AetheriaRuntimeLoadoutItemCommit
+                    {
+                        ItemKey = cargoBay.ItemKey,
+                        Quantity = 1,
+                        Quality = 1,
+                        Durability = 1,
+                        Enabled = true
+                    }
+                }
+            ];
+            station.CargoContents =
+            [
+                Cargo((addedModule.ItemKey, 1, 0, 0))
+            ];
             var run = new AetheriaRuntimeRunCheckpointCommit
             {
                 RunId = "loadout-restart-smoke",
                 CurrentZoneIndex = 0,
-                Zones = [new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [ship] }]
+                Zones = [new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [ship, station] }]
             };
             run.CurrentEntityKey = run.EntityRecordKey(0, ship.EntityIndex);
             var frame = AetheriaRuntimeDaemonFrameDocument.Create(
                 run, "smoke", "loadout-restart", 41, 4.1, 0.1);
+            var shipKey = run.EntityRecordKey(0, ship.EntityIndex);
+            var stationKey = run.EntityRecordKey(0, station.EntityIndex);
+            var surface = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(
+                frame,
+                new AetheriaRuntimeDaemonHealthDocument(),
+                AetheriaRuntimeDaemonCommandBoundaryDocument.Create("smoke"),
+                catalog: catalog);
+            var equipOperation = AetheriaRuntimeDaemonSurfaceCommandCatalog.CommandName(
+                AetheriaRuntimeDaemonCommandKinds.EquipItem);
+            Require(surface.Commands.Any(command => command.Command == equipOperation),
+                "docked Eve surface must advertise the generic equip operation before reconnect");
+            var request = new EveSurfaceCommandRequest(
+                "aetheria",
+                AetheriaRuntimeDaemonGameSurfaceBuilder.PilotSurfaceId,
+                CultMesh.OperationInvocation(equipOperation),
+                CultMesh.OperationPayload(
+                    ("entityId", shipKey),
+                    ("sourceKind", AetheriaRuntimeRefitSourceKinds.Cargo),
+                    ("originEntityKey", stationKey),
+                    ("originIndex", "0"),
+                    ("destinationEntityKey", shipKey),
+                    ("itemKey", addedModule.ItemKey),
+                    ("sourceX", "0"),
+                    ("sourceY", "0"),
+                    ("destinationX", "5"),
+                    ("destinationY", "2"),
+                    ("hasDestinationPosition", "true")),
+                DateTimeOffset.UtcNow,
+                "loadout-restart-smoke");
+            Require(AetheriaRuntimeDaemonOperationsClient.TryCreateSurfaceCommandDocument(
+                    request,
+                    frame,
+                    ".",
+                    "loadout-restart-smoke",
+                    "refit",
+                    out var equipCommand) && equipCommand != null,
+                "generic Eve equip request must translate into a typed daemon command");
+            var refit = AetheriaRuntimeDaemonOperations.Execute(
+                run,
+                [equipCommand!],
+                new AetheriaRuntimeDaemonOperationContext { Catalog = catalog });
+            Require(refit.AppliedCommandIds.Contains(equipCommand!.CommandId, StringComparer.Ordinal),
+                "generic Eve equip command must commit through the atomic daemon refit transaction: " +
+                string.Join(",", refit.RejectedCommandReasons.Values));
+            Require(ship.Equipment.Any(slot => slot.Item.ItemKey == addedModule.ItemKey &&
+                    slot.X == 5 && slot.Y == 2),
+                "accepted generic refit must place the exact module in daemon world truth");
+            RequireEqual(0, station.CargoContents.Single().Items.Count,
+                "accepted generic refit must remove the exact source item atomically");
 
             using (var node = AetheriaStateNode.OpenAsync(statePath).GetAwaiter().GetResult())
             {
@@ -7103,8 +7184,9 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                         AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest)
                     .ReadAsync().GetAwaiter().GetResult()
                     ?? throw new InvalidOperationException("Durable loadout restart frame is missing.");
-                var restored = durable.Run.Zones.Single().Entities.Single();
-                var installed = restored.Equipment.Single();
+                var restored = durable.Run.Zones.Single().Entities.Single(entity => entity.EntityIndex == ship.EntityIndex);
+                var restoredStation = durable.Run.Zones.Single().Entities.Single(entity => entity.EntityIndex == station.EntityIndex);
+                var installed = restored.Equipment.Single(slot => slot.Item.ItemKey == controller.ItemKey);
                 RequireEqual("reconnect-hull", restored.HullItemKey,
                     "CultCache restart must preserve daemon-owned hull identity");
                 Require(installed.X == 3 && installed.Y == 4 && installed.Rotation == "CounterClockwise",
@@ -7135,6 +7217,11 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                     "CultCache restart must preserve active consumable execution state");
                 Require(restored.LoadoutGeneration?.Selections.Single().ItemKey == controller.ItemKey,
                     "CultCache restart must preserve generated-loadout provenance");
+                Require(restored.Equipment.Any(slot => slot.Item.ItemKey == addedModule.ItemKey &&
+                        slot.X == 5 && slot.Y == 2),
+                    "CultCache restart must preserve the generic Eve refit's accepted placement");
+                RequireEqual(0, restoredStation.CargoContents.Single().Items.Count,
+                    "CultCache restart must not resurrect the generic refit's consumed source item");
 
                 var capability = AetheriaRuntimeInputCapabilityDocument.FromFrame(
                     durable, catalog: catalog);
