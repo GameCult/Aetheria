@@ -196,7 +196,8 @@ namespace GameCult.Aetheria.State.Verse
         IssueAgentTask,
         CancelAgentTask,
         SetSimulationRate,
-        AdvanceSimulationStep
+        AdvanceSimulationStep,
+        TradeSale
     }
 
     [CultDocument("gamecult.aetheria.daemon_provider_advertisement", "gamecult.aetheria.daemon_provider_advertisement.v1")]
@@ -440,6 +441,8 @@ namespace GameCult.Aetheria.State.Verse
                     return nameof(AetheriaRuntimeCargoTransferCommand);
                 case AetheriaRuntimeDaemonCommandKinds.TradePurchase:
                     return nameof(AetheriaRuntimeTradePurchaseCommand);
+                case AetheriaRuntimeDaemonCommandKinds.TradeSale:
+                    return nameof(AetheriaRuntimeTradeSaleCommand);
                 case AetheriaRuntimeDaemonCommandKinds.RestoreLoadout:
                     return nameof(AetheriaRuntimeLoadoutRestoreCommand);
                 case AetheriaRuntimeDaemonCommandKinds.EquipItem:
@@ -672,6 +675,9 @@ namespace GameCult.Aetheria.State.Verse
         [Key(30)]
         public AetheriaRuntimeAgentTaskCommand AgentTask { get; set; } = new AetheriaRuntimeAgentTaskCommand();
 
+        [Key(31)]
+        public AetheriaRuntimeTradeSaleCommand TradeSale { get; set; } = new AetheriaRuntimeTradeSaleCommand();
+
         public static AetheriaRuntimeDaemonCommandDocument Create(
             AetheriaRuntimeDaemonCommandKinds kind,
             string clientId,
@@ -903,6 +909,18 @@ namespace GameCult.Aetheria.State.Verse
         [Key(11)]
         public bool CreatesDockedShip { get; set; }
 
+    }
+
+    [MessagePackObject]
+    public sealed class AetheriaRuntimeTradeSaleCommand
+    {
+        // The daemon derives station identity, destination bay, unit value,
+        // payout, and stock placement from authoritative state.
+        [Key(0)] public string ItemKey { get; set; } = "";
+        [Key(1)] public int Quantity { get; set; } = 1;
+        [Key(2)] public int SourceCargoIndex { get; set; } = -1;
+        [Key(3)] public int SourceX { get; set; } = int.MinValue;
+        [Key(4)] public int SourceY { get; set; } = int.MinValue;
     }
 
     public static class AetheriaRuntimeDaemonReceiptProjector

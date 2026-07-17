@@ -311,6 +311,22 @@ public sealed class AetheriaRuntimeDaemonOperationsClient
             sourceY));
     }
 
+    public CultMeshOperationReceipt TradeSale(
+        string itemKey,
+        int quantity,
+        int sourceCargoIndex,
+        int sourceX,
+        int sourceY)
+    {
+        return Send((client, frame) => client.TradeSale(
+            frame,
+            itemKey,
+            quantity,
+            sourceCargoIndex,
+            sourceX,
+            sourceY));
+    }
+
     public CultMeshOperationReceipt RestoreLoadout(
         string dockedEntityKey,
         string templateName,
@@ -505,6 +521,13 @@ public sealed class AetheriaRuntimeDaemonOperationsClient
                 (int)ReadPayloadDouble(request, "quantity", 1),
                 (int)ReadPayloadDouble(request, "stationCargoIndex", -1),
                 (int)ReadPayloadDouble(request, "targetCargoIndex", -1),
+                (int)ReadPayloadDouble(request, "sourceX", int.MinValue),
+                (int)ReadPayloadDouble(request, "sourceY", int.MinValue)),
+            AetheriaRuntimeDaemonCommandKinds.TradeSale => client.TradeSale(
+                frame,
+                ReadPayloadString(request, "itemKey", ""),
+                (int)ReadPayloadDouble(request, "quantity", 1),
+                (int)ReadPayloadDouble(request, "sourceCargoIndex", -1),
                 (int)ReadPayloadDouble(request, "sourceX", int.MinValue),
                 (int)ReadPayloadDouble(request, "sourceY", int.MinValue)),
             _ => AetheriaRuntimeDaemonSurfaceCommandCatalog.TrySubmitArgumentless(

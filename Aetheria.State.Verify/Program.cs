@@ -107,6 +107,7 @@ RequireLootPickupRequestAuthority(root);
 RequireEntityDestroyedRequestAuthority(root);
 RequireDroppedPickupCheckpointState(root);
 RequireTradePurchaseRequestAuthority(root);
+RequireTradeSaleAuthority(root);
 RequireInventoryDocumentSlotIdentity(root);
 RequireInventoryValidationUsesManagedTypedDocuments(root);
 RequireMenuDockingUsesManagedTypedSnapshot(root);
@@ -20118,6 +20119,90 @@ static void RequireTradePurchaseRequestAuthority(string root)
         throw new InvalidOperationException(
             "TradeMenu still refreshes projected credits immediately after submitting a daemon purchase request instead of waiting for daemon-observed state.");
     }
+}
+
+static void RequireTradeSaleAuthority(string root)
+{
+    var runtime = Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime");
+    var documents = File.ReadAllText(Path.Combine(runtime, "AetheriaRuntimeDaemonDocuments.cs"));
+    var operations = File.ReadAllText(Path.Combine(runtime, "AetheriaRuntimeDaemonOperations.cs"));
+    var operationClient = File.ReadAllText(Path.Combine(runtime, "AetheriaRuntimeDaemonOperationClient.cs"));
+    var surfaceClient = File.ReadAllText(Path.Combine(runtime, "AetheriaRuntimeDaemonOperationsClient.cs"));
+    var inputCapabilities = File.ReadAllText(Path.Combine(runtime, "AetheriaRuntimeInputCapabilityDocuments.cs"));
+
+    var required = new Dictionary<string, string[]>
+    {
+        ["command contract"] =
+        [
+            "TradeSale",
+            "public sealed class AetheriaRuntimeTradeSaleCommand",
+            "public AetheriaRuntimeTradeSaleCommand TradeSale"
+        ],
+        ["daemon transaction"] =
+        [
+            "ApplyTradeSale(run, command, context)",
+            "AetheriaRuntimeRefitTransactions.TryTransferCargo(",
+            "run.Credits += (int)payout",
+            "TradeStationNoFit"
+        ],
+        ["operation client"] =
+        [
+            "internal AetheriaRuntimeDaemonCommandEnvelope TradeSale(",
+            "command.TradeSale.ItemKey",
+            "command.TradeSale.Quantity"
+        ],
+        ["generic Eve translation"] =
+        [
+            "public CultMeshOperationReceipt TradeSale(",
+            "AetheriaRuntimeDaemonCommandKinds.TradeSale => client.TradeSale("
+        ],
+        ["advertised gameplay lever"] =
+        [
+            "trade.sell.",
+            "Sell {typedItem.Name}",
+            "\"TradeSale\""
+        ]
+    };
+    var sources = new Dictionary<string, string>
+    {
+        ["command contract"] = documents,
+        ["daemon transaction"] = operations,
+        ["operation client"] = operationClient,
+        ["generic Eve translation"] = surfaceClient,
+        ["advertised gameplay lever"] = inputCapabilities
+    };
+    var missing = required
+        .SelectMany(group => group.Value
+            .Where(symbol => !sources[group.Key].Contains(symbol, StringComparison.Ordinal))
+            .Select(symbol => $"{group.Key}: {symbol}"))
+        .ToArray();
+    if (missing.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Docked sale no longer crosses the complete daemon/Eve authority boundary: " +
+            string.Join(", ", missing));
+    }
+
+    var forbiddenClientOpinions = new[]
+    {
+        "TradeSale.UnitPrice",
+        "TradeSale.TotalPrice",
+        "TradeSale.StationEntityKey",
+        "TradeSale.StationCargoIndex"
+    };
+    var clientOpinionHits = forbiddenClientOpinions
+        .Where(symbol => operationClient.Contains(symbol, StringComparison.Ordinal) ||
+            surfaceClient.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (clientOpinionHits.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Trade sale client still supplies daemon-owned station or payout opinions: " +
+            string.Join(", ", clientOpinionHits));
+    }
+
+    Console.WriteLine(
+        "Trade sale authority: generic Eve advertises source-stack intent; daemon owns station placement and payout");
 }
 
 static void RequireLootPickupRequestAuthority(string root)

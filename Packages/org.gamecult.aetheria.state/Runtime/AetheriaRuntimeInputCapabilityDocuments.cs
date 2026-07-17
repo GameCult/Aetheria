@@ -164,6 +164,46 @@ namespace GameCult.Aetheria.State.Verse
                     yield return action;
                 }
             }
+
+            var sellerCargo = entity.CargoContents ?? Array.Empty<AetheriaRuntimeCargoBayLoadoutCommit>();
+            for (var bayIndex = 0; bayIndex < sellerCargo.Count; bayIndex++)
+            {
+                foreach (var slot in sellerCargo[bayIndex]?.Items ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>())
+                {
+                    var itemKey = slot?.Item?.ItemKey ?? "";
+                    var typedItem = catalog.FindItem(itemKey);
+                    if (typedItem == null || slot?.Item == null || slot.Item.Quantity <= 0)
+                        continue;
+
+                    var value = AetheriaRuntimeDaemonTradeItemQueries.TradeItemValue(
+                        typedItem,
+                        slot.Item,
+                        catalog.TradeValueSettings).Price;
+                    var stationCanReceive = Enumerable.Range(0, parent.CargoBays?.Count ?? 0)
+                        .Any(stationBayIndex =>
+                            stationBayIndex < (parent.CargoContents?.Count ?? 0) &&
+                            AetheriaRuntimeCargoCapacityQueries.UnitsThatFit(
+                                parent,
+                                catalog,
+                                itemKey,
+                                stationBayIndex) > 0);
+                    var action = Action(
+                        $"trade.sell.{StableToken(itemKey)}.{bayIndex}.{slot.X}.{slot.Y}",
+                        $"Sell {typedItem.Name} (+{value})",
+                        "TradeSale",
+                        "trade",
+                        $"{run.CurrentEntityKey}#cargo/{bayIndex}/{slot.X}/{slot.Y}",
+                        ("itemKey", itemKey),
+                        ("quantity", "1"),
+                        ("sourceCargoIndex", bayIndex.ToString()),
+                        ("sourceX", slot.X.ToString()),
+                        ("sourceY", slot.Y.ToString()));
+                    action.Availability = value >= 0 && stationCanReceive
+                        ? "available"
+                        : "unavailable";
+                    yield return action;
+                }
+            }
         }
 
         private static string StableToken(string value) =>

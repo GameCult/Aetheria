@@ -477,6 +477,28 @@ namespace GameCult.Aetheria.State.Verse
             return Send(command);
         }
 
+        internal AetheriaRuntimeDaemonCommandEnvelope TradeSale(
+            AetheriaRuntimeDaemonFrameDocument? frame,
+            string itemKey,
+            int quantity,
+            int sourceCargoIndex,
+            int sourceX,
+            int sourceY)
+        {
+            var command = Create(AetheriaRuntimeDaemonCommandKinds.TradeSale, frame);
+            command.TextValue = itemKey ?? "";
+            command.EquipmentIndex = sourceCargoIndex;
+            command.PositionX = sourceX;
+            command.PositionY = sourceY;
+            command.ScalarValue = quantity;
+            command.TradeSale.ItemKey = itemKey ?? "";
+            command.TradeSale.Quantity = quantity;
+            command.TradeSale.SourceCargoIndex = sourceCargoIndex;
+            command.TradeSale.SourceX = sourceX;
+            command.TradeSale.SourceY = sourceY;
+            return Send(command);
+        }
+
         internal AetheriaRuntimeDaemonCommandEnvelope RestoreLoadout(
             AetheriaRuntimeDaemonFrameDocument? frame,
             string dockedEntityKey,

@@ -303,6 +303,7 @@ namespace GameCult.Aetheria.State.Verse
                 case AetheriaRuntimeDaemonCommandKinds.ToggleHullConductivity:
                     return AetheriaRuntimeClaimKinds.Inventory;
                 case AetheriaRuntimeDaemonCommandKinds.TradePurchase:
+                case AetheriaRuntimeDaemonCommandKinds.TradeSale:
                     return AetheriaRuntimeClaimKinds.Economy;
                 case AetheriaRuntimeDaemonCommandKinds.SetEntityName:
                     return AetheriaRuntimeClaimKinds.Metadata;
@@ -345,6 +346,7 @@ namespace GameCult.Aetheria.State.Verse
                 case AetheriaRuntimeDaemonCommandKinds.SetDockedCurrentShip:
                 case AetheriaRuntimeDaemonCommandKinds.TowToStation:
                 case AetheriaRuntimeDaemonCommandKinds.TradePurchase:
+                case AetheriaRuntimeDaemonCommandKinds.TradeSale:
                 case AetheriaRuntimeDaemonCommandKinds.TransferCargoItem:
                 case AetheriaRuntimeDaemonCommandKinds.EquipItem:
                 case AetheriaRuntimeDaemonCommandKinds.StoreItem:

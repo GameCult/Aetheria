@@ -178,6 +178,14 @@ namespace GameCult.Aetheria.State.Verse
                 sourceX,
                 sourceY);
 
+        public CultMeshOperationReceipt TradeSale(
+            string itemKey,
+            int quantity,
+            int sourceCargoIndex,
+            int sourceX,
+            int sourceY) =>
+            _operations.TradeSale(itemKey, quantity, sourceCargoIndex, sourceX, sourceY);
+
         public CultMeshOperationReceipt RestoreLoadout(
             string dockedEntityKey,
             string templateName,

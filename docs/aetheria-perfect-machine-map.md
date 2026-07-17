@@ -1797,6 +1797,13 @@ First Aetheria surfaces to publish:
      but no longer subtracts credits, transfers purchased cargo, or constructs
      purchased ships directly. The daemon owns the purchase mutation and typed
      run checkpoint.
+   - Done: make docked sale a daemon-owned atomic economy transaction. The
+     command identifies only the seller cargo cell and quantity; the daemon
+     derives the dock parent, instance-sensitive catalog value, payout, and
+     first fitting typed station-stock placement. Generic Eve action rows are
+     derived availability levers. Clients cannot name a station, payout, or
+     destination stock cell, and a rejected placement changes neither cargo
+     nor credits.
    - Done: move TradeMenu dynamic behavior columns onto typed behavior payload
      fields; the menu no longer hydrates `ItemData` or `BehaviorData` for row
      display, filtering, sorting, or buy decisions.

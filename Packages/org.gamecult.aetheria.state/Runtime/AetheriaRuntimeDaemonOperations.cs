@@ -82,6 +82,10 @@ namespace GameCult.Aetheria.State.Verse
         public const string InvalidCargoSource = "invalid-cargo-source";
         public const string CargoNoFit = "cargo-no-fit";
         public const string CargoStackLimit = "cargo-stack-limit";
+        public const string TradeRequiresDocked = "trade-requires-docked";
+        public const string InvalidTradeSource = "invalid-trade-source";
+        public const string TradeStationNoFit = "trade-station-no-fit";
+        public const string InvalidTradePayout = "invalid-trade-payout";
     }
 
     public static class AetheriaRuntimeDaemonOperations
@@ -200,6 +204,8 @@ namespace GameCult.Aetheria.State.Verse
                     return ApplyToggleHullConductivity(run, command);
                 case AetheriaRuntimeDaemonCommandKinds.TradePurchase:
                     return ApplyTradePurchase(run, command, context.Catalog);
+                case AetheriaRuntimeDaemonCommandKinds.TradeSale:
+                    return ApplyTradeSale(run, command, context);
                 case AetheriaRuntimeDaemonCommandKinds.RestoreLoadout:
                     return ApplyRestoreLoadout(run, command, context);
                 case AetheriaRuntimeDaemonCommandKinds.SetMoveVector:
@@ -1030,6 +1036,76 @@ namespace GameCult.Aetheria.State.Verse
             AddCargoItem(targetEntity, targetCargoIndex, purchasedSlot);
             run.Credits -= totalPrice;
             return true;
+        }
+
+        private static bool ApplyTradeSale(
+            AetheriaRuntimeRunCheckpointCommit run,
+            AetheriaRuntimeDaemonCommandDocument command,
+            AetheriaRuntimeDaemonOperationContext context)
+        {
+            var sale = command.TradeSale ?? new AetheriaRuntimeTradeSaleCommand();
+            var catalog = context.Catalog;
+            if (catalog == null || sale.Quantity <= 0 || string.IsNullOrWhiteSpace(sale.ItemKey))
+                return context.Reject(AetheriaRuntimeDaemonRejectionReasons.InvalidTradeSource);
+
+            if (!TryResolveEntity(run, run.CurrentEntityKey, out _, out _, out var seller) ||
+                !TryResolveDockParent(run, run.CurrentEntityKey, out _, out var station) ||
+                !IsEntityDockedAt(run, run.CurrentEntityKey, station))
+            {
+                return context.Reject(AetheriaRuntimeDaemonRejectionReasons.TradeRequiresDocked);
+            }
+
+            var sellerCargo = seller.CargoContents ?? Array.Empty<AetheriaRuntimeCargoBayLoadoutCommit>();
+            if (sale.SourceCargoIndex < 0 || sale.SourceCargoIndex >= sellerCargo.Count ||
+                !TryFindCargoItem(
+                    sellerCargo[sale.SourceCargoIndex],
+                    sale.ItemKey,
+                    sale.SourceX,
+                    sale.SourceY,
+                    out var sourceSlot) ||
+                sourceSlot.Item == null ||
+                sale.Quantity > sourceSlot.Item.Quantity)
+            {
+                return context.Reject(AetheriaRuntimeDaemonRejectionReasons.InvalidTradeSource);
+            }
+
+            var typedItem = catalog.FindItem(sale.ItemKey);
+            var unitPrice = AetheriaRuntimeDaemonTradeItemQueries.TradeItemValue(
+                typedItem,
+                sourceSlot.Item,
+                catalog.TradeValueSettings).Price;
+            var payout = (long)unitPrice * sale.Quantity;
+            if (typedItem == null || unitPrice < 0 || payout < 0 || payout > int.MaxValue - (long)run.Credits)
+                return context.Reject(AetheriaRuntimeDaemonRejectionReasons.InvalidTradePayout);
+
+            var stationBayCount = Math.Min(
+                station.CargoBays?.Count ?? 0,
+                station.CargoContents?.Count ?? 0);
+            for (var stationCargoIndex = 0; stationCargoIndex < stationBayCount; stationCargoIndex++)
+            {
+                if (!AetheriaRuntimeRefitTransactions.TryTransferCargo(
+                        seller,
+                        sale.SourceCargoIndex,
+                        sale.SourceX,
+                        sale.SourceY,
+                        station,
+                        stationCargoIndex,
+                        sale.ItemKey,
+                        sale.Quantity,
+                        0,
+                        0,
+                        false,
+                        catalog,
+                        out _))
+                {
+                    continue;
+                }
+
+                run.Credits += (int)payout;
+                return true;
+            }
+
+            return context.Reject(AetheriaRuntimeDaemonRejectionReasons.TradeStationNoFit);
         }
 
         private static bool TryResolveDockParent(

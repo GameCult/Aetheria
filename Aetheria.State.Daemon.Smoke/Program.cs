@@ -173,6 +173,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             TractorRampsAndPullsThroughYmirWithoutTeleportingCargo,
             PickupIsCapacityCheckedExactlyOnceAndExpires,
             TradePurchaseDerivesAcceptanceFromDaemonState,
+            TradeSaleIsDaemonPricedSpatialAndAtomic,
             StationBodiesCannotConsumePickups,
             PickupShieldContactCollectsOrBounces,
             YmirRestartDoesNotReplayConsumedPickupContact,
@@ -4895,6 +4896,131 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             "daemon catalog price must own trade credit mutation");
         RequireEqual(5, CargoQuantity(ship, ore.ItemKey), "daemon cargo capacity and placement must own delivery");
         RequireEqual(2, zone.Entities.Count, "forged ship-creation opinion must not materialize an entity");
+    }
+
+    private static void TradeSaleIsDaemonPricedSpatialAndAtomic()
+    {
+        var ore = CatalogItem("sale-ore");
+        ore.Price = 40;
+        ore.Stackable = true;
+        ore.MaxStack = 10;
+        ore.ShapeWidth = 1;
+        ore.ShapeHeight = 1;
+        ore.ShapeCells = [new AetheriaRuntimeShapeCell(0, 0)];
+        var cargoBay = CatalogItem("sale-cargo-bay");
+        cargoBay.InteriorShapeWidth = 2;
+        cargoBay.InteriorShapeHeight = 1;
+        cargoBay.InteriorShapeCells =
+        [
+            new AetheriaRuntimeShapeCell(0, 0),
+            new AetheriaRuntimeShapeCell(1, 0)
+        ];
+        var catalog = new AetheriaRuntimeCatalogSnapshot([ore, cargoBay], [], []);
+
+        var station = Entity(0, 0, "station");
+        station.Kind = "station";
+        station.CargoBays = [new AetheriaRuntimeLoadoutItemSlotCommit
+        {
+            Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = cargoBay.ItemKey, Quantity = 1 }
+        }];
+        station.CargoContents = [Cargo((ore.ItemKey, 8, 0, 0))];
+        station.DockingBayAssignments = [1];
+
+        var ship = Entity(1, 0, "player");
+        ship.CargoBays = [new AetheriaRuntimeLoadoutItemSlotCommit
+        {
+            Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = cargoBay.ItemKey, Quantity = 1 }
+        }];
+        ship.CargoContents = [new AetheriaRuntimeCargoBayLoadoutCommit
+        {
+            Items = [new AetheriaRuntimeLoadoutItemSlotCommit
+            {
+                X = 0,
+                Y = 0,
+                Item = new AetheriaRuntimeLoadoutItemCommit
+                {
+                    ItemKey = ore.ItemKey,
+                    Quantity = 5,
+                    Quality = 0.75,
+                    Temperature = 333
+                }
+            }]
+        }];
+
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "trade-sale-smoke",
+            CurrentZoneIndex = 0,
+            CurrentEntityKey = "zone.0.entity.1",
+            Credits = 100,
+            Zones = [new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [station, ship] }]
+        };
+        var sale = AetheriaRuntimeDaemonCommandDocument.Create(
+            AetheriaRuntimeDaemonCommandKinds.TradeSale,
+            "pilot",
+            "trade-sale-smoke",
+            1,
+            run.CurrentEntityKey);
+        sale.TradeSale.ItemKey = ore.ItemKey;
+        sale.TradeSale.Quantity = 3;
+        sale.TradeSale.SourceCargoIndex = 0;
+        sale.TradeSale.SourceX = 0;
+        sale.TradeSale.SourceY = 0;
+
+        var unitPrice = AetheriaRuntimeDaemonTradeItemQueries.TradeItemValue(
+            ore,
+            ship.CargoContents[0].Items[0].Item,
+            catalog.TradeValueSettings).Price;
+        var result = AetheriaRuntimeDaemonOperations.Execute(
+            run,
+            [sale],
+            new AetheriaRuntimeDaemonOperationContext { Catalog = catalog });
+
+        Require(result.AppliedCommandIds.Contains(sale.CommandId),
+            "valid docked sale must commit through the daemon economy transaction");
+        RequireEqual(100 + unitPrice * 3, run.Credits,
+            "sale payout must be derived from the authoritative source instance and catalog");
+        RequireEqual(2, CargoQuantity(ship, ore.ItemKey),
+            "sale must remove exactly the accepted quantity from seller cargo");
+        RequireEqual(11, CargoQuantity(station, ore.ItemKey),
+            "station stock must receive the exact sold quantity");
+        RequireEqual(10, station.CargoContents[0].Items[0].Item.Quantity,
+            "station stock must fill the first compatible stack before allocating a new cell");
+        var allocated = station.CargoContents[0].Items.Single(slot => slot.X == 1 && slot.Y == 0);
+        RequireEqual(1, allocated.Item.Quantity,
+            "station stock overflow must use the first free authored cargo cell");
+        RequireNear(0.75, allocated.Item.Quality, 0.000001,
+            "sale placement must preserve source instance quality");
+        RequireNear(333, allocated.Item.Temperature, 0.000001,
+            "sale placement must preserve source instance temperature");
+
+        station.CargoContents[0].Items[1].Item.Quantity = 10;
+        var rejectedSale = AetheriaRuntimeDaemonCommandDocument.Create(
+            AetheriaRuntimeDaemonCommandKinds.TradeSale,
+            "pilot",
+            "trade-sale-smoke",
+            2,
+            run.CurrentEntityKey);
+        rejectedSale.TradeSale.ItemKey = ore.ItemKey;
+        rejectedSale.TradeSale.Quantity = 1;
+        rejectedSale.TradeSale.SourceCargoIndex = 0;
+        rejectedSale.TradeSale.SourceX = 0;
+        rejectedSale.TradeSale.SourceY = 0;
+        var creditsBeforeRejection = run.Credits;
+        result = AetheriaRuntimeDaemonOperations.Execute(
+            run,
+            [rejectedSale],
+            new AetheriaRuntimeDaemonOperationContext { Catalog = catalog });
+
+        Require(result.RejectedCommandIds.Contains(rejectedSale.CommandId),
+            "station stock without spatial capacity must reject the sale");
+        RequireEqual(AetheriaRuntimeDaemonRejectionReasons.TradeStationNoFit,
+            result.RejectedCommandReasons[rejectedSale.CommandId],
+            "full station stock must expose the exact trade rejection reason");
+        RequireEqual(creditsBeforeRejection, run.Credits,
+            "rejected sale must not credit the seller");
+        RequireEqual(2, CargoQuantity(ship, ore.ItemKey),
+            "rejected sale must not remove seller cargo");
     }
 
     private static void StationBodiesCannotConsumePickups()
