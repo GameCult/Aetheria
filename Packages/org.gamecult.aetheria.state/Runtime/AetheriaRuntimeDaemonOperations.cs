@@ -1408,11 +1408,21 @@ namespace GameCult.Aetheria.State.Verse
                 return false;
             }
 
+            var existingActiveGroups = entity.ActiveWeaponGroups ?? Array.Empty<bool>();
+            var activeGroups = Enumerable.Range(0, entity.WeaponGroups?.Count ?? 0)
+                .Select(index => index < existingActiveGroups.Count && existingActiveGroups[index])
+                .ToArray();
+            var active = command.ScalarValue > 0.5;
+            var pressed = active && !activeGroups[command.WeaponGroup];
+            activeGroups[command.WeaponGroup] = active;
+            entity.ActiveWeaponGroups = activeGroups;
+
             intents.WeaponGroups.Add(new AetheriaRuntimeDaemonWeaponGroupIntent
             {
                 ActorEntityKey = actor,
                 WeaponGroup = command.WeaponGroup,
-                Active = command.ScalarValue > 0.5
+                Fire = pressed,
+                Active = active
             });
             return true;
         }

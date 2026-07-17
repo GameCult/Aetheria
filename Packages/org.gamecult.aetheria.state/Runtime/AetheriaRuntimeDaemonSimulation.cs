@@ -511,7 +511,7 @@ namespace GameCult.Aetheria.State.Verse
                 foreach (var weapon in weapons)
                 {
                     weapon.State.Firing = false;
-                    if (requestedWeapons.Contains(weapon.State.OwnerIndex, weapon.State.BehaviorIndex))
+                    if (requestedWeapons.ContainsPulse(weapon.State.OwnerIndex, weapon.State.BehaviorIndex))
                         weapon.State.TriggerPending = true;
                     if (weapon.State.Reloading)
                     {
@@ -1419,6 +1419,11 @@ namespace GameCult.Aetheria.State.Verse
         {
             var triggers = new WeaponTriggerSet();
             var groups = attacker.WeaponGroups ?? Array.Empty<IReadOnlyList<int>>();
+            var activeGroups = attacker.ActiveWeaponGroups ?? Array.Empty<bool>();
+            for (var groupIndex = 0; groupIndex < groups.Count && groupIndex < activeGroups.Count; groupIndex++)
+                if (activeGroups[groupIndex])
+                    foreach (var equipmentIndex in groups[groupIndex] ?? Array.Empty<int>())
+                        triggers.HoldEquipment(equipmentIndex);
             foreach (var intent in (intents == null
                     ? Enumerable.Empty<AetheriaRuntimeDaemonWeaponGroupIntent>()
                     : intents.WeaponGroups)
@@ -1430,7 +1435,7 @@ namespace GameCult.Aetheria.State.Verse
                 if (intent.WeaponGroup < 0 || intent.WeaponGroup >= groups.Count)
                     continue;
                 foreach (var equipmentIndex in groups[intent.WeaponGroup] ?? Array.Empty<int>())
-                    triggers.RequestEquipment(equipmentIndex);
+                    triggers.PulseEquipment(equipmentIndex);
             }
 
             foreach (var request in AetheriaRuntimeTurretControllerSimulation.StepEntity(
@@ -1481,7 +1486,7 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeDaemonSimulationSettings settings)
         {
             return AetheriaRuntimeEquippedBehaviorQueries.FindOperational(entity, catalog, AetheriaRuntimeBehaviorKinds.DeployableWeapon)
-                .Where(behavior => requestedWeapons.Contains(behavior.EquipmentIndex, behavior.BehaviorIndex))
+                .Where(behavior => requestedWeapons.ContainsPulse(behavior.EquipmentIndex, behavior.BehaviorIndex))
                 .Select(behavior => new ResolvedDeployableWeapon(
                     ResolveAuthoredWeapon(entity, behavior, settings),
                     Math.Max(0, ReadNumber(behavior.Payload, 26)),
@@ -1832,7 +1837,7 @@ namespace GameCult.Aetheria.State.Verse
                 .Where(value => string.Equals(value.Payload.Kind, AetheriaRuntimeBehaviorKinds.ChargedWeapon, StringComparison.Ordinal))
                 .Select(value => new ResolvedChargedWeapon(
                     ResolveAuthoredWeapon(entity, value, settings), value.Item,
-                    requestedWeapons.Contains(value.EquipmentIndex, value.BehaviorIndex),
+                    requestedWeapons.ContainsPulse(value.EquipmentIndex, value.BehaviorIndex),
                     PositiveOr(value.EvaluateStat(21), 1),
                     Math.Max(0, value.EvaluateStat(22)), Math.Max(0, value.EvaluateStat(23)),
                     ReadNumber(value.Payload, 25), PositiveOr(ReadNumber(value.Payload, 26), 1),
@@ -2042,19 +2047,33 @@ namespace GameCult.Aetheria.State.Verse
 
         private sealed class WeaponTriggerSet
         {
-            private readonly HashSet<int> _requestedEquipment = new HashSet<int>();
-            private readonly HashSet<(int EquipmentIndex, int BehaviorIndex)> _requestedBehaviors =
+            private readonly HashSet<int> _pulsedEquipment = new HashSet<int>();
+            private readonly HashSet<int> _heldEquipment = new HashSet<int>();
+            private readonly HashSet<(int EquipmentIndex, int BehaviorIndex)> _pulsedBehaviors =
+                new HashSet<(int EquipmentIndex, int BehaviorIndex)>();
+            private readonly HashSet<(int EquipmentIndex, int BehaviorIndex)> _heldBehaviors =
                 new HashSet<(int EquipmentIndex, int BehaviorIndex)>();
 
-            public void RequestEquipment(int equipmentIndex) =>
-                _requestedEquipment.Add(equipmentIndex);
+            public void PulseEquipment(int equipmentIndex) =>
+                _pulsedEquipment.Add(equipmentIndex);
 
-            public void RequestBehavior(int equipmentIndex, int behaviorIndex) =>
-                _requestedBehaviors.Add((equipmentIndex, behaviorIndex));
+            public void HoldEquipment(int equipmentIndex) =>
+                _heldEquipment.Add(equipmentIndex);
+
+            public void RequestBehavior(int equipmentIndex, int behaviorIndex)
+            {
+                _pulsedBehaviors.Add((equipmentIndex, behaviorIndex));
+                _heldBehaviors.Add((equipmentIndex, behaviorIndex));
+            }
+
+            public bool ContainsPulse(int equipmentIndex, int behaviorIndex) =>
+                _pulsedEquipment.Contains(equipmentIndex) ||
+                _pulsedBehaviors.Contains((equipmentIndex, behaviorIndex));
 
             public bool Contains(int equipmentIndex, int behaviorIndex) =>
-                _requestedEquipment.Contains(equipmentIndex) ||
-                _requestedBehaviors.Contains((equipmentIndex, behaviorIndex));
+                ContainsPulse(equipmentIndex, behaviorIndex) ||
+                _heldEquipment.Contains(equipmentIndex) ||
+                _heldBehaviors.Contains((equipmentIndex, behaviorIndex));
         }
 
         private enum WeaponRoundResult { Fired, ReloadStarted, InsufficientEnergy, NoAmmo }

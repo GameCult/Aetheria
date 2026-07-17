@@ -1127,6 +1127,9 @@ namespace GameCult.Aetheria.State.Verse
 
         [Key(53)]
         public AetheriaRuntimeWormholeTransitionCommit? WormholeTransition { get; set; }
+
+        [Key(54)]
+        public IReadOnlyList<bool> ActiveWeaponGroups { get; set; } = Array.Empty<bool>();
     }
 
     [MessagePackObject]

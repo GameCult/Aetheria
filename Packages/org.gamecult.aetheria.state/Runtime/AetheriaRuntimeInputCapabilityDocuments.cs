@@ -91,7 +91,7 @@ namespace GameCult.Aetheria.State.Verse
             }
             if (entity != null)
             {
-                actions.AddRange((entity.WeaponGroups ?? Array.Empty<IReadOnlyList<int>>()).Select((_, index) => WeaponGroupAction(run, index)));
+                actions.AddRange((entity.WeaponGroups ?? Array.Empty<IReadOnlyList<int>>()).Select((_, index) => WeaponGroupAction(run, entity, index)));
                 actions.AddRange(EquipmentBehaviorActions(run, entity, catalog));
                 actions.AddRange((entity.CargoContents ?? Array.Empty<AetheriaRuntimeCargoBayLoadoutCommit>())
                     .SelectMany(bay => bay.Items)
@@ -190,8 +190,11 @@ namespace GameCult.Aetheria.State.Verse
 
         private static AetheriaRuntimeInputActionDocument WeaponGroupAction(
             AetheriaRuntimeRunCheckpointCommit run,
+            AetheriaRuntimeEntitySnapshotCommit entity,
             int weaponGroup)
         {
+            var activeGroups = entity.ActiveWeaponGroups ?? Array.Empty<bool>();
+            var active = weaponGroup < activeGroups.Count && activeGroups[weaponGroup];
             var action = Action(
                 $"weapon-group.{weaponGroup}.fire",
                 $"Fire Weapon Group {weaponGroup + 1}",
@@ -200,7 +203,7 @@ namespace GameCult.Aetheria.State.Verse
                 $"{run.CurrentEntityKey}#weapon-group/{weaponGroup}",
                 ("weaponGroup", weaponGroup.ToString()),
                 ("active", "0"),
-                ("currentValue", "0"));
+                ("currentValue", active ? "1" : "0"));
             action.InputValue = new AetheriaRuntimeInputValueDocument
             {
                 Model = "button-hold.v1",

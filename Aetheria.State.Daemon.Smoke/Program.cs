@@ -659,6 +659,20 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             "weapon press must reach the daemon intent owner exactly once");
         Require(pressed.Intents.WeaponGroups[0].Active,
             "weapon press must activate the exact advertised group");
+        Require(entity.ActiveWeaponGroups.SequenceEqual(new[] { true }),
+            "weapon press must persist the daemon-owned held state beyond its command frame");
+        var heldCapability = AetheriaRuntimeInputCapabilityDocument.FromFrame(frame);
+        RequireEqual("1", heldCapability.Actions.Single(value => value.ActionId == "weapon-group.0.fire")
+                .Payload["currentValue"],
+            "the Eve lever must derive its current value from the daemon-owned held state");
+        var restartedRun = MessagePack.MessagePackSerializer.Deserialize<AetheriaRuntimeRunCheckpointCommit>(
+            MessagePack.MessagePackSerializer.Serialize(run));
+        var restartedFrame = AetheriaRuntimeDaemonFrameDocument.Create(
+            restartedRun, "smoke", "weapon-input-restart", 2, 0.2, 0.1);
+        Require(restartedRun.Zones[0].Entities[0].ActiveWeaponGroups.SequenceEqual(new[] { true }) &&
+                AetheriaRuntimeInputCapabilityDocument.FromFrame(restartedFrame).Actions
+                    .Single(value => value.ActionId == "weapon-group.0.fire").Payload["currentValue"] == "1",
+            "daemon restart must retain held weapon-group truth and re-advertise it through Eve");
 
         var released = AetheriaRuntimeDaemonOperations.Execute(
             run, [Translate("0")], new AetheriaRuntimeDaemonOperationContext());
@@ -666,6 +680,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             "weapon release must reach the daemon intent owner exactly once");
         Require(!released.Intents.WeaponGroups[0].Active,
             "weapon release must deactivate the exact advertised group");
+        Require(entity.ActiveWeaponGroups.SequenceEqual(new[] { false }),
+            "weapon release must clear the daemon-owned held state");
     }
 
     private static void DockedRefitSurfacePublishesGenericCommands()
@@ -2078,13 +2094,20 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         ]);
         var catalog = new AetheriaRuntimeCatalogSnapshot(
             [CatalogItem("test-beam", payload), CatalogItem("test-beam-capacitor", CapacitorPayload(10, 1))], [], []);
-        var intents = new AetheriaRuntimeDaemonIntentState();
-        intents.WeaponGroups.Add(new AetheriaRuntimeDaemonWeaponGroupIntent
-        {
-            ActorEntityKey = "zone.0.entity.0", WeaponGroup = 0, Fire = true, Active = true
-        });
+        var press = AetheriaRuntimeDaemonCommandDocument.Create(
+            AetheriaRuntimeDaemonCommandKinds.SetWeaponGroupActive,
+            "pilot",
+            run.RunId,
+            0,
+            run.CurrentEntityKey);
+        press.CommandId = "constant-weapon-press";
+        press.WeaponGroup = 0;
+        press.ScalarValue = 1;
+        var pressed = AetheriaRuntimeDaemonOperations.Execute(
+            run, [press], new AetheriaRuntimeDaemonOperationContext());
         for (var frame = 0; frame < 7; frame++)
-            AetheriaRuntimeDaemonSimulation.Step(run, intents, 0.1,
+            AetheriaRuntimeDaemonSimulation.Step(run,
+                frame == 0 ? pressed.Intents : new AetheriaRuntimeDaemonIntentState(), 0.1,
                 new AetheriaRuntimeDaemonSimulationSettings(),
                 NewPhysics(), catalog, frame, frame * 0.1);
 
@@ -2106,14 +2129,25 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         Require(source.BehaviorStates.Single(value => value.BehaviorKind == "Capacitor").CapacitorCharge < 10,
             "constant weapon must pay elapsed-time energy through canonical capacitor state");
         for (var frame = 7; frame < 11; frame++)
-            AetheriaRuntimeDaemonSimulation.Step(run, intents, 0.1,
+            AetheriaRuntimeDaemonSimulation.Step(run, new AetheriaRuntimeDaemonIntentState(), 0.1,
                 new AetheriaRuntimeDaemonSimulationSettings(),
                 NewPhysics(), catalog, frame, frame * 0.1);
-        AetheriaRuntimeDaemonSimulation.Step(run, new AetheriaRuntimeDaemonIntentState(), 0.1,
+        var release = AetheriaRuntimeDaemonCommandDocument.Create(
+            AetheriaRuntimeDaemonCommandKinds.SetWeaponGroupActive,
+            "pilot",
+            run.RunId,
+            11,
+            run.CurrentEntityKey);
+        release.CommandId = "constant-weapon-release";
+        release.WeaponGroup = 0;
+        release.ScalarValue = 0;
+        var released = AetheriaRuntimeDaemonOperations.Execute(
+            run, [release], new AetheriaRuntimeDaemonOperationContext());
+        AetheriaRuntimeDaemonSimulation.Step(run, released.Intents, 0.1,
             new AetheriaRuntimeDaemonSimulationSettings(),
             NewPhysics(), catalog, 11, 1.1);
         Require(!state.Firing && run.GameEvents.Count(value => value.Kind == "weapon.firing.stopped") == 2,
-            "releasing held fire must stop the persisted constant weapon and publish its transition");
+            "one release command must stop daemon-latched constant fire and publish its transition");
         var surface = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(
             new AetheriaRuntimeDaemonFrameDocument { FrameId = 11, Run = run },
             new AetheriaRuntimeDaemonHealthDocument(),

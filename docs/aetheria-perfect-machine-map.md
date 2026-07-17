@@ -109,8 +109,12 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   non-consumable inventory drops and creates consumable bindings around typed
   catalog rows. Weapon groups publish the fossil press/release lifecycle as
   generic `button-hold.v1` values routed to the daemon-owned
-  `SetWeaponGroupActive` command; `FireWeaponGroup` remains a one-shot
-  compatibility operation but is not the public binding contract. The provider
+  `SetWeaponGroupActive` command. The entity snapshot owns the reconnectable
+  active-group latch: a press edge pulses instant/charged weapons once while
+  constant weapons remain selected until the release command clears the latch.
+  Generic clients send transitions, not frame-frequency keepalive commands.
+  `FireWeaponGroup` remains a one-shot compatibility operation for autonomous
+  agents and command buttons but is not the public binding contract. The provider
   input capability derives equipment controls from
   exact installed payload indices: `Switch` and `Trigger` publish generic
   `button-hold.v1` values, while adjustable `Thermotoggle` publishes a
