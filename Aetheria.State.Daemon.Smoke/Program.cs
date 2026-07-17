@@ -178,6 +178,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             ResourceBehaviorsStopEquipmentChainsInAuthoredOrder,
             ThermotoggleSeedsAndGatesFromDaemonOwnedTarget,
             InputCapabilityPublishesExactBehaviorLevers,
+            InputCapabilityPublishesHeldWeaponGroupLever,
             ReflectorUsesSharedStellarLightFieldWithoutAccumulating,
             SensorPingIsActorScopedEnergyGatedAndReconnectable,
             TurretControllerAcquiresAimsAndTriggersExactWeapons,
@@ -610,6 +611,61 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         Require(offline.Actions.Where(value => value.Category == "equipment")
                 .All(value => value.Availability == "unavailable"),
             "offline equipment must retain stable action identity while advertising current unavailability");
+    }
+
+    private static void InputCapabilityPublishesHeldWeaponGroupLever()
+    {
+        var entity = Entity(0, 0, "player");
+        entity.WeaponGroups = [new[] { 0 }];
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "weapon-input-smoke",
+            CurrentZoneIndex = 0,
+            Zones = [new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [entity] }]
+        };
+        run.CurrentEntityKey = run.EntityRecordKey(0, entity.EntityIndex);
+        var frame = AetheriaRuntimeDaemonFrameDocument.Create(run, "smoke", "weapon-input", 1, 0.1, 0.1);
+        var capability = AetheriaRuntimeInputCapabilityDocument.FromFrame(frame);
+        var action = capability.Actions.Single(value => value.ActionId == "weapon-group.0.fire");
+        RequireEqual("aetheria.daemon.commands.SetWeaponGroupActive", action.Operation,
+            "weapon input must advertise the daemon's press/release owner instead of the one-shot compatibility command");
+        RequireEqual("button-hold.v1", action.InputValue?.Model ?? "",
+            "generic Eve clients must know that weapon firing is a held control");
+        RequireEqual("active", action.InputValue?.PayloadKey ?? "",
+            "weapon press/release values must route into the typed active field");
+
+        AetheriaRuntimeDaemonCommandDocument Translate(string active)
+        {
+            var request = new EveSurfaceCommandRequest(
+                capability.ProviderId,
+                AetheriaRuntimeDaemonGameSurfaceBuilder.PilotSurfaceId,
+                CultMesh.OperationInvocation(action.Operation),
+                CultMesh.OperationPayload(
+                    ("entityId", run.CurrentEntityKey),
+                    ("weaponGroup", "0"),
+                    ("active", active)),
+                DateTimeOffset.UtcNow,
+                "weapon-input-smoke");
+            Require(AetheriaRuntimeDaemonOperationsClient.TryCreateSurfaceCommandDocument(
+                    request, frame, ".", "weapon-input-smoke", "weapon-input", out var command) &&
+                    command?.Kind == AetheriaRuntimeDaemonCommandKinds.SetWeaponGroupActive,
+                $"generic weapon input value {active} must translate into the typed held-fire command");
+            return command!;
+        }
+
+        var pressed = AetheriaRuntimeDaemonOperations.Execute(
+            run, [Translate("1")], new AetheriaRuntimeDaemonOperationContext());
+        RequireEqual(1, pressed.Intents.WeaponGroups.Count,
+            "weapon press must reach the daemon intent owner exactly once");
+        Require(pressed.Intents.WeaponGroups[0].Active,
+            "weapon press must activate the exact advertised group");
+
+        var released = AetheriaRuntimeDaemonOperations.Execute(
+            run, [Translate("0")], new AetheriaRuntimeDaemonOperationContext());
+        RequireEqual(1, released.Intents.WeaponGroups.Count,
+            "weapon release must reach the daemon intent owner exactly once");
+        Require(!released.Intents.WeaponGroups[0].Active,
+            "weapon release must deactivate the exact advertised group");
     }
 
     private static void DockedRefitSurfacePublishesGenericCommands()

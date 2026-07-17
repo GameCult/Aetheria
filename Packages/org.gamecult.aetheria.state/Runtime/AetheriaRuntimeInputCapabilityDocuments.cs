@@ -91,7 +91,7 @@ namespace GameCult.Aetheria.State.Verse
             }
             if (entity != null)
             {
-                actions.AddRange((entity.WeaponGroups ?? Array.Empty<IReadOnlyList<int>>()).Select((_, index) => Action($"weapon-group.{index}.fire", $"Fire Weapon Group {index + 1}", "FireWeaponGroup", "weapon-group", $"{run.CurrentEntityKey}#weapon-group/{index}", ("weaponGroup", index.ToString()))));
+                actions.AddRange((entity.WeaponGroups ?? Array.Empty<IReadOnlyList<int>>()).Select((_, index) => WeaponGroupAction(run, index)));
                 actions.AddRange(EquipmentBehaviorActions(run, entity, catalog));
                 actions.AddRange((entity.CargoContents ?? Array.Empty<AetheriaRuntimeCargoBayLoadoutCommit>())
                     .SelectMany(bay => bay.Items)
@@ -186,6 +186,27 @@ namespace GameCult.Aetheria.State.Verse
                     yield return thermostat;
                 }
             }
+        }
+
+        private static AetheriaRuntimeInputActionDocument WeaponGroupAction(
+            AetheriaRuntimeRunCheckpointCommit run,
+            int weaponGroup)
+        {
+            var action = Action(
+                $"weapon-group.{weaponGroup}.fire",
+                $"Fire Weapon Group {weaponGroup + 1}",
+                "SetWeaponGroupActive",
+                "weapon-group",
+                $"{run.CurrentEntityKey}#weapon-group/{weaponGroup}",
+                ("weaponGroup", weaponGroup.ToString()),
+                ("active", "0"),
+                ("currentValue", "0"));
+            action.InputValue = new AetheriaRuntimeInputValueDocument
+            {
+                Model = "button-hold.v1",
+                PayloadKey = "active"
+            };
+            return action;
         }
 
         private static bool ReadBool(AetheriaRuntimeBehaviorPayload payload, int key) =>
