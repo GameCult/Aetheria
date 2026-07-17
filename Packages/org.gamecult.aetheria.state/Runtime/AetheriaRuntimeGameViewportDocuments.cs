@@ -751,6 +751,14 @@ namespace GameCult.Aetheria.State.Verse
         [Key(13)]
         public IReadOnlyList<AetheriaRuntimeFactionRelationshipCommit> FactionRelationships { get; set; } =
             Array.Empty<AetheriaRuntimeFactionRelationshipCommit>();
+
+        [Key(14)]
+        public IReadOnlyList<AetheriaRuntimeFactionZoneCommit> HomeZones { get; set; } =
+            Array.Empty<AetheriaRuntimeFactionZoneCommit>();
+
+        [Key(15)]
+        public IReadOnlyList<AetheriaRuntimeFactionZoneCommit> BossZones { get; set; } =
+            Array.Empty<AetheriaRuntimeFactionZoneCommit>();
     }
 
     [MessagePackObject]

@@ -879,6 +879,40 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   connects replicas directly, proves accepted/rejected policy outcomes, and
   proves committed-fact convergence with production Ymir physics injected.
 
+### Daemon Sector-Map Surface
+
+- Owner: the daemon run owns sector topology, discovery, current location,
+  faction presence, and the visibility of zone and link facts.
+- Inputs: `gamecult.aetheria.sector_map.v1`, projected from the committed run.
+- Outputs: the directly advertised `aetheria.sector_map` Eve surface. Its
+  generic graph contains discovered nodes and links, the weighted
+  entrance-to-Terminus route, home/executive landmarks, a legend, and one
+  `graph.region` scalar field per visible faction. Region samples preserve the
+  fossil values: owner `10`, present `5`, excluded `-10`.
+- Derived state: graph drawing and selection treatment are presentation. The
+  provider publishes the historical galaxy and Influence materials plus the
+  start, Terminus, home, and executive sprites through its asset catalog. Exact
+  scene and shader levers travel as `sectorMap.*` tokens: background noise,
+  contour threshold, fill tiling/blends/alpha, hatch tilt, stroke shape,
+  faction color boosts, `0.002/0.005` link widths, `0.5/0.25s` reveal timing,
+  landmark scale, current marker treatment, label offset, and zoom bounds.
+  Faction hatch tilt is stable for generation seed and faction identity rather
+  than renderer-local randomness.
+- Forbidden writers: Unity `SectorMap`, map cameras, Electron, and generic Eve
+  lowerers cannot reveal zones, add links, or choose the current zone.
+- Shared paths: every runtime reads the same CultMesh record advertised by the
+  daemon. The record republishes with every daemon frame so travel and discovery
+  cannot remain stuck at topology-boot state. Zone details remain an inspection
+  surface and do not impersonate the sector map itself.
+- Cut line: `MapMenuSurface` publishes the sector graph rather than a card for
+  only the current zone. The legacy Unity map remains a transitional lowerer,
+  not an alternate map authority.
+- Verification layer: daemon smoke proves undiscovered labels and links are
+  absent; the weighted critical route is derived from daemon facts; home and
+  executive landmarks survive CultCache reopen; influence samples, legend,
+  historical values, material refs, sprites, and provider-owned visual tokens
+  travel with the surface.
+
 ### Daemon Combat Lifecycle
 
 Weapon admission, pending trigger, progressive target lock, burst/reload/charge

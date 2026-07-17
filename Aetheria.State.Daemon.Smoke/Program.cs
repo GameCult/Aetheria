@@ -140,6 +140,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             Require(run != null && run.IsTutorial && run.ZoneKeys.Length == 64 &&
                     run.EntranceZoneIndex == run.CurrentZoneIndex && run.ExitZoneIndex == -1,
                 "persisted New Game truth must be the complete authored tutorial graph, not the Terminus witness fixture");
+            Require(run!.HomeZones.Length == 6 && run.HomeZones.All(entry => entry.ZoneIndex >= 0),
+                "persisted tutorial truth must retain every faction home landmark for the sector map");
             Require(run!.AgentTasks.Length > 0 && run.AgentTasks.All(task =>
                     task.TaskType == "patrol" && task.Status == "assigned" && task.TargetOrbitKeys.Length == 4),
                 "persisted tutorial agents must retain their assigned four-orbit fossil patrols");
@@ -306,6 +308,10 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                         task.TaskType == AetheriaRuntimeAgentTaskTypes.Patrol &&
                         task.Status == AetheriaRuntimeAgentTaskStatuses.Assigned),
                     "regular population must persist autonomous patrol inhabitants");
+                Require(run.HomeZones.Length == 6 && run.BossZones.Length == 2 &&
+                        run.HomeZones.All(entry => entry.ZoneIndex >= 0) &&
+                        run.BossZones.All(entry => entry.ZoneIndex >= 0),
+                    "regular persistence must retain every home and executive sector-map landmark");
                 Require(run.ZoneKeys.All(key => key.Contains(run.RunId, StringComparison.Ordinal)),
                     "regular zone records must be namespaced by the generated run identity");
                 var entrance = node.MutableDocument<AetheriaZoneState>(
@@ -327,8 +333,9 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             var restored = reopened.MutableDocument<AetheriaRunState>(new CultRecordKey(runKey))
                 .ReadAsync().GetAwaiter().GetResult();
             Require(restored != null && restored.GameMode == AetheriaGameSessionState.AetheriaMode &&
-                    restored.ZoneKeys.Length == 24 && !string.IsNullOrWhiteSpace(restored.CurrentEntityKey),
-                "regular sector selection and controlled identity must survive a hard CultCache reopen");
+                    restored.ZoneKeys.Length == 24 && !string.IsNullOrWhiteSpace(restored.CurrentEntityKey) &&
+                    restored.HomeZones.Length == 6 && restored.BossZones.Length == 2,
+                "regular sector selection, controlled identity, and map landmarks must survive a hard CultCache reopen");
         }
         finally
         {
@@ -768,6 +775,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             GeneratedZoneBodiesPreserveFossilHierarchy,
             TutorialWorldMaterializesEveryTopologyZone,
             GeneratedOrbitsAdvanceOrbitalWorldTruth,
+            SectorMapSurfacePublishesDiscoveredGraphAndVisualLevers,
             VolumeSurfaceKeepsNativeShaderAbiInAssetVariant,
             YmirMovesProjectileAndReportsStableContact,
             CompressedTerminusStopsAtAttentionBoundary,
@@ -3125,6 +3133,126 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             "cargo transfer must preserve source instance quality");
         RequireNear(333, moved.Item.Temperature, 0.000001,
             "cargo transfer must preserve source instance temperature");
+    }
+
+    private static void SectorMapSurfacePublishesDiscoveredGraphAndVisualLevers()
+    {
+        var map = new AetheriaRuntimeSectorMapDocument
+        {
+            FrameId = 42,
+            RunId = "run.map",
+            CurrentZoneIndex = 1,
+            EntranceZoneIndex = 0,
+            ExitZoneIndex = 2,
+            DiscoveredZoneIndices = new[] { 0, 1 },
+            Zones = new[]
+            {
+                new AetheriaRuntimeSectorMapZone
+                {
+                    ZoneIndex = 0,
+                    Name = "Gate",
+                    X = -10,
+                    Y = 5,
+                    Entrance = true,
+                    Discovered = true
+                },
+                new AetheriaRuntimeSectorMapZone
+                {
+                    ZoneIndex = 1,
+                    Name = "Here",
+                    X = 4,
+                    Y = 7,
+                    Current = true,
+                    Discovered = true,
+                    OwnerFactionIndex = 3,
+                    FactionIndices = new[] { 3, 4 }
+                },
+                new AetheriaRuntimeSectorMapZone
+                {
+                    ZoneIndex = 2,
+                    Name = "Unseen Exit",
+                    X = 20,
+                    Y = 12,
+                    Exit = true
+                }
+            },
+            Links = new[]
+            {
+                new AetheriaRuntimeSectorMapLink
+                {
+                    FromZoneIndex = 0,
+                    ToZoneIndex = 1,
+                    Discovered = true
+                },
+                new AetheriaRuntimeSectorMapLink
+                {
+                    FromZoneIndex = 1,
+                    ToZoneIndex = 2,
+                    Discovered = false
+                }
+            },
+            HomeZones = new[]
+            {
+                new AetheriaRuntimeFactionZoneCommit { FactionIndex = 3, ZoneIndex = 1 }
+            },
+            BossZones = new[]
+            {
+                new AetheriaRuntimeFactionZoneCommit { FactionIndex = 3, ZoneIndex = 1 }
+            }
+        };
+
+        var surface = AetheriaRuntimeSectorMapSurfaceBuilder.Build(
+            map,
+            "2026-07-17T00:00:00.0000000Z");
+        var graph = surface.Surface.Root.Children.Single(child => child.Kind == "graph");
+        var legend = surface.Surface.Root.Children.Single(child => child.Kind == "graph.legend");
+        var nodes = graph.Children.Where(child => child.Kind == "graph.node").ToArray();
+        var edges = graph.Children.Where(child => child.Kind == "graph.edge").ToArray();
+        var regions = graph.Children.Where(child => child.Kind == "graph.region").ToArray();
+
+        RequireEqual(AetheriaRuntimeSectorMapSurfaceBuilder.SurfaceId, surface.Surface.Id,
+            "the portable sector map must have one stable advertised surface identity");
+        RequireEqual("graph", graph.Kind,
+            "the sector map must lower through Eve's generic graph component");
+        RequireEqual(2, nodes.Length,
+            "the sector-map surface must not reveal an undiscovered zone through presentation state");
+        RequireEqual(1, edges.Length,
+            "the sector-map surface must publish only discovered links whose endpoints are visible");
+        Require(edges.Single().Props["critical"] == "true",
+            "links on the weighted entrance-to-Terminus route must carry the historical critical-path role");
+        Require(nodes.Single(node => node.Props["zoneIndex"] == "1").Props["role"] == "current",
+            "the daemon current-zone fact must select the graph's current semantic role");
+        Require(nodes.Single(node => node.Props["zoneIndex"] == "1").Props["landmarkAssetKeys"]
+                .Contains(AetheriaRuntimeSectorMapSurfaceBuilder.HomeIconAssetKey, StringComparison.Ordinal) &&
+                nodes.Single(node => node.Props["zoneIndex"] == "1").Props["landmarkAssetKeys"]
+                .Contains(AetheriaRuntimeSectorMapSurfaceBuilder.ExecutiveIconAssetKey, StringComparison.Ordinal),
+            "home and executive landmarks must survive daemon persistence as independent map semantics");
+        Require(!nodes.Any(node => node.Props["label"] == "Unseen Exit"),
+            "provider presentation must not leak undiscovered zone labels");
+        RequireEqual(2, regions.Length,
+            "every visible faction must publish its own historical influence scalar field");
+        Require(regions.Single(region => region.Props["factionIndex"] == "3").Children
+                .Single(sample => sample.Props["nodeId"].EndsWith(".zone.1", StringComparison.Ordinal))
+                .Props["value"] == "10",
+            "an owning faction must contribute the fossil owner influence value at its zone");
+        Require(legend.Children.Any(item => item.Props.TryGetValue("role", out var role) && role == "executive"),
+            "the portable map legend must retain the historical executive landmark semantics");
+        Require(surface.Surface.Styles.Any(style => style.Name == "sectorMap.zone.current.labelColor") &&
+                surface.Surface.Styles.Any(style => style.Name == "sectorMap.link.critical.width") &&
+                surface.Surface.Styles.Any(style => style.Name == "sectorMap.reveal.linkDurationSeconds") &&
+                surface.Surface.Styles.Any(style => style.Name == "sectorMap.zoom.maximum") &&
+                surface.Surface.Styles.Any(style => style.Name == "sectorMap.faction.3.primary"),
+            "provider-owned map color, geometry, motion, and camera levers must travel with the surface");
+        Require(surface.Surface.Styles.Single(style => style.Name == "sectorMap.link.width").Value == "0.002" &&
+                surface.Surface.Styles.Single(style => style.Name == "sectorMap.influence.fillTiling").Value == "1024" &&
+                graph.Props["backgroundAssetKey"] == AetheriaRuntimeSectorMapSurfaceBuilder.BackgroundAssetKey,
+            "the surface must preserve the authored scene and influence-shader values rather than generic substitutes");
+        var assets = AetheriaRuntimeAssets.ProjectManifest(new AetheriaRuntimeCatalogSnapshot());
+        Require(assets.Assets.Any(asset => asset.Ref.AssetKey == AetheriaRuntimeSectorMapSurfaceBuilder.BackgroundAssetKey) &&
+                assets.Assets.Any(asset => asset.Ref.AssetKey == AetheriaRuntimeSectorMapSurfaceBuilder.InfluenceAssetKey) &&
+                assets.Assets.Any(asset => asset.Ref.AssetKey == AetheriaRuntimeSectorMapSurfaceBuilder.HomeIconAssetKey) &&
+                assets.Assets.Any(asset => asset.Ref.AssetKey == AetheriaRuntimeSectorMapSurfaceBuilder.ExecutiveIconAssetKey),
+            "provider asset delivery must include the historical galaxy, influence, and landmark assets");
     }
 
     private static void VolumeSurfaceKeepsNativeShaderAbiInAssetVariant()

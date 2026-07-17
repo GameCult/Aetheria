@@ -125,7 +125,7 @@ namespace GameCult.Aetheria.State.Verse
             Surface(AetheriaRuntimeLoadoutTemplateCommands.SurfaceId, "Loadout Templates", "", "player", "Loadout template save surface.", status: "client-contextual"),
             Surface(AetheriaRuntimeClientTargetCommands.SurfaceId, "Client Target", "", "operator", "Local client target and Verse discovery surface.", status: "client-contextual"),
             Surface(AetheriaRuntimeLocalStorySurfaceBuilder.SurfaceId, "Local Story", "", "player", "Local runtime story/menu surface.", status: "client-contextual"),
-            Surface(AetheriaRuntimeZoneDetailsSurfaceBuilder.SurfaceId, "Map Menu", AetheriaRuntimeVerseRecordKeys.MapMenuSurface.ToString(), "player", "Current-zone map details surface.", transport: "cultmesh-record"),
+            Surface(AetheriaRuntimeSectorMapSurfaceBuilder.SurfaceId, "Sector Map", AetheriaRuntimeVerseRecordKeys.MapMenuSurface.ToString(), "player", "Daemon-owned discovered sector graph with provider-owned presentation tokens.", transport: "cultmesh-record"),
             Surface(AetheriaRuntimeInventoryDropdownSurfaceBuilder.SurfaceId, "Inventory Dropdown", AetheriaRuntimeVerseRecordKeys.InventoryDropdownSurface.ToString(), "player", "Inventory navigation dropdown surface.", transport: "cultmesh-record"),
             Surface(AetheriaRuntimeShipSettingsSurfaceBuilder.SurfaceId, "Current Ship Settings", "", "player", "Current ship settings surface.", status: "contextual"),
             Surface(AetheriaRuntimeCargoItemDetailsSurfaceBuilder.SurfaceId, "Cargo Item Details", "", "player", "Selected cargo item details surface.", status: "contextual"),

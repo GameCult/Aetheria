@@ -40,6 +40,7 @@ namespace GameCult.Aetheria.State.Verse
             Add(entries, EnvironmentStardustComputeShader());
             Add(entries, EnvironmentStardustMaterial());
             Add(entries, EnvironmentStardustColorTexture());
+            foreach (var mapAsset in SectorMapAssets()) Add(entries, mapAsset);
             Add(entries, MapIcon("entity.player", "Player", "Sprites/Icons/Stroked/Ship"));
             Add(entries, MapIcon("entity.ship", "Ship", "Sprites/Icons/Stroked/Ship"));
             Add(entries, MapIcon("entity.orbital", "Orbital", "Sprites/Icons/Stroked/orbital"));
@@ -533,6 +534,39 @@ namespace GameCult.Aetheria.State.Verse
                 },
                 Tags = new[] { "presentation", "thermal", label ?? "" }
             };
+        }
+
+        private static IReadOnlyList<AetheriaRuntimeAssetManifestEntry> SectorMapAssets() =>
+            new[]
+            {
+                MapPresentationAsset(
+                    "material.sector-map.background",
+                    AetheriaRuntimeAssetKinds.Material,
+                    "Sector Map Galaxy",
+                    "Assets/Materials/UI/Galaxy.mat",
+                    "sector-map.background"),
+                MapPresentationAsset(
+                    "material.sector-map.influence",
+                    AetheriaRuntimeAssetKinds.Material,
+                    "Sector Map Influence",
+                    "Assets/Materials/UI/Influence Map.mat",
+                    "sector-map.influence"),
+                MapIcon("sector-map.icon.start", "Start", "Sprites/Icons/enter"),
+                MapIcon("sector-map.icon.terminus", "Terminus", "Sprites/Icons/exit"),
+                MapIcon("sector-map.icon.home", "Home Zone", "Sprites/Icons/Home"),
+                MapIcon("sector-map.icon.executive", "Executive", "Sprites/Icons/boss")
+            };
+
+        private static AetheriaRuntimeAssetManifestEntry MapPresentationAsset(
+            string key,
+            string kind,
+            string label,
+            string unityAssetPath,
+            string presentationRole)
+        {
+            var entry = MapProjectAsset(key, kind, label, unityAssetPath, presentationRole);
+            entry.Tags = new[] { "presentation", "sector-map", label ?? "" };
+            return entry;
         }
 
         private static IReadOnlyList<AetheriaRuntimeAssetManifestEntry> ThermalPresentationProfiles() =>

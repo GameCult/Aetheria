@@ -87,6 +87,22 @@ public static class AetheriaDaemonTutorialRunWriter
                 Relationship = "Neutral",
                 Standing = 0
             }).ToArray(),
+            HomeZones = materialized.Topology.HomeZoneByFactionKey
+                .OrderBy(pair => pair.Key, StringComparer.Ordinal)
+                .Select(pair => new AetheriaFactionZoneState
+                {
+                    FactionIndex = corporationIndices[pair.Key],
+                    ZoneIndex = pair.Value
+                })
+                .ToArray(),
+            BossZones = materialized.Topology.BossZoneByFactionKey
+                .OrderBy(pair => pair.Key, StringComparer.Ordinal)
+                .Select(pair => new AetheriaFactionZoneState
+                {
+                    FactionIndex = corporationIndices[pair.Key],
+                    ZoneIndex = pair.Value
+                })
+                .ToArray(),
             GenerationSeed = GenerationSeed,
             CurrentEntityKey = playerEntityKey,
             LifecyclePhase = AetheriaRuntimeRunLifecycle.Active,

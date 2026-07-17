@@ -256,6 +256,19 @@ public sealed class AetheriaRunState
 
     [Key(17)]
     public string GameMode { get; set; } = AetheriaGameSessionState.AetheriaMode;
+
+    [Key(18)]
+    public AetheriaFactionZoneState[] HomeZones { get; set; } = [];
+
+    [Key(19)]
+    public AetheriaFactionZoneState[] BossZones { get; set; } = [];
+}
+
+[MessagePackObject]
+public sealed class AetheriaFactionZoneState
+{
+    [Key(0)] public int FactionIndex { get; set; } = -1;
+    [Key(1)] public int ZoneIndex { get; set; } = -1;
 }
 
 [MessagePackObject]

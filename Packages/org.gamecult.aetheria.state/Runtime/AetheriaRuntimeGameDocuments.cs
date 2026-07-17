@@ -834,6 +834,12 @@ namespace GameCult.Aetheria.State.Verse
                 FactionRelationships = (run.FactionRelationships ?? Array.Empty<AetheriaRuntimeFactionRelationshipCommit>())
                     .Where(relationship => relationship != null)
                     .ToArray(),
+                HomeZones = (run.HomeZones ?? Array.Empty<AetheriaRuntimeFactionZoneCommit>())
+                    .Where(entry => entry != null)
+                    .ToArray(),
+                BossZones = (run.BossZones ?? Array.Empty<AetheriaRuntimeFactionZoneCommit>())
+                    .Where(entry => entry != null)
+                    .ToArray(),
                 DiscoveredZoneIndices = discovered.OrderBy(index => index).ToArray(),
                 Zones = zones
                     .OrderBy(zone => zone.ZoneIndex)

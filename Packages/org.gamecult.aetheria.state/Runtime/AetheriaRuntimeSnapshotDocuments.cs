@@ -230,6 +230,14 @@ namespace GameCult.Aetheria.State.Verse
         [Key(20)]
         public string GameMode { get; set; } = "aetheria";
 
+        [Key(21)]
+        public IReadOnlyList<AetheriaRuntimeFactionZoneCommit> HomeZones { get; set; } =
+            Array.Empty<AetheriaRuntimeFactionZoneCommit>();
+
+        [Key(22)]
+        public IReadOnlyList<AetheriaRuntimeFactionZoneCommit> BossZones { get; set; } =
+            Array.Empty<AetheriaRuntimeFactionZoneCommit>();
+
         public AetheriaRuntimeLoadoutTemplateCommit CreateLoadoutTemplate(string entityKey)
         {
             return TryParseEntityKey(entityKey, out var zoneIndex, out var entityIndex)
@@ -472,6 +480,13 @@ namespace GameCult.Aetheria.State.Verse
         [Key(11)] public double PositionZ { get; set; }
         [Key(12)] public string Reason { get; set; } = "";
         [Key(13)] public double AuxiliaryValue { get; set; }
+    }
+
+    [MessagePackObject]
+    public sealed class AetheriaRuntimeFactionZoneCommit
+    {
+        [Key(0)] public int FactionIndex { get; set; } = -1;
+        [Key(1)] public int ZoneIndex { get; set; } = -1;
     }
 
     public static class AetheriaRuntimeRunLifecycle

@@ -1589,6 +1589,7 @@ static async Task PublishDaemonApiDocumentsAsync(
     await node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.DaemonGameSurface)
         .ReplaceAsync(AetheriaRuntimeSurfaceDocuments.ToPortableSurface(gameSurface))
         .ConfigureAwait(false);
+    await PublishDaemonSectorMapSurfaceAsync(node, result.Frame, inputCatalog).ConfigureAwait(false);
     if (!publishTopology)
         return;
 
@@ -1616,6 +1617,27 @@ static async Task PublishDaemonApiDocumentsAsync(
     await PublishDaemonMenuSurfacesAsync(node, options, result.Frame).ConfigureAwait(false);
 }
 
+static async Task PublishDaemonSectorMapSurfaceAsync(
+    AetheriaStateNode node,
+    AetheriaRuntimeDaemonFrameDocument frame,
+    AetheriaRuntimeCatalogSnapshot catalog)
+{
+    if (frame == null)
+        return;
+
+    var updatedAtUtc = string.IsNullOrWhiteSpace(frame.PublishedAtUtc)
+        ? DateTimeOffset.UtcNow.ToString("O")
+        : frame.PublishedAtUtc;
+    var surface = AetheriaRuntimeSectorMapSurfaceBuilder.Build(
+        AetheriaRuntimeGameDocuments.SectorMap(frame),
+        updatedAtUtc,
+        frame.FrameId,
+        catalog);
+    await node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.MapMenuSurface)
+        .ReplaceAsync(AetheriaRuntimeSurfaceDocuments.ToPortableSurface(surface))
+        .ConfigureAwait(false);
+}
+
 static EveProviderAdvertisementDocument BuildCoreProviderAdvertisement(
     AetheriaDaemonHostOptions options,
     string updatedAtUtc)
@@ -1630,6 +1652,16 @@ static EveProviderAdvertisementDocument BuildCoreProviderAdvertisement(
         AetheriaRuntimeVerseRecordKeys.EveAssetCatalog.ToString(),
         new[] { "unity-scene", "web-reference", "electron-shell", "tui" },
         "provider-owns-world-state-command-acceptance-and-receipts");
+    var mapInteraction = new EveWorldInteractionAdvertisement(
+        "provider-authored-map-surface",
+        new[] { AetheriaRuntimeDaemonSchemas.SectorMap },
+        "",
+        "",
+        "",
+        "",
+        AetheriaRuntimeVerseRecordKeys.EveAssetCatalog.ToString(),
+        new[] { "unity-scene", "web-reference", "electron-shell" },
+        "provider-owns-topology-discovery-landmarks-influence-and-assets");
     return new EveProviderAdvertisementDocument(
         "aetheria.daemon",
         options.DaemonId,
@@ -1664,7 +1696,15 @@ static EveProviderAdvertisementDocument BuildCoreProviderAdvertisement(
                 "cultmesh-record",
                 "active",
                 "interactive-world",
-                interaction)
+                interaction),
+            new EveAdvertisedSurface(
+                AetheriaRuntimeSectorMapSurfaceBuilder.SurfaceId,
+                EveSurfaceDocument.SchemaId,
+                AetheriaRuntimeVerseRecordKeys.MapMenuSurface.ToString(),
+                "cultmesh-record",
+                "active",
+                "graph",
+                mapInteraction)
         },
         Array.Empty<EveAdvertisedCommand>(),
         new[] { AetheriaRuntimeDaemonSoaFramePublisher.ProducerId });
@@ -1772,12 +1812,6 @@ static async Task PublishDaemonMenuSurfacesAsync(
         stationRefit,
         dropdownRequest,
         updatedAtUtc);
-    var mapMenu = AetheriaRuntimeZoneDetailsSurfaceBuilder.BuildFromDocuments(
-        AetheriaRuntimeGameDocuments.ZoneDetails(frame, currentEntity.ZoneIndex),
-        AetheriaRuntimeGameDocuments.SectorMap(frame),
-        catalog,
-        playerSettings,
-        updatedAtUtc);
     var tradeMenu = BuildTradeMenuSurface(stationRefit, catalog, updatedAtUtc, frame.FrameId);
 
     await node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.MainMenuSurface)
@@ -1800,9 +1834,6 @@ static async Task PublishDaemonMenuSurfacesAsync(
         .ConfigureAwait(false);
     await node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.InventoryDropdownSurface)
         .ReplaceAsync(AetheriaRuntimeSurfaceDocuments.ToPortableSurface(inventoryDropdown))
-        .ConfigureAwait(false);
-    await node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.MapMenuSurface)
-        .ReplaceAsync(AetheriaRuntimeSurfaceDocuments.ToPortableSurface(mapMenu))
         .ConfigureAwait(false);
     await node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.TradeMenuSurface)
         .ReplaceAsync(AetheriaRuntimeSurfaceDocuments.ToPortableSurface(tradeMenu))
@@ -2076,7 +2107,7 @@ static async Task PublishOdinSurfaceAnnouncementsAsync(
         ("aetheria.main_menu.verse_settings", "Main Menu Verse Settings", AetheriaRuntimeVerseRecordKeys.MainMenuVerseSettingsSurface),
         ("aetheria.inventory.panel", "Inventory Panel", AetheriaRuntimeVerseRecordKeys.InventoryPanelSurface),
         ("aetheria.inventory.panel.dropdown", "Inventory Dropdown", AetheriaRuntimeVerseRecordKeys.InventoryDropdownSurface),
-        ("aetheria.map.zone_details", "Map Menu", AetheriaRuntimeVerseRecordKeys.MapMenuSurface),
+        (AetheriaRuntimeSectorMapSurfaceBuilder.SurfaceId, "Sector Map", AetheriaRuntimeVerseRecordKeys.MapMenuSurface),
         ("aetheria.trade.menu", "Trade Menu", AetheriaRuntimeVerseRecordKeys.TradeMenuSurface)
     };
 
@@ -2616,6 +2647,20 @@ static async Task<AetheriaRuntimeRunCheckpointCommit?> ReadRuntimeRunCheckpointA
                 Relationship = relationship.Relationship ?? "",
                 Standing = relationship.Standing,
                 FactionKey = relationship.FactionKey ?? ""
+            })
+            .ToArray(),
+        HomeZones = (run.HomeZones ?? Array.Empty<AetheriaFactionZoneState>())
+            .Select(entry => new AetheriaRuntimeFactionZoneCommit
+            {
+                FactionIndex = entry.FactionIndex,
+                ZoneIndex = entry.ZoneIndex
+            })
+            .ToArray(),
+        BossZones = (run.BossZones ?? Array.Empty<AetheriaFactionZoneState>())
+            .Select(entry => new AetheriaRuntimeFactionZoneCommit
+            {
+                FactionIndex = entry.FactionIndex,
+                ZoneIndex = entry.ZoneIndex
             })
             .ToArray(),
         GenerationSeed = run.GenerationSeed,
