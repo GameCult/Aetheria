@@ -770,7 +770,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         var near = Entity(1, 0, "enemy");
         near.PositionX = 4;
         var far = Entity(2, 0, "enemy");
-        far.PositionX = 12;
+        far.PositionZ = 12;
         actor.Contacts =
         [
             new AetheriaRuntimeEntityContactCommit
@@ -789,8 +789,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         var capability = AetheriaRuntimeInputCapabilityDocument.FromFrame(frame);
         var targeting = capability.Actions.Where(value => value.Category == "targeting").ToArray();
         Require(targeting.Select(value => value.ActionId).ToHashSet(StringComparer.Ordinal).SetEquals(
-            ["pilot.target-nearest", "pilot.target-previous", "pilot.target-next", "pilot.target-clear"]),
-            "portable input must advertise every argumentless daemon target-selection lever");
+            ["pilot.target-nearest", "pilot.target-previous", "pilot.target-next", "pilot.target-reticle", "pilot.target-clear"]),
+            "portable input must advertise every daemon target-selection lever");
         Require(targeting.Where(value => value.ActionId != "pilot.target-clear")
                 .All(value => value.Availability == "available" &&
                               value.Payload["visibleHostileCount"] == "2" &&
@@ -808,8 +808,14 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             "the generic default profile must preserve the fossil previous-target key");
         RequireEqual("keyboard.u", Control("pilot.target-next"),
             "the generic default profile must preserve the fossil next-target key");
-        Require(!keyboard.Bindings.Any(value => value.Gesture.Controls.Contains("keyboard.r", StringComparer.Ordinal)),
-            "the advertised profile must not steal the fossil reticle-target key for docking");
+        RequireEqual("keyboard.r", Control("pilot.target-reticle"),
+            "the generic default profile must preserve the fossil reticle-target key");
+        var reticleAction = capability.ToEveDocument().Actions.Single(value => value.ActionId == "pilot.target-reticle");
+        RequireEqual("view-direction.v1", reticleAction.InputValue?.Model ?? "",
+            "reticle targeting must advertise the generic active-view direction model");
+        Require((reticleAction.InputValue?.PayloadKeys ?? Array.Empty<string>()).SequenceEqual(
+                ["directionX", "directionY", "directionZ"]),
+            "reticle targeting must preserve the portable world-direction payload order");
 
         AetheriaRuntimeDaemonCommandDocument Translate(AetheriaRuntimeInputActionDocument action)
         {
@@ -840,6 +846,28 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 selected.Actions.Where(value => value.Category == "targeting")
                     .All(value => value.Payload["currentTargetEntityIndex"] == near.EntityIndex.ToString()),
             "all portable target levers must refresh from the newly selected daemon target");
+
+        var reticleRequest = new EveSurfaceCommandRequest(
+            capability.ProviderId,
+            AetheriaRuntimeDaemonGameSurfaceBuilder.PilotSurfaceId,
+            CultMesh.OperationInvocation(reticleAction.Operation),
+            CultMesh.OperationPayload(
+                ("entityId", run.CurrentEntityKey),
+                ("directionX", "0"),
+                ("directionY", "0"),
+                ("directionZ", "1")),
+            DateTimeOffset.UtcNow,
+            "native-input-smoke");
+        Require(AetheriaRuntimeDaemonOperationsClient.TryCreateSurfaceCommandDocument(
+                reticleRequest, frame, ".", "native-input-smoke", "native-input", out var reticleCommand) &&
+                reticleCommand?.Kind == AetheriaRuntimeDaemonCommandKinds.TargetReticle,
+            "the generic Eve view-direction action must translate into the typed reticle command");
+        var reticleResult = AetheriaRuntimeDaemonOperations.Execute(
+            run, [reticleCommand!], new AetheriaRuntimeDaemonOperationContext());
+        RequireEqual(1, reticleResult.AppliedCommandIds.Count,
+            "the translated reticle action must reach the daemon target owner");
+        RequireEqual(far.EntityIndex, actor.TargetEntityIndex,
+            "reticle selection must rank visible hostile contacts from the advertised view ray inside the daemon");
 
         var interact = capability.Actions.Single(value => value.ActionId == "pilot.interact");
         RequireEqual(AetheriaRuntimeDaemonCommandKinds.Interact, Translate(interact).Kind,

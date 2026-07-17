@@ -474,6 +474,11 @@ public sealed class AetheriaRuntimeDaemonOperationsClient
                 ReadPayloadDouble(request, "directionX", 0.0),
                 ReadPayloadDouble(request, "directionY", 1.0),
                 ReadPayloadDouble(request, "directionZ", 0.0)),
+            AetheriaRuntimeDaemonCommandKinds.TargetReticle => client.TargetReticle(
+                frame,
+                ReadPayloadDouble(request, "directionX", 0.0),
+                ReadPayloadDouble(request, "directionY", 0.0),
+                ReadPayloadDouble(request, "directionZ", 0.0)),
             AetheriaRuntimeDaemonCommandKinds.SetTractorPower => client.SetTractorPower(
                 frame,
                 ReadPayloadDouble(request, "scalarValue", 1.0)),

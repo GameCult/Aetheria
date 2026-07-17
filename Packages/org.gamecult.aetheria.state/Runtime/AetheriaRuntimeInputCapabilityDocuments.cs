@@ -44,6 +44,7 @@ namespace GameCult.Aetheria.State.Verse
     {
         [Key(0)] public string Model { get; set; } = "";
         [Key(1)] public string PayloadKey { get; set; } = "";
+        [Key(2)] public string[] PayloadKeys { get; set; } = Array.Empty<string>();
     }
 
     [MessagePackObject]
@@ -387,6 +388,14 @@ namespace GameCult.Aetheria.State.Verse
                 visibleHostileCount > 0, currentTarget, visibleHostileCount);
             yield return TargetAction("pilot.target-next", "Target Next", "TargetNext",
                 visibleHostileCount > 0, currentTarget, visibleHostileCount);
+            var reticle = TargetAction("pilot.target-reticle", "Target Reticle", "TargetReticle",
+                visibleHostileCount > 0, currentTarget, visibleHostileCount);
+            reticle.InputValue = new AetheriaRuntimeInputValueDocument
+            {
+                Model = "view-direction.v1",
+                PayloadKeys = new[] { "directionX", "directionY", "directionZ" }
+            };
+            yield return reticle;
             yield return TargetAction("pilot.target-clear", "Clear Target", "ClearTarget",
                 currentTarget >= 0, currentTarget, visibleHostileCount);
         }
@@ -444,6 +453,7 @@ namespace GameCult.Aetheria.State.Verse
                 bindings.Add(Binding("target.nearest.t", "pilot.target-nearest", "direct", "keyboard.t"));
                 bindings.Add(Binding("target.previous.y", "pilot.target-previous", "direct", "keyboard.y"));
                 bindings.Add(Binding("target.next.u", "pilot.target-next", "direct", "keyboard.u"));
+                bindings.Add(Binding("target.reticle.r", "pilot.target-reticle", "direct", "keyboard.r"));
             }
             if (actions.Any(action => string.Equals(action.ActionId, "simulation.pause", StringComparison.Ordinal)))
                 bindings.Add(keyboard
@@ -472,7 +482,8 @@ namespace GameCult.Aetheria.State.Verse
                     : new EveInputValueDocument
                     {
                         Model = action.InputValue.Model,
-                        PayloadKey = action.InputValue.PayloadKey
+                        PayloadKey = action.InputValue.PayloadKey,
+                        PayloadKeys = action.InputValue.PayloadKeys ?? Array.Empty<string>()
                     }
             }).ToArray(),
             DefaultProfiles = DefaultProfiles.Select(profile => new EveInputProfileDocument

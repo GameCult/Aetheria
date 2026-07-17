@@ -17,11 +17,11 @@ $expected = @{
         "https://github.com/GameCult/CultLib.git?path=/unity/org.gamecult.cultlib#cultlib-unity-v1.0.15",
         "419053ebe2325848051c4f4d8ba352cd4286c424")
     "org.gamecult.eve.surface" = @(
-        "https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.surface#eveunity-surface-v0.2.2",
-        "140e1bd963a0033e66777a3b2c5fe6e9c97dfe32")
+        "https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.surface#eveunity-surface-v0.2.3",
+        "7647d37445cf39447cb607111e215f627db56c80")
     "org.gamecult.eve.unity-scene" = @(
-        "https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.unity-scene#eveunity-scene-v0.3.55",
-        "745ce7cc24c514ad442d53807722b6a4651d9521")
+        "https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.unity-scene#eveunity-scene-v0.3.64",
+        "7647d37445cf39447cb607111e215f627db56c80")
 }
 
 foreach ($packageName in $expected.Keys) {
@@ -51,6 +51,29 @@ $requiredMeshApiNames = @(
 foreach ($apiName in $requiredMeshApiNames) {
     if (-not ($meshApi | Where-Object { $_ -eq $apiName })) {
         throw "Resolved GameCult.Mesh.dll does not expose $apiName."
+    }
+}
+
+$surfacePackage = Get-ChildItem (Join-Path $ProjectPath "Library/PackageCache") -Directory |
+    Where-Object Name -Like "org.gamecult.eve.surface@*" |
+    Where-Object { (Get-Content (Join-Path $_.FullName "package.json") -Raw | ConvertFrom-Json).version -eq "0.2.3" } |
+    Select-Object -First 1
+if (-not $surfacePackage) { throw "Resolved Eve surface 0.2.3 package is missing from Library/PackageCache." }
+$inputContractSource = Get-Content (Join-Path $surfacePackage.FullName "Runtime/EveInputCapabilityDocument.cs") -Raw
+if ($inputContractSource -notmatch "PayloadKeys") {
+    throw "Resolved Eve surface package does not expose vector input payload keys."
+}
+
+$scenePackage = Get-ChildItem (Join-Path $ProjectPath "Library/PackageCache") -Directory |
+    Where-Object Name -Like "org.gamecult.eve.unity-scene@*" |
+    Where-Object { (Get-Content (Join-Path $_.FullName "package.json") -Raw | ConvertFrom-Json).version -eq "0.3.64" } |
+    Select-Object -First 1
+if (-not $scenePackage) { throw "Resolved Eve Unity scene 0.3.64 package is missing from Library/PackageCache." }
+$advertisedInputSource = Get-Content (Join-Path $scenePackage.FullName "Runtime/EveUnityAdvertisedInputAction.cs") -Raw
+$inputDriverSource = Get-Content (Join-Path $scenePackage.FullName "Runtime/EveUnityPlayableWorldInputDriver.cs") -Raw
+foreach ($requiredInputContract in @("view-direction.v1", "BuildViewDirectionPayload", "SubmitChangedPerformedActions")) {
+    if (($advertisedInputSource + $inputDriverSource) -notmatch [regex]::Escape($requiredInputContract)) {
+        throw "Resolved Eve Unity scene package is missing generic input lowering '$requiredInputContract'."
     }
 }
 
