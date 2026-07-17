@@ -3,53 +3,48 @@ using Aetheria.State.Documents;
 using GameCult.Aetheria.State.Verse;
 using GameCult.Caching;
 
-public sealed record AetheriaDaemonWrittenRun(
-    string RunId,
-    string RunKey,
-    string CurrentEntityKey,
-    bool IsTutorial)
+public static class AetheriaDaemonRegularRunWriter
 {
-    public string SessionMode { get; init; } = AetheriaGameSessionState.AetheriaMode;
-}
-
-public static class AetheriaDaemonTutorialRunWriter
-{
-    public const string RunId = "tutorial";
-    public const uint GenerationSeed = 0xA37E_2026u;
-
     public static async Task<AetheriaDaemonWrittenRun> WriteAsync(
         AetheriaStateNode node,
         AetheriaRuntimeCatalogSnapshot catalog,
-        string now)
+        string now,
+        uint generationSeed,
+        AetheriaDaemonRegularTopologySettings? topologySettings = null)
     {
-        var factions = AetheriaDaemonTutorialTopologyGenerator.ResolveFossilFactions(catalog);
-        var world = AetheriaDaemonTutorialWorldGenerator.Generate(factions, GenerationSeed);
-        var materialized = AetheriaDaemonTutorialWorldMaterializer.Materialize(world, factions, catalog);
-        var runKey = RunKey();
-        var zoneKeys = materialized.Topology.Zones
-            .OrderBy(zone => zone.ZoneIndex)
-            .Select(zone => ZoneKey(zone.ZoneIndex))
-            .ToArray();
+        if (node == null) throw new ArgumentNullException(nameof(node));
+        if (catalog == null) throw new ArgumentNullException(nameof(catalog));
+        if (generationSeed == 0) throw new ArgumentOutOfRangeException(nameof(generationSeed));
+
+        var factions = AetheriaDaemonRegularTopologyGenerator.ResolveFossilFactions(catalog);
+        var world = AetheriaDaemonTutorialWorldGenerator.GenerateRegular(
+            factions, generationSeed, topologySettings);
+        var materialized = AetheriaDaemonTutorialWorldMaterializer.Materialize(
+            world, factions, catalog, isPrelude: false, identityPrefix: "regular");
+        var runId = $"sector-{generationSeed:x8}";
+        var runKey = RunKey(runId);
         var corporationIndices = (catalog.Corporations ?? Array.Empty<AetheriaRuntimeCorporation>())
             .Select((corporation, index) => (corporation.CorporationKey, index))
             .Where(value => !string.IsNullOrWhiteSpace(value.CorporationKey))
             .ToDictionary(value => value.CorporationKey, value => value.index, StringComparer.Ordinal);
-        var playerEntityKey = EntityKey(materialized.PlayerZoneIndex, materialized.PlayerEntityIndex);
+        var zoneKeys = materialized.Topology.Zones
+            .OrderBy(zone => zone.ZoneIndex)
+            .Select(zone => ZoneKey(runId, zone.ZoneIndex))
+            .ToArray();
+        var playerEntityKey = EntityKey(runId, materialized.PlayerZoneIndex, materialized.PlayerEntityIndex);
 
         foreach (var zone in materialized.Zones.Values.OrderBy(zone => zone.Topology.ZoneIndex))
         {
             var entityKeys = Enumerable.Range(0, zone.Entities.Length)
-                .Select(index => EntityKey(zone.Topology.ZoneIndex, index))
+                .Select(index => EntityKey(runId, zone.Topology.ZoneIndex, index))
                 .ToArray();
-            await node.MutableDocument<AetheriaZoneState>(new CultRecordKey(ZoneKey(zone.Topology.ZoneIndex)))
+            await node.MutableDocument<AetheriaZoneState>(new CultRecordKey(ZoneKey(runId, zone.Topology.ZoneIndex)))
                 .ReplaceAsync(new AetheriaZoneState
                 {
                     Name = zone.Topology.Name,
                     Position = new AetheriaVector2 { X = zone.Topology.X, Y = zone.Topology.Y },
                     AdjacentZoneIndices = zone.Topology.AdjacentZoneIndices.ToArray(),
-                    FactionIndices = zone.Topology.FactionKeys
-                        .Select(key => corporationIndices[key])
-                        .ToArray(),
+                    FactionIndices = zone.Topology.FactionKeys.Select(key => corporationIndices[key]).ToArray(),
                     OwnerFactionIndex = string.IsNullOrWhiteSpace(zone.Topology.OwnerFactionKey)
                         ? -1
                         : corporationIndices[zone.Topology.OwnerFactionKey],
@@ -74,24 +69,26 @@ public static class AetheriaDaemonTutorialRunWriter
 
         await node.MutableDocument<AetheriaRunState>(new CultRecordKey(runKey)).ReplaceAsync(new AetheriaRunState
         {
-            RunId = RunId,
-            IsTutorial = true,
+            RunId = runId,
+            IsTutorial = false,
+            GameMode = AetheriaGameSessionState.AetheriaMode,
             EntranceZoneIndex = materialized.Topology.EntranceZoneIndex,
-            ExitZoneIndex = -1,
+            ExitZoneIndex = materialized.Topology.ExitZoneIndex,
             CurrentZoneIndex = materialized.PlayerZoneIndex,
             DiscoveredZoneIndices = materialized.Topology.DiscoveredZoneIndices.ToArray(),
             ZoneKeys = zoneKeys,
-            FactionRelationships = factions.Select(faction => new AetheriaFactionRelationshipState
-            {
-                FactionKey = faction.CorporationKey,
-                Relationship = "Neutral",
-                Standing = 0
-            }).ToArray(),
-            GenerationSeed = GenerationSeed,
+            FactionRelationships = materialized.Topology.HomeZoneByFactionKey.Keys
+                .Select(key => new AetheriaFactionRelationshipState
+                {
+                    FactionKey = key,
+                    Relationship = "Neutral",
+                    Standing = 0
+                })
+                .ToArray(),
+            GenerationSeed = generationSeed,
             CurrentEntityKey = playerEntityKey,
             LifecyclePhase = AetheriaRuntimeRunLifecycle.Active,
             TerminalFrameId = -1,
-            GameMode = AetheriaGameSessionState.AetheriaMode,
             AgentTasks = materialized.Zones.Values
                 .OrderBy(zone => zone.Topology.ZoneIndex)
                 .SelectMany(zone => zone.AgentTasks)
@@ -105,14 +102,17 @@ public static class AetheriaDaemonTutorialRunWriter
         settings.PlayerName = string.IsNullOrWhiteSpace(settings.PlayerName) ? "Pilot" : settings.PlayerName;
         settings.LastUpdatedAtUtc = now;
         await node.MutableDocument<AetheriaPlayerSettings>(AetheriaStateNode.PlayerSettingsKey)
-            .ReplaceAsync(settings)
-            .ConfigureAwait(false);
+            .ReplaceAsync(settings).ConfigureAwait(false);
         await node.FlushAsync().ConfigureAwait(false);
-        return new AetheriaDaemonWrittenRun(RunId, runKey, playerEntityKey, true);
+        return new AetheriaDaemonWrittenRun(runId, runKey, playerEntityKey, false)
+        {
+            SessionMode = AetheriaGameSessionState.AetheriaMode
+        };
     }
 
-    public static string RunKey() => $"global:aetheria.run_state.{RunId}.v1";
-    public static string ZoneKey(int zoneIndex) => $"global:aetheria.zone_state.{RunId}.{zoneIndex}.v1";
-    public static string EntityKey(int zoneIndex, int entityIndex) =>
-        $"global:aetheria.run_state.{RunId}.zone.{zoneIndex}.entity.{entityIndex}.v1";
+    public static string RunKey(string runId) => $"global:aetheria.run_state.{runId}.v1";
+    public static string ZoneKey(string runId, int zoneIndex) =>
+        $"global:aetheria.zone_state.{runId}.{zoneIndex}.v1";
+    public static string EntityKey(string runId, int zoneIndex, int entityIndex) =>
+        $"global:aetheria.run_state.{runId}.zone.{zoneIndex}.entity.{entityIndex}.v1";
 }

@@ -97,6 +97,7 @@ internal static class AetheriaDaemonZoneGenerator
             CurrentEntityKey = entityKeys[1],
             LifecyclePhase = AetheriaRuntimeRunLifecycle.Active,
             TerminalFrameId = -1,
+            GameMode = AetheriaGameSessionState.TerminusMode,
             UpdatedAtUtc = now
         }).ConfigureAwait(false);
 

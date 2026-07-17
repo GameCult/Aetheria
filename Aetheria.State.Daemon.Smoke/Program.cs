@@ -39,6 +39,11 @@ else if (args.Contains("--regular-topology", StringComparer.Ordinal))
     checks.RunRegularTopology();
     Console.WriteLine("Daemon regular-sector topology smoke passed.");
 }
+else if (args.Contains("--regular-run", StringComparer.Ordinal))
+{
+    checks.RunRegularRun();
+    Console.WriteLine("Daemon persisted regular-sector run smoke passed.");
+}
 else if (args.Contains("--zone-bodies", StringComparer.Ordinal))
 {
     checks.RunZoneBodies();
@@ -104,6 +109,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
 
     public void RunTutorialTopology() => RunCheck(TutorialTopologyIsDeterministicConnectedAndRoleOwned);
     public void RunRegularTopology() => RunCheck(RegularTopologyOwnsFossilSectorStructure);
+    public void RunRegularRun() => RunCheck(RegularRunPersistsPlayableWorldTruth);
     public void RunZoneBodies() => RunCheck(GeneratedZoneBodiesPreserveFossilHierarchy);
     public void RunTutorialWorld() => RunCheck(TutorialWorldMaterializesEveryTopologyZone);
     public void RunTutorialMaterialization() => RunCheck(TutorialPopulationPreservesFossilEntityMechanics);
@@ -243,6 +249,91 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 first.BossZoneByFactionKey.OrderBy(value => value.Key).SequenceEqual(
                     second.BossZoneByFactionKey.OrderBy(value => value.Key)),
             "regular topology, faction placement, boss placement, and names must be seed deterministic");
+    }
+
+    private static void RegularRunPersistsPlayableWorldTruth()
+    {
+        var tutorialCatalog = TutorialPopulationCatalog(out var factions);
+        var manufacturer = factions[0].CorporationKey;
+        foreach (var item in tutorialCatalog.Items)
+            item.ManufacturerKey = manufacturer;
+        var corporations = factions.Select((faction, index) => new AetheriaRuntimeCorporation(
+            faction.CorporationKey,
+            faction.Name,
+            faction.ShortName,
+            "",
+            $"names.{faction.ShortName}",
+            index < 2 ? "tutorial-ship-hull" : "",
+            4,
+            1,
+            [new AetheriaRuntimeCorporationAllegiance(manufacturer, 1)])).ToArray();
+        var catalog = new AetheriaRuntimeCatalogSnapshot(
+            tutorialCatalog.Items.ToArray(), corporations, tutorialCatalog.NameFiles.ToArray());
+        var root = Path.Combine(Path.GetTempPath(), $"aetheria-regular-run-{Guid.NewGuid():N}");
+        var statePath = Path.Combine(root, "aetheria.cc");
+        Directory.CreateDirectory(root);
+        try
+        {
+            string runKey;
+            using (var node = AetheriaStateNode.OpenAsync(statePath).GetAwaiter().GetResult())
+            {
+                node.MutableDocument<AetheriaPlayerSettings>(AetheriaStateNode.PlayerSettingsKey)
+                    .ReplaceAsync(new AetheriaPlayerSettings { TutorialPassed = true })
+                    .GetAwaiter().GetResult();
+                var written = AetheriaDaemonRunFactory.WriteAsync(
+                    node,
+                    catalog,
+                    "2026-07-17T00:00:00.0000000Z",
+                    "regular-run-command",
+                    new AetheriaDaemonRegularTopologySettings(24, 0.5f, 6, 2))
+                    .GetAwaiter().GetResult();
+                runKey = written.RunKey;
+                var run = node.MutableDocument<AetheriaRunState>(new CultRecordKey(runKey))
+                    .ReadAsync().GetAwaiter().GetResult();
+                var settings = node.MutableDocument<AetheriaPlayerSettings>(AetheriaStateNode.PlayerSettingsKey)
+                    .ReadAsync().GetAwaiter().GetResult();
+                Require(run != null && !run.IsTutorial &&
+                        run.GameMode == AetheriaGameSessionState.AetheriaMode &&
+                        run.ZoneKeys.Length == 24 && run.ExitZoneIndex >= 0 &&
+                        run.CurrentZoneIndex == run.EntranceZoneIndex,
+                    "regular writer must persist an Aetheria-mode sector rather than a Terminus scenario");
+                RequireEqual(AetheriaDaemonRunFactory.StableSeed("regular-run-command"), run!.GenerationSeed,
+                    "accepted New Game identity must deterministically own regular-sector generation");
+                Require(written.SessionMode == AetheriaGameSessionState.AetheriaMode &&
+                        settings?.ActiveRunKey == runKey && settings.TutorialPassed,
+                    "regular writer must select the new sector without erasing tutorial completion");
+                Require(run!.AgentTasks.Length > 0 && run.AgentTasks.All(task =>
+                        task.TaskType == AetheriaRuntimeAgentTaskTypes.Patrol &&
+                        task.Status == AetheriaRuntimeAgentTaskStatuses.Assigned),
+                    "regular population must persist autonomous patrol inhabitants");
+                Require(run.ZoneKeys.All(key => key.Contains(run.RunId, StringComparison.Ordinal)),
+                    "regular zone records must be namespaced by the generated run identity");
+                var entrance = node.MutableDocument<AetheriaZoneState>(
+                        new CultRecordKey(run.ZoneKeys[run.EntranceZoneIndex]))
+                    .ReadAsync().GetAwaiter().GetResult();
+                Require(entrance != null && entrance.EntityKeys.Contains(run.CurrentEntityKey) &&
+                        entrance.EntityKeys.All(key => !key.Contains("tutorial", StringComparison.OrdinalIgnoreCase)),
+                    "regular entrance must contain the controlled starter under regular identities");
+                var starter = node.MutableDocument<AetheriaEntitySnapshot>(
+                        new CultRecordKey(run.CurrentEntityKey))
+                    .ReadAsync().GetAwaiter().GetResult();
+                Require(starter != null && starter.IsActive &&
+                        !string.IsNullOrWhiteSpace(starter.HullItemKey) &&
+                        starter.Equipment.Length > 0 && starter.LoadoutGeneration.Selections.Length > 0,
+                    "regular entrance must persist a generated, equipped, controllable starter ship");
+            }
+
+            using var reopened = AetheriaStateNode.OpenAsync(statePath).GetAwaiter().GetResult();
+            var restored = reopened.MutableDocument<AetheriaRunState>(new CultRecordKey(runKey))
+                .ReadAsync().GetAwaiter().GetResult();
+            Require(restored != null && restored.GameMode == AetheriaGameSessionState.AetheriaMode &&
+                    restored.ZoneKeys.Length == 24 && !string.IsNullOrWhiteSpace(restored.CurrentEntityKey),
+                "regular sector selection and controlled identity must survive a hard CultCache reopen");
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
     }
 
     private static void TutorialPopulationPreservesFossilEntityMechanics()
@@ -673,6 +764,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             PositiveGravityDepthAttractsAndProjectsAsAWell,
             TutorialTopologyIsDeterministicConnectedAndRoleOwned,
             RegularTopologyOwnsFossilSectorStructure,
+            RegularRunPersistsPlayableWorldTruth,
             GeneratedZoneBodiesPreserveFossilHierarchy,
             TutorialWorldMaterializesEveryTopologyZone,
             GeneratedOrbitsAdvanceOrbitalWorldTruth,

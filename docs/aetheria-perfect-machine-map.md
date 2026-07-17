@@ -1196,14 +1196,25 @@ the Terminus proof arena cannot award completion.
   or reinterpret entrance and exit.
 - Forbidden writers: Unity `Galaxy`, menus, map renderers, and Terminus scenario
   generation cannot decide regular-sector topology.
-- Cut line: this topology owner is implemented and deterministic, but the
-  regular population/run writer is not wired yet. Post-tutorial New Game still
-  selects Terminus until that writer can persist a playable sector; topology
-  existence alone is not claimed as a playable run.
+- Population and persistence: the regular topology feeds the same daemon-owned
+  celestial hierarchy, full-influence population, loadout, orbit, patrol, and
+  CultCache persistence organs as the tutorial, under distinct regular-run
+  identities. The entrance receives one equipped controlled starter; every
+  persisted run carries its explicit `aetheria` game mode.
+- Shared paths: accepted New Game identity hashes to the regular generation
+  seed, so command replay cannot create a different sector. Fresh boot and menu
+  requests use `AetheriaDaemonRunFactory`; incomplete tutorial state selects the
+  tutorial writer and completed tutorial state selects the regular writer.
+- Cut line: post-tutorial Terminus fallback selection is deleted. Terminus can
+  only be created when the daemon is explicitly launched with a
+  `--terminus-scenario` witness fixture; `IsTutorial=false` is no longer allowed
+  to decide session mode for new state.
 - Verification layer: focused smoke generates the full sector twice and proves
   exact seeded repeatability, connected symmetric links, twelve homes, three
   boss zones, exit isolation, entrance distance, discovery, names, and home
-  presence.
+  presence. A persisted-run smoke uses the shared factory and proves explicit
+  Aetheria mode, command-stable seed, generated starter/loadout, regular record
+  identities, autonomous patrols, selection, and hard CultCache reopen.
 
 ### Daemon Generated Zone Body Ownership
 

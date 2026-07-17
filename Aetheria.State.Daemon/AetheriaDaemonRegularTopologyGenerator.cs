@@ -97,6 +97,7 @@ public static class AetheriaDaemonRegularTopologyGenerator
         if (catalog == null) throw new ArgumentNullException(nameof(catalog));
         return (catalog.Corporations ?? Array.Empty<GameCult.Aetheria.State.Verse.AetheriaRuntimeCorporation>())
             .Where(corporation => corporation != null && !string.IsNullOrWhiteSpace(corporation.CorporationKey))
+            .Where(corporation => !string.IsNullOrWhiteSpace(corporation.GeonameFileKey))
             .Select(corporation =>
             {
                 var names = catalog.FindNameFile(corporation.GeonameFileKey);

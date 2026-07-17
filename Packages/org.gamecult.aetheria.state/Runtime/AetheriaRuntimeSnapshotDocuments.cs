@@ -227,6 +227,9 @@ namespace GameCult.Aetheria.State.Verse
         [Key(19)]
         public long TerminalFrameId { get; set; } = -1;
 
+        [Key(20)]
+        public string GameMode { get; set; } = "aetheria";
+
         public AetheriaRuntimeLoadoutTemplateCommit CreateLoadoutTemplate(string entityKey)
         {
             return TryParseEntityKey(entityKey, out var zoneIndex, out var entityIndex)

@@ -170,11 +170,13 @@ fixture and the fallback for the still-unmigrated post-tutorial sector path.
 No surviving source defines tutorial completion, so entering this run does not
 change `TutorialPassed`.
 
-The non-tutorial sector topology now has a separate daemon owner matching the
-fossil's 196-zone settings, corporation selection, entrance/exit isolation,
-boss chokepoints, full influence radii, discovery, and order-four names. It is
-not yet a selectable run: population and persistence must be wired before the
-post-tutorial Terminus fixture can be deleted as a fallback.
+The non-tutorial sector has a separate daemon owner matching the fossil's
+196-zone settings, corporation selection, entrance/exit isolation, boss
+chokepoints, full influence radii, discovery, and order-four names. It feeds
+the daemon celestial, population, loadout, patrol, and persistence pipeline and
+enters through an explicit Aetheria-mode run. Post-tutorial New Game selects it
+using a command-stable generation seed. Terminus is no longer a fallback; it is
+created only by an explicit witness launch option.
 
 ## Current Mechanism
 

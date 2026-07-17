@@ -2478,7 +2478,14 @@ static async Task EnsurePlayableRunDocumentsAsync(
             return;
     }
 
-    await WriteNewRunAsync(node, options, now).ConfigureAwait(false);
+    if (options.UseTerminusFixture)
+    {
+        await AetheriaDaemonZoneGenerator.WritePlayableRunAsync(
+            node, node.RuntimeCatalog().Latest(), now, options.TerminusScenario).ConfigureAwait(false);
+        return;
+    }
+    await AetheriaDaemonRunFactory.WriteAsync(
+        node, node.RuntimeCatalog().Latest(), now, now).ConfigureAwait(false);
 }
 
 static async Task EnsureGameSessionAsync(
@@ -2493,9 +2500,9 @@ static async Task EnsureGameSessionAsync(
     var run = await node.MutableDocument<AetheriaRunState>(new CultRecordKey(player.ActiveRunKey))
         .ReadAsync().ConfigureAwait(false)
         ?? throw new InvalidDataException($"Active Aetheria run is missing: {player.ActiveRunKey}");
-    var expectedMode = run.IsTutorial
-        ? AetheriaGameSessionState.AetheriaMode
-        : AetheriaGameSessionState.TerminusMode;
+    var expectedMode = string.IsNullOrWhiteSpace(run.GameMode)
+        ? run.IsTutorial ? AetheriaGameSessionState.AetheriaMode : AetheriaGameSessionState.TerminusMode
+        : run.GameMode;
     var existing = await node.MutableDocument<AetheriaGameSessionState>(AetheriaStateNode.GameSessionStateKey)
         .ReadAsync().ConfigureAwait(false);
     if (existing != null &&
@@ -2536,8 +2543,9 @@ static async Task<bool> ApplyRequestedNewGameSessionAsync(
         return false;
 
     var now = DateTimeOffset.UtcNow.ToString("O");
-    var written = await WriteNewRunAsync(node, options, now).ConfigureAwait(false);
-    session.Mode = written.IsTutorial ? AetheriaGameSessionState.AetheriaMode : AetheriaGameSessionState.TerminusMode;
+    var written = await AetheriaDaemonRunFactory.WriteAsync(
+        node, node.RuntimeCatalog().Latest(), now, menu.LastCommandId).ConfigureAwait(false);
+    session.Mode = written.SessionMode;
     session.SessionId = options.SessionId;
     session.RunId = written.RunId;
     session.ControlledEntityKey = written.CurrentEntityKey;
@@ -2550,29 +2558,6 @@ static async Task<bool> ApplyRequestedNewGameSessionAsync(
         .ReplaceAsync(session).ConfigureAwait(false);
     await node.FlushAsync().ConfigureAwait(false);
     return true;
-}
-
-static async Task<AetheriaDaemonWrittenRun> WriteNewRunAsync(
-    AetheriaStateNode node,
-    AetheriaDaemonHostOptions options,
-    string now)
-{
-    var settings = await node.MutableDocument<AetheriaPlayerSettings>(AetheriaStateNode.PlayerSettingsKey)
-        .ReadAsync().ConfigureAwait(false) ?? new AetheriaPlayerSettings();
-    var catalog = node.RuntimeCatalog().Latest();
-    if (!settings.TutorialPassed)
-        return await AetheriaDaemonTutorialRunWriter.WriteAsync(node, catalog, now).ConfigureAwait(false);
-
-    await AetheriaDaemonZoneGenerator.WritePlayableRunAsync(
-        node,
-        catalog,
-        now,
-        options.TerminusScenario).ConfigureAwait(false);
-    return new AetheriaDaemonWrittenRun(
-        AetheriaDaemonZoneGenerator.RunIdFor(options.TerminusScenario),
-        $"global:aetheria.run_state.{AetheriaDaemonZoneGenerator.RunIdFor(options.TerminusScenario)}.v1",
-        AetheriaDaemonZoneGenerator.EntityKey(options.TerminusScenario, 0, 1),
-        false);
 }
 
 static async Task EnsureVerseAuthorityPolicyAsync(
@@ -2617,6 +2602,9 @@ static async Task<AetheriaRuntimeRunCheckpointCommit?> ReadRuntimeRunCheckpointA
     {
         RunId = run.RunId ?? "",
         IsTutorial = run.IsTutorial,
+        GameMode = string.IsNullOrWhiteSpace(run.GameMode)
+            ? run.IsTutorial ? AetheriaGameSessionState.AetheriaMode : AetheriaGameSessionState.TerminusMode
+            : run.GameMode,
         EntranceZoneIndex = run.EntranceZoneIndex,
         ExitZoneIndex = run.ExitZoneIndex,
         CurrentZoneIndex = run.CurrentZoneIndex,
@@ -3137,6 +3125,7 @@ internal sealed class AetheriaDaemonHostOptions
     public AetheriaRuntimeDaemonSimulationSettings SimulationSettings { get; init; } =
         AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault;
     public string TerminusScenario { get; init; } = AetheriaDaemonTerminusScenarios.Standard;
+    public bool UseTerminusFixture { get; init; }
     public bool Once { get; init; }
 
     public static AetheriaDaemonHostOptions Parse(IReadOnlyList<string> args)
@@ -3165,7 +3154,8 @@ internal sealed class AetheriaDaemonHostOptions
         var noOdinAnnouncements = HasFlag(args, "--no-odin-announcements");
         var apiPublicationIntervalMs = ReadPositiveInt(args, "--api-publication-interval-ms") ?? 1000;
         var sessionId = ReadOption(args, "--session-id");
-        var terminusScenario = AetheriaDaemonTerminusScenarios.Parse(ReadOption(args, "--terminus-scenario"));
+        var requestedTerminusScenario = ReadOption(args, "--terminus-scenario");
+        var terminusScenario = AetheriaDaemonTerminusScenarios.Parse(requestedTerminusScenario);
 
         return new AetheriaDaemonHostOptions
         {
@@ -3197,6 +3187,7 @@ internal sealed class AetheriaDaemonHostOptions
             ApiPublicationInterval = TimeSpan.FromMilliseconds(apiPublicationIntervalMs),
             FixedDeltaSeconds = fixedDeltaMs / 1000.0,
             TerminusScenario = terminusScenario,
+            UseTerminusFixture = !string.IsNullOrWhiteSpace(requestedTerminusScenario),
             Once = HasFlag(args, "--once")
         };
     }

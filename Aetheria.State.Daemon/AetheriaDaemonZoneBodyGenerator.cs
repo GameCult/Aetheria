@@ -38,6 +38,22 @@ public static class AetheriaDaemonTutorialWorldGenerator
                     topology.NoisePosition)));
         return new AetheriaDaemonTutorialWorldPlan(topology, zones);
     }
+
+    public static AetheriaDaemonTutorialWorldPlan GenerateRegular(
+        IReadOnlyList<AetheriaDaemonTutorialFactionInput> factions,
+        uint seed,
+        AetheriaDaemonRegularTopologySettings? settings = null)
+    {
+        var topology = AetheriaDaemonRegularTopologyGenerator.GenerateFossil(factions, seed, settings);
+        var zones = topology.Zones.ToDictionary(
+            zone => zone.ZoneIndex,
+            zone => AetheriaDaemonZoneBodyGenerator.Generate(
+                seed,
+                zone,
+                AetheriaDaemonRegularTopologyGenerator.MainCloudDensity(zone.X, zone.Y),
+                "regular"));
+        return new AetheriaDaemonTutorialWorldPlan(topology, zones);
+    }
 }
 
 /// <summary>
@@ -51,7 +67,8 @@ public static class AetheriaDaemonZoneBodyGenerator
     public static AetheriaDaemonGeneratedZonePlan Generate(
         uint galaxySeed,
         AetheriaDaemonTutorialZoneTopology zone,
-        float cloudDensity)
+        float cloudDensity,
+        string identityPrefix = "tutorial")
     {
         var density = Saturate(cloudDensity / 2f);
         var radius = ExponentialLerp(density, 1.5f, 1000, 10000);
@@ -100,7 +117,7 @@ public static class AetheriaDaemonZoneBodyGenerator
             planets.AddRange(GenerateSystem(ref random, mass, radius, new CultMath.float2(0, 0)));
         }
 
-        var orbitKeys = planets.Select((_, index) => $"tutorial.zone.{zone.ZoneIndex}.orbit.{index}").ToArray();
+        var orbitKeys = planets.Select((_, index) => $"{identityPrefix}.zone.{zone.ZoneIndex}.orbit.{index}").ToArray();
         var nodeIndices = planets.Select((node, index) => (node, index)).ToDictionary(value => value.node, value => value.index);
         var orbits = planets.Select((planet, index) => new AetheriaOrbitSnapshot
         {
@@ -118,7 +135,8 @@ public static class AetheriaDaemonZoneBodyGenerator
             var planet = planets[nodeIndex];
             if (planet.Empty)
                 continue;
-            bodies.Add(ProjectBody(zone.ZoneIndex, bodies.Count, planet, orbits[nodeIndex], ref random));
+            bodies.Add(ProjectBody(
+                identityPrefix, zone.ZoneIndex, bodies.Count, planet, orbits[nodeIndex], ref random));
         }
 
         return new AetheriaDaemonGeneratedZonePlan(
@@ -227,6 +245,7 @@ public static class AetheriaDaemonZoneBodyGenerator
     }
 
     private static AetheriaBodySnapshot ProjectBody(
+        string identityPrefix,
         int zoneIndex,
         int bodyIndex,
         PlanetNode planet,
@@ -239,7 +258,7 @@ public static class AetheriaDaemonZoneBodyGenerator
             planet.Mass > 100 ? "planet" : "planetoid";
         var body = new AetheriaBodySnapshot
         {
-            BodyKey = $"tutorial.zone.{zoneIndex}.body.{bodyIndex}",
+            BodyKey = $"{identityPrefix}.zone.{zoneIndex}.body.{bodyIndex}",
             Kind = kind,
             Name = $"Z{zoneIndex:D2}-{bodyIndex:D3}",
             OrbitKey = orbit.OrbitKey,

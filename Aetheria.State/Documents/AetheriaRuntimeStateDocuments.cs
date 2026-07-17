@@ -253,6 +253,9 @@ public sealed class AetheriaRunState
 
     [Key(16)]
     public AetheriaAgentTaskState[] AgentTasks { get; set; } = [];
+
+    [Key(17)]
+    public string GameMode { get; set; } = AetheriaGameSessionState.AetheriaMode;
 }
 
 [MessagePackObject]

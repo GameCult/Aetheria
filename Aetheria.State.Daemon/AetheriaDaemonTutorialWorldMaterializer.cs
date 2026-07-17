@@ -27,11 +27,17 @@ public static class AetheriaDaemonTutorialWorldMaterializer
     public static AetheriaDaemonMaterializedTutorialWorld Materialize(
         AetheriaDaemonTutorialWorldPlan world,
         IReadOnlyList<AetheriaDaemonTutorialFactionInput> factions,
-        AetheriaRuntimeCatalogSnapshot catalog)
+        AetheriaRuntimeCatalogSnapshot catalog,
+        bool isPrelude = true,
+        string identityPrefix = "tutorial")
     {
         if (world == null) throw new ArgumentNullException(nameof(world));
         if (catalog == null) throw new ArgumentNullException(nameof(catalog));
         var homes = world.Topology.HomeZoneByFactionKey;
+        factions = homes.Keys
+            .Select(key => factions.First(faction =>
+                string.Equals(faction.CorporationKey, key, StringComparison.Ordinal)))
+            .ToArray();
         var adjacency = world.Topology.Zones.ToDictionary(
             zone => zone.ZoneIndex,
             zone => zone.AdjacentZoneIndices,
@@ -52,8 +58,10 @@ public static class AetheriaDaemonTutorialWorldMaterializer
                 .OrderBy(faction => distances[faction.CorporationKey][topology.ZoneIndex])
                 .First();
             var homeDistance = distances[nearest.CorporationKey][topology.ZoneIndex];
-            var tutorialInfluence = Math.Max(0, (nearest.InfluenceDistance + 1) / 2);
-            var factionPresence = tutorialInfluence - homeDistance + 1;
+            var influence = isPrelude
+                ? Math.Max(0, (nearest.InfluenceDistance + 1) / 2)
+                : Math.Max(0, nearest.InfluenceDistance);
+            var factionPresence = influence - homeDistance + 1;
             var stationCount = (int)(random.NextFloat() * (factionPresence + 1));
             var orbits = celestial.Orbits.ToList();
             var entities = new List<AetheriaEntitySnapshot>();
@@ -70,7 +78,7 @@ public static class AetheriaDaemonTutorialWorldMaterializer
                         topology.ZoneIndex,
                         homes,
                         adjacency,
-                        isPrelude: true);
+                        isPrelude: isPrelude);
                     generators.Add(factionKey, generator);
                 }
                 return generator;
@@ -90,7 +98,7 @@ public static class AetheriaDaemonTutorialWorldMaterializer
                 var baseOrbit = selected[stationIndex];
                 var stationOrbit = new AetheriaOrbitSnapshot
                 {
-                    OrbitKey = $"tutorial.zone.{topology.ZoneIndex}.station.{stationIndex}.orbit",
+                    OrbitKey = $"{identityPrefix}.zone.{topology.ZoneIndex}.station.{stationIndex}.orbit",
                     ParentOrbitKey = baseOrbit.ParentOrbitKey,
                     Distance = baseOrbit.Distance,
                     Phase = baseOrbit.Phase + MathF.PI / 3 * Sign(random.NextFloat() - 0.5f),
@@ -114,7 +122,7 @@ public static class AetheriaDaemonTutorialWorldMaterializer
                     if (turretIndex % 2 == 0) distanceMultiplier = -distanceMultiplier;
                     var turretOrbit = new AetheriaOrbitSnapshot
                     {
-                        OrbitKey = $"tutorial.zone.{topology.ZoneIndex}.station.{stationIndex}.turret.{turretIndex}.orbit",
+                        OrbitKey = $"{identityPrefix}.zone.{topology.ZoneIndex}.station.{stationIndex}.turret.{turretIndex}.orbit",
                         ParentOrbitKey = stationOrbit.ParentOrbitKey,
                         Distance = stationOrbit.Distance,
                         Phase = stationOrbit.Phase + 20f * distanceMultiplier / stationOrbit.Distance,
@@ -145,7 +153,7 @@ public static class AetheriaDaemonTutorialWorldMaterializer
                     spawnRandom.NextFloat((float)-halfRadius, (float)halfRadius),
                     spawnRandom.NextFloat((float)-halfRadius, (float)halfRadius));
                 var entityIndex = entities.Count;
-                var taskId = $"tutorial.zone.{topology.ZoneIndex}.entity.{entityIndex}.patrol";
+                var taskId = $"{identityPrefix}.zone.{topology.ZoneIndex}.entity.{entityIndex}.patrol";
                 enemy.AgentTaskCapabilities =
                 [
                     AetheriaRuntimeAgentTaskTypes.Attack,
@@ -183,7 +191,7 @@ public static class AetheriaDaemonTutorialWorldMaterializer
                     topology.ZoneIndex,
                     homes,
                     adjacency,
-                    isPrelude: true).Build("ship", protagonist.CorporationKey);
+                    isPrelude: isPrelude).Build("ship", protagonist.CorporationKey);
                 localPlayerIndex = entities.Count;
                 entities.Add(AetheriaDaemonGeneratedEntityFactory.Create(
                     "Pilot",
