@@ -923,6 +923,33 @@ lifecycle state.
   weapon smokes also prove those side effects for instant, constant, charged,
   and deployable transactions, including the charged visibility multiplier.
 
+### Daemon Ship Schematic Projection
+
+- Owner: the daemon entity snapshot and typed catalog own schematic topology and
+  every displayed gameplay value.
+- Inputs: hull shape, current/maximum armor grids, installed-item placement and
+  rotation, catalog footprint/durability/thermal bounds, equipment state, and
+  weapon lifecycle state.
+- Outputs: one generic `ship.schematic` child for the controlled entity and one
+  for its selected target, marked `self` or `target`; explicit `schematic.hull-cell`,
+  `schematic.item`, `schematic.item-cell`, and `schematic.weapon` children carry
+  the complete spatial and live state.
+- Derived state: renderer layout, color ramps, warning animation, typography,
+  temperature units, and compact-vs-spatial presentation are client choices.
+- Forbidden writers: fossil `SchematicDisplay.Update`, Unity item objects, and
+  generic Eve lowerers cannot calculate armor, durability, temperature,
+  performance, online state, wear, ammo, or cooldown.
+- Shared paths: schematic item footprints use
+  `AetheriaRuntimeEquipmentGridGeometry.RotatedCells`, the same geometry used by
+  refit admission and damage interception.
+- Cut line: the fossil schematic remains a visual reference/product shell, not
+  the only source of its semantics. Generic clients need no Aetheria runtime
+  types or provider internals to lower the advertised tree.
+- Verification: daemon smoke proves a selected target's nonuniform armor grid,
+  clockwise two-cell equipment footprint, durability/temperature ratios,
+  thermal performance, online state, ammo, and cooldown, plus the controlled
+  entity's `self` role.
+
 ### Guided Shot Presentation Contract
 
 - Owner: the daemon's ordinary shot transaction owns hit and damage for

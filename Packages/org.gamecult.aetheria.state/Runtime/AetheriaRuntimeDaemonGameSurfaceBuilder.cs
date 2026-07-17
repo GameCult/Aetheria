@@ -1228,9 +1228,167 @@ namespace GameCult.Aetheria.State.Verse
                 $"aetheria.daemon.game.world.entity.{entity.EntityIndex}",
                 "entity.presentation",
                 props,
-                string.Equals(entityId, playerEntityId, StringComparison.Ordinal)
-                    ? WeaponStateItems(entity, run, zone)
-                    : Array.Empty<AetheriaRuntimeSurfaceComponent>());
+                (string.Equals(entityId, playerEntityId, StringComparison.Ordinal)
+                        ? WeaponStateItems(entity, run, zone)
+                        : Array.Empty<AetheriaRuntimeSurfaceComponent>())
+                    .Concat(player != null &&
+                            (player.EntityIndex == entity.EntityIndex || player.TargetEntityIndex == entity.EntityIndex)
+                        ? new[] { ShipSchematic(entity, player, catalog) }
+                        : Array.Empty<AetheriaRuntimeSurfaceComponent>())
+                    .ToArray());
+        }
+
+        private static AetheriaRuntimeSurfaceComponent ShipSchematic(
+            AetheriaRuntimeEntitySnapshotCommit entity,
+            AetheriaRuntimeEntitySnapshotCommit? player,
+            AetheriaRuntimeCatalogSnapshot? catalog)
+        {
+            var hull = catalog?.FindItem(entity.HullItemKey ?? "");
+            var armor = EntityGrid(entity, "armor");
+            var maximumArmor = EntityGrid(entity, "maximumArmor");
+            var width = Math.Max(hull?.ShapeWidth ?? 0, Math.Max(armor?.Width ?? 0, maximumArmor?.Width ?? 0));
+            var height = Math.Max(hull?.ShapeHeight ?? 0, Math.Max(armor?.Height ?? 0, maximumArmor?.Height ?? 0));
+            var hullCells = (hull?.ShapeCells ?? Array.Empty<AetheriaRuntimeShapeCell>())
+                .Select(cell => (cell.X, cell.Y))
+                .ToHashSet();
+            if (hullCells.Count == 0)
+                for (var y = 0; y < height; y++)
+                for (var x = 0; x < width; x++)
+                    hullCells.Add((x, y));
+
+            var cellNodes = hullCells
+                .OrderBy(cell => cell.Y)
+                .ThenBy(cell => cell.X)
+                .Select(cell =>
+                {
+                    var current = GridCell(armor, cell.X, cell.Y);
+                    var maximum = GridCell(maximumArmor, cell.X, cell.Y);
+                    return Node(
+                        $"aetheria.daemon.game.world.entity.{entity.EntityIndex}.schematic.cell.{cell.X}.{cell.Y}",
+                        "schematic.hull-cell",
+                        new[]
+                        {
+                            ("x", cell.X.ToString(CultureInfo.InvariantCulture)),
+                            ("y", cell.Y.ToString(CultureInfo.InvariantCulture)),
+                            ("armor", FormatNumber(current)),
+                            ("maximumArmor", FormatNumber(maximum)),
+                            ("armorRatio", FormatRatio(current, maximum))
+                        });
+                });
+            var equipmentNodes = (entity.Equipment ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>())
+                .Select((slot, index) => SchematicItem(entity, catalog, slot, index))
+                .Where(node => node != null)
+                .Cast<AetheriaRuntimeSurfaceComponent>();
+            var role = player?.EntityIndex == entity.EntityIndex ? "self" : "target";
+            return Node(
+                $"aetheria.daemon.game.world.entity.{entity.EntityIndex}.schematic",
+                "ship.schematic",
+                new[]
+                {
+                    ("role", role),
+                    ("entityIndex", entity.EntityIndex.ToString(CultureInfo.InvariantCulture)),
+                    ("hullItemKey", entity.HullItemKey ?? ""),
+                    ("width", width.ToString(CultureInfo.InvariantCulture)),
+                    ("height", height.ToString(CultureInfo.InvariantCulture)),
+                    ("cellOrigin", "top-left"),
+                    ("xDirection", "right"),
+                    ("yDirection", "down")
+                },
+                cellNodes.Concat(equipmentNodes).ToArray());
+        }
+
+        private static AetheriaRuntimeSurfaceComponent? SchematicItem(
+            AetheriaRuntimeEntitySnapshotCommit entity,
+            AetheriaRuntimeCatalogSnapshot? catalog,
+            AetheriaRuntimeLoadoutItemSlotCommit? slot,
+            int equipmentIndex)
+        {
+            if (slot?.Item == null)
+                return null;
+            var typed = catalog?.FindItem(slot.Item.ItemKey ?? "");
+            var state = (entity.EquipmentStates ?? Array.Empty<AetheriaRuntimeEquipmentStateCommit>())
+                .FirstOrDefault(value => value != null && value.EquipmentIndex == equipmentIndex);
+            var rotation = AetheriaRuntimeEquipmentRotation.QuarterTurns(slot.Rotation);
+            IReadOnlyList<(int X, int Y)> footprint = typed == null
+                ? Array.Empty<(int X, int Y)>()
+                : AetheriaRuntimeEquipmentGridGeometry.RotatedCells(typed, rotation)
+                    .Select(cell => (X: slot.X + cell.X, Y: slot.Y + cell.Y))
+                    .ToArray();
+            var maximumDurability = Math.Max(0, typed?.Durability ?? 0);
+            var temperatureMinimum = typed?.MinimumTemperature ?? 0;
+            var temperatureMaximum = typed?.MaximumTemperature ?? 0;
+            var temperature = state?.Temperature ?? slot.Item.Temperature;
+            var weapons = (entity.WeaponStates ?? Array.Empty<AetheriaRuntimeWeaponStateCommit>())
+                .Where(value => value != null &&
+                    string.Equals(value.OwnerKind, AetheriaRuntimeBehaviorStateProjector.EquipmentOwnerKind, StringComparison.Ordinal) &&
+                    value.OwnerIndex == equipmentIndex)
+                .OrderBy(value => value.BehaviorIndex)
+                .Select(value => Node(
+                    $"aetheria.daemon.game.world.entity.{entity.EntityIndex}.schematic.item.{equipmentIndex}.weapon.{value.BehaviorIndex}",
+                    "schematic.weapon",
+                    new[]
+                    {
+                        ("behaviorIndex", value.BehaviorIndex.ToString(CultureInfo.InvariantCulture)),
+                        ("behaviorKind", value.BehaviorKind),
+                        ("ammo", value.Ammo.ToString(CultureInfo.InvariantCulture)),
+                        ("cooldownProgress", FormatNumber(value.CooldownProgress)),
+                        ("firing", value.Firing ? "true" : "false"),
+                        ("charging", value.Charging ? "true" : "false"),
+                        ("charge", FormatNumber(value.Charge)),
+                        ("reloading", value.Reloading ? "true" : "false"),
+                        ("reloadProgress", FormatNumber(value.ReloadProgress))
+                    }));
+            var cells = footprint
+                .OrderBy(cell => cell.Y)
+                .ThenBy(cell => cell.X)
+                .Select((cell, cellIndex) => Node(
+                    $"aetheria.daemon.game.world.entity.{entity.EntityIndex}.schematic.item.{equipmentIndex}.cell.{cellIndex}",
+                    "schematic.item-cell",
+                    new[]
+                    {
+                        ("x", cell.X.ToString(CultureInfo.InvariantCulture)),
+                        ("y", cell.Y.ToString(CultureInfo.InvariantCulture))
+                    }));
+            return Node(
+                $"aetheria.daemon.game.world.entity.{entity.EntityIndex}.schematic.item.{equipmentIndex}",
+                "schematic.item",
+                new[]
+                {
+                    ("equipmentIndex", equipmentIndex.ToString(CultureInfo.InvariantCulture)),
+                    ("itemKey", slot.Item.ItemKey ?? ""),
+                    ("label", typed?.Name ?? slot.Item.ItemKey ?? ""),
+                    ("x", slot.X.ToString(CultureInfo.InvariantCulture)),
+                    ("y", slot.Y.ToString(CultureInfo.InvariantCulture)),
+                    ("rotation", slot.Rotation ?? "None"),
+                    ("enabled", slot.Item.Enabled ? "true" : "false"),
+                    ("online", (state?.Online ?? (slot.Item.Enabled && slot.Item.Durability > 0.01)) ? "true" : "false"),
+                    ("durability", FormatNumber(slot.Item.Durability)),
+                    ("maximumDurability", FormatNumber(maximumDurability)),
+                    ("durabilityRatio", FormatRatio(slot.Item.Durability, maximumDurability)),
+                    ("temperature", FormatNumber(temperature)),
+                    ("minimumTemperature", FormatNumber(temperatureMinimum)),
+                    ("maximumTemperature", FormatNumber(temperatureMaximum)),
+                    ("temperatureRatio", FormatRangeRatio(temperature, temperatureMinimum, temperatureMaximum)),
+                    ("thermalPerformance", FormatNumber(state?.ThermalPerformance ?? 1)),
+                    ("wear", FormatNumber(state?.Wear ?? 0)),
+                    ("behaviorKinds", string.Join(",", typed?.BehaviorKinds ?? Array.Empty<string>()))
+                },
+                cells.Concat(weapons).ToArray());
+        }
+
+        private static double GridCell(AetheriaRuntimeEntityStatGridCommit? grid, int x, int y)
+        {
+            if (grid?.Values == null || x < 0 || y < 0 || x >= grid.Width || y >= grid.Height)
+                return 0;
+            var index = y * grid.Width + x;
+            return index >= 0 && index < grid.Values.Count ? grid.Values[index] : 0;
+        }
+
+        private static string FormatRangeRatio(double value, double minimum, double maximum)
+        {
+            if (maximum <= minimum)
+                return "0";
+            return FormatNumber(Math.Max(0, Math.Min(1, (value - minimum) / (maximum - minimum))));
         }
 
         private static AetheriaRuntimeSurfaceComponent[] WeaponStateItems(

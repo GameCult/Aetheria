@@ -165,6 +165,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             CanonicalCatalogPublishesRecoveredMineLauncher,
             EnergyFundedShieldInterceptsDamageBeforeHull,
             ArmorCellsResolveBeforeEquipmentAndHull,
+            ShipSchematicProjectsDaemonTopologyAndEquipmentState,
             EquipmentDestructionDisablesBehaviorAndCockpitKillsBeforeHull,
             DestructionDropsLootExactlyOnce,
             DaemonSimulationTreatsYmirHitAsPresentationOnly,
@@ -3104,6 +3105,101 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             "Eve world projection must expose aggregate armor as derived presentation state");
         RequireEqual("0,5,5,0,5,5,0,5,5", targetNode.Props["armorGrid"],
             "Eve world projection must expose the exact daemon-owned schematic grid");
+    }
+
+    private static void ShipSchematicProjectsDaemonTopologyAndEquipmentState()
+    {
+        var player = Entity(0, -50, "player");
+        player.TargetEntityIndex = 1;
+        var target = Entity(1, 0, "raider");
+        var observed = Entity(2, 50, "neutral");
+        target.HullItemKey = "schematic-hull";
+        target.StatGrids =
+        [
+            Grid("hull", 100), Grid("shield", 0), Grid("heat", 400),
+            Grid("armor", 3, 2, 10, 8, 6, 4, 2, 0),
+            Grid("maximumArmor", 3, 2, 10, 10, 10, 10, 10, 10)
+        ];
+        target.Equipment = [new AetheriaRuntimeLoadoutItemSlotCommit
+        {
+            X = 1, Y = 0, Rotation = "Clockwise",
+            Item = new AetheriaRuntimeLoadoutItemCommit
+            {
+                ItemKey = "schematic-launcher", Quality = 1, Durability = 5,
+                Temperature = 400, Enabled = true
+            }
+        }];
+        target.EquipmentStates = [new AetheriaRuntimeEquipmentStateCommit
+        {
+            EquipmentIndex = 0, Temperature = 400, ThermalPerformance = 0.75,
+            DurabilityPerformance = 0.5, Wear = 0.02, Online = true,
+            ThermalOnline = true, DurabilityOnline = true
+        }];
+        target.WeaponStates = [new AetheriaRuntimeWeaponStateCommit
+        {
+            OwnerKind = AetheriaRuntimeBehaviorStateProjector.EquipmentOwnerKind,
+            OwnerIndex = 0, BehaviorIndex = 0, BehaviorKind = AetheriaRuntimeBehaviorKinds.Launcher,
+            Ammo = 3, CooldownProgress = 0.4, CoolingDown = true
+        }];
+        var hull = HullCatalogItem("schematic-hull", 3, 2, 10);
+        var launcher = CatalogItem("schematic-launcher", new AetheriaRuntimeBehaviorPayload(
+            0, AetheriaRuntimeBehaviorKinds.Launcher, 0, []));
+        launcher.ShapeWidth = 2;
+        launcher.ShapeHeight = 1;
+        launcher.OccupiedCells = 2;
+        launcher.ShapeCells =
+        [
+            new AetheriaRuntimeShapeCell(0, 0),
+            new AetheriaRuntimeShapeCell(1, 0)
+        ];
+        launcher.Durability = 10;
+        launcher.MinimumTemperature = 200;
+        launcher.MaximumTemperature = 600;
+        var catalog = new AetheriaRuntimeCatalogSnapshot([hull, launcher], [], []);
+        var zone = new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [player, target, observed] };
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "schematic-surface-smoke", CurrentZoneIndex = 0,
+            CurrentEntityKey = AetheriaRuntimeRunCheckpointCommit.EntityRecordKey(
+                "schematic-surface-smoke", 0, player.EntityIndex),
+            Zones = [zone]
+        };
+
+        var surface = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(
+            new AetheriaRuntimeDaemonFrameDocument { FrameId = 1, Run = run },
+            new AetheriaRuntimeDaemonHealthDocument(),
+            AetheriaRuntimeDaemonCommandBoundaryDocument.Create("daemon"),
+            catalog: catalog);
+        var schematic = Flatten(surface.Surface.Root).Single(node =>
+            node.Id == "aetheria.daemon.game.world.entity.1.schematic");
+        Require(schematic.Kind == "ship.schematic" && schematic.Props["role"] == "target" &&
+                schematic.Props["width"] == "3" && schematic.Props["height"] == "2",
+            "selected target must publish its daemon-owned hull topology as a generic ship schematic");
+        var hullCells = Flatten(schematic).Where(node => node.Kind == "schematic.hull-cell").ToArray();
+        RequireEqual(6, hullCells.Length,
+            "schematic must publish every occupied hull cell rather than a renderer-invented rectangle");
+        var damagedCell = hullCells.Single(node => node.Props["x"] == "1" && node.Props["y"] == "0");
+        Require(damagedCell.Props["armor"] == "8" && damagedCell.Props["maximumArmor"] == "10" &&
+                damagedCell.Props["armorRatio"] == "0.8",
+            "schematic cell must expose exact current and maximum daemon armor");
+        var item = Flatten(schematic).Single(node => node.Kind == "schematic.item");
+        Require(item.Props["itemKey"] == "schematic-launcher" && item.Props["durabilityRatio"] == "0.5" &&
+                item.Props["temperatureRatio"] == "0.5" && item.Props["thermalPerformance"] == "0.75" &&
+                item.Props["online"] == "true",
+            "schematic item must expose daemon-derived durability and thermal state");
+        var itemCells = Flatten(item).Where(node => node.Kind == "schematic.item-cell")
+            .Select(node => $"{node.Props["x"]},{node.Props["y"]}").ToArray();
+        RequireEqual("1,0;1,1", string.Join(";", itemCells),
+            "schematic footprint must use the same clockwise placement geometry as refit and damage");
+        var weapon = Flatten(item).Single(node => node.Kind == "schematic.weapon");
+        Require(weapon.Props["ammo"] == "3" && weapon.Props["cooldownProgress"] == "0.4",
+            "schematic weapon row must expose authoritative ammo and cooldown levers");
+        Require(Flatten(surface.Surface.Root).Single(node =>
+                node.Id == "aetheria.daemon.game.world.entity.0.schematic").Props["role"] == "self",
+            "controlled entity must publish the same schematic contract with a self role");
+        Require(!Flatten(surface.Surface.Root).Any(node =>
+                node.Id == "aetheria.daemon.game.world.entity.2.schematic"),
+            "unselected observed entities must not bloat the live surface with unused schematic trees");
     }
 
     private static void EquipmentDestructionDisablesBehaviorAndCockpitKillsBeforeHull()
