@@ -41,7 +41,6 @@ internal static class AetheriaDaemonZoneGenerator
         var corporationKeys = (catalog.Corporations ?? Array.Empty<AetheriaRuntimeCorporation>())
             .Select(value => value.CorporationKey)
             .Where(value => !string.IsNullOrWhiteSpace(value))
-            .OrderBy(value => value, StringComparer.Ordinal)
             .ToArray();
         if (corporationKeys.Length == 0)
         {
@@ -250,7 +249,7 @@ internal static class AetheriaDaemonZoneGenerator
 
         var entities = new[]
         {
-            Entity(loadouts, availabilityFactions, "Anchor Station", "station", -50, -30, 0, 0, "player", 760, keys[6], [keys[1], keys[2], keys[3], keys[4], keys[6], keys[7], keys[11]]),
+            Entity(loadouts, availabilityFactions, "Anchor Station", "station", -50, -30, 0, 0, "player", 760, keys[6], [keys[1], keys[2], keys[3], keys[4], keys[6], keys[7], keys[11]], 2, 900),
             Entity(loadouts, availabilityFactions, "Vanguard One", "ship", -40, -30, 0, 0, "player", 540, keys[6], [keys[0], keys[2], keys[4], keys[6], keys[7]]),
             Entity(loadouts, availabilityFactions, "Wing Two", "ship", 145, 125, -5, 7, "player", 450, keys[6], [keys[0], keys[1], keys[6], keys[8]]),
             Entity(loadouts, availabilityFactions, "Torch Three", "ship", -235, 210, 8, -4, "player", 500, keys[7], [keys[0], keys[1], keys[7]]),
@@ -386,17 +385,21 @@ internal static class AetheriaDaemonZoneGenerator
         string faction,
         double visibility,
         string target,
-        string[] contactKeys)
+        string[] contactKeys,
+        int securityLevel = 0,
+        double securityRadius = 0)
     {
         var availabilityFaction = availabilityFactions[faction];
         var loadout = loadouts[availabilityFaction].Build(kind, availabilityFaction);
         var entity = AetheriaDaemonGeneratedEntityFactory.Create(
             name,
             kind,
-            faction,
+            availabilityFaction,
             loadout,
             x,
-            z);
+            z,
+            securityLevel: securityLevel,
+            securityRadius: securityRadius);
         entity.Direction = Vec2(vx == 0 && vy == 0 ? 0 : vx, vx == 0 && vy == 0 ? 1 : vy);
         entity.LookDirection = Vec2(vx == 0 && vy == 0 ? 0 : vx, vx == 0 && vy == 0 ? 1 : vy);
         entity.Velocity = Vec2(vx, vy);
@@ -405,8 +408,7 @@ internal static class AetheriaDaemonZoneGenerator
         entity.Contacts = contactKeys.Select(key => new AetheriaEntityContactSnapshot
         {
             TargetEntityKey = key,
-            InfoGathered = 1,
-            Hostile = string.Equals(faction, "player", StringComparison.OrdinalIgnoreCase) && key.Contains(".entity.6.", StringComparison.Ordinal)
+            InfoGathered = 1
         }).ToArray();
         if (string.Equals(faction, "raider", StringComparison.OrdinalIgnoreCase))
             entity.StatGrids[0].Values[0] = 85;

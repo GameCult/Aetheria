@@ -3570,6 +3570,10 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         source.DirectionX = 1;
         source.DirectionY = 0;
         source.TargetEntityIndex = 2;
+        source.Contacts = [new AetheriaRuntimeEntityContactCommit
+        {
+            TargetEntityIndex = 2, InfoGathered = 1, Visible = true, Hostile = true
+        }];
         source.WeaponGroups = [new[] { 0 }];
         source.Equipment =
         [
@@ -8200,7 +8204,10 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         var catalog = new AetheriaRuntimeCatalogSnapshot([hull, salvage, cargoBay], [], []);
         var ship = Entity(0, 0, "player"); ship.HullItemKey = hull.ItemKey; ship.CargoContents = [Cargo()];
         ship.CargoBays = [new AetheriaRuntimeLoadoutItemSlotCommit { Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = cargoBay.ItemKey, Quantity = 1 } }];
-        var zone = new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [ship], DroppedPickups = [new AetheriaRuntimeDroppedPickupCommit { PickupIndex = 7, PositionX = AetheriaRuntimeTractorMechanics.CollectionDistance + 0.001, Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = salvage.ItemKey, Quantity = 1 }, LifetimeSeconds = 30 }] };
+        var ally = Entity(1, AetheriaRuntimeTractorMechanics.CollectionDistance, "player"); ally.HullItemKey = hull.ItemKey;
+        ally.CargoContents = [Cargo()];
+        ally.CargoBays = [new AetheriaRuntimeLoadoutItemSlotCommit { Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = cargoBay.ItemKey, Quantity = 1 } }];
+        var zone = new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [ship, ally], DroppedPickups = [new AetheriaRuntimeDroppedPickupCommit { PickupIndex = 7, PositionX = AetheriaRuntimeTractorMechanics.CollectionDistance + 0.001, Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = salvage.ItemKey, Quantity = 1 }, LifetimeSeconds = 30 }] };
         var run = new AetheriaRuntimeRunCheckpointCommit { CurrentZoneIndex = 0, CurrentEntityKey = "zone.0.entity.0", Zones = [zone] };
         var forbiddenCommand = AetheriaRuntimeDaemonCommandDocument.Create(AetheriaRuntimeDaemonCommandKinds.PickUpLoot, "pilot", "pickup-smoke", 0, "zone.0.entity.0");
         forbiddenCommand.CommandId = "pickup-command-forbidden";
@@ -8219,6 +8226,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             new AetheriaRuntimeDaemonTickOptions { WorldPhysics = new ScriptedWorldPhysics(), FrameId = 2, FixedDeltaSeconds = 0.1, SimulationTimeSeconds = 0.2, Catalog = catalog, BuildPublications = false });
         RequireEqual(0, zone.DroppedPickups.Count, "pickup at the 2D collection boundary must be consumed");
         RequireEqual(1, CargoQuantity(ship, salvage.ItemKey), "one pickup identity must commit cargo exactly once");
+        RequireEqual(0, CargoQuantity(ally, salvage.ItemKey),
+            "a closer allied simulation ship must not steal pickup ownership from the current controlled ship");
         RequireEqual(1, run.GameEvents.Count(value => value.Kind == "pickup.collected" && value.PickupIndex == 7),
             "one consumed pickup identity must emit one collection event");
         var collectionEvent = run.GameEvents.Single(value => value.Kind == "pickup.collected" && value.PickupIndex == 7);

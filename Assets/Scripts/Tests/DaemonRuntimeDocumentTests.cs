@@ -2494,6 +2494,7 @@ public class DaemonRuntimeDocumentTests
         var pilot = new AetheriaRuntimeEntitySnapshotCommit
         {
             EntityIndex = 1,
+            EntityId = "global:aetheria.run_state.local-terminus.zone.0.entity.1.v1",
             Kind = "ship",
             FactionKey = "player",
             IsActive = true,
@@ -2506,6 +2507,17 @@ public class DaemonRuntimeDocumentTests
                     Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = cargoBay.ItemKey, Quantity = 1 }
                 }
             },
+            CargoContents = new[] { new AetheriaRuntimeCargoBayLoadoutCommit() }
+        };
+        var alliedShip = new AetheriaRuntimeEntitySnapshotCommit
+        {
+            EntityIndex = 2,
+            EntityId = "global:aetheria.run_state.local-terminus.zone.0.entity.2.v1",
+            Kind = "ship",
+            FactionKey = "player",
+            IsActive = true,
+            PositionX = 9,
+            CargoBays = pilot.CargoBays,
             CargoContents = new[] { new AetheriaRuntimeCargoBayLoadoutCommit() }
         };
         var pickup = new AetheriaRuntimeDroppedPickupCommit
@@ -2525,7 +2537,7 @@ public class DaemonRuntimeDocumentTests
                 new AetheriaRuntimeZoneSnapshotCommit
                 {
                     ZoneIndex = 0,
-                    Entities = new[] { pilot },
+                    Entities = new[] { pilot, alliedShip },
                     DroppedPickups = new[] { pickup }
                 }
             }
@@ -2540,6 +2552,8 @@ public class DaemonRuntimeDocumentTests
             catalog);
 
         Assert.IsTrue(pilot.CargoContents.SelectMany(bay => bay.Items).Any(slot => slot.Item.ItemKey == "raider-salvage"));
+        Assert.IsFalse(alliedShip.CargoContents.SelectMany(bay => bay.Items).Any(slot => slot.Item.ItemKey == "raider-salvage"),
+            "an allied simulation ship must not steal cargo intended for the current controlled ship");
         Assert.AreEqual(0, run.Zones[0].DroppedPickups.Count,
             "daemon XZ proximity must own collection without tractor power or a Ymir contact fact");
     }

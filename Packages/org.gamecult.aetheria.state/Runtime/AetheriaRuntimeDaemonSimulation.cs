@@ -438,13 +438,18 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeCatalogSnapshot? catalog,
             long frameId)
         {
+            if (!AetheriaRuntimeRunCheckpointCommit.TryParseEntityKey(
+                    run.CurrentEntityKey, out var currentZoneIndex, out var currentEntityIndex) ||
+                currentZoneIndex != zone.ZoneIndex)
+                return;
             var attached = (entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
                 .Where(value => value != null)
                 .SelectMany(value => value.ChildEntityIndices ?? Array.Empty<int>())
                 .ToHashSet();
             var ships = (entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
                 .Where(value => value != null && value.IsActive && value.WormholeTransition == null &&
-                    !attached.Contains(value.EntityIndex) && IsPickupCollector(value, catalog))
+                    !attached.Contains(value.EntityIndex) && IsPickupCollector(value, catalog) &&
+                    value.EntityIndex == currentEntityIndex)
                 .Select(value => value!)
                 .OrderBy(value => value.EntityIndex)
                 .ToArray();
@@ -2694,9 +2699,10 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeEntitySnapshotCommit left,
             AetheriaRuntimeEntitySnapshotCommit right)
         {
-            return IsPlayerOwned(left) != IsPlayerOwned(right) &&
-                (string.Equals(left.FactionKey, "raider", StringComparison.OrdinalIgnoreCase) ||
-                 string.Equals(right.FactionKey, "raider", StringComparison.OrdinalIgnoreCase));
+            return (left.Contacts ?? Array.Empty<AetheriaRuntimeEntityContactCommit>())
+                .Any(contact => contact != null &&
+                    contact.TargetEntityIndex == right.EntityIndex &&
+                    contact.Hostile);
         }
 
         private static double DefaultHull(
