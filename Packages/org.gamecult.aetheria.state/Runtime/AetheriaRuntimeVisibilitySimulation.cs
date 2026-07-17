@@ -37,7 +37,7 @@ namespace GameCult.Aetheria.State.Verse
                     }
                     else
                     {
-                        grid.Values = [next];
+                        grid.Values = new[] { next };
                     }
                     entity.Visibility = Math.Max(0, entity.Visibility - previous) + next;
                 }
@@ -129,7 +129,7 @@ namespace GameCult.Aetheria.State.Verse
                 };
                 grids.Add(grid);
             }
-            grid.Values = [value];
+            grid.Values = new[] { value };
             entity.StatGrids = grids;
         }
 
