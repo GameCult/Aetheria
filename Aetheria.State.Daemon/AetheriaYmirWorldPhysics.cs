@@ -105,52 +105,6 @@ public sealed class AetheriaYmirWorldPhysics : IAetheriaRuntimeWorldPhysics, IDi
         }
     }
 
-    public AetheriaRuntimeWorldPickupStep ApplyPickupRejection(
-        string runId,
-        int zoneIndex,
-        AetheriaRuntimeWorldBeginContact contact)
-    {
-        ArgumentNullException.ThrowIfNull(contact);
-        if (string.IsNullOrWhiteSpace(contact.FactId))
-            throw new ArgumentException("Pickup rejection requires a Ymir Begin fact id.", nameof(contact));
-        if (!_sessions.TryGetValue(new WorldKey(runId, zoneIndex), out var state))
-            throw new InvalidOperationException($"No retained Ymir session owns run '{runId}' zone {zoneIndex}.");
-
-        var pickupId = PickupPrefix + contact.PickupIndex;
-        var entityIndex = contact.EntityAIndex >= 0 ? contact.EntityAIndex : contact.EntityBIndex;
-        var stableEntityId = contact.EntityAIndex >= 0 ? contact.EntityAId : contact.EntityBId;
-        if (string.IsNullOrWhiteSpace(stableEntityId))
-            throw new InvalidOperationException($"Ymir Begin fact '{contact.FactId}' has no stable entity identity.");
-        var entityId = EntityPrefix + stableEntityId;
-        var bodies = state.WorldSession.Snapshot().Bodies.ToDictionary(body => body.Id, StringComparer.Ordinal);
-        if (!bodies.TryGetValue(pickupId, out var pickup) || !bodies.TryGetValue(entityId, out var entity))
-            throw new InvalidOperationException($"Ymir Begin fact '{contact.FactId}' references a body outside its retained session.");
-
-        var normalSign = contact.EntityAIndex == entityIndex ? 1.0 : -1.0;
-        var normal = Normalize(
-            contact.NormalX * normalSign,
-            contact.NormalZ * normalSign,
-            pickup.Position.X >= entity.Position.X ? 1 : -1,
-            0);
-        RequireAccepted(state.WorldSession.SetVelocity(new YmirSetBodyVelocityCommand(
-            new YmirCommandHeader($"aetheria:fact:{contact.FactId}:pickup-rejection", state.WorldSession.Info.Revision),
-            pickupId,
-            new Vec2(
-                pickup.Velocity.X + (float)(normal.X * 25.0),
-                pickup.Velocity.Y + (float)(normal.Y * 25.0)),
-            pickup.AngularVelocity)));
-
-        var rejected = state.WorldSession.Snapshot().Bodies.Single(body => body.Id == pickupId);
-        return new AetheriaRuntimeWorldPickupStep
-        {
-            PickupIndex = contact.PickupIndex,
-            PositionX = rejected.Position.X,
-            PositionZ = rejected.Position.Y,
-            VelocityX = rejected.Velocity.X,
-            VelocityZ = rejected.Velocity.Y
-        };
-    }
-
     public AetheriaRuntimeWorldStep Step(
         string runId,
         long frameId,
@@ -404,10 +358,10 @@ public sealed class AetheriaYmirWorldPhysics : IAetheriaRuntimeWorldPhysics, IDi
                     Header(session, frameId, simulationStepIndex, "configure", body.Id, ref commandOrdinal),
                     body.Id, body.Radius, body.Mass, body.IsStatic, body.Restitution, body.IsKinematic)));
 
-            if (present.Direction != body.Direction)
+            if (present.Position != body.Position || present.Direction != body.Direction)
                 RequireAccepted(session.Teleport(new YmirTeleportBodyCommand(
-                    Header(session, frameId, simulationStepIndex, "direction", body.Id, ref commandOrdinal),
-                    body.Id, present.Position, body.Direction ?? new Vec2(0, 1))));
+                    Header(session, frameId, simulationStepIndex, "pose", body.Id, ref commandOrdinal),
+                    body.Id, body.Position, body.Direction ?? new Vec2(0, 1))));
 
             if (!body.IsStatic && (present.Velocity != body.Velocity || present.AngularVelocity != body.AngularVelocity))
                 RequireAccepted(session.SetVelocity(new YmirSetBodyVelocityCommand(
@@ -475,32 +429,7 @@ public sealed class AetheriaYmirWorldPhysics : IAetheriaRuntimeWorldPhysics, IDi
                     PositionZ = body.Position.Y,
                     VelocityX = body.Velocity.X,
                     VelocityZ = body.Velocity.Y
-                }).ToArray(),
-            step.ContactFacts
-                .Where(fact => fact.Kind == YmirContactFactKind.Begin &&
-                    (fact.BodyA.StartsWith(PickupPrefix, StringComparison.Ordinal) ||
-                     fact.BodyB.StartsWith(PickupPrefix, StringComparison.Ordinal)))
-                .Select(fact =>
-                {
-                    entitiesByBodyId.TryGetValue(fact.BodyA, out var entityA);
-                    entitiesByBodyId.TryGetValue(fact.BodyB, out var entityB);
-                    return new AetheriaRuntimeWorldBeginContact
-                    {
-                        FactId = fact.FactId,
-                        EntityAId = entityA?.EntityId ?? "",
-                        EntityBId = entityB?.EntityId ?? "",
-                        EntityAIndex = entityA?.EntityIndex ?? -1,
-                        EntityBIndex = entityB?.EntityIndex ?? -1,
-                        PickupIndex = Math.Max(ParseIndex(fact.BodyA, PickupPrefix), ParseIndex(fact.BodyB, PickupPrefix)),
-                        PointX = fact.Point?.X ?? 0,
-                        PointZ = fact.Point?.Y ?? 0,
-                        NormalX = fact.Normal?.X ?? 0,
-                        NormalZ = fact.Normal?.Y ?? 0,
-                        RelativeSpeed = fact.RelativeSpeed ?? 0
-                    };
                 })
-                .Where(contact => contact.PickupIndex >= 0 &&
-                    (contact.EntityAIndex >= 0 || contact.EntityBIndex >= 0))
                 .ToArray());
     }
 
@@ -544,7 +473,8 @@ public sealed class AetheriaYmirWorldPhysics : IAetheriaRuntimeWorldPhysics, IDi
                 // The fossil moves entities directly and has no rigidbody collision response
                 // between ships/stations. Keep their Ymir bodies for fields and queries, but
                 // do not let invented circle radii hold a ship outside the 25-unit dock rule.
-                // Pickups retain group zero, so ship/pickup Begin contacts still own collection.
+                // Pickups retain group zero so Ymir can resolve their physical motion against ships.
+                // The daemon independently owns collection through post-step XZ proximity.
                 CollisionGroupIndex: -1);
         }).Concat(pickups.Select(pickup => new PhysicsBody(
             PickupPrefix + pickup.PickupIndex,

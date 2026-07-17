@@ -9,10 +9,6 @@ namespace GameCult.Aetheria.State.Verse
     {
         string ImplementationId { get; }
         void RetainWorlds(string runId, IReadOnlyList<int> zoneIndices);
-        AetheriaRuntimeWorldPickupStep ApplyPickupRejection(
-            string runId,
-            int zoneIndex,
-            AetheriaRuntimeWorldBeginContact contact);
         AetheriaRuntimeWorldStep Step(
             string runId,
             long frameId,
@@ -33,16 +29,13 @@ namespace GameCult.Aetheria.State.Verse
     {
         public AetheriaRuntimeWorldStep(
             IReadOnlyList<AetheriaRuntimeWorldBodyStep> bodies,
-            IReadOnlyList<AetheriaRuntimeWorldPickupStep> pickups,
-            IReadOnlyList<AetheriaRuntimeWorldBeginContact> beginContacts)
+            IReadOnlyList<AetheriaRuntimeWorldPickupStep> pickups)
         {
             Bodies = bodies ?? Array.Empty<AetheriaRuntimeWorldBodyStep>();
             Pickups = pickups ?? Array.Empty<AetheriaRuntimeWorldPickupStep>();
-            BeginContacts = beginContacts ?? Array.Empty<AetheriaRuntimeWorldBeginContact>();
         }
         public IReadOnlyList<AetheriaRuntimeWorldBodyStep> Bodies { get; }
         public IReadOnlyList<AetheriaRuntimeWorldPickupStep> Pickups { get; }
-        public IReadOnlyList<AetheriaRuntimeWorldBeginContact> BeginContacts { get; }
     }
 
     public sealed class AetheriaRuntimeWorldPickupStep
@@ -63,21 +56,6 @@ namespace GameCult.Aetheria.State.Verse
         public double VelocityY { get; set; }
         public double DirectionX { get; set; }
         public double DirectionY { get; set; }
-    }
-
-    public sealed class AetheriaRuntimeWorldBeginContact
-    {
-        public string FactId { get; set; } = "";
-        public string EntityAId { get; set; } = "";
-        public string EntityBId { get; set; } = "";
-        public int EntityAIndex { get; set; } = -1;
-        public int EntityBIndex { get; set; } = -1;
-        public int PickupIndex { get; set; } = -1;
-        public double PointX { get; set; }
-        public double PointZ { get; set; }
-        public double NormalX { get; set; }
-        public double NormalZ { get; set; }
-        public double RelativeSpeed { get; set; }
     }
 
     public sealed class AetheriaRuntimePhysicalPayloadStep

@@ -632,7 +632,7 @@ Console.WriteLine("Inventory entity rename authority: UI sends daemon operations
 Console.WriteLine("Weapon group authority: UI sends daemon operations for assignments instead of checkpoint rewrites");
 Console.WriteLine("Action-bar binding authority: Unity owns local input bindings; activations send daemon operations");
 Console.WriteLine("Inventory transfer authority: UI transfer and drag/drop send daemon operations");
-Console.WriteLine("Loot pickup authority: daemon cargo collection occurs exactly once from an authenticated Ymir contact fact");
+Console.WriteLine("Loot pickup authority: daemon cargo collection occurs exactly once from ship/pickup XZ proximity");
 Console.WriteLine("Entity destruction authority: lethal daemon simulation commits exactly-once destruction and loot; clients cannot request erasure");
 Console.WriteLine("Dropped pickup state: daemon frames carry typed dropped-pickup snapshots and keyed live lowering");
 Console.WriteLine("Trade purchase authority: UI requests item and placement; daemon derives price, station, product kind, capacity, and ship creation");

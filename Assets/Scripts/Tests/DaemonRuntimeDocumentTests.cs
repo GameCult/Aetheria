@@ -2481,8 +2481,16 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
-    public void TractorProximityCannotCollectCargoWithoutYmirContact()
+    public void ShipProximityCollectsCargoWithoutTractorOrYmirContact()
     {
+        var salvage = CatalogItem("raider-salvage", Array.Empty<AetheriaRuntimeBehaviorPayload>());
+        salvage.Volume = 1;
+        var cargoBay = CatalogItem("pickup-cargo-bay", Array.Empty<AetheriaRuntimeBehaviorPayload>());
+        cargoBay.InteriorOccupiedCells = 1;
+        var catalog = new AetheriaRuntimeCatalogSnapshot(
+            new[] { salvage, cargoBay },
+            Array.Empty<AetheriaRuntimeCorporation>(),
+            Array.Empty<AetheriaRuntimeNameFile>());
         var pilot = new AetheriaRuntimeEntitySnapshotCommit
         {
             EntityIndex = 1,
@@ -2490,7 +2498,14 @@ public class DaemonRuntimeDocumentTests
             FactionKey = "player",
             IsActive = true,
             TargetEntityIndex = 6,
-            TractorPower = 1,
+            TractorPower = 0,
+            CargoBays = new[]
+            {
+                new AetheriaRuntimeLoadoutItemSlotCommit
+                {
+                    Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = cargoBay.ItemKey, Quantity = 1 }
+                }
+            },
             CargoContents = new[] { new AetheriaRuntimeCargoBayLoadoutCommit() }
         };
         var pickup = new AetheriaRuntimeDroppedPickupCommit
@@ -2521,11 +2536,12 @@ public class DaemonRuntimeDocumentTests
             new AetheriaRuntimeDaemonIntentState(),
             0.1,
             AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
-            new PassthroughWorldPhysics());
+            new PassthroughWorldPhysics(),
+            catalog);
 
-        Assert.IsFalse(pilot.CargoContents.SelectMany(bay => bay.Items).Any(slot => slot.Item.ItemKey == "raider-salvage"));
-        Assert.AreEqual(1, run.Zones[0].DroppedPickups.Count,
-            "targeting, tractor power, and proximity must not replace a Ymir Begin contact fact");
+        Assert.IsTrue(pilot.CargoContents.SelectMany(bay => bay.Items).Any(slot => slot.Item.ItemKey == "raider-salvage"));
+        Assert.AreEqual(0, run.Zones[0].DroppedPickups.Count,
+            "daemon XZ proximity must own collection without tractor power or a Ymir contact fact");
     }
 
     [Test]
@@ -6634,12 +6650,6 @@ public class DaemonRuntimeDocumentTests
 
         public void RetainWorlds(string runId, IReadOnlyList<int> zoneIndices) { }
 
-        public AetheriaRuntimeWorldPickupStep ApplyPickupRejection(
-            string runId,
-            int zoneIndex,
-            AetheriaRuntimeWorldBeginContact contact) =>
-            new() { PickupIndex = contact.PickupIndex };
-
         public AetheriaRuntimeWorldStep Step(string runId, long frameId, int simulationStepIndex,
             AetheriaRuntimeZoneSnapshotCommit zone,
             IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities, double deltaSeconds)
@@ -6651,7 +6661,7 @@ public class DaemonRuntimeDocumentTests
                     VelocityX = entity.VelocityX, VelocityY = entity.VelocityY,
                     DirectionX = entity.DirectionX, DirectionY = entity.DirectionY
                 }).ToArray(),
-                Array.Empty<AetheriaRuntimeWorldPickupStep>(), Array.Empty<AetheriaRuntimeWorldBeginContact>());
+                Array.Empty<AetheriaRuntimeWorldPickupStep>());
         }
 
         public AetheriaRuntimePhysicalPayloadStep StepPhysicalPayloads(

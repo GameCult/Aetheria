@@ -5,7 +5,7 @@ using System.Linq;
 
 namespace GameCult.Aetheria.State.Verse
 {
-    internal enum AetheriaRuntimePickupContactResult
+    internal enum AetheriaRuntimePickupProximityResult
     {
         Ignored,
         Collected,
@@ -14,25 +14,23 @@ namespace GameCult.Aetheria.State.Verse
 
     internal static class AetheriaRuntimePickupTransactions
     {
-        public static AetheriaRuntimePickupContactResult ApplyContact(
+        public static AetheriaRuntimePickupProximityResult ApplyProximity(
             AetheriaRuntimeZoneSnapshotCommit zone,
             AetheriaRuntimeEntitySnapshotCommit entity,
-            AetheriaRuntimeWorldBeginContact contact,
+            int pickupIndex,
             AetheriaRuntimeCatalogSnapshot? catalog)
         {
-            if (zone == null || entity == null || contact == null || !entity.IsActive ||
-                contact.PickupIndex < 0 ||
-                (contact.EntityAIndex != entity.EntityIndex && contact.EntityBIndex != entity.EntityIndex))
-                return AetheriaRuntimePickupContactResult.Ignored;
+            if (zone == null || entity == null || !entity.IsActive || pickupIndex < 0)
+                return AetheriaRuntimePickupProximityResult.Ignored;
 
             var pickups = (zone.DroppedPickups ?? Array.Empty<AetheriaRuntimeDroppedPickupCommit>()).ToList();
-            var index = pickups.FindIndex(pickup => pickup != null && pickup.PickupIndex == contact.PickupIndex);
-            if (index < 0) return AetheriaRuntimePickupContactResult.Ignored;
+            var index = pickups.FindIndex(pickup => pickup != null && pickup.PickupIndex == pickupIndex);
+            if (index < 0) return AetheriaRuntimePickupProximityResult.Ignored;
             var pickup = pickups[index];
             var quantity = Math.Max(1, pickup.Item?.Quantity ?? 1);
             if (pickup.AgeSeconds >= pickup.LifetimeSeconds ||
                 pickup.Item == null)
-                return AetheriaRuntimePickupContactResult.Ignored;
+                return AetheriaRuntimePickupProximityResult.Ignored;
             var cargoBayCount = entity.CargoBays?.Count ?? 0;
             var cargoIndex = Enumerable.Range(0, cargoBayCount)
                 .Where(index => quantity <= AetheriaRuntimeCargoCapacityQueries.UnitsThatFit(
@@ -40,7 +38,7 @@ namespace GameCult.Aetheria.State.Verse
                 .DefaultIfEmpty(-1)
                 .First();
             if (cargoIndex < 0)
-                return AetheriaRuntimePickupContactResult.RejectedCapacity;
+                return AetheriaRuntimePickupProximityResult.RejectedCapacity;
             var bays = (entity.CargoContents ?? Array.Empty<AetheriaRuntimeCargoBayLoadoutCommit>()).ToList();
             while (bays.Count <= cargoIndex) bays.Add(new AetheriaRuntimeCargoBayLoadoutCommit());
             var slots = (bays[cargoIndex].Items ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>()).ToList();
@@ -49,7 +47,7 @@ namespace GameCult.Aetheria.State.Verse
             else slots.Add(new AetheriaRuntimeLoadoutItemSlotCommit { Item = pickup.Item });
             bays[cargoIndex].Items = slots; entity.CargoContents = bays;
             pickups.RemoveAt(index); zone.DroppedPickups = pickups;
-            return AetheriaRuntimePickupContactResult.Collected;
+            return AetheriaRuntimePickupProximityResult.Collected;
         }
     }
 }

@@ -1311,36 +1311,38 @@ the Terminus proof arena cannot award completion.
   proves every topology zone has bodies/orbits, every zone has a stellar
   primary, and the tutorial retains asteroid belts.
 
-### Daemon Pickup Contact Transaction
+### Daemon Pickup Proximity Transaction
 
-- Owner: the daemon simulation owns pickup collection by interpreting typed
-  entity-pickup contact facts returned by embedded Ymir physics.
-- Inputs: the exact Ymir contact, canonical active entity and live pickup,
-  catalog-backed cargo capacity, and current frame identity. Tractor power and
-  range influence pickup motion only.
+- Owner: the daemon simulation owns pickup collection by comparing canonical
+  active-ship and live-pickup XZ positions after the Ymir motion step.
+- Inputs: stable ship and pickup identities, their daemon-owned XZ positions,
+  the fixed 25-unit collection distance, catalog-backed cargo capacity, and
+  current frame identity. Tractor power influences pickup motion only.
 - Outputs: capacity permits one atomic cargo insertion, pickup removal, and
   `pickup.collected` event. Capacity refusal retains the pickup, applies the
-  fossil 25-unit outward kick along the contact normal, and emits
+  fossil 25-unit outward kick along the ship-to-pickup direction, moves the
+  pickup just outside collection distance, and emits
   `pickup.rejected`.
 - Derived state: pickup transforms, tractor visuals, Eve world nodes, Unity
   colliders, and client selection are presentation or control projections and
   cannot admit collection.
-- Forbidden writers: the reserved `PickUpLoot` command, proximity/range scans,
+- Forbidden writers: the reserved `PickUpLoot` command, Ymir contact facts,
   Unity collision callbacks, and generic Eve lowerers cannot mutate cargo or
   despawn pickups.
 - Shared paths: destruction drops, generated pickups, and restored live pickup
-  rows all enter the same next-tick Ymir body/contact path. Duplicate contact
-  facts for one entity-pickup pair in a frame reduce once; a collected pickup
-  identity cannot commit again.
-- Cut line: the command executor/builders and distance-based collection helper
-  are deleted. The old enum ordinal remains reserved only to avoid shifting
-  serialized command values and is rejected by the daemon.
-- Verification layer: daemon/Ymir smoke proves one commit per consumed fact,
-  duplicate-fact suppression, collection, capacity refusal, and outward kick.
-  The released EveUnity `0.3.63` warm rejection witness proves full player cargo
-  remains `5 -> 5`, the pickup remains live, and distinct player recontacts
-  arrive as distinct `ymir-fact:` feedback identities without a player
-  collection event.
+  rows all enter the same post-Ymir proximity pass. Pickups are ordered by
+  stable index and choose the nearest eligible ship with entity-index tie
+  breaking; removal of the durable pickup row makes a second commit impossible.
+  A capacity-rejection displacement is committed to daemon world truth and the
+  retained Ymir session reconciles that pose before its next integration step.
+- Cut line: the contact-receipt helper and pickup contact lowering are deleted.
+  The old enum ordinal remains reserved only to avoid shifting serialized
+  command values and is rejected by the daemon.
+- Verification layer: daemon smoke proves exact inside/outside boundary,
+  tractor-independent collection, one commit per pickup identity, ship-only
+  admission, capacity refusal, outward displacement/kick, and restart without
+  resurrection or duplicate cargo. The prior released contact-gated witness is
+  historical evidence only and must be rerun against the proximity owner.
 
 ### Daemon Gravity Field Contract
 
@@ -2755,10 +2757,10 @@ First Aetheria surfaces to publish:
      button color, but the daemon owns `CurrentEntity`, `DockingBay.DockedShip`,
      and the typed checkpoint.
    - Done: delete client-owned loot pickup submission. Tractor power influences
-     Ymir motion, but only an authenticated Ymir Begin contact fact can ask the
-     daemon pickup transaction to mutate cargo or remove a pickup. Unity
-     collision callbacks and the retired serialized command payload have no
-     writer authority.
+     Ymir motion; after that step the daemon alone compares live ship/pickup XZ
+     positions and may mutate cargo or remove a pickup. Ymir contact facts,
+     Unity collision callbacks, and the retired serialized command payload have
+     no writer authority.
    - Done: route entity destruction through typed daemon operations.
      `EntityInstance` observes hull death and may spawn the local destruction
      effect, but the daemon owns equipment/cargo drop decisions, zone entity
@@ -3315,12 +3317,12 @@ instantiation, credits, dock assignment, current entity, and checkpoint. Docked
 current-ship selection follows the same rule: UI requests selection, and the
 daemon owns `CurrentEntity`, `DockingBay.DockedShip`, and checkpoint. Undocking
 preserves the fossil ship pose, velocity, and direction when the detached ship
-re-enters world physics. Loot pickup is contact-gated: the
-tractor applies force to loose bodies, Ymir owns typed Begin contact facts, and
-the daemon alone interprets each persisted fact identity into capacity
-validation, cargo storage or rejection bounce, pickup removal, feedback, and
-checkpoint. Targeting, proximity, client commands, and presentation collisions
-cannot decide inventory ownership. The portable Eve entity SoA publishes
+re-enters world physics. Loot pickup is proximity-gated: the tractor applies
+force to loose bodies through Ymir, then the daemon compares canonical XZ
+positions and owns capacity validation, cargo storage or rejection bounce,
+pickup removal, feedback, and checkpoint. Ymir contacts, targeting, client
+commands, and presentation collisions cannot decide inventory ownership. The
+portable Eve entity SoA publishes
 `inventory.cargo.quantity`, allowing generic clients and witnesses to observe
 the committed cargo delta without reading Aetheria internals. Entity destruction follows
 the same rule: instance code observes death, and the daemon owns drop
@@ -3434,8 +3436,8 @@ Docking ownership follows the fossil's entity and `ActionGameManager` path:
   first-eligible selection, weapon disarm, docked fire-command rejection,
   preserved pose/velocity/direction, exact receipt reason, exactly one accepted
   transition fact, no false event on rejected undock, Eve feedback projection,
-  entity pass-through during home approach, and retained ship/pickup contact
-  collection. A production-Ymir smoke advances an overlapping ship/station
+  entity pass-through during home approach, and retained pickup motion followed
+  by daemon proximity collection. A production-Ymir smoke advances an overlapping ship/station
   pair, proves the negative collision group leaves the ship at the authored
   24-unit pose, and then accepts docking through the ordinary daemon command.
   Simulation smoke also proves both docked attacker and docked target
@@ -3521,8 +3523,8 @@ Ymir restart ownership is deliberately private and asymmetric:
 - Cut line: the rejected design that embedded complete Ymir checkpoints in
   every public zone/frame is absent; no public persistence document types are
   registered.
-- Verification layer: daemon smoke tears down a live rejected-pickup contact,
-  restores the exact durable frame into fresh Ymir sessions, and proves the
-  next tick cannot duplicate its receipt, feedback event, or kick. Ymir unit
+- Verification layer: daemon smoke collects a live pickup, persists the public
+  frame and private Ymir state, restores both into fresh sessions, and proves
+  the next tick cannot resurrect the pickup or duplicate cargo or feedback. Ymir unit
   tests prove incremental suffix capture, exact chunk coverage, checksums, and
   replay verifier convergence.

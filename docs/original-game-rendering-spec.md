@@ -122,8 +122,8 @@ render channel, and an advertised activation action. EveUnity attaches and
 modulates that prefab; it does not raycast, apply force, infer contact, or move
 cargo. The provider build removes the fossil's embedded tractor object from
 ship presentation prefabs, so the standalone `beam.presentation` effect is the
-only live writer of tractor visuals. Ymir contact facts remain the only
-collection gate.
+only live writer of tractor visuals. The daemon's post-motion XZ proximity pass
+remains the only collection gate.
 
 Projectile simulation and projectile presentation are separate. The daemon and
 Ymir own identity/pose/contact; presentation owns visual asset, trail, impact,

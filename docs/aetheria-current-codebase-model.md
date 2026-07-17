@@ -175,10 +175,11 @@ Current Ymir control flow:
   marker. Startup restores the exact `(RunId, FrameId, ZoneIndex)` records
   before the client CultMesh host starts, and fails closed on incomplete active
   persistence.
-- Cargo collection accepts only typed Ymir `Begin` facts. Aetheria persists one
-  pickup-contact receipt per Ymir `FactId` before exposing the resulting event,
-  so duplicate fact delivery cannot add cargo twice. Proximity and client loot
-  commands do not collect cargo.
+- Cargo collection runs after Ymir motion and accepts only live pickups within
+  the fixed XZ distance of an active, undocked ship. The daemon removes the
+  durable pickup row in the same transaction that inserts cargo, so restart or
+  repeated proximity evaluation cannot add it twice. Ymir contact facts and
+  client loot commands do not collect cargo.
 - Ordinary direct, constant, and charged weapon fire resolves through
   deterministic shot receipts. It does not create a Ymir body or derive damage
   from collision.

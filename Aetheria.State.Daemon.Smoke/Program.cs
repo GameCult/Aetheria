@@ -22,7 +22,7 @@ else if (args.Contains("--loadout", StringComparer.Ordinal))
 else if (args.Contains("--pickup", StringComparer.Ordinal))
 {
     checks.RunPickup();
-    Console.WriteLine("Daemon Ymir pickup-contact smoke passed.");
+    Console.WriteLine("Daemon pickup-proximity smoke passed.");
 }
 else if (args.Contains("--payload", StringComparer.Ordinal))
 {
@@ -95,8 +95,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         RunCheck(TractorRampsAndPullsThroughYmirWithoutTeleportingCargo);
         RunCheck(PickupIsCapacityCheckedExactlyOnceAndExpires);
         RunCheck(StationBodiesCannotConsumePickups);
-        RunCheck(PickupShieldContactCollectsOrBounces);
-        RunCheck(YmirRestartDoesNotReplayConsumedPickupContact);
+        RunCheck(PickupProximityCollectsOrBounces);
+        RunCheck(PickupRemovalSurvivesRestartWithoutReplay);
     }
 
     public void RunPayload()
@@ -820,9 +820,9 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             TradePurchaseDerivesAcceptanceFromDaemonState,
             TradeSaleIsDaemonPricedSpatialAndAtomic,
             StationBodiesCannotConsumePickups,
-            PickupShieldContactCollectsOrBounces,
+            PickupProximityCollectsOrBounces,
             CultCacheRestartPreservesLoadoutAndBehaviorState,
-            YmirRestartDoesNotReplayConsumedPickupContact,
+            PickupRemovalSurvivesRestartWithoutReplay,
             ThermalCellsUseFossilConductionAndRadiation,
             EnergyNetworkSettlesReactorAfterConsumers,
             RadiatorPumpsHeatBeforeReactorSettlement,
@@ -8200,7 +8200,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         var catalog = new AetheriaRuntimeCatalogSnapshot([hull, salvage, cargoBay], [], []);
         var ship = Entity(0, 0, "player"); ship.HullItemKey = hull.ItemKey; ship.CargoContents = [Cargo()];
         ship.CargoBays = [new AetheriaRuntimeLoadoutItemSlotCommit { Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = cargoBay.ItemKey, Quantity = 1 } }];
-        var zone = new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [ship], DroppedPickups = [new AetheriaRuntimeDroppedPickupCommit { PickupIndex = 7, PositionX = 10, Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = salvage.ItemKey, Quantity = 1 }, LifetimeSeconds = 30 }] };
+        var zone = new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [ship], DroppedPickups = [new AetheriaRuntimeDroppedPickupCommit { PickupIndex = 7, PositionX = AetheriaRuntimeTractorMechanics.CollectionDistance + 0.001, Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = salvage.ItemKey, Quantity = 1 }, LifetimeSeconds = 30 }] };
         var run = new AetheriaRuntimeRunCheckpointCommit { CurrentZoneIndex = 0, CurrentEntityKey = "zone.0.entity.0", Zones = [zone] };
         var forbiddenCommand = AetheriaRuntimeDaemonCommandDocument.Create(AetheriaRuntimeDaemonCommandKinds.PickUpLoot, "pilot", "pickup-smoke", 0, "zone.0.entity.0");
         forbiddenCommand.CommandId = "pickup-command-forbidden";
@@ -8209,55 +8209,25 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         Require(forbidden.RejectedCommandIds.Contains(forbiddenCommand.CommandId),
             "client pickup commands must not own cargo collection");
 
-        AetheriaRuntimeDaemonTickRunner.Tick(Path.Combine(Path.GetTempPath(), "aetheria-pickup-no-contact.cc"), run,
+        AetheriaRuntimeDaemonTickRunner.Tick(Path.Combine(Path.GetTempPath(), "aetheria-pickup-outside-proximity.cc"), run,
             new AetheriaRuntimeDaemonTickOptions { WorldPhysics = new ScriptedWorldPhysics(), FrameId = 1, FixedDeltaSeconds = 0.1, SimulationTimeSeconds = 0.1, Catalog = catalog, BuildPublications = false });
-        RequireEqual(1, zone.DroppedPickups.Count, "nearby pickup without a Ymir contact fact must remain in the world");
-        RequireEqual(0, CargoQuantity(ship, salvage.ItemKey), "proximity must not mutate cargo");
+        RequireEqual(1, zone.DroppedPickups.Count, "pickup outside the daemon collection distance must remain in the world");
+        RequireEqual(0, CargoQuantity(ship, salvage.ItemKey), "outside proximity must not mutate cargo");
 
-        var forgedContact = new AetheriaRuntimeWorldBeginContact
-        {
-            FactId = "ymir-fact-forged-identity",
-            EntityAIndex = 0,
-            EntityAId = "another-entity",
-            PickupIndex = 7,
-            NormalX = 1
-        };
-        var rejectedForgedIdentity = false;
-        try
-        {
-            AetheriaRuntimeDaemonTickRunner.Tick(Path.Combine(Path.GetTempPath(), "aetheria-pickup-forged-identity.cc"), run,
-                new AetheriaRuntimeDaemonTickOptions { WorldPhysics = new ScriptedWorldPhysics(forgedContact), FrameId = 2, FixedDeltaSeconds = 0.1, SimulationTimeSeconds = 0.2, Catalog = catalog, BuildPublications = false });
-        }
-        catch (InvalidOperationException)
-        {
-            rejectedForgedIdentity = true;
-        }
-        Require(rejectedForgedIdentity, "a Ymir contact whose stable identity disagrees with the live entity must fail closed");
-        RequireEqual(1, zone.DroppedPickups.Count, "forged contact identity must not remove the pickup");
-        RequireEqual(0, CargoQuantity(ship, salvage.ItemKey), "forged contact identity must not mutate cargo");
-        RequireEqual(0, run.PickupContactReceipts.Count, "forged contact identity must not mint a consumption receipt");
-
-        var contact = new AetheriaRuntimeWorldBeginContact
-        {
-            FactId = "ymir-fact-pickup-7",
-            EntityAIndex = 0,
-            EntityAId = ship.EntityId,
-            PickupIndex = 7,
-            NormalX = 1
-        };
-        AetheriaRuntimeDaemonTickRunner.Tick(Path.Combine(Path.GetTempPath(), "aetheria-pickup-contact-dedup.cc"), run,
-            new AetheriaRuntimeDaemonTickOptions { WorldPhysics = new ScriptedWorldPhysics(contact, contact), FrameId = 3, FixedDeltaSeconds = 0.1, SimulationTimeSeconds = 0.3, Catalog = catalog, BuildPublications = false });
-        RequireEqual(0, zone.DroppedPickups.Count, "one Ymir contact must consume the pickup");
-        RequireEqual(1, CargoQuantity(ship, salvage.ItemKey), "duplicate contact facts must commit cargo exactly once");
+        zone.DroppedPickups.Single().PositionX = AetheriaRuntimeTractorMechanics.CollectionDistance;
+        AetheriaRuntimeDaemonTickRunner.Tick(Path.Combine(Path.GetTempPath(), "aetheria-pickup-proximity-dedup.cc"), run,
+            new AetheriaRuntimeDaemonTickOptions { WorldPhysics = new ScriptedWorldPhysics(), FrameId = 2, FixedDeltaSeconds = 0.1, SimulationTimeSeconds = 0.2, Catalog = catalog, BuildPublications = false });
+        RequireEqual(0, zone.DroppedPickups.Count, "pickup at the 2D collection boundary must be consumed");
+        RequireEqual(1, CargoQuantity(ship, salvage.ItemKey), "one pickup identity must commit cargo exactly once");
         RequireEqual(1, run.GameEvents.Count(value => value.Kind == "pickup.collected" && value.PickupIndex == 7),
-            "duplicate contact facts must emit one collection event");
+            "one consumed pickup identity must emit one collection event");
         var collectionEvent = run.GameEvents.Single(value => value.Kind == "pickup.collected" && value.PickupIndex == 7);
         RequireNear(1, collectionEvent.ScalarValue, 0.000001,
             "collection feedback must publish the committed cargo delta");
         RequireNear(0, collectionEvent.AuxiliaryValue, 0.000001,
             "collection feedback must publish cargo quantity before the transaction");
-        RequireEqual(1, run.PickupContactReceipts.Count(value => value.FactId == contact.FactId),
-            "duplicate delivery of one Ymir fact must persist one Aetheria consumption receipt");
+        RequireEqual(0, run.PickupContactReceipts.Count,
+            "proximity collection must not mint obsolete Ymir-contact receipts");
         var collectionFeedback = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(
             new AetheriaRuntimeDaemonFrameDocument { FrameId = 3, Run = run },
             new AetheriaRuntimeDaemonHealthDocument(),
@@ -8266,11 +8236,11 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 node.Props["eventKind"] == "pickup.collected" && node.Props["pickupIndex"] == "7" &&
                 node.Props["itemKey"] == salvage.ItemKey && node.Props["scalarValue"] == "1" &&
                 node.Props["cargoQuantityBefore"] == "0" && node.Props["cargoQuantityAfter"] == "1"),
-            "Eve feedback must publish the exact cargo delta committed by one Ymir contact fact");
+            "Eve feedback must publish the exact cargo delta committed by daemon proximity");
 
-        zone.DroppedPickups = [new AetheriaRuntimeDroppedPickupCommit { PickupIndex = 8, PositionX = 10, Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = salvage.ItemKey, Quantity = 1 }, LifetimeSeconds = 30 }];
+        zone.DroppedPickups = [new AetheriaRuntimeDroppedPickupCommit { PickupIndex = 8, PositionX = 100, Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = salvage.ItemKey, Quantity = 1 }, LifetimeSeconds = 30 }];
         AetheriaRuntimeDaemonTickRunner.Tick(Path.Combine(Path.GetTempPath(), "aetheria-pickup-expiry-smoke.cc"), run,
-            new AetheriaRuntimeDaemonTickOptions { WorldPhysics = new ScriptedWorldPhysics(), FrameId = 4, FixedDeltaSeconds = 30, SimulationTimeSeconds = 30, BuildPublications = false });
+            new AetheriaRuntimeDaemonTickOptions { WorldPhysics = new ScriptedWorldPhysics(), FrameId = 3, FixedDeltaSeconds = 30, SimulationTimeSeconds = 30, BuildPublications = false });
         RequireEqual(0, zone.DroppedPickups.Count, "pickup must expire after the fossil thirty-second lifetime");
         Require(run.GameEvents.Any(value => value.Kind == "pickup.expired" && value.PickupIndex == 8),
             "daemon lifetime owner must emit authoritative pickup expiry event");
@@ -8652,13 +8622,11 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
 
         RequireEqual(1, run.Zones[0].DroppedPickups.Count,
             "station world bodies must not consume ship-scoop pickups");
-        RequireEqual(0, run.PickupContactReceipts.Count,
-            "Ymir collision filtering must not publish station/pickup Begin facts");
         RequireEqual(0, CargoQuantity(station, salvage.ItemKey),
-            "station cargo must remain unchanged without a ship shield contact");
+            "station cargo must remain unchanged because only ships collect by proximity");
     }
 
-    private static void PickupShieldContactCollectsOrBounces()
+    private static void PickupProximityCollectsOrBounces()
     {
         var hull = CatalogItem("contact-hull"); hull.HullCapacity = PerformanceStat(1);
         var salvage = CatalogItem("contact-salvage"); salvage.Volume = 1;
@@ -8673,36 +8641,41 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         }
         var open = Scenario(false);
         using var openPhysics = NewPhysics();
-        AetheriaRuntimeDaemonTickRunner.Tick(Path.Combine(Path.GetTempPath(), "aetheria-pickup-contact-open.cc"), open,
+        AetheriaRuntimeDaemonTickRunner.Tick(Path.Combine(Path.GetTempPath(), "aetheria-pickup-proximity-open.cc"), open,
             new AetheriaRuntimeDaemonTickOptions { WorldPhysics = openPhysics, FrameId = 1, FixedDeltaSeconds = 0.1, SimulationTimeSeconds = 0.1, Catalog = catalog, BuildPublications = false });
-        RequireEqual(0, open.Zones[0].DroppedPickups.Count, "shield contact with capacity must collect pickup automatically");
-        RequireEqual(1, CargoQuantity(open.Zones[0].Entities[0], salvage.ItemKey), "contact collection must commit cargo once");
+        RequireEqual(0, open.Zones[0].DroppedPickups.Count, "2D ship proximity with capacity must collect pickup automatically");
+        RequireEqual(1, CargoQuantity(open.Zones[0].Entities[0], salvage.ItemKey), "proximity collection must commit cargo once");
         RequireEqual(1, open.GameEvents.Count(value => value.Kind == "pickup.collected" && value.PickupIndex == 10),
-            "contact collection must emit one stable event");
-        RequireEqual(1, open.PickupContactReceipts.Count,
-            "a real Box3D Begin fact must persist one cargo-consumption receipt");
+            "proximity collection must emit one stable event");
+        RequireEqual(0, open.PickupContactReceipts.Count,
+            "proximity collection must not depend on a Box3D Begin fact");
 
         var full = Scenario(true);
         using var fullPhysics = NewPhysics();
-        AetheriaRuntimeDaemonTickRunner.Tick(Path.Combine(Path.GetTempPath(), "aetheria-pickup-contact-full.cc"), full,
+        AetheriaRuntimeDaemonTickRunner.Tick(Path.Combine(Path.GetTempPath(), "aetheria-pickup-proximity-full.cc"), full,
             new AetheriaRuntimeDaemonTickOptions { WorldPhysics = fullPhysics, FrameId = 1, FixedDeltaSeconds = 0.1, SimulationTimeSeconds = 0.1, Catalog = catalog, BuildPublications = false });
-        RequireEqual(1, full.Zones[0].DroppedPickups.Count, "full hold must leave contacted pickup alive");
+        RequireEqual(1, full.Zones[0].DroppedPickups.Count, "full hold must leave the nearby pickup alive");
         Require(full.Zones[0].DroppedPickups[0].VelocityX > 20, "failed pickup must receive the fossil outward kick");
+        var rejectedPickup = full.Zones[0].DroppedPickups[0];
+        var rejectedShip = full.Zones[0].Entities[0];
+        Require(Math.Sqrt(
+                Math.Pow(rejectedPickup.PositionX - rejectedShip.PositionX, 2) +
+                Math.Pow(rejectedPickup.PositionZ - rejectedShip.PositionZ, 2)) >
+                AetheriaRuntimeTractorMechanics.CollectionDistance,
+            "capacity rejection must move the pickup outside collection proximity before the next step");
         RequireEqual(1, full.GameEvents.Count(value => value.Kind == "pickup.rejected" && value.PickupIndex == 10),
             "capacity rejection must emit one stable event");
         var rejectionEvent = full.GameEvents.Single(value => value.Kind == "pickup.rejected" && value.PickupIndex == 10);
         RequireEqual("cargo-capacity", rejectionEvent.Reason,
             "capacity rejection feedback must name the provider-owned reason");
         RequireNear(1, rejectionEvent.AuxiliaryValue, 0.000001,
-            "capacity rejection feedback must preserve the pre-contact cargo quantity");
-        RequireEqual(1, full.PickupContactReceipts.Count,
-            "capacity rejection must consume its Box3D Begin fact exactly once");
-        AetheriaRuntimeDaemonTickRunner.Tick(Path.Combine(Path.GetTempPath(), "aetheria-pickup-contact-full-second.cc"), full,
+            "capacity rejection feedback must preserve the pre-collection cargo quantity");
+        RequireEqual(0, full.PickupContactReceipts.Count,
+            "capacity rejection must not mint obsolete contact receipts");
+        AetheriaRuntimeDaemonTickRunner.Tick(Path.Combine(Path.GetTempPath(), "aetheria-pickup-proximity-full-second.cc"), full,
             new AetheriaRuntimeDaemonTickOptions { WorldPhysics = fullPhysics, FrameId = 2, FixedDeltaSeconds = 0.1, SimulationTimeSeconds = 0.2, Catalog = catalog, BuildPublications = false });
-        RequireEqual(1, full.PickupContactReceipts.Count,
-            "persistent or separating contact must not replay an already consumed Begin fact");
         RequireEqual(1, full.GameEvents.Count(value => value.Kind == "pickup.rejected" && value.PickupIndex == 10),
-            "a consumed rejection fact must not emit a second gameplay event");
+            "the outward kick must prevent an immediate second rejection event");
         var feedback = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(
             new AetheriaRuntimeDaemonFrameDocument { FrameId = 1, Run = full },
             new AetheriaRuntimeDaemonHealthDocument(),
@@ -9114,26 +9087,26 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         }
     }
 
-    private static void YmirRestartDoesNotReplayConsumedPickupContact()
+    private static void PickupRemovalSurvivesRestartWithoutReplay()
     {
         var root = Path.Combine(Path.GetTempPath(), "aetheria-ymir-restart-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
         var statePath = Path.Combine(root, "world.cc");
         try
         {
-            var hull = CatalogItem("restart-contact-hull"); hull.HullCapacity = PerformanceStat(1);
-            var salvage = CatalogItem("restart-contact-salvage"); salvage.Volume = 1;
-            var cargoBay = CatalogItem("restart-contact-cargo-bay"); cargoBay.InteriorOccupiedCells = 1;
+            var hull = CatalogItem("restart-pickup-hull"); hull.HullCapacity = PerformanceStat(1);
+            var salvage = CatalogItem("restart-pickup-salvage"); salvage.Volume = 1;
+            var cargoBay = CatalogItem("restart-pickup-cargo-bay"); cargoBay.InteriorOccupiedCells = 1;
             var catalog = new AetheriaRuntimeCatalogSnapshot([hull, salvage, cargoBay], [], []);
             var ship = Entity(0, 0, "player"); ship.HullItemKey = hull.ItemKey;
             ship.CargoBays = [new AetheriaRuntimeLoadoutItemSlotCommit
             {
                 Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = cargoBay.ItemKey, Quantity = 1 }
             }];
-            ship.CargoContents = [Cargo((salvage.ItemKey, 1, 0, 0))];
+            ship.CargoContents = [Cargo()];
             var run = new AetheriaRuntimeRunCheckpointCommit
             {
-                RunId = "ymir-restart-contact-smoke",
+                RunId = "pickup-restart-proximity-smoke",
                 CurrentZoneIndex = 0,
                 CurrentEntityKey = "zone.0.entity.0",
                 Zones = [new AetheriaRuntimeZoneSnapshotCommit
@@ -9169,10 +9142,15 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                         Catalog = catalog,
                         BuildPublications = false
                     });
-                RequireEqual(1, run.PickupContactReceipts.Count,
-                    "pre-restart rejection must consume exactly one Box3D Begin fact");
-                var rejectedVelocity = run.Zones[0].DroppedPickups.Single().VelocityX;
-                Require(rejectedVelocity > 20, "pre-restart rejection must persist the outward kick in world truth");
+                RequireEqual(0, run.Zones[0].DroppedPickups.Count,
+                    "pre-restart proximity collection must remove the durable pickup row");
+                RequireEqual(1, CargoQuantity(ship, salvage.ItemKey),
+                    "pre-restart proximity collection must commit cargo once");
+                RequireEqual(1, run.GameEvents.Count(value =>
+                        value.Kind == "pickup.collected" && value.PickupIndex == 10),
+                    "pre-restart proximity collection must emit one stable event");
+                RequireEqual(0, run.PickupContactReceipts.Count,
+                    "pre-restart proximity collection must not create contact receipts");
 
                 frame.Run = run;
                 using var node = AetheriaStateNode.OpenAsync(statePath).GetAwaiter().GetResult();
@@ -9208,11 +9186,13 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                         Catalog = catalog,
                         BuildPublications = false
                     });
-                RequireEqual(1, durable.Run.PickupContactReceipts.Count,
-                    "restart must not replay an already consumed Box3D Begin fact");
+                RequireEqual(0, durable.Run.Zones[0].DroppedPickups.Count,
+                    "restart must not resurrect the consumed pickup identity");
+                RequireEqual(1, CargoQuantity(durable.Run.Zones[0].Entities[0], salvage.ItemKey),
+                    "restart must not duplicate committed pickup cargo");
                 RequireEqual(1, durable.Run.GameEvents.Count(value =>
-                        value.Kind == "pickup.rejected" && value.PickupIndex == 10),
-                    "restart must not duplicate authoritative pickup rejection feedback");
+                        value.Kind == "pickup.collected" && value.PickupIndex == 10),
+                    "restart must not duplicate authoritative pickup collection feedback");
             }
         }
         finally
@@ -9329,17 +9309,11 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         }
     }
 
-    private sealed class ScriptedWorldPhysics(params AetheriaRuntimeWorldBeginContact[] contacts) : IAetheriaRuntimeWorldPhysics
+    private sealed class ScriptedWorldPhysics : IAetheriaRuntimeWorldPhysics
     {
         public string ImplementationId => "smoke.scripted-world";
 
         public void RetainWorlds(string runId, IReadOnlyList<int> zoneIndices) { }
-
-        public AetheriaRuntimeWorldPickupStep ApplyPickupRejection(
-            string runId,
-            int zoneIndex,
-            AetheriaRuntimeWorldBeginContact contact) =>
-            new() { PickupIndex = contact.PickupIndex, VelocityX = contact.NormalX * 25, VelocityZ = contact.NormalZ * 25 };
 
         public AetheriaRuntimeWorldStep Step(
             string runId,
@@ -9347,7 +9321,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             int simulationStepIndex,
             AetheriaRuntimeZoneSnapshotCommit zone,
             IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities,
-            double deltaSeconds) => new([], [], contacts);
+            double deltaSeconds) => new([], []);
 
         public AetheriaRuntimePhysicalPayloadStep StepPhysicalPayloads(
             string runId,

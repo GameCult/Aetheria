@@ -96,8 +96,7 @@ namespace GameCult.Aetheria.State.Verse
                 var worldStep = StepWorldPhysics(
                     run.RunId, frameId, simulationStepIndex, zone, entities, deltaSeconds, worldPhysics);
                 ProjectEntityTerrainHeights(zone, entities, catalog, simulationTimeSeconds);
-                ResolvePickupContacts(
-                    run, zone, entities, worldStep.BeginContacts, worldPhysics, catalog, frameId);
+                ResolvePickupProximity(run, zone, entities, catalog, frameId);
                 StepCombat(run, zone, entities, intents, deltaSeconds, settings, worldPhysics, catalog,
                     frameId, simulationTimeSeconds, simulationStepIndex);
                 AetheriaRuntimeVisibilitySimulation.StepZone(zone, entities, catalog, renderSettings);
@@ -432,89 +431,119 @@ namespace GameCult.Aetheria.State.Verse
                 entity.PositionY = Resolve(entity, new HashSet<int>());
         }
 
-        private static void ResolvePickupContacts(
+        private static void ResolvePickupProximity(
             AetheriaRuntimeRunCheckpointCommit run,
             AetheriaRuntimeZoneSnapshotCommit zone,
             IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities,
-            IReadOnlyList<AetheriaRuntimeWorldBeginContact> beginContacts,
-            IAetheriaRuntimeWorldPhysics worldPhysics,
             AetheriaRuntimeCatalogSnapshot? catalog,
             long frameId)
         {
-            var entitiesByIndex = entities
-                .Where(value => value != null && value.IsActive)
-                .ToDictionary(value => value.EntityIndex);
-            foreach (var contact in (beginContacts ?? Array.Empty<AetheriaRuntimeWorldBeginContact>())
-                .Where(value => value != null && value.PickupIndex >= 0 &&
-                    !string.IsNullOrWhiteSpace(value.FactId)))
+            var attached = (entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
+                .Where(value => value != null)
+                .SelectMany(value => value.ChildEntityIndices ?? Array.Empty<int>())
+                .ToHashSet();
+            var ships = (entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
+                .Where(value => value != null && value.IsActive && value.WormholeTransition == null &&
+                    !attached.Contains(value.EntityIndex) && IsPickupCollector(value, catalog))
+                .Select(value => value!)
+                .OrderBy(value => value.EntityIndex)
+                .ToArray();
+            var collectionDistanceSquared = AetheriaRuntimeTractorMechanics.CollectionDistance *
+                AetheriaRuntimeTractorMechanics.CollectionDistance;
+
+            foreach (var pickup in (zone.DroppedPickups ?? Array.Empty<AetheriaRuntimeDroppedPickupCommit>())
+                .Where(value => value != null && value.Item != null &&
+                    value.AgeSeconds < value.LifetimeSeconds)
+                .Select(value => value!)
+                .OrderBy(value => value.PickupIndex)
+                .ToArray())
             {
-                var entityIndex = contact.EntityAIndex >= 0 ? contact.EntityAIndex : contact.EntityBIndex;
-                var contactEntityId = contact.EntityAIndex >= 0 ? contact.EntityAId : contact.EntityBId;
-                entitiesByIndex.TryGetValue(entityIndex, out var entity);
-                if (entity != null && !string.Equals(contactEntityId, entity.EntityId, StringComparison.Ordinal))
-                    throw new InvalidOperationException(
-                        $"Ymir fact '{contact.FactId}' entity identity '{contactEntityId}' does not match " +
-                        $"live entity {entityIndex} identity '{entity.EntityId}'.");
-                var entityId = entity?.EntityId ?? contactEntityId;
-                var priorReceipt = AetheriaRuntimePickupContactReceipts.Find(run, contact.FactId);
-                if (priorReceipt != null)
-                {
-                    if (priorReceipt.ZoneIndex != zone.ZoneIndex ||
-                        !string.Equals(priorReceipt.EntityId, entityId, StringComparison.Ordinal) ||
-                        priorReceipt.PickupIndex != contact.PickupIndex)
-                        throw new InvalidOperationException(
-                            $"Ymir fact id '{contact.FactId}' was reused for a different pickup contact.");
+                var entity = ships
+                    .Select(value => new
+                    {
+                        Entity = value,
+                        DistanceSquared = DistanceSquared(value.PositionX, value.PositionZ,
+                            pickup.PositionX, pickup.PositionZ)
+                    })
+                    .Where(value => value.DistanceSquared <= collectionDistanceSquared)
+                    .OrderBy(value => value.DistanceSquared)
+                    .ThenBy(value => value.Entity.EntityIndex)
+                    .Select(value => value.Entity)
+                    .FirstOrDefault();
+                if (entity == null)
                     continue;
-                }
-                var pickup = (zone.DroppedPickups ?? Array.Empty<AetheriaRuntimeDroppedPickupCommit>())
-                    .FirstOrDefault(value => value != null && value.PickupIndex == contact.PickupIndex);
-                var itemKey = pickup?.Item?.ItemKey ?? "";
-                var quantity = Math.Max(1, pickup?.Item?.Quantity ?? 1);
+
+                var itemKey = pickup.Item.ItemKey ?? "";
+                var quantity = Math.Max(1, pickup.Item.Quantity);
                 var cargoQuantityBefore = AetheriaRuntimeCargoCapacityQueries.Quantity(entity);
-                var result = entity == null
-                    ? AetheriaRuntimePickupContactResult.Ignored
-                    : AetheriaRuntimePickupTransactions.ApplyContact(zone, entity, contact, catalog);
-                var kind = result == AetheriaRuntimePickupContactResult.Collected
+                var result = AetheriaRuntimePickupTransactions.ApplyProximity(
+                    zone, entity, pickup.PickupIndex, catalog);
+                var kind = result == AetheriaRuntimePickupProximityResult.Collected
                     ? "pickup.collected"
-                    : result == AetheriaRuntimePickupContactResult.RejectedCapacity
+                    : result == AetheriaRuntimePickupProximityResult.RejectedCapacity
                         ? "pickup.rejected"
                         : "pickup.ignored";
-                if (result == AetheriaRuntimePickupContactResult.RejectedCapacity && pickup != null)
-                {
-                    var rejected = worldPhysics.ApplyPickupRejection(run.RunId, zone.ZoneIndex, contact);
-                    pickup.PositionX = rejected.PositionX;
-                    pickup.PositionZ = rejected.PositionZ;
-                    pickup.VelocityX = rejected.VelocityX;
-                    pickup.VelocityZ = rejected.VelocityZ;
-                }
-                AetheriaRuntimePickupContactReceipts.Append(run, new AetheriaRuntimePickupContactReceiptCommit
-                {
-                    FactId = contact.FactId,
-                    FrameId = frameId,
-                    ZoneIndex = zone.ZoneIndex,
-                    EntityIndex = entityIndex,
-                    EntityId = entityId,
-                    PickupIndex = contact.PickupIndex,
-                    Outcome = kind
-                });
-                if (result == AetheriaRuntimePickupContactResult.Ignored)
+                if (result == AetheriaRuntimePickupProximityResult.RejectedCapacity)
+                    RejectPickupFromShip(pickup, entity);
+                if (result == AetheriaRuntimePickupProximityResult.Ignored)
                     continue;
+                var eventId = result == AetheriaRuntimePickupProximityResult.Collected
+                    ? $"zone:{zone.ZoneIndex}:pickup:{pickup.PickupIndex}:collected"
+                    : $"frame:{frameId}:zone:{zone.ZoneIndex}:pickup:{pickup.PickupIndex}:rejected:entity:{entity.EntityId}";
                 AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit
                 {
-                    EventId = $"ymir-fact:{contact.FactId}:{kind}",
+                    EventId = eventId,
                     Kind = kind,
                     FrameId = frameId,
                     ZoneIndex = zone.ZoneIndex,
-                    TargetEntityIndex = entityIndex,
-                    PickupIndex = contact.PickupIndex,
+                    TargetEntityIndex = entity.EntityIndex,
+                    PickupIndex = pickup.PickupIndex,
                     ItemKey = itemKey,
                     ScalarValue = quantity,
                     AuxiliaryValue = cargoQuantityBefore,
-                    Reason = result == AetheriaRuntimePickupContactResult.RejectedCapacity
+                    Reason = result == AetheriaRuntimePickupProximityResult.RejectedCapacity
                         ? "cargo-capacity"
                         : ""
                 });
             }
+        }
+
+        private static bool IsPickupCollector(
+            AetheriaRuntimeEntitySnapshotCommit entity,
+            AetheriaRuntimeCatalogSnapshot? catalog)
+        {
+            var hullType = catalog?.FindItem(entity.HullItemKey ?? "")?.HullType ?? "";
+            return string.Equals(entity.Kind, "ship", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(hullType, "Ship", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static void RejectPickupFromShip(
+            AetheriaRuntimeDroppedPickupCommit pickup,
+            AetheriaRuntimeEntitySnapshotCommit entity)
+        {
+            var dx = pickup.PositionX - entity.PositionX;
+            var dz = pickup.PositionZ - entity.PositionZ;
+            var length = Math.Sqrt(dx * dx + dz * dz);
+            if (length <= double.Epsilon)
+            {
+                dx = 1;
+                dz = 0;
+                length = 1;
+            }
+            var nx = dx / length;
+            var nz = dz / length;
+            var rejectedDistance = AetheriaRuntimeTractorMechanics.CollectionDistance + 0.001;
+            pickup.PositionX = entity.PositionX + nx * rejectedDistance;
+            pickup.PositionZ = entity.PositionZ + nz * rejectedDistance;
+            pickup.VelocityX += nx * AetheriaRuntimeTractorMechanics.RejectionKick;
+            pickup.VelocityZ += nz * AetheriaRuntimeTractorMechanics.RejectionKick;
+        }
+
+        private static double DistanceSquared(double ax, double az, double bx, double bz)
+        {
+            var dx = ax - bx;
+            var dz = az - bz;
+            return dx * dx + dz * dz;
         }
 
         private static void StepCombat(

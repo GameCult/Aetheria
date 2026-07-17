@@ -215,6 +215,8 @@ namespace GameCult.Aetheria.State.Verse
             Array.Empty<AetheriaRuntimeShotReceiptCommit>();
 
         [Key(16)]
+        // Reserved for checkpoint compatibility with the retired contact-gated loot path.
+        // Proximity collection never reads or writes this history.
         public IReadOnlyList<AetheriaRuntimePickupContactReceiptCommit> PickupContactReceipts { get; set; } =
             Array.Empty<AetheriaRuntimePickupContactReceiptCommit>();
 
@@ -564,6 +566,7 @@ namespace GameCult.Aetheria.State.Verse
     }
 
     [MessagePackObject]
+    // Serialized legacy row retained only so older checkpoints remain readable.
     public sealed class AetheriaRuntimePickupContactReceiptCommit
     {
         [Key(0)] public string FactId { get; set; } = "";
