@@ -193,6 +193,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             TradeSaleIsDaemonPricedSpatialAndAtomic,
             StationBodiesCannotConsumePickups,
             PickupShieldContactCollectsOrBounces,
+            CultCacheRestartPreservesLoadoutAndBehaviorState,
             YmirRestartDoesNotReplayConsumedPickupContact,
             ThermalCellsUseFossilConductionAndRadiation,
             EnergyNetworkSettlesReactorAfterConsumers,
@@ -6935,6 +6936,222 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
     {
         if (Math.Abs(expected - actual) > tolerance)
             throw new InvalidOperationException($"{message}. Expected {expected}; actual {actual}.");
+    }
+
+    private static void CultCacheRestartPreservesLoadoutAndBehaviorState()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "aetheria-loadout-restart-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        var statePath = Path.Combine(root, "world.cc");
+        try
+        {
+            var controller = CatalogItem("reconnect-controller",
+                new AetheriaRuntimeBehaviorPayload(0, "Thermotoggle", 0,
+                [
+                    new AetheriaRuntimeBehaviorField(1, Number(300)),
+                    new AetheriaRuntimeBehaviorField(2, BoolValue(false)),
+                    new AetheriaRuntimeBehaviorField(3, BoolValue(true))
+                ]));
+            controller.Name = "Reconnect Controller";
+            var catalog = new AetheriaRuntimeCatalogSnapshot([controller], [], []);
+            var ship = Entity(0, 0, "player");
+            ship.HullItemKey = "reconnect-hull";
+            ship.Equipment =
+            [
+                new AetheriaRuntimeLoadoutItemSlotCommit
+                {
+                    X = 3,
+                    Y = 4,
+                    Rotation = "CounterClockwise",
+                    Item = new AetheriaRuntimeLoadoutItemCommit
+                    {
+                        ItemKey = controller.ItemKey,
+                        Quality = 0.73,
+                        Durability = 0.61,
+                        Quantity = 1,
+                        Enabled = true,
+                        OverrideShutdown = true,
+                        Temperature = 417
+                    }
+                }
+            ];
+            ship.CargoBays =
+            [
+                new AetheriaRuntimeLoadoutItemSlotCommit
+                {
+                    Item = new AetheriaRuntimeLoadoutItemCommit
+                    {
+                        ItemKey = "reconnect-cargo-bay",
+                        Quantity = 1,
+                        Quality = 1,
+                        Durability = 1,
+                        Enabled = true
+                    }
+                }
+            ];
+            ship.CargoContents = [Cargo(("reconnect-salvage", 7, 2, 1))];
+            ship.WeaponGroups = [new[] { 0 }];
+            ship.ActiveWeaponGroups = [true];
+            ship.EquipmentStates =
+            [
+                new AetheriaRuntimeEquipmentStateCommit
+                {
+                    EquipmentIndex = 0,
+                    Temperature = 417,
+                    PreviousTemperature = 410,
+                    ThermalPerformance = 0.8,
+                    DurabilityPerformance = 0.61,
+                    Wear = 0.12,
+                    ThermalOnline = true,
+                    DurabilityOnline = true,
+                    Online = true
+                }
+            ];
+            ship.BehaviorStates =
+            [
+                new AetheriaRuntimeBehaviorStateCommit
+                {
+                    OwnerKind = AetheriaRuntimeBehaviorStateProjector.EquipmentOwnerKind,
+                    OwnerIndex = 0,
+                    BehaviorIndex = 0,
+                    BehaviorKind = "Thermotoggle",
+                    ThermotoggleTargetTemperature = 412,
+                    ChainReached = true,
+                    ChainSucceeded = true,
+                    ChainCompleted = true
+                }
+            ];
+            ship.WeaponStates =
+            [
+                new AetheriaRuntimeWeaponStateCommit
+                {
+                    OwnerKind = "equipment",
+                    OwnerIndex = 0,
+                    BehaviorIndex = 1,
+                    BehaviorKind = AetheriaRuntimeBehaviorKinds.InstantWeapon,
+                    Ammo = 9,
+                    CooldownProgress = 0.37,
+                    LockProgress = 0.82,
+                    LockTargetEntityIndex = 4,
+                    ShotSequence = 23
+                }
+            ];
+            ship.ActiveConsumables =
+            [
+                new AetheriaRuntimeActiveConsumableCommit
+                {
+                    EffectId = "effect:reconnect-tonic:1",
+                    ItemKey = "reconnect-tonic",
+                    Quality = 0.67,
+                    Duration = 30,
+                    RemainingDuration = 12,
+                    BehaviorStates =
+                    [
+                        new AetheriaRuntimeConsumableBehaviorStateCommit
+                        {
+                            BehaviorId = "tonic-modifier",
+                            BehaviorIndex = 0,
+                            BehaviorKind = AetheriaRuntimeBehaviorKinds.StatModifier,
+                            ScalarState = 0.42,
+                            StatModifierApplied = true,
+                            StatModifierExecuted = true,
+                            StatModifierTargetStatCount = 3
+                        }
+                    ]
+                }
+            ];
+            ship.LoadoutGeneration = new AetheriaRuntimeLoadoutGenerationReceiptCommit
+            {
+                Seed = 0xA37E,
+                SourceZoneIndex = 2,
+                AvailabilityFactionKey = "player",
+                PriceExponent = 0.25,
+                Selections =
+                [
+                    new AetheriaRuntimeLoadoutGenerationSelectionCommit
+                    {
+                        Role = "controller",
+                        ItemKey = controller.ItemKey,
+                        ManufacturerKey = "player",
+                        Price = 1200,
+                        ManufacturerDistance = 1,
+                        Allegiance = 0.9
+                    }
+                ]
+            };
+            var run = new AetheriaRuntimeRunCheckpointCommit
+            {
+                RunId = "loadout-restart-smoke",
+                CurrentZoneIndex = 0,
+                Zones = [new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [ship] }]
+            };
+            run.CurrentEntityKey = run.EntityRecordKey(0, ship.EntityIndex);
+            var frame = AetheriaRuntimeDaemonFrameDocument.Create(
+                run, "smoke", "loadout-restart", 41, 4.1, 0.1);
+
+            using (var node = AetheriaStateNode.OpenAsync(statePath).GetAwaiter().GetResult())
+            {
+                node.MutableDocument<AetheriaRuntimeDaemonFrameDocument>(
+                        AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest)
+                    .ReplaceAsync(frame).GetAwaiter().GetResult();
+                node.FlushAsync(soft: false).GetAwaiter().GetResult();
+            }
+
+            using (var node = AetheriaStateNode.OpenAsync(statePath).GetAwaiter().GetResult())
+            {
+                var durable = node.MutableDocument<AetheriaRuntimeDaemonFrameDocument>(
+                        AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest)
+                    .ReadAsync().GetAwaiter().GetResult()
+                    ?? throw new InvalidOperationException("Durable loadout restart frame is missing.");
+                var restored = durable.Run.Zones.Single().Entities.Single();
+                var installed = restored.Equipment.Single();
+                RequireEqual("reconnect-hull", restored.HullItemKey,
+                    "CultCache restart must preserve daemon-owned hull identity");
+                Require(installed.X == 3 && installed.Y == 4 && installed.Rotation == "CounterClockwise",
+                    "CultCache restart must preserve exact equipment placement and rotation");
+                RequireNear(0.73, installed.Item.Quality, 0.000001,
+                    "CultCache restart must preserve installed item quality");
+                RequireNear(0.61, installed.Item.Durability, 0.000001,
+                    "CultCache restart must preserve installed item durability");
+                Require(installed.Item.OverrideShutdown && installed.Item.Temperature == 417,
+                    "CultCache restart must preserve per-instance thermal controls");
+                RequireEqual(7, restored.CargoContents.Single().Items.Single().Item.Quantity,
+                    "CultCache restart must preserve cargo stack quantity");
+                Require(restored.WeaponGroups.Single().SequenceEqual(new[] { 0 }) &&
+                        restored.ActiveWeaponGroups.SequenceEqual(new[] { true }),
+                    "CultCache restart must preserve weapon membership and held state");
+                RequireNear(0.12, restored.EquipmentStates.Single().Wear, 0.000001,
+                    "CultCache restart must preserve equipment wear state");
+                RequireNear(412, restored.BehaviorStates.Single().ThermotoggleTargetTemperature, 0.000001,
+                    "CultCache restart must preserve executable behavior state");
+                Require(restored.BehaviorStates.Single().ChainCompleted,
+                    "CultCache restart must preserve specialized chain chronology");
+                Require(restored.WeaponStates.Single().ShotSequence == 23 &&
+                        restored.WeaponStates.Single().Ammo == 9,
+                    "CultCache restart must preserve weapon chronology and ammunition");
+                var consumableState = restored.ActiveConsumables.Single().BehaviorStates.Single();
+                Require(consumableState.StatModifierApplied && consumableState.StatModifierExecuted &&
+                        consumableState.StatModifierTargetStatCount == 3,
+                    "CultCache restart must preserve active consumable execution state");
+                Require(restored.LoadoutGeneration?.Selections.Single().ItemKey == controller.ItemKey,
+                    "CultCache restart must preserve generated-loadout provenance");
+
+                var capability = AetheriaRuntimeInputCapabilityDocument.FromFrame(
+                    durable, catalog: catalog);
+                RequireEqual("1", capability.Actions.Single(action =>
+                        action.ActionId == "weapon-group.0.fire").Payload["currentValue"],
+                    "generic Eve reconnect must observe the daemon-owned held weapon state");
+                RequireNear(412, capability.Actions.Single(action =>
+                        action.ActionId == "equipment.0.behavior.0").InputValue?.CurrentValue ?? double.NaN,
+                    0.000001,
+                    "generic Eve reconnect must observe the daemon-owned thermostat target");
+            }
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+                Directory.Delete(root, recursive: true);
+        }
     }
 
     private static void YmirRestartDoesNotReplayConsumedPickupContact()

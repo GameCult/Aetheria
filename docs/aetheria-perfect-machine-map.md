@@ -887,6 +887,31 @@ one `weapon.lock.acquired`, and one `shot.committed` event. Ymir reconstructs
 process-local bodies from committed world state; it does not own weapon
 lifecycle state.
 
+### Durable Loadout Restart Contract
+
+- Owner: `AetheriaRuntimeDaemonFrameDocument` at `DaemonFrameLatest` is the
+  durable live-run checkpoint. `AetheriaRunState`, `AetheriaZoneState`, and
+  `AetheriaEntitySnapshot` seed a run only when no playable live frame exists;
+  they are not a second writer for an active session.
+- Inputs: accepted daemon transactions plus the complete runtime entity state:
+  hull, installed placement and rotation, per-instance item fields, cargo and
+  bay contents, weapon groups, equipment/behavior/weapon/consumable state, and
+  loadout-generation receipts.
+- Outputs: one typed CultCache frame that can be closed, reopened in a fresh
+  state node, resumed by the daemon, and projected into Eve without rebuilding
+  gameplay state from Unity objects or client input.
+- Reconnect invariant: exact item placement, authored rotation, quality,
+  durability, thermal state, cargo quantity, held groups, wear, specialized
+  chain chronology, ammunition, shot sequence, active-effect execution state,
+  and generation provenance survive the real directory store. Restored Eve
+  weapon and thermostat levers derive from that same frame.
+- Forbidden writers: Unity loadout mirrors, Eve lowerers, and bootstrap entity
+  documents cannot overwrite an active latest-frame checkpoint.
+- Verification layer: daemon smoke hard-flushes the frame, disposes the first
+  `AetheriaStateNode`, opens a second node, verifies the complete loadout and
+  behavior state, then rebuilds generic Eve input capabilities from the
+  restored frame.
+
 ### Daemon Orbital Turret Controller
 
 - Owner: each chain-admitted operational installed `TurretController` behavior owns automatic
