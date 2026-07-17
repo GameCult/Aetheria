@@ -633,6 +633,15 @@ public sealed class AetheriaEntitySnapshot
 
     [Key(34)]
     public AetheriaVector2 HelmInput { get; set; } = new();
+
+    [Key(35)]
+    public string OrbitKey { get; set; } = "";
+
+    [Key(36)]
+    public int SecurityLevel { get; set; }
+
+    [Key(37)]
+    public double SecurityRadius { get; set; }
 }
 
 [MessagePackObject]

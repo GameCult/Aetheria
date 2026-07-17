@@ -1137,6 +1137,12 @@ namespace GameCult.Aetheria.State.Verse
 
         [Key(54)]
         public IReadOnlyList<bool> ActiveWeaponGroups { get; set; } = Array.Empty<bool>();
+
+        [Key(55)]
+        public int SecurityLevel { get; set; }
+
+        [Key(56)]
+        public double SecurityRadius { get; set; }
     }
 
     [MessagePackObject]

@@ -1032,7 +1032,10 @@ namespace GameCult.Aetheria.State.Verse
                 entity.LookDirectionX,
                 entity.LookDirectionY,
                 entity.HelmStrafe,
-                entity.HelmForward);
+                entity.HelmForward,
+                entity.OrbitKey,
+                entity.SecurityLevel,
+                entity.SecurityRadius);
         }
 
         private static AetheriaRuntimeEntityItemSlotSnapshot[] CreateEntityItemSlots(

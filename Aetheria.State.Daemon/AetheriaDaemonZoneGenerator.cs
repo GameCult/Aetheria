@@ -389,54 +389,27 @@ internal static class AetheriaDaemonZoneGenerator
     {
         var availabilityFaction = availabilityFactions[faction];
         var loadout = loadouts[availabilityFaction].Build(kind, availabilityFaction);
-        return new AetheriaEntitySnapshot
+        var entity = AetheriaDaemonGeneratedEntityFactory.Create(
+            name,
+            kind,
+            faction,
+            loadout,
+            x,
+            z);
+        entity.Direction = Vec2(vx == 0 && vy == 0 ? 0 : vx, vx == 0 && vy == 0 ? 1 : vy);
+        entity.LookDirection = Vec2(vx == 0 && vy == 0 ? 0 : vx, vx == 0 && vy == 0 ? 1 : vy);
+        entity.Velocity = Vec2(vx, vy);
+        entity.Visibility = visibility;
+        entity.TargetEntityKey = target;
+        entity.Contacts = contactKeys.Select(key => new AetheriaEntityContactSnapshot
         {
-            Name = name,
-            Kind = kind,
-            Position = Vec3(x, 0, z),
-            Direction = Vec2(vx == 0 && vy == 0 ? 0 : vx, vx == 0 && vy == 0 ? 1 : vy),
-            LookDirection = Vec2(vx == 0 && vy == 0 ? 0 : vx, vx == 0 && vy == 0 ? 1 : vy),
-            Velocity = Vec2(vx, vy),
-            FactionKey = faction,
-            HullItemKey = loadout.HullItemKey,
-            LoadoutGeneration = loadout.Receipt,
-            IsActive = true,
-            HeatsinksEnabled = true,
-            TractorPower = 0,
-            Visibility = visibility,
-            VisibilitySourceCount = 1,
-            TargetEntityKey = target,
-            Contacts = contactKeys.Select(key => new AetheriaEntityContactSnapshot
-            {
-                TargetEntityKey = key,
-                InfoGathered = 1,
-                Hostile = string.Equals(faction, "player", StringComparison.OrdinalIgnoreCase) && key.Contains(".entity.6.", StringComparison.Ordinal)
-            }).ToArray(),
-            StatGrids =
-            [
-                StatGrid("hull", string.Equals(kind, "station", StringComparison.OrdinalIgnoreCase) ? 420 : string.Equals(faction, "raider", StringComparison.OrdinalIgnoreCase) ? 85 : 130),
-                StatGrid("shield", string.Equals(kind, "station", StringComparison.OrdinalIgnoreCase) ? 130 : 50),
-                StatGrid("heat", 0)
-            ],
-            Equipment = loadout.Equipment,
-            CargoBays = loadout.CargoBays,
-            DockingBays = loadout.DockingBays,
-            WeaponGroups = loadout.WeaponGroups
-                .Select(indices => new AetheriaWeaponGroupSnapshot { EquipmentIndices = indices })
-                .ToArray(),
-            CargoContents = loadout.CargoBays
-                .Select((_, index) => new AetheriaCargoBayLoadout
-                {
-                    Items = index == 0 ? loadout.Cargo : []
-                })
-                .ToArray(),
-            DockingBayContents = loadout.DockingBays
-                .Select(_ => new AetheriaCargoBayLoadout())
-                .ToArray(),
-            DockingBayAssignments = loadout.DockingBays
-                .Select(_ => -1)
-                .ToArray()
-        };
+            TargetEntityKey = key,
+            InfoGathered = 1,
+            Hostile = string.Equals(faction, "player", StringComparison.OrdinalIgnoreCase) && key.Contains(".entity.6.", StringComparison.Ordinal)
+        }).ToArray();
+        if (string.Equals(faction, "raider", StringComparison.OrdinalIgnoreCase))
+            entity.StatGrids[0].Values[0] = 85;
+        return entity;
     }
 
     private static AetheriaGasGiantVisualState GasGiantVisual(BodyPlan body)

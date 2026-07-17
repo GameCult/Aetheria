@@ -85,6 +85,12 @@ public sealed class AetheriaUnityEntityBlueprintMaterializer
             shipBlueprint.Direction = new float2((float)entity.DirectionX, (float)entity.DirectionY);
             shipBlueprint.IsPlayerShip = isCurrentEntity;
         }
+        else if (blueprint is OrbitalEntityConstructionBlueprint orbitalBlueprint)
+        {
+            orbitalBlueprint.OrbitKey = entity.OrbitKey ?? "";
+            orbitalBlueprint.SecurityLevel = (SecurityLevel)entity.SecurityLevel;
+            orbitalBlueprint.SecurityRadius = (float)entity.SecurityRadius;
+        }
 
         blueprint.Name = entity.Name ?? "";
         blueprint.FactionKey = entity.FactionKey ?? "";
@@ -102,7 +108,9 @@ public sealed class AetheriaUnityEntityBlueprintMaterializer
 
     private static EntityConstructionBlueprint CreateBlueprint(string kind)
     {
-        return string.Equals(kind, "orbital", StringComparison.OrdinalIgnoreCase)
+        return string.Equals(kind, "orbital", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(kind, "station", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(kind, "turret", StringComparison.OrdinalIgnoreCase)
             ? new OrbitalEntityConstructionBlueprint()
             : new ShipConstructionBlueprint();
     }

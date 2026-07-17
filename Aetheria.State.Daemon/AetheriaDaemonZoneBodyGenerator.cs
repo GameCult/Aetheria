@@ -2,6 +2,7 @@ using Aetheria.State.Documents;
 
 public sealed record AetheriaDaemonGeneratedZonePlan(
     uint GenerationSeed,
+    uint PostBodyRandomState,
     double Radius,
     double Mass,
     double HierarchyMass,
@@ -121,6 +122,7 @@ public static class AetheriaDaemonZoneBodyGenerator
 
         return new AetheriaDaemonGeneratedZonePlan(
             zoneSeed,
+            random.state,
             radius,
             mass,
             planets.Sum(planet => (double)planet.Mass),

@@ -921,7 +921,10 @@ namespace GameCult.Aetheria.State.Verse
             double lookDirectionX = 0,
             double lookDirectionY = 0,
             double helmStrafe = 0,
-            double helmForward = 0)
+            double helmForward = 0,
+            string orbitKey = "",
+            int securityLevel = 0,
+            double securityRadius = 0)
         {
             RecordKey = recordKey;
             EntityIndex = entityIndex;
@@ -964,6 +967,9 @@ namespace GameCult.Aetheria.State.Verse
             LookDirectionY = lookDirectionY;
             HelmStrafe = helmStrafe;
             HelmForward = helmForward;
+            OrbitKey = orbitKey ?? "";
+            SecurityLevel = securityLevel;
+            SecurityRadius = securityRadius;
         }
 
         public string RecordKey { get; set; }
@@ -1007,6 +1013,9 @@ namespace GameCult.Aetheria.State.Verse
         public double LookDirectionY { get; set; }
         public double HelmStrafe { get; set; }
         public double HelmForward { get; set; }
+        public string OrbitKey { get; set; }
+        public int SecurityLevel { get; set; }
+        public double SecurityRadius { get; set; }
     }
 
     [MessagePackObject(true)]

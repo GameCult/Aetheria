@@ -44,6 +44,11 @@ else if (args.Contains("--tutorial-world", StringComparer.Ordinal))
     checks.RunTutorialWorld();
     Console.WriteLine("Daemon tutorial world-plan smoke passed.");
 }
+else if (args.Contains("--tutorial-materialization", StringComparer.Ordinal))
+{
+    checks.RunTutorialMaterialization();
+    Console.WriteLine("Daemon tutorial entity-materialization smoke passed.");
+}
 else
 {
     checks.Run();
@@ -80,6 +85,118 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
     public void RunTutorialTopology() => RunCheck(TutorialTopologyIsDeterministicConnectedAndRoleOwned);
     public void RunZoneBodies() => RunCheck(GeneratedZoneBodiesPreserveFossilHierarchy);
     public void RunTutorialWorld() => RunCheck(TutorialWorldMaterializesEveryTopologyZone);
+    public void RunTutorialMaterialization() => RunCheck(TutorialPopulationPreservesFossilEntityMechanics);
+
+    private static void TutorialPopulationPreservesFossilEntityMechanics()
+    {
+        var catalog = TutorialPopulationCatalog(out var factions);
+        var settings = AetheriaDaemonTutorialTopologySettings.Fossil;
+        var firstWorld = AetheriaDaemonTutorialWorldGenerator.Generate(factions, 0xA37E_2026u, settings);
+        var secondWorld = AetheriaDaemonTutorialWorldGenerator.Generate(factions, 0xA37E_2026u, settings);
+        var first = AetheriaDaemonTutorialWorldMaterializer.Materialize(firstWorld, factions, catalog);
+        var second = AetheriaDaemonTutorialWorldMaterializer.Materialize(secondWorld, factions, catalog);
+
+        RequireEqual(first.Topology.EntranceZoneIndex, first.PlayerZoneIndex,
+            "the starter ship must enter the authored tutorial entrance zone");
+        var entrance = first.Zones[first.PlayerZoneIndex];
+        Require(entrance.PlayerEntityIndex >= 0 &&
+                entrance.Entities[entrance.PlayerEntityIndex].Kind == "ship" &&
+                entrance.Entities[entrance.PlayerEntityIndex].FactionKey == factions[0].CorporationKey,
+            "the tutorial must materialize one protagonist starter ship as daemon world truth");
+        Require(first.Zones.Values.Any(zone => zone.Entities.Any(entity => entity.Kind == "station")) &&
+                first.Zones.Values.Any(zone => zone.Entities.Any(entity => entity.Kind == "turret")) &&
+                first.Zones.Values.Any(zone => zone.Entities.Any(entity =>
+                    entity.Kind == "ship" && entity.AgentTaskCapabilities.Contains("attack", StringComparer.Ordinal))),
+            "fossil station, defensive turret, and hostile-agent population must all survive materialization");
+        Require(first.Zones.Values.All(zone =>
+        {
+            var orbitKeys = zone.Orbits.Select(orbit => orbit.OrbitKey).ToHashSet(StringComparer.Ordinal);
+            return zone.Entities.Where(entity => entity.Kind is "station" or "turret")
+                .All(entity => !string.IsNullOrWhiteSpace(entity.OrbitKey) && orbitKeys.Contains(entity.OrbitKey));
+        }), "every orbital entity must reference an orbit owned by its canonical zone document");
+        Require(first.Zones.Values.SelectMany(zone => zone.Entities)
+                .Where(entity => entity.Kind is "station" or "turret" or "ship")
+                .All(entity => entity.LoadoutGeneration != null &&
+                    entity.LoadoutGeneration.SourceZoneIndex >= 0 &&
+                    entity.LoadoutGeneration.Selections.Any(selection => selection.Role == "hull")),
+            "every generated entity must retain its daemon loadout provenance receipt");
+        Require(first.Zones.OrderBy(pair => pair.Key)
+                .Select(pair => string.Join('|', pair.Value.Entities.Select(entity =>
+                    $"{entity.Kind}:{entity.FactionKey}:{entity.HullItemKey}:{entity.OrbitKey}")))
+                .SequenceEqual(second.Zones.OrderBy(pair => pair.Key)
+                    .Select(pair => string.Join('|', pair.Value.Entities.Select(entity =>
+                        $"{entity.Kind}:{entity.FactionKey}:{entity.HullItemKey}:{entity.OrbitKey}")))),
+            "fixed topology, catalog, and post-body random state must reproduce entity population exactly");
+    }
+
+    private static AetheriaRuntimeCatalogSnapshot TutorialPopulationCatalog(
+        out AetheriaDaemonTutorialFactionInput[] factions)
+    {
+        var one = new[] { new AetheriaRuntimeShapeCell(0, 0) };
+        var hullCells = Enumerable.Range(0, 6).SelectMany(y => Enumerable.Range(0, 6)
+            .Select(x => new AetheriaRuntimeShapeCell(x, y))).ToArray();
+        var manufacturer = "faction.miss";
+
+        AetheriaRuntimeCatalogItem Item(string key, string category, string hardpointType = "", params string[] behaviors)
+        {
+            var item = CatalogItem(key, behaviors.Select((kind, index) =>
+                new AetheriaRuntimeBehaviorPayload(index, kind, 0, Array.Empty<AetheriaRuntimeBehaviorField>())).ToArray());
+            item.Category = category;
+            item.ManufacturerKey = manufacturer;
+            item.Price = 10;
+            item.HardpointType = hardpointType;
+            item.ShapeWidth = 1;
+            item.ShapeHeight = 1;
+            item.OccupiedCells = 1;
+            item.ShapeCells = one;
+            item.BehaviorKinds = behaviors;
+            return item;
+        }
+
+        AetheriaRuntimeCatalogItem Hull(string key, string hullType, string controller)
+        {
+            var hull = Item(key, AetheriaRuntimeItemCategories.Hull, "Hull");
+            hull.HullType = hullType;
+            hull.ShapeWidth = 6;
+            hull.ShapeHeight = 6;
+            hull.OccupiedCells = hullCells.Length;
+            hull.ShapeCells = hullCells;
+            hull.Hardpoints =
+            [
+                new AetheriaRuntimeHardpoint("ControlModule", 0, 0, 1, 1, 1, one, "", "None", 0),
+                new AetheriaRuntimeHardpoint("Weapon", 1, 0, 1, 1, 1, one, "", "None", 0)
+            ];
+            return hull;
+        }
+
+        var shipHull = Hull("tutorial-ship-hull", "Ship", "Cockpit");
+        var stationHull = Hull("tutorial-station-hull", "Station", "TurretController");
+        var cockpit = Item("tutorial-cockpit", AetheriaRuntimeItemCategories.Gear, "ControlModule", "Cockpit");
+        var turret = Item("tutorial-turret-controller", AetheriaRuntimeItemCategories.Gear, "ControlModule", "TurretController");
+        var weapon = Item("tutorial-weapon", AetheriaRuntimeItemCategories.Weapon, "Weapon", "LockWeapon");
+        var cargo = Item("tutorial-cargo", AetheriaRuntimeItemCategories.CargoBay, "Internal");
+        cargo.InteriorShapeWidth = 4;
+        cargo.InteriorShapeHeight = 4;
+        cargo.InteriorOccupiedCells = 16;
+        cargo.InteriorShapeCells = Enumerable.Range(0, 4).SelectMany(y => Enumerable.Range(0, 4)
+            .Select(x => new AetheriaRuntimeShapeCell(x, y))).ToArray();
+        var docking = Item("tutorial-docking", AetheriaRuntimeItemCategories.DockingBay, "Internal");
+        var reactor = Item("tutorial-reactor", AetheriaRuntimeItemCategories.Gear, "Internal", "Reactor");
+        var capacitor = Item("tutorial-capacitor", AetheriaRuntimeItemCategories.Gear, "Internal", "Capacitor");
+        var names = new[] { "Miss", "Zhe", "Luc", "Aero", "Finch", "Adras" };
+        var corporations = names.Select(name => new AetheriaRuntimeCorporation(
+            $"faction.{name.ToLowerInvariant()}", name, name, "", $"names.{name}", "", 4, 1,
+            [new AetheriaRuntimeCorporationAllegiance(manufacturer, 1)])).ToArray();
+        factions = names.Select((name, index) => new AetheriaDaemonTutorialFactionInput(
+            corporations[index].CorporationKey, name, name, 4)
+        {
+            TrainingNames = Enumerable.Range(0, 128).Select(value => $"{name}{value:D3}").ToArray()
+        }).ToArray();
+        return new AetheriaRuntimeCatalogSnapshot(
+            [shipHull, stationHull, cockpit, turret, weapon, cargo, docking, reactor, capacitor],
+            corporations,
+            []);
+    }
 
     private static void TutorialWorldMaterializesEveryTopologyZone()
     {
