@@ -5301,7 +5301,7 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
-    public void InputCapabilitiesAdvertiseOnlyCurrentlyActivatableConsumables()
+    public void InputCapabilitiesPublishAuthoritativeConsumableActionBarState()
     {
         var run = RunWithTwoEntities();
         run.CurrentEntityKey = run.EntityRecordKey(0, 0);
@@ -5312,7 +5312,7 @@ public class DaemonRuntimeDocumentTests
             {
                 Items = new[]
                 {
-                    new AetheriaRuntimeLoadoutItemSlotCommit { Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = "repair-gel", Quantity = 1 } },
+                    new AetheriaRuntimeLoadoutItemSlotCommit { Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = "repair-gel", Quantity = 3 } },
                     new AetheriaRuntimeLoadoutItemSlotCommit { Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = "ore", Quantity = 4 } }
                 }
             }
@@ -5329,8 +5329,33 @@ public class DaemonRuntimeDocumentTests
 
         var capability = AetheriaRuntimeInputCapabilityDocument.FromFrame(frame, catalog: catalog);
 
-        Assert.IsTrue(capability.Actions.Any(action => action.Operation.EndsWith("ActivateConsumable", StringComparison.Ordinal) && action.Payload["itemKey"] == "repair-gel"));
+        var repair = capability.Actions.Single(action => action.Operation.EndsWith("ActivateConsumable", StringComparison.Ordinal));
+        Assert.AreEqual("repair-gel", repair.Payload["itemKey"]);
+        Assert.AreEqual("3", repair.Payload["quantityRemaining"]);
+        Assert.AreEqual("0", repair.Payload["activeEffectCount"]);
+        Assert.AreEqual("0", repair.Payload["fillValue"]);
+        Assert.AreEqual("remaining-ratio.v1", repair.Payload["fillModel"]);
+        Assert.AreEqual("available", repair.Availability);
         Assert.IsFalse(capability.Actions.Any(action => action.Operation.EndsWith("ActivateConsumable", StringComparison.Ordinal) && action.Payload["itemKey"] == "ore"));
+
+        actor.CargoContents = Array.Empty<AetheriaRuntimeCargoBayLoadoutCommit>();
+        actor.ActiveConsumables = new[]
+        {
+            new AetheriaRuntimeActiveConsumableCommit
+            {
+                ItemKey = "repair-gel",
+                Duration = 2,
+                RemainingDuration = 0.5
+            }
+        };
+        var activeCapability = AetheriaRuntimeInputCapabilityDocument.FromFrame(frame, catalog: catalog).ToEveDocument();
+        var activeRepair = activeCapability.Actions.Single(action => action.Operation.EndsWith("ActivateConsumable", StringComparison.Ordinal));
+        Assert.AreEqual("0", activeRepair.Payload["quantityRemaining"]);
+        Assert.AreEqual("1", activeRepair.Payload["activeEffectCount"]);
+        Assert.AreEqual("0.5", activeRepair.Payload["remainingDurationSeconds"]);
+        Assert.AreEqual("2", activeRepair.Payload["durationSeconds"]);
+        Assert.AreEqual("0.25", activeRepair.Payload["fillValue"]);
+        Assert.AreEqual("unavailable", activeRepair.Availability);
     }
 
     [Test]

@@ -93,19 +93,67 @@ namespace GameCult.Aetheria.State.Verse
             {
                 actions.AddRange((entity.WeaponGroups ?? Array.Empty<IReadOnlyList<int>>()).Select((_, index) => WeaponGroupAction(run, entity, index)));
                 actions.AddRange(EquipmentBehaviorActions(run, entity, catalog));
-                actions.AddRange((entity.CargoContents ?? Array.Empty<AetheriaRuntimeCargoBayLoadoutCommit>())
-                    .SelectMany(bay => bay.Items)
-                    .Where(slot => slot?.Item != null && AetheriaRuntimeConsumableSimulation.CanActivate(entity, catalog, slot.Item.ItemKey))
-                    .GroupBy(slot => slot.Item.ItemKey, StringComparer.Ordinal)
-                    .Select((group, index) =>
-                    {
-                        var itemKey = group.Key;
-                        var item = catalog?.FindItem(itemKey);
-                        return Action($"cargo.{itemKey}.use", $"Use {item?.Name ?? itemKey}", "ActivateConsumable", "consumable", $"{run.CurrentEntityKey}#cargo/{index}", ("itemKey", itemKey));
-                    }));
+                actions.AddRange(ConsumableActions(run, entity, catalog));
                 actions.AddRange(TradeActions(run, entity, catalog));
             }
             return new AetheriaRuntimeInputCapabilityDocument { Version = frame?.FrameId ?? 0, Actions = actions.ToArray(), DefaultProfiles = BuildDefaultProfiles(actions) };
+        }
+
+        private static IEnumerable<AetheriaRuntimeInputActionDocument> ConsumableActions(
+            AetheriaRuntimeRunCheckpointCommit run,
+            AetheriaRuntimeEntitySnapshotCommit entity,
+            AetheriaRuntimeCatalogSnapshot? catalog)
+        {
+            if (catalog == null)
+                yield break;
+
+            var cargoItems = (entity.CargoContents ?? Array.Empty<AetheriaRuntimeCargoBayLoadoutCommit>())
+                .SelectMany(bay => bay?.Items ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>())
+                .Where(slot => slot?.Item != null)
+                .Select(slot => slot.Item)
+                .ToArray();
+            var activeEffects = (entity.ActiveConsumables ?? Array.Empty<AetheriaRuntimeActiveConsumableCommit>())
+                .Where(effect => effect != null)
+                .ToArray();
+            var itemKeys = cargoItems.Select(item => item.ItemKey)
+                .Concat(activeEffects.Select(effect => effect.ItemKey))
+                .Where(itemKey => !string.IsNullOrWhiteSpace(itemKey))
+                .Distinct(StringComparer.Ordinal);
+
+            foreach (var itemKey in itemKeys)
+            {
+                var item = catalog.FindItem(itemKey);
+                if (item == null || !string.Equals(item.Category, AetheriaRuntimeItemCategories.Consumable, StringComparison.Ordinal))
+                    continue;
+
+                var quantity = cargoItems
+                    .Where(candidate => string.Equals(candidate.ItemKey, itemKey, StringComparison.Ordinal))
+                    .Sum(candidate => Math.Max(1, candidate.Quantity));
+                var matchingEffects = activeEffects
+                    .Where(effect => string.Equals(effect.ItemKey, itemKey, StringComparison.Ordinal))
+                    .ToArray();
+                var active = matchingEffects.FirstOrDefault();
+                var remainingRatio = active == null || active.Duration <= 0
+                    ? 0
+                    : Math.Max(0, Math.Min(1, active.RemainingDuration / active.Duration));
+                var action = Action(
+                    $"cargo.{itemKey}.use",
+                    $"Use {item.Name ?? itemKey}",
+                    "ActivateConsumable",
+                    "consumable",
+                    $"{run.CurrentEntityKey}#consumable/{itemKey}",
+                    ("itemKey", itemKey),
+                    ("quantityRemaining", quantity.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+                    ("activeEffectCount", matchingEffects.Length.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+                    ("remainingDurationSeconds", (active?.RemainingDuration ?? 0).ToString("R", System.Globalization.CultureInfo.InvariantCulture)),
+                    ("durationSeconds", (active?.Duration ?? item.Duration).ToString("R", System.Globalization.CultureInfo.InvariantCulture)),
+                    ("fillValue", remainingRatio.ToString("R", System.Globalization.CultureInfo.InvariantCulture)),
+                    ("fillModel", "remaining-ratio.v1"));
+                action.Availability = AetheriaRuntimeConsumableSimulation.CanActivate(entity, catalog, itemKey)
+                    ? "available"
+                    : "unavailable";
+                yield return action;
+            }
         }
 
         private static IEnumerable<AetheriaRuntimeInputActionDocument> EquipmentBehaviorActions(

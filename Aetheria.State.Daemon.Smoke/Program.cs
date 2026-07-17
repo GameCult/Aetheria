@@ -181,6 +181,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             ResourceBehaviorsStopEquipmentChainsInAuthoredOrder,
             ThermotoggleSeedsAndGatesFromDaemonOwnedTarget,
             InputCapabilityPublishesExactBehaviorLevers,
+            InputCapabilityPublishesConsumableActionBarState,
             InputCapabilityPublishesHeldWeaponGroupLever,
             ReflectorUsesSharedStellarLightFieldWithoutAccumulating,
             SensorPingIsActorScopedEnergyGatedAndReconnectable,
@@ -614,6 +615,81 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         Require(offline.Actions.Where(value => value.Category == "equipment")
                 .All(value => value.Availability == "unavailable"),
             "offline equipment must retain stable action identity while advertising current unavailability");
+    }
+
+    private static void InputCapabilityPublishesConsumableActionBarState()
+    {
+        var repairGel = CatalogItem("repair-gel");
+        repairGel.Name = "Repair Gel";
+        repairGel.Category = AetheriaRuntimeItemCategories.Consumable;
+        repairGel.Duration = 4;
+        repairGel.Stackable = false;
+        var ore = CatalogItem("ore");
+        ore.Category = AetheriaRuntimeItemCategories.SimpleCommodity;
+        var catalog = new AetheriaRuntimeCatalogSnapshot([repairGel, ore], [], []);
+        var entity = Entity(0, 0, "player");
+        entity.CargoContents =
+        [
+            new AetheriaRuntimeCargoBayLoadoutCommit
+            {
+                Items =
+                [
+                    new AetheriaRuntimeLoadoutItemSlotCommit
+                    {
+                        Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = "repair-gel", Quantity = 3 }
+                    },
+                    new AetheriaRuntimeLoadoutItemSlotCommit
+                    {
+                        Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = "ore", Quantity = 7 }
+                    }
+                ]
+            }
+        ];
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "consumable-input-smoke",
+            CurrentZoneIndex = 0,
+            Zones = [new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [entity] }]
+        };
+        run.CurrentEntityKey = run.EntityRecordKey(0, entity.EntityIndex);
+        var frame = AetheriaRuntimeDaemonFrameDocument.Create(run, "smoke", "consumable-input", 1, 0.1, 0.1);
+        var capability = AetheriaRuntimeInputCapabilityDocument.FromFrame(frame, catalog: catalog);
+        var action = capability.Actions.Single(value => value.Category == "consumable");
+        RequireEqual("3", action.Payload["quantityRemaining"],
+            "consumable action bars must derive quantity from daemon cargo truth");
+        RequireEqual("0", action.Payload["fillValue"],
+            "inactive consumables must advertise an empty remaining-duration fill");
+        RequireEqual("remaining-ratio.v1", action.Payload["fillModel"],
+            "generic lowerers must receive the fossil action-bar fill semantics explicitly");
+        RequireEqual("available", action.Availability,
+            "a valid consumable in cargo must advertise current command availability");
+        Require(!capability.Actions.Any(value => value.Category == "consumable" && value.Payload["itemKey"] == "ore"),
+            "non-consumable cargo must not become an action-bar command");
+
+        entity.CargoContents = Array.Empty<AetheriaRuntimeCargoBayLoadoutCommit>();
+        entity.ActiveConsumables =
+        [
+            new AetheriaRuntimeActiveConsumableCommit
+            {
+                ItemKey = "repair-gel",
+                Duration = 4,
+                RemainingDuration = 1
+            }
+        ];
+        var activeAction = AetheriaRuntimeInputCapabilityDocument.FromFrame(frame, catalog: catalog)
+            .ToEveDocument().Actions.Single(value => value.Category == "consumable");
+        RequireEqual("0", activeAction.Payload["quantityRemaining"],
+            "the action must survive depletion while its daemon-owned effect remains active");
+        RequireEqual("1", activeAction.Payload["activeEffectCount"],
+            "the portable Eve action must expose daemon-owned active effect state");
+        RequireEqual("1", activeAction.Payload["remainingDurationSeconds"],
+            "generic clients must receive exact remaining duration without querying a Unity effect object");
+        RequireEqual("4", activeAction.Payload["durationSeconds"],
+            "generic clients must receive exact authored consumable duration");
+        RequireEqual("0.25", activeAction.Payload["fillValue"],
+            "remaining duration must lower to the fossil action-bar ratio exactly");
+        RequireEqual("unavailable", activeAction.Availability,
+            "a depleted non-stackable active consumable must remain visible but reject activation");
     }
 
     private static void InputCapabilityPublishesHeldWeaponGroupLever()
