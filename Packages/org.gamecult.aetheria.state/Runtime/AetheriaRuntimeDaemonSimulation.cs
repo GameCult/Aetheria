@@ -111,7 +111,8 @@ namespace GameCult.Aetheria.State.Verse
                     deltaSeconds,
                     settings.TargetInfoDecay,
                     activeRenderSettings.TargetDetectionInfoThreshold,
-                    frameId);
+                    frameId,
+                    settings.SecureAreaRadiusMultiplier);
                 AetheriaRuntimeMiningSimulation.Step(run, zone, entities, intents, catalog, frameId, simulationTimeSeconds, deltaSeconds);
                 AetheriaRuntimeSurveySimulation.Step(run, zone, entities, intents, catalog, frameId, simulationTimeSeconds, deltaSeconds);
             }

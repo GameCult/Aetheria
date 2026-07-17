@@ -17,7 +17,8 @@ namespace GameCult.Aetheria.State.Verse
             double deltaSeconds,
             double targetInfoDecay,
             double detectionThreshold,
-            long frameId)
+            long frameId,
+            double secureAreaRadiusMultiplier = 0.425)
         {
             if (catalog == null || deltaSeconds <= 0)
                 return;
@@ -44,7 +45,7 @@ namespace GameCult.Aetheria.State.Verse
 
                 foreach (var sensor in sensors)
                     StepSensor(run, zone, observer, sensor, entities, contacts, catalog,
-                        deltaSeconds, targetInfoDecay, frameId);
+                        deltaSeconds, targetInfoDecay, secureAreaRadiusMultiplier, frameId);
 
                 observer.Contacts = entities
                     .Where(target => target != null && target.EntityIndex != observer.EntityIndex)
@@ -56,7 +57,9 @@ namespace GameCult.Aetheria.State.Verse
                         {
                             TargetEntityIndex = target.EntityIndex,
                             InfoGathered = information,
-                            Hostile = Hostile(observer, target),
+                            Hostile = Hostile(
+                                run, zone, entities, catalog, observer, target,
+                                secureAreaRadiusMultiplier),
                             Visible = information > detectionThreshold
                         };
                     })
@@ -108,6 +111,7 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeCatalogSnapshot catalog,
             double deltaSeconds,
             double targetInfoDecay,
+            double secureAreaRadiusMultiplier,
             long frameId)
         {
             var thermal = ThermalPerformance(observer, sensor.EquipmentIndex);
@@ -164,7 +168,9 @@ namespace GameCult.Aetheria.State.Verse
                 {
                     TargetEntityIndex = target.EntityIndex,
                     InfoGathered = next,
-                    Hostile = Hostile(observer, target)
+                    Hostile = Hostile(
+                        run, zone, entities, catalog, observer, target,
+                        secureAreaRadiusMultiplier)
                 };
             }
             sensor.State.PingedEntityIndices = pinged.OrderBy(index => index).ToArray();
@@ -250,6 +256,94 @@ namespace GameCult.Aetheria.State.Verse
             .ThermalPerformance ?? 1;
 
         private static bool Hostile(
+            AetheriaRuntimeRunCheckpointCommit run,
+            AetheriaRuntimeZoneSnapshotCommit zone,
+            IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities,
+            AetheriaRuntimeCatalogSnapshot catalog,
+            AetheriaRuntimeEntitySnapshotCommit left,
+            AetheriaRuntimeEntitySnapshotCommit right,
+            double secureAreaRadiusMultiplier)
+        {
+            var ownerKey = zone.OwnerFactionIndex >= 0 &&
+                zone.OwnerFactionIndex < (catalog.Corporations?.Count ?? 0)
+                    ? catalog.Corporations[zone.OwnerFactionIndex].CorporationKey ?? ""
+                    : "";
+            if (string.IsNullOrWhiteSpace(ownerKey))
+                return LegacyHostile(left, right);
+
+            return OwnerRejects(run, zone, entities, left, right, ownerKey, secureAreaRadiusMultiplier) ||
+                   OwnerRejects(run, zone, entities, right, left, ownerKey, secureAreaRadiusMultiplier);
+        }
+
+        private static bool OwnerRejects(
+            AetheriaRuntimeRunCheckpointCommit run,
+            AetheriaRuntimeZoneSnapshotCommit zone,
+            IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities,
+            AetheriaRuntimeEntitySnapshotCommit ownerEntity,
+            AetheriaRuntimeEntitySnapshotCommit visitor,
+            string ownerKey,
+            double secureAreaRadiusMultiplier)
+        {
+            if (!string.Equals(ownerEntity.FactionKey, ownerKey, StringComparison.OrdinalIgnoreCase))
+                return false;
+            var relationship = RelationshipTo(run, zone, visitor, ownerKey);
+            var security = LocalSecurity(
+                entities, visitor.PositionX, visitor.PositionZ, ownerKey, secureAreaRadiusMultiplier);
+            return relationship - security <= 0;
+        }
+
+        private static int RelationshipTo(
+            AetheriaRuntimeRunCheckpointCommit run,
+            AetheriaRuntimeZoneSnapshotCommit zone,
+            AetheriaRuntimeEntitySnapshotCommit entity,
+            string factionKey)
+        {
+            if (string.Equals(entity.FactionKey, factionKey, StringComparison.OrdinalIgnoreCase))
+                return 4;
+            if (AetheriaRuntimeRunCheckpointCommit.TryParseEntityKey(
+                    run.CurrentEntityKey, out var playerZoneIndex, out var playerEntityIndex) &&
+                playerZoneIndex == zone.ZoneIndex && playerEntityIndex == entity.EntityIndex)
+            {
+                var relationship = (run.FactionRelationships ?? Array.Empty<AetheriaRuntimeFactionRelationshipCommit>())
+                    .FirstOrDefault(value => value != null &&
+                        string.Equals(value.FactionKey, factionKey, StringComparison.OrdinalIgnoreCase));
+                return RelationshipValue(relationship?.Relationship);
+            }
+            return 2;
+        }
+
+        private static int LocalSecurity(
+            IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities,
+            double positionX,
+            double positionZ,
+            string ownerKey,
+            double secureAreaRadiusMultiplier)
+        {
+            var security = 0;
+            foreach (var entity in entities)
+            {
+                if (entity == null || entity.SecurityRadius <= 1 ||
+                    !string.Equals(entity.FactionKey, ownerKey, StringComparison.OrdinalIgnoreCase))
+                    continue;
+                var dx = entity.PositionX - positionX;
+                var dz = entity.PositionZ - positionZ;
+                var radius = entity.SecurityRadius * secureAreaRadiusMultiplier;
+                if (dx * dx + dz * dz < radius * radius)
+                    security = Math.Max(security, entity.SecurityLevel);
+            }
+            return security;
+        }
+
+        private static int RelationshipValue(string? relationship)
+        {
+            if (string.Equals(relationship, "Hated", StringComparison.OrdinalIgnoreCase)) return 0;
+            if (string.Equals(relationship, "Hostile", StringComparison.OrdinalIgnoreCase)) return 1;
+            if (string.Equals(relationship, "Friendly", StringComparison.OrdinalIgnoreCase)) return 3;
+            if (string.Equals(relationship, "Beloved", StringComparison.OrdinalIgnoreCase)) return 4;
+            return 2;
+        }
+
+        private static bool LegacyHostile(
             AetheriaRuntimeEntitySnapshotCommit left,
             AetheriaRuntimeEntitySnapshotCommit right) =>
             string.Equals(left.FactionKey, "player", StringComparison.OrdinalIgnoreCase) !=

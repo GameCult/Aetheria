@@ -103,7 +103,12 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
     public void RunTutorialMaterialization() => RunCheck(TutorialPopulationPreservesFossilEntityMechanics);
     public void RunTutorialRun() => RunCheck(TutorialRunPersistsCanonicalWorldTruth);
     public void RunOrbits() => RunCheck(GeneratedOrbitsAdvanceOrbitalWorldTruth);
-    public void RunPatrol() => RunCheck(AgentPatrolsHistoricalOrbitCircuitThroughMovementCommands);
+    public void RunPatrol()
+    {
+        RunCheck(SecurityZonesOwnFossilTrespasserHostility);
+        RunCheck(AgentPatrolsHistoricalOrbitCircuitThroughMovementCommands);
+        RunCheck(PatrolCombatPreemptsAndResumesTheSameCircuit);
+    }
 
     private static void TutorialRunPersistsCanonicalWorldTruth()
     {
@@ -5197,6 +5202,137 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         Require(sawWestLeg && sawReturnToEast, "patrol must advance through and wrap its authored orbit circuit");
         RequireEqual(AetheriaRuntimeAgentTaskStatuses.Assigned, run.AgentTasks.Single().Status,
             "patrol is persistent work and must remain assigned after one circuit");
+    }
+
+    private static void SecurityZonesOwnFossilTrespasserHostility()
+    {
+        var guard = Entity(0, 0, "owners");
+        guard.SecurityLevel = 2;
+        guard.SecurityRadius = 100;
+        var visitor = Entity(1, 10, "visitors");
+        guard.Contacts = [new AetheriaRuntimeEntityContactCommit { TargetEntityIndex = 1, InfoGathered = 1 }];
+        visitor.Contacts = [new AetheriaRuntimeEntityContactCommit { TargetEntityIndex = 0, InfoGathered = 1 }];
+        var zone = new AetheriaRuntimeZoneSnapshotCommit
+        {
+            ZoneIndex = 0,
+            OwnerFactionIndex = 0,
+            Entities = [guard, visitor]
+        };
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            CurrentEntityKey = "zone.0.entity.1",
+            FactionRelationships =
+            [
+                new AetheriaRuntimeFactionRelationshipCommit
+                {
+                    FactionKey = "owners", Relationship = "Neutral"
+                }
+            ],
+            Zones = [zone]
+        };
+        var catalog = new AetheriaRuntimeCatalogSnapshot([], [new AetheriaRuntimeCorporation(
+            "owners", "Owners", "Owners", "", "", "", 4, 0,
+            Array.Empty<AetheriaRuntimeCorporationAllegiance>())], []);
+
+        AetheriaRuntimeSensorSimulation.StepZone(
+            run, zone, [guard, visitor], null, catalog, 0.1, 0, 0.5, 1);
+        Require(guard.Contacts.Single().Hostile && visitor.Contacts.Single().Hostile,
+            "a neutral visitor inside an owner critical-security field must be mutually hostile");
+
+        visitor.PositionX = 1000;
+        AetheriaRuntimeSensorSimulation.StepZone(
+            run, zone, [guard, visitor], null, catalog, 0.1, 0, 0.5, 2);
+        Require(!guard.Contacts.Single().Hostile && !visitor.Contacts.Single().Hostile,
+            "the same neutral visitor outside security fields must cease being hostile");
+    }
+
+    private static void PatrolCombatPreemptsAndResumesTheSameCircuit()
+    {
+        var patrol = Entity(0, 0, "owners");
+        patrol.AgentTaskCapabilities = [AetheriaRuntimeAgentTaskTypes.Patrol];
+        patrol.WeaponGroups = [new[] { 0 }];
+        patrol.Equipment =
+        [
+            new AetheriaRuntimeLoadoutItemSlotCommit
+            {
+                Item = new AetheriaRuntimeLoadoutItemCommit
+                {
+                    ItemKey = "patrol-cannon", Quality = 1, Durability = 1, Enabled = true
+                }
+            }
+        ];
+        patrol.Contacts =
+        [
+            new AetheriaRuntimeEntityContactCommit
+            {
+                TargetEntityIndex = 1, InfoGathered = 1, Visible = true, Hostile = true
+            }
+        ];
+        var hostile = Entity(1, 0, "visitors");
+        hostile.PositionZ = 50;
+        var weapon = new AetheriaRuntimeBehaviorPayload(0, AetheriaRuntimeBehaviorKinds.InstantWeapon, 0,
+        [
+            new AetheriaRuntimeBehaviorField(2, PerformanceStat(10)),
+            new AetheriaRuntimeBehaviorField(5, PerformanceStat(0)),
+            new AetheriaRuntimeBehaviorField(6, PerformanceStat(150)),
+            new AetheriaRuntimeBehaviorField(16, PerformanceStat(200)),
+            new AetheriaRuntimeBehaviorField(19, PerformanceStat(0.5))
+        ]);
+        var catalog = new AetheriaRuntimeCatalogSnapshot(
+            [WearableWeaponCatalogItem("patrol-cannon", weapon)], [], []);
+        var task = new AetheriaRuntimeAgentTaskCommit
+        {
+            TaskId = "patrol-combat",
+            CorporationKey = "owners",
+            TaskType = AetheriaRuntimeAgentTaskTypes.Patrol,
+            Status = AetheriaRuntimeAgentTaskStatuses.Assigned,
+            ZoneIndex = 0,
+            AssignedEntityIndex = 0,
+            CompletionRadius = 5,
+            TargetOrbitKeys = ["orbit:east", "orbit:west"],
+            CircuitIndex = 1
+        };
+        patrol.AssignedAgentTaskId = task.TaskId;
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "patrol-combat-smoke",
+            CurrentEntityKey = "",
+            AgentTasks = [task],
+            Zones =
+            [
+                new AetheriaRuntimeZoneSnapshotCommit
+                {
+                    ZoneIndex = 0,
+                    Entities = [patrol, hostile],
+                    Orbits =
+                    [
+                        new AetheriaRuntimeOrbitSnapshotCommit { OrbitKey = "orbit:east", FixedPositionX = 20 },
+                        new AetheriaRuntimeOrbitSnapshotCommit { OrbitKey = "orbit:west", FixedPositionX = -20 }
+                    ]
+                }
+            ]
+        };
+
+        var combatCommands = AetheriaRuntimeAgentScheduler.AssignAndPlan(
+            run, 1, catalog, 0.1, AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault);
+        Require(combatCommands.Any(command =>
+                command.Kind == AetheriaRuntimeDaemonCommandKinds.SetTarget &&
+                AetheriaRuntimeRunCheckpointCommit.TryParseEntityKey(
+                    command.TargetEntityKey, out var zoneIndex, out var entityIndex) &&
+                zoneIndex == 0 && entityIndex == 1),
+            "a visible hostile ship must pre-empt patrol movement through the shared target command");
+        Require(combatCommands.Any(command => command.Kind == AetheriaRuntimeDaemonCommandKinds.FireWeaponGroup),
+            "an aligned in-range patrol agent must use the shared weapon command");
+        RequireEqual(1, task.CircuitIndex,
+            "opportunistic combat must not replace or advance the patrol circuit");
+
+        patrol.Contacts = Array.Empty<AetheriaRuntimeEntityContactCommit>();
+        var resumed = AetheriaRuntimeAgentScheduler.AssignAndPlan(
+            run, 2, catalog, 0.2, AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault);
+        Require(resumed.Any(command => command.Kind == AetheriaRuntimeDaemonCommandKinds.SetMoveVector),
+            "loss of hostile visibility must resume the same patrol circuit");
+        RequireEqual(AetheriaRuntimeAgentTaskStatuses.Assigned, task.Status,
+            "opportunistic combat must never complete or fail the patrol task");
     }
 
     private static void RejectedHaulTransferDoesNotAdvanceTask()

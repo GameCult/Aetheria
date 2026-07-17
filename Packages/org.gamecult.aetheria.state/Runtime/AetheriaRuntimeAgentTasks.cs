@@ -302,6 +302,16 @@ namespace GameCult.Aetheria.State.Verse
                 if (string.Equals(task.TaskType, AetheriaRuntimeAgentTaskTypes.Defend, StringComparison.Ordinal) ||
                     string.Equals(task.TaskType, AetheriaRuntimeAgentTaskTypes.Patrol, StringComparison.Ordinal))
                 {
+                    var hostile = FirstVisibleHostileShip(zone!, agent);
+                    if (hostile != null && ResolveAgentWeapons(agent, catalog).Count > 0)
+                    {
+                        var combatDx = hostile.PositionX - agent.PositionX;
+                        var combatDz = hostile.PositionZ - agent.PositionZ;
+                        commands.AddRange(PlanAttack(
+                            run, task, agent, hostile, frameId, combatDx, combatDz,
+                            Math.Sqrt(combatDx * combatDx + combatDz * combatDz), catalog, simulationSettings));
+                        continue;
+                    }
                     commands.AddRange(PlanPatrol(zone!, task, agent, frameId));
                     continue;
                 }
@@ -1121,6 +1131,25 @@ namespace GameCult.Aetheria.State.Verse
                 dz = next.z - agent.PositionZ;
             }
             return new[] { Movement(task, agent, frameId, dx, dz, 1) };
+        }
+
+        private static AetheriaRuntimeEntitySnapshotCommit? FirstVisibleHostileShip(
+            AetheriaRuntimeZoneSnapshotCommit zone,
+            AetheriaRuntimeEntitySnapshotCommit agent)
+        {
+            var hostileIndices = (agent.Contacts ?? Array.Empty<AetheriaRuntimeEntityContactCommit>())
+                .Where(contact => contact != null && contact.Visible && contact.Hostile)
+                .Select(contact => contact.TargetEntityIndex)
+                .ToArray();
+            foreach (var index in hostileIndices)
+            {
+                var target = (zone.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
+                    .FirstOrDefault(entity => entity != null && entity.EntityIndex == index &&
+                        entity.IsActive && string.Equals(entity.Kind, "ship", StringComparison.OrdinalIgnoreCase));
+                if (target != null)
+                    return target;
+            }
+            return null;
         }
 
         private static AetheriaRuntimeDaemonCommandDocument Movement(

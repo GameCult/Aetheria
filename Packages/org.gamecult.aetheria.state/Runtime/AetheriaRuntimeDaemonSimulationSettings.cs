@@ -110,7 +110,8 @@ namespace GameCult.Aetheria.State.Verse
             double wormholeExitRadius = AetheriaDefaultRaw.WormholeExitRadius,
             double wormholeDepth = AetheriaDefaultRaw.WormholeDepth,
             double visibilityDecay = AetheriaDefaultRaw.VisibilityDecay,
-            double targetInfoDecay = AetheriaDefaultRaw.TargetInfoDecay)
+            double targetInfoDecay = AetheriaDefaultRaw.TargetInfoDecay,
+            double secureAreaRadiusMultiplier = AetheriaDefaultRaw.SecureAreaRadiusMultiplier)
         {
             PawnSpeed = PositiveOr(pawnSpeed, AetheriaDefaultRaw.PawnSpeed);
             RaiderSpeed = PositiveOr(raiderSpeed, AetheriaDefaultRaw.RaiderSpeed);
@@ -165,6 +166,8 @@ namespace GameCult.Aetheria.State.Verse
             WormholeDepth = PositiveOr(wormholeDepth, AetheriaDefaultRaw.WormholeDepth);
             VisibilityDecay = NonNegativeOr(visibilityDecay, AetheriaDefaultRaw.VisibilityDecay);
             TargetInfoDecay = NonNegativeOr(targetInfoDecay, AetheriaDefaultRaw.TargetInfoDecay);
+            SecureAreaRadiusMultiplier = PositiveOr(
+                secureAreaRadiusMultiplier, AetheriaDefaultRaw.SecureAreaRadiusMultiplier);
         }
 
         public double PawnSpeed { get; }
@@ -222,6 +225,7 @@ namespace GameCult.Aetheria.State.Verse
         public double WormholeDepth { get; }
         public double VisibilityDecay { get; }
         public double TargetInfoDecay { get; }
+        public double SecureAreaRadiusMultiplier { get; }
 
         private static double PositiveOr(double value, double fallback)
         {
@@ -293,6 +297,7 @@ namespace GameCult.Aetheria.State.Verse
             public const double WormholeDepth = 1000.0;
             public const double VisibilityDecay = 0.5;
             public const double TargetInfoDecay = 0.5;
+            public const double SecureAreaRadiusMultiplier = 0.425;
         }
     }
 }

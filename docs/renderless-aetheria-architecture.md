@@ -158,7 +158,10 @@ step advances canonical phase and projects orbital entity pose and velocity
 before Ymir. Body queries and Eve lower the same orbit graph.
 Each generated NPC also enters with a daemon-owned assigned patrol task over
 four shuffled orbit identities, matching the fossil activation behavior without
-letting the Unity client create agent state.
+letting the Unity client create agent state. The daemon derives hostility from
+the fossil owner-security and faction-relationship rule. A visible hostile ship
+pre-empts circuit movement through the existing combat planner; the patrol task
+keeps its circuit index and resumes it when contact is lost.
 
 New Game now submits its advertised Eve operation, waits for a newly published
 daemon sector map, and selects the persisted 64-zone tutorial while

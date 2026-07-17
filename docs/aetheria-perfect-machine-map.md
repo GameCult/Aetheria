@@ -1148,7 +1148,11 @@ the Terminus proof arena cannot award completion.
 - Agent work: each generated NPC ship receives one assigned `patrol` task with
   the fossil four-orbit shuffled circuit. Orbit circuits are typed separately
   from mining/survey body targets and survive bootstrap into the runtime
-  checkpoint; Unity no longer creates `Minion` patrol state on activation.
+  checkpoint. Daemon sensor policy derives the fossil owner-security trespass
+  rule from faction relationships and orbital security fields. The first
+  visible hostile ship temporarily drives the shared attack planner without
+  replacing or advancing the patrol task; loss of contact resumes the same
+  circuit. Unity no longer creates `Minion` patrol or combat state on activation.
 - Physical placement: the daemon resolves orbital entities from the canonical
   orbit graph before persistence and deterministically distributes generated
   non-player ships through the fossil half-zone volume. The controlled starter
@@ -1170,7 +1174,8 @@ the Terminus proof arena cannot award completion.
 - Verification layer: focused smokes prove deterministic population, resolved
   orbital references and poses, distributed non-player spawns,
   fixed-step orbit phase/pose/velocity through Ymir, station/turret/agent
-  presence, assigned four-orbit patrol persistence and movement, loadout
+  presence, assigned four-orbit patrol persistence and movement, critical-zone
+  trespass hostility, combat pre-emption and same-circuit resumption, loadout
   provenance, all 64 persisted zones, canonical starter identity, discovery,
   and adjacency.
 
