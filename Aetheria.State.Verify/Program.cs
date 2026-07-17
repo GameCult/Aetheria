@@ -853,10 +853,10 @@ static void RequireSharedEvePackagesImportedFromEveRepo(string root)
     }
 
     const string requiredAuthoringCultLib =
-        "https://github.com/GameCult/CultLib.git?path=/unity/org.gamecult.cultlib#cultlib-unity-v1.0.15";
+        "https://github.com/GameCult/CultLib.git?path=/unity/org.gamecult.cultlib#cultlib-unity-v1.0.16";
     if (!authoringManifest.Contains(requiredAuthoringCultLib, StringComparison.Ordinal) ||
         !authoringPackageLock.Contains(requiredAuthoringCultLib, StringComparison.Ordinal) ||
-        !authoringPackageLock.Contains("419053ebe2325848051c4f4d8ba352cd4286c424", StringComparison.Ordinal))
+        !authoringPackageLock.Contains("69caf2d027c49227e62ffa24452fc7d717f86ca5", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "The fossil asset-authoring Unity project is not pinned to the released CultLib body required by the generic scene package.");
