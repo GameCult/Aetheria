@@ -1071,15 +1071,15 @@ projectile lead, hardpoint gating, progressive lock, and target destruction.
 
 ### Authoritative Reflected Visibility Contract
 
-- Owner: the Aetheria daemon owns each entity's reflected stellar signature.
-  It evaluates operational `Reflector` cross-section after energy and thermal
-  state settle and before contact refresh. Eve and Unity only present the
-  resulting visibility and its named source.
+- Owner: the Aetheria daemon owns each entity's equipment and reflected stellar
+  signature. It evaluates operational `Visibility` and `Reflector` behaviors
+  after energy and thermal state settle and before contact refresh. Eve and
+  Unity only present the resulting visibility and named sources.
 - Inputs: entity position, equipped reflector performance and thermal state,
   daemon-owned sun mass, sun light-radius multiplier, the provider render
   settings light-radius curve, and resolved orbit positions.
-- Outputs: aggregate entity visibility plus an inspectable, reconnectable
-  `reflector-visibility` source grid.
+- Outputs: aggregate entity visibility plus inspectable, reconnectable
+  `equipment-visibility` and `reflector-visibility` source grids.
 - Shared-field invariant: daemon visibility and environment rendering resolve
   body positions through `AetheriaRuntimeOrbitQueries`; gravity-center overrides
   and nested authored orbits cannot silently put the visible sun and its
@@ -1091,9 +1091,10 @@ projectile lead, hardpoint gating, progressive lock, and target destruction.
   reflector.
 - Forbidden writers: contact refresh cannot overwrite emitted signature, and
   clients cannot submit visibility, stellar light, or reflector results.
-- Verification: daemon smoke proves a displaced authored sun orbit, the fossil
-  pulse equation, evaluated reflector cross-section, named source publication,
-  and a second tick with no visibility accumulation.
+- Verification: daemon smoke proves evaluated constant equipment visibility, a
+  displaced authored sun orbit, the fossil pulse equation, evaluated reflector
+  cross-section, named source publication, and a second tick with no visibility
+  accumulation.
 - Open parity: active consumable reflector effects and complete visibility-
   source cardinality remain to be migrated.
 

@@ -9,6 +9,7 @@ namespace GameCult.Aetheria.State.Verse
     public static class AetheriaRuntimeVisibilitySimulation
     {
         private const string ReflectorVisibilityGrid = "reflector-visibility";
+        private const string EquipmentVisibilityGrid = "equipment-visibility";
 
         public static void StepZone(
             AetheriaRuntimeZoneSnapshotCommit? zone,
@@ -39,6 +40,11 @@ namespace GameCult.Aetheria.State.Verse
                 if (entity == null || !entity.IsActive)
                     continue;
 
+                var equipmentVisibility = AetheriaRuntimeEquippedBehaviorQueries.FindOperational(
+                        entity, catalog, AetheriaRuntimeBehaviorKinds.Visibility)
+                    .Sum(behavior => Math.Max(0, behavior.EvaluateStat(
+                        1, ThermalPerformance(entity, behavior.EquipmentIndex))));
+                SetVisibilitySource(entity, EquipmentVisibilityGrid, equipmentVisibility);
                 var light = suns.Sum(sun => StellarLight(
                     entity.PositionX - sun.position.x,
                     entity.PositionZ - sun.position.z,
@@ -47,7 +53,7 @@ namespace GameCult.Aetheria.State.Verse
                         entity, catalog, AetheriaRuntimeBehaviorKinds.Reflector)
                     .Sum(behavior => Math.Max(0, behavior.EvaluateStat(
                         1, ThermalPerformance(entity, behavior.EquipmentIndex))) * light);
-                SetVisibilitySource(entity, reflected);
+                SetVisibilitySource(entity, ReflectorVisibilityGrid, reflected);
             }
         }
 
@@ -61,18 +67,21 @@ namespace GameCult.Aetheria.State.Verse
             return Math.Pow((x + 1) * (1 - x), 8);
         }
 
-        private static void SetVisibilitySource(AetheriaRuntimeEntitySnapshotCommit entity, double value)
+        private static void SetVisibilitySource(
+            AetheriaRuntimeEntitySnapshotCommit entity,
+            string sourceName,
+            double value)
         {
             var grids = (entity.StatGrids ?? Array.Empty<AetheriaRuntimeEntityStatGridCommit>()).ToList();
             var grid = grids.FirstOrDefault(candidate =>
-                string.Equals(candidate.Name, ReflectorVisibilityGrid, StringComparison.Ordinal));
+                string.Equals(candidate.Name, sourceName, StringComparison.Ordinal));
             var previous = grid?.Values.FirstOrDefault() ?? 0;
             entity.Visibility = Math.Max(0, entity.Visibility - previous) + value;
             if (grid == null)
             {
                 grid = new AetheriaRuntimeEntityStatGridCommit
                 {
-                    Name = ReflectorVisibilityGrid,
+                    Name = sourceName,
                     Width = 1,
                     Height = 1
                 };

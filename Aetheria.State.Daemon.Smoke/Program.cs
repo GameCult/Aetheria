@@ -397,7 +397,12 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             AetheriaRuntimeBehaviorKinds.Reflector,
             0,
             [new AetheriaRuntimeBehaviorField(1, PerformanceStat(2))]);
-        var controller = CatalogItem("reflector-controller", reflector);
+        var constantVisibility = new AetheriaRuntimeBehaviorPayload(
+            1,
+            AetheriaRuntimeBehaviorKinds.Visibility,
+            0,
+            [new AetheriaRuntimeBehaviorField(1, PerformanceStat(5))]);
+        var controller = CatalogItem("reflector-controller", reflector, constantVisibility);
         var catalog = new AetheriaRuntimeCatalogSnapshot([controller], [], []);
         var ship = Entity(0, 250, "player");
         ship.Visibility = 3;
@@ -446,8 +451,11 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         AetheriaRuntimeVisibilitySimulation.StepZone(zone, [ship], catalog, settings);
         AetheriaRuntimeVisibilitySimulation.StepZone(zone, [ship], catalog, settings);
 
-        RequireNear(3 + expectedReflection, ship.Visibility, 0.000001,
-            "Reflector must use the fossil stellar PowerPulse at the shared resolved sun orbit without accumulating per tick");
+        RequireNear(3 + 5 + expectedReflection, ship.Visibility, 0.000001,
+            "Visibility and Reflector must publish their fossil sources without accumulating per tick");
+        var equipmentSource = ship.StatGrids.Single(grid => grid.Name == "equipment-visibility");
+        RequireNear(5, equipmentSource.Values.Single(), 0.000001,
+            "Operational Visibility equipment must publish its evaluated signature as an inspectable source");
         var source = ship.StatGrids.Single(grid => grid.Name == "reflector-visibility");
         RequireNear(expectedReflection, source.Values.Single(), 0.000001,
             "Reflector visibility must remain an inspectable daemon-owned source for Eve and reconnect");
