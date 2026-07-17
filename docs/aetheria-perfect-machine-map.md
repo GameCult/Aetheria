@@ -1145,6 +1145,10 @@ the Terminus proof arena cannot award completion.
 - Outputs: 64 canonical zone documents, stable entity records, loadout
   generation receipts, one controlled entrance ship, tutorial discovery state,
   and an Aetheria-mode game session.
+- Agent work: each generated NPC ship receives one assigned `patrol` task with
+  the fossil four-orbit shuffled circuit. Orbit circuits are typed separately
+  from mining/survey body targets and survive bootstrap into the runtime
+  checkpoint; Unity no longer creates `Minion` patrol state on activation.
 - Physical placement: the daemon resolves orbital entities from the canonical
   orbit graph before persistence and deterministically distributes generated
   non-player ships through the fossil half-zone volume. The controlled starter
@@ -1166,8 +1170,9 @@ the Terminus proof arena cannot award completion.
 - Verification layer: focused smokes prove deterministic population, resolved
   orbital references and poses, distributed non-player spawns,
   fixed-step orbit phase/pose/velocity through Ymir, station/turret/agent
-  presence, loadout provenance, all 64 persisted zones, canonical starter
-  identity, discovery, and adjacency.
+  presence, assigned four-orbit patrol persistence and movement, loadout
+  provenance, all 64 persisted zones, canonical starter identity, discovery,
+  and adjacency.
 
 ### Daemon Generated Zone Body Ownership
 

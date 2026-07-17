@@ -156,6 +156,9 @@ Generated non-player ships are distributed through the fossil half-zone volume.
 Generated orbits carry the authored distance-derived period; each fixed daemon
 step advances canonical phase and projects orbital entity pose and velocity
 before Ymir. Body queries and Eve lower the same orbit graph.
+Each generated NPC also enters with a daemon-owned assigned patrol task over
+four shuffled orbit identities, matching the fossil activation behavior without
+letting the Unity client create agent state.
 
 New Game now submits its advertised Eve operation, waits for a newly published
 daemon sector map, and selects the persisted 64-zone tutorial while

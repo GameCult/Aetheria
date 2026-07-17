@@ -250,6 +250,24 @@ public sealed class AetheriaRunState
 
     [Key(15)]
     public long TerminalFrameId { get; set; } = -1;
+
+    [Key(16)]
+    public AetheriaAgentTaskState[] AgentTasks { get; set; } = [];
+}
+
+[MessagePackObject]
+public sealed class AetheriaAgentTaskState
+{
+    [Key(0)] public string TaskId { get; set; } = "";
+    [Key(1)] public string CorporationKey { get; set; } = "";
+    [Key(2)] public string TaskType { get; set; } = "";
+    [Key(3)] public int Priority { get; set; }
+    [Key(4)] public int ZoneIndex { get; set; } = -1;
+    [Key(5)] public string Status { get; set; } = "queued";
+    [Key(6)] public int AssignedEntityIndex { get; set; } = -1;
+    [Key(7)] public double CompletionRadius { get; set; } = 10;
+    [Key(8)] public string[] TargetOrbitKeys { get; set; } = [];
+    [Key(9)] public int CircuitIndex { get; set; }
 }
 
 [CultDocument("aetheria.zone_state", "aetheria.zone_state.v1")]
@@ -645,6 +663,9 @@ public sealed class AetheriaEntitySnapshot
 
     [Key(37)]
     public double SecurityRadius { get; set; }
+
+    [Key(38)]
+    public string AssignedAgentTaskId { get; set; } = "";
 }
 
 [MessagePackObject]

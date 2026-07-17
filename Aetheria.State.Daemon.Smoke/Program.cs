@@ -59,6 +59,11 @@ else if (args.Contains("--orbits", StringComparer.Ordinal))
     checks.RunOrbits();
     Console.WriteLine("Daemon dynamic-orbit smoke passed.");
 }
+else if (args.Contains("--patrol", StringComparer.Ordinal))
+{
+    checks.RunPatrol();
+    Console.WriteLine("Daemon generated-agent patrol smoke passed.");
+}
 else
 {
     checks.Run();
@@ -98,6 +103,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
     public void RunTutorialMaterialization() => RunCheck(TutorialPopulationPreservesFossilEntityMechanics);
     public void RunTutorialRun() => RunCheck(TutorialRunPersistsCanonicalWorldTruth);
     public void RunOrbits() => RunCheck(GeneratedOrbitsAdvanceOrbitalWorldTruth);
+    public void RunPatrol() => RunCheck(AgentPatrolsHistoricalOrbitCircuitThroughMovementCommands);
 
     private static void TutorialRunPersistsCanonicalWorldTruth()
     {
@@ -117,6 +123,9 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             Require(run != null && run.IsTutorial && run.ZoneKeys.Length == 64 &&
                     run.EntranceZoneIndex == run.CurrentZoneIndex && run.ExitZoneIndex == -1,
                 "persisted New Game truth must be the complete authored tutorial graph, not the Terminus witness fixture");
+            Require(run!.AgentTasks.Length > 0 && run.AgentTasks.All(task =>
+                    task.TaskType == "patrol" && task.Status == "assigned" && task.TargetOrbitKeys.Length == 4),
+                "persisted tutorial agents must retain their assigned four-orbit fossil patrols");
             Require(settings != null && settings.ActiveRunKey == written.RunKey && !settings.TutorialPassed,
                 "tutorial persistence must select the new run without falsely awarding completion");
             Require(run!.CurrentEntityKey == written.CurrentEntityKey,
@@ -164,6 +173,18 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 .Where(entity => entity.Kind == "ship" && entity.AgentTaskCapabilities.Contains("attack", StringComparer.Ordinal))
                 .All(entity => entity.Position.X != 0 || entity.Position.Z != 0),
             "generated non-player ships must retain the fossil activation rule that distributes zero-pose ships through the zone");
+        Require(first.Zones.Values.All(zone =>
+        {
+            var orbitKeys = zone.Orbits.Select(orbit => orbit.OrbitKey).ToHashSet(StringComparer.Ordinal);
+            var agents = zone.Entities.Where(entity =>
+                entity.Kind == "ship" && entity.AgentTaskCapabilities.Contains("attack", StringComparer.Ordinal)).ToArray();
+            return zone.AgentTasks.Length == agents.Length &&
+                zone.AgentTasks.All(task => task.TaskType == "patrol" &&
+                    task.Status == "assigned" && task.TargetOrbitKeys.Length == 4 &&
+                    task.TargetOrbitKeys.Distinct(StringComparer.Ordinal).Count() == 4 &&
+                    task.TargetOrbitKeys.All(orbitKeys.Contains)) &&
+                agents.All(entity => zone.AgentTasks.Any(task => task.TaskId == entity.AssignedAgentTaskId));
+        }), "every generated NPC must begin with one assigned four-orbit patrol owned by daemon task state");
         Require(first.Zones.Values.SelectMany(zone => zone.Entities)
                 .Where(entity => !string.IsNullOrWhiteSpace(entity.OrbitKey))
                 .All(entity => entity.Position.X != 0 || entity.Position.Z != 0),
@@ -5103,7 +5124,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
     private static void AgentPatrolsHistoricalOrbitCircuitThroughMovementCommands()
     {
         var agent = Entity(0, 0, "workers");
-        agent.AgentTaskCapabilities = [AetheriaRuntimeAgentTaskTypes.Defend];
+        agent.AgentTaskCapabilities = [AetheriaRuntimeAgentTaskTypes.Patrol];
         var catalog = EquipThrusterBank([agent]);
         var run = new AetheriaRuntimeRunCheckpointCommit
         {
@@ -5140,11 +5161,11 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         {
             TaskId = "patrol-orbits",
             CorporationKey = "workers",
-            TaskType = AetheriaRuntimeAgentTaskTypes.Defend,
+            TaskType = AetheriaRuntimeAgentTaskTypes.Patrol,
             Priority = 10,
             ZoneIndex = 0,
             CompletionRadius = 5,
-            TargetBodyKeys = ["body:east", "body:west"]
+            TargetOrbitKeys = ["orbit:east", "orbit:west"]
         };
         var sawWestLeg = false;
         var sawReturnToEast = false;

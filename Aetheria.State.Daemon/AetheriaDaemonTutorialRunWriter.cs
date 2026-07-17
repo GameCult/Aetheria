@@ -88,6 +88,10 @@ public static class AetheriaDaemonTutorialRunWriter
             CurrentEntityKey = playerEntityKey,
             LifecyclePhase = AetheriaRuntimeRunLifecycle.Active,
             TerminalFrameId = -1,
+            AgentTasks = materialized.Zones.Values
+                .OrderBy(zone => zone.Topology.ZoneIndex)
+                .SelectMany(zone => zone.AgentTasks)
+                .ToArray(),
             UpdatedAtUtc = now
         }).ConfigureAwait(false);
 

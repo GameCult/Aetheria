@@ -393,6 +393,7 @@ namespace GameCult.Aetheria.State.Verse
                         ("deliveredQuantity", task.DeliveredQuantity.ToString(CultureInfo.InvariantCulture)),
                         ("phase", task.Phase),
                         ("targetBodyKeys", string.Join(",", task.TargetBodyKeys ?? Array.Empty<string>())),
+                        ("targetOrbitKeys", string.Join(",", task.TargetOrbitKeys ?? Array.Empty<string>())),
                         ("circuitIndex", task.CircuitIndex.ToString(CultureInfo.InvariantCulture)),
                         ("orbitParentKey", task.OrbitParentKey),
                         ("orbitDistance", task.OrbitDistance.ToString("0.###", CultureInfo.InvariantCulture)),

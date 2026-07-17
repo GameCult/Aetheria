@@ -14,11 +14,12 @@ namespace GameCult.Aetheria.State.Verse
         public const string Haul = "haul";
         public const string Tow = "tow";
         public const string Defend = "defend";
+        public const string Patrol = "patrol";
         public const string Attack = "attack";
         public const string Explore = "explore";
 
         public static readonly IReadOnlyList<string> All =
-            new[] { Mine, Haul, Tow, Defend, Attack, Explore };
+            new[] { Mine, Haul, Tow, Defend, Patrol, Attack, Explore };
     }
 
     public static class AetheriaRuntimeAgentTaskStatuses
@@ -57,6 +58,7 @@ namespace GameCult.Aetheria.State.Verse
         [Key(21)] public int CircuitIndex { get; set; }
         [Key(22)] public string OrbitParentKey { get; set; } = "";
         [Key(23)] public double OrbitDistance { get; set; }
+        [Key(24)] public IReadOnlyList<string> TargetOrbitKeys { get; set; } = Array.Empty<string>();
     }
 
     [MessagePackObject]
@@ -78,6 +80,7 @@ namespace GameCult.Aetheria.State.Verse
         [Key(13)] public IReadOnlyList<string> TargetBodyKeys { get; set; } = Array.Empty<string>();
         [Key(14)] public string OrbitParentKey { get; set; } = "";
         [Key(15)] public double OrbitDistance { get; set; }
+        [Key(16)] public IReadOnlyList<string> TargetOrbitKeys { get; set; } = Array.Empty<string>();
     }
 
     public static class AetheriaRuntimeAgentScheduler
@@ -296,7 +299,8 @@ namespace GameCult.Aetheria.State.Verse
                     commands.AddRange(PlanSurvey(run, zone!, task, agent, frameId, catalog, simulationTimeSeconds));
                     continue;
                 }
-                if (string.Equals(task.TaskType, AetheriaRuntimeAgentTaskTypes.Defend, StringComparison.Ordinal))
+                if (string.Equals(task.TaskType, AetheriaRuntimeAgentTaskTypes.Defend, StringComparison.Ordinal) ||
+                    string.Equals(task.TaskType, AetheriaRuntimeAgentTaskTypes.Patrol, StringComparison.Ordinal))
                 {
                     commands.AddRange(PlanPatrol(zone!, task, agent, frameId));
                     continue;
@@ -1075,9 +1079,19 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeEntitySnapshotCommit agent,
             long frameId)
         {
-            var circuit = (task.TargetBodyKeys ?? Array.Empty<string>())
+            var circuit = (task.TargetOrbitKeys ?? Array.Empty<string>())
                 .Where(key => !string.IsNullOrWhiteSpace(key))
                 .ToArray();
+            if (circuit.Length == 0)
+            {
+                var bodyOrbits = (zone.Bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>())
+                    .Where(body => body != null && !string.IsNullOrWhiteSpace(body.BodyKey))
+                    .ToDictionary(body => body.BodyKey, body => body.OrbitKey ?? "", StringComparer.Ordinal);
+                circuit = (task.TargetBodyKeys ?? Array.Empty<string>())
+                    .Select(key => bodyOrbits.TryGetValue(key, out var orbitKey) ? orbitKey : "")
+                    .Where(key => !string.IsNullOrWhiteSpace(key))
+                    .ToArray();
+            }
             if (circuit.Length == 0)
             {
                 Fail(task, agent);
@@ -1085,24 +1099,26 @@ namespace GameCult.Aetheria.State.Verse
             }
 
             task.CircuitIndex = ((task.CircuitIndex % circuit.Length) + circuit.Length) % circuit.Length;
-            var body = AetheriaRuntimeDaemonRenderQueries.QueryBodyPoses(zone)
-                .FirstOrDefault(candidate => string.Equals(candidate.BodyKey, circuit[task.CircuitIndex], StringComparison.Ordinal));
-            if (string.IsNullOrWhiteSpace(body.BodyKey))
+            var positions = AetheriaRuntimeOrbitQueries.BuildPositions(zone);
+            if (!positions.TryGetValue(circuit[task.CircuitIndex], out var destination))
             {
                 Fail(task, agent);
                 return Array.Empty<AetheriaRuntimeDaemonCommandDocument>();
             }
 
-            var dx = body.CenterX - agent.PositionX;
-            var dz = body.CenterZ - agent.PositionZ;
+            var dx = destination.x - agent.PositionX;
+            var dz = destination.z - agent.PositionZ;
             var distance = Math.Sqrt(dx * dx + dz * dz);
             if (distance <= Math.Max(0.01, task.CompletionRadius))
             {
                 task.CircuitIndex = (task.CircuitIndex + 1) % circuit.Length;
-                var next = AetheriaRuntimeDaemonRenderQueries.QueryBodyPoses(zone)
-                    .First(candidate => string.Equals(candidate.BodyKey, circuit[task.CircuitIndex], StringComparison.Ordinal));
-                dx = next.CenterX - agent.PositionX;
-                dz = next.CenterZ - agent.PositionZ;
+                if (!positions.TryGetValue(circuit[task.CircuitIndex], out var next))
+                {
+                    Fail(task, agent);
+                    return Array.Empty<AetheriaRuntimeDaemonCommandDocument>();
+                }
+                dx = next.x - agent.PositionX;
+                dz = next.z - agent.PositionZ;
             }
             return new[] { Movement(task, agent, frameId, dx, dz, 1) };
         }

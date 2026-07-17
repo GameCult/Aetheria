@@ -314,6 +314,11 @@ namespace GameCult.Aetheria.State.Verse
             {
                 return false;
             }
+            if (string.Equals(taskType, AetheriaRuntimeAgentTaskTypes.Patrol, StringComparison.Ordinal) &&
+                !(request.TargetOrbitKeys ?? Array.Empty<string>()).Any(key => !string.IsNullOrWhiteSpace(key)))
+            {
+                return false;
+            }
             if (string.Equals(taskType, AetheriaRuntimeAgentTaskTypes.Tow, StringComparison.Ordinal) &&
                 (request.TargetEntityIndex < 0 || string.IsNullOrWhiteSpace(request.OrbitParentKey) || request.OrbitDistance <= 0))
                 return false;
@@ -343,6 +348,7 @@ namespace GameCult.Aetheria.State.Verse
                             ? "pickup"
                             : "",
                         TargetBodyKeys = request.TargetBodyKeys ?? Array.Empty<string>(),
+                        TargetOrbitKeys = request.TargetOrbitKeys ?? Array.Empty<string>(),
                         OrbitParentKey = request.OrbitParentKey ?? "",
                         OrbitDistance = request.OrbitDistance,
                         Status = AetheriaRuntimeAgentTaskStatuses.Queued

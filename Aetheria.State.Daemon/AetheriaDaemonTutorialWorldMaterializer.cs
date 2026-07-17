@@ -8,6 +8,7 @@ public sealed record AetheriaDaemonMaterializedTutorialZone(
     int FactionPresence,
     AetheriaOrbitSnapshot[] Orbits,
     AetheriaEntitySnapshot[] Entities,
+    AetheriaAgentTaskState[] AgentTasks,
     int PlayerEntityIndex);
 
 public sealed record AetheriaDaemonMaterializedTutorialWorld(
@@ -56,6 +57,7 @@ public static class AetheriaDaemonTutorialWorldMaterializer
             var stationCount = (int)(random.NextFloat() * (factionPresence + 1));
             var orbits = celestial.Orbits.ToList();
             var entities = new List<AetheriaEntitySnapshot>();
+            var agentTasks = new List<AetheriaAgentTaskState>();
             var generators = new Dictionary<string, AetheriaDaemonLoadoutGenerator>(StringComparer.Ordinal);
 
             AetheriaDaemonLoadoutGenerator Generator(string factionKey)
@@ -142,7 +144,32 @@ public static class AetheriaDaemonTutorialWorldMaterializer
                     Generator(nearest.CorporationKey).Build("ship", nearest.CorporationKey),
                     spawnRandom.NextFloat((float)-halfRadius, (float)halfRadius),
                     spawnRandom.NextFloat((float)-halfRadius, (float)halfRadius));
-                enemy.AgentTaskCapabilities = ["attack", "defend", "explore"];
+                var entityIndex = entities.Count;
+                var taskId = $"tutorial.zone.{topology.ZoneIndex}.entity.{entityIndex}.patrol";
+                enemy.AgentTaskCapabilities =
+                [
+                    AetheriaRuntimeAgentTaskTypes.Attack,
+                    AetheriaRuntimeAgentTaskTypes.Defend,
+                    AetheriaRuntimeAgentTaskTypes.Explore,
+                    AetheriaRuntimeAgentTaskTypes.Patrol
+                ];
+                enemy.AssignedAgentTaskId = taskId;
+                agentTasks.Add(new AetheriaAgentTaskState
+                {
+                    TaskId = taskId,
+                    CorporationKey = nearest.CorporationKey,
+                    TaskType = AetheriaRuntimeAgentTaskTypes.Patrol,
+                    Priority = 0,
+                    ZoneIndex = topology.ZoneIndex,
+                    Status = AetheriaRuntimeAgentTaskStatuses.Assigned,
+                    AssignedEntityIndex = entityIndex,
+                    CompletionRadius = 10,
+                    TargetOrbitKeys = orbits
+                        .OrderBy(_ => spawnRandom.NextFloat())
+                        .Take(4)
+                        .Select(orbit => orbit.OrbitKey)
+                        .ToArray()
+                });
                 entities.Add(enemy);
             }
 
@@ -175,6 +202,7 @@ public static class AetheriaDaemonTutorialWorldMaterializer
                 factionPresence,
                 orbits.ToArray(),
                 entities.ToArray(),
+                agentTasks.ToArray(),
                 localPlayerIndex));
         }
 

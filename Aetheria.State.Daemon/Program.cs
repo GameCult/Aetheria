@@ -2637,6 +2637,21 @@ static async Task<AetheriaRuntimeRunCheckpointCommit?> ReadRuntimeRunCheckpointA
             : run.LifecyclePhase,
         TerminalReason = run.TerminalReason ?? "",
         TerminalFrameId = run.TerminalFrameId,
+        AgentTasks = (run.AgentTasks ?? Array.Empty<AetheriaAgentTaskState>())
+            .Select(task => new AetheriaRuntimeAgentTaskCommit
+            {
+                TaskId = task.TaskId ?? "",
+                CorporationKey = task.CorporationKey ?? "",
+                TaskType = task.TaskType ?? "",
+                Priority = task.Priority,
+                ZoneIndex = task.ZoneIndex,
+                Status = task.Status ?? AetheriaRuntimeAgentTaskStatuses.Queued,
+                AssignedEntityIndex = task.AssignedEntityIndex,
+                CompletionRadius = task.CompletionRadius,
+                TargetOrbitKeys = (task.TargetOrbitKeys ?? Array.Empty<string>()).ToArray(),
+                CircuitIndex = task.CircuitIndex
+            })
+            .ToArray(),
         Credits = 1000000
     };
 }
@@ -2702,6 +2717,7 @@ static AetheriaRuntimeEntitySnapshotCommit ToRuntimeEntity(
         EntityId = entityKey ?? "",
         HomeEntityId = entity.HomeEntityKey ?? "",
         AgentTaskCapabilities = (entity.AgentTaskCapabilities ?? Array.Empty<string>()).ToArray(),
+        AssignedAgentTaskId = entity.AssignedAgentTaskId ?? "",
         EntityIndex = entityIndex,
         Name = entity.Name ?? "",
         Kind = entity.Kind ?? "",
