@@ -520,8 +520,17 @@ namespace GameCult.Aetheria.State.Verse
                 var weapons = ResolveWeapons(attacker, catalog, settings);
                 foreach (var weapon in weapons)
                 {
+                    var autoTriggerReady =
+                        string.Equals(weapon.State.BehaviorKind, AetheriaRuntimeBehaviorKinds.AutoWeapon,
+                            StringComparison.Ordinal) &&
+                        requestedWeapons.Contains(weapon.State.OwnerIndex, weapon.State.BehaviorIndex) &&
+                        weapon.State.BurstRemaining <= 0 &&
+                        !weapon.State.CoolingDown &&
+                        !weapon.State.Reloading &&
+                        weapon.State.CooldownProgress <= 0;
                     weapon.State.Firing = false;
-                    if (requestedWeapons.ContainsPulse(weapon.State.OwnerIndex, weapon.State.BehaviorIndex))
+                    if (requestedWeapons.ContainsPulse(weapon.State.OwnerIndex, weapon.State.BehaviorIndex) ||
+                        autoTriggerReady)
                         weapon.State.TriggerPending = true;
                     if (weapon.State.Reloading)
                     {

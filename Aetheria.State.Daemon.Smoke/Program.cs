@@ -772,6 +772,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             YmirMovesProjectileAndReportsStableContact,
             CompressedTerminusStopsAtAttentionBoundary,
             InstantWeaponRequestSurvivesLockAcquisition,
+            AutoWeaponRetriggersWhileHeldAndStopsOnRelease,
             GuidedWeaponPublishesPresentationProfileWithoutPhysicalAuthority,
             CombatLockSurvivesPublicFrameRestart,
             ConstantWeaponRunsOnDaemonThroughYmirBeamContact,
@@ -3714,6 +3715,163 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 node.Props["reason"] == "target-invalid" &&
                 double.Parse(node.Props["auxiliaryValue"], CultureInfo.InvariantCulture) > 0.99),
             "Eve feedback must project the daemon lock-loss transition and its prior completed progress");
+    }
+
+    private static void AutoWeaponRetriggersWhileHeldAndStopsOnRelease()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "aetheria-auto-weapon-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        var statePath = Path.Combine(root, "world.cc");
+        try
+        {
+            var source = Entity(0, 0, "player");
+            source.DirectionX = 1;
+            source.TargetEntityIndex = 1;
+            source.Contacts = [new AetheriaRuntimeEntityContactCommit
+            {
+                TargetEntityIndex = 1, InfoGathered = 1, Hostile = true, Visible = true
+            }];
+            source.WeaponGroups = [new[] { 0 }];
+            source.Equipment = [new AetheriaRuntimeLoadoutItemSlotCommit
+            {
+                Item = new AetheriaRuntimeLoadoutItemCommit
+                    { ItemKey = "test-auto", Quality = 1, Durability = 1, Enabled = true }
+            }];
+            var target = Entity(1, 50, "raider");
+            var run = new AetheriaRuntimeRunCheckpointCommit
+            {
+                RunId = "auto-weapon-smoke",
+                CurrentZoneIndex = 0,
+                Zones = [new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [source, target] }]
+            };
+            run.CurrentEntityKey = run.EntityRecordKey(0, source.EntityIndex);
+            var payload = new AetheriaRuntimeBehaviorPayload(0, AetheriaRuntimeBehaviorKinds.AutoWeapon, 0,
+            [
+                new AetheriaRuntimeBehaviorField(2, PerformanceStat(10)),
+                new AetheriaRuntimeBehaviorField(6, PerformanceStat(100)),
+                new AetheriaRuntimeBehaviorField(15, PerformanceStat(0)),
+                new AetheriaRuntimeBehaviorField(16, PerformanceStat(100)),
+                new AetheriaRuntimeBehaviorField(17, PerformanceStat(1)),
+                new AetheriaRuntimeBehaviorField(18, PerformanceStat(0)),
+                new AetheriaRuntimeBehaviorField(19, PerformanceStat(0.2)),
+                new AetheriaRuntimeBehaviorField(21, PerformanceStat(100)),
+                new AetheriaRuntimeBehaviorField(23, PerformanceStat(180)),
+                new AetheriaRuntimeBehaviorField(24, PerformanceStat(0)),
+                new AetheriaRuntimeBehaviorField(25, PerformanceStat(0))
+            ]);
+            var catalog = new AetheriaRuntimeCatalogSnapshot(
+                [WearableWeaponCatalogItem("test-auto", payload)], [], []);
+            var press = AetheriaRuntimeDaemonCommandDocument.Create(
+                AetheriaRuntimeDaemonCommandKinds.SetWeaponGroupActive,
+                "pilot", run.RunId, 0, run.CurrentEntityKey);
+            press.CommandId = "auto-weapon-press";
+            press.WeaponGroup = 0;
+            press.ScalarValue = 1;
+            var pressed = AetheriaRuntimeDaemonOperations.Execute(
+                run, [press], new AetheriaRuntimeDaemonOperationContext());
+
+            AetheriaRuntimeDaemonSimulation.Step(run, pressed.Intents, 0.1,
+                AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
+                NewPhysics(), catalog, 0, 0);
+            RequireEqual(1, run.ShotReceipts.Count,
+                "pressing an AutoWeapon group must commit its first burst exactly once");
+            var state = source.WeaponStates.Single(value =>
+                value.BehaviorKind == AetheriaRuntimeBehaviorKinds.AutoWeapon);
+            Require(state.CoolingDown && source.ActiveWeaponGroups.Single(),
+                "AutoWeapon cooldown and the held group latch must be durable daemon state");
+
+            using (var node = AetheriaStateNode.OpenAsync(statePath).GetAwaiter().GetResult())
+            {
+                node.MutableDocument<AetheriaRuntimeDaemonFrameDocument>(
+                        AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest)
+                    .ReplaceAsync(AetheriaRuntimeDaemonFrameDocument.Create(
+                        run, "smoke", "auto-weapon", 0, 0, 0.1))
+                    .GetAwaiter().GetResult();
+                node.FlushAsync(soft: false).GetAwaiter().GetResult();
+            }
+
+            AetheriaRuntimeRunCheckpointCommit restoredRun;
+            using (var node = AetheriaStateNode.OpenAsync(statePath).GetAwaiter().GetResult())
+            {
+                restoredRun = node.MutableDocument<AetheriaRuntimeDaemonFrameDocument>(
+                        AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest)
+                    .ReadAsync().GetAwaiter().GetResult()?.Run
+                    ?? throw new InvalidOperationException("Durable AutoWeapon frame is missing.");
+            }
+            var restoredSource = restoredRun.Zones.Single().Entities.Single(value => value.EntityIndex == 0);
+            for (var frame = 1; frame <= 3; frame++)
+                AetheriaRuntimeDaemonSimulation.Step(restoredRun, new AetheriaRuntimeDaemonIntentState(), 0.1,
+                    AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
+                    NewPhysics(), catalog, frame, frame * 0.1);
+            RequireEqual(2, restoredRun.ShotReceipts.Count,
+                "a held AutoWeapon must retrigger on the fixed step after its cooldown completes, including after restart");
+
+            var release = AetheriaRuntimeDaemonCommandDocument.Create(
+                AetheriaRuntimeDaemonCommandKinds.SetWeaponGroupActive,
+                "pilot", restoredRun.RunId, 4, restoredRun.CurrentEntityKey);
+            release.CommandId = "auto-weapon-release";
+            release.WeaponGroup = 0;
+            release.ScalarValue = 0;
+            var released = AetheriaRuntimeDaemonOperations.Execute(
+                restoredRun, [release], new AetheriaRuntimeDaemonOperationContext());
+            for (var frame = 4; frame < 10; frame++)
+                AetheriaRuntimeDaemonSimulation.Step(restoredRun,
+                    frame == 4 ? released.Intents : new AetheriaRuntimeDaemonIntentState(), 0.1,
+                    AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
+                    NewPhysics(), catalog, frame, frame * 0.1);
+            RequireEqual(2, restoredRun.ShotReceipts.Count,
+                "releasing an AutoWeapon group must prevent every later automatic burst");
+            Require(!restoredSource.ActiveWeaponGroups.Single() &&
+                    !restoredSource.WeaponStates.Single(value =>
+                        value.BehaviorKind == AetheriaRuntimeBehaviorKinds.AutoWeapon).TriggerPending,
+                "release must clear the only daemon input that authorizes AutoWeapon retriggering");
+
+            var ordinaryPayload = new AetheriaRuntimeBehaviorPayload(
+                payload.UnionKey,
+                AetheriaRuntimeBehaviorKinds.InstantWeapon,
+                payload.Group,
+                payload.Fields);
+            var ordinary = Entity(0, 0, "player");
+            ordinary.DirectionX = 1;
+            ordinary.TargetEntityIndex = 1;
+            ordinary.Contacts = source.Contacts;
+            ordinary.WeaponGroups = [new[] { 0 }];
+            ordinary.ActiveWeaponGroups = [true];
+            ordinary.Equipment = [new AetheriaRuntimeLoadoutItemSlotCommit
+            {
+                Item = new AetheriaRuntimeLoadoutItemCommit
+                    { ItemKey = "test-instant-held", Quality = 1, Durability = 1, Enabled = true }
+            }];
+            var ordinaryTarget = Entity(1, 50, "raider");
+            var ordinaryRun = new AetheriaRuntimeRunCheckpointCommit
+            {
+                RunId = "ordinary-held-smoke", CurrentZoneIndex = 0,
+                CurrentEntityKey = "zone.0.entity.0",
+                Zones = [new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [ordinary, ordinaryTarget] }]
+            };
+            var ordinaryCatalog = new AetheriaRuntimeCatalogSnapshot(
+                [WearableWeaponCatalogItem("test-instant-held", ordinaryPayload)], [], []);
+            var pulse = new AetheriaRuntimeDaemonIntentState();
+            pulse.WeaponGroups.Add(new AetheriaRuntimeDaemonWeaponGroupIntent
+            {
+                ActorEntityKey = ordinaryRun.CurrentEntityKey,
+                WeaponGroup = 0,
+                Fire = true,
+                Active = true
+            });
+            for (var frame = 0; frame < 10; frame++)
+                AetheriaRuntimeDaemonSimulation.Step(ordinaryRun,
+                    frame == 0 ? pulse : new AetheriaRuntimeDaemonIntentState(), 0.1,
+                    AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
+                    NewPhysics(), ordinaryCatalog, frame, frame * 0.1);
+            RequireEqual(1, ordinaryRun.ShotReceipts.Count,
+                "an ordinary InstantWeapon must remain press-edge driven even while its group latch is held");
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+                Directory.Delete(root, recursive: true);
+        }
     }
 
     private static void GuidedWeaponPublishesPresentationProfileWithoutPhysicalAuthority()

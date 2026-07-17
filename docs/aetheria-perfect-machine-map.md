@@ -110,8 +110,12 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   catalog rows. Weapon groups publish the fossil press/release lifecycle as
   generic `button-hold.v1` values routed to the daemon-owned
   `SetWeaponGroupActive` command. The entity snapshot owns the reconnectable
-  active-group latch: a press edge pulses instant/charged weapons once while
-  constant weapons remain selected until the release command clears the latch.
+  active-group latch: a press edge pulses ordinary instant/charged weapons once,
+  authored `AutoWeapon` payloads retrigger on the fixed step after their cooldown
+  completes while the latch remains held, and constant weapons remain selected
+  until the release command clears the latch. AutoWeapon retriggering consumes
+  the same lock, ammo, energy, heat, wear, visibility, shot, and damage path as
+  its first press; it is not a second combat authority.
   Generic clients send transitions, not frame-frequency keepalive commands.
   `FireWeaponGroup` remains a one-shot compatibility operation for autonomous
   agents and command buttons but is not the public binding contract. The provider
