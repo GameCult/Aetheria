@@ -46,6 +46,7 @@ public static class AetheriaDaemonTutorialWorldMaterializer
         {
             var celestial = world.Zones[topology.ZoneIndex];
             var random = new CultMath.Random(celestial.PostBodyRandomState);
+            var spawnRandom = new CultMath.Random(celestial.PostBodyRandomState ^ 0x51A7_10C5u);
             var nearest = factions
                 .OrderBy(faction => distances[faction.CorporationKey][topology.ZoneIndex])
                 .First();
@@ -131,11 +132,14 @@ public static class AetheriaDaemonTutorialWorldMaterializer
             var enemyCount = (int)(random.NextFloat() * factionPresence * 2) + stationCount;
             for (var enemyIndex = 0; enemyIndex < Math.Max(0, enemyCount); enemyIndex++)
             {
+                var halfRadius = celestial.Radius * 0.5;
                 var enemy = AetheriaDaemonGeneratedEntityFactory.Create(
                     $"{nearest.ShortName} Ship {enemyIndex + 1}",
                     "ship",
                     nearest.CorporationKey,
-                    Generator(nearest.CorporationKey).Build("ship", nearest.CorporationKey));
+                    Generator(nearest.CorporationKey).Build("ship", nearest.CorporationKey),
+                    spawnRandom.NextFloat((float)-halfRadius, (float)halfRadius),
+                    spawnRandom.NextFloat((float)-halfRadius, (float)halfRadius));
                 enemy.AgentTaskCapabilities = ["attack", "defend", "explore"];
                 entities.Add(enemy);
             }
@@ -160,6 +164,8 @@ public static class AetheriaDaemonTutorialWorldMaterializer
                 playerEntityIndex = localPlayerIndex;
             }
 
+            ApplyOrbitalPositions(orbits, entities);
+
             zones.Add(topology.ZoneIndex, new AetheriaDaemonMaterializedTutorialZone(
                 topology,
                 celestial,
@@ -177,6 +183,33 @@ public static class AetheriaDaemonTutorialWorldMaterializer
             zones,
             world.Topology.EntranceZoneIndex,
             playerEntityIndex);
+    }
+
+    private static void ApplyOrbitalPositions(
+        IReadOnlyList<AetheriaOrbitSnapshot> orbits,
+        IReadOnlyList<AetheriaEntitySnapshot> entities)
+    {
+        var runtimeZone = new AetheriaRuntimeZoneSnapshotCommit
+        {
+            Orbits = orbits.Select(orbit => new AetheriaRuntimeOrbitSnapshotCommit
+            {
+                OrbitKey = orbit.OrbitKey,
+                ParentOrbitKey = orbit.ParentOrbitKey,
+                Distance = orbit.Distance,
+                Phase = orbit.Phase,
+                FixedPositionX = orbit.FixedPosition?.X ?? 0,
+                FixedPositionY = orbit.FixedPosition?.Y ?? 0
+            }).ToArray()
+        };
+        var positions = AetheriaRuntimeOrbitQueries.BuildPositions(runtimeZone);
+        foreach (var entity in entities.Where(entity => !string.IsNullOrWhiteSpace(entity.OrbitKey)))
+        {
+            if (!positions.TryGetValue(entity.OrbitKey, out var position))
+                throw new InvalidDataException(
+                    $"Generated orbital entity '{entity.Name}' references missing orbit '{entity.OrbitKey}'.");
+            entity.Position.X = position.x;
+            entity.Position.Z = position.z;
+        }
     }
 
     private static IReadOnlyDictionary<int, int> DistancesFrom(

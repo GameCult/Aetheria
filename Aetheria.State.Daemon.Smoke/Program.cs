@@ -154,6 +154,17 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 first.Zones.Values.Any(zone => zone.Entities.Any(entity =>
                     entity.Kind == "ship" && entity.AgentTaskCapabilities.Contains("attack", StringComparer.Ordinal))),
             "fossil station, defensive turret, and hostile-agent population must all survive materialization");
+        Require(first.Zones.Values.SelectMany(zone => zone.Entities)
+                .Where(entity => entity.Kind == "ship" && entity.AgentTaskCapabilities.Contains("attack", StringComparer.Ordinal))
+                .All(entity => entity.Position.X != 0 || entity.Position.Z != 0),
+            "generated non-player ships must retain the fossil activation rule that distributes zero-pose ships through the zone");
+        Require(first.Zones.Values.SelectMany(zone => zone.Entities)
+                .Where(entity => !string.IsNullOrWhiteSpace(entity.OrbitKey))
+                .All(entity => entity.Position.X != 0 || entity.Position.Z != 0),
+            "orbital stations and turrets must enter world truth at their resolved orbit position, not at the player origin");
+        var player = first.Zones[first.PlayerZoneIndex].Entities[first.PlayerEntityIndex];
+        Require(player.Position.X == 0 && player.Position.Z == 0,
+            "the controlled starter ship alone must retain the tutorial entrance origin");
         Require(first.Zones.Values.All(zone =>
         {
             var orbitKeys = zone.Orbits.Select(orbit => orbit.OrbitKey).ToHashSet(StringComparer.Ordinal);

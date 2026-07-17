@@ -1145,6 +1145,10 @@ the Terminus proof arena cannot award completion.
 - Outputs: 64 canonical zone documents, stable entity records, loadout
   generation receipts, one controlled entrance ship, tutorial discovery state,
   and an Aetheria-mode game session.
+- Physical placement: the daemon resolves orbital entities from the canonical
+  orbit graph before persistence and deterministically distributes generated
+  non-player ships through the fossil half-zone volume. The controlled starter
+  alone enters at the origin; generic clients do not repair spawn positions.
 - Derived state: wormhole exits derive from adjacency; generic Eve maps,
   cameras, scene objects, fog, and HUD state lower the persisted run.
 - Forbidden writers: Unity generators, menu callbacks, scene materializers, and
@@ -1155,8 +1159,9 @@ the Terminus proof arena cannot award completion.
 - Cut line: New Game reloading the previous frame without sending its advertised
   operation is dead. Celestial-only tutorial graphs are not playable runs.
 - Verification layer: focused smokes prove deterministic population, resolved
-  orbital references, station/turret/agent presence, loadout provenance, all 64
-  persisted zones, canonical starter identity, discovery, and adjacency.
+  orbital references and poses, distributed non-player spawns,
+  station/turret/agent presence, loadout provenance, all 64 persisted zones,
+  canonical starter identity, discovery, and adjacency.
 
 ### Daemon Generated Zone Body Ownership
 
