@@ -37,6 +37,8 @@ namespace GameCult.Aetheria.State.Verse
         [Key(6)] public string SourceRef { get; set; } = "";
         [Key(7)] public Dictionary<string, string> Payload { get; set; } = new Dictionary<string, string>(StringComparer.Ordinal);
         [Key(8)] public AetheriaRuntimeInputValueDocument? InputValue { get; set; }
+        [Key(9)] public string IconRef { get; set; } = "";
+        [Key(10)] public bool ActionBar { get; set; }
     }
 
     [MessagePackObject]
@@ -45,6 +47,11 @@ namespace GameCult.Aetheria.State.Verse
         [Key(0)] public string Model { get; set; } = "";
         [Key(1)] public string PayloadKey { get; set; } = "";
         [Key(2)] public string[] PayloadKeys { get; set; } = Array.Empty<string>();
+        [Key(3)] public double? CurrentValue { get; set; }
+        [Key(4)] public double? MinimumValue { get; set; }
+        [Key(5)] public double? MaximumValue { get; set; }
+        [Key(6)] public double? StepValue { get; set; }
+        [Key(7)] public string Unit { get; set; } = "";
     }
 
     [MessagePackObject]
@@ -92,7 +99,7 @@ namespace GameCult.Aetheria.State.Verse
             }
             if (entity != null)
             {
-                actions.AddRange((entity.WeaponGroups ?? Array.Empty<IReadOnlyList<int>>()).Select((_, index) => WeaponGroupAction(run, entity, index)));
+                actions.AddRange((entity.WeaponGroups ?? Array.Empty<IReadOnlyList<int>>()).Select((_, index) => WeaponGroupAction(run, entity, index, catalog)));
                 actions.AddRange(EquipmentBehaviorActions(run, entity, catalog));
                 actions.AddRange(ConsumableActions(run, entity, catalog));
                 actions.AddRange(TradeActions(run, entity, catalog));
@@ -153,6 +160,8 @@ namespace GameCult.Aetheria.State.Verse
                 action.Availability = AetheriaRuntimeConsumableSimulation.CanActivate(entity, catalog, itemKey)
                     ? "available"
                     : "unavailable";
+                action.ActionBar = true;
+                action.IconRef = ActionBarIconRef(item);
                 yield return action;
             }
         }
@@ -202,6 +211,8 @@ namespace GameCult.Aetheria.State.Verse
                             ("active", "0"),
                             ("currentValue", state.SwitchActivated ? "1" : "0"));
                         action.Availability = available ? "available" : "unavailable";
+                        action.ActionBar = true;
+                        action.IconRef = ActionBarIconRef(item);
                         action.InputValue = new AetheriaRuntimeInputValueDocument
                         {
                             Model = "button-hold.v1",
@@ -223,14 +234,16 @@ namespace GameCult.Aetheria.State.Verse
                         ("targetEntityKey", run.CurrentEntityKey),
                         ("equipmentIndex", equipmentIndex.ToString()),
                         ("behaviorIndex", behaviorIndex.ToString()),
-                        ("scalarValue", state.ThermotoggleTargetTemperature.ToString("R", System.Globalization.CultureInfo.InvariantCulture)),
-                        ("currentValue", state.ThermotoggleTargetTemperature.ToString("R", System.Globalization.CultureInfo.InvariantCulture)),
-                        ("unit", "kelvin"));
+                        ("scalarValue", state.ThermotoggleTargetTemperature.ToString("R", System.Globalization.CultureInfo.InvariantCulture)));
                     thermostat.Availability = available ? "available" : "unavailable";
+                    thermostat.ActionBar = true;
+                    thermostat.IconRef = ActionBarIconRef(item);
                     thermostat.InputValue = new AetheriaRuntimeInputValueDocument
                     {
                         Model = "scalar.v1",
-                        PayloadKey = "scalarValue"
+                        PayloadKey = "scalarValue",
+                        CurrentValue = state.ThermotoggleTargetTemperature,
+                        Unit = "kelvin"
                     };
                     yield return thermostat;
                 }
@@ -240,7 +253,8 @@ namespace GameCult.Aetheria.State.Verse
         private static AetheriaRuntimeInputActionDocument WeaponGroupAction(
             AetheriaRuntimeRunCheckpointCommit run,
             AetheriaRuntimeEntitySnapshotCommit entity,
-            int weaponGroup)
+            int weaponGroup,
+            AetheriaRuntimeCatalogSnapshot? catalog)
         {
             var activeGroups = entity.ActiveWeaponGroups ?? Array.Empty<bool>();
             var active = weaponGroup < activeGroups.Count && activeGroups[weaponGroup];
@@ -258,8 +272,19 @@ namespace GameCult.Aetheria.State.Verse
                 Model = "button-hold.v1",
                 PayloadKey = "active"
             };
+            action.ActionBar = true;
+            var equipmentIndex = (entity.WeaponGroups ?? Array.Empty<IReadOnlyList<int>>())
+                .ElementAtOrDefault(weaponGroup)?.Where(index => index >= 0).DefaultIfEmpty(-1).First() ?? -1;
+            var equipment = entity.Equipment ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>();
+            if (equipmentIndex >= 0 && equipmentIndex < equipment.Count)
+                action.IconRef = ActionBarIconRef(catalog?.FindItem(equipment[equipmentIndex]?.Item?.ItemKey ?? ""));
             return action;
         }
+
+        private static string ActionBarIconRef(AetheriaRuntimeCatalogItem? item) =>
+            item != null && !string.IsNullOrWhiteSpace(item.ActionBarIcon)
+                ? $"item.{item.ItemKey}.icon"
+                : "";
 
         private static bool ReadBool(AetheriaRuntimeBehaviorPayload payload, int key) =>
             (payload.Fields ?? Array.Empty<AetheriaRuntimeBehaviorField>())
@@ -441,7 +466,7 @@ namespace GameCult.Aetheria.State.Verse
             var bindings = new List<AetheriaRuntimeInputBindingDocument>();
             var fire = actions.FirstOrDefault(action => string.Equals(action.Category, "weapon-group", StringComparison.Ordinal));
             if (fire != null)
-                bindings.Add(Binding("fire.default", fire.ActionId, "direct", keyboard ? keyboardFireControl : gamepadFireControl));
+                bindings.Add(ActionBarBinding("fire.default", fire.ActionId, "direct", keyboard ? keyboardFireControl : gamepadFireControl));
             bindings.Add(keyboard
                 ? Binding("scoop.shift", "pilot.scoop", "direct", "keyboard.leftShift")
                 : Binding("scoop.sequence", "pilot.scoop", "sequence", "gamepad.dpad.down", "gamepad.dpad.right"));
@@ -476,6 +501,8 @@ namespace GameCult.Aetheria.State.Verse
                 Category = action.Category,
                 Availability = action.Availability,
                 SourceRef = action.SourceRef,
+                IconRef = action.IconRef,
+                ActionBar = action.ActionBar,
                 Payload = new Dictionary<string, string>(action.Payload, StringComparer.Ordinal),
                 InputValue = action.InputValue == null
                     ? null
@@ -483,7 +510,12 @@ namespace GameCult.Aetheria.State.Verse
                     {
                         Model = action.InputValue.Model,
                         PayloadKey = action.InputValue.PayloadKey,
-                        PayloadKeys = action.InputValue.PayloadKeys ?? Array.Empty<string>()
+                        PayloadKeys = action.InputValue.PayloadKeys ?? Array.Empty<string>(),
+                        CurrentValue = action.InputValue.CurrentValue,
+                        MinimumValue = action.InputValue.MinimumValue,
+                        MaximumValue = action.InputValue.MaximumValue,
+                        StepValue = action.InputValue.StepValue,
+                        Unit = action.InputValue.Unit
                     }
             }).ToArray(),
             DefaultProfiles = DefaultProfiles.Select(profile => new EveInputProfileDocument
@@ -507,6 +539,7 @@ namespace GameCult.Aetheria.State.Verse
         };
 
         private static AetheriaRuntimeInputProfileDocument Profile(string id, string device, params AetheriaRuntimeInputBindingDocument[] bindings) => new AetheriaRuntimeInputProfileDocument { ProfileId = id, DeviceClass = device, Bindings = bindings };
-        private static AetheriaRuntimeInputBindingDocument Binding(string id, string action, string kind, params string[] controls) => new AetheriaRuntimeInputBindingDocument { BindingId = id, ActionId = action, Gesture = new AetheriaRuntimeInputGestureDocument { Kind = kind, Controls = controls }, ActionBar = true };
+        private static AetheriaRuntimeInputBindingDocument Binding(string id, string action, string kind, params string[] controls) => new AetheriaRuntimeInputBindingDocument { BindingId = id, ActionId = action, Gesture = new AetheriaRuntimeInputGestureDocument { Kind = kind, Controls = controls } };
+        private static AetheriaRuntimeInputBindingDocument ActionBarBinding(string id, string action, string kind, params string[] controls) => new AetheriaRuntimeInputBindingDocument { BindingId = id, ActionId = action, Gesture = new AetheriaRuntimeInputGestureDocument { Kind = kind, Controls = controls }, ActionBar = true };
     }
 }

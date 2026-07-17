@@ -527,6 +527,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 new AetheriaRuntimeBehaviorField(3, BoolValue(false))
             ]));
         controls.Name = "Climate Control";
+        controls.ActionBarIcon = "Assets/Resources/Sprites/Icons/Stroked/Power.png";
         var catalog = new AetheriaRuntimeCatalogSnapshot([controls], [], []);
         var entity = Entity(0, 0, "player");
         entity.Equipment = [new AetheriaRuntimeLoadoutItemSlotCommit
@@ -560,8 +561,18 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             "trigger controls must route their input value into the typed active field");
         RequireEqual("scalar.v1", thermostatAction.InputValue?.Model ?? "",
             "adjustable thermostats must advertise a runtime-neutral scalar lever");
-        RequireEqual("300", thermostatAction.Payload["currentValue"],
-            "thermostat controls must publish the daemon-owned current target");
+        RequireNear(300, thermostatAction.InputValue?.CurrentValue ?? double.NaN, 0.000001,
+            "thermostat controls must publish the daemon-owned current target as typed scalar state");
+        RequireEqual("kelvin", thermostatAction.InputValue?.Unit ?? "",
+            "thermostat controls must publish the scalar unit without hiding it in command payload strings");
+        Require(actions.All(value => value.ActionBar && value.IconRef == "item.behavior-controls.icon"),
+            "interactive equipment behaviors must expose provider-icon action-bar suggestions");
+        var portableThermostat = capability.ToEveDocument().Actions
+            .Single(value => value.ActionId == thermostatAction.ActionId);
+        RequireNear(300, portableThermostat.InputValue?.CurrentValue ?? double.NaN, 0.000001,
+            "the portable Eve document must retain typed scalar current state");
+        Require(portableThermostat.ActionBar && portableThermostat.IconRef == "item.behavior-controls.icon",
+            "the portable Eve action must retain the provider action-bar suggestion and asset key");
 
         var switchRequest = new EveSurfaceCommandRequest(
             capability.ProviderId,
@@ -625,6 +636,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         repairGel.Category = AetheriaRuntimeItemCategories.Consumable;
         repairGel.Duration = 4;
         repairGel.Stackable = false;
+        repairGel.ActionBarIcon = "Assets/Resources/Sprites/Icons/Stroked/Repair.png";
         var ore = CatalogItem("ore");
         ore.Category = AetheriaRuntimeItemCategories.SimpleCommodity;
         var catalog = new AetheriaRuntimeCatalogSnapshot([repairGel, ore], [], []);
@@ -664,6 +676,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             "generic lowerers must receive the fossil action-bar fill semantics explicitly");
         RequireEqual("available", action.Availability,
             "a valid consumable in cargo must advertise current command availability");
+        Require(action.ActionBar && action.IconRef == "item.repair-gel.icon",
+            "consumables must suggest an action-bar lever using their provider-owned catalog icon");
         Require(!capability.Actions.Any(value => value.Category == "consumable" && value.Payload["itemKey"] == "ore"),
             "non-consumable cargo must not become an action-bar command");
 
@@ -713,6 +727,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             "generic Eve clients must know that weapon firing is a held control");
         RequireEqual("active", action.InputValue?.PayloadKey ?? "",
             "weapon press/release values must route into the typed active field");
+        Require(action.ActionBar,
+            "weapon groups must remain suggested action-bar levers without making the client own firing");
 
         AetheriaRuntimeDaemonCommandDocument Translate(string active)
         {
@@ -810,6 +826,10 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             "the generic default profile must preserve the fossil next-target key");
         RequireEqual("keyboard.r", Control("pilot.target-reticle"),
             "the generic default profile must preserve the fossil reticle-target key");
+        Require(keyboard.Bindings.Where(value => value.ActionId == "pilot.interact" ||
+                    value.ActionId.StartsWith("pilot.target-", StringComparison.Ordinal))
+                .All(value => !value.ActionBar),
+            "ordinary fossil shortcuts must not masquerade as action-bar slot suggestions");
         var reticleAction = capability.ToEveDocument().Actions.Single(value => value.ActionId == "pilot.target-reticle");
         RequireEqual("view-direction.v1", reticleAction.InputValue?.Model ?? "",
             "reticle targeting must advertise the generic active-view direction model");

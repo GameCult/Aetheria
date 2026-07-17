@@ -2432,6 +2432,16 @@ First Aetheria surfaces to publish:
      changes or a typed continue run rehydrates the session. Runtime UI may
      still lower the action bar, but the daemon owns both the binding mutation
      and the rebind path back onto the live current entity.
+   - Current generic action-bar authority: Aetheria publishes semantic actions,
+     provider icon asset keys, availability, typed live values, and initial
+     action-bar suggestions. EveUnity lowers those documents into buttons,
+     held controls, view-direction controls, and explicit scalar fields; it
+     submits only through advertised operations. Physical bindings, slot order,
+     and user overrides belong to the Eve client profile. The older
+     daemon-persisted `ActionBarBinding` descriptors are no longer an owner for
+     generic clients; they remain a fossil-client compatibility path awaiting
+     deletion when generic binding persistence is available through CultMesh.
+     Aetheria gameplay objects and Unity gear behaviors are forbidden writers.
    - Done: route inventory double-click transfer and drag/drop placement
      through typed daemon operations. `InventoryMenu` and `InventoryPanel` no
      longer drop items, remove cargo, unequip gear, equip gear, or store cargo
