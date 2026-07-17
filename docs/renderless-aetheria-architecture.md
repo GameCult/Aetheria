@@ -170,6 +170,12 @@ fixture and the fallback for the still-unmigrated post-tutorial sector path.
 No surviving source defines tutorial completion, so entering this run does not
 change `TutorialPassed`.
 
+The non-tutorial sector topology now has a separate daemon owner matching the
+fossil's 196-zone settings, corporation selection, entrance/exit isolation,
+boss chokepoints, full influence radii, discovery, and order-four names. It is
+not yet a selectable run: population and persistence must be wired before the
+post-tutorial Terminus fixture can be deleted as a fallback.
+
 ## Current Mechanism
 
 The repo is mid-migration.

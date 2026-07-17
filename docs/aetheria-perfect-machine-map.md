@@ -1179,6 +1179,32 @@ the Terminus proof arena cannot award completion.
   provenance, all 64 persisted zones, canonical starter identity, discovery,
   and adjacency.
 
+### Daemon Regular-Sector Topology Ownership
+
+- Owner: `AetheriaDaemonRegularTopologyGenerator` owns the non-tutorial sector
+  graph. It is distinct from tutorial role placement and from the Terminus
+  witness fixture.
+- Inputs: the typed corporation/name catalog, the authored regular-sector
+  settings (`196` zones, `0.5` link density, `12` corporations, `3` bosses),
+  the serialized main cloud field, and one generation seed.
+- Outputs: deterministic weighted-sample positions, pruned Delaunay links,
+  maximally isolated exit and furthest entrance, initial discovery, full-radius
+  corporation influence and ownership, boss chokepoints, headquarters, and
+  order-four Markov zone names.
+- Derived state: sector-map rendering and later zone population consume the
+  topology. They cannot select corporations, move homes or bosses, alter links,
+  or reinterpret entrance and exit.
+- Forbidden writers: Unity `Galaxy`, menus, map renderers, and Terminus scenario
+  generation cannot decide regular-sector topology.
+- Cut line: this topology owner is implemented and deterministic, but the
+  regular population/run writer is not wired yet. Post-tutorial New Game still
+  selects Terminus until that writer can persist a playable sector; topology
+  existence alone is not claimed as a playable run.
+- Verification layer: focused smoke generates the full sector twice and proves
+  exact seeded repeatability, connected symmetric links, twelve homes, three
+  boss zones, exit isolation, entrance distance, discovery, names, and home
+  presence.
+
 ### Daemon Generated Zone Body Ownership
 
 - Owner: the daemon zone-body generator owns each generated zone's radius,

@@ -34,6 +34,11 @@ else if (args.Contains("--tutorial-topology", StringComparer.Ordinal))
     checks.RunTutorialTopology();
     Console.WriteLine("Daemon tutorial topology smoke passed.");
 }
+else if (args.Contains("--regular-topology", StringComparer.Ordinal))
+{
+    checks.RunRegularTopology();
+    Console.WriteLine("Daemon regular-sector topology smoke passed.");
+}
 else if (args.Contains("--zone-bodies", StringComparer.Ordinal))
 {
     checks.RunZoneBodies();
@@ -98,6 +103,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
     }
 
     public void RunTutorialTopology() => RunCheck(TutorialTopologyIsDeterministicConnectedAndRoleOwned);
+    public void RunRegularTopology() => RunCheck(RegularTopologyOwnsFossilSectorStructure);
     public void RunZoneBodies() => RunCheck(GeneratedZoneBodiesPreserveFossilHierarchy);
     public void RunTutorialWorld() => RunCheck(TutorialWorldMaterializesEveryTopologyZone);
     public void RunTutorialMaterialization() => RunCheck(TutorialPopulationPreservesFossilEntityMechanics);
@@ -151,6 +157,92 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         {
             if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
         }
+    }
+
+    private static void RegularTopologyOwnsFossilSectorStructure()
+    {
+        var factions = Enumerable.Range(0, 12)
+            .Select(index => new AetheriaDaemonTutorialFactionInput(
+                $"faction.{index}", $"Faction {index}", $"F{index}", 3 + index % 3)
+            {
+                BossHullItemKey = index < 3 ? $"boss-hull-{index}" : "",
+                TrainingNames = Enumerable.Range(0, 256)
+                    .Select(value => string.Concat(
+                        (char)('a' + value % 26),
+                        (char)('a' + value / 26 % 26),
+                        (char)('a' + index % 26),
+                        (char)('a' + (value * 7 + index) % 26),
+                        (char)('a' + (value * 11 + index) % 26),
+                        (char)('a' + (value * 17 + index) % 26)))
+                    .ToArray()
+            })
+            .ToArray();
+        const uint seed = 0x5EC7_0206u;
+        var first = AetheriaDaemonRegularTopologyGenerator.GenerateFossil(factions, seed);
+        var second = AetheriaDaemonRegularTopologyGenerator.GenerateFossil(factions, seed);
+
+        RequireEqual(196, first.Zones.Count,
+            "regular generation must use the fossil 196-zone sector setting");
+        RequireEqual(12, first.HomeZoneByFactionKey.Count,
+            "regular generation must place all twelve selected corporations");
+        RequireEqual(3, first.BossZoneByFactionKey.Count,
+            "regular generation must place the fossil three boss corporations");
+        Require(first.EntranceZoneIndex >= 0 && first.ExitZoneIndex >= 0 &&
+                first.EntranceZoneIndex != first.ExitZoneIndex,
+            "regular generation must own distinct entrance and exit zones");
+        Require(first.Zones.All(zone => !string.IsNullOrWhiteSpace(zone.Name)),
+            "regular generation must name every owned and catalogue zone");
+        Require(first.Zones.All(zone => zone.AdjacentZoneIndices.Count > 0 &&
+                zone.AdjacentZoneIndices.All(adjacent =>
+                    first.Zones[adjacent].AdjacentZoneIndices.Contains(zone.ZoneIndex))),
+            "regular generation must publish one connected undirected link graph");
+
+        int[] DistancesFrom(int source)
+        {
+            var distances = Enumerable.Repeat(-1, first.Zones.Count).ToArray();
+            var queue = new Queue<int>();
+            distances[source] = 0;
+            queue.Enqueue(source);
+            while (queue.Count > 0)
+            {
+                var current = queue.Dequeue();
+                foreach (var adjacent in first.Zones[current].AdjacentZoneIndices)
+                {
+                    if (distances[adjacent] >= 0) continue;
+                    distances[adjacent] = distances[current] + 1;
+                    queue.Enqueue(adjacent);
+                }
+            }
+            return distances;
+        }
+
+        var isolation = first.Zones
+            .Select(zone => DistancesFrom(zone.ZoneIndex).Sum())
+            .ToArray();
+        RequireEqual(isolation.Max(), isolation[first.ExitZoneIndex],
+            "regular exit must be a maximally isolated zone");
+        var exitDistances = DistancesFrom(first.ExitZoneIndex);
+        RequireEqual(exitDistances.Max(), exitDistances[first.EntranceZoneIndex],
+            "regular entrance must be furthest from the exit");
+        Require(first.DiscoveredZoneIndices.OrderBy(value => value).SequenceEqual(
+                new[] { first.EntranceZoneIndex }
+                    .Concat(first.Zones[first.EntranceZoneIndex].AdjacentZoneIndices)
+                    .Distinct()
+                    .OrderBy(value => value)),
+            "regular discovery must begin with only the entrance and its neighbors");
+        foreach (var home in first.HomeZoneByFactionKey)
+            Require(first.Zones[home.Value].FactionKeys.Contains(home.Key),
+                "each regular corporation must be present at its daemon-owned home zone");
+
+        Require(first.Zones.Select(zone => (zone.X, zone.Y, Links: string.Join(',', zone.AdjacentZoneIndices),
+                    zone.OwnerFactionKey, zone.Name)).SequenceEqual(
+                second.Zones.Select(zone => (zone.X, zone.Y, Links: string.Join(',', zone.AdjacentZoneIndices),
+                    zone.OwnerFactionKey, zone.Name))) &&
+                first.HomeZoneByFactionKey.OrderBy(value => value.Key).SequenceEqual(
+                    second.HomeZoneByFactionKey.OrderBy(value => value.Key)) &&
+                first.BossZoneByFactionKey.OrderBy(value => value.Key).SequenceEqual(
+                    second.BossZoneByFactionKey.OrderBy(value => value.Key)),
+            "regular topology, faction placement, boss placement, and names must be seed deterministic");
     }
 
     private static void TutorialPopulationPreservesFossilEntityMechanics()
@@ -580,6 +672,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         [
             PositiveGravityDepthAttractsAndProjectsAsAWell,
             TutorialTopologyIsDeterministicConnectedAndRoleOwned,
+            RegularTopologyOwnsFossilSectorStructure,
             GeneratedZoneBodiesPreserveFossilHierarchy,
             TutorialWorldMaterializesEveryTopologyZone,
             GeneratedOrbitsAdvanceOrbitalWorldTruth,

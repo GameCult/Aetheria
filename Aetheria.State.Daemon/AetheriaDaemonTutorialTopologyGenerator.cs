@@ -7,6 +7,7 @@ public sealed record AetheriaDaemonTutorialFactionInput(
     int InfluenceDistance)
 {
     public IReadOnlyList<string> TrainingNames { get; init; } = Array.Empty<string>();
+    public string BossHullItemKey { get; init; } = "";
 }
 
 public sealed record AetheriaDaemonTutorialTopologySettings(
@@ -43,7 +44,12 @@ public sealed record AetheriaDaemonTutorialTopology(
     int EntranceZoneIndex,
     IReadOnlyList<int> DiscoveredZoneIndices,
     IReadOnlyDictionary<string, int> HomeZoneByFactionKey,
-    IReadOnlyList<AetheriaDaemonTutorialZoneTopology> Zones);
+    IReadOnlyList<AetheriaDaemonTutorialZoneTopology> Zones)
+{
+    public int ExitZoneIndex { get; init; } = -1;
+    public IReadOnlyDictionary<string, int> BossZoneByFactionKey { get; init; } =
+        new Dictionary<string, int>(StringComparer.Ordinal);
+}
 
 /// <summary>
 /// Daemon-owned migration of the fossil tutorial galaxy topology. This organ
@@ -52,7 +58,7 @@ public sealed record AetheriaDaemonTutorialTopology(
 /// </summary>
 public static class AetheriaDaemonTutorialTopologyGenerator
 {
-    private const int CandidateMultiplier = 8;
+    internal const int CandidateMultiplier = 8;
 
     public static AetheriaDaemonTutorialTopology GenerateFossil(
         IReadOnlyList<AetheriaDaemonTutorialFactionInput> factions,
@@ -252,10 +258,11 @@ public static class AetheriaDaemonTutorialTopologyGenerator
         return new TutorialRoles(protagonist, antagonist, buffer, neutrals, quest, all);
     }
 
-    private static string[] GenerateNames(
+    internal static string[] GenerateNames(
         IReadOnlyList<AetheriaDaemonTutorialFactionInput> factions,
         IReadOnlyList<string> ownerKeys,
-        uint seed)
+        uint seed,
+        int order = 3)
     {
         var generators = new Dictionary<string, TutorialMarkovNameGenerator>(StringComparer.Ordinal);
         foreach (var faction in factions)
@@ -265,7 +272,7 @@ public static class AetheriaDaemonTutorialTopologyGenerator
             generators[faction.CorporationKey] = new TutorialMarkovNameGenerator(
                 seed,
                 faction.TrainingNames,
-                order: 3,
+                order: order,
                 minimumLength: 5,
                 maximumLength: 10);
         }
@@ -290,7 +297,7 @@ public static class AetheriaDaemonTutorialTopologyGenerator
         return output;
     }
 
-    private static Point[] GeneratePoints(
+    internal static Point[] GeneratePoints(
         int count,
         ref CultMath.Random random,
         Func<float, float, float> density)
@@ -359,7 +366,7 @@ public static class AetheriaDaemonTutorialTopologyGenerator
         return MathF.Pow(1f - distance / dMax, 5f + 6f * density);
     }
 
-    private static HashSet<Edge> DelaunayLinks(IReadOnlyList<Point> points)
+    internal static HashSet<Edge> DelaunayLinks(IReadOnlyList<Point> points)
     {
         var vertices = points.Concat(new[]
         {
@@ -423,7 +430,7 @@ public static class AetheriaDaemonTutorialTopologyGenerator
         yield return new Edge(triangle.C, triangle.A);
     }
 
-    private static void PruneLinks(
+    internal static void PruneLinks(
         IReadOnlyList<Point> points,
         HashSet<Edge> links,
         float linkDensity,
@@ -541,7 +548,7 @@ public static class AetheriaDaemonTutorialTopologyGenerator
             .ToArray();
     }
 
-    private static int[,] BuildDistances(int zoneCount, IReadOnlySet<Edge> links)
+    internal static int[,] BuildDistances(int zoneCount, IReadOnlySet<Edge> links)
     {
         var output = new int[zoneCount, zoneCount];
         for (var source = 0; source < zoneCount; source++)
@@ -568,7 +575,7 @@ public static class AetheriaDaemonTutorialTopologyGenerator
         return output;
     }
 
-    private static bool IsConnectedWithout(
+    internal static bool IsConnectedWithout(
         int zoneCount,
         IReadOnlySet<Edge> links,
         int source,
@@ -598,20 +605,20 @@ public static class AetheriaDaemonTutorialTopologyGenerator
         return false;
     }
 
-    private static IEnumerable<int> Neighbors(int zone, IEnumerable<Edge> links)
+    internal static IEnumerable<int> Neighbors(int zone, IEnumerable<Edge> links)
     {
         return links.Where(edge => edge.Contains(zone)).Select(edge => edge.Other(zone));
     }
 
-    private static int RegionSize(int zone, int maxDistance, int[,] distances)
+    internal static int RegionSize(int zone, int maxDistance, int[,] distances)
     {
         return Enumerable.Range(0, distances.GetLength(0)).Count(other => distances[zone, other] <= maxDistance);
     }
 
-    private static int MaxZone(int zoneCount, Func<int, double> score) =>
+    internal static int MaxZone(int zoneCount, Func<int, double> score) =>
         MaxZone(Enumerable.Range(0, zoneCount), score);
 
-    private static int MaxZone(IEnumerable<int> zones, Func<int, double> score) =>
+    internal static int MaxZone(IEnumerable<int> zones, Func<int, double> score) =>
         zones.Select(zone => new { Zone = zone, Score = score(zone) })
             .OrderByDescending(value => value.Score)
             .ThenBy(value => value.Zone)
@@ -629,9 +636,9 @@ public static class AetheriaDaemonTutorialTopologyGenerator
 
     private static float Saturate(float value) => value < 0 ? 0 : value > 1 ? 1 : value;
 
-    private readonly record struct Point(float X, float Y);
+    internal readonly record struct Point(float X, float Y);
     private readonly record struct Triangle(int A, int B, int C);
-    private readonly record struct Edge
+    internal readonly record struct Edge
     {
         public Edge(int a, int b)
         {
