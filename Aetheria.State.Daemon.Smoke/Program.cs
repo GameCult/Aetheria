@@ -1230,6 +1230,11 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             "docking must not manufacture a bay assignment on an entity with no docking-bay equipment");
         RequireEqual(-1, outOfRange.DockingBayAssignments.Single(),
             "a client scalar must not widen the daemon-owned fossil docking radius");
+        var dockedEvent = selectionRun.GameEvents.Single(value => value.Kind == "ship.docked");
+        Require(dockedEvent.SourceEntityIndex == actor.EntityIndex &&
+                dockedEvent.TargetEntityIndex == firstEligible.EntityIndex &&
+                dockedEvent.ScalarValue == 0 && dockedEvent.SubjectKey == selectionRun.CurrentEntityKey,
+            "accepted docking must publish one retained actor/parent/bay transition fact");
         var disarmed = actor.WeaponStates.Single();
         RequireEqual(0, actor.ActiveWeaponGroups.Count,
             "docking must clear the daemon-owned held weapon-group latch");
@@ -1305,6 +1310,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 "undock rejection must retain the exact daemon-owned fossil reason");
             Require(run.Zones[0].Entities[1].DockingBayAssignments.Contains(0),
                 "a rejected undock must leave parentage and bay assignment untouched");
+            Require(!run.GameEvents.Any(value => value.Kind == "ship.undocked"),
+                "a rejected undock must not publish a false presentation transition");
             return result;
         }
 
@@ -1369,6 +1376,21 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             "undocking must preserve the ship pose, velocity, and direction instead of applying an invented launch");
         Require(!successRun.Zones[0].Entities[1].DockingBayAssignments.Contains(0),
             "successful undocking must release the exact occupied bay");
+        var undockedEvent = successRun.GameEvents.Single(value => value.Kind == "ship.undocked");
+        Require(undockedEvent.SourceEntityIndex == successShip.EntityIndex &&
+                undockedEvent.TargetEntityIndex == successRun.Zones[0].Entities[1].EntityIndex &&
+                undockedEvent.ScalarValue == 0,
+            "accepted undocking must retain the released parent and bay after state removal");
+        var surface = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(
+            new AetheriaRuntimeDaemonFrameDocument { FrameId = 1, Run = successRun },
+            new AetheriaRuntimeDaemonHealthDocument(),
+            AetheriaRuntimeDaemonCommandBoundaryDocument.Create("daemon"),
+            catalog: catalog);
+        Require(Flatten(surface.Surface.Root).Any(node => node.Kind == "feedback.event" &&
+                node.Props["eventKind"] == "ship.undocked" &&
+                node.Props["sourceEntityIndex"] == "0" && node.Props["targetEntityIndex"] == "1" &&
+                node.Props["scalarValue"] == "0"),
+            "generic Eve feedback must expose authoritative docking chronology and bay identity");
     }
 
     private static void DockedEntitiesCannotAttackOrBeTargeted()

@@ -1544,6 +1544,7 @@ namespace GameCult.Aetheria.State.Verse
                 TargetEntityKey = command.TargetEntityKey ?? "",
                 Dock = true
             });
+            AppendDockingEvent(run, command, "ship.docked", actor, command.TargetEntityKey ?? "");
             return true;
         }
 
@@ -1580,6 +1581,21 @@ namespace GameCult.Aetheria.State.Verse
             if (string.IsNullOrWhiteSpace(actor))
                 return context.Reject(AetheriaRuntimeDaemonRejectionReasons.InvalidDockActor);
 
+            var parentKey = TryResolveDockParent(run, actor, out var resolvedParentKey, out var resolvedParent)
+                ? resolvedParentKey
+                : "";
+            var undockBayIndex = -1;
+            if (TryResolveEntity(run, actor, out _, out var resolvedActorIndex, out _) && resolvedParent != null)
+            {
+                var assignments = resolvedParent.DockingBayAssignments ?? Array.Empty<int>();
+                for (var index = 0; index < assignments.Count; index++)
+                    if (assignments[index] == resolvedActorIndex)
+                    {
+                        undockBayIndex = index;
+                        break;
+                    }
+            }
+
             if (!ApplyUndockState(run, actor, context))
                 return false;
 
@@ -1588,7 +1604,46 @@ namespace GameCult.Aetheria.State.Verse
                 ActorEntityKey = actor,
                 Undock = true
             });
+            AppendDockingEvent(run, command, "ship.undocked", actor, parentKey, undockBayIndex);
             return true;
+        }
+
+        private static void AppendDockingEvent(
+            AetheriaRuntimeRunCheckpointCommit run,
+            AetheriaRuntimeDaemonCommandDocument command,
+            string kind,
+            string actorEntityKey,
+            string parentEntityKey,
+            int knownBayIndex = -1)
+        {
+            if (!TryResolveEntity(run, actorEntityKey, out var zoneIndex, out var actorIndex, out var actor) ||
+                !TryResolveEntity(run, parentEntityKey, out _, out var parentIndex, out var parent))
+                return;
+            var bayIndex = knownBayIndex;
+            if (bayIndex < 0)
+            {
+                var assignments = parent.DockingBayAssignments ?? Array.Empty<int>();
+                for (var index = 0; index < assignments.Count; index++)
+                    if (assignments[index] == actorIndex)
+                    {
+                        bayIndex = index;
+                        break;
+                    }
+            }
+            AetheriaRuntimeGameEvents.Append(run, new AetheriaRuntimeGameEventCommit
+            {
+                EventId = $"command:{command.CommandId}:{kind}",
+                Kind = kind,
+                FrameId = command.ObservedFrameId,
+                ZoneIndex = zoneIndex,
+                SourceEntityIndex = actorIndex,
+                TargetEntityIndex = parentIndex,
+                SubjectKey = actorEntityKey,
+                Reason = parentEntityKey,
+                ScalarValue = bayIndex,
+                PositionX = actor.PositionX,
+                PositionZ = actor.PositionZ
+            });
         }
 
         private static bool ApplyInteractIntent(

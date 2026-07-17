@@ -3076,11 +3076,13 @@ Docking ownership follows the fossil's entity and `ActionGameManager` path:
   bodies remain independently collidable with ships.
 - Outputs: exact parent/assignment mutation, cleared held-group and transient
   weapon state on dock, a world-combat participant set containing neither
-  docked attackers nor docked targets, docking intent, and an authoritative
-  rejection reason carried by the command fact and Eve receipt.
+  docked attackers nor docked targets, docking intent, one retained
+  `ship.docked` or `ship.undocked` fact carrying actor, parent, bay, frame and
+  position, and an authoritative rejection reason carried by the command fact
+  and Eve receipt.
 - Derived state: camera target, subject visibility, movement suppression, menu
-  copy, and effects derive from dock parentage plus the receipt. They do not
-  decide whether docking happened.
+  copy, audio, and effects derive from dock parentage plus retained feedback
+  chronology. They do not decide whether docking happened.
 - Forbidden writers: Unity `TryDock`/`TryUndock`, camera transitions, client
   proximity, command-supplied failure text, and renderer-local component checks
   cannot mutate or explain docking truth. Stale input state, forged fire
@@ -3096,8 +3098,9 @@ Docking ownership follows the fossil's entity and `ActionGameManager` path:
   circle radii make the authored center-distance rule unreachable.
 - Verification layer: operation tests cover every ordered rejection, bay cargo,
   first-eligible selection, weapon disarm, docked fire-command rejection,
-  preserved pose/velocity/direction, exact receipt reason, entity pass-through
-  during home approach, and retained ship/pickup contact collection. Simulation
+  preserved pose/velocity/direction, exact receipt reason, exactly one accepted
+  transition fact, no false event on rejected undock, Eve feedback projection,
+  entity pass-through during home approach, and retained ship/pickup contact collection. Simulation
   smoke proves both docked attacker and docked target subtraction despite stale
   state and a forged pulse; the live witness remains responsible for
   camera/effect timing.
