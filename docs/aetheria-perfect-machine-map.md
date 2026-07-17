@@ -323,6 +323,12 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   adjustment; non-finite values, wrong behavior indices, missing catalogs, and
   fixed thermostats fail closed. Eve receives the live target as ordinary
   behavior state and remains presentation-only.
+  Each behavior row also records whether ordered execution reached it during
+  the current fixed step. Specialized subsystem handlers consume that daemon
+  fact instead of equating "installed and online" with "admitted by the
+  chain". Radiators are the first migrated consumer: a closed thermostat makes
+  its downstream radiator unreachable, so the energy/thermal handler cannot
+  pump heat behind the gate.
 - Sensor contact information is daemon-owned. Each operational installed
   `Sensor` behavior executes the fossil information equation against target
   visibility, distance, observer-relative angle, its authored sensitivity

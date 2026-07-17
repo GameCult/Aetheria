@@ -63,7 +63,7 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeCatalogSnapshot? catalog, double deltaSeconds)
         {
             if (entity == null || catalog == null || deltaSeconds <= 0 || !entity.HeatsinksEnabled) return;
-            foreach (var radiator in Online(entity, catalog, "Radiator"))
+            foreach (var radiator in AetheriaRuntimeEquippedBehaviorQueries.FindExecuting(entity, catalog, "Radiator"))
             {
                 var itemTemperature = AetheriaRuntimeThermalSimulation.EquipmentTemperature(
                     entity, catalog, radiator.EquipmentIndex);

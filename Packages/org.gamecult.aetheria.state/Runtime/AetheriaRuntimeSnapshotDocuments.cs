@@ -1518,6 +1518,9 @@ namespace GameCult.Aetheria.State.Verse
         [Key(58)]
         public double CooldownProgress { get; set; }
 
+        [Key(59)]
+        public bool ChainReached { get; set; }
+
         [Key(55)]
         public string ResourceScannerTargetBodyKey { get; set; } = "";
 

@@ -402,13 +402,23 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 new AetheriaRuntimeBehaviorField(2, BoolValue(false)),
                 new AetheriaRuntimeBehaviorField(3, BoolValue(true))
             ]),
-            new AetheriaRuntimeBehaviorPayload(1, "Heat", 0,
+            new AetheriaRuntimeBehaviorPayload(1, "Radiator", 0,
+            [
+                new AetheriaRuntimeBehaviorField(1, PerformanceStat(0)),
+                new AetheriaRuntimeBehaviorField(2, PerformanceStat(1)),
+                new AetheriaRuntimeBehaviorField(3, Number(200)),
+                new AetheriaRuntimeBehaviorField(4, PerformanceStat(0)),
+                new AetheriaRuntimeBehaviorField(5, PerformanceStat(0)),
+                new AetheriaRuntimeBehaviorField(6, PerformanceStat(10))
+            ]),
+            new AetheriaRuntimeBehaviorPayload(2, "Heat", 0,
             [
                 new AetheriaRuntimeBehaviorField(1, PerformanceStat(10)),
                 new AetheriaRuntimeBehaviorField(2, BoolValue(false))
             ]));
         var catalog = new AetheriaRuntimeCatalogSnapshot([thermostat], [], []);
         var entity = Entity(0, 0, "player");
+        entity.HeatsinksEnabled = true;
         entity.Equipment = [new AetheriaRuntimeLoadoutItemSlotCommit
         {
             Item = new AetheriaRuntimeLoadoutItemCommit
@@ -433,13 +443,23 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         SetTarget(200, 1);
         var before = AetheriaRuntimeThermalSimulation.EquipmentTemperature(entity, catalog, 0);
         AetheriaRuntimeBehaviorSimulation.Step(0, [entity], [], catalog, 0.1);
+        AetheriaRuntimeEnergySimulation.StepRadiators(entity, catalog, 0.1);
         RequireNear(before, AetheriaRuntimeThermalSimulation.EquipmentTemperature(entity, catalog, 0), 0.000001,
             "a low-pass thermotoggle above its target must stop downstream heat");
+        Require(!entity.BehaviorStates.Single(value => value.BehaviorKind == "Heat").ChainReached,
+            "a closed thermostat must keep downstream specialized and common behaviors unreachable");
+        RequireNear(0, entity.BehaviorStates.Single(value => value.BehaviorKind == "Radiator").PumpedHeat, 0.000001,
+            "a closed thermostat must keep the radiator subsystem from running");
 
         SetTarget(300, 2);
         AetheriaRuntimeBehaviorSimulation.Step(0, [entity], [], catalog, 0.1);
+        AetheriaRuntimeEnergySimulation.StepRadiators(entity, catalog, 0.1);
         Require(AetheriaRuntimeThermalSimulation.EquipmentTemperature(entity, catalog, 0) > before,
             "a low-pass thermotoggle below its target must admit downstream heat");
+        Require(entity.BehaviorStates.Single(value => value.BehaviorKind == "Heat").ChainReached,
+            "an open thermostat must publish that the downstream behavior was reached this tick");
+        RequireNear(1, entity.BehaviorStates.Single(value => value.BehaviorKind == "Radiator").PumpedHeat, 0.000001,
+            "an open thermostat must admit the radiator subsystem through the same chain state");
 
         void SetTarget(double target, long sequence)
         {
@@ -4929,6 +4949,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         var catalog = new AetheriaRuntimeCatalogSnapshot([capacitor, radiator], [], []);
 
         AetheriaRuntimeEnergySimulation.BeginTick(entity, catalog);
+        AetheriaRuntimeBehaviorSimulation.Step(0, [entity], [], catalog, 1);
         AetheriaRuntimeEnergySimulation.StepRadiators(entity, catalog, 1);
 
         RequireNear(9, entity.BehaviorStates.Single(value => value.BehaviorKind == "Capacitor").CapacitorCharge,

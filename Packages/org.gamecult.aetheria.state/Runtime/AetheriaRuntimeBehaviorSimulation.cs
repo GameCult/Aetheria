@@ -113,6 +113,8 @@ namespace GameCult.Aetheria.State.Verse
                 .Where(value => value != null && string.Equals(value.OwnerKind,
                     AetheriaRuntimeBehaviorStateProjector.EquipmentOwnerKind, StringComparison.Ordinal))
                 .ToDictionary(value => (value.OwnerIndex, value.BehaviorIndex));
+            foreach (var state in states.Values)
+                state.ChainReached = false;
             var online = (entity.EquipmentStates ?? Array.Empty<AetheriaRuntimeEquipmentStateCommit>())
                 .Where(value => value != null).ToDictionary(value => value.EquipmentIndex);
             var equipment = entity.Equipment ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>();
@@ -136,6 +138,7 @@ namespace GameCult.Aetheria.State.Verse
                 {
                     if (!states.TryGetValue((equipmentIndex, entry.Index), out var state))
                         break;
+                    state.ChainReached = true;
                     if (string.Equals(entry.Payload.Kind, "Switch", StringComparison.Ordinal) && !state.SwitchActivated)
                         break;
                     if (string.Equals(entry.Payload.Kind, "Trigger", StringComparison.Ordinal))

@@ -138,5 +138,13 @@ namespace GameCult.Aetheria.State.Verse
                     (!equipmentStates.TryGetValue(value.EquipmentIndex, out var state) || state.Online))
                 .ToArray();
         }
+
+        public static IReadOnlyList<AetheriaRuntimeEquippedBehavior> FindExecuting(
+            AetheriaRuntimeEntitySnapshotCommit? entity,
+            AetheriaRuntimeCatalogSnapshot? catalog,
+            string behaviorKind) =>
+            FindOperational(entity, catalog, behaviorKind)
+                .Where(value => value.State.ChainReached)
+                .ToArray();
     }
 }
