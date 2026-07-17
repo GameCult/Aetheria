@@ -416,10 +416,12 @@ namespace GameCult.Aetheria.State.Verse
                 .SelectMany(zone => zone.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>()))
             {
                 if (string.Equals(entity.AssignedAgentTaskId, task.TaskId, StringComparison.Ordinal))
-                    entity.AssignedAgentTaskId = "";
+                    AetheriaRuntimeAgentScheduler.ReleaseControls(entity, task);
             }
             task.Status = AetheriaRuntimeAgentTaskStatuses.Cancelled;
             task.AssignedEntityIndex = -1;
+            task.PendingQuantity = 0;
+            task.Phase = AetheriaRuntimeAgentTaskStatuses.Cancelled;
             return true;
         }
 

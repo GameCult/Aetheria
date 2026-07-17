@@ -1133,6 +1133,15 @@ The task's weapon-group field is now an observed last selection, not an attack
 policy owner. Daemon smoke proves close/open strafe, DPS group selection,
 projectile lead, hardpoint gating, progressive lock, and target destruction.
 
+Task assignment is the only owner of autonomous helm and target controls for an
+uncontrolled agent. Cancel, complete, failure, stale-assignment repair, and
+duplicate-carrier repair all use `AetheriaRuntimeAgentScheduler.ReleaseControls`.
+That transition clears the durable assignment marker, both helm axes, and the
+scheduler target; a tow task also releases its target from the agent's child
+list at the already-authoritative world position. Task status and phase are
+terminal facts after cancellation. They are not a repair signal that permits
+the previous controller state to survive for another tick.
+
 ### Authoritative Flight Actuator Contract
 
 - Owner: Aetheria daemon owns persistent local helm axes, desired look

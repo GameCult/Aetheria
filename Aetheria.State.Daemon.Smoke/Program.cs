@@ -211,6 +211,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             SchedulerAssignsHighestPriorityCompatibleTask,
             SchedulerRequeuesTaskFromDeadAgent,
             SchedulerCollapsesDuplicateAssignmentMarkers,
+            CancellingAgentTaskReleasesSchedulerControls,
             SchedulerAssignsShortestGalaxyRoute,
             WormholeTraversalUsesPersistedEnterTransferExitPhases,
             AgentTraversesGalaxyRouteBeforeExecutingTask,
@@ -4999,6 +5000,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         first.AssignedAgentTaskId = "single-owner";
         var duplicate = Entity(1, 0, "workers");
         duplicate.AssignedAgentTaskId = "single-owner";
+        duplicate.HelmForward = 1;
+        duplicate.TargetEntityIndex = 7;
         var task = AgentTask("single-owner", 1);
         task.Status = AetheriaRuntimeAgentTaskStatuses.Assigned;
         var run = new AetheriaRuntimeRunCheckpointCommit
@@ -5015,6 +5018,84 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             "one task must have exactly one active carrier after reconciliation");
         RequireEqual(first.EntityIndex, task.AssignedEntityIndex,
             "duplicate assignment reconciliation must be deterministic");
+        RequireNear(0, duplicate.HelmForward, 0.000001,
+            "duplicate assignment reconciliation must release the losing scheduler controls");
+        RequireEqual(-1, duplicate.TargetEntityIndex,
+            "duplicate assignment reconciliation must release the losing scheduler target");
+    }
+
+    private static void CancellingAgentTaskReleasesSchedulerControls()
+    {
+        var agent = Entity(0, 0, "workers");
+        agent.AssignedAgentTaskId = "tow-station";
+        agent.HelmStrafe = 0.75;
+        agent.HelmForward = 1;
+        agent.TargetEntityIndex = 2;
+        agent.ChildEntityIndices = [2];
+        var station = Entity(2, 0, "workers");
+        station.Kind = "station";
+        var task = new AetheriaRuntimeAgentTaskCommit
+        {
+            TaskId = "tow-station",
+            CorporationKey = "workers",
+            TaskType = AetheriaRuntimeAgentTaskTypes.Tow,
+            Status = AetheriaRuntimeAgentTaskStatuses.Assigned,
+            AssignedEntityIndex = 0,
+            TargetEntityIndex = 2,
+            PendingQuantity = 4,
+            Phase = "delivery"
+        };
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "agent-cancel-smoke",
+            CurrentZoneIndex = 0,
+            CurrentEntityKey = "",
+            AgentTasks = [task],
+            Zones =
+            [
+                new AetheriaRuntimeZoneSnapshotCommit
+                {
+                    ZoneIndex = 0,
+                    Entities = [agent, Entity(1, 0, "workers"), station]
+                }
+            ]
+        };
+        var cancel = AetheriaRuntimeDaemonCommandDocument.Create(
+            AetheriaRuntimeDaemonCommandKinds.CancelAgentTask,
+            "commander-smoke",
+            "starbridge-smoke",
+            12,
+            "");
+        cancel.CommandId = "cancel-tow-station";
+        cancel.AgentTask = new AetheriaRuntimeAgentTaskCommand { TaskId = task.TaskId };
+
+        var result = AetheriaRuntimeDaemonOperations.Execute(
+            run,
+            [cancel],
+            new AetheriaRuntimeDaemonOperationContext());
+
+        Require(result.AppliedCommandIds.Contains(cancel.CommandId, StringComparer.Ordinal),
+            "task cancellation must commit through the daemon command boundary");
+        RequireEqual(AetheriaRuntimeAgentTaskStatuses.Cancelled, task.Status,
+            "cancelled task must become terminal immediately");
+        RequireEqual(AetheriaRuntimeAgentTaskStatuses.Cancelled, task.Phase,
+            "cancelled task must not retain a counterfeit in-progress phase");
+        RequireEqual(-1, task.AssignedEntityIndex,
+            "cancelled task must release its assigned agent identity");
+        RequireEqual(0, task.PendingQuantity,
+            "cancelled transfer work must not retain pending quantity");
+        RequireEqual("", agent.AssignedAgentTaskId,
+            "cancelled agent must release the durable assignment marker");
+        RequireNear(0, agent.HelmStrafe, 0.000001,
+            "cancelled agent must release scheduler-owned strafe input");
+        RequireNear(0, agent.HelmForward, 0.000001,
+            "cancelled agent must release scheduler-owned forward input");
+        RequireEqual(-1, agent.TargetEntityIndex,
+            "cancelled agent must release scheduler-owned targeting");
+        Require(!agent.ChildEntityIndices.Contains(station.EntityIndex),
+            "cancelling an active tow must release the station at its authoritative world position");
+        RequireEqual(0, AetheriaRuntimeAgentScheduler.AssignAndPlan(run, 13).Count,
+            "cancelled work must not produce another scheduler command on the next frame");
     }
 
     private static AetheriaRuntimeAgentTaskCommit AgentTask(string id, int priority) => new()

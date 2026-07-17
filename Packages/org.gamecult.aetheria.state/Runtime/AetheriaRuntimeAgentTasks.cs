@@ -160,6 +160,27 @@ namespace GameCult.Aetheria.State.Verse
             }
         }
 
+        internal static void ReleaseControls(
+            AetheriaRuntimeEntitySnapshotCommit agent,
+            AetheriaRuntimeAgentTaskCommit? task)
+        {
+            if (agent == null)
+                return;
+
+            agent.AssignedAgentTaskId = "";
+            agent.HelmStrafe = 0;
+            agent.HelmForward = 0;
+            agent.TargetEntityIndex = -1;
+            if (task != null &&
+                string.Equals(task.TaskType, AetheriaRuntimeAgentTaskTypes.Tow, StringComparison.Ordinal) &&
+                task.TargetEntityIndex >= 0)
+            {
+                agent.ChildEntityIndices = (agent.ChildEntityIndices ?? Array.Empty<int>())
+                    .Where(index => index != task.TargetEntityIndex)
+                    .ToArray();
+            }
+        }
+
         private static void AssignQueuedTasks(AetheriaRuntimeRunCheckpointCommit run, long frameId)
         {
             var tasks = (run.AgentTasks ?? Array.Empty<AetheriaRuntimeAgentTaskCommit>()).Where(task => task != null).ToArray();
@@ -1171,14 +1192,14 @@ namespace GameCult.Aetheria.State.Verse
         {
             task.Status = AetheriaRuntimeAgentTaskStatuses.Completed;
             task.CompletedFrameId = frameId;
-            agent.AssignedAgentTaskId = "";
+            ReleaseControls(agent, task);
         }
 
         private static void Fail(AetheriaRuntimeAgentTaskCommit task, AetheriaRuntimeEntitySnapshotCommit agent)
         {
             task.Status = AetheriaRuntimeAgentTaskStatuses.Failed;
             task.PendingQuantity = 0;
-            agent.AssignedAgentTaskId = "";
+            ReleaseControls(agent, task);
         }
 
         private static string CommandId(AetheriaRuntimeAgentTaskCommit task, long frameId, string phase) =>
@@ -1210,7 +1231,8 @@ namespace GameCult.Aetheria.State.Verse
             {
                 if (!string.IsNullOrWhiteSpace(entity.AssignedAgentTaskId) &&
                     (!entity.IsActive || !activeTaskIds.Contains(entity.AssignedAgentTaskId)))
-                    entity.AssignedAgentTaskId = "";
+                    ReleaseControls(entity, tasks.FirstOrDefault(task =>
+                        string.Equals(task.TaskId, entity.AssignedAgentTaskId, StringComparison.Ordinal)));
             }
             foreach (var task in tasks.Where(task => string.Equals(task.Status, AetheriaRuntimeAgentTaskStatuses.Assigned, StringComparison.Ordinal)))
             {
@@ -1227,7 +1249,7 @@ namespace GameCult.Aetheria.State.Verse
                 }
                 task.AssignedEntityIndex = carriers[0].EntityIndex;
                 foreach (var duplicate in carriers.Skip(1))
-                    duplicate.AssignedAgentTaskId = "";
+                    ReleaseControls(duplicate, task);
             }
         }
 
