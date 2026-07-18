@@ -350,7 +350,10 @@ namespace Aetheria.Editor
             CopyTexture(source, material, "_OcclusionMap", "_OcclusionMap");
             CopyFloat(source, material, "_OcclusionStrength", "_OcclusionStrength");
             CopyTexture(source, material, "_EmissionMap", "_EmissionMap");
-            var emission = FirstNonBlackColor(source, "_EmissionColor", "_EdgeColor");
+            // The fossil hull shader's _EdgeColor is a view-dependent Fresnel tint, not
+            // whole-surface emission. Promoting its HDR edge values to URP emission
+            // poisons exposure and makes the converted hull appear black.
+            var emission = FirstNonBlackColor(source, "_EmissionColor");
             if (material.HasProperty("_EmissionColor"))
                 material.SetColor("_EmissionColor", emission);
             if (emission.maxColorComponent > 0.001f ||
