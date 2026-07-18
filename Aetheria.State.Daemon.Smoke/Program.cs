@@ -3333,13 +3333,13 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         Require(shader.Ref.Metadata["unity.volume.texturePort.surfaceHeight"] == "_NebulaSurfaceHeight" &&
                 shader.Ref.Metadata["unity.volume.matrixPort.cameraToWorld"] == "_CamToWorld" &&
                 shader.Ref.Metadata["unity.volume.pass.raymarch"] == "0" &&
-                shader.Ref.Metadata["unity.volume.pass.temporal"] == "1" &&
                 shader.Ref.Metadata["unity.volume.pass.composite"] == "2" &&
-                shader.Ref.Metadata["unity.volume.texturePort.currentSample"] == "_UndersampleCloudTex" &&
-                shader.Ref.Metadata["unity.volume.texturePort.history"] == "_MainTex" &&
-                shader.Ref.Metadata["unity.volume.matrixPort.previousViewProjection"] == "_PrevVP" &&
-            shader.Ref.Metadata["unity.volume.floatPort.resetHistory"] == "_ResetHistory",
-            "provider asset metadata must own the concrete Unity volume-program ABI projected into runtime variants");
+                !shader.Ref.Metadata.ContainsKey("unity.volume.pass.temporal") &&
+                !shader.Ref.Metadata.ContainsKey("unity.volume.texturePort.currentSample") &&
+                !shader.Ref.Metadata.ContainsKey("unity.volume.texturePort.history") &&
+                !shader.Ref.Metadata.ContainsKey("unity.volume.matrixPort.previousViewProjection") &&
+                !shader.Ref.Metadata.ContainsKey("unity.volume.floatPort.resetHistory"),
+            "provider asset metadata must expose current-frame raymarch and composite while URP owns temporal history");
         Require(stardustCompute.Ref.Kind == AetheriaRuntimeAssetKinds.ComputeShader &&
                 stardustCompute.Ref.Metadata["unity.particles.kernel.update"] == "UpdateParticles" &&
                 stardustCompute.Ref.Metadata["unity.particles.bufferPort.particles"] == "particles" &&

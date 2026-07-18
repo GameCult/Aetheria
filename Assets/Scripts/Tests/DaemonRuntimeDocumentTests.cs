@@ -794,13 +794,10 @@ public class DaemonRuntimeDocumentTests
             asset.Ref.Kind == AetheriaRuntimeAssetKinds.Shader &&
             asset.Ref.Metadata["unity.volume.texturePort.surfaceHeight"] == "_NebulaSurfaceHeight" &&
             asset.Ref.Metadata["unity.volume.matrixPort.cameraToWorld"] == "_CamToWorld" &&
-            asset.Ref.Metadata["unity.volume.matrixSemantic.previousViewProjection"] ==
-                "non-render-target-projection.previous-view.v1" &&
             asset.Ref.Metadata["unity.volume.quality.bootstrap"] == "ultra" &&
             asset.Ref.Metadata["unity.volume.quality.ultra.keyword"] == "ULTRA_QUALITY" &&
-            asset.Ref.Metadata["unity.volume.pass.temporal"] == "1" &&
-            asset.Ref.Metadata["unity.volume.texturePort.currentSample"] == "_UndersampleCloudTex" &&
-            asset.Ref.Metadata["unity.volume.texturePort.history"] == "_MainTex"));
+            !asset.Ref.Metadata.ContainsKey("unity.volume.pass.temporal") &&
+            !asset.Ref.Metadata.ContainsKey("unity.volume.texturePort.history")));
         Assert.IsTrue(assetManifest.Assets.Any(asset =>
             asset.Ref.AssetKey == "texture.environment.volume-dither" &&
             asset.Ref.Kind == AetheriaRuntimeAssetKinds.Texture));
