@@ -25,7 +25,7 @@ public sealed class AetheriaUnityClient : MonoBehaviour
         _provider.Configure(
             endpoint,
             replicaPath,
-            providerId: "aetheria",
+            providerId: "aetheria.daemon",
             surfaceId: surfaceId,
             requiredSurfaceKind: "interactive-world",
             clientRuntimeId: "aetheria-unity");
@@ -38,7 +38,25 @@ public sealed class AetheriaUnityClient : MonoBehaviour
     {
         yield return null;
         _status = "Connecting to the advertised Eve surface...";
-        yield return null;
+        while (true)
+        {
+            var preparation = _provider.PrepareAsync();
+            while (!preparation.IsCompleted)
+                yield return null;
+            Exception preparationError = null;
+            try
+            {
+                preparation.GetAwaiter().GetResult();
+            }
+            catch (Exception error)
+            {
+                preparationError = error;
+            }
+            if (preparationError == null)
+                break;
+            _status = "Waiting for Aetheria daemon: " + preparationError.Message;
+            yield return new WaitForSecondsRealtime(0.5f);
+        }
         var presentation = _bootstrap.Mount();
         _status = $"Connected: {_provider.Selection.ProviderId} / {_provider.Selection.SurfaceId} / {presentation.ActiveEntities} entities";
     }
