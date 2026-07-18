@@ -373,6 +373,24 @@ await node.CatalogSurface().LatestAsync().ConfigureAwait(false);
 
 await node.FlushAsync();
 
+await using (var reopenedNode = await AetheriaStateNode.OpenAsync(
+                 statePath,
+                 "aetheria-legacy-catalog-import-reopen-proof",
+                 useDirectoryStore: true))
+{
+    var reopenedCatalog = await reopenedNode.RuntimeCatalog().LatestAsync().ConfigureAwait(false);
+    var reopenedCorporationKeys = reopenedCatalog.Corporations
+        .Select(corporation => corporation.CorporationKey)
+        .Where(key => !string.IsNullOrWhiteSpace(key))
+        .Distinct(StringComparer.Ordinal)
+        .ToArray();
+    if (reopenedCorporationKeys.Length != importedCorporationKeys.Length)
+    {
+        throw new InvalidDataException(
+            $"Reopened runtime catalog projected {reopenedCorporationKeys.Length} corporation keys after the importer flushed {importedCorporationKeys.Length}.");
+    }
+}
+
 Console.WriteLine($"Aetheria legacy catalog mapped into typed state: {statePath}");
 Console.WriteLine($"Catalog: {catalog.RelativePath} {catalog.Bytes} bytes {catalog.Fingerprint}");
 Console.WriteLine($"Name files: {nameFiles.Length}");
