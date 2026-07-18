@@ -1,6 +1,6 @@
 # Aetheria Current Codebase Model
 
-Date: 2026-06-22
+Date: 2026-07-19
 
 This is a modeling pass over the live codebase as it exists now. It is not the
 ideal architecture; it is the current control-flow map, with migration pressure
@@ -47,22 +47,85 @@ Current daemon control flow:
    - collect typed loadout templates from the node cache;
    - collect observed daemon command documents from the state graph;
    - call `AetheriaRuntimeDaemonTickRunner.Tick`;
-   - publish the resulting frame, SoA view, provider advertisement, health,
-     command boundary, game GUI/TUI surface, and editor GUI/TUI surface back
-     into the typed state node.
+   - publish the resulting frame, provider advertisement, health, command
+     boundary, assets, input capability, pilot/map control surfaces, SoA body
+     and entity view, then the remaining topology surfaces back into the typed
+     state node;
+   - flush the public state only after the private Ymir restart material and
+     the prepared public documents have both been written.
 
-`AetheriaRuntimeDaemonTickRunner.Tick` is the authoritative tick boundary. It
-filters already-accounted commands, executes new daemon commands through
-`AetheriaRuntimeDaemonOperations.Execute`, stamps zone simulation time, builds
-`AetheriaRuntimeDaemonFrameDocument`, writes the frame witness, writes the
-current-zone entity SoA slab, then publishes command boundary, provider
-advertisement, health, and Eve surfaces.
+`AetheriaRuntimeDaemonTickRunner.Tick` is the authoritative simulation tick
+boundary. It filters already-accounted commands, executes new daemon commands
+through `AetheriaRuntimeDaemonOperations.Execute`, stamps zone simulation time,
+and prepares the frame and publication facts. `Aetheria.State.Daemon/Program.cs`
+owns persistence and ordered publication of those prepared facts; the tick
+runner does not independently commit client-visible state.
 
 Important nuance: the current tick applies command effects to a typed run
 checkpoint. It is authoritative for many menu, inventory, targeting, movement
 intent, docking, loot, trade, loadout, and action-bar operations, but it is not
 yet a complete standalone simulation engine for every behavior that still lives
 under Unity `Assets/Scripts/ServerShared/Behaviors`.
+
+## Materialized Import And Publication Ownership
+
+### Catalog import
+
+- **Owner:** the full `Aetheria.State.Import` materialization pass owns creation
+  of the daemon-readable catalog store. `AetheriaStateNode` owns the actual
+  directory-backed CultCache writes.
+- **Inputs:** quarantined legacy catalog/name files and the bounded supplemental
+  rows selected by the importer.
+- **Outputs:** typed catalog, quarantine, migration-ledger, and trade-policy
+  records under `<state-path>.records`, plus catalog projections read from that
+  same store.
+- **Derived state:** `RuntimeCatalog` and `CatalogSurface` are projections of
+  the typed records. Legacy MessagePack files are provenance and migration
+  inputs only; they are not runtime catalog owners.
+- **Forbidden writers:** a temporary single-file CultCache import must not
+  create catalog truth which is expected to migrate implicitly when the daemon
+  opens the directory store. The full importer opens with
+  `useDirectoryStore: true` from its first write.
+- **Shared path:** importer writes, in-process catalog validation, reopen
+  validation, and daemon boot all read the directory-backed state representation.
+- **Cut line:** `ResetMaterializedStateOutput` deletes the prior state file,
+  `.records` directory, and CultMesh materialization before a full import. The
+  old single-file-first import path is dead rather than retained as a migration
+  authority.
+- **Verification layer:** after flushing, the importer checks the projected
+  corporation count in-process, reopens a new directory-backed node, and checks
+  that the same corporation count remains visible. Daemon boot then rejects a
+  catalog whose required corporation keys are absent.
+
+### Client publication ordering
+
+- **Owner:** `PublishDaemonApiDocumentsAsync` owns client-visible ordering for a
+  prepared daemon result. The simulation tick owns values, not stream priority.
+- **Inputs:** the prepared frame, topology facts, command boundary, health,
+  asset manifest, session state, runtime catalog, and optional SoA frame/view.
+- **Outputs:** frame/render facts first; then provider/health/command/assets and
+  pilot input capability; then the pilot and sector-map Eve surfaces; then the
+  daemon SoA view, CultMesh body publication, and Eve entity view; finally the
+  remaining topology surfaces when topology publication is requested.
+- **Derived state:** pilot/map surfaces and input capability are projections of
+  the prepared authoritative frame and catalog. SoA documents are bulk render
+  projections; they do not own command acceptance, beam feedback, or gameplay
+  state.
+- **Forbidden writers:** `AetheriaRuntimeDaemonSoaFramePublisher` may produce
+  body/view documents but may not choose their position relative to control
+  facts. No client or renderer may repair delayed control state from a newer
+  entity slab.
+- **Shared path:** initial publication and ordinary prepared-frame publication
+  both call `PublishDaemonApiDocumentsAsync`, so the same ordering applies to
+  boot and live ticks.
+- **Cut line:** bulk SoA publication no longer precedes the pilot/map control
+  surfaces on the ordered state stream.
+- **Verification layer:** daemon tests should assert record order at the
+  publication boundary; the released generic EveUnity warm witness verifies
+  the visible consequence by receiving responsive command/beam feedback while
+  the entity body continues to stream. Transport subscriptions may separate
+  control and entity traffic, but that does not move publication authority out
+  of the daemon.
 
 ## Command Flow
 
