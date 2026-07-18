@@ -1521,21 +1521,6 @@ static async Task PublishDaemonApiDocumentsAsync(
     await node.MutableDocument<AetheriaRuntimeZoneRenderDocument>(AetheriaRuntimeVerseRecordKeys.ZoneRenderLatest)
         .ReplaceAsync(AetheriaRuntimeGameDocuments.ZoneRender(result.Frame))
         .ConfigureAwait(false);
-    if (result.SoaFrame != null && result.SoaView != null &&
-        string.Equals(result.SoaView.Schema, AetheriaRuntimeDaemonSchemas.SoaView, StringComparison.Ordinal))
-    {
-        await node.MutableDocument<AetheriaRuntimeDaemonSoaViewDocument>(AetheriaRuntimeVerseRecordKeys.DaemonSoaViewLatest)
-            .ReplaceAsync(result.SoaView)
-            .ConfigureAwait(false);
-        var soaPublication = await soaPublisher.PublishAsync(result.SoaFrame).ConfigureAwait(false);
-        await node.MutableDocument<CultMeshBodyPublicationDocument>(soaPublication.Body.RecordKey)
-            .ReplaceAsync(soaPublication.Body)
-            .ConfigureAwait(false);
-        await node.MutableDocument<EveEntitySoaViewDocument>(AetheriaRuntimeVerseRecordKeys.EveEntitySoaViewLatest)
-            .ReplaceAsync(soaPublication.View)
-            .ConfigureAwait(false);
-    }
-
     if (publishTopology && result.ProviderAdvertisement != null)
         await node.MutableDocument<AetheriaRuntimeDaemonProviderAdvertisementDocument>(AetheriaRuntimeVerseRecordKeys.DaemonProviderAdvertisement)
             .ReplaceAsync(result.ProviderAdvertisement)
@@ -1590,6 +1575,22 @@ static async Task PublishDaemonApiDocumentsAsync(
         .ReplaceAsync(AetheriaRuntimeSurfaceDocuments.ToPortableSurface(gameSurface))
         .ConfigureAwait(false);
     await PublishDaemonSectorMapSurfaceAsync(node, result.Frame, inputCatalog).ConfigureAwait(false);
+    // Keep low-bandwidth control state ahead of the bulk entity frame on the ordered
+    // subscription stream. Commands and beam feedback must not wait behind SoA delivery.
+    if (result.SoaFrame != null && result.SoaView != null &&
+        string.Equals(result.SoaView.Schema, AetheriaRuntimeDaemonSchemas.SoaView, StringComparison.Ordinal))
+    {
+        await node.MutableDocument<AetheriaRuntimeDaemonSoaViewDocument>(AetheriaRuntimeVerseRecordKeys.DaemonSoaViewLatest)
+            .ReplaceAsync(result.SoaView)
+            .ConfigureAwait(false);
+        var soaPublication = await soaPublisher.PublishAsync(result.SoaFrame).ConfigureAwait(false);
+        await node.MutableDocument<CultMeshBodyPublicationDocument>(soaPublication.Body.RecordKey)
+            .ReplaceAsync(soaPublication.Body)
+            .ConfigureAwait(false);
+        await node.MutableDocument<EveEntitySoaViewDocument>(AetheriaRuntimeVerseRecordKeys.EveEntitySoaViewLatest)
+            .ReplaceAsync(soaPublication.View)
+            .ConfigureAwait(false);
+    }
     if (!publishTopology)
         return;
 

@@ -247,7 +247,7 @@ ResetMaterializedStateOutput(statePath);
 await using var node = await AetheriaStateNode.OpenAsync(
     statePath,
     "aetheria-legacy-catalog-import",
-    useDirectoryStore: false);
+    useDirectoryStore: true);
 
 await node.MutableDocument<AetheriaLegacyCatalogQuarantine>(AetheriaStateNode.LegacyCatalogQuarantineKey)
     .ReplaceAsync(new AetheriaLegacyCatalogQuarantine
