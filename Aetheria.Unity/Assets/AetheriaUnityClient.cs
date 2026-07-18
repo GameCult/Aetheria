@@ -10,7 +10,7 @@ public sealed class AetheriaUnityClient : MonoBehaviour
 {
     private EveUnityCultMeshPlayableWorldProvider _provider;
     private EveUnityPlayableWorldClientBootstrap _bootstrap;
-    private string _status = "Starting EveUnity...";
+    [SerializeField] private string _status = "Starting EveUnity...";
 
     private void Awake()
     {
@@ -25,7 +25,7 @@ public sealed class AetheriaUnityClient : MonoBehaviour
         _provider.Configure(
             endpoint,
             replicaPath,
-            providerId: "aetheria.daemon",
+            providerId: "aetheria",
             surfaceId: surfaceId,
             requiredSurfaceKind: "interactive-world",
             clientRuntimeId: "aetheria-unity");
