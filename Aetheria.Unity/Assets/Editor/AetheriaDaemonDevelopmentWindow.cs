@@ -4,7 +4,9 @@ using System.Globalization;
 using System.IO;
 using GameCult.Eve.UnityScene;
 using UnityEditor;
+using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using Debug = UnityEngine.Debug;
 
 namespace Aetheria.Editor
@@ -15,11 +17,49 @@ namespace Aetheria.Editor
         private const string PortPreference = "Aetheria.DaemonDevelopment.Port";
         private const string AutoStartPreference = "Aetheria.DaemonDevelopment.AutoStart";
         private const string StopAfterPlayPreference = "Aetheria.DaemonDevelopment.StopAfterPlay";
+        internal const string ClientScenePath = "Assets/Aetheria.unity";
 
         private Vector2 _scroll;
 
         [MenuItem(MenuPath)]
         public static void Open() => GetWindow<AetheriaDaemonDevelopmentWindow>("Aetheria Daemon");
+
+        public static void StartAndPlay()
+        {
+            Open();
+            EnsureClientSceneLoaded();
+            AetheriaDaemonDevelopmentController.Start(enterPlayWhenReady: true);
+        }
+
+        public static void OpenClientScene()
+        {
+            Open();
+            EnsureClientSceneLoaded();
+        }
+
+        internal static bool IsClientSceneLoaded()
+        {
+            for (var index = 0; index < SceneManager.sceneCount; index++)
+            {
+                if (string.Equals(SceneManager.GetSceneAt(index).path, ClientScenePath, StringComparison.Ordinal))
+                    return true;
+            }
+            return false;
+        }
+
+        internal static void EnsureClientSceneLoaded()
+        {
+            for (var index = 0; index < SceneManager.sceneCount; index++)
+            {
+                var scene = SceneManager.GetSceneAt(index);
+                if (!string.Equals(scene.path, ClientScenePath, StringComparison.Ordinal)) continue;
+                SceneManager.SetActiveScene(scene);
+                return;
+            }
+
+            var clientScene = EditorSceneManager.OpenScene(ClientScenePath, OpenSceneMode.Additive);
+            SceneManager.SetActiveScene(clientScene);
+        }
 
         private void OnEnable()
         {
@@ -62,6 +102,10 @@ namespace Aetheria.Editor
             EditorGUILayout.LabelField("Ymir source", AetheriaDaemonDevelopmentController.YmirRoot, EditorStyles.wordWrappedLabel);
 
             EditorGUILayout.Space(8);
+            if (GUILayout.Button("Open Aetheria client scene"))
+                OpenClientScene();
+
+            EditorGUILayout.Space(4);
             using (new EditorGUILayout.HorizontalScope())
             {
                 GUI.enabled = !AetheriaDaemonDevelopmentController.IsStarting &&
@@ -69,7 +113,7 @@ namespace Aetheria.Editor
                 if (GUILayout.Button("Start daemon"))
                     AetheriaDaemonDevelopmentController.Start(enterPlayWhenReady: false);
                 if (GUILayout.Button("Start & Play"))
-                    AetheriaDaemonDevelopmentController.Start(enterPlayWhenReady: true);
+                    StartAndPlay();
                 GUI.enabled = AetheriaDaemonDevelopmentController.IsRunning ||
                               AetheriaDaemonDevelopmentController.IsStarting;
                 if (GUILayout.Button("Stop"))
@@ -356,7 +400,13 @@ namespace Aetheria.Editor
         private static void OnPlayModeStateChanged(PlayModeStateChange state)
         {
             if (state == PlayModeStateChange.ExitingEditMode &&
-                EditorPrefs.GetBool(AutoStartPreference, true) && !TryRefreshDaemon())
+                !AetheriaDaemonDevelopmentWindow.IsClientSceneLoaded())
+            {
+                EditorApplication.isPlaying = false;
+                EditorApplication.delayCall += PrepareClientSceneAndPlay;
+            }
+            else if (state == PlayModeStateChange.ExitingEditMode &&
+                     EditorPrefs.GetBool(AutoStartPreference, true) && !TryRefreshDaemon())
             {
                 EditorApplication.isPlaying = false;
                 Start(enterPlayWhenReady: true);
@@ -366,6 +416,15 @@ namespace Aetheria.Editor
             {
                 Stop();
             }
+        }
+
+        private static void PrepareClientSceneAndPlay()
+        {
+            AetheriaDaemonDevelopmentWindow.EnsureClientSceneLoaded();
+            if (EditorPrefs.GetBool(AutoStartPreference, true))
+                Start(enterPlayWhenReady: true);
+            else
+                EditorApplication.isPlaying = true;
         }
 
         private static void OnPauseStateChanged(PauseState state)
