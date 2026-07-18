@@ -144,7 +144,7 @@
       "hash": "e08fa08335f99e9edddeb706912eecfad07cb281"
     },
     "org.gamecult.eve.unity-scene": {
-      "version": "https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.unity-scene#eveunity-scene-v0.3.65",
+      "version": "https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.unity-scene#eveunity-scene-v0.3.66",
       "depth": 0,
       "source": "git",
       "dependencies": {
@@ -155,7 +155,7 @@
         "com.unity.render-pipelines.universal": "17.4.0",
         "com.unity.modules.particlesystem": "1.0.0"
       },
-      "hash": "e08fa08335f99e9edddeb706912eecfad07cb281"
+      "hash": "b8259a8e52b3d024801f088a9e49072bddc6de0b"
     },
     "com.unity.modules.assetbundle": {
       "version": "1.0.0",
