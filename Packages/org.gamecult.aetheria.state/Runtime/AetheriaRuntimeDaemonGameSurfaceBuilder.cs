@@ -109,7 +109,7 @@ namespace GameCult.Aetheria.State.Verse
                 surfaceChildren.Add(refitPanel);
 
             return new AetheriaRuntimeSurfaceDocument(
-                providerId: "aetheria",
+                providerId: AetheriaRuntimeProviderIdentity.ProviderId,
                 providerKind: "game.daemon",
                 title: "Aetheria Daemon",
                 version: frame.FrameId,
@@ -164,7 +164,7 @@ namespace GameCult.Aetheria.State.Verse
                 BuildStarbridgeRuntimeRolesCard(starbridge));
 
             return new AetheriaRuntimeSurfaceDocument(
-                "aetheria",
+                AetheriaRuntimeProviderIdentity.ProviderId,
                 "game.daemon",
                 "Starbridge Commander",
                 frame.FrameId,

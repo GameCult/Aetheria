@@ -17,7 +17,7 @@ namespace GameCult.Aetheria.State.Verse
             if (generation == null) throw new ArgumentNullException(nameof(generation));
             return new EveEntitySoaViewDocument
             {
-                ProviderId = "aetheria",
+                ProviderId = AetheriaRuntimeProviderIdentity.ProviderId,
                 ViewId = "pilot",
                 FrameId = source.FrameId,
                 PublishedAtUtc = source.PublishedAtUtc,

@@ -1663,7 +1663,7 @@ static EveProviderAdvertisementDocument BuildCoreProviderAdvertisement(
         new[] { "unity-scene", "web-reference", "electron-shell" },
         "provider-owns-topology-discovery-landmarks-influence-and-assets");
     return new EveProviderAdvertisementDocument(
-        "aetheria.daemon",
+        AetheriaRuntimeProviderIdentity.ProviderId,
         options.DaemonId,
         options.VerseId,
         "Aetheria Daemon",
@@ -1892,7 +1892,7 @@ static AetheriaRuntimeSurfaceDocument BuildTradeMenuSurface(
         .ToArray();
 
     return new AetheriaRuntimeSurfaceDocument(
-        providerId: "aetheria.daemon",
+        providerId: AetheriaRuntimeProviderIdentity.ProviderId,
         providerKind: "trade.menu",
         title: "Trade Menu",
         version: version,
@@ -2217,7 +2217,7 @@ static EveAssetCatalogDocument BuildCoreAssetCatalog(
         .OrderBy(entry => entry.AssetRef, StringComparer.Ordinal)
         .ToArray();
     return new EveAssetCatalogDocument(
-        "aetheria.daemon",
+        AetheriaRuntimeProviderIdentity.ProviderId,
         AetheriaRuntimeVerseRecordKeys.EveAssetCatalog.ToString(),
         AssetCatalogVersion(source.PublishedAtUtc),
         source.PublishedAtUtc,

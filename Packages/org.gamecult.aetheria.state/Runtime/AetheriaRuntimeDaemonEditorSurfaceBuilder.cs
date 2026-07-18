@@ -24,7 +24,7 @@ namespace GameCult.Aetheria.State.Verse
             designerSurfaces ??= Array.Empty<AetheriaRuntimeSurfaceDocument>();
 
             return new AetheriaRuntimeSurfaceDocument(
-                providerId: "aetheria.daemon",
+                providerId: AetheriaRuntimeProviderIdentity.ProviderId,
                 providerKind: "editor.daemon",
                 title: "Aetheria Daemon Editor",
                 version: health.FrameId,

@@ -67,7 +67,7 @@ namespace GameCult.Aetheria.State.Verse
     {
         public const string SchemaId = "gamecult.eve.input_capability.v1";
         [Key(0)] public string Schema { get; set; } = SchemaId;
-        [Key(1)] public string ProviderId { get; set; } = "aetheria";
+        [Key(1)] public string ProviderId { get; set; } = AetheriaRuntimeProviderIdentity.ProviderId;
         [Key(2)] public string CapabilityId { get; set; } = "aetheria.pilot.input";
         [Key(3)] public long Version { get; set; }
         [Key(4)] public AetheriaRuntimeInputActionDocument[] Actions { get; set; } = Array.Empty<AetheriaRuntimeInputActionDocument>();

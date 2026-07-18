@@ -394,7 +394,7 @@ public sealed class AetheriaRuntimeDaemonOperationsClient
     {
         envelope = null;
         if (request == null ||
-            !string.Equals(request.ProviderId, "aetheria", StringComparison.Ordinal) ||
+            !string.Equals(request.ProviderId, AetheriaRuntimeProviderIdentity.ProviderId, StringComparison.Ordinal) ||
             !TryResolveSurfaceCommandKind(request, out var kind))
         {
             return false;

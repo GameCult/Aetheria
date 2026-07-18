@@ -25,7 +25,7 @@ public sealed class AetheriaUnityClient : MonoBehaviour
         _provider.Configure(
             endpoint,
             replicaPath,
-            providerId: "aetheria.daemon",
+            providerId: "aetheria",
             surfaceId: surfaceId,
             requiredSurfaceKind: "interactive-world",
             clientRuntimeId: "aetheria-unity");

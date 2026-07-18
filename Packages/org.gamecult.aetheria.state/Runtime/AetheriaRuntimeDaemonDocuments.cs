@@ -93,6 +93,11 @@ namespace GameCult.Aetheria.State.Verse
         public const string EditorSurface = "gamecult.aetheria.daemon_editor_surface.v1";
     }
 
+    public static class AetheriaRuntimeProviderIdentity
+    {
+        public const string ProviderId = "aetheria";
+    }
+
     public static class AetheriaRuntimeDaemonOperationIds
     {
         public static string SetMoveVector => ForKind(AetheriaRuntimeDaemonCommandKinds.SetMoveVector);
@@ -211,7 +216,7 @@ namespace GameCult.Aetheria.State.Verse
         public string VerseId { get; set; } = "aetheria.local";
 
         [Key(2)]
-        public string ProviderId { get; set; } = "aetheria.daemon";
+        public string ProviderId { get; set; } = AetheriaRuntimeProviderIdentity.ProviderId;
 
         [Key(3)]
         public string DaemonId { get; set; } = "aetheria-daemon";
@@ -265,7 +270,7 @@ namespace GameCult.Aetheria.State.Verse
         public IReadOnlyList<string> CommandBoundaryIds { get; set; } = Array.Empty<string>();
 
         [Key(20)]
-        public string CultMeshAddress { get; set; } = "cultmesh://aetheria.local/eve/providers/aetheria.daemon";
+        public string CultMeshAddress { get; set; } = "cultmesh://aetheria.local/eve/providers/aetheria";
 
         [Key(21)]
         public string AssetManifestRecordRef { get; set; } = "";
@@ -300,7 +305,7 @@ namespace GameCult.Aetheria.State.Verse
                 EditorGuiSurfaceId = AetheriaRuntimeDaemonEditorSurfaceBuilder.SurfaceId,
                 EditorTuiSurfaceId = AetheriaRuntimeDaemonEditorSurfaceBuilder.TuiSurfaceId,
                 CultMeshAddress = string.IsNullOrWhiteSpace(cultMeshAddress)
-                    ? "cultmesh://aetheria.local/eve/providers/aetheria.daemon"
+                    ? "cultmesh://aetheria.local/eve/providers/aetheria"
                     : cultMeshAddress,
                 EveSurfaces = AetheriaRuntimeEveSurfaceCatalog.All,
                 PublishedSchemas = new[]
@@ -961,7 +966,7 @@ namespace GameCult.Aetheria.State.Verse
                 applied ? "reconciled" : "denied",
                 "Aetheria",
                 fact.SourceDaemonId,
-                "aetheria",
+                AetheriaRuntimeProviderIdentity.ProviderId,
                 surfaceId ?? "",
                 message,
                 fact.CommittedAtUtc,

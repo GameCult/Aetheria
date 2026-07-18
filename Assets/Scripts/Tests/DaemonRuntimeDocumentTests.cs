@@ -452,7 +452,7 @@ public class DaemonRuntimeDocumentTests
     {
         var tracker = new AetheriaEveUnityRemoteReceiptTracker();
         var request = new EveSurfaceCommandRequest(
-            "aetheria.daemon",
+            AetheriaRuntimeProviderIdentity.ProviderId,
             AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId,
             CultMesh.OperationInvocation("aetheria.daemon.commands.SetMoveVector"),
             CultMesh.OperationPayload(("directionX", "1.0"), ("directionY", "0.0")),
@@ -499,7 +499,18 @@ public class DaemonRuntimeDocumentTests
             "test-daemon", "session", 42, 42,
             new[] { new AetheriaRuntimeDaemonSoaBufferDocument { BufferId = "hot", Location = "mmf:test" } },
             new[] { new AetheriaRuntimeDaemonSoaColumnDocument { ColumnId = "position", Kind = AetheriaRuntimeDaemonSoaColumnKinds.Position, BufferId = "hot", ScalarType = "float32", ElementStride = 12, ElementCount = 2 } });
-        var portable = AetheriaRuntimeEveEntitySoaProjection.Project(source);
+        var portable = AetheriaRuntimeEveEntitySoaProjection.Project(
+            source,
+            new CultMeshBodyGeneration
+            {
+                BodyId = AetheriaRuntimeDaemonSoaFramePublisher.BodyId,
+                ProducerId = AetheriaRuntimeDaemonSoaFramePublisher.ProducerId,
+                SchemaId = AetheriaRuntimeDaemonSoaFramePublisher.BodySchemaId,
+                LayoutVersion = AetheriaRuntimeDaemonSoaFramePublisher.LayoutVersion,
+                Capacity = AetheriaRuntimeDaemonSoaFramePublisher.Capacity,
+                ProducerEpoch = 7,
+                Sequence = 42
+            });
 
         Assert.IsTrue(ContainsSurfaceProp(surface.Surface.Root, "entityViewPointerId",
             AetheriaRuntimeVerseRecordKeys.EveEntitySoaViewLatest.ToString()));
@@ -514,6 +525,7 @@ public class DaemonRuntimeDocumentTests
         Assert.IsFalse(ContainsSurfaceValueFragment(surface.Surface.Root, "_Nebula"),
             "The semantic Eve surface must not own Unity shader property names.");
         Assert.AreEqual(EveEntitySoaViewDocument.SchemaId, portable.Schema);
+        Assert.AreEqual(AetheriaRuntimeProviderIdentity.ProviderId, portable.ProviderId);
         Assert.AreEqual(42, portable.Generation);
         Assert.AreEqual(AetheriaRuntimeDaemonSoaColumnKinds.Position, portable.Columns.Single().Semantic);
     }
@@ -614,7 +626,7 @@ public class DaemonRuntimeDocumentTests
                 DaemonId = "test-daemon",
                 SessionId = "session-tick",
                 VerseId = "aetheria.test",
-                CultMeshAddress = "cultmesh://aetheria.test/eve/providers/aetheria.daemon",
+                CultMeshAddress = "cultmesh://aetheria.test/eve/providers/aetheria",
                 FrameId = 42,
                 SimulationTimeSeconds = 12.5,
                 FixedDeltaSeconds = 0.02,
@@ -649,9 +661,9 @@ public class DaemonRuntimeDocumentTests
         Assert.IsNotNull(providerAdvertisement);
         Assert.AreEqual(AetheriaRuntimeDaemonSchemas.ProviderAdvertisement, providerAdvertisement.Schema);
         Assert.AreEqual("aetheria.test", providerAdvertisement.VerseId);
-        Assert.AreEqual("aetheria.daemon", providerAdvertisement.ProviderId);
+        Assert.AreEqual(AetheriaRuntimeProviderIdentity.ProviderId, providerAdvertisement.ProviderId);
         Assert.AreEqual("test-daemon", providerAdvertisement.DaemonId);
-        Assert.AreEqual("cultmesh://aetheria.test/eve/providers/aetheria.daemon", providerAdvertisement.CultMeshAddress);
+        Assert.AreEqual("cultmesh://aetheria.test/eve/providers/aetheria", providerAdvertisement.CultMeshAddress);
         Assert.AreEqual(AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest.ToString(), providerAdvertisement.FrameRecordRef);
         Assert.AreEqual(AetheriaRuntimeVerseRecordKeys.DaemonSoaViewLatest.ToString(), providerAdvertisement.SoaViewRecordRef);
         Assert.AreEqual(AetheriaRuntimeVerseRecordKeys.DaemonHealth.ToString(), providerAdvertisement.HealthRecordRef);
@@ -718,7 +730,7 @@ public class DaemonRuntimeDocumentTests
             entry.Kind == AetheriaRuntimeDaemonCommandKinds.TransferCargoItem &&
             entry.CommandBody == nameof(AetheriaRuntimeCargoTransferCommand)));
         var gameSurface = result.GameSurface;
-        Assert.AreEqual("aetheria.daemon", gameSurface.ProviderId);
+        Assert.AreEqual(AetheriaRuntimeProviderIdentity.ProviderId, gameSurface.ProviderId);
         Assert.AreEqual("game.daemon", gameSurface.ProviderKind);
         Assert.AreEqual(AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId, gameSurface.Surface.Id);
         Assert.AreEqual(42, gameSurface.Version);
@@ -751,12 +763,12 @@ public class DaemonRuntimeDocumentTests
             out var resolvedTargetName));
         Assert.AreEqual("Target", resolvedTargetName);
         var gameTuiSurface = result.GameTuiSurface;
-        Assert.AreEqual("aetheria.daemon", gameTuiSurface.ProviderId);
+        Assert.AreEqual(AetheriaRuntimeProviderIdentity.ProviderId, gameTuiSurface.ProviderId);
         Assert.AreEqual("game.daemon", gameTuiSurface.ProviderKind);
         Assert.AreEqual(AetheriaRuntimeDaemonGameSurfaceBuilder.TuiSurfaceId, gameTuiSurface.Surface.Id);
         Assert.AreEqual(42, gameTuiSurface.Version);
         var editorSurface = result.EditorSurface;
-        Assert.AreEqual("aetheria.daemon", editorSurface.ProviderId);
+        Assert.AreEqual(AetheriaRuntimeProviderIdentity.ProviderId, editorSurface.ProviderId);
         Assert.AreEqual("editor.daemon", editorSurface.ProviderKind);
         Assert.AreEqual(AetheriaRuntimeDaemonEditorSurfaceBuilder.SurfaceId, editorSurface.Surface.Id);
         Assert.AreEqual(42, editorSurface.Version);
@@ -797,7 +809,7 @@ public class DaemonRuntimeDocumentTests
             asset.Ref.Kind == AetheriaRuntimeAssetKinds.VolumeProfile &&
             asset.Ref.Metadata["presentationRole"] == "environment.post-process.flight"));
         var editorTuiSurface = result.EditorTuiSurface;
-        Assert.AreEqual("aetheria.daemon", editorTuiSurface.ProviderId);
+        Assert.AreEqual(AetheriaRuntimeProviderIdentity.ProviderId, editorTuiSurface.ProviderId);
         Assert.AreEqual("editor.daemon", editorTuiSurface.ProviderKind);
         Assert.AreEqual(AetheriaRuntimeDaemonEditorSurfaceBuilder.TuiSurfaceId, editorTuiSurface.Surface.Id);
         Assert.AreEqual(42, editorTuiSurface.Version);
@@ -830,7 +842,7 @@ public class DaemonRuntimeDocumentTests
             surfaceResolver);
 
         Assert.AreEqual(AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId, unityGameSurface.Surface.Id);
-        Assert.AreEqual("aetheria.daemon", unityGameSurface.ProviderId);
+        Assert.AreEqual(AetheriaRuntimeProviderIdentity.ProviderId, unityGameSurface.ProviderId);
         Assert.IsTrue(unityGameSurface.Commands.Any(command =>
             command.Command == "aetheria.daemon.commands.SetMoveVector" &&
             command.Transport == "cultmesh"));
@@ -3239,7 +3251,7 @@ public class DaemonRuntimeDocumentTests
             0.02);
         PublishLatestFrameThroughVerseClient(statePath, frame);
         var request = new EveSurfaceCommandRequest(
-            "aetheria.daemon",
+            AetheriaRuntimeProviderIdentity.ProviderId,
             AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId,
             CultMesh.OperationInvocation("aetheria.daemon.commands.FireWeaponGroup"),
             CultMesh.OperationPayload(),
@@ -3281,7 +3293,7 @@ public class DaemonRuntimeDocumentTests
             0.02);
         PublishLatestFrameThroughVerseClient(statePath, frame);
         var request = new EveSurfaceCommandRequest(
-            "aetheria.daemon",
+            AetheriaRuntimeProviderIdentity.ProviderId,
             AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId,
             CultMesh.OperationInvocation("aetheria.daemon.commands.SensorPing"),
             CultMesh.OperationPayload(),
@@ -3339,7 +3351,7 @@ public class DaemonRuntimeDocumentTests
             EveUnitySceneCommandReceipt observedReceipt = null;
             bridge.ReceiptAvailable += receipt => observedReceipt = receipt;
             var request = new EveSurfaceCommandRequest(
-                "aetheria.daemon",
+                AetheriaRuntimeProviderIdentity.ProviderId,
                 AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId,
                 CultMesh.OperationInvocation("aetheria.daemon.commands.SensorPing"),
                 CultMesh.OperationPayload(),
@@ -3354,7 +3366,7 @@ public class DaemonRuntimeDocumentTests
             Assert.AreEqual("accepted", observedReceipt.State);
             Assert.AreEqual("Aetheria", observedReceipt.OwnerRepo);
             Assert.AreEqual("aetheria-daemon-command-boundary", observedReceipt.Authority);
-            Assert.AreEqual("aetheria.daemon", observedReceipt.ProviderId);
+            Assert.AreEqual(AetheriaRuntimeProviderIdentity.ProviderId, observedReceipt.ProviderId);
             Assert.AreEqual(AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId, observedReceipt.SurfaceId);
             Assert.AreEqual(
                 AetheriaRuntimeDaemonOperationIds.ForKind(AetheriaRuntimeDaemonCommandKinds.SensorPing),
@@ -3671,7 +3683,7 @@ public class DaemonRuntimeDocumentTests
             1.5,
             0.02);
         var request = new EveSurfaceCommandRequest(
-            "aetheria.daemon",
+            AetheriaRuntimeProviderIdentity.ProviderId,
             AetheriaRuntimeDaemonGameSurfaceBuilder.SurfaceId,
             CultMesh.OperationInvocation("aetheria.daemon.commands.TransferCargoItem"),
             CultMesh.OperationPayload(
@@ -5382,6 +5394,7 @@ public class DaemonRuntimeDocumentTests
 
         var capability = AetheriaRuntimeInputCapabilityDocument.FromFrame(frame, catalog: catalog);
 
+        Assert.AreEqual(AetheriaRuntimeProviderIdentity.ProviderId, capability.ProviderId);
         var repair = capability.Actions.Single(action => action.Operation.EndsWith("ActivateConsumable", StringComparison.Ordinal));
         Assert.AreEqual("repair-gel", repair.Payload["itemKey"]);
         Assert.AreEqual("3", repair.Payload["quantityRemaining"]);
