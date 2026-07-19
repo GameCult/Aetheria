@@ -522,6 +522,40 @@ public class DaemonRuntimeDocumentTests
             "shader.environment.gravity-fog"));
         Assert.IsTrue(ContainsSurfaceProp(surface.Surface.Root, "documentSchema",
             AetheriaRuntimeDaemonSchemas.RenderSplatsViewport));
+        var gravityFog = FindSurfaceComponent(
+            surface.Surface.Root,
+            "aetheria.daemon.game.world.gravity-fog");
+        var stardust = FindSurfaceComponent(
+            surface.Surface.Root,
+            "aetheria.daemon.game.world.stardust");
+        Assert.IsNotNull(gravityFog);
+        Assert.IsNotNull(stardust);
+        StringAssert.Contains("flow.value3d", gravityFog!.Props["features"]);
+        StringAssert.Contains("flow.value3d", stardust!.Props["features"]);
+
+        frame.RenderSettings = new AetheriaRuntimeDaemonRenderSettings(
+            default,
+            default,
+            default,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            useValue3DFlow: false);
+        var triangleSurface = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(
+            frame,
+            new AetheriaRuntimeDaemonHealthDocument(),
+            AetheriaRuntimeDaemonCommandBoundaryDocument.Create("test-daemon"));
+        var triangleFog = FindSurfaceComponent(
+            triangleSurface.Surface.Root,
+            "aetheria.daemon.game.world.gravity-fog");
+        var triangleStardust = FindSurfaceComponent(
+            triangleSurface.Surface.Root,
+            "aetheria.daemon.game.world.stardust");
+        StringAssert.DoesNotContain("flow.value3d", triangleFog!.Props["features"]);
+        StringAssert.DoesNotContain("flow.value3d", triangleStardust!.Props["features"]);
         Assert.IsFalse(ContainsSurfaceValueFragment(surface.Surface.Root, "_Nebula"),
             "The semantic Eve surface must not own Unity shader property names.");
         Assert.AreEqual(EveEntitySoaViewDocument.SchemaId, portable.Schema);
@@ -796,8 +830,13 @@ public class DaemonRuntimeDocumentTests
             asset.Ref.Metadata["unity.volume.matrixPort.cameraToWorld"] == "_CamToWorld" &&
             asset.Ref.Metadata["unity.volume.quality.bootstrap"] == "ultra" &&
             asset.Ref.Metadata["unity.volume.quality.ultra.keyword"] == "ULTRA_QUALITY" &&
+            asset.Ref.Metadata["unity.volume.feature.flow.value3d.keyword"] == "FLOW_VALUE3D" &&
             !asset.Ref.Metadata.ContainsKey("unity.volume.pass.temporal") &&
             !asset.Ref.Metadata.ContainsKey("unity.volume.texturePort.history")));
+        Assert.IsTrue(assetManifest.Assets.Any(asset =>
+            asset.Ref.AssetKey == "compute.environment.stardust" &&
+            asset.Ref.Kind == AetheriaRuntimeAssetKinds.ComputeShader &&
+            asset.Ref.Metadata["unity.particles.feature.flow.value3d.keyword"] == "FLOW_VALUE3D"));
         Assert.IsTrue(assetManifest.Assets.Any(asset =>
             asset.Ref.AssetKey == "texture.environment.volume-dither" &&
             asset.Ref.Kind == AetheriaRuntimeAssetKinds.Texture));

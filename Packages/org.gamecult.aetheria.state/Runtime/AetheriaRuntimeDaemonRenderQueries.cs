@@ -94,7 +94,8 @@ namespace GameCult.Aetheria.State.Verse
                 asteroidMeshCount: 4,
                 bodyRadiusCurve: new AetheriaRuntimeExponentialCurve(0.25, 3.0, 0.0),
                 lightRadiusCurve: new AetheriaRuntimeExponentialCurve(0.25, 300.0, 0.0),
-                gravityWaveFrequencyCurve: new AetheriaRuntimeExponentialCurve(0.45, 0.2, 0.0));
+                gravityWaveFrequencyCurve: new AetheriaRuntimeExponentialCurve(0.45, 0.2, 0.0),
+                useValue3DFlow: true);
 
         public AetheriaRuntimeDaemonRenderSettings(
             AetheriaRuntimeExponentialCurve temperatureEmissionCurve,
@@ -125,7 +126,8 @@ namespace GameCult.Aetheria.State.Verse
             int asteroidMeshCount = int.MaxValue,
             AetheriaRuntimeExponentialCurve bodyRadiusCurve = default,
             AetheriaRuntimeExponentialCurve lightRadiusCurve = default,
-            AetheriaRuntimeExponentialCurve gravityWaveFrequencyCurve = default)
+            AetheriaRuntimeExponentialCurve gravityWaveFrequencyCurve = default,
+            bool useValue3DFlow = false)
         {
             TemperatureEmissionCurve = temperatureEmissionCurve;
             LockIndicatorFrequency = lockIndicatorFrequency;
@@ -156,6 +158,7 @@ namespace GameCult.Aetheria.State.Verse
             BodyRadiusCurve = bodyRadiusCurve;
             LightRadiusCurve = lightRadiusCurve;
             GravityWaveFrequencyCurve = gravityWaveFrequencyCurve;
+            UseValue3DFlow = useValue3DFlow;
         }
 
         public AetheriaRuntimeExponentialCurve TemperatureEmissionCurve { get; }
@@ -187,6 +190,7 @@ namespace GameCult.Aetheria.State.Verse
         public AetheriaRuntimeExponentialCurve BodyRadiusCurve { get; }
         public AetheriaRuntimeExponentialCurve LightRadiusCurve { get; }
         public AetheriaRuntimeExponentialCurve GravityWaveFrequencyCurve { get; }
+        public bool UseValue3DFlow { get; }
 
         public int ResolveDefaultMinimapZoomIndex()
         {

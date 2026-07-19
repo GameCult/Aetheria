@@ -910,8 +910,12 @@ namespace GameCult.Aetheria.State.Verse
             var aimPresentation = AimPresentation(run, zone, playerEntityId);
             if (aimPresentation != null)
                 presentationChildren.Insert(0, aimPresentation);
-            presentationChildren.Insert(0, GravityFogVolume("aetheria.daemon.game.world.gravity-fog"));
-            presentationChildren.Insert(1, StardustParticles("aetheria.daemon.game.world.stardust"));
+            presentationChildren.Insert(0, GravityFogVolume(
+                "aetheria.daemon.game.world.gravity-fog",
+                frame.RenderSettings.UseValue3DFlow));
+            presentationChildren.Insert(1, StardustParticles(
+                "aetheria.daemon.game.world.stardust",
+                frame.RenderSettings.UseValue3DFlow));
 
             return new AetheriaRuntimeSurfaceComponent(
                 id,
@@ -934,7 +938,7 @@ namespace GameCult.Aetheria.State.Verse
                 });
         }
 
-        private static AetheriaRuntimeSurfaceComponent GravityFogVolume(string id)
+        private static AetheriaRuntimeSurfaceComponent GravityFogVolume(string id, bool useValue3DFlow)
         {
             var viewport = DefaultViewport();
             var props = new Dictionary<string, string>(StringComparer.Ordinal)
@@ -946,7 +950,9 @@ namespace GameCult.Aetheria.State.Verse
                 ["renderChannel"] = "world.transparent",
                 ["compositeMode"] = "premultiplied-alpha",
                 ["quality"] = "high",
-                ["features"] = "flow.global;noise.slope",
+                ["features"] = useValue3DFlow
+                    ? "flow.global;flow.value3d;noise.slope"
+                    : "flow.global;noise.slope",
                 ["textureWidth"] = "1024",
                 ["textureHeight"] = "1024",
                 ["downsample"] = "0",
@@ -979,7 +985,7 @@ namespace GameCult.Aetheria.State.Verse
                 AetheriaRuntimeSurfaceStateBindings.FromProps(props));
         }
 
-        private static AetheriaRuntimeSurfaceComponent StardustParticles(string id)
+        private static AetheriaRuntimeSurfaceComponent StardustParticles(string id, bool useValue3DFlow)
         {
             var viewport = DefaultViewport();
             var props = new Dictionary<string, string>(StringComparer.Ordinal)
@@ -990,7 +996,9 @@ namespace GameCult.Aetheria.State.Verse
                 ["computeProgramAssetRef"] = "compute.environment.stardust",
                 ["materialAssetRef"] = "material.environment.stardust",
                 ["renderChannel"] = "world.transparent",
-                ["features"] = "flow.global;noise.slope",
+                ["features"] = useValue3DFlow
+                    ? "flow.global;flow.value3d;noise.slope"
+                    : "flow.global;noise.slope",
                 ["span"] = "256",
                 ["threadGroupSize"] = "128",
                 ["particleStrideBytes"] = "28",
