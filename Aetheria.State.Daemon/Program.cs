@@ -11,6 +11,7 @@ using System.Globalization;
 using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
+using System.Collections.Concurrent;
 
 var options = AetheriaDaemonHostOptions.Parse(args);
 var startedAtUtc = DateTimeOffset.UtcNow.ToString("O");
@@ -50,10 +51,13 @@ using var physicsPersistence = await AetheriaYmirPersistenceCoordinator.OpenAsyn
     latestFrame).ConfigureAwait(false);
 using var cultMeshRudpHost = StartClientCultMeshHost(node, options, () => latestFrame);
 using var clientSubscriptions = new CultNetDatabaseSubscriptionServer(cultMeshRudpHost, node.Database);
+var managedViewportDemand = new AetheriaManagedViewportDemandState();
+clientSubscriptions.DemandChanged += managedViewportDemand.Observe;
 if (traceClientRudp)
     clientSubscriptions.DemandChanged += demand => Console.WriteLine(
-        $"CultMesh body demand consumer={demand.ConsumerRuntimeId} subscription={demand.SubscriptionId} " +
+        $"CultMesh state demand consumer={demand.ConsumerRuntimeId} subscription={demand.SubscriptionId} " +
         $"active={demand.Active} sameMachine={demand.SameMachine} " +
+        $"records=[{string.Join(",", demand.RecordKeys)}] schemas=[{string.Join(",", demand.SchemaIds)}] " +
         $"bodies=[{string.Join(",", demand.BodyIds)}] transports=[{string.Join(",", demand.SupportedBodyTransports)}]");
 using var bodyDemand = new CultMeshBodyDemandTracker(clientSubscriptions);
 using var soaPublisher = new AetheriaRuntimeDaemonSoaFramePublisher(
@@ -142,6 +146,7 @@ while (!stopped.Task.IsCompleted)
             publication,
             reactiveSurfaceState,
             publishTopology: false);
+        await PublishDemandedManagedViewportsAsync(node, options, tick.Frame, managedViewportDemand).ConfigureAwait(false);
         nextApiPublicationUtc = DateTimeOffset.UtcNow.Add(options.ApiPublicationInterval);
     }
     if (tick.Frame.FrameId % (traceClientRudp ? 10 : 120) == 0)
@@ -1514,6 +1519,71 @@ static bool TryGetDouble(
     value = 0;
     return values.TryGetValue(key, out var text) &&
         double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out value);
+}
+
+static async Task PublishDemandedManagedViewportsAsync(
+    AetheriaStateNode node,
+    AetheriaDaemonHostOptions options,
+    AetheriaRuntimeDaemonFrameDocument frame,
+    AetheriaManagedViewportDemandState demand)
+{
+    foreach (var request in demand.Snapshot())
+    {
+        if (!TryGetGameViewportRequest(
+                new CultNetSnapshotRequestMessage
+                {
+                    RecordKeys = request.RecordKeys.ToArray(),
+                    SchemaIds = request.SchemaIds.ToArray()
+                },
+                out var recordKey,
+                out var schemaId,
+                out var viewport))
+        {
+            continue;
+        }
+
+        CultNetDocumentPutRawMessage put;
+        var messageId = $"aetheria-managed-viewport:{frame.FrameId}:{recordKey}";
+        var messageOptions = new CultNetDocumentMessageOptions
+        {
+            SourceRuntimeId = options.DaemonId,
+            SourceRole = "aetheria-daemon"
+        };
+        if (string.Equals(schemaId, AetheriaRuntimeDaemonSchemas.RenderSplatsViewport, StringComparison.Ordinal))
+        {
+            put = node.Database.Documents.CreateRawDocumentPutMessage(
+                messageId,
+                new CultRecordHandle<GameCult.Eve.PluginFields.EveFieldsSplatsDocument>(new CultRecordKey(recordKey)),
+                AetheriaRuntimeGameDocuments.RenderSplatsViewport(frame, viewport),
+                messageOptions);
+        }
+        else if (string.Equals(schemaId, AetheriaRuntimeDaemonSchemas.GravityViewport, StringComparison.Ordinal))
+        {
+            put = node.Database.Documents.CreateRawDocumentPutMessage(
+                messageId,
+                new CultRecordHandle<AetheriaRuntimeGravityViewportDocument>(new CultRecordKey(recordKey)),
+                AetheriaRuntimeGameDocuments.GravityViewport(frame, viewport),
+                messageOptions);
+        }
+        else if (string.Equals(schemaId, AetheriaRuntimeDaemonSchemas.ObjectsViewport, StringComparison.Ordinal))
+        {
+            put = node.Database.Documents.CreateRawDocumentPutMessage(
+                messageId,
+                new CultRecordHandle<AetheriaRuntimeObjectsViewportDocument>(new CultRecordKey(recordKey)),
+                AetheriaRuntimeGameDocuments.ObjectsViewport(frame, viewport),
+                messageOptions);
+        }
+        else
+        {
+            put = node.Database.Documents.CreateRawDocumentPutMessage(
+                messageId,
+                new CultRecordHandle<AetheriaRuntimeGameViewportDocument>(new CultRecordKey(recordKey)),
+                AetheriaRuntimeGameDocuments.Viewport(frame, viewport),
+                messageOptions);
+        }
+
+        await node.Database.ApplyPutAsync(put).ConfigureAwait(false);
+    }
 }
 
 static async Task PublishHotEntityStateAsync(
@@ -3166,6 +3236,50 @@ static AetheriaRuntimeLoadoutItemCommit ToLoadoutItemCommit(AetheriaLoadoutItem?
 internal sealed record AetheriaPreparedPublication(
     AetheriaRuntimeDaemonTickResult Publication,
     IReadOnlyList<AetheriaYmirZonePersistenceCapture> Physics);
+
+internal sealed class AetheriaManagedViewportDemandState
+{
+    private readonly ConcurrentDictionary<string, AetheriaManagedViewportDemand> _active =
+        new(StringComparer.Ordinal);
+
+    public void Observe(CultNetDatabaseSubscriptionDemand demand)
+    {
+        var key = demand.ConsumerRuntimeId + "\u001f" + demand.SubscriptionId;
+        if (!demand.Active)
+        {
+            _active.TryRemove(key, out _);
+            return;
+        }
+
+        if (demand.RecordKeys.Count == 0)
+            return;
+        _active[key] = new AetheriaManagedViewportDemand(
+            demand.RecordKeys.ToArray(),
+            demand.SchemaIds.ToArray());
+    }
+
+    public IReadOnlyList<AetheriaManagedViewportDemand> Snapshot() =>
+        _active.Values
+            .GroupBy(
+                demand => string.Join("\u001f", demand.RecordKeys) + "\u001e" + string.Join("\u001f", demand.SchemaIds),
+                StringComparer.Ordinal)
+            .Select(group => group.First())
+            .ToArray();
+}
+
+internal sealed class AetheriaManagedViewportDemand
+{
+    public AetheriaManagedViewportDemand(
+        IReadOnlyList<string> recordKeys,
+        IReadOnlyList<string> schemaIds)
+    {
+        RecordKeys = recordKeys;
+        SchemaIds = schemaIds;
+    }
+
+    public IReadOnlyList<string> RecordKeys { get; }
+    public IReadOnlyList<string> SchemaIds { get; }
+}
 
 internal sealed class AetheriaReactiveSurfacePublicationState
 {
