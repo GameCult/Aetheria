@@ -9,6 +9,52 @@ namespace GameCult.Aetheria.State.Verse
     public static class AetheriaRuntimeAssets
     {
         public const string PresentationHullItemTagPrefix = "presentation-hull-item:";
+        public const string UnityShaderBundle = "aetheria-shaders";
+        public const string UnityUiBundle = "aetheria-ui";
+        public const string UnityCoreBundle = "aetheria-core";
+
+        public static string ResolveUnityBundleName(AetheriaRuntimeAssetManifestEntry entry)
+        {
+            if (entry?.Ref == null)
+                throw new ArgumentNullException(nameof(entry));
+
+            var key = entry.Ref.AssetKey ?? "";
+            if (key.StartsWith("shader.", StringComparison.Ordinal) ||
+                key.StartsWith("compute.", StringComparison.Ordinal) ||
+                key == "material.environment.stardust" ||
+                key == "texture.environment.stardust-colors" ||
+                key == "texture.environment.volume-dither" ||
+                key == "profile.environment.flight")
+                return UnityShaderBundle;
+
+            if (key.StartsWith("map.", StringComparison.Ordinal) ||
+                key.StartsWith("material.sector-map.", StringComparison.Ordinal) ||
+                key.StartsWith("inventory.", StringComparison.Ordinal) ||
+                key.StartsWith("profile.thermal.", StringComparison.Ordinal) ||
+                key == "profile.death" ||
+                key.StartsWith("item.", StringComparison.Ordinal) && key.EndsWith(".icon", StringComparison.Ordinal) ||
+                key == "font.ui.primary")
+                return UnityUiBundle;
+
+            if (!string.Equals(entry.Ref.Kind, AetheriaRuntimeAssetKinds.Prefab, StringComparison.Ordinal))
+                return UnityCoreBundle;
+
+            var source = entry.Ref.Metadata.TryGetValue("unityAssetPath", out var unityAssetPath)
+                ? unityAssetPath
+                : entry.Ref.Metadata.TryGetValue("resourcesPath", out var resourcesPath)
+                    ? resourcesPath
+                    : key;
+            var stem = string.Concat((source ?? key).Trim().ToLowerInvariant().Select(character =>
+                char.IsLetterOrDigit(character) ? character : '-'));
+            while (stem.Contains("--")) stem = stem.Replace("--", "-");
+            stem = stem.Trim('-');
+            if (stem.StartsWith("assets-", StringComparison.Ordinal)) stem = stem.Substring("assets-".Length);
+            if (stem.StartsWith("resources-", StringComparison.Ordinal)) stem = stem.Substring("resources-".Length);
+            if (stem.EndsWith("-prefab", StringComparison.Ordinal)) stem = stem.Substring(0, stem.Length - "-prefab".Length);
+            const int maximumStemLength = 96;
+            if (stem.Length > maximumStemLength) stem = stem.Substring(stem.Length - maximumStemLength);
+            return $"aetheria-content-{stem}";
+        }
 
         public static string ResolveEntityPrefabAssetRef(
             AetheriaRuntimeEntitySnapshotCommit entity,
@@ -42,6 +88,8 @@ namespace GameCult.Aetheria.State.Verse
             Add(entries, EnvironmentStardustComputeShader());
             Add(entries, EnvironmentStardustMaterial());
             Add(entries, EnvironmentStardustColorTexture());
+            foreach (var coreAsset in CorePresentationResources()) Add(entries, coreAsset);
+            Add(entries, UiPrimaryFont());
             foreach (var mapAsset in SectorMapAssets()) Add(entries, mapAsset);
             Add(entries, MapIcon("entity.player", "Player", "Sprites/Icons/Stroked/Ship"));
             Add(entries, MapIcon("entity.ship", "Ship", "Sprites/Icons/Stroked/Ship"));
@@ -465,6 +513,39 @@ namespace GameCult.Aetheria.State.Verse
                 },
                 Tags = new[] { "presentation", "environment", "volume", "pre-generated" }
             };
+        }
+
+        public static IReadOnlyList<AetheriaRuntimeAssetManifestEntry> CorePresentationResources()
+        {
+            return new[]
+            {
+                MapPresentationAsset("texture.core.sun.surface-flow", AetheriaRuntimeAssetKinds.Texture,
+                    "Sun surface flow", "Assets/Resources/Sun Flow/sunsurface1offset.png", "core.sun.surface-flow"),
+                MapPresentationAsset("texture.core.sun.albedo", AetheriaRuntimeAssetKinds.Texture,
+                    "Sun albedo", "Assets/Resources/Sun Albedo/sunsurface2map.png", "core.sun.albedo"),
+                MapPresentationAsset("texture.core.fx.explosion-emission", AetheriaRuntimeAssetKinds.Texture,
+                    "Explosion emission", "Assets/Prefabs/Fire & Explosion Effects/Textures/ExplosionEmission.tif", "core.fx.explosion-emission"),
+                MapPresentationAsset("texture.core.fx.smoke-puff", AetheriaRuntimeAssetKinds.Texture,
+                    "Smoke puff", "Assets/Prefabs/Fire & Explosion Effects/Textures/SmokePuff01.tif", "core.fx.smoke-puff"),
+                MapPresentationAsset("texture.core.fx.explosion", AetheriaRuntimeAssetKinds.Texture,
+                    "Explosion", "Assets/Prefabs/Fire & Explosion Effects/Textures/Explosion.tif", "core.fx.explosion"),
+                MapPresentationAsset("texture.core.fx.shockwave", AetheriaRuntimeAssetKinds.Texture,
+                    "Shockwave", "Assets/Prefabs/Fire & Explosion Effects/Textures/shockwave.tif", "core.fx.shockwave"),
+                MapPresentationAsset("texture.core.fx.sphere-normal", AetheriaRuntimeAssetKinds.Texture,
+                    "Sphere normal", "Assets/Prefabs/Fire & Explosion Effects/Textures/SphereNormal.tif", "core.fx.sphere-normal"),
+                MapPresentationAsset("texture.core.fx.debris", AetheriaRuntimeAssetKinds.Texture,
+                    "Debris", "Assets/Prefabs/Fire & Explosion Effects/Textures/Debris.png", "core.fx.debris")
+            };
+        }
+
+        public static AetheriaRuntimeAssetManifestEntry UiPrimaryFont()
+        {
+            return MapPresentationAsset(
+                "font.ui.primary",
+                AetheriaRuntimeAssetKinds.Font,
+                "Primary UI font",
+                "Assets/Fonts/Ubuntu/Ubuntu-L Small SDF.asset",
+                "ui.font.primary");
         }
 
         private static AetheriaRuntimeAssetManifestEntry MapIcon(

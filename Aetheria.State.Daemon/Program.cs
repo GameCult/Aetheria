@@ -15,6 +15,20 @@ using System.Collections.Concurrent;
 
 var options = AetheriaDaemonHostOptions.Parse(args);
 var startedAtUtc = DateTimeOffset.UtcNow.ToString("O");
+var startup = Stopwatch.StartNew();
+var startupPhase = Stopwatch.StartNew();
+var traceStartupPhases = string.Equals(
+    Environment.GetEnvironmentVariable("AETHERIA_TRACE_STARTUP_PHASES"),
+    "1",
+    StringComparison.Ordinal);
+void TraceStartup(string name)
+{
+    if (traceStartupPhases)
+        Console.WriteLine(
+            $"Aetheria startup phase {name} took {startupPhase.Elapsed.TotalMilliseconds:0.###}ms " +
+            $"(total {startup.Elapsed.TotalMilliseconds:0.###}ms).");
+    startupPhase.Restart();
+}
 using var worldPhysics = new AetheriaYmirWorldPhysics();
 var traceClientTransport = string.Equals(
     Environment.GetEnvironmentVariable("AETHERIA_TRACE_CLIENT_TRANSPORT"),
@@ -32,25 +46,17 @@ await using var node = await AetheriaStateNode.OpenAsync(
     runtimeId: options.DaemonId,
     startServer: true,
     enableDurableShardLogs: false).ConfigureAwait(false);
+TraceStartup("open-state-node");
 using var discoveryHost = new AetheriaVerseDiscoveryHost(node);
-
-await EnsureWorldDocumentAsync(node).ConfigureAwait(false);
-await EnsureTradeValuePolicyAsync(node, startedAtUtc).ConfigureAwait(false);
-await AetheriaDaemonNativeCatalog.EnsureAsync(node).ConfigureAwait(false);
-await node.FlushAsync().ConfigureAwait(false);
-await EnsurePlayableRunDocumentsAsync(node, options, startedAtUtc).ConfigureAwait(false);
-await EnsureGameSessionAsync(node, options, startedAtUtc).ConfigureAwait(false);
-var verseHost = await EnsureVerseHostSettingsAsync(node, options, startedAtUtc).ConfigureAwait(false);
-await EnsureVerseAuthorityPolicyAsync(node, options).ConfigureAwait(false);
-discoveryHost.Update(verseHost);
-await PublishRuntimeSessionAsync(node, options, startedAtUtc, "starting").ConfigureAwait(false);
-await PublishStateSurfacesAsync(node, options, startedAtUtc).ConfigureAwait(false);
 var latestFrame = await node.MutableDocument<AetheriaRuntimeDaemonFrameDocument>(AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest).ReadAsync().ConfigureAwait(false);
-using var physicsPersistence = await AetheriaYmirPersistenceCoordinator.OpenAsync(
-    node,
-    worldPhysics,
-    latestFrame).ConfigureAwait(false);
-using var cultMeshClientHost = StartClientCultMeshHost(node, options, () => latestFrame);
+TraceStartup("latest-frame");
+var unityBundles = BuildUnityBundleArtifactSet(options);
+TraceStartup("provider-asset-bundles");
+using var cultMeshClientHost = StartClientCultMeshHost(node, options, unityBundles, () => latestFrame);
+TraceStartup("client-host");
+Console.WriteLine($"Aetheria client CultMesh endpoint: {cultMeshClientHost.ControlEndpoint}");
+Console.WriteLine($"Aetheria client CDN endpoint: {cultMeshClientHost.ContentEndpoint}");
+Console.WriteLine($"Aetheria daemon transport-ready in {startup.Elapsed.TotalMilliseconds:0.###}ms.");
 using var clientSubscriptions = new CultNetDatabaseSubscriptionServer(cultMeshClientHost.Control, node.Database);
 var managedViewportDemand = new AetheriaManagedViewportDemandState();
 clientSubscriptions.DemandChanged += managedViewportDemand.Observe;
@@ -64,11 +70,39 @@ using var bodyDemand = new CultMeshBodyDemandTracker(clientSubscriptions);
 using var soaPublisher = new AetheriaRuntimeDaemonSoaFramePublisher(
     DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
     bodyDemand);
+
+await EnsureWorldDocumentAsync(node).ConfigureAwait(false);
+TraceStartup("world-document");
+await EnsureTradeValuePolicyAsync(node, startedAtUtc).ConfigureAwait(false);
+TraceStartup("trade-policy");
+await AetheriaDaemonNativeCatalog.EnsureAsync(node).ConfigureAwait(false);
+TraceStartup("native-catalog");
+await node.FlushAsync().ConfigureAwait(false);
+TraceStartup("initial-flush");
+await EnsurePlayableRunDocumentsAsync(node, options, startedAtUtc).ConfigureAwait(false);
+TraceStartup("playable-run");
+await EnsureGameSessionAsync(node, options, startedAtUtc).ConfigureAwait(false);
+TraceStartup("game-session");
+var verseHost = await EnsureVerseHostSettingsAsync(node, options, startedAtUtc).ConfigureAwait(false);
+TraceStartup("verse-host");
+await EnsureVerseAuthorityPolicyAsync(node, options).ConfigureAwait(false);
+TraceStartup("authority-policy");
+discoveryHost.Update(verseHost);
+await PublishRuntimeSessionAsync(node, options, startedAtUtc, "starting").ConfigureAwait(false);
+TraceStartup("runtime-session");
+await PublishStateSurfacesAsync(node, options, startedAtUtc).ConfigureAwait(false);
+TraceStartup("state-surfaces");
+using var physicsPersistence = await AetheriaYmirPersistenceCoordinator.OpenAsync(
+    node,
+    worldPhysics,
+    latestFrame).ConfigureAwait(false);
+TraceStartup("ymir-persistence");
 var nextApiPublicationUtc = DateTimeOffset.UtcNow;
 var ingressState = new AetheriaDaemonIngressState();
 var hotState = new AetheriaHotEntityPublicationState();
 var reactiveSurfaceState = new AetheriaReactiveSurfacePublicationState();
-var firstTick = await TickAsync(node, options, worldPhysics, latestFrame, ingressState, buildPublications: false).ConfigureAwait(false);
+var firstTick = await TickAsync(node, options, unityBundles, worldPhysics, latestFrame, ingressState, buildPublications: false).ConfigureAwait(false);
+TraceStartup("first-tick");
 ThrowIfClientHostFaulted(cultMeshClientHost);
 latestFrame = firstTick.Frame;
 var firstPublication = PreparePublication(
@@ -81,14 +115,16 @@ await PublishPreparedDocumentsAsync(
     node,
     options,
     physicsPersistence,
+    unityBundles,
     firstPublication,
     reactiveSurfaceState,
     publishTopology: true).ConfigureAwait(false);
+TraceStartup("first-publication");
 await PublishHotEntityStateAsync(node, soaPublisher, hotState, firstTick.Frame, ingressState.Catalog).ConfigureAwait(false);
+TraceStartup("hot-entity-state");
 nextApiPublicationUtc = DateTimeOffset.UtcNow.Add(options.ApiPublicationInterval);
 Console.WriteLine($"Aetheria Verse daemon published frame {firstTick.Frame.FrameId}.");
-Console.WriteLine($"Aetheria client CultMesh endpoint: {cultMeshClientHost.ControlEndpoint}");
-Console.WriteLine($"Aetheria client CDN endpoint: {cultMeshClientHost.ContentEndpoint}");
+Console.WriteLine($"Aetheria daemon playable-world-ready in {startup.Elapsed.TotalMilliseconds:0.###}ms.");
 
 if (options.Once)
 {
@@ -119,7 +155,7 @@ while (!stopped.Task.IsCompleted)
     }
 
     var buildPublications = DateTimeOffset.UtcNow >= nextApiPublicationUtc;
-    var tick = await TickAsync(node, options, worldPhysics, latestFrame, ingressState, buildPublications: false).ConfigureAwait(false);
+    var tick = await TickAsync(node, options, unityBundles, worldPhysics, latestFrame, ingressState, buildPublications: false).ConfigureAwait(false);
     ThrowIfClientHostFaulted(cultMeshClientHost);
     latestFrame = tick.Frame;
     await PublishHotEntityStateAsync(node, soaPublisher, hotState, tick.Frame, ingressState.Catalog).ConfigureAwait(false);
@@ -140,6 +176,7 @@ while (!stopped.Task.IsCompleted)
             node,
             options,
             physicsPersistence,
+            unityBundles,
             publication,
             reactiveSurfaceState,
             publishTopology: false);
@@ -171,6 +208,7 @@ static void ThrowIfClientHostFaulted(AetheriaClientCultMeshHost host)
 static async Task<AetheriaRuntimeDaemonTickResult> TickAsync(
     AetheriaStateNode node,
     AetheriaDaemonHostOptions options,
+    AetheriaUnityBundleArtifactSet unityBundles,
     IAetheriaRuntimeWorldPhysics worldPhysics,
     AetheriaRuntimeDaemonFrameDocument? currentFrame,
     AetheriaDaemonIngressState ingressState,
@@ -344,7 +382,7 @@ static async Task<AetheriaRuntimeDaemonTickResult> TickAsync(
 
     if (buildPublications)
     {
-        await PublishDaemonApiDocumentsAsync(node, options, result, publishTopology: true).ConfigureAwait(false);
+        await PublishDaemonApiDocumentsAsync(node, options, unityBundles, result, publishTopology: true).ConfigureAwait(false);
         TracePhase("api-publication");
         await PublishStateSurfacesAsync(node, options, result.Frame.PublishedAtUtc).ConfigureAwait(false);
         TracePhase("state-surfaces");
@@ -393,6 +431,7 @@ static async Task PublishPreparedDocumentsAsync(
     AetheriaStateNode node,
     AetheriaDaemonHostOptions options,
     AetheriaYmirPersistenceCoordinator physicsPersistence,
+    AetheriaUnityBundleArtifactSet unityBundles,
     AetheriaPreparedPublication prepared,
     AetheriaReactiveSurfacePublicationState reactiveSurfaceState,
     bool publishTopology)
@@ -401,6 +440,7 @@ static async Task PublishPreparedDocumentsAsync(
     await PublishDaemonApiDocumentsAsync(
         node,
         options,
+        unityBundles,
         prepared.Publication,
         publishTopology,
         reactiveSurfaceState).ConfigureAwait(false);
@@ -630,15 +670,19 @@ static async Task<AetheriaRuntimeDaemonTickResult> ImportRemoteCommittedFactsAsy
 static AetheriaClientCultMeshHost StartClientCultMeshHost(
     AetheriaStateNode node,
     AetheriaDaemonHostOptions options,
+    AetheriaUnityBundleArtifactSet unityBundles,
     Func<AetheriaRuntimeDaemonFrameDocument?> latestFrame)
 {
-    var bundleCdnDocuments = BuildBundleCdnDocuments(node, options);
+    var contentCache = new CultCache(CultMesh.CreateCultCacheDocumentRegistry(
+        typeof(CultMeshCdnArtifactManifest),
+        typeof(CultMeshCdnArtifactChunk)));
+    var bundleCdnDocuments = BuildBundleCdnDocuments(node, contentCache, unityBundles, options.DaemonId);
     var server = new TcpFramedCultNetSchemaServer(new TcpListener(
         ParseBindAddress(options.ClientCultMeshHost),
         options.ClientCultMeshPort));
     var content = new CultMeshTcpContentServer(new TcpListener(
         ParseBindAddress(options.ClientCultMeshHost),
-        options.ClientCultMeshContentPort), node.Cache);
+        options.ClientCultMeshContentPort), contentCache);
     var advertisedEndpoint = $"cultnet+tcp://{options.ClientCultMeshAdvertiseHost}:{server.LocalEndPoint.Port}";
     var advertisedContentEndpoint =
         $"{CultMeshTcpContentTransportConnector.Scheme}://{options.ClientCultMeshAdvertiseHost}:{content.LocalEndPoint.Port}";
@@ -1092,6 +1136,7 @@ static AetheriaClientCultMeshHost StartClientCultMeshHost(
     return new AetheriaClientCultMeshHost(
         server,
         content,
+        contentCache,
         advertisedEndpoint,
         advertisedContentEndpoint);
 }
@@ -1128,13 +1173,15 @@ static void InjectCultMeshCdnManifestSnapshots(
 
 static IReadOnlyDictionary<string, CultNetRawDocumentRecord> BuildBundleCdnDocuments(
     AetheriaStateNode node,
-    AetheriaDaemonHostOptions options)
+    CultCache contentCache,
+    AetheriaUnityBundleArtifactSet unityBundles,
+    string daemonId)
 {
     var documents = new Dictionary<string, CultNetRawDocumentRecord>(StringComparer.Ordinal);
-    foreach (var bundle in FindAssetBundles(options))
+    foreach (var bundle in unityBundles.Bundles)
     {
-        var artifact = PackAssetBundle(bundle.Path, bundle.Platform);
-        CultMeshCdn.PublishAsync(node.Cache, artifact).GetAwaiter().GetResult();
+        var artifact = bundle.Artifact;
+        CultMeshCdn.PublishAsync(contentCache, artifact).GetAwaiter().GetResult();
         Add(artifact.ManifestKey, artifact.Manifest);
     }
     return documents;
@@ -1147,7 +1194,7 @@ static IReadOnlyDictionary<string, CultNetRawDocumentRecord> BuildBundleCdnDocum
             document,
             new CultNetDocumentMessageOptions
             {
-                SourceRuntimeId = options.DaemonId,
+                SourceRuntimeId = daemonId,
                 SourceRole = "aetheria-cultmesh-cdn",
                 Tags = ["aetheria", "cultmesh-cdn", "asset-bundle"]
             });
@@ -1596,6 +1643,7 @@ static async Task PublishHotEntityStateAsync(
 static async Task PublishDaemonApiDocumentsAsync(
     AetheriaStateNode node,
     AetheriaDaemonHostOptions options,
+    AetheriaUnityBundleArtifactSet unityBundles,
     AetheriaRuntimeDaemonTickResult result,
     bool publishTopology,
     AetheriaReactiveSurfacePublicationState? reactiveSurfaceState = null)
@@ -1628,7 +1676,7 @@ static async Task PublishDaemonApiDocumentsAsync(
             .ReplaceAsync(result.AssetManifest)
             .ConfigureAwait(false);
         await node.MutableDocument<EveAssetCatalogDocument>(AetheriaRuntimeVerseRecordKeys.EveAssetCatalog)
-            .ReplaceAsync(BuildCoreAssetCatalog(options, result.AssetManifest))
+            .ReplaceAsync(BuildCoreAssetCatalog(unityBundles, result.AssetManifest))
             .ConfigureAwait(false);
     }
     if (result.StarbridgeSessionSummary != null)
@@ -2251,50 +2299,51 @@ static async Task PublishOdinSurfaceAnnouncementsAsync(
 }
 
 static EveAssetCatalogDocument BuildCoreAssetCatalog(
-    AetheriaDaemonHostOptions options,
+    AetheriaUnityBundleArtifactSet unityBundles,
     AetheriaRuntimeAssetManifestDocument source)
 {
-    var variants = FindAssetBundles(options).Select(bundle =>
-    {
-        var artifact = PackAssetBundle(bundle.Path, bundle.Platform);
-        return new
-        {
-            bundle.Platform,
-            Uri = artifact.ManifestKey.Value,
-            Hash = $"sha256:{artifact.Manifest.ContentHash}",
-            Size = artifact.Manifest.SizeBytes
-        };
-    }).ToArray();
+    var variants = unityBundles.Bundles;
 
     var assets = (source.Assets ?? Array.Empty<AetheriaRuntimeAssetManifestEntry>())
         .Where(entry => entry?.Ref != null &&
             (entry.Ref.Metadata.TryGetValue("unityAssetPath", out _) ||
-             string.Equals(entry.Ref.Kind, AetheriaRuntimeAssetKinds.Prefab, StringComparison.Ordinal) &&
              entry.Ref.Metadata.TryGetValue("resourcesPath", out _)))
         .Select(entry =>
         {
-            var unityAssetPath = entry.Ref.Metadata.TryGetValue("bundleAssetPath", out var bundleAssetPath)
-                ? bundleAssetPath
-                : entry.Ref.Metadata.TryGetValue("unityAssetPath", out var explicitPath)
-                    ? explicitPath
-                    : $"Assets/Resources/{entry.Ref.Metadata["resourcesPath"]}.prefab";
+            var bundleName = AetheriaRuntimeAssets.ResolveUnityBundleName(entry);
+            var entryVariants = variants
+                .Where(bundle => string.Equals(bundle.BundleName, bundleName, StringComparison.Ordinal))
+                .Select(bundle =>
+                {
+                    var dependencyUris = bundle.Dependencies.Select(dependency => variants.Single(candidate =>
+                            string.Equals(candidate.Platform, bundle.Platform, StringComparison.Ordinal) &&
+                            string.Equals(candidate.BundleName, dependency, StringComparison.Ordinal)).Artifact.ManifestKey.Value)
+                        .ToArray();
+                    var unityAssetPath = ResolveUnityBundleAssetKey(entry, bundle.Assets);
+                    return new EveAssetVariant(
+                        "unity-scene",
+                        bundle.Platform,
+                        "unity-assetbundle",
+                        bundle.Artifact.ManifestKey.Value,
+                        $"sha256:{bundle.Artifact.Manifest.ContentHash}",
+                        bundle.Artifact.Manifest.SizeBytes,
+                        unityAssetPath,
+                        new Dictionary<string, string>(
+                            entry.Ref.Metadata
+                                .Where(pair => pair.Key.StartsWith("unity.", StringComparison.Ordinal))
+                                .Append(new KeyValuePair<string, string>("unity.bundleName", bundle.BundleName))
+                                .Append(new KeyValuePair<string, string>("unity.bundleDependencyUris", string.Join(";", dependencyUris)))
+                                .Append(new KeyValuePair<string, string>("renderChannel.map.unityLayer", "14")),
+                            StringComparer.Ordinal));
+                })
+                .ToArray();
+            if (entryVariants.Length == 0)
+                throw new InvalidOperationException(
+                    $"No built Unity bundle named '{bundleName}' contains advertised asset '{entry.Ref.AssetKey}'.");
             return new EveAssetCatalogEntry(
                 entry.Ref.AssetKey,
                 entry.Ref.Kind,
-                variants.Select(bundle => new EveAssetVariant(
-                    "unity-scene",
-                    bundle.Platform,
-                    "unity-assetbundle",
-                    bundle.Uri,
-                    bundle.Hash,
-                    bundle.Size,
-                    unityAssetPath,
-                    new Dictionary<string, string>(
-                        entry.Ref.Metadata
-                            .Where(pair => pair.Key.StartsWith("unity.", StringComparison.Ordinal))
-                            .Append(new KeyValuePair<string, string>("renderChannel.map.unityLayer", "14")),
-                        StringComparer.Ordinal)))
-                    .ToArray(),
+                entryVariants,
                 new Dictionary<string, string>(StringComparer.Ordinal)
                 {
                     ["mimeType"] = entry.Ref.MimeType ?? "",
@@ -2322,28 +2371,104 @@ static long AssetCatalogVersion(string publishedAtUtc)
         : DateTimeOffset.UtcNow.UtcDateTime.Ticks;
 }
 
-static IReadOnlyList<(string Path, string Platform)> FindAssetBundles(AetheriaDaemonHostOptions options)
+static string ResolveUnityBundleAssetKey(
+    AetheriaRuntimeAssetManifestEntry entry,
+    IReadOnlyList<string> bundleAssets)
 {
-    const string bundleName = "aetheria-world";
-    return Directory.Exists(options.AssetBundleRoot)
-        ? Directory.GetFiles(options.AssetBundleRoot, bundleName, SearchOption.AllDirectories)
-            .OrderBy(path => path, StringComparer.Ordinal)
-            .Select(path => (path, new DirectoryInfo(Path.GetDirectoryName(path)!).Name))
-            .ToArray()
-        : Array.Empty<(string, string)>();
+    if (entry.Ref.Metadata.TryGetValue("bundleAssetPath", out var bundleAssetPath))
+        return bundleAssetPath;
+    if (entry.Ref.Metadata.TryGetValue("unityAssetPath", out var explicitPath))
+        return explicitPath;
+    if (!entry.Ref.Metadata.TryGetValue("resourcesPath", out var resourcesPath))
+        throw new InvalidOperationException($"Asset '{entry.Ref.AssetKey}' has no Unity asset path.");
+
+    var expected = $"Assets/Resources/{resourcesPath}".Replace('\\', '/');
+    var resolved = bundleAssets.FirstOrDefault(path => string.Equals(
+        Path.ChangeExtension(path, null)?.Replace('\\', '/'),
+        expected,
+        StringComparison.OrdinalIgnoreCase));
+    return resolved ?? throw new InvalidOperationException(
+        $"Bundle asset for '{entry.Ref.AssetKey}' was not found below '{expected}'.");
 }
 
-static CultMeshCdnArtifact PackAssetBundle(string path, string platform)
+static (IReadOnlyList<string> Assets, IReadOnlyList<string> Dependencies) ReadUnityBundleSidecar(string bundlePath)
+{
+    var manifestPath = bundlePath + ".manifest";
+    if (!File.Exists(manifestPath))
+        throw new FileNotFoundException("Unity bundle sidecar manifest is missing.", manifestPath);
+    var assets = new List<string>();
+    var dependencies = new List<string>();
+    var section = "";
+    foreach (var line in File.ReadLines(manifestPath))
+    {
+        var trimmed = line.Trim();
+        if (trimmed == "Assets:") { section = "assets"; continue; }
+        if (trimmed.StartsWith("Dependencies:", StringComparison.Ordinal))
+        {
+            section = "dependencies";
+            if (trimmed == "Dependencies: []") section = "";
+            continue;
+        }
+        if (!trimmed.StartsWith("- ", StringComparison.Ordinal)) continue;
+        if (section == "assets") assets.Add(trimmed.Substring(2));
+        else if (section == "dependencies")
+            dependencies.Add(Path.GetFileName(trimmed.Substring(2).Replace('\\', '/')));
+    }
+    return (assets, dependencies);
+}
+
+static IReadOnlyList<(string Path, string Platform, string BundleName)> FindAssetBundles(AetheriaDaemonHostOptions options)
+{
+    return Directory.Exists(options.AssetBundleRoot)
+        ? Directory.GetFiles(options.AssetBundleRoot, "aetheria-*", SearchOption.AllDirectories)
+            .Where(path => !path.EndsWith(".manifest", StringComparison.OrdinalIgnoreCase))
+            .OrderBy(path => path, StringComparer.Ordinal)
+            .Select(path => (
+                path,
+                new DirectoryInfo(Path.GetDirectoryName(path)!).Name,
+                Path.GetFileName(path)))
+            .ToArray()
+        : Array.Empty<(string, string, string)>();
+}
+
+static AetheriaUnityBundleArtifactSet BuildUnityBundleArtifactSet(AetheriaDaemonHostOptions options)
+{
+    var bundles = FindAssetBundles(options)
+        .Select(bundle =>
+        {
+            var sidecar = ReadUnityBundleSidecar(bundle.Path);
+            return new AetheriaUnityBundleArtifact(
+                bundle.Path,
+                bundle.Platform,
+                bundle.BundleName,
+                sidecar.Assets,
+                sidecar.Dependencies,
+                PackAssetBundle(bundle.Path, bundle.Platform, bundle.BundleName));
+        })
+        .ToArray();
+    foreach (var bundle in bundles)
+    foreach (var dependency in bundle.Dependencies)
+    {
+        if (!bundles.Any(candidate =>
+                string.Equals(candidate.Platform, bundle.Platform, StringComparison.Ordinal) &&
+                string.Equals(candidate.BundleName, dependency, StringComparison.Ordinal)))
+            throw new InvalidOperationException(
+                $"Unity bundle '{bundle.BundleName}' depends on missing bundle '{dependency}' for {bundle.Platform}.");
+    }
+    return new AetheriaUnityBundleArtifactSet(bundles);
+}
+
+static CultMeshCdnArtifact PackAssetBundle(string path, string platform, string bundleName)
 {
     return CultMeshCdn.PackArtifact(
-        $"aetheria/world/{platform}/aetheria-world",
+        $"aetheria/bundles/{platform}/{bundleName}",
         File.ReadAllBytes(path),
         new CultMeshCdnPackOptions
         {
             Kind = CultMeshCdnArtifactKinds.Asset,
             Version = "1",
             MimeType = "application/vnd.unity.assetbundle",
-            Tags = ["aetheria", "unity-scene", platform]
+            Tags = ["aetheria", "unity-scene", platform, bundleName]
         });
 }
 
@@ -2588,6 +2713,13 @@ static async Task EnsurePlayableRunDocumentsAsync(
     AetheriaDaemonHostOptions options,
     string now)
 {
+    if (options.UseTerminusFixture)
+    {
+        await AetheriaDaemonZoneGenerator.WritePlayableRunAsync(
+            node, node.RuntimeCatalog().Latest(), now, options.TerminusScenario).ConfigureAwait(false);
+        return;
+    }
+
     var settings = await node.MutableDocument<AetheriaPlayerSettings>(AetheriaStateNode.PlayerSettingsKey).ReadAsync().ConfigureAwait(false);
     if (!string.IsNullOrWhiteSpace(settings?.ActiveRunKey))
     {
@@ -2596,12 +2728,6 @@ static async Task EnsurePlayableRunDocumentsAsync(
             return;
     }
 
-    if (options.UseTerminusFixture)
-    {
-        await AetheriaDaemonZoneGenerator.WritePlayableRunAsync(
-            node, node.RuntimeCatalog().Latest(), now, options.TerminusScenario).ConfigureAwait(false);
-        return;
-    }
     await AetheriaDaemonRunFactory.WriteAsync(
         node, node.RuntimeCatalog().Latest(), now, now).ConfigureAwait(false);
 }
@@ -3355,28 +3481,68 @@ internal sealed class AetheriaDaemonIngressState
     }
 }
 
+internal sealed class AetheriaUnityBundleArtifactSet
+{
+    public AetheriaUnityBundleArtifactSet(IReadOnlyList<AetheriaUnityBundleArtifact> bundles)
+    {
+        Bundles = bundles ?? throw new ArgumentNullException(nameof(bundles));
+    }
+
+    public IReadOnlyList<AetheriaUnityBundleArtifact> Bundles { get; }
+}
+
+internal sealed class AetheriaUnityBundleArtifact
+{
+    public AetheriaUnityBundleArtifact(
+        string path,
+        string platform,
+        string bundleName,
+        IReadOnlyList<string> assets,
+        IReadOnlyList<string> dependencies,
+        CultMeshCdnArtifact artifact)
+    {
+        Path = path;
+        Platform = platform;
+        BundleName = bundleName;
+        Assets = assets;
+        Dependencies = dependencies;
+        Artifact = artifact;
+    }
+
+    public string Path { get; }
+    public string Platform { get; }
+    public string BundleName { get; }
+    public IReadOnlyList<string> Assets { get; }
+    public IReadOnlyList<string> Dependencies { get; }
+    public CultMeshCdnArtifact Artifact { get; }
+}
+
 internal sealed class AetheriaClientCultMeshHost : IDisposable
 {
     public AetheriaClientCultMeshHost(
         TcpFramedCultNetSchemaServer control,
         CultMeshTcpContentServer content,
+        CultCache contentCache,
         string controlEndpoint,
         string contentEndpoint)
     {
         Control = control ?? throw new ArgumentNullException(nameof(control));
         Content = content ?? throw new ArgumentNullException(nameof(content));
+        ContentCache = contentCache ?? throw new ArgumentNullException(nameof(contentCache));
         ControlEndpoint = controlEndpoint ?? throw new ArgumentNullException(nameof(controlEndpoint));
         ContentEndpoint = contentEndpoint ?? throw new ArgumentNullException(nameof(contentEndpoint));
     }
 
     public TcpFramedCultNetSchemaServer Control { get; }
     public CultMeshTcpContentServer Content { get; }
+    private CultCache ContentCache { get; }
     public string ControlEndpoint { get; }
     public string ContentEndpoint { get; }
 
     public void Dispose()
     {
         Content.Dispose();
+        ContentCache.Dispose();
         Control.Dispose();
     }
 }

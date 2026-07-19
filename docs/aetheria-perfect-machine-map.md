@@ -1886,24 +1886,37 @@ edges with one worker and exactly two start/transfer/completion event triplets.
 
 ### Daemon Asset Content Delivery
 
-- Owner: the Aetheria daemon owns bundle content and serves bytes only through
-  the managed `cultmesh.content.v1` session hosted by CultMesh.
-- Inputs: provider bundle path, packed artifact manifest, content hash, byte
-  length, negotiated chunk requests, and resumable client checkpoint.
+- Owner: Aetheria's runtime asset manifest owns each authored asset's Unity
+  bundle assignment. The build emits `aetheria-shaders`, `aetheria-ui`, and
+  `aetheria-core` shared bundles plus content bundles grouped by authored entity
+  source. The daemon owns those artifacts and serves bytes only through the
+  managed `cultmesh.content.v1` session hosted by CultMesh. EveUnity knows no
+  Aetheria bundle taxonomy.
+- Inputs: provider bundle paths, Unity dependency manifests, packed artifact
+  manifests, content hashes, byte lengths, negotiated chunk requests, and
+  resumable client checkpoints.
 - Outputs: snapshot delivery publishes the typed artifact manifest only;
-  content-session requests return bounded byte ranges which the generic runtime
-  verifies and atomically promotes to a hash-named `.body`, then binds to a
-  read-only mapped-body lease for Unity loading.
+  catalog variants name their owning artifact and dependency artifact URIs.
+  Publishing the catalog transfers no bundle. The generic runtime requests an
+  artifact only when presentation first resolves one of its asset keys, loads
+  dependencies first, verifies each body, atomically promotes it to a hash-named
+  `.body`, and binds it to a read-only mapped-body lease for Unity loading.
 - Derived state: Unity `AssetBundle` instances, native prefab lookup, cache
   files, progress UI, and screenshots cannot publish or mutate provider bytes.
-- Forbidden writers: batched snapshot chunks and the former
+- Forbidden writers: a monolithic world bundle, eager catalog materialization,
+  client-owned content categories, batched snapshot chunks, and the former
   `gamecult.cultmesh.cdn.asset_blob.v1` fallback are deleted. Eve surfaces and
   renderer code cannot smuggle bundle bytes through state records.
-- Shared paths: cold transfer, resume, and warm cache reuse all resolve the same
-  advertised manifest and content hash through the generic runtime transport.
+- Shared paths: prefab, shader, texture, font, and profile resolution all use the
+  same dependency-aware artifact loader. Cold transfer, resume, and warm cache
+  reuse resolve the same advertised manifests and hashes through the generic
+  runtime transport.
 - Cut line: CultMesh snapshots index manifests; managed content sessions own
   remote bytes, verification, and promotion. Mapped-body negotiation begins only
-  at the returned final path and cannot map partials or reconstruct cache names.
+  at first asset demand and at the returned final path; it cannot map partials or
+  reconstruct cache names. Blender-authored native entity reconstruction remains
+  the intended successor to Unity prefab content and is not simulated by this
+  bundle partition.
 
 - Owner: `Aetheria.State` owns the new typed state spine for durable state.
   The embedded `GameCult.Aetheria.State.Unity` package owns Unity's runtime

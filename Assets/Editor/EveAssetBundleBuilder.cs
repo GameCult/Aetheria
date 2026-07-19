@@ -12,7 +12,6 @@ namespace Aetheria.Editor
 {
     public static class EveAssetBundleBuilder
     {
-        public const string BundleName = "aetheria-world";
         private const string ProviderMaterialsRoot = "Assets/Generated/Eve/ProviderMaterials";
 
         public static void BuildWindows()
@@ -23,7 +22,9 @@ namespace Aetheria.Editor
         public static void VerifyWindows()
         {
             var output = ResolveOutput(BuildTarget.StandaloneWindows64);
-            VerifyBundle(Path.Combine(output, BundleName));
+            VerifyBundles(output, Directory.GetFiles(output, "aetheria-*", SearchOption.TopDirectoryOnly)
+                .Where(path => !path.EndsWith(".manifest", StringComparison.OrdinalIgnoreCase))
+                .Select(Path.GetFileName));
         }
 
         private static void Build(BuildTarget target)
@@ -32,6 +33,8 @@ namespace Aetheria.Editor
             EveEnvironmentProfileMigrator.EnsureGenerated();
             var output = ResolveOutput(target);
             Directory.CreateDirectory(output);
+            foreach (var stale in Directory.GetFiles(output, "*", SearchOption.TopDirectoryOnly))
+                File.Delete(stale);
 
             var catalog = AetheriaRuntimeCatalogStore.OpenReadOnly(
                 Path.GetFullPath(Path.Combine("GameData", "aetheria-world.cc")));
@@ -41,18 +44,26 @@ namespace Aetheria.Editor
                 BuildPresentationPrefab(entry);
             AssetDatabase.SaveAssets();
 
-            var assetNames = assets
-                .Select(entry => entry.Ref.Metadata.TryGetValue("bundleAssetPath", out var presentationPath)
-                    ? presentationPath
-                    : entry.Ref.Metadata.TryGetValue("unityAssetPath", out var explicitPath)
-                        ? explicitPath
-                        : "")
-                .Where(path => !string.IsNullOrWhiteSpace(path) && File.Exists(path))
-                .Distinct(StringComparer.Ordinal)
-                .OrderBy(path => path, StringComparer.Ordinal)
+            var bundleBuilds = assets
+                .Select(entry => new
+                {
+                    BundleName = AetheriaRuntimeAssets.ResolveUnityBundleName(entry),
+                    AssetPath = ResolveBundleAssetPath(entry)
+                })
+                .Where(asset => !string.IsNullOrWhiteSpace(asset.AssetPath) && File.Exists(asset.AssetPath))
+                .GroupBy(asset => asset.BundleName, StringComparer.Ordinal)
+                .Select(group => new AssetBundleBuild
+                {
+                    assetBundleName = group.Key,
+                    assetNames = group.Select(asset => asset.AssetPath)
+                        .Distinct(StringComparer.Ordinal)
+                        .OrderBy(path => path, StringComparer.Ordinal)
+                        .ToArray()
+                })
+                .OrderBy(build => build.assetBundleName, StringComparer.Ordinal)
                 .ToArray();
-            if (assetNames.Length == 0)
-                throw new InvalidOperationException("Aetheria Eve bundle has no provider Unity assets.");
+            if (bundleBuilds.Length == 0)
+                throw new InvalidOperationException("Aetheria Eve bundles have no provider Unity assets.");
             var authoredStardustMaterial = AssetDatabase.LoadAssetAtPath<Material>(
                 "Assets/Shaders/Compute/Stardust/Stardust.mat");
             AetheriaStardustContinuityVerifier.VerifyTemporalDitherMaterial(
@@ -66,21 +77,15 @@ namespace Aetheria.Editor
 
             var manifest = BuildPipeline.BuildAssetBundles(
                 output,
-                new[]
-                {
-                    new AssetBundleBuild
-                    {
-                        assetBundleName = BundleName,
-                        assetNames = assetNames
-                    }
-                },
-                BuildAssetBundleOptions.None,
+                bundleBuilds,
+                BuildAssetBundleOptions.ChunkBasedCompression,
                 target);
-            if (manifest == null || !manifest.GetAllAssetBundles().Contains(BundleName, StringComparer.Ordinal))
-                throw new InvalidOperationException("Unity did not emit the Aetheria Eve world bundle.");
+            var expectedBundleNames = bundleBuilds.Select(build => build.assetBundleName).ToArray();
+            if (manifest == null || expectedBundleNames.Except(manifest.GetAllAssetBundles(), StringComparer.Ordinal).Any())
+                throw new InvalidOperationException("Unity did not emit every advertised Aetheria Eve bundle.");
 
-            VerifyBundle(Path.Combine(output, BundleName));
-            Console.WriteLine($"Aetheria Eve AssetBundle: {Path.Combine(output, BundleName)}");
+            VerifyBundles(output, expectedBundleNames);
+            Console.WriteLine($"Aetheria Eve AssetBundles: {string.Join(", ", expectedBundleNames)}");
         }
 
         private static string ResolveOutput(BuildTarget target)
@@ -89,6 +94,26 @@ namespace Aetheria.Editor
             return string.IsNullOrWhiteSpace(output)
                 ? Path.GetFullPath(Path.Combine("Build", "EveAssets", target.ToString()))
                 : output;
+        }
+
+        private static string ResolveBundleAssetPath(AetheriaRuntimeAssetManifestEntry entry)
+        {
+            if (entry.Ref.Metadata.TryGetValue("bundleAssetPath", out var presentationPath))
+                return presentationPath;
+            if (entry.Ref.Metadata.TryGetValue("unityAssetPath", out var explicitPath))
+                return explicitPath;
+            if (!entry.Ref.Metadata.TryGetValue("resourcesPath", out var resourcesPath))
+                return "";
+
+            var expectedWithoutExtension = $"Assets/Resources/{resourcesPath}".Replace('\\', '/');
+            var directory = Path.GetDirectoryName(expectedWithoutExtension)?.Replace('\\', '/') ?? "Assets/Resources";
+            var fileName = Path.GetFileName(expectedWithoutExtension);
+            return AssetDatabase.FindAssets(fileName, new[] { directory })
+                .Select(AssetDatabase.GUIDToAssetPath)
+                .FirstOrDefault(candidate => string.Equals(
+                    Path.ChangeExtension(candidate, null)?.Replace('\\', '/'),
+                    expectedWithoutExtension,
+                    StringComparison.OrdinalIgnoreCase)) ?? "";
         }
 
         private static void BuildPresentationPrefab(AetheriaRuntimeAssetManifestEntry entry)
@@ -604,44 +629,57 @@ namespace Aetheria.Editor
                     $"Presentation prefab {assetPath} contains forbidden scripts:\n{string.Join("\n", violations)}");
         }
 
-        private static void VerifyBundle(string bundlePath)
+        private static void VerifyBundles(string output, IEnumerable<string> bundleNames)
         {
-            if (!File.Exists(bundlePath))
-                throw new InvalidOperationException($"Aetheria Eve bundle does not exist: {bundlePath}");
-            var bundle = AssetBundle.LoadFromFile(bundlePath);
-            if (bundle == null)
-                throw new InvalidOperationException($"Aetheria Eve bundle could not be loaded: {bundlePath}");
+            var orderedNames = bundleNames
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .Distinct(StringComparer.Ordinal)
+                .OrderBy(BundleLoadOrder)
+                .ThenBy(name => name, StringComparer.Ordinal)
+                .ToArray();
+            var bundles = new List<AssetBundle>();
             try
             {
-                var assetNames = bundle.GetAllAssetNames();
-                foreach (var assetPath in assetNames.Where(path => path.EndsWith(".prefab", StringComparison.OrdinalIgnoreCase)))
+                foreach (var bundleName in orderedNames)
+                {
+                    var bundlePath = Path.Combine(output, bundleName);
+                    if (!File.Exists(bundlePath))
+                        throw new InvalidOperationException($"Aetheria Eve bundle does not exist: {bundlePath}");
+                    var bundle = AssetBundle.LoadFromFile(bundlePath);
+                    if (bundle == null)
+                        throw new InvalidOperationException($"Aetheria Eve bundle could not be loaded: {bundlePath}");
+                    bundles.Add(bundle);
+                }
+                foreach (var bundle in bundles)
+                foreach (var assetPath in bundle.GetAllAssetNames()
+                             .Where(path => path.EndsWith(".prefab", StringComparison.OrdinalIgnoreCase)))
                     VerifyPrefab(bundle.LoadAsset<GameObject>(assetPath), assetPath);
-                var reflection = LoadAuthoredAsset<Cubemap>(bundle, assetNames, "Assets/Textures/studio2.hdr");
+                var reflection = LoadAuthoredAsset<Cubemap>(bundles, "Assets/Textures/studio2.hdr");
                 if (reflection == null)
-                    throw new InvalidOperationException("Aetheria Eve bundle has no provider reflection cubemap.");
-                var postProcess = LoadAuthoredAsset<VolumeProfile>(bundle, assetNames, EveEnvironmentProfileMigrator.FlightProfilePath);
+                    throw new InvalidOperationException("Aetheria Eve bundles have no provider reflection cubemap.");
+                var postProcess = LoadAuthoredAsset<VolumeProfile>(bundles, EveEnvironmentProfileMigrator.FlightProfilePath);
                 VerifyFlightPostProcessProfile(postProcess);
-                var gravityFog = LoadAuthoredAsset<Shader>(bundle, assetNames, "Assets/Shaders/Raymarching/CloudShader.shader");
+                var gravityFog = LoadAuthoredAsset<Shader>(bundles, "Assets/Shaders/Raymarching/CloudShader.shader");
                 if (gravityFog == null || !gravityFog.isSupported)
-                    throw new InvalidOperationException("Aetheria Eve bundle has no supported gravity-fog volume shader.");
+                    throw new InvalidOperationException("Aetheria Eve bundles have no supported gravity-fog volume shader.");
                 AetheriaGravityFogVerifier.VerifyCameraProjection(
                     gravityFog,
                     requireAuthoredSource: false);
-                var dither = LoadAuthoredAsset<Texture2D>(bundle, assetNames, "Assets/Resources/LDR_LLL1_0.png");
+                var dither = LoadAuthoredAsset<Texture2D>(bundles, "Assets/Resources/LDR_LLL1_0.png");
                 if (dither == null)
                     throw new InvalidOperationException("Aetheria Eve bundle has no pre-generated volume dither texture.");
-                var stardustCompute = LoadAuthoredAsset<ComputeShader>(bundle, assetNames,
+                var stardustCompute = LoadAuthoredAsset<ComputeShader>(bundles,
                     "Assets/Shaders/Compute/Stardust/Stardust.compute");
                 if (stardustCompute == null || !stardustCompute.HasKernel("UpdateParticles"))
                     throw new InvalidOperationException("Aetheria Eve bundle has no supported Stardust update program.");
-                var stardustMaterial = LoadAuthoredAsset<Material>(bundle, assetNames,
+                var stardustMaterial = LoadAuthoredAsset<Material>(bundles,
                     "Assets/Shaders/Compute/Stardust/Stardust.mat");
                 if (stardustMaterial == null || stardustMaterial.shader == null || !stardustMaterial.shader.isSupported)
                     throw new InvalidOperationException("Aetheria Eve bundle has no supported Stardust render material.");
                 AetheriaStardustContinuityVerifier.VerifyTemporalDitherMaterial(
                     stardustMaterial,
                     requireAuthoredSource: false);
-                var stardustColors = LoadAuthoredAsset<Texture2D>(bundle, assetNames,
+                var stardustColors = LoadAuthoredAsset<Texture2D>(bundles,
                     "Assets/Resources/Gradients/blackbody.png");
                 if (stardustColors == null)
                     throw new InvalidOperationException("Aetheria Eve bundle has no pre-generated Stardust color texture.");
@@ -649,16 +687,29 @@ namespace Aetheria.Editor
             }
             finally
             {
-                bundle.Unload(true);
+                for (var index = bundles.Count - 1; index >= 0; index--)
+                    bundles[index].Unload(true);
             }
         }
 
-        private static T LoadAuthoredAsset<T>(AssetBundle bundle, IEnumerable<string> assetNames, string authoredPath)
+        private static int BundleLoadOrder(string bundleName)
+        {
+            if (bundleName == AetheriaRuntimeAssets.UnityShaderBundle) return 0;
+            if (bundleName == AetheriaRuntimeAssets.UnityCoreBundle) return 1;
+            if (bundleName == AetheriaRuntimeAssets.UnityUiBundle) return 2;
+            return 3;
+        }
+
+        private static T LoadAuthoredAsset<T>(IEnumerable<AssetBundle> bundles, string authoredPath)
             where T : UnityEngine.Object
         {
-            var nativePath = assetNames.FirstOrDefault(path =>
-                string.Equals(path, authoredPath, StringComparison.OrdinalIgnoreCase));
-            return string.IsNullOrWhiteSpace(nativePath) ? null : bundle.LoadAsset<T>(nativePath);
+            foreach (var bundle in bundles)
+            {
+                var nativePath = bundle.GetAllAssetNames().FirstOrDefault(path =>
+                    string.Equals(path, authoredPath, StringComparison.OrdinalIgnoreCase));
+                if (!string.IsNullOrWhiteSpace(nativePath)) return bundle.LoadAsset<T>(nativePath);
+            }
+            return null;
         }
 
         private static void VerifyFlightPostProcessProfile(VolumeProfile profile)
