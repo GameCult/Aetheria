@@ -277,10 +277,12 @@ internal static class AetheriaDaemonZoneGenerator
         AetheriaRuntimeCatalogSnapshot catalog,
         string scenario)
     {
-        // Hold the proof pilot inside the station's fossil 25-unit docking envelope while
-        // the released client negotiates its provider session. Ymir's stellar field owns
-        // the trajectory; this is initial world state, not a client-side position lock.
-        entities[1].Velocity = Vec2(-70, -47);
+        // Start the proof pilot at rest on the station's authored center. Ymir's field moves it
+        // during provider-session negotiation, but the resulting trajectory remains inside the
+        // fossil 25-unit docking envelope. The fixture does not lock or repair the live position.
+        entities[1].Position.X = entities[0].Position.X;
+        entities[1].Position.Z = entities[0].Position.Z;
+        entities[1].Velocity = Vec2(0, 0);
         var playerFactionKey = entities[1].FactionKey;
         for (var index = 0; index < entities.Length; index++)
             if (index != 6)
