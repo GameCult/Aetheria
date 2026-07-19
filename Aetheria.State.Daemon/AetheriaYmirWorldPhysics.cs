@@ -381,7 +381,7 @@ public sealed class AetheriaYmirWorldPhysics : IAetheriaRuntimeWorldPhysics, IDi
         foreach (var actor in active.Where(entity =>
                      entity.TractorPower > AetheriaRuntimeTractorMechanics.ActivationThreshold))
         {
-            var forward = Normalize(actor.DirectionX, actor.DirectionY, 0, 1);
+            var forward = Normalize(actor.LookDirectionX, actor.LookDirectionY, 0, 1);
             foreach (var pickup in pickups)
             {
                 var dx = pickup.PositionX - actor.PositionX;

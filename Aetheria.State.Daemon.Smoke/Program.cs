@@ -8109,7 +8109,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
     private static void TractorRampsAndPullsThroughYmirWithoutTeleportingCargo()
     {
         var ship = Entity(0, 0, "player");
-        ship.DirectionX = 1; ship.DirectionY = 0;
+        ship.DirectionX = 0; ship.DirectionY = 1;
+        ship.LookDirectionX = 1; ship.LookDirectionY = 0;
         var pickup = new AetheriaRuntimeDroppedPickupCommit { PickupIndex = 3, PositionX = 60, Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = "salvage", Quantity = 1 }, LifetimeSeconds = 30 };
         var run = new AetheriaRuntimeRunCheckpointCommit { CurrentZoneIndex = 0, CurrentEntityKey = "zone.0.entity.0", Zones = [new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [ship], DroppedPickups = [pickup] }] };
         var command = AetheriaRuntimeDaemonCommandDocument.Create(AetheriaRuntimeDaemonCommandKinds.SetTractorPower, "pilot", "tractor-smoke", 0, "zone.0.entity.0");
@@ -8117,7 +8118,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         AetheriaRuntimeDaemonTickRunner.Tick(Path.Combine(Path.GetTempPath(), "aetheria-tractor-smoke.cc"), run,
             new AetheriaRuntimeDaemonTickOptions { WorldPhysics = NewPhysics(), FrameId = 1, FixedDeltaSeconds = 0.25, SimulationTimeSeconds = 0.25, ObservedCommands = [command], BuildPublications = false });
         RequireNear(0.5, ship.TractorPower, 0.000001, "tractor power must use the fossil two-per-second ramp");
-        Require(pickup.VelocityX < 0 && pickup.PositionX < 60, "Ymir must pull a pickup inside the forward tractor volume toward the ship");
+        Require(pickup.VelocityX < 0 && pickup.PositionX < 60,
+            "Ymir must pull a pickup inside the reticle-aligned tractor volume without rotating the hull");
         RequireEqual(1, pickup.Item.Quantity, "tractor force must not consume the pickup item");
         RequireEqual(0, CargoQuantity(ship, "salvage"), "scooping must remain a separate capacity-checked transaction");
         Require(pickup.AgeSeconds > 0 && pickup.AgeSeconds < pickup.LifetimeSeconds,
@@ -8153,15 +8155,18 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 beam.Props["assetRole"] == "effect.beam.tractor" &&
                 beam.Props["directionMode"] == "source-forward.v1" &&
                 beam.Props["activationActionId"] == "pilot.scoop" &&
-                beam.Props["power"] == "0.5" && beam.Props["radius"] == "25" &&
+                beam.Props["powerStateSemantic"] == AetheriaRuntimeDaemonSoaColumnKinds.BeamPower &&
+                beam.Props["radius"] == "25" &&
                 beam.Props["maximumDistance"] == "75",
             "Eve beam presentation must project the same daemon tractor power and fossil volume without owning force or contact");
 
         double PulledVelocity(double power, int frameId)
         {
             var actor = Entity(0, 0, "player");
-            actor.DirectionX = 1;
-            actor.DirectionY = 0;
+            actor.DirectionX = 0;
+            actor.DirectionY = 1;
+            actor.LookDirectionX = 1;
+            actor.LookDirectionY = 0;
             actor.TractorPower = power;
             actor.TractorTargetPower = power;
             var cargo = new AetheriaRuntimeDroppedPickupCommit
