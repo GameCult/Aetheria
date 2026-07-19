@@ -181,6 +181,53 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
         throw new InvalidOperationException(
             $"Playable world did not publish the native camera and environment contract: {string.Join("; ", playableWorldMismatches)}");
     }
+    var gravityFog = playableWorld.Children.Single(component =>
+        component.Id == "aetheria.daemon.game.world.gravity-fog");
+    var stardust = playableWorld.Children.Single(component =>
+        component.Id == "aetheria.daemon.game.world.stardust");
+    if (!gravityFog.Props["features"].Split(';').Contains("flow.value3d", StringComparer.Ordinal) ||
+        !stardust.Props["features"].Split(';').Contains("flow.value3d", StringComparer.Ordinal))
+    {
+        throw new InvalidOperationException("Aetheria's default render settings did not select smooth Value3D flow.");
+    }
+
+    daemonFrame.RenderSettings = new AetheriaRuntimeDaemonRenderSettings(
+        default,
+        default,
+        default,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        useValue3DFlow: false);
+    var triangleSurface = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(
+        daemonFrame,
+        daemonHealth,
+        daemonCommandBoundary);
+    var triangleWorld = triangleSurface.Surface.Root.Children.Single(component =>
+        component.Id == "aetheria.daemon.game.world");
+    if (triangleWorld.Children
+        .Where(component => component.Id is "aetheria.daemon.game.world.gravity-fog" or "aetheria.daemon.game.world.stardust")
+        .Any(component => component.Props["features"].Split(';').Contains("flow.value3d", StringComparer.Ordinal)))
+    {
+        throw new InvalidOperationException("Triangle flow remained opted into the Value3D feature keyword.");
+    }
+    daemonFrame.RenderSettings = AetheriaRuntimeDaemonRenderSettings.AetheriaDefault;
+
+    var renderAssets = AetheriaRuntimeAssets.ProjectManifest(null);
+    if (!renderAssets.Assets.Any(asset =>
+            asset.Ref.AssetKey == "shader.environment.gravity-fog" &&
+            asset.Ref.Metadata.TryGetValue("unity.volume.feature.flow.value3d.keyword", out var keyword) &&
+            keyword == "FLOW_VALUE3D") ||
+        !renderAssets.Assets.Any(asset =>
+            asset.Ref.AssetKey == "compute.environment.stardust" &&
+            asset.Ref.Metadata.TryGetValue("unity.particles.feature.flow.value3d.keyword", out var keyword) &&
+            keyword == "FLOW_VALUE3D"))
+    {
+        throw new InvalidOperationException("Aetheria's asset catalog did not map smooth flow to FLOW_VALUE3D.");
+    }
     await node.MutableDocument<AetheriaRuntimeDaemonProviderAdvertisementDocument>(AetheriaRuntimeVerseRecordKeys.DaemonProviderAdvertisement)
         .ReplaceAsync(daemonProvider);
     await node.MutableDocument<AetheriaRuntimeDaemonHealthDocument>(AetheriaRuntimeVerseRecordKeys.DaemonHealth)
