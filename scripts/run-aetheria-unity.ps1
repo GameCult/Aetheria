@@ -65,11 +65,11 @@ try {
   $ready = $false
   for ($i = 0; $i -lt 60; $i++) {
     if ($daemon.HasExited) { throw "Aetheria daemon exited. See $daemonLog" }
-    if ((Test-Path $daemonLog) -and (Select-String $daemonLog -Pattern "Aetheria client CultMesh endpoint: rudp://127.0.0.1:$Port" -Quiet)) { $ready = $true; break }
+    if ((Test-Path $daemonLog) -and (Select-String $daemonLog -Pattern "Aetheria client CultMesh endpoint: cultnet\+tcp://127.0.0.1:$Port" -Quiet)) { $ready = $true; break }
     Start-Sleep -Milliseconds 500
   }
   if (-not $ready) { throw "Aetheria daemon did not publish its Eve endpoint." }
-  $env:EVEUNITY_RENDEZVOUS_ENDPOINT = "rudp://127.0.0.1:$Port"
+  $env:EVEUNITY_RENDEZVOUS_ENDPOINT = "cultnet+tcp://127.0.0.1:$Port"
   $env:EVEUNITY_SURFACE_ID = "aetheria.pilot"
   $client = Start-Process $clientExe -ArgumentList "-force-d3d11" -PassThru
   Write-Host "Client PID: $($client.Id)"

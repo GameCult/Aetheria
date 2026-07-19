@@ -16,8 +16,8 @@ using System.Collections.Concurrent;
 var options = AetheriaDaemonHostOptions.Parse(args);
 var startedAtUtc = DateTimeOffset.UtcNow.ToString("O");
 using var worldPhysics = new AetheriaYmirWorldPhysics();
-var traceClientRudp = string.Equals(
-    Environment.GetEnvironmentVariable("AETHERIA_TRACE_CLIENT_RUDP"),
+var traceClientTransport = string.Equals(
+    Environment.GetEnvironmentVariable("AETHERIA_TRACE_CLIENT_TRANSPORT"),
     "1",
     StringComparison.Ordinal);
 
@@ -50,12 +50,11 @@ using var physicsPersistence = await AetheriaYmirPersistenceCoordinator.OpenAsyn
     node,
     worldPhysics,
     latestFrame).ConfigureAwait(false);
-using var networkBodies = new CultMeshNetworkBodyStore();
-using var cultMeshRudpHost = StartClientCultMeshHost(node, options, () => latestFrame, networkBodies);
-using var clientSubscriptions = new CultNetDatabaseSubscriptionServer(cultMeshRudpHost, node.Database);
+using var cultMeshClientHost = StartClientCultMeshHost(node, options, () => latestFrame);
+using var clientSubscriptions = new CultNetDatabaseSubscriptionServer(cultMeshClientHost.Control, node.Database);
 var managedViewportDemand = new AetheriaManagedViewportDemandState();
 clientSubscriptions.DemandChanged += managedViewportDemand.Observe;
-if (traceClientRudp)
+if (traceClientTransport)
     clientSubscriptions.DemandChanged += demand => Console.WriteLine(
         $"CultMesh state demand consumer={demand.ConsumerRuntimeId} subscription={demand.SubscriptionId} " +
         $"active={demand.Active} sameMachine={demand.SameMachine} " +
@@ -63,17 +62,14 @@ if (traceClientRudp)
         $"bodies=[{string.Join(",", demand.BodyIds)}] transports=[{string.Join(",", demand.SupportedBodyTransports)}]");
 using var bodyDemand = new CultMeshBodyDemandTracker(clientSubscriptions);
 using var soaPublisher = new AetheriaRuntimeDaemonSoaFramePublisher(
-    networkBodies,
     DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
     bodyDemand);
-using var clientPumpCancellation = new CancellationTokenSource();
-var clientPump = RunClientCultMeshPumpAsync(cultMeshRudpHost, clientPumpCancellation.Token);
 var nextApiPublicationUtc = DateTimeOffset.UtcNow;
 var ingressState = new AetheriaDaemonIngressState();
 var hotState = new AetheriaHotEntityPublicationState();
 var reactiveSurfaceState = new AetheriaReactiveSurfacePublicationState();
 var firstTick = await TickAsync(node, options, worldPhysics, latestFrame, ingressState, buildPublications: false).ConfigureAwait(false);
-ThrowIfClientPumpFaulted(clientPump);
+ThrowIfClientHostFaulted(cultMeshClientHost);
 latestFrame = firstTick.Frame;
 var firstPublication = PreparePublication(
     node.StatePath,
@@ -91,13 +87,12 @@ await PublishPreparedDocumentsAsync(
 await PublishHotEntityStateAsync(node, soaPublisher, hotState, firstTick.Frame, ingressState.Catalog).ConfigureAwait(false);
 nextApiPublicationUtc = DateTimeOffset.UtcNow.Add(options.ApiPublicationInterval);
 Console.WriteLine($"Aetheria Verse daemon published frame {firstTick.Frame.FrameId}.");
-Console.WriteLine($"Aetheria client CultMesh endpoint: rudp://{options.ClientCultMeshAdvertiseHost}:{cultMeshRudpHost.LocalEndPoint.Port}");
+Console.WriteLine($"Aetheria client CultMesh endpoint: {cultMeshClientHost.ControlEndpoint}");
+Console.WriteLine($"Aetheria client CDN endpoint: {cultMeshClientHost.ContentEndpoint}");
 
 if (options.Once)
 {
     await PublishRuntimeSessionAsync(node, options, startedAtUtc, "completed").ConfigureAwait(false);
-    clientPumpCancellation.Cancel();
-    await clientPump.ConfigureAwait(false);
     return;
 }
 var stopped = new TaskCompletionSource<object?>();
@@ -114,7 +109,7 @@ var nextTickUtc = DateTimeOffset.UtcNow.Add(options.TickInterval);
 Task publicationTask = Task.CompletedTask;
 while (!stopped.Task.IsCompleted)
 {
-    ThrowIfClientPumpFaulted(clientPump);
+    ThrowIfClientHostFaulted(cultMeshClientHost);
     var delay = nextTickUtc - DateTimeOffset.UtcNow;
     if (delay > TimeSpan.Zero)
     {
@@ -125,7 +120,7 @@ while (!stopped.Task.IsCompleted)
 
     var buildPublications = DateTimeOffset.UtcNow >= nextApiPublicationUtc;
     var tick = await TickAsync(node, options, worldPhysics, latestFrame, ingressState, buildPublications: false).ConfigureAwait(false);
-    ThrowIfClientPumpFaulted(clientPump);
+    ThrowIfClientHostFaulted(cultMeshClientHost);
     latestFrame = tick.Frame;
     await PublishHotEntityStateAsync(node, soaPublisher, hotState, tick.Frame, ingressState.Catalog).ConfigureAwait(false);
     nextTickUtc += options.TickInterval;
@@ -151,33 +146,26 @@ while (!stopped.Task.IsCompleted)
         await PublishDemandedManagedViewportsAsync(node, options, tick.Frame, managedViewportDemand).ConfigureAwait(false);
         nextApiPublicationUtc = DateTimeOffset.UtcNow.Add(options.ApiPublicationInterval);
     }
-    if (tick.Frame.FrameId % (traceClientRudp ? 10 : 120) == 0)
+    if (tick.Frame.FrameId % (traceClientTransport ? 10 : 120) == 0)
     {
-        var clientStats = cultMeshRudpHost.Stats;
-        var pendingReliable = string.Join(",", cultMeshRudpHost.Peers.Select(
-            peer => $"{peer.RemoteEndPoint}:{peer.PendingReliablePacketCount}"));
         Console.WriteLine(
             $"Aetheria Verse daemon published frame {tick.Frame.FrameId} at {tick.Frame.SimulationTimeSeconds:0.00}s; " +
-            $"client peers={cultMeshRudpHost.Peers.Count} pending=[{pendingReliable}] " +
-            $"rx={clientStats.BytesReceived} tx={clientStats.BytesSent}.");
+            $"control peers={cultMeshClientHost.Control.PeerCount} " +
+            $"cdn chunks={cultMeshClientHost.Content.ChunkRequestsServed}.");
     }
 }
 
 await PublishRuntimeSessionAsync(node, options, startedAtUtc, "stopping").ConfigureAwait(false);
 await publicationTask.ConfigureAwait(false);
-clientPumpCancellation.Cancel();
-await clientPump.ConfigureAwait(false);
 Console.WriteLine("Aetheria Verse daemon stopping.");
 
-static void ThrowIfClientPumpFaulted(Task clientPump)
+static void ThrowIfClientHostFaulted(AetheriaClientCultMeshHost host)
 {
-    if (!clientPump.IsCompleted)
+    if (!host.Control.BackgroundFailure.IsCompleted)
         return;
-
-    if (clientPump.IsFaulted)
-        throw new InvalidOperationException("Aetheria client CultMesh pump faulted.", clientPump.Exception);
-
-    throw new InvalidOperationException("Aetheria client CultMesh pump stopped unexpectedly.");
+    throw new InvalidOperationException(
+        "Aetheria client CultMesh TCP control host faulted.",
+        host.Control.BackgroundFailure.GetAwaiter().GetResult());
 }
 
 static async Task<AetheriaRuntimeDaemonTickResult> TickAsync(
@@ -639,27 +627,23 @@ static async Task<AetheriaRuntimeDaemonTickResult> ImportRemoteCommittedFactsAsy
     return import.Tick;
 }
 
-static RudpCultNetSchemaServer StartClientCultMeshHost(
+static AetheriaClientCultMeshHost StartClientCultMeshHost(
     AetheriaStateNode node,
     AetheriaDaemonHostOptions options,
-    Func<AetheriaRuntimeDaemonFrameDocument?> latestFrame,
-    CultMeshNetworkBodyStore networkBodies)
+    Func<AetheriaRuntimeDaemonFrameDocument?> latestFrame)
 {
     var bundleCdnDocuments = BuildBundleCdnDocuments(node, options);
-    var socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
-    socket.Bind(new IPEndPoint(ParseBindAddress(options.ClientCultMeshHost), options.ClientCultMeshPort));
-    var server = new RudpCultNetSchemaServer(new RudpCultNetSchemaServerOptions
-    {
-        RuntimeId = $"{options.DaemonId}.client",
-        Socket = socket,
-        ConnectionId = 0x43554c54,
-        TransportId = "aetheria-client-rudp",
-        MaxFragmentBytes = 1024,
-        MaxPendingReliablePackets = 8192
-    });
-    _ = new CultMeshContentServer(server, node.Cache);
-    _ = new CultMeshBodyServer(server, networkBodies);
-    var advertisedEndpoint = $"rudp://{options.ClientCultMeshAdvertiseHost}:{((IPEndPoint)socket.LocalEndPoint!).Port}";
+    var server = new TcpFramedCultNetSchemaServer(new TcpListener(
+        ParseBindAddress(options.ClientCultMeshHost),
+        options.ClientCultMeshPort));
+    var content = new CultMeshTcpContentServer(new TcpListener(
+        ParseBindAddress(options.ClientCultMeshHost),
+        options.ClientCultMeshContentPort), node.Cache);
+    var advertisedEndpoint = $"cultnet+tcp://{options.ClientCultMeshAdvertiseHost}:{server.LocalEndPoint.Port}";
+    var advertisedContentEndpoint =
+        $"{CultMeshTcpContentTransportConnector.Scheme}://{options.ClientCultMeshAdvertiseHost}:{content.LocalEndPoint.Port}";
+    server.PeerFailed += (endpoint, error) => Console.Error.WriteLine(
+        $"Aetheria client CultMesh peer {endpoint} failed: {error.GetType().Name}: {error.Message}");
     server.OnCultNet<CultMeshVerseCatalogRequestMessage>((request, peer) =>
     {
         var descriptor = new CultMeshVerseDescriptor(
@@ -669,7 +653,7 @@ static RudpCultNetSchemaServer StartClientCultMeshHost(
             new CultMeshVerseCompatibility(
                 "cultmesh.v0",
                 CultMeshVerseDescriptor.ComputeRulesHash("aetheria", "runtime-world.v1")),
-            discoveryEndpoints: new[] { advertisedEndpoint },
+            discoveryEndpoints: new[] { advertisedEndpoint, advertisedContentEndpoint },
             authorityRuntimeIds: new[] { options.DaemonId },
             description: "Aetheria provider Verse");
         peer.SendCultNet(new CultMeshVerseCatalogResponseMessage
@@ -677,6 +661,7 @@ static RudpCultNetSchemaServer StartClientCultMeshHost(
             MessageId = string.IsNullOrWhiteSpace(request.MessageId) ? Guid.NewGuid().ToString("N") : request.MessageId,
             Verses = new[] { descriptor.ToMessage() }
         });
+        return Task.CompletedTask;
     });
     server.OnCultNet<CultNetSnapshotRequestMessage>(async (request, peer) =>
     {
@@ -1104,7 +1089,11 @@ static RudpCultNetSchemaServer StartClientCultMeshHost(
 
         await node.Database.ApplyPutAsync(message).ConfigureAwait(false);
     });
-    return server;
+    return new AetheriaClientCultMeshHost(
+        server,
+        content,
+        advertisedEndpoint,
+        advertisedContentEndpoint);
 }
 
 static void InjectCultMeshCdnManifestSnapshots(
@@ -1284,25 +1273,6 @@ static async Task<EveSurfaceDocument?> ReadPortableSurfaceAsync(AetheriaStateNod
         return portableSurface;
     var providerSurface = await node.MutableDocument<AetheriaRuntimeSurfaceDocument>(key).ReadAsync().ConfigureAwait(false);
     return providerSurface == null ? null : AetheriaRuntimeSurfaceDocuments.ToEveSurfaceDocument(providerSurface);
-}
-
-static async Task RunClientCultMeshPumpAsync(
-    RudpCultNetSchemaServer server,
-    CancellationToken cancellationToken)
-{
-    try
-    {
-        while (!cancellationToken.IsCancellationRequested)
-        {
-            var poll = await server.PollAvailableAsync(256).ConfigureAwait(false);
-            server.PollResends();
-            if (poll.TransportItemsConsumed == 0)
-                await Task.Delay(1, cancellationToken).ConfigureAwait(false);
-        }
-    }
-    catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-    {
-    }
 }
 
 static IPAddress ParseBindAddress(string host)
@@ -1603,11 +1573,9 @@ static async Task PublishHotEntityStateAsync(
 
     var publication = await publisher.PublishAsync(hotFrame).ConfigureAwait(false);
     var layoutChanged = !state.Matches(publication.View);
-    var publishesRemoteGeneration = publication.Body.Representations.Any(
-        value => value.TransportKind == CultMeshBodyTransportKind.Network);
-    if (layoutChanged || publishesRemoteGeneration)
+    if (layoutChanged)
     {
-        if (layoutChanged && string.Equals(Environment.GetEnvironmentVariable("AETHERIA_TRACE_CLIENT_RUDP"), "1", StringComparison.Ordinal))
+        if (layoutChanged && string.Equals(Environment.GetEnvironmentVariable("AETHERIA_TRACE_CLIENT_TRANSPORT"), "1", StringComparison.Ordinal))
             Console.WriteLine(
                 $"CultMesh entity layout changed sequence={publication.View.Sequence} bytes={MessagePackSerializer.Serialize(publication.View).Length} " +
                 $"identities={publication.View.Identities.Length} representations=[{string.Join(",", publication.Body.Representations.Select(value => value.TransportKind))}]");
@@ -1702,7 +1670,7 @@ static async Task PublishDaemonApiDocumentsAsync(
             activeMainMenuSurfaceId,
             inputCatalog);
         var portableGameSurface = AetheriaRuntimeSurfaceDocuments.ToPortableSurface(gameSurface);
-        if (string.Equals(Environment.GetEnvironmentVariable("AETHERIA_TRACE_CLIENT_RUDP"), "1", StringComparison.Ordinal))
+        if (string.Equals(Environment.GetEnvironmentVariable("AETHERIA_TRACE_CLIENT_TRANSPORT"), "1", StringComparison.Ordinal))
             Console.WriteLine($"Eve game topology bytes={MessagePackSerializer.Serialize(portableGameSurface).Length}");
         await node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.DaemonGameSurface)
             .ReplaceAsync(portableGameSurface)
@@ -3387,6 +3355,32 @@ internal sealed class AetheriaDaemonIngressState
     }
 }
 
+internal sealed class AetheriaClientCultMeshHost : IDisposable
+{
+    public AetheriaClientCultMeshHost(
+        TcpFramedCultNetSchemaServer control,
+        CultMeshTcpContentServer content,
+        string controlEndpoint,
+        string contentEndpoint)
+    {
+        Control = control ?? throw new ArgumentNullException(nameof(control));
+        Content = content ?? throw new ArgumentNullException(nameof(content));
+        ControlEndpoint = controlEndpoint ?? throw new ArgumentNullException(nameof(controlEndpoint));
+        ContentEndpoint = contentEndpoint ?? throw new ArgumentNullException(nameof(contentEndpoint));
+    }
+
+    public TcpFramedCultNetSchemaServer Control { get; }
+    public CultMeshTcpContentServer Content { get; }
+    public string ControlEndpoint { get; }
+    public string ContentEndpoint { get; }
+
+    public void Dispose()
+    {
+        Content.Dispose();
+        Control.Dispose();
+    }
+}
+
 internal sealed class AetheriaDaemonHostOptions
 {
     public string StatePath { get; init; } = "";
@@ -3397,6 +3391,7 @@ internal sealed class AetheriaDaemonHostOptions
     public string ClientCultMeshHost { get; init; } = "127.0.0.1";
     public string ClientCultMeshAdvertiseHost { get; init; } = "127.0.0.1";
     public int ClientCultMeshPort { get; init; } = 3076;
+    public int ClientCultMeshContentPort { get; init; }
     public string AetheriaResourcesRoot { get; init; } = "";
     public string AssetBundleRoot { get; init; } = "";
     public IReadOnlyList<string> PeerCultMeshEndpoints { get; init; } = Array.Empty<string>();
@@ -3429,6 +3424,7 @@ internal sealed class AetheriaDaemonHostOptions
         var clientCultMeshHost = ReadOption(args, "--client-cultmesh-host");
         var clientCultMeshAdvertiseHost = ReadOption(args, "--client-cultmesh-advertise-host");
         var clientCultMeshPort = ReadNonNegativeInt(args, "--client-cultmesh-port") ?? 3076;
+        var clientCultMeshContentPort = ReadNonNegativeInt(args, "--client-cultmesh-content-port") ?? 0;
         var aetheriaResourcesRoot = ReadOption(args, "--aetheria-resources-root");
         var assetBundleRoot = ReadOption(args, "--asset-bundle-root");
         RejectRemovedOption(args, "--rts-cultmesh-port", "--client-cultmesh-port");
@@ -3459,6 +3455,7 @@ internal sealed class AetheriaDaemonHostOptions
                 ? (string.IsNullOrWhiteSpace(clientCultMeshHost) || clientCultMeshHost == "0.0.0.0" || clientCultMeshHost == "*" ? "127.0.0.1" : clientCultMeshHost)
                 : clientCultMeshAdvertiseHost,
             ClientCultMeshPort = clientCultMeshPort,
+            ClientCultMeshContentPort = clientCultMeshContentPort,
             AetheriaResourcesRoot = string.IsNullOrWhiteSpace(aetheriaResourcesRoot)
                 ? Path.GetFullPath(Path.Combine(root, "Assets", "Resources"))
                 : Path.GetFullPath(aetheriaResourcesRoot),

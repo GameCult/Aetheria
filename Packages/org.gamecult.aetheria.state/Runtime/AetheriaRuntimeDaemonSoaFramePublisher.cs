@@ -17,22 +17,15 @@ namespace GameCult.Aetheria.State.Verse
         public AetheriaRuntimeDaemonSoaFrame(
             AetheriaRuntimeDaemonSoaViewDocument view,
             CultMeshFrameBodyWriteLease write,
-            int byteLength,
-            bool publishSharedMemory,
-            bool publishNetwork)
+            int byteLength)
         {
             View = view ?? throw new ArgumentNullException(nameof(view));
             _write = write ?? throw new ArgumentNullException(nameof(write));
             ByteLength = byteLength;
-            PublishSharedMemory = publishSharedMemory;
-            PublishNetwork = publishNetwork;
         }
 
         public AetheriaRuntimeDaemonSoaViewDocument View { get; }
         public int ByteLength { get; }
-        public bool PublishSharedMemory { get; }
-        public bool PublishNetwork { get; }
-        public ReadOnlySpan<byte> Span => (_write ?? throw new ObjectDisposedException(nameof(AetheriaRuntimeDaemonSoaFrame))).Span[..ByteLength];
 
         public CultMeshBodyDescriptor Commit(DateTimeOffset nowUtc)
         {
@@ -81,18 +74,15 @@ namespace GameCult.Aetheria.State.Verse
         private const string EntityProxyMaterialUri = "cultmesh://aetheria/assets/daemon/entity_proxy/material";
 
         private readonly CultMeshFrameBodyPublisher _localPublisher;
-        private readonly CultMeshNetworkBodyStore _networkBodies;
         private readonly CultMeshBodyDemandTracker? _demand;
         private readonly Dictionary<string, int> _syntheticEntityIndices =
             new Dictionary<string, int>(StringComparer.Ordinal);
         private int _nextSyntheticEntityIndex = -2;
 
         public AetheriaRuntimeDaemonSoaFramePublisher(
-            CultMeshNetworkBodyStore networkBodies,
             long producerEpoch,
             CultMeshBodyDemandTracker? demand = null)
         {
-            _networkBodies = networkBodies ?? throw new ArgumentNullException(nameof(networkBodies));
             _localPublisher = new CultMeshFrameBodyPublisher(
                 BodyId, BodySchemaId, LayoutVersion, Capacity, producerEpoch,
                 checked((int)EntityHotSlabLayout.Create(Capacity).TotalByteLength),
@@ -107,10 +97,8 @@ namespace GameCult.Aetheria.State.Verse
             if (frame == null)
                 throw new ArgumentNullException(nameof(frame));
             var demand = _demand?.Plan(BodyId);
-            if (demand != null && !demand.HasConsumers)
+            if (demand != null && (!demand.HasConsumers || !demand.RequiresSharedMemory))
                 return null;
-            var publishSharedMemory = demand?.RequiresSharedMemory ?? true;
-            var publishNetwork = demand?.RequiresNetwork ?? true;
 
             var run = frame.Run ?? new AetheriaRuntimeRunCheckpointCommit();
             var zone = (run.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>())
@@ -284,9 +272,7 @@ namespace GameCult.Aetheria.State.Verse
                 return new AetheriaRuntimeDaemonSoaFrame(
                     view,
                     write,
-                    checked((int)layout.TotalByteLength),
-                    publishSharedMemory,
-                    publishNetwork);
+                    checked((int)layout.TotalByteLength));
             }
             catch
             {
@@ -299,7 +285,6 @@ namespace GameCult.Aetheria.State.Verse
         {
             if (frame == null) throw new ArgumentNullException(nameof(frame));
             var now = DateTimeOffset.UtcNow;
-            var networkBytes = frame.PublishNetwork ? frame.Span.ToArray() : null;
             var local = frame.Commit(now);
             var generation = new CultMeshBodyGeneration
             {
@@ -313,10 +298,6 @@ namespace GameCult.Aetheria.State.Verse
                 Synchronization = local.Synchronization,
                 LeaseExpiresAtUnixMs = local.LeaseExpiresAtUnixMs
             };
-            var representations = new List<CultMeshBodyDescriptor>();
-            if (frame.PublishSharedMemory) representations.Add(local);
-            if (frame.PublishNetwork)
-                representations.Add(_networkBodies.PublishOwned(generation, networkBytes!));
             var publication = new CultMeshBodyPublicationDocument
             {
                 BodyId = BodyId,
@@ -329,7 +310,7 @@ namespace GameCult.Aetheria.State.Verse
                 Sequence = local.Sequence,
                 Synchronization = local.Synchronization,
                 LivenessExpiresAtUnixMs = local.LeaseExpiresAtUnixMs,
-                Representations = representations.ToArray()
+                Representations = new[] { local }
             };
             new CultMeshBodyPublicationHandle(BodyId, publication.ProducerEpoch, publication.Sequence)
                 .Validate(publication);

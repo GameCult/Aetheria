@@ -19,6 +19,7 @@ File.Copy(statePath, verificationStatePath, overwrite: true);
 
 RequireGameplaySourcePurity(root);
 RequireManagedContentOnlyAssetDelivery(root);
+RequireClientTransportPlaneOwnership(root);
 RequirePackageSerializerBoundary(root);
 RequireSharedEvePackagesImportedFromEveRepo(root);
 RequireSharedRuntimeSurfaceCommandsUseCultMeshTransport(root);
@@ -853,10 +854,10 @@ static void RequireSharedEvePackagesImportedFromEveRepo(string root)
     }
 
     const string requiredAuthoringCultLib =
-        "https://github.com/GameCult/CultLib.git?path=/unity/org.gamecult.cultlib#cultlib-unity-v1.0.16";
+        "https://github.com/GameCult/CultLib.git?path=/unity/org.gamecult.cultlib#cultlib-unity-v1.0.34";
     if (!authoringManifest.Contains(requiredAuthoringCultLib, StringComparison.Ordinal) ||
         !authoringPackageLock.Contains(requiredAuthoringCultLib, StringComparison.Ordinal) ||
-        !authoringPackageLock.Contains("69caf2d027c49227e62ffa24452fc7d717f86ca5", StringComparison.Ordinal))
+        !authoringPackageLock.Contains("c148d891c1d8713285ae15b2f17b59c106fb9426", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "The fossil asset-authoring Unity project is not pinned to the released CultLib body required by the generic scene package.");
@@ -1246,6 +1247,49 @@ static void RequireRuntimeCatalogKeyOnlyLookups(string root)
             "Unity runtime catalog lookup authority must stay on the typed snapshot; legacy-ID indexes and redundant catalog adapters belong to migration boundaries: " +
             string.Join("; ", hits));
     }
+}
+
+static void RequireClientTransportPlaneOwnership(string root)
+{
+    var daemonPath = Path.Combine(root, "Aetheria.State.Daemon", "Program.cs");
+    var launcherPath = Path.Combine(root, "scripts", "run-aetheria-unity.ps1");
+    var daemon = File.Exists(daemonPath)
+        ? File.ReadAllText(daemonPath)
+        : throw new InvalidOperationException("Cannot verify client transport ownership; daemon Program.cs is missing.");
+    var launcher = File.Exists(launcherPath)
+        ? File.ReadAllText(launcherPath)
+        : throw new InvalidOperationException("Cannot verify client transport ownership; Unity launcher is missing.");
+    var required = new[]
+    {
+        "new TcpFramedCultNetSchemaServer(",
+        "new CultMeshTcpContentServer(",
+        "CultMeshTcpContentTransportConnector.Scheme",
+        "discoveryEndpoints: new[] { advertisedEndpoint, advertisedContentEndpoint }",
+        "new CultNetDatabaseSubscriptionServer(cultMeshClientHost.Control, node.Database)",
+        "cultnet+tcp://127.0.0.1:$Port"
+    };
+    var combined = daemon + "\n" + launcher;
+    var missing = required.Where(symbol => !combined.Contains(symbol, StringComparison.Ordinal)).ToArray();
+    if (missing.Length > 0)
+        throw new InvalidOperationException(
+            "Aetheria client transport planes lost their TCP control/content ownership: " + string.Join(", ", missing));
+
+    var forbidden = new[]
+    {
+        "RudpCultNetSchemaServer",
+        "new CultMeshContentServer(",
+        "new CultMeshBodyServer(",
+        "RunClientCultMeshPumpAsync",
+        "AETHERIA_TRACE_CLIENT_RUDP",
+        "rudp://127.0.0.1:$Port"
+    };
+    var present = forbidden.Where(symbol => combined.Contains(symbol, StringComparison.Ordinal)).ToArray();
+    if (present.Length > 0)
+        throw new InvalidOperationException(
+            "Aetheria reintroduced RUDP or schema-carried bulk state into the client boundary: " +
+            string.Join(", ", present));
+
+    Console.WriteLine("Client transport ownership: TCP control and CDN are separate; RUDP and schema-carried bodies are absent");
 }
 
 static void RequireDaemonPlayableRunGenerationAuthority(string root)
@@ -11742,7 +11786,6 @@ static void RequireDaemonVersePublication(string root)
         "public sealed class AetheriaRuntimeDaemonSoaFramePublisher : IDisposable",
         "BuildCurrentZoneEntities(",
         "new CultMeshFrameBodyPublisher(",
-        "new CultMeshNetworkBodyPublisher(",
         "new CultMeshBodyPublicationHandle(BodyId, publication.ProducerEpoch, publication.Sequence)",
         ".Validate(publication)",
         "view.Buffers[0].BufferId, publication.BodyId",
@@ -11768,7 +11811,9 @@ static void RequireDaemonVersePublication(string root)
     {
         "MemoryMappedFile",
         "RetainedMappedBuffer",
-        "CreateLocation("
+        "CreateLocation(",
+        "CultMeshNetworkBodyStore",
+        "PublishNetwork"
     };
     var forbiddenSoaPublisherHits = forbiddenSoaPublisherSymbols
         .Where(symbol => daemonSoaFramePublisher.Contains(symbol, StringComparison.Ordinal))
@@ -11797,8 +11842,10 @@ static void RequireDaemonVersePublication(string root)
             "Eve SoA layout projection still owns transport material or producer epoch: " +
             string.Join(", ", forbiddenProjectionHits));
     }
-    if (!daemonHostProgram.Contains("MutableDocument<CultMeshBodyPublicationDocument>(soaPublication.Body.RecordKey)", StringComparison.Ordinal) ||
-        daemonHostProgram.IndexOf("MutableDocument<CultMeshBodyPublicationDocument>(soaPublication.Body.RecordKey)", StringComparison.Ordinal) >
+    const string bodyPublicationWrite =
+        "CultMeshBodyPublicationDocument.CreateLatestRecordKey(publication.Body.BodyId)";
+    if (!daemonHostProgram.Contains(bodyPublicationWrite, StringComparison.Ordinal) ||
+        daemonHostProgram.IndexOf(bodyPublicationWrite, StringComparison.Ordinal) >
         daemonHostProgram.IndexOf("MutableDocument<EveEntitySoaViewDocument>(AetheriaRuntimeVerseRecordKeys.EveEntitySoaViewLatest)", StringComparison.Ordinal))
     {
         throw new InvalidOperationException("CultMesh body publication must precede the Eve entity SoA layout record.");
@@ -12157,7 +12204,6 @@ static void RequireDaemonVersePublication(string root)
         "CultMeshAddress",
         "BuildPublications",
         "AetheriaRuntimeDaemonCommandBoundaryDocument.Create",
-        "soaPublisher.BuildCurrentZoneEntities(frame, catalog)",
         "AetheriaRuntimeDaemonProviderAdvertisementDocument.Create",
         "AetheriaRuntimeStarbridgeDocuments.SessionSummary(",
         "StarbridgeScenario",
@@ -12246,8 +12292,9 @@ static void RequireDaemonVersePublication(string root)
         "StarbridgeScenario = starbridgeScenario",
         "StarbridgeSession = starbridgeSession",
         "BuildPublications = buildPublications",
-        "PublishDaemonApiDocumentsAsync(node, options, soaPublisher, result",
-        "node.MutableDocument<AetheriaRuntimeDaemonSoaViewDocument>(AetheriaRuntimeVerseRecordKeys.DaemonSoaViewLatest)",
+        "PublishDaemonApiDocumentsAsync(node, options, result",
+        "PublishHotEntityStateAsync(",
+        "node.MutableDocument<EveEntitySoaViewDocument>(AetheriaRuntimeVerseRecordKeys.EveEntitySoaViewLatest)",
         "node.MutableDocument<AetheriaRuntimeDaemonProviderAdvertisementDocument>(AetheriaRuntimeVerseRecordKeys.DaemonProviderAdvertisement)",
         "node.MutableDocument<AetheriaRuntimeDaemonHealthDocument>(AetheriaRuntimeVerseRecordKeys.DaemonHealth)",
         "node.MutableDocument<AetheriaRuntimeDaemonCommandBoundaryDocument>(AetheriaRuntimeVerseRecordKeys.DaemonCommandBoundary)",
@@ -12258,7 +12305,6 @@ static void RequireDaemonVersePublication(string root)
         "node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.DaemonEditorTuiSurface)",
         "node.MutableDocument<AetheriaRuntimeStarbridgeSessionSummaryDocument>(AetheriaRuntimeVerseRecordKeys.StarbridgeSessionSummary)",
         ".ReplaceAsync(result.Frame)",
-        ".ReplaceAsync(result.SoaView)",
         ".ReplaceAsync(result.Health)",
         ".ReplaceAsync(result.AssetManifest)",
         ".ReplaceAsync(result.StarbridgeSessionSummary)",
@@ -12394,7 +12440,7 @@ static void RequireDaemonVersePublication(string root)
     }
 
     if (!daemonTickBlock.Contains("if (buildPublications)", StringComparison.Ordinal) ||
-        !daemonTickBlock.Contains("PublishDaemonApiDocumentsAsync(node, options, soaPublisher, result", StringComparison.Ordinal))
+        !daemonTickBlock.Contains("PublishDaemonApiDocumentsAsync(node, options, result", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "Daemon ticks must publish API cadence documents through managed AetheriaStateNode pointers.");
@@ -21176,9 +21222,9 @@ static void RequireManagedContentOnlyAssetDelivery(string root)
     }
 
     if (!daemon.Contains("InjectCultMeshCdnManifestSnapshots", StringComparison.Ordinal) ||
-        !daemon.Contains("CultMeshContentServer", StringComparison.Ordinal))
+        !daemon.Contains("new CultMeshTcpContentServer(", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
-            "Daemon asset delivery must publish snapshot manifests and host managed CultMesh content sessions.");
+            "Daemon asset delivery must publish snapshot manifests and host the dedicated TCP content plane.");
     }
 }
