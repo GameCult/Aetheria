@@ -101,6 +101,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         RunCheck(StableEntityIdentitySurvivesCrossZoneReindex);
         RunCheck(TractorRampsAndPullsThroughYmirWithoutTeleportingCargo);
         RunCheck(PickupProximityPrecedesYmirCollisionShell);
+        RunCheck(CatalogItemIndexPreservesSnapshotLookupSemantics);
         RunCheck(PickupIsCapacityCheckedExactlyOnceAndExpires);
         RunCheck(StationBodiesCannotConsumePickups);
         RunCheck(PickupProximityCollectsOrBounces);
@@ -8284,6 +8285,22 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             "daemon XZ proximity must collect before Ymir contact can become the deciding fact");
         RequireEqual(0, run.Zones[0].DroppedPickups.Count,
             "a proximity-collected pickup must leave authoritative world state exactly once");
+    }
+
+    private static void CatalogItemIndexPreservesSnapshotLookupSemantics()
+    {
+        var first = CatalogItem("Indexed-Item");
+        var duplicate = CatalogItem("indexed-item");
+        var catalog = new AetheriaRuntimeCatalogSnapshot([first, duplicate], [], []);
+
+        Require(ReferenceEquals(first, catalog.FindItem("INDEXED-ITEM")),
+            "the derived catalog index must preserve first case-insensitive match semantics");
+
+        var replacement = CatalogItem("replacement-item");
+        catalog.Items = [replacement];
+        Require(catalog.FindItem("indexed-item") == null &&
+                ReferenceEquals(replacement, catalog.FindItem("REPLACEMENT-ITEM")),
+            "replacing snapshot items must invalidate the derived lookup index");
     }
 
     private static void PickupIsCapacityCheckedExactlyOnceAndExpires()

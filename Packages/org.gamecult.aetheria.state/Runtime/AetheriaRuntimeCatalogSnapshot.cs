@@ -12,6 +12,9 @@ namespace GameCult.Aetheria.State.Verse
     [MessagePackObject]
     public sealed class AetheriaRuntimeCatalogSnapshot
     {
+        private IReadOnlyList<AetheriaRuntimeCatalogItem> _items = Array.Empty<AetheriaRuntimeCatalogItem>();
+        private Dictionary<string, AetheriaRuntimeCatalogItem>? _itemsByKey;
+
         public const string SchemaId = "gamecult.aetheria.runtime_catalog.v1";
         public const string DocumentName = "aetheria.runtime_catalog";
 
@@ -36,7 +39,15 @@ namespace GameCult.Aetheria.State.Verse
         public string CatalogId { get; set; } = DocumentName;
 
         [Key(1)]
-        public IReadOnlyList<AetheriaRuntimeCatalogItem> Items { get; set; } = Array.Empty<AetheriaRuntimeCatalogItem>();
+        public IReadOnlyList<AetheriaRuntimeCatalogItem> Items
+        {
+            get => _items;
+            set
+            {
+                _items = value ?? Array.Empty<AetheriaRuntimeCatalogItem>();
+                _itemsByKey = null;
+            }
+        }
 
         [IgnoreMember]
         public IReadOnlyList<AetheriaRuntimeCatalogItem> TradeItems =>
@@ -57,7 +68,11 @@ namespace GameCult.Aetheria.State.Verse
 
         public AetheriaRuntimeCatalogItem? FindItem(string itemKey)
         {
-            return TryGet(Items, itemKey, item => item.ItemKey);
+            if (string.IsNullOrWhiteSpace(itemKey))
+                return null;
+
+            _itemsByKey ??= BuildItemIndex(Items);
+            return _itemsByKey.TryGetValue(itemKey, out var item) ? item : null;
         }
 
         public AetheriaRuntimeCatalogItem? FindItem<T>(T? item, Func<T, string?> itemKey) where T : class
@@ -107,6 +122,19 @@ namespace GameCult.Aetheria.State.Verse
             return string.IsNullOrWhiteSpace(key)
                 ? null
                 : values.FirstOrDefault(value => string.Equals(getKey(value), key, StringComparison.OrdinalIgnoreCase));
+        }
+
+        private static Dictionary<string, AetheriaRuntimeCatalogItem> BuildItemIndex(
+            IEnumerable<AetheriaRuntimeCatalogItem> items)
+        {
+            var index = new Dictionary<string, AetheriaRuntimeCatalogItem>(StringComparer.OrdinalIgnoreCase);
+            foreach (var item in items ?? Enumerable.Empty<AetheriaRuntimeCatalogItem>())
+            {
+                if (item == null || string.IsNullOrWhiteSpace(item.ItemKey))
+                    continue;
+                index.TryAdd(item.ItemKey, item);
+            }
+            return index;
         }
     }
 
