@@ -144,9 +144,12 @@ while (!stopped.Task.IsCompleted)
     if (tick.Frame.FrameId % (traceClientRudp ? 10 : 120) == 0)
     {
         var clientStats = cultMeshRudpHost.Stats;
+        var pendingReliable = string.Join(",", cultMeshRudpHost.Peers.Select(
+            peer => $"{peer.RemoteEndPoint}:{peer.PendingReliablePacketCount}"));
         Console.WriteLine(
             $"Aetheria Verse daemon published frame {tick.Frame.FrameId} at {tick.Frame.SimulationTimeSeconds:0.00}s; " +
-            $"client peers={cultMeshRudpHost.Peers.Count} rx={clientStats.BytesReceived} tx={clientStats.BytesSent}.");
+            $"client peers={cultMeshRudpHost.Peers.Count} pending=[{pendingReliable}] " +
+            $"rx={clientStats.BytesReceived} tx={clientStats.BytesSent}.");
     }
 }
 
