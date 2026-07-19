@@ -127,11 +127,11 @@
       }
     },
     "org.gamecult.cultlib": {
-      "version": "https://github.com/GameCult/CultLib.git?path=/unity/org.gamecult.cultlib#cultlib-unity-v1.0.31",
+      "version": "https://github.com/GameCult/CultLib.git?path=/unity/org.gamecult.cultlib#cultlib-unity-v1.0.32",
       "depth": 0,
       "source": "git",
       "dependencies": {},
-      "hash": "0ef59b50c27ac019929f5e68bcd602983a190062"
+      "hash": "d018bb1fb5a8ce73da6f5579e2f475750d901d8b"
     },
     "org.gamecult.eve.plugin-fields": {
       "version": "https://github.com/GameCult/EvePlugins.git?path=/plugins/eve-plugin-fields/unity/org.gamecult.eve.plugin-fields#eve-plugin-fields-unity-v0.2.3",
@@ -152,18 +152,18 @@
       "hash": "e08fa08335f99e9edddeb706912eecfad07cb281"
     },
     "org.gamecult.eve.unity-scene": {
-      "version": "https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.unity-scene#eveunity-scene-v0.3.89",
+      "version": "https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.unity-scene#eveunity-scene-v0.3.90",
       "depth": 0,
       "source": "git",
       "dependencies": {
-        "org.gamecult.cultlib": "1.0.31",
+        "org.gamecult.cultlib": "1.0.32",
         "org.gamecult.eve.plugin-fields": "0.2.3",
         "org.gamecult.eve.surface": "0.2.4",
         "com.unity.mathematics": "1.3.2",
         "com.unity.render-pipelines.universal": "17.4.0",
         "com.unity.modules.particlesystem": "1.0.0"
       },
-      "hash": "3ce813e29dcc5342b51985187de26c62eb8c90b4"
+      "hash": "f3d4ef7a015fcdfdcb70e163e124f61534f8c252"
     },
     "com.unity.modules.assetbundle": {
       "version": "1.0.0",
