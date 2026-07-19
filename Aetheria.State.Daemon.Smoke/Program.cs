@@ -100,6 +100,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         RunCheck(RetainedWorldAdvancesEveryFixedSubstep);
         RunCheck(StableEntityIdentitySurvivesCrossZoneReindex);
         RunCheck(TractorRampsAndPullsThroughYmirWithoutTeleportingCargo);
+        RunCheck(PickupProximityPrecedesYmirCollisionShell);
         RunCheck(PickupIsCapacityCheckedExactlyOnceAndExpires);
         RunCheck(StationBodiesCannotConsumePickups);
         RunCheck(PickupProximityCollectsOrBounces);
@@ -8220,6 +8221,69 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 asset.Ref.Metadata.ContainsKey("unityAssetPath") &&
                 asset.Ref.Metadata.ContainsKey("presentationRole")),
             "thermal profiles must cross the CDN boundary with exact Unity paths and semantic roles");
+    }
+
+    private static void PickupProximityPrecedesYmirCollisionShell()
+    {
+        var hull = CatalogItem("proximity-hull");
+        hull.HullCapacity = PerformanceStat(1);
+        var salvage = CatalogItem("proximity-salvage");
+        salvage.Volume = 1;
+        var cargoBay = CatalogItem("proximity-cargo-bay");
+        cargoBay.InteriorOccupiedCells = 1;
+        var catalog = new AetheriaRuntimeCatalogSnapshot([hull, salvage, cargoBay], [], []);
+        var ship = Entity(0, 0, "player");
+        ship.HullItemKey = hull.ItemKey;
+        ship.CargoBays =
+        [
+            new AetheriaRuntimeLoadoutItemSlotCommit
+            {
+                Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = cargoBay.ItemKey, Quantity = 1 }
+            }
+        ];
+        ship.CargoContents = [Cargo()];
+        var pickup = new AetheriaRuntimeDroppedPickupCommit
+        {
+            PickupIndex = 40,
+            PositionX = AetheriaRuntimeTractorMechanics.CollectionDistance,
+            Item = new AetheriaRuntimeLoadoutItemCommit { ItemKey = salvage.ItemKey, Quantity = 1 },
+            LifetimeSeconds = 30
+        };
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "pickup-proximity-before-contact",
+            CurrentZoneIndex = 0,
+            CurrentEntityKey = "zone.0.entity.0",
+            Zones =
+            [
+                new AetheriaRuntimeZoneSnapshotCommit
+                {
+                    ZoneIndex = 0,
+                    Entities = [ship],
+                    DroppedPickups = [pickup]
+                }
+            ]
+        };
+
+        AetheriaRuntimeDaemonTickRunner.Tick(
+            Path.Combine(Path.GetTempPath(), "aetheria-pickup-before-contact.cc"),
+            run,
+            new AetheriaRuntimeDaemonTickOptions
+            {
+                Catalog = catalog,
+                WorldPhysics = NewPhysics(),
+                FrameId = 1,
+                FixedDeltaSeconds = 0.02,
+                SimulationTimeSeconds = 0.02,
+                BuildPublications = false
+            });
+
+        Require(AetheriaRuntimeTractorMechanics.CollectionDistance > 25,
+            "pickup collection must begin outside the current 20 + 5 Ymir collision shell");
+        RequireEqual(1, CargoQuantity(ship, salvage.ItemKey),
+            "daemon XZ proximity must collect before Ymir contact can become the deciding fact");
+        RequireEqual(0, run.Zones[0].DroppedPickups.Count,
+            "a proximity-collected pickup must leave authoritative world state exactly once");
     }
 
     private static void PickupIsCapacityCheckedExactlyOnceAndExpires()
