@@ -4005,7 +4005,9 @@ public class DaemonRuntimeDocumentTests
         Assert.AreEqual(0, result.RejectedCommandIds.Count);
         Assert.AreEqual(0.316227766, player.LookDirectionX, 0.0001);
         Assert.AreEqual(-0.948683298, player.LookDirectionY, 0.0001);
-        Assert.AreEqual(0.8, player.TractorPower, 0.0001);
+        Assert.AreEqual(0.8, player.TractorTargetPower, 0.0001);
+        Assert.AreEqual(0.0, player.TractorPower, 0.0001,
+            "The input command owns the tractor target; simulation owns ramped beam power.");
         Assert.IsTrue(player.HeatsinksEnabled);
     }
 
@@ -4025,7 +4027,47 @@ public class DaemonRuntimeDocumentTests
 
         Assert.AreEqual(0, result.AppliedCommandIds.Count);
         Assert.AreEqual(1, result.RejectedCommandIds.Count);
+        Assert.AreEqual(0.0, run.Zones[0].Entities[0].TractorTargetPower, 0.0001);
         Assert.AreEqual(0.0, run.Zones[0].Entities[0].TractorPower, 0.0001);
+    }
+
+    [Test]
+    public void DaemonSimulationRampsTractorPowerAtFossilRateWhenSimulationAdvances()
+    {
+        var run = RunWithTwoEntities();
+        var player = run.Zones[0].Entities[0];
+        player.IsActive = true;
+        player.Kind = "ship";
+        player.TractorPower = 1;
+        player.TractorTargetPower = 0;
+
+        AetheriaRuntimeDaemonSimulation.Step(
+            run,
+            new AetheriaRuntimeDaemonIntentState(),
+            0.25,
+            AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
+            new PassthroughWorldPhysics());
+
+        Assert.AreEqual(0.5, player.TractorPower, 0.0001);
+
+        AetheriaRuntimeDaemonSimulation.Step(
+            run,
+            new AetheriaRuntimeDaemonIntentState(),
+            0.25,
+            AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
+            new PassthroughWorldPhysics());
+
+        Assert.AreEqual(0.0, player.TractorPower, 0.0001);
+        player.TractorTargetPower = 1;
+
+        AetheriaRuntimeDaemonSimulation.Step(
+            run,
+            new AetheriaRuntimeDaemonIntentState(),
+            0.5,
+            AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
+            new PassthroughWorldPhysics());
+
+        Assert.AreEqual(1.0, player.TractorPower, 0.0001);
     }
 
     [Test]
