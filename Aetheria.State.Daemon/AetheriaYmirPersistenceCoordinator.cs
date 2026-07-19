@@ -96,9 +96,17 @@ public sealed class AetheriaYmirPersistenceCoordinator : IDisposable
         var run = frame.Run ?? throw new InvalidOperationException("Ymir persistence requires an authoritative run.");
         if (string.IsNullOrWhiteSpace(run.RunId))
             throw new InvalidOperationException("Ymir persistence requires a stable run id.");
-        return (run.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>())
+        var zones = (run.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>())
             .Where(zone => zone != null)
             .OrderBy(zone => zone.ZoneIndex)
+            .ToArray();
+        foreach (var zone in zones)
+            _physics.SynchronizePersistenceFrame(
+                run.RunId,
+                frame.FrameId,
+                zone,
+                zone.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>());
+        return zones
             .Select(zone =>
             {
                 var world = CursorFor(run.RunId, zone.ZoneIndex, WorldChannel);

@@ -3573,9 +3573,39 @@ Ymir restart ownership is deliberately private and asymmetric:
   registered.
 - Verification layer: daemon smoke collects a live pickup, persists the public
   frame and private Ymir state, restores both into fresh sessions, and proves
-  the next tick cannot resurrect the pickup or duplicate cargo or feedback. Ymir unit
-  tests prove incremental suffix capture, exact chunk coverage, checksums, and
-  replay verifier convergence.
+  the next tick cannot resurrect the pickup or duplicate cargo or feedback. A
+  paused-frame smoke also proves frame zero creates a persistable Ymir world
+  while retaining the `-1` no-step cursor. Ymir unit tests prove incremental
+  suffix capture, exact chunk coverage, checksums, and replay verifier
+  convergence.
+
+Live client readiness and durable publication are separate authorities:
+
+- Owner: live gameplay publication owns client readiness; the single-flight
+  persistence worker owns restart durability and secondary projections.
+- Inputs: both consume the same immutable completed tick, runtime catalog,
+  provider asset set, and Ymir persistence capture.
+- Outputs: readiness publishes the provider advertisements, selected game
+  surface, input capability, asset catalog, reactive surface, first entity SoA
+  generation, and initial game/map topology. The worker publishes the durable
+  daemon frame, zone render, private Ymir state, state surfaces, health and
+  operator/commander/editor/menu projections.
+- Derived state: startup timings, flush completion, socket drain, and secondary
+  projection availability are diagnostics; none decides whether the playable
+  provider surface exists.
+- Forbidden writers: CultCache hard flushes, private Ymir writes, Odin
+  announcements, full-frame snapshots, and secondary Eve surfaces cannot gate
+  the simulation loop or retract a coherent live generation.
+- Shared paths: first and periodic publication use the same prepared immutable
+  tick. Only one persistence task may run, and `--once` explicitly joins it
+  before exit; the live daemon continues ticking and publishing latest-only SoA
+  while that task completes.
+- Cut line: client bootstrap no longer awaits full-frame/zone-render
+  persistence or rebuilds the runtime catalog from disk. Those owners cannot
+  regain readiness authority through a convenience wrapper.
+- Verification layer: startup phase traces measure the live boundary directly;
+  the released generic EveUnity witness proves provider discovery, mapped
+  assets, QUIC SoA, commands and receipts while persistence runs concurrently.
 
 Remote realtime transport has one narrow owner:
 

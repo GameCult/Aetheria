@@ -109,6 +109,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         RunCheck(PickupIsCapacityCheckedExactlyOnceAndExpires);
         RunCheck(StationBodiesCannotConsumePickups);
         RunCheck(PickupProximityCollectsOrBounces);
+        RunCheck(PausedFirstFrameCreatesPersistableYmirWorld);
         RunCheck(PickupRemovalSurvivesRestartWithoutReplay);
     }
 
@@ -9434,6 +9435,53 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                     0.000001,
                     "generic Eve reconnect must observe the daemon-owned thermostat target");
             }
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+                Directory.Delete(root, recursive: true);
+        }
+    }
+
+    private static void PausedFirstFrameCreatesPersistableYmirWorld()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "aetheria-ymir-paused-first-frame-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            var statePath = Path.Combine(root, "world.cc");
+            var run = new AetheriaRuntimeRunCheckpointCommit
+            {
+                RunId = "paused-first-frame-smoke",
+                CurrentZoneIndex = 0,
+                CurrentEntityKey = "zone.0.entity.0",
+                Zones = [new AetheriaRuntimeZoneSnapshotCommit
+                {
+                    ZoneIndex = 0,
+                    Entities = [Entity(0, 0, "player")]
+                }]
+            };
+            var frame = new AetheriaRuntimeDaemonFrameDocument
+            {
+                FrameId = 0,
+                FixedDeltaSeconds = 0.1,
+                SimulationTimeSeconds = 0,
+                SimulationStepsExecuted = 0,
+                Run = run
+            };
+            using var physics = new AetheriaYmirWorldPhysics();
+            using var node = AetheriaStateNode.OpenAsync(statePath).GetAwaiter().GetResult();
+            using var persistence = AetheriaYmirPersistenceCoordinator.OpenAsync(node, physics, null)
+                .GetAwaiter().GetResult();
+
+            var captures = persistence.Capture(frame);
+
+            RequireEqual(1, captures.Count,
+                "a paused first frame must still create one persistable Ymir zone world");
+            RequireEqual(0L, captures[0].FrameId,
+                "the paused Ymir persistence capture must belong to the authoritative first frame");
+            RequireEqual(-1, captures[0].SimulationStepIndex,
+                "a paused first frame must retain the no-step persistence cursor");
         }
         finally
         {

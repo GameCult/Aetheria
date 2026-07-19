@@ -15,6 +15,49 @@ public sealed class AetheriaYmirWorldPhysics : IAetheriaRuntimeWorldPhysics, IDi
 
     public string ImplementationId => "ymir.box3d.retained-session.v1";
 
+    public void SynchronizePersistenceFrame(
+        string runId,
+        long frameId,
+        AetheriaRuntimeZoneSnapshotCommit zone,
+        IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities)
+    {
+        ArgumentNullException.ThrowIfNull(zone);
+        if (string.IsNullOrWhiteSpace(runId))
+            throw new ArgumentException("A retained Ymir world requires a run id.", nameof(runId));
+
+        var key = new WorldKey(runId, zone.ZoneIndex);
+        if (_sessions.TryGetValue(key, out var existing) && existing.LastFrameId == frameId)
+            return;
+        if (existing != null && frameId < existing.LastFrameId)
+            throw new InvalidOperationException(
+                $"Ymir session '{existing.WorldSession.Info.SessionId}' cannot synchronize backward from " +
+                $"frame {existing.LastFrameId} to {frameId}.");
+
+        var desiredBodies = BuildBodies(ActiveEntities(entities), ActivePickups(zone));
+        var state = existing ?? CreateSession(key, zone, desiredBodies);
+        if (existing == null)
+            _sessions.Add(key, state);
+        else
+        {
+            var commandOrdinal = 0;
+            Reconcile(
+                state.WorldSession,
+                desiredBodies,
+                frameId,
+                state.LastSimulationStepIndex,
+                ref commandOrdinal);
+        }
+
+        state.LastFrameId = frameId;
+        state.LastResult = null;
+        if (state.PayloadSession != null)
+        {
+            state.LastPayloadFrameId = frameId;
+            state.LastPayloadSimulationStepIndex = state.LastSimulationStepIndex;
+            state.LastPayloadResult = null;
+        }
+    }
+
     public AetheriaYmirZonePersistenceCapture CapturePersistence(
         string runId,
         int zoneIndex,

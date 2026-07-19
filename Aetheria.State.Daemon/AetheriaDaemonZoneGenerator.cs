@@ -277,9 +277,8 @@ internal static class AetheriaDaemonZoneGenerator
         AetheriaRuntimeCatalogSnapshot catalog,
         string scenario)
     {
-        // Start the proof pilot at rest on the station's authored center. Ymir's field moves it
-        // during provider-session negotiation, but the resulting trajectory remains inside the
-        // fossil 25-unit docking envelope. The fixture does not lock or repair the live position.
+        // Start the proof pilot at rest on the station's authored center. The proof session owns
+        // its paused initial clock, so client connection latency cannot alter this starting state.
         entities[1].Position.X = entities[0].Position.X;
         entities[1].Position.Z = entities[0].Position.Z;
         entities[1].Velocity = Vec2(0, 0);

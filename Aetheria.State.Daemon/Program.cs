@@ -116,24 +116,31 @@ var firstPublication = PreparePublication(
     firstTick,
     ingressState,
     physicsPersistence);
-await PublishPreparedDocumentsAsync(
+await PublishClientGameplayDocumentsAsync(
     node,
     options,
-    physicsPersistence,
     unityBundles,
-    firstPublication,
+    firstPublication.Publication,
+    firstPublication.Catalog,
     reactiveSurfaceState,
     publishTopology: true).ConfigureAwait(false);
-TraceStartup("first-publication");
+TraceStartup("client-bootstrap");
 await PublishHotEntityStateAsync(
     node, soaPublisher, hotState, firstTick.Frame, ingressState.Catalog, cultMeshClientHost).ConfigureAwait(false);
 TraceStartup("hot-entity-state");
+Task publicationTask = Task.Run(() => PersistPreparedDocumentsAsync(
+    node,
+    options,
+    physicsPersistence,
+    firstPublication,
+    initialTopology: true));
 nextApiPublicationUtc = DateTimeOffset.UtcNow.Add(options.ApiPublicationInterval);
 Console.WriteLine($"Aetheria Verse daemon published frame {firstTick.Frame.FrameId}.");
 Console.WriteLine($"Aetheria daemon playable-world-ready in {startup.Elapsed.TotalMilliseconds:0.###}ms.");
 
 if (options.Once)
 {
+    await publicationTask.ConfigureAwait(false);
     await PublishRuntimeSessionAsync(node, options, startedAtUtc, "completed").ConfigureAwait(false);
     return;
 }
@@ -148,7 +155,6 @@ await PublishRuntimeSessionAsync(node, options, startedAtUtc, "running").Configu
 Console.WriteLine("Aetheria Verse daemon is running. Press Ctrl+C to stop.");
 
 var nextTickUtc = DateTimeOffset.UtcNow.Add(options.TickInterval);
-Task publicationTask = Task.CompletedTask;
 while (!stopped.Task.IsCompleted)
 {
     ThrowIfClientHostFaulted(cultMeshClientHost);
@@ -179,14 +185,14 @@ while (!stopped.Task.IsCompleted)
             tick,
             ingressState,
             physicsPersistence);
-        publicationTask = PublishPreparedDocumentsAsync(
+        publicationTask = Task.Run(() => PersistPreparedDocumentsAsync(
             node,
             options,
             physicsPersistence,
-            unityBundles,
             publication,
-            reactiveSurfaceState,
-            publishTopology: false);
+            initialTopology: false,
+            unityBundles: unityBundles,
+            reactiveSurfaceState: reactiveSurfaceState));
         await PublishDemandedManagedViewportsAsync(node, options, tick.Frame, managedViewportDemand).ConfigureAwait(false);
         nextApiPublicationUtc = DateTimeOffset.UtcNow.Add(options.ApiPublicationInterval);
     }
@@ -393,7 +399,16 @@ static async Task<AetheriaRuntimeDaemonTickResult> TickAsync(
 
     if (buildPublications)
     {
-        await PublishDaemonApiDocumentsAsync(node, options, unityBundles, result, publishTopology: true).ConfigureAwait(false);
+        await PublishDurableDaemonDocumentsAsync(node, result).ConfigureAwait(false);
+        await PublishClientGameplayDocumentsAsync(
+            node,
+            options,
+            unityBundles,
+            result,
+            ingressState.Catalog ?? throw new InvalidOperationException("Aetheria runtime catalog was not initialized."),
+            reactiveSurfaceState: null,
+            publishTopology: true).ConfigureAwait(false);
+        await PublishSecondaryTopologyDocumentsAsync(node, options, result).ConfigureAwait(false);
         TracePhase("api-publication");
         await PublishStateSurfacesAsync(node, options, result.Frame.PublishedAtUtc).ConfigureAwait(false);
         TracePhase("state-surfaces");
@@ -435,30 +450,41 @@ static AetheriaPreparedPublication PreparePublication(
             SimulationSettings = options.SimulationSettings
         },
         frame.AccountedCommandIds?.Count ?? 0);
-    return new AetheriaPreparedPublication(publication, physics);
+    return new AetheriaPreparedPublication(
+        publication,
+        physics,
+        ingressState.Catalog ?? throw new InvalidOperationException("Aetheria runtime catalog was not initialized."));
 }
 
-static async Task PublishPreparedDocumentsAsync(
+static async Task PersistPreparedDocumentsAsync(
     AetheriaStateNode node,
     AetheriaDaemonHostOptions options,
     AetheriaYmirPersistenceCoordinator physicsPersistence,
-    AetheriaUnityBundleArtifactSet unityBundles,
     AetheriaPreparedPublication prepared,
-    AetheriaReactiveSurfacePublicationState reactiveSurfaceState,
-    bool publishTopology)
+    bool initialTopology,
+    AetheriaUnityBundleArtifactSet? unityBundles = null,
+    AetheriaReactiveSurfacePublicationState? reactiveSurfaceState = null)
 {
     await physicsPersistence.PersistPrivateAsync(prepared.Physics).ConfigureAwait(false);
-    await PublishDaemonApiDocumentsAsync(
-        node,
-        options,
-        unityBundles,
-        prepared.Publication,
-        publishTopology,
-        reactiveSurfaceState).ConfigureAwait(false);
-    if (publishTopology)
+    await PublishDurableDaemonDocumentsAsync(node, prepared.Publication).ConfigureAwait(false);
+    if (initialTopology)
     {
+        await PublishSecondaryTopologyDocumentsAsync(node, options, prepared.Publication).ConfigureAwait(false);
         await PublishStateSurfacesAsync(node, options, prepared.Publication.Frame.PublishedAtUtc).ConfigureAwait(false);
         await PublishOdinSurfaceAnnouncementsAsync(node, options, prepared.Publication.Frame.PublishedAtUtc).ConfigureAwait(false);
+    }
+    else
+    {
+        if (unityBundles == null)
+            throw new InvalidOperationException("Periodic publication requires the provider asset set.");
+        await PublishClientGameplayDocumentsAsync(
+            node,
+            options,
+            unityBundles,
+            prepared.Publication,
+            prepared.Catalog,
+            reactiveSurfaceState,
+            publishTopology: false).ConfigureAwait(false);
     }
     await node.FlushAsync(soft: false).ConfigureAwait(false);
     await physicsPersistence.ActivateAsync().ConfigureAwait(false);
@@ -1722,13 +1748,9 @@ static async Task PublishHotEntityStateAsync(
     }
 }
 
-static async Task PublishDaemonApiDocumentsAsync(
+static async Task PublishDurableDaemonDocumentsAsync(
     AetheriaStateNode node,
-    AetheriaDaemonHostOptions options,
-    AetheriaUnityBundleArtifactSet unityBundles,
-    AetheriaRuntimeDaemonTickResult result,
-    bool publishTopology,
-    AetheriaReactiveSurfacePublicationState? reactiveSurfaceState = null)
+    AetheriaRuntimeDaemonTickResult result)
 {
     await node.MutableDocument<AetheriaRuntimeDaemonFrameDocument>(AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest)
         .ReplaceAsync(result.Frame)
@@ -1736,14 +1758,6 @@ static async Task PublishDaemonApiDocumentsAsync(
     await node.MutableDocument<AetheriaRuntimeZoneRenderDocument>(AetheriaRuntimeVerseRecordKeys.ZoneRenderLatest)
         .ReplaceAsync(AetheriaRuntimeGameDocuments.ZoneRender(result.Frame))
         .ConfigureAwait(false);
-    if (publishTopology && result.ProviderAdvertisement != null)
-        await node.MutableDocument<AetheriaRuntimeDaemonProviderAdvertisementDocument>(AetheriaRuntimeVerseRecordKeys.DaemonProviderAdvertisement)
-            .ReplaceAsync(result.ProviderAdvertisement)
-            .ConfigureAwait(false);
-    if (publishTopology)
-        await node.MutableDocument<EveProviderAdvertisementDocument>(AetheriaRuntimeVerseRecordKeys.EveProviderAdvertisement)
-            .ReplaceAsync(BuildCoreProviderAdvertisement(options, result.Frame.PublishedAtUtc))
-            .ConfigureAwait(false);
     if (result.Health != null)
         await node.MutableDocument<AetheriaRuntimeDaemonHealthDocument>(AetheriaRuntimeVerseRecordKeys.DaemonHealth)
             .ReplaceAsync(result.Health)
@@ -1752,6 +1766,42 @@ static async Task PublishDaemonApiDocumentsAsync(
         await node.MutableDocument<AetheriaRuntimeDaemonCommandBoundaryDocument>(AetheriaRuntimeVerseRecordKeys.DaemonCommandBoundary)
             .ReplaceAsync(result.CommandBoundary)
             .ConfigureAwait(false);
+    if (result.StarbridgeSessionSummary != null)
+        await node.MutableDocument<AetheriaRuntimeStarbridgeSessionSummaryDocument>(AetheriaRuntimeVerseRecordKeys.StarbridgeSessionSummary)
+            .ReplaceAsync(result.StarbridgeSessionSummary)
+            .ConfigureAwait(false);
+}
+
+static async Task PublishClientGameplayDocumentsAsync(
+    AetheriaStateNode node,
+    AetheriaDaemonHostOptions options,
+    AetheriaUnityBundleArtifactSet unityBundles,
+    AetheriaRuntimeDaemonTickResult result,
+    AetheriaRuntimeCatalogSnapshot inputCatalog,
+    AetheriaReactiveSurfacePublicationState? reactiveSurfaceState,
+    bool publishTopology)
+{
+    var trace = publishTopology && string.Equals(
+        Environment.GetEnvironmentVariable("AETHERIA_TRACE_STARTUP_PHASES"),
+        "1",
+        StringComparison.Ordinal);
+    var phase = Stopwatch.StartNew();
+    void TraceClientDocumentPhase(string name)
+    {
+        if (trace)
+            Console.WriteLine($"Aetheria client-bootstrap phase {name} took {phase.Elapsed.TotalMilliseconds:0.###}ms.");
+        phase.Restart();
+    }
+
+    if (publishTopology && result.ProviderAdvertisement != null)
+        await node.MutableDocument<AetheriaRuntimeDaemonProviderAdvertisementDocument>(AetheriaRuntimeVerseRecordKeys.DaemonProviderAdvertisement)
+            .ReplaceAsync(result.ProviderAdvertisement)
+            .ConfigureAwait(false);
+    if (publishTopology)
+        await node.MutableDocument<EveProviderAdvertisementDocument>(AetheriaRuntimeVerseRecordKeys.EveProviderAdvertisement)
+            .ReplaceAsync(BuildCoreProviderAdvertisement(options, result.Frame.PublishedAtUtc))
+            .ConfigureAwait(false);
+    TraceClientDocumentPhase("provider-advertisements");
     if (publishTopology && result.AssetManifest != null)
     {
         await node.MutableDocument<AetheriaRuntimeAssetManifestDocument>(AetheriaRuntimeVerseRecordKeys.DaemonAssetManifest)
@@ -1761,19 +1811,16 @@ static async Task PublishDaemonApiDocumentsAsync(
             .ReplaceAsync(BuildCoreAssetCatalog(unityBundles, result.AssetManifest))
             .ConfigureAwait(false);
     }
-    if (result.StarbridgeSessionSummary != null)
-        await node.MutableDocument<AetheriaRuntimeStarbridgeSessionSummaryDocument>(AetheriaRuntimeVerseRecordKeys.StarbridgeSessionSummary)
-            .ReplaceAsync(result.StarbridgeSessionSummary)
-            .ConfigureAwait(false);
+    TraceClientDocumentPhase("asset-catalog");
     var gameSession = await node.MutableDocument<AetheriaGameSessionState>(AetheriaStateNode.GameSessionStateKey)
         .ReadAsync().ConfigureAwait(false);
-    var inputCatalog = AetheriaRuntimeCatalogStore.OpenReadOnly(node.StatePath);
     await node.MutableDocument<EveInputCapabilityDocument>(AetheriaRuntimeVerseRecordKeys.PilotInputCapability)
         .ReplaceAsync(AetheriaRuntimeInputCapabilityDocument.FromFrame(
             result.Frame,
             string.Equals(gameSession?.Mode, AetheriaGameSessionState.TerminusMode, StringComparison.Ordinal),
             inputCatalog).ToEveDocument())
         .ConfigureAwait(false);
+    TraceClientDocumentPhase("input-capability");
     var mainMenuState = await node.MutableDocument<AetheriaMainMenuState>(AetheriaStateNode.MainMenuStateKey)
         .ReadAsync()
         .ConfigureAwait(false);
@@ -1791,6 +1838,7 @@ static async Task PublishDaemonApiDocumentsAsync(
             .ConfigureAwait(false);
         reactiveSurfaceState?.Set(reactiveGameSurface.Version);
     }
+    TraceClientDocumentPhase("reactive-surface");
     if (publishTopology)
     {
         var gameSurface = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(
@@ -1807,9 +1855,14 @@ static async Task PublishDaemonApiDocumentsAsync(
             .ConfigureAwait(false);
         await PublishDaemonSectorMapSurfaceAsync(node, result.Frame, inputCatalog).ConfigureAwait(false);
     }
-    if (!publishTopology)
-        return;
+    TraceClientDocumentPhase("game-topology");
+}
 
+static async Task PublishSecondaryTopologyDocumentsAsync(
+    AetheriaStateNode node,
+    AetheriaDaemonHostOptions options,
+    AetheriaRuntimeDaemonTickResult result)
+{
     var commanderSurface = AetheriaRuntimeDaemonGameSurfaceBuilder.BuildCommander(
         result.Frame,
         result.Health ?? new AetheriaRuntimeDaemonHealthDocument(),
@@ -2829,12 +2882,15 @@ static async Task EnsureGameSessionAsync(
     var expectedMode = string.IsNullOrWhiteSpace(run.GameMode)
         ? run.IsTutorial ? AetheriaGameSessionState.AetheriaMode : AetheriaGameSessionState.TerminusMode
         : run.GameMode;
+    var initialSimulationRate = options.UseTerminusFixture ? 0 : 1;
     var existing = await node.MutableDocument<AetheriaGameSessionState>(AetheriaStateNode.GameSessionStateKey)
         .ReadAsync().ConfigureAwait(false);
     if (existing != null &&
         string.Equals(existing.Mode, expectedMode, StringComparison.Ordinal) &&
         string.Equals(existing.RunId, run.RunId, StringComparison.Ordinal) &&
-        string.Equals(existing.ControlledEntityKey, run.CurrentEntityKey, StringComparison.Ordinal))
+        string.Equals(existing.ControlledEntityKey, run.CurrentEntityKey, StringComparison.Ordinal) &&
+        Math.Abs(existing.SimulationRate - initialSimulationRate) < 0.000001 &&
+        Math.Abs((existing.EffectiveSimulationRate ?? existing.SimulationRate) - initialSimulationRate) < 0.000001)
         return;
 
     await node.MutableDocument<AetheriaGameSessionState>(AetheriaStateNode.GameSessionStateKey)
@@ -2845,8 +2901,8 @@ static async Task EnsureGameSessionAsync(
             RunId = run.RunId,
             ControlledEntityKey = run.CurrentEntityKey,
             EntrySurfaceId = AetheriaRuntimeDaemonGameSurfaceBuilder.PilotSurfaceId,
-            SimulationRate = 1,
-            EffectiveSimulationRate = 1,
+            SimulationRate = initialSimulationRate,
+            EffectiveSimulationRate = initialSimulationRate,
             UpdatedAtUtc = now
         }).ConfigureAwait(false);
     await node.FlushAsync().ConfigureAwait(false);
@@ -3415,7 +3471,8 @@ static AetheriaRuntimeLoadoutItemCommit ToLoadoutItemCommit(AetheriaLoadoutItem?
 
 internal sealed record AetheriaPreparedPublication(
     AetheriaRuntimeDaemonTickResult Publication,
-    IReadOnlyList<AetheriaYmirZonePersistenceCapture> Physics);
+    IReadOnlyList<AetheriaYmirZonePersistenceCapture> Physics,
+    AetheriaRuntimeCatalogSnapshot Catalog);
 
 internal sealed class AetheriaManagedViewportDemandState
 {
