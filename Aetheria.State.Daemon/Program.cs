@@ -49,7 +49,8 @@ using var physicsPersistence = await AetheriaYmirPersistenceCoordinator.OpenAsyn
     node,
     worldPhysics,
     latestFrame).ConfigureAwait(false);
-using var cultMeshRudpHost = StartClientCultMeshHost(node, options, () => latestFrame);
+using var networkBodies = new CultMeshNetworkBodyStore();
+using var cultMeshRudpHost = StartClientCultMeshHost(node, options, () => latestFrame, networkBodies);
 using var clientSubscriptions = new CultNetDatabaseSubscriptionServer(cultMeshRudpHost, node.Database);
 var managedViewportDemand = new AetheriaManagedViewportDemandState();
 clientSubscriptions.DemandChanged += managedViewportDemand.Observe;
@@ -61,7 +62,7 @@ if (traceClientRudp)
         $"bodies=[{string.Join(",", demand.BodyIds)}] transports=[{string.Join(",", demand.SupportedBodyTransports)}]");
 using var bodyDemand = new CultMeshBodyDemandTracker(clientSubscriptions);
 using var soaPublisher = new AetheriaRuntimeDaemonSoaFramePublisher(
-    node.Cache,
+    networkBodies,
     DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
     bodyDemand);
 using var clientPumpCancellation = new CancellationTokenSource();
@@ -640,7 +641,8 @@ static async Task<AetheriaRuntimeDaemonTickResult> ImportRemoteCommittedFactsAsy
 static RudpCultNetSchemaServer StartClientCultMeshHost(
     AetheriaStateNode node,
     AetheriaDaemonHostOptions options,
-    Func<AetheriaRuntimeDaemonFrameDocument?> latestFrame)
+    Func<AetheriaRuntimeDaemonFrameDocument?> latestFrame,
+    CultMeshNetworkBodyStore networkBodies)
 {
     var bundleCdnDocuments = BuildBundleCdnDocuments(node, options);
     var socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
@@ -655,6 +657,7 @@ static RudpCultNetSchemaServer StartClientCultMeshHost(
         MaxPendingReliablePackets = 8192
     });
     _ = new CultMeshContentServer(server, node.Cache);
+    _ = new CultMeshBodyServer(server, networkBodies);
     var advertisedEndpoint = $"rudp://{options.ClientCultMeshAdvertiseHost}:{((IPEndPoint)socket.LocalEndPoint!).Port}";
     server.OnCultNet<CultMeshVerseCatalogRequestMessage>((request, peer) =>
     {

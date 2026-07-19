@@ -3,7 +3,6 @@ using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using GameCult.Caching;
 using GameCult.Eve.Surface;
 using GameCult.Mesh;
 
@@ -82,25 +81,22 @@ namespace GameCult.Aetheria.State.Verse
         private const string EntityProxyMaterialUri = "cultmesh://aetheria/assets/daemon/entity_proxy/material";
 
         private readonly CultMeshFrameBodyPublisher _localPublisher;
-        private readonly CultMeshNetworkBodyPublisher _networkPublisher;
+        private readonly CultMeshNetworkBodyStore _networkBodies;
         private readonly CultMeshBodyDemandTracker? _demand;
         private readonly Dictionary<string, int> _syntheticEntityIndices =
             new Dictionary<string, int>(StringComparer.Ordinal);
         private int _nextSyntheticEntityIndex = -2;
 
         public AetheriaRuntimeDaemonSoaFramePublisher(
-            CultCache cache,
+            CultMeshNetworkBodyStore networkBodies,
             long producerEpoch,
             CultMeshBodyDemandTracker? demand = null)
         {
-            if (cache == null) throw new ArgumentNullException(nameof(cache));
+            _networkBodies = networkBodies ?? throw new ArgumentNullException(nameof(networkBodies));
             _localPublisher = new CultMeshFrameBodyPublisher(
                 BodyId, BodySchemaId, LayoutVersion, Capacity, producerEpoch,
                 checked((int)EntityHotSlabLayout.Create(Capacity).TotalByteLength),
                 TimeSpan.FromSeconds(30));
-            _networkPublisher = new CultMeshNetworkBodyPublisher(
-                cache,
-                generation => string.Equals(generation.ProducerId, ProducerId, StringComparison.Ordinal));
             _demand = demand;
         }
 
@@ -299,7 +295,7 @@ namespace GameCult.Aetheria.State.Verse
             }
         }
 
-        public async Task<AetheriaRuntimeDaemonSoaPublication> PublishAsync(AetheriaRuntimeDaemonSoaFrame frame)
+        public Task<AetheriaRuntimeDaemonSoaPublication> PublishAsync(AetheriaRuntimeDaemonSoaFrame frame)
         {
             if (frame == null) throw new ArgumentNullException(nameof(frame));
             var now = DateTimeOffset.UtcNow;
@@ -320,7 +316,7 @@ namespace GameCult.Aetheria.State.Verse
             var representations = new List<CultMeshBodyDescriptor>();
             if (frame.PublishSharedMemory) representations.Add(local);
             if (frame.PublishNetwork)
-                representations.Add(await _networkPublisher.PublishAsync(generation, networkBytes!).ConfigureAwait(false));
+                representations.Add(_networkBodies.PublishOwned(generation, networkBytes!));
             var publication = new CultMeshBodyPublicationDocument
             {
                 BodyId = BodyId,
@@ -341,7 +337,7 @@ namespace GameCult.Aetheria.State.Verse
             if (view.Buffers.Length != 1 || !string.Equals(view.Buffers[0].BufferId, publication.BodyId, StringComparison.Ordinal) ||
                 view.Columns.Any(column => !string.Equals(column.BufferId, publication.BodyId, StringComparison.Ordinal)))
                 throw new InvalidOperationException("Aetheria Eve SoA layout does not reference its published logical body identity.");
-            return new AetheriaRuntimeDaemonSoaPublication(publication, view);
+            return Task.FromResult(new AetheriaRuntimeDaemonSoaPublication(publication, view));
         }
 
         public void Dispose() => _localPublisher.Dispose();

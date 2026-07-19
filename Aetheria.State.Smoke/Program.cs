@@ -4,6 +4,7 @@ using Aetheria.State.Migration;
 using GameCult.Caching;
 using GameCult.Aetheria.State.Verse;
 using GameCult.Mesh;
+using GameCult.Networking;
 using GameCult.Eve.Surface;
 using EveProviderAdvertisementState = GameCult.Eve.Surface.EveProviderAdvertisementDocument;
 using EveSurfaceDocument = GameCult.Eve.Surface.EveSurfaceDocument;
@@ -1144,7 +1145,8 @@ static async Task ProveDirectSoaPublicationPipeline()
         }
     };
 
-    using var publisher = new AetheriaRuntimeDaemonSoaFramePublisher(cache, producerEpoch: 9);
+    using var liveBodies = new CultMeshNetworkBodyStore();
+    using var publisher = new AetheriaRuntimeDaemonSoaFramePublisher(liveBodies, producerEpoch: 9);
     var built = publisher.BuildCurrentZoneEntities(frame);
     var payloadIdentity = built.View.Identities.SingleOrDefault(identity =>
         string.Equals(identity.EntityId, "soa-pipeline-smoke:zone:0:physical-payload:mine:soa-witness", StringComparison.Ordinal));
@@ -1170,6 +1172,8 @@ static async Task ProveDirectSoaPublicationPipeline()
     var published = await publisher.PublishAsync(built);
     if (cache.Get<EveEntitySoaViewDocument>(AetheriaRuntimeVerseRecordKeys.EveEntitySoaViewLatest) != null)
         throw new InvalidOperationException("Building a CultMesh body publication made the Eve view visible before commit.");
+    if (cache.GetAll<CultMeshCdnArtifactManifest>().Any() || cache.GetAll<CultMeshCdnArtifactChunk>().Any())
+        throw new InvalidOperationException("Hot SoA body bytes were retained as snapshot-addressable CDN state.");
 
     frame.FrameId++;
     var nextBuilt = publisher.BuildCurrentZoneEntities(frame);
@@ -1215,11 +1219,13 @@ static async Task ProveDirectSoaPublicationPipeline()
         throw new InvalidOperationException("The view generation was substituted by the latest CultMesh body publication.");
     var view = cache.Get<EveEntitySoaViewDocument>(AetheriaRuntimeVerseRecordKeys.EveEntitySoaViewLatest)
         ?? throw new InvalidOperationException("Typed Eve SoA view did not become visible after body publication.");
-    if (body.PreferredLocal.TransportKind != CultMeshBodyTransportKind.SharedMemory ||
-        body.NetworkFallback.TransportKind != CultMeshBodyTransportKind.Network ||
-        body.PreferredLocal.TransportKind == CultMeshBodyTransportKind.SharedFileMapping ||
-        body.NetworkFallback.TransportKind == CultMeshBodyTransportKind.SharedFileMapping)
-        throw new InvalidOperationException("Direct SoA publication used an Aetheria file-mapping convention.");
+    var localRepresentation = body.Representations.SingleOrDefault(candidate =>
+        candidate.TransportKind == CultMeshBodyTransportKind.SharedMemory);
+    var networkRepresentation = body.Representations.SingleOrDefault(candidate =>
+        candidate.TransportKind == CultMeshBodyTransportKind.Network);
+    if (localRepresentation == null || networkRepresentation == null ||
+        body.Representations.Any(candidate => candidate.TransportKind == CultMeshBodyTransportKind.SharedFileMapping))
+        throw new InvalidOperationException("Direct SoA publication did not expose shared memory plus direct network representations.");
 
     var request = new CultMeshBodyValidationRequest
     {
@@ -1236,14 +1242,14 @@ static async Task ProveDirectSoaPublicationPipeline()
         new ICultMeshBodyTransportAdapter[]
         {
             new CultMeshSharedMemoryBodyAdapter(),
-            new CultMeshNetworkBodyAdapter(new CultMeshNetworkBodyResolver(cache).CreateFetchDelegate())
+            new CultMeshNetworkBodyAdapter(descriptor => ReadLiveBody(liveBodies, descriptor))
         },
         (producerId, _) => producerId == AetheriaRuntimeDaemonSoaFramePublisher.ProducerId))
         .ResolveReadOnly(body, request);
     using var networkLease = new CultMeshBodyPublicationResolver(new CultMeshBodyTransportService(
         new ICultMeshBodyTransportAdapter[]
         {
-            new CultMeshNetworkBodyAdapter(new CultMeshNetworkBodyResolver(cache).CreateFetchDelegate())
+            new CultMeshNetworkBodyAdapter(descriptor => ReadLiveBody(liveBodies, descriptor))
         },
         (producerId, _) => producerId == AetheriaRuntimeDaemonSoaFramePublisher.ProducerId))
         .ResolveReadOnly(body, request);
@@ -1279,6 +1285,25 @@ static async Task ProveDirectSoaPublicationPipeline()
     if (withoutPayload.View.Identities.Any(candidate => candidate.EntityId == payloadIdentity.EntityId) ||
         withoutPayload.View.Identities.Single(candidate => candidate.EntityId == pickupIdentity.EntityId).EntityIndex != pickupIdentity.EntityIndex)
         throw new InvalidOperationException("Inactive physical payload remained in SoA or disturbed a surviving synthetic identity.");
+}
+
+static byte[] ReadLiveBody(CultMeshNetworkBodyStore bodies, CultMeshBodyDescriptor descriptor)
+{
+    var request = new CultMeshBodyReadRequestMessage
+    {
+        MessageId = Guid.NewGuid().ToString("N"),
+        CapabilityToken = descriptor.CapabilityToken,
+        BodyId = descriptor.BodyId,
+        BodySchemaId = descriptor.SchemaId,
+        LayoutVersion = descriptor.LayoutVersion,
+        ProducerEpoch = descriptor.ProducerEpoch,
+        Sequence = descriptor.Sequence,
+        ExpectedSizeBytes = descriptor.ByteSize,
+        SemanticHash = descriptor.SemanticHash
+    };
+    if (!bodies.TryRead(request, DateTimeOffset.UtcNow, out _, out var body))
+        throw new InvalidOperationException("Ephemeral SoA network generation could not be resolved.");
+    return body;
 }
 
 static int ReadInt32(EveEntitySoaViewDocument view, ICultMeshBodyReadLease lease, string semantic, int row)

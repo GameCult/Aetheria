@@ -4439,8 +4439,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         RequireNear(100, Stat(target, "hull"), 0.000001,
             "trigger contact must not bypass the authored detonation delay");
 
-        using var soaCache = new CultCache();
-        using var soaPublisher = new AetheriaRuntimeDaemonSoaFramePublisher(soaCache, producerEpoch: 1);
+        using var soaNetworkBodies = new CultMeshNetworkBodyStore();
+        using var soaPublisher = new AetheriaRuntimeDaemonSoaFramePublisher(soaNetworkBodies, producerEpoch: 1);
         using var soaFrame = soaPublisher.BuildCurrentZoneEntities(
             new AetheriaRuntimeDaemonFrameDocument { FrameId = 2, Run = run });
         var mineIdentity = soaFrame.View.Identities.Single(identity =>
@@ -4625,8 +4625,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             node.Id == "aetheria.daemon.game.world.entity.0");
         RequireEqual(rareHullAssetKey, rareSurfaceEntity.Props["assetRef"],
             "Eve scene projection must select the typed hull asset rather than the player Djinni fallback");
-        using var rareSoaCache = new CultCache();
-        using var rareSoaPublisher = new AetheriaRuntimeDaemonSoaFramePublisher(rareSoaCache, producerEpoch: 1);
+        using var rareSoaNetworkBodies = new CultMeshNetworkBodyStore();
+        using var rareSoaPublisher = new AetheriaRuntimeDaemonSoaFramePublisher(rareSoaNetworkBodies, producerEpoch: 1);
         var rareSoa = rareSoaPublisher.BuildCurrentZoneEntities(rareFrame, catalog);
         RequireEqual(rareHullAssetKey, rareSoa.View.Identities.Single().AssetRef,
             "SoA identity and Eve scene projection must share the catalog-owned hull asset key");
