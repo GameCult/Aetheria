@@ -206,12 +206,11 @@ namespace GameCult.Aetheria.State.Verse
                 .Concat(receipts.Select(value => value.FrameId))
                 .DefaultIfEmpty(0)
                 .Max();
-            var version = checked(lastFrame * 100000L + events.Length * 100L + receipts.Length);
             return new AetheriaRuntimeSurfaceDocument(
                 AetheriaRuntimeProviderIdentity.ProviderId,
                 "game.daemon",
                 "Aetheria Pilot Reactive State",
-                version,
+                lastFrame,
                 frame.PublishedAtUtc,
                 new AetheriaRuntimeSurfaceTree(
                     "aetheria.daemon.game.reactive",

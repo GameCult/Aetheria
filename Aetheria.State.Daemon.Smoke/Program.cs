@@ -953,6 +953,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 node.Kind is "feedback.event" or "shot.receipt"),
             "the static pilot surface must not retain mutable gameplay facts");
         var reactive = AetheriaRuntimeDaemonGameSurfaceBuilder.BuildReactiveGameplay(tick.Frame);
+        Require(reactive.Version == interruption.FrameId,
+            "reactive Eve surfaces and command receipts must share daemon frame-version semantics");
         Require(Flatten(reactive.Surface.Root).Any(node => node.Kind == "feedback.event" &&
                 node.Props["eventKind"] == "simulation.interrupted" &&
                 node.Props["reason"] == "entity.damaged" &&
