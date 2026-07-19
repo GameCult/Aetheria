@@ -20,8 +20,8 @@ $expected = @{
         "https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.surface#eveunity-surface-v0.2.4",
         "e08fa08335f99e9edddeb706912eecfad07cb281")
     "org.gamecult.eve.unity-scene" = @(
-        "https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.unity-scene#eveunity-scene-v0.3.81",
-        "98ec6e5cfefa82a38b7cc9dc7566a26a945a851e")
+        "https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.unity-scene#eveunity-scene-v0.3.82",
+        "638787932a944dbff0aab4969abfef0cb38995e9")
 }
 
 foreach ($packageName in $expected.Keys) {
@@ -68,9 +68,9 @@ foreach ($requiredInputContract in @("PayloadKeys", "CurrentValue", "ActionBar",
 
 $scenePackage = Get-ChildItem (Join-Path $ProjectPath "Library/PackageCache") -Directory |
     Where-Object Name -Like "org.gamecult.eve.unity-scene@*" |
-    Where-Object { (Get-Content (Join-Path $_.FullName "package.json") -Raw | ConvertFrom-Json).version -eq "0.3.81" } |
+    Where-Object { (Get-Content (Join-Path $_.FullName "package.json") -Raw | ConvertFrom-Json).version -eq "0.3.82" } |
     Select-Object -First 1
-if (-not $scenePackage) { throw "Resolved Eve Unity scene 0.3.81 package is missing from Library/PackageCache." }
+if (-not $scenePackage) { throw "Resolved Eve Unity scene 0.3.82 package is missing from Library/PackageCache." }
 $advertisedInputSource = Get-Content (Join-Path $scenePackage.FullName "Runtime/EveUnityAdvertisedInputAction.cs") -Raw
 $inputDriverSource = Get-Content (Join-Path $scenePackage.FullName "Runtime/EveUnityPlayableWorldInputDriver.cs") -Raw
 $actionBarSource = Get-Content (Join-Path $scenePackage.FullName "Runtime/EveUnityInputActionBar.cs") -Raw
