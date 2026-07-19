@@ -29,6 +29,8 @@ namespace GameCult.Aetheria.State.Verse
 
     public sealed class AetheriaRuntimeEquippedBehavior
     {
+        private IReadOnlyList<AetheriaRuntimeEquippedBehavior>? modifierBehaviors;
+
         public AetheriaRuntimeEquippedBehavior(
             AetheriaRuntimeEntitySnapshotCommit entity,
             AetheriaRuntimeCatalogSnapshot catalog,
@@ -61,6 +63,9 @@ namespace GameCult.Aetheria.State.Verse
         public AetheriaRuntimeBehaviorPayload Payload { get; }
         public AetheriaRuntimeBehaviorStateCommit State { get; }
 
+        internal void BindModifierBehaviors(IReadOnlyList<AetheriaRuntimeEquippedBehavior> value) =>
+            modifierBehaviors = value ?? Array.Empty<AetheriaRuntimeEquippedBehavior>();
+
         public double EvaluateStat(int fieldKey, double thermalPerformance = 1.0)
         {
             var field = (Payload.Fields ?? Array.Empty<AetheriaRuntimeBehaviorField>())
@@ -70,7 +75,7 @@ namespace GameCult.Aetheria.State.Verse
                 Item,
                 Math.Max(0, Math.Min(1, thermalPerformance)));
             return AetheriaRuntimeBehaviorSimulation.Apply(
-                Entity, Catalog, EquipmentIndex, Payload, fieldKey, baseline);
+                Entity, Catalog, EquipmentIndex, Payload, fieldKey, baseline, modifierBehaviors);
         }
     }
 
@@ -131,6 +136,18 @@ namespace GameCult.Aetheria.State.Verse
                         state));
                 }
             }
+
+            var equipmentStates = (entity.EquipmentStates ?? Array.Empty<AetheriaRuntimeEquipmentStateCommit>())
+                .Where(state => state != null)
+                .ToDictionary(state => state.EquipmentIndex);
+            var modifierBehaviors = found
+                .Where(value => AetheriaRuntimeBehaviorMetadataCatalog.IsKindOrDescendant(
+                    value.Payload.Kind, "StatModifier"))
+                .Where(value => value.Item.Enabled && value.Item.Durability > 0.01 &&
+                    (!equipmentStates.TryGetValue(value.EquipmentIndex, out var state) || state.Online))
+                .ToArray();
+            foreach (var behavior in found)
+                behavior.BindModifierBehaviors(modifierBehaviors);
             return found;
         }
 

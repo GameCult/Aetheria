@@ -816,6 +816,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             BehaviorChainsGateAuthoritativeStatModifiers,
             ResourceBehaviorsStopEquipmentChainsInAuthoredOrder,
             MiningAndScanningResultsGateTrailingBehaviorChains,
+            BehaviorStateProjectionIsReadStableAndReconcilesShapeChanges,
             ThermotoggleSeedsAndGatesFromDaemonOwnedTarget,
             InputCapabilityPublishesExactBehaviorLevers,
             InputCapabilityPublishesConsumableActionBarState,
@@ -1326,6 +1327,55 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             });
             return (run, intents, catalog, entity);
         }
+    }
+
+    private static void BehaviorStateProjectionIsReadStableAndReconcilesShapeChanges()
+    {
+        var thermostat = CatalogItem("projection-thermostat",
+            new AetheriaRuntimeBehaviorPayload(0, "Thermotoggle", 0,
+            [
+                new AetheriaRuntimeBehaviorField(1, Number(300))
+            ]));
+        var catalog = new AetheriaRuntimeCatalogSnapshot([thermostat], [], []);
+        var entity = Entity(0, 0, "projection-player");
+        entity.Equipment = [new AetheriaRuntimeLoadoutItemSlotCommit
+        {
+            Item = new AetheriaRuntimeLoadoutItemCommit
+                { ItemKey = thermostat.ItemKey, Enabled = true, Durability = 1, Quality = 1 }
+        }];
+
+        AetheriaRuntimeBehaviorStateProjector.EnsureEquipmentBehaviorStates(entity, catalog);
+        var originalStates = entity.BehaviorStates;
+        var originalThermostat = originalStates.Single();
+        originalThermostat.ThermotoggleTargetTemperature = 412;
+
+        AetheriaRuntimeBehaviorStateProjector.EnsureEquipmentBehaviorStates(entity, catalog);
+        Require(ReferenceEquals(originalStates, entity.BehaviorStates),
+            "an unchanged equipment graph must remain a read and preserve the behavior-state array");
+        RequireNear(412, entity.BehaviorStates.Single().ThermotoggleTargetTemperature, 0.000001,
+            "an unchanged equipment graph must preserve daemon-owned mutable behavior state");
+
+        var expandedThermostat = CatalogItem("projection-thermostat",
+            new AetheriaRuntimeBehaviorPayload(0, "Thermotoggle", 0,
+            [
+                new AetheriaRuntimeBehaviorField(1, Number(300))
+            ]),
+            new AetheriaRuntimeBehaviorPayload(1, "Radiator", 0, []));
+        var expandedCatalog = new AetheriaRuntimeCatalogSnapshot([expandedThermostat], [], []);
+        AetheriaRuntimeBehaviorStateProjector.EnsureEquipmentBehaviorStates(entity, expandedCatalog);
+
+        Require(!ReferenceEquals(originalStates, entity.BehaviorStates),
+            "a changed catalog behavior shape must reconcile the projected behavior-state array");
+        RequireEqual(2, entity.BehaviorStates.Count,
+            "catalog reconciliation must add the newly authored behavior state exactly once");
+        Require(ReferenceEquals(originalThermostat,
+                entity.BehaviorStates.Single(state => state.BehaviorKind == "Thermotoggle")),
+            "catalog reconciliation must retain matching daemon-owned behavior state");
+        RequireNear(412,
+            entity.BehaviorStates.Single(state => state.BehaviorKind == "Thermotoggle")
+                .ThermotoggleTargetTemperature,
+            0.000001,
+            "catalog reconciliation must not reset retained mutable behavior state");
     }
 
     private static void ThermotoggleSeedsAndGatesFromDaemonOwnedTarget()

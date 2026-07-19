@@ -353,6 +353,18 @@ lifecycle state in the authoritative snapshot. Runtime stat reads derive the
 fossil multiplier-product and constant-sum result from those sources, including
 required-behavior and descendant-kind targeting. This makes reconnect replay
 idempotent and keeps the Unity fossil out of the gameplay authority path.
+Behavior-state projection is a reconciliation write only: when equipment and
+catalog behavior shape already match, reads preserve the existing state array
+and every mutable daemon-owned value. An actual shape change rebuilds the
+projection while retaining states whose owner, equipment index, behavior index,
+and kind still match.
+
+Each equipped-behavior query also derives one ephemeral set of operational
+`StatModifier` behaviors and binds that set to every wrapper returned by the
+query. All stat evaluations through those wrappers reuse the same set instead
+of recursively rebuilding the equipment graph for every field. The set is not
+persisted, cannot outlive the query result, and cannot write authority; modifier
+lifecycle remains in the entity snapshot.
 The same daemon organ executes common resource gates in group order. Energy,
 thermal cells, cargo, and durability remain owned by their narrow transaction
 subsystems; behavior composition decides only whether and when to call them.
@@ -367,6 +379,8 @@ same set. It is not persisted and cannot outlive the step; mutations still land
 on the referenced authoritative item and behavior state. This prevents each
 weapon family from independently rebuilding the same equipment graph without
 introducing a cache owner beside the entity snapshot.
+Entities without an operational descendant of `Weapon` do not enter the weapon
+actor loop. They remain valid targets and physical-payload participants.
 
 Migration target:
 

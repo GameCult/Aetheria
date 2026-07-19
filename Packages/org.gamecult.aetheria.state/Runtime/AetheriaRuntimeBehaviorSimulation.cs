@@ -37,7 +37,17 @@ namespace GameCult.Aetheria.State.Verse
             int targetEquipmentIndex,
             AetheriaRuntimeBehaviorPayload targetBehavior,
             int targetFieldKey,
-            double baseline)
+            double baseline) =>
+            Apply(entity, catalog, targetEquipmentIndex, targetBehavior, targetFieldKey, baseline, null);
+
+        internal static double Apply(
+            AetheriaRuntimeEntitySnapshotCommit entity,
+            AetheriaRuntimeCatalogSnapshot catalog,
+            int targetEquipmentIndex,
+            AetheriaRuntimeBehaviorPayload targetBehavior,
+            int targetFieldKey,
+            double baseline,
+            IReadOnlyList<AetheriaRuntimeEquippedBehavior>? equippedModifiers)
         {
             var targetStatName = StatName(targetBehavior?.Kind, targetFieldKey);
             if (entity == null || catalog == null || targetEquipmentIndex < 0 ||
@@ -46,7 +56,7 @@ namespace GameCult.Aetheria.State.Verse
 
             double multiplier = 1;
             double constant = 0;
-            foreach (var modifier in ActiveEquippedModifiers(entity, catalog)
+            foreach (var modifier in ActiveEquippedModifiers(entity, catalog, equippedModifiers)
                 .Concat(ActiveConsumableModifiers(entity, catalog)))
             {
                 if (!Targets(modifier.Payload, entity, catalog, targetEquipmentIndex, targetBehavior, targetStatName))
@@ -360,9 +370,11 @@ namespace GameCult.Aetheria.State.Verse
 
         private static IEnumerable<ModifierValue> ActiveEquippedModifiers(
             AetheriaRuntimeEntitySnapshotCommit entity,
-            AetheriaRuntimeCatalogSnapshot catalog)
+            AetheriaRuntimeCatalogSnapshot catalog,
+            IReadOnlyList<AetheriaRuntimeEquippedBehavior>? equippedModifiers = null)
         {
-            foreach (var behavior in AetheriaRuntimeEquippedBehaviorQueries.FindOperational(entity, catalog, "StatModifier"))
+            foreach (var behavior in equippedModifiers ??
+                AetheriaRuntimeEquippedBehaviorQueries.FindOperational(entity, catalog, "StatModifier"))
             {
                 if (!behavior.State.StatModifierApplied)
                     continue;

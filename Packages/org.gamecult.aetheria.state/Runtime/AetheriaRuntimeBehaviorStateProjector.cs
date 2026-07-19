@@ -18,6 +18,8 @@ namespace GameCult.Aetheria.State.Verse
                 return;
 
             var existing = entity.BehaviorStates ?? Array.Empty<AetheriaRuntimeBehaviorStateCommit>();
+            if (EquipmentBehaviorStatesMatch(existing, entity.Equipment, catalog))
+                return;
             var projected = CreateEquipmentBehaviorStates(entity.Equipment, catalog);
             if (projected.Length == 0)
             {
@@ -94,6 +96,38 @@ namespace GameCult.Aetheria.State.Verse
                 state.OwnerIndex.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 state.BehaviorIndex.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 state.BehaviorKind ?? "");
+        }
+
+        private static bool EquipmentBehaviorStatesMatch(
+            IReadOnlyList<AetheriaRuntimeBehaviorStateCommit> existing,
+            IReadOnlyList<AetheriaRuntimeLoadoutItemSlotCommit>? equipment,
+            AetheriaRuntimeCatalogSnapshot? catalog)
+        {
+            catalog ??= new AetheriaRuntimeCatalogSnapshot();
+            var matched = 0;
+            var slots = equipment ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>();
+            for (var equipmentIndex = 0; equipmentIndex < slots.Count; equipmentIndex++)
+            {
+                var item = slots[equipmentIndex]?.Item;
+                var payloads = catalog.FindItem(item?.ItemKey ?? "")?.BehaviorPayloads ??
+                    Array.Empty<AetheriaRuntimeBehaviorPayload>();
+                for (var behaviorIndex = 0; behaviorIndex < payloads.Count; behaviorIndex++)
+                {
+                    var payload = payloads[behaviorIndex];
+                    if (payload == null || string.IsNullOrWhiteSpace(payload.Kind))
+                        continue;
+                    matched++;
+                    if (!existing.Any(state => state != null &&
+                            string.Equals(state.OwnerKind, EquipmentOwnerKind, StringComparison.Ordinal) &&
+                            state.OwnerIndex == equipmentIndex &&
+                            state.BehaviorIndex == behaviorIndex &&
+                            string.Equals(state.BehaviorKind, payload.Kind, StringComparison.Ordinal)))
+                        return false;
+                }
+            }
+
+            return existing.Count(state => state != null &&
+                string.Equals(state.OwnerKind, EquipmentOwnerKind, StringComparison.Ordinal)) == matched;
         }
     }
 }

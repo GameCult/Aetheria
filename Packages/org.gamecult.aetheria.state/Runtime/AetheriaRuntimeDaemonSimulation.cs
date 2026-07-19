@@ -36,10 +36,15 @@ namespace GameCult.Aetheria.State.Verse
                 Environment.GetEnvironmentVariable("AETHERIA_TRACE_SIMULATION_PHASES"),
                 "1",
                 StringComparison.Ordinal);
+            var traceSimulationPhaseThreshold = int.TryParse(
+                Environment.GetEnvironmentVariable("AETHERIA_TRACE_SIMULATION_PHASE_THRESHOLD_MS"),
+                out var configuredTraceThreshold)
+                ? Math.Max(0, configuredTraceThreshold)
+                : 20;
             var phase = Stopwatch.StartNew();
             void TracePhase(string name)
             {
-                if (traceSimulationPhases && phase.ElapsedMilliseconds >= 20)
+                if (traceSimulationPhases && phase.ElapsedMilliseconds >= traceSimulationPhaseThreshold)
                     Console.WriteLine($"Aetheria simulation phase {name} took {phase.ElapsedMilliseconds}ms.");
                 phase.Restart();
             }
@@ -597,9 +602,13 @@ namespace GameCult.Aetheria.State.Verse
                 RefreshShieldProjection(entity, catalog);
             foreach (var attacker in combatEntities)
             {
-                var requestedWeapons = ResolveWeaponTriggers(zone, attacker, entities, intents, catalog);
                 var operationalBehaviors = AetheriaRuntimeEquippedBehaviorQueries
                     .FindAllOperational(attacker, catalog);
+                if (!operationalBehaviors.Any(behavior =>
+                        AetheriaRuntimeBehaviorMetadataCatalog.IsKindOrDescendant(
+                            behavior.Payload.Kind, "Weapon")))
+                    continue;
+                var requestedWeapons = ResolveWeaponTriggers(zone, attacker, entities, intents, catalog);
                 StepDeployableWeapons(run, zone, attacker, operationalBehaviors, requestedWeapons,
                     deltaSeconds, settings, catalog, frameId);
                 StepChargedWeapons(run, zone, attacker, byIndex, requestedWeapons, deltaSeconds,
