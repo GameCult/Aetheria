@@ -84,6 +84,8 @@ await AetheriaDaemonNativeCatalog.EnsureAsync(node).ConfigureAwait(false);
 TraceStartup("native-catalog");
 await node.FlushAsync().ConfigureAwait(false);
 TraceStartup("initial-flush");
+await node.RefreshRuntimeCatalogAsync().ConfigureAwait(false);
+TraceStartup("runtime-catalog");
 await EnsurePlayableRunDocumentsAsync(node, options, startedAtUtc).ConfigureAwait(false);
 TraceStartup("playable-run");
 await EnsureGameSessionAsync(node, options, startedAtUtc).ConfigureAwait(false);
@@ -1991,7 +1993,7 @@ static async Task PublishDaemonMenuSurfacesAsync(
     var updatedAtUtc = string.IsNullOrWhiteSpace(frame.PublishedAtUtc)
         ? DateTimeOffset.UtcNow.ToString("O")
         : frame.PublishedAtUtc;
-    var catalog = AetheriaRuntimeCatalogStore.OpenReadOnly(node.StatePath);
+    var catalog = node.RuntimeCatalog().Latest();
     var assetManifest = AetheriaRuntimeAssets.ProjectManifest(
         catalog,
         frame.Run?.RunId ?? frame.SessionId,

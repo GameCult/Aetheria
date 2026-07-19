@@ -1230,6 +1230,7 @@ internal sealed class AuthoritySmokeChecks
                 Phase = "pre-wave"
             }).ConfigureAwait(false);
         await node.FlushAsync().ConfigureAwait(false);
+        await node.RefreshRuntimeCatalogAsync().ConfigureAwait(false);
 
         var catalog = await node.RuntimeCatalog().LatestAsync().ConfigureAwait(false);
         Require(catalog.Corporations.Any(corporation => !string.IsNullOrWhiteSpace(corporation.CorporationKey)),

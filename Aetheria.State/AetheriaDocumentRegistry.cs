@@ -32,6 +32,7 @@ public static class AetheriaDocumentRegistry
         typeof(AetheriaMigrationLedger),
         typeof(AetheriaLegacyCatalogQuarantine),
         typeof(AetheriaTradeValuePolicy),
+        typeof(AetheriaRuntimeCatalogSnapshot),
         typeof(AetheriaPlayerSettings),
         typeof(AetheriaLoadoutTemplate),
         typeof(AetheriaRunState),

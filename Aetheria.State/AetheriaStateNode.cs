@@ -109,11 +109,13 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
         return _runtimeCatalog ??= CultMesh.Document(
             "aetheria.catalog.runtime",
             CultMesh.Verse("aetheria.local", RuntimeId),
-            _ => Task.FromResult(AetheriaRuntimeCatalogStore.OpenReadOnly(StatePath)),
-            _ => Database.WatchRecord<AetheriaRuntimeDaemonFrameDocument>(
-                    AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest)
+            async _ => await Database.GetAsync<AetheriaRuntimeCatalogSnapshot>(RuntimeCatalogKey)
+                    .ConfigureAwait(false)
+                ?? throw new InvalidDataException(
+                    "The compiled Aetheria runtime catalog is missing. Refresh it after changing source catalog records."),
+            _ => Database.WatchRecord<AetheriaRuntimeCatalogSnapshot>(RuntimeCatalogKey)
                 .Where(change => change.Document != null)
-                .Select(_ => AetheriaRuntimeCatalogStore.OpenReadOnly(StatePath)),
+                .Select(change => change.Document!),
             sources: new[]
             {
                 CultMesh.ProjectionSource("catalog:aetheria.runtime"),
@@ -134,11 +136,9 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
             _ => Task.FromResult(AetheriaEveSurfaceDocuments.BuildCatalogSurface(
                 catalog.Latest(),
                 DateTimeOffset.UtcNow.ToString("O"))),
-            _ => Database.WatchRecord<AetheriaRuntimeDaemonFrameDocument>(
-                    AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest)
-                .Where(change => change.Document != null)
-                .Select(_ => AetheriaEveSurfaceDocuments.BuildCatalogSurface(
-                    catalog.Latest(),
+            _ => catalog.Watch()
+                .Select(snapshot => AetheriaEveSurfaceDocuments.BuildCatalogSurface(
+                    snapshot,
                     DateTimeOffset.UtcNow.ToString("O"))),
             sources: new[]
             {
@@ -152,6 +152,13 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
                     "managed Aetheria catalog Eve surface document")
             },
             routeHint: new CultMeshRouteHint(CultMeshLocalityKind.SharedMemory, "Aetheria typed catalog Eve surface"));
+    }
+
+    public async Task<AetheriaRuntimeCatalogSnapshot> RefreshRuntimeCatalogAsync()
+    {
+        var snapshot = AetheriaRuntimeCatalogStore.OpenReadOnly(StatePath);
+        await Database.PutAsync(RuntimeCatalogKey, snapshot).ConfigureAwait(false);
+        return snapshot;
     }
 
     public Task<CultRecordHandle<AetheriaRuntimeDaemonCommandDocument>> SubmitDaemonCommandAsync(
@@ -241,6 +248,9 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
 
     public static CultRecordKey CatalogSurfaceKey { get; } =
         new(AetheriaEveSurfaceDocuments.CatalogSurfaceKey);
+
+    public static CultRecordKey RuntimeCatalogKey { get; } =
+        new("global:aetheria.runtime_catalog.v1");
 
     public static CultRecordKey OperationsSurfaceKey { get; } =
         new(AetheriaEveSurfaceDocuments.OperationsSurfaceKey);

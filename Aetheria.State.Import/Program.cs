@@ -210,6 +210,7 @@ if (args.Any(argument => string.Equals(argument, "--merge-mine", StringCompariso
     await mergeNode.MutableDocument<AetheriaItemDefinition>(AetheriaCatalogKeys.ItemDefinitionFromLegacyId(mine.LegacyId))
         .ReplaceAsync(mine);
     await mergeNode.FlushAsync();
+    await mergeNode.RefreshRuntimeCatalogAsync();
     var merged = await mergeNode.RuntimeCatalog().LatestAsync().ConfigureAwait(false);
     var mergedMine = merged.FindItem(mine.ItemKey);
     if (mergedMine == null || !mergedMine.BehaviorPayloads.Any(behavior =>
@@ -229,6 +230,7 @@ if (args.Any(argument => string.Equals(argument, "--merge-station-sensor", Strin
     await mergeNode.MutableDocument<AetheriaItemDefinition>(AetheriaCatalogKeys.ItemDefinitionFromLegacyId(stationHull.LegacyId))
         .ReplaceAsync(stationHull);
     await mergeNode.FlushAsync();
+    await mergeNode.RefreshRuntimeCatalogAsync();
     var merged = await mergeNode.RuntimeCatalog().LatestAsync().ConfigureAwait(false);
     var mergedHull = merged.FindItem(stationHull.ItemKey);
     if (mergedHull == null || !(mergedHull.Hardpoints ?? []).Any(hardpoint =>
@@ -338,7 +340,7 @@ foreach (var nameFile in parsedNameFiles)
 }
 
 await node.FlushAsync();
-var runtimeCatalog = await node.RuntimeCatalog().LatestAsync().ConfigureAwait(false);
+var runtimeCatalog = await node.RefreshRuntimeCatalogAsync().ConfigureAwait(false);
 var importedCorporationKeys = runtimeCatalog.Corporations
     .Select(corporation => corporation.CorporationKey)
     .Where(key => !string.IsNullOrWhiteSpace(key))
@@ -369,6 +371,7 @@ await node.MutableDocument<AetheriaTradeValuePolicy>(AetheriaStateNode.TradeValu
         runtimeCatalog.TradeValueSettings,
         capturedAtUtc));
 await node.FlushAsync();
+await node.RefreshRuntimeCatalogAsync().ConfigureAwait(false);
 await node.CatalogSurface().LatestAsync().ConfigureAwait(false);
 
 await node.FlushAsync();

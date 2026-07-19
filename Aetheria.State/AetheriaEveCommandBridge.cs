@@ -54,7 +54,8 @@ public static class AetheriaEveCommandBridge
             switch (command.Kind)
             {
                 case AetheriaRuntimeEveCommandKind.CatalogRefresh:
-                    var catalog = await node.RuntimeCatalog().LatestAsync().ConfigureAwait(false);
+                    await node.FlushAsync().ConfigureAwait(false);
+                    var catalog = await node.RefreshRuntimeCatalogAsync().ConfigureAwait(false);
                     await node.MutableDocument<EveSurfaceDocument>(AetheriaStateNode.CatalogSurfaceKey)
                         .ReplaceAsync(AetheriaEveSurfaceDocuments.BuildCatalogSurface(catalog, command.IssuedAtUtc))
                         .ConfigureAwait(false);

@@ -3607,6 +3607,26 @@ Live client readiness and durable publication are separate authorities:
   the released generic EveUnity witness proves provider discovery, mapped
   assets, QUIC SoA, commands and receipts while persistence runs concurrently.
 
+The runtime catalog has one compiled-state owner:
+
+- Owner: `AetheriaStateNode` owns the compiled
+  `AetheriaRuntimeCatalogSnapshot`; item, corporation, name-file, and trade
+  policy documents remain the authored source records.
+- Inputs: an explicit catalog refresh reads the durable source records after
+  their write has been flushed.
+- Outputs: one typed runtime-catalog record feeds simulation, asset projection,
+  loadout generation, and the Eve catalog surface.
+- Derived state: the Eve catalog surface is a projection of that record. Daemon
+  frames and their timestamps have no catalog-freshness authority.
+- Forbidden writers: simulation ticks, daemon-frame publication, Unity clients,
+  and surface refreshes cannot silently recompile or replace the catalog.
+- Shared paths: import, daemon-native catalog augmentation, and the explicit Eve
+  catalog-refresh command use the same compile-and-publish primitive.
+- Cut line: runtime reads and catalog-surface watches no longer reopen the
+  CultCache store or subscribe to daemon-frame changes.
+- Verification layer: state verification requires the typed record/watch path
+  and rejects daemon-frame invalidation or disk parsing inside `RuntimeCatalog`.
+
 Remote realtime transport has one narrow owner:
 
 - Owner: the Aetheria client CultMesh host owns the provider QUIC listener;

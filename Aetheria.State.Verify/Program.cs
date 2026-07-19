@@ -126,6 +126,7 @@ await using var node = await AetheriaStateNode.OpenAsync(
     verificationStatePath,
     "aetheria-state-verify",
     enableDurableShardLogs: false);
+await node.RefreshRuntimeCatalogAsync().ConfigureAwait(false);
 
 var ledger = await node.MutableDocument<AetheriaMigrationLedger>(AetheriaStateNode.MigrationLedgerKey).ReadAsync()
     ?? throw new InvalidOperationException("Missing typed migration ledger.");
@@ -12985,6 +12986,7 @@ static void RequireUnityRuntimeCatalogClientUsesManagedDocument(string root)
 
 static void RequireCatalogSurfaceUsesManagedRuntimeCatalog(string root)
 {
+    var stateNodePath = Path.Combine(root, "Aetheria.State", "AetheriaStateNode.cs");
     var surfaceDocumentsPath = Path.Combine(root, "Aetheria.State", "AetheriaEveSurfaceDocuments.cs");
     var bridgePath = Path.Combine(root, "Aetheria.State", "AetheriaEveCommandBridge.cs");
     var importPath = Path.Combine(root, "Aetheria.State.Import", "Program.cs");
@@ -12998,6 +13000,37 @@ static void RequireCatalogSurfaceUsesManagedRuntimeCatalog(string root)
     var import = File.Exists(importPath)
         ? File.ReadAllText(importPath)
         : throw new InvalidOperationException("Cannot verify legacy catalog import; Aetheria.State.Import/Program.cs is missing.");
+    var stateNode = File.Exists(stateNodePath)
+        ? File.ReadAllText(stateNodePath)
+        : throw new InvalidOperationException("Cannot verify runtime catalog ownership; AetheriaStateNode.cs is missing.");
+
+    var requiredStateNodeSymbols = new[]
+    {
+        "Database.GetAsync<AetheriaRuntimeCatalogSnapshot>(RuntimeCatalogKey)",
+        "Database.WatchRecord<AetheriaRuntimeCatalogSnapshot>(RuntimeCatalogKey)",
+        "public async Task<AetheriaRuntimeCatalogSnapshot> RefreshRuntimeCatalogAsync()",
+        "await Database.PutAsync(RuntimeCatalogKey, snapshot).ConfigureAwait(false);",
+        "_ => catalog.Watch()"
+    };
+    var missingStateNodeSymbols = requiredStateNodeSymbols
+        .Where(symbol => !stateNode.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingStateNodeSymbols.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "The state node must own one explicitly refreshed runtime catalog document: " +
+            string.Join(", ", missingStateNodeSymbols));
+    }
+
+    var runtimeCatalogMethod = stateNode[
+        stateNode.IndexOf("public CultMeshDocumentHandle<AetheriaRuntimeCatalogSnapshot> RuntimeCatalog()", StringComparison.Ordinal)..
+        stateNode.IndexOf("public CultMeshDocumentHandle<EveSurfaceDocument> CatalogSurface()", StringComparison.Ordinal)];
+    if (runtimeCatalogMethod.Contains("DaemonFrameLatest", StringComparison.Ordinal) ||
+        runtimeCatalogMethod.Contains("OpenReadOnly(StatePath)", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Daemon frames must not invalidate or recompile the runtime catalog.");
+    }
 
     var requiredSurfaceDocumentSymbols = new[]
     {
@@ -13068,6 +13101,7 @@ static void RequireCatalogSurfaceUsesManagedRuntimeCatalog(string root)
         "bb5d9f73-612f-4060-8fb4-f72d6b93b616",
         "rarity:rare",
         "--merge-station-sensor",
+        "RefreshRuntimeCatalogAsync()",
         "await node.CatalogSurface().LatestAsync().ConfigureAwait(false);"
     };
     var missingImportSymbols = requiredImportSymbols

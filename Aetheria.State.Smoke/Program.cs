@@ -98,6 +98,7 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
     });
 
     await node.FlushAsync();
+    await node.RefreshRuntimeCatalogAsync();
     var runtimeCatalog = await node.RuntimeCatalog().LatestAsync().ConfigureAwait(false);
     await node.MutableDocument<EveSurfaceDocument>(AetheriaStateNode.CatalogSurfaceKey)
         .ReplaceAsync(AetheriaEveSurfaceDocuments.BuildCatalogSurface(runtimeCatalog, now));

@@ -5860,6 +5860,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
 
             AetheriaDaemonNativeCatalog.EnsureAsync(node).GetAwaiter().GetResult();
             node.FlushAsync().GetAwaiter().GetResult();
+            node.RefreshRuntimeCatalogAsync().GetAwaiter().GetResult();
             var catalog = node.RuntimeCatalog().Latest();
             var hull = catalog.FindItem(AetheriaDaemonNativeCatalog.DockyardHullItemKey);
             var bay = catalog.FindItem(AetheriaDaemonNativeCatalog.DockyardBayItemKey);
