@@ -5,6 +5,7 @@ using GameCult.Aetheria.State.Verse;
 using GameCult.Caching;
 using GameCult.Eve.Surface;
 using GameCult.Mesh;
+using GameCult.Mesh.Quic;
 using GameCult.Networking;
 using MessagePack;
 using System.Globalization;
@@ -12,6 +13,8 @@ using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using System.Collections.Concurrent;
+using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 
 var options = AetheriaDaemonHostOptions.Parse(args);
 var startedAtUtc = DateTimeOffset.UtcNow.ToString("O");
@@ -52,10 +55,12 @@ var latestFrame = await node.MutableDocument<AetheriaRuntimeDaemonFrameDocument>
 TraceStartup("latest-frame");
 var unityBundles = BuildUnityBundleArtifactSet(options);
 TraceStartup("provider-asset-bundles");
-using var cultMeshClientHost = StartClientCultMeshHost(node, options, unityBundles, () => latestFrame);
+await using var cultMeshClientHost = await StartClientCultMeshHostAsync(
+    node, options, unityBundles, () => latestFrame).ConfigureAwait(false);
 TraceStartup("client-host");
 Console.WriteLine($"Aetheria client CultMesh endpoint: {cultMeshClientHost.ControlEndpoint}");
 Console.WriteLine($"Aetheria client CDN endpoint: {cultMeshClientHost.ContentEndpoint}");
+Console.WriteLine($"Aetheria client realtime endpoint: {cultMeshClientHost.RealtimeEndpoint}");
 Console.WriteLine($"Aetheria daemon transport-ready in {startup.Elapsed.TotalMilliseconds:0.###}ms.");
 using var clientSubscriptions = new CultNetDatabaseSubscriptionServer(cultMeshClientHost.Control, node.Database);
 var managedViewportDemand = new AetheriaManagedViewportDemandState();
@@ -120,7 +125,8 @@ await PublishPreparedDocumentsAsync(
     reactiveSurfaceState,
     publishTopology: true).ConfigureAwait(false);
 TraceStartup("first-publication");
-await PublishHotEntityStateAsync(node, soaPublisher, hotState, firstTick.Frame, ingressState.Catalog).ConfigureAwait(false);
+await PublishHotEntityStateAsync(
+    node, soaPublisher, hotState, firstTick.Frame, ingressState.Catalog, cultMeshClientHost).ConfigureAwait(false);
 TraceStartup("hot-entity-state");
 nextApiPublicationUtc = DateTimeOffset.UtcNow.Add(options.ApiPublicationInterval);
 Console.WriteLine($"Aetheria Verse daemon published frame {firstTick.Frame.FrameId}.");
@@ -158,7 +164,8 @@ while (!stopped.Task.IsCompleted)
     var tick = await TickAsync(node, options, unityBundles, worldPhysics, latestFrame, ingressState, buildPublications: false).ConfigureAwait(false);
     ThrowIfClientHostFaulted(cultMeshClientHost);
     latestFrame = tick.Frame;
-    await PublishHotEntityStateAsync(node, soaPublisher, hotState, tick.Frame, ingressState.Catalog).ConfigureAwait(false);
+    await PublishHotEntityStateAsync(
+        node, soaPublisher, hotState, tick.Frame, ingressState.Catalog, cultMeshClientHost).ConfigureAwait(false);
     nextTickUtc += options.TickInterval;
     if (nextTickUtc < DateTimeOffset.UtcNow - options.TickInterval)
         nextTickUtc = DateTimeOffset.UtcNow;
@@ -188,6 +195,7 @@ while (!stopped.Task.IsCompleted)
         Console.WriteLine(
             $"Aetheria Verse daemon published frame {tick.Frame.FrameId} at {tick.Frame.SimulationTimeSeconds:0.00}s; " +
             $"control peers={cultMeshClientHost.Control.PeerCount} " +
+            $"quic peers={cultMeshClientHost.Realtime.ConnectionCount} " +
             $"cdn chunks={cultMeshClientHost.Content.ChunkRequestsServed}.");
     }
 }
@@ -198,11 +206,14 @@ Console.WriteLine("Aetheria Verse daemon stopping.");
 
 static void ThrowIfClientHostFaulted(AetheriaClientCultMeshHost host)
 {
-    if (!host.Control.BackgroundFailure.IsCompleted)
-        return;
-    throw new InvalidOperationException(
-        "Aetheria client CultMesh TCP control host faulted.",
-        host.Control.BackgroundFailure.GetAwaiter().GetResult());
+    if (host.Control.BackgroundFailure.IsCompleted)
+        throw new InvalidOperationException(
+            "Aetheria client CultMesh TCP control host faulted.",
+            host.Control.BackgroundFailure.GetAwaiter().GetResult());
+    if (host.Realtime.BackgroundFailure.IsCompleted)
+        throw new InvalidOperationException(
+            "Aetheria client CultMesh QUIC realtime host faulted.",
+            host.Realtime.BackgroundFailure.GetAwaiter().GetResult());
 }
 
 static async Task<AetheriaRuntimeDaemonTickResult> TickAsync(
@@ -667,7 +678,7 @@ static async Task<AetheriaRuntimeDaemonTickResult> ImportRemoteCommittedFactsAsy
     return import.Tick;
 }
 
-static AetheriaClientCultMeshHost StartClientCultMeshHost(
+static async Task<AetheriaClientCultMeshHost> StartClientCultMeshHostAsync(
     AetheriaStateNode node,
     AetheriaDaemonHostOptions options,
     AetheriaUnityBundleArtifactSet unityBundles,
@@ -683,9 +694,33 @@ static AetheriaClientCultMeshHost StartClientCultMeshHost(
     var content = new CultMeshTcpContentServer(new TcpListener(
         ParseBindAddress(options.ClientCultMeshHost),
         options.ClientCultMeshContentPort), contentCache);
+    var realtimeCertificate = CreateRealtimeCertificate(options.ClientCultMeshAdvertiseHost);
+    CultMeshQuicRealtimeServer realtime;
+    try
+    {
+        realtime = await CultMeshQuicRealtimeServer.ListenAsync(new CultMeshQuicRealtimeServerOptions
+        {
+            ListenEndPoint = new IPEndPoint(
+                ParseBindAddress(options.ClientCultMeshHost),
+                options.ClientCultMeshQuicPort),
+            ServerCertificate = realtimeCertificate
+        }).ConfigureAwait(false);
+    }
+    catch
+    {
+        realtimeCertificate.Dispose();
+        content.Dispose();
+        server.Dispose();
+        contentCache.Dispose();
+        throw;
+    }
     var advertisedEndpoint = $"cultnet+tcp://{options.ClientCultMeshAdvertiseHost}:{server.LocalEndPoint.Port}";
     var advertisedContentEndpoint =
         $"{CultMeshTcpContentTransportConnector.Scheme}://{options.ClientCultMeshAdvertiseHost}:{content.LocalEndPoint.Port}";
+    var certificatePin = Convert.ToHexString(SHA256.HashData(realtimeCertificate.RawData));
+    var advertisedRealtimeEndpoint =
+        $"{CultMeshQuicRealtimeTransportConnector.Scheme}://{options.ClientCultMeshAdvertiseHost}:{realtime.LocalEndPoint.Port}" +
+        $"?cert-sha256={certificatePin}";
     server.PeerFailed += (endpoint, error) => Console.Error.WriteLine(
         $"Aetheria client CultMesh peer {endpoint} failed: {error.GetType().Name}: {error.Message}");
     server.OnCultNet<CultMeshVerseCatalogRequestMessage>((request, peer) =>
@@ -697,7 +732,7 @@ static AetheriaClientCultMeshHost StartClientCultMeshHost(
             new CultMeshVerseCompatibility(
                 "cultmesh.v0",
                 CultMeshVerseDescriptor.ComputeRulesHash("aetheria", "runtime-world.v1")),
-            discoveryEndpoints: new[] { advertisedEndpoint, advertisedContentEndpoint },
+            discoveryEndpoints: new[] { advertisedEndpoint, advertisedContentEndpoint, advertisedRealtimeEndpoint },
             authorityRuntimeIds: new[] { options.DaemonId },
             description: "Aetheria provider Verse");
         peer.SendCultNet(new CultMeshVerseCatalogResponseMessage
@@ -1136,9 +1171,36 @@ static AetheriaClientCultMeshHost StartClientCultMeshHost(
     return new AetheriaClientCultMeshHost(
         server,
         content,
+        realtime,
+        realtimeCertificate,
         contentCache,
         advertisedEndpoint,
-        advertisedContentEndpoint);
+        advertisedContentEndpoint,
+        advertisedRealtimeEndpoint);
+}
+
+static X509Certificate2 CreateRealtimeCertificate(string advertisedHost)
+{
+    using var key = RSA.Create(2048);
+    var request = new CertificateRequest(
+        $"CN={advertisedHost}",
+        key,
+        HashAlgorithmName.SHA256,
+        RSASignaturePadding.Pkcs1);
+    request.CertificateExtensions.Add(new X509BasicConstraintsExtension(false, false, 0, false));
+    request.CertificateExtensions.Add(new X509KeyUsageExtension(X509KeyUsageFlags.DigitalSignature, false));
+    request.CertificateExtensions.Add(new X509EnhancedKeyUsageExtension(
+        new OidCollection { new("1.3.6.1.5.5.7.3.1") },
+        false));
+    var names = new SubjectAlternativeNameBuilder();
+    if (IPAddress.TryParse(advertisedHost, out var address)) names.AddIpAddress(address);
+    else names.AddDnsName(advertisedHost);
+    request.CertificateExtensions.Add(names.Build());
+    request.CertificateExtensions.Add(new X509SubjectKeyIdentifierExtension(request.PublicKey, false));
+    using var generated = request.CreateSelfSigned(
+        DateTimeOffset.UtcNow.AddMinutes(-1),
+        DateTimeOffset.UtcNow.AddDays(7));
+    return X509CertificateLoader.LoadPkcs12(generated.Export(X509ContentType.Pfx), null);
 }
 
 static void InjectCultMeshCdnManifestSnapshots(
@@ -1612,13 +1674,20 @@ static async Task PublishHotEntityStateAsync(
     AetheriaRuntimeDaemonSoaFramePublisher publisher,
     AetheriaHotEntityPublicationState state,
     AetheriaRuntimeDaemonFrameDocument frame,
-    AetheriaRuntimeCatalogSnapshot? catalog)
+    AetheriaRuntimeCatalogSnapshot? catalog,
+    AetheriaClientCultMeshHost clientHost)
 {
-    using var hotFrame = publisher.BuildCurrentZoneEntities(frame, catalog);
+    var hasRealtimeConsumers = clientHost.Realtime.ConnectionCount > 0;
+    using var hotFrame = publisher.BuildCurrentZoneEntities(
+        frame,
+        catalog,
+        realtimeDemand: hasRealtimeConsumers);
     if (hotFrame == null)
         return;
 
-    var publication = await publisher.PublishAsync(hotFrame).ConfigureAwait(false);
+    var publication = await publisher.PublishAsync(
+        hotFrame,
+        includeRealtimePayload: hasRealtimeConsumers).ConfigureAwait(false);
     var layoutChanged = !state.Matches(publication.View);
     if (layoutChanged)
     {
@@ -1637,6 +1706,19 @@ static async Task PublishHotEntityStateAsync(
             .ReplaceAsync(publication.View)
             .ConfigureAwait(false);
         state.Set(publication.View);
+    }
+    if (!publication.RealtimePayload.IsEmpty)
+    {
+        await clientHost.Realtime.BroadcastAsync(new CultMeshRealtimeFrame
+        {
+            ChannelId = "aetheria.entities",
+            SchemaId = AetheriaRuntimeDaemonSoaFramePublisher.BodySchemaId,
+            BodyId = AetheriaRuntimeDaemonSoaFramePublisher.BodyId,
+            ProducerEpoch = publication.Body.ProducerEpoch,
+            Sequence = publication.Body.Sequence,
+            Delivery = CultMeshRealtimeDelivery.LatestOnly,
+            Payload = publication.RealtimePayload
+        }).ConfigureAwait(false);
     }
 }
 
@@ -3517,30 +3599,41 @@ internal sealed class AetheriaUnityBundleArtifact
     public CultMeshCdnArtifact Artifact { get; }
 }
 
-internal sealed class AetheriaClientCultMeshHost : IDisposable
+internal sealed class AetheriaClientCultMeshHost : IAsyncDisposable
 {
     public AetheriaClientCultMeshHost(
         TcpFramedCultNetSchemaServer control,
         CultMeshTcpContentServer content,
+        CultMeshQuicRealtimeServer realtime,
+        X509Certificate2 realtimeCertificate,
         CultCache contentCache,
         string controlEndpoint,
-        string contentEndpoint)
+        string contentEndpoint,
+        string realtimeEndpoint)
     {
         Control = control ?? throw new ArgumentNullException(nameof(control));
         Content = content ?? throw new ArgumentNullException(nameof(content));
+        Realtime = realtime ?? throw new ArgumentNullException(nameof(realtime));
+        RealtimeCertificate = realtimeCertificate ?? throw new ArgumentNullException(nameof(realtimeCertificate));
         ContentCache = contentCache ?? throw new ArgumentNullException(nameof(contentCache));
         ControlEndpoint = controlEndpoint ?? throw new ArgumentNullException(nameof(controlEndpoint));
         ContentEndpoint = contentEndpoint ?? throw new ArgumentNullException(nameof(contentEndpoint));
+        RealtimeEndpoint = realtimeEndpoint ?? throw new ArgumentNullException(nameof(realtimeEndpoint));
     }
 
     public TcpFramedCultNetSchemaServer Control { get; }
     public CultMeshTcpContentServer Content { get; }
+    public CultMeshQuicRealtimeServer Realtime { get; }
+    private X509Certificate2 RealtimeCertificate { get; }
     private CultCache ContentCache { get; }
     public string ControlEndpoint { get; }
     public string ContentEndpoint { get; }
+    public string RealtimeEndpoint { get; }
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
+        await Realtime.DisposeAsync().ConfigureAwait(false);
+        RealtimeCertificate.Dispose();
         Content.Dispose();
         ContentCache.Dispose();
         Control.Dispose();
@@ -3558,6 +3651,7 @@ internal sealed class AetheriaDaemonHostOptions
     public string ClientCultMeshAdvertiseHost { get; init; } = "127.0.0.1";
     public int ClientCultMeshPort { get; init; } = 3076;
     public int ClientCultMeshContentPort { get; init; }
+    public int ClientCultMeshQuicPort { get; init; }
     public string AetheriaResourcesRoot { get; init; } = "";
     public string AssetBundleRoot { get; init; } = "";
     public IReadOnlyList<string> PeerCultMeshEndpoints { get; init; } = Array.Empty<string>();
@@ -3591,6 +3685,7 @@ internal sealed class AetheriaDaemonHostOptions
         var clientCultMeshAdvertiseHost = ReadOption(args, "--client-cultmesh-advertise-host");
         var clientCultMeshPort = ReadNonNegativeInt(args, "--client-cultmesh-port") ?? 3076;
         var clientCultMeshContentPort = ReadNonNegativeInt(args, "--client-cultmesh-content-port") ?? 0;
+        var clientCultMeshQuicPort = ReadNonNegativeInt(args, "--client-cultmesh-quic-port") ?? 0;
         var aetheriaResourcesRoot = ReadOption(args, "--aetheria-resources-root");
         var assetBundleRoot = ReadOption(args, "--asset-bundle-root");
         RejectRemovedOption(args, "--rts-cultmesh-port", "--client-cultmesh-port");
@@ -3622,6 +3717,7 @@ internal sealed class AetheriaDaemonHostOptions
                 : clientCultMeshAdvertiseHost,
             ClientCultMeshPort = clientCultMeshPort,
             ClientCultMeshContentPort = clientCultMeshContentPort,
+            ClientCultMeshQuicPort = clientCultMeshQuicPort,
             AetheriaResourcesRoot = string.IsNullOrWhiteSpace(aetheriaResourcesRoot)
                 ? Path.GetFullPath(Path.Combine(root, "Assets", "Resources"))
                 : Path.GetFullPath(aetheriaResourcesRoot),

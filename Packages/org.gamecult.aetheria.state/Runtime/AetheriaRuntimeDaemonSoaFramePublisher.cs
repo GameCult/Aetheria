@@ -1,6 +1,7 @@
 using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using GameCult.Eve.Surface;
@@ -46,14 +47,17 @@ namespace GameCult.Aetheria.State.Verse
     {
         public AetheriaRuntimeDaemonSoaPublication(
             CultMeshBodyPublicationDocument body,
-            EveEntitySoaViewDocument view)
+            EveEntitySoaViewDocument view,
+            ReadOnlyMemory<byte> realtimePayload)
         {
             Body = body ?? throw new ArgumentNullException(nameof(body));
             View = view ?? throw new ArgumentNullException(nameof(view));
+            RealtimePayload = realtimePayload;
         }
 
         public CultMeshBodyPublicationDocument Body { get; }
         public EveEntitySoaViewDocument View { get; }
+        public ReadOnlyMemory<byte> RealtimePayload { get; }
     }
 
     public sealed class AetheriaRuntimeDaemonSoaFramePublisher : IDisposable
@@ -92,12 +96,15 @@ namespace GameCult.Aetheria.State.Verse
 
         public AetheriaRuntimeDaemonSoaFrame? BuildCurrentZoneEntities(
             AetheriaRuntimeDaemonFrameDocument frame,
-            AetheriaRuntimeCatalogSnapshot? catalog = null)
+            AetheriaRuntimeCatalogSnapshot? catalog = null,
+            bool realtimeDemand = false)
         {
             if (frame == null)
                 throw new ArgumentNullException(nameof(frame));
             var demand = _demand?.Plan(BodyId);
-            if (demand != null && (!demand.HasConsumers || !demand.RequiresSharedMemory))
+            if (demand != null &&
+                (!demand.HasConsumers || !demand.RequiresSharedMemory) &&
+                !realtimeDemand)
                 return null;
 
             var run = frame.Run ?? new AetheriaRuntimeRunCheckpointCommit();
@@ -281,7 +288,9 @@ namespace GameCult.Aetheria.State.Verse
             }
         }
 
-        public Task<AetheriaRuntimeDaemonSoaPublication> PublishAsync(AetheriaRuntimeDaemonSoaFrame frame)
+        public Task<AetheriaRuntimeDaemonSoaPublication> PublishAsync(
+            AetheriaRuntimeDaemonSoaFrame frame,
+            bool includeRealtimePayload = false)
         {
             if (frame == null) throw new ArgumentNullException(nameof(frame));
             var now = DateTimeOffset.UtcNow;
@@ -318,7 +327,32 @@ namespace GameCult.Aetheria.State.Verse
             if (view.Buffers.Length != 1 || !string.Equals(view.Buffers[0].BufferId, publication.BodyId, StringComparison.Ordinal) ||
                 view.Columns.Any(column => !string.Equals(column.BufferId, publication.BodyId, StringComparison.Ordinal)))
                 throw new InvalidOperationException("Aetheria Eve SoA layout does not reference its published logical body identity.");
-            return Task.FromResult(new AetheriaRuntimeDaemonSoaPublication(publication, view));
+            var realtimePayload = includeRealtimePayload
+                ? CopyRealtimePayload(local, now)
+                : ReadOnlyMemory<byte>.Empty;
+            return Task.FromResult(new AetheriaRuntimeDaemonSoaPublication(publication, view, realtimePayload));
+        }
+
+        private static ReadOnlyMemory<byte> CopyRealtimePayload(CultMeshBodyDescriptor descriptor, DateTimeOffset now)
+        {
+            var bytes = new byte[checked((int)descriptor.ByteSize)];
+            using var lease = new CultMeshSharedMemoryBodyAdapter().OpenReadOnly(
+                descriptor,
+                new CultMeshBodyValidationRequest
+                {
+                    BodyId = descriptor.BodyId,
+                    SchemaId = descriptor.SchemaId,
+                    LayoutVersion = descriptor.LayoutVersion,
+                    ProducerEpoch = descriptor.ProducerEpoch,
+                    Sequence = descriptor.Sequence,
+                    Capacity = descriptor.Capacity,
+                    AccessMode = CultMeshBodyAccessMode.ReadOnly,
+                    NowUtc = now
+                });
+            var copied = lease.CopyTo(0, bytes, 0, bytes.Length);
+            if (copied != bytes.Length)
+                throw new EndOfStreamException($"CultMesh copied {copied} of {bytes.Length} realtime SoA bytes.");
+            return bytes;
         }
 
         public void Dispose() => _localPublisher.Dispose();

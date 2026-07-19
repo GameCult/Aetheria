@@ -3576,3 +3576,26 @@ Ymir restart ownership is deliberately private and asymmetric:
   the next tick cannot resurrect the pickup or duplicate cargo or feedback. Ymir unit
   tests prove incremental suffix capture, exact chunk coverage, checksums, and
   replay verifier convergence.
+
+Remote realtime transport has one narrow owner:
+
+- Owner: the Aetheria client CultMesh host owns the provider QUIC listener;
+  CultMesh session selection owns the matching client connector and route.
+- Inputs: the exact committed portable Eve entity SoA body, its schema id,
+  producer epoch, and sequence. Trusted discovery supplies the provider's
+  short-lived TLS certificate SHA-256 pin with the QUIC route.
+- Outputs: latest-only `aetheria.entities` frames over QUIC when at least one
+  remote realtime consumer is connected.
+- Derived state: connection count and the temporary network payload copy are
+  delivery state only. They do not own simulation or world truth.
+- Forbidden writers: QUIC clients, TCP snapshot consumers, Unity lowerers, and
+  legacy RUDP cannot write or repair authoritative entity state.
+- Shared paths: the same committed SoA publication feeds mapped memory for a
+  same-machine client and QUIC for a remote client. No QUIC payload is copied
+  when no remote consumer exists.
+- Cut line: RUDP is not selected or advertised; TCP retains schemas, commands,
+  receipts, manifests, and immutable content rather than carrying hot SoA
+  snapshots.
+- Verification layer: `Aetheria.TransportProbe` discovers the daemon through
+  its TCP catalog, authenticates the advertised QUIC route, and validates a
+  nonempty latest-only frame with the exact Aetheria body and schema identity.
