@@ -354,22 +354,6 @@ namespace Aetheria.Editor
                 }
             }
 
-            if (!TryRefreshDaemon() && File.Exists(PidPath) &&
-                int.TryParse(File.ReadAllText(PidPath).Trim(), out var processId))
-            {
-                try
-                {
-                    _daemon = Process.GetProcessById(processId);
-                    SessionState.SetInt(ProcessIdSessionKey, processId);
-                    _status = $"Daemon {processId} starting...";
-                    Changed?.Invoke();
-                }
-                catch (ArgumentException)
-                {
-                    // The launcher published a PID just as the process exited. The error log owns the explanation.
-                }
-            }
-
             if (TryRefreshDaemon() && IsEndpointReady())
             {
                 if (!_status.StartsWith("Running", StringComparison.Ordinal))
@@ -385,12 +369,8 @@ namespace Aetheria.Editor
                 }
                 TrySubmitPendingClockAction();
             }
-            else if (_daemon != null && _daemon.HasExited)
+            else if (TryTakeDaemonExit(out var exitCode))
             {
-                var exitCode = _daemon.ExitCode;
-                _daemon.Dispose();
-                _daemon = null;
-                SessionState.EraseInt(ProcessIdSessionKey);
                 _status = $"Daemon exited ({exitCode})";
                 _lastError = ReadTail(ErrorLogPath, 24);
                 Changed?.Invoke();
@@ -459,23 +439,110 @@ namespace Aetheria.Editor
 
         private static bool TryRefreshDaemon()
         {
+            if (_daemon == null)
+                TryAttachPidFile();
             if (_daemon == null) return false;
-            try { return !_daemon.HasExited; }
-            catch (InvalidOperationException) { return false; }
+            try
+            {
+                if (_daemon.HasExited) return false;
+                if (string.Equals(_daemon.ProcessName, "Aetheria.State.Daemon", StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+            catch (InvalidOperationException)
+            {
+            }
+            catch (System.ComponentModel.Win32Exception)
+            {
+            }
+
+            ClearDaemonReference();
+            return false;
+        }
+
+        private static void ClearDaemonReference()
+        {
+            _daemon?.Dispose();
+            _daemon = null;
+            SessionState.EraseInt(ProcessIdSessionKey);
+        }
+
+        private static bool TryTakeDaemonExit(out int exitCode)
+        {
+            exitCode = 0;
+            if (_daemon == null) return false;
+            try
+            {
+                if (!_daemon.HasExited) return false;
+                exitCode = _daemon.ExitCode;
+            }
+            catch (InvalidOperationException)
+            {
+                ClearDaemonReference();
+                return false;
+            }
+            catch (System.ComponentModel.Win32Exception)
+            {
+                ClearDaemonReference();
+                return false;
+            }
+
+            ClearDaemonReference();
+            return true;
         }
 
         private static void Reattach()
         {
             var processId = SessionState.GetInt(ProcessIdSessionKey, -1);
-            if (processId <= 0) return;
+            if (processId > 0 && TryAttach(processId, "Reattached to")) return;
+            SessionState.EraseInt(ProcessIdSessionKey);
+            TryAttachPidFile();
+        }
+
+        private static void TryAttachPidFile()
+        {
             try
             {
-                _daemon = Process.GetProcessById(processId);
-                _status = $"Reattached to Debug daemon (PID {processId})";
+                if (!File.Exists(PidPath) ||
+                    !int.TryParse(File.ReadAllText(PidPath).Trim(), out var processId))
+                    return;
+                TryAttach(processId, "Attached to");
+            }
+            catch (IOException)
+            {
+                // The launcher replaces the PID file atomically; the next liveness check retries.
+            }
+        }
+
+        private static bool TryAttach(int processId, string statusPrefix)
+        {
+            try
+            {
+                var process = Process.GetProcessById(processId);
+                if (process.HasExited ||
+                    !string.Equals(process.ProcessName, "Aetheria.State.Daemon", StringComparison.OrdinalIgnoreCase))
+                {
+                    process.Dispose();
+                    return false;
+                }
+
+                _daemon?.Dispose();
+                _daemon = process;
+                SessionState.SetInt(ProcessIdSessionKey, processId);
+                _status = $"{statusPrefix} Debug daemon (PID {processId})";
+                Changed?.Invoke();
+                return true;
             }
             catch (ArgumentException)
             {
-                SessionState.EraseInt(ProcessIdSessionKey);
+                return false;
+            }
+            catch (InvalidOperationException)
+            {
+                return false;
+            }
+            catch (System.ComponentModel.Win32Exception)
+            {
+                return false;
             }
         }
 
