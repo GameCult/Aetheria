@@ -50,6 +50,11 @@ using var physicsPersistence = await AetheriaYmirPersistenceCoordinator.OpenAsyn
     latestFrame).ConfigureAwait(false);
 using var cultMeshRudpHost = StartClientCultMeshHost(node, options, () => latestFrame);
 using var clientSubscriptions = new CultNetDatabaseSubscriptionServer(cultMeshRudpHost, node.Database);
+if (traceClientRudp)
+    clientSubscriptions.DemandChanged += demand => Console.WriteLine(
+        $"CultMesh body demand consumer={demand.ConsumerRuntimeId} subscription={demand.SubscriptionId} " +
+        $"active={demand.Active} sameMachine={demand.SameMachine} " +
+        $"bodies=[{string.Join(",", demand.BodyIds)}] transports=[{string.Join(",", demand.SupportedBodyTransports)}]");
 using var bodyDemand = new CultMeshBodyDemandTracker(clientSubscriptions);
 using var soaPublisher = new AetheriaRuntimeDaemonSoaFramePublisher(
     node.Cache,
@@ -59,23 +64,23 @@ using var clientPumpCancellation = new CancellationTokenSource();
 var clientPump = RunClientCultMeshPumpAsync(cultMeshRudpHost, clientPumpCancellation.Token);
 var nextApiPublicationUtc = DateTimeOffset.UtcNow;
 var ingressState = new AetheriaDaemonIngressState();
-var firstTick = await TickAsync(node, options, worldPhysics, soaPublisher, latestFrame, ingressState, buildPublications: false).ConfigureAwait(false);
+var hotState = new AetheriaHotEntityPublicationState();
+var firstTick = await TickAsync(node, options, worldPhysics, latestFrame, ingressState, buildPublications: false).ConfigureAwait(false);
 ThrowIfClientPumpFaulted(clientPump);
 latestFrame = firstTick.Frame;
 var firstPublication = PreparePublication(
     node.StatePath,
     options,
-    soaPublisher,
     firstTick,
     ingressState,
     physicsPersistence);
 await PublishPreparedDocumentsAsync(
     node,
     options,
-    soaPublisher,
     physicsPersistence,
     firstPublication,
     publishTopology: true).ConfigureAwait(false);
+await PublishHotEntityStateAsync(node, soaPublisher, hotState, firstTick.Frame, ingressState.Catalog).ConfigureAwait(false);
 nextApiPublicationUtc = DateTimeOffset.UtcNow.Add(options.ApiPublicationInterval);
 Console.WriteLine($"Aetheria Verse daemon published frame {firstTick.Frame.FrameId}.");
 Console.WriteLine($"Aetheria client CultMesh endpoint: rudp://{options.ClientCultMeshAdvertiseHost}:{cultMeshRudpHost.LocalEndPoint.Port}");
@@ -111,9 +116,10 @@ while (!stopped.Task.IsCompleted)
     }
 
     var buildPublications = DateTimeOffset.UtcNow >= nextApiPublicationUtc;
-    var tick = await TickAsync(node, options, worldPhysics, soaPublisher, latestFrame, ingressState, buildPublications: false).ConfigureAwait(false);
+    var tick = await TickAsync(node, options, worldPhysics, latestFrame, ingressState, buildPublications: false).ConfigureAwait(false);
     ThrowIfClientPumpFaulted(clientPump);
     latestFrame = tick.Frame;
+    await PublishHotEntityStateAsync(node, soaPublisher, hotState, tick.Frame, ingressState.Catalog).ConfigureAwait(false);
     nextTickUtc += options.TickInterval;
     if (nextTickUtc < DateTimeOffset.UtcNow - options.TickInterval)
         nextTickUtc = DateTimeOffset.UtcNow;
@@ -124,14 +130,12 @@ while (!stopped.Task.IsCompleted)
         var publication = PreparePublication(
             node.StatePath,
             options,
-            soaPublisher,
             tick,
             ingressState,
             physicsPersistence);
         publicationTask = PublishPreparedDocumentsAsync(
             node,
             options,
-            soaPublisher,
             physicsPersistence,
             publication,
             publishTopology: false);
@@ -167,7 +171,6 @@ static async Task<AetheriaRuntimeDaemonTickResult> TickAsync(
     AetheriaStateNode node,
     AetheriaDaemonHostOptions options,
     IAetheriaRuntimeWorldPhysics worldPhysics,
-    AetheriaRuntimeDaemonSoaFramePublisher soaPublisher,
     AetheriaRuntimeDaemonFrameDocument? currentFrame,
     AetheriaDaemonIngressState ingressState,
     bool buildPublications)
@@ -286,7 +289,6 @@ static async Task<AetheriaRuntimeDaemonTickResult> TickAsync(
             StarbridgeScenario = starbridgeScenario,
             StarbridgeSession = starbridgeSession,
             BuildPublications = buildPublications,
-            SoaFramePublisher = soaPublisher,
             OperationContext = new AetheriaRuntimeDaemonOperationContext
             {
                 LoadoutTemplates = loadoutTemplates
@@ -341,7 +343,7 @@ static async Task<AetheriaRuntimeDaemonTickResult> TickAsync(
 
     if (buildPublications)
     {
-        await PublishDaemonApiDocumentsAsync(node, options, soaPublisher, result, publishTopology: true).ConfigureAwait(false);
+        await PublishDaemonApiDocumentsAsync(node, options, result, publishTopology: true).ConfigureAwait(false);
         TracePhase("api-publication");
         await PublishStateSurfacesAsync(node, options, result.Frame.PublishedAtUtc).ConfigureAwait(false);
         TracePhase("state-surfaces");
@@ -355,7 +357,6 @@ static async Task<AetheriaRuntimeDaemonTickResult> TickAsync(
 static AetheriaPreparedPublication PreparePublication(
     string statePath,
     AetheriaDaemonHostOptions options,
-    AetheriaRuntimeDaemonSoaFramePublisher soaPublisher,
     AetheriaRuntimeDaemonTickResult tick,
     AetheriaDaemonIngressState ingressState,
     AetheriaYmirPersistenceCoordinator physicsPersistence)
@@ -381,8 +382,7 @@ static AetheriaPreparedPublication PreparePublication(
             StarbridgeScenario = ingressState.StarbridgeScenario,
             StarbridgeSession = ingressState.StarbridgeSession,
             RenderSettings = options.RenderSettings,
-            SimulationSettings = options.SimulationSettings,
-            SoaFramePublisher = soaPublisher
+            SimulationSettings = options.SimulationSettings
         },
         frame.AccountedCommandIds?.Count ?? 0);
     return new AetheriaPreparedPublication(publication, physics);
@@ -391,7 +391,6 @@ static AetheriaPreparedPublication PreparePublication(
 static async Task PublishPreparedDocumentsAsync(
     AetheriaStateNode node,
     AetheriaDaemonHostOptions options,
-    AetheriaRuntimeDaemonSoaFramePublisher soaPublisher,
     AetheriaYmirPersistenceCoordinator physicsPersistence,
     AetheriaPreparedPublication prepared,
     bool publishTopology)
@@ -400,7 +399,6 @@ static async Task PublishPreparedDocumentsAsync(
     await PublishDaemonApiDocumentsAsync(
         node,
         options,
-        soaPublisher,
         prepared.Publication,
         publishTopology).ConfigureAwait(false);
     if (publishTopology)
@@ -1510,10 +1508,44 @@ static bool TryGetDouble(
         double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out value);
 }
 
+static async Task PublishHotEntityStateAsync(
+    AetheriaStateNode node,
+    AetheriaRuntimeDaemonSoaFramePublisher publisher,
+    AetheriaHotEntityPublicationState state,
+    AetheriaRuntimeDaemonFrameDocument frame,
+    AetheriaRuntimeCatalogSnapshot? catalog)
+{
+    using var hotFrame = publisher.BuildCurrentZoneEntities(frame, catalog);
+    if (hotFrame == null)
+        return;
+
+    var publication = await publisher.PublishAsync(hotFrame).ConfigureAwait(false);
+    var layoutChanged = !state.Matches(publication.View);
+    var publishesRemoteGeneration = publication.Body.Representations.Any(
+        value => value.TransportKind == CultMeshBodyTransportKind.Network);
+    if (layoutChanged || publishesRemoteGeneration)
+    {
+        if (layoutChanged && string.Equals(Environment.GetEnvironmentVariable("AETHERIA_TRACE_CLIENT_RUDP"), "1", StringComparison.Ordinal))
+            Console.WriteLine(
+                $"CultMesh entity layout changed sequence={publication.View.Sequence} bytes={MessagePackSerializer.Serialize(publication.View).Length} " +
+                $"identities={publication.View.Identities.Length} representations=[{string.Join(",", publication.Body.Representations.Select(value => value.TransportKind))}]");
+        await node.MutableDocument<CultMeshBodyPublicationDocument>(
+                CultMeshBodyPublicationDocument.CreateLatestRecordKey(publication.Body.BodyId))
+            .ReplaceAsync(publication.Body)
+            .ConfigureAwait(false);
+    }
+    if (layoutChanged)
+    {
+        await node.MutableDocument<EveEntitySoaViewDocument>(AetheriaRuntimeVerseRecordKeys.EveEntitySoaViewLatest)
+            .ReplaceAsync(publication.View)
+            .ConfigureAwait(false);
+        state.Set(publication.View);
+    }
+}
+
 static async Task PublishDaemonApiDocumentsAsync(
     AetheriaStateNode node,
     AetheriaDaemonHostOptions options,
-    AetheriaRuntimeDaemonSoaFramePublisher soaPublisher,
     AetheriaRuntimeDaemonTickResult result,
     bool publishTopology)
 {
@@ -1567,32 +1599,21 @@ static async Task PublishDaemonApiDocumentsAsync(
     var activeMainMenuSurfaceId = string.IsNullOrWhiteSpace(mainMenuState?.ActiveSurfaceId)
         ? AetheriaRuntimeMainMenuCommands.RootSurfaceId
         : mainMenuState.ActiveSurfaceId;
-    var gameSurface = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(
-        result.Frame,
-        result.Health ?? new AetheriaRuntimeDaemonHealthDocument(),
-        result.CommandBoundary ?? AetheriaRuntimeDaemonCommandBoundaryDocument.Create(options.DaemonId),
-        activeMainMenuSurfaceId,
-        inputCatalog);
-    await node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.DaemonGameSurface)
-        .ReplaceAsync(AetheriaRuntimeSurfaceDocuments.ToPortableSurface(gameSurface))
-        .ConfigureAwait(false);
-    await PublishDaemonSectorMapSurfaceAsync(node, result.Frame, inputCatalog).ConfigureAwait(false);
-    // Keep low-bandwidth control state ahead of the bulk entity frame on the ordered
-    // subscription stream. Commands and beam feedback must not wait behind SoA delivery.
-    if (result.SoaFrame != null && result.SoaView != null &&
-        string.Equals(result.SoaView.Schema, AetheriaRuntimeDaemonSchemas.SoaView, StringComparison.Ordinal))
+    if (publishTopology)
     {
-        await node.MutableDocument<AetheriaRuntimeDaemonSoaViewDocument>(AetheriaRuntimeVerseRecordKeys.DaemonSoaViewLatest)
-            .ReplaceAsync(result.SoaView)
+        var gameSurface = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(
+            result.Frame,
+            result.Health ?? new AetheriaRuntimeDaemonHealthDocument(),
+            result.CommandBoundary ?? AetheriaRuntimeDaemonCommandBoundaryDocument.Create(options.DaemonId),
+            activeMainMenuSurfaceId,
+            inputCatalog);
+        var portableGameSurface = AetheriaRuntimeSurfaceDocuments.ToPortableSurface(gameSurface);
+        if (string.Equals(Environment.GetEnvironmentVariable("AETHERIA_TRACE_CLIENT_RUDP"), "1", StringComparison.Ordinal))
+            Console.WriteLine($"Eve game topology bytes={MessagePackSerializer.Serialize(portableGameSurface).Length}");
+        await node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.DaemonGameSurface)
+            .ReplaceAsync(portableGameSurface)
             .ConfigureAwait(false);
-        var soaPublication = await soaPublisher.PublishAsync(result.SoaFrame).ConfigureAwait(false);
-        await node.MutableDocument<CultMeshBodyPublicationDocument>(
-                CultMeshBodyPublicationDocument.CreateLatestRecordKey(soaPublication.Body.BodyId))
-            .ReplaceAsync(soaPublication.Body)
-            .ConfigureAwait(false);
-        await node.MutableDocument<EveEntitySoaViewDocument>(AetheriaRuntimeVerseRecordKeys.EveEntitySoaViewLatest)
-            .ReplaceAsync(soaPublication.View)
-            .ConfigureAwait(false);
+        await PublishDaemonSectorMapSurfaceAsync(node, result.Frame, inputCatalog).ConfigureAwait(false);
     }
     if (!publishTopology)
         return;
@@ -3125,6 +3146,73 @@ static AetheriaRuntimeLoadoutItemCommit ToLoadoutItemCommit(AetheriaLoadoutItem?
 internal sealed record AetheriaPreparedPublication(
     AetheriaRuntimeDaemonTickResult Publication,
     IReadOnlyList<AetheriaYmirZonePersistenceCapture> Physics);
+
+internal sealed class AetheriaHotEntityPublicationState
+{
+    private EveEntitySoaViewDocument? _layout;
+
+    public void Set(EveEntitySoaViewDocument layout) => _layout = layout;
+
+    public bool Matches(EveEntitySoaViewDocument next)
+    {
+        var current = _layout;
+        if (current == null || current.ProviderId != next.ProviderId ||
+            current.BodySchemaId != next.BodySchemaId || current.LayoutVersion != next.LayoutVersion ||
+            current.ProducerEpoch != next.ProducerEpoch || current.Capacity != next.Capacity ||
+            current.Buffers.Length != next.Buffers.Length ||
+            current.Columns.Length != next.Columns.Length || current.DirtyRanges.Length != next.DirtyRanges.Length ||
+            current.RenderGroups.Length != next.RenderGroups.Length || current.Identities.Length != next.Identities.Length)
+            return false;
+
+        for (var i = 0; i < current.Buffers.Length; i++)
+        {
+            var a = current.Buffers[i];
+            var b = next.Buffers[i];
+            if (a.BufferId != b.BufferId || a.ByteOffset != b.ByteOffset || a.ByteLength != b.ByteLength)
+                return false;
+        }
+        for (var i = 0; i < current.Columns.Length; i++)
+        {
+            var a = current.Columns[i];
+            var b = next.Columns[i];
+            if (a.ColumnId != b.ColumnId || a.Semantic != b.Semantic || a.BufferId != b.BufferId ||
+                a.ScalarType != b.ScalarType || a.ByteOffset != b.ByteOffset ||
+                a.ElementStride != b.ElementStride || a.ElementCount != b.ElementCount ||
+                a.Unit != b.Unit || a.CoordinateSpace != b.CoordinateSpace)
+                return false;
+        }
+        for (var i = 0; i < current.DirtyRanges.Length; i++)
+        {
+            var a = current.DirtyRanges[i];
+            var b = next.DirtyRanges[i];
+            if (a.ColumnId != b.ColumnId || a.StartIndex != b.StartIndex || a.Count != b.Count)
+                return false;
+        }
+        for (var i = 0; i < current.RenderGroups.Length; i++)
+        {
+            var a = current.RenderGroups[i];
+            var b = next.RenderGroups[i];
+            if (a.GroupId != b.GroupId || a.MeshAssetRef != b.MeshAssetRef ||
+                a.MaterialAssetRef != b.MaterialAssetRef || a.SubMeshIndex != b.SubMeshIndex ||
+                a.Layer != b.Layer || a.InstanceCount != b.InstanceCount || a.DefaultScale != b.DefaultScale ||
+                a.BoundsCenterX != b.BoundsCenterX || a.BoundsCenterY != b.BoundsCenterY ||
+                a.BoundsCenterZ != b.BoundsCenterZ || a.BoundsSizeX != b.BoundsSizeX ||
+                a.BoundsSizeY != b.BoundsSizeY || a.BoundsSizeZ != b.BoundsSizeZ ||
+                a.ShadowMode != b.ShadowMode || a.ReceiveShadows != b.ReceiveShadows || a.Lod != b.Lod)
+                return false;
+        }
+        for (var i = 0; i < current.Identities.Length; i++)
+        {
+            var a = current.Identities[i];
+            var b = next.Identities[i];
+            if (a.Index != b.Index || a.EntityId != b.EntityId || a.EntityKind != b.EntityKind ||
+                a.Label != b.Label || a.Faction != b.Faction || a.Selectable != b.Selectable ||
+                a.Controllable != b.Controllable || a.AssetRef != b.AssetRef)
+                return false;
+        }
+        return true;
+    }
+}
 
 internal sealed class AetheriaDaemonIngressState
 {

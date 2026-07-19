@@ -40,7 +40,6 @@ namespace GameCult.Aetheria.State.Verse
         public int SimulationStepCount { get; set; } = 1;
         public bool StopCompressedSimulationOnAttention { get; set; }
         public bool BuildPublications { get; set; } = true;
-        public AetheriaRuntimeDaemonSoaFramePublisher? SoaFramePublisher { get; set; }
     }
 
     public sealed class AetheriaRuntimeDaemonTickResult
@@ -373,13 +372,10 @@ namespace GameCult.Aetheria.State.Verse
             int simulationStepsExecuted = 0,
             AetheriaRuntimeSimulationInterruption? attentionInterruption = null)
         {
-            var soaPublisher = options.SoaFramePublisher ??
-                throw new InvalidOperationException("The daemon-lifetime Aetheria SoA publisher is required.");
             var catalog = options.Catalog ?? new AetheriaRuntimeCatalogSnapshot(
                 Array.Empty<AetheriaRuntimeCatalogItem>(),
                 Array.Empty<AetheriaRuntimeCorporation>(),
                 Array.Empty<AetheriaRuntimeNameFile>());
-            var soaFrame = soaPublisher.BuildCurrentZoneEntities(frame, catalog);
             var commandBoundary = AetheriaRuntimeDaemonCommandBoundaryDocument.Create(options.DaemonId);
             var providerAdvertisement = AetheriaRuntimeDaemonProviderAdvertisementDocument.Create(
                 stateFilePath,
@@ -429,7 +425,7 @@ namespace GameCult.Aetheria.State.Verse
                 operationResult.Run,
                 operationResult,
                 frame,
-                soaFrame,
+                soaFrame: null,
                 providerAdvertisement,
                 health,
                 commandBoundary,

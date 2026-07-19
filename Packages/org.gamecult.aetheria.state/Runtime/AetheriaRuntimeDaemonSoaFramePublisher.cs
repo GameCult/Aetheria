@@ -69,7 +69,7 @@ namespace GameCult.Aetheria.State.Verse
         public const string BodyId = "eve:entity-soa:aetheria.daemon:pilot";
         public const string ProducerId = "aetheria.daemon";
         public const string BodySchemaId = "gamecult.eve.entity_soa.body.v2";
-        public const int LayoutVersion = 2;
+        public const int LayoutVersion = 3;
         private const int Capacity = 4096;
         private const int EntityRenderGroupId = 1;
         private const int FloatStride = 4;
@@ -366,7 +366,13 @@ namespace GameCult.Aetheria.State.Verse
             var maxX = positions.Max(position => (float)position.PositionX);
             var maxY = positions.Max(position => (float)position.PositionY);
             var maxZ = positions.Max(position => (float)position.PositionZ);
-            const float padding = 16.0f;
+            const float boundsCell = 1024.0f;
+            var boundsMinX = MathF.Floor((minX - 16.0f) / boundsCell) * boundsCell;
+            var boundsMinY = MathF.Floor((minY - 16.0f) / boundsCell) * boundsCell;
+            var boundsMinZ = MathF.Floor((minZ - 16.0f) / boundsCell) * boundsCell;
+            var boundsMaxX = MathF.Ceiling((maxX + 16.0f) / boundsCell) * boundsCell;
+            var boundsMaxY = MathF.Ceiling((maxY + 16.0f) / boundsCell) * boundsCell;
+            var boundsMaxZ = MathF.Ceiling((maxZ + 16.0f) / boundsCell) * boundsCell;
 
             return new[]
             {
@@ -391,12 +397,12 @@ namespace GameCult.Aetheria.State.Verse
                     DisplayName = "Daemon current-zone entities",
                     InstanceCount = entities.Count + pickups.Count + payloads.Count +
                         celestialBodies.Count + asteroidInstances.Count,
-                    BoundsCenterX = (minX + maxX) * 0.5f,
-                    BoundsCenterY = (minY + maxY) * 0.5f,
-                    BoundsCenterZ = (minZ + maxZ) * 0.5f,
-                    BoundsSizeX = Math.Max(maxX - minX + padding, padding),
-                    BoundsSizeY = Math.Max(maxY - minY + padding, padding),
-                    BoundsSizeZ = Math.Max(maxZ - minZ + padding, padding),
+                    BoundsCenterX = (boundsMinX + boundsMaxX) * 0.5f,
+                    BoundsCenterY = (boundsMinY + boundsMaxY) * 0.5f,
+                    BoundsCenterZ = (boundsMinZ + boundsMaxZ) * 0.5f,
+                    BoundsSizeX = Math.Max(boundsMaxX - boundsMinX, boundsCell),
+                    BoundsSizeY = Math.Max(boundsMaxY - boundsMinY, boundsCell),
+                    BoundsSizeZ = Math.Max(boundsMaxZ - boundsMinZ, boundsCell),
                     ShadowMode = AetheriaRuntimeDaemonRenderShadowModes.On,
                     ReceiveShadows = true,
                     DefaultScale = 1.0f,
@@ -415,6 +421,7 @@ namespace GameCult.Aetheria.State.Verse
                 var entity = entities[index];
                 WriteInt32(bytes, layout.EntityIndex + index * IntStride, entity.EntityIndex);
                 WriteInt32(bytes, layout.CargoQuantity + index * IntStride, AetheriaRuntimeCargoCapacityQueries.Quantity(entity));
+                WriteFloat(bytes, layout.BeamPower, index, entity.TractorPower);
                 WriteFloat3(bytes, layout.Position, index, entity.PositionX, entity.PositionY, entity.PositionZ);
                 WriteFloat(bytes, layout.RotationRadians, index, Math.Atan2(entity.DirectionX, entity.DirectionY));
                 WriteFloat3(bytes, layout.Velocity, index, entity.VelocityX, 0.0, entity.VelocityY);
@@ -767,6 +774,7 @@ namespace GameCult.Aetheria.State.Verse
             private EntityHotSlabLayout(
                 long entityIndex,
                 long cargoQuantity,
+                long beamPower,
                 long position,
                 long rotationRadians,
                 long velocity,
@@ -781,6 +789,7 @@ namespace GameCult.Aetheria.State.Verse
             {
                 EntityIndex = entityIndex;
                 CargoQuantity = cargoQuantity;
+                BeamPower = beamPower;
                 Position = position;
                 RotationRadians = rotationRadians;
                 Velocity = velocity;
@@ -796,6 +805,7 @@ namespace GameCult.Aetheria.State.Verse
 
             public long EntityIndex { get; }
             public long CargoQuantity { get; }
+            public long BeamPower { get; }
             public long Position { get; }
             public long RotationRadians { get; }
             public long Velocity { get; }
@@ -814,6 +824,7 @@ namespace GameCult.Aetheria.State.Verse
                 var offset = 0L;
                 var entityIndex = Take(ref offset, count, IntStride);
                 var cargoQuantity = Take(ref offset, count, IntStride);
+                var beamPower = Take(ref offset, count, FloatStride);
                 var position = Take(ref offset, count, Float3Stride);
                 var rotationRadians = Take(ref offset, count, FloatStride);
                 var velocity = Take(ref offset, count, Float3Stride);
@@ -828,6 +839,7 @@ namespace GameCult.Aetheria.State.Verse
                 return new EntityHotSlabLayout(
                     entityIndex,
                     cargoQuantity,
+                    beamPower,
                     position,
                     rotationRadians,
                     velocity,
@@ -847,6 +859,7 @@ namespace GameCult.Aetheria.State.Verse
                 {
                     Column("entity-index", AetheriaRuntimeDaemonSoaColumnKinds.EntityIndex, "int32", EntityIndex, IntStride, count, "index", "world"),
                     Column("cargo-quantity", AetheriaRuntimeDaemonSoaColumnKinds.CargoQuantity, "int32", CargoQuantity, IntStride, count, "items", "entity"),
+                    Column("beam-power", AetheriaRuntimeDaemonSoaColumnKinds.BeamPower, "float32", BeamPower, FloatStride, count, "normalized", "entity"),
                     Column("position", AetheriaRuntimeDaemonSoaColumnKinds.Position, "float3", Position, Float3Stride, count, "world_units", "world"),
                     Column("rotation-radians", AetheriaRuntimeDaemonSoaColumnKinds.RotationRadians, "float32", RotationRadians, FloatStride, count, "radians", "world"),
                     Column("velocity", AetheriaRuntimeDaemonSoaColumnKinds.Velocity, "float3", Velocity, Float3Stride, count, "world_units_per_second", "world"),

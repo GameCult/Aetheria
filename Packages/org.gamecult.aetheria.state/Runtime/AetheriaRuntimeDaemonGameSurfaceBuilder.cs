@@ -1083,7 +1083,7 @@ namespace GameCult.Aetheria.State.Verse
                     ("directionMode", "source-forward.v1"),
                     ("renderChannel", "world.effects"),
                     ("activationActionId", "pilot.scoop"),
-                    ("power", FormatNumber(player.TractorPower)),
+                    ("powerStateSemantic", AetheriaRuntimeDaemonSoaColumnKinds.BeamPower),
                     ("activationThreshold", FormatNumber(AetheriaRuntimeTractorMechanics.ActivationThreshold)),
                     ("radius", FormatNumber(AetheriaRuntimeTractorMechanics.Radius)),
                     ("maximumDistance", FormatNumber(AetheriaRuntimeTractorMechanics.Distance))

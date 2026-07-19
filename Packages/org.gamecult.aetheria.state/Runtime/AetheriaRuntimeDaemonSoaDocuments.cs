@@ -42,6 +42,7 @@ namespace GameCult.Aetheria.State.Verse
         public const string RenderVisibility = "render.visibility";
         public const string RenderLod = "render.lod";
         public const string CargoQuantity = "inventory.cargo.quantity";
+        public const string BeamPower = "effect.beam.power";
     }
 
     public static class AetheriaRuntimeDaemonRenderShadowModes
