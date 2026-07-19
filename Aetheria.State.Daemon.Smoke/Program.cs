@@ -74,6 +74,11 @@ else if (args.Contains("--patrol", StringComparer.Ordinal))
     checks.RunPatrol();
     Console.WriteLine("Daemon generated-agent patrol smoke passed.");
 }
+else if (args.Contains("--combat-lock", StringComparer.Ordinal))
+{
+    checks.RunCombatLock();
+    Console.WriteLine("Daemon look-direction weapon-lock smoke passed.");
+}
 else
 {
     checks.Run();
@@ -85,6 +90,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
     private static readonly List<AetheriaYmirWorldPhysics> OwnedPhysics = [];
 
     public void RunGravity() => RunCheck(PositiveGravityDepthAttractsAndProjectsAsAWell);
+
+    public void RunCombatLock() => RunCheck(InstantWeaponRequestSurvivesLockAcquisition);
 
     public void RunLoadout() => DaemonLoadoutsRespectFactionAvailabilityAndHullRoles();
 
@@ -3797,7 +3804,10 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
     private static void InstantWeaponRequestSurvivesLockAcquisition()
     {
         var source = Entity(0, 0, "player");
-        source.DirectionX = 1;
+        source.DirectionX = 0;
+        source.DirectionY = 1;
+        source.LookDirectionX = 1;
+        source.LookDirectionY = 0;
         source.VelocityX = 1;
         source.TargetEntityIndex = 1;
         source.Contacts = [new AetheriaRuntimeEntityContactCommit
@@ -3871,7 +3881,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
 
         Require(run.ShotReceipts.Count == 1 && run.ShotReceipts[0].SourceEntityIndex == source.EntityIndex,
             $"one instant weapon request must remain pending until daemon lock acquisition commits its shot; " +
-            $"receipts={run.ShotReceipts.Count}, direction={source.DirectionX},{source.DirectionY}, contacts={string.Join(";", (source.Contacts ?? []).Select(value => $"{value.TargetEntityIndex}:{value.InfoGathered}"))}, states={string.Join(";", (source.WeaponStates ?? []).Select(value => $"{value.BehaviorKind}:pending={value.TriggerPending}:lock={value.LockProgress}:target={value.LockTargetEntityIndex}:burst={value.BurstRemaining}"))}");
+            $"receipts={run.ShotReceipts.Count}, hull={source.DirectionX},{source.DirectionY}, look={source.LookDirectionX},{source.LookDirectionY}, contacts={string.Join(";", (source.Contacts ?? []).Select(value => $"{value.TargetEntityIndex}:{value.InfoGathered}"))}, states={string.Join(";", (source.WeaponStates ?? []).Select(value => $"{value.BehaviorKind}:pending={value.TriggerPending}:lock={value.LockProgress}:target={value.LockTargetEntityIndex}:burst={value.BurstRemaining}"))}");
         Require(run.GameEvents.Count(value => value.Kind == "weapon.lock.started" &&
                     value.SourceEntityIndex == 0 && value.TargetEntityIndex == 1) == 1 &&
                 run.GameEvents.Count(value => value.Kind == "weapon.lock.acquired" &&
@@ -3989,7 +3999,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                     value.TargetEntityIndex == 2) == 1,
             "idle authored lock behavior must continue progressive acquisition without duplicating transition events");
 
-        source.DirectionX = -1;
+        source.LookDirectionX = -1;
+        source.LookDirectionY = 0;
         AetheriaRuntimeDaemonSimulation.Step(run, new AetheriaRuntimeDaemonIntentState(), 0.1,
             AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
             NewPhysics(), catalog, 18, 1.8);
@@ -4000,9 +4011,10 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 run.GameEvents.Count(value => value.Kind == "weapon.lock.lost" &&
                     value.TargetEntityIndex == 2 && value.Reason == "angle") == 1,
             $"crossing the authored lock angle must publish one loss transition while continued decay remains silent; " +
-            $"direction={source.DirectionX},{source.DirectionY} source={source.PositionX:0.###},{source.PositionZ:0.###} target={secondTarget.PositionX:0.###},{secondTarget.PositionZ:0.###} progress={state.LockProgress:0.###} events={string.Join('|', run.GameEvents.Where(value => value.Kind.StartsWith("weapon.lock.", StringComparison.Ordinal)).Select(value => $"{value.Kind}:{value.TargetEntityIndex}:{value.Reason}:{value.AuxiliaryValue:0.###}->{value.ScalarValue:0.###}"))}");
+            $"hull={source.DirectionX},{source.DirectionY} look={source.LookDirectionX},{source.LookDirectionY} source={source.PositionX:0.###},{source.PositionZ:0.###} target={secondTarget.PositionX:0.###},{secondTarget.PositionZ:0.###} progress={state.LockProgress:0.###} events={string.Join('|', run.GameEvents.Where(value => value.Kind.StartsWith("weapon.lock.", StringComparison.Ordinal)).Select(value => $"{value.Kind}:{value.TargetEntityIndex}:{value.Reason}:{value.AuxiliaryValue:0.###}->{value.ScalarValue:0.###}"))}");
 
-        source.DirectionX = 1;
+        source.LookDirectionX = 1;
+        source.LookDirectionY = 0;
         for (var frame = 20; frame <= 21; frame++)
             AetheriaRuntimeDaemonSimulation.Step(run, new AetheriaRuntimeDaemonIntentState(), 0.1,
                 AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
@@ -4043,6 +4055,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         {
             var source = Entity(0, 0, "player");
             source.DirectionX = 1;
+            source.LookDirectionX = 1;
             source.TargetEntityIndex = 1;
             source.Contacts = [new AetheriaRuntimeEntityContactCommit
             {
@@ -4150,6 +4163,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 payload.Fields);
             var ordinary = Entity(0, 0, "player");
             ordinary.DirectionX = 1;
+            ordinary.LookDirectionX = 1;
             ordinary.TargetEntityIndex = 1;
             ordinary.Contacts = source.Contacts;
             ordinary.WeaponGroups = [new[] { 0 }];
@@ -4195,6 +4209,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
     {
         var source = Entity(0, 0, "player");
         source.DirectionX = 1;
+        source.LookDirectionX = 1;
         source.TargetEntityIndex = 1;
         source.Contacts = [new AetheriaRuntimeEntityContactCommit
         {
@@ -4658,6 +4673,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
     {
         var source = Entity(0, 0, "player");
         source.DirectionX = 1;
+        source.LookDirectionX = 1;
         source.VelocityX = 1;
         source.TargetEntityIndex = 1;
         source.Contacts = [new AetheriaRuntimeEntityContactCommit
@@ -9220,6 +9236,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         {
             var source = Entity(0, 0, "player");
             source.DirectionX = 1;
+            source.LookDirectionX = 1;
             source.TargetEntityIndex = 1;
             source.Contacts =
             [

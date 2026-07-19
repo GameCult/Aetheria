@@ -1267,7 +1267,7 @@ namespace GameCult.Aetheria.State.Verse
 
             var previousProgress = weaponState.LockProgress;
             var targetDirection = Normalize(target.PositionX - attacker.PositionX, target.PositionZ - attacker.PositionZ);
-            var lookDirection = Normalize(attacker.DirectionX, attacker.DirectionY);
+            var lookDirection = Normalize(attacker.LookDirectionX, attacker.LookDirectionY);
             var dot = Math.Max(-1.0, Math.Min(1.0,
                 targetDirection.X * lookDirection.X + targetDirection.Y * lookDirection.Y));
             var angleDegrees = Math.Acos(dot) * 180.0 / Math.PI;

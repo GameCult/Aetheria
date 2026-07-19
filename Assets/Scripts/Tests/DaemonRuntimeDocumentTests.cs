@@ -2225,6 +2225,70 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
+    public void DaemonWeaponLockUsesLookDirectionRatherThanHullDirection()
+    {
+        var attacker = new AetheriaRuntimeEntitySnapshotCommit
+        {
+            EntityIndex = 0,
+            Kind = "ship",
+            FactionKey = "player",
+            IsActive = true,
+            TargetEntityIndex = 1,
+            DirectionX = 0,
+            DirectionY = 1,
+            LookDirectionX = 1,
+            LookDirectionY = 0,
+            Contacts = new[]
+            {
+                new AetheriaRuntimeEntityContactCommit
+                {
+                    TargetEntityIndex = 1,
+                    InfoGathered = 1,
+                    Visible = true,
+                    Hostile = true
+                }
+            }
+        };
+        var target = new AetheriaRuntimeEntitySnapshotCommit
+        {
+            EntityIndex = 1,
+            Kind = "ship",
+            FactionKey = "raider",
+            IsActive = true,
+            PositionX = 80,
+            PositionZ = 0
+        };
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "look-direction-lock-run",
+            CurrentZoneIndex = 0,
+            CurrentEntityKey = "zone.0.entity.0",
+            Zones = new[]
+            {
+                new AetheriaRuntimeZoneSnapshotCommit
+                {
+                    ZoneIndex = 0,
+                    Entities = new[] { attacker, target }
+                }
+            }
+        };
+
+        AetheriaRuntimeDaemonSimulation.Step(
+            run,
+            new AetheriaRuntimeDaemonIntentState(),
+            0.1,
+            AetheriaRuntimeDaemonSimulationSettings.AetheriaDefault,
+            new PassthroughWorldPhysics());
+
+        Assert.Greater(attacker.WeaponStates.Single().LockProgress, 0,
+            "A target under the reticle must acquire lock even when the hull faces elsewhere.");
+        Assert.AreEqual(0, attacker.DirectionX, 0.0001,
+            "Weapon aiming must not rotate the hull as a compensating authority.");
+        Assert.AreEqual(1, attacker.DirectionY, 0.0001,
+            "Weapon aiming must not rotate the hull as a compensating authority.");
+    }
+
+    [Test]
     public void DaemonSimulationSettingsDriveAetheriaCombatGameFeel()
     {
         var run = new AetheriaRuntimeRunCheckpointCommit
@@ -3939,8 +4003,8 @@ public class DaemonRuntimeDocumentTests
         var player = run.Zones[0].Entities[0];
         Assert.AreEqual(3, result.AppliedCommandIds.Count);
         Assert.AreEqual(0, result.RejectedCommandIds.Count);
-        Assert.AreEqual(0.316227766, player.DirectionX, 0.0001);
-        Assert.AreEqual(-0.948683298, player.DirectionY, 0.0001);
+        Assert.AreEqual(0.316227766, player.LookDirectionX, 0.0001);
+        Assert.AreEqual(-0.948683298, player.LookDirectionY, 0.0001);
         Assert.AreEqual(0.8, player.TractorPower, 0.0001);
         Assert.IsTrue(player.HeatsinksEnabled);
     }
