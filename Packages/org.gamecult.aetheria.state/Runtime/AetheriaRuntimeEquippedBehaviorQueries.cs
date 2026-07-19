@@ -81,7 +81,20 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeCatalogSnapshot? catalog,
             string behaviorKind)
         {
-            if (entity == null || catalog == null || string.IsNullOrWhiteSpace(behaviorKind))
+            if (string.IsNullOrWhiteSpace(behaviorKind))
+                return Array.Empty<AetheriaRuntimeEquippedBehavior>();
+
+            return FindAll(entity, catalog)
+                .Where(value => AetheriaRuntimeBehaviorMetadataCatalog.IsKindOrDescendant(
+                    value.Payload.Kind, behaviorKind))
+                .ToArray();
+        }
+
+        public static IReadOnlyList<AetheriaRuntimeEquippedBehavior> FindAll(
+            AetheriaRuntimeEntitySnapshotCommit? entity,
+            AetheriaRuntimeCatalogSnapshot? catalog)
+        {
+            if (entity == null || catalog == null)
                 return Array.Empty<AetheriaRuntimeEquippedBehavior>();
 
             AetheriaRuntimeBehaviorStateProjector.EnsureEquipmentBehaviorStates(entity, catalog);
@@ -102,7 +115,6 @@ namespace GameCult.Aetheria.State.Verse
                 {
                     var payload = payloads[behaviorIndex];
                     if (payload == null ||
-                        !AetheriaRuntimeBehaviorMetadataCatalog.IsKindOrDescendant(payload.Kind, behaviorKind) ||
                         !states.TryGetValue((equipmentIndex, behaviorIndex), out var state))
                     {
                         continue;
@@ -134,6 +146,22 @@ namespace GameCult.Aetheria.State.Verse
                 .Where(state => state != null)
                 .ToDictionary(state => state.EquipmentIndex);
             return Find(entity, catalog, behaviorKind)
+                .Where(value => value.Item.Enabled && value.Item.Durability > 0.01 &&
+                    (!equipmentStates.TryGetValue(value.EquipmentIndex, out var state) || state.Online))
+                .ToArray();
+        }
+
+        public static IReadOnlyList<AetheriaRuntimeEquippedBehavior> FindAllOperational(
+            AetheriaRuntimeEntitySnapshotCommit? entity,
+            AetheriaRuntimeCatalogSnapshot? catalog)
+        {
+            if (entity == null)
+                return Array.Empty<AetheriaRuntimeEquippedBehavior>();
+
+            var equipmentStates = (entity.EquipmentStates ?? Array.Empty<AetheriaRuntimeEquipmentStateCommit>())
+                .Where(state => state != null)
+                .ToDictionary(state => state.EquipmentIndex);
+            return FindAll(entity, catalog)
                 .Where(value => value.Item.Enabled && value.Item.Durability > 0.01 &&
                     (!equipmentStates.TryGetValue(value.EquipmentIndex, out var state) || state.Online))
                 .ToArray();

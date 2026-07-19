@@ -360,6 +360,14 @@ Thermotoggle target temperature is also daemon-owned behavior state. Authored
 data seeds it, adjustable commands mutate it, and its high/low-pass predicate
 gates the same ordered chain.
 
+Within one combat step, authoritative equipment, online state, durability, and
+catalog payloads are read once into a tick-local operational behavior set.
+Deployable, charged, constant, and instant weapon projections derive from that
+same set. It is not persisted and cannot outlive the step; mutations still land
+on the referenced authoritative item and behavior state. This prevents each
+weapon family from independently rebuilding the same equipment graph without
+introducing a cache owner beside the entity snapshot.
+
 Migration target:
 
 - blueprint/catalog rows define base stat ids and default values;

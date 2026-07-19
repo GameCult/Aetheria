@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 
 #nullable enable
@@ -31,6 +32,18 @@ namespace GameCult.Aetheria.State.Verse
             if (worldPhysics == null)
                 throw new ArgumentNullException(nameof(worldPhysics));
 
+            var traceSimulationPhases = string.Equals(
+                Environment.GetEnvironmentVariable("AETHERIA_TRACE_SIMULATION_PHASES"),
+                "1",
+                StringComparison.Ordinal);
+            var phase = Stopwatch.StartNew();
+            void TracePhase(string name)
+            {
+                if (traceSimulationPhases && phase.ElapsedMilliseconds >= 20)
+                    Console.WriteLine($"Aetheria simulation phase {name} took {phase.ElapsedMilliseconds}ms.");
+                phase.Restart();
+            }
+
             StepWormholeTransitions(
                 run,
                 intents == null
@@ -46,6 +59,7 @@ namespace GameCult.Aetheria.State.Verse
                 .Where(zone => zone != null)
                 .Select(zone => zone.ZoneIndex)
                 .ToArray());
+            TracePhase("world-retention");
 
             foreach (var zone in run.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>())
             {
@@ -93,12 +107,16 @@ namespace GameCult.Aetheria.State.Verse
                     settings.TorqueFloor,
                     settings.TorqueMultiplier);
                 StepTractorPower(entities, deltaSeconds);
+                TracePhase($"zone-{zone.ZoneIndex}-pre-physics");
                 var worldStep = StepWorldPhysics(
                     run.RunId, frameId, simulationStepIndex, zone, entities, deltaSeconds, worldPhysics);
+                TracePhase($"zone-{zone.ZoneIndex}-ymir");
                 ProjectEntityTerrainHeights(zone, entities, catalog, simulationTimeSeconds);
                 ResolvePickupProximity(run, zone, entities, catalog, frameId);
+                TracePhase($"zone-{zone.ZoneIndex}-terrain-pickup");
                 StepCombat(run, zone, entities, intents, deltaSeconds, settings, worldPhysics, catalog,
                     frameId, simulationTimeSeconds, simulationStepIndex);
+                TracePhase($"zone-{zone.ZoneIndex}-combat");
                 AetheriaRuntimeVisibilitySimulation.StepZone(zone, entities, catalog, renderSettings);
                 var activeRenderSettings = renderSettings ?? AetheriaRuntimeDaemonRenderSettings.AetheriaDefault;
                 AetheriaRuntimeSensorSimulation.StepZone(
@@ -114,7 +132,9 @@ namespace GameCult.Aetheria.State.Verse
                     settings.SecureAreaRadiusMultiplier);
                 AetheriaRuntimeMiningSimulation.Step(run, zone, entities, intents, catalog, frameId, simulationTimeSeconds, deltaSeconds);
                 AetheriaRuntimeSurveySimulation.Step(run, zone, entities, intents, catalog, frameId, simulationTimeSeconds, deltaSeconds);
+                TracePhase($"zone-{zone.ZoneIndex}-sensors-resources");
                 FinalizeBehaviorChainsAndThermal(run, zone, entities, catalog, deltaSeconds, settings, frameId);
+                TracePhase($"zone-{zone.ZoneIndex}-thermal-finalize");
             }
         }
 
@@ -578,12 +598,15 @@ namespace GameCult.Aetheria.State.Verse
             foreach (var attacker in combatEntities)
             {
                 var requestedWeapons = ResolveWeaponTriggers(zone, attacker, entities, intents, catalog);
-                StepDeployableWeapons(run, zone, attacker, requestedWeapons, deltaSeconds, settings, catalog, frameId);
+                var operationalBehaviors = AetheriaRuntimeEquippedBehaviorQueries
+                    .FindAllOperational(attacker, catalog);
+                StepDeployableWeapons(run, zone, attacker, operationalBehaviors, requestedWeapons,
+                    deltaSeconds, settings, catalog, frameId);
                 StepChargedWeapons(run, zone, attacker, byIndex, requestedWeapons, deltaSeconds,
-                    settings, catalog, frameId);
+                    operationalBehaviors, settings, catalog, frameId);
                 StepConstantWeapons(run, zone, byIndex, attacker, requestedWeapons, deltaSeconds,
-                    settings, catalog, frameId);
-                var weapons = ResolveWeapons(attacker, catalog, settings);
+                    operationalBehaviors, settings, catalog, frameId);
+                var weapons = ResolveWeapons(attacker, operationalBehaviors, catalog, settings);
                 foreach (var weapon in weapons)
                 {
                     var autoTriggerReady =
@@ -726,13 +749,15 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeRunCheckpointCommit run,
             AetheriaRuntimeZoneSnapshotCommit zone,
             AetheriaRuntimeEntitySnapshotCommit attacker,
+            IReadOnlyList<AetheriaRuntimeEquippedBehavior> operationalBehaviors,
             WeaponTriggerSet requestedWeapons,
             double deltaSeconds,
             AetheriaRuntimeDaemonSimulationSettings settings,
             AetheriaRuntimeCatalogSnapshot? catalog,
             long frameId)
         {
-            foreach (var deployable in ResolveDeployableWeapons(attacker, requestedWeapons, catalog, settings))
+            foreach (var deployable in ResolveDeployableWeapons(
+                         attacker, operationalBehaviors, requestedWeapons, settings))
             {
                 var weapon = deployable.Weapon;
                 weapon.State.Firing = false;
@@ -882,11 +907,13 @@ namespace GameCult.Aetheria.State.Verse
             IReadOnlyDictionary<int, AetheriaRuntimeEntitySnapshotCommit> byIndex,
             WeaponTriggerSet requestedWeapons,
             double deltaSeconds,
+            IReadOnlyList<AetheriaRuntimeEquippedBehavior> operationalBehaviors,
             AetheriaRuntimeDaemonSimulationSettings settings,
             AetheriaRuntimeCatalogSnapshot? catalog,
             long frameId)
         {
-            foreach (var weapon in ResolveChargedWeapons(attacker, requestedWeapons, catalog, settings))
+            foreach (var weapon in ResolveChargedWeapons(
+                         attacker, operationalBehaviors, requestedWeapons, settings))
             {
                 var state = weapon.Base.State;
                 state.Firing = false;
@@ -1075,11 +1102,13 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeEntitySnapshotCommit attacker,
             WeaponTriggerSet requestedWeapons,
             double deltaSeconds,
+            IReadOnlyList<AetheriaRuntimeEquippedBehavior> operationalBehaviors,
             AetheriaRuntimeDaemonSimulationSettings settings,
             AetheriaRuntimeCatalogSnapshot? catalog,
             long frameId)
         {
-            foreach (var weapon in ResolveConstantWeapons(attacker, requestedWeapons, catalog, settings))
+            foreach (var weapon in ResolveConstantWeapons(
+                         attacker, operationalBehaviors, requestedWeapons, settings))
             {
                 if (weapon.State.Reloading)
                 {
@@ -1515,11 +1544,13 @@ namespace GameCult.Aetheria.State.Verse
 
         private static IReadOnlyList<ResolvedConstantWeapon> ResolveConstantWeapons(
             AetheriaRuntimeEntitySnapshotCommit entity,
+            IReadOnlyList<AetheriaRuntimeEquippedBehavior> operationalBehaviors,
             WeaponTriggerSet requestedWeapons,
-            AetheriaRuntimeCatalogSnapshot? catalog,
             AetheriaRuntimeDaemonSimulationSettings settings)
         {
-            return AetheriaRuntimeEquippedBehaviorQueries.FindOperational(entity, catalog, AetheriaRuntimeBehaviorKinds.ConstantWeapon)
+            return operationalBehaviors
+                .Where(behavior => AetheriaRuntimeBehaviorMetadataCatalog.IsKindOrDescendant(
+                    behavior.Payload.Kind, AetheriaRuntimeBehaviorKinds.ConstantWeapon))
                 .Select(behavior =>
                 {
                     var magazineSize = Math.Max(0, (int)Math.Round(ReadNumber(behavior.Payload, 13)));
@@ -1546,11 +1577,13 @@ namespace GameCult.Aetheria.State.Verse
 
         private static IReadOnlyList<ResolvedDeployableWeapon> ResolveDeployableWeapons(
             AetheriaRuntimeEntitySnapshotCommit entity,
+            IReadOnlyList<AetheriaRuntimeEquippedBehavior> operationalBehaviors,
             WeaponTriggerSet requestedWeapons,
-            AetheriaRuntimeCatalogSnapshot? catalog,
             AetheriaRuntimeDaemonSimulationSettings settings)
         {
-            return AetheriaRuntimeEquippedBehaviorQueries.FindOperational(entity, catalog, AetheriaRuntimeBehaviorKinds.DeployableWeapon)
+            return operationalBehaviors
+                .Where(behavior => AetheriaRuntimeBehaviorMetadataCatalog.IsKindOrDescendant(
+                    behavior.Payload.Kind, AetheriaRuntimeBehaviorKinds.DeployableWeapon))
                 .Where(behavior => requestedWeapons.ContainsPulse(behavior.EquipmentIndex, behavior.BehaviorIndex))
                 .Select(behavior => new ResolvedDeployableWeapon(
                     ResolveAuthoredWeapon(entity, behavior, settings),
@@ -1910,10 +1943,14 @@ namespace GameCult.Aetheria.State.Verse
         }
 
         private static IReadOnlyList<ResolvedChargedWeapon> ResolveChargedWeapons(
-            AetheriaRuntimeEntitySnapshotCommit entity, WeaponTriggerSet requestedWeapons,
-            AetheriaRuntimeCatalogSnapshot? catalog, AetheriaRuntimeDaemonSimulationSettings settings)
+            AetheriaRuntimeEntitySnapshotCommit entity,
+            IReadOnlyList<AetheriaRuntimeEquippedBehavior> operationalBehaviors,
+            WeaponTriggerSet requestedWeapons,
+            AetheriaRuntimeDaemonSimulationSettings settings)
         {
-            return AetheriaRuntimeEquippedBehaviorQueries.FindOperational(entity, catalog, AetheriaRuntimeBehaviorKinds.ChargedWeapon)
+            return operationalBehaviors
+                .Where(behavior => AetheriaRuntimeBehaviorMetadataCatalog.IsKindOrDescendant(
+                    behavior.Payload.Kind, AetheriaRuntimeBehaviorKinds.ChargedWeapon))
                 .Where(value => string.Equals(value.Payload.Kind, AetheriaRuntimeBehaviorKinds.ChargedWeapon, StringComparison.Ordinal))
                 .Select(value => new ResolvedChargedWeapon(
                     ResolveAuthoredWeapon(entity, value, settings), value.Item,
@@ -1929,10 +1966,13 @@ namespace GameCult.Aetheria.State.Verse
 
         private static IReadOnlyList<ResolvedWeapon> ResolveWeapons(
             AetheriaRuntimeEntitySnapshotCommit entity,
+            IReadOnlyList<AetheriaRuntimeEquippedBehavior> operationalBehaviors,
             AetheriaRuntimeCatalogSnapshot? catalog,
             AetheriaRuntimeDaemonSimulationSettings settings)
         {
-            var authored = AetheriaRuntimeEquippedBehaviorQueries.FindOperational(entity, catalog, AetheriaRuntimeBehaviorKinds.InstantWeapon)
+            var authored = operationalBehaviors
+                .Where(behavior => AetheriaRuntimeBehaviorMetadataCatalog.IsKindOrDescendant(
+                    behavior.Payload.Kind, AetheriaRuntimeBehaviorKinds.InstantWeapon))
                 .Where(behavior => !string.Equals(behavior.Payload.Kind, AetheriaRuntimeBehaviorKinds.ChargedWeapon, StringComparison.Ordinal))
                 .Where(behavior => !string.Equals(behavior.Payload.Kind, AetheriaRuntimeBehaviorKinds.DeployableWeapon, StringComparison.Ordinal))
                 .Select(behavior => ResolveAuthoredWeapon(entity, behavior, settings))
