@@ -21,7 +21,7 @@
     "org.gamecult.aetheria.eve-runtime": "file:org.gamecult.aetheria.eve-runtime",
     "org.gamecult.aetheria.state": "file:org.gamecult.aetheria.state",
     "org.gamecult.cultmath": "file:../../CultMath",
-    "org.gamecult.cultlib": "https://github.com/GameCult/CultLib.git?path=/unity/org.gamecult.cultlib#cultlib-unity-v1.0.20",
+    "org.gamecult.cultlib": "https://github.com/GameCult/CultLib.git?path=/unity/org.gamecult.cultlib#cultlib-unity-v1.0.21",
     "org.gamecult.eve.surface": "file:../../EveUnity/packages/org.gamecult.eve.surface",
     "org.gamecult.eve.plugin-fields": "https://github.com/GameCult/EvePlugins.git?path=/plugins/eve-plugin-fields/unity/org.gamecult.eve.plugin-fields#eve-plugin-fields-unity-v0.2.3",
     "org.gamecult.eve.unity-scene": "file:../../EveUnity/packages/org.gamecult.eve.unity-scene",
