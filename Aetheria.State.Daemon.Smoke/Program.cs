@@ -4380,13 +4380,19 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
 
         using var soaCache = new CultCache();
         using var soaPublisher = new AetheriaRuntimeDaemonSoaFramePublisher(soaCache, producerEpoch: 1);
-        var soaFrame = soaPublisher.BuildCurrentZoneEntities(
+        using var soaFrame = soaPublisher.BuildCurrentZoneEntities(
             new AetheriaRuntimeDaemonFrameDocument { FrameId = 2, Run = run });
         var mineIdentity = soaFrame.View.Identities.Single(identity =>
             identity.EntityId == $"{run.RunId}:zone:0:physical-payload:{mine.PayloadId}");
         Require(mineIdentity.Kind == "physical-payload" && mineIdentity.AssetRef == "prefab.entity.mine" &&
                 !mineIdentity.Selectable && mineIdentity.EntityIndex < -1,
             "the playable SoA must carry the retained Ymir mine through its provider-owned asset identity");
+        var activeBodyExtent = soaFrame.View.Buffers[0].ByteLength;
+        var activeColumns = soaFrame.View.Columns.ToDictionary(
+            column => column.ColumnId,
+            column => (column.ByteOffset, column.ElementStride),
+            StringComparer.Ordinal);
+        soaFrame.Dispose();
 
         var objects = AetheriaRuntimeGameDocuments.ObjectsViewport(
             new AetheriaRuntimeDaemonFrameDocument { FrameId = 2, Run = run },
@@ -4411,6 +4417,18 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             "Aetheria must apply authored blast damage after the delay");
         Require(run.GameEvents.Count(value => value.Kind == "deployable.detonated") == 1,
             "daemon must publish one authoritative detonation event");
+
+        using var settledSoaFrame = soaPublisher.BuildCurrentZoneEntities(
+            new AetheriaRuntimeDaemonFrameDocument { FrameId = 3, Run = run });
+        Require(activeBodyExtent == settledSoaFrame.View.Buffers[0].ByteLength,
+            "one SoA layout version must retain a fixed body extent when active entity count changes");
+        foreach (var column in settledSoaFrame.View.Columns)
+        {
+            var activeColumn = activeColumns[column.ColumnId];
+            Require(activeColumn.ByteOffset == column.ByteOffset &&
+                    activeColumn.ElementStride == column.ElementStride,
+                $"SoA column '{column.ColumnId}' must retain its byte interpretation across active row changes");
+        }
     }
 
     private static void DeployableRangeExpiryDetonatesAfterYmirMovement()

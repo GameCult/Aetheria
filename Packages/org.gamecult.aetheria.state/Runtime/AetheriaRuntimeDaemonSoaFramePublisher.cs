@@ -179,7 +179,10 @@ namespace GameCult.Aetheria.State.Verse
             if (count > Capacity)
                 throw new InvalidOperationException($"Aetheria entity SoA capacity {Capacity} was exceeded by {count} rows.");
             var generation = Math.Max(frame.FrameId, 0);
-            var layout = EntityHotSlabLayout.Create(count);
+            // LayoutVersion owns byte interpretation. Keep offsets and body extent fixed for the
+            // publisher capacity so a mapped frame may advance before reactive row metadata
+            // without causing the same layout version to reinterpret its bytes.
+            var layout = EntityHotSlabLayout.Create(Capacity);
             if (!_localPublisher.TryAcquireWrite(out var write))
                 throw new InvalidOperationException("CultMesh has no unleased frame slot for the Aetheria SoA generation.");
             try

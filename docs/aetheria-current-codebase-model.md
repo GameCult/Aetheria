@@ -174,6 +174,15 @@ radius/mass/inverse mass, render scale, visibility, LOD, and render group. This
 is the right direction for a thin Unity client: daemon state appears as a native
 view instead of a serialized object graph.
 
+The publisher's `LayoutVersion` owns byte interpretation. Column offsets,
+strides, and the mapped body extent are therefore derived from the fixed SoA
+capacity, not the current active row count. Active element counts, identities,
+and render groups remain reactive metadata. A mapped generation may advance
+before that metadata notification without changing what any existing offset
+means: removed rows are cleared, and newly added rows remain outside the old
+element count until the matching metadata arrives. Neither EveUnity nor the
+transport may repair or reinterpret a mismatched generation.
+
 Current limitation: physics body radius, mass, inverse mass, render scale, LOD,
 and render group are still generic defaults in the publisher. Entity identity
 and position are real; body semantics are not yet rich enough to replace all
