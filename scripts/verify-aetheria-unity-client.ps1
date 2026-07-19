@@ -21,7 +21,7 @@ $expected = @{
         "e08fa08335f99e9edddeb706912eecfad07cb281")
     "org.gamecult.eve.unity-scene" = @(
         "https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.unity-scene#eveunity-scene-v0.3.78",
-        "78f4937ce55f5857be010bef4d0eb443a5845fc7")
+        "78f49376703029aae66831a756542ab5a2391c78")
 }
 
 foreach ($packageName in $expected.Keys) {
