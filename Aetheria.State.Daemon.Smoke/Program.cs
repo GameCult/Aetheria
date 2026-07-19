@@ -822,6 +822,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             InputCapabilityPublishesConsumableActionBarState,
             InputCapabilityPublishesHeldWeaponGroupLever,
             InputCapabilityPublishesNativeTargetAndInteractControls,
+            ReactiveGameplayPublishesOnlyNewEventFacts,
             ReflectorUsesSharedStellarLightFieldWithoutAccumulating,
             SensorPingIsActorScopedEnergyGatedAndReconnectable,
             TurretControllerAcquiresAimsAndTriggersExactWeapons,
@@ -3974,7 +3975,11 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             new AetheriaRuntimeDaemonFrameDocument { FrameId = 12, Run = run },
             new AetheriaRuntimeDaemonHealthDocument(),
             AetheriaRuntimeDaemonCommandBoundaryDocument.Create("daemon"));
-        var combat = Flatten(surface.Surface.Root).Single(node => node.Kind == "combat.presentation");
+        var reactiveSurface = AetheriaRuntimeDaemonGameSurfaceBuilder.BuildReactiveGameplay(
+            new AetheriaRuntimeDaemonFrameDocument { FrameId = 12, Run = run });
+        Require(!Flatten(surface.Surface.Root).Any(node => node.Kind == "combat.presentation"),
+            "the topology surface must not retain dynamic combat presentation authority");
+        var combat = Flatten(reactiveSurface.Surface.Root).Single(node => node.Kind == "combat.presentation");
         var world = Flatten(surface.Surface.Root).Single(node => node.Kind == "world.scene3d");
         var aim = Flatten(surface.Surface.Root).Single(node => node.Kind == "aim.presentation");
         Require(!string.IsNullOrWhiteSpace(world.Props["lookCommand"]) &&
@@ -4107,6 +4112,12 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             $"target={state.LockTargetEntityIndex} progress={state.LockProgress:0.###} shots={run.ShotReceipts.Count} events={string.Join('|', run.GameEvents.Where(value => value.Kind.StartsWith("weapon.lock.", StringComparison.Ordinal)).Select(value => $"{value.Kind}:{value.TargetEntityIndex}:{value.Reason}:{value.AuxiliaryValue:0.###}->{value.ScalarValue:0.###}"))}");
         var resetSurface = AetheriaRuntimeDaemonGameSurfaceBuilder.BuildReactiveGameplay(
             new AetheriaRuntimeDaemonFrameDocument { FrameId = 22, Run = run });
+        var resetCombat = Flatten(resetSurface.Surface.Root).Single(node => node.Kind == "combat.presentation");
+        Require(resetSurface.Version == 22 &&
+                resetCombat.Props["selectedTargetEntityId"] == "" &&
+                resetCombat.Props["selectedTargetEntityIndex"] == "-1" &&
+                resetCombat.Props["targetVisible"] == "false",
+            "reactive combat presentation must advance with the daemon frame and clear an invalid target");
         Require(Flatten(resetSurface.Surface.Root).Any(node => node.Kind == "feedback.event" &&
                 node.Props["eventKind"] == "weapon.lock.lost" &&
                 node.Props["targetEntityIndex"] == "2" &&
@@ -8144,6 +8155,46 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             new AetheriaRuntimeDaemonFrameDocument { FrameId = 0, Run = run });
         Require(Flatten(feedback.Surface.Root).Any(node => node.Kind == "feedback.event" && node.Props["eventKind"] == "physical-payload.contact" && node.Props["subjectKey"] == "smoke-projectile"),
             "Eve feedback must project authoritative projectile impact identity");
+    }
+
+    private static void ReactiveGameplayPublishesOnlyNewEventFacts()
+    {
+        var player = Entity(0, 0, "player");
+        var run = new AetheriaRuntimeRunCheckpointCommit
+        {
+            RunId = "reactive-delta-smoke",
+            CurrentZoneIndex = 0,
+            Zones = [new AetheriaRuntimeZoneSnapshotCommit { ZoneIndex = 0, Entities = [player] }],
+            GameEvents =
+            [
+                new AetheriaRuntimeGameEventCommit { EventId = "old-event", Kind = "old", FrameId = 10, SourceEntityIndex = 0 },
+                new AetheriaRuntimeGameEventCommit { EventId = "new-event", Kind = "new", FrameId = 12, SourceEntityIndex = 0 }
+            ],
+            ShotReceipts =
+            [
+                new AetheriaRuntimeShotReceiptCommit { ShotId = "old-shot", FrameId = 10, SourceEntityIndex = 0 },
+                new AetheriaRuntimeShotReceiptCommit { ShotId = "new-shot", FrameId = 12, SourceEntityIndex = 0 }
+            ]
+        };
+        run.CurrentEntityKey = run.EntityRecordKey(0, player.EntityIndex);
+
+        var delta = AetheriaRuntimeDaemonGameSurfaceBuilder.BuildReactiveGameplay(
+            new AetheriaRuntimeDaemonFrameDocument { FrameId = 12, Run = run },
+            eventsAfterFrame: 10);
+        var nodes = Flatten(delta.Surface.Root).ToArray();
+        Require(nodes.Count(node => node.Kind == "feedback.event") == 1 &&
+                nodes.Single(node => node.Kind == "feedback.event").Props["eventId"] == "new-event",
+            "reactive gameplay must publish only event facts newer than the previous delivery frame");
+        Require(nodes.Count(node => node.Kind == "shot.receipt") == 1 &&
+                nodes.Single(node => node.Kind == "shot.receipt").Props["shotId"] == "new-shot",
+            "reactive gameplay must not resend retained shot history in every surface update");
+
+        var empty = AetheriaRuntimeDaemonGameSurfaceBuilder.BuildReactiveGameplay(
+            new AetheriaRuntimeDaemonFrameDocument { FrameId = 13, Run = run },
+            eventsAfterFrame: 12);
+        Require(!Flatten(empty.Surface.Root).Any(node =>
+                node.Kind == "feedback.event" || node.Kind == "shot.receipt"),
+            "a later reactive update must carry current variables without replaying old event arrays");
     }
 
     private static void ProjectileContactCannotKill()

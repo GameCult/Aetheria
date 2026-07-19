@@ -294,6 +294,15 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   `weapon.lock.started`, `weapon.lock.acquired`, and `weapon.lock.lost` events
   with prior/current progress. Eve projects those events generically while the
   continuous combat presentation remains the reticle's state owner.
+  `combat.presentation` lives only in the frame-versioned reactive Eve surface
+  mounted through the pilot topology's embedded-document slot. The retained
+  topology advertises that slot and cannot publish a second, stale combat node.
+  Selection, visibility, hostility, lock progress, and target meters are derived
+  from the same daemon frame as feedback and shot receipts; generic lowerers
+  compose that provider-owned fragment without acquiring combat semantics.
+  The fragment carries current combat variables plus only feedback and shot
+  facts newer than its previous published frame. Retained event and receipt
+  arrays are daemon history and never become an ever-growing reactive snapshot.
   Sensor, radiator, reactor, and capacitor behaviors publish typed state rows
   for ping state, radiator temperature/throughput, reactor draw/load, and
   capacitor charge/capacity/efficiency. Aether drives publish typed axis,

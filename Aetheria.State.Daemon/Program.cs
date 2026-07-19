@@ -1609,7 +1609,9 @@ static async Task PublishDaemonApiDocumentsAsync(
         ? AetheriaRuntimeMainMenuCommands.RootSurfaceId
         : mainMenuState.ActiveSurfaceId;
     var reactiveGameSurface = AetheriaRuntimeSurfaceDocuments.ToPortableSurface(
-        AetheriaRuntimeDaemonGameSurfaceBuilder.BuildReactiveGameplay(result.Frame));
+        AetheriaRuntimeDaemonGameSurfaceBuilder.BuildReactiveGameplay(
+            result.Frame,
+            reactiveSurfaceState?.LastPublishedFrame ?? -1));
     if (reactiveSurfaceState?.Matches(reactiveGameSurface.Version) != true)
     {
         await node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.DaemonGameReactiveSurface)
@@ -3168,6 +3170,8 @@ internal sealed record AetheriaPreparedPublication(
 internal sealed class AetheriaReactiveSurfacePublicationState
 {
     private long? _version;
+
+    public long LastPublishedFrame => _version ?? -1;
 
     public bool Matches(long version) => _version == version;
 

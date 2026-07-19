@@ -187,7 +187,8 @@ namespace GameCult.Aetheria.State.Verse
         }
 
         public static AetheriaRuntimeSurfaceDocument BuildReactiveGameplay(
-            AetheriaRuntimeDaemonFrameDocument frame)
+            AetheriaRuntimeDaemonFrameDocument frame,
+            long eventsAfterFrame = -1)
         {
             frame ??= new AetheriaRuntimeDaemonFrameDocument();
             var run = frame.Run ?? new AetheriaRuntimeRunCheckpointCommit();
@@ -196,21 +197,32 @@ namespace GameCult.Aetheria.State.Verse
             var entityIndex = entity?.EntityIndex ?? -1;
             var events = (run.GameEvents ?? Array.Empty<AetheriaRuntimeGameEventCommit>())
                 .Where(value => value != null &&
+                    value.FrameId > eventsAfterFrame &&
                     (entityIndex < 0 || value.SourceEntityIndex == entityIndex || value.TargetEntityIndex == entityIndex))
                 .ToArray();
             var receipts = (run.ShotReceipts ?? Array.Empty<AetheriaRuntimeShotReceiptCommit>())
                 .Where(value => value != null &&
+                    value.FrameId > eventsAfterFrame &&
                     (entityIndex < 0 || value.SourceEntityIndex == entityIndex || value.TargetEntityIndex == entityIndex))
                 .ToArray();
-            var lastFrame = events.Select(value => value.FrameId)
-                .Concat(receipts.Select(value => value.FrameId))
-                .DefaultIfEmpty(0)
-                .Max();
+            var reactiveChildren = new List<AetheriaRuntimeSurfaceComponent>();
+            if (entity != null)
+            {
+                var combat = CombatPresentation(
+                    run,
+                    zone,
+                    PlayableWorldEntityId(run, zone, run.CurrentEntityKey),
+                    frame.SimulationSettings);
+                if (combat != null)
+                    reactiveChildren.Add(combat);
+            }
+            reactiveChildren.Add(FeedbackStream(events, frame.FrameId));
+            reactiveChildren.Add(ShotReceiptStream(receipts));
             return new AetheriaRuntimeSurfaceDocument(
                 AetheriaRuntimeProviderIdentity.ProviderId,
                 "game.daemon",
                 "Aetheria Pilot Reactive State",
-                lastFrame,
+                frame.FrameId,
                 frame.PublishedAtUtc,
                 new AetheriaRuntimeSurfaceTree(
                     "aetheria.daemon.game.reactive",
@@ -218,8 +230,7 @@ namespace GameCult.Aetheria.State.Verse
                         "aetheria.daemon.game.reactive.root",
                         "layer.reactive",
                         Array.Empty<(string, string)>(),
-                        FeedbackStream(events, frame.FrameId),
-                        ShotReceiptStream(receipts)),
+                        reactiveChildren.ToArray()),
                     Array.Empty<AetheriaRuntimeSurfaceStyleToken>()),
                 Array.Empty<AetheriaRuntimeSurfaceCommandTemplate>());
         }
@@ -962,9 +973,6 @@ namespace GameCult.Aetheria.State.Verse
                 .Select(entity => PlayableEntityPresentation(
                     entity, run, zone, currentEntityKey, simulationSettings, catalog))
                 .ToList();
-            var combatPresentation = CombatPresentation(run, zone, playerEntityId, simulationSettings);
-            if (combatPresentation != null)
-                presentationChildren.Insert(0, combatPresentation);
             var tractorPresentation = TractorPresentation(run, zone, playerEntityId);
             if (tractorPresentation != null)
                 presentationChildren.Insert(0, tractorPresentation);

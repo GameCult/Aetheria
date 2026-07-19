@@ -107,6 +107,14 @@ under Unity `Assets/Scripts/ServerShared/Behaviors`.
   pilot input capability; then the pilot and sector-map Eve surfaces; then the
   daemon SoA view, CultMesh body publication, and Eve entity view; finally the
   remaining topology surfaces when topology publication is requested.
+- **Reactive combat state:** the retained pilot topology advertises an embedded
+  reactive-surface slot. `combat.presentation` exists only in that
+  frame-versioned fragment alongside feedback and shot receipts; the topology
+  cannot retain an older selection, visibility, lock, or target-meter value.
+  Current combat variables are republished at the fragment version; feedback
+  events and shot receipts include only facts newer than the previously
+  published fragment. Their retained daemon arrays remain persistence/history,
+  not a growing payload retransmitted to every client.
 - **Derived state:** pilot/map surfaces and input capability are projections of
   the prepared authoritative frame and catalog. SoA documents are bulk render
   projections; they do not own command acceptance, beam feedback, or gameplay
@@ -116,8 +124,11 @@ under Unity `Assets/Scripts/ServerShared/Behaviors`.
   facts. No client or renderer may repair delayed control state from a newer
   entity slab.
 - **Shared path:** initial publication and ordinary prepared-frame publication
-  both call `PublishDaemonApiDocumentsAsync`, so the same ordering applies to
-  boot and live ticks.
+  both call `PublishDaemonApiDocumentsAsync`. The live loop publishes hot SoA
+  bodies every simulation tick and periodic control/reactive documents on the
+  prepared-publication cadence, so those planes are not one atomic generation.
+  Consumers must use each document's version; a static topology value may not
+  impersonate newer reactive state.
 - **Cut line:** bulk SoA publication no longer precedes the pilot/map control
   surfaces on the ordered state stream.
 - **Verification layer:** daemon tests should assert record order at the
