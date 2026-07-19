@@ -942,7 +942,18 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             tick.Frame,
             new AetheriaRuntimeDaemonHealthDocument(),
             AetheriaRuntimeDaemonCommandBoundaryDocument.Create("daemon"));
-        Require(Flatten(surface.Surface.Root).Any(node => node.Kind == "feedback.event" &&
+        var reactiveMount = Flatten(surface.Surface.Root).Single(node =>
+            node.Id == "aetheria.daemon.game.reactive");
+        var reactiveSlot = reactiveMount.EmbeddedDocuments.Single();
+        Require(reactiveSlot.DocumentId == AetheriaRuntimeVerseRecordKeys.DaemonGameReactiveSurface.ToString() &&
+                reactiveSlot.SchemaId == EveSurfaceDocument.SchemaId &&
+                reactiveSlot.RouteHint.Kind == CultMeshLocalityKind.SharedMemory,
+            "the static pilot surface must advertise one exact, mapped-friendly reactive gameplay document");
+        Require(!Flatten(surface.Surface.Root).Any(node =>
+                node.Kind is "feedback.event" or "shot.receipt"),
+            "the static pilot surface must not retain mutable gameplay facts");
+        var reactive = AetheriaRuntimeDaemonGameSurfaceBuilder.BuildReactiveGameplay(tick.Frame);
+        Require(Flatten(reactive.Surface.Root).Any(node => node.Kind == "feedback.event" &&
                 node.Props["eventKind"] == "simulation.interrupted" &&
                 node.Props["reason"] == "entity.damaged" &&
                 node.Props["scalarValue"] == "4" && node.Props["auxiliaryValue"] == "1"),
@@ -2635,7 +2646,9 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             new AetheriaRuntimeDaemonHealthDocument(),
             AetheriaRuntimeDaemonCommandBoundaryDocument.Create("daemon"),
             catalog: catalog);
-        Require(Flatten(surface.Surface.Root).Any(node => node.Kind == "feedback.event" &&
+        var reactive = AetheriaRuntimeDaemonGameSurfaceBuilder.BuildReactiveGameplay(
+            new AetheriaRuntimeDaemonFrameDocument { FrameId = 1, Run = successRun });
+        Require(Flatten(reactive.Surface.Root).Any(node => node.Kind == "feedback.event" &&
                 node.Props["eventKind"] == "ship.undocked" &&
                 node.Props["sourceEntityIndex"] == "0" && node.Props["targetEntityIndex"] == "1" &&
                 node.Props["scalarValue"] == "0"),
@@ -3687,7 +3700,9 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 node.Props["behaviorKind"] == AetheriaRuntimeBehaviorKinds.ConstantWeapon &&
                 node.Props["itemKey"] == "test-beam" && node.Props["firing"] == "false"),
             $"Eve world entity must project recoverable generic ConstantWeapon state; nodes={string.Join(";", weaponNodes.Select(node => string.Join(",", node.Props.Select(pair => $"{pair.Key}={pair.Value}"))))}");
-        Require(Flatten(surface.Surface.Root).Any(node => node.Kind == "feedback.event" &&
+        var reactive = AetheriaRuntimeDaemonGameSurfaceBuilder.BuildReactiveGameplay(
+            new AetheriaRuntimeDaemonFrameDocument { FrameId = 11, Run = run });
+        Require(Flatten(reactive.Surface.Root).Any(node => node.Kind == "feedback.event" &&
                 node.Props["eventKind"] == "weapon.firing.started" && node.Props["itemKey"] == "test-beam"),
             "Eve feedback stream must project continuous weapon transition chronology");
         var cockpit = Flatten(surface.Surface.Root).Single(node => node.Id == "aetheria.daemon.game.cockpit");
@@ -3796,7 +3811,9 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         Require(Flatten(surface.Surface.Root).Any(node => node.Kind == "weapon.state" &&
                 node.Props.ContainsKey("chargeMalfunctionRisk")),
             "Eve must expose charged hold duration and malfunction risk generically");
-        Require(Flatten(surface.Surface.Root).Any(node => node.Kind == "feedback.event" &&
+        var reactive = AetheriaRuntimeDaemonGameSurfaceBuilder.BuildReactiveGameplay(
+            new AetheriaRuntimeDaemonFrameDocument { FrameId = 11, Run = run });
+        Require(Flatten(reactive.Surface.Root).Any(node => node.Kind == "feedback.event" &&
                 node.Props["eventKind"] == "weapon.charge.committed"),
             "Eve feedback must expose charged solution commit chronology");
     }
@@ -4034,10 +4051,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                     value.TargetEntityIndex == 2 && value.Reason == "target-invalid") == 1,
             $"an invalid target must clear an idle weapon's authoritative lock and publish one loss transition; " +
             $"target={state.LockTargetEntityIndex} progress={state.LockProgress:0.###} shots={run.ShotReceipts.Count} events={string.Join('|', run.GameEvents.Where(value => value.Kind.StartsWith("weapon.lock.", StringComparison.Ordinal)).Select(value => $"{value.Kind}:{value.TargetEntityIndex}:{value.Reason}:{value.AuxiliaryValue:0.###}->{value.ScalarValue:0.###}"))}");
-        var resetSurface = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(
-            new AetheriaRuntimeDaemonFrameDocument { FrameId = 22, Run = run },
-            new AetheriaRuntimeDaemonHealthDocument(),
-            AetheriaRuntimeDaemonCommandBoundaryDocument.Create("daemon"));
+        var resetSurface = AetheriaRuntimeDaemonGameSurfaceBuilder.BuildReactiveGameplay(
+            new AetheriaRuntimeDaemonFrameDocument { FrameId = 22, Run = run });
         Require(Flatten(resetSurface.Surface.Root).Any(node => node.Kind == "feedback.event" &&
                 node.Props["eventKind"] == "weapon.lock.lost" &&
                 node.Props["targetEntityIndex"] == "2" &&
@@ -4286,10 +4301,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             MessagePack.MessagePackSerializer.Serialize(run));
         RequireEqual("target-entity", restored.ShotReceipts.Single().GuidanceMode,
             "guided presentation levers must survive daemon checkpoint restart");
-        var surface = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(
-            new AetheriaRuntimeDaemonFrameDocument { FrameId = 4, Run = run },
-            new AetheriaRuntimeDaemonHealthDocument(),
-            AetheriaRuntimeDaemonCommandBoundaryDocument.Create("daemon"));
+        var surface = AetheriaRuntimeDaemonGameSurfaceBuilder.BuildReactiveGameplay(
+            new AetheriaRuntimeDaemonFrameDocument { FrameId = 4, Run = run });
         var shot = Flatten(surface.Surface.Root).Single(node =>
             node.Kind == "shot.receipt" && node.Props.TryGetValue("itemKey", out var itemKey) &&
             itemKey == "test-launcher");
@@ -4593,10 +4606,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 Math.Abs(value.ScalarValue - 20) < 0.000001 &&
                 Math.Abs(value.AuxiliaryValue - 10) < 0.000001),
             "shield outcome must publish absorbed damage and authored heat contribution");
-        var surface = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(
-            new AetheriaRuntimeDaemonFrameDocument { FrameId = 1, Run = run },
-            new AetheriaRuntimeDaemonHealthDocument(),
-            AetheriaRuntimeDaemonCommandBoundaryDocument.Create("daemon"));
+        var surface = AetheriaRuntimeDaemonGameSurfaceBuilder.BuildReactiveGameplay(
+            new AetheriaRuntimeDaemonFrameDocument { FrameId = 1, Run = run });
         Require(Flatten(surface.Surface.Root).Any(node => node.Kind == "feedback.event" &&
                 node.Props["eventKind"] == "shield.absorbed" &&
                 node.Props["scalarValue"] == "20" && node.Props["auxiliaryValue"] == "10"),
@@ -4735,10 +4746,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             $"cells={string.Join(';', receipt.DamageCells.Select(cell => $"{cell.X},{cell.Y}"))}");
         RequireNear(90, Stat(target, "hull"), 0.000001,
             "a disconnected hull island must not divide or receive penetration damage beyond a gap");
-        var surface = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(
-            new AetheriaRuntimeDaemonFrameDocument { FrameId = receipt.FrameId, Run = run },
-            new AetheriaRuntimeDaemonHealthDocument(),
-            AetheriaRuntimeDaemonCommandBoundaryDocument.Create("daemon"));
+        var surface = AetheriaRuntimeDaemonGameSurfaceBuilder.BuildReactiveGameplay(
+            new AetheriaRuntimeDaemonFrameDocument { FrameId = receipt.FrameId, Run = run });
         var shot = Flatten(surface.Surface.Root).Single(node =>
             node.Kind == "shot.receipt" && node.Props["itemKey"] == "gap-penetrator");
         RequireEqual("1", shot.Props["damageCellCount"],
@@ -4906,10 +4915,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         RequireEqual(1, run.GameEvents.Count(value => value.Kind == "equipment.destroyed" &&
             value.TargetEntityIndex == target.EntityIndex && value.ItemKey == "damageable-weapon"),
             "the durability crossing must publish exactly one generic equipment destruction fact");
-        var surface = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(
-            new AetheriaRuntimeDaemonFrameDocument { FrameId = 1, Run = run },
-            new AetheriaRuntimeDaemonHealthDocument(),
-            AetheriaRuntimeDaemonCommandBoundaryDocument.Create("daemon"));
+        var surface = AetheriaRuntimeDaemonGameSurfaceBuilder.BuildReactiveGameplay(
+            new AetheriaRuntimeDaemonFrameDocument { FrameId = 1, Run = run });
         Require(Flatten(surface.Surface.Root).Any(node => node.Kind == "feedback.event" &&
                 node.Props["eventKind"] == "equipment.destroyed" &&
                 node.Props["itemKey"] == "damageable-weapon"),
@@ -6333,10 +6340,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             $"projectiles={run.Zones[0].PhysicalPayloads.Count} task={run.AgentTasks.Single().Status}");
         RequireEqual(AetheriaRuntimeAgentTaskStatuses.Completed, run.AgentTasks.Single().Status,
             "attack task must complete when its target dies");
-        var shotSurface = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(
-            new AetheriaRuntimeDaemonFrameDocument { FrameId = 60, Run = run },
-            new AetheriaRuntimeDaemonHealthDocument(),
-            AetheriaRuntimeDaemonCommandBoundaryDocument.Create("daemon"));
+        var shotSurface = AetheriaRuntimeDaemonGameSurfaceBuilder.BuildReactiveGameplay(
+            new AetheriaRuntimeDaemonFrameDocument { FrameId = 60, Run = run });
         Require(Flatten(shotSurface.Surface.Root).Any(node => node.Kind == "shot.receipt" &&
                 node.Props["itemKey"] == "test-lock-cannon" && node.Props["outcome"] == "hit" &&
                 node.Props["presentationKind"] == "bolt" &&
@@ -8063,10 +8068,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             "Ymir contact must emit one projectile-identity impact event");
         RequireEqual(0, run.GameEvents.Count(value => value.Kind == "entity.damaged" && value.TargetEntityIndex == target.EntityIndex),
             "presentation projectile contact must not manufacture a damage event");
-        var feedback = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(
-            new AetheriaRuntimeDaemonFrameDocument { FrameId = 0, Run = run },
-            new AetheriaRuntimeDaemonHealthDocument(),
-            AetheriaRuntimeDaemonCommandBoundaryDocument.Create("daemon"));
+        var feedback = AetheriaRuntimeDaemonGameSurfaceBuilder.BuildReactiveGameplay(
+            new AetheriaRuntimeDaemonFrameDocument { FrameId = 0, Run = run });
         Require(Flatten(feedback.Surface.Root).Any(node => node.Kind == "feedback.event" && node.Props["eventKind"] == "physical-payload.contact" && node.Props["subjectKey"] == "smoke-projectile"),
             "Eve feedback must project authoritative projectile impact identity");
     }
@@ -8253,10 +8256,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             "collection feedback must publish cargo quantity before the transaction");
         RequireEqual(0, run.PickupContactReceipts.Count,
             "proximity collection must not mint obsolete Ymir-contact receipts");
-        var collectionFeedback = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(
-            new AetheriaRuntimeDaemonFrameDocument { FrameId = 3, Run = run },
-            new AetheriaRuntimeDaemonHealthDocument(),
-            AetheriaRuntimeDaemonCommandBoundaryDocument.Create("daemon"));
+        var collectionFeedback = AetheriaRuntimeDaemonGameSurfaceBuilder.BuildReactiveGameplay(
+            new AetheriaRuntimeDaemonFrameDocument { FrameId = 3, Run = run });
         Require(Flatten(collectionFeedback.Surface.Root).Any(node => node.Kind == "feedback.event" &&
                 node.Props["eventKind"] == "pickup.collected" && node.Props["pickupIndex"] == "7" &&
                 node.Props["itemKey"] == salvage.ItemKey && node.Props["scalarValue"] == "1" &&
@@ -8701,10 +8702,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             new AetheriaRuntimeDaemonTickOptions { WorldPhysics = fullPhysics, FrameId = 2, FixedDeltaSeconds = 0.1, SimulationTimeSeconds = 0.2, Catalog = catalog, BuildPublications = false });
         RequireEqual(1, full.GameEvents.Count(value => value.Kind == "pickup.rejected" && value.PickupIndex == 10),
             "the outward kick must prevent an immediate second rejection event");
-        var feedback = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(
-            new AetheriaRuntimeDaemonFrameDocument { FrameId = 1, Run = full },
-            new AetheriaRuntimeDaemonHealthDocument(),
-            AetheriaRuntimeDaemonCommandBoundaryDocument.Create("daemon"));
+        var feedback = AetheriaRuntimeDaemonGameSurfaceBuilder.BuildReactiveGameplay(
+            new AetheriaRuntimeDaemonFrameDocument { FrameId = 1, Run = full });
         Require(Flatten(feedback.Surface.Root).Any(node => node.Kind == "feedback.event" &&
                 node.Props["eventKind"] == "pickup.rejected" && node.Props["pickupIndex"] == "10" &&
                 node.Props["reason"] == "cargo-capacity" &&

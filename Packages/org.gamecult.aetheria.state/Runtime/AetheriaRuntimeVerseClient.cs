@@ -73,6 +73,9 @@ namespace GameCult.Aetheria.State.Verse
         public static CultRecordKey DaemonGameSurface { get; } =
             new CultRecordKey("eve:surface:aetheria.daemon.game");
 
+        public static CultRecordKey DaemonGameReactiveSurface { get; } =
+            new CultRecordKey("eve:surface:aetheria.daemon.game.reactive");
+
         public static CultRecordKey StarbridgeCommanderSurface { get; } =
             new CultRecordKey("eve:surface:aetheria.starbridge.commander");
 

@@ -42,8 +42,7 @@ namespace GameCult.Aetheria.State.Verse
                     frame.SimulationSettings,
                     catalog),
                 CockpitOverlay(entity, target, frame.SimulationSettings),
-                FeedbackStream(run, frame.FrameId),
-                ShotReceiptStream(run),
+                ReactiveGameplaySlot(),
                 GravityFieldSurface("aetheria.daemon.game.field"),
                 MainMenuOverlay("aetheria.daemon.game.main_menu", activeMainMenuSurfaceId),
                 Hidden(Node(
@@ -186,6 +185,64 @@ namespace GameCult.Aetheria.State.Verse
                     })
                     .ToArray());
         }
+
+        public static AetheriaRuntimeSurfaceDocument BuildReactiveGameplay(
+            AetheriaRuntimeDaemonFrameDocument frame)
+        {
+            frame ??= new AetheriaRuntimeDaemonFrameDocument();
+            var run = frame.Run ?? new AetheriaRuntimeRunCheckpointCommit();
+            var zone = FindCurrentZone(run);
+            var entity = FindCurrentEntity(run, zone);
+            var entityIndex = entity?.EntityIndex ?? -1;
+            var events = (run.GameEvents ?? Array.Empty<AetheriaRuntimeGameEventCommit>())
+                .Where(value => value != null &&
+                    (entityIndex < 0 || value.SourceEntityIndex == entityIndex || value.TargetEntityIndex == entityIndex))
+                .ToArray();
+            var receipts = (run.ShotReceipts ?? Array.Empty<AetheriaRuntimeShotReceiptCommit>())
+                .Where(value => value != null &&
+                    (entityIndex < 0 || value.SourceEntityIndex == entityIndex || value.TargetEntityIndex == entityIndex))
+                .ToArray();
+            var lastFrame = events.Select(value => value.FrameId)
+                .Concat(receipts.Select(value => value.FrameId))
+                .DefaultIfEmpty(0)
+                .Max();
+            var version = checked(lastFrame * 100000L + events.Length * 100L + receipts.Length);
+            return new AetheriaRuntimeSurfaceDocument(
+                AetheriaRuntimeProviderIdentity.ProviderId,
+                "game.daemon",
+                "Aetheria Pilot Reactive State",
+                version,
+                frame.PublishedAtUtc,
+                new AetheriaRuntimeSurfaceTree(
+                    "aetheria.daemon.game.reactive",
+                    Node(
+                        "aetheria.daemon.game.reactive.root",
+                        "layer.reactive",
+                        Array.Empty<(string, string)>(),
+                        FeedbackStream(events, frame.FrameId),
+                        ShotReceiptStream(receipts)),
+                    Array.Empty<AetheriaRuntimeSurfaceStyleToken>()),
+                Array.Empty<AetheriaRuntimeSurfaceCommandTemplate>());
+        }
+
+        private static AetheriaRuntimeSurfaceComponent ReactiveGameplaySlot() =>
+            new AetheriaRuntimeSurfaceComponent(
+                "aetheria.daemon.game.reactive",
+                "layer.reactive",
+                new Dictionary<string, string>(StringComparer.Ordinal),
+                Array.Empty<AetheriaRuntimeSurfaceComponent>(),
+                Array.Empty<GameCult.Mesh.CultMeshStateBindingDescriptor>(),
+                new[]
+                {
+                    new AetheriaRuntimeEmbeddedDocumentSlot(
+                        "pilot-reactive-state",
+                        AetheriaRuntimeVerseRecordKeys.DaemonGameReactiveSurface.ToString(),
+                        EveSurfaceDocument.SchemaId,
+                        "reactive-state",
+                        new GameCult.Mesh.CultMeshRouteHint(
+                            GameCult.Mesh.CultMeshLocalityKind.SharedMemory,
+                            "exact retained pilot presentation state"))
+                });
 
         private static AetheriaRuntimeSurfaceCommandTemplate SurfaceCommand(
             AetheriaRuntimeDaemonCommandKinds kind) =>
@@ -477,9 +534,11 @@ namespace GameCult.Aetheria.State.Verse
             return (null, null);
         }
 
-        private static AetheriaRuntimeSurfaceComponent FeedbackStream(AetheriaRuntimeRunCheckpointCommit run, long frameId)
+        private static AetheriaRuntimeSurfaceComponent FeedbackStream(
+            IReadOnlyList<AetheriaRuntimeGameEventCommit> sourceEvents,
+            long frameId)
         {
-            var events = (run.GameEvents ?? Array.Empty<AetheriaRuntimeGameEventCommit>())
+            var events = (sourceEvents ?? Array.Empty<AetheriaRuntimeGameEventCommit>())
                 .Where(value => value != null)
                 .OrderBy(value => value.FrameId)
                 .ThenBy(value => value.EventId, StringComparer.Ordinal)
@@ -518,9 +577,10 @@ namespace GameCult.Aetheria.State.Verse
             return FormatNumber(after ? current : before);
         }
 
-        private static AetheriaRuntimeSurfaceComponent ShotReceiptStream(AetheriaRuntimeRunCheckpointCommit run)
+        private static AetheriaRuntimeSurfaceComponent ShotReceiptStream(
+            IReadOnlyList<AetheriaRuntimeShotReceiptCommit> sourceReceipts)
         {
-            var receipts = (run.ShotReceipts ?? Array.Empty<AetheriaRuntimeShotReceiptCommit>())
+            var receipts = (sourceReceipts ?? Array.Empty<AetheriaRuntimeShotReceiptCommit>())
                 .Where(value => value != null)
                 .OrderBy(value => value.FrameId)
                 .ThenBy(value => value.ShotId, StringComparer.Ordinal)

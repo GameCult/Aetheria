@@ -65,6 +65,7 @@ var clientPump = RunClientCultMeshPumpAsync(cultMeshRudpHost, clientPumpCancella
 var nextApiPublicationUtc = DateTimeOffset.UtcNow;
 var ingressState = new AetheriaDaemonIngressState();
 var hotState = new AetheriaHotEntityPublicationState();
+var reactiveSurfaceState = new AetheriaReactiveSurfacePublicationState();
 var firstTick = await TickAsync(node, options, worldPhysics, latestFrame, ingressState, buildPublications: false).ConfigureAwait(false);
 ThrowIfClientPumpFaulted(clientPump);
 latestFrame = firstTick.Frame;
@@ -79,6 +80,7 @@ await PublishPreparedDocumentsAsync(
     options,
     physicsPersistence,
     firstPublication,
+    reactiveSurfaceState,
     publishTopology: true).ConfigureAwait(false);
 await PublishHotEntityStateAsync(node, soaPublisher, hotState, firstTick.Frame, ingressState.Catalog).ConfigureAwait(false);
 nextApiPublicationUtc = DateTimeOffset.UtcNow.Add(options.ApiPublicationInterval);
@@ -138,6 +140,7 @@ while (!stopped.Task.IsCompleted)
             options,
             physicsPersistence,
             publication,
+            reactiveSurfaceState,
             publishTopology: false);
         nextApiPublicationUtc = DateTimeOffset.UtcNow.Add(options.ApiPublicationInterval);
     }
@@ -396,6 +399,7 @@ static async Task PublishPreparedDocumentsAsync(
     AetheriaDaemonHostOptions options,
     AetheriaYmirPersistenceCoordinator physicsPersistence,
     AetheriaPreparedPublication prepared,
+    AetheriaReactiveSurfacePublicationState reactiveSurfaceState,
     bool publishTopology)
 {
     await physicsPersistence.PersistPrivateAsync(prepared.Physics).ConfigureAwait(false);
@@ -403,7 +407,8 @@ static async Task PublishPreparedDocumentsAsync(
         node,
         options,
         prepared.Publication,
-        publishTopology).ConfigureAwait(false);
+        publishTopology,
+        reactiveSurfaceState).ConfigureAwait(false);
     if (publishTopology)
     {
         await PublishStateSurfacesAsync(node, options, prepared.Publication.Frame.PublishedAtUtc).ConfigureAwait(false);
@@ -1550,7 +1555,8 @@ static async Task PublishDaemonApiDocumentsAsync(
     AetheriaStateNode node,
     AetheriaDaemonHostOptions options,
     AetheriaRuntimeDaemonTickResult result,
-    bool publishTopology)
+    bool publishTopology,
+    AetheriaReactiveSurfacePublicationState? reactiveSurfaceState = null)
 {
     await node.MutableDocument<AetheriaRuntimeDaemonFrameDocument>(AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest)
         .ReplaceAsync(result.Frame)
@@ -1602,6 +1608,15 @@ static async Task PublishDaemonApiDocumentsAsync(
     var activeMainMenuSurfaceId = string.IsNullOrWhiteSpace(mainMenuState?.ActiveSurfaceId)
         ? AetheriaRuntimeMainMenuCommands.RootSurfaceId
         : mainMenuState.ActiveSurfaceId;
+    var reactiveGameSurface = AetheriaRuntimeSurfaceDocuments.ToPortableSurface(
+        AetheriaRuntimeDaemonGameSurfaceBuilder.BuildReactiveGameplay(result.Frame));
+    if (reactiveSurfaceState?.Matches(reactiveGameSurface.Version) != true)
+    {
+        await node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.DaemonGameReactiveSurface)
+            .ReplaceAsync(reactiveGameSurface)
+            .ConfigureAwait(false);
+        reactiveSurfaceState?.Set(reactiveGameSurface.Version);
+    }
     if (publishTopology)
     {
         var gameSurface = AetheriaRuntimeDaemonGameSurfaceBuilder.Build(
@@ -3149,6 +3164,15 @@ static AetheriaRuntimeLoadoutItemCommit ToLoadoutItemCommit(AetheriaLoadoutItem?
 internal sealed record AetheriaPreparedPublication(
     AetheriaRuntimeDaemonTickResult Publication,
     IReadOnlyList<AetheriaYmirZonePersistenceCapture> Physics);
+
+internal sealed class AetheriaReactiveSurfacePublicationState
+{
+    private long? _version;
+
+    public bool Matches(long version) => _version == version;
+
+    public void Set(long version) => _version = version;
+}
 
 internal sealed class AetheriaHotEntityPublicationState
 {
