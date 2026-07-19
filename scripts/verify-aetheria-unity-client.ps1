@@ -14,8 +14,8 @@ $manifest = Get-Content (Join-Path $ProjectPath "Packages/manifest.json") -Raw |
 $lock = Get-Content (Join-Path $ProjectPath "Packages/packages-lock.json") -Raw | ConvertFrom-Json
 $expected = @{
     "org.gamecult.cultlib" = @(
-        "https://github.com/GameCult/CultLib.git?path=/unity/org.gamecult.cultlib#cultlib-unity-v1.0.18",
-        "49c43baa4c80b3bf8f5febae40baf99e1f2a0262")
+        "https://github.com/GameCult/CultLib.git?path=/unity/org.gamecult.cultlib#cultlib-unity-v1.0.19",
+        "693df0901d75cfd8e3a0a5225e270011eeddb0be")
     "org.gamecult.eve.surface" = @(
         "https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.surface#eveunity-surface-v0.2.4",
         "e08fa08335f99e9edddeb706912eecfad07cb281")
@@ -34,7 +34,7 @@ foreach ($packageName in $expected.Keys) {
 
 $cultLibPackage = Get-ChildItem (Join-Path $ProjectPath "Library/PackageCache") -Directory |
     Where-Object Name -Like "org.gamecult.cultlib@*" |
-    Where-Object { (Get-Content (Join-Path $_.FullName "package.json") -Raw | ConvertFrom-Json).version -eq "1.0.17" } |
+    Where-Object { (Get-Content (Join-Path $_.FullName "package.json") -Raw | ConvertFrom-Json).version -eq "1.0.19" } |
     Select-Object -First 1
 if (-not $cultLibPackage) { throw "Resolved CultLib package is missing from Library/PackageCache." }
 
@@ -68,9 +68,9 @@ foreach ($requiredInputContract in @("PayloadKeys", "CurrentValue", "ActionBar",
 
 $scenePackage = Get-ChildItem (Join-Path $ProjectPath "Library/PackageCache") -Directory |
     Where-Object Name -Like "org.gamecult.eve.unity-scene@*" |
-    Where-Object { (Get-Content (Join-Path $_.FullName "package.json") -Raw | ConvertFrom-Json).version -eq "0.3.70" } |
+    Where-Object { (Get-Content (Join-Path $_.FullName "package.json") -Raw | ConvertFrom-Json).version -eq "0.3.72" } |
     Select-Object -First 1
-if (-not $scenePackage) { throw "Resolved Eve Unity scene 0.3.70 package is missing from Library/PackageCache." }
+if (-not $scenePackage) { throw "Resolved Eve Unity scene 0.3.72 package is missing from Library/PackageCache." }
 $advertisedInputSource = Get-Content (Join-Path $scenePackage.FullName "Runtime/EveUnityAdvertisedInputAction.cs") -Raw
 $inputDriverSource = Get-Content (Join-Path $scenePackage.FullName "Runtime/EveUnityPlayableWorldInputDriver.cs") -Raw
 $actionBarSource = Get-Content (Join-Path $scenePackage.FullName "Runtime/EveUnityInputActionBar.cs") -Raw

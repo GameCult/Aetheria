@@ -11,9 +11,11 @@ client to connect directly to the daemon's local CultMesh endpoint. Odin is not
 part of this path.
 
 The launcher displays and passes the exact source dependency roots used for the
-Debug daemon build. It prefers the active `CultLib-codex-cultmesh-reliability`
-and `Ymir-aetheria-integration` sibling checkouts, falling back to canonical
-`CultLib` and `Ymir` siblings only when those active integration checkouts are
+Debug daemon build. CultLib prefers the exact released `CultLib-release`
+sibling and falls back to the canonical `CultLib` sibling for checkouts that
+do not maintain a separate release worktree.
+Ymir still prefers the active `Ymir-aetheria-integration` sibling checkout and
+falls back to the canonical `Ymir` sibling when that integration checkout is
 absent. This prevents an older sibling assembly from impersonating the daemon
 being debugged.
 
