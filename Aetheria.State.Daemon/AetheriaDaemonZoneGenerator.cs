@@ -341,7 +341,7 @@ internal static class AetheriaDaemonZoneGenerator
         if (item.Volume <= 0)
             throw new InvalidOperationException($"The cargo-capacity proof item '{itemKey}' must have positive volume.");
 
-        var cargoBays = (entity.Equipment ?? Array.Empty<AetheriaEntityItemSlot>())
+        var cargoBays = (entity.CargoBays ?? Array.Empty<AetheriaEntityItemSlot>())
             .Select(slot => catalog.FindItem(slot.ItemKey))
             .Where(candidate => candidate != null && candidate.InteriorOccupiedCells > 0)
             .ToArray();
