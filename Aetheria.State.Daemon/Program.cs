@@ -31,9 +31,6 @@ await using var node = await AetheriaStateNode.OpenAsync(
     runtimeId: options.DaemonId,
     startServer: true,
     enableDurableShardLogs: false).ConfigureAwait(false);
-using var soaPublisher = new AetheriaRuntimeDaemonSoaFramePublisher(
-    node.Cache,
-    DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
 using var discoveryHost = new AetheriaVerseDiscoveryHost(node);
 
 await EnsureWorldDocumentAsync(node).ConfigureAwait(false);
@@ -53,6 +50,11 @@ using var physicsPersistence = await AetheriaYmirPersistenceCoordinator.OpenAsyn
     latestFrame).ConfigureAwait(false);
 using var cultMeshRudpHost = StartClientCultMeshHost(node, options, () => latestFrame);
 using var clientSubscriptions = new CultNetDatabaseSubscriptionServer(cultMeshRudpHost, node.Database);
+using var bodyDemand = new CultMeshBodyDemandTracker(clientSubscriptions);
+using var soaPublisher = new AetheriaRuntimeDaemonSoaFramePublisher(
+    node.Cache,
+    DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+    bodyDemand);
 using var clientPumpCancellation = new CancellationTokenSource();
 var clientPump = RunClientCultMeshPumpAsync(cultMeshRudpHost, clientPumpCancellation.Token);
 var nextApiPublicationUtc = DateTimeOffset.UtcNow;
@@ -1584,7 +1586,8 @@ static async Task PublishDaemonApiDocumentsAsync(
             .ReplaceAsync(result.SoaView)
             .ConfigureAwait(false);
         var soaPublication = await soaPublisher.PublishAsync(result.SoaFrame).ConfigureAwait(false);
-        await node.MutableDocument<CultMeshBodyPublicationDocument>(soaPublication.Body.RecordKey)
+        await node.MutableDocument<CultMeshBodyPublicationDocument>(
+                CultMeshBodyPublicationDocument.CreateLatestRecordKey(soaPublication.Body.BodyId))
             .ReplaceAsync(soaPublication.Body)
             .ConfigureAwait(false);
         await node.MutableDocument<EveEntitySoaViewDocument>(AetheriaRuntimeVerseRecordKeys.EveEntitySoaViewLatest)

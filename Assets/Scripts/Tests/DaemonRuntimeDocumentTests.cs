@@ -516,6 +516,8 @@ public class DaemonRuntimeDocumentTests
             AetheriaRuntimeVerseRecordKeys.EveEntitySoaViewLatest.ToString()));
         Assert.IsTrue(ContainsSurfaceProp(surface.Surface.Root, "entityViewSchema",
             EveEntitySoaViewDocument.SchemaId));
+        Assert.IsTrue(ContainsSurfaceProp(surface.Surface.Root, "entityBodyId",
+            AetheriaRuntimeDaemonSoaFramePublisher.BodyId));
         Assert.IsFalse(ContainsSurfaceKind(surface.Surface.Root, "world.entity3d"));
         Assert.IsTrue(ContainsSurfaceKind(surface.Surface.Root, "field.volume3d"));
         Assert.IsTrue(ContainsSurfaceProp(surface.Surface.Root, "materialAssetRef",

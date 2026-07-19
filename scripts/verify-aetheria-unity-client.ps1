@@ -14,14 +14,14 @@ $manifest = Get-Content (Join-Path $ProjectPath "Packages/manifest.json") -Raw |
 $lock = Get-Content (Join-Path $ProjectPath "Packages/packages-lock.json") -Raw | ConvertFrom-Json
 $expected = @{
     "org.gamecult.cultlib" = @(
-        "https://github.com/GameCult/CultLib.git?path=/unity/org.gamecult.cultlib#cultlib-unity-v1.0.19",
-        "693df0901d75cfd8e3a0a5225e270011eeddb0be")
+        "https://github.com/GameCult/CultLib.git?path=/unity/org.gamecult.cultlib#cultlib-unity-v1.0.20",
+        "3e223ceecd25c2d2d0c57dfb0cb0c2f177c87a65")
     "org.gamecult.eve.surface" = @(
         "https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.surface#eveunity-surface-v0.2.4",
         "e08fa08335f99e9edddeb706912eecfad07cb281")
     "org.gamecult.eve.unity-scene" = @(
-        "https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.unity-scene#eveunity-scene-v0.3.72",
-        "edaf3b1e3bbb06a00b18b9faf508e27e33ae050b")
+        "https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.unity-scene#eveunity-scene-v0.3.74",
+        "092fda75177aca7776474d43df87a29872e51d01")
 }
 
 foreach ($packageName in $expected.Keys) {

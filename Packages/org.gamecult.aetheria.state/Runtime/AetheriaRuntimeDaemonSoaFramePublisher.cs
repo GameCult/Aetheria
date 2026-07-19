@@ -1,4 +1,5 @@
 using System;
+using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -10,16 +11,43 @@ using GameCult.Mesh;
 
 namespace GameCult.Aetheria.State.Verse
 {
-    public sealed class AetheriaRuntimeDaemonSoaFrame
+    public sealed class AetheriaRuntimeDaemonSoaFrame : IDisposable
     {
-        public AetheriaRuntimeDaemonSoaFrame(AetheriaRuntimeDaemonSoaViewDocument view, byte[] bytes)
+        private CultMeshFrameBodyWriteLease? _write;
+
+        public AetheriaRuntimeDaemonSoaFrame(
+            AetheriaRuntimeDaemonSoaViewDocument view,
+            CultMeshFrameBodyWriteLease write,
+            int byteLength,
+            bool publishSharedMemory,
+            bool publishNetwork)
         {
             View = view ?? throw new ArgumentNullException(nameof(view));
-            Bytes = bytes ?? throw new ArgumentNullException(nameof(bytes));
+            _write = write ?? throw new ArgumentNullException(nameof(write));
+            ByteLength = byteLength;
+            PublishSharedMemory = publishSharedMemory;
+            PublishNetwork = publishNetwork;
         }
 
         public AetheriaRuntimeDaemonSoaViewDocument View { get; }
-        public byte[] Bytes { get; }
+        public int ByteLength { get; }
+        public bool PublishSharedMemory { get; }
+        public bool PublishNetwork { get; }
+        public ReadOnlySpan<byte> Span => (_write ?? throw new ObjectDisposedException(nameof(AetheriaRuntimeDaemonSoaFrame))).Span[..ByteLength];
+
+        public CultMeshBodyDescriptor Commit(DateTimeOffset nowUtc)
+        {
+            var write = _write ?? throw new ObjectDisposedException(nameof(AetheriaRuntimeDaemonSoaFrame));
+            var descriptor = write.Commit(ByteLength, nowUtc);
+            _write = null;
+            return descriptor;
+        }
+
+        public void Dispose()
+        {
+            _write?.Dispose();
+            _write = null;
+        }
     }
 
     public sealed class AetheriaRuntimeDaemonSoaPublication
@@ -55,11 +83,15 @@ namespace GameCult.Aetheria.State.Verse
 
         private readonly CultMeshFrameBodyPublisher _localPublisher;
         private readonly CultMeshNetworkBodyPublisher _networkPublisher;
+        private readonly CultMeshBodyDemandTracker? _demand;
         private readonly Dictionary<string, int> _syntheticEntityIndices =
             new Dictionary<string, int>(StringComparer.Ordinal);
         private int _nextSyntheticEntityIndex = -2;
 
-        public AetheriaRuntimeDaemonSoaFramePublisher(CultCache cache, long producerEpoch)
+        public AetheriaRuntimeDaemonSoaFramePublisher(
+            CultCache cache,
+            long producerEpoch,
+            CultMeshBodyDemandTracker? demand = null)
         {
             if (cache == null) throw new ArgumentNullException(nameof(cache));
             _localPublisher = new CultMeshFrameBodyPublisher(
@@ -69,14 +101,20 @@ namespace GameCult.Aetheria.State.Verse
             _networkPublisher = new CultMeshNetworkBodyPublisher(
                 cache,
                 generation => string.Equals(generation.ProducerId, ProducerId, StringComparison.Ordinal));
+            _demand = demand;
         }
 
-        public AetheriaRuntimeDaemonSoaFrame BuildCurrentZoneEntities(
+        public AetheriaRuntimeDaemonSoaFrame? BuildCurrentZoneEntities(
             AetheriaRuntimeDaemonFrameDocument frame,
             AetheriaRuntimeCatalogSnapshot? catalog = null)
         {
             if (frame == null)
                 throw new ArgumentNullException(nameof(frame));
+            var demand = _demand?.Plan(BodyId);
+            if (demand != null && !demand.HasConsumers)
+                return null;
+            var publishSharedMemory = demand?.RequiresSharedMemory ?? true;
+            var publishNetwork = demand?.RequiresNetwork ?? true;
 
             var run = frame.Run ?? new AetheriaRuntimeRunCheckpointCommit();
             var zone = (run.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>())
@@ -142,22 +180,27 @@ namespace GameCult.Aetheria.State.Verse
                 throw new InvalidOperationException($"Aetheria entity SoA capacity {Capacity} was exceeded by {count} rows.");
             var generation = Math.Max(frame.FrameId, 0);
             var layout = EntityHotSlabLayout.Create(count);
-            var bytes = new byte[layout.TotalByteLength];
-            WriteEntities(bytes, layout, entities);
-            WritePickups(bytes, layout, pickups, pickupEntityIds, syntheticEntityIndices, entities.Length);
-            WritePayloads(bytes, layout, payloads, payloadEntityIds, syntheticEntityIndices, entities.Length + pickups.Length);
-            WriteCelestialBodies(
-                bytes,
-                layout,
-                celestialBodies,
-                syntheticEntityIndices,
-                entities.Length + pickups.Length + payloads.Length);
-            WriteAsteroidInstances(
-                bytes,
-                layout,
-                asteroidInstances,
-                syntheticEntityIndices,
-                entities.Length + pickups.Length + payloads.Length + celestialBodies.Count);
+            if (!_localPublisher.TryAcquireWrite(out var write))
+                throw new InvalidOperationException("CultMesh has no unleased frame slot for the Aetheria SoA generation.");
+            try
+            {
+                var bytes = write.Span[..checked((int)layout.TotalByteLength)];
+                bytes.Clear();
+                WriteEntities(bytes, layout, entities);
+                WritePickups(bytes, layout, pickups, pickupEntityIds, syntheticEntityIndices, entities.Length);
+                WritePayloads(bytes, layout, payloads, payloadEntityIds, syntheticEntityIndices, entities.Length + pickups.Length);
+                WriteCelestialBodies(
+                    bytes,
+                    layout,
+                    celestialBodies,
+                    syntheticEntityIndices,
+                    entities.Length + pickups.Length + payloads.Length);
+                WriteAsteroidInstances(
+                    bytes,
+                    layout,
+                    asteroidInstances,
+                    syntheticEntityIndices,
+                    entities.Length + pickups.Length + payloads.Length + celestialBodies.Count);
 
             var view = AetheriaRuntimeDaemonSoaViewDocument.Create(
                 string.IsNullOrWhiteSpace(frame.DaemonId) ? "aetheria-daemon" : frame.DaemonId,
@@ -239,15 +282,26 @@ namespace GameCult.Aetheria.State.Verse
                     }))
                     .ToArray());
 
-            return new AetheriaRuntimeDaemonSoaFrame(view, bytes);
+                return new AetheriaRuntimeDaemonSoaFrame(
+                    view,
+                    write,
+                    checked((int)layout.TotalByteLength),
+                    publishSharedMemory,
+                    publishNetwork);
+            }
+            catch
+            {
+                write.Dispose();
+                throw;
+            }
         }
 
         public async Task<AetheriaRuntimeDaemonSoaPublication> PublishAsync(AetheriaRuntimeDaemonSoaFrame frame)
         {
             if (frame == null) throw new ArgumentNullException(nameof(frame));
             var now = DateTimeOffset.UtcNow;
-            if (!_localPublisher.TryPublish(frame.Bytes, now, out var local))
-                throw new InvalidOperationException("CultMesh has no unleased frame slot for the Aetheria SoA generation.");
+            var networkBytes = frame.PublishNetwork ? frame.Span.ToArray() : null;
+            var local = frame.Commit(now);
             var generation = new CultMeshBodyGeneration
             {
                 BodyId = BodyId,
@@ -260,7 +314,10 @@ namespace GameCult.Aetheria.State.Verse
                 Synchronization = local.Synchronization,
                 LeaseExpiresAtUnixMs = local.LeaseExpiresAtUnixMs
             };
-            var network = await _networkPublisher.PublishAsync(generation, frame.Bytes).ConfigureAwait(false);
+            var representations = new List<CultMeshBodyDescriptor>();
+            if (frame.PublishSharedMemory) representations.Add(local);
+            if (frame.PublishNetwork)
+                representations.Add(await _networkPublisher.PublishAsync(generation, networkBytes!).ConfigureAwait(false));
             var publication = new CultMeshBodyPublicationDocument
             {
                 BodyId = BodyId,
@@ -273,8 +330,7 @@ namespace GameCult.Aetheria.State.Verse
                 Sequence = local.Sequence,
                 Synchronization = local.Synchronization,
                 LivenessExpiresAtUnixMs = local.LeaseExpiresAtUnixMs,
-                PreferredLocal = local,
-                NetworkFallback = network
+                Representations = representations.ToArray()
             };
             new CultMeshBodyPublicationHandle(BodyId, publication.ProducerEpoch, publication.Sequence)
                 .Validate(publication);
@@ -350,7 +406,7 @@ namespace GameCult.Aetheria.State.Verse
         }
 
         private static void WriteEntities(
-            byte[] bytes,
+            Span<byte> bytes,
             EntityHotSlabLayout layout,
             IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities)
         {
@@ -373,7 +429,7 @@ namespace GameCult.Aetheria.State.Verse
         }
 
         private static void WritePickups(
-            byte[] bytes,
+            Span<byte> bytes,
             EntityHotSlabLayout layout,
             IReadOnlyList<AetheriaRuntimeDroppedPickupCommit> pickups,
             IReadOnlyList<string> pickupEntityIds,
@@ -400,7 +456,7 @@ namespace GameCult.Aetheria.State.Verse
         }
 
         private static void WritePayloads(
-            byte[] bytes,
+            Span<byte> bytes,
             EntityHotSlabLayout layout,
             IReadOnlyList<AetheriaRuntimePhysicalPayloadCommit> payloads,
             IReadOnlyList<string> payloadEntityIds,
@@ -528,7 +584,7 @@ namespace GameCult.Aetheria.State.Verse
         }
 
         private static void WriteCelestialBodies(
-            byte[] bytes,
+            Span<byte> bytes,
             EntityHotSlabLayout layout,
             IReadOnlyList<CelestialBodyPresentation> values,
             IReadOnlyDictionary<string, int> syntheticEntityIndices,
@@ -552,7 +608,7 @@ namespace GameCult.Aetheria.State.Verse
         }
 
         private static void WriteAsteroidInstances(
-            byte[] bytes,
+            Span<byte> bytes,
             EntityHotSlabLayout layout,
             IReadOnlyList<AsteroidPresentation> values,
             IReadOnlyDictionary<string, int> syntheticEntityIndices,
@@ -576,7 +632,7 @@ namespace GameCult.Aetheria.State.Verse
         }
 
         private static void WritePresentationRow(
-            byte[] bytes,
+            Span<byte> bytes,
             EntityHotSlabLayout layout,
             int row,
             int entityIndex,
@@ -673,13 +729,16 @@ namespace GameCult.Aetheria.State.Verse
             public double Scale { get; }
         }
 
-        private static void WriteFloat(byte[] bytes, long byteOffset, int index, double value)
+        private static void WriteFloat(Span<byte> bytes, long byteOffset, int index, double value)
         {
-            WriteBytes(bytes, byteOffset + index * FloatStride, BitConverter.GetBytes(IsFinite(value) ? (float)value : 0.0f));
+            var scalar = IsFinite(value) ? (float)value : 0.0f;
+            BinaryPrimitives.WriteInt32LittleEndian(
+                bytes.Slice(checked((int)(byteOffset + index * FloatStride)), FloatStride),
+                BitConverter.SingleToInt32Bits(scalar));
         }
 
         private static void WriteFloat3(
-            byte[] bytes,
+            Span<byte> bytes,
             long byteOffset,
             int index,
             double x,
@@ -692,14 +751,11 @@ namespace GameCult.Aetheria.State.Verse
             WriteFloat(bytes, elementOffset + FloatStride * 2, 0, z);
         }
 
-        private static void WriteInt32(byte[] bytes, long offset, int value) =>
-            WriteBytes(bytes, offset, BitConverter.GetBytes(value));
+        private static void WriteInt32(Span<byte> bytes, long offset, int value) =>
+            BinaryPrimitives.WriteInt32LittleEndian(bytes.Slice(checked((int)offset), IntStride), value);
 
-        private static void WriteUInt32(byte[] bytes, long offset, int value) =>
-            WriteBytes(bytes, offset, BitConverter.GetBytes((uint)value));
-
-        private static void WriteBytes(byte[] destination, long offset, byte[] source) =>
-            Buffer.BlockCopy(source, 0, destination, checked((int)offset), source.Length);
+        private static void WriteUInt32(Span<byte> bytes, long offset, int value) =>
+            BinaryPrimitives.WriteUInt32LittleEndian(bytes.Slice(checked((int)offset), IntStride), (uint)value);
 
         private static bool IsFinite(double value)
         {
