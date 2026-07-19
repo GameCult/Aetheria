@@ -1766,6 +1766,27 @@ namespace GameCult.Aetheria.State.Verse
                 return true;
             }
 
+            if (string.Equals(
+                    Environment.GetEnvironmentVariable("AETHERIA_TRACE_EVE_SNAPSHOTS"),
+                    "1",
+                    StringComparison.Ordinal))
+            {
+                var candidates = entities
+                    .Where(candidate => candidate != null && candidate.EntityIndex != actorIndex)
+                    .Select(candidate =>
+                    {
+                        var dx = candidate.PositionX - actor.PositionX;
+                        var dz = candidate.PositionZ - actor.PositionZ;
+                        var bays = candidate.DockingBays ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>();
+                        var assignments = candidate.DockingBayAssignments ?? Array.Empty<int>();
+                        return $"{candidate.EntityIndex}:distance={Math.Sqrt((dx * dx) + (dz * dz)):0.###}," +
+                            $"bays={bays.Count},assignments=[{string.Join(",", assignments)}]";
+                    });
+                Console.WriteLine(
+                    $"Dock-nearest rejected actor={actorEntityKey} maxDistance={maxDistance:0.###} " +
+                    $"candidates=[{string.Join(";", candidates)}]");
+            }
+
             return false;
         }
 
@@ -1864,6 +1885,10 @@ namespace GameCult.Aetheria.State.Verse
                 .ToArray();
             assignments[bayIndex] = actorIndex;
             target.DockingBayAssignments = assignments.ToArray();
+            actor.VelocityX = 0;
+            actor.VelocityY = 0;
+            actor.HelmStrafe = 0;
+            actor.HelmForward = 0;
             DisarmWeapons(actor);
             return true;
         }

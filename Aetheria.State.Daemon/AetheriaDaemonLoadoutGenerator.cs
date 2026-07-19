@@ -35,12 +35,14 @@ public sealed class AetheriaDaemonLoadoutGenerator
 
     public AetheriaDaemonLoadout Build(
         string entityKind,
-        string availabilityFactionKey)
+        string availabilityFactionKey,
+        string hullItemKey = "")
     {
         var hullType = string.Equals(entityKind, "station", StringComparison.OrdinalIgnoreCase) ? "Station" : "Ship";
         var hull = Pick(availabilityFactionKey, 0, item =>
             string.Equals(item.Category, AetheriaRuntimeItemCategories.Hull, StringComparison.Ordinal) &&
-            string.Equals(item.HullType, hullType, StringComparison.Ordinal))
+            string.Equals(item.HullType, hullType, StringComparison.Ordinal) &&
+            (string.IsNullOrWhiteSpace(hullItemKey) || string.Equals(item.ItemKey, hullItemKey, StringComparison.Ordinal)))
             ?? throw new InvalidOperationException($"No available {hullType} hull for faction {availabilityFactionKey}.");
 
         var occupied = new HashSet<(int X, int Y)>();
@@ -48,9 +50,12 @@ public sealed class AetheriaDaemonLoadoutGenerator
         foreach (var cell in hardpoint.ShapeCells ?? Array.Empty<AetheriaRuntimeShapeCell>())
             occupied.Add((hardpoint.PositionX + cell.X, hardpoint.PositionY + cell.Y));
         var slots = new List<AetheriaEntityItemSlot>();
-        if (string.Equals(entityKind, "station", StringComparison.OrdinalIgnoreCase))
+        var hasDedicatedDockingMounts = (hull.Hardpoints ?? Array.Empty<AetheriaRuntimeHardpoint>())
+            .Any(hardpoint => string.Equals(hardpoint.Type, "DockingBay", StringComparison.Ordinal));
+        if (string.Equals(entityKind, "station", StringComparison.OrdinalIgnoreCase) && !hasDedicatedDockingMounts)
             AddFreeSpaceItem(hull, availabilityFactionKey, occupied, slots, 2,
-                item => string.Equals(item.Category, AetheriaRuntimeItemCategories.DockingBay, StringComparison.Ordinal));
+                item => string.Equals(item.Category, AetheriaRuntimeItemCategories.DockingBay, StringComparison.Ordinal) &&
+                    !string.Equals(item.HardpointType, "DockingBay", StringComparison.Ordinal));
 
         var previous = new List<AetheriaRuntimeCatalogItem>();
         foreach (var hardpoint in (hull.Hardpoints ?? Array.Empty<AetheriaRuntimeHardpoint>())
@@ -61,7 +66,7 @@ public sealed class AetheriaDaemonLoadoutGenerator
                 : "";
             var item = previous.FirstOrDefault(candidate => FitsHardpoint(candidate, hardpoint));
             item ??= PickHardpoint(availabilityFactionKey, hardpoint, candidate =>
-                IsGear(candidate) && FitsHardpoint(candidate, hardpoint) &&
+                (IsGear(candidate) || IsDockingBay(candidate)) && FitsHardpoint(candidate, hardpoint) &&
                 (controllerKind.Length == 0 || HasBehavior(candidate, controllerKind)));
             if (item == null)
             {
@@ -411,6 +416,9 @@ public sealed class AetheriaDaemonLoadoutGenerator
         item != null &&
         (string.Equals(item.Category, AetheriaRuntimeItemCategories.CargoBay, StringComparison.Ordinal) ||
          string.Equals(item.Category, AetheriaRuntimeItemCategories.DockingBay, StringComparison.Ordinal));
+
+    private static bool IsDockingBay(AetheriaRuntimeCatalogItem item) =>
+        string.Equals(item.Category, AetheriaRuntimeItemCategories.DockingBay, StringComparison.Ordinal);
 
     private static AetheriaEntityItemSlot Slot(int x, int y, string itemKey, int rotation = 0) => new()
     {

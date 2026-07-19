@@ -663,7 +663,10 @@ legacy catalog cache, and legacy UI paths should be migration-only or deleted.
   records. The Eve command lane is transport, not renderer-owned state.
 - `Aetheria.State.Daemon` hosts the CultMesh Verse member and owns long-running
   Eve command acceptance for provider-owned surfaces. `--once` runs one daemon
-  tick for smoke/operator use without keeping the process alive.
+  tick for smoke/operator use without keeping the process alive. Its public
+  CultCache registry includes the typed Eve Fields splat document that the
+  daemon persists, so its own state remains reopenable after a viewport has
+  been published.
 - `AetheriaEveCommandAcceptanceStatus` and the `aetheria.operations` Eve surface
   publish Eve request acceptance health, observed depth, applied counts,
   failures, and timestamps as typed state. Console logs are notification-only.
@@ -1490,6 +1493,29 @@ edges with one worker and exactly two start/transfer/completion event triplets.
   GUIDs plus missing `Thruster` equipment required to fill their authored
   mounts, so the supplemental catalog cannot overwrite live rows or silently
   revive unrelated obsolete content.
+- Dockyard content owner: `AetheriaDaemonNativeCatalog` materializes the
+  daemon-authored `Zenith Dockyard` hull and its matching `Dockyard Berth` as
+  typed catalog documents. The canonical Zenith and medium bay contribute
+  manufacturer, presentation, thermal, and ship-size facts; the daemon-owned
+  hull definition contributes the distinct 24x24 layout and twelve explicit
+  `DockingBay` hardpoints. Bay count is derived from installed equipment after
+  ordinary loadout generation. Until it receives a distinct baked mesh, the
+  Dockyard explicitly aliases the canonical Zenith provider asset; the asset
+  manifest publishes that existing asset identity instead of inventing an
+  unbaked per-item prefab. Entity fixtures, docking commands, imported
+  fossil rows, Eve surfaces, and Unity lowerers cannot append bays or revise
+  station capacity. Stations without dedicated docking mounts retain one
+  historical free-space bay path, which excludes equipment authored for a
+  dedicated `DockingBay` mount. The Anchor Station selects the
+  dockyard hull through the same generator entry point as every other entity;
+  the released-client proof gives its pilot daemon-authored initial velocity
+  that keeps it inside the docking envelope while the client negotiates, and a
+  successful dock clears velocity and helm state before Ymir excludes the
+  attached child body. The proof scenario also makes its one-point-hull raider
+  the sole hostile faction member, so generic focus selection and the asserted
+  destruction target cannot drift apart as other Ymir bodies move;
+  smoke coverage proves all twelve mounts fill with matching typed equipment
+  and that the old free-space path cannot consume the dedicated berth item.
 - Generation owner: one daemon loadout generator owns one advancing mutable
   CultMath random stream. A readonly struct field is forbidden because it
   mutates a defensive copy and restarts every weighted draw. Price, allegiance,

@@ -2,6 +2,7 @@ using Aetheria.State.Documents;
 using GameCult.Caching;
 using GameCult.Aetheria.State.Verse;
 using GameCult.Eve.Surface;
+using GameCult.Eve.PluginFields;
 using GameCult.Mesh;
 using GameCult.Networking;
 
@@ -60,6 +61,7 @@ public static class AetheriaDocumentRegistry
         typeof(AetheriaRuntimeStarbridgeScenarioDocument),
         typeof(AetheriaRuntimeStarbridgeSessionDocument),
         typeof(AetheriaRuntimeStarbridgeSessionSummaryDocument),
+        typeof(EveFieldsSplatsDocument),
         typeof(EveInputCapabilityDocument),
         typeof(AetheriaRuntimeDaemonSoaViewDocument),
         typeof(AetheriaRuntimeVerseAuthorityPolicyDocument),

@@ -8,6 +8,8 @@ namespace GameCult.Aetheria.State.Verse
 {
     public static class AetheriaRuntimeAssets
     {
+        public const string PresentationHullItemTagPrefix = "presentation-hull-item:";
+
         public static string ResolveEntityPrefabAssetRef(
             AetheriaRuntimeEntitySnapshotCommit entity,
             AetheriaRuntimeCatalogSnapshot? catalog = null)
@@ -15,7 +17,7 @@ namespace GameCult.Aetheria.State.Verse
             if (entity == null) return "";
             var hull = catalog?.FindItem(entity.HullItemKey ?? "");
             if (hull != null && !string.IsNullOrWhiteSpace(hull.HullPrefab))
-                return HullPrefabAssetKey(hull.ItemKey);
+                return HullPrefabAssetKey(ResolvePresentationHull(hull, catalog!).ItemKey);
             var kind = (entity.Kind ?? "").Trim().ToLowerInvariant();
             if (kind.Contains("station")) return "prefab.entity.station";
             if (kind.Contains("projectile")) return "prefab.entity.projectile";
@@ -79,6 +81,9 @@ namespace GameCult.Aetheria.State.Verse
 
                 if (!string.IsNullOrWhiteSpace(item.HullPrefab))
                 {
+                    var presentationHull = ResolvePresentationHull(item, catalog!);
+                    if (!string.Equals(presentationHull.ItemKey, item.ItemKey, StringComparison.Ordinal))
+                        continue;
                     Add(entries, MapPrefab(
                         HullPrefabAssetKey(item.ItemKey),
                         string.IsNullOrWhiteSpace(item.Name) ? item.ItemKey : item.Name,
@@ -108,6 +113,28 @@ namespace GameCult.Aetheria.State.Verse
                     .OrderBy(entry => entry.Ref.AssetKey, StringComparer.Ordinal)
                     .ToArray()
             };
+        }
+
+        private static AetheriaRuntimeCatalogItem ResolvePresentationHull(
+            AetheriaRuntimeCatalogItem hull,
+            AetheriaRuntimeCatalogSnapshot catalog)
+        {
+            var aliases = (hull.Tags ?? Array.Empty<string>())
+                .Where(tag => tag != null && tag.StartsWith(PresentationHullItemTagPrefix, StringComparison.Ordinal))
+                .Select(tag => tag.Substring(PresentationHullItemTagPrefix.Length).Trim())
+                .Where(itemKey => itemKey.Length > 0)
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+            if (aliases.Length == 0)
+                return hull;
+            if (aliases.Length != 1)
+                throw new InvalidOperationException($"Hull '{hull.ItemKey}' advertises multiple presentation hulls.");
+
+            var presentationHull = catalog.FindItem(aliases[0]);
+            if (presentationHull == null || string.IsNullOrWhiteSpace(presentationHull.HullPrefab))
+                throw new InvalidOperationException(
+                    $"Hull '{hull.ItemKey}' presentation hull '{aliases[0]}' is missing or has no provider prefab.");
+            return presentationHull;
         }
 
         public static AetheriaRuntimeAssetRef ResolveEntityIcon(AetheriaRuntimeViewportObject? obj)

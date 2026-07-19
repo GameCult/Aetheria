@@ -36,6 +36,7 @@ using var discoveryHost = new AetheriaVerseDiscoveryHost(node);
 
 await EnsureWorldDocumentAsync(node).ConfigureAwait(false);
 await EnsureTradeValuePolicyAsync(node, startedAtUtc).ConfigureAwait(false);
+await AetheriaDaemonNativeCatalog.EnsureAsync(node).ConfigureAwait(false);
 await node.FlushAsync().ConfigureAwait(false);
 await EnsurePlayableRunDocumentsAsync(node, options, startedAtUtc).ConfigureAwait(false);
 await EnsureGameSessionAsync(node, options, startedAtUtc).ConfigureAwait(false);

@@ -249,7 +249,7 @@ internal static class AetheriaDaemonZoneGenerator
 
         var entities = new[]
         {
-            Entity(loadouts, availabilityFactions, "Anchor Station", "station", -50, -30, 0, 0, "player", 760, keys[6], [keys[1], keys[2], keys[3], keys[4], keys[6], keys[7], keys[11]], 2, 900),
+            Entity(loadouts, availabilityFactions, "Anchor Station", "station", -50, -30, 0, 0, "player", 760, keys[6], [keys[1], keys[2], keys[3], keys[4], keys[6], keys[7], keys[11]], 2, 900, AetheriaDaemonNativeCatalog.DockyardHullItemKey),
             Entity(loadouts, availabilityFactions, "Vanguard One", "ship", -40, -30, 0, 0, "player", 540, keys[6], [keys[0], keys[2], keys[4], keys[6], keys[7]]),
             Entity(loadouts, availabilityFactions, "Wing Two", "ship", 145, 125, -5, 7, "player", 450, keys[6], [keys[0], keys[1], keys[6], keys[8]]),
             Entity(loadouts, availabilityFactions, "Torch Three", "ship", -235, 210, 8, -4, "player", 500, keys[7], [keys[0], keys[1], keys[7]]),
@@ -277,6 +277,14 @@ internal static class AetheriaDaemonZoneGenerator
         AetheriaRuntimeCatalogSnapshot catalog,
         string scenario)
     {
+        // Hold the proof pilot inside the station's fossil 25-unit docking envelope while
+        // the released client negotiates its provider session. Ymir's stellar field owns
+        // the trajectory; this is initial world state, not a client-side position lock.
+        entities[1].Velocity = Vec2(-70, -47);
+        var playerFactionKey = entities[1].FactionKey;
+        for (var index = 0; index < entities.Length; index++)
+            if (index != 6)
+                entities[index].FactionKey = playerFactionKey;
         entities[1].CargoContents = [new AetheriaCargoBayLoadout()];
         entities[6].StatGrids =
         [
@@ -387,10 +395,11 @@ internal static class AetheriaDaemonZoneGenerator
         string target,
         string[] contactKeys,
         int securityLevel = 0,
-        double securityRadius = 0)
+        double securityRadius = 0,
+        string hullItemKey = "")
     {
         var availabilityFaction = availabilityFactions[faction];
-        var loadout = loadouts[availabilityFaction].Build(kind, availabilityFaction);
+        var loadout = loadouts[availabilityFaction].Build(kind, availabilityFaction, hullItemKey);
         var entity = AetheriaDaemonGeneratedEntityFactory.Create(
             name,
             kind,

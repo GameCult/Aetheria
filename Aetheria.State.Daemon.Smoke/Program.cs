@@ -93,7 +93,11 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
 
     public void RunCombatLock() => RunCheck(InstantWeaponRequestSurvivesLockAcquisition);
 
-    public void RunLoadout() => DaemonLoadoutsRespectFactionAvailabilityAndHullRoles();
+    public void RunLoadout()
+    {
+        DaemonNativeDockyardMaterializesTypedCatalog();
+        DaemonLoadoutsRespectFactionAvailabilityAndHullRoles();
+    }
 
     public void RunPickup()
     {
@@ -1761,6 +1765,10 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
     private static void InputCapabilityPublishesNativeTargetAndInteractControls()
     {
         var actor = Entity(0, 0, "player");
+        actor.VelocityX = 12;
+        actor.VelocityY = -7;
+        actor.HelmStrafe = 0.5;
+        actor.HelmForward = 1;
         var near = Entity(1, 0, "enemy");
         near.PositionX = 4;
         var middle = Entity(2, 0, "enemy");
@@ -2553,6 +2561,14 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         var disarmed = actor.WeaponStates.Single();
         RequireEqual(0, actor.ActiveWeaponGroups.Count,
             "docking must clear the daemon-owned held weapon-group latch");
+        RequireNear(0, actor.VelocityX, 0.000001,
+            "docking must clear retained X velocity before Ymir excludes the attached child body");
+        RequireNear(0, actor.VelocityY, 0.000001,
+            "docking must clear retained Z velocity before Ymir excludes the attached child body");
+        RequireNear(0, actor.HelmStrafe, 0.000001,
+            "docking must clear retained strafe intent");
+        RequireNear(0, actor.HelmForward, 0.000001,
+            "docking must clear retained forward intent");
         Require(!disarmed.Firing && !disarmed.TriggerPending && disarmed.BurstRemaining == 0 &&
                 !disarmed.Charging && !disarmed.Charged && disarmed.Charge == 0 &&
                 disarmed.LockTargetEntityIndex < 0 && disarmed.LockProgress == 0,
@@ -5522,7 +5538,23 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         cargo.InteriorShapeCells = Enumerable.Range(0, 3).SelectMany(y => Enumerable.Range(0, 3)
             .Select(x => new AetheriaRuntimeShapeCell(x, y))).ToArray();
         var docking = Item("docking-bay", AetheriaRuntimeItemCategories.DockingBay, "forge", 35);
-        docking.HardpointType = "Internal";
+        docking.HardpointType = "Tool";
+        var dockyardBay = Item("dockyard-bay", AetheriaRuntimeItemCategories.DockingBay, "forge", 70, "DockingBay");
+        var dockyardHull = Item("dockyard-hull", AetheriaRuntimeItemCategories.Hull, "forge", 600);
+        dockyardHull.HardpointType = "Hull";
+        dockyardHull.HullType = "Station";
+        dockyardHull.ShapeWidth = 6;
+        dockyardHull.ShapeHeight = 4;
+        dockyardHull.ShapeCells = Enumerable.Range(0, 4).SelectMany(y => Enumerable.Range(0, 6)
+            .Select(x => new AetheriaRuntimeShapeCell(x, y))).ToArray();
+        dockyardHull.OccupiedCells = dockyardHull.ShapeCells.Count;
+        dockyardHull.Hardpoints = Enumerable.Range(0, 6)
+            .SelectMany(x => new[]
+            {
+                new AetheriaRuntimeHardpoint("DockingBay", x, 0, 1, 1, 1, one, "", "None", 0),
+                new AetheriaRuntimeHardpoint("DockingBay", x, 3, 1, 1, 1, one, "", "None", 0)
+            })
+            .ToArray();
         var capacitor = Item("capacitor", AetheriaRuntimeItemCategories.Gear, "forge", 25, "", "Capacitor");
         capacitor.HardpointType = "Internal";
         var faction = new AetheriaRuntimeCorporation("forge", "Forge", "F", "", "", "", 1, 1,
@@ -5532,7 +5564,7 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         var reactor = Item("reactor", AetheriaRuntimeItemCategories.Gear, "forge", 25, "", "Reactor");
         reactor.HardpointType = "Internal";
         var catalog = new AetheriaRuntimeCatalogSnapshot(
-            [availableHull, unavailableHull, stationHull, cockpit, wrongController, weapon, shipSensor, stationSensor, cargo, docking, capacitor, reactor],
+            [availableHull, unavailableHull, stationHull, dockyardHull, cockpit, wrongController, weapon, shipSensor, stationSensor, cargo, docking, dockyardBay, capacitor, reactor],
             [faction, foreign], Array.Empty<AetheriaRuntimeNameFile>());
         var fallbackCatalog = new AetheriaRuntimeCatalogSnapshot(
             [availableHull, unavailableHull, stationHull, cockpit, wrongController, weapon, shipSensor, cargo, docking, capacitor, reactor],
@@ -5555,9 +5587,12 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
 
         var first = new AetheriaDaemonLoadoutGenerator(catalog, 42, 0, homes, adjacency).Build("ship", "forge");
         var second = new AetheriaDaemonLoadoutGenerator(catalog, 42, 0, homes, adjacency).Build("ship", "forge");
-        var station = new AetheriaDaemonLoadoutGenerator(catalog, 84, 0, homes, adjacency).Build("station", "forge");
+        var station = new AetheriaDaemonLoadoutGenerator(catalog, 84, 0, homes, adjacency)
+            .Build("station", "forge", "station-hull");
         var fallbackStation = new AetheriaDaemonLoadoutGenerator(fallbackCatalog, 84, 0, homes, adjacency)
-            .Build("station", "forge");
+            .Build("station", "forge", "station-hull");
+        var dockyard = new AetheriaDaemonLoadoutGenerator(catalog, 85, 0, homes, adjacency)
+            .Build("station", "forge", "dockyard-hull");
         var uninterruptedForge = new AetheriaDaemonLoadoutGenerator(catalog, 101, 0, homes, adjacency);
         var interleavedForge = new AetheriaDaemonLoadoutGenerator(catalog, 101, 0, homes, adjacency);
         var foreignStream = new AetheriaDaemonLoadoutGenerator(catalog, 202, 1, homes, adjacency);
@@ -5609,6 +5644,14 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
             "station generation must fill a large sensor hardpoint with the largest available compatible array");
         Require(fallbackStation.Equipment.Any(value => value.ItemKey == "ship-sensor"),
             "a smaller sensor must remain a valid fallback when it fits inside a larger same-type hardpoint");
+        Require(fallbackStation.DockingBays.Single().ItemKey == "docking-bay",
+            "a station without dedicated docking mounts must retain the canonical non-dedicated free-space bay path");
+        RequireEqual("dockyard-hull", dockyard.HullItemKey,
+            "an authored station variant must be selectable without bypassing hull generation");
+        RequireEqual(12, dockyard.DockingBays.Length,
+            "the dockyard hull must fill every authored docking hardpoint through normal loadout generation");
+        Require(dockyard.DockingBays.All(value => value.ItemKey == "dockyard-bay"),
+            "dedicated docking hardpoints must only accept the matching docking-bay equipment type");
         Require(station.Cargo.Length > 0 && station.Cargo.Length <= cargo.InteriorOccupiedCells &&
                 station.Cargo.All(value => value.Item.ItemKey != "cheap-foreign-hull" &&
                     catalog.FindItem(value.Item.ItemKey) != null) &&
@@ -5764,6 +5807,89 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         }
         return new AetheriaRuntimeCatalogSnapshot(
             additionalItems.Concat([hull, thruster]).ToArray(), [], []);
+    }
+
+    private static void DaemonNativeDockyardMaterializesTypedCatalog()
+    {
+        Require(AetheriaDocumentRegistry.DocumentTypes.Contains(
+                typeof(GameCult.Eve.PluginFields.EveFieldsSplatsDocument)),
+            "Aetheria's public registry must include every typed Eve Fields document the daemon persists");
+        const string zenithId = "82efc0a5-1ba5-4ff3-a281-b2e6e247521d";
+        const string mediumBayId = "3e930a2c-ac72-4385-98aa-1c5b0b90db46";
+        var root = Path.Combine(Path.GetTempPath(), $"aetheria-dockyard-catalog-{Guid.NewGuid():N}");
+        var statePath = Path.Combine(root, "aetheria.cc");
+        Directory.CreateDirectory(root);
+        try
+        {
+            using var node = AetheriaStateNode.OpenAsync(statePath).GetAwaiter().GetResult();
+            node.MutableDocument<AetheriaItemDefinition>(AetheriaCatalogKeys.ItemDefinitionFromLegacyId(zenithId))
+                .ReplaceAsync(new AetheriaItemDefinition
+                {
+                    Name = "Zenith",
+                    LegacyId = zenithId,
+                    Category = AetheriaRuntimeItemCategories.Hull,
+                    HullType = "Station",
+                    HardpointType = "Hull",
+                    ManufacturerLegacyId = "11111111-1111-1111-1111-111111111111",
+                    Price = 100,
+                    Mass = 100,
+                    ShapeWidth = 12,
+                    ShapeHeight = 12,
+                    ShapeCells = Enumerable.Range(0, 12).SelectMany(y => Enumerable.Range(0, 12)
+                        .Select(x => new AetheriaShapeCell { X = x, Y = y })).ToArray(),
+                    HullPrefab = "Assets/Prefabs/Zenith.prefab",
+                    HullArmor = 4,
+                    HullDrag = 2
+                }).GetAwaiter().GetResult();
+            node.MutableDocument<AetheriaItemDefinition>(AetheriaCatalogKeys.ItemDefinitionFromLegacyId(mediumBayId))
+                .ReplaceAsync(new AetheriaItemDefinition
+                {
+                    Name = "Medium Docking Bay",
+                    LegacyId = mediumBayId,
+                    Category = AetheriaRuntimeItemCategories.DockingBay,
+                    HardpointType = "Tool",
+                    ManufacturerLegacyId = "11111111-1111-1111-1111-111111111111",
+                    Price = 20,
+                    ShapeWidth = 4,
+                    ShapeHeight = 4,
+                    OccupiedCells = 16,
+                    ShapeCells = Enumerable.Range(0, 4).SelectMany(y => Enumerable.Range(0, 4)
+                        .Select(x => new AetheriaShapeCell { X = x, Y = y })).ToArray(),
+                    DockingMaxSizeX = 12,
+                    DockingMaxSizeY = 12
+                }).GetAwaiter().GetResult();
+
+            AetheriaDaemonNativeCatalog.EnsureAsync(node).GetAwaiter().GetResult();
+            node.FlushAsync().GetAwaiter().GetResult();
+            var catalog = node.RuntimeCatalog().Latest();
+            var hull = catalog.FindItem(AetheriaDaemonNativeCatalog.DockyardHullItemKey);
+            var bay = catalog.FindItem(AetheriaDaemonNativeCatalog.DockyardBayItemKey);
+            Require(hull != null && hull.HullType == "Station" && hull.ShapeWidth == 24 && hull.ShapeHeight == 24,
+                "daemon-native station content must materialize as a distinct typed hull definition");
+            RequireEqual(12, hull!.Hardpoints.Count(hardpoint => hardpoint.Type == "DockingBay"),
+                "dockyard capacity must be authored by twelve docking hardpoints on the hull");
+            Require(bay != null && bay.Category == AetheriaRuntimeItemCategories.DockingBay &&
+                    bay.HardpointType == "DockingBay" && bay.DockingMaxSizeX == 12 && bay.DockingMaxSizeY == 12,
+                "dockyard berths must remain typed docking-bay equipment with the source bay's ship-size contract");
+
+            var dockyardEntity = Entity(0, 0, "neutral");
+            dockyardEntity.Kind = "station";
+            dockyardEntity.HullItemKey = hull.ItemKey;
+            var zenithItemKey = $"aetheria.item_definition:legacy:{zenithId}";
+            var zenithAssetKey = AetheriaRuntimeAssets.HullPrefabAssetKey(zenithItemKey);
+            RequireEqual(zenithAssetKey, AetheriaRuntimeAssets.ResolveEntityPrefabAssetRef(dockyardEntity, catalog),
+                "daemon-native hull variants must explicitly reuse their provider-owned presentation hull asset");
+            var manifest = AetheriaRuntimeAssets.ProjectManifest(catalog);
+            Require(manifest.Assets.Any(asset => asset.Ref.AssetKey == zenithAssetKey),
+                "provider manifest must advertise the canonical Zenith presentation asset used by the dockyard");
+            Require(!manifest.Assets.Any(asset => asset.Ref.AssetKey ==
+                    AetheriaRuntimeAssets.HullPrefabAssetKey(hull.ItemKey)),
+                "provider manifest must not invent an unbaked prefab for a hull with an explicit presentation alias");
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
     }
 
     private static AetheriaRuntimeCatalogSnapshot EquipAetherDrive(
