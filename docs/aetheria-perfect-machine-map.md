@@ -3622,6 +3622,9 @@ The runtime catalog has one compiled-state owner:
   and surface refreshes cannot silently recompile or replace the catalog.
 - Shared paths: import, daemon-native catalog augmentation, and the explicit Eve
   catalog-refresh command use the same compile-and-publish primitive.
+  Daemon-native generated items carry a generator revision and a hash of their
+  authored source item; unchanged generations do not rewrite source records or
+  force recompilation on restart.
 - Cut line: runtime reads and catalog-surface watches no longer reopen the
   CultCache store or subscribe to daemon-frame changes.
 - Verification layer: state verification requires the typed record/watch path

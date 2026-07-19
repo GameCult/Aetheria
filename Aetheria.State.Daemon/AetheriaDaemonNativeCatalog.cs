@@ -1,8 +1,11 @@
 using Aetheria.State;
 using Aetheria.State.Documents;
+using MessagePack;
+using System.Security.Cryptography;
 
 internal static class AetheriaDaemonNativeCatalog
 {
+    private const string NativeCatalogRevisionTag = "native-catalog-revision:1";
     private const string ZenithHullLegacyId = "82efc0a5-1ba5-4ff3-a281-b2e6e247521d";
     private const string MediumDockingBayLegacyId = "3e930a2c-ac72-4385-98aa-1c5b0b90db46";
     private const string DockyardHullLegacyId = "ca098005-8cc8-47f4-be99-7bc842805359";
@@ -11,7 +14,7 @@ internal static class AetheriaDaemonNativeCatalog
     public static string DockyardHullItemKey => ItemKey(DockyardHullLegacyId);
     public static string DockyardBayItemKey => ItemKey(DockyardBayLegacyId);
 
-    public static async Task EnsureAsync(AetheriaStateNode node)
+    public static async Task<bool> EnsureAsync(AetheriaStateNode node)
     {
         ArgumentNullException.ThrowIfNull(node);
 
@@ -26,14 +29,23 @@ internal static class AetheriaDaemonNativeCatalog
             .ConfigureAwait(false)
             ?? throw new InvalidDataException("The daemon-native dockyard requires the canonical medium docking bay.");
 
-        await node.MutableDocument<AetheriaItemDefinition>(
-                AetheriaCatalogKeys.ItemDefinitionFromLegacyId(DockyardHullLegacyId))
-            .ReplaceAsync(CreateDockyardHull(zenith))
-            .ConfigureAwait(false);
-        await node.MutableDocument<AetheriaItemDefinition>(
-                AetheriaCatalogKeys.ItemDefinitionFromLegacyId(DockyardBayLegacyId))
-            .ReplaceAsync(CreateDockyardBay(mediumBay))
-            .ConfigureAwait(false);
+        var expectedHull = CreateDockyardHull(zenith);
+        var expectedBay = CreateDockyardBay(mediumBay);
+        var hullDocument = node.MutableDocument<AetheriaItemDefinition>(
+            AetheriaCatalogKeys.ItemDefinitionFromLegacyId(DockyardHullLegacyId));
+        var bayDocument = node.MutableDocument<AetheriaItemDefinition>(
+            AetheriaCatalogKeys.ItemDefinitionFromLegacyId(DockyardBayLegacyId));
+        var existingHull = await hullDocument.ReadAsync().ConfigureAwait(false);
+        var existingBay = await bayDocument.ReadAsync().ConfigureAwait(false);
+        var hullCurrent = HasGenerationTags(existingHull, expectedHull.Tags);
+        var bayCurrent = HasGenerationTags(existingBay, expectedBay.Tags);
+
+        if (!hullCurrent)
+            await hullDocument.ReplaceAsync(expectedHull).ConfigureAwait(false);
+        if (!bayCurrent)
+            await bayDocument.ReplaceAsync(expectedBay).ConfigureAwait(false);
+
+        return !hullCurrent || !bayCurrent;
     }
 
     private static AetheriaItemDefinition CreateDockyardHull(AetheriaItemDefinition source)
@@ -77,6 +89,8 @@ internal static class AetheriaDaemonNativeCatalog
         hull.Tags = Tags(
             source.Tags,
             "origin:aetheria-daemon",
+            NativeCatalogRevisionTag,
+            SourceFingerprintTag(source),
             "station-role:dockyard",
             "docking-capacity:12",
             $"presentation-hull-item:{ItemKey(ZenithHullLegacyId)}");
@@ -89,8 +103,30 @@ internal static class AetheriaDaemonNativeCatalog
         bay.Description = "A medium docking bay packaged for a dedicated station docking hardpoint.";
         bay.HardpointType = "DockingBay";
         bay.Price = checked(source.Price * 2);
-        bay.Tags = Tags(source.Tags, "origin:aetheria-daemon", "station-role:dockyard");
+        bay.Tags = Tags(
+            source.Tags,
+            "origin:aetheria-daemon",
+            NativeCatalogRevisionTag,
+            SourceFingerprintTag(source),
+            "station-role:dockyard");
         return bay;
+    }
+
+    private static bool HasGenerationTags(AetheriaItemDefinition? existing, IEnumerable<string> expectedTags)
+    {
+        if (existing == null)
+            return false;
+
+        var expectedGenerationTags = expectedTags.Where(tag =>
+            tag.StartsWith("native-catalog-revision:", StringComparison.Ordinal) ||
+            tag.StartsWith("native-source-sha256:", StringComparison.Ordinal));
+        return expectedGenerationTags.All(tag => existing.Tags.Contains(tag, StringComparer.Ordinal));
+    }
+
+    private static string SourceFingerprintTag(AetheriaItemDefinition source)
+    {
+        var payload = MessagePackSerializer.Serialize(source);
+        return "native-source-sha256:" + Convert.ToHexString(SHA256.HashData(payload)).ToLowerInvariant();
     }
 
     private static AetheriaItemDefinition Copy(AetheriaItemDefinition source, string legacyId, string name) => new()

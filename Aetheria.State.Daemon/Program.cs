@@ -78,13 +78,17 @@ using var soaPublisher = new AetheriaRuntimeDaemonSoaFramePublisher(
 
 await EnsureWorldDocumentAsync(node).ConfigureAwait(false);
 TraceStartup("world-document");
-await EnsureTradeValuePolicyAsync(node, startedAtUtc).ConfigureAwait(false);
+var persistedRuntimeCatalog = await node.Database
+    .GetAsync<AetheriaRuntimeCatalogSnapshot>(AetheriaStateNode.RuntimeCatalogKey)
+    .ConfigureAwait(false);
+var tradePolicyChanged = await EnsureTradeValuePolicyAsync(node, startedAtUtc).ConfigureAwait(false);
 TraceStartup("trade-policy");
-await AetheriaDaemonNativeCatalog.EnsureAsync(node).ConfigureAwait(false);
+var nativeCatalogChanged = await AetheriaDaemonNativeCatalog.EnsureAsync(node).ConfigureAwait(false);
 TraceStartup("native-catalog");
 await node.FlushAsync().ConfigureAwait(false);
 TraceStartup("initial-flush");
-await node.RefreshRuntimeCatalogAsync().ConfigureAwait(false);
+if (persistedRuntimeCatalog == null || tradePolicyChanged || nativeCatalogChanged)
+    await node.RefreshRuntimeCatalogAsync().ConfigureAwait(false);
 TraceStartup("runtime-catalog");
 await EnsurePlayableRunDocumentsAsync(node, options, startedAtUtc).ConfigureAwait(false);
 TraceStartup("playable-run");
@@ -2832,17 +2836,18 @@ static async Task EnsureWorldDocumentAsync(AetheriaStateNode node)
     }).ConfigureAwait(false);
 }
 
-static async Task EnsureTradeValuePolicyAsync(AetheriaStateNode node, string now)
+static async Task<bool> EnsureTradeValuePolicyAsync(AetheriaStateNode node, string now)
 {
     var tradeValuePolicy = node.MutableDocument<AetheriaTradeValuePolicy>(AetheriaStateNode.TradeValuePolicyKey);
     var existing = await tradeValuePolicy.ReadAsync().ConfigureAwait(false);
     if (existing != null)
-        return;
+        return false;
 
     await tradeValuePolicy.ReplaceAsync(
         AetheriaRuntimeStateMapper.ToTradeValuePolicy(
             AetheriaRuntimeTradeValueSettings.Default,
             now)).ConfigureAwait(false);
+    return true;
 }
 
 static async Task EnsurePlayableRunDocumentsAsync(

@@ -5858,9 +5858,12 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                     DockingMaxSizeY = 12
                 }).GetAwaiter().GetResult();
 
-            AetheriaDaemonNativeCatalog.EnsureAsync(node).GetAwaiter().GetResult();
+            Require(AetheriaDaemonNativeCatalog.EnsureAsync(node).GetAwaiter().GetResult(),
+                "daemon-native catalog must report its first materialization");
             node.FlushAsync().GetAwaiter().GetResult();
             node.RefreshRuntimeCatalogAsync().GetAwaiter().GetResult();
+            Require(!AetheriaDaemonNativeCatalog.EnsureAsync(node).GetAwaiter().GetResult(),
+                "daemon-native catalog must not rewrite an unchanged generated revision");
             var catalog = node.RuntimeCatalog().Latest();
             var hull = catalog.FindItem(AetheriaDaemonNativeCatalog.DockyardHullItemKey);
             var bay = catalog.FindItem(AetheriaDaemonNativeCatalog.DockyardBayItemKey);
