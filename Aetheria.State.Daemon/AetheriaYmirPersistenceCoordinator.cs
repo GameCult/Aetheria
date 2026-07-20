@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 using Aetheria.State.Documents;
@@ -40,12 +41,32 @@ public sealed class AetheriaYmirPersistenceCoordinator : IDisposable
         AetheriaYmirWorldPhysics physics,
         AetheriaRuntimeDaemonFrameDocument? frame)
     {
+        var trace = string.Equals(
+            Environment.GetEnvironmentVariable("AETHERIA_TRACE_STARTUP_PHASES"),
+            "1",
+            StringComparison.Ordinal);
+        var phase = Stopwatch.StartNew();
+        void Trace(string name)
+        {
+            if (trace)
+                Console.WriteLine($"Aetheria Ymir restore phase {name} took {phase.Elapsed.TotalMilliseconds:0.###}ms.");
+            phase.Restart();
+        }
         ArgumentNullException.ThrowIfNull(node);
         ArgumentNullException.ThrowIfNull(physics);
         var registry = CultMesh.CreateCultCacheDocumentRegistry(
             typeof(AetheriaYmirPersistenceMarkerDocument),
             typeof(AetheriaYmirJournalChunkDocument),
             typeof(AetheriaYmirResumeDocument));
+        var ownedSchemaIds = registry.AllDescriptors
+            .Select(descriptor => descriptor.SchemaId)
+            .ToHashSet(StringComparer.Ordinal);
+        var currentResumeKeys = frame?.Run == null || string.IsNullOrWhiteSpace(frame.Run.RunId)
+            ? new HashSet<string>(StringComparer.Ordinal)
+            : (frame.Run.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>())
+                .Where(zone => zone != null)
+                .Select(zone => ResumeRecordKey(frame.Run.RunId, zone.ZoneIndex, frame.FrameId))
+                .ToHashSet(StringComparer.Ordinal);
         var cache = await CultCacheMessagePack.OpenAsync(
             PrivateStatePath(node.StatePath),
             new CultCacheOpenOptions
@@ -53,9 +74,14 @@ public sealed class AetheriaYmirPersistenceCoordinator : IDisposable
                 Registry = registry,
                 PullOnOpen = true,
                 UseDirectoryStore = true,
+                DirectoryStoreHydrationFilter = record =>
+                    ownedSchemaIds.Contains(record.SchemaId) &&
+                    (string.Equals(record.Key, AetheriaYmirPersistenceMarkerDocument.RecordKey, StringComparison.Ordinal) ||
+                     currentResumeKeys.Contains(record.Key)),
                 FlushOnDispose = true,
                 StoreFlushOnDispose = true
             }).ConfigureAwait(false);
+        Trace("open-private-cache");
         try
         {
             var activated = cache.Get<AetheriaYmirPersistenceMarkerDocument>(
@@ -72,14 +98,24 @@ public sealed class AetheriaYmirPersistenceCoordinator : IDisposable
                 .Select(zone => cache.Get<AetheriaYmirResumeDocument>(
                     new CultRecordKey(ResumeRecordKey(frame.Run.RunId, zone.ZoneIndex, frame.FrameId))))
                 .ToArray();
+            Trace("resolve-resumes");
             if (resumes.All(value => value == null) && !activated)
                 return coordinator;
             if (resumes.Any(value => value == null))
                 throw new InvalidOperationException(
                     $"Aetheria frame {frame.FrameId} has incomplete daemon-private Ymir resume state.");
 
+            var journalRanges = zones.Zip(resumes, (zone, resume) =>
+                    JournalRanges(frame.Run.RunId, zone.ZoneIndex, resume!))
+                .SelectMany(value => value)
+                .ToArray();
+            await cache.PullBackingStoreRecordsAsync(metadata =>
+                journalRanges.Any(range => range.Contains(metadata.Key))).ConfigureAwait(false);
+            Trace("hydrate-journals");
+
             foreach (var pair in zones.Zip(resumes, (zone, resume) => (zone, resume: resume!)))
                 coordinator.RestoreZone(frame.Run.RunId, frame.FrameId, pair.zone.ZoneIndex, pair.resume);
+            Trace("restore-zones");
             return coordinator;
         }
         catch
@@ -320,9 +356,43 @@ public sealed class AetheriaYmirPersistenceCoordinator : IDisposable
         long firstEntryIndex) =>
         $"private:aetheria.ymir.journal.v1:{RunKey(runId)}:{zoneIndex}:{channel}:{generation}:{firstEntryIndex:D20}";
 
+    private static JournalRange[] JournalRanges(
+        string runId,
+        int zoneIndex,
+        AetheriaYmirResumeDocument resume)
+    {
+        var world = YmirSessionCheckpointCodec.DecodeResumeDescriptor(resume.WorldDescriptorPayload);
+        var ranges = new List<JournalRange>
+        {
+            new(JournalRecordPrefix(runId, zoneIndex, WorldChannel, world.SessionGeneration), world.JournalEntryCount)
+        };
+        if (resume.PayloadDescriptorPayload.Length > 0)
+        {
+            var payload = YmirSessionCheckpointCodec.DecodeResumeDescriptor(resume.PayloadDescriptorPayload);
+            ranges.Add(new JournalRange(
+                JournalRecordPrefix(runId, zoneIndex, PayloadChannel, payload.SessionGeneration),
+                payload.JournalEntryCount));
+        }
+        return ranges.ToArray();
+    }
+
+    private static string JournalRecordPrefix(
+        string runId,
+        int zoneIndex,
+        string channel,
+        string generation) =>
+        $"private:aetheria.ymir.journal.v1:{RunKey(runId)}:{zoneIndex}:{channel}:{generation}:";
+
     private static string RunKey(string runId) =>
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(runId))).ToLowerInvariant();
 
     private readonly record struct CursorKey(string RunId, int ZoneIndex, string Channel);
     private readonly record struct Cursor(string Generation, long EntryCount);
+    private readonly record struct JournalRange(string Prefix, long EntryCount)
+    {
+        public bool Contains(string key) =>
+            key.StartsWith(Prefix, StringComparison.Ordinal) &&
+            long.TryParse(key.AsSpan(Prefix.Length), NumberStyles.None, CultureInfo.InvariantCulture, out var firstEntryIndex) &&
+            firstEntryIndex < EntryCount;
+    }
 }

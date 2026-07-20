@@ -48,7 +48,8 @@ await using var node = await AetheriaStateNode.OpenAsync(
     options.StatePath,
     runtimeId: options.DaemonId,
     startServer: true,
-    enableDurableShardLogs: false).ConfigureAwait(false);
+    enableDurableShardLogs: false,
+    hydrationProfile: AetheriaStateHydrationProfile.DaemonBoot).ConfigureAwait(false);
 TraceStartup("open-state-node");
 using var discoveryHost = new AetheriaVerseDiscoveryHost(node);
 var latestFrame = await node.MutableDocument<AetheriaRuntimeDaemonFrameDocument>(AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest).ReadAsync().ConfigureAwait(false);
@@ -87,7 +88,10 @@ var nativeCatalogChanged = await AetheriaDaemonNativeCatalog.EnsureAsync(node).C
 TraceStartup("native-catalog");
 await node.FlushAsync().ConfigureAwait(false);
 TraceStartup("initial-flush");
-if (persistedRuntimeCatalog == null || tradePolicyChanged || nativeCatalogChanged)
+if (persistedRuntimeCatalog == null ||
+    string.IsNullOrWhiteSpace(persistedRuntimeCatalog.NameCorpusRecordKey) ||
+    tradePolicyChanged ||
+    nativeCatalogChanged)
     await node.RefreshRuntimeCatalogAsync().ConfigureAwait(false);
 TraceStartup("runtime-catalog");
 await EnsurePlayableRunDocumentsAsync(node, options, startedAtUtc).ConfigureAwait(false);
@@ -2002,7 +2006,9 @@ static async Task PublishDaemonMenuSurfacesAsync(
         catalog,
         frame.Run?.RunId ?? frame.SessionId,
         "cultmesh://aetheria/assets");
-    var loadoutTemplates = AetheriaRuntimeCatalogStore.ReadLoadoutTemplates(node.StatePath);
+    var loadoutTemplates = node.Cache.GetAll<AetheriaLoadoutTemplate>()
+        .Select(ToLoadoutTemplateSnapshot)
+        .ToArray();
     var playerSettings = await ReadRuntimePlayerSettingsAsync(node).ConfigureAwait(false);
     var currentEntity = AetheriaRuntimeGameDocuments.CurrentEntity(frame);
     var stationRefit = AetheriaRuntimeGameDocuments.StationRefit(frame, loadoutTemplates, catalog);
@@ -2871,7 +2877,10 @@ static async Task EnsurePlayableRunDocumentsAsync(
     }
 
     await AetheriaDaemonRunFactory.WriteAsync(
-        node, node.RuntimeCatalog().Latest(), now, now).ConfigureAwait(false);
+        node,
+        await node.RuntimeCatalogForGenerationAsync().ConfigureAwait(false),
+        now,
+        now).ConfigureAwait(false);
 }
 
 static async Task EnsureGameSessionAsync(
@@ -2933,7 +2942,10 @@ static async Task<bool> ApplyRequestedNewGameSessionAsync(
 
     var now = DateTimeOffset.UtcNow.ToString("O");
     var written = await AetheriaDaemonRunFactory.WriteAsync(
-        node, node.RuntimeCatalog().Latest(), now, menu.LastCommandId).ConfigureAwait(false);
+        node,
+        await node.RuntimeCatalogForGenerationAsync().ConfigureAwait(false),
+        now,
+        menu.LastCommandId).ConfigureAwait(false);
     session.Mode = written.SessionMode;
     session.SessionId = options.SessionId;
     session.RunId = written.RunId;
@@ -3474,6 +3486,65 @@ static AetheriaRuntimeLoadoutItemCommit ToLoadoutItemCommit(AetheriaLoadoutItem?
         Enabled = item?.Enabled ?? false,
         OverrideShutdown = item?.OverrideShutdown ?? false
     };
+}
+
+static AetheriaRuntimeLoadoutTemplateSnapshot ToLoadoutTemplateSnapshot(AetheriaLoadoutTemplate template)
+{
+    return new AetheriaRuntimeLoadoutTemplateSnapshot(
+        template.Name ?? "",
+        template.OwnerPlayerKey ?? "",
+        ToEntityLoadoutSnapshot(template.RootEntity),
+        template.CreatedAtUtc ?? "",
+        template.UpdatedAtUtc ?? "");
+}
+
+static AetheriaRuntimeEntityLoadoutSnapshot ToEntityLoadoutSnapshot(AetheriaEntityLoadout? entity)
+{
+    entity ??= new AetheriaEntityLoadout();
+    return new AetheriaRuntimeEntityLoadoutSnapshot(
+        entity.Name ?? "",
+        entity.Kind ?? "",
+        entity.FactionKey ?? "",
+        ToLoadoutItemSnapshot(entity.Hull),
+        ToSlotSnapshots(entity.Equipment),
+        ToSlotSnapshots(entity.CargoBays),
+        ToSlotSnapshots(entity.DockingBays),
+        ToCargoSnapshots(entity.CargoContents),
+        ToCargoSnapshots(entity.DockingBayContents),
+        (entity.DockingBayAssignments ?? []).ToArray(),
+        (entity.WeaponGroups ?? []).Select(group => (IReadOnlyList<int>)group.ToArray()).ToArray(),
+        (entity.Children ?? []).Select(ToEntityLoadoutSnapshot).ToArray());
+}
+
+static AetheriaRuntimeLoadoutItemSnapshot ToLoadoutItemSnapshot(AetheriaLoadoutItem? item)
+{
+    item ??= new AetheriaLoadoutItem();
+    return new AetheriaRuntimeLoadoutItemSnapshot(
+        item.ItemKey ?? "",
+        item.Quality,
+        item.Durability,
+        item.Quantity,
+        item.Enabled,
+        item.OverrideShutdown,
+        item.Temperature);
+}
+
+static AetheriaRuntimeLoadoutItemSlotSnapshot[] ToSlotSnapshots(IEnumerable<AetheriaLoadoutItemSlot>? slots)
+{
+    return (slots ?? [])
+        .Select(slot => new AetheriaRuntimeLoadoutItemSlotSnapshot(
+            slot.Position?.X ?? 0,
+            slot.Position?.Y ?? 0,
+            ToLoadoutItemSnapshot(slot.Item),
+            slot.Rotation ?? "None"))
+        .ToArray();
+}
+
+static AetheriaRuntimeCargoBayLoadoutSnapshot[] ToCargoSnapshots(IEnumerable<AetheriaCargoBayLoadout>? bays)
+{
+    return (bays ?? [])
+        .Select(bay => new AetheriaRuntimeCargoBayLoadoutSnapshot(ToSlotSnapshots(bay.Items)))
+        .ToArray();
 }
 
 internal sealed record AetheriaPreparedPublication(

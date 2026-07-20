@@ -232,13 +232,18 @@ namespace GameCult.Aetheria.State.Verse
             var records = new List<PersistedRecord>();
             var reader = new MessagePackReader(File.ReadAllBytes(stateFilePath));
             var snapshotFields = reader.ReadArrayHeader();
-            if (snapshotFields > 0) reader.Skip();
+            var formatVersion = snapshotFields > 0 ? ReadString(ref reader) : "";
             if (snapshotFields > 1) reader.Skip();
             if (snapshotFields > 2)
             {
                 var recordCount = reader.ReadArrayHeader();
                 for (var index = 0; index < recordCount; index++)
-                    records.Add(ReadPersistedRecord(ref reader));
+                {
+                    if (string.Equals(formatVersion, "cultcache.store.v2.directory-indexed", StringComparison.Ordinal))
+                        reader.Skip();
+                    else
+                        records.Add(ReadPersistedRecord(ref reader));
+                }
             }
 
             var recordDirectory = stateFilePath + ".records";

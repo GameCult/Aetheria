@@ -1,6 +1,6 @@
 # Aetheria Current Codebase Model
 
-Date: 2026-07-19
+Date: 2026-07-20
 
 This is a modeling pass over the live codebase as it exists now. It is not the
 ideal architecture; it is the current control-flow map, with migration pressure
@@ -37,7 +37,10 @@ Current daemon control flow:
 
 1. Parse daemon options: state path, daemon id, session id, Verse id, CultMesh
    address, tick interval, fixed delta.
-2. Open `AetheriaStateNode` with `startServer: true`.
+2. Open `AetheriaStateNode` with `startServer: true` and the daemon boot
+   hydration profile. The indexed CultCache manifest selects the control-plane
+   schemas and exact singleton records required to start; authored name files,
+   the compiled name corpus, asset bodies, and unrelated history remain cold.
 3. Start `AetheriaVerseDiscoveryHost`.
 4. Ensure world, Verse host settings, runtime session, compatibility surfaces,
    and first daemon tick.
@@ -66,6 +69,43 @@ checkpoint. It is authoritative for many menu, inventory, targeting, movement
 intent, docking, loot, trade, loadout, and action-bar operations, but it is not
 yet a complete standalone simulation engine for every behavior that still lives
 under Unity `Assets/Scripts/ServerShared/Behaviors`.
+
+### Daemon boot working set
+
+- **Owner:** `AetheriaStateNode` owns the daemon boot record selection;
+  `DirectoryMessagePackBackingStore` owns key-to-page discovery and durable
+  retention. A service registry contains only Aetheria's explicitly declared
+  document types.
+- **Inputs:** the indexed manifest, exact singleton boot keys, and the schema
+  identities for live commands, receipts, item/loadout definitions, and
+  current run/zone/entity state.
+- **Outputs:** a compact live CultCache working set. The runtime catalog core
+  contains items, corporations, trade settings, and name-file summaries; the
+  full name corpus is a separate typed cold record loaded explicitly only when
+  generation needs it.
+- **Derived state:** the catalog Eve surface and ordinary daemon ticks use the
+  compact core. Authored name files remain migration/compiler inputs, not boot
+  dependencies.
+- **Forbidden writers:** daemon boot must not rescan record pages, reread legacy
+  name files, or let global assembly discovery expand its registry. A filtered
+  flush must not erase cold records.
+- **Shared paths:** first import writes the indexed representation; daemon boot
+  selects its working set from that index; new-run generation uses CultCache's
+  selective pull primitive to hydrate the name corpus through the same open
+  store.
+- **Cut line:** the monolithic runtime catalog no longer embeds twelve megabytes
+  of names, and menu bootstrap no longer rescans loadout pages from disk.
+- **Verification layer:** backing-store tests hold an unrelated cold page under
+  an exclusive lock while selectively hydrating another record. Startup phase
+  traces report state open, catalog, Ymir restore, and client publication costs.
+
+The remaining restart bottleneck is inside Ymir reconstruction, not CultCache
+I/O: the current resume format validates state by replaying its entire
+generation journal. Indexed hydration reduced journal page loading to tens of
+milliseconds, but replay remains proportional to session lifetime. Ymir needs
+a bounded baseline checkpoint plus journal tail before daemon restart cost is
+independent of uptime; increasing timeouts or hiding the phase is not an
+acceptable substitute.
 
 ## Materialized Import And Publication Ownership
 

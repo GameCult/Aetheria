@@ -66,6 +66,9 @@ namespace GameCult.Aetheria.State.Verse
         [Key(4)]
         public AetheriaRuntimeTradeValueSettings TradeValueSettings { get; set; } = AetheriaRuntimeTradeValueSettings.Default;
 
+        [Key(5)]
+        public string NameCorpusRecordKey { get; set; } = string.Empty;
+
         public AetheriaRuntimeCatalogItem? FindItem(string itemKey)
         {
             if (string.IsNullOrWhiteSpace(itemKey))
@@ -136,6 +139,21 @@ namespace GameCult.Aetheria.State.Verse
             }
             return index;
         }
+    }
+
+    [CultDocument("gamecult.aetheria.runtime_name_corpus", "gamecult.aetheria.runtime_name_corpus.v1")]
+    [MessagePackObject]
+    public sealed class AetheriaRuntimeNameCorpusSnapshot
+    {
+        public const string SchemaId = "gamecult.aetheria.runtime_name_corpus.v1";
+        public const string DocumentName = "aetheria.runtime_name_corpus";
+
+        [Key(0)]
+        [CultName]
+        public string CorpusId { get; set; } = DocumentName;
+
+        [Key(1)]
+        public IReadOnlyList<AetheriaRuntimeNameFile> NameFiles { get; set; } = Array.Empty<AetheriaRuntimeNameFile>();
     }
 
     [CultDocument("gamecult.aetheria.loadout_templates", "gamecult.aetheria.loadout_templates.v1")]

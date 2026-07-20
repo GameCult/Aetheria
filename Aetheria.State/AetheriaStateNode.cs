@@ -1,5 +1,7 @@
 using System;
 using System.IO;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Aetheria.State.Documents;
 using GameCult.Aetheria.State.Verse;
@@ -9,13 +11,22 @@ using GameCult.Mesh;
 using GameCult.Networking;
 using R3;
 using EveSurfaceDocument = GameCult.Eve.Surface.EveSurfaceDocument;
+using EveSurfaceCommandRequest = GameCult.Eve.Surface.EveSurfaceCommandRequest;
+using EveCommandReceiptDocument = GameCult.Eve.Surface.EveCommandReceiptDocument;
 
 namespace Aetheria.State;
+
+public enum AetheriaStateHydrationProfile
+{
+    All,
+    DaemonBoot
+}
 
 public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
 {
     private readonly CultMeshNode _node;
     private CultMeshDocumentHandle<AetheriaRuntimeCatalogSnapshot>? _runtimeCatalog;
+    private CultMeshDocumentHandle<AetheriaRuntimeNameCorpusSnapshot>? _runtimeNameCorpus;
     private CultMeshDocumentHandle<EveSurfaceDocument>? _catalogSurface;
 
     private AetheriaStateNode(string statePath, string runtimeId, CultMeshNode node)
@@ -42,7 +53,8 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
         string runtimeId = "aetheria-local",
         bool startServer = false,
         bool enableDurableShardLogs = true,
-        bool useDirectoryStore = true)
+        bool useDirectoryStore = true,
+        AetheriaStateHydrationProfile hydrationProfile = AetheriaStateHydrationProfile.All)
     {
         if (string.IsNullOrWhiteSpace(statePath))
         {
@@ -52,6 +64,7 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(statePath)) ?? ".");
 
         var cacheRegistry = AetheriaDocumentRegistry.CreateCultCacheRegistry();
+        var hydrationFilter = CreateHydrationFilter(hydrationProfile, cacheRegistry);
         var node = await CultMesh.CreateNodeAsync(
             statePath,
             new CultMeshNodeOptions
@@ -63,7 +76,8 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
                     Registry = cacheRegistry,
                     PullOnOpen = true,
                     StoreFlushOnDispose = true,
-                    UseDirectoryStore = useDirectoryStore
+                    UseDirectoryStore = useDirectoryStore,
+                    DirectoryStoreHydrationFilter = hydrationFilter
                 },
                 DatabaseOptions = new CultNetDatabaseOptions
                 {
@@ -73,6 +87,51 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
             }).ConfigureAwait(false);
 
         return new AetheriaStateNode(statePath, runtimeId, node);
+    }
+
+    private static Func<CultPersistedRecordMetadata, bool>? CreateHydrationFilter(
+        AetheriaStateHydrationProfile profile,
+        CultDocumentRegistry registry)
+    {
+        if (profile == AetheriaStateHydrationProfile.All)
+            return null;
+        if (profile != AetheriaStateHydrationProfile.DaemonBoot)
+            throw new ArgumentOutOfRangeException(nameof(profile), profile, "Unknown Aetheria state hydration profile.");
+
+        var schemaTypes = new[]
+        {
+            typeof(AetheriaItemDefinition),
+            typeof(AetheriaLoadoutTemplate),
+            typeof(AetheriaRunState),
+            typeof(AetheriaZoneState),
+            typeof(AetheriaEntitySnapshot),
+            typeof(AetheriaRuntimeAuthorityLeaseDocument),
+            typeof(AetheriaRuntimeDaemonCommandDocument),
+            typeof(AetheriaRuntimeCommittedCommandFactDocument),
+            typeof(AetheriaRuntimeEveCommandDocument),
+            typeof(EveSurfaceCommandRequest),
+            typeof(EveCommandReceiptDocument)
+        };
+        var schemaIds = schemaTypes
+            .Select(registry.GetRequired)
+            .SelectMany(descriptor => descriptor.ToCatalogEntry().CompatibleSchemaIds.Append(descriptor.SchemaId))
+            .ToHashSet(StringComparer.Ordinal);
+        var recordKeys = new HashSet<string>(StringComparer.Ordinal)
+        {
+            WorldKey.ToString(),
+            RuntimeCatalogKey.ToString(),
+            TradeValuePolicyKey.ToString(),
+            PlayerSettingsKey.ToString(),
+            VerseHostSettingsKey.ToString(),
+            GameSessionStateKey.ToString(),
+            MainMenuStateKey.ToString(),
+            EveCommandAcceptanceStatusKey.ToString(),
+            AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest.ToString(),
+            AetheriaRuntimeVerseRecordKeys.VerseAuthorityPolicy.ToString(),
+            AetheriaRuntimeVerseRecordKeys.StarbridgeScenarioLatest.ToString(),
+            AetheriaRuntimeVerseRecordKeys.StarbridgeSessionLatest.ToString()
+        };
+        return record => recordKeys.Contains(record.Key) || schemaIds.Contains(record.SchemaId);
     }
 
     public CultMeshDocumentHandle<TDocument> Document<TDocument>(CultRecordKey key)
@@ -127,6 +186,50 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
             routeHint: new CultMeshRouteHint(CultMeshLocalityKind.SharedMemory, "Aetheria typed catalog state"));
     }
 
+    public CultMeshDocumentHandle<AetheriaRuntimeNameCorpusSnapshot> RuntimeNameCorpus()
+    {
+        return _runtimeNameCorpus ??= CultMesh.Document(
+            "aetheria.catalog.runtime-names",
+            CultMesh.Verse("aetheria.local", RuntimeId),
+            async _ => await Database.GetAsync<AetheriaRuntimeNameCorpusSnapshot>(RuntimeNameCorpusKey)
+                    .ConfigureAwait(false)
+                ?? throw new InvalidDataException("The compiled Aetheria runtime name corpus is missing."),
+            _ => Database.WatchRecord<AetheriaRuntimeNameCorpusSnapshot>(RuntimeNameCorpusKey)
+                .Where(change => change.Document != null)
+                .Select(change => change.Document!),
+            sources: new[]
+            {
+                CultMesh.ProjectionSource(
+                    RuntimeNameCorpusKey.ToString(),
+                    AetheriaRuntimeNameCorpusSnapshot.SchemaId,
+                    "managed Aetheria runtime name corpus")
+            },
+            routeHint: new CultMeshRouteHint(
+                CultMeshLocalityKind.SharedMemory,
+                "Aetheria typed name generation corpus"));
+    }
+
+    public async Task<AetheriaRuntimeCatalogSnapshot> RuntimeCatalogForGenerationAsync()
+    {
+        var catalog = RuntimeCatalog().Latest()
+            ?? throw new InvalidDataException("The compiled Aetheria runtime catalog is missing.");
+        if (Cache.Get<AetheriaRuntimeNameCorpusSnapshot>(RuntimeNameCorpusKey) == null)
+        {
+            await Cache.PullBackingStoreRecordsAsync(metadata =>
+                string.Equals(metadata.Key, RuntimeNameCorpusKey.ToString(), StringComparison.Ordinal)).ConfigureAwait(false);
+        }
+        var corpus = await RuntimeNameCorpus().LatestAsync().ConfigureAwait(false);
+        return new AetheriaRuntimeCatalogSnapshot(
+            catalog.Items.ToArray(),
+            catalog.Corporations.ToArray(),
+            corpus.NameFiles.ToArray(),
+            catalog.TradeValueSettings)
+        {
+            CatalogId = catalog.CatalogId,
+            NameCorpusRecordKey = RuntimeNameCorpusKey.ToString()
+        };
+    }
+
     public CultMeshDocumentHandle<EveSurfaceDocument> CatalogSurface()
     {
         var catalog = RuntimeCatalog();
@@ -157,6 +260,21 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
     public async Task<AetheriaRuntimeCatalogSnapshot> RefreshRuntimeCatalogAsync()
     {
         var snapshot = AetheriaRuntimeCatalogStore.OpenReadOnly(StatePath);
+        await Database.PutAsync(
+            RuntimeNameCorpusKey,
+            new AetheriaRuntimeNameCorpusSnapshot
+            {
+                NameFiles = snapshot.NameFiles.ToArray()
+            }).ConfigureAwait(false);
+        snapshot.NameFiles = snapshot.NameFiles
+            .Select(nameFile => new AetheriaRuntimeNameFile(
+                nameFile.NameFileKey,
+                nameFile.Name,
+                nameFile.NameCount,
+                nameFile.SampleNames.ToArray(),
+                Array.Empty<string>()))
+            .ToArray();
+        snapshot.NameCorpusRecordKey = RuntimeNameCorpusKey.ToString();
         await Database.PutAsync(RuntimeCatalogKey, snapshot).ConfigureAwait(false);
         return snapshot;
     }
@@ -251,6 +369,9 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
 
     public static CultRecordKey RuntimeCatalogKey { get; } =
         new("global:aetheria.runtime_catalog.v1");
+
+    public static CultRecordKey RuntimeNameCorpusKey { get; } =
+        new("global:aetheria.runtime_name_corpus.v1");
 
     public static CultRecordKey OperationsSurfaceKey { get; } =
         new(AetheriaEveSurfaceDocuments.OperationsSurfaceKey);
