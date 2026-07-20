@@ -4,6 +4,7 @@ using GameCult.Aetheria.State.Verse;
 using GameCult.Eve.Surface;
 using GameCult.Mesh;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 var root = args.Length > 0 ? Path.GetFullPath(args[0]) : Directory.GetCurrentDirectory();
 var statePath = args.Length > 1
@@ -812,6 +813,8 @@ static void RequireSharedEvePackagesImportedFromEveRepo(string root)
 
     using var manifestDocument = JsonDocument.Parse(manifest);
     using var lockDocument = JsonDocument.Parse(packageLock);
+    using var authoringManifestDocument = JsonDocument.Parse(authoringManifest);
+    using var authoringLockDocument = JsonDocument.Parse(authoringPackageLock);
     var manifestDependencies = manifestDocument.RootElement.GetProperty("dependencies");
     var lockedDependencies = lockDocument.RootElement.GetProperty("dependencies");
     var releasedPackageTags = new Dictionary<string, string>(StringComparer.Ordinal)
@@ -855,10 +858,15 @@ static void RequireSharedEvePackagesImportedFromEveRepo(string root)
     }
 
     const string requiredAuthoringCultLib =
-        "https://github.com/GameCult/CultLib.git?path=/unity/org.gamecult.cultlib#cultlib-unity-v1.0.34";
-    if (!authoringManifest.Contains(requiredAuthoringCultLib, StringComparison.Ordinal) ||
-        !authoringPackageLock.Contains(requiredAuthoringCultLib, StringComparison.Ordinal) ||
-        !authoringPackageLock.Contains("c148d891c1d8713285ae15b2f17b59c106fb9426", StringComparison.Ordinal))
+        "https://github.com/GameCult/CultLib.git?path=/unity/org.gamecult.cultlib#cultlib-unity-v1.0.43";
+    const string requiredAuthoringCultLibCommit = "f67f5122ed1bd11da016e7b820ed60145ccd0299";
+    var authoringDependencies = authoringManifestDocument.RootElement.GetProperty("dependencies");
+    var authoringLockedDependencies = authoringLockDocument.RootElement.GetProperty("dependencies");
+    if (!authoringDependencies.TryGetProperty("org.gamecult.cultlib", out var authoringCultLib) ||
+        !string.Equals(authoringCultLib.GetString(), requiredAuthoringCultLib, StringComparison.Ordinal) ||
+        !authoringLockedDependencies.TryGetProperty("org.gamecult.cultlib", out var authoringCultLibLock) ||
+        !string.Equals(authoringCultLibLock.GetProperty("version").GetString(), requiredAuthoringCultLib, StringComparison.Ordinal) ||
+        !string.Equals(authoringCultLibLock.GetProperty("hash").GetString(), requiredAuthoringCultLibCommit, StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "The fossil asset-authoring Unity project is not pinned to the released CultLib body required by the generic scene package.");
@@ -1265,7 +1273,8 @@ static void RequireClientTransportPlaneOwnership(string root)
         "new TcpFramedCultNetSchemaServer(",
         "new CultMeshTcpContentServer(",
         "CultMeshTcpContentTransportConnector.Scheme",
-        "discoveryEndpoints: new[] { advertisedEndpoint, advertisedContentEndpoint }",
+        "CultMeshQuicRealtimeServer.ListenAsync(",
+        "CultMeshQuicRealtimeTransportConnector.Scheme",
         "new CultNetDatabaseSubscriptionServer(cultMeshClientHost.Control, node.Database)",
         "cultnet+tcp://127.0.0.1:$Port"
     };
@@ -1274,6 +1283,31 @@ static void RequireClientTransportPlaneOwnership(string root)
     if (missing.Length > 0)
         throw new InvalidOperationException(
             "Aetheria client transport planes lost their TCP control/content ownership: " + string.Join(", ", missing));
+
+    var discoveryEndpoints = Regex.Match(
+        daemon,
+        @"discoveryEndpoints\s*:\s*new\[\]\s*\{(?<items>[^}]*)\}",
+        RegexOptions.CultureInvariant | RegexOptions.Singleline);
+    if (!discoveryEndpoints.Success)
+        throw new InvalidOperationException("Aetheria provider Verse does not advertise an explicit transport endpoint set.");
+    var advertised = discoveryEndpoints.Groups["items"].Value
+        .Split(',')
+        .Select(endpoint => endpoint.Trim())
+        .Where(endpoint => endpoint.Length > 0)
+        .ToHashSet(StringComparer.Ordinal);
+    var requiredAdvertisements = new[]
+    {
+        "advertisedEndpoint",
+        "advertisedContentEndpoint",
+        "advertisedRealtimeEndpoint"
+    };
+    var missingAdvertisements = requiredAdvertisements.Where(endpoint => !advertised.Contains(endpoint)).ToArray();
+    if (missingAdvertisements.Length > 0)
+    {
+        throw new InvalidOperationException(
+            "Aetheria provider Verse does not advertise every owned transport plane: " +
+            string.Join(", ", missingAdvertisements));
+    }
 
     var forbidden = new[]
     {
@@ -1290,7 +1324,7 @@ static void RequireClientTransportPlaneOwnership(string root)
             "Aetheria reintroduced RUDP or schema-carried bulk state into the client boundary: " +
             string.Join(", ", present));
 
-    Console.WriteLine("Client transport ownership: TCP control and CDN are separate; RUDP and schema-carried bodies are absent");
+    Console.WriteLine("Client transport ownership: TCP control/CDN and QUIC realtime are advertised separately; RUDP and schema-carried bodies are absent");
 }
 
 static void RequireDaemonPlayableRunGenerationAuthority(string root)
@@ -12293,7 +12327,9 @@ static void RequireDaemonVersePublication(string root)
         "StarbridgeScenario = starbridgeScenario",
         "StarbridgeSession = starbridgeSession",
         "BuildPublications = buildPublications",
-        "PublishDaemonApiDocumentsAsync(node, options, result",
+        "PublishDurableDaemonDocumentsAsync(node, result",
+        "PublishClientGameplayDocumentsAsync(",
+        "PublishSecondaryTopologyDocumentsAsync(node, options, result)",
         "PublishHotEntityStateAsync(",
         "node.MutableDocument<EveEntitySoaViewDocument>(AetheriaRuntimeVerseRecordKeys.EveEntitySoaViewLatest)",
         "node.MutableDocument<AetheriaRuntimeDaemonProviderAdvertisementDocument>(AetheriaRuntimeVerseRecordKeys.DaemonProviderAdvertisement)",
@@ -12403,7 +12439,7 @@ static void RequireDaemonVersePublication(string root)
     }
 
     var apiPublicationStart = daemonHostSource.IndexOf(
-        "static async Task PublishDaemonApiDocumentsAsync",
+        "static async Task PublishDurableDaemonDocumentsAsync",
         StringComparison.Ordinal);
     var apiPublicationEnd = apiPublicationStart >= 0
         ? daemonHostSource.IndexOf("static async Task AcceptEveCommandsAsync", apiPublicationStart, StringComparison.Ordinal)
@@ -12441,7 +12477,9 @@ static void RequireDaemonVersePublication(string root)
     }
 
     if (!daemonTickBlock.Contains("if (buildPublications)", StringComparison.Ordinal) ||
-        !daemonTickBlock.Contains("PublishDaemonApiDocumentsAsync(node, options, result", StringComparison.Ordinal))
+        !daemonTickBlock.Contains("PublishDurableDaemonDocumentsAsync(node, result", StringComparison.Ordinal) ||
+        !daemonTickBlock.Contains("PublishClientGameplayDocumentsAsync(", StringComparison.Ordinal) ||
+        !daemonTickBlock.Contains("PublishSecondaryTopologyDocumentsAsync(node, options, result)", StringComparison.Ordinal))
     {
         throw new InvalidOperationException(
             "Daemon ticks must publish API cadence documents through managed AetheriaStateNode pointers.");
@@ -13065,7 +13103,7 @@ static void RequireCatalogSurfaceUsesManagedRuntimeCatalog(string root)
 
     var requiredBridgeSymbols = new[]
     {
-        "var catalog = await node.RuntimeCatalog().LatestAsync().ConfigureAwait(false);",
+        "var catalog = await node.RefreshRuntimeCatalogAsync().ConfigureAwait(false);",
         "AetheriaEveSurfaceDocuments.BuildCatalogSurface(catalog, command.IssuedAtUtc)"
     };
     var missingBridgeSymbols = requiredBridgeSymbols
@@ -16812,23 +16850,32 @@ static void RequireCatalogHullPresentationAuthority(string root)
     var surface = File.ReadAllText(Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonGameSurfaceBuilder.cs"));
     var soa = File.ReadAllText(Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonSoaFramePublisher.cs"));
     var tick = File.ReadAllText(Path.Combine(root, "Packages", "org.gamecult.aetheria.state", "Runtime", "AetheriaRuntimeDaemonTickRunner.cs"));
+    var daemon = File.ReadAllText(Path.Combine(root, "Aetheria.State.Daemon", "Program.cs"));
     var builder = File.ReadAllText(Path.Combine(root, "Assets", "Editor", "EveAssetBundleBuilder.cs"));
     var required = new[]
     {
         "catalog?.FindItem(entity.HullItemKey",
-        "HullPrefabAssetKey(hull.ItemKey)",
+        "HullPrefabAssetKey(ResolvePresentationHull(hull, catalog!).ItemKey)",
+        "HullPrefabAssetKey(item.ItemKey)",
         "!string.IsNullOrWhiteSpace(item.HullPrefab)",
         "ResolveEntityPrefabAssetRef(entity, catalog)",
-        "soaPublisher.BuildCurrentZoneEntities(frame, catalog)",
+        "using var hotFrame = publisher.BuildCurrentZoneEntities(",
+        "realtimeDemand: hasRealtimeConsumers);",
         "AetheriaRuntimeCatalogStore.OpenReadOnly(",
         "AetheriaRuntimeAssets.ProjectManifest(catalog).Assets"
     };
-    var body = assets + surface + soa + tick + builder;
+    var body = assets + surface + soa + tick + daemon + builder;
     var missing = required.Where(symbol => !body.Contains(symbol, StringComparison.Ordinal)).ToArray();
     if (missing.Length > 0)
         throw new InvalidOperationException(
             "Typed hull identity must choose one provider-owned catalog prefab across the manifest, Eve scene, and SoA paths: " +
             string.Join(", ", missing));
+    if (!Regex.IsMatch(
+            daemon,
+            @"publisher\.BuildCurrentZoneEntities\(\s*frame,\s*catalog,\s*realtimeDemand:\s*hasRealtimeConsumers\)",
+            RegexOptions.CultureInvariant))
+        throw new InvalidOperationException(
+            "The daemon hot SoA path must pass the same managed runtime catalog used by the asset manifest and Eve scene projection.");
 
     var catalogLookup = assets.IndexOf("catalog?.FindItem(entity.HullItemKey", StringComparison.Ordinal);
     var fallbackLookup = assets.IndexOf("var kind = (entity.Kind", StringComparison.Ordinal);
@@ -17119,7 +17166,8 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
             "public static class AetheriaRuntimeDaemonSimulation",
             "AetheriaRuntimeDaemonSimulationSettings settings",
             "StepCombat(run, zone, entities, intents, deltaSeconds, settings, worldPhysics, catalog,",
-            "AetheriaRuntimeEquippedBehaviorQueries.FindOperational(entity, catalog, AetheriaRuntimeBehaviorKinds.InstantWeapon)",
+            ".FindAllOperational(attacker, catalog);",
+            "ResolveWeapons(attacker, operationalBehaviors, catalog, settings)",
             "EnsureWeaponState(",
             "CommitWeaponRound(attacker, weapon, catalog)",
             "weapon.State.BurstRemaining = weapon.BurstCount",
@@ -17151,7 +17199,8 @@ static void RequireUnityDoesNotCallSharedSimulationTicks(string root)
         [ymirWorldPhysicsPath] = new[]
         {
             "public sealed class AetheriaYmirWorldPhysics : IAetheriaRuntimeWorldPhysics, IDisposable",
-            "public YmirSession WorldSession { get; } = worldSession",
+            "private sealed class SessionState(YmirSession worldSession)",
+            "public YmirSession WorldSession { get; set; } = worldSession",
             "public YmirSession? PayloadSession { get; set; }",
             "var stepped = payloadSession.Step(new YmirStepSessionCommand(",
             "state.WorldSession.CastCircle(new YmirSessionCircleCastQuery(",
