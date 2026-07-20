@@ -99,13 +99,21 @@ under Unity `Assets/Scripts/ServerShared/Behaviors`.
   an exclusive lock while selectively hydrating another record. Startup phase
   traces report state open, catalog, Ymir restore, and client publication costs.
 
-The remaining restart bottleneck is inside Ymir reconstruction, not CultCache
-I/O: the current resume format validates state by replaying its entire
-generation journal. Indexed hydration reduced journal page loading to tens of
-milliseconds, but replay remains proportional to session lifetime. Ymir needs
-a bounded baseline checkpoint plus journal tail before daemon restart cost is
-independent of uptime; increasing timeouts or hiding the phase is not an
-acceptable substitute.
+Ymir reconstruction remains full replay within a session generation, but it is
+now bounded by an explicit quiescent generation rollover. When a private world
+or payload journal reaches 64 commands, `AetheriaYmirWorldPhysics` asks Ymir to
+create a replacement baseline before private capture. Ymir refuses while a
+contact episode is active or a mutation has not reached Step; Aetheria keeps
+the old replay path in that case and never infers contact safety itself. A
+successful replacement is captured before the matching public frame commits,
+and the prior session is disposed only after the in-memory owner swaps.
+
+The migration witness paid 733 ms once to restore the historical generation;
+the following restart restored the compact generation in 74 ms, including
+private-cache open, selected journal hydration, and native world creation.
+Historical journal pages remain durable and cold. Retention/garbage collection
+of obsolete generations is separate from restart authority and must not be
+smuggled into filtered hydration.
 
 ## Materialized Import And Publication Ownership
 

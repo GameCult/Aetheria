@@ -5,6 +5,7 @@ namespace Aetheria.State.Daemon;
 
 public sealed class AetheriaYmirWorldPhysics : IAetheriaRuntimeWorldPhysics, IDisposable
 {
+    private const long PersistenceRolloverJournalEntries = 64;
     private const string EntityPrefix = "aetheria.daemon.entity.";
     private const string PickupPrefix = "aetheria.daemon.pickup.";
     private const string PhysicalPayloadPrefix = "aetheria.physical-payload.";
@@ -75,6 +76,10 @@ public sealed class AetheriaYmirWorldPhysics : IAetheriaRuntimeWorldPhysics, IDi
             (state.LastPayloadFrameId != frameId || state.LastPayloadSimulationStepIndex != state.LastSimulationStepIndex))
             throw new InvalidOperationException(
                 $"Cannot persist Ymir payload world for run '{runId}' zone {zoneIndex} at frame {frameId}.");
+
+        TryRollPersistenceGeneration(state, payload: false);
+        if (state.PayloadSession != null)
+            TryRollPersistenceGeneration(state, payload: true);
 
         return new AetheriaYmirZonePersistenceCapture(
             runId,
@@ -586,6 +591,20 @@ public sealed class AetheriaYmirWorldPhysics : IAetheriaRuntimeWorldPhysics, IDi
             ? value
             : -1;
 
+    private static void TryRollPersistenceGeneration(SessionState state, bool payload)
+    {
+        var current = payload ? state.PayloadSession : state.WorldSession;
+        if (current == null || current.PersistenceJournalEntryCount < PersistenceRolloverJournalEntries ||
+            !current.TryCreateCompactedPersistenceBaseline(out var replacement))
+            return;
+
+        if (payload)
+            state.PayloadSession = replacement!;
+        else
+            state.WorldSession = replacement!;
+        current.Dispose();
+    }
+
     private static (double X, double Y) Normalize(
         double x,
         double y,
@@ -598,7 +617,7 @@ public sealed class AetheriaYmirWorldPhysics : IAetheriaRuntimeWorldPhysics, IDi
 
     private sealed class SessionState(YmirSession worldSession)
     {
-        public YmirSession WorldSession { get; } = worldSession;
+        public YmirSession WorldSession { get; set; } = worldSession;
         public YmirSession? PayloadSession { get; set; }
         public long LastFrameId { get; set; } = -1;
         public int LastSimulationStepIndex { get; set; } = -1;
