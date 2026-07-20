@@ -13,6 +13,9 @@
     <Compile Include="..\Packages\org.gamecult.aetheria.state\Runtime\*.cs" Link="Runtime\%(Filename)%(Extension)" />
     <ProjectReference Include="$(CultLibRoot)\src\GameCult.Caching\GameCult.Caching.csproj" />
     <ProjectReference Include="$(CultLibRoot)\src\GameCult.Caching.MessagePack\GameCult.Caching.MessagePack.csproj" />
+    <ProjectReference Include="$(CultLibRoot)\src\GameCult.Caching.MessagePack.Generator\GameCult.Caching.MessagePack.Generator.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
     <ProjectReference Include="$(CultLibRoot)\src\GameCult.Mesh\GameCult.Mesh.csproj" />
     <ProjectReference Include="$(CultLibRoot)\src\GameCult.Networking\GameCult.Networking.csproj" />
     <ProjectReference Include="..\..\CultMath\src\CultMath\CultMath.csproj" />

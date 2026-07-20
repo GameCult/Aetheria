@@ -107,6 +107,15 @@ reduced the selected state pages from 174 to 52 and cache-open wall time from
 about 471 ms to 358 ms. The remaining page cost is being attributed by schema;
 the lower count alone did not earn an order-of-magnitude claim.
 
+The .NET state assembly directly consumes CultCache's document metadata source
+generator. Project-reference analyzers are not transitive, so relying on the
+MessagePack library's analyzer dependency left Aetheria on runtime typed
+formatter dispatch. Generated payload codecs are used only for dense-slot,
+constructible document shapes; immutable or sparse-slot contracts retain the
+canonical MessagePack fallback. This reduced the profiled 52-page hydration
+from about 295 ms to 223 ms and cache open from about 353 ms to 296 ms. The
+1.12 MB daemon frame and 574 KB runtime catalog remain the largest hot records.
+
 Ymir reconstruction remains full replay within a session generation, but it is
 now bounded by an explicit quiescent generation rollover. When a private world
 or payload journal reaches 64 commands, `AetheriaYmirWorldPhysics` asks Ymir to
