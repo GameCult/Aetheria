@@ -10,10 +10,14 @@ The window builds and launches `Aetheria.State.Daemon` from
 client to connect directly to the daemon's local CultMesh endpoint. Odin is not
 part of this path.
 
+The editor connects through the daemon's `cultnet+tcp` control endpoint. The
+advertised session then selects the dedicated content and QUIC realtime planes;
+the editor bootstrap does not choose those planes or retain an RUDP fallback.
+
 The launcher displays and passes the exact source dependency roots used for the
-Debug daemon build. CultLib prefers the exact released `CultLib-release`
-sibling and falls back to the canonical `CultLib` sibling for checkouts that
-do not maintain a separate release worktree.
+Debug daemon build. CultLib prefers the active
+`CultLib-codex-cultmesh-reliability` checkout, then `CultLib-release`, and
+finally the canonical `CultLib` sibling.
 Ymir still prefers the active `Ymir-aetheria-integration` sibling checkout and
 falls back to the canonical `Ymir` sibling when that integration checkout is
 absent. This prevents an older sibling assembly from impersonating the daemon
