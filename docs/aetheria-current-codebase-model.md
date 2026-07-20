@@ -115,6 +115,33 @@ Historical journal pages remain durable and cold. Retention/garbage collection
 of obsolete generations is separate from restart authority and must not be
 smuggled into filtered hydration.
 
+### Restored-frame client readiness
+
+- **Owner:** the latest hard-flushed daemon frame owns restart world truth. Its
+  frame-versioned Eve input, pilot topology, reactive fragment, and map surface
+  are durable projections of that same boundary.
+- **Inputs:** exact persisted Eve bootstrap record keys plus the latest frame;
+  the daemon boot filter hydrates those records without loading unrelated menu
+  surfaces or history.
+- **Outputs:** on an ordinary restored daemon run, CultMesh can advertise the
+  committed Eve surfaces and publish a fresh hot SoA body before frame N+1 is
+  simulated. New stores and explicit `--once` runs retain the initialization
+  tick path.
+- **Derived state:** provider advertisement and asset catalog are stable
+  bootstrap projections. Input and Eve surfaces qualify for the fast path only
+  when every record version exactly equals the durable frame id; missing or
+  stale records force a normal rebuild.
+- **Forbidden writers:** startup must not advance simulation merely to make an
+  already committed frame presentable. It also must not pair a current frame
+  with stale client projections or let existence alone prove consistency.
+- **Cut line:** restored readiness no longer calls the simulation tick,
+  `BuildPublications`, or the surface lowerers. Ordinary ticking resumes after
+  readiness and owns frame N+1.
+- **Verification layer:** the restored artifact reached client bootstrap in
+  under one millisecond and playable readiness in 1.41–1.55 seconds, down from
+  2.19 seconds after Ymir compaction alone. The explicit `--once` witness still
+  executed and committed one new frame.
+
 ## Materialized Import And Publication Ownership
 
 ### Catalog import

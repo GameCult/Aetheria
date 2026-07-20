@@ -116,36 +116,63 @@ var nextApiPublicationUtc = DateTimeOffset.UtcNow;
 var ingressState = new AetheriaDaemonIngressState();
 var hotState = new AetheriaHotEntityPublicationState();
 var reactiveSurfaceState = new AetheriaReactiveSurfacePublicationState();
-var firstTick = await TickAsync(node, options, unityBundles, worldPhysics, latestFrame, ingressState, buildPublications: false).ConfigureAwait(false);
-TraceStartup("first-tick");
+var publishRestoredFrame = !options.Once &&
+    latestFrame?.Run != null &&
+    HasPlayableRun(latestFrame.Run) &&
+    HasPersistedClientBootstrap(node, latestFrame);
+AetheriaRuntimeDaemonTickResult? initialPublication = null;
+AetheriaPreparedPublication? initialPrepared = null;
+Task publicationTask;
+if (publishRestoredFrame)
+{
+    await RefreshControlPlaneInputsAsync(node, ingressState).ConfigureAwait(false);
+    TraceStartup("restored-client-state");
+}
+else
+{
+    var firstTick = await TickAsync(
+        node, options, unityBundles, worldPhysics, latestFrame, ingressState, buildPublications: false).ConfigureAwait(false);
+    TraceStartup("first-tick");
+    latestFrame = firstTick.Frame;
+    initialPrepared = PreparePublication(
+        node.StatePath,
+        options,
+        firstTick,
+        ingressState,
+        physicsPersistence);
+    initialPublication = initialPrepared.Publication;
+}
 ThrowIfClientHostFaulted(cultMeshClientHost);
-latestFrame = firstTick.Frame;
-var firstPublication = PreparePublication(
-    node.StatePath,
-    options,
-    firstTick,
-    ingressState,
-    physicsPersistence);
-await PublishClientGameplayDocumentsAsync(
-    node,
-    options,
-    unityBundles,
-    firstPublication.Publication,
-    firstPublication.Catalog,
-    reactiveSurfaceState,
-    publishTopology: true).ConfigureAwait(false);
+if (!publishRestoredFrame)
+{
+    await PublishClientGameplayDocumentsAsync(
+        node,
+        options,
+        unityBundles,
+        initialPublication!,
+        ingressState.Catalog ?? throw new InvalidOperationException("Aetheria runtime catalog was not initialized."),
+        reactiveSurfaceState,
+        publishTopology: true).ConfigureAwait(false);
+}
 TraceStartup("client-bootstrap");
 await PublishHotEntityStateAsync(
-    node, soaPublisher, hotState, firstTick.Frame, ingressState.Catalog, cultMeshClientHost).ConfigureAwait(false);
+    node, soaPublisher, hotState, latestFrame!, ingressState.Catalog, cultMeshClientHost).ConfigureAwait(false);
 TraceStartup("hot-entity-state");
-Task publicationTask = Task.Run(() => PersistPreparedDocumentsAsync(
-    node,
-    options,
-    physicsPersistence,
-    firstPublication,
-    initialTopology: true));
+if (publishRestoredFrame)
+{
+    publicationTask = Task.CompletedTask;
+}
+else
+{
+    publicationTask = Task.Run(() => PersistPreparedDocumentsAsync(
+        node,
+        options,
+        physicsPersistence,
+        initialPrepared!,
+        initialTopology: true));
+}
 nextApiPublicationUtc = DateTimeOffset.UtcNow.Add(options.ApiPublicationInterval);
-Console.WriteLine($"Aetheria Verse daemon published frame {firstTick.Frame.FrameId}.");
+Console.WriteLine($"Aetheria Verse daemon published frame {latestFrame!.FrameId}.");
 Console.WriteLine($"Aetheria daemon playable-world-ready in {startup.Elapsed.TotalMilliseconds:0.###}ms.");
 
 if (options.Once)
@@ -464,6 +491,22 @@ static AetheriaPreparedPublication PreparePublication(
         publication,
         physics,
         ingressState.Catalog ?? throw new InvalidOperationException("Aetheria runtime catalog was not initialized."));
+}
+
+static bool HasPersistedClientBootstrap(
+    AetheriaStateNode node,
+    AetheriaRuntimeDaemonFrameDocument frame)
+{
+    var input = node.Cache.Get<EveInputCapabilityDocument>(AetheriaRuntimeVerseRecordKeys.PilotInputCapability);
+    var game = node.Cache.Get<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.DaemonGameSurface);
+    var reactive = node.Cache.Get<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.DaemonGameReactiveSurface);
+    var map = node.Cache.Get<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.MapMenuSurface);
+    return node.Cache.Get<EveProviderAdvertisementDocument>(AetheriaRuntimeVerseRecordKeys.EveProviderAdvertisement) != null &&
+           node.Cache.Get<EveAssetCatalogDocument>(AetheriaRuntimeVerseRecordKeys.EveAssetCatalog) != null &&
+           input?.Version == frame.FrameId &&
+           game?.Version == frame.FrameId &&
+           reactive?.Version == frame.FrameId &&
+           map?.Version == frame.FrameId;
 }
 
 static async Task PersistPreparedDocumentsAsync(
