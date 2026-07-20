@@ -211,10 +211,10 @@ namespace Aetheria.Editor
         public static bool IsStarting => _launcher != null && !_launcher.HasExited;
         public static string Status => _status;
         public static string LastError => _lastError;
-        public static string Endpoint => $"rudp://127.0.0.1:{Port}";
+        public static string Endpoint => $"cultnet+tcp://127.0.0.1:{Port}";
         public static string ProcessIdText => IsRunning ? _daemon.Id.ToString(CultureInfo.InvariantCulture) : "-";
         public static string StatePath => Path.Combine(ProjectRoot, "Aetheria.Unity", "Build", "aetheria-unity-dev.cc");
-        public static string CultLibRoot => ResolveSibling("CultLib-release", "CultLib");
+        public static string CultLibRoot => ResolveSibling("CultLib-codex-cultmesh-reliability", "CultLib-release", "CultLib");
         public static string YmirRoot => ResolveSibling("Ymir-aetheria-integration", "Ymir");
         public static string EveUnityRoot => ResolveSibling("EveUnity");
         private static int Port => EditorPrefs.GetInt(PortPreference, 3076);

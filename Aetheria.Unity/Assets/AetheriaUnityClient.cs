@@ -15,7 +15,7 @@ public sealed class AetheriaUnityClient : MonoBehaviour
     private void Awake()
     {
         Application.runInBackground = true;
-        var endpoint = Environment.GetEnvironmentVariable("EVEUNITY_RENDEZVOUS_ENDPOINT") ?? "rudp://127.0.0.1:3076";
+        var endpoint = Environment.GetEnvironmentVariable("EVEUNITY_RENDEZVOUS_ENDPOINT") ?? "cultnet+tcp://127.0.0.1:3076";
         var surfaceId = Environment.GetEnvironmentVariable("EVEUNITY_SURFACE_ID") ?? "aetheria.pilot";
         var replicaPath = Path.Combine(Application.persistentDataPath, "aetheria-unity.cc");
 
@@ -73,11 +73,6 @@ public sealed class AetheriaUnityClient : MonoBehaviour
         camera.nearClipPlane = 0.05f;
         camera.farClipPlane = 10000f;
 
-        var lightObject = new GameObject("World Light");
-        var light = lightObject.AddComponent<Light>();
-        light.type = LightType.Directional;
-        light.intensity = 1.4f;
-        lightObject.transform.rotation = Quaternion.Euler(50f, -35f, 0f);
     }
 
     private void OnGUI()
