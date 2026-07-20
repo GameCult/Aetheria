@@ -19,7 +19,7 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeDaemonFrameDocument frame,
             AetheriaRuntimeDaemonHealthDocument health,
             AetheriaRuntimeDaemonCommandBoundaryDocument commandBoundary,
-            string activeMainMenuSurfaceId = AetheriaRuntimeMainMenuCommands.RootSurfaceId,
+            string activeMainMenuSurfaceId = "",
             AetheriaRuntimeCatalogSnapshot? catalog = null)
         {
             frame ??= new AetheriaRuntimeDaemonFrameDocument();
@@ -30,7 +30,8 @@ namespace GameCult.Aetheria.State.Verse
             var entity = FindCurrentEntity(run, zone);
             var target = FindTargetEntity(zone, entity);
             var entityName = string.IsNullOrWhiteSpace(entity?.Name) ? "(no current entity)" : entity!.Name;
-            activeMainMenuSurfaceId = NormalizeMainMenuSurfaceId(activeMainMenuSurfaceId);
+            if (!string.IsNullOrWhiteSpace(activeMainMenuSurfaceId))
+                activeMainMenuSurfaceId = NormalizeMainMenuSurfaceId(activeMainMenuSurfaceId);
             var surfaceChildren = new List<AetheriaRuntimeSurfaceComponent>
             {
                 PlayableWorldSurface(
@@ -1761,6 +1762,8 @@ namespace GameCult.Aetheria.State.Verse
             string id,
             string activeSurfaceId)
         {
+            if (string.IsNullOrWhiteSpace(activeSurfaceId))
+                return Hidden(Node(id, "surface.slot", Array.Empty<(string Key, string Value)>()));
             activeSurfaceId = NormalizeMainMenuSurfaceId(activeSurfaceId);
             var activeSurfaceRecordRef = $"eve:surface:{activeSurfaceId}";
             return new AetheriaRuntimeSurfaceComponent(

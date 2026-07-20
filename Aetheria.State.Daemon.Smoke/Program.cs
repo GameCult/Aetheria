@@ -3791,6 +3791,10 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                     node.Id is "aetheria.daemon.game.frame" or "aetheria.daemon.game.player" or "aetheria.daemon.game.commands")
                 .All(node => node.Layout.TryGetValue("display", out var display) && display == "none"),
             "operator diagnostics must remain published state without becoming pilot-camera UI");
+        var mainMenu = Flatten(surface.Surface.Root).Single(node => node.Id == "aetheria.daemon.game.main_menu");
+        Require(mainMenu.Layout.TryGetValue("display", out var menuDisplay) && menuDisplay == "none" &&
+                mainMenu.EmbeddedDocuments.Count == 0,
+            "an active pilot surface must not embed or display the main menu until daemon menu state opens it");
     }
 
     private static void ChargedWeaponCannotBypassChargeLifecycle()

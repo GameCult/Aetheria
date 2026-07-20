@@ -405,6 +405,7 @@ public static class AetheriaEveCommandBridge
             case AetheriaRuntimeEveCommandKind.MainMenuBackToMain:
             case AetheriaRuntimeEveCommandKind.MainMenuContinueRun:
             case AetheriaRuntimeEveCommandKind.MainMenuNewGame:
+                return "";
             case AetheriaRuntimeEveCommandKind.MainMenuQuit:
                 return AetheriaRuntimeMainMenuCommands.RootSurfaceId;
             default:

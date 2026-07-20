@@ -1935,8 +1935,13 @@ static async Task PublishClientGameplayDocumentsAsync(
     var mainMenuState = await node.MutableDocument<AetheriaMainMenuState>(AetheriaStateNode.MainMenuStateKey)
         .ReadAsync()
         .ConfigureAwait(false);
+    var hasActivePilot = !string.IsNullOrWhiteSpace(result.Frame.Run?.CurrentEntityKey) &&
+        result.Frame.Run.Zones?.Any(zone =>
+            zone != null &&
+            zone.ZoneIndex == result.Frame.Run.CurrentZoneIndex &&
+            (zone.Entities?.Count ?? 0) > 0) == true;
     var activeMainMenuSurfaceId = string.IsNullOrWhiteSpace(mainMenuState?.ActiveSurfaceId)
-        ? AetheriaRuntimeMainMenuCommands.RootSurfaceId
+        ? (hasActivePilot ? "" : AetheriaRuntimeMainMenuCommands.RootSurfaceId)
         : mainMenuState.ActiveSurfaceId;
     var reactiveGameSurface = AetheriaRuntimeSurfaceDocuments.ToPortableSurface(
         AetheriaRuntimeDaemonGameSurfaceBuilder.BuildReactiveGameplay(
