@@ -1297,10 +1297,11 @@ static X509Certificate2 CreateRealtimeCertificate(string advertisedHost)
     using var generated = request.CreateSelfSigned(
         DateTimeOffset.UtcNow.AddMinutes(-1),
         DateTimeOffset.UtcNow.AddDays(7));
+    // System.Net.Quic uses Schannel on Windows; Schannel server credentials reject ephemeral private keys.
     return X509CertificateLoader.LoadPkcs12(
         generated.Export(X509ContentType.Pfx),
         null,
-        X509KeyStorageFlags.Exportable | X509KeyStorageFlags.EphemeralKeySet);
+        X509KeyStorageFlags.Exportable);
 }
 
 static X509Certificate2 LoadOrCreateRealtimeCertificate(string advertisedHost, string certificatePath)
@@ -1315,7 +1316,7 @@ static X509Certificate2 LoadOrCreateRealtimeCertificate(string advertisedHost, s
             var existing = X509CertificateLoader.LoadPkcs12FromFile(
                 certificatePath,
                 null,
-                X509KeyStorageFlags.EphemeralKeySet);
+                X509KeyStorageFlags.DefaultKeySet);
             if (existing.HasPrivateKey &&
                 existing.NotAfter.ToUniversalTime() > DateTime.UtcNow.AddDays(1) &&
                 string.Equals(
