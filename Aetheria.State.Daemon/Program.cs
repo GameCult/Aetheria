@@ -2870,8 +2870,6 @@ static async Task EnsureWorldDocumentAsync(AetheriaStateNode node)
     var existing = await world.ReadAsync().ConfigureAwait(false);
     if (existing != null)
     {
-        existing.UpdatedAtUtc = now;
-        await world.ReplaceAsync(existing).ConfigureAwait(false);
         return;
     }
 

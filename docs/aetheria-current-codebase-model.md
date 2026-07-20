@@ -115,6 +115,28 @@ Historical journal pages remain durable and cold. Retention/garbage collection
 of obsolete generations is separate from restart authority and must not be
 smuggled into filtered hydration.
 
+### Clean restart persistence
+
+- **Owner:** the durable world document owns its creation and last world-state
+  mutation timestamps. Daemon process liveness belongs to runtime/session
+  documents, not the world record.
+- **Inputs:** the selectively hydrated working set plus the backing store's
+  durable key index, including records deliberately left cold.
+- **Outputs:** schema defaults are created only for genuinely absent global
+  records. An existing world is read without being rewritten merely because a
+  daemon process started.
+- **Derived state:** an unhydrated durable global is cold, not missing. The
+  backing store exposes that fact without loading its payload.
+- **Forbidden writers:** constructor defaults cannot preempt durable globals,
+  and daemon startup cannot mutate `AetheriaWorldState.UpdatedAtUtc` as a
+  heartbeat.
+- **Cut line:** CultCache hydrates before materializing missing global defaults;
+  clean indexed directory flushes perform no manifest transaction.
+- **Verification layer:** CultCache tests exclude a persisted global from the
+  initial hydration set, prove the cache remains clean, then hydrate it on
+  demand and recover the durable value. On the Aetheria restart artifact the
+  initial flush fell from 115–140 ms to 3.0–3.2 ms.
+
 ### Restored-frame client readiness
 
 - **Owner:** the latest hard-flushed daemon frame owns restart world truth. Its
