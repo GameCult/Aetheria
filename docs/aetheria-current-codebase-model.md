@@ -99,6 +99,14 @@ under Unity `Assets/Scripts/ServerShared/Behaviors`.
   an exclusive lock while selectively hydrating another record. Startup phase
   traces report state open, catalog, Ymir restore, and client publication costs.
 
+The compact runtime catalog is the daemon's catalog read model. Individual item
+definition pages remain import/editor state and are not a second simulation
+catalog. Daemon boot hydrates only the four item records required to validate or
+regenerate the native dockyard hull and berth. On the current artifact this cut
+reduced the selected state pages from 174 to 52 and cache-open wall time from
+about 471 ms to 358 ms. The remaining page cost is being attributed by schema;
+the lower count alone did not earn an order-of-magnitude claim.
+
 Ymir reconstruction remains full replay within a session generation, but it is
 now bounded by an explicit quiescent generation rollover. When a private world
 or payload journal reaches 64 commands, `AetheriaYmirWorldPhysics` asks Ymir to

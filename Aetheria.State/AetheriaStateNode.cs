@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using Aetheria.State.Documents;
@@ -24,6 +25,13 @@ public enum AetheriaStateHydrationProfile
 
 public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
 {
+    private static readonly string[] DaemonNativeCatalogBootRecordKeys =
+    [
+        AetheriaCatalogKeys.ItemDefinitionFromLegacyId("82efc0a5-1ba5-4ff3-a281-b2e6e247521d").ToString(), // Zenith hull
+        AetheriaCatalogKeys.ItemDefinitionFromLegacyId("3e930a2c-ac72-4385-98aa-1c5b0b90db46").ToString(), // Medium docking bay
+        AetheriaCatalogKeys.ItemDefinitionFromLegacyId("ca098005-8cc8-47f4-be99-7bc842805359").ToString(), // Dockyard hull
+        AetheriaCatalogKeys.ItemDefinitionFromLegacyId("8ec30f8d-8536-48b4-bd64-65f29f229895").ToString()  // Dockyard berth
+    ];
     private readonly CultMeshNode _node;
     private CultMeshDocumentHandle<AetheriaRuntimeCatalogSnapshot>? _runtimeCatalog;
     private CultMeshDocumentHandle<AetheriaRuntimeNameCorpusSnapshot>? _runtimeNameCorpus;
@@ -63,8 +71,24 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
 
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(statePath)) ?? ".");
 
+        var traceStartup = string.Equals(
+            Environment.GetEnvironmentVariable("AETHERIA_TRACE_STARTUP_PHASES"),
+            "1",
+            StringComparison.Ordinal);
+        var startupPhase = Stopwatch.StartNew();
+        void Trace(string phase)
+        {
+            if (traceStartup)
+                Console.WriteLine($"Aetheria state-node phase {phase} took {startupPhase.Elapsed.TotalMilliseconds:0.###}ms.");
+            startupPhase.Restart();
+        }
+
         var cacheRegistry = AetheriaDocumentRegistry.CreateCultCacheRegistry();
+        Trace("cache-registry");
         var hydrationFilter = CreateHydrationFilter(hydrationProfile, cacheRegistry);
+        Trace("hydration-filter");
+        var databaseRegistry = AetheriaDocumentRegistry.CreateCultNetRegistry(cacheRegistry);
+        Trace("database-registry");
         var node = await CultMesh.CreateNodeAsync(
             statePath,
             new CultMeshNodeOptions
@@ -82,9 +106,10 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
                 DatabaseOptions = new CultNetDatabaseOptions
                 {
                     RuntimeId = runtimeId,
-                    DocumentRegistry = AetheriaDocumentRegistry.CreateCultNetRegistry(cacheRegistry)
+                    DocumentRegistry = databaseRegistry
                 }
             }).ConfigureAwait(false);
+        Trace("cultmesh-node");
 
         return new AetheriaStateNode(statePath, runtimeId, node);
     }
@@ -100,7 +125,6 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
 
         var schemaTypes = new[]
         {
-            typeof(AetheriaItemDefinition),
             typeof(AetheriaLoadoutTemplate),
             typeof(AetheriaRunState),
             typeof(AetheriaZoneState),
@@ -139,6 +163,7 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
             AetheriaRuntimeVerseRecordKeys.StarbridgeScenarioLatest.ToString(),
             AetheriaRuntimeVerseRecordKeys.StarbridgeSessionLatest.ToString()
         };
+        recordKeys.UnionWith(DaemonNativeCatalogBootRecordKeys);
         return record => recordKeys.Contains(record.Key) || schemaIds.Contains(record.SchemaId);
     }
 
