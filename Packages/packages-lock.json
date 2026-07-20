@@ -313,11 +313,11 @@
       }
     },
     "org.gamecult.cultlib": {
-      "version": "https://github.com/GameCult/CultLib.git?path=/unity/org.gamecult.cultlib#cultlib-unity-v1.0.34",
+      "version": "https://github.com/GameCult/CultLib.git?path=/unity/org.gamecult.cultlib#cultlib-unity-v1.0.41",
       "depth": 0,
       "source": "git",
       "dependencies": {},
-      "hash": "c148d891c1d8713285ae15b2f17b59c106fb9426"
+      "hash": "b18fed412e7befedc2d3241cea72c5ff4fe82b0c"
     },
     "org.gamecult.cultmath": {
       "version": "file:../../CultMath",
@@ -347,7 +347,7 @@
       "depth": 0,
       "source": "local",
       "dependencies": {
-        "org.gamecult.cultlib": "1.0.34",
+        "org.gamecult.cultlib": "1.0.41",
         "org.gamecult.eve.plugin-fields": "0.2.3",
         "org.gamecult.eve.surface": "0.2.4",
         "com.unity.mathematics": "1.3.2",
