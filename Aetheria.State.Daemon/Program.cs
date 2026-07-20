@@ -763,17 +763,34 @@ static async Task<AetheriaClientCultMeshHost> StartClientCultMeshHostAsync(
     AetheriaUnityBundleArtifactSet unityBundles,
     Func<AetheriaRuntimeDaemonFrameDocument?> latestFrame)
 {
+    var traceStartup = string.Equals(
+        Environment.GetEnvironmentVariable("AETHERIA_TRACE_STARTUP_PHASES"),
+        "1",
+        StringComparison.Ordinal);
+    var startupPhase = Stopwatch.StartNew();
+    void Trace(string phase)
+    {
+        if (traceStartup)
+            Console.WriteLine($"Aetheria client-host phase {phase} took {startupPhase.Elapsed.TotalMilliseconds:0.###}ms.");
+        startupPhase.Restart();
+    }
+
     var contentCache = new CultCache(CultMesh.CreateCultCacheDocumentRegistry(
         typeof(CultMeshCdnArtifactManifest),
         typeof(CultMeshCdnArtifactChunk)));
     var bundleCdnDocuments = BuildBundleCdnDocuments(node, contentCache, unityBundles, options.DaemonId);
+    Trace("cdn-documents");
     var server = new TcpFramedCultNetSchemaServer(new TcpListener(
         ParseBindAddress(options.ClientCultMeshHost),
         options.ClientCultMeshPort));
     var content = new CultMeshTcpContentServer(new TcpListener(
         ParseBindAddress(options.ClientCultMeshHost),
         options.ClientCultMeshContentPort), contentCache);
-    var realtimeCertificate = CreateRealtimeCertificate(options.ClientCultMeshAdvertiseHost);
+    Trace("tcp-listeners");
+    var realtimeCertificate = LoadOrCreateRealtimeCertificate(
+        options.ClientCultMeshAdvertiseHost,
+        options.ClientCultMeshCertificatePath);
+    Trace("realtime-certificate");
     CultMeshQuicRealtimeServer realtime;
     try
     {
@@ -784,6 +801,7 @@ static async Task<AetheriaClientCultMeshHost> StartClientCultMeshHostAsync(
                 options.ClientCultMeshQuicPort),
             ServerCertificate = realtimeCertificate
         }).ConfigureAwait(false);
+        Trace("quic-listen");
     }
     catch
     {
@@ -1279,7 +1297,53 @@ static X509Certificate2 CreateRealtimeCertificate(string advertisedHost)
     using var generated = request.CreateSelfSigned(
         DateTimeOffset.UtcNow.AddMinutes(-1),
         DateTimeOffset.UtcNow.AddDays(7));
-    return X509CertificateLoader.LoadPkcs12(generated.Export(X509ContentType.Pfx), null);
+    return X509CertificateLoader.LoadPkcs12(
+        generated.Export(X509ContentType.Pfx),
+        null,
+        X509KeyStorageFlags.Exportable | X509KeyStorageFlags.EphemeralKeySet);
+}
+
+static X509Certificate2 LoadOrCreateRealtimeCertificate(string advertisedHost, string certificatePath)
+{
+    if (string.IsNullOrWhiteSpace(certificatePath))
+        throw new ArgumentException("Realtime certificate path must be non-empty.", nameof(certificatePath));
+
+    if (File.Exists(certificatePath))
+    {
+        try
+        {
+            var existing = X509CertificateLoader.LoadPkcs12FromFile(
+                certificatePath,
+                null,
+                X509KeyStorageFlags.EphemeralKeySet);
+            if (existing.HasPrivateKey &&
+                existing.NotAfter.ToUniversalTime() > DateTime.UtcNow.AddDays(1) &&
+                string.Equals(
+                    existing.GetNameInfo(X509NameType.DnsName, forIssuer: false),
+                    advertisedHost,
+                    StringComparison.OrdinalIgnoreCase))
+                return existing;
+            existing.Dispose();
+        }
+        catch (CryptographicException)
+        {
+            // Replace an unreadable or obsolete development certificate below.
+        }
+    }
+
+    var generated = CreateRealtimeCertificate(advertisedHost);
+    Directory.CreateDirectory(Path.GetDirectoryName(certificatePath) ?? ".");
+    var temporaryPath = certificatePath + ".tmp-" + Guid.NewGuid().ToString("N");
+    try
+    {
+        File.WriteAllBytes(temporaryPath, generated.Export(X509ContentType.Pfx));
+        File.Move(temporaryPath, certificatePath, overwrite: true);
+    }
+    finally
+    {
+        if (File.Exists(temporaryPath)) File.Delete(temporaryPath);
+    }
+    return generated;
 }
 
 static void InjectCultMeshCdnManifestSnapshots(
@@ -3828,6 +3892,7 @@ internal sealed class AetheriaDaemonHostOptions
     public int ClientCultMeshPort { get; init; } = 3076;
     public int ClientCultMeshContentPort { get; init; }
     public int ClientCultMeshQuicPort { get; init; }
+    public string ClientCultMeshCertificatePath { get; init; } = "";
     public string AetheriaResourcesRoot { get; init; } = "";
     public string AssetBundleRoot { get; init; } = "";
     public IReadOnlyList<string> PeerCultMeshEndpoints { get; init; } = Array.Empty<string>();
@@ -3862,6 +3927,7 @@ internal sealed class AetheriaDaemonHostOptions
         var clientCultMeshPort = ReadNonNegativeInt(args, "--client-cultmesh-port") ?? 3076;
         var clientCultMeshContentPort = ReadNonNegativeInt(args, "--client-cultmesh-content-port") ?? 0;
         var clientCultMeshQuicPort = ReadNonNegativeInt(args, "--client-cultmesh-quic-port") ?? 0;
+        var clientCultMeshCertificatePath = ReadOption(args, "--client-cultmesh-certificate-path");
         var aetheriaResourcesRoot = ReadOption(args, "--aetheria-resources-root");
         var assetBundleRoot = ReadOption(args, "--asset-bundle-root");
         RejectRemovedOption(args, "--rts-cultmesh-port", "--client-cultmesh-port");
@@ -3876,11 +3942,18 @@ internal sealed class AetheriaDaemonHostOptions
         var requestedTerminusScenario = ReadOption(args, "--terminus-scenario");
         var terminusScenario = AetheriaDaemonTerminusScenarios.Parse(requestedTerminusScenario);
 
+        var resolvedStatePath = string.IsNullOrWhiteSpace(state)
+            ? AetheriaStatePaths.ResolveDefaultStatePath(root)
+            : Path.GetFullPath(state);
+        var certificateHost = string.IsNullOrWhiteSpace(clientCultMeshAdvertiseHost)
+            ? (string.IsNullOrWhiteSpace(clientCultMeshHost) || clientCultMeshHost == "0.0.0.0" || clientCultMeshHost == "*" ? "127.0.0.1" : clientCultMeshHost)
+            : clientCultMeshAdvertiseHost;
+        var certificateHostToken = Convert.ToHexString(SHA256.HashData(
+            System.Text.Encoding.UTF8.GetBytes(certificateHost))).Substring(0, 12).ToLowerInvariant();
+
         return new AetheriaDaemonHostOptions
         {
-            StatePath = string.IsNullOrWhiteSpace(state)
-                ? AetheriaStatePaths.ResolveDefaultStatePath(root)
-                : Path.GetFullPath(state),
+            StatePath = resolvedStatePath,
             DaemonId = string.IsNullOrWhiteSpace(daemonId) ? "aetheria-daemon" : daemonId,
             SessionId = string.IsNullOrWhiteSpace(sessionId) ? "local" : sessionId,
             VerseId = string.IsNullOrWhiteSpace(verseId) ? "aetheria.local" : verseId,
@@ -3894,6 +3967,9 @@ internal sealed class AetheriaDaemonHostOptions
             ClientCultMeshPort = clientCultMeshPort,
             ClientCultMeshContentPort = clientCultMeshContentPort,
             ClientCultMeshQuicPort = clientCultMeshQuicPort,
+            ClientCultMeshCertificatePath = string.IsNullOrWhiteSpace(clientCultMeshCertificatePath)
+                ? resolvedStatePath + $".client-quic-{certificateHostToken}.pfx"
+                : Path.GetFullPath(clientCultMeshCertificatePath),
             AetheriaResourcesRoot = string.IsNullOrWhiteSpace(aetheriaResourcesRoot)
                 ? Path.GetFullPath(Path.Combine(root, "Assets", "Resources"))
                 : Path.GetFullPath(aetheriaResourcesRoot),

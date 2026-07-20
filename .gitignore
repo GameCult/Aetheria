@@ -133,6 +133,7 @@ Aetheria.State.AuthoritySmoke/obj/
 Aetheria.State.Freeze/bin/
 Aetheria.State.Freeze/obj/
 Aetheria.State.Daemon/*.log
+*.client-quic-*.pfx
 
 # JetBrains Rider .idea folder
 .idea/

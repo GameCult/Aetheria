@@ -154,6 +154,16 @@ smuggled into filtered hydration.
   demand and recover the durable value. On the Aetheria restart artifact the
   initial flush fell from 115–140 ms to 3.0–3.2 ms.
 
+The direct client QUIC listener uses a stable daemon-service certificate stored
+beside the state file by default; `--client-cultmesh-certificate-path` selects a
+provisioned location. The advertised-host hash is part of the default filename,
+and the daemon replaces certificates that are unreadable, lack a private key,
+target another host, or are within one day of expiry. This transport identity
+does not own Eve provider or body-producer identity. On the restart witness,
+certificate setup fell from 153 ms of RSA generation to 27 ms of PFX loading,
+and total client-host startup fell from about 319 ms to 183 ms. The first boot
+still pays certificate creation once.
+
 ### Restored-frame client readiness
 
 - **Owner:** the latest hard-flushed daemon frame owns restart world truth. Its
