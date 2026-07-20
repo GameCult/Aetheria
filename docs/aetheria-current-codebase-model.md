@@ -576,6 +576,10 @@ The current UI direction is Eve/CultUI:
 - the daemon's pilot surface publishes docked spatial equipment and cargo grids
   with generic Eve drop commands; Unity and browser lowerers own transient drag
   state but not fit, access, mutation, or receipts;
+- the generic EveUnity playable-world host mounts the same provider-owned pilot
+  surface as a themed UI Toolkit overlay. Aetheria owns cockpit values, menu
+  visibility, commands, and receipts; EveUnity owns only lowering and native
+  control wiring;
 - Unity still lowers local surfaces through UI Toolkit for several remaining
   menu/trade panels;
 - Brokkr should be considered just another daemon publishing Unity editor Eve

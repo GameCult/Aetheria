@@ -2692,18 +2692,25 @@ First Aetheria surfaces to publish:
    - Keep any transport bridge only if it delegates to CultMesh and protects a
      named external compatibility contract.
    - Publish Verse descriptors and state subscriptions through CultMesh.
-   - In progress: the Unity state client can now open an explicit remote
-     replica with `AetheriaRuntimeVerseClient.OpenRemoteAsync`. Snapshot reads
-     arrive through CultMesh and non-primary writes route to the daemon shard;
-     the local `.cc` scene adapter is no longer described as a live daemon
-     transport. The remaining proof is a separately running daemon, observed
-     receipts, and PlayMode reconciliation in an EveUnity-owned client.
+   - Done: the released generic EveUnity consumer connects directly to a
+     separately running Aetheria daemon, receives provider advertisements and
+     split provider-owned asset bundles, lowers the world from the live SoA
+     stream, submits gameplay commands, and reconciles provider-owned receipts.
+     The warm witness also proves pilot/map camera channel isolation. Cold CDN
+     transfer remains a separate transport-health claim and is not inferred
+     from the warm provider-bundle cache.
    - Done: publish committed facts for every applied or rejected daemon command,
      including operation-level rejection. The remote Unity adapter correlates
      those facts by command ID and emits a terminal receipt only after the
      synchronized game surface reaches the fact's source frame.
 
 6. Eve UI
+   - Done: released `org.gamecult.eve.unity-scene` `0.3.103` mounts the
+     provider-owned Eve surface through the generic UI Toolkit lowerer with a
+     packaged runtime theme. The witness inspects the mounted tree and requires
+     the live cockpit to resolve nonzero screen layout while daemon diagnostics
+     and the closed main menu remain hidden. Aetheria-specific UI code is not
+     present in EveUnity.
    - Done: publish the typed catalog operator surface from `Aetheria.State`.
    - Done: stage the Eve surface contract DTO package and UI Toolkit lowering
      package as importable Unity packages, then move their shared home into the
