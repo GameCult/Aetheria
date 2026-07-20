@@ -176,6 +176,32 @@ certificate setup fell from 153 ms of RSA generation to 27 ms of PFX loading,
 and total client-host startup fell from about 319 ms to 183 ms. The first boot
 still pays certificate creation once.
 
+### Provider-owned CDN bodies
+
+- **Owner:** the Aetheria bundle artifact set owns the immutable packed chunks
+  and manifests for the lifetime of the daemon. The TCP content server owns
+  framing and byte delivery, not storage.
+- **Inputs:** provider-authored bundle files are packed once into content-addressed
+  manifests and chunks. The control plane indexes manifests by exact record key;
+  the content plane resolves chunks by normalized SHA-256 hash.
+- **Outputs:** requested manifests remain typed CultNet snapshot records, while
+  chunk payloads travel on the dedicated TCP byte stream outside snapshot
+  messages.
+- **Derived state:** raw manifest snapshot records are serialized only when a
+  client requests that manifest. No second CultCache mirrors the packed chunk
+  set.
+- **Forbidden writers:** client-host startup must not republish provider-owned
+  chunks into an in-memory cache merely to satisfy a transport constructor, and
+  asset bodies must not fall back into batched state snapshots.
+- **Cut line:** `CultMeshTcpContentServer` accepts a provider-owned chunk resolver;
+  its CultCache constructor is now only a convenience adapter for providers that
+  genuinely keep content in CultCache.
+- **Verification layer:** CultMesh content-session and transport-modularity tests
+  stream a 700 KB provider-owned body directly and retain warm-cache reuse. On
+  the Aetheria artifact, eager CDN setup fell from about 132 ms to 1.9 ms. The
+  13 MB cold released-client transfer still requires a fresh live witness before
+  it can be claimed healthy.
+
 ### Restored-frame client readiness
 
 - **Owner:** the latest hard-flushed daemon frame owns restart world truth. Its

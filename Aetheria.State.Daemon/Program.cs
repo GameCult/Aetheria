@@ -775,17 +775,14 @@ static async Task<AetheriaClientCultMeshHost> StartClientCultMeshHostAsync(
         startupPhase.Restart();
     }
 
-    var contentCache = new CultCache(CultMesh.CreateCultCacheDocumentRegistry(
-        typeof(CultMeshCdnArtifactManifest),
-        typeof(CultMeshCdnArtifactChunk)));
-    var bundleCdnDocuments = BuildBundleCdnDocuments(node, contentCache, unityBundles, options.DaemonId);
+    var bundleCdnManifests = BuildBundleCdnManifestIndex(unityBundles);
     Trace("cdn-documents");
     var server = new TcpFramedCultNetSchemaServer(new TcpListener(
         ParseBindAddress(options.ClientCultMeshHost),
         options.ClientCultMeshPort));
     var content = new CultMeshTcpContentServer(new TcpListener(
         ParseBindAddress(options.ClientCultMeshHost),
-        options.ClientCultMeshContentPort), contentCache);
+        options.ClientCultMeshContentPort), unityBundles.ResolveChunk);
     Trace("tcp-listeners");
     var realtimeCertificate = LoadOrCreateRealtimeCertificate(
         options.ClientCultMeshAdvertiseHost,
@@ -808,7 +805,6 @@ static async Task<AetheriaClientCultMeshHost> StartClientCultMeshHostAsync(
         realtimeCertificate.Dispose();
         content.Dispose();
         server.Dispose();
-        contentCache.Dispose();
         throw;
     }
     var advertisedEndpoint = $"cultnet+tcp://{options.ClientCultMeshAdvertiseHost}:{server.LocalEndPoint.Port}";
@@ -1242,7 +1238,12 @@ static async Task<AetheriaClientCultMeshHost> StartClientCultMeshHostAsync(
                 }
             }
 
-            InjectCultMeshCdnManifestSnapshots(bundleCdnDocuments, request, response);
+            InjectCultMeshCdnManifestSnapshots(
+                node,
+                options.DaemonId,
+                bundleCdnManifests,
+                request,
+                response);
             peer.SendCultNet(response);
         }
         catch (Exception ex)
@@ -1270,7 +1271,6 @@ static async Task<AetheriaClientCultMeshHost> StartClientCultMeshHostAsync(
         content,
         realtime,
         realtimeCertificate,
-        contentCache,
         advertisedEndpoint,
         advertisedContentEndpoint,
         advertisedRealtimeEndpoint);
@@ -1347,7 +1347,9 @@ static X509Certificate2 LoadOrCreateRealtimeCertificate(string advertisedHost, s
 }
 
 static void InjectCultMeshCdnManifestSnapshots(
-    IReadOnlyDictionary<string, CultNetRawDocumentRecord> bundleCdnDocuments,
+    AetheriaStateNode node,
+    string daemonId,
+    IReadOnlyDictionary<string, CultMeshCdnArtifactManifest> bundleCdnManifests,
     CultNetSnapshotRequestMessage request,
     CultNetSnapshotResponseRawMessage response)
 {
@@ -1358,8 +1360,18 @@ static void InjectCultMeshCdnManifestSnapshots(
     var documents = new List<CultNetRawDocumentRecord>();
     foreach (var recordKey in recordKeys.Distinct(StringComparer.Ordinal))
     {
-        if (bundleCdnDocuments.TryGetValue(recordKey, out var bundleDocument))
+        if (bundleCdnManifests.TryGetValue(recordKey, out var manifest))
         {
+            var bundleDocument = node.Database.Documents.CreateRawDocumentPutMessage(
+                $"aetheria-cdn:{recordKey}",
+                new CultRecordHandle<CultMeshCdnArtifactManifest>(new CultRecordKey(recordKey)),
+                manifest,
+                new CultNetDocumentMessageOptions
+                {
+                    SourceRuntimeId = daemonId,
+                    SourceRole = "aetheria-cultmesh-cdn",
+                    Tags = ["aetheria", "cultmesh-cdn", "asset-bundle"]
+                }).Document;
             if (string.Equals(Environment.GetEnvironmentVariable("AETHERIA_TRACE_EVE_SNAPSHOTS"), "1", StringComparison.Ordinal))
                 Console.WriteLine($"Eve CDN snapshot schema={bundleDocument.SchemaId} record={recordKey}");
             documents.Add(bundleDocument);
@@ -1376,35 +1388,16 @@ static void InjectCultMeshCdnManifestSnapshots(
         .ToArray();
 }
 
-static IReadOnlyDictionary<string, CultNetRawDocumentRecord> BuildBundleCdnDocuments(
-    AetheriaStateNode node,
-    CultCache contentCache,
-    AetheriaUnityBundleArtifactSet unityBundles,
-    string daemonId)
+static IReadOnlyDictionary<string, CultMeshCdnArtifactManifest> BuildBundleCdnManifestIndex(
+    AetheriaUnityBundleArtifactSet unityBundles)
 {
-    var documents = new Dictionary<string, CultNetRawDocumentRecord>(StringComparer.Ordinal);
+    var manifests = new Dictionary<string, CultMeshCdnArtifactManifest>(StringComparer.Ordinal);
     foreach (var bundle in unityBundles.Bundles)
     {
         var artifact = bundle.Artifact;
-        CultMeshCdn.PublishAsync(contentCache, artifact).GetAwaiter().GetResult();
-        Add(artifact.ManifestKey, artifact.Manifest);
+        manifests[artifact.ManifestKey.ToString()] = artifact.Manifest;
     }
-    return documents;
-
-    void Add<T>(CultRecordKey recordKey, T document) where T : class
-    {
-        var put = node.Database.Documents.CreateRawDocumentPutMessage(
-            $"aetheria-cdn:{recordKey.Value}",
-            new CultRecordHandle<T>(recordKey),
-            document,
-            new CultNetDocumentMessageOptions
-            {
-                SourceRuntimeId = daemonId,
-                SourceRole = "aetheria-cultmesh-cdn",
-                Tags = ["aetheria", "cultmesh-cdn", "asset-bundle"]
-            });
-        documents[recordKey.Value] = put.Document;
-    }
+    return manifests;
 }
 
 static async Task InjectEveSurfaceSnapshotAsync(
@@ -3827,12 +3820,24 @@ internal sealed class AetheriaDaemonIngressState
 
 internal sealed class AetheriaUnityBundleArtifactSet
 {
+    private readonly IReadOnlyDictionary<string, CultMeshCdnArtifactChunk> _chunks;
+
     public AetheriaUnityBundleArtifactSet(IReadOnlyList<AetheriaUnityBundleArtifact> bundles)
     {
         Bundles = bundles ?? throw new ArgumentNullException(nameof(bundles));
+        var chunks = new Dictionary<string, CultMeshCdnArtifactChunk>(StringComparer.Ordinal);
+        foreach (var chunk in bundles.SelectMany(bundle => bundle.Artifact.Chunks))
+            chunks.TryAdd(CultMeshCdnArtifactChunk.CreateRecordKey(chunk).ToString(), chunk);
+        _chunks = chunks;
     }
 
     public IReadOnlyList<AetheriaUnityBundleArtifact> Bundles { get; }
+
+    public CultMeshCdnArtifactChunk? ResolveChunk(string hash)
+    {
+        var key = CultMeshCdnArtifactChunk.CreateRecordKey(hash).ToString();
+        return _chunks.TryGetValue(key, out var chunk) ? chunk : null;
+    }
 }
 
 internal sealed class AetheriaUnityBundleArtifact
@@ -3868,7 +3873,6 @@ internal sealed class AetheriaClientCultMeshHost : IAsyncDisposable
         CultMeshTcpContentServer content,
         CultMeshQuicRealtimeServer realtime,
         X509Certificate2 realtimeCertificate,
-        CultCache contentCache,
         string controlEndpoint,
         string contentEndpoint,
         string realtimeEndpoint)
@@ -3877,7 +3881,6 @@ internal sealed class AetheriaClientCultMeshHost : IAsyncDisposable
         Content = content ?? throw new ArgumentNullException(nameof(content));
         Realtime = realtime ?? throw new ArgumentNullException(nameof(realtime));
         RealtimeCertificate = realtimeCertificate ?? throw new ArgumentNullException(nameof(realtimeCertificate));
-        ContentCache = contentCache ?? throw new ArgumentNullException(nameof(contentCache));
         ControlEndpoint = controlEndpoint ?? throw new ArgumentNullException(nameof(controlEndpoint));
         ContentEndpoint = contentEndpoint ?? throw new ArgumentNullException(nameof(contentEndpoint));
         RealtimeEndpoint = realtimeEndpoint ?? throw new ArgumentNullException(nameof(realtimeEndpoint));
@@ -3887,7 +3890,6 @@ internal sealed class AetheriaClientCultMeshHost : IAsyncDisposable
     public CultMeshTcpContentServer Content { get; }
     public CultMeshQuicRealtimeServer Realtime { get; }
     private X509Certificate2 RealtimeCertificate { get; }
-    private CultCache ContentCache { get; }
     public string ControlEndpoint { get; }
     public string ContentEndpoint { get; }
     public string RealtimeEndpoint { get; }
@@ -3897,7 +3899,6 @@ internal sealed class AetheriaClientCultMeshHost : IAsyncDisposable
         await Realtime.DisposeAsync().ConfigureAwait(false);
         RealtimeCertificate.Dispose();
         Content.Dispose();
-        ContentCache.Dispose();
         Control.Dispose();
     }
 }
