@@ -77,22 +77,24 @@ under Unity `Assets/Scripts/ServerShared/Behaviors`.
   retention. A service registry contains only Aetheria's explicitly declared
   document types.
 - **Inputs:** the indexed manifest, exact singleton boot keys, and the schema
-  identities for live commands, receipts, item/loadout definitions, and
-  current run/zone/entity state.
+  identities for live commands, receipts, and loadout definitions. The latest
+  committed daemon frame supplies restored gameplay truth; source run, zone,
+  and entity records remain cold.
 - **Outputs:** a compact live CultCache working set. The runtime catalog core
   contains items, corporations, trade settings, and name-file summaries; the
   full name corpus is a separate typed cold record loaded explicitly only when
   generation needs it.
 - **Derived state:** the catalog Eve surface and ordinary daemon ticks use the
-  compact core. Authored name files remain migration/compiler inputs, not boot
+  compact core. Authored name files and source run/zone/entity documents remain
+  migration, generation, and missing-frame recovery inputs, not ordinary boot
   dependencies.
 - **Forbidden writers:** daemon boot must not rescan record pages, reread legacy
   name files, or let global assembly discovery expand its registry. A filtered
   flush must not erase cold records.
 - **Shared paths:** first import writes the indexed representation; daemon boot
-  selects its working set from that index; new-run generation uses CultCache's
-  selective pull primitive to hydrate the name corpus through the same open
-  store.
+  selects its working set from that index; new-run generation and missing-frame
+  recovery use CultCache's selective pull primitive to hydrate exact bootstrap
+  records through the same open store.
 - **Cut line:** the monolithic runtime catalog no longer embeds twelve megabytes
   of names, and menu bootstrap no longer rescans loadout pages from disk.
 - **Verification layer:** backing-store tests hold an unrelated cold page under
@@ -115,6 +117,16 @@ constructible document shapes; immutable or sparse-slot contracts retain the
 canonical MessagePack fallback. This reduced the profiled 52-page hydration
 from about 295 ms to 223 ms and cache open from about 353 ms to 296 ms. The
 1.12 MB daemon frame and 574 KB runtime catalog remain the largest hot records.
+
+The daemon frame is also the sole restored-run owner. `AetheriaRunState`,
+`AetheriaZoneState`, and `AetheriaEntitySnapshot` are bootstrap/import records;
+they are not tick-time mirrors and cannot override a playable committed frame.
+Removing their schema-wide boot hydration reduced the profiled working set from
+52 to 38 pages and one measured state-node open from 485 ms to 385 ms. If no
+playable frame exists, checkpoint reconstruction explicitly pulls the active
+run, then its referenced zones and entities by exact key. The state smoke proves
+both that these records remain cold on an ordinary daemon boot and that the
+durable fallback graph can still be recovered.
 
 Ymir reconstruction remains full replay within a session generation, but it is
 now bounded by an explicit quiescent generation rollover. When a private world

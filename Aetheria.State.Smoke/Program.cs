@@ -717,6 +717,31 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
 
     await node.FlushAsync();
 }
+await using (var bootNode = await AetheriaStateNode.OpenAsync(
+                 statePath,
+                 "aetheria-state-smoke-daemon-boot",
+                 hydrationProfile: AetheriaStateHydrationProfile.DaemonBoot))
+{
+    if (bootNode.Cache.Get<AetheriaRuntimeDaemonFrameDocument>(AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest) == null)
+        throw new InvalidOperationException("Daemon boot did not hydrate the authoritative restart frame.");
+    if (bootNode.Cache.Get<AetheriaRunState>(runKey) != null ||
+        bootNode.Cache.Get<AetheriaZoneState>(zoneKey) != null ||
+        bootNode.Cache.Get<AetheriaEntitySnapshot>(entityKey) != null)
+    {
+        throw new InvalidOperationException("Daemon boot eagerly hydrated bootstrap run, zone, or entity records.");
+    }
+
+    await bootNode.Cache.PullBackingStoreRecordsAsync(metadata =>
+        string.Equals(metadata.Key, runKey.ToString(), StringComparison.Ordinal) ||
+        string.Equals(metadata.Key, zoneKey.ToString(), StringComparison.Ordinal) ||
+        string.Equals(metadata.Key, entityKey.ToString(), StringComparison.Ordinal));
+    if (bootNode.Cache.Get<AetheriaRunState>(runKey)?.RunId != "smoke" ||
+        bootNode.Cache.Get<AetheriaZoneState>(zoneKey) == null ||
+        bootNode.Cache.Get<AetheriaEntitySnapshot>(entityKey) == null)
+    {
+        throw new InvalidOperationException("Cold bootstrap records could not be pulled explicitly for frame recovery.");
+    }
+}
 await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aetheria-state-smoke-reopen"))
 {
     var world = await reopened.MutableDocument<AetheriaWorldState>(AetheriaStateNode.WorldKey).ReadAsync();

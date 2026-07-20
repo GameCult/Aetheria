@@ -126,9 +126,6 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
         var schemaTypes = new[]
         {
             typeof(AetheriaLoadoutTemplate),
-            typeof(AetheriaRunState),
-            typeof(AetheriaZoneState),
-            typeof(AetheriaEntitySnapshot),
             typeof(AetheriaRuntimeAuthorityLeaseDocument),
             typeof(AetheriaRuntimeDaemonCommandDocument),
             typeof(AetheriaRuntimeCommittedCommandFactDocument),

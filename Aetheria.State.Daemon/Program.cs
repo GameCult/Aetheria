@@ -94,9 +94,9 @@ if (persistedRuntimeCatalog == null ||
     nativeCatalogChanged)
     await node.RefreshRuntimeCatalogAsync().ConfigureAwait(false);
 TraceStartup("runtime-catalog");
-await EnsurePlayableRunDocumentsAsync(node, options, startedAtUtc).ConfigureAwait(false);
+await EnsurePlayableRunDocumentsAsync(node, options, startedAtUtc, latestFrame).ConfigureAwait(false);
 TraceStartup("playable-run");
-await EnsureGameSessionAsync(node, options, startedAtUtc).ConfigureAwait(false);
+await EnsureGameSessionAsync(node, options, startedAtUtc, latestFrame).ConfigureAwait(false);
 TraceStartup("game-session");
 var verseHost = await EnsureVerseHostSettingsAsync(node, options, startedAtUtc).ConfigureAwait(false);
 TraceStartup("verse-host");
@@ -2964,7 +2964,8 @@ static async Task<bool> EnsureTradeValuePolicyAsync(AetheriaStateNode node, stri
 static async Task EnsurePlayableRunDocumentsAsync(
     AetheriaStateNode node,
     AetheriaDaemonHostOptions options,
-    string now)
+    string now,
+    AetheriaRuntimeDaemonFrameDocument? latestFrame)
 {
     if (options.UseTerminusFixture)
     {
@@ -2972,6 +2973,9 @@ static async Task EnsurePlayableRunDocumentsAsync(
             node, node.RuntimeCatalog().Latest(), now, options.TerminusScenario).ConfigureAwait(false);
         return;
     }
+
+    if (HasPlayableRun(latestFrame?.Run))
+        return;
 
     var settings = await node.MutableDocument<AetheriaPlayerSettings>(AetheriaStateNode.PlayerSettingsKey).ReadAsync().ConfigureAwait(false);
     if (!string.IsNullOrWhiteSpace(settings?.ActiveRunKey))
@@ -2991,15 +2995,13 @@ static async Task EnsurePlayableRunDocumentsAsync(
 static async Task EnsureGameSessionAsync(
     AetheriaStateNode node,
     AetheriaDaemonHostOptions options,
-    string now)
+    string now,
+    AetheriaRuntimeDaemonFrameDocument? latestFrame)
 {
-    var player = await node.MutableDocument<AetheriaPlayerSettings>(AetheriaStateNode.PlayerSettingsKey)
-        .ReadAsync().ConfigureAwait(false);
-    if (string.IsNullOrWhiteSpace(player?.ActiveRunKey))
-        throw new InvalidDataException("Aetheria game session requires an active daemon run.");
-    var run = await node.MutableDocument<AetheriaRunState>(new CultRecordKey(player.ActiveRunKey))
-        .ReadAsync().ConfigureAwait(false)
-        ?? throw new InvalidDataException($"Active Aetheria run is missing: {player.ActiveRunKey}");
+    var run = !options.UseTerminusFixture && HasPlayableRun(latestFrame?.Run)
+        ? latestFrame!.Run
+        : await ReadRuntimeRunCheckpointAsync(node, options.RenderSettings).ConfigureAwait(false)
+          ?? throw new InvalidDataException("Aetheria game session requires an authoritative frame or active bootstrap run.");
     var expectedMode = string.IsNullOrWhiteSpace(run.GameMode)
         ? run.IsTutorial ? AetheriaGameSessionState.AetheriaMode : AetheriaGameSessionState.TerminusMode
         : run.GameMode;
@@ -3088,7 +3090,9 @@ static async Task<AetheriaRuntimeRunCheckpointCommit?> ReadRuntimeRunCheckpointA
     if (string.IsNullOrWhiteSpace(settings?.ActiveRunKey))
         return null;
 
-    var run = await node.MutableDocument<AetheriaRunState>(new CultRecordKey(settings.ActiveRunKey)).ReadAsync().ConfigureAwait(false);
+    var run = await ReadDurableBootstrapDocumentAsync<AetheriaRunState>(
+        node,
+        new CultRecordKey(settings.ActiveRunKey)).ConfigureAwait(false);
     if (run == null)
         return null;
 
@@ -3097,7 +3101,9 @@ static async Task<AetheriaRuntimeRunCheckpointCommit?> ReadRuntimeRunCheckpointA
     var zoneKeys = run.ZoneKeys ?? Array.Empty<string>();
     for (var zoneIndex = 0; zoneIndex < zoneKeys.Length; zoneIndex++)
     {
-        var zone = await node.MutableDocument<AetheriaZoneState>(new CultRecordKey(zoneKeys[zoneIndex])).ReadAsync().ConfigureAwait(false);
+        var zone = await ReadDurableBootstrapDocumentAsync<AetheriaZoneState>(
+            node,
+            new CultRecordKey(zoneKeys[zoneIndex])).ConfigureAwait(false);
         if (zone == null)
             continue;
 
@@ -3179,7 +3185,9 @@ static async Task<AetheriaRuntimeZoneSnapshotCommit> ToRuntimeZoneAsync(
     var entities = new List<AetheriaRuntimeEntitySnapshotCommit>();
     for (var entityIndex = 0; entityIndex < entityKeys.Length; entityIndex++)
     {
-        var entity = await node.MutableDocument<AetheriaEntitySnapshot>(new CultRecordKey(entityKeys[entityIndex])).ReadAsync().ConfigureAwait(false);
+        var entity = await ReadDurableBootstrapDocumentAsync<AetheriaEntitySnapshot>(
+            node,
+            new CultRecordKey(entityKeys[entityIndex])).ConfigureAwait(false);
         if (entity != null)
             entities.Add(ToRuntimeEntity(entityKeys[entityIndex], entity, entityIndex, entityIndices, catalog));
     }
@@ -3210,6 +3218,20 @@ static async Task<AetheriaRuntimeZoneSnapshotCommit> ToRuntimeZoneAsync(
                 .DefaultIfEmpty(-1)
                 .Max() + 1)
     };
+}
+
+static async Task<TDocument?> ReadDurableBootstrapDocumentAsync<TDocument>(
+    AetheriaStateNode node,
+    CultRecordKey key)
+    where TDocument : class
+{
+    if (node.Cache.Get<TDocument>(key) == null)
+    {
+        await node.Cache.PullBackingStoreRecordsAsync(metadata =>
+            string.Equals(metadata.Key, key.ToString(), StringComparison.Ordinal)).ConfigureAwait(false);
+    }
+
+    return await node.MutableDocument<TDocument>(key).ReadAsync().ConfigureAwait(false);
 }
 
 static AetheriaRuntimeEntitySnapshotCommit ToRuntimeEntity(
