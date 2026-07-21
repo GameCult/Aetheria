@@ -90,7 +90,8 @@ namespace Aetheria.Editor
             using (new EditorGUILayout.HorizontalScope())
             {
                 GUI.enabled = !AetheriaDaemonDevelopmentController.IsStarting &&
-                              !AetheriaDaemonDevelopmentController.IsRunning;
+                              !AetheriaDaemonDevelopmentController.IsRunning &&
+                              AetheriaDaemonDevelopmentController.IsPrepared;
                 if (GUILayout.Button("Start daemon"))
                     AetheriaDaemonDevelopmentController.Start();
                 GUI.enabled = AetheriaDaemonDevelopmentController.IsRunning ||
@@ -102,13 +103,16 @@ namespace Aetheria.Editor
 
             using (new EditorGUILayout.HorizontalScope())
             {
-                GUI.enabled = AetheriaDaemonDevelopmentController.IsRunning;
+                GUI.enabled = AetheriaDaemonDevelopmentController.IsRunning &&
+                              !AetheriaDaemonDevelopmentController.IsStarting;
                 if (GUILayout.Button("Restart"))
                     AetheriaDaemonDevelopmentController.Restart();
                 GUI.enabled = !AetheriaDaemonDevelopmentController.IsRunning &&
                               !AetheriaDaemonDevelopmentController.IsStarting;
-                if (GUILayout.Button("Reimport state & start"))
-                    AetheriaDaemonDevelopmentController.Start(forceImport: true);
+                if (GUILayout.Button("Build daemon"))
+                    AetheriaDaemonDevelopmentController.Build();
+                if (GUILayout.Button("Reimport state & build"))
+                    AetheriaDaemonDevelopmentController.Build(forceImport: true);
                 GUI.enabled = true;
             }
 
@@ -184,6 +188,7 @@ namespace Aetheria.Editor
 
         public static bool IsRunning => TryRefreshDaemon();
         public static bool IsStarting => _launcher != null && !_launcher.HasExited;
+        public static bool IsPrepared => File.Exists(DaemonDllPath) && File.Exists(DotNetExePath);
         public static string Status => _status;
         public static string LastError => _lastError;
         public static string Endpoint => $"cultnet+tcp://127.0.0.1:{Port}";
@@ -200,10 +205,12 @@ namespace Aetheria.Editor
         private static string ErrorLogPath => Path.Combine(ArtifactsRoot, "daemon.error.log");
         private static string LauncherLogPath => Path.Combine(ArtifactsRoot, "launcher.log");
         private static string LauncherErrorPath => Path.Combine(ArtifactsRoot, "launcher.error.log");
-        private static string DaemonExePath => Path.Combine(
-            ProjectRoot, "Aetheria.State.Daemon", "bin", "Debug", "net10.0", "Aetheria.State.Daemon.exe");
+        private static string DaemonDllPath => Path.Combine(
+            ProjectRoot, "Aetheria.State.Daemon", "bin", "Debug", "net10.0", "Aetheria.State.Daemon.dll");
+        private static string DotNetExePath => Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "dotnet", "dotnet.exe");
 
-        public static void Start(bool forceImport = false)
+        public static void Start()
         {
             if (TryRefreshDaemon())
             {
@@ -213,8 +220,27 @@ namespace Aetheria.Editor
             if (IsStarting)
                 return;
 
+            try
+            {
+                LaunchDaemon();
+            }
+            catch (Exception exception)
+            {
+                _lastError = exception.ToString();
+                _status = "Daemon launch failed";
+                Changed?.Invoke();
+            }
+        }
+
+        public static void Build(bool forceImport = false)
+        {
+            if (TryRefreshDaemon() || IsStarting)
+                return;
+
             Directory.CreateDirectory(ArtifactsRoot);
             File.Delete(PidPath);
+            File.WriteAllText(LauncherLogPath, "");
+            File.WriteAllText(LauncherErrorPath, "");
             _lastError = "";
             ApplyClientEnvironment();
 
@@ -322,17 +348,8 @@ namespace Aetheria.Editor
                 }
                 if (exitCode == 0 && !TryRefreshDaemon())
                 {
-                    try
-                    {
-                        LaunchDaemon();
-                    }
-                    catch (Exception exception)
-                    {
-                        _lastError = exception.ToString();
-                        _status = "Daemon launch failed";
-                        Changed?.Invoke();
-                        return;
-                    }
+                    _status = "Debug daemon prepared";
+                    Changed?.Invoke();
                 }
             }
 
@@ -519,26 +536,32 @@ namespace Aetheria.Editor
 
         private static void LaunchDaemon()
         {
-            if (!File.Exists(DaemonExePath))
-                throw new FileNotFoundException("Prepared Aetheria Debug daemon is missing.", DaemonExePath);
+            if (!File.Exists(DaemonDllPath))
+                throw new FileNotFoundException("Prepared Aetheria Debug daemon is missing. Use Build daemon first.", DaemonDllPath);
+            if (!File.Exists(DotNetExePath))
+                throw new FileNotFoundException("The system .NET host required by the Aetheria daemon is missing.", DotNetExePath);
 
             File.WriteAllText(LogPath, "");
             File.WriteAllText(ErrorLogPath, "");
             var arguments =
-                $"--root {Quote(ProjectRoot)} " +
+                $"{Quote(DaemonDllPath)} --root {Quote(ProjectRoot)} " +
                 $"--state {Quote(StatePath)} " +
                 "--client-cultmesh-host 127.0.0.1 " +
                 "--client-cultmesh-advertise-host 127.0.0.1 " +
                 $"--client-cultmesh-port {Port} " +
                 "--tick-interval-ms 20 --fixed-delta-ms 20 --no-odin-announcements";
-            var daemon = Process.Start(new ProcessStartInfo(DaemonExePath, arguments)
+            var startInfo = new ProcessStartInfo(DotNetExePath, arguments)
             {
                 WorkingDirectory = ProjectRoot,
                 UseShellExecute = false,
                 CreateNoWindow = true,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true
-            }) ?? throw new InvalidOperationException("Aetheria Debug daemon process did not start.");
+            };
+            startInfo.EnvironmentVariables["DOTNET_ROOT"] = Path.GetDirectoryName(DotNetExePath);
+            startInfo.EnvironmentVariables.Remove("DOTNET_HOST_PATH");
+            var daemon = Process.Start(startInfo) ??
+                         throw new InvalidOperationException("Aetheria Debug daemon process did not start.");
             daemon.EnableRaisingEvents = true;
             daemon.Exited += (_, __) =>
             {

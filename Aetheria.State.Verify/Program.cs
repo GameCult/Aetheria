@@ -1357,14 +1357,19 @@ static void RequireClientTransportPlaneOwnership(string root)
             "Aetheria editor reimport does not reset every daemon-private Ymir state path: " +
             string.Join(", ", missingEditorResetSymbols));
     if (editorLauncher.Contains("Start-Process", StringComparison.Ordinal) ||
-        !editorController.Contains("Process.Start(new ProcessStartInfo(DaemonExePath, arguments)", StringComparison.Ordinal) ||
+        !editorController.Contains("public static void Start()", StringComparison.Ordinal) ||
+        !editorController.Contains("public static void Build(bool forceImport = false)", StringComparison.Ordinal) ||
+        !editorController.Contains("Process.Start(startInfo)", StringComparison.Ordinal) ||
+        !editorController.Contains("new ProcessStartInfo(DotNetExePath, arguments)", StringComparison.Ordinal) ||
+        !editorController.Contains("DOTNET_ROOT", StringComparison.Ordinal) ||
+        !editorController.Contains("_status = \"Debug daemon prepared\"", StringComparison.Ordinal) ||
         !editorController.Contains("SessionState.SetInt(ProcessIdSessionKey, daemon.Id)", StringComparison.Ordinal) ||
         editorController.Contains("playModeStateChanged", StringComparison.Ordinal) ||
         editorController.Contains("_enterPlayWhenReady", StringComparison.Ordinal) ||
         editorController.Contains("Start & Play", StringComparison.Ordinal) ||
         editorController.Contains("Start before Play", StringComparison.Ordinal))
         throw new InvalidOperationException(
-            "The daemon window must directly own its process without coupling build, launch, or shutdown to Unity Play lifecycle.");
+            "The daemon window must independently build and launch through the system .NET host without coupling either operation to Unity Play lifecycle.");
 
     Console.WriteLine("Client transport ownership: Ymir restores before transport listen; the daemon window owns an independent prepared Debug daemon and matching private state");
 }

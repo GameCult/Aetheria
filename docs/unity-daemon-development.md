@@ -4,12 +4,17 @@ Open `Aetheria.Unity` in Unity and choose **Aetheria > Daemon Development**.
 This is the interactive development path. The released-package witness remains
 the automated integration proof and is not required for ordinary iteration.
 
-The window synchronously builds `Aetheria.State.Daemon` in
-`bin/Debug/net10.0` and imports an isolated development state under
-`Aetheria.Unity/Build` when necessary. After preparation succeeds, the Unity
-editor directly launches and owns the daemon process, its PID, and its output
-streams. The generic EveUnity client connects directly to the daemon's local
-CultMesh endpoint. Odin is not part of this path.
+**Build daemon** explicitly builds `Aetheria.State.Daemon` in
+`bin/Debug/net10.0`. **Reimport state & build** also replaces the isolated
+development state under `Aetheria.Unity/Build`. **Start daemon** launches the
+already-prepared DLL immediately; it never performs a build. The editor owns
+the daemon process, its PID, and its output streams. The generic EveUnity
+client connects directly to the daemon's local CultMesh endpoint. Odin is not
+part of this path.
+
+The daemon is launched by the installed system .NET host rather than Unity's
+embedded runtime environment. This keeps .NET 10 host resolution deterministic
+and preserves managed startup and error output in the daemon logs.
 
 The daemon lifecycle is independent of Unity Play Mode. Play never builds,
 starts, restarts, or stops the daemon. Entering Play connects a generic client;
@@ -31,15 +36,17 @@ being debugged.
 
 ## Normal loop
 
-1. Press **Start daemon** and wait for the window to report the live endpoint.
-2. Enter and leave Unity Play Mode normally. The daemon remains running across
+1. Press **Build daemon** after changing daemon code. Use **Reimport state &
+   build** only when the isolated development state must be replaced.
+2. Press **Start daemon** and wait for the window to report the live endpoint.
+3. Enter and leave Unity Play Mode normally. The daemon remains running across
    client sessions.
-3. Edit and inspect the generic EveUnity-lowered world in Play Mode.
-4. Use Unity Pause to submit the advertised `simulation.pause` action to the
+4. Edit and inspect the generic EveUnity-lowered world in Play Mode.
+5. Use Unity Pause to submit the advertised `simulation.pause` action to the
    daemon. Unity unpause submits `simulation.rate.realtime`.
-5. While paused, use **Advance one step** to commit exactly one fixed daemon
+6. While paused, use **Advance one step** to commit exactly one fixed daemon
    simulation step.
-6. Stop, restart, or reimport the isolated state explicitly from the same
+7. Stop or restart the daemon explicitly from the same
    window.
 
 Unity's editor clock is never gameplay authority. The pause and step controls
