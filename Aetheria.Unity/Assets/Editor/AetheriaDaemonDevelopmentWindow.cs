@@ -188,7 +188,7 @@ namespace Aetheria.Editor
 
         public static bool IsRunning => TryRefreshDaemon();
         public static bool IsStarting => _launcher != null && !_launcher.HasExited;
-        public static bool IsPrepared => File.Exists(DaemonDllPath) && File.Exists(DotNetExePath);
+        public static bool IsPrepared => File.Exists(DaemonExePath) && Directory.Exists(DotNetRootPath);
         public static string Status => _status;
         public static string LastError => _lastError;
         public static string Endpoint => $"cultnet+tcp://127.0.0.1:{Port}";
@@ -205,10 +205,10 @@ namespace Aetheria.Editor
         private static string ErrorLogPath => Path.Combine(ArtifactsRoot, "daemon.error.log");
         private static string LauncherLogPath => Path.Combine(ArtifactsRoot, "launcher.log");
         private static string LauncherErrorPath => Path.Combine(ArtifactsRoot, "launcher.error.log");
-        private static string DaemonDllPath => Path.Combine(
-            ProjectRoot, "Aetheria.State.Daemon", "bin", "Debug", "net10.0", "Aetheria.State.Daemon.dll");
-        private static string DotNetExePath => Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "dotnet", "dotnet.exe");
+        private static string DaemonExePath => Path.Combine(
+            ProjectRoot, "Aetheria.State.Daemon", "bin", "Debug", "net10.0", "Aetheria.State.Daemon.exe");
+        private static string DotNetRootPath => Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "dotnet");
 
         public static void Start()
         {
@@ -536,21 +536,22 @@ namespace Aetheria.Editor
 
         private static void LaunchDaemon()
         {
-            if (!File.Exists(DaemonDllPath))
-                throw new FileNotFoundException("Prepared Aetheria Debug daemon is missing. Use Build daemon first.", DaemonDllPath);
-            if (!File.Exists(DotNetExePath))
-                throw new FileNotFoundException("The system .NET host required by the Aetheria daemon is missing.", DotNetExePath);
+            if (!File.Exists(DaemonExePath))
+                throw new FileNotFoundException("Prepared Aetheria Debug daemon is missing. Use Build daemon first.", DaemonExePath);
+            if (!Directory.Exists(DotNetRootPath))
+                throw new DirectoryNotFoundException(
+                    $"The system .NET runtime root required by the Aetheria daemon is missing: {DotNetRootPath}");
 
             File.WriteAllText(LogPath, "");
             File.WriteAllText(ErrorLogPath, "");
             var arguments =
-                $"{Quote(DaemonDllPath)} --root {Quote(ProjectRoot)} " +
+                $"--root {Quote(ProjectRoot)} " +
                 $"--state {Quote(StatePath)} " +
                 "--client-cultmesh-host 127.0.0.1 " +
                 "--client-cultmesh-advertise-host 127.0.0.1 " +
                 $"--client-cultmesh-port {Port} " +
                 "--tick-interval-ms 20 --fixed-delta-ms 20 --no-odin-announcements";
-            var startInfo = new ProcessStartInfo(DotNetExePath, arguments)
+            var startInfo = new ProcessStartInfo(DaemonExePath, arguments)
             {
                 WorkingDirectory = ProjectRoot,
                 UseShellExecute = false,
@@ -558,7 +559,8 @@ namespace Aetheria.Editor
                 RedirectStandardOutput = true,
                 RedirectStandardError = true
             };
-            startInfo.EnvironmentVariables["DOTNET_ROOT"] = Path.GetDirectoryName(DotNetExePath);
+            startInfo.EnvironmentVariables["DOTNET_ROOT"] = DotNetRootPath;
+            startInfo.EnvironmentVariables["DOTNET_ROOT_X64"] = DotNetRootPath;
             startInfo.EnvironmentVariables.Remove("DOTNET_HOST_PATH");
             var daemon = Process.Start(startInfo) ??
                          throw new InvalidOperationException("Aetheria Debug daemon process did not start.");

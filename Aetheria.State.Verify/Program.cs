@@ -1339,9 +1339,23 @@ static void RequireClientTransportPlaneOwnership(string root)
     var clientHostIndex = daemon.IndexOf(
         "await using var cultMeshClientHost = await StartClientCultMeshHostAsync(",
         StringComparison.Ordinal);
-    if (restoreIndex < 0 || clientHostIndex < 0 || clientHostIndex < restoreIndex)
+    var readyGateIndex = daemon.IndexOf(
+        "if (!options.Once && !options.UseTerminusFixture)",
+        StringComparison.Ordinal);
+    var demandIndex = daemon.IndexOf(
+        "var playableWorldRequested = new TaskCompletionSource<object?>",
+        StringComparison.Ordinal);
+    var gameSessionIndex = daemon.IndexOf(
+        "await EnsureGameSessionAsync(node, options, startedAtUtc, latestFrame)",
+        StringComparison.Ordinal);
+    if (restoreIndex < 0 || clientHostIndex < 0 || readyGateIndex < 0 || demandIndex < 0 || gameSessionIndex < 0 ||
+        clientHostIndex > readyGateIndex || demandIndex > readyGateIndex ||
+        readyGateIndex > gameSessionIndex || gameSessionIndex > restoreIndex ||
+        !daemon.Contains("Aetheria daemon ready; waiting for a client to load or generate a world.", StringComparison.Ordinal) ||
+        !daemon.Contains("if (playableWorldRequested.Task.IsCompleted", StringComparison.Ordinal) ||
+        !daemon.Contains("if (await ApplyRequestedNewGameSessionAsync(node, options)", StringComparison.Ordinal))
         throw new InvalidOperationException(
-            "Aetheria client transport must not listen before daemon-private Ymir restoration succeeds.");
+            "Aetheria daemon startup must expose transport in ready mode and defer game-session/Ymir activation until playable-world demand or New Game.");
 
     var requiredEditorResetSymbols = new[]
     {
@@ -1360,8 +1374,9 @@ static void RequireClientTransportPlaneOwnership(string root)
         !editorController.Contains("public static void Start()", StringComparison.Ordinal) ||
         !editorController.Contains("public static void Build(bool forceImport = false)", StringComparison.Ordinal) ||
         !editorController.Contains("Process.Start(startInfo)", StringComparison.Ordinal) ||
-        !editorController.Contains("new ProcessStartInfo(DotNetExePath, arguments)", StringComparison.Ordinal) ||
+        !editorController.Contains("new ProcessStartInfo(DaemonExePath, arguments)", StringComparison.Ordinal) ||
         !editorController.Contains("DOTNET_ROOT", StringComparison.Ordinal) ||
+        !editorController.Contains("DOTNET_ROOT_X64", StringComparison.Ordinal) ||
         !editorController.Contains("_status = \"Debug daemon prepared\"", StringComparison.Ordinal) ||
         !editorController.Contains("SessionState.SetInt(ProcessIdSessionKey, daemon.Id)", StringComparison.Ordinal) ||
         editorController.Contains("playModeStateChanged", StringComparison.Ordinal) ||
@@ -1371,7 +1386,7 @@ static void RequireClientTransportPlaneOwnership(string root)
         throw new InvalidOperationException(
             "The daemon window must independently build and launch through the system .NET host without coupling either operation to Unity Play lifecycle.");
 
-    Console.WriteLine("Client transport ownership: Ymir restores before transport listen; the daemon window owns an independent prepared Debug daemon and matching private state");
+    Console.WriteLine("Client transport ownership: ready transport precedes demand-gated game/Ymir activation; the daemon window owns an independent prepared Debug apphost and matching private state");
 }
 
 static void RequireDaemonPlayableRunGenerationAuthority(string root)

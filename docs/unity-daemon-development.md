@@ -7,19 +7,28 @@ the automated integration proof and is not required for ordinary iteration.
 **Build daemon** explicitly builds `Aetheria.State.Daemon` in
 `bin/Debug/net10.0`. **Reimport state & build** also replaces the isolated
 development state under `Aetheria.Unity/Build`. **Start daemon** launches the
-already-prepared DLL immediately; it never performs a build. The editor owns
+already-prepared Debug apphost immediately; it never performs a build. The editor owns
 the daemon process, its PID, and its output streams. The generic EveUnity
 client connects directly to the daemon's local CultMesh endpoint. Odin is not
 part of this path.
 
-The daemon is launched by the installed system .NET host rather than Unity's
-embedded runtime environment. This keeps .NET 10 host resolution deterministic
-and preserves managed startup and error output in the daemon logs.
+The named daemon apphost is launched with both system .NET runtime-root
+variables pinned explicitly rather than inheriting Unity's embedded runtime
+environment. This keeps .NET 10 host resolution deterministic while preserving
+the `Aetheria.State.Daemon` process identity used for ownership, Rider attach,
+and domain-reload reattachment.
 
 The daemon lifecycle is independent of Unity Play Mode. Play never builds,
 starts, restarts, or stops the daemon. Entering Play connects a generic client;
 leaving Play drops that client while the authoritative daemon remains alive and
 ready for the next connection.
+
+Starting the daemon does not create, load, or step a game world. It starts the
+typed state boundary and CultMesh transport in `ready` mode. A playable-world
+subscription loads an existing run; the advertised New Game command generates
+a new run. Only that activation boundary opens Ymir persistence and starts the
+fixed simulation clock. A dropped client therefore leaves the daemon and saved
+world alive without making Unity Play Mode a lifecycle authority.
 
 The editor connects through the daemon's `cultnet+tcp` control endpoint. The
 advertised session then selects the dedicated content and QUIC realtime planes;
@@ -73,7 +82,7 @@ resumes; it does not simulate through the breakpoint.
 - Daemon stderr: `Aetheria.Unity/Build/DaemonDevelopment/daemon.error.log`
 - Preparation logs: `Aetheria.Unity/Build/DaemonDevelopment/launcher*.log`
 
-`Reimport state & start` deletes only the isolated development `.cc` file, its
+`Reimport state & build` deletes only the isolated development `.cc` file, its
 `.cultmesh` (or legacy `.records`) sidecar, and the matching daemon-private
 `.ymir.cc` journal store before importing it again. It does not touch
 `GameData`, the source catalog, or another witness/run state.

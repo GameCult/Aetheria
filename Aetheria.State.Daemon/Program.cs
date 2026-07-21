@@ -73,10 +73,6 @@ if (persistedRuntimeCatalog == null ||
     nativeCatalogChanged)
     await node.RefreshRuntimeCatalogAsync().ConfigureAwait(false);
 TraceStartup("runtime-catalog");
-await EnsurePlayableRunDocumentsAsync(node, options, startedAtUtc, latestFrame).ConfigureAwait(false);
-TraceStartup("playable-run");
-await EnsureGameSessionAsync(node, options, startedAtUtc, latestFrame).ConfigureAwait(false);
-TraceStartup("game-session");
 var verseHost = await EnsureVerseHostSettingsAsync(node, options, startedAtUtc).ConfigureAwait(false);
 TraceStartup("verse-host");
 await EnsureVerseAuthorityPolicyAsync(node, options).ConfigureAwait(false);
@@ -86,13 +82,86 @@ await PublishRuntimeSessionAsync(node, options, startedAtUtc, "starting").Config
 TraceStartup("runtime-session");
 await PublishStateSurfacesAsync(node, options, startedAtUtc).ConfigureAwait(false);
 TraceStartup("state-surfaces");
+var ingressState = new AetheriaDaemonIngressState();
+await RefreshControlPlaneInputsAsync(node, ingressState).ConfigureAwait(false);
+await using var cultMeshClientHost = await StartClientCultMeshHostAsync(
+    node, options, unityBundles, () => latestFrame).ConfigureAwait(false);
+TraceStartup("client-host");
+Console.WriteLine($"Aetheria client CultMesh endpoint: {cultMeshClientHost.ControlEndpoint}");
+Console.WriteLine($"Aetheria client CDN endpoint: {cultMeshClientHost.ContentEndpoint}");
+Console.WriteLine($"Aetheria client realtime endpoint: {cultMeshClientHost.RealtimeEndpoint}");
+Console.WriteLine($"Aetheria daemon transport-ready in {startup.Elapsed.TotalMilliseconds:0.###}ms.");
+using var clientSubscriptions = new CultNetDatabaseSubscriptionServer(cultMeshClientHost.Control, node.Database);
+var playableWorldRequested = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+clientSubscriptions.DemandChanged += demand =>
+{
+    if (RequestsPlayableWorld(demand))
+        playableWorldRequested.TrySetResult(null);
+};
+var managedViewportDemand = new AetheriaManagedViewportDemandState();
+clientSubscriptions.DemandChanged += managedViewportDemand.Observe;
+if (traceClientTransport)
+    clientSubscriptions.DemandChanged += demand => Console.WriteLine(
+        $"CultMesh state demand consumer={demand.ConsumerRuntimeId} subscription={demand.SubscriptionId} " +
+        $"active={demand.Active} sameMachine={demand.SameMachine} " +
+        $"records=[{string.Join(",", demand.RecordKeys)}] schemas=[{string.Join(",", demand.SchemaIds)}] " +
+        $"bodies=[{string.Join(",", demand.BodyIds)}] transports=[{string.Join(",", demand.SupportedBodyTransports)}]");
+using var bodyDemand = new CultMeshBodyDemandTracker(clientSubscriptions);
+using var soaPublisher = new AetheriaRuntimeDaemonSoaFramePublisher(
+    DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+    bodyDemand);
+var stopped = new TaskCompletionSource<object?>();
+Console.CancelKeyPress += (_, eventArgs) =>
+{
+    eventArgs.Cancel = true;
+    stopped.TrySetResult(null);
+};
+
+if (!options.Once && !options.UseTerminusFixture)
+{
+    await PublishRuntimeSessionAsync(node, options, startedAtUtc, "ready").ConfigureAwait(false);
+    Console.WriteLine("Aetheria daemon ready; waiting for a client to load or generate a world.");
+    while (!stopped.Task.IsCompleted)
+    {
+        ThrowIfClientHostFaulted(cultMeshClientHost);
+        await AcceptCoreEveInvocationsAsync(node, options, latestFrame).ConfigureAwait(false);
+        await AcceptEveCommandsAsync(node, options, ingressState).ConfigureAwait(false);
+        if (await ApplyRequestedNewGameSessionAsync(node, options).ConfigureAwait(false))
+        {
+            latestFrame = null;
+            break;
+        }
+
+        if (playableWorldRequested.Task.IsCompleted &&
+            (HasPlayableRun(latestFrame?.Run) ||
+             HasPlayableRun(await ReadRuntimeRunCheckpointAsync(node, options.RenderSettings).ConfigureAwait(false))))
+            break;
+
+        var completed = await Task.WhenAny(stopped.Task, Task.Delay(options.TickInterval)).ConfigureAwait(false);
+        if (completed == stopped.Task)
+            break;
+    }
+
+    if (stopped.Task.IsCompleted)
+    {
+        await PublishRuntimeSessionAsync(node, options, startedAtUtc, "stopped").ConfigureAwait(false);
+        return;
+    }
+}
+else
+{
+    await EnsurePlayableRunDocumentsAsync(node, options, startedAtUtc, latestFrame).ConfigureAwait(false);
+    TraceStartup("playable-run");
+}
+
+await EnsureGameSessionAsync(node, options, startedAtUtc, latestFrame).ConfigureAwait(false);
+TraceStartup("game-session");
 using var physicsPersistence = await AetheriaYmirPersistenceCoordinator.OpenAsync(
     node,
     worldPhysics,
     latestFrame).ConfigureAwait(false);
 TraceStartup("ymir-persistence");
 var nextApiPublicationUtc = DateTimeOffset.UtcNow;
-var ingressState = new AetheriaDaemonIngressState();
 var hotState = new AetheriaHotEntityPublicationState();
 var reactiveSurfaceState = new AetheriaReactiveSurfacePublicationState();
 var publishRestoredFrame = !options.Once &&
@@ -133,26 +202,6 @@ if (!publishRestoredFrame)
         publishTopology: true).ConfigureAwait(false);
 }
 TraceStartup("client-bootstrap");
-await using var cultMeshClientHost = await StartClientCultMeshHostAsync(
-    node, options, unityBundles, () => latestFrame).ConfigureAwait(false);
-TraceStartup("client-host");
-Console.WriteLine($"Aetheria client CultMesh endpoint: {cultMeshClientHost.ControlEndpoint}");
-Console.WriteLine($"Aetheria client CDN endpoint: {cultMeshClientHost.ContentEndpoint}");
-Console.WriteLine($"Aetheria client realtime endpoint: {cultMeshClientHost.RealtimeEndpoint}");
-Console.WriteLine($"Aetheria daemon transport-ready in {startup.Elapsed.TotalMilliseconds:0.###}ms.");
-using var clientSubscriptions = new CultNetDatabaseSubscriptionServer(cultMeshClientHost.Control, node.Database);
-var managedViewportDemand = new AetheriaManagedViewportDemandState();
-clientSubscriptions.DemandChanged += managedViewportDemand.Observe;
-if (traceClientTransport)
-    clientSubscriptions.DemandChanged += demand => Console.WriteLine(
-        $"CultMesh state demand consumer={demand.ConsumerRuntimeId} subscription={demand.SubscriptionId} " +
-        $"active={demand.Active} sameMachine={demand.SameMachine} " +
-        $"records=[{string.Join(",", demand.RecordKeys)}] schemas=[{string.Join(",", demand.SchemaIds)}] " +
-        $"bodies=[{string.Join(",", demand.BodyIds)}] transports=[{string.Join(",", demand.SupportedBodyTransports)}]");
-using var bodyDemand = new CultMeshBodyDemandTracker(clientSubscriptions);
-using var soaPublisher = new AetheriaRuntimeDaemonSoaFramePublisher(
-    DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-    bodyDemand);
 ThrowIfClientHostFaulted(cultMeshClientHost);
 await PublishHotEntityStateAsync(
     node, soaPublisher, hotState, latestFrame!, ingressState.Catalog, cultMeshClientHost).ConfigureAwait(false);
@@ -180,13 +229,6 @@ if (options.Once)
     await PublishRuntimeSessionAsync(node, options, startedAtUtc, "completed").ConfigureAwait(false);
     return;
 }
-var stopped = new TaskCompletionSource<object?>();
-Console.CancelKeyPress += (_, eventArgs) =>
-{
-    eventArgs.Cancel = true;
-    stopped.TrySetResult(null);
-};
-
 await PublishRuntimeSessionAsync(node, options, startedAtUtc, "running").ConfigureAwait(false);
 Console.WriteLine("Aetheria Verse daemon is running. Press Ctrl+C to stop.");
 
@@ -257,6 +299,15 @@ static void ThrowIfClientHostFaulted(AetheriaClientCultMeshHost host)
             "Aetheria client CultMesh QUIC realtime host faulted.",
             host.Realtime.BackgroundFailure.GetAwaiter().GetResult());
 }
+
+static bool RequestsPlayableWorld(CultNetDatabaseSubscriptionDemand demand) =>
+    demand.Active &&
+    (demand.RecordKeys.Any(key =>
+         string.Equals(key, AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest.ToString(), StringComparison.Ordinal) ||
+         string.Equals(key, AetheriaRuntimeVerseRecordKeys.DaemonGameSurface.ToString(), StringComparison.Ordinal) ||
+         string.Equals(key, AetheriaRuntimeVerseRecordKeys.DaemonGameReactiveSurface.ToString(), StringComparison.Ordinal)) ||
+     demand.SchemaIds.Contains(AetheriaRuntimeDaemonSchemas.Frame, StringComparer.Ordinal) ||
+     demand.BodyIds.Contains(AetheriaRuntimeDaemonSoaFramePublisher.BodyId, StringComparer.Ordinal));
 
 static async Task<AetheriaRuntimeDaemonTickResult> TickAsync(
     AetheriaStateNode node,
