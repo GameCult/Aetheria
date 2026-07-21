@@ -4,11 +4,12 @@ Open `Aetheria.Unity` in Unity and choose **Aetheria > Daemon Development**.
 This is the interactive development path. The released-package witness remains
 the automated integration proof and is not required for ordinary iteration.
 
-The window builds and launches `Aetheria.State.Daemon` from
-`bin/Debug/net10.0`, imports an isolated development state under
-`Aetheria.Unity/Build` when necessary, and configures the generic EveUnity
-client to connect directly to the daemon's local CultMesh endpoint. Odin is not
-part of this path.
+The window synchronously builds `Aetheria.State.Daemon` in
+`bin/Debug/net10.0` and imports an isolated development state under
+`Aetheria.Unity/Build` when necessary. After preparation succeeds, the Unity
+editor directly launches and owns the daemon process, its PID, and its output
+streams. The generic EveUnity client connects directly to the daemon's local
+CultMesh endpoint. Odin is not part of this path.
 
 The editor connects through the daemon's `cultnet+tcp` control endpoint. The
 advertised session then selects the dedicated content and QUIC realtime planes;
@@ -58,6 +59,7 @@ resumes; it does not simulate through the breakpoint.
 - Daemon stderr: `Aetheria.Unity/Build/DaemonDevelopment/daemon.error.log`
 - Preparation logs: `Aetheria.Unity/Build/DaemonDevelopment/launcher*.log`
 
-`Reimport state & start` deletes only the isolated development `.cc` file and
-its `.cultmesh` (or legacy `.records`) sidecar before importing it again. It
-does not touch `GameData`, the source catalog, or another witness/run state.
+`Reimport state & start` deletes only the isolated development `.cc` file, its
+`.cultmesh` (or legacy `.records`) sidecar, and the matching daemon-private
+`.ymir.cc` journal store before importing it again. It does not touch
+`GameData`, the source catalog, or another witness/run state.

@@ -1,10 +1,6 @@
 param(
   [Parameter(Mandatory = $true)] [string] $Root,
   [Parameter(Mandatory = $true)] [string] $State,
-  [Parameter(Mandatory = $true)] [int] $Port,
-  [Parameter(Mandatory = $true)] [string] $PidFile,
-  [Parameter(Mandatory = $true)] [string] $LogFile,
-  [Parameter(Mandatory = $true)] [string] $ErrorLogFile,
   [Parameter(Mandatory = $true)] [string] $CultLibRoot,
   [Parameter(Mandatory = $true)] [string] $YmirRoot,
   [Parameter(Mandatory = $true)] [string] $EveUnityRoot,
@@ -19,6 +15,8 @@ $importProject = Join-Path $rootPath "Aetheria.State.Import\Aetheria.State.Impor
 $daemonExe = Join-Path $rootPath "Aetheria.State.Daemon\bin\Debug\net10.0\Aetheria.State.Daemon.exe"
 $recordsPath = "$statePath.records"
 $cultMeshPath = [IO.Path]::ChangeExtension($statePath, ".cultmesh")
+$ymirStatePath = "$statePath.ymir.cc"
+$ymirRecordsPath = "$ymirStatePath.records"
 $cultLibPath = [IO.Path]::GetFullPath($CultLibRoot)
 $ymirPath = [IO.Path]::GetFullPath($YmirRoot)
 $eveUnityPath = [IO.Path]::GetFullPath($EveUnityRoot)
@@ -30,8 +28,6 @@ foreach ($required in @($daemonProject, $importProject, $cultLibPath, $ymirPath,
 }
 
 New-Item -ItemType Directory -Force -Path (Split-Path -Parent $statePath) | Out-Null
-New-Item -ItemType Directory -Force -Path (Split-Path -Parent $PidFile) | Out-Null
-Remove-Item -LiteralPath $PidFile -Force -ErrorAction SilentlyContinue
 
 & dotnet build $daemonProject -c Debug --nologo `
   "-p:CultLibRoot=$cultLibPath" "-p:YmirRoot=$ymirPath" "-p:EveUnityRoot=$eveUnityPath"
@@ -40,7 +36,7 @@ if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $daemonExe)) {
 }
 
 if ($ForceImport) {
-  foreach ($ownedStatePath in @($statePath, $recordsPath, $cultMeshPath)) {
+  foreach ($ownedStatePath in @($statePath, $recordsPath, $cultMeshPath, $ymirStatePath, $ymirRecordsPath)) {
     if (Test-Path -LiteralPath $ownedStatePath) {
       Remove-Item -LiteralPath $ownedStatePath -Recurse -Force
     }
@@ -59,26 +55,4 @@ if (-not $hasImportedState) {
   }
 }
 
-$daemonArguments = @(
-  "--root", $rootPath,
-  "--state", $statePath,
-  "--client-cultmesh-host", "127.0.0.1",
-  "--client-cultmesh-advertise-host", "127.0.0.1",
-  "--client-cultmesh-port", $Port,
-  "--tick-interval-ms", 20,
-  "--fixed-delta-ms", 20,
-  "--no-odin-announcements"
-)
-$daemon = Start-Process -FilePath $daemonExe `
-  -ArgumentList $daemonArguments `
-  -WorkingDirectory $rootPath `
-  -WindowStyle Hidden `
-  -RedirectStandardOutput $LogFile `
-  -RedirectStandardError $ErrorLogFile `
-  -PassThru
-
-$temporaryPidFile = "$PidFile.$([Guid]::NewGuid().ToString('N')).tmp"
-Set-Content -LiteralPath $temporaryPidFile -Value $daemon.Id -Encoding Ascii
-Move-Item -LiteralPath $temporaryPidFile -Destination $PidFile -Force
-Write-Host "Aetheria Debug daemon PID: $($daemon.Id)"
-Write-Host "Aetheria Debug daemon log: $LogFile"
+Write-Host "Aetheria Debug daemon preparation complete: $daemonExe"

@@ -1262,12 +1262,21 @@ static void RequireClientTransportPlaneOwnership(string root)
 {
     var daemonPath = Path.Combine(root, "Aetheria.State.Daemon", "Program.cs");
     var launcherPath = Path.Combine(root, "scripts", "run-aetheria-unity.ps1");
+    var editorLauncherPath = Path.Combine(root, "scripts", "start-aetheria-daemon-editor.ps1");
+    var editorControllerPath = Path.Combine(
+        root, "Aetheria.Unity", "Assets", "Editor", "AetheriaDaemonDevelopmentWindow.cs");
     var daemon = File.Exists(daemonPath)
         ? File.ReadAllText(daemonPath)
         : throw new InvalidOperationException("Cannot verify client transport ownership; daemon Program.cs is missing.");
     var launcher = File.Exists(launcherPath)
         ? File.ReadAllText(launcherPath)
         : throw new InvalidOperationException("Cannot verify client transport ownership; Unity launcher is missing.");
+    var editorLauncher = File.Exists(editorLauncherPath)
+        ? File.ReadAllText(editorLauncherPath)
+        : throw new InvalidOperationException("Cannot verify client transport ownership; Unity editor daemon launcher is missing.");
+    var editorController = File.Exists(editorControllerPath)
+        ? File.ReadAllText(editorControllerPath)
+        : throw new InvalidOperationException("Cannot verify client transport ownership; Unity editor daemon controller is missing.");
     var required = new[]
     {
         "new TcpFramedCultNetSchemaServer(",
@@ -1324,7 +1333,36 @@ static void RequireClientTransportPlaneOwnership(string root)
             "Aetheria reintroduced RUDP or schema-carried bulk state into the client boundary: " +
             string.Join(", ", present));
 
-    Console.WriteLine("Client transport ownership: TCP control/CDN and QUIC realtime are advertised separately; RUDP and schema-carried bodies are absent");
+    var restoreIndex = daemon.IndexOf(
+        "using var physicsPersistence = await AetheriaYmirPersistenceCoordinator.OpenAsync(",
+        StringComparison.Ordinal);
+    var clientHostIndex = daemon.IndexOf(
+        "await using var cultMeshClientHost = await StartClientCultMeshHostAsync(",
+        StringComparison.Ordinal);
+    if (restoreIndex < 0 || clientHostIndex < 0 || clientHostIndex < restoreIndex)
+        throw new InvalidOperationException(
+            "Aetheria client transport must not listen before daemon-private Ymir restoration succeeds.");
+
+    var requiredEditorResetSymbols = new[]
+    {
+        "$ymirStatePath = \"$statePath.ymir.cc\"",
+        "$ymirRecordsPath = \"$ymirStatePath.records\"",
+        "$ymirStatePath, $ymirRecordsPath"
+    };
+    var missingEditorResetSymbols = requiredEditorResetSymbols
+        .Where(symbol => !editorLauncher.Contains(symbol, StringComparison.Ordinal))
+        .ToArray();
+    if (missingEditorResetSymbols.Length > 0)
+        throw new InvalidOperationException(
+            "Aetheria editor reimport does not reset every daemon-private Ymir state path: " +
+            string.Join(", ", missingEditorResetSymbols));
+    if (editorLauncher.Contains("Start-Process", StringComparison.Ordinal) ||
+        !editorController.Contains("Process.Start(new ProcessStartInfo(DaemonExePath, arguments)", StringComparison.Ordinal) ||
+        !editorController.Contains("SessionState.SetInt(ProcessIdSessionKey, daemon.Id)", StringComparison.Ordinal))
+        throw new InvalidOperationException(
+            "Unity must directly own the Debug daemon process after synchronous build/import preparation.");
+
+    Console.WriteLine("Client transport ownership: Ymir restores before transport listen; Unity directly owns the prepared Debug daemon and matching private state");
 }
 
 static void RequireDaemonPlayableRunGenerationAuthority(string root)

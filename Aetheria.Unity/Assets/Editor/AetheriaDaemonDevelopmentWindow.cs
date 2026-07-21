@@ -225,6 +225,8 @@ namespace Aetheria.Editor
         private static string ErrorLogPath => Path.Combine(ArtifactsRoot, "daemon.error.log");
         private static string LauncherLogPath => Path.Combine(ArtifactsRoot, "launcher.log");
         private static string LauncherErrorPath => Path.Combine(ArtifactsRoot, "launcher.error.log");
+        private static string DaemonExePath => Path.Combine(
+            ProjectRoot, "Aetheria.State.Daemon", "bin", "Debug", "net10.0", "Aetheria.State.Daemon.exe");
 
         public static void Start(bool enterPlayWhenReady, bool forceImport = false)
         {
@@ -249,8 +251,7 @@ namespace Aetheria.Editor
 
             var script = Path.Combine(ProjectRoot, "scripts", "start-aetheria-daemon-editor.ps1");
             var arguments = $"-NoProfile -ExecutionPolicy Bypass -File {Quote(script)} " +
-                            $"-Root {Quote(ProjectRoot)} -State {Quote(StatePath)} -Port {Port} " +
-                            $"-PidFile {Quote(PidPath)} -LogFile {Quote(LogPath)} -ErrorLogFile {Quote(ErrorLogPath)} " +
+                            $"-Root {Quote(ProjectRoot)} -State {Quote(StatePath)} " +
                             $"-CultLibRoot {Quote(CultLibRoot)} -YmirRoot {Quote(YmirRoot)} -EveUnityRoot {Quote(EveUnityRoot)}" +
                             (forceImport ? " -ForceImport" : "");
             _launcher = Process.Start(new ProcessStartInfo("powershell.exe", arguments)
@@ -351,6 +352,21 @@ namespace Aetheria.Editor
                     _enterPlayWhenReady = false;
                     Changed?.Invoke();
                     return;
+                }
+                if (exitCode == 0 && !TryRefreshDaemon())
+                {
+                    try
+                    {
+                        LaunchDaemon();
+                    }
+                    catch (Exception exception)
+                    {
+                        _lastError = exception.ToString();
+                        _status = "Daemon launch failed";
+                        _enterPlayWhenReady = false;
+                        Changed?.Invoke();
+                        return;
+                    }
                 }
             }
 
@@ -568,6 +584,44 @@ namespace Aetheria.Editor
             Environment.SetEnvironmentVariable("EVEUNITY_SURFACE_ID", "aetheria.pilot");
             Environment.SetEnvironmentVariable("EVEUNITY_ASSET_CACHE_PATH",
                 Path.Combine(ProjectRoot, "Aetheria.Unity", "Build", "AssetCache"));
+        }
+
+        private static void LaunchDaemon()
+        {
+            if (!File.Exists(DaemonExePath))
+                throw new FileNotFoundException("Prepared Aetheria Debug daemon is missing.", DaemonExePath);
+
+            File.WriteAllText(LogPath, "");
+            File.WriteAllText(ErrorLogPath, "");
+            var arguments =
+                $"--root {Quote(ProjectRoot)} " +
+                $"--state {Quote(StatePath)} " +
+                "--client-cultmesh-host 127.0.0.1 " +
+                "--client-cultmesh-advertise-host 127.0.0.1 " +
+                $"--client-cultmesh-port {Port} " +
+                "--tick-interval-ms 20 --fixed-delta-ms 20 --no-odin-announcements";
+            var daemon = Process.Start(new ProcessStartInfo(DaemonExePath, arguments)
+            {
+                WorkingDirectory = ProjectRoot,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            }) ?? throw new InvalidOperationException("Aetheria Debug daemon process did not start.");
+            daemon.OutputDataReceived += (_, value) => AppendLine(LogPath, value.Data);
+            daemon.ErrorDataReceived += (_, value) => AppendLine(ErrorLogPath, value.Data);
+            daemon.BeginOutputReadLine();
+            daemon.BeginErrorReadLine();
+
+            _daemon?.Dispose();
+            _daemon = daemon;
+            SessionState.SetInt(ProcessIdSessionKey, daemon.Id);
+            var temporaryPidPath = PidPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
+            File.WriteAllText(temporaryPidPath, daemon.Id.ToString(CultureInfo.InvariantCulture));
+            if (File.Exists(PidPath)) File.Delete(PidPath);
+            File.Move(temporaryPidPath, PidPath);
+            _status = $"Starting Debug daemon (PID {daemon.Id})";
+            Changed?.Invoke();
         }
 
         private static void AppendLine(string path, string value)

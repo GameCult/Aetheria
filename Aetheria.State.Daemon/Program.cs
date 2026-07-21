@@ -56,27 +56,6 @@ var latestFrame = await node.MutableDocument<AetheriaRuntimeDaemonFrameDocument>
 TraceStartup("latest-frame");
 var unityBundles = BuildUnityBundleArtifactSet(options);
 TraceStartup("provider-asset-bundles");
-await using var cultMeshClientHost = await StartClientCultMeshHostAsync(
-    node, options, unityBundles, () => latestFrame).ConfigureAwait(false);
-TraceStartup("client-host");
-Console.WriteLine($"Aetheria client CultMesh endpoint: {cultMeshClientHost.ControlEndpoint}");
-Console.WriteLine($"Aetheria client CDN endpoint: {cultMeshClientHost.ContentEndpoint}");
-Console.WriteLine($"Aetheria client realtime endpoint: {cultMeshClientHost.RealtimeEndpoint}");
-Console.WriteLine($"Aetheria daemon transport-ready in {startup.Elapsed.TotalMilliseconds:0.###}ms.");
-using var clientSubscriptions = new CultNetDatabaseSubscriptionServer(cultMeshClientHost.Control, node.Database);
-var managedViewportDemand = new AetheriaManagedViewportDemandState();
-clientSubscriptions.DemandChanged += managedViewportDemand.Observe;
-if (traceClientTransport)
-    clientSubscriptions.DemandChanged += demand => Console.WriteLine(
-        $"CultMesh state demand consumer={demand.ConsumerRuntimeId} subscription={demand.SubscriptionId} " +
-        $"active={demand.Active} sameMachine={demand.SameMachine} " +
-        $"records=[{string.Join(",", demand.RecordKeys)}] schemas=[{string.Join(",", demand.SchemaIds)}] " +
-        $"bodies=[{string.Join(",", demand.BodyIds)}] transports=[{string.Join(",", demand.SupportedBodyTransports)}]");
-using var bodyDemand = new CultMeshBodyDemandTracker(clientSubscriptions);
-using var soaPublisher = new AetheriaRuntimeDaemonSoaFramePublisher(
-    DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-    bodyDemand);
-
 await EnsureWorldDocumentAsync(node).ConfigureAwait(false);
 TraceStartup("world-document");
 var persistedRuntimeCatalog = await node.Database
@@ -142,7 +121,6 @@ else
         physicsPersistence);
     initialPublication = initialPrepared.Publication;
 }
-ThrowIfClientHostFaulted(cultMeshClientHost);
 if (!publishRestoredFrame)
 {
     await PublishClientGameplayDocumentsAsync(
@@ -155,6 +133,27 @@ if (!publishRestoredFrame)
         publishTopology: true).ConfigureAwait(false);
 }
 TraceStartup("client-bootstrap");
+await using var cultMeshClientHost = await StartClientCultMeshHostAsync(
+    node, options, unityBundles, () => latestFrame).ConfigureAwait(false);
+TraceStartup("client-host");
+Console.WriteLine($"Aetheria client CultMesh endpoint: {cultMeshClientHost.ControlEndpoint}");
+Console.WriteLine($"Aetheria client CDN endpoint: {cultMeshClientHost.ContentEndpoint}");
+Console.WriteLine($"Aetheria client realtime endpoint: {cultMeshClientHost.RealtimeEndpoint}");
+Console.WriteLine($"Aetheria daemon transport-ready in {startup.Elapsed.TotalMilliseconds:0.###}ms.");
+using var clientSubscriptions = new CultNetDatabaseSubscriptionServer(cultMeshClientHost.Control, node.Database);
+var managedViewportDemand = new AetheriaManagedViewportDemandState();
+clientSubscriptions.DemandChanged += managedViewportDemand.Observe;
+if (traceClientTransport)
+    clientSubscriptions.DemandChanged += demand => Console.WriteLine(
+        $"CultMesh state demand consumer={demand.ConsumerRuntimeId} subscription={demand.SubscriptionId} " +
+        $"active={demand.Active} sameMachine={demand.SameMachine} " +
+        $"records=[{string.Join(",", demand.RecordKeys)}] schemas=[{string.Join(",", demand.SchemaIds)}] " +
+        $"bodies=[{string.Join(",", demand.BodyIds)}] transports=[{string.Join(",", demand.SupportedBodyTransports)}]");
+using var bodyDemand = new CultMeshBodyDemandTracker(clientSubscriptions);
+using var soaPublisher = new AetheriaRuntimeDaemonSoaFramePublisher(
+    DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+    bodyDemand);
+ThrowIfClientHostFaulted(cultMeshClientHost);
 await PublishHotEntityStateAsync(
     node, soaPublisher, hotState, latestFrame!, ingressState.Catalog, cultMeshClientHost).ConfigureAwait(false);
 TraceStartup("hot-entity-state");
@@ -505,9 +504,34 @@ static bool HasPersistedClientBootstrap(
            node.Cache.Get<EveAssetCatalogDocument>(AetheriaRuntimeVerseRecordKeys.EveAssetCatalog) != null &&
            input?.Version == frame.FrameId &&
            game?.Version == frame.FrameId &&
+           HasCurrentEntityBodyContract(game.Surface.Root, requirePointer: true) &&
            reactive?.Version == frame.FrameId &&
+           HasCurrentEntityBodyContract(reactive.Surface.Root, requirePointer: false) &&
            map?.Version == frame.FrameId;
 }
+
+static bool HasCurrentEntityBodyContract(EveSurfaceComponent component, bool requirePointer)
+{
+    var hasPointer = !string.IsNullOrWhiteSpace(component.GetProp("entityViewPointerId"));
+    if (hasPointer && !string.Equals(
+            component.GetProp("entityBodyId"),
+            AetheriaRuntimeDaemonSoaFramePublisher.BodyId,
+            StringComparison.Ordinal))
+        return false;
+    var children = component.Children ?? Array.Empty<EveSurfaceComponent>();
+    var childHasPointer = false;
+    foreach (var child in children)
+    {
+        if (!HasCurrentEntityBodyContract(child, requirePointer: false))
+            return false;
+        childHasPointer |= ContainsEntityViewPointer(child);
+    }
+    return !requirePointer || hasPointer || childHasPointer;
+}
+
+static bool ContainsEntityViewPointer(EveSurfaceComponent component) =>
+    !string.IsNullOrWhiteSpace(component.GetProp("entityViewPointerId")) ||
+    (component.Children ?? Array.Empty<EveSurfaceComponent>()).Any(ContainsEntityViewPointer);
 
 static async Task PersistPreparedDocumentsAsync(
     AetheriaStateNode node,
