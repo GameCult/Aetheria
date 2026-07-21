@@ -11,6 +11,11 @@ editor directly launches and owns the daemon process, its PID, and its output
 streams. The generic EveUnity client connects directly to the daemon's local
 CultMesh endpoint. Odin is not part of this path.
 
+The daemon lifecycle is independent of Unity Play Mode. Play never builds,
+starts, restarts, or stops the daemon. Entering Play connects a generic client;
+leaving Play drops that client while the authoritative daemon remains alive and
+ready for the next connection.
+
 The editor connects through the daemon's `cultnet+tcp` control endpoint. The
 advertised session then selects the dedicated content and QUIC realtime planes;
 the editor bootstrap does not choose those planes or retain an RUDP fallback.
@@ -26,14 +31,16 @@ being debugged.
 
 ## Normal loop
 
-1. Press **Start & Play**, or press Unity Play with **Start before Play**
-   enabled.
-2. Edit and inspect the generic EveUnity-lowered world in Play Mode.
-3. Use Unity Pause to submit the advertised `simulation.pause` action to the
+1. Press **Start daemon** and wait for the window to report the live endpoint.
+2. Enter and leave Unity Play Mode normally. The daemon remains running across
+   client sessions.
+3. Edit and inspect the generic EveUnity-lowered world in Play Mode.
+4. Use Unity Pause to submit the advertised `simulation.pause` action to the
    daemon. Unity unpause submits `simulation.rate.realtime`.
-4. While paused, use **Advance one step** to commit exactly one fixed daemon
+5. While paused, use **Advance one step** to commit exactly one fixed daemon
    simulation step.
-5. Stop, restart, or reimport the isolated state from the same window.
+6. Stop, restart, or reimport the isolated state explicitly from the same
+   window.
 
 Unity's editor clock is never gameplay authority. The pause and step controls
 are ordinary advertised Eve operations accepted by the daemon. If the active

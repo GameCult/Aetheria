@@ -1358,11 +1358,15 @@ static void RequireClientTransportPlaneOwnership(string root)
             string.Join(", ", missingEditorResetSymbols));
     if (editorLauncher.Contains("Start-Process", StringComparison.Ordinal) ||
         !editorController.Contains("Process.Start(new ProcessStartInfo(DaemonExePath, arguments)", StringComparison.Ordinal) ||
-        !editorController.Contains("SessionState.SetInt(ProcessIdSessionKey, daemon.Id)", StringComparison.Ordinal))
+        !editorController.Contains("SessionState.SetInt(ProcessIdSessionKey, daemon.Id)", StringComparison.Ordinal) ||
+        editorController.Contains("playModeStateChanged", StringComparison.Ordinal) ||
+        editorController.Contains("_enterPlayWhenReady", StringComparison.Ordinal) ||
+        editorController.Contains("Start & Play", StringComparison.Ordinal) ||
+        editorController.Contains("Start before Play", StringComparison.Ordinal))
         throw new InvalidOperationException(
-            "Unity must directly own the Debug daemon process after synchronous build/import preparation.");
+            "The daemon window must directly own its process without coupling build, launch, or shutdown to Unity Play lifecycle.");
 
-    Console.WriteLine("Client transport ownership: Ymir restores before transport listen; Unity directly owns the prepared Debug daemon and matching private state");
+    Console.WriteLine("Client transport ownership: Ymir restores before transport listen; the daemon window owns an independent prepared Debug daemon and matching private state");
 }
 
 static void RequireDaemonPlayableRunGenerationAuthority(string root)

@@ -15,21 +15,12 @@ namespace Aetheria.Editor
     {
         private const string MenuPath = "Aetheria/Daemon Development";
         private const string PortPreference = "Aetheria.DaemonDevelopment.Port";
-        private const string AutoStartPreference = "Aetheria.DaemonDevelopment.AutoStart";
-        private const string StopAfterPlayPreference = "Aetheria.DaemonDevelopment.StopAfterPlay";
         internal const string ClientScenePath = "Assets/Aetheria.unity";
 
         private Vector2 _scroll;
 
         [MenuItem(MenuPath)]
         public static void Open() => GetWindow<AetheriaDaemonDevelopmentWindow>("Aetheria Daemon");
-
-        public static void StartAndPlay()
-        {
-            Open();
-            EnsureClientSceneLoaded();
-            AetheriaDaemonDevelopmentController.Start(enterPlayWhenReady: true);
-        }
 
         public static void OpenClientScene()
         {
@@ -83,16 +74,6 @@ namespace Aetheria.Editor
             if (nextPort != port && nextPort is > 0 and <= 65535)
                 EditorPrefs.SetInt(PortPreference, nextPort);
 
-            var autoStart = EditorPrefs.GetBool(AutoStartPreference, true);
-            var nextAutoStart = EditorGUILayout.Toggle("Start before Play", autoStart);
-            if (nextAutoStart != autoStart)
-                EditorPrefs.SetBool(AutoStartPreference, nextAutoStart);
-
-            var stopAfterPlay = EditorPrefs.GetBool(StopAfterPlayPreference, false);
-            var nextStopAfterPlay = EditorGUILayout.Toggle("Stop after Play", stopAfterPlay);
-            if (nextStopAfterPlay != stopAfterPlay)
-                EditorPrefs.SetBool(StopAfterPlayPreference, nextStopAfterPlay);
-
             EditorGUILayout.Space(6);
             EditorGUILayout.LabelField("Status", AetheriaDaemonDevelopmentController.Status);
             EditorGUILayout.LabelField("Endpoint", AetheriaDaemonDevelopmentController.Endpoint);
@@ -111,9 +92,7 @@ namespace Aetheria.Editor
                 GUI.enabled = !AetheriaDaemonDevelopmentController.IsStarting &&
                               !AetheriaDaemonDevelopmentController.IsRunning;
                 if (GUILayout.Button("Start daemon"))
-                    AetheriaDaemonDevelopmentController.Start(enterPlayWhenReady: false);
-                if (GUILayout.Button("Start & Play"))
-                    StartAndPlay();
+                    AetheriaDaemonDevelopmentController.Start();
                 GUI.enabled = AetheriaDaemonDevelopmentController.IsRunning ||
                               AetheriaDaemonDevelopmentController.IsStarting;
                 if (GUILayout.Button("Stop"))
@@ -129,7 +108,7 @@ namespace Aetheria.Editor
                 GUI.enabled = !AetheriaDaemonDevelopmentController.IsRunning &&
                               !AetheriaDaemonDevelopmentController.IsStarting;
                 if (GUILayout.Button("Reimport state & start"))
-                    AetheriaDaemonDevelopmentController.Start(enterPlayWhenReady: false, forceImport: true);
+                    AetheriaDaemonDevelopmentController.Start(forceImport: true);
                 GUI.enabled = true;
             }
 
@@ -185,11 +164,8 @@ namespace Aetheria.Editor
     {
         private const string ProcessIdSessionKey = "Aetheria.DaemonDevelopment.ProcessId";
         private const string PortPreference = "Aetheria.DaemonDevelopment.Port";
-        private const string AutoStartPreference = "Aetheria.DaemonDevelopment.AutoStart";
-        private const string StopAfterPlayPreference = "Aetheria.DaemonDevelopment.StopAfterPlay";
         private static Process _launcher;
         private static Process _daemon;
-        private static bool _enterPlayWhenReady;
         private static bool _restartWhenStopped;
         private static string _pendingClockAction = "";
         private static string _status = "Stopped";
@@ -201,7 +177,6 @@ namespace Aetheria.Editor
         {
             EditorApplication.update += Update;
             EditorApplication.quitting += Stop;
-            EditorApplication.playModeStateChanged += OnPlayModeStateChanged;
             EditorApplication.pauseStateChanged += OnPauseStateChanged;
             Reattach();
             ApplyClientEnvironment();
@@ -228,25 +203,19 @@ namespace Aetheria.Editor
         private static string DaemonExePath => Path.Combine(
             ProjectRoot, "Aetheria.State.Daemon", "bin", "Debug", "net10.0", "Aetheria.State.Daemon.exe");
 
-        public static void Start(bool enterPlayWhenReady, bool forceImport = false)
+        public static void Start(bool forceImport = false)
         {
             if (TryRefreshDaemon())
             {
                 ApplyClientEnvironment();
-                if (enterPlayWhenReady && !EditorApplication.isPlaying)
-                    EditorApplication.isPlaying = true;
                 return;
             }
             if (IsStarting)
-            {
-                _enterPlayWhenReady |= enterPlayWhenReady;
                 return;
-            }
 
             Directory.CreateDirectory(ArtifactsRoot);
             File.Delete(PidPath);
             _lastError = "";
-            _enterPlayWhenReady = enterPlayWhenReady;
             ApplyClientEnvironment();
 
             var script = Path.Combine(ProjectRoot, "scripts", "start-aetheria-daemon-editor.ps1");
@@ -272,7 +241,6 @@ namespace Aetheria.Editor
 
         public static void Stop()
         {
-            _enterPlayWhenReady = false;
             _pendingClockAction = "";
             try
             {
@@ -336,7 +304,7 @@ namespace Aetheria.Editor
             if (_restartWhenStopped)
             {
                 _restartWhenStopped = false;
-                Start(enterPlayWhenReady: EditorApplication.isPlaying);
+                Start();
                 return;
             }
 
@@ -349,7 +317,6 @@ namespace Aetheria.Editor
                 {
                     _lastError = ReadTail(LauncherErrorPath, 24);
                     _status = $"Daemon preparation failed (exit {exitCode})";
-                    _enterPlayWhenReady = false;
                     Changed?.Invoke();
                     return;
                 }
@@ -363,7 +330,6 @@ namespace Aetheria.Editor
                     {
                         _lastError = exception.ToString();
                         _status = "Daemon launch failed";
-                        _enterPlayWhenReady = false;
                         Changed?.Invoke();
                         return;
                     }
@@ -378,11 +344,6 @@ namespace Aetheria.Editor
                     Changed?.Invoke();
                 }
                 ApplyClientEnvironment();
-                if (_enterPlayWhenReady && !EditorApplication.isPlayingOrWillChangePlaymode)
-                {
-                    _enterPlayWhenReady = false;
-                    EditorApplication.isPlaying = true;
-                }
                 TrySubmitPendingClockAction();
             }
             else if (TryTakeDaemonExit(out var exitCode))
@@ -391,36 +352,6 @@ namespace Aetheria.Editor
                 _lastError = ReadTail(ErrorLogPath, 24);
                 Changed?.Invoke();
             }
-        }
-
-        private static void OnPlayModeStateChanged(PlayModeStateChange state)
-        {
-            if (state == PlayModeStateChange.ExitingEditMode &&
-                !AetheriaDaemonDevelopmentWindow.IsClientSceneLoaded())
-            {
-                EditorApplication.isPlaying = false;
-                EditorApplication.delayCall += PrepareClientSceneAndPlay;
-            }
-            else if (state == PlayModeStateChange.ExitingEditMode &&
-                     EditorPrefs.GetBool(AutoStartPreference, true) && !TryRefreshDaemon())
-            {
-                EditorApplication.isPlaying = false;
-                Start(enterPlayWhenReady: true);
-            }
-            else if (state == PlayModeStateChange.EnteredEditMode &&
-                     EditorPrefs.GetBool(StopAfterPlayPreference, false))
-            {
-                Stop();
-            }
-        }
-
-        private static void PrepareClientSceneAndPlay()
-        {
-            AetheriaDaemonDevelopmentWindow.EnsureClientSceneLoaded();
-            if (EditorPrefs.GetBool(AutoStartPreference, true))
-                Start(enterPlayWhenReady: true);
-            else
-                EditorApplication.isPlaying = true;
         }
 
         private static void OnPauseStateChanged(PauseState state)
@@ -608,6 +539,19 @@ namespace Aetheria.Editor
                 RedirectStandardOutput = true,
                 RedirectStandardError = true
             }) ?? throw new InvalidOperationException("Aetheria Debug daemon process did not start.");
+            daemon.EnableRaisingEvents = true;
+            daemon.Exited += (_, __) =>
+            {
+                try
+                {
+                    AppendLine(
+                        ErrorLogPath,
+                        $"Aetheria Debug daemon PID {daemon.Id} exited with code {daemon.ExitCode} at {DateTimeOffset.UtcNow:O}.");
+                }
+                catch (InvalidOperationException)
+                {
+                }
+            };
             daemon.OutputDataReceived += (_, value) => AppendLine(LogPath, value.Data);
             daemon.ErrorDataReceived += (_, value) => AppendLine(ErrorLogPath, value.Data);
             daemon.BeginOutputReadLine();
