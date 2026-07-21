@@ -1343,7 +1343,7 @@ static void RequireClientTransportPlaneOwnership(string root)
         "if (!options.Once && !options.UseTerminusFixture)",
         StringComparison.Ordinal);
     var demandIndex = daemon.IndexOf(
-        "var playableWorldRequested = new TaskCompletionSource<object?>",
+        "var playableWorldDemand = new AetheriaPlayableWorldDemandState()",
         StringComparison.Ordinal);
     var gameSessionIndex = daemon.IndexOf(
         "await EnsureGameSessionAsync(node, options, startedAtUtc, latestFrame)",
@@ -1352,10 +1352,12 @@ static void RequireClientTransportPlaneOwnership(string root)
         clientHostIndex > readyGateIndex || demandIndex > readyGateIndex ||
         readyGateIndex > gameSessionIndex || gameSessionIndex > restoreIndex ||
         !daemon.Contains("Aetheria daemon ready; waiting for a client to load or generate a world.", StringComparison.Ordinal) ||
-        !daemon.Contains("if (playableWorldRequested.Task.IsCompleted", StringComparison.Ordinal) ||
+        !daemon.Contains("if (playableWorldDemand.IsActive", StringComparison.Ordinal) ||
+        !daemon.Contains("while (!stopped.Task.IsCompleted && (options.UseTerminusFixture || playableWorldDemand.IsActive))", StringComparison.Ordinal) ||
+        !daemon.Contains("Aetheria daemon saved frame", StringComparison.Ordinal) ||
         !daemon.Contains("if (await ApplyRequestedNewGameSessionAsync(node, options)", StringComparison.Ordinal))
         throw new InvalidOperationException(
-            "Aetheria daemon startup must expose transport in ready mode and defer game-session/Ymir activation until playable-world demand or New Game.");
+            "Aetheria daemon must expose transport in ready mode, demand-gate game/Ymir activation, and checkpoint before returning to ready after the last playable client drops.");
 
     var requiredEditorResetSymbols = new[]
     {

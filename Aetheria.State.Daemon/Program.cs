@@ -32,7 +32,6 @@ void TraceStartup(string name)
             $"(total {startup.Elapsed.TotalMilliseconds:0.###}ms).");
     startupPhase.Restart();
 }
-using var worldPhysics = new AetheriaYmirWorldPhysics();
 var traceClientTransport = string.Equals(
     Environment.GetEnvironmentVariable("AETHERIA_TRACE_CLIENT_TRANSPORT"),
     "1",
@@ -92,12 +91,8 @@ Console.WriteLine($"Aetheria client CDN endpoint: {cultMeshClientHost.ContentEnd
 Console.WriteLine($"Aetheria client realtime endpoint: {cultMeshClientHost.RealtimeEndpoint}");
 Console.WriteLine($"Aetheria daemon transport-ready in {startup.Elapsed.TotalMilliseconds:0.###}ms.");
 using var clientSubscriptions = new CultNetDatabaseSubscriptionServer(cultMeshClientHost.Control, node.Database);
-var playableWorldRequested = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
-clientSubscriptions.DemandChanged += demand =>
-{
-    if (RequestsPlayableWorld(demand))
-        playableWorldRequested.TrySetResult(null);
-};
+var playableWorldDemand = new AetheriaPlayableWorldDemandState();
+clientSubscriptions.DemandChanged += playableWorldDemand.Observe;
 var managedViewportDemand = new AetheriaManagedViewportDemandState();
 clientSubscriptions.DemandChanged += managedViewportDemand.Observe;
 if (traceClientTransport)
@@ -117,175 +112,199 @@ Console.CancelKeyPress += (_, eventArgs) =>
     stopped.TrySetResult(null);
 };
 
-if (!options.Once && !options.UseTerminusFixture)
-{
-    await PublishRuntimeSessionAsync(node, options, startedAtUtc, "ready").ConfigureAwait(false);
-    Console.WriteLine("Aetheria daemon ready; waiting for a client to load or generate a world.");
-    while (!stopped.Task.IsCompleted)
-    {
-        ThrowIfClientHostFaulted(cultMeshClientHost);
-        await AcceptCoreEveInvocationsAsync(node, options, latestFrame).ConfigureAwait(false);
-        await AcceptEveCommandsAsync(node, options, ingressState).ConfigureAwait(false);
-        if (await ApplyRequestedNewGameSessionAsync(node, options).ConfigureAwait(false))
-        {
-            latestFrame = null;
-            break;
-        }
-
-        if (playableWorldRequested.Task.IsCompleted &&
-            (HasPlayableRun(latestFrame?.Run) ||
-             HasPlayableRun(await ReadRuntimeRunCheckpointAsync(node, options.RenderSettings).ConfigureAwait(false))))
-            break;
-
-        var completed = await Task.WhenAny(stopped.Task, Task.Delay(options.TickInterval)).ConfigureAwait(false);
-        if (completed == stopped.Task)
-            break;
-    }
-
-    if (stopped.Task.IsCompleted)
-    {
-        await PublishRuntimeSessionAsync(node, options, startedAtUtc, "stopped").ConfigureAwait(false);
-        return;
-    }
-}
-else
-{
-    await EnsurePlayableRunDocumentsAsync(node, options, startedAtUtc, latestFrame).ConfigureAwait(false);
-    TraceStartup("playable-run");
-}
-
-await EnsureGameSessionAsync(node, options, startedAtUtc, latestFrame).ConfigureAwait(false);
-TraceStartup("game-session");
-using var physicsPersistence = await AetheriaYmirPersistenceCoordinator.OpenAsync(
-    node,
-    worldPhysics,
-    latestFrame).ConfigureAwait(false);
-TraceStartup("ymir-persistence");
-var nextApiPublicationUtc = DateTimeOffset.UtcNow;
-var hotState = new AetheriaHotEntityPublicationState();
-var reactiveSurfaceState = new AetheriaReactiveSurfacePublicationState();
-var publishRestoredFrame = !options.Once &&
-    latestFrame?.Run != null &&
-    HasPlayableRun(latestFrame.Run) &&
-    HasPersistedClientBootstrap(node, latestFrame);
-AetheriaRuntimeDaemonTickResult? initialPublication = null;
-AetheriaPreparedPublication? initialPrepared = null;
-Task publicationTask;
-if (publishRestoredFrame)
-{
-    await RefreshControlPlaneInputsAsync(node, ingressState).ConfigureAwait(false);
-    TraceStartup("restored-client-state");
-}
-else
-{
-    var firstTick = await TickAsync(
-        node, options, unityBundles, worldPhysics, latestFrame, ingressState, buildPublications: false).ConfigureAwait(false);
-    TraceStartup("first-tick");
-    latestFrame = firstTick.Frame;
-    initialPrepared = PreparePublication(
-        node.StatePath,
-        options,
-        firstTick,
-        ingressState,
-        physicsPersistence);
-    initialPublication = initialPrepared.Publication;
-}
-if (!publishRestoredFrame)
-{
-    await PublishClientGameplayDocumentsAsync(
-        node,
-        options,
-        unityBundles,
-        initialPublication!,
-        ingressState.Catalog ?? throw new InvalidOperationException("Aetheria runtime catalog was not initialized."),
-        reactiveSurfaceState,
-        publishTopology: true).ConfigureAwait(false);
-}
-TraceStartup("client-bootstrap");
-ThrowIfClientHostFaulted(cultMeshClientHost);
-await PublishHotEntityStateAsync(
-    node, soaPublisher, hotState, latestFrame!, ingressState.Catalog, cultMeshClientHost).ConfigureAwait(false);
-TraceStartup("hot-entity-state");
-if (publishRestoredFrame)
-{
-    publicationTask = Task.CompletedTask;
-}
-else
-{
-    publicationTask = Task.Run(() => PersistPreparedDocumentsAsync(
-        node,
-        options,
-        physicsPersistence,
-        initialPrepared!,
-        initialTopology: true));
-}
-nextApiPublicationUtc = DateTimeOffset.UtcNow.Add(options.ApiPublicationInterval);
-Console.WriteLine($"Aetheria Verse daemon published frame {latestFrame!.FrameId}.");
-Console.WriteLine($"Aetheria daemon playable-world-ready in {startup.Elapsed.TotalMilliseconds:0.###}ms.");
-
-if (options.Once)
-{
-    await publicationTask.ConfigureAwait(false);
-    await PublishRuntimeSessionAsync(node, options, startedAtUtc, "completed").ConfigureAwait(false);
-    return;
-}
-await PublishRuntimeSessionAsync(node, options, startedAtUtc, "running").ConfigureAwait(false);
-Console.WriteLine("Aetheria Verse daemon is running. Press Ctrl+C to stop.");
-
-var nextTickUtc = DateTimeOffset.UtcNow.Add(options.TickInterval);
 while (!stopped.Task.IsCompleted)
 {
-    ThrowIfClientHostFaulted(cultMeshClientHost);
-    var delay = nextTickUtc - DateTimeOffset.UtcNow;
-    if (delay > TimeSpan.Zero)
+    if (!options.Once && !options.UseTerminusFixture)
     {
-        var completed = await Task.WhenAny(stopped.Task, Task.Delay(delay)).ConfigureAwait(false);
-        if (completed == stopped.Task)
+        await PublishRuntimeSessionAsync(node, options, startedAtUtc, "ready").ConfigureAwait(false);
+        Console.WriteLine("Aetheria daemon ready; waiting for a client to load or generate a world.");
+        while (!stopped.Task.IsCompleted)
+        {
+            ThrowIfClientHostFaulted(cultMeshClientHost);
+            await AcceptCoreEveInvocationsAsync(node, options, latestFrame).ConfigureAwait(false);
+            await AcceptEveCommandsAsync(node, options, ingressState).ConfigureAwait(false);
+            if (await ApplyRequestedNewGameSessionAsync(node, options).ConfigureAwait(false))
+                latestFrame = null;
+
+            if (playableWorldDemand.IsActive &&
+                (HasPlayableRun(latestFrame?.Run) ||
+                 HasPlayableRun(await ReadRuntimeRunCheckpointAsync(node, options.RenderSettings).ConfigureAwait(false))))
+                break;
+
+            var completed = await Task.WhenAny(stopped.Task, Task.Delay(options.TickInterval)).ConfigureAwait(false);
+            if (completed == stopped.Task)
+                break;
+        }
+
+        if (stopped.Task.IsCompleted)
             break;
     }
-
-    var buildPublications = DateTimeOffset.UtcNow >= nextApiPublicationUtc;
-    var tick = await TickAsync(node, options, unityBundles, worldPhysics, latestFrame, ingressState, buildPublications: false).ConfigureAwait(false);
-    ThrowIfClientHostFaulted(cultMeshClientHost);
-    latestFrame = tick.Frame;
-    await PublishHotEntityStateAsync(
-        node, soaPublisher, hotState, tick.Frame, ingressState.Catalog, cultMeshClientHost).ConfigureAwait(false);
-    nextTickUtc += options.TickInterval;
-    if (nextTickUtc < DateTimeOffset.UtcNow - options.TickInterval)
-        nextTickUtc = DateTimeOffset.UtcNow;
-    if (buildPublications && publicationTask.IsCompleted)
+    else
     {
-        if (publicationTask.IsFaulted)
-            await publicationTask.ConfigureAwait(false);
-        var publication = PreparePublication(
+        await EnsurePlayableRunDocumentsAsync(node, options, startedAtUtc, latestFrame).ConfigureAwait(false);
+        TraceStartup("playable-run");
+    }
+
+    latestFrame = await node.MutableDocument<AetheriaRuntimeDaemonFrameDocument>(AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest)
+        .ReadAsync().ConfigureAwait(false);
+    using var worldPhysics = new AetheriaYmirWorldPhysics();
+    await EnsureGameSessionAsync(node, options, startedAtUtc, latestFrame).ConfigureAwait(false);
+    TraceStartup("game-session");
+    using var physicsPersistence = await AetheriaYmirPersistenceCoordinator.OpenAsync(
+        node,
+        worldPhysics,
+        latestFrame).ConfigureAwait(false);
+    TraceStartup("ymir-persistence");
+    var nextApiPublicationUtc = DateTimeOffset.UtcNow;
+    var hotState = new AetheriaHotEntityPublicationState();
+    var reactiveSurfaceState = new AetheriaReactiveSurfacePublicationState();
+    var publishRestoredFrame = !options.Once &&
+        latestFrame?.Run != null &&
+        HasPlayableRun(latestFrame.Run) &&
+        HasPersistedClientBootstrap(node, latestFrame);
+    AetheriaRuntimeDaemonTickResult? initialPublication = null;
+    AetheriaPreparedPublication? initialPrepared = null;
+    Task publicationTask;
+    if (publishRestoredFrame)
+    {
+        await RefreshControlPlaneInputsAsync(node, ingressState).ConfigureAwait(false);
+        TraceStartup("restored-client-state");
+    }
+    else
+    {
+        var firstTick = await TickAsync(
+            node, options, unityBundles, worldPhysics, latestFrame, ingressState, buildPublications: false).ConfigureAwait(false);
+        TraceStartup("first-tick");
+        latestFrame = firstTick.Frame;
+        initialPrepared = PreparePublication(
             node.StatePath,
             options,
-            tick,
+            firstTick,
             ingressState,
             physicsPersistence);
+        initialPublication = initialPrepared.Publication;
+    }
+    if (!publishRestoredFrame)
+    {
+        await PublishClientGameplayDocumentsAsync(
+            node,
+            options,
+            unityBundles,
+            initialPublication!,
+            ingressState.Catalog ?? throw new InvalidOperationException("Aetheria runtime catalog was not initialized."),
+            reactiveSurfaceState,
+            publishTopology: true).ConfigureAwait(false);
+    }
+    TraceStartup("client-bootstrap");
+    ThrowIfClientHostFaulted(cultMeshClientHost);
+    await PublishHotEntityStateAsync(
+        node, soaPublisher, hotState, latestFrame!, ingressState.Catalog, cultMeshClientHost).ConfigureAwait(false);
+    TraceStartup("hot-entity-state");
+    if (publishRestoredFrame)
+    {
+        publicationTask = Task.CompletedTask;
+    }
+    else
+    {
         publicationTask = Task.Run(() => PersistPreparedDocumentsAsync(
             node,
             options,
             physicsPersistence,
-            publication,
+            initialPrepared!,
+            initialTopology: true));
+    }
+    nextApiPublicationUtc = DateTimeOffset.UtcNow.Add(options.ApiPublicationInterval);
+    Console.WriteLine($"Aetheria Verse daemon published frame {latestFrame!.FrameId}.");
+    Console.WriteLine($"Aetheria daemon playable-world-ready in {startup.Elapsed.TotalMilliseconds:0.###}ms.");
+
+    if (options.Once)
+    {
+        await publicationTask.ConfigureAwait(false);
+        await PublishRuntimeSessionAsync(node, options, startedAtUtc, "completed").ConfigureAwait(false);
+        return;
+    }
+    await PublishRuntimeSessionAsync(node, options, startedAtUtc, "running").ConfigureAwait(false);
+    Console.WriteLine("Aetheria Verse daemon is running. Press Ctrl+C to stop.");
+
+    var nextTickUtc = DateTimeOffset.UtcNow.Add(options.TickInterval);
+    while (!stopped.Task.IsCompleted && (options.UseTerminusFixture || playableWorldDemand.IsActive))
+    {
+        ThrowIfClientHostFaulted(cultMeshClientHost);
+        var delay = nextTickUtc - DateTimeOffset.UtcNow;
+        if (delay > TimeSpan.Zero)
+        {
+            var completed = await Task.WhenAny(stopped.Task, Task.Delay(delay)).ConfigureAwait(false);
+            if (completed == stopped.Task)
+                break;
+        }
+
+        var buildPublications = DateTimeOffset.UtcNow >= nextApiPublicationUtc;
+        var tick = await TickAsync(node, options, unityBundles, worldPhysics, latestFrame, ingressState, buildPublications: false).ConfigureAwait(false);
+        ThrowIfClientHostFaulted(cultMeshClientHost);
+        latestFrame = tick.Frame;
+        await PublishHotEntityStateAsync(
+            node, soaPublisher, hotState, tick.Frame, ingressState.Catalog, cultMeshClientHost).ConfigureAwait(false);
+        nextTickUtc += options.TickInterval;
+        if (nextTickUtc < DateTimeOffset.UtcNow - options.TickInterval)
+            nextTickUtc = DateTimeOffset.UtcNow;
+        if (buildPublications && publicationTask.IsCompleted)
+        {
+            if (publicationTask.IsFaulted)
+                await publicationTask.ConfigureAwait(false);
+            var publication = PreparePublication(
+                node.StatePath,
+                options,
+                tick,
+                ingressState,
+                physicsPersistence);
+            publicationTask = Task.Run(() => PersistPreparedDocumentsAsync(
+                node,
+                options,
+                physicsPersistence,
+                publication,
+                initialTopology: false,
+                unityBundles: unityBundles,
+                reactiveSurfaceState: reactiveSurfaceState));
+            await PublishDemandedManagedViewportsAsync(node, options, tick.Frame, managedViewportDemand).ConfigureAwait(false);
+            nextApiPublicationUtc = DateTimeOffset.UtcNow.Add(options.ApiPublicationInterval);
+        }
+        if (tick.Frame.FrameId % (traceClientTransport ? 10 : 120) == 0)
+        {
+            Console.WriteLine(
+                $"Aetheria Verse daemon published frame {tick.Frame.FrameId} at {tick.Frame.SimulationTimeSeconds:0.00}s; " +
+                $"control peers={cultMeshClientHost.Control.PeerCount} " +
+                $"quic peers={cultMeshClientHost.Realtime.ConnectionCount} " +
+                $"cdn chunks={cultMeshClientHost.Content.ChunkRequestsServed}.");
+        }
+    }
+
+    await publicationTask.ConfigureAwait(false);
+    if (!stopped.Task.IsCompleted && !options.UseTerminusFixture)
+    {
+        var checkpointRun = latestFrame?.Run ?? throw new InvalidOperationException("Aetheria cannot checkpoint an inactive playable session without its run.");
+        var checkpointTick = new AetheriaRuntimeDaemonTickResult(
+            checkpointRun,
+            new AetheriaRuntimeDaemonOperationResult(checkpointRun, [], []),
+            latestFrame!);
+        var checkpoint = PreparePublication(
+            node.StatePath,
+            options,
+            checkpointTick,
+            ingressState,
+            physicsPersistence);
+        await PersistPreparedDocumentsAsync(
+            node,
+            options,
+            physicsPersistence,
+            checkpoint,
             initialTopology: false,
             unityBundles: unityBundles,
-            reactiveSurfaceState: reactiveSurfaceState));
-        await PublishDemandedManagedViewportsAsync(node, options, tick.Frame, managedViewportDemand).ConfigureAwait(false);
-        nextApiPublicationUtc = DateTimeOffset.UtcNow.Add(options.ApiPublicationInterval);
-    }
-    if (tick.Frame.FrameId % (traceClientTransport ? 10 : 120) == 0)
-    {
-        Console.WriteLine(
-            $"Aetheria Verse daemon published frame {tick.Frame.FrameId} at {tick.Frame.SimulationTimeSeconds:0.00}s; " +
-            $"control peers={cultMeshClientHost.Control.PeerCount} " +
-            $"quic peers={cultMeshClientHost.Realtime.ConnectionCount} " +
-            $"cdn chunks={cultMeshClientHost.Content.ChunkRequestsServed}.");
+            reactiveSurfaceState: reactiveSurfaceState).ConfigureAwait(false);
+        Console.WriteLine($"Aetheria daemon saved frame {latestFrame!.FrameId} after the playable client disconnected.");
     }
 }
 
-await PublishRuntimeSessionAsync(node, options, startedAtUtc, "stopping").ConfigureAwait(false);
-await publicationTask.ConfigureAwait(false);
+await PublishRuntimeSessionAsync(node, options, startedAtUtc, "stopped").ConfigureAwait(false);
 Console.WriteLine("Aetheria Verse daemon stopping.");
 
 static void ThrowIfClientHostFaulted(AetheriaClientCultMeshHost host)
@@ -299,15 +318,6 @@ static void ThrowIfClientHostFaulted(AetheriaClientCultMeshHost host)
             "Aetheria client CultMesh QUIC realtime host faulted.",
             host.Realtime.BackgroundFailure.GetAwaiter().GetResult());
 }
-
-static bool RequestsPlayableWorld(CultNetDatabaseSubscriptionDemand demand) =>
-    demand.Active &&
-    (demand.RecordKeys.Any(key =>
-         string.Equals(key, AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest.ToString(), StringComparison.Ordinal) ||
-         string.Equals(key, AetheriaRuntimeVerseRecordKeys.DaemonGameSurface.ToString(), StringComparison.Ordinal) ||
-         string.Equals(key, AetheriaRuntimeVerseRecordKeys.DaemonGameReactiveSurface.ToString(), StringComparison.Ordinal)) ||
-     demand.SchemaIds.Contains(AetheriaRuntimeDaemonSchemas.Frame, StringComparer.Ordinal) ||
-     demand.BodyIds.Contains(AetheriaRuntimeDaemonSoaFramePublisher.BodyId, StringComparer.Ordinal));
 
 static async Task<AetheriaRuntimeDaemonTickResult> TickAsync(
     AetheriaStateNode node,
@@ -3752,6 +3762,34 @@ internal sealed record AetheriaPreparedPublication(
     AetheriaRuntimeDaemonTickResult Publication,
     IReadOnlyList<AetheriaYmirZonePersistenceCapture> Physics,
     AetheriaRuntimeCatalogSnapshot Catalog);
+
+internal sealed class AetheriaPlayableWorldDemandState
+{
+    private readonly ConcurrentDictionary<string, byte> _active = new(StringComparer.Ordinal);
+
+    public bool IsActive => !_active.IsEmpty;
+
+    public void Observe(CultNetDatabaseSubscriptionDemand demand)
+    {
+        var key = demand.ConsumerRuntimeId + "\u001f" + demand.SubscriptionId;
+        if (!RequestsPlayableWorld(demand))
+        {
+            _active.TryRemove(key, out _);
+            return;
+        }
+
+        _active[key] = 0;
+    }
+
+    private static bool RequestsPlayableWorld(CultNetDatabaseSubscriptionDemand demand) =>
+        demand.Active &&
+        (demand.RecordKeys.Any(key =>
+             string.Equals(key, AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest.ToString(), StringComparison.Ordinal) ||
+             string.Equals(key, AetheriaRuntimeVerseRecordKeys.DaemonGameSurface.ToString(), StringComparison.Ordinal) ||
+             string.Equals(key, AetheriaRuntimeVerseRecordKeys.DaemonGameReactiveSurface.ToString(), StringComparison.Ordinal)) ||
+         demand.SchemaIds.Contains(AetheriaRuntimeDaemonSchemas.Frame, StringComparer.Ordinal) ||
+         demand.BodyIds.Contains(AetheriaRuntimeDaemonSoaFramePublisher.BodyId, StringComparer.Ordinal));
+}
 
 internal sealed class AetheriaManagedViewportDemandState
 {
