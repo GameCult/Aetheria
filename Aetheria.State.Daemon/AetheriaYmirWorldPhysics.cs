@@ -595,14 +595,13 @@ public sealed class AetheriaYmirWorldPhysics : IAetheriaRuntimeWorldPhysics, IDi
     {
         var current = payload ? state.PayloadSession : state.WorldSession;
         if (current == null || current.PersistenceJournalEntryCount < PersistenceRolloverJournalEntries ||
-            !current.TryCreateCompactedPersistenceBaseline(out var replacement))
+            !current.TryReplaceWithCompactedPersistenceBaseline(out var replacement))
             return;
 
         if (payload)
             state.PayloadSession = replacement!;
         else
             state.WorldSession = replacement!;
-        current.Dispose();
     }
 
     private static (double X, double Y) Normalize(
