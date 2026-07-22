@@ -182,16 +182,28 @@ namespace GameCult.Aetheria.State.Verse
 
             AddFossilGlobalFogBrushes(splats, layerIndices);
 
+            var bodyPoses = AetheriaRuntimeDaemonRenderQueries.QueryBodyPoses(zone)
+                .ToDictionary(pose => pose.BodyKey, StringComparer.Ordinal);
             foreach (var body in zone.Bodies ?? Array.Empty<AetheriaRuntimeBodySnapshotCommit>())
             {
-                if (!GravityInfluenceIntersectsViewport(body, normalizedViewport))
+                if (body == null ||
+                    string.IsNullOrWhiteSpace(body.BodyKey) ||
+                    !bodyPoses.TryGetValue(body.BodyKey, out var pose))
                     continue;
 
                 var radius = ResolveGravityRadius(body);
+                if (pose.CenterX + radius < normalizedViewport.MinX ||
+                    pose.CenterX - radius > normalizedViewport.MaxX ||
+                    pose.CenterZ + radius < normalizedViewport.MinY ||
+                    pose.CenterZ - radius > normalizedViewport.MaxY)
+                {
+                    continue;
+                }
+
                 splats.Add(
                     layerIndices[AetheriaRuntimeRenderSplatLayerKeys.GravityHeight],
-                    body.GravityInfluenceCenterX,
-                    body.GravityInfluenceCenterZ,
+                    pose.CenterX,
+                    pose.CenterZ,
                     radius,
                     radius,
                     AetheriaRuntimeRenderSplatChannels.Gravity,
@@ -205,8 +217,8 @@ namespace GameCult.Aetheria.State.Verse
                     falloffExponent: Math.Max(0.0001, body.GravityDepthExponent));
                 splats.Add(
                     layerIndices[AetheriaRuntimeRenderSplatLayerKeys.FogSurfaceHeight],
-                    body.GravityInfluenceCenterX,
-                    body.GravityInfluenceCenterZ,
+                    pose.CenterX,
+                    pose.CenterZ,
                     radius,
                     radius,
                     AetheriaRuntimeRenderSplatChannels.Gravity,
@@ -220,8 +232,8 @@ namespace GameCult.Aetheria.State.Verse
                     falloffExponent: Math.Max(0.0001, body.GravityDepthExponent));
                 splats.Add(
                     layerIndices[AetheriaRuntimeRenderSplatLayerKeys.FogPatchHeight],
-                    body.GravityInfluenceCenterX,
-                    body.GravityInfluenceCenterZ,
+                    pose.CenterX,
+                    pose.CenterZ,
                     radius,
                     radius,
                     AetheriaRuntimeRenderSplatChannels.Tint,
@@ -241,18 +253,24 @@ namespace GameCult.Aetheria.State.Verse
                         splats,
                         layerIndices[AetheriaRuntimeRenderSplatLayerKeys.GravityWave],
                         body,
+                        pose.CenterX,
+                        pose.CenterZ,
                         AetheriaRuntimeRenderSplatChannels.GravityWave,
                         $"{body.BodyKey ?? ""}:gravity.wave");
                     AddFossilRadialWaveBrush(
                         splats,
                         layerIndices[AetheriaRuntimeRenderSplatLayerKeys.FogSurfaceHeight],
                         body,
+                        pose.CenterX,
+                        pose.CenterZ,
                         AetheriaRuntimeRenderSplatChannels.Tint,
                         $"{body.BodyKey ?? ""}:fog.surface_height.wave");
                     AddFossilRadialWaveBrush(
                         splats,
                         layerIndices[AetheriaRuntimeRenderSplatLayerKeys.FogPatchHeight],
                         body,
+                        pose.CenterX,
+                        pose.CenterZ,
                         AetheriaRuntimeRenderSplatChannels.Tint,
                         $"{body.BodyKey ?? ""}:fog.patch_height.wave");
                 }
@@ -264,8 +282,8 @@ namespace GameCult.Aetheria.State.Verse
                         Math.Max(0.01, body.SunVisual?.LightRadiusMultiplier ?? 1.0) * 0.5;
                     splats.Add(
                         layerIndices[AetheriaRuntimeRenderSplatLayerKeys.FogTint],
-                        body.GravityInfluenceCenterX,
-                        body.GravityInfluenceCenterZ,
+                        pose.CenterX,
+                        pose.CenterZ,
                         tintHalfExtent,
                         tintHalfExtent,
                         AetheriaRuntimeRenderSplatChannels.Tint,
@@ -519,6 +537,8 @@ namespace GameCult.Aetheria.State.Verse
             RenderSplatBuilder splats,
             int layerIndex,
             AetheriaRuntimeBodySnapshotCommit body,
+            double centerX,
+            double centerY,
             int channel,
             string sourceKey)
         {
@@ -527,8 +547,8 @@ namespace GameCult.Aetheria.State.Verse
             var halfExtent = body.GravityWaveRadius * 0.5;
             splats.Add(
                 layerIndex,
-                body.GravityInfluenceCenterX,
-                body.GravityInfluenceCenterZ,
+                centerX,
+                centerY,
                 halfExtent,
                 halfExtent,
                 channel,

@@ -1611,6 +1611,71 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
+    public void RenderSplatsUseTheSameResolvedOrbitPoseAsCelestialEntities()
+    {
+        var zone = new AetheriaRuntimeZoneSnapshotCommit
+        {
+            ZoneIndex = 2,
+            Orbits = new[]
+            {
+                new AetheriaRuntimeOrbitSnapshotCommit
+                {
+                    OrbitKey = "orbit:sun",
+                    FixedPositionX = 120,
+                    FixedPositionY = -45
+                }
+            },
+            Bodies = new[]
+            {
+                new AetheriaRuntimeBodySnapshotCommit
+                {
+                    BodyKey = "body:sun",
+                    OrbitKey = "orbit:sun",
+                    Kind = "sun",
+                    GravityInfluenceCenterX = double.NaN,
+                    GravityInfluenceCenterZ = double.NaN,
+                    GravityInfluenceRadius = 40,
+                    GravityWellDepth = 8,
+                    Mass = 16,
+                    SunVisual = new AetheriaRuntimeSunVisualCommit
+                    {
+                        FogTintColorX = 1,
+                        FogTintColorY = 0.5,
+                        FogTintColorZ = 0.25
+                    }
+                }
+            }
+        };
+        var frame = new AetheriaRuntimeDaemonFrameDocument
+        {
+            FrameId = 7,
+            Run = new AetheriaRuntimeRunCheckpointCommit
+            {
+                RunId = "run-orbit-fields",
+                CurrentZoneIndex = zone.ZoneIndex,
+                Zones = new[] { zone }
+            }
+        };
+
+        var document = AetheriaRuntimeGameDocuments.RenderSplatsViewport(
+            frame,
+            new AetheriaRuntimeViewportBounds
+            {
+                MinX = 50,
+                MinY = -100,
+                MaxX = 170,
+                MaxY = 20
+            });
+        var bodySplats = Enumerable.Range(0, document.Splats.Count)
+            .Where(index => document.Splats.SourceKey[index].StartsWith("body:sun", StringComparison.Ordinal))
+            .ToArray();
+
+        Assert.IsNotEmpty(bodySplats);
+        Assert.That(bodySplats.All(index => Math.Abs(document.Splats.CenterX[index] - 120) < 0.0001));
+        Assert.That(bodySplats.All(index => Math.Abs(document.Splats.CenterY[index] + 45) < 0.0001));
+    }
+
+    [Test]
     public void DaemonRenderQueriesPublishBodyViewsFromZoneSnapshot()
     {
         var zone = new AetheriaRuntimeZoneSnapshotCommit
