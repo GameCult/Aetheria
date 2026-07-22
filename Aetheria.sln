@@ -21,8 +21,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ink", "Ink.csproj", "{6bae5
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GameCult.Brokkr.Editor", "GameCult.Brokkr.Editor.csproj", "{f041e9dc-dc28-1d6c-75a3-824162b4a1ae}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CultMath", "CultMath.csproj", "{6f7a47c4-21dc-64ef-0969-96b956a000f4}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GameCult.Brokkr", "GameCult.Brokkr.csproj", "{fc28bcbe-9ef4-444f-c1c9-dde8a3a864ad}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tests", "Tests.csproj", "{28568750-512b-4d45-69bf-887882a23da7}"
@@ -58,8 +56,6 @@ Global
 		{6bae5155-742f-1170-f8b5-ff696c59aad8}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{f041e9dc-dc28-1d6c-75a3-824162b4a1ae}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{f041e9dc-dc28-1d6c-75a3-824162b4a1ae}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{6f7a47c4-21dc-64ef-0969-96b956a000f4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{6f7a47c4-21dc-64ef-0969-96b956a000f4}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{fc28bcbe-9ef4-444f-c1c9-dde8a3a864ad}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{fc28bcbe-9ef4-444f-c1c9-dde8a3a864ad}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{28568750-512b-4d45-69bf-887882a23da7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU

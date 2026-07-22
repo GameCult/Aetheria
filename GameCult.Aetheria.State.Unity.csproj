@@ -575,10 +575,6 @@
       <Project>{037dacf0-10f4-20ed-7963-3a1e1ac15b64}</Project>
       <Name>GameCult.Eve.Surface</Name>
     </ProjectReference>
-    <ProjectReference Include="CultMath.csproj">
-      <Project>{6f7a47c4-21dc-64ef-0969-96b956a000f4}</Project>
-      <Name>CultMath</Name>
-    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it.
