@@ -94,6 +94,8 @@ namespace GameCult.Aetheria.State.Verse
             _demand = demand;
         }
 
+        public CultMeshBodyDemandPlan? CurrentDemandPlan() => _demand?.Plan(BodyId);
+
         public AetheriaRuntimeDaemonSoaFrame? BuildCurrentZoneEntities(
             AetheriaRuntimeDaemonFrameDocument frame,
             AetheriaRuntimeCatalogSnapshot? catalog = null,
@@ -103,8 +105,8 @@ namespace GameCult.Aetheria.State.Verse
                 throw new ArgumentNullException(nameof(frame));
             var demand = _demand?.Plan(BodyId);
             if (demand != null &&
-                (!demand.HasConsumers || !demand.RequiresSharedMemory) &&
-                !realtimeDemand)
+                (!demand.HasConsumers ||
+                 (!demand.RequiresSharedMemory && !demand.RequiresSharedFileMapping && !realtimeDemand)))
                 return null;
 
             var run = frame.Run ?? new AetheriaRuntimeRunCheckpointCommit();
@@ -129,8 +131,14 @@ namespace GameCult.Aetheria.State.Verse
                 .ToHashSet();
             if (dockParent != null)
                 visibleEntityIndices.Add(dockParent.EntityIndex);
+            var fieldContributorIndices = (zone?.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
+                .Where(AetheriaRuntimeGameDocuments.HasActiveFogFieldEmitter)
+                .Select(entity => entity.EntityIndex)
+                .ToHashSet();
             var entities = (zone?.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
-                .Where(entity => entity != null && visibleEntityIndices.Contains(entity.EntityIndex))
+                .Where(entity => entity != null &&
+                    (visibleEntityIndices.Contains(entity.EntityIndex) ||
+                     fieldContributorIndices.Contains(entity.EntityIndex)))
                 .OrderBy(entity => entity.EntityIndex)
                 .ToArray();
             var pickups = (zone?.DroppedPickups ?? Array.Empty<AetheriaRuntimeDroppedPickupCommit>())
@@ -180,7 +188,7 @@ namespace GameCult.Aetheria.State.Verse
             {
                 var bytes = write.Span[..checked((int)layout.TotalByteLength)];
                 bytes.Clear();
-                WriteEntities(bytes, layout, entities);
+                WriteEntities(bytes, layout, entities, visibleEntityIndices);
                 WritePickups(bytes, layout, pickups, pickupEntityIds, syntheticEntityIndices, entities.Length);
                 WritePayloads(bytes, layout, payloads, payloadEntityIds, syntheticEntityIndices, entities.Length + pickups.Length);
                 WriteCelestialBodies(
@@ -226,8 +234,10 @@ namespace GameCult.Aetheria.State.Verse
                         Kind = entity.Kind,
                         Label = entity.Name,
                         Faction = entity.FactionKey,
-                        Selectable = entity.EntityIndex != controlled?.EntityIndex,
-                        Controllable = entity.EntityIndex == controlled?.EntityIndex,
+                        Selectable = visibleEntityIndices.Contains(entity.EntityIndex) &&
+                            entity.EntityIndex != controlled?.EntityIndex,
+                        Controllable = visibleEntityIndices.Contains(entity.EntityIndex) &&
+                            entity.EntityIndex == controlled?.EntityIndex,
                         AssetRef = AetheriaRuntimeAssets.ResolveEntityPrefabAssetRef(entity, catalog)
                     })
                     .Concat(pickups.Select((pickup, pickupRow) => new AetheriaRuntimeDaemonSoaIdentityDocument
@@ -428,7 +438,8 @@ namespace GameCult.Aetheria.State.Verse
         private static void WriteEntities(
             Span<byte> bytes,
             EntityHotSlabLayout layout,
-            IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities)
+            IReadOnlyList<AetheriaRuntimeEntitySnapshotCommit> entities,
+            ISet<int> visibleEntityIndices)
         {
             for (var index = 0; index < entities.Count; index++)
             {
@@ -443,7 +454,8 @@ namespace GameCult.Aetheria.State.Verse
                 WriteFloat(bytes, layout.PhysicsBodyMass, index, 1.0);
                 WriteFloat(bytes, layout.PhysicsBodyInverseMass, index, 1.0);
                 WriteFloat(bytes, layout.RenderScale, index, 1.0);
-                bytes[checked((int)(layout.RenderVisibility + index * ByteStride))] = (byte)(entity.IsActive ? 1 : 0);
+                bytes[checked((int)(layout.RenderVisibility + index * ByteStride))] =
+                    (byte)(entity.IsActive && visibleEntityIndices.Contains(entity.EntityIndex) ? 1 : 0);
                 WriteInt32(bytes, layout.RenderLod + index * IntStride, 0);
                 WriteUInt32(bytes, layout.RenderGroupId + index * IntStride, EntityRenderGroupId);
             }

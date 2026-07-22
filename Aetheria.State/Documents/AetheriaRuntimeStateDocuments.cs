@@ -682,6 +682,31 @@ public sealed class AetheriaEntitySnapshot
 
     [Key(38)]
     public string AssignedAgentTaskId { get; set; } = "";
+
+    [Key(39)]
+    public AetheriaFogFieldEmitterSnapshot[] FogFieldEmitters { get; set; } = [];
+}
+
+[MessagePackObject]
+public sealed class AetheriaFogFieldEmitterSnapshot
+{
+    [Key(0)]
+    public bool Enabled { get; set; } = true;
+
+    [Key(1)]
+    public double Radius { get; set; }
+
+    [Key(2)]
+    public double Density { get; set; } = 1;
+
+    [Key(3)]
+    public double OffsetX { get; set; }
+
+    [Key(4)]
+    public double OffsetZ { get; set; }
+
+    [Key(5)]
+    public double FalloffExponent { get; set; } = 2;
 }
 
 [MessagePackObject]

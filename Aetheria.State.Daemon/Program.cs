@@ -3413,6 +3413,17 @@ static AetheriaRuntimeEntitySnapshotCommit ToRuntimeEntity(
         DockingBayAssignments = (entity.DockingBayAssignments ?? Array.Empty<int>()).ToArray(),
         Visibility = entity.Visibility,
         VisibilitySourceCount = entity.VisibilitySourceCount,
+        FogFieldEmitters = (entity.FogFieldEmitters ?? Array.Empty<AetheriaFogFieldEmitterSnapshot>())
+            .Select(emitter => new AetheriaRuntimeFogFieldEmitterCommit
+            {
+                Enabled = emitter.Enabled,
+                Radius = emitter.Radius,
+                Density = emitter.Density,
+                OffsetX = emitter.OffsetX,
+                OffsetZ = emitter.OffsetZ,
+                FalloffExponent = emitter.FalloffExponent
+            })
+            .ToArray(),
         Contacts = (entity.Contacts ?? Array.Empty<AetheriaEntityContactSnapshot>())
             .Select(contact => ToRuntimeContact(contact, entityIndices))
             .Where(contact => contact.TargetEntityIndex >= 0)

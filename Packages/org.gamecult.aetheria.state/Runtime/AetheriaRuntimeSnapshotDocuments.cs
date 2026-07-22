@@ -1167,6 +1167,32 @@ namespace GameCult.Aetheria.State.Verse
 
         [Key(56)]
         public double SecurityRadius { get; set; }
+
+        [Key(57)]
+        public IReadOnlyList<AetheriaRuntimeFogFieldEmitterCommit> FogFieldEmitters { get; set; } =
+            Array.Empty<AetheriaRuntimeFogFieldEmitterCommit>();
+    }
+
+    [MessagePackObject]
+    public sealed class AetheriaRuntimeFogFieldEmitterCommit
+    {
+        [Key(0)]
+        public bool Enabled { get; set; } = true;
+
+        [Key(1)]
+        public double Radius { get; set; }
+
+        [Key(2)]
+        public double Density { get; set; } = 1;
+
+        [Key(3)]
+        public double OffsetX { get; set; }
+
+        [Key(4)]
+        public double OffsetZ { get; set; }
+
+        [Key(5)]
+        public double FalloffExponent { get; set; } = 2;
     }
 
     [MessagePackObject]

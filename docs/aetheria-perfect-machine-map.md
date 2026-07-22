@@ -1814,6 +1814,18 @@ edges with one worker and exactly two start/transfer/completion event triplets.
   `fog.surface_height` is the positive visual displacement the fossil
   `PowerBrush` camera supplied to `_NebulaSurfaceHeight`. Both derive from the
   same daemon-owned radial brushes, but neither may impersonate the other.
+- Entity-owned fog cover: a durable or runtime entity may own typed fog-field
+  emitter components containing radius, density, local XZ offset, and falloff.
+  The owning entity remains an ordinary live SoA entity. The daemon derives each
+  demanded `fog.patch` splat from that entity's current pose and stamps the
+  canonical entity record key into the splat source identity. Every active field
+  contributor retains a row in the live entity SoA even when the observer has
+  not detected it; such a row is render-invisible and non-selectable until normal
+  contact visibility reveals the owner. Splat position is not stored independently
+  and generic clients cannot move, create, or preserve a fog field after its
+  owner or component disappears. No generated world uses
+  these components by default; gameplay commands may attach them later without
+  changing the rendering contract.
 - Fossil producer map: layer 9 coarse displacement and layer 10 fine waves
   compose `fog.surface_height`; those same producers plus layer 12 patch
   displacement compose `fog.patch_height`; layer 11 simplex/cellular density

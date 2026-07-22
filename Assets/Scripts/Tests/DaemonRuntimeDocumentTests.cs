@@ -1676,6 +1676,71 @@ public class DaemonRuntimeDocumentTests
     }
 
     [Test]
+    public void EntityOwnedFogFieldFollowsItsSoaEntityPose()
+    {
+        var entity = new AetheriaRuntimeEntitySnapshotCommit
+        {
+            EntityIndex = 4,
+            EntityId = "global:aetheria.run_state.run-dynamic-fog.zone.2.entity.4.v1",
+            IsActive = true,
+            PositionX = 30,
+            PositionZ = -10,
+            FogFieldEmitters = new[]
+            {
+                new AetheriaRuntimeFogFieldEmitterCommit
+                {
+                    Radius = 24,
+                    Density = 0.75,
+                    OffsetX = 3,
+                    OffsetZ = -2,
+                    FalloffExponent = 4
+                }
+            }
+        };
+        var zone = new AetheriaRuntimeZoneSnapshotCommit
+        {
+            ZoneIndex = 2,
+            Entities = new[] { entity }
+        };
+        var frame = new AetheriaRuntimeDaemonFrameDocument
+        {
+            FrameId = 9,
+            Run = new AetheriaRuntimeRunCheckpointCommit
+            {
+                RunId = "run-dynamic-fog",
+                CurrentZoneIndex = zone.ZoneIndex,
+                Zones = new[] { zone }
+            }
+        };
+
+        var document = AetheriaRuntimeGameDocuments.RenderSplatsViewport(
+            frame,
+            new AetheriaRuntimeViewportBounds { MinX = 0, MinY = -50, MaxX = 80, MaxY = 30 });
+        var expectedSource = AetheriaRuntimeRunCheckpointCommit.EntityRecordKey(
+            frame.Run.RunId,
+            zone.ZoneIndex,
+            entity.EntityIndex) + ":fog-field:0";
+        var splatIndex = Enumerable.Range(0, document.Splats.Count)
+            .Single(index => string.Equals(document.Splats.SourceKey[index], expectedSource, StringComparison.Ordinal));
+        var layer = document.Layers[document.Splats.LayerIndex[splatIndex]];
+
+        Assert.AreEqual(AetheriaRuntimeRenderSplatLayerKeys.FogPatch, layer.LayerKey);
+        Assert.AreEqual(33, document.Splats.CenterX[splatIndex], 0.0001);
+        Assert.AreEqual(-12, document.Splats.CenterY[splatIndex], 0.0001);
+        Assert.AreEqual(24, document.Splats.HalfExtentX[splatIndex], 0.0001);
+        Assert.AreEqual(0.75, document.Splats.ValueR[splatIndex], 0.0001);
+        Assert.AreEqual(4, document.Splats.FalloffExponent[splatIndex], 0.0001);
+
+        using var publisher = new AetheriaRuntimeDaemonSoaFramePublisher(9001);
+        using var soaFrame = publisher.BuildCurrentZoneEntities(frame);
+        Assert.IsNotNull(soaFrame);
+        var identity = soaFrame.View.Identities.Single(value => value.EntityIndex == entity.EntityIndex);
+        Assert.AreEqual(entity.EntityId, identity.EntityId);
+        Assert.IsFalse(identity.Selectable, "An undetected field owner remains in SoA without becoming targetable.");
+        Assert.IsFalse(identity.Controllable);
+    }
+
+    [Test]
     public void DaemonRenderQueriesPublishBodyViewsFromZoneSnapshot()
     {
         var zone = new AetheriaRuntimeZoneSnapshotCommit

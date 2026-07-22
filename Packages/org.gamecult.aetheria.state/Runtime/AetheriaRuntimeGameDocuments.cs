@@ -300,6 +300,12 @@ namespace GameCult.Aetheria.State.Verse
 
             foreach (var entity in zone.Entities ?? Array.Empty<AetheriaRuntimeEntitySnapshotCommit>())
             {
+                var entityKey = AetheriaRuntimeRunCheckpointCommit.EntityRecordKey(
+                    context.RunId,
+                    zone.ZoneIndex,
+                    entity.EntityIndex);
+                AddEntityFogFieldEmitters(splats, layerIndices, entity, entityKey, normalizedViewport);
+
                 if (!IsPlayerControlled(entity))
                     continue;
 
@@ -324,7 +330,7 @@ namespace GameCult.Aetheria.State.Verse
                     1,
                     1,
                     1,
-                    AetheriaRuntimeRunCheckpointCommit.EntityRecordKey(context.RunId, zone.ZoneIndex, entity.EntityIndex));
+                    entityKey);
             }
 
             return new EveFieldsSplatsDocument
@@ -452,6 +458,64 @@ namespace GameCult.Aetheria.State.Verse
                 "environment.fog_tint.ambient",
                 falloffScale: 1,
                 falloffExponent: 2);
+        }
+
+        private static void AddEntityFogFieldEmitters(
+            RenderSplatBuilder splats,
+            IReadOnlyDictionary<string, int> layerIndices,
+            AetheriaRuntimeEntitySnapshotCommit entity,
+            string entityKey,
+            AetheriaRuntimeViewportBounds viewport)
+        {
+            if (!HasActiveFogFieldEmitter(entity))
+                return;
+
+            var emitters = entity.FogFieldEmitters ?? Array.Empty<AetheriaRuntimeFogFieldEmitterCommit>();
+            for (var emitterIndex = 0; emitterIndex < emitters.Count; emitterIndex++)
+            {
+                var emitter = emitters[emitterIndex];
+                if (emitter == null || !emitter.Enabled || !double.IsFinite(emitter.Radius) || emitter.Radius <= 0)
+                    continue;
+
+                var centerX = entity.PositionX + emitter.OffsetX;
+                var centerY = entity.PositionZ + emitter.OffsetZ;
+                if (centerX + emitter.Radius < viewport.MinX ||
+                    centerX - emitter.Radius > viewport.MaxX ||
+                    centerY + emitter.Radius < viewport.MinY ||
+                    centerY - emitter.Radius > viewport.MaxY)
+                {
+                    continue;
+                }
+
+                splats.Add(
+                    layerIndices[AetheriaRuntimeRenderSplatLayerKeys.FogPatch],
+                    centerX,
+                    centerY,
+                    emitter.Radius,
+                    emitter.Radius,
+                    AetheriaRuntimeRenderSplatChannels.Tint,
+                    EveFieldsSplatFalloffs.PowerPulse,
+                    double.IsFinite(emitter.Density) ? Math.Max(0, emitter.Density) : 0,
+                    0,
+                    0,
+                    1,
+                    $"{entityKey}:fog-field:{emitterIndex}",
+                    falloffScale: 1,
+                    falloffExponent: double.IsFinite(emitter.FalloffExponent)
+                        ? Math.Max(0.0001, emitter.FalloffExponent)
+                        : 2);
+            }
+        }
+
+        public static bool HasActiveFogFieldEmitter(AetheriaRuntimeEntitySnapshotCommit entity)
+        {
+            return entity != null &&
+                entity.IsActive &&
+                (entity.FogFieldEmitters ?? Array.Empty<AetheriaRuntimeFogFieldEmitterCommit>())
+                .Any(emitter => emitter != null &&
+                    emitter.Enabled &&
+                    double.IsFinite(emitter.Radius) &&
+                    emitter.Radius > 0);
         }
 
         private static void AddFossilSimplexBrush(
