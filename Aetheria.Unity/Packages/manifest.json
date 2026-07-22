@@ -15,5 +15,8 @@
     "org.gamecult.eve.surface": "https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.surface#eveunity-surface-v0.2.4",
     "org.gamecult.eve.unity-scene": "https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.unity-scene#eveunity-scene-v0.3.103",
     "org.gamecult.eve.unity-uitoolkit": "https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.unity-uitoolkit#eveunity-uitoolkit-v0.1.2"
-  }
+  },
+  "testables": [
+    "org.gamecult.geometry"
+  ]
 }
