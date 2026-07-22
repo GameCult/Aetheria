@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using CultMath;
+using GameCult.Geometry;
 using MessagePack;
 
 #nullable enable
@@ -33,9 +34,9 @@ namespace GameCult.Aetheria.State.Verse
         public double MaxX { get; }
         public double MaxZ { get; }
 
-        public rect ToAetheriaXyRect()
+        public CultRect ToAetheriaXyRect()
         {
-            return new rect(
+            return new CultRect(
                 (float)MinX,
                 (float)MinZ,
                 (float)MaxX,
@@ -790,7 +791,7 @@ namespace GameCult.Aetheria.State.Verse
 
         public static AetheriaRuntimeGravityInfluenceBrush[] QueryGravityInfluences(
             AetheriaRuntimeZoneSnapshotCommit? zone,
-            rect viewport)
+            CultRect viewport)
         {
             var brushes = new List<AetheriaRuntimeGravityInfluenceBrush>();
             QueryGravityInfluences(zone, viewport, brushes);
@@ -807,7 +808,7 @@ namespace GameCult.Aetheria.State.Verse
 
         public static int QueryGravityInfluences(
             AetheriaRuntimeZoneSnapshotCommit? zone,
-            rect viewport,
+            CultRect viewport,
             List<AetheriaRuntimeGravityInfluenceBrush> brushes)
         {
             if (brushes == null) throw new ArgumentNullException(nameof(brushes));
@@ -906,7 +907,7 @@ namespace GameCult.Aetheria.State.Verse
 
         public static AetheriaRuntimeDaemonBodyView[] QueryBodyViews(
             AetheriaRuntimeZoneSnapshotCommit? zone,
-            rect viewport)
+            CultRect viewport)
         {
             var views = new List<AetheriaRuntimeDaemonBodyView>();
             QueryBodyViews(zone, viewport, views);
@@ -930,15 +931,15 @@ namespace GameCult.Aetheria.State.Verse
 
         public static int QueryBodyViews(
             AetheriaRuntimeZoneSnapshotCommit? zone,
-            rect viewport,
+            CultRect viewport,
             List<AetheriaRuntimeDaemonBodyView> views)
         {
-            return QueryBodyViews(zone, (rect?)viewport, views);
+            return QueryBodyViews(zone, (CultRect?)viewport, views);
         }
 
         private static int QueryBodyViews(
             AetheriaRuntimeZoneSnapshotCommit? zone,
-            rect? viewport,
+            CultRect? viewport,
             List<AetheriaRuntimeDaemonBodyView> views)
         {
             if (views == null) throw new ArgumentNullException(nameof(views));
@@ -1196,7 +1197,7 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeZoneSnapshotCommit? zone,
             int observerEntityIndex,
             double minimumInfoGathered,
-            rect viewport)
+            CultRect viewport)
         {
             var currentEntityIndex = TryParseEntityIndex(run?.CurrentEntityKey);
             return QueryPresentationEntityIndices(
@@ -1223,7 +1224,7 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeZoneSnapshotCommit? zone,
             int observerEntityIndex,
             double minimumInfoGathered,
-            rect viewport,
+            CultRect viewport,
             List<int> entityIndices)
         {
             var currentEntityIndex = TryParseEntityIndex(run?.CurrentEntityKey);
@@ -1251,7 +1252,7 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeZoneSnapshotCommit? zone,
             int observerEntityIndex,
             double minimumInfoGathered,
-            rect viewport)
+            CultRect viewport)
         {
             var entityIndices = new List<int>();
             var currentEntityIndex = TryParseEntityIndex(currentEntityKey);
@@ -1270,7 +1271,7 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeZoneSnapshotCommit? zone,
             int observerEntityIndex,
             double minimumInfoGathered,
-            rect viewport)
+            CultRect viewport)
         {
             var entityIndices = new List<int>();
             QueryPresentationEntityIndices(
@@ -1299,7 +1300,7 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeZoneSnapshotCommit? zone,
             int observerEntityIndex,
             double minimumInfoGathered,
-            rect viewport,
+            CultRect viewport,
             List<int> entityIndices)
         {
             var currentEntityIndex = TryParseEntityIndex(currentEntityKey);
@@ -1317,7 +1318,7 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeZoneSnapshotCommit? zone,
             int observerEntityIndex,
             double minimumInfoGathered,
-            rect viewport,
+            CultRect viewport,
             List<int> entityIndices)
         {
             if (entityIndices == null) throw new ArgumentNullException(nameof(entityIndices));
@@ -1368,7 +1369,7 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeZoneSnapshotCommit? zone,
             IReadOnlyList<int>? controlledEntityIndices,
             double minimumInfoGathered,
-            rect viewport)
+            CultRect viewport)
         {
             var entityIndices = new List<int>();
             QueryObjectsViewportEntityIndices(zone, controlledEntityIndices, minimumInfoGathered, viewport, entityIndices);
@@ -1379,7 +1380,7 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeZoneSnapshotCommit? zone,
             IReadOnlyList<int>? controlledEntityIndices,
             double minimumInfoGathered,
-            rect viewport,
+            CultRect viewport,
             List<int> entityIndices)
         {
             if (entityIndices == null) throw new ArgumentNullException(nameof(entityIndices));
@@ -1454,7 +1455,7 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeZoneSnapshotCommit? zone,
             IReadOnlyList<int>? controlledEntityIndices,
             double minimumInfoGathered,
-            rect viewport)
+            CultRect viewport)
         {
             var entities = new List<AetheriaRuntimeDaemonObjectViewportEntity>();
             QueryObjectsViewport(zone, controlledEntityIndices, minimumInfoGathered, viewport, entities);
@@ -1465,7 +1466,7 @@ namespace GameCult.Aetheria.State.Verse
             AetheriaRuntimeZoneSnapshotCommit? zone,
             IReadOnlyList<int>? controlledEntityIndices,
             double minimumInfoGathered,
-            rect viewport,
+            CultRect viewport,
             List<AetheriaRuntimeDaemonObjectViewportEntity> entities)
         {
             if (entities == null) throw new ArgumentNullException(nameof(entities));
@@ -1761,7 +1762,7 @@ namespace GameCult.Aetheria.State.Verse
 
             foreach (var brush in QueryGravityInfluences(
                          zone,
-                         new rect((float)positionX, (float)positionZ, (float)positionX, (float)positionZ)))
+                         new CultRect((float)positionX, (float)positionZ, (float)positionX, (float)positionZ)))
             {
                 var dx = positionX - brush.CenterX;
                 var dz = positionZ - brush.CenterZ;
@@ -1896,7 +1897,7 @@ namespace GameCult.Aetheria.State.Verse
             return source;
         }
 
-        private static bool IntersectsCircle(rect viewport, double centerX, double centerY, double radius)
+        private static bool IntersectsCircle(CultRect viewport, double centerX, double centerY, double radius)
         {
             if (radius <= 0)
                 return false;
@@ -1918,12 +1919,12 @@ namespace GameCult.Aetheria.State.Verse
             return ContainsPoint(rect.ToAetheriaXyRect(), x, z);
         }
 
-        private static bool ContainsPoint(rect viewport, double x, double y)
+        private static bool ContainsPoint(CultRect viewport, double x, double y)
         {
             return viewport.Contains(new float2((float)x, (float)y));
         }
 
-        private static rect ToRuntimeRect(AetheriaRuntimeXzRect unityViewport)
+        private static CultRect ToRuntimeRect(AetheriaRuntimeXzRect unityViewport)
         {
             return unityViewport.ToAetheriaXyRect();
         }

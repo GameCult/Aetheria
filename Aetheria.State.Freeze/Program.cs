@@ -2,11 +2,18 @@ using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Aetheria.State;
-using GameCult.Geometry;
+using CultMath;
 using GameCult.Aetheria.State.Verse;
 using MessagePack;
+using MessagePack.Formatters;
+using MessagePack.Resolvers;
 
+MessagePackSerializer.DefaultOptions = MessagePackSerializerOptions.Standard.WithResolver(
+    CompositeResolver.Create(
+        new IMessagePackFormatter[] { new CultMathFloat2Formatter(), new CultMathFloat3Formatter() },
+        new IFormatterResolver[] { StandardResolver.Instance }));
 var options = FreezeOptions.Parse(args);
+VerifyCultMathVectorSerializationCompatibility();
 Directory.CreateDirectory(options.OutputDirectory);
 Directory.CreateDirectory(Path.GetDirectoryName(options.StatePath) ?? ".");
 
@@ -841,14 +848,27 @@ static YmirFixtureSphereCastHit[] ToFixtureSphereCastHits(IReadOnlyList<YmirSphe
         .ToArray();
 }
 
-static CultVec2 ToFixtureVec2(YmirVec2 value)
+static float2 ToFixtureVec2(YmirVec2 value)
 {
-    return new CultVec2(value.x, value.y);
+    return new float2(value.x, value.y);
 }
 
-static CultVec3 ToFixtureVec3(YmirVec3 value)
+static float3 ToFixtureVec3(YmirVec3 value)
 {
-    return new CultVec3(value.x, value.y, value.z);
+    return new float3(value.x, value.y, value.z);
+}
+
+static void VerifyCultMathVectorSerializationCompatibility()
+{
+    var old2 = MessagePackSerializer.Serialize(new LegacyFixtureVec2(1.25f, -2.5f));
+    var current2 = MessagePackSerializer.Serialize(new float2(1.25f, -2.5f));
+    if (!old2.AsSpan().SequenceEqual(current2))
+        throw new InvalidOperationException("CultMath.float2 changed the frozen MessagePack vector layout.");
+
+    var old3 = MessagePackSerializer.Serialize(new LegacyFixtureVec3(1.25f, -2.5f, 4.75f));
+    var current3 = MessagePackSerializer.Serialize(new float3(1.25f, -2.5f, 4.75f));
+    if (!old3.AsSpan().SequenceEqual(current3))
+        throw new InvalidOperationException("CultMath.float3 changed the frozen MessagePack vector layout.");
 }
 
 static YmirWorld YmirWorldOf(params YmirPhysicsBody[] bodies)
@@ -1144,6 +1164,52 @@ internal sealed class FreezeArtifact
 }
 
 [MessagePackObject]
+internal readonly record struct LegacyFixtureVec2(
+    [property: Key(0)] float x,
+    [property: Key(1)] float y);
+
+[MessagePackObject]
+internal readonly record struct LegacyFixtureVec3(
+    [property: Key(0)] float x,
+    [property: Key(1)] float y,
+    [property: Key(2)] float z);
+
+internal sealed class CultMathFloat2Formatter : IMessagePackFormatter<float2>
+{
+    public void Serialize(ref MessagePackWriter writer, float2 value, MessagePackSerializerOptions options)
+    {
+        writer.WriteArrayHeader(2);
+        writer.Write(value.x);
+        writer.Write(value.y);
+    }
+
+    public float2 Deserialize(ref MessagePackReader reader, MessagePackSerializerOptions options)
+    {
+        var count = reader.ReadArrayHeader();
+        if (count != 2) throw new MessagePackSerializationException($"Expected float2 array length 2, got {count}.");
+        return new float2(reader.ReadSingle(), reader.ReadSingle());
+    }
+}
+
+internal sealed class CultMathFloat3Formatter : IMessagePackFormatter<float3>
+{
+    public void Serialize(ref MessagePackWriter writer, float3 value, MessagePackSerializerOptions options)
+    {
+        writer.WriteArrayHeader(3);
+        writer.Write(value.x);
+        writer.Write(value.y);
+        writer.Write(value.z);
+    }
+
+    public float3 Deserialize(ref MessagePackReader reader, MessagePackSerializerOptions options)
+    {
+        var count = reader.ReadArrayHeader();
+        if (count != 3) throw new MessagePackSerializationException($"Expected float3 array length 3, got {count}.");
+        return new float3(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
+    }
+}
+
+[MessagePackObject]
 internal sealed class YmirQueryFixtureSet
 {
     [Key(0)] public string Schema { get; set; } = "";
@@ -1167,12 +1233,12 @@ internal sealed class YmirQueryFixturePayload
     [Key(0)] public float? DeltaTime { get; set; }
     [Key(1)] public float? Radius { get; set; }
     [Key(2)] public float? Distance { get; set; }
-    [Key(3)] public CultVec2? Center2 { get; set; }
-    [Key(4)] public CultVec3? Center3 { get; set; }
-    [Key(5)] public CultVec2? Origin2 { get; set; }
-    [Key(6)] public CultVec3? Origin3 { get; set; }
-    [Key(7)] public CultVec2? Direction2 { get; set; }
-    [Key(8)] public CultVec3? Direction3 { get; set; }
+    [Key(3)] public float2? Center2 { get; set; }
+    [Key(4)] public float3? Center3 { get; set; }
+    [Key(5)] public float2? Origin2 { get; set; }
+    [Key(6)] public float3? Origin3 { get; set; }
+    [Key(7)] public float2? Direction2 { get; set; }
+    [Key(8)] public float3? Direction3 { get; set; }
     [Key(9)] public YmirFixtureWorld? World { get; set; }
     [Key(10)] public YmirFixtureSphereBody[] SphereBodies { get; set; } = Array.Empty<YmirFixtureSphereBody>();
     [Key(11)] public YmirFixtureCircleOverlapHit[] CircleOverlapHits { get; set; } = Array.Empty<YmirFixtureCircleOverlapHit>();
@@ -1194,9 +1260,9 @@ internal sealed class YmirFixtureWorld
 internal sealed class YmirFixtureBody
 {
     [Key(0)] public string Id { get; set; } = "";
-    [Key(1)] public CultVec2 Position { get; set; }
-    [Key(2)] public CultVec2 Velocity { get; set; }
-    [Key(3)] public CultVec2 Direction { get; set; }
+    [Key(1)] public float2 Position { get; set; }
+    [Key(2)] public float2 Velocity { get; set; }
+    [Key(3)] public float2 Direction { get; set; }
     [Key(4)] public float AngularVelocity { get; set; }
     [Key(5)] public float Torque { get; set; }
     [Key(6)] public float MomentOfInertia { get; set; }
@@ -1210,7 +1276,7 @@ internal sealed class YmirFixtureBody
 internal sealed class YmirFixtureSphereBody
 {
     [Key(0)] public string Id { get; set; } = "";
-    [Key(1)] public CultVec3 Position { get; set; }
+    [Key(1)] public float3 Position { get; set; }
     [Key(2)] public float Radius { get; set; }
 }
 
@@ -1218,7 +1284,7 @@ internal sealed class YmirFixtureSphereBody
 internal sealed class YmirFixtureField
 {
     [Key(0)] public string Id { get; set; } = "";
-    [Key(1)] public CultVec2 Position { get; set; }
+    [Key(1)] public float2 Position { get; set; }
     [Key(2)] public float Strength { get; set; }
     [Key(3)] public float Radius { get; set; }
 }
@@ -1228,8 +1294,8 @@ internal sealed class YmirFixtureContact
 {
     [Key(0)] public string BodyA { get; set; } = "";
     [Key(1)] public string BodyB { get; set; } = "";
-    [Key(2)] public CultVec2 Point { get; set; }
-    [Key(3)] public CultVec2 Normal { get; set; }
+    [Key(2)] public float2 Point { get; set; }
+    [Key(3)] public float2 Normal { get; set; }
     [Key(4)] public float Penetration { get; set; }
     [Key(5)] public float RelativeSpeed { get; set; }
 }
@@ -1238,8 +1304,8 @@ internal sealed class YmirFixtureContact
 internal sealed class YmirFixtureCircleOverlapHit
 {
     [Key(0)] public string BodyId { get; set; } = "";
-    [Key(1)] public CultVec2 Point { get; set; }
-    [Key(2)] public CultVec2 Normal { get; set; }
+    [Key(1)] public float2 Point { get; set; }
+    [Key(2)] public float2 Normal { get; set; }
     [Key(3)] public float Penetration { get; set; }
     [Key(4)] public float Distance { get; set; }
 }
@@ -1248,8 +1314,8 @@ internal sealed class YmirFixtureCircleOverlapHit
 internal sealed class YmirFixtureSphereOverlapHit
 {
     [Key(0)] public string BodyId { get; set; } = "";
-    [Key(1)] public CultVec3 Point { get; set; }
-    [Key(2)] public CultVec3 Normal { get; set; }
+    [Key(1)] public float3 Point { get; set; }
+    [Key(2)] public float3 Normal { get; set; }
     [Key(3)] public float Penetration { get; set; }
     [Key(4)] public float Distance { get; set; }
 }
@@ -1258,8 +1324,8 @@ internal sealed class YmirFixtureSphereOverlapHit
 internal sealed class YmirFixtureCircleCastHit
 {
     [Key(0)] public string BodyId { get; set; } = "";
-    [Key(1)] public CultVec2 Point { get; set; }
-    [Key(2)] public CultVec2 Normal { get; set; }
+    [Key(1)] public float2 Point { get; set; }
+    [Key(2)] public float2 Normal { get; set; }
     [Key(3)] public float Distance { get; set; }
 }
 
@@ -1267,8 +1333,8 @@ internal sealed class YmirFixtureCircleCastHit
 internal sealed class YmirFixtureSphereCastHit
 {
     [Key(0)] public string BodyId { get; set; } = "";
-    [Key(1)] public CultVec3 Point { get; set; }
-    [Key(2)] public CultVec3 Normal { get; set; }
+    [Key(1)] public float3 Point { get; set; }
+    [Key(2)] public float3 Normal { get; set; }
     [Key(3)] public float Distance { get; set; }
 }
 

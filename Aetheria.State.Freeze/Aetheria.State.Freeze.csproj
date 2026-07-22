@@ -9,7 +9,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Aetheria.State\Aetheria.State.csproj" />
-    <ProjectReference Include="..\..\CultLib\src\GameCult.Geometry\GameCult.Geometry.csproj" />
+    <ProjectReference Include="..\..\CultMath\src\CultMath\CultMath.csproj" />
     <Compile Include="..\Assets\Scripts\ServerShared\YmirPhysicsContracts.cs" Link="YmirPhysicsContracts.cs" />
   </ItemGroup>
 </Project>

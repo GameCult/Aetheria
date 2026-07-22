@@ -5,6 +5,7 @@
         "GameCult.Eve.Surface",
         "GameCult.Eve.PluginFields",
         "GameCult.Mesh",
+        "GameCult.Geometry",
         "CultMath",
         "MessagePack"
     ],
