@@ -9,7 +9,7 @@
     "com.unity.modules.uielements": "1.0.0",
     "com.unity.render-pipelines.universal": "17.4.0",
     "org.gamecult.cultmath": "file:../../../CultMath/unity/org.gamecult.cultmath",
-    "org.gamecult.cultlib": "https://github.com/GameCult/CultLib.git?path=/unity/org.gamecult.cultlib#cultlib-unity-v1.0.43",
+    "org.gamecult.cultlib": "file:../../../CultLib/unity/org.gamecult.cultlib",
     "org.gamecult.geometry": "file:../../../CultLib/unity/org.gamecult.geometry",
     "org.gamecult.eve.plugin-fields": "https://github.com/GameCult/EvePlugins.git?path=/plugins/eve-plugin-fields/unity/org.gamecult.eve.plugin-fields#eve-plugin-fields-unity-v0.2.3",
     "org.gamecult.eve.surface": "https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.surface#eveunity-surface-v0.2.4",
