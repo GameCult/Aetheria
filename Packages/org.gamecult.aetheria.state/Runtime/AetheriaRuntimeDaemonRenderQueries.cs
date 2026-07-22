@@ -1902,8 +1902,8 @@ namespace GameCult.Aetheria.State.Verse
             if (radius <= 0)
                 return false;
 
-            var nearestX = Clamp(centerX, viewport.min.x, viewport.max.x);
-            var nearestZ = Clamp(centerY, viewport.min.y, viewport.max.y);
+            var nearestX = Clamp(centerX, viewport.Min.x, viewport.Max.x);
+            var nearestZ = Clamp(centerY, viewport.Min.y, viewport.Max.y);
             var dx = centerX - nearestX;
             var dz = centerY - nearestZ;
             return dx * dx + dz * dz <= radius * radius;

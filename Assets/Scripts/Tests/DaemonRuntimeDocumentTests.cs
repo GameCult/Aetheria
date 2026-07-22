@@ -2,6 +2,7 @@ using CultMath;
 using GameCult.Aetheria.EveRuntime;
 using GameCult.Aetheria.State.Verse;
 using GameCult.Eve.UnityScene;
+using GameCult.Geometry;
 using GameCult.Mesh;
 using NUnit.Framework;
 using System;
@@ -1409,7 +1410,7 @@ public class DaemonRuntimeDocumentTests
         var brushes = new List<AetheriaRuntimeGravityInfluenceBrush>();
         var count = AetheriaRuntimeDaemonRenderQueries.QueryGravityInfluences(
             zone,
-            new rect(-10, -10, 10, 10),
+            new CultRect(-10, -10, 10, 10),
             brushes);
 
         Assert.AreEqual(1, count);
@@ -1793,7 +1794,7 @@ public class DaemonRuntimeDocumentTests
 
         count = AetheriaRuntimeDaemonRenderQueries.QueryBodyViews(
             zone,
-            new rect(0, -20, 30, 10),
+            new CultRect(0, -20, 30, 10),
             views);
 
         Assert.AreEqual(1, count);
@@ -2156,7 +2157,7 @@ public class DaemonRuntimeDocumentTests
             zone,
             new[] { 1, 2 },
             0.5,
-            new rect(-10, -10, 40, 20),
+            new CultRect(-10, -10, 40, 20),
             visible);
 
         Assert.AreEqual(5, count);
@@ -2166,7 +2167,7 @@ public class DaemonRuntimeDocumentTests
             zone,
             new[] { 1, 2 },
             0.5,
-            new rect(-10, -10, 40, 20));
+            new CultRect(-10, -10, 40, 20));
 
         Assert.AreEqual(5, objects.Length);
         Assert.AreEqual(1, objects[0].EntityIndex);
