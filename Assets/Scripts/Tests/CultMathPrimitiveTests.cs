@@ -24,7 +24,7 @@ public sealed class CultMathPrimitiveTests
     }
 
     [Test]
-    public void ItemRotationDirectionsAreCultVectors()
+    public void ItemRotationDirectionsAreCultMathVectors()
     {
         Assert.AreEqual(float2(0, 1), ItemRotation.None.Direction());
         Assert.AreEqual(float2(1, 0), ItemRotation.Clockwise.Direction());
@@ -51,7 +51,7 @@ public sealed class CultMathPrimitiveTests
     }
 
     [Test]
-    public void ColorMathUsesCultVectorsAndSharedUnityBridge()
+    public void ColorMathUsesCultMathVectorsAndSharedUnityBridge()
     {
         var rgb = ColorMath.HsvToRgb(float3(0, 1, 1));
 

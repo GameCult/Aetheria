@@ -32,7 +32,7 @@ The C# daemon and clients are measured when these fixtures can be generated from
 | `selected-object` | Entity selection, status, target, faction, inventory identity. | Rust selected-object query supports current UI expectations through cleaner typed state. |
 | `inventory` | Equipment and cargo rows, source identity, item stats, quantity, quality, durability. | Rust inventory projection can drive Unity and RTS panels. |
 | `soa-view` | Current-zone render columns, column kinds, vector columns, dirty ranges, native view descriptor. | Rust view publication can feed Unity and native clients. |
-| `ymir-queries` | Step integration, radial field acceleration, contact separation, overlap circle, cast circle, overlap sphere, cast sphere, and invalid-input cases. Initial exporter emits typed request/result probes with explicit vector, world, body, field, hit, and contact records in JSON plus MessagePack. Vector fields now use shared CultLib `GameCult.Geometry` primitives (`CultVec2`/`CultVec3`) instead of fixture-local DTOs. | Rust Ymir preserves useful physical semantics while replacing C# endpoint shape with Rust/CultMath primitives. |
+| `ymir-queries` | Step integration, radial field acceleration, contact separation, overlap circle, cast circle, overlap sphere, cast sphere, and invalid-input cases. The exporter emits typed request/result probes with explicit vector, world, body, field, hit, and contact records in JSON plus MessagePack. Vector fields use `CultMath.float2` and `CultMath.float3`; a fail-fast legacy witness proves their MessagePack arrays remain byte-identical to the former fixture vectors. | Rust Ymir preserves useful physical semantics while replacing C# endpoint shape with Rust/CultMath primitives. |
 
 ## Rust Rebuild Acceptance Gates
 
