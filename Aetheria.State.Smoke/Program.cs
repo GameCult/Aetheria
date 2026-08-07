@@ -1278,7 +1278,7 @@ static async Task ProveDirectSoaPublicationPipeline()
     };
 
     using var liveBodies = new CultMeshNetworkBodyStore();
-    using var publisher = new AetheriaRuntimeDaemonSoaFramePublisher(liveBodies, producerEpoch: 9);
+    using var publisher = new AetheriaRuntimeDaemonSoaFramePublisher(producerEpoch: 9);
     var built = publisher.BuildCurrentZoneEntities(frame);
     var payloadIdentity = built.View.Identities.SingleOrDefault(identity =>
         string.Equals(identity.EntityId, "soa-pipeline-smoke:zone:0:physical-payload:mine:soa-witness", StringComparison.Ordinal));

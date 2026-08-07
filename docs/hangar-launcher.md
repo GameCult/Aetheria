@@ -3,6 +3,8 @@
 Status: the shared Hangar, deployment admission, and portable Hangar surface
 contracts exist. Mode session bootstrap still has to consume accepted deployment
 receipts; the old generic New Game path remains live until that cut is complete.
+The state assembly and viewport queries compile against CultMath `0.1.1`, whose
+canonical `rect` stores normalized `min`/`max` bounds.
 
 The Hangar is the launcher and durable preparation space for Terminus,
 Starbridge, and Arena. Its composition borrows the useful information geometry
