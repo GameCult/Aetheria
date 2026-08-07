@@ -54,7 +54,12 @@ If you want to chat, please join [our Discord server](https://discord.gg/trbteNj
 
 The ARPG game design document is available [here](https://docs.google.com/document/d/1iULu1WsbuQoUM3c87XkGseb1P-8R5xlruoiyg03TsSE/edit?usp=sharing), while the RTS gameplay is documented [here](https://docs.google.com/document/d/1U3uGFqQboAiFJ_Y-nUOGpyixbXUHRbc5DiCuB59GM4w/edit?usp=sharing). There's also a document explaining how some of the shaders work [here](https://docs.google.com/document/d/1AFycvCtW6hA1jkKq1ZmYd3k6_uEWaaCqcZ4fYj4vU6A/edit?usp=sharing).
 
-The eventual goal is to essentially create two games which both take place in the same persistent universe, allowing players with vastly different preferences to struggle together for the survival of mankind. Each instance of the game lasts until the inevitable destruction of the entire population at the hands of aliens, after which the universe resets. Each loop is designed to last up to a couple of months, during which the hostility of the aliens steadily increases until the players are unable to hold back the tide. As players gain proficiency with the systems, the length of the time loop may increase, allowing us to organically inject new content into the timeline.
+The game has three modes over one simulation and progression spine: Terminus
+single-player roguelike runs, mixed-authority Starbridge co-op, and
+server-authoritative Arena PvP. Arena also provides deterministic headless
+matches for NPC-policy training and build balancing. All modes share ships,
+equipment, fitting rules, and Hangar progression without sharing live session
+authority.
 
 ## Previous Work
 
@@ -67,7 +72,12 @@ As a result of lessons learned, we then focused on the economy system, and built
 At the moment we are focused on moving Aetheria gameplay authority into the
 daemon and proving that both RTS and ARPG clients can be reconstructed from
 daemon-published typed state, CultMesh CDN assets, and Eve/CultUI surfaces.
-Starbridge is the first product pressure test for this model.
+Terminus is the single-player roguelike mode, Starbridge is the mixed-authority
+co-op RTS/pilot mode, and Arena is the server-authoritative PvP mode and primary
+AI-training/build-balancing harness. All three can run headlessly, use the same
+Hangar, ship-loadout, and progression model, and must remain minimally runnable from the first product
+spine. The shared mode design is documented in
+[docs/game-modes-and-progression.md](docs/game-modes-and-progression.md).
 
 ## Developer Navigation
 

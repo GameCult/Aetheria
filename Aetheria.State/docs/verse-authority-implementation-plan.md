@@ -18,8 +18,12 @@ Raven and Starfire each run a local CultMesh/CultNet Verse node.
 - Future authority modes remain representable without forcing the first trusted
   co-op implementation to carry consensus machinery.
 
-The immediate product target is Starbridge: one RTS chair and one to four pilot
-clients defending the same base through shared Verse state. The RTS runtime
+The first product spine contains Terminus single-player, Starbridge co-op, and
+Arena PvP/simulation. All three must remain minimally executable while their
+shared Hangar, deployment, loadout, and settlement organs are built.
+
+Starbridge is mixed-authority: one RTS chair and one to four pilot clients
+defend the same base through shared Verse state. The RTS runtime
 naturally authors base, wave, hostile, infrastructure, fabrication,
 drone/turret, station-stock, construction-ghost, target-mark, and commander
 support claims. Pilot runtimes naturally author their own movement, local
@@ -33,6 +37,15 @@ plan translates that design into code gates; it is not allowed to turn
 Starbridge into a generic RTS-client migration. Starbridge is the proof that
 Verse authority, typed state, station stock, equipment, heat, repair, salvage,
 construction, waves, and recovery are all one shared war machine.
+
+Arena is server-authoritative. Its dedicated server owns admission, simulation,
+rules, scoring, and outcomes. Human and AI controllers submit the same typed
+operations and consume the same observations; accelerated or headless Arena
+runs must not bypass the production command gate. Arena is the primary harness
+for NPC-policy training and build-versus-build balance batches. Terminus uses
+sole local-daemon authority for the same shared pilot mechanics. All three modes
+must run headlessly; renderer attachment cannot become an authority input. The
+cross-mode contract is defined in `docs/game-modes-and-progression.md`.
 
 ## Hard Rules
 
@@ -1016,9 +1029,10 @@ strict than the architecture notes above it. Every stage has one product proof,
 one authority proof, and one demolition target. If a stage cannot name all
 three, it is not ready to build.
 
-Design source:
+Design sources:
 
 - `E:/Projects/AetheriaLore/Aetheria/Game Design/Aetheria Starbridge.md`
+- `docs/game-modes-and-progression.md`
 
 Starbridge release spine:
 
@@ -1751,24 +1765,33 @@ Unlocks:
 
 - future witness/quorum authority modes.
 
-### Slice S8: Episode And Progression Documents
+### Slice S8: Shared Hangar And Progression Documents
 
-Stage: after first playable Starbridge loop.
+Stage: the minimal Hangar/deployment/settlement boundary precedes all three
+first-wave slices; progression depth follows the first playable Starbridge loop.
 
 Build:
 
-- scenario completion, run score, persistent score currency, unlocks, and
-  shallow meta-progression documents;
+- one canonical Hangar, deployment, loadout-template, settlement, progression,
+  and unlock document family shared by Terminus, Starbridge, and Arena;
+- scenario completion, run score, persistent score currency, and
+  mode-provenance facts;
 - recovered technology pools tied to scenario/faction definitions.
 
 Demolition target:
 
-- client-local unlock or score state.
+- client-local or mode-private hangar, inventory, loadout, unlock, or score
+  state.
 
 Verifier:
 
+- Terminus settlement, Starbridge completion, and Arena admission/outcome use
+  the same typed Hangar keys and operations;
 - completing a scenario writes typed progression facts that another runtime can
-  inspect without Unity.
+  inspect without Unity;
+- Arena controllers cannot write score or progression directly, and Starbridge
+  authority policy changes claim ownership without changing the progression
+  schema.
 
 Progress:
 

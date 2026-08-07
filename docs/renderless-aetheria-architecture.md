@@ -13,14 +13,18 @@ lowering semantics, and Aetheria clients are conformance targets.
 
 ## Objective
 
-Aetheria should become a renderless daemon-owned game.
+Aetheria should become a renderless, policy-authoritative game whose three
+product modes share one simulation and progression spine.
 
-The Aetheria daemon owns game state, simulation rules, generated content,
-game-feel settings, authority policy, typed operations, assets, and
-high-performance views of live state. Eve owns the portable UI and world-state
-rendering instruction contract. Unity, Godot, Electron, Hermodr, and later
-runtimes lower Eve surfaces and submit typed operations; they do not own
-Aetheria gameplay truth.
+Terminus uses sole local-daemon authority. Starbridge uses typed mixed authority
+across commander, pilots, daemon, and bounded leases. Arena uses sole
+server authority. The applicable authorities own committed game state and
+simulation claims; Aetheria providers publish canonical typed operations,
+assets, and high-performance views of live state. Eve owns the portable UI and
+world-state rendering instruction contract. Unity, Godot, Electron, Hermodr,
+AI controllers, and later runtimes lower surfaces or submit typed operations;
+renderer attachment is never an authority input. All three modes must also run
+headlessly through the same simulation body.
 
 Hermodr is the RTS sanity check: an unspecialized Eve/browser client must be
 able to reconstruct the same RTS gameplay surface as Electron from the Eve spec,
@@ -34,16 +38,21 @@ daemon-authored contract, without inheriting Unity scene authority.
 ## Authority Map
 
 Owner:
-Aetheria daemon owns committed game state and rules.
+Typed mode policy owns the authority assignment. The Terminus local daemon and
+Arena server own all gameplay claims in their sessions. Starbridge assigns
+bounded claim kinds across participants while preserving one canonical state
+and receipt history. The shared Hangar remains a separate authoritative typed
+aggregate outside live sessions.
 
 Inputs:
-The daemon may read typed CultCache/CultMesh documents, catalog data, authority
-policy, player/client operation documents, simulation clock input, deterministic
-generation seeds and asset manifests. Its simulation transaction may invoke the
-embedded Ymir spatial kernel, but Ymir does not become a second state owner.
+Applicable authorities may read typed CultCache/CultMesh documents, catalog
+data, authority policy, player/AI operation documents, simulation clock input,
+deterministic generation seeds and asset manifests. Simulation transactions may
+invoke the embedded Ymir spatial kernel, but Ymir does not become a second state
+owner.
 
 Outputs:
-The daemon publishes typed state documents, committed facts, operation receipts,
+The provider publishes typed state documents, committed facts, operation receipts,
 simulation frames, SoA/native view descriptors, scalar and vector field
 documents, render splats, entity/object render rows, typed CultMesh artifact
 manifests, managed content sessions, and Eve/CultUI surfaces.
@@ -163,20 +172,24 @@ the fossil owner-security and faction-relationship rule. A visible hostile ship
 pre-empts circuit movement through the existing combat planner; the patrol task
 keeps its circuit index and resumes it when contact is lost.
 
-New Game now submits its advertised Eve operation, waits for a newly published
-daemon sector map, and selects the persisted 64-zone tutorial while
-`TutorialPassed` is false. The handcrafted Terminus arena remains a proof
-fixture and the fallback for the still-unmigrated post-tutorial sector path.
-No surviving source defines tutorial completion, so entering this run does not
-change `TutorialPassed`.
+Mode selection submits an advertised Eve operation and waits for a newly
+published daemon session. Terminus is the canonical single-player roguelike;
+its standard launch is product state, not a witness fixture. The persisted
+64-zone tutorial is an onboarding run recipe that may constrain a Terminus
+deployment without owning a separate inventory or progression path. No
+surviving fossil source defines tutorial completion, so the target completion
+and settlement rule remains an explicit design seam. Target onboarding
+completion must be a typed progression/settlement fact; the fossil
+`TutorialPassed` boolean cannot select product mode or own Hangar progression.
 
 The non-tutorial sector has a separate daemon owner matching the fossil's
 196-zone settings, corporation selection, entrance/exit isolation, boss
 chokepoints, full influence radii, discovery, and order-four names. It feeds
 the daemon celestial, population, loadout, patrol, and persistence pipeline and
-enters through an explicit Aetheria-mode run. Post-tutorial New Game selects it
-using a command-stable generation seed. Terminus is no longer a fallback; it is
-created only by an explicit witness launch option.
+is reusable as a full Terminus run recipe under a command-stable generation
+seed. `released-client-proof` and `cargo-capacity-rejection-proof` remain
+non-progressing Terminus witness profiles with distinct run identities; they
+are not the only launch path for the product mode.
 
 ## Current Mechanism
 

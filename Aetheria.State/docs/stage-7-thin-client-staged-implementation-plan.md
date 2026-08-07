@@ -81,7 +81,7 @@ UI input
 The map viewport is just one projection. Selected object state, inventory,
 cargo, authority status, and peer health must follow the same pattern.
 
-Starbridge is the current design pressure for this shape. One RTS commander and
+Starbridge is the current Stage 7 mixed-authority pressure for this shape. One RTS commander and
 one to four Unity pilots must share the same Verse facts while each runtime
 authors only the typed claims it should own.
 

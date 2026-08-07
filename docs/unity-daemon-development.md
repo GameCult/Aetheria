@@ -25,9 +25,11 @@ ready for the next connection.
 
 Starting the daemon does not create, load, or step a game world. It starts the
 typed state boundary and CultMesh transport in `ready` mode. A playable-world
-subscription loads an existing run; the advertised New Game command generates
-a new run. Only that activation boundary opens Ymir persistence and starts the
-fixed simulation clock. When the last playable-world subscription is withdrawn,
+subscription loads an existing run. Typed mode selection chooses authority and
+policy; a committed deployment/admission creates session state through the
+applicable provider or Arena server. Only that activation boundary opens
+simulation persistence and starts the fixed simulation clock. When the last
+playable-world subscription is withdrawn,
 the daemon commits the final public frame and matching private Ymir checkpoint,
 releases the active physics world, and returns to `ready`. A dropped client
 therefore leaves the daemon and saved world alive without making Unity Play

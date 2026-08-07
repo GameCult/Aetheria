@@ -23,7 +23,7 @@ daemon-authored Eve/CultUI or in a game-agnostic Eve lowering primitive.
 | --- | --- | --- |
 | Hermodr | Unspecialized Eve/browser lowering sanity check for the RTS surface. | It reconstructs the Aetheria RTS gameplay surface from daemon-advertised Eve surfaces, typed state pointers, typed operations, render-field declarations, and CultMesh CDN assets without Aetheria-specific renderer code. |
 | Electron | Player-facing Starbridge RTS client. | It renders the same daemon-authored RTS surface through the shared Eve package, with only app shell, launch, packaging, and runtime ergonomics outside Eve. |
-| Unity | Current ARPG reference client and demolition target. | It behaves as a renderer/input shell over daemon state and Eve/CultUI/world-state surfaces; remaining GameObject, UI Toolkit, camera, input, and presentation adapters are classified shims or renderer-owned concerns. |
+| Unity | Shared pilot reference client for Terminus, Starbridge, and Arena; also a demolition target. | It behaves as a renderer/input shell over daemon state and Eve/CultUI/world-state surfaces; remaining GameObject, UI Toolkit, camera, input, and presentation adapters are classified shims or renderer-owned concerns. It owns no Hangar, loadout, progression, or mode-session truth. |
 | Godot | Future unspecialized Eve/runtime parity target for the ARPG surface. | It reconstructs the ARPG gameplay surface from daemon API plus Eve/CultUI/render-field specs and CultMesh CDN assets, not from a Unity port or daemon-side Godot mode. |
 
 Hermodr is the purity test for the RTS surface. Electron is the shipped RTS

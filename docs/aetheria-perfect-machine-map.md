@@ -12,8 +12,11 @@ authority.
 
 Aetheria should persist and replicate game state as typed CultCache documents,
 publish multiplayer/service state through CultMesh, and render operator/runtime
-interfaces from Eve CultUI surfaces. The old JSON, RethinkDB, JsonKnownTypes,
-legacy catalog cache, and legacy UI paths should be migration-only or deleted.
+interfaces from Eve CultUI surfaces. Terminus uses local-daemon authority,
+Starbridge uses typed mixed authority, and Arena uses server authority; all
+three share the target Hangar/deployment/settlement spine and can execute
+headlessly. The old JSON, RethinkDB, JsonKnownTypes, legacy catalog cache, and
+legacy UI paths should be migration-only or deleted.
 
 ## Current Mechanism
 
@@ -1142,22 +1145,23 @@ lifecycle state.
   EveUnity resolves `effect.feedback.entity.destroyed` only after the provider
   has published authoritative destruction chronology.
 
-### Daemon Terminus Scenario Ownership
+### Daemon Terminus Mode And Witness Ownership
 
-The generated Terminus world and deterministic released-client proofs are
-separate daemon-owned scenarios. `standard` preserves the generated ship
-loadouts. `released-client-proof` alone creates the one-hit raider and guaranteed
+Terminus is the daemon-owned single-player roguelike product mode. `standard`
+preserves generated ship loadouts and must be launchable through normal typed
+mode selection. `released-client-proof` alone creates the one-hit raider and guaranteed
 salvage transaction; `cargo-capacity-rejection-proof` additionally fills every
 generated player cargo bay from typed catalog volume and bay capacity. The
-scenario selects a distinct run identity, so an existing proof run cannot
-impersonate ordinary play. Unity selects the scenario only as a launch input and
-cannot write cargo, hull, pickups, or feedback.
+proof profiles select distinct run identities, so a proof run cannot impersonate
+ordinary play or settle durable Hangar progression. Unity selects the mode or
+profile only as a typed launch input and cannot write cargo, hull, pickups,
+feedback, Hangar, deployment, or settlement state.
 
-Scenario generation may select an active run and default pilot name, but it is
-not tutorial progression authority. It preserves `TutorialPassed`; only a
-future daemon-owned tutorial completion transaction may cross that flag. The
-fossil selected tutorial New Game while the flag was false, so merely entering
-the Terminus proof arena cannot award completion.
+Terminus run generation owns run-local world and encounter state, not shared
+progression. A committed Hangar deployment instantiates the live ship/loadout;
+an exactly-once settlement is the only path for permitted rewards or losses to
+cross back into the Hangar. Witness profiles are structurally barred from that
+settlement path.
 
 ### Daemon Terminus Clock And Attention Ownership
 
@@ -1202,9 +1206,9 @@ the Terminus proof arena cannot award completion.
 - Shared paths: generation and parity smoke use the same CultMath random stream,
   Unity-compatible simplex semantics, weighted sample elimination, Delaunay
   graph, connectivity-preserving link pruning, and faction placement owner.
-- Cut line: a generated Terminus proof arena cannot be relabelled as the
-  tutorial. New Game selects the daemon-persisted tutorial while completion is
-  false; Terminus remains a witness fixture.
+- Cut line: tutorial topology is an onboarding run recipe, not a progression
+  owner or separate mode inventory. It may constrain a Terminus deployment but
+  cannot write Hangar state except through the shared settlement transaction.
 - Verification layer: smoke generates the authored 64-zone graph twice from one
   seed, proves point/adjacency repeatability, a connected undirected graph, six
   distinct role homes, an unowned entrance, and discovery containing exactly
@@ -1217,11 +1221,12 @@ the Terminus proof arena cannot award completion.
 - Owner: the daemon tutorial materializer owns station, turret, faction-ship,
   starter-ship, orbit, and run persistence decisions.
 - Inputs: the immutable tutorial topology, each celestial plan and its exact
-  post-body CultMath state, typed faction/catalog data, player settings, and the
-  accepted New Game command.
+  post-body CultMath state, typed faction/catalog data, an authenticated Hangar
+  snapshot, a committed Terminus Deployment, and accepted typed Terminus
+  mode-selection/admission.
 - Outputs: 64 canonical zone documents, stable entity records, loadout
   generation receipts, one controlled entrance ship, tutorial discovery state,
-  and an Aetheria-mode game session.
+  and a Terminus session.
 - Agent work: each generated NPC ship receives one assigned `patrol` task with
   the fossil four-orbit shuffled circuit. Orbit circuits are typed separately
   from mining/survey body targets and survive bootstrap into the runtime
@@ -1242,12 +1247,14 @@ the Terminus proof arena cannot award completion.
 - Derived state: wormhole exits derive from adjacency; generic Eve maps,
   cameras, scene objects, fog, and HUD state lower the persisted run.
 - Forbidden writers: Unity generators, menu callbacks, scene materializers, and
-  Terminus scenarios cannot create or select gameplay entities for this run.
-- Shared paths: fresh daemon boot and accepted New Game use the same tutorial
-  run writer; the Unity product shell submits the Eve command and waits for a
+  Terminus witness profiles cannot create or select product gameplay entities
+  outside accepted deployment/admission.
+- Shared paths: accepted Terminus deployment/admission and verification use the
+  same tutorial run writer; ready daemon boot creates no gameplay state. The
+  Unity product shell submits typed mode/deployment operations and waits for a
   newer tutorial sector-map publication before entering the scene.
-- Cut line: New Game reloading the previous frame without sending its advertised
-  operation is dead. Celestial-only tutorial graphs are not playable runs.
+- Cut line: reopening prior state without accepted deployment/admission is not a
+  new run. Celestial-only tutorial graphs are not playable runs.
 - Verification layer: focused smokes prove deterministic population, resolved
   orbital references and poses, distributed non-player spawns,
   fixed-step orbit phase/pose/velocity through Ymir, station/turret/agent
@@ -1259,8 +1266,8 @@ the Terminus proof arena cannot award completion.
 ### Daemon Regular-Sector Topology Ownership
 
 - Owner: `AetheriaDaemonRegularTopologyGenerator` owns the non-tutorial sector
-  graph. It is distinct from tutorial role placement and from the Terminus
-  witness fixture.
+  graph. It is distinct from tutorial role placement and supplies a full
+  generated-world recipe for Terminus runs.
 - Inputs: the typed corporation/name catalog, the authored regular-sector
   settings (`196` zones, `0.5` link density, `12` corporations, `3` bosses),
   the serialized main cloud field, and one generation seed.
@@ -1277,15 +1284,14 @@ the Terminus proof arena cannot award completion.
   celestial hierarchy, full-influence population, loadout, orbit, patrol, and
   CultCache persistence organs as the tutorial, under distinct regular-run
   identities. The entrance receives one equipped controlled starter; every
-  persisted run carries its explicit `aetheria` game mode.
-- Shared paths: accepted New Game identity hashes to the regular generation
-  seed, so command replay cannot create a different sector. Fresh boot and menu
-  requests use `AetheriaDaemonRunFactory`; incomplete tutorial state selects the
-  tutorial writer and completed tutorial state selects the regular writer.
-- Cut line: post-tutorial Terminus fallback selection is deleted. Terminus can
-  only be created when the daemon is explicitly launched with a
-  `--terminus-scenario` witness fixture; `IsTutorial=false` is no longer allowed
-  to decide session mode for new state.
+  persisted run carries its explicit `terminus` game mode and deployment id.
+- Shared paths: committed Terminus deployment/admission identity hashes to the
+  regular generation seed, so command replay cannot create a different sector.
+  Mode selection chooses the run recipe; ready daemon boot creates no session.
+- Cut line: `IsTutorial` cannot decide product mode or progression ownership.
+  Normal typed mode selection can create Terminus; proof-profile flags only
+  select non-progressing deterministic witness content. Tutorial and regular
+  generators remain run recipes beneath the Terminus mode boundary.
 - Verification layer: focused smoke generates the full sector twice and proves
   exact seeded repeatability, connected symmetric links, twelve homes, three
   boss zones, exit isolation, entrance distance, discovery, names, and home
@@ -3433,9 +3439,9 @@ invent identity. `scripts/verify-aetheria-daemon.ps1` restores and runs the
 daemon smoke with one explicit CultLib/EveUnity/Ymir root set so a stale NuGet
 project graph cannot substitute another worktree during `--no-restore`.
 The unused Starbridge bootstrap that wrote invented stock, attacker, boss, and
-technology keys has been deleted. A future Starbridge mode must enter through
-the active daemon game-mode owner and typed catalogs; a dormant document seeder
-is not a game mode.
+technology keys has been deleted. Starbridge session bootstrap must enter
+through shared Hangar deployment, typed mixed-authority policy, the active mode
+owner, and typed catalogs; a dormant document seeder is not a game mode.
 
 Run-lifecycle ownership is deliberately narrower than a quest system:
 

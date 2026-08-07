@@ -88,7 +88,10 @@ acceptance. Towing is a separate station-mediated relocation mechanic.
 
 ## Progression Spine
 
-New game begins at the entrance with a generated player ship. Baseline
+The fossil New Game begins at the entrance with a generated player ship. In the
+target product, mode selection begins from a committed Hangar deployment;
+generation may fill mode-owned world content and explicitly loaned session
+equipment, but it does not replace durable cross-mode progression. Baseline
 progression consists of:
 
 - exploration and discovery;
@@ -99,6 +102,17 @@ progression consists of:
 - faction territory and critical/boss-path traversal;
 - narrative locations;
 - persistence of zone, entity, inventory, loadout, and action bindings.
+
+The target separates two owners:
+
+- the shared Hangar owns durable hulls, stored equipment/cargo, currencies,
+  unlocks, and saved loadout templates across Terminus, Starbridge, and Arena;
+- each mode session owns its instantiated ship, damage, run-local cargo,
+  encounter state, and score until one terminal settlement applies the mode's
+  explicit reward/loss policy.
+
+No mode owns a private inventory schema. See
+[Game Modes And Progression](game-modes-and-progression.md).
 
 The target daemon needs an explicit run-state machine linking these pieces,
 including new/continue, active encounter, docked service context, travel,

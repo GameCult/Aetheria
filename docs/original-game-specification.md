@@ -76,7 +76,11 @@ The principal source bodies are:
 Terminus is a single-player game mode using the pilot surface. The minimum
 complete loop is: fly, acquire or select a target, fire, survive return fire,
 destroy or disable something, scoop useful cargo, dock, and trade. It shares
-pilot mechanics and presentation with the Starbridge pilot role.
+pilot mechanics and presentation with the Starbridge pilot role. The target
+product is a repeatable roguelike run: deploy from the persistent Hangar,
+cross escalating encounters, salvage and refit, then extract, win, abandon, or
+die. Only an accepted terminal settlement may move rewards or losses between
+the run and the Hangar.
 
 ### Starbridge
 
@@ -88,6 +92,26 @@ authoritative state:
 - the Unity map panel and Electron commander backdrop are projections of the
   same strategic world facts;
 - view choice never creates a second simulation.
+
+Starbridge is mixed-authority. Typed policy assigns bounded command/claim kinds
+to the commander, pilots, daemon, or leases; every accepted mutation joins one
+canonical state and receipt history. Mixed authority does not mean private
+client worlds that reconcile after the fact.
+
+Terminus, Starbridge, and Arena share the canonical Hangar, deployment,
+catalog keys, fitting rules, and saved loadout templates described in
+[Game Modes And Progression](game-modes-and-progression.md). They do not share
+live session entity graphs, encounter state, or mode-local stock.
+
+### Arena
+
+Arena is the server-authoritative PvP and competitive game-simulation mode. Human
+players and AI controllers use identical typed observations and operations;
+the server alone admits deployments, advances simulation, resolves combat, and
+scores outcomes. Deterministic and accelerated Arena runs are the primary NPC
+policy training/evaluation and build-versus-build balancing harness, not a
+second rules implementation. Terminus and Starbridge must also run headlessly;
+headless execution belongs to the shared simulation body, not to one mode.
 
 ### Pilot View
 
@@ -351,8 +375,10 @@ must preserve the original generation and transition rules before new content
 extends them.
 
 Terminus content may be sparse, but the machinery must support a repeatable
-single-player loop. Starbridge uses the same world truth while adding commander
-and multi-pilot coordination.
+single-player roguelike loop. Starbridge reuses the same Hangar and pilot
+machinery while adding its own shared session, commander, and multi-pilot
+coordination under mixed authority. Arena reuses the same deployment vocabulary
+under server-authoritative admission/normalization.
 
 Travel is embodied through nearby wormholes. Transition transfers the current
 entity, reveals destination adjacency, performs exit motion, and saves.
@@ -397,9 +423,12 @@ activation from local particle collisions.
 
 ## Save, Resume, And Multiplayer Consistency
 
-Authoritative run state persists in CultCache and is published through
-CultMesh. Reconnect, reload, and view changes must reproduce the same current
-entity, zone, loadout, docking, target, combat, cargo, and progression state.
+Authoritative run state and durable Hangar progression are separate typed
+CultCache state published through CultMesh. Reconnect, reload, and view changes
+must reproduce the same current entity, zone, session loadout, docking, target,
+combat, and run-local cargo. The Hangar separately preserves owned ships,
+stored equipment, currencies/materials, unlocks, and saved loadout templates.
+Only deployment and exactly-once settlement transactions cross that boundary.
 Presentation-only animation may restart; game decisions may not.
 
 Starbridge clients observe one shared session. A pilot and commander can issue
@@ -425,6 +454,15 @@ different semantic commands, but neither owns a private copy of the world.
    state without client repair logic.
 8. **Starbridge:** one commander and multiple pilots act in the same session;
    all projections converge on one command/receipt history.
+9. **Cross-mode progression:** deploy one saved Hangar loadout into Terminus and
+   Starbridge through the same typed path; admit it into Arena through that path;
+   settle a Terminus outcome exactly
+   once; prove reconnect, failure, and proof scenarios cannot duplicate or
+   counterfeit durable progression.
+10. **Arena simulation:** run a deterministic server-authoritative match with
+    human or AI controllers using the same typed operation boundary; reproduce
+    the scored outcome headlessly from the same seed and ordered inputs; compare
+    controller-policy and ship-build variants with versioned reproducible facts.
 
 ## Open Archaeology Ledger
 
