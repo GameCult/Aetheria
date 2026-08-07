@@ -1,13 +1,5 @@
 {
   "dependencies": {
-    "com.gamecult.brokkr": {
-      "version": "file:E:/Projects/Brokkr/surfaces/unity/Packages/com.gamecult.brokkr",
-      "depth": 0,
-      "source": "local",
-      "dependencies": {
-        "org.gamecult.cultlib": "1.0.16"
-      }
-    },
     "com.unity.burst": {
       "version": "1.8.29",
       "depth": 2,

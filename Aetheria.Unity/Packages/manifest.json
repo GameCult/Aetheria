@@ -1,6 +1,5 @@
 {
   "dependencies": {
-    "com.gamecult.brokkr": "file:E:/Projects/Brokkr/surfaces/unity/Packages/com.gamecult.brokkr",
     "com.unity.ide.rider": "3.0.39",
     "com.unity.test-framework": "1.6.0",
     "com.unity.modules.assetbundle": "1.0.0",

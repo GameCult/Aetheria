@@ -15,37 +15,41 @@ $state = Join-Path $project "Build\aetheria-unity.cc"
 $stateRecords = "$state.records"
 New-Item -ItemType Directory -Force $artifacts | Out-Null
 
-if (-not $SkipBuild) {
-  $assetLog = Join-Path $artifacts "asset-bundles.log"
-  $assets = Start-Process $UnityExe -ArgumentList @(
-    "-batchmode", "-quit", "-projectPath", $root,
-    "-executeMethod", "Aetheria.Editor.EveAssetBundleBuilder.BuildWindows",
-    "-logFile", $assetLog
-  ) -PassThru -WindowStyle Hidden
-  Write-Host "Asset build PID: $($assets.Id)"
-  Write-Host "Asset build log: $assetLog"
-  if (-not $assets.WaitForExit(240000)) { Stop-Process $assets.Id -Force; throw "Asset build timed out." }
-  if ($assets.ExitCode -ne 0) { Get-Content $assetLog -Tail 120; throw "Asset build failed." }
-
-  $clientLog = Join-Path $artifacts "client-build.log"
-  $build = Start-Process $UnityExe -ArgumentList @(
-    "-batchmode", "-quit", "-projectPath", $project,
-    "-executeMethod", "AetheriaUnityBuild.BuildWindows",
-    "-logFile", $clientLog
-  ) -PassThru -WindowStyle Hidden
-  Write-Host "Client build PID: $($build.Id)"
-  Write-Host "Client build log: $clientLog"
-  if (-not $build.WaitForExit(300000)) { Stop-Process $build.Id -Force; throw "Client build timed out." }
-  if ($build.ExitCode -ne 0 -or -not (Test-Path $clientExe)) { Get-Content $clientLog -Tail 120; throw "Client build failed." }
-}
-
-if (-not (Test-Path $clientExe)) { throw "Client executable not found. Run without -SkipBuild first." }
 if (-not (Test-Path $stateRecords)) {
   dotnet run --project $importProject -- $root $state
   if ($LASTEXITCODE -ne 0 -or -not (Test-Path $stateRecords)) {
     throw "Aetheria typed state import failed with exit code $LASTEXITCODE"
   }
 }
+
+if (-not $SkipBuild) {
+  $env:AETHERIA_ASSET_CATALOG_STATE = $state
+  $assetLog = Join-Path $artifacts "asset-bundles.log"
+  $assets = Start-Process $UnityExe -ArgumentList @(
+    "-batchmode", "-quit", "-projectPath", $root,
+    "-cacheServerEnableDownload", "false", "-cacheServerEnableUpload", "false",
+    "-executeMethod", "Aetheria.Editor.EveAssetBundleBuilder.BuildWindows",
+    "-logFile", $assetLog
+  ) -PassThru -WindowStyle Hidden
+  Write-Host "Asset build PID: $($assets.Id)"
+  Write-Host "Asset build log: $assetLog"
+  if (-not $assets.WaitForExit(600000)) { Stop-Process $assets.Id -Force; throw "Asset build timed out." }
+  if ($assets.ExitCode -ne 0) { Get-Content $assetLog -Tail 120; throw "Asset build failed." }
+
+  $clientLog = Join-Path $artifacts "client-build.log"
+  $build = Start-Process $UnityExe -ArgumentList @(
+    "-batchmode", "-quit", "-projectPath", $project,
+    "-cacheServerEnableDownload", "false", "-cacheServerEnableUpload", "false",
+    "-executeMethod", "AetheriaUnityBuild.BuildWindows",
+    "-logFile", $clientLog
+  ) -PassThru -WindowStyle Hidden
+  Write-Host "Client build PID: $($build.Id)"
+  Write-Host "Client build log: $clientLog"
+  if (-not $build.WaitForExit(600000)) { Stop-Process $build.Id -Force; throw "Client build timed out." }
+  if ($build.ExitCode -ne 0 -or -not (Test-Path $clientExe)) { Get-Content $clientLog -Tail 120; throw "Client build failed." }
+}
+
+if (-not (Test-Path $clientExe)) { throw "Client executable not found. Run without -SkipBuild first." }
 $daemonLog = Join-Path $artifacts "daemon.log"
 $daemon = Start-Process dotnet -ArgumentList @(
   "run", "--project", $daemonProject, "--",
@@ -56,6 +60,7 @@ $daemon = Start-Process dotnet -ArgumentList @(
   "--client-cultmesh-port", $Port,
   "--tick-interval-ms", 20,
   "--fixed-delta-ms", 20,
+  "--terminus-scenario", "standard",
   "--no-odin-announcements"
 ) -PassThru -WindowStyle Hidden -RedirectStandardOutput $daemonLog -RedirectStandardError "$daemonLog.error"
 Write-Host "Daemon PID: $($daemon.Id)"
@@ -63,7 +68,11 @@ Write-Host "Daemon log: $daemonLog"
 
 try {
   $ready = $false
-  for ($i = 0; $i -lt 60; $i++) {
+  # A cold daemon build can take several minutes because the state schema
+  # generator and the Ymir/CultMesh dependency graph compile before Program
+  # publishes the endpoint. Readiness belongs to the endpoint, not an
+  # arbitrary 30-second process lifetime.
+  for ($i = 0; $i -lt 600; $i++) {
     if ($daemon.HasExited) { throw "Aetheria daemon exited. See $daemonLog" }
     if ((Test-Path $daemonLog) -and (Select-String $daemonLog -Pattern "Aetheria client CultMesh endpoint: cultnet\+tcp://127.0.0.1:$Port" -Quiet)) { $ready = $true; break }
     Start-Sleep -Milliseconds 500

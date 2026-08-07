@@ -36,8 +36,11 @@ namespace Aetheria.Editor
             foreach (var stale in Directory.GetFiles(output, "*", SearchOption.TopDirectoryOnly))
                 File.Delete(stale);
 
-            var catalog = AetheriaRuntimeCatalogStore.OpenReadOnly(
-                Path.GetFullPath(Path.Combine("GameData", "aetheria-world.cc")));
+            var configuredCatalog = Environment.GetEnvironmentVariable("AETHERIA_ASSET_CATALOG_STATE");
+            var catalogPath = string.IsNullOrWhiteSpace(configuredCatalog)
+                ? Path.GetFullPath(Path.Combine("GameData", "aetheria-world.cc"))
+                : Path.GetFullPath(configuredCatalog);
+            var catalog = AetheriaRuntimeCatalogStore.OpenReadOnly(catalogPath);
             var assets = AetheriaRuntimeAssets.ProjectManifest(catalog).Assets;
             foreach (var entry in assets.Where(entry =>
                          string.Equals(entry.Ref.Kind, AetheriaRuntimeAssetKinds.Prefab, StringComparison.Ordinal)))

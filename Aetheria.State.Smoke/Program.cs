@@ -1,6 +1,7 @@
 using Aetheria.State;
 using Aetheria.State.Documents;
 using Aetheria.State.Migration;
+using System.Buffers.Binary;
 using GameCult.Caching;
 using GameCult.Aetheria.State.Verse;
 using GameCult.Mesh;
@@ -1277,7 +1278,6 @@ static async Task ProveDirectSoaPublicationPipeline()
         }
     };
 
-    using var liveBodies = new CultMeshNetworkBodyStore();
     using var publisher = new AetheriaRuntimeDaemonSoaFramePublisher(producerEpoch: 9);
     var built = publisher.BuildCurrentZoneEntities(frame);
     var payloadIdentity = built.View.Identities.SingleOrDefault(identity =>
@@ -1301,7 +1301,7 @@ static async Task ProveDirectSoaPublicationPipeline()
     if (cache.Get<EveEntitySoaViewDocument>(AetheriaRuntimeVerseRecordKeys.EveEntitySoaViewLatest) != null)
         throw new InvalidOperationException("SoA view became visible before its body publication.");
 
-    var published = await publisher.PublishAsync(built);
+    var published = await publisher.PublishAsync(built, includeRealtimePayload: true);
     if (cache.Get<EveEntitySoaViewDocument>(AetheriaRuntimeVerseRecordKeys.EveEntitySoaViewLatest) != null)
         throw new InvalidOperationException("Building a CultMesh body publication made the Eve view visible before commit.");
     if (cache.GetAll<CultMeshCdnArtifactManifest>().Any() || cache.GetAll<CultMeshCdnArtifactChunk>().Any())
@@ -1353,11 +1353,10 @@ static async Task ProveDirectSoaPublicationPipeline()
         ?? throw new InvalidOperationException("Typed Eve SoA view did not become visible after body publication.");
     var localRepresentation = body.Representations.SingleOrDefault(candidate =>
         candidate.TransportKind == CultMeshBodyTransportKind.SharedMemory);
-    var networkRepresentation = body.Representations.SingleOrDefault(candidate =>
-        candidate.TransportKind == CultMeshBodyTransportKind.Network);
-    if (localRepresentation == null || networkRepresentation == null ||
+    if (localRepresentation == null || published.RealtimePayload.IsEmpty ||
+        body.Representations.Any(candidate => candidate.TransportKind == CultMeshBodyTransportKind.Network) ||
         body.Representations.Any(candidate => candidate.TransportKind == CultMeshBodyTransportKind.SharedFileMapping))
-        throw new InvalidOperationException("Direct SoA publication did not expose shared memory plus direct network representations.");
+        throw new InvalidOperationException("Direct SoA publication did not expose shared memory plus an explicit realtime payload.");
 
     var request = new CultMeshBodyValidationRequest
     {
@@ -1373,34 +1372,25 @@ static async Task ProveDirectSoaPublicationPipeline()
     using var localLease = new CultMeshBodyPublicationResolver(new CultMeshBodyTransportService(
         new ICultMeshBodyTransportAdapter[]
         {
-            new CultMeshSharedMemoryBodyAdapter(),
-            new CultMeshNetworkBodyAdapter(descriptor => ReadLiveBody(liveBodies, descriptor))
-        },
-        (producerId, _) => producerId == AetheriaRuntimeDaemonSoaFramePublisher.ProducerId))
-        .ResolveReadOnly(body, request);
-    using var networkLease = new CultMeshBodyPublicationResolver(new CultMeshBodyTransportService(
-        new ICultMeshBodyTransportAdapter[]
-        {
-            new CultMeshNetworkBodyAdapter(descriptor => ReadLiveBody(liveBodies, descriptor))
+            new CultMeshSharedMemoryBodyAdapter()
         },
         (producerId, _) => producerId == AetheriaRuntimeDaemonSoaFramePublisher.ProducerId))
         .ResolveReadOnly(body, request);
 
     var localEntityIndex = ReadInt32(view, localLease, "entity.index", 0);
-    var networkEntityIndex = ReadInt32(view, networkLease, "entity.index", 0);
+    var networkEntityIndex = ReadInt32Bytes(view, published.RealtimePayload.Span, "entity.index", 0);
     var localPosition = ReadFloat3(view, localLease, "transform.position", 0);
-    var networkPosition = ReadFloat3(view, networkLease, "transform.position", 0);
+    var networkPosition = ReadFloat3Bytes(view, published.RealtimePayload.Span, "transform.position", 0);
     var localPayloadEntityIndex = ReadInt32(view, localLease, "entity.index", 2);
-    var networkPayloadEntityIndex = ReadInt32(view, networkLease, "entity.index", 2);
+    var networkPayloadEntityIndex = ReadInt32Bytes(view, published.RealtimePayload.Span, "entity.index", 2);
     var localPayloadPosition = ReadFloat3(view, localLease, "transform.position", 2);
-    var networkPayloadPosition = ReadFloat3(view, networkLease, "transform.position", 2);
+    var networkPayloadPosition = ReadFloat3Bytes(view, published.RealtimePayload.Span, "transform.position", 2);
     var localSunPosition = ReadFloat3(view, localLease, "transform.position", 3);
-    var networkSunPosition = ReadFloat3(view, networkLease, "transform.position", 3);
+    var networkSunPosition = ReadFloat3Bytes(view, published.RealtimePayload.Span, "transform.position", 3);
     var localAsteroidPosition = ReadFloat3(view, localLease, "transform.position", 4);
-    var networkAsteroidPosition = ReadFloat3(view, networkLease, "transform.position", 4);
+    var networkAsteroidPosition = ReadFloat3Bytes(view, published.RealtimePayload.Span, "transform.position", 4);
     var identity = view.Identities.Single(candidate => candidate.Index == localEntityIndex);
     if (localLease.TransportKind != CultMeshBodyTransportKind.SharedMemory ||
-        networkLease.TransportKind != CultMeshBodyTransportKind.Network ||
         localEntityIndex != 12 || networkEntityIndex != localEntityIndex ||
         localPosition != (1.25f, -2.5f, 7.75f) || networkPosition != localPosition ||
         localPayloadEntityIndex != payloadIdentity.EntityIndex ||
@@ -1410,32 +1400,13 @@ static async Task ProveDirectSoaPublicationPipeline()
         localAsteroidPosition.X != 45f || localAsteroidPosition.Z != 50f ||
         networkAsteroidPosition != localAsteroidPosition ||
         identity.EntityId != "ship:soa-witness" || identity.Label != "SoA Witness")
-        throw new InvalidOperationException("Local and network SoA views were not logically equivalent.");
+        throw new InvalidOperationException("Shared-memory and realtime SoA payloads were not logically equivalent.");
 
     frame.Run.Zones[0].PhysicalPayloads[0].Active = false;
     var withoutPayload = publisher.BuildCurrentZoneEntities(frame);
     if (withoutPayload.View.Identities.Any(candidate => candidate.EntityId == payloadIdentity.EntityId) ||
         withoutPayload.View.Identities.Single(candidate => candidate.EntityId == pickupIdentity.EntityId).EntityIndex != pickupIdentity.EntityIndex)
         throw new InvalidOperationException("Inactive physical payload remained in SoA or disturbed a surviving synthetic identity.");
-}
-
-static byte[] ReadLiveBody(CultMeshNetworkBodyStore bodies, CultMeshBodyDescriptor descriptor)
-{
-    var request = new CultMeshBodyReadRequestMessage
-    {
-        MessageId = Guid.NewGuid().ToString("N"),
-        CapabilityToken = descriptor.CapabilityToken,
-        BodyId = descriptor.BodyId,
-        BodySchemaId = descriptor.SchemaId,
-        LayoutVersion = descriptor.LayoutVersion,
-        ProducerEpoch = descriptor.ProducerEpoch,
-        Sequence = descriptor.Sequence,
-        ExpectedSizeBytes = descriptor.ByteSize,
-        SemanticHash = descriptor.SemanticHash
-    };
-    if (!bodies.TryRead(request, DateTimeOffset.UtcNow, out _, out var body))
-        throw new InvalidOperationException("Ephemeral SoA network generation could not be resolved.");
-    return body;
 }
 
 static IEnumerable<AetheriaRuntimeSurfaceComponent> Flatten(AetheriaRuntimeSurfaceComponent component)
@@ -1453,6 +1424,14 @@ static int ReadInt32(EveEntitySoaViewDocument view, ICultMeshBodyReadLease lease
     return lease.ReadInt32(buffer.ByteOffset + column.ByteOffset + (long)row * column.ElementStride);
 }
 
+static int ReadInt32Bytes(EveEntitySoaViewDocument view, ReadOnlySpan<byte> body, string semantic, int row)
+{
+    var column = view.Columns.Single(candidate => candidate.Semantic == semantic);
+    var buffer = view.Buffers.Single(candidate => candidate.BufferId == column.BufferId);
+    var offset = checked((int)(buffer.ByteOffset + column.ByteOffset + (long)row * column.ElementStride));
+    return BinaryPrimitives.ReadInt32LittleEndian(body.Slice(offset, sizeof(int)));
+}
+
 static (float X, float Y, float Z) ReadFloat3(
     EveEntitySoaViewDocument view,
     ICultMeshBodyReadLease lease,
@@ -1463,4 +1442,19 @@ static (float X, float Y, float Z) ReadFloat3(
     var buffer = view.Buffers.Single(candidate => candidate.BufferId == column.BufferId);
     var offset = buffer.ByteOffset + column.ByteOffset + (long)row * column.ElementStride;
     return (lease.ReadSingle(offset), lease.ReadSingle(offset + 4), lease.ReadSingle(offset + 8));
+}
+
+static (float X, float Y, float Z) ReadFloat3Bytes(
+    EveEntitySoaViewDocument view,
+    ReadOnlySpan<byte> body,
+    string semantic,
+    int row)
+{
+    var column = view.Columns.Single(candidate => candidate.Semantic == semantic);
+    var buffer = view.Buffers.Single(candidate => candidate.BufferId == column.BufferId);
+    var offset = checked((int)(buffer.ByteOffset + column.ByteOffset + (long)row * column.ElementStride));
+    return (
+        BitConverter.Int32BitsToSingle(BinaryPrimitives.ReadInt32LittleEndian(body.Slice(offset, sizeof(float)))),
+        BitConverter.Int32BitsToSingle(BinaryPrimitives.ReadInt32LittleEndian(body.Slice(offset + 4, sizeof(float)))),
+        BitConverter.Int32BitsToSingle(BinaryPrimitives.ReadInt32LittleEndian(body.Slice(offset + 8, sizeof(float)))));
 }

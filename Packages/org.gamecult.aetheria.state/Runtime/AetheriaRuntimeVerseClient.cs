@@ -256,6 +256,9 @@ namespace GameCult.Aetheria.State.Verse
             var fullPath = Path.GetFullPath(statePath);
             var effectiveRuntimeId = string.IsNullOrWhiteSpace(runtimeId) ? DefaultRuntimeId : runtimeId;
             var registry = AetheriaRuntimeVerseContractRegistry.CreateCultCacheRegistry();
+            var runtimeSchemaIds = new HashSet<string>(
+                registry.AllDescriptors.Select(descriptor => descriptor.SchemaId),
+                StringComparer.Ordinal);
             var node = await CultMesh.CreateNodeAsync(
                     fullPath,
                     new CultMeshNodeOptions
@@ -267,7 +270,12 @@ namespace GameCult.Aetheria.State.Verse
                             Registry = registry,
                             PullOnOpen = pullOnOpen,
                             StoreFlushOnDispose = true,
-                            UseDirectoryStore = true
+                            UseDirectoryStore = true,
+                            // A thin runtime shares the daemon's physical CultCache, but it does not
+                            // own or understand catalog, migration, Hangar, or other daemon schemas.
+                            // Hydrate only the contract it can deserialize; untouched records remain
+                            // owned by the backing store and are not projected into this client cache.
+                            DirectoryStoreHydrationFilter = metadata => runtimeSchemaIds.Contains(metadata.SchemaId)
                         },
                         DatabaseOptions = new CultNetDatabaseOptions
                         {

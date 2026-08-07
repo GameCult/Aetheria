@@ -14,6 +14,7 @@
     "overrideReferences": true,
     "precompiledReferences": [
         "ConcurrentCollections.dll",
+        "CultMath.dll",
         "GameCult.Caching.MessagePack.dll",
         "GameCult.Caching.dll",
         "GameCult.Logging.dll",
@@ -28,6 +29,7 @@
         "Microsoft.NET.StringTools.dll",
         "MessagePack.Annotations.dll",
         "MessagePack.CultMesh.dll",
+        "MessagePack.dll",
         "R3.dll",
         "System.Collections.Immutable.dll",
         "System.ComponentModel.Annotations.dll",
