@@ -312,6 +312,90 @@ await using (var node = await AetheriaStateNode.OpenAsync(statePath, "aetheria-s
         }
     });
 
+    await node.MutableDocument<AetheriaHangarState>(AetheriaStateNode.HangarKey).ReplaceAsync(new AetheriaHangarState
+    {
+        HangarId = "smoke",
+        PlayerKey = "player:smoke",
+        Revision = 7,
+        Ships =
+        [
+            new AetheriaHangarShip
+            {
+                ShipId = "ship:smoke:aether-runner",
+                HullItemKey = itemKey.ToString(),
+                LoadoutTemplateKey = loadoutKey.ToString()
+            },
+            new AetheriaHangarShip
+            {
+                ShipId = "ship:smoke:starbridge",
+                HullItemKey = itemKey.ToString(),
+                LoadoutTemplateKey = loadoutKey.ToString()
+            },
+            new AetheriaHangarShip
+            {
+                ShipId = "ship:smoke:arena",
+                HullItemKey = itemKey.ToString(),
+                LoadoutTemplateKey = loadoutKey.ToString()
+            }
+        ],
+        LoadoutTemplateKeys = [loadoutKey.ToString()],
+        UpdatedAtUtc = now
+    });
+    var deploymentRequest = new AetheriaDeploymentRequest
+    {
+        RequestId = "request:smoke:terminus",
+        PlayerKey = "player:smoke",
+        Mode = AetheriaGameModes.Terminus,
+        ShipId = "ship:smoke:aether-runner",
+        LoadoutTemplateKey = loadoutKey.ToString(),
+        ExpectedHangarRevision = 7,
+        ModePolicyId = AetheriaModePolicies.TerminusLocal
+    };
+    var deployment = await AetheriaHangar.AdmitAsync(node, deploymentRequest, now);
+    var duplicateDeployment = await AetheriaHangar.AdmitAsync(node, deploymentRequest, now);
+    if (!deployment.Accepted ||
+        deployment.DeploymentId != duplicateDeployment.DeploymentId ||
+        deployment.HangarRevision != 8)
+        throw new InvalidOperationException("Hangar deployment admission was not accepted exactly once.");
+
+    foreach (var (mode, shipId, revision, policy) in new[]
+             {
+                 (AetheriaGameModes.Starbridge, "ship:smoke:starbridge", 8L, AetheriaModePolicies.StarbridgeMixed),
+                 (AetheriaGameModes.Arena, "ship:smoke:arena", 9L, AetheriaModePolicies.ArenaServer)
+             })
+    {
+        var modeDeployment = await AetheriaHangar.AdmitAsync(node, new AetheriaDeploymentRequest
+        {
+            RequestId = $"request:smoke:{mode}",
+            PlayerKey = "player:smoke",
+            Mode = mode,
+            ShipId = shipId,
+            LoadoutTemplateKey = loadoutKey.ToString(),
+            ExpectedHangarRevision = revision,
+            ModePolicyId = policy
+        }, now);
+        if (!modeDeployment.Accepted || modeDeployment.Mode != mode)
+            throw new InvalidOperationException($"Hangar rejected the shared {mode} deployment boundary.");
+    }
+
+    var staleDeployment = AetheriaHangar.Admit(
+        await node.MutableDocument<AetheriaHangarState>(AetheriaStateNode.HangarKey).ReadAsync()
+            ?? throw new InvalidOperationException("Hangar disappeared during admission smoke."),
+        new AetheriaDeploymentRequest
+        {
+            RequestId = "request:smoke:stale",
+            PlayerKey = "player:smoke",
+            Mode = AetheriaGameModes.Arena,
+            ShipId = "ship:smoke:aether-runner",
+            LoadoutTemplateKey = loadoutKey.ToString(),
+            ExpectedHangarRevision = 7,
+            ModePolicyId = AetheriaModePolicies.ArenaServer
+        },
+        await node.MutableDocument<AetheriaLoadoutTemplate>(loadoutKey).ReadAsync(),
+        now);
+    if (staleDeployment.Accepted || staleDeployment.Diagnostic != "hangar revision mismatch")
+        throw new InvalidOperationException("Stale Hangar deployment bypassed revision admission.");
+
     await node.MutableDocument<AetheriaEntitySnapshot>(entityKey).ReplaceAsync(new AetheriaEntitySnapshot
     {
         Name = "Smoke Aether Runner",
@@ -767,6 +851,7 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
     var runtimeSession = await reopened.MutableDocument<AetheriaRuntimeSession>(AetheriaStateNode.RuntimeSessionKey("smoke-runtime")).ReadAsync();
     var playerSettings = await reopened.MutableDocument<AetheriaPlayerSettings>(AetheriaStateNode.PlayerSettingsKey).ReadAsync();
     var loadout = await reopened.MutableDocument<AetheriaLoadoutTemplate>(loadoutKey).ReadAsync();
+    var hangar = await reopened.MutableDocument<AetheriaHangarState>(AetheriaStateNode.HangarKey).ReadAsync();
     var runState = await reopened.MutableDocument<AetheriaRunState>(runKey).ReadAsync();
     var zoneState = await reopened.MutableDocument<AetheriaZoneState>(zoneKey).ReadAsync();
     var entitySnapshot = await reopened.MutableDocument<AetheriaEntitySnapshot>(entityKey).ReadAsync();
@@ -775,6 +860,27 @@ await using (var reopened = await AetheriaStateNode.OpenAsync(statePath, "aether
     {
         throw new InvalidOperationException("World state did not survive flush/reopen.");
     }
+
+    if (hangar?.Revision != 10 ||
+        hangar.Deployments.Length != 3 ||
+        hangar.Deployments.Select(value => value.Mode).Distinct().Count() != 3 ||
+        hangar.Deployments.Any(value => !value.Accepted) ||
+        hangar.Ships.Any(value => value.Status != AetheriaHangarShipStatuses.Deployed))
+        throw new InvalidOperationException("Canonical Hangar deployment did not survive flush/reopen.");
+
+    var hangarSurface = AetheriaRuntimeHangarSurfaceBuilder.Build(
+        hangar,
+        "ship:smoke:aether-runner",
+        AetheriaGameModes.Arena,
+        now);
+    var hangarComponents = Flatten(hangarSurface.Surface.Root).ToArray();
+    if (hangarSurface.Surface.Id != AetheriaRuntimeHangarCommands.SurfaceId ||
+        !hangarSurface.Commands.Any(command => command.Command == AetheriaRuntimeHangarCommands.Launch) ||
+        !hangarComponents.Any(component => component.Id == "aetheria.hangar.preview.slot") ||
+        !hangarComponents.Any(component => component.Props.TryGetValue("targetSurfaceId", out var target) &&
+                                           target == AetheriaRuntimeInventoryPanelSurfaceBuilder.SurfaceId) ||
+        hangarComponents.Count(component => component.Id.StartsWith("aetheria.hangar.bay.", StringComparison.Ordinal)) != 3)
+        throw new InvalidOperationException("Hangar surface did not expose preview, ship bays, loadout editor, and launch boundary.");
 
     if (item?.Name != "Smoke Aether Drive")
     {
@@ -1330,6 +1436,14 @@ static byte[] ReadLiveBody(CultMeshNetworkBodyStore bodies, CultMeshBodyDescript
     if (!bodies.TryRead(request, DateTimeOffset.UtcNow, out _, out var body))
         throw new InvalidOperationException("Ephemeral SoA network generation could not be resolved.");
     return body;
+}
+
+static IEnumerable<AetheriaRuntimeSurfaceComponent> Flatten(AetheriaRuntimeSurfaceComponent component)
+{
+    yield return component;
+    foreach (var child in component.Children ?? Array.Empty<AetheriaRuntimeSurfaceComponent>())
+    foreach (var descendant in Flatten(child))
+        yield return descendant;
 }
 
 static int ReadInt32(EveEntitySoaViewDocument view, ICultMeshBodyReadLease lease, string semantic, int row)

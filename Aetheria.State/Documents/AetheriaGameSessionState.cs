@@ -1,4 +1,5 @@
 using GameCult.Caching;
+using GameCult.Aetheria.State.Verse;
 using MessagePack;
 
 namespace Aetheria.State.Documents;
@@ -8,7 +9,9 @@ namespace Aetheria.State.Documents;
 [MessagePackObject]
 public sealed class AetheriaGameSessionState
 {
-    public const string TerminusMode = "terminus";
+    public const string TerminusMode = AetheriaGameModes.Terminus;
+    public const string StarbridgeMode = AetheriaGameModes.Starbridge;
+    public const string ArenaMode = AetheriaGameModes.Arena;
     public const string AetheriaMode = "aetheria";
 
     [Key(0)] public string Mode { get; set; } = TerminusMode;

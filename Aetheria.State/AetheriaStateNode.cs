@@ -143,6 +143,7 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
             RuntimeCatalogKey.ToString(),
             TradeValuePolicyKey.ToString(),
             PlayerSettingsKey.ToString(),
+            HangarKey.ToString(),
             VerseHostSettingsKey.ToString(),
             GameSessionStateKey.ToString(),
             MainMenuStateKey.ToString(),
@@ -414,6 +415,9 @@ public sealed class AetheriaStateNode : IAsyncDisposable, IDisposable
 
     public static CultRecordKey PlayerSettingsKey { get; } =
         new("global:aetheria.player_settings.v1");
+
+    public static CultRecordKey HangarKey { get; } =
+        new("global:gamecult.aetheria.hangar.v1");
 
     public static CultRecordKey VerseHostSettingsKey { get; } =
         new("global:aetheria.verse_host_settings.v1");

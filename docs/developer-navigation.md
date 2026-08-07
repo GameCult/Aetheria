@@ -26,19 +26,22 @@ Read these in this order:
 3. `docs/game-modes-and-progression.md`
    Product-mode and cross-mode progression authority: Terminus, Starbridge,
    Arena, Hangar, deployment, and settlement.
-4. `Aetheria.State/docs/stage-7-thin-client-staged-implementation-plan.md`
+4. `docs/hangar-launcher.md`
+   Shared launcher, deployment admission, ship-bay composition, and the cut
+   from generic New Game to mode bootstrap.
+5. `Aetheria.State/docs/stage-7-thin-client-staged-implementation-plan.md`
    The staged migration plan. Use this when deciding what to build next.
-5. `Aetheria.State/docs/stage-7-client-surface-inventory.md`
+6. `Aetheria.State/docs/stage-7-client-surface-inventory.md`
    Surface inventory and edit queue for Unity/Electron/client boundaries.
-6. `docs/aetheria-verse-client-contract.md`
+7. `docs/aetheria-verse-client-contract.md`
    Intended client contract: use typed Verse state, not daemon internals.
-7. `docs/cultmesh-feature-implementation-guide.md`
+8. `docs/cultmesh-feature-implementation-guide.md`
    Step-by-step guide for adding canonical typed state once, letting daemon
    authority own mutation, and consuming/interacting with the same document from
    Unity and other clients.
-8. `Aetheria.State/docs/verse-authority-implementation-plan.md`
+9. `Aetheria.State/docs/verse-authority-implementation-plan.md`
    Authority and Starbridge staged implementation map.
-9. `docs/cockpit-doctrine-combat.md`
+10. `docs/cockpit-doctrine-combat.md`
    Target pilot experience: first-person cockpit, direct and delegated helm,
    doctrine-owned combat intent, cognition-owned precision execution, and the
    typed state required to make delegation legible. This defines experience,
