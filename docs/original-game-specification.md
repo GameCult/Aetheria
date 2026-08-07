@@ -93,10 +93,14 @@ authoritative state:
   same strategic world facts;
 - view choice never creates a second simulation.
 
-Starbridge is mixed-authority. Typed policy assigns bounded command/claim kinds
-to the commander, pilots, daemon, or leases; every accepted mutation joins one
-canonical state and receipt history. Mixed authority does not mean private
-client worlds that reconcile after the fact.
+Starbridge uses Commander-daemon default simulation with jurisdictional Pilot
+correction. The Commander daemon simulates every fact and owns canonical
+finality and persistence. Pilot daemons independently predict facts for their
+own ship, daemon-assigned nearest environment entities, and assigned combat
+engagements. A validated mismatch resolves toward the pilot result; the
+Commander daemon corrects and replays its provisional state. Outside pilot
+jurisdiction, the Commander player owns Verse authorship and the Commander
+daemon result stands. No Pilot daemon owns a private persistent world.
 
 Terminus, Starbridge, and Arena share the canonical Hangar, deployment,
 catalog keys, fitting rules, and saved loadout templates described in

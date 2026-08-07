@@ -13,10 +13,17 @@ authority.
 Aetheria should persist and replicate game state as typed CultCache documents,
 publish multiplayer/service state through CultMesh, and render operator/runtime
 interfaces from Eve CultUI surfaces. Terminus uses local-daemon authority,
-Starbridge uses typed mixed authority, and Arena uses server authority; all
+Starbridge uses Commander-default simulation with jurisdictional Pilot
+correction, and Arena uses server authority; all
 three share the target Hangar/deployment/settlement spine and can execute
 headlessly. The old JSON, RethinkDB, JsonKnownTypes, legacy catalog cache, and
 legacy UI paths should be migration-only or deleted.
+
+The product modes deliberately pressure different CultMesh authority shapes:
+Terminus local authority, Arena server authority, and Starbridge
+Commander-default/Pilot-corrected mixed authority. Witness-authoritative
+operation is the next configuration after Arena and Starbridge prove shared fact identity,
+finality, replay, and negative authority invariants.
 
 ## Current Mechanism
 
@@ -3440,7 +3447,7 @@ daemon smoke with one explicit CultLib/EveUnity/Ymir root set so a stale NuGet
 project graph cannot substitute another worktree during `--no-restore`.
 The unused Starbridge bootstrap that wrote invented stock, attacker, boss, and
 technology keys has been deleted. Starbridge session bootstrap must enter
-through shared Hangar deployment, typed mixed-authority policy, the active mode
+through shared Hangar deployment, typed candidate/jurisdiction/finality policy, the active mode
 owner, and typed catalogs; a dormant document seeder is not a game mode.
 
 Run-lifecycle ownership is deliberately narrower than a quest system:

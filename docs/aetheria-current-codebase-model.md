@@ -587,8 +587,11 @@ The current UI direction is Eve/CultUI:
 
 The architectural note in `Aetheria.State/docs/verse-daemon-shape.md` still
 describes optional ecosystem indexing, but it is not the Aetheria session path.
-Aetheria clients connect directly to the daemon's advertised CultMesh endpoint;
-directly configured daemon peers exchange typed committed facts there as well.
+Aetheria clients connect directly to the daemon's advertised CultMesh endpoint.
+Current configured daemon peers also exchange typed committed facts there; this
+is obsolete migration behavior, not target Starbridge authority. Pilot output
+must instead enter as candidate evidence before Commander finality, and peer
+committed facts must not mutate gameplay state.
 Odin may index the provider only when explicitly enabled. Eve/CultUI defines
 presentation, and the daemon owns side effects.
 

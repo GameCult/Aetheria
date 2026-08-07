@@ -16,15 +16,24 @@ lowering semantics, and Aetheria clients are conformance targets.
 Aetheria should become a renderless, policy-authoritative game whose three
 product modes share one simulation and progression spine.
 
-Terminus uses sole local-daemon authority. Starbridge uses typed mixed authority
-across commander, pilots, daemon, and bounded leases. Arena uses sole
-server authority. The applicable authorities own committed game state and
-simulation claims; Aetheria providers publish canonical typed operations,
-assets, and high-performance views of live state. Eve owns the portable UI and
+Terminus uses sole local-daemon authority. Starbridge uses Commander-default
+simulation with jurisdictional Pilot correction. Arena uses sole server
+authority. In Starbridge, the Commander daemon owns the full default simulation,
+canonical log, persistence, and publication. Pilot daemons independently
+predict facts inside assigned jurisdictions; a validated mismatch corrects the
+Commander daemon to the pilot result before external finality. Aetheria
+providers publish canonical typed operations, assets, and high-performance
+views of live state. Eve owns the portable UI and
 world-state rendering instruction contract. Unity, Godot, Electron, Hermodr,
 AI controllers, and later runtimes lower surfaces or submit typed operations;
 renderer attachment is never an authority input. All three modes must also run
 headlessly through the same simulation body.
+
+The modes are the authority runway: Terminus proves local authority, Arena
+proves server authority, and Starbridge proves Commander-default/Pilot-corrected
+mixed authority. Witness-authoritative operation follows only after the server
+and mixed configurations pass live, restart, replay, and negative
+authority proofs through the same typed fact contract.
 
 Hermodr is the RTS sanity check: an unspecialized Eve/browser client must be
 able to reconstruct the same RTS gameplay surface as Electron from the Eve spec,
@@ -38,18 +47,21 @@ daemon-authored contract, without inheriting Unity scene authority.
 ## Authority Map
 
 Owner:
-Typed mode policy owns the authority assignment. The Terminus local daemon and
-Arena server own all gameplay claims in their sessions. Starbridge assigns
-bounded claim kinds across participants while preserving one canonical state
-and receipt history. The shared Hangar remains a separate authoritative typed
-aggregate outside live sessions.
+Typed mode policy owns authority and jurisdiction assignment. The Terminus local
+daemon and Arena server own all simulation and finality in their sessions. In
+Starbridge, the Commander daemon owns simulation scheduling, the default
+candidate for every fact, canonical selection, deterministic correction/replay,
+persistence, receipts, and publication. A Pilot daemon owns the candidate result
+for its assigned jurisdiction when that validated result differs. The shared
+Hangar remains a separate authoritative typed aggregate outside live sessions.
 
 Inputs:
-Applicable authorities may read typed CultCache/CultMesh documents, catalog
-data, authority policy, player/AI operation documents, simulation clock input,
-deterministic generation seeds and asset manifests. Simulation transactions may
-invoke the embedded Ymir spatial kernel, but Ymir does not become a second state
-owner.
+The Commander daemon reads canonical CultCache/CultMesh state, catalog data,
+authority policy, player operations, clock input, deterministic seeds, and asset
+manifests. Before each Starbridge prediction window it publishes an immutable
+tick envelope and jurisdiction table. Pilot candidates must use that same prior
+state root, versions, inputs, and seed position. Simulation transactions may
+invoke the embedded Ymir spatial kernel, but Ymir does not become a state owner.
 
 Outputs:
 The provider publishes typed state documents, committed facts, operation receipts,
@@ -67,14 +79,32 @@ Forbidden writers:
 Renderer-local gameplay compensators, Unity scene lifetime, Unity collision
 callbacks, Electron-only map builders, Hermodr Aetheria plugins, Godot-specific
 daemon branches, local file sidecars, renderer-owned asset fallbacks, and
-client-specific command routers must not write or define canonical gameplay
-state.
+client-specific command routers must not write canonical gameplay state. A
+Pilot daemon cannot expand its own jurisdiction, directly append the canonical
+log, or correct a finalized fact. The Commander daemon cannot bypass an open
+pilot prediction window, publish provisional results as final, or preserve its
+own result after a valid in-window Pilot mismatch.
+
+Starbridge finality:
+Every comparable fact slot is keyed by session, simulation/content versions,
+run and jurisdiction epochs, tick/substep, fact kind, subject, engagement or
+claim identity, and causal input-set hash. Jurisdiction is Commander-published
+typed state effective at a named tick. Commander results inside Pilot
+jurisdiction remain provisional for a deterministic tick/barrier window. A
+schema-valid, rules-valid, in-jurisdiction Pilot mismatch replaces the Commander
+candidate; dependent provisional state is replayed from that boundary. Silence
+or a missed window leaves the Commander candidate. Late results are evidence,
+not repairs. Only finalized facts may affect canonical gameplay checkpoints,
+score, Hangar settlement, or irreversible external effects. Open candidate
+windows and their evidence are durably journaled as protocol state so restart
+does not discard or promote a dispute.
 
 Shared paths:
 Unity, Godot, Electron, Hermodr, tests, tools, and future clients should all
 consume the same daemon-published documents and Eve surfaces. Direct user input,
 programmatic commands, replay/import, reconnect, and automation should all enter
-through typed operations or policy-governed typed document writes.
+through typed operations, scoped Pilot candidates, or an explicitly declared
+mergeable-state strategy. None is a generic gameplay-document write path.
 
 Deletion line:
 Before adding new client behavior, delete or demote any path that lets a client

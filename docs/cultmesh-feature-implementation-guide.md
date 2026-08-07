@@ -94,7 +94,9 @@ Simulation state should take two or three steps:
 ```text
 1. Define the canonical typed document in the shared runtime package.
 2. Let the daemon mutate/publish that document as the authority for the Verse.
-3. Read or modify the same managed document from clients according to authority policy.
+3. Read the same managed document from clients; submit typed operations or,
+   inside Starbridge Pilot jurisdiction, typed prediction candidates according
+   to authority policy.
 ```
 
 Anything beyond that needs a clear reason. Performance-sensitive entity
@@ -343,11 +345,13 @@ public sealed class AetheriaRuntimeStationSupportDocument
 The daemon validates operations, applies ticks, and publishes the canonical
 document into the Verse. Unity does not own gameplay truth, but Unity does not
 need a separate client-facing copy either. CultMesh handles sync. If the client
-has prediction authority, local changes to the managed document are
-predictions; reconciliation corrects them without requiring feature code to
-manually shuttle deltas.
+has ordinary prediction rights, local changes are provisional and reconcile to
+authority. Starbridge Pilot jurisdiction deliberately reverses that mismatch
+policy: a valid Pilot candidate corrects and replays Commander provisional
+state before finality. In neither case does the managed client document append
+the canonical log directly.
 
-### Step 3: Read Or Mutate Through The Managed Handle
+### Step 3: Read Or Submit Through The Managed Handle
 
 Unity reads the same document through the managed typed handle:
 
@@ -356,8 +360,8 @@ var support = client.State.Reactive<AetheriaRuntimeStationSupportDocument>();
 var cooling = support.Current?.CoolingReserve ?? 0;
 ```
 
-When the client does not have direct simulation authority, it submits a typed
-operation:
+When the client has no prediction jurisdiction for a fact, it submits a typed
+operation to the applicable authority:
 
 ```csharp
 client.Operations.Submit(new AetheriaRuntimeDeploySupportDroneOperation
@@ -371,10 +375,11 @@ client.Operations.Submit(new AetheriaRuntimeDeploySupportDroneOperation
 The daemon validates and applies the operation. The next published document is
 the authoritative result.
 
-When the client has prediction or simulation authority, the ergonomic target is
-even simpler: modifying the managed reactive document records a prediction,
-debounced by the update frame, and CultMesh routes/reconciles it according to
-the Verse authority policy.
+When a Starbridge Pilot has prediction jurisdiction, modifying the managed
+reactive document records a candidate keyed to the Commander tick envelope.
+CultMesh routes it to the candidate selector. Matching state records agreement;
+a valid mismatch selects the Pilot result and triggers Commander replay. Late,
+invalid, or out-of-jurisdiction candidates cannot rewrite finalized state.
 
 ## SoA For Hot Paths
 

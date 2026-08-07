@@ -55,8 +55,8 @@ If you want to chat, please join [our Discord server](https://discord.gg/trbteNj
 The ARPG game design document is available [here](https://docs.google.com/document/d/1iULu1WsbuQoUM3c87XkGseb1P-8R5xlruoiyg03TsSE/edit?usp=sharing), while the RTS gameplay is documented [here](https://docs.google.com/document/d/1U3uGFqQboAiFJ_Y-nUOGpyixbXUHRbc5DiCuB59GM4w/edit?usp=sharing). There's also a document explaining how some of the shaders work [here](https://docs.google.com/document/d/1AFycvCtW6hA1jkKq1ZmYd3k6_uEWaaCqcZ4fYj4vU6A/edit?usp=sharing).
 
 The game has three modes over one simulation and progression spine: Terminus
-single-player roguelike runs, mixed-authority Starbridge co-op, and
-server-authoritative Arena PvP. Arena also provides deterministic headless
+single-player roguelike runs, Commander-default/Pilot-corrected Starbridge
+co-op, and server-authoritative Arena PvP. Arena also provides deterministic headless
 matches for NPC-policy training and build balancing. All modes share ships,
 equipment, fitting rules, and Hangar progression without sharing live session
 authority.
@@ -72,12 +72,16 @@ As a result of lessons learned, we then focused on the economy system, and built
 At the moment we are focused on moving Aetheria gameplay authority into the
 daemon and proving that both RTS and ARPG clients can be reconstructed from
 daemon-published typed state, CultMesh CDN assets, and Eve/CultUI surfaces.
-Terminus is the single-player roguelike mode, Starbridge is the mixed-authority
-co-op RTS/pilot mode, and Arena is the server-authoritative PvP mode and primary
+Terminus is the single-player roguelike mode. Starbridge is the co-op RTS/pilot
+mode, using Commander-daemon default simulation with jurisdictional Pilot
+correction. Arena is the server-authoritative PvP mode and primary
 AI-training/build-balancing harness. All three can run headlessly, use the same
-Hangar, ship-loadout, and progression model, and must remain minimally runnable from the first product
-spine. The shared mode design is documented in
+Hangar, ship-loadout, and progression model, and must remain minimally runnable
+from the first product spine. The shared mode design is documented in
 [docs/game-modes-and-progression.md](docs/game-modes-and-progression.md).
+Together they prove local-authoritative, mixed-authority, and
+server-authoritative CultMesh configurations; witness-authoritative operation
+is the next authority milestone after the latter two are proven.
 
 ## Developer Navigation
 

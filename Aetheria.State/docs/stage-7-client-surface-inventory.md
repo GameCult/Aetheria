@@ -26,7 +26,7 @@ Stage 7E passes.
 ```text
 client input -> local typed Verse command document -> local daemon
 local daemon state -> local typed projection/read -> renderer or UI panel
-peer daemon facts -> local authority import -> local state
+Pilot daemon candidate evidence -> Commander selection/finality -> shared local state
 ```
 
 Forbidden as public client shape:

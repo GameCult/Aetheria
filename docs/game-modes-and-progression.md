@@ -20,10 +20,15 @@ deploy -> fly -> fight -> salvage -> dock/refit -> choose risk -> continue
 ```
 
 `Starbridge` is the cooperative mode. One commander and one to four pilots act
-in one shared session. Starbridge is mixed-authority: typed authority policy
-assigns bounded claim kinds to the commander, pilots, daemon, or leases while
-all participants converge on the same canonical typed state and receipt
-history. It uses the same player identity, hull catalog, equipment vocabulary,
+in one shared session. Starbridge uses commander-default simulation with
+jurisdictional pilot correction. The Commander daemon simulates the entire
+session and owns canonical finality, persistence, and publication. Each Pilot
+daemon independently predicts facts for its own ship, its daemon-assigned
+nearest environment entities, and its assigned combat engagements. When a
+validated pilot result differs from the Commander daemon's provisional result,
+the pilot result wins and the Commander daemon corrects and deterministically
+replays from that boundary. The Commander player owns Verse authorship for
+everything outside pilot jurisdiction. It uses the same player identity, hull catalog,
 loadout templates, fitting rules, and Hangar progression as Terminus while
 adding the shared base, RTS projection, waves, fabrication, support systems,
 and recovered-technology decisions.
@@ -98,10 +103,29 @@ into the live world.
 The authority policy differs without changing the document model:
 
 - **Terminus:** the local daemon decides all gameplay state.
-- **Starbridge:** mixed authority assigns bounded claim kinds to participants;
-  typed policy and committed receipts make ownership visible and revocable.
+- **Starbridge:** the Commander daemon owns default simulation and canonical
+  persistence. Pilot daemons have prediction authority plus mismatch priority
+  inside typed jurisdictions; the Commander daemon reconciles to a validated
+  differing pilot result rather than correcting the pilot to its own result.
 - **Arena:** the authoritative server decides all gameplay state; humans and
   AIs submit operations and consume observations.
+
+Each mode is also a concrete CultMesh authority proof:
+
+- **Terminus proves local authority:** one local daemon owns simulation and
+  finality while clients remain replaceable lowerers.
+- **Arena proves server authority:** remote human and AI controllers submit to
+  one authoritative simulation server.
+- **Starbridge proves mixed authority:** the Commander daemon owns the default
+  simulation and final log while validated Pilot predictions correct facts in
+  explicitly assigned jurisdictions.
+
+After Starbridge mixed authority and Arena server authority are proven in live
+play and deterministic replay, the next authority milestone is
+**witness-authoritative** operation. Witness authority must reuse the same typed
+fact slots, inputs, versions, evidence, finality, and replay contracts. It is
+not permission to fork gameplay state or build consensus machinery before the
+three product modes work.
 
 The exact deployment/risk policy belongs to typed mode policy. Terminus may
 risk the deployed hull, insured value, carried equipment, extracted salvage,
@@ -115,8 +139,9 @@ deployment and settlement receipts, not inferred by a menu.
 Each mode must prove the shared spine early:
 
 1. **Terminus:** deploy, fly, fight, salvage, dock/refit, and settle one run.
-2. **Starbridge:** one commander and one pilot share a base/session, exercise
-   one policy-owned command each, and converge on one outcome.
+2. **Starbridge:** one commander and one pilot share a base/session, disagree on
+   one pilot-jurisdiction fact, select the pilot result, replay Commander state,
+   and converge on one finalized outcome.
 3. **Arena:** start a deterministic dedicated-server match, attach at least two
    controllers (human or AI), exchange typed observations/operations, resolve a
    scored combat outcome, and reproduce it from the same seed and inputs.
@@ -185,8 +210,9 @@ simulation smokes as Arena product proof.
 7. Arena produces the same authoritative result for the same initial state,
    seed, ordered typed operations, and simulation version whether controllers
    are humans, AIs, rendered clients, or a headless batch harness.
-8. Starbridge policy changes authority without changing document or operation
-   schemas, and denied claims expose the active owner and reason.
+8. Starbridge jurisdiction changes without changing fact/document schemas;
+   diagnostics expose assignment epoch, provisional Commander result, pilot
+   result, mismatch decision, replay boundary, and finalized result.
 9. Terminus and Starbridge also complete representative scenarios headlessly;
    attaching a renderer does not change their ordered facts or outcome.
 10. Arena balance batches record simulation version, content/catalog version,
@@ -195,3 +221,11 @@ simulation smokes as Arena product proof.
 11. A terminal outcome cannot mutate Hangar state before Hangar acceptance;
     duplicate or reordered delivery returns the same receipt and delta.
     In-session refit and resume cannot invoke deployment or settlement.
+12. A Commander result inside active pilot jurisdiction cannot become externally
+    final before the prediction window closes. A valid differing pilot result
+    replaces it; stale, wrong-epoch, out-of-jurisdiction, or invalid pilot
+    results cannot rewrite finalized history.
+13. Terminus, Starbridge, and Arena publish diagnostics identifying their active
+    CultMesh authority configuration. Witness-authoritative work begins only
+    after the Starbridge and Arena proofs pass without mode-specific state or
+    operation schemas.

@@ -88,12 +88,14 @@ Verse, bind an Eve state pointer, or expose a native slab view. That decision is
 CultMesh infrastructure. The caller gets a typed domain value and diagnostics
 when it asks for them.
 
-Client input follows the same rule. When a runtime has authority or prediction
-rights, mutating the managed typed document is the ergonomic target; CultMesh
-debounces, routes, records the prediction, and reconciles against canonical
-state. When a runtime does not have direct write authority, it submits a typed
-operation handle that the daemon validates and applies to the same canonical
-document.
+Client input follows the same rule. Ordinary and Arena clients submit typed
+operations and reconcile to authoritative state. In Starbridge Pilot
+jurisdiction the prediction policy is reversed: the Commander daemon publishes
+the default provisional result, a Pilot daemon submits a candidate derived from
+the same tick envelope, and a valid mismatch corrects/replays Commander state
+to the Pilot result before finality. Mutating a managed typed document may be
+the ergonomic prediction surface, but it never appends canonical state
+directly. Outside Pilot jurisdiction, the Commander result stands.
 
 Unity should treat the client as its Aetheria-facing runtime surface. It can
 still use Burst, DOTS rendering, and native views for presentation, but the state

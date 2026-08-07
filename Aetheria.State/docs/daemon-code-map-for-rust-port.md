@@ -71,10 +71,10 @@ These files define the deprecated reference surface. They should be treated as A
 
 | Area | Source | What to freeze |
 | --- | --- | --- |
-| Host behavior | `Aetheria.State.Daemon/Program.cs` | CLI options, startup behavior, seed behavior, tick cadence, RUDP endpoint behavior, remote fact import behavior. |
+| Host behavior | `Aetheria.State.Daemon/Program.cs` | CLI options, startup behavior, seed behavior, tick cadence, RUDP endpoint behavior, and the obsolete remote committed-fact import behavior that must become Pilot candidate selection plus Commander finality. |
 | CultMesh node wrapper | `Aetheria.State/AetheriaStateNode.cs` | Current record reads/writes, observed command query behavior, flush semantics. |
 | Registry | `Aetheria.State/AetheriaDocumentRegistry.cs` | C# document set currently exposed through CultCache/CultNet. |
-| Replica sync | `Aetheria.State/AetheriaVerseReplica.cs` | Scoped snapshot fetch, document fetch, remote committed fact import dependency. |
+| Replica sync | `Aetheria.State/AetheriaVerseReplica.cs` | Scoped snapshot/document fetch to preserve; remote committed-fact import is migration evidence, not target authority. |
 | Local publications | `Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeCultCacheDocumentStore.cs` | `.cc` compatibility files and their payload layout. |
 | Daemon documents | `Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeDaemonDocuments.cs` | Schema ids, command enum, frame, command, committed fact, viewport, health, provider, command boundary, surface docs. |
 | Snapshot documents | `Packages/org.gamecult.aetheria.state/Runtime/AetheriaRuntimeSnapshotDocuments.cs` | Run, zone, entity, body, equipment, cargo, loadout, stat grids. |
@@ -122,7 +122,9 @@ The C# host does this today:
    - Step the daemon-owned Aetheria simulation.
    - Build a daemon frame.
    - Publish committed command facts.
-   - Import remote committed command facts.
+   - Import remote committed command facts (current behavior to delete or
+     quarantine; target Pilot output enters before finality as candidate
+     evidence and Commander correction/replay selects one canonical fact).
    - Publish frame, health, command boundary, provider docs, Starbridge summary, SoA view, and Eve surfaces.
 
 This is behavior to measure and learn from. It is not the desired architecture.

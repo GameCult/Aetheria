@@ -8,30 +8,37 @@ use the same policy boundary:
 typed operation
 -> resolve subject and claim kind
 -> resolve authority mode from the active Verse policy
--> apply, forward, defer, or reject
+-> build immutable tick envelope and jurisdiction assignment
+-> simulate Commander default candidate
+-> accept, compare, defer, or reject Pilot candidate
+-> correct/replay Commander provisional state on validated mismatch
+-> commit one finalized fact
 ```
 
-The first implementation is intentionally fast for trusted co-op. It does not
-build quorum consensus on the hot path. It compiles the active policy document
-and authority leases into an in-memory routing table, then tests incoming typed
-commands before simulation.
+Starbridge does not use quorum consensus on the hot path. The Commander daemon
+simulates everything by default and owns the canonical log. Policy assigns
+prediction jurisdiction to Pilot daemons for their own ship, daemon-assigned
+nearest environment entities, and assigned combat engagements. This is the
+reverse of ordinary server-authoritative client prediction: when a valid Pilot
+result disagrees, the Commander daemon corrects to the Pilot result.
 
 ## Policy Modes
 
 The policy schema names the authority shapes Aetheria needs without requiring
 all of them to be implemented at once.
 
-- `any-trusted-runtime`: trusted co-op mode. Any runtime with the active Verse
-  rules may author matching claims.
-- `host-authoritative`: only the configured host runtime may author matching
-  claims.
-- `delegated-runtime`: one of the configured runtime ids may author matching
-  claims.
-- `owning-runtime`: the runtime that owns the subject may author matching
-  claims. This is schema-level intent for now; ownership resolution must be
-  supplied by the runtime before this mode is enabled.
-- `interest-lease`: a runtime with a matching unexpired lease may author
-  matching claims.
+- `any-trusted-runtime`: a trusted runtime may submit matching operations or
+  candidates. It does not gain canonical finality.
+- `host-authoritative`: only the configured host runtime is eligible to produce
+  matching candidates or operations.
+- `delegated-runtime`: one configured runtime may submit matching operations or
+  candidates.
+- `owning-runtime`: the runtime assigned to the subject is eligible to produce
+  matching candidates or operations. This is schema-level intent for now;
+  ownership resolution must be supplied before this mode is enabled.
+- `interest-lease`: a runtime with a matching unexpired lease may produce a
+  prediction candidate for the leased fact slots. The lease grants neither log
+  mutation nor finality.
 - `witness-quorum`: eligible witnesses publish observations; policy forms a
   candidate; authority commits a fact. This is not implemented in the current
   Aetheria hot path.
@@ -42,6 +49,14 @@ all of them to be implemented at once.
 
 Unsupported modes fail closed with an explicit policy rejection. This keeps the
 schema open without pretending future authority structures already exist.
+Eligibility never implies direct canonical-log mutation; the active fact
+strategy still decides candidate comparison and finality.
+
+The implementation order is product-grounded: Terminus proves local authority,
+Arena proves server authority, and Starbridge proves Commander-default,
+Pilot-corrected mixed authority. Witness-authoritative operation begins only
+after the Arena and Starbridge configurations pass live, restart, deterministic
+replay, and negative-authority proofs through this same typed policy seam.
 
 ## Command Claims
 
@@ -73,38 +88,57 @@ The command executor only sees authorized commands. It should remain boring:
 validate payload shape, mutate the run, emit intents. Authority decisions belong
 to the policy router.
 
-## Trusted Co-Op Shape
+## Starbridge Prediction Jurisdiction
 
-The default Aetheria policy is permissive trusted co-op:
-
-```text
-*
-  *
-  any-trusted-runtime
-```
-
-Raven/Starfire tests can then tighten this without changing gameplay systems:
+The Commander daemon owns default simulation and finality for every fact slot.
+Policy narrows the slots where a Pilot candidate can correct that default:
 
 ```text
 entity.player.raven
-  movement,targeting,combat
+  simulation-fact.*
   delegated-runtime: raven-unity
 
-entity.rts.starfire.
-  movement,targeting,ai
-  delegated-runtime: starfire-rts
-
-entity.hostile.
-  ai,movement,targeting
-  delegated-runtime: starfire-rts
-
-entity.hostile.
-  close-combat-response,combat
+environment.assignment.raven.*
+  simulation-fact.*
   interest-lease
+
+engagement.assignment.raven.*
+  simulation-fact.*
+  delegated-runtime: raven-unity
+
+*
+  simulation-fact.*
+  host-authoritative: commander-daemon
 ```
 
-That leaves the door open to witness-authoritative MMO policy later while
-keeping the co-op hot path as a few string/prefix checks and set lookups.
+The Commander player owns operation/claim authorship for everything outside
+Pilot jurisdiction; the Commander daemon still simulates the default result for
+all slots. Nearest-entity and engagement assignments are Commander-published
+typed state with an epoch and exact effective tick. A Pilot cannot calculate a
+larger jurisdiction from its divergent local positions. Overlap is resolved to
+one holder before the tick, never by packet arrival order.
+
+Commander and Pilot candidates are comparable only when they share the exact
+session, simulation/content version, state root, run/jurisdiction epoch,
+tick/substep, fact kind, canonical subject, engagement/claim id, causal input
+set, and deterministic seed position. Equality is typed semantic equality for
+that fact kind. Presentation differences do not veto gameplay facts.
+
+Inside an open Pilot slot, the Commander result is provisional. A valid
+different Pilot result wins; validation proves producer identity, versions,
+state/input roots, jurisdiction, causal inputs, schema, and gameplay invariants.
+It does not require agreement with the Commander output. The Commander daemon
+rolls back or corrects and deterministically replays dependent provisional
+state.
+
+The tick envelope names the deterministic barrier/deadline policy and eligible
+candidate set. The finality receipt records how that set closed. If no eligible
+Pilot candidate is present when the barrier closes, the Commander result
+stands. Replay consumes the recorded candidate/selection chronology rather than
+re-running wall-clock or packet timing. Restart preserves whether a slot is
+open or closed plus its eligible candidates. Late candidates cannot rewrite
+final history. Disconnect or seat transfer changes jurisdiction only at a
+committed future epoch.
 
 ## Simulation Host Packaging
 
@@ -125,33 +159,18 @@ The important boundary is not the executable. It is the policy document:
 
 ```text
 runtime CultMesh client
-  -> typed command/proposal document
-  -> Verse authority policy
-  -> simulation-capable runtime lease/host
-  -> committed facts and local projections
+  -> typed operation or prediction candidate
+  -> Verse jurisdiction and candidate gate
+  -> Commander default simulation and candidate selection
+  -> deterministic correction/replay when Pilot wins
+  -> one finalized fact log and local projections
 ```
 
 If no standalone daemon process is deployed, an embedded host may still run the
-same daemon-shaped simulation role and publish the same typed documents. The
-client shell around it remains a renderer/input surface. Starbridge can refine
-hot claims without changing client protocols:
-
-```text
-entity.player.raven
-  movement,targeting,combat
-  delegated-runtime: raven-unity
-
-entity.hostile.
-  ai,movement,targeting
-  delegated-runtime: starfire-rts
-
-*
-  inventory,economy,system
-  host-authoritative
-```
-
-This keeps every client honest: it can run CultMesh and submit typed commands,
-but the daemon-shaped simulation host owns the committed game state.
+same Commander-daemon simulation/finality role and publish the same typed
+documents. The client shell remains a renderer/input surface. Pilot simulation
+may also be embedded beside its renderer, but its durable output is candidate
+evidence; only the Commander daemon appends finalized state.
 
 ## Current Local-Mirror Constraint
 

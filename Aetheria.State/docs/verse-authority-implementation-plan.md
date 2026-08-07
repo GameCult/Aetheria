@@ -9,10 +9,12 @@ do not build the next stage on top of it.
 
 Raven and Starfire each run a local CultMesh/CultNet Verse node.
 
-- Unity Raven is a thin renderer/input runtime for Raven-owned claims.
-- Electron/RTS Starfire is a thin renderer/input runtime for RTS-owned claims.
-- Aetheria state is synchronized as typed Verse documents and typed committed
-  facts.
+- Unity Raven hosts the Pilot renderer/input shell and may host its bounded
+  prediction daemon.
+- Electron/RTS Starfire hosts the Commander interface; the Commander daemon
+  owns default simulation, finality, persistence, and publication.
+- Pilot output enters as typed candidate/prediction evidence, never as an
+  already committed fact.
 - Authority is selected by typed policy state, not by client type, transport
   branch, string operation names, or viewport queries.
 - Future authority modes remain representable without forcing the first trusted
@@ -22,14 +24,13 @@ The first product spine contains Terminus single-player, Starbridge co-op, and
 Arena PvP/simulation. All three must remain minimally executable while their
 shared Hangar, deployment, loadout, and settlement organs are built.
 
-Starbridge is mixed-authority: one RTS chair and one to four pilot clients
-defend the same base through shared Verse state. The RTS runtime
-naturally authors base, wave, hostile, infrastructure, fabrication,
-drone/turret, station-stock, construction-ghost, target-mark, and commander
-support claims. Pilot runtimes naturally author their own movement, local
-combat, salvage, docking, refit, anchoring, cooling, repair, survival-pod,
-cargo/equipment, and local target-mark claims. These are policy-scoped claim
-kinds, not client-type privileges.
+Starbridge uses Commander-default simulation with jurisdictional Pilot
+correction. One RTS chair and one to four pilots defend the same base. The
+Commander daemon simulates all facts and owns the canonical log. Each Pilot
+daemon independently predicts facts for its own ship, Commander-assigned nearest
+environment entities, and assigned combat engagements. A validated mismatch
+resolves toward the Pilot result; the Commander daemon corrects and replays its
+provisional state. The Commander player owns Verse authorship everywhere else.
 
 The release-facing source for that product target is
 `E:/Projects/AetheriaLore/Aetheria/Game Design/Aetheria Starbridge.md`. This
@@ -46,6 +47,11 @@ for NPC-policy training and build-versus-build balance batches. Terminus uses
 sole local-daemon authority for the same shared pilot mechanics. All three modes
 must run headlessly; renderer attachment cannot become an authority input. The
 cross-mode contract is defined in `docs/game-modes-and-progression.md`.
+
+These modes are the CultMesh authority runway: Terminus proves local authority,
+Arena proves server authority, and Starbridge proves mixed authority.
+Witness-authoritative operation is the next milestone only after the Arena and
+Starbridge finality/replay proofs pass through the shared fact contract.
 
 ## Hard Rules
 
@@ -95,17 +101,15 @@ Immediate Aetheria mappings:
 Target runtime flow:
 
 ```text
-local input
-  -> typed command/proposal document
-  -> local Verse node
-  -> daemon tick command gate
-  -> authority policy decision
-  -> simulation mutation
-  -> typed committed command fact
-  -> local Verse document publication
-  -> peer scoped fact sync
-  -> peer fact import gate
-  -> peer local state mutation
+Commander tick envelope + jurisdiction epoch
+  -> Commander default candidate for every fact slot
+  -> Pilot candidate for assigned slots
+  -> scoped candidate transport
+  -> jurisdiction/schema/rules validation
+  -> typed semantic comparison
+  -> Pilot-wins correction and Commander replay on mismatch
+  -> one Commander-finalized fact log
+  -> local Verse document publication and projections
   -> local viewport/projection query
   -> renderer
 ```
@@ -119,7 +123,8 @@ local client
 ```
 
 Diagnostic and editor tools may ask a remote runtime for a projection, but game
-clients must converge their local Verse state from typed facts.
+clients must converge on Commander-finalized typed facts. Pilot output crosses
+the network as candidate evidence, never as already committed truth.
 
 ## Current Code Map
 
@@ -130,7 +135,7 @@ clients must converge their local Verse state from typed facts.
 | `AetheriaRuntimeVerseClient` | client-side typed state facade, but registry currently omits newer authority/fact documents | canonical thin client facade over the same typed Verse documents clients need |
 | `AetheriaRuntimeAuthorityRouter` | pure policy decision engine | keep pure, allocation-light, topology-free |
 | `AetheriaRuntimeDaemonTickRunner` | simulation tick and operation execution | only place local commands mutate sim state |
-| `AetheriaRuntimeCommittedFactImporter` | replays trusted remote facts through policy gate | peer convergence path, eventually used by daemon loop |
+| `AetheriaRuntimeCommittedFactImporter` | replays trusted remote facts through policy gate | delete or quarantine; replace with Pilot candidate ingestion, selection receipts, and Commander correction/replay |
 | `AetheriaVerseReplica.SyncSnapshotAsync` | broad snapshot helper used by smoke tests | diagnostic/scoped transport verifier, not gameplay architecture |
 | RTS web/Electron client | map renderer plus command sender | thin local Verse client using same state loop as Unity |
 | Unity shell | still has legacy gameplay shell pressure | input/rendering only, local Verse command submitter and state renderer |
@@ -141,14 +146,15 @@ clients must converge their local Verse state from typed facts.
 0. boundary inventory
   -> 1. typed policy schema
   -> 2. command gate
-  -> 3. deterministic two-role proof
+  -> 3. deterministic Commander/Pilot candidate proof
   -> 4. scoped live Verse document exchange
-  -> 5. live committed fact publication
-  -> 6. live committed fact import
+  -> 5. Commander candidate/fact publication
+  -> 6. live Pilot candidate selection and Commander finality
   -> 7. thin client mode parity
   -> 8. Unity gameplay shell demolition
   -> 9. leases
-  -> 10. future witness/quorum modes
+  -> 10. server + mixed authority product proofs
+  -> 11. witness-authoritative mode
 ```
 
 Each stage consumes only artifacts from earlier stages. If stage 6 needs a
@@ -164,7 +170,7 @@ starts.
 The active lane is:
 
 ```text
-Stage 6 live fact import
+Stage 6 Pilot candidate selection/finality
   -> Stage 7 client parity
   -> Stage 8 Unity shell demolition
 ```
@@ -176,15 +182,15 @@ Blocked lanes:
   client.
 - Do not optimize Unity rendering around mirrored gameplay hierarchy until
   Stage 8 decides what remains of Unity's local shell.
-- Do not add witness/quorum machinery until the trusted co-op fast path is
-  clean.
+- Do not add witness-authoritative machinery until Starbridge mixed authority
+  and Arena server authority pass live/restart/replay proofs.
 
 Stage gates:
 
 | Gate | Must prove | Must not introduce |
 | --- | --- | --- |
 | Transport gate | Scoped typed documents can move between live daemons | broad hot-loop shard sync |
-| Fact gate | Remote committed facts mutate local state through the same authority router | viewport-as-gameplay-state |
+| Fact gate | Pilot candidates correct Commander provisional state through typed selection before one final log append | peer committed-fact import, viewport-as-gameplay-state |
 | Client gate | Unity and Electron submit the same typed command documents | client-specific gameplay behavior |
 | Demolition gate | Unity has no authoritative gameplay state | new Unity-side simulation branches |
 
@@ -196,12 +202,13 @@ either a verifier, a demolition step, or a documented dependency fix.
 Stage 6 depends on:
 
 - Stage 4 scoped document transport;
-- Stage 5 committed command fact documents;
+- Stage 5 Commander candidate/fact documents;
 - authority router decisions from Stage 1;
 - daemon command/tick accounting from Stage 2;
 - the two-role smoke harness from Stage 3.
 
-Stage 7 depends on Stage 6 and may not invent another command surface. The RTS
+Stage 7 depends on Stage 6 and may not invent another operation or candidate
+surface. The RTS
 client's current `command` and `viewport` IPC shape is tolerated only as a
 diagnostic shell around CultMesh documents until Stage 7 replaces it with
 typed local Verse submission and local projection reads.
@@ -355,9 +362,10 @@ Exit criteria:
 - Accounted commands are not re-evaluated forever.
 - The frame exposes the active authority shape for diagnostics.
 
-## Stage 3: Deterministic Two-Role Proof
+## Stage 3: Deterministic Commander/Pilot Candidate Proof
 
-Status: implemented through in-process and once-mode daemon proofs.
+Status: target corrected; existing two-role command-routing proof is migration
+evidence and does not yet prove Pilot-wins reconciliation.
 
 Owner: `Aetheria.State.AuthoritySmoke`.
 
@@ -365,31 +373,38 @@ Build:
 
 ```text
 raven-local
-  runtime: raven-unity
-  owns: Raven movement/combat claims
+  role: Pilot prediction daemon
+  jurisdiction: own ship, assigned nearest environment, assigned engagements
 
 starfire-local
-  runtime: starfire-rts
-  owns: hostile/RTS claims
+  role: Commander daemon
+  owns: default simulation, candidate selection, replay, final log
 ```
 
 Verifier:
 
-- In-process tick proof:
-  - Raven-authored Raven movement applies.
-  - Raven-authored hostile movement rejects.
-  - Starfire-authored hostile movement applies.
-  - Starfire-authored Raven movement rejects.
-- Once-mode daemon process proof with the same receipt shape.
+- Commander and Pilot receive the same immutable tick envelope, prior state
+  root, versions, inputs, seed position, and jurisdiction epoch.
+- Matching candidates record agreement and finalize once.
+- A valid differing Pilot candidate inside jurisdiction replaces the Commander
+  candidate; Commander provisional dependents replay from that fact boundary.
+- Wrong-subject, wrong-epoch, invalid, and late Pilot candidates reject without
+  changing finalized state.
+- A fact has exactly one Pilot jurisdiction holder; reassignment activates at a
+  named future tick rather than packet arrival order.
+- Restart during an open window reproduces the same selected fact and state
+  root. Only finalized facts can affect score, settlement, or external effects.
 
 Demolition target:
 
-- Any test or client path that assumes "local daemon means all authority."
+- Peer facts imported as already committed truth.
+- Commander results committed and later repaired as an unversioned side effect.
+- Pilot authority inferred from client type or local proximity.
 
 Exit criteria:
 
-- The same typed policy document loads in both stores.
-- Two real daemon processes make opposite decisions deterministically.
+- Two real daemon processes reproduce candidate comparison, Pilot-wins mismatch,
+  Commander replay, late-candidate rejection, and one Commander-persisted log.
 
 ## Stage 4: Scoped Live Verse Document Exchange
 
@@ -465,30 +480,32 @@ Notes:
   as a patch so scoped reads do not delete unrelated local Verse state.
 - The authority smoke now waits separately for frame receipt visibility and
   committed fact visibility.
-- Stage 6 satisfied the daemon hot-loop requirement through direct scoped typed
-  fetches. The running daemon now asks a peer only for committed fact documents
-  and decodes them through the CultNet document registry without opening a
-  heavyweight replica node on every tick.
+- Legacy evidence only: scoped typed fetch proved live daemon transport without
+  opening a heavyweight replica node on every tick. Asking peers for committed
+  facts does not satisfy corrected Stage 6 and must leave the gameplay mutation
+  path; Pilot output must arrive as pre-finality candidate evidence.
 
-## Stage 5: Live Committed Fact Publication
+## Stage 5: Candidate And Final Fact Publication
 
-Status: implemented for local commands and live peer visibility.
+Status: committed-command publication exists as migration evidence; Pilot
+candidate and Commander-finality publication remain to build.
 
-Owner: daemon tick result publisher.
+Owner: Pilot candidate publisher and Commander final fact publisher.
 
 Build:
 
-- `AetheriaRuntimeCommittedCommandFactDocument`
-- deterministic fact id/record key;
-- applied fact creation for applied commands;
-- rejected fact creation for policy-rejected commands;
+- one typed fact envelope shared by Commander candidates, Pilot candidates, and
+  Commander-finalized facts;
+- deterministic slot/candidate/final record keys;
+- jurisdiction, validation, comparison, correction/replay, and finality
+  receipts;
 - CultCache and CultNet registry entries;
-- publication from the daemon tick after local command handling.
+- Commander-finalized publication after candidate selection.
 
 Allowed flow:
 
 ```text
-tick result + original typed command -> committed command fact document
+Commander tick envelope -> Commander/Pilot candidates -> selected final fact
 ```
 
 Demolition target:
@@ -497,107 +514,98 @@ Demolition target:
 
 Verifier:
 
-- Live daemon peer can scoped-sync applied and rejected facts from another
-  daemon.
-- Fact documents contain source runtime, source daemon, source frame, subject,
-  claim kind, command kind, outcome, and typed command payload.
+- Commander can scoped-read Pilot candidate evidence for an open slot.
+- Published envelopes contain producer, session/versions, state/input roots,
+  jurisdiction epoch, tick/substep, subject, engagement/claim, seed position,
+  candidate kind, payload hash, and typed payload.
 
 Exit criteria:
 
-- Every applied local command has a fact.
-- Every policy-rejected local command that was observed has a fact.
-- Facts are durable enough for a peer that samples later.
+- Every accepted Pilot simulation result has a candidate receipt.
+- Every selected result is finalized and authored exactly once by the Commander
+  daemon.
+- Provisional candidates are inspectable evidence but cannot impersonate final
+  facts.
 
 Verification:
 
-- `Aetheria.State.AuthoritySmoke` proves that Starfire can observe Raven's
-  applied Raven movement fact and Raven's rejected hostile fact.
-- `Aetheria.State.AuthoritySmoke` proves that Raven can observe Starfire's
-  applied hostile fact and Starfire's rejected Raven fact.
+- Current evidence, not target proof: `Aetheria.State.AuthoritySmoke` can observe
+  applied/rejected command facts between peers. The corrected proof must observe
+  Pilot candidate publication, Commander selection/replay, and one finalized
+  Commander fact.
 
-## Stage 6: Live Committed Fact Import
+## Stage 6: Live Pilot Candidate Selection And Commander Finality
 
-Status: implemented for the trusted co-op slice and verified by the live
-two-daemon smoke.
+Status: target corrected; the implemented peer committed-fact importer is an
+obsolete convergence experiment and must not remain a gameplay mutation path.
 
-Owner: fact importer and daemon peer loop.
+Owner: Commander candidate selector/finality loop.
 
 Build:
 
-- Poll/sync peer committed fact documents through Stage 4 scoped transport.
-- Re-run authority policy using the fact's source runtime, subject, and claim.
-- Reject unauthorized or malformed facts without local mutation.
-- Keep imported fact ids so facts are idempotent.
-- Publish import receipts.
-- Use a direct scoped fact fetch or long-lived peer state reader. Do not open a
-  new full `AetheriaStateNode` replica in the tick hot path.
-- Keep import bookkeeping in frame state until the durable import ledger exists:
-  - imported fact ids;
-  - rejected imported fact ids;
-  - duplicate imported fact ids;
-  - cumulative imported fact ids;
-  - cumulative rejected imported fact ids.
+- Publish immutable tick envelopes and jurisdiction assignments before Pilot
+  simulation.
+- Receive Pilot candidate facts through Stage 4 scoped transport while their
+  deterministic finality window remains open.
+- Validate identity, versions, state/input roots, jurisdiction epoch, payload,
+  and rules before comparison.
+- Compare typed semantic facts, not serialization bytes or rendered outcomes.
+- On a valid mismatch, select the Pilot candidate and deterministically replay
+  Commander provisional dependents from the fact boundary.
+- Persist one finalized Commander log plus comparison/veto/replay receipts.
 
 Allowed flow:
 
 ```text
-remote committed fact -> local authority router -> tick runner import mode
+Pilot candidate -> jurisdiction/validation gate -> typed comparison
+  -> Commander correction/replay when different -> one finalized fact
 ```
 
-Implementation slices:
+Migration evidence:
 
-1. Done: `AetheriaVerseReplica.FetchScopedSnapshotAsync` fetches a filtered raw
-   CultNet snapshot without opening a replica state node.
-2. Done: `AetheriaVerseReplica.FetchScopedDocumentsAsync<T>` decodes only the
-   requested typed documents through the CultNet document registry.
-3. Done: the daemon peer loop reads peer committed facts with the direct scoped
-   fetch primitive and no broad replica open/pull.
-4. Done: each peer fact is routed through
-   `AetheriaRuntimeCommittedFactImporter`.
-5. Done: import, duplicate, reject, cumulative import, and cumulative reject
-   receipts are published into the daemon frame.
-6. Done: the daemon publishes the final post-import frame locally after peer
-   import so clients read the converged state, not the pre-import tick.
-7. Done: the live two-daemon smoke requires local state convergence:
-   - Starfire sees Raven movement through local state.
-   - Raven sees Starfire hostile movement through local state.
-   - unauthorized cross-role facts are rejected.
+- Scoped typed fetch and two-daemon process harnesses are reusable.
+- `AetheriaRuntimeCommittedFactImporter`, import counters, and peer facts that
+  mutate local state encode the wrong finality model. Replace them with
+  candidate evidence, selection receipts, and one Commander-owned log.
 
 Demolition target:
 
 - Remote viewport queries used as multiplayer gameplay state.
 - Any per-tick peer import path that pulls or replaces the whole shard.
+- Any imported peer document that arrives labelled as canonical committed
+  gameplay truth.
 
 Verifier:
 
-- Raven local Verse imports Starfire hostile/RTS facts.
-- Starfire local Verse imports Raven pilot facts.
-- Unauthorized hostile facts from Raven are rejected and leave local state
-  unchanged.
-- Duplicate facts do not replay.
+- Commander finalizes immediately outside Pilot jurisdiction.
+- Commander results inside Pilot jurisdiction remain provisional until the
+  deterministic window/barrier closes.
+- Valid Pilot mismatch wins and triggers deterministic Commander replay.
+- Duplicate, late, invalid, and stale-epoch candidates do not replay or rewrite
+  finalized state.
 - Diagnostics on failure include:
   - source daemon id;
   - peer endpoint;
   - requested schema ids;
   - fetched fact count;
-  - imported/rejected/duplicate fact ids;
+  - candidate/selected/rejected/duplicate fact ids;
   - child daemon stdout/stderr tail.
 
 Exit criteria:
 
-- Starfire sees Raven movement through local state, not remote viewport reads.
-- Raven sees Starfire hostile updates through local state, not remote viewport
-  reads.
-- The live smoke passes with two daemon processes and no broad snapshot in the
-  runtime path.
+- Both runtimes observe one Commander-finalized state root and fact log.
+- Same checkpoint, tick envelope, candidate chronology, and versions reproduce
+  the same mismatch selection and replay result.
+- The live smoke passes with two daemon processes and no committed-peer-fact
+  import path.
 
 Notes:
 
-- The verifier caught a useful distinction: accepting a movement fact is not the
-  same thing as applying movement locally. The smoke now seeds movement-capable
-  entities and checks X/Z movement, matching the runtime's current RTS axes.
-- Stage 6 proves the trusted co-op fact lane only. It does not grant clients
-  permission to use remote viewport queries as gameplay state.
+- Pilot prediction authority is not direct canonical mutation. The Pilot result
+  wins a valid mismatch, but the Commander daemon performs correction/replay and
+  appends the selected finalized fact.
+- No provisional fact may affect Hangar settlement, score, rewards, or another
+  irreversible external effect.
 
 ## Stage 7: Thin Client Mode Parity
 
@@ -949,14 +957,15 @@ Starbridge lease examples:
   an overheated ally, turret, or base module.
 - A pilot with equipped repair gear authors a bounded repair-support claim for
   a damaged structure or ship.
-- Construction anchoring is a typed pilot claim over an RTS-authored ghost, not
-  a client-local completion event.
+- Construction anchoring is a typed Pilot candidate over a Commander-authored
+  ghost inside an assigned jurisdiction, not a client-local completion event.
 
 Verifier:
 
-- Starfire can lease close-combat response authority to Raven.
-- Lease expiry returns authority to the base policy.
-- Lease decisions are visible in receipts/diagnostics.
+- Starfire can assign close-combat prediction jurisdiction to Raven.
+- Assignment expiry returns the slot to Commander-only simulation at a named
+  future tick.
+- Jurisdiction assignments are visible in receipts/diagnostics.
 
 Demolition target:
 
@@ -964,15 +973,34 @@ Demolition target:
 
 Exit criteria:
 
-- Leases are policy state, not gameplay special cases.
+- Jurisdictions are policy state, not gameplay special cases.
 
-## Stage 10: Future Witness/Quorum Modes
+## Stage 10: Server And Mixed Authority Product Proofs
 
-Status: deliberately deferred.
+Status: required before witness authority.
+
+Verifier:
+
+- Arena proves server-authoritative live play, restart, deterministic replay,
+  human/AI-equivalent operations, and negative client-mutation checks.
+- Starbridge proves same tick envelopes, jurisdiction epochs, validated
+  Pilot-wins mismatch, Commander correction/replay, late-candidate rejection,
+  restart during an open window, and one Commander-finalized log.
+- Both use the shared fact/document/operation schemas and publish active
+  authority diagnostics.
+
+Demolition target:
+
+- Any mode-specific fact identity, replay contract, or authority side channel.
+
+## Stage 11: Witness-Authoritative Mode
+
+Status: deliberately deferred until Arena server authority and Starbridge mixed
+authority pass live, restart, replay, and negative-authority proofs.
 
 Owner: future CultNet/CultMesh authority module.
 
-Build later:
+Build later from the shared fact/candidate/finality contract:
 
 - simulation observations;
 - quorum candidates;
@@ -983,10 +1011,12 @@ Build later:
 
 Verifier:
 
-- New modes plug into the same policy seam:
+- Witness authority plugs into the same policy seam without mode-specific state
+  or operation schemas.
 
 ```text
-operation/observation -> policy resolution -> authority decision -> commit path
+operation/observation -> typed candidate/evidence -> policy resolution
+  -> finality decision -> one canonical commit path
 ```
 
 Demolition target:
@@ -996,7 +1026,7 @@ Demolition target:
 
 Exit criteria:
 
-- Trusted co-op remains fast while additional authority modes become selectable
+- Starbridge mixed authority remains fast while witness authority becomes selectable
   policy strategies.
 
 ## Immediate Work Queue
@@ -1037,11 +1067,14 @@ Design sources:
 Starbridge release spine:
 
 - One RTS chair and one to four pilot clients defend one daemon-authored base.
-- The RTS chair owns the operational interface: base systems, power, shields,
-  fabrication, drones, turrets, marks, construction ghosts, wave tools, and
-  station support.
-- Pilots own embodied field execution: movement, combat, docking/refit, salvage,
-  anchoring, cooling, repair, cargo/equipment, survival pods, and local marks.
+- The Commander player owns Verse authorship outside active Pilot jurisdiction:
+  base systems, power, shields, fabrication, drones, turrets, marks,
+  construction ghosts, wave tools, station support, and all unassigned world
+  facts.
+- Each Pilot owns prediction/candidate authority for its own ship, explicitly
+  assigned nearest environment entities, and explicitly assigned combat
+  engagements. The Commander daemon still produces the default candidate for
+  those slots and owns correction/replay and final persistence.
 - Station stock, docked ships, loadouts, cargo, pricing, support gear, and
   recovered technology are shared Verse state. They are not Unity scene state,
   Electron UI state, or a sidecar gameplay API.
@@ -1233,14 +1266,15 @@ Product proof:
 Authority proof:
 
 - Raven and Starfire each launch their own CultMesh/CultNet Verse node.
-- Shared state converges through typed documents and committed facts, not a
-  remote viewport query or an Electron sidecar gameplay API.
+- Shared state converges through typed documents, Pilot candidate evidence, and
+  Commander-finalized facts, not peer-imported committed facts, a remote
+  viewport query, or an Electron sidecar gameplay API.
 
 Allowed build:
 
 - launch harness for one Unity-shaped client and one Electron-shaped client;
-- scoped peer sync checks for session, station/refit, authority policy,
-  committed facts, and latest projections;
+- scoped peer sync checks for session, station/refit, authority policy, Pilot
+  candidates, Commander selection/finality, and latest projections;
 - diagnostics for source daemon, runtime id, policy id, and rejected facts.
 
 Demolition target:
@@ -1264,7 +1298,8 @@ Product proof:
 
 Authority proof:
 
-- Commander claims are policy-scoped state, not hardcoded RTS ownership.
+- Commander player authorship is policy-scoped outside Pilot jurisdiction;
+  Commander-daemon simulation/finality is invariant, not hardcoded UI ownership.
 
 Allowed build:
 
@@ -1294,8 +1329,9 @@ Product proof:
 
 Authority proof:
 
-- Pilot claims are typed facts that the RTS runtime can project and reason
-  about; the outcome is not hidden in Unity scene objects.
+- Pilot results are typed candidate facts for an assigned jurisdiction. The
+  Commander runtime can compare them, correct/replay on mismatch, and publish
+  one finalized result; the outcome is not hidden in Unity scene objects.
 
 Allowed build:
 
@@ -1417,9 +1453,9 @@ Current staged work order:
 | 1 | Finish S2 station/refit read parity. `current_entity`, `current_docking`, inventory rows, source slot identity, and loadout templates are already moving; split remaining station stock, docked ship, cargo, equipment, pricing, and refit eligibility reads into canonical typed documents or derived projections as appropriate. | `AetheriaRuntimeGameViewportDocuments`, `AetheriaClient`, Unity inventory/trade menus, generated TS bindings. | `verify-stage7d-unity-parity.ps1`, `Aetheria.State.Verify`, `AuthoritySmoke`, `npm run check:rts-bindings`, Unity compile. | Menu logic may adapt Unity controls, but station/refit truth may not come from manager-global observed cargo, docked ship, catalog, pricing, or loadout caches. |
 | 2 | Add S2 typed refit operation parity. Dock, undock, select docked ship, equip, store, transfer, restore loadout, and purchase/refit become named operations with typed receipts. | `AetheriaRuntimeDaemonOperationClient`, `AetheriaRuntimeVerseClient`, generated TS operation bindings, Unity/Electron facade methods, daemon operation validation. | Cross-client operation smoke: one runtime issues an allowed refit operation, the other observes the committed result through local Verse state. | Delete or quarantine any public client path that mutates inventory/loadout through operation strings, raw item bags, UI-local rules, or Unity checkpoint rewrites. |
 | 3 | Contract Unity to a render/input shell for S2. Inventory/trade UI can remain Unity UI, but every gameplay read/write goes through typed state. | `InventoryMenu`, `InventoryPanel`, `TradeMenu`, `ActionGameManager`, `ZoneRenderer` shims. | Stage 7D verifier rejects direct manager-global refit reads, public manager gameplay reads, new command buses, and Unity-only command paths. | Remaining facade-object bridges must validate daemon keys against typed projections and name the Stage 8 projection/native slab that deletes them. |
-| 4 | Prove 7E.1 two-client local Verse parity. Raven Unity and Starfire Electron are peers with separate local Verse nodes, not one runtime viewing another runtime's projection. | launch harness, scoped peer sync, committed facts, session/refit/authority projections, diagnostics. | Raven/Starfire smoke: both clients see the same session, station/refit state, controlled entities, policy id, and fact receipts through local Verse state. | No test may prove co-op by reading a remote viewport or one daemon's debug projection as gameplay state. |
-| 5 | Build exactly one S3 commander verb. First candidate: target mark. Second candidate: construction ghost. | RTS facade, daemon command gate, typed mark/ghost documents, Unity HUD/map projection, authority diagnostics. | Raven/Starfire smoke: Starfire authors the commander claim, Raven observes the committed fact locally, and policy diagnostics name the claim kind and author runtime. | No browser-owned enemy/base gameplay, no HTTP sidecar gameplay surface, and no hardcoded "RTS owns this" branch outside policy. |
-| 6 | Build exactly one S4 pilot field verb. First candidates: salvage pickup or construction anchoring. | Unity input facade, daemon command gate, typed support/salvage/anchor documents, RTS projection panel. | Raven/Starfire smoke: Raven authors the pilot claim, Starfire observes the committed fact locally, and daemon validation checks range/equipment/ownership/scenario state. | No Unity-only interaction result another runtime cannot inspect through typed state. |
+| 4 | Prove 7E.1 two-client local Verse parity. Raven Unity and Starfire Electron are peers with separate local Verse nodes, not one runtime viewing another runtime's projection. | launch harness, scoped candidate transport, Commander-finalized facts, session/refit/authority projections, diagnostics. | Raven/Starfire smoke: both clients see the same session, station/refit state, controlled entities, policy/jurisdiction epoch, candidate receipts, and Commander-finalized facts through local Verse state. | No test may prove co-op by reading a remote viewport, importing a peer fact as already committed, or using one daemon's debug projection as gameplay state. |
+| 5 | Build exactly one S3 commander verb. First candidate: target mark. Second candidate: construction ghost. | RTS facade, daemon command gate, typed mark/ghost documents, Unity HUD/map projection, authority diagnostics. | Raven/Starfire smoke: the Commander player authors the operation outside Pilot jurisdiction, the Commander daemon simulates/finalizes it, Raven observes the final fact, and diagnostics name authorship plus finality owner. | No browser-owned enemy/base gameplay, no HTTP sidecar gameplay surface, and no hardcoded "RTS owns this" branch outside policy. |
+| 6 | Build exactly one S4 Pilot prediction path. First candidates: salvage pickup or construction anchoring. | Unity input facade, Pilot simulation candidate, Commander candidate selector/replay, typed support/salvage/anchor documents, RTS projection panel. | Raven/Starfire smoke: Raven publishes an in-jurisdiction candidate that differs, Starfire validates/selects it, Commander provisional state replays, and both observe one Commander-finalized fact. | No Unity-only result, direct Pilot log write, or peer committed-fact import. |
 | 7 | Move S5 loss/recovery and S6 waves/rewards into daemon state after field verbs prove the loop. | survival pod, wreck, recovery, replacement ship, wave, hostile intent, boss, victory/defeat, recovered-tech, score documents. | Complete Starbridge loop smoke from a state/catalog seed with both clients attached. | Death/respawn, hostile behavior, boss rewards, score, and wave resolution leave Unity scene ownership. |
 | 8 | Add S7 leases and diagnostics only after claim shapes are boring. | authority policy docs, bounded lease docs, claim diagnostics, client overlays. | Trusted-host policy smoke plus diagnostics showing owner, lease, expiry, and deny reason for each active claim. | Do not close the door to quorum, server-authoritative, operator-finality, or mergeable modes, but do not build them into the first fast co-op path. |
 
@@ -1476,8 +1512,8 @@ Product staging from the Starbridge design:
 | B | Electron and Unity can render the same tactical map slice from local state. | XY gravity viewport, union-of-controlled-units object viewport, selected object/status reads | remote gameplay viewport reads, fog rules hidden in UI | both clients call equivalent facade reads for map and selection panels. |
 | C | A docked pilot can inspect station stock, ships, cargo, equipment, pricing, and loadout options. | current entity, current docking, station refit, station stock, loadout template, inventory projections | support gear behavior, survival pods, commander build orders | station/refit UI truth comes from typed projections, not manager-global Unity facade graphs. |
 | D | Either client can perform one refit/purchase/transfer operation and the other observes the committed result. | typed S2 operations, daemon validation, committed facts, cross-client smoke | broad inventory editor, client-local item rules | no public client refit API accepts operation strings or untyped payloads. |
-| E | The RTS chair can issue one commander tactical verb that pilots can see. | target marks, construction ghost placement, fabrication/build order documents, base system projections | leases, full wave controller | Raven observes Starfire-authored commander facts through local Verse state. |
-| F | A pilot can execute one field support verb that the RTS chair can see. | salvage, anchor, cooling, repair, support gear validity, local combat/support claim docs | pod recovery, boss rewards | Starfire observes Raven-authored pilot facts through local Verse state. |
+| E | The RTS chair can issue one commander tactical verb that pilots can see. | target marks, construction ghost placement, fabrication/build order documents, base system projections | leases, full wave controller | Raven observes the Commander-finalized result of a Starfire-authored operation through local Verse state. |
+| F | A pilot can execute one field support verb that the RTS chair can see. | salvage, anchor, cooling, repair, support gear validity, local combat/support claim docs | pod recovery, boss rewards | Starfire observes the Commander-finalized result selected from a Raven Pilot candidate through local Verse state. |
 | G | Losing a ship creates recoverable state instead of Unity object death authority. | survival pod, wreck, recovery, replacement ship, dock recovery operations | meta-progression, episode cadence | both clients inspect pod/wreck/recovery facts and Unity no longer owns death/respawn truth. |
 | H | A complete 20-30 minute Starbridge loop can run from daemon state. | waves, hostile intent, boss state, victory/defeat, recovered technology, score | witness quorum, adversarial peers | the first scenario can be played as RTS plus pilots with all outcomes represented as typed Verse facts. |
 | I | Authority policy becomes designer-visible diagnostics. | bounded leases, claim-kind ownership, denial reasons, active authority overlays | consensus or quorum implementation | changing policy changes who may author claims without changing operation schemas. |
@@ -1490,8 +1526,8 @@ Release-facing gates from the design:
 | Session gate | A daemon-only seed describes the base, commander role, pilot roles, station stock, available ships, first wave forecast, and starting scenario. | The first release cannot depend on a Unity scene to define the defended base. |
 | Map gate | Electron and Unity render equivalent XY tactical projections: gravity influences, visible objects, controlled-unit visibility union, selected object status, and authority diagnostics. | The RTS chair and pilots are two distances from the same crisis, not two separate games. |
 | Station gate | A docked pilot can inspect, equip, store, transfer, purchase/refit, and restore loadouts from typed station state in both clients. | Support gear, ship loss, and salvage economy all depend on station stock being boring and shared. |
-| First commander verb | Build exactly one RTS-authored tactical verb, preferably target mark before construction ghost. | It proves Starfire-authored facts appear to Raven without hiding base gameplay in the browser client. |
-| First pilot verb | Build exactly one Raven-authored field verb, preferably salvage pickup or construction anchoring before cooling/repair. | It proves pilot field labor appears to the RTS chair without leaving Unity-only outcomes behind. |
+| First commander verb | Build exactly one RTS-authored tactical operation, preferably target mark before construction ghost. | It proves Commander-finalized results of Starfire operations appear to Raven without hiding base gameplay in the browser client. |
+| First pilot verb | Build exactly one Raven Pilot-candidate field result, preferably salvage pickup or construction anchoring before cooling/repair. | It proves Pilot candidate selection and Commander finality appear to the RTS chair without leaving Unity-only outcomes behind. |
 | Loss/recovery gate | Ship loss creates pod, wreck, recovery, replacement, and stock facts readable by both clients. | Player survival and material loss are central to Starbridge; Unity object lifetime cannot own that truth. |
 | Wave loop gate | Hostile intent, boss defeat, recovered technology choice, score, and victory/defeat are daemon facts. | The 20-30 minute co-op loop must be playable without client-local wave code. |
 | Episode gate | Scenario unlocks, score currency, recovered-tech pools, and faction/scenario metadata are content documents. | Live episodes must be authored against typed state instead of requiring new client code. |
@@ -1745,25 +1781,27 @@ Stage: 9, after 7E proves parity.
 
 Build:
 
-- policy documents that assign claim kinds to RTS, pilot, daemon, or lease
-  authority;
-- bounded interest leases for close defense, drone reaction envelopes, repair,
-  cooling, and construction anchoring;
+- policy documents that assign Commander-player authorship and Pilot candidate
+  jurisdiction while keeping Commander-daemon finality invariant;
+- bounded jurisdiction assignments for nearest environment entities and combat
+  engagements;
 - diagnostics that show active policy, current lease holder, expiry, and denial
   reason.
 
 Demolition target:
 
-- hardcoded "RTS owns X" or "Unity owns Y" branches outside policy.
+- hardcoded "RTS owns X" or "Unity owns Y" branches outside policy; leases that
+  grant direct canonical mutation instead of candidate eligibility.
 
 Verifier:
 
-- changing policy changes which runtime may author a claim without changing the
-  operation schema or client UI code.
+- changing policy changes Commander-player authorship or Pilot candidate
+  jurisdiction without changing fact, operation, or client UI schemas;
+  Commander-daemon finality remains invariant.
 
 Unlocks:
 
-- future witness/quorum authority modes.
+- Stage 10 server/mixed product proofs, then Stage 11 witness authority.
 
 ### Slice S8: Shared Hangar And Progression Documents
 
@@ -1925,9 +1963,10 @@ npm run build
 The focused Stage 4/5 verifier passes: live daemons can expose scoped frames
 and committed facts to an external verifier.
 
-Stage 6 now passes for the trusted co-op fact lane: live daemons fetch scoped
-typed peer facts, import authorized facts through the local authority router,
-publish post-import frames, and converge in the two-daemon smoke.
+The old Stage 6 peer committed-fact lane passes as migration evidence, but it no
+longer satisfies the target. Starbridge requires Pilot candidates to enter
+before Commander finality, validated mismatches to correct/replay Commander
+provisional state, and one Commander-owned canonical log.
 
 The current known risk is Stage 7 client parity. RTS/Electron no longer exposes
 public generic `command` or `viewport` APIs, the TS contract metadata is

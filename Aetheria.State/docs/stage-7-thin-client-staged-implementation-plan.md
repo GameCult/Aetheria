@@ -81,9 +81,11 @@ UI input
 The map viewport is just one projection. Selected object state, inventory,
 cargo, authority status, and peer health must follow the same pattern.
 
-Starbridge is the current Stage 7 mixed-authority pressure for this shape. One RTS commander and
-one to four Unity pilots must share the same Verse facts while each runtime
-authors only the typed claims it should own.
+Starbridge is the current Stage 7 mixed-authority pressure for this shape. One
+RTS commander and one to four Unity pilots must share one Commander-finalized
+Verse. The Commander player authors outside Pilot jurisdiction; Pilot daemons
+publish candidates inside assigned jurisdictions; the Commander daemon owns
+default simulation, correction/replay, and finality.
 
 The product source for that pressure is
 `E:/Projects/AetheriaLore/Aetheria/Game Design/Aetheria Starbridge.md`. Stage 7
@@ -123,9 +125,11 @@ local Verse state rather than through a peer viewport.
 
 ## Current Baseline
 
-Completed and usable:
+Completed and usable migration evidence:
 
-- Stage 6 live committed fact import passes.
+- Stage 6 scoped two-daemon fact transport passes, but committed peer-fact
+  import is not the target Starbridge finality model. It must become Pilot
+  candidate transport plus Commander selection/replay.
 - Electron public API exposes typed methods: `mapViewport`, `setMoveVector`,
   and `setTarget`.
 - Electron IPC exposes typed channels:
@@ -210,7 +214,8 @@ Status: complete.
 
 Inputs:
 
-- Stage 6 live committed fact import.
+- Stage 6 scoped transport and the target Pilot-candidate/Commander-finality
+  contract.
 - Existing Unity shell.
 - Existing Electron RTS shell.
 
@@ -1265,7 +1270,8 @@ Inputs:
 
 - Electron thin client from 7C.
 - Unity thin client from 7D.
-- Stage 6 peer committed fact import.
+- Stage 6 scoped transport plus the Pilot-candidate/Commander-finality contract;
+  the current peer committed-fact importer is migration evidence to remove.
 
 Build:
 
@@ -1284,7 +1290,9 @@ Verifier:
 - Electron observes that pawn in map view.
 - Electron commands owned units.
 - Unity observes remote commanded units through the same daemon state.
-- Both local daemons converge on imported committed facts.
+- Pilot-scoped results enter as candidates; the Commander selects, replays any
+  provisional dependents, and publishes one Commander-finalized fact log that
+  both clients observe.
 
 Stop line:
 
