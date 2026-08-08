@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using Aetheria.State.Documents;
 
 #nullable enable
 
@@ -15,7 +16,10 @@ namespace GameCult.Aetheria.State.Verse
         public const string SelectStarbridge = "aetheria.hangar.select_mode.starbridge";
         public const string SelectArena = "aetheria.hangar.select_mode.arena";
         public const string EditLoadout = "aetheria.hangar.edit_loadout";
+        public const string EquipItem = "aetheria.hangar.loadout.equip";
+        public const string RemoveItem = "aetheria.hangar.loadout.remove";
         public const string Launch = "aetheria.hangar.launch";
+        public const string Continue = "aetheria.hangar.continue";
     }
 
     public static class AetheriaRuntimeHangarSurfaceBuilder
@@ -25,14 +29,19 @@ namespace GameCult.Aetheria.State.Verse
             string selectedShipId,
             string selectedMode,
             string updatedAtUtc,
-            long version = 1)
+            long version = 1,
+            AetheriaLoadoutTemplate? loadout = null,
+            AetheriaRuntimeCatalogSnapshot? catalog = null)
         {
             if (hangar == null) throw new ArgumentNullException(nameof(hangar));
             var ships = hangar.Ships ?? Array.Empty<AetheriaHangarShip>();
             var selected = ships.FirstOrDefault(ship => string.Equals(ship.ShipId, selectedShipId, StringComparison.Ordinal))
                 ?? ships.FirstOrDefault();
             var mode = AetheriaGameModes.IsKnown(selectedMode) ? selectedMode : AetheriaGameModes.Terminus;
-            var canLaunch = selected != null && string.Equals(selected.Status, AetheriaHangarShipStatuses.Available, StringComparison.Ordinal);
+            var canLaunch = selected != null && loadout != null && string.Equals(selected.Status, AetheriaHangarShipStatuses.Available, StringComparison.Ordinal);
+            var canContinue = selected != null && string.Equals(selected.Status, AetheriaHangarShipStatuses.Deployed, StringComparison.Ordinal) && !string.IsNullOrWhiteSpace(selected.ActiveDeploymentId);
+            var equipment = loadout?.RootEntity?.Equipment ?? Array.Empty<AetheriaLoadoutItemSlot>();
+            var inventory = hangar.Inventory ?? Array.Empty<AetheriaHangarItemStack>();
 
             var root = Component(
                 "aetheria.hangar.root",
@@ -63,6 +72,22 @@ namespace GameCult.Aetheria.State.Verse
                         Button("aetheria.hangar.fit.edit", "EDIT LOADOUT", AetheriaRuntimeHangarCommands.EditLoadout,
                             ("targetSurfaceId", AetheriaRuntimeInventoryPanelSurfaceBuilder.SurfaceId))
                     }, "fit"),
+                    Panel("aetheria.hangar.loadout", "LOADOUT", equipment.Select((slot, index) =>
+                        Button(
+                            $"aetheria.hangar.loadout.item.{index}",
+                            $"{ItemName(catalog, slot.Item?.ItemKey)} [{slot.Position?.X ?? 0},{slot.Position?.Y ?? 0}]  REMOVE",
+                            AetheriaRuntimeHangarCommands.RemoveItem,
+                            ("shipId", selected?.ShipId ?? ""),
+                            ("equipmentIndex", index.ToString(CultureInfo.InvariantCulture)),
+                            ("expectedHangarRevision", hangar.Revision.ToString(CultureInfo.InvariantCulture)))).ToArray(), "loadout"),
+                    Panel("aetheria.hangar.inventory", "HANGAR INVENTORY", inventory.Select(stack =>
+                        Button(
+                            "aetheria.hangar.inventory." + StableToken(stack.ItemKey),
+                            $"{ItemName(catalog, stack.ItemKey)} x{stack.Quantity}  EQUIP",
+                            AetheriaRuntimeHangarCommands.EquipItem,
+                            ("shipId", selected?.ShipId ?? ""),
+                            ("itemKey", stack.ItemKey),
+                            ("expectedHangarRevision", hangar.Revision.ToString(CultureInfo.InvariantCulture)))).ToArray(), "inventory"),
                     Component("aetheria.hangar.bays", "row", Props(("label", "OWNED SHIPS")),
                         ships.Select(ship => Button(
                             "aetheria.hangar.bay." + StableToken(ship.ShipId),
@@ -84,14 +109,18 @@ namespace GameCult.Aetheria.State.Verse
                             ("enabled", canLaunch.ToString().ToLowerInvariant()),
                             ("shipId", selected?.ShipId ?? ""),
                             ("mode", mode),
-                            ("expectedHangarRevision", hangar.Revision.ToString(CultureInfo.InvariantCulture)))
+                            ("expectedHangarRevision", hangar.Revision.ToString(CultureInfo.InvariantCulture))),
+                        Button("aetheria.hangar.continue", "CONTINUE", AetheriaRuntimeHangarCommands.Continue,
+                            ("enabled", canContinue.ToString().ToLowerInvariant()),
+                            ("shipId", selected?.ShipId ?? ""),
+                            ("deploymentId", selected?.ActiveDeploymentId ?? ""))
                     }, Layout(("gridArea", "launch"), ("display", "flex"), ("justifyContent", "flex-end"), ("gap", "8")))
                 },
                 Layout(
                     ("display", "grid"),
                     ("gridTemplateColumns", "minmax(260px, 0.75fr) minmax(480px, 1.6fr) minmax(280px, 0.8fr)"),
-                    ("gridTemplateRows", "auto minmax(360px, 1fr) auto"),
-                    ("gridTemplateAreas", "\"launch launch launch\" \"summary preview fit\" \"bays bays bays\""),
+                    ("gridTemplateRows", "auto minmax(300px, 1fr) minmax(180px, 0.65fr) auto"),
+                    ("gridTemplateAreas", "\"launch launch launch\" \"summary preview fit\" \"inventory loadout loadout\" \"bays bays bays\""),
                     ("gap", "10"),
                     ("height", "100%")),
                 Style(("background", "#070b0d"), ("color", "#d8eef2")));
@@ -110,9 +139,15 @@ namespace GameCult.Aetheria.State.Verse
                     Command(AetheriaRuntimeHangarCommands.SelectStarbridge, "Select Starbridge"),
                     Command(AetheriaRuntimeHangarCommands.SelectArena, "Select Arena"),
                     Command(AetheriaRuntimeHangarCommands.EditLoadout, "Edit Loadout"),
-                    Command(AetheriaRuntimeHangarCommands.Launch, "Launch")
+                    Command(AetheriaRuntimeHangarCommands.EquipItem, "Equip Item"),
+                    Command(AetheriaRuntimeHangarCommands.RemoveItem, "Remove Item"),
+                    Command(AetheriaRuntimeHangarCommands.Launch, "Launch"),
+                    Command(AetheriaRuntimeHangarCommands.Continue, "Continue")
                 });
         }
+
+        private static string ItemName(AetheriaRuntimeCatalogSnapshot? catalog, string? itemKey) =>
+            catalog?.FindItem(itemKey ?? "")?.Name ?? (string.IsNullOrWhiteSpace(itemKey) ? "Unknown" : itemKey);
 
         private static AetheriaRuntimeSurfaceComponent Panel(string id, string title, IReadOnlyList<AetheriaRuntimeSurfaceComponent> children, string area) =>
             Component(id, "panel", Props(("title", title)), children, Layout(("gridArea", area)), Style(("background", "#11181c"), ("border", "1px solid #60737a"), ("padding", "12")));

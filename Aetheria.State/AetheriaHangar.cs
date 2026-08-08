@@ -72,6 +72,163 @@ public static class AetheriaHangar
         return receipt;
     }
 
+    public static async Task<AetheriaHangarMutationResult> EquipAsync(
+        AetheriaStateNode node,
+        string shipId,
+        string itemKey,
+        long expectedRevision,
+        AetheriaRuntimeCatalogSnapshot catalog,
+        string now)
+    {
+        await AdmissionGate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            var pointer = node.MutableDocument<AetheriaHangarState>(AetheriaStateNode.HangarKey);
+            var hangar = await pointer.ReadAsync().ConfigureAwait(false)
+                ?? throw new InvalidOperationException("The canonical Hangar document does not exist.");
+            var rejection = ValidateRefit(hangar, shipId, expectedRevision, out var ship);
+            if (rejection != null) return new(false, rejection, hangar.Revision);
+            var stack = (hangar.Inventory ?? []).SingleOrDefault(value =>
+                string.Equals(value.ItemKey, itemKey, StringComparison.Ordinal) && value.Quantity > 0);
+            if (stack == null) return new(false, "item is not available in Hangar inventory", hangar.Revision);
+            var templatePointer = node.MutableDocument<AetheriaLoadoutTemplate>(new(ship!.LoadoutTemplateKey));
+            var template = await templatePointer.ReadAsync().ConfigureAwait(false);
+            if (template == null) return new(false, "ship loadout template is missing", hangar.Revision);
+
+            var destination = ToRuntimeEntity(template.RootEntity);
+            var source = new AetheriaRuntimeEntitySnapshotCommit
+            {
+                Equipment =
+                [
+                    new AetheriaRuntimeLoadoutItemSlotCommit
+                    {
+                        Item = new AetheriaRuntimeLoadoutItemCommit
+                        {
+                            ItemKey = itemKey,
+                            Quantity = 1,
+                            Quality = 1,
+                            Durability = 1,
+                            Enabled = true
+                        }
+                    }
+                ]
+            };
+            if (!AetheriaRuntimeRefitTransactions.TryEquip(
+                    source,
+                    AetheriaRuntimeRefitSourceKinds.Equipment,
+                    0,
+                    0,
+                    0,
+                    destination,
+                    itemKey,
+                    0,
+                    0,
+                    false,
+                    catalog,
+                    out rejection))
+                return new(false, rejection, hangar.Revision);
+
+            var updatedHangar = Clone(hangar);
+            var updatedStack = updatedHangar.Inventory.Single(value => string.Equals(value.ItemKey, itemKey, StringComparison.Ordinal));
+            updatedStack.Quantity--;
+            updatedHangar.Inventory = updatedHangar.Inventory.Where(value => value.Quantity > 0).ToArray();
+            updatedHangar.Revision = checked(updatedHangar.Revision + 1);
+            updatedHangar.UpdatedAtUtc = now;
+            var updatedTemplate = AetheriaRuntimeStateMapper.ToLoadoutTemplate(
+                new AetheriaRuntimeLoadoutTemplateCommit
+                {
+                    Name = template.Name,
+                    OwnerPlayerKey = template.OwnerPlayerKey,
+                    RootEntity = ToRuntimeLoadout(destination)
+                },
+                now);
+            updatedTemplate.CreatedAtUtc = template.CreatedAtUtc;
+            await templatePointer.ReplaceAsync(updatedTemplate).ConfigureAwait(false);
+            await pointer.ReplaceAsync(updatedHangar).ConfigureAwait(false);
+            await node.FlushAsync().ConfigureAwait(false);
+            return new(true, "", updatedHangar.Revision);
+        }
+        finally
+        {
+            AdmissionGate.Release();
+        }
+    }
+
+    public static async Task<AetheriaHangarMutationResult> RemoveAsync(
+        AetheriaStateNode node,
+        string shipId,
+        int equipmentIndex,
+        long expectedRevision,
+        string now)
+    {
+        await AdmissionGate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            var pointer = node.MutableDocument<AetheriaHangarState>(AetheriaStateNode.HangarKey);
+            var hangar = await pointer.ReadAsync().ConfigureAwait(false)
+                ?? throw new InvalidOperationException("The canonical Hangar document does not exist.");
+            var rejection = ValidateRefit(hangar, shipId, expectedRevision, out var ship);
+            if (rejection != null) return new(false, rejection, hangar.Revision);
+            var templatePointer = node.MutableDocument<AetheriaLoadoutTemplate>(new(ship!.LoadoutTemplateKey));
+            var template = await templatePointer.ReadAsync().ConfigureAwait(false);
+            if (template == null) return new(false, "ship loadout template is missing", hangar.Revision);
+            var equipment = (template.RootEntity.Equipment ?? []).ToList();
+            if (equipmentIndex < 0 || equipmentIndex >= equipment.Count)
+                return new(false, "equipment index is outside the configured loadout", hangar.Revision);
+            var removed = equipment[equipmentIndex];
+            if (string.IsNullOrWhiteSpace(removed.Item?.ItemKey))
+                return new(false, "configured equipment item is missing", hangar.Revision);
+            equipment.RemoveAt(equipmentIndex);
+
+            var updatedTemplate = CloneTemplate(template);
+            updatedTemplate.RootEntity.Equipment = equipment.ToArray();
+            updatedTemplate.RootEntity.WeaponGroups = (updatedTemplate.RootEntity.WeaponGroups ?? [])
+                .Select(group => (group ?? [])
+                    .Where(index => index != equipmentIndex)
+                    .Select(index => index > equipmentIndex ? index - 1 : index)
+                    .ToArray())
+                .ToArray();
+            updatedTemplate.UpdatedAtUtc = now;
+            var updatedHangar = Clone(hangar);
+            var stack = updatedHangar.Inventory.FirstOrDefault(value =>
+                string.Equals(value.ItemKey, removed.Item.ItemKey, StringComparison.Ordinal));
+            if (stack == null)
+                updatedHangar.Inventory = updatedHangar.Inventory.Append(new AetheriaHangarItemStack
+                {
+                    ItemKey = removed.Item.ItemKey,
+                    Quantity = 1
+                }).ToArray();
+            else
+                stack.Quantity++;
+            updatedHangar.Revision = checked(updatedHangar.Revision + 1);
+            updatedHangar.UpdatedAtUtc = now;
+            await templatePointer.ReplaceAsync(updatedTemplate).ConfigureAwait(false);
+            await pointer.ReplaceAsync(updatedHangar).ConfigureAwait(false);
+            await node.FlushAsync().ConfigureAwait(false);
+            return new(true, "", updatedHangar.Revision);
+        }
+        finally
+        {
+            AdmissionGate.Release();
+        }
+    }
+
+    private static string? ValidateRefit(
+        AetheriaHangarState hangar,
+        string shipId,
+        long expectedRevision,
+        out AetheriaHangarShip? ship)
+    {
+        ship = null;
+        if (expectedRevision != hangar.Revision) return "hangar revision mismatch";
+        ship = (hangar.Ships ?? []).SingleOrDefault(value => string.Equals(value.ShipId, shipId, StringComparison.Ordinal));
+        if (ship == null) return "ship is not owned by Hangar";
+        if (!string.Equals(ship.Status, AetheriaHangarShipStatuses.Available, StringComparison.Ordinal))
+            return "deployed ship cannot be refit from the Hangar";
+        if (string.IsNullOrWhiteSpace(ship.LoadoutTemplateKey)) return "ship has no configured loadout";
+        return null;
+    }
+
     private static string? Validate(
         AetheriaHangarState hangar,
         AetheriaDeploymentRequest request,
@@ -191,4 +348,87 @@ public static class AetheriaHangar
         OverrideShutdown = source.OverrideShutdown,
         Temperature = source.Temperature
     };
+
+    private static AetheriaRuntimeEntitySnapshotCommit ToRuntimeEntity(AetheriaEntityLoadout source)
+    {
+        var loadout = ToRuntimeLoadout(source);
+        return new AetheriaRuntimeEntitySnapshotCommit
+        {
+            Name = loadout.Name,
+            Kind = loadout.Kind,
+            FactionKey = loadout.FactionKey,
+            HullItemKey = loadout.Hull.ItemKey,
+            Equipment = loadout.Equipment,
+            CargoBays = loadout.CargoBays,
+            DockingBays = loadout.DockingBays,
+            CargoContents = loadout.CargoContents,
+            DockingBayContents = loadout.DockingBayContents,
+            DockingBayAssignments = loadout.DockingBayAssignments,
+            WeaponGroups = loadout.WeaponGroups
+        };
+    }
+
+    private static AetheriaRuntimeEntityLoadoutCommit ToRuntimeLoadout(AetheriaRuntimeEntitySnapshotCommit source) => new()
+    {
+        Name = source.Name,
+        Kind = source.Kind,
+        FactionKey = source.FactionKey,
+        Hull = new AetheriaRuntimeLoadoutItemCommit
+        {
+            ItemKey = source.HullItemKey,
+            Quantity = 1,
+            Quality = 1,
+            Durability = 1,
+            Enabled = true
+        },
+        Equipment = source.Equipment ?? [],
+        CargoBays = source.CargoBays ?? [],
+        DockingBays = source.DockingBays ?? [],
+        CargoContents = source.CargoContents ?? [],
+        DockingBayContents = source.DockingBayContents ?? [],
+        DockingBayAssignments = source.DockingBayAssignments ?? [],
+        WeaponGroups = source.WeaponGroups ?? []
+    };
+
+    private static AetheriaRuntimeEntityLoadoutCommit ToRuntimeLoadout(AetheriaEntityLoadout source) => new()
+    {
+        Name = source.Name,
+        Kind = source.Kind,
+        FactionKey = source.FactionKey,
+        Hull = Clone(source.Hull),
+        Equipment = (source.Equipment ?? []).Select(Clone).ToArray(),
+        CargoBays = (source.CargoBays ?? []).Select(Clone).ToArray(),
+        DockingBays = (source.DockingBays ?? []).Select(Clone).ToArray(),
+        CargoContents = (source.CargoContents ?? []).Select(Clone).ToArray(),
+        DockingBayContents = (source.DockingBayContents ?? []).Select(Clone).ToArray(),
+        DockingBayAssignments = (source.DockingBayAssignments ?? []).ToArray(),
+        WeaponGroups = (source.WeaponGroups ?? []).Select(group => (IReadOnlyList<int>)(group ?? []).ToArray()).ToArray(),
+        Children = (source.Children ?? []).Select(ToRuntimeLoadout).ToArray()
+    };
+
+    private static AetheriaLoadoutTemplate CloneTemplate(AetheriaLoadoutTemplate source)
+    {
+        var clone = AetheriaRuntimeStateMapper.ToLoadoutTemplate(new AetheriaRuntimeLoadoutTemplateCommit
+        {
+            Name = source.Name,
+            OwnerPlayerKey = source.OwnerPlayerKey,
+            RootEntity = ToRuntimeLoadout(source.RootEntity)
+        }, source.UpdatedAtUtc);
+        clone.CreatedAtUtc = source.CreatedAtUtc;
+        return clone;
+    }
+}
+
+public sealed class AetheriaHangarMutationResult
+{
+    public AetheriaHangarMutationResult(bool accepted, string diagnostic, long hangarRevision)
+    {
+        Accepted = accepted;
+        Diagnostic = diagnostic;
+        HangarRevision = hangarRevision;
+    }
+
+    public bool Accepted { get; }
+    public string Diagnostic { get; }
+    public long HangarRevision { get; }
 }

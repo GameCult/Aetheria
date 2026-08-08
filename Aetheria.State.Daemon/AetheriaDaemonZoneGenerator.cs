@@ -32,10 +32,18 @@ internal static class AetheriaDaemonZoneGenerator
         AetheriaStateNode node,
         AetheriaRuntimeCatalogSnapshot catalog,
         string now,
-        string scenario)
+        string scenario,
+        AetheriaDeploymentReceipt? deployment = null)
     {
         scenario = AetheriaDaemonTerminusScenarios.Parse(scenario);
-        var runId = RunIdFor(scenario);
+        if (deployment != null && (!deployment.Accepted || !string.Equals(deployment.Mode, AetheriaGameModes.Terminus, StringComparison.Ordinal)))
+            throw new InvalidOperationException("A product Terminus run requires an accepted Terminus deployment.");
+        var runId = deployment == null
+            ? RunIdFor(scenario)
+            : $"terminus-{StableToken(deployment.DeploymentId)}";
+        var generationSeed = deployment == null
+            ? GenerationSeed
+            : AetheriaDaemonRunFactory.StableSeed(deployment.DeploymentId);
         var runKey = new CultRecordKey($"global:aetheria.run_state.{runId}.v1");
         var zoneKey = new CultRecordKey($"global:aetheria.zone_state.{runId}.0.v1");
         var corporationKeys = (catalog.Corporations ?? Array.Empty<AetheriaRuntimeCorporation>())
@@ -54,7 +62,7 @@ internal static class AetheriaDaemonZoneGenerator
             ["raider"] = corporationKeys.ElementAtOrDefault(1) ?? corporationKeys.ElementAtOrDefault(0) ?? "",
             ["neutral"] = corporationKeys.ElementAtOrDefault(2) ?? corporationKeys.ElementAtOrDefault(0) ?? ""
         };
-        var rootRandom = new CultMath.Random(GenerationSeed);
+        var rootRandom = new CultMath.Random(generationSeed);
         var adjacency = new Dictionary<int, IReadOnlyList<int>> { [0] = Array.Empty<int>() };
         var loadouts = availabilityFactions.Values
             .Where(value => !string.IsNullOrWhiteSpace(value))
@@ -69,9 +77,11 @@ internal static class AetheriaDaemonZoneGenerator
                     homeZones,
                     adjacency),
                 StringComparer.Ordinal);
-        var entities = GenerateEntities(loadouts, availabilityFactions, catalog, scenario);
+        var entities = GenerateEntities(loadouts, availabilityFactions, catalog, scenario, runId);
+        if (deployment != null)
+            ApplyDeployment(entities[1], deployment.Loadout);
         var entityKeys = Enumerable.Range(0, entities.Length)
-            .Select(index => EntityKey(scenario, 0, index))
+            .Select(index => EntityKeyForRun(runId, 0, index))
             .ToArray();
 
         var settings = await node.MutableDocument<AetheriaPlayerSettings>(AetheriaStateNode.PlayerSettingsKey)
@@ -92,7 +102,7 @@ internal static class AetheriaDaemonZoneGenerator
             CurrentZoneIndex = 0,
             DiscoveredZoneIndices = [0],
             ZoneKeys = [zoneKey.ToString()],
-            GenerationSeed = GenerationSeed,
+            GenerationSeed = generationSeed,
             CurrentEntityKey = entityKeys[1],
             LifecyclePhase = AetheriaRuntimeRunLifecycle.Active,
             TerminalFrameId = -1,
@@ -140,6 +150,9 @@ internal static class AetheriaDaemonZoneGenerator
     {
         return $"global:aetheria.run_state.{RunIdFor(scenario)}.zone.{zoneIndex}.entity.{entityIndex}.v1";
     }
+
+    private static string EntityKeyForRun(string runId, int zoneIndex, int entityIndex) =>
+        $"global:aetheria.run_state.{runId}.zone.{zoneIndex}.entity.{entityIndex}.v1";
 
     private static AetheriaOrbitSnapshot[] GenerateOrbits()
     {
@@ -241,10 +254,11 @@ internal static class AetheriaDaemonZoneGenerator
         IReadOnlyDictionary<string, AetheriaDaemonLoadoutGenerator> loadouts,
         IReadOnlyDictionary<string, string> availabilityFactions,
         AetheriaRuntimeCatalogSnapshot catalog,
-        string scenario)
+        string scenario,
+        string runId)
     {
         var keys = Enumerable.Range(0, 12)
-            .Select(index => EntityKey(scenario, 0, index))
+            .Select(index => EntityKeyForRun(runId, 0, index))
             .ToArray();
 
         var entities = new[]
@@ -339,6 +353,63 @@ internal static class AetheriaDaemonZoneGenerator
         if (string.Equals(scenario, AetheriaDaemonTerminusScenarios.CargoCapacityRejectionProof, StringComparison.Ordinal))
             FillCargoBays(entities[1], salvage.ItemKey, catalog);
     }
+
+    private static void ApplyDeployment(
+        AetheriaEntitySnapshot entity,
+        AetheriaRuntimeEntityLoadoutCommit loadout)
+    {
+        entity.Name = string.IsNullOrWhiteSpace(loadout.Name) ? entity.Name : loadout.Name;
+        entity.Kind = string.IsNullOrWhiteSpace(loadout.Kind) ? entity.Kind : loadout.Kind;
+        entity.FactionKey = string.IsNullOrWhiteSpace(loadout.FactionKey) ? entity.FactionKey : loadout.FactionKey;
+        entity.HullItemKey = loadout.Hull?.ItemKey ?? entity.HullItemKey;
+        entity.Equipment = (loadout.Equipment ?? []).Select(ToEntitySlot).ToArray();
+        entity.CargoBays = (loadout.CargoBays ?? []).Select(ToEntitySlot).ToArray();
+        entity.DockingBays = (loadout.DockingBays ?? []).Select(ToEntitySlot).ToArray();
+        entity.CargoContents = (loadout.CargoContents ?? []).Select(ToCargoBay).ToArray();
+        entity.DockingBayContents = (loadout.DockingBayContents ?? []).Select(ToCargoBay).ToArray();
+        entity.DockingBayAssignments = (loadout.DockingBayAssignments ?? []).ToArray();
+        entity.WeaponGroups = (loadout.WeaponGroups ?? [])
+            .Select(group => new AetheriaWeaponGroupSnapshot
+            {
+                EquipmentIndices = (group ?? []).ToArray()
+            })
+            .ToArray();
+    }
+
+    private static AetheriaEntityItemSlot ToEntitySlot(AetheriaRuntimeLoadoutItemSlotCommit slot) => new()
+    {
+        Position = new AetheriaGridCoord { X = slot.X, Y = slot.Y },
+        Rotation = slot.Rotation ?? "None",
+        ItemKey = slot.Item?.ItemKey ?? "",
+        Quality = slot.Item?.Quality ?? 1,
+        Durability = slot.Item?.Durability ?? 1,
+        Quantity = slot.Item?.Quantity ?? 1,
+        Enabled = slot.Item?.Enabled ?? true,
+        OverrideShutdown = slot.Item?.OverrideShutdown ?? false,
+        Temperature = slot.Item?.Temperature ?? 0
+    };
+
+    private static AetheriaCargoBayLoadout ToCargoBay(AetheriaRuntimeCargoBayLoadoutCommit bay) => new()
+    {
+        Items = (bay.Items ?? []).Select(slot => new AetheriaLoadoutItemSlot
+        {
+            Position = new AetheriaGridCoord { X = slot.X, Y = slot.Y },
+            Rotation = slot.Rotation ?? "None",
+            Item = new AetheriaLoadoutItem
+            {
+                ItemKey = slot.Item?.ItemKey ?? "",
+                Quality = slot.Item?.Quality ?? 1,
+                Durability = slot.Item?.Durability ?? 1,
+                Quantity = slot.Item?.Quantity ?? 1,
+                Enabled = slot.Item?.Enabled ?? true,
+                OverrideShutdown = slot.Item?.OverrideShutdown ?? false,
+                Temperature = slot.Item?.Temperature ?? 0
+            }
+        }).ToArray()
+    };
+
+    private static string StableToken(string value) =>
+        new string((value ?? "").Select(character => char.IsLetterOrDigit(character) ? char.ToLowerInvariant(character) : '-').ToArray()).Trim('-');
 
     private static void FillCargoBays(
         AetheriaEntitySnapshot entity,

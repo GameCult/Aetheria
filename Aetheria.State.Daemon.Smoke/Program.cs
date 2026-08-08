@@ -79,6 +79,11 @@ else if (args.Contains("--combat-lock", StringComparer.Ordinal))
     checks.RunCombatLock();
     Console.WriteLine("Daemon look-direction weapon-lock smoke passed.");
 }
+else if (args.Contains("--hangar", StringComparer.Ordinal))
+{
+    checks.RunHangar();
+    Console.WriteLine("Daemon Hangar deployment and continuation smoke passed.");
+}
 else
 {
     checks.Run();
@@ -92,6 +97,8 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
     public void RunGravity() => RunCheck(PositiveGravityDepthAttractsAndProjectsAsAWell);
 
     public void RunCombatLock() => RunCheck(InstantWeaponRequestSurvivesLockAcquisition);
+
+    public void RunHangar() => RunCheck(HangarLaunchUsesConfiguredLoadoutAndContinuesSavedRun);
 
     public void RunLoadout()
     {
@@ -134,6 +141,83 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
         RunCheck(SecurityZonesOwnFossilTrespasserHostility);
         RunCheck(AgentPatrolsHistoricalOrbitCircuitThroughMovementCommands);
         RunCheck(PatrolCombatPreemptsAndResumesTheSameCircuit);
+    }
+
+    private static void HangarLaunchUsesConfiguredLoadoutAndContinuesSavedRun()
+    {
+        var runtimeCatalog = TutorialPopulationCatalog(out _);
+        runtimeCatalog.Items.Single(item => string.Equals(item.HullType, "Station", StringComparison.Ordinal)).ItemKey =
+            AetheriaDaemonNativeCatalog.DockyardHullItemKey;
+        var root = Path.Combine(Path.GetTempPath(), $"aetheria-hangar-{Guid.NewGuid():N}");
+        var statePath = Path.Combine(root, "aetheria.cc");
+        Directory.CreateDirectory(root);
+        try
+        {
+            string runKey;
+            string deploymentId;
+            string removedItemKey;
+            using (var node = AetheriaStateNode.OpenAsync(statePath).GetAwaiter().GetResult())
+            {
+                AetheriaDaemonHangarCoordinator.EnsureAsync(node, runtimeCatalog, "2026-08-08T00:00:00Z")
+                    .GetAwaiter().GetResult();
+                var hangar = node.MutableDocument<AetheriaHangarState>(AetheriaStateNode.HangarKey)
+                    .ReadAsync().GetAwaiter().GetResult()!;
+                var ship = hangar.Ships.Single();
+                var template = node.MutableDocument<AetheriaLoadoutTemplate>(new CultRecordKey(ship.LoadoutTemplateKey))
+                    .ReadAsync().GetAwaiter().GetResult()!;
+                removedItemKey = template.RootEntity.Equipment[0].Item.ItemKey;
+                var mutation = AetheriaHangar.RemoveAsync(node, ship.ShipId, 0, hangar.Revision, "2026-08-08T00:00:01Z")
+                    .GetAwaiter().GetResult();
+                Require(mutation.Accepted, "Hangar loadout customization must commit through the canonical Hangar owner");
+                hangar = node.MutableDocument<AetheriaHangarState>(AetheriaStateNode.HangarKey)
+                    .ReadAsync().GetAwaiter().GetResult()!;
+                template = node.MutableDocument<AetheriaLoadoutTemplate>(new CultRecordKey(ship.LoadoutTemplateKey))
+                    .ReadAsync().GetAwaiter().GetResult()!;
+                var surface = AetheriaRuntimeHangarSurfaceBuilder.Build(
+                    hangar, ship.ShipId, AetheriaGameModes.Terminus, "2026-08-08T00:00:01Z", 1, template, runtimeCatalog);
+                Require(surface.Surface.Id == AetheriaRuntimeHangarCommands.SurfaceId &&
+                        surface.Commands.Any(command => command.Command == AetheriaRuntimeHangarCommands.EquipItem) &&
+                        surface.Commands.Any(command => command.Command == AetheriaRuntimeHangarCommands.RemoveItem) &&
+                        surface.Commands.Any(command => command.Command == AetheriaRuntimeHangarCommands.Launch) &&
+                        surface.Commands.Any(command => command.Command == AetheriaRuntimeHangarCommands.Continue),
+                    "the daemon-owned Hangar surface must advertise loadout, launch, and continuation operations");
+
+                var receipt = AetheriaDaemonHangarCoordinator.LaunchTerminusAsync(
+                        node, runtimeCatalog, "launch-configured", ship.ShipId, mutation.HangarRevision, "2026-08-08T00:00:02Z")
+                    .GetAwaiter().GetResult();
+                Require(receipt.Accepted, "a valid configured Hangar deployment must launch Terminus");
+                deploymentId = receipt.DeploymentId;
+                var settings = node.MutableDocument<AetheriaPlayerSettings>(AetheriaStateNode.PlayerSettingsKey)
+                    .ReadAsync().GetAwaiter().GetResult()!;
+                runKey = settings.ActiveRunKey;
+                var run = node.MutableDocument<AetheriaRunState>(new CultRecordKey(runKey))
+                    .ReadAsync().GetAwaiter().GetResult()!;
+                var player = node.MutableDocument<AetheriaEntitySnapshot>(new CultRecordKey(run.CurrentEntityKey))
+                    .ReadAsync().GetAwaiter().GetResult()!;
+                Require(run.GameMode == AetheriaGameModes.Terminus &&
+                        run.GenerationSeed == AetheriaDaemonRunFactory.StableSeed(deploymentId),
+                    "the accepted Hangar deployment must own the new Terminus run identity");
+                Require(player.Equipment.All(slot => !string.Equals(slot.ItemKey, removedItemKey, StringComparison.Ordinal)),
+                    "Terminus must instantiate the configured Hangar loadout, not regenerate the starter fit");
+            }
+
+            using (var reopened = AetheriaStateNode.OpenAsync(statePath).GetAwaiter().GetResult())
+            {
+                var canContinue = AetheriaDaemonHangarCoordinator.CanContinueTerminusAsync(
+                        reopened, AetheriaDaemonHangarCoordinator.StarterShipId, deploymentId)
+                    .GetAwaiter().GetResult();
+                var settings = reopened.MutableDocument<AetheriaPlayerSettings>(AetheriaStateNode.PlayerSettingsKey)
+                    .ReadAsync().GetAwaiter().GetResult();
+                var run = reopened.MutableDocument<AetheriaRunState>(new CultRecordKey(runKey))
+                    .ReadAsync().GetAwaiter().GetResult();
+                Require(canContinue && settings?.ActiveRunKey == runKey && run != null,
+                    "Continue must reopen the saved Terminus checkpoint without creating another run");
+            }
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
     }
 
     private static void TutorialRunPersistsCanonicalWorldTruth()

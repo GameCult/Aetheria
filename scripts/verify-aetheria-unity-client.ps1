@@ -114,4 +114,12 @@ foreach ($forbiddenInput in @("AetheriaRuntimeVerseSchemas", "AetheriaRuntimeVer
     if ($bootstrapSource -match [regex]::Escape($forbiddenInput)) { throw "Client bootstrap depends on forbidden product input '$forbiddenInput'." }
 }
 
+$launcherSource = Get-Content (Join-Path (Split-Path $PSScriptRoot -Parent) "scripts/run-aetheria-unity.ps1") -Raw
+if ($launcherSource -notmatch 'EVEUNITY_SURFACE_ID\s*=\s*"aetheria\.hangar"') {
+    throw "Released launcher must enter through the daemon-owned Hangar surface."
+}
+if ($launcherSource -match '--terminus-scenario') {
+    throw "Released launcher must not create product state through a Terminus proof-scenario flag."
+}
+
 Write-Host "Aetheria Unity client dependency and bootstrap verification passed."

@@ -118,6 +118,9 @@ namespace GameCult.Aetheria.State.Verse
         public static CultRecordKey TradeMenuSurface { get; } =
             new CultRecordKey("eve:surface:aetheria.trade.menu");
 
+        public static CultRecordKey HangarSurface { get; } =
+            new CultRecordKey("eve:surface:aetheria.hangar");
+
         public static CultRecordKey DaemonCommand(string commandId)
         {
             return new CultRecordKey($"daemon:commands:{StableToken(commandId)}:gamecult.aetheria.daemon_command.v1");

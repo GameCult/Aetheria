@@ -72,6 +72,8 @@ if (persistedRuntimeCatalog == null ||
     nativeCatalogChanged)
     await node.RefreshRuntimeCatalogAsync().ConfigureAwait(false);
 TraceStartup("runtime-catalog");
+await AetheriaDaemonHangarCoordinator.EnsureAsync(node, node.RuntimeCatalog().Latest(), startedAtUtc).ConfigureAwait(false);
+TraceStartup("hangar");
 var verseHost = await EnsureVerseHostSettingsAsync(node, options, startedAtUtc).ConfigureAwait(false);
 TraceStartup("verse-host");
 await EnsureVerseAuthorityPolicyAsync(node, options).ConfigureAwait(false);
@@ -106,6 +108,7 @@ using var soaPublisher = new AetheriaRuntimeDaemonSoaFramePublisher(
     DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
     bodyDemand);
 var stopped = new TaskCompletionSource<object?>();
+var hangarActivationRequested = false;
 Console.CancelKeyPress += (_, eventArgs) =>
 {
     eventArgs.Cancel = true;
@@ -121,12 +124,9 @@ while (!stopped.Task.IsCompleted)
         while (!stopped.Task.IsCompleted)
         {
             ThrowIfClientHostFaulted(cultMeshClientHost);
-            await AcceptCoreEveInvocationsAsync(node, options, latestFrame).ConfigureAwait(false);
+            hangarActivationRequested |= await AcceptCoreEveInvocationsAsync(node, options, latestFrame).ConfigureAwait(false);
             await AcceptEveCommandsAsync(node, options, ingressState).ConfigureAwait(false);
-            if (await ApplyRequestedNewGameSessionAsync(node, options).ConfigureAwait(false))
-                latestFrame = null;
-
-            if (playableWorldDemand.IsActive &&
+            if (hangarActivationRequested && playableWorldDemand.IsActive &&
                 (HasPlayableRun(latestFrame?.Run) ||
                  HasPlayableRun(await ReadRuntimeRunCheckpointAsync(node, options.RenderSettings).ConfigureAwait(false))))
                 break;
@@ -344,11 +344,6 @@ static async Task<AetheriaRuntimeDaemonTickResult> TickAsync(
     TracePhase("core-ingress");
     await AcceptEveCommandsAsync(node, options, ingressState).ConfigureAwait(false);
     TracePhase("provider-ingress");
-    if (await ApplyRequestedNewGameSessionAsync(node, options).ConfigureAwait(false))
-    {
-        currentFrame = null;
-        ingressState.ControlPlaneInitialized = false;
-    }
     if (!ingressState.ControlPlaneInitialized || buildPublications)
         await RefreshControlPlaneInputsAsync(node, ingressState).ConfigureAwait(false);
 
@@ -2054,6 +2049,9 @@ static async Task PublishClientGameplayDocumentsAsync(
         await node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.DaemonGameSurface)
             .ReplaceAsync(portableGameSurface)
             .ConfigureAwait(false);
+        await node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.HangarSurface)
+            .ReplaceAsync(ReidentifySurface(portableGameSurface, AetheriaRuntimeHangarCommands.SurfaceId, "Terminus"))
+            .ConfigureAwait(false);
         await PublishDaemonSectorMapSurfaceAsync(node, result.Frame, inputCatalog).ConfigureAwait(false);
     }
     TraceClientDocumentPhase("game-topology");
@@ -2175,7 +2173,15 @@ static EveProviderAdvertisementDocument BuildCoreProviderAdvertisement(
                 "cultmesh-record",
                 "active",
                 "graph",
-                mapInteraction)
+                mapInteraction),
+            new EveAdvertisedSurface(
+                AetheriaRuntimeHangarCommands.SurfaceId,
+                EveSurfaceDocument.SchemaId,
+                AetheriaRuntimeVerseRecordKeys.HangarSurface.ToString(),
+                "cultmesh-record",
+                "active",
+                "interactive-world",
+                interaction)
         },
         Array.Empty<EveAdvertisedCommand>(),
         new[] { AetheriaRuntimeDaemonSoaFramePublisher.ProducerId });
@@ -2413,11 +2419,12 @@ static AetheriaRuntimeSurfaceComponent SurfaceNode(
         children);
 }
 
-static async Task AcceptCoreEveInvocationsAsync(
+static async Task<bool> AcceptCoreEveInvocationsAsync(
     AetheriaStateNode node,
     AetheriaDaemonHostOptions options,
     AetheriaRuntimeDaemonFrameDocument? currentFrame)
 {
+    var activatedSession = false;
     var accounted = new HashSet<string>(
         currentFrame?.AccountedCommandIds ?? Array.Empty<string>(),
         StringComparer.Ordinal);
@@ -2435,6 +2442,13 @@ static async Task AcceptCoreEveInvocationsAsync(
     {
         if (accounted.Contains(request.CommandId) || receipted.Contains(request.CommandId) || submitted.Contains(request.CommandId))
             continue;
+
+        if (string.Equals(request.SurfaceId, AetheriaRuntimeHangarCommands.SurfaceId, StringComparison.Ordinal))
+        {
+            activatedSession |= await AcceptHangarInvocationAsync(node, options, request).ConfigureAwait(false);
+            receipted.Add(request.CommandId);
+            continue;
+        }
 
         if (AetheriaRuntimeDaemonOperationsClient.TryCreateSurfaceCommandDocument(
                 request,
@@ -2467,7 +2481,164 @@ static async Task AcceptCoreEveInvocationsAsync(
         await node.Database.PutAsync(AetheriaRuntimeVerseRecordKeys.EveReceiptForCommand(denied.CommandId), denied)
             .ConfigureAwait(false);
     }
+    return activatedSession;
 }
+
+static EveSurfaceDocument ReidentifySurface(EveSurfaceDocument source, string surfaceId, string title) =>
+    new(
+        source.Type,
+        source.Schema,
+        source.ProviderId,
+        source.ProviderKind,
+        title,
+        source.Version,
+        source.UpdatedAtUtc,
+        new EveSurfaceTree(surfaceId, source.Surface.Root, source.Surface.Styles),
+        source.Commands);
+
+static async Task<bool> AcceptHangarInvocationAsync(
+    AetheriaStateNode node,
+    AetheriaDaemonHostOptions options,
+    EveSurfaceCommandRequest request)
+{
+    var now = DateTimeOffset.UtcNow.ToString("O");
+    var command = request.Command ?? "";
+    var accepted = false;
+    var diagnostic = "";
+    var activatesSession = false;
+    try
+    {
+        var shipId = Payload(request, "shipId");
+        var expectedRevision = PayloadLong(request, "expectedHangarRevision", -1);
+        switch (command)
+        {
+            case AetheriaRuntimeHangarCommands.SelectShip:
+            case AetheriaRuntimeHangarCommands.SelectTerminus:
+            case AetheriaRuntimeHangarCommands.EditLoadout:
+                accepted = true;
+                break;
+            case AetheriaRuntimeHangarCommands.SelectStarbridge:
+            case AetheriaRuntimeHangarCommands.SelectArena:
+                diagnostic = "This mode has no session bootstrap yet.";
+                break;
+            case AetheriaRuntimeHangarCommands.EquipItem:
+            {
+                var result = await AetheriaHangar.EquipAsync(
+                    node,
+                    shipId,
+                    Payload(request, "itemKey"),
+                    expectedRevision,
+                    node.RuntimeCatalog().Latest(),
+                    now).ConfigureAwait(false);
+                accepted = result.Accepted;
+                diagnostic = result.Diagnostic;
+                if (accepted) await PublishStateSurfacesAsync(node, options, now).ConfigureAwait(false);
+                break;
+            }
+            case AetheriaRuntimeHangarCommands.RemoveItem:
+            {
+                var result = await AetheriaHangar.RemoveAsync(
+                    node,
+                    shipId,
+                    (int)PayloadLong(request, "equipmentIndex", -1),
+                    expectedRevision,
+                    now).ConfigureAwait(false);
+                accepted = result.Accepted;
+                diagnostic = result.Diagnostic;
+                if (accepted) await PublishStateSurfacesAsync(node, options, now).ConfigureAwait(false);
+                break;
+            }
+            case AetheriaRuntimeHangarCommands.Launch:
+            {
+                var receipt = await AetheriaDaemonHangarCoordinator.LaunchTerminusAsync(
+                    node,
+                    await node.RuntimeCatalogForGenerationAsync().ConfigureAwait(false),
+                    request.CommandId,
+                    shipId,
+                    expectedRevision,
+                    now).ConfigureAwait(false);
+                accepted = receipt.Accepted;
+                diagnostic = receipt.Diagnostic;
+                if (accepted)
+                {
+                    await ActivateTerminusSessionAsync(node, options, request.CommandId, now).ConfigureAwait(false);
+                    activatesSession = true;
+                }
+                break;
+            }
+            case AetheriaRuntimeHangarCommands.Continue:
+            {
+                accepted = await AetheriaDaemonHangarCoordinator.CanContinueTerminusAsync(
+                    node,
+                    shipId,
+                    Payload(request, "deploymentId")).ConfigureAwait(false);
+                diagnostic = accepted ? "" : "No resumable Terminus deployment exists for this ship.";
+                if (accepted)
+                {
+                    await ActivateTerminusSessionAsync(node, options, request.CommandId, now).ConfigureAwait(false);
+                    activatesSession = true;
+                }
+                break;
+            }
+            default:
+                diagnostic = "Command is not advertised by the Hangar surface.";
+                break;
+        }
+    }
+    catch (Exception error)
+    {
+        accepted = false;
+        diagnostic = error.Message;
+    }
+
+    var receiptDocument = new EveCommandReceiptDocument(
+        $"receipt:{request.CommandId}:{(accepted ? "applied" : "denied")}",
+        request.CommandId,
+        command,
+        accepted ? "applied" : "denied",
+        "Aetheria Hangar",
+        options.DaemonId,
+        request.ProviderId,
+        request.SurfaceId,
+        diagnostic,
+        now,
+        0);
+    await node.Database.PutAsync(AetheriaRuntimeVerseRecordKeys.EveReceiptForCommand(request.CommandId), receiptDocument)
+        .ConfigureAwait(false);
+    await node.FlushAsync().ConfigureAwait(false);
+    return activatesSession;
+}
+
+static async Task ActivateTerminusSessionAsync(
+    AetheriaStateNode node,
+    AetheriaDaemonHostOptions options,
+    string commandId,
+    string now)
+{
+    var run = await ReadRuntimeRunCheckpointAsync(node, options.RenderSettings).ConfigureAwait(false)
+        ?? throw new InvalidOperationException("Terminus activation requires a canonical run checkpoint.");
+    await node.MutableDocument<AetheriaGameSessionState>(AetheriaStateNode.GameSessionStateKey)
+        .ReplaceAsync(new AetheriaGameSessionState
+        {
+            Mode = AetheriaGameSessionState.TerminusMode,
+            SessionId = options.SessionId,
+            RunId = run.RunId,
+            ControlledEntityKey = run.CurrentEntityKey,
+            EntrySurfaceId = AetheriaRuntimeHangarCommands.SurfaceId,
+            SimulationRate = 1,
+            EffectiveSimulationRate = 1,
+            LastStartCommandId = commandId,
+            UpdatedAtUtc = now
+        }).ConfigureAwait(false);
+}
+
+static string Payload(EveSurfaceCommandRequest request, string key) =>
+    request.PayloadFields.TryGetValue(key, out var value) ? value ?? "" : "";
+
+static long PayloadLong(EveSurfaceCommandRequest request, string key, long fallback) =>
+    long.TryParse(Payload(request, key), NumberStyles.Integer, CultureInfo.InvariantCulture, out var value)
+        ? value
+        : fallback;
 
 static async Task AcceptEveCommandsAsync(
     AetheriaStateNode node,
@@ -2544,6 +2715,13 @@ static async Task PublishStateSurfacesAsync(
     var playerSettingsUpdatedAt = string.IsNullOrWhiteSpace(playerSettings.LastUpdatedAtUtc)
         ? updatedAtUtc
         : playerSettings.LastUpdatedAtUtc;
+    var hangar = await node.MutableDocument<AetheriaHangarState>(AetheriaStateNode.HangarKey)
+        .ReadAsync().ConfigureAwait(false);
+    AetheriaLoadoutTemplate? hangarLoadout = null;
+    var selectedHangarShip = hangar?.Ships?.FirstOrDefault();
+    if (!string.IsNullOrWhiteSpace(selectedHangarShip?.LoadoutTemplateKey))
+        hangarLoadout = await node.MutableDocument<AetheriaLoadoutTemplate>(new(selectedHangarShip.LoadoutTemplateKey))
+            .ReadAsync().ConfigureAwait(false);
 
     await node.MutableDocument<EveSurfaceDocument>(AetheriaStateNode.OperationsSurfaceKey)
         .ReplaceAsync(AetheriaEveSurfaceDocuments.BuildOperationsSurface(eveStatus, verseHost, runtimeSession))
@@ -2554,6 +2732,18 @@ static async Task PublishStateSurfacesAsync(
     await node.MutableDocument<EveProviderAdvertisementDocument>(AetheriaStateNode.ProviderAdvertisementSurfaceKey)
         .ReplaceAsync(AetheriaEveSurfaceDocuments.BuildProviderAdvertisement(verseHost, node.StatePath, updatedAtUtc))
         .ConfigureAwait(false);
+    if (hangar != null)
+        await node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.HangarSurface)
+            .ReplaceAsync(AetheriaRuntimeSurfaceDocuments.ToPortableSurface(
+                AetheriaRuntimeHangarSurfaceBuilder.Build(
+                    hangar,
+                    selectedHangarShip?.ShipId ?? "",
+                    AetheriaGameModes.Terminus,
+                    updatedAtUtc,
+                    Math.Max(1, hangar.Revision),
+                    hangarLoadout,
+                    node.RuntimeCatalog().Latest())))
+            .ConfigureAwait(false);
     await node.FlushAsync().ConfigureAwait(false);
 }
 
@@ -2581,7 +2771,8 @@ static async Task PublishOdinSurfaceAnnouncementsAsync(
         ("aetheria.inventory.panel", "Inventory Panel", AetheriaRuntimeVerseRecordKeys.InventoryPanelSurface),
         ("aetheria.inventory.panel.dropdown", "Inventory Dropdown", AetheriaRuntimeVerseRecordKeys.InventoryDropdownSurface),
         (AetheriaRuntimeSectorMapSurfaceBuilder.SurfaceId, "Sector Map", AetheriaRuntimeVerseRecordKeys.MapMenuSurface),
-        ("aetheria.trade.menu", "Trade Menu", AetheriaRuntimeVerseRecordKeys.TradeMenuSurface)
+        ("aetheria.trade.menu", "Trade Menu", AetheriaRuntimeVerseRecordKeys.TradeMenuSurface),
+        (AetheriaRuntimeHangarCommands.SurfaceId, "Aetheria Hangar", AetheriaRuntimeVerseRecordKeys.HangarSurface)
     };
 
     var documents = new List<CultNetDocumentPutRawMessage>();
@@ -3113,43 +3304,6 @@ static async Task EnsureGameSessionAsync(
             UpdatedAtUtc = now
         }).ConfigureAwait(false);
     await node.FlushAsync().ConfigureAwait(false);
-}
-
-static async Task<bool> ApplyRequestedNewGameSessionAsync(
-    AetheriaStateNode node,
-    AetheriaDaemonHostOptions options)
-{
-    var menu = await node.MutableDocument<AetheriaMainMenuState>(AetheriaStateNode.MainMenuStateKey)
-        .ReadAsync().ConfigureAwait(false);
-    if (menu == null ||
-        !string.Equals(menu.LastCommand, AetheriaRuntimeMainMenuCommands.NewGame, StringComparison.Ordinal) ||
-        string.IsNullOrWhiteSpace(menu.LastCommandId))
-        return false;
-
-    var session = await node.MutableDocument<AetheriaGameSessionState>(AetheriaStateNode.GameSessionStateKey)
-        .ReadAsync().ConfigureAwait(false) ?? new AetheriaGameSessionState();
-    if (string.Equals(session.LastStartCommandId, menu.LastCommandId, StringComparison.Ordinal))
-        return false;
-
-    var now = DateTimeOffset.UtcNow.ToString("O");
-    var written = await AetheriaDaemonRunFactory.WriteAsync(
-        node,
-        await node.RuntimeCatalogForGenerationAsync().ConfigureAwait(false),
-        now,
-        menu.LastCommandId).ConfigureAwait(false);
-    session.Mode = written.SessionMode;
-    session.SessionId = options.SessionId;
-    session.RunId = written.RunId;
-    session.ControlledEntityKey = written.CurrentEntityKey;
-    session.EntrySurfaceId = AetheriaRuntimeDaemonGameSurfaceBuilder.PilotSurfaceId;
-    session.SimulationRate = 1;
-    session.EffectiveSimulationRate = 1;
-    session.LastStartCommandId = menu.LastCommandId;
-    session.UpdatedAtUtc = now;
-    await node.MutableDocument<AetheriaGameSessionState>(AetheriaStateNode.GameSessionStateKey)
-        .ReplaceAsync(session).ConfigureAwait(false);
-    await node.FlushAsync().ConfigureAwait(false);
-    return true;
 }
 
 static async Task EnsureVerseAuthorityPolicyAsync(
@@ -3797,7 +3951,8 @@ internal sealed class AetheriaPlayableWorldDemandState
         (demand.RecordKeys.Any(key =>
              string.Equals(key, AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest.ToString(), StringComparison.Ordinal) ||
              string.Equals(key, AetheriaRuntimeVerseRecordKeys.DaemonGameSurface.ToString(), StringComparison.Ordinal) ||
-             string.Equals(key, AetheriaRuntimeVerseRecordKeys.DaemonGameReactiveSurface.ToString(), StringComparison.Ordinal)) ||
+             string.Equals(key, AetheriaRuntimeVerseRecordKeys.DaemonGameReactiveSurface.ToString(), StringComparison.Ordinal) ||
+             string.Equals(key, AetheriaRuntimeVerseRecordKeys.HangarSurface.ToString(), StringComparison.Ordinal)) ||
          demand.SchemaIds.Contains(AetheriaRuntimeDaemonSchemas.Frame, StringComparer.Ordinal) ||
          demand.BodyIds.Contains(AetheriaRuntimeDaemonSoaFramePublisher.BodyId, StringComparer.Ordinal));
 }

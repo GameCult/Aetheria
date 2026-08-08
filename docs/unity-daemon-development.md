@@ -24,10 +24,14 @@ leaving Play drops that client while the authoritative daemon remains alive and
 ready for the next connection.
 
 Starting the daemon does not create, load, or step a game world. It starts the
-typed state boundary and CultMesh transport in `ready` mode. A playable-world
-subscription loads an existing run. Typed mode selection chooses authority and
-policy; a committed deployment/admission creates session state through the
-applicable provider or Arena server. Only that activation boundary opens
+typed state boundary and CultMesh transport in `ready` mode and publishes the
+`aetheria.hangar` Eve surface. The Hangar exposes the canonical saved loadout
+and typed equip/remove operations. **Launch** commits a Terminus deployment
+from the current Hangar revision and creates its run; **Continue** selects the
+existing deployed Terminus checkpoint without creating a replacement run.
+Typed mode selection chooses authority and policy; a committed
+deployment/admission creates session state through the applicable provider or
+Arena server. Only that activation boundary opens
 simulation persistence and starts the fixed simulation clock. When the last
 playable-world subscription is withdrawn,
 the daemon commits the final public frame and matching private Ymir checkpoint,
@@ -53,9 +57,10 @@ being debugged.
 1. Press **Build daemon** after changing daemon code. Use **Reimport state &
    build** only when the isolated development state must be replaced.
 2. Press **Start daemon** and wait for the window to report the live endpoint.
-3. Enter and leave Unity Play Mode normally. The daemon remains running across
-   client sessions.
-4. Edit and inspect the generic EveUnity-lowered world in Play Mode.
+3. Enter Unity Play Mode. The generic client mounts `aetheria.hangar`.
+4. Configure the saved loadout, then choose **Launch** for a new Terminus run
+   or **Continue** for the currently deployed saved run. The same mounted Eve
+   surface becomes the gameplay composition after activation.
 5. Use Unity Pause to submit the advertised `simulation.pause` action to the
    daemon. Unity unpause submits `simulation.rate.realtime`.
 6. While paused, use **Advance one step** to commit exactly one fixed daemon

@@ -1,6 +1,6 @@
 # Aetheria Game Modes And Progression
 
-Status: adopted target design; shared Hangar state is not yet implemented
+Status: adopted design; the first daemon-owned Hangar/Terminus deployment slice is implemented
 
 ## Product Modes
 
@@ -177,22 +177,31 @@ a parallel gameplay path.
 
 ## Current Migration Seam
 
-The daemon already owns typed run checkpoints, loadout templates, catalog keys,
-combat, loot, docking, trade, and Terminus scenario generation. Starbridge has
-typed session, station-stock, role, wave, and summary documents. These are
-components of the design, not yet a durable shared Hangar owner.
+The daemon now owns one typed local Hangar, its starter ship, stored equipment,
+saved loadout template, Hangar revision, and immutable Terminus deployment
+receipt. It publishes `aetheria.hangar` as the ordinary Unity entry surface.
+The surface advertises equip, remove, launch, and continue operations. Launch
+instantiates the current committed loadout into a newly identified Terminus
+run; continue reopens the deployed run selected by the existing checkpoint.
+Unity remains a generic Eve lowerer and never edits those documents directly.
+
+This is the first vertical slice, not the completed cross-mode progression
+machine. Settlement, currencies/unlocks, multiple owned ships, richer fitting
+interaction, Starbridge admission, and Arena admission still need to enter the
+same Hangar boundary. The old main-menu `New Game` writer is no longer a
+product run-creation authority. Explicit Terminus proof profiles remain
+verification-only inputs.
 
 Arena does not yet have a named server/session/admission/score document family
 or a preserved headless controller harness. Shared simulation smokes are useful
 substrate, but they do not constitute the Arena mode. Starbridge's existing
 documents also do not by themselves prove mixed-authority convergence.
 
-The next state-architecture cut is to define the canonical Hangar, Deployment,
-and Settlement documents; define one typed mode-selection boundary; and keep a
-minimal Terminus, Starbridge, and Arena vertical slice alive against it. Until
-that cut lands, documentation and verification must not describe existing run
-checkpoints or proof scenarios as cross-mode progression authority, or generic
-simulation smokes as Arena product proof.
+The next state-architecture cut is to carry this Hangar and Deployment boundary
+through Starbridge and Arena admission, then add exactly-once Settlement. Until
+those cuts land, documentation and verification must not describe the local
+starter Hangar as completed cross-mode progression, or generic simulation
+smokes as Arena product proof.
 
 ## Required Proofs
 

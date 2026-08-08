@@ -60,7 +60,6 @@ $daemon = Start-Process dotnet -ArgumentList @(
   "--client-cultmesh-port", $Port,
   "--tick-interval-ms", 20,
   "--fixed-delta-ms", 20,
-  "--terminus-scenario", "standard",
   "--no-odin-announcements"
 ) -PassThru -WindowStyle Hidden -RedirectStandardOutput $daemonLog -RedirectStandardError "$daemonLog.error"
 Write-Host "Daemon PID: $($daemon.Id)"
@@ -79,7 +78,7 @@ try {
   }
   if (-not $ready) { throw "Aetheria daemon did not publish its Eve endpoint." }
   $env:EVEUNITY_RENDEZVOUS_ENDPOINT = "cultnet+tcp://127.0.0.1:$Port"
-  $env:EVEUNITY_SURFACE_ID = "aetheria.pilot"
+  $env:EVEUNITY_SURFACE_ID = "aetheria.hangar"
   $client = Start-Process $clientExe -ArgumentList "-force-d3d11" -PassThru
   Write-Host "Client PID: $($client.Id)"
   Write-Host "Close the client window to stop the daemon."
