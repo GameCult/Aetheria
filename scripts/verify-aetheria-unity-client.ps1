@@ -22,6 +22,9 @@ $expected = @{
     "org.gamecult.eve.unity-scene" = @(
         "https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.unity-scene#eveunity-scene-v0.3.103",
         "050b2019bd6faa4275013516870d1ded245ee391")
+    "org.gamecult.eve.unity-uitoolkit" = @(
+        "https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.unity-uitoolkit#befdd6a4a1f0376b40a3103aae811670336c0fee",
+        "befdd6a4a1f0376b40a3103aae811670336c0fee")
 }
 
 foreach ($packageName in $expected.Keys) {
@@ -112,6 +115,15 @@ foreach ($required in @("EVEUNITY_RENDEZVOUS_ENDPOINT", "EveUnityCultMeshPlayabl
 }
 foreach ($forbiddenInput in @("AetheriaRuntimeVerseSchemas", "AetheriaRuntimeVerseRecordKeys", "productSchema", "recordKey")) {
     if ($bootstrapSource -match [regex]::Escape($forbiddenInput)) { throw "Client bootstrap depends on forbidden product input '$forbiddenInput'." }
+}
+
+$uiToolkitPackage = Get-ChildItem (Join-Path $ProjectPath "Library/PackageCache") -Directory |
+    Where-Object Name -Like "org.gamecult.eve.unity-uitoolkit@*" |
+    Select-Object -First 1
+if (-not $uiToolkitPackage) { throw "Resolved Eve Unity UI Toolkit package is missing from Library/PackageCache." }
+$uiToolkitLowererSource = Get-Content (Join-Path $uiToolkitPackage.FullName "Runtime/EveUiToolkitSurfaceLowerer.cs") -Raw
+if ($uiToolkitLowererSource -notmatch 'unity-uitoolkit-.*Guid\.NewGuid') {
+    throw "Resolved Eve Unity UI Toolkit commands do not mint invocation-scoped idempotency keys."
 }
 
 $launcherSource = Get-Content (Join-Path (Split-Path $PSScriptRoot -Parent) "scripts/run-aetheria-unity.ps1") -Raw

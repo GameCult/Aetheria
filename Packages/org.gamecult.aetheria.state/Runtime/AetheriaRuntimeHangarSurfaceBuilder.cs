@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
-using Aetheria.State.Documents;
 
 #nullable enable
 
@@ -30,7 +29,7 @@ namespace GameCult.Aetheria.State.Verse
             string selectedMode,
             string updatedAtUtc,
             long version = 1,
-            AetheriaLoadoutTemplate? loadout = null,
+            AetheriaRuntimeLoadoutTemplateCommit? loadout = null,
             AetheriaRuntimeCatalogSnapshot? catalog = null)
         {
             if (hangar == null) throw new ArgumentNullException(nameof(hangar));
@@ -40,7 +39,7 @@ namespace GameCult.Aetheria.State.Verse
             var mode = AetheriaGameModes.IsKnown(selectedMode) ? selectedMode : AetheriaGameModes.Terminus;
             var canLaunch = selected != null && loadout != null && string.Equals(selected.Status, AetheriaHangarShipStatuses.Available, StringComparison.Ordinal);
             var canContinue = selected != null && string.Equals(selected.Status, AetheriaHangarShipStatuses.Deployed, StringComparison.Ordinal) && !string.IsNullOrWhiteSpace(selected.ActiveDeploymentId);
-            var equipment = loadout?.RootEntity?.Equipment ?? Array.Empty<AetheriaLoadoutItemSlot>();
+            var equipment = loadout?.RootEntity?.Equipment ?? Array.Empty<AetheriaRuntimeLoadoutItemSlotCommit>();
             var inventory = hangar.Inventory ?? Array.Empty<AetheriaHangarItemStack>();
 
             var root = Component(
@@ -49,6 +48,16 @@ namespace GameCult.Aetheria.State.Verse
                 Props(("title", "HANGAR"), ("selectedMode", mode), ("hangarRevision", hangar.Revision.ToString(CultureInfo.InvariantCulture))),
                 new[]
                 {
+                    Component("aetheria.hangar.world", "world.scene3d", Props(
+                        ("statePointerId", AetheriaRuntimeVerseRecordKeys.DaemonFrameLatest.ToString()),
+                        ("entityViewPointerId", AetheriaRuntimeVerseRecordKeys.EveEntitySoaViewLatest.ToString()),
+                        ("entityViewSchema", GameCult.Eve.Surface.EveEntitySoaViewDocument.SchemaId),
+                        ("entityBodyId", AetheriaRuntimeDaemonSoaFramePublisher.BodyId),
+                        ("zoneRenderPointerId", AetheriaRuntimeVerseRecordKeys.ZoneRenderLatest.ToString()),
+                        ("zoneRenderSchema", AetheriaRuntimeDaemonSchemas.ZoneRender),
+                        ("assetManifest", AetheriaRuntimeVerseRecordKeys.EveAssetCatalog.ToString()),
+                        ("cameraRig", "hangar-static"),
+                        ("viewId", "aetheria.hangar")), Array.Empty<AetheriaRuntimeSurfaceComponent>()),
                     Panel("aetheria.hangar.ship_summary", "SHIP", selected == null
                         ? new[] { Text("aetheria.hangar.ship.none", "No ship selected") }
                         : new[]
@@ -75,7 +84,7 @@ namespace GameCult.Aetheria.State.Verse
                     Panel("aetheria.hangar.loadout", "LOADOUT", equipment.Select((slot, index) =>
                         Button(
                             $"aetheria.hangar.loadout.item.{index}",
-                            $"{ItemName(catalog, slot.Item?.ItemKey)} [{slot.Position?.X ?? 0},{slot.Position?.Y ?? 0}]  REMOVE",
+                            $"{ItemName(catalog, slot.Item?.ItemKey)} [{slot.X},{slot.Y}]  REMOVE",
                             AetheriaRuntimeHangarCommands.RemoveItem,
                             ("shipId", selected?.ShipId ?? ""),
                             ("equipmentIndex", index.ToString(CultureInfo.InvariantCulture)),
@@ -159,7 +168,7 @@ namespace GameCult.Aetheria.State.Verse
             Component(id, "text", Props(("value", value)), Array.Empty<AetheriaRuntimeSurfaceComponent>());
 
         private static AetheriaRuntimeSurfaceComponent Button(string id, string label, string command, params (string Key, string Value)[] extra) =>
-            Component(id, "button", Props(new[] { ("label", label), ("command", command) }.Concat(extra).ToArray()), Array.Empty<AetheriaRuntimeSurfaceComponent>());
+            Component(id, "control.button", Props(new[] { ("label", label), ("command", command) }.Concat(extra).ToArray()), Array.Empty<AetheriaRuntimeSurfaceComponent>());
 
         private static AetheriaRuntimeSurfaceCommandTemplate Command(string command, string label) =>
             new AetheriaRuntimeSurfaceCommandTemplate(command, label, AetheriaRuntimeSurfaceCommandTemplate.CultMeshTransport);

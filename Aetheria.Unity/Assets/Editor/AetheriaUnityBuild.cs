@@ -20,7 +20,7 @@ public static class AetheriaUnityBuild
             new[] { scenePath },
             "Build/Windows/Aetheria.exe",
             BuildTarget.StandaloneWindows64,
-            BuildOptions.Development);
+            BuildOptions.None);
         if (report.summary.result != UnityEditor.Build.Reporting.BuildResult.Succeeded)
             throw new System.InvalidOperationException("Aetheria Unity build failed: " + report.summary.result);
     }

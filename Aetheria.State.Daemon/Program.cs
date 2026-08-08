@@ -502,7 +502,7 @@ static async Task<AetheriaRuntimeDaemonTickResult> TickAsync(
             publishTopology: true).ConfigureAwait(false);
         await PublishSecondaryTopologyDocumentsAsync(node, options, result).ConfigureAwait(false);
         TracePhase("api-publication");
-        await PublishStateSurfacesAsync(node, options, result.Frame.PublishedAtUtc).ConfigureAwait(false);
+        await PublishStateSurfacesAsync(node, options, result.Frame.PublishedAtUtc, publishHangar: false).ConfigureAwait(false);
         TracePhase("state-surfaces");
         await PublishOdinSurfaceAnnouncementsAsync(node, options, result.Frame.PublishedAtUtc).ConfigureAwait(false);
         TracePhase("odin-announcements");
@@ -603,7 +603,7 @@ static async Task PersistPreparedDocumentsAsync(
     if (initialTopology)
     {
         await PublishSecondaryTopologyDocumentsAsync(node, options, prepared.Publication).ConfigureAwait(false);
-        await PublishStateSurfacesAsync(node, options, prepared.Publication.Frame.PublishedAtUtc).ConfigureAwait(false);
+        await PublishStateSurfacesAsync(node, options, prepared.Publication.Frame.PublishedAtUtc, publishHangar: false).ConfigureAwait(false);
         await PublishOdinSurfaceAnnouncementsAsync(node, options, prepared.Publication.Frame.PublishedAtUtc).ConfigureAwait(false);
     }
     else
@@ -2706,7 +2706,8 @@ static async Task AcceptEveCommandsAsync(
 static async Task PublishStateSurfacesAsync(
     AetheriaStateNode node,
     AetheriaDaemonHostOptions options,
-    string updatedAtUtc)
+    string updatedAtUtc,
+    bool publishHangar = true)
 {
     var verseHost = await EnsureVerseHostSettingsAsync(node, options, updatedAtUtc).ConfigureAwait(false);
     var eveStatus = await node.MutableDocument<AetheriaEveCommandAcceptanceStatus>(AetheriaStateNode.EveCommandAcceptanceStatusKey).ReadAsync().ConfigureAwait(false);
@@ -2732,7 +2733,7 @@ static async Task PublishStateSurfacesAsync(
     await node.MutableDocument<EveProviderAdvertisementDocument>(AetheriaStateNode.ProviderAdvertisementSurfaceKey)
         .ReplaceAsync(AetheriaEveSurfaceDocuments.BuildProviderAdvertisement(verseHost, node.StatePath, updatedAtUtc))
         .ConfigureAwait(false);
-    if (hangar != null)
+    if (publishHangar && hangar != null)
         await node.MutableDocument<EveSurfaceDocument>(AetheriaRuntimeVerseRecordKeys.HangarSurface)
             .ReplaceAsync(AetheriaRuntimeSurfaceDocuments.ToPortableSurface(
                 AetheriaRuntimeHangarSurfaceBuilder.Build(
@@ -2741,7 +2742,7 @@ static async Task PublishStateSurfacesAsync(
                     AetheriaGameModes.Terminus,
                     updatedAtUtc,
                     Math.Max(1, hangar.Revision),
-                    hangarLoadout,
+                    hangarLoadout == null ? null : AetheriaRuntimeStateMapper.ToRuntimeLoadoutTemplate(hangarLoadout),
                     node.RuntimeCatalog().Latest())))
             .ConfigureAwait(false);
     await node.FlushAsync().ConfigureAwait(false);
@@ -3199,7 +3200,12 @@ static async Task PublishRuntimeSessionAsync(
             Status = status
         })
         .ConfigureAwait(false);
-    await PublishStateSurfacesAsync(node, options, now).ConfigureAwait(false);
+    await PublishStateSurfacesAsync(
+        node,
+        options,
+        now,
+        publishHangar: !string.Equals(status, "running", StringComparison.Ordinal) &&
+            !string.Equals(status, "completed", StringComparison.Ordinal)).ConfigureAwait(false);
 }
 
 static async Task EnsureWorldDocumentAsync(AetheriaStateNode node)

@@ -1,6 +1,7 @@
 param(
   [string] $UnityExe = "C:\Program Files\Unity\Hub\Editor\6000.4.2f1\Editor\Unity.exe",
   [int] $Port = 3076,
+  [string] $State = "",
   [switch] $SkipBuild
 )
 
@@ -11,7 +12,11 @@ $artifacts = Join-Path $project "Build\Logs"
 $clientExe = Join-Path $project "Build\Windows\Aetheria.exe"
 $daemonProject = Join-Path $root "Aetheria.State.Daemon\Aetheria.State.Daemon.csproj"
 $importProject = Join-Path $root "Aetheria.State.Import\Aetheria.State.Import.csproj"
-$state = Join-Path $project "Build\aetheria-unity.cc"
+$state = if ([string]::IsNullOrWhiteSpace($State)) {
+  Join-Path $project "Build\aetheria-unity.cc"
+} else {
+  [System.IO.Path]::GetFullPath($State)
+}
 $stateRecords = "$state.records"
 New-Item -ItemType Directory -Force $artifacts | Out-Null
 

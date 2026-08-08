@@ -67,6 +67,18 @@ public static class AetheriaRuntimeStateMapper
         };
     }
 
+    public static AetheriaRuntimeLoadoutTemplateCommit ToRuntimeLoadoutTemplate(
+        AetheriaLoadoutTemplate loadout)
+    {
+        if (loadout == null) throw new ArgumentNullException(nameof(loadout));
+        return new AetheriaRuntimeLoadoutTemplateCommit
+        {
+            Name = loadout.Name,
+            OwnerPlayerKey = loadout.OwnerPlayerKey,
+            RootEntity = ToRuntimeEntityLoadout(loadout.RootEntity)
+        };
+    }
+
     public static CultRecordKey LoadoutKey(string name)
     {
         return new CultRecordKey($"global:aetheria.loadout_template.{StableToken(name)}.v1");
@@ -93,6 +105,47 @@ public static class AetheriaRuntimeStateMapper
                 .ToArray()
         };
     }
+
+    private static AetheriaRuntimeEntityLoadoutCommit ToRuntimeEntityLoadout(AetheriaEntityLoadout entity) => new()
+    {
+        Name = entity.Name,
+        Kind = entity.Kind,
+        FactionKey = entity.FactionKey,
+        Hull = ToRuntimeLoadoutItem(entity.Hull),
+        Equipment = (entity.Equipment ?? []).Select(ToRuntimeItemSlot).ToArray(),
+        CargoBays = (entity.CargoBays ?? []).Select(ToRuntimeItemSlot).ToArray(),
+        DockingBays = (entity.DockingBays ?? []).Select(ToRuntimeItemSlot).ToArray(),
+        CargoContents = (entity.CargoContents ?? []).Select(value => new AetheriaRuntimeCargoBayLoadoutCommit
+        {
+            Items = (value.Items ?? []).Select(ToRuntimeItemSlot).ToArray()
+        }).ToArray(),
+        DockingBayContents = (entity.DockingBayContents ?? []).Select(value => new AetheriaRuntimeCargoBayLoadoutCommit
+        {
+            Items = (value.Items ?? []).Select(ToRuntimeItemSlot).ToArray()
+        }).ToArray(),
+        DockingBayAssignments = (entity.DockingBayAssignments ?? []).ToArray(),
+        WeaponGroups = (entity.WeaponGroups ?? []).Select(value => (IReadOnlyList<int>)(value ?? []).ToArray()).ToArray(),
+        Children = (entity.Children ?? []).Select(ToRuntimeEntityLoadout).ToArray()
+    };
+
+    private static AetheriaRuntimeLoadoutItemSlotCommit ToRuntimeItemSlot(AetheriaLoadoutItemSlot slot) => new()
+    {
+        X = slot.Position?.X ?? 0,
+        Y = slot.Position?.Y ?? 0,
+        Rotation = slot.Rotation,
+        Item = ToRuntimeLoadoutItem(slot.Item)
+    };
+
+    private static AetheriaRuntimeLoadoutItemCommit ToRuntimeLoadoutItem(AetheriaLoadoutItem item) => new()
+    {
+        ItemKey = item.ItemKey,
+        Quality = item.Quality,
+        Durability = item.Durability,
+        Quantity = item.Quantity,
+        Enabled = item.Enabled,
+        OverrideShutdown = item.OverrideShutdown,
+        Temperature = item.Temperature
+    };
 
     private static AetheriaLoadoutItem ToLoadoutItem(AetheriaRuntimeLoadoutItemCommit? item)
     {

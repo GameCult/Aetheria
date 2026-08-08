@@ -174,8 +174,12 @@ internal sealed class AetheriaDaemonYmirSmokeChecks
                 template = node.MutableDocument<AetheriaLoadoutTemplate>(new CultRecordKey(ship.LoadoutTemplateKey))
                     .ReadAsync().GetAwaiter().GetResult()!;
                 var surface = AetheriaRuntimeHangarSurfaceBuilder.Build(
-                    hangar, ship.ShipId, AetheriaGameModes.Terminus, "2026-08-08T00:00:01Z", 1, template, runtimeCatalog);
+                    hangar, ship.ShipId, AetheriaGameModes.Terminus, "2026-08-08T00:00:01Z", 1,
+                    AetheriaRuntimeStateMapper.ToRuntimeLoadoutTemplate(template), runtimeCatalog);
+                var world = surface.Surface.Root.Children.Single(component => component.Kind == "world.scene3d");
                 Require(surface.Surface.Id == AetheriaRuntimeHangarCommands.SurfaceId &&
+                        world.Props.Any(prop => prop.Key == "entityViewPointerId" && !string.IsNullOrWhiteSpace(prop.Value)) &&
+                        world.Props.Any(prop => prop.Key == "entityBodyId" && !string.IsNullOrWhiteSpace(prop.Value)) &&
                         surface.Commands.Any(command => command.Command == AetheriaRuntimeHangarCommands.EquipItem) &&
                         surface.Commands.Any(command => command.Command == AetheriaRuntimeHangarCommands.RemoveItem) &&
                         surface.Commands.Any(command => command.Command == AetheriaRuntimeHangarCommands.Launch) &&

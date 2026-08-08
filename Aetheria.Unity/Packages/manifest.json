@@ -11,6 +11,6 @@
     "org.gamecult.eve.plugin-fields": "https://github.com/GameCult/EvePlugins.git?path=/plugins/eve-plugin-fields/unity/org.gamecult.eve.plugin-fields#eve-plugin-fields-unity-v0.2.3",
     "org.gamecult.eve.surface": "https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.surface#eveunity-surface-v0.2.4",
     "org.gamecult.eve.unity-scene": "https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.unity-scene#eveunity-scene-v0.3.103",
-    "org.gamecult.eve.unity-uitoolkit": "https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.unity-uitoolkit#eveunity-uitoolkit-v0.1.2"
+    "org.gamecult.eve.unity-uitoolkit": "https://github.com/GameCult/EveUnity.git?path=/packages/org.gamecult.eve.unity-uitoolkit#befdd6a4a1f0376b40a3103aae811670336c0fee"
   }
 }
