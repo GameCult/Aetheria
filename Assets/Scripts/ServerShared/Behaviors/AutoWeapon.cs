@@ -1,8 +1,25 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using MessagePack;
+using Newtonsoft.Json;
+using Unity.Mathematics;
+using static Unity.Mathematics.math;
+
+[Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn), RuntimeInspectable]
+public class AutoWeaponData : InstantWeaponData
+{
+    public override Behavior CreateInstance(EquippedItem item)
+    {
+        return new AutoWeapon(this, item);
+    }
+}
+
 public class AutoWeapon : InstantWeapon
 {
-
-    public AutoWeapon(RuntimeBehaviorDefinition definition, EquippedItem item) : base(definition, item) { }
-    public AutoWeapon(RuntimeBehaviorDefinition definition, ConsumableItemEffect item) : base(definition, item) { }
+    
+    public AutoWeapon(InstantWeaponData data, EquippedItem item) : base(data, item) { }
+    public AutoWeapon(InstantWeaponData data, ConsumableItemEffect item) : base(data, item) { }
 
     public override bool Execute(float dt)
     {

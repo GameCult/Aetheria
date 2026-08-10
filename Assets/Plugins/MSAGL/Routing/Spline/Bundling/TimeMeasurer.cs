@@ -6,7 +6,7 @@ namespace Microsoft.Msagl.Routing.Spline.Bundling {
     /// Outputs run time in debug mode 
     /// </summary>
     internal class TimeMeasurer {
-#if DEBUG && TEST_MSAGL && REPORTING
+#if DEBUG && TEST_MSAGL
         static DebugHelpers.Timer timer;
         static TimeMeasurer() {
             timer = new DebugHelpers.Timer();
@@ -17,7 +17,7 @@ namespace Microsoft.Msagl.Routing.Spline.Bundling {
         internal delegate void Task();
 
         internal static void DebugOutput(string str) {
-#if DEBUG && TEST_MSAGL && REPORTING
+#if DEBUG && TEST_MSAGL
             timer.Stop();
             Console.Write("{0}: ", String.Format("{0:0.000}", timer.Duration));
             Console.WriteLine(str);

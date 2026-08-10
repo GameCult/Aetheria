@@ -1,13 +1,42 @@
 using System;
-using static CultMath.math;
+using System.Collections;
+using System.Collections.Generic;
+using MessagePack;
+using Newtonsoft.Json;
+using Unity.Mathematics;
+using static Unity.Mathematics.math;
+
+[Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn), RuntimeInspectable]
+public class LockWeaponData : InstantWeaponData
+{
+    [Inspectable, JsonProperty("speed"), Key(21), RuntimeInspectable]
+    public PerformanceStat LockSpeed = new PerformanceStat();
+
+    [Inspectable, JsonProperty("sensorImpact"), Key(22)]
+    public PerformanceStat SensorImpact = new PerformanceStat();
+
+    [Inspectable, JsonProperty("threshold"), Key(23), RuntimeInspectable]
+    public PerformanceStat LockAngle = new PerformanceStat();
+
+    [Inspectable, JsonProperty("directionImpact"), Key(24)]
+    public PerformanceStat DirectionImpact = new PerformanceStat();
+
+    [Inspectable, JsonProperty("decay"), Key(25)]
+    public PerformanceStat Decay = new PerformanceStat();
+    
+    public override Behavior CreateInstance(EquippedItem item)
+    {
+        return new LockWeapon(this, item);
+    }
+    public override Behavior CreateInstance(ConsumableItemEffect item)
+    {
+        return new LockWeapon(this, item);
+    }
+}
 
 public class LockWeapon : InstantWeapon
 {
-    private readonly PerformanceStat _lockSpeed;
-    private readonly PerformanceStat _sensorImpact;
-    private readonly PerformanceStat _lockAngle;
-    private readonly PerformanceStat _directionImpact;
-    private readonly PerformanceStat _decay;
+    private LockWeaponData _data;
     private float _lock;
     private bool _locking;
     private Entity _target;
@@ -30,37 +59,14 @@ public class LockWeapon : InstantWeapon
     {
         get => saturate(_lock);
     }
-
-    public float LockProgress => saturate(_lock);
-
-    public Entity LockTarget => _target;
-
-    public LockWeapon(RuntimeBehaviorDefinition definition, EquippedItem item) : base(definition, item)
+    
+    public LockWeapon(LockWeaponData data, EquippedItem item) : base(data, item)
     {
-        _lockSpeed = definition.PerformanceStat(21, new PerformanceStat());
-        _sensorImpact = definition.PerformanceStat(22, new PerformanceStat());
-        _lockAngle = definition.PerformanceStat(23, new PerformanceStat());
-        _directionImpact = definition.PerformanceStat(24, new PerformanceStat());
-        _decay = definition.PerformanceStat(25, new PerformanceStat());
-        RegisterLockWeaponStats();
+        _data = data;
     }
-    public LockWeapon(RuntimeBehaviorDefinition definition, ConsumableItemEffect item) : base(definition, item)
+    public LockWeapon(LockWeaponData data, ConsumableItemEffect item) : base(data, item)
     {
-        _lockSpeed = definition.PerformanceStat(21, new PerformanceStat());
-        _sensorImpact = definition.PerformanceStat(22, new PerformanceStat());
-        _lockAngle = definition.PerformanceStat(23, new PerformanceStat());
-        _directionImpact = definition.PerformanceStat(24, new PerformanceStat());
-        _decay = definition.PerformanceStat(25, new PerformanceStat());
-        RegisterLockWeaponStats();
-    }
-
-    private void RegisterLockWeaponStats()
-    {
-        RegisterPerformanceStat(nameof(LockSpeed), _lockSpeed);
-        RegisterPerformanceStat(nameof(SensorImpact), _sensorImpact);
-        RegisterPerformanceStat(nameof(LockAngle), _lockAngle);
-        RegisterPerformanceStat(nameof(DirectionImpact), _directionImpact);
-        RegisterPerformanceStat(nameof(Decay), _decay);
+        _data = data;
     }
 
     public override bool Execute(float dt)
@@ -73,17 +79,16 @@ public class LockWeapon : InstantWeapon
 
         if (Entity.Target.Value != null && Entity.Target.Value.IsHostileTo(Entity))
         {
-            LockSpeed = Evaluate(_lockSpeed);
-            SensorImpact = Evaluate(_sensorImpact);
-            LockAngle = Evaluate(_lockAngle);
-            DirectionImpact = Evaluate(_directionImpact);
-            Decay = Evaluate(_decay);
+            LockSpeed = Evaluate(_data.LockSpeed);
+            SensorImpact = Evaluate(_data.SensorImpact);
+            LockAngle = Evaluate(_data.LockAngle);
+            DirectionImpact = Evaluate(_data.DirectionImpact);
+            Decay = Evaluate(_data.Decay);
 
-            var targetDirection = Entity.Target.Value.CultPosition - Entity.CultPosition;
-            var angleDegrees = AetheriaMath.AngleDegrees(targetDirection, Entity.CultLookDirection);
-            if (angleDegrees < LockAngle)
+            var degrees = acos(dot(normalize(Entity.Target.Value.Position - Entity.Position), normalize(Entity.LookDirection))) * 57.2958f;
+            if (degrees < LockAngle)
             {
-                var lerp = 1 - unlerp(0, 90, angleDegrees);
+                var lerp = 1 - unlerp(0, 90, degrees);
                 _lock = saturate(_lock + pow(lerp, DirectionImpact) * dt * LockSpeed * pow(Entity.EntityInfoGathered[Entity.Target.Value], SensorImpact));
             }
             else _lock = saturate(_lock - dt * Decay);
@@ -91,28 +96,5 @@ public class LockWeapon : InstantWeapon
 
         return base.Execute(dt);
     }
-
-    public void RestoreRuntimeState(
-        bool firing,
-        int ammo,
-        int burstRemaining,
-        float burstTimer,
-        float burstInterval,
-        float cooldownProgress,
-        bool coolingDown,
-        float lockProgress,
-        Entity lockTarget)
-    {
-        base.RestoreRuntimeState(
-            firing,
-            ammo,
-            burstRemaining,
-            burstTimer,
-            burstInterval,
-            cooldownProgress,
-            coolingDown);
-        _lock = lockProgress;
-        _target = lockTarget;
-        _locking = lockTarget != null;
-    }
 }
+

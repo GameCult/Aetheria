@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Text.RegularExpressions;
+using MessagePack;
 using Unity.Mathematics;
 using UnityEngine;
 using Random = UnityEngine.Random;
@@ -36,7 +37,7 @@ public static class UnitySceneExtensions
 	}
 	
 	public static void BroadcastAll(string fun, System.Object msg) {
-		var gos = GameObject.FindObjectsByType<GameObject>();
+		GameObject[] gos = (GameObject[])GameObject.FindObjectsOfType(typeof(GameObject));
 		foreach (GameObject go in gos) {
 			if (go && go.transform.parent == null) {
 				go.gameObject.BroadcastMessageExt<MonoBehaviour>(fun, msg, SendMessageOptions.DontRequireReceiver);

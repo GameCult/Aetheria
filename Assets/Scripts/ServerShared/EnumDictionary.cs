@@ -1,7 +1,11 @@
 using System;
+using MessagePack;
+using Newtonsoft.Json;
+
+[MessagePackObject, JsonObject(MemberSerialization.OptIn)]
 public class EnumDictionary<E, T> where E : Enum
 {
-    public T[] Values;
+    [JsonProperty("values"), Key(0)] public T[] Values;
 
     public EnumDictionary()
     {

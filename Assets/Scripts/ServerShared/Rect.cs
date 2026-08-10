@@ -1,6 +1,6 @@
-using CultMath;
-using static CultMath.math;
-using float2 = CultMath.float2;
+using Unity.Mathematics;
+using static Unity.Mathematics.math;
+using float2 = Unity.Mathematics.float2;
 
 namespace Unity.Tiny
 {

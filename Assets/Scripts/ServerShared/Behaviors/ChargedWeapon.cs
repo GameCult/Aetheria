@@ -1,37 +1,79 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using static CultMath.math;
+using MessagePack;
+using Newtonsoft.Json;
+using Unity.Mathematics;
+using static Unity.Mathematics.math;
+
+[Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn), RuntimeInspectable]
+public class ChargedWeaponData : InstantWeaponData
+{
+    [Inspectable, JsonProperty("chargeTime"), Key(21), RuntimeInspectable]
+    public PerformanceStat ChargeTime = new PerformanceStat();
+    
+    [Inspectable, JsonProperty("chargeEnergy"), Key(22), RuntimeInspectable]
+    public PerformanceStat ChargeEnergy = new PerformanceStat();
+    
+    [Inspectable, JsonProperty("chargeHeat"), Key(23), RuntimeInspectable]
+    public PerformanceStat ChargeHeat = new PerformanceStat();
+
+    [Inspectable, JsonProperty("canFireEarly"), Key(24)]
+    public bool CanFireEarly;
+
+    [Inspectable, JsonProperty("failureCharge"), Key(25)]
+    public float FailureCharge;
+
+    [Inspectable, JsonProperty("failureDamage"), Key(26)]
+    public float FailureDamage = 1;
+
+    [Inspectable, JsonProperty("chargeDamage"), Key(27)]
+    public float ChargeFiringDamageMultiplier = 1;
+
+    [Inspectable, JsonProperty("chargeSpread"), Key(28)]
+    public float ChargeFiringSpreadMultiplier = 1;
+
+    [Inspectable, JsonProperty("chargeBurstCount"), Key(29)]
+    public float ChargeFiringBurstCountMultiplier = 1;
+
+    [Inspectable, JsonProperty("chargeVisibility"), Key(30)]
+    public float ChargeFiringVisibilityMultiplier = 1;
+
+    [Inspectable, JsonProperty("chargeVelocity"), Key(31)]
+    public float ChargeFiringVelocityMultiplier = 1;
+
+    [Inspectable, JsonProperty("chargeHeatMul"), Key(32)]
+    public float ChargeFiringHeatMultiplier = 1;
+    
+    public override Behavior CreateInstance(EquippedItem item)
+    {
+        return new ChargedWeapon(this, item);
+    }
+    
+    public override Behavior CreateInstance(ConsumableItemEffect item)
+    {
+        return new ChargedWeapon(this, item);
+    }
+}
 
 public class ChargedWeapon : InstantWeapon
 {
-    private readonly PerformanceStat _chargeTime;
-    private readonly PerformanceStat _chargeEnergy;
-    private readonly PerformanceStat _chargeHeat;
-    private readonly bool _canFireEarly;
-    private readonly float _failureCharge;
-    private readonly float _failureDamage;
-    private readonly float _chargeFiringDamageMultiplier;
-    private readonly float _chargeFiringSpreadMultiplier;
-    private readonly float _chargeFiringBurstCountMultiplier;
-    private readonly float _chargeFiringVisibilityMultiplier;
-    private readonly float _chargeFiringVelocityMultiplier;
-    private readonly float _chargeFiringHeatMultiplier;
+    private ChargedWeaponData _data;
     private bool _charging;
     private bool _charged;
     private float _charge;
     private float _progress;
-
+    
     public float ChargeTime { get; protected set; }
     public float ChargeEnergy { get; protected set; }
     public float ChargeHeat { get; protected set; }
-
-    public override float DamagePerSecond => Damage * _chargeFiringDamageMultiplier / (Cooldown + ChargeTime);
+    
+    public override float DamagePerSecond => Damage * _data.ChargeFiringDamageMultiplier / (Cooldown + ChargeTime);
     public override float RangeDamagePerSecond(float range)
     {
-        return EvaluateRangeDamage(range, StatConditionMask.Charge, saturate(_charge)) *
-               lerp(1, _chargeFiringDamageMultiplier, saturate(_charge)) *
-               _chargeFiringDamageMultiplier /
+        return Damage *
+               _data.ChargeFiringDamageMultiplier *
+               _data.DamageCurve.Evaluate(saturate(unlerp(MinRange, Range, range))) /
                (Cooldown + ChargeTime);
     }
 
@@ -55,63 +97,29 @@ public class ChargedWeapon : InstantWeapon
     {
         get => _charge;
     }
-    public bool Charging => _charging;
-    public bool Charged => _charged;
-
-    public ChargedWeapon(RuntimeBehaviorDefinition definition, EquippedItem item) : base(definition, item)
+    
+    public ChargedWeapon(ChargedWeaponData data, EquippedItem item) : base(data, item)
     {
-        _chargeTime = definition.PerformanceStat(21, new PerformanceStat());
-        _chargeEnergy = definition.PerformanceStat(22, new PerformanceStat());
-        _chargeHeat = definition.PerformanceStat(23, new PerformanceStat());
-        _canFireEarly = definition.Bool(24);
-        _failureCharge = definition.Float(25);
-        _failureDamage = definition.Float(26, 1);
-        _chargeFiringDamageMultiplier = definition.Float(27, 1);
-        _chargeFiringSpreadMultiplier = definition.Float(28, 1);
-        _chargeFiringBurstCountMultiplier = definition.Float(29, 1);
-        _chargeFiringVisibilityMultiplier = definition.Float(30, 1);
-        _chargeFiringVelocityMultiplier = definition.Float(31, 1);
-        _chargeFiringHeatMultiplier = definition.Float(32, 1);
-        RegisterChargedWeaponStats();
+        _data = data;
     }
-
-    public ChargedWeapon(RuntimeBehaviorDefinition definition, ConsumableItemEffect item) : base(definition, item)
+    
+    public ChargedWeapon(ChargedWeaponData data, ConsumableItemEffect item) : base(data, item)
     {
-        _chargeTime = definition.PerformanceStat(21, new PerformanceStat());
-        _chargeEnergy = definition.PerformanceStat(22, new PerformanceStat());
-        _chargeHeat = definition.PerformanceStat(23, new PerformanceStat());
-        _canFireEarly = definition.Bool(24);
-        _failureCharge = definition.Float(25);
-        _failureDamage = definition.Float(26, 1);
-        _chargeFiringDamageMultiplier = definition.Float(27, 1);
-        _chargeFiringSpreadMultiplier = definition.Float(28, 1);
-        _chargeFiringBurstCountMultiplier = definition.Float(29, 1);
-        _chargeFiringVisibilityMultiplier = definition.Float(30, 1);
-        _chargeFiringVelocityMultiplier = definition.Float(31, 1);
-        _chargeFiringHeatMultiplier = definition.Float(32, 1);
-        RegisterChargedWeaponStats();
-    }
-
-    private void RegisterChargedWeaponStats()
-    {
-        RegisterPerformanceStat(nameof(ChargeTime), _chargeTime);
-        RegisterPerformanceStat(nameof(ChargeEnergy), _chargeEnergy);
-        RegisterPerformanceStat(nameof(ChargeHeat), _chargeHeat);
+        _data = data;
     }
 
     protected override void UpdateStats()
     {
         base.UpdateStats();
-        ChargeTime = Evaluate(_chargeTime);
-        ChargeEnergy = Evaluate(_chargeEnergy);
-        ChargeHeat = Evaluate(_chargeHeat);
-        Damage = EvaluateDamage(StatConditionMask.Charge, saturate(_charge)) *
-                 lerp(1, _chargeFiringDamageMultiplier, saturate(_charge));
-        Heat *= lerp(1, _chargeFiringHeatMultiplier, saturate(_charge));
-        Spread *= lerp(1, _chargeFiringSpreadMultiplier, saturate(_charge));
-        BurstCount *= lerp(1, _chargeFiringBurstCountMultiplier, saturate(_charge));
-        Visibility *= lerp(1, _chargeFiringVisibilityMultiplier, saturate(_charge));
-        Velocity *= lerp(1, _chargeFiringVelocityMultiplier, saturate(_charge));
+        ChargeTime = Evaluate(_data.ChargeTime);
+        ChargeEnergy = Evaluate(_data.ChargeEnergy);
+        ChargeHeat = Evaluate(_data.ChargeHeat);
+        Damage *= lerp(1, _data.ChargeFiringDamageMultiplier, saturate(_charge));
+        Heat *= lerp(1, _data.ChargeFiringHeatMultiplier, saturate(_charge));
+        Spread *= lerp(1, _data.ChargeFiringSpreadMultiplier, saturate(_charge));
+        BurstCount *= lerp(1, _data.ChargeFiringBurstCountMultiplier, saturate(_charge));
+        Visibility *= lerp(1, _data.ChargeFiringVisibilityMultiplier, saturate(_charge));
+        Velocity *= lerp(1, _data.ChargeFiringVelocityMultiplier, saturate(_charge));
     }
 
     public override bool Execute(float dt)
@@ -129,7 +137,7 @@ public class ChargedWeapon : InstantWeapon
                     OnCharged?.Invoke();
                 }
             }
-            if (_failureCharge > 1 && _charge > _failureCharge)
+            if (_data.FailureCharge > 1 && _charge > _data.FailureCharge)
             {
                 _charging = false;
                 _cooldown = 1;
@@ -137,7 +145,7 @@ public class ChargedWeapon : InstantWeapon
                 _charge = 0;
                 OnFailed?.Invoke();
                 Item.FireAudioEvent(ChargedWeaponAudioEvent.Fail);
-                CauseDamage(_failureDamage);
+                CauseDamage(_data.FailureDamage);
             }
         }
         return base.Execute(dt);
@@ -158,7 +166,7 @@ public class ChargedWeapon : InstantWeapon
     {
         if (_charging)
         {
-            if (_canFireEarly || _charge > 1)
+            if (_data.CanFireEarly || _charge > 1)
             {
                 Trigger();
                 _charge = 0;
@@ -168,29 +176,5 @@ public class ChargedWeapon : InstantWeapon
             _charging = false;
         }
     }
-
-    public void RestoreRuntimeState(
-        bool firing,
-        int ammo,
-        int burstRemaining,
-        float burstTimer,
-        float burstInterval,
-        float cooldownProgress,
-        bool coolingDown,
-        bool charging,
-        bool charged,
-        float charge)
-    {
-        base.RestoreRuntimeState(
-            firing,
-            ammo,
-            burstRemaining,
-            burstTimer,
-            burstInterval,
-            cooldownProgress,
-            coolingDown);
-        _charging = charging;
-        _charged = charged;
-        _charge = charge;
-    }
 }
+

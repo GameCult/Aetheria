@@ -1,70 +1,75 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
+﻿/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
-using static CultMath.math;
+using System;
+using System.Linq;
+using MessagePack;
+using Newtonsoft.Json;
+using Unity.Mathematics;
+using static Unity.Mathematics.math;
+
+[Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn), Order(10)]
+public class MiningToolData : BehaviorData
+{
+    [Inspectable, JsonProperty("dps"), Key(1)]
+    public PerformanceStat DamagePerSecond = new PerformanceStat();
+    
+    [Inspectable, JsonProperty("efficiency"), Key(2)]
+    public PerformanceStat Efficiency = new PerformanceStat();
+    
+    [Inspectable, JsonProperty("penetration"), Key(3)]
+    public PerformanceStat Penetration = new PerformanceStat();
+    
+    [Inspectable, JsonProperty("range"), Key(4)]
+    public PerformanceStat Range = new PerformanceStat();
+    
+    public override Behavior CreateInstance(EquippedItem item)
+    {
+        return new MiningTool(this, item);
+    }
+    public override Behavior CreateInstance(ConsumableItemEffect item)
+    {
+        return new MiningTool(this, item);
+    }
+}
 
 public class MiningTool : Behavior
 {
-    public string AsteroidBeltBodyKey = "";
+    public Guid AsteroidBelt;
     public int Asteroid;
-
-    private readonly PerformanceStat _damagePerSecond;
-    private readonly PerformanceStat _efficiency;
-    private readonly PerformanceStat _penetration;
-    private readonly PerformanceStat _range;
+    
+    private MiningToolData _data;
     public float Range { get; private set; }
 
-    public MiningTool(RuntimeBehaviorDefinition definition, EquippedItem item) : base(definition, item)
+    public MiningTool(MiningToolData data, EquippedItem item) : base(data, item)
     {
-        _damagePerSecond = definition.PerformanceStat(1, new PerformanceStat());
-        _efficiency = definition.PerformanceStat(2, new PerformanceStat());
-        _penetration = definition.PerformanceStat(3, new PerformanceStat());
-        _range = definition.PerformanceStat(4, new PerformanceStat());
-        RegisterPerformanceStat("DamagePerSecond", _damagePerSecond);
-        RegisterPerformanceStat("Efficiency", _efficiency);
-        RegisterPerformanceStat("Penetration", _penetration);
-        RegisterPerformanceStat(nameof(Range), _range);
+        _data = data;
     }
 
-    public MiningTool(RuntimeBehaviorDefinition definition, ConsumableItemEffect item) : base(definition, item)
+    public MiningTool(MiningToolData data, ConsumableItemEffect item) : base(data, item)
     {
-        _damagePerSecond = definition.PerformanceStat(1, new PerformanceStat());
-        _efficiency = definition.PerformanceStat(2, new PerformanceStat());
-        _penetration = definition.PerformanceStat(3, new PerformanceStat());
-        _range = definition.PerformanceStat(4, new PerformanceStat());
-        RegisterPerformanceStat("DamagePerSecond", _damagePerSecond);
-        RegisterPerformanceStat("Efficiency", _efficiency);
-        RegisterPerformanceStat("Penetration", _penetration);
-        RegisterPerformanceStat(nameof(Range), _range);
+        _data = data;
     }
 
     public override bool Execute(float dt)
     {
-        Range = Evaluate(_range);
-        if (!string.IsNullOrWhiteSpace(AsteroidBeltBodyKey) &&
-            Entity.Zone.TryGetAsteroidBelt(AsteroidBeltBodyKey, out var belt) &&
-            Entity.Zone.AsteroidExists(AsteroidBeltBodyKey, Asteroid) &&
-            Entity.Zone.TryGetCultAsteroidTransform(AsteroidBeltBodyKey, Asteroid, out var asteroidPosition, out var asteroidRadius) &&
-            length(Entity.CultPositionXZ - asteroidPosition) - asteroidRadius < Range)
+        Range = Evaluate(_data.Range);
+        var belt = Entity.Zone.AsteroidBelts[AsteroidBelt];
+        if (AsteroidBelt != Guid.Empty && 
+            Entity.Zone.AsteroidExists(AsteroidBelt, Asteroid) && 
+            length(Entity.Position.xz - belt.Transforms[Asteroid].xy) - belt.Transforms[Asteroid].w < Range)
         {
             Entity.Zone.MineAsteroid(
                 Entity,
-                AsteroidBeltBodyKey,
+                AsteroidBelt,
                 Asteroid,
-                Evaluate(_damagePerSecond) * dt,
-                Evaluate(_efficiency),
-                Evaluate(_penetration));
+                Evaluate(_data.DamagePerSecond) * dt,
+                Evaluate(_data.Efficiency),
+                Evaluate(_data.Penetration));
             return true;
         }
 
         return false;
-    }
-
-    public void RestoreRuntimeState(string asteroidBeltBodyKey, int asteroid, float range)
-    {
-        AsteroidBeltBodyKey = asteroidBeltBodyKey ?? "";
-        Asteroid = asteroid;
-        Range = range;
     }
 }

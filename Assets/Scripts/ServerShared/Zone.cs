@@ -9,27 +9,25 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using UniRx;
-using cfloat2 = CultMath.float2;
-using cfloat3 = CultMath.float3;
+using Unity.Mathematics;
+using static Unity.Mathematics.math;
 using float2 = Unity.Mathematics.float2;
-using float3 = Unity.Mathematics.float3;
-using float4 = Unity.Mathematics.float4;
 using Random = Unity.Mathematics.Random;
 
 public class Zone
 {
-    public const string OrbitKeyPrefix = "aetheria.orbit:";
-    public const string BodyKeyPrefix = "aetheria.body:";
-
     public Action<string> Log;
+    //public HashSet<Guid> Planets = new HashSet<Guid>();
     public ReactiveCollection<Entity> Entities = new ReactiveCollection<Entity>();
-    public Dictionary<string, Planet> PlanetInstances = new Dictionary<string, Planet>(StringComparer.Ordinal);
+    //public Dictionary<Guid, OrbitData> Orbits = new Dictionary<Guid, OrbitData>();
+    public Dictionary<Guid, BodyData> Planets = new Dictionary<Guid, BodyData>();
+    public Dictionary<Guid, Planet> PlanetInstances = new Dictionary<Guid, Planet>();
 
-    public Dictionary<string, Orbit> Orbits = new Dictionary<string, Orbit>(StringComparer.Ordinal);
-    public Dictionary<string, AsteroidBelt> AsteroidBelts = new Dictionary<string, AsteroidBelt>(StringComparer.Ordinal);
+    public Dictionary<Guid, Orbit> Orbits = new Dictionary<Guid, Orbit>();
+    public Dictionary<Guid, AsteroidBelt> AsteroidBelts = new Dictionary<Guid, AsteroidBelt>();
     public PlanetSettings Settings;
-
-    private HashSet<string> _updatedOrbits = new HashSet<string>(StringComparer.Ordinal);
+    
+    private HashSet<Guid> _updatedOrbits = new HashSet<Guid>();
 
     private ItemManager _itemManager;
     private double _time;
@@ -42,66 +40,55 @@ public class Zone
     {
         get => (float) _time;
     }
-    public float Radius { get; }
-    public float Mass { get; }
+    public ZonePack Pack { get; }
     public GalaxyZone GalaxyZone { get; }
     public Galaxy Galaxy { get; }
 
-    public Zone(ItemManager itemManager, PlanetSettings settings, ZoneConstructionBlueprint blueprint, GalaxyZone galaxyZone, Galaxy galaxy)
+    public Zone(ItemManager itemManager, PlanetSettings settings, ZonePack pack, GalaxyZone galaxyZone, Galaxy galaxy)
     {
-        _time = blueprint.Time;
+        _time = pack.Time;
         GalaxyZone = galaxyZone;
         Galaxy = galaxy;
-        Radius = blueprint.Radius;
-        Mass = blueprint.Mass;
+        Pack = pack;
         _itemManager = itemManager;
         Settings = settings;
-        _random = new Random(Convert.ToUInt32(Math.Abs(galaxyZone?.Name.GetHashCode() ?? 1337)));
+        _random = new Random(Convert.ToUInt32(abs(galaxyZone?.Name.GetHashCode() ?? 1337)));
         
-        foreach (var orbit in blueprint.Orbits)
+        foreach (var orbit in pack.Orbits)
         {
-            var runtimeOrbit = new Orbit(Settings, orbit);
-            Orbits[runtimeOrbit.OrbitKey] = runtimeOrbit;
+            Orbits.Add(orbit.ID, new Orbit(Settings, orbit));
         }
         
-        foreach (var planet in blueprint.Bodies)
+        foreach (var planet in pack.Planets)
         {
+            Planets.Add(planet.ID, planet);
             switch (planet)
             {
-                case AsteroidBeltConstructionData belt:
-                    var runtimeBelt = new AsteroidBelt(belt, Orbits[belt.OrbitKey]);
-                    AsteroidBelts[runtimeBelt.BodyKey] = runtimeBelt;
+                case AsteroidBeltData belt:
+                    AsteroidBelts[belt.ID] = new AsteroidBelt(belt);
                     break;
-                case SunConstructionData sun:
-                    var runtimeSun = new Sun(settings, sun, Orbits[planet.OrbitKey]);
-                    PlanetInstances[runtimeSun.BodyKey] = runtimeSun;
+                case SunData sun:
+                    PlanetInstances.Add(sun.ID, new Sun(settings, sun, Orbits[planet.Orbit]));
                     break;
-                case GasGiantConstructionData gas:
-                    var runtimeGas = new GasGiant(settings, gas, Orbits[planet.OrbitKey]);
-                    PlanetInstances[runtimeGas.BodyKey] = runtimeGas;
+                case GasGiantData gas:
+                    PlanetInstances.Add(gas.ID, new GasGiant(settings, gas, Orbits[planet.Orbit]));
                     break;
                 default:
-                    var runtimePlanet = new Planet(settings, planet, Orbits[planet.OrbitKey]);
-                    PlanetInstances[runtimePlanet.BodyKey] = runtimePlanet;
+                    PlanetInstances.Add(planet.ID, new Planet(settings, planet, Orbits[planet.Orbit]));
                     break;
             }
         }
 
-        foreach (var entityBlueprint in blueprint.Entities)
+        foreach (var entityPack in pack.Entities)
         {
-            var entity = EntityConstructionBlueprintMaterializer.InstantiateAuthoritativeFromBlueprint(_itemManager, this, entityBlueprint);
+            var entity = EntitySerializer.Unpack(_itemManager, this, entityPack);
             Entities.Add(entity);
             entity.Activate();
             if (entity is Ship {IsPlayerShip: false} ship)
             {
                 Agents.Add(CreateAgent(ship));
-                if (CultMath.math.lengthsq(ship.CultPosition) < 1)
-                {
-                    var halfRadius = blueprint.Radius * .5f;
-                    ship.CultPosition = _itemManager.Random.NextFloat3(
-                        new cfloat3(-halfRadius, -halfRadius, -halfRadius),
-                        new cfloat3(halfRadius, halfRadius, halfRadius));
-                }
+                if (lengthsq(ship.Position) < 1)
+                    ship.Position = _itemManager.Random.NextFloat3(float3(-pack.Radius * .5f), float3(pack.Radius * .5f));
             }
         }
 
@@ -112,43 +99,27 @@ public class Zone
     {
         var agent = new Minion(ship);
         var task = new PatrolOrbitsTask();
-        task.Circuit = Orbits.Values
-            .OrderBy(_ => _itemManager.Random.NextFloat())
-            .Take(4)
-            .Select(orbit => orbit.OrbitKey)
-            .ToArray();
+        task.Circuit = Orbits.OrderBy(_ => _itemManager.Random.NextFloat()).Take(4).Select(x => x.Key).ToArray();
         agent.Task = task;
         return agent;
     }
 
-    public static string OrbitKey(Guid id)
+    public ZonePack PackZone()
     {
-        return id == Guid.Empty ? "" : $"{OrbitKeyPrefix}{id:D}";
+        return new ZonePack
+        {
+            Radius = Pack.Radius,
+            Mass = Pack.Mass,
+            Entities = Entities.Select(EntitySerializer.Pack).ToList(),
+            Orbits = Orbits.Values.Select(o=>o.Data).ToList(),
+            Planets = Planets.Values.ToList(),
+            Time = _time
+        };
     }
 
-    public static string BodyKey(Guid id)
+    public void AddOrbit(OrbitData orbit)
     {
-        return id == Guid.Empty ? "" : $"{BodyKeyPrefix}{id:D}";
-    }
-
-    public bool TryGetPlanet(string bodyKey, out Planet planet)
-    {
-        return PlanetInstances.TryGetValue(bodyKey ?? "", out planet);
-    }
-
-    public bool TryGetAsteroidBelt(string bodyKey, out AsteroidBelt belt)
-    {
-        return AsteroidBelts.TryGetValue(bodyKey ?? "", out belt);
-    }
-
-    public bool AsteroidExists(string asteroidBeltKey, int asteroid)
-    {
-        return TryGetAsteroidBelt(asteroidBeltKey, out var belt) && belt.ContainsAsteroid(asteroid);
-    }
-
-    public bool TryGetOrbit(string orbitKey, out Orbit orbit)
-    {
-        return Orbits.TryGetValue(orbitKey ?? "", out orbit);
+        Orbits.Add(orbit.ID, new Orbit(Settings, orbit));
     }
 
     public void Update(float deltaTime)
@@ -158,18 +129,18 @@ public class Zone
         foreach (var t in BeltUpdates)
             t.Wait();
         BeltUpdates.Clear();
-        foreach (var orbit in Orbits.Values)
+        foreach (var orbit in Orbits)
         {
-            orbit.PreviousPosition = orbit.Position;
-            orbit.Position = GetOrbitPosition(orbit.OrbitKey);
-            orbit.Velocity = (orbit.Position - orbit.PreviousPosition) / deltaTime;
+            orbit.Value.PreviousPosition = orbit.Value.Position;
+            orbit.Value.Position = GetOrbitPosition(orbit.Key);
+            orbit.Value.Velocity = (orbit.Value.Position - orbit.Value.PreviousPosition) / deltaTime;
         }
 
-        foreach (var belt in AsteroidBelts.Values)
+        foreach (var belt in AsteroidBelts)
         {
-            Array.Copy(belt.NewTransforms, belt.Transforms, belt.Transforms.Length);
-            belt.OrbitPosition = belt.NewOrbitPosition;
-            BeltUpdates.Add(Task.Run(() => UpdateAsteroidTransforms(belt)));
+            Array.Copy(belt.Value.NewTransforms, belt.Value.Transforms, belt.Value.Transforms.Length);
+            belt.Value.OrbitPosition = belt.Value.NewOrbitPosition;
+            BeltUpdates.Add(Task.Run(() => UpdateAsteroidTransforms(belt.Key)));
         }
         
         foreach(var agent in Agents)
@@ -179,63 +150,62 @@ public class Zone
     }
     
     // Determine orbital position recursively, caching parent positions to avoid repeated calculations
-    public float2 GetOrbitPosition(string orbitKey)
+    public float2 GetOrbitPosition(Guid orbitID)
     {
         // Root orbit is fixed at origin
-        if (string.IsNullOrWhiteSpace(orbitKey))
-            return new float2(0, 0);
-        if (!Orbits.TryGetValue(orbitKey, out var orbit))
+        if(orbitID==Guid.Empty)
+            return float2.zero;
+        if (!Orbits.ContainsKey(orbitID))
         {
             Log?.Invoke("Requested orbit is not part of this zone!");
-            return new float2(0, 0);
+            return float2.zero;
         }
         
-        if (!_updatedOrbits.Contains(orbitKey))
+        if (!_updatedOrbits.Contains(orbitID))
         {
-            float2 pos = new float2(0, 0);
+            var orbit = Orbits[orbitID];
+            float2 pos = float2.zero;
             if (orbit.Period > .01f)
             {
-                var phase = (float) Fraction(_time / orbit.Period);
-                pos = Orbit.Evaluate(Fraction(phase + orbit.Phase)) * orbit.Distance;
+                var phase = (float) frac(_time / orbit.Period);
+                pos = OrbitData.Evaluate(frac(phase + orbit.Data.Phase)) * orbit.Data.Distance;
                 
                 if (float.IsNaN(pos.x))
                 {
                     //_context.Log("Orbit position is NaN, something went very wrong!");
-                    pos = new float2(0, 0);
+                    pos = float2.zero;
                 }
             }
 
-            var parentPosition = string.IsNullOrWhiteSpace(orbit.ParentOrbitKey)
-                ? orbit.FixedPosition
-                : GetOrbitPosition(orbit.ParentOrbitKey);
-            orbit.Position = parentPosition + pos;
-            _updatedOrbits.Add(orbitKey);
+            var parentPosition = Orbits[orbitID].Data.Parent == Guid.Empty 
+                ? Orbits[orbitID].Data.FixedPosition : 
+                GetOrbitPosition(orbit.Data.Parent);
+            Orbits[orbitID].Position = parentPosition + pos;
+            _updatedOrbits.Add(orbitID);
         }
 
-        return orbit.Position;
+        return Orbits[orbitID].Position;
     }
 
-    public float2 GetOrbitVelocity(string orbitKey)
+    public float2 GetOrbitVelocity(Guid orbit)
     {
-        return TryGetOrbit(orbitKey, out var orbit) ? orbit.Velocity : float2.zero;
+        if (Orbits.ContainsKey(orbit))
+            return Orbits[orbit].Velocity;
+        return float2.zero;
     }
 
-    public cfloat2 GetCultOrbitPosition(string orbitKey) => AetheriaMath.ToCult(GetOrbitPosition(orbitKey));
-
-    public cfloat2 GetCultOrbitVelocity(string orbitKey) => AetheriaMath.ToCult(GetOrbitVelocity(orbitKey));
-
-    public int NearestAsteroid(string asteroidBeltKey, float2 position)
+    public int NearestAsteroid(Guid planetDataID, float2 position)
     {
-        if (!TryGetAsteroidBelt(asteroidBeltKey, out var belt))
-            return -1;
-        var asteroidPositions = belt.Transforms;
+        var beltData = Planets[planetDataID] as AsteroidBeltData;
+
+        var asteroidPositions = AsteroidBelts[planetDataID].Transforms;
 
         int nearest = 0;
         float nearestDistance = Single.MaxValue;
-        for (int i = 0; i < belt.AsteroidCount; i++)
+        for (int i = 0; i < beltData.Asteroids.Length; i++)
         {
-            var dist = LengthSquared(asteroidPositions[i].xz - position);
-            if (belt.ContainsAsteroid(i) && dist < nearestDistance)
+            var dist = lengthsq(asteroidPositions[i].xz - position);
+            if (AsteroidExists(planetDataID, i) && dist < nearestDistance)
             {
                 nearest = i;
                 nearestDistance = dist;
@@ -245,57 +215,64 @@ public class Zone
         return nearest;
     }
 
-    public int NearestAsteroid(string asteroidBeltKey, cfloat2 position) =>
-        NearestAsteroid(asteroidBeltKey, AetheriaMath.ToUnity(position));
+    public bool AsteroidExists(Guid planetDataID, int asteroid) => ((AsteroidBeltData) Planets[planetDataID]).Asteroids.Length > asteroid && asteroid >= 0;
 
-    public bool TryGetCultAsteroidTransform(
-        string asteroidBeltKey,
-        int asteroid,
-        out cfloat2 position,
-        out float radius)
+    private void UpdateAsteroidTransforms(Guid planetDataID)
     {
-        position = cfloat2.zero;
-        radius = 0;
-        if (!TryGetAsteroidBelt(asteroidBeltKey, out var belt) || !belt.ContainsAsteroid(asteroid))
-            return false;
+        var beltData = Planets[planetDataID] as AsteroidBeltData;
+        
+        var belt = AsteroidBelts[planetDataID];
 
-        var transform = belt.Transforms[asteroid];
-        position = AetheriaMath.ToCult(transform.xy);
-        radius = transform.w;
-        return true;
-    }
-
-    private void UpdateAsteroidTransforms(AsteroidBelt belt)
-    {
-        belt.NewOrbitPosition = GetOrbitPosition(belt.Orbit.ParentOrbitKey);
-        for (var i = 0; i < belt.AsteroidCount; i++)
+        var orbitData = Orbits[beltData.Orbit].Data;
+        belt.NewOrbitPosition = GetOrbitPosition(orbitData.Parent);
+        for (var i = 0; i < beltData.Asteroids.Length; i++)
         {
-            var asteroid = belt.GetAsteroid(i);
             float size;
             if(belt.RespawnTimers.ContainsKey(i)) size = 0;
             else if (belt.Damage.ContainsKey(i))
             {
-                var asteroidHitpoints = Settings.AsteroidHitpoints.Evaluate(asteroid.Size);
+                var asteroidHitpoints = Settings.AsteroidHitpoints.Evaluate(beltData.Asteroids[i].Size);
                 var damage = (asteroidHitpoints - belt.Damage[i]) / asteroidHitpoints;
-                size = Settings.AsteroidSize.Evaluate(damage * asteroid.Size);
+                size = Settings.AsteroidSize.Evaluate(damage * beltData.Asteroids[i].Size);
             }
-            else size = Settings.AsteroidSize.Evaluate(asteroid.Size);
+            else size = Settings.AsteroidSize.Evaluate(beltData.Asteroids[i].Size);
 
-            var rot = (float) (_time * asteroid.RotationSpeed % (MathF.PI * 2));
-            var pos = Orbit.Evaluate((float) Fraction(_time / Settings.OrbitPeriod.Evaluate(asteroid.Distance) +
-                                                      asteroid.Phase)) * asteroid.Distance + belt.NewOrbitPosition;
+            var rot = (float) (_time * beltData.Asteroids[i].RotationSpeed % (PI * 2));
+            var pos = OrbitData.Evaluate((float) frac(_time / Settings.OrbitPeriod.Evaluate(beltData.Asteroids[i].Distance) +
+                                                      beltData.Asteroids[i].Phase)) * beltData.Asteroids[i].Distance + belt.NewOrbitPosition;
             //belt.NewPositions[i] = float3(pos.x, GetHeight(pos) + Settings.AsteroidVerticalOffset, pos.y);
-            belt.NewTransforms[i] = new float4(pos.x, pos.y, rot, size);
+            belt.NewTransforms[i] = float4(pos.x, pos.y, rot, size);
         }
     }
 
-    public void MineAsteroid(Entity miner, string asteroidBeltKey, int asteroid, float damage, float efficiency, float penetration)
+    public OrbitData CreateOrbit(Guid parent, float2 position)
     {
-        if (!TryGetAsteroidBelt(asteroidBeltKey, out var belt))
-            return;
+        var parentPosition = GetOrbitPosition(parent);
+        var delta = position - parentPosition;
+        var distance = length(delta);
+        var period = Settings.OrbitPeriod.Evaluate(distance);
+        var phase = atan2(delta.y, delta.x) / (PI * 2);
+        var currentPhase = frac(_time / period);
+        var storedPhase = (float) frac(phase - currentPhase);
+
+        var orbit = new OrbitData
+        {
+            ID = Guid.NewGuid(),
+            Distance = distance,
+            Parent = parent,
+            Phase = storedPhase
+        };
+        Orbits.Add(orbit.ID, new Orbit(Settings, orbit));
+        return orbit;
+    }
+
+    public void MineAsteroid(Entity miner, Guid asteroidBelt, int asteroid, float damage, float efficiency, float penetration)
+    {
+        var beltData = Planets[asteroidBelt] as AsteroidBeltData;
+        var belt = AsteroidBelts[asteroidBelt];
         //var asteroidTransform = belt.Transforms[asteroid];
 
-        var size = belt.GetAsteroid(asteroid).Size;
+        var size = beltData.Asteroids[asteroid].Size;
         var asteroidHitpoints = Settings.AsteroidHitpoints.Evaluate(size);
         
         if (!belt.Damage.ContainsKey(asteroid))
@@ -314,8 +291,8 @@ public class Zone
             return;
         }
 
-        var resourceCount = belt.Resources.Sum(x => x.Value);
-        var resource = belt.Resources.MaxBy(x => MathF.Pow(x.Value, 1f / penetration) * _random.NextFloat());
+        var resourceCount = beltData.Resources.Sum(x => x.Value);
+        var resource = beltData.Resources.MaxBy(x => pow(x.Value, 1f / penetration) * _random.NextFloat());
         if (efficiency * _random.NextFloat() * belt.MiningAccumulator[(miner, asteroid)] * resourceCount / Settings.MiningDifficulty > 1)
         {
             belt.MiningAccumulator.Remove((miner, asteroid));
@@ -329,18 +306,16 @@ public class Zone
         }
     }
 
-    public SecurityLevel GetSecurityLevel(float2 pos) => GetSecurityLevel(AetheriaMath.ToCult(pos));
-
-    public SecurityLevel GetSecurityLevel(cfloat2 pos)
+    public SecurityLevel GetSecurityLevel(float2 pos)
     {
         if (GalaxyZone.Owner==null) return SecurityLevel.Open;
         
         var security = SecurityLevel.Open;
         foreach (var entity in Entities)
         {
-            if (entity is OrbitalEntity orbitalEntity && orbitalEntity.SecurityRadius > 1 && entity.Faction.HasSameKey(GalaxyZone.Owner))
+            if (entity is OrbitalEntity orbitalEntity && orbitalEntity.SecurityRadius > 1 && entity.Faction.ID == GalaxyZone.Owner.ID)
             {
-                if (orbitalEntity.SecurityLevel > security && CultMath.math.length(orbitalEntity.CultPositionXZ - pos) < orbitalEntity.SecurityRadius * Settings.SecureAreaRadiusMultiplier)
+                if (orbitalEntity.SecurityLevel > security && length(orbitalEntity.Position.xz - pos) < orbitalEntity.SecurityRadius * Settings.SecureAreaRadiusMultiplier)
                     security = orbitalEntity.SecurityLevel;
             }
         }
@@ -350,16 +325,16 @@ public class Zone
     
     public float GetHeight(float2 position)
     {
-        var result = -PowerPulse(Length(position)/(Radius*2), Settings.ZoneDepthExponent) * Settings.ZoneDepth;
+        var result = -PowerPulse(length(position)/(Pack.Radius*2), Settings.ZoneDepthExponent) * Settings.ZoneDepth;
         foreach (var body in PlanetInstances.Values)
         {
-            var p = position - body.Orbit.Position;
-            var distSqr = LengthSquared(p);
+            var p = position - body.Orbit.Position; //GetOrbitPosition(body.BodyData.Orbit)
+            var distSqr = lengthsq(p);
             var gravityRadius = body.GravityWellRadius;
             if (distSqr < gravityRadius*gravityRadius)
             {
                 var depth = body.GravityWellDepth;
-                result -= PowerPulse(MathF.Sqrt(distSqr) / gravityRadius, body.GravityDepthExponent) * depth;
+                result -= PowerPulse(sqrt(distSqr) / gravityRadius, body.BodyData.GravityDepthExponent) * depth;
             }
 
             if (body is GasGiant gas)
@@ -368,17 +343,15 @@ public class Zone
                 if(distSqr < waveRadius*waveRadius)
                 {
                     var depth = gas.GravityWavesDepth;
-                    var frequency = Settings.WaveFrequency.Evaluate(body.Mass);
+                    var frequency = Settings.WaveFrequency.Evaluate(body.BodyData.Mass);
                     var speed = gas.GravityWavesSpeed;
-                    result -= RadialWaves(MathF.Sqrt(distSqr) / waveRadius, 8, 1.25f, frequency, (float) (_time * speed)) * depth;
+                    result -= RadialWaves(sqrt(distSqr) / waveRadius, 8, 1.25f, frequency, (float) (_time * speed)) * depth;
                 }
             }
         }
 
         return result;
     }
-
-    public float GetHeight(cfloat2 position) => GetHeight(AetheriaMath.ToUnity(position));
 
     public float GetLight(float2 position)
     {
@@ -388,11 +361,11 @@ public class Zone
             if (body is Sun sun)
             {
                 var p = position - body.Orbit.Position;
-                var distSqr = LengthSquared(p);
+                var distSqr = lengthsq(p);
                 var lightRadius = sun.LightRadius;
                 if (distSqr < lightRadius * lightRadius)
                 {
-                    light += PowerPulse(MathF.Sqrt(distSqr) / lightRadius, 8);
+                    light += PowerPulse(sqrt(distSqr) / lightRadius, 8);
                 }
             }
         }
@@ -400,28 +373,24 @@ public class Zone
         return light;
     }
 
-    public float GetLight(cfloat2 position) => GetLight(AetheriaMath.ToUnity(position));
-
     public float2 GetForce(float2 position)
     {
         var normal = GetNormal(position);
         var f = new float2(normal.x, normal.z);
-        return f * Settings.GravityStrength * LengthSquared(f);
+        return f * Settings.GravityStrength * lengthsq(f);
     }
-
-    public cfloat2 GetForce(cfloat2 position) => AetheriaMath.ToCult(GetForce(AetheriaMath.ToUnity(position)));
 
     public static float PowerPulse(float x, float exponent)
     {
         x *= 2;
-        x = Clamp(x, -1, 1);
-        return MathF.Pow((x + 1) * (1 - x), exponent);
+        x = clamp(x, -1, 1);
+        return pow((x + 1) * (1 - x), exponent);
     }
 
     public static float RadialWaves(float x, float maskExponent, float sineExponent, float frequency, float phase)
     {
         //x *= 2;
-        return PowerPulse(x, maskExponent) * MathF.Cos(MathF.Pow(x*2, sineExponent) * frequency + phase);
+        return PowerPulse(x, maskExponent) * cos(pow(x*2, sineExponent) * frequency + phase);
     }
 
     public float3 GetNormal(float2 pos, float step = .1f, float mul = 1)
@@ -433,41 +402,7 @@ public class Zone
 
         // Deduce terrain normal
         float3 normal = new float3((hL - hR), (hD - hU), step*2);
-        return Normalize(normal).xzy;
-    }
-
-    public cfloat3 GetNormal(cfloat2 pos, float step = .1f, float mul = 1) =>
-        AetheriaMath.ToCult(GetNormal(AetheriaMath.ToUnity(pos), step, mul));
-
-    private static float Clamp(float value, float min, float max)
-    {
-        return value < min ? min : value > max ? max : value;
-    }
-
-    private static double Fraction(double value)
-    {
-        return value - Math.Floor(value);
-    }
-
-    private static float Fraction(float value)
-    {
-        return value - MathF.Floor(value);
-    }
-
-    private static float Length(float2 value)
-    {
-        return MathF.Sqrt(LengthSquared(value));
-    }
-
-    private static float LengthSquared(float2 value)
-    {
-        return value.x * value.x + value.y * value.y;
-    }
-
-    private static float3 Normalize(float3 value)
-    {
-        var length = MathF.Sqrt(value.x * value.x + value.y * value.y + value.z * value.z);
-        return length <= 0 ? new float3(0, 0, 0) : value / length;
+        return normalize(normal).xzy;
     }
 }
 
@@ -475,121 +410,70 @@ public class Planet
 {
     public Orbit Orbit;
     protected readonly PlanetSettings Settings;
-    public string BodyKey { get; }
-    public string Name { get; }
-    public string OrbitKey { get; }
-    public float Mass { get; }
-    public IReadOnlyDictionary<string, float> Resources { get; }
-    public float BodyRadiusMultiplier { get; }
-    public float GravityRadiusMultiplier { get; }
-    public float GravityDepthMultiplier { get; }
-    public float GravityDepthExponent { get; }
+    public BodyData BodyData;
     public float GravityWellDepth;
     public float GravityWellRadius;
     public float BodyRadius;
 
-    public Planet(PlanetSettings settings, BodyConstructionData data, Orbit orbit)
+    public Planet(PlanetSettings settings, BodyData data, Orbit orbit)
     {
         Settings = settings;
         Orbit = orbit;
-        BodyKey = data.BodyKey ?? "";
-        Name = data.Name ?? "";
-        OrbitKey = data.OrbitKey ?? "";
-        Mass = data.Mass;
-        Resources = data.Resources;
-        BodyRadiusMultiplier = data.BodyRadiusMultiplier;
-        GravityRadiusMultiplier = data.GravityRadiusMultiplier;
-        GravityDepthMultiplier = data.GravityDepthMultiplier;
-        GravityDepthExponent = data.GravityDepthExponent;
+        BodyData = data;
         CalculateProperties();
     }
 
     public void CalculateProperties()
     {
-        BodyRadius = Settings.BodyRadius.Evaluate(Mass) * BodyRadiusMultiplier;
-        GravityWellRadius = Settings.GravityRadius.Evaluate(Mass) * GravityRadiusMultiplier;
-        GravityWellDepth = Settings.GravityDepth.Evaluate(Mass) * GravityDepthMultiplier;
+        BodyRadius = Settings.BodyRadius.Evaluate(BodyData.Mass) * BodyData.BodyRadiusMultiplier;
+        GravityWellRadius = Settings.GravityRadius.Evaluate(BodyData.Mass) * BodyData.GravityRadiusMultiplier;
+        GravityWellDepth = Settings.GravityDepth.Evaluate(BodyData.Mass) * BodyData.GravityDepthMultiplier;
     }
-
 }
 
 public class GasGiant : Planet
 {
-    public float FirstOffsetDomainRotationSpeed { get; }
-    public float FirstOffsetRotationSpeed { get; }
-    public float SecondOffsetDomainRotationSpeed { get; }
-    public float SecondOffsetRotationSpeed { get; }
-    public float AlbedoRotationSpeed { get; }
-    public float WaveRadiusMultiplier { get; }
-    public float WaveDepthMultiplier { get; }
-    public float WaveDepthExponent { get; }
-    public float WaveSpeedMultiplier { get; }
-    public IReadOnlyList<string> MaterialOverrides { get; }
-    public float4[] Colors { get; }
+    public GasGiantData GasGiantData;
     public float GravityWavesDepth;
     public float GravityWavesRadius;
     public float GravityWavesSpeed;
 
-    public GasGiant(PlanetSettings settings, GasGiantConstructionData data, Orbit orbit) : base(settings, data, orbit)
+    public GasGiant(PlanetSettings settings, GasGiantData data, Orbit orbit) : base(settings, data, orbit)
     {
-        FirstOffsetDomainRotationSpeed = data.FirstOffsetDomainRotationSpeed;
-        FirstOffsetRotationSpeed = data.FirstOffsetRotationSpeed;
-        SecondOffsetDomainRotationSpeed = data.SecondOffsetDomainRotationSpeed;
-        SecondOffsetRotationSpeed = data.SecondOffsetRotationSpeed;
-        AlbedoRotationSpeed = data.AlbedoRotationSpeed;
-        WaveRadiusMultiplier = data.WaveRadiusMultiplier;
-        WaveDepthMultiplier = data.WaveDepthMultiplier;
-        WaveDepthExponent = data.WaveDepthExponent;
-        WaveSpeedMultiplier = data.WaveSpeedMultiplier;
-        MaterialOverrides = data.MaterialOverrides;
-        Colors = data.Colors;
+        GasGiantData = data;
         CalculateProperties();
     }
 
     public new void CalculateProperties()
     {
         base.CalculateProperties();
-        GravityWavesDepth = Settings.WaveDepth.Evaluate(Mass) * WaveDepthMultiplier;
-        GravityWavesRadius = Settings.WaveRadius.Evaluate(Mass) * WaveRadiusMultiplier;
-        GravityWavesSpeed = Settings.WaveSpeed.Evaluate(Mass) * WaveSpeedMultiplier;
+        GravityWavesDepth = Settings.WaveDepth.Evaluate(BodyData.Mass) * GasGiantData.WaveDepthMultiplier;
+        GravityWavesRadius = Settings.WaveRadius.Evaluate(BodyData.Mass) * GasGiantData.WaveRadiusMultiplier;
+        GravityWavesSpeed = Settings.WaveSpeed.Evaluate(BodyData.Mass) * GasGiantData.WaveSpeedMultiplier;
     }
 }
 
 public class Sun : GasGiant
 {
-    public cfloat3 LightColor { get; }
-    public cfloat3 FogTintColor { get; }
-    public float LightRadiusMultiplier { get; }
+    public SunData SunData;
     public float LightRadius;
 
-    public Sun(PlanetSettings settings, SunConstructionData data, Orbit orbit) : base(settings, data, orbit)
+    public Sun(PlanetSettings settings, SunData data, Orbit orbit) : base(settings, data, orbit)
     {
-        LightColor = data.LightColor;
-        FogTintColor = data.FogTintColor;
-        LightRadiusMultiplier = data.LightRadiusMultiplier;
+        SunData = data;
         CalculateProperties();
     }
 
     public new void CalculateProperties()
     {
         base.CalculateProperties();
-        LightRadius = Settings.LightRadius.Evaluate(Mass) * LightRadiusMultiplier;
+        LightRadius = Settings.LightRadius.Evaluate(BodyData.Mass) * SunData.LightRadiusMultiplier;
     }
 }
 
 public class AsteroidBelt
 {
-    private readonly Asteroid[] _asteroids;
-    public Orbit Orbit { get; }
-    public string BodyKey { get; }
-    public string Name { get; }
-    public string OrbitKey { get; }
-    public float Mass { get; }
-    public IReadOnlyDictionary<string, float> Resources { get; }
-    public float BodyRadiusMultiplier { get; }
-    public float GravityRadiusMultiplier { get; }
-    public float GravityDepthMultiplier { get; }
-    public float GravityDepthExponent { get; }
+    public AsteroidBeltData Data;
     public float4[] Transforms; // x, y, rotation, scale
     public float4[] NewTransforms; // x, y, rotation, scale
     public float Radius { get; }
@@ -599,58 +483,26 @@ public class AsteroidBelt
     public Dictionary<int, float> Damage = new Dictionary<int, float>();
     public Dictionary<(Entity, int), float> MiningAccumulator = new Dictionary<(Entity, int), float>();
 
-    public AsteroidBelt(AsteroidBeltConstructionData data, Orbit orbit)
+    public AsteroidBelt(AsteroidBeltData data)
     {
-        _asteroids = data.Asteroids;
-        Orbit = orbit;
-        BodyKey = data.BodyKey ?? "";
-        Name = data.Name ?? "";
-        OrbitKey = data.OrbitKey ?? "";
-        Mass = data.Mass;
-        Resources = data.Resources;
-        BodyRadiusMultiplier = data.BodyRadiusMultiplier;
-        GravityRadiusMultiplier = data.GravityRadiusMultiplier;
-        GravityDepthMultiplier = data.GravityDepthMultiplier;
-        GravityDepthExponent = data.GravityDepthExponent;
-        Transforms = new float4[_asteroids.Length];
-        NewTransforms = new float4[_asteroids.Length];
-        Radius = _asteroids.Max(a => a.Distance);
+        Data = data;
+        Transforms = new float4[data.Asteroids.Length];
+        NewTransforms = new float4[data.Asteroids.Length];
+        Radius = data.Asteroids.Max(a => a.Distance);
     }
-
-    public int AsteroidCount => _asteroids.Length;
-
-    public bool ContainsAsteroid(int asteroid) => asteroid >= 0 && asteroid < _asteroids.Length;
-
-    public Asteroid GetAsteroid(int asteroid) => _asteroids[asteroid];
-
 }
 
 public class Orbit
 {
-    public string OrbitKey { get; }
-    public string ParentOrbitKey { get; }
-    public float Distance { get; }
-    public float Phase { get; }
-    public float2 FixedPosition { get; }
-    public float2 Velocity = new float2(0, 0);
-    public float2 Position = new float2(0, 0);
-    public float2 PreviousPosition = new float2(0, 0);
+    public OrbitData Data { get; }
+    public float2 Velocity = float2.zero;
+    public float2 Position = float2.zero;
+    public float2 PreviousPosition = float2.zero;
     public float Period;
 
-    public static float2 Evaluate(float phase)
+    public Orbit(PlanetSettings settings, OrbitData data)
     {
-        phase *= MathF.PI * 2;
-        return new float2(MathF.Cos(phase), MathF.Sin(phase));
-    }
-
-    public Orbit(PlanetSettings settings, OrbitConstructionData data)
-    {
-        OrbitKey = data.OrbitKey ?? "";
-        ParentOrbitKey = data.ParentOrbitKey ?? "";
-        Distance = data.Distance;
-        Phase = data.Phase;
-        FixedPosition = data.FixedPosition;
+        Data = data;
         Period = settings.OrbitPeriod.Evaluate(data.Distance);
     }
-
 }

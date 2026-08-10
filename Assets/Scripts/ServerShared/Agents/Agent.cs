@@ -7,8 +7,9 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using UniRx;
-using static CultMath.math;
-using cfloat2 = CultMath.float2;
+using Unity.Mathematics;
+using static Unity.Mathematics.math;
+using float2 = Unity.Mathematics.float2;
 
 public class Agent
 {
@@ -54,27 +55,26 @@ public class Agent
             }
     }
 
-    public void Accelerate(cfloat2 targetVelocity, bool noTurn = false)
+    public void Accelerate(float2 targetVelocity, bool noTurn = false)
     {
-        var deltaV = targetVelocity - Ship.CultVelocity;
+        var deltaV = targetVelocity - Ship.Velocity;
         var deltaVMag = length(deltaV);
         var deltaVDirection = normalize(deltaV);
         // If Delta V is above the threshold, direct the ship towards the delta and use only main thrusters
         if (!noTurn && deltaVMag > FORWARD_DELTA_THRESHOLD)
         {
-            Ship.CultLookDirectionXZ = deltaVDirection;
-            Ship.MovementDirection = new cfloat2(0, pow(dot(Ship.CultDirection, deltaVDirection), 2));
+            Ship.LookDirection = float3(deltaVDirection.x, 0, deltaVDirection.y);
+            Ship.MovementDirection = float2(0, pow(dot(Ship.Direction, deltaVDirection), 2));
         }
         // If Delta V is low, direct the ship towards the target and use all thrusters
         else if(deltaVMag > THRUST_DELTA_THRESHOLD)
         {
-            var shipDirection = Ship.CultDirection;
-            var right = AetheriaMath.Rotate(shipDirection, ItemRotation.Clockwise);
-            Ship.MovementDirection = new cfloat2(dot(right, deltaVDirection), dot(shipDirection, deltaVDirection));
+            var right = Ship.Direction.Rotate(ItemRotation.Clockwise);
+            Ship.MovementDirection = float2(dot(right, deltaVDirection), dot(Ship.Direction, deltaVDirection));
         }
         else
         {
-            Ship.MovementDirection = cfloat2.zero;
+            Ship.MovementDirection = float2.zero;
         }
     }
 }

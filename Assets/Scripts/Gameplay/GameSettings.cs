@@ -15,6 +15,7 @@ public class GameSettings : ScriptableObject
     public string DefaultBossSoundbank = "Boss_Metal";
     public string AmbienceSoundBank = "Ambience";
     public string StartingHullName = "Longinus";
+    public float PickupLifetime = 30;
     public float LootDropProbability = .25f;
     public float LootDropVelocity = 25;
     public float HeatstrokePhasingFloor = 0;

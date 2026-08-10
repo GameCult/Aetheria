@@ -1,7 +1,9 @@
 using System;
+using System.Collections;
 using System.Linq;
-using GameCult.Aetheria.State.Verse;
 using UnityEngine;
+using Unity.Mathematics;
+using static Unity.Mathematics.math;
 
 public class ShipInstance : EntityInstance
 {
@@ -47,7 +49,7 @@ public class ShipInstance : EntityInstance
         var drive = ship.GetBehavior<AetherDrive>();
         if (drive != null)
         {
-            var particles = Instantiate(UnityHelpers.LoadAsset<ParticleSystem>(drive.Particles), transform, false);
+            var particles = Instantiate(UnityHelpers.LoadAsset<ParticleSystem>(drive.DriveData.Particles), transform, false);
             var main = particles.main;
             main.customSimulationSpace = LocalSpace;
             _aetherDrive = new AetherDriveInstance
@@ -60,11 +62,17 @@ public class ShipInstance : EntityInstance
         }
         _thrusters = ship.GetBehaviors<Thruster>().Select(thruster =>
             {
-                var particles = Instantiate(UnityHelpers.LoadAsset<ParticleSystem>(thruster.ParticlesPrefab), transform, false);
+                var effectData = (ThrusterData) thruster.Data;
+                var particles = Instantiate(UnityHelpers.LoadAsset<ParticleSystem>(effectData.ParticlesPrefab), transform, false);
                 var particlesShape = particles.shape;
                 var thrusterHardpoint = ThrusterHardpoints
                     .FirstOrDefault(t => t.name == ship.Hardpoints[thruster.Item.Position.x, thruster.Item.Position.y].Transform);
                 particlesShape.meshRenderer = thrusterHardpoint?.Emitter;
+                // if (!string.IsNullOrEmpty(thruster.Item.Data.SoundEffectTrigger) && thrusterHardpoint != null)
+                // {
+                //     AkSoundEngine.RegisterGameObj(thrusterHardpoint.gameObject);
+                //     AkSoundEngine.PostEvent(thruster.Item.Data.SoundEffectTrigger, thrusterHardpoint.gameObject);
+                // }
 
                 return new ThrusterInstance
                 {
@@ -105,11 +113,11 @@ public class ShipInstance : EntityInstance
         base.Update();
 
         TractorBeam.Power = Entity.TractorPower;
-        TractorBeam.Direction = (Vector3)AetheriaMath.ToUnity(Entity.CultLookDirection);
+        TractorBeam.Direction = Entity.LookDirection;
 
         if (_aetherDrive != null)
         {
-            var thrust = CultMath.math.length(_aetherDrive.Drive.ThrustDirection);
+            var thrust = length(_aetherDrive.Drive.ThrustDirection);
             var forceOverLifetime = _aetherDrive.Particles.forceOverLifetime;
             forceOverLifetime.xMultiplier = _aetherDrive.Drive.ThrustDirection.x * _aetherDrive.BaseForce;
             forceOverLifetime.zMultiplier = _aetherDrive.Drive.ThrustDirection.y * _aetherDrive.BaseForce;
@@ -121,20 +129,11 @@ public class ShipInstance : EntityInstance
         {
             var emissionModule = thrusterInstance.System.emission;
             var item = thrusterInstance.Thruster.Item.EquippableItem;
+            var data = Entity.ItemManager.GetData(item);
             thrusterInstance.MaxParticleCount = thrusterInstance.System.particleCount;
-            emissionModule.rateOverTimeMultiplier = thrusterInstance.BaseEmission * thrusterInstance.Thruster.Axis * (item.Durability / GetMaxDurability(item));
+            emissionModule.rateOverTimeMultiplier = thrusterInstance.BaseEmission * thrusterInstance.Thruster.Axis * (item.Durability / data.Durability);
         }
 
-        var rotation = Ship.Rotation;
-        transform.rotation = new Quaternion(rotation.x, rotation.y, rotation.z, rotation.w);
-    }
-
-    private float GetMaxDurability(ItemInstance item)
-    {
-        var typedItem = ZoneRenderer?.FindCatalogItem(item);
-        if (typedItem != null && typedItem.Durability > 0)
-            return (float)typedItem.Durability;
-
-        return item is EquippableItem equippable ? Math.Max(equippable.Durability, 1f) : 1f;
+        transform.rotation = Ship.Rotation;
     }
 }

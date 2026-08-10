@@ -5,18 +5,44 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using MessagePack;
+using Newtonsoft.Json;
 using UniRx;
-using static CultMath.math;
+using Unity.Mathematics;
+using static Unity.Mathematics.math;
+
+[Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn), RuntimeInspectable]
+public class ReactorData : BehaviorData
+{
+    [Inspectable, JsonProperty("charge"), Key(1), RuntimeInspectable]  
+    public PerformanceStat Charge = new PerformanceStat();
+
+    [Inspectable, JsonProperty("efficiency"), Key(2), RuntimeInspectable]  
+    public PerformanceStat Efficiency = new PerformanceStat();
+
+    [Inspectable, JsonProperty("overload"), Key(3), RuntimeInspectable]  
+    public PerformanceStat OverloadEfficiency = new PerformanceStat();
+
+    [Inspectable, JsonProperty("underload"), Key(4), RuntimeInspectable]  
+    public PerformanceStat ThrottlingFactor = new PerformanceStat();
+    
+    public override Behavior CreateInstance(EquippedItem item)
+    {
+        return new Reactor(this, item);
+    }
+    
+    public override Behavior CreateInstance(ConsumableItemEffect item)
+    {
+        return new Reactor(this, item);
+    }
+}
 
 public class Reactor : Behavior, IOrderedBehavior, IDisposable
 {
-    private readonly PerformanceStat _charge;
-    private readonly PerformanceStat _efficiency;
-    private readonly PerformanceStat _overloadEfficiency;
-    private readonly PerformanceStat _throttlingFactor;
+    private ReactorData _data;
 
     public float Draw { get; private set; }
-
+    
     public float CurrentLoadRatio { get; private set; }
 
     public int Order => 100;
@@ -25,29 +51,14 @@ public class Reactor : Behavior, IOrderedBehavior, IDisposable
 
     private List<IDisposable> _subscriptions = new List<IDisposable>();
 
-    public Reactor(RuntimeBehaviorDefinition definition, EquippedItem item) : base(definition, item)
+    public Reactor(ReactorData data, EquippedItem item) : base(data, item)
     {
-        _charge = definition.PerformanceStat(1, new PerformanceStat());
-        _efficiency = definition.PerformanceStat(2, new PerformanceStat());
-        _overloadEfficiency = definition.PerformanceStat(3, new PerformanceStat());
-        _throttlingFactor = definition.PerformanceStat(4, new PerformanceStat());
-        RegisterPerformanceStat("Charge", _charge);
-        RegisterPerformanceStat("Efficiency", _efficiency);
-        RegisterPerformanceStat("OverloadEfficiency", _overloadEfficiency);
-        RegisterPerformanceStat("ThrottlingFactor", _throttlingFactor);
+        _data = data;
         FindCapacitors();
     }
-
-    public Reactor(RuntimeBehaviorDefinition definition, ConsumableItemEffect item) : base(definition, item)
+    public Reactor(ReactorData data, ConsumableItemEffect item) : base(data, item)
     {
-        _charge = definition.PerformanceStat(1, new PerformanceStat());
-        _efficiency = definition.PerformanceStat(2, new PerformanceStat());
-        _overloadEfficiency = definition.PerformanceStat(3, new PerformanceStat());
-        _throttlingFactor = definition.PerformanceStat(4, new PerformanceStat());
-        RegisterPerformanceStat("Charge", _charge);
-        RegisterPerformanceStat("Efficiency", _efficiency);
-        RegisterPerformanceStat("OverloadEfficiency", _overloadEfficiency);
-        RegisterPerformanceStat("ThrottlingFactor", _throttlingFactor);
+        _data = data;
         FindCapacitors();
     }
 
@@ -73,14 +84,14 @@ public class Reactor : Behavior, IOrderedBehavior, IDisposable
 
     public override bool Execute(float dt)
     {
-        var charge = Evaluate(_charge) * dt;
-        var efficiency = Evaluate(_efficiency);
+        var charge = Evaluate(_data.Charge) * dt;
+        var efficiency = Evaluate(_data.Efficiency);
 
         // This behavior executes last, so any components drawing power have already done so
 
         // Subtract the baseline charge from draw
         Draw -= charge;
-
+        
         // Generate heat using baseline efficiency
         var heat = charge / efficiency;
 
@@ -88,11 +99,11 @@ public class Reactor : Behavior, IOrderedBehavior, IDisposable
         if (Draw > .01f)
         {
             CurrentLoadRatio = (Draw + charge) / max(charge, .01f);
-            var overloadEfficiency = Evaluate(_overloadEfficiency);
-
+            var overloadEfficiency = Evaluate(_data.OverloadEfficiency);
+            
             // Generate heat using overload efficiency, usually much less efficient!
             heat += Draw / overloadEfficiency;
-
+            
             // Overload power will always neutralize the energy deficit
             Draw = 0;
         }
@@ -121,16 +132,16 @@ public class Reactor : Behavior, IOrderedBehavior, IDisposable
         if (Draw < -.01f)
         {
             CurrentLoadRatio = (Draw + charge) / max(charge, .01f);
-            heat -= Draw / efficiency * (1 - 1 / Evaluate(_throttlingFactor));
+            heat -= Draw / efficiency * (1 - 1 / Evaluate(_data.ThrottlingFactor));
             Draw = 0;
         }
         else
         {
             CurrentLoadRatio = 1;
         }
-
+        
         Item.SetAudioParameter(SpecialAudioParameter.Intensity, max(.25f, 1 - 1 / CurrentLoadRatio));
-
+        
         AddHeat(heat);
         return true;
     }
@@ -139,11 +150,5 @@ public class Reactor : Behavior, IOrderedBehavior, IDisposable
     {
         foreach(var sub in _subscriptions)
             sub.Dispose();
-    }
-
-    public void RestoreRuntimeState(float draw, float currentLoadRatio)
-    {
-        Draw = draw;
-        CurrentLoadRatio = currentLoadRatio;
     }
 }

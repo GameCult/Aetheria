@@ -2,11 +2,11 @@
     "name": "Aetheria.Shared.Unity",
     "rootNamespace": "",
     "references": [
-        "CultMath",
+        "MessagePack",
         "Unity.Mathematics",
         "UniRx",
-        "Ink",
-        "GameCult.Aetheria.State.Unity"
+        "RethinkDB",
+        "Ink"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

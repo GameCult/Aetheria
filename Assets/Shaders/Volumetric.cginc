@@ -1,6 +1,5 @@
 #pragma multi_compile __ FLOW_GLOBAL 
 #pragma multi_compile __ FLOW_SLOPE
-#pragma multi_compile __ FLOW_VALUE3D
 #pragma multi_compile __ NOISE_SLOPE
 
 #include "UnityCG.cginc"
@@ -74,22 +73,6 @@ float3 Tri3D( float3 P )
     return cross(t1,t2);
 }
 
-float3 Value3D_Deriv( float3 P )
-{
-    float3 Pf = frac(P);
-    float3 Pf2 = frac(P * 1.61803398875);
-    return normalize(cross(Pf * Pf * (Pf * (Pf * 30.0 - 60.0) + 30.0), Pf2 * Pf2 * (Pf2 * (Pf2 * 30.0 - 60.0) + 30.0)));
-}
-
-float3 FlowBasis3D(float3 P)
-{
-    #if FLOW_VALUE3D
-    return Value3D_Deriv(P);
-    #else
-    return Tri3D(P);
-    #endif
-}
-
 float parabola( float x, float k )
 {
     return pow( 4.0*x*(1.0-x), k );
@@ -97,10 +80,7 @@ float parabola( float x, float k )
 
 float2 getUV(float2 pos)
 {
-    // Eve Fields rasterizes its typed viewport with positive world axes.
-    // The fossil gravity camera reversed both axes and required a leading
-    // minus here; that camera is no longer an authority in the daemon path.
-    return (pos-_GridTransform.xy)/_GridTransform.z + float2(.5,.5);
+    return -(pos-_GridTransform.xy)/_GridTransform.z + float2(.5,.5);
 }
 
 float2 getUVFluid(float2 pos)
@@ -149,7 +129,7 @@ float3 gravNormal (float2 grad)
 
 float3 globalFlow(float3 pos)
 {
-    float3 flowSample = FlowBasis3D( pos / _FlowScale - float3(0,_FlowScroll,0) ) * _FlowAmplitude;
+    float3 flowSample = Tri3D( pos / _FlowScale - float3(0,_FlowScroll,0) ) * _FlowAmplitude;
     flowSample.y *= .5;
     return flowSample;
 }

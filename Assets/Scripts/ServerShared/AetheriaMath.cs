@@ -1,77 +1,12 @@
 using System.Collections;
 using System.Collections.Generic;
-using CultMath;
-using static CultMath.math;
-using double2 = CultMath.double2;
-using double3 = CultMath.double3;
-using float2 = CultMath.float2;
-using float3 = CultMath.float3;
-using unityfloat2 = Unity.Mathematics.float2;
-using unityfloat3 = Unity.Mathematics.float3;
+using Unity.Mathematics;
+using static Unity.Mathematics.math;
 
 public static class AetheriaMath
 {
     public const float Deg2Rad = 0.01745329f;
     public const float Rad2Deg = 57.29578f;
-
-    public static float2 ToCult(unityfloat2 value) => float2(value.x, value.y);
-    public static float3 ToCult(unityfloat3 value) => float3(value.x, value.y, value.z);
-    public static float2 ToCultXZ(unityfloat3 value) => float2(value.x, value.z);
-    public static unityfloat2 ToUnity(float2 value) => new(value.x, value.y);
-    public static unityfloat3 ToUnity(float3 value) => new(value.x, value.y, value.z);
-    public static unityfloat3 ToUnityXZ(float2 value) => new(value.x, 0, value.y);
-
-    public static float AngleDegrees(float2 from, float2 to)
-    {
-        return AngleRadians(from, to) * Rad2Deg;
-    }
-
-    public static float AngleDegrees(float3 from, float3 to)
-    {
-        return AngleRadians(from, to) * Rad2Deg;
-    }
-
-    public static float AngleDegrees(unityfloat2 from, unityfloat2 to)
-    {
-        return AngleDegrees(ToCult(from), ToCult(to));
-    }
-
-    public static float AngleDegrees(unityfloat3 from, unityfloat3 to)
-    {
-        return AngleDegrees(ToCult(from), ToCult(to));
-    }
-
-    public static float AngleRadians(float2 from, float2 to)
-    {
-        var denom = sqrt(lengthsq(from) * lengthsq(to));
-        if (denom <= 0.000001f)
-        {
-            return 0;
-        }
-
-        return acos(clamp(dot(from, to) / denom, -1.0f, 1.0f));
-    }
-
-    public static float AngleRadians(float3 from, float3 to)
-    {
-        var denom = sqrt(lengthsq(from) * lengthsq(to));
-        if (denom <= 0.000001f)
-        {
-            return 0;
-        }
-
-        return acos(clamp(dot(from, to) / denom, -1.0f, 1.0f));
-    }
-
-    public static float AngleRadians(unityfloat2 from, unityfloat2 to)
-    {
-        return AngleRadians(ToCult(from), ToCult(to));
-    }
-
-    public static float AngleRadians(unityfloat3 from, unityfloat3 to)
-    {
-        return AngleRadians(ToCult(from), ToCult(to));
-    }
 
     public static float Decay(float source, float lambda, float dt)
     {
@@ -83,19 +18,9 @@ public static class AetheriaMath
         return source * exp(-lambda * dt);
     }
 
-    public static unityfloat3 Decay(unityfloat3 source, float lambda, float dt)
-    {
-        return ToUnity(Decay(ToCult(source), lambda, dt));
-    }
-
     public static float3 Decay(float3 source, float3 lambda, float dt)
     {
         return source * exp(-lambda * dt);
-    }
-
-    public static unityfloat3 Decay(unityfloat3 source, unityfloat3 lambda, float dt)
-    {
-        return ToUnity(Decay(ToCult(source), ToCult(lambda), dt));
     }
     
     public static float Damp(float a, float b, float lambda, float dt)
@@ -107,20 +32,10 @@ public static class AetheriaMath
     {
         return lerp(a, b, 1 - exp(-lambda * dt));
     }
-
-    public static unityfloat2 Damp(unityfloat2 a, unityfloat2 b, float lambda, float dt)
-    {
-        return ToUnity(Damp(ToCult(a), ToCult(b), lambda, dt));
-    }
     
     public static float3 Damp(float3 a, float3 b, float lambda, float dt)
     {
         return lerp(a, b, 1 - exp(-lambda * dt));
-    }
-
-    public static unityfloat3 Damp(unityfloat3 a, unityfloat3 b, float lambda, float dt)
-    {
-        return ToUnity(Damp(ToCult(a), ToCult(b), lambda, dt));
     }
     
     public static double Damp(double a, double b, double lambda, double dt)
@@ -156,22 +71,6 @@ public static class AetheriaMath
             targetRelativeVelocity
         );
         return targetPosition + t*targetRelativeVelocity;
-    }
-
-    public static unityfloat3 FirstOrderIntercept
-    (
-        unityfloat3 shooterPosition,
-        unityfloat3 shooterVelocity,
-        float shotSpeed,
-        unityfloat3 targetPosition,
-        unityfloat3 targetVelocity
-    ) {
-        return ToUnity(FirstOrderIntercept(
-            ToCult(shooterPosition),
-            ToCult(shooterVelocity),
-            shotSpeed,
-            ToCult(targetPosition),
-            ToCult(targetVelocity)));
     }
     
     //first-order intercept using relative target position
@@ -212,15 +111,6 @@ public static class AetheriaMath
             return 0f;
         else //determinant = 0; one intercept path, pretty much never happens
             return max(-b/(2f*a), 0f); //don't shoot back in time
-    }
-
-    public static float FirstOrderInterceptTime
-    (
-        float shotSpeed,
-        unityfloat3 targetRelativePosition,
-        unityfloat3 targetRelativeVelocity
-    ) {
-        return FirstOrderInterceptTime(shotSpeed, ToCult(targetRelativePosition), ToCult(targetRelativeVelocity));
     }
     
     // http://csharphelper.com/blog/2016/09/find-the-shortest-distance-between-a-point-and-a-line-segment-in-c/
@@ -349,39 +239,5 @@ public static class AetheriaMath
     {
         x = saturate(x);
         return x * x * x * (x * (x * 6 - 15) + 10);
-    }
-
-    public static float2 Rotate(float2 value, float radians)
-    {
-        var s = (float)System.Math.Sin(radians);
-        var c = (float)System.Math.Cos(radians);
-        return float2(value.x * c - value.y * s, value.x * s + value.y * c);
-    }
-
-    public static float2 Rotate(float2 value, ItemRotation rotation)
-    {
-        switch (rotation)
-        {
-            case ItemRotation.None:
-                return value;
-            case ItemRotation.CounterClockwise:
-                return float2(-value.y, value.x);
-            case ItemRotation.Reversed:
-                return float2(-value.x, -value.y);
-            case ItemRotation.Clockwise:
-                return float2(value.y, -value.x);
-            default:
-                throw new System.ArgumentOutOfRangeException(nameof(rotation), rotation, null);
-        }
-    }
-
-    public static unityfloat2 Rotate(unityfloat2 value, float radians)
-    {
-        return ToUnity(Rotate(ToCult(value), radians));
-    }
-
-    public static unityfloat2 Rotate(unityfloat2 value, ItemRotation rotation)
-    {
-        return ToUnity(Rotate(ToCult(value), rotation));
     }
 }

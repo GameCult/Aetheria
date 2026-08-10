@@ -5,8 +5,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using static CultMath.math;
-using Random = CultMath.Random;
+using static Unity.Mathematics.math;
+using Random = Unity.Mathematics.Random;
 
 //Generates random names based on the statistical weight of letter sequences
 //in a collection of sample names

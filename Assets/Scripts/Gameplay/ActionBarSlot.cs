@@ -1,7 +1,8 @@
 using System;
 using System.Linq;
-using GameCult.Aetheria.State.Verse;
-using GameCult.Mesh;
+using JsonKnownTypes;
+using MessagePack;
+using Newtonsoft.Json;
 using TMPro;
 using UniRx.Triggers;
 using UnityEngine;
@@ -18,16 +19,12 @@ public class ActionBarSlot : MonoBehaviour
     public ObservablePointerEnterTrigger PointerEnterTrigger;
     public ObservablePointerExitTrigger PointerExitTrigger;
     private ActionBarBinding binding;
-    public string ControlPath { get; set; }
 
     public ActionBarBinding Binding
     {
         get => binding;
         set
         {
-            if (ReferenceEquals(binding, value))
-                return;
-
             binding = value;
             if (binding == null)
             {
@@ -39,99 +36,90 @@ public class ActionBarSlot : MonoBehaviour
         }
     }
 
-    private void OnDestroy()
-    {
-        Binding = null;
-    }
-
     private void Update()
     {
         Binding?.Update();
     }
 
+    public SavedActionBarBinding Save()
+    {
+        return Binding switch
+        {
+            ActionBarConsumableBinding actionBarConsumableBinding => new SavedActionBarConsumableBinding
+            {
+                Target = new DatabaseLink<ConsumableItemData>{LinkID = actionBarConsumableBinding.Target.ID}
+            },
+            ActionBarGearBinding actionBarGearBinding => new SavedActionBarGearBinding
+            {
+                EquipmentIndex = actionBarGearBinding.Entity.Equipment.IndexOf(actionBarGearBinding.Item),
+                BehaviorIndex = Array.IndexOf(actionBarGearBinding.Item.Behaviors, actionBarGearBinding.Behavior)
+            },
+            ActionBarWeaponGroupBinding actionBarWeaponGroupBinding => new SavedActionBarWeaponGroupBinding
+            {
+                Group = actionBarWeaponGroupBinding.Group
+            },
+            _ => null
+        };
+    }
+
+    public void Restore(SavedActionBarBinding binding, Entity entity)
+    {
+        Binding = binding switch
+        {
+            SavedActionBarConsumableBinding savedActionBarConsumableBinding =>
+                new ActionBarConsumableBinding(
+                    entity,
+                    this,
+                    savedActionBarConsumableBinding.Target.Value),
+            SavedActionBarGearBinding savedActionBarGearBinding =>
+                new ActionBarGearBinding(
+                    entity,
+                    this,
+                    entity.Equipment[savedActionBarGearBinding.EquipmentIndex],
+                    entity.Equipment[savedActionBarGearBinding.EquipmentIndex]
+                        .Behaviors[savedActionBarGearBinding.BehaviorIndex] as IActivatedBehavior),
+            SavedActionBarWeaponGroupBinding savedActionBarWeaponGroupBinding =>
+                new ActionBarWeaponGroupBinding(entity, this, savedActionBarWeaponGroupBinding.Group),
+            _ => null
+        };
+    }
 }
 
 public abstract class ActionBarBinding
 {
-    private static AetheriaClientState s_runtimeState;
     public Entity Entity { get; }
-    private readonly Func<AetheriaControl> _resolveControl;
     protected ActionBarSlot Slot { get; }
-    protected GameSettings Settings { get; }
     public abstract void Activate();
     public abstract void Deactivate();
     public abstract void Update();
-
-    protected ActionBarBinding(
-        Entity entity,
-        ActionBarSlot slot,
-        Func<AetheriaControl> resolveControl,
-        GameSettings settings)
+    public ActionBarBinding(Entity entity, ActionBarSlot slot)
     {
         Entity = entity;
         Slot = slot;
-        _resolveControl = resolveControl ?? (() => null);
-        Settings = settings;
-    }
-
-    protected bool TrySubmit(Action<AetheriaControl> submit, string label)
-    {
-        if (submit == null)
-            return false;
-
-        try
-        {
-            var control = _resolveControl();
-            if (control == null)
-                return false;
-
-            submit(control);
-            return true;
-        }
-        catch (Exception ex)
-        {
-            Debug.LogWarning($"Failed to send Aetheria daemon action-bar {label} operation; operation not submitted: {ex.Message}");
-            return false;
-        }
-    }
-
-    protected AetheriaRuntimeCatalogItem FindCatalogItem(ItemInstance item)
-    {
-        try
-        {
-            s_runtimeState ??= AetheriaUnityRuntimeClientProvider.RuntimeState("unity-action-bar");
-            return s_runtimeState.Catalog.Latest()?.FindItem(item, x => x.ItemKey);
-        }
-        catch (Exception ex)
-        {
-            Debug.LogWarning($"Failed to bind Aetheria runtime catalog for action-bar binding: {ex.Message}");
-            return null;
-        }
     }
 }
 
 public class ActionBarConsumableBinding : ActionBarBinding
 {
-    public AetheriaRuntimeCatalogItem Target { get; }
+    public ConsumableItemData Target;
 
-    public ActionBarConsumableBinding(
-        Entity entity,
-        ActionBarSlot slot,
-        Func<AetheriaControl> resolveControl,
-        GameSettings settings,
-        AetheriaRuntimeCatalogItem target) : base(entity, slot, resolveControl, settings)
+    public ActionBarConsumableBinding(Entity entity, ActionBarSlot slot, ConsumableItemData target) : base(entity, slot)
     {
         Target = target;
         Slot.QuantityRemaining.gameObject.SetActive(true);
-        Slot.Label.gameObject.SetActive(false);
-        Slot.Icon.gameObject.SetActive(false);
+        var data = Target;
+        if(!string.IsNullOrEmpty(data.Icon))
+        {
+            Slot.Label.gameObject.SetActive(false);
+            Slot.Icon.gameObject.SetActive(true);
+            Slot.Icon.texture = Resources.Load<Texture2D>(data.Icon.Substring("Assets/Resources/".Length).Split('.').First());
+        }
+        else Slot.Icon.gameObject.SetActive(false);
     }
 
     public override void Activate()
     {
-        TrySubmit(
-            operations => operations.ActivateConsumable(TargetItemKey),
-            "consumable");
+        Entity.TryActivateConsumable(Target);
     }
 
     public override void Deactivate()
@@ -140,20 +128,11 @@ public class ActionBarConsumableBinding : ActionBarBinding
 
     public override void Update()
     {
-        Slot.QuantityRemaining.text = $"{Entity.CountItemsInCargo(TargetItemKey)}";
-        if (string.IsNullOrWhiteSpace(TargetItemKey))
-        {
-            Slot.Fill.fillAmount = 0;
-            return;
-        }
-
-        var instance = Entity.FindActiveConsumable(TargetItemKey);
+        Slot.QuantityRemaining.text = $"{Entity.CountItemsInCargo(Target.ID)}";
+        var instance = Entity.FindActiveConsumable(Target);
         if (instance == null) Slot.Fill.fillAmount = 0;
-        else Slot.Fill.fillAmount = instance.RemainingDuration / instance.Duration;
+        else Slot.Fill.fillAmount = instance.RemainingDuration / instance.Data.Duration;
     }
-
-    public string TargetItemKey => Target?.ItemKey ?? "";
-
 }
 
 public class ActionBarGearBinding : ActionBarBinding
@@ -163,75 +142,31 @@ public class ActionBarGearBinding : ActionBarBinding
 
     public bool Active;
 
-    public int EquipmentIndex => Entity?.Equipment?.IndexOf(Item) ?? -1;
-
-    public int BehaviorIndex => Item?.Behaviors == null ? -1 : Array.IndexOf(Item.Behaviors, Behavior);
-
-    public string TargetItemKey => Item?.EquippableItem?.ItemKey ?? "";
-
-    public ActionBarGearBinding(
-        Entity entity,
-        ActionBarSlot slot,
-        Func<AetheriaControl> resolveControl,
-        GameSettings settings,
-        EquippedItem item,
-        IActivatedBehavior behavior) : base(entity, slot, resolveControl, settings)
+    public ActionBarGearBinding(Entity entity, ActionBarSlot slot, EquippedItem item, IActivatedBehavior behavior) : base(entity, slot)
     {
         Item = item;
+        var data = item.EquippableItem.Data.Value as EquippableItemData;
         Behavior = behavior;
         Slot.QuantityRemaining.gameObject.SetActive(false);
         Slot.Icon.gameObject.SetActive(true);
         Slot.Label.gameObject.SetActive(false);
-        Slot.Icon.texture = ResolveIconTexture();
-    }
-
-    private Texture2D ResolveIconTexture()
-    {
-        var typedItem = FindCatalogItem(Item.EquippableItem);
-        if (typedItem != null)
-        {
-            var actionBarIcon = LoadActionBarIcon(typedItem.ActionBarIcon);
-            if (actionBarIcon != null)
-                return actionBarIcon;
-
-            if (Enum.TryParse<WeaponType>(typedItem.WeaponType, out var weaponType))
-                return Settings.GetIcon(weaponType).texture;
-
-            if (Enum.TryParse<HardpointType>(typedItem.HardpointType, out var hardpointType))
-                return Settings.GetIcon(hardpointType).texture;
-        }
-
-        return Settings.GetIcon(HardpointType.Tool).texture;
-    }
-
-    private static Texture2D LoadActionBarIcon(string path)
-    {
-        if (string.IsNullOrWhiteSpace(path))
-            return null;
-
-        const string resourcesPrefix = "Assets/Resources/";
-        var resourcePath = path.StartsWith(resourcesPrefix, StringComparison.Ordinal)
-            ? path.Substring(resourcesPrefix.Length)
-            : path;
-
-        resourcePath = resourcePath.Split('.').First();
-        return Resources.Load<Texture2D>(resourcePath);
+        if (!string.IsNullOrEmpty(Item.Data.ActionBarIcon))
+            Slot.Icon.texture = Resources.Load<Texture2D>(Item.Data.ActionBarIcon.Substring("Assets/Resources/".Length).Split('.').First());
+        else if (data is WeaponItemData weaponItemData)
+            Slot.Icon.texture = ActionGameManager.Instance.Settings.GetIcon(weaponItemData.WeaponType).texture;
+        else Slot.Icon.texture = ActionGameManager.Instance.Settings.GetIcon(data.HardpointType).texture;
     }
 
     public override void Activate()
     {
         Active = true;
-        TrySubmit(
-            operations => operations.SetBehaviorActive(EquipmentIndex, BehaviorIndex, true),
-            "behavior activation");
+        Behavior.Activate();
     }
 
     public override void Deactivate()
     {
         Active = false;
-        TrySubmit(
-            operations => operations.SetBehaviorActive(EquipmentIndex, BehaviorIndex, false),
-            "behavior activation");
+        Behavior.Deactivate();
     }
 
     public override void Update()
@@ -240,16 +175,12 @@ public class ActionBarGearBinding : ActionBarBinding
     }
 }
 
+[MessagePackObject]
 public class ActionBarWeaponGroupBinding : ActionBarBinding
 {
-    public int Group;
+    [Key(0)] public int Group;
 
-    public ActionBarWeaponGroupBinding(
-        Entity entity,
-        ActionBarSlot slot,
-        Func<AetheriaControl> resolveControl,
-        GameSettings settings,
-        int group) : base(entity, slot, resolveControl, settings)
+    public ActionBarWeaponGroupBinding(Entity entity, ActionBarSlot slot, int group) : base(entity, slot)
     {
         Group = group;
         slot.Label.gameObject.SetActive(true);
@@ -259,20 +190,22 @@ public class ActionBarWeaponGroupBinding : ActionBarBinding
 
     public override void Activate()
     {
-        TrySubmit(
-            operations => operations.SetWeaponGroupActive(Group, true),
-            "weapon-group");
+        foreach (var weapon in Entity.WeaponGroups[Group].weapons)
+        {
+            weapon.Activate();
+        }
     }
 
     public override void Deactivate()
     {
-        TrySubmit(
-            operations => operations.SetWeaponGroupActive(Group, false),
-            "weapon-group");
+        foreach (var weapon in Entity.WeaponGroups[Group].weapons)
+        {
+            weapon.Deactivate();
+        }
     }
 
     public override void Update()
     {
-
+        
     }
 }

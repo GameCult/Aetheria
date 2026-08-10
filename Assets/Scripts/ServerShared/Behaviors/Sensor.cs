@@ -4,19 +4,55 @@
 
 using System;
 using System.Collections.Generic;
-using static CultMath.math;
+using MessagePack;
+using Newtonsoft.Json;
+using Unity.Mathematics;
+using static Unity.Mathematics.math;
+
+[Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn), RuntimeInspectable]
+public class SensorData : BehaviorData
+{
+    [Inspectable, JsonProperty("sensitivity"), Key(3), RuntimeInspectable]
+    public PerformanceStat Sensitivity = new PerformanceStat();
+
+    [InspectableAnimationCurve, JsonProperty("sensCurve"), Key(4), RuntimeInspectable]
+    public BezierCurve SensitivityCurve;
+
+    [Inspectable, JsonProperty("pingBoost"), Key(5), RuntimeInspectable]
+    public PerformanceStat PingBoost;
+
+    [Inspectable, JsonProperty("pingEnergy"), Key(6), RuntimeInspectable]
+    public PerformanceStat PingEnergy;
+
+    [Inspectable, JsonProperty("pingVisibility"), Key(7), RuntimeInspectable]
+    public PerformanceStat PingVisibility;
+
+    [Inspectable, JsonProperty("pingRange"), Key(8), RuntimeInspectable]
+    public PerformanceStat PingRange;
+
+    [Inspectable, JsonProperty("pingCooldown"), Key(9), RuntimeInspectable]
+    public PerformanceStat PingCooldown;
+
+    [Inspectable, JsonProperty("pingDuration"), Key(10)]
+    public float PingDuration = 2;
+
+    [Inspectable, JsonProperty("pingRadiusExponent"), Key(11)]
+    public float PingRadiusExponent = .5f;
+    
+    public override Behavior CreateInstance(EquippedItem item)
+    {
+        return new Sensor(this, item);
+    }
+    
+    public override Behavior CreateInstance(ConsumableItemEffect item)
+    {
+        return new Sensor(this, item);
+    }
+}
 
 public class Sensor : Behavior, IEventBehavior
 {
-    private readonly PerformanceStat _sensitivity;
-    private readonly BezierCurve _sensitivityCurve;
-    private readonly PerformanceStat _pingBoost;
-    private readonly PerformanceStat _pingEnergy;
-    private readonly PerformanceStat _pingVisibility;
-    private readonly PerformanceStat _pingRange;
-    private readonly PerformanceStat _pingCooldownDuration;
-    private readonly float _pingDuration;
-    private readonly float _pingRadiusExponent;
+    private SensorData _data;
     private float _pingCooldown;
     private float _pingLerp;
     private bool _pinging;
@@ -27,16 +63,13 @@ public class Sensor : Behavior, IEventBehavior
     {
         get => saturate(_pingCooldown);
     }
-
+    
     public float PingRadius
     {
         get => _pingRadius;
     }
-    public float PingLerp => _pingLerp;
-    public bool Pinging => _pinging;
-    public int PingedEntityCount => _pingedEntities.Count;
 
-    public float PingBrightness => pow(1 - _pingLerp, _pingRadiusExponent);
+    public float PingBrightness => pow(1 - _pingLerp, _data.PingRadiusExponent);
 
     public event Action OnPingStart;
     public event Action OnPingEnd;
@@ -49,9 +82,9 @@ public class Sensor : Behavior, IEventBehavior
 
     public void Ping()
     {
-        if(_pingCooldown < 0 && Entity.TryConsumeEnergy(Evaluate(_pingEnergy)))
+        if(_pingCooldown < 0 && Entity.TryConsumeEnergy(Evaluate(_data.PingEnergy)))
         {
-            Entity.VisibilitySources[this] = Evaluate(_pingVisibility);
+            Entity.VisibilitySources[this] = Evaluate(_data.PingVisibility);
             _pinging = true;
             _pingCooldown = 1;
             _pingLerp = 0;
@@ -61,50 +94,22 @@ public class Sensor : Behavior, IEventBehavior
         }
     }
 
-    public Sensor(RuntimeBehaviorDefinition definition, EquippedItem item) : base(definition, item)
+    public Sensor(SensorData data, EquippedItem item) : base(data, item)
     {
-        _sensitivity = definition.PerformanceStat(3, new PerformanceStat());
-        _sensitivityCurve = definition.BezierCurve(4, null);
-        _pingBoost = definition.PerformanceStat(5, null);
-        _pingEnergy = definition.PerformanceStat(6, null);
-        _pingVisibility = definition.PerformanceStat(7, null);
-        _pingRange = definition.PerformanceStat(8, null);
-        _pingCooldownDuration = definition.PerformanceStat(9, null);
-        _pingDuration = definition.Float(10, 2);
-        _pingRadiusExponent = definition.Float(11, .5f);
-        RegisterPerformanceStats();
+        _data = data;
     }
 
-    public Sensor(RuntimeBehaviorDefinition definition, ConsumableItemEffect item) : base(definition, item)
+    public Sensor(SensorData data, ConsumableItemEffect item) : base(data, item)
     {
-        _sensitivity = definition.PerformanceStat(3, new PerformanceStat());
-        _sensitivityCurve = definition.BezierCurve(4, null);
-        _pingBoost = definition.PerformanceStat(5, null);
-        _pingEnergy = definition.PerformanceStat(6, null);
-        _pingVisibility = definition.PerformanceStat(7, null);
-        _pingRange = definition.PerformanceStat(8, null);
-        _pingCooldownDuration = definition.PerformanceStat(9, null);
-        _pingDuration = definition.Float(10, 2);
-        _pingRadiusExponent = definition.Float(11, .5f);
-        RegisterPerformanceStats();
-    }
-
-    private void RegisterPerformanceStats()
-    {
-        RegisterPerformanceStat("Sensitivity", _sensitivity);
-        RegisterPerformanceStat("PingBoost", _pingBoost);
-        RegisterPerformanceStat("PingEnergy", _pingEnergy);
-        RegisterPerformanceStat("PingVisibility", _pingVisibility);
-        RegisterPerformanceStat("PingRange", _pingRange);
-        RegisterPerformanceStat("PingCooldown", _pingCooldownDuration);
+        _data = data;
     }
 
     public override bool Execute(float dt)
     {
         if (_pinging)
         {
-            _pingLerp += dt / _pingDuration;
-            _pingRadius = lerp(0, Evaluate(_pingRange), pow(_pingLerp, _pingRadiusExponent));
+            _pingLerp += dt / _data.PingDuration;
+            _pingRadius = lerp(0, Evaluate(_data.PingRange), pow(_pingLerp, _data.PingRadiusExponent));
             if (_pingLerp > 1)
             {
                 _pinging = false;
@@ -112,17 +117,16 @@ public class Sensor : Behavior, IEventBehavior
             }
         }
 
-        _pingCooldown -= dt / Evaluate(_pingCooldownDuration);
-
+        _pingCooldown -= dt / Evaluate(_data.PingCooldown);
+        
         // TODO: Handle Active Detection / Visibility From Reflected Radiance
         var forward = Direction.xz;
-        var entityPosition = Entity.CultPositionXZ;
         foreach (var entity in Entity.Zone.Entities)
         {
             if (entity == Entity) continue;
-
-            var diff = entity.CultPositionXZ - entityPosition;
-            var angle = AetheriaMath.AngleRadians(forward, diff);
+            
+            var diff = entity.Position.xz - Entity.Position.xz;
+            var angle = acos(dot(forward, normalize(diff)));
             var dist = length(diff);
             float previous, next;
             Entity.EntityInfoGathered.TryGetValue(entity, out previous);
@@ -132,8 +136,8 @@ public class Sensor : Behavior, IEventBehavior
                 next = saturate(
                     previous +
                     entity.Visibility *
-                    Evaluate(_sensitivity) *
-                    Evaluate(_pingBoost) *
+                    Evaluate(_data.Sensitivity) *
+                    Evaluate(_data.PingBoost) *
                     dist);
             }
             else
@@ -141,8 +145,8 @@ public class Sensor : Behavior, IEventBehavior
                 next = saturate(
                     previous +
                     entity.Visibility *
-                    Evaluate(_sensitivity) *
-                    _sensitivityCurve.Evaluate(angle / PI) *
+                    Evaluate(_data.Sensitivity) *
+                    _data.SensitivityCurve.Evaluate(angle / PI) *
                     dt / dist);
             }
             next *= 1 - ItemManager.GameplaySettings.TargetInfoDecay * dt;
@@ -150,18 +154,5 @@ public class Sensor : Behavior, IEventBehavior
             Entity.EntityInfoGathered[entity] = next;
         }
         return true;
-    }
-
-    public void RestoreRuntimeState(
-        bool pinging,
-        float pingCooldown,
-        float pingLerp,
-        float pingRadius)
-    {
-        _pinging = pinging;
-        _pingCooldown = pingCooldown;
-        _pingLerp = pingLerp;
-        _pingRadius = pingRadius;
-        _pingedEntities.Clear();
     }
 }

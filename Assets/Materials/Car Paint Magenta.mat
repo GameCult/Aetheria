@@ -9,8 +9,6 @@ Material:
   m_PrefabAsset: {fileID: 0}
   m_Name: Car Paint Magenta
   m_Shader: {fileID: 4800000, guid: ddff0b48b92c991499817d2a0f5d5059, type: 3}
-  m_Parent: {fileID: 0}
-  m_ModifiedSerializedProperties: 0
   m_ValidKeywords: []
   m_InvalidKeywords:
   - _MAINTEX
@@ -24,12 +22,12 @@ Material:
   m_CustomRenderQueue: -1
   stringTagMap: {}
   disabledShaderPasses: []
-  m_LockedProperties:
   m_SavedProperties:
     serializedVersion: 3
     m_TexEnvs:
     - _BumpMap:
-        m_Texture: {fileID: 2800000, guid: 8b981e6a4aa120b4a8fed57c334163eb, type: 3}
+        m_Texture: {fileID: 3068890721646206586, guid: a1d39ea984432bf44b4a0686afe2bf1a,
+          type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _FadeTex:
@@ -37,15 +35,18 @@ Material:
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _MainTex:
-        m_Texture: {fileID: 2800000, guid: 30b999db5c2a78a4ab18c8a83b4e2d83, type: 3}
+        m_Texture: {fileID: 5917659159057834157, guid: a1d39ea984432bf44b4a0686afe2bf1a,
+          type: 3}
         m_Scale: {x: 2, y: 2}
         m_Offset: {x: 0, y: 0}
     - _MetallicGlossMap:
-        m_Texture: {fileID: 2800000, guid: 4f61d8871a560e04b9aa59ed0490e7f7, type: 3}
+        m_Texture: {fileID: -3552914696322007609, guid: a1d39ea984432bf44b4a0686afe2bf1a,
+          type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _OcclusionMap:
-        m_Texture: {fileID: 0}
+        m_Texture: {fileID: -1242281561028671816, guid: a1d39ea984432bf44b4a0686afe2bf1a,
+          type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     m_Ints: []
@@ -54,11 +55,10 @@ Material:
     - _Fade: 1
     - _FadeEdge: 0.05
     - _FadeSharpness: 16
-    - _Glossiness: 0.82
-    - _Metallic: 0.55
+    - _Glossiness: 1
+    - _Metallic: 1
     - _OcclusionStrength: 1
     m_Colors:
-    - _Color: {r: 1, g: 0.12, b: 0.68, a: 1}
+    - _Color: {r: 1, g: 1, b: 1, a: 1}
     - _EdgeColor: {r: 3.0117648, g: 3.0117648, b: 11.984314, a: 1}
   m_BuildTextureStacks: []
-  m_AllowLocking: 1

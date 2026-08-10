@@ -1,27 +1,47 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
+﻿/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
-using static CultMath.math;
+using System;
+using System.Linq;
+using MessagePack;
+using Newtonsoft.Json;
+using Unity.Mathematics;
+using static Unity.Mathematics.math;
+
+[Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn), Order(-10), RuntimeInspectable]
+public class CooldownData : BehaviorData
+{
+    [Inspectable, JsonProperty("cooldown"), Key(1), RuntimeInspectable]
+    public PerformanceStat Cooldown = new PerformanceStat();
+    
+    public override Behavior CreateInstance(EquippedItem item)
+    {
+        return new Cooldown(this, item);
+    }
+    
+    public override Behavior CreateInstance(ConsumableItemEffect item)
+    {
+        return new Cooldown(this, item);
+    }
+}
 
 public class Cooldown : Behavior, IAlwaysUpdatedBehavior, IProgressBehavior
 {
-    private readonly PerformanceStat _cooldownDuration;
+    private CooldownData _data;
 
     private float _cooldown; // Normalized
 
     public float Progress => saturate(_cooldown);
 
-    public Cooldown(RuntimeBehaviorDefinition definition, EquippedItem item) : base(definition, item)
+    public Cooldown(CooldownData data, EquippedItem item) : base(data, item)
     {
-        _cooldownDuration = definition.PerformanceStat(1, new PerformanceStat());
-        RegisterPerformanceStat(nameof(Cooldown), _cooldownDuration);
+        _data = data;
     }
 
-    public Cooldown(RuntimeBehaviorDefinition definition, ConsumableItemEffect item) : base(definition, item)
+    public Cooldown(CooldownData data, ConsumableItemEffect item) : base(data, item)
     {
-        _cooldownDuration = definition.PerformanceStat(1, new PerformanceStat());
-        RegisterPerformanceStat(nameof(Cooldown), _cooldownDuration);
+        _data = data;
     }
 
     public override bool Execute(float dt)
@@ -37,6 +57,6 @@ public class Cooldown : Behavior, IAlwaysUpdatedBehavior, IProgressBehavior
 
     public void Update(float delta)
     {
-        _cooldown -= delta / Evaluate(_cooldownDuration);
+        _cooldown -= delta / Evaluate(_data.Cooldown);
     }
 }

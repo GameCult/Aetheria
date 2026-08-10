@@ -1,0 +1,8 @@
+C:\Users\rwvens\Documents\GitHub\Aetheria-Economy\Economy.Shared\bin\Debug\netstandard2.0\Economy.Shared.deps.json
+C:\Users\rwvens\Documents\GitHub\Aetheria-Economy\Economy.Shared\bin\Debug\netstandard2.0\Economy.Shared.dll
+C:\Users\rwvens\Documents\GitHub\Aetheria-Economy\Economy.Shared\bin\Debug\netstandard2.0\Economy.Shared.pdb
+C:\Users\rwvens\Documents\GitHub\Aetheria-Economy\Economy.Shared\obj\Debug\netstandard2.0\Economy.Shared.csprojAssemblyReference.cache
+C:\Users\rwvens\Documents\GitHub\Aetheria-Economy\Economy.Shared\obj\Debug\netstandard2.0\Economy.Shared.AssemblyInfoInputs.cache
+C:\Users\rwvens\Documents\GitHub\Aetheria-Economy\Economy.Shared\obj\Debug\netstandard2.0\Economy.Shared.AssemblyInfo.cs
+C:\Users\rwvens\Documents\GitHub\Aetheria-Economy\Economy.Shared\obj\Debug\netstandard2.0\Economy.Shared.dll
+C:\Users\rwvens\Documents\GitHub\Aetheria-Economy\Economy.Shared\obj\Debug\netstandard2.0\Economy.Shared.pdb

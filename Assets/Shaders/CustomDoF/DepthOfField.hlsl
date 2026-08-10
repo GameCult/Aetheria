@@ -4,13 +4,11 @@
 #include "StdLib.hlsl"
 #include "Colors.hlsl"
 #include "DiskKernels.hlsl"
-#include "Assets/Shaders/PackFloat.cginc"
 
+TEXTURE2D_SAMPLER2D(_MainTex, sampler_MainTex);
 float4 _MainTex_TexelSize;
-TEXTURE2D_SAMPLER2D(_BlitTexture, sampler_BlitTexture);
 
 TEXTURE2D_SAMPLER2D(_DoFBlurTex, sampler_DoFBlurTex);
-float _DoFBlurTexPacked;
 TEXTURE2D_SAMPLER2D(_CameraDepthTexture, sampler_CameraDepthTexture);
 TEXTURE2D_SAMPLER2D(_CameraMotionVectorsTexture, sampler_CameraMotionVectorsTexture);
 
@@ -30,16 +28,7 @@ half3 _TaaParams; // Jitter.x, Jitter.y, Blending
 // CoC calculation
 half4 FragCoC(VaryingsDefault i) : SV_Target
 {
-    half4 blur = SAMPLE_TEXTURE2D(_DoFBlurTex, sampler_DoFBlurTex, i.texcoordStereo);
-    if (_DoFBlurTexPacked > 0.5)
-    {
-        float distance;
-        float density;
-        unpack(blur.a, distance, density);
-        return saturate(density);
-    }
-
-    return blur.r;
+    return SAMPLE_TEXTURE2D(_DoFBlurTex, sampler_DoFBlurTex, i.texcoordStereo).r;
 }
 
 // Temporal filter
@@ -77,7 +66,7 @@ half4 FragTempFilter(VaryingsDefault i) : SV_Target
 
     // Sample the history buffer with the motion vector at the closest point
     float2 motion = SAMPLE_TEXTURE2D(_CameraMotionVectorsTexture, sampler_CameraMotionVectorsTexture, UnityStereoTransformScreenSpaceTex(i.texcoord + closest.xy)).xy;
-    half cocHis = SAMPLE_TEXTURE2D(_BlitTexture, sampler_BlitTexture, UnityStereoTransformScreenSpaceTex(i.texcoord - motion)).r;
+    half cocHis = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, UnityStereoTransformScreenSpaceTex(i.texcoord - motion)).r;
 
     // Neighborhood clamping
     half cocMin = closest.z;
@@ -94,9 +83,9 @@ half4 FragPrefilter(VaryingsDefault i) : SV_Target
 #if UNITY_GATHER_SUPPORTED
 
     // Sample source colors
-    half4 c_r = GATHER_RED_TEXTURE2D(_BlitTexture, sampler_BlitTexture, i.texcoordStereo);
-    half4 c_g = GATHER_GREEN_TEXTURE2D(_BlitTexture, sampler_BlitTexture, i.texcoordStereo);
-    half4 c_b = GATHER_BLUE_TEXTURE2D(_BlitTexture, sampler_BlitTexture, i.texcoordStereo);
+    half4 c_r = GATHER_RED_TEXTURE2D(_MainTex, sampler_MainTex, i.texcoordStereo);
+    half4 c_g = GATHER_GREEN_TEXTURE2D(_MainTex, sampler_MainTex, i.texcoordStereo);
+    half4 c_b = GATHER_BLUE_TEXTURE2D(_MainTex, sampler_MainTex, i.texcoordStereo);
 
     half3 c0 = half3(c_r.x, c_g.x, c_b.x);
     half3 c1 = half3(c_r.y, c_g.y, c_b.y);
@@ -119,10 +108,10 @@ half4 FragPrefilter(VaryingsDefault i) : SV_Target
     float2 uv3 = UnityStereoTransformScreenSpaceTex(i.texcoord + duv.xy);
 
     // Sample source colors
-    half3 c0 = SAMPLE_TEXTURE2D(_BlitTexture, sampler_BlitTexture, uv0).rgb;
-    half3 c1 = SAMPLE_TEXTURE2D(_BlitTexture, sampler_BlitTexture, uv1).rgb;
-    half3 c2 = SAMPLE_TEXTURE2D(_BlitTexture, sampler_BlitTexture, uv2).rgb;
-    half3 c3 = SAMPLE_TEXTURE2D(_BlitTexture, sampler_BlitTexture, uv3).rgb;
+    half3 c0 = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, uv0).rgb;
+    half3 c1 = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, uv1).rgb;
+    half3 c2 = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, uv2).rgb;
+    half3 c3 = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, uv3).rgb;
 
     // Sample CoCs
     half coc0 = SAMPLE_TEXTURE2D(_CoCTex, sampler_CoCTex, uv0).r * 2.0 - 1.0;
@@ -160,7 +149,7 @@ half4 FragPrefilter(VaryingsDefault i) : SV_Target
 // Bokeh filter with disk-shaped kernels
 half4 FragBlur(VaryingsDefault i) : SV_Target
 {
-    half4 samp0 = SAMPLE_TEXTURE2D(_BlitTexture, sampler_BlitTexture, i.texcoordStereo);
+    half4 samp0 = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, i.texcoordStereo);
 
     half4 bgAcc = 0.0; // Background: far field bokeh
     half4 fgAcc = 0.0; // Foreground: near field bokeh
@@ -172,7 +161,7 @@ half4 FragBlur(VaryingsDefault i) : SV_Target
         float dist = length(disp);
 
         float2 duv = float2(disp.x * _RcpAspect, disp.y);
-        half4 samp = SAMPLE_TEXTURE2D(_BlitTexture, sampler_BlitTexture, UnityStereoTransformScreenSpaceTex(i.texcoord + duv));
+        half4 samp = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, UnityStereoTransformScreenSpaceTex(i.texcoord + duv));
 
         // BG: Compare CoC of the current sample and the center sample
         // and select smaller one.
@@ -217,10 +206,10 @@ half4 FragPostBlur(VaryingsDefault i) : SV_Target
     // 9 tap tent filter with 4 bilinear samples
     const float4 duv = _MainTex_TexelSize.xyxy * float4(0.5, 0.5, -0.5, 0);
     half4 acc;
-    acc  = SAMPLE_TEXTURE2D(_BlitTexture, sampler_BlitTexture, UnityStereoTransformScreenSpaceTex(i.texcoord - duv.xy));
-    acc += SAMPLE_TEXTURE2D(_BlitTexture, sampler_BlitTexture, UnityStereoTransformScreenSpaceTex(i.texcoord - duv.zy));
-    acc += SAMPLE_TEXTURE2D(_BlitTexture, sampler_BlitTexture, UnityStereoTransformScreenSpaceTex(i.texcoord + duv.zy));
-    acc += SAMPLE_TEXTURE2D(_BlitTexture, sampler_BlitTexture, UnityStereoTransformScreenSpaceTex(i.texcoord + duv.xy));
+    acc  = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, UnityStereoTransformScreenSpaceTex(i.texcoord - duv.xy));
+    acc += SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, UnityStereoTransformScreenSpaceTex(i.texcoord - duv.zy));
+    acc += SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, UnityStereoTransformScreenSpaceTex(i.texcoord + duv.zy));
+    acc += SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, UnityStereoTransformScreenSpaceTex(i.texcoord + duv.xy));
     return acc / 4.0;
 }
 
@@ -234,7 +223,7 @@ half4 FragCombine(VaryingsDefault i) : SV_Target
     // Convert CoC to far field alpha value.
     float ffa = smoothstep(_MainTex_TexelSize.y * 2.0, _MainTex_TexelSize.y * 4.0, coc);
 
-    half4 color = SAMPLE_TEXTURE2D(_BlitTexture, sampler_BlitTexture, i.texcoordStereo);
+    half4 color = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, i.texcoordStereo);
 
 #if defined(UNITY_COLORSPACE_GAMMA)
     color = SRGBToLinear(color);
@@ -255,7 +244,7 @@ half4 FragCombine(VaryingsDefault i) : SV_Target
 // Debug overlay
 half4 FragDebugOverlay(VaryingsDefault i) : SV_Target
 {
-    half3 color = SAMPLE_TEXTURE2D(_BlitTexture, sampler_BlitTexture, i.texcoordStereo).rgb;
+    half3 color = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, i.texcoordStereo).rgb;
 
     // Calculate the radiuses of CoC.
     half4 src = SAMPLE_TEXTURE2D(_DepthOfFieldTex, sampler_DepthOfFieldTex, i.texcoordStereo);

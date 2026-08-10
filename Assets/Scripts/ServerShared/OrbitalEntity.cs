@@ -2,28 +2,32 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
+using System;
 using System.Collections;
 using System.Collections.Generic;
+using Unity.Mathematics;
+using static Unity.Mathematics.math;
+using float2 = Unity.Mathematics.float2;
 
 public class OrbitalEntity : Entity
 {
-    public string OrbitKey = "";
+    public Guid OrbitData;
     public SecurityLevel SecurityLevel;
     public float SecurityRadius;
     public LocationStory Story;
     public bool CanTow;
     
-    public OrbitalEntity(ItemManager itemManager, Zone zone, EquippableItem hull, string orbitKey, EntitySettings settings) : base(itemManager, zone, hull, settings)
+    public OrbitalEntity(ItemManager itemManager, Zone zone, EquippableItem hull, Guid orbit, EntitySettings settings) : base(itemManager, zone, hull, settings)
     {
-        OrbitKey = orbitKey ?? "";
+        OrbitData = orbit;
     }
 
     public override void Update(float delta)
     {
-        if (!string.IsNullOrWhiteSpace(OrbitKey))
+        if (OrbitData != Guid.Empty)
         {
-            CultPositionXZ = AetheriaMath.ToCult(Zone.GetOrbitPosition(OrbitKey));
-            CultVelocity = AetheriaMath.ToCult(Zone.GetOrbitVelocity(OrbitKey));
+            Position.xz = Zone.GetOrbitPosition(OrbitData);
+            Velocity = Zone.GetOrbitVelocity(OrbitData);
         }
         
         base.Update(delta);

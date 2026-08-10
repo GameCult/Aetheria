@@ -2,39 +2,51 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
-using static CultMath.math;
+using MessagePack;
+using Newtonsoft.Json;
+using Unity.Mathematics;
+using static Unity.Mathematics.math;
 
+[Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn), RuntimeInspectable]
+public class VelocityLimitData : BehaviorData
+{
+    [Inspectable, JsonProperty("topSpeed"), Key(1), RuntimeInspectable]  
+    public PerformanceStat TopSpeed = new PerformanceStat();
+    
+    public override Behavior CreateInstance(EquippedItem item)
+    {
+        return new VelocityLimit(this, item);
+    }
+    public override Behavior CreateInstance(ConsumableItemEffect item)
+    {
+        return new VelocityLimit(this, item);
+    }
+}
+
+[Order(100)]
 public class VelocityLimit : Behavior
 {
     public float Limit { get; private set; }
 
-    private readonly PerformanceStat _topSpeed;
+    private VelocityLimitData _data;
 
-    public VelocityLimit(RuntimeBehaviorDefinition definition, EquippedItem item) : base(definition, item)
+    public VelocityLimit(VelocityLimitData data, EquippedItem item) : base(data, item)
     {
-        _topSpeed = definition.PerformanceStat(1, new PerformanceStat());
-        RegisterPerformanceStat("TopSpeed", _topSpeed);
-        Limit = Evaluate(_topSpeed);
+        _data = data;
+        Limit = Evaluate(_data.TopSpeed);
     }
 
-    public VelocityLimit(RuntimeBehaviorDefinition definition, ConsumableItemEffect item) : base(definition, item)
+    public VelocityLimit(VelocityLimitData data, ConsumableItemEffect item) : base(data, item)
     {
-        _topSpeed = definition.PerformanceStat(1, new PerformanceStat());
-        RegisterPerformanceStat("TopSpeed", _topSpeed);
-        Limit = Evaluate(_topSpeed);
+        _data = data;
+        Limit = Evaluate(_data.TopSpeed);
     }
 
     public override bool Execute(float dt)
     {
-        Limit = Evaluate(_topSpeed);
-        var velocity = Entity.CultVelocity;
-        if (length(velocity) > Limit)
-            Entity.CultVelocity = normalize(velocity) * Limit;
+        Limit = Evaluate(_data.TopSpeed);
+        if (length(Entity.Velocity) > Limit)
+            Entity.Velocity = normalize(Entity.Velocity) * Limit;
         return true;
-    }
-
-    public void RestoreRuntimeState(float limit)
-    {
-        Limit = limit;
     }
 }

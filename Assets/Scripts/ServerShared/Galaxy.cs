@@ -5,12 +5,12 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using DataStructures.ViliWonka.Heap;
-using GameCult.Aetheria.State.Verse;
 using Ink.Runtime;
 using MIConvexHull;
 using JM.LinqFaster;
 using UniRx;
-using float2 = Unity.Mathematics.float2;
+using Unity.Mathematics;
+using static Unity.Mathematics.math;
 using Random = Unity.Mathematics.Random;
 
 public class Galaxy
@@ -25,16 +25,14 @@ public class Galaxy
     public GalaxyZone[] Zones { get; }
     public GalaxyZone Entrance { get; }
     public GalaxyZone Exit { get; }
-    public uint GenerationSeed { get; }
     public Dictionary<Faction, FactionRelationship> FactionRelationships { get; } = new Dictionary<Faction, FactionRelationship>();
     private Action<string> Log { get; }
     public bool IsPrelude { get; }
     
-    private HashSet<string> _containedFactionKeys;
+    private HashSet<Guid> _containedFactions;
     private GalaxyZone[] _exitPath;
     private Dictionary<Faction, MarkovNameGenerator> _nameGenerators = new Dictionary<Faction, MarkovNameGenerator>();
-    private readonly AetheriaRuntimeCatalogSnapshot _runtimeCatalog;
-    private readonly Faction[] _allFactions;
+    private readonly CultCache _cache;
 
     public GalaxyZone[] ExitPath
     {
@@ -46,23 +44,67 @@ public class Galaxy
         }
     }
 
+    public Galaxy(CultCache cultCache, SavedGame savedGame, Action<string> log)
+    {
+        IsPrelude = savedGame.IsTutorial;
+        _cache = cultCache;
+        Log = log;
+        Background = savedGame.Background;
+        
+        Factions = savedGame.Factions.Select(cultCache.Get<Faction>).ToArray();
+        for (var i = 0; i < Factions.Length; i++)
+        {
+            FactionRelationships[Factions[i]] = savedGame.Relationships[i];
+        }
+        
+        Zones = savedGame.Zones.Select(zone =>
+        {
+            return new GalaxyZone
+            {
+                Name = zone.Name,
+                Position = zone.Position,
+                PackedContents = zone.Contents
+            };
+        }).ToArray();
+        foreach (var i in savedGame.DiscoveredZones) DiscoveredZones.Add(Zones[i]);
+        for (var i = 0; i < Zones.Length; i++)
+        {
+            Zones[i].AdjacentZones = savedGame.Zones[i].AdjacentZones.Select(azi => Zones[azi]).ToList();
+            Zones[i].Factions = savedGame.Zones[i].Factions.Select(mi => Factions[mi]).ToArray();
+            Zones[i].Owner = savedGame.Zones[i].Owner < 0 ? null : Factions[savedGame.Zones[i].Owner];
+        }
+
+        HomeZones = savedGame.HomeZones.ToDictionary(
+            x => Factions[x.Key], 
+            x => Zones[x.Value]);
+
+        BossZones = savedGame.BossZones.ToDictionary(
+            x => Factions[x.Key], 
+            x => Zones[x.Value]);
+
+        Entrance = Zones[savedGame.Entrance];
+        if(savedGame.Exit != -1)
+            Exit = Zones[savedGame.Exit];
+
+        CalculateDistanceMatrix();
+    }
+
     public Galaxy(
         SectorGenerationSettings settings, 
         SectorBackgroundSettings background, 
         NameGeneratorSettings nameGeneratorSettings, 
-        AetheriaRuntimeCatalogSnapshot runtimeCatalog,
+        CultCache cache,
         Action<string> log,
         Action<string> progressCallback = null,
         uint seed = 0)
     {
-        _runtimeCatalog = runtimeCatalog ?? throw new InvalidOperationException("Galaxy generation requires the typed Aetheria runtime catalog.");
-        _allFactions = ProjectFactions(_runtimeCatalog);
+        _cache = cache;
         IsPrelude = false;
         Background = background;
         Log = log;
-        GenerationSeed = seed == 0 ? (uint) (DateTime.Now.Ticks % uint.MaxValue) : seed;
-        var random = new Random(GenerationSeed);
-        Factions = _allFactions.OrderBy(x => random.NextFloat()).Take(settings.MegaCount).ToArray();
+        var factions = cache.GetAll<Faction>();
+        var random = new Random(seed == 0 ? (uint) (DateTime.Now.Ticks % uint.MaxValue) : seed);
+        Factions = factions.OrderBy(x => random.NextFloat()).Take(settings.MegaCount).ToArray();
         foreach (var f in Factions) FactionRelationships[f] = FactionRelationship.Neutral;
 
         Zones = GenerateZones(settings.ZoneCount, ref random, progressCallback);
@@ -84,321 +126,34 @@ public class Galaxy
 
         CalculateFactionInfluence(progressCallback);
 
-        var nameRandom = new CultMath.Random((uint)random.NextInt(1, int.MaxValue));
-        GenerateNames(nameGeneratorSettings, ref nameRandom, progressCallback);
+        GenerateNames(cache, nameGeneratorSettings, ref random, progressCallback);
 
         progressCallback?.Invoke("Done!");
         if(progressCallback!=null) Thread.Sleep(500); // Inserting Delay to make it seem like it's doing more work lmao
     }
-
-    public static Galaxy ProjectObservedSectorMap(
-        AetheriaRuntimeSectorMapDocument sectorMap,
-        SectorBackgroundSettings background,
-        AetheriaRuntimeCatalogSnapshot runtimeCatalog,
-        Action<string> log)
-    {
-        return new Galaxy(sectorMap, background, runtimeCatalog, log);
-    }
-
-    public static Galaxy ProjectObservedDaemonRun(
-        AetheriaRuntimeRunCheckpointCommit run,
-        SectorBackgroundSettings background,
-        AetheriaRuntimeCatalogSnapshot runtimeCatalog,
-        Action<string> log)
-    {
-        return new Galaxy(run, background, runtimeCatalog, log);
-    }
-
-    private Galaxy(
-        AetheriaRuntimeRunCheckpointCommit run,
-        SectorBackgroundSettings background,
-        AetheriaRuntimeCatalogSnapshot runtimeCatalog,
-        Action<string> log)
-    {
-        if (run == null) throw new ArgumentNullException(nameof(run));
-
-        _runtimeCatalog = runtimeCatalog ?? throw new InvalidOperationException("Daemon-observed galaxy requires the typed Aetheria runtime catalog.");
-        _allFactions = ProjectFactions(_runtimeCatalog);
-        IsPrelude = run.IsTutorial;
-        Background = background;
-        Log = log;
-        GenerationSeed = run.GenerationSeed;
-        NameGeneratorSettings = null;
-        Factions = ResolveRunFactions(run);
-        foreach (var faction in Factions)
-            FactionRelationships[faction] = ResolveRunFactionRelationship(run, faction);
-
-        Zones = (run.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>())
-            .Where(zone => zone != null && zone.ZoneIndex >= 0)
-            .OrderBy(zone => zone.ZoneIndex)
-            .Select(zone => new GalaxyZone
-            {
-                ZoneIndex = zone.ZoneIndex,
-                Name = string.IsNullOrWhiteSpace(zone.Name) ? $"Daemon Zone {zone.ZoneIndex}" : zone.Name,
-                Position = new float2((float)zone.PositionX, (float)zone.PositionY),
-                Factions = ResolveRunZoneFactions(zone),
-                Owner = ResolveFactionByIndex(zone.OwnerFactionIndex),
-                NamedZone = !string.IsNullOrWhiteSpace(zone.Name)
-            })
-            .ToArray();
-
-        var zonesByIndex = (run.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>())
-            .Where(zone => zone != null && zone.ZoneIndex >= 0)
-            .OrderBy(zone => zone.ZoneIndex)
-            .Select((zone, ordinal) => new { zone.ZoneIndex, Zone = Zones[ordinal] })
-            .ToDictionary(pair => pair.ZoneIndex, pair => pair.Zone);
-
-        foreach (var source in run.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>())
-        {
-            if (source == null || !zonesByIndex.TryGetValue(source.ZoneIndex, out var sourceZone))
-                continue;
-
-            foreach (var adjacentIndex in source.AdjacentZoneIndices ?? Array.Empty<int>())
-            {
-                if (zonesByIndex.TryGetValue(adjacentIndex, out var adjacentZone) &&
-                    !sourceZone.AdjacentZones.Contains(adjacentZone))
-                {
-                    sourceZone.AdjacentZones.Add(adjacentZone);
-                }
-            }
-        }
-
-        Entrance = ResolveRunZone(run.EntranceZoneIndex) ??
-            ResolveRunZone(run.CurrentZoneIndex) ??
-            Zones.FirstOrDefault();
-        Exit = ResolveRunZone(run.ExitZoneIndex);
-        foreach (var zone in run.DiscoveredZoneIndices ?? Array.Empty<int>())
-        {
-            var discovered = ResolveRunZone(zone);
-            if (discovered != null)
-                DiscoveredZones.Add(discovered);
-        }
-        if (DiscoveredZones.Count == 0 && Entrance != null)
-            DiscoveredZones.Add(Entrance);
-
-        CalculateDistanceMatrix();
-
-        GalaxyZone ResolveRunZone(int zoneIndex)
-        {
-            return zonesByIndex.TryGetValue(zoneIndex, out var zone) ? zone : null;
-        }
-    }
-
-    private Galaxy(
-        AetheriaRuntimeSectorMapDocument sectorMap,
-        SectorBackgroundSettings background,
-        AetheriaRuntimeCatalogSnapshot runtimeCatalog,
-        Action<string> log)
-    {
-        if (sectorMap == null) throw new ArgumentNullException(nameof(sectorMap));
-
-        _runtimeCatalog = runtimeCatalog ?? throw new InvalidOperationException("Daemon-observed galaxy requires the typed Aetheria runtime catalog.");
-        _allFactions = ProjectFactions(_runtimeCatalog);
-        IsPrelude = sectorMap.IsTutorial;
-        Background = background;
-        Log = log;
-        GenerationSeed = sectorMap.GenerationSeed;
-        NameGeneratorSettings = null;
-        Factions = ResolveSectorMapFactions(sectorMap);
-        foreach (var faction in Factions)
-            FactionRelationships[faction] = ResolveSectorMapFactionRelationship(sectorMap, faction);
-
-        Zones = (sectorMap.Zones ?? Array.Empty<AetheriaRuntimeSectorMapZone>())
-            .Where(zone => zone != null && zone.ZoneIndex >= 0)
-            .OrderBy(zone => zone.ZoneIndex)
-            .Select(zone => new GalaxyZone
-            {
-                ZoneIndex = zone.ZoneIndex,
-                Name = string.IsNullOrWhiteSpace(zone.Name) ? $"Daemon Zone {zone.ZoneIndex}" : zone.Name,
-                Position = new float2((float)zone.X, (float)zone.Y),
-                Factions = ResolveSectorMapZoneFactions(zone),
-                Owner = ResolveFactionByIndex(zone.OwnerFactionIndex),
-                NamedZone = !string.IsNullOrWhiteSpace(zone.Name)
-            })
-            .ToArray();
-
-        var zonesByIndex = (sectorMap.Zones ?? Array.Empty<AetheriaRuntimeSectorMapZone>())
-            .Where(zone => zone != null && zone.ZoneIndex >= 0)
-            .OrderBy(zone => zone.ZoneIndex)
-            .Select((zone, ordinal) => new { zone.ZoneIndex, Zone = Zones[ordinal] })
-            .ToDictionary(pair => pair.ZoneIndex, pair => pair.Zone);
-
-        foreach (var link in sectorMap.Links ?? Array.Empty<AetheriaRuntimeSectorMapLink>())
-        {
-            if (link == null ||
-                !zonesByIndex.TryGetValue(link.FromZoneIndex, out var from) ||
-                !zonesByIndex.TryGetValue(link.ToZoneIndex, out var to))
-                continue;
-
-            if (!from.AdjacentZones.Contains(to))
-                from.AdjacentZones.Add(to);
-            if (!to.AdjacentZones.Contains(from))
-                to.AdjacentZones.Add(from);
-        }
-
-        foreach (var source in sectorMap.Zones ?? Array.Empty<AetheriaRuntimeSectorMapZone>())
-        {
-            if (source == null || !zonesByIndex.TryGetValue(source.ZoneIndex, out var sourceZone))
-                continue;
-
-            foreach (var adjacentIndex in source.AdjacentZoneIndices ?? Array.Empty<int>())
-            {
-                if (zonesByIndex.TryGetValue(adjacentIndex, out var adjacentZone) &&
-                    !sourceZone.AdjacentZones.Contains(adjacentZone))
-                {
-                    sourceZone.AdjacentZones.Add(adjacentZone);
-                }
-            }
-        }
-
-        Entrance = ResolveSectorMapZone(sectorMap.EntranceZoneIndex) ??
-            ResolveSectorMapZone(sectorMap.CurrentZoneIndex) ??
-            Zones.FirstOrDefault();
-        Exit = ResolveSectorMapZone(sectorMap.ExitZoneIndex);
-        foreach (var zone in sectorMap.DiscoveredZoneIndices ?? Array.Empty<int>())
-        {
-            var discovered = ResolveSectorMapZone(zone);
-            if (discovered != null)
-                DiscoveredZones.Add(discovered);
-        }
-        if (DiscoveredZones.Count == 0 && Entrance != null)
-            DiscoveredZones.Add(Entrance);
-
-        CalculateDistanceMatrix();
-
-        GalaxyZone ResolveSectorMapZone(int zoneIndex)
-        {
-            return zonesByIndex.TryGetValue(zoneIndex, out var zone) ? zone : null;
-        }
-    }
-
-    private Faction[] ResolveSectorMapFactions(AetheriaRuntimeSectorMapDocument sectorMap)
-    {
-        var factionKeys = new HashSet<string>(
-            (sectorMap.FactionRelationships ?? Array.Empty<AetheriaRuntimeFactionRelationshipCommit>())
-                .Select(relationship => relationship?.FactionKey)
-                .Where(key => !string.IsNullOrWhiteSpace(key)),
-            StringComparer.OrdinalIgnoreCase);
-
-        var factionIndices = (sectorMap.Zones ?? Array.Empty<AetheriaRuntimeSectorMapZone>())
-            .Where(zone => zone != null)
-            .SelectMany(zone => (zone.FactionIndices ?? Array.Empty<int>()).Concat(new[] { zone.OwnerFactionIndex }))
-            .Where(index => index >= 0)
-            .Distinct()
-            .ToArray();
-
-        foreach (var index in factionIndices)
-        {
-            if (index >= 0 && index < _allFactions.Length)
-                factionKeys.Add(_allFactions[index].FactionKey);
-        }
-
-        var factions = _allFactions
-            .Where(faction => factionKeys.Contains(faction.FactionKey))
-            .ToArray();
-        return factions.Length == 0 ? _allFactions : factions;
-    }
-
-    private Faction[] ResolveRunFactions(AetheriaRuntimeRunCheckpointCommit run)
-    {
-        var factionKeys = new HashSet<string>(
-            (run.FactionRelationships ?? Array.Empty<AetheriaRuntimeFactionRelationshipCommit>())
-                .Select(relationship => relationship?.FactionKey)
-                .Where(key => !string.IsNullOrWhiteSpace(key)),
-            StringComparer.OrdinalIgnoreCase);
-
-        var factionIndices = (run.Zones ?? Array.Empty<AetheriaRuntimeZoneSnapshotCommit>())
-            .Where(zone => zone != null)
-            .SelectMany(zone => (zone.FactionIndices ?? Array.Empty<int>()).Concat(new[] { zone.OwnerFactionIndex }))
-            .Where(index => index >= 0)
-            .Distinct()
-            .ToArray();
-
-        foreach (var index in factionIndices)
-        {
-            if (index >= 0 && index < _allFactions.Length)
-                factionKeys.Add(_allFactions[index].FactionKey);
-        }
-
-        var factions = _allFactions
-            .Where(faction => factionKeys.Contains(faction.FactionKey))
-            .ToArray();
-        return factions.Length == 0 ? _allFactions : factions;
-    }
-
-    private Faction[] ResolveSectorMapZoneFactions(AetheriaRuntimeSectorMapZone zone)
-    {
-        return (zone.FactionIndices ?? Array.Empty<int>())
-            .Select(ResolveFactionByIndex)
-            .Where(faction => faction != null)
-            .ToArray();
-    }
-
-    private Faction[] ResolveRunZoneFactions(AetheriaRuntimeZoneSnapshotCommit zone)
-    {
-        return (zone.FactionIndices ?? Array.Empty<int>())
-            .Select(ResolveFactionByIndex)
-            .Where(faction => faction != null)
-            .ToArray();
-    }
-
-    private Faction ResolveFactionByIndex(int index)
-    {
-        return index >= 0 && index < _allFactions.Length ? _allFactions[index] : null;
-    }
-
-    private FactionRelationship ResolveSectorMapFactionRelationship(
-        AetheriaRuntimeSectorMapDocument sectorMap,
-        Faction faction)
-    {
-        var relationship = (sectorMap.FactionRelationships ?? Array.Empty<AetheriaRuntimeFactionRelationshipCommit>())
-            .FirstOrDefault(candidate => string.Equals(candidate?.FactionKey ?? "", faction?.FactionKey ?? "", StringComparison.OrdinalIgnoreCase));
-        return Enum.TryParse<FactionRelationship>(relationship?.Relationship ?? "", out var parsed)
-            ? parsed
-            : FactionRelationship.Neutral;
-    }
-
-    private FactionRelationship ResolveRunFactionRelationship(
-        AetheriaRuntimeRunCheckpointCommit run,
-        Faction faction)
-    {
-        var relationship = (run.FactionRelationships ?? Array.Empty<AetheriaRuntimeFactionRelationshipCommit>())
-            .FirstOrDefault(candidate => string.Equals(candidate?.FactionKey ?? "", faction?.FactionKey ?? "", StringComparison.OrdinalIgnoreCase));
-        return Enum.TryParse<FactionRelationship>(relationship?.Relationship ?? "", out var parsed)
-            ? parsed
-            : FactionRelationship.Neutral;
-    }
     
     public Faction ResolveFaction(string name)
     {
-        var faction = _allFactions.FirstOrDefault(f => f.Name.StartsWith(name, StringComparison.InvariantCultureIgnoreCase));
-        if (faction == null)
-        {
-            throw new InvalidOperationException($"Typed catalog has no faction matching '{name}'.");
-        }
-
-        return faction;
+        return _cache.GetAll<Faction>().FirstOrDefault(f => f.Name.StartsWith(name, StringComparison.InvariantCultureIgnoreCase));
     }
 
     public Galaxy(
         TutorialGenerationSettings settings,
         SectorBackgroundSettings background,
         NameGeneratorSettings nameGeneratorSettings,
-        AetheriaRuntimeCatalogSnapshot runtimeCatalog,
-        RuntimePlayerSettings playerSettings, 
+        CultCache cache,
+        PlayerSettings playerSettings, 
         DirectoryInfo narrativeDirectory,
         Action<string> log,
         Action<string> progressCallback = null,
         uint seed = 0)
     {
-        _runtimeCatalog = runtimeCatalog ?? throw new InvalidOperationException("Galaxy generation requires the typed Aetheria runtime catalog.");
-        _allFactions = ProjectFactions(_runtimeCatalog);
+        _cache = cache;
         IsPrelude = true;
 
         Background = background;
         Log = log;
-        GenerationSeed = seed == 0 ? (uint) (DateTime.Now.Ticks % uint.MaxValue) : seed;
-        var random = new Random(GenerationSeed);
+        var random = new Random(seed == 0 ? (uint) (DateTime.Now.Ticks % uint.MaxValue) : seed);
         
         var factions = new List<Faction>();
 
@@ -439,15 +194,15 @@ public class Galaxy
             .MaxBy(z => ConnectedRegion(z, antagonistFaction.InfluenceDistance).Count * z.Distance[HomeZones[protagonistFaction]]);
 
         HomeZones[protagonistFaction] = Zones
-            .MaxBy(z => ConnectedRegion(z, protagonistFaction.InfluenceDistance).Count * MathF.Sqrt(z.Distance[HomeZones[antagonistFaction]]));
+            .MaxBy(z => ConnectedRegion(z, protagonistFaction.InfluenceDistance).Count * sqrt(z.Distance[HomeZones[antagonistFaction]]));
         
         // var antagonistRegion = ConnectedRegion(HomeZones[antagonistFaction], antagonistFaction.InfluenceDistance);
         // var protagonistRegion = ConnectedRegion(HomeZones[protagonistFaction], protagonistFaction.InfluenceDistance);
 
         // Place the buffer faction in a zone where it has equal distance to the pro/antagonist HQs and where it can control the most territory
-        var bufferDistance = Zones.Min(z => Math.Abs(z.Distance[HomeZones[antagonistFaction]] - z.Distance[HomeZones[protagonistFaction]]));
+        var bufferDistance = Zones.Min(z => abs(z.Distance[HomeZones[antagonistFaction]] - z.Distance[HomeZones[protagonistFaction]]));
         var potentialBufferZones = Zones
-            .Where(z => Math.Abs(z.Distance[HomeZones[antagonistFaction]] - z.Distance[HomeZones[protagonistFaction]]) == bufferDistance);
+            .Where(z => abs(z.Distance[HomeZones[antagonistFaction]] - z.Distance[HomeZones[protagonistFaction]]) == bufferDistance);
         HomeZones[bufferFaction] = potentialBufferZones.MaxBy(z => ConnectedRegion(z, bufferFaction.InfluenceDistance).Count);
         
         // Place neutral headquarters away from existing factions while also maximizing territory
@@ -455,7 +210,7 @@ public class Galaxy
         {
             HomeZones[faction] = Zones.MaxBy(z =>
                 ConnectedRegion(z, faction.InfluenceDistance).Count *
-                HomeZones.Values.Aggregate(1f, (i, os) => i * MathF.Sqrt(os.Distance[z])));
+                HomeZones.Values.Aggregate(1f, (i, os) => i * sqrt(os.Distance[z])));
         }
         
         CalculateFactionInfluence(progressCallback);
@@ -479,8 +234,7 @@ public class Galaxy
 
         CalculateFactionInfluence(progressCallback);
 
-        var nameRandom = new CultMath.Random((uint)random.NextInt(1, int.MaxValue));
-        GenerateNames(nameGeneratorSettings, ref nameRandom, progressCallback);
+        GenerateNames(cache, nameGeneratorSettings, ref random, progressCallback);
         
         // progressCallback?.Invoke("Weaving Narrative");
         // var processor = new StoryProcessor(playerSettings, narrativeDirectory, this, ref random, Log);
@@ -495,61 +249,9 @@ public class Galaxy
         var outputSamples = WeightedSampleElimination.GeneratePoints(zoneCount,
             ref random,
             Background.CloudDensity,
-            v => (.2f - LengthSquared(v - new float2(.5f, .5f))) * 4,
+            v => (.2f - lengthsq(v - float2(.5f))) * 4,
             progressCallback);
-        return outputSamples
-            .Select((v, index) => new GalaxyZone { ZoneIndex = index, Position = v })
-            .ToArray();
-    }
-
-    private static Faction[] ProjectFactions(AetheriaRuntimeCatalogSnapshot runtimeCatalog)
-    {
-        var corporations = runtimeCatalog.Corporations.ToArray();
-        var factions = corporations
-            .Select(ProjectFaction)
-            .ToArray();
-        if (factions.Length == 0)
-        {
-            throw new InvalidOperationException("Typed catalog has no factions for galaxy generation.");
-        }
-
-        var factionKeys = new HashSet<string>(
-            factions
-                .Select(faction => faction.FactionKey)
-                .Where(key => !string.IsNullOrWhiteSpace(key)),
-            StringComparer.OrdinalIgnoreCase);
-        for (var index = 0; index < corporations.Length; index++)
-        {
-            foreach (var allegiance in corporations[index].Allegiances)
-            {
-                if (!string.IsNullOrWhiteSpace(allegiance.CorporationKey) &&
-                    factionKeys.Contains(allegiance.CorporationKey))
-                {
-                    factions[index].AllegianceByKey[allegiance.CorporationKey] = (float) allegiance.Weight;
-                }
-            }
-        }
-
-        return factions;
-    }
-
-    private static Faction ProjectFaction(AetheriaRuntimeCorporation corporation)
-    {
-        if (string.IsNullOrWhiteSpace(corporation.CorporationKey))
-        {
-            throw new InvalidOperationException($"Typed catalog corporation {corporation.Name} has no corporation key.");
-        }
-
-        return new Faction
-        {
-            FactionKey = corporation.CorporationKey,
-            Name = corporation.Name,
-            ShortName = corporation.ShortName,
-            Description = corporation.Description,
-            GeonameFileKey = corporation.GeonameFileKey,
-            BossHullItemKey = corporation.BossHullItemKey,
-            InfluenceDistance = corporation.InfluenceDistance,
-        };
+        return outputSamples.Select(v => new GalaxyZone {Position = v}).ToArray();
     }
 
     private void PlaceFactionsMain(int bossCount, Action<string> progressCallback = null)
@@ -567,7 +269,7 @@ public class Galaxy
 
         // Choose some megas to have bosses placed based on whether a boss hull is assigned
         var bossMegas = Factions
-            .Where(m => !string.IsNullOrWhiteSpace(m.BossHullItemKey))
+            .Where(m => m.BossHull != Guid.Empty)
             .Take(bossCount)
             .ToArray();
 
@@ -586,17 +288,17 @@ public class Galaxy
             HomeZones[mega] = ConnectedRegion(BossZones[mega], mega.InfluenceDistance)
                 .MaxBy(z =>
                     ConnectedRegion(z, mega.InfluenceDistance).Count *
-                    HomeZones.Values.Aggregate(1f, (i, os) => i * MathF.Sqrt(os.Distance[z])));
+                    HomeZones.Values.Aggregate(1f, (i, os) => i * sqrt(os.Distance[z])));
         }
 
         // Place remaining headquarters away from existing megas while also maximizing territory
         foreach (var mega in Factions.Where(m => !bossMegas.Contains(m)))
         {
             HomeZones[mega] = Zones.MaxBy(z =>
-                MathF.Pow(ConnectedRegion(z, mega.InfluenceDistance).Count, HomeZones.Count) *
+                pow(ConnectedRegion(z, mega.InfluenceDistance).Count, HomeZones.Count) *
                 Exit.Distance[z] * Entrance.Distance[z] *
-                HomeZones.Values.Aggregate(1f, (i, os) => i * MathF.Sqrt(os.Distance[z])) *
-                BossZones.Values.Aggregate(1f, (i, os) => i * MathF.Sqrt(os.Distance[z])));
+                HomeZones.Values.Aggregate(1f, (i, os) => i * sqrt(os.Distance[z])) *
+                BossZones.Values.Aggregate(1f, (i, os) => i * sqrt(os.Distance[z])));
         }
     }
 
@@ -623,8 +325,9 @@ public class Galaxy
         }
     }
 
-    private void GenerateNames(NameGeneratorSettings nameGeneratorSettings,
-        ref CultMath.Random random,
+    private void GenerateNames(CultCache cache,
+        NameGeneratorSettings nameGeneratorSettings,
+        ref Random random,
         Action<string> progressCallback = null)
     {
         for (var i = 0; i < Factions.Length; i++)
@@ -632,13 +335,7 @@ public class Galaxy
             progressCallback?.Invoke($"Feeding Markov Chains: {i + 1} / {Factions.Length}");
             //if(progressCallback!=null) Thread.Sleep(250); // Inserting Delay to make it seem like it's doing more work lmao
             var faction = Factions[i];
-            var nameFile = _runtimeCatalog.FindNameFile(faction.GeonameFileKey);
-            if (nameFile == null || nameFile.Names.Count == 0)
-            {
-                throw new InvalidOperationException($"Typed catalog has no name file for faction {faction.Name} ({faction.GeonameFileKey}).");
-            }
-
-            _nameGenerators[faction] = new MarkovNameGenerator(ref random, nameFile.Names, nameGeneratorSettings);
+            _nameGenerators[faction] = new MarkovNameGenerator(ref random, cache.Get<NameFile>(faction.GeonameFile).Names, nameGeneratorSettings);
         }
 
         // Generate zone name using the owner's name generator, otherwise assign catalogue ID
@@ -697,8 +394,8 @@ public class Galaxy
 
         float LinkWeight((GalaxyZone, GalaxyZone) link)
         {
-            return 1 / Saturate(Background.CloudDensity((link.Item1.Position + link.Item2.Position) / 2)) *
-                   LengthSquared(link.Item1.Position - link.Item2.Position) *
+            return 1 / saturate(Background.CloudDensity((link.Item1.Position + link.Item2.Position) / 2)) *
+                   lengthsq(link.Item1.Position - link.Item2.Position) *
                    (link.Item1.AdjacentZones.Count - 1) * (link.Item2.AdjacentZones.Count - 1);
         }
 
@@ -738,30 +435,10 @@ public class Galaxy
         }
     }
 
-    public bool ContainsFaction(string factionKey)
+    public bool ContainsFaction(Guid factionID)
     {
-        _containedFactionKeys ??= new HashSet<string>(
-            Factions
-                .Select(f => f.FactionKey)
-                .Where(key => !string.IsNullOrWhiteSpace(key)),
-            StringComparer.OrdinalIgnoreCase);
-        return !string.IsNullOrWhiteSpace(factionKey) && _containedFactionKeys.Contains(factionKey);
-    }
-
-    public Faction ResolveFactionByKey(string factionKey)
-    {
-        if (string.IsNullOrWhiteSpace(factionKey))
-        {
-            return null;
-        }
-
-        var faction = Factions.FirstOrDefault(f => string.Equals(f.FactionKey, factionKey, StringComparison.OrdinalIgnoreCase));
-        if (faction != null)
-        {
-            return faction;
-        }
-
-        return _allFactions.FirstOrDefault(f => string.Equals(f.FactionKey, factionKey, StringComparison.OrdinalIgnoreCase));
+        _containedFactions ??= new HashSet<Guid>(Factions.Select(f => f.ID));
+        return _containedFactions.Contains(factionID);
     }
 
     class DijkstraVertex
@@ -864,27 +541,16 @@ public class Galaxy
             if (!bestFirst) zonesToSearch = zonesToSearch.Where(z => !searched.Contains(z));
             foreach (var dijkstraStar in zonesToSearch
                     // Cost is parent cost plus distance squared
-                    .Select(zone => new DijkstraVertex {Parent = s, Zone = zone, Cost = s.Cost + LengthSquared(s.Zone.Position - zone.Position)}))
+                    .Select(zone => new DijkstraVertex {Parent = s, Zone = zone, Cost = s.Cost + lengthsq(s.Zone.Position - zone.Position)}))
                 // Add new member to list, sorted by cost plus optional heuristic 
-                unsearchedNodes.PushObj(dijkstraStar, bestFirst ? dijkstraStar.Cost + LengthSquared(dijkstraStar.Zone.Position - target.Position) : dijkstraStar.Cost);
+                unsearchedNodes.PushObj(dijkstraStar, bestFirst ? dijkstraStar.Cost + lengthsq(dijkstraStar.Zone.Position - target.Position) : dijkstraStar.Cost);
             searched.Add(s.Zone);
         }
-    }
-
-    private static float LengthSquared(float2 value)
-    {
-        return value.x * value.x + value.y * value.y;
-    }
-
-    private static float Saturate(float value)
-    {
-        return value < 0 ? 0 : value > 1 ? 1 : value;
     }
 }
 
 public class GalaxyZone
 {
-    public int ZoneIndex = -1;
     public string Name;
     public float2 Position;
     public List<GalaxyZone> AdjacentZones = new List<GalaxyZone>();
@@ -892,6 +558,8 @@ public class GalaxyZone
     public Dictionary<GalaxyZone, int> Distance;
     public Faction[] Factions;
     public Faction Owner;
+    public Zone Contents;
+    public ZonePack PackedContents;
     public bool NamedZone;
     public List<LocationStory> Locations = new List<LocationStory>();
 }

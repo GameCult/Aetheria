@@ -1,13 +1,7 @@
 # Aetheria
 Aetheria is an ambitious (AA quality) open source tactical action role-playing game with a sprawling sci-fi setting that combines stunning visuals with unprecedented simulation depth while maintaining accessibility.
 
-Aetheria is being rebuilt as a renderless daemon-owned game. The daemon owns
-rules, simulation state, level generation, assets, operations, and the
-high-performance view documents clients need to render the world. Eve/CultUI
-owns the portable surface, field-description, and world-state lowering
-contract. Unity, Godot, Electron, Hermodr, and later runtimes should be
-game-agnostic Eve lowerers: they render, capture input, cache native views, and
-submit typed operations without becoming gameplay authorities.
+All mechanics are developed to be engine-agnostic, while Unity was chosen as a renderer and editor environment for its accessibility and extensibility. Many custom features have been developed, such as a database frontend with configurable backing store for managing game content, a novel visual input rebinding system, and a volumetric cloud renderer with groundbreaking fidelity, any of which can easily add value to other open source gamedev projects. We'd love to see other teams building on our foundation to deliver their own vision and contribute to the ecosystem we're creating.
 
 It is our ambition to forge a new paradigm of open source game development, as to our knowledge there are no other open source projects of this scope building up a foundation from scratch. Game development is notoriously averse to this model and nobody wants to share their shiny toys for fear of losing their competitive advantage. By building and sharing immersive and compelling experiences like this, we hope to change that.
 
@@ -38,8 +32,8 @@ If you want to chat, please join [our Discord server](https://discord.gg/trbteNj
 5. [Contributing](#Contributing)
     - [Getting the Files](#Getting-the-Files)
     - [Choosing a Task](#Choosing-a-Task)
-    - [Typed State Tools](#Typed-State-Tools)
-      - [Importing Legacy Catalog Data](#Importing-Legacy-Catalog-Data)
+    - [Database Editor Tools](#Database-Editor-Tools)
+      - [Connecting to RethinkDB](#Connecting-to-RethinkDB)
       - [Editing Items](#Editing-Items)
     - [Testing Locally](#Testing-Locally)
     - [Debug Console](#Debug-Console)
@@ -54,12 +48,7 @@ If you want to chat, please join [our Discord server](https://discord.gg/trbteNj
 
 The ARPG game design document is available [here](https://docs.google.com/document/d/1iULu1WsbuQoUM3c87XkGseb1P-8R5xlruoiyg03TsSE/edit?usp=sharing), while the RTS gameplay is documented [here](https://docs.google.com/document/d/1U3uGFqQboAiFJ_Y-nUOGpyixbXUHRbc5DiCuB59GM4w/edit?usp=sharing). There's also a document explaining how some of the shaders work [here](https://docs.google.com/document/d/1AFycvCtW6hA1jkKq1ZmYd3k6_uEWaaCqcZ4fYj4vU6A/edit?usp=sharing).
 
-The game has three modes over one simulation and progression spine: Terminus
-single-player roguelike runs, Commander-default/Pilot-corrected Starbridge
-co-op, and server-authoritative Arena PvP. Arena also provides deterministic headless
-matches for NPC-policy training and build balancing. All modes share ships,
-equipment, fitting rules, and Hangar progression without sharing live session
-authority.
+The eventual goal is to essentially create two games which both take place in the same persistent universe, allowing players with vastly different preferences to struggle together for the survival of mankind. Each instance of the game lasts until the inevitable destruction of the entire population at the hands of aliens, after which the universe resets. Each loop is designed to last up to a couple of months, during which the hostility of the aliens steadily increases until the players are unable to hold back the tide. As players gain proficiency with the systems, the length of the time loop may increase, allowing us to organically inject new content into the timeline.
 
 ## Previous Work
 
@@ -69,44 +58,19 @@ As a result of lessons learned, we then focused on the economy system, and built
 
 ## Current Work
 
-At the moment we are focused on moving Aetheria gameplay authority into the
-daemon and proving that both RTS and ARPG clients can be reconstructed from
-daemon-published typed state, CultMesh CDN assets, and Eve/CultUI surfaces.
-Terminus is the single-player roguelike mode. Starbridge is the co-op RTS/pilot
-mode, using Commander-daemon default simulation with jurisdictional Pilot
-correction. Arena is the server-authoritative PvP mode and primary
-AI-training/build-balancing harness. All three can run headlessly, use the same
-Hangar, ship-loadout, and progression model, and must remain minimally runnable
-from the first product spine. The shared mode design is documented in
-[docs/game-modes-and-progression.md](docs/game-modes-and-progression.md).
-Together they prove local-authoritative, mixed-authority, and
-server-authoritative CultMesh configurations; witness-authoritative operation
-is the next authority milestone after the latter two are proven.
-
-## Developer Navigation
-
-The repo is currently in a major typed-state migration. Before making runtime
-changes, read [docs/developer-navigation.md](docs/developer-navigation.md) for
-the current project map, command list, migration rules, and where the daemon,
-Eve, and runtime-lowering boundaries live. The target renderless architecture
-is mapped in
-[docs/renderless-aetheria-architecture.md](docs/renderless-aetheria-architecture.md).
+At the moment we are focused on implementing and polishing the ARPG gameplay as a standalone title, first as a rogue-lite combat demo and then adding a story-driven campaign mode.
 
 ## Architecture
 
 ### Project Structure
 
-The current repository still contains Unity-era source, an Electron Starbridge
-client, shared runtime packages, and the C# Aetheria daemon. The target shape is
-not "two clients sharing a game library." The target shape is one daemon-owned
-game publishing typed CultMesh state, render fields, assets, operations, and
-Eve/CultUI surfaces. Runtime code is a lowering boundary: Unity and Godot lower
-ARPG world surfaces, Electron and Hermodr lower RTS world surfaces, and all of
-them consume the same game-agnostic Eve/runtime primitives.
+There are two solutions in this repository. One is a Unity project containing the desktop client for Aetheria, and the other is a .NET Core application intended to run on Linux cloud servers. The bulk of the game's code is shared between them, located at [Assets/Scripts/ServerShared](Assets/Scripts/ServerShared), defining a common protocol, world simulation code and data serialization format.
 
 ### Third Party Libraries
 
-Aetheria's new persistence spine is `Aetheria.State`: typed CultCache `.cc` documents exposed through CultNet/CultMesh. Legacy MessagePack catalog files are migration inputs only; they are fingerprinted and mapped into typed item, faction, and name-file documents before runtime systems are allowed to treat them as state.
+Client-Server communication is implemented using [LiteNetLib](https://github.com/RevenantX/LiteNetLib), a semi-reliable UDP transport library which we use to transmit [MessagePack](https://github.com/neuecc/MessagePack-CSharp) over the wire.
+
+Aetheria uses [RethinkDB](https://rethinkdb.com/) for data persistence. To make this possible, all persistent data is marked with attributes for both MessagePack and [JSON.Net](https://www.newtonsoft.com/json) serialization. During operation, the client does not communicate with the database server directly, only the game server does that; the game server caches data relevant to the game and sends it to the clients.
 
 ### Programming Paradigms
 
@@ -114,7 +78,7 @@ The codebase makes heavy use of C#'s [Language Integrated Queries (LINQ)](https:
 
 ### Data Structures
 
-Persistent state belongs in typed CultCache documents with explicit record keys and CultNet schema bindings. Legacy `DatabaseEntry` identities may appear as migration provenance while the Unity runtime is being lowered onto the new state spine, but they are not the durable state owner.
+All of the persistent state classes inherit from the DatabaseEntry class, which uses a GUID as each entry's primary key. Whenever a reference to a database entry must be held, it should be stored as a GUID and when needed, retrieved directly from the DatabaseCache held by the appropriate manager, usually ItemManager for references to ItemData. The ItemManager contains GetData helper methods for retrieving the ItemData for the various subclasses of ItemInstance.
 
 #### Equipment
 
@@ -150,23 +114,23 @@ We are organizing according to an [Agile development](https://en.wikipedia.org/w
 
 You don't have to be a programmer to contribute, either! We have issue labels for and very much welcome contributions from [writers](https://github.com/rwvens/Aetheria-Economy/labels/worldbuilding) and [game designers](https://github.com/rwvens/Aetheria-Economy/labels/game%20design).
 
-### Typed State Tools
+### Database Editor Tools
 
-The state spine lives in `Aetheria.State`. It defines CultCache documents, CultNet schema bindings, an embedded state node, and smoke coverage for writing, flushing, reopening, and reading `GameData/aetheria-world.cc`.
+In order to facilitate the creation and maintenance of game data, there is a Unity editor utility which communicates directly with RethinkDB. You can access the tools by selecting Window/Aetheria Database Tools in Unity's menu. This will cause two windows to appear, the Database List View and the Database Inspector.
 
-#### Importing Legacy Catalog Data
+#### Connecting to RethinkDB
 
-Use `Aetheria.State.Import` to quarantine the checked-in legacy catalog files and map stable MessagePack payload fields into typed CultCache state. The importer records path, size, and SHA-256 provenance for `GameData/AetherDB.msgpack` and `GameData/NameFile/*.msgpack`, then emits typed item, faction, and name-file records for the fields that have earned migration authority.
-
-Use `Aetheria.State.Verify` after import to prove the materialized `.cc` file is internally coherent and self-contained. Verification opens a temporary copy of the tracked monolith, so ignored `.cc.records` files cannot accidentally satisfy the proof. Migration-ledger counts must match actual typed catalog records, and legacy-ID lookups must resolve through `Aetheria.State` rather than importer-local key strings.
+At the top of the list view there is a text field where you can enter the URL of the database server. When you click connect, the editor will download and cache all of the items in the game, as well as subscribe to the changefeed. The list should now populate with items. For access to our database servers and therefore live game data, please contact us; it would be dangerous to make our actual database URL public!
 
 #### Editing Items
 
-Item editing should target typed CultCache documents and CultMesh/Eve surfaces. The old Unity database inspector has been removed from authority; if it returns, it should be a lowering over the state spine, not a separate store.
+You can unfold the categories of items in the list view to see what items exist. If you select an item, the Database Inspector will populate with all of the available fields of that item. Any changes you make in the Inspector will automatically be pushed to RethinkDB. If you've connected to the production database, this will update the stats of in-game items in real-time!
 
 ### Testing Locally
 
-Testing the game entirely offline should use typed local state under `GameData/aetheria-world.cc`. Until the Unity runtime is fully lowered onto `Aetheria.State`, the checked-in legacy catalog files remain migration inputs and should be regenerated only by explicit import tooling.
+Testing the game entirely offline doesn't require running the economy server, but you still need to download the database contents. In the database list view, click the "Connect" button. Once the tools are finished syncing, which can take a while (there's a progress bar), you can click "Save" to create a local backup of the entire database. If you enter Play mode in the "ARPG" scene, the game will use that local copy instead of requiring a connection to the master server.
+
+Note that this process needs to be repeated every time the data model changes or if you wish to test the game with updated database contents.
 
 ### Debug Console
 

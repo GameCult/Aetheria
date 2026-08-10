@@ -32,10 +32,6 @@
 # Visual Studio cache directory
 .vs/
 
-# Local agent/editor runtime state
-.brokkr/
-.codex/
-
 # Gradle cache directory
 .gradle/
 
@@ -101,39 +97,6 @@ Economy.Server/bin/
 Economy.Server/obj/
 Economy.Shared/bin/
 Economy.Shared/obj/
-Aetheria.State/bin/
-Aetheria.State/obj/
-Aetheria.State.Daemon/bin/
-Aetheria.State.Daemon/obj/
-Aetheria.State.Daemon.Smoke/bin/
-Aetheria.State.Daemon.Smoke/obj/
-Aetheria.State.Import/bin/
-Aetheria.State.Import/obj/
-Aetheria.State.Smoke/bin/
-Aetheria.State.Smoke/obj/
-Aetheria.State.Unity/bin/
-Aetheria.State.Unity/obj/
-Aetheria.State.Unity.Smoke/bin/
-Aetheria.State.Unity.Smoke/obj/
-Aetheria.State.Replica/bin/
-Aetheria.State.Replica/obj/
-Aetheria.State.Verify/bin/
-Aetheria.State.Verify/obj/
-Aetheria.Rts.Web/bin/
-Aetheria.Rts.Web/obj/
-Aetheria.Rts.Web/electron-dist/
-Aetheria.Rts.Web/logs/
-Aetheria.Rts.Web/node_modules/
-Aetheria.Rts.Web/runtime/
-Aetheria.Rts.Web/Aetheria.Rts.Web/logs/
-Aetheria.Rts.Web/*.log
-Aetheria.Rts.Web/wwwroot/*.js
-Aetheria.State.AuthoritySmoke/bin/
-Aetheria.State.AuthoritySmoke/obj/
-Aetheria.State.Freeze/bin/
-Aetheria.State.Freeze/obj/
-Aetheria.State.Daemon/*.log
-*.client-quic-*.pfx
 
 # JetBrains Rider .idea folder
 .idea/
@@ -143,11 +106,4 @@ Aetheria.State.Daemon/*.log
 
 Packages/packages-lock.json
 GameData/PlayerSettings.msgpack
-GameData/*.cultmesh/
-GameData/*.cc.records/
-GameData/*.cc.records.*/
-GameData/*.cc.eve.pending/
-GameData/*.cc.before-*
-GameData/*.cc.daemon.*.cc
-/UserSettings/
 Vault/Aetheria/.obsidian/plugins/copilot/data.json

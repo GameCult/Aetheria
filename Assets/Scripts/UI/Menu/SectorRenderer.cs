@@ -1,15 +1,10 @@
-using System;
 using System.Collections;
 using System.Collections.Generic;
-using GameCult.Aetheria.EveRuntime;
-using GameCult.Aetheria.State.Verse;
-using GameCult.Eve.Surface;
-using GameCult.Mesh;
+using System.Linq;
 using UniRx;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
-using UnityEngine.UIElements;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 using float2 = Unity.Mathematics.float2;
@@ -17,8 +12,10 @@ using float2 = Unity.Mathematics.float2;
 public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IScrollHandler
 {
     public ClickRaycaster Raycaster;
+    public PropertiesPanel Properties;
     public Canvas Canvas;
     public SectorMap Map;
+    public ActionGameManager GameManager;
     public Camera SectorCamera;
     public MeshRenderer SectorBackgroundRenderer;
     public float ZoomSpeed;
@@ -36,48 +33,77 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
 
     private Transform _sectorBackgroundTransform;
     private Transform _sectorCameraTransform;
-    private UnityEngine.UI.Image _outputImage;
+    private Image _outputImage;
     private RenderTexture _outputTexture;
     private int2 _size;
     private bool _init;
     private float _aspectRatio;
     private float _sectorBackgroundDepth;
     private float _sectorCameraDepth;
-    private UIDocument _zoneDetailsSurfaceDocument;
-    private AetheriaClientState _runtimeState;
-    private readonly AetheriaEveUnitySurfaceChrome _zoneDetailsSurfaceChrome = new AetheriaEveUnitySurfaceChrome
-    {
-        RootAlignItems = Align.FlexEnd,
-        RootPaddingTop = 24f,
-        RootPaddingRight = 24f,
-        Width = 360f,
-        MinWidth = 0f,
-        MaxWidth = 420f,
-        PaddingLeft = 18f,
-        PaddingRight = 18f,
-        PaddingTop = 18f,
-        PaddingBottom = 18f
-    };
     
     private float2 _position = float2(0.5f);
     private float _viewSize = .5f;
-
-    private AetheriaClientState RuntimeState => _runtimeState ??= AetheriaUnityRuntimeClientProvider.RuntimeState("unity-sector-renderer");
     
     void Start()
     {
-        _outputImage = GetComponent<UnityEngine.UI.Image>();
+        _outputImage = GetComponent<Image>();
         _sectorBackgroundTransform = SectorBackgroundRenderer.transform;
         _sectorBackgroundDepth = _sectorBackgroundTransform.position.z;
         _sectorCameraTransform = SectorCamera.transform;
         _sectorCameraDepth = _sectorCameraTransform.position.z;
         Raycaster.OnClickMiss += data =>
         {
-            HideZoneDetailsSurface();
+            Properties.gameObject.SetActive(false);
         };
         Map.ZoneClicked.Subscribe(zone =>
         {
-            RenderZoneDetailsSurface(zone);
+            Properties.gameObject.SetActive(true);
+            Properties.Clear();
+            Properties.Title.text = zone.Name;
+            Properties.AddProperty("Owner", () => zone.Owner?.Name ?? "None");
+            var otherFactions = zone.Factions
+                .Where(f => f.ID != zone.Owner?.ID)
+                .Select(f=>f.Name).ToArray();
+            if (otherFactions.Length > 0)
+                Properties.AddProperty("Factions Present", () => string.Join(", ", otherFactions));
+            var density = saturate(ActionGameManager.CurrentGalaxy.Background.CloudDensity(zone.Position)/2);
+            var radius = GameManager.Settings.ZoneSettings.ZoneRadius.Evaluate(density);
+            var mass = GameManager.Settings.ZoneSettings.ZoneMass.Evaluate(density);
+            Properties.AddProperty("Mass", () => ActionGameManager.PlayerSettings.Format(mass));
+            Properties.AddProperty("Radius", () => ActionGameManager.PlayerSettings.Format(radius));
+            if (zone.PackedContents == null)
+            {
+                Properties.AddProperty(() => "Has not been visited");
+            }
+            else
+            {
+                var planetCount = zone.PackedContents.Planets.Count(body => body is PlanetData).ToString();
+                Properties.AddProperty("Planets", () => planetCount);
+
+                var beltCount = zone.PackedContents.Planets.Count(body => body is AsteroidBeltData).ToString();
+                Properties.AddProperty("Asteroid Belts", () => beltCount);
+
+                var giantCount = zone.PackedContents.Planets.Count(body => body is GasGiantData && !(body is SunData)).ToString();
+                Properties.AddProperty("Gas Giants", () => giantCount);
+
+                var starCount = zone.PackedContents.Planets.Count(body => body is SunData).ToString();
+                Properties.AddProperty("Stars", () => starCount);
+                
+                var stationCount = zone.PackedContents.Entities
+                    .Count(entity => ((HullData) entity.Hull.Data.Value).HullType == HullType.Station)
+                    .ToString();
+                Properties.AddProperty("Stations", () => stationCount);
+                
+                var turretCount = zone.PackedContents.Entities
+                    .Count(entity => ((HullData) entity.Hull.Data.Value).HullType == HullType.Turret)
+                    .ToString();
+                Properties.AddProperty("Turrets", () => turretCount);
+                
+                var shipCount = zone.PackedContents.Entities
+                    .Count(entity => ((HullData) entity.Hull.Data.Value).HullType == HullType.Ship)
+                    .ToString();
+                Properties.AddProperty("Ships", () => shipCount);
+            }
         });
 
         // PathAnimationButton.onClick.AddListener(() =>
@@ -86,108 +112,54 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
         // });
     }
 
-    private void RenderZoneDetailsSurface(int zoneIndex)
-    {
-        var surface = ResolveZoneDetailsSurface(zoneIndex);
-        if (surface == null)
-            return;
-
-        _zoneDetailsSurfaceDocument = AetheriaEveUnitySurfaceHost.RenderRuntime(
-            transform,
-            _zoneDetailsSurfaceDocument,
-            "Aetheria Sector Zone Details Surface",
-            surface,
-            HandleZoneDetailsSurfaceCommand,
-            _zoneDetailsSurfaceChrome);
-    }
-
-    private void HandleZoneDetailsSurfaceCommand(EveSurfaceCommandRequest request)
-    {
-        if (!AetheriaRuntimeZoneDetailsSurfaceCommands.TryRead(request, out var command))
-        {
-            Debug.LogWarning($"Unknown sector-map zone details command: {request?.Command}");
-            return;
-        }
-
-        if (command.Kind == AetheriaRuntimeZoneDetailsCommandKind.Close)
-        {
-            HideZoneDetailsSurface();
-            return;
-        }
-
-        Debug.LogWarning($"Unknown sector-map zone details command: {request?.Command}");
-    }
-
-    private void HideZoneDetailsSurface()
-    {
-        if (_zoneDetailsSurfaceDocument == null)
-            return;
-
-        AetheriaEveUnitySurfaceHost.Hide(_zoneDetailsSurfaceDocument);
-    }
-
-    private AetheriaRuntimeSurfaceDocument ResolveZoneDetailsSurface(int zoneIndex)
-    {
-        if (zoneIndex < 0)
-            return null;
-
-        try
-        {
-            return RuntimeState.ZoneDetailsSurface(zoneIndex).Latest();
-        }
-        catch (Exception ex)
-        {
-            Debug.LogWarning($"Failed to read Aetheria sector zone details surface from managed Verse state: {ex.Message}");
-            return null;
-        }
-    }
-
+    // private IEnumerator AnimatePath()
+    // {
+    //     var pathZones = ActionGameManager.CurrentSector.ExitPath;
+    //     LegendPanel.SetActive(false);
+    //     PathAnimationButton.gameObject.SetActive(false);
+    //
+    //     var revealCount = ActionGameManager.CurrentSector.Entrance.Distance[ActionGameManager.CurrentSector.Exit];
+    //     Map.StartReveal(
+    //         PathAnimationDuration / revealCount * (LinkAnimationDuration / (IconAnimationDuration + LinkAnimationDuration)),
+    //         PathAnimationDuration / revealCount * (IconAnimationDuration / (IconAnimationDuration + LinkAnimationDuration)));
+    //     MainCamera.enabled = false;
+    //     SectorCamera.targetTexture = null;
+    //     Canvas.gameObject.SetActive(false);
+    //     SectorCamera.gameObject.SetActive(true);
+    //         
+    //     var pathAnimationLerp = 0f;
+    //     while (pathAnimationLerp < 1)
+    //     {
+    //         var currentTargetZone = pathZones[(int) (pathZones.Length * pathAnimationLerp)];
+    //         _position = lerp(_position, currentTargetZone.Position, PathAnimationDamping);
+    //         pathAnimationLerp += Time.deltaTime / (PathAnimationDuration * PathAnimationDurationPadding);
+    //         UpdateCamera();
+    //         yield return null;
+    //     }
+    //     
+    //     LegendPanel.SetActive(true);
+    //     PathAnimationButton.gameObject.SetActive(true);
+    // }
+    
     private void OnEnable()
     {
         _init = true;
         SectorCamera.gameObject.SetActive(true);
-        var currentZone = ResolveCurrentZone();
-        _position = currentZone == null
-            ? float2.zero
-            : new float2((float)currentZone.PositionX, (float)currentZone.PositionY);
+        _position = GameManager.Zone.GalaxyZone.Position;
         _viewSize = .25f;
         
         Map.StartReveal(LinkAnimationDuration, IconAnimationDuration);
-        if (currentZone != null)
-            Map.TryMarkPlayerLocation(currentZone.ZoneIndex);
-    }
-
-    private AetheriaRuntimeCurrentZoneDocument ResolveCurrentZone()
-    {
-        try
-        {
-            return RuntimeState.CurrentZone.Latest();
-        }
-        catch (Exception ex)
-        {
-            Debug.LogWarning($"Failed to read Aetheria sector current zone from managed Verse state: {ex.Message}");
-            return null;
-        }
+        Map.MarkPlayerLocation(GameManager.CurrentEntity.Zone.GalaxyZone);
     }
 
     private void OnDisable()
     {
-        HideZoneDetailsSurface();
         if (_outputTexture != null)
         {
             _outputTexture.Release();
             _outputTexture = null;
         }
         SectorCamera.gameObject.SetActive(false);
-    }
-
-    private void OnDestroy()
-    {
-        if (_zoneDetailsSurfaceDocument != null)
-        {
-            AetheriaEveUnitySurfaceHost.DestroyDocument(_zoneDetailsSurfaceDocument);
-            _zoneDetailsSurfaceDocument = null;
-        }
     }
 
     void LateUpdate()
@@ -201,7 +173,7 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
             {
                 _outputTexture.Release();
             }
-            _outputTexture = new RenderTexture(_size.x, _size.y, 16, RenderTextureFormat.Default);
+            _outputTexture = new RenderTexture(_size.x, _size.y, 0, RenderTextureFormat.Default);
             SectorCamera.targetTexture = _outputTexture;
             _outputImage.material.SetTexture("_DetailTex", _outputTexture);
         }

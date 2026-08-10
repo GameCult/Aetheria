@@ -1,4 +1,8 @@
+using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
+using Unity.Mathematics;
+using static Unity.Mathematics.math;
 
 public class ShieldTest : MonoBehaviour
 {
@@ -8,13 +12,12 @@ public class ShieldTest : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-        var previousX = transform.position.x;
-        _velocity += -Mathf.Sign(transform.position.x) * Acceleration * Time.deltaTime;
+        _velocity += -sign(transform.position.x) * Acceleration * Time.deltaTime;
         transform.position += Vector3.right * (_velocity * Time.deltaTime);
+    }
 
-        if (Mathf.Sign(transform.position.x) != Mathf.Sign(previousX))
-        {
-            _velocity = -_velocity;
-        }
+    private void OnCollisionEnter(Collision other)
+    {
+        _velocity = -_velocity;
     }
 }

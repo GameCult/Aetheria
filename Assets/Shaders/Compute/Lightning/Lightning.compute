@@ -1,0 +1,139 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel UpdateNodes
+#pragma kernel CreateWidth
+
+#define NUM_THREAD_X 64
+
+#include "LightningVertex.cginc"
+#include "Assets/Plugins/GPU Noise/SimplexNoise2D.cginc"
+
+struct Node
+{
+    float3 pos;
+    int bolt;
+    float time;
+};
+
+struct Bolt
+{
+    float3 startPos;
+    float3 endPos;
+    float startTime;
+    int startIndex;
+    float3 startOffset;
+    float3 endOffset;
+};
+
+RWStructuredBuffer<Node> _NodeBuffer;
+RWStructuredBuffer<Vertex> _VertexBuffer;
+RWStructuredBuffer<Bolt> _BoltBuffer;
+
+float _NoiseAmplitude;
+float _NoiseFrequency;
+float _NoiseGain;
+float _NoiseLacunarity;
+float _Time;
+float _StartWidth;
+float _EndWidth;
+int _TrunkNodeCount;
+//int _BranchCount;
+int _BranchNodeCount;
+float3 _CameraPos;   // for perspective camera
+
+float fbm(float2 p)
+{
+    float freq = _NoiseFrequency, amp = _NoiseAmplitude;
+    float sum = 0;	
+    for(int i = 0; i < 4; i++) 
+    {
+        sum += snoise(p * freq) * amp;
+        freq *= _NoiseLacunarity;
+        amp *= _NoiseGain;
+    }
+    return sum;
+}
+
+float3 fbm3(float2 p)
+{
+    return float3(
+        fbm(p),
+        fbm(p+10),
+        fbm(p+20));
+}
+
+inline float3 calcToCameraDir(float3 pos)
+{
+    return normalize(_CameraPos - pos);
+}
+
+[numthreads(NUM_THREAD_X,1,1)]
+void UpdateNodes (uint3 id : SV_DispatchThreadID)
+{
+    int idx = id.x;
+    
+    Node node = _NodeBuffer[idx];
+    Bolt bolt = _BoltBuffer[node.bolt];
+
+    float3 samplePos = lerp(bolt.startPos, bolt.endPos, node.time);
+
+    float distance = length(bolt.startPos - samplePos);
+
+    node.pos = samplePos + fbm3(float2(distance, _Time + node.bolt * 10));
+    if(node.bolt == 0) node.pos += bolt.startOffset * max(.5 - node.time, 0) * 2 + bolt.endOffset * max(node.time - .5, 0) * 2;
+    else node.pos += bolt.startOffset;
+
+    _NodeBuffer[idx] = node;
+}
+
+[numthreads(NUM_THREAD_X,1,1)]
+void CreateWidth (uint3 id : SV_DispatchThreadID)
+{
+    int idx = id.x;
+
+    Vertex v0 = GetDefaultVertex();
+    Vertex v1 = GetDefaultVertex();
+    
+    Node node = _NodeBuffer[idx];
+    Bolt bolt = _BoltBuffer[node.bolt];
+    
+    float3 pos = node.pos;
+
+    float3 dirPrev = float3(0,0,0);
+    float3 dirNext = float3(0,0,0);
+    
+    if ( idx!=bolt.startIndex )
+    {
+        Node nodePrev = _NodeBuffer[idx-1];
+        dirPrev = normalize(pos - nodePrev.pos);
+    }
+
+    bool enableNext;
+    if(idx < _TrunkNodeCount)
+        enableNext = idx < _TrunkNodeCount - 1;
+    else enableNext = (idx - _TrunkNodeCount) % _BranchNodeCount < _BranchNodeCount - 1;
+    if ( enableNext )
+    {
+        Node nodeNext = _NodeBuffer[idx+1];
+        dirNext = normalize(nodeNext.pos - pos);
+    }
+
+    float3 dir = normalize(dirPrev + dirNext);
+
+    float width;
+    if(idx < _TrunkNodeCount) width = lerp(_StartWidth, _EndWidth, node.time);
+    else width = (1-node.time) * lerp(_StartWidth, _EndWidth, bolt.startTime);
+    
+    float3 toCameraDir = calcToCameraDir(pos);
+    float3 right = normalize(cross(dir, toCameraDir)) * width * 0.5f;
+
+    float uvx = bolt.startTime + node.time * (1-bolt.startTime);
+    v0.pos = pos - right;
+    v0.uv = float2(uvx, 0 + node.bolt);
+
+    v1.pos = pos + right;
+    v1.uv = float2(uvx, 1 + node.bolt);
+
+    uint vId = idx * 2;
+    _VertexBuffer[vId] = v0;
+    _VertexBuffer[vId+1] = v1;
+}

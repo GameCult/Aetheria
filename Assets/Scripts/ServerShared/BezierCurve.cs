@@ -1,29 +1,22 @@
 using System;
-using System.Collections.Generic;
 using System.Linq;
-using CultMath;
-using static CultMath.math;
+using MessagePack;
+using Newtonsoft.Json;
+using Unity.Mathematics;
+using static Unity.Mathematics.math;
 
+[MessagePackObject, JsonObject(MemberSerialization.OptIn)]
 public class BezierCurve
 {
-    public float4[] Keys;
+    [JsonProperty("keys"), Key(0)] public float4[] Keys;
+    
+    [IgnoreMember] private int2 _cachedIndices;
+    
+    [IgnoreMember] private const int STEPS = 64;
 
-    private int2 _cachedIndices;
-
-    private const int STEPS = 64;
-
-    private float? _maximum;
-
-    public static BezierCurve FromKeys(IEnumerable<(float time, float value, float inTangent, float outTangent)> keys)
-    {
-        return new BezierCurve
-        {
-            Keys = keys
-                .Select(key => float4(key.time, key.value, key.inTangent, key.outTangent))
-                .ToArray()
-        };
-    }
-
+    [IgnoreMember] private float? _maximum;
+    
+    [IgnoreMember]
     public float Maximum
     {
         get
@@ -45,7 +38,7 @@ public class BezierCurve
             return _maximum??0;
         }
     }
-
+    
     // Integrate area under curve between start and end time
     public float IntegrateCurve(float startTime, float endTime, int steps)
     {
@@ -68,26 +61,26 @@ public class BezierCurve
     // {
     //     return 1 - (1 - a)*(1 - b);
     // }
-
+    
     public float Evaluate(float time)
     {
         // Clamp time
         time = clamp(time, Keys[0].x, Keys[Keys.Length - 1].x);
-
-        FindSurroundingKeyframes(time, Keys);
+        
+        FindSurroundingKeyframes(time, Keys); 
         return HermiteInterpolate(time, Keys[_cachedIndices.x], Keys[_cachedIndices.y]);
     }
 
     void FindSurroundingKeyframes(float time, float4[] curve)
     {
         // Check that time is within cached keyframe time
-        if (time >= curve[_cachedIndices.x].x &&
+        if (time >= curve[_cachedIndices.x].x && 
             time <= curve[_cachedIndices.y].x)
         {
             return;
         }
 
-
+            
         // Fall back to using dichotomic search.
         var length = curve.Length;
         int half;

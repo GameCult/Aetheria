@@ -5,8 +5,9 @@ using System.IO;
 using System.Linq;
 using Ink;
 using Ink.Parsed;
+using MessagePack;
 using Path = System.IO.Path;
-using Random = CultMath.Random;
+using Random = Unity.Mathematics.Random;
 using Story = Ink.Runtime.Story;
 
 public class StoryProcessor : IZoneResolver, IFactionResolver
@@ -33,11 +34,11 @@ public class StoryProcessor : IZoneResolver, IFactionResolver
     public DirectoryInfo NarrativeDirectory { get; }
     private Random _random;
     public Galaxy Galaxy { get; }
-    public RuntimePlayerSettings Settings { get; }
+    public PlayerSettings Settings { get; }
 
     private Action<string> Log { get; }
     
-    public StoryProcessor(RuntimePlayerSettings settings, DirectoryInfo narrativeDirectory, Galaxy galaxy, ref Random random, Action<string> log)
+    public StoryProcessor(PlayerSettings settings, DirectoryInfo narrativeDirectory, Galaxy galaxy, ref Random random, Action<string> log)
     {
         NarrativeDirectory = narrativeDirectory;
         Galaxy = galaxy;
@@ -105,6 +106,20 @@ public class StoryProcessor : IZoneResolver, IFactionResolver
         // If the story has already been read / compiled, return it directly
         if (_processedStories.ContainsKey(fileName)) return _processedStories[fileName];
         
+        // var compiledFileName = Path.Combine(inkFile.Directory.FullName, $"{fileName}.json");
+        //
+        // // Calculate a hash of the ink file
+        // var hash = File.ReadAllBytes(inkFile.FullName).GetHashSHA1();
+        //
+        // if (File.Exists(compiledFileName) && // If a compiled version of the ink file exists
+        //     Settings.HashedStoryFiles.ContainsKey(fileName) && // And its hash has been saved
+        //     hash == Settings.HashedStoryFiles[fileName]) // And the saved hash matches the current hash
+        // {
+        //     // Load the story from the existing compiled JSON representation
+        //     return new Story(File.ReadAllText(compiledFileName));
+        // }
+        //
+        // Settings.HashedStoryFiles[fileName] = hash;
         var compiler = new Compiler(File.ReadAllText(inkFile.FullName), new Compiler.Options
         {
             countAllVisits = true,
@@ -113,6 +128,7 @@ public class StoryProcessor : IZoneResolver, IFactionResolver
         var story = compiler.Compile();
         var knots = compiler.parsedStory.FindAll<Knot>().Select(k=>k.runtimePath.ToString()).ToArray();
         _storyKnotPaths[story] = knots;
+        //File.WriteAllText(compiledFileName, story.ToJson());
         _processedStories[fileName] = story;
         return story;
     }

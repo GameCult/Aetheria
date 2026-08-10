@@ -3,7 +3,6 @@
 // but it's broken in compute due to a bug that has been fixed but not backported yet
 #pragma multi_compile __ FLOW_GLOBAL 
 #pragma multi_compile __ FLOW_SLOPE
-#pragma multi_compile __ FLOW_VALUE3D
 #pragma multi_compile __ NOISE_SLOPE
 
 //Tell unity that we have defined a kernel

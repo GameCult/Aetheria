@@ -1,73 +1,44 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
-using System.Text.RegularExpressions;
-using GameCult.Aetheria.EveRuntime;
-using GameCult.Aetheria.State.Verse;
-using GameCult.Eve.Surface;
-using GameCult.Mesh;
+using System.Reflection;
+using System.Runtime.Remoting.Contexts;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
-using UnityEngine.UIElements;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
 public class TradeMenu : MonoBehaviour
 {
+    public ActionGameManager GameManager;
+    public ContextMenu ContextMenu;
     public ConfirmationDialog Dialog;
-    public UnityEngine.UI.Button NewFilterButton;
+    public Button NewFilterButton;
     public Prototype FilterPrototype;
     public SizeFilter MinimumSizeFilter;
     public SizeFilter MaximumSizeFilter;
+    public PropertiesPanel Properties;
     public Spreadsheet Spreadsheet;
     public TextMeshProUGUI TargetCargoLabel;
-    public UnityEngine.UI.Button FoldoutButton;
+    public Button FoldoutButton;
     public TextMeshProUGUI CreditsLabel;
 
-    private string _targetCargoEntityKey = "";
-    private int _targetCargoIndex = -1;
-    private string _targetCargoLabel = "Docking Bay";
-    private AetheriaClientState _runtimeState;
+    private EquippedCargoBay _targetCargo;
     private (ItemFilter filter, HardpointType type) _hardpointFilter;
     private (ItemFilter filter, SimpleCommodityCategory type) _commodityFilter;
     private (ItemFilter filter, CompoundCommodityCategory type) _compoundCommodityFilter;
-    private List<BehaviorFilter> _behaviorFilters = new List<BehaviorFilter>();
-    private UIDocument _cargoSelectorSurfaceDocument;
-    private UIDocument _filterSurfaceDocument;
-    private UIDocument _rowActionSurfaceDocument;
-    private UIDocument _tradeItemSurfaceDocument;
-    private readonly AetheriaEveUnitySurfaceChrome _cargoSelectorSurfaceChrome = PanelChrome(360f, 420f, Align.FlexEnd);
-    private readonly AetheriaEveUnitySurfaceChrome _filterSurfaceChrome = PanelChrome(420f, 520f, Align.FlexStart);
-    private readonly AetheriaEveUnitySurfaceChrome _rowActionSurfaceChrome = PanelChrome(320f, 360f, Align.FlexStart);
-    private readonly AetheriaEveUnitySurfaceChrome _tradeItemSurfaceChrome = PanelChrome(420f, 520f, Align.FlexStart);
-    private AetheriaRuntimeTradeCargoSelectorSurfaceModel _cargoSelectorSurfaceModel;
-    private AetheriaRuntimeStationCargoTargetRow[] _cargoSelectorStationRefitTargets =
-        Array.Empty<AetheriaRuntimeStationCargoTargetRow>();
-    private AetheriaRuntimeTradeFilterSurfaceModel _filterSurfaceModel;
-    private Action[] _rowActionCallbacks = Array.Empty<Action>();
-    private AetheriaRuntimeTradeRowActionSurfaceModel _rowActionSurfaceModel;
-
-    private AetheriaClientState RuntimeState => _runtimeState ??= AetheriaUnityRuntimeClientProvider.RuntimeState("unity-trade");
+    private List<(ItemFilter filter, Type type)> _behaviorFilters = new List<(ItemFilter filter, Type type)>();
     
     public EquippedCargoBay Inventory { get; set; }
-
+    
     private void OnEnable()
     {
-        if (!TryResolveCurrentDocking(out var docking) ||
-            docking.IsDocked != true ||
-            string.IsNullOrWhiteSpace(docking.DockParentEntityKey) ||
-            docking.DockingBayIndex < 0)
-        {
-            return;
-        }
-
-        SetTargetCargo(docking.DockParentEntityKey, docking.DockingBayIndex, "Docking Bay");
-        HideCargoSelectorSurface();
-        HideFilterSurface();
-        HideRowActionSurface();
-        HideTradeItemDetailsSurface();
+        if (GameManager.DockedEntity == null) return;
+        _targetCargo = GameManager.DockingBay;
+        TargetCargoLabel.text = "Docking Bay";
+        Properties.GameManager = GameManager;
         UpdateCreditsLabel();
         
         MinimumSizeFilter.Width.onEndEdit.RemoveAllListeners();
@@ -81,127 +52,256 @@ public class TradeMenu : MonoBehaviour
         
         MaximumSizeFilter.Height.onEndEdit.RemoveAllListeners();
         MaximumSizeFilter.Height.onEndEdit.AddListener(_ => Populate());
-
-        NewFilterButton.onClick.RemoveAllListeners();
+        
         NewFilterButton.onClick.AddListener(() =>
         {
-            RenderFilterSurface();
+            ContextMenu.Clear();
+            IEnumerable<HardpointType> hardpointTypes = (HardpointType[]) Enum.GetValues(typeof(HardpointType));
+            if (_hardpointFilter.filter != null)
+                hardpointTypes = hardpointTypes.Where(x => x != _hardpointFilter.type);
+            
+            IEnumerable<SimpleCommodityCategory> commodityTypes = (SimpleCommodityCategory[]) Enum.GetValues(typeof(SimpleCommodityCategory));
+            if (_commodityFilter.filter != null)
+                commodityTypes = commodityTypes.Where(x => x != _commodityFilter.type);
+            
+            IEnumerable<CompoundCommodityCategory> compoundCommodityTypes = (CompoundCommodityCategory[]) Enum.GetValues(typeof(CompoundCommodityCategory));
+            if (_compoundCommodityFilter.filter != null)
+                compoundCommodityTypes = compoundCommodityTypes.Where(x => x != _compoundCommodityFilter.type);
+            
+            ContextMenu.AddDropdown("Gear Type", hardpointTypes
+                .Select<HardpointType, (string, Action, bool)>(x => (Enum.GetName(typeof(HardpointType), x), () =>
+                {
+                    if (!_hardpointFilter.filter)
+                    {
+                        _hardpointFilter.filter = FilterPrototype.Instantiate<ItemFilter>();
+                        _hardpointFilter.filter.OnDisable += () =>
+                        {
+                            _hardpointFilter.filter = null;
+                            Populate();
+                        };
+                    }
+                    if(_commodityFilter.filter)
+                    {
+                        _commodityFilter.filter.GetComponent<Prototype>().ReturnToPool();
+                        _commodityFilter.filter = null;
+                    }
+                    if(_compoundCommodityFilter.filter)
+                    {
+                        _compoundCommodityFilter.filter.GetComponent<Prototype>().ReturnToPool();
+                        _compoundCommodityFilter.filter = null;
+                    }
+
+                    _hardpointFilter.filter.Label.text = $"Hardpoint: {Enum.GetName(typeof(HardpointType), x)}";
+                    _hardpointFilter.type = x;
+                    Populate();
+                }, true)));
+            ContextMenu.AddDropdown("Simple Commodity", commodityTypes
+                .Select<SimpleCommodityCategory, (string, Action, bool)>(x => (Enum.GetName(typeof(SimpleCommodityCategory), x), () =>
+                {
+                    if (!_commodityFilter.filter)
+                    {
+                        _commodityFilter.filter = FilterPrototype.Instantiate<ItemFilter>();
+                        _commodityFilter.filter.OnDisable += () =>
+                        {
+                            _commodityFilter.filter = null;
+                            Populate();
+                        };
+                    }
+                    if(_hardpointFilter.filter)
+                    {
+                        _hardpointFilter.filter.GetComponent<Prototype>().ReturnToPool();
+                        _hardpointFilter.filter = null;
+                    }
+                    if(_compoundCommodityFilter.filter)
+                    {
+                        _compoundCommodityFilter.filter.GetComponent<Prototype>().ReturnToPool();
+                        _compoundCommodityFilter.filter = null;
+                    }
+
+                    _commodityFilter.filter.Label.text = $"Hardpoint: {Enum.GetName(typeof(SimpleCommodityCategory), x)}";
+                    _commodityFilter.type = x;
+                    Populate();
+                }, true)));
+            ContextMenu.AddDropdown("Compound Commodity", compoundCommodityTypes
+                .Select<CompoundCommodityCategory, (string, Action, bool)>(x => (Enum.GetName(typeof(CompoundCommodityCategory), x), () =>
+                {
+                    if (!_compoundCommodityFilter.filter)
+                    {
+                        _compoundCommodityFilter.filter = FilterPrototype.Instantiate<ItemFilter>();
+                        _compoundCommodityFilter.filter.OnDisable += () =>
+                        {
+                            _compoundCommodityFilter.filter = null;
+                            Populate();
+                        };
+                    }
+                    if(_hardpointFilter.filter)
+                    {
+                        _hardpointFilter.filter.GetComponent<Prototype>().ReturnToPool();
+                        _hardpointFilter.filter = null;
+                    }
+                    if(_commodityFilter.filter)
+                    {
+                        _commodityFilter.filter.GetComponent<Prototype>().ReturnToPool();
+                        _commodityFilter.filter = null;
+                    }
+
+                    _compoundCommodityFilter.filter.Label.text = $"Hardpoint: {Enum.GetName(typeof(CompoundCommodityCategory), x)}";
+                    _compoundCommodityFilter.type = x;
+                    Populate();
+                }, true)));
+            ContextMenu.AddDropdown("Item Behavior", typeof(BehaviorData).GetAllChildClasses()
+                .Where(x=> x.GetCustomAttribute<RuntimeInspectable>() != null && _behaviorFilters.All(f => f.type != x))
+                .Select<Type, (string, Action, bool)>(x=> (x.Name.FormatTypeName(), () =>
+                {
+                    var matchingType = _behaviorFilters.FirstOrDefault(y => y.type.IsAssignableFrom(x) || x.IsAssignableFrom(y.type));
+                    if (matchingType.filter != null) matchingType.filter.DisableButton.onClick.Invoke();
+                    var filter = FilterPrototype.Instantiate<ItemFilter>();
+                    filter.Label.text = x.Name.FormatTypeName();
+                    filter.OnDisable += () =>
+                    {
+                        _behaviorFilters.Remove((filter, x));
+                        Populate();
+                    };
+                    _behaviorFilters.Add((filter, x));
+                    Populate();
+                }, true)));
+            if(!MinimumSizeFilter.gameObject.activeSelf)
+                ContextMenu.AddOption("Minimum Size",
+                    () =>
+                    {
+                        MinimumSizeFilter.gameObject.SetActive(true);
+                        MinimumSizeFilter.OnDisable += () => Populate();
+                    });
+            if(!MaximumSizeFilter.gameObject.activeSelf)
+                ContextMenu.AddOption("Maximum Size",
+                    () =>
+                    {
+                        MaximumSizeFilter.gameObject.SetActive(true);
+                        MaximumSizeFilter.OnDisable += () => Populate();
+                    });
+            ContextMenu.Show();
         });
         Populate();
     }
 
     void Populate()
     {
-        var columns = new List<(string name, int size, Func<TradeRow, Func<string>> output, Func<TradeRow, IComparable> sortKey)>();
+        var columns = new List<(string name, int size, Func<(ItemInstance item, ItemData data), Func<string>> output, Func<ItemData, IComparable> sortKey)>();
         
         columns.Add(("Name", 3,
-            x => () => !string.IsNullOrWhiteSpace(x.TierColorHex) ?
-                $"<color=#{x.TierColorHex}>{x.Name}" :
-                x.Name,
-            x => x.Name));
+            x => () => x.item is CraftedItemInstance craftedItemInstance ? 
+                $"<color=#{ColorUtility.ToHtmlStringRGB(GameManager.ItemManager.GetTier(craftedItemInstance).tier.Color.ToColor())}>{x.data.Name}" : 
+                x.data.Name, 
+            data => data.Name));
         if(_hardpointFilter.filter==null)
             columns.Add(("Type", 2,
                 x => () =>
                 {
-                    if (x.TypedItem.TryGetSimpleCommodityCategory(out SimpleCommodityCategory _))
-                        return x.TypedItem.SimpleCommodityCategory;
-                    if (x.TypedItem.TryGetCompoundCommodityCategory(out CompoundCommodityCategory _))
-                        return x.TypedItem.CompoundCommodityCategory;
-                    if (x.TypedItem.TryGetHardpointType(out HardpointType hardpointType)) return Enum.GetName(typeof(HardpointType), hardpointType);
+                    if (x.data is SimpleCommodityData s) return Enum.GetName(typeof(SimpleCommodityCategory), s.Category);
+                    if(x.data is CompoundCommodityData c) return Enum.GetName(typeof(CompoundCommodityCategory), c.Category);
+                    if(x.data is EquippableItemData e) return Enum.GetName(typeof(HardpointType), e.HardpointType);
                     return "None";
-                },
-                x =>
+                }, 
+                data => 
                 {
-                    if (x.TypedItem.TryGetSimpleCommodityCategory(out SimpleCommodityCategory simpleCategory))
-                        return (int)simpleCategory;
+                    if (data is SimpleCommodityData s) return (int) s.Category;
                     var offset = Enum.GetValues(typeof(SimpleCommodityCategory)).Length;
-                    if(x.TypedItem.TryGetCompoundCommodityCategory(out CompoundCommodityCategory compoundCategory))
-                        return (int)compoundCategory + offset;
+                    if(data is CompoundCommodityData c) return (int) c.Category + offset;
                     offset += Enum.GetValues(typeof(CompoundCommodityCategory)).Length;
-                    if (x.TypedItem.TryGetHardpointType(out HardpointType hardpointType)) return (int) hardpointType + offset;
+                    if(data is EquippableItemData e) return (int) e.HardpointType + offset;
                     return 0;
                 }));
         columns.Add(("Mass", 1,
-            x => () => FormatValue(x.Mass),
-            x => x.Mass));
+            x => () => ActionGameManager.PlayerSettings.Format(x.data.Mass), 
+            data => data.Mass));
         columns.Add(("Price", 1,
-            x => () => x.Price.ToString("N0"),
-            x => x.Price));
+            x => () => (x.item is CraftedItemInstance craftedItemInstance ? GameManager.ItemManager.GetPrice(craftedItemInstance) : x.data.Price).ToString("N0"),
+            data => data.Price));
         columns.Add(("Size", 1,
-            x => () => $"{x.ShapeWidth}x{x.ShapeHeight}",
-            x => x.ShapeWidth * x.ShapeHeight));
+            x => () => $"{x.data.Shape.Width}x{x.data.Shape.Height}", 
+            data => data.Shape.Width*data.Shape.Height));
         
-        var items = BuildStationStockRows();
+        var items = Inventory.Cargo.Keys
+            .Select<ItemInstance, (ItemInstance item, ItemData data)>(ii=>(ii, ii.Data.Value));
         
         if (MinimumSizeFilter.gameObject.activeSelf)
             items = items.Where(i =>
-                !(MinimumSizeFilter.Width.text.Length > 0 && i.ShapeWidth < int.Parse(MinimumSizeFilter.Width.text) ||
-                 MinimumSizeFilter.Height.text.Length > 0 && i.ShapeHeight < int.Parse(MinimumSizeFilter.Height.text)));
+                !(MinimumSizeFilter.Width.text.Length > 0 && i.data.Shape.Width < int.Parse(MinimumSizeFilter.Width.text) ||
+                 MinimumSizeFilter.Height.text.Length > 0 && i.data.Shape.Height < int.Parse(MinimumSizeFilter.Height.text)));
         
         if (MaximumSizeFilter.gameObject.activeSelf)
             items = items.Where(i =>
-                !(MaximumSizeFilter.Width.text.Length > 0 && i.ShapeWidth > int.Parse(MaximumSizeFilter.Width.text) ||
-                 MaximumSizeFilter.Height.text.Length > 0 && i.ShapeHeight > int.Parse(MaximumSizeFilter.Height.text)));
+                !(MaximumSizeFilter.Width.text.Length > 0 && i.data.Shape.Width > int.Parse(MaximumSizeFilter.Width.text) ||
+                 MaximumSizeFilter.Height.text.Length > 0 && i.data.Shape.Height > int.Parse(MaximumSizeFilter.Height.text)));
         
         if(_commodityFilter.filter != null)
-            items = items.Where(i => i.TypedItem.TryGetSimpleCommodityCategory(out SimpleCommodityCategory category) && category == _commodityFilter.type);
+            items = items.Where(i => i.data is SimpleCommodityData s && s.Category == _commodityFilter.type);
         
         if(_compoundCommodityFilter.filter != null)
-            items = items.Where(i => i.TypedItem.TryGetCompoundCommodityCategory(out CompoundCommodityCategory category) && category == _compoundCommodityFilter.type);
+            items = items.Where(i => i.data is CompoundCommodityData c && c.Category == _compoundCommodityFilter.type);
         
         if (_hardpointFilter.filter != null)
-            items = items.Where(i => i.TypedItem.TryGetHardpointType(out HardpointType hardpointType) && hardpointType == _hardpointFilter.type);
+            items = items.Where(i => i.data is EquippableItemData e && e.HardpointType == _hardpointFilter.type);
         
-        foreach (var behaviorFilter in _behaviorFilters)
+        foreach (var (_, type) in _behaviorFilters)
         {
-            items = items.Where(i => HasTypedBehavior(i.TypedItem, behaviorFilter));
+            items = items.Where(i => i.data is EquippableItemData e && e.Behaviors.Any(b => type.IsInstanceOfType(b)));
             
-			foreach (var field in behaviorFilter.Metadata.DisplayFields)
+			foreach (var field in type.GetFields().Where(f => f.GetCustomAttribute<RuntimeInspectable>() != null))
 			{
-				if (field.ValueKind == AetheriaRuntimeBehaviorFieldValueKind.Number)
+				var fieldType = field.FieldType;
+				if (fieldType == typeof(float))
                     columns.Add((field.Name, 1, x =>
                     {
-                        var value = GetTypedBehaviorNumber(x, behaviorFilter, field);
-                        return () => FormatValue((float)value);
-                    }, x =>
+                        var behavior = ((EquippableItemData) x.data).Behaviors.FirstOrDefault(b => type.IsInstanceOfType(b));
+                        return () => ActionGameManager.PlayerSettings.Format((float) field.GetValue(behavior));
+                    }, data =>
                     {
-                        return (float)GetTypedBehaviorNumber(x, behaviorFilter, field);
+                        var behavior = ((EquippableItemData) data).Behaviors.FirstOrDefault(b => type.IsInstanceOfType(b));
+                        return (float) field.GetValue(behavior);
                     }));
-				else if (field.ValueKind == AetheriaRuntimeBehaviorFieldValueKind.Temperature)
+				else if (fieldType == typeof(int))
                     columns.Add((field.Name, 1, x =>
                     {
-                        var value = GetTypedBehaviorNumber(x, behaviorFilter, field);
-                        return () => FormatTemperature((float)value);
-                    }, x =>
+                        var behavior = ((EquippableItemData) x.data).Behaviors.FirstOrDefault(b => type.IsInstanceOfType(b));
+                        return () => ((int) field.GetValue(behavior)).ToString();
+                    }, data =>
                     {
-                        return (float)GetTypedBehaviorNumber(x, behaviorFilter, field);
+                        var behavior = ((EquippableItemData) data).Behaviors.FirstOrDefault(b => type.IsInstanceOfType(b));
+                        return (int) field.GetValue(behavior);
                     }));
-				else if (field.ValueKind == AetheriaRuntimeBehaviorFieldValueKind.Integer)
-                    columns.Add((field.Name, 1, x =>
-                    {
-                        var value = GetTypedBehaviorNumber(x, behaviorFilter, field);
-                        return () => ((int)value).ToString();
-                    }, x =>
-                    {
-                        return (int)GetTypedBehaviorNumber(x, behaviorFilter, field);
-                    }));
-				else if (field.ValueKind == AetheriaRuntimeBehaviorFieldValueKind.PerformanceStat)
+				else if (fieldType == typeof(PerformanceStat))
 				{
                     columns.Add((field.Name, 1, x =>
                     {
-                        var value = GetTypedBehaviorNumber(x, behaviorFilter, field);
-                        return () => FormatValue((float)value);
-                    }, x =>
+                        var behavior = ((EquippableItemData) x.data).Behaviors.FirstOrDefault(b => type.IsInstanceOfType(b));
+                        return () => ActionGameManager.PlayerSettings.Format(((PerformanceStat) field.GetValue(behavior)).Max);
+                    }, data =>
                     {
-                        return (float)GetTypedBehaviorNumber(x, behaviorFilter, field);
+                        var behavior = ((EquippableItemData) data).Behaviors.FirstOrDefault(b => type.IsInstanceOfType(b));
+                        return ((PerformanceStat) field.GetValue(behavior)).Max;
                     }));
 				}
 			}
         }
         
         columns.Add(("Owned", 1,
-            x => () => x.OwnedQuantity.ToString(),
-            x => x.OwnedQuantity));
+            x => () =>
+            {
+                if (x.data is HullData)
+                    return GameManager.DockedEntity.Children.Count(s => s.Hull.Data.LinkID == x.data.ID && s is Ship {IsPlayerShip: true}).ToString();
+                if(x.data is SimpleCommodityData)
+                    return (_targetCargo.ItemsOfType.ContainsKey(x.data.ID) ? _targetCargo.ItemsOfType[x.data.ID].Cast<SimpleCommodity>().Sum(s=>s.Quantity) : 0).ToString();
+                return (_targetCargo.ItemsOfType.ContainsKey(x.data.ID) ? _targetCargo.ItemsOfType[x.data.ID].Count : 0).ToString();
+            }, 
+            data =>
+            {
+                if (data is HullData)
+                    return GameManager.DockedEntity.Children.Count(s => s.Hull.Data.LinkID == data.ID && s is Ship {IsPlayerShip: true});
+                if(data is SimpleCommodityData)
+                    return _targetCargo.ItemsOfType.ContainsKey(data.ID) ? _targetCargo.ItemsOfType[data.ID].Cast<SimpleCommodity>().Sum(s=>s.Quantity) : 0;
+                return _targetCargo.ItemsOfType.ContainsKey(data.ID) ? _targetCargo.ItemsOfType[data.ID].Count : 0;
+            }));
         
         Spreadsheet.ShowData(
             columns.Select(x => x.name).ToArray(),
@@ -211,1001 +311,171 @@ public class TradeMenu : MonoBehaviour
                 Columns = columns.Select(x => new SpreadsheetEntryColumn
                 {
                     Output = x.output(i),
-                    SortKey = x.sortKey(i)
+                    SortKey = x.sortKey(i.data)
                 }).ToArray(),
-                OnClick = () => RenderTradeItemDetailsSurface(i.TypedItem),
+                OnClick = () => Properties.Inspect(i.item),
                 OnDoubleClick = () =>
                 {
-                    Buy(i, 1);
+                    switch (i.item)
+                    {
+                        case CraftedItemInstance c:
+                            Buy(c);
+                            break;
+                        case SimpleCommodity s:
+                            Buy(s, 1);
+                            break;
+                    }
+
                     Populate();
                 },
                 OnRightClick = () =>
                 {
-                    if (i.TypedItem.TryGetSimpleCommodityCategory(out SimpleCommodityCategory _))
+                    if (i.item is SimpleCommodity s)
                     {
-                        RenderRowActionSurface(
-                            $"Buying {i.Name}",
-                            ("Buy Quantity", () => ShowBuyQuantityDialog(i)));
+                        ContextMenu.Clear();
+                        ContextMenu.AddOption("Buy Quantity",
+                            () =>
+                            {
+                                int quantity = 1;
+                                Dialog.Clear();
+                                Dialog.Title.text = $"Buying {i.data.Name}";
+                                Dialog.AddField("Quantity", 
+                                    () => quantity, 
+                                    q => quantity = min(min(q, GameManager.Credits / i.data.Price), s.Quantity));
+                                Dialog.Show(() =>
+                                {
+                                    Buy(s,quantity);
+
+                                    Populate();
+                                });
+                                Dialog.MoveToCursor();
+                            });
+                        ContextMenu.Show();
                     }
                 }
             }));
-    }
-
-    private IEnumerable<TradeRow> BuildStationStockRows()
-    {
-        return (StationRefitSnapshot()?.StationStock ?? Array.Empty<AetheriaRuntimeStationStockItem>())
-            .Select(stock =>
-            {
-                var typedItem = FindTypedTradeItem(stock.ItemKey);
-                return new TradeRow(
-                    stock,
-                    typedItem,
-                    TradeItemValue(stock, typedItem));
-            })
-            .Where(row => row.TypedItem != null)
-            .Where(PassesTypedTradeFilters);
-    }
-
-    private bool PassesTypedTradeFilters(TradeRow row)
-    {
-        var typedItem = row.TypedItem;
-        if (typedItem == null)
-        {
-            return true;
-        }
-
-        if (MinimumSizeFilter.gameObject.activeSelf &&
-            (MinimumSizeFilter.Width.text.Length > 0 && typedItem.ShapeWidth < int.Parse(MinimumSizeFilter.Width.text) ||
-             MinimumSizeFilter.Height.text.Length > 0 && typedItem.ShapeHeight < int.Parse(MinimumSizeFilter.Height.text)))
-        {
-            return false;
-        }
-
-        if (MaximumSizeFilter.gameObject.activeSelf &&
-            (MaximumSizeFilter.Width.text.Length > 0 && typedItem.ShapeWidth > int.Parse(MaximumSizeFilter.Width.text) ||
-             MaximumSizeFilter.Height.text.Length > 0 && typedItem.ShapeHeight > int.Parse(MaximumSizeFilter.Height.text)))
-        {
-            return false;
-        }
-
-        if (_hardpointFilter.filter != null &&
-            !string.Equals(typedItem.HardpointType, _hardpointFilter.type.ToString(), StringComparison.Ordinal))
-        {
-            return false;
-        }
-
-        return _behaviorFilters.All(filter => HasTypedBehavior(typedItem, filter));
-    }
-
-    private AetheriaRuntimeCatalogItem FindTypedTradeItem(string itemKey)
-    {
-        return CatalogSnapshot()?.FindItem(itemKey ?? "");
-    }
-
-    private AetheriaRuntimeTradeItemValue TradeItemValue(
-        AetheriaRuntimeStationStockItem stock,
-        AetheriaRuntimeCatalogItem typedItem)
-    {
-        return AetheriaRuntimeDaemonTradeItemQueries.TradeItemValue(
-            typedItem,
-            TradeItemCommit(stock),
-            CatalogSnapshot()?.TradeValueSettings);
-    }
-
-    private static AetheriaRuntimeLoadoutItemCommit? TradeItemCommit(AetheriaRuntimeStationStockItem stock)
-    {
-        if (stock == null || string.IsNullOrWhiteSpace(stock.ItemKey))
-            return null;
-
-        return AetheriaRuntimeDaemonTradeItemQueries.CraftedItemCommit(
-            stock.ItemKey,
-            stock.Quality,
-            stock.Durability);
-    }
-
-    private static double GetTypedBehaviorNumber(TradeRow row, BehaviorFilter behaviorFilter, AetheriaRuntimeBehaviorFieldMetadata field)
-    {
-        var payload = FindTypedBehaviorPayload(row.TypedItem, behaviorFilter);
-        var payloadField = payload?.Fields.FirstOrDefault(candidate => candidate.Key == field.Key);
-        if (payloadField == null)
-        {
-            return 0;
-        }
-
-        if (field.ValueKind == AetheriaRuntimeBehaviorFieldValueKind.PerformanceStat)
-        {
-            return payloadField.Value.Children.Count > 1
-                ? payloadField.Value.Children[1].NumberValue
-                : 0;
-        }
-
-        return payloadField.Value.NumberValue;
-    }
-
-    private static AetheriaRuntimeBehaviorPayload FindTypedBehaviorPayload(AetheriaRuntimeCatalogItem typedItem, BehaviorFilter behaviorFilter)
-    {
-        if (typedItem == null)
-        {
-            return null;
-        }
-
-        return typedItem.BehaviorPayloads.FirstOrDefault(payload => TypedBehaviorMatches(payload, behaviorFilter));
-    }
-
-    private static bool HasTypedBehavior(AetheriaRuntimeCatalogItem typedItem, BehaviorFilter behaviorFilter)
-    {
-        return typedItem?.BehaviorPayloads.Any(payload => TypedBehaviorMatches(payload, behaviorFilter)) ?? false;
-    }
-
-    private static bool TypedBehaviorMatches(AetheriaRuntimeBehaviorPayload payload, BehaviorFilter behaviorFilter)
-    {
-        return AetheriaRuntimeBehaviorMetadataCatalog.IsKindOrDescendant(payload.Kind, behaviorFilter.Kind);
-    }
-
-    private sealed class BehaviorFilter
-    {
-        public BehaviorFilter(ItemFilter filter, AetheriaRuntimeBehaviorMetadata metadata)
-        {
-            Filter = filter ?? throw new ArgumentNullException(nameof(filter));
-            Metadata = metadata ?? throw new ArgumentNullException(nameof(metadata));
-        }
-
-        public ItemFilter Filter { get; }
-        public AetheriaRuntimeBehaviorMetadata Metadata { get; }
-        public string Kind => Metadata.Kind;
-    }
-
-    private sealed class TradeRow
-    {
-        public TradeRow(
-            AetheriaRuntimeStationStockItem stock,
-            AetheriaRuntimeCatalogItem typedItem,
-            AetheriaRuntimeTradeItemValue tradeValue)
-        {
-            Stock = stock;
-            TypedItem = typedItem;
-            TradeValue = tradeValue;
-        }
-
-        public AetheriaRuntimeStationStockItem Stock { get; }
-
-        public AetheriaRuntimeCatalogItem TypedItem { get; }
-
-        public AetheriaRuntimeTradeItemValue TradeValue { get; }
-
-        public string ItemKey => Stock?.ItemKey ?? "";
-
-        public string Name => !string.IsNullOrWhiteSpace(TypedItem?.Name) ? TypedItem.Name : "Unknown Item";
-
-        public float Mass => TypedItem != null ? (float)TypedItem.Mass : 0f;
-
-        public int Price => TradeValue.Price;
-
-        public int OwnedQuantity => Stock?.OwnedQuantity ?? 0;
-
-        public string TierColorHex => TradeValue.TierColorHex;
-
-        public int ShapeWidth => TypedItem != null && TypedItem.ShapeWidth > 0 ? TypedItem.ShapeWidth : 0;
-
-        public int ShapeHeight => TypedItem != null && TypedItem.ShapeHeight > 0 ? TypedItem.ShapeHeight : 0;
-
-        public bool IsHull => !string.IsNullOrWhiteSpace(TypedItem?.HullType);
-
     }
     
     private void UpdateCreditsLabel()
     {
         if (CreditsLabel != null)
         {
-            CreditsLabel.text = StationRefitSnapshot()?.Credits.ToString("N0") ?? "0";
+            CreditsLabel.text = GameManager.Credits.ToString("N0");
         }
     }
 
-    private void Buy(TradeRow row, int quantity)
+    private void Buy(CraftedItemInstance item)
     {
-        if (row?.TypedItem == null || row.Stock == null)
+        var data = GameManager.ItemManager.GetData(item);
+        var price = GameManager.ItemManager.GetPrice(item);
+        if (price < GameManager.Credits)
         {
-            ShowUnableToBuy("Missing typed trade row!");
+            if (data is HullData hullData)
+            {
+                if (hullData.HullType != HullType.Ship) throw new ArgumentException("Attempted to buy non-ship hull from station, WTF are you doing?!");
+
+                var ship = new Ship(GameManager.ItemManager, GameManager.Zone, item as EquippableItem, GameManager.NewEntitySettings) { IsPlayerShip = true };
+                ship.SetParent(GameManager.DockedEntity);
+
+                GameManager.Credits -= data.Price;
+                UpdateCreditsLabel();
+            }
+            else if (Inventory.TryTransferItem(_targetCargo, item))
+            {
+                GameManager.Credits -= price;
+                UpdateCreditsLabel();
+            }
+            else
+            {
+                Dialog.Clear();
+                Dialog.Title.text = "Unable to buy: Insufficient Cargo Space!";
+                Dialog.Show();
+                Dialog.MoveToCursor();
+                return;
+            }
+        }
+        else
+        {
+            Dialog.Clear();
+            Dialog.Title.text = "Unable to buy: Insufficient Credits!";
+            Dialog.Show();
+            Dialog.MoveToCursor();
             return;
         }
-
-        RequestTradePurchase(row, quantity);
     }
 
-    private void RequestTradePurchase(
-        TradeRow row,
-        int quantity)
+    private void Buy(SimpleCommodity simpleCommodity, int quantity)
     {
-        if (row?.Stock == null ||
-            string.IsNullOrWhiteSpace(row.ItemKey) ||
-            quantity <= 0)
+        var data = GameManager.ItemManager.GetData(simpleCommodity);
+        // Up-rounded integer division from https://stackoverflow.com/a/503201
+        int lots = (quantity - 1) / data.MaxStack + 1;
+        int remaining = quantity;
+        for (int i = 0; i < lots; i++)
         {
-            return;
+            int q = min(remaining, data.MaxStack);
+            if (q * data.Price < GameManager.Credits)
+            {
+                if (Inventory.TryTransferItem(_targetCargo, simpleCommodity, quantity))
+                {
+                    GameManager.Credits -= q * data.Price;
+                    UpdateCreditsLabel();
+                    remaining -= q;
+                }
+                else
+                {
+                    Dialog.Clear();
+                    Dialog.Title.text = "Unable to buy: Insufficient Cargo Space!";
+                    Dialog.Show();
+                    Dialog.MoveToCursor();
+                    return;
+                }
+            }
+            else
+            {
+                Dialog.Clear();
+                Dialog.Title.text = "Unable to buy: Insufficient Credits!";
+                Dialog.Show();
+                Dialog.MoveToCursor();
+                return;
+            }
+
+            
         }
-
-        var stationCargoIndex = row.Stock.CargoBayIndex;
-        var sourcePosition = new int2(row.Stock.X, row.Stock.Y);
-        if (stationCargoIndex < 0 ||
-            sourcePosition.x < 0 ||
-            sourcePosition.y < 0)
-        {
-            return;
-        }
-
-        TrySubmitOperation(
-            operations => operations.TradePurchase(
-                row.ItemKey,
-                quantity,
-                stationCargoIndex,
-                _targetCargoIndex,
-                sourcePosition.x,
-                sourcePosition.y),
-            "trade purchase");
-    }
-
-    private AetheriaRuntimeStationRefitDocument StationRefitSnapshot()
-    {
-        try
-        {
-            return RuntimeState.StationRefit.Latest();
-        }
-        catch (Exception ex)
-        {
-            Debug.LogWarning($"Failed to read Aetheria station refit for trade menu: {ex.Message}");
-            return null;
-        }
-    }
-
-    private bool TryResolveCurrentDocking(out AetheriaRuntimeCurrentDockingDocument docking)
-    {
-        docking = null;
-        try
-        {
-            docking = RuntimeState.CurrentDocking.Latest();
-            return docking != null;
-        }
-        catch (Exception ex)
-        {
-            Debug.LogWarning($"Failed to read Aetheria runtime docking for trade menu: {ex.Message}");
-            return false;
-        }
-    }
-
-    private bool TryResolveStationRefitCargoTarget(
-        string entityKey,
-        int cargoBayIndex,
-        out AetheriaRuntimeStationCargoTargetRow target)
-    {
-        target = null;
-        if (string.IsNullOrWhiteSpace(entityKey) ||
-            cargoBayIndex < 0)
-        {
-            return false;
-        }
-
-        target = (_cargoSelectorStationRefitTargets ?? Array.Empty<AetheriaRuntimeStationCargoTargetRow>())
-            .FirstOrDefault(option =>
-                option != null &&
-                string.Equals(option.EntityKey, entityKey, StringComparison.Ordinal) &&
-                option.BayIndex == cargoBayIndex);
-        return target != null;
-    }
-
-    private bool IsTargetCargoBayKey(string entityKey, int cargoBayIndex)
-    {
-        return string.Equals(_targetCargoEntityKey, entityKey, StringComparison.Ordinal) &&
-               _targetCargoIndex == cargoBayIndex;
-    }
-
-    private bool TrySubmitOperation(
-        Action<AetheriaControl> submit,
-        string label)
-    {
-        if (submit == null)
-            return false;
-
-        try
-        {
-            submit(AetheriaUnityRuntimeClientProvider.Control("unity-trade"));
-            return true;
-        }
-        catch (Exception ex)
-        {
-            Debug.LogWarning($"Failed to send Aetheria daemon trade {label} operation; operation not submitted: {ex.Message}");
-            return false;
-        }
-    }
-
-    private AetheriaRuntimeCatalogSnapshot CatalogSnapshot()
-    {
-        try
-        {
-            return RuntimeState.Catalog.Latest();
-        }
-        catch (Exception ex)
-        {
-            Debug.LogWarning($"Failed to read Aetheria runtime catalog for trade menu: {ex.Message}");
-            return null;
-        }
-    }
-
-    private AetheriaRuntimePlayerSettingsDocument PlayerSettingsSnapshot()
-    {
-        try
-        {
-            return RuntimeState.PlayerSettings.Latest();
-        }
-        catch (Exception ex)
-        {
-            Debug.LogWarning($"Failed to read Aetheria player settings for trade menu: {ex.Message}");
-            return null;
-        }
-    }
-
-    private string ResolveManufacturerName(AetheriaRuntimeCatalogItem item)
-    {
-        return CatalogSnapshot()?.GetManufacturer(item)?.Name ?? "GameCult";
-    }
-
-    private string FormatValue(float value)
-    {
-        var settings = PlayerSettingsSnapshot();
-        var significantDigits = settings?.SignificantDigits ?? 3;
-        var magnitude = value == 0.0f ? 0 : (int)Math.Floor(Math.Log10(Math.Abs(value))) + 1;
-        var digits = significantDigits - magnitude;
-        if (digits < 0)
-            digits = 0;
-
-        var formatted = value.ToString($"N{digits}", CultureInfo.CurrentCulture);
-        var separator = CultureInfo.CurrentCulture.NumberFormat.NumberDecimalSeparator;
-        var decimalSeparator = Convert.ToChar(separator);
-        return formatted.Contains(separator)
-            ? formatted.TrimEnd('0').TrimEnd(decimalSeparator)
-            : formatted;
-    }
-
-    private string FormatTemperature(float value)
-    {
-        var unit = PlayerSettingsSnapshot()?.TemperatureUnit ?? nameof(TemperatureUnit.Celsius);
-        if (string.Equals(unit, nameof(TemperatureUnit.Kelvin), StringComparison.OrdinalIgnoreCase))
-            return $"{FormatValue(value)} K";
-        if (string.Equals(unit, nameof(TemperatureUnit.Fahrenheit), StringComparison.OrdinalIgnoreCase))
-            return $"{FormatValue(value * (9f / 5) - 459.67f)} F";
-
-        return $"{FormatValue(value - 273.15f)} C";
-    }
-
-    private void ShowUnableToBuy(string reason)
-    {
-        Dialog.Clear();
-        Dialog.Title.text = $"Unable to buy: {reason}";
-        Dialog.Show();
-        Dialog.MoveToCursor();
-    }
-
-    private void ShowBuyQuantityDialog(TradeRow row)
-    {
-        int quantity = 1;
-        Dialog.Clear();
-        Dialog.Title.text = $"Buying {row?.Name ?? "Unknown Item"}";
-        Dialog.AddField(
-            "Quantity",
-            () => quantity,
-            q => quantity = q);
-        Dialog.Show(() =>
-        {
-            Buy(row, quantity);
-            Populate();
-        });
-        Dialog.MoveToCursor();
-    }
-
-    private void RenderTradeItemDetailsSurface(AetheriaRuntimeCatalogItem item)
-    {
-        if (item == null)
-            return;
-
-        _tradeItemSurfaceDocument = AetheriaEveUnitySurfaceHost.RenderRuntime(
-            transform,
-            _tradeItemSurfaceDocument,
-            "Aetheria Trade Item Details Surface",
-            AetheriaRuntimeTradeItemDetailsSurfaceBuilder.Build(
-                item,
-                ResolveManufacturerName(item),
-                FormatValue,
-                FormatTemperature),
-            HandleTradeItemDetailsSurfaceCommand,
-            _tradeItemSurfaceChrome,
-            sortingOrder: 1003);
-    }
-
-    private void HandleTradeItemDetailsSurfaceCommand(EveSurfaceCommandRequest request)
-    {
-        if (!AetheriaRuntimeTradeItemDetailsSurfaceCommands.TryRead(request, out var command))
-        {
-            Debug.LogWarning($"Unknown trade item details command: {request?.Command}");
-            return;
-        }
-
-        if (command.Kind == AetheriaRuntimeTradeItemDetailsCommandKind.Close)
-        {
-            HideTradeItemDetailsSurface();
-            return;
-        }
-
-        Debug.LogWarning($"Unknown trade item details command: {request?.Command}");
-    }
-
-    private void HideTradeItemDetailsSurface()
-    {
-        if (_tradeItemSurfaceDocument == null)
-            return;
-
-        AetheriaEveUnitySurfaceHost.Hide(_tradeItemSurfaceDocument);
     }
 
     void Start()
     {
         FoldoutButton.onClick.AddListener(() =>
         {
-            RenderCargoSelectorSurface();
+            ContextMenu.Clear();
+            if(_targetCargo != GameManager.DockingBay)
+                ContextMenu.AddOption("Docking Bay",
+                    () =>
+                    {
+                        _targetCargo = GameManager.DockingBay;
+                        TargetCargoLabel.text = "Docking Bay";
+                    });
+            foreach (var ship in GameManager.CurrentEntity.Parent.Children.Where(e => e is Ship {IsPlayerShip: true}))
+            {
+                foreach (var bay in ship.CargoBays.Select((bay, index) => (bay, index)))
+                {
+                    if(_targetCargo != bay.bay)
+                    {
+                        ContextMenu.AddOption($"{ship.Name} Bay {bay.index+1}",
+                            () =>
+                            {
+                                _targetCargo = bay.bay;
+                                TargetCargoLabel.text = $"{ship.Name} Bay {bay.index+1}";
+                            });
+                    }
+                }
+            }
+            ContextMenu.Show();
         });
     }
 
     void Update()
     {
         
-    }
-
-    private void RenderFilterSurface()
-    {
-        _filterSurfaceModel = BuildTradeFilterSurfaceModel();
-
-        _filterSurfaceDocument = AetheriaEveUnitySurfaceHost.RenderRuntime(
-            transform,
-            _filterSurfaceDocument,
-            "Aetheria Trade Filter Surface",
-            _filterSurfaceModel.Document,
-            HandleFilterSurfaceCommand,
-            _filterSurfaceChrome,
-            sortingOrder: 1001);
-    }
-
-    private void HandleFilterSurfaceCommand(EveSurfaceCommandRequest request)
-    {
-        if (!AetheriaRuntimeTradeInteractionSurfaceCommands.TryReadFilter(request, out var command))
-        {
-            Debug.LogWarning($"Unknown trade filter command: {request?.Command}");
-            return;
-        }
-
-        if (command.Kind == AetheriaRuntimeTradeInteractionCommandKind.Close)
-        {
-            HideFilterSurface();
-            return;
-        }
-
-        if (command.Kind == AetheriaRuntimeTradeInteractionCommandKind.Select &&
-            _filterSurfaceModel?.TryResolve(command.Command, out var selection) == true)
-        {
-            ExecuteTradeFilterSelection(selection);
-            HideFilterSurface();
-            return;
-        }
-
-        Debug.LogWarning($"Unknown trade filter command: {request?.Command}");
-    }
-
-    private void HideFilterSurface()
-    {
-        if (_filterSurfaceDocument == null)
-            return;
-
-        AetheriaEveUnitySurfaceHost.Hide(_filterSurfaceDocument);
-    }
-
-    private AetheriaRuntimeTradeFilterSurfaceModel BuildTradeFilterSurfaceModel()
-    {
-        var options = new List<AetheriaRuntimeTradeFilterOption>();
-        options.AddRange(((HardpointType[])Enum.GetValues(typeof(HardpointType)))
-            .Where(type => _hardpointFilter.filter == null || type != _hardpointFilter.type)
-            .Select(type => new AetheriaRuntimeTradeFilterOption(
-                AetheriaRuntimeTradeFilterSelectionKind.Hardpoint,
-                type.ToString(),
-                FormatTypeName(type.ToString()))));
-        options.AddRange(((SimpleCommodityCategory[])Enum.GetValues(typeof(SimpleCommodityCategory)))
-            .Where(type => _commodityFilter.filter == null || type != _commodityFilter.type)
-            .Select(type => new AetheriaRuntimeTradeFilterOption(
-                AetheriaRuntimeTradeFilterSelectionKind.SimpleCommodity,
-                type.ToString(),
-                FormatTypeName(type.ToString()))));
-        options.AddRange(((CompoundCommodityCategory[])Enum.GetValues(typeof(CompoundCommodityCategory)))
-            .Where(type => _compoundCommodityFilter.filter == null || type != _compoundCommodityFilter.type)
-            .Select(type => new AetheriaRuntimeTradeFilterOption(
-                AetheriaRuntimeTradeFilterSelectionKind.CompoundCommodity,
-                type.ToString(),
-                FormatTypeName(type.ToString()))));
-        options.AddRange(AetheriaRuntimeBehaviorMetadataCatalog.All
-            .Where(option => _behaviorFilters.All(filter => filter.Kind != option.Kind))
-            .OrderBy(option => option.Kind, StringComparer.Ordinal)
-            .Select(option => new AetheriaRuntimeTradeFilterOption(
-                AetheriaRuntimeTradeFilterSelectionKind.Behavior,
-                option.Kind,
-                FormatTypeName(option.Kind))));
-
-        if (!MinimumSizeFilter.gameObject.activeSelf)
-        {
-            options.Add(new AetheriaRuntimeTradeFilterOption(
-                AetheriaRuntimeTradeFilterSelectionKind.MinimumSize,
-                "minimum",
-                "Minimum Size"));
-        }
-
-        if (!MaximumSizeFilter.gameObject.activeSelf)
-        {
-            options.Add(new AetheriaRuntimeTradeFilterOption(
-                AetheriaRuntimeTradeFilterSelectionKind.MaximumSize,
-                "maximum",
-                "Maximum Size"));
-        }
-
-        return AetheriaRuntimeTradeInteractionSurfaceBuilder.BuildFilters(
-            BuildFilterSummary(),
-            options,
-            DateTime.UtcNow.ToString("O"));
-    }
-
-    private void ExecuteTradeFilterSelection(AetheriaRuntimeTradeFilterSelection selection)
-    {
-        switch (selection.Kind)
-        {
-            case AetheriaRuntimeTradeFilterSelectionKind.Hardpoint:
-                if (Enum.TryParse(selection.Token, out HardpointType hardpointType))
-                {
-                    ApplyHardpointFilter(hardpointType);
-                }
-                return;
-            case AetheriaRuntimeTradeFilterSelectionKind.SimpleCommodity:
-                if (Enum.TryParse(selection.Token, out SimpleCommodityCategory simpleCategory))
-                {
-                    ApplySimpleCommodityFilter(simpleCategory);
-                }
-                return;
-            case AetheriaRuntimeTradeFilterSelectionKind.CompoundCommodity:
-                if (Enum.TryParse(selection.Token, out CompoundCommodityCategory compoundCategory))
-                {
-                    ApplyCompoundCommodityFilter(compoundCategory);
-                }
-                return;
-            case AetheriaRuntimeTradeFilterSelectionKind.Behavior:
-                var metadata = AetheriaRuntimeBehaviorMetadataCatalog.All
-                    .FirstOrDefault(option => string.Equals(option.Kind, selection.Token, StringComparison.Ordinal));
-                if (metadata != null)
-                {
-                    ApplyBehaviorFilter(metadata);
-                }
-                return;
-            case AetheriaRuntimeTradeFilterSelectionKind.MinimumSize:
-                EnableMinimumSizeFilter();
-                return;
-            case AetheriaRuntimeTradeFilterSelectionKind.MaximumSize:
-                EnableMaximumSizeFilter();
-                return;
-        }
-    }
-
-    private void RenderRowActionSurface(string title, params (string Label, Action Action)[] actions)
-    {
-        _rowActionCallbacks = actions
-            .Select(action => action.Action)
-            .ToArray();
-        _rowActionSurfaceModel = AetheriaRuntimeTradeInteractionSurfaceBuilder.BuildRowActions(
-            title,
-            actions.Select((action, index) => new AetheriaRuntimeTradeRowActionOption(index, action.Label)),
-            DateTime.UtcNow.ToString("O"));
-
-        _rowActionSurfaceDocument = AetheriaEveUnitySurfaceHost.RenderRuntime(
-            transform,
-            _rowActionSurfaceDocument,
-            "Aetheria Trade Row Action Surface",
-            _rowActionSurfaceModel.Document,
-            HandleRowActionSurfaceCommand,
-            _rowActionSurfaceChrome,
-            sortingOrder: 1002);
-    }
-
-    private void HandleRowActionSurfaceCommand(EveSurfaceCommandRequest request)
-    {
-        if (!AetheriaRuntimeTradeInteractionSurfaceCommands.TryReadRowAction(request, out var command))
-        {
-            Debug.LogWarning($"Unknown trade row action command: {request?.Command}");
-            return;
-        }
-
-        if (command.Kind == AetheriaRuntimeTradeInteractionCommandKind.Close)
-        {
-            HideRowActionSurface();
-            return;
-        }
-
-        if (command.Kind == AetheriaRuntimeTradeInteractionCommandKind.Select &&
-            _rowActionSurfaceModel?.TryResolve(command.Command, out var selection) == true &&
-            selection.Index >= 0 &&
-            selection.Index < _rowActionCallbacks.Length)
-        {
-            _rowActionCallbacks[selection.Index]?.Invoke();
-            HideRowActionSurface();
-            return;
-        }
-
-        Debug.LogWarning($"Unknown trade row action command: {request?.Command}");
-    }
-
-    private void HideRowActionSurface()
-    {
-        if (_rowActionSurfaceDocument == null)
-            return;
-
-        AetheriaEveUnitySurfaceHost.Hide(_rowActionSurfaceDocument);
-    }
-
-    private void ApplyHardpointFilter(HardpointType hardpointType)
-    {
-        EnsureHardpointFilter();
-        ClearCommodityFilters();
-        _hardpointFilter.filter.Label.text = $"Hardpoint: {Enum.GetName(typeof(HardpointType), hardpointType)}";
-        _hardpointFilter.type = hardpointType;
-        Populate();
-    }
-
-    private void ApplySimpleCommodityFilter(SimpleCommodityCategory category)
-    {
-        EnsureCommodityFilter();
-        ClearHardpointFilter();
-        ClearCompoundCommodityFilter();
-        _commodityFilter.filter.Label.text = $"Simple Commodity: {Enum.GetName(typeof(SimpleCommodityCategory), category)}";
-        _commodityFilter.type = category;
-        Populate();
-    }
-
-    private void ApplyCompoundCommodityFilter(CompoundCommodityCategory category)
-    {
-        EnsureCompoundCommodityFilter();
-        ClearHardpointFilter();
-        ClearCommodityFilter();
-        _compoundCommodityFilter.filter.Label.text = $"Compound Commodity: {Enum.GetName(typeof(CompoundCommodityCategory), category)}";
-        _compoundCommodityFilter.type = category;
-        Populate();
-    }
-
-    private void ApplyBehaviorFilter(AetheriaRuntimeBehaviorMetadata metadata)
-    {
-        var matchingType = _behaviorFilters.FirstOrDefault(filter =>
-            AetheriaRuntimeBehaviorMetadataCatalog.IsKindOrDescendant(filter.Kind, metadata.Kind) ||
-            AetheriaRuntimeBehaviorMetadataCatalog.IsKindOrDescendant(metadata.Kind, filter.Kind));
-        if (matchingType?.Filter != null)
-        {
-            matchingType.Filter.DisableButton.onClick.Invoke();
-        }
-
-        var filter = FilterPrototype.Instantiate<ItemFilter>();
-        filter.Label.text = FormatTypeName(metadata.Kind);
-        var behaviorFilter = new BehaviorFilter(filter, metadata);
-        filter.OnDisable += () =>
-        {
-            _behaviorFilters.Remove(behaviorFilter);
-            Populate();
-        };
-        _behaviorFilters.Add(behaviorFilter);
-        Populate();
-    }
-
-    private void EnableMinimumSizeFilter()
-    {
-        MinimumSizeFilter.gameObject.SetActive(true);
-        MinimumSizeFilter.OnDisable += () => Populate();
-        Populate();
-    }
-
-    private void EnableMaximumSizeFilter()
-    {
-        MaximumSizeFilter.gameObject.SetActive(true);
-        MaximumSizeFilter.OnDisable += () => Populate();
-        Populate();
-    }
-
-    private void EnsureHardpointFilter()
-    {
-        if (_hardpointFilter.filter != null)
-            return;
-
-        _hardpointFilter.filter = FilterPrototype.Instantiate<ItemFilter>();
-        _hardpointFilter.filter.OnDisable += () =>
-        {
-            _hardpointFilter.filter = null;
-            Populate();
-        };
-    }
-
-    private void EnsureCommodityFilter()
-    {
-        if (_commodityFilter.filter != null)
-            return;
-
-        _commodityFilter.filter = FilterPrototype.Instantiate<ItemFilter>();
-        _commodityFilter.filter.OnDisable += () =>
-        {
-            _commodityFilter.filter = null;
-            Populate();
-        };
-    }
-
-    private void EnsureCompoundCommodityFilter()
-    {
-        if (_compoundCommodityFilter.filter != null)
-            return;
-
-        _compoundCommodityFilter.filter = FilterPrototype.Instantiate<ItemFilter>();
-        _compoundCommodityFilter.filter.OnDisable += () =>
-        {
-            _compoundCommodityFilter.filter = null;
-            Populate();
-        };
-    }
-
-    private void ClearHardpointFilter()
-    {
-        if (_hardpointFilter.filter == null)
-            return;
-
-        _hardpointFilter.filter.GetComponent<Prototype>().ReturnToPool();
-        _hardpointFilter.filter = null;
-    }
-
-    private void ClearCommodityFilter()
-    {
-        if (_commodityFilter.filter == null)
-            return;
-
-        _commodityFilter.filter.GetComponent<Prototype>().ReturnToPool();
-        _commodityFilter.filter = null;
-    }
-
-    private void ClearCompoundCommodityFilter()
-    {
-        if (_compoundCommodityFilter.filter == null)
-            return;
-
-        _compoundCommodityFilter.filter.GetComponent<Prototype>().ReturnToPool();
-        _compoundCommodityFilter.filter = null;
-    }
-
-    private void ClearCommodityFilters()
-    {
-        ClearCommodityFilter();
-        ClearCompoundCommodityFilter();
-    }
-
-    private string BuildFilterSummary()
-    {
-        var activeFilters = new List<string>();
-        if (_hardpointFilter.filter != null)
-        {
-            activeFilters.Add($"Gear: {Enum.GetName(typeof(HardpointType), _hardpointFilter.type)}");
-        }
-
-        if (_commodityFilter.filter != null)
-        {
-            activeFilters.Add($"Simple: {Enum.GetName(typeof(SimpleCommodityCategory), _commodityFilter.type)}");
-        }
-
-        if (_compoundCommodityFilter.filter != null)
-        {
-            activeFilters.Add($"Compound: {Enum.GetName(typeof(CompoundCommodityCategory), _compoundCommodityFilter.type)}");
-        }
-
-        activeFilters.AddRange(_behaviorFilters.Select(filter => $"Behavior: {FormatTypeName(filter.Kind)}"));
-
-        if (MinimumSizeFilter.gameObject.activeSelf)
-        {
-            activeFilters.Add("Minimum size active");
-        }
-
-        if (MaximumSizeFilter.gameObject.activeSelf)
-        {
-            activeFilters.Add("Maximum size active");
-        }
-
-        return activeFilters.Count == 0
-            ? "No active filters"
-            : string.Join(" | ", activeFilters);
-    }
-
-    private void RenderCargoSelectorSurface()
-    {
-        _cargoSelectorSurfaceModel = BuildTradeCargoSelectorSurfaceModel();
-
-        _cargoSelectorSurfaceDocument = AetheriaEveUnitySurfaceHost.RenderRuntime(
-            transform,
-            _cargoSelectorSurfaceDocument,
-            "Aetheria Trade Cargo Selector Surface",
-            _cargoSelectorSurfaceModel.Document,
-            HandleCargoSelectorSurfaceCommand,
-            _cargoSelectorSurfaceChrome);
-    }
-
-    private void HandleCargoSelectorSurfaceCommand(EveSurfaceCommandRequest request)
-    {
-        if (!AetheriaRuntimeTradeCargoSelectorSurfaceCommands.TryRead(request, out var command))
-        {
-            Debug.LogWarning($"Unknown trade cargo selector command: {request?.Command}");
-            return;
-        }
-
-        if (command.Kind == AetheriaRuntimeTradeCargoSelectorCommandKind.Close)
-        {
-            HideCargoSelectorSurface();
-            return;
-        }
-
-        if (command.Kind == AetheriaRuntimeTradeCargoSelectorCommandKind.Select &&
-            _cargoSelectorSurfaceModel?.TryResolve(command.Command, out var selection) == true)
-        {
-            ApplyCargoSelection(selection);
-            HideCargoSelectorSurface();
-            Populate();
-            return;
-        }
-
-        Debug.LogWarning($"Unknown trade cargo selector command: {request?.Command}");
-    }
-
-    private void HideCargoSelectorSurface()
-    {
-        if (_cargoSelectorSurfaceDocument == null)
-            return;
-
-        AetheriaEveUnitySurfaceHost.Hide(_cargoSelectorSurfaceDocument);
-    }
-
-    private static AetheriaEveUnitySurfaceChrome PanelChrome(float width, float maxWidth, Align alignItems)
-    {
-        return new AetheriaEveUnitySurfaceChrome
-        {
-            RootAlignItems = alignItems,
-            RootJustifyContent = Justify.FlexStart,
-            RootPaddingTop = 16f,
-            RootPaddingLeft = alignItems == Align.FlexStart ? 16f : 0f,
-            RootPaddingRight = alignItems == Align.FlexEnd ? 16f : 0f,
-            Width = width,
-            MinWidth = 0f,
-            MaxWidth = maxWidth,
-            PaddingLeft = 18f,
-            PaddingRight = 18f,
-            PaddingTop = 18f,
-            PaddingBottom = 18f
-        };
-    }
-
-    private AetheriaRuntimeTradeCargoSelectorSurfaceModel BuildTradeCargoSelectorSurfaceModel()
-    {
-        var targets = new List<AetheriaRuntimeTradeCargoModelOption>();
-        var stationRefit = StationRefitSnapshot();
-        if (stationRefit?.IsDocked == true &&
-            !string.IsNullOrWhiteSpace(stationRefit.DockParentEntityKey) &&
-            stationRefit.DockingBayIndex >= 0)
-        {
-            targets.Add(new AetheriaRuntimeTradeCargoModelOption(
-                AetheriaRuntimeTradeCargoTargetKind.DockingBay,
-                "Docking Bay",
-                stationRefit.DockParentEntityKey,
-                bayIndex: stationRefit.DockingBayIndex,
-                isCurrent: IsTargetCargoBayKey(stationRefit.DockParentEntityKey, stationRefit.DockingBayIndex)));
-        }
-
-        _cargoSelectorStationRefitTargets = (stationRefit?.CargoTargets ??
-                Array.Empty<AetheriaRuntimeStationCargoTargetRow>())
-            .ToArray();
-        targets.AddRange(_cargoSelectorStationRefitTargets
-            .Select(target => new AetheriaRuntimeTradeCargoModelOption(
-                target.Kind,
-                target.Label,
-                target.EntityKey,
-                target.TargetIndex,
-                target.BayIndex,
-                IsTargetCargoBayKey(target.EntityKey, target.BayIndex))));
-
-        return AetheriaRuntimeTradeCargoSelectorSurfaceBuilder.Build(
-            _targetCargoLabel ?? "",
-            targets,
-            DateTime.UtcNow.ToString("O"));
-    }
-
-    private void ApplyCargoSelection(AetheriaRuntimeTradeCargoSelection selection)
-    {
-        switch (selection.Kind)
-        {
-            case AetheriaRuntimeTradeCargoTargetKind.DockingBay:
-                if (TryResolveStationRefitCargoTarget(selection.EntityKey, selection.BayIndex, out var target) &&
-                    target.Kind == AetheriaRuntimeTradeCargoTargetKind.DockingBay)
-                {
-                    SetTargetCargo(selection.EntityKey, selection.BayIndex, selection.Label);
-                }
-                return;
-            case AetheriaRuntimeTradeCargoTargetKind.ShipBay:
-                if (TryResolveStationRefitCargoTarget(selection.EntityKey, selection.BayIndex, out target) &&
-                    target.Kind == AetheriaRuntimeTradeCargoTargetKind.ShipBay &&
-                    target.TargetIndex == selection.ShipIndex)
-                {
-                    SetTargetCargo(target.EntityKey, selection.BayIndex, selection.Label);
-                }
-                return;
-        }
-    }
-
-    private void SetTargetCargo(string entityKey, int cargoBayIndex, string label)
-    {
-        _targetCargoEntityKey = entityKey ?? "";
-        _targetCargoIndex = cargoBayIndex;
-        _targetCargoLabel = string.IsNullOrWhiteSpace(label) ? "Docking Bay" : label;
-        if (TargetCargoLabel != null)
-        {
-            TargetCargoLabel.text = _targetCargoLabel;
-        }
-    }
-
-    private static string FormatTypeName(string typeName)
-    {
-        var value = typeName ?? "";
-        var trimmed = value.EndsWith("Data", StringComparison.InvariantCultureIgnoreCase)
-            ? value.Substring(0, value.Length - 4)
-            : value;
-        return SplitCamelCase(trimmed);
-    }
-
-    private static string SplitCamelCase(string value)
-    {
-        return Regex.Replace(
-            Regex.Replace(
-                value ?? "",
-                @"(\P{Ll})(\P{Ll}\p{Ll})",
-                "$1 $2"),
-            @"(\p{Ll})(\P{Ll})",
-            "$1 $2");
-    }
-
-    private void OnDisable()
-    {
-        HideCargoSelectorSurface();
-        HideFilterSurface();
-        HideRowActionSurface();
-        HideTradeItemDetailsSurface();
-    }
-
-    private void OnDestroy()
-    {
-        if (_cargoSelectorSurfaceDocument != null)
-        {
-            AetheriaEveUnitySurfaceHost.DestroyDocument(_cargoSelectorSurfaceDocument);
-            _cargoSelectorSurfaceDocument = null;
-        }
-
-        if (_filterSurfaceDocument != null)
-        {
-            AetheriaEveUnitySurfaceHost.DestroyDocument(_filterSurfaceDocument);
-            _filterSurfaceDocument = null;
-        }
-
-        if (_rowActionSurfaceDocument != null)
-        {
-            AetheriaEveUnitySurfaceHost.DestroyDocument(_rowActionSurfaceDocument);
-            _rowActionSurfaceDocument = null;
-        }
-
-        if (_tradeItemSurfaceDocument != null)
-        {
-            AetheriaEveUnitySurfaceHost.DestroyDocument(_tradeItemSurfaceDocument);
-            _tradeItemSurfaceDocument = null;
-        }
     }
 }

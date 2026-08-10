@@ -6,14 +6,27 @@ using System.Linq;
 using System.Numerics;
 using System.Reflection;
 using System.Text.RegularExpressions;
-using float2 = CultMath.float2;
-using Random = CultMath.Random;
+using LiteNetLib;
+using MessagePack;
+using Unity.Mathematics;
+using static Unity.Mathematics.math;
+using Random = Unity.Mathematics.Random;
+using Unity.Tiny;
+using float2 = Unity.Mathematics.float2;
 
 public static class Extensions
 {
+    //public static IDatabaseEntry Get(this Guid entry) => Database.Get(entry);
+    //public static T Get<T>(this Guid entry) where T : class, IDatabaseEntry => Database.Get(entry) as T;
+
     public static bool IsImplementationOf(this Type baseType, Type interfaceType)
     {
         return baseType.GetInterfaces().Any(interfaceType.Equals);
+    }
+
+    public static void Send<T>(this NetPeer peer, T message, DeliveryMethod method = DeliveryMethod.ReliableOrdered) where T : Message
+    {
+        peer.Send(MessagePackSerializer.Serialize(message as Message), method);
     }
 
     public static T[] WeightedRandomElements<T>(this IEnumerable<T> collection, ref Random random, Func<T, float> weightFunction, int count)
@@ -76,13 +89,13 @@ public static class Extensions
         switch (rotation)
         {
             case ItemRotation.None:
-                return new float2(0, 1);
+                return float2(0, 1);
             case ItemRotation.CounterClockwise:
-                return new float2(-1, 0);
+                return float2(-1, 0);
             case ItemRotation.Reversed:
-                return new float2(0, -1);
+                return float2(0, -1);
             case ItemRotation.Clockwise:
-                return new float2(1, 0);
+                return float2(1, 0);
             default:
                 throw new ArgumentOutOfRangeException(nameof(rotation), rotation, null);
         }
@@ -95,11 +108,11 @@ public static class Extensions
             case ItemRotation.None:
                 return v;
             case ItemRotation.CounterClockwise:
-                return new float2(-v.y, v.x);
+                return float2(-v.y, v.x);
             case ItemRotation.Reversed:
-                return new float2(-v.x, -v.y);
+                return float2(-v.x, -v.y);
             case ItemRotation.Clockwise:
-                return new float2(v.y, -v.x);
+                return float2(v.y, -v.x);
             default:
                 throw new ArgumentOutOfRangeException(nameof(rotation), rotation, null);
         }
@@ -109,10 +122,9 @@ public static class Extensions
     //private static Random Random => (Random) (_random ??= new Random((uint) (DateTime.Now.Ticks%uint.MaxValue)));
     // public static T RandomElement<T>(this IEnumerable<T> enumerable) => enumerable.ElementAt(Random.NextInt(0, enumerable.Count()));
     public static float NextPowerDistribution(this ref Random random, float min, float max, float exp, float randexp) =>
-        MathF.Pow((MathF.Pow(max, exp + 1) - MathF.Pow(min, exp + 1)) * MathF.Pow(random.NextFloat(), randexp) + MathF.Pow(min, exp + 1), 1 / (exp + 1));
+        pow((pow(max, exp + 1) - pow(min, exp + 1)) * pow(random.NextFloat(), randexp) + pow(min, exp + 1), 1 / (exp + 1));
     public static float NextUnbounded(this ref Random random) => 1 / (1 - random.NextFloat()) - 1;
-    public static float NextUnbounded(this ref Random random, float bias, float power, float ceiling) =>
-        1 / (1 - MathF.Pow(MathF.Min(random.NextFloat(), ceiling), 1 - MathF.Pow(Clamp(bias, 0, .99f), 1 / power))) - 1;
+    public static float NextUnbounded(this ref Random random, float bias, float power, float ceiling) => 1 / (1 - pow(min(random.NextFloat(), ceiling), 1 - pow(clamp(bias,0,.99f), 1 / power))) - 1;
 
     public static bool IsDefault<T>(this T value) where T : struct
     {
@@ -128,23 +140,8 @@ public static class Extensions
 
     public static float Angle(this float2 from, float2 to)
     {
-        var num = MathF.Sqrt(LengthSquared(from) * LengthSquared(to));
-        return num < 1.00000000362749E-15 ? 0.0f : MathF.Acos(Clamp(Dot(from, to) / num, -1f, 1f)) * 57.29578f;
-    }
-
-    private static float Clamp(float value, float min, float max)
-    {
-        return value < min ? min : value > max ? max : value;
-    }
-
-    private static float Dot(float2 a, float2 b)
-    {
-        return a.x * b.x + a.y * b.y;
-    }
-
-    private static float LengthSquared(float2 value)
-    {
-        return Dot(value, value);
+        var num = sqrt(lengthsq(from) * lengthsq(to));
+        return num < 1.00000000362749E-15 ? 0.0f : acos(clamp(dot(from, to) / num, -1f, 1f)) * 57.29578f;
     }
 }
 

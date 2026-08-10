@@ -1,5 +1,5 @@
-﻿using CultMath;
-using static CultMath.math;
+﻿using Unity.Mathematics;
+using static Unity.Mathematics.math;
 
 public static class Noise1D
 {

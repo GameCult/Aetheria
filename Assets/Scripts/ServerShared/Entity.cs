@@ -5,37 +5,10 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using GameCult.Aetheria.State.Verse;
 using UniRx;
-using bool2 = CultMath.bool2;
-using cfloat2 = CultMath.float2;
-using cfloat3 = CultMath.float3;
-using float2 = Unity.Mathematics.float2;
-using float3 = Unity.Mathematics.float3;
+using Unity.Mathematics;
+using static Unity.Mathematics.math;
 using int2 = Unity.Mathematics.int2;
-
-internal static class AetheriaScalar
-{
-    public static float Clamp(float value, float min, float max)
-    {
-        return value < min ? min : value > max ? max : value;
-    }
-
-    public static float Lerp(float from, float to, float t)
-    {
-        return from + (to - from) * t;
-    }
-
-    public static float Unlerp(float from, float to, float value)
-    {
-        return Math.Abs(to - from) <= 0.000001f ? 0 : (value - from) / (to - from);
-    }
-
-    public static float Saturate(float value)
-    {
-        return Clamp(value, 0, 1);
-    }
-}
 
 public abstract class Entity
 {
@@ -43,42 +16,10 @@ public abstract class Entity
     public Faction Faction;
     public EquippableItem Hull;
     public EquippedItem EquippedHull;
-    public string DaemonRecordKey = "";
-    public int DaemonEntityIndex = -1;
     
     public float3 Position;
-    public float2 Direction = new float2(0,1);
+    public float2 Direction = float2(0,1);
     public float2 Velocity;
-
-    public cfloat3 CultPosition
-    {
-        get => AetheriaMath.ToCult(Position);
-        set => Position = AetheriaMath.ToUnity(value);
-    }
-
-    public cfloat2 CultPositionXZ
-    {
-        get => AetheriaMath.ToCultXZ(Position);
-        set => Position.xz = AetheriaMath.ToUnity(value);
-    }
-
-    public float CultPositionY
-    {
-        get => Position.y;
-        set => Position.y = value;
-    }
-
-    public cfloat2 CultDirection
-    {
-        get => AetheriaMath.ToCult(Direction);
-        set => Direction = AetheriaMath.ToUnity(value);
-    }
-
-    public cfloat2 CultVelocity
-    {
-        get => AetheriaMath.ToCult(Velocity);
-        set => Velocity = AetheriaMath.ToUnity(value);
-    }
     
     public float[,] Temperature;
     public float[,] NewTemperature;
@@ -98,28 +39,17 @@ public abstract class Entity
     public ReactiveProperty<Entity> Target = new ReactiveProperty<Entity>((Entity)null);
 
     public float3 LookDirection;
-
-    public cfloat3 CultLookDirection
-    {
-        get => AetheriaMath.ToCult(LookDirection);
-        set => LookDirection = AetheriaMath.ToUnity(value);
-    }
-
-    public cfloat2 CultLookDirectionXZ
-    {
-        get => AetheriaMath.ToCultXZ(LookDirection);
-        set => LookDirection = AetheriaMath.ToUnityXZ(value);
-    }
     
     public string Name;
     
     // public int Population;
+    // public Dictionary<Guid, float> Personality = new Dictionary<Guid, float>();
     
     public readonly Dictionary<string, float> Messages = new Dictionary<string, float>();
     public readonly Dictionary<object, float> VisibilitySources = new Dictionary<object, float>();
-    public readonly ReactiveDictionary<Entity, float> EntityInfoGathered = new ReactiveDictionary<Entity, float>();
-    public readonly Dictionary<HardpointData, (cfloat3 position, cfloat3 direction)> HardpointTransforms =
-        new Dictionary<HardpointData, (cfloat3 position, cfloat3 direction)>();
+    public readonly ReactiveDictionary<Entity, float> EntityInfoGathered = new ReactiveDictionary<Entity, float>(); 
+    public readonly Dictionary<HardpointData, (float3 position, float3 direction)> HardpointTransforms = 
+        new Dictionary<HardpointData, (float3 position, float3 direction)>();
     
     public (List<Weapon> weapons, List<EquippedItem> items)[] WeaponGroups;
 
@@ -137,7 +67,6 @@ public abstract class Entity
     private List<Radiator> _heatsinks = new List<Radiator>();
 
     private List<ConsumableItemEffect> _activeConsumables = new List<ConsumableItemEffect>();
-    public IReadOnlyList<ConsumableItemEffect> ActiveConsumables => _activeConsumables;
     
     protected bool _active;
 
@@ -155,6 +84,8 @@ public abstract class Entity
         }
     }
     
+    public HullData HullData { get; }
+    
     public EntitySettings Settings { get; }
     
     public bool OverrideShutdown { get; set; }
@@ -164,11 +95,6 @@ public abstract class Entity
     public bool Active
     {
         get => _active;
-    }
-
-    public void RestoreActiveState(bool active)
-    {
-        _active = active;
     }
     
     public IEnumerable<Weapon> Weapons
@@ -337,10 +263,8 @@ public abstract class Entity
         ItemManager = itemManager;
         Zone = zone;
         Hull = hull;
-        var typedHull = itemManager.GetRuntimeItem(hull);
-        if (typedHull == null)
-            throw new InvalidOperationException($"Unable to construct entity: missing typed hull row for {hull?.ItemKey}");
-        Name = typedHull.Name;
+        HullData = itemManager.GetData(hull) as HullData;
+        Name = HullData.Name;
         MapEntity();
         WeaponGroups = new (List<Weapon> weapons, List<EquippedItem> items)[itemManager.GameplaySettings.WeaponGroupCount];
         for(int i=0; i<itemManager.GameplaySettings.WeaponGroupCount; i++)
@@ -364,7 +288,7 @@ public abstract class Entity
 
         // TODO: Inter-faction hostility
         // When the entity faction owns the zone, they are hostile to trespassers or those hostile to them
-        if (Faction.HasSameKey(Zone.GalaxyZone.Owner))
+        if (Faction.ID == Zone.GalaxyZone.Owner?.ID)
             return recursive ? !(other.PresencePermitted?.Value ?? true) : !(other.PresencePermitted?.Value ?? true)|| other.IsHostileTo(this, true);
 
         return !recursive && other.IsHostileTo(this, true);
@@ -377,7 +301,7 @@ public abstract class Entity
             return FactionRelationship.Neutral;
         if (this is Ship {IsPlayerShip: true})
             return Zone.Galaxy.FactionRelationships[faction];
-        return faction.HasSameKey(Faction) ? FactionRelationship.Beloved : FactionRelationship.Neutral;
+        return faction.ID == Faction.ID ? FactionRelationship.Beloved : FactionRelationship.Neutral;
     }
 
     public static bool IsPresencePermitted(FactionRelationship relationship, SecurityLevel securityLevel) => 
@@ -390,192 +314,70 @@ public abstract class Entity
         _activeConsumables.Add(new ConsumableItemEffect(item, this));
     }
 
-    public void RestoreThermalExposure(float heatstroke, float hypothermia)
+    public ConsumableItemEffect FindActiveConsumable(ConsumableItemData data)
     {
-        Heatstroke = AetheriaScalar.Saturate(heatstroke);
-        Hypothermia = AetheriaScalar.Saturate(hypothermia);
+        return _activeConsumables.FirstOrDefault(ac => ac.Data.ID == data.ID);
     }
 
-    public void RestoreActiveConsumable(string effectId, ConsumableItem item, float remainingDuration, float duration)
+    public bool CanActivateConsumable(ConsumableItemData data)
     {
-        if (string.IsNullOrWhiteSpace(effectId) || item == null)
-            return;
-
-        var activeConsumable = FindActiveConsumableByEffectId(effectId);
-        if (activeConsumable != null)
-        {
-            activeConsumable.RestorePresentationState(remainingDuration, duration);
-            return;
-        }
-
-        _activeConsumables.Add(new ConsumableItemEffect(item, this, effectId, remainingDuration, duration));
+        return data.Stackable || FindActiveConsumable(data) == null;
     }
 
-    public void RetainActiveConsumables(IReadOnlyCollection<string> effectIds)
+    public bool TryActivateConsumable(ConsumableItemData data)
     {
-        if (effectIds == null)
-        {
-            _activeConsumables.Clear();
-            return;
-        }
-
-        _activeConsumables.RemoveAll(effect =>
-            string.IsNullOrWhiteSpace(effect.EffectId) || !effectIds.Contains(effect.EffectId));
-    }
-
-    public void RestoreStatGrids(IReadOnlyList<AetheriaRuntimeEntityStatGridSnapshot> grids)
-    {
-        if (grids == null)
-            return;
-
-        foreach (var grid in grids)
-        {
-            switch (grid.Name)
-            {
-                case "temperature":
-                    RestoreFloatGrid(grid, Temperature);
-                    RestoreFloatGrid(grid, NewTemperature);
-                    break;
-                case "thermal_mass":
-                    RestoreFloatGrid(grid, ThermalMass);
-                    break;
-                case "armor":
-                    RestoreFloatGrid(grid, Armor);
-                    break;
-                case "max_armor":
-                    RestoreFloatGrid(grid, MaxArmor);
-                    break;
-                case "hull_conductivity_x":
-                    RestoreHullConductivityGrid(grid, axis: 0);
-                    break;
-                case "hull_conductivity_y":
-                    RestoreHullConductivityGrid(grid, axis: 1);
-                    break;
-            }
-        }
-    }
-
-    public ConsumableItemEffect FindActiveConsumable(string itemKey)
-    {
-        return _activeConsumables.FirstOrDefault(ac => ac.Item?.ItemKey == itemKey);
-    }
-
-    public ConsumableItemEffect FindActiveConsumableByEffectId(string effectId)
-    {
-        return string.IsNullOrWhiteSpace(effectId)
-            ? null
-            : _activeConsumables.FirstOrDefault(active => active.EffectId == effectId);
-    }
-
-    private static void RestoreFloatGrid(AetheriaRuntimeEntityStatGridSnapshot grid, float[,] target)
-    {
-        if (!CanRestoreGrid(grid, target))
-            return;
-
-        var index = 0;
-        for (var y = 0; y < grid.Height; y++)
-        for (var x = 0; x < grid.Width; x++)
-            target[x, y] = (float)grid.Values[index++];
-    }
-
-    private void RestoreHullConductivityGrid(AetheriaRuntimeEntityStatGridSnapshot grid, int axis)
-    {
-        if (!CanRestoreGrid(grid, HullConductivity))
-            return;
-
-        var index = 0;
-        for (var y = 0; y < grid.Height; y++)
-        for (var x = 0; x < grid.Width; x++)
-        {
-            var conductivity = HullConductivity[x, y];
-            if (axis == 0)
-                conductivity.x = grid.Values[index++] >= 0.5;
-            else
-                conductivity.y = grid.Values[index++] >= 0.5;
-            HullConductivity[x, y] = conductivity;
-        }
-    }
-
-    private static bool CanRestoreGrid<T>(AetheriaRuntimeEntityStatGridSnapshot grid, T[,] target)
-    {
-        return grid != null &&
-               target != null &&
-               grid.Width == target.GetLength(0) &&
-               grid.Height == target.GetLength(1) &&
-               grid.Values?.Count == grid.Width * grid.Height;
-    }
-
-    public bool CanActivateConsumable(AetheriaRuntimeCatalogItem item)
-    {
-        var itemKey = GetItemKey(item);
-        return item != null && !string.IsNullOrWhiteSpace(itemKey) && (item.Stackable || FindActiveConsumable(itemKey) == null);
-    }
-
-    public bool TryActivateConsumable(AetheriaRuntimeCatalogItem typedItem)
-    {
-        if (!CanActivateConsumable(typedItem)) return false;
-
-        var itemKey = GetItemKey(typedItem);
-        var bay = FindItemInCargo(itemKey);
+        if (!CanActivateConsumable(data)) return false;
+        
+        var bay = FindItemInCargo(data.ID);
         if (bay == null) return false;
-
-        var item = (ConsumableItem)bay.GetFirstItem(itemKey);
+        
+        var item = (ConsumableItem) bay.ItemsOfType[data.ID].First();
         ActivateConsumable(item);
         bay.Remove(item);
         return true;
     }
 
-    private static string GetItemKey(AetheriaRuntimeCatalogItem item)
-    {
-        return item?.ItemKey ?? "";
-    }
-
     private void MapEntity()
     {
-        var typedHull = ItemManager.GetRuntimeItem(Hull);
-        if (typedHull == null)
-            throw new InvalidOperationException($"Unable to map entity {Name}: missing typed hull row for {Hull?.ItemKey}");
-
-        var hullShape = GetHullShape(typedHull);
-        EquippedHull = new EquippedItem(ItemManager, Hull, new int2(0, 0), this);
+        var hullData = ItemManager.GetData(Hull) as HullData;
+        EquippedHull = new EquippedItem(ItemManager, Hull, int2.zero, this);
         Equipment.Add(EquippedHull);
-        Mass = ItemManager.GetMass(Hull);
-        Temperature = new float[hullShape.Width, hullShape.Height];
-        NewTemperature = new float[hullShape.Width, hullShape.Height];
-        HullConductivity = new bool2[hullShape.Width, hullShape.Height];
-        ThermalMass = new float[hullShape.Width, hullShape.Height];
-        Armor = new float[hullShape.Width, hullShape.Height];
-        MaxArmor = new float[hullShape.Width, hullShape.Height];
-        Hardpoints = new HardpointData[hullShape.Width, hullShape.Height];
-        foreach (var typedHardpoint in typedHull.Hardpoints)
+        Mass = hullData.Mass;
+        Temperature = new float[hullData.Shape.Width, hullData.Shape.Height];
+        NewTemperature = new float[hullData.Shape.Width, hullData.Shape.Height];
+        HullConductivity = new bool2[hullData.Shape.Width,hullData.Shape.Height];
+        ThermalMass = new float[hullData.Shape.Width, hullData.Shape.Height];
+        Armor = new float[hullData.Shape.Width, hullData.Shape.Height];
+        MaxArmor = new float[hullData.Shape.Width, hullData.Shape.Height];
+        Hardpoints = new HardpointData[hullData.Shape.Width, hullData.Shape.Height];
+        foreach (var hardpoint in hullData.Hardpoints)
         {
-            var hardpoint = ProjectHardpoint(typedHardpoint);
             foreach (var hardpointCoord in hardpoint.Shape.Coordinates)
             {
                 var hullCoord = hardpoint.Position + hardpointCoord;
                 Hardpoints[hullCoord.x, hullCoord.y] = hardpoint;
             }
         }
-        var cellCount = Math.Max(hullShape.Coordinates.Length, 1);
-        foreach (var v in hullShape.Coordinates)
+        var cellCount = hullData.Shape.Coordinates.Length;
+        foreach (var v in hullData.Shape.Coordinates)
         {
-            Armor[v.x, v.y] = (float)typedHull.HullArmor;
-            MaxArmor[v.x, v.y] = (float)typedHull.HullArmor;
+            Armor[v.x, v.y] = hullData.Armor;
+            MaxArmor[v.x, v.y] = hullData.Armor;
             if (Hardpoints[v.x, v.y] != null)
             {
                 Armor[v.x, v.y] += Hardpoints[v.x, v.y].Armor;
                 MaxArmor[v.x, v.y] += Hardpoints[v.x, v.y].Armor;
             }
             Temperature[v.x, v.y] = 280;
-            ThermalMass[v.x, v.y] = (float)(typedHull.Mass * typedHull.SpecificHeat / cellCount);
+            ThermalMass[v.x, v.y] = hullData.Mass * hullData.SpecificHeat / cellCount;
         }
-        GearOccupancy = new EquippedItem[hullShape.Width, hullShape.Height];
+        GearOccupancy = new EquippedItem[hullData.Shape.Width, hullData.Shape.Height];
     }
 
     public void GenerateWeaponGroups()
     {
         foreach (var group in Weapons
-            .GroupBy(w => w.Item.EquippableItem.ItemKey)
+            .GroupBy(w => w.Item.EquippableItem.Data.LinkID)
             .OrderBy(wg=>wg.Average(w=>w.Range))
             .Select((weapons, index) => (weapons, index)))
         {
@@ -592,36 +394,33 @@ public abstract class Entity
             Temperature[position.x, position.y] += heat / ThermalMass[position.x, position.y];
     }
 
-    public int CountItemsInCargo(string itemKey)
+    public int CountItemsInCargo(Guid itemDataID)
     {
         int sum = 0;
         foreach (var x in CargoBays)
         {
-            if (x.ItemsOfType.ContainsKey(itemKey))
+            if (x.ItemsOfType.ContainsKey(itemDataID))
             {
-                foreach (var i in x.ItemsOfType[itemKey]) sum += i is SimpleCommodity simpleCommodity ? simpleCommodity.Quantity : 1;
+                foreach (var i in x.ItemsOfType[itemDataID]) sum += i is SimpleCommodity simpleCommodity ? simpleCommodity.Quantity : 1;
             }
         }
 
         return sum;
     }
 
-    public EquippedCargoBay FindItemInCargo(string itemKey)
+    public EquippedCargoBay FindItemInCargo(Guid itemDataID)
     {
-        return CargoBays.FirstOrDefault(c => c.ContainsItem(itemKey));
+        return CargoBays.FirstOrDefault(c => c.ItemsOfType.ContainsKey(itemDataID));
     }
 
     public Shape UnoccupiedSpace
     {
         get
         {
-            var typedHull = ItemManager.GetRuntimeItem(Hull);
-            var hullShape = GetHullShape(typedHull);
-            var hullInterior = GetHullInteriorShape(typedHull);
-            var emptyShape = new Shape(hullShape.Width, hullShape.Height);
-            foreach (var v in hullShape.Coordinates)
+            var emptyShape = new Shape(HullData.Shape.Width, HullData.Shape.Height);
+            foreach (var v in HullData.Shape.Coordinates)
             {
-                if (hullInterior[v] && GearOccupancy[v.x, v.y] == null && Hardpoints[v.x, v.y] == null)
+                if (HullData.InteriorCells[v] && GearOccupancy[v.x, v.y] == null && Hardpoints[v.x,v.y] == null)
                     emptyShape[v] = true;
             }
 
@@ -631,23 +430,20 @@ public abstract class Entity
 
     // Attempts to move a given number of items of the given type to the target Entity
     // Returns the number of items successfully transferred
-    public int TryTransferItems(Entity target, string itemKey, int quantity)
+    public int TryTransferItems(Entity target, Guid itemDataID, int quantity)
     {
-        if (target == null || string.IsNullOrWhiteSpace(itemKey) || quantity <= 0)
-            return 0;
-
         int quantityTransferred = 0;
         while (quantityTransferred < quantity)
         {
-            EquippedCargoBay originInventory = CargoBays.FirstOrDefault(c => c.ContainsItem(itemKey));
+            EquippedCargoBay originInventory = CargoBays.FirstOrDefault(c => c.ItemsOfType.ContainsKey(itemDataID));
 
             if (originInventory == null) break;
 
-            var itemInstance = originInventory.GetFirstItem(itemKey);
+            var itemInstance = originInventory.ItemsOfType[itemDataID][0];
 
             if (itemInstance is SimpleCommodity simpleCommodity)
             {
-                var targetQuantity = Math.Min(simpleCommodity.Quantity, quantity - quantityTransferred);
+                var targetQuantity = min(simpleCommodity.Quantity, quantity - quantityTransferred);
                 if (!target.CargoBays.Any(c => originInventory.TryTransferItem(c, simpleCommodity, targetQuantity)))
                 {
                     quantityTransferred += targetQuantity - simpleCommodity.Quantity;
@@ -693,15 +489,15 @@ public abstract class Entity
         Equipment.Remove(item);
         _orderedEquipment = Equipment.OrderBy(x => x.SortPosition).ToArray();
         
-        var itemShape = GetItemShape(item.EquippableItem);
-        var itemCellCount = Math.Max(itemShape.Coordinates.Length, 1);
-        foreach (var i in GetHullShape().Coordinates)
+        var hullData = ItemManager.GetData(Hull) as HullData;
+        var itemData = ItemManager.GetData(item.EquippableItem);
+        foreach (var i in hullData.Shape.Coordinates)
             if (GearOccupancy[i.x, i.y] == item)
             {
-                ThermalMass[i.x, i.y] -= ItemManager.GetThermalMass(item.EquippableItem) / itemCellCount;
+                ThermalMass[i.x, i.y] -= ItemManager.GetThermalMass(item.EquippableItem) / itemData.Shape.Coordinates.Length;
                 GearOccupancy[i.x, i.y] = null;
             }
-        Mass -= ItemManager.GetMass(item.EquippableItem);
+        Mass -= itemData.Mass;
         foreach (var b in item.Behaviors)
         {
             if (b is Weapon weapon)
@@ -723,149 +519,44 @@ public abstract class Entity
         return item.EquippableItem;
     }
 
-    private Shape GetHullShape()
-    {
-        return GetHullShape(ItemManager.GetRuntimeItem(Hull));
-    }
-
-    private static Shape GetHullShape(AetheriaRuntimeCatalogItem typedHull)
-    {
-        return ToShape(typedHull?.ShapeWidth ?? 1, typedHull?.ShapeHeight ?? 1, typedHull?.ShapeCells);
-    }
-
-    private static Shape GetHullInteriorShape(AetheriaRuntimeCatalogItem typedHull)
-    {
-        return ToShape(typedHull?.InteriorShapeWidth ?? 1, typedHull?.InteriorShapeHeight ?? 1, typedHull?.InteriorShapeCells);
-    }
-
-    private Shape GetItemShape(EquippableItem item)
-    {
-        return GetItemShape(ItemManager.GetRuntimeItem(item));
-    }
-
-    private static Shape GetItemShape(AetheriaRuntimeCatalogItem typedItem)
-    {
-        return ToShape(typedItem?.ShapeWidth ?? 1, typedItem?.ShapeHeight ?? 1, typedItem?.ShapeCells);
-    }
-
-    private static AetheriaRuntimeHardpoint GetHardpointAt(AetheriaRuntimeCatalogItem typedHull, int2 hullCoord)
-    {
-        if (typedHull == null) return null;
-
-        foreach (var hardpoint in typedHull.Hardpoints)
-        {
-            var hardpointShape = ToShape(hardpoint.ShapeWidth, hardpoint.ShapeHeight, hardpoint.ShapeCells);
-            var localCoord = hullCoord - new int2(hardpoint.PositionX, hardpoint.PositionY);
-            if (hardpointShape[localCoord])
-                return hardpoint;
-        }
-
-        return null;
-    }
-
-    private static HardpointType GetHardpointType(AetheriaRuntimeCatalogItem typedItem, HardpointType fallback)
-    {
-        return typedItem != null && Enum.TryParse(typedItem.HardpointType, out HardpointType hardpointType)
-            ? hardpointType
-            : fallback;
-    }
-
-    private static HardpointType GetHardpointType(AetheriaRuntimeHardpoint hardpoint, HardpointType fallback)
-    {
-        return hardpoint != null && Enum.TryParse(hardpoint.Type, out HardpointType hardpointType)
-            ? hardpointType
-            : fallback;
-    }
-
-    private static ItemRotation GetRotation(AetheriaRuntimeHardpoint hardpoint)
-    {
-        return hardpoint != null && Enum.TryParse(hardpoint.Rotation, out ItemRotation rotation)
-            ? rotation
-            : ItemRotation.None;
-    }
-
-    private static HardpointData ProjectHardpoint(AetheriaRuntimeHardpoint hardpoint)
-    {
-        return new HardpointData
-        {
-            Type = GetHardpointType(hardpoint, HardpointType.Hull),
-            Position = new int2(hardpoint.PositionX, hardpoint.PositionY),
-            Shape = ToShape(hardpoint.ShapeWidth, hardpoint.ShapeHeight, hardpoint.ShapeCells),
-            Transform = hardpoint.Transform,
-            Rotation = GetRotation(hardpoint),
-            Armor = (float)hardpoint.Armor
-        };
-    }
-
-    private static bool IsCargoBay(AetheriaRuntimeCatalogItem typedItem)
-    {
-        return typedItem != null &&
-               (string.Equals(typedItem.Category, AetheriaRuntimeItemCategories.CargoBay, StringComparison.Ordinal) ||
-                string.Equals(typedItem.Category, AetheriaRuntimeItemCategories.DockingBay, StringComparison.Ordinal));
-    }
-
-    private static bool IsDockingBay(AetheriaRuntimeCatalogItem typedItem)
-    {
-        return typedItem != null && string.Equals(typedItem.Category, AetheriaRuntimeItemCategories.DockingBay, StringComparison.Ordinal);
-    }
-
-    private static Shape ToShape(int width, int height, IReadOnlyList<AetheriaRuntimeShapeCell> cells)
-    {
-        var shape = new Shape(Math.Max(width, 1), Math.Max(height, 1));
-        if (cells == null) return shape;
-
-        foreach (var cell in cells)
-            shape.SetCell(cell.X, cell.Y, true);
-
-        return shape;
-    }
-
     // Check whether the given item will fit when its origin is placed at the given coordinate
-    private bool ItemFits(AetheriaRuntimeCatalogItem typedItem, AetheriaRuntimeCatalogItem typedHull, EquippableItem item, int2 hullCoord)
+    private bool ItemFits(EquippableItemData itemData, HullData hullData, EquippableItem item, int2 hullCoord)
     {
-        var hullShape = GetHullShape(typedHull);
-        var itemShape = GetItemShape(typedItem);
-        var itemHardpointType = GetHardpointType(typedItem, HardpointType.Tool);
-        if (itemShape.Coordinates.Length == 0) return false;
-
         // If the given coordinate isn't even in the ship it obviously won't fit
-        if (!hullShape[hullCoord]) return false;
+        if (!hullData.Shape[hullCoord]) return false;
         
         // Items without specific hardpoints on the ship can be freely rotated and placed anywhere
-        if (itemHardpointType == HardpointType.Tool)
+        if (itemData.HardpointType == HardpointType.Tool)
         {
-            var hullInterior = GetHullInteriorShape(typedHull);
             // Check every cell of the item's shape
-            foreach (var i in itemShape.Coordinates)
+            foreach (var i in itemData.Shape.Coordinates)
             {
                 // If there is any gear already occupying that space, it won't fit
                 // If there's a hardpoint there, it won't fit
                 // Thermal items have their own layer and do not collide with gear
-                var itemCoord = hullCoord + itemShape.Rotate(i, item.Rotation);
-                if (!hullInterior[itemCoord] ||
-                    GetHardpointAt(typedHull, itemCoord) != null ||
+                var itemCoord = hullCoord + itemData.Shape.Rotate(i, item.Rotation);
+                if (!hullData.InteriorCells[itemCoord] || 
+                    itemData.HardpointType == HardpointType.Tool && Hardpoints[itemCoord.x, itemCoord.y] != null || 
                     GearOccupancy[itemCoord.x, itemCoord.y] != null) 
                     return false;
             }
         }
         else
         {
-            var hardpoint = GetHardpointAt(typedHull, hullCoord);
+            var hardpoint = Hardpoints[hullCoord.x, hullCoord.y];
             
             // If there's no hardpoint there, it won't fit
             if (hardpoint == null) return false;
 
             // If the hardpoint type doesn't match the item, it won't fit
-            if (GetHardpointType(hardpoint, HardpointType.Hull) != itemHardpointType) return false;
+            if (hardpoint.Type != itemData.HardpointType) return false;
             
             // Items placed in hardpoints are automatically aligned to hardpoint rotation
-            item.Rotation = GetRotation(hardpoint);
+            item.Rotation = hardpoint.Rotation;
 
             // Inset the shapes of both item and hardpoint
-            var itemShapeInset = hullShape.Inset(itemShape, hullCoord, item.Rotation);
-            var hardpointShapeInset = hullShape.Inset(
-                ToShape(hardpoint.ShapeWidth, hardpoint.ShapeHeight, hardpoint.ShapeCells),
-                new int2(hardpoint.PositionX, hardpoint.PositionY));
+            var itemShapeInset = hullData.Shape.Inset(itemData.Shape, hullCoord, item.Rotation);
+            var hardpointShapeInset = hullData.Shape.Inset(hardpoint.Shape, hardpoint.Position);
             
             // Check every cell of the hardpoint shape for existing items
             foreach(var v in hardpointShapeInset.Coordinates)
@@ -892,9 +583,9 @@ public abstract class Entity
         // Don't allow equipping while deployed
         if (_active) return false;
 
-        var typedItem = ItemManager.GetRuntimeItem(item);
-        var typedHull = ItemManager.GetRuntimeItem(Hull);
-        return typedItem != null && typedHull != null && ItemFits(typedItem, typedHull, item, hullCoord);
+        var itemData = ItemManager.GetData(item);
+        var hullData = ItemManager.GetData(Hull) as HullData;
+        return ItemFits(itemData, hullData, item, hullCoord);
     }
 
     public bool TryFindSpace(EquippableItem item, out int2 hullCoord)
@@ -902,26 +593,19 @@ public abstract class Entity
         // Don't allow equipping while deployed
         if (_active)
         {
-            hullCoord = new int2(0, 0);
+            hullCoord = int2.zero;
             return false;
         }
-        var typedItem = ItemManager.GetRuntimeItem(item);
-        var typedHull = ItemManager.GetRuntimeItem(Hull);
-        if (typedItem == null || typedHull == null)
-        {
-            hullCoord = new int2(0, 0);
-            return false;
-        }
-
-        var itemHardpointType = GetHardpointType(typedItem, HardpointType.Tool);
+        var itemData = ItemManager.GetData(item);
+        var hullData = ItemManager.GetData(Hull) as HullData;
         
         // Tools and thermal equipment can be installed anywhere on the ship
         // Search the whole ship for somewhere the item will fit
-        if (itemHardpointType == HardpointType.Tool)
+        if (itemData.HardpointType == HardpointType.Tool)
         {
-            foreach (var hullCoord2 in GetHullInteriorShape(typedHull).Coordinates)
+            foreach (var hullCoord2 in hullData.InteriorCells.Coordinates)
             {
-                if (ItemFits(typedItem, typedHull, item, hullCoord2))
+                if (ItemFits(itemData, hullData, item, hullCoord2))
                 {
                     hullCoord = hullCoord2;
                     return true;
@@ -933,15 +617,14 @@ public abstract class Entity
         // Search the ship for an empty hardpoint that matches the type and shape of the item
         else
         {
-            foreach (var hardpoint in typedHull.Hardpoints)
+            foreach (var hardpoint in hullData.Hardpoints)
             {
-                if(GetHardpointType(hardpoint, HardpointType.Hull) == itemHardpointType)
+                if(hardpoint.Type == itemData.HardpointType)
                 {
-                    var hardpointShape = ToShape(hardpoint.ShapeWidth, hardpoint.ShapeHeight, hardpoint.ShapeCells);
-                    foreach (var hardpointCoord in hardpointShape.Coordinates)
+                    foreach (var hardpointCoord in hardpoint.Shape.Coordinates)
                     {
-                        var hullCoord2 = new int2(hardpoint.PositionX, hardpoint.PositionY) + hardpointCoord;
-                        if (ItemFits(typedItem, typedHull, item, hullCoord2))
+                        var hullCoord2 = hardpoint.Position + hardpointCoord;
+                        if (ItemFits(itemData, hullData, item, hullCoord2))
                         {
                             hullCoord = hullCoord2;
                             return true;
@@ -951,7 +634,7 @@ public abstract class Entity
             }
         }
         
-        hullCoord = new int2(0, 0);
+        hullCoord = int2.zero;
         return false;
     }
 
@@ -964,20 +647,17 @@ public abstract class Entity
         // Don't allow equipping while deployed
         if (_active) return false;
         
-        var typedItem = ItemManager.GetRuntimeItem(item);
-        var typedHull = ItemManager.GetRuntimeItem(Hull);
-        if (typedItem == null || typedHull == null) return false;
-        var itemHardpointType = GetHardpointType(typedItem, HardpointType.Tool);
-        var itemShape = GetItemShape(typedItem);
+        var itemData = ItemManager.GetData(item);
+        var hullData = ItemManager.GetData(Hull) as HullData;
 
-        if (!ItemFits(typedItem, typedHull, item, hullCoord)) return false;
+        if (!ItemFits(itemData, hullData, item, hullCoord)) return false;
         
         EquippedItem equippedItem;
-        if (itemHardpointType == HardpointType.Tool)
+        if (itemData.HardpointType == HardpointType.Tool)
         {
-            if(IsCargoBay(typedItem))
+            if(itemData is CargoBayData)
             {
-                if (IsDockingBay(typedItem))
+                if (itemData is DockingBayData)
                 {
                     equippedItem = new EquippedDockingBay(ItemManager, item, hullCoord, this, $"{Name} Docking Bay {DockingBays.Count + 1}");
                     DockingBays.Add((EquippedDockingBay) equippedItem);
@@ -1021,15 +701,15 @@ public abstract class Entity
         // equippedItem.OnOnline += () => ItemOnline.OnNext(equippedItem);
         // equippedItem.OnOffline += () => ItemOffline.OnNext(equippedItem);
             
-        foreach (var i in itemShape.Coordinates)
+        foreach (var i in itemData.Shape.Coordinates)
         {
-            var occupiedCoord = hullCoord + itemShape.Rotate(i, item.Rotation);
+            var occupiedCoord = hullCoord + itemData.Shape.Rotate(i, item.Rotation);
             // TODO: Track thermal mass of cargo bay contents as reactive property
-            ThermalMass[occupiedCoord.x, occupiedCoord.y] += ItemManager.GetThermalMass(item) / itemShape.Coordinates.Length;
+            ThermalMass[occupiedCoord.x, occupiedCoord.y] += ItemManager.GetThermalMass(item) / itemData.Shape.Coordinates.Length;
             GearOccupancy[occupiedCoord.x, occupiedCoord.y] = equippedItem;
         }
                 
-        Mass += ItemManager.GetMass(item);
+        Mass += itemData.Mass;
         _orderedEquipment = Equipment.OrderBy(x => x.SortPosition).ToArray();
         return true;
     }
@@ -1090,7 +770,7 @@ public abstract class Entity
             {
                 if(cap.Charge > 0.01f)
                 {
-                    var chargeRemoved = Math.Min(chargeToRemove / chargedCapacitors, cap.Charge);
+                    var chargeRemoved = min(chargeToRemove / chargedCapacitors, cap.Charge);
                     cap.AddCharge(-chargeRemoved);
                     energy -= chargeRemoved;
                 }
@@ -1157,11 +837,57 @@ public abstract class Entity
                         yield return b;
     }
 
+    public IEnumerable<T> GetBehaviorData<T>() where T : BehaviorData
+    {
+        foreach (var equippedItem in Equipment)
+            foreach (var behavior in equippedItem.Behaviors)
+                if (behavior.Data is T b)
+                    yield return b;
+    }
+
+    // public IEnumerable<(T t, Switch s)> GetSwitch<T>() where T : class, IBehavior
+    // {
+    //     foreach (var equippedItem in Equipment)
+    //         foreach (var group in equippedItem.BehaviorGroups.Values)
+    //             foreach(var behavior in group.Behaviors)
+    //                 if (behavior is T t)
+    //                 {
+    //                     var s = group.GetExposed<Switch>();
+    //                     if (s != null) yield return (t, s);
+    //                 }
+    // }
+    //
+    // public IEnumerable<(T behavior, Trigger trigger)> GetTrigger<T>() where T : class, IBehavior
+    // {
+    //     foreach (var equippedItem in Equipment)
+    //         foreach (var group in equippedItem.BehaviorGroups.Values)
+    //             foreach(var behavior in group.Behaviors)
+    //                 if (behavior is T t)
+    //                 {
+    //                     var s = group.GetExposed<Trigger>();
+    //                     if (s != null) yield return (t, s);
+    //                 }
+    // }
+    //
+    // public IEnumerable<(T behavior, Axis axis)> GetAxis<T>() where T : class, IBehavior
+    // {
+    //     foreach (var equippedItem in Equipment)
+    //         foreach (var group in equippedItem.BehaviorGroups.Values)
+    //             foreach(var behavior in group.Behaviors)
+    //                 if (behavior is T t)
+    //                 {
+    //                     var s = group.GetExposed<Axis>();
+    //                     if (s != null) yield return (t, s);
+    //                 }
+    // }
+
     public virtual void Update(float delta)
     {
-        TargetRange = Target.Value == null ? -1 : CultMath.math.length(CultPosition - Target.Value.CultPosition);
+        var hullData = ItemManager.GetData(Hull) as HullData;
 
-        var localSecurityLevel = Zone.GetSecurityLevel(CultPositionXZ);
+        TargetRange = Target.Value == null ? -1 : length(Position - Target.Value.Position);
+
+        var localSecurityLevel = Zone.GetSecurityLevel(Position.xz);
         if (CurrentSecurityLevel.Value != localSecurityLevel) CurrentSecurityLevel.Value = localSecurityLevel;
 
         foreach (var v in VisibilitySources.Keys.ToArray())
@@ -1191,9 +917,9 @@ public abstract class Entity
                 if (cockpitTemp > ItemManager.GameplaySettings.HeatstrokeTemperature)
                 {
                     var previous = Heatstroke;
-                    Heatstroke = AetheriaScalar.Saturate(
+                    Heatstroke = saturate(
                         Heatstroke +
-                        MathF.Pow(cockpitTemp - ItemManager.GameplaySettings.HeatstrokeTemperature, ItemManager.GameplaySettings.HeatstrokeExponent) *
+                        pow(cockpitTemp - ItemManager.GameplaySettings.HeatstrokeTemperature, ItemManager.GameplaySettings.HeatstrokeExponent) *
                         ItemManager.GameplaySettings.HeatstrokeMultiplier * delta);
                     if(previous < ItemManager.GameplaySettings.SevereHeatstrokeRiskThreshold && Heatstroke > ItemManager.GameplaySettings.SevereHeatstrokeRiskThreshold)
                         HeatstrokeRisk.OnNext(Unit.Default);
@@ -1205,15 +931,15 @@ public abstract class Entity
                 }
                 else
                 {
-                    Heatstroke = AetheriaScalar.Saturate(Heatstroke - ItemManager.GameplaySettings.HeatstrokeRecoverySpeed * delta);
+                    Heatstroke = saturate(Heatstroke - ItemManager.GameplaySettings.HeatstrokeRecoverySpeed * delta);
                 }
 
                 if (cockpitTemp < ItemManager.GameplaySettings.HypothermiaTemperature)
                 {
                     var previous = Hypothermia;
-                    Hypothermia = AetheriaScalar.Saturate(
+                    Hypothermia = saturate(
                         Hypothermia +
-                        MathF.Pow(ItemManager.GameplaySettings.HypothermiaTemperature - cockpitTemp, ItemManager.GameplaySettings.HypothermiaExponent) *
+                        pow(ItemManager.GameplaySettings.HypothermiaTemperature - cockpitTemp, ItemManager.GameplaySettings.HypothermiaExponent) *
                         ItemManager.GameplaySettings.HypothermiaMultiplier * delta);
                     if(previous < ItemManager.GameplaySettings.SevereHeatstrokeRiskThreshold && Heatstroke > ItemManager.GameplaySettings.SevereHeatstrokeRiskThreshold)
                         HypothermiaRisk.OnNext(Unit.Default);
@@ -1225,7 +951,7 @@ public abstract class Entity
                 }
                 else
                 {
-                    Hypothermia = AetheriaScalar.Saturate(Hypothermia - ItemManager.GameplaySettings.HypothermiaRecoverySpeed * delta);
+                    Hypothermia = saturate(Hypothermia - ItemManager.GameplaySettings.HypothermiaRecoverySpeed * delta);
                 }
             }
 
@@ -1252,67 +978,64 @@ public abstract class Entity
 
         if (Parent != null)
         {
-            CultPosition = Parent.CultPosition;
-            CultVelocity = Parent.CultVelocity;
+            Position = Parent.Position;
+            Velocity = Parent.Velocity;
         }
-        else CultPositionY = Zone.GetHeight(CultPositionXZ) + (float)(ItemManager.GetRuntimeItem(Hull)?.HullGridOffset ?? 0);
+        else Position.y = Zone.GetHeight(Position.xz) + hullData.GridOffset;
     }
 
     private void UpdateTemperature(float delta)
     {
-        var typedHull = ItemManager.GetRuntimeItem(Hull);
-        var hullShape = GetHullShape(typedHull);
-        var hullInterior = GetHullInteriorShape(typedHull);
-        var hullConductivity = (float)(typedHull?.Conductivity ?? 1);
+        var hullData = ItemManager.GetData(Hull) as HullData;
         
         MaxTemp = Single.MinValue;
         MinTemp = Single.MaxValue;
         
-        //float[,] newTemp = new float[hullShape.Width,hullShape.Height];
+        //float[,] newTemp = new float[hullData.Shape.Width,hullData.Shape.Height];
         var radiation = 0f;
-        foreach (var v in hullShape.Coordinates)
+        foreach (var v in hullData.Shape.Coordinates)
         {
             var temp = Temperature[v.x, v.y];
             var totalTemp = temp / ItemManager.GameplaySettings.HeatConductionMultiplier;
             var totalConductivity = 1f / ItemManager.GameplaySettings.HeatConductionMultiplier;
             
-            if (hullShape.GetCell(v.x - 1, v.y))
+            if (hullData.Shape[int2(v.x - 1, v.y)])
             {
                 var conductivity = (GearOccupancy[v.x, v.y]?.Conductivity ?? 1) *
                                    (GearOccupancy[v.x - 1, v.y]?.Conductivity ?? 1) *
-                                   (HullConductivity[v.x - 1, v.y].x ? hullConductivity : 1 / hullConductivity) *
+                                   (HullConductivity[v.x - 1, v.y].x ? hullData.Conductivity : 1 / hullData.Conductivity) *
                                    (ThermalMass[v.x - 1, v.y] / ThermalMass[v.x, v.y]);
                 totalConductivity += conductivity;
                 totalTemp += Temperature[v.x - 1, v.y] * conductivity;
             }
 
-            if (hullShape.GetCell(v.x + 1, v.y))
+            if (hullData.Shape[int2(v.x + 1, v.y)])
             {
                 var conductivity = (GearOccupancy[v.x, v.y]?.Conductivity ?? 1) *
                                    (GearOccupancy[v.x + 1, v.y]?.Conductivity ?? 1) *
-                                   (HullConductivity[v.x, v.y].x ? hullConductivity : 1 / hullConductivity) *
+                                   (HullConductivity[v.x, v.y].x ? hullData.Conductivity : 1 / hullData.Conductivity) *
                                    (ThermalMass[v.x + 1, v.y] / ThermalMass[v.x, v.y]);
                 totalConductivity += conductivity;
                 totalTemp += Temperature[v.x + 1, v.y] * conductivity;
             }
 
 
-            if (hullShape.GetCell(v.x, v.y - 1))
+            if (hullData.Shape[int2(v.x, v.y - 1)])
             {
                 var conductivity = (GearOccupancy[v.x, v.y]?.Conductivity ?? 1) *
                                    (GearOccupancy[v.x, v.y - 1]?.Conductivity ?? 1) * 
-                                   (HullConductivity[v.x, v.y - 1].y ? hullConductivity : 1 / hullConductivity) *
+                                   (HullConductivity[v.x, v.y - 1].y ? hullData.Conductivity : 1 / hullData.Conductivity) *
                                    (ThermalMass[v.x, v.y - 1] / ThermalMass[v.x, v.y]);
                 totalConductivity += conductivity;
                 totalTemp += Temperature[v.x, v.y - 1] * conductivity;
             }
 
 
-            if (hullShape.GetCell(v.x, v.y + 1))
+            if (hullData.Shape[int2(v.x, v.y + 1)])
             {
                 var conductivity = (GearOccupancy[v.x, v.y]?.Conductivity ?? 1) *
                                    (GearOccupancy[v.x, v.y + 1]?.Conductivity ?? 1) * 
-                                   (HullConductivity[v.x, v.y].y ? hullConductivity : 1 / hullConductivity) *
+                                   (HullConductivity[v.x, v.y].y ? hullData.Conductivity : 1 / hullData.Conductivity) *
                                    (ThermalMass[v.x, v.y + 1] / ThermalMass[v.x, v.y]);
                 totalConductivity += conductivity;
                 totalTemp += Temperature[v.x, v.y + 1] * conductivity;
@@ -1322,9 +1045,9 @@ public abstract class Entity
 
             var r = 0f;
             // For all cells on the border of the entity, radiate some heat into space, increasing the visibility of the ship
-            if (Parent==null && !hullInterior[v])
+            if (Parent==null && !hullData.InteriorCells[v])
             {
-                var rad = MathF.Pow(NewTemperature[v.x, v.y], ItemManager.GameplaySettings.HeatRadiationExponent) *
+                var rad = pow(NewTemperature[v.x, v.y], ItemManager.GameplaySettings.HeatRadiationExponent) *
                           ItemManager.GameplaySettings.HeatRadiationMultiplier;
                 NewTemperature[v.x, v.y] -= rad * delta;
                 r += rad;
@@ -1357,44 +1080,21 @@ public abstract class Entity
 public class ConsumableItemEffect
 {
     public float RemainingDuration { get; private set; }
-    public string EffectId { get; }
     public Entity Entity { get; }
     public ConsumableItem Item { get; }
+    public ConsumableItemData Data { get; }
     public Behavior[] Behaviors { get; }
-    public AetheriaRuntimeCatalogItem RuntimeItem { get; }
-    public float Duration => Math.Max(_duration, float.Epsilon);
-
-    private readonly float _duration;
-    private readonly BezierCurve _effectiveness;
 
     public ConsumableItemEffect(ConsumableItem item, Entity entity)
-        : this(item, entity, "", null, null)
-    {
-    }
-
-    public ConsumableItemEffect(
-        ConsumableItem item,
-        Entity entity,
-        string effectId,
-        float? remainingDuration,
-        float? duration)
     {
         Item = item;
         Entity = entity;
-        EffectId = effectId ?? "";
-        RuntimeItem = entity.ItemManager.GetRuntimeItem(item);
-        _duration = duration.GetValueOrDefault(RuntimeItem?.Duration > 0 ? (float)RuntimeItem.Duration : 0);
-        _effectiveness = CreateEffectivenessCurve(RuntimeItem);
-        RemainingDuration = remainingDuration.HasValue
-            ? AetheriaScalar.Clamp(remainingDuration.Value, 0, Duration)
-            : _duration;
+        Data = (ConsumableItemData) item.Data.Value;
+        RemainingDuration = Data.Duration;
 
-        Behaviors = entity.ItemManager.CreateRuntimeBehaviors(this);
-    }
-
-    public void RestorePresentationState(float remainingDuration, float duration)
-    {
-        RemainingDuration = AetheriaScalar.Clamp(remainingDuration, 0, Math.Max(duration, float.Epsilon));
+        Behaviors = Data.Behaviors
+            .Select(bd => bd.CreateInstance(this))
+            .ToArray();
     }
 
     public void Update(float delta)
@@ -1413,101 +1113,14 @@ public class ConsumableItemEffect
 
     public float Evaluate(PerformanceStat stat)
     {
-        if (stat == null)
-            return 0;
+        var effectiveness = Data.Effectiveness.Evaluate((Data.Duration - RemainingDuration) / Data.Duration);
+        var quality = pow(Item.Quality, stat.QualityExponent);
 
-        var duration = Math.Max(_duration, float.Epsilon);
-        var effectiveness = _effectiveness.Evaluate((duration - RemainingDuration) / duration);
-        var result = stat.EvaluateConsumableBaseline(new StatEvaluationContext(
-            quality: Item.Quality,
-            durability: effectiveness,
-            heat: 1));
+        var result = lerp(stat.Min, stat.Max, effectiveness * quality);
         
         if (float.IsNaN(result))
             return stat.Min;
         return result;
-    }
-
-    public float Evaluate(PerformanceStat stat, StatConditionMask condition, float value)
-    {
-        if (stat == null)
-            return 0;
-
-        if ((GetDependencyMask(stat) & condition) == 0)
-            return Evaluate(stat);
-
-        var duration = Math.Max(_duration, float.Epsilon);
-        var effectiveness = _effectiveness.Evaluate((duration - RemainingDuration) / duration);
-        var context = new StatEvaluationContext(
-            quality: Item.Quality,
-            durability: effectiveness,
-            heat: 1).WithCondition(condition, value);
-
-        var result = stat.EvaluateRecipeOrLegacy(
-            context,
-            durabilityExponent: 1,
-            thermalExponent: 0,
-            includeHeat: false);
-
-        if (float.IsNaN(result))
-            return stat.Min;
-        return result;
-    }
-
-    public float Evaluate(
-        PerformanceStat stat,
-        StatConditionMask firstCondition,
-        float firstValue,
-        StatConditionMask secondCondition,
-        float secondValue)
-    {
-        if (stat == null)
-            return 0;
-
-        var dependencyMask = GetDependencyMask(stat);
-        if ((dependencyMask & (firstCondition | secondCondition)) == 0)
-            return Evaluate(stat);
-
-        var duration = Math.Max(_duration, float.Epsilon);
-        var effectiveness = _effectiveness.Evaluate((duration - RemainingDuration) / duration);
-        var context = new StatEvaluationContext(
-                quality: Item.Quality,
-                durability: effectiveness,
-                heat: 1)
-            .WithCondition(firstCondition, firstValue)
-            .WithCondition(secondCondition, secondValue);
-
-        var result = stat.EvaluateRecipeOrLegacy(
-            context,
-            durabilityExponent: 1,
-            thermalExponent: 0,
-            includeHeat: false);
-
-        if (float.IsNaN(result))
-            return stat.Min;
-        return result;
-    }
-
-    private static StatConditionMask GetDependencyMask(PerformanceStat stat)
-    {
-        return stat?.GetDependencyMask(includeHeat: false) ?? StatConditionMask.None;
-    }
-
-    private static BezierCurve CreateEffectivenessCurve(AetheriaRuntimeCatalogItem item)
-    {
-        if (item?.EffectivenessCurveKeys != null && item.EffectivenessCurveKeys.Count > 0)
-        {
-            return BezierCurve.FromKeys(
-                item.EffectivenessCurveKeys
-                    .Select(key => (
-                        (float)key.Time,
-                        (float)key.Value,
-                        (float)key.InTangent,
-                        (float)key.OutTangent))
-            );
-        }
-
-        return BezierCurve.FromKeys(new[] { (0f, 1f, 0f, 0f), (1f, 1f, 0f, 0f) });
     }
 }
 
@@ -1524,8 +1137,6 @@ public class EquippedItem
     public Behavior[] Behaviors { get; }
     public Dictionary<int, BehaviorGroup> BehaviorGroups { get; }
     public float Conductivity { get; }
-    public float MaxDurability { get; }
-    public float ThermalResilience { get; }
     public float ThermalPerformance { get; private set; }
     public float ThermalExponent { get; }
     public float DurabilityPerformance { get; private set; }
@@ -1533,7 +1144,7 @@ public class EquippedItem
     public float Wear { get; private set; }
     public Shape InsetShape { get; }
     public Entity Entity { get; }
-    public AetheriaRuntimeCatalogItem RuntimeItem { get; }
+    public EquippableItemData Data { get; }
 
     public ReactiveProperty<bool> ThermalOnline { get; } = new ReactiveProperty<bool>(false);
     public ReactiveProperty<bool> DurabilityOnline { get; } = new ReactiveProperty<bool>(false);
@@ -1546,28 +1157,6 @@ public class EquippedItem
     public Subject<(uint id, float v)> AudioParameters { get; } = new Subject<(uint id, float v)>();
     public Dictionary<uint, float> AudioParameterValues { get; } = new Dictionary<uint, float>();
 
-    private readonly BezierCurve _thermalPerformanceCurve;
-    private readonly EquippedItemAudioStatBinding[] _audioStats;
-    private readonly Dictionary<PerformanceStat, EquippedItemBaseStatCacheEntry> _baseStatCache =
-        new Dictionary<PerformanceStat, EquippedItemBaseStatCacheEntry>();
-    private readonly Dictionary<PerformanceStat, EquippedItemStatCacheEntry> _statCache =
-        new Dictionary<PerformanceStat, EquippedItemStatCacheEntry>();
-    private int _qualityVersion;
-    private int _durabilityVersion;
-    private int _thermalVersion;
-    private int _chargeVersion;
-    private int _ammoVersion;
-    private int _rangeVersion;
-    private int _integrityVersion;
-    private int _pilotSkillVersion;
-    private int _environmentVersion;
-    private float _lastQuality;
-    private float _statCharge;
-    private float _statAmmo;
-    private float _statRange;
-    private float _statIntegrity;
-    private float _statPilotSkill;
-    private float _statEnvironment;
     private float oldTemperature;
     public float Temperature
     {
@@ -1653,27 +1242,21 @@ public class EquippedItem
     public EquippedItem(ItemManager itemManager, EquippableItem item, int2 position, Entity entity)
     {
         ItemManager = itemManager;
+        Data = ItemManager.GetData(item);
         Entity = entity;
         EquippableItem = item;
         Position = position;
-        RuntimeItem = ItemManager.GetRuntimeItem(item);
-        Conductivity = RuntimeItem != null ? (float)RuntimeItem.Conductivity : 0;
-        MaxDurability = RuntimeItem?.Durability > 0 ? (float)RuntimeItem.Durability : Math.Max(item.Durability, 1f);
-        ThermalResilience = RuntimeItem?.ThermalResilience > 0 ? (float)RuntimeItem.ThermalResilience : 1;
-        _thermalPerformanceCurve = CreateThermalPerformanceCurve(RuntimeItem);
-        _audioStats = CreateAudioStatBindings(RuntimeItem);
-        ThermalExponent = AetheriaScalar.Lerp(
+        Conductivity = Data.Conductivity;
+        ThermalExponent = lerp(
             ItemManager.GameplaySettings.ThermalQualityMin,
             ItemManager.GameplaySettings.ThermalQualityMax,
-            MathF.Pow(item.Quality, ItemManager.GameplaySettings.ThermalQualityExponent));
-        DurabilityExponent = AetheriaScalar.Lerp(
+            pow(item.Quality, ItemManager.GameplaySettings.ThermalQualityExponent));
+        DurabilityExponent = lerp(
             ItemManager.GameplaySettings.DurabilityQualityMin,
             ItemManager.GameplaySettings.DurabilityQualityMax,
-            MathF.Pow(item.Quality, ItemManager.GameplaySettings.DurabilityQualityExponent));
-        _lastQuality = item.Quality;
-        var hullShape = ItemManager.GetRuntimeShape(entity.Hull);
-        var itemShape = ItemManager.GetRuntimeShape(item);
-        InsetShape = hullShape.Inset(itemShape, position, item.Rotation);
+            pow(item.Quality, ItemManager.GameplaySettings.DurabilityQualityExponent));
+        var hullData = itemManager.GetData(entity.Hull);
+        InsetShape = hullData.Shape.Inset(Data.Shape, position, item.Rotation);
         if (Entity.Temperature != null) oldTemperature = Temperature;
 
         Online = new ReadOnlyReactiveProperty<bool>(ThermalOnline
@@ -1682,10 +1265,12 @@ public class EquippedItem
             .CombineLatest(Online, (enabled, online) => enabled && online).DistinctUntilChanged());
         
 
-        Behaviors = ItemManager.CreateRuntimeBehaviors(this);
+        Behaviors = Data.Behaviors
+            .Select(bd => bd.CreateInstance(this))
+            .ToArray();
 
         BehaviorGroups = Behaviors
-            .GroupBy(b => b.Group)
+            .GroupBy(b => b.Data.Group)
             .OrderBy(g => g.Key)
             .ToDictionary(g => g.Key, g => new BehaviorGroup
             {
@@ -1701,181 +1286,23 @@ public class EquippedItem
         }
     }
 
-    internal void RegisterPerformanceStat(string behaviorKind, string statName, PerformanceStat stat)
-    {
-        if (stat == null || string.IsNullOrWhiteSpace(statName))
-            return;
-
-        if (!_statCache.TryGetValue(stat, out var entry))
-        {
-            _statCache[stat] = new EquippedItemStatCacheEntry(stat, GetDependencyMask(stat));
-        }
-        else
-        {
-            entry.Stat = stat;
-            entry.DependencyMask = GetDependencyMask(stat);
-            entry.Dirty = true;
-        }
-    }
-
-    public float Evaluate(string behaviorKind, string statName, PerformanceStat stat)
-    {
-        RegisterPerformanceStat(behaviorKind, statName, stat);
-        return Evaluate(stat);
-    }
-
     public float Evaluate(PerformanceStat stat)
     {
-        if (stat == null)
-        {
-            return 0;
-        }
+        var heat = pow(ThermalPerformance, ThermalExponent * stat.HeatExponentMultiplier);
+        var durability = pow(DurabilityPerformance, DurabilityExponent * stat.DurabilityExponentMultiplier);
+        var quality = pow(EquippableItem.Quality, stat.QualityExponent);
 
-        if (_statCache.TryGetValue(stat, out var entry))
-        {
-            return EvaluateCachedStat(entry);
-        }
+        var scaleModifier = 1.0f;
+        var scaleModifiers = stat.GetScaleModifiers(Entity).Values;
+        foreach (var value in scaleModifiers) scaleModifier *= value;
 
-        return EvaluateUncached(stat);
-    }
+        float constantModifier = 0;
+        foreach (var value in stat.GetConstantModifiers(Entity).Values) constantModifier += value;
 
-    public float Evaluate(PerformanceStat stat, StatConditionMask condition, float value)
-    {
-        if (stat == null)
-            return 0;
-
-        var dependencyMask = GetDependencyMask(stat);
-        if ((dependencyMask & condition) == 0)
-            return Evaluate(stat);
-
-        return EvaluateWithContext(stat, CreateStatEvaluationContext().WithCondition(condition, value));
-    }
-
-    public float Evaluate(
-        PerformanceStat stat,
-        StatConditionMask firstCondition,
-        float firstValue,
-        StatConditionMask secondCondition,
-        float secondValue)
-    {
-        if (stat == null)
-            return 0;
-
-        var dependencyMask = GetDependencyMask(stat);
-        if ((dependencyMask & (firstCondition | secondCondition)) == 0)
-            return Evaluate(stat);
-
-        var context = CreateStatEvaluationContext()
-            .WithCondition(firstCondition, firstValue)
-            .WithCondition(secondCondition, secondValue);
-        return EvaluateWithContext(stat, context);
-    }
-
-    private float EvaluateCachedStat(EquippedItemStatCacheEntry entry)
-    {
-        var stamp = BuildCacheStamp(entry.DependencyMask);
-        if (!entry.Dirty && entry.InputStamp == stamp)
-        {
-            return entry.Value;
-        }
-
-        var value = EvaluateUncached(entry.Stat);
-        entry.Value = value;
-        entry.InputStamp = stamp;
-        entry.Dirty = false;
-        return value;
-    }
-
-    private float EvaluateUncached(PerformanceStat stat)
-    {
-        var dependencyMask = GetDependencyMask(stat);
-        var stamp = BuildCacheStamp(dependencyMask);
-        if (!_baseStatCache.TryGetValue(stat, out var baseEntry) || baseEntry.InputStamp != stamp)
-        {
-            float baseValue;
-            baseValue = stat.EvaluateRecipeOrLegacy(
-                CreateStatEvaluationContext(),
-                DurabilityExponent,
-                ThermalExponent,
-                includeHeat: true);
-            _baseStatCache[stat] = new EquippedItemBaseStatCacheEntry(baseValue, stamp);
-        }
-        var cachedBaseValue = _baseStatCache[stat].Value;
-
-        var result = stat.ApplyEntityModifiers(Entity, cachedBaseValue);
+        var result = lerp(stat.Min, stat.Max, durability * quality * heat) * scaleModifier + constantModifier;
         if (float.IsNaN(result))
             return stat.Min;
         return result;
-    }
-
-    private float EvaluateWithContext(PerformanceStat stat, in StatEvaluationContext context)
-    {
-        var baseValue = stat.EvaluateRecipeOrLegacy(
-            context,
-            DurabilityExponent,
-            ThermalExponent,
-            includeHeat: true);
-
-        var result = stat.ApplyEntityModifiers(Entity, baseValue);
-        return float.IsNaN(result) ? stat.Min : result;
-    }
-
-    internal void SetStatModifier(
-        PerformanceStat stat,
-        Behavior source,
-        StatModifierType type,
-        float value)
-    {
-        if (stat == null || source == null)
-            return;
-
-        var modifiers = type == StatModifierType.Constant
-            ? stat.GetConstantModifiers(Entity)
-            : stat.GetScaleModifiers(Entity);
-
-        if (modifiers.TryGetValue(source, out var current) && MathF.Abs(current - value) < 0.00001f)
-            return;
-
-        modifiers[source] = value;
-        InvalidateStat(stat);
-    }
-
-    internal void RemoveStatModifier(PerformanceStat stat, Behavior source, StatModifierType type)
-    {
-        if (stat == null || source == null)
-            return;
-
-        var hasModifiers = type == StatModifierType.Constant
-            ? stat.TryGetConstantModifiers(Entity, out var modifiers)
-            : stat.TryGetScaleModifiers(Entity, out modifiers);
-
-        if (hasModifiers && modifiers.Remove(source))
-            InvalidateStat(stat);
-    }
-
-    public void SetStatConditionValue(StatConditionMask condition, float value)
-    {
-        switch (condition)
-        {
-            case StatConditionMask.Charge:
-                SetTrackedStatCondition(ref _statCharge, ref _chargeVersion, value);
-                break;
-            case StatConditionMask.Ammo:
-                SetTrackedStatCondition(ref _statAmmo, ref _ammoVersion, value);
-                break;
-            case StatConditionMask.Range:
-                SetTrackedStatCondition(ref _statRange, ref _rangeVersion, value);
-                break;
-            case StatConditionMask.Integrity:
-                SetTrackedStatCondition(ref _statIntegrity, ref _integrityVersion, value);
-                break;
-            case StatConditionMask.PilotSkill:
-                SetTrackedStatCondition(ref _statPilotSkill, ref _pilotSkillVersion, value);
-                break;
-            case StatConditionMask.Environment:
-                SetTrackedStatCondition(ref _statEnvironment, ref _environmentVersion, value);
-                break;
-        }
     }
 
     public void AddHeat(float heat, bool ignoreThermalMass = false)
@@ -1887,125 +1314,23 @@ public class EquippedItem
     public void UpdatePerformance()
     {        
         var temp = Temperature;
-        var nextThermalPerformance = EvaluateThermalPerformance(temp);
-        var deltaTemp = MathF.Abs(temp - oldTemperature);
-        var nextDurabilityPerformance = EquippableItem.Durability / MaxDurability;
-        var nextQuality = EquippableItem.Quality;
-        if (MathF.Abs(nextThermalPerformance - ThermalPerformance) > 0.00001f)
-        {
-            _thermalVersion++;
-        }
-        if (MathF.Abs(nextDurabilityPerformance - DurabilityPerformance) > 0.00001f)
-        {
-            _durabilityVersion++;
-        }
-        if (MathF.Abs(nextQuality - _lastQuality) > 0.00001f)
-        {
-            _qualityVersion++;
-        }
-        ThermalPerformance = nextThermalPerformance;
-        DurabilityPerformance = nextDurabilityPerformance;
-        _lastQuality = nextQuality;
+        ThermalPerformance = Data.Performance(temp);
+        var deltaTemp = math.abs(temp - oldTemperature);
+        DurabilityPerformance = EquippableItem.Durability / Data.Durability;
         var performanceThreshold = Entity.Settings.ShutdownPerformance;
-        Wear = (1 - MathF.Pow(ThermalPerformance,
-                (1 - MathF.Pow(EquippableItem.Quality, ItemManager.GameplaySettings.QualityWearExponent)) *
+        Wear = (1 - pow(ThermalPerformance,
+                (1 - pow(EquippableItem.Quality, ItemManager.GameplaySettings.QualityWearExponent)) *
                 ItemManager.GameplaySettings.ThermalWearExponent) +
                 deltaTemp * ItemManager.GameplaySettings.DeltaTempWearExponent            
-            ) * MaxDurability / ThermalResilience;
+            ) * Data.Durability / Data.ThermalResilience;
         ThermalOnline.Value = ThermalPerformance > performanceThreshold || Entity.OverrideShutdown && EquippableItem.OverrideShutdown;
         DurabilityOnline.Value = EquippableItem.Durability > .01f;
         oldTemperature = temp;
     }
 
-    private void InvalidateStat(PerformanceStat stat)
-    {
-        if (stat != null && _statCache.TryGetValue(stat, out var entry))
-            entry.Dirty = true;
-    }
-
-    private StatConditionMask GetDependencyMask(PerformanceStat stat)
-    {
-        return stat?.GetDependencyMask(includeHeat: true) ?? StatConditionMask.None;
-    }
-
-    private int BuildCacheStamp(StatConditionMask dependencyMask)
-    {
-        unchecked
-        {
-            var stamp = 17;
-            if ((dependencyMask & StatConditionMask.Quality) != 0)
-                stamp = stamp * 31 + _qualityVersion;
-            if ((dependencyMask & StatConditionMask.Durability) != 0)
-                stamp = stamp * 31 + _durabilityVersion;
-            if ((dependencyMask & StatConditionMask.Heat) != 0)
-                stamp = stamp * 31 + _thermalVersion;
-            if ((dependencyMask & StatConditionMask.Charge) != 0)
-                stamp = stamp * 31 + _chargeVersion;
-            if ((dependencyMask & StatConditionMask.Ammo) != 0)
-                stamp = stamp * 31 + _ammoVersion;
-            if ((dependencyMask & StatConditionMask.Range) != 0)
-                stamp = stamp * 31 + _rangeVersion;
-            if ((dependencyMask & StatConditionMask.Integrity) != 0)
-                stamp = stamp * 31 + _integrityVersion;
-            if ((dependencyMask & StatConditionMask.PilotSkill) != 0)
-                stamp = stamp * 31 + _pilotSkillVersion;
-            if ((dependencyMask & StatConditionMask.Environment) != 0)
-                stamp = stamp * 31 + _environmentVersion;
-            return stamp;
-        }
-    }
-
-    private StatEvaluationContext CreateStatEvaluationContext()
-    {
-        return new StatEvaluationContext(
-            quality: EquippableItem.Quality,
-            durability: DurabilityPerformance,
-            heat: ThermalPerformance,
-            charge: _statCharge,
-            ammo: _statAmmo,
-            range: _statRange,
-            integrity: _statIntegrity,
-            pilotSkill: _statPilotSkill,
-            environment: _statEnvironment);
-    }
-
-    private static void SetTrackedStatCondition(ref float current, ref int version, float next)
-    {
-        if (MathF.Abs(current - next) <= 0.00001f)
-            return;
-
-        current = next;
-        version++;
-    }
-
-    private float EvaluateThermalPerformance(float temperature)
-    {
-        if (_thermalPerformanceCurve == null ||
-            RuntimeItem == null ||
-            RuntimeItem.MaximumTemperature <= RuntimeItem.MinimumTemperature)
-        {
-            return 1;
-        }
-
-        var t = AetheriaScalar.Unlerp((float)RuntimeItem.MinimumTemperature, (float)RuntimeItem.MaximumTemperature, temperature);
-        return AetheriaScalar.Saturate(_thermalPerformanceCurve.Evaluate(t));
-    }
-
-    private static BezierCurve CreateThermalPerformanceCurve(AetheriaRuntimeCatalogItem item)
-    {
-        if (item?.ThermalPerformanceCurveKeys == null || item.ThermalPerformanceCurveKeys.Count == 0)
-        {
-            return null;
-        }
-
-        return BezierCurve.FromKeys(
-            item.ThermalPerformanceCurveKeys
-                .Select(key => ((float)key.Time, (float)key.Value, (float)key.InTangent, (float)key.OutTangent)));
-    }
-
     public void Update(float delta)
     {
-        foreach (var audioStat in _audioStats)
+        foreach (var audioStat in Data.AudioStats)
         {
             SetAudioParameter(audioStat.Parameter, Evaluate(audioStat.Stat));
         }
@@ -2033,112 +1358,6 @@ public class EquippedItem
                 return b;
         return null;
     }
-
-    private static EquippedItemAudioStatBinding[] CreateAudioStatBindings(AetheriaRuntimeCatalogItem item)
-    {
-        if (item?.AudioStats != null)
-        {
-            return item.AudioStats
-                .Select(audioStat => new EquippedItemAudioStatBinding(
-                    audioStat.Parameter,
-                    CreatePerformanceStat(audioStat.Stat)))
-                .ToArray();
-        }
-
-        return Array.Empty<EquippedItemAudioStatBinding>();
-    }
-
-    private static PerformanceStat CreatePerformanceStat(AetheriaRuntimePerformanceStat stat)
-    {
-        return new PerformanceStat
-        {
-            Min = (float)stat.Min,
-            Max = (float)stat.Max,
-            HeatExponentMultiplier = (float)stat.HeatExponentMultiplier,
-            DurabilityExponentMultiplier = (float)stat.DurabilityExponentMultiplier,
-            QualityExponent = (float)stat.QualityExponent,
-            Recipe = CreateStatRecipe(stat.Recipe)
-        };
-    }
-
-    private static StatRecipe CreateStatRecipe(AetheriaRuntimeStatRecipe recipe)
-    {
-        if (recipe == null)
-            return null;
-
-        return new StatRecipe
-        {
-            BaseValue = (float)recipe.BaseValue,
-            Modifiers = recipe.Modifiers
-                .Select(CreateStatRecipeModifier)
-                .Where(modifier => modifier != null)
-                .ToArray()
-        };
-    }
-
-    private static StatRecipeModifier CreateStatRecipeModifier(AetheriaRuntimeStatRecipeModifier modifier)
-    {
-        if (modifier == null)
-            return null;
-
-        return new StatRecipeModifier
-        {
-            Condition = StatRecipeTokens.ToConditionMask(modifier.Condition),
-            Operation = StatRecipeTokens.ToModifierOperation(modifier.Operation),
-            Amount = (float)modifier.Amount,
-            Curve = CreateCurve(modifier.CurveKeys),
-            Enabled = modifier.Enabled
-        };
-    }
-
-    private static BezierCurve CreateCurve(IReadOnlyList<AetheriaRuntimeCurveKey> keys)
-    {
-        if (keys == null || keys.Count == 0)
-            return null;
-
-        return BezierCurve.FromKeys(
-            keys.Select(key => ((float)key.Time, (float)key.Value, (float)key.InTangent, (float)key.OutTangent)));
-    }
-
-    private readonly struct EquippedItemAudioStatBinding
-    {
-        public EquippedItemAudioStatBinding(uint parameter, PerformanceStat stat)
-        {
-            Parameter = parameter;
-            Stat = stat;
-        }
-
-        public uint Parameter { get; }
-        public PerformanceStat Stat { get; }
-    }
-
-    private sealed class EquippedItemStatCacheEntry
-    {
-        public EquippedItemStatCacheEntry(PerformanceStat stat, StatConditionMask dependencyMask)
-        {
-            Stat = stat;
-            DependencyMask = dependencyMask;
-            Dirty = true;
-        }
-
-        public PerformanceStat Stat { get; set; }
-        public StatConditionMask DependencyMask { get; set; }
-        public float Value { get; set; }
-        public int InputStamp { get; set; }
-        public bool Dirty { get; set; }
-    }
-
-    private readonly struct EquippedItemBaseStatCacheEntry
-    {
-        public EquippedItemBaseStatCacheEntry(float value, int inputStamp)
-        {
-            Value = value;
-            InputStamp = inputStamp;
-        }
-
-        public float Value { get; }
-        public int InputStamp { get; }
-    }
 }
 
 public class EquippedCargoBay : EquippedItem
@@ -2147,10 +1366,10 @@ public class EquippedCargoBay : EquippedItem
 
     public readonly ItemInstance[,] Occupancy;
 
-    public readonly Dictionary<string, List<ItemInstance>> ItemsOfType = new Dictionary<string, List<ItemInstance>>();
+    public readonly Dictionary<Guid, List<ItemInstance>> ItemsOfType = new Dictionary<Guid, List<ItemInstance>>();
 
-    public Shape InteriorShape { get; }
-
+    public new readonly CargoBayData Data;
+    
     public float Mass { get; private set; }
     public float ThermalMass { get; private set; }
     public string Name { get; }
@@ -2159,48 +1378,34 @@ public class EquippedCargoBay : EquippedItem
     {
         get
         {
-            var unoccupied = new Shape(InteriorShape.Width, InteriorShape.Height);
+            var unoccupied = new Shape(Data.InteriorShape.Width, Data.InteriorShape.Height);
             foreach (var v in unoccupied.AllCoordinates)
                 unoccupied[v] = Occupancy[v.x, v.y] == null;
             return unoccupied;
         }
     }
 
-    public bool ContainsItem(string itemKey)
-    {
-        return !string.IsNullOrWhiteSpace(itemKey) && ItemsOfType.ContainsKey(itemKey);
-    }
-
-    public ItemInstance GetFirstItem(string itemKey)
-    {
-        return ContainsItem(itemKey) ? ItemsOfType[itemKey].FirstOrDefault() : null;
-    }
-
     public EquippedCargoBay(ItemManager itemManager, EquippableItem item, int2 position, Entity entity, string name) : base(itemManager, item, position, entity)
     {
-        var typedCargoBay = ItemManager.GetRuntimeItem(EquippableItem);
-        InteriorShape = ToShape(
-            typedCargoBay?.InteriorShapeWidth ?? 1,
-            typedCargoBay?.InteriorShapeHeight ?? 1,
-            typedCargoBay?.InteriorShapeCells);
+        Data = ItemManager.GetData(EquippableItem) as CargoBayData;
         Name = name;
 
-        Mass = ItemManager.GetMass(EquippableItem);
-        ThermalMass = ItemManager.GetThermalMass(EquippableItem);
+        Mass = Data.Mass;
+        ThermalMass = Data.Mass * Data.SpecificHeat;
         
-        Occupancy = new ItemInstance[InteriorShape.Width, InteriorShape.Height];
+        Occupancy = new ItemInstance[Data.InteriorShape.Width,Data.InteriorShape.Height];
     }
 
     // Check whether the given item will fit when its origin is placed at the given coordinate
     public bool ItemFits(ItemInstance item, int2 cargoCoord)
     {
-        var itemShape = GetItemShape(item);
+        var itemData = item.Data.Value;
         // Check every cell of the item's shape
-        foreach (var i in itemShape.Coordinates)
+        foreach (var i in itemData.Shape.Coordinates)
         {
             // If there is an item already occupying that space, it won't fit
-            var itemCargoCoord = cargoCoord + itemShape.Rotate(i, item.Rotation);
-            if (!InteriorShape[itemCargoCoord] || (Occupancy[itemCargoCoord.x, itemCargoCoord.y] != null && Occupancy[itemCargoCoord.x, itemCargoCoord.y] != item)) return false;
+            var itemCargoCoord = cargoCoord + itemData.Shape.Rotate(i, item.Rotation);
+            if (!Data.InteriorShape[itemCargoCoord] || (Occupancy[itemCargoCoord.x, itemCargoCoord.y] != null && Occupancy[itemCargoCoord.x, itemCargoCoord.y] != item)) return false;
         }
 
         return true;
@@ -2221,19 +1426,19 @@ public class EquippedCargoBay : EquippedItem
     public bool TryFindSpace(SimpleCommodity item, out List<int2> positions)
     {
         positions = new List<int2>();
-        var maxStack = GetMaxStack(item);
+        var itemData = ItemManager.GetData(item);
         var remainingQuantity = item.Quantity;
         
         // For simple commodities, search for existing item stacks to add to
         foreach (var cargoItem in Cargo.Keys)
         {
-            if (item.ItemKey != cargoItem.ItemKey) continue;
+            if (item.Data != cargoItem.Data) continue;
             
             var cargoCommodity = (SimpleCommodity) cargoItem;
-            if (cargoCommodity.Quantity >= maxStack) continue;
+            if (cargoCommodity.Quantity >= itemData.MaxStack) continue;
             
             // Subtract remaining space in existing stack from remaining quantity
-            remainingQuantity -= Math.Min(maxStack - cargoCommodity.Quantity, remainingQuantity);
+            remainingQuantity -= min(itemData.MaxStack - cargoCommodity.Quantity, remainingQuantity);
             positions.Add(Cargo[cargoItem]);
             
             // If we've moved all of the items into existing stacks, no need to search for empty space!
@@ -2242,7 +1447,7 @@ public class EquippedCargoBay : EquippedItem
         
         // TODO: Try alternate item rotations / use Shape.FitsWithin
         // Search all the space in the cargo bay for an empty space where the item fits
-        foreach (var cargoCoord in InteriorShape.Coordinates)
+        foreach (var cargoCoord in Data.InteriorShape.Coordinates)
         {
             if (ItemFits(item, cargoCoord))
             {
@@ -2258,7 +1463,7 @@ public class EquippedCargoBay : EquippedItem
     public bool TryFindSpace(CraftedItemInstance item, out int2 position)
     {
         // Search all the space in the cargo bay for an empty space where the item fits
-        foreach (var cargoCoord in InteriorShape.Coordinates)
+        foreach (var cargoCoord in Data.InteriorShape.Coordinates)
         {
             if (ItemFits(item, cargoCoord))
             {
@@ -2267,7 +1472,7 @@ public class EquippedCargoBay : EquippedItem
             }
         }
 
-        position = new int2(0, 0);
+        position = int2.zero;
         return false;
     }
     
@@ -2308,33 +1513,34 @@ public class EquippedCargoBay : EquippedItem
     // Returns true only when ALL of the items are successfully stored
     public bool TryStore(SimpleCommodity item, int2 cargoCoord)
     {
-        var itemShape = GetItemShape(item);
-        var maxStack = GetMaxStack(item);
+        var itemData = ItemManager.GetData(item);
         if (ItemFits(item, cargoCoord))
         {
-            foreach (var p in itemShape.Coordinates)
+            foreach (var p in itemData.Shape.Coordinates)
             {
-                var pos = cargoCoord + itemShape.Rotate(p, item.Rotation);
+                var pos = cargoCoord + itemData.Shape.Rotate(p, item.Rotation);
                 Occupancy[pos.x, pos.y] = item;
             }
             Cargo[item] = cargoCoord;
             
-            AddTypedItemIndex(item);
+            if(!ItemsOfType.ContainsKey(item.Data.LinkID))
+                ItemsOfType[item.Data.LinkID] = new List<ItemInstance>();
+            ItemsOfType[item.Data.LinkID].Add(item);
         }
-        else if (Occupancy[cargoCoord.x, cargoCoord.y] is SimpleCommodity cargoCommodity && cargoCommodity.ItemKey == item.ItemKey)
+        else if (Occupancy[cargoCoord.x, cargoCoord.y] is SimpleCommodity cargoCommodity && cargoCommodity.Data == item.Data)
         {
-            if (cargoCommodity.Quantity + item.Quantity <= maxStack)
+            if (cargoCommodity.Quantity + item.Quantity <= itemData.MaxStack)
             {
                 cargoCommodity.Quantity += item.Quantity;
             }
             else
             {
-                var quantityTransferred = maxStack - cargoCommodity.Quantity;
+                var quantityTransferred = itemData.MaxStack - cargoCommodity.Quantity;
                 item.Quantity -= quantityTransferred;
-                cargoCommodity.Quantity = maxStack;
+                cargoCommodity.Quantity = itemData.MaxStack;
                 
-                Mass += GetUnitMass(item) * quantityTransferred;
-                ThermalMass += GetUnitThermalMass(item) * quantityTransferred;
+                Mass += itemData.Mass * quantityTransferred;
+                ThermalMass += itemData.Mass * itemData.SpecificHeat * quantityTransferred;
                 return false;
             }
         }
@@ -2353,15 +1559,17 @@ public class EquippedCargoBay : EquippedItem
     {
         if (!ItemFits(item, cargoCoord)) return false;
         
-        var itemShape = GetItemShape(item);
-        foreach (var p in itemShape.Coordinates)
+        var itemData = ItemManager.GetData(item);
+        foreach (var p in itemData.Shape.Coordinates)
         {
-            var pos = cargoCoord + itemShape.Rotate(p, item.Rotation);
+            var pos = cargoCoord + itemData.Shape.Rotate(p, item.Rotation);
             Occupancy[pos.x, pos.y] = item;
         }
         Cargo[item] = cargoCoord;
         
-        AddTypedItemIndex(item);
+        if(!ItemsOfType.ContainsKey(item.Data.LinkID))
+            ItemsOfType[item.Data.LinkID] = new List<ItemInstance>();
+        ItemsOfType[item.Data.LinkID].Add(item);
         
         Mass += ItemManager.GetMass(item);
         ThermalMass += ItemManager.GetThermalMass(item);
@@ -2376,14 +1584,17 @@ public class EquippedCargoBay : EquippedItem
             ItemManager.Log("Attempted to remove item from a cargo bay that it wasn't even in! Something went wrong here!");
             return null;
         }
+        var itemData = ItemManager.GetData(item);
         if(quantity >= item.Quantity)
         {
-            foreach(var v in InteriorShape.Coordinates)
+            foreach(var v in Data.InteriorShape.Coordinates)
                 if (Occupancy[v.x, v.y] == item)
                     Occupancy[v.x, v.y] = null;
 
             Cargo.Remove(item);
-            RemoveTypedItemIndex(item);
+            ItemsOfType[item.Data.LinkID].Remove(item);
+            if (!ItemsOfType[item.Data.LinkID].Any())
+                ItemsOfType.Remove(item.Data.LinkID);
 
             Mass -= ItemManager.GetMass(item);
             ThermalMass -= ItemManager.GetThermalMass(item);
@@ -2392,9 +1603,9 @@ public class EquippedCargoBay : EquippedItem
         }
 
         item.Quantity -= quantity;
-        Mass -= GetUnitMass(item) * quantity;
-        ThermalMass -= GetUnitThermalMass(item) * quantity;
-        return new SimpleCommodity{Reference = item.Reference, Quantity = quantity, Rotation = item.Rotation};
+        Mass -= itemData.Mass * quantity;
+        ThermalMass -= itemData.Mass * itemData.SpecificHeat * quantity;
+        return new SimpleCommodity{Data = item.Data, Quantity = quantity, Rotation = item.Rotation};
     }
 
     public void Remove(CraftedItemInstance item)
@@ -2404,12 +1615,15 @@ public class EquippedCargoBay : EquippedItem
             ItemManager.Log("Attempted to remove item from a cargo bay that it wasn't even in! Something went wrong here!");
             return;
         }
-        foreach(var v in InteriorShape.Coordinates)
+        var itemData = ItemManager.GetData(item);
+        foreach(var v in Data.InteriorShape.Coordinates)
             if (Occupancy[v.x, v.y] == item)
                 Occupancy[v.x, v.y] = null;
         
         Cargo.Remove(item);
-        RemoveTypedItemIndex(item);
+        ItemsOfType[item.Data.LinkID].Remove(item);
+        if (!ItemsOfType[item.Data.LinkID].Any())
+            ItemsOfType.Remove(item.Data.LinkID);
         
         Mass -= ItemManager.GetMass(item);
         ThermalMass -= ItemManager.GetThermalMass(item);
@@ -2421,64 +1635,6 @@ public class EquippedCargoBay : EquippedItem
             Remove(simpleCommodity, simpleCommodity.Quantity);
         if (item is CraftedItemInstance craftedItem)
             Remove(craftedItem);
-    }
-
-    private Shape GetItemShape(ItemInstance item)
-    {
-        var typedItem = ItemManager.GetRuntimeItem(item);
-        return ToShape(typedItem?.ShapeWidth ?? 1, typedItem?.ShapeHeight ?? 1, typedItem?.ShapeCells);
-    }
-
-    private void AddTypedItemIndex(ItemInstance item)
-    {
-        var itemKey = item?.ItemKey ?? "";
-        if (string.IsNullOrWhiteSpace(itemKey))
-            return;
-
-        if (!ItemsOfType.ContainsKey(itemKey))
-            ItemsOfType[itemKey] = new List<ItemInstance>();
-
-        ItemsOfType[itemKey].Add(item);
-    }
-
-    private void RemoveTypedItemIndex(ItemInstance item)
-    {
-        var itemKey = item?.ItemKey ?? "";
-        if (string.IsNullOrWhiteSpace(itemKey) || !ItemsOfType.ContainsKey(itemKey))
-            return;
-
-        ItemsOfType[itemKey].Remove(item);
-        if (!ItemsOfType[itemKey].Any())
-            ItemsOfType.Remove(itemKey);
-    }
-
-    private int GetMaxStack(SimpleCommodity item)
-    {
-        var typedItem = ItemManager.GetRuntimeItem(item);
-        return typedItem != null && typedItem.MaxStack > 0 ? typedItem.MaxStack : 1;
-    }
-
-    private float GetUnitMass(ItemInstance item)
-    {
-        var typedItem = ItemManager.GetRuntimeItem(item);
-        return typedItem != null ? (float)typedItem.Mass : 0f;
-    }
-
-    private float GetUnitThermalMass(ItemInstance item)
-    {
-        var typedItem = ItemManager.GetRuntimeItem(item);
-        return typedItem != null ? (float)(typedItem.Mass * typedItem.SpecificHeat) : 0f;
-    }
-
-    private static Shape ToShape(int width, int height, IReadOnlyList<AetheriaRuntimeShapeCell> cells)
-    {
-        var shape = new Shape(Math.Max(width, 1), Math.Max(height, 1));
-        if (cells == null) return shape;
-
-        foreach (var cell in cells)
-            shape.SetCell(cell.X, cell.Y, true);
-
-        return shape;
     }
     
     public bool TryTransferItem(EquippedCargoBay target, SimpleCommodity item, int quantity)
@@ -2516,14 +1672,11 @@ public class EquippedCargoBay : EquippedItem
 public class EquippedDockingBay : EquippedCargoBay
 {
     public Ship DockedShip;
-    public int2 MaxSize { get; }
-
+    public int2 MaxSize => _data.MaxSize;
+    private DockingBayData _data;
     public EquippedDockingBay(ItemManager itemManager, EquippableItem item, int2 position, Entity entity, string name) : base(itemManager, item, position, entity, name)
     {
-        var typedDockingBay = ItemManager.GetRuntimeItem(EquippableItem);
-        MaxSize = typedDockingBay != null
-            ? new int2(typedDockingBay.DockingMaxSizeX, typedDockingBay.DockingMaxSizeY)
-            : new int2(0, 0);
+        _data = ItemManager.GetData(EquippableItem) as DockingBayData;
     }
 }
 

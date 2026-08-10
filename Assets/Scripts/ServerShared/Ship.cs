@@ -1,4 +1,4 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
+﻿/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
@@ -7,17 +7,24 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using CultMath;
+using MessagePack;
+using Newtonsoft.Json;
 using UniRx;
-using static CultMath.math;
-using cfloat2 = CultMath.float2;
-using cfloat3 = CultMath.float3;
-using cquaternion = CultMath.quaternion;
+using Unity.Mathematics;
+using static Unity.Mathematics.math;
+using quaternion = Unity.Mathematics.quaternion;
 
+[MessagePackObject]
 public class Ship : Entity
 {
+    
+    // [Key("bindings")]   public Dictionary<KeyCode,Guid>    Bindings = new Dictionary<KeyCode,Guid>();
+    //[IgnoreMember] public int HullHardpointCount;
+
+    // [IgnoreMember] public Dictionary<Targetable, float> Contacts = new Dictionary<Targetable, float>();
+    // [IgnoreMember] public Targetable Target;
     public Entity HomeEntity;
-    public cfloat2 MovementDirection;
+    public float2 MovementDirection;
     public bool IsPlayerShip;
 
     private HashSet<EquippedItem> _thrusterItems;
@@ -34,10 +41,10 @@ public class Ship : Entity
     private bool _exitingWormhole = false;
     private bool _enteringWormhole = false;
     private float _wormholeAnimationProgress;
-    private cfloat2 _wormholeEntryPosition;
-    private cfloat2 _wormholeEntryDirection;
-    private cfloat2 _wormholePosition;
-    private cfloat2 _wormholeExitVelocity;
+    private float2 _wormholeEntryPosition;
+    private float2 _wormholeEntryDirection;
+    private float2 _wormholePosition;
+    private float2 _wormholeExitVelocity;
 
     public bool WormholeAnimationInProgress => _enteringWormhole || _exitingWormhole;
     public float ForwardThrust { get; private set; }
@@ -51,40 +58,35 @@ public class Ship : Entity
     public float RightStrafeTotalTorque { get; private set; }
     private List<Thruster> RightStrafeTorqueThrusters = new List<Thruster>();
 
-    public float TurnTime(cfloat2 direction)
+    public float TurnTime(float2 direction)
     {
-        var cultDirection = normalize(direction);
-        var shipDirection = CultDirection;
-        var angleDiff = AetheriaMath.AngleDegrees(shipDirection, cultDirection);
-        var clockwise = dot(cultDirection, AetheriaMath.Rotate(shipDirection, ItemRotation.Clockwise)) > 0;
+        var angleDiff = Direction.Angle(normalize(direction));
+        var clockwise = dot(direction, Direction.Rotate(ItemRotation.Clockwise)) > 0;
         return angleDiff / ((clockwise ? ClockwiseTorque : CounterClockwiseTorque) / Mass);
     }
 
     public event Action OnExitedWormhole;
     public event Action OnEnteredWormhole;
+    
+    public quaternion Rotation { get; private set; }
 
-    public cquaternion Rotation { get; private set; }
-
-    private static cquaternion LookRotation(cfloat3 forward, cfloat3 up) =>
-        cquaternion.LookRotation(forward, up);
-
-    public void ExitWormhole(cfloat2 wormholePosition, cfloat2 exitVelocity)
+    public void ExitWormhole(float2 wormholePosition, float2 exitVelocity)
     {
         _exitingWormhole = true;
         _wormholeAnimationProgress = 0;
         _wormholePosition = wormholePosition;
         _wormholeExitVelocity = exitVelocity;
-        CultDirection = normalize(_wormholeExitVelocity);
+        Direction = normalize(exitVelocity);
     }
 
-    public void EnterWormhole(cfloat2 wormholePosition)
+    public void EnterWormhole(float2 wormholePosition)
     {
         Target.Value = null;
         _wormholeAnimationProgress = 0;
         _enteringWormhole = true;
-        _wormholeEntryPosition = CultPositionXZ;
+        _wormholeEntryPosition = Position.xz;
+        _wormholeEntryDirection = normalize(_wormholeEntryPosition-wormholePosition);
         _wormholePosition = wormholePosition;
-        _wormholeEntryDirection = normalize(_wormholeEntryPosition - _wormholePosition);
     }
 
     public override void Activate()
@@ -93,25 +95,25 @@ public class Ship : Entity
 
         _aetherDrives = new HashSet<AetherDrive>(GetBehaviors<AetherDrive>());
         _aetherDriveItems = new HashSet<EquippedItem>(_aetherDrives.Select(x => x.Item));
-
+        
         _allThrusters = GetBehaviors<Thruster>().ToArray();
         _thrusterItems = new HashSet<EquippedItem>(_allThrusters.Select(x=>x.Item));
-
+        
         _forwardThrusters = new HashSet<Thruster>(_allThrusters
             .Where(x => x.Item.EquippableItem.Rotation == ItemRotation.Reversed));
 
         _reverseThrusters = new HashSet<Thruster>(_allThrusters
             .Where(x => x.Item.EquippableItem.Rotation == ItemRotation.None));
-
+        
         _rightThrusters = new HashSet<Thruster>(_allThrusters
             .Where(x => x.Item.EquippableItem.Rotation == ItemRotation.CounterClockwise));
-
+        
         _leftThrusters = new HashSet<Thruster>(_allThrusters
             .Where(x => x.Item.EquippableItem.Rotation == ItemRotation.Clockwise));
-
+        
         _counterClockwiseThrusters = new HashSet<Thruster>(_allThrusters
             .Where(x => x.Torque < -ItemManager.GameplaySettings.TorqueFloor));
-
+        
         _clockwiseThrusters = new HashSet<Thruster>(_allThrusters
             .Where(x => x.Torque > ItemManager.GameplaySettings.TorqueFloor));
     }
@@ -151,7 +153,7 @@ public class Ship : Entity
         RecalculateClockwiseTorque();
         RecalculateCounterClockwiseTorque();
     }
-
+    
     private void RecalculateForwardThrust()
     {
         ForwardThrust = 0;
@@ -252,96 +254,92 @@ public class Ship : Entity
         {
             RecalculateThrust();
             foreach (var thruster in _allThrusters) thruster.Axis = 0;
-            var movementDirection = MovementDirection;
             var rightThrusterTorqueCompensation = abs(RightStrafeTotalTorque) / RightStrafeTorqueThrusters.Count;
             foreach (var thruster in _rightThrusters)
             {
                 var thrust = 0f;
-                thrust += movementDirection.x;
+                thrust += MovementDirection.x;
                 if (RightStrafeTorqueThrusters.Contains(thruster))
-                    thrust -= movementDirection.x * (rightThrusterTorqueCompensation / (abs(thruster.Torque) * thruster.Thrust));
+                    thrust -= MovementDirection.x * (rightThrusterTorqueCompensation / (abs(thruster.Torque) * thruster.Thrust));
                 thruster.Axis = thrust;
             }
             var leftThrusterTorqueCompensation = abs(LeftStrafeTotalTorque) / LeftStrafeTorqueThrusters.Count;
             foreach (var thruster in _leftThrusters)
             {
                 var thrust = 0f;
-                thrust += -movementDirection.x;
+                thrust += -MovementDirection.x;
                 if (LeftStrafeTorqueThrusters.Contains(thruster))
-                    thrust += movementDirection.x * (leftThrusterTorqueCompensation / (abs(thruster.Torque) * thruster.Thrust));
+                    thrust += MovementDirection.x * (leftThrusterTorqueCompensation / (abs(thruster.Torque) * thruster.Thrust));
                 thruster.Axis = thrust;
             }
-            foreach (var thruster in _forwardThrusters) thruster.Axis += movementDirection.y;
-            foreach (var thruster in _reverseThrusters) thruster.Axis += -movementDirection.y;
+            foreach (var thruster in _forwardThrusters) thruster.Axis += MovementDirection.y;
+            foreach (var thruster in _reverseThrusters) thruster.Axis += -MovementDirection.y;
 
-            var look = normalize(CultLookDirectionXZ);
-            var shipDirection = normalize(CultDirection);
-            var deltaRot = dot(look, AetheriaMath.Rotate(shipDirection, ItemRotation.Clockwise));
+            var look = normalize(LookDirection.xz);
+            var deltaRot = dot(look, normalize(Direction).Rotate(ItemRotation.Clockwise));
             if (abs(deltaRot) < .01f)
             {
                 deltaRot = 0;
-                CultDirection = lerp(shipDirection, look, min(delta, 1));
+                Direction = lerp(Direction, look, min(delta, 1));
             }
             deltaRot = pow(abs(deltaRot), .5f) * sign(deltaRot);
-
+        
             foreach (var thruster in _clockwiseThrusters) thruster.Axis += deltaRot;
             foreach (var thruster in _counterClockwiseThrusters) thruster.Axis += -deltaRot;
 
             foreach (var drive in _aetherDrives)
-                drive.Axis = new cfloat3(movementDirection.y, movementDirection.x, deltaRot);
+                drive.Axis = float3(MovementDirection.y, MovementDirection.x, deltaRot);
         }
 
-        var velocity = CultVelocity;
-        var velocityMagnitude = length(velocity);
+        var velocityMagnitude = length(Velocity);
         if(velocityMagnitude > .01f)
-            CultVelocity = normalize(velocity) * AetheriaMath.Decay(velocityMagnitude, (float)(ItemManager.GetRuntimeItem(Hull)?.HullDrag ?? 0), delta);
-
-        CultPositionXZ += CultVelocity * delta;
-
-        var normal = Zone.GetNormal(CultPositionXZ);
-        var force = new cfloat2(normal.x, normal.z);
+            Velocity = normalize(Velocity) * AetheriaMath.Decay(velocityMagnitude, HullData.Drag, delta);
+        
+        Position.xz += Velocity * delta;
+        
+        var normal = Zone.GetNormal(Position.xz);
+        var force = new float2(normal.x, normal.z);
         var forceMagnitude = lengthsq(force);
         if (forceMagnitude > .001f)
         {
             var fa = 1 / (1 - forceMagnitude) - 1;
-            CultVelocity += normalize(force) * Zone.Settings.GravityStrength * fa;
+            Velocity += normalize(force) * Zone.Settings.GravityStrength * fa;
         }
-        var shipRight = AetheriaMath.Rotate(CultDirection, ItemRotation.Clockwise);
-        var forward = cross(new cfloat3(shipRight.x, 0, shipRight.y), normal);
-        Rotation = LookRotation(forward, normal);
-
+        var shipRight = Direction.Rotate(ItemRotation.Clockwise);
+        var forward = cross(float3(shipRight.x, 0, shipRight.y), normal);
+        Rotation = quaternion.LookRotation(forward, normal);
+        
         base.Update(delta);
 
         if (_exitingWormhole)
         {
-            var inverseDirection = new cfloat3(-CultDirection.x, 0, -CultDirection.y);
             _wormholeAnimationProgress += delta / ItemManager.GameplaySettings.WormholeAnimationDuration;
             if(_wormholeAnimationProgress < 1)
             {
                 if (_wormholeAnimationProgress < ItemManager.GameplaySettings.WormholeExitCurveStart)
                 {
-                    CultPositionXZ = _wormholePosition;
-                    Rotation = LookRotation(new cfloat3(0, 1, 0), inverseDirection);
+                    Position.xz = _wormholePosition;
+                    Rotation = quaternion.LookRotation(float3(0, 1, 0), float3(-Direction.x, 0, -Direction.y));
                 }
                 else
                 {
                     var exitLerp = (_wormholeAnimationProgress - ItemManager.GameplaySettings.WormholeExitCurveStart) /
                                    (1 - ItemManager.GameplaySettings.WormholeExitCurveStart);
                     exitLerp = AetheriaMath.Smootherstep(exitLerp); // Square the interpolation variable to produce curve with zero slope at start
-                    CultPositionXZ = _wormholePosition + normalize(_wormholeExitVelocity) * exitLerp * ItemManager.GameplaySettings.WormholeExitRadius;
-                    Rotation = LookRotation(
-                        lerp(new cfloat3(0, 1, 0), forward, exitLerp),
-                        lerp(inverseDirection, normal, exitLerp));
+                    Position.xz = _wormholePosition + normalize(_wormholeExitVelocity) * exitLerp * ItemManager.GameplaySettings.WormholeExitRadius;
+                    Rotation = quaternion.LookRotation(
+                        lerp(float3(0, 1, 0), forward, exitLerp),
+                        lerp(float3(-Direction.x, 0, -Direction.y), normal, exitLerp));
                 }
 
-                CultPositionY -= lerp(ItemManager.GameplaySettings.WormholeDepth, 0, _wormholeAnimationProgress);
+                Position.y = Position.y - lerp(ItemManager.GameplaySettings.WormholeDepth, 0, _wormholeAnimationProgress);
             }
             else
             {
                 _exitingWormhole = false;
                 OnExitedWormhole?.Invoke();
                 OnExitedWormhole = null;
-                CultVelocity = _wormholeExitVelocity;
+                Velocity = _wormholeExitVelocity;
             }
         }
 
@@ -354,19 +352,19 @@ public class Ship : Entity
                 {
                     var enterLerp = _wormholeAnimationProgress / (1 - ItemManager.GameplaySettings.WormholeExitCurveStart);
                     enterLerp = AetheriaMath.Smootherstep(enterLerp); // Square the interpolation variable to produce curve with zero slope at vertical
-                    CultPositionXZ = lerp(_wormholeEntryPosition, _wormholePosition, enterLerp);
-                    Rotation = LookRotation(
-                        lerp(forward, new cfloat3(0, -1, 0), enterLerp),
-                        lerp(normal, new cfloat3(-_wormholeEntryDirection.x, 0, -_wormholeEntryDirection.y), enterLerp));
+                    Position.xz = lerp(_wormholeEntryPosition, _wormholePosition, enterLerp);
+                    Rotation = quaternion.LookRotation(
+                        lerp(forward, float3(0, -1, 0), enterLerp),
+                        lerp(normal, float3(-_wormholeEntryDirection.x, 0, -_wormholeEntryDirection.y), enterLerp));
                 }
                 else
                 {
-                    CultPositionXZ = _wormholePosition;
-                    Rotation = LookRotation(new cfloat3(0, -1, 0),
-                        new cfloat3(-_wormholeEntryDirection.x, 0, -_wormholeEntryDirection.y));
+                    Position.xz = _wormholePosition;
+                    Rotation = quaternion.LookRotation(float3(0, -1, 0), 
+                        float3(-_wormholeEntryDirection.x, 0, -_wormholeEntryDirection.y));
                 }
 
-                CultPositionY -= lerp(0, ItemManager.GameplaySettings.WormholeDepth, _wormholeAnimationProgress);
+                Position.y = Position.y - lerp(0, ItemManager.GameplaySettings.WormholeDepth, _wormholeAnimationProgress);
             }
             else
             {

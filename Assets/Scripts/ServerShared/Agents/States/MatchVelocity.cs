@@ -1,9 +1,10 @@
-using static CultMath.math;
-using cfloat2 = CultMath.float2;
+using Unity.Mathematics;
+using static Unity.Mathematics.math;
+using float2 = Unity.Mathematics.float2;
 
 public abstract class MatchVelocityState : BaseState
 {
-    protected abstract cfloat2 TargetVelocity { get; }
+    protected abstract float2 TargetVelocity { get; }
 
     protected MatchVelocityState(Agent agent) : base(agent) { }
 
@@ -12,12 +13,12 @@ public abstract class MatchVelocityState : BaseState
         _agent.Accelerate(TargetVelocity);
     }
     
-    public cfloat2 MatchDistanceTime
+    public float2 MatchDistanceTime
     {
         get
         {
-            var velocity = length(_agent.Ship.CultVelocity);
-            var deltaV = TargetVelocity - _agent.Ship.CultVelocity;
+            var velocity = length(_agent.Ship.Velocity);
+            var deltaV = TargetVelocity - _agent.Ship.Velocity;
             
             var stoppingTime = length(deltaV) / (_agent.Ship.ForwardThrust / _agent.Ship.Mass);
             var stoppingDistance = stoppingTime * (velocity / 2);
@@ -25,7 +26,7 @@ public abstract class MatchVelocityState : BaseState
             var turnaroundTime = _agent.Ship.TurnTime(deltaV);
             var turnaroundDistance = turnaroundTime * velocity;
             
-            return new cfloat2(stoppingDistance + turnaroundDistance, stoppingTime + turnaroundTime);
+            return float2(stoppingDistance + turnaroundDistance, stoppingTime + turnaroundTime);
         }
     }
 }

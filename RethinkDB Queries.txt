@@ -1,0 +1,33 @@
+Reset Galaxy
+r.db('Aetheria').table('Galaxy').filter({$type:'ZoneData'}).update({visited: false})
+r.db('Aetheria').table('Galaxy').filter({$type:'ZoneData'}).update({orbits: [ ]})
+r.db('Aetheria').table('Galaxy').filter({$type:'ZoneData'}).update({planets: [ ]})
+r.db('Aetheria').table('Galaxy').filter({$type:'OrbitData'}).delete()
+r.db('Aetheria').table('Galaxy').filter({$type:'PlanetData'}).delete()
+
+Find Unassigned Items
+r.db('Aetheria').table('Items').filter({mass:0}).pluck('$type','name')
+
+Find Unassigned Blueprints
+r.db('Aetheria').table('Items').filter({researchTime:0}).pluck('name')
+
+Find Unassigned Stats
+r.db('Aetheria').table('Items').filter({durabilityStat:{min:0}}).pluck('$type','name')
+
+Find Galaxy Sectors With Long Names
+r.db('Aetheria').table('Galaxy').filter({$type:'ZoneData'}).filter(function (zone) {
+    return zone("name").count().gt(8);
+})
+
+Find orphaned blueprints
+r.db('Aetheria').table('Items').filter({$type:'BlueprintData'}).filter({item:'00000000-0000-0000-0000-000000000000'})
+
+Update type name for all items with launcher, ballistic or energy hardpoint types
+r.db('Aetheria').table('Items').filter(
+    r.row("hardpointType").eq(9).or(r.row("hardpointType").eq(10)).or(r.row("hardpointType").eq(11))
+).update({$type:'WeaponItemData'})
+
+// Set required enum fields in weapons
+r.db('Aetheria').table('Items').filter({$type:"WeaponItemData"}).update({range:0, caliber:0, weaponType:0, fireTypes:0, modifiers:0})
+
+r.db('StreamPixels').table('Events').filter({id:"91cb76bb-41b6-4739-883b-5c6ad1fb1c78"}).update({viewers:18})

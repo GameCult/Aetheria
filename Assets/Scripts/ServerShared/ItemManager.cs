@@ -1,169 +1,57 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
+﻿/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using GameCult.Aetheria.State.Verse;
-using Random = CultMath.Random;
+using Unity.Mathematics;
+using static Unity.Mathematics.math;
+using float2 = Unity.Mathematics.float2;
+using Random = Unity.Mathematics.Random;
 using JM.LinqFaster;
 using UniRx;
+using float4 = Unity.Mathematics.float4;
 
 public class ItemManager
 {
     public Random Random = new Random((uint) (DateTime.Now.Ticks%uint.MaxValue));
-
+    // public Dictionary<string, GalaxyMapLayerData> MapLayers = new Dictionary<string, GalaxyMapLayerData>();
+    // public SimpleCommodityData[] Resources;
+    // public Dictionary<Guid, List<IController>> CorporationControllers = new Dictionary<Guid, List<IController>>();
+    // public Dictionary<Guid, ZoneDefinition> GalaxyZones;
+    
     private Action<string> _logger;
-    private readonly AetheriaRuntimeCatalogSnapshot _runtimeCatalog;
 
+    private double _time;
+    private float _deltaTime;
+    private Dictionary<Guid, Zone> _zones = new Dictionary<Guid, Zone>();
+
+    // private Guid _forceLoadZone;
+    
+    // public GlobalData GlobalData => _globalData ?? (_globalData = ItemData.GetAll<GlobalData>().FirstOrDefault());
+    public CultCache ItemData { get; }
     public GameplaySettings GameplaySettings { get; }
 
-    public ItemManager(AetheriaRuntimeCatalogSnapshot runtimeCatalog, GameplaySettings settings, Action<string> logger)
+    // public double Time
+    // {
+    //     get => _time;
+    //     set
+    //     {
+    //         _deltaTime = (float) (value - _time);
+    //         _time = value;
+    //         //Log($"GameContext delta time: {_deltaTime}");
+    //     }
+    // }
+
+    // private readonly Dictionary<CraftedItemData, int> Tier = new Dictionary<CraftedItemData, int>();
+
+    public ItemManager(CultCache itemData, GameplaySettings settings, Action<string> logger)
     {
-        _runtimeCatalog = runtimeCatalog ?? throw new ArgumentNullException(nameof(runtimeCatalog));
+        ItemData = itemData;
         GameplaySettings = settings;
         _logger = logger;
-    }
-
-    public AetheriaRuntimeCatalogItem GetRuntimeItem(ItemInstance item)
-    {
-        return _runtimeCatalog.FindItem(item, x => x.ItemKey);
-    }
-
-    public Behavior[] CreateRuntimeBehaviors(EquippedItem item)
-    {
-        return GetRuntimeItem(item?.EquippableItem)?.BehaviorPayloads
-            .Select(payload => CreateRuntimeBehavior(payload, item))
-            .Where(behavior => behavior != null)
-            .ToArray() ?? Array.Empty<Behavior>();
-    }
-
-    public Behavior[] CreateRuntimeBehaviors(ConsumableItemEffect effect)
-    {
-        return GetRuntimeItem(effect?.Item)?.BehaviorPayloads
-            .Select(payload => CreateRuntimeBehavior(payload, effect))
-            .Where(behavior => behavior != null)
-            .ToArray() ?? Array.Empty<Behavior>();
-    }
-
-    private static Behavior CreateRuntimeBehavior(AetheriaRuntimeBehaviorPayload payload, EquippedItem item)
-    {
-        return CreateDirectRuntimeBehavior(payload, item);
-    }
-
-    private static Behavior CreateRuntimeBehavior(AetheriaRuntimeBehaviorPayload payload, ConsumableItemEffect effect)
-    {
-        return CreateDirectRuntimeBehavior(payload, effect);
-    }
-
-    private static Behavior CreateDirectRuntimeBehavior(AetheriaRuntimeBehaviorPayload payload, EquippedItem item)
-    {
-        var definition = new RuntimeBehaviorDefinition(payload);
-        switch (payload.Kind)
-        {
-            case "Cockpit": return new Cockpit(definition, item);
-            case "AetherDrive": return new AetherDrive(definition, item);
-            case "AutoWeapon": return new AutoWeapon(definition, item);
-            case "Capacitor": return new Capacitor(definition, item);
-            case "ChargedWeapon": return new ChargedWeapon(definition, item);
-            case "Cooldown": return new Cooldown(definition, item);
-            case "ConstantWeapon": return new ConstantWeapon(definition, item);
-            case "EnergyDraw": return new EnergyDraw(definition, item);
-            case "GuidedWeapon": return new InstantWeapon(definition, item);
-            case "Heat": return new Heat(definition, item);
-            case "HeatStorage": return new HeatStorage(definition, item);
-            case "InstantWeapon": return new InstantWeapon(definition, item);
-            case "ItemUsage": return new ItemUsage(definition, item);
-            case "Launcher": return new LockWeapon(definition, item);
-            case "LockWeapon": return new LockWeapon(definition, item);
-            case "MiningTool": return new MiningTool(definition, item);
-            case "Radiator": return new Radiator(definition, item);
-            case "Reactor": return new Reactor(definition, item);
-            case "Reflector": return new Reflector(definition, item);
-            case "ResourceScanner": return new ResourceScanner(definition, item);
-            case "Sensor": return new Sensor(definition, item);
-            case "Shield": return new Shield(definition, item);
-            case "StatModifier": return new StatModifier(definition, item);
-            case "Switch": return new Switch(definition, item);
-            case "Thermotoggle": return new Thermotoggle(definition, item);
-            case "Thruster": return new Thruster(definition, item);
-            case "Trigger": return new Trigger(definition, item);
-            case "TurretController": return new TurretController(definition, item);
-            case "VelocityConversion": return new VelocityConversion(definition, item);
-            case "VelocityLimit": return new VelocityLimit(definition, item);
-            case "Visibility": return new Visibility(definition, item);
-            case "Wear": return new Wear(definition, item);
-            default: return null;
-        }
-    }
-
-    private static Behavior CreateDirectRuntimeBehavior(AetheriaRuntimeBehaviorPayload payload, ConsumableItemEffect effect)
-    {
-        var definition = new RuntimeBehaviorDefinition(payload);
-        switch (payload.Kind)
-        {
-            case "Cockpit": return new Cockpit(definition, effect);
-            case "AetherDrive": return new AetherDrive(definition, effect);
-            case "AutoWeapon": return new InstantWeapon(definition, effect);
-            case "Capacitor": return new Capacitor(definition, effect);
-            case "ChargedWeapon": return new ChargedWeapon(definition, effect);
-            case "Cooldown": return new Cooldown(definition, effect);
-            case "ConstantWeapon": return new ConstantWeapon(definition, effect);
-            case "EnergyDraw": return new EnergyDraw(definition, effect);
-            case "GuidedWeapon": return new InstantWeapon(definition, effect);
-            case "Heat": return new Heat(definition, effect);
-            case "HeatStorage": return new HeatStorage(definition, effect);
-            case "InstantWeapon": return new InstantWeapon(definition, effect);
-            case "ItemUsage": return new ItemUsage(definition, effect);
-            case "Launcher": return new LockWeapon(definition, effect);
-            case "LockWeapon": return new LockWeapon(definition, effect);
-            case "MiningTool": return new MiningTool(definition, effect);
-            case "Radiator": return new Radiator(definition, effect);
-            case "Reactor": return new Reactor(definition, effect);
-            case "Reflector": return new Reflector(definition, effect);
-            case "ResourceScanner": return new ResourceScanner(definition, effect);
-            case "Sensor": return new Sensor(definition, effect);
-            case "Shield": return new Shield(definition, effect);
-            case "StatModifier": return new StatModifier(definition, effect);
-            case "Switch": return new Switch(definition, effect);
-            case "Thermotoggle": return new Thermotoggle(definition, effect);
-            case "Thruster": return new Thruster(definition, effect);
-            case "Trigger": return new Trigger(definition, effect);
-            case "TurretController": return new TurretController(definition, effect);
-            case "VelocityConversion": return new VelocityConversion(definition, effect);
-            case "VelocityLimit": return new VelocityLimit(definition, effect);
-            case "Visibility": return new Visibility(definition, effect);
-            case "Wear": return new Wear(definition, effect);
-            default: return null;
-        }
-    }
-
-    public Shape GetRuntimeShape(ItemInstance item)
-    {
-        var typedItem = GetRuntimeItem(item);
-        return ToShape(typedItem?.ShapeWidth ?? 1, typedItem?.ShapeHeight ?? 1, typedItem?.ShapeCells);
-    }
-
-    private static Shape ToShape(int width, int height, IReadOnlyList<AetheriaRuntimeShapeCell> cells)
-    {
-        var shape = new Shape(Math.Max(width, 1), Math.Max(height, 1));
-        if (cells == null) return shape;
-
-        foreach (var cell in cells)
-            shape.SetCell(cell.X, cell.Y, true);
-
-        return shape;
-    }
-
-    public AetheriaRuntimeItemReference CreateReference(AetheriaRuntimeCatalogItem item)
-    {
-        return new AetheriaRuntimeItemReference(ToItemKey(item));
-    }
-
-    private static string ToItemKey(AetheriaRuntimeCatalogItem item)
-    {
-        return item?.ItemKey ?? "";
     }
 
     public void Log(string s)
@@ -171,34 +59,86 @@ public class ItemManager
         _logger(s);
     }
 
+    // public void Update()
+    // {
+    //     foreach(var zone in _zones.Values)
+    //         zone.Update((float) Time, _deltaTime);
+    //     
+    //     foreach (var corporation in Cache.GetAll<Corporation>())
+    //     {
+    //         foreach (var tasks in corporation.Tasks
+    //             .Select(id => Cache.Get<AgentTask>(id)) // Fetch the tasks from the database cache
+    //             .Where(task => !task.Reserved) // Filter out tasks that have already been reserved
+    //             .GroupBy(task => task.Type)) // Group tasks by type
+    //         {
+    //             // Create a list of available controllers for this task type
+    //             var availableControllers = CorporationControllers[corporation.ID]
+    //                 .Where(controller => controller.Available && controller.TaskType == tasks.Key).ToList();
+    //             
+    //             // Iterate over the highest priority tasks for which controllers are available
+    //             foreach (var task in tasks.OrderByDescending(task => task.Priority).Take(availableControllers.Count))
+    //             {
+    //                 // Find the nearest controller for this task
+    //                 IController nearestController = availableControllers[0];
+    //                 List<ZoneDefinition> nearestControllerPath = FindPath(GalaxyZones[availableControllers.First().Zone.Data.ID], GalaxyZones[task.Zone], true);
+    //                 foreach (var controller in availableControllers.Skip(1))
+    //                 {
+    //                     var path = FindPath(GalaxyZones[controller.Zone.Data.ID], GalaxyZones[task.Zone], true);
+    //                     if (path.Count < nearestControllerPath.Count)
+    //                     {
+    //                         nearestControllerPath = path;
+    //                         nearestController = controller;
+    //                     }
+    //                 }
+    //                 task.Reserved = true;
+    //                 nearestController.AssignTask(task.ID);
+    //             }
+    //         }
+    //     }
+    //     
+    // }
+
+    // public int ItemTier(CraftedItemData itemData)
+    // {
+    //     if (Tier.ContainsKey(itemData)) return Tier[itemData];
+    //
+    //     Tier[itemData] = itemData.Ingredients.Keys.Max(ci => _cache.Get<ItemData>(ci) is CraftedItemData craftableIngredient ? ItemTier(craftableIngredient) : 0);
+		  //
+    //     return Tier[itemData];
+    // }
+
+    public SimpleCommodityData GetData(SimpleCommodity item)
+    {
+        return item.Data.Value as SimpleCommodityData;
+    }
+
+    public CraftedItemData GetData(CraftedItemInstance item)
+    {
+        return item.Data.Value as CraftedItemData;
+    }
+
+    public EquippableItemData GetData(EquippableItem item)
+    {
+        return item.Data.Value as EquippableItemData;
+    }
+
     public float GetMass(ItemInstance item)
     {
-        var typedItem = GetRuntimeItem(item);
-        if (typedItem == null)
-        {
-            return 0;
-        }
-
         return item switch
         {
-            CraftedItemInstance _ => (float)typedItem.Mass,
-            SimpleCommodity commodity => (float)typedItem.Mass * commodity.Quantity,
+            CraftedItemInstance _ => item.Data.Value.Mass,
+            SimpleCommodity commodity => item.Data.Value.Mass * commodity.Quantity,
             _ => 0
         };
     }
 
     public float GetThermalMass(ItemInstance item)
     {
-        var typedItem = GetRuntimeItem(item);
-        if (typedItem == null)
-        {
-            return 0;
-        }
-
+        var data = item.Data.Value;
         return item switch
         {
-            CraftedItemInstance _ => (float)(typedItem.Mass * typedItem.SpecificHeat),
-            SimpleCommodity commodity => (float)(typedItem.Mass * typedItem.SpecificHeat * commodity.Quantity),
+            CraftedItemInstance _ => data.Mass * data.SpecificHeat,
+            SimpleCommodity commodity => data.Mass * data.SpecificHeat * commodity.Quantity,
             _ => 0
         };
     }
@@ -206,151 +146,87 @@ public class ItemManager
     // Returns stat when not equipped
     public float Evaluate(PerformanceStat stat, EquippableItem item)
     {
-        var typedItem = GetRuntimeItem(item);
-        var maxDurability = (float)(typedItem?.Durability ?? 0);
-        if (maxDurability <= 0)
-        {
-            maxDurability = Math.Max(item.Durability, 1f);
-        }
-
-        var durabilityRatio = item.Durability / maxDurability;
-        var durabilityExponent = Lerp(
+        var data = GetData(item);
+        var quality = pow(item.Quality, stat.QualityExponent);
+        var durabilityExponent = lerp(
             GameplaySettings.DurabilityQualityMin,
             GameplaySettings.DurabilityQualityMax,
-            MathF.Pow(item.Quality, GameplaySettings.DurabilityQualityExponent));
-        var result = stat.EvaluateRecipeOrLegacy(
-            new StatEvaluationContext(
-                quality: item.Quality,
-                durability: durabilityRatio,
-                heat: 1),
-            durabilityExponent,
-            thermalExponent: 0,
-            includeHeat: false);
+            pow(item.Quality, GameplaySettings.DurabilityQualityExponent));
+        var durability = pow(item.Durability / data.Durability, durabilityExponent * stat.DurabilityExponentMultiplier);
+        var result = lerp(stat.Min, stat.Max, quality * durability);
         if (float.IsNaN(result)) 
-            throw new InvalidOperationException($"Performance Stat on {typedItem?.Name ?? item.ItemKey} evaluating as NaN: input data is invalid! Durability: {item.Durability} / {maxDurability}");
+            throw new InvalidOperationException($"Performance Stat on {data.Name} evaluating as NaN: input data is invalid! Durability: {item.Durability} / {data.Durability}");
         return result;
 
     }
 
-    private static float Lerp(float from, float to, float t)
-    {
-        return from + (to - from) * t;
-    }
-
     public int GetPrice(CraftedItemInstance item)
     {
-        var typedItem = GetRuntimeItem(item);
-        return typedItem == null
-            ? 0
-            : (int) (GameplaySettings.QualityPriceModifier.Evaluate(item.Quality) * typedItem.Price);
+        var data = GetData(item);
+        return (int) (GameplaySettings.QualityPriceModifier.Evaluate(item.Quality) * data.Price);
     }
 
-    public int GetPrice(ItemInstance item)
+    public SimpleCommodity CreateInstance(SimpleCommodityData item, int count)
     {
-        var typedItem = GetRuntimeItem(item);
-        if (typedItem == null)
+        if (item != null)
         {
-            return 0;
-        }
-
-        return item switch
-        {
-            CraftedItemInstance crafted => (int)(GameplaySettings.QualityPriceModifier.Evaluate(crafted.Quality) * typedItem.Price),
-            SimpleCommodity commodity => typedItem.Price * commodity.Quantity,
-            _ => typedItem.Price
-        };
-    }
-
-    public SimpleCommodity CreateSimpleCommodityInstance(AetheriaRuntimeCatalogItem item, int count)
-    {
-        if (!string.IsNullOrWhiteSpace(item?.ItemKey))
-        {
-            return new SimpleCommodity
+            var newItem = new SimpleCommodity
             {
-                Reference = CreateReference(item),
+                Data = new DatabaseLink<ItemData>{LinkID = item.ID},
                 Quantity = count
             };
+            //ItemData.Add(newItem);
+            return newItem;
         }
-
-        _logger("Attempted to create simple commodity instance using missing typed item data");
+        
+        _logger("Attempted to create Simple Commodity instance using missing or incorrect item id");
         return null;
     }
 
     public ItemInstance Instantiate(ItemInstance item)
     {
-        var typedItem = GetRuntimeItem(item);
-        if (typedItem == null)
+        var data = item.Data.Value;
+        if(data is CraftedItemData c)
         {
-            _logger($"Attempted to instantiate missing item key {item?.ItemKey}");
-            return null;
+            var i = CreateInstance(c);
+            i.Rotation = item.Rotation;
+            return i;
         }
-
-        ItemInstance instance = item switch
+        if (item is SimpleCommodity s)
         {
-            SimpleCommodity simple => CreateSimpleCommodityInstance(typedItem, simple.Quantity),
-            CraftedItemInstance => CreateCraftedInstance(typedItem),
-            _ => null
-        };
-
-        if (instance != null)
-            instance.Rotation = item.Rotation;
-
-        return instance;
+            var i = CreateInstance(data as SimpleCommodityData, s.Quantity);
+            i.Rotation = item.Rotation;
+            return i;
+        }
+        return null;
     }
 
-    public CraftedItemInstance CreateCraftedInstance(AetheriaRuntimeCatalogItem item, float quality)
+    public CraftedItemInstance CreateInstance(CraftedItemData item, float quality)
     {
-        if (IsEquippable(item))
-            return CreateEquippableInstance(item, quality);
-
-        if (string.IsNullOrWhiteSpace(item?.ItemKey))
+        if (item is EquippableItemData equippableItemData)
         {
-            throw new NullReferenceException("Attempted to create crafted item instance using missing typed item data!");
-        }
-
-        if (string.Equals(item.Category, AetheriaRuntimeItemCategories.Consumable, StringComparison.Ordinal))
-        {
-            return new ConsumableItem
+            return new EquippableItem
             {
-                Reference = CreateReference(item),
-                Quality = quality
+                Data = new DatabaseLink<ItemData> {LinkID = item.ID}, Quality = quality, Durability = equippableItemData.Durability
             };
         }
 
-        return new CompoundCommodity
+        var newCommodity = new CompoundCommodity
         {
-            Reference = CreateReference(item),
+            Data = new DatabaseLink<ItemData>{LinkID = item.ID},
             Quality = quality
         };
+        return newCommodity;
     }
-
-    public CraftedItemInstance CreateCraftedInstance(AetheriaRuntimeCatalogItem item)
+    
+    public CraftedItemInstance CreateInstance(CraftedItemData item)
     {
-        return CreateCraftedInstance(item, SelectCraftedQuality());
-    }
-
-    public EquippableItem CreateEquippableInstance(AetheriaRuntimeCatalogItem item, float quality)
-    {
-        if (string.IsNullOrWhiteSpace(item?.ItemKey))
+        if (item == null)
         {
-            throw new NullReferenceException("Attempted to create equippable item instance using missing typed item data!");
+            throw new NullReferenceException("Attempted to create crafted item instance using missing or incorrect item data!");
+            return null;
         }
 
-        return new EquippableItem
-        {
-            Reference = CreateReference(item),
-            Quality = quality,
-            Durability = item.Durability > 0 ? (float)item.Durability : 1f
-        };
-    }
-
-    public EquippableItem CreateEquippableInstance(AetheriaRuntimeCatalogItem item)
-    {
-        return CreateEquippableInstance(item, SelectCraftedQuality());
-    }
-
-    private float SelectCraftedQuality()
-    {
         var quality = Random.NextFloat();
         var tier = GameplaySettings.Tiers[0];
         foreach (var t in GameplaySettings.Tiers)
@@ -359,13 +235,7 @@ public class ItemManager
                 tier = t;
         }
 
-        return tier.Quality;
-    }
-
-    private static bool IsEquippable(AetheriaRuntimeCatalogItem item)
-    {
-        return !string.IsNullOrWhiteSpace(item?.HardpointType) ||
-               string.Equals(item?.Category, AetheriaRuntimeItemCategories.Hull, StringComparison.Ordinal);
+        return CreateInstance(item, tier.Quality);
     }
 
     public (RarityTier tier, int upgrades) GetTier(CraftedItemInstance item)

@@ -1,0 +1,22 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="12.0.3" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <Version>0.2.0</Version>
+    <Authors>Dmitry Kaznacheev</Authors>
+    <PackageProjectUrl>https://github.com/dmitry-bym/JsonKnownTypes</PackageProjectUrl>
+    <PackageLicenseUrl>https://github.com/dmitry-bym/JsonKnownTypes/blob/master/LICENSE</PackageLicenseUrl>
+    <Copyright>Dmitry Kaznacheev</Copyright>
+    <RepositoryUrl>https://github.com/dmitry-bym/JsonKnownTypes</RepositoryUrl>
+    <PackageTags>json known polymorphic types</PackageTags>
+  </PropertyGroup>
+
+</Project>

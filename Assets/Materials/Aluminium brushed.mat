@@ -9,7 +9,7 @@ Material:
   m_PrefabAsset: {fileID: 0}
   m_Name: Aluminium brushed
   m_Shader: {fileID: 4800000, guid: ddff0b48b92c991499817d2a0f5d5059, type: 3}
-  m_ShaderKeywords: _MAINTEX _METALLICGLOSSMAP _NORMALMAP
+  m_ShaderKeywords: _MAINTEX _METALLICGLOSSMAP _NORMALMAP _OCCLUSIONMAP _PARALLAXMAP
   m_LightmapFlags: 4
   m_EnableInstancingVariants: 0
   m_DoubleSidedGI: 0
@@ -20,7 +20,8 @@ Material:
     serializedVersion: 3
     m_TexEnvs:
     - _BumpMap:
-        m_Texture: {fileID: 2800000, guid: 8b981e6a4aa120b4a8fed57c334163eb, type: 3}
+        m_Texture: {fileID: 4730978449518085612, guid: 06d6a565d43fba5409712ce9a10bfbef,
+          type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _DetailAlbedoMap:
@@ -44,19 +45,23 @@ Material:
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _MainTex:
-        m_Texture: {fileID: 2800000, guid: 30b999db5c2a78a4ab18c8a83b4e2d83, type: 3}
+        m_Texture: {fileID: 7556082237344091230, guid: 06d6a565d43fba5409712ce9a10bfbef,
+          type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _MetallicGlossMap:
-        m_Texture: {fileID: 2800000, guid: 4f61d8871a560e04b9aa59ed0490e7f7, type: 3}
+        m_Texture: {fileID: 6373266012617290493, guid: 06d6a565d43fba5409712ce9a10bfbef,
+          type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _OcclusionMap:
-        m_Texture: {fileID: 0}
+        m_Texture: {fileID: 342959783478273704, guid: 06d6a565d43fba5409712ce9a10bfbef,
+          type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _ParallaxMap:
-        m_Texture: {fileID: 0}
+        m_Texture: {fileID: -9132138291289375396, guid: 06d6a565d43fba5409712ce9a10bfbef,
+          type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     m_Floats:
@@ -67,8 +72,8 @@ Material:
     - _Fade: 0
     - _FadeEdge: 0.05
     - _FadeSharpness: 16
-    - _GlossMapScale: 0.65
-    - _Glossiness: 0.65
+    - _GlossMapScale: 1
+    - _Glossiness: 1
     - _GlossyReflections: 1
     - _Metallic: 1
     - _Mode: 0

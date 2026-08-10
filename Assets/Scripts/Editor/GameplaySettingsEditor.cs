@@ -3,6 +3,8 @@ using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using MessagePack;
+using MessagePack.Formatters;
 using UnityEditor;
 using UnityEngine;
 
@@ -16,6 +18,8 @@ public class GameSettingsEditor : Editor
     private bool _showWeaponCaliberIcons;
     private bool _showWeaponRangeIcons;
     private bool _showProperties;
+    private bool _showDatabase;
+
 //    private ScriptableItem _prefab;
     
     public override void OnInspectorGUI()

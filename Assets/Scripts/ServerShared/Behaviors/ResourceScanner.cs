@@ -1,85 +1,105 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
+﻿/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
 using System;
-using static CultMath.math;
+using System.Linq;
+using MessagePack;
+using Newtonsoft.Json;
+using Unity.Mathematics;
+using static Unity.Mathematics.math;
+
+[Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn), RuntimeInspectable]
+public class ResourceScannerData : BehaviorData
+{
+    [Inspectable, JsonProperty("range"), Key(1), RuntimeInspectable]
+    public PerformanceStat Range = new PerformanceStat();
+    
+    [Inspectable, JsonProperty("minDensity"), Key(2), RuntimeInspectable]
+    public PerformanceStat MinimumDensity = new PerformanceStat();
+    
+    [Inspectable, JsonProperty("scanDuration"), Key(3), RuntimeInspectable]
+    public PerformanceStat ScanDuration = new PerformanceStat();
+    
+    public override Behavior CreateInstance(EquippedItem item)
+    {
+        return new ResourceScanner(this, item);
+    }
+    
+    public override Behavior CreateInstance(ConsumableItemEffect item)
+    {
+        return new ResourceScanner(this, item);
+    }
+}
 
 public class ResourceScanner : Behavior, IAlwaysUpdatedBehavior
 {
     public int Asteroid = -1;
-
-    private readonly PerformanceStat _range;
-    private readonly PerformanceStat _minimumDensity;
-    private readonly PerformanceStat _scanDuration;
+    
+    private ResourceScannerData _data;
     private float _scanTime;
-    private string _scanTargetBodyKey = "";
+    private Guid _scanTarget;
 
     public float Range { get; private set; }
     public float MinimumDensity { get; private set; }
     public float ScanDuration { get; private set; }
-    public float ScanTime => _scanTime;
 
-    public string ScanTargetBodyKey
+    public Guid ScanTarget
     {
-        get => _scanTargetBodyKey;
+        get => _scanTarget;
         set
         {
-            value ??= "";
-            if (!string.Equals(value, _scanTargetBodyKey, StringComparison.Ordinal))
+            if (value != _scanTarget)
             {
-                _scanTargetBodyKey = value;
+                _scanTarget = value;
                 _scanTime = 0;
             }
         }
     }
 
-    public ResourceScanner(RuntimeBehaviorDefinition definition, EquippedItem item) : base(definition, item)
+    public ResourceScanner(ResourceScannerData data, EquippedItem item) : base(data, item)
     {
-        _range = definition.PerformanceStat(1, new PerformanceStat());
-        _minimumDensity = definition.PerformanceStat(2, new PerformanceStat());
-        _scanDuration = definition.PerformanceStat(3, new PerformanceStat());
-        RegisterPerformanceStat(nameof(Range), _range);
-        RegisterPerformanceStat(nameof(MinimumDensity), _minimumDensity);
-        RegisterPerformanceStat(nameof(ScanDuration), _scanDuration);
+        _data = data;
     }
 
-    public ResourceScanner(RuntimeBehaviorDefinition definition, ConsumableItemEffect item) : base(definition, item)
+    public ResourceScanner(ResourceScannerData data, ConsumableItemEffect item) : base(data, item)
     {
-        _range = definition.PerformanceStat(1, new PerformanceStat());
-        _minimumDensity = definition.PerformanceStat(2, new PerformanceStat());
-        _scanDuration = definition.PerformanceStat(3, new PerformanceStat());
-        RegisterPerformanceStat(nameof(Range), _range);
-        RegisterPerformanceStat(nameof(MinimumDensity), _minimumDensity);
-        RegisterPerformanceStat(nameof(ScanDuration), _scanDuration);
+        _data = data;
     }
 
     public override bool Execute(float dt)
     {
-        if (Entity.Zone.TryGetAsteroidBelt(ScanTargetBodyKey, out var belt))
+        var planetData = Entity.Zone.Planets[ScanTarget];
+        if (planetData != null)
         {
-            if (Entity.Zone.TryGetCultAsteroidTransform(ScanTargetBodyKey, Asteroid, out var asteroidPosition, out _) &&
-               length(Entity.CultPositionXZ - asteroidPosition) < Range)
+            if (planetData is AsteroidBeltData beltData)
             {
-                _scanTime += dt;
-                if (_scanTime > ScanDuration)
+                if(Asteroid > -1 &&
+                   Asteroid < beltData.Asteroids.Length &&
+                   length(Entity.Position.xz - Entity.Zone.AsteroidBelts[ScanTarget].Transforms[Asteroid].xy) < Range)
                 {
-                    // TODO: Implement Scanning!
-                    _scanTime = 0;
+                    _scanTime += dt;
+                    if (_scanTime > ScanDuration)
+                    {
+                        // TODO: Implement Scanning!
+                        //Context.ItemData.Get<Corporation>(Entity.Corporation).PlanetSurveyFloor[ScanTarget] = MinimumDensity;
+                        _scanTime = 0;
+                    }
+                    return true;
                 }
-                return true;
             }
-        }
-        else if (Entity.Zone.TryGetPlanet(ScanTargetBodyKey, out var planet))
-        {
-            if(length(Entity.CultPositionXZ - AetheriaMath.ToCult(Entity.Zone.GetOrbitPosition(planet.OrbitKey))) < Range)
+            else
             {
-                _scanTime += dt;
-                if (_scanTime > ScanDuration)
+                if(length(Entity.Position.xz - Entity.Zone.GetOrbitPosition(planetData.Orbit)) < Range)
                 {
-                    _scanTime = 0;
+                    _scanTime += dt;
+                    if (_scanTime > ScanDuration)
+                    {
+                        //Context.ItemData.Get<Corporation>(Entity.Corporation).PlanetSurveyFloor[ScanTarget] = MinimumDensity;
+                        _scanTime = 0;
+                    }
+                    return true;
                 }
-                return true;
             }
         }
         return false;
@@ -87,24 +107,8 @@ public class ResourceScanner : Behavior, IAlwaysUpdatedBehavior
 
     public void Update(float delta)
     {
-        Range = Evaluate(_range);
-        MinimumDensity = Evaluate(_minimumDensity);
-        ScanDuration = Evaluate(_scanDuration);
-    }
-
-    public void RestoreRuntimeState(
-        string scanTargetBodyKey,
-        int asteroid,
-        float scanTime,
-        float range,
-        float minimumDensity,
-        float scanDuration)
-    {
-        _scanTargetBodyKey = scanTargetBodyKey ?? "";
-        Asteroid = asteroid;
-        _scanTime = scanTime;
-        Range = range;
-        MinimumDensity = minimumDensity;
-        ScanDuration = scanDuration;
+        Range = Evaluate(_data.Range);
+        MinimumDensity = Evaluate(_data.MinimumDensity);
+        ScanDuration = Evaluate(_data.ScanDuration);
     }
 }

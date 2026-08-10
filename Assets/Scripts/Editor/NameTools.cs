@@ -1,196 +1,115 @@
+using System.Buffers.Text;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
+using MessagePack;
 using Unity.Mathematics;
-using UnityEditor;
-using UnityEditor.UIElements;
 using UnityEngine;
-using UnityEngine.UIElements;
-using Random = CultMath.Random;
+using UnityEditor;
+using Random = Unity.Mathematics.Random;
 
 public class NameTools : EditorWindow
 {
+    public TextAsset[] NameFiles;
     public int NameGeneratorMinLength = 5;
     public int NameGeneratorMaxLength = 10;
     public int NameGeneratorOrder = 4;
-
-    private int _minWordLength = 4;
-    private TextAsset _nameFile;
+    private int minWordLength = 4;
+    private TextAsset nameFile;
     private MarkovNameGenerator _nameGenerator;
     private bool _stripNumberTokens;
-    private Button _generateNameButton;
-    private Label _statusLabel;
 
+
+    // Add menu named "My Window" to the Window menu
     [MenuItem("Window/Aetheria/Name Tools")]
-    private static void Init()
+    static void Init()
     {
-        var window = GetWindow<NameTools>();
-        window.titleContent = new GUIContent("Name Tools");
+        // Get existing open window or if none, make a new one:
+        NameTools window = (NameTools)EditorWindow.GetWindow(typeof(NameTools));
         window.Show();
     }
-
-    private void CreateGUI()
+    
+    bool HasNonASCIIChars(string str)
     {
-        var root = rootVisualElement;
-        root.Clear();
-        root.style.paddingLeft = 12;
-        root.style.paddingRight = 12;
-        root.style.paddingTop = 12;
-        root.style.paddingBottom = 12;
-        root.style.flexDirection = FlexDirection.Column;
-
-        var nameFileField = new ObjectField("Name File")
-        {
-            objectType = typeof(TextAsset),
-            allowSceneObjects = false,
-            value = _nameFile
-        };
-        nameFileField.RegisterValueChangedCallback(evt => _nameFile = evt.newValue as TextAsset);
-        root.Add(nameFileField);
-
-        root.Add(CreateIntegerField("Minimum File Word Length", _minWordLength, value => _minWordLength = value));
-        root.Add(CreateIntegerField("Generated Minimum Word Length", NameGeneratorMinLength, value => NameGeneratorMinLength = value));
-        root.Add(CreateIntegerField("Generated Maximum Word Length", NameGeneratorMaxLength, value => NameGeneratorMaxLength = value));
-        root.Add(CreateIntegerField("Generator Order", NameGeneratorOrder, value => NameGeneratorOrder = value));
-
-        var stripNumbersField = new Toggle("Strip Number Tokens")
-        {
-            value = _stripNumberTokens
-        };
-        stripNumbersField.RegisterValueChangedCallback(evt => _stripNumberTokens = evt.newValue);
-        root.Add(stripNumbersField);
-
-        var cleanButton = new Button(CleanNameFile)
-        {
-            text = "Clean Name File"
-        };
-        root.Add(cleanButton);
-
-        var processButton = new Button(ProcessNameFile)
-        {
-            text = "Process Name File"
-        };
-        root.Add(processButton);
-
-        _generateNameButton = new Button(GenerateName)
-        {
-            text = "Generate Name"
-        };
-        root.Add(_generateNameButton);
-
-        _statusLabel = new Label();
-        _statusLabel.style.unityFontStyleAndWeight = FontStyle.Italic;
-        _statusLabel.style.marginTop = 8;
-        root.Add(_statusLabel);
-
-        RefreshUiState();
+        return (System.Text.Encoding.UTF8.GetByteCount(str) != str.Length);
     }
 
-    private IntegerField CreateIntegerField(string label, int value, System.Action<int> onChanged)
+    void OnGUI()
     {
-        var field = new IntegerField(label)
-        {
-            value = value
-        };
-        field.RegisterValueChangedCallback(evt => onChanged(evt.newValue));
-        return field;
-    }
+        ScriptableObject target = this;
+        SerializedObject so = new SerializedObject(target);
+        SerializedProperty stringsProperty = so.FindProperty("NameFiles");
 
-    private void CleanNameFile()
-    {
-        if (_nameFile == null)
-        {
-            SetStatus("Pick a name file first.");
-            return;
-        }
+        EditorGUILayout.PropertyField(stringsProperty, true); // True means show children
+        so.ApplyModifiedProperties(); // Remember to apply modified properties
 
-        var lines = _nameFile.text.Split('\n');
-        var outputPath = Path.Combine(Application.dataPath, _nameFile.name + ".csv");
-        using var outputFile = new StreamWriter(outputPath);
-        var names = new HashSet<string>();
-        foreach (var line in lines)
+        if (GUILayout.Button("Save Name Files"))
         {
-            var tokens = line.Split(',', ' ');
-            foreach (var token in tokens)
+            RegisterResolver.Register();
+            var nameFilesDirectory = ActionGameManager.GameDataDirectory.CreateSubdirectory("NameFile");
+            foreach (var nameFile in NameFiles)
             {
-                if (HasNonAsciiChars(token))
-                    continue;
+                var entry = new NameFile
+                {
+                    Name = nameFile.name, 
+                    Names = nameFile.text.Split('\n')
+                };
+                File.WriteAllBytes(Path.Combine(nameFilesDirectory.FullName, $"{entry.ID.ToString()}.msgpack"), MessagePackSerializer.Serialize((DatabaseEntry) entry));
+            }
+        }
+        
+        nameFile = (TextAsset) EditorGUILayout.ObjectField("Name File", nameFile, typeof(TextAsset), false);
+        minWordLength = EditorGUILayout.IntField("Minimum File Word Length", minWordLength);
+        NameGeneratorMinLength = EditorGUILayout.IntField("Generated Minimum Word Length", NameGeneratorMinLength);
+        NameGeneratorMaxLength = EditorGUILayout.IntField("Generated Maximum Word Length", NameGeneratorMaxLength);
+        NameGeneratorOrder = EditorGUILayout.IntField("Generator Order", NameGeneratorOrder);
+        _stripNumberTokens = GUILayout.Toggle(_stripNumberTokens, "Strip Number Tokens");
 
-                var cleaned = new string(token
-                    .Where(ch => char.IsLetter(ch) || ch == '-' || ch == '`' || ch == '\'')
-                    .ToArray())
-                    .Trim()
-                    .Trim('`', '-');
-
-                if (_stripNumberTokens && cleaned.Any(char.IsDigit))
-                    continue;
-
-                if (cleaned.Length < _minWordLength || !names.Add(cleaned))
-                    continue;
-
-                outputFile.WriteLine(cleaned);
+        if (GUILayout.Button("Clean Name File"))
+        {
+            var lines = nameFile.text.Split('\n');
+            using StreamWriter outputFile = new StreamWriter(Path.Combine(Application.dataPath, nameFile.name + ".csv"));
+            var names = new HashSet<string>();
+            foreach (var line in lines)
+            {
+                var tokens = line.Split(',', ' ');
+                foreach (var t in tokens)
+                {
+                    if (!HasNonASCIIChars(t))
+                    {
+                        var s = new string(t.Where(c => char.IsLetter(c) || c == '-' || c == '`' || c == '\'').ToArray()).Trim().Trim('`','-');
+                        if(s.Length >= minWordLength && !names.Contains(s))
+                        {
+                            names.Add(s);
+                            outputFile.WriteLine(s);
+                        }
+                    }
+                }
             }
         }
 
-        AssetDatabase.Refresh();
-        SetStatus($"Wrote {names.Count} cleaned names to {Path.GetFileName(outputPath)}.");
-    }
-
-    private void ProcessNameFile()
-    {
-        if (_nameFile == null)
+        if (GUILayout.Button("Process Name File") && nameFile != null)
         {
-            SetStatus("Pick a name file first.");
-            return;
+            var names = new HashSet<string>();
+            var lines = nameFile.text.Split('\n');
+            foreach (var line in lines)
+            {
+                foreach(var word in line.ToUpperInvariant().Split(' ', ',', '.', '"'))
+                    if (word.Length >= minWordLength && !names.Contains(word))
+                        names.Add(word);
+            }
+            Debug.Log($"Found {lines.Length} lines, with {names.Count} unique names!");
+            var random = new Random(1337);
+            _nameGenerator = new MarkovNameGenerator(ref random, names, NameGeneratorOrder, NameGeneratorMinLength, NameGeneratorMaxLength);
         }
 
-        var names = new HashSet<string>();
-        var lines = _nameFile.text.Split('\n');
-        foreach (var line in lines)
+        if (_nameGenerator != null)
         {
-            foreach (var word in line.ToUpperInvariant().Split(' ', ',', '.', '"'))
+            if (GUILayout.Button("Generate Name"))
             {
-                if (_stripNumberTokens && word.Any(char.IsDigit))
-                    continue;
-
-                if (word.Length >= _minWordLength)
-                    names.Add(word);
+                Debug.Log(_nameGenerator.NextName);
             }
         }
-
-        Debug.Log($"Found {lines.Length} lines, with {names.Count} unique names!");
-        var random = new Random(1337);
-        _nameGenerator = new MarkovNameGenerator(ref random, names, NameGeneratorOrder, NameGeneratorMinLength, NameGeneratorMaxLength);
-        SetStatus($"Processed {names.Count} unique names.");
-        RefreshUiState();
-    }
-
-    private void GenerateName()
-    {
-        if (_nameGenerator == null)
-        {
-            SetStatus("Process a name file before generating names.");
-            return;
-        }
-
-        var generatedName = _nameGenerator.NextName;
-        Debug.Log(generatedName);
-        SetStatus($"Generated: {generatedName}");
-    }
-
-    private void RefreshUiState()
-    {
-        _generateNameButton?.SetEnabled(_nameGenerator != null);
-    }
-
-    private void SetStatus(string message)
-    {
-        if (_statusLabel != null)
-            _statusLabel.text = message ?? "";
-    }
-
-    private static bool HasNonAsciiChars(string value)
-    {
-        return System.Text.Encoding.UTF8.GetByteCount(value ?? "") != (value ?? "").Length;
     }
 }
