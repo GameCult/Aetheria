@@ -118,11 +118,19 @@ What Aetheria authors now is the same shape, one dimension wide:
   `Derivation { output, from_role, from_dimension }` with the dimension
   pinned to quality, and it fixes the legacy model's mistake of naming an
   ingredient item rather than a role.
-- A crafted instance records the part filling each role, with continuous
-  quality. Parts are invisible to players until crafting exists.
-- A faction's competence per role is its tech level: one number per role, not
-  an item per faction. Manufacturer variation emerges from the parts, so no
-  duplicate item entries are authored to create variety.
+- A **faction product** is a manufacturer's branded build of a design: its
+  name, its flavor text, and a pseudo-gaussian quality distribution per role,
+  whose mean is the technology they put in and whose deviation is their
+  quality control. Which products exist is what a faction makes, so
+  availability, market segmentation, and regional progression are authored
+  there rather than as duplicate item entries.
+- A market segment is a second product with a role's mean raised; what makes
+  that part better is the flavor text's to tell, because a part here carries
+  quality and nothing else. Nuanced trade-offs wait for Njordr's dimensions.
+- A crafted instance records the rolled quality per role, continuous. No part
+  entry exists yet: the role's quality is authored by the product directly,
+  and a part earns a record when crafting needs one.
+- Flavor text on products is most of the lore this release delivers.
 - Tier, color, and price stay projections of quality.
 
 Migration to Njörðr widens quality into dimensions and turns designs into

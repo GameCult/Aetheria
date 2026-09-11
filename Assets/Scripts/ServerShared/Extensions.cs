@@ -117,6 +117,15 @@ public static class Extensions
     // public static T RandomElement<T>(this IEnumerable<T> enumerable) => enumerable.ElementAt(Random.NextInt(0, enumerable.Count()));
     public static float NextPowerDistribution(this ref Random random, float min, float max, float exp, float randexp) =>
         pow((pow(max, exp + 1) - pow(min, exp + 1)) * pow(random.NextFloat(), randexp) + pow(min, exp + 1), 1 / (exp + 1));
+    // Box-Muller: two uniforms become a normal deviate. Used for part quality, where a manufacturer's mean is
+    // its technology in a role and its deviation is quality control. Callers clamp to their own valid range.
+    public static float NextGaussian(this ref Random random, float mean, float deviation)
+    {
+        var u1 = max(random.NextFloat(), 1e-6f);
+        var u2 = random.NextFloat();
+        return mean + deviation * sqrt(-2 * log(u1)) * cos(2 * PI * u2);
+    }
+
     public static float NextUnbounded(this ref Random random) => 1 / (1 - random.NextFloat()) - 1;
     public static float NextUnbounded(this ref Random random, float bias, float power, float ceiling) => 1 / (1 - pow(min(random.NextFloat(), ceiling), 1 - pow(clamp(bias,0,.99f), 1 / power))) - 1;
 

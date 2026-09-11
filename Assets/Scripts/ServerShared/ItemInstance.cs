@@ -1,4 +1,4 @@
-﻿/* This Source Code Form is subject to the terms of the Mozilla Public
+/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
@@ -15,11 +15,11 @@ using Newtonsoft.Json;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
-[Union(0, typeof(SimpleCommodity)), 
- Union(1, typeof(CompoundCommodity)), 
+[Union(0, typeof(SimpleCommodity)),
+ Union(1, typeof(CompoundCommodity)),
  Union(2, typeof(EquippableItem)),
  Union(3, typeof(ConsumableItem)),
- JsonObject(MemberSerialization.OptIn), 
+ JsonObject(MemberSerialization.OptIn),
  JsonConverter(typeof(JsonKnownTypesConverter<ItemInstance>))]
 public abstract class ItemInstance
 {
@@ -27,22 +27,40 @@ public abstract class ItemInstance
     [JsonProperty("rotation"), Key(1)] public ItemRotation Rotation;
 }
 
-[Union(0, typeof(CompoundCommodity)), 
- Union(1, typeof(EquippableItem)), 
- Union(2, typeof(ConsumableItem)), 
+[Union(0, typeof(CompoundCommodity)),
+ Union(1, typeof(EquippableItem)),
+ Union(2, typeof(ConsumableItem)),
  JsonObject(MemberSerialization.OptIn),
  JsonConverter(typeof(JsonKnownTypesConverter<CraftedItemInstance>))]
 public abstract class CraftedItemInstance : ItemInstance
 {
+    // The workmanship of this particular unit, as distinct from the parts that went into it.
     [JsonProperty("quality"), Key(2)]  public float Quality;
 
-    //[JsonProperty("ingredients"), Key(3)]  public List<ItemInstance> Ingredients = new List<ItemInstance>();
-    
-    //[JsonProperty("blueprint"), Key(4)]  public Guid Blueprint;
-    
-    //[JsonProperty("name"), Key(3)]  public string Name;
-    
-    //[JsonProperty("sourceEntity"), Key(4)]  public Guid SourceEntity;
+    // The part filling each of the design's roles, one level deep. Empty on items made before roles existed,
+    // and on parts themselves; stats then read Quality as they always did.
+    [JsonProperty("ingredients"), Key(3)]  public List<RoleFill> Ingredients = new List<RoleFill>();
+
+    // The manufacturer's branded product this was built as, naming it and carrying its flavor text.
+    [JsonProperty("product"), Key(4)]  public Guid Product;
+
+    // The quality a stat reads for one of the design's roles. An unnamed role, a design without roles, and an
+    // item built before roles existed all fall back to this item's own workmanship.
+    public float QualityForRole(string role)
+    {
+        if (string.IsNullOrEmpty(role) || Ingredients == null) return Quality;
+        foreach (var fill in Ingredients)
+            if (fill.Role == role) return fill.Quality;
+        return Quality;
+    }
+}
+
+// One filled slot: the design's role name and how good the part that went into it turned out to be.
+[MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+public class RoleFill
+{
+    [JsonProperty("role"), Key(0)]  public string Role;
+    [JsonProperty("quality"), Key(1)]  public float Quality;
 }
 
 [MessagePackObject, JsonObject(MemberSerialization.OptIn)]

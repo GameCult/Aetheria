@@ -1079,7 +1079,7 @@ public class ConsumableItemEffect
     public float Evaluate(PerformanceStat stat)
     {
         var effectiveness = Data.Effectiveness.Evaluate((Data.Duration - RemainingDuration) / Data.Duration);
-        var quality = pow(Item.Quality, stat.QualityExponent);
+        var quality = pow(Item.QualityForRole(stat.FromRole), stat.QualityExponent);
 
         var result = lerp(stat.Min, stat.Max, effectiveness * quality);
         
@@ -1255,7 +1255,7 @@ public class EquippedItem
     {
         var heat = pow(ThermalPerformance, ThermalExponent * stat.HeatExponentMultiplier);
         var durability = pow(DurabilityPerformance, DurabilityExponent * stat.DurabilityExponentMultiplier);
-        var quality = pow(EquippableItem.Quality, stat.QualityExponent);
+        var quality = pow(EquippableItem.QualityForRole(stat.FromRole), stat.QualityExponent);
 
         var scaleModifier = 1.0f;
         var scaleModifiers = stat.GetScaleModifiers(Entity).Values;

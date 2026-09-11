@@ -319,8 +319,19 @@ public class SimpleCommodityData : ItemData
 [MessagePackObject, JsonObject(MemberSerialization.OptIn), JsonConverter(typeof(JsonKnownTypesConverter<CraftedItemData>))]
 public abstract class CraftedItemData : ItemData
 {
-    // [Inspectable, JsonProperty("ingredientQualityWeight"), Key(9)]  
-    // public float IngredientQualityWeight = .5f;
+    // The named slots this design is assembled from. A stat may read the quality of the part filling one.
+    [Inspectable, JsonProperty("roles"), Key(9)]  
+    public List<ItemRole> Roles = new List<ItemRole>();
+}
+
+// One slot in a design: every laser has a focusing array. A role is a name and nothing else. What fills it is
+// a quality, authored per role by each manufacturer's product; the part itself earns a record when crafting
+// needs one to exist.
+[MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+public class ItemRole
+{
+    [Inspectable, JsonProperty("name"), Key(0)]
+    public string Name;
 }
 
 [DatabaseCategory("Items"), Inspectable, MessagePackObject]
@@ -584,9 +595,10 @@ public class PerformanceStat
     [JsonProperty("qualityExponent"), Key(4)] 
     public float QualityExponent;
     
-    //[JsonProperty("id"), Key(5)]  public Guid ID = Guid.NewGuid();
-
-    // [JsonProperty("ingredient"), Key(5)]  public Guid? Ingredient;
+    // The design role whose part quality this stat reads; unset reads the item's own workmanship quality.
+    // Njordr states the same rule as a derivation over dimensions; this is that rule with one dimension.
+    [Inspectable, JsonProperty("fromRole"), Key(5)]
+    public string FromRole;
     
     [IgnoreMember] private Dictionary<Entity,Dictionary<Behavior,float>> _scaleModifiers;
     [IgnoreMember] private Dictionary<Entity,Dictionary<Behavior,float>> _constantModifiers;

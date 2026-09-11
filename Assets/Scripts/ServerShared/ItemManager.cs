@@ -99,7 +99,7 @@ public class ItemManager
     public float Evaluate(PerformanceStat stat, EquippableItem item)
     {
         var data = GetData(item);
-        var quality = pow(item.Quality, stat.QualityExponent);
+        var quality = pow(item.QualityForRole(stat.FromRole), stat.QualityExponent);
         var durabilityExponent = lerp(
             GameplaySettings.DurabilityQualityMin,
             GameplaySettings.DurabilityQualityMax,
@@ -188,6 +188,33 @@ public class ItemManager
         }
 
         return CreateInstance(item, tier.Quality);
+    }
+
+    // Builds one of a manufacturer's branded products: the unit's own workmanship rolled as before, and each of
+    // the design's roles filled with a part whose quality is drawn from that manufacturer's distribution for it.
+    public CraftedItemInstance CreateInstance(FactionProductData product)
+    {
+        var design = ItemData.Get<CraftedItemData>(product.Design);
+        if (design == null)
+        {
+            _logger($"Product {product.Name} names a design that does not exist!");
+            return null;
+        }
+
+        var instance = CreateInstance(design);
+        instance.Product = product.ID;
+        if (design.Roles == null) return instance;
+        foreach (var role in design.Roles)
+        {
+            var build = product.Roles?.FirstOrDefault(b => b.Role == role.Name) ?? new ProductRole();
+            instance.Ingredients.Add(new RoleFill
+            {
+                Role = role.Name,
+                Quality = clamp(Random.NextGaussian(build.Mean, build.StandardDeviation), .01f, 1)
+            });
+        }
+
+        return instance;
     }
 
     public (RarityTier tier, int upgrades) GetTier(CraftedItemInstance item)

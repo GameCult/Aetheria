@@ -50,7 +50,8 @@ public interface INamedEntry
  Union(28, typeof(PlanetData)), 
  Union(29, typeof(CargoBayData)), 
  Union(30, typeof(DockingBayData)), 
- Union(31, typeof(WeaponItemData))]
+ Union(31, typeof(WeaponItemData)),
+ Union(32, typeof(FactionProductData))]
 public abstract class DatabaseEntry
 {
     [JsonProperty("id"), Key(0)]
