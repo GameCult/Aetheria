@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Inspects and edits GameData/AetherDB.msgpack through the headless Aetheria.Shared build of ServerShared.
+       A real project rather than file-based scripts on purpose: running a loose script file caches a build per
+       script and does not rebuild when the referenced project changes, so scripts ran against stale schemas. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <RootNamespace>AetherDbTool</RootNamespace>
+    <NoWarn>$(NoWarn);CS1701;CS1702</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\Aetheria.Shared\Aetheria.Shared.csproj" />
+  </ItemGroup>
+</Project>
