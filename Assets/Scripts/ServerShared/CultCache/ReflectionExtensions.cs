@@ -8,13 +8,23 @@ using System.Threading.Tasks;
 
 public static class ReflectionExtensions
 {
+    // Every type that can be loaded from every assembly in the domain. An assembly whose dependencies are missing
+    // (a Unity plugin referencing UnityEngine when running outside Unity) still yields the types that do load.
+    private static IEnumerable<Type> LoadableTypes()
+    {
+        return AppDomain.CurrentDomain.GetAssemblies().SelectMany(assembly =>
+        {
+            try { return assembly.GetTypes(); }
+            catch (ReflectionTypeLoadException e) { return e.Types.Where(t => t != null); }
+        });
+    }
+
     private static Dictionary<Type,Type[]> InterfaceClasses = new Dictionary<Type, Type[]>();
     public static Type[] GetAllInterfaceClasses(this Type type)
     {
         if (InterfaceClasses.ContainsKey(type))
             return InterfaceClasses[type];
-        return InterfaceClasses[type] = AppDomain.CurrentDomain.GetAssemblies()
-            .SelectMany(ass => ass.GetTypes()).Where(t => t.IsClass && t.GetInterfaces().Contains(type)).ToArray();
+        return InterfaceClasses[type] = LoadableTypes().Where(t => t.IsClass && t.GetInterfaces().Contains(type)).ToArray();
     }
     
     private static Dictionary<Type,Type[]> ParentTypes = new Dictionary<Type, Type[]>();
@@ -56,17 +66,15 @@ public static class ReflectionExtensions
     {
         if (ChildClasses.ContainsKey(type))
             return ChildClasses[type];
-        return ChildClasses[type] = AppDomain.CurrentDomain.GetAssemblies()
-            .SelectMany(ass => ass.GetTypes()).Where(type.IsAssignableFrom).ToArray();
+        return ChildClasses[type] = LoadableTypes().Where(type.IsAssignableFrom).ToArray();
     }
-	
+
     private static Dictionary<Type,Type[]> GenericChildClasses = new Dictionary<Type, Type[]>();
     public static Type[] GetAllGenericChildClasses(this Type genericType)
     {
         if (GenericChildClasses.ContainsKey(genericType))
-            return ChildClasses[genericType];
-        return ChildClasses[genericType] = AppDomain.CurrentDomain.GetAssemblies()
-            .SelectMany(ass => ass.GetTypes()).Where(type=>type.IsAssignableToGenericType(genericType)).ToArray();
+            return GenericChildClasses[genericType];
+        return GenericChildClasses[genericType] = LoadableTypes().Where(type=>type.IsAssignableToGenericType(genericType)).ToArray();
     }
     
     public static bool IsAssignableToGenericType(this Type givenType, Type genericType)
