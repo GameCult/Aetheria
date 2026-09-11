@@ -550,48 +550,6 @@ public class ActionGameManager : MonoBehaviour
             });
         //Temporary, or not
         ConsoleController.AddCommand("tow", _ => TowShip());
-
-        // ConsoleController.AddCommand("pingscene",
-        //     _ =>
-        //     {
-        //         var startTime = Time.time;
-        //         Observable.EveryUpdate().TakeWhile(_ => Time.time - startTime < 5).Subscribe(
-        //             _ => Debug.Log($"{(int) (Time.time - startTime)}"),
-        //             () =>
-        //             {
-        //                 var nearestFaction = CurrentSector.Factions.MinBy(f => CurrentSector.HomeZones[f].Distance[Zone.SectorZone]);
-        //                 var nearestFactionHomeZone = CurrentSector.HomeZones[nearestFaction];
-        //                 var factionPresence = nearestFaction.InfluenceDistance - nearestFactionHomeZone.Distance[Zone.SectorZone] + 1;
-        //
-        //                 var loadoutGenerator = new LoadoutGenerator(
-        //                     ref ItemManager.Random,
-        //                     ItemManager,
-        //                     CurrentSector,
-        //                     Zone.SectorZone,
-        //                     nearestFaction,
-        //                     .5f);
-        //
-        //                 for (int i = 0; i < 8; i++)
-        //                 {
-        //                     var ship = EntitySerializer.Unpack(ItemManager, Zone, loadoutGenerator.GenerateShipLoadout(), true);
-        //                     ship.Position.xz = _currentEntity.Position.xz +
-        //                                        ItemManager.Random.NextFloat2Direction() * ItemManager.Random.NextFloat(50, 500);
-        //                     ship.Zone = Zone;
-        //                     Zone.Entities.Add(ship);
-        //                     ship.Activate();
-        //                 }
-        //
-        //                 for (int i = 0; i < 8; i++)
-        //                 {
-        //                     var turret = EntitySerializer.Unpack(ItemManager, Zone, loadoutGenerator.GenerateTurretLoadout(), true);
-        //                     turret.Position.xz = _currentEntity.Position.xz +
-        //                                          ItemManager.Random.NextFloat2Direction() * ItemManager.Random.NextFloat(50, 500);
-        //                     turret.Zone = Zone;
-        //                     Zone.Entities.Add(turret);
-        //                     turret.Activate();
-        //                 }
-        //             });
-        //     });
     }
 
     public void BeginDrag(DragObject dragObject)

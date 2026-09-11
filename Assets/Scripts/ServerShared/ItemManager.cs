@@ -59,54 +59,6 @@ public class ItemManager
         _logger(s);
     }
 
-    // public void Update()
-    // {
-    //     foreach(var zone in _zones.Values)
-    //         zone.Update((float) Time, _deltaTime);
-    //     
-    //     foreach (var corporation in Cache.GetAll<Corporation>())
-    //     {
-    //         foreach (var tasks in corporation.Tasks
-    //             .Select(id => Cache.Get<AgentTask>(id)) // Fetch the tasks from the database cache
-    //             .Where(task => !task.Reserved) // Filter out tasks that have already been reserved
-    //             .GroupBy(task => task.Type)) // Group tasks by type
-    //         {
-    //             // Create a list of available controllers for this task type
-    //             var availableControllers = CorporationControllers[corporation.ID]
-    //                 .Where(controller => controller.Available && controller.TaskType == tasks.Key).ToList();
-    //             
-    //             // Iterate over the highest priority tasks for which controllers are available
-    //             foreach (var task in tasks.OrderByDescending(task => task.Priority).Take(availableControllers.Count))
-    //             {
-    //                 // Find the nearest controller for this task
-    //                 IController nearestController = availableControllers[0];
-    //                 List<ZoneDefinition> nearestControllerPath = FindPath(GalaxyZones[availableControllers.First().Zone.Data.ID], GalaxyZones[task.Zone], true);
-    //                 foreach (var controller in availableControllers.Skip(1))
-    //                 {
-    //                     var path = FindPath(GalaxyZones[controller.Zone.Data.ID], GalaxyZones[task.Zone], true);
-    //                     if (path.Count < nearestControllerPath.Count)
-    //                     {
-    //                         nearestControllerPath = path;
-    //                         nearestController = controller;
-    //                     }
-    //                 }
-    //                 task.Reserved = true;
-    //                 nearestController.AssignTask(task.ID);
-    //             }
-    //         }
-    //     }
-    //     
-    // }
-
-    // public int ItemTier(CraftedItemData itemData)
-    // {
-    //     if (Tier.ContainsKey(itemData)) return Tier[itemData];
-    //
-    //     Tier[itemData] = itemData.Ingredients.Keys.Max(ci => _cache.Get<ItemData>(ci) is CraftedItemData craftableIngredient ? ItemTier(craftableIngredient) : 0);
-		  //
-    //     return Tier[itemData];
-    // }
-
     public SimpleCommodityData GetData(SimpleCommodity item)
     {
         return item.Data.Value as SimpleCommodityData;

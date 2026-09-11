@@ -845,42 +845,6 @@ public abstract class Entity
                     yield return b;
     }
 
-    // public IEnumerable<(T t, Switch s)> GetSwitch<T>() where T : class, IBehavior
-    // {
-    //     foreach (var equippedItem in Equipment)
-    //         foreach (var group in equippedItem.BehaviorGroups.Values)
-    //             foreach(var behavior in group.Behaviors)
-    //                 if (behavior is T t)
-    //                 {
-    //                     var s = group.GetExposed<Switch>();
-    //                     if (s != null) yield return (t, s);
-    //                 }
-    // }
-    //
-    // public IEnumerable<(T behavior, Trigger trigger)> GetTrigger<T>() where T : class, IBehavior
-    // {
-    //     foreach (var equippedItem in Equipment)
-    //         foreach (var group in equippedItem.BehaviorGroups.Values)
-    //             foreach(var behavior in group.Behaviors)
-    //                 if (behavior is T t)
-    //                 {
-    //                     var s = group.GetExposed<Trigger>();
-    //                     if (s != null) yield return (t, s);
-    //                 }
-    // }
-    //
-    // public IEnumerable<(T behavior, Axis axis)> GetAxis<T>() where T : class, IBehavior
-    // {
-    //     foreach (var equippedItem in Equipment)
-    //         foreach (var group in equippedItem.BehaviorGroups.Values)
-    //             foreach(var behavior in group.Behaviors)
-    //                 if (behavior is T t)
-    //                 {
-    //                     var s = group.GetExposed<Axis>();
-    //                     if (s != null) yield return (t, s);
-    //                 }
-    // }
-
     public virtual void Update(float delta)
     {
         var hullData = ItemManager.GetData(Hull) as HullData;

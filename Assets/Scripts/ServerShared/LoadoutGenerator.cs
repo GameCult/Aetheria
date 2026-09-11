@@ -30,18 +30,6 @@ public class LoadoutGenerator
         Faction = faction;
         PriceExponent = priceExponent;
     }
-    //
-    // public LoadoutGenerator(
-    //     ref Random random, 
-    //     ItemManager itemManager, 
-    //     Faction faction, 
-    //     float priceExponent)
-    // {
-    //     Random = random;
-    //     ItemManager = itemManager;
-    //     Faction = faction;
-    //     PriceExponent = priceExponent;
-    // }
     
     public EntityPack GenerateShipLoadout(Predicate<HullData> hullFilter = null)
     {

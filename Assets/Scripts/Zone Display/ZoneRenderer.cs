@@ -421,31 +421,6 @@ public class ZoneRenderer : MonoBehaviour
         LODHandler.FindPlanets();
     }
 
-    // private void Update()
-    // {
-    //     if (Tour)
-    //     {
-    //         _tourTimer -= UnityEngine.Time.deltaTime;
-    //         if (_tourTimer < 0)
-    //         {
-    //             _tourTimer = TourSwitchTime;
-    //             _tourIndex = (_tourIndex + 1) % _tourPlanets.Count;
-    //             SceneCamera.Follow = _tourPlanets[_tourIndex].Item1;
-    //             SceneCamera.LookAt = _tourPlanets[_tourIndex].Item2;
-    //             if(_tourIndex==0) Debug.Log("Tour Complete!");
-    //         }
-    //         // if(_tourIndex>=0)
-    //         // {
-    //         //     var offset = (SceneCamera.Follow.position - SceneCamera.LookAt.position);
-    //         //     offset.y = 0;
-    //         //     offset = offset.normalized * TourFollowDistance;
-    //         //     offset.y = TourHeightOffset;
-    //         //     offset = Quaternion.AngleAxis(TourFollowOffsetDegrees, Vector3.up) * offset;
-    //         //     _transposer.m_FollowOffset = offset;
-    //         // }
-    //     }
-    // }
-
     void Update()
     {
         var maxDepth = 0f;

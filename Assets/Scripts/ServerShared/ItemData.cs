@@ -307,21 +307,7 @@ public abstract class ItemData : DatabaseEntry, INamedEntry
 [DatabaseCategory("Items"), Inspectable, MessagePackObject]
 public class SimpleCommodityData : ItemData
 {
-    // // Types of body where this resource can be found
-    // [InspectableField, JsonProperty("resourceBodyType"), Key(6)]  
-    // public BodyType ResourceBodyType;
-    //
-    // // Link to map(s) controlling density of resource, multiplied together when more than one
-    // [InspectableDatabaseLink(typeof(GalaxyMapLayerData)), JsonProperty("resourceDensity"), Key(7)]  
-    // public List<Guid> ResourceDensity = new List<Guid>();
-    //
-    // // Controls the lowest value in the resource distribution curve
-    // [InspectableField, JsonProperty("distribution"), Key(8)]
-    // public ExponentialLerp Distribution;
-    //
-    // // Minimum amount of resources needed for presence to register
-    // [InspectableField, JsonProperty("floor"), Key(11)]
-    // public float Floor = 5f;
+    // MessagePack keys 6, 7, 8 and 11 belonged to removed resource-distribution fields; do not reuse them.
 
     [Inspectable, JsonProperty("maxStackSize"), Key(9)]
     public int MaxStack = 10;

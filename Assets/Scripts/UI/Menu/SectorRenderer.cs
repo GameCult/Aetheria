@@ -105,41 +105,7 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
                 Properties.AddProperty("Ships", () => shipCount);
             }
         });
-
-        // PathAnimationButton.onClick.AddListener(() =>
-        // {
-        //     Map.StartCoroutine(AnimatePath());
-        // });
     }
-
-    // private IEnumerator AnimatePath()
-    // {
-    //     var pathZones = ActionGameManager.CurrentSector.ExitPath;
-    //     LegendPanel.SetActive(false);
-    //     PathAnimationButton.gameObject.SetActive(false);
-    //
-    //     var revealCount = ActionGameManager.CurrentSector.Entrance.Distance[ActionGameManager.CurrentSector.Exit];
-    //     Map.StartReveal(
-    //         PathAnimationDuration / revealCount * (LinkAnimationDuration / (IconAnimationDuration + LinkAnimationDuration)),
-    //         PathAnimationDuration / revealCount * (IconAnimationDuration / (IconAnimationDuration + LinkAnimationDuration)));
-    //     MainCamera.enabled = false;
-    //     SectorCamera.targetTexture = null;
-    //     Canvas.gameObject.SetActive(false);
-    //     SectorCamera.gameObject.SetActive(true);
-    //         
-    //     var pathAnimationLerp = 0f;
-    //     while (pathAnimationLerp < 1)
-    //     {
-    //         var currentTargetZone = pathZones[(int) (pathZones.Length * pathAnimationLerp)];
-    //         _position = lerp(_position, currentTargetZone.Position, PathAnimationDamping);
-    //         pathAnimationLerp += Time.deltaTime / (PathAnimationDuration * PathAnimationDurationPadding);
-    //         UpdateCamera();
-    //         yield return null;
-    //     }
-    //     
-    //     LegendPanel.SetActive(true);
-    //     PathAnimationButton.gameObject.SetActive(true);
-    // }
     
     private void OnEnable()
     {

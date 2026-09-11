@@ -54,24 +54,6 @@ public static class WeightedSampleElimination
 		DoEliminate( inputPoints, outputPoints, d_max, weightFunction, densityFunction );
 	}
 
-	// public static void Eliminate(
-	// 	float2[] inputPoints, 
-	// 	float2[] outputPoints,
-	// 	float d_max = 0,
-	// 	float alpha = 8,
-	// 	float beta = 0.65f,
-	// 	float gamma = 1.5f)
-	// {
-	// 	if ( d_max < .001f ) d_max = 2 * GetMaxPoissonDiskRadius( outputPoints.Length );
-	// 	float d_min = d_max * GetWeightLimitFraction( inputPoints.Length, outputPoints.Length, beta, gamma );
-	// 	Eliminate( inputPoints, outputPoints, (p0, p1, d2, dmax, density) => 
-	// 	{
-	// 		float d = sqrt(d2);
-	// 		if ( d < d_min ) d = d_min;
-	// 		return pow( 1f / (d / dmax + .01f), alpha );
-	// 	}, v => 1, d_max);
-	// }
-
 	public static void Eliminate(
 		float2[] inputPoints, 
 		float2[] outputPoints,

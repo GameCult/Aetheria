@@ -37,38 +37,6 @@ public class ZonePack
     
 }
 
-// [DatabaseCategory("Galaxy"), MessagePackObject, JsonObject(MemberSerialization.OptIn)]
-// public class StationData : DatabaseEntry, INamedEntry
-// {
-//     [JsonProperty("name"), Key(1)]
-//     public string Name;
-//     
-//     // Can be Planet or Orbit
-//     [JsonProperty("parent"), Key(2)]
-//     public Guid Parent;
-//
-//     [JsonProperty("owner"), Key(3)]
-//     public Guid Owner;
-//
-//     [JsonProperty("inventory"), Key(4)]
-//     public List<ItemInstance> Inventory = new List<ItemInstance>();
-//
-//     [JsonProperty("buying"), Key(5)]
-//     public Dictionary<Guid, float> BuyPrices = new Dictionary<Guid, float>();
-//
-//     [JsonProperty("selling"), Key(6)]
-//     public Dictionary<Guid, float> SellPrices = new Dictionary<Guid, float>();
-//
-//     [JsonProperty("zone"), Key(7)]
-//     public Guid Zone;
-//     
-//     [IgnoreMember] public string EntryName
-//     {
-//         get => Name;
-//         set => Name = value;
-//     }
-// }
-
 [MessagePackObject, 
  JsonObject(MemberSerialization.OptIn),
  Union(0, typeof(PlanetData)),

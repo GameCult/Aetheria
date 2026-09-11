@@ -35,21 +35,6 @@ public class CultCache
     private readonly Dictionary<Type, DatabaseEntry> _globals = new Dictionary<Type, DatabaseEntry>();
     private readonly Dictionary<Type, HashSet<DatabaseEntry>> _types = new Dictionary<Type, HashSet<DatabaseEntry>>();
 
-    // private readonly Dictionary<Type, (DirectoryInfo directory, List<Guid> entries)> _externalTypes = new Dictionary<Type, (DirectoryInfo directory, List<Guid> entries)>();
-
-    // private class ExternalEntry
-    // {
-    //     public string FilePath;
-    //     public DatabaseEntry Entry;
-    //
-    //     public ExternalEntry(string filePath, DatabaseEntry entry)
-    //     {
-    //         FilePath = filePath;
-    //         Entry = entry;
-    //     }
-    // }
-    // private readonly Dictionary<Guid, ExternalEntry> _externalEntries = new Dictionary<Guid, ExternalEntry>();
-
     public IEnumerable<DatabaseEntry> AllEntries => _entries.Values;
 
     public CultCache()
