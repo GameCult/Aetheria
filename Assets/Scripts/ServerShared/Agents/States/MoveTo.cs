@@ -27,14 +27,6 @@ public abstract class MoveToState : BaseState
     }
 }
 
-public class MoveToEntityState : MoveToState
-{
-    public Entity TargetEntity { get; set; }
-    protected override float2 TargetPosition => TargetEntity?.Position.xz ?? float2.zero;
-
-    public MoveToEntityState(Agent agent) : base(agent) { }
-}
-
 public class MoveToOrbitState : MoveToState
 {
     public Guid Orbit { get; set; }

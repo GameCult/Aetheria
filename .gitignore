@@ -51,30 +51,12 @@ ExportedObj/
 *.opendb
 *.VC.db
 
-# Unity3D generate project files
-Aetheria-Economy.sln
-Aetheria.Shared.Unity.csproj
-CultBase.csproj
-CultCache.csproj
-CultCache.Editor.csproj
-Assembly-CSharp.csproj
-Assembly-CSharp-Editor.csproj
-Assembly-CSharp-firstpass.csproj
-Assembly-CSharp-Editor-firstpass.csproj
-Substance.EditorHelper.csproj
-Substance.Platform.csproj
-MessagePack.csproj
-UniRx.csproj
-Ink.csproj
-Tests.csproj
-AK.Wwise.Unity.Timeline.Editor.csproj
-AK.Wwise.Unity.Timeline.csproj
-AK.Wwise.Unity.MonoBehaviour.Editor.csproj
-AK.Wwise.Unity.MonoBehaviour.csproj
-AK.Wwise.Unity.API.WwiseTypes.csproj
-AK.Wwise.Unity.API.Editor.csproj
-AK.Wwise.Unity.API.csproj
-Ak.Wwise.Api.WAAPI.csproj
+# Unity/IDE generated solution and project files
+/*.sln
+/*.csproj
+
+# Per-user editor state
+/[Uu]ser[Ss]ettings/
 
 # Unity3D generated meta files
 *.pidb.meta
@@ -90,12 +72,6 @@ sysinfo.txt
 
 # Crashlytics generated file
 crashlytics-build.properties
-
-# Server generated files
-Economy.Server/bin/
-Economy.Server/obj/
-Economy.Shared/bin/
-Economy.Shared/obj/
 
 # JetBrains Rider .idea folder
 .idea/

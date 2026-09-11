@@ -140,7 +140,7 @@ public class MainMenu : MonoBehaviour
                             ActionGameManager.CurrentGalaxy = sector;
                             SceneManager.LoadScene("ARPG");
                         });
-                    }).WrapErrors();
+                    }).ContinueWith(t => Debug.LogException(t.Exception), TaskContinuationOptions.OnlyOnFaulted);
                 }
                 else
                 {
@@ -169,7 +169,7 @@ public class MainMenu : MonoBehaviour
                             ActionGameManager.CurrentGalaxy = sector;
                             SceneManager.LoadScene("ARPG");
                         });
-                    }).WrapErrors();
+                    }).ContinueWith(t => Debug.LogException(t.Exception), TaskContinuationOptions.OnlyOnFaulted);
                 }
             });
         _nextMenu.panel.AddButton("Settings",
