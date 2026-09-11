@@ -59,9 +59,12 @@ AI share it, so AI accuracy is no longer superhuman by construction.
   pickup (`ShieldManager`), `TractorBeam`, `Mine`. Not blockers.
 
 **Invariant: game simulation runs independently of Unity.** `ServerShared`
-enforces this at compile time (`Aetheria.Shared.Unity.asmdef` sets
-`noEngineReferences`), but Unity-owned hit resolution breaks it behaviorally:
-the simulation compiles without Unity yet cannot resolve combat without it.
+cannot reference UnityEngine (`Aetheria.Shared.Unity.asmdef` sets
+`noEngineReferences`), and `Aetheria.Shared/Aetheria.Shared.csproj` builds it
+from source with the plain .NET SDK, so a clean headless build is the check.
+Tools (`tools/AetherDb`) and future test harnesses reference that project.
+Unity-owned hit resolution still breaks the invariant behaviorally: the
+simulation builds without Unity yet cannot resolve combat without it.
 That was a velocity compromise. Moving hit authority into fire control
 restores the invariant, and lets the planner and a balance harness simulate
 combat.
@@ -95,3 +98,9 @@ Economy simulation, hauling, mining yield, crafting/blueprints, reputation
 changes, story placement, multiplayer and `Economy.Server`, a headless
 server deployment, and the CultMesh/daemon rebuild (parked in
 `F:\Projects\AetheriaEve`).
+
+Post-ship direction for items: generic item classes (docking bays, cargo
+bays) become faction-neutral blueprints that branded manufacturing runs
+reference, so no faction's absence from a galaxy can remove a required item
+class. Until then, database variety has to guarantee it; `LoadoutGenerator`
+logs whenever a required item falls back to an unavailable manufacturer.

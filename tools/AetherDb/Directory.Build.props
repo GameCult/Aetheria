@@ -1,0 +1,14 @@
+﻿<Project>
+  <!-- Applies to every script under tools/AetherDb. Scripts are file-based programs: pass a script path to dotnet run
+       with its file option. They load game data through the headless Aetheria.Shared build of ServerShared. -->
+  <PropertyGroup>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <!-- File-based programs default to AOT, which disables the dynamic code MessagePack's resolvers generate -->
+    <PublishAot>false</PublishAot>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(MSBuildThisFileDirectory)AetherDb.cs" />
+    <ProjectReference Include="$(MSBuildThisFileDirectory)..\..\Aetheria.Shared\Aetheria.Shared.csproj" />
+  </ItemGroup>
+</Project>

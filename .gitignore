@@ -58,6 +58,12 @@ ExportedObj/
 # Per-user editor state
 /[Uu]ser[Ss]ettings/
 
+# .NET build output outside Unity
+/Aetheria.Shared/bin/
+/Aetheria.Shared/obj/
+/tools/**/bin/
+/tools/**/obj/
+
 # Unity3D generated meta files
 *.pidb.meta
 *.pdb.meta
