@@ -99,8 +99,37 @@ changes, story placement, multiplayer and `Economy.Server`, a headless
 server deployment, and the CultMesh/daemon rebuild (parked in
 `F:\Projects\AetheriaEve`).
 
-Post-ship direction for items: generic item classes (docking bays, cargo
-bays) become faction-neutral blueprints that branded manufacturing runs
-reference, so no faction's absence from a galaxy can remove a required item
-class. Until then, database variety has to guarantee it; `LoadoutGenerator`
-logs whenever a required item falls back to an unavailable manufacturer.
+## Items: roles now, Njordr later
+
+Item property derivation belongs to Njörðr (`F:\Projects\Njordr`), the
+GameCult economy daemon: properties are a vector over authored dimensions,
+recipes name roles never materials, provenance lives on the lot, and rarity
+and price are projections. Aetheria must not grow a second owner of that
+rule. Njörðr is a specification with a typed state document and no step
+function yet, and its Aetheria embedding (Rust engine over a C ABI) comes
+after six engine cuts, so Aetheria ships before it exists.
+
+What Aetheria authors now is the same shape, one dimension wide:
+
+- An item design is generic and carries **roles**: named slots, one level
+  deep, no requirements beyond the name. Every laser has a focusing array.
+- A `PerformanceStat` may name the role whose quality it reads; unset reads
+  the instance's own quality, which is today's behavior. This is Njörðr's
+  `Derivation { output, from_role, from_dimension }` with the dimension
+  pinned to quality, and it fixes the legacy model's mistake of naming an
+  ingredient item rather than a role.
+- A crafted instance records the part filling each role, with continuous
+  quality. Parts are invisible to players until crafting exists.
+- A faction's competence per role is its tech level: one number per role, not
+  an item per faction. Manufacturer variation emerges from the parts, so no
+  duplicate item entries are authored to create variety.
+- Tier, color, and price stay projections of quality.
+
+Migration to Njörðr widens quality into dimensions and turns designs into
+classes plus recipes, parts into lots, and faction competence into producer
+policy. Role names and authored data carry over; scalar quality does not.
+
+Generic classes also mean no faction's absence from a galaxy can remove a
+required item class. Until that lands, database variety has to guarantee it;
+`LoadoutGenerator` logs whenever a required item falls back to an unavailable
+manufacturer.
