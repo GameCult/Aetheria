@@ -12,7 +12,7 @@ using static Unity.Mathematics.math;
 using static Unity.Mathematics.noise;
 using static NoiseFbm;
 
-[Inspectable, Serializable, RethinkTable("Galaxy"), MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+[Inspectable, Serializable, DatabaseCategory("Galaxy"), MessagePackObject, JsonObject(MemberSerialization.OptIn)]
 public class GalaxyMapLayerData : DatabaseEntry, INamedEntry
 {
     [Inspectable, JsonProperty("coreBoost"), Key(1)]  

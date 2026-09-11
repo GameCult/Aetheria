@@ -7,7 +7,6 @@ public class AetheriaDatabaseView : DatabaseListView
 {
     // Singleton to avoid multiple instances of window. 
     private static DatabaseListView _instance;
-    private string tableName;
     public static DatabaseListView Instance => _instance ? _instance : GetWindow<AetheriaDatabaseView>();
     [MenuItem("Window/Aetheria/Database Tools")]
     static void Init() => Instance.Show();
@@ -15,8 +14,6 @@ public class AetheriaDatabaseView : DatabaseListView
     {
         _instance = this;
     }
-
-    protected override string DatabaseName => "Aetheria";
 
     protected override string FilePath => new DirectoryInfo(Application.dataPath).Parent.CreateSubdirectory("GameData").FullName;
 

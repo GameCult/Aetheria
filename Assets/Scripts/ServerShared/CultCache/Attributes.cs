@@ -107,13 +107,13 @@ public class TooltipAttribute : Attribute
 }
 
 [AttributeUsage(AttributeTargets.Class)]
-public class RethinkTableAttribute : Attribute
+public class DatabaseCategoryAttribute : Attribute
 {
-    public string TableName;
+    public string Category;
 
-    public RethinkTableAttribute(string tableName)
+    public DatabaseCategoryAttribute(string category)
     {
-        TableName = tableName;
+        Category = category;
     }
 }
 

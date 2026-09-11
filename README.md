@@ -33,7 +33,6 @@ If you want to chat, please join [our Discord server](https://discord.gg/trbteNj
     - [Getting the Files](#Getting-the-Files)
     - [Choosing a Task](#Choosing-a-Task)
     - [Database Editor Tools](#Database-Editor-Tools)
-      - [Connecting to RethinkDB](#Connecting-to-RethinkDB)
       - [Editing Items](#Editing-Items)
     - [Testing Locally](#Testing-Locally)
     - [Debug Console](#Debug-Console)
@@ -70,7 +69,7 @@ There are two solutions in this repository. One is a Unity project containing th
 
 Client-Server communication is implemented using [LiteNetLib](https://github.com/RevenantX/LiteNetLib), a semi-reliable UDP transport library which we use to transmit [MessagePack](https://github.com/neuecc/MessagePack-CSharp) over the wire.
 
-Aetheria uses [RethinkDB](https://rethinkdb.com/) for data persistence. To make this possible, all persistent data is marked with attributes for both MessagePack and [JSON.Net](https://www.newtonsoft.com/json) serialization. During operation, the client does not communicate with the database server directly, only the game server does that; the game server caches data relevant to the game and sends it to the clients.
+Game content lives in `GameData/AetherDB.msgpack`, a single [MessagePack](https://github.com/neuecc/MessagePack-CSharp) file loaded into a CultCache at startup. Persistent data types carry MessagePack attributes; some also carry [JSON.Net](https://www.newtonsoft.com/json) attributes.
 
 ### Programming Paradigms
 
@@ -116,21 +115,15 @@ You don't have to be a programmer to contribute, either! We have issue labels fo
 
 ### Database Editor Tools
 
-In order to facilitate the creation and maintenance of game data, there is a Unity editor utility which communicates directly with RethinkDB. You can access the tools by selecting Window/Aetheria Database Tools in Unity's menu. This will cause two windows to appear, the Database List View and the Database Inspector.
-
-#### Connecting to RethinkDB
-
-At the top of the list view there is a text field where you can enter the URL of the database server. When you click connect, the editor will download and cache all of the items in the game, as well as subscribe to the changefeed. The list should now populate with items. For access to our database servers and therefore live game data, please contact us; it would be dangerous to make our actual database URL public!
+Game content is edited with a Unity editor utility. Open it with Window/Aetheria/Database Tools in Unity's menu. Two windows appear, the Database List View and the Database Inspector, both working on `GameData/AetherDB.msgpack`.
 
 #### Editing Items
 
-You can unfold the categories of items in the list view to see what items exist. If you select an item, the Database Inspector will populate with all of the available fields of that item. Any changes you make in the Inspector will automatically be pushed to RethinkDB. If you've connected to the production database, this will update the stats of in-game items in real-time!
+You can unfold the categories of items in the list view to see what items exist. If you select an item, the Database Inspector will populate with all of the available fields of that item. Changes apply in memory; click "Save" at the top of the list view to write them to `GameData/AetherDB.msgpack`.
 
 ### Testing Locally
 
-Testing the game entirely offline doesn't require running the economy server, but you still need to download the database contents. In the database list view, click the "Connect" button. Once the tools are finished syncing, which can take a while (there's a progress bar), you can click "Save" to create a local backup of the entire database. If you enter Play mode in the "ARPG" scene, the game will use that local copy instead of requiring a connection to the master server.
-
-Note that this process needs to be repeated every time the data model changes or if you wish to test the game with updated database contents.
+The game reads the same `GameData/AetherDB.msgpack`, so saved edits show up the next time you enter Play mode. Start from the "Main Menu" scene: it sets up the world (loading or generating a galaxy) before loading the "ARPG" scene.
 
 ### Debug Console
 

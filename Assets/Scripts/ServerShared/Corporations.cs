@@ -9,7 +9,7 @@ using MessagePack;
 using Newtonsoft.Json;
 using Unity.Mathematics;
 
-[RethinkTable("Galaxy"), Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+[DatabaseCategory("Galaxy"), Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]
 public class Faction : DatabaseEntry, INamedEntry
 {
     [Inspectable, JsonProperty("name"), Key(1)]

@@ -37,7 +37,7 @@ public class ZonePack
     
 }
 
-// [RethinkTable("Galaxy"), MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+// [DatabaseCategory("Galaxy"), MessagePackObject, JsonObject(MemberSerialization.OptIn)]
 // public class StationData : DatabaseEntry, INamedEntry
 // {
 //     [JsonProperty("name"), Key(1)]

@@ -4,7 +4,6 @@ using MessagePack;
 using MessagePack.ReactivePropertyExtension;
 using MessagePack.Resolvers;
 using Newtonsoft.Json;
-using RethinkDb.Driver.Net;
 
 public static class RegisterResolver
 {
@@ -29,11 +28,7 @@ public static class RegisterResolver
         {
             Converters = new List<JsonConverter>
             {
-                new MathJsonConverter(),
-                Converter.DateTimeConverter,
-                Converter.BinaryConverter,
-                Converter.GroupingConverter,
-                Converter.PocoExprConverter
+                new MathJsonConverter()
             }
         };
 

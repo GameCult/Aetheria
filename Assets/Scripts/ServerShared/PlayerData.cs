@@ -6,7 +6,7 @@ using System;
 using MessagePack;
 using Newtonsoft.Json;
 
-[RethinkTable("Users"), MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+[DatabaseCategory("Users"), MessagePackObject, JsonObject(MemberSerialization.OptIn)]
 public class PlayerData : DatabaseEntry, INamedEntry
 {
     [JsonProperty("email"), Key(1)]

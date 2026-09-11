@@ -63,7 +63,6 @@ Assembly-CSharp-firstpass.csproj
 Assembly-CSharp-Editor-firstpass.csproj
 Substance.EditorHelper.csproj
 Substance.Platform.csproj
-RethinkDB.csproj
 MessagePack.csproj
 UniRx.csproj
 Ink.csproj

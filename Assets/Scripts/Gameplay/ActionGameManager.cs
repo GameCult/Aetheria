@@ -47,8 +47,6 @@ public class ActionGameManager : MonoBehaviour
             if (_cultCache != null) return _cultCache;
 
             _cultCache = new CultCache();
-            //RethinkConnection.RethinkConnect(_cultCache, "gamecult.org:28016", DatabaseName);
-            //_cultCache.AddBackingStore(new MultiFileJsonBackingStore(GameDataDirectory.FullName));
             _cultCache.AddBackingStore(
                 new SingleFileMessagePackBackingStore(Path.Combine(GameDataDirectory.FullName, "AetherDB.msgpack")));
             
