@@ -58,10 +58,13 @@ AI share it, so AI accuracy is no longer superhuman by construction.
 - **Deferred Unity-physics surfaces:** ship collision (`HullCollider`), loot
   pickup (`ShieldManager`), `TractorBeam`, `Mine`. Not blockers.
 
-Unity-owned hit resolution was a speed compromise and is the main reason the
-simulation cannot run outside Unity. Moving it is not a headless-server goal;
-it is putting hit authority where it belongs, which also lets the planner and a
-balance harness simulate combat.
+**Invariant: game simulation runs independently of Unity.** `ServerShared`
+enforces this at compile time (`Aetheria.Shared.Unity.asmdef` sets
+`noEngineReferences`), but Unity-owned hit resolution breaks it behaviorally:
+the simulation compiles without Unity yet cannot resolve combat without it.
+That was a velocity compromise. Moving hit authority into fire control
+restores the invariant, and lets the planner and a balance harness simulate
+combat.
 
 ## Navigation planner
 
@@ -75,7 +78,11 @@ rolls out candidate thrust sequences over a cheap model of the real dynamics
 (thrust, `Zone.GetHeight` slope, drag from `Ship.cs`) and follows the best.
 Cost = goal progress + thrust x visibility + threat exposure + heat. Rocking,
 tangential escape, and surfing emerge from one cost; personality is cost
-weights. The same rollout can draw the player's predicted coast path.
+weights.
+
+The player's predicted coast path is an itemized capability: a navigation
+computer behavior that runs the same rollout model and draws the result.
+Without the item, surfing is learned by feel.
 
 Open risks: drag may bleed too much energy for surfing to work; the height
 field is time-varying (gas giant ripples, moving bodies), so rollouts must
@@ -85,6 +92,6 @@ biasing toward the largest items.
 ## Out of scope for now
 
 Economy simulation, hauling, mining yield, crafting/blueprints, reputation
-changes, story placement, multiplayer and `Economy.Server`, running without
-Unity as a goal in itself, and the CultMesh/daemon rebuild (parked in
+changes, story placement, multiplayer and `Economy.Server`, a headless
+server deployment, and the CultMesh/daemon rebuild (parked in
 `F:\Projects\AetheriaEve`).
