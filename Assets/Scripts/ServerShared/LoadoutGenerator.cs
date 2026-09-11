@@ -74,10 +74,13 @@ public class LoadoutGenerator
         var hull = ItemManager.CreateInstance(hullData) as EquippableItem;
         var entity = new OrbitalEntity(ItemManager, null, hull, Guid.Empty, ItemManager.GameplaySettings.DefaultEntitySettings);
         entity.Faction = Faction;
-        
+
+        // Hardpoint gear goes in first so the docking bay can only take space that gear left free
+        EquipHardpoints(entity);
+
         var emptyShape = entity.UnoccupiedSpace;
-        
-        var dockingBayData = RandomItem<DockingBayData>(2, item => item.Shape.FitsWithin(emptyShape, out _, out _));
+
+        var dockingBayData = RandomItem<DockingBayData>(2, item => item.Shape.FitsWithin(emptyShape, out _, out _), required: true);
         if (dockingBayData == null) throw new InvalidLoadoutException("No compatible docking bay found for station!");
 
         dockingBayData.Shape.FitsWithin(emptyShape, out var cargoRotation, out var cargoPosition);
@@ -87,8 +90,8 @@ public class LoadoutGenerator
         {
             throw new InvalidLoadoutException("Failed to equip selected docking bay!");
         }
-        
-        OutfitEntity(entity);
+
+        FillInterior(entity);
 
         var cargo = entity.CargoBays.First();
         IEnumerable<EquippableItemData> inventory = RandomItems<EquippableItemData>(16, 1, 
@@ -106,46 +109,76 @@ public class LoadoutGenerator
         return EntitySerializer.Pack(entity) as OrbitalEntityPack;
     }
 
+    // Every entity needs a hull, so hulls are always required
     public HullData RandomHull(HullType type, Predicate<HullData> hullFilter = null)
     {
-        return RandomItem<HullData>(0, item => 
+        return RandomItem<HullData>(0, item =>
                 (hullFilter?.Invoke(item) ?? true) &&
-                item.HullType == type);
-    }
-    
-    public T[] RandomItems<T>(int count, float sizeExponent, Predicate<T> filter = null) where T : EquippableItemData
-    {
-        return ItemManager.ItemData.GetAll<T>()
-            .Where(item => 
-                item.Price > 0 &&
-                item.Manufacturer != Guid.Empty &&
-                (Galaxy.IsPrelude || Galaxy.ContainsFaction(item.Manufacturer) &&
-                    (Faction == null || Faction.Allegiance.ContainsKey(item.Manufacturer))) &&
-                (filter?.Invoke(item) ?? true))
-            .WeightedRandomElements(ref Random, item =>
-                    Faction == null ? 1 : 
-                        (item.Manufacturer == Faction.ID ? 1 : Faction.Allegiance.ContainsKey(item.Manufacturer) ? Faction.Allegiance[item.Manufacturer] : 0.0f / // Prioritize items from allied manufacturers
-                            (Galaxy?.ContainsFaction(item.Manufacturer) ?? false ? Zone?.Distance[Galaxy.HomeZones[ItemManager.ItemData.Get<Faction>(item.Manufacturer)]] ?? 1 : 1)) * // Penalize distance to manufacturer headquarters
-                    pow(item.Shape.Coordinates.Length, sizeExponent) / // Prioritize larger items
-                    pow(item.Price, PriceExponent), // Penalize item price to a controllable degree
-                count
-            );
+                item.HullType == type, required: true);
     }
 
-    public T RandomItem<T>(float sizeExponent, Predicate<T> filter = null) where T : EquippableItemData
+    // Items normally come only from manufacturers present in the galaxy and known to the zone's faction.
+    // A required item falls back to any manufacturer when none of those make one; that means the item
+    // database lacks variety, so it is logged rather than hidden.
+    public T[] RandomItems<T>(int count, float sizeExponent, Predicate<T> filter = null, bool required = false) where T : EquippableItemData
     {
-        return RandomItems(1, sizeExponent, filter).FirstOrDefault();
+        var candidates = ItemManager.ItemData.GetAll<T>()
+            .Where(item =>
+                item.Price > 0 &&
+                item.Manufacturer != Guid.Empty &&
+                (filter?.Invoke(item) ?? true))
+            .ToArray();
+        var available = candidates.Where(IsAvailable).ToArray();
+        var preferManufacturers = true;
+        if (available.Length == 0 && required && candidates.Length > 0)
+        {
+            ItemManager.Log($"No {typeof(T).Name} available from manufacturers known to {Faction?.Name ?? "this galaxy"}; using any manufacturer. The item database needs more variety.");
+            available = candidates;
+            preferManufacturers = false;
+        }
+
+        return available.WeightedRandomElements(ref Random, item =>
+                (preferManufacturers ? ManufacturerPreference(item.Manufacturer) : 1) *
+                pow(item.Shape.Coordinates.Length, sizeExponent) / // Prioritize larger items
+                pow(item.Price, PriceExponent), // Penalize item price to a controllable degree
+            count);
     }
-    
-    public T RandomItem<T>(HardpointData hardpoint, float sizeExponent, Predicate<T> filter = null) where T : EquippableItemData
+
+    private bool IsAvailable(EquippableItemData item) =>
+        Galaxy.IsPrelude ||
+        Galaxy.ContainsFaction(item.Manufacturer) && (Faction == null || Faction.Allegiance.ContainsKey(item.Manufacturer));
+
+    // Prioritize items from the zone faction and its allies, penalizing distance to the manufacturer's headquarters
+    private float ManufacturerPreference(Guid manufacturer)
+    {
+        if (Faction == null) return 1;
+        var allegiance = manufacturer == Faction.ID ? 1 :
+            Faction.Allegiance.TryGetValue(manufacturer, out var a) ? a : 0;
+        var home = Galaxy.HomeZones.FirstOrDefault(h => h.Key.ID == manufacturer).Value;
+        var distance = home != null && Zone?.Distance != null && Zone.Distance.TryGetValue(home, out var d) ? d : 0;
+        return allegiance / (1 + distance);
+    }
+
+    public T RandomItem<T>(float sizeExponent, Predicate<T> filter = null, bool required = false) where T : EquippableItemData
+    {
+        return RandomItems(1, sizeExponent, filter, required).FirstOrDefault();
+    }
+
+    public T RandomItem<T>(HardpointData hardpoint, float sizeExponent, Predicate<T> filter = null, bool required = false) where T : EquippableItemData
     {
         return RandomItem<T>(sizeExponent, item => item.HardpointType == hardpoint.Type &&
-                                  (filter?.Invoke(item) ?? true) && 
+                                  (filter?.Invoke(item) ?? true) &&
                                   item.Shape.FitsWithin(hardpoint.Shape, hardpoint.Rotation, out _) &&
-                                  item.Shape.Coordinates.Length==hardpoint.Shape.Coordinates.Length);
+                                  item.Shape.Coordinates.Length==hardpoint.Shape.Coordinates.Length, required);
     }
 
     private void OutfitEntity(Entity entity)
+    {
+        EquipHardpoints(entity);
+        FillInterior(entity);
+    }
+
+    private void EquipHardpoints(Entity entity)
     {
         var hullData = ItemManager.GetData(entity.Hull) as HullData;
         foreach (var v in hullData.Shape.Coordinates) entity.HullConductivity[v.x, v.y] = true;
@@ -155,7 +188,7 @@ public class LoadoutGenerator
             if (hardpoint.Type == HardpointType.ControlModule)
             {
                 var controllerData = RandomItem<GearData>(hardpoint, 2,
-                    item => item.Behaviors.Any(b => entity is Ship && b is CockpitData || entity is OrbitalEntity && b is TurretControllerData));
+                    item => item.Behaviors.Any(b => entity is Ship && b is CockpitData || entity is OrbitalEntity && b is TurretControllerData), required: true);
                 if (controllerData == null) 
                     throw new InvalidLoadoutException("No compatible controller found for entity!");
                 var controller = ItemManager.CreateInstance(controllerData) as EquippableItem;
@@ -188,11 +221,16 @@ public class LoadoutGenerator
             }
         }
 
+    }
+
+    // Interior gear may use any free interior cell, including empty hardpoint cells
+    private void FillInterior(Entity entity)
+    {
         var emptyShape = entity.UnoccupiedSpace;
-        
+
         var cargoData = RandomItem<CargoBayData>(3, item =>
             !(item is DockingBayData) &&
-            item.Shape.FitsWithin(emptyShape, out _, out _));
+            item.Shape.FitsWithin(emptyShape, out _, out _), required: true);
         if (cargoData == null) throw new InvalidLoadoutException("No compatible cargo bay found for entity!");
 
         cargoData.Shape.FitsWithin(emptyShape, out var cargoRotation, out var cargoPosition);
@@ -205,7 +243,7 @@ public class LoadoutGenerator
 
         var capacitorData = RandomItem<GearData>(2, item =>
             item.Behaviors.Any(b => b is CapacitorData) &&
-            item.Shape.FitsWithin(emptyShape, out _, out _));
+            item.Shape.FitsWithin(emptyShape, out _, out _), required: true);
         if (capacitorData == null) throw new InvalidLoadoutException("No compatible capacitor found for entity!");
 
         capacitorData.Shape.FitsWithin(emptyShape, out var capacitorRotation, out var capacitorPosition);

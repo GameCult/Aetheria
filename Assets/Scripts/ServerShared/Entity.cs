@@ -420,7 +420,8 @@ public abstract class Entity
             var emptyShape = new Shape(HullData.Shape.Width, HullData.Shape.Height);
             foreach (var v in HullData.Shape.Coordinates)
             {
-                if (HullData.InteriorCells[v] && GearOccupancy[v.x, v.y] == null && Hardpoints[v.x,v.y] == null)
+                // Empty hardpoint cells count as free: general gear may use them until hardpoint gear claims them
+                if (HullData.InteriorCells[v] && GearOccupancy[v.x, v.y] == null)
                     emptyShape[v] = true;
             }
 
