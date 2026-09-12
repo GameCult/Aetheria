@@ -296,6 +296,11 @@ public static class ZoneGenerator
 	        var orbit = selectedStationOrbits[i];
 	        var lagrangeOrbit = CreateLagrangeOrbit(orbit);
 	        var station = GetLoadoutGenerator(story.Faction).GenerateStationLoadout();
+	        if (station == null)
+	        {
+		        itemManager.Log($"Story station for {story.Faction?.Name} could not be generated; its story has nowhere to live!");
+		        continue;
+	        }
 	        station.Orbit = lagrangeOrbit.ID;
 	        station.SecurityLevel = story.Security;
 	        station.SecurityRadius = pack.Radius;

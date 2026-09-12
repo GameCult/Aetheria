@@ -34,6 +34,10 @@ public static class Extensions
             totalWeight += weights[x];
         }
 
+        // Nothing can be drawn from a set whose weights all come to nothing. Returning an empty array says so,
+        // where a full array of unset elements would read as "found these" and hand the caller nulls.
+        if (totalWeight <= 0) return new T[0];
+
         var randomElements = new T[count];
         for (int i = 0; i < count; i++)
         {

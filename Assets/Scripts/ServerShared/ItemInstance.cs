@@ -37,12 +37,16 @@ public abstract class CraftedItemInstance : ItemInstance
     // The workmanship of this particular unit, as distinct from the parts that went into it.
     [JsonProperty("quality"), Key(2)]  public float Quality;
 
-    // The part filling each of the design's roles, one level deep. Empty on items made before roles existed,
-    // and on parts themselves; stats then read Quality as they always did.
-    [JsonProperty("ingredients"), Key(3)]  public List<RoleFill> Ingredients = new List<RoleFill>();
+    // Keys 9 and 10, past every key the derived instances use: an item saved before these existed has no
+    // element there at all. Keys 3 to 6 sit inside the old range and read back as nil, which a non-nullable
+    // Guid cannot deserialize, so nothing new may go there.
+
+    // How good the part filling each of the design's roles turned out. Empty on items made before roles
+    // existed; stats then read Quality as they always did.
+    [JsonProperty("ingredients"), Key(9)]  public List<RoleFill> Ingredients = new List<RoleFill>();
 
     // The manufacturer's branded product this was built as, naming it and carrying its flavor text.
-    [JsonProperty("product"), Key(4)]  public Guid Product;
+    [JsonProperty("product"), Key(10)]  public Guid Product;
 
     // The quality a stat reads for one of the design's roles. An unnamed role, a design without roles, and an
     // item built before roles existed all fall back to this item's own workmanship.

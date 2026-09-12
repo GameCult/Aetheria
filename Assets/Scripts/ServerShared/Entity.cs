@@ -532,13 +532,11 @@ public abstract class Entity
             // Check every cell of the item's shape
             foreach (var i in itemData.Shape.Coordinates)
             {
-                // If there is any gear already occupying that space, it won't fit
-                // If there's a hardpoint there, it won't fit
-                // Thermal items have their own layer and do not collide with gear
+                // An interior cell is usable when no gear occupies it. An empty hardpoint cell counts as usable:
+                // general gear may take it until hardpoint gear claims it, which is the same rule
+                // UnoccupiedSpace reports, so what generation is offered and what equipping accepts agree.
                 var itemCoord = hullCoord + itemData.Shape.Rotate(i, item.Rotation);
-                if (!hullData.InteriorCells[itemCoord] || 
-                    itemData.HardpointType == HardpointType.Tool && Hardpoints[itemCoord.x, itemCoord.y] != null || 
-                    GearOccupancy[itemCoord.x, itemCoord.y] != null) 
+                if (!hullData.InteriorCells[itemCoord] || GearOccupancy[itemCoord.x, itemCoord.y] != null)
                     return false;
             }
         }

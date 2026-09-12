@@ -146,14 +146,16 @@ public class LoadoutGenerator
             count);
     }
 
+    // No galaxy means no availability to filter by: every product is on offer. A fixture generates loadouts that
+    // way, so a test can exercise placement and products without standing up a whole galaxy; no game path does.
     private bool IsAvailable(FactionProductData product) =>
-        Galaxy.IsPrelude ||
+        Galaxy == null || Galaxy.IsPrelude ||
         Galaxy.ContainsFaction(product.Manufacturer) && (Faction == null || Faction.Allegiance.ContainsKey(product.Manufacturer));
 
     // Prioritize products from the zone faction and its allies, penalizing distance to the manufacturer's headquarters
     private float ManufacturerPreference(Guid manufacturer)
     {
-        if (Faction == null) return 1;
+        if (Faction == null || Galaxy == null) return 1;
         var allegiance = manufacturer == Faction.ID ? 1 :
             Faction.Allegiance.TryGetValue(manufacturer, out var a) ? a : 0;
         var home = Galaxy.HomeZones.FirstOrDefault(h => h.Key.ID == manufacturer).Value;
