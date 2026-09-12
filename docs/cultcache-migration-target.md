@@ -16,9 +16,12 @@ CultNet is built on CultCache, and CultMesh on CultNet. Every CultLib change
 below lands under all GameCult infrastructure, not just Aetheria.
 
 - **Wire parity is an invariant.** CultCache maintains wire parity with the
-  other runtimes (`F:\Projects\cultcache-rs`, `cultcache-py`, `cultnet-rs`,
-  `cultnet-ts`, `CultLib\packages\cultcache-ts`). A change that alters bytes on
-  disk or on the wire must land in every runtime, or it does not land.
+  other runtimes, and only the packages inside CultLib are canonical:
+  `CultLib\packages\cultcache-{py,rs,ts}`, `cultnet-{py,rs,ts}`, and
+  `cultmesh-{browser,kotlin,py,rs,ts}`. The neighboring repositories
+  `F:\Projects\cultcache-rs`, `cultcache-py`, `cultnet-rs`, and `cultnet-ts`
+  are defunct and are not parity targets. A change that alters bytes on disk or
+  on the wire must land in every canonical runtime, or it does not land.
 - **C# is the reference runtime.** The ergonomics arose there; the other
   runtimes follow its contract. Contract changes are written down in
   `CultLib\src\GameCult.Caching\Contracts\` first.
