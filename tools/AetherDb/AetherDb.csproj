@@ -12,5 +12,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\Aetheria.Shared\Aetheria.Shared.csproj" />
+    <!-- Unity asset files are YAML; parsing them is a solved problem, not one to hand roll -->
+    <PackageReference Include="YamlDotNet" Version="16.2.1" />
   </ItemGroup>
 </Project>
