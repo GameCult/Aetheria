@@ -26,6 +26,8 @@ public static class Program
             case "save": return Save();
             case "factions": return Factions();
             case "clear-boss-hulls": return ClearBossHulls(args.Contains("apply"));
+            case "settings": return Settings();
+            case "settings-dump": return SettingsDump();
             case "migrate-products": return MigrateProducts(args.Contains("apply"));
             default:
                 Console.WriteLine("commands: doctor, census, station-fit, migrate-products [apply]");
@@ -144,6 +146,64 @@ public static class Program
         }
         Console.WriteLine($"\n{unfillable} hardpoints no product can fill");
         return unfillable;
+    }
+
+    // The parsed shape of the settings asset, for checking where sequence items actually landed.
+    private static int SettingsDump()
+    {
+        var authored = AuthoredSettings.Load(AetherDb.Open().Root);
+        authored.Dump("TutorialGenerationSettings", 2);
+        Console.WriteLine();
+        authored.Dump("GameplaySettings", 2);
+        return 0;
+    }
+
+    // What the authored settings asset actually yields, so a fixture using it can be trusted before it reports
+    // anything about galaxies. Prints the values that matter to generation and every field it could not place.
+    private static int Settings()
+    {
+        var db = AetherDb.Open();
+        var authored = AuthoredSettings.Load(db.Root);
+
+        var tutorial = authored.Read<TutorialGenerationSettings>("TutorialGenerationSettings");
+        var background = authored.Read<SectorBackgroundSettings>("TutorialBackgroundSettings");
+        var names = authored.Read<NameGeneratorSettings>("NameGeneratorSettings");
+        var zones = authored.Read<ZoneGenerationSettings>("ZoneSettings");
+        var gameplay = authored.Read<GameplaySettings>("GameplaySettings");
+
+        Console.WriteLine($"tutorial: protagonist {tutorial.ProtagonistFaction}, antagonist {tutorial.AntagonistFaction}, " +
+            $"buffer {tutorial.BufferFaction}, quest {tutorial.QuestFaction}, " +
+            $"neutrals [{string.Join(", ", tutorial.NeutralFactions ?? new string[0])}], " +
+            $"{tutorial.ZoneCount} zones, link density {tutorial.LinkDensity}");
+        Console.WriteLine($"background: frequency {background.NoiseFrequency}, amplitude {background.NoiseAmplitude}, " +
+            $"cloud exponent {background.CloudExponent}, density at centre {background.CloudDensity(new float2(.5f)):0.000}");
+        Console.WriteLine($"names: order {names.NameGeneratorOrder}, length {names.NameGeneratorMinLength}-{names.NameGeneratorMaxLength}");
+        Console.WriteLine($"zones: sun mass {zones.SunMass}, planet mass {zones.PlanetMass}, satellite passes {zones.SatellitePasses}, " +
+            $"belt probability {zones.BeltProbability}");
+        Console.WriteLine($"  zone radius curve {zones.ZoneRadius?.Minimum}-{zones.ZoneRadius?.Maximum} exponent {zones.ZoneRadius?.Exponent}");
+        Console.WriteLine($"  sub zone count {zones.SubZoneCount?.Minimum}-{zones.SubZoneCount?.Maximum} exponent {zones.SubZoneCount?.Exponent}");
+        Console.WriteLine($"gameplay: weapon groups {gameplay.WeaponGroupCount}, shutdown performance {gameplay.DefaultEntitySettings?.ShutdownPerformance}");
+        Console.WriteLine($"  tiers: {string.Join(", ", (gameplay.Tiers ?? new RarityTier[0]).Select(t => $"{t.Name} q{t.Quality} r{t.Rarity}"))}");
+        Console.WriteLine($"  price modifier {gameplay.QualityPriceModifier?.Minimum}-{gameplay.QualityPriceModifier?.Maximum} exponent {gameplay.QualityPriceModifier?.Exponent}");
+
+        // Assert counts, not non-null: an empty array reads as populated and would make every number a fixture
+        // reports downstream a fiction. These are the authored values as of the asset read above.
+        var missing = new List<string>();
+        if (zones.ZoneRadius == null || zones.ZoneRadius.Maximum <= 0) missing.Add("ZoneSettings.ZoneRadius");
+        if (zones.SubZoneCount == null || zones.SubZoneCount.Maximum <= 0) missing.Add("ZoneSettings.SubZoneCount");
+        if (zones.PlanetSafetyRadius == null || zones.PlanetSafetyRadius.Multiplier <= 0) missing.Add("ZoneSettings.PlanetSafetyRadius");
+        if (gameplay.Tiers == null || gameplay.Tiers.Length != 5) missing.Add($"GameplaySettings.Tiers (expected 5, got {gameplay.Tiers?.Length ?? 0})");
+        else if (gameplay.Tiers.Any(t => string.IsNullOrEmpty(t.Name) || t.Quality <= 0)) missing.Add("GameplaySettings.Tiers (a tier parsed without a name or quality)");
+        if (gameplay.DefaultEntitySettings == null) missing.Add("GameplaySettings.DefaultEntitySettings");
+        if (gameplay.QualityPriceModifier == null || gameplay.QualityPriceModifier.Maximum <= 0) missing.Add("GameplaySettings.QualityPriceModifier");
+        if (tutorial.NeutralFactions == null || tutorial.NeutralFactions.Length != 2) missing.Add($"TutorialGenerationSettings.NeutralFactions (expected 2, got {tutorial.NeutralFactions?.Length ?? 0})");
+        if (string.IsNullOrEmpty(tutorial.ProtagonistFaction)) missing.Add("TutorialGenerationSettings.ProtagonistFaction");
+
+        Console.WriteLine($"\n{authored.Unplaced.Count} fields in the asset had nowhere to go");
+        foreach (var field in authored.Unplaced.Take(20)) Console.WriteLine($"  {field}");
+        Console.WriteLine($"{missing.Count} settings generation needs came back unset");
+        foreach (var field in missing) Console.WriteLine($"  {field}");
+        return missing.Count;
     }
 
     // Clears boss hull links that resolve to nothing. Galaxy.PlaceFactionsMain gives a boss zone to every faction
