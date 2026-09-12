@@ -6,6 +6,7 @@ Date: 2026-06-12
 commit `7006a6b0`; the rebuild lives on in `F:\Projects\AetheriaEve`. Current
 direction for this repo is [three-gates-scope.md](three-gates-scope.md). Read
 this document as a record of the deferred plan, not as current direction.
+The cache move alone is now [cultcache-migration-target.md](cultcache-migration-target.md).
 
 This is the Proprioception and Imagination pass for turning Aetheria from a
 Unity project with ancestral cache/network/UI machinery into a coherent
