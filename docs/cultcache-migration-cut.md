@@ -82,16 +82,16 @@ shape `[P5]`. CultMath defines no encoding and is not adopted.**
   bug fixed in Cut 8. `bool2[,]` uses MessagePack's `TwoDimensionalArrayFormatter`.
 - CultMath (`CultLib\packages\cultmath`) has no serialization; no sibling
   defines a vector shape.
-- The persisted member type name is the CLR full name
-  (`CultGeneratedDocumentMetadata.cs:258-282`, used at `CC:710`), the same rule
-  as `System.Int32`; the generator does the same
-  (`CultDocumentMessagePackGenerator.cs:354-384`).
+- The persisted member type name is the CLR full name, the same rule as
+  `System.Int32` (at the evidence base, `CultGeneratedDocumentMetadata.cs:258-282`
+  and the generator; since the Cut 4 generator deletion the registry's
+  `CultSchemaTypeNames` alone owns it, with nested types written `Outer+Inner`).
 - CultLib has no consumer formatter extension point: `Options` is a
   `static readonly` composite under `MessagePackSecurity.UntrustedData`
   (`CultDocumentMessagePackSerialization.cs:50-55`); generated serializers
-  read it at call time (emitted `var options = ...Options;` at both
-  `Serialize` and `Deserialize`, members resolved via `options.Resolver`)
-  `[P4]`.
+  read it at call time `[P4]` (historical: the generator and its serializers
+  were deleted in Cut 4; every payload now goes through `MessagePackSerializer`
+  with `OptionsFor(assembly)`).
 - `[P5]`: MessagePack 3's own generator (`MessagePackAnalyzer` 3.1.7, a
   dependency of `MessagePack`) fails the build (CS0426) on
   `Dictionary<CultRecordRef<T>, float>` by emitting a reference to a
@@ -186,11 +186,14 @@ a leaf. What they do use is in the audit (2.0) and named in the authority map.**
   `FlushAsync(bool)`, and descriptor/catalog members). Cut 6 replaces the
   reflection with a compile-time reference, so nothing is frozen for it; the
   Studio package moves in lockstep in the same release (Cut 7).
-- The GameCult generator requires `[CultDocument]` on the declaring type,
-  discovers members on that type only (`CultDocumentMessagePackGenerator.cs:43-50,
-  80`), and has no `[Union]` handling. Aetheria's derived catalog documents
-  still depend on Cut 4's generator fix whenever its Unity and headless builds
-  differ in whether the generator runs.
+- At the evidence base the GameCult generator discovered members on the
+  declaring type only and had no `[Union]` handling. Cut 4 deleted it, so
+  Aetheria's Unity and headless builds share the reflective registry and no
+  longer depend on whether a generator runs. Re-pin follow-up for Delvehold:
+  remove the generator `ProjectReference`s in `Delvehold.WorldHost.csproj:13`
+  and `Delvehold.Protocol.csproj:11`, and stop `Directory.Build.props:8`
+  preferring the stale `CultLib-aetheria-authority` worktree; it builds today
+  only because of that preference.
 
 ### Q5. Can existing stores hold records written under a declared parent schema?
 
