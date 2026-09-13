@@ -783,6 +783,28 @@ per assembly, used by `SerializeUntyped`/`DeserializeUntyped`
 emitted `var options = ...` (`CultDocumentMessagePackGenerator.cs:290, 308`,
 which becomes `OptionsFor(typeof(X).Assembly)`).
 
+**Slot authority and generic documents (operator decisions 2026-09-13).**
+MessagePack's integer `[Key]` is the single slot authority for schema identity,
+catalog, compatibility and serialization. `GameCult.Caching` references
+`MessagePack.Annotations` directly and matches `KeyAttribute` and
+`IgnoreMemberAttribute` by type instead of by name string: the core was once
+meant to be serializer-independent, but `.cc` is canonically MessagePack, so
+that indirection is dropped. A generic document's declared resolvers come only
+from the document type's own assembly (`typeof(Doc<X>).Assembly`).
+
+**Generator and registry agreement (Soul, Cut 4).** Old-versus-new consumer
+probes found what the single agreement test missed: per-declaring-type accessor
+names collide when two documents share a base with `[CultName]`/`[CultIndex]`;
+the generator read a base declaration where reflection read the override, which
+changed ids and in one case bytes; duplicate slots (including `new`-hidden
+members) went unchecked once MessagePack's analyzer stopped reaching consumers;
+inherited private setters stopped compiling; and the typed
+`Serialize<T>`/`Deserialize<T>` helpers bypassed per-assembly options. The fixes
+name accessors per document, use the most-derived declaration in both paths,
+reject duplicate slots and string keys with one message each, and route the
+typed helpers through the untyped path, proven by a descriptor-equality sweep
+across member shapes with a byte pin for overrides.
+
 **Security.** `CultMessagePackSecurity : MessagePackSecurity` copies
 `UntrustedData` and overrides `GetHashCollisionResistantEqualityComparer<T>()`
 to return, for `CultRecordRef<TDoc>`, a comparer over `Key.Value` built from
