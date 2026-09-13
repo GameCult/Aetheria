@@ -592,13 +592,21 @@ home store, before `_entries` changes.
   anything is published, so a throwing handler cannot leave the store holding
   records the cache dropped.
 - Each call publishes only the changes it admitted, on its own thread, after
-  the gate is released and before it returns (CultLib `544c087`). Deliveries
-  across threads arrive in save order (operator decision 2026-09-13), so a
-  consumer that keeps the latest value (`CultMesh.WatchRecord` into
-  `ApplyCanonicalSnapshot`) never applies a stale one; an observer that writes
-  the same cache must not deadlock against a concurrent writer, which a test
-  proves. Only `OnUpdate` exceptions reach the caller; `Watch` subscriber
-  exceptions follow R3's unhandled-exception handling.
+  the gate is released and before it returns (CultLib `544c087`). Only
+  `OnUpdate` exceptions reach the caller; `Watch` subscriber exceptions follow
+  R3's unhandled-exception handling.
+- **Order is data, not scheduling (operator decision 2026-09-13).** The cache
+  does not schedule delivery. Every admitted change gets the next value of a
+  per-cache, in-memory sequence under the gate that admits it, and each
+  published change carries it (`Sequence`). Cross-thread delivery order is not
+  guaranteed; a consumer that keeps a latest value drops a change whose
+  sequence is lower than the one it applied (`CultMesh.WatchRecord` into
+  `ApplyCanonicalSnapshot`). Rejected: save-order delivery with tickets and
+  turn waits (CultLib `bcae483`, deleted), which made the cache a delivery
+  scheduler, deadlocked against `CultNetDatabaseSubscriptionServer`'s
+  `_lifecycleGate`, and could stall a cache on an interrupted wait; and a
+  non-blocking delivery queue, which kept the same authority in the cache.
+  Cross-process order stays with `StoredAt` and conditional commit.
 - One key lives in one store: a write or load that would put a key already held
   from another store throws and changes nothing.
 - `OnUpdate` fires for loads only, as before the migration; writers publish
