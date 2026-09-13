@@ -820,7 +820,14 @@ rejection rule; payloads go through `MessagePackSerializer` with
 target ever appears, MessagePack's own AOT generator is the answer, not a
 second copy of the rules. The generator member-discovery and sweep work below
 is superseded; the rules it settled now live in the registry alone.
-Follow-ups: Delvehold drops its two analyzer references when it re-pins
+The first deletion attempt showed the fallback claim was incomplete: the
+generated codec was the only writer for `[CultDocument]` types without
+`[MessagePackObject]` (MessagePack's resolver refuses them), and the generator
+named nested member types `Outer.Inner` where reflection uses `Outer+Inner`.
+Operator decisions: every `[CultDocument]` must carry `[MessagePackObject]`
+(the registry rejects one without it), and nested member type names keep
+reflection's `+` form, after a scan confirms no persisted store holds the dot
+form. Follow-ups: Delvehold drops its two analyzer references when it re-pins
 CultLib; EveUnity's `GenericWorldCaptureTests.cs:65` (both projects) moves
 off the deleted `Deserialize<T>` when it re-pins.
 
