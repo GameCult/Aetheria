@@ -339,7 +339,7 @@ the two Caching projects.
 | store `HydrationFilter`, `PullSelected`, `PullBackingStoreRecordsAsync`, `CultPersistedRecordMetadata` | tests only | delete |
 | `soft` flag on `FlushAsync`/`FlushAllBackingStores`/`PushAll`/`CommitBatch` | no store reads it (`CC:2638`, `DMS:360`); Mimir (`EveDashboard:900`, `CultMeshMedia:422`) and Brokkr (`BrokkrCultMeshMirror.cs:68-124`) pass `soft: true` through `CultMesh.FlushAsync`/`CultNetLocal.FlushAsync` | delete from Caching; `CultMesh.FlushAsync(bool)` and `CultNetLocal.FlushAsync(bool)` keep their parameter and stop forwarding it. Removing it there and at the four external call sites is a named follow-up |
 | SoA: `Soa<T>`, `CultSoaTable`, `CultSoaColumn`, `CultCacheSoaStore`, `CultCacheSoaTypeTable`, `CultCacheSoaMember` (`CultManagedDocument.cs:136-414`), `_soa` hooks in `CC` | tests only | **park**, not delete: built for a stated reason (ECS-style structure-of-arrays columns over cached documents, performance without compromising document ergonomics). Cut 2 step 1 tags the last commit holding it as `parked/cultcache-soa` before removal, adds `docs\parked-features.md`, and amends `docs\runtime-parity-scope.md:23-27, 33` to say the SoA table is parked at that tag |
-| `Document<T>`, `CultManagedDocument<T>`, `CultNetDatabase.Document<T>` | tests only | delete |
+| `Document<T>`, `CultManagedDocument<T>`, `CultNetDatabase.Document<T>` | tests only | removed from the live cache; `CultManagedDocument<T>` is parked with SoA at `parked/cultcache-soa` (`docs\parked-features.md`, CultLib `1982d73`) |
 | Transactions: `ExecuteTransactionAsync` (both), `CultCacheTransaction`, `CommitTransaction`, `VisibleStoredDocuments`, `_ambientTransaction`, `_transactionGate`, `CacheBackingStore.CommitBatch` (+ `DMS:308-351`), `CultNetDatabase.ExecuteTransactionAsync` (`CND:519-555`), `RequireTransactionsForAuthoritativeWrites` (`CND:305`), `EnsureAuthoritativeTransaction` (`CND:1791-1796`), `AfterCommit` (`CND:898-901`) | tests only in C#. Siblings: TS has no batch; Python has `put_envelopes` (`CultLib\packages\cultcache-py\src\cultcache_py\cache.py:227-251`, one document type per call, `push_all`, no rollback) used by `CultLib\packages\cultnet-py\src\cultnet_py\replication.py:98`; Rust has a cache-level `put_prepared_batch` (`CultLib\packages\cultcache-rs\src\lib.rs:2162-2201`: one store per batch, all-or-nothing `push_all`) with no caller, and a **store-level** batch family (`compare_and_swap_batch`, `compare_exchange`, `compare_exchange_snapshot`, `delete_batch_if_unchanged`, `CultLib\packages\cultcache-rs\src\lib.rs:397-800`, `8f29ee5`) consumed by Odin (12 sites), Idunn (31), CodexConnector (1) and Ghostlight (`ghostlight-dungeon\src\app_session.rs:119, 371`, plus tests): every one passes an explicit batch value; none relies on ambient in-flight visibility. Operator: atomic multi-record commit is a desired capability | **replace, not delete**: the ambient `AsyncLocal` overlay, the `SemaphoreSlim` gate, `CultCacheTransaction`, `CommitTransaction` and `VisibleStoredDocuments` (~230 lines) go in Cut 3 in the same commit that lands `Commit(Action<CultCacheBatch>)` (2.2); `CacheBackingStore.CommitBatch` and `DMS:308-351` stay as the store side. `CultNetDatabase.ExecuteTransactionAsync`, `RequireTransactionsForAuthoritativeWrites`, `EnsureAuthoritativeTransaction`, `AfterCommit` are deleted (tests only; CultNet callers use `PutAsync`). `cultcache-persistence-format.md:42-55` is amended to the explicit-batch shape, not retracted |
 | Directory store legacy formats `cultcache.store.v2.directory-indexed`, `v3.directory-immutable-pages`, v1 inline records: `LoadLegacyRecords`, `_legacyInlineRecords`, `LegacyRecordPath`, `MetadataRecordPath`, `_needsIndexUpgrade`, `_manifestUsesMetadataPages` | no store on disk anywhere scanned uses them; only v4 is written | delete; a v2/v3 manifest is refused with its format string |
 | Directory store `ReadStageProbe`, `FlushStageProbe`, stage constants, `ReadPersistedGeneration` | tests only | delete, with the tests that inject through them |
@@ -877,6 +877,18 @@ the behavior change.
   `F:\Projects\Ymir\src\Ymir.Core`, `F:\Projects\AquaSynth` (its .NET
   projects), `F:\Projects\Mimir` (its .NET projects), `F:\Projects\Gjallar\src\Gjallar`;
   `rg "ConfigureCache|ConfigureStore|DirectoryStorePath|ConfigureDirectoryStore|FlushBackingStore\(|PrepareForReloadOrShutdown|TryGetByName|TryGetByIndex|ExecuteTransactionAsync|\.Soa<|\.Document<|LastSuccessfulFlushAtUtc|HydrationFilter"` over those five repos, Delvehold, Brokkr, Eve, EveUnity, EvePlugins must be empty (Brokkr, Eve*, Delvehold are not built here; the grep is the proof).
+- Behavior changes Cut 2 did make (Soul, Cut 2), recorded rather than reversed:
+  (B1) an exception while the cache admits a loaded record now propagates out
+  of `PullAll`, where the R3 `Subject` path swallowed it; Cut 3's `Admit`
+  makes load all-or-nothing. (B2) attaching one store to a second cache
+  silently replaces the first cache's `Loaded`/`Unloaded`; Cut 3 refuses it.
+  (B3) a manifest deleted while the process runs empties the store on the next
+  flush, since a missing manifest is an empty store. (B4) a v1 single-file
+  snapshot opened as a directory store throws instead of converting. Also: a
+  clean flush on a fresh directory store writes nothing, and orphan pages with
+  no manifest are ignored. Atomic replace, pages-before-manifest ordering,
+  content-addressed pages and both leases are unchanged in code, but their
+  tests went with the stage probes; Cut 3 restores coverage.
 - Soul: `git tag -l parked/cultcache-soa` resolves to a commit whose
   `CultManagedDocument.cs` still holds `CultSoaTable`, and `docs\parked-features.md`
   names it; Cut 1's eight tests still red for the same reasons (no behavior
@@ -924,6 +936,29 @@ the behavior change.
   unchanged; `Get` null; `IsDirty` false); `ReadOnlyStoreIsNotFlushed`;
   `GlobalSingletonIsEnforced` (second key throws; a file with two records of a
   global type is refused at attach); `AmbiguousAssignableLookupThrows`.
+- Durability coverage restored (Soul, Cut 2), without a public probe: faults
+  come from real file locks. `tests\GameCult.Caching.Tests\DirectoryStoreDurabilityTests.cs`:
+  `FailedManifestReplaceKeepsPreviousGeneration` (hold the manifest with
+  `FileShare.None`; a dirty flush throws; after release a reopen reads the old
+  values, `IsDirty` stays true, and the next flush commits);
+  `SameStoredAtDifferentPayloadWritesADistinctPage`;
+  `PullAllWaitsForHeldCommitLease` (hold `<records>\.commit.lock`; `PullAll`
+  has not returned within 100 ms and returns after release);
+  `MutationBlockedBehindFlushStaysDirty`; `FlushNeverOpensUnchangedPages` (a
+  clean page held with `FileShare.None`; flush succeeds);
+  `MissingManifestIgnoresOrphanPagesAndFlushDeletesThem`;
+  `TamperedPageFailsLoadNamingPage`. `DirectoryStoreHonorsConditions` covers
+  the conditional-commit path.
+- Load and attachment: `PullAllAdmissionFailureLeavesStoreAndCacheConsistent`
+  (a record that fails `Admit` leaves neither the store's entries nor the cache
+  partly updated); `StoreAttachedToSecondCacheThrows` (`AddBackingStore`
+  refuses a store whose `Loaded` is already set). Decide
+  `ResolveLegacyUncataloguedRecordCatalog` (`DMS`): delete it under the target
+  invariant that legacy formats are read only by the importer, unless a v4
+  store can reach it, in which case test it against v4.
+- CultNet: `Commit` must not publish CultNet puts or deletes staged in a batch
+  before the store commits. Add `CultNetPutInsideCommitPublishesOnlyAfterCommit`,
+  or make `CultNetDatabase` writes refuse inside a batch; pick the smaller.
 - Commands: `dotnet build CultLib.sln`; the four test projects as Cut 2; the
   five external builds as Cut 2; `rg "UpsertAsync<|AddAsync<|PutAsync<"` over
   Delvehold, AquaSynth, Mimir, Gjallar reviewed for a base-typed `T` (none
