@@ -212,8 +212,8 @@ a leaf. What they do use is in the audit (2.0) and named in the authority map.**
 | Gjallar | .NET sibling | none found | `Create`, `FlushAllBackingStores`, `FlushOnDispose`, `StoreFlushOnDispose` kept |
 | Brokkr, Eve, EveUnity, EvePlugins | Unity package / sibling | various | `Watch<T>` via CultMesh, `new CultCache(registry)`, `FlushAsync(soft: true)` via CultMesh kept |
 | Delvehold | .NET sibling with a revision guard | `334e60f`, 52 behind | Not until it re-pins; `Registry`, `FlushOnDispose`, generator kept |
-| Heimdall | submodule, TS only | `b6b1d9c` | cultcache-ts mirror deletion (Cut 5) on next bump; it attaches one store |
-| Idunn, Epiphany, Odin, Ghostlight, Muninn, Ratatoskr, CodexConnector | Cargo by commit | various | cultcache-rs mirror deletion (Cut 5) on re-pin; all use `add_generic_backing_store` once |
+| Heimdall | submodule, TS only | `b6b1d9c` | `CultLib\packages\cultcache-ts` mirror deletion (Cut 5) on next bump; it attaches one store |
+| Idunn, Epiphany, Odin, Ghostlight, Muninn, Ratatoskr, CodexConnector | Cargo by commit | various | `CultLib\packages\cultcache-rs` mirror deletion (Cut 5) on re-pin; all use `add_generic_backing_store` once |
 | Huginn, Sai, Stonks, Vili | npm sibling paths | none | as Heimdall, immediately |
 | Aetheria | nothing yet | n/a | the consumer this cut serves |
 
@@ -608,8 +608,9 @@ cache does not retain bytes and the in-memory object may have been mutated
 since it was observed; it is sound only if every write to a key mints a
 `StoredAt` strictly later than the record it replaces, so `Push`,
 `CommitBatch` and the batch builder bump a minted `StoredAt` by one tick when
-it is not later than the existing record's. `[P7]` measures why: minting with
-`"O"` in a loop produces duplicates within one tick. `Commit` returns `false`
+it is not later than the existing record's (`"O"` has 100 ns resolution and
+two writes can land in one tick; `StoredAtIsStrictlyIncreasingPerKey` in
+Cut 3 is the proof, since `[P7]` produced no result). `Commit` returns `false`
 when a condition fails: no store write, no in-memory change, no notification.
 `TryCommit` makes one non-blocking lock attempt and reports `Contended`
 instead of waiting (Idunn's `try_` use); it is the same path with `wait:
@@ -632,11 +633,12 @@ commit; the contract says so. Directory store: conditions are evaluated
 under its existing `AcquireCommitLease` against the manifest re-read from
 disk (`_durableIndex` identities are the same `(SchemaId, StoredAt)`),
 `ExpectUnchanged` against the manifest's record set, then its existing
-content-addressed pages and manifest write. `[P7]` proves the identity and
-the lock: stale `Expect` detected after a concurrent write, unrelated writes
-ignored, `Expect(null)` as create-once, `ExpectUnchanged` failing on an
-unrelated insert, and two processes racing on one file with the lock
-finishing at exactly `2N`.
+content-addressed pages and manifest write. The identity and the lock are
+proven by Cut 3's `ConditionalCommitTests.cs` (stale `Expect` detected after
+a concurrent write, unrelated writes ignored, `Expect(null)` as create-once,
+`ExpectUnchanged` failing on an unrelated insert, two writers racing on one
+file finishing at exactly `2N`); the probe meant to pre-establish them `[P7]`
+never produced a result.
 
 Parity: Rust already has both families and a `try_` (`with_exclusive_lock`
 :700 uses `fs2` on a lock file); TS and Python have neither and are recorded
@@ -714,7 +716,7 @@ ordering rule.
 | Contract text | none | docs in all four | review |
 
 The hosted workflow (`.github\workflows\cultnet-interop.yml`) tests CultNet
-frames only; `.cc` parity is the cultcache-ts test, run by `npm test` and on
+frames only; `.cc` parity is the `CultLib\packages\cultcache-ts` test, run by `npm test` and on
 `cultcache-ts-v*` tags. Rust writes a stub catalog and second-precision
 `storedAt` (`CultLib\packages\cultcache-rs\src\lib.rs:2397-2433`), a pre-existing byte-parity gap this cut
 neither widens nor closes.
@@ -937,11 +939,21 @@ the behavior change.
   second returns false); `PerEntryCommitSurvivesUnrelatedWrite` (A writes key
   `b`; B's commit expecting only `a` returns true and the file holds both);
   `ExpectUnchangedFailsOnUnrelatedInsert` (A inserts `c`; B's
-  `ExpectUnchanged` commit returns false); `TwoProcessesRacingExactlyOneWins`
-  (the test starts two copies of a small console project under `tests\` on
-  one file, each performing N conditional increments of one record with
-  observe-outside, re-check-under-lock; the final value is `2N` and each
-  process reports at least one `Mismatch`); `TryCommitReportsContended` (the
+  `ExpectUnchanged` commit returns false); `TwoWritersRacingExactlyOneWins`
+  (in-process first: two `SingleFileMessagePackBackingStore` instances on one
+  file driven from two threads, each performing N conditional increments of
+  one record with observe-outside, re-check-under-lock; the final value is
+  `2N` and each writer reports at least one `Mismatch`; this proves the lock
+  property because the lock is a `FileShare.None` handle, which excludes
+  within a process exactly as across processes); `TwoProcessesRacingExactlyOneWins`
+  (the cross-process form, only if the in-process test is judged
+  insufficient: the test launches exactly two children with an explicit host,
+  `dotnet <path-to-child.dll>`, never `Environment.ProcessPath`; the child
+  role is an environment variable, `CULTCACHE_RACE_CHILD=1`, checked before
+  any other logic in the child's `Main`; the child `Main` throws if it is ever
+  asked to spawn; the parent asserts `Process.GetProcessesByName` shows at
+  most two children at any sample and fails the test otherwise; `N` is
+  bounded and every loop has an iteration cap); `TryCommitReportsContended` (the
   test holds `<path>.lock` with `FileShare.None`; `TryCommit` returns
   `Contended` at once with bytes unchanged; `Commit` on another thread waits
   and succeeds after release); `PlainFlushNeverInterleaves` (one process
@@ -1318,6 +1330,15 @@ Risks:
   a store on a read-only directory cannot commit conditionally (nor could it
   flush), and a stale lock file after a crash is harmless (`FileShare.None`
   is released with the process).
+- The conditional-commit design is the one part of this map not
+  pre-established by a probe (`[P7]` failed, section 7). Cut 3's tests carry
+  that burden; if `(schemaId, storedAt)` proves insufficient there, the
+  fallback is comparing payload bytes retained per record in the store's
+  staging, which costs memory, not bytes on disk.
+- Any test or probe that spawns processes must launch an explicit host with
+  a child role set by an environment variable checked first, cap every loop,
+  and fail if a child would spawn: the `[P7]` fork bomb came from launching
+  the apphost with the dll path as `args[0]`.
 - Deleting the v2/v3 directory formats refuses any store nobody found; if one
   exists it fails loudly with its format string and is rebuilt from source.
 - `ReactiveProperty` fields reachable from a document break without the
@@ -1340,6 +1361,12 @@ Rejected paths:
 - Ambient in-flight visibility inside a batch: no consumer in any runtime
   reads its own staged records; Rust, Ghostlight and Odin all pass explicit
   batch values.
+- Seven separate compare-exchange entry points mirroring Rust's: two
+  conditions on the one batch cover all of them.
+- Payload-byte identity for conditions: the cache does not retain bytes and
+  the in-memory instance may have been mutated since it was observed;
+  `(schemaId, storedAt)` with a strictly increasing `storedAt` is the same
+  fact at no memory cost.
 - Stripping MessagePack's generator in each consumer's build: the analyzer
   arrives through CultLib's reference, so CultLib owns the exclusion.
 - Per-field `[MessagePackFormatter]` attributes; `Dictionary<string, float>`
@@ -1371,7 +1398,7 @@ reference CultLib `c2a9a6e` by project, and were run with
 | P6 | `cc-analyzer-probe`: scratch library `Lib` (netstandard2.1, `MessagePack` 3.1.7, a generic `Ref<T>` struct with a custom formatter and resolver, standing in for `GameCult.Caching.MessagePack`) and a consumer `App` declaring `Dictionary<Ref<Doc>, float>`; four library shapes built with `dotnet build App\App.csproj -c Debug -p:<variant>` | default: `CS0426: The type name 'Lib' does not exist in the type 'GeneratedMessagePackResolver'`; `ExcludeAssets="analyzers" PrivateAssets="analyzers"` on `Lib`'s `MessagePack` reference: same error; `[assembly: MessagePackKnownFormatter(typeof(RefFormatter<>))]` in `Lib`: same error (emitted `case 0: return new global::MessagePack.GeneratedMessagePackResolver.Lib.RefFormatter<global::App.Doc>();`); `<PackageReference Include="MessagePackAnalyzer" Version="3.1.7" PrivateAssets="all" />` in `Lib`: `Build succeeded.` |
 | E1 | grep evidence (no code run) for the batch-commit shape | TS `cultcache-ts\src\*.ts`: no batch, transaction or atomic member; Python `CultLib\packages\cultcache-py\src\cultcache_py\cache.py:227-251` `put_envelopes` only, called from `CultLib\packages\cultnet-py\src\cultnet_py\replication.py:98`; Rust cache-level `put_prepared_batch` (`CultLib\packages\cultcache-rs\src\lib.rs:2162-2201`): no caller in `CultLib\packages` or in Odin, Idunn, Epiphany, CodexConnector, Ghostlight, Muninn, Ratatoskr; Rust store-level `compare_exchange*`/`compare_and_swap*`/`delete_batch_if_unchanged` (`CultLib\packages\cultcache-rs\src\lib.rs:397-800`): Odin 12 sites, Idunn 31, CodexConnector 1, Ghostlight `ghostlight-dungeon\src\app_session.rs:119, 371` (+3 tests) and `Ghostlight\crates\ghostlight-dungeon\src\world\consumer.rs:788` ("a malformed or stale batch commits nothing"); Epiphany's crates: none. Every call passes an explicit expected/replacement batch; none reads staged state mid-commit. |
 
-| P7 | `cc-cas-probe`: conditional commit over the existing single-file snapshot format, implemented in the probe (identity `(schemaId, storedAt)`, `<file>.lock` with `FileShare.None`, temp then `File.Replace`), two child processes racing on one file with the lock and without it | pending: see the reply that accompanies this revision; results are copied here when the run completes. |
+| P7 | `cc-cas-probe`: conditional commit over the existing single-file snapshot format, implemented in the probe (identity `(schemaId, storedAt)`, `<file>.lock` with `FileShare.None`, temp then `File.Replace`), meant to race two child processes on one file | **UNVERIFIED, no result recorded.** The race step launched `Environment.ProcessPath` (the apphost) with the dll path as `args[0]`, so no child took the `race` branch; each re-ran the parent and spawned two more, an exponential fork bomb that locked the workstation three times. Its output was never captured (buffered behind `tail`), so not even the single-process identity, per-entry and snapshot observations that ran before the spawn can be cited. The coordinator patched the source (environment-variable child role checked first, explicit `dotnet <dll>` host); it has not been re-run and must not be run in this pass. Every `(schemaId, storedAt)` and lock claim in 2.2 is therefore design, proven by Cut 3's `ConditionalCommitTests.cs`, not by a probe. |
 
 Not established by running code, marked as design: the routed C# cache
 itself (Cut 3's tests are its proof); the Studio's reflective struct path over
