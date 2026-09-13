@@ -808,6 +808,22 @@ reject duplicate slots and string keys with one message each, and route the
 typed helpers through the untyped path, proven by a descriptor-equality sweep
 across member shapes with a byte pin for overrides.
 
+**The generator is deleted (operator decision 2026-09-13).** With `.cc`
+canonically MessagePack, CultLib's source generator only duplicated the
+reflective registry: every runtime read of its output already fell back to
+reflection and `MessagePackSerializer` (Unity always ran that way), no consumer
+builds AOT, IL2CPP or trimmed, no benchmark or commit shows a speed benefit, and
+the duplication caused every Cut 4 defect below. The reflective
+`CultDocumentRegistry` is the only descriptor authority and keeps every
+rejection rule; payloads go through `MessagePackSerializer` with
+`OptionsFor(assembly)`. MessagePack's own generator stays contained. If an AOT
+target ever appears, MessagePack's own AOT generator is the answer, not a
+second copy of the rules. The generator member-discovery and sweep work below
+is superseded; the rules it settled now live in the registry alone.
+Follow-ups: Delvehold drops its two analyzer references when it re-pins
+CultLib; EveUnity's `GenericWorldCaptureTests.cs:65` (both projects) moves
+off the deleted `Deserialize<T>` when it re-pins.
+
 **Overrides (Cut 4 fix, CultLib `7c4bc2b`).** The "most-derived declaration"
 rule proposed after Soul's review was wrong: MessagePack itself reads the base
 declaration's attributes (an `[IgnoreMember]` override still serializes at the
