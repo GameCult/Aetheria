@@ -4,8 +4,12 @@ Date: 2026-09-13 (second Imagination pass; first pass 2026-09-12, `82c1e72e`)
 
 Status: cut map. Ends are owned by `cultcache-migration-target.md`; this
 document owns the means. Progress (update in each cut's landing commit):
-Cuts 0-3 landed on CultLib `codex/cultcache-store-routing` and passed their
-Soul passes; Cut 4 is in progress there. Cuts 5-10 are not started. Line
+Cuts 0-4 landed on CultLib `codex/cultcache-store-routing` and passed their
+Soul passes (Cut 4 ended at `5bd4e4e`, generator deleted, registry aligned to
+MessagePack round-trip semantics; the five `GameCult.Eve.Surface` documents'
+schema ids change because their constructor-filled get-only members now enter
+the catalog, and no store on disk holds them). Cut 5 is in progress. Cuts 6-10
+are not started. Line
 numbers below refer to the evidence base, not to the branch.
 
 Evidence base: CultLib `main` at `c2a9a6e`; Aetheria `codex/aetheria-state-rebuild`
