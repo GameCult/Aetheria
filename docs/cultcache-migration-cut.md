@@ -572,10 +572,18 @@ home store, before `_entries` changes.
   finer-grained locking. (Cut 3 as first landed took them in both orders and
   deadlocked a directory-store pull against an upsert, and a re-pull could erase
   a staged single-file write.)
-- An unconditional `Commit` writes the cache's snapshot of its home store,
-  exactly like a flush: last-writer-wins. Only conditional commits (`Expect`,
-  `ExpectUnchanged`) protect against other writers. A `Commit` also persists
-  earlier staged writes to that store and clears dirty.
+- An unconditional `Commit` behaves exactly like a flush of its home store, and
+  a `Commit` also persists earlier staged writes to that store and clears
+  dirty. Per store type (operator decision 2026-09-13, option A): a single-file
+  store writes the cache's snapshot, last-writer-wins; a directory store lands
+  its changed pages onto the current manifest under the commit lease, so other
+  writers' records survive (the merge its page layout and lease were built
+  for, asserted by `DirectoryMessagePackBackingStore_ConcurrentInstances_MergeUnderOneCommitLease`
+  and relied on by Ymir and AquaSynth). Only conditional commits (`Expect`,
+  `ExpectUnchanged`) protect against a concurrent change to the same records.
+- An attached store uses its cache's gate as its own lock
+  (`CacheBackingStore.Gate`, Cut 3 fix `5aad137`), so cache and store locks
+  cannot be taken out of order.
 - One key lives in one store: a write or load that would put a key already held
   from another store throws and changes nothing.
 - `OnUpdate` fires for loads only, as before the migration; writers publish
