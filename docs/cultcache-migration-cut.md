@@ -185,7 +185,9 @@ a leaf. What they do use is in the audit (2.0) and named in the authority map.**
   Studio package moves in lockstep in the same release (Cut 7).
 - The GameCult generator requires `[CultDocument]` on the declaring type,
   discovers members on that type only (`CultDocumentMessagePackGenerator.cs:43-50,
-  80`), and has no `[Union]` handling. Cut 8 does not reference it.
+  80`), and has no `[Union]` handling. Aetheria's derived catalog documents
+  still depend on Cut 4's generator fix whenever its Unity and headless builds
+  differ in whether the generator runs.
 
 ### Q5. Can existing stores hold records written under a declared parent schema?
 
@@ -705,7 +707,7 @@ ordering rule.
 | Change | Bytes on disk or wire | Runtimes that change | Verified by |
 |---|---|---|---|
 | One home store per type; mirrors deleted | none; every routed file is a complete `cultcache.store.v1` snapshot | C# (Cut 3), TS, Rust, Python (Cut 5) | C# `RoutedStoresWriteTheSameBytesAsSingleStores`; the C# interop peer's `write-routed` mode writes `catalog.cc` and `run.cc` and the writer-by-reader loop in `CultLib\packages\cultcache-ts\test\cult-cache.test.ts:536-617` reads both with TS, Rust and Python readers |
-| Attach hydrates; loading never writes; read-only stores | none | C# only (siblings already hydrate without writing) | Cut 3 tests |
+| Attach hydrates; loading never writes; read-only stores | none | C# only (sibling attach does not read; sibling pull does not write) | Cut 3 tests |
 | Globals never invented; singleton enforced | none (key divergence recorded) | C# only | Cut 3 tests |
 | Runtime type decides schema | none for existing records | C# only | fixture ids in `cultcache-schema-compatibility.md:20-24` unchanged; `UpsertWeaponThroughGearHandleReloadsAsWeapon` |
 | Assignable lookups and watches | none | C# only | Cut 3 tests; Mesh and Networking suites |
@@ -755,12 +757,12 @@ the behavior change.
   failed condition is a lost race, not an error; **conditional commit is the
   only safe multi-process write: a plain flush writes the whole snapshot and
   is last-writer-wins, so processes sharing a store must all use conditional
-  commit**; C# and Rust implement batch and conditional commit; TS and Python
-  implement neither yet) and
+  commit**; batch and conditional commit are specified for C# and not yet
+  implemented there; Rust implements both; TS and Python implement neither
+  yet) and
   `cultcache-schema-compatibility.md` (runtime type decides schema; lookups
   assignable); amends `docs\runtime-parity-scope.md:23-27, 33` (SoA claim
-  retracted); rewrites `CultLib\README.md:240-264`,
-  `src\GameCult.Caching\GameCult.Caching.txt:157`, the generator README, and
+  retracted); rewrites `CultLib\README.md:240-264`, the generator README, and
   `CultLib\packages\cultcache-rs\README.md:216-241`.
 - Adds `tests\GameCult.Caching.Tests\StoreRoutingTests.cs`, compiling against
   today's API, red for the stated reason:
@@ -883,6 +885,14 @@ the behavior change.
 - Interop peer: mode `write-routed <catalog.cc> <run.cc>` attaching two routed
   single-file stores (`interop-note` -> catalog, `interop-run-note` -> run),
   one record each, flush. `read` unchanged.
+- Cut 1 fixtures this cut rewrites (Soul, Cut 1): `LoadingNeverWritesASecondStore`
+  attaches its second store with a home type (e.g. `AddBackingStore(second,
+  typeof(RoutingOther))`, `RoutingOther` added to the registry), because a
+  second untyped store is now a registration error and the Cut 1 form could not
+  name a home type against the old API. `StoreRoutingTests.GlobalRegistry` and
+  `BackingStoreTests.cs:332-334` stop setting `<IsGlobal>k__BackingField` by
+  reflection; their fixtures become real `[CultGlobal]` types, safe once nothing
+  invents globals. Soul: `rg "k__BackingField" tests` empty.
 - Tests that pass after: Cut 1's eight, plus in `StoreRoutingTests.cs`:
   `RoutedStoresWriteTheSameBytesAsSingleStores` (pin `storedAt` through
   `UpsertAsync(Type, object, key)` on a `CultStoredDocument` built with a fixed
@@ -980,7 +990,24 @@ the behavior change.
   PrivateAssets="all" />` beside its `MessagePack` reference, so MessagePack's
   source generator stops flowing to consumers `[P6]`; CultLib never registers
   a generated resolver),
-  `tests\GameCult.Caching.Tests\SerializationOptionsTests.cs`, `AssemblyInfo.cs`.
+  `tests\GameCult.Caching.Tests\SerializationOptionsTests.cs`, `AssemblyInfo.cs`,
+  and the member discovery in `CultDocumentMessagePackGenerator.cs` (`:58-61, 80,
+  116, 204-207`).
+- Generator member discovery (Soul, Cut 1). Today the generator walks only
+  members declared on the class (`:80`) and emits a codec only when those slots
+  are dense from 0, so a derived document's generated descriptor lists only its
+  own members while the reflective one (`CultCache.cs:1115, 1125`) includes
+  inherited ones: the two builds hash different schema ids and catalogs for the
+  same type. The generator now discovers members along the base-type chain
+  exactly as `CultDocumentRegistry` does (public instance fields and settable
+  properties, inherited included, `[IgnoreMember]` excluded), and density is
+  computed over that full set. Unkeyed ordering (generator by name, reflection
+  by metadata token) is closed by requiring `[Key]` on every persisted member of
+  a `[CultDocument]` type: a generator diagnostic error, and the reflective
+  registry throws the same message. First step of the cut: `rg` every consumer
+  (CultLib src, Aquarium, Ymir, Mimir, AquaSynth, Gjallar, Delvehold) for
+  `[CultDocument]` types with unkeyed members and list them; if any has a
+  persisted store, stop and report before adding the rule.
 - Deletes first: `.WithSecurity(MessagePackSecurity.UntrustedData)` at `:55`.
 - New behavior: section 2.3. `public sealed class CultCacheFormatterResolverAttribute : Attribute { public CultCacheFormatterResolverAttribute(Type resolverType); public Type ResolverType { get; } }`;
   `public static MessagePackSerializerOptions OptionsFor(Assembly documentAssembly)`;
@@ -988,6 +1015,11 @@ the behavior change.
 - Tests: `DeclaredResolverEncodesValueTypeAsPositionalArray` (test assembly
   declares a resolver for `struct Pair(float A, float B)` writing `[f,f]`;
   reflective and generated paths both emit the two-element array and round-trip);
+  `GeneratedAndReflectiveDescriptorsAgreeForDerivedDocuments` (for
+  `RoutingWeapon : RoutingGear` the generated and reflective `SchemaId` are
+  equal, the catalog lists `Name@0, Damage@1`, a codec is emitted, and
+  `UpsertWeaponThroughGearHandleReloadsAsWeapon` passes through it);
+  `UnkeyedDocumentMemberIsRejected`; schema-compatibility fixture ids unchanged;
   `RefKeyedDictionaryRoundTrips`; `InteropNoteBytesUnchanged` (checked-in
   constant captured on `main`); `UnknownAssemblyGetsBaseOptions`;
   `RefKeyedDictionaryCompilesInAConsumer`: a test-only console project under
