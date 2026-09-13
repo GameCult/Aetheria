@@ -591,6 +591,14 @@ home store, before `_entries` changes.
   the cache would otherwise deadlock. A store adopts its loaded view before
   anything is published, so a throwing handler cannot leave the store holding
   records the cache dropped.
+- Each call publishes only the changes it admitted, on its own thread, after
+  the gate is released and before it returns (CultLib `544c087`). Deliveries
+  across threads arrive in save order (operator decision 2026-09-13), so a
+  consumer that keeps the latest value (`CultMesh.WatchRecord` into
+  `ApplyCanonicalSnapshot`) never applies a stale one; an observer that writes
+  the same cache must not deadlock against a concurrent writer, which a test
+  proves. Only `OnUpdate` exceptions reach the caller; `Watch` subscriber
+  exceptions follow R3's unhandled-exception handling.
 - One key lives in one store: a write or load that would put a key already held
   from another store throws and changes nothing.
 - `OnUpdate` fires for loads only, as before the migration; writers publish
