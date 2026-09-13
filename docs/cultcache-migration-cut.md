@@ -3,7 +3,10 @@
 Date: 2026-09-13 (second Imagination pass; first pass 2026-09-12, `82c1e72e`)
 
 Status: cut map. Ends are owned by `cultcache-migration-target.md`; this
-document owns the means. Cut 0 is done; nothing else is cut.
+document owns the means. Progress (update in each cut's landing commit):
+Cuts 0-3 landed on CultLib `codex/cultcache-store-routing` and passed their
+Soul passes; Cut 4 is in progress there. Cuts 5-10 are not started. Line
+numbers below refer to the evidence base, not to the branch.
 
 Evidence base: CultLib `main` at `c2a9a6e`; Aetheria `codex/aetheria-state-rebuild`
 at `82c1e72e`. Line numbers refer to those revisions (`CC:` is
