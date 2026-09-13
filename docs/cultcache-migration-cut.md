@@ -607,6 +607,13 @@ home store, before `_entries` changes.
   `_lifecycleGate`, and could stall a cache on an interrupted wait; and a
   non-blocking delivery queue, which kept the same authority in the cache.
   Cross-process order stays with `StoredAt` and conditional commit.
+- Latest-value consumers subscribe first, then take the cache's one sequenced
+  read (document and current sequence under the gate) and ignore any change at
+  or below that sequence (operator decision 2026-09-13; Soul found CultMesh
+  mirrors' snapshot reads carried no sequence). `OnUpdate` and the streams
+  CultNet derives from it carry no sequence and are not order-protected;
+  schema-alias handles and removals are not stale-protected. Both are
+  documented, not fixed here.
 - Follow-ups outside this migration (found while landing the sequence, CultLib
   `4562340`; none introduced by it): `CultNetDatabaseSubscriptionServer.ApplyProjectedChange`
   keeps a latest value per record from `CultNetDatabaseChange`, which carries no
