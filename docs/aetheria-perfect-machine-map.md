@@ -3,7 +3,8 @@
 Date: 2026-06-12
 
 **Parked (2026-09-11).** This migration was built and then rolled back by
-commit `7006a6b0`; the rebuild lives on in `F:\Projects\AetheriaEve`. Current
+commit `7006a6b0`. `F:\Projects\AetheriaEve` preserves that rebuild as a
+specimen; it is not direction or precedent. Current
 direction for this repo is [three-gates-scope.md](three-gates-scope.md). Read
 this document as a record of the deferred plan, not as current direction.
 The cache move alone is now [cultcache-migration-target.md](cultcache-migration-target.md).
