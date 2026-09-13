@@ -1243,7 +1243,7 @@ the behavior change.
 
 ### Cut 5. Sibling runtimes: delete mirrors
 
-- Repo/branch: `codex/cultcache-one-home-store`, independent of Cuts 2-4;
+- Repo/branch: landed on `codex/cultcache-store-routing` with Cuts 1-4 (planned as `codex/cultcache-one-home-store`), independent of Cuts 2-4;
   three language-scoped tasks, parallel.
 - TypeScript (`CultLib\packages\cultcache-ts`, all TS lines below in its `src\cult-cache.ts`): delete `mirrors` (`src\cult-cache.ts:18`),
   the three mirror pushes (`:402, 448, 503`), the `slice(1)` lists (`:663-677`);
@@ -1271,7 +1271,7 @@ the behavior change.
   become single calls; `_all_specific_stores` (`:304-311`) deleted;
   `pull_all_backing_stores` (`:111`) iterates the distinct stores. Tests:
   `test_second_generic_store_rejected`, `test_type_claimed_twice_rejected`,
-  `test_types_route_to_home_store`. Command: `python -m pytest packages\cultcache-py\tests`.
+  `test_types_route_to_home_store`. Command: `python -m unittest discover -s tests` in `packages\cultcache-py` with `PYTHONPATH=src` (pytest is not installed; the suite is unittest). Soul, Cut 5: the siblings did not enforce C#'s "a record's home cannot change after admission" or refuse a record loaded from a store that is not its home, and TS and Rust rejected zero-store writes the contract treats as in-memory; all three are brought to the C# reference in a follow-up commit on the same branch, and Python's `add_backing_store(store, [])` becomes a generic store.
   Version `0.2.0` -> `0.3.0`.
 - Soul: the nine tests; `rg -n "mirror" packages\cultcache-ts\src packages\cultcache-rs\src packages\cultcache-py\src`
   empty; `npm test` green including the routed-file reads.
