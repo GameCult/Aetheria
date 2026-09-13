@@ -29,18 +29,18 @@ and its worktrees are taxidermy, not a consumer.
 Replication and mirrors are deleted everywhere. No bytes change.**
 
 - TypeScript routes by type and mirrors the rest: `addBackingStore(store,
-  ...types)` (`packages\cultcache-ts\src\cult-cache.ts:180-188`),
+  ...types)` (`CultLib\packages\cultcache-ts\src\cult-cache.ts:180-188`),
   `#resolveRoute` returns `{primary, mirrors}` (`:663-677`), and `put`,
   `putEnvelope`, `delete` push to `primary` then every mirror (`:401-402,
   447-448, 502-503`; `StoreRoute.mirrors` at `:18`).
 - Rust: `add_backing_store`/`add_generic_backing_store`
-  (`packages\cultcache-rs\src\lib.rs:1950-1963`), `resolve_route_indices`
+  (`CultLib\packages\cultcache-rs\src\lib.rs:1950-1963`), `resolve_route_indices`
   (`:2363-2380`), mirror loops at `:2092-2094, 2213-2215, 2252-2254,
   2323-2325`; `put_prepared_batch` already demands one route and one store
   (`:2174-2189`). Its README claims this "mirrors the C# behavior"
-  (`packages\cultcache-rs\README.md:216-241`), which is false.
+  (`CultLib\packages\cultcache-rs\README.md:216-241`), which is false.
 - Python: `stores_by_type: dict[str, list[BackingStore]]`, `generic_stores:
-  list` (`packages\cultcache-py\src\cultcache_py\cache.py:23-24`); write loops
+  list` (`CultLib\packages\cultcache-py\src\cultcache_py\cache.py:23-24`); write loops
   at `:199-201, 218-219, 239-241, 269-270`; resolver at `:300-302`.
 - C# replicates every record to every store (`CC:2097-2101, 2135-2139`) and
   pushes all entries into a newly attached store (`CC:1436-1439`). `[P2-A]`:
@@ -49,13 +49,14 @@ Replication and mirrors are deleted everywhere. No bytes change.**
 - Nobody uses a mirror: every cache in `CultLib\src`, `CultLib\tests` and every
   consumer attaches one untyped store; the only multi-store cache anywhere is
   the Rust test `type_specific_store_routes_before_generic_store`
-  (`lib.rs:3714-3748`), whose types never share a store. No test asserts
+  (`CultLib\packages\cultcache-rs\src\lib.rs:3714-3748`), whose types never share a store. No test asserts
   mirroring.
 - No runtime writes store identity into the file: all write
   `[formatVersion, catalog[], records[]]`, records `[key, schemaId, storedAt,
   payload]` (C# `CultDocumentMessagePackSerialization.cs:180-251`; TS
-  `single-file-messagepack-backing-store.ts:203-232`; Rust `lib.rs:244-280,
-  2401-2455`; Python `stores.py:137-152`). `storeId`
+  `CultLib\packages\cultcache-ts\src\single-file-messagepack-backing-store.ts:203-232`;
+  Rust `CultLib\packages\cultcache-rs\src\lib.rs:244-280, 2401-2455`; Python
+  `CultLib\packages\cultcache-py\src\cultcache_py\stores.py:137-152`). `storeId`
   (`cultcache-persistence-format.md:93`) is implemented nowhere.
 
 Decision: a document type has exactly one home store, chosen by its most
@@ -337,7 +338,7 @@ the two Caching projects.
 | `soft` flag on `FlushAsync`/`FlushAllBackingStores`/`PushAll`/`CommitBatch` | no store reads it (`CC:2638`, `DMS:360`); Mimir (`EveDashboard:900`, `CultMeshMedia:422`) and Brokkr (`BrokkrCultMeshMirror.cs:68-124`) pass `soft: true` through `CultMesh.FlushAsync`/`CultNetLocal.FlushAsync` | delete from Caching; `CultMesh.FlushAsync(bool)` and `CultNetLocal.FlushAsync(bool)` keep their parameter and stop forwarding it. Removing it there and at the four external call sites is a named follow-up |
 | SoA: `Soa<T>`, `CultSoaTable`, `CultSoaColumn`, `CultCacheSoaStore`, `CultCacheSoaTypeTable`, `CultCacheSoaMember` (`CultManagedDocument.cs:136-414`), `_soa` hooks in `CC` | tests only | **park**, not delete: built for a stated reason (ECS-style structure-of-arrays columns over cached documents, performance without compromising document ergonomics). Cut 2 step 1 tags the last commit holding it as `parked/cultcache-soa` before removal, adds `docs\parked-features.md`, and amends `docs\runtime-parity-scope.md:23-27, 33` to say the SoA table is parked at that tag |
 | `Document<T>`, `CultManagedDocument<T>`, `CultNetDatabase.Document<T>` | tests only | delete |
-| Transactions: `ExecuteTransactionAsync` (both), `CultCacheTransaction`, `CommitTransaction`, `VisibleStoredDocuments`, `_ambientTransaction`, `_transactionGate`, `CacheBackingStore.CommitBatch` (+ `DMS:308-351`), `CultNetDatabase.ExecuteTransactionAsync` (`CND:519-555`), `RequireTransactionsForAuthoritativeWrites` (`CND:305`), `EnsureAuthoritativeTransaction` (`CND:1791-1796`), `AfterCommit` (`CND:898-901`) | tests only in C#. Siblings: TS has no batch; Python has `put_envelopes` (`cache.py:227-251`, one document type per call, `push_all`, no rollback) used by `cultnet-py\...\replication.py:98`; Rust has a cache-level `put_prepared_batch` (`lib.rs:2162-2201`: one store per batch, all-or-nothing `push_all`) with no caller, and a **store-level** batch family (`compare_and_swap_batch`, `compare_exchange`, `compare_exchange_snapshot`, `delete_batch_if_unchanged`, `lib.rs:397-800`, `8f29ee5`) consumed by Odin (12 sites), Idunn (31), CodexConnector (1) and Ghostlight (`ghostlight-dungeon\src\app_session.rs:119, 371`, plus tests): every one passes an explicit batch value; none relies on ambient in-flight visibility. Operator: atomic multi-record commit is a desired capability | **replace, not delete**: the ambient `AsyncLocal` overlay, the `SemaphoreSlim` gate, `CultCacheTransaction`, `CommitTransaction` and `VisibleStoredDocuments` (~230 lines) go in Cut 3 in the same commit that lands `Commit(Action<CultCacheBatch>)` (2.2); `CacheBackingStore.CommitBatch` and `DMS:308-351` stay as the store side. `CultNetDatabase.ExecuteTransactionAsync`, `RequireTransactionsForAuthoritativeWrites`, `EnsureAuthoritativeTransaction`, `AfterCommit` are deleted (tests only; CultNet callers use `PutAsync`). `cultcache-persistence-format.md:42-55` is amended to the explicit-batch shape, not retracted |
+| Transactions: `ExecuteTransactionAsync` (both), `CultCacheTransaction`, `CommitTransaction`, `VisibleStoredDocuments`, `_ambientTransaction`, `_transactionGate`, `CacheBackingStore.CommitBatch` (+ `DMS:308-351`), `CultNetDatabase.ExecuteTransactionAsync` (`CND:519-555`), `RequireTransactionsForAuthoritativeWrites` (`CND:305`), `EnsureAuthoritativeTransaction` (`CND:1791-1796`), `AfterCommit` (`CND:898-901`) | tests only in C#. Siblings: TS has no batch; Python has `put_envelopes` (`CultLib\packages\cultcache-py\src\cultcache_py\cache.py:227-251`, one document type per call, `push_all`, no rollback) used by `CultLib\packages\cultnet-py\src\cultnet_py\replication.py:98`; Rust has a cache-level `put_prepared_batch` (`CultLib\packages\cultcache-rs\src\lib.rs:2162-2201`: one store per batch, all-or-nothing `push_all`) with no caller, and a **store-level** batch family (`compare_and_swap_batch`, `compare_exchange`, `compare_exchange_snapshot`, `delete_batch_if_unchanged`, `CultLib\packages\cultcache-rs\src\lib.rs:397-800`, `8f29ee5`) consumed by Odin (12 sites), Idunn (31), CodexConnector (1) and Ghostlight (`ghostlight-dungeon\src\app_session.rs:119, 371`, plus tests): every one passes an explicit batch value; none relies on ambient in-flight visibility. Operator: atomic multi-record commit is a desired capability | **replace, not delete**: the ambient `AsyncLocal` overlay, the `SemaphoreSlim` gate, `CultCacheTransaction`, `CommitTransaction` and `VisibleStoredDocuments` (~230 lines) go in Cut 3 in the same commit that lands `Commit(Action<CultCacheBatch>)` (2.2); `CacheBackingStore.CommitBatch` and `DMS:308-351` stay as the store side. `CultNetDatabase.ExecuteTransactionAsync`, `RequireTransactionsForAuthoritativeWrites`, `EnsureAuthoritativeTransaction`, `AfterCommit` are deleted (tests only; CultNet callers use `PutAsync`). `cultcache-persistence-format.md:42-55` is amended to the explicit-batch shape, not retracted |
 | Directory store legacy formats `cultcache.store.v2.directory-indexed`, `v3.directory-immutable-pages`, v1 inline records: `LoadLegacyRecords`, `_legacyInlineRecords`, `LegacyRecordPath`, `MetadataRecordPath`, `_needsIndexUpgrade`, `_manifestUsesMetadataPages` | no store on disk anywhere scanned uses them; only v4 is written | delete; a v2/v3 manifest is refused with its format string |
 | Directory store `ReadStageProbe`, `FlushStageProbe`, stage constants, `ReadPersistedGeneration` | tests only | delete, with the tests that inject through them |
 | Directory store itself, `AcquireCommitLease`, `UseDirectoryStore`, `DefaultRecordDirectoryPath` | Ymir (`YmirWorldStateDocument.cs:248, 267`, `YmirServicePublicationDocument.cs:161`), AquaSynth (`IpaTrialResults.cs:190`) | keep (v4 read/write and the lease) |
@@ -405,7 +406,13 @@ public sealed class CultCacheBatch                 // an explicit value; nothing
     public CultRecordHandle<T> Upsert<T>(T document, CultRecordHandle<T>? handle = null)
     public CultRecordKey Upsert(Type type, object document, CultRecordKey? key = null)
     public void Remove(CultRecordKey key)
+    public void Expect(CultRecordKey key, object? current)   // current = the instance this cache holds at key, or null = must be absent
+    public void ExpectUnchanged()                              // the home store's persisted content equals what this cache last loaded
 }
+public enum CultCommitOutcome { Committed, Mismatch, Contended }
+// on CultCache:
+public bool Commit(Action<CultCacheBatch> stage)                 // false = a condition failed: no write, no memory change, no notification
+public CultCommitOutcome TryCommit(Action<CultCacheBatch> stage) // one non-blocking lock attempt; otherwise identical
 
 public abstract class CacheBackingStore : IDisposable
 {
@@ -414,6 +421,13 @@ public abstract class CacheBackingStore : IDisposable
     public IReadOnlyList<CultSchemaMigrationReport> LastSchemaMigrationReports
     internal Action<CultStoredDocument> Loaded, Unloaded;   // set by the cache at attach
     public abstract void PullAll(); public abstract void Push(CultStoredDocument e); public abstract void Delete(CultStoredDocument e); public abstract void PushAll();
+    public abstract CultCommitOutcome CommitBatch(CultCommitRequest request, bool wait);   // one durable step under the store's lock
+}
+public sealed class CultCommitRequest   // built by Commit from the batch; identities are (schemaId, storedAt) captured at stage time
+{
+    IReadOnlyList<CultStoredDocument> Upserts; IReadOnlyList<CultStoredDocument> Deletes;
+    IReadOnlyList<(CultRecordKey Key, string? SchemaId, string? StoredAt)> Expected;   // null pair = must be absent
+    bool ExpectUnchanged;
 }
 ```
 
@@ -455,8 +469,9 @@ reads a global back (Q4).
 type per cache, `GetGlobal<T>()` returns it or `null`, and a write without a
 handle keys it `global:{SchemaId}` (`ResolveKey`, `CC:2195-2198`, kept). The
 cache never creates one. Siblings already do this: TS enforces a single
-`__global__` record on `put` and pull (`cult-cache.ts:394-399, 691-713`) and
-invents nothing; Python likewise (`cache.py:125-128, 186-187`); Rust has no
+`__global__` record on `put` and pull (`CultLib\packages\cultcache-ts\src\cult-cache.ts:394-399,
+691-713`) and invents nothing; Python likewise
+(`CultLib\packages\cultcache-py\src\cultcache_py\cache.py:125-128, 186-187`); Rust has no
 global concept. The C# key `global:{schemaId}` versus the siblings' `__global__`
 is an existing divergence, recorded, not changed (it would change bytes).
 
@@ -571,9 +586,68 @@ Commit(stage):
     lock _gate: Admit(each upsert, null, durable: true); Evict(each delete, null, durable: true)
     publish one Change per record, after the store accepted
 ```
+**Conditional commit (compare-exchange).** The seven Rust variants
+(`compare_and_swap_entry` :397, `insert_entry_if_absent` :422,
+`compare_and_swap_batch` :441, `append_if_snapshot_unchanged` :495,
+`compare_exchange` :713, `compare_exchange_snapshot` :759,
+`try_compare_exchange_snapshot` :770, all in
+`CultLib\packages\cultcache-rs\src\lib.rs`, expectations as
+`CultCacheExpectedEnvelope` :291) collapse to two conditions on the batch:
+- `Expect(key, current)`: `current` must be the instance the cache holds at
+  `key` (looked up through `_handles`; anything else throws) or `null` for
+  "must be absent". The batch captures the record's identity, `(SchemaId,
+  StoredAt)` from `_entries[key]`, at stage time. Only named keys are
+  constrained, so unrelated concurrent writes do not lose the race (Rust's
+  per-entry family).
+- `ExpectUnchanged()`: the home store's persisted record set must equal what
+  the cache last loaded from it, compared as the ordered list of `(key,
+  SchemaId, StoredAt)` (Rust's snapshot family; fences unknown inserts).
+
+Identity is `(SchemaId, StoredAt)` rather than payload bytes because the
+cache does not retain bytes and the in-memory object may have been mutated
+since it was observed; it is sound only if every write to a key mints a
+`StoredAt` strictly later than the record it replaces, so `Push`,
+`CommitBatch` and the batch builder bump a minted `StoredAt` by one tick when
+it is not later than the existing record's. `[P7]` measures why: minting with
+`"O"` in a loop produces duplicates within one tick. `Commit` returns `false`
+when a condition fails: no store write, no in-memory change, no notification.
+`TryCommit` makes one non-blocking lock attempt and reports `Contended`
+instead of waiting (Idunn's `try_` use); it is the same path with `wait:
+false`, about ten lines. A conditional commit on a store with staged
+single-record writes (`IsDirty`) throws: that view is neither what was
+observed nor what is being committed, so flush first.
+
+Store side. Single-file store: a lock file beside the store
+(`<path>.lock`, `FileMode.OpenOrCreate`, `FileShare.None`, retry every 10 ms
+for 30 s when `wait`, one attempt when not), mirroring
+`DirectoryMessagePackBackingStore.AcquireCommitLease` (`DMS:928-949`);
+under it: re-read the file, evaluate `Expected` against the re-read records
+and `ExpectUnchanged` against the fingerprint taken at the last `PullAll`
+or successful commit, apply upserts and deletes, write temp then
+`File.Replace` (`CC:2659-2694` unchanged), refresh `Entries` and the
+fingerprint, release. Plain `PushAll` takes the same lock so two processes
+never interleave a write, but compares nothing: **a plain flush is
+last-writer-wins**, and processes sharing a store must all use conditional
+commit; the contract says so. Directory store: conditions are evaluated
+under its existing `AcquireCommitLease` against the manifest re-read from
+disk (`_durableIndex` identities are the same `(SchemaId, StoredAt)`),
+`ExpectUnchanged` against the manifest's record set, then its existing
+content-addressed pages and manifest write. `[P7]` proves the identity and
+the lock: stale `Expect` detected after a concurrent write, unrelated writes
+ignored, `Expect(null)` as create-once, `ExpectUnchanged` failing on an
+unrelated insert, and two processes racing on one file with the lock
+finishing at exactly `2N`.
+
+Parity: Rust already has both families and a `try_` (`with_exclusive_lock`
+:700 uses `fs2` on a lock file); TS and Python have neither and are recorded
+in the contract as not implementing conditional commit. Whether Rust's
+`fs2` lock and C#'s `FileShare.None` open on the same lock file exclude each
+other across runtimes on one file is not established here and is a named
+follow-up; no store is shared across runtimes today.
+
 The batch is an explicit value: reads during `stage` see committed state
 only, matching every consumer with a batch primitive (Rust `put_prepared_batch`
-requires one store per batch, `lib.rs:2174-2186`; Ghostlight and Odin pass
+requires one store per batch, `CultLib\packages\cultcache-rs\src\lib.rs:2174-2186`; Ghostlight and Odin pass
 explicit `compare_and_swap_batch`/`compare_exchange` values, section 2.0). No
 `AsyncLocal`, no ambient overlay. The store side is the existing
 `CacheBackingStore.CommitBatch` (`CC:2425-2452`: stage, `PushAll`, restore on
@@ -628,20 +702,21 @@ ordering rule.
 
 | Change | Bytes on disk or wire | Runtimes that change | Verified by |
 |---|---|---|---|
-| One home store per type; mirrors deleted | none; every routed file is a complete `cultcache.store.v1` snapshot | C# (Cut 3), TS, Rust, Python (Cut 5) | C# `RoutedStoresWriteTheSameBytesAsSingleStores`; the C# interop peer's `write-routed` mode writes `catalog.cc` and `run.cc` and the writer-by-reader loop in `packages\cultcache-ts\test\cult-cache.test.ts:536-617` reads both with TS, Rust and Python readers |
+| One home store per type; mirrors deleted | none; every routed file is a complete `cultcache.store.v1` snapshot | C# (Cut 3), TS, Rust, Python (Cut 5) | C# `RoutedStoresWriteTheSameBytesAsSingleStores`; the C# interop peer's `write-routed` mode writes `catalog.cc` and `run.cc` and the writer-by-reader loop in `CultLib\packages\cultcache-ts\test\cult-cache.test.ts:536-617` reads both with TS, Rust and Python readers |
 | Attach hydrates; loading never writes; read-only stores | none | C# only (siblings already hydrate without writing) | Cut 3 tests |
 | Globals never invented; singleton enforced | none (key divergence recorded) | C# only | Cut 3 tests |
 | Runtime type decides schema | none for existing records | C# only | fixture ids in `cultcache-schema-compatibility.md:20-24` unchanged; `UpsertWeaponThroughGearHandleReloadsAsWeapon` |
 | Assignable lookups and watches | none | C# only | Cut 3 tests; Mesh and Networking suites |
 | Subtraction (SoA parked, managed documents, legacy directory formats, wrappers) | none; v4 directory manifests and v1 single files unchanged | C# only | full suites at their prior pass counts minus the deleted tests; external consumers build |
 | Atomic commit becomes an explicit batch on one home store | none (the store's commit is unchanged: single-file one replace, directory pages then manifest) | C# only; Rust already matches; TS and Python recorded as not implementing it | Cut 3 tests `BatchIsAllOrNothingOnStoreFailure`, `BatchAcrossTwoHomesThrows`, `BatchObserversSeeOnlyCommittedRecords` |
+| Conditional commit (`Expect`, `ExpectUnchanged`) and the single-file lock file | none in the store file; a new `<path>.lock` sidecar beside single-file stores (the directory store already has `.commit.lock`) | C# gains what Rust has (`compare_exchange` :713, `compare_exchange_snapshot` :759, `try_` :770 in `CultLib\packages\cultcache-rs\src\lib.rs`); TS and Python recorded as not implementing it; cross-runtime lock exclusion on one file is a follow-up probe | `ConditionalCommitTests.cs` (Cut 3), `[P7]` |
 | Per-assembly options, security comparer | payload bytes of consumer-declared schemas only | C# only | `InteropNoteBytesUnchanged`; `RefKeyedDictionaryRoundTrips` |
 | Contract text | none | docs in all four | review |
 
 The hosted workflow (`.github\workflows\cultnet-interop.yml`) tests CultNet
 frames only; `.cc` parity is the cultcache-ts test, run by `npm test` and on
 `cultcache-ts-v*` tags. Rust writes a stub catalog and second-precision
-`storedAt` (`lib.rs:2397-2433`), a pre-existing byte-parity gap this cut
+`storedAt` (`CultLib\packages\cultcache-rs\src\lib.rs:2397-2433`), a pre-existing byte-parity gap this cut
 neither widens nor closes.
 
 ## 4. Cut sequence
@@ -672,13 +747,19 @@ the behavior change.
   amends `cultcache-persistence-format.md:42-55` ("Transaction Visibility"
   becomes: a commit is an explicit batch of records that resolve to one home
   store; the store commits it as one durable step; nothing is visible, to the
-  committing flow or to observers, until the store has accepted it; C#, Rust
-  implement it; TS, Python do not yet) and
+  committing flow or to observers, until the store has accepted it; a batch
+  may carry conditions, per-record `(schemaId, storedAt)` identity or
+  whole-store unchanged, evaluated under the store's exclusive lock, and a
+  failed condition is a lost race, not an error; **conditional commit is the
+  only safe multi-process write: a plain flush writes the whole snapshot and
+  is last-writer-wins, so processes sharing a store must all use conditional
+  commit**; C# and Rust implement batch and conditional commit; TS and Python
+  implement neither yet) and
   `cultcache-schema-compatibility.md` (runtime type decides schema; lookups
   assignable); amends `docs\runtime-parity-scope.md:23-27, 33` (SoA claim
   retracted); rewrites `CultLib\README.md:240-264`,
   `src\GameCult.Caching\GameCult.Caching.txt:157`, the generator README, and
-  `packages\cultcache-rs\README.md:216-241`.
+  `CultLib\packages\cultcache-rs\README.md:216-241`.
 - Adds `tests\GameCult.Caching.Tests\StoreRoutingTests.cs`, compiling against
   today's API, red for the stated reason:
   1. `LoadingNeverWritesASecondStore` (seed A; attach A, pull, attach B, flush;
@@ -841,6 +922,36 @@ the behavior change.
   key upserted earlier in the same batch returns the pre-commit value);
   `SingleUpsertAndBatchShareOneAdmissionPath` (a global singleton violation
   is refused identically through `UpsertAsync` and through a batch).
+- Conditional commit, same commit as the batch: files `CC` (`CultCacheBatch.Expect`,
+  `ExpectUnchanged`, `CultCommitRequest`, `CultCommitOutcome`, `Commit` returning
+  `bool`, `TryCommit`, the `StoredAt` bump in the batch builder and `Push`),
+  `CultDocumentMessagePackSerialization.cs` (`SingleFileMessagePackBackingStore`:
+  lock file, fingerprint after `PullAll`, `CommitBatch(request, wait)`,
+  `PushAll` under the lock), `DMS` (`CommitBatch(request, wait)` evaluating
+  conditions under `AcquireCommitLease` against the re-read manifest).
+  Tests (behavioral, `tests\GameCult.Caching.Tests\ConditionalCommitTests.cs`):
+  `StaleExpectFailsWithNothingChanged` (two caches on one file; A commits a
+  new value; B's `Expect(key, itsInstance)` commit returns false; B's file
+  bytes hash, `Get`, `IsDirty` and `Watch` count unchanged);
+  `ExpectNullIsCreateOnce` (two caches both `Expect(key, null)` and upsert; the
+  second returns false); `PerEntryCommitSurvivesUnrelatedWrite` (A writes key
+  `b`; B's commit expecting only `a` returns true and the file holds both);
+  `ExpectUnchangedFailsOnUnrelatedInsert` (A inserts `c`; B's
+  `ExpectUnchanged` commit returns false); `TwoProcessesRacingExactlyOneWins`
+  (the test starts two copies of a small console project under `tests\` on
+  one file, each performing N conditional increments of one record with
+  observe-outside, re-check-under-lock; the final value is `2N` and each
+  process reports at least one `Mismatch`); `TryCommitReportsContended` (the
+  test holds `<path>.lock` with `FileShare.None`; `TryCommit` returns
+  `Contended` at once with bytes unchanged; `Commit` on another thread waits
+  and succeeds after release); `PlainFlushNeverInterleaves` (one process
+  flushes in a loop while another commits conditionally; every read of the
+  file deserializes); `StoredAtIsStrictlyIncreasingPerKey` (a thousand
+  upserts of one key in a loop produce a thousand distinct `StoredAt`s);
+  `DirtyStoreRefusesConditionalCommit`; `CrossStoreConditionalBatchThrowsBeforeAnyStore`
+  (both stores' files unchanged, neither lock file created);
+  `DirectoryStoreHonorsConditions` (the four condition tests repeated against
+  a `DirectoryMessagePackBackingStore`).
   `BackingStoreTests.cs` transaction tests (`:1362, 1412, 1422, 1457, 1514,
   1544, 1585, 1593`) are rewritten against `Commit` where they prove
   durability ordering, deleted where they proved the ambient overlay.
@@ -883,26 +994,26 @@ the behavior change.
 
 - Repo/branch: `codex/cultcache-one-home-store`, independent of Cuts 2-4;
   three language-scoped tasks, parallel.
-- TypeScript (`packages\cultcache-ts`): delete `mirrors` (`src\cult-cache.ts:18`),
+- TypeScript (`CultLib\packages\cultcache-ts`, all TS lines below in its `src\cult-cache.ts`): delete `mirrors` (`src\cult-cache.ts:18`),
   the three mirror pushes (`:402, 448, 503`), the `slice(1)` lists (`:663-677`);
   `#resolveRoute(type): CacheBackingStore | undefined`; `addBackingStore`
   (`:180-188`) throws on a second untyped store or a claimed type. Tests:
   `rejects a second generic backing store`, `rejects a type registered to two
   stores`, `routes each type to its home store`; the writer-by-reader loop
   (`:536-617`) adds the two files from the C# `write-routed` mode. Command:
-  `npm test` in `packages\cultcache-ts`. Version `0.13.5` -> `0.14.0`.
-- Rust (`packages\cultcache-rs`): delete the four mirror loops (`src\lib.rs:2092-2094,
+  `npm test` in `CultLib\packages\cultcache-ts`. Version `0.13.5` -> `0.14.0`.
+- Rust (`CultLib\packages\cultcache-rs`, all Rust lines below in its `src\lib.rs`): delete the four mirror loops (`src\lib.rs:2092-2094,
   2213-2215, 2252-2254, 2323-2325`) and the `route.len() != 1` branch
   (`:2174-2181`); `fn resolve_route_index(&self, type_id: &str) -> Option<usize>`
   replaces `resolve_route_indices` (`:2363-2380`); `add_backing_store`
   (`:1950-1959`) returns `Result<()>` and errors on a second generic store or a
-  claimed type; callers (`lib.rs` tests, `examples\cultcache_interop.rs:77`)
+  claimed type; callers (`src\lib.rs` tests, `examples\cultcache_interop.rs:77`, both under `CultLib\packages\cultcache-rs`)
   take the `Result`. Tests: `second_generic_store_is_rejected`,
   `type_claimed_twice_is_rejected`; `type_specific_store_routes_before_generic_store`
-  stays. Command: `cargo test` in `packages\cultcache-rs`. Version `0.1.0` ->
+  stays. Command: `cargo test` in `CultLib\packages\cultcache-rs`. Version `0.1.0` ->
   `0.2.0`.
-- Python (`packages\cultcache-py`): `stores_by_type: dict[str, BackingStore]`,
-  `generic_store: BackingStore | None` (`cache.py:23-24`); `add_backing_store`
+- Python (`CultLib\packages\cultcache-py`): `stores_by_type: dict[str, BackingStore]`,
+  `generic_store: BackingStore | None` (`CultLib\packages\cultcache-py\src\cultcache_py\cache.py:23-24`, all Python lines below in that file); `add_backing_store`
   (`:100-102`) raises on a claimed type, `add_generic_store` (`:104-105`) on a
   second store; `_store_for_type(type) -> BackingStore` raises when none
   (`:300-302`); the four write loops (`:199-201, 218-219, 239-241, 269-270`)
@@ -1147,7 +1258,7 @@ estimates otherwise.
 |---|---|---|---|
 | 1 | 0 | ~150 doc, ~160 test | 0 |
 | 2 | `CultManagedDocument.cs` −355 (SoA parked at a tag, managed doc); `CC` −~670 (`///` 461, wrappers/unused/`soft`/subjects ~210); `CultCacheMessagePack.cs` −~60; `DMS` −~380 (legacy formats, filter, probes, `///`); `CultDocumentMessagePackSerialization.cs` −~100 (catalog helpers, `///`); `CND` −~60; deleted tests ~−450 | ~40 (`Loaded/Unloaded`, `NoWarn`), ~30 (`parked-features.md`) | public surface −20 members; 1 tag; 0 targets |
-| 3 | ~95 (2.1/2.2 deletion lines) + ~230 (ambient transaction machinery) | ~150 impl (routing, globals, read-only, lookups) + ~70 (`CultCacheBatch`, `Commit`), ~520 test, ~30 interop peer | +`AddBackingStore(store, Type[])`, +`IsReadOnly`, +`ReadOnly`, +`Commit`, +`CultCacheBatch`; −ctor overload, −`MaterializeMissingGlobals`, −`ContainsDurableRecord`, −`PullOnOpen`, −`ExecuteTransactionAsync` ×2; −`AsyncLocal`, −`SemaphoreSlim` |
+| 3 | ~95 (2.1/2.2 deletion lines) + ~230 (ambient transaction machinery) | ~150 impl (routing, globals, read-only, lookups) + ~70 (`CultCacheBatch`, `Commit`) + ~150 (conditions, request, outcome, `TryCommit`, single-file lock and conditional commit ~60, directory conditional commit ~40, `StoredAt` bump), ~720 test, ~30 interop peer, 1 small console project for the two-process race | +`AddBackingStore(store, Type[])`, +`IsReadOnly`, +`ReadOnly`, +`Commit`, +`TryCommit`, +`CultCacheBatch`, +`CultCommitRequest`, +`CultCommitOutcome`; −ctor overload, −`MaterializeMissingGlobals`, −`ContainsDurableRecord`, −`PullOnOpen`, −`ExecuteTransactionAsync` ×2; −`AsyncLocal`, −`SemaphoreSlim`; +1 lock-file sidecar per single-file store |
 | 4 | 1 | ~80 impl, ~110 test, 2 csproj lines | +1 assembly attribute; MessagePack's generator no longer flows to consumers |
 | 5 | TS ~18, Rust ~30, Python ~20 | TS ~12 + ~40 test, Rust ~15 + ~40 test, Python ~10 + ~30 test | three version bumps |
 | 6 | ~120 (reflection bridge, fallback) | ~300 editor, 1 attribute | Studio `1.0.0` -> `1.1.0`, +1 package dependency |
@@ -1157,10 +1268,11 @@ estimates otherwise.
 | 10 | ~120 + ~280 (importer) + 8 | ~110, ~120 tests | −4 private file formats |
 
 Expected net: CultLib **−1,650** lines of source and −450 of tests in Cut 2,
-then −325/+220 source and +520 tests in Cut 3 and +80/+110 in Cut 4: the two
-Caching projects end near 3,000 lines with `CultCache.cs` near 950, against
-5,259 and 2,704 today; the siblings shrink; Aetheria about **−33,000** lines,
-two vendored dependencies and four private formats gone.
+then −325/+370 source and +720 tests in Cut 3 and +80/+110 in Cut 4: the two
+Caching projects end near 3,150 lines with `CultCache.cs` near 1,000, against
+5,259 and 2,704 today, and C# gains the conditional commit Rust already has;
+the siblings shrink; Aetheria about **−33,000** lines, two vendored
+dependencies and four private formats gone.
 
 Proposed follow-ups, outside this migration: remove `soft` from
 `CultMesh.FlushAsync`/`CultNetLocal.FlushAsync` and its four external call
@@ -1168,12 +1280,11 @@ sites; collapse `FlushOnDispose`/`StoreFlushOnDispose` into one flag; package
 the generator without the empty `GameCult.Caching.MessagePack.Analyzers`
 project; strip `///` from `CultDocumentContracts.cs` and
 `CultGeneratedDocumentMetadata.cs` (180 lines untouched by these cuts); unify
-the global key across runtimes (changes bytes); a C# store-level
-compare-exchange matching cultcache-rs's (`lib.rs:397-800`), which Odin, Idunn,
-CodexConnector and Ghostlight consume in Rust and which the C# reference has
-never had (optimistic concurrency between processes, distinct from the
-in-process batch commit); batch commit in cultcache-ts and a cross-type
-all-or-nothing batch in cultcache-py.
+the global key across runtimes (changes bytes); batch commit and conditional
+commit in `CultLib\packages\cultcache-ts` and a cross-type all-or-nothing and
+conditional batch in `CultLib\packages\cultcache-py`; a probe that a Rust
+`fs2` lock and a C# `FileShare.None` open on one `.lock` file exclude each
+other, before any store is shared across runtimes.
 
 ## 6. Risks and rejected paths
 
@@ -1198,6 +1309,15 @@ Risks:
   none exists (the only caller was a tests-only CultNet wrapper), and every
   sibling consumer passes explicit batches. Cut 2 parks SoA rather than
   retracting it.
+- Conditional commit identity is `(schemaId, storedAt)`, not payload bytes;
+  it is sound only with the strictly-increasing `StoredAt` rule, which a
+  writer outside CultLib (another runtime writing the same file) need not
+  obey. Rust compares whole envelopes. Until the cross-runtime lock and
+  identity are probed together, a store is written by one runtime.
+- The single-file lock file is a sidecar next to every single-file store;
+  a store on a read-only directory cannot commit conditionally (nor could it
+  flush), and a stale lock file after a crash is harmless (`FileShare.None`
+  is released with the process).
 - Deleting the v2/v3 directory formats refuses any store nobody found; if one
   exists it fails loudly with its format string and is rebuilt from source.
 - `ReactiveProperty` fields reachable from a document break without the
@@ -1249,7 +1369,9 @@ reference CultLib `c2a9a6e` by project, and were run with
 | P5 | `cc-import-probe`: structural read of `GameData\AetherDB.msgpack` and one name file; depth; one `Faction` slot rewrite; `.cc` write and read-back; depth limit | `167 records; per tag: 0:13, 1:51, 2:25, 3:3, 13:12, 17:3, 29:4, 30:1, 31:18, 32:37`; `max nesting depth = 7 (tag 2); UntrustedData limit = 500`; `Australia.msgpack: outer array 2, tag 9, payload slots 3`; `Faction payload slots=16: 0:Binary(len16) 1-4:String 5:Map(n0) 6:Nil 7:Array(n3) 8:Array(n3) 9:Binary(len16) 10:Binary(len16) 11:Integer 12:Map(n12) 13-15:Integer`; stock options: `TypeAccessException: No hash-resistant equality comparer available for type: GameCult.Caching.CultRecordRef`; with the security subclass: `key=bbd619ed-… Name=Adrasteia Geoname=95c298ae-… Allegiance=12`; `reopened from .cc: … schema=aetheria.faction … Allegiance=12 payloadSlots=16`; `depth 100: ok; 499: ok; 600: MessagePackSerializationException`. Build: with MessagePack's generator active, `CS0426: The type name 'GameCult' does not exist in the type 'GeneratedMessagePackResolver'` (emitted `case 0: return new global::MessagePack.GeneratedMessagePackResolver.GameCult.Caching.CultRecordRefFormatter<…>()`); `ExcludeAssets="analyzers"` on direct references to `MessagePack`, `MessagePack.Annotations`, `MessagePackAnalyzer` does not remove it; an `Analyzer Remove` target `BeforeTargets="CoreCompile"` does. |
 
 | P6 | `cc-analyzer-probe`: scratch library `Lib` (netstandard2.1, `MessagePack` 3.1.7, a generic `Ref<T>` struct with a custom formatter and resolver, standing in for `GameCult.Caching.MessagePack`) and a consumer `App` declaring `Dictionary<Ref<Doc>, float>`; four library shapes built with `dotnet build App\App.csproj -c Debug -p:<variant>` | default: `CS0426: The type name 'Lib' does not exist in the type 'GeneratedMessagePackResolver'`; `ExcludeAssets="analyzers" PrivateAssets="analyzers"` on `Lib`'s `MessagePack` reference: same error; `[assembly: MessagePackKnownFormatter(typeof(RefFormatter<>))]` in `Lib`: same error (emitted `case 0: return new global::MessagePack.GeneratedMessagePackResolver.Lib.RefFormatter<global::App.Doc>();`); `<PackageReference Include="MessagePackAnalyzer" Version="3.1.7" PrivateAssets="all" />` in `Lib`: `Build succeeded.` |
-| E1 | grep evidence (no code run) for the batch-commit shape | TS `cultcache-ts\src\*.ts`: no batch, transaction or atomic member; Python `cache.py:227-251` `put_envelopes` only, called from `cultnet-py\src\cultnet_py\replication.py:98`; Rust cache-level `put_prepared_batch` (`lib.rs:2162-2201`): no caller in `CultLib\packages` or in Odin, Idunn, Epiphany, CodexConnector, Ghostlight, Muninn, Ratatoskr; Rust store-level `compare_exchange*`/`compare_and_swap*`/`delete_batch_if_unchanged` (`lib.rs:397-800`): Odin 12 sites, Idunn 31, CodexConnector 1, Ghostlight `ghostlight-dungeon\src\app_session.rs:119, 371` (+3 tests) and `world\consumer.rs:788` ("a malformed or stale batch commits nothing"); Epiphany's crates: none. Every call passes an explicit expected/replacement batch; none reads staged state mid-commit. |
+| E1 | grep evidence (no code run) for the batch-commit shape | TS `cultcache-ts\src\*.ts`: no batch, transaction or atomic member; Python `CultLib\packages\cultcache-py\src\cultcache_py\cache.py:227-251` `put_envelopes` only, called from `CultLib\packages\cultnet-py\src\cultnet_py\replication.py:98`; Rust cache-level `put_prepared_batch` (`CultLib\packages\cultcache-rs\src\lib.rs:2162-2201`): no caller in `CultLib\packages` or in Odin, Idunn, Epiphany, CodexConnector, Ghostlight, Muninn, Ratatoskr; Rust store-level `compare_exchange*`/`compare_and_swap*`/`delete_batch_if_unchanged` (`CultLib\packages\cultcache-rs\src\lib.rs:397-800`): Odin 12 sites, Idunn 31, CodexConnector 1, Ghostlight `ghostlight-dungeon\src\app_session.rs:119, 371` (+3 tests) and `Ghostlight\crates\ghostlight-dungeon\src\world\consumer.rs:788` ("a malformed or stale batch commits nothing"); Epiphany's crates: none. Every call passes an explicit expected/replacement batch; none reads staged state mid-commit. |
+
+| P7 | `cc-cas-probe`: conditional commit over the existing single-file snapshot format, implemented in the probe (identity `(schemaId, storedAt)`, `<file>.lock` with `FileShare.None`, temp then `File.Replace`), two child processes racing on one file with the lock and without it | pending: see the reply that accompanies this revision; results are copied here when the run completes. |
 
 Not established by running code, marked as design: the routed C# cache
 itself (Cut 3's tests are its proof); the Studio's reflective struct path over
