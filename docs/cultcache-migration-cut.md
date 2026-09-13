@@ -333,7 +333,8 @@ the two Caching projects.
 | `MaterializeMissingGlobals`, `CultCache(registry, bool)` | `CultCacheMessagePack.cs:105` only | delete (2.1) |
 | `CultCacheOpenOptions.ConfigureCache`, `ConfigureStore`, `DirectoryStorePath`, `ConfigureDirectoryStore`, `DirectoryStoreHydrationFilter` | none (`DirectoryStoreHydrationFilter` tests only) | delete |
 | `FlushBackingStore(store)`, `PrepareForReloadOrShutdown[Async]` | none | delete; `FlushAsync` writes every dirty store |
-| `TryGet<`, `TryGetByName`, `TryGetByIndex`, `Resolve<` | none | delete |
+| `TryGet<` | AquaSynth (`CultCachePatchDocument.cs:104`), missed by the first audit | keep |
+| `TryGetByName`, `TryGetByIndex`, `Resolve<` | none | delete |
 | `CultCache.Logger`, store `Logger`, `NullLogger` use | none | delete |
 | store `FlushOnDispose` | none directly; `CultCacheOpenOptions.StoreFlushOnDispose` (Gjallar, Ymir, Delvehold) sets it | keep both; collapsing the two flush-on-dispose flags is a follow-up |
 | store `HydrationFilter`, `PullSelected`, `PullBackingStoreRecordsAsync`, `CultPersistedRecordMetadata` | tests only | delete |
@@ -363,7 +364,11 @@ the two Caching projects.
 
 **Target shape after Cuts 2-4** (the original `Aetheria\...\CultCache.cs` is
 437 lines for a cache, routing, an inheritance-aware index and six stores;
-this is what `CultCache.cs` should read like at about 900 lines including the
+this is what the cache half of `CultCache.cs` should read like; the "about 900
+lines including the registry" figure was wrong: the registry and schema half
+alone is 1,057 lines and is not reshaped by this migration (Cut 3 measured the
+cache half at 1,025 lines after adding routing and commit). Original sketch,
+at about 900 lines including the
 registry):
 
 ```csharp
@@ -560,6 +565,29 @@ home store, before `_entries` changes.
 - `Watch<T>()` is `_changes.Where(c => typeof(T).IsAssignableFrom(c.Descriptor.DocumentType)).Select(c => new CultCacheDocumentChange<T>(c.Kind, c.Key, (T?)c.Document, (T?)c.Previous))`;
   `PublishChange`'s `Activator.CreateInstance` (`CC:2286-2301`) goes. `[P2-D]`
   shows `Watch<Base>` receives nothing today.
+
+**Concurrency and commit semantics (Soul, Cut 3; operator decisions 2026-09-13, all option A).**
+- Lock order is the cache gate, then the store lock, on every path: attach,
+  pull, write, flush, commit. A store's I/O blocks that cache's readers; no
+  finer-grained locking. (Cut 3 as first landed took them in both orders and
+  deadlocked a directory-store pull against an upsert, and a re-pull could erase
+  a staged single-file write.)
+- An unconditional `Commit` writes the cache's snapshot of its home store,
+  exactly like a flush: last-writer-wins. Only conditional commits (`Expect`,
+  `ExpectUnchanged`) protect against other writers. A `Commit` also persists
+  earlier staged writes to that store and clears dirty.
+- One key lives in one store: a write or load that would put a key already held
+  from another store throws and changes nothing.
+- `OnUpdate` fires for loads only, as before the migration; writers publish
+  their own changes.
+- A missing single-file store keeps staged writes dirty and does not drop loaded
+  records.
+- A store that fails to hydrate on open (corrupt, or an unregistered schema)
+  throws and is never overwritten; consumers such as Gjallar and AquaSynth's
+  writers surface the error rather than deleting and rewriting.
+- `LateRouteOverAdmittedTypeThrows`: the reverse-order fixture holds only
+  unrouted types in the untyped store, since a routed type there is a foreign
+  record.
 
 **Read-only stores.** `CacheBackingStore(bool readOnly = false)`,
 `IsReadOnly`; `SingleFileMessagePackBackingStore(string filePath, bool
@@ -972,7 +1000,7 @@ the behavior change.
 - Soul: every test; schema-compatibility fixture ids unchanged; Mesh,
   Networking, Geometry suites at their Cut 2 counts; external builds green;
   the AquaSynth global report written into this document's section 7;
-  `CC` at or below the 2.0 shape's size; `rg "MaterializeMissingGlobals|InitializeGlobals|ContainsDurableRecord|PullOnOpen|initializeGlobals|ExecuteTransactionAsync|AsyncLocal|SemaphoreSlim|VisibleStoredDocuments" src tests` empty.
+  `CC` at or below the 2.0 shape's size; `rg "MaterializeMissingGlobals|InitializeGlobals|ContainsDurableRecord|PullOnOpen|initializeGlobals|ExecuteTransactionAsync|VisibleStoredDocuments" src tests` empty, and `rg "AsyncLocal|SemaphoreSlim" src\GameCult.Caching` empty (Mesh and Networking use `SemaphoreSlim` for unrelated reasons).
 - Atomic commit, in the same commit as the routing change: delete
   `CC:1577-1622` (`ExecuteTransactionAsync` ×2), `:1907-1921`
   (`VisibleStoredDocuments`), `:1923-2066` (`CommitTransaction`,
