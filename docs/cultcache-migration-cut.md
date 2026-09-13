@@ -511,14 +511,19 @@ appends to `_stores`, and calls `store.PullAll()`. There is no interval in
 which a store is attached but unread. `PullAllBackingStoresAsync` remains as
 re-pull (`CultMesh.DocumentFromStore` polls at `CultMesh.cs:1603`).
 
-**Open Cut 3 item: overwriting a store.** `PullOnOpen = false` is used by
-AquaSynth and Mimir (2.0 audit row) to write a file without loading what is in
-it. Attach-is-hydration removes that path. Before Cut 3 lands, decide the owner
-of "replace this store's contents": e.g. the consumer deletes the file before
-opening, or an explicit store-level replace on flush. Read each call site to
-learn whether it wants overwrite or merely skips a missing file (`File.Exists`
-cases are already satisfied by hydration of a missing file). `PullOnOpen` is
-deleted only together with that decision and its call-site migration.
+**Overwriting a store (decided 2026-09-13, operator: option A).** The consumer
+owns replacing a store's contents: open (which hydrates), `Remove` every
+record it does not intend to keep, upsert, flush. The flush writes the whole
+snapshot through the atomic replace, so the old contents are replaced in one
+step; no CultLib API is added. `PullOnOpen` is deleted in Cut 3. Call sites:
+`AquaSynth\src\AquaSynth.Core\CultCachePatchDocument.cs:90-98`
+(`WriteDefaultAsync`) and `AquaSynth\src\AquaSynth.Faust\AquaSynthDaemonService.cs:923`
+(`WriteReceiptAsync`) both write a single-document file and adopt the remove-all
+form; today `Create` never pulls, so their `PullOnOpen = false` was already a
+no-op. The `File.Exists`-style setters (`IpaTrialResults.cs:175-189`,
+`SpeechDistributedTraining.cs:262`, Mimir `BufferSmoke\Program.cs:1943, 3691,
+3990, 4066, 7622`) and the AquaSynth test's `PullOnOpen = true` just drop the
+property, since hydrating a missing file is empty.
 
 **A record's home cannot change after admission.** Because `Home` is computed
 from the stores attached so far, attaching an untyped store first and a typed
