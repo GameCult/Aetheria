@@ -808,6 +808,22 @@ reject duplicate slots and string keys with one message each, and route the
 typed helpers through the untyped path, proven by a descriptor-equality sweep
 across member shapes with a byte pin for overrides.
 
+**Overrides (Cut 4 fix, CultLib `7c4bc2b`).** The "most-derived declaration"
+rule proposed after Soul's review was wrong: MessagePack itself reads the base
+declaration's attributes (an `[IgnoreMember]` override still serializes at the
+base slot; a re-keyed override throws a duplicate key). Both the generator and
+the registry therefore reject any override whose `[Key]` or `[IgnoreMember]`
+differs from its base declaration, and accept overrides that repeat or omit
+them, pinned against MessagePack's own bytes. Typed
+`Serialize<T>`/`Deserialize<T>` are deleted rather than rerouted.
+
+Follow-ups outside this migration: a global-namespace document type is named
+`<global namespace>.Type` by the generator and `Type` by `CultSchemaTypeNames`,
+so its schema id differs between builds (fixing it changes those ids); and the
+generator emits `typeof(Doc<T>)` for generic document types, which does not
+compile, so a generic document cannot live in an assembly that runs the
+generator.
+
 **Security.** `CultMessagePackSecurity : MessagePackSecurity` copies
 `UntrustedData` and overrides `GetHashCollisionResistantEqualityComparer<T>()`
 to return, for `CultRecordRef<TDoc>`, a comparer over `Key.Value` built from
