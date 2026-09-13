@@ -607,6 +607,16 @@ home store, before `_entries` changes.
   `_lifecycleGate`, and could stall a cache on an interrupted wait; and a
   non-blocking delivery queue, which kept the same authority in the cache.
   Cross-process order stays with `StoredAt` and conditional commit.
+- Follow-ups outside this migration (found while landing the sequence, CultLib
+  `4562340`; none introduced by it): `CultNetDatabaseSubscriptionServer.ApplyProjectedChange`
+  keeps a latest value per record from `CultNetDatabaseChange`, which carries no
+  sequence (it comes from `OnUpdate`, whose `(previous, current)` signature
+  cannot, or from database publishes after the cache call), so a stale change
+  can overwrite a newer one; fixing it means publishing CultNet changes from
+  `cache.Watch` with `Sequence`. The same holds for `CultNetDatabase.WatchRecord`
+  and Mesh handles over a database. `RefreshAsync` on the Mesh mirrors writes
+  its value without a sequence, and `ObserveAsync` reads before subscribing, so
+  a change between the two is missed.
 - One key lives in one store: a write or load that would put a key already held
   from another store throws and changes nothing.
 - `OnUpdate` fires for loads only, as before the migration; writers publish
