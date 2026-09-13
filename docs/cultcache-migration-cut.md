@@ -351,7 +351,7 @@ the two Caching projects.
 | `LastSuccessfulFlushAtUtc` (cache and store) | tests only | delete |
 | store `EntryAdded/Updated/Deleted` subjects | cache only | replace with one `internal` callback set at attach; the three `Subject`s go |
 | `CultCacheMessagePack.Create` | AquaSynth (`AquaSynthDaemonService.cs:923`, `CultCachePatchDocument.cs:90`), Gjallar (`VerseState.cs:35`) | keep as the synchronous open; `OpenAsync` (Mimir, AquaSynth, Ymir, CultNetLocal, Studio) returns `Task.FromResult(Create(...))` |
-| `CultCacheOpenOptions.PullOnOpen` | Studio by reflection (`:687`) | delete with the Studio rewrite (Cut 6); Cut 2's Soul step greps the external repos and must find no setter |
+| `CultCacheOpenOptions.PullOnOpen` | Studio by reflection (`:687`); external setters found in Cut 2: AquaSynth (`CultCachePatchDocument.cs:92` and `AquaSynthDaemonService.cs:923` set `false`; `IpaTrialResults.cs:189`, `SpeechDistributedTraining.cs:262` pass `File.Exists`-style values; a test sets `true`) and Mimir (`BufferSmoke\Program.cs:1943, 3691, 3990, 4066, 7622`) | kept through Cut 2. `false` means "write this file without loading it", which attach-is-hydration cannot express: Cut 3 must decide how a consumer overwrites a store (open Cut 3 item, 2.2) and migrate these call sites or keep an explicit overwrite option |
 | `OnUpdate` | `CND:494, 1202` | keep |
 | `Watch<T>`, `WatchRecord<T>` | `CultMesh.cs:2290, 2317, 2348, 1527` | keep; assignable |
 | `TryGetHandle`, `AllEntries`, `AllStoredDocuments`, `BackingStores`, `GetByIndex<`, `Get(key)`, `Remove(CultRecordKey)`, `Remove<T>`, `UpsertAsync<T>`, `UpsertAsync(Type,...)`, `AddAsync<T>`, `GetAll<`, `Get<`, `GetByName<`, `IsDirty`, `Dispose`, `FlushAllBackingStores`, `FlushAsync`, `PullAllBackingStoresAsync` | CultNet/CultMesh, Aquarium, Gjallar, Ymir, Studio | keep |
@@ -509,8 +509,16 @@ claimed by exact equality; **no admitted record would change home**), sets
 `store.Loaded = e => Admit(e, store)` and `store.Unloaded = e => Evict(e, store)`,
 appends to `_stores`, and calls `store.PullAll()`. There is no interval in
 which a store is attached but unread. `PullAllBackingStoresAsync` remains as
-re-pull (`CultMesh.DocumentFromStore` polls at `CultMesh.cs:1603`). `PullOnOpen`
-is deleted.
+re-pull (`CultMesh.DocumentFromStore` polls at `CultMesh.cs:1603`).
+
+**Open Cut 3 item: overwriting a store.** `PullOnOpen = false` is used by
+AquaSynth and Mimir (2.0 audit row) to write a file without loading what is in
+it. Attach-is-hydration removes that path. Before Cut 3 lands, decide the owner
+of "replace this store's contents": e.g. the consumer deletes the file before
+opening, or an explicit store-level replace on flush. Read each call site to
+learn whether it wants overwrite or merely skips a missing file (`File.Exists`
+cases are already satisfied by hydration of a missing file). `PullOnOpen` is
+deleted only together with that decision and its call-site migration.
 
 **A record's home cannot change after admission.** Because `Home` is computed
 from the stores attached so far, attaching an untyped store first and a typed
@@ -818,31 +826,38 @@ the behavior change.
      `GetAll<T>`), `:1787-1794` (`TryGetByName`), `:1810-1817`
      (`TryGetByIndex`), `:1819-1825` (`Resolve<`), `:1318-1325` (`Logger`),
      `:1332-1335` (`LastSuccessfulFlushAtUtc`) and store `:2365-2368`,
-     `CacheBackingStore.Logger` (`:2350-2354`), `PullSelected` (`:2402-2409`),
-     `CultPersistedRecordMetadata` (`:2304-2323`), the `soft` parameter
-     everywhere in the two Caching projects, `EntryAdded/EntryUpdated/EntryDeleted`
-     (`:2383-2391`; replaced by `internal Action<CultStoredDocument>? Loaded,
-     Unloaded`), the `GetAwaiter().GetResult()` subscriptions (`:1432-1434`;
+     `CacheBackingStore.Logger` (`:2350-2354`), the `soft` parameter everywhere
+     in the two Caching projects except `CultCache.FlushAsync(bool soft = false)`,
+     which Studio reflects on (`CultCacheStudioWindow.cs:739`) and keeps until
+     Cut 6, `EntryAdded/EntryUpdated/EntryDeleted`
+     (`:2383-2391`; replaced by `protected internal Action<CultStoredDocument>? Loaded,
+     Unloaded`, since `DirectoryMessagePackBackingStore` lives in another
+     assembly), the `GetAwaiter().GetResult()` subscriptions (`:1432-1434`;
      `AddStoredDocumentInternal` becomes synchronous `void`, its `async` and
      `await Task.CompletedTask` go).
   5. `CultCacheMessagePack.cs`: `ConfigureCache`, `ConfigureStore`,
      `DirectoryStorePath`, `DirectoryStoreHydrationFilter`,
      `ConfigureDirectoryStore` and their uses (`:32-40, 47-61, 109, 113-118,
-     127`); `OpenAsync` becomes `Task.FromResult(Create(filePath, options))`
-     (`Create` and `OpenAsync` both have external consumers).
+     127`). `OpenAsync` keeps its behavior here (pull, then its existing
+     materialization): `Create` never pulls, so `Task.FromResult(Create(...))`
+     is only correct once attach hydrates, and moves to Cut 3.
   6. `DMS`: `HydrationFilter` (`:46, 635`), `ReadStageProbe`, `FlushStageProbe`,
      stage constants and every `?.Invoke` (`:158, 245, 418, 456`),
      `ReadPersistedGeneration`, `PullSelected`/`PullSelectedCore`
-     (`:229-274`), `LoadLegacyRecords`, `_legacyInlineRecords`,
+     (`:229-274`) together with the base `CacheBackingStore.PullSelected`
+     (`CC:2402-2409`) and `CultPersistedRecordMetadata` (`CC:2304-2323`), which
+     the directory store and open options use until this step, `LoadLegacyRecords`, `_legacyInlineRecords`,
      `LegacyRecordPath`, `MetadataRecordPath`, `_needsIndexUpgrade`,
      `_manifestUsesMetadataPages`, `_manifestUsesImmutablePages`, the v2/v3
-     format constants and every branch on them; a manifest whose
+     format constants and every branch on them. A missing manifest is an empty
+     store (the store synthesizes a `v1.directory` manifest for it today and
+     keeps treating it as empty); an existing manifest whose
      `FormatVersion` is not the v4 constant throws
      `InvalidOperationException("Directory store {path} is {format}; only
      {v4} is readable.")`.
   7. `CultDocumentMessagePackSerialization.cs:144-175` (`SerializeSchemaCatalog`,
      `DeserializeSchemaCatalog`).
-  8. Every `///` line in the five touched files; `<NoWarn>$(NoWarn);CS1591</NoWarn>`
+  8. Every `///` line in all eight files of the two Caching projects; `<NoWarn>$(NoWarn);CS1591</NoWarn>`
      in `GameCult.Caching.csproj` and `GameCult.Caching.MessagePack.csproj`.
      Comments that carry an invariant (e.g. the dirty-pull guard at
      `CC:2568-2571`) stay as `//`.
@@ -861,14 +876,16 @@ the behavior change.
   `dotnet build` of `F:\Projects\Aquarium\src\Aquarium.Epiphany`,
   `F:\Projects\Ymir\src\Ymir.Core`, `F:\Projects\AquaSynth` (its .NET
   projects), `F:\Projects\Mimir` (its .NET projects), `F:\Projects\Gjallar\src\Gjallar`;
-  `rg "PullOnOpen|ConfigureCache|ConfigureStore|DirectoryStorePath|ConfigureDirectoryStore|FlushBackingStore\(|PrepareForReloadOrShutdown|TryGetByName|TryGetByIndex|ExecuteTransactionAsync|\.Soa<|\.Document<|LastSuccessfulFlushAtUtc|HydrationFilter"` over those five repos, Delvehold, Brokkr, Eve, EveUnity, EvePlugins must be empty (Brokkr, Eve*, Delvehold are not built here; the grep is the proof).
+  `rg "ConfigureCache|ConfigureStore|DirectoryStorePath|ConfigureDirectoryStore|FlushBackingStore\(|PrepareForReloadOrShutdown|TryGetByName|TryGetByIndex|ExecuteTransactionAsync|\.Soa<|\.Document<|LastSuccessfulFlushAtUtc|HydrationFilter"` over those five repos, Delvehold, Brokkr, Eve, EveUnity, EvePlugins must be empty (Brokkr, Eve*, Delvehold are not built here; the grep is the proof).
 - Soul: `git tag -l parked/cultcache-soa` resolves to a commit whose
   `CultManagedDocument.cs` still holds `CultSoaTable`, and `docs\parked-features.md`
   names it; Cut 1's eight tests still red for the same reasons (no behavior
   moved); every kept test passes; the five external builds green; the grep
-  empty; `wc -l` of the two Caching projects at least 1,700 lines below
-  `c2a9a6e`; `rg "GetAwaiter\(\)\.GetResult\(\)|async |AsyncLocal|SemaphoreSlim" src\GameCult.Caching`
-  empty; `rg "///" src\GameCult.Caching src\GameCult.Caching.MessagePack`
+  empty; `wc -l` delta of the two Caching projects against `e9b91c1` reported
+  (the ambient transaction machinery stays until Cut 3, so the 2.0 size target
+  is checked there); `rg "GetAwaiter\(\)\.GetResult\(\)" src\GameCult.Caching`
+  empty (the `async |AsyncLocal|SemaphoreSlim` emptiness check moves to Cut 3);
+  `rg "///" src\GameCult.Caching src\GameCult.Caching.MessagePack`
   empty; `cultcache.store.v4` directory manifests and v1 single files written
   before the cut still open.
 
