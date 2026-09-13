@@ -25,8 +25,9 @@ below lands under all GameCult infrastructure, not just Aetheria.
 - **C# is the reference runtime.** The ergonomics arose there; the other
   runtimes follow its contract. Contract changes are written down in
   `CultLib\src\GameCult.Caching\Contracts\` first.
-- **Existing consumers must survive.** AetheriaEve pins CultLib by commit,
-  Aquarium attaches a single store, Heimdall and Idunn carry copies.
+- **Existing consumers must survive.** Aquarium and Ymir build against CultLib
+  `main`; other consumers pin revisions or carry copies. AetheriaEve is not a
+  consumer: it is preserved as a specimen and receives no consideration.
 
 ## Why the previous attempt failed
 
