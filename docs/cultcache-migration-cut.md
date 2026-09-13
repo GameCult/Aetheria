@@ -1,465 +1,655 @@
 # CultCache Migration Cut
 
-Date: 2026-09-12
+Date: 2026-09-13 (second Imagination pass; first pass 2026-09-12, `82c1e72e`)
 
 Status: cut map. Ends are owned by `cultcache-migration-target.md`; this
-document owns the means. Nothing here is cut until the operator commits the
-five pending ServerShared edits (Cut 0).
+document owns the means. Cut 0 is done; nothing else is cut.
 
 Evidence base: CultLib `main` at `c2a9a6e`; Aetheria `codex/aetheria-state-rebuild`
-at `68fbce4a` plus five uncommitted files. Line numbers refer to those revisions.
+at `82c1e72e`. Line numbers refer to those revisions (`CC:` is
+`src\GameCult.Caching\CultCache.cs`, `DMS:` is
+`src\GameCult.Caching.MessagePack\DirectoryMessagePackBackingStore.cs`, `CND:`
+is `src\GameCult.Networking\CultNetDatabase.cs`). Every mechanism claim a cut
+is built on was established by running code; probes are in section 7, cited
+as `[P<n>]`. Consumer facts come from a sweep of `CultLib\src`, `CultLib\tests`,
+and every C# repo under `F:\Projects` referencing `GameCult.Caching` (Aquarium,
+Ymir, Mimir, Delvehold, AquaSynth, Gjallar, Brokkr, Eve, EveUnity, EvePlugins),
+excluding `bin`, `obj`, `vendor`, `CultLib-*` worktrees and `AetheriaEve*`.
 
 Canonical runtimes are the C# reference under `CultLib\src` and the packages
-under `CultLib\packages` (`cultcache-ts`, `cultcache-rs`, `cultcache-py`,
-`cultnet-*`, `cultmesh-*`). The neighboring repos `F:\Projects\cultcache-rs`,
-`cultcache-py`, `cultnet-rs`, `cultnet-ts` are defunct copies (operator
-correction, 2026-09-12): no parity claim, no evidence, and no cut in this
-document refers to them, and the target document's list is being corrected.
+under `CultLib\packages`. `F:\Projects\cultcache-rs`, `cultcache-py`,
+`cultnet-rs`, `cultnet-ts` are defunct and cited nowhere. `F:\Projects\AetheriaEve`
+and its worktrees are taxidermy, not a consumer.
 
 ## 1. Answers to the open questions
 
 ### Q1. Is routing a C# behavior or a cross-runtime semantic?
 
-**Routing is a cache semantic every sibling already has. C# is the outlier, and
-no bytes change.**
+**Routing is the contract in every runtime: one home store per document type.
+Replication and mirrors are deleted everywhere. No bytes change.**
 
-- TypeScript routes by type: `addBackingStore(store, ...types)` and
-  `#resolveRoute` pick the stores registered for the type, else the untyped
-  stores; the first is primary, the rest are mirrors
-  (`CultLib\packages\cultcache-ts\src\cult-cache.ts:180-192, 663-677`, writes at
-  `401-402, 447-448, 502-503`).
-- Rust routes the same way (`packages\cultcache-rs\src\lib.rs:1950-1963,
-  2363-2380`); batch puts require exactly one route per type and one store per
-  batch (`2174-2186`). Its README claims this "mirrors the C# behavior"
-  (`packages\cultcache-rs\README.md:216-241`); that claim is false today.
-- Python keeps `stores_by_type` and `generic_stores` and writes to every store
-  in the resolved list (`packages\cultcache-py\src\cultcache_py\cache.py:23-24,
-  100-105, 199-201, 300-302`).
-- C# replicates every record to every attached store
-  (`CultLib\src\GameCult.Caching\CultCache.cs:2097-2101, 2135-2139`) and pushes
-  all entries into a newly attached store (`1436-1439`). The typed overload
-  `AddBackingStore(CacheBackingStore, Type[])` existed in the pre-rewrite C#
-  cache (it survives as a dead symbol in
-  `tests\GameCult.Networking.Tests\lcov.info:460`) and was dropped by
-  `da94389 Rewrite CultCache as attribute-first storage`.
-- No runtime writes store identity into the file. Every runtime writes the same
-  snapshot `[formatVersion, catalog[], records[]]` with records
-  `[key, schemaId, storedAt, payload]` (C# `CultDocumentMessagePackSerialization.cs:180-251`;
-  TS `single-file-messagepack-backing-store.ts:203-232`; Rust `lib.rs:244-280,
-  2401-2455`; Python `stores.py:137-152`). `storeId` is an optional header field
-  in the contract (`cultcache-persistence-format.md:93`) that nothing implements.
-  The CultNet wire record is likewise `schemaId + key`
-  (`packages\cultnet-rs\src\replication.rs:36-60`).
+- TypeScript routes by type and mirrors the rest: `addBackingStore(store,
+  ...types)` (`packages\cultcache-ts\src\cult-cache.ts:180-188`),
+  `#resolveRoute` returns `{primary, mirrors}` (`:663-677`), and `put`,
+  `putEnvelope`, `delete` push to `primary` then every mirror (`:401-402,
+  447-448, 502-503`; `StoreRoute.mirrors` at `:18`).
+- Rust: `add_backing_store`/`add_generic_backing_store`
+  (`packages\cultcache-rs\src\lib.rs:1950-1963`), `resolve_route_indices`
+  (`:2363-2380`), mirror loops at `:2092-2094, 2213-2215, 2252-2254,
+  2323-2325`; `put_prepared_batch` already demands one route and one store
+  (`:2174-2189`). Its README claims this "mirrors the C# behavior"
+  (`packages\cultcache-rs\README.md:216-241`), which is false.
+- Python: `stores_by_type: dict[str, list[BackingStore]]`, `generic_stores:
+  list` (`packages\cultcache-py\src\cultcache_py\cache.py:23-24`); write loops
+  at `:199-201, 218-219, 239-241, 269-270`; resolver at `:300-302`.
+- C# replicates every record to every store (`CC:2097-2101, 2135-2139`) and
+  pushes all entries into a newly attached store (`CC:1436-1439`). `[P2-A]`:
+  attach a second store after hydrating the first, flush with no mutation, and
+  the second file is written with the first store's record.
+- Nobody uses a mirror: every cache in `CultLib\src`, `CultLib\tests` and every
+  consumer attaches one untyped store; the only multi-store cache anywhere is
+  the Rust test `type_specific_store_routes_before_generic_store`
+  (`lib.rs:3714-3748`), whose types never share a store. No test asserts
+  mirroring.
+- No runtime writes store identity into the file: all write
+  `[formatVersion, catalog[], records[]]`, records `[key, schemaId, storedAt,
+  payload]` (C# `CultDocumentMessagePackSerialization.cs:180-251`; TS
+  `single-file-messagepack-backing-store.ts:203-232`; Rust `lib.rs:244-280,
+  2401-2455`; Python `stores.py:137-152`). `storeId`
+  (`cultcache-persistence-format.md:93`) is implemented nowhere.
 
-Decision: routing is written into the contract as a **cache composition rule**,
-not a wire rule. C# adopts one home store per type with no mirrors, which is a
-strict subset of what TS and Rust do. Sibling caches change no code; the
-cultcache-rs README sentence is corrected. Every `.cc` file a routed cache emits
-is a complete single-store file readable by any runtime, and that is the parity
-claim to test (section 3).
+Decision: a document type has exactly one home store, chosen by its most
+specific registered route (C# by assignable CLR type; TS, Rust, Python by the
+exact type string they already route on); a second untyped store or an
+overlapping route is a registration error; a write with no home is an error.
+C# implements it (Cut 3); TS, Rust and Python delete their mirror paths
+(Cut 5). Each routed file is a complete single-store file (section 3).
 
 ### Q2. How do Unity.Mathematics values encode portably?
 
-**As fixed-length positional arrays of components, which is already Aetheria's
-wire shape. CultMath defines no encoding and is not adopted in this migration.**
+**As fixed-length positional arrays of components, Aetheria's existing wire
+shape `[P5]`. CultMath defines no encoding and is not adopted.**
 
-- Aetheria's formatters write `float2` as `[f32,f32]`, `float3` as three,
-  `float4` as four, `int2` as `[int,int]`, `bool2` as `[bool,bool]`
-  (`Aetheria\Assets\Scripts\ServerShared\CultCache\Serialization\MathFormatters.cs:8,
-  49, 90, 131, 177`); `MathResolver.cs` maps the types, nullables, arrays and
-  lists, with one bug at `:55` (`int2?[]` mapped to `ArrayFormatter<float2?>`).
-  `bool2[,]` goes through MessagePack's `TwoDimensionalArrayFormatter` as
-  `[len0, len1, [flat...]]`.
-- CultMath lives at `CultLib\packages\cultmath` (`float2`, `float3`, `float4`,
-  `int2`, `bool2`, `double2/3`, `quaternion`, `rect`, `Color32`, `Random`) with
-  no MessagePack attributes, formatters, ext types, or serde in its Rust core.
-  No sibling runtime defines a vector shape.
+- Aetheria writes `float2` as `[f32,f32]`, `float3` three, `float4` four,
+  `int2` `[int,int]`, `bool2` `[bool,bool]`
+  (`ServerShared\CultCache\Serialization\MathFormatters.cs:8, 49, 90, 131,
+  177`); the real `Faction` record's two `float3` slots are `Array(n3)` on disk
+  `[P5]`. `MathResolver.cs:55` maps `int2?[]` to `ArrayFormatter<float2?>`, a
+  bug fixed in Cut 8. `bool2[,]` uses MessagePack's `TwoDimensionalArrayFormatter`.
+- CultMath (`CultLib\packages\cultmath`) has no serialization; no sibling
+  defines a vector shape.
 - The persisted member type name is the CLR full name
-  (`CultGeneratedDocumentMetadata.cs:258-282`, used at `CultCache.cs:710`), so a
-  `float2` member hashes into the schema id as `Unity.Mathematics.float2`. That
-  is the existing rule for every member (`System.Int32` and friends); the
-  generator does the same (`CultDocumentMessagePackGenerator.cs:354-384`). A
-  sibling would have to emit the same string only if it declared the same schema,
-  and none does.
+  (`CultGeneratedDocumentMetadata.cs:258-282`, used at `CC:710`), the same rule
+  as `System.Int32`; the generator does the same
+  (`CultDocumentMessagePackGenerator.cs:354-384`).
 - CultLib has no consumer formatter extension point: `Options` is a
-  `static readonly` composite of `CultDocumentResolver` and `StandardResolver`
-  (`CultDocumentMessagePackSerialization.cs:50-55`), and generated serializers
-  read that same static at call time
-  (`CultDocumentMessagePackGenerator.cs:290, 308`).
+  `static readonly` composite under `MessagePackSecurity.UntrustedData`
+  (`CultDocumentMessagePackSerialization.cs:50-55`); generated serializers
+  read it at call time (emitted `var options = ...Options;` at both
+  `Serialize` and `Deserialize`, members resolved via `options.Resolver`)
+  `[P4]`.
+- `[P5]`: MessagePack 3's own generator (`MessagePackAnalyzer` 3.1.7, a
+  dependency of `MessagePack`) fails the build (CS0426) on
+  `Dictionary<CultRecordRef<T>, float>` by emitting a reference to a
+  non-existent `GeneratedMessagePackResolver.GameCult.Caching.CultRecordRefFormatter<T>`;
+  and `UntrustedData` refuses `CultRecordRef<T>` as a dictionary key ("No
+  hash-resistant equality comparer available"). A `MessagePackSecurity`
+  subclass supplying a comparer over the key string fixes the second. The
+  generator reaches consumers transitively through CultLib's `MessagePack`
+  reference, so the owner is CultLib: `[P6]` shows that
+  `ExcludeAssets="analyzers"` on the library's `MessagePack` reference does not
+  stop it, `[assembly: MessagePackKnownFormatter]` does not fix the emission,
+  and a direct `<PackageReference Include="MessagePackAnalyzer" Version="3.1.7"
+  PrivateAssets="all" />` in the library does stop it. CultLib composes
+  `StandardResolver` explicitly and never registers a generated resolver, so
+  it does not need the generator.
 
-Decision: Cut 3 adds one registration call that composes consumer resolvers
-ahead of `StandardResolver` before the first serialization, and the contract
-gains a rule: **vector-like value types encode as fixed-length positional arrays
-of primitive components; no ext types, no maps.** Aetheria keeps
-Unity.Mathematics in `ServerShared` (26,566 lines lean on `Unity.Mathematics.math`)
-and registers its existing formatters through that call. Switching to CultMath
-is a separate migration and is rejected here (section 6).
+Decision: options are owned by the assembly that declares the documents.
+Cut 4 adds `[assembly: CultCacheFormatterResolver(typeof(R))]` and
+`CultDocumentMessagePackSerialization.OptionsFor(Assembly)`; generated and
+reflective serializers resolve options from the document's assembly, so there
+is no mutable static, no registration call, no load-order hazard. The contract
+gains: **vector-like value types encode as fixed-length positional arrays of
+primitive components; no ext types, no maps.** Aetheria keeps Unity.Mathematics
+(26,566 lines of `ServerShared` use `Unity.Mathematics.math`) and declares its
+`MathResolver` through the attribute.
 
-Known non-portable shape, recorded and left alone: `EntityPack` carries
-`Dictionary<int2, PersistentBehaviorData[]>` (`EntitySerializer.cs:183`), a map
-with array keys. It lives in the Run store, which no other runtime reads.
+Known non-portable shape, left alone: `EntityPack.Dictionary<int2,
+PersistentBehaviorData[]>` (`EntitySerializer.cs:183`) lives in the Run store
+no other runtime reads.
 
 ### Q3. What replaces `System.Type` fields?
 
-**A string holding the `BehaviorData` subclass simple name, matching the sibling
-field that already does this.**
+**A `string` holding the `BehaviorData` subclass simple name, which the sibling
+field already uses.**
 
 - The only persisted `Type` is `StatModifierData.RequireBehavior`
   (`ServerShared\Behaviors\StatModifier.cs:22-23`), written as
-  `AssemblyQualifiedName` by `TypeFormatterResolver.cs:17`, read only at
-  `StatModifier.cs:73, 80` as an exact `GetType() ==` filter.
-- `StatReference.Target` (`StatModifier.cs:136-137`) has the same
-  `[InspectableType(typeof(BehaviorData))]` and is already a `string` type name
-  resolved by name at `:63`.
-- The closed set is the `[Union]` list on `BehaviorData`
-  (`Behaviors\Behaviors.cs:152-190`).
+  `AssemblyQualifiedName` by `TypeFormatterResolver.cs:17`, read at
+  `StatModifier.cs:73, 80` as `b.GetType() == _data.RequireBehavior`.
+- `StatReference.Target` (`:136-137`) has the same `[InspectableType(typeof(BehaviorData))]`,
+  is a `string`, and is resolved by name at `:63`. The closed set is the
+  `[Union]` list on `BehaviorData` (`Behaviors\Behaviors.cs:152-190`).
 
-Decision: `RequireBehavior` becomes `string`; the comparison becomes
-`b.GetType().Name == _data.RequireBehavior`; the importer maps the stored
-assembly-qualified name to `Type.GetType(name).Name`. `TypeFormatterResolver.cs`
-is deleted. Rejected: the union tag as an `int` (opaque in the Studio and bound
-to MessagePack-C#), and keeping a CLR name string (that is what broke portability).
-No operator decision needed.
+Decision: `public string RequireBehavior;` with `[Key(4)]` unchanged;
+comparisons become `b.GetType().Name == _data.RequireBehavior`; the importer
+writes `Type.GetType(stored)?.Name ?? ""`. `TypeFormatterResolver.cs` is
+deleted. Rejected: the union tag (opaque, bound to MessagePack-C#) and any
+CLR-qualified name.
 
 ### Q4. Do CultNet or CultMesh depend on replication, declared-type schema, or exact-type watches?
 
-**No. Every CultNet and CultMesh cache has one store; no caller writes through a
-base type; every watch names a concrete leaf. Three things do lean on current
-mechanics and are named in the authority map.**
+**No. One store per cache everywhere; no base-typed writes; every watch names
+a leaf. What they do use is in the audit (2.0) and named in the authority map.**
 
-- Replication: every `AddBackingStore` caller in CultLib attaches one store per
-  cache (`CultCacheMessagePack.cs:119, 128`, one branch or the other;
-  `CultMesh.cs:1589` `DocumentFromStore`; `CultNetLocal.cs:146` through
-  `OpenAsync`; `CultCacheStudioWindow.cs:688` by reflection). Every consumer
-  does too (Aquarium `:24-26`; AquaSynth, Ymir, Mimir, Gjallar and AetheriaEve
-  all through `OpenAsync`/`Create`). Tests that show two `AddBackingStore` calls
-  are two caches on one file (`BackingStoreTests.cs:27/40, 67/76, 822/825,
-  856/864, 909/915, 1501/1509`; `CultMeshStreamingTests.cs:2402-2475,
-  2634/2643, 2688/2697`), which is sharing, not replication. `CultNetLocal.cs:148`
-  reads `cache.BackingStores.OfType<SingleFileMessagePackBackingStore>().FirstOrDefault()`;
-  the property stays.
-- What does lean on attach-time push (`CultCache.cs:1436-1439`): callers that
-  construct the cache with globals materialized and attach afterwards:
-  `CultCacheMessagePack.Create` (`:75`), `CultMesh.DocumentFromStore`
-  (`CultMesh.cs:1589`), Aquarium, and most tests. The push is also a live bug: it
-  marks the store dirty before the first pull, and `SingleFileBackingStore.PullAll`
-  returns without loading when dirty (`CultCache.cs:2572-2573`), so a `Create()`
-  over a registry with any `[CultGlobal]` type never reads its own file. The
-  authority map gives these pre-attach defaults an explicit owner instead.
-- Declared-type schema: `CultNetDatabase.PutAsync<T>` and `PutPredictedAsync<T>`
-  take the descriptor from `GetRequired<T>()` for shard, schema and log
-  (`CultNetDatabase.cs:869-902, 908-927`), while `PublishCacheUpdate` already
-  uses `document.GetType()` (`:1214-1215`), as do `CultNetDocumentRegistry.cs:327`,
-  `CultNetDatabaseServer.cs:391-398` and `CultNetDatabaseSubscriptionServer.cs:504-513`.
-  `CultMesh.cs:3515-3538` converts a same-schema value to the stored CLR type and
-  calls `PutAsync<storedType>` by `MakeGenericMethod`, so its runtime type equals
-  `T`. No caller passes `object`, an interface, or a base class, and no CultNet
-  fixture uses document inheritance. Cut 2 makes `PutAsync<T>` derive its
-  descriptor from the runtime type so CultNet and the cache stop having two
-  answers; no wire change follows because every existing call has `T` equal to
-  the runtime type.
-- Exact-type watches: `CultNetDatabase.Watch<T>` (`:1134-1140`) is its own
-  exact match on `CultNetDatabaseChange<documentType>`; `WatchByName`/`WatchByIndex`
-  (`:1171-1189`) filter it through `_cache.GetByName<T>`/`GetByIndex<T>`. Every
-  caller names a leaf (`CultMeshGameSession.cs:155`, `Server.cs:490-733`,
-  AquaSynth, Brokkr, AetheriaEve `WatchRecord<T>`). `CultMesh.Collection<T>`
-  (`CultMesh.cs:2289-2290`) snapshots with the assignable `GetAll` and streams
-  with the exact `Watch`; after Cut 2 both are assignable and the inconsistency
-  closes by itself. `CultNetDatabase.Watch<T>` stays exact in this cut: nothing
-  needs it changed, and changing it is scope.
-- Transactions: `CultNetDatabase.ExecuteTransactionAsync` (`:519-555`) wraps the
-  cache primitive; the only non-test caller is `AetheriaStateNode.cs:460` on a
-  single directory store. No test asserts the single-store rule; the message
-  exists only in source.
-- The Studio reaches the cache by string reflection (`OpenAsync`, `GetRequired`,
-  `UpsertAsync(Type, object, CultRecordKey?)`, `Remove`, `FlushAsync`, `IsDirty`
-  at `CultCacheStudioWindow.cs:688-739`); those signatures are frozen for Cut 2.
-- The generator cannot see Aetheria's hierarchies: it requires `[CultDocument]`
-  on the declaring type, discovers members with `GetMembers()` on that type only
-  (`CultDocumentMessagePackGenerator.cs:43-50, 80`), and has no `[Union]`
-  handling. That confirms Cut 6's choice not to reference it.
-- Stale docs describing the old typed overload and mirrors: `CultLib\README.md:240-264`,
-  `src\GameCult.Caching\GameCult.Caching.txt:157`, the generator README. Cut 1
-  rewrites them.
+- One store per cache: `CultCacheMessagePack.cs:119, 128`; `CultMesh.DocumentFromStore`
+  (`CultMesh.cs:1588-1603`); `CultNetLocal.cs:146`; the Studio by reflection
+  (`CultCacheStudioWindow.cs:688`); Aquarium (`AquariumCultStateStore.cs:24-26`);
+  AquaSynth, Ymir, Mimir, Gjallar through `OpenAsync`/`Create`. Test pairs
+  (`BackingStoreTests.cs:27/40, 67/76, 822/825, 856/864, 909/915, 1501/1509`;
+  `CultMeshStreamingTests.cs:2402-2475, 2634/2643, 2688/2697`) are two caches
+  on one file. `CultNetLocal.cs:148` reads `BackingStores`; it stays.
+- Declared-type schema: `CND:875, 913` take the descriptor from
+  `GetRequired<T>()`. `[P3]`: `PutAsync<Gear>(key, new Weapon())` persists the
+  `Gear` schema, publishes a `Gear` schema id, keeps a `Weapon` in memory, and
+  reloads as `Gear`. `PublishCacheUpdate` (`CND:1214-1215`),
+  `CultNetDocumentRegistry.cs:327`, `CultNetDatabaseServer.cs:391-398`,
+  `CultNetDatabaseSubscriptionServer.cs:504-513` already use `document.GetType()`.
+  `CultMesh.cs:3515-3538` converts to the stored CLR type before
+  `PutAsync<storedType>`. No caller passes a base type or interface.
+- Exact-type watches: `CND:1134-1140` is CultNet's own exact match; callers
+  name leaves (`CultMeshGameSession.cs:155`, `Server.cs:490-733`, AquaSynth,
+  Brokkr). `CultMesh.Collection<T>` (`CultMesh.cs:2289-2290`) snapshots with the
+  assignable `GetAll` and streams with the exact `Watch`; after Cut 3 both are
+  assignable. `CultNetDatabase.Watch<T>` stays exact.
+- Transactions: `CultCache.ExecuteTransactionAsync`'s only non-test caller is
+  `CultNetDatabase.ExecuteTransactionAsync` (`CND:534`), whose only callers are
+  tests; `RequireTransactionsForAuthoritativeWrites` is tests-only. `[P2-B]`
+  shows the single-store rule. The CultNet wrapper goes in Cut 2; the cache
+  primitive is replaced by the explicit batch `Commit` in Cut 3 (2.2), because
+  atomic multi-record commit is a capability the operator keeps.
+- Globals: nothing in `CultLib\src` or any consumer calls `GetGlobal<T>`
+  (definition at `CC:1765`; `CultNetDatabase.WatchGlobal<T>` at `CND:1162`).
+  AquaSynth declares `[CultGlobal]` types (`AquaSynthDaemonService.cs:295`,
+  `AquaSynthCultNetDaemon.cs:20`, `CultCachePatchDocument.cs:8`) and opens
+  through `Create`/`OpenAsync`, so today those get invented defaults; how it
+  reads them back is determined in Cut 3's Soul step.
+- The Studio reaches the cache by string reflection (types `CultCache`,
+  `CultCacheOpenOptions`, `CultCacheMessagePack`, `CultRecordKey`,
+  `CultRecordRef<>`; members `PullOnOpen`, `OpenAsync`, `IsDirty`, `Registry`,
+  `AllDescriptors`, `GetRequired(Type)`, `AllStoredDocuments`,
+  `UpsertAsync(Type, object, CultRecordKey?)`, `Remove(CultRecordKey)`,
+  `FlushAsync(bool)`, and descriptor/catalog members). Cut 6 replaces the
+  reflection with a compile-time reference, so nothing is frozen for it; the
+  Studio package moves in lockstep in the same release (Cut 7).
+- The GameCult generator requires `[CultDocument]` on the declaring type,
+  discovers members on that type only (`CultDocumentMessagePackGenerator.cs:43-50,
+  80`), and has no `[Union]` handling. Cut 8 does not reference it.
 
 ### Q5. Can existing stores hold records written under a declared parent schema?
 
-**No consumer writes one, and the fix does not touch existing bytes.**
+**No consumer writes one; the fix changes no existing bytes.**
 
-- Aquarium writes two fixed keys with `AddAsync(state, new CultRecordHandle<T>(key))`
-  where `T` is the concrete class
-  (`Aquarium\src\Aquarium.Epiphany\State\AquariumCultStateStore.cs:82-83, 95-96`).
-- AetheriaEve calls `PutAsync<T>` and `UpsertAsync` with concrete document types
-  everywhere (`Aetheria.State\AetheriaStateNode.cs:360-554`,
-  `Aetheria.State.Daemon\AetheriaYmirPersistenceCoordinator.cs:212, 269`); it has
-  no document subclasses, only interface implementations.
-- Ymir's four `UpsertAsync` calls are typed to the concrete document
-  (`Ymir\src\Ymir.Core\...\YmirServicePublicationDocument.cs:169-177`,
-  `YmirWorldStateDocument.cs:255`).
-- Heimdall uses only cultcache-ts; Idunn only cultcache-rs. Neither has C#.
-- Delvehold references Caching and the generator but was not audited for calls;
-  Cut 2's Soul step greps it.
-
-What the fix changes: `CreateStoredDocument(typeof(T), ...)` at
-`CultCache.cs:1632, 1641` becomes `document.GetType()`. Records already on disk
-keep their persisted `schemaId` and read back exactly as before. The new loud
-failure: passing an instance whose runtime type has no `[CultDocument]` throws
-from `GetRequired` (`CultCache.cs:493-498`) instead of silently storing the base
-shape. The payload path already serialized the runtime type
-(`CultDocumentMessagePackSerialization.cs:465`), so the old behavior was a
-schema-id lie over a subclass payload, which is exactly what the probe saw.
+- Aquarium: `AddAsync(state, new CultRecordHandle<T>(key))`, concrete `T`
+  (`AquariumCultStateStore.cs:82-83, 95-96`). Ymir: four concrete `UpsertAsync`
+  (`YmirServicePublicationDocument.cs:169-177`, `YmirWorldStateDocument.cs:255`).
+  Delvehold, AquaSynth, Mimir, Gjallar: grepped in Cut 3's Soul step for a
+  base-typed `T` (none expected; the sweep found none).
+- `[P2-E]`: today the payload under the `Gear` schema id already has
+  `Weapon`'s two slots. `CreateStoredDocument(typeof(T), ...)` at `CC:1632,
+  1641` becomes `document.GetType()`. The new loud failure: a runtime type
+  without `[CultDocument]` throws from `GetRequired` (`CC:493-498`).
 
 ### Q6. Which consumers pin which revision, and what is the release order?
 
-| Consumer | Takes CultLib by | Pin | Affected by this cut |
+| Consumer | Takes CultLib by | Pin | Affected |
 |---|---|---|---|
-| AetheriaEve | Unity UPM git URL (two projects) + .NET sibling `..\..\CultLib` | `b9cbd75` (package 1.0.56), 94 behind | Not until it re-pins; then unaffected (single directory store per cache, concrete `PutAsync`) |
-| Aquarium | .NET sibling checkout, unpinned (`Aquarium.Epiphany.csproj:14-15`) | none | Compiles against `main` immediately; single store, concrete types; must build after Cut 2 |
-| Ymir | .NET sibling checkout, unpinned (`Ymir.Core.csproj:4-14`) | none | Same as Aquarium |
-| Delvehold | .NET sibling with a hard revision guard (`Directory.Build.props/targets`) | `334e60f`, 52 behind | Not until it re-pins |
-| Heimdall | submodule, TS packages only | `b6b1d9c` | No |
-| Idunn, Epiphany, Odin, Ghostlight, Muninn, Ratatoskr, CodexConnector | Cargo by commit | various | No (Rust cache unchanged) |
-| Huginn, Sai, Stonks, Vili, EvePlugins | npm sibling paths | none | No |
-| Aetheria | nothing yet | n/a | The consumer this cut serves |
+| Aquarium | .NET sibling checkout, unpinned (`Aquarium.Epiphany.csproj:14-15`) | none | Compiles against `main` at once; `new CultCache()`, `AddAsync`, `GetByName`, `PullAllBackingStoresAsync` all kept |
+| Ymir | .NET sibling, unpinned (`Ymir.Core.csproj:4-14`) | none | `OpenAsync` with `UseDirectoryStore`, `StoreFlushOnDispose`, `UpsertAsync` kept |
+| AquaSynth | .NET sibling | none found | `Create`, `OpenAsync`, `[CultGlobal]` types, `UseDirectoryStore` kept; invented globals stop |
+| Mimir | .NET sibling | none found | `OpenAsync`, snapshot/catalog types, `GeneratedPayloadSerializer`, `FlushAsync(soft: true)` via CultMesh kept |
+| Gjallar | .NET sibling | none found | `Create`, `FlushAllBackingStores`, `FlushOnDispose`, `StoreFlushOnDispose` kept |
+| Brokkr, Eve, EveUnity, EvePlugins | Unity package / sibling | various | `Watch<T>` via CultMesh, `new CultCache(registry)`, `FlushAsync(soft: true)` via CultMesh kept |
+| Delvehold | .NET sibling with a revision guard | `334e60f`, 52 behind | Not until it re-pins; `Registry`, `FlushOnDispose`, generator kept |
+| Heimdall | submodule, TS only | `b6b1d9c` | cultcache-ts mirror deletion (Cut 5) on next bump; it attaches one store |
+| Idunn, Epiphany, Odin, Ghostlight, Muninn, Ratatoskr, CodexConnector | Cargo by commit | various | cultcache-rs mirror deletion (Cut 5) on re-pin; all use `add_generic_backing_store` once |
+| Huginn, Sai, Stonks, Vili | npm sibling paths | none | as Heimdall, immediately |
+| Aetheria | nothing yet | n/a | the consumer this cut serves |
 
-Release mechanics: the Unity package template `unity\org.gamecult.cultlib\package.json`
-is at `1.0.56` with committed DLLs under `Runtime\Plugins`; the newest release
-tag is `cultlib-unity-v1.0.46` (`1fc68a4`, 2026-08-17). Versions 47 through 56
-were never tagged, which is why AetheriaEve pins a raw commit. Install docs are
-stale (`docs\nuget-packaging.md:22` says v1.0.46, the package README says
-v1.0.41). CultCache Studio ships as a separate package,
-`org.gamecult.caching.unity` 1.0.0 at `src\GameCult.Unity\Assets\Caching`, never
-tagged, referenced by no consumer. No workflow publishes C# or Unity artifacts;
-`publish-packages.yml` covers only npm and PyPI tags.
+Release mechanics: `unity\org.gamecult.cultlib\package.json` is at `1.0.56`
+with committed DLLs; newest tag `cultlib-unity-v1.0.46` (`1fc68a4`); install
+docs stale (`docs\nuget-packaging.md:22`, package README `:15`). The Studio is
+`org.gamecult.caching.unity` 1.0.0 at `src\GameCult.Unity\Assets\Caching`,
+untagged, with no dependency on the runtime package (hence its reflection).
+`publish-packages.yml` publishes npm and PyPI on tags only.
 
-Order: CultLib `main` (Cuts 1-4) -> Cut 5 tags `cultlib-unity-v1.0.57` and
-`caching-unity-v1.1.0` -> Aetheria consumes the tags (Unity) and the tagged
-commit (headless, through a Delvehold-style revision guard). No other consumer
-is forced to move. Aquarium and Ymir are built in Cut 2's verification because
-they track `main` unpinned.
+Order: CultLib `main` (Cuts 1-6) -> Cut 7 tags `cultlib-unity-v1.0.57`,
+`caching-unity-v1.1.0`, `cultcache-ts-v0.14.0`, `cultcache-py-v0.3.0` ->
+Aetheria (Cuts 8-10). Aquarium, Ymir, AquaSynth, Mimir, Gjallar are built in
+Cut 2's and Cut 3's Soul steps because they track `main`.
 
 ### Q7. Where do Aetheria's world types fall, and where are the save points?
 
-Corrections to the target first: the root union has 30 tags, not 29
-(`DatabaseEntry.cs:23-54`); five name classes that are not `DatabaseEntry`
-subclasses (tags 4, 5, 6 item instances; 14 `OrbitalEntity`; 20 `Ship`), so
-they were never cache records; and two `DatabaseEntry` subclasses have no tag
-at all (`ConsumableItemData`, `ItemData.cs:348`; `PatrolOrbitsTask`), so they
-could never have been written. Agent tasks are not persisted today:
-`Zone.Agents` (`Zone.cs:35`) is absent from `ZonePack`.
+Facts from the data `[P5]`: `GameData\AetherDB.msgpack` holds 167 records in
+ten tags (0:13, 1:51, 2:25, 3:3, 13:12, 17:3, 29:4, 30:1, 31:18, 32:37) plus
+12 name files (tag 9, three slots). The root union declares 30 tags
+(`DatabaseEntry.cs:23-54`); tags 4, 5, 6, 14, 20 name classes that are not
+`DatabaseEntry` subclasses; tags 8 (`GalaxyMapLayerData`) and 11 (`PlayerData`)
+have no records and no live reader, and both types are deleted;
+`ConsumableItemData` (`ItemData.cs:348`) and `PatrolOrbitsTask` are subclasses
+with no tag. Agent tasks are not persisted (`Zone.Agents`, `Zone.cs:35`, is
+absent from `ZonePack`) and this migration adds no persistence. Action-bar
+bindings index into the run's entity (`SavedGame.cs:111-118`), so they are Run
+state.
 
 | Type | Store | Kind | Why |
 |---|---|---|---|
-| SimpleCommodityData, CompoundCommodityData, GearData, HullData, CargoBayData, DockingBayData, WeaponItemData, ConsumableItemData | Catalog | document | referenced by `ItemInstance.Data`, `FactionProductData.Design`, `Faction.BossHull`, `WeaponData.AmmoType` |
-| Faction | Catalog | document | referenced by `ItemData.Manufacturer`, `EntityPack.Faction`, `SavedGame.Factions`, `Faction.Allegiance` keys |
-| FactionProductData | Catalog | document | referenced by `ItemInstance.Product` (`ItemInstance.cs:49`) |
+| ItemData tree: SimpleCommodityData, CompoundCommodityData, GearData, HullData, CargoBayData, DockingBayData, WeaponItemData, ConsumableItemData | Catalog | document | `ItemInstance.Data`, `FactionProductData.Design`, `Faction.BossHull`, `WeaponData.AmmoType` |
+| Faction | Catalog | document | `ItemData.Manufacturer`, `EntityPack.Faction`, `SavedGame.Factions`, `Faction.Allegiance` keys |
+| FactionProductData | Catalog | document | `ItemInstance.Product` (`ItemInstance.cs:49`) |
 | PersonalityAttribute | Catalog | document | keys in `Faction.Personality`, `CompoundCommodityData.DemandProfile` |
-| NameFile | Catalog | document | `Faction.GeonameFile` (`Corporations.cs:40`), read at `Galaxy.cs:338` |
-| GalaxyMapLayerData (tag 8), PlayerData (tag 11) | dropped | - | no live reference (`ItemManager.cs:20` is commented out; `PlayerData` referenced by nothing). Not imported. |
-| BehaviorData and subclasses, WeaponData, ItemRole | inside item design | value | owned by `EquippableItemData.Behaviors` (`ItemData.cs:351`) |
-| OrbitData | Run | document | referenced by Guid from `BodyData.Orbit`, `OrbitData.Parent`, `OrbitalEntityPack.Orbit`, `MoveTo.Orbit`; created at runtime (`Zone.cs:120, 265`) |
-| BodyData: PlanetData, GasGiantData, SunData, AsteroidBeltData | Run | document | referenced by `Mining.Asteroids`, `Survey.Planets`, `MiningToolData.AsteroidBelt`, `Zone.Planets` keys |
-| SavedZone (with its ZonePack) | Run | document | one per zone; holds `CultRecordRef` lists to its orbits and bodies |
-| SavedGame | Run | `[CultGlobal]` document | the run root: factions, home/boss zones, current zone, action-bar bindings |
-| EntityPack (ShipPack, OrbitalEntityPack), ItemInstance and subclasses, PersistentBehaviorData, SavedActionBarBinding | inside SavedZone / SavedGame | value | no identity; `SavedActionBarBinding` indexes into the run's entity (`SavedGame.cs:111-118`), so it stays with the run rather than the Player store the target table names |
-| AgentTask and subclasses | not persisted | value owned by `Agent` | not saved today; this migration adds no persistence. `Reserved` suggests shared ownership; if tasks are ever persisted they become Run documents |
-| Entity, Ship, OrbitalEntity, Zone, Galaxy | live simulation | not records | stale union tags 14 and 20 are deleted |
-| PlayerSettings | Player | `[CultGlobal]` document | name, tutorial flag, credits; `SavedRun` leaves it and becomes the Run store |
+| NameFile | Catalog | document | `Faction.GeonameFile` (`Corporations.cs:40`), `Galaxy.cs:338` |
+| BehaviorData tree, WeaponData, ItemRole | inside item design | value | `EquippableItemData.Behaviors` (`ItemData.cs:351`) |
+| OrbitData | Run | document | `BodyData.Orbit`, `OrbitData.Parent`, `OrbitalEntityPack.Orbit`, `MoveTo.Orbit`; created at runtime (`Zone.cs:120, 265`) |
+| BodyData tree: PlanetData, GasGiantData, SunData, AsteroidBeltData | Run | document | `Mining.Asteroids`, `Survey.Planets`, `MiningToolData.AsteroidBelt`, `Zone.Planets` keys |
+| SavedZone (with ZonePack) | Run | document | one per zone; `List<CultRecordRef<OrbitData>>`, `List<CultRecordRef<BodyData>>` |
+| SavedGame | Run | `[CultGlobal]` | run root: factions, home/boss zones, current zone, action-bar bindings |
+| EntityPack tree, ItemInstance tree, PersistentBehaviorData, SavedActionBarBinding | inside SavedZone / SavedGame | value | no identity |
+| AgentTask tree | not persisted | value owned by `Agent` | not saved today |
+| Entity, Ship, OrbitalEntity, Zone, Galaxy | live simulation | not records | tags 14 and 20 deleted |
+| PlayerSettings | Player | `[CultGlobal]` | name, tutorial flag, credits |
 | InputLayout | Player | document keyed by layout name | today one file per layout under `GameData\KeyboardLayouts` |
-| Brush, InputLayout row/column unions | value | - | not cache data |
 
 Save points today (`Gameplay\ActionGameManager.cs` unless noted):
-`SavePlayerSettings` (`:76-79`) writes `GameData\PlayerSettings.msgpack`, which
-embeds the whole run; `SaveState` (`:240-249`) builds it via `Zone.PackZone()`
+`SavePlayerSettings` (`:76-79`) writes `GameData\PlayerSettings.msgpack`
+embedding the run; `SaveState` (`:240-249`) via `Zone.PackZone()`
 (`Zone.cs:107-118`). Triggers: quit (`:238`), wormhole entry (`:611`), death
-(`Die`, `:1057-1065`, which nulls the galaxy but leaves `SavedRun` on disk),
-settings Back (`UI\MainMenu.cs:237`), new game (`MainMenu.cs:139, 168`). Two
-writers are dead or orphaned: `SaveLoadout` (`:233-236`, path assignment
-commented out at `:272-275`) and `SaveZone` (`:1093-1094`, no callers). Key
-rebinding writes `GameData\KeyboardLayouts\*.msgpack`
-(`UI\InputScreen\InputDisplayLayout.cs:495-501`). Loads: the catalog at
-`ActionGameManager.cs:49-57` (which also writes, see Q1 of the target), player
-settings at `:65-72`, run resume at `MainMenu.cs:97-106` through
-`Galaxy(CultCache, SavedGame, ...)` (`Galaxy.cs:47-90`).
+(`Die`, `:1057-1065`, leaves `SavedRun` on disk), settings Back
+(`UI\MainMenu.cs:237`), new game (`MainMenu.cs:139, 168`). Dead: `SaveLoadout`
+(`:233-236`; `:272-275`) and `SaveZone` (`:1093-1094`). Rebinding writes
+`GameData\KeyboardLayouts\*.msgpack` (`UI\InputScreen\InputDisplayLayout.cs:495-501`).
+Loads: `ActionGameManager.cs:49-57`, `:65-72`; resume `MainMenu.cs:97-106`
+through `Galaxy(CultCache, SavedGame, ...)` (`Galaxy.cs:47-90`); layouts
+`InputDisplayLayout.cs:88-91`.
 
-After the cut there is one run save path (`SaveRun`) used by quit, wormhole and
-menu; `Die` deletes the run store file; new game creates a fresh one.
+After Cut 10: `SaveRun()` flushes the cache (only dirty stores write); `Die()`
+disposes and deletes the run store; new game deletes any run store and creates
+a fresh one.
 
 ### Q8. How do identity comparisons survive without `DatabaseEntry.ID`?
 
-**Documents are singleton instances per cache, and identity is the record key.
-Reference equality replaces ID equality; keys replace stored Guids.**
+**Documents are singleton instances per cache and identity is the record key;
+reference equality replaces ID equality, keys replace stored Guids.**
 
-- The only `Equals`/`GetHashCode` override is on `DatabaseEntry`
-  (`DatabaseEntry.cs:60-69`); no subclass overrides. It goes with the class.
-- The cache holds exactly one instance per key (`_entries`, `CultCache.cs:1274`)
-  and `Get` returns that instance (`:1710-1719`), so the seven dictionaries keyed
-  by `Faction` or `OrbitData` (`Galaxy.cs:18, 19, 28, 34`; `ZoneGenerator.cs:97,
-  243`; `UI\Menu\SectorMap.cs:51`) work with the default comparer once the
-  override is gone. The precondition is that no code deserializes a second copy
-  of a catalog document; saves embed references, not copies, so this holds.
-- The 14 explicit `.ID ==` comparisons (`Entity.cs:291, 304, 319`;
-  `LoadoutGenerator.cs:159, 161`; `Narrative\ZoneConstraints.cs:37, 52`;
-  `Zone.cs:316`; `UI\Menu\SectorRenderer.cs:65`; `TradeMenu.cs:292, 300`;
-  `TradeMenuDebug.cs:275, 283`) become reference comparisons where both sides are
-  documents, or `CultRecordRef.Key` comparisons where one side is a reference.
+- The only `Equals`/`GetHashCode` override is `DatabaseEntry.cs:60-69`; it
+  goes with the class.
+- One instance per key (`CC:1274`, `:1710-1719`), so the seven dictionaries
+  keyed by `Faction`/`OrbitData` (`Galaxy.cs:18, 19, 28, 34`; `ZoneGenerator.cs:97,
+  243`; `UI\Menu\SectorMap.cs:51`) work with the default comparer; saves embed
+  references, not copies.
+- The 14 `.ID ==` comparisons (`Entity.cs:291, 304, 319`; `LoadoutGenerator.cs:159,
+  161`; `Narrative\ZoneConstraints.cs:37, 52`; `Zone.cs:316`;
+  `UI\Menu\SectorRenderer.cs:65`; `TradeMenu.cs:292, 300`;
+  `TradeMenuDebug.cs:275, 283`) become reference or `CultRecordRef.Key`
+  comparisons.
 - Guid-keyed runtime dictionaries (`Zone.cs:59-77, 122, 265`;
-  `Zone Display\ZoneRenderer.cs:342-413`; `ItemsOfType` in `Entity.cs:331, 334,
-  1332, 1489-1589`, `TradeMenu*.cs`) key by `CultRecordKey` taken from the
-  `CultRecordRef` on the instance. `ItemInstance.Data` and
-  `SavedActionBarConsumableBinding.Target`, the only two `DatabaseLink<T>` fields,
-  become `CultRecordRef<T>`; all other references are already raw `Guid` fields
-  and become `CultRecordRef<T>` too.
-- Saves that store faction Guids (`SavedGame.cs:56-73`, `EntitySerializer.cs:43`)
+  `Zone Display\ZoneRenderer.cs:342-413`; `ItemsOfType` `Entity.cs:331, 334,
+  1332, 1489-1589`; `TradeMenu*.cs`) key by `CultRecordKey`. The two
+  `DatabaseLink<T>` fields (`ItemInstance.cs:26`, `SavedGame.cs:118`) and every
+  raw `Guid` reference become `CultRecordRef<T>`; `Dictionary<Guid, float>`
+  becomes `Dictionary<CultRecordRef<T>, float>` (string-keyed map on the wire,
+  deserializable under Cut 4's security `[P5]`).
+- Saves storing faction Guids (`SavedGame.cs:56-73`, `EntitySerializer.cs:43`)
   store `CultRecordRef<Faction>`.
-- The key of a document in hand comes from `CultCache.TryGetHandle`
-  (`CultCache.cs:1699`). No helper type is added; the four `DatabaseLinkBase.Cache`
-  writers (`CultCache.cs:42`, `ActionGameManager.cs:49`, `DatabaseView.cs:107`,
-  `AetherDb.cs:23`) go with the static, and `ItemManager.GetData`
-  (`ItemManager.cs:62-75`) is the single resolution path for item designs.
-- `ZoneGenerator.cs:164` names a planet from the first eight characters of its
-  ID; it uses the first eight characters of the key.
+- The key of a document in hand comes from `CultCache.TryGetHandle` (`CC:1699`,
+  kept: CultNet uses it). The four `DatabaseLinkBase.Cache` writers go with the
+  static; `ItemManager.GetData` (`ItemManager.cs:62-75`) is the single
+  resolution path. `ZoneGenerator.cs:164` uses the first eight characters of
+  the key.
 
-Catalog keys carry the legacy Guid in `D` format. Run and Player keys are
-whatever the cache mints (`N` format, `CultCache.cs:2200`). Keys are opaque
-strings; the mix is fine.
+Catalog keys carry the legacy Guid in `D` format (slot 0 is a 16-byte `bin`
+`[P5]`). Run and Player keys are cache-minted (`N`, `CC:2200`).
 
-## 2. CultLib authority map: store routing
+## 2. CultLib authority map
 
-Written in the Loud Rebuild Contract form. It governs Cut 2.
+### 2.0 Subtraction audit and target shape
 
-**Owner.** The route table inside `CultCache`: `AddBackingStore(store)` for the
-sole unrouted store, `AddBackingStore(store, params Type[] homeTypes)` for routed
-stores, and one private `HomeStore(CultDocumentDescriptor)` that resolves the
-most specific assignable route. Nothing else decides where a record lands.
+Measured: `GameCult.Caching` + `GameCult.Caching.MessagePack` are 5,259 lines,
+870 of them `///` lines restating member names (`CC` 461 of 2,704;
+`CultDocumentContracts.cs` 87/192; `CultGeneratedDocumentMetadata.cs` 93/308;
+`CultManagedDocument.cs` 78/415; `CultCacheMessagePack.cs` 43/134;
+`CultDocumentMessagePackSerialization.cs` 69/475; `DMS` 30/973).
+`GetAwaiter().GetResult()` appears at `CC:1432, 1433, 2184`: the store
+subscriptions and the global materializer, all on the deletion line.
+`GenerateDocumentationFile` is on (`src\Directory.Build.props:6`) with no
+`NoWarn`, so the comment removal adds `<NoWarn>$(NoWarn);CS1591</NoWarn>` to
+the two Caching projects.
 
-**Inputs.** The record's `Descriptor.DocumentType`, which is now always the
-runtime type (`CreateStoredDocument(document.GetType(), ...)`); the route table;
-each store's `IsReadOnly`; whether the cache has hydrated (any `Pull*` has run
-on any attached store).
+| Surface | Consumers | Verdict |
+|---|---|---|
+| `MaterializeMissingGlobals`, `CultCache(registry, bool)` | `CultCacheMessagePack.cs:105` only | delete (2.1) |
+| `CultCacheOpenOptions.ConfigureCache`, `ConfigureStore`, `DirectoryStorePath`, `ConfigureDirectoryStore`, `DirectoryStoreHydrationFilter` | none (`DirectoryStoreHydrationFilter` tests only) | delete |
+| `FlushBackingStore(store)`, `PrepareForReloadOrShutdown[Async]` | none | delete; `FlushAsync` writes every dirty store |
+| `TryGet<`, `TryGetByName`, `TryGetByIndex`, `Resolve<` | none | delete |
+| `CultCache.Logger`, store `Logger`, `NullLogger` use | none | delete |
+| store `FlushOnDispose` | none directly; `CultCacheOpenOptions.StoreFlushOnDispose` (Gjallar, Ymir, Delvehold) sets it | keep both; collapsing the two flush-on-dispose flags is a follow-up |
+| store `HydrationFilter`, `PullSelected`, `PullBackingStoreRecordsAsync`, `CultPersistedRecordMetadata` | tests only | delete |
+| `soft` flag on `FlushAsync`/`FlushAllBackingStores`/`PushAll`/`CommitBatch` | no store reads it (`CC:2638`, `DMS:360`); Mimir (`EveDashboard:900`, `CultMeshMedia:422`) and Brokkr (`BrokkrCultMeshMirror.cs:68-124`) pass `soft: true` through `CultMesh.FlushAsync`/`CultNetLocal.FlushAsync` | delete from Caching; `CultMesh.FlushAsync(bool)` and `CultNetLocal.FlushAsync(bool)` keep their parameter and stop forwarding it. Removing it there and at the four external call sites is a named follow-up |
+| SoA: `Soa<T>`, `CultSoaTable`, `CultSoaColumn`, `CultCacheSoaStore`, `CultCacheSoaTypeTable`, `CultCacheSoaMember` (`CultManagedDocument.cs:136-414`), `_soa` hooks in `CC` | tests only | **park**, not delete: built for a stated reason (ECS-style structure-of-arrays columns over cached documents, performance without compromising document ergonomics). Cut 2 step 1 tags the last commit holding it as `parked/cultcache-soa` before removal, adds `docs\parked-features.md`, and amends `docs\runtime-parity-scope.md:23-27, 33` to say the SoA table is parked at that tag |
+| `Document<T>`, `CultManagedDocument<T>`, `CultNetDatabase.Document<T>` | tests only | delete |
+| Transactions: `ExecuteTransactionAsync` (both), `CultCacheTransaction`, `CommitTransaction`, `VisibleStoredDocuments`, `_ambientTransaction`, `_transactionGate`, `CacheBackingStore.CommitBatch` (+ `DMS:308-351`), `CultNetDatabase.ExecuteTransactionAsync` (`CND:519-555`), `RequireTransactionsForAuthoritativeWrites` (`CND:305`), `EnsureAuthoritativeTransaction` (`CND:1791-1796`), `AfterCommit` (`CND:898-901`) | tests only in C#. Siblings: TS has no batch; Python has `put_envelopes` (`cache.py:227-251`, one document type per call, `push_all`, no rollback) used by `cultnet-py\...\replication.py:98`; Rust has a cache-level `put_prepared_batch` (`lib.rs:2162-2201`: one store per batch, all-or-nothing `push_all`) with no caller, and a **store-level** batch family (`compare_and_swap_batch`, `compare_exchange`, `compare_exchange_snapshot`, `delete_batch_if_unchanged`, `lib.rs:397-800`, `8f29ee5`) consumed by Odin (12 sites), Idunn (31), CodexConnector (1) and Ghostlight (`ghostlight-dungeon\src\app_session.rs:119, 371`, plus tests): every one passes an explicit batch value; none relies on ambient in-flight visibility. Operator: atomic multi-record commit is a desired capability | **replace, not delete**: the ambient `AsyncLocal` overlay, the `SemaphoreSlim` gate, `CultCacheTransaction`, `CommitTransaction` and `VisibleStoredDocuments` (~230 lines) go in Cut 3 in the same commit that lands `Commit(Action<CultCacheBatch>)` (2.2); `CacheBackingStore.CommitBatch` and `DMS:308-351` stay as the store side. `CultNetDatabase.ExecuteTransactionAsync`, `RequireTransactionsForAuthoritativeWrites`, `EnsureAuthoritativeTransaction`, `AfterCommit` are deleted (tests only; CultNet callers use `PutAsync`). `cultcache-persistence-format.md:42-55` is amended to the explicit-batch shape, not retracted |
+| Directory store legacy formats `cultcache.store.v2.directory-indexed`, `v3.directory-immutable-pages`, v1 inline records: `LoadLegacyRecords`, `_legacyInlineRecords`, `LegacyRecordPath`, `MetadataRecordPath`, `_needsIndexUpgrade`, `_manifestUsesMetadataPages` | no store on disk anywhere scanned uses them; only v4 is written | delete; a v2/v3 manifest is refused with its format string |
+| Directory store `ReadStageProbe`, `FlushStageProbe`, stage constants, `ReadPersistedGeneration` | tests only | delete, with the tests that inject through them |
+| Directory store itself, `AcquireCommitLease`, `UseDirectoryStore`, `DefaultRecordDirectoryPath` | Ymir (`YmirWorldStateDocument.cs:248, 267`, `YmirServicePublicationDocument.cs:161`), AquaSynth (`IpaTrialResults.cs:190`) | keep (v4 read/write and the lease) |
+| Schema migration: `LastSchemaMigrationReports`, `CultSchemaMigrationReport/Warning/Kind`, `ResolvePersistedSchemaReport` | tests only | keep: the contract (`cultcache-schema-compatibility.md:40-45`) promises the typed report and soft migration must not be silent |
+| `GetStoredDocuments<` | tests only | delete (fold into `GetAll<T>`) |
+| `GetGlobal<T>` | tests only (`BackingStoreTests.cs:342, 358, 365`); Aetheria uses it in Cut 10 | keep |
+| `FlushAttachedStoresOnDispose` | via `CultCacheOpenOptions.FlushOnDispose` (Gjallar, Ymir, Delvehold) | keep |
+| `LastSuccessfulFlushAtUtc` (cache and store) | tests only | delete |
+| store `EntryAdded/Updated/Deleted` subjects | cache only | replace with one `internal` callback set at attach; the three `Subject`s go |
+| `CultCacheMessagePack.Create` | AquaSynth (`AquaSynthDaemonService.cs:923`, `CultCachePatchDocument.cs:90`), Gjallar (`VerseState.cs:35`) | keep as the synchronous open; `OpenAsync` (Mimir, AquaSynth, Ymir, CultNetLocal, Studio) returns `Task.FromResult(Create(...))` |
+| `CultCacheOpenOptions.PullOnOpen` | Studio by reflection (`:687`) | delete with the Studio rewrite (Cut 6); Cut 2's Soul step greps the external repos and must find no setter |
+| `OnUpdate` | `CND:494, 1202` | keep |
+| `Watch<T>`, `WatchRecord<T>` | `CultMesh.cs:2290, 2317, 2348, 1527` | keep; assignable |
+| `TryGetHandle`, `AllEntries`, `AllStoredDocuments`, `BackingStores`, `GetByIndex<`, `Get(key)`, `Remove(CultRecordKey)`, `Remove<T>`, `UpsertAsync<T>`, `UpsertAsync(Type,...)`, `AddAsync<T>`, `GetAll<`, `Get<`, `GetByName<`, `IsDirty`, `Dispose`, `FlushAllBackingStores`, `FlushAsync`, `PullAllBackingStoresAsync` | CultNet/CultMesh, Aquarium, Gjallar, Ymir, Studio | keep |
+| `CultDocumentRegistry.Shared/ForTypes/GetRequired/GetRequiredBySchemaId/AllDescriptors`, descriptor `SchemaId/SchemaName/ToCatalogEntry/GeneratedPayloadSerializer`, `CultRecordHandle<`, `[CultName]`, `[CultGlobal]`, `[CultIndex]` | Mimir, Delvehold, AquaSynth, CultNet | keep |
+| `SerializeSnapshot/DeserializeSnapshot`, `CultPersistedStoreSnapshot/Record`, `CultSchemaCatalogEntry`, `SerializeUntyped/DeserializeUntyped`, `Serialize</Deserialize<`, `SerializePersistedRecord/DeserializePersistedRecord` (`DMS:112, 415, 522, 869`) | CultMesh, Mimir, directory store | keep |
+| `SerializeSchemaCatalog/DeserializeSchemaCatalog` | tests only | delete |
+| Generated metadata provider types, `GameCult.Caching.MessagePack.Analyzers` (empty `Class1.cs` packaging host) | generator output; the host spreads the analyzer to every MessagePack consumer (Networking, Delvehold, two test projects) | keep this cut; packaging the analyzer without an empty project is a follow-up |
+| `///` lines restating names | none | delete in every file a cut touches (`CC`, `CultManagedDocument.cs`, `CultCacheMessagePack.cs`, `CultDocumentMessagePackSerialization.cs`, `DMS`); the two contracts files are the documentation |
 
-**Pre-attach defaults.** `new CultCache()` and `CultCacheMessagePack.Create`
-materialize `[CultGlobal]` defaults before any store exists, and Aquarium,
-`CultMesh.DocumentFromStore` and most tests rely on that order. Those entries
-are owned by a `_pendingDefaults` set until the cache can tell whether they are
-missing from durable storage. `AddBackingStore` no longer pushes them. They are
-admitted, in one place (`AdmitPendingDefaults`), at the end of every `Pull*`
-(each default whose key was not loaded from its home store is routed and pushed
-as a mutation) and at the start of every flush or transaction commit that runs
-before any pull. A default whose home store is read-only is dropped from the
-pending set and logged. This is also the fix for the pre-pull dirty store that
-makes `SingleFileBackingStore.PullAll` skip loading (`CultCache.cs:2572-2573`).
+**Target shape after Cuts 2-4** (the original `Aetheria\...\CultCache.cs` is
+437 lines for a cache, routing, an inheritance-aware index and six stores;
+this is what `CultCache.cs` should read like at about 900 lines including the
+registry):
 
-**Outputs.** Exactly one `store.Push`, `store.Delete`, or `store.CommitBatch`
-per mutation, on the home store. `IsDirty` is `any store IsDirty` when stores are
-attached and the in-memory flag only when none are.
+```csharp
+public sealed class CultCache : IDisposable
+{
+    readonly CultDocumentRegistry _registry;
+    readonly List<(CacheBackingStore Store, Type[] Homes)> _stores = new();
+    readonly Dictionary<string, CultStoredDocument> _entries = new(StringComparer.Ordinal);
+    readonly Dictionary<Type, Dictionary<string, string>> _names = new();
+    readonly Dictionary<(Type, string), Dictionary<string, string>> _indexes = new();
+    readonly Dictionary<Type, string> _globals = new();
+    readonly ConditionalWeakTable<object, CultRecordKeyBox> _handles = new();
+    readonly Subject<Change> _changes = new();   // Change: (Kind, Key, Descriptor, Document, Previous)
+    readonly object _gate = new();
+    bool _dirtyInMemory;                          // only meaningful with zero stores
+
+    public CultCache(CultDocumentRegistry? registry = null)
+    public void AddBackingStore(CacheBackingStore store, params Type[] homes)   // attach = hydrate
+    public Task PullAllBackingStoresAsync()                                      // re-pull
+    public void FlushAllBackingStores() / public Task FlushAsync()               // every dirty writable store
+    public Task<CultRecordHandle<T>> AddAsync<T>(T doc, CultRecordHandle<T>? handle = null)   // = UpsertAsync
+    public Task<CultRecordHandle<T>> UpsertAsync<T>(T doc, CultRecordHandle<T>? handle = null)
+    public Task<CultRecordKey> UpsertAsync(Type type, object doc, CultRecordKey? key = null)
+    public object? Get(CultRecordKey key); T? Get<T>(CultRecordKey key); IEnumerable<T> GetAll<T>()
+    public T? GetGlobal<T>(); T? GetByName<T>(string name); T? GetByIndex<T>(string alias, string value)
+    public bool Remove(CultRecordKey key); void Remove<T>(CultRecordHandle<T> handle)
+    public Observable<CultCacheDocumentChange<T>> Watch<T>(); WatchRecord<T>(CultRecordKey key)
+    public CultRecordHandle<T>? TryGetHandle<T>(T doc)
+    public bool IsDirty; IReadOnlyList<CacheBackingStore> BackingStores; CultDocumentRegistry Registry
+    public IEnumerable<object> AllEntries; IEnumerable<CultStoredDocument> AllStoredDocuments
+    public bool FlushAttachedStoresOnDispose; event Action<object?, object?>? OnUpdate
+    public void Commit(Action<CultCacheBatch> stage)   // atomic multi-record commit on one home store
+    public void Dispose()
+
+    CacheBackingStore? Home(Type type)            // most specific routed store, else the untyped one, else null
+    void Admit(CultStoredDocument stored, CacheBackingStore? source, bool durable)   // every add: write, batch, or load
+    void Evict(CultStoredDocument stored, CacheBackingStore? source, bool durable)   // every remove
+}
+
+public sealed class CultCacheBatch                 // an explicit value; nothing is visible until Commit returns
+{
+    public CultRecordHandle<T> Upsert<T>(T document, CultRecordHandle<T>? handle = null)
+    public CultRecordKey Upsert(Type type, object document, CultRecordKey? key = null)
+    public void Remove(CultRecordKey key)
+}
+
+public abstract class CacheBackingStore : IDisposable
+{
+    protected CacheBackingStore(bool readOnly = false)
+    public bool IsReadOnly { get; }  public bool IsDirty { get; protected set; }  public bool FlushOnDispose { get; set; }
+    public IReadOnlyList<CultSchemaMigrationReport> LastSchemaMigrationReports
+    internal Action<CultStoredDocument> Loaded, Unloaded;   // set by the cache at attach
+    public abstract void PullAll(); public abstract void Push(CultStoredDocument e); public abstract void Delete(CultStoredDocument e); public abstract void PushAll();
+}
+```
+
+`Task`-returning members stay `Task`-returning because CultNet, Aquarium, Ymir
+and the Studio await them, but nothing inside awaits: they return
+`Task.FromResult`/`Task.CompletedTask` and there is no `async` keyword in
+`CultCache.cs`. The `SemaphoreSlim`, the `AsyncLocal`, and the `_stateGate`
+lock collapse into `_gate`; `Commit` takes a synchronous `Action` because no
+consumer awaits inside a batch.
+
+### 2.1 Global documents
+
+**What the legacy cache did.** `Aetheria\...\CultCache.cs:44-53` instantiates
+every `DatabaseEntry` subclass carrying `[GlobalSettings]` in the constructor.
+`GlobalSettingsAttribute` (`Attributes.cs:4`) is applied to no type (grep of
+`Assets\Scripts` and `tools` finds only the declaration and the editor's global
+list at `DatabaseView.cs:118, 164`). The loop runs over an empty set. Aetheria
+has never had a persisted global; the mechanism hid that nobody owned when one
+would exist.
+
+**What CultLib does.** `new CultCache()` and `Create` instantiate a default for
+every `[CultGlobal]` type (`CC:1300-1316, 2155-2186`); `OpenAsync` does it
+after the pull (`CultCacheMessagePack.cs:90`). `[P1]`: with a `[CultGlobal]`
+type registered, `new CultCache()` then attach then pull then flush **destroys
+the file's existing records** (attach pushes the invented global, the dirty
+single-file store skips its pull at `CC:2572-2573`, the flush writes only the
+invention); the `OpenAsync` order leaves the file byte-identical. No consumer
+reads a global back (Q4).
+
+**Inventory after the cut.**
+
+| Global | Store | Read by | Existence owned by | Missing at main menu | Missing at resume | Missing at new game |
+|---|---|---|---|---|---|---|
+| `PlayerSettings` | Player | `MainMenu` (name, tutorial flag), `ActionGameManager` (credits) | boot: `ActionGameManager.Awake` after `AetheriaStores.Open`, when `GetGlobal<PlayerSettings>()` is null, upserts one and flushes (Cut 10) | cannot happen after boot | same | same |
+| `SavedGame` | Run | `MainMenu` (resume), `Galaxy(CultCache, SavedGame, ...)` | new game: `ActionGameManager.BeginRun()` creates the run store and writes it; `Die()` deletes the run store (Cut 10) | no run file: Resume hidden; run file without `SavedGame`: refuse to resume, log the key, New Game only | as main menu | new game deletes any run store first |
+| catalog globals | Catalog | none exist | authored data; catalog is read-only | `AetheriaStores.Open` throws naming every `[CultGlobal]` type routed to the catalog with no record | same | same |
+
+**CultLib's role.** `[CultGlobal]` means exactly: at most one record of the
+type per cache, `GetGlobal<T>()` returns it or `null`, and a write without a
+handle keys it `global:{SchemaId}` (`ResolveKey`, `CC:2195-2198`, kept). The
+cache never creates one. Siblings already do this: TS enforces a single
+`__global__` record on `put` and pull (`cult-cache.ts:394-399, 691-713`) and
+invents nothing; Python likewise (`cache.py:125-128, 186-187`); Rust has no
+global concept. The C# key `global:{schemaId}` versus the siblings' `__global__`
+is an existing divergence, recorded, not changed (it would change bytes).
+
+- Owner: the consumer code path that begins the global's lifecycle, per
+  global above.
+- Inputs: the hydrated cache (`GetGlobal<T>() == null`).
+- Outputs: one `UpsertAsync` on the home store.
+- Derived: `GetGlobal<T>` on a cache with no stores and no upserts is `null`.
+- Forbidden writers (deleted): `InitializeGlobals` (`CC:2155-2186`),
+  `MaterializeMissingGlobals` (`CC:1313-1316`), the two-argument constructor
+  (`CC:1300-1307`), the `initializeGlobals` plumbing in `CultCacheMessagePack.cs:75,
+  84, 90, 98, 105`, `ContainsDurableRecord` (`CC:2413-2416`, `DMS:277-281`).
+- Singleton enforcement (new, matching TS/Python): `Admit` throws for a
+  `[CultGlobal]` descriptor whose `_globals` entry holds a different key,
+  before any store is touched, on writes and on loads.
+- Migration: none needed functionally (no reader). Tests
+  `BackingStoreTests.cs:342, 358, 365` create the global with `UpsertAsync`
+  first. AquaSynth's `[CultGlobal]` types stop receiving invented defaults;
+  Cut 3's Soul step reads how AquaSynth obtains them and reports.
+- Invariants: loading never writes; no state exists that its owner did not
+  create.
+
+### 2.2 Store routing, attachment, dirtiness, read-only stores
+
+**Owner.** `_stores` and `Home(Type)`: among routed entries with a `Homes`
+type assignable from the document type, the one whose type is most derived;
+else the untyped store; else `null`, which is an error for every write once
+any store is attached (zero stores is an in-memory cache).
+
+**Attachment is hydration.** `AddBackingStore(store, params Type[] homes)`
+validates (`IsDirty` false; no second untyped store; no `homes` type already
+claimed by exact equality; **no admitted record would change home**), sets
+`store.Loaded = e => Admit(e, store)` and `store.Unloaded = e => Evict(e, store)`,
+appends to `_stores`, and calls `store.PullAll()`. There is no interval in
+which a store is attached but unread. `PullAllBackingStoresAsync` remains as
+re-pull (`CultMesh.DocumentFromStore` polls at `CultMesh.cs:1603`). `PullOnOpen`
+is deleted.
+
+**A record's home cannot change after admission.** Because `Home` is computed
+from the stores attached so far, attaching an untyped store first and a typed
+store later would move the home of every admitted record of the typed store's
+types, leaving a stale copy in the untyped file and a refusal on the next
+reload. So the last validation in `AddBackingStore` is: for every distinct
+`Descriptor.DocumentType` in `_entries`, `Home(type)` computed with the
+candidate included must equal `Home(type)` computed without it; otherwise
+throw `InvalidOperationException("Attaching {store} would move {schema} from
+{oldHome} to {newHome}; attach routed stores before the untyped store.")`. This
+is one loop at attach time and no new surface; the consequence is the
+attach-order rule callers already want: routed stores first, the untyped store
+(if any) last. `AetheriaStores.Open` attaches three routed stores and no
+untyped store, so the check never fires there; `OpenAsync` attaches exactly
+one untyped store to an empty cache.
+
+**Inputs.** `document.GetType()` (always the runtime type); `_stores`; each
+store's `IsReadOnly`.
+
+**Outputs.** Exactly one `store.Push` or `store.Delete` per mutation, on the
+home store, before `_entries` changes.
 
 **Derived state.**
-- `_hasUnflushedMutations` is no longer an owner after hydration; it is derived
-  from the stores. `RecomputeDirtyState` (`CultCache.cs:2279-2284`) is deleted.
-- A store's `IsDirty` is derived from `Push`/`Delete`/`CommitBatch` on that
-  store only. `PullAll` sets it false and nothing on the load path sets it true
-  (`SingleFileBackingStore.PullAll:2614`, `DirectoryMessagePackBackingStore.PullAllCore:224`).
-- Global materialization (`InitializeGlobals`, `:2155-2186`) is a mutation. It
-  routes like any other. A global whose home store is read-only is not
-  materialized; `GetGlobal<T>` returns null and the cache logs it. A missing
-  catalog global is a data defect the Studio fixes, not something the runtime
-  invents at startup.
-- `_globalKeys`, `_nameMaps`, `_indexMaps` stay keyed by concrete type; typed
-  lookups search every registered key assignable to `T`. Ambiguity (two
-  assignable types both holding the name, or two assignable globals) throws.
-- `Watch<T>` is derived from the same change stream but projects a change of a
-  runtime type assignable to `T` into `CultCacheDocumentChange<T>`
-  (`CultManagedDocument.cs:34` is a sealed invariant generic, so `is
-  CultCacheDocumentChange<T>` at `CultCache.cs:1404` can only ever match exactly).
+- `IsDirty` is `_stores.Any(s => s.Store.IsDirty)` when stores exist, else
+  `_dirtyInMemory`. `RecomputeDirtyState` (`CC:2279-2284`) and the three
+  `_hasUnflushedMutations = _backingStores.Any(...)` lines (`CC:1459, 1484,
+  1991`) go.
+- A store's `IsDirty` derives from its own `Push`/`Delete`; `PullAll` sets it
+  false (`CC:2614`; `DMS:224`). `[P2-A]` shows loading writing today.
+- `_globals`, `_names`, `_indexes` stay keyed by concrete type; `GetGlobal<T>`,
+  `GetByName<T>`, `GetByIndex<T>` enumerate keys assignable to `T` (0 ->
+  `null`; 1 -> `Get`; >1 -> throw naming the candidates). `[P2-D]` shows all
+  three exact today.
+- `Watch<T>()` is `_changes.Where(c => typeof(T).IsAssignableFrom(c.Descriptor.DocumentType)).Select(c => new CultCacheDocumentChange<T>(c.Kind, c.Key, (T?)c.Document, (T?)c.Previous))`;
+  `PublishChange`'s `Activator.CreateInstance` (`CC:2286-2301`) goes. `[P2-D]`
+  shows `Watch<Base>` receives nothing today.
 
-**Forbidden writers.**
-- `AddStoredDocumentInternal` and `RemoveStoredDocumentInternal` may not push to
-  or delete from any store when `source != null` (the load path). The loops at
-  `CultCache.cs:2097-2101` and `2135-2139` are deleted, not conditioned.
-- `AddBackingStore` may not push existing entries into the new store
-  (`:1436-1439`, deleted). Attaching after hydration throws; attaching while the
-  cache holds only pre-attach defaults is the normal `Create()` order.
-- `CultNetDatabase.PutAsync<T>` and `PutPredictedAsync<T>`
-  (`CultNetDatabase.cs:869-927`) may not take their descriptor from `T`; they
-  take it from `document.GetType()`, as `PublishCacheUpdate` (`:1214-1215`)
-  already does. Every existing call passes the runtime type as `T`, so no
-  behavior or bytes change.
-- The signatures the Studio reflects on (`OpenAsync`, `GetRequired`,
-  `UpsertAsync(Type, object, CultRecordKey?)`, `Remove`, `FlushAsync`, `IsDirty`)
-  and the public `BackingStores` property that `CultNetLocal.cs:148` reads are
-  frozen.
-- `CommitTransaction` may not iterate all stores (`:1957-1958`). It resolves the
-  home store of every staged mutation; if they resolve to more than one store it
-  throws before touching any store. The `_backingStores.Count > 1` guard at
-  `:1933-1937` is deleted; a routed cache with three stores may transact as long
-  as the batch lands in one.
-- A load event for a record whose home store is not the emitting store throws
-  from `AddStoredDocumentInternal`; the record is not admitted.
-- A `Push`, `Delete`, `CommitBatch` or `PushAll` on a read-only store throws
-  inside the store, and the cache checks `IsReadOnly` on the home store before
-  it mutates `_entries`, so in-memory state never diverges from a refused write.
-- `Directory` store index upgrade (`_needsIndexUpgrade`,
-  `DirectoryMessagePackBackingStore.cs:362, 399`) is a flush-time format
-  rewrite, not dirtiness; it is left alone for writable stores and never runs on
-  a read-only store because the cache never flushes one.
-- The generic `T` of `AddAsync<T>`/`UpsertAsync<T>` no longer chooses the
-  descriptor. `UpsertAsync(Type, object)` keeps its `IsInstanceOfType` check as an
-  argument guard and also uses the runtime type.
+**Read-only stores.** `CacheBackingStore(bool readOnly = false)`,
+`IsReadOnly`; `SingleFileMessagePackBackingStore(string filePath, bool
+readOnly = false)`; `DirectoryMessagePackBackingStore(string manifestPath,
+string? recordDirectory = null, bool readOnly = false)`;
+`CultCacheOpenOptions.ReadOnly`. `Push`, `Delete`, `PushAll` on a read-only
+store throw `InvalidOperationException("Backing store {path} is read-only.")`;
+`FlushAllBackingStores` skips them.
 
-**Shared paths.** `AddAsync`, `UpsertAsync<T>`, `UpsertAsync(Type, object)`,
-`Remove`, `InitializeGlobals`, and `CommitTransaction` all go through
-`HomeStore(descriptor)` then the store's own `Push`/`Delete`/`CommitBatch`. The
-load path (`EntryAdded`/`EntryUpdated`/`EntryDeleted` subscriptions at
-`:1432-1434`) goes through `AddStoredDocumentInternal(source: store)` and stops
-at the cache's in-memory state.
+**Admit and Evict (the shared path).**
+```
+Admit(stored, source, durable):
+    home = Home(stored.Descriptor.DocumentType)
+    if source != null and home != source: throw "{schema} record {key} was loaded from {source} but its home is {home}"
+    if source == null:
+        if _stores.Count > 0 and home == null: throw "no home store for {schema}"
+        if home?.IsReadOnly: throw
+    if descriptor.IsGlobal and _globals has a different key: throw
+    if source == null and !durable: home?.Push(stored)         // store first; a batch has already committed
+    lock _gate: replace entry, reindex, _dirtyInMemory |= (_stores.Count == 0 and source == null)
+    publish Change; OnUpdate
+```
+`Evict` mirrors it with `Delete`. `AddAsync`, `UpsertAsync<T>`,
+`UpsertAsync(Type, object)`, `Remove` are the one-record case (`durable:
+false`); the load path is the store's `Loaded`/`Unloaded` callbacks (`source`
+set); a committed batch admits each record with `durable: true`. `[P2-C]`
+shows the current order leaves a document in memory after the store refused
+it.
 
-**Named demotions.**
-- Replication is no longer an owner of durability; durability is derived from
-  the home store alone.
-- `_hasUnflushedMutations` is no longer an owner once a store is attached; it is
-  derived from `store.IsDirty`.
-- `typeof(T)` in `AddAsync<T>` is no longer an owner of schema; schema is derived
-  from `document.GetType()`.
-- The `Count > 1` transaction rule is no longer an owner; atomicity is derived
-  from "all staged mutations share one home store".
-- Exact `Descriptor.DocumentType` is no longer an owner of typed lookup results;
-  results are derived from assignability, as `GetAll<T>` already does
-  (`:1751-1759`).
+**Atomic commit.** `Commit(Action<CultCacheBatch> stage)`:
+```
+Commit(stage):
+    batch = new CultCacheBatch(_registry, _handles)     // Upsert builds CultStoredDocuments now; Remove records keys
+    stage(batch)
+    homes = distinct Home(type) over batch.Upserts and the existing entries for batch.Removes
+    if homes.Count > 1: throw "batch spans {a} and {b}; a commit lands in one home store"   // nothing touched
+    validate every upsert as Admit does (home present, not read-only, global singleton)
+    home?.CommitBatch(upserts, deletes)                  // one durable step, restores its staging on failure
+    lock _gate: Admit(each upsert, null, durable: true); Evict(each delete, null, durable: true)
+    publish one Change per record, after the store accepted
+```
+The batch is an explicit value: reads during `stage` see committed state
+only, matching every consumer with a batch primitive (Rust `put_prepared_batch`
+requires one store per batch, `lib.rs:2174-2186`; Ghostlight and Odin pass
+explicit `compare_and_swap_batch`/`compare_exchange` values, section 2.0). No
+`AsyncLocal`, no ambient overlay. The store side is the existing
+`CacheBackingStore.CommitBatch` (`CC:2425-2452`: stage, `PushAll`, restore on
+failure; `DMS:308-351`: pages then manifest). For a zero-store cache the
+batch admits in memory. Siblings: Rust already matches (one store per batch,
+all-or-nothing); TS has no batch and Python's `put_envelopes` is per type and
+not all-or-nothing across types; both are recorded in the contract as not yet
+implementing the primitive, with no bytes at stake and no cut in this
+migration.
 
-**Deletion line (cut before anything is added).**
-`CultCache.cs:1436-1439` (push-all on attach), `2097-2101` and `2135-2139`
-(replication loops), `1933-1937` (single-store transaction guard),
-`2279-2284` (`RecomputeDirtyState`) and its callers at `2106`, `2144`, `1506`,
-`1553`; the `_hasUnflushedMutations = _backingStores.Any(...)` recomputations at
-`1459`, `1484`, `1991`; `typeof(T)` at `1632`, `1641`. No test in
-`tests\GameCult.Caching.Tests` attaches two stores to one cache (every
-`AddBackingStore` call at `BackingStoreTests.cs:27-1602` is one store per cache;
-the two-store cases at `:822-825`, `:856-864`, `:909-915` are two caches on one
-file), so no test is deleted for replication.
+**Forbidden writers.** The replication loops (`CC:2097-2101, 2135-2139`);
+attach-time push (`CC:1436-1439`); `typeof(T)` at `CC:1632, 1641`;
+`CND:875, 913` taking the descriptor from `T` (they take
+`_cache.Registry.GetRequired(document.GetType())`); `SingleFileBackingStore.PullAll`'s
+dirty early-return (`CC:2572-2573`) stays: attach-time pull always sees a
+clean store, and re-pull must not erase staged mutations.
+
+**Named demotions.** Replication is no longer an owner of durability. Attach-time
+push is no longer an owner of a store's contents. `_hasUnflushedMutations` is
+no longer an owner once a store exists. `typeof(T)` is no longer an owner of
+schema. Exact `DocumentType` is no longer an owner of lookups or watches. The
+cache is no longer an owner of any global's existence. The ambient
+transaction is no longer an owner of visibility; a batch is a value and the
+store's commit is the boundary.
+
+### 2.3 Serialization options
+
+**Owner.** The assembly that declares a document. `[assembly:
+CultCacheFormatterResolver(typeof(R))]` (`AllowMultiple = true`; `R` exposes
+`public static readonly IFormatterResolver Instance` or a public parameterless
+constructor). `CultDocumentMessagePackSerialization.OptionsFor(Assembly)`
+builds and caches
+`Standard.WithResolver(CompositeResolver.Create(consumers..., CultDocumentResolver.Instance, StandardResolver.Instance)).WithSecurity(CultMessagePackSecurity.Instance)`
+per assembly; `Options` (static) stays as the base for assemblies declaring
+nothing and for the store envelope.
+
+**Inputs.** `type.Assembly` of the document. **Outputs.** one options instance
+per assembly, used by `SerializeUntyped`/`DeserializeUntyped`
+(`CultDocumentMessagePackSerialization.cs:84-121`) and by the generator's
+emitted `var options = ...` (`CultDocumentMessagePackGenerator.cs:290, 308`,
+which becomes `OptionsFor(typeof(X).Assembly)`).
+
+**Security.** `CultMessagePackSecurity : MessagePackSecurity` copies
+`UntrustedData` and overrides `GetHashCollisionResistantEqualityComparer<T>()`
+to return, for `CultRecordRef<TDoc>`, a comparer over `Key.Value` built from
+`GetEqualityComparer<string>()` `[P5]`.
+
+**Forbidden writers.** No mutable static, no registration method, no first-use
+ordering rule.
 
 ## 3. Wire-parity plan
 
-| Change | Bytes on disk or wire | Runtimes that change | How parity is verified |
+| Change | Bytes on disk or wire | Runtimes that change | Verified by |
 |---|---|---|---|
-| Store routing, attach rules, read-only stores, loading never writes, transaction rule | none; each routed file is a complete `cultcache.store.v1` snapshot | C# only (siblings already route) | New C# test: a three-store routed cache and three single-store caches holding the same records with pinned `storedAt` produce byte-identical files. Cross-runtime: the C# interop peer (`tests\GameCult.Caching.InteropPeer\Program.cs`) gains a `write-routed` mode that writes two files; the existing writer-by-reader loop in `packages\cultcache-ts\test\cult-cache.test.ts:536-617` reads both with the unchanged TS, Rust, and Python readers |
-| Runtime type decides schema | none for existing records; a new record written through a base-typed `T` now carries the subclass schema id and payload it always should have | C# only (siblings have no inheritance) | The canonical fixture ids in `Contracts\cultcache-schema-compatibility.md:20-24` must not move (a test already asserts them in `BackingStoreTests.cs`); a new test writes `Weapon` through `UpsertAsync<Gear>` and reopens it as `Weapon` |
-| Assignable typed lookups and watches | none | C# only | unit tests; Mesh and Networking suites re-run as the regression gate |
-| Consumer formatter resolver | payload bytes of consumer-owned schemas only; CultLib's own documents are unchanged | C# only | A test document with a custom value type round-trips through reflection and generated paths; the interop note document's bytes are unchanged |
-| Contract text: composition rule, value-type encoding rule | none | doc-only: `cultcache-rs\README.md:216-241` corrected | review |
+| One home store per type; mirrors deleted | none; every routed file is a complete `cultcache.store.v1` snapshot | C# (Cut 3), TS, Rust, Python (Cut 5) | C# `RoutedStoresWriteTheSameBytesAsSingleStores`; the C# interop peer's `write-routed` mode writes `catalog.cc` and `run.cc` and the writer-by-reader loop in `packages\cultcache-ts\test\cult-cache.test.ts:536-617` reads both with TS, Rust and Python readers |
+| Attach hydrates; loading never writes; read-only stores | none | C# only (siblings already hydrate without writing) | Cut 3 tests |
+| Globals never invented; singleton enforced | none (key divergence recorded) | C# only | Cut 3 tests |
+| Runtime type decides schema | none for existing records | C# only | fixture ids in `cultcache-schema-compatibility.md:20-24` unchanged; `UpsertWeaponThroughGearHandleReloadsAsWeapon` |
+| Assignable lookups and watches | none | C# only | Cut 3 tests; Mesh and Networking suites |
+| Subtraction (SoA parked, managed documents, legacy directory formats, wrappers) | none; v4 directory manifests and v1 single files unchanged | C# only | full suites at their prior pass counts minus the deleted tests; external consumers build |
+| Atomic commit becomes an explicit batch on one home store | none (the store's commit is unchanged: single-file one replace, directory pages then manifest) | C# only; Rust already matches; TS and Python recorded as not implementing it | Cut 3 tests `BatchIsAllOrNothingOnStoreFailure`, `BatchAcrossTwoHomesThrows`, `BatchObserversSeeOnlyCommittedRecords` |
+| Per-assembly options, security comparer | payload bytes of consumer-declared schemas only | C# only | `InteropNoteBytesUnchanged`; `RefKeyedDictionaryRoundTrips` |
+| Contract text | none | docs in all four | review |
 
-The hosted interop workflow (`.github\workflows\cultnet-interop.yml`) tests
-CultNet frames only; `.cc` parity lives in the cultcache-ts test above, which
-runs on `npm test` and on `cultcache-ts-v*` release tags. Byte-level comparison
-across runtimes is not attempted: Rust writes a stub catalog and second-precision
-`storedAt` (`lib.rs:2397-2433`), so it would fail today for reasons unrelated to
-this cut. That is a pre-existing parity gap and is recorded, not fixed here.
+The hosted workflow (`.github\workflows\cultnet-interop.yml`) tests CultNet
+frames only; `.cc` parity is the cultcache-ts test, run by `npm test` and on
+`cultcache-ts-v*` tags. Rust writes a stub catalog and second-precision
+`storedAt` (`lib.rs:2397-2433`), a pre-existing byte-parity gap this cut
+neither widens nor closes.
 
 ## 4. Cut sequence
 
 Each cut is an independently executable Hands task with its own Soul check.
-Build hosts are the Windows workstation for .NET and Unity; every .NET target
-below is built and tested on the host it runs on. Nothing builds for Linux.
+Build host for every step is the Windows workstation. Cuts 2 and 3 are kept
+separate so Soul can falsify pure subtraction (no behavior change) apart from
+the behavior change.
 
 ### Cut 0. Commit the pending ServerShared edits (done)
 
@@ -475,392 +665,593 @@ below is built and tested on the host it runs on. Nothing builds for Linux.
 
 ### Cut 1. CultLib contract and red tests
 
-- Repo/branch: CultLib, `codex/cultcache-store-routing`.
-- Deletes first: nothing (documentation and tests only).
-- Adds: `src\GameCult.Caching\Contracts\cultcache-store-composition.md` with
-  the authority map of section 2, the value-type encoding rule, and the
-  consumer-resolver rule; amends `cultcache-persistence-format.md:52-54`
-  (transactions require one home store, not one attached store) and
-  `cultcache-schema-compatibility.md` (runtime type decides schema; lookups are
-  assignable). Corrects `packages\cultcache-rs\README.md:216-241`, and rewrites
-  the stale typed-overload and mirror prose in `CultLib\README.md:240-264`,
-  `src\GameCult.Caching\GameCult.Caching.txt:157`, and the generator README.
-- Tests: `tests\GameCult.Caching.Tests\StoreRoutingTests.cs`, written against
-  today's API so they compile and are red:
-  1. two stores on one cache, pull the first, flush: the second store's file must
-     not exist (red: replication writes it);
-  2. `UpsertAsync<Gear>(new Weapon())`, flush, reopen, `Get<Weapon>` non-null
-     (red: stored as `Gear`);
-  3. `GetByName<AbstractBase>(name)` finds a concrete subclass record (red);
-  4. `Watch<AbstractBase>()` receives a subclass change (red);
-  5. `GetGlobal<AbstractBase>()` finds the concrete global (red);
-  6. `CultCacheMessagePack.Create` over a registry containing a `[CultGlobal]`
-     type, then `PullAllBackingStoresAsync`, loads the records already in the
-     file (red: the attach-time push marks the store dirty and the pull skips).
-  API-shape tests (routed attach, read-only refusal, attach-after-hydrate,
-  overlapping routes, foreign-store load refusal, transaction across two homes,
-  byte-identical routed files) arrive with Cut 2 and must pass there.
-- Build budget: `dotnet test tests\GameCult.Caching.Tests` (net10.0, Windows).
-- Soul: the five tests are red for the stated reasons and no other test changed
-  state.
+- Repo/branch: `F:\Projects\CultLib`, `codex/cultcache-store-routing`.
+- Adds `src\GameCult.Caching\Contracts\cultcache-store-composition.md` (sections
+  2.1-2.3 as contract: routing, attachment, dirtiness, read-only, globals,
+  options ownership, value-type encoding, the explicit-batch commit);
+  amends `cultcache-persistence-format.md:42-55` ("Transaction Visibility"
+  becomes: a commit is an explicit batch of records that resolve to one home
+  store; the store commits it as one durable step; nothing is visible, to the
+  committing flow or to observers, until the store has accepted it; C#, Rust
+  implement it; TS, Python do not yet) and
+  `cultcache-schema-compatibility.md` (runtime type decides schema; lookups
+  assignable); amends `docs\runtime-parity-scope.md:23-27, 33` (SoA claim
+  retracted); rewrites `CultLib\README.md:240-264`,
+  `src\GameCult.Caching\GameCult.Caching.txt:157`, the generator README, and
+  `packages\cultcache-rs\README.md:216-241`.
+- Adds `tests\GameCult.Caching.Tests\StoreRoutingTests.cs`, compiling against
+  today's API, red for the stated reason:
+  1. `LoadingNeverWritesASecondStore` (seed A; attach A, pull, attach B, flush;
+     B's file must not exist). Red: `[P2-A]`.
+  2. `UpsertWeaponThroughGearHandleReloadsAsWeapon`. Red: `[P2-E]`.
+  3. `GetByNameMatchesAssignableTypes`. Red: `[P2-D]`.
+  4. `WatchMatchesAssignableTypes`. Red: `[P2-D]`.
+  5. `GetGlobalMatchesAssignableTypes` (after an explicit upsert). Red: `[P2-D]`.
+  6. `ConstructingACacheInventsNothing` (registry with a `[CultGlobal]` type;
+     `new CultCache(registry).AllEntries` empty). Red: `[P1]`.
+  7. `AttachThenFlushLeavesASeededFileByteIdentical` (seeded file, registry
+     with a `[CultGlobal]` type; attach, pull, flush; bytes unchanged, record
+     loads). Red: `[P1]`.
+  8. `RefusedPushLeavesNothingInMemory` (store whose `Push` throws; after the
+     failed upsert `Get(key)` null). Red: `[P2-C]`.
+- Command: `dotnet test tests\GameCult.Caching.Tests --filter FullyQualifiedName~StoreRoutingTests`.
+- Soul: eight red for the stated reasons; nothing under `src\` changed.
 
-### Cut 2. CultLib routing implementation
+### Cut 2. CultLib subtraction (no behavior change)
 
-- Repo/branch: CultLib, same branch, after Cut 1 and after Q4 is answered.
-- Files: `src\GameCult.Caching\CultCache.cs`;
-  `src\GameCult.Caching.MessagePack\CultDocumentMessagePackSerialization.cs`
-  (`SingleFileMessagePackBackingStore` read-only flag) and
-  `DirectoryMessagePackBackingStore.cs` (same); `CultCacheMessagePack.cs`
-  (`CultCacheOpenOptions.ReadOnly`); `src\GameCult.Networking\CultNetDatabase.cs:869-927`
-  (descriptor from the runtime type); `tests\GameCult.Caching.Tests\StoreRoutingTests.cs`;
-  `tests\GameCult.Caching.InteropPeer\Program.cs` (`write-routed` mode);
-  `packages\cultcache-ts\test\cult-cache.test.ts:536-617` (read the two routed
-  files).
-- Deletes first: the deletion line in section 2.
-- New behavior: the authority map in section 2, exactly. Read-only is a
-  constructor argument or init property on `CacheBackingStore`
-  (`IsReadOnly`), enforced in the store and checked by the cache.
-- Tests that must fail before and pass after: Cut 1's six, plus the API-shape
-  tests, plus: a `Create()`-ordered cache whose default global is absent from the
-  file writes it on first flush, and one whose global is present loads the
-  persisted value and writes nothing. Negative checks: a catalog-routed record never appears in the run file
-  (assert by deserializing the run snapshot and listing schema ids); opening a
-  routed cache and flushing without mutation leaves every file's bytes unchanged
-  (hash before and after); `AddBackingStore` after `PullAllBackingStoresAsync`
-  throws; a record of a run-routed type found inside the catalog file throws on
-  load and is absent from `AllEntries`; a transaction staging one catalog and one
-  run record throws and neither store's `IsDirty` changes; a global whose home
-  store is read-only is not materialized.
-- Build budget: `dotnet build src\GameCult.Caching src\GameCult.Caching.MessagePack`;
-  `dotnet test tests\GameCult.Caching.Tests tests\GameCult.Networking.Tests
-  tests\GameCult.Mesh.Tests` (all net10.0, Windows; Mesh and Networking are
-  minutes, not seconds); `dotnet build F:\Projects\Aquarium\src\Aquarium.Epiphany`
-  and `F:\Projects\Ymir\src\Ymir.Core` (unpinned sibling consumers); `npm test`
-  in `packages\cultcache-ts` for the interop loop (builds the C# peer, needs Rust
-  and Python toolchains present).
-- Soul: every negative check above, the Q4 dependencies confirmed untouched by
-  the Mesh/Networking suites, Aquarium and Ymir compile, Delvehold grep shows
-  no base-typed writes, the schema-compatibility fixture ids unchanged, and the
-  six reflected Studio signatures plus `BackingStores` still resolve by name
-  (a reflection assertion in the test project, since the Studio only fails at
-  runtime).
+- Repo/branch: same, after Cut 1. Every deletion here has no consumer outside
+  tests per the audit; behavior for every kept member is unchanged.
+- Deletes, in this order:
+  1. Park SoA, as its own commit so Soul can check it apart from the rest:
+     `git tag -a parked/cultcache-soa c2a9a6e` (or the branch commit before
+     this one) with a message stating the intent ("ECS-style structure-of-arrays
+     columns over cached documents, chasing performance without compromising
+     document ergonomics"), the span (`CultManagedDocument.cs:133-414`:
+     `CultSoaTable<T>`, `CultSoaColumn<T>`, `CultCacheSoaStore`,
+     `CultCacheSoaTypeTable`, `CultCacheSoaMember`; `CC:1419-1422` `Soa<T>`;
+     the `_soa` field and its `Upsert`/`Remove` calls at `CC:1970, 1987, 2094,
+     2133`; the SoA tests in `BackingStoreTests.cs`), and that nothing outside
+     tests consumed it. Add `docs\parked-features.md` naming the tag, the
+     span, and the restore path (`git show parked/cultcache-soa:src/GameCult.Caching/CultManagedDocument.cs`
+     and re-hook `_soa` in `Admit`/`Evict`). Amend `docs\runtime-parity-scope.md:23-27,
+     33` to say the SoA table is parked at that tag, not that the claim was
+     wrong. Then delete the span. Nothing else is parked: no other surface on
+     this list carries a stated design reason; if Hands find one in a commit
+     message, they stop and flag it.
+  2. `CultManagedDocument.cs:72-131` (`CultManagedDocument<T>`); `CC:1387-1396`
+     (`Document<T>`); `CND:855-864` (`Document<T>`).
+  3. CultNet's transaction wrapper only: `CND:519-555`, `:305`
+     (`RequireTransactionsForAuthoritativeWrites`), `:872, 898-901,
+     1791-1796` (tests only). The cache's own transaction machinery is **not**
+     touched here; Cut 3 replaces it in the commit that lands `Commit`.
+  4. Wrappers and unused members: `CC:1519-1523` (`FlushAsync` becomes the
+     one-liner `FlushAllBackingStores(); return Task.CompletedTask;` — the only
+     wrapper kept, because both names have consumers), `:1525-1558`
+     (`FlushBackingStore`, `FlushBackingStoreCore`), `:1560-1575`
+     (`PrepareForReloadOrShutdown` ×2), `:1467-1490` (`PullBackingStoreRecordsAsync`),
+     `:1731-1738` (`TryGet<`), `:1748-1760` (`GetStoredDocuments<`, fold into
+     `GetAll<T>`), `:1787-1794` (`TryGetByName`), `:1810-1817`
+     (`TryGetByIndex`), `:1819-1825` (`Resolve<`), `:1318-1325` (`Logger`),
+     `:1332-1335` (`LastSuccessfulFlushAtUtc`) and store `:2365-2368`,
+     `CacheBackingStore.Logger` (`:2350-2354`), `PullSelected` (`:2402-2409`),
+     `CultPersistedRecordMetadata` (`:2304-2323`), the `soft` parameter
+     everywhere in the two Caching projects, `EntryAdded/EntryUpdated/EntryDeleted`
+     (`:2383-2391`; replaced by `internal Action<CultStoredDocument>? Loaded,
+     Unloaded`), the `GetAwaiter().GetResult()` subscriptions (`:1432-1434`;
+     `AddStoredDocumentInternal` becomes synchronous `void`, its `async` and
+     `await Task.CompletedTask` go).
+  5. `CultCacheMessagePack.cs`: `ConfigureCache`, `ConfigureStore`,
+     `DirectoryStorePath`, `DirectoryStoreHydrationFilter`,
+     `ConfigureDirectoryStore` and their uses (`:32-40, 47-61, 109, 113-118,
+     127`); `OpenAsync` becomes `Task.FromResult(Create(filePath, options))`
+     (`Create` and `OpenAsync` both have external consumers).
+  6. `DMS`: `HydrationFilter` (`:46, 635`), `ReadStageProbe`, `FlushStageProbe`,
+     stage constants and every `?.Invoke` (`:158, 245, 418, 456`),
+     `ReadPersistedGeneration`, `PullSelected`/`PullSelectedCore`
+     (`:229-274`), `LoadLegacyRecords`, `_legacyInlineRecords`,
+     `LegacyRecordPath`, `MetadataRecordPath`, `_needsIndexUpgrade`,
+     `_manifestUsesMetadataPages`, `_manifestUsesImmutablePages`, the v2/v3
+     format constants and every branch on them; a manifest whose
+     `FormatVersion` is not the v4 constant throws
+     `InvalidOperationException("Directory store {path} is {format}; only
+     {v4} is readable.")`.
+  7. `CultDocumentMessagePackSerialization.cs:144-175` (`SerializeSchemaCatalog`,
+     `DeserializeSchemaCatalog`).
+  8. Every `///` line in the five touched files; `<NoWarn>$(NoWarn);CS1591</NoWarn>`
+     in `GameCult.Caching.csproj` and `GameCult.Caching.MessagePack.csproj`.
+     Comments that carry an invariant (e.g. the dirty-pull guard at
+     `CC:2568-2571`) stay as `//`.
+  9. Tests that exist only to exercise the deleted surface (SoA, managed
+     documents, stage probes, legacy directory formats, selective hydration,
+     the CultNet transaction wrapper) are deleted with it; the cache
+     transaction tests stay until Cut 3 rewrites them against `Commit`;
+     `tests\GameCult.Caching.Tests\README.md` is updated.
+- `CultMesh.FlushAsync(bool soft)` and `CultNetLocal.FlushAsync(bool soft)`
+  keep their signatures and call `FlushAsync()`; the parameter is dead, and
+  its removal together with the four external call sites (Mimir
+  `EveDashboard:900`, `CultMeshMedia:422`; Brokkr `BrokkrCultMeshMirror.cs:68-124`)
+  is a named follow-up, not part of this migration.
+- Commands: `dotnet build CultLib.sln`; `dotnet test tests\GameCult.Caching.Tests
+  tests\GameCult.Networking.Tests tests\GameCult.Mesh.Tests tests\GameCult.Geometry.Tests`;
+  `dotnet build` of `F:\Projects\Aquarium\src\Aquarium.Epiphany`,
+  `F:\Projects\Ymir\src\Ymir.Core`, `F:\Projects\AquaSynth` (its .NET
+  projects), `F:\Projects\Mimir` (its .NET projects), `F:\Projects\Gjallar\src\Gjallar`;
+  `rg "PullOnOpen|ConfigureCache|ConfigureStore|DirectoryStorePath|ConfigureDirectoryStore|FlushBackingStore\(|PrepareForReloadOrShutdown|TryGetByName|TryGetByIndex|ExecuteTransactionAsync|\.Soa<|\.Document<|LastSuccessfulFlushAtUtc|HydrationFilter"` over those five repos, Delvehold, Brokkr, Eve, EveUnity, EvePlugins must be empty (Brokkr, Eve*, Delvehold are not built here; the grep is the proof).
+- Soul: `git tag -l parked/cultcache-soa` resolves to a commit whose
+  `CultManagedDocument.cs` still holds `CultSoaTable`, and `docs\parked-features.md`
+  names it; Cut 1's eight tests still red for the same reasons (no behavior
+  moved); every kept test passes; the five external builds green; the grep
+  empty; `wc -l` of the two Caching projects at least 1,700 lines below
+  `c2a9a6e`; `rg "GetAwaiter\(\)\.GetResult\(\)|async |AsyncLocal|SemaphoreSlim" src\GameCult.Caching`
+  empty; `rg "///" src\GameCult.Caching src\GameCult.Caching.MessagePack`
+  empty; `cultcache.store.v4` directory manifests and v1 single files written
+  before the cut still open.
 
-### Cut 3. CultLib consumer formatter resolver
+### Cut 3. CultLib routing, attachment, globals, read-only, lookups
 
-- Repo/branch: CultLib, same branch (separate files from Cut 2; may run in
-  parallel with it).
-- Files: `src\GameCult.Caching.MessagePack\CultDocumentMessagePackSerialization.cs`,
-  a test in `tests\GameCult.Caching.Tests`.
-- Deletes first: the `static readonly` initializer of `Options` (`:50-55`)
-  becomes the default value of a once-settable property.
-- New behavior: `CultDocumentMessagePackSerialization.ConfigureResolvers(params
-  IFormatterResolver[] consumerResolvers)` composes the consumer resolvers ahead
-  of `CultDocumentResolver` and `StandardResolver`; a second call, or a call
-  after any serialization, throws. Generated serializers already read `Options`
-  at call time (`CultDocumentMessagePackGenerator.cs:290, 308`), so they need no
-  change.
-- Tests: a document with a custom `struct Pair(float, float)` and a resolver
-  that writes `[f,f]` round-trips through reflection and through the generated
-  path; calling `ConfigureResolvers` twice throws; the interop note document's
-  serialized bytes are unchanged with a consumer resolver installed.
-- Build budget: as Cut 2's first two commands plus the Caching tests.
-- Soul: the three tests; no other project touched.
+- Repo/branch: same, after Cut 2.
+- Files: `CC`; `CultDocumentMessagePackSerialization.cs`
+  (`SingleFileMessagePackBackingStore` ctor); `DMS` (ctor, `:277-281`);
+  `CultCacheMessagePack.cs` (`ReadOnly`, `initializeGlobals` plumbing);
+  `CND:875, 913`; `tests\GameCult.Caching.Tests\StoreRoutingTests.cs`,
+  `BackingStoreTests.cs:342, 358, 365`; `tests\GameCult.Caching.InteropPeer\Program.cs`.
+- Deletes first: 2.1's forbidden writers and 2.2's forbidden writers.
+- New behavior: sections 2.1 and 2.2 exactly, in the shape of 2.0.
+- Interop peer: mode `write-routed <catalog.cc> <run.cc>` attaching two routed
+  single-file stores (`interop-note` -> catalog, `interop-run-note` -> run),
+  one record each, flush. `read` unchanged.
+- Tests that pass after: Cut 1's eight, plus in `StoreRoutingTests.cs`:
+  `RoutedStoresWriteTheSameBytesAsSingleStores` (pin `storedAt` through
+  `UpsertAsync(Type, object, key)` on a `CultStoredDocument` built with a fixed
+  timestamp, or compare after normalizing `storedAt`); `CatalogRecordNeverLandsInRunStore`;
+  `AttachAfterDirtyThrows`; `SecondUntypedStoreThrows`; `DuplicateHomeTypeThrows`;
+  `WriteWithoutHomeThrows` (both stores clean, `Get` null);
+  `ForeignRecordIsRefusedOnLoad` (attach throws naming key and stores;
+  `AllEntries` empty); `LateRouteOverAdmittedTypeThrows` (attach an untyped
+  store holding a `Note`, then attach a store routed to `Note`; throws naming
+  both stores; `_entries` unchanged; the untyped store not dirty; the reverse
+  order succeeds); `ReadOnlyStoreRefusesWrites` (throws; file bytes
+  unchanged; `Get` null; `IsDirty` false); `ReadOnlyStoreIsNotFlushed`;
+  `GlobalSingletonIsEnforced` (second key throws; a file with two records of a
+  global type is refused at attach); `AmbiguousAssignableLookupThrows`.
+- Commands: `dotnet build CultLib.sln`; the four test projects as Cut 2; the
+  five external builds as Cut 2; `rg "UpsertAsync<|AddAsync<|PutAsync<"` over
+  Delvehold, AquaSynth, Mimir, Gjallar reviewed for a base-typed `T` (none
+  expected); `rg "GetGlobal<|global:" F:\Projects\AquaSynth` to report how its
+  `[CultGlobal]` types are read now that nothing invents them.
+- Soul: every test; schema-compatibility fixture ids unchanged; Mesh,
+  Networking, Geometry suites at their Cut 2 counts; external builds green;
+  the AquaSynth global report written into this document's section 7;
+  `CC` at or below the 2.0 shape's size; `rg "MaterializeMissingGlobals|InitializeGlobals|ContainsDurableRecord|PullOnOpen|initializeGlobals|ExecuteTransactionAsync|AsyncLocal|SemaphoreSlim|VisibleStoredDocuments" src tests` empty.
+- Atomic commit, in the same commit as the routing change: delete
+  `CC:1577-1622` (`ExecuteTransactionAsync` ×2), `:1907-1921`
+  (`VisibleStoredDocuments`), `:1923-2066` (`CommitTransaction`,
+  `CultCacheTransaction`), every `_ambientTransaction` check (`:1449, 1474,
+  1497, 1536, 1630, 1674, 1714, 1832, 1860`), `_transactionGate`; add
+  `CultCacheBatch` and `Commit(Action<CultCacheBatch>)` as in 2.2; keep
+  `CacheBackingStore.CommitBatch` (`CC:2425-2452`, minus its `soft`) and
+  `DMS:308-351`. Tests (behavioral): `BatchIsAllOrNothingOnStoreFailure` (a
+  store whose `PushAll` throws on the second call: after the failed commit no
+  record of the batch is in `Get`, the store's file is unchanged, `IsDirty` is
+  false); `BatchAcrossTwoHomesThrows` (one catalog and one run record: throws
+  before either store is touched; both `IsDirty` false; neither key readable);
+  `BatchObserversSeeOnlyCommittedRecords` (`Watch<T>` receives exactly one
+  change per committed record, none before `CommitBatch` returned, none for a
+  failed batch); `BatchReadsSeeCommittedStateOnly` (inside `stage`, `Get` of a
+  key upserted earlier in the same batch returns the pre-commit value);
+  `SingleUpsertAndBatchShareOneAdmissionPath` (a global singleton violation
+  is refused identically through `UpsertAsync` and through a batch).
+  `BackingStoreTests.cs` transaction tests (`:1362, 1412, 1422, 1457, 1514,
+  1544, 1585, 1593`) are rewritten against `Commit` where they prove
+  durability ordering, deleted where they proved the ambient overlay.
 
-### Cut 4. CultCache Studio absorbs Database Tools
+### Cut 4. CultLib serialization options and security
 
-- Repo/branch: CultLib, `codex/cultcache-studio-drawers` (independent of Cuts
-  1-3 in files; depends on Cut 2 only for not writing on open).
-- Files: `src\GameCult.Unity\Assets\Caching\Editor\CultCacheStudioWindow.cs`
-  (847 lines, fixed `DrawValue` chain at `:326-364`), a new
-  `CultCacheStudioDrawers.cs` beside it, `Assets\Caching\package.json`
-  (`1.0.0` -> `1.1.0`).
-- Deletes first: the "anything else as a disabled text field" fallback in
-  `DrawValue`; unknown types now route through the drawer registry and fail
-  visibly if nothing claims them.
-- New behavior: dictionaries (key and value drawn recursively); abstract or
-  interface members offer a subtype popup built from the member type's
-  `[MessagePack.Union]` attributes (not from reflection over all subclasses, so
-  the popup can only choose what the wire can encode); `CultRecordRef<T>` gets a
-  record picker listing documents assignable to `T` by name; non-primitive
-  structs keep the reflective path (this covers Unity.Mathematics and CultMath,
-  verify rather than assume); a drawer extension point discovered through Unity
-  `TypeCache` on a `[CultInspectorDrawer(typeof(MemberType))]` attribute, so a
-  consumer's editor assembly can register drawers with no runtime coupling.
-- Tests: none executable by the agent; Studio is Unity editor code. Operator
-  opens `src\GameCult.Unity` in Unity, loads a `.cc` with each member kind, and
-  confirms edit and save; opening then closing without edits leaves the file
-  bytes unchanged.
-- Build budget: Unity editor compile of `src\GameCult.Unity` (operator).
-- Operator step: the compile and the manual check.
+- Repo/branch: same branch; files disjoint from Cut 3 except the store
+  constructor; may run in parallel with Cut 3.
+- Files: `CultDocumentMessagePackSerialization.cs`, new
+  `CultCacheFormatterResolverAttribute.cs`, `CultMessagePackSecurity.cs`,
+  `CultDocumentMessagePackGenerator.cs:290, 308`,
+  `GameCult.Caching.MessagePack.csproj` and `GameCult.Networking.csproj`
+  (each gains `<PackageReference Include="MessagePackAnalyzer" Version="3.1.7"
+  PrivateAssets="all" />` beside its `MessagePack` reference, so MessagePack's
+  source generator stops flowing to consumers `[P6]`; CultLib never registers
+  a generated resolver),
+  `tests\GameCult.Caching.Tests\SerializationOptionsTests.cs`, `AssemblyInfo.cs`.
+- Deletes first: `.WithSecurity(MessagePackSecurity.UntrustedData)` at `:55`.
+- New behavior: section 2.3. `public sealed class CultCacheFormatterResolverAttribute : Attribute { public CultCacheFormatterResolverAttribute(Type resolverType); public Type ResolverType { get; } }`;
+  `public static MessagePackSerializerOptions OptionsFor(Assembly documentAssembly)`;
+  `public sealed class CultMessagePackSecurity : MessagePackSecurity { public static readonly CultMessagePackSecurity Instance; }`.
+- Tests: `DeclaredResolverEncodesValueTypeAsPositionalArray` (test assembly
+  declares a resolver for `struct Pair(float A, float B)` writing `[f,f]`;
+  reflective and generated paths both emit the two-element array and round-trip);
+  `RefKeyedDictionaryRoundTrips`; `InteropNoteBytesUnchanged` (checked-in
+  constant captured on `main`); `UnknownAssemblyGetsBaseOptions`;
+  `RefKeyedDictionaryCompilesInAConsumer`: a test-only console project under
+  `tests\` that references `GameCult.Caching.MessagePack` and declares a
+  document with `Dictionary<CultRecordRef<T>, float>` builds without an
+  analyzer-removal target (this is the build `[P5]` could not do).
+- Commands: `dotnet build CultLib.sln`; `dotnet test tests\GameCult.Caching.Tests
+  tests\GameCult.Networking.Tests`; `dotnet build F:\Projects\Aquarium\src\Aquarium.Epiphany`
+  and `F:\Projects\Ymir\src\Ymir.Core` (they receive the analyzer change
+  through Networking and Caching.MessagePack).
+- Soul: the five tests; `rg "MessagePackSecurity.UntrustedData" src` finds only
+  the copy-constructor argument; `obj\**\MessagePack.SourceGenerator` is absent
+  from the consumer test project's build output.
 
-### Cut 5. CultLib release
+### Cut 5. Sibling runtimes: delete mirrors
 
-- Repo/branch: CultLib `main` after Cuts 1-4 merge.
-- Files: `unity\org.gamecult.cultlib\package.json` (`1.0.56` -> `1.0.57`),
-  `unity\org.gamecult.cultlib\Runtime\Plugins\*.dll` via
-  `scripts\build-unity-package.ps1 -UpdateTemplate`, `unity\org.gamecult.cultlib\README.md:15`,
-  `docs\nuget-packaging.md:22`.
-- Deletes first: the stale install lines.
-- New behavior: tags `cultlib-unity-v1.0.57` and `caching-unity-v1.1.0` on the
-  same commit; pushed.
-- Verification: the committed DLLs are byte-identical to a fresh
-  `artifacts\unity\org.gamecult.cultlib` build; `GameCult.Caching.dll` in the
-  template exposes `AddBackingStore(CacheBackingStore, Type[])` (reflection
-  check from a throwaway script); tags resolve on `origin`.
-- Build budget: `dotnet publish` of `GameCult.Mesh`, `GameCult.Networking.WebSockets`
-  (netstandard2.1) and `GameCult.Mesh.Quic.Native`, Release, Windows host, as
-  the script does today.
+- Repo/branch: `codex/cultcache-one-home-store`, independent of Cuts 2-4;
+  three language-scoped tasks, parallel.
+- TypeScript (`packages\cultcache-ts`): delete `mirrors` (`src\cult-cache.ts:18`),
+  the three mirror pushes (`:402, 448, 503`), the `slice(1)` lists (`:663-677`);
+  `#resolveRoute(type): CacheBackingStore | undefined`; `addBackingStore`
+  (`:180-188`) throws on a second untyped store or a claimed type. Tests:
+  `rejects a second generic backing store`, `rejects a type registered to two
+  stores`, `routes each type to its home store`; the writer-by-reader loop
+  (`:536-617`) adds the two files from the C# `write-routed` mode. Command:
+  `npm test` in `packages\cultcache-ts`. Version `0.13.5` -> `0.14.0`.
+- Rust (`packages\cultcache-rs`): delete the four mirror loops (`src\lib.rs:2092-2094,
+  2213-2215, 2252-2254, 2323-2325`) and the `route.len() != 1` branch
+  (`:2174-2181`); `fn resolve_route_index(&self, type_id: &str) -> Option<usize>`
+  replaces `resolve_route_indices` (`:2363-2380`); `add_backing_store`
+  (`:1950-1959`) returns `Result<()>` and errors on a second generic store or a
+  claimed type; callers (`lib.rs` tests, `examples\cultcache_interop.rs:77`)
+  take the `Result`. Tests: `second_generic_store_is_rejected`,
+  `type_claimed_twice_is_rejected`; `type_specific_store_routes_before_generic_store`
+  stays. Command: `cargo test` in `packages\cultcache-rs`. Version `0.1.0` ->
+  `0.2.0`.
+- Python (`packages\cultcache-py`): `stores_by_type: dict[str, BackingStore]`,
+  `generic_store: BackingStore | None` (`cache.py:23-24`); `add_backing_store`
+  (`:100-102`) raises on a claimed type, `add_generic_store` (`:104-105`) on a
+  second store; `_store_for_type(type) -> BackingStore` raises when none
+  (`:300-302`); the four write loops (`:199-201, 218-219, 239-241, 269-270`)
+  become single calls; `_all_specific_stores` (`:304-311`) deleted;
+  `pull_all_backing_stores` (`:111`) iterates the distinct stores. Tests:
+  `test_second_generic_store_rejected`, `test_type_claimed_twice_rejected`,
+  `test_types_route_to_home_store`. Command: `python -m pytest packages\cultcache-py\tests`.
+  Version `0.2.0` -> `0.3.0`.
+- Soul: the nine tests; `rg -n "mirror" packages\cultcache-ts\src packages\cultcache-rs\src packages\cultcache-py\src`
+  empty; `npm test` green including the routed-file reads.
 
-### Cut 6. Aetheria data model cutover
+### Cut 6. CultCache Studio: compile-time reference and drawers
 
-- Repo/branch: Aetheria, new branch `codex/cultcache-cutover` from Cut 0.
-  Depends on Cuts 0 and 5.
-- Deletes first (before any new attribute is added):
-  `Assets\Scripts\ServerShared\CultCache\CultCache.cs` (437),
+- Repo/branch: CultLib, `codex/cultcache-studio-drawers`, after Cut 3.
+- Files: `src\GameCult.Unity\Assets\Caching\package.json` (`1.0.0` -> `1.1.0`;
+  `"dependencies": { "org.gamecult.cultlib": "1.0.57" }`),
+  `Editor\GameCult.Unity.Caching.Editor.asmdef` (reference `GameCult.CultLib`),
+  `Editor\CultCacheStudioWindow.cs`, new `Editor\CultCacheStudioDrawers.cs`,
+  `Runtime\CultCacheInspectorAttributes.cs` (one new attribute).
+- Deletes first: the reflection bridge `CultCacheBridge` (`:683-790`) and the
+  `PullOnOpen` line (`:687`); the disabled-text-field fallback in `DrawValue`
+  (`:326-364`). The window calls `CultCacheMessagePack.OpenAsync`,
+  `cache.UpsertAsync(Type, object, key)`, `cache.Remove(key)`,
+  `cache.FlushAsync()`, `cache.IsDirty`, `cache.Registry.AllDescriptors`,
+  `cache.AllStoredDocuments` directly.
+- New behavior: `[AttributeUsage(Class)] CultInspectorDrawerAttribute(Type memberType)`;
+  drawers discovered by `TypeCache.GetTypesWithAttribute<CultInspectorDrawerAttribute>()`
+  implementing `ICultInspectorDrawer { object Draw(string label, object value, FieldInfo member); }`;
+  built-ins for `IDictionary` (recursive keys and values, add/remove), abstract
+  or interface members (subtype popup from the member type's `[MessagePack.Union]`
+  attributes only), `CultRecordRef<T>` (popup of documents assignable to `T` by
+  `[CultName]`, plus the raw key); the reflective struct path kept for
+  Unity.Mathematics and CultMath (operator-verified). Unclaimed types render a
+  visible error row.
+- Verification: batchmode compile of `src\GameCult.Unity`; then the operator
+  opens a `.cc` with each member kind, edits, saves, and confirms open-then-close
+  without edits leaves the file bytes unchanged.
+
+### Cut 7. CultLib release
+
+- Repo/branch: CultLib `main` after Cuts 1-6 merge.
+- Files: `unity\org.gamecult.cultlib\package.json` (`1.0.56` -> `1.0.57`);
+  `Runtime\Plugins\*.dll` via `powershell -File scripts\build-unity-package.ps1 -UpdateTemplate`;
+  `unity\org.gamecult.cultlib\README.md:15`, `docs\nuget-packaging.md:22`;
+  the three package versions from Cut 5.
+- Tags on one commit: `cultlib-unity-v1.0.57`, `caching-unity-v1.1.0`,
+  `cultcache-ts-v0.14.0`, `cultcache-py-v0.3.0`; pushed; the last two run
+  `publish-packages.yml`.
+- Verification: committed DLLs byte-identical to a fresh build;
+  `GameCult.Caching.dll` exposes `AddBackingStore(CacheBackingStore, Type[])`
+  and lacks `MaterializeMissingGlobals`, `ExecuteTransactionAsync`, `Soa`
+  (reflection from a throwaway script); `git ls-remote --tags origin` lists
+  the four tags; the publish jobs succeed.
+
+### Cut 8. Aetheria data model cutover and AetherDb
+
+- Repo/branch: Aetheria, `codex/cultcache-cutover` from
+  `codex/aetheria-state-rebuild`. Depends on Cut 7.
+- Deletes first: `Assets\Scripts\ServerShared\CultCache\CultCache.cs` (437),
   `DatabaseEntry.cs` (91), `ReflectionExtensions.cs` (127) and
-  `CollectionExtensions.cs` (75) unless a non-cache user remains,
-  `Serialization\JsonKnownTypes\**` (320, with its stray `.csproj`),
-  `Serialization\TypeFormatterResolver.cs` (65), `Serialization\JsonConverters.cs`
-  (169) if no `JsonConvert` caller survives, `Serialization\RegisterResolver.cs`
-  (37); `Assets\Plugins\MessagePack\**` (97 files, 30,088 lines, and its
-  asmdef); `Assets\Scripts\CultCache\Editor\**` (17 files, 1,963 lines); the
-  `Assets\Plugins\MessagePack\**` compile include in
-  `Aetheria.Shared\Aetheria.Shared.csproj:23`; the `MessagePack` reference in
-  `Aetheria.Shared.Unity.asmdef`; the root `[Union]` list and every
-  `JsonKnownTypes` attribute; the stale tags 4, 5, 6, 14, 20.
-- Kept and moved: `MathFormatters.cs` and `MathResolver.cs` (fix `:55`) under
-  `ServerShared\Serialization\`, registered by one `AetheriaSerialization.Configure()`
-  that calls Cut 3's `ConfigureResolvers`; the `Inspectable*` attributes from
-  `Attributes.cs` that Studio drawers will read.
+  `CollectionExtensions.cs` (75) unless `rg "GetAllChildClasses|GetParentTypes"`
+  finds a non-cache caller, `Serialization\JsonKnownTypes\**` (320 and its
+  `.csproj`), `Serialization\TypeFormatterResolver.cs` (65),
+  `Serialization\JsonConverters.cs` (169) if `rg "JsonConvert\."` outside it is
+  empty, `Serialization\RegisterResolver.cs` (37); `Assets\Plugins\MessagePack\**`
+  (97 files, 30,088 lines, asmdef, `.meta`s); `Assets\Scripts\CultCache\Editor\**`
+  (17 files, 1,963 lines); the compile include at `Aetheria.Shared.csproj:23`;
+  the `MessagePack` reference in `Aetheria.Shared.Unity.asmdef`; the root
+  `[Union]` list and every `JsonKnownTypes` attribute and `using`; tags 4, 5,
+  6, 14, 20; `GalaxyMapLayerData` (`GlobalData.cs:16`), `PlayerData`
+  (`PlayerData.cs:10`), `GlobalSettingsAttribute` (`Attributes.cs:4`);
+  AetherDb `doctor`, `migrate-products`, `AetherDb.Save()`.
+- Kept and moved: `MathFormatters.cs`, `MathResolver.cs` (fix `:55` to
+  `ArrayFormatter<int2?>`) to `ServerShared\Serialization\`; the `Inspectable*`
+  attributes Cut 6 drawers read.
 - Adds:
-  - `Directory.Build.props`/`Directory.Build.targets` at the Aetheria root,
-    copied from `F:\Projects\Delvehold` (`CultLibRoot`, `CultLibRevision` set to
-    the Cut 5 commit, the revision and clean-tree guard). Reused, not invented.
-  - `Aetheria.Shared.csproj`: `ProjectReference` to `GameCult.Caching` and
-    `GameCult.Caching.MessagePack` (both netstandard2.1). The MessagePack
-    generator is not referenced: Unity cannot run it, and the target notes it
-    silently falls back on hierarchies, so both bodies use reflection descriptors
-    and behave the same.
-  - `Packages\manifest.json`: `org.gamecult.cultlib` at
-    `https://github.com/GameCult/CultLib.git?path=/unity/org.gamecult.cultlib#cultlib-unity-v1.0.57`
-    and `org.gamecult.caching.unity` at
-    `...?path=/src/GameCult.Unity/Assets/Caching#caching-unity-v1.1.0`;
-    `Aetheria.Shared.Unity.asmdef` references `GameCult.CultLib` and keeps
+  - `Directory.Build.props`/`.targets` at the Aetheria root, copied from
+    `F:\Projects\Delvehold` with `CultLibRoot` defaulting to `..\CultLib` and
+    `CultLibRevision` set to the Cut 7 commit. Kept on its own merits: the only
+    working pin for a sibling checkout (`pack-nuget.ps1` publishes nowhere).
+  - `Aetheria.Shared.csproj`: `ProjectReference` to `$(CultLibRoot)\src\GameCult.Caching\GameCult.Caching.csproj`
+    and `GameCult.Caching.MessagePack.csproj`. No analyzer handling: Cut 4
+    keeps MessagePack's generator inside CultLib, so both bodies serialize
+    through `DynamicObjectResolver` (Aetheria's backend is Mono,
+    `ProjectSettings.asset:660-661`). The GameCult generator is not referenced.
+  - `ServerShared\AssemblyInfo.cs`: `[assembly: CultCacheFormatterResolver(typeof(MathResolver))]`.
+  - `Packages\manifest.json`: `"org.gamecult.cultlib": "https://github.com/GameCult/CultLib.git?path=/unity/org.gamecult.cultlib#cultlib-unity-v1.0.57"`,
+    `"org.gamecult.caching.unity": "https://github.com/GameCult/CultLib.git?path=/src/GameCult.Unity/Assets/Caching#caching-unity-v1.1.0"`;
+    `Aetheria.Shared.Unity.asmdef` references `GameCult.CultLib`, keeps
     `noEngineReferences: true`.
-  - `[CultDocument("aetheria.<type>", "1")]` on every concrete document type in
-    the Q7 table; `[CultGlobal]` on `SavedGame` and `PlayerSettings`; `[CultName]`
-    on the existing `Name` members. `[MessagePackObject]` is removed from abstract
-    bases that are not union roots (`ItemData`, `CraftedItemData`,
-    `EquippableItemData`, `BodyData`, `AgentTask`) to satisfy MsgPack005; the
-    value unions (`ItemInstance`, `BehaviorData`, `WeaponData`, `EntityPack`,
-    `SavedActionBarBinding`, `InputLayout`) keep theirs.
-  - Every `Guid` and `DatabaseLink<T>` reference field becomes `CultRecordRef<T>`
-    (`Dictionary<Guid, float>` becomes `Dictionary<CultRecordRef<T>, float>`;
-    the ref formatter writes string keys, so the map stays portable).
-  - `RequireBehavior` becomes `string` (Q3).
-  - `ServerShared\AetheriaStores.cs`: one static `Open(catalogPath, runPath,
-    playerPath, readOnlyCatalog)` that builds the routed cache. This is the
-    composition root shared by the game, the tool, and tests; the route table is
-    written once.
-  - Identity changes of Q8 across the 75 Unity-side and 16 ServerShared call
-    sites; `DatabaseLinkBase.Cache` gone; `ItemManager.GetData` is the resolution
-    path.
-  - A small Aetheria editor file (`Assets\Scripts\Editor\CultCacheDrawers.cs`)
-    registering Studio drawers for `[InspectableType]` (behavior name picker),
-    `[InspectableColor]` (`float3`/`float4` as color) and
-    `[InspectableAnimationCurve]` (`float4[]`).
-  - `tests\Aetheria.Shared.Tests` (xunit, net10.0) with the negative checks
-    below; the headless counterpart of the Unity compile.
-- Tests that must fail before and pass after (they cannot compile before; "fail
-  before" is the headless build failing on the deleted types): open the routed
-  cache on a copy of `GameData` whose run and player files already hold their
-  globals, flush, assert all three files' hashes are unchanged; write a `WeaponItemData` through a `GearData`-typed call and read it
-  back as `WeaponItemData`; writing to the catalog store throws and the catalog
-  file is unchanged; a `SavedZone` never appears in the catalog file; the
-  `Dictionary<Faction, ...>` in `Galaxy` resolves the same instance from two
-  `Get<Faction>` calls.
-- Build budget: `dotnet build Aetheria.Shared\Aetheria.Shared.csproj` and
-  `dotnet test tests\Aetheria.Shared.Tests` (Windows host; CultLib is built as a
-  project reference from the pinned checkout). Unity: one editor recompile after
-  the cut, by the operator; the agent updates every Unity call site it can find
-  by grep but cannot prove the Unity compile.
-- Operator steps: Unity recompile; approve the two UPM git URLs (network fetch
-  from GitHub on first import).
-- Soul: headless build green; the five tests; `rg "DatabaseEntry|DatabaseLink|
-  JsonKnownTypes|TypeFormatterResolver|MultiFileBackingStore" Assets tools` is
-  empty; `Assets\Plugins\MessagePack` gone; the asmdef has no `MessagePack`
-  reference; manifest pins the two tags; the revision guard refuses a dirty or
-  wrong-revision CultLib.
+  - `[CultDocument("aetheria.<lowercase type>", "1")]` on every concrete
+    document type in Q7; `[CultGlobal]` on `SavedGame`, `PlayerSettings`;
+    `[CultName]` on existing `Name` members. `[MessagePackObject]` removed from
+    the non-union abstract bases (`ItemData`, `CraftedItemData`,
+    `EquippableItemData`, `BodyData`, `AgentTask`); value unions keep theirs.
+  - References: `Guid` and `DatabaseLink<T>` -> `CultRecordRef<T>`;
+    `Dictionary<Guid, float>` -> `Dictionary<CultRecordRef<T>, float>` with
+    `[CultReference(typeof(T), many: true)]`; `List<Guid>` ->
+    `List<CultRecordRef<T>>`. Slots unchanged; the legacy `Key(0)` slot is left
+    unclaimed (the importer writes `nil`; MessagePack skips unclaimed slots).
+  - `RequireBehavior` -> `string`.
+  - `ServerShared\AetheriaStores.cs`:
+    ```csharp
+    public static class AetheriaStores
+    {
+        public static readonly Type[] CatalogTypes = { typeof(ItemData), typeof(Faction), typeof(FactionProductData), typeof(PersonalityAttribute), typeof(NameFile) };
+        public static readonly Type[] RunTypes = { typeof(OrbitData), typeof(BodyData), typeof(SavedZone), typeof(SavedGame) };
+        public static readonly Type[] PlayerTypes = { typeof(PlayerSettings), typeof(InputLayout) };
+        // Attaches (hydrates) the catalog read-only unless catalogWritable, then the run and player stores when given.
+        // Throws when a [CultGlobal] type routed to the catalog has no record.
+        public static CultCache Open(string catalogPath, string? runPath = null, string? playerPath = null, bool catalogWritable = false);
+    }
+    ```
+  - Q8's identity edits across the 75 Unity-side and 16 ServerShared sites
+    (`rg "DatabaseLink|DatabaseEntry|\.ID\b|LinkID" Assets tools` is the
+    worklist); `DatabaseLinkBase.Cache` gone; `ItemManager.GetData` resolves.
+  - `Assets\Scripts\Editor\CultCacheDrawers.cs`: drawers for
+    `[InspectableType]` (popup over `BehaviorData`'s `[Union]` names, writes
+    the string), `[InspectableColor]`, `[InspectableAnimationCurve]`.
+  - `tools\AetherDb`: `AetherDb.Open` -> `AetheriaStores.Open(root\GameData\Aetheria.cc,
+    catalogWritable: command == "clear-boss-hulls" && apply)`; `census`,
+    `factions`, `station-fit`, `hardpoint-fit`, `loadout`, `settings`,
+    `settings-dump`, `clear-boss-hulls` rewritten over `CultRecordRef` and
+    `TryGetHandle`; `save` reads `GameData\run.cc` when present; help lists
+    every command. It must compile; it cannot run until Cut 9.
+  - `tests\Aetheria.Shared.Tests` (xunit, net10.0) with a temp-directory
+    catalog fixture built through `Open(catalogWritable: true)`:
+    `OpenThenFlushLeavesEveryFileByteIdentical` (run and player seeded with
+    their globals), `WeaponWrittenThroughGearHandleReloadsAsWeapon`,
+    `CatalogRefusesWrites`, `SavedZoneNeverLandsInCatalog`,
+    `FactionIsASingletonInstance`, `MissingCatalogGlobalIsLoud`.
+- Commands: `dotnet build Aetheria.Shared\Aetheria.Shared.csproj`; `dotnet build
+  tools\AetherDb`; `dotnet test tests\Aetheria.Shared.Tests`; Unity batchmode
+  compile; operator accepts the two UPM git URLs on first editor open.
+- Soul: headless build green with the pin guard (and refusing a dirty
+  `CultLibRoot`); the six tests; `rg "DatabaseEntry|DatabaseLink|JsonKnownTypes|TypeFormatterResolver|MultiFileBackingStore|GlobalSettings" Assets tools`
+  empty; `Assets\Plugins\MessagePack` gone; asmdef without `MessagePack`;
+  manifest pins the two tags; batchmode clean;
+  `rg "ReactiveProperty|ReactiveCollection" Assets\Scripts\ServerShared` shows
+  no member of a document or embedded value.
 
-### Cut 7. One-shot importer
+### Cut 9. One-shot importer
 
-- Repo/branch: Aetheria, same branch, after Cut 6.
-- Files: `tools\AetherDb\Import.cs` (new), `Program.cs` (`import` and
-  `legacy-census` commands), `GameData\Aetheria.cc` (new, committed), and
-  `.gitattributes` gaining `*.cc filter=lfs diff=lfs merge=lfs -text` before the
-  `.cc` is added: `AetherDB.msgpack` is LFS-tracked today and `.cc` matches no
-  rule (`git check-attr filter` reports `unspecified`), so without the rule the
+- Repo/branch: same, after Cut 8.
+- Files: `tools\AetherDb\Import.cs` (new), `Program.cs` (`legacy-census`,
+  `import`), `GameData\Aetheria.cc` (new, committed), and `.gitattributes`
+  gaining `*.cc filter=lfs diff=lfs merge=lfs -text` before the `.cc` is
+  added: `AetherDB.msgpack` is LFS-tracked today and `.cc` matches no rule
+  (`git check-attr filter` reports `unspecified`), so without the rule the
   catalog would land in plain git.
-- Deletes first: `doctor` (it deserializes `DatabaseEntry[]`, which no longer
-  exists), the `withNameFiles` branch and its comment in `AetherDb.cs:7-10, 25,
-  34`.
-- New behavior: the importer reads `GameData\AetherDB.msgpack` (a MessagePack
-  array of `[tag, payload]`) and `GameData\NameFile\*.msgpack` (12 files, each
-  `[tag, payload]`) with `MessagePackReader`, never through the legacy types.
-  A tag table maps the 30 legacy tags to new document types (tags 4, 5, 6, 14,
-  20 cannot occur; 8 and 11 are dropped and counted). The payload is rewritten
-  slot by slot against the new type's `[Key]` members: a 16-byte `Guid` (the
-  legacy `NativeGuidResolver`) or a legacy `DatabaseLink` array `[guid]` at a
-  `CultRecordRef` slot becomes the Guid's `D` string; `Guid` map keys likewise;
-  the `RequireBehavior` string becomes a simple name; nested `[MessagePackObject]`
-  values and `[Union]` members are recursed by their own `[Key]` and `[Union]`
-  metadata; everything else is copied. The rewritten payload is deserialized
-  with CultLib and written with `AetheriaStores.Open` (catalog only, writable
-  for this one command) under the legacy Guid `D` string as key. Slot numbers
-  are untouched.
-- Verification: `legacy-census` counts records per tag structurally; `import`
-  prints the same per-type counts from the new cache; they must match minus the
-  dropped tags, and every `CultRecordRef` in the new store must resolve. The
-  `census`, `factions`, `hardpoint-fit` outputs (Cut 9 versions) must match
-  their pre-cut outputs captured at Cut 0.
-- Then, in the same commit: delete `GameData\AetherDB.msgpack`,
-  `GameData\NameFile\`, and the 32 empty per-type folders the legacy
-  `MultiFileBackingStore` constructor created (`CultCache.cs:237-244`). Keep
-  `GameData\KeyboardLayouts` for Cut 8.
-- Build budget: `dotnet run --project tools\AetherDb -- legacy-census`, then
-  `-- import`, both net10.0 on Windows.
-- Soul: counts match; `GameData\Aetheria.cc` deserializes with
-  `CultDocumentMessagePackSerialization.DeserializeSnapshot` and every schema id
-  in its records is in its catalog; no legacy file remains; `git status` shows
-  the `.cc` added and the legacy files removed in one commit.
+- Deletes first: the `withNameFiles` branch and comment (`AetherDb.cs:7-10, 25, 34`).
+- New behavior `[P5]`: `AetherDB.msgpack` is a MessagePack array of 167
+  `[tag, payload]` pairs; each name file is `[9, payload]`. `Import.cs` walks
+  them with `MessagePackReader`. Tag table: 0 SimpleCommodityData,
+  1 CompoundCommodityData, 2 GearData, 3 HullData, 9 NameFile, 13 Faction,
+  15 OrbitData, 16/25-28 BodyData leaves, 17 PersonalityAttribute,
+  29 CargoBayData, 30 DockingBayData, 31 WeaponItemData, 32 FactionProductData;
+  any other tag is an error. Per record: slot 0 (16-byte `bin` Guid) becomes
+  the key in `D` format and is written as `nil`; at every `CultRecordRef<T>`
+  slot a 16-byte `bin` or a legacy `[bin16]` becomes the `D` string, `nil`
+  stays; at every ref-keyed map slot the `bin16` keys become `D` strings; at
+  `StatModifierData` slot 4 the assembly-qualified name becomes the simple
+  name; nested `[MessagePackObject]` values and `[Union]` members are recursed
+  by their own `[Key]`/`[Union]` metadata (reflection over the new types);
+  everything else is copied raw. The rewritten payload is deserialized through
+  `CultDocumentMessagePackSerialization.DeserializeUntyped` and written with
+  `AetheriaStores.Open(catalogPath, catalogWritable: true)` via
+  `UpsertAsync(type, document, new CultRecordKey(legacyKey))`, then `FlushAsync`.
+  `[P5]` did this for one `Faction` (16 slots, 12 allegiances, two `float3`s,
+  two refs) and read it back from the `.cc`.
+- Verification: `legacy-census` per-tag counts (`[P5]`: 0:13, 1:51, 2:25, 3:3,
+  13:12, 17:3, 29:4, 30:1, 31:18, 32:37; 12 name files); `import` prints
+  per-type counts and every unresolvable `CultRecordRef` (zero, except
+  `Faction.BossHull` `Guid.Empty`, reported as unset); `census`, `factions`,
+  `hardpoint-fit` equal their Cut 0 captures.
+- Same commit: delete `GameData\AetherDB.msgpack`, `GameData\NameFile\`, the 32
+  empty per-type folders. Keep `GameData\KeyboardLayouts` for Cut 10.
+- Commands: `dotnet run --project tools\AetherDb -- legacy-census`; `-- import`;
+  the three comparisons.
+- Soul: counts match; `Aetheria.cc` deserializes with `DeserializeSnapshot`
+  and every record's schema id is in its catalog; no legacy file remains;
+  `git check-attr filter GameData/Aetheria.cc` reports `lfs`; one commit.
 
-### Cut 8. Runtime cutover
+### Cut 10. Runtime cutover, importer removal, docs
 
-- Repo/branch: Aetheria, same branch, after Cut 7.
+- Repo/branch: same, after Cut 9.
 - Files: `Assets\Scripts\Gameplay\ActionGameManager.cs`, `UI\MainMenu.cs`,
   `UI\InputScreen\InputDisplayLayout.cs`, `ServerShared\Galaxy.cs`,
-  `ServerShared\SavedGame.cs`, `ServerShared\PlayerSettings.cs`,
-  `ServerShared\Zone.cs`.
-- Deletes first: the catalog bootstrap at `ActionGameManager.cs:49-57`;
-  `SavePlayerSettings`/`SaveState` (`:76-79, 240-249`) as they stand;
-  `SaveLoadout` (`:233-236`, dead path) and `SaveZone` (`:1093-1094`, no
-  callers); the `PlayerSettings.msgpack` reader (`:65-72`); the per-file layout
-  writer (`InputDisplayLayout.cs:495-501`) and reader (`:88-91`); the
-  `GameData/PlayerSettings.msgpack` `.gitignore` line.
-- New behavior: `ActionGameManager` opens the cache through `AetheriaStores.Open`
-  with the catalog read-only, the run store at a per-run path, and the player
-  store; `SaveRun()` is the single run save path (one `ExecuteTransactionAsync`
-  over `SavedGame` and the `SavedZone`/`OrbitData`/`BodyData` records) and is
-  called from quit, wormhole entry, and menu; `Die()` closes and deletes the run
-  store file; new game creates a fresh run store; `SavedGame` becomes the Run
-  global and `PlayerSettings` the Player global; `InputLayout` records live in
-  the Player store keyed by layout name; `Galaxy(CultCache, SavedGame, ...)`
-  resolves `CultRecordRef<Faction>`.
-- Tests: headless, in `tests\Aetheria.Shared.Tests`: save a run, reopen, the
-  same zones and refs resolve; delete-run leaves the catalog and player files
-  byte-identical; a second `SaveRun` after a wormhole is the only writer of the
-  run file (hash the run file, assert catalog and player hashes unchanged).
-- Build budget: headless build and tests as Cut 6; Unity recompile and a play
-  smoke (new game, one wormhole, quit, resume, die) by the operator.
-- Soul: the three tests; the play smoke; `rg "PlayerSettings.msgpack|\\.zone|
-  \\.loadout|KeyboardLayouts" Assets` is empty; exactly one call site writes the
-  run store.
+  `SavedGame.cs`, `PlayerSettings.cs`, `Zone.cs`, `.gitignore`,
+  `tools\AetherDb\Import.cs`, `docs\cultcache-migration-target.md`,
+  `docs\three-gates-scope.md:61-68`.
+- Deletes first: the catalog bootstrap (`ActionGameManager.cs:49-57`);
+  `SavePlayerSettings`/`SaveState` (`:76-79, 240-249`); `SaveLoadout`
+  (`:233-236`); `SaveZone` (`:1093-1094`); the settings reader (`:65-72`); the
+  layout writer/reader (`InputDisplayLayout.cs:495-501, 88-91`); the
+  `GameData/PlayerSettings.msgpack` `.gitignore` line (replaced by
+  `GameData/run.cc`, `GameData/player.cc`); `Import.cs` and its two commands;
+  the "loading writes" paragraph (`three-gates-scope.md:61-68`).
+- New behavior:
+  - `ActionGameManager.Awake`: `Cache = AetheriaStores.Open(catalog, runPath:
+    File.Exists(run) ? run : null, playerPath: player)`; then `if
+    (Cache.GetGlobal<PlayerSettings>() == null) { Cache.UpsertAsync(new
+    PlayerSettings()); Cache.FlushAsync(); }`.
+  - `MainMenu`: Resume shown when a run store is attached and
+    `GetGlobal<SavedGame>()` is non-null; a run store without `SavedGame` logs
+    `"run store has no SavedGame; refusing to resume"` and shows New Game only.
+  - `BeginRun()`: dispose any run store, delete `run.cc`, reopen with the run
+    path, generate the galaxy upserting `SavedGame`, `SavedZone`s, orbits and
+    bodies as created (`Zone.AddOrbit`, `Zone.cs:120, 265`), then `SaveRun()`.
+  - `SaveRun()`: `Cache.FlushAsync()` (writes only dirty stores); the only run
+    writer; called from quit (`:238`), wormhole entry (`:611`), settings Back
+    (`MainMenu.cs:237`). Not a `Commit`: the run's durability unit is the
+    whole run store, whose single-file flush is already one atomic replace of
+    every record it holds (`SingleFileBackingStore.PushAll`, `CC:2638-2657`),
+    and orbits and bodies are created across the whole generation and play
+    session, not inside one code block. A batch would add a staging copy of
+    state the store already stages, for no extra atomicity.
+  - `Die()`: no `SaveRun`; the run store is disposed and `run.cc` deleted.
+  - `InputLayout` records live in the player store keyed by layout name; a
+    rebind upserts and flushes.
+  - `Galaxy(CultCache, SavedGame, ...)` resolves `CultRecordRef<Faction>`.
+- Tests (`tests\Aetheria.Shared.Tests`): `SaveRunWritesOnlyTheRunStore`
+  (catalog and player hashes unchanged), `RunRoundTrips`,
+  `DeleteRunLeavesCatalogAndPlayerByteIdentical`, `PlayerSettingsIsCreatedOnceByBoot`.
+- Docs: `cultcache-migration-target.md` status "done" with the commit range.
+- Commands: headless build and tests as Cut 8; batchmode compile; the operator's
+  play smoke (new game, one wormhole, quit, resume, die; `run.cc` gone,
+  `player.cc` and `Aetheria.cc` hashes unchanged).
+- Soul: the four tests; the play smoke; `rg "PlayerSettings.msgpack|\.zone\b|\.loadout|KeyboardLayouts|Import\.cs|legacy-census" Assets tools`
+  empty; `rg -c "SaveRun\(" Assets` shows one definition and three callers;
+  `git ls-files GameData` lists `Aetheria.cc` only.
 
-### Cut 9. AetherDb rewrite and final deletions
-
-- Repo/branch: Aetheria, same branch, after Cut 8 has run.
-- Files: `tools\AetherDb\AetherDb.cs`, `Program.cs`, `Import.cs`, `docs\`.
-- Deletes first: `Import.cs` and the `import`/`legacy-census` commands (the
-  one-shot has run; a reader with no data is a liability); `migrate-products`
-  (already applied, `b8ecfffd`); the `Save()` method (`AetherDb.cs:37`), since
-  the tool now writes through the cache.
-- New behavior: `AetherDb.Open` calls `AetheriaStores.Open` (catalog writable
-  only for `clear-boss-hulls apply`); `census`, `factions`, `station-fit`,
-  `hardpoint-fit`, `loadout`, `settings`, `settings-dump` run over the new cache;
-  `save` reads the run store; the help text lists every command.
-- Docs: `cultcache-migration-target.md` status line to "done" with the commit
-  range; a short "rejected paths" note stays in this document; the
-  `three-gates-scope.md:61-68` "loading writes" paragraph is deleted because the
-  smell no longer exists.
-- Tests: each command exits 0 against the committed `GameData\Aetheria.cc`;
-  `census` output equals the Cut 0 capture.
-- Build budget: `dotnet build tools\AetherDb`, run each command.
-- Soul: `rg "legacy|msgpack" tools docs` shows only history notes; `git ls-files
-  GameData` lists `Aetheria.cc` and nothing legacy.
-
-Steps needing the operator's Unity recompile: 0, 4 (CultLib's Unity project),
-6, 8. The agent cannot perform them.
+Steps needing Unity: 6 (CultLib's Unity project), 8 and 10 (batchmode compile
+by the agent; UPM acceptance and the play smoke by the operator).
 
 ## 5. Subtraction ledger
 
-Lines are C# unless noted; estimates are bounded by the measured sizes above.
+Lines are C# unless noted; sizes are measured where a file is named, bounded
+estimates otherwise.
 
 | Cut | Removed | Added | Targets, dependencies, schemas |
 |---|---|---|---|
-| 1 | 0 | ~120 doc, ~120 test | 0 |
-| 2 | ~45 (deletion line) | ~260 impl, ~350 test, ~40 interop peer, ~20 TS test | 0 new targets; `IsReadOnly` and the typed `AddBackingStore` overload are the only new public surface |
-| 3 | ~6 | ~40 impl, ~60 test | 0 |
-| 4 | ~10 (fallback) | ~400 editor | Studio package `1.0.0` -> `1.1.0`; 1 new attribute |
-| 5 | 2 doc lines | 2 doc lines, rebuilt DLLs | 2 tags |
-| 6 | 1,771 (ServerShared\CultCache) - ~305 kept formatters + 30,088 (MessagePack) + 1,963 (Database Tools) + ~60 (asmdef/csproj lines) ≈ **33,500** | ~60 `AetheriaStores`, ~200 drawers, ~200 tests, ~40 props/targets, ~400 attribute and reference edits ≈ **900** | -1 vendored MessagePack, -1 vendored JsonKnownTypes, -1 asmdef; +2 UPM packages, +2 ProjectReferences, +1 test project; 20 `[CultDocument]` schemas replace 1 union |
-| 7 | ~50 (`doctor`, name-file branch), 2 legacy data files + 12 name files + 32 empty folders | ~300 importer (temporary), 1 `.cc` | 0 |
-| 8 | ~120 (bootstrap, three writers, two readers) | ~90 (`SaveRun`, open path) | -3 file formats (`PlayerSettings.msgpack`, `.zone`, `.loadout`, `KeyboardLayouts\*.msgpack`) |
-| 9 | ~300 (importer) + ~60 (dead commands) | ~40 | 0 |
+| 1 | 0 | ~150 doc, ~160 test | 0 |
+| 2 | `CultManagedDocument.cs` −355 (SoA parked at a tag, managed doc); `CC` −~670 (`///` 461, wrappers/unused/`soft`/subjects ~210); `CultCacheMessagePack.cs` −~60; `DMS` −~380 (legacy formats, filter, probes, `///`); `CultDocumentMessagePackSerialization.cs` −~100 (catalog helpers, `///`); `CND` −~60; deleted tests ~−450 | ~40 (`Loaded/Unloaded`, `NoWarn`), ~30 (`parked-features.md`) | public surface −20 members; 1 tag; 0 targets |
+| 3 | ~95 (2.1/2.2 deletion lines) + ~230 (ambient transaction machinery) | ~150 impl (routing, globals, read-only, lookups) + ~70 (`CultCacheBatch`, `Commit`), ~520 test, ~30 interop peer | +`AddBackingStore(store, Type[])`, +`IsReadOnly`, +`ReadOnly`, +`Commit`, +`CultCacheBatch`; −ctor overload, −`MaterializeMissingGlobals`, −`ContainsDurableRecord`, −`PullOnOpen`, −`ExecuteTransactionAsync` ×2; −`AsyncLocal`, −`SemaphoreSlim` |
+| 4 | 1 | ~80 impl, ~110 test, 2 csproj lines | +1 assembly attribute; MessagePack's generator no longer flows to consumers |
+| 5 | TS ~18, Rust ~30, Python ~20 | TS ~12 + ~40 test, Rust ~15 + ~40 test, Python ~10 + ~30 test | three version bumps |
+| 6 | ~120 (reflection bridge, fallback) | ~300 editor, 1 attribute | Studio `1.0.0` -> `1.1.0`, +1 package dependency |
+| 7 | 2 doc lines | 2 doc lines, rebuilt DLLs | 4 tags |
+| 8 | 1,771 − ~305 kept + 30,088 + 1,963 + ~60 ≈ **33,600** | ~40 `AetheriaStores`, ~150 drawers, ~180 tests, ~40 props/targets, ~400 attribute/reference edits, ~120 AetherDb ≈ **930** | −1 vendored MessagePack, −1 JsonKnownTypes, −1 asmdef; +2 UPM packages, +2 ProjectReferences, +1 test project; 20 schemas replace 1 union |
+| 9 | ~15, 2 legacy data files + 12 name files + 32 folders | ~280 importer (deleted in Cut 10), 1 `.cc`, 1 `.gitattributes` line | 0 |
+| 10 | ~120 + ~280 (importer) + 8 | ~110, ~120 tests | −4 private file formats |
 
-Expected net: CultLib about +1,300 lines, of which ~530 are tests and ~400 is
-editor tooling that replaces 1,963 lines in Aetheria; Aetheria about **-33,000**
-lines, two vendored dependencies and four private file formats gone, one shared
-package in.
+Expected net: CultLib **−1,650** lines of source and −450 of tests in Cut 2,
+then −325/+220 source and +520 tests in Cut 3 and +80/+110 in Cut 4: the two
+Caching projects end near 3,000 lines with `CultCache.cs` near 950, against
+5,259 and 2,704 today; the siblings shrink; Aetheria about **−33,000** lines,
+two vendored dependencies and four private formats gone.
+
+Proposed follow-ups, outside this migration: remove `soft` from
+`CultMesh.FlushAsync`/`CultNetLocal.FlushAsync` and its four external call
+sites; collapse `FlushOnDispose`/`StoreFlushOnDispose` into one flag; package
+the generator without the empty `GameCult.Caching.MessagePack.Analyzers`
+project; strip `///` from `CultDocumentContracts.cs` and
+`CultGeneratedDocumentMetadata.cs` (180 lines untouched by these cuts); unify
+the global key across runtimes (changes bytes); a C# store-level
+compare-exchange matching cultcache-rs's (`lib.rs:397-800`), which Odin, Idunn,
+CodexConnector and Ghostlight consume in Rust and which the C# reference has
+never had (optimistic concurrency between processes, distinct from the
+in-process batch commit); batch commit in cultcache-ts and a cross-type
+all-or-nothing batch in cultcache-py.
 
 ## 6. Risks and rejected paths
 
 Risks:
-- The Unity compile is only provable by the operator, at Cuts 6 and 8. The
-  headless build catches `ServerShared`; it cannot catch `Gameplay`, `UI`,
-  `Zone Display`, or `Editor` call sites. Expect one round of fixups after each
-  recompile.
-- MessagePack moves from a vendored 2.x (no version string; `e9431261`
-  quarantined its Unity assembly) to 3.1.7 with `MessagePackSecurity.UntrustedData`
-  (`CultDocumentMessagePackSerialization.cs:55`). Deep `EntityPack` graphs may hit
-  the untrusted-data depth limit; Cut 8's save test is where that shows.
-- Unity runs no source generator, so documents serialize through
-  `DynamicObjectResolver`. Aetheria's scripting backend is Mono (only Android is
-  set in `ProjectSettings.asset:660-661`), so this works; IL2CPP would not.
-- `RarityTier` and anything else marked `keyAsPropertyName` serializes as a map
-  and would hash a different canonical schema than its array-shaped neighbors;
-  it lives in Unity settings, not the cache, so it is out of scope, but any such
-  type that turns out to be embedded in a document must be converted to keys.
-- Any `ReactiveProperty` field reachable from a document breaks without the
-  vendored `MessagePack.ReactiveProperty` resolver. The census found none
-  (reactive state is on `Entity` and `EquippedItem`, which are not persisted),
-  but Cut 6's Soul grep must confirm.
-- Schema drift after the cut is governed by CultLib's slot comparison
-  (`CultCache.cs:947-1027`); a type change in a slot is a hard reject. Aetheria
-  field edits that change a slot's type need a new slot or a version bump, which
-  is a discipline the legacy union never asked for.
-- Cross-runtime byte parity of `.cc` files is a pre-existing gap (Rust stub
-  catalog and timestamps). This cut does not widen it and does not close it.
+- Unity call sites are found by grep and proven by batchmode; expect one
+  fixup round after each compile in Cuts 8 and 10.
+- MessagePack 2.x (vendored) to 3.1.7: depth is not a risk (deepest payload 7
+  against a 500 limit `[P5]`); `[Union]` on abstract bases, nullable
+  formatters and `keyAsPropertyName` types are the unknowns, surfaced by the
+  round-trip tests in Cuts 8-10.
+- MessagePack 3's generator fails on ref-keyed maps `[P5]`; after Cut 4 it no
+  longer reaches any consumer of `GameCult.Caching.MessagePack` or
+  `GameCult.Networking` `[P6]`. A consumer that references the `MessagePack`
+  package directly still gets it and must not use ref-keyed maps until the
+  upstream bug is fixed.
+- Attach-is-hydration: a caller that attached, mutated, then pulled (none
+  found) now throws at attach; a caller that attaches an untyped store before a
+  routed one (none exists; every caller attaches one store) throws at the
+  second attach; explicit pulls after attach are harmless re-pulls.
+- Cut 3 replaces the ambient transaction with an explicit batch. Any consumer
+  that relied on reading its own staged records mid-transaction would break;
+  none exists (the only caller was a tests-only CultNet wrapper), and every
+  sibling consumer passes explicit batches. Cut 2 parks SoA rather than
+  retracting it.
+- Deleting the v2/v3 directory formats refuses any store nobody found; if one
+  exists it fails loudly with its format string and is rebuilt from source.
+- `ReactiveProperty` fields reachable from a document break without the
+  vendored resolver; none found; Cut 8's Soul grep confirms.
+- Slot type changes are hard rejects (`CC:947-1027`); Aetheria field edits need
+  a new slot or a version bump.
+- The C# global key differs from TS/Python; cross-runtime `.cc` byte parity is
+  a pre-existing gap.
 
 Rejected paths:
-- Mirrors or replication in C#. No consumer uses them, transactions already
-  refused them, and the sibling mirror semantics are a local convenience the
-  contract never promised.
-- A `storeId` or route field in the file header. It would change bytes in every
-  runtime to record a fact each file already implies by existing.
-- A save converter. The target discards saves; a converter would be a second
-  legacy reader.
-- Keeping `DatabaseEntry` with an `ID` shim. The shim would be the surviving
-  owner of identity and the whole point is to demote it.
-- Switching `ServerShared` to CultMath. CultMath has no serialization and the
-  math library touches 26,566 lines; that is a separate migration.
-- Union tags as the `RequireBehavior` encoding, or per-field
-  `[MessagePackFormatter]` attributes instead of a resolver. Both push encoding
-  knowledge into thirty fields.
-- A JSON intermediate for the import, or an `extern alias` reference to a
-  pre-cut `Aetheria.Shared` build. A structural rewrite driven by the new
-  types' `[Key]` metadata is smaller than either and is deleted after use.
-- Referencing the MessagePack source generator from `Aetheria.Shared`. Unity
-  cannot run it, and two bodies serializing by different codecs is exactly the
-  split authority the migration exists to remove.
-- Persisting agent tasks. They are not persisted today; adding it would be new
-  behavior in a migration that moves the cache and nothing else.
+- Mirrors or replication, anywhere.
+- A `_pendingDefaults` set or deferred-admission queue (first pass); a
+  `_hydrated` flag; materializing globals after hydration in `OpenAsync`.
+- A mutable `Options` static with a set-once `ConfigureResolvers` (first pass).
+- Keeping managed documents or legacy directory formats because tests cover
+  them. (SoA is parked, not rejected.)
+- Deleting atomic commit as a capability (second pass, retracted by the
+  operator: multi-record commits recur in Ghostlight and Epiphany work); the
+  ambient `AsyncLocal` implementation is what goes, not the primitive.
+- Ambient in-flight visibility inside a batch: no consumer in any runtime
+  reads its own staged records; Rust, Ghostlight and Odin all pass explicit
+  batch values.
+- Stripping MessagePack's generator in each consumer's build: the analyzer
+  arrives through CultLib's reference, so CultLib owns the exclusion.
+- Per-field `[MessagePackFormatter]` attributes; `Dictionary<string, float>`
+  instead of ref-keyed maps; a list of pairs.
+- A `storeId` in the file header; a save converter; a `DatabaseEntry` `ID`
+  shim; switching `ServerShared` to CultMath; union tags for `RequireBehavior`;
+  a JSON intermediate or `extern alias` for the import; the GameCult generator
+  in `Aetheria.Shared`; persisting agent tasks.
+
+## 7. Probes
+
+All probes live under
+`C:\Users\Meta\AppData\Local\Temp\claude\F--Projects-Aetheria\2a6aec4d-7cba-481c-8586-be54662389a5\scratchpad\`,
+reference CultLib `c2a9a6e` by project, and were run with
+`dotnet run --project <dir>\Probe.csproj -c Debug` on 2026-09-13.
+
+| Id | Probe | Result |
+|---|---|---|
+| P1 | `cc-global-probe`: seeded file; `new CultCache()` (globals on) -> attach -> pull -> flush, versus `OpenAsync` | `new CultCache()` order: after ctor `entries=1 cacheDirty=True`; after attach `storeDirty=True`; `note loaded: NO`; after flush `note still on disk: False, file bytes changed: True`. `OpenAsync`: `note loaded: persisted`; `note still on disk: True, file bytes changed: False`. |
+| P2-A | `cc-mechanics-probe` (global-free registry): attach A, pull, attach B, flush, reopen B | `after pulling A: note loaded=True`; `after attaching B: B.IsDirty=True cache.IsDirty=True`; `after flush with no mutation: B file exists=True B records=1 keys=note`; `reopening B alone: note present=True`. |
+| P2-B | same: transaction with two stores | `InvalidOperationException: A CultCache transaction requires zero or one durable backing store; ...` |
+| P2-C | same: a store whose `Push` throws | `upsert threw InvalidOperationException`; `cache.Get(key) != null = True, cache.IsDirty=False`. |
+| P2-D | same: base-typed lookups and watch | `Watch<Base> events=0 Watch<Leaf> events=1`; `GetByName<Base>(alpha) null=True GetByName<Leaf>(alpha) null=False`; `GetGlobal<GlobalBase>() null=True GetGlobal<GlobalLeaf>() null=False`; `GetAll<Base>().Count=1`. |
+| P2-E | same: `UpsertAsync<Gear>(new Weapon())`, flush, inspect | `schema=probe.gear payloadArrayLength=2`. |
+| P3 | `cc-cultnet-probe`: `CultNetDatabase.PutAsync<Gear>(key, new Weapon())`, `db.Watch<Gear>()`, flush, reopen | `persisted schema=probe.gear; published change schema is Gear=True; in-memory type=Weapon`; `reopen: Get<Weapon> null=True; Get<Gear> type=Gear`. |
+| P4 | `cc-generated-probe` (GameCult generator, `EmitCompilerGeneratedFiles`) | `generated serializer present=True deserializer present=True`; emitted `...g.cs:53, 65`: `var options = global::GameCult.Caching.MessagePack.CultDocumentMessagePackSerialization.Options;`, members via `options.Resolver` at `:57-58, 71, 75`. |
+| P5 | `cc-import-probe`: structural read of `GameData\AetherDB.msgpack` and one name file; depth; one `Faction` slot rewrite; `.cc` write and read-back; depth limit | `167 records; per tag: 0:13, 1:51, 2:25, 3:3, 13:12, 17:3, 29:4, 30:1, 31:18, 32:37`; `max nesting depth = 7 (tag 2); UntrustedData limit = 500`; `Australia.msgpack: outer array 2, tag 9, payload slots 3`; `Faction payload slots=16: 0:Binary(len16) 1-4:String 5:Map(n0) 6:Nil 7:Array(n3) 8:Array(n3) 9:Binary(len16) 10:Binary(len16) 11:Integer 12:Map(n12) 13-15:Integer`; stock options: `TypeAccessException: No hash-resistant equality comparer available for type: GameCult.Caching.CultRecordRef`; with the security subclass: `key=bbd619ed-… Name=Adrasteia Geoname=95c298ae-… Allegiance=12`; `reopened from .cc: … schema=aetheria.faction … Allegiance=12 payloadSlots=16`; `depth 100: ok; 499: ok; 600: MessagePackSerializationException`. Build: with MessagePack's generator active, `CS0426: The type name 'GameCult' does not exist in the type 'GeneratedMessagePackResolver'` (emitted `case 0: return new global::MessagePack.GeneratedMessagePackResolver.GameCult.Caching.CultRecordRefFormatter<…>()`); `ExcludeAssets="analyzers"` on direct references to `MessagePack`, `MessagePack.Annotations`, `MessagePackAnalyzer` does not remove it; an `Analyzer Remove` target `BeforeTargets="CoreCompile"` does. |
+
+| P6 | `cc-analyzer-probe`: scratch library `Lib` (netstandard2.1, `MessagePack` 3.1.7, a generic `Ref<T>` struct with a custom formatter and resolver, standing in for `GameCult.Caching.MessagePack`) and a consumer `App` declaring `Dictionary<Ref<Doc>, float>`; four library shapes built with `dotnet build App\App.csproj -c Debug -p:<variant>` | default: `CS0426: The type name 'Lib' does not exist in the type 'GeneratedMessagePackResolver'`; `ExcludeAssets="analyzers" PrivateAssets="analyzers"` on `Lib`'s `MessagePack` reference: same error; `[assembly: MessagePackKnownFormatter(typeof(RefFormatter<>))]` in `Lib`: same error (emitted `case 0: return new global::MessagePack.GeneratedMessagePackResolver.Lib.RefFormatter<global::App.Doc>();`); `<PackageReference Include="MessagePackAnalyzer" Version="3.1.7" PrivateAssets="all" />` in `Lib`: `Build succeeded.` |
+| E1 | grep evidence (no code run) for the batch-commit shape | TS `cultcache-ts\src\*.ts`: no batch, transaction or atomic member; Python `cache.py:227-251` `put_envelopes` only, called from `cultnet-py\src\cultnet_py\replication.py:98`; Rust cache-level `put_prepared_batch` (`lib.rs:2162-2201`): no caller in `CultLib\packages` or in Odin, Idunn, Epiphany, CodexConnector, Ghostlight, Muninn, Ratatoskr; Rust store-level `compare_exchange*`/`compare_and_swap*`/`delete_batch_if_unchanged` (`lib.rs:397-800`): Odin 12 sites, Idunn 31, CodexConnector 1, Ghostlight `ghostlight-dungeon\src\app_session.rs:119, 371` (+3 tests) and `world\consumer.rs:788` ("a malformed or stale batch commits nothing"); Epiphany's crates: none. Every call passes an explicit expected/replacement batch; none reads staged state mid-commit. |
+
+Not established by running code, marked as design: the routed C# cache
+itself (Cut 3's tests are its proof); the Studio's reflective struct path over
+Unity.Mathematics (Cut 6's operator check); how AquaSynth reads its
+`[CultGlobal]` types (Cut 3's Soul step reports it here).
