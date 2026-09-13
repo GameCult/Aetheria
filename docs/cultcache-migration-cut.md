@@ -583,7 +583,14 @@ home store, before `_entries` changes.
   `ExpectUnchanged`) protect against a concurrent change to the same records.
 - An attached store uses its cache's gate as its own lock
   (`CacheBackingStore.Gate`, Cut 3 fix `5aad137`), so cache and store locks
-  cannot be taken out of order.
+  cannot be taken out of order. The cache also takes the gate around each
+  store's pull, which covers third-party stores that do not lock it themselves.
+- Observers never run under the gate (Soul, Cut 3 second pass): `Watch`
+  observers and `OnUpdate` are published after the outermost gate exit on
+  every path, because a subscriber that blocks on another thread which reads
+  the cache would otherwise deadlock. A store adopts its loaded view before
+  anything is published, so a throwing handler cannot leave the store holding
+  records the cache dropped.
 - One key lives in one store: a write or load that would put a key already held
   from another store throws and changes nothing.
 - `OnUpdate` fires for loads only, as before the migration; writers publish
@@ -804,8 +811,11 @@ the behavior change.
   may carry conditions, per-record `(schemaId, storedAt)` identity or
   whole-store unchanged, evaluated under the store's exclusive lock, and a
   failed condition is a lost race, not an error; **conditional commit is the
-  only safe multi-process write: a plain flush writes the whole snapshot and
-  is last-writer-wins, so processes sharing a store must all use conditional
+  only write protected against a concurrent change to the same records: a
+  plain flush or unconditional commit on a single-file store writes the
+  cache's snapshot and is last-writer-wins, and on a directory store lands its
+  changed pages onto the current manifest, last-writer-wins per key, so
+  processes that must not overwrite each other's changes use conditional
   commit**; batch and conditional commit are specified for C# and not yet
   implemented there; Rust implements both; TS and Python implement neither
   yet) and
