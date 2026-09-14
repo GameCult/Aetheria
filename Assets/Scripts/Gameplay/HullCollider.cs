@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UniRx;
 using CultMath;
+using CultMath.UnityBridge;
 using static CultMath.math;
 using UnityEngine;
 using float2 = CultMath.float2;
@@ -23,8 +24,8 @@ public class HullCollider : MonoBehaviour
             Spread = spread,
             DamageType = damageType,
             Source = source,
-            TexCoord = texCoord,
-            Direction = direction
+            TexCoord = texCoord.ToCultMath(),
+            Direction = direction.ToCultMath()
         });
     }
     
@@ -35,13 +36,13 @@ public class HullCollider : MonoBehaviour
             Damage = damage,
             DamageType = damageType,
             Source = source,
-            Direction = direction
+            Direction = direction.ToCultMath()
         });
     }
 
     private void OnCollisionEnter(Collision other)
     {
-        Entity.Velocity += ((float3) other.impulse).xz / Time.deltaTime;
+        Entity.Velocity += other.impulse.ToCultMath().xz / Time.deltaTime;
     }
 
     public class HullHitEventArgs

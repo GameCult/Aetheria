@@ -5,6 +5,7 @@ using System.Linq;
 using UniRx;
 using UnityEngine;
 using CultMath;
+using CultMath.UnityBridge;
 using static CultMath.math;
 using float2 = CultMath.float2;
 using Random = UnityEngine.Random;
@@ -179,7 +180,7 @@ public class EntityInstance : MonoBehaviour
                     {
                         var pingInstance = Instantiate(PingPrefab);
                         var pingMesh = pingInstance.GetComponent<MeshRenderer>();
-                        pingInstance.position = entity.Position;
+                        pingInstance.position = entity.Position.ToUnity();
                         _pingBrightness = pingMesh.material.GetFloat("_Depth");
                         _currentPing = (pingInstance, pingMesh);
                     };
@@ -319,7 +320,7 @@ public class EntityInstance : MonoBehaviour
                 var hitShape = new Shape(hullData.Shape.Width, hullData.Shape.Height);
                 foreach (var v in hullData.Shape.Coordinates)
                 {
-                    var localHitDirection = transform.InverseTransformDirection(splash.Direction);
+                    var localHitDirection = transform.InverseTransformDirection(splash.Direction.ToUnity());
                     var direction = normalize(float2(localHitDirection.x, localHitDirection.z));
                     var cellDot = dot(normalize(v - hullData.Shape.CenterOfMass), direction);
                     if (cellDot < 0) hitShape[v] = true;
@@ -376,7 +377,7 @@ public class EntityInstance : MonoBehaviour
                 if (hit.Penetration > .5f)
                 {
                     // Find the local 2D vector corresponding to the direction of the incoming hit
-                    var localHitDirection = transform.InverseTransformDirection(hit.Direction);
+                    var localHitDirection = transform.InverseTransformDirection(hit.Direction.ToUnity());
                     var penetrationVector = normalize(float2(localHitDirection.x, localHitDirection.z));
                     // TODO: Bresenham's line algorithm
                     // March a ray through the ship from the hit position
@@ -412,7 +413,7 @@ public class EntityInstance : MonoBehaviour
                     if (gear != Entity.EquippedHull && Random.value < ZoneRenderer.Settings.LootDropProbability)
                     {
                         ZoneRenderer.DropItem(
-                            Entity.Position, 
+                            Entity.Position.ToUnity(), 
                             Random.onUnitSphere * ZoneRenderer.Settings.LootDropVelocity, 
                             gear.EquippableItem);
                     }
@@ -423,7 +424,7 @@ public class EntityInstance : MonoBehaviour
                     foreach (var item in cargo.Cargo.Keys)
                     {
                         ZoneRenderer.DropItem(
-                            Entity.Position, 
+                            Entity.Position.ToUnity(), 
                             Random.onUnitSphere * ZoneRenderer.Settings.LootDropVelocity, 
                             item);
                     }
@@ -512,12 +513,12 @@ public class EntityInstance : MonoBehaviour
 
         foreach (var x in Barrels)
         {
-            Entity.HardpointTransforms[x.Key] = (x.Value[0].position, x.Value[0].forward);
+            Entity.HardpointTransforms[x.Key] = (x.Value[0].position.ToCultMath(), x.Value[0].forward.ToCultMath());
         }
 
-        LookAtPoint.position = transform.position + (Vector3) Entity.LookDirection * 
+        LookAtPoint.position = transform.position + Entity.LookDirection.ToUnity() * 
             (Entity.Target.Value != null ? max(Entity.TargetRange,Entity.ItemManager.GameplaySettings.ConvergenceMinimumDistance) : 10000);
-        LocalSpace.localPosition = transform.position = Entity.Position;
+        LocalSpace.localPosition = transform.position = Entity.Position.ToUnity();
         if (_influenceInstance)
             _influenceInstance.position = new Vector3(Entity.Position.x, 0, Entity.Position.z);
     }

@@ -6,6 +6,7 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using CultMath;
+using CultMath.UnityBridge;
 using static CultMath.math;
 using float2 = CultMath.float2;
 
@@ -159,26 +160,26 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
         _sectorBackgroundTransform.localScale = new Vector3(_aspectRatio * _viewSize, _viewSize);
         _sectorCameraTransform.position = new Vector3(_position.x, _position.y, _sectorCameraDepth);
         SectorCamera.orthographicSize = halfSize;
-        SectorBackgroundRenderer.material.SetVector("Extents", bounds);
+        SectorBackgroundRenderer.material.SetVector("Extents", bounds.ToUnity());
     }
 
     public void OnBeginDrag(PointerEventData eventData)
     {
-        _startMousePosition = eventData.position;
+        _startMousePosition = eventData.position.ToCultMath();
         _startMapPosition = _position;
     }
 
     public void OnDrag(PointerEventData eventData)
     {
-        _position = _startMapPosition - ((float2)eventData.position - _startMousePosition) / _size.y * _viewSize;
+        _position = _startMapPosition - (eventData.position.ToCultMath() - _startMousePosition) / _size.y * _viewSize;
     }
 
     public void OnScroll(PointerEventData eventData)
     {
         var mapCenter = float2((float)Screen.width / 2, (float)Screen.height / 2);
-        var oldPointerPosition = _position + ((float2)eventData.position - mapCenter) / Screen.height * _viewSize;
+        var oldPointerPosition = _position + (eventData.position.ToCultMath() - mapCenter) / Screen.height * _viewSize;
         _viewSize = clamp(_viewSize * (1 - eventData.scrollDelta.y * ZoomSpeed), MinViewSize, MaxViewSize);
-        var pointerPosition = _position + ((float2)eventData.position - mapCenter) / Screen.height * _viewSize;
+        var pointerPosition = _position + (eventData.position.ToCultMath() - mapCenter) / Screen.height * _viewSize;
         _position += oldPointerPosition - pointerPosition;
     }
 }

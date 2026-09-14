@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 using CultMath;
+using CultMath.UnityBridge;
 using static CultMath.math;
 using Random = UnityEngine.Random;
 
@@ -76,7 +77,7 @@ public class FieldTester : MonoBehaviour
 
     private void Update()
     {
-        var move = _forceThrust ? float2(0,1) : (float2)_input.Player.Move.ReadValue<Vector2>();
+        var move = _forceThrust ? float2(0,1) : _input.Player.Move.ReadValue<Vector2>().ToCultMath();
         var turn = _input.Player.Turn.ReadValue<float>();
         if (_directionalPush)
         {

@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using CultMath;
+using CultMath.UnityBridge;
 using static CultMath.math;
 
 public class FieldDriver : MonoBehaviour
@@ -111,7 +112,7 @@ public class FieldDriver : MonoBehaviour
         {
             clickableCollider.OnClick += (_, _, ray, hit) =>
             {
-                AddHit(hit.point, ray.direction, TestMagnitude);
+                AddHit(hit.point.ToCultMath(), ray.direction.ToCultMath(), TestMagnitude);
             };
         }
         _hitBuffer = new ComputeBuffer(MaxHits, 32);
@@ -122,8 +123,8 @@ public class FieldDriver : MonoBehaviour
         if (_hits.Count >= MaxHits) return;
         var hit = new FieldHit
         {
-            Position = Vector3.Scale(normalize(transform.InverseTransformPoint(position)), transform.localScale),
-            Direction = normalize(transform.rotation * direction),
+            Position = normalize(transform.InverseTransformPoint(position.ToUnity()).ToCultMath()) * transform.localScale.ToCultMath(),
+            Direction = normalize((transform.rotation * direction.ToUnity()).ToCultMath()),
             Magnitude = magnitude,
             Time = 0
         };
@@ -232,16 +233,16 @@ public class FieldDriver : MonoBehaviour
 
             if (_grabObject != null)
             {
-                _tendrilBasePos = AetheriaMath.Damp(_tendrilBasePos, _grabObject.position, TendrilBaseDamping, Time.deltaTime);
+                _tendrilBasePos = AetheriaMath.Damp(_tendrilBasePos.ToCultMath(), _grabObject.position.ToCultMath(), TendrilBaseDamping, Time.deltaTime).ToUnity();
                 switch (_grabPhase)
                 {
                     case GrabPhase.Extend:
                         _tendrilBendTarget = _grabObjectStartPos;
                         _grabObject.position += _grabObjectVelocity * Time.deltaTime;
                         _tendrilTargetPos = lerp(
-                            lerp(_grabObjectStartTendrilBasePos, _grabObjectStartPos, _grabTime), 
-                            lerp(_grabObjectStartPos, _grabObject.position, _grabTime),
-                            pow(_grabTime, TendrilExtensionExponent));
+                            lerp(_grabObjectStartTendrilBasePos.ToCultMath(), _grabObjectStartPos.ToCultMath(), _grabTime), 
+                            lerp(_grabObjectStartPos.ToCultMath(), _grabObject.position.ToCultMath(), _grabTime),
+                            pow(_grabTime, TendrilExtensionExponent)).ToUnity();
                         _field.SetFloat("_TendrilInfluence", pow(_grabTime, TendrilExtendBaseAnimationExponent));
                         _field.SetFloat("_TendrilSize", lerp(TendrilBaseRadius/2,TendrilBaseRadius,pow(_grabTime, TendrilExtendBaseAnimationExponent)));
                         _field.SetFloat("_TendrilRadius", _grabObjectScale * pow(_grabTime, TendrilTipRadiusAnimationExponent) * TendrilTipRadius);
@@ -254,8 +255,8 @@ public class FieldDriver : MonoBehaviour
                         _field.SetFloat("_TendrilRadius", _grabObjectScale * TendrilTipRadius);
                         break;
                     case GrabPhase.Pull:
-                        _tendrilTargetPos = _grabObject.position = lerp(_grabObjectEndPos, transform.position, _grabTime*_grabTime);
-                        _tendrilBendTarget = lerp(_grabObjectStartPos, _grabObjectEndPos, _grabTime*_grabTime);
+                        _tendrilTargetPos = _grabObject.position = lerp(_grabObjectEndPos.ToCultMath(), transform.position.ToCultMath(), _grabTime*_grabTime).ToUnity();
+                        _tendrilBendTarget = lerp(_grabObjectStartPos.ToCultMath(), _grabObjectEndPos.ToCultMath(), _grabTime*_grabTime).ToUnity();
                         if (_fadePoint > .99 && transform.InverseTransformPoint(_grabObject.position).sqrMagnitude < 1)
                             _fadePoint = _grabTime;
                         _field.SetFloat("_TendrilInfluence", pow(smoothstep(1, _fadePoint, _grabTime), TendrilFadeExponent));
@@ -291,7 +292,7 @@ public class FieldDriver : MonoBehaviour
             for (int i = 1; i <= GIZMO_STEPS; i++)
             {
                 var l = (float)i / GIZMO_STEPS;
-                var next = AetheriaMath.GetQuadraticSplinePosition(_tendrilBasePos, _tendrilBendTarget, _tendrilTargetPos, l);
+                var next = AetheriaMath.GetQuadraticSplinePosition(_tendrilBasePos.ToCultMath(), _tendrilBendTarget.ToCultMath(), _tendrilTargetPos.ToCultMath(), l).ToUnity();
                 Gizmos.DrawLine(previous, next);
                 previous = next;
             }

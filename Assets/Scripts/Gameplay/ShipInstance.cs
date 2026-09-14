@@ -3,6 +3,7 @@ using System.Collections;
 using System.Linq;
 using UnityEngine;
 using CultMath;
+using CultMath.UnityBridge;
 using static CultMath.math;
 
 public class ShipInstance : EntityInstance
@@ -113,7 +114,7 @@ public class ShipInstance : EntityInstance
         base.Update();
 
         TractorBeam.Power = Entity.TractorPower;
-        TractorBeam.Direction = Entity.LookDirection;
+        TractorBeam.Direction = Entity.LookDirection.ToUnity();
 
         if (_aetherDrive != null)
         {
@@ -134,6 +135,6 @@ public class ShipInstance : EntityInstance
             emissionModule.rateOverTimeMultiplier = thrusterInstance.BaseEmission * thrusterInstance.Thruster.Axis * (item.Durability / data.Durability);
         }
 
-        transform.rotation = Ship.Rotation;
+        transform.rotation = Ship.Rotation.ToUnity();
     }
 }

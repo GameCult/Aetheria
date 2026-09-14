@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using CultMath;
+using CultMath.UnityBridge;
 using static CultMath.math;
 using UnityEngine;
 
@@ -72,7 +73,7 @@ public class ShieldManager : MonoBehaviour
     public void ShowHit(Vector3 point, float duration)
     {
         var shield = ShieldPrototype.Instantiate<ShieldAnimation>();
-        shield.Direction = normalize(shield.transform.InverseTransformPoint(point));
+        shield.Direction = normalize(shield.transform.InverseTransformPoint(point).ToCultMath()).ToUnity();
         shield.Duration = duration;
     }
 }

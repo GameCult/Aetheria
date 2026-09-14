@@ -20,6 +20,7 @@ using UnityEngine.Rendering.PostProcessing;
 using UnityEngine.Serialization;
 using UnityEngine.UI;
 using CultMath;
+using CultMath.UnityBridge;
 using UnityEngine.EventSystems;
 using static CultMath.math;
 using float2 = CultMath.float2;
@@ -1140,7 +1141,7 @@ public class ActionGameManager : MonoBehaviour
                 foreach (var indicator in _visibleHostileIndicators)
                 {
                     indicator.Value.gameObject.SetActive(indicator.Key!=CurrentEntity.Target.Value);
-                    indicator.Value.Place.Target = indicator.Key.Position;
+                    indicator.Value.Place.Target = indicator.Key.Position.ToUnity();
                     if (!indicator.Key.Active)
                         indicator.Value.Fill.enabled = false;
                     else
@@ -1155,7 +1156,7 @@ public class ActionGameManager : MonoBehaviour
                 foreach (var indicator in _visibleFriendlyIndicators)
                 {
                     indicator.Value.gameObject.SetActive(indicator.Key!=CurrentEntity.Target.Value);
-                    indicator.Value.Place.Target = indicator.Key.Position;
+                    indicator.Value.Place.Target = indicator.Key.Position.ToUnity();
                     if (!indicator.Key.Active)
                         indicator.Value.Fill.enabled = false;
                     else
@@ -1177,7 +1178,7 @@ public class ActionGameManager : MonoBehaviour
                 
                 if(CurrentEntity is Ship ship)
                 {
-                    ship.MovementDirection = Input.Player.Move.ReadValue<Vector2>();
+                    ship.MovementDirection = Input.Player.Move.ReadValue<Vector2>().ToCultMath();
                 }
 
                 var target = CurrentEntity.Target.Value;
@@ -1209,8 +1210,8 @@ public class ActionGameManager : MonoBehaviour
 
         ViewDot.Target = ZoneRenderer.EntityInstances[CurrentEntity].LookAtPoint.position;
         if (CurrentEntity.Target.Value != null)
-            TargetIndicator.Target = CurrentEntity.Target.Value.Position;
-        var distance = length((float3)ViewDot.Target - CurrentEntity.Position);
+            TargetIndicator.Target = CurrentEntity.Target.Value.Position.ToUnity();
+        var distance = length(ViewDot.Target.ToCultMath() - CurrentEntity.Position);
         foreach (var (_, barrels, crosshair) in _articulationGroups)
         {
             var averagePosition = Vector3.zero;
@@ -1226,7 +1227,7 @@ public class ActionGameManager : MonoBehaviour
             indicator.gameObject.SetActive(showLockingIndicator);
             if(showLockingIndicator)
             {
-                indicator.Target = CurrentEntity.Target.Value.Position;
+                indicator.Target = CurrentEntity.Target.Value.Position.ToUnity();
                 indicator.NoiseAmplitude = Settings.GameplaySettings.LockIndicatorNoiseAmplitude * (1 - targetLock.Lock);
                 indicator.NoiseFrequency = Settings.GameplaySettings.LockIndicatorFrequency.Evaluate(targetLock.Lock);
                 spin.Speed = Settings.GameplaySettings.LockSpinSpeed.Evaluate(targetLock.Lock);

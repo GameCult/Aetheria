@@ -13,6 +13,7 @@ using UnityEngine.Serialization;
 using Object = UnityEngine.Object;
 using Random = UnityEngine.Random;
 using CultMath;
+using CultMath.UnityBridge;
 using static CultMath.math;
 using float2 = CultMath.float2;
 
@@ -512,7 +513,7 @@ public class ZoneRenderer : MonoBehaviour
 
         foreach (var wormhole in WormholeInstances.Values)
         {
-            var difference = wormhole.gravity.transform.position.Flatland() - (Vector2)PerspectiveEntity.Position.xz;
+            var difference = wormhole.gravity.transform.position.Flatland() - PerspectiveEntity.Position.xz.ToUnity();
             var distance = difference.magnitude;
             wormhole.icon.gameObject.SetActive(distance > _minimapDistance);
             wormhole.icon.transform.rotation = Quaternion.Euler(0, 0, Mathf.Atan2(difference.y, difference.x) * Mathf.Rad2Deg - 90);
