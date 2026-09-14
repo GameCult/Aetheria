@@ -1,7 +1,7 @@
 <Project>
   <Target Name="VerifyCultLibRevision"
           BeforeTargets="ResolveProjectReferences"
-          Condition="'$(SkipCultLibRevisionCheck)' != 'true'">
+          Condition="'$(SkipCultLibRevisionCheck)' != 'true' and '@(ProjectReference->AnyHaveMetadataValue('Identity', '$(CultLibRoot)\packages\cultmath\src\CultMath\CultMath.csproj'))' == 'true'">
     <Error Condition="!Exists('$(CultLibRoot)\packages\cultmath\src\CultMath\CultMath.csproj')"
            Text="CultLibRoot '$(CultLibRoot)' does not contain the required CultMath project." />
     <Exec Command="&quot;$(GitExecutable)&quot; -C &quot;$(CultLibRoot)&quot; rev-parse HEAD"
