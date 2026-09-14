@@ -1,5 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- Inspects and edits GameData/AetherDB.msgpack through the headless Aetheria.Shared build of ServerShared.
+  <!-- Inspects and edits GameData/Aetheria.cc through the headless Aetheria.Shared build of ServerShared.
        A real project rather than file-based scripts on purpose: running a loose script file caches a build per
        script and does not rebuild when the referenced project changes, so scripts ran against stale schemas. -->
   <PropertyGroup>
