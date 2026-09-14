@@ -42,6 +42,8 @@ public class ActionGameManager : MonoBehaviour
 
     private static CultCache _cultCache;
 
+    private static string CatalogPath => Path.Combine(GameDataDirectory.FullName, "Aetheria.cc");
+
     public static CultCache CultCache
     {
         get
@@ -50,12 +52,11 @@ public class ActionGameManager : MonoBehaviour
 
             // All three stores attach once and stay attached until the process exits. The run lifecycle is record-level
             // inside this cache; reopening would replace the catalog instances the galaxy and live entities hold.
-            // The editor opens the catalog writable so the capturepreset console command can author presets in play.
+            // The catalog is read-only in every build; capturepreset writes through its own cache (Loadouts.Commit).
             _cultCache = AetheriaStores.Open(
-                Path.Combine(GameDataDirectory.FullName, "Aetheria.cc"),
+                CatalogPath,
                 runPath: Path.Combine(GameDataDirectory.FullName, "run.cc"),
-                playerPath: Path.Combine(GameDataDirectory.FullName, "player.cc"),
-                catalogWritable: Application.isEditor);
+                playerPath: Path.Combine(GameDataDirectory.FullName, "player.cc"));
 
             return _cultCache;
         }
@@ -546,18 +547,27 @@ public class ActionGameManager : MonoBehaviour
         //Temporary, or not
         ConsoleController.AddCommand("tow", _ => TowShip());
 
-        // Editor only: capturepreset "<name>" [replace] writes the piloted ship as a catalog preset.
+        // Editor only: capturepreset "<name>" [replace] writes the piloted ship as a catalog preset. A multi-word name must
+        // be quoted; any other second argument than replace is refused rather than dropped.
         if (Application.isEditor)
             ConsoleController.AddCommand("capturepreset", args =>
             {
                 var console = ConsoleController.Instance;
                 var name = args.Length > 0 ? args[0] : "";
-                if (string.IsNullOrWhiteSpace(name)) { console.AppendLogLine("usage: capturepreset \"<name>\" [replace]"); return; }
+                var replace = args.Length == 2 && args[1] == "replace";
+                if (string.IsNullOrWhiteSpace(name) || args.Length > 2 || args.Length == 2 && !replace)
+                {
+                    console.AppendLogLine("usage: capturepreset \"<name>\" [replace] (quote a name with spaces)");
+                    return;
+                }
                 if (!(_currentEntity is Ship ship)) { console.AppendLogLine("capturepreset: pilot a ship first"); return; }
                 try
                 {
-                    var written = Loadouts.Commit(CultCache, Loadouts.Capture(ItemManager, ship, name), args.Length > 1 && args[1] == "replace");
-                    console.AppendLogLine(written ? $"Preset '{name}' written to the catalog" : $"Preset '{name}' changed on disk since load; nothing written");
+                    var written = Loadouts.Commit(CatalogPath, Loadouts.Capture(ItemManager, ship, name), replace);
+                    console.AppendLogLine(written
+                        ? $"Preset '{name}' written to {CatalogPath}. This session sees it after the catalog reloads (next launch). " +
+                          "Reopen CultCache Studio before saving there: a Studio session opened earlier overwrites captured presets."
+                        : $"Preset '{name}' changed on disk since load; nothing written");
                 }
                 catch (InvalidOperationException e)
                 {

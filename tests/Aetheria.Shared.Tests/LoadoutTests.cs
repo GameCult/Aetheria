@@ -46,11 +46,8 @@ public sealed class LoadoutTests : IDisposable
 
     public void Dispose() => Directory.Delete(_root, true);
 
-    // The game's shape: a read-only catalog with the run and player stores.
+    // The game's shape in every build, the editor included: a read-only catalog with the run and player stores.
     private CultCache Open() => AetheriaStores.Open(Catalog, Run, Player);
-
-    // The editor's shape: the catalog writable, as the capture command sees it.
-    private CultCache OpenAuthoring() => AetheriaStores.Open(Catalog, Run, Player, catalogWritable: true);
 
     // Gear on the hull's hardpoint cell, cargo on an interior cell, and two empty weapon groups (fewer than the game's six).
     private static Loadout HandBuilt(CultCache cache, string name = "Skiff build") => new Loadout
@@ -85,7 +82,7 @@ public sealed class LoadoutTests : IDisposable
     public void CapturedPresetRoundTripsThroughTheCatalog()
     {
         Loadout hand;
-        using (var cache = OpenAuthoring())
+        using (var cache = Open())
         {
             var items = new ItemManager(cache, RunSaveTests.TestSettings(), _ => { });
             hand = Armed(cache);
@@ -93,7 +90,7 @@ public sealed class LoadoutTests : IDisposable
             var ship = Build(items, hand, failures);
             Assert.Empty(failures);
             Assert.NotNull(ship);
-            Assert.True(Loadouts.Commit(cache, Loadouts.Capture(items, ship, hand.Name), replace: false));
+            Assert.True(Loadouts.Commit(Catalog, Loadouts.Capture(items, ship, hand.Name), replace: false));
         }
 
         using (var cache = Open())
@@ -123,31 +120,30 @@ public sealed class LoadoutTests : IDisposable
     [Fact]
     public void SameNameCaptureReplacesOnlyWhenAsked()
     {
-        using (var cache = OpenAuthoring())
+        using (var cache = Open())
         {
-            Assert.True(Loadouts.Commit(cache, HandBuilt(cache), replace: false));
+            Assert.True(Loadouts.Commit(Catalog, HandBuilt(cache), replace: false));
             var before = Hash(Catalog);
-            var error = Assert.Throws<InvalidOperationException>(() => Loadouts.Commit(cache, Armed(cache, "Skiff build"), replace: false));
+            var error = Assert.Throws<InvalidOperationException>(() => Loadouts.Commit(Catalog, Armed(cache, "Skiff build"), replace: false));
             Assert.Contains("Skiff build", error.Message);
             Assert.Equal(before, Hash(Catalog));
-            Assert.Equal(2, Assert.Single(cache.GetAll<Loadout>()).WeaponGroups.Length);
 
-            Assert.True(Loadouts.Commit(cache, Armed(cache, "Skiff build"), replace: true));
-            Assert.Equal(6, Assert.Single(cache.GetAll<Loadout>()).WeaponGroups.Length);
+            Assert.True(Loadouts.Commit(Catalog, Armed(cache, "Skiff build"), replace: true));
         }
 
         using (var cache = Open())
             Assert.Equal(6, Assert.Single(cache.GetAll<Loadout>()).WeaponGroups.Length);
     }
 
-    // The editor's catalog is writable while play mutates live catalog instances; a preset commit must land only itself.
+    // Play mutates live catalog instances; a preset commit must land only itself.
     [Fact]
     public void PresetCommitWritesNoOtherInMemoryCatalogState()
     {
-        using (var cache = OpenAuthoring())
+        using (var cache = Open())
         {
             cache.GetByName<Faction>("Maker").ShortName = "XXX";
-            Assert.True(Loadouts.Commit(cache, HandBuilt(cache), replace: false));
+            Assert.True(Loadouts.Commit(Catalog, HandBuilt(cache), replace: false));
+            cache.FlushAsync().Wait();
         }
 
         using (var cache = Open())
@@ -155,6 +151,61 @@ public sealed class LoadoutTests : IDisposable
             Assert.Equal("MKR", cache.GetByName<Faction>("Maker").ShortName);
             Assert.Single(cache.GetAll<Loadout>());
         }
+    }
+
+    // The process cache holds the catalog read-only while capture writes through its own cache: the capture lands, and
+    // the process cache keeps its instances, gains nothing and stays clean until it reloads.
+    [Fact]
+    public void CaptureWhileTheCatalogIsHeldReadOnlyLeavesTheProcessCacheUnchanged()
+    {
+        using (var cache = Open())
+        {
+            var maker = cache.GetByName<Faction>("Maker");
+            Assert.True(Loadouts.Commit(Catalog, HandBuilt(cache), replace: false));
+            Assert.Empty(cache.GetAll<Loadout>());
+            Assert.Same(maker, cache.GetByName<Faction>("Maker"));
+            Assert.False(cache.IsDirty);
+            Assert.Throws<InvalidOperationException>(() => cache.Upsert(new Faction { Name = "Usurper" }));
+        }
+
+        using (var cache = Open())
+            Assert.Equal("Skiff build", Assert.Single(cache.GetAll<Loadout>()).Name);
+    }
+
+    // Capture never creates a catalog: a missing file refuses, and no file or directory appears.
+    [Fact]
+    public void CaptureWithAMissingCatalogRefusesAndCreatesNothing()
+    {
+        var absent = Path.Combine(_root, "absent", "Aetheria.cc");
+        using var cache = Open();
+        var error = Assert.Throws<InvalidOperationException>(() => Loadouts.Commit(absent, HandBuilt(cache), replace: false));
+        Assert.Contains("does not exist", error.Message);
+        Assert.False(Directory.Exists(Path.GetDirectoryName(absent)));
+    }
+
+    // A preset authored in Studio has a minted key; capturing its name refuses, replace or not, and names that key.
+    [Fact]
+    public void SameNameUnderAnotherKeyRefuses()
+    {
+        using (var writer = AetheriaStores.Open(Catalog, catalogWritable: true))
+        {
+            writer.Upsert(HandBuilt(writer));
+            writer.FlushAsync().Wait();
+        }
+        var before = Hash(Catalog);
+
+        using (var cache = Open())
+        {
+            var studioKey = cache.RefOf(Assert.Single(cache.GetAll<Loadout>())).Key;
+            Assert.NotEqual(Loadouts.KeyOf("Skiff build"), studioKey);
+            foreach (var replace in new[] { false, true })
+            {
+                var error = Assert.Throws<InvalidOperationException>(() => Loadouts.Commit(Catalog, Armed(cache, "Skiff build"), replace));
+                Assert.Contains(studioKey.Value, error.Message);
+            }
+        }
+
+        Assert.Equal(before, Hash(Catalog));
     }
 
     [Fact]
@@ -182,8 +233,8 @@ public sealed class LoadoutTests : IDisposable
                     pending.Enqueue(field.FieldType);
         }
 
-        using (var cache = OpenAuthoring())
-            Loadouts.Commit(cache, HandBuilt(cache), replace: false);
+        using (var cache = Open())
+            Assert.True(Loadouts.Commit(Catalog, HandBuilt(cache), replace: false));
         Assert.Contains("aetheria.loadout", SchemaNames(Catalog));
         Assert.True(!File.Exists(Run) || SchemaNames(Run).Length == 0);
         Assert.True(!File.Exists(Player) || SchemaNames(Player).Length == 0);

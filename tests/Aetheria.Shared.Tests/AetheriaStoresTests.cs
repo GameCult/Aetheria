@@ -136,6 +136,18 @@ public sealed class AetheriaStoresTests : IDisposable
         Assert.Contains("aetheria.tests.catalogglobal", error.Message);
     }
 
+    // The game opens the catalog read-only with its run and player stores, in the editor as in a build: a populated
+    // catalog missing a global refuses to open.
+    [Fact]
+    public void GameShapedOpenMissingGlobalIsLoud()
+    {
+        using (var cache = AetheriaStores.Open(Catalog, catalogWritable: true))
+            Assert.True(cache.Commit(batch => batch.Remove(cache.RefOf(cache.GetGlobal<TestCatalogGlobal>()).Key)));
+
+        var error = Assert.Throws<InvalidOperationException>(() => AetheriaStores.Open(Catalog, Run, Player));
+        Assert.Contains("aetheria.tests.catalogglobal", error.Message);
+    }
+
     private static string Hash(string path) => Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path)));
 
     private static string[] SchemaNames(string path)

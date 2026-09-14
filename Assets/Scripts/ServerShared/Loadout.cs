@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using GameCult.Caching;
 using MessagePack;
@@ -60,13 +61,21 @@ public static class Loadouts
     // A preset's key derives from its name, so capturing the same name again addresses the same record.
     public static CultRecordKey KeyOf(string name) => new CultRecordKey("loadout:" + name);
 
-    // Writes the preset to the catalog under KeyOf(Name). An existing preset of that name is replaced only when replace
-    // is set; otherwise this throws and writes nothing. The commit is conditional on the record at that key being what
-    // this cache holds, so it lands only this record onto the catalog file as it is on disk: no other in-memory catalog
-    // state is written, and a preset changed on disk since load (Studio) is not clobbered. Returns false on that conflict.
-    public static bool Commit(CultCache cache, Loadout loadout, bool replace)
+    // The only writer of presets. It opens its own short-lived cache over the catalog file, writable, and disposes it
+    // after the one commit. No other cache is touched, so no catalog instance play holds (or has mutated) can reach the
+    // file; a cache that already has the catalog open sees the preset only once it reloads.
+    // Throws and writes nothing when the file is missing (capture never creates a catalog), when a preset of this name
+    // exists under another key, or when one exists under KeyOf(Name) and replace is not set. The commit is conditional
+    // on the record at KeyOf(Name), so a preset changed on disk since this open is not clobbered: returns false then.
+    public static bool Commit(string catalogPath, Loadout loadout, bool replace)
     {
+        if (!File.Exists(catalogPath))
+            throw new InvalidOperationException($"Catalog {catalogPath} does not exist; a preset capture never creates one.");
+        using var cache = AetheriaStores.Open(catalogPath, catalogWritable: true);
         var key = KeyOf(loadout.Name);
+        var namesake = cache.GetAll<Loadout>().FirstOrDefault(other => other.Name == loadout.Name && !cache.RefOf(other).Key.Equals(key));
+        if (namesake != null)
+            throw new InvalidOperationException($"Preset '{loadout.Name}' already exists under key {cache.RefOf(namesake).Key}; rename or remove it first.");
         var existing = cache.Get<Loadout>(key);
         if (existing != null && !replace)
             throw new InvalidOperationException($"Preset '{loadout.Name}' already exists; replace it explicitly.");
@@ -80,9 +89,9 @@ public static class Loadouts
     // All-or-nothing: returns a ship only when every design resolved, had an available product and fitted, the loadout
     // has at most WeaponGroupCount weapon groups, and every group index names a weapon slot. Every failure is listed; on
     // any failure nothing is returned and the zone and cache are unchanged, but a failed fit has already drawn from
-    // itemManager.Random. A design is built by its first available product in record-key order. The game passes
-    // LoadoutGenerator.IsAvailable as isAvailable, with no fallback to any manufacturer. The ship always gets exactly
-    // WeaponGroupCount groups; a loadout with fewer is padded with empty groups.
+    // itemManager.Random. A design is built by its first available product in record-key order. A game spawner is to
+    // pass LoadoutGenerator.IsAvailable as isAvailable, with no fallback to any manufacturer. The ship always gets
+    // exactly WeaponGroupCount groups; a loadout with fewer is padded with empty groups.
     public static Ship Materialize(ItemManager itemManager, Zone liveZone, Loadout loadout,
         Predicate<FactionProductData> isAvailable, List<string> failures)
     {
