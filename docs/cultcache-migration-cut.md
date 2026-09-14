@@ -100,13 +100,28 @@ recorded, none blocking:
   after the operator redefined loadouts; see Rulings.
   - They are design-only.
   - They are captured in the editor with `capturepreset "<name>" [replace]`.
-    Capture is a conditional commit that writes only that record onto the file
-    on disk, so play-mutated catalog objects never persist.
+  - Capture goes through `Loadouts.Commit(catalogPath, …)`, the only preset
+    writer. It opens its own short-lived writable cache and commits the one
+    record conditionally.
+  - The process cache keeps the catalog read-only in every build, so
+    play-mutated catalog objects cannot persist, and a missing global stays loud.
+    This is legal because read-only single-file stores take no lock.
+  - Capture refuses when the catalog file is missing, and when the same name
+    already exists under another key.
+  - The console now refuses, instead of stripping, any command with characters
+    outside `[a-zA-Z0-9 -]`. This applies to every console command.
   - Materialize owns availability (a port wired to `LoadoutGenerator.IsAvailable`,
     candidates in key order) and is all-or-nothing.
   - The player menus, affordability, the charge and `Price` are deleted.
-  - The editor opens the catalog writable. A missing catalog global stays loud
-    unless the writable catalog has no records.
+  - Known gaps, accepted for a dev tool:
+    - No test reaches the conditional commit's `Expect`: the race window lies
+      inside one call.
+    - A Studio save landing between the name check and the lock could still
+      insert a duplicate name.
+  - CultLib follow-up: a CultCache Studio session that is open while a preset is
+    captured overwrites the preset on its next Save (single-file last-writer-wins).
+    The Studio should detect an on-disk change before saving. Until then, reopen
+    the Studio after capturing.
 - `StableHash` replaces `Name.GetHashCode()`.
 - The schematic drawer is restored through `inspector.Record`.
 - `TryUnequip` now removes weapons from their groups. This was a live bug
@@ -131,7 +146,9 @@ history, so history is left alone.
 Awaiting:
 - the operator play smoke;
 - the Studio click-through, including the three AmmoType refs;
-- the Soul pass on the preset rework (`db83cd29`, `0c44aacb`, `ab4ced0f`).
+- nothing else from agents. The preset rework's Soul findings were fixed in
+  `d503f076`, `d90a65a9` and `20f0f3d7`: 29 tests, 18 of 19 mutations caught
+  (the survivor is the one noted above), and Unity batchmode reports 0 errors.
 
 Presets are not yet used by any spawner. The candidates are enemy ships
 (`ZoneGenerator.cs:309`) and the starting player ship
