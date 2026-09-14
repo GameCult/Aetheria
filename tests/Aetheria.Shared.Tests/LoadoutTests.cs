@@ -8,7 +8,7 @@ using GameCult.Caching;
 using GameCult.Caching.MessagePack;
 using Xunit;
 
-// Loadouts hold only item designs, live in the player store, and materialize all-or-nothing against the catalog.
+// Loadouts are ship presets: item designs only, authored into the catalog, materialized all-or-nothing against it.
 // The fixture hull is 3x3: InteriorCells is Shape.Shrink(), so a 2x2 hull has no interior cell a cargo bay could use.
 public sealed class LoadoutTests : IDisposable
 {
@@ -46,7 +46,11 @@ public sealed class LoadoutTests : IDisposable
 
     public void Dispose() => Directory.Delete(_root, true);
 
+    // The game's shape: a read-only catalog with the run and player stores.
     private CultCache Open() => AetheriaStores.Open(Catalog, Run, Player);
+
+    // The editor's shape: the catalog writable, as the capture command sees it.
+    private CultCache OpenAuthoring() => AetheriaStores.Open(Catalog, Run, Player, catalogWritable: true);
 
     // Gear on the hull's hardpoint cell, cargo on an interior cell, and two empty weapon groups (fewer than the game's six).
     private static Loadout HandBuilt(CultCache cache, string name = "Skiff build") => new Loadout
@@ -62,9 +66,9 @@ public sealed class LoadoutTests : IDisposable
     };
 
     // HandBuilt with the Gun on the hardpoint, alone in the first of the game's six weapon groups.
-    private static Loadout Armed(CultCache cache)
+    private static Loadout Armed(CultCache cache, string name = "Armed build")
     {
-        var armed = HandBuilt(cache, "Armed build");
+        var armed = HandBuilt(cache, name);
         armed.Slots[0].Design = cache.RefOf<EquippableItemData>(cache.GetByName<GearData>("Gun"));
         armed.WeaponGroups = Enumerable.Range(0, 6).Select(g => g == 0 ? new[] { 0 } : new int[0]).ToArray();
         return armed;
@@ -76,33 +80,34 @@ public sealed class LoadoutTests : IDisposable
         return loadout;
     }
 
+    // Capture from a built ship, commit to the catalog, reopen fresh read-only: the preset and the ship it builds match.
     [Fact]
-    public void LoadoutRoundTripsThroughAFreshCache()
+    public void CapturedPresetRoundTripsThroughTheCatalog()
     {
         Loadout hand;
-        using (var cache = Open())
+        using (var cache = OpenAuthoring())
         {
             var items = new ItemManager(cache, RunSaveTests.TestSettings(), _ => { });
             hand = Armed(cache);
             var failures = new List<string>();
-            var ship = Build(items,hand, failures);
+            var ship = Build(items, hand, failures);
             Assert.Empty(failures);
             Assert.NotNull(ship);
-            Loadouts.Save(cache, Loadouts.Capture(items, ship, hand.Name));
-            Loadouts.Save(cache, Loadouts.Capture(items, ship, hand.Name));
+            Assert.True(Loadouts.Commit(cache, Loadouts.Capture(items, ship, hand.Name), replace: false));
         }
 
         using (var cache = Open())
         {
-            Assert.Single(cache.GetAll<Loadout>());
-            var loaded = cache.GetByName<Loadout>(hand.Name);
+            var loaded = Assert.Single(cache.GetAll<Loadout>());
+            Assert.Equal(Loadouts.KeyOf(hand.Name), cache.RefOf(loaded).Key);
+            Assert.Equal(hand.Name, loaded.Name);
             Assert.Equal(hand.Hull.Key, loaded.Hull.Key);
             Assert.Equal(hand.Slots.Select(Describe), loaded.Slots.Select(Describe));
             Assert.Equal(hand.WeaponGroups, loaded.WeaponGroups);
 
             var items = new ItemManager(cache, RunSaveTests.TestSettings(), _ => { });
             var failures = new List<string>();
-            var ship = Build(items,loaded, failures);
+            var ship = Build(items, loaded, failures);
             Assert.Empty(failures);
             Assert.Equal(hand.Slots.Select(slot => (slot.Position, slot.Design.Key)),
                 ship.Equipment.Concat<EquippedItem>(ship.CargoBays)
@@ -110,7 +115,46 @@ public sealed class LoadoutTests : IDisposable
                     .Select(item => (item.Position, cache.RefOf(items.GetData(item.EquippableItem)).Key)));
         }
 
-        Assert.Single(SchemaNames(Player), name => name == "aetheria.loadout");
+        Assert.Single(SchemaNames(Catalog), name => name == "aetheria.loadout");
+        Assert.True(!File.Exists(Player) || !SchemaNames(Player).Contains("aetheria.loadout"));
+    }
+
+    // Recapturing a name refuses without replace and leaves the file untouched; with replace it replaces, never duplicates.
+    [Fact]
+    public void SameNameCaptureReplacesOnlyWhenAsked()
+    {
+        using (var cache = OpenAuthoring())
+        {
+            Assert.True(Loadouts.Commit(cache, HandBuilt(cache), replace: false));
+            var before = Hash(Catalog);
+            var error = Assert.Throws<InvalidOperationException>(() => Loadouts.Commit(cache, Armed(cache, "Skiff build"), replace: false));
+            Assert.Contains("Skiff build", error.Message);
+            Assert.Equal(before, Hash(Catalog));
+            Assert.Equal(2, Assert.Single(cache.GetAll<Loadout>()).WeaponGroups.Length);
+
+            Assert.True(Loadouts.Commit(cache, Armed(cache, "Skiff build"), replace: true));
+            Assert.Equal(6, Assert.Single(cache.GetAll<Loadout>()).WeaponGroups.Length);
+        }
+
+        using (var cache = Open())
+            Assert.Equal(6, Assert.Single(cache.GetAll<Loadout>()).WeaponGroups.Length);
+    }
+
+    // The editor's catalog is writable while play mutates live catalog instances; a preset commit must land only itself.
+    [Fact]
+    public void PresetCommitWritesNoOtherInMemoryCatalogState()
+    {
+        using (var cache = OpenAuthoring())
+        {
+            cache.GetByName<Faction>("Maker").ShortName = "XXX";
+            Assert.True(Loadouts.Commit(cache, HandBuilt(cache), replace: false));
+        }
+
+        using (var cache = Open())
+        {
+            Assert.Equal("MKR", cache.GetByName<Faction>("Maker").ShortName);
+            Assert.Single(cache.GetAll<Loadout>());
+        }
     }
 
     [Fact]
@@ -138,10 +182,11 @@ public sealed class LoadoutTests : IDisposable
                     pending.Enqueue(field.FieldType);
         }
 
-        using (var cache = Open())
-            Loadouts.Save(cache, HandBuilt(cache));
-        Assert.Contains("aetheria.loadout", SchemaNames(Player));
+        using (var cache = OpenAuthoring())
+            Loadouts.Commit(cache, HandBuilt(cache), replace: false);
+        Assert.Contains("aetheria.loadout", SchemaNames(Catalog));
         Assert.True(!File.Exists(Run) || SchemaNames(Run).Length == 0);
+        Assert.True(!File.Exists(Player) || SchemaNames(Player).Length == 0);
     }
 
     [Fact]
@@ -157,14 +202,14 @@ public sealed class LoadoutTests : IDisposable
             var missing = HandBuilt(cache);
             missing.Slots[1].Design = new CultRecordRef<EquippableItemData>(new CultRecordKey("absent-design"));
             var failures = new List<string>();
-            Assert.Null(Build(items,missing, failures));
+            Assert.Null(Build(items, missing, failures));
             var failure = Assert.Single(failures);
             Assert.Contains("1,1", failure);
             Assert.Contains("absent-design", failure);
 
             missing.Slots.Add(new LoadoutSlot { Position = new int2(2, 2), Design = cache.RefOf<EquippableItemData>(cache.GetByName<GearData>("Orphan")) });
             failures.Clear();
-            Assert.Null(Build(items,missing, failures));
+            Assert.Null(Build(items, missing, failures));
             Assert.Equal(2, failures.Count);
             Assert.Contains("slot 1,1", failures[0]);
             Assert.Contains("slot 2,2", failures[1]);
@@ -175,30 +220,16 @@ public sealed class LoadoutTests : IDisposable
     }
 
     [Fact]
-    public void FailedFitBuildsNothingAndChargesNothing()
+    public void FailedFitBuildsNothing()
     {
         using var cache = Open();
         var items = new ItemManager(cache, RunSaveTests.TestSettings(), _ => { });
         var clash = HandBuilt(cache);
         clash.Slots[1].Position = HardpointCell;
         var failures = new List<string>();
-        var credits = 1000;
-        Assert.Null(Loadouts.Materialize(items, null, clash, _ => true, ref credits, failures));
-        Assert.Equal(1000, credits);
+        Assert.Null(Build(items, clash, failures));
         var failure = Assert.Single(failures);
         Assert.Contains("slot 0,0: Crate does not fit", failure);
-    }
-
-    [Fact]
-    public void PriceIsTheSumOfDesignPricesAndIsCharged()
-    {
-        using var cache = Open();
-        var items = new ItemManager(cache, RunSaveTests.TestSettings(), _ => { });
-        var hand = HandBuilt(cache);
-        Assert.Equal(100 + 10 + 5, Loadouts.Price(items, hand));
-        var credits = 1000;
-        Assert.NotNull(Loadouts.Materialize(items, null, hand, _ => true, ref credits, new List<string>()));
-        Assert.Equal(1000 - 115, credits);
     }
 
     // Two more Lamp products, upserted into the live cache so its enumeration order (z before a) disagrees with
@@ -217,8 +248,7 @@ public sealed class LoadoutTests : IDisposable
         var hand = HandBuilt(cache);
         string LampProduct(Predicate<FactionProductData> available, List<string> failures)
         {
-            var credits = 1000;
-            var ship = Loadouts.Materialize(items, null, hand, available, ref credits, failures);
+            var ship = Loadouts.Materialize(items, null, hand, available, failures);
             return ship == null ? null : cache.Get(ship.Equipment.Single(item => item.EquippableItem != ship.Hull && item.Position.Equals(HardpointCell)).EquippableItem.Product).Name;
         }
 
@@ -238,23 +268,8 @@ public sealed class LoadoutTests : IDisposable
         var stale = Armed(cache);
         stale.WeaponGroups = new[] { new[] { 0, 2 }, new[] { -1 } };
         var failures = new List<string>();
-        var credits = 1000;
-        Assert.Null(Loadouts.Materialize(items, null, stale, _ => true, ref credits, failures));
-        Assert.Equal(1000, credits);
+        Assert.Null(Build(items, stale, failures));
         Assert.Equal(new[] { "weapon group: no slot 2", "weapon group: no slot -1" }, failures);
-    }
-
-    [Fact]
-    public void OneCreditShortBuildsNothing()
-    {
-        using var cache = Open();
-        var items = new ItemManager(cache, RunSaveTests.TestSettings(), _ => { });
-        var hand = HandBuilt(cache);
-        var failures = new List<string>();
-        var credits = (int) Loadouts.Price(items, hand) - 1;
-        Assert.Null(Loadouts.Materialize(items, null, hand, _ => true, ref credits, failures));
-        Assert.Equal(114, credits);
-        Assert.Equal("cannot afford 115 credits", Assert.Single(failures));
     }
 
     [Fact]
@@ -279,9 +294,7 @@ public sealed class LoadoutTests : IDisposable
         var items = new ItemManager(cache, RunSaveTests.TestSettings(), _ => { });
         var lampGrouped = WithDesign(Armed(cache), 0, cache, "Lamp");
         var failures = new List<string>();
-        var credits = 1000;
-        Assert.Null(Loadouts.Materialize(items, null, lampGrouped, _ => true, ref credits, failures));
-        Assert.Equal(1000, credits);
+        Assert.Null(Build(items, lampGrouped, failures));
         Assert.Equal("weapon group: slot 0,0: Lamp is not a weapon", Assert.Single(failures));
     }
 
@@ -293,9 +306,7 @@ public sealed class LoadoutTests : IDisposable
         var wide = Armed(cache);
         wide.WeaponGroups = wide.WeaponGroups.Append(new[] { 0 }).ToArray();
         var failures = new List<string>();
-        var credits = 1000;
-        Assert.Null(Loadouts.Materialize(items, null, wide, _ => true, ref credits, failures));
-        Assert.Equal(1000, credits);
+        Assert.Null(Build(items, wide, failures));
         Assert.Equal("weapon groups: 7 groups, at most 6", Assert.Single(failures));
     }
 
@@ -321,30 +332,9 @@ public sealed class LoadoutTests : IDisposable
         }
     }
 
-    // The slots alone sum to exactly int.MaxValue; adding the hull must not wrap the total negative and pay the player.
-    [Fact]
-    public void PriceBeyondIntIsUnaffordable()
-    {
-        using var cache = AetheriaStores.Open(Catalog, catalogWritable: true);
-        var brick = cache.Upsert(new GearData { Name = "Brick", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Price = int.MaxValue - 5 });
-        cache.Upsert(new FactionProductData { Name = "Brick by Maker", Design = new CultRecordRef<CraftedItemData>(brick.Key), Manufacturer = cache.RefOf(cache.GetByName<Faction>("Maker")) });
-
-        var items = new ItemManager(cache, RunSaveTests.TestSettings(), _ => { });
-        var gold = WithDesign(HandBuilt(cache), 0, cache, "Brick");
-        Assert.Equal(100L + int.MaxValue, Loadouts.Price(items, gold));
-        var failures = new List<string>();
-        var credits = int.MaxValue;
-        Assert.Null(Loadouts.Materialize(items, null, gold, _ => true, ref credits, failures));
-        Assert.Equal(int.MaxValue, credits);
-        Assert.StartsWith("cannot afford", Assert.Single(failures));
-    }
-
-    // Everything available and affordable: for tests about placement and failure lists.
-    private static Ship Build(ItemManager items, Loadout loadout, List<string> failures)
-    {
-        var credits = int.MaxValue;
-        return Loadouts.Materialize(items, null, loadout, _ => true, ref credits, failures);
-    }
+    // Everything available: for tests about placement and failure lists.
+    private static Ship Build(ItemManager items, Loadout loadout, List<string> failures) =>
+        Loadouts.Materialize(items, null, loadout, _ => true, failures);
 
     private static (int2, ItemRotation, CultRecordKey) Describe(LoadoutSlot slot) => (slot.Position, slot.Rotation, slot.Design.Key);
 

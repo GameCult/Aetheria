@@ -50,10 +50,12 @@ public class ActionGameManager : MonoBehaviour
 
             // All three stores attach once and stay attached until the process exits. The run lifecycle is record-level
             // inside this cache; reopening would replace the catalog instances the galaxy and live entities hold.
+            // The editor opens the catalog writable so the capturepreset console command can author presets in play.
             _cultCache = AetheriaStores.Open(
                 Path.Combine(GameDataDirectory.FullName, "Aetheria.cc"),
                 runPath: Path.Combine(GameDataDirectory.FullName, "run.cc"),
-                playerPath: Path.Combine(GameDataDirectory.FullName, "player.cc"));
+                playerPath: Path.Combine(GameDataDirectory.FullName, "player.cc"),
+                catalogWritable: Application.isEditor);
 
             return _cultCache;
         }
@@ -543,6 +545,25 @@ public class ActionGameManager : MonoBehaviour
             });
         //Temporary, or not
         ConsoleController.AddCommand("tow", _ => TowShip());
+
+        // Editor only: capturepreset "<name>" [replace] writes the piloted ship as a catalog preset.
+        if (Application.isEditor)
+            ConsoleController.AddCommand("capturepreset", args =>
+            {
+                var console = ConsoleController.Instance;
+                var name = args.Length > 0 ? args[0] : "";
+                if (string.IsNullOrWhiteSpace(name)) { console.AppendLogLine("usage: capturepreset \"<name>\" [replace]"); return; }
+                if (!(_currentEntity is Ship ship)) { console.AppendLogLine("capturepreset: pilot a ship first"); return; }
+                try
+                {
+                    var written = Loadouts.Commit(CultCache, Loadouts.Capture(ItemManager, ship, name), args.Length > 1 && args[1] == "replace");
+                    console.AppendLogLine(written ? $"Preset '{name}' written to the catalog" : $"Preset '{name}' changed on disk since load; nothing written");
+                }
+                catch (InvalidOperationException e)
+                {
+                    console.AppendLogLine(e.Message);
+                }
+            });
     }
 
     public void BeginDrag(DragObject dragObject)
