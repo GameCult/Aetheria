@@ -148,7 +148,7 @@ public class SectorMap : MonoBehaviour
                 var zoneText = zoneInstance.Label;
                 zoneText.text = zone.Name;
                 var zoneTextTransform = zoneText.GetComponent<RectTransform>();
-                zoneTextTransform.pivot = new Vector2(sign(linkDirection.x)/2+.5f,sign(linkDirection.y)/2+.5f);
+                zoneTextTransform.pivot = new Vector2(sign(linkDirection.x)*.5f+.5f,sign(linkDirection.y)*.5f+.5f);
                 zoneTextTransform.localPosition = new Vector3(-linkDirection.x * LabelDistance, -linkDirection.y * LabelDistance, -1);
 
                 if (zone == ActionGameManager.CurrentGalaxy.Entrance)
