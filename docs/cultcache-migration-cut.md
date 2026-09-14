@@ -74,6 +74,21 @@ Cut 6b second Soul pass (after CultLib `10b2c15`):
   `identity` land on a defensive copy and are silently lost; design.md and the
   indexer document this.
 
+Cut 6b closed (CultLib `d4c43ed`, after two more Soul passes):
+- **Unity DLL:** built independently of the commit (no source revision, no
+  Source Link, non-incremental), so its byte check passes on any SHA.
+- **NaN rules:** float and double `min`/`max`/`clamp`/`saturate` follow DXIL
+  FMin/FMax/Saturate, where a NaN operand returns the other operand.
+  Consequence: NaN does not reliably propagate (`smoothstep(a,a,a)` gives 0, and
+  `normalize` with one NaN component blows up the others), as on the GPU.
+  design.md tells callers to check `isnan` first.
+- **No finite output changed:** checked over 633k calls.
+- **Tests:** the mirror test compares bit patterns. It proves the shader text
+  matches C# math on the CPU, not on a GPU; the intrinsic rules themselves are
+  pinned only by `HlslSemanticsTests`.
+- **Merge:** the branch merges cleanly into `codex/cultcache-store-routing` and
+  waits for Cut 6's final Soul pass.
+
 Evidence base: CultLib `main` at `c2a9a6e`; Aetheria `codex/aetheria-state-rebuild`
 at `82c1e72e`. Line numbers refer to those revisions (`CC:` is
 `src\GameCult.Caching\CultCache.cs`, `DMS:` is
