@@ -8,8 +8,19 @@ Cuts 0-4 landed on CultLib `codex/cultcache-store-routing` and passed their
 Soul passes (Cut 4 ended at `5bd4e4e`, generator deleted, registry aligned to
 MessagePack round-trip semantics; the five `GameCult.Eve.Surface` documents'
 schema ids change because their constructor-filled get-only members now enter
-the catalog, and no store on disk holds them). Cut 5 is in progress. Cuts 6-10
-are not started. Line
+the catalog, and no store on disk holds them). Cut 5 landed (ended at
+`47c7111`): mirrors deleted in TS, Rust and Python; each sibling enforces one
+home store, a record's home cannot move, refusal at load from a non-home
+store, zero stores in memory, validation before any store write, a TS per-cache
+serial queue and a Python per-cache lock, globals only under `__global__` with
+a legacy-key load shim. Re-pin follow-ups: TS `addBackingStore`,
+`addGenericBackingStore`, `registerDocumentType`, `registerRegistry`,
+`registerNameLookup` and `registerIndex` now return promises (VoidBot's vendor
+fork, if it adopts CultLib's package); Rust callers of `add_backing_store`
+should propagate the new `Result` with `?` (Epiphany `epiphany-core`,
+CodexConnector); Rust `CacheBackingStore` implementations must provide
+`push_all` (Epiphany's already does); Heimdall re-vendors CultLib when it moves.
+Cut 6 is in progress. Cuts 7-10 are not started. Line
 numbers below refer to the evidence base, not to the branch.
 
 Evidence base: CultLib `main` at `c2a9a6e`; Aetheria `codex/aetheria-state-rebuild`
