@@ -1,0 +1,9 @@
+<Project>
+  <PropertyGroup>
+    <CultLibRoot Condition="'$(CultLibRoot)' == '' and '$(CULTLIB_ROOT)' != ''">$(CULTLIB_ROOT)</CultLibRoot>
+    <CultLibRoot Condition="'$(CultLibRoot)' == ''">$(MSBuildThisFileDirectory)..\CultLib</CultLibRoot>
+    <CultLibRevision>f0605367e0d7e57941a57bacb0b8cb8d893073be</CultLibRevision>
+    <GitExecutable Condition="'$(GitExecutable)' == '' and Exists('C:\Program Files\Git\cmd\git.exe')">C:\Program Files\Git\cmd\git.exe</GitExecutable>
+    <GitExecutable Condition="'$(GitExecutable)' == ''">git</GitExecutable>
+  </PropertyGroup>
+</Project>
