@@ -87,6 +87,25 @@ Accepted as CultMath's own behaviour, because old runs are discarded:
 - the `Random` integer sequence;
 - `quaternion.LookRotation` normalizing its input.
 
+Second Soul pass on Cut 8a: nothing Hands promised turned out false. It
+confirmed the PCG constants against the paper using an independent Python
+transcription, and the three captures matched again.
+
+Recorded follow-ups, outside 8a:
+- **Zone names seed through `Name.GetHashCode()`** (`ZoneGenerator.cs:47`,
+  `Zone.cs:55`). This predates the cut. Mono hashes strings stably, but net10
+  randomizes them per process, so a headless sim that generates zones would get
+  different zones on every run. Fix before the headless sim generates zones by
+  hashing the name with a stable function.
+- **`quaternion.LookRotation` gives NaN** for a zero or parallel `forward`/`up`,
+  as Unity.Mathematics did. No CultMath test pins this; `Ship.cs:310, 322, 329`
+  can hit it.
+- **The normalize test checks C# against its own formula, not dxc output.** A
+  1-ULP gap from dxc constant folding is unverified.
+- **The pin guard matches the CultMath ProjectReference by exact path**, and
+  `BuildProjectReferences=false` skips it.
+- **`asuint` is untested on signaling-NaN payloads.**
+
 Open:
 - The operator play smoke.
 - Whether the `CultLib-delvehold-isosurface` worktree carries the iso-surface
