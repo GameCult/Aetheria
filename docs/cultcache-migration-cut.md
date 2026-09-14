@@ -1351,7 +1351,13 @@ the behavior change.
   folder: CultCache exists so Unity does not manage game data, so the Studio's
   `New` refuses an `Assets` path and `Open` warns on one. Cut 8's manifest adds
   `org.gamecult.cultmath` by git URL, since Unity does not resolve package
-  dependencies from git.
+  dependencies from git. The operator's design goal is that CultUI, descended
+  from Aetheria's `PropertiesPanel`, can recreate the Studio at runtime with
+  little adjustment, so the inspection logic (member list and metadata from the
+  registry, claim resolution, value kinds, union and ref choices, edit
+  validation) lives in an engine-free model in CultLib core, and the editor's
+  IMGUI Studio is a thin lowering of it. The runtime CultUI lowering is a
+  follow-up outside this migration.
 - Verification (operator decision 2026-09-14): the Studio assemblies compile in
   batchmode; the manual click-through happens in Aetheria after Cut 7 releases
   the packages and Cut 8 wires them in, against the tagged package rather than
