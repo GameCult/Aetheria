@@ -39,7 +39,18 @@ costs nothing. Only what Aetheria uses is added. The Unity bridge lives in
 CultMath's Unity package; the core stays engine-free. Cut 8 then swaps
 Aetheria (ServerShared, `Aetheria.Shared`, `tools\AetherDb`, Unity-side
 scripts) onto CultMath and deletes the `Library\PackageCache` Unity.Mathematics
-source include from `Aetheria.Shared.csproj`. Line
+source include from `Aetheria.Shared.csproj`.
+
+Cut 6b Soul (after CultLib `2ad8dbc`): semantics and existing numeric output
+held, but HLSL source did not compile as C#: most swizzles, repeated-component
+and `rgba` swizzles, mixed constructors and matrix element writes were missing.
+Operator decisions (2026-09-14, all option A): generate the full swizzle set and
+mixed constructors into a checked-in file, with a test that compiles CultMath's
+own shader bodies; add cheap intrinsic correctness now (numeric `any`/`all`,
+int-vector `min`/`max`/`abs`, HLSL `step` on NaN, `sign` returning int) and defer
+`float4x4`, `transpose`, `determinant` and `_11` names until a consumer needs
+them; add Studio drawers for the new CultMath types after the branch merges.
+The shader mirror is compile-checked with dxc (download approved). Line
 numbers below refer to the evidence base, not to the branch.
 
 Evidence base: CultLib `main` at `c2a9a6e`; Aetheria `codex/aetheria-state-rebuild`
