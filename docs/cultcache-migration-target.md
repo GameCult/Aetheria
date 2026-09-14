@@ -2,7 +2,7 @@
 
 Date: 2026-09-12
 
-Status: done. Aetheria runs on CultLib's CultCache and CultMath, cut over on
+Status: landed; awaiting operator play smoke and Studio click-through. Aetheria runs on CultLib's CultCache and CultMath, cut over on
 `codex/cultcache-cutover` from Cut 8a (`4f4beb0f`) through Cut 10 (`4a545469`
 to the commit that set this status). The means are in
 `docs/cultcache-migration-cut.md`.
@@ -59,13 +59,12 @@ the cache and nothing else.
   union, and `DatabaseEntry.ID` are gone. A catalog record's identity is its
   record key, which carries the legacy Guid string.
 - **The live simulation owns in-play state.** `Entity` and its reactive fields
-  are not documents. Run documents are written at explicit save points through
-  one save path shared by quit, zone transition, and death.
-- **Legacy data is imported once.** A one-shot importer in `tools/AetherDb`
-  reads `AetherDB.msgpack` and `GameData/NameFile/*.msgpack` by union tag, maps
-  each tag to its new document type, and writes records keyed by legacy Guid.
-  Slot numbers are preserved. Counts are checked against `census`, then the
-  legacy files are deleted. No legacy reader survives in the runtime.
+  are not documents. Quit and zone transition share one save commit
+  (`RunSave.Capture` then `RunSave.Commit`); death deletes the run with
+  `RunSave.Clear`.
+- **No legacy reader exists.** The catalog records carry legacy Guid keys and
+  slot numbers from the one-time import; the importer and the legacy files are
+  deleted.
 - **Existing saves are discarded.** No save converter.
 - **Deleted from Aetheria:** `Assets/Scripts/ServerShared/CultCache/`, the
   vendored `Assets/Plugins/MessagePack`, vendored JsonKnownTypes, the legacy
@@ -130,7 +129,7 @@ abstract type without `[Union]`; Aetheria's abstract `ItemData`,
 - Every document type has one home store; its runtime type decides schema and
   route.
 - `ServerShared` compiles headless with no UnityEngine reference.
-- Legacy formats are read only by the one-shot importer.
+- No code reads a legacy format.
 - The migration does not bundle CultMesh hosting, Eve UI, daemons, or a state
   service layer.
 
