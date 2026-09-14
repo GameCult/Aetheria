@@ -4,8 +4,8 @@
 
 using MessagePack;
 using Newtonsoft.Json;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
+using CultMath;
+using static CultMath.math;
 
 [Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn), EntityTypeRestriction(HullType.Ship), RuntimeInspectable]
 public class AetherDriveData : BehaviorData
@@ -114,7 +114,7 @@ public class AetherDrive : Behavior
         Entity.Velocity += ThrustDirection;
         
         Entity.Direction = mul(Entity.Direction,
-            Unity.Mathematics.float2x2.Rotate(force.z * _axis.z * ItemManager.GameplaySettings.AetherTorqueMultiplier / Entity.Mass));
+            CultMath.float2x2.Rotate(force.z * _axis.z * ItemManager.GameplaySettings.AetherTorqueMultiplier / Entity.Mass));
 
         if(float.IsNaN(Entity.Velocity.x))
             ItemManager.Log("FUCK FUCK FUCK FUCK");

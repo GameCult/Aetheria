@@ -23,7 +23,7 @@ public static class RegisterResolver
         var options = MessagePackSerializerOptions.Standard.WithResolver(resolver);
         MessagePackSerializer.DefaultOptions = options;
 
-        // Add Unity.Mathematics serialization support to Newtonsoft JSON
+        // Add CultMath serialization support to Newtonsoft JSON
         JsonConvert.DefaultSettings = () => new JsonSerializerSettings
         {
             Converters = new List<JsonConverter>

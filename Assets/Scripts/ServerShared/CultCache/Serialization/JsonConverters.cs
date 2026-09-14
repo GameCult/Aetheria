@@ -3,8 +3,8 @@ using System.Collections;
 using System.Collections.Generic;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
+using CultMath;
+using static CultMath.math;
 
 public class MathJsonConverter : JsonConverter
 {

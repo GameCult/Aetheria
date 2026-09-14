@@ -1,7 +1,7 @@
 using System.Linq;
-using Unity.Mathematics;
+using CultMath;
 using UnityEngine;
-using static Unity.Mathematics.math;
+using static CultMath.math;
 
 public static class UnityExtensions
 {
@@ -47,7 +47,4 @@ public static class UnityExtensions
 	
     public static Color ToColor(this float3 v) => new Color(v.x,v.y,v.z);
     public static float3 ToFloat3(this Color c) => float3(c.r,c.g,c.b);
-	
-    public static Color ToColor(this float4 v) => new Color(v.x,v.y,v.z, v.w);
-    public static float4 ToFloat4(this Color c) => float4(c.r, c.g, c.b, c.a);
 }

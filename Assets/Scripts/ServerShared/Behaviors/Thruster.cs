@@ -4,8 +4,8 @@
 
 using MessagePack;
 using Newtonsoft.Json;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
+using CultMath;
+using static CultMath.math;
 
 [Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn), EntityTypeRestriction(HullType.Ship), RuntimeInspectable]
 public class ThrusterData : BehaviorData
@@ -78,7 +78,7 @@ public class Thruster : Behavior, IAnalogBehavior
             Thrust = Evaluate(_data.Thrust);
             Entity.Velocity -= Direction.xz * _input * Thrust / Entity.Mass * dt;
             Entity.Direction = mul(Entity.Direction,
-                Unity.Mathematics.float2x2.Rotate(_input * Torque * Thrust * ItemManager.GameplaySettings.TorqueMultiplier / Entity.Mass * dt));
+                CultMath.float2x2.Rotate(_input * Torque * Thrust * ItemManager.GameplaySettings.TorqueMultiplier / Entity.Mass * dt));
             AddHeat(_input * Evaluate(_data.Heat) * dt);
             var vis = _input * Evaluate(_data.Visibility);
             if (!Entity.VisibilitySources.ContainsKey(this) || vis > Entity.VisibilitySources[this])

@@ -2,8 +2,8 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
+using CultMath;
+using static CultMath.math;
 using UnityEngine;
 
 public class ShieldManager : MonoBehaviour

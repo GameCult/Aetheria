@@ -4,12 +4,11 @@
 
 using System;
 using UnityEngine;
-using Unity.Mathematics;
+using CultMath;
 using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;
 using UnityEngine.Serialization;
-using static Unity.Mathematics.math;
-using static Unity.Mathematics.noise;
+using static CultMath.math;
 
 /// <summary>
 /// Drives the volume render.

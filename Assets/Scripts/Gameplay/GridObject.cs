@@ -1,7 +1,7 @@
 using System;
-using Unity.Mathematics;
+using CultMath;
 using UnityEngine;
-using static Unity.Mathematics.math;
+using static CultMath.math;
 using Random = UnityEngine.Random;
 
 public class GridObject : MonoBehaviour

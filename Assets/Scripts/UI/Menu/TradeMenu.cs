@@ -7,8 +7,8 @@ using System.Runtime.Remoting.Contexts;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
+using CultMath;
+using static CultMath.math;
 
 public class TradeMenu : MonoBehaviour
 {

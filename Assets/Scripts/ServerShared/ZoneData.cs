@@ -8,10 +8,10 @@ using System.Collections.Generic;
 using MessagePack;
 using Newtonsoft.Json;
 using UniRx;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
-using float2 = Unity.Mathematics.float2;
-using float3 = Unity.Mathematics.float3;
+using CultMath;
+using static CultMath.math;
+using float2 = CultMath.float2;
+using float3 = CultMath.float3;
 
 [MessagePackObject, JsonObject(MemberSerialization.OptIn)]
 public class ZonePack

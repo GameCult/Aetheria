@@ -7,9 +7,9 @@ using System.Linq;
 using MessagePack;
 using Newtonsoft.Json;
 using UniRx;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
-using float3 = Unity.Mathematics.float3;
+using CultMath;
+using static CultMath.math;
+using float3 = CultMath.float3;
 
 [MessagePackObject, JsonObject(MemberSerialization.OptIn), RuntimeInspectable]
 public class TurretControllerData : BehaviorData

@@ -9,8 +9,8 @@ using MessagePack;
 using MessagePack.Formatters;
 using Newtonsoft.Json;
 // TODO: USE THIS EVERYWHERE
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
+using CultMath;
+using static CultMath.math;
 
 public interface INamedEntry
 {

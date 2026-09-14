@@ -9,12 +9,12 @@ using System.Linq;
 using System.Reflection;
 using MessagePack;
 using Newtonsoft.Json;
-using Unity.Mathematics;
+using CultMath;
 using UnityEditor;
 using UnityEngine;
-using static Unity.Mathematics.math;
+using static CultMath.math;
 using static UnityEditor.EditorGUILayout;
-using int2 = Unity.Mathematics.int2;
+using int2 = CultMath.int2;
 using Object = UnityEngine.Object;
 
 public class DatabaseInspector : EditorWindow

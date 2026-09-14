@@ -7,10 +7,10 @@ using System.Collections;
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
-using Unity.Mathematics;
+using CultMath;
 using UnityEngine.UI;
-using static Unity.Mathematics.math;
-using int2 = Unity.Mathematics.int2;
+using static CultMath.math;
+using int2 = CultMath.int2;
 
 public class MapRenderer : MonoBehaviour
 {

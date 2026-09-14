@@ -7,11 +7,10 @@ using MessagePack;
 using TMPro;
 using UniRx;
 using UnityEngine;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
-using static Unity.Mathematics.noise;
+using CultMath;
+using static CultMath.math;
 using Random = UnityEngine.Random;
-using float2 = Unity.Mathematics.float2;
+using float2 = CultMath.float2;
 
 public class SectorMap : MonoBehaviour
 {

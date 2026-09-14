@@ -9,9 +9,9 @@ using Ink.Runtime;
 using MIConvexHull;
 using JM.LinqFaster;
 using UniRx;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
-using Random = Unity.Mathematics.Random;
+using CultMath;
+using static CultMath.math;
+using Random = CultMath.Random;
 
 public class Galaxy
 {

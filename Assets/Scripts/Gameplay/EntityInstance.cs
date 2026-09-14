@@ -4,9 +4,9 @@ using System.Collections.Generic;
 using System.Linq;
 using UniRx;
 using UnityEngine;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
-using float2 = Unity.Mathematics.float2;
+using CultMath;
+using static CultMath.math;
+using float2 = CultMath.float2;
 using Random = UnityEngine.Random;
 
 public class EntityInstance : MonoBehaviour

@@ -6,13 +6,13 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
-using float2 = Unity.Mathematics.float2;
-using Random = Unity.Mathematics.Random;
+using CultMath;
+using static CultMath.math;
+using float2 = CultMath.float2;
+using Random = CultMath.Random;
 using JM.LinqFaster;
 using UniRx;
-using float4 = Unity.Mathematics.float4;
+using float4 = CultMath.float4;
 
 public class ItemManager
 {

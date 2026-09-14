@@ -9,7 +9,7 @@ using System.Linq;
 using UnityEngine;
 using UniRx;
 using UniRx.Triggers;
-using Unity.Mathematics;
+using CultMath;
 using UnityEngine.InputSystem;
 using UnityEngine.UI;
 

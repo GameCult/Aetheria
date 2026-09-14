@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using MessagePack;
-using Random = Unity.Mathematics.Random;
+using Random = CultMath.Random;
 
 public abstract class ZoneSelector
 {

@@ -1,7 +1,7 @@
 ﻿using System.Collections;
 using MIConvexHull;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
+using CultMath;
+using static CultMath.math;
 
 public class Vertex3 : IVertex
 {

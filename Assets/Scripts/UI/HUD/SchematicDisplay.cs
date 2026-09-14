@@ -5,9 +5,9 @@ using System.Linq;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
-using Unity.Mathematics;
+using CultMath;
 using UnityEngine.Serialization;
-using static Unity.Mathematics.math;
+using static CultMath.math;
 
 public class SchematicDisplay : MonoBehaviour
 {

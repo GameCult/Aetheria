@@ -4,7 +4,7 @@
 
 using System.Collections;
 using System.Collections.Generic;
-using Unity.Mathematics;
+using CultMath;
 using UnityEngine;
 using UnityEngine.EventSystems;
 

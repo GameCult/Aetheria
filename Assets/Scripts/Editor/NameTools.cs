@@ -4,10 +4,10 @@ using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 using MessagePack;
-using Unity.Mathematics;
+using CultMath;
 using UnityEngine;
 using UnityEditor;
-using Random = Unity.Mathematics.Random;
+using Random = CultMath.Random;
 
 public class NameTools : EditorWindow
 {

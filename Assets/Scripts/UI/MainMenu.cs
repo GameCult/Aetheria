@@ -9,8 +9,8 @@ using UniRx;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
-using static Unity.Mathematics.math;
-using float2 = Unity.Mathematics.float2;
+using static CultMath.math;
+using float2 = CultMath.float2;
 using Random = UnityEngine.Random;
 
 public class MainMenu : MonoBehaviour

@@ -6,9 +6,9 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using UniRx;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
-using int2 = Unity.Mathematics.int2;
+using CultMath;
+using static CultMath.math;
+using int2 = CultMath.int2;
 
 public abstract class Entity
 {

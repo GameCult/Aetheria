@@ -12,9 +12,9 @@ using UnityEngine;
 using UnityEngine.Serialization;
 using Object = UnityEngine.Object;
 using Random = UnityEngine.Random;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
-using float2 = Unity.Mathematics.float2;
+using CultMath;
+using static CultMath.math;
+using float2 = CultMath.float2;
 
 public class ZoneRenderer : MonoBehaviour
 {

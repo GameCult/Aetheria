@@ -7,9 +7,8 @@ using System.Collections;
 using System.Collections.Generic;
 using MessagePack;
 using Newtonsoft.Json;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
-using static Unity.Mathematics.noise;
+using CultMath;
+using static CultMath.math;
 using static NoiseFbm;
 
 [Inspectable, Serializable, DatabaseCategory("Galaxy"), MessagePackObject, JsonObject(MemberSerialization.OptIn)]

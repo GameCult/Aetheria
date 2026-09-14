@@ -2,10 +2,10 @@
 using System.Collections;
 using System.Collections.Generic;
 using UniRx;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
+using CultMath;
+using static CultMath.math;
 using UnityEngine;
-using float2 = Unity.Mathematics.float2;
+using float2 = CultMath.float2;
 
 public class HullCollider : MonoBehaviour
 {

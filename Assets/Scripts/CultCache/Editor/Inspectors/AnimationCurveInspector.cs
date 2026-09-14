@@ -1,9 +1,9 @@
 using System.Linq;
-using Unity.Mathematics;
+using CultMath;
 using UnityEditor;
 using UnityEngine;
 using static UnityEditor.EditorGUILayout;
-using static Unity.Mathematics.math;
+using static CultMath.math;
 
 public class AnimationCurveFloat4Inspector : BaseInspector<float4[]>
 {

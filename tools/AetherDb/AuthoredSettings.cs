@@ -7,7 +7,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using Unity.Mathematics;
+using CultMath;
 using YamlDotNet.RepresentationModel;
 
 // Reads the authored gameplay and generation settings out of Assets/Resources/Settings.asset, the Unity asset whose

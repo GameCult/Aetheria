@@ -19,13 +19,13 @@ using UnityEngine.InputSystem;
 using UnityEngine.Rendering.PostProcessing;
 using UnityEngine.Serialization;
 using UnityEngine.UI;
-using Unity.Mathematics;
+using CultMath;
 using UnityEngine.EventSystems;
-using static Unity.Mathematics.math;
-using float2 = Unity.Mathematics.float2;
-using float3 = Unity.Mathematics.float3;
+using static CultMath.math;
+using float2 = CultMath.float2;
+using float3 = CultMath.float3;
 using Path = System.IO.Path;
-using quaternion = Unity.Mathematics.quaternion;
+using quaternion = CultMath.quaternion;
 using Random = UnityEngine.Random;
 
 public class ActionGameManager : MonoBehaviour
@@ -1167,7 +1167,7 @@ public class ActionGameManager : MonoBehaviour
                 }
                 var look = Input.Player.Look.ReadValue<Vector2>();
                 _entityYawPitch = float2(_entityYawPitch.x + look.x * Sensitivity.x, clamp(_entityYawPitch.y + look.y * Sensitivity.y, -.45f * PI, .45f * PI));
-                _viewDirection = mul(float3(0, 0, 1), Unity.Mathematics.float3x3.Euler(float3(_entityYawPitch.yx, 0), RotationOrder.YXZ));
+                _viewDirection = mul(float3(0, 0, 1), CultMath.float3x3.Euler(float3(_entityYawPitch.yx, 0), RotationOrder.YXZ));
                 CurrentEntity.LookDirection = _viewDirection;
                 HeatstrokePost.weight = saturate(unlerp(0, Settings.GameplaySettings.SevereHeatstrokeRiskThreshold, CurrentEntity.Heatstroke));
                 var severeHeatstrokeLerp = saturate(unlerp(Settings.GameplaySettings.SevereHeatstrokeRiskThreshold, 1, CurrentEntity.Heatstroke));

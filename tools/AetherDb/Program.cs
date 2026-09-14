@@ -7,8 +7,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using MessagePack;
-using Unity.Mathematics;
-using Random = Unity.Mathematics.Random;
+using CultMath;
+using Random = CultMath.Random;
 
 // Commands over the game database, run with: dotnet run --project tools/AetherDb -- <command>
 public static class Program

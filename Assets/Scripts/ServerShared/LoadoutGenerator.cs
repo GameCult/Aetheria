@@ -2,9 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
-using Random = Unity.Mathematics.Random;
+using CultMath;
+using static CultMath.math;
+using Random = CultMath.Random;
 
 public class LoadoutGenerator
 {

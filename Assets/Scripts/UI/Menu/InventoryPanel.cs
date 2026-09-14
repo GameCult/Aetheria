@@ -13,10 +13,10 @@ using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
 using UnityEngine.Experimental.Rendering;
-using Unity.Mathematics;
+using CultMath;
 using UnityEngine.Serialization;
-using static Unity.Mathematics.math;
-using int2 = Unity.Mathematics.int2;
+using static CultMath.math;
+using int2 = CultMath.int2;
 
 public class InventoryPanel : MonoBehaviour, IPointerClickHandler
 {

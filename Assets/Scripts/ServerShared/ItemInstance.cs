@@ -12,8 +12,8 @@ using JsonKnownTypes;
 using MessagePack;
 using MessagePack.Formatters;
 using Newtonsoft.Json;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
+using CultMath;
+using static CultMath.math;
 
 [Union(0, typeof(SimpleCommodity)),
  Union(1, typeof(CompoundCommodity)),

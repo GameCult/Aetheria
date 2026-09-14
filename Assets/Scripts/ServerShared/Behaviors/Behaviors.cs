@@ -9,9 +9,8 @@ using System.Linq;
 using JsonKnownTypes;
 using MessagePack;
 using Newtonsoft.Json;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
-using static Unity.Mathematics.noise;
+using CultMath;
+using static CultMath.math;
 
 public abstract class Behavior
 {

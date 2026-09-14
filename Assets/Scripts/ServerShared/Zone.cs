@@ -9,10 +9,10 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using UniRx;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
-using float2 = Unity.Mathematics.float2;
-using Random = Unity.Mathematics.Random;
+using CultMath;
+using static CultMath.math;
+using float2 = CultMath.float2;
+using Random = CultMath.Random;
 
 public class Zone
 {

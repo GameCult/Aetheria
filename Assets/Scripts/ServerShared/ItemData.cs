@@ -9,10 +9,10 @@ using System.Linq;
 using JsonKnownTypes;
 using MessagePack;
 using Newtonsoft.Json;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
-using float2 = Unity.Mathematics.float2;
-using int2 = Unity.Mathematics.int2;
+using CultMath;
+using static CultMath.math;
+using float2 = CultMath.float2;
+using int2 = CultMath.int2;
 
 [Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]
 public class Shape

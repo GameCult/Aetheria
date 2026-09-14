@@ -1,7 +1,6 @@
 ﻿using UnityEngine;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
-using static Unity.Mathematics.noise;
+using CultMath;
+using static CultMath.math;
 using static Noise1D;
 
 /// <summary>

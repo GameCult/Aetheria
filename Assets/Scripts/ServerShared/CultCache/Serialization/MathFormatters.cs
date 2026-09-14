@@ -2,8 +2,8 @@
 using System.Collections;
 using System.Collections.Generic;
 using MessagePack;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
+using CultMath;
+using static CultMath.math;
 
 public class Float2Formatter : MessagePack.Formatters.IMessagePackFormatter<float2>
 {

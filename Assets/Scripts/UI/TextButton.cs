@@ -4,7 +4,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
-using static Unity.Mathematics.math;
+using static CultMath.math;
 
 public class TextButton : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
 {

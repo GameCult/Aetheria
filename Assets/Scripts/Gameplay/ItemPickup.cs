@@ -1,8 +1,8 @@
 using System;
 using TMPro;
-using Unity.Mathematics;
+using CultMath;
 using UnityEngine;
-using static Unity.Mathematics.math;
+using static CultMath.math;
 
 public class ItemPickup : MonoBehaviour
 {

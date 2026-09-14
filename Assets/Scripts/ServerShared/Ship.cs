@@ -10,9 +10,9 @@ using System.Reflection;
 using MessagePack;
 using Newtonsoft.Json;
 using UniRx;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
-using quaternion = Unity.Mathematics.quaternion;
+using CultMath;
+using static CultMath.math;
+using quaternion = CultMath.quaternion;
 
 [MessagePackObject]
 public class Ship : Entity

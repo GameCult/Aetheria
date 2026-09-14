@@ -5,9 +5,9 @@ using UniRx;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
-using float2 = Unity.Mathematics.float2;
+using CultMath;
+using static CultMath.math;
+using float2 = CultMath.float2;
 
 public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IScrollHandler
 {

@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
-using static Unity.Mathematics.math;
+using static CultMath.math;
 using static UnityEditor.EditorGUILayout;
 
 public class EnumInspector<T> : BaseInspector<List<T>, InspectableEnumValuesAttribute>

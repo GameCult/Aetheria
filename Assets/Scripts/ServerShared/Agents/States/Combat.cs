@@ -2,10 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using UniRx;
-using static Unity.Mathematics.math;
-using float2 = Unity.Mathematics.float2;
-using float3 = Unity.Mathematics.float3;
-using float2x2 = Unity.Mathematics.float2x2;
+using static CultMath.math;
+using float2 = CultMath.float2;
+using float3 = CultMath.float3;
+using float2x2 = CultMath.float2x2;
 
 public class CombatState : BaseState
 {

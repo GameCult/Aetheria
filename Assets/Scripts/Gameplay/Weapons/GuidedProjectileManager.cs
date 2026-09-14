@@ -2,9 +2,9 @@
 using System.Collections;
 using System.Collections.Generic;
 using UniRx;
-using Unity.Mathematics;
+using CultMath;
 using UnityEngine;
-using static Unity.Mathematics.math;
+using static CultMath.math;
 
 public class GuidedProjectileManager : InstantWeaponEffectManager
 {

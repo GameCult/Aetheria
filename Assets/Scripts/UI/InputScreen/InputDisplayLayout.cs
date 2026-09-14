@@ -12,9 +12,9 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.UI;
 using UnityEngine.UI.Extensions;
-using Unity.Mathematics;
+using CultMath;
 using UnityEngine.EventSystems;
-using static Unity.Mathematics.math;
+using static CultMath.math;
 
 public class InputDisplayLayout : MonoBehaviour
 {

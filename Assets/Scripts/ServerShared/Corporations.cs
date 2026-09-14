@@ -7,7 +7,7 @@ using System.Collections;
 using System.Collections.Generic;
 using MessagePack;
 using Newtonsoft.Json;
-using Unity.Mathematics;
+using CultMath;
 
 [DatabaseCategory("Galaxy"), Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]
 public class Faction : DatabaseEntry, INamedEntry

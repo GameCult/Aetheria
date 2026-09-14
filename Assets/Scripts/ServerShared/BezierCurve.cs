@@ -2,8 +2,8 @@ using System;
 using System.Linq;
 using MessagePack;
 using Newtonsoft.Json;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
+using CultMath;
+using static CultMath.math;
 
 [MessagePackObject, JsonObject(MemberSerialization.OptIn)]
 public class BezierCurve

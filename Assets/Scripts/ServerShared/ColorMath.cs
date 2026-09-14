@@ -4,8 +4,8 @@
 
 using System.Collections;
 using System.Collections.Generic;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
+using CultMath;
+using static CultMath.math;
 
 // Thanks to Ian Taylor at https://www.chilliant.com/rgb2hsv.html
 public static class ColorMath

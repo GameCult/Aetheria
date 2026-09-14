@@ -7,7 +7,7 @@ using Ink;
 using Ink.Parsed;
 using MessagePack;
 using Path = System.IO.Path;
-using Random = Unity.Mathematics.Random;
+using Random = CultMath.Random;
 using Story = Ink.Runtime.Story;
 
 public class StoryProcessor : IZoneResolver, IFactionResolver

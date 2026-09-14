@@ -7,11 +7,11 @@ using System.Numerics;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using MessagePack;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
-using Random = Unity.Mathematics.Random;
+using CultMath;
+using static CultMath.math;
+using Random = CultMath.Random;
 using Unity.Tiny;
-using float2 = Unity.Mathematics.float2;
+using float2 = CultMath.float2;
 
 public static class Extensions
 {

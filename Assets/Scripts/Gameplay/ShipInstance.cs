@@ -2,8 +2,8 @@ using System;
 using System.Collections;
 using System.Linq;
 using UnityEngine;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
+using CultMath;
+using static CultMath.math;
 
 public class ShipInstance : EntityInstance
 {

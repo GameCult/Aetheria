@@ -1,4 +1,4 @@
-using static Unity.Mathematics.math;
+using static CultMath.math;
 using UnityEditor;
 using UnityEngine;
 using static UnityEditor.EditorGUILayout;
