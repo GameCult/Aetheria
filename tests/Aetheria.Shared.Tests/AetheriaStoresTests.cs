@@ -30,6 +30,7 @@ public sealed class AetheriaStoresTests : IDisposable
         faction.Allegiance[cache.Upsert(faction)] = 1;
         cache.Upsert(faction);
         cache.Upsert(new WeaponItemData { Name = "Lance", Manufacturer = cache.RefOf(faction) });
+        cache.Upsert(new InputLayout { Rows = new InputLayoutRow[] { new InputLayoutRowSpacer { Height = 1 } } });
         cache.FlushAsync().Wait();
     }
 
@@ -43,7 +44,6 @@ public sealed class AetheriaStoresTests : IDisposable
             var zone = cache.Upsert(new SavedZone { Name = "Entrance", Position = new float2(1, 2), Contents = new ZonePack() });
             cache.Upsert(new SavedGame { Zones = new[] { zone }, Factions = new[] { cache.RefOf(cache.GetAll<Faction>().Single()) } });
             cache.Upsert(new PlayerSettings());
-            cache.Upsert(new InputLayout { Rows = new InputLayoutRow[] { new InputLayoutRowSpacer { Height = 1 } } });
             cache.FlushAsync().Wait();
         }
 

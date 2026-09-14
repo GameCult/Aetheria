@@ -55,6 +55,9 @@ ExportedObj/
 /*.sln
 /*.csproj
 
+# CultCache single-file store locks
+GameData/*.lock
+
 # Per-user editor state
 /[Uu]ser[Ss]ettings/
 

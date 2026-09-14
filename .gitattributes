@@ -53,6 +53,7 @@
 *.engine filter=lfs diff=lfs merge=lfs -text
 *.sbsar filter=lfs diff=lfs merge=lfs -text
 *.msgpack filter=lfs diff=lfs merge=lfs -text
+GameData/*.cc filter=lfs diff=lfs merge=lfs -text
 *.a filter=lfs diff=lfs merge=lfs -text
 *AkSoundEngine filter=lfs diff=lfs merge=lfs -text
 *AkWaapiClient filter=lfs diff=lfs merge=lfs -text

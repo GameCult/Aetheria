@@ -6,9 +6,9 @@ using GameCult.Caching.MessagePack;
 // Aetheria's stores: one home store per type, composed here and nowhere else.
 public static class AetheriaStores
 {
-    public static readonly Type[] CatalogTypes = { typeof(ItemData), typeof(Faction), typeof(FactionProductData), typeof(PersonalityAttribute), typeof(NameFile) };
+    public static readonly Type[] CatalogTypes = { typeof(ItemData), typeof(Faction), typeof(FactionProductData), typeof(PersonalityAttribute), typeof(NameFile), typeof(InputLayout) };
     public static readonly Type[] RunTypes = { typeof(OrbitData), typeof(BodyData), typeof(SavedZone), typeof(SavedGame) };
-    public static readonly Type[] PlayerTypes = { typeof(PlayerSettings), typeof(InputLayout) };
+    public static readonly Type[] PlayerTypes = { typeof(PlayerSettings) };
 
     // Attaches (hydrates) the catalog read-only unless catalogWritable, then the run and player stores when given.
     // A read-only catalog throws when a [CultGlobal] type routed to it has no record. A writable catalog is being

@@ -26,8 +26,10 @@ public static class Program
             case "clear-boss-hulls": return ClearBossHulls(args.Contains("apply"));
             case "settings": return Settings();
             case "settings-dump": return SettingsDump();
+            case "legacy-census": return Import.LegacyCensus();
+            case "import": return Import.Run();
             default:
-                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, clear-boss-hulls [apply]");
+                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, clear-boss-hulls [apply], legacy-census, import");
                 return 1;
         }
     }
