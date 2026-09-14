@@ -1,10 +1,11 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Numerics;
 using System.Reflection;
+using System.Text;
 using System.Text.RegularExpressions;
 using MessagePack;
 using CultMath;
@@ -18,6 +19,15 @@ public static class Extensions
     public static bool IsImplementationOf(this Type baseType, Type interfaceType)
     {
         return baseType.GetInterfaces().Any(interfaceType.Equals);
+    }
+
+    // A string hash that is the same in every process and runtime, for seeding: string.GetHashCode is randomized per
+    // process on .NET Core. Folds the UTF-8 bytes through CultMath's PCG hash from the FNV-1a offset basis.
+    public static uint StableHash(this string s)
+    {
+        uint h = 0x811C9DC5;
+        foreach (var b in Encoding.UTF8.GetBytes(s)) h = pcg(h ^ b);
+        return h;
     }
 
     // Every loadable type assignable to this one. An assembly whose dependencies are missing (a Unity plugin

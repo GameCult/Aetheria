@@ -51,7 +51,7 @@ public class Zone
         Pack = pack;
         _itemManager = itemManager;
         Settings = settings;
-        _random = new Random(Convert.ToUInt32(abs(galaxyZone?.Name.GetHashCode() ?? 1337)));
+        _random = new Random(galaxyZone?.Name.StableHash() ?? 1337u);
         var cache = itemManager.ItemData;
 
         foreach (var orbit in pack.Orbits)

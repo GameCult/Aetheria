@@ -125,6 +125,11 @@ public sealed class RunSaveTests : IDisposable
         Assert.Equal(before, new[] { Catalog, Player }.Select(Hash).ToArray());
     }
 
+    // Zone seeds hash names with this; string.GetHashCode differs per process on .NET Core. The literal was computed
+    // once, from an independent transcription of CultMath's pcg over the UTF-8 bytes.
+    [Fact]
+    public void StableHashIsNotProcessRandomized() => Assert.Equal(2427892944u, "Adrasteia".StableHash());
+
     // As in AetherDb's loadout command: the settings an ItemManager needs to build units, and nothing authored.
     internal static GameplaySettings TestSettings() => new GameplaySettings
     {

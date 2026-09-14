@@ -45,7 +45,7 @@ public static class ZoneGenerator
 		var pack = new ZonePack();
 		var cache = itemManager.ItemData;
 
-		var random = new Random(unchecked((uint) galaxyZone.Name.GetHashCode()) ^ (uint) pcg3d(galaxyZone.Position).x);
+		var random = new Random(galaxyZone.Name.StableHash() ^ (uint) pcg3d(galaxyZone.Position).x);
 
 		var density = saturate(galaxy.Background.CloudDensity(galaxyZone.Position)/2);
 		pack.Radius = zoneSettings.ZoneRadius.Evaluate(density);
