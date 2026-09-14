@@ -51,7 +51,7 @@ public static class Loadouts
                 Design = cache.RefOf(itemManager.GetData(item.EquippableItem))
             }).ToList(),
             WeaponGroups = entity.WeaponGroups
-                .Select(group => group.items.Select(item => items.IndexOf(item)).ToArray())
+                .Select(group => group.items.Select(item => items.IndexOf(item)).Where(index => index >= 0).ToArray()) // skips unequipped items
                 .ToArray()
         };
     }
@@ -92,6 +92,8 @@ public static class Loadouts
 
         var hullProduct = Resolve(loadout.Hull, "hull");
         var slotProducts = loadout.Slots.Select(slot => Resolve(slot.Design, Cell(slot))).ToArray();
+        foreach (var index in (loadout.WeaponGroups ?? new int[0][]).SelectMany(group => group))
+            if (index < 0 || index >= loadout.Slots.Count) failures.Add($"weapon group: no slot {index}");
         if (failures.Count > reported) return null;
 
         var hull = (EquippableItem) itemManager.CreateInstance(hullProduct);

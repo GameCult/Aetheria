@@ -218,6 +218,38 @@ public sealed class LoadoutTests : IDisposable
         Assert.Contains("slot 0,0: no available product of Lamp", Assert.Single(failures));
     }
 
+    // Entity.TryUnequip leaves a non-weapon item in its weapon group; Capture must not record it.
+    [Fact]
+    public void CaptureSkipsGroupedItemsNoLongerEquipped()
+    {
+        using var cache = Open();
+        var items = new ItemManager(cache, RunSaveTests.TestSettings(), _ => { });
+        var ship = Build(items, HandBuilt(cache), new List<string>());
+        Assert.NotNull(ship.TryUnequip(Assert.Single(ship.WeaponGroups[0].items)));
+        Assert.NotEmpty(ship.WeaponGroups[0].items);
+
+        var captured = Loadouts.Capture(items, ship, "stripped");
+        Assert.Single(captured.Slots);
+        Assert.All(captured.WeaponGroups, group => Assert.Empty(group));
+        var failures = new List<string>();
+        Assert.NotNull(Build(items, captured, failures));
+        Assert.Empty(failures);
+    }
+
+    [Fact]
+    public void OutOfRangeWeaponGroupIndexBuildsNothing()
+    {
+        using var cache = Open();
+        var items = new ItemManager(cache, RunSaveTests.TestSettings(), _ => { });
+        var stale = HandBuilt(cache);
+        stale.WeaponGroups = new[] { new[] { 0, 2 }, new[] { -1 } };
+        var failures = new List<string>();
+        var credits = 1000;
+        Assert.Null(Loadouts.Materialize(items, null, stale, _ => true, ref credits, failures));
+        Assert.Equal(1000, credits);
+        Assert.Equal(new[] { "weapon group: no slot 2", "weapon group: no slot -1" }, failures);
+    }
+
     // Everything available, credits discarded: for tests about placement and failure lists.
     private static Ship Build(ItemManager items, Loadout loadout, List<string> failures)
     {
