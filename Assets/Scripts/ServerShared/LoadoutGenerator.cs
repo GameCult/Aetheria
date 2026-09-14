@@ -149,7 +149,8 @@ public class LoadoutGenerator
 
     // No galaxy means no availability to filter by: every product is on offer. A fixture generates loadouts that
     // way, so a test can exercise placement and products without standing up a whole galaxy; no game path does.
-    private bool IsAvailable(FactionProductData product) =>
+    // Loadouts.Materialize asks this too, so a loadout and generation share one availability rule.
+    public bool IsAvailable(FactionProductData product) =>
         Galaxy == null || Galaxy.IsPrelude ||
         Galaxy.ContainsFaction(product.Manufacturer) && (Faction == null || Faction.Allegiance.ContainsKey(product.Manufacturer));
 

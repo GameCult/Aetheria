@@ -8,7 +8,7 @@ public static class AetheriaStores
 {
     public static readonly Type[] CatalogTypes = { typeof(ItemData), typeof(Faction), typeof(FactionProductData), typeof(PersonalityAttribute), typeof(NameFile), typeof(InputLayout) };
     public static readonly Type[] RunTypes = { typeof(OrbitData), typeof(BodyData), typeof(SavedZone), typeof(SavedGame) };
-    public static readonly Type[] PlayerTypes = { typeof(PlayerSettings) };
+    public static readonly Type[] PlayerTypes = { typeof(PlayerSettings), typeof(Loadout) };
 
     // Attaches (hydrates) the catalog read-only unless catalogWritable, then the run and player stores when given.
     // A read-only catalog throws when a [CultGlobal] type routed to it has no record. A writable catalog is being
