@@ -504,7 +504,10 @@ public abstract class Entity
         foreach (var b in item.Behaviors)
         {
             if (b is Weapon weapon)
+            {
                 _weapons.Remove(weapon);
+                foreach (var group in WeaponGroups) { group.items.Remove(item); group.weapons.Remove(weapon); }
+            }
             if (b is Capacitor capacitor)
                 _capacitors.Remove(capacitor);
             if (b is Reactor reactor)
