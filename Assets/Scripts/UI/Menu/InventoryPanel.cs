@@ -187,7 +187,7 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
                         loadouts.Select<Loadout, (string text, Action action, bool enabled)>(loadout =>
                         {
                             var price = Loadouts.Price(GameManager.ItemManager, loadout);
-                            return ($"{loadout.Name} - {price:n0}", () => RestoreLoadout(loadout, price), price < GameManager.Credits);
+                            return ($"{loadout.Name} - {price:n0}", () => RestoreLoadout(loadout), price < GameManager.Credits);
                         }));
                 }
 
@@ -198,12 +198,14 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
 
     // Builds the loadout against the current galaxy at the docked station. On failure nothing changes: no ship, no
     // charge, and a dialog lists every slot that could not be built here.
-    private void RestoreLoadout(Loadout loadout, int price)
+    private void RestoreLoadout(Loadout loadout)
     {
         var station = GameManager.DockedEntity;
         var failures = new List<string>();
-        var ship = Loadouts.Materialize(GameManager.ItemManager, ActionGameManager.CurrentGalaxy, GameManager.Zone.GalaxyZone,
-            station.Faction, GameManager.Zone, loadout, failures);
+        var availability = new LoadoutGenerator(ref GameManager.ItemManager.Random, GameManager.ItemManager,
+            ActionGameManager.CurrentGalaxy, GameManager.Zone.GalaxyZone, station.Faction, 0);
+        var ship = Loadouts.Materialize(GameManager.ItemManager, GameManager.Zone, loadout, availability.IsAvailable,
+            ref GameManager.Credits, failures);
         if (ship == null)
         {
             Dialog.Clear();
@@ -214,7 +216,6 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
             return;
         }
 
-        GameManager.Credits -= price;
         ship.SetParent(station);
         ship.IsPlayerShip = true;
         GameManager.DockingBay.DockedShip = ship;

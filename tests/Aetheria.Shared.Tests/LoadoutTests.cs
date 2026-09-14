@@ -69,7 +69,7 @@ public sealed class LoadoutTests : IDisposable
             var items = new ItemManager(cache, RunSaveTests.TestSettings(), _ => { });
             hand = HandBuilt(cache);
             var failures = new List<string>();
-            var ship = Loadouts.Materialize(items, null, null, null, null, hand, failures);
+            var ship = Build(items,hand, failures);
             Assert.Empty(failures);
             Assert.NotNull(ship);
             Loadouts.Save(cache, Loadouts.Capture(items, ship, hand.Name));
@@ -86,7 +86,7 @@ public sealed class LoadoutTests : IDisposable
 
             var items = new ItemManager(cache, RunSaveTests.TestSettings(), _ => { });
             var failures = new List<string>();
-            var ship = Loadouts.Materialize(items, null, null, null, null, loaded, failures);
+            var ship = Build(items,loaded, failures);
             Assert.Empty(failures);
             Assert.Equal(hand.Slots.Select(slot => (slot.Position, slot.Design.Key)),
                 ship.Equipment.Concat<EquippedItem>(ship.CargoBays)
@@ -141,14 +141,14 @@ public sealed class LoadoutTests : IDisposable
             var missing = HandBuilt(cache);
             missing.Slots[1].Design = new CultRecordRef<EquippableItemData>(new CultRecordKey("absent-design"));
             var failures = new List<string>();
-            Assert.Null(Loadouts.Materialize(items, null, null, null, null, missing, failures));
+            Assert.Null(Build(items,missing, failures));
             var failure = Assert.Single(failures);
             Assert.Contains("1,1", failure);
             Assert.Contains("absent-design", failure);
 
             missing.Slots.Add(new LoadoutSlot { Position = new int2(2, 2), Design = cache.RefOf<EquippableItemData>(cache.GetByName<GearData>("Orphan")) });
             failures.Clear();
-            Assert.Null(Loadouts.Materialize(items, null, null, null, null, missing, failures));
+            Assert.Null(Build(items,missing, failures));
             Assert.Equal(2, failures.Count);
             Assert.Contains("slot 1,1", failures[0]);
             Assert.Contains("slot 2,2", failures[1]);
@@ -156,6 +156,73 @@ public sealed class LoadoutTests : IDisposable
         }
 
         Assert.Equal(before, new[] { Catalog, Run, Player }.Select(Hash).ToArray());
+    }
+
+    [Fact]
+    public void FailedFitBuildsNothingAndChargesNothing()
+    {
+        using var cache = Open();
+        var items = new ItemManager(cache, RunSaveTests.TestSettings(), _ => { });
+        var clash = HandBuilt(cache);
+        clash.Slots[1].Position = HardpointCell;
+        var failures = new List<string>();
+        var credits = 1000;
+        Assert.Null(Loadouts.Materialize(items, null, clash, _ => true, ref credits, failures));
+        Assert.Equal(1000, credits);
+        var failure = Assert.Single(failures);
+        Assert.Contains("slot 0,0: Crate does not fit", failure);
+    }
+
+    [Fact]
+    public void PriceIsTheSumOfDesignPricesAndIsCharged()
+    {
+        using var cache = Open();
+        var items = new ItemManager(cache, RunSaveTests.TestSettings(), _ => { });
+        var hand = HandBuilt(cache);
+        Assert.Equal(100 + 10 + 5, Loadouts.Price(items, hand));
+        var credits = 1000;
+        Assert.NotNull(Loadouts.Materialize(items, null, hand, _ => true, ref credits, new List<string>()));
+        Assert.Equal(1000 - 115, credits);
+    }
+
+    // Two more Lamp products, written so insertion order (z before a) disagrees with record-key order.
+    [Fact]
+    public void FirstAvailableProductInKeyOrderBuildsTheSlot()
+    {
+        using (var catalog = AetheriaStores.Open(Catalog, catalogWritable: true))
+        {
+            var maker = catalog.RefOf(catalog.GetByName<Faction>("Maker"));
+            var lamp = new CultRecordRef<CraftedItemData>(catalog.RefOf(catalog.GetByName<GearData>("Lamp")).Key);
+            catalog.Commit(batch =>
+            {
+                foreach (var key in new[] { "lamp-z", "lamp-a" })
+                    batch.Upsert(typeof(FactionProductData), new FactionProductData { Name = key, Design = lamp, Manufacturer = maker }, new CultRecordKey(key));
+            });
+        }
+
+        using var cache = Open();
+        var items = new ItemManager(cache, RunSaveTests.TestSettings(), _ => { });
+        var hand = HandBuilt(cache);
+        string LampProduct(Predicate<FactionProductData> available, List<string> failures)
+        {
+            var credits = 1000;
+            var ship = Loadouts.Materialize(items, null, hand, available, ref credits, failures);
+            return ship == null ? null : cache.Get(ship.Equipment.Single(item => item.EquippableItem != ship.Hull && item.Position.Equals(HardpointCell)).EquippableItem.Product).Name;
+        }
+
+        var failures = new List<string>();
+        Assert.Equal("lamp-a", LampProduct(p => p.Name != "Lamp by Maker", failures));
+        Assert.Equal("lamp-z", LampProduct(p => p.Name != "Lamp by Maker" && p.Name != "lamp-a", failures));
+        Assert.Empty(failures);
+        Assert.Null(LampProduct(p => !p.Name.StartsWith("Lamp") && !p.Name.StartsWith("lamp"), failures));
+        Assert.Contains("slot 0,0: no available product of Lamp", Assert.Single(failures));
+    }
+
+    // Everything available, credits discarded: for tests about placement and failure lists.
+    private static Ship Build(ItemManager items, Loadout loadout, List<string> failures)
+    {
+        var credits = 0;
+        return Loadouts.Materialize(items, null, loadout, _ => true, ref credits, failures);
     }
 
     private static (int2, ItemRotation, CultRecordKey) Describe(LoadoutSlot slot) => (slot.Position, slot.Rotation, slot.Design.Key);

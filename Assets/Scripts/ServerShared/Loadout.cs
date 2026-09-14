@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using GameCult.Caching;
@@ -64,15 +65,15 @@ public static class Loadouts
         cache.Commit(batch => batch.Upsert(typeof(Loadout), loadout, key));
     }
 
-    // All-or-nothing: returns a ship only when every design resolved, had an available product and fitted. Every
-    // failing slot is listed; on any failure nothing is returned and nothing outside this call has changed.
-    // Availability is LoadoutGenerator.IsAvailable, with no fallback to any manufacturer.
-    public static Ship Materialize(ItemManager itemManager, Galaxy galaxy, GalaxyZone zone, Faction stationFaction,
-        Zone liveZone, Loadout loadout, List<string> failures)
+    // All-or-nothing: returns a ship and charges Price only when every design resolved, had an available product and
+    // fitted. Every failure is listed; on any failure nothing is returned, nothing is charged and nothing outside this
+    // call has changed. A design is built by its first available product in record-key order. The game passes
+    // LoadoutGenerator.IsAvailable as isAvailable, with no fallback to any manufacturer.
+    public static Ship Materialize(ItemManager itemManager, Zone liveZone, Loadout loadout,
+        Predicate<FactionProductData> isAvailable, ref int credits, List<string> failures)
     {
         var cache = itemManager.ItemData;
-        var availability = new LoadoutGenerator(ref itemManager.Random, itemManager, galaxy, zone, stationFaction, 0);
-        var products = cache.GetAll<FactionProductData>().ToArray();
+        var products = cache.GetAll<FactionProductData>().OrderBy(p => cache.RefOf(p).Key.Value, StringComparer.Ordinal).ToArray();
         var reported = failures.Count;
 
         FactionProductData Resolve<T>(CultRecordRef<T> design, string where) where T : EquippableItemData
@@ -84,7 +85,7 @@ public static class Loadouts
                 return null;
             }
 
-            var product = products.FirstOrDefault(p => p.Design.Key.Equals(design.Key) && availability.IsAvailable(p));
+            var product = products.FirstOrDefault(p => p.Design.Key.Equals(design.Key) && isAvailable(p));
             if (product == null) failures.Add($"{where}: no available product of {data.Name}");
             return product;
         }
@@ -121,6 +122,7 @@ public static class Loadouts
                 return (items.Select(item => item.GetBehavior<Weapon>()).ToList(), items);
             })
             .ToArray();
+        credits -= Price(itemManager, loadout);
         return ship;
     }
 
