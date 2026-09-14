@@ -1336,7 +1336,13 @@ the behavior change.
   types only, and the Studio package takes no Unity.Mathematics dependency.
   Unclaimed types render a
   visible error row.
-- Verification: batchmode compile of `src\GameCult.Unity`; then the operator
+- Verification (operator decision 2026-09-14): the Studio assemblies compile in
+  batchmode; the manual click-through happens in Aetheria after Cut 7 releases
+  the packages and Cut 8 wires them in, against the tagged package rather than
+  a scratch build. CultLib follow-up outside this migration: `src\GameCult.Unity`
+  has no committed `Packages\manifest.json` (the root `.gitignore` excludes
+  `Packages/*`) and its demo UI assembly does not compile (`ZLinq` never
+  restored; Unity.Mathematics in `Assets\UI`). Original plan: batchmode compile of `src\GameCult.Unity`; then the operator
   opens a `.cc` with each member kind, edits, saves, and confirms open-then-close
   without edits leaves the file bytes unchanged.
 
