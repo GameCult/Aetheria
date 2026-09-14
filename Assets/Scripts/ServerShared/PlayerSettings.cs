@@ -68,7 +68,9 @@ public class PlayerGraphicsSettings
 [MessagePackObject]
 public class PlayerInputSettings
 {
-    [Key(0)] public Dictionary<(string action, int binding), string> InputActionMap = new Dictionary<(string action, int binding), string>();
+    // Binding override paths by action name, then binding index. A tuple key has no hash-resistant comparer, so
+    // MessagePack's untrusted-data security refuses to read it back.
+    [Key(0)] public Dictionary<string, Dictionary<int, string>> InputActionMap = new Dictionary<string, Dictionary<int, string>>();
     [Key(1)] public List<string> ActionBarInputs = new List<string>();
 }
 
