@@ -1,4 +1,5 @@
 using CultMath;
+using CultMath.UnityBridge;
 using UnityEditor;
 using UnityEngine;
 using static UnityEditor.EditorGUILayout;
@@ -76,7 +77,7 @@ public class Float4ColorInspector : BaseInspector<float4, InspectableColorAttrib
         using (new HorizontalScope())
         {
             GUILayout.Label(label, GUILayout.Width(width));
-            return ColorField(value.ToColor()).ToFloat4();
+            return ColorField(value.ToColor()).ToCultMath();
         }
     }
 }
