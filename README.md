@@ -69,7 +69,7 @@ There are two solutions in this repository. One is a Unity project containing th
 
 Client-Server communication is implemented using [LiteNetLib](https://github.com/RevenantX/LiteNetLib), a semi-reliable UDP transport library which we use to transmit [MessagePack](https://github.com/neuecc/MessagePack-CSharp) over the wire.
 
-Game content lives in `GameData/AetherDB.msgpack`, a single [MessagePack](https://github.com/neuecc/MessagePack-CSharp) file loaded into a CultCache at startup. Persistent data types carry MessagePack attributes; some also carry [JSON.Net](https://www.newtonsoft.com/json) attributes.
+Game content lives in `GameData/Aetheria.cc`, a [CultCache](https://github.com/GameCult/CultLib) store that is read-only at runtime. Run state and player state (settings, bindings, loadouts) live in their own `.cc` stores in the same cache. Persistent data types carry MessagePack attributes; some also carry [JSON.Net](https://www.newtonsoft.com/json) attributes.
 
 ### Programming Paradigms
 
@@ -115,15 +115,19 @@ You don't have to be a programmer to contribute, either! We have issue labels fo
 
 ### Database Editor Tools
 
-Game content is edited with a Unity editor utility. Open it with Window/Aetheria/Database Tools in Unity's menu. Two windows appear, the Database List View and the Database Inspector, both working on `GameData/AetherDB.msgpack`.
+Game content in `GameData/Aetheria.cc` is edited in Unity with CultCache Studio, from the `org.gamecult.caching.unity` package.
 
 #### Editing Items
 
-You can unfold the categories of items in the list view to see what items exist. If you select an item, the Database Inspector will populate with all of the available fields of that item. Changes apply in memory; click "Save" at the top of the list view to write them to `GameData/AetherDB.msgpack`.
+Studio lists records by type; selecting one opens its fields in the inspector, including references to other records. Save writes the store back to `GameData/Aetheria.cc`.
+
+#### Command Line
+
+`tools/AetherDb` is a console project for inspecting the catalog without Unity: `dotnet run --project tools/AetherDb -- <command>`. Commands are `census`, `factions`, `station-fit`, `hardpoint-fit`, `loadout [seed]`, `save`, `settings`, `settings-dump` and `dangling`. `dangling` lists references to records that do not exist; `dangling clear <Type.Member> apply` removes them for that member.
 
 ### Testing Locally
 
-The game reads the same `GameData/AetherDB.msgpack`, so saved edits show up the next time you enter Play mode. Start from the "Main Menu" scene: it sets up the world (loading or generating a galaxy) before loading the "ARPG" scene.
+The game reads the same `GameData/Aetheria.cc`, so saved edits show up the next time you enter Play mode. Start from the "Main Menu" scene: it sets up the world (loading or generating a galaxy) before loading the "ARPG" scene.
 
 ### Debug Console
 
