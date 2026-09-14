@@ -1336,6 +1336,22 @@ the behavior change.
   types only, and the Studio package takes no Unity.Mathematics dependency.
   Unclaimed types render a
   visible error row.
+- Soul, Cut 6 (after CultLib `8be174b`): expanding a foldout dirtied and
+  rewrote records, a throwing drawer broke the pane, multi-dimensional arrays
+  threw, empty-ref dictionary keys could produce an unloadable store, `New` on
+  a directory store wrote nothing, and drawers could only claim whole types
+  while Aetheria's `[InspectableColor]`, `[InspectableType]`,
+  `[InspectableText]` and `[InspectableAnimationCurve]` need attribute claims.
+  Operator decisions (2026-09-14): the `CultInspector*` attributes move into
+  CultLib's engine-free core so headless shared models can use them; a drawer
+  claims a member type or an attribute (attribute first), receives the value
+  type, and can fall back to a public default draw; opening any directory store
+  creates no folder or lock file (only a write does); no by-name reflection on
+  CultLib types remains. Game data stores never live under a Unity `Assets`
+  folder: CultCache exists so Unity does not manage game data, so the Studio's
+  `New` refuses an `Assets` path and `Open` warns on one. Cut 8's manifest adds
+  `org.gamecult.cultmath` by git URL, since Unity does not resolve package
+  dependencies from git.
 - Verification (operator decision 2026-09-14): the Studio assemblies compile in
   batchmode; the manual click-through happens in Aetheria after Cut 7 releases
   the packages and Cut 8 wires them in, against the tagged package rather than
