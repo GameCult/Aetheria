@@ -69,7 +69,7 @@ There are two solutions in this repository. One is a Unity project containing th
 
 Client-Server communication is implemented using [LiteNetLib](https://github.com/RevenantX/LiteNetLib), a semi-reliable UDP transport library which we use to transmit [MessagePack](https://github.com/neuecc/MessagePack-CSharp) over the wire.
 
-Game content lives in `GameData/Aetheria.cc`, a [CultCache](https://github.com/GameCult/CultLib) store that is read-only at runtime. Run state and player state (settings, bindings, loadouts) live in their own `.cc` stores in the same cache. Persistent data types carry MessagePack attributes; some also carry [JSON.Net](https://www.newtonsoft.com/json) attributes.
+Game content lives in `GameData/Aetheria.cc`, a [CultCache](https://github.com/GameCult/CultLib) store that is read-only at runtime. Run state and player state (settings and bindings) live in their own `.cc` stores in the same cache. Persistent data types carry MessagePack attributes; some also carry [JSON.Net](https://www.newtonsoft.com/json) attributes.
 
 ### Programming Paradigms
 

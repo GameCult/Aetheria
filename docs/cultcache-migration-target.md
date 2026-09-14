@@ -77,24 +77,33 @@ the cache and nothing else.
 
 ## Loadouts
 
-A loadout is a portable ship build. It stores item designs only: the hull design,
-and for each hull cell a rotation and an `EquippableItemData` design. It names no
-manufacturer and no product, and it lives in the player store, so it outlives
-runs and works in any galaxy.
+A loadout is an authored ship preset, a variant in the MechWarrior sense. Players
+do not see loadouts in the MVP. Spawners use them to build ships.
 
-`Loadouts.Materialize` is the single owner of turning a loadout into a ship:
-validity, availability, affordability and the charge.
-
-- Each design is built by the first available product for that design, in
-  record-key order, under `LoadoutGenerator.IsAvailable`.
-- The price is the sum of the design prices.
-- It is all-or-nothing. On any failure it lists every failure, returns no ship
-  and charges nothing. It charges only on success.
-- Weapon groups are indices into the slots. Every index must name a slot whose
-  design is a weapon.
-- A loadout may have at most `WeaponGroupCount` groups; more is a failure. The
-  ship always gets exactly `WeaponGroupCount` groups, and missing groups are
-  added empty.
+- **Content.** A loadout stores item designs only: the hull design, and for each
+  hull cell a rotation and an `EquippableItemData` design. It names no
+  manufacturer and no product, so it works in any galaxy.
+- **Home.** Loadouts live in the catalog. They are authored in CultCache Studio,
+  or captured in play with the editor-only console command
+  `capturepreset "<name>" [replace]`, and they are only read at runtime.
+- **Capture.** The editor opens the catalog writable, in the same single cache.
+  `Loadouts.Commit` keys a preset by its name. It replaces an existing preset
+  only when `replace` is given. The commit is conditional on that key, so it
+  writes only this one record onto the file as it is on disk.
+- **Materialize.** `Loadouts.Materialize` is the only way to build a ship from a
+  loadout, and it charges nothing.
+  - Each design is built by the first available product for that design, in
+    record-key order, under the availability predicate. The game passes
+    `LoadoutGenerator.IsAvailable`.
+  - It is all-or-nothing. On any failure it lists every failure and returns no
+    ship, so a spawner can pick another preset.
+- **Weapon groups.** Weapon groups are indices into the slots, and every index
+  must name a slot whose design is a weapon. A loadout may have at most
+  `WeaponGroupCount` groups; more is a failure. The ship always gets exactly
+  `WeaponGroupCount` groups, and missing groups are added empty.
+- **Future direction.** Variants will also differ by hardpoint configuration:
+  one hull with alternative hardpoint layouts. This is not built yet. Nothing
+  consumes presets yet either; ship spawning still uses `LoadoutGenerator`.
 
 ## Target state: CultLib
 
