@@ -53,6 +53,27 @@ them; add Studio drawers for the new CultMath types after the branch merges.
 The shader mirror is compile-checked with dxc (download approved). Line
 numbers below refer to the evidence base, not to the branch.
 
+Cut 6b second Soul pass (after CultLib `10b2c15`):
+- **Held:**
+  - numeric output unchanged over 400 samples;
+  - generator reruns byte-identical;
+  - swizzle setters write back;
+  - `sign` and `any`/`all` match dxc;
+  - no consumer serializes CultMath matrices.
+- **Defects, fixes dispatched:**
+  - `step` on NaN followed the docs, but dxc lowers it to `x < e ? 0 : 1`, so it
+    reverts to the compiler's behaviour. The parity target is HLSL as dxc
+    compiles it.
+  - The shader mirror test proved only compilation. It gains numeric
+    comparison of every mirrored function, including ties and NaN.
+  - A stale cultmath bump in the Caching `package.json` conflicts with the
+    routing branch and is dropped.
+  - `get-dxc.ps1` is pinned with a hash.
+- **Operator decision (2026-09-14):** the `ref` matrix row indexer stays, with
+  no analyzer. Writes through a readonly field, an `in` parameter, a property or
+  `identity` land on a defensive copy and are silently lost; design.md and the
+  indexer document this.
+
 Evidence base: CultLib `main` at `c2a9a6e`; Aetheria `codex/aetheria-state-rebuild`
 at `82c1e72e`. Line numbers refer to those revisions (`CC:` is
 `src\GameCult.Caching\CultCache.cs`, `DMS:` is
