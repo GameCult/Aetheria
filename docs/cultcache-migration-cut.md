@@ -23,7 +23,25 @@ CodexConnector); Rust `CacheBackingStore` implementations must provide
 Cut 6 (Studio on an engine-free inspection model) and **Cut 6b: CultMath grows
 what Aetheria needs** landed after four and four Soul passes; merge commit
 `1b95dd6` on `codex/cultcache-store-routing` brings in
-`codex/cultmath-hlsl-parity` (`d4c43ed`). Cuts 7-10 are not started.
+`codex/cultmath-hlsl-parity` (`d4c43ed`).
+
+Cut 7 is mostly landed. Main merged at `546c919`, and the release commit is
+`ae194d5`, which carries rebuilt Unity plugins; the build now leaves the
+commit out of the output, so the byte check passes after a commit. Tags on
+`ae194d5`:
+
+- `cultlib-unity-v1.0.57`
+- `caching-unity-v1.2.0`
+- `cultmath-unity-v0.2.0` (`?path=/packages/cultmath/unity/org.gamecult.cultmath`)
+- `cultcache-ts-v0.14.0`
+- `cultcache-py-v0.3.0`
+
+GitHub skips tag workflows when one push carries more than three tags, so no
+publish job ran. The operator ruled (2026-09-14) that only `cultcache-py` is
+re-pushed alone to publish to PyPI. npm is held until `NPM_TOKEN` is
+confirmed: there is no repo-level secret, and no `cultcache-ts` publish has
+ever run. The `cultcache-ts-v0.14.0` tag stays inert until then. Unity
+versions 1.0.47-1.0.56 were never tagged. Cuts 8-10 are not started.
 
 Cut 6b decisions (operator, 2026-09-14). Aetheria adopts CultMath to exercise
 it, but the audit showed it is not a drop-in: missing `float2x2`, `float3x3`,
