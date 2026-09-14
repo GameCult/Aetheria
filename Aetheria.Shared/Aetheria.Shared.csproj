@@ -3,7 +3,7 @@
        Compiles ServerShared and its dependencies from source with no Unity defines, so a successful build is the
        check that the simulation stays independent of the engine. Tools and test harnesses reference this project. -->
   <PropertyGroup>
-    <!-- Unity compiles ServerShared against .NET Standard 2.1; newer targets also impose C# 11 ref-safety rules the vendored MessagePack predates -->
+    <!-- Unity compiles ServerShared against .NET Standard 2.1 -->
     <TargetFramework>netstandard2.1</TargetFramework>
     <LangVersion>9.0</LangVersion>
     <Nullable>disable</Nullable>
@@ -18,7 +18,6 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="$(Assets)Scripts\ServerShared\**\*.cs" />
-    <Compile Include="$(Assets)Plugins\MessagePack\**\*.cs" Exclude="$(Assets)Plugins\MessagePack\Unity\**" />
     <Compile Include="$(Assets)Plugins\UniRx\Scripts\**\*.cs" Exclude="$(Assets)Plugins\UniRx\Scripts\UnityEngineBridge\**;$(Assets)Plugins\UniRx\Scripts\UnityWinRTBridge\**;$(Assets)Plugins\UniRx\Scripts\InternalUtil\MicroCoroutine.cs" />
     <!-- The reactive collections live in UniRx's Unity bridge but fence their Unity parts behind UniRxLibrary -->
     <Compile Include="$(Assets)Plugins\UniRx\Scripts\UnityEngineBridge\ReactiveProperty.cs;$(Assets)Plugins\UniRx\Scripts\UnityEngineBridge\ReactiveCollection.cs;$(Assets)Plugins\UniRx\Scripts\UnityEngineBridge\ReactiveDictionary.cs" />
@@ -27,7 +26,5 @@
   <ItemGroup>
     <ProjectReference Include="$(CultLibRoot)\packages\cultmath\src\CultMath\CultMath.csproj" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
-    <!-- Bundled by Unity; .NET Standard 2.1 lacks it -->
-    <PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="6.0.0" />
   </ItemGroup>
 </Project>

@@ -23,6 +23,49 @@ public static class Extensions
         return baseType.GetInterfaces().Any(interfaceType.Equals);
     }
 
+    // Every loadable type assignable to this one. An assembly whose dependencies are missing (a Unity plugin
+    // referencing UnityEngine outside Unity) still yields the types that do load.
+    private static readonly Dictionary<Type, Type[]> ChildClasses = new Dictionary<Type, Type[]>();
+    public static Type[] GetAllChildClasses(this Type type)
+    {
+        if (ChildClasses.TryGetValue(type, out var children)) return children;
+        return ChildClasses[type] = AppDomain.CurrentDomain.GetAssemblies().SelectMany(assembly =>
+        {
+            try { return assembly.GetTypes(); }
+            catch (ReflectionTypeLoadException e) { return e.Types.Where(t => t != null); }
+        }).Where(type.IsAssignableFrom).ToArray();
+    }
+
+    public static string SplitCamelCase(this string str) =>
+        Regex.Replace(Regex.Replace(str, @"(\P{Ll})(\P{Ll}\p{Ll})", "$1 $2"), @"(\p{Ll})(\P{Ll})", "$1 $2");
+
+    public static string FormatTypeName(this string typeName) =>
+        (typeName.EndsWith("Data", StringComparison.InvariantCultureIgnoreCase)
+            ? typeName.Substring(0, typeName.Length - 4)
+            : typeName).SplitCamelCase();
+
+    public static T MaxBy<T, U>(this IEnumerable<T> items, Func<T, U> selector) => items.Best(selector, 1);
+    public static T MinBy<T, U>(this IEnumerable<T> items, Func<T, U> selector) => items.Best(selector, -1);
+
+    private static T Best<T, U>(this IEnumerable<T> items, Func<T, U> selector, int sign)
+    {
+        using var e = items.GetEnumerator();
+        if (!e.MoveNext()) throw new InvalidOperationException("Empty input sequence");
+        var best = e.Current;
+        var bestValue = selector(best);
+        var comparer = Comparer<U>.Default;
+        while (e.MoveNext())
+        {
+            var value = selector(e.Current);
+            if (comparer.Compare(value, bestValue) * sign > 0)
+            {
+                best = e.Current;
+                bestValue = value;
+            }
+        }
+        return best;
+    }
+
     public static T[] WeightedRandomElements<T>(this IEnumerable<T> collection, ref Random random, Func<T, float> weightFunction, int count)
     {
         var elements = collection as T[] ?? collection.ToArray();
