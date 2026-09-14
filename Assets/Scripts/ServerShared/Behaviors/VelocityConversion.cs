@@ -38,7 +38,7 @@ public class VelocityConversion : Behavior
 
     public override bool Execute(float dt)
     {
-        Entity.Velocity = AetheriaMath.Damp(Entity.Velocity, Entity.Direction * length(Entity.Velocity), Evaluate(_data.Lambda), dt);
+        Entity.Velocity = damp(Entity.Velocity, Entity.Direction * length(Entity.Velocity), Evaluate(_data.Lambda), dt);
         return true;
     }
 }

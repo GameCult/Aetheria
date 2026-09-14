@@ -77,7 +77,7 @@ public class GuidedProjectile : MonoBehaviour
             var targetPosition = TargetPosition?.Invoke() ?? Target.position;
             _targetVelocity = lerp(_targetVelocity.ToCultMath(), (targetPosition - _previousTargetPosition).ToCultMath(), saturate(Time.deltaTime * 5)).ToUnity();
             _previousTargetPosition = targetPosition;
-            targetPosition = AetheriaMath.FirstOrderIntercept(position,float3.zero, TopSpeed, targetPosition.ToCultMath(), _targetVelocity.ToCultMath()).ToUnity();
+            targetPosition = first_order_intercept(position,float3.zero, TopSpeed, targetPosition.ToCultMath(), _targetVelocity.ToCultMath()).ToUnity();
 
             var diff = targetPosition - transform.position;
             var targetDist = diff.magnitude;

@@ -855,7 +855,7 @@ public abstract class Entity
 
         foreach (var v in VisibilitySources.Keys.ToArray())
         {
-            VisibilitySources[v] = AetheriaMath.Decay(VisibilitySources[v], ItemManager.GameplaySettings.VisibilityDecay, delta);
+            VisibilitySources[v] = decay(VisibilitySources[v], ItemManager.GameplaySettings.VisibilityDecay, delta);
  
             if (VisibilitySources[v] < 0.1f) VisibilitySources.Remove(v);
         }

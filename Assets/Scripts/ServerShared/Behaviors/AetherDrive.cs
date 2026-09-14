@@ -99,11 +99,11 @@ public class AetherDrive : Behavior
         var couplingEfficiency = Evaluate(_data.CouplingEfficiency);
         var efficiency = float3(saturate(1 - speed / max(rotorSpeed.xy, 1) * sign(_axis.xy)) * couplingEfficiency, 1);
 
-        Thrust = (Rpm - AetheriaMath.Decay(Rpm, _data.CouplingLambda, dt)) * _data.RotorMass * efficiency;
+        Thrust = (Rpm - decay(Rpm, _data.CouplingLambda, dt)) * _data.RotorMass * efficiency;
 
         var couplingLambda = _data.CouplingLambda * Item.Evaluate(_data.LambdaMultiplier) * max(abs(_axis), Evaluate(_data.PassiveCoupling));
         var previousRpm = Rpm;
-        Rpm = AetheriaMath.Decay(Rpm, couplingLambda, dt);
+        Rpm = decay(Rpm, couplingLambda, dt);
         var rpmLoss = previousRpm - Rpm;
         var force = rpmLoss * _data.RotorMass * efficiency;
 

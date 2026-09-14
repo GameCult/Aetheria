@@ -64,7 +64,7 @@ public class TurretController : Behavior, IInitializableBehavior
             {
                 var targetHullData = Entity.ItemManager.GetData(Entity.Target.Value.Hull) as HullData;
                 var targetVelocity = float3(Entity.Target.Value.Velocity.x, 0, Entity.Target.Value.Velocity.y);
-                var predictedPosition = AetheriaMath.FirstOrderIntercept(
+                var predictedPosition = first_order_intercept(
                     Entity.Position, float3.zero, _shotSpeed,
                     Entity.Target.Value.Position, targetVelocity
                 );

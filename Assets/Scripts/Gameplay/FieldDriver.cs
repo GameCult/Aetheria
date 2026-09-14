@@ -233,7 +233,7 @@ public class FieldDriver : MonoBehaviour
 
             if (_grabObject != null)
             {
-                _tendrilBasePos = AetheriaMath.Damp(_tendrilBasePos.ToCultMath(), _grabObject.position.ToCultMath(), TendrilBaseDamping, Time.deltaTime).ToUnity();
+                _tendrilBasePos = damp(_tendrilBasePos.ToCultMath(), _grabObject.position.ToCultMath(), TendrilBaseDamping, Time.deltaTime).ToUnity();
                 switch (_grabPhase)
                 {
                     case GrabPhase.Extend:
@@ -292,7 +292,7 @@ public class FieldDriver : MonoBehaviour
             for (int i = 1; i <= GIZMO_STEPS; i++)
             {
                 var l = (float)i / GIZMO_STEPS;
-                var next = AetheriaMath.GetQuadraticSplinePosition(_tendrilBasePos.ToCultMath(), _tendrilBendTarget.ToCultMath(), _tendrilTargetPos.ToCultMath(), l).ToUnity();
+                var next = quadratic_bezier(_tendrilBasePos.ToCultMath(), _tendrilBendTarget.ToCultMath(), _tendrilTargetPos.ToCultMath(), l).ToUnity();
                 Gizmos.DrawLine(previous, next);
                 previous = next;
             }

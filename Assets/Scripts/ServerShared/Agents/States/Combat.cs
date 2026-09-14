@@ -86,7 +86,7 @@ public class CombatState : BaseState
                 var targetHullData = _agent.ItemManager.GetData(target.Hull) as HullData;
                 var targetVelocity = float3(target.Velocity.x, 0, target.Velocity.y);
                 var shipVelocity = float3(_agent.Ship.Velocity.x, 0, _agent.Ship.Velocity.y);
-                var predictedPosition = AetheriaMath.FirstOrderIntercept(
+                var predictedPosition = first_order_intercept(
                     _agent.Ship.Position,
                     float3.zero,
                     testWeapon.Velocity,

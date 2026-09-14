@@ -81,21 +81,21 @@ public class FieldTester : MonoBehaviour
         var turn = _input.Player.Turn.ReadValue<float>();
         if (_directionalPush)
         {
-            TestField.Push = AetheriaMath.Damp(TestField.Push, move, _throttleDecay, Time.deltaTime);
-            TestField.FrontTwist = AetheriaMath.Damp(TestField.FrontTwist,
+            TestField.Push = damp(TestField.Push, move, _throttleDecay, Time.deltaTime);
+            TestField.FrontTwist = damp(TestField.FrontTwist,
                 turn,
                 _throttleDecay, Time.deltaTime);
-            TestField.RearTwist = AetheriaMath.Damp(TestField.RearTwist,
+            TestField.RearTwist = damp(TestField.RearTwist,
                 turn,
                 _throttleDecay, Time.deltaTime);
         }
         else
         {
-            TestField.Push = AetheriaMath.Damp(TestField.Push, float2(0,move.y), _throttleDecay, Time.deltaTime);
-            TestField.FrontTwist = AetheriaMath.Damp(TestField.FrontTwist,
+            TestField.Push = damp(TestField.Push, float2(0,move.y), _throttleDecay, Time.deltaTime);
+            TestField.FrontTwist = damp(TestField.FrontTwist,
                 clamp(turn + move.x, -1, 1) * (1+min(move.y,0)),
                 _throttleDecay, Time.deltaTime);
-            TestField.RearTwist = AetheriaMath.Damp(TestField.RearTwist,
+            TestField.RearTwist = damp(TestField.RearTwist,
                 clamp(turn - move.x, -1, 1) * (1+min(-move.y,0)),
                 _throttleDecay, Time.deltaTime);
         }

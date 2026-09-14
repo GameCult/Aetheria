@@ -381,7 +381,7 @@ public class Galaxy
         //     foreach (var zone in Zones)
         //     {
         //         if(zone != link.Item1 && zone != link.Item2)
-        //             if (AetheriaMath.FindDistanceToSegment(zone.Position, link.Item1.Position, link.Item2.Position, out _) < minLineSeparation)
+        //             if (distance_to_segment(zone.Position, link.Item1.Position, link.Item2.Position, out _) < minLineSeparation)
         //                 links.Remove(link);
         //     }
         // }
