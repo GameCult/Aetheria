@@ -20,7 +20,26 @@ fork, if it adopts CultLib's package); Rust callers of `add_backing_store`
 should propagate the new `Result` with `?` (Epiphany `epiphany-core`,
 CodexConnector); Rust `CacheBackingStore` implementations must provide
 `push_all` (Epiphany's already does); Heimdall re-vendors CultLib when it moves.
-Cut 6 is in progress. Cuts 7-10 are not started. Line
+Cut 6 is in progress. A new cut, **Cut 6b: CultMath grows what Aetheria
+needs**, runs in parallel on CultLib branch `codex/cultmath-hlsl-parity` and
+merges before Cut 7. Cuts 7-10 are not started.
+
+Cut 6b decisions (operator, 2026-09-14). Aetheria adopts CultMath to exercise
+it, but the audit showed it is not a drop-in: missing `float2x2`, `float3x3`,
+`int3`, `int4`, `mul`, float3 `snoise`, vector `pow`/`sqrt`/trig overloads,
+comparisons returning bool vectors, `any`/`all`, several swizzles, and any
+Unity `Vector`/`Quaternion` bridge; `record struct` types made components
+read-only; `hash`, `normalize` and `Random` differ. CultMath's parity target is
+HLSL, not Unity.Mathematics: HLSL source should compile as C# with the right
+using directive, so components and swizzles are writable (the design doc's
+"prefer immutable value types" is amended). Where CultMath intentionally
+differs from Unity.Mathematics it keeps its behavior, following HLSL where HLSL
+defines the intrinsic; old runs are discarded, so a different galaxy per seed
+costs nothing. Only what Aetheria uses is added. The Unity bridge lives in
+CultMath's Unity package; the core stays engine-free. Cut 8 then swaps
+Aetheria (ServerShared, `Aetheria.Shared`, `tools\AetherDb`, Unity-side
+scripts) onto CultMath and deletes the `Library\PackageCache` Unity.Mathematics
+source include from `Aetheria.Shared.csproj`. Line
 numbers below refer to the evidence base, not to the branch.
 
 Evidence base: CultLib `main` at `c2a9a6e`; Aetheria `codex/aetheria-state-rebuild`
