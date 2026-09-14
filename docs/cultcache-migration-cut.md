@@ -1394,9 +1394,11 @@ the behavior change.
       `CultNetDatabase`) and `GameCult.Mesh` (`CultMesh.cs`) is a follow-up
       outside this cache-only migration.
     - The constructor-matching composite drawing
-      (`CultInspectorModel.Composite`) awaits the operator's judgment. It
-      rebuilds on edit and misplaces values when a constructor rewrites its
-      inputs (`rect(min, max)`).
+      (`CultInspectorModel.Composite`) is deleted. It guessed from parameter
+      names and misplaced values when a constructor rewrote its inputs
+      (`rect(min, max)`). Structs draw by writable public fields; readonly and
+      get-only structs (CultMath matrices, `quaternion`) are unsupported until
+      their explicit drawers land after the CultMath merge.
 - Verification (operator decision 2026-09-14): the Studio assemblies compile in
   batchmode; the manual click-through happens in Aetheria after Cut 7 releases
   the packages and Cut 8 wires them in, against the tagged package rather than
