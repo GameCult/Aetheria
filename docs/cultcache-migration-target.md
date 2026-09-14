@@ -86,10 +86,22 @@ do not see loadouts in the MVP. Spawners use them to build ships.
 - **Home.** Loadouts live in the catalog. They are authored in CultCache Studio,
   or captured in play with the editor-only console command
   `capturepreset "<name>" [replace]`, and they are only read at runtime.
-- **Capture.** The editor opens the catalog writable, in the same single cache.
-  `Loadouts.Commit` keys a preset by its name. It replaces an existing preset
-  only when `replace` is given. The commit is conditional on that key, so it
-  writes only this one record onto the file as it is on disk.
+- **Capture.** The process cache opens the catalog read-only in every build.
+  `Loadouts.Commit` opens its own short-lived cache over `Aetheria.cc`,
+  writable, commits the one preset and disposes it, so no catalog instance play
+  holds can reach the file. The running game sees the preset after the catalog
+  reloads.
+  - A preset is keyed by its name. It replaces an existing preset only when
+    `replace` is given, and a preset of the same name under another key (one
+    authored in Studio) refuses the capture.
+  - A missing `Aetheria.cc` refuses the capture; it never creates the catalog.
+  - The commit is conditional on that key, so it writes only this one record
+    onto the file as it is on disk.
+  - The console refuses a command containing anything but letters, digits,
+    spaces and hyphens, and quotes a multi-word name.
+  - A CultCache Studio session opened before the capture overwrites captured
+    presets when it saves, since a single-file save is last-writer-wins.
+    Reopen the Studio after capturing.
 - **Materialize.** `Loadouts.Materialize` is the only way to build a ship from a
   loadout, and it charges nothing.
   - Each design is built by the first available product for that design, in
