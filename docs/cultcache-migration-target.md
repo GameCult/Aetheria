@@ -75,6 +75,27 @@ the cache and nothing else.
   same CultLib version, so the headless build still proves the simulation
   compiles without Unity.
 
+## Loadouts
+
+A loadout is a portable ship build. It stores item designs only: the hull design,
+and for each hull cell a rotation and an `EquippableItemData` design. It names no
+manufacturer and no product, and it lives in the player store, so it outlives
+runs and works in any galaxy.
+
+`Loadouts.Materialize` is the single owner of turning a loadout into a ship:
+validity, availability, affordability and the charge.
+
+- Each design is built by the first available product for that design, in
+  record-key order, under `LoadoutGenerator.IsAvailable`.
+- The price is the sum of the design prices.
+- It is all-or-nothing. On any failure it lists every failure, returns no ship
+  and charges nothing. It charges only on success.
+- Weapon groups are indices into the slots. Every index must name a slot whose
+  design is a weapon.
+- A loadout may have at most `WeaponGroupCount` groups; more is a failure. The
+  ship always gets exactly `WeaponGroupCount` groups, and missing groups are
+  added empty.
+
 ## Target state: CultLib
 
 - **Store routing replaces replication.** Each document type has exactly one
