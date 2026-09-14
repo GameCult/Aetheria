@@ -185,22 +185,18 @@ public sealed class LoadoutTests : IDisposable
         Assert.Equal(1000 - 115, credits);
     }
 
-    // Two more Lamp products, written so insertion order (z before a) disagrees with record-key order.
+    // Two more Lamp products, upserted into the live cache so its enumeration order (z before a) disagrees with
+    // record-key order; a reopened snapshot could already hand them back sorted.
     [Fact]
     public void FirstAvailableProductInKeyOrderBuildsTheSlot()
     {
-        using (var catalog = AetheriaStores.Open(Catalog, catalogWritable: true))
-        {
-            var maker = catalog.RefOf(catalog.GetByName<Faction>("Maker"));
-            var lamp = new CultRecordRef<CraftedItemData>(catalog.RefOf(catalog.GetByName<GearData>("Lamp")).Key);
-            catalog.Commit(batch =>
-            {
-                foreach (var key in new[] { "lamp-z", "lamp-a" })
-                    batch.Upsert(typeof(FactionProductData), new FactionProductData { Name = key, Design = lamp, Manufacturer = maker }, new CultRecordKey(key));
-            });
-        }
+        using var cache = AetheriaStores.Open(Catalog, catalogWritable: true);
+        var maker = cache.RefOf(cache.GetByName<Faction>("Maker"));
+        var lamp = new CultRecordRef<CraftedItemData>(cache.RefOf(cache.GetByName<GearData>("Lamp")).Key);
+        foreach (var key in new[] { "lamp-z", "lamp-a" })
+            cache.Commit(batch => batch.Upsert(typeof(FactionProductData), new FactionProductData { Name = key, Design = lamp, Manufacturer = maker }, new CultRecordKey(key)));
+        Assert.Equal(new[] { "lamp-z", "lamp-a" }, cache.GetAll<FactionProductData>().Select(p => p.Name).Where(name => name.StartsWith("lamp-")));
 
-        using var cache = Open();
         var items = new ItemManager(cache, RunSaveTests.TestSettings(), _ => { });
         var hand = HandBuilt(cache);
         string LampProduct(Predicate<FactionProductData> available, List<string> failures)
