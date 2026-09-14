@@ -53,7 +53,25 @@ pass found the following; Cut 10 now owns every item:
 - Four non-CultCache file formats remain.
 - No lifecycle owner creates the run and player globals.
 
-Cuts 9 and 10 are refreshed against Aetheria `20db3a93` and are not started.
+Cuts 9 and 10 are refreshed against Aetheria `20db3a93`. **Cut 9 landed at
+`70fbaca1`** and passed Soul:
+- 180 catalog records landed in one commit.
+- `factions` is byte-identical to the Cut 8a capture. `census` and
+  `hardpoint-fit` match once ties are sorted, after the census normalizer was
+  fixed to split the first maker off its column.
+- Every record was compared at the wire level against the legacy file.
+- A failed import writes nothing.
+
+Recorded, not fixed (the importer is deleted in Cut 10):
+- An empty `NameFile` folder imports silently.
+- The `RequireBehavior` rewrite rule and the bin16 `DatabaseLink` rewrite rule
+  never fire on this data.
+- A slot with no matching member is copied raw.
+
+The six dangling refs await the operator. CultLib `b85a828` (tags
+`cultlib-unity-v1.0.58` and `caching-unity-v1.3.0`) gives drawers a read-only
+`CultInspector.Record` and writes an unset `CultRecordRef` as nil. Cut 10 pins
+it. Cut 10 is not started; it waits on Q10-3.
 
 Rulings (operator, 2026-09-14):
 - **Q9-1 A:** `InputLayout` is catalog state, imported by Cut 9.
@@ -2118,9 +2136,18 @@ ended at `9bdf6ef2`) and CultLib `0f2c1f0`, the pin in `Directory.Build.props`.
       Faction 12, PersonalityAttribute 3, CargoBayData 4, DockingBayData 1,
       WeaponItemData 18, FactionProductData 37, NameFile 12, InputLayout 1`,
       180 records in all;
-    - no unresolvable refs. The exception is a `Faction.BossHull` that names a
-      record missing from the legacy file, which `factions` also shows as
-      `DANGLING`; the list must equal `factions`' `DANGLING` rows.
+    - unresolvable refs exactly as authored in the legacy file. The landed
+      import found six and no `Faction.BossHull` (`factions` shows no
+      `DANGLING` rows):
+      - `DemandProfile` entries on Mouth Adapting Gummy Molars (2) and Neural
+        Lace (1);
+      - `Weapon.AmmoType` on DeathCluster, FastBlast+- and pretty pretty bang
+        bang.
+
+      Soul decoded the legacy file independently. Each target was a record
+      deleted before `285b5771`: the Conscientiousness and Neuroticism
+      `PersonalityAttribute`s, and the Auto and Charged Shotgun Ammo
+      commodities.
   - **Negative: a second `-- import`** refuses, and the `.cc` hash is unchanged.
   - **Snapshot:** `Aetheria.cc` opens read-only through `AetheriaStores.Open`.
     `DeserializeSnapshot` shows every record's schema id in its catalog, and
