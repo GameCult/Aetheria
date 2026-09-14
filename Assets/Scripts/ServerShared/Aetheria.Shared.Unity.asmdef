@@ -3,7 +3,6 @@
     "rootNamespace": "",
     "references": [
         "MessagePack",
-        "Unity.Mathematics",
         "UniRx",
         "Ink"
     ],

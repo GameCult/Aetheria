@@ -15,8 +15,6 @@
     <!-- Existing code warnings; the build is a Unity-independence check, not a lint pass -->
     <NoWarn>$(NoWarn);CS0108;CS0114;CS0162;CS0168;CS0169;CS0219;CS0414;CS0618;CS0649;CS8321;CS8981;SYSLIB0021</NoWarn>
     <Assets>$(MSBuildThisFileDirectory)..\Assets\</Assets>
-    <!-- Unity.Mathematics ships only as a Unity package; its sources come from the package cache Unity resolved -->
-    <MathematicsSource>$(MSBuildThisFileDirectory)..\Library\PackageCache\com.unity.mathematics@*\Unity.Mathematics\</MathematicsSource>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="$(Assets)Scripts\ServerShared\**\*.cs" />
@@ -25,9 +23,9 @@
     <!-- The reactive collections live in UniRx's Unity bridge but fence their Unity parts behind UniRxLibrary -->
     <Compile Include="$(Assets)Plugins\UniRx\Scripts\UnityEngineBridge\ReactiveProperty.cs;$(Assets)Plugins\UniRx\Scripts\UnityEngineBridge\ReactiveCollection.cs;$(Assets)Plugins\UniRx\Scripts\UnityEngineBridge\ReactiveDictionary.cs" />
     <Compile Include="$(Assets)Plugins\Ink\**\*.cs" />
-    <Compile Include="$(MathematicsSource)**\*.cs" Exclude="$(MathematicsSource)math_unity_conversion.cs;$(MathematicsSource)PropertyAttributes.cs" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="$(CultLibRoot)\packages\cultmath\src\CultMath\CultMath.csproj" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
     <!-- Bundled by Unity; .NET Standard 2.1 lacks it -->
     <PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="6.0.0" />

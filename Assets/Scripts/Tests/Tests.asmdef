@@ -4,7 +4,6 @@
     "references": [
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner",
-        "Unity.Mathematics",
         "Aetheria.Shared.Unity"
     ],
     "includePlatforms": [
@@ -14,7 +13,8 @@
     "allowUnsafeCode": false,
     "overrideReferences": true,
     "precompiledReferences": [
-        "nunit.framework.dll"
+        "nunit.framework.dll",
+        "CultMath.dll"
     ],
     "autoReferenced": false,
     "defineConstraints": [
