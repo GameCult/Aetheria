@@ -26,7 +26,7 @@ public class FieldDriver : MonoBehaviour
     [Inspectable]
     public ExponentialCurve MagnitudeTimeScaling;
     
-    [Inspectable, InspectorHeader("Melee")]
+    [Inspectable]
     public float MeleeRange;
     [Inspectable]
     public float MeleeRangeExponent;
@@ -41,7 +41,7 @@ public class FieldDriver : MonoBehaviour
     [Inspectable]
     public float MeleeAngleExponent;
     
-    [Inspectable, InspectorHeader("Tendril")]
+    [Inspectable]
     public float TendrilBaseRadius = 3;
     [Inspectable]
     public float TendrilTipRadius = .1f;
@@ -58,7 +58,7 @@ public class FieldDriver : MonoBehaviour
     // [Inspectable]
     // public float GrabScaleAnimationExponent = .5f;
 
-    [Inspectable, InspectorHeader("Grab")]
+    [Inspectable]
     public float GrabExtendTime;
     [Inspectable]
     public float GrabEnvelopTime;

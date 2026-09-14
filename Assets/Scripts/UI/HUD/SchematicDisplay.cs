@@ -124,8 +124,8 @@ public class SchematicDisplay : MonoBehaviour
             //x.ListElement.Label.text = x.Item.EquippableItem.Name;
             if (!_enemy)
             {
-                x.ListElement.InfiniteAmmoIcon.gameObject.SetActive(x.Weapon.WeaponData.AmmoType == Guid.Empty);
-                x.ListElement.AmmoLabel.gameObject.SetActive(x.Weapon.WeaponData.AmmoType != Guid.Empty);
+                x.ListElement.InfiniteAmmoIcon.gameObject.SetActive(!x.Weapon.WeaponData.AmmoType.IsSet());
+                x.ListElement.AmmoLabel.gameObject.SetActive(x.Weapon.WeaponData.AmmoType.IsSet());
             }
         }
     }
@@ -222,12 +222,12 @@ public class SchematicDisplay : MonoBehaviour
                     if (x.Cooldown != null)
                         x.ListElement.CooldownFill.anchorMax = new Vector2(x.Cooldown.Progress, 1);
                     x.ListElement.DurabilityLabel.text = $"{(int)(x.Item.EquippableItem.Durability / itemData.Durability * 100)}%";
-                    if (x.Weapon.WeaponData.AmmoType != Guid.Empty)
+                    if (x.Weapon.WeaponData.AmmoType.IsSet())
                     {
                         if(x.Weapon.WeaponData.MagazineSize > 1)
                             x.ListElement.AmmoLabel.text = x.Weapon.Ammo.ToString();
                         else
-                            x.ListElement.AmmoLabel.text = _entity.CountItemsInCargo(x.Weapon.WeaponData.AmmoType).ToString();
+                            x.ListElement.AmmoLabel.text = _entity.CountItemsInCargo(x.Weapon.WeaponData.AmmoType.Key).ToString();
                     }
                 }
 

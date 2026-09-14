@@ -2,6 +2,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
+using GameCult.Caching;
+using GameCult.Caching.MessagePack;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -47,15 +49,7 @@ public class ActionGameManager : MonoBehaviour
         {
             if (_cultCache != null) return _cultCache;
 
-            _cultCache = new CultCache();
-            _cultCache.AddBackingStore(
-                new SingleFileMessagePackBackingStore(Path.Combine(GameDataDirectory.FullName, "AetherDB.msgpack")));
-            
-            // Particularly heavy objects should be stored in / retrieved from MsgPack files as it's much tighter than JSON
-            // Such as NameFiles, which are just huge collections of geonames used to condition Markov chains
-            _cultCache.AddBackingStore(new MultiFileMessagePackBackingStore(GameDataDirectory.FullName), typeof(NameFile));
-            
-            _cultCache.PullAllBackingStores();
+            _cultCache = AetheriaStores.Open(Path.Combine(GameDataDirectory.FullName, "Aetheria.cc"));
             
             return _cultCache;
         }
@@ -66,9 +60,8 @@ public class ActionGameManager : MonoBehaviour
     {
         get
         {
-            RegisterResolver.Register();
             return _playerSettings ??= File.Exists(_playerSettingsFilePath)
-                ? MessagePackSerializer.Deserialize<PlayerSettings>(File.ReadAllBytes(_playerSettingsFilePath))
+                ? MessagePackSerializer.Deserialize<PlayerSettings>(File.ReadAllBytes(_playerSettingsFilePath), CultDocumentMessagePackSerialization.OptionsFor(typeof(PlayerSettings).Assembly))
                 : GetDefaultPlayerSettings();
         }
     }
@@ -76,7 +69,7 @@ public class ActionGameManager : MonoBehaviour
     private static string _playerSettingsFilePath => Path.Combine(GameDataDirectory.FullName, "PlayerSettings.msgpack");
     public static void SavePlayerSettings()
     {
-        File.WriteAllBytes(_playerSettingsFilePath, MessagePackSerializer.Serialize(_playerSettings));
+        File.WriteAllBytes(_playerSettingsFilePath, MessagePackSerializer.Serialize(_playerSettings, CultDocumentMessagePackSerialization.OptionsFor(typeof(PlayerSettings).Assembly)));
     }
 
     private static PlayerSettings GetDefaultPlayerSettings()
@@ -240,7 +233,7 @@ public class ActionGameManager : MonoBehaviour
 
     public void SaveState()
     {
-        PlayerSettings.SavedRun = CurrentGalaxy == null ? null : new SavedGame(CurrentGalaxy, Zone, DockedEntity ?? CurrentEntity);
+        PlayerSettings.SavedRun = CurrentGalaxy == null ? null : new SavedGame(CultCache, CurrentGalaxy, Zone, DockedEntity ?? CurrentEntity);
         if(PlayerSettings.SavedRun != null)
         {
             PlayerSettings.SavedRun.IsTutorial = IsTutorial;
@@ -278,7 +271,7 @@ public class ActionGameManager : MonoBehaviour
         #region Input Handling
 
         Input = new AetheriaInput();
-        foreach (var x in PlayerSettings.InputSettings.InputActionMap) Input.asset[x.Key.action].ApplyBindingOverride(x.Key.binding, x.Value);
+        foreach (var action in PlayerSettings.InputSettings.InputActionMap) foreach (var binding in action.Value) Input.asset[action.Key].ApplyBindingOverride(binding.Key, binding.Value);
 
         InputDisplayLayout.Input = Input.asset;
         Input.Global.Enable();
@@ -443,7 +436,7 @@ public class ActionGameManager : MonoBehaviour
                             slot.Binding = new ActionBarGearBinding(CurrentEntity, slot, equippedItemDragAction.EquippedItem, trigger);
                             return true;
                         case ItemInstanceDragObject itemInstanceDragAction:
-                            if (!(itemInstanceDragAction.Item.Data.Value is ConsumableItemData consumable)) return false;
+                            if (!(ItemManager.GetData(itemInstanceDragAction.Item) is ConsumableItemData consumable)) return false;
                             slot.Binding = new ActionBarConsumableBinding(CurrentEntity, slot, consumable);
                             return true;
                         case WeaponGroupDragObject weaponGroupDragAction:
@@ -752,12 +745,12 @@ public class ActionGameManager : MonoBehaviour
         ZoneRenderer.PerspectiveEntity = ship;
         var entityPosition = ship.Position.xz;
         var followOrbit = Zone.Orbits.Keys.MinBy(o => lengthsq(Zone.GetOrbitPosition(o) - entityPosition));
-        var followPlanet = ZoneRenderer.Planets[Zone.Planets.FirstOrDefault(p => p.Value.Orbit == followOrbit).Key];
+        var followPlanet = ZoneRenderer.Planets[Zone.Planets.FirstOrDefault(p => p.Value.Orbit.Key.Equals(followOrbit)).Key];
         DockCamera.Follow = followPlanet.Body.transform;
         var rootOrbit = followOrbit;
-        while (Zone.Orbits[rootOrbit].Data.Parent != Guid.Empty)
-            rootOrbit = Zone.Orbits[rootOrbit].Data.Parent;
-        var rootPlanet = ZoneRenderer.Planets[Zone.Planets.FirstOrDefault(p => p.Value.Orbit == rootOrbit).Key];
+        while (Zone.Orbits[rootOrbit].Data.Parent.IsSet())
+            rootOrbit = Zone.Orbits[rootOrbit].Data.Parent.Key;
+        var rootPlanet = ZoneRenderer.Planets[Zone.Planets.FirstOrDefault(p => p.Value.Orbit.Key.Equals(rootOrbit)).Key];
         DockCamera.LookAt = rootPlanet.Body.transform;
 
         var shipVelocity = ship.GetBehavior<VelocityLimit>().Limit;
@@ -810,9 +803,9 @@ public class ActionGameManager : MonoBehaviour
         FollowCamera.enabled = false;
         var orbital = (OrbitalEntity) entity;
         DockCamera.Follow = ZoneRenderer.EntityInstances[orbital].transform;
-        var parentOrbit = Zone.Orbits[orbital.OrbitData].Data.Parent;
-        var parentOrbitPlanet = Zone.Planets.FirstOrDefault(p => p.Value.Orbit == parentOrbit).Key;
-        if (ZoneRenderer.Planets.ContainsKey(parentOrbitPlanet))
+        var parentOrbit = Zone.Orbits[orbital.OrbitData].Data.Parent.Key;
+        var parentOrbitPlanet = Zone.Planets.FirstOrDefault(p => p.Value.Orbit.Key.Equals(parentOrbit)).Key;
+        if (parentOrbitPlanet.IsSet() && ZoneRenderer.Planets.ContainsKey(parentOrbitPlanet))
             DockCamera.LookAt = ZoneRenderer.Planets[parentOrbitPlanet].Body.transform;
         else DockCamera.LookAt = ZoneRenderer.ZoneRoot;
         if (entity is OrbitalEntity {CanTow: true})

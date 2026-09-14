@@ -2,6 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
+using GameCult.Caching;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -66,11 +67,11 @@ public class ZoneRenderer : MonoBehaviour
     public Sprite WormholeIcon;
 
     [HideInInspector] public Dictionary<Entity, EntityInstance> EntityInstances = new Dictionary<Entity, EntityInstance>();
-    [HideInInspector] public Dictionary<Guid, PlanetObject> Planets = new Dictionary<Guid, PlanetObject>();
+    [HideInInspector] public Dictionary<CultRecordKey, PlanetObject> Planets = new Dictionary<CultRecordKey, PlanetObject>();
 
-    private Dictionary<Guid, AsteroidBeltUI> _beltObjects = new Dictionary<Guid, AsteroidBeltUI>();
-    private Dictionary<Guid, InstancedMesh[]> _beltMeshes = new Dictionary<Guid, InstancedMesh[]>();
-    private Dictionary<Guid, Matrix4x4[][]> _beltMatrices = new Dictionary<Guid, Matrix4x4[][]>();
+    private Dictionary<CultRecordKey, AsteroidBeltUI> _beltObjects = new Dictionary<CultRecordKey, AsteroidBeltUI>();
+    private Dictionary<CultRecordKey, InstancedMesh[]> _beltMeshes = new Dictionary<CultRecordKey, InstancedMesh[]>();
+    private Dictionary<CultRecordKey, Matrix4x4[][]> _beltMatrices = new Dictionary<CultRecordKey, Matrix4x4[][]>();
     private float _viewDistance;
     //private float _maxDepth;
     private float _minimapDistance;
@@ -188,8 +189,8 @@ public class ZoneRenderer : MonoBehaviour
         SectorBrushes.localScale = zone.Pack.Radius * 2 * Vector3.one;
         SlimeGravityCamera.orthographicSize = zone.Pack.Radius;
         SlimeRenderer.ZoneRadius = zone.Pack.Radius;
-        foreach (var p in zone.Planets.Values)
-            LoadPlanet(p);
+        foreach (var p in zone.Planets)
+            LoadPlanet(p.Key, p.Value);
 
         _suns = Planets.Values.Where(p => p is SunObject).ToArray();
 
@@ -333,32 +334,32 @@ public class ZoneRenderer : MonoBehaviour
         EntityInstances.Remove(entity);
     }
 
-    void LoadPlanet(BodyData planetData)
+    void LoadPlanet(CultRecordKey key, BodyData planetData)
     {
         if (planetData is AsteroidBeltData beltData)
         {
             var meshes = AsteroidMeshes.ToList();
             while (meshes.Count > Settings.AsteroidMeshCount)
                 meshes.RemoveAt(Random.Range(0, meshes.Count));
-            _beltMeshes[planetData.ID] = meshes.ToArray();
-            _beltMatrices[planetData.ID] = new Matrix4x4[meshes.Count][];
+            _beltMeshes[key] = meshes.ToArray();
+            _beltMatrices[key] = new Matrix4x4[meshes.Count][];
             var count = beltData.Asteroids.Length / meshes.Count;
             var remainder = beltData.Asteroids.Length - count * meshes.Count;
             for (int i = 0; i < meshes.Count; i++)
             {
-                _beltMatrices[planetData.ID][i] = new Matrix4x4[i < meshes.Count - 1 ? count : count + remainder];
+                _beltMatrices[key][i] = new Matrix4x4[i < meshes.Count - 1 ? count : count + remainder];
             }
 
             var beltObject = Instantiate(AsteroidBeltUI, ZoneRoot);
             var collider = beltObject.GetComponent<MeshCollider>();
             var belt = new AsteroidBeltUI(Zone,
-                Zone.AsteroidBelts[beltData.ID],
+                Zone.AsteroidBelts[key],
                 beltObject,
                 collider,
                 AsteroidSpritesheetWidth,
                 AsteroidSpritesheetHeight,
                 Settings.MinimapAsteroidSize);
-            _beltObjects[beltData.ID] = belt;
+            _beltObjects[key] = belt;
         }
         else
         {
@@ -369,7 +370,7 @@ public class ZoneRenderer : MonoBehaviour
                 {
                     planet = Instantiate(Sun, ZoneRoot);
                     var sunObject = (SunObject) planet;
-                    var sun = Zone.PlanetInstances[planetData.ID] as Sun;
+                    var sun = Zone.PlanetInstances[key] as Sun;
                     sunObject.Light.color = sunData.LightColor.ToColor();
                     sunObject.Light.range = sun.LightRadius;
                     sunObject.FogTint.transform.localScale = sun.LightRadius * Vector3.one;
@@ -378,7 +379,7 @@ public class ZoneRenderer : MonoBehaviour
                 else planet = Instantiate(GasGiant, ZoneRoot);
 
                 var gas = (GasGiantObject) planet;
-                var gasGiant = Zone.PlanetInstances[planetData.ID] as GasGiant;
+                var gasGiant = Zone.PlanetInstances[key] as GasGiant;
                 gas.Body.material.SetTexture("_ColorRamp", gasGiantData.Colors.ToGradient(!(planetData is SunData)).ToTexture());
                 // gasGiantData.AlbedoRotationSpeed.Subscribe(f => gas.SunMaterial.AlbedoRotationSpeed = f);
                 // gasGiantData.FirstOffsetRotationSpeed.Subscribe(f => gas.SunMaterial.FirstOffsetRotationSpeed = f);
@@ -401,7 +402,7 @@ public class ZoneRenderer : MonoBehaviour
                 //planet.Icon.material.mainTexture = planetData.Mass > Context.GlobalData.PlanetMass ? PlanetIcon : PlanetoidIcon;
             }
 
-            var planetInstance = Zone.PlanetInstances[planetData.ID];
+            var planetInstance = Zone.PlanetInstances[key];
             planet.Body.transform.localScale = planetInstance.BodyRadius * Vector3.one;
             planet.GravityWell.transform.localScale = planetInstance.GravityWellRadius * Vector3.one;
             // var depth = planetInstance.GravityWellDepth;
@@ -411,7 +412,7 @@ public class ZoneRenderer : MonoBehaviour
             planet.Icon.transform.localScale = Settings.IconSize.Evaluate(planetInstance.BodyData.Mass) * Vector3.one;
 
 
-            Planets[planetData.ID] = planet;
+            Planets[key] = planet;
             if (!_rootFound)
             {
                 _rootFound = true;
@@ -478,7 +479,7 @@ public class ZoneRenderer : MonoBehaviour
         foreach (var planet in Planets)
         {
             var planetInstance = Zone.PlanetInstances[planet.Key];
-            var p = Zone.GetOrbitPosition(planetInstance.BodyData.Orbit);
+            var p = Zone.GetOrbitPosition(planetInstance.BodyData.Orbit.Key);
             var height = Zone.GetHeight(p);
             if (-height > maxDepth) maxDepth = -height;
             planet.Value.transform.position = new Vector3(p.x, 0, p.y);
@@ -489,7 +490,7 @@ public class ZoneRenderer : MonoBehaviour
                     Zone.Time * ((GasGiant) Zone.PlanetInstances[planet.Key]).GravityWavesSpeed);
                 if (!(planet.Value is SunObject))
                 {
-                    var toParent = normalize(Zone.GetOrbitPosition(Zone.Orbits[planetInstance.BodyData.Orbit].Data.Parent) - p);
+                    var toParent = normalize(Zone.GetOrbitPosition(Zone.Orbits[planetInstance.BodyData.Orbit.Key].Data.Parent.Key) - p);
                     gasGiantObject.SunMaterial.LightingDirection = new Vector3(toParent.x, 0, toParent.y);
                 }
             }
@@ -560,7 +561,7 @@ public class ZoneRenderer : MonoBehaviour
         var itemPickup = gridObject.gameObject.GetComponent<ItemPickup>();
         itemPickup.Item = item;
         itemPickup.ZoneRenderer = this;
-        itemPickup.ScanLabel.text = item.Data.Value.Name;
+        itemPickup.ScanLabel.text = ItemManager.GetData(item).Name;
         if (item is CraftedItemInstance craftedItemInstance)
         {
             var c = ItemManager.GetTier(craftedItemInstance).tier.Color.ToColor();
@@ -589,7 +590,7 @@ public class AsteroidBeltUI
     private Vector3[] _normals;
     private Vector2[] _uvs;
     private int[] _indices;
-    private Guid _orbitParent;
+    private CultRecordKey _orbitParent;
     private Mesh _mesh;
     private float _size;
     private Zone _zone;
@@ -608,8 +609,8 @@ public class AsteroidBeltUI
         _zone = zone;
         Filter = meshFilter;
         _collider = collider;
-        var orbit = zone.Orbits[belt.Data.Orbit];
-        _orbitParent = orbit.Data.Parent;
+        var orbit = zone.Orbits[belt.Data.Orbit.Key];
+        _orbitParent = orbit.Data.Parent.Key;
         _vertices = new Vector3[_belt.Data.Asteroids.Length * 4];
         _normals = new Vector3[_belt.Data.Asteroids.Length * 4];
         _uvs = new Vector2[_belt.Data.Asteroids.Length * 4];

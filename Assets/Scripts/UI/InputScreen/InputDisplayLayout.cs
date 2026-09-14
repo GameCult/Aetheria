@@ -87,7 +87,6 @@ public class InputDisplayLayout : MonoBehaviour
         _canvas = transform.root.GetComponent<Canvas>();
         var path = Path.Combine(ActionGameManager.GameDataDirectory.CreateSubdirectory("KeyboardLayouts").FullName, $"{LayoutFile.name}.msgpack");
         // _inputLayout = ParseJson(LayoutFile.text);
-        RegisterResolver.Register();
         _inputLayout = MessagePackSerializer.Deserialize<InputLayout>(File.ReadAllBytes(path));
         // _inputLayout = JsonConvert.DeserializeObject<InputLayout>(File.ReadAllText(path));
         // SaveLayout();
@@ -494,7 +493,6 @@ public class InputDisplayLayout : MonoBehaviour
 
     private void SaveLayout()
     {
-        RegisterResolver.Register();
         File.WriteAllBytes(
             Path.Combine(ActionGameManager.GameDataDirectory.CreateSubdirectory("KeyboardLayouts").FullName, $"{LayoutFile.name}.msgpack"),
             MessagePackSerializer.Serialize(_inputLayout));
@@ -525,8 +523,9 @@ public class InputDisplayLayout : MonoBehaviour
             {
                 _dragAction.Binding.overridePath = _previewButton.Button.InputSystemPath;
                 _dragAction.Action.ApplyBindingOverride(_dragAction.Binding);
-                ActionGameManager.PlayerSettings.InputSettings.InputActionMap[(_dragAction.Action.name,
-                    _dragAction.Action.GetBindingIndex(_dragAction.Binding))] = _previewButton.Button.InputSystemPath;
+                var inputMap = ActionGameManager.PlayerSettings.InputSettings.InputActionMap;
+                if (!inputMap.TryGetValue(_dragAction.Action.name, out var bindings)) inputMap[_dragAction.Action.name] = bindings = new Dictionary<int, string>();
+                bindings[_dragAction.Action.GetBindingIndex(_dragAction.Binding)] = _previewButton.Button.InputSystemPath;
                 // TODO: Assign New Binding
             }
 

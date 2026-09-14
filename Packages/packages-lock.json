@@ -242,6 +242,22 @@
       },
       "url": "https://packages.unity.com"
     },
+    "org.gamecult.caching.unity": {
+      "version": "https://github.com/GameCult/CultLib.git?path=/src/GameCult.Unity/Assets/Caching#caching-unity-v1.2.0",
+      "depth": 0,
+      "source": "git",
+      "dependencies": {
+        "org.gamecult.cultlib": "1.0.57"
+      },
+      "hash": "ae194d5eb276f35194d2042451e228c640b3527b"
+    },
+    "org.gamecult.cultlib": {
+      "version": "https://github.com/GameCult/CultLib.git?path=/unity/org.gamecult.cultlib#cultlib-unity-v1.0.57",
+      "depth": 0,
+      "source": "git",
+      "dependencies": {},
+      "hash": "ae194d5eb276f35194d2042451e228c640b3527b"
+    },
     "org.gamecult.cultmath": {
       "version": "https://github.com/GameCult/CultLib.git?path=/packages/cultmath/unity/org.gamecult.cultmath#cultmath-unity-v0.2.3",
       "depth": 0,

@@ -410,7 +410,7 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
                                 //Debug.Log("Entity Pointer Enter");
                                 if (!(GameManager.DragObject is ItemDragObject itemDragObject)) return;
                                 var item = itemDragObject.Item;
-                                var itemData = item.Data.Value;
+                                var itemData = GameManager.ItemManager.GetData(item);
                                 if (!(item is EquippableItem equippableItem)) return;
                                 var placementPosition = v + itemDragObject.OriginCellOffset;
                                 if (entity.ItemFits(equippableItem, placementPosition))
@@ -586,7 +586,7 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
                         if (item != null)
                         {
                             var itemPosition = cargo.Cargo[item];
-                            var itemData = item.Data.Value;
+                            var itemData = GameManager.ItemManager.GetData(item);
                             var originalOccupancy = cargo.Data.InteriorShape.Inset(itemData.Shape, itemPosition, item.Rotation);
                             _dragCells = originalOccupancy.Coordinates
                                 .Select(v1 => Instantiate(CellInstances[v1], DragParent, true).transform).ToArray();
@@ -633,7 +633,7 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
                         //Debug.Log("Inventory Pointer Enter");
                         if (!(GameManager.DragObject is ItemDragObject itemDragObject)) return;
                         var item = itemDragObject.Item;
-                        var itemData = item.Data.Value;
+                        var itemData = GameManager.ItemManager.GetData(item);
                         var placementPosition = v + itemDragObject.OriginCellOffset;
                         if (cargo.ItemFits(item, placementPosition))
                         {
@@ -851,7 +851,7 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
                 return Color.white * .25f;
 
             var c = float3(1);
-            if (item.Data.Value is EquippableItemData equippable)
+            if (GameManager.ItemManager.GetData(item) is EquippableItemData equippable)
                 c = HardpointData.GetColor(equippable.HardpointType);
             
             if(!highlight)

@@ -160,8 +160,7 @@ public class Slime : MonoBehaviour
 
     void UpdateSettings()
     {
-        RegisterResolver.Register();
-        var hash = MessagePackSerializer.Serialize(SlimeSettings).GetHashSHA1();
+        var hash = System.Convert.ToBase64String(MessagePackSerializer.Serialize(SlimeSettings));
         if(hash != _settingsHash)
         {
             _settingsHash = hash;

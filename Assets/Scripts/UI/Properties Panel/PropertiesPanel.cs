@@ -2,6 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
+using GameCult.Caching;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -359,7 +360,7 @@ public class PropertiesPanel : MonoBehaviour
 	
 	private void AddItemProperties(ItemInstance item)
 	{
-		var data = item.Data.Value;
+		var data = GameManager.ItemManager.GetData(item);
 		
 		AddProperty(data.Description);
 		
@@ -419,7 +420,7 @@ public class PropertiesPanel : MonoBehaviour
 
 	private string GetTitle(EquippableItem item)
 	{
-		var data = item.Data.Value;
+		var data = GameManager.ItemManager.GetData(item);
 		var (tier, upgrades) = GameManager.ItemManager.GetTier(item);
 		return
 			$"<color=#{ColorUtility.ToHtmlStringRGB(tier.Color.ToColor())}>{data.Name}</color><smallcaps><size=60%> ({tier.Name}{new string('+', upgrades)})";
@@ -585,7 +586,7 @@ public class PropertiesPanel : MonoBehaviour
 		{
 			if (readWrite)
 			{
-				if (inspectable is InspectableRangedFloatAttribute ranged)
+				if (field.GetCustomAttribute<CultInspectorRangeAttribute>() is { } ranged)
 					AddField(field.Name.SplitCamelCase(), () => (float) field.GetValue(obj), f => field.SetValue(obj, f),
 						ranged.Min, ranged.Max);
 				else
@@ -596,9 +597,9 @@ public class PropertiesPanel : MonoBehaviour
 		{
 			if (readWrite)
 			{
-				if (inspectable is InspectableRangedIntAttribute ranged)
+				if (field.GetCustomAttribute<CultInspectorRangeAttribute>() is { } ranged)
 					AddField(field.Name.SplitCamelCase(), () => (int) field.GetValue(obj), f => field.SetValue(obj, f),
-						ranged.Min, ranged.Max);
+						(int) ranged.Min, (int) ranged.Max);
 				else
 					AddField(field.Name.SplitCamelCase(), () => (int) field.GetValue(obj), f => field.SetValue(obj, f));
 			} else AddProperty(field.Name.SplitCamelCase(), () => ((int) field.GetValue(obj)).ToString());

@@ -63,6 +63,8 @@ ExportedObj/
 /Aetheria.Shared/obj/
 /tools/**/bin/
 /tools/**/obj/
+/tests/**/bin/
+/tests/**/obj/
 
 # Unity3D generated meta files
 *.pidb.meta
