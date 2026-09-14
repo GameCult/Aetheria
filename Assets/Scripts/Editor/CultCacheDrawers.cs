@@ -87,28 +87,56 @@ public sealed class InspectableTemperatureDrawer : ICultInspectorDrawer
     }
 }
 
-// A size and a toggle per cell. The Database Tools drawer also laid the item's schematic texture under the grid,
-// derived the height from its aspect, and tinted hull hardpoints. Those read the document the shape belongs to, and a
-// Studio drawer is handed only the value, so they wait on the Studio exposing the open record.
+// A size and a toggle per cell. When the owning item has a schematic texture, the texture lies under the grid and the
+// height follows its aspect; a hull's hardpoint cells are tinted. Both read the owning record through
+// inspector.Record, which is a read-only copy: nothing here writes to it.
 [CultInspectorDrawer(typeof(InspectableSchematicShapeAttribute))]
 public sealed class InspectableSchematicShapeDrawer : ICultInspectorDrawer
 {
+    private static Material _schematicMaterial;
+
     public object Draw(CultInspector inspector, string label, Type type, object value, MemberInfo member)
     {
         if (type != typeof(Shape)) return inspector.DrawDefault(label, type, value, member);
         var shape = value as Shape ?? new Shape();
+        var item = inspector.Record as EquippableItemData;
+        var hull = item as HullData;
+        var schematic = string.IsNullOrEmpty(item?.Schematic) ? null : AssetDatabase.LoadAssetAtPath<Texture2D>(item.Schematic);
+
         EditorGUILayout.LabelField(label);
         using (new EditorGUILayout.HorizontalScope())
         {
             var width = max(EditorGUILayout.DelayedIntField("Width", shape.Width), 1);
-            var height = max(EditorGUILayout.DelayedIntField("Height", shape.Height), 1);
+            int height;
+            if (schematic == null) height = max(EditorGUILayout.DelayedIntField("Height", shape.Height), 1);
+            else
+            {
+                height = max(Mathf.RoundToInt(width * ((float) schematic.height / schematic.width)), 1);
+                EditorGUILayout.LabelField("Height", height.ToString());
+            }
             if (width != shape.Width || height != shape.Height) shape.Resize(width, height);
         }
 
-        for (var y = shape.Height - 1; y >= 0; y--)
-            using (new EditorGUILayout.HorizontalScope())
-                for (var x = 0; x < shape.Width; x++)
-                    shape[int2(x, y)] = GUILayout.Toggle(shape[int2(x, y)], GUIContent.none, GUILayout.Width(16));
+        using (var grid = new EditorGUILayout.VerticalScope())
+        {
+            if (schematic != null && Event.current.type == EventType.Repaint)
+            {
+                _schematicMaterial ??= new Material(Shader.Find("Legacy Shaders/Particles/Additive"));
+                EditorGUI.DrawPreviewTexture(grid.rect, schematic, _schematicMaterial);
+            }
+
+            for (var y = shape.Height - 1; y >= 0; y--)
+                using (new EditorGUILayout.HorizontalScope())
+                    for (var x = 0; x < shape.Width; x++)
+                    {
+                        var hardpoint = hull?.Hardpoints.FirstOrDefault(hp => hp.Shape.Coordinates
+                            .Any(v => v.x + hp.Position.x == x && v.y + hp.Position.y == y));
+                        var previous = GUI.backgroundColor;
+                        if (hardpoint != null) GUI.backgroundColor = hardpoint.TintColor.ToColor();
+                        shape[int2(x, y)] = GUILayout.Toggle(shape[int2(x, y)], GUIContent.none, GUILayout.Width(16));
+                        GUI.backgroundColor = previous;
+                    }
+        }
         return shape;
     }
 }
