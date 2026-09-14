@@ -88,6 +88,13 @@ Cut 6b closed (CultLib `d4c43ed`, after two more Soul passes):
   pinned only by `HlslSemanticsTests`.
 - **Merge:** the branch merges cleanly into `codex/cultcache-store-routing` and
   waits for Cut 6's final Soul pass.
+- **Operator decision (2026-09-14), supersedes "Studio drawers for the new
+  CultMath types after the merge":** no CultMath drawers for now, and the Studio
+  takes no CultMath dependency. The generic unkeyed-struct rule covers them: a
+  struct with public fields shows its fields, and one without shows its settable
+  properties. So vectors edit by field and matrices by their `_mRC` properties.
+  A drawer is added only if the Aetheria click-through shows the rows are
+  painful.
 
 Evidence base: CultLib `main` at `c2a9a6e`; Aetheria `codex/aetheria-state-rebuild`
 at `82c1e72e`. Line numbers refer to those revisions (`CC:` is
