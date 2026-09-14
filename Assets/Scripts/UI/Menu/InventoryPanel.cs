@@ -167,18 +167,20 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
                 if(GameManager.DockingBay!=null && _displayedCargo!=GameManager.DockingBay)
                     ContextMenu.AddOption(GameManager.DockingBay.Name, () => Display(GameManager.DockingBay));
 
-                ContextMenu.AddOption("Save Loadout",
-                    () =>
-                    {
-                        var entity = _displayedEntity;
-                        var loadoutName = entity.Name;
-                        Dialog.Clear();
-                        Dialog.Title.text = "Save Loadout";
-                        Dialog.AddField("Name", () => loadoutName, s => loadoutName = s);
-                        Dialog.Show(() => Loadouts.Save(ActionGameManager.CultCache,
-                            Loadouts.Capture(GameManager.ItemManager, entity, loadoutName)));
-                        Dialog.MoveToCursor();
-                    });
+                if (_displayedEntity is Ship displayedShip)
+                {
+                    ContextMenu.AddOption("Save Loadout",
+                        () =>
+                        {
+                            var loadoutName = displayedShip.Name;
+                            Dialog.Clear();
+                            Dialog.Title.text = "Save Loadout";
+                            Dialog.AddField("Name", () => loadoutName, s => loadoutName = s);
+                            Dialog.Show(() => Loadouts.Save(ActionGameManager.CultCache,
+                                Loadouts.Capture(GameManager.ItemManager, displayedShip, loadoutName)));
+                            Dialog.MoveToCursor();
+                        });
+                }
 
                 var loadouts = ActionGameManager.CultCache.GetAll<Loadout>().ToArray();
                 if (GameManager.DockedEntity != null && loadouts.Any())
