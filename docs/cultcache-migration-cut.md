@@ -41,9 +41,33 @@ publish job ran. The operator ruled (2026-09-14) that only `cultcache-py` is
 re-pushed alone to publish to PyPI. npm is held until `NPM_TOKEN` is
 confirmed: there is no repo-level secret, and no `cultcache-ts` publish has
 ever run. The `cultcache-ts-v0.14.0` tag stays inert until then. Unity
-versions 1.0.47-1.0.56 were never tagged. Cuts 8-10 are not started. Cut 8
-is split into 8a (CultMath swap) and 8b (data model cutover), refreshed against
-Aetheria `59bc5753`.
+versions 1.0.47-1.0.56 were never tagged. Cut 8 is split into 8a (CultMath
+swap) and 8b (data model cutover), refreshed against Aetheria `59bc5753`.
+
+Cut 8b landed on `codex/cultcache-cutover` (`d3db1730..9bdf6ef2`). Its Soul
+pass found the following; Cut 10 now owns every item:
+- Unity opens no run store, so run-type writes throw.
+- `SaveLoadout` is live and serializes `float3` without the math resolver.
+- `PlayerSettings.SavedRun` is a second owner of the run root.
+- Every save leaves orphan `SavedZone`s behind.
+- Four non-CultCache file formats remain.
+- No lifecycle owner creates the run and player globals.
+
+Cuts 9 and 10 are refreshed against Aetheria `20db3a93` and are not started.
+
+Rulings (operator, 2026-09-14):
+- **Q9-1 A:** `InputLayout` is catalog state, imported by Cut 9.
+- **Q10-1:** loadouts stay, as player-store documents holding only blueprints
+  (design and product refs per hull cell). They are materialized against the
+  current galaxy at load, which keeps them portable. Q10-3 (materialization
+  rules) is open.
+- **Q10-2 A:** the local `PlayerSettings.msgpack` is discarded, with no importer.
+- **CultLib follow-ups decided alongside:**
+  - Studio 1.3.0 hands drawers the owning record, read-only.
+  - An unset `CultRecordRef` reads back exactly as written, with sibling-runtime
+    parity checked.
+  - Cut 10's schematic-shape drawer restores the texture underlay and hardpoint
+    tints once Studio 1.3.0 is tagged.
 
 CultMath 0.2.1 (`f060536` on `main`, tag `cultmath-unity-v0.2.1`, lightweight)
 fills Q8-1's gaps:
@@ -448,23 +472,46 @@ state.
 | AgentTask tree | not persisted | value owned by `Agent` | not saved today |
 | Entity, Ship, OrbitalEntity, Zone, Galaxy | live simulation | not records | tags 14 and 20 deleted |
 | PlayerSettings | Player | `[CultGlobal]` | name, tutorial flag, credits |
-| InputLayout | Player | document keyed by layout name | today one file per layout under `GameData\KeyboardLayouts` |
+| InputLayout | Catalog | document keyed by layout name | authored keyboard geometry; player rebinds live in `PlayerSettings` (Q9-1 A); imported by Cut 9 from `GameData\KeyboardLayouts` |
+| Loadout | Player | document named by `[CultName]` | blueprints only (design and product refs per hull cell); outlives runs (Q10-1) |
 
-Save points today (`Gameplay\ActionGameManager.cs` unless noted):
-`SavePlayerSettings` (`:76-79`) writes `GameData\PlayerSettings.msgpack`
-embedding the run; `SaveState` (`:240-249`) via `Zone.PackZone()`
-(`Zone.cs:107-118`). Triggers: quit (`:238`), wormhole entry (`:611`), death
-(`Die`, `:1057-1065`, leaves `SavedRun` on disk), settings Back
-(`UI\MainMenu.cs:237`), new game (`MainMenu.cs:139, 168`). Dead: `SaveLoadout`
-(`:233-236`; `:272-275`) and `SaveZone` (`:1093-1094`). Rebinding writes
-`GameData\KeyboardLayouts\*.msgpack` (`UI\InputScreen\InputDisplayLayout.cs:495-501`).
-Loads: `ActionGameManager.cs:49-57`, `:65-72`; resume `MainMenu.cs:97-106`
-through `Galaxy(CultCache, SavedGame, ...)` (`Galaxy.cs:47-90`); layouts
-`InputDisplayLayout.cs:88-91`.
+Save points at Aetheria `20db3a93` (`Gameplay\ActionGameManager.cs` unless noted):
+- **Player settings:** `SavePlayerSettings` (`:70-73`) writes
+  `GameData\PlayerSettings.msgpack`. That file embeds the run as `SavedRun`
+  (`PlayerSettings.cs:11`).
+- **Run:** `SaveState` (`:234-243`) builds `SavedGame(CultCache, …)`, which
+  upserts a fresh `SavedZone` per zone (`SavedGame.cs:69`).
+  - Unity opens only the catalog (`:52`), so this and zone generation
+    (`ZoneGenerator.cs:99, 108, 200-201`) throw.
+- **Triggers:**
+  - quit (`:232`) and wormhole arrival (`:605`);
+  - death (`Die`, `:1059`, which leaves `SavedRun` in the file);
+  - settings Back (`UI\MainMenu.cs:236`);
+  - new game (`MainMenu.cs:138, 167`, which sets `SavedRun = null`).
+- **Loadouts:** `SaveLoadout` (`:227-230`) is live from `InventoryPanel.cs:170-174`
+  but throws, because `_loadoutPath` is never assigned. Restore
+  (`InventoryPanel.cs:176-195`) never appears, because `Loadouts` is never filled.
+- **Other writers:**
+  - `SaveZone` (`:1087-1088`) has no caller.
+  - `InputDisplayLayout.SaveLayout` (`:494-499`) is reached only from the
+    uncalled `AssociateInputKeys`.
+- **Loads:**
+  - catalog `:46-56`;
+  - settings `:58-67`;
+  - resume `MainMenu.cs:96-106`, through `Galaxy(CultCache, SavedGame, ...)` (`Galaxy.cs:48-92`);
+  - layouts `InputDisplayLayout.cs:88-90`.
 
-After Cut 10: `SaveRun()` flushes the cache (only dirty stores write); `Die()`
-disposes and deletes the run store; new game deletes any run store and creates
-a fresh one.
+After Cut 10, every runtime write is a single-store `Commit` on one cache that
+holds catalog, run and player stores from first access:
+- `RunSave.Commit` saves the run at wormhole arrival and quit, with stable
+  `SavedZone` keys.
+- `RunSave.Clear` deletes every run record at New Game and at death.
+- The settings getter creates `PlayerSettings` on first launch, and
+  `SavePlayerSettings` commits it.
+- `Loadouts.Save` writes loadouts to the player store, and
+  `Loadouts.Materialize` builds them against the current galaxy.
+- The keyboard layout is read from the catalog.
+- Nothing reopens or deletes a store file.
 
 ### Q8. How do identity comparisons survive without `DatabaseEntry.ID`?
 
@@ -1964,97 +2011,600 @@ Q8-2 B, port both drawers):
 
 ### Cut 9. One-shot importer
 
-- Repo/branch: same, after Cut 8.
-- Files: `tools\AetherDb\Import.cs` (new), `Program.cs` (`legacy-census`,
-  `import`), `GameData\Aetheria.cc` (new, committed), and `.gitattributes`
-  gaining `*.cc filter=lfs diff=lfs merge=lfs -text` before the `.cc` is
-  added: `AetherDB.msgpack` is LFS-tracked today and `.cc` matches no rule
-  (`git check-attr filter` reports `unspecified`), so without the rule the
-  catalog would land in plain git.
-- Deletes first: the `withNameFiles` branch and comment (`AetherDb.cs:7-10, 25, 34`).
-- New behavior `[P5]`: `AetherDB.msgpack` is a MessagePack array of 167
-  `[tag, payload]` pairs; each name file is `[9, payload]`. `Import.cs` walks
-  them with `MessagePackReader`. Tag table: 0 SimpleCommodityData,
-  1 CompoundCommodityData, 2 GearData, 3 HullData, 9 NameFile, 13 Faction,
-  15 OrbitData, 16/25-28 BodyData leaves, 17 PersonalityAttribute,
-  29 CargoBayData, 30 DockingBayData, 31 WeaponItemData, 32 FactionProductData;
-  any other tag is an error. Per record: slot 0 (16-byte `bin` Guid) becomes
-  the key in `D` format and is written as `nil`; at every `CultRecordRef<T>`
-  slot a 16-byte `bin` or a legacy `[bin16]` becomes the `D` string, `nil`
-  stays; at every ref-keyed map slot the `bin16` keys become `D` strings; at
-  `StatModifierData` slot 4 the assembly-qualified name becomes the simple
-  name; nested `[MessagePackObject]` values and `[Union]` members are recursed
-  by their own `[Key]`/`[Union]` metadata (reflection over the new types);
-  everything else is copied raw. The rewritten payload is deserialized through
-  `CultDocumentMessagePackSerialization.DeserializeUntyped` and written with
-  `AetheriaStores.Open(catalogPath, catalogWritable: true)` via
-  `UpsertAsync(type, document, new CultRecordKey(legacyKey))`, then `FlushAsync`.
-  `[P5]` did this for one `Faction` (16 slots, 12 allegiances, two `float3`s,
-  two refs) and read it back from the `.cc`.
-- Verification: `legacy-census` per-tag counts (`[P5]`: 0:13, 1:51, 2:25, 3:3,
-  13:12, 17:3, 29:4, 30:1, 31:18, 32:37; 12 name files); `import` prints
-  per-type counts and every unresolvable `CultRecordRef` (zero, except
-  `Faction.BossHull` `Guid.Empty`, reported as unset); `census`, `factions`,
-  `hardpoint-fit` equal their Cut 0 captures.
-- Same commit: delete `GameData\AetherDB.msgpack`, `GameData\NameFile\`, the 32
-  empty per-type folders. Keep `GameData\KeyboardLayouts` for Cut 10.
-- Commands: `dotnet run --project tools\AetherDb -- legacy-census`; `-- import`;
-  the three comparisons.
-- Soul: counts match; `Aetheria.cc` deserializes with `DeserializeSnapshot`
-  and every record's schema id is in its catalog; no legacy file remains;
-  `git check-attr filter GameData/Aetheria.cc` reports `lfs`; one commit.
+Refreshed 2026-09-14 against Aetheria `20db3a93` (`codex/cultcache-cutover`, 8b
+ended at `9bdf6ef2`) and CultLib `0f2c1f0`, the pin in `Directory.Build.props`.
+`file:line` is at those revisions. Cut 9 is headless and needs no Unity.
+
+- **Repo/branch:** Aetheria `codex/cultcache-cutover`, after 8b.
+- **Inputs, all present at HEAD:**
+  - `GameData\AetherDB.msgpack` (46,150 bytes, LFS).
+  - `GameData\NameFile\*.msgpack` (12 files, LFS).
+  - `GameData\KeyboardLayouts\ansi104.msgpack` (LFS) and `ansi104.json`.
+  - `GameData\Aetheria.cc` does not exist.
+  - 30 empty per-type folders under `GameData\` (`AgentTask` … `WeaponItemData`), which git does not track.
+  - 8b already removed `OpenWithNameFiles`/`withNameFiles` (`tools\AetherDb\AetherDb.cs` has neither), so no delete is owed here.
+- **`InputLayout` lives in the catalog** (Q9-1 A, operator 2026-09-14). 8b
+  routed it to the player store (`AetheriaStores.cs:11`).
+  - It is a physical keyboard shape plus the Input System path of each key.
+    Only the dev-only `InputDisplayLayout.AssociateInputKeys`
+    (`InputDisplayLayout.cs:460-492`, no caller) ever wrote it.
+  - Player rebinds live in `PlayerSettings.InputSettings.InputActionMap`
+    (`InputDisplayLayout.cs:526-528`), not in the layout.
+  - The runtime key is `LayoutFile.name`, which is `ansi104`: the TextAsset
+    `Assets\Resources\ansi104.json` is referenced by
+    `Assets\Prefabs\UI\Input Display Container.prefab`.
+  - Q7's row already reads `Catalog`.
+- **Deletes first:** none in code. The legacy data is deleted after
+  verification, in the same commit (below).
+- **Changes:**
+  - **`AetheriaStores.cs:9, 11`:** `typeof(InputLayout)` moves from
+    `PlayerTypes` to `CatalogTypes`. `PlayerTypes` becomes `{ typeof(PlayerSettings) }`.
+  - **`tests\Aetheria.Shared.Tests\AetheriaStoresTests.cs:46`:** the
+    `InputLayout` upsert moves into the constructor fixture (`:27-33`, where the
+    catalog is writable). Otherwise the read-only catalog refuses it, and
+    `OpenThenFlushLeavesEveryFileByteIdentical` would fail for the wrong reason.
+  - **`.gitattributes`:** add `GameData/*.cc filter=lfs diff=lfs merge=lfs -text`
+    before the `.cc` is staged. The rule is scoped to `GameData` because
+    `.voidbot/state/aetheria.cc` is a tracked plain-git `.cc`, and a global
+    `*.cc` rule would renormalize it.
+  - **`.gitignore`:** add `GameData/*.lock`. Every single-file commit or flush
+    creates `<file>.lock` (`CultCache.cs:2201`).
+  - **`tools\AetherDb\Program.cs:18-31`:** add `case "legacy-census"` and
+    `case "import"`, and list both in the help line at `:30`.
+- **Adds: `tools\AetherDb\Import.cs`**, `static class Import`, about 250 lines. Cut 10 deletes it.
+  - **`LegacyCensus()`:** prints per-tag counts, the name-file count and the layout count. It writes nothing.
+  - **`Run()`:**
+    - Refuses when `GameData\Aetheria.cc` exists. The import is one-shot, with no merge.
+    - Opens `AetheriaStores.Open(catalog, catalogWritable: true)` and stages
+      every record in one `cache.Commit(batch => batch.Upsert(type, document, new CultRecordKey(key)))`.
+      The single-file `CommitBatch` writes that as one file replace
+      (`CultCache.cs:2124-2154`).
+    - Disposes the cache, reopens it read-only so the 8b catalog-global check
+      runs, and prints per-type counts and every ref that resolves to nothing.
+  - **Legacy shape `[P5]`:** `AetherDB.msgpack` is an array of 167
+    `[tag, payload]` pairs; each name file is `[9, payload]` with three slots.
+  - **Tag table.** Source: the legacy union,
+    `git show d3db1730:Assets/Scripts/ServerShared/CultCache/DatabaseEntry.cs`.
+    - 0 `SimpleCommodityData`
+    - 1 `CompoundCommodityData`
+    - 2 `GearData`
+    - 3 `HullData`
+    - 9 `NameFile`
+    - 13 `Faction`
+    - 17 `PersonalityAttribute`
+    - 29 `CargoBayData`
+    - 30 `DockingBayData`
+    - 31 `WeaponItemData`
+    - 32 `FactionProductData`
+    - Any other tag throws. That includes 15, 16 and 25-28: those are run
+      types, the catalog refuses them by routing, and `[P5]` shows none in the file.
+  - **Payload rewrite.** It is driven by reflection over the target type's
+    `[Key]` members, and `[Union]` for abstract member types.
+    - **Precondition,** asserted once: no concrete catalog document type declares `[Key(0)]`.
+    - **Slot 0** is a 16-byte `bin` Guid. It becomes the record key
+      (`ToString("D")`) and is written as `nil`.
+    - **`CultRecordRef<T>` members** may hold a `bin16`, a legacy `DatabaseLink`
+      `[bin16]`, or `nil`. Each becomes a `D` string or `nil`. An all-zero Guid
+      becomes `nil`: its `D` string would be a set key that resolves to
+      nothing, so `Faction.BossHull` would read as dangling instead of unset.
+      - The same rewrite applies to each element of a `CultRecordRef<T>[]` or
+        `List<CultRecordRef<T>>`, and to each key of a `Dictionary<CultRecordRef<T>, V>`.
+    - **`StatModifierData.RequireBehavior`** (`Behaviors\StatModifier.cs:24`, a
+      `string`) holds a legacy assembly-qualified name. Keep the simple name:
+      the text before the first `,`, then after its last `.`.
+    - **Nested values:** `[MessagePackObject]` types recurse by `[Key]`.
+      `[Union]` types read `[tag, payload]` and recurse into the tagged subtype.
+      Elements of arrays and lists, and dictionary values, recurse the same way.
+    - **Everything else** is copied raw.
+    - **Deserialize:** the rewritten bytes go through
+      `CultDocumentMessagePackSerialization.DeserializeUntyped(type, bytes, registry)`.
+      A throw names the tag, the record index and the legacy key.
+  - **Keyboard layout:** `ansi104.msgpack` is a bare `InputLayout`, with no tag
+    and no Guid.
+    - 8b moved the file and added `[MessagePackObject]` to
+      `InputLayoutMultiRowKey`; keys and unions are unchanged.
+    - Deserialize it with CultLib's options and give it key `ansi104`.
+- **Headless zone generation:** none in this cut. Cut 10 owns the
+  `Name.GetHashCode()` follow-up.
+- **Verification:**
+  - **Build and tests:** `dotnet build tools\AetherDb`, then
+    `dotnet test tests\Aetheria.Shared.Tests`. All six 8b tests stay green
+    after the `InputLayout` move.
+  - **`dotnet run --project tools\AetherDb -- legacy-census`** prints:
+    - tag counts `0:13, 1:51, 2:25, 3:3, 13:12, 17:3, 29:4, 30:1, 31:18, 32:37`;
+    - 12 name files and 1 layout.
+  - **`-- import`** prints:
+    - `SimpleCommodityData 13, CompoundCommodityData 51, GearData 25, HullData 3,
+      Faction 12, PersonalityAttribute 3, CargoBayData 4, DockingBayData 1,
+      WeaponItemData 18, FactionProductData 37, NameFile 12, InputLayout 1`,
+      180 records in all;
+    - no unresolvable refs. The exception is a `Faction.BossHull` that names a
+      record missing from the legacy file, which `factions` also shows as
+      `DANGLING`; the list must equal `factions`' `DANGLING` rows.
+  - **Negative: a second `-- import`** refuses, and the `.cc` hash is unchanged.
+  - **Snapshot:** `Aetheria.cc` opens read-only through `AetheriaStores.Open`.
+    `DeserializeSnapshot` shows every record's schema id in its catalog, and
+    none of `aetheria.savedgame`, `aetheria.savedzone`, `aetheria.orbitdata`,
+    the body schemas or `aetheria.playersettings`.
+  - **Capture comparison:**
+    - **Run:** `census`, `factions` and `hardpoint-fit` into
+      `scratchpad\cut9-<name>.txt`.
+    - **Baseline:** `scratchpad\before-<name>.txt`, 8a's pre-cut captures on the
+      legacy cache. 8a's `after-pin2-*` equalled them.
+    - **`factions`:** must be byte-identical, since it is ordered by name.
+    - **`census` and `hardpoint-fit`:** these break ties in `GetAll<T>()`
+      order (`Program.cs:56-57, 62, 118, 129`), and the `.cc` does not keep
+      the legacy order. Normalize both files: split each line on `, `, sort the
+      tokens, then sort the lines.
+    - **Pass rule:** any difference after normalization fails the cut, and exit
+      codes must match (`hardpoint-fit` returns the unfillable count).
+    - The normalizer is a scratch PowerShell one-liner, not repo code.
+  - **`station-fit` and `loadout`** run to completion. They have no capture.
+- **Same commit, after verification:**
+  - `git rm GameData/AetherDB.msgpack GameData/NameFile/*.msgpack GameData/KeyboardLayouts/ansi104.msgpack GameData/KeyboardLayouts/ansi104.json`.
+  - Remove the empty per-type folders; they are untracked, so this is not part of the commit.
+  - `GameData\Narrative\**` and `SoundbanksInfo.json` stay; they are authored content, not persistence.
+- **Soul:**
+  - The counts above and the normalized comparisons.
+  - `git check-attr filter` reports `lfs` for `GameData/Aetheria.cc` and `unspecified` for `.voidbot/state/aetheria.cc`.
+  - `git ls-files GameData` lists `Aetheria.cc`, 18 `Narrative` files and `SoundbanksInfo.json`.
+  - `rg "AetherDB\.msgpack|NameFile[\\/]" Assets tools tests` hits only `Import.cs`.
+  - `rg KeyboardLayouts Assets` still hits `InputDisplayLayout.cs:88, 497`; Cut 10 deletes both.
+  - The cut is one commit.
 
 ### Cut 10. Runtime cutover, importer removal, docs
 
-- Repo/branch: same, after Cut 9.
-- Files: `Assets\Scripts\Gameplay\ActionGameManager.cs`, `UI\MainMenu.cs`,
-  `UI\InputScreen\InputDisplayLayout.cs`, `ServerShared\Galaxy.cs`,
-  `SavedGame.cs`, `PlayerSettings.cs`, `Zone.cs`, `.gitignore`,
-  `tools\AetherDb\Import.cs`, `docs\cultcache-migration-target.md`,
-  `docs\three-gates-scope.md:61-68`.
-- Deletes first: the catalog bootstrap (`ActionGameManager.cs:49-57`);
-  `SavePlayerSettings`/`SaveState` (`:76-79, 240-249`); `SaveLoadout`
-  (`:233-236`); `SaveZone` (`:1093-1094`); the settings reader (`:65-72`); the
-  layout writer/reader (`InputDisplayLayout.cs:495-501, 88-91`); the
-  `GameData/PlayerSettings.msgpack` `.gitignore` line (replaced by
-  `GameData/run.cc`, `GameData/player.cc`); `Import.cs` and its two commands;
-  the "loading writes" paragraph (`three-gates-scope.md:61-68`).
-- New behavior:
-  - `ActionGameManager.Awake`: `Cache = AetheriaStores.Open(catalog, runPath:
-    File.Exists(run) ? run : null, playerPath: player)`; then `if
-    (Cache.GetGlobal<PlayerSettings>() == null) { Cache.UpsertAsync(new
-    PlayerSettings()); Cache.FlushAsync(); }`.
-  - `MainMenu`: Resume shown when a run store is attached and
-    `GetGlobal<SavedGame>()` is non-null; a run store without `SavedGame` logs
-    `"run store has no SavedGame; refusing to resume"` and shows New Game only.
-  - `BeginRun()`: dispose any run store, delete `run.cc`, reopen with the run
-    path, generate the galaxy upserting `SavedGame`, `SavedZone`s, orbits and
-    bodies as created (`Zone.AddOrbit`, `Zone.cs:120, 265`), then `SaveRun()`.
-  - `SaveRun()`: `Cache.FlushAsync()` (writes only dirty stores); the only run
-    writer; called from quit (`:238`), wormhole entry (`:611`), settings Back
-    (`MainMenu.cs:237`). Not a `Commit`: the run's durability unit is the
-    whole run store, whose single-file flush is already one atomic replace of
-    every record it holds (`SingleFileBackingStore.PushAll`, `CC:2638-2657`),
-    and orbits and bodies are created across the whole generation and play
-    session, not inside one code block. A batch would add a staging copy of
-    state the store already stages, for no extra atomicity.
-  - `Die()`: no `SaveRun`; the run store is disposed and `run.cc` deleted.
-  - `InputLayout` records live in the player store keyed by layout name; a
-    rebind upserts and flushes.
-  - `Galaxy(CultCache, SavedGame, ...)` resolves `CultRecordRef<Faction>`.
-- Tests (`tests\Aetheria.Shared.Tests`): `SaveRunWritesOnlyTheRunStore`
-  (catalog and player hashes unchanged), `RunRoundTrips`,
-  `DeleteRunLeavesCatalogAndPlayerByteIdentical`, `PlayerSettingsIsCreatedOnceByBoot`.
-- Docs: `cultcache-migration-target.md` status "done" with the commit range.
-- Commands: headless build and tests as Cut 8; batchmode compile; the operator's
-  play smoke (new game, one wormhole, quit, resume, die; `run.cc` gone,
-  `player.cc` and `Aetheria.cc` hashes unchanged).
-- Soul: the four tests; the play smoke; `rg "PlayerSettings.msgpack|\.zone\b|\.loadout|KeyboardLayouts|Import\.cs|legacy-census" Assets tools`
-  empty; `rg -c "SaveRun\(" Assets` shows one definition and three callers;
-  `git ls-files GameData` lists `Aetheria.cc` only.
+Refreshed 2026-09-14. `file:line` is at Aetheria `20db3a93`, except the
+AetherDb and test edits made by Cut 9.
 
-Steps needing Unity: 6 (CultLib's Unity project), 8a, 8b and 10 (batchmode compile
-by the agent; UPM acceptance and the play smoke by the operator).
+- **Repo/branch:** same, after Cut 9.
+- **Rulings (operator, 2026-09-14):**
+  - **Q10-1: loadouts are kept, as blueprint documents.** The operator: loadouts
+    are essential; what matters is the blueprint of each equipped item, and
+    materialization depends on the current galaxy so that loadouts stay portable.
+  - **Q10-2 A:** the local `GameData\PlayerSettings.msgpack` is discarded. First
+    launch writes defaults to `player.cc`, and nothing imports the old file.
+- **Loadouts today** (all of it is replaced):
+  - "Save Loadout" (`InventoryPanel.cs:170-174`) calls `SaveLoadout`
+    (`ActionGameManager.cs:227-230`). That writes a whole `EntityPack` to a
+    `.loadout` file through MessagePack's default options.
+    - Those options lack the math resolver since 8b, and `ShipPack.Position` is
+      a `float3` (`EntitySerializer.cs:162`).
+    - `_loadoutPath` (`:164`) is never assigned (`:267` is commented out), so
+      the entry has thrown `NullReferenceException` since before this migration.
+  - `Loadouts` (`:208`) is never filled (`:268-269` are commented out), so
+    "Restore Loadout" (`InventoryPanel.cs:176-195`) never appears.
+    - Its restore path would have unpacked the saved `EntityPack` with
+      `instantiate: true` (`EntitySerializer.cs:75, 103-105`), charged
+      `EntityPack.Price` (`:200-221`), and docked the ship.
+  - An `EntityPack` is the wrong unit for a portable loadout. It carries rolled
+    units (`Quality`, `Ingredients`, `Durability`, `ItemInstance.cs:36-43, 76`),
+    cargo, children, faction, position and persisted behaviour state.
+- **What a blueprint is in Aetheria today.** There is no blueprint type.
+  - A buildable unit is named by an `EquippableItemData` design, plus, when a
+    manufacturer built it, the `FactionProductData` product it was built as
+    (`CraftedItemInstance.Product`, `ItemInstance.cs:43`).
+  - `ItemManager.CreateInstance(FactionProductData)` (`ItemManager.cs:164-187`)
+    builds a unit from a product. `CreateInstance(CraftedItemData)`
+    (`:144-160`) builds one from a bare design.
+  - Units made from a bare design (console `give`, `ActionGameManager.cs:497`)
+    carry no product.
+  - A loadout blueprint is therefore the pair (design ref, optional product ref).
+    Both are catalog records, so the pair is portable across runs and galaxies.
+- **Q10-3, operator: what "depends on current galaxy contents" means at load.**
+  - **Availability:**
+    - A: the generator's rule. A product is available when its manufacturer is
+      in the galaxy and allied with the docked station's faction; the prelude
+      and a null galaxy make everything available
+      (`LoadoutGenerator.IsAvailable`, `LoadoutGenerator.cs:152-154`).
+    - B: only units actually stocked in the docked station's cargo
+      (`LoadoutGenerator.cs:97-105` stocks it).
+    - C: no availability rule; any catalog product.
+  - **A blueprint with no product** (design only):
+    - A: any available product of that design; the first in catalog order that
+      passes availability.
+    - B: build from the bare design.
+  - **Cost:**
+    - A: the sum of design `Price`, as `EntityPack.Price` charged.
+    - B: the sum of `ItemManager.GetPrice` of the built units, which includes
+      the quality roll.
+  - **Partial success:**
+    - A: all-or-nothing. Any failing slot means no ship, no charge, and every failure reported.
+    - B: build what resolves and report the rest.
+  - **Recommended: A on all four.**
+    - Availability A reuses the one rule generation already owns.
+    - It keeps a loadout from materializing gear the galaxy has no maker for.
+    - B would turn restore into shopping, which the trade menu already owns.
+    - All-or-nothing keeps restore from half-charging for an unflyable hull.
+  - The spec below assumes A throughout. Materialization is one function, so a
+    different ruling changes only `Loadouts.Materialize` and its test.
+- **Deletes first:**
+  - **`ActionGameManager.cs`:**
+    - `:58-73`: the `PlayerSettings.msgpack` getter, `_playerSettingsFilePath`
+      and the body of `SavePlayerSettings` (all replaced below).
+    - The `.loadout` format: `:164` `_loadoutPath`, `:208` `Loadouts`,
+      `:227-230` `SaveLoadout` and its default-options serializer, and
+      `:267-269` the commented loader.
+    - `:232-243`: `OnApplicationQuit` and `SaveState`.
+    - `:1087-1088`: `SaveZone`, which has no caller.
+  - **`InventoryPanel.cs:170-195`:** the bodies of both loadout menu entries.
+    They are rewritten over `Loadouts` (below).
+  - **`PlayerSettings.cs:11`:** `[Key(1)] public SavedGame SavedRun`. Slot 1
+    stays unclaimed; nothing is renumbered.
+  - **`SavedGame.cs:51-84`:** the `SavedGame(CultCache, Galaxy, Zone, Entity)`
+    constructor, including the upsert at `:69`.
+  - **`MainMenu.cs`:** `:96-108` (the `SavedRun` Continue branch), and `:138`
+    and `:167` (`SavedRun = null`).
+  - **`InputDisplayLayout.cs`:**
+    - `:88-92`: the file reader and its comments.
+    - `:386-458` `ParseJson`: no caller; its only mention is the comment at `:89`.
+    - `:460-492` `AssociateInputKeys`: no caller; its only mention is `:151`.
+    - `:494-499` `SaveLayout`.
+    - Then whichever of `using MessagePack`, `Newtonsoft.Json`,
+      `Newtonsoft.Json.Serialization` and `System.IO` become unused.
+  - **`tools\AetherDb`:** `Import.cs`, plus the `legacy-census` and `import`
+    cases and their help entries in `Program.cs`.
+  - **`.gitignore`:** the `GameData/PlayerSettings.msgpack` line becomes
+    `GameData/run.cc` and `GameData/player.cc`.
+  - **`docs\three-gates-scope.md:61-68`:** the "loading writes" paragraph. Cut 3
+    made loading non-writing.
+- **Keeps:**
+  - **`AetheriaStores.Open`** is unchanged.
+  - **`Zone.CreateOrbit` (`Zone.cs:249-267`) and `Zone.AddOrbit` (`:121-124`)**
+    have no callers at HEAD. They stay. When one is called it writes to the run
+    store, which is attached for the whole session.
+  - **Two default-options calls** stay: `NewEntitySettings` (`ActionGameManager.cs:222-225`, called
+    from `TradeMenu.cs:377`) and `EntitySerializer.cs:61-62`.
+    - Both deep-copy `EntitySettings`, a single `float`, through MessagePack's default options.
+    - That is neither persistence nor a math type.
+    - They are the named leftovers the negative grep allows.
+- **Adds:**
+  - **`SavedGame.cs`,** in place of the constructor:
+    ```csharp
+    public static class RunSave
+    {
+        // The live run as plain documents. Writes nothing.
+        public static (SavedGame Game, SavedZone[] Zones) Capture(CultCache cache, Galaxy galaxy, Zone currentZone,
+            Entity currentEntity, bool isTutorial, SavedActionBarBinding[] actionBar);
+        // The only writer of SavedGame and SavedZone: one Commit to the run store.
+        public static void Commit(CultCache cache, SavedGame game, IReadOnlyList<SavedZone> zones);
+        // Removes every run record (SavedGame, SavedZone, OrbitData, BodyData) in one Commit.
+        public static void Clear(CultCache cache);
+    }
+    ```
+    - **`Capture`** is the body of `SavedGame.cs:56-83`, except that zones
+      become plain `SavedZone`s with
+      `Contents = zone.Contents?.PackZone() ?? zone.PackedContents`.
+      - Today `:75` writes `null` for every zone that was generated earlier but
+        not loaded this session: a resumed zone has `Contents == null` and
+        `PackedContents` set (`Galaxy.cs:68`).
+      - So one save after a resume erases that zone's contents and orphans its
+        orbit and body records.
+    - **`Commit`** does one `cache.Commit(batch => …)`:
+      - zone `i` upserts at `new CultRecordKey($"savedzone-{i}")`. The key is
+        stable because a run's zone array is fixed at generation.
+      - `game.Zones` is set to those refs, then `batch.Upsert(game)`.
+      - `batch.Remove(key)` runs for every stored `SavedZone` whose key is not
+        in that set.
+      - Every operation routes to the run store. The single-file `CommitBatch`
+        writes the store's whole view plus the batch as one file replace
+        (`CultCache.cs:2140-2154`), so orbits and bodies staged by zone
+        generation since the last save land in the same write.
+    - **`Clear`** is one `Commit` that `Remove`s every stored document whose
+      type is assignable to an `AetheriaStores.RunTypes` entry.
+  - **`ServerShared\Loadout.cs`:** new. It is the owner of loadouts: the
+    document, capture, save and materialization.
+    ```csharp
+    [CultDocument("aetheria.loadout", "1"), MessagePackObject]
+    public class Loadout
+    {
+        [CultName, Key(0)] public string Name;
+        [Key(1)] public LoadoutBlueprint Hull;
+        [Key(2)] public List<LoadoutSlot> Slots = new List<LoadoutSlot>();
+        [Key(3)] public int[][] WeaponGroups;          // indices into Slots
+    }
+
+    [MessagePackObject]
+    public class LoadoutBlueprint
+    {
+        [Key(0)] public CultRecordRef<EquippableItemData> Design;
+        [Key(1)] public CultRecordRef<FactionProductData> Product;   // unset when the unit carried none
+    }
+
+    [MessagePackObject]
+    public class LoadoutSlot
+    {
+        [Key(0)] public int2 Position;                 // hull cell passed to Entity.TryEquip(item, int2)
+        [Key(1)] public ItemRotation Rotation;
+        [Key(2)] public LoadoutBlueprint Blueprint;
+    }
+
+    public static class Loadouts
+    {
+        public static Loadout Capture(ItemManager itemManager, Entity entity, string name);
+        // One Commit to the player store; a loadout with the same name is replaced under its existing key.
+        public static void Save(CultCache cache, Loadout loadout);
+        // All-or-nothing: returns a ship only when every blueprint resolved, was available and fitted.
+        public static Ship Materialize(ItemManager itemManager, Galaxy galaxy, GalaxyZone zone, Faction stationFaction,
+            Zone liveZone, Loadout loadout, List<string> failures);
+        public static int Price(ItemManager itemManager, Loadout loadout);
+    }
+    ```
+    - **Slots are keyed by hull cell,** `EquippedItem.Position` (`Entity.cs:1096`),
+      not by hardpoint index.
+      - Interior gear (cargo bays, docking bays, capacitors) has no hardpoint:
+        `LoadoutGenerator.cs:235-257` places it at any free cell.
+      - The cell and the rotation are properties of the hull design, so they
+        stay valid in any galaxy.
+    - **`Capture`:**
+      - The hull blueprint comes from `entity.Hull`.
+      - There is one slot per distinct `EquippedItem` across `entity.Equipment`,
+        `CargoBays` and `DockingBays`, in that order. Each blueprint is
+        `Design = cache.RefOf<EquippableItemData>(itemManager.GetData(item))`
+        and `Product = item.Product`.
+      - `WeaponGroups` maps each group's items to slot indices.
+      - It records nothing else: no quality, ingredients, durability, cargo,
+        children, faction, name of the ship, position, settings or behaviour state.
+    - **`Save`:**
+      - Looks up the existing record with `cache.GetByName<Loadout>(name)`, then
+        `cache.Commit(b => b.Upsert(typeof(Loadout), loadout, existingKey))`.
+      - The key is minted on the first save.
+      - Names are unique by construction, because `GetByName` throws on duplicates.
+    - **`Materialize`:**
+      - It builds a `LoadoutGenerator(ref itemManager.Random, itemManager, galaxy,
+        zone, stationFaction, 0)` only to ask `IsAvailable`. That makes
+        `LoadoutGenerator.cs:152` public; there is no second availability rule.
+      - For the hull and then each slot, in slot order:
+        1. Resolve `Design`. A missing record reports
+           `slot <x,y>: design <key> is not in the catalog`.
+        2. If `Product` is set, resolve it. A missing record reports
+           `product <key> is not in the catalog`. A product whose `Design` is
+           not this design reports a mismatch.
+        3. Otherwise take the first available product of that design. If there
+           is none, report `no available product of <design name>`.
+        4. An unavailable set product reports
+           `<product> is not made by anyone in this galaxy`.
+      - It builds units with `itemManager.CreateInstance(product)` (fresh
+        rolls), sets `Rotation`, and constructs
+        `new Ship(itemManager, liveZone, hull, itemManager.GameplaySettings.DefaultEntitySettings)`.
+      - It calls `TryEquip(unit, slot.Position)`. A `false` reports
+        `slot <x,y>: <design name> does not fit`.
+      - It rebuilds `WeaponGroups` from the slot indices.
+      - Any failure returns `null`. The caller has changed nothing: no ship, no
+        credits and no cache write. The function never substitutes a design or
+        a slot.
+    - **`Price`** is the hull's design `Price` plus each slot's design `Price` (Q10-3 A).
+  - **`AetheriaStores.cs:11`** (after Cut 9): `PlayerTypes = { typeof(PlayerSettings), typeof(Loadout) }`.
+    - The player store is the right home. A loadout outlives runs, so the run
+      store is wrong: `RunSave.Clear` would delete it at death.
+    - The catalog is wrong too: it is authored and read-only at runtime.
+    - The player store is the one per-player store that persists across runs.
+  - **`InventoryPanel.cs:170-195`:**
+    - **"Save Loadout":** opens `Dialog` with a name field defaulting to
+      `_displayedEntity.Name`. On OK it runs
+      `Loadouts.Save(ActionGameManager.CultCache, Loadouts.Capture(GameManager.ItemManager, _displayedEntity, name))`.
+    - **"Restore Loadout":**
+      - Shown when `GameManager.DockedEntity != null` and
+        `ActionGameManager.CultCache.GetAll<Loadout>()` is non-empty.
+      - Each option is `"{name} - {Loadouts.Price(...):n0}"`, enabled when
+        the price is below `GameManager.Credits`.
+      - On click it calls `Loadouts.Materialize` with the galaxy, the current
+        zone, the docked entity's `Faction` and the live zone.
+      - On success: debit the credits, then run today's attach steps from
+        `:184-192` (`SetParent`, `IsPlayerShip`, `DockingBay.DockedShip`,
+        `CurrentEntity`, `Display`).
+      - On failure: `Dialog` titled `Loadout cannot be built here`, with one line per failure.
+  - **Studio 1.3.0 drawer follow-up** (operator, 2026-09-14). It lands in this cut once
+    `caching-unity` 1.3.0 is tagged; if the tag is not out when the rest of
+    Cut 10 lands, it is its own follow-up commit.
+    - Pin `org.gamecult.caching.unity` to the 1.3.0 tag in `Packages\manifest.json`.
+    - `InspectableSchematicShapeDrawer` (`Editor\CultCacheDrawers.cs:90-114`)
+      takes the owning record read-only through the 1.3.0 drawer signature.
+    - From that record it restores the Database Tools behaviour: the item's
+      schematic texture under the grid, the height derived from the texture's
+      aspect, and hull hardpoint tints.
+    - Port that from `git show d3db1730:Assets/Scripts/CultCache/Editor/Inspectors/AetheriaInspectors.cs`
+      (the drawer at `:158`) and delete the comment at `:90-92`.
+    - Verify with the batchmode compile and the operator's Studio click-through
+      on a `HullData`.
+  - **`ServerShared\Extensions.cs`:** add `public static uint StableHash(this string s)`.
+    - The body folds UTF-8 bytes through CultMath's `pcg`:
+      `uint h = 0x811C9DC5; foreach (var b in Encoding.UTF8.GetBytes(s)) h = pcg(h ^ b); return h;`.
+      It needs `using System.Text;` and no new CultMath API.
+    - It replaces the name hash at `ZoneGenerator.cs:48`, which becomes
+      `galaxyZone.Name.StableHash() ^ (uint) pcg3d(galaxyZone.Position).x`.
+    - It also replaces `Zone.cs:54`, which becomes
+      `new Random(galaxyZone?.Name.StableHash() ?? 1337u)`.
+      - CultMath's `Random` maps seed 0 to its default (`Random.cs:11`).
+      - That drops the `abs`/`Convert.ToUInt32` pair, which throws on `int.MinValue`.
+    - This closes the 8a follow-up, because this cut's tests construct a `Zone` headless.
+- **Authority map, run and player lifecycle:**
+  - **Owner:** `ActionGameManager` composes the process's one cache.
+    - The `CultCache` getter (`:46-56`) becomes
+      `AetheriaStores.Open(catalog, runPath: GameData\run.cc, playerPath: GameData\player.cc)`.
+    - All three stores attach on first access, in either scene, and stay attached until the process exits.
+    - The run lifecycle is record-level inside that cache, and the cache is never reopened.
+    - Reopening would replace the catalog `Faction` and item instances that
+      `Galaxy`, `ItemManager` and live entities hold, breaking Q8's reference identity.
+  - **Inputs:** the three `.cc` files, the live `Galaxy`, `Zone` and entity, and the action-bar slots.
+  - **Outputs:**
+    - `SavedGame` global and `savedzone-{i}` records in `run.cc`.
+    - `PlayerSettings` global in `player.cc`.
+    - Orbit and body records in `run.cc`, written by zone generation and landed by the next save.
+  - **Run begins:** New Game calls `RunSave.Clear(CultCache)` as its first
+    statement (the `MainMenu.cs:110` handler), before the `Task.Run` at `:127`
+    or `:154`.
+    - Galaxy generation writes nothing.
+    - Zone generation (`PopulateLevel` `:615`, then `ZoneGenerator.cs:99, 108,
+      200-201, 239, 253`) upserts orbits and bodies into the attached run store.
+      They stay staged until the next `RunSave.Commit`.
+  - **Run saves:** `ActionGameManager.SaveRun()`:
+    - It is `if (CurrentGalaxy != null) { var (game, zones) = RunSave.Capture(CultCache, CurrentGalaxy, Zone, DockedEntity ?? CurrentEntity, IsTutorial, _actionBarSlots.Select(s => s.Save()).ToArray()); RunSave.Commit(CultCache, game, zones); }`.
+    - Callers: wormhole arrival (`:605`) and `OnApplicationQuit() { SaveRun(); SavePlayerSettings(); }`.
+  - **Run ends:** `Die` replaces `SavePlayerSettings()` at `:1059` with
+    `RunSave.Clear(CultCache); SavePlayerSettings();`.
+    - `CurrentGalaxy` is already null (`:1058`), so a quit afterwards does not save a run.
+  - **Run exists:** derived only as `CultCache.GetGlobal<SavedGame>() != null`.
+    - `MainMenu.ShowMain` enables Continue from it. Continue sets
+      `IsTutorial = saved.IsTutorial` and
+      `CurrentGalaxy = new Galaxy(CultCache, saved, Debug.Log)`.
+    - `StartGame` (`:695-741`) reads it once at the top: `null` takes the
+      new-run branch; otherwise it resumes from `CurrentZone`,
+      `CurrentZoneEntity` and `ActionBarBindings` (`:722, 723, 737`).
+    - A run store that holds records but no `SavedGame` logs
+      `run store has no SavedGame; Continue disabled`. New Game clears it.
+  - **Player settings:**
+    - The `ActionGameManager.PlayerSettings` getter returns `CultCache.GetGlobal<PlayerSettings>()`.
+    - When that is absent (first launch), the getter commits
+      `GetDefaultPlayerSettings()` (`:75-85`) to the player store and returns it.
+      The getter is the only creator.
+    - `SavePlayerSettings()` is `CultCache.Commit(batch => batch.Upsert(PlayerSettings))`.
+    - Callers: settings Back (`MainMenu.cs:236`), quit and `Die`.
+    - Rebinds and action-bar edits (`InputDisplayLayout.cs:526-528, 550, 556`)
+      change the instance and persist at those calls, the same cadence as today.
+  - **Loadouts:** player store, owned by `Loadouts` in `Loadout.cs`.
+    - **Inputs:** a live `Entity` for capture; the catalog, galaxy, zone and
+      station faction for materialization.
+    - **Output:** `aetheria.loadout` records holding only design and product refs, hull cells and rotations.
+    - **Only writer:** `Loadouts.Save`.
+    - **Only builder of a ship from a loadout:** `Loadouts.Materialize`. It
+      judges availability only through `LoadoutGenerator.IsAvailable`.
+    - **Forbidden:**
+      - `EntityPack`, `ItemInstance`, run-type or `Faction` members on
+        `Loadout`, `LoadoutSlot` or `LoadoutBlueprint`.
+      - A `.loadout` file.
+      - A `LoadoutGenerator` fallback to "any manufacturer" at restore. That
+        fallback exists for generation's required items (`:136-141`) and is not
+        applied here.
+  - **Keyboard layout:** catalog, read-only.
+    - `InputDisplayLayout.Start` reads `ActionGameManager.CultCache.Get<InputLayout>(new CultRecordKey(LayoutFile.name))`.
+    - When it is absent, it throws `catalog has no InputLayout '<name>'`.
+  - **Missing globals:**
+    - An absent `SavedGame` means no run.
+    - An absent `PlayerSettings` means first launch.
+    - Only `RunSave.Commit` creates `SavedGame`, and only the settings getter creates `PlayerSettings`.
+    - The cache never creates either. `AetheriaStores.Open` keeps its missing-global check catalog-only (`AetheriaStores.cs:24-29`).
+  - **Derived state:**
+    - "Run exists" is derived from the `SavedGame` global.
+    - `IsTutorial` is set from it on Continue and written back by `Capture`.
+    - `PlayerSettings.SavedRun` is deleted, not demoted.
+  - **Forbidden writers:**
+    - `File.*` I/O for game state anywhere in `Assets\Scripts`.
+    - `FlushAsync` in `Assets\Scripts`. Every runtime write is a `Commit` routed
+      to one store; a flush would land half-generated run state outside a save.
+    - A second `AetheriaStores.Open` in `Assets\Scripts`.
+    - Any upsert of `SavedGame` or `SavedZone` outside `RunSave.Commit`.
+  - **Shared paths:**
+    - Normal and tutorial New Game both call `Clear`.
+    - Continue and a new run's `StartGame` read the same global.
+    - Wormhole and quit call `SaveRun`.
+    - Death calls `Clear`.
+  - **Deletion line:** `SavedRun`, `SaveState`, the msgpack settings and layout
+    I/O, `SaveLoadout`, `SaveZone` and the `SavedGame` constructor go before
+    `RunSave` lands.
+- **Other per-file changes:**
+  - **`docs\cultcache-migration-target.md:5`:** Status becomes done, with the
+    commit range.
+  - **The cut map's status header** records that Cuts 9 and 10 landed.
+- **Tests:** a new `tests\Aetheria.Shared.Tests\RunSaveTests.cs`.
+  - **Fixture:** the `AetheriaStoresTests` fixture, with run and player paths.
+    `ItemManager` settings as in `Program.cs:307-312`.
+  - **`RepeatedSavesKeepRecordCountConstant`:**
+    - Commits a synthetic three-zone save five times, with fresh `SavedGame`
+      and `SavedZone` instances each time. One zone packs two orbits and a body.
+    - After each commit it reopens the store. The run store's record count and
+      `SavedZone` keys must be identical every time.
+  - **`SaveRemovesZonesNoLongerInTheRun`:** commits 3 zones, then 2. The reopened
+    store holds exactly 2 `SavedZone`s.
+  - **`SaveWritesOnlyTheRunStore`:** catalog and player hashes are unchanged across `RunSave.Commit`.
+  - **`ResumeThenSaveKeepsUnloadedZoneContents`:**
+    - Commits zones where zone 1 has `Contents` with an orbit, then reopens.
+    - Builds `new Galaxy(cache, saved, _ => {})` and a `Zone` for zone 0 only, from
+      an empty `ZonePack` and `new PlanetSettings()`.
+    - Runs `Capture` with a null entity, then `Commit`.
+    - Zone 1's `Contents` survives, and its orbit ref still resolves.
+  - **`ClearRemovesEveryRunRecord`:** after `Clear`, the reopened run store holds
+    zero records and `GetGlobal<SavedGame>()` is null. Catalog and player hashes
+    are unchanged.
+  - **`StableHashIsNotProcessRandomized`:** `"Adrasteia".StableHash()` equals a literal computed once.
+  - **`tests\Aetheria.Shared.Tests\LoadoutTests.cs`,** new. Its fixture catalog adds:
+    - a `HullData` (Ship, 2×2 shape, one 1×1 hardpoint);
+    - a 1×1 `GearData` for that hardpoint and a 1×1 `CargoBayData`;
+    - a product for each, made by the fixture faction.
+    - Settings are as in `Program.cs:307-312`, and `galaxy` is `null`, so everything is available.
+  - **`LoadoutRoundTripsThroughAFreshCache`:**
+    - Materializes a ship from a hand-built loadout (gear on the hardpoint
+      cell, cargo on an interior cell), then `Capture`s and `Save`s it.
+    - Disposes, reopens a fresh cache over the same files, and reads
+      `GetByName<Loadout>`.
+    - The hull and slot blueprints, cells, rotations and weapon groups must be
+      equal, and `Materialize` must succeed again with the same designs on the
+      same cells.
+    - `Save` under the same name leaves one `aetheria.loadout` record.
+  - **`LoadoutHoldsNoRunOrGalaxyRefs`:** walks the member graph of `Loadout` by reflection.
+    - Every `CultRecordRef<T>` has `T` assignable to `EquippableItemData` or `FactionProductData`.
+    - No member type is assignable to `ItemInstance`, `EntityPack`, `Faction` or
+      any `AetheriaStores.RunTypes` entry.
+    - It also checks, after a save, that `player.cc` holds the loadout and
+      `run.cc` holds nothing new.
+  - **`MissingBlueprintReports`:**
+    - A loadout whose second slot's design key is absent from the catalog makes
+      `Materialize` return `null`.
+    - `failures` names that slot's cell and the key.
+    - A loadout whose product names a different design reports the mismatch.
+    - Neither call writes to any store (all three file hashes unchanged).
+- **Verification:**
+  - **Builds and tests:** `dotnet build Aetheria.Shared\Aetheria.Shared.csproj`,
+    `dotnet build tools\AetherDb`, then `dotnet test tests\Aetheria.Shared.Tests`
+    (6 + 6 + 3 tests).
+  - **Unity:** the batchmode compile as in 8a reports no `error CS`.
+  - **Negative greps,** over `Assets\Scripts tools tests` unless noted:
+    - `rg "SavedRun|SaveState|SaveLoadout|SaveZone|_loadoutPath|\.loadout\b|List<EntityPack> Loadouts|PlayerSettings\.msgpack|KeyboardLayouts|ParseJson|AssociateInputKeys|SaveLayout|legacy-census|class Import"` is empty.
+    - `rg "class Loadout|Upsert\(typeof\(Loadout\)" Assets\Scripts` shows only `ServerShared\Loadout.cs`.
+    - `rg "File\.(Read|Write)AllBytes" Assets\Scripts` shows only `Zone Display\GradientMapper.cs:116`, an editor texture export.
+    - `rg "MessagePackSerializer\." Assets\Scripts` shows only `NewEntitySettings` and `EntitySerializer.cs:61-62`.
+    - `rg "FlushAsync" Assets\Scripts` is empty.
+    - `rg "AetheriaStores\.Open" Assets\Scripts` has one hit, in `ActionGameManager`.
+    - `rg "GetHashCode\(\)" Assets\Scripts\ServerShared -g "!NIH/**"` shows only `Extensions.cs:269`, which is not a seed.
+    - `rg "RunSave\.Clear" Assets\Scripts` has two hits: `MainMenu` and `Die`.
+    - `rg "SaveRun\(" Assets\Scripts` has three hits: the definition plus two callers.
+    - `git ls-files GameData` is unchanged from Cut 9.
+  - **Operator play smoke,** in the editor, with no `run.cc` or `player.cc` at start:
+    1. Launch. `player.cc` appears, and Continue is disabled.
+    2. Settings, Gameplay: change the name, then Back. `player.cc` changes and
+       the `Aetheria.cc` hash does not.
+    3. New Game.
+       - Fly.
+       - Open the input screen: the layout renders from the catalog.
+       - Dock. Save Loadout as `smoke`. `player.cc` changes; `run.cc` does not.
+    4. Take a wormhole. `dotnet run --project tools\AetherDb -- save` lists every
+       zone, with contents for the two visited ones.
+    5. Take a second wormhole. `-- save` shows the same zone count, and its
+       `SavedZone` records did not grow.
+    6. Quit, relaunch, Continue. You land in the same zone on the same entity,
+       and the action bar is restored.
+    7. Quit immediately, then `-- save`. Every zone visited before still shows
+       its contents, which pins the `PackedContents` fix.
+    8. Continue, then die. `-- save` prints `run store holds no SavedGame`,
+       Continue is disabled, and the `Aetheria.cc` hash never changed.
+    9. New Game, dock, then Restore Loadout `smoke`.
+       - The loadout survived death, because it lives in `player.cc`.
+       - Either the ship builds with the same gear on the same cells and the
+         credits drop by the listed price, or the failure dialog lists the
+         unavailable products and the credits are unchanged.
+- **Soul:**
+  - The nine new tests pass.
+  - The negative greps hold.
+  - The smoke passes, including steps 7 and 9.
+  - Nothing in `Assets\Scripts` writes a game-state file.
+  - Materialization changes nothing on failure.
+  - Only the operator decides any drift from Q10-3.
+
+Steps needing Unity:
+- 6: CultLib's Unity project.
+- 8a, 8b and 10: a batchmode compile by the agent, and UPM acceptance and the
+  play smoke by the operator.
+- Cut 9 is headless.
 
 ## 5. Subtraction ledger
 
@@ -2071,8 +2621,8 @@ estimates otherwise.
 | 6 | ~120 (reflection bridge, fallback) | ~300 editor, 1 attribute | Studio `1.0.0` -> `1.1.0`, +1 package dependency |
 | 7 | 2 doc lines | 2 doc lines, rebuilt DLLs | 4 tags |
 | 8 (8a+8b; unsplit estimate, predates the refresh: 8a is a using swap and conversion fixes, near zero net, and 8b carries the deletes and the five Aetheria drawers) | 1,771 − ~305 kept + 30,088 + 1,963 + ~60 ≈ **33,600** | ~40 `AetheriaStores`, ~150 drawers, ~180 tests, ~40 props/targets, ~400 attribute/reference edits, ~120 AetherDb ≈ **930** | −1 vendored MessagePack, −1 JsonKnownTypes, −1 asmdef; +2 UPM packages, +2 ProjectReferences, +1 test project; 20 schemas replace 1 union |
-| 9 | ~15, 2 legacy data files + 12 name files + 32 folders | ~280 importer (deleted in Cut 10), 1 `.cc`, 1 `.gitattributes` line | 0 |
-| 10 | ~120 + ~280 (importer) + 8 | ~110, ~120 tests | −4 private file formats |
+| 9 | 0 code (8b already removed `OpenWithNameFiles`); data: `AetherDB.msgpack` (46,150 bytes), 12 name files, `ansi104.msgpack` and `.json`; 30 empty untracked folders | ~250 importer (deleted in Cut 10), 2 routing lines, 1 fixture move, 1 `.cc`, 1 `.gitattributes` and 1 `.gitignore` line | `InputLayout` routes to the catalog instead of the player store (Q9-1 A) |
+| 10 | `ActionGameManager` ~35 (settings file I/O, `SaveState`, `SaveLoadout`/`Loadouts`/`_loadoutPath`, `SaveZone`), `InventoryPanel` 26 (rewritten), `InputDisplayLayout` ~120 (`ParseJson` 73, `AssociateInputKeys` 33, `SaveLayout` 6, reader 5), `SavedGame` constructor 34, `MainMenu` ~15, `PlayerSettings` 1, importer ~250, 8 doc lines | `RunSave` ~55, `Loadout.cs` ~130, `InventoryPanel` ~30, `StableHash` ~6, `ActionGameManager`/`MainMenu` ~25, ~250 tests; schematic drawer port ~40 once Studio 1.3.0 is tagged | -4 private file formats (`PlayerSettings.msgpack`, `KeyboardLayouts\*.msgpack`, `.loadout`, `.zone`); +1 schema (`aetheria.loadout`, player store); -1 `PlayerSettings` slot |
 
 Expected net: CultLib **−1,650** lines of source and −450 of tests in Cut 2,
 then −325/+370 source and +720 tests in Cut 3 and +80/+110 in Cut 4: the two
