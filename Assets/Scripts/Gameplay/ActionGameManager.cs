@@ -3,7 +3,6 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
 using GameCult.Caching;
-using GameCult.Caching.MessagePack;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -49,10 +48,34 @@ public class ActionGameManager : MonoBehaviour
         {
             if (_cultCache != null) return _cultCache;
 
-            _cultCache = AetheriaStores.Open(Path.Combine(GameDataDirectory.FullName, "Aetheria.cc"));
-            
+            // All three stores attach once and stay attached until the process exits. The run lifecycle is record-level
+            // inside this cache; reopening would replace the catalog instances the galaxy and live entities hold.
+            _cultCache = AetheriaStores.Open(
+                Path.Combine(GameDataDirectory.FullName, "Aetheria.cc"),
+                runPath: Path.Combine(GameDataDirectory.FullName, "run.cc"),
+                playerPath: Path.Combine(GameDataDirectory.FullName, "player.cc"));
+
             return _cultCache;
         }
+    }
+
+    // The only creator of PlayerSettings: an absent global means first launch, and the defaults are committed.
+    public static PlayerSettings PlayerSettings
+    {
+        get
+        {
+            var settings = CultCache.GetGlobal<PlayerSettings>();
+            if (settings != null) return settings;
+            settings = GetDefaultPlayerSettings();
+            CultCache.Commit(batch => batch.Upsert(settings));
+            return settings;
+        }
+    }
+
+    public static void SavePlayerSettings()
+    {
+        var settings = PlayerSettings;
+        CultCache.Commit(batch => batch.Upsert(settings));
     }
 
     private static PlayerSettings GetDefaultPlayerSettings()
@@ -203,6 +226,23 @@ public class ActionGameManager : MonoBehaviour
     public EntitySettings NewEntitySettings
     {
         get => MessagePackSerializer.Deserialize<EntitySettings>(MessagePackSerializer.Serialize(Settings.GameplaySettings.DefaultEntitySettings));
+    }
+
+    private void OnApplicationQuit()
+    {
+        SaveRun();
+        SavePlayerSettings();
+    }
+
+    // Wormhole arrival and quit save the run; a dead run has no galaxy, so it is not saved.
+    public void SaveRun()
+    {
+        if (CurrentGalaxy != null)
+        {
+            var (game, zones) = RunSave.Capture(CultCache, CurrentGalaxy, Zone, DockedEntity ?? CurrentEntity, IsTutorial,
+                _actionBarSlots.Select(s => s.Save()).ToArray());
+            RunSave.Commit(CultCache, game, zones);
+        }
     }
 
     private void OnDisable()
@@ -561,7 +601,7 @@ public class ActionGameManager : MonoBehaviour
             ship.ExitWormhole(ZoneRenderer.WormholeInstances.Keys.First(w => w.Target == oldZone.GalaxyZone).Position,
                 Settings.GameplaySettings.WormholeExitVelocity * ItemManager.Random.NextFloat2Direction());
             CurrentEntity.Zone = Zone;
-            SaveState();
+            SaveRun();
         };
     }
 
@@ -655,7 +695,8 @@ public class ActionGameManager : MonoBehaviour
     {
         if (CurrentGalaxy != null)
         {
-            if (PlayerSettings.SavedRun == null)
+            var saved = CultCache.GetGlobal<SavedGame>();
+            if (saved == null)
             {
                 SectorMap.QueueZoneReveal(CurrentGalaxy.Entrance.AdjacentZones.Prepend(CurrentGalaxy.Entrance));
                 PopulateLevel(CurrentGalaxy.Entrance);
@@ -678,8 +719,8 @@ public class ActionGameManager : MonoBehaviour
                 foreach(var group in CurrentGalaxy.DiscoveredZones
                     .GroupBy(dz=>dz.Distance[CurrentGalaxy.Entrance]))
                     SectorMap.QueueZoneReveal(group);
-                PopulateLevel(CurrentGalaxy.Zones[PlayerSettings.SavedRun.CurrentZone]);
-                var targetEntity = Zone.Entities[PlayerSettings.SavedRun.CurrentZoneEntity];
+                PopulateLevel(CurrentGalaxy.Zones[saved.CurrentZone]);
+                var targetEntity = Zone.Entities[saved.CurrentZoneEntity];
                 if (targetEntity is OrbitalEntity orbitalEntity)
                 {
                     CurrentEntity = targetEntity.Children.First(c => c is Ship {IsPlayerShip: true});
@@ -693,7 +734,7 @@ public class ActionGameManager : MonoBehaviour
         
                 for (var i = 0; i < _actionBarSlots.Count; i++)
                 {
-                    _actionBarSlots[i].Restore(PlayerSettings.SavedRun.ActionBarBindings[i], CurrentEntity);
+                    _actionBarSlots[i].Restore(saved.ActionBarBindings[i], CurrentEntity);
                 }
             }
         }
@@ -1015,6 +1056,7 @@ public class ActionGameManager : MonoBehaviour
         MainMenu.gameObject.SetActive(true);
         Menu.gameObject.SetActive(false);
         CurrentGalaxy = null;
+        RunSave.Clear(CultCache);
         SavePlayerSettings();
         Observable.EveryUpdate()
             .Where(_ => Time.time - deathTime < DeathPostTransitionTime)

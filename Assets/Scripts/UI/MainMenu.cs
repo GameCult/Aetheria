@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using TMPro;
@@ -91,9 +92,24 @@ public class MainMenu : MonoBehaviour
     {
         _nextMenu.panel.Clear();
         _nextMenu.panel.Title.text = TitleSubtitle("aetheria", "terminus");
+        if (!InGame)
+        {
+            // A run exists only as the run store's SavedGame global.
+            var cache = ActionGameManager.CultCache;
+            var saved = cache.GetGlobal<SavedGame>();
+            if (saved == null && cache.AllStoredDocuments.Any(stored => RunSave.IsRunRecord(stored.Descriptor.DocumentType)))
+                Debug.Log("run store has no SavedGame; Continue disabled");
+            _nextMenu.panel.AddButton("Continue", saved == null ? (Action) null : () =>
+            {
+                ActionGameManager.IsTutorial = saved.IsTutorial;
+                ActionGameManager.CurrentGalaxy = new Galaxy(cache, saved, Debug.Log);
+                SceneManager.LoadScene("ARPG");
+            });
+        }
         _nextMenu.panel.AddButton("New Game",
             () =>
             {
+                RunSave.Clear(ActionGameManager.CultCache);
                 var generatorState = "Loading Database Contents";
                 Action<string> setState = s => generatorState = s;
 

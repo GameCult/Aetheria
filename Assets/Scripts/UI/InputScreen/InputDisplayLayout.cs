@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using GameCult.Caching;
 using TMPro;
 using UniRx;
 using UnityEngine;
@@ -81,6 +82,8 @@ public class InputDisplayLayout : MonoBehaviour
     void Start()
     {
         _canvas = transform.root.GetComponent<Canvas>();
+        _inputLayout = ActionGameManager.CultCache.Get<InputLayout>(new CultRecordKey(LayoutFile.name))
+                       ?? throw new InvalidOperationException($"catalog has no InputLayout '{LayoutFile.name}'");
         DisplayLayout(_inputLayout);
         
         _buttonMappings.Add(MapMouseButton(MouseLeft, "<Mouse>/leftButton"));

@@ -47,7 +47,84 @@ public class SavedGame
 
     [Key(12)]
     public FactionRelationship[] Relationships;
+}
 
+// The run's lifecycle over the run store. Only Commit creates SavedGame and SavedZone records.
+public static class RunSave
+{
+    // The live run as plain documents. Writes nothing.
+    public static (SavedGame Game, SavedZone[] Zones) Capture(CultCache cache, Galaxy galaxy, Zone currentZone,
+        Entity currentEntity, bool isTutorial, SavedActionBarBinding[] actionBar)
+    {
+        var factions = galaxy.HomeZones.Keys.ToArray();
+        var game = new SavedGame
+        {
+            DiscoveredZones = galaxy.DiscoveredZones.Select(dz => Array.IndexOf(galaxy.Zones, dz)).ToArray(),
+            Background = galaxy.Background,
+            Factions = factions.Select(f => cache.RefOf(f)).ToArray(),
+            Relationships = galaxy.Factions.Select(f => galaxy.FactionRelationships[f]).ToArray(),
+            HomeZones = galaxy.HomeZones.ToDictionary(
+                x => Array.IndexOf(factions, x.Key),
+                x => Array.IndexOf(galaxy.Zones, x.Value)),
+            BossZones = galaxy.BossZones.ToDictionary(
+                x => Array.IndexOf(factions, x.Key),
+                x => Array.IndexOf(galaxy.Zones, x.Value)),
+            CurrentZone = Array.FindIndex(galaxy.Zones, zone => zone.Contents == currentZone),
+            CurrentZoneEntity = currentZone.Entities.IndexOf(currentEntity),
+            Entrance = Array.IndexOf(galaxy.Zones, galaxy.Entrance),
+            Exit = Array.IndexOf(galaxy.Zones, galaxy.Exit),
+            IsTutorial = isTutorial,
+            ActionBarBindings = actionBar
+        };
+
+        // A zone generated earlier but not loaded this session has no live Contents; its packed contents carry over.
+        var zones = galaxy.Zones.Select(zone => new SavedZone
+        {
+            Name = zone.Name,
+            Position = zone.Position,
+            AdjacentZones = zone.AdjacentZones.Select(az => Array.IndexOf(galaxy.Zones, az)).ToArray(),
+            Factions = zone.Factions.Select(f => Array.IndexOf(factions, f)).ToArray(),
+            Contents = zone.Contents?.PackZone() ?? zone.PackedContents,
+            Owner = zone.Owner == null ? -1 : Array.IndexOf(factions, zone.Owner)
+        }).ToArray();
+        return (game, zones);
+    }
+
+    // The only writer of SavedGame and SavedZone: one Commit to the run store. Zone i lands at savedzone-{i}, stable
+    // because a run's zone array is fixed at generation, and every stored SavedZone outside that set is removed. The
+    // run store's single-file commit writes its whole view, so orbits and bodies staged by zone generation land too.
+    public static void Commit(CultCache cache, SavedGame game, IReadOnlyList<SavedZone> zones)
+    {
+        var keys = zones.Select((_, i) => new CultRecordKey($"savedzone-{i}")).ToArray();
+        var kept = new HashSet<CultRecordKey>(keys);
+        var stale = cache.AllStoredDocuments
+            .Where(stored => stored.Document is SavedZone && !kept.Contains(stored.Key))
+            .Select(stored => stored.Key)
+            .ToArray();
+        game.Zones = keys.Select(key => new CultRecordRef<SavedZone>(key)).ToArray();
+        cache.Commit(batch =>
+        {
+            for (var i = 0; i < keys.Length; i++) batch.Upsert(typeof(SavedZone), zones[i], keys[i]);
+            batch.Upsert(game);
+            foreach (var key in stale) batch.Remove(key);
+        });
+    }
+
+    // Removes every run record (SavedGame, SavedZone, OrbitData, BodyData) in one Commit.
+    public static void Clear(CultCache cache)
+    {
+        var run = cache.AllStoredDocuments
+            .Where(stored => IsRunRecord(stored.Descriptor.DocumentType))
+            .Select(stored => stored.Key)
+            .ToArray();
+        cache.Commit(batch =>
+        {
+            foreach (var key in run) batch.Remove(key);
+        });
+    }
+
+    public static bool IsRunRecord(Type documentType) =>
+        AetheriaStores.RunTypes.Any(home => home.IsAssignableFrom(documentType));
 }
 
 [CultDocument("aetheria.savedzone", "1"), MessagePackObject]
