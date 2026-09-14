@@ -58,6 +58,40 @@ Operator ruling (2026-09-14): double overloads keep full double precision, a
 documented exception to dxc parity, since dxc narrows double through float.
 The dxc rule governs float, int and bool.
 
+Cut 8a landed on Aetheria `codex/cultcache-cutover` (`4f4beb0f`..`2b38d2dc`).
+
+What was verified:
+- Headless builds pass.
+- Unity 6000.3.24f1 batchmode reports 0 errors.
+- `census`, `factions` and `hardpoint-fit` are byte-identical to captures
+  taken before the cut.
+- No `Unity.Mathematics` remains in `Assets`.
+
+Soul found behaviour changes those captures cannot see, and the fixes landed:
+- **SectorMap label pivot:** `sign` returns int, so the pivot used integer
+  division.
+- **Pin guard:** it now runs only for projects that reference `CultMath.csproj`,
+  so Unity's generated projects skip it.
+- **Scripts outside the swap:** five remaining files moved off
+  Unity.Mathematics; none use Burst.
+- **`AetheriaMath.cs`:** deleted, with callers on identical CultMath formulas.
+- **CultMath 0.2.2 (`111b918`):** `normalize` matches dxc (`x * rsqrt(dot)`),
+  so zero or NaN input gives NaN, as Unity.Mathematics did. DXIL.rst's Rsqrt
+  special-value table is a copy of Round's; the op definition wins.
+- **CultMath 0.2.3 (`0f2c1f0`, operator ruling):** Jarzynski & Olano 2020 PCG
+  integer hashes (`pcg`, `pcg3d`, `pcg4d`, `asuint`). Zone seeds use them in
+  place of the shader-style `hash`, which gave 1625 distinct seeds in 10000
+  positions.
+
+Accepted as CultMath's own behaviour, because old runs are discarded:
+- the `Random` integer sequence;
+- `quaternion.LookRotation` normalizing its input.
+
+Open:
+- The operator play smoke.
+- Whether the `CultLib-delvehold-isosurface` worktree carries the iso-surface
+  zero-normal code that 0.2.2 guards.
+
 Cut 6b decisions (operator, 2026-09-14). Aetheria adopts CultMath to exercise
 it, but the audit showed it is not a drop-in: missing `float2x2`, `float3x3`,
 `int3`, `int4`, `mul`, float3 `snoise`, vector `pow`/`sqrt`/trig overloads,
