@@ -68,24 +68,41 @@ Recorded, not fixed (the importer is deleted in Cut 10):
   never fire on this data.
 - A slot with no matching member is copied raw.
 
-The six dangling refs await the operator. CultLib `b85a828` (tags
-`cultlib-unity-v1.0.58` and `caching-unity-v1.3.0`) gives drawers a read-only
-`CultInspector.Record` and writes an unset `CultRecordRef` as nil. Cut 10 pins
-it. Cut 10 is not started; it waits on Q10-3.
+CultLib `b85a828` (tags `cultlib-unity-v1.0.58` and `caching-unity-v1.3.0`)
+gives drawers a read-only `CultInspector.Record`. Soul found that it writes an
+unset `CultRecordRef` as a nil map key, which Python's msgpack rejects. The
+correction release (1.0.59 / Studio 1.3.1, in progress) makes `""` the
+canonical unset wire form, and readers still accept nil. Cut 10 pins the
+correction release. Cut 10 is not started.
 
 Rulings (operator, 2026-09-14):
 - **Q9-1 A:** `InputLayout` is catalog state, imported by Cut 9.
-- **Q10-1:** loadouts stay, as player-store documents holding only blueprints
-  (design and product refs per hull cell). They are materialized against the
-  current galaxy at load, which keeps them portable. Q10-3 (materialization
-  rules) is open.
+- **Q10-1:** loadouts stay, as player-store documents holding only item designs:
+  the hull's design, and a design ref, hull cell and rotation per slot. A design
+  names no manufacturer, and a ship build does not care who makes the parts.
+  Loadouts are materialized against the current galaxy at load, which keeps
+  them portable.
 - **Q10-2 A:** the local `PlayerSettings.msgpack` is discarded, with no importer.
+- **Q10-3, all A.** Materialization:
+  - uses `LoadoutGenerator.IsAvailable` for availability (the maker is present
+    and allied with the docked station's faction);
+  - picks the first available product of each design;
+  - costs the sum of design prices;
+  - is all-or-nothing: on any failure, no ship, no charge, and every failing slot listed.
+- **Cut 9's six dangling refs, option B:**
+  - Cut 10 clears the two `CompoundCommodityData.DemandProfile` keys, which
+    point at the deleted Conscientiousness and Neuroticism
+    `PersonalityAttribute`s. They are on Mouth Adapting Gummy Molars (2 keys)
+    and Neural Lace (1 key), and nothing reads `DemandProfile`.
+  - The three `WeaponData.AmmoType` refs, on DeathCluster, FastBlast+- and
+    pretty pretty bang bang, point at the deleted Auto and Charged Shotgun Ammo.
+    The operator fixes them in the Studio click-through.
 - **CultLib follow-ups decided alongside:**
-  - Studio 1.3.0 hands drawers the owning record, read-only.
-  - An unset `CultRecordRef` reads back exactly as written, with sibling-runtime
-    parity checked.
-  - Cut 10's schematic-shape drawer restores the texture underlay and hardpoint
-    tints once Studio 1.3.0 is tagged.
+  - Studio hands drawers the owning record, read-only (1.3.0, corrected in 1.3.1).
+  - An unset `CultRecordRef` reads back exactly as written, with
+    sibling-runtime parity checked. The canonical wire form is `""`, per the
+    1.0.59 correction.
+  - Cut 10's schematic-shape drawer restores the texture underlay and hardpoint tints.
 
 CultMath 0.2.1 (`f060536` on `main`, tag `cultmath-unity-v0.2.1`, lightweight)
 fills Q8-1's gaps:
@@ -491,7 +508,7 @@ state.
 | Entity, Ship, OrbitalEntity, Zone, Galaxy | live simulation | not records | tags 14 and 20 deleted |
 | PlayerSettings | Player | `[CultGlobal]` | name, tutorial flag, credits |
 | InputLayout | Catalog | document keyed by layout name | authored keyboard geometry; player rebinds live in `PlayerSettings` (Q9-1 A); imported by Cut 9 from `GameData\KeyboardLayouts` |
-| Loadout | Player | document named by `[CultName]` | blueprints only (design and product refs per hull cell); outlives runs (Q10-1) |
+| Loadout | Player | document named by `[CultName]` | item designs only (a design ref per hull cell, no manufacturer); outlives runs (Q10-1) |
 
 Save points at Aetheria `20db3a93` (`Gameplay\ActionGameManager.cs` unless noted):
 - **Player settings:** `SavePlayerSettings` (`:70-73`) writes
@@ -2182,15 +2199,53 @@ ended at `9bdf6ef2`) and CultLib `0f2c1f0`, the pin in `Directory.Build.props`.
 ### Cut 10. Runtime cutover, importer removal, docs
 
 Refreshed 2026-09-14. `file:line` is at Aetheria `20db3a93`, except the
-AetherDb and test edits made by Cut 9.
+AetherDb and test edits made by Cut 9 (landed `70fbaca1`, recorded `e3af23fa`).
 
 - **Repo/branch:** same, after Cut 9.
-- **Rulings (operator, 2026-09-14):**
-  - **Q10-1: loadouts are kept, as blueprint documents.** The operator: loadouts
-    are essential; what matters is the blueprint of each equipped item, and
-    materialization depends on the current galaxy so that loadouts stay portable.
+- **Rulings (operator, 2026-09-14):** the loadout ruling and Q10-2 A, Q10-3 all
+  A, and dangling-ref option B, as recorded in the status header.
   - **Q10-2 A:** the local `GameData\PlayerSettings.msgpack` is discarded. First
     launch writes defaults to `player.cc`, and nothing imports the old file.
+- **Step 1, the CultLib pin.** This is Cut 10's first commit.
+  - Move `F:\Projects\CultLib` to the commit tagged `cultlib-unity-v1.0.59` and
+    `caching-unity-v1.3.1`, and leave it clean.
+  - Set `Directory.Build.props:5` `CultLibRevision` to that commit's SHA, which
+    is set when the tag lands. The pin guard refuses anything else.
+  - `Packages\manifest.json:53-54` become
+    `…/src/GameCult.Unity/Assets/Caching#caching-unity-v1.3.1` and
+    `…/unity/org.gamecult.cultlib#cultlib-unity-v1.0.59`.
+  - Why 1.0.59 and not 1.0.58: 1.0.58 writes an unset `CultRecordRef` as a nil
+    map key, which Python's msgpack rejects. 1.0.59 writes `""` and reads nil.
+  - Verify: the headless build, `dotnet test tests\Aetheria.Shared.Tests`, and
+    the batchmode compile.
+  - `Aetheria.cc` does not have to be rewritten for the pin, because readers
+    accept nil. Step 2's commit rewrites it anyway, in the canonical form.
+- **Step 2, dangling refs (option B).** This is one catalog `Commit`, landed
+  before any runtime change.
+  - **Tool:** `tools\AetherDb\Program.cs:200-226`: `ClearBossHulls` becomes
+    `ClearDangling(string[] members, bool apply)`, and `case "clear-boss-hulls"`
+    (`:26`) becomes `case "dangling"`. It stays one command; no second one-off tool.
+    - It opens `AetherDb.Open(catalogWritable: apply)`.
+    - It walks every catalog record's `CultRecordRef<T>` members by reflection:
+      plain refs, list elements, ref-keyed dictionary keys, and nested
+      `[MessagePackObject]` and `[Union]` values such as
+      `EquippableItemData.Behaviors`.
+    - It prints each ref that resolves to nothing as
+      `<record name> <DeclaringType.Member> -> <key>`.
+    - Each `clear <DeclaringType.Member>` argument unsets that member's dangling
+      refs, or removes that dictionary's dangling keys, on the record in hand.
+    - With `apply`, all changed records land in one `db.Cache.Commit`. Without
+      it, the command is a dry run.
+    - `Faction.BossHull` stays a clearable member, so the old command's use is kept.
+  - **Run:** `dotnet run --project tools\AetherDb -- dangling clear CompoundCommodityData.DemandProfile apply`.
+    - It clears 3 keys: 2 on Mouth Adapting Gummy Molars and 1 on Neural Lace.
+  - **Verify:**
+    - `-- dangling` then lists exactly three refs: `WeaponData.AmmoType` on
+      DeathCluster, FastBlast+- and pretty pretty bang bang.
+    - `census`, `factions` and `hardpoint-fit` still equal the Cut 9 results
+      (same normalization).
+    - `git diff --stat` shows only `GameData/Aetheria.cc` and `Program.cs`.
+  - The three AmmoType refs stay for the operator's Studio click-through (below).
 - **Loadouts today** (all of it is replaced):
   - "Save Loadout" (`InventoryPanel.cs:170-174`) calls `SaveLoadout`
     (`ActionGameManager.cs:227-230`). That writes a whole `EntityPack` to a
@@ -2207,44 +2262,23 @@ AetherDb and test edits made by Cut 9.
   - An `EntityPack` is the wrong unit for a portable loadout. It carries rolled
     units (`Quality`, `Ingredients`, `Durability`, `ItemInstance.cs:36-43, 76`),
     cargo, children, faction, position and persisted behaviour state.
-- **What a blueprint is in Aetheria today.** There is no blueprint type.
-  - A buildable unit is named by an `EquippableItemData` design, plus, when a
-    manufacturer built it, the `FactionProductData` product it was built as
-    (`CraftedItemInstance.Product`, `ItemInstance.cs:43`).
+- **What a loadout holds.** A loadout slot is an `EquippableItemData` design.
+  - A design names no manufacturer. Which manufacturer's product builds it is a
+    fact of the current galaxy, not of the build.
+  - The unit's `FactionProductData` (`CraftedItemInstance.Product`,
+    `ItemInstance.cs:43`) is not captured.
   - `ItemManager.CreateInstance(FactionProductData)` (`ItemManager.cs:164-187`)
-    builds a unit from a product. `CreateInstance(CraftedItemData)`
-    (`:144-160`) builds one from a bare design.
-  - Units made from a bare design (console `give`, `ActionGameManager.cs:497`)
-    carry no product.
-  - A loadout blueprint is therefore the pair (design ref, optional product ref).
-    Both are catalog records, so the pair is portable across runs and galaxies.
-- **Q10-3, operator: what "depends on current galaxy contents" means at load.**
-  - **Availability:**
-    - A: the generator's rule. A product is available when its manufacturer is
-      in the galaxy and allied with the docked station's faction; the prelude
-      and a null galaxy make everything available
-      (`LoadoutGenerator.IsAvailable`, `LoadoutGenerator.cs:152-154`).
-    - B: only units actually stocked in the docked station's cargo
-      (`LoadoutGenerator.cs:97-105` stocks it).
-    - C: no availability rule; any catalog product.
-  - **A blueprint with no product** (design only):
-    - A: any available product of that design; the first in catalog order that
-      passes availability.
-    - B: build from the bare design.
-  - **Cost:**
-    - A: the sum of design `Price`, as `EntityPack.Price` charged.
-    - B: the sum of `ItemManager.GetPrice` of the built units, which includes
-      the quality roll.
-  - **Partial success:**
-    - A: all-or-nothing. Any failing slot means no ship, no charge, and every failure reported.
-    - B: build what resolves and report the rest.
-  - **Recommended: A on all four.**
-    - Availability A reuses the one rule generation already owns.
-    - It keeps a loadout from materializing gear the galaxy has no maker for.
-    - B would turn restore into shopping, which the trade menu already owns.
-    - All-or-nothing keeps restore from half-charging for an unflyable hull.
-  - The spec below assumes A throughout. Materialization is one function, so a
-    different ruling changes only `Loadouts.Materialize` and its test.
+    builds the unit at load.
+- **Materialization rules (Q10-3, all A):**
+  - **Availability:** `LoadoutGenerator.IsAvailable` (`LoadoutGenerator.cs:152-154`).
+    The product's manufacturer must be in the galaxy and allied with the docked
+    station's faction. The prelude and a null galaxy make everything available.
+  - **Picking a product:** the first product, in `GetAll<FactionProductData>()`
+    order, whose `Design` is the slot's design and which passes availability.
+    Slots carry no product, so this always applies.
+  - **Cost:** the sum of the design `Price`s, as `EntityPack.Price` charged.
+  - **Failure:** all-or-nothing. Any failing slot means no ship, no charge, and
+    every failing slot listed.
 - **Deletes first:**
   - **`ActionGameManager.cs`:**
     - `:58-73`: the `PlayerSettings.msgpack` getter, `_playerSettingsFilePath`
@@ -2326,16 +2360,9 @@ AetherDb and test edits made by Cut 9.
     public class Loadout
     {
         [CultName, Key(0)] public string Name;
-        [Key(1)] public LoadoutBlueprint Hull;
+        [Key(1)] public CultRecordRef<HullData> Hull;
         [Key(2)] public List<LoadoutSlot> Slots = new List<LoadoutSlot>();
         [Key(3)] public int[][] WeaponGroups;          // indices into Slots
-    }
-
-    [MessagePackObject]
-    public class LoadoutBlueprint
-    {
-        [Key(0)] public CultRecordRef<EquippableItemData> Design;
-        [Key(1)] public CultRecordRef<FactionProductData> Product;   // unset when the unit carried none
     }
 
     [MessagePackObject]
@@ -2343,7 +2370,7 @@ AetherDb and test edits made by Cut 9.
     {
         [Key(0)] public int2 Position;                 // hull cell passed to Entity.TryEquip(item, int2)
         [Key(1)] public ItemRotation Rotation;
-        [Key(2)] public LoadoutBlueprint Blueprint;
+        [Key(2)] public CultRecordRef<EquippableItemData> Design;
     }
 
     public static class Loadouts
@@ -2351,7 +2378,7 @@ AetherDb and test edits made by Cut 9.
         public static Loadout Capture(ItemManager itemManager, Entity entity, string name);
         // One Commit to the player store; a loadout with the same name is replaced under its existing key.
         public static void Save(CultCache cache, Loadout loadout);
-        // All-or-nothing: returns a ship only when every blueprint resolved, was available and fitted.
+        // All-or-nothing: returns a ship only when every design resolved, had an available product and fitted.
         public static Ship Materialize(ItemManager itemManager, Galaxy galaxy, GalaxyZone zone, Faction stationFaction,
             Zone liveZone, Loadout loadout, List<string> failures);
         public static int Price(ItemManager itemManager, Loadout loadout);
@@ -2364,14 +2391,14 @@ AetherDb and test edits made by Cut 9.
       - The cell and the rotation are properties of the hull design, so they
         stay valid in any galaxy.
     - **`Capture`:**
-      - The hull blueprint comes from `entity.Hull`.
+      - `Hull` is `cache.RefOf<HullData>(itemManager.GetData(entity.Hull))`.
       - There is one slot per distinct `EquippedItem` across `entity.Equipment`,
-        `CargoBays` and `DockingBays`, in that order. Each blueprint is
-        `Design = cache.RefOf<EquippableItemData>(itemManager.GetData(item))`
-        and `Product = item.Product`.
+        `CargoBays` and `DockingBays`, in that order, with
+        `Design = cache.RefOf<EquippableItemData>(itemManager.GetData(item))`.
       - `WeaponGroups` maps each group's items to slot indices.
-      - It records nothing else: no quality, ingredients, durability, cargo,
-        children, faction, name of the ship, position, settings or behaviour state.
+      - It records nothing else: no product or manufacturer, quality,
+        ingredients, durability, cargo, children, faction, ship name, position,
+        settings or behaviour state.
     - **`Save`:**
       - Looks up the existing record with `cache.GetByName<Loadout>(name)`, then
         `cache.Commit(b => b.Upsert(typeof(Loadout), loadout, existingKey))`.
@@ -2382,15 +2409,12 @@ AetherDb and test edits made by Cut 9.
         zone, stationFaction, 0)` only to ask `IsAvailable`. That makes
         `LoadoutGenerator.cs:152` public; there is no second availability rule.
       - For the hull and then each slot, in slot order:
-        1. Resolve `Design`. A missing record reports
-           `slot <x,y>: design <key> is not in the catalog`.
-        2. If `Product` is set, resolve it. A missing record reports
-           `product <key> is not in the catalog`. A product whose `Design` is
-           not this design reports a mismatch.
-        3. Otherwise take the first available product of that design. If there
-           is none, report `no available product of <design name>`.
-        4. An unavailable set product reports
-           `<product> is not made by anyone in this galaxy`.
+        1. Resolve the design ref. A missing record reports
+           `slot <x,y>: design <key> is not in the catalog`; the hull reports
+           `hull` in place of the cell.
+        2. Take the first available product of that design. If there is none,
+           report `slot <x,y>: no available product of <design name>`.
+      - The pass does not stop at the first failure, so every failing slot is listed.
       - It builds units with `itemManager.CreateInstance(product)` (fresh
         rolls), sets `Rotation`, and constructs
         `new Ship(itemManager, liveZone, hull, itemManager.GameplaySettings.DefaultEntitySettings)`.
@@ -2400,7 +2424,8 @@ AetherDb and test edits made by Cut 9.
       - Any failure returns `null`. The caller has changed nothing: no ship, no
         credits and no cache write. The function never substitutes a design or
         a slot.
-    - **`Price`** is the hull's design `Price` plus each slot's design `Price` (Q10-3 A).
+      - Units are built only after every slot resolved; a fit failure discards them.
+    - **`Price`** is the hull design's `Price` plus each slot design's `Price`.
   - **`AetheriaStores.cs:11`** (after Cut 9): `PlayerTypes = { typeof(PlayerSettings), typeof(Loadout) }`.
     - The player store is the right home. A loadout outlives runs, so the run
       store is wrong: `RunSave.Clear` would delete it at death.
@@ -2421,19 +2446,21 @@ AetherDb and test edits made by Cut 9.
         `:184-192` (`SetParent`, `IsPlayerShip`, `DockingBay.DockedShip`,
         `CurrentEntity`, `Display`).
       - On failure: `Dialog` titled `Loadout cannot be built here`, with one line per failure.
-  - **Studio 1.3.0 drawer follow-up** (operator, 2026-09-14). It lands in this cut once
-    `caching-unity` 1.3.0 is tagged; if the tag is not out when the rest of
-    Cut 10 lands, it is its own follow-up commit.
-    - Pin `org.gamecult.caching.unity` to the 1.3.0 tag in `Packages\manifest.json`.
+  - **Schematic-shape drawer** (operator, 2026-09-14), on the Step 1 pin (Studio 1.3.1):
     - `InspectableSchematicShapeDrawer` (`Editor\CultCacheDrawers.cs:90-114`)
-      takes the owning record read-only through the 1.3.0 drawer signature.
+      reads the owning record through `inspector.Record` (read-only).
     - From that record it restores the Database Tools behaviour: the item's
       schematic texture under the grid, the height derived from the texture's
       aspect, and hull hardpoint tints.
     - Port that from `git show d3db1730:Assets/Scripts/CultCache/Editor/Inspectors/AetheriaInspectors.cs`
       (the drawer at `:158`) and delete the comment at `:90-92`.
-    - Verify with the batchmode compile and the operator's Studio click-through
-      on a `HullData`.
+    - Verify with the batchmode compile and the operator's Studio click-through.
+      The click-through checklist:
+      - a `HullData` shows its texture underlay, aspect-derived height and hardpoint tints;
+      - set or clear `WeaponData.AmmoType` on DeathCluster, FastBlast+- and
+        pretty pretty bang bang (each points at the deleted Auto or Charged
+        Shotgun Ammo);
+      - afterwards `-- dangling` lists zero refs.
   - **`ServerShared\Extensions.cs`:** add `public static uint StableHash(this string s)`.
     - The body folds UTF-8 bytes through CultMath's `pcg`:
       `uint h = 0x811C9DC5; foreach (var b in Encoding.UTF8.GetBytes(s)) h = pcg(h ^ b); return h;`.
@@ -2492,13 +2519,13 @@ AetherDb and test edits made by Cut 9.
   - **Loadouts:** player store, owned by `Loadouts` in `Loadout.cs`.
     - **Inputs:** a live `Entity` for capture; the catalog, galaxy, zone and
       station faction for materialization.
-    - **Output:** `aetheria.loadout` records holding only design and product refs, hull cells and rotations.
+    - **Output:** `aetheria.loadout` records holding only design refs, hull cells and rotations.
     - **Only writer:** `Loadouts.Save`.
     - **Only builder of a ship from a loadout:** `Loadouts.Materialize`. It
       judges availability only through `LoadoutGenerator.IsAvailable`.
     - **Forbidden:**
-      - `EntityPack`, `ItemInstance`, run-type or `Faction` members on
-        `Loadout`, `LoadoutSlot` or `LoadoutBlueprint`.
+      - `EntityPack`, `ItemInstance`, `FactionProductData`, run-type or
+        `Faction` members on `Loadout` or `LoadoutSlot`.
       - A `.loadout` file.
       - A `LoadoutGenerator` fallback to "any manufacturer" at restore. That
         fallback exists for generation's required items (`:136-141`) and is not
@@ -2557,36 +2584,44 @@ AetherDb and test edits made by Cut 9.
   - **`tests\Aetheria.Shared.Tests\LoadoutTests.cs`,** new. Its fixture catalog adds:
     - a `HullData` (Ship, 2×2 shape, one 1×1 hardpoint);
     - a 1×1 `GearData` for that hardpoint and a 1×1 `CargoBayData`;
-    - a product for each, made by the fixture faction.
+    - a product for each design, made by the fixture faction (materialization
+      needs one; the loadout never names it).
     - Settings are as in `Program.cs:307-312`, and `galaxy` is `null`, so everything is available.
   - **`LoadoutRoundTripsThroughAFreshCache`:**
     - Materializes a ship from a hand-built loadout (gear on the hardpoint
       cell, cargo on an interior cell), then `Capture`s and `Save`s it.
     - Disposes, reopens a fresh cache over the same files, and reads
       `GetByName<Loadout>`.
-    - The hull and slot blueprints, cells, rotations and weapon groups must be
+    - The hull design, slot designs, cells, rotations and weapon groups must be
       equal, and `Materialize` must succeed again with the same designs on the
       same cells.
     - `Save` under the same name leaves one `aetheria.loadout` record.
   - **`LoadoutHoldsNoRunOrGalaxyRefs`:** walks the member graph of `Loadout` by reflection.
-    - Every `CultRecordRef<T>` has `T` assignable to `EquippableItemData` or `FactionProductData`.
-    - No member type is assignable to `ItemInstance`, `EntityPack`, `Faction` or
-      any `AetheriaStores.RunTypes` entry.
+    - Every `CultRecordRef<T>` has `T` assignable to `EquippableItemData`.
+    - No member type is assignable to `ItemInstance`, `EntityPack`,
+      `FactionProductData`, `Faction` or any `AetheriaStores.RunTypes` entry.
     - It also checks, after a save, that `player.cc` holds the loadout and
       `run.cc` holds nothing new.
-  - **`MissingBlueprintReports`:**
+  - **`MissingDesignReports`:**
     - A loadout whose second slot's design key is absent from the catalog makes
       `Materialize` return `null`.
     - `failures` names that slot's cell and the key.
-    - A loadout whose product names a different design reports the mismatch.
+    - A loadout whose third slot's design has no product lists both failing
+      slots, in slot order.
     - Neither call writes to any store (all three file hashes unchanged).
 - **Verification:**
   - **Builds and tests:** `dotnet build Aetheria.Shared\Aetheria.Shared.csproj`,
     `dotnet build tools\AetherDb`, then `dotnet test tests\Aetheria.Shared.Tests`
     (6 + 6 + 3 tests).
   - **Unity:** the batchmode compile as in 8a reports no `error CS`.
+  - **Pin:** `git -C F:\Projects\CultLib describe --tags` names
+    `cultlib-unity-v1.0.59`, and the manifest names `v1.0.59` and `v1.3.1`.
+    The pin guard fails with CultLib at `b85a828`.
+  - **Dangling refs:** `dotnet run --project tools\AetherDb -- dangling` lists
+    exactly the three `WeaponData.AmmoType` refs (DeathCluster, FastBlast+-,
+    pretty pretty bang bang) until the operator's click-through, then zero.
   - **Negative greps,** over `Assets\Scripts tools tests` unless noted:
-    - `rg "SavedRun|SaveState|SaveLoadout|SaveZone|_loadoutPath|\.loadout\b|List<EntityPack> Loadouts|PlayerSettings\.msgpack|KeyboardLayouts|ParseJson|AssociateInputKeys|SaveLayout|legacy-census|class Import"` is empty.
+    - `rg "SavedRun|SaveState|SaveLoadout|SaveZone|_loadoutPath|\.loadout\b|List<EntityPack> Loadouts|PlayerSettings\.msgpack|KeyboardLayouts|ParseJson|AssociateInputKeys|SaveLayout|legacy-census|class Import|clear-boss-hulls|ClearBossHulls"` is empty.
     - `rg "class Loadout|Upsert\(typeof\(Loadout\)" Assets\Scripts` shows only `ServerShared\Loadout.cs`.
     - `rg "File\.(Read|Write)AllBytes" Assets\Scripts` shows only `Zone Display\GradientMapper.cs:116`, an editor texture export.
     - `rg "MessagePackSerializer\." Assets\Scripts` shows only `NewEntitySettings` and `EntitySerializer.cs:61-62`.
@@ -2625,7 +2660,8 @@ AetherDb and test edits made by Cut 9.
   - The smoke passes, including steps 7 and 9.
   - Nothing in `Assets\Scripts` writes a game-state file.
   - Materialization changes nothing on failure.
-  - Only the operator decides any drift from Q10-3.
+  - Loadouts name no product.
+  - Only the operator decides any drift from the Q10-3 rulings.
 
 Steps needing Unity:
 - 6: CultLib's Unity project.
@@ -2649,7 +2685,7 @@ estimates otherwise.
 | 7 | 2 doc lines | 2 doc lines, rebuilt DLLs | 4 tags |
 | 8 (8a+8b; unsplit estimate, predates the refresh: 8a is a using swap and conversion fixes, near zero net, and 8b carries the deletes and the five Aetheria drawers) | 1,771 − ~305 kept + 30,088 + 1,963 + ~60 ≈ **33,600** | ~40 `AetheriaStores`, ~150 drawers, ~180 tests, ~40 props/targets, ~400 attribute/reference edits, ~120 AetherDb ≈ **930** | −1 vendored MessagePack, −1 JsonKnownTypes, −1 asmdef; +2 UPM packages, +2 ProjectReferences, +1 test project; 20 schemas replace 1 union |
 | 9 | 0 code (8b already removed `OpenWithNameFiles`); data: `AetherDB.msgpack` (46,150 bytes), 12 name files, `ansi104.msgpack` and `.json`; 30 empty untracked folders | ~250 importer (deleted in Cut 10), 2 routing lines, 1 fixture move, 1 `.cc`, 1 `.gitattributes` and 1 `.gitignore` line | `InputLayout` routes to the catalog instead of the player store (Q9-1 A) |
-| 10 | `ActionGameManager` ~35 (settings file I/O, `SaveState`, `SaveLoadout`/`Loadouts`/`_loadoutPath`, `SaveZone`), `InventoryPanel` 26 (rewritten), `InputDisplayLayout` ~120 (`ParseJson` 73, `AssociateInputKeys` 33, `SaveLayout` 6, reader 5), `SavedGame` constructor 34, `MainMenu` ~15, `PlayerSettings` 1, importer ~250, 8 doc lines | `RunSave` ~55, `Loadout.cs` ~130, `InventoryPanel` ~30, `StableHash` ~6, `ActionGameManager`/`MainMenu` ~25, ~250 tests; schematic drawer port ~40 once Studio 1.3.0 is tagged | -4 private file formats (`PlayerSettings.msgpack`, `KeyboardLayouts\*.msgpack`, `.loadout`, `.zone`); +1 schema (`aetheria.loadout`, player store); -1 `PlayerSettings` slot |
+| 10 | `ActionGameManager` ~35 (settings file I/O, `SaveState`, `SaveLoadout`/`Loadouts`/`_loadoutPath`, `SaveZone`), `InventoryPanel` 26 (rewritten), `InputDisplayLayout` ~120 (`ParseJson` 73, `AssociateInputKeys` 33, `SaveLayout` 6, reader 5), `SavedGame` constructor 34, `MainMenu` ~15, `PlayerSettings` 1, importer ~250, 8 doc lines | `RunSave` ~55, `Loadout.cs` ~130, `InventoryPanel` ~30, `StableHash` ~6, `ActionGameManager`/`MainMenu` ~25, ~250 tests; schematic drawer port ~40; `clear-boss-hulls` generalized to `dangling` ~+30 | -4 private file formats (`PlayerSettings.msgpack`, `KeyboardLayouts\*.msgpack`, `.loadout`, `.zone`); +1 schema (`aetheria.loadout`, player store); -1 `PlayerSettings` slot |
 
 Expected net: CultLib **−1,650** lines of source and −450 of tests in Cut 2,
 then −325/+370 source and +720 tests in Cut 3 and +80/+110 in Cut 4: the two
