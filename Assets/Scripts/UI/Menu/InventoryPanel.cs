@@ -166,33 +166,6 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
 
                 if(GameManager.DockingBay!=null && _displayedCargo!=GameManager.DockingBay)
                     ContextMenu.AddOption(GameManager.DockingBay.Name, () => Display(GameManager.DockingBay));
-                
-                ContextMenu.AddOption("Save Loadout",
-                    () =>
-                    {
-                        GameManager.SaveLoadout(EntitySerializer.Pack(_displayedEntity));
-                    });
-
-                if (GameManager.Loadouts.Any())
-                {
-                    ContextMenu.AddDropdown("Restore Loadout", 
-                        GameManager.Loadouts.Select<EntityPack, (string text, Action action, bool enabled)>(pack => 
-                            (
-                                $"{pack.Name} - {pack.Price(GameManager.ItemManager):n0}", () =>
-                                {
-                                    var entity = EntitySerializer.Unpack(GameManager.ItemManager, GameManager.Zone, pack, true);
-                                    entity.SetParent(GameManager.DockedEntity);
-                                    GameManager.Credits -= pack.Price(GameManager.ItemManager);
-                                    GameManager.CurrentEntity = entity;
-                                    if(entity is Ship ship)
-                                    {
-                                        ship.IsPlayerShip = true;
-                                        GameManager.DockingBay.DockedShip = ship;
-                                    }
-                                    Display(entity);
-                                }, pack.Price(GameManager.ItemManager) < GameManager.Credits
-                                )));
-                }
 
                 ContextMenu.Show();
             });

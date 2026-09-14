@@ -48,40 +48,6 @@ public class SavedGame
     [Key(12)]
     public FactionRelationship[] Relationships;
 
-    public SavedGame() { }
-
-    // Writes a SavedZone record for every galaxy zone through the cache.
-    public SavedGame(CultCache cache, Galaxy galaxy, Zone currentZone, Entity currentEntity)
-    {
-        DiscoveredZones = galaxy.DiscoveredZones.Select(dz => Array.IndexOf(galaxy.Zones, dz)).ToArray();
-        Background = galaxy.Background;
-        var factions = galaxy.HomeZones.Keys.ToArray();
-        Factions = factions.Select(f => cache.RefOf(f)).ToArray();
-        Relationships = galaxy.Factions.Select(f => galaxy.FactionRelationships[f]).ToArray();
-
-        HomeZones = galaxy.HomeZones.ToDictionary(
-            x => Array.IndexOf(factions, x.Key),
-            x => Array.IndexOf(galaxy.Zones, x.Value));
-        BossZones = galaxy.BossZones.ToDictionary(
-            x => Array.IndexOf(factions, x.Key),
-            x => Array.IndexOf(galaxy.Zones, x.Value));
-
-        Zones = galaxy.Zones.Select(zone => cache.Upsert(new SavedZone
-        {
-            Name = zone.Name,
-            Position = zone.Position,
-            AdjacentZones = zone.AdjacentZones.Select(az=> Array.IndexOf(galaxy.Zones, az)).ToArray(),
-            Factions = zone.Factions.Select(f=> Array.IndexOf(factions, f)).ToArray(),
-            Contents = zone.Contents?.PackZone(),
-            Owner = zone.Owner == null ? -1 : Array.IndexOf(factions, zone.Owner)
-        })).ToArray();
-
-        CurrentZone = Array.FindIndex(galaxy.Zones, zone => zone.Contents == currentZone);
-        CurrentZoneEntity = currentZone.Entities.IndexOf(currentEntity);
-
-        Entrance = Array.IndexOf(galaxy.Zones, galaxy.Entrance);
-        Exit = Array.IndexOf(galaxy.Zones, galaxy.Exit);
-    }
 }
 
 [CultDocument("aetheria.savedzone", "1"), MessagePackObject]

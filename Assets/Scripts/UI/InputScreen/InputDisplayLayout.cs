@@ -1,11 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
-using MessagePack;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Serialization;
 using TMPro;
 using UniRx;
 using UnityEngine;
@@ -85,11 +81,6 @@ public class InputDisplayLayout : MonoBehaviour
     void Start()
     {
         _canvas = transform.root.GetComponent<Canvas>();
-        var path = Path.Combine(ActionGameManager.GameDataDirectory.CreateSubdirectory("KeyboardLayouts").FullName, $"{LayoutFile.name}.msgpack");
-        // _inputLayout = ParseJson(LayoutFile.text);
-        _inputLayout = MessagePackSerializer.Deserialize<InputLayout>(File.ReadAllBytes(path));
-        // _inputLayout = JsonConvert.DeserializeObject<InputLayout>(File.ReadAllText(path));
-        // SaveLayout();
         DisplayLayout(_inputLayout);
         
         _buttonMappings.Add(MapMouseButton(MouseLeft, "<Mouse>/leftButton"));
@@ -147,8 +138,6 @@ public class InputDisplayLayout : MonoBehaviour
 
             RegisterMouseCallbacks();
         });
-
-        //StartCoroutine(AssociateInputKeys(_inputLayout));
     }
 
     private ButtonMapping MapMouseButton(InputDisplayButton button, string path)
@@ -381,121 +370,6 @@ public class InputDisplayLayout : MonoBehaviour
                 throw new ArgumentOutOfRangeException(nameof(row));
             }
         }
-    }
-
-    public InputLayout ParseJson(string layout)
-    {
-        var rows = new List<InputLayoutRow>();
-        var nextWidth = 1f;
-        var nextHeight = 1;
-        var reader = new JsonTextReader(new StringReader(layout));
-        
-        reader.Read();
-        if (reader.TokenType != JsonToken.StartArray)
-            throw new JsonReaderException($"Unexpected JSON format in line {reader.LineNumber}:{reader.LinePosition}, expected: StartArray, received: {Enum.GetName(typeof(JsonToken), reader.TokenType)}");
-        
-        while(reader.Read() && reader.TokenType != JsonToken.EndArray)
-        {
-            if (reader.TokenType != JsonToken.StartArray)
-                throw new JsonReaderException($"Unexpected JSON format in line {reader.LineNumber}:{reader.LinePosition}, expected: StartArray, received: {Enum.GetName(typeof(JsonToken), reader.TokenType)}");
-
-            var row = new InputLayoutKeyRow();
-            var columns = new List<InputLayoutColumn>();
-
-            while (reader.Read() && reader.TokenType != JsonToken.EndArray)
-            {
-                switch (reader.TokenType)
-                {
-                    case JsonToken.StartObject:
-                        while(reader.Read() && reader.TokenType != JsonToken.EndObject)
-                        {
-                            switch (reader.Value.ToString())
-                            {
-                                case "a": break;
-                                case "w":
-                                    nextWidth = (float) (reader.ReadAsDouble() ?? 1.0);
-                                    break;
-                                case "h":
-                                    nextHeight = reader.ReadAsInt32() ?? 1;
-                                    break;
-                                case "y":
-                                    rows.Add(new InputLayoutRowSpacer{Height = (float) (reader.ReadAsDouble() ?? 0.0)});
-                                    break;
-                                case "x":
-                                    columns.Add(new InputLayoutColumnSpacer{Width = (float) (reader.ReadAsDouble() ?? 0.0)});
-                                    break;
-                            }
-                        }
-                        break;
-                    case JsonToken.String:
-                        InputLayoutKey key;
-                        var v = reader.Value.ToString().Trim();
-                        if (!string.IsNullOrEmpty(v))
-                        {
-                            var labels = v.Split('\n');
-                            key = nextHeight != 1 ? new InputLayoutMultiRowKey {Height = nextHeight} : new InputLayoutBindableKey();
-                            nextHeight = 1;
-                            ((InputLayoutBindableKey) key).MainLabel = labels.Length == 2 ? labels[1] : v;
-                            ((InputLayoutBindableKey) key).AltLabel = labels.Length == 2 ? labels[0] : "";
-                        }
-                        else
-                            key = new InputLayoutKey();
-
-                        key.Width = nextWidth;
-                        columns.Add(key);
-                        nextWidth = 1f;
-                        break;
-                    default:
-                        throw new JsonReaderException($"Unexpected JSON format in line {reader.LineNumber}:{reader.LinePosition}");
-                }
-            }
-
-            row.Columns = columns.ToArray();
-            rows.Add(row);
-        }
-
-        return new InputLayout {Rows = rows.ToArray()};
-    }
-
-    private IEnumerator AssociateInputKeys()
-    {
-        var path = "";
-        var keyPress = new InputAction(binding: "/<Keyboard>/<button>");
-        keyPress.performed += context =>
-        {
-            if (context.control.path.EndsWith("anyKey")) return;
-            path = context.control.path;
-        };
-        keyPress.Enable();
-        foreach (var button in _buttonMappings)
-        {
-            button.DisplayButton.Outline.color = HighlightColor;
-            var fillColor = HighlightColor;
-            fillColor *= FillMultiplier;
-            fillColor.a = FillAlpha;
-            button.DisplayButton.Fill.color = fillColor;
-                        
-            path = "";
-            while (string.IsNullOrEmpty(path)) yield return null;
-            button.Button.InputSystemPath = path;
-            //Debug.Log($"Bound \"{path}\" to \"{bindableKey.MainLabel}\"");
-                        
-            button.DisplayButton.Outline.color = DefaultColor;
-            fillColor = DefaultColor;
-            fillColor *= FillMultiplier;
-            fillColor.a = FillAlpha;
-            button.DisplayButton.Fill.color = fillColor;
-        }
-        keyPress.Disable();
-
-        SaveLayout();
-    }
-
-    private void SaveLayout()
-    {
-        File.WriteAllBytes(
-            Path.Combine(ActionGameManager.GameDataDirectory.CreateSubdirectory("KeyboardLayouts").FullName, $"{LayoutFile.name}.msgpack"),
-            MessagePackSerializer.Serialize(_inputLayout));
     }
 
     private void OnEnable()

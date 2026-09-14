@@ -29,10 +29,8 @@ public static class Program
             case "dangling": return Dangling(args.Skip(1).ToArray());
             case "settings": return Settings();
             case "settings-dump": return SettingsDump();
-            case "legacy-census": return Import.LegacyCensus();
-            case "import": return Import.Run();
             default:
-                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], legacy-census, import");
+                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply]");
                 return 1;
         }
     }

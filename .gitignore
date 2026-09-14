@@ -91,7 +91,8 @@ crashlytics-build.properties
 *.blend1
 
 Packages/packages-lock.json
-GameData/PlayerSettings.msgpack
+GameData/run.cc
+GameData/player.cc
 Vault/Aetheria/.obsidian/plugins/copilot/data.json
 
 # Agent scratch, sandboxed toolchain caches, and throwaway checkouts. These had

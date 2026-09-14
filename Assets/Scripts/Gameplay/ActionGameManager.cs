@@ -55,23 +55,6 @@ public class ActionGameManager : MonoBehaviour
         }
     }
 
-    private static PlayerSettings _playerSettings;
-    public static PlayerSettings PlayerSettings
-    {
-        get
-        {
-            return _playerSettings ??= File.Exists(_playerSettingsFilePath)
-                ? MessagePackSerializer.Deserialize<PlayerSettings>(File.ReadAllBytes(_playerSettingsFilePath), CultDocumentMessagePackSerialization.OptionsFor(typeof(PlayerSettings).Assembly))
-                : GetDefaultPlayerSettings();
-        }
-    }
-
-    private static string _playerSettingsFilePath => Path.Combine(GameDataDirectory.FullName, "PlayerSettings.msgpack");
-    public static void SavePlayerSettings()
-    {
-        File.WriteAllBytes(_playerSettingsFilePath, MessagePackSerializer.Serialize(_playerSettings, CultDocumentMessagePackSerialization.OptionsFor(typeof(PlayerSettings).Assembly)));
-    }
-
     private static PlayerSettings GetDefaultPlayerSettings()
     {
         var settings = new PlayerSettings();
@@ -161,7 +144,6 @@ public class ActionGameManager : MonoBehaviour
     // private CinemachineFramingTransposer _transposer;
     // private CinemachineComposer _composer;
     
-    private DirectoryInfo _loadoutPath;
     private bool _paused;
     private float _time;
     private int _zoomLevelIndex;
@@ -205,7 +187,6 @@ public class ActionGameManager : MonoBehaviour
     
     public ItemManager ItemManager { get; private set; }
     public Zone Zone { get; private set; }
-    public List<EntityPack> Loadouts { get; } = new List<EntityPack>();
 
     private readonly (float2 direction, string name)[] _directions = {
         (float2(0, 1), "Front"),
@@ -222,24 +203,6 @@ public class ActionGameManager : MonoBehaviour
     public EntitySettings NewEntitySettings
     {
         get => MessagePackSerializer.Deserialize<EntitySettings>(MessagePackSerializer.Serialize(Settings.GameplaySettings.DefaultEntitySettings));
-    }
-
-    public void SaveLoadout(EntityPack pack)
-    {
-        File.WriteAllBytes(Path.Combine(_loadoutPath.FullName, $"{pack.Name}.loadout"), MessagePackSerializer.Serialize(pack));
-    }
-
-    private void OnApplicationQuit() => SaveState();
-
-    public void SaveState()
-    {
-        PlayerSettings.SavedRun = CurrentGalaxy == null ? null : new SavedGame(CultCache, CurrentGalaxy, Zone, DockedEntity ?? CurrentEntity);
-        if(PlayerSettings.SavedRun != null)
-        {
-            PlayerSettings.SavedRun.IsTutorial = IsTutorial;
-            PlayerSettings.SavedRun.ActionBarBindings = _actionBarSlots.Select(slot => slot.Save()).ToArray();
-        }
-        SavePlayerSettings();
     }
 
     private void OnDisable()
@@ -263,10 +226,6 @@ public class ActionGameManager : MonoBehaviour
             ZoneRenderer.ShowAsteroidUI = false;
         
         // TODO: Process Stories
-
-        // _loadoutPath = GameDataDirectory.CreateSubdirectory("Loadouts");
-        // Loadouts.AddRange(_loadoutPath.EnumerateFiles("*.loadout")
-        //     .Select(fi => MessagePackSerializer.Deserialize<EntityPack>(File.ReadAllBytes(fi.FullName))));
 
         #region Input Handling
 
@@ -1083,9 +1042,6 @@ public class ActionGameManager : MonoBehaviour
                     DeathPost.weight = 1;
                 });
     }
-
-    public void SaveZone(string name) => File.WriteAllBytes(
-        Path.Combine(_gameDataDirectory.FullName, $"{name}.zone"), MessagePackSerializer.Serialize(Zone.PackZone()));
 
     // public void ToggleEditMode()
     // {

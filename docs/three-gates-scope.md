@@ -58,15 +58,6 @@ AI share it, so AI accuracy is no longer superhuman by construction.
 - **Deferred Unity-physics surfaces:** ship collision (`HullCollider`), loot
   pickup (`ShieldManager`), `TractorBeam`, `Mine`. Not blockers.
 
-**Known ownership smell in CultCache: loading writes.** `AddBackingStore`
-subscribes `Add` to a store's `EntryAdded`; `MultiFileBackingStore.PullAll`
-re-emits every entry it loads; `Add` pushes to the store registered for that
-type, and that `Push` writes a file. So a cache with a second store rewrites
-that store's files on open, and the game does this to `GameData/NameFile` at
-every startup. Nothing distinguishes "loaded this" from "changed this".
-Whoever next owns persistence should separate the two; until then, readers
-must not register a writable store they only mean to read.
-
 **Invariant: game simulation runs independently of Unity.** `ServerShared`
 cannot reference UnityEngine (`Aetheria.Shared.Unity.asmdef` sets
 `noEngineReferences`), and `Aetheria.Shared/Aetheria.Shared.csproj` builds it
