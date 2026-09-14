@@ -1742,8 +1742,16 @@ Q8-2 B, port both drawers):
     compile a stray using; this rg is the check.
   - Negative: `rg "PackageCache" Aetheria.Shared` is empty, and
     `rg "com.unity.mathematics" Packages\manifest.json` is empty.
-  - Operator play smoke, on the files with the most conversions: new game, one
-    zone, fly, fire a guided weapon, open the sector map.
+  - **Operator play smoke,** run at Aetheria `d3db1730` or earlier, because 8b
+    stops runtime play until Cuts 9 and 10:
+    - Start a new game and fly through one zone.
+    - Fire any weapon. Turret aiming uses `first_order_intercept`.
+    - Open the sector map. Link labels should sit on one side of their line
+      rather than centred.
+    - Optional: enter a no-fly zone to draw aggro, then fire a guided weapon
+      at a hostile. Guided weapons lock only onto hostiles.
+    - Optional: go through a wormhole. The mid-animation rotation differs
+      slightly because of `LookRotation`.
 - **Commit:** 8a is one commit.
 
 #### Cut 8b. Data model cutover and AetherDb
