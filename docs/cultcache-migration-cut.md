@@ -20,9 +20,10 @@ fork, if it adopts CultLib's package); Rust callers of `add_backing_store`
 should propagate the new `Result` with `?` (Epiphany `epiphany-core`,
 CodexConnector); Rust `CacheBackingStore` implementations must provide
 `push_all` (Epiphany's already does); Heimdall re-vendors CultLib when it moves.
-Cut 6 is in progress. A new cut, **Cut 6b: CultMath grows what Aetheria
-needs**, runs in parallel on CultLib branch `codex/cultmath-hlsl-parity` and
-merges before Cut 7. Cuts 7-10 are not started.
+Cut 6 (Studio on an engine-free inspection model) and **Cut 6b: CultMath grows
+what Aetheria needs** landed after four and four Soul passes; merge commit
+`1b95dd6` on `codex/cultcache-store-routing` brings in
+`codex/cultmath-hlsl-parity` (`d4c43ed`). Cuts 7-10 are not started.
 
 Cut 6b decisions (operator, 2026-09-14). Aetheria adopts CultMath to exercise
 it, but the audit showed it is not a drop-in: missing `float2x2`, `float3x3`,
