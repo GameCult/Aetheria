@@ -41,7 +41,22 @@ publish job ran. The operator ruled (2026-09-14) that only `cultcache-py` is
 re-pushed alone to publish to PyPI. npm is held until `NPM_TOKEN` is
 confirmed: there is no repo-level secret, and no `cultcache-ts` publish has
 ever run. The `cultcache-ts-v0.14.0` tag stays inert until then. Unity
-versions 1.0.47-1.0.56 were never tagged. Cuts 8-10 are not started.
+versions 1.0.47-1.0.56 were never tagged. Cuts 8-10 are not started. Cut 8
+is split into 8a (CultMath swap) and 8b (data model cutover), refreshed against
+Aetheria `59bc5753`.
+
+CultMath 0.2.1 (`f060536` on `main`, tag `cultmath-unity-v0.2.1`, lightweight)
+fills Q8-1's gaps:
+- HLSL vector conversions in both directions between float, int and bool.
+  Float to int truncates toward zero; the result for NaN or an out-of-range
+  value is undefined, as in dxc.
+- Integer `clamp` as IMax followed by IMin, so inverted bounds return the upper
+  bound.
+- `frac(double)`.
+
+Operator ruling (2026-09-14): double overloads keep full double precision, a
+documented exception to dxc parity, since dxc narrows double through float.
+The dxc rule governs float, int and bool.
 
 Cut 6b decisions (operator, 2026-09-14). Aetheria adopts CultMath to exercise
 it, but the audit showed it is not a drop-in: missing `float2x2`, `float3x3`,
@@ -1487,54 +1502,305 @@ the behavior change.
   (reflection from a throwaway script); `git ls-remote --tags origin` lists
   the four tags; the publish jobs succeed.
 
-### Cut 8. Aetheria data model cutover and AetherDb
+### Cut 8. Aetheria onto CultMath and CultCache (8a, then 8b)
 
-- Repo/branch: Aetheria, `codex/cultcache-cutover` from
-  `codex/aetheria-state-rebuild`. Depends on Cut 7.
-- Deletes first: `Assets\Scripts\ServerShared\CultCache\CultCache.cs` (437),
-  `DatabaseEntry.cs` (91), `ReflectionExtensions.cs` (127) and
-  `CollectionExtensions.cs` (75) unless `rg "GetAllChildClasses|GetParentTypes"`
-  finds a non-cache caller, `Serialization\JsonKnownTypes\**` (320 and its
-  `.csproj`), `Serialization\TypeFormatterResolver.cs` (65),
-  `Serialization\JsonConverters.cs` (169) if `rg "JsonConvert\."` outside it is
-  empty, `Serialization\RegisterResolver.cs` (37); `Assets\Plugins\MessagePack\**`
-  (97 files, 30,088 lines, asmdef, `.meta`s); `Assets\Scripts\CultCache\Editor\**`
-  (17 files, 1,963 lines); the compile include at `Aetheria.Shared.csproj:23`;
-  the `MessagePack` reference in `Aetheria.Shared.Unity.asmdef`; the root
-  `[Union]` list and every `JsonKnownTypes` attribute and `using`; tags 4, 5,
-  6, 14, 20; `GalaxyMapLayerData` (`GlobalData.cs:16`), `PlayerData`
-  (`PlayerData.cs:10`), `GlobalSettingsAttribute` (`Attributes.cs:4`);
-  AetherDb `doctor`, `migrate-products`, `AetherDb.Save()`.
-- Kept and moved: `MathFormatters.cs`, `MathResolver.cs` (fix `:55` to
-  `ArrayFormatter<int2?>`) to `ServerShared\Serialization\`; the `Inspectable*`
-  attributes Cut 6 drawers read.
-- Adds:
-  - `Directory.Build.props`/`.targets` at the Aetheria root, copied from
-    `F:\Projects\Delvehold` with `CultLibRoot` defaulting to `..\CultLib` and
-    `CultLibRevision` set to the Cut 7 commit. Kept on its own merits: the only
-    working pin for a sibling checkout (`pack-nuget.ps1` publishes nowhere).
-  - `Aetheria.Shared.csproj`: `ProjectReference` to `$(CultLibRoot)\src\GameCult.Caching\GameCult.Caching.csproj`
-    and `GameCult.Caching.MessagePack.csproj`. No analyzer handling: Cut 4
-    keeps MessagePack's generator inside CultLib, so both bodies serialize
-    through `DynamicObjectResolver` (Aetheria's backend is Mono,
-    `ProjectSettings.asset:660-661`). The GameCult generator is not referenced.
-  - `ServerShared\AssemblyInfo.cs`: `[assembly: CultCacheFormatterResolver(typeof(MathResolver))]`.
-  - `Packages\manifest.json`: `"org.gamecult.cultlib": "https://github.com/GameCult/CultLib.git?path=/unity/org.gamecult.cultlib#cultlib-unity-v1.0.57"`,
-    `"org.gamecult.caching.unity": "https://github.com/GameCult/CultLib.git?path=/src/GameCult.Unity/Assets/Caching#caching-unity-v1.1.0"`;
-    `Aetheria.Shared.Unity.asmdef` references `GameCult.CultLib`, keeps
-    `noEngineReferences: true`.
-  - `[CultDocument("aetheria.<lowercase type>", "1")]` on every concrete
-    document type in Q7; `[CultGlobal]` on `SavedGame`, `PlayerSettings`;
-    `[CultName]` on existing `Name` members. `[MessagePackObject]` removed from
-    the non-union abstract bases (`ItemData`, `CraftedItemData`,
-    `EquippableItemData`, `BodyData`, `AgentTask`); value unions keep theirs.
-  - References: `Guid` and `DatabaseLink<T>` -> `CultRecordRef<T>`;
-    `Dictionary<Guid, float>` -> `Dictionary<CultRecordRef<T>, float>` with
-    `[CultReference(typeof(T), many: true)]`; `List<Guid>` ->
-    `List<CultRecordRef<T>>`. Slots unchanged; the legacy `Key(0)` slot is left
-    unclaimed (the importer writes `nil`; MessagePack skips unclaimed slots).
-  - `RequireBehavior` -> `string`.
-  - `ServerShared\AetheriaStores.cs`:
+Refreshed 2026-09-14. `file:line` is at Aetheria `59bc5753`; CultLib facts are at
+`main` `ae194d5`. The cut is split because the math swap touches ~130 files on
+its own and can be proven on the legacy cache. 8a lands and passes verification
+before 8b starts.
+
+Probes behind 8a (scratch copies; nothing committed):
+- **[P8a-1]** ServerShared and AetherDb were built headless with
+  `Unity.Mathematics` replaced by `CultMath` and a `ProjectReference` to
+  `CultMath.csproj`. Removing `using static …noise` left 4 errors (listed in
+  8a); patching those left 0.
+- **[P8a-2]** Unity's generated `Assembly-CSharp.csproj` was built with
+  `dotnet build`: 0 errors unmodified. With the swap, `using
+  CultMath.UnityBridge`, the committed `CultMath.dll`, and the ServerShared
+  patches, it gave 76 errors in 17 files. `Assembly-CSharp-Editor` and `Tests`
+  were not probed.
+- **[P8a-3]** MessagePack 3.1.7 `StandardResolver` on CultMath `float3`, on a
+  `[MessagePackObject]` holding one, and on `float2x2` throws
+  `FormatterNotRegisteredException` each time. The formatters cannot be
+  deleted.
+
+Math audit:
+- **Not used:** `float4x4`, `transpose`, `determinant`, `_11` names. The
+  `determinant` hits (`AetheriaMath.cs:98-112`, `NIH\MIConvexHull`) are locals
+  and comments; the `half` hits are locals. `float2x2`/`float3x3`, `int3`/`int4`,
+  `double2`/`double3`, `quaternion.LookRotation`, `Random` and `snoise` all
+  compile against CultMath.
+- **Accepted by Cut 6b:** `hash`, `normalize`, `Random`, `snoise` and NaN
+  rules differ, so galaxies per seed change.
+- **Shape change:** `hash(float2)` returns `float`, not `uint`
+  (`ZoneGenerator.cs:47`).
+- **No implicit conversions:** CultMath has none to or from `Vector*`,
+  `Quaternion` or `Color`. The bridge is extension methods
+  (`CultMath.UnityBridge.UnityConversions`): `ToCultMath` on
+  `Vector2/3/4`, `Color`, `Quaternion`, `Vector2Int/3Int`; `ToUnity` back;
+  `float4.ToColor()`. There is no `Vector3` to `float2` and no `float3` to
+  `Color`.
+- **Gaps (Q8-1):** `frac(double)` (`Zone.cs:170, 241, 255`);
+  `int2(float2)` (`EntityInstance.cs:385, 388`); scalar `clamp(int, int, int)`
+  (`PropertiesPanel.cs:280`, where `clamp` returns `float` into an `int`).
+
+Operator questions (both ruled 2026-09-14: Q8-1 A, landed as CultMath 0.2.1;
+Q8-2 B, port both drawers):
+- **Q8-1: CultMath gaps.**
+  - A: a CultLib pass adds the three gaps to `packages\cultmath\src\CultMath\math.cs`,
+    each checked against dxc (all three are HLSL intrinsics or casts), rebuilds
+    the Unity DLL, and tags `cultmath-unity-v0.2.1`. 8a pins that commit and
+    tag.
+  - B: Aetheria works around them locally: a double frac helper in `Zone`,
+    `new int2((int)p.x, (int)p.y)`, and `Math.Clamp`.
+  - **Recommended: A.** Cut 6b ruled that gaps are filled in CultMath, not
+    worked around in Aetheria. Unprobed `Assembly-CSharp-Editor` and `Tests`
+    may add gaps; the CultLib pass should first run 8a's Unity compile against
+    a local build to catch them.
+- **Q8-2, 8b: two catalog markers had Database Tools drawers.**
+  `[InspectableSchematicShape]` (`ItemData.cs:286`, drawer
+  `AetheriaInspectors.cs:158`) and `[InspectableTemperature]` (5 floats, drawer
+  `FloatInspector.cs:33`).
+  - A: delete both markers; the Studio shows its default rows; add a drawer only
+    if the click-through shows pain (the rule already applied to CultMath
+    drawers).
+  - B: port both into 8b's drawers.
+  - **Recommended: A.**
+
+#### Cut 8a. CultMath swap on the legacy cache
+
+- **Repo/branch:** Aetheria, `codex/cultcache-cutover` from
+  `codex/aetheria-state-rebuild`. Depends on Cut 7 and CultMath 0.2.1.
+- **First:** capture `dotnet run --project tools\AetherDb --` `census`,
+  `factions` and `hardpoint-fit` to scratch.
+- **Deletes first:**
+  - `Aetheria.Shared.csproj:18-19` (the `MathematicsSource` comment and
+    property) and `:28` (the `Library\PackageCache` compile include).
+  - `"Unity.Mathematics"` at `Aetheria.Shared.Unity.asmdef:6` and
+    `Tests.asmdef:7`.
+  - `"com.unity.mathematics": "1.3.3"` at `Packages\manifest.json:12`. Burst and
+    Collections still resolve it transitively.
+  - The nine `using static Unity.Mathematics.noise;` lines, since `snoise` is on
+    CultMath's `math`: `ServerShared\Behaviors\Behaviors.cs:14`,
+    `ServerShared\Settings.cs:12`, `ServerShared\GlobalData.cs:12`,
+    `ServerShared\Environment.cs:6`, `Zone Display\VolumeSampling.cs:12`,
+    `Gameplay\Weapons\Lightning.cs:7`, `Gameplay\Weapons\GuidedProjectile.cs:7`,
+    `UI\HUD\PlaceUIElementWorldspace.cs:4`, `UI\Menu\SectorMap.cs:12`.
+  - `Assets\Scripts\CultCache\UnityExtensions.cs:51-52` (`float4.ToColor`,
+    `Color.ToFloat4`). They duplicate the bridge's `ToColor`/`ToCultMath`, and
+    `:51` is ambiguous once both namespaces are imported. `:48-49` stay (the
+    bridge has no `float3` colour).
+- **Changes.** The worklist is `rg -l "Unity\.Mathematics" Assets\Scripts tools Aetheria.Shared`,
+  133 paths: 77 under ServerShared (including its asmdef and the 6 files under
+  `ServerShared\CultCache`), 21 in Gameplay, 16 in UI, 7 in
+  `Assets\Scripts\CultCache`, 4 in Zone Display, 3 in Tests (including the
+  asmdef), `Scripts\UnityExtensions.cs`, `Editor\NameTools.cs`, 2 in
+  `tools\AetherDb`, and the csproj.
+  - **Usings.** `using Unity.Mathematics;` becomes `using CultMath;`.
+    `using static Unity.Mathematics.math;` becomes `using static CultMath.math;`.
+    `using Random = Unity.Mathematics.Random;` becomes `using Random = CultMath.Random;`.
+    `Agents\States\Combat.cs:8` becomes `using float2x2 = CultMath.float2x2;`.
+  - **`Tests.asmdef:17`:** `precompiledReferences` gains `"CultMath.dll"`. The
+    asmdef overrides references, so the auto-referenced plugin is invisible to
+    it. `Aetheria.Shared.Unity.asmdef` needs nothing: it does not override, and
+    the plugin is not explicitly referenced.
+  - **ServerShared, from [P8a-1]:**
+    - `Zone.cs:170, 241, 255` take `frac(double)` under Q8-1 A, and `:256`
+      compiles unchanged.
+    - `ZoneGenerator.cs:47`:
+      `^ (uint) BitConverter.SingleToInt32Bits(hash(galaxyZone.Position))`.
+    - `ServerShared\CultCache\Serialization\MathResolver.cs:55`: replace
+      `ArrayFormatter<float2?>` with `ArrayFormatter<int2?>`.
+    - Otherwise `MathFormatters.cs`, `MathResolver.cs` and `JsonConverters.cs`
+      change only their usings; the wire shape is unchanged ([P8a-3]).
+  - **Unity side, from [P8a-2]:** add `using CultMath.UnityBridge;` and use
+    `.ToUnity()`, `.ToCultMath()`, `.ToColor()`, or `.ToCultMath().xy` for a
+    `Vector3` becoming a `float2`.
+    - Errors per file: `Gameplay\FieldDriver.cs` 17,
+      `Gameplay\Weapons\GuidedProjectile.cs` 13, `Gameplay\EntityInstance.cs`
+      11, `Gameplay\ActionGameManager.cs` 6, `UI\Menu\SectorRenderer.cs` 5,
+      `UI\Menu\MapMenuInput.cs` 5, `Gameplay\HullCollider.cs` 4,
+      `Gameplay\Weapons\GuidedProjectileManager.cs` 3,
+      `UI\HUD\PlaceUIElementWorldspace.cs` 2, `Gameplay\GridObject.cs` 2,
+      `Gameplay\ShipInstance.cs` 2. One each in
+      `UI\Properties Panel\PropertiesPanel.cs`, `Zone Display\ZoneRenderer.cs`,
+      `UI\Menu\MapRenderer.cs`, `Gameplay\ItemPickup.cs`,
+      `Gameplay\ShieldManager.cs`, `UI\FieldTester.cs`.
+    - 71 of the 76 are Vector/CultMath conversions. 15 of those are CultMath
+      `math` calls handed a Unity vector.
+    - The other five: `EntityInstance.cs:385, 388` and `PropertiesPanel.cs:280`
+      are Q8-1 gaps; `FieldDriver.cs:126` is
+      `transform.rotation * direction.ToUnity()`; `GuidedProjectile.cs:139`
+      passes `float3` where `float` is expected in its `noise(…)` calls, so
+      check which overload bound before and bind that one explicitly.
+  - **Not probed; fix from the batchmode log:** `Assembly-CSharp-Editor`
+    (`Editor\NameTools.cs`, and the Database Tools files
+    `CultCache\Editor\DatabaseInspector.cs`,
+    `Inspectors\AetheriaInspectors.cs`, `AnimationCurveInspector.cs`,
+    `EnumValuesInspector.cs`, `IntInspector.cs`, `MathematicsInspector.cs`) and
+    `Tests` (`BresenhamTest.cs`, `ShapeTestScript.cs`). The Database Tools get
+    the minimal compile fix only: 8b deletes them, but 8a must leave a working
+    editor.
+- **Adds:**
+  - **`Packages\manifest.json`:**
+    `"org.gamecult.cultmath": "https://github.com/GameCult/CultLib.git?path=/packages/cultmath/unity/org.gamecult.cultmath#cultmath-unity-v0.2.1"`
+    The package declares no dependencies.
+  - **`Directory.Build.props`** at the Aetheria root:
+    - `CultLibRoot` from `CULTLIB_ROOT`, else `$(MSBuildThisFileDirectory)..\CultLib`.
+    - `CultLibRevision` is `f0605367e0d7e57941a57bacb0b8cb8d893073be` (CultMath
+      0.2.1 on `main`).
+    - `GitExecutable` as in `F:\Projects\Delvehold\Directory.Build.props`.
+    - Nothing else. Not Delvehold's `TargetFramework`/`Nullable`/`ImplicitUsings`/`LangVersion`
+      defaults, which would restyle AetherDb and IDE builds of Unity's
+      csprojs, and not its `CultLib-aetheria-authority` fallback.
+  - **`Directory.Build.targets`:** Delvehold's `VerifyCultLibRevision`
+    (HEAD equals the pin; clean worktree), with the existence check on
+    `$(CultLibRoot)\packages\cultmath\src\CultMath\CultMath.csproj`. It is the
+    only working pin for a sibling checkout.
+  - **`Aetheria.Shared.csproj`:**
+    `<ProjectReference Include="$(CultLibRoot)\packages\cultmath\src\CultMath\CultMath.csproj" />`.
+    CultMath targets `net8.0;netstandard2.1`, and the netstandard2.1 build
+    resolves. `LangVersion` 9 compiles against it ([P8a-1]).
+- **Authority map:**
+  - **Math semantics** (vectors, matrices, `Random`, noise) are owned by CultMath,
+    following HLSL as dxc compiles it. Unity.Mathematics owns nothing in
+    Aetheria and stays resolved only as a Burst/Collections dependency.
+  - **Engine conversion** is owned by `CultMath.UnityBridge`. Aetheria's
+    `UnityExtensions` keeps only what the bridge lacks: `float3` colour, and
+    the curve, gradient and texture helpers.
+  - **Math wire shape** stays with `MathFormatters`, through the legacy cache's
+    resolver until 8b.
+  - **Forbidden:** the `Library\PackageCache` math sources in the headless
+    build, and implicit engine conversions.
+- **Verification:**
+  - `dotnet build Aetheria.Shared\Aetheria.Shared.csproj` and
+    `dotnet build tools\AetherDb` are green.
+  - Negative: the pin guard fails with CultLib at another commit and with a
+    dirty CultLib.
+  - Unity 6000.3.24f1 batchmode compile with the editor closed
+    (`-batchmode -nographics -quit -projectPath F:\Projects\Aetheria -logFile <scratch>`):
+    UPM resolves the cultmath URL, and the log has no `error CS`.
+  - `census`, `factions` and `hardpoint-fit` equal the captures, because the
+    legacy cache still reads `AetherDB.msgpack` through the retargeted
+    formatters. `doctor` and `station-fit` run to completion; generation output
+    differs by design.
+  - Negative: `rg "Unity\.Mathematics" Assets\Scripts tools Aetheria.Shared`
+    is empty. The package stays resolved, so `Assembly-CSharp` would still
+    compile a stray using; this rg is the check.
+  - Negative: `rg "PackageCache" Aetheria.Shared` is empty, and
+    `rg "com.unity.mathematics" Packages\manifest.json` is empty.
+  - Operator play smoke, on the files with the most conversions: new game, one
+    zone, fly, fire a guided weapon, open the sector map.
+- **Commit:** 8a is one commit.
+
+#### Cut 8b. Data model cutover and AetherDb
+
+- **Repo/branch:** same, after 8a is verified.
+- **Deletes first** (file lines at `59bc5753`):
+  - **Under `Assets\Scripts\ServerShared\CultCache\`:**
+    - `CultCache.cs` (437), `DatabaseEntry.cs` (92), `Attributes.cs` (146;
+      survivors move, below).
+    - `Serialization\JsonKnownTypes\**` (13 files, 342 lines including the
+      `.csproj`), `Serialization\TypeFormatterResolver.cs` (66),
+      `Serialization\RegisterResolver.cs` (37).
+    - `Serialization\JsonConverters.cs` (169). The only other `JsonConvert` use
+      is a comment, `InputDisplayLayout.cs:92`.
+    - `ReflectionExtensions.cs` (128) and `CollectionExtensions.cs` (76), once
+      their live members move into `ServerShared\Extensions.cs`:
+      - `GetAllChildClasses` with its private `LoadableTypes`
+        (`Behaviors\StatModifier.cs:48-49`, `UI\Menu\TradeMenu.cs:152`,
+        `UI\Menu\TradeMenuDebug.cs:138`);
+      - `SplitCamelCase` and `FormatTypeName` (`Behaviors.cs`, `TradeMenu.cs`,
+        `TradeMenuDebug.cs`, `PropertiesPanel.cs`);
+      - `MaxBy`/`MinBy` (`Galaxy.cs`, `Zone.cs`, `ZoneGenerator.cs`,
+        `ActionGameManager.cs`, `ZoneRenderer.cs`).
+      - Dead with the files: `GetAllInterfaceClasses`, `GetParentTypes`,
+        `GetAllGenericChildClasses`, `IsAssignableToGenericType`,
+        `GetFullName`, `GetHashSHA1`, `WrapAwait`.
+  - `Assets\Plugins\MessagePack\**` (205 files including `.meta`; 97 `.cs`,
+    30,088 lines; asmdef).
+  - `Assets\Plugins\System.Runtime.CompilerServices.Unsafe.dll` and its `.meta`.
+    `org.gamecult.cultlib` ships a DLL of the same name, which Unity rejects as
+    a duplicate plugin.
+  - `Assets\Scripts\CultCache\Editor\**` (35 files including `.meta`; 17 `.cs`,
+    1,978 lines). `Assets\Scripts\CultCache\UnityExtensions.cs` and
+    `XKCDColors.cs` are not cache code and stay.
+  - **`Aetheria.Shared.csproj`:** `:23` (the vendored MessagePack include) and
+    `:33` (`System.Runtime.CompilerServices.Unsafe`, needed only by the
+    vendored MessagePack); the comment at `:6` drops its MessagePack clause.
+  - `"MessagePack"` at `Aetheria.Shared.Unity.asmdef:5`.
+  - The root `[Union]` list, and every `JsonKnownTypes` attribute and `using`
+    (10 files outside the folder).
+  - Tags 4, 5, 6, 14, 20.
+  - `GalaxyMapLayerData` (`GlobalData.cs:15-16`), `PlayerData`
+    (`PlayerData.cs:9-10`), `GlobalSettingsAttribute`.
+  - AetherDb `doctor` and `migrate-products` (`Program.cs:21, 31`), and
+    `AetherDb.Save()` (`AetherDb.cs:37`).
+- **Inspector attributes.** Map onto CultLib where CultLib already carries the
+  meaning; keep Aetheria's attribute only where it does not. That splits no
+  vocabulary between two owners. Readers were counted after the Database Tools
+  are deleted.
+
+  | Aetheria attribute | Sites | Remaining reader | Fate |
+  |---|---|---|---|
+  | `InspectableDatabaseLink(T)` | 10 | none | deleted; the member type `CultRecordRef<T>` names the target and gets the Studio's ref picker |
+  | `GlobalSettings` | reader only (`CultCache.cs:48`) | none | deleted; `[CultGlobal]` |
+  | `InspectableText` | 3 | none | `[CultInspectorTextArea]` |
+  | `InspectableTexture`, `InspectablePrefab` | 4, 12 | none | `[CultInspectorAssetPath]` with no type, since ServerShared is engine-free and the Studio falls back to `Object`; `InstantWeapon.cs:21` sits on a `bool` and is dropped |
+  | `InspectableRangedFloat`, `RangedFloat` | 2 (`Weapon.cs:27, 30`), 1 (`Corporations.cs:48`) | `PropertiesPanel.cs:588` | `[Inspectable, CultInspectorRange(0, 1)]` and `[CultInspectorRange(0, 1)]`; `PropertiesPanel.cs:588, 599` read `CultInspectorRangeAttribute` |
+  | `InspectableRangedInt`, `InspectableEnumValues`, `InspectableTextAsset`, `Tooltip`, `Name` | 0 | `PropertiesPanel.cs:599` (RangedInt) | deleted |
+  | `DatabaseCategory`, class-level `Order`, `InspectorHeader` | 12, 2, 3 (`FieldDriver.cs`) | none | deleted with their uses |
+  | `InspectableSoundBank`, `InspectableAudioParameter` | 4, 3 | none (no Database Tools drawer existed) | deleted; plain `uint` rows |
+  | `InspectableType`, `InspectableColor`, `InspectableAnimationCurve`, `InspectableTemperature`, `InspectableSchematicShape` | 2, 2, 7, 5, 1 | Aetheria Studio drawers (Temperature ported from `FloatInspector.cs:33`, SchematicShape from `AetheriaInspectors.cs:158`, per Q8-2 B) | kept |
+  | `Inspectable`, `PreferredInspectorAttribute`, `RuntimeInspectable` | 219, base, 0 | `PropertiesPanel.cs:396-623`, `TradeMenu.cs:153, 250` | kept; the runtime panel's opt-in, and not read by the Studio |
+
+  Survivors move to `ServerShared\Attributes.cs`, which already holds
+  `RuntimeInspectable`.
+- **Kept and moved:** `MathFormatters.cs` and `MathResolver.cs` move to
+  `ServerShared\Serialization\` ([P8a-3]). They cover every serialized math
+  member: `float2`, `float3`, `float4[]`, `int2`, `bool2[,]`, `List<int2>`,
+  `Dictionary<int2, …>`. No `quaternion`, matrix, `int3`/`int4` or `double*`
+  member is serialized, so no formatter is added.
+- **Adds:**
+  - **Pin and references:**
+    - `Directory.Build.targets` also checks
+      `$(CultLibRoot)\src\GameCult.Caching\GameCult.Caching.csproj` exists.
+    - `Aetheria.Shared.csproj` gains `ProjectReference`s to
+      `$(CultLibRoot)\src\GameCult.Caching\GameCult.Caching.csproj` and
+      `GameCult.Caching.MessagePack.csproj`. No analyzer handling: Cut 4 keeps
+      MessagePack's generator inside CultLib, and both bodies serialize through
+      `DynamicObjectResolver` (Aetheria's backend is Mono,
+      `ProjectSettings.asset:660-661`). Newtonsoft stays (out of scope).
+  - **`ServerShared\AssemblyInfo.cs`:**
+    `[assembly: CultCacheFormatterResolver(typeof(MathResolver))]`.
+    `MathResolver.Instance` is public static, which satisfies
+    `CultDocumentMessagePackSerialization.cs:62-69`.
+  - **`Packages\manifest.json`:**
+    - `"org.gamecult.cultlib": "https://github.com/GameCult/CultLib.git?path=/unity/org.gamecult.cultlib#cultlib-unity-v1.0.57"`
+    - `"org.gamecult.caching.unity": "https://github.com/GameCult/CultLib.git?path=/src/GameCult.Unity/Assets/Caching#caching-unity-v1.2.0"`
+    - `caching.unity` declares `org.gamecult.cultlib: 1.0.57`, satisfied by the
+      manifest entry of the same version; `cultlib` and `cultmath` declare
+      nothing. Nothing is left for Unity to resolve from a registry.
+    - `Aetheria.Shared.Unity.asmdef` references `GameCult.CultLib` and keeps
+      `noEngineReferences: true`.
+  - **Document attributes:**
+    - `[CultDocument("aetheria.<lowercase type>", "1")]` on every concrete
+      document type in Q7, with `[MessagePackObject]` and integer `[Key]`s.
+    - `[CultGlobal]` on `SavedGame` and `PlayerSettings`.
+    - `[CultName]` on existing `Name` members.
+    - `[MessagePackObject]` is removed from the non-union abstract bases
+      (`ItemData`, `CraftedItemData`, `EquippableItemData`, `BodyData`,
+      `AgentTask`); value unions keep theirs.
+  - **References:**
+    - `Guid` and `DatabaseLink<T>` become `CultRecordRef<T>`.
+    - `Dictionary<Guid, float>` becomes `Dictionary<CultRecordRef<T>, float>`
+      with `[CultReference(typeof(T), many: true)]`.
+    - `List<Guid>` becomes `List<CultRecordRef<T>>`.
+    - Slots are unchanged. The legacy `Key(0)` slot is left unclaimed: the
+      importer writes `nil`, and MessagePack skips unclaimed slots.
+  - **`RequireBehavior` becomes `string`** (`Behaviors\StatModifier.cs:22-23`),
+    compared as `b.GetType().Name == _data.RequireBehavior` at `:73, 80`.
+  - **`ServerShared\AetheriaStores.cs`:**
     ```csharp
     public static class AetheriaStores
     {
@@ -1546,33 +1812,94 @@ the behavior change.
         public static CultCache Open(string catalogPath, string? runPath = null, string? playerPath = null, bool catalogWritable = false);
     }
     ```
-  - Q8's identity edits across the 75 Unity-side and 16 ServerShared sites
-    (`rg "DatabaseLink|DatabaseEntry|\.ID\b|LinkID" Assets tools` is the
-    worklist); `DatabaseLinkBase.Cache` gone; `ItemManager.GetData` resolves.
-  - `Assets\Scripts\Editor\CultCacheDrawers.cs`: drawers for
-    `[InspectableType]` (popup over `BehaviorData`'s `[Union]` names, writes
-    the string), `[InspectableColor]`, `[InspectableAnimationCurve]`.
-  - `tools\AetherDb`: `AetherDb.Open` -> `AetheriaStores.Open(root\GameData\Aetheria.cc,
-    catalogWritable: command == "clear-boss-hulls" && apply)`; `census`,
-    `factions`, `station-fit`, `hardpoint-fit`, `loadout`, `settings`,
-    `settings-dump`, `clear-boss-hulls` rewritten over `CultRecordRef` and
-    `TryGetHandle`; `save` reads `GameData\run.cc` when present; help lists
-    every command. It must compile; it cannot run until Cut 9.
-  - `tests\Aetheria.Shared.Tests` (xunit, net10.0) with a temp-directory
+  - **Q8 identity edits:** the worklist
+    `rg "DatabaseLink|DatabaseEntry|\.ID\b|LinkID" Assets\Scripts tools -g "!**/CultCache/**"`
+    has 140 matches in 30 files, 90 of them in ServerShared.
+    `DatabaseLinkBase.Cache` goes; `ItemManager.GetData` resolves.
+  - **`Assets\Scripts\Editor\CultCacheDrawers.cs`:**
+    - It is in `Assembly-CSharp-Editor`, which sees the auto-referenced
+      `GameCult.Unity.Caching.Editor`.
+    - Each class is `[CultInspectorDrawer(typeof(<attribute>))]` implementing
+      `ICultInspectorDrawer.Draw(CultInspector inspector, string label, Type type, object value, MemberInfo member)`,
+      and returns `inspector.DrawDefault(...)` for any type it does not handle.
+    - Port each drawer from its Database Tools file before that file is
+      deleted, in the same commit:
+      - `InspectableType`: a popup of the simple names in
+        `attribute.Type`'s `[Union]` list, writing the `string`. Port from
+        `Inspectors\TypeInspector.cs`.
+      - `InspectableColor`: `float3` (`Corporations.cs:33, 36`) and `float4`
+        through `EditorGUILayout.ColorField`. Port from
+        `Inspectors\MathematicsInspector.cs:40-100`.
+      - `InspectableAnimationCurve`: `float4[]` keyframes (`Launcher.cs:12-46`,
+        six members) and `BezierCurve` (`ItemData.cs:390`) through
+        `EditorGUILayout.CurveField` and `ToCurve`
+        (`CultCache\UnityExtensions.cs:38, 43`). Port from
+        `Inspectors\AnimationCurveInspector.cs`.
+      - `InspectableTemperature`: the five `float` members. Port the Database
+        Tools behaviour from `Inspectors\FloatInspector.cs:33`.
+      - `InspectableSchematicShape`: `ItemData.cs:286`. Port from
+        `AetheriaInspectors.cs:158`.
+  - **`tools\AetherDb`:**
+    - `AetherDb.Open` (`AetherDb.cs:30`) becomes
+      `AetheriaStores.Open(root\GameData\Aetheria.cc, catalogWritable: command == "clear-boss-hulls" && apply)`.
+    - `census`, `factions`, `station-fit`, `hardpoint-fit`, `loadout`,
+      `settings`, `settings-dump` and `clear-boss-hulls` are rewritten over
+      `CultRecordRef` and `TryGetHandle`.
+    - `save` reads `GameData\run.cc` when present.
+    - The help line (`Program.cs:33`, which lists four commands) lists every
+      command.
+    - `OpenWithNameFiles` (`:34`) is Cut 9's delete.
+    - It must compile; it cannot run until Cut 9.
+  - **`tests\Aetheria.Shared.Tests`** (xunit, net10.0) with a temp-directory
     catalog fixture built through `Open(catalogWritable: true)`:
-    `OpenThenFlushLeavesEveryFileByteIdentical` (run and player seeded with
-    their globals), `WeaponWrittenThroughGearHandleReloadsAsWeapon`,
-    `CatalogRefusesWrites`, `SavedZoneNeverLandsInCatalog`,
-    `FactionIsASingletonInstance`, `MissingCatalogGlobalIsLoud`.
-- Commands: `dotnet build Aetheria.Shared\Aetheria.Shared.csproj`; `dotnet build
-  tools\AetherDb`; `dotnet test tests\Aetheria.Shared.Tests`; Unity batchmode
-  compile; operator accepts the two UPM git URLs on first editor open.
-- Soul: headless build green with the pin guard (and refusing a dirty
-  `CultLibRoot`); the six tests; `rg "DatabaseEntry|DatabaseLink|JsonKnownTypes|TypeFormatterResolver|MultiFileBackingStore|GlobalSettings" Assets tools`
-  empty; `Assets\Plugins\MessagePack` gone; asmdef without `MessagePack`;
-  manifest pins the two tags; batchmode clean;
-  `rg "ReactiveProperty|ReactiveCollection" Assets\Scripts\ServerShared` shows
-  no member of a document or embedded value.
+    - `OpenThenFlushLeavesEveryFileByteIdentical` (run and player seeded with
+      their globals)
+    - `WeaponWrittenThroughGearHandleReloadsAsWeapon`
+    - `CatalogRefusesWrites`
+    - `SavedZoneNeverLandsInCatalog`
+    - `FactionIsASingletonInstance`
+    - `MissingCatalogGlobalIsLoud`
+- **Authority map:**
+  - **Persistence, routing, dirtiness:** CultLib `CultCache`, composed only in
+    `AetheriaStores.Open`. The in-tree `CultCache.cs`,
+    `DatabaseEntry`/`DatabaseEntry.ID` and `DatabaseLinkBase.Cache` are deleted,
+    not demoted.
+  - **Record identity:** the record key. `ItemManager.GetData` is the one
+    resolution path; reference equality replaces ID equality.
+  - **Schema:** runtime type plus `[CultDocument]`. The root `[Union]` and
+    JsonKnownTypes are deleted.
+  - **Math wire shape:** `MathResolver`, declared by assembly attribute.
+    `RegisterResolver.cs` (static registration) is deleted.
+  - **Catalog editing:** the Studio (`org.gamecult.caching.unity`) plus
+    Aetheria's five drawers. The Database Tools are deleted.
+  - **Inspector metadata:** CultLib's `CultInspector*` owns text, range and
+    asset path. Aetheria's attributes own only type, colour, curve, temperature
+    and schematic shape.
+    `[Inspectable]` and `RuntimeInspectable` belong to the runtime
+    `PropertiesPanel` and decide nothing in the Studio.
+- **Commands:**
+  - `dotnet build Aetheria.Shared\Aetheria.Shared.csproj`
+  - `dotnet build tools\AetherDb`
+  - `dotnet test tests\Aetheria.Shared.Tests`
+  - Unity batchmode compile as in 8a.
+  - The operator accepts the two new UPM git URLs on first editor open.
+- **Soul:**
+  - The headless build is green with the pin guard, which refuses a dirty
+    `CultLibRoot`. The six tests pass.
+  - Negative: `rg "DatabaseEntry|DatabaseLink|JsonKnownTypes|TypeFormatterResolver|MultiFileBackingStore|GlobalSettings|ReflectionExtensions|CollectionExtensions" Assets tools`
+    is empty.
+  - Negative: `rg "Inspectable(DatabaseLink|Text\b|Texture|Prefab|RangedFloat|RangedInt|EnumValues|TextAsset|SoundBank|AudioParameter)|DatabaseCategory|\[RangedFloat|InspectorHeader" Assets tools`
+    is empty.
+  - `Assets\Plugins\MessagePack` and
+    `Assets\Plugins\System.Runtime.CompilerServices.Unsafe.dll` are gone; the
+    asmdef has no `MessagePack`.
+  - The manifest pins `cultlib-unity-v1.0.57`, `caching-unity-v1.2.0` and the
+    8a cultmath tag. The batchmode compile is clean.
+  - `rg "ReactiveProperty|ReactiveCollection" Assets\Scripts\ServerShared`
+    shows no member of a document or an embedded value.
+- **After 8b:** the operator's Studio click-through, against a store from the
+  test fixture or from Cut 9's catalog. It decides whether any CultMath row
+  drawers are worth adding.
 
 ### Cut 9. One-shot importer
 
@@ -1665,7 +1992,7 @@ the behavior change.
   empty; `rg -c "SaveRun\(" Assets` shows one definition and three callers;
   `git ls-files GameData` lists `Aetheria.cc` only.
 
-Steps needing Unity: 6 (CultLib's Unity project), 8 and 10 (batchmode compile
+Steps needing Unity: 6 (CultLib's Unity project), 8a, 8b and 10 (batchmode compile
 by the agent; UPM acceptance and the play smoke by the operator).
 
 ## 5. Subtraction ledger
@@ -1682,7 +2009,7 @@ estimates otherwise.
 | 5 | TS ~18, Rust ~30, Python ~20 | TS ~12 + ~40 test, Rust ~15 + ~40 test, Python ~10 + ~30 test | three version bumps |
 | 6 | ~120 (reflection bridge, fallback) | ~300 editor, 1 attribute | Studio `1.0.0` -> `1.1.0`, +1 package dependency |
 | 7 | 2 doc lines | 2 doc lines, rebuilt DLLs | 4 tags |
-| 8 | 1,771 − ~305 kept + 30,088 + 1,963 + ~60 ≈ **33,600** | ~40 `AetheriaStores`, ~150 drawers, ~180 tests, ~40 props/targets, ~400 attribute/reference edits, ~120 AetherDb ≈ **930** | −1 vendored MessagePack, −1 JsonKnownTypes, −1 asmdef; +2 UPM packages, +2 ProjectReferences, +1 test project; 20 schemas replace 1 union |
+| 8 (8a+8b; unsplit estimate, predates the refresh: 8a is a using swap and conversion fixes, near zero net, and 8b carries the deletes and the five Aetheria drawers) | 1,771 − ~305 kept + 30,088 + 1,963 + ~60 ≈ **33,600** | ~40 `AetheriaStores`, ~150 drawers, ~180 tests, ~40 props/targets, ~400 attribute/reference edits, ~120 AetherDb ≈ **930** | −1 vendored MessagePack, −1 JsonKnownTypes, −1 asmdef; +2 UPM packages, +2 ProjectReferences, +1 test project; 20 schemas replace 1 union |
 | 9 | ~15, 2 legacy data files + 12 name files + 32 folders | ~280 importer (deleted in Cut 10), 1 `.cc`, 1 `.gitattributes` line | 0 |
 | 10 | ~120 + ~280 (importer) + 8 | ~110, ~120 tests | −4 private file formats |
 
