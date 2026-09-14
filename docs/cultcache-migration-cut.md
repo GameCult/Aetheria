@@ -71,9 +71,57 @@ Recorded, not fixed (the importer is deleted in Cut 10):
 CultLib `b85a828` (tags `cultlib-unity-v1.0.58` and `caching-unity-v1.3.0`)
 gives drawers a read-only `CultInspector.Record`. Soul found that it writes an
 unset `CultRecordRef` as a nil map key, which Python's msgpack rejects. The
-correction release (1.0.59 / Studio 1.3.1, in progress) makes `""` the
-canonical unset wire form, and readers still accept nil. Cut 10 pins the
-correction release. Cut 10 is not started.
+correction release makes `""` the canonical unset wire form, and readers
+still accept nil.
+
+CultLib 1.0.59 / Studio 1.3.1 (`a0813c6`) passed Soul. Four low follow-ups are
+recorded, none blocking:
+- `CultRecordRefFormatter.cs:15-16`: the empty check is dead, because
+  `CultRecordKey` already equates null and `""`. The reader can collapse to one
+  line.
+- The contract's reason for accepting nil should also name code from before
+  `452f928`.
+- No script enforces the release byte check; it is a manual `git diff` after a
+  rebuild.
+- A dictionary holding both a nil key and a `""` key throws a load error that
+  names the document type but not the record. Only a non-C# writer following
+  the brief 1.0.58 guidance could produce it.
+
+**Cut 10 landed** on `codex/cultcache-cutover` (`4a545469`..`1cd6170d`):
+- CultLib is pinned to 1.0.59.
+- `dangling` cleared the three DemandProfile keys and lists exactly the three
+  `WeaponData.AmmoType` refs.
+- One cache holds all three stores for the process.
+- `RunSave` commits a save atomically with stable zone keys and clears the run
+  on New Game or death.
+- `SavedRun`, the msgpack settings and layout I/O, `.loadout`, `SaveState`,
+  `SaveZone` and the importer are deleted.
+- Loadouts are design-only. Materialize is the single owner of availability (a
+  port wired to `LoadoutGenerator.IsAvailable`, candidates in key order),
+  affordability and the charge, and it is all-or-nothing.
+- `StableHash` replaces `Name.GetHashCode()`.
+- The schematic drawer is restored through `inspector.Record`.
+- `TryUnequip` now removes weapons from their groups. This was a live bug
+  outside loadouts: an unequipped weapon still fired from the action bar.
+
+Verification: 22 tests, each new one failing under its mutation; captures
+byte-identical to Cut 9; Unity 6000.3.24f1 batchmode reports 0 errors.
+
+The first Soul pass found untested all-or-nothing, availability and price
+rules, weapon-group corruption, dictionary-ordered product choice, and a
+premature "done". All are fixed.
+
+Recorded, not fixed: New Game clears the previous run before generation, as the
+spec says, so a generation fault loses that run.
+
+`GameData/PlayerSettings.msgpack` entered history through `5c5c3d5e`. It holds
+defaults and the username, and about 65 earlier versions are already in LFS
+history, so history is left alone.
+
+Awaiting:
+- the operator play smoke;
+- the Studio click-through, including the three AmmoType refs;
+- the second Soul pass on the fix batch.
 
 Rulings (operator, 2026-09-14):
 - **Q9-1 A:** `InputLayout` is catalog state, imported by Cut 9.
@@ -2621,8 +2669,8 @@ AetherDb and test edits made by Cut 9 (landed `70fbaca1`, recorded `e3af23fa`).
     exactly the three `WeaponData.AmmoType` refs (DeathCluster, FastBlast+-,
     pretty pretty bang bang) until the operator's click-through, then zero.
   - **Negative greps,** over `Assets\Scripts tools tests` unless noted:
-    - `rg "SavedRun|SaveState|SaveLoadout|SaveZone|_loadoutPath|\.loadout\b|List<EntityPack> Loadouts|PlayerSettings\.msgpack|KeyboardLayouts|ParseJson|AssociateInputKeys|SaveLayout|legacy-census|class Import|clear-boss-hulls|ClearBossHulls"` is empty.
-    - `rg "class Loadout|Upsert\(typeof\(Loadout\)" Assets\Scripts` shows only `ServerShared\Loadout.cs`.
+    - `rg -P "SavedRun|SaveState|SaveLoadout|SaveZone|_loadoutPath|(?<!aetheria)\.loadout\b|List<EntityPack> Loadouts|PlayerSettings\.msgpack|KeyboardLayouts|ParseJson|AssociateInputKeys|SaveLayout|legacy-census|class Import|clear-boss-hulls|ClearBossHulls"` is empty. The lookbehind excludes the `aetheria.loadout` schema name.
+    - `rg "class Loadout\b|Upsert\(typeof\(Loadout\)" Assets\Scripts` shows only `ServerShared\Loadout.cs`. The `\b` excludes `LoadoutGenerator`, `LoadoutSlot` and `Loadouts`.
     - `rg "File\.(Read|Write)AllBytes" Assets\Scripts` shows only `Zone Display\GradientMapper.cs:116`, an editor texture export.
     - `rg "MessagePackSerializer\." Assets\Scripts` shows only `NewEntitySettings` and `EntitySerializer.cs:61-62`.
     - `rg "FlushAsync" Assets\Scripts` is empty.
