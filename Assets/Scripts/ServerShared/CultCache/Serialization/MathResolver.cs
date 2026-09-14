@@ -52,7 +52,7 @@ internal static class MathResolverResolverGetFormatterHelper
         { typeof(float3[]), new ArrayFormatter<float3>() },
         { typeof(float4[]), new ArrayFormatter<float4>() },
         { typeof(float2?[]), new ArrayFormatter<float2?>() },
-        { typeof(int2?[]), new ArrayFormatter<float2?>() },
+        { typeof(int2?[]), new ArrayFormatter<int2?>() },
         { typeof(float3?[]), new ArrayFormatter<float3?>() },
         { typeof(float4?[]), new ArrayFormatter<float4?>() },
 
