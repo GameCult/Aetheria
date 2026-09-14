@@ -87,7 +87,13 @@ C# implements it (Cut 3); TS, Rust and Python delete their mirror paths
 ### Q2. How do Unity.Mathematics values encode portably?
 
 **As fixed-length positional arrays of components, Aetheria's existing wire
-shape `[P5]`. CultMath defines no encoding and is not adopted.**
+shape `[P5]`. CultMath defines no encoding and is not adopted.** (Superseded
+2026-09-14: Aetheria adopts CultMath, the operator's decision for dogfooding
+GameCult's math library. The same positional-array encoding applies to CultMath
+types, and gaps found by the parity audit are filled in CultMath rather than
+worked around in Aetheria. Unity.Mathematics stays licensed for tooling that
+supports a Unity game under the Unity Companion License; CultLib itself uses
+CultMath only.)
 
 - Aetheria writes `float2` as `[f32,f32]`, `float3` three, `float4` four,
   `int2` `[int,int]`, `bool2` `[bool,bool]`
@@ -1307,8 +1313,9 @@ the behavior change.
   built-ins for `IDictionary` (recursive keys and values, add/remove), abstract
   or interface members (subtype popup from the member type's `[MessagePack.Union]`
   attributes only), `CultRecordRef<T>` (popup of documents assignable to `T` by
-  `[CultName]`, plus the raw key); the reflective struct path kept for
-  Unity.Mathematics and CultMath (operator-verified). Unclaimed types render a
+  `[CultName]`, plus the raw key); vector and matrix drawers target CultMath
+  types only, and the Studio package takes no Unity.Mathematics dependency.
+  Unclaimed types render a
   visible error row.
 - Verification: batchmode compile of `src\GameCult.Unity`; then the operator
   opens a `.cc` with each member kind, edits, saves, and confirms open-then-close
@@ -1622,7 +1629,7 @@ Rejected paths:
 - Per-field `[MessagePackFormatter]` attributes; `Dictionary<string, float>`
   instead of ref-keyed maps; a list of pairs.
 - A `storeId` in the file header; a save converter; a `DatabaseEntry` `ID`
-  shim; switching `ServerShared` to CultMath; union tags for `RequireBehavior`;
+  shim; union tags for `RequireBehavior`;
   a JSON intermediate or `extern alias` for the import; the GameCult generator
   in `Aetheria.Shared`; persisting agent tasks.
 
