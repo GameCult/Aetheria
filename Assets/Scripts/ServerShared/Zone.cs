@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using GameCult.Caching;
 using UniRx;
 using CultMath;
 using static CultMath.math;
@@ -17,17 +18,15 @@ using Random = CultMath.Random;
 public class Zone
 {
     public Action<string> Log;
-    //public HashSet<Guid> Planets = new HashSet<Guid>();
     public ReactiveCollection<Entity> Entities = new ReactiveCollection<Entity>();
-    //public Dictionary<Guid, OrbitData> Orbits = new Dictionary<Guid, OrbitData>();
-    public Dictionary<Guid, BodyData> Planets = new Dictionary<Guid, BodyData>();
-    public Dictionary<Guid, Planet> PlanetInstances = new Dictionary<Guid, Planet>();
+    public Dictionary<CultRecordKey, BodyData> Planets = new Dictionary<CultRecordKey, BodyData>();
+    public Dictionary<CultRecordKey, Planet> PlanetInstances = new Dictionary<CultRecordKey, Planet>();
 
-    public Dictionary<Guid, Orbit> Orbits = new Dictionary<Guid, Orbit>();
-    public Dictionary<Guid, AsteroidBelt> AsteroidBelts = new Dictionary<Guid, AsteroidBelt>();
+    public Dictionary<CultRecordKey, Orbit> Orbits = new Dictionary<CultRecordKey, Orbit>();
+    public Dictionary<CultRecordKey, AsteroidBelt> AsteroidBelts = new Dictionary<CultRecordKey, AsteroidBelt>();
     public PlanetSettings Settings;
-    
-    private HashSet<Guid> _updatedOrbits = new HashSet<Guid>();
+
+    private HashSet<CultRecordKey> _updatedOrbits = new HashSet<CultRecordKey>();
 
     private ItemManager _itemManager;
     private double _time;
@@ -35,7 +34,7 @@ public class Zone
     public List<Agent> Agents = new List<Agent>();
 
     private List<Task> BeltUpdates = new List<Task>();
-    
+
     public float Time
     {
         get => (float) _time;
@@ -53,28 +52,30 @@ public class Zone
         _itemManager = itemManager;
         Settings = settings;
         _random = new Random(Convert.ToUInt32(abs(galaxyZone?.Name.GetHashCode() ?? 1337)));
-        
+        var cache = itemManager.ItemData;
+
         foreach (var orbit in pack.Orbits)
         {
-            Orbits.Add(orbit.ID, new Orbit(Settings, orbit));
+            Orbits.Add(orbit.Key, new Orbit(Settings, cache.Get(orbit)));
         }
-        
-        foreach (var planet in pack.Planets)
+
+        foreach (var body in pack.Planets)
         {
-            Planets.Add(planet.ID, planet);
+            var planet = cache.Get(body);
+            Planets.Add(body.Key, planet);
             switch (planet)
             {
                 case AsteroidBeltData belt:
-                    AsteroidBelts[belt.ID] = new AsteroidBelt(belt);
+                    AsteroidBelts[body.Key] = new AsteroidBelt(belt);
                     break;
                 case SunData sun:
-                    PlanetInstances.Add(sun.ID, new Sun(settings, sun, Orbits[planet.Orbit]));
+                    PlanetInstances.Add(body.Key, new Sun(settings, sun, Orbits[planet.Orbit.Key]));
                     break;
                 case GasGiantData gas:
-                    PlanetInstances.Add(gas.ID, new GasGiant(settings, gas, Orbits[planet.Orbit]));
+                    PlanetInstances.Add(body.Key, new GasGiant(settings, gas, Orbits[planet.Orbit.Key]));
                     break;
                 default:
-                    PlanetInstances.Add(planet.ID, new Planet(settings, planet, Orbits[planet.Orbit]));
+                    PlanetInstances.Add(body.Key, new Planet(settings, planet, Orbits[planet.Orbit.Key]));
                     break;
             }
         }
@@ -111,15 +112,15 @@ public class Zone
             Radius = Pack.Radius,
             Mass = Pack.Mass,
             Entities = Entities.Select(EntitySerializer.Pack).ToList(),
-            Orbits = Orbits.Values.Select(o=>o.Data).ToList(),
-            Planets = Planets.Values.ToList(),
+            Orbits = Orbits.Keys.Select(key => new CultRecordRef<OrbitData>(key)).ToList(),
+            Planets = Planets.Keys.Select(key => new CultRecordRef<BodyData>(key)).ToList(),
             Time = _time
         };
     }
 
     public void AddOrbit(OrbitData orbit)
     {
-        Orbits.Add(orbit.ID, new Orbit(Settings, orbit));
+        Orbits.Add(_itemManager.ItemData.RefOf(orbit).Key, new Orbit(Settings, orbit));
     }
 
     public void Update(float deltaTime)
@@ -142,25 +143,25 @@ public class Zone
             belt.Value.OrbitPosition = belt.Value.NewOrbitPosition;
             BeltUpdates.Add(Task.Run(() => UpdateAsteroidTransforms(belt.Key)));
         }
-        
+
         foreach(var agent in Agents)
             agent.Update(deltaTime);
-        
+
         foreach (var entity in Entities.ToArray()) entity.Update(deltaTime);
     }
-    
+
     // Determine orbital position recursively, caching parent positions to avoid repeated calculations
-    public float2 GetOrbitPosition(Guid orbitID)
+    public float2 GetOrbitPosition(CultRecordKey orbitID)
     {
         // Root orbit is fixed at origin
-        if(orbitID==Guid.Empty)
+        if(!orbitID.IsSet())
             return float2.zero;
         if (!Orbits.ContainsKey(orbitID))
         {
             Log?.Invoke("Requested orbit is not part of this zone!");
             return float2.zero;
         }
-        
+
         if (!_updatedOrbits.Contains(orbitID))
         {
             var orbit = Orbits[orbitID];
@@ -169,7 +170,7 @@ public class Zone
             {
                 var phase = (float) frac(_time / orbit.Period);
                 pos = OrbitData.Evaluate(frac(phase + orbit.Data.Phase)) * orbit.Data.Distance;
-                
+
                 if (float.IsNaN(pos.x))
                 {
                     //_context.Log("Orbit position is NaN, something went very wrong!");
@@ -177,9 +178,9 @@ public class Zone
                 }
             }
 
-            var parentPosition = Orbits[orbitID].Data.Parent == Guid.Empty 
-                ? Orbits[orbitID].Data.FixedPosition : 
-                GetOrbitPosition(orbit.Data.Parent);
+            var parentPosition = !Orbits[orbitID].Data.Parent.IsSet()
+                ? Orbits[orbitID].Data.FixedPosition :
+                GetOrbitPosition(orbit.Data.Parent.Key);
             Orbits[orbitID].Position = parentPosition + pos;
             _updatedOrbits.Add(orbitID);
         }
@@ -187,14 +188,14 @@ public class Zone
         return Orbits[orbitID].Position;
     }
 
-    public float2 GetOrbitVelocity(Guid orbit)
+    public float2 GetOrbitVelocity(CultRecordKey orbit)
     {
         if (Orbits.ContainsKey(orbit))
             return Orbits[orbit].Velocity;
         return float2.zero;
     }
 
-    public int NearestAsteroid(Guid planetDataID, float2 position)
+    public int NearestAsteroid(CultRecordKey planetDataID, float2 position)
     {
         var beltData = Planets[planetDataID] as AsteroidBeltData;
 
@@ -215,16 +216,16 @@ public class Zone
         return nearest;
     }
 
-    public bool AsteroidExists(Guid planetDataID, int asteroid) => ((AsteroidBeltData) Planets[planetDataID]).Asteroids.Length > asteroid && asteroid >= 0;
+    public bool AsteroidExists(CultRecordKey planetDataID, int asteroid) => ((AsteroidBeltData) Planets[planetDataID]).Asteroids.Length > asteroid && asteroid >= 0;
 
-    private void UpdateAsteroidTransforms(Guid planetDataID)
+    private void UpdateAsteroidTransforms(CultRecordKey planetDataID)
     {
         var beltData = Planets[planetDataID] as AsteroidBeltData;
-        
+
         var belt = AsteroidBelts[planetDataID];
 
-        var orbitData = Orbits[beltData.Orbit].Data;
-        belt.NewOrbitPosition = GetOrbitPosition(orbitData.Parent);
+        var orbitData = Orbits[beltData.Orbit.Key].Data;
+        belt.NewOrbitPosition = GetOrbitPosition(orbitData.Parent.Key);
         for (var i = 0; i < beltData.Asteroids.Length; i++)
         {
             float size;
@@ -245,7 +246,7 @@ public class Zone
         }
     }
 
-    public OrbitData CreateOrbit(Guid parent, float2 position)
+    public OrbitData CreateOrbit(CultRecordKey parent, float2 position)
     {
         var parentPosition = GetOrbitPosition(parent);
         var delta = position - parentPosition;
@@ -257,16 +258,15 @@ public class Zone
 
         var orbit = new OrbitData
         {
-            ID = Guid.NewGuid(),
             Distance = distance,
-            Parent = parent,
+            Parent = new CultRecordRef<OrbitData>(parent),
             Phase = storedPhase
         };
-        Orbits.Add(orbit.ID, new Orbit(Settings, orbit));
+        Orbits.Add(_itemManager.ItemData.Upsert(orbit).Key, new Orbit(Settings, orbit));
         return orbit;
     }
 
-    public void MineAsteroid(Entity miner, Guid asteroidBelt, int asteroid, float damage, float efficiency, float penetration)
+    public void MineAsteroid(Entity miner, CultRecordKey asteroidBelt, int asteroid, float damage, float efficiency, float penetration)
     {
         var beltData = Planets[asteroidBelt] as AsteroidBeltData;
         var belt = AsteroidBelts[asteroidBelt];
@@ -274,15 +274,15 @@ public class Zone
 
         var size = beltData.Asteroids[asteroid].Size;
         var asteroidHitpoints = Settings.AsteroidHitpoints.Evaluate(size);
-        
+
         if (!belt.Damage.ContainsKey(asteroid))
             belt.Damage[asteroid] = 0;
         belt.Damage[asteroid] = belt.Damage[asteroid] + damage;
-        
+
         if (!belt.MiningAccumulator.ContainsKey((miner, asteroid)))
             belt.MiningAccumulator[(miner, asteroid)] = 0;
         belt.MiningAccumulator[(miner, asteroid)] = belt.MiningAccumulator[(miner, asteroid)] + damage;
-        
+
         if (belt.Damage[asteroid] > asteroidHitpoints)
         {
             belt.RespawnTimers[asteroid] = Settings.AsteroidRespawnTime.Evaluate(size);
@@ -309,11 +309,11 @@ public class Zone
     public SecurityLevel GetSecurityLevel(float2 pos)
     {
         if (GalaxyZone.Owner==null) return SecurityLevel.Open;
-        
+
         var security = SecurityLevel.Open;
         foreach (var entity in Entities)
         {
-            if (entity is OrbitalEntity orbitalEntity && orbitalEntity.SecurityRadius > 1 && entity.Faction.ID == GalaxyZone.Owner.ID)
+            if (entity is OrbitalEntity orbitalEntity && orbitalEntity.SecurityRadius > 1 && entity.Faction == GalaxyZone.Owner)
             {
                 if (orbitalEntity.SecurityLevel > security && length(orbitalEntity.Position.xz - pos) < orbitalEntity.SecurityRadius * Settings.SecureAreaRadiusMultiplier)
                     security = orbitalEntity.SecurityLevel;
@@ -322,7 +322,7 @@ public class Zone
 
         return security;
     }
-    
+
     public float GetHeight(float2 position)
     {
         var result = -PowerPulse(length(position)/(Pack.Radius*2), Settings.ZoneDepthExponent) * Settings.ZoneDepth;

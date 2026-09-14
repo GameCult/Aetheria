@@ -1,4 +1,4 @@
-﻿/* This Source Code Form is subject to the terms of the Mozilla Public
+/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
@@ -10,18 +10,19 @@ using Newtonsoft.Json;
 [Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]
 public class StatModifierData : BehaviorData
 {
-    [Inspectable, JsonProperty("stat"), Key(1)]  
+    [Inspectable, JsonProperty("stat"), Key(1)]
     public StatReference Stat = new StatReference();
-    
-    [Inspectable, JsonProperty("modifier"), Key(2)]  
+
+    [Inspectable, JsonProperty("modifier"), Key(2)]
     public PerformanceStat Modifier = new PerformanceStat();
-    
-    [Inspectable, JsonProperty("type"), Key(3)]  
+
+    [Inspectable, JsonProperty("type"), Key(3)]
     public StatModifierType Type;
 
+    // The simple name of a BehaviorData type, as InspectableType writes it
     [InspectableType(typeof(BehaviorData)), JsonProperty("requireBehavior"), Key(4)]
-    public Type RequireBehavior;
-    
+    public string RequireBehavior;
+
     public override Behavior CreateInstance(EquippedItem item)
     {
         return new StatModifier(this, item);
@@ -33,13 +34,12 @@ public class StatModifierData : BehaviorData
     }
 }
 
-[Order(-4)]
 public class StatModifier : Behavior, IInitializableBehavior, IDisposable, IAlwaysUpdatedBehavior
 {
     private StatModifierData _data;
 
     private PerformanceStat[] _stats;
-    
+
     private static Type[] _statObjects;
 
     private bool _applied;
@@ -70,14 +70,14 @@ public class StatModifier : Behavior, IInitializableBehavior, IDisposable, IAlwa
                 if (typeof(EquippableItemData).IsAssignableFrom(targetType))
                     _stats = Entity.Equipment
                         .Select(hp => hp.EquippableItem)
-                        .Where(gear => _data.RequireBehavior == null || ItemManager.GetData(gear).Behaviors.Any(behavior => behavior.GetType() == _data.RequireBehavior))
+                        .Where(gear => string.IsNullOrEmpty(_data.RequireBehavior) || ItemManager.GetData(gear).Behaviors.Any(behavior => behavior.GetType().Name == _data.RequireBehavior))
                         .Where(gear => ItemManager.GetData(gear).GetType() == targetType)
                         .Select(gear => statField.GetValue(ItemManager.GetData(gear)) as PerformanceStat)
                         .ToArray();
                 else
                     _stats = Entity.Equipment
                         .Select(hp => hp.EquippableItem)
-                        .Where(gear => _data.RequireBehavior == null || ItemManager.GetData(gear).Behaviors.Any(behavior => behavior.GetType() == _data.RequireBehavior))
+                        .Where(gear => string.IsNullOrEmpty(_data.RequireBehavior) || ItemManager.GetData(gear).Behaviors.Any(behavior => behavior.GetType().Name == _data.RequireBehavior))
                         .SelectMany(gear => ItemManager.GetData(gear).Behaviors)
                         .Where(behaviorData => behaviorData.GetType() == targetType)
                         .Select(behaviorData => statField.GetValue(behaviorData) as PerformanceStat)
@@ -135,7 +135,7 @@ public class StatReference
 {
     [InspectableType(typeof(BehaviorData)), JsonProperty("behavior"), Key(1)]
     public string Target;
-    
+
     [Inspectable, JsonProperty("stat"), Key(2)]
     public string Stat;
 }

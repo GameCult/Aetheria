@@ -1,9 +1,10 @@
+using GameCult.Caching;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
 using MessagePack;
 
-[MessagePackObject]
+[CultDocument("aetheria.playersettings", "1"), CultGlobal, MessagePackObject]
 public class PlayerSettings
 {
     [Key(0)] public string Name = "Anonymous";

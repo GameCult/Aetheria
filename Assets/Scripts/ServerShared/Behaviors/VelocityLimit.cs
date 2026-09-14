@@ -23,7 +23,6 @@ public class VelocityLimitData : BehaviorData
     }
 }
 
-[Order(100)]
 public class VelocityLimit : Behavior
 {
     public float Limit { get; private set; }

@@ -1,4 +1,5 @@
 
+using GameCult.Caching;
 using System;
 using CultMath;
 using static CultMath.math;
@@ -29,7 +30,7 @@ public abstract class MoveToState : BaseState
 
 public class MoveToOrbitState : MoveToState
 {
-    public Guid Orbit { get; set; }
+    public CultRecordKey Orbit { get; set; }
     public MoveToOrbitState(Agent agent) : base(agent) { }
 
     protected override float2 TargetPosition => _agent.Ship.Zone.GetOrbitPosition(Orbit);

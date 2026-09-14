@@ -1,8 +1,9 @@
 using System.Collections.Generic;
-using JsonKnownTypes;using MessagePack;
+using GameCult.Caching;
+using MessagePack;
 using Newtonsoft.Json;
 
-[MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+[CultDocument("aetheria.inputlayout", "1"), MessagePackObject, JsonObject(MemberSerialization.OptIn)]
 public class InputLayout
 {
     [Key(0), JsonProperty("rows")] public InputLayoutRow[] Rows;
@@ -12,7 +13,7 @@ public class InputLayout
         foreach (var row in Rows)
         {
             if (!(row is InputLayoutKeyRow keyRow)) continue;
-            
+
             foreach (var column in keyRow.Columns)
             {
                 if (column is InputLayoutBindableKey bindableKey)
@@ -24,8 +25,7 @@ public class InputLayout
     }
 }
 
-[JsonConverter(typeof(JsonKnownTypesConverter<InputLayoutRow>)),
- MessagePackObject, 
+[MessagePackObject,
  Union(0, typeof(InputLayoutRowSpacer)),
  Union(1, typeof(InputLayoutKeyRow))
 ]
@@ -43,8 +43,7 @@ public class InputLayoutKeyRow : InputLayoutRow
     [Key(0), JsonProperty("columns")] public InputLayoutColumn[] Columns;
 }
 
-[JsonConverter(typeof(JsonKnownTypesConverter<InputLayoutColumn>)),
- MessagePackObject, 
+[MessagePackObject,
  Union(0, typeof(InputLayoutColumnSpacer)),
  Union(1, typeof(InputLayoutKey)),
  Union(2, typeof(InputLayoutBindableKey)),
@@ -82,6 +81,7 @@ public class InputLayoutBindableKey : InputLayoutKey, IBindableButton
     }
 }
 
+[MessagePackObject, JsonObject(MemberSerialization.OptIn)]
 public class InputLayoutMultiRowKey : InputLayoutBindableKey
 {
     [Key(4), JsonProperty("height")] public int Height;

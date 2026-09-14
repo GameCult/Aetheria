@@ -4,6 +4,8 @@
           Condition="'$(SkipCultLibRevisionCheck)' != 'true' and '@(ProjectReference->AnyHaveMetadataValue('Identity', '$(CultLibRoot)\packages\cultmath\src\CultMath\CultMath.csproj'))' == 'true'">
     <Error Condition="!Exists('$(CultLibRoot)\packages\cultmath\src\CultMath\CultMath.csproj')"
            Text="CultLibRoot '$(CultLibRoot)' does not contain the required CultMath project." />
+    <Error Condition="!Exists('$(CultLibRoot)\src\GameCult.Caching\GameCult.Caching.csproj')"
+           Text="CultLibRoot '$(CultLibRoot)' does not contain the required GameCult.Caching project." />
     <Exec Command="&quot;$(GitExecutable)&quot; -C &quot;$(CultLibRoot)&quot; rev-parse HEAD"
           ConsoleToMSBuild="true"
           StandardOutputImportance="Low">

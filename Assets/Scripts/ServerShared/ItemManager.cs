@@ -1,4 +1,4 @@
-﻿/* This Source Code Form is subject to the terms of the Mozilla Public
+/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
@@ -6,6 +6,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using GameCult.Caching;
 using CultMath;
 using static CultMath.math;
 using float2 = CultMath.float2;
@@ -17,35 +18,11 @@ using float4 = CultMath.float4;
 public class ItemManager
 {
     public Random Random = new Random((uint) (DateTime.Now.Ticks%uint.MaxValue));
-    // public Dictionary<string, GalaxyMapLayerData> MapLayers = new Dictionary<string, GalaxyMapLayerData>();
-    // public SimpleCommodityData[] Resources;
-    // public Dictionary<Guid, List<IController>> CorporationControllers = new Dictionary<Guid, List<IController>>();
-    // public Dictionary<Guid, ZoneDefinition> GalaxyZones;
-    
+
     private Action<string> _logger;
 
-    private double _time;
-    private float _deltaTime;
-    private Dictionary<Guid, Zone> _zones = new Dictionary<Guid, Zone>();
-
-    // private Guid _forceLoadZone;
-    
-    // public GlobalData GlobalData => _globalData ?? (_globalData = ItemData.GetAll<GlobalData>().FirstOrDefault());
     public CultCache ItemData { get; }
     public GameplaySettings GameplaySettings { get; }
-
-    // public double Time
-    // {
-    //     get => _time;
-    //     set
-    //     {
-    //         _deltaTime = (float) (value - _time);
-    //         _time = value;
-    //         //Log($"GameContext delta time: {_deltaTime}");
-    //     }
-    // }
-
-    // private readonly Dictionary<CraftedItemData, int> Tier = new Dictionary<CraftedItemData, int>();
 
     public ItemManager(CultCache itemData, GameplaySettings settings, Action<string> logger)
     {
@@ -59,34 +36,28 @@ public class ItemManager
         _logger(s);
     }
 
-    public SimpleCommodityData GetData(SimpleCommodity item)
-    {
-        return item.Data.Value as SimpleCommodityData;
-    }
+    // The one resolution path from an item instance to its design
+    public ItemData GetData(ItemInstance item) => ItemData.Get(item.Data);
 
-    public CraftedItemData GetData(CraftedItemInstance item)
-    {
-        return item.Data.Value as CraftedItemData;
-    }
+    public SimpleCommodityData GetData(SimpleCommodity item) => GetData((ItemInstance) item) as SimpleCommodityData;
 
-    public EquippableItemData GetData(EquippableItem item)
-    {
-        return item.Data.Value as EquippableItemData;
-    }
+    public CraftedItemData GetData(CraftedItemInstance item) => GetData((ItemInstance) item) as CraftedItemData;
+
+    public EquippableItemData GetData(EquippableItem item) => GetData((ItemInstance) item) as EquippableItemData;
 
     public float GetMass(ItemInstance item)
     {
         return item switch
         {
-            CraftedItemInstance _ => item.Data.Value.Mass,
-            SimpleCommodity commodity => item.Data.Value.Mass * commodity.Quantity,
+            CraftedItemInstance _ => GetData(item).Mass,
+            SimpleCommodity commodity => GetData(item).Mass * commodity.Quantity,
             _ => 0
         };
     }
 
     public float GetThermalMass(ItemInstance item)
     {
-        var data = item.Data.Value;
+        var data = GetData(item);
         return item switch
         {
             CraftedItemInstance _ => data.Mass * data.SpecificHeat,
@@ -106,7 +77,7 @@ public class ItemManager
             pow(item.Quality, GameplaySettings.DurabilityQualityExponent));
         var durability = pow(item.Durability / data.Durability, durabilityExponent * stat.DurabilityExponentMultiplier);
         var result = lerp(stat.Min, stat.Max, quality * durability);
-        if (float.IsNaN(result)) 
+        if (float.IsNaN(result))
             throw new InvalidOperationException($"Performance Stat on {data.Name} evaluating as NaN: input data is invalid! Durability: {item.Durability} / {data.Durability}");
         return result;
 
@@ -124,20 +95,19 @@ public class ItemManager
         {
             var newItem = new SimpleCommodity
             {
-                Data = new DatabaseLink<ItemData>{LinkID = item.ID},
+                Data = ItemData.RefOf<ItemData>(item),
                 Quantity = count
             };
-            //ItemData.Add(newItem);
             return newItem;
         }
-        
+
         _logger("Attempted to create Simple Commodity instance using missing or incorrect item id");
         return null;
     }
 
     public ItemInstance Instantiate(ItemInstance item)
     {
-        var data = item.Data.Value;
+        var data = GetData(item);
         if(data is CraftedItemData c)
         {
             var i = CreateInstance(c);
@@ -159,24 +129,23 @@ public class ItemManager
         {
             return new EquippableItem
             {
-                Data = new DatabaseLink<ItemData> {LinkID = item.ID}, Quality = quality, Durability = equippableItemData.Durability
+                Data = ItemData.RefOf<ItemData>(item), Quality = quality, Durability = equippableItemData.Durability
             };
         }
 
         var newCommodity = new CompoundCommodity
         {
-            Data = new DatabaseLink<ItemData>{LinkID = item.ID},
+            Data = ItemData.RefOf<ItemData>(item),
             Quality = quality
         };
         return newCommodity;
     }
-    
+
     public CraftedItemInstance CreateInstance(CraftedItemData item)
     {
         if (item == null)
         {
             throw new NullReferenceException("Attempted to create crafted item instance using missing or incorrect item data!");
-            return null;
         }
 
         var quality = Random.NextFloat();
@@ -194,7 +163,7 @@ public class ItemManager
     // the design's roles filled with a part whose quality is drawn from that manufacturer's distribution for it.
     public CraftedItemInstance CreateInstance(FactionProductData product)
     {
-        var design = ItemData.Get<CraftedItemData>(product.Design);
+        var design = ItemData.Get(product.Design);
         if (design == null)
         {
             _logger($"Product {product.Name} names a design that does not exist!");
@@ -202,7 +171,7 @@ public class ItemManager
         }
 
         var instance = CreateInstance(design);
-        instance.Product = product.ID;
+        instance.Product = ItemData.RefOf(product);
         if (design.Roles == null) return instance;
         foreach (var role in design.Roles)
         {

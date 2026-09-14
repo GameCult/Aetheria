@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using GameCult.Caching;
 using MessagePack;
 using CultMath;
 
@@ -13,7 +14,7 @@ public static class EntitySerializer
         if (entity is OrbitalEntity orbital)
             pack = new OrbitalEntityPack
             {
-                Orbit = orbital.OrbitData,
+                Orbit = new CultRecordRef<OrbitData>(orbital.OrbitData),
                 SecurityLevel = orbital.SecurityLevel,
                 SecurityRadius = orbital.SecurityRadius
             };
@@ -27,7 +28,7 @@ public static class EntitySerializer
         else throw new ArgumentException("Attempted to pack an instance of abstract class Entity!");
 
         pack.Settings = entity.Settings;
-        
+
         // Filter item behavior collections by those with any persistent behaviors
         // For each item create an object containing the item position and a list of persistent behaviors
         // Then turn that into a dictionary mapping from item position to an array of every behaviors persistent data
@@ -40,7 +41,7 @@ public static class EntitySerializer
 
         pack.Hull = entity.Hull;
         pack.Name = entity.Name;
-        pack.Faction = entity.Faction?.ID ?? Guid.Empty;
+        pack.Faction = entity.Faction == null ? default : entity.ItemManager.ItemData.RefOf(entity.Faction);
         pack.Equipment = entity.Equipment.Select(e => (e.Position, e.EquippableItem)).ToArray();
         pack.CargoBays = entity.CargoBays.Select(e => (e.Position, e.EquippableItem)).ToArray();
         pack.DockingBays = entity.DockingBays.Select(e => (e.Position, e.EquippableItem)).ToArray();
@@ -70,7 +71,7 @@ public static class EntitySerializer
 
     private static Ship Unpack(ItemManager itemManager, Zone zone, ShipPack pack, bool instantiate = false)
     {
-        
+
         var entity = new Ship(itemManager, zone, instantiate ? (EquippableItem) itemManager.Instantiate(pack.Hull) : pack.Hull, pack.Settings);
         Restore(itemManager, zone, pack, entity, instantiate);
         entity.Position = pack.Position;
@@ -81,7 +82,7 @@ public static class EntitySerializer
 
     private static OrbitalEntity Unpack(ItemManager itemManager, Zone zone, OrbitalEntityPack pack, bool instantiate = false)
     {
-        var entity = new OrbitalEntity(itemManager, zone, instantiate ? (EquippableItem) itemManager.Instantiate(pack.Hull) : pack.Hull, pack.Orbit, pack.Settings);
+        var entity = new OrbitalEntity(itemManager, zone, instantiate ? (EquippableItem) itemManager.Instantiate(pack.Hull) : pack.Hull, pack.Orbit.Key, pack.Settings);
         Restore(itemManager, zone, pack, entity, instantiate);
         entity.SecurityLevel = pack.SecurityLevel;
         entity.SecurityRadius = pack.SecurityRadius;
@@ -92,7 +93,7 @@ public static class EntitySerializer
     private static void Restore(ItemManager itemManager, Zone zone, EntityPack pack, Entity entity, bool instantiate = false)
     {
         entity.Name = pack.Name;
-        entity.Faction = itemManager.ItemData.Get<Faction>(pack.Faction);
+        entity.Faction = itemManager.ItemData.Get(pack.Faction);
         entity.Children = pack.Children.Select(c =>
         {
             var child = Unpack(itemManager, zone, c, instantiate);
@@ -131,12 +132,12 @@ public static class EntitySerializer
 
         if(!instantiate)
             entity.Temperature = pack.Temperature;
-        
+
         if(!instantiate)
             entity.Armor = pack.Armor;
-        
+
         var hullData = itemManager.GetData(entity.Hull);
-        
+
         foreach(var v in hullData.Shape.Coordinates)
             entity.HullConductivity[v.x,v.y] = pack.Conductivity[v.x,v.y];
 
@@ -166,13 +167,13 @@ public class ShipPack : EntityPack
 [MessagePackObject]
 public class OrbitalEntityPack : EntityPack
 {
-    [Key(17)] public Guid Orbit;
+    [Key(17)] public CultRecordRef<OrbitData> Orbit;
     [Key(18)] public int Story = -1;
     [Key(19)] public SecurityLevel SecurityLevel;
     [Key(20)] public float SecurityRadius;
 }
 
-[MessagePackObject, 
+[MessagePackObject,
  Union(0, typeof(OrbitalEntityPack)),
  Union(1, typeof(ShipPack))]
 public abstract class EntityPack
@@ -191,7 +192,7 @@ public abstract class EntityPack
     [Key(12)] public (int2 position, ItemInstance item)[][] DockingBayContents;
     [Key(13)] public EntityPack[] Children;
     [Key(14)] public EntitySettings Settings;
-    [Key(15)] public Guid Faction;
+    [Key(15)] public CultRecordRef<Faction> Faction;
     [Key(16)] public int[][] WeaponGroups;
 
     private int _price;
@@ -199,7 +200,7 @@ public abstract class EntityPack
     public int Price(ItemManager itemManager)
     {
         if (_price != 0) return _price;
-        
+
         var hullData = itemManager.GetData(Hull);
         _price = hullData.Price;
 
@@ -223,7 +224,7 @@ public abstract class EntityPack
         {
             foreach (var (_, item) in t)
             {
-                var itemData = item.Data.Value;
+                var itemData = itemManager.GetData(item);
                 if (item is SimpleCommodity s)
                     _price += itemData.Price * s.Quantity;
                 else
@@ -235,7 +236,7 @@ public abstract class EntityPack
         {
             foreach (var (_, item) in t)
             {
-                var itemData = item.Data.Value;
+                var itemData = itemManager.GetData(item);
                 if (item is SimpleCommodity s)
                     _price += itemData.Price * s.Quantity;
                 else

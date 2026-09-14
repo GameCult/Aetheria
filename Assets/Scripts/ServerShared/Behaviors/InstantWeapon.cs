@@ -18,7 +18,7 @@ public class InstantWeaponData : WeaponData
     [Inspectable, JsonProperty("cooldown"), Key(19), RuntimeInspectable]
     public PerformanceStat Cooldown = new PerformanceStat();
     
-    [InspectablePrefab, JsonProperty("ammoInterval"), Key(20)]  
+    [Inspectable, JsonProperty("ammoInterval"), Key(20)]  
     public bool SingleAmmoBurst;
 
     public override Behavior CreateInstance(EquippedItem item)
@@ -124,12 +124,12 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior
         }
         
         var hasAmmo = true;
-        if (_data.AmmoType != Guid.Empty)
+        if (_data.AmmoType.IsSet())
         {
-            var cargo = Entity.FindItemInCargo(_data.AmmoType);
+            var cargo = Entity.FindItemInCargo(_data.AmmoType.Key);
             if (cargo != null)
             {
-                var item = cargo.ItemsOfType[_data.AmmoType][0];
+                var item = cargo.ItemsOfType[_data.AmmoType.Key][0];
                 if (item is SimpleCommodity simpleCommodity)
                     cargo.Remove(simpleCommodity, 1);
             }

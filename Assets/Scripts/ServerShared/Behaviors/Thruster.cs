@@ -2,6 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
+using GameCult.Caching;
 using MessagePack;
 using Newtonsoft.Json;
 using CultMath;
@@ -22,7 +23,7 @@ public class ThrusterData : BehaviorData
     [Inspectable, JsonProperty("energy"), Key(4), RuntimeInspectable]  
     public PerformanceStat EnergyUsage = new PerformanceStat();
 
-    [InspectablePrefab, JsonProperty("Particles"), Key(5)]
+    [Inspectable, CultInspectorAssetPath, JsonProperty("Particles"), Key(5)]
     public string ParticlesPrefab;
     
     public override Behavior CreateInstance(EquippedItem item)

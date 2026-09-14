@@ -6,7 +6,6 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using JsonKnownTypes;
 using MessagePack;
 using Newtonsoft.Json;
 using CultMath;
@@ -142,8 +141,7 @@ public interface IPopulationAssignment
 }
 
 [MessagePackObject,
- JsonObject(MemberSerialization.OptIn),
- JsonConverter(typeof(JsonKnownTypesConverter<PersistentBehaviorData>))]
+ JsonObject(MemberSerialization.OptIn)]
 public abstract class PersistentBehaviorData
 {
 }
@@ -187,7 +185,7 @@ public abstract class PersistentBehaviorData
  Union(36, typeof(ConstantWeaponData)),
  Union(37, typeof(ChargedWeaponData)),
  Union(38, typeof(AutoWeaponData)),
- JsonConverter(typeof(JsonKnownTypesConverter<BehaviorData>)), JsonObject(MemberSerialization.OptIn)]
+ JsonObject(MemberSerialization.OptIn)]
 public abstract class BehaviorData
 {
     [Inspectable, JsonProperty("group"), Key(0)]

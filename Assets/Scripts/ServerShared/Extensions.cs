@@ -15,9 +15,6 @@ using float2 = CultMath.float2;
 
 public static class Extensions
 {
-    //public static IDatabaseEntry Get(this Guid entry) => Database.Get(entry);
-    //public static T Get<T>(this Guid entry) where T : class, IDatabaseEntry => Database.Get(entry) as T;
-
     public static bool IsImplementationOf(this Type baseType, Type interfaceType)
     {
         return baseType.GetInterfaces().Any(interfaceType.Equals);

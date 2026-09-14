@@ -2,6 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
+using GameCult.Caching;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -288,7 +289,7 @@ public abstract class Entity
 
         // TODO: Inter-faction hostility
         // When the entity faction owns the zone, they are hostile to trespassers or those hostile to them
-        if (Faction.ID == Zone.GalaxyZone.Owner?.ID)
+        if (Faction == Zone.GalaxyZone.Owner)
             return recursive ? !(other.PresencePermitted?.Value ?? true) : !(other.PresencePermitted?.Value ?? true)|| other.IsHostileTo(this, true);
 
         return !recursive && other.IsHostileTo(this, true);
@@ -301,7 +302,7 @@ public abstract class Entity
             return FactionRelationship.Neutral;
         if (this is Ship {IsPlayerShip: true})
             return Zone.Galaxy.FactionRelationships[faction];
-        return faction.ID == Faction.ID ? FactionRelationship.Beloved : FactionRelationship.Neutral;
+        return faction == Faction ? FactionRelationship.Beloved : FactionRelationship.Neutral;
     }
 
     public static bool IsPresencePermitted(FactionRelationship relationship, SecurityLevel securityLevel) => 
@@ -316,7 +317,7 @@ public abstract class Entity
 
     public ConsumableItemEffect FindActiveConsumable(ConsumableItemData data)
     {
-        return _activeConsumables.FirstOrDefault(ac => ac.Data.ID == data.ID);
+        return _activeConsumables.FirstOrDefault(ac => ac.Data == data);
     }
 
     public bool CanActivateConsumable(ConsumableItemData data)
@@ -328,10 +329,11 @@ public abstract class Entity
     {
         if (!CanActivateConsumable(data)) return false;
         
-        var bay = FindItemInCargo(data.ID);
+        var key = ItemManager.ItemData.RefOf<ItemData>(data).Key;
+        var bay = FindItemInCargo(key);
         if (bay == null) return false;
         
-        var item = (ConsumableItem) bay.ItemsOfType[data.ID].First();
+        var item = (ConsumableItem) bay.ItemsOfType[key].First();
         ActivateConsumable(item);
         bay.Remove(item);
         return true;
@@ -377,7 +379,7 @@ public abstract class Entity
     public void GenerateWeaponGroups()
     {
         foreach (var group in Weapons
-            .GroupBy(w => w.Item.EquippableItem.Data.LinkID)
+            .GroupBy(w => w.Item.EquippableItem.Data.Key)
             .OrderBy(wg=>wg.Average(w=>w.Range))
             .Select((weapons, index) => (weapons, index)))
         {
@@ -394,7 +396,7 @@ public abstract class Entity
             Temperature[position.x, position.y] += heat / ThermalMass[position.x, position.y];
     }
 
-    public int CountItemsInCargo(Guid itemDataID)
+    public int CountItemsInCargo(CultRecordKey itemDataID)
     {
         int sum = 0;
         foreach (var x in CargoBays)
@@ -408,7 +410,7 @@ public abstract class Entity
         return sum;
     }
 
-    public EquippedCargoBay FindItemInCargo(Guid itemDataID)
+    public EquippedCargoBay FindItemInCargo(CultRecordKey itemDataID)
     {
         return CargoBays.FirstOrDefault(c => c.ItemsOfType.ContainsKey(itemDataID));
     }
@@ -431,7 +433,7 @@ public abstract class Entity
 
     // Attempts to move a given number of items of the given type to the target Entity
     // Returns the number of items successfully transferred
-    public int TryTransferItems(Entity target, Guid itemDataID, int quantity)
+    public int TryTransferItems(Entity target, CultRecordKey itemDataID, int quantity)
     {
         int quantityTransferred = 0;
         while (quantityTransferred < quantity)
@@ -1052,7 +1054,7 @@ public class ConsumableItemEffect
     {
         Item = item;
         Entity = entity;
-        Data = (ConsumableItemData) item.Data.Value;
+        Data = (ConsumableItemData) entity.ItemManager.GetData(item);
         RemainingDuration = Data.Duration;
 
         Behaviors = Data.Behaviors
@@ -1329,7 +1331,7 @@ public class EquippedCargoBay : EquippedItem
 
     public readonly ItemInstance[,] Occupancy;
 
-    public readonly Dictionary<Guid, List<ItemInstance>> ItemsOfType = new Dictionary<Guid, List<ItemInstance>>();
+    public readonly Dictionary<CultRecordKey, List<ItemInstance>> ItemsOfType = new Dictionary<CultRecordKey, List<ItemInstance>>();
 
     public new readonly CargoBayData Data;
     
@@ -1362,7 +1364,7 @@ public class EquippedCargoBay : EquippedItem
     // Check whether the given item will fit when its origin is placed at the given coordinate
     public bool ItemFits(ItemInstance item, int2 cargoCoord)
     {
-        var itemData = item.Data.Value;
+        var itemData = ItemManager.GetData(item);
         // Check every cell of the item's shape
         foreach (var i in itemData.Shape.Coordinates)
         {
@@ -1395,7 +1397,7 @@ public class EquippedCargoBay : EquippedItem
         // For simple commodities, search for existing item stacks to add to
         foreach (var cargoItem in Cargo.Keys)
         {
-            if (item.Data != cargoItem.Data) continue;
+            if (!item.Data.Key.Equals(cargoItem.Data.Key)) continue;
             
             var cargoCommodity = (SimpleCommodity) cargoItem;
             if (cargoCommodity.Quantity >= itemData.MaxStack) continue;
@@ -1486,11 +1488,11 @@ public class EquippedCargoBay : EquippedItem
             }
             Cargo[item] = cargoCoord;
             
-            if(!ItemsOfType.ContainsKey(item.Data.LinkID))
-                ItemsOfType[item.Data.LinkID] = new List<ItemInstance>();
-            ItemsOfType[item.Data.LinkID].Add(item);
+            if(!ItemsOfType.ContainsKey(item.Data.Key))
+                ItemsOfType[item.Data.Key] = new List<ItemInstance>();
+            ItemsOfType[item.Data.Key].Add(item);
         }
-        else if (Occupancy[cargoCoord.x, cargoCoord.y] is SimpleCommodity cargoCommodity && cargoCommodity.Data == item.Data)
+        else if (Occupancy[cargoCoord.x, cargoCoord.y] is SimpleCommodity cargoCommodity && cargoCommodity.Data.Key.Equals(item.Data.Key))
         {
             if (cargoCommodity.Quantity + item.Quantity <= itemData.MaxStack)
             {
@@ -1530,9 +1532,9 @@ public class EquippedCargoBay : EquippedItem
         }
         Cargo[item] = cargoCoord;
         
-        if(!ItemsOfType.ContainsKey(item.Data.LinkID))
-            ItemsOfType[item.Data.LinkID] = new List<ItemInstance>();
-        ItemsOfType[item.Data.LinkID].Add(item);
+        if(!ItemsOfType.ContainsKey(item.Data.Key))
+            ItemsOfType[item.Data.Key] = new List<ItemInstance>();
+        ItemsOfType[item.Data.Key].Add(item);
         
         Mass += ItemManager.GetMass(item);
         ThermalMass += ItemManager.GetThermalMass(item);
@@ -1555,9 +1557,9 @@ public class EquippedCargoBay : EquippedItem
                     Occupancy[v.x, v.y] = null;
 
             Cargo.Remove(item);
-            ItemsOfType[item.Data.LinkID].Remove(item);
-            if (!ItemsOfType[item.Data.LinkID].Any())
-                ItemsOfType.Remove(item.Data.LinkID);
+            ItemsOfType[item.Data.Key].Remove(item);
+            if (!ItemsOfType[item.Data.Key].Any())
+                ItemsOfType.Remove(item.Data.Key);
 
             Mass -= ItemManager.GetMass(item);
             ThermalMass -= ItemManager.GetThermalMass(item);
@@ -1584,9 +1586,9 @@ public class EquippedCargoBay : EquippedItem
                 Occupancy[v.x, v.y] = null;
         
         Cargo.Remove(item);
-        ItemsOfType[item.Data.LinkID].Remove(item);
-        if (!ItemsOfType[item.Data.LinkID].Any())
-            ItemsOfType.Remove(item.Data.LinkID);
+        ItemsOfType[item.Data.Key].Remove(item);
+        if (!ItemsOfType[item.Data.Key].Any())
+            ItemsOfType.Remove(item.Data.Key);
         
         Mass -= ItemManager.GetMass(item);
         ThermalMass -= ItemManager.GetThermalMass(item);

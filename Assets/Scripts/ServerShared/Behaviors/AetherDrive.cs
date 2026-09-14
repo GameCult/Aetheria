@@ -2,6 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
+using GameCult.Caching;
 using MessagePack;
 using Newtonsoft.Json;
 using CultMath;
@@ -40,13 +41,13 @@ public class AetherDriveData : BehaviorData
     [Inspectable, JsonProperty("passiveCoupling"), Key(10), RuntimeInspectable]
     public PerformanceStat PassiveCoupling;
 
-    [InspectableAudioParameter, JsonProperty("rpmAudio"), Key(11), RuntimeInspectable]
+    [Inspectable, JsonProperty("rpmAudio"), Key(11), RuntimeInspectable]
     public uint RpmAudioParameter;
 
-    [InspectableAudioParameter, JsonProperty("torqueAudio"), Key(12), RuntimeInspectable]
+    [Inspectable, JsonProperty("torqueAudio"), Key(12), RuntimeInspectable]
     public uint TorqueRatioAudioParameter;
 
-    [InspectablePrefab, JsonProperty("particles"), Key(13)]
+    [Inspectable, CultInspectorAssetPath, JsonProperty("particles"), Key(13)]
     public string Particles;
     
     public override Behavior CreateInstance(EquippedItem item)

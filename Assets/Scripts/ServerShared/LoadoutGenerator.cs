@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using GameCult.Caching;
 using CultMath;
 using static CultMath.math;
 using Random = CultMath.Random;
@@ -57,7 +58,7 @@ public class LoadoutGenerator
             return null;
         }
         var hull = ItemManager.CreateInstance(hullProduct) as EquippableItem;
-        var entity = new OrbitalEntity(ItemManager, null, hull, Guid.Empty, ItemManager.GameplaySettings.DefaultEntitySettings);
+        var entity = new OrbitalEntity(ItemManager, null, hull, default, ItemManager.GameplaySettings.DefaultEntitySettings);
         entity.Faction = Faction;
         OutfitEntity(entity);
         return EntitySerializer.Pack(entity) as OrbitalEntityPack;
@@ -72,7 +73,7 @@ public class LoadoutGenerator
             return null;
         }
         var hull = ItemManager.CreateInstance(hullProduct) as EquippableItem;
-        var entity = new OrbitalEntity(ItemManager, null, hull, Guid.Empty, ItemManager.GameplaySettings.DefaultEntitySettings);
+        var entity = new OrbitalEntity(ItemManager, null, hull, default, ItemManager.GameplaySettings.DefaultEntitySettings);
         entity.Faction = Faction;
 
         // Hardpoint gear goes in first so the docking bay can only take space that gear left free
@@ -123,11 +124,11 @@ public class LoadoutGenerator
     public (FactionProductData product, T design)[] RandomProducts<T>(int count, float sizeExponent, Predicate<T> filter = null, bool required = false) where T : EquippableItemData
     {
         var candidates = ItemManager.ItemData.GetAll<FactionProductData>()
-            .Select(product => (product, design: ItemManager.ItemData.Get<CraftedItemData>(product.Design) as T))
+            .Select(product => (product, design: ItemManager.ItemData.Get(product.Design) as T))
             .Where(entry =>
                 entry.design != null &&
                 entry.design.Price > 0 &&
-                entry.product.Manufacturer != Guid.Empty &&
+                entry.product.Manufacturer.IsSet() &&
                 (filter?.Invoke(entry.design) ?? true))
             .ToArray();
         var available = candidates.Where(entry => IsAvailable(entry.product)).ToArray();
@@ -153,12 +154,13 @@ public class LoadoutGenerator
         Galaxy.ContainsFaction(product.Manufacturer) && (Faction == null || Faction.Allegiance.ContainsKey(product.Manufacturer));
 
     // Prioritize products from the zone faction and its allies, penalizing distance to the manufacturer's headquarters
-    private float ManufacturerPreference(Guid manufacturer)
+    private float ManufacturerPreference(CultRecordRef<Faction> manufacturer)
     {
         if (Faction == null || Galaxy == null) return 1;
-        var allegiance = manufacturer == Faction.ID ? 1 :
+        var maker = ItemManager.ItemData.Get(manufacturer);
+        var allegiance = maker == Faction ? 1 :
             Faction.Allegiance.TryGetValue(manufacturer, out var a) ? a : 0;
-        var home = Galaxy.HomeZones.FirstOrDefault(h => h.Key.ID == manufacturer).Value;
+        var home = maker != null && Galaxy.HomeZones.TryGetValue(maker, out var h) ? h : null;
         var distance = home != null && Zone?.Distance != null && Zone.Distance.TryGetValue(home, out var d) ? d : 0;
         return allegiance / (1 + distance);
     }

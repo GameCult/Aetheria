@@ -8,7 +8,7 @@ using Newtonsoft.Json;
 using CultMath;
 using static CultMath.math;
 
-[Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn), Order(1000), RuntimeInspectable]
+[Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn), RuntimeInspectable]
 public class WearData : BehaviorData
 {
     [InspectableTemperature, JsonProperty("perSecond"), Key(1)]

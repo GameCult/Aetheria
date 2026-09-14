@@ -2,6 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
+using GameCult.Caching;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -24,10 +25,10 @@ public abstract class WeaponData : BehaviorData
     [Inspectable, JsonProperty("damage"), Key(2), RuntimeInspectable]
     public PerformanceStat Damage = new PerformanceStat();
 
-    [InspectableRangedFloat(0,1), JsonProperty("penetration"), Key(3), RuntimeInspectable]
+    [Inspectable, CultInspectorRange(0, 1), JsonProperty("penetration"), Key(3), RuntimeInspectable]
     public PerformanceStat Penetration = new PerformanceStat();
 
-    [InspectableRangedFloat(0,1), JsonProperty("damageSpread"), Key(4)]
+    [Inspectable, CultInspectorRange(0, 1), JsonProperty("damageSpread"), Key(4)]
     public PerformanceStat DamageSpread = new PerformanceStat();
 
     [Inspectable, JsonProperty("minRange"), Key(5)]
@@ -39,28 +40,28 @@ public abstract class WeaponData : BehaviorData
     [InspectableAnimationCurve, JsonProperty("damageCurve"), Key(7)]
     public BezierCurve DamageCurve;
     
-    [InspectablePrefab, JsonProperty("effect"), Key(8)]  
+    [Inspectable, CultInspectorAssetPath, JsonProperty("effect"), Key(8)]  
     public string EffectPrefab;
     
-    [InspectablePrefab, JsonProperty("energy"), Key(9), RuntimeInspectable]  
+    [Inspectable, JsonProperty("energy"), Key(9), RuntimeInspectable]  
     public PerformanceStat Energy = new PerformanceStat();
     
-    [InspectablePrefab, JsonProperty("heat"), Key(10), RuntimeInspectable]  
+    [Inspectable, JsonProperty("heat"), Key(10), RuntimeInspectable]  
     public PerformanceStat Heat = new PerformanceStat();
     
-    [InspectablePrefab, JsonProperty("visibility"), Key(11), RuntimeInspectable]  
+    [Inspectable, JsonProperty("visibility"), Key(11), RuntimeInspectable]  
     public PerformanceStat Visibility = new PerformanceStat();
     
-    [InspectableDatabaseLink(typeof(SimpleCommodityData)), JsonProperty("ammo"), Key(12), RuntimeInspectable]  
-    public Guid AmmoType;
+    [Inspectable, JsonProperty("ammo"), Key(12), RuntimeInspectable]  
+    public CultRecordRef<SimpleCommodityData> AmmoType;
 
-    [InspectablePrefab, JsonProperty("magSize"), Key(13)]
+    [Inspectable, JsonProperty("magSize"), Key(13)]
     public int MagazineSize;
     
-    [InspectablePrefab, JsonProperty("reloadTime"), Key(14)]  
+    [Inspectable, JsonProperty("reloadTime"), Key(14)]  
     public float ReloadTime = 1;
     
-    [InspectablePrefab, JsonProperty("spread"), Key(15)]  
+    [Inspectable, JsonProperty("spread"), Key(15)]  
     public PerformanceStat Spread = new PerformanceStat();
 
     [Inspectable, JsonProperty("velocity"), Key(16)]

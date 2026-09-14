@@ -2,6 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
+using GameCult.Caching;
 using System;
 using System.Linq;
 using MessagePack;
@@ -38,18 +39,18 @@ public class ResourceScanner : Behavior, IAlwaysUpdatedBehavior
     
     private ResourceScannerData _data;
     private float _scanTime;
-    private Guid _scanTarget;
+    private CultRecordKey _scanTarget;
 
     public float Range { get; private set; }
     public float MinimumDensity { get; private set; }
     public float ScanDuration { get; private set; }
 
-    public Guid ScanTarget
+    public CultRecordKey ScanTarget
     {
         get => _scanTarget;
         set
         {
-            if (value != _scanTarget)
+            if (!value.Equals(_scanTarget))
             {
                 _scanTarget = value;
                 _scanTime = 0;
@@ -90,7 +91,7 @@ public class ResourceScanner : Behavior, IAlwaysUpdatedBehavior
             }
             else
             {
-                if(length(Entity.Position.xz - Entity.Zone.GetOrbitPosition(planetData.Orbit)) < Range)
+                if(length(Entity.Position.xz - Entity.Zone.GetOrbitPosition(planetData.Orbit.Key)) < Range)
                 {
                     _scanTime += dt;
                     if (_scanTime > ScanDuration)
