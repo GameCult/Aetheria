@@ -3,10 +3,13 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using CultMath;
+using GameCult.Caching;
 using Random = CultMath.Random;
 
 // Commands over the game database, run with: dotnet run --project tools/AetherDb -- <command>
@@ -23,13 +26,13 @@ public static class Program
             case "loadout": return Loadout(args.Skip(1).FirstOrDefault());
             case "save": return Save();
             case "factions": return Factions();
-            case "clear-boss-hulls": return ClearBossHulls(args.Contains("apply"));
+            case "dangling": return Dangling(args.Skip(1).ToArray());
             case "settings": return Settings();
             case "settings-dump": return SettingsDump();
             case "legacy-census": return Import.LegacyCensus();
             case "import": return Import.Run();
             default:
-                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, clear-boss-hulls [apply], legacy-census, import");
+                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], legacy-census, import");
                 return 1;
         }
     }
@@ -194,35 +197,113 @@ public static class Program
         return missing.Count;
     }
 
-    // Clears boss hull links that resolve to nothing. Galaxy.PlaceFactionsMain gives a boss zone to every faction
-    // carrying a BossHull, so a dangling link claims a chokepoint that can never spawn a boss. Dry run unless
-    // passed "apply", which alone opens the catalog writable and lands every cleared faction in one commit.
-    private static int ClearBossHulls(bool apply)
+    // Every CultRecordRef in the catalog that resolves to nothing, as "<record> <DeclaringType.Member> -> <key>".
+    // Each "clear <DeclaringType.Member>" argument unsets that member's dangling refs, or removes that dictionary's
+    // dangling keys (Faction.BossHull clears boss hulls that would claim a chokepoint no boss can spawn in). Dry
+    // run unless passed "apply", which alone opens the catalog writable and lands every changed record in one commit.
+    private static int Dangling(string[] args)
     {
+        var apply = args.Contains("apply");
+        var clear = new HashSet<string>(args.Select((arg, i) => (arg, i))
+            .Where(p => p.arg == "clear" && p.i + 1 < args.Length)
+            .Select(p => args[p.i + 1]));
         var db = AetherDb.Open(catalogWritable: apply);
-        var dangling = db.Cache.GetAll<Faction>()
-            .Where(f => f.BossHull.IsSet() && db.Cache.Get(f.BossHull) == null)
-            .OrderBy(f => f.Name)
-            .ToArray();
 
-        Console.WriteLine($"{dangling.Length} factions point at a boss hull that does not exist:");
-        foreach (var faction in dangling)
-            Console.WriteLine($"  {faction.Name,-26} {faction.BossHull}");
-
-        if (apply && dangling.Length > 0)
+        var changed = new List<(object Document, CultRecordKey Key)>();
+        var found = 0;
+        foreach (var stored in db.Cache.AllStoredDocuments.OrderBy(s => NameOf(s.Document) ?? s.Key.Value, StringComparer.Ordinal))
         {
-            db.Cache.Commit(batch =>
+            var name = NameOf(stored.Document) ?? stored.Key.Value;
+            var cleared = 0;
+            foreach (var dangling in DanglingRefs(db.Cache, stored.Document, new HashSet<object>(System.Collections.Generic.ReferenceEqualityComparer.Instance)))
             {
-                foreach (var faction in dangling)
-                {
-                    faction.BossHull = default;
-                    batch.Upsert(faction);
-                }
-            });
-            Console.WriteLine($"\nCleared {dangling.Length} boss hull links in Aetheria.cc");
+                found++;
+                var member = $"{dangling.Field.DeclaringType.Name}.{dangling.Field.Name}";
+                var clearing = clear.Contains(member);
+                Console.WriteLine($"{name} {member} -> {dangling.Key}{(clearing ? "   (cleared)" : "")}");
+                if (!clearing) continue;
+                dangling.Clear();
+                cleared++;
+            }
+            if (cleared > 0) changed.Add((stored.Document, stored.Key));
         }
-        else if (!apply && dangling.Length > 0) Console.WriteLine("\nDry run. Pass \"apply\" to clear them.");
+
+        Console.WriteLine($"\n{found} dangling refs");
+        if (changed.Count == 0) return 0;
+        if (!apply)
+        {
+            Console.WriteLine($"Dry run. Pass \"apply\" to land {changed.Count} changed records.");
+            return 0;
+        }
+
+        db.Cache.Commit(batch =>
+        {
+            foreach (var (document, key) in changed) batch.Upsert(document.GetType(), document, key);
+        });
+        Console.WriteLine($"Landed {changed.Count} changed records in Aetheria.cc");
         return 0;
+    }
+
+    private sealed record DanglingRef(FieldInfo Field, CultRecordKey Key, Action Clear);
+
+    // Walks fields by reflection: plain refs, list and array elements, ref-keyed dictionary keys, and nested
+    // [MessagePackObject] and [Union] values. Clearing a list element unsets it; clearing a dictionary key removes it.
+    private static IEnumerable<DanglingRef> DanglingRefs(CultCache cache, object value, HashSet<object> seen)
+    {
+        if (value == null || !seen.Add(value)) yield break;
+        foreach (var field in value.GetType().GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
+        {
+            var owner = value;
+            var member = field.GetValue(owner);
+            if (member == null) continue;
+            if (member is ICultRecordRef reference)
+            {
+                if (Dangles(cache, reference))
+                    yield return new DanglingRef(field, reference.Key, () => field.SetValue(owner, Activator.CreateInstance(field.FieldType)));
+            }
+            else if (member is IDictionary dictionary)
+            {
+                foreach (var key in dictionary.Keys.Cast<object>().ToArray())
+                {
+                    if (key is ICultRecordRef keyRef && Dangles(cache, keyRef))
+                        yield return new DanglingRef(field, keyRef.Key, () => dictionary.Remove(key));
+                    else foreach (var nested in DanglingRefs(cache, key, seen)) yield return nested;
+                    if (dictionary.Contains(key))
+                        foreach (var nested in DanglingRefs(cache, dictionary[key], seen)) yield return nested;
+                }
+            }
+            else if (member is IList list && !(member is Array { Rank: > 1 }))
+            {
+                for (var i = 0; i < list.Count; i++)
+                {
+                    var index = i;
+                    if (list[i] is ICultRecordRef elementRef)
+                    {
+                        if (Dangles(cache, elementRef))
+                            yield return new DanglingRef(field, elementRef.Key, () => list[index] = Activator.CreateInstance(elementRef.GetType()));
+                    }
+                    else if (list[i] != null && IsSerializedObject(list[i].GetType()))
+                        foreach (var nested in DanglingRefs(cache, list[i], seen)) yield return nested;
+                }
+            }
+            else if (IsSerializedObject(member.GetType()))
+                foreach (var nested in DanglingRefs(cache, member, seen)) yield return nested;
+        }
+    }
+
+    private static string NameOf(object document) => document.GetType()
+        .GetFields(BindingFlags.Instance | BindingFlags.Public)
+        .FirstOrDefault(f => f.IsDefined(typeof(CultNameAttribute), true))?.GetValue(document) as string;
+
+    private static bool Dangles(CultCache cache, ICultRecordRef reference) =>
+        reference.Key.IsSet() && cache.Get(reference.Key) == null;
+
+    private static bool IsSerializedObject(Type type)
+    {
+        for (var t = type; t != null && t != typeof(object); t = t.BaseType)
+            if (t.IsDefined(typeof(MessagePack.MessagePackObjectAttribute), false) || t.IsDefined(typeof(MessagePack.UnionAttribute), false))
+                return true;
+        return false;
     }
 
     // Each faction's generation-critical links. Galaxy.GenerateNames dereferences the geoname file without a
