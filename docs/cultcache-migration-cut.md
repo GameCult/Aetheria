@@ -96,16 +96,26 @@ recorded, none blocking:
   on New Game or death.
 - `SavedRun`, the msgpack settings and layout I/O, `.loadout`, `SaveState`,
   `SaveZone` and the importer are deleted.
-- Loadouts are design-only. Materialize is the single owner of availability (a
-  port wired to `LoadoutGenerator.IsAvailable`, candidates in key order),
-  affordability and the charge, and it is all-or-nothing.
+- **Loadouts are authored ship presets in the catalog.** This was reworked
+  after the operator redefined loadouts; see Rulings.
+  - They are design-only.
+  - They are captured in the editor with `capturepreset "<name>" [replace]`.
+    Capture is a conditional commit that writes only that record onto the file
+    on disk, so play-mutated catalog objects never persist.
+  - Materialize owns availability (a port wired to `LoadoutGenerator.IsAvailable`,
+    candidates in key order) and is all-or-nothing.
+  - The player menus, affordability, the charge and `Price` are deleted.
+  - The editor opens the catalog writable. A missing catalog global stays loud
+    unless the writable catalog has no records.
 - `StableHash` replaces `Name.GetHashCode()`.
 - The schematic drawer is restored through `inspector.Record`.
 - `TryUnequip` now removes weapons from their groups. This was a live bug
   outside loadouts: an unequipped weapon still fired from the action bar.
 
-Verification: 22 tests, each new one failing under its mutation; captures
-byte-identical to Cut 9; Unity 6000.3.24f1 batchmode reports 0 errors.
+Verification at `ab4ced0f`:
+- 25 tests pass, and each rule fails under its mutation.
+- AetherDb captures are byte-identical to Cut 9.
+- Unity 6000.3.24f1 batchmode reports 0 errors.
 
 The first Soul pass found untested all-or-nothing, availability and price
 rules, weapon-group corruption, dictionary-ordered product choice, and a
@@ -121,22 +131,36 @@ history, so history is left alone.
 Awaiting:
 - the operator play smoke;
 - the Studio click-through, including the three AmmoType refs;
-- the second Soul pass on the fix batch.
+- the Soul pass on the preset rework (`db83cd29`, `0c44aacb`, `ab4ced0f`).
+
+Presets are not yet used by any spawner. The candidates are enemy ships
+(`ZoneGenerator.cs:309`) and the starting player ship
+(`ActionGameManager.StartGame`). Turrets and stations need a broader API than
+the Ship-only Materialize.
 
 Rulings (operator, 2026-09-14):
 - **Q9-1 A:** `InputLayout` is catalog state, imported by Cut 9.
-- **Q10-1:** loadouts stay, as player-store documents holding only item designs:
-  the hull's design, and a design ref, hull cell and rotation per slot. A design
-  names no manufacturer, and a ship build does not care who makes the parts.
-  Loadouts are materialized against the current galaxy at load, which keeps
-  them portable.
+- **Loadouts (supersedes Q10-1's player-store ruling and Q10-3's cost and
+  charge).** The operator said: "loadouts are not something we'll expose to
+  players in the MVP, but we'll be creating and using them to spawn ship
+  presets. Think variants in Mechwarrior."
+  - Loadouts are authored ship presets in the catalog. They are edited in the
+    Studio and captured by an editor command.
+  - They hold only item designs: the hull's design, plus a design ref, hull cell
+    and rotation per slot. No manufacturer is stored.
+  - Spawners materialize them against the current galaxy.
+  - The player menus and the credit charge are deleted.
+  - Hardpoint-configuration variants are a future direction.
+  - `docs/cultcache-migration-target.md` "Loadouts" is the durable owner.
+  - The Cut 10 spec text below that describes player-store loadouts, the Save
+    and Restore menus, `Price` and the charge is history, not live design.
 - **Q10-2 A:** the local `PlayerSettings.msgpack` is discarded, with no importer.
 - **Q10-3, all A.** Materialization:
   - uses `LoadoutGenerator.IsAvailable` for availability (the maker is present
     and allied with the docked station's faction);
-  - picks the first available product of each design;
-  - costs the sum of design prices;
-  - is all-or-nothing: on any failure, no ship, no charge, and every failing slot listed.
+  - picks the first available product of each design, in record-key order;
+  - is all-or-nothing: on any failure, no ship, and every failing slot is
+    listed. (The cost and charge parts were superseded; there is no charge.)
 - **Cut 9's six dangling refs, option B:**
   - Cut 10 clears the two `CompoundCommodityData.DemandProfile` keys, which
     point at the deleted Conscientiousness and Neuroticism
@@ -556,7 +580,7 @@ state.
 | Entity, Ship, OrbitalEntity, Zone, Galaxy | live simulation | not records | tags 14 and 20 deleted |
 | PlayerSettings | Player | `[CultGlobal]` | name, tutorial flag, credits |
 | InputLayout | Catalog | document keyed by layout name | authored keyboard geometry; player rebinds live in `PlayerSettings` (Q9-1 A); imported by Cut 9 from `GameData\KeyboardLayouts` |
-| Loadout | Player | document named by `[CultName]` | item designs only (a design ref per hull cell, no manufacturer); outlives runs (Q10-1) |
+| Loadout | Catalog | document named by `[CultName]`, key `loadout:<name>` | authored ship preset: item designs only (a design ref per hull cell, no manufacturer); captured in the editor, materialized by spawners |
 
 Save points at Aetheria `20db3a93` (`Gameplay\ActionGameManager.cs` unless noted):
 - **Player settings:** `SavePlayerSettings` (`:70-73`) writes
