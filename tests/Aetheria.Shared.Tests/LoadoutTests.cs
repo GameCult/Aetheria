@@ -246,10 +246,47 @@ public sealed class LoadoutTests : IDisposable
         Assert.Equal(new[] { "weapon group: no slot 2", "weapon group: no slot -1" }, failures);
     }
 
-    // Everything available, credits discarded: for tests about placement and failure lists.
+    [Fact]
+    public void OneCreditShortBuildsNothing()
+    {
+        using var cache = Open();
+        var items = new ItemManager(cache, RunSaveTests.TestSettings(), _ => { });
+        var hand = HandBuilt(cache);
+        var failures = new List<string>();
+        var credits = Loadouts.Price(items, hand) - 1;
+        Assert.Null(Loadouts.Materialize(items, null, hand, _ => true, ref credits, failures));
+        Assert.Equal(114, credits);
+        Assert.Equal("cannot afford 115 credits", Assert.Single(failures));
+    }
+
+    [Fact]
+    public void UnequippingAGroupedWeaponRemovesItFromItsGroups()
+    {
+        using var cache = AetheriaStores.Open(Catalog, catalogWritable: true);
+        var gun = new GearData { Name = "Gun", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Price = 1, Behaviors = { new InstantWeaponData() } };
+        cache.Commit(batch => batch.Upsert(typeof(GearData), gun, new CultRecordKey("gun")));
+        cache.Commit(batch => batch.Upsert(typeof(FactionProductData), new FactionProductData
+        {
+            Name = "Gun by Maker", Design = new CultRecordRef<CraftedItemData>(new CultRecordKey("gun")),
+            Manufacturer = cache.RefOf(cache.GetByName<Faction>("Maker"))
+        }, new CultRecordKey("gun-by-maker")));
+
+        var items = new ItemManager(cache, RunSaveTests.TestSettings(), _ => { });
+        var armed = HandBuilt(cache);
+        armed.Slots[0].Design = new CultRecordRef<EquippableItemData>(new CultRecordKey("gun"));
+        var ship = Build(items, armed, new List<string>());
+        var item = Assert.Single(ship.WeaponGroups[0].items);
+        Assert.NotNull(item.GetBehavior<Weapon>());
+
+        Assert.NotNull(ship.TryUnequip(item));
+        Assert.All(ship.WeaponGroups, group => Assert.Empty(group.items));
+        Assert.All(ship.WeaponGroups, group => Assert.Empty(group.weapons));
+    }
+
+    // Everything available and affordable: for tests about placement and failure lists.
     private static Ship Build(ItemManager items, Loadout loadout, List<string> failures)
     {
-        var credits = 0;
+        var credits = int.MaxValue;
         return Loadouts.Materialize(items, null, loadout, _ => true, ref credits, failures);
     }
 

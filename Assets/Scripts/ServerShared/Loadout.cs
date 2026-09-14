@@ -65,8 +65,8 @@ public static class Loadouts
         cache.Commit(batch => batch.Upsert(typeof(Loadout), loadout, key));
     }
 
-    // All-or-nothing: returns a ship and charges Price only when every design resolved, had an available product and
-    // fitted. Every failure is listed; on any failure nothing is returned, nothing is charged and nothing outside this
+    // All-or-nothing: returns a ship and charges Price only when credits cover Price and every design resolved, had an
+    // available product and fitted. Affordability is decided here and nowhere else. Every failure is listed; on any failure nothing is returned, nothing is charged and nothing outside this
     // call has changed. A design is built by its first available product in record-key order. The game passes
     // LoadoutGenerator.IsAvailable as isAvailable, with no fallback to any manufacturer.
     public static Ship Materialize(ItemManager itemManager, Zone liveZone, Loadout loadout,
@@ -94,6 +94,8 @@ public static class Loadouts
         var slotProducts = loadout.Slots.Select(slot => Resolve(slot.Design, Cell(slot))).ToArray();
         foreach (var index in (loadout.WeaponGroups ?? new int[0][]).SelectMany(group => group))
             if (index < 0 || index >= loadout.Slots.Count) failures.Add($"weapon group: no slot {index}");
+        var price = Price(itemManager, loadout);
+        if (credits < price) failures.Add($"cannot afford {price:n0} credits");
         if (failures.Count > reported) return null;
 
         var hull = (EquippableItem) itemManager.CreateInstance(hullProduct);
@@ -124,7 +126,7 @@ public static class Loadouts
                 return (items.Select(item => item.GetBehavior<Weapon>()).ToList(), items);
             })
             .ToArray();
-        credits -= Price(itemManager, loadout);
+        credits -= price;
         return ship;
     }
 

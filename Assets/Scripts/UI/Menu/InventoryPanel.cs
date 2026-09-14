@@ -189,7 +189,7 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
                         loadouts.Select<Loadout, (string text, Action action, bool enabled)>(loadout =>
                         {
                             var price = Loadouts.Price(GameManager.ItemManager, loadout);
-                            return ($"{loadout.Name} - {price:n0}", () => RestoreLoadout(loadout), price < GameManager.Credits);
+                            return ($"{loadout.Name} - {price:n0}", () => RestoreLoadout(loadout), true);
                         }));
                 }
 
