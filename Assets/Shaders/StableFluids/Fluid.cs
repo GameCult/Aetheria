@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using CultMath;
 using UnityEngine;
 using static CultMath.math;
+using int2 = CultMath.int2;
 using Random = UnityEngine.Random;
 
 public class Fluid : MonoBehaviour
