@@ -4,12 +4,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
 using MessagePack;
-using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;
 using Random = UnityEngine.Random;
-using static Unity.Mathematics.math;
+using static CultMath.math;
 
 public class Slime : MonoBehaviour
 {
