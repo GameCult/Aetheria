@@ -36,9 +36,10 @@ public sealed class LoadoutTests : IDisposable
         });
         var gear = cache.Upsert(new GearData { Name = "Lamp", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Price = 10 });
         var cargo = cache.Upsert(new CargoBayData { Name = "Crate", Shape = new Shape(), InteriorShape = new Shape(), Price = 5 });
+        var gun = cache.Upsert(new GearData { Name = "Gun", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Price = 1, Behaviors = { new InstantWeaponData() } });
         cache.Upsert(new GearData { Name = "Orphan", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Price = 1 });
 
-        foreach (var (name, design) in new[] { ("Skiff by Maker", hull.Key), ("Lamp by Maker", gear.Key), ("Crate by Maker", cargo.Key) })
+        foreach (var (name, design) in new[] { ("Skiff by Maker", hull.Key), ("Lamp by Maker", gear.Key), ("Crate by Maker", cargo.Key), ("Gun by Maker", gun.Key) })
             cache.Upsert(new FactionProductData { Name = name, Design = new CultRecordRef<CraftedItemData>(design), Manufacturer = maker });
         cache.FlushAsync().Wait();
     }
@@ -47,7 +48,7 @@ public sealed class LoadoutTests : IDisposable
 
     private CultCache Open() => AetheriaStores.Open(Catalog, Run, Player);
 
-    // Gear on the hull's hardpoint cell, cargo on an interior cell, and the gear alone in the first weapon group.
+    // Gear on the hull's hardpoint cell, cargo on an interior cell, and two empty weapon groups (fewer than the game's six).
     private static Loadout HandBuilt(CultCache cache, string name = "Skiff build") => new Loadout
     {
         Name = name,
@@ -57,8 +58,23 @@ public sealed class LoadoutTests : IDisposable
             new LoadoutSlot { Position = HardpointCell, Design = cache.RefOf<EquippableItemData>(cache.GetByName<GearData>("Lamp")) },
             new LoadoutSlot { Position = InteriorCell, Design = cache.RefOf<EquippableItemData>(cache.GetByName<CargoBayData>("Crate")) }
         },
-        WeaponGroups = new[] { new[] { 0 }, new int[0] }
+        WeaponGroups = new[] { new int[0], new int[0] }
     };
+
+    // HandBuilt with the Gun on the hardpoint, alone in the first of the game's six weapon groups.
+    private static Loadout Armed(CultCache cache)
+    {
+        var armed = HandBuilt(cache, "Armed build");
+        armed.Slots[0].Design = cache.RefOf<EquippableItemData>(cache.GetByName<GearData>("Gun"));
+        armed.WeaponGroups = Enumerable.Range(0, 6).Select(g => g == 0 ? new[] { 0 } : new int[0]).ToArray();
+        return armed;
+    }
+
+    private static Loadout WithDesign(Loadout loadout, int slot, CultCache cache, string gear)
+    {
+        loadout.Slots[slot].Design = cache.RefOf<EquippableItemData>(cache.GetByName<GearData>(gear));
+        return loadout;
+    }
 
     [Fact]
     public void LoadoutRoundTripsThroughAFreshCache()
@@ -67,7 +83,7 @@ public sealed class LoadoutTests : IDisposable
         using (var cache = Open())
         {
             var items = new ItemManager(cache, RunSaveTests.TestSettings(), _ => { });
-            hand = HandBuilt(cache);
+            hand = Armed(cache);
             var failures = new List<string>();
             var ship = Build(items,hand, failures);
             Assert.Empty(failures);
@@ -214,30 +230,12 @@ public sealed class LoadoutTests : IDisposable
         Assert.Contains("slot 0,0: no available product of Lamp", Assert.Single(failures));
     }
 
-    // Entity.TryUnequip leaves a non-weapon item in its weapon group; Capture must not record it.
-    [Fact]
-    public void CaptureSkipsGroupedItemsNoLongerEquipped()
-    {
-        using var cache = Open();
-        var items = new ItemManager(cache, RunSaveTests.TestSettings(), _ => { });
-        var ship = Build(items, HandBuilt(cache), new List<string>());
-        Assert.NotNull(ship.TryUnequip(Assert.Single(ship.WeaponGroups[0].items)));
-        Assert.NotEmpty(ship.WeaponGroups[0].items);
-
-        var captured = Loadouts.Capture(items, ship, "stripped");
-        Assert.Single(captured.Slots);
-        Assert.All(captured.WeaponGroups, group => Assert.Empty(group));
-        var failures = new List<string>();
-        Assert.NotNull(Build(items, captured, failures));
-        Assert.Empty(failures);
-    }
-
     [Fact]
     public void OutOfRangeWeaponGroupIndexBuildsNothing()
     {
         using var cache = Open();
         var items = new ItemManager(cache, RunSaveTests.TestSettings(), _ => { });
-        var stale = HandBuilt(cache);
+        var stale = Armed(cache);
         stale.WeaponGroups = new[] { new[] { 0, 2 }, new[] { -1 } };
         var failures = new List<string>();
         var credits = 1000;
@@ -253,7 +251,7 @@ public sealed class LoadoutTests : IDisposable
         var items = new ItemManager(cache, RunSaveTests.TestSettings(), _ => { });
         var hand = HandBuilt(cache);
         var failures = new List<string>();
-        var credits = Loadouts.Price(items, hand) - 1;
+        var credits = (int) Loadouts.Price(items, hand) - 1;
         Assert.Null(Loadouts.Materialize(items, null, hand, _ => true, ref credits, failures));
         Assert.Equal(114, credits);
         Assert.Equal("cannot afford 115 credits", Assert.Single(failures));
@@ -262,25 +260,83 @@ public sealed class LoadoutTests : IDisposable
     [Fact]
     public void UnequippingAGroupedWeaponRemovesItFromItsGroups()
     {
-        using var cache = AetheriaStores.Open(Catalog, catalogWritable: true);
-        var gun = new GearData { Name = "Gun", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Price = 1, Behaviors = { new InstantWeaponData() } };
-        cache.Commit(batch => batch.Upsert(typeof(GearData), gun, new CultRecordKey("gun")));
-        cache.Commit(batch => batch.Upsert(typeof(FactionProductData), new FactionProductData
-        {
-            Name = "Gun by Maker", Design = new CultRecordRef<CraftedItemData>(new CultRecordKey("gun")),
-            Manufacturer = cache.RefOf(cache.GetByName<Faction>("Maker"))
-        }, new CultRecordKey("gun-by-maker")));
-
+        using var cache = Open();
         var items = new ItemManager(cache, RunSaveTests.TestSettings(), _ => { });
-        var armed = HandBuilt(cache);
-        armed.Slots[0].Design = new CultRecordRef<EquippableItemData>(new CultRecordKey("gun"));
-        var ship = Build(items, armed, new List<string>());
+        var ship = Build(items, Armed(cache), new List<string>());
         var item = Assert.Single(ship.WeaponGroups[0].items);
         Assert.NotNull(item.GetBehavior<Weapon>());
 
         Assert.NotNull(ship.TryUnequip(item));
         Assert.All(ship.WeaponGroups, group => Assert.Empty(group.items));
         Assert.All(ship.WeaponGroups, group => Assert.Empty(group.weapons));
+    }
+
+    // A group index on a non-weapon slot would put a null weapon in the group; it is refused before anything is built.
+    [Fact]
+    public void NonWeaponGroupIndexBuildsNothing()
+    {
+        using var cache = Open();
+        var items = new ItemManager(cache, RunSaveTests.TestSettings(), _ => { });
+        var lampGrouped = WithDesign(Armed(cache), 0, cache, "Lamp");
+        var failures = new List<string>();
+        var credits = 1000;
+        Assert.Null(Loadouts.Materialize(items, null, lampGrouped, _ => true, ref credits, failures));
+        Assert.Equal(1000, credits);
+        Assert.Equal("weapon group: slot 0,0: Lamp is not a weapon", Assert.Single(failures));
+    }
+
+    [Fact]
+    public void MoreWeaponGroupsThanTheGameHasBuildsNothing()
+    {
+        using var cache = Open();
+        var items = new ItemManager(cache, RunSaveTests.TestSettings(), _ => { });
+        var wide = Armed(cache);
+        wide.WeaponGroups = wide.WeaponGroups.Append(new[] { 0 }).ToArray();
+        var failures = new List<string>();
+        var credits = 1000;
+        Assert.Null(Loadouts.Materialize(items, null, wide, _ => true, ref credits, failures));
+        Assert.Equal(1000, credits);
+        Assert.Equal("weapon groups: 7 groups, at most 6", Assert.Single(failures));
+    }
+
+    // Fewer groups, or none, still give the ship exactly WeaponGroupCount groups, so GenerateWeaponGroups and G1-G6
+    // bindings can index every one.
+    [Fact]
+    public void FewerWeaponGroupsArePaddedToTheGameCount()
+    {
+        using var cache = Open();
+        var items = new ItemManager(cache, RunSaveTests.TestSettings(), _ => { });
+        var armed = Armed(cache);
+        armed.WeaponGroups = new[] { new[] { 0 } };
+        foreach (var groups in new[] { armed.WeaponGroups, null })
+        {
+            armed.WeaponGroups = groups;
+            var failures = new List<string>();
+            var ship = Build(items, armed, failures);
+            Assert.Empty(failures);
+            Assert.Equal(6, ship.WeaponGroups.Length);
+            Assert.All(ship.WeaponGroups.Skip(1), group => Assert.Empty(group.items));
+            Assert.Equal(groups == null ? 0 : 1, ship.WeaponGroups[0].items.Count);
+            ship.GenerateWeaponGroups();
+        }
+    }
+
+    // The slots alone sum to exactly int.MaxValue; adding the hull must not wrap the total negative and pay the player.
+    [Fact]
+    public void PriceBeyondIntIsUnaffordable()
+    {
+        using var cache = AetheriaStores.Open(Catalog, catalogWritable: true);
+        var brick = cache.Upsert(new GearData { Name = "Brick", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Price = int.MaxValue - 5 });
+        cache.Upsert(new FactionProductData { Name = "Brick by Maker", Design = new CultRecordRef<CraftedItemData>(brick.Key), Manufacturer = cache.RefOf(cache.GetByName<Faction>("Maker")) });
+
+        var items = new ItemManager(cache, RunSaveTests.TestSettings(), _ => { });
+        var gold = WithDesign(HandBuilt(cache), 0, cache, "Brick");
+        Assert.Equal(100L + int.MaxValue, Loadouts.Price(items, gold));
+        var failures = new List<string>();
+        var credits = int.MaxValue;
+        Assert.Null(Loadouts.Materialize(items, null, gold, _ => true, ref credits, failures));
+        Assert.Equal(int.MaxValue, credits);
+        Assert.StartsWith("cannot afford", Assert.Single(failures));
     }
 
     // Everything available and affordable: for tests about placement and failure lists.

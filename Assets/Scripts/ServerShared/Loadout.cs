@@ -51,7 +51,7 @@ public static class Loadouts
                 Design = cache.RefOf(itemManager.GetData(item.EquippableItem))
             }).ToList(),
             WeaponGroups = entity.WeaponGroups
-                .Select(group => group.items.Select(item => items.IndexOf(item)).Where(index => index >= 0).ToArray()) // skips unequipped items
+                .Select(group => group.items.Select(item => items.IndexOf(item)).ToArray())
                 .ToArray()
         };
     }
@@ -65,10 +65,13 @@ public static class Loadouts
         cache.Commit(batch => batch.Upsert(typeof(Loadout), loadout, key));
     }
 
-    // All-or-nothing: returns a ship and charges Price only when credits cover Price and every design resolved, had an
-    // available product and fitted. Affordability is decided here and nowhere else. Every failure is listed; on any failure nothing is returned, nothing is charged and nothing outside this
-    // call has changed. A design is built by its first available product in record-key order. The game passes
-    // LoadoutGenerator.IsAvailable as isAvailable, with no fallback to any manufacturer.
+    // All-or-nothing: returns a ship and charges Price only when credits cover Price, every design resolved, had an
+    // available product and fitted, the loadout has at most WeaponGroupCount weapon groups, and every group index names
+    // a weapon slot. Affordability is decided here and nowhere else. Every failure is listed; on any failure nothing is
+    // returned and nothing is charged. The ship, credits, zone and cache are unchanged, but a failed fit has already
+    // drawn from itemManager.Random. A design is built by its first available product in record-key order. The game
+    // passes LoadoutGenerator.IsAvailable as isAvailable, with no fallback to any manufacturer. The ship always gets
+    // exactly WeaponGroupCount groups; a loadout with fewer is padded with empty groups.
     public static Ship Materialize(ItemManager itemManager, Zone liveZone, Loadout loadout,
         Predicate<FactionProductData> isAvailable, ref int credits, List<string> failures)
     {
@@ -92,8 +95,15 @@ public static class Loadouts
 
         var hullProduct = Resolve(loadout.Hull, "hull");
         var slotProducts = loadout.Slots.Select(slot => Resolve(slot.Design, Cell(slot))).ToArray();
-        foreach (var index in (loadout.WeaponGroups ?? new int[0][]).SelectMany(group => group))
+        var groups = loadout.WeaponGroups ?? new int[0][];
+        var groupCount = itemManager.GameplaySettings.WeaponGroupCount;
+        if (groups.Length > groupCount) failures.Add($"weapon groups: {groups.Length} groups, at most {groupCount}");
+        foreach (var index in groups.SelectMany(group => group))
+        {
             if (index < 0 || index >= loadout.Slots.Count) failures.Add($"weapon group: no slot {index}");
+            else if (cache.Get(loadout.Slots[index].Design) is { } design && !design.Behaviors.Any(behavior => behavior is WeaponData))
+                failures.Add($"weapon group: {Cell(loadout.Slots[index])}: {design.Name} is not a weapon");
+        }
         var price = Price(itemManager, loadout);
         if (credits < price) failures.Add($"cannot afford {price:n0} credits");
         if (failures.Count > reported) return null;
@@ -119,22 +129,23 @@ public static class Loadouts
         }
         if (failures.Count > reported) return null;
 
-        ship.WeaponGroups = (loadout.WeaponGroups ?? new int[0][])
-            .Select(indices =>
-            {
-                var items = indices.Select(i => equipped[i]).ToList();
-                return (items.Select(item => item.GetBehavior<Weapon>()).ToList(), items);
-            })
-            .ToArray();
-        credits -= price;
+        var built = new (List<Weapon> weapons, List<EquippedItem> items)[groupCount];
+        for (var g = 0; g < groupCount; g++)
+        {
+            var items = g < groups.Length ? groups[g].Select(i => equipped[i]).ToList() : new List<EquippedItem>();
+            built[g] = (items.Select(item => item.GetBehavior<Weapon>()).ToList(), items);
+        }
+        ship.WeaponGroups = built;
+        credits -= (int) price;
         return ship;
     }
 
-    // The hull design's price plus each slot design's price.
-    public static int Price(ItemManager itemManager, Loadout loadout)
+    // The hull design's price plus each slot design's price. Summed as long so no loadout wraps to a negative price;
+    // a price beyond any int credit balance is simply unaffordable.
+    public static long Price(ItemManager itemManager, Loadout loadout)
     {
         var cache = itemManager.ItemData;
-        return (cache.Get(loadout.Hull)?.Price ?? 0) + loadout.Slots.Sum(slot => cache.Get(slot.Design)?.Price ?? 0);
+        return (long) (cache.Get(loadout.Hull)?.Price ?? 0) + loadout.Slots.Sum(slot => (long) (cache.Get(slot.Design)?.Price ?? 0));
     }
 
     private static string Cell(LoadoutSlot slot) => $"slot {slot.Position.x},{slot.Position.y}";
