@@ -121,6 +121,21 @@ public sealed class AetheriaStoresTests : IDisposable
         using (AetheriaStores.Open(Catalog)) { }
     }
 
+    // Writability exempts only an empty seed catalog: a populated catalog missing a global is loud even when writable.
+    [Fact]
+    public void WritablePopulatedCatalogMissingGlobalIsLoud()
+    {
+        using (var cache = AetheriaStores.Open(Catalog, catalogWritable: true))
+        {
+            var global = cache.GetGlobal<TestCatalogGlobal>();
+            var key = cache.RefOf(global).Key;
+            Assert.True(cache.Commit(batch => batch.Remove(key)));
+        }
+
+        var error = Assert.Throws<InvalidOperationException>(() => AetheriaStores.Open(Catalog, catalogWritable: true));
+        Assert.Contains("aetheria.tests.catalogglobal", error.Message);
+    }
+
     private static string Hash(string path) => Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path)));
 
     private static string[] SchemaNames(string path)

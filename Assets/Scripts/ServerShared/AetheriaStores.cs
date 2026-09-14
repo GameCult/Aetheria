@@ -11,8 +11,8 @@ public static class AetheriaStores
     public static readonly Type[] PlayerTypes = { typeof(PlayerSettings) };
 
     // Attaches (hydrates) the catalog read-only unless catalogWritable, then the run and player stores when given.
-    // A read-only catalog throws when a [CultGlobal] type routed to it has no record. A writable catalog is being
-    // authored (the importer starts from an empty file), so it is not held to that.
+    // Throws when a [CultGlobal] type routed to the catalog has no record. The one exemption is a writable catalog with
+    // no records at all, a seed store being authored from nothing; a populated catalog is held to it however it opens.
     public static CultCache Open(string catalogPath, string runPath = null, string playerPath = null, bool catalogWritable = false)
     {
         var cache = new CultCache();
@@ -21,7 +21,9 @@ public static class AetheriaStores
             cache.AddBackingStore(new SingleFileMessagePackBackingStore(catalogPath, !catalogWritable), CatalogTypes);
             if (runPath != null) cache.AddBackingStore(new SingleFileMessagePackBackingStore(runPath), RunTypes);
             if (playerPath != null) cache.AddBackingStore(new SingleFileMessagePackBackingStore(playerPath), PlayerTypes);
-            var missing = catalogWritable ? null : cache.Registry.AllDescriptors.FirstOrDefault(descriptor =>
+            var seeding = catalogWritable && !cache.AllStoredDocuments.Any(stored =>
+                CatalogTypes.Any(home => home.IsAssignableFrom(stored.Descriptor.DocumentType)));
+            var missing = seeding ? null : cache.Registry.AllDescriptors.FirstOrDefault(descriptor =>
                 descriptor.IsGlobal &&
                 CatalogTypes.Any(home => home.IsAssignableFrom(descriptor.DocumentType)) &&
                 cache.AllStoredDocuments.All(stored => stored.Descriptor != descriptor));
