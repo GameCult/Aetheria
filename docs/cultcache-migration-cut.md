@@ -1369,6 +1369,34 @@ the behavior change.
   validation) lives in an engine-free model in CultLib core, and the editor's
   IMGUI Studio is a thin lowering of it. The runtime CultUI lowering is a
   follow-up outside this migration.
+- Soul, Cut 6 second pass (after CultLib `4716c30`, 148/148 tests, 7 mutations):
+  - **Held:** foldouts, drawer conflicts, multi-dimensional arrays, key refusal,
+    `New` and `Assets` rules, directory open creating nothing (its test fails
+    against the old store), deep copy-then-commit.
+  - **Defects, fixes dispatched:**
+    - A throwing drawer's in-place partial edit could be saved by a later change.
+    - IMGUI still decided refused-key handling, element-add choices and integer
+      narrowing.
+    - Keys equal by `Equals` but serialized differently (`0.0`/`-0.0`) passed
+      refusal and then threw in `Add`.
+    - Three model tests survived removal of their rules.
+    - A `new`-hidden member gave two candidates for one slot.
+    - The Studio README still described CultMath drawing.
+  - **Operator decisions (2026-09-14):**
+    - `CultCache.FlushAsync(soft)` is deleted, with Mimir's
+      `Mimir.CultMeshMedia` call edited in the same pass.
+    - A directory store read with no `.commit.lock` re-checks the manifest
+      generation and page addresses after loading and reloads on mismatch
+      (bounded, then throws); opening still creates nothing.
+    - The by-name reflection that remains on cache change objects in
+      `GameCult.Networking` (`CultNetDatabaseServer`,
+      `CultNetDatabaseSubscriptionServer`, `CultNetDocumentRegistry`,
+      `CultNetDatabase`) and `GameCult.Mesh` (`CultMesh.cs`) is a follow-up
+      outside this cache-only migration.
+    - The constructor-matching composite drawing
+      (`CultInspectorModel.Composite`) awaits the operator's judgment. It
+      rebuilds on edit and misplaces values when a constructor rewrites its
+      inputs (`rect(min, max)`).
 - Verification (operator decision 2026-09-14): the Studio assemblies compile in
   batchmode; the manual click-through happens in Aetheria after Cut 7 releases
   the packages and Cut 8 wires them in, against the tagged package rather than
