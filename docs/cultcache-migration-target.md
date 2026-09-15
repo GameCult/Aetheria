@@ -78,7 +78,8 @@ the cache and nothing else.
 ## Loadouts
 
 A loadout is an authored ship preset, a variant in the MechWarrior sense. Players
-do not see loadouts in the MVP. Spawners use them to build ships.
+do not see loadouts in the MVP. They are meant for spawners to build ships from; no game spawner calls
+`Loadouts.Materialize` yet.
 
 - **Content.** A loadout stores item designs only: the hull design, and for each
   hull cell a rotation and an `EquippableItemData` design. It names no

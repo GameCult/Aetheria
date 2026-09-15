@@ -165,7 +165,8 @@ Rulings (operator, 2026-09-14):
     Studio and captured by an editor command.
   - They hold only item designs: the hull's design, plus a design ref, hull cell
     and rotation per slot. No manufacturer is stored.
-  - Spawners materialize them against the current galaxy.
+  - `Loadouts.Materialize` builds them against the current galaxy; no game
+    spawner calls it yet.
   - The player menus and the credit charge are deleted.
   - Hardpoint-configuration variants are a future direction.
   - `docs/cultcache-migration-target.md` "Loadouts" is the durable owner.
@@ -597,7 +598,7 @@ state.
 | Entity, Ship, OrbitalEntity, Zone, Galaxy | live simulation | not records | tags 14 and 20 deleted |
 | PlayerSettings | Player | `[CultGlobal]` | name, tutorial flag, credits |
 | InputLayout | Catalog | document keyed by layout name | authored keyboard geometry; player rebinds live in `PlayerSettings` (Q9-1 A); imported by Cut 9 from `GameData\KeyboardLayouts` |
-| Loadout | Catalog | document named by `[CultName]`, key `loadout:<name>` | authored ship preset: item designs only (a design ref per hull cell, no manufacturer); captured in the editor, materialized by spawners |
+| Loadout | Catalog | document named by `[CultName]`, key `loadout:<name>` | authored ship preset: item designs only (a design ref per hull cell, no manufacturer); captured in the editor; `Loadouts.Materialize` builds them, and no spawner calls it yet |
 
 Save points at Aetheria `20db3a93` (`Gameplay\ActionGameManager.cs` unless noted):
 - **Player settings:** `SavePlayerSettings` (`:70-73`) writes
