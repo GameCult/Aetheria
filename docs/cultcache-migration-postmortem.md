@@ -283,7 +283,8 @@ question is what context was missing.
   versions already existed, so history was left alone.
 - **More than three tags in one push.** GitHub skipped the tag workflows, and no
   publish ran. `cultcache-py` 0.3.0 was re-pushed alone and reached PyPI. npm
-  stays held on `NPM_TOKEN`.
+  publication is parked by choice (CultLib QUIC map, Q5 C, 2026-09-16); no
+  `NPM_TOKEN` exists and none is planned for now.
 - **Stale incremental DLL.** `a9a2ba6` shipped a CultMath DLL from an incremental
   build that did not recompile. The release script now builds non-incrementally
   without Source Link. The native QUIC DLL got `/Brepro`.
@@ -354,5 +355,6 @@ These are applied to the Eureka skill and recorded in its changelog.
   - Hardpoint-configuration variants.
   - New Game clears the old run before generation succeeds.
   - `LookRotation` NaN is unpinned.
-- **Release:** npm `cultcache-ts` 0.14.0 is waiting on `NPM_TOKEN`. Unity
-  1.0.47 to 1.0.56 were never tagged.
+- **Release:** npm `cultcache-ts` 0.14.0 is tagged and unpublished by choice;
+  registry publication is a later pass. Unity 1.0.47 to 1.0.56 were never
+  tagged.

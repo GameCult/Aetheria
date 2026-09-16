@@ -38,9 +38,11 @@ commit out of the output, so the byte check passes after a commit. Tags on
 
 GitHub skips tag workflows when one push carries more than three tags, so no
 publish job ran. The operator ruled (2026-09-14) that only `cultcache-py` is
-re-pushed alone to publish to PyPI. npm is held until `NPM_TOKEN` is
-confirmed: there is no repo-level secret, and no `cultcache-ts` publish has
-ever run. The `cultcache-ts-v0.14.0` tag stays inert until then. Unity
+re-pushed alone to publish to PyPI. npm publication of `cultcache-ts` is
+parked by choice (operator, 2026-09-16, recorded as Q5 C in CultLib's
+`docs/typescript-quic-realtime-cut.md`): there is no repo-level `NPM_TOKEN`,
+no `cultcache-ts` publish has ever run, and the `cultcache-ts-v0.14.0` tag
+stays inert. Consumers use `file:` paths. Unity
 versions 1.0.47-1.0.56 were never tagged. Cut 8 is split into 8a (CultMath
 swap) and 8b (data model cutover), refreshed against Aetheria `59bc5753`.
 
