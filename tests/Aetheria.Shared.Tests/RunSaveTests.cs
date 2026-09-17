@@ -170,6 +170,40 @@ public sealed class RunSaveTests : IDisposable
         }
     }
 
+    // F4: RunSave.Commit must take GC roots from every committed zone, not only the first. Two zones, each with a
+    // different lot on its hull; both must survive.
+    [Fact]
+    public void CommitTakesRootsFromEveryZone()
+    {
+        using (var cache = Open())
+        {
+            var lots = new ProvenanceLedger { NextLot = 3 };
+            lots.Lots[1] = new Lot { Origin = new Attributed() };
+            lots.Lots[2] = new Lot { Origin = new Attributed() };
+
+            var zones = new[]
+            {
+                new SavedZone
+                {
+                    Name = "Zone 0", AdjacentZones = Array.Empty<int>(), Factions = Array.Empty<int>(), Owner = -1,
+                    Contents = new ZonePack { Entities = new List<EntityPack> { BarePack(hull: new EquippableItem { Lot = 1 }) } }
+                },
+                new SavedZone
+                {
+                    Name = "Zone 1", AdjacentZones = Array.Empty<int>(), Factions = Array.Empty<int>(), Owner = -1,
+                    Contents = new ZonePack { Entities = new List<EntityPack> { BarePack(hull: new EquippableItem { Lot = 2 }) } }
+                }
+            };
+            RunSave.Commit(cache, Game(cache), zones, lots);
+        }
+
+        using (var cache = Open())
+        {
+            var stored = RunSave.Lots(cache);
+            Assert.Equal(new[] { 1, 2 }, stored.Lots.Keys.OrderBy(k => k));
+        }
+    }
+
     [Fact]
     public void MissingLotIsLoud()
     {

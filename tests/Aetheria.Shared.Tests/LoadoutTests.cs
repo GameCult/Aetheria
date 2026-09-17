@@ -508,6 +508,117 @@ public sealed class LoadoutTests : IDisposable
         Assert.Equal(.2f, items.GetTier(secondInstance).tier.Quality, 3);
     }
 
+    // F4: GetPrice reads the lot's quality through GameplaySettings.QualityPriceModifier.
+    [Fact]
+    public void GetPriceReadsLotQuality()
+    {
+        using var cache = Open();
+        var settings = RunSaveTests.TestSettings();
+        settings.QualityPriceModifier = new ExponentialLerp { Minimum = 0, Maximum = 1, Exponent = 1 };
+        var items = new ItemManager(cache, new ProvenanceLedger(), settings, _ => { });
+        var lamp = cache.GetByName<GearData>("Lamp");
+        var lowLot = items.Lots.Add(new Lot { Design = cache.RefOf<ItemData>(lamp), Origin = new Attributed(), Quality = .2f, Roles = new List<RoleFill>() });
+        var highLot = items.Lots.Add(new Lot { Design = cache.RefOf<ItemData>(lamp), Origin = new Attributed(), Quality = .8f, Roles = new List<RoleFill>() });
+        var low = (EquippableItem) items.CreateInstance(lowLot);
+        var high = (EquippableItem) items.CreateInstance(highLot);
+        Assert.True(items.GetPrice(high) > items.GetPrice(low));
+    }
+
+    // F4: the durability exponent path in ItemManager.Evaluate reads the lot's quality (GameplaySettings.
+    // DurabilityQuality{Min,Max,Exponent}), independently of the quality-for-role term (zeroed here via
+    // QualityExponent 0).
+    [Fact]
+    public void EvaluateDurabilityExponentReadsLotQuality()
+    {
+        using var cache = AetheriaStores.Open(Catalog, catalogWritable: true);
+        var durable = cache.Upsert(new GearData { Name = "Durable", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Price = 10, Durability = 100 });
+        cache.FlushAsync().Wait();
+
+        var items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
+        var lowLot = items.Lots.Add(new Lot { Design = new CultRecordRef<ItemData>(durable.Key), Origin = new Attributed(), Quality = .1f, Roles = new List<RoleFill>() });
+        var highLot = items.Lots.Add(new Lot { Design = new CultRecordRef<ItemData>(durable.Key), Origin = new Attributed(), Quality = .9f, Roles = new List<RoleFill>() });
+        var low = (EquippableItem) items.CreateInstance(lowLot);
+        var high = (EquippableItem) items.CreateInstance(highLot);
+        low.Durability = items.GetData(low).Durability / 2;
+        high.Durability = items.GetData(high).Durability / 2;
+
+        var stat = new PerformanceStat { Min = 0, Max = 1, QualityExponent = 0, DurabilityExponentMultiplier = 1 };
+        Assert.NotEqual(items.Evaluate(stat, low), items.Evaluate(stat, high));
+    }
+
+    // F4: EquippedItem's thermal exponent (Entity.cs's EquippedItem constructor) reads the lot's quality
+    // (GameplaySettings.ThermalQuality{Min,Max,Exponent}), through a real equip on a live entity.
+    [Fact]
+    public void EquippedItemThermalExponentReadsLotQuality()
+    {
+        using var cache = Open();
+        var items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
+        var maker = cache.RefOf(cache.GetByName<Faction>("Maker"));
+        var hullData = cache.GetByName<HullData>("Skiff");
+        var lampData = cache.GetByName<GearData>("Lamp");
+
+        // TestSettings has one tier, so materializing through a Loadout always rolls the same quality; mint the
+        // gear's lot directly at a chosen quality and equip it onto a bare ship instead.
+        Ship BuildWithGearQuality(float quality)
+        {
+            var hullItem = (EquippableItem) items.CreateInstance(items.CreateLot(hullData, maker, .5f));
+            var ship = new Ship(items, null, hullItem, new EntitySettings());
+            var gearItem = (EquippableItem) items.CreateInstance(items.CreateLot(lampData, maker, quality));
+            Assert.True(ship.TryEquip(gearItem, HardpointCell));
+            return ship;
+        }
+
+        var lowEquipped = BuildWithGearQuality(.1f).Equipment.Single(e => e.Data is GearData);
+        var highEquipped = BuildWithGearQuality(.9f).Equipment.Single(e => e.Data is GearData);
+        Assert.NotEqual(lowEquipped.ThermalExponent, highEquipped.ThermalExponent);
+    }
+
+    // F4: CreateLot(product) fills each of the design's roles from the product's own per-role spread
+    // (FactionProductData.Roles), not the design-wide default.
+    [Fact]
+    public void CreateLotFillsRolesFromProductSpread()
+    {
+        using var cache = AetheriaStores.Open(Catalog, catalogWritable: true);
+        var maker = cache.RefOf(cache.GetByName<Faction>("Maker"));
+        var lensGear = cache.Upsert(new GearData
+        {
+            Name = "Lensed", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Price = 10,
+            Roles = { new ItemRole { Name = "lens" } }
+        });
+        cache.Upsert(new FactionProductData
+        {
+            Name = "Lensed by Maker", Design = new CultRecordRef<CraftedItemData>(lensGear.Key), Manufacturer = maker,
+            Roles = { new ProductRole { Role = "lens", Mean = .9f, StandardDeviation = 0 } }
+        });
+        cache.FlushAsync().Wait();
+
+        var product = cache.GetAll<FactionProductData>().Single(p => p.Name == "Lensed by Maker");
+        var items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
+        var lotId = items.CreateLot(product);
+        var roleFill = items.Lots[lotId].Roles.Single(r => r.Role == "lens");
+        Assert.Equal(.9f, roleFill.Quality, 3);
+    }
+
+    // F4: Brand reads the maker faction off a Produced origin, not only Attributed.
+    [Fact]
+    public void BrandReadsProducedFaction()
+    {
+        using var cache = Open();
+        var maker = cache.RefOf(cache.GetByName<Faction>("Maker"));
+        var items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
+        var lamp = cache.GetByName<GearData>("Lamp");
+        var lotId = items.Lots.Add(new Lot
+        {
+            Design = cache.RefOf<ItemData>(lamp),
+            Origin = new Produced { Faction = maker, Station = 1, Facility = 2, Inputs = Array.Empty<int>() },
+            Quality = .5f, Roles = new List<RoleFill>()
+        });
+        var instance = (EquippableItem) items.CreateInstance(lotId);
+        var (brandMaker, _) = items.Brand(instance);
+        Assert.NotNull(brandMaker);
+        Assert.Equal(maker.Key, cache.RefOf(brandMaker).Key);
+    }
+
     [Fact]
     public void OutOfRangeWeaponGroupIndexBuildsNothing()
     {
