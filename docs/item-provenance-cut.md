@@ -16,7 +16,23 @@ Progress (Self updates this in each cut's landing commit):
     for the batchmode compile.
   - Temperature and Armor now restore unconditionally. That is safe, because
     `Entity.MapEntity` initializes both before `Pack`.
-- Cut B is next.
+- **Cut B landed** at `415f8e11`, `76c331e9` and `1e647953`. Soul's findings, awaiting a fix batch:
+  - **F1, critical and pre-existing (also on `codex/cultcache-cutover`):** no run store
+    holding an entity can be reopened.
+    - Cause: `EntityPack.PersistedBehaviors` (`EntitySerializer.cs:200`) is keyed by
+      `int2`, and `CultMessagePackSecurity` has no hash-resistant comparer for it.
+    - Effect: after the first save, `AetheriaStores.Open` throws before the main menu.
+    - It is the only failing key type among the persisted types.
+    - The fix shape is an operator fork.
+  - **F2:** the reachability test reads through `EntitySerializer.Items`, so dropping the
+    Equipment, CargoBays, DockingBays or CargoContents roots survives.
+  - **F3:** the single-tier fixture cannot fail `GetTier` or a re-roll on mint.
+  - **F4:** `GetPrice`, the durability and thermal exponents, role fills, a `Produced`
+    brand, and first-zone-only roots have no tests.
+  - **F5:** `tests/mutation_tests.py` anchors assume LF, and it counts compile errors as
+    kills.
+  - **F6:** a stale `SavedGame.cs:124` comment.
+  - With F1 bypassed in scratch, all 34 tests pass.
 
 - Repo: `F:\Projects\Aetheria`, branch `codex/cultcache-cutover`, anchors against HEAD
   `b0df689d`. Commits since the substrate map (`dbe1dd83`) touch only the three docs, and
