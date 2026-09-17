@@ -108,6 +108,13 @@ segmentation appropriate to the production quality achievable at that station."
   flavour. Fixing it is a content pass: dry functional text on designs, manufacturer
   voice on products, agent-drafted and operator-reviewed, written through the catalog's
   own types.
+- **Names follow the same split.** A product's name is the manufacturer's brand name; a
+  design's name is a dry functional one. Operator, on Arctica: "Arctica is Alakrita
+  branding, by the name I presume they're optimizing for heat efficiency with this release,
+  but it's just another laser, eh?" So the panel titles an item with its product name when
+  provenance resolves one and shows the design name as what the item is. Catalog designs
+  currently carry brand names (the design itself is named Arctica); the content pass renames
+  them.
 
 ## Not in scope
 
