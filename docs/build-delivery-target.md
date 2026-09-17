@@ -41,8 +41,11 @@ artifact: Idunn deploys services to Yggdrasil, not files.
 - **State is CultCache, not JSON** (`F:\Projects\CLAUDE.md`). The release
   record and the changelog are typed documents. Anything a browser eats is a
   projection at the xenos boundary, and is derived, never authored.
-- **Idunn owns deployment to Yggdrasil.** Publishing does not invent a second
-  deployment authority, and does not require Idunn to be up in order to build.
+- **Idunn owns *service* deployment to Yggdrasil**, and only that. Probed
+  2026-09-17 (`docs/build-delivery-cut.md`): every Idunn unit is a supervised
+  process that must publish signed health, and Idunn pulls rather than pushes, so
+  it cannot carry a file artifact. Publishing uses the host's existing static-file
+  path and does not invent a second *service* deployment authority.
 - **The site's brand is the site's** (`F:\Projects\gamecult-site`), and the
   download and changelog pages follow it.
 - **The build host is Windows.** Unity 6000.3.24f1 builds on Starfire; the
