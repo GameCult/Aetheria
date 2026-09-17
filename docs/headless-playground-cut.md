@@ -750,6 +750,10 @@ every hit rule has one owner.
 **Cut 2 forks**, ranked by what they block:
 
 **F. When a shot resolves.** Blocks the `FireControl` API and the tests.
+
+**Ruled (c) (operator, 2026-09-17: "I like c"):** the shot resolves on arrival, and its hit
+chance falls with how far the target deviated from the predicted intercept.
+
 - The scope doc says projectiles "resolve on arrival against how far the target
   deviated". The ruling names only weapon, targeting and sensor inputs, and does not
   settle this either way.
