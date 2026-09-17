@@ -46,7 +46,13 @@ Progress (Self updates this in each cut's landing commit):
     - 42 of 42 tests pass.
     - The mutation script ran on CRLF: the control stayed green and 16 of 16 mutants were
       killed.
-    - The Soul pass on the batch is pending.
+    - **Soul passed the batch.**
+      - A real-catalog probe reopened a committed run holding 46 generated instances.
+      - Every persisted dictionary key is now `int` or `CultRecordRef`.
+      - All seven GC-root mutants are killed, and 42 of 42 tests pass in a clean worktree.
+    - **Follow-up (low):** one run of `mutation_tests.py` reported a transient `ERROR` on
+      its last mutant, and a rerun was clean. Treat an `ERROR` as inconclusive and rerun.
+      Record it again if it recurs.
   - **Open, found while fixing F1:** nothing implements `IPersistentBehavior`, so
     `PersistedBehaviors` has no production writer or reader. To exercise the wire
     shape, Hands added a `MarkerPersistentBehaviorData` union case. That is a production
