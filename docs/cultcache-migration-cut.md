@@ -145,8 +145,15 @@ spec says, so a generation fault loses that run.
 defaults and the username, and about 65 earlier versions are already in LFS
 history, so history is left alone.
 
-Awaiting:
-- the operator play smoke;
+The operator play smoke passed (2026-09-17) and both branches merged to master at
+`9b85211f`: new game, combat, loot, save and Continue with lot brand and quality intact,
+death clearing the run across relaunch, stance toggle, `FieldShieldTest`. It found one
+migration defect: CultMath types are not Unity-serializable, so Unity-serialized CultMath
+fields load as zero. Mouse sensitivity (lost look control) moved to `PlayerSettings` in
+`00ebe46a`; the rest, including the black rarity colours, is `docs/settings-globals-cut.md`.
+Scene materials are broken by the dead Substance plugin, not by this migration.
+
+History, before the smoke:
 - nothing else from agents. The preset rework's Soul findings were fixed in
   `d503f076`, `d90a65a9` and `20f0f3d7`: 29 tests, 18 of 19 mutations caught
   (the survivor is the one noted above), and Unity batchmode reports 0 errors.
@@ -271,7 +278,6 @@ Recorded follow-ups, outside 8a:
 - **`asuint` is untested on signaling-NaN payloads.**
 
 Open:
-- The operator play smoke.
 - Whether the `CultLib-delvehold-isosurface` worktree carries the iso-surface
   zero-normal code that 0.2.2 guards.
 
