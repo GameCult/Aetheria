@@ -32,33 +32,10 @@ public abstract class ItemInstance
  JsonObject(MemberSerialization.OptIn)]
 public abstract class CraftedItemInstance : ItemInstance
 {
-    // The workmanship of this particular unit, as distinct from the parts that went into it.
-    [JsonProperty("quality"), Key(2)]  public float Quality;
+    // Keys 2 (Quality), 9 (Ingredients) and 10 (Product) belonged to fields moved to Lot; do not reuse them.
 
-    // How good the part filling each of the design's roles turned out. Empty on items made before roles
-    // existed; stats then read Quality as they always did.
-    [JsonProperty("ingredients"), Key(9)]  public List<RoleFill> Ingredients = new List<RoleFill>();
-
-    // The manufacturer's branded product this was built as, naming it and carrying its flavor text.
-    [JsonProperty("product"), Key(10)]  public CultRecordRef<FactionProductData> Product;
-
-    // The quality a stat reads for one of the design's roles. An unnamed role, a design without roles, and an
-    // item built before roles existed all fall back to this item's own workmanship.
-    public float QualityForRole(string role)
-    {
-        if (string.IsNullOrEmpty(role) || Ingredients == null) return Quality;
-        foreach (var fill in Ingredients)
-            if (fill.Role == role) return fill.Quality;
-        return Quality;
-    }
-}
-
-// One filled slot: the design's role name and how good the part that went into it turned out to be.
-[MessagePackObject, JsonObject(MemberSerialization.OptIn)]
-public class RoleFill
-{
-    [JsonProperty("role"), Key(0)]  public string Role;
-    [JsonProperty("quality"), Key(1)]  public float Quality;
+    // The lot this unit was minted from: its design, provenance, workmanship and role fills all live there.
+    [JsonProperty("lot"), Key(11)] public int Lot;
 }
 
 [MessagePackObject, JsonObject(MemberSerialization.OptIn)]

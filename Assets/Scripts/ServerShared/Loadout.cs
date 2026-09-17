@@ -91,7 +91,8 @@ public static class Loadouts
     // any failure nothing is returned and the zone and cache are unchanged, but a failed fit has already drawn from
     // itemManager.Random. A design is built by its first available product in record-key order. A game spawner is to
     // pass LoadoutGenerator.IsAvailable as isAvailable, with no fallback to any manufacturer. The ship always gets
-    // exactly WeaponGroupCount groups; a loadout with fewer is padded with empty groups.
+    // exactly WeaponGroupCount groups; a loadout with fewer is padded with empty groups. A failed materialization
+    // leaves any minted lots in the live ledger; they are not roots, so the next commit drops them.
     public static Ship Materialize(ItemManager itemManager, Zone liveZone, Loadout loadout,
         Predicate<FactionProductData> isAvailable, List<string> failures)
     {

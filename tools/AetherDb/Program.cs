@@ -70,6 +70,22 @@ public static class Program
             Console.WriteLine($"  {product.Name,-28} by {db.Cache.Get(product.Manufacturer)?.ShortName ?? "(none)",-12} " +
                 string.Join(", ", product.Roles.Select(r => $"{r.Role} {r.Mean:0.00}±{r.StandardDeviation:0.00}")));
         if (authored.Length == 0) Console.WriteLine("  none yet: add roles to a design, then set each product's means");
+
+        // Brand() picks the first (maker, design) product in record-key order; more than one means the choice is
+        // arbitrary rather than authored, which the rule until segment bands exist forbids.
+        var duplicateBrands = products
+            .Where(p => p.Manufacturer.IsSet())
+            .GroupBy(p => (Maker: p.Manufacturer.Key, Design: p.Design.Key))
+            .Where(g => g.Count() > 1)
+            .ToArray();
+        Console.WriteLine($"\n{duplicateBrands.Length} (maker, design) pairs with more than one product:");
+        foreach (var group in duplicateBrands)
+        {
+            var maker = db.Cache.Get<Faction>(group.Key.Maker);
+            var design = db.Cache.Get<CraftedItemData>(group.Key.Design);
+            Console.WriteLine($"  {maker?.ShortName ?? "(unknown)"} / {design?.Name ?? group.Key.Design.Value}: " +
+                string.Join(", ", group.Select(p => p.Name)));
+        }
         return 0;
     }
 
@@ -359,6 +375,7 @@ public static class Program
 
         Console.WriteLine($"{run.Zones.Length} zones, current zone {run.CurrentZone}\n");
         var suspect = 0;
+        var crafted = new List<CraftedItemInstance>();
         for (var i = 0; i < run.Zones.Length; i++)
         {
             var zone = db.Cache.Get(run.Zones[i]);
@@ -370,11 +387,25 @@ public static class Program
                 : "(none)";
             var packedEmpty = zone.Contents.Orbits.Count > 0 && stations == 0;
             if (packedEmpty) suspect++;
+            crafted.AddRange(zone.Contents.Entities.SelectMany(EntitySerializer.Items).OfType<CraftedItemInstance>());
             Console.WriteLine($"  [{i,3}] {zone.Name,-18} owner {owner,-12} orbits {zone.Contents.Orbits.Count,3}  " +
                 $"stations {stations,2}  ships {ships,2}{(packedEmpty ? "   <- packed with orbits but no stations" : "")}");
         }
 
         Console.WriteLine($"\n{suspect} visited zones packed with orbits but no stations");
+
+        // The only headless check of a real played save: does every crafted instance still resolve its lot, and
+        // does its Data still equal the lot's Design (the one invariant CreateInstance(int) is meant to hold)?
+        var lots = RunSave.Lots(db.Cache);
+        var absent = 0;
+        var mismatched = 0;
+        foreach (var item in crafted)
+        {
+            if (!lots.Lots.TryGetValue(item.Lot, out var lot)) { absent++; continue; }
+            if (!lot.Design.Key.Equals(item.Data.Key)) mismatched++;
+        }
+        Console.WriteLine($"\n{lots.Lots.Count} lots, {crafted.Count} crafted instances, " +
+            $"{absent} instances whose lot is absent, {mismatched} instances whose Data differs from Lot.Design");
         return 0;
     }
 
@@ -392,7 +423,7 @@ public static class Program
             QualityPriceModifier = new ExponentialLerp()
         };
         var log = new List<string>();
-        var itemManager = new ItemManager(db.Cache, settings, log.Add);
+        var itemManager = new ItemManager(db.Cache, new ProvenanceLedger(), settings, log.Add);
         var failures = 0;
 
         foreach (var hull in db.Cache.GetAll<HullData>().OrderBy(h => h.HullType).ThenBy(h => h.Name))

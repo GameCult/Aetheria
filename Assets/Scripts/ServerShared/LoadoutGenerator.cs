@@ -215,9 +215,10 @@ public class LoadoutGenerator
                 if (entry.design == null) ItemManager.Log($"No compatible item found for entity {Enum.GetName(typeof(HardpointType), hardpoint.Type)} hardpoint!");
                 else
                 {
-                    var item = ItemManager.CreateInstance(entry.product) as EquippableItem;
-                    // Matching hardpoints carry matching units: the same brand, workmanship, and parts
-                    if (previousItem != null) CopyBuild(previousItem.EquippableItem, item);
+                    // Matching hardpoints carry matching units: same lot
+                    var item = (previousItem != null
+                        ? ItemManager.CreateInstance(previousItem.EquippableItem.Lot)
+                        : ItemManager.CreateInstance(entry.product)) as EquippableItem;
                     if (!entity.TryEquip(item))
                     {
                         throw new InvalidLoadoutException($"Failed to equip selected {Enum.GetName(typeof(HardpointType), hardpoint.Type)}!");
@@ -259,14 +260,6 @@ public class LoadoutGenerator
             throw new InvalidLoadoutException("Failed to equip selected capacitor!");
     }
 
-    // A second unit off the same line: same workmanship and the same parts, not a fresh roll.
-    private static void CopyBuild(CraftedItemInstance from, CraftedItemInstance to)
-    {
-        to.Quality = from.Quality;
-        to.Ingredients = from.Ingredients?
-            .Select(fill => new RoleFill { Role = fill.Role, Quality = fill.Quality })
-            .ToList() ?? new List<RoleFill>();
-    }
 }
 
 public class InvalidLoadoutException : Exception

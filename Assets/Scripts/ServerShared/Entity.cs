@@ -1051,6 +1051,7 @@ public class ConsumableItemEffect
     public Entity Entity { get; }
     public ConsumableItem Item { get; }
     public ConsumableItemData Data { get; }
+    public Lot Lot { get; }
     public Behavior[] Behaviors { get; }
 
     public ConsumableItemEffect(ConsumableItem item, Entity entity)
@@ -1058,6 +1059,7 @@ public class ConsumableItemEffect
         Item = item;
         Entity = entity;
         Data = (ConsumableItemData) entity.ItemManager.GetData(item);
+        Lot = entity.ItemManager.GetLot(item);
         RemainingDuration = Data.Duration;
 
         Behaviors = Data.Behaviors
@@ -1082,7 +1084,7 @@ public class ConsumableItemEffect
     public float Evaluate(PerformanceStat stat)
     {
         var effectiveness = Data.Effectiveness.Evaluate((Data.Duration - RemainingDuration) / Data.Duration);
-        var quality = pow(Item.QualityForRole(stat.FromRole), stat.QualityExponent);
+        var quality = pow(Lot.QualityForRole(stat.FromRole), stat.QualityExponent);
 
         var result = lerp(stat.Min, stat.Max, effectiveness * quality);
         
@@ -1113,6 +1115,7 @@ public class EquippedItem
     public Shape InsetShape { get; }
     public Entity Entity { get; }
     public EquippableItemData Data { get; }
+    public Lot Lot { get; }
 
     public ReactiveProperty<bool> ThermalOnline { get; } = new ReactiveProperty<bool>(false);
     public ReactiveProperty<bool> DurabilityOnline { get; } = new ReactiveProperty<bool>(false);
@@ -1213,16 +1216,17 @@ public class EquippedItem
         Data = ItemManager.GetData(item);
         Entity = entity;
         EquippableItem = item;
+        Lot = ItemManager.GetLot(item);
         Position = position;
         Conductivity = Data.Conductivity;
         ThermalExponent = lerp(
             ItemManager.GameplaySettings.ThermalQualityMin,
             ItemManager.GameplaySettings.ThermalQualityMax,
-            pow(item.Quality, ItemManager.GameplaySettings.ThermalQualityExponent));
+            pow(Lot.Quality, ItemManager.GameplaySettings.ThermalQualityExponent));
         DurabilityExponent = lerp(
             ItemManager.GameplaySettings.DurabilityQualityMin,
             ItemManager.GameplaySettings.DurabilityQualityMax,
-            pow(item.Quality, ItemManager.GameplaySettings.DurabilityQualityExponent));
+            pow(Lot.Quality, ItemManager.GameplaySettings.DurabilityQualityExponent));
         var hullData = itemManager.GetData(entity.Hull);
         InsetShape = hullData.Shape.Inset(Data.Shape, position, item.Rotation);
         if (Entity.Temperature != null) oldTemperature = Temperature;
@@ -1258,7 +1262,7 @@ public class EquippedItem
     {
         var heat = pow(ThermalPerformance, ThermalExponent * stat.HeatExponentMultiplier);
         var durability = pow(DurabilityPerformance, DurabilityExponent * stat.DurabilityExponentMultiplier);
-        var quality = pow(EquippableItem.QualityForRole(stat.FromRole), stat.QualityExponent);
+        var quality = pow(Lot.QualityForRole(stat.FromRole), stat.QualityExponent);
 
         var scaleModifier = 1.0f;
         var scaleModifiers = stat.GetScaleModifiers(Entity).Values;
@@ -1287,7 +1291,7 @@ public class EquippedItem
         DurabilityPerformance = EquippableItem.Durability / Data.Durability;
         var performanceThreshold = Entity.Settings.ShutdownPerformance;
         Wear = (1 - pow(ThermalPerformance,
-                (1 - pow(EquippableItem.Quality, ItemManager.GameplaySettings.QualityWearExponent)) *
+                (1 - pow(Lot.Quality, ItemManager.GameplaySettings.QualityWearExponent)) *
                 ItemManager.GameplaySettings.ThermalWearExponent) +
                 deltaTemp * ItemManager.GameplaySettings.DeltaTempWearExponent            
             ) * Data.Durability / Data.ThermalResilience;

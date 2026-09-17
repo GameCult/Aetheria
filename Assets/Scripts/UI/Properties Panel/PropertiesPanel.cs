@@ -368,8 +368,18 @@ public class PropertiesPanel : MonoBehaviour
 			AddProperty("Quantity", () => simpleCommodity.Quantity.ToString());
 		
 		var sheet = AddStatSheet();
-		var manufacturer = ActionGameManager.CultCache.Get<Faction>(data.Manufacturer);
-		sheet.AddStat("Manufacturer", () => manufacturer?.Name ?? "GameCult");
+		// Branding is derived from provenance, not stored on the design; a SimpleCommodity carries no lot and shows none.
+		if (item is CraftedItemInstance crafted)
+		{
+			var (maker, product) = GameManager.ItemManager.Brand(crafted);
+			if (maker != null)
+				sheet.AddStat("Manufacturer", () => maker.Name);
+			if (product != null)
+			{
+				AddProperty(product.Name);
+				AddProperty(product.Description);
+			}
+		}
 		sheet.AddStat("Mass", () => ActionGameManager.PlayerSettings.Format(GameManager.ItemManager.GetMass(item)));
 		
 		//AddProperty("Thermal Mass", () => Context.GetThermalMass(item).SignificantDigits(Context.GameplaySettings.SignificantDigits));

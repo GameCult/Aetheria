@@ -49,7 +49,8 @@ public class SavedGame
     public FactionRelationship[] Relationships;
 }
 
-// The run's lifecycle over the run store. Only Commit creates SavedGame and SavedZone records.
+// The run's lifecycle over the run store. Only Commit creates SavedGame, SavedZone and ProvenanceLedger records;
+// the ledger is the fifth run record.
 public static class RunSave
 {
     // The live run as plain documents. Writes nothing.
@@ -90,10 +91,14 @@ public static class RunSave
         return (game, zones);
     }
 
+    // The stored ledger, or a fresh empty one when the run has minted nothing yet.
+    public static ProvenanceLedger Lots(CultCache cache) => cache.GetGlobal<ProvenanceLedger>() ?? new ProvenanceLedger();
+
     // The only writer of SavedGame and SavedZone: one Commit to the run store. Zone i lands at savedzone-{i}, stable
     // because a run's zone array is fixed at generation, and every stored SavedZone outside that set is removed. The
     // run store's single-file commit writes its whole view, so orbits and bodies staged by zone generation land too.
-    public static void Commit(CultCache cache, SavedGame game, IReadOnlyList<SavedZone> zones)
+    // The ledger lands too, pruned to what the committed zones' entities still reach; the live ledger is untouched.
+    public static void Commit(CultCache cache, SavedGame game, IReadOnlyList<SavedZone> zones, ProvenanceLedger lots)
     {
         var keys = zones.Select((_, i) => new CultRecordKey($"savedzone-{i}")).ToArray();
         var kept = new HashSet<CultRecordKey>(keys);
@@ -102,10 +107,16 @@ public static class RunSave
             .Select(stored => stored.Key)
             .ToArray();
         game.Zones = keys.Select(key => new CultRecordRef<SavedZone>(key)).ToArray();
+        var roots = zones
+            .SelectMany(zone => zone.Contents?.Entities ?? new List<EntityPack>())
+            .SelectMany(EntitySerializer.Items)
+            .OfType<CraftedItemInstance>()
+            .Select(item => item.Lot);
         cache.Commit(batch =>
         {
             for (var i = 0; i < keys.Length; i++) batch.Upsert(typeof(SavedZone), zones[i], keys[i]);
             batch.Upsert(game);
+            batch.Upsert(lots.Reachable(roots));
             foreach (var key in stale) batch.Remove(key);
         });
     }

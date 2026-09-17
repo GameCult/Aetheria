@@ -244,7 +244,7 @@ public class ActionGameManager : MonoBehaviour
         {
             var (game, zones) = RunSave.Capture(CultCache, CurrentGalaxy, Zone, DockedEntity ?? CurrentEntity, IsTutorial,
                 _actionBarSlots.Select(s => s.Save()).ToArray());
-            RunSave.Commit(CultCache, game, zones);
+            RunSave.Commit(CultCache, game, zones, ItemManager.Lots);
         }
     }
 
@@ -261,7 +261,7 @@ public class ActionGameManager : MonoBehaviour
         EntityInstance.EffectManagerParent = EffectManagerParent;
         ConsoleController.MessageReceiver = this;
         
-        ItemManager = new ItemManager(CultCache, Settings.GameplaySettings, Debug.Log);
+        ItemManager = new ItemManager(CultCache, RunSave.Lots(CultCache), Settings.GameplaySettings, Debug.Log);
         ZoneRenderer.ItemManager = ItemManager;
         
         // If hiding minimap asteroids, turn them off to start with
@@ -496,7 +496,7 @@ public class ActionGameManager : MonoBehaviour
                     .FirstOrDefault(itemData => string.Equals(itemData.Name, itemName, StringComparison.InvariantCultureIgnoreCase));
                 if (item != null)
                 {
-                    _currentEntity.CargoBays.First().TryStore(ItemManager.CreateInstance(item, .95f));
+                    _currentEntity.CargoBays.First().TryStore(ItemManager.CreateInstance(ItemManager.CreateLot(item, default, .95f)));
                 }
             });
         

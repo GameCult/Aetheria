@@ -145,6 +145,22 @@ public static class EntitySerializer
             return (items.Select(i => i.GetBehavior<Weapon>()).ToList(), items.ToList());
         }).ToArray();
     }
+
+    // Every item instance an entity pack carries, recursively through its children: hull, equipment, cargo and
+    // docking bay units, and their stored contents. The provenance ledger's GC root walk.
+    public static IEnumerable<ItemInstance> Items(EntityPack pack)
+    {
+        yield return pack.Hull;
+        foreach (var (_, item) in pack.Equipment) yield return item;
+        foreach (var (_, item) in pack.CargoBays) yield return item;
+        foreach (var (_, item) in pack.DockingBays) yield return item;
+        foreach (var bay in pack.CargoContents)
+            foreach (var (_, item) in bay) yield return item;
+        foreach (var bay in pack.DockingBayContents)
+            foreach (var (_, item) in bay) yield return item;
+        foreach (var child in pack.Children)
+            foreach (var item in Items(child)) yield return item;
+    }
 }
 
 [MessagePackObject]
