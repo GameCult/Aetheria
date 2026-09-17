@@ -941,6 +941,11 @@ mean we want to delete all the weapon types we created".
   only propulsion, only shielding, or several at once. Other presentations (an IFS shatter
   plane, flow particles) can visualize the same capability events. Simulation emits capability
   events; presentations subscribe and decide nothing.
+- **Absorption has a damage type mask** (operator, 2026-09-17). The absorb capability's data
+  declares which `DamageType`s it absorbs, and a hit whose type is outside the mask is not
+  absorbed. `DamageType` (`Enums.cs:110`) is not a flags enum; the capability cut decides the
+  mask's representation. Today `Shield.CanTakeHit` ignores the type entirely. The presentation
+  seam's `AbsorbEvent` already carries the hit's `DamageType`.
 - (a) `Zone.TryPickUp` is the one commit.
   - Contact detection stays Unity collision, per the scope doc's deferral.
   - The playground's `pickup all` matches drops by spawn position within
