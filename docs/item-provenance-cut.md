@@ -71,6 +71,16 @@ Progress (Self updates this in each cut's landing commit):
       It diverges from `ItemManager.Brand` when two factions sell one design.
     - `Brand`'s tie-break by record key has no test (`OrderBy` → `OrderByDescending`
       survives).
+  - **Fixed** at `fc1c0526` and `5e9634ef`:
+    - Census lists every maker selling a design; its output is byte-identical today.
+    - A same-maker tie-break test was added.
+    - 42 of 42 tests pass. `tests/mutation_tests.py` holds 19 entries: the control stays
+      green and all 18 mutants are killed.
+  - **Count correction:** two earlier reports counted the control as a kill. At `8fe09a23`
+    the script held control + 16 mutants, not 17, and at `b2036fb8` control + 17, not 18.
+    No mutant verdict changes.
+- **The schema cut is complete.** Remaining: the operator's play smoke, and merging
+  `codex/item-provenance` together with `codex/cultcache-cutover`.
   - 115 records rewritten: 12,686,267 → 12,683,061 bytes, 0 ignored slots.
   - The `AetherDb` outputs, including census, are byte-identical: no design's maker
     disagreed with its products' maker.
