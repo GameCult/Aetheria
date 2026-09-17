@@ -316,26 +316,71 @@ public sealed class LoadoutTests : IDisposable
         Assert.Contains("slot 0,0: no available product of Lamp", Assert.Single(failures));
     }
 
-    // Materialize a hand-built ship, pack it into a zone, commit through Open() and reopen: every crafted instance
-    // still resolves in RunSave.Lots, its Data still equals the lot's Design, the origin is Attributed with the
-    // product's maker, and Quality is unchanged from the lot minted before the save.
+    // F2: this test must not enumerate reloaded instances through EntitySerializer.Items, the GC root walk under
+    // test. It hand-mints one real lot per EntityPack root (Hull, Equipment, CargoBays, DockingBays, CargoContents,
+    // Children, DockingBayContents) so the expected lot ids are known independently of any enumerator, and reads
+    // the reloaded pack's own fields directly. Skipping any one root in Items/Reachable drops that root's lot from
+    // the stored ledger, which RunSave.Lots' indexer throws loudly on.
     [Fact]
     public void MaterializedLotsSurviveSaveAndReload()
     {
-        Dictionary<int, float> preSaveQuality;
         CultRecordKey maker;
-        using (var cache = Open())
+        int[] expectedLots;
+        using (var cache = AetheriaStores.Open(Catalog, Run, Player, catalogWritable: true))
         {
             maker = cache.RefOf(cache.GetByName<Faction>("Maker")).Key;
+            var dockingBay = cache.Upsert(new DockingBayData { Name = "Bay", Shape = new Shape(), InteriorShape = new Shape(), Price = 20 });
+            cache.Upsert(new FactionProductData { Name = "Bay by Maker", Design = new CultRecordRef<CraftedItemData>(dockingBay.Key), Manufacturer = cache.RefOf(cache.GetByName<Faction>("Maker")) });
+            cache.FlushAsync().Wait();
+
+            var skiff = cache.GetAll<FactionProductData>().Single(p => p.Name == "Skiff by Maker");
+            var lamp = cache.GetAll<FactionProductData>().Single(p => p.Name == "Lamp by Maker");
+            var crate = cache.GetAll<FactionProductData>().Single(p => p.Name == "Crate by Maker");
+            var gun = cache.GetAll<FactionProductData>().Single(p => p.Name == "Gun by Maker");
+            var bay = cache.GetAll<FactionProductData>().Single(p => p.Name == "Bay by Maker");
+
             var items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
-            var hand = HandBuilt(cache);
-            var failures = new List<string>();
-            var ship = Build(items, hand, failures);
-            Assert.Empty(failures);
 
-            preSaveQuality = items.Lots.Lots.ToDictionary(kv => kv.Key, kv => kv.Value.Quality);
+            EquippableItem Mint(FactionProductData product) => (EquippableItem) items.CreateInstance(product);
 
-            var pack = EntitySerializer.Pack(ship);
+            var hull = Mint(skiff);
+            var equipment = Mint(lamp);
+            var cargoBay = Mint(crate);
+            var dockingBayUnit = Mint(bay);
+            var cargoContent = Mint(gun);
+            var dockingBayContent = Mint(lamp);
+            var childHull = Mint(skiff);
+
+            var childPack = new ShipPack
+            {
+                Name = "child", Hull = childHull,
+                Equipment = Array.Empty<(int2, EquippableItem)>(), CargoBays = Array.Empty<(int2, EquippableItem)>(),
+                DockingBays = Array.Empty<(int2, EquippableItem)>(), CargoContents = Array.Empty<(int2, ItemInstance)[]>(),
+                DockingBayContents = Array.Empty<(int2, ItemInstance)[]>(), Children = Array.Empty<EntityPack>(),
+                PersistedBehaviors = Array.Empty<(int2, PersistentBehaviorData[])>(), Temperature = new float[0, 0],
+                Armor = new float[0, 0], Conductivity = new bool2[0, 0], DockingBayAssignments = Array.Empty<int>(),
+                Settings = new EntitySettings(), WeaponGroups = Array.Empty<int[]>()
+            };
+            var rootPack = new ShipPack
+            {
+                Name = "root", Hull = hull,
+                Equipment = new[] { (default(int2), equipment) },
+                CargoBays = new[] { (default(int2), cargoBay) },
+                DockingBays = new[] { (default(int2), dockingBayUnit) },
+                CargoContents = new[] { new[] { (default(int2), (ItemInstance) cargoContent) } },
+                DockingBayContents = new[] { new[] { (default(int2), (ItemInstance) dockingBayContent) } },
+                Children = new EntityPack[] { childPack },
+                DockingBayAssignments = new[] { 0 },
+                PersistedBehaviors = Array.Empty<(int2, PersistentBehaviorData[])>(), Temperature = new float[0, 0],
+                Armor = new float[0, 0], Conductivity = new bool2[0, 0],
+                Settings = new EntitySettings(), WeaponGroups = Array.Empty<int[]>()
+            };
+
+            expectedLots = new[]
+            {
+                hull.Lot, equipment.Lot, cargoBay.Lot, dockingBayUnit.Lot, cargoContent.Lot, dockingBayContent.Lot, childHull.Lot
+            };
+
             var game = new SavedGame
             {
                 Factions = Array.Empty<CultRecordRef<Faction>>(),
@@ -351,7 +396,7 @@ public sealed class LoadoutTests : IDisposable
                 new SavedZone
                 {
                     Name = "Zone 0", AdjacentZones = Array.Empty<int>(), Factions = Array.Empty<int>(), Owner = -1,
-                    Contents = new ZonePack { Entities = new List<EntityPack> { pack } }
+                    Contents = new ZonePack { Entities = new List<EntityPack> { rootPack } }
                 }
             };
             RunSave.Commit(cache, game, zones, items.Lots);
@@ -359,18 +404,24 @@ public sealed class LoadoutTests : IDisposable
 
         using (var cache = Open())
         {
-            var lots = RunSave.Lots(cache);
             var run = cache.GetGlobal<SavedGame>();
             var zone = cache.Get(run.Zones[0]);
-            var crafted = EntitySerializer.Items(zone.Contents.Entities[0]).OfType<CraftedItemInstance>().ToArray();
-            Assert.NotEmpty(crafted);
-            foreach (var instance in crafted)
+            var reloaded = (ShipPack) zone.Contents.Entities[0];
+            var reloadedChild = (ShipPack) reloaded.Children[0];
+            var lots = RunSave.Lots(cache);
+
+            Assert.Equal(expectedLots.OrderBy(l => l), new[]
             {
-                var lot = lots[instance.Lot];
-                Assert.Equal(instance.Data.Key, lot.Design.Key);
+                reloaded.Hull.Lot, reloaded.Equipment[0].item.Lot, reloaded.CargoBays[0].item.Lot,
+                reloaded.DockingBays[0].item.Lot, ((CraftedItemInstance) reloaded.CargoContents[0][0].item).Lot,
+                ((CraftedItemInstance) reloaded.DockingBayContents[0][0].item).Lot, reloadedChild.Hull.Lot
+            }.OrderBy(l => l));
+
+            foreach (var lotId in expectedLots)
+            {
+                var lot = lots[lotId];
                 var attributed = Assert.IsType<Attributed>(lot.Origin);
                 Assert.Equal(maker, attributed.Faction.Key);
-                Assert.Equal(preSaveQuality[instance.Lot], lot.Quality);
             }
         }
     }
