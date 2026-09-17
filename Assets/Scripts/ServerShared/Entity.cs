@@ -35,6 +35,11 @@ public abstract class Entity
     public readonly ReactiveCollection<Entity> VisibleEnemies = new ReactiveCollection<Entity>();
     public readonly ReactiveCollection<Entity> VisibleFriendlies = new ReactiveCollection<Entity>();
 
+    // Runtime-only IFF overrides for testing/manual marking and grudges; not persisted in packs.
+    // When set for another entity, it decides IsHostileTo outright, ahead of the derived faction rules.
+    // Reactive so a change can update EntityHostility and dependent grudges immediately, not on the next tick.
+    private readonly ReactiveDictionary<Entity, bool> _iffOverrides = new ReactiveDictionary<Entity, bool>();
+
     public Entity Parent;
     public List<Entity> Children = new List<Entity>();
     public ReactiveProperty<Entity> Target = new ReactiveProperty<Entity>((Entity)null);
@@ -141,6 +146,10 @@ public abstract class Entity
 
     private List<IDisposable> _subscriptions = new List<IDisposable>();
     private Dictionary<Entity, List<IDisposable>> _watchedEntitySubscriptions = new Dictionary<Entity, List<IDisposable>>();
+    private Dictionary<Entity, List<IDisposable>> _grudgeSubscriptions = new Dictionary<Entity, List<IDisposable>>();
+
+    // Grudges are a non-player behavior only: a player's own stance is always the operator's explicit call.
+    private bool IsPlayerControlled => this is Ship {IsPlayerShip: true};
 
     public virtual void Activate()
     {
@@ -166,11 +175,13 @@ public abstract class Entity
         {
             EntityInfoGathered[entity] = 0;
             EntityHostility[entity] = IsHostileTo(entity);
+            if (!IsPlayerControlled) WatchForGrudge(entity);
         }
         _subscriptions.Add(Zone.Entities.ObserveAdd().Subscribe(add =>
         {
             EntityInfoGathered[add.Value] = 0;
             EntityHostility[add.Value] = IsHostileTo(add.Value);
+            if (!IsPlayerControlled) WatchForGrudge(add.Value);
         }));
         _subscriptions.Add(Zone.Entities.ObserveRemove().Subscribe(remove =>
         {
@@ -180,7 +191,24 @@ public abstract class Entity
             VisibleEntities.Remove(remove.Value);
             VisibleEnemies.Remove(remove.Value);
             VisibleFriendlies.Remove(remove.Value);
+            _iffOverrides.Remove(remove.Value);
+            if (_grudgeSubscriptions.TryGetValue(remove.Value, out var grudgeSubs))
+            {
+                foreach (var s in grudgeSubs) s.Dispose();
+                _grudgeSubscriptions.Remove(remove.Value);
+            }
         }));
+
+        // An override changing updates this entity's hostility toward that entity immediately,
+        // rather than waiting for the next per-tick derived-hostility refresh.
+        void RefreshHostilityFromOverride(Entity other)
+        {
+            if (EntityHostility.ContainsKey(other))
+                EntityHostility[other] = IsHostileTo(other);
+        }
+        _subscriptions.Add(_iffOverrides.ObserveAdd().Subscribe(add => RefreshHostilityFromOverride(add.Key)));
+        _subscriptions.Add(_iffOverrides.ObserveReplace().Subscribe(replace => RefreshHostilityFromOverride(replace.Key)));
+        _subscriptions.Add(_iffOverrides.ObserveRemove().Subscribe(remove => RefreshHostilityFromOverride(remove.Key)));
         _subscriptions.Add(VisibleEnemies.ObserveRemove().Subscribe(remove =>
         {
             if (Target.Value == remove.Value) Target.Value = null;
@@ -244,6 +272,53 @@ public abstract class Entity
             GenerateWeaponGroups();
     }
 
+    // Another entity's stance toward THIS one, as far as this entity can perceive it: unknown (null)
+    // until this entity detects them, mirroring the existing detection model (VisibleEntities, driven
+    // by EntityInfoGathered crossing TargetDetectionInfoThreshold). Detected but not yet hostility-rated
+    // by the other entity also reads as unknown.
+    public bool? PerceivedStanceOf(Entity other) =>
+        VisibleEntities.Contains(other) && other.EntityHostility.TryGetValue(this, out var hostile)
+            ? hostile
+            : (bool?) null;
+
+    // Non-player entities hold a grudge: once another entity's stance toward THIS one turns hostile
+    // (its own override or its derived rule) WHILE this entity detects it, this entity sets a sticky
+    // hostile override on it back, event-driven off that entity's own EntityHostility changes and off
+    // this entity's own detection (VisibleEntities) picking up an already-hostile entity. It never
+    // forgives on its own; only a future utility-evaluation pass is meant to lift a grudge. Leaving the
+    // zone clears overrides (see the Zone.Entities removal subscription above), so a grudge is also
+    // cleared then -- a known gap, flagged as a follow-up rather than solved here.
+    private void WatchForGrudge(Entity other)
+    {
+        void CheckGrudge(bool otherIsHostileToThis)
+        {
+            if (otherIsHostileToThis && VisibleEntities.Contains(other) && !_iffOverrides.ContainsKey(other))
+                SetIff(other, true);
+        }
+
+        var subscriptions = new List<IDisposable>
+        {
+            other.EntityHostility.ObserveAdd()
+                .Where(add => add.Key == this)
+                .Subscribe(add => CheckGrudge(add.Value)),
+            other.EntityHostility.ObserveReplace()
+                .Where(replace => replace.Key == this)
+                .Subscribe(replace => CheckGrudge(replace.NewValue)),
+            // Detecting an entity whose stance toward this one is already hostile grudges it immediately.
+            VisibleEntities.ObserveAdd()
+                .Where(add => add.Value == other)
+                .Subscribe(_ =>
+                {
+                    if (other.EntityHostility.TryGetValue(this, out var hostile))
+                        CheckGrudge(hostile);
+                })
+        };
+        _grudgeSubscriptions[other] = subscriptions;
+
+        if (other.EntityHostility.TryGetValue(this, out var currentlyHostile))
+            CheckGrudge(currentlyHostile);
+    }
+
     public virtual void Deactivate()
     {
         //ItemManager.Log($"Entity {Name} is deactivating!");
@@ -251,6 +326,8 @@ public abstract class Entity
         _subscriptions.Clear();
         foreach(var ss in _watchedEntitySubscriptions.Values) foreach(var s in ss) s.Dispose();
         _watchedEntitySubscriptions.Clear();
+        foreach(var ss in _grudgeSubscriptions.Values) foreach(var s in ss) s.Dispose();
+        _grudgeSubscriptions.Clear();
         _active = false;
         EntityInfoGathered.Clear();
         VisibleEntities.Clear();
@@ -282,8 +359,23 @@ public abstract class Entity
         //CurrentSecurityLevel.Value = SecurityLevel.Open;
     }
 
+    // Sets or clears a runtime-only IFF override deciding this entity's hostility toward another.
+    // Pass null to clear the override and restore the derived (faction-based) rule.
+    public void SetIff(Entity other, bool? hostile)
+    {
+        if (hostile.HasValue) _iffOverrides[other] = hostile.Value;
+        else _iffOverrides.Remove(other);
+    }
+
     public bool IsHostileTo(Entity other, bool recursive = false)
     {
+        // An override decides only the stance of the entity that holds it. The recursive=true calls
+        // below are the derived rule asking "is the other entity hostile to me" purely to compute ITS
+        // OWN reciprocal stance; skipping the override check there stops one entity's override (e.g. a
+        // player going neutral) from leaking into another entity's derived hostility.
+        if (!recursive && _iffOverrides.TryGetValue(other, out var overrideHostile))
+            return overrideHostile;
+
         if (Faction == null)
             return !recursive && other.Faction != null && other.IsHostileTo(this, true);
 
