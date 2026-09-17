@@ -56,53 +56,53 @@ public static class EntitySerializer
         return pack;
     }
 
-    public static Entity Unpack(ItemManager itemManager, Zone zone, EntityPack pack, bool instantiate = false)
+    public static Entity Unpack(ItemManager itemManager, Zone zone, EntityPack pack)
     {
         pack.Settings ??= MessagePackSerializer.Deserialize<EntitySettings>(
             MessagePackSerializer.Serialize(itemManager.GameplaySettings.DefaultEntitySettings));
         return pack switch
         {
-            ShipPack shipPack => Unpack(itemManager, zone, shipPack, instantiate),
-            OrbitalEntityPack orbitalEntityPack => Unpack(itemManager, zone, orbitalEntityPack, instantiate),
+            ShipPack shipPack => Unpack(itemManager, zone, shipPack),
+            OrbitalEntityPack orbitalEntityPack => Unpack(itemManager, zone, orbitalEntityPack),
             _ => null
         };
     }
 
 
-    private static Ship Unpack(ItemManager itemManager, Zone zone, ShipPack pack, bool instantiate = false)
+    private static Ship Unpack(ItemManager itemManager, Zone zone, ShipPack pack)
     {
 
-        var entity = new Ship(itemManager, zone, instantiate ? (EquippableItem) itemManager.Instantiate(pack.Hull) : pack.Hull, pack.Settings);
-        Restore(itemManager, zone, pack, entity, instantiate);
+        var entity = new Ship(itemManager, zone, pack.Hull, pack.Settings);
+        Restore(itemManager, zone, pack, entity);
         entity.Position = pack.Position;
         entity.Direction = pack.Direction;
         entity.IsPlayerShip = pack.IsPlayerShip;
         return entity;
     }
 
-    private static OrbitalEntity Unpack(ItemManager itemManager, Zone zone, OrbitalEntityPack pack, bool instantiate = false)
+    private static OrbitalEntity Unpack(ItemManager itemManager, Zone zone, OrbitalEntityPack pack)
     {
-        var entity = new OrbitalEntity(itemManager, zone, instantiate ? (EquippableItem) itemManager.Instantiate(pack.Hull) : pack.Hull, pack.Orbit.Key, pack.Settings);
-        Restore(itemManager, zone, pack, entity, instantiate);
+        var entity = new OrbitalEntity(itemManager, zone, pack.Hull, pack.Orbit.Key, pack.Settings);
+        Restore(itemManager, zone, pack, entity);
         entity.SecurityLevel = pack.SecurityLevel;
         entity.SecurityRadius = pack.SecurityRadius;
         if (pack.Story >= 0) entity.Story = zone.GalaxyZone.Locations[pack.Story];
         return entity;
     }
 
-    private static void Restore(ItemManager itemManager, Zone zone, EntityPack pack, Entity entity, bool instantiate = false)
+    private static void Restore(ItemManager itemManager, Zone zone, EntityPack pack, Entity entity)
     {
         entity.Name = pack.Name;
         entity.Faction = itemManager.ItemData.Get(pack.Faction);
         entity.Children = pack.Children.Select(c =>
         {
-            var child = Unpack(itemManager, zone, c, instantiate);
+            var child = Unpack(itemManager, zone, c);
             child.Parent = entity;
             return child;
         }).ToList();
-        foreach (var (position, item) in pack.Equipment) entity.TryEquip(instantiate ? (EquippableItem) itemManager.Instantiate(item) : item, position);
-        foreach (var (position, item) in pack.CargoBays) entity.TryEquip(instantiate ? (EquippableItem) itemManager.Instantiate(item) : item, position);
-        foreach (var (position, item) in pack.DockingBays) entity.TryEquip(instantiate ? (EquippableItem) itemManager.Instantiate(item) : item, position);
+        foreach (var (position, item) in pack.Equipment) entity.TryEquip(item, position);
+        foreach (var (position, item) in pack.CargoBays) entity.TryEquip(item, position);
+        foreach (var (position, item) in pack.DockingBays) entity.TryEquip(item, position);
 
         for (var i = 0; i < pack.DockingBayAssignments.Length; i++)
         {
@@ -113,12 +113,12 @@ public static class EntitySerializer
         for (var bayIndex = 0; bayIndex < pack.CargoContents.Length; bayIndex++)
             if(entity.CargoBays.Count >= bayIndex + 1)
                 foreach (var (position, item) in pack.CargoContents[bayIndex])
-                    entity.CargoBays[bayIndex].TryStore(instantiate ? itemManager.Instantiate(item) : item, position);
+                    entity.CargoBays[bayIndex].TryStore(item, position);
 
         for (var bayIndex = 0; bayIndex < pack.DockingBayContents.Length; bayIndex++)
             if(entity.DockingBays.Count >= bayIndex + 1)
                 foreach (var (position, item) in pack.DockingBayContents[bayIndex])
-                    entity.DockingBays[bayIndex].TryStore(instantiate ? itemManager.Instantiate(item) : item, position);
+                    entity.DockingBays[bayIndex].TryStore(item, position);
 
         // Iterate only over the behaviors of items which contain persistent data
         // Filter the behaviors for each item to get the persistent ones, then cast them and combine with the persisted data array for that item
@@ -130,11 +130,9 @@ public static class EntitySerializer
                 .Zip(pack.PersistedBehaviors[item.Position], (behavior, data) => new{behavior, data})))
             persistentBehaviorData.behavior.Restore(persistentBehaviorData.data);
 
-        if(!instantiate)
-            entity.Temperature = pack.Temperature;
+        entity.Temperature = pack.Temperature;
 
-        if(!instantiate)
-            entity.Armor = pack.Armor;
+        entity.Armor = pack.Armor;
 
         var hullData = itemManager.GetData(entity.Hull);
 

@@ -89,40 +89,6 @@ public class ItemManager
         return (int) (GameplaySettings.QualityPriceModifier.Evaluate(item.Quality) * data.Price);
     }
 
-    public SimpleCommodity CreateInstance(SimpleCommodityData item, int count)
-    {
-        if (item != null)
-        {
-            var newItem = new SimpleCommodity
-            {
-                Data = ItemData.RefOf<ItemData>(item),
-                Quantity = count
-            };
-            return newItem;
-        }
-
-        _logger("Attempted to create Simple Commodity instance using missing or incorrect item id");
-        return null;
-    }
-
-    public ItemInstance Instantiate(ItemInstance item)
-    {
-        var data = GetData(item);
-        if(data is CraftedItemData c)
-        {
-            var i = CreateInstance(c);
-            i.Rotation = item.Rotation;
-            return i;
-        }
-        if (item is SimpleCommodity s)
-        {
-            var i = CreateInstance(data as SimpleCommodityData, s.Quantity);
-            i.Rotation = item.Rotation;
-            return i;
-        }
-        return null;
-    }
-
     public CraftedItemInstance CreateInstance(CraftedItemData item, float quality)
     {
         if (item is EquippableItemData equippableItemData)

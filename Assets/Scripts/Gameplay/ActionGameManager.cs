@@ -537,7 +537,7 @@ public class ActionGameManager : MonoBehaviour
                     nearestFaction,
                     .5f);
 
-                var turret = EntitySerializer.Unpack(ItemManager, Zone, loadoutGenerator.GenerateTurretLoadout(), true);
+                var turret = EntitySerializer.Unpack(ItemManager, Zone, loadoutGenerator.GenerateTurretLoadout());
                 turret.Position.xz = _currentEntity.Position.xz +
                                      ItemManager.Random.NextFloat2Direction() * ItemManager.Random.NextFloat(50, 500);
                 turret.Zone = Zone;
@@ -733,11 +733,9 @@ public class ActionGameManager : MonoBehaviour
                 PopulateLevel(CurrentGalaxy.Entrance);
                 var loadoutGenerator = new LoadoutGenerator(ref ItemManager.Random, ItemManager, CurrentGalaxy, Zone.GalaxyZone, IsTutorial ? CurrentGalaxy.ResolveFaction(Settings.TutorialGenerationSettings.ProtagonistFaction) : null, 2);
                 var ship = EntitySerializer.Unpack(
-                    ItemManager, 
-                    Zone, 
-                    loadoutGenerator.GenerateShipLoadout(data => string.IsNullOrEmpty(Settings.StartingHullName) || data.Name==Settings.StartingHullName ), 
-                    true);
-                // EntitySerializer.Unpack(ItemManager, Zone, Loadouts.First(x => x.Name == StarterShipTemplate), true);
+                    ItemManager,
+                    Zone,
+                    loadoutGenerator.GenerateShipLoadout(data => string.IsNullOrEmpty(Settings.StartingHullName) || data.Name==Settings.StartingHullName ));
                 ((Ship) ship).IsPlayerShip = true;
                 ship.Position = float3.zero;
                 ship.Zone = Zone;
