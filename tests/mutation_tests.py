@@ -416,6 +416,24 @@ MUTATIONS: list[Mutation] = [
         test="IffAndCombatTests.EligibleWandererFactionsExcludesOwnerAndNearest",
         expect="red",
     ),
+    # --- Capability event contract (docs/headless-playground-cut.md fork L, 2026-09-17): each event
+    # kind must reach only its own subscribers. ---
+    Mutation(
+        rule="control (no-op round trip) for the capability event routing test",
+        file="Assets/Scripts/ServerShared/CapabilityEvents.cs",
+        anchor="    public void PublishAbsorb(AbsorbEvent e) => _absorb.OnNext(e);",
+        mutated="    public void PublishAbsorb(AbsorbEvent e) => _absorb.OnNext(e);",
+        test="CapabilityEventsTests.EachEventKindReachesOnlyItsOwnSubscribers",
+        expect="green",
+    ),
+    Mutation(
+        rule="PublishAbsorb notifies only the Absorb stream, not Thrust as well",
+        file="Assets/Scripts/ServerShared/CapabilityEvents.cs",
+        anchor="    public void PublishAbsorb(AbsorbEvent e) => _absorb.OnNext(e);",
+        mutated="    public void PublishAbsorb(AbsorbEvent e) { _absorb.OnNext(e); _thrust.OnNext(default); }",
+        test="CapabilityEventsTests.EachEventKindReachesOnlyItsOwnSubscribers",
+        expect="red",
+    ),
 ]
 
 
