@@ -316,6 +316,30 @@ public sealed class LoadoutTests : IDisposable
         Assert.Contains("slot 0,0: no available product of Lamp", Assert.Single(failures));
     }
 
+    // Census's duplicate (maker, design) detector exists precisely because this should never happen in an
+    // authored catalog; Brand()'s tie-break is what a runtime item falls back on if it ever does, so it must stay
+    // deterministic rather than however the cache happens to enumerate.
+    [Fact]
+    public void BrandPicksFirstProductInKeyOrderForSameMakerAndDesign()
+    {
+        using var cache = AetheriaStores.Open(Catalog, catalogWritable: true);
+        var maker = cache.Upsert(new Faction { Name = "TieBreaker", ShortName = "TIE" });
+        var lamp = new CultRecordRef<CraftedItemData>(cache.RefOf(cache.GetByName<GearData>("Lamp")).Key);
+        cache.Commit(batch => batch.Upsert(typeof(FactionProductData), new FactionProductData { Name = "lamp-b", Design = lamp, Manufacturer = maker }, new CultRecordKey("lamp-b")));
+        cache.Commit(batch => batch.Upsert(typeof(FactionProductData), new FactionProductData { Name = "lamp-a", Design = lamp, Manufacturer = maker }, new CultRecordKey("lamp-a")));
+
+        var items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
+        var lotId = items.Lots.Add(new Lot
+        {
+            Design = cache.RefOf<ItemData>(cache.GetByName<GearData>("Lamp")),
+            Origin = new Produced { Faction = maker, Station = 1, Facility = 2, Inputs = Array.Empty<int>() },
+            Quality = .5f, Roles = new List<RoleFill>()
+        });
+        var instance = (EquippableItem) items.CreateInstance(lotId);
+        var (_, product) = items.Brand(instance);
+        Assert.Equal("lamp-a", product.Name);
+    }
+
     // F2: this test must not enumerate reloaded instances through EntitySerializer.Items, the GC root walk under
     // test. It hand-mints one real lot per EntityPack root (Hull, Equipment, CargoBays, DockingBays, CargoContents,
     // Children, DockingBayContents) so the expected lot ids are known independently of any enumerator, and reads

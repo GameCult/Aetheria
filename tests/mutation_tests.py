@@ -122,6 +122,15 @@ MUTATIONS: list[Mutation] = [
         test="LoadoutTests.FirstAvailableProductInKeyOrderBuildsTheSlot",
         expect="red",
     ),
+    # --- BrandPicksFirstProductInKeyOrderForSameMakerAndDesign: Brand's own tie-break must be ascending key order ---
+    Mutation(
+        rule="Brand's tie-break among a maker's products for one design is ascending record-key order",
+        file="Assets/Scripts/ServerShared/ItemManager.cs",
+        anchor="            .OrderBy(p => ItemData.RefOf(p).Key.Value, StringComparer.Ordinal)",
+        mutated="            .OrderByDescending(p => ItemData.RefOf(p).Key.Value, StringComparer.Ordinal)",
+        test="LoadoutTests.BrandPicksFirstProductInKeyOrderForSameMakerAndDesign",
+        expect="red",
+    ),
     # --- StatsReadTheLot: stats must read the lot, including its per-role fills ---
     Mutation(
         rule="Evaluate reads the lot's per-role fill for a role stat",
