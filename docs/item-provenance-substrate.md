@@ -259,6 +259,7 @@ Every stat and wear reader goes through the instance:
 **Ruled (operator, 2026-09-17):** F0 is (a); see the target. F2 is none of the
 options below: facilities are built in place from raw materials, with a
 retooling cost per design switch; see the target.
+F1 is (c), one run-store ledger document (operator, 2026-09-17: "I like c").
 
 **F1. Lot storage: records versus embedded by value.** Blocks everything.
 - (a) Provenance embedded by value on each instance: a full DAG per unit. With
