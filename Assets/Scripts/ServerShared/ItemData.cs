@@ -276,9 +276,9 @@ public abstract class ItemData
     
     [Inspectable, CultInspectorTextArea, JsonProperty("description"), Key(2)]
     public string Description;
-    
-    [Inspectable, JsonProperty("creator"), Key(3)]
-    public CultRecordRef<Faction> Manufacturer;
+
+    // MessagePack key 3 belonged to a removed creator/faction reference field; do not reuse it. That provenance
+    // now lives on FactionProductData, and branding is derived, never stored on the design.
 
     [Inspectable, JsonProperty("mass"), Key(4)]
     public float Mass;

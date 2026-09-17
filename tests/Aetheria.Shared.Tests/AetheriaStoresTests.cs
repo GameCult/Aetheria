@@ -29,7 +29,8 @@ public sealed class AetheriaStoresTests : IDisposable
         var faction = new Faction { Name = "Adrasteia", ShortName = "ADR", PrimaryColor = new float3(1, .5f, .25f) };
         faction.Allegiance[cache.Upsert(faction)] = 1;
         cache.Upsert(faction);
-        cache.Upsert(new WeaponItemData { Name = "Lance", Manufacturer = cache.RefOf(faction) });
+        var lance = cache.Upsert(new WeaponItemData { Name = "Lance" });
+        cache.Upsert(new FactionProductData { Name = "Lance", Design = new CultRecordRef<CraftedItemData>(lance.Key), Manufacturer = cache.RefOf(faction) });
         cache.Upsert(new InputLayout { Rows = new InputLayoutRow[] { new InputLayoutRowSpacer { Height = 1 } } });
         cache.FlushAsync().Wait();
     }
@@ -106,7 +107,7 @@ public sealed class AetheriaStoresTests : IDisposable
     {
         using var cache = AetheriaStores.Open(Catalog);
         var faction = cache.GetAll<Faction>().Single();
-        Assert.Same(faction, cache.Get(cache.GetAll<WeaponItemData>().Single().Manufacturer));
+        Assert.Same(faction, cache.Get(cache.GetAll<FactionProductData>().Single().Manufacturer));
         Assert.Same(faction, cache.Get(faction.Allegiance.Keys.Single()));
         Assert.Same(faction, cache.GetByName<Faction>("Adrasteia"));
     }

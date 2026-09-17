@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Mutation tests for the Cut B provenance rules (docs/item-provenance-cut.md).
+"""Mutation tests for the Cut B and Cut C provenance rules (docs/item-provenance-cut.md).
 
 For each rule this applies its named mutation to an exact, unique anchor of
 source text, runs the one test that should catch it, restores the file
@@ -257,6 +257,22 @@ MUTATIONS: list[Mutation] = [
         anchor="        var roots = zones\n            .SelectMany(zone => zone.Contents?.Entities ?? new List<EntityPack>())",
         mutated="        var roots = zones.Take(1)\n            .SelectMany(zone => zone.Contents?.Entities ?? new List<EntityPack>())",
         test="RunSaveTests.CommitTakesRootsFromEveryZone",
+        expect="red",
+    ),
+    # --- Cut C: the manufacturer moves from the design to the product; the catalog fixture and its
+    # round-trip assertion (FactionIsASingletonInstance) must actually depend on that wiring. ---
+    Mutation(
+        rule="the catalog fixture's product carries the maker, not an unset reference",
+        file="tests/Aetheria.Shared.Tests/AetheriaStoresTests.cs",
+        anchor=(
+            'cache.Upsert(new FactionProductData { Name = "Lance", '
+            "Design = new CultRecordRef<CraftedItemData>(lance.Key), Manufacturer = cache.RefOf(faction) });"
+        ),
+        mutated=(
+            'cache.Upsert(new FactionProductData { Name = "Lance", '
+            "Design = new CultRecordRef<CraftedItemData>(lance.Key), Manufacturer = default });"
+        ),
+        test="AetheriaStoresTests.FactionIsASingletonInstance",
         expect="red",
     ),
 ]

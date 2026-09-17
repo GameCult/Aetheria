@@ -40,7 +40,17 @@ public static class Program
     {
         var db = AetherDb.Open();
         var items = db.Cache.GetAll<EquippableItemData>().ToArray();
-        var products = db.Cache.GetAll<FactionProductData>().ToArray();
+        var products = db.Cache.GetAll<FactionProductData>()
+            .OrderBy(p => db.Cache.RefOf(p).Key.Value, StringComparer.Ordinal).ToArray();
+
+        // The manufacturer no longer lives on the design: it is derived the way Brand() derives it, from the
+        // first product in record-key order that sells the design. A design no product sells shows "(none)".
+        string MakerOf(EquippableItemData item)
+        {
+            var design = db.Cache.RefOf(item).Key;
+            var product = products.FirstOrDefault(p => p.Design.Key.Equals(design));
+            return product == null ? "(none)" : db.Cache.Get(product.Manufacturer)?.ShortName ?? "(none)";
+        }
 
         var kinds = new Dictionary<string, List<string>>();
         foreach (var item in items)
@@ -51,7 +61,7 @@ public static class Program
                 : item is WeaponItemData weapon ? $"Weapon/{weapon.HardpointType}"
                 : item.HardpointType.ToString();
             if (!kinds.TryGetValue(kind, out var makers)) kinds[kind] = makers = new List<string>();
-            makers.Add(db.Cache.Get(item.Manufacturer)?.ShortName ?? "(none)");
+            makers.Add(MakerOf(item));
         }
 
         Console.WriteLine($"{items.Length} designs, {products.Length} products\n");
