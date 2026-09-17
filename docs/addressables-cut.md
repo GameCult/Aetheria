@@ -131,7 +131,10 @@ Cost: a CultLib release (plugins rebuilt with `scripts/build-unity-package.ps1`)
 and an Aetheria bump of `Packages/manifest.json` (both URLs), `Packages/packages-lock.json`
 and `Directory.Build.props` `CultLibRevision`. Coordination: CultLib `codex/studio-grouping`
 (mapped, blocked on the Aetheria lot schema) also edits `CultInspectorModel.cs` and the Studio
-drawers; whichever releases second rebases onto the first release.
+drawers; whichever releases second rebases onto the first release. The older CultLib worktree branches
+(`CultLib-aetheria-authority`, `CultLib-delvehold-isosurface`, `CultLib-document-variants`) carry
+the attribute in its pre-move location (`Runtime/CultCacheInspectorAttributes.cs`); they are
+CultLib branches, not consumers, and meet the rename only if rebased.
 
 ### 2.2 Addressables package **(probe)**
 
