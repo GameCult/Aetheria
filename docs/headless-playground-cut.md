@@ -773,6 +773,10 @@ chance falls with how far the target deviated from the predicted intercept.
 **Ruled (operator, 2026-09-17): per-hardpoint arcs.** "Firing arcs are determined per
 hardpoint, that data is unfortunately baked into the ship prefabs at the moment". None of
 (a)-(c) as written. The arc data has to become headless-readable hull data; being re-mapped.
+Refined the same day: "I'd say default to 120 degrees, use existing item rotation direction
+to determine the mount direction, like how the reaction thrusters work". A weapon's mount
+direction is its equipped item's `ItemRotation`, as in `Thruster.cs:61-63`, and its arc is
+120 degrees wide by default. Prefab firing points become presentation only.
 
 - (a) No arc; facing is presentation.
 - (b) Gate on `dot(weapon.Direction, toTarget) >= FireArcDot`, one authored setting. The
