@@ -834,7 +834,9 @@ chance falls with how far the target deviated from the predicted intercept.
 **Ruled (operator, 2026-09-17), in two steps.** First: "Firing arcs are determined per
 hardpoint, that data is unfortunately baked into the ship prefabs at the moment". Then: "I'd
 say default to 120 degrees, use existing item rotation direction to determine the mount
-direction, like how the reaction thrusters work".
+direction, like how the reaction thrusters work". Then: "simulation is fundamentally 2D, all the 3D-ness is
+set dressing". So the arc check is planar by rule, not by approximation. `Entity.Position` is
+a `float3`, so `ArcIsPlanar` stays: it pins that height never decides a shot.
 
 - The mount direction is the item's `ItemRotation` applied to the ship's `Direction`, the
   thruster convention (Body facts above). It is per hardpoint because a mounted item takes
