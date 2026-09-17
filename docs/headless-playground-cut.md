@@ -932,6 +932,10 @@ mean we want to delete all the weapon types we created".
 - **The tractor beam item provides only pickup.** Operator: "it might have some volumetric
   glowy vfx but it would behave the same as the field shield's pickup ability".
 - **`FieldDriver` is one presentation** of these capabilities, not an owner of any.
+- **The tractor beam is a generic Tool item** (operator, 2026-09-17: "Just put tractor behavior
+  on a generic tool item"). It is interior `HardpointType.Tool` gear, like the targeting system,
+  so it no longer competes with the sensor for LonginusX's single Sensors slot. The catalog
+  change lands with the pickup capability.
 - (a) `Zone.TryPickUp` is the one commit.
   - Contact detection stays Unity collision, per the scope doc's deferral.
   - The playground's `pickup all` matches drops by spawn position within
