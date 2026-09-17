@@ -7,6 +7,17 @@ Body and the fork history are in `docs/item-provenance-substrate.md`. This map o
 means of the **schema cut only**. Generation, station roster, recipes, routes, piracy and
 factory tooling are the next scope and get their own map.
 
+Progress (Self updates this in each cut's landing commit):
+- Work lands on branch `codex/item-provenance`, cut from `7425ff1b`.
+- **Cut A landed** at `69801bbb` and passed Soul with no findings. Evidence:
+  - `Aetheria.Shared` and `AetherDb` build; 29 tests pass; the four negative greps
+    are empty.
+  - The open editor's recompile after the edit logged 0 `error CS`, which stands in
+    for the batchmode compile.
+  - Temperature and Armor now restore unconditionally. That is safe, because
+    `Entity.MapEntity` initializes both before `Pack`.
+- Cut B is next.
+
 - Repo: `F:\Projects\Aetheria`, branch `codex/cultcache-cutover`, anchors against HEAD
   `b0df689d`. Commits since the substrate map (`dbe1dd83`) touch only the three docs, and
   every anchor used below was re-read at HEAD.
