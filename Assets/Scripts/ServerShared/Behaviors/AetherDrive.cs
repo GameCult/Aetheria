@@ -2,10 +2,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
+using GameCult.Caching;
 using MessagePack;
 using Newtonsoft.Json;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
+using CultMath;
+using static CultMath.math;
 
 [Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn), EntityTypeRestriction(HullType.Ship), RuntimeInspectable]
 public class AetherDriveData : BehaviorData
@@ -40,13 +41,13 @@ public class AetherDriveData : BehaviorData
     [Inspectable, JsonProperty("passiveCoupling"), Key(10), RuntimeInspectable]
     public PerformanceStat PassiveCoupling;
 
-    [InspectableAudioParameter, JsonProperty("rpmAudio"), Key(11), RuntimeInspectable]
+    [Inspectable, JsonProperty("rpmAudio"), Key(11), RuntimeInspectable]
     public uint RpmAudioParameter;
 
-    [InspectableAudioParameter, JsonProperty("torqueAudio"), Key(12), RuntimeInspectable]
+    [Inspectable, JsonProperty("torqueAudio"), Key(12), RuntimeInspectable]
     public uint TorqueRatioAudioParameter;
 
-    [InspectablePrefab, JsonProperty("particles"), Key(13)]
+    [Inspectable, CultInspectorAssetPath, JsonProperty("particles"), Key(13)]
     public string Particles;
     
     public override Behavior CreateInstance(EquippedItem item)
@@ -99,11 +100,11 @@ public class AetherDrive : Behavior
         var couplingEfficiency = Evaluate(_data.CouplingEfficiency);
         var efficiency = float3(saturate(1 - speed / max(rotorSpeed.xy, 1) * sign(_axis.xy)) * couplingEfficiency, 1);
 
-        Thrust = (Rpm - AetheriaMath.Decay(Rpm, _data.CouplingLambda, dt)) * _data.RotorMass * efficiency;
+        Thrust = (Rpm - decay(Rpm, _data.CouplingLambda, dt)) * _data.RotorMass * efficiency;
 
         var couplingLambda = _data.CouplingLambda * Item.Evaluate(_data.LambdaMultiplier) * max(abs(_axis), Evaluate(_data.PassiveCoupling));
         var previousRpm = Rpm;
-        Rpm = AetheriaMath.Decay(Rpm, couplingLambda, dt);
+        Rpm = decay(Rpm, couplingLambda, dt);
         var rpmLoss = previousRpm - Rpm;
         var force = rpmLoss * _data.RotorMass * efficiency;
 
@@ -114,7 +115,7 @@ public class AetherDrive : Behavior
         Entity.Velocity += ThrustDirection;
         
         Entity.Direction = mul(Entity.Direction,
-            Unity.Mathematics.float2x2.Rotate(force.z * _axis.z * ItemManager.GameplaySettings.AetherTorqueMultiplier / Entity.Mass));
+            CultMath.float2x2.Rotate(force.z * _axis.z * ItemManager.GameplaySettings.AetherTorqueMultiplier / Entity.Mass));
 
         if(float.IsNaN(Entity.Velocity.x))
             ItemManager.Log("FUCK FUCK FUCK FUCK");

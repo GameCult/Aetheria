@@ -1,3 +1,4 @@
+using GameCult.Caching;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -9,9 +10,9 @@ using Ink.Runtime;
 using MIConvexHull;
 using JM.LinqFaster;
 using UniRx;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
-using Random = Unity.Mathematics.Random;
+using CultMath;
+using static CultMath.math;
+using Random = CultMath.Random;
 
 public class Galaxy
 {
@@ -29,7 +30,7 @@ public class Galaxy
     private Action<string> Log { get; }
     public bool IsPrelude { get; }
     
-    private HashSet<Guid> _containedFactions;
+    private HashSet<CultRecordKey> _containedFactions;
     private GalaxyZone[] _exitPath;
     private Dictionary<Faction, MarkovNameGenerator> _nameGenerators = new Dictionary<Faction, MarkovNameGenerator>();
     private readonly CultCache _cache;
@@ -51,13 +52,14 @@ public class Galaxy
         Log = log;
         Background = savedGame.Background;
         
-        Factions = savedGame.Factions.Select(cultCache.Get<Faction>).ToArray();
+        Factions = savedGame.Factions.Select(faction => cultCache.Get(faction)).ToArray();
         for (var i = 0; i < Factions.Length; i++)
         {
             FactionRelationships[Factions[i]] = savedGame.Relationships[i];
         }
         
-        Zones = savedGame.Zones.Select(zone =>
+        var savedZones = savedGame.Zones.Select(zone => cultCache.Get(zone)).ToArray();
+        Zones = savedZones.Select(zone =>
         {
             return new GalaxyZone
             {
@@ -69,9 +71,9 @@ public class Galaxy
         foreach (var i in savedGame.DiscoveredZones) DiscoveredZones.Add(Zones[i]);
         for (var i = 0; i < Zones.Length; i++)
         {
-            Zones[i].AdjacentZones = savedGame.Zones[i].AdjacentZones.Select(azi => Zones[azi]).ToList();
-            Zones[i].Factions = savedGame.Zones[i].Factions.Select(mi => Factions[mi]).ToArray();
-            Zones[i].Owner = savedGame.Zones[i].Owner < 0 ? null : Factions[savedGame.Zones[i].Owner];
+            Zones[i].AdjacentZones = savedZones[i].AdjacentZones.Select(azi => Zones[azi]).ToList();
+            Zones[i].Factions = savedZones[i].Factions.Select(mi => Factions[mi]).ToArray();
+            Zones[i].Owner = savedZones[i].Owner < 0 ? null : Factions[savedZones[i].Owner];
         }
 
         HomeZones = savedGame.HomeZones.ToDictionary(
@@ -269,7 +271,7 @@ public class Galaxy
 
         // Choose some megas to have bosses placed based on whether a boss hull is assigned
         var bossMegas = Factions
-            .Where(m => m.BossHull != Guid.Empty)
+            .Where(m => m.BossHull.IsSet())
             .Take(bossCount)
             .ToArray();
 
@@ -335,7 +337,7 @@ public class Galaxy
             progressCallback?.Invoke($"Feeding Markov Chains: {i + 1} / {Factions.Length}");
             //if(progressCallback!=null) Thread.Sleep(250); // Inserting Delay to make it seem like it's doing more work lmao
             var faction = Factions[i];
-            _nameGenerators[faction] = new MarkovNameGenerator(ref random, cache.Get<NameFile>(faction.GeonameFile).Names, nameGeneratorSettings);
+            _nameGenerators[faction] = new MarkovNameGenerator(ref random, cache.Get(faction.GeonameFile).Names, nameGeneratorSettings);
         }
 
         // Generate zone name using the owner's name generator, otherwise assign catalogue ID
@@ -381,7 +383,7 @@ public class Galaxy
         //     foreach (var zone in Zones)
         //     {
         //         if(zone != link.Item1 && zone != link.Item2)
-        //             if (AetheriaMath.FindDistanceToSegment(zone.Position, link.Item1.Position, link.Item2.Position, out _) < minLineSeparation)
+        //             if (distance_to_segment(zone.Position, link.Item1.Position, link.Item2.Position, out _) < minLineSeparation)
         //                 links.Remove(link);
         //     }
         // }
@@ -435,10 +437,10 @@ public class Galaxy
         }
     }
 
-    public bool ContainsFaction(Guid factionID)
+    public bool ContainsFaction(CultRecordRef<Faction> faction)
     {
-        _containedFactions ??= new HashSet<Guid>(Factions.Select(f => f.ID));
-        return _containedFactions.Contains(factionID);
+        _containedFactions ??= new HashSet<CultRecordKey>(Factions.Select(f => _cache.RefOf(f).Key));
+        return _containedFactions.Contains(faction.Key);
     }
 
     class DijkstraVertex

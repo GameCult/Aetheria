@@ -5,11 +5,11 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using UnityEngine;
 using UnityEngine.Rendering;
-using Unity.Mathematics;
+using CultMath;
+using CultMath.UnityBridge;
 using UnityEngine.InputSystem;
 using UnityEngine.Serialization;
-using static Unity.Mathematics.math;
-using static Unity.Mathematics.noise;
+using static CultMath.math;
 using Random = UnityEngine.Random;
 
 public class LightningCompute : MonoBehaviour
@@ -255,19 +255,19 @@ public class LightningCompute : MonoBehaviour
         var diff = EndPosition - StartPosition;
         var dist = diff.magnitude;
         _bolts[0].startPos = StartPosition;
-        _bolts[0].startOffset = -(Vector3) fbm3(float2(0, _time));
+        _bolts[0].startOffset = -fbm3(float2(0, _time)).ToUnity();
         _bolts[0].endPos = EndPosition;
-        _bolts[0].endOffset = FixedEndpoint ? -(Vector3) fbm3(float2(dist, _time)) : Vector3.zero;
+        _bolts[0].endOffset = FixedEndpoint ? -fbm3(float2(dist, _time)).ToUnity() : Vector3.zero;
 
         for (int i = 0; i < BranchCount; i++)
         {
             var root = Vector3.Lerp(StartPosition, EndPosition, _bolts[i + 1].startTime);
             var rootDist = _bolts[i + 1].startTime * dist;
             _bolts[i + 1].startPos =
-                root + (Vector3) fbm3(float2(rootDist, _time)) +
+                root + fbm3(float2(rootDist, _time)).ToUnity() +
                 _bolts[0].startOffset * (max(.5f - _bolts[i + 1].startTime, 0) * 2) +
                 _bolts[0].endOffset * (max(_bolts[i + 1].startTime - .5f, 0) * 2);
-            _bolts[i + 1].startOffset = -(Vector3) fbm3(float2(0, _time + (i + 1) * 10));
+            _bolts[i + 1].startOffset = -fbm3(float2(0, _time + (i + 1) * 10)).ToUnity();
             _bolts[i + 1].endPos = root + _branchEndpoints[i];
         }
         

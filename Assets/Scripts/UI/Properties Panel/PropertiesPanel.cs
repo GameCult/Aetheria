@@ -2,6 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
+using GameCult.Caching;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -13,8 +14,8 @@ using UniRx;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
+using CultMath;
+using static CultMath.math;
 
 public class PropertiesPanel : MonoBehaviour
 {
@@ -357,32 +358,9 @@ public class PropertiesPanel : MonoBehaviour
 		OnPropertyAdded?.Invoke(field.gameObject);
 	}
 	
-	// public void Inspect(Entity entity)
-	// {
- //        Clear();
- //        Title.text = entity.Name;
- //        var hullData = Context.GetData(entity.Hull) as HullData;
- //        AddSection(
- //            hullData.HullType == HullType.Ship ? "Ship" :
- //            hullData.HullType == HullType.Station ? "Station" :
- //            "Platform");
- //        //AddList(hullData.Name).Inspect(hull, entity);
- //        //PropertiesPanel.AddProperty("Hull", () => $"{hullData.Name}");
- //        AddEntityProperties(entity);
- //        //cargoList.SetExpanded(false,true);
- //        
- //        RefreshValues();
-	// }
-
-	// private void AddEntityProperties(Entity entity)
-	// {
-	// 	AddField("Name", () => entity.Name, name => entity.Name = name);
-	// 	AddProperty("Mass", () => $"{entity.Mass.SignificantDigits(Context.GameplaySettings.SignificantDigits)}");
-	// }
-
 	private void AddItemProperties(ItemInstance item)
 	{
-		var data = item.Data.Value;
+		var data = GameManager.ItemManager.GetData(item);
 		
 		AddProperty(data.Description);
 		
@@ -390,8 +368,18 @@ public class PropertiesPanel : MonoBehaviour
 			AddProperty("Quantity", () => simpleCommodity.Quantity.ToString());
 		
 		var sheet = AddStatSheet();
-		var manufacturer = ActionGameManager.CultCache.Get<Faction>(data.Manufacturer);
-		sheet.AddStat("Manufacturer", () => manufacturer?.Name ?? "GameCult");
+		// Branding is derived from provenance, not stored on the design; a SimpleCommodity carries no lot and shows none.
+		if (item is CraftedItemInstance crafted)
+		{
+			var (maker, product) = GameManager.ItemManager.Brand(crafted);
+			if (maker != null)
+				sheet.AddStat("Manufacturer", () => maker.Name);
+			if (product != null)
+			{
+				AddProperty(product.Name);
+				AddProperty(product.Description);
+			}
+		}
 		sheet.AddStat("Mass", () => ActionGameManager.PlayerSettings.Format(GameManager.ItemManager.GetMass(item)));
 		
 		//AddProperty("Thermal Mass", () => Context.GetThermalMass(item).SignificantDigits(Context.GameplaySettings.SignificantDigits));
@@ -442,7 +430,7 @@ public class PropertiesPanel : MonoBehaviour
 
 	private string GetTitle(EquippableItem item)
 	{
-		var data = item.Data.Value;
+		var data = GameManager.ItemManager.GetData(item);
 		var (tier, upgrades) = GameManager.ItemManager.GetTier(item);
 		return
 			$"<color=#{ColorUtility.ToHtmlStringRGB(tier.Color.ToColor())}>{data.Name}</color><smallcaps><size=60%> ({tier.Name}{new string('+', upgrades)})";
@@ -608,7 +596,7 @@ public class PropertiesPanel : MonoBehaviour
 		{
 			if (readWrite)
 			{
-				if (inspectable is InspectableRangedFloatAttribute ranged)
+				if (field.GetCustomAttribute<CultInspectorRangeAttribute>() is { } ranged)
 					AddField(field.Name.SplitCamelCase(), () => (float) field.GetValue(obj), f => field.SetValue(obj, f),
 						ranged.Min, ranged.Max);
 				else
@@ -619,9 +607,9 @@ public class PropertiesPanel : MonoBehaviour
 		{
 			if (readWrite)
 			{
-				if (inspectable is InspectableRangedIntAttribute ranged)
+				if (field.GetCustomAttribute<CultInspectorRangeAttribute>() is { } ranged)
 					AddField(field.Name.SplitCamelCase(), () => (int) field.GetValue(obj), f => field.SetValue(obj, f),
-						ranged.Min, ranged.Max);
+						(int) ranged.Min, (int) ranged.Max);
 				else
 					AddField(field.Name.SplitCamelCase(), () => (int) field.GetValue(obj), f => field.SetValue(obj, f));
 			} else AddProperty(field.Name.SplitCamelCase(), () => ((int) field.GetValue(obj)).ToString());

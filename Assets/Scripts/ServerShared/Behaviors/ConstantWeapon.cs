@@ -5,13 +5,13 @@
 using System;
 using MessagePack;
 using Newtonsoft.Json;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
+using CultMath;
+using static CultMath.math;
 
 [Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]
 public class ConstantWeaponData : WeaponData
 {
-    [InspectablePrefab, JsonProperty("ammoInterval"), Key(17)]  
+    [Inspectable, JsonProperty("ammoInterval"), Key(17)]  
     public float AmmoInterval = 1;
     
     public override Behavior CreateInstance(EquippedItem item)
@@ -75,6 +75,13 @@ public class ConstantWeapon : Weapon, IProgressBehavior, IEventBehavior
     public override bool Execute(float dt)
     {
         base.Execute(dt);
+        if (_firing && !StanceAllowsFire)
+        {
+            // Safed: shooter has a target and hasn't declared hostility toward it.
+            _firing = false;
+            OnStopFiring?.Invoke();
+            return false;
+        }
         if (_firing)
         {
             if (!Entity.TryConsumeEnergy(Evaluate(_data.Energy) * dt))
@@ -83,7 +90,7 @@ public class ConstantWeapon : Weapon, IProgressBehavior, IEventBehavior
                 OnStopFiring?.Invoke();
                 return false;
             }
-            if (_data.AmmoType != Guid.Empty)
+            if (_data.AmmoType.IsSet())
             {
                 if (_reloading)
                 {
@@ -103,10 +110,10 @@ public class ConstantWeapon : Weapon, IProgressBehavior, IEventBehavior
                     if (_data.MagazineSize > 1 && _ammo > 0) _ammo--;
                     else
                     {
-                        var cargo = Entity.FindItemInCargo(_data.AmmoType);
+                        var cargo = Entity.FindItemInCargo(_data.AmmoType.Key);
                         if (cargo != null)
                         {
-                            var item = cargo.ItemsOfType[_data.AmmoType][0];
+                            var item = cargo.ItemsOfType[_data.AmmoType.Key][0];
                             if (item is SimpleCommodity simpleCommodity)
                                 cargo.Remove(simpleCommodity, 1);
                             

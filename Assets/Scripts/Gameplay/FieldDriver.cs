@@ -3,10 +3,15 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
+using CultMath;
+using CultMath.UnityBridge;
+using static CultMath.math;
 
-public class FieldDriver : MonoBehaviour
+// Implements the capability presenter interfaces (Assets/Scripts/Gameplay/CapabilityPresenters.cs) by
+// delegating to its own pre-existing methods/fields; it decides nothing about capability rules,
+// per docs/headless-playground-cut.md fork L. CapabilityPresentationBinder is what actually
+// subscribes these methods to a CapabilityEvents source -- FieldDriver has no reference to one.
+public class FieldDriver : MonoBehaviour, IAbsorbPresenter, IGrabPresenter, IMeleePresenter, IThrustPresenter
 {
     public Camera Camera;
     public float2 Push;
@@ -25,7 +30,7 @@ public class FieldDriver : MonoBehaviour
     [Inspectable]
     public ExponentialCurve MagnitudeTimeScaling;
     
-    [Inspectable, InspectorHeader("Melee")]
+    [Inspectable]
     public float MeleeRange;
     [Inspectable]
     public float MeleeRangeExponent;
@@ -40,7 +45,7 @@ public class FieldDriver : MonoBehaviour
     [Inspectable]
     public float MeleeAngleExponent;
     
-    [Inspectable, InspectorHeader("Tendril")]
+    [Inspectable]
     public float TendrilBaseRadius = 3;
     [Inspectable]
     public float TendrilTipRadius = .1f;
@@ -57,7 +62,7 @@ public class FieldDriver : MonoBehaviour
     // [Inspectable]
     // public float GrabScaleAnimationExponent = .5f;
 
-    [Inspectable, InspectorHeader("Grab")]
+    [Inspectable]
     public float GrabExtendTime;
     [Inspectable]
     public float GrabEnvelopTime;
@@ -81,13 +86,16 @@ public class FieldDriver : MonoBehaviour
     private Vector3 _grabObjectVelocity;
     private float _grabObjectScale;
     private float _grabTime;
-    private GrabPhase _grabPhase;
+    private TendrilPhase _grabPhase;
     private Vector3 _tendrilBasePos;
     private Vector3 _tendrilBendTarget;
     private Vector3 _tendrilTargetPos;
     private float _fadePoint;
 
-    private enum GrabPhase
+    // Named distinctly from the global GrabPhase (CapabilityEvents.cs): this is FieldDriver's own
+    // internal tendril-animation timing, still owned here until a real pickup capability exists to
+    // publish per-phase GrabEvent transitions (see Grab(GrabEvent, Transform, Vector3) below).
+    private enum TendrilPhase
     {
         Extend,
         Envelop,
@@ -106,14 +114,6 @@ public class FieldDriver : MonoBehaviour
     {
         _collider = GetComponent<MeshCollider>();
         _field = GetComponent<MeshRenderer>().material;
-        var clickableCollider = GetComponent<ClickableCollider>();
-        if(clickableCollider!=null)
-        {
-            clickableCollider.OnClick += (_, _, ray, hit) =>
-            {
-                AddHit(hit.point, ray.direction, TestMagnitude);
-            };
-        }
         _hitBuffer = new ComputeBuffer(MaxHits, 32);
     }
 
@@ -122,8 +122,8 @@ public class FieldDriver : MonoBehaviour
         if (_hits.Count >= MaxHits) return;
         var hit = new FieldHit
         {
-            Position = Vector3.Scale(normalize(transform.InverseTransformPoint(position)), transform.localScale),
-            Direction = normalize(transform.rotation * direction),
+            Position = normalize(transform.InverseTransformPoint(position.ToUnity()).ToCultMath()) * transform.localScale.ToCultMath(),
+            Direction = normalize((transform.rotation * direction.ToUnity()).ToCultMath()),
             Magnitude = magnitude,
             Time = 0
         };
@@ -143,13 +143,42 @@ public class FieldDriver : MonoBehaviour
 
     public void GrabObject(Transform t, Vector3 v)
     {
-        _grabPhase = GrabPhase.Extend;
+        _grabPhase = TendrilPhase.Extend;
         _grabObject = t;
         _grabObjectStartPos = t.position;
         _grabObjectVelocity = v;
         _grabObjectScale = t.localScale.x;
         _tendrilBasePos = _grabObjectStartTendrilBasePos = _collider.ClosestPoint(_grabObjectStartPos);
         _fadePoint = .999f;
+    }
+
+    // IAbsorbPresenter: delegates straight to the existing hit-buffer mechanism. e.DamageType is not
+    // read -- the field shield has no per-damage-type visual today; it rides along in the event for
+    // presentations that do vary by type (the mask itself is absorb-capability data, out of scope here).
+    public void Absorb(AbsorbEvent e) => AddHit(e.Position, e.Direction, e.Magnitude);
+
+    // IGrabPresenter: only the Started phase does anything today. FieldDriver still times the
+    // extend/envelop/pull animation itself (TendrilPhase above, driven by GrabExtendTime/
+    // GrabEnvelopTime/GrabPullTime) because no capability yet publishes those phase transitions;
+    // once one does, this is where FieldDriver would react to Envelop/Pull/Completed/Cancelled too.
+    public void Grab(GrabEvent e, Transform target, Vector3 initialVelocity)
+    {
+        if (e.Phase == GrabPhase.Started && target != null)
+            GrabObject(target, initialVelocity);
+    }
+
+    // IMeleePresenter: the field shield's swing shape comes from its own authored curves
+    // (MeleeRange/MeleeAngle/MeleeDuration/etc, tuned in the inspector), not from the event's
+    // direction/range/arc/duration -- those exist for presentations that do read them.
+    public void Melee(MeleeEvent e) => Melee();
+
+    // IThrustPresenter: Throttle is not read; pushMag is derived from PlanarThrust in Update() below,
+    // matching the field shield's existing behaviour.
+    public void Thrust(ThrustEvent e)
+    {
+        Push = e.PlanarThrust;
+        FrontTwist = e.Twist.x;
+        RearTwist = e.Twist.y;
     }
 
     void Update()
@@ -209,19 +238,19 @@ public class FieldDriver : MonoBehaviour
         {
             _grabTime += Time.deltaTime / _grabPhase switch
             {
-                GrabPhase.Extend => GrabExtendTime,
-                GrabPhase.Envelop => GrabEnvelopTime,
-                GrabPhase.Pull => GrabPullTime,
+                TendrilPhase.Extend => GrabExtendTime,
+                TendrilPhase.Envelop => GrabEnvelopTime,
+                TendrilPhase.Pull => GrabPullTime,
                 _ => throw new ArgumentOutOfRangeException()
             };
             if (_grabTime > 1)
             {
                 _grabTime = 0;
-                if (_grabPhase == GrabPhase.Envelop)
+                if (_grabPhase == TendrilPhase.Envelop)
                 {
                     _grabObjectEndPos = _grabObject.position;
                 }
-                if (_grabPhase == GrabPhase.Pull)
+                if (_grabPhase == TendrilPhase.Pull)
                 {
                     Destroy(_grabObject.gameObject);
                     _grabObject = null;
@@ -232,30 +261,30 @@ public class FieldDriver : MonoBehaviour
 
             if (_grabObject != null)
             {
-                _tendrilBasePos = AetheriaMath.Damp(_tendrilBasePos, _grabObject.position, TendrilBaseDamping, Time.deltaTime);
+                _tendrilBasePos = damp(_tendrilBasePos.ToCultMath(), _grabObject.position.ToCultMath(), TendrilBaseDamping, Time.deltaTime).ToUnity();
                 switch (_grabPhase)
                 {
-                    case GrabPhase.Extend:
+                    case TendrilPhase.Extend:
                         _tendrilBendTarget = _grabObjectStartPos;
                         _grabObject.position += _grabObjectVelocity * Time.deltaTime;
                         _tendrilTargetPos = lerp(
-                            lerp(_grabObjectStartTendrilBasePos, _grabObjectStartPos, _grabTime), 
-                            lerp(_grabObjectStartPos, _grabObject.position, _grabTime),
-                            pow(_grabTime, TendrilExtensionExponent));
+                            lerp(_grabObjectStartTendrilBasePos.ToCultMath(), _grabObjectStartPos.ToCultMath(), _grabTime), 
+                            lerp(_grabObjectStartPos.ToCultMath(), _grabObject.position.ToCultMath(), _grabTime),
+                            pow(_grabTime, TendrilExtensionExponent)).ToUnity();
                         _field.SetFloat("_TendrilInfluence", pow(_grabTime, TendrilExtendBaseAnimationExponent));
                         _field.SetFloat("_TendrilSize", lerp(TendrilBaseRadius/2,TendrilBaseRadius,pow(_grabTime, TendrilExtendBaseAnimationExponent)));
                         _field.SetFloat("_TendrilRadius", _grabObjectScale * pow(_grabTime, TendrilTipRadiusAnimationExponent) * TendrilTipRadius);
                         break;
-                    case GrabPhase.Envelop:
+                    case TendrilPhase.Envelop:
                         _tendrilBendTarget = _grabObjectStartPos;
                         _tendrilTargetPos = _grabObject.position += _grabObjectVelocity * Time.deltaTime * (1-_grabTime);
                         _field.SetFloat("_TendrilInfluence", 1);
                         _field.SetFloat("_TendrilSize", TendrilBaseRadius);
                         _field.SetFloat("_TendrilRadius", _grabObjectScale * TendrilTipRadius);
                         break;
-                    case GrabPhase.Pull:
-                        _tendrilTargetPos = _grabObject.position = lerp(_grabObjectEndPos, transform.position, _grabTime*_grabTime);
-                        _tendrilBendTarget = lerp(_grabObjectStartPos, _grabObjectEndPos, _grabTime*_grabTime);
+                    case TendrilPhase.Pull:
+                        _tendrilTargetPos = _grabObject.position = lerp(_grabObjectEndPos.ToCultMath(), transform.position.ToCultMath(), _grabTime*_grabTime).ToUnity();
+                        _tendrilBendTarget = lerp(_grabObjectStartPos.ToCultMath(), _grabObjectEndPos.ToCultMath(), _grabTime*_grabTime).ToUnity();
                         if (_fadePoint > .99 && transform.InverseTransformPoint(_grabObject.position).sqrMagnitude < 1)
                             _fadePoint = _grabTime;
                         _field.SetFloat("_TendrilInfluence", pow(smoothstep(1, _fadePoint, _grabTime), TendrilFadeExponent));
@@ -291,7 +320,7 @@ public class FieldDriver : MonoBehaviour
             for (int i = 1; i <= GIZMO_STEPS; i++)
             {
                 var l = (float)i / GIZMO_STEPS;
-                var next = AetheriaMath.GetQuadraticSplinePosition(_tendrilBasePos, _tendrilBendTarget, _tendrilTargetPos, l);
+                var next = quadratic_bezier(_tendrilBasePos.ToCultMath(), _tendrilBendTarget.ToCultMath(), _tendrilTargetPos.ToCultMath(), l).ToUnity();
                 Gizmos.DrawLine(previous, next);
                 previous = next;
             }

@@ -13,10 +13,10 @@ using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
 using UnityEngine.Experimental.Rendering;
-using Unity.Mathematics;
+using CultMath;
 using UnityEngine.Serialization;
-using static Unity.Mathematics.math;
-using int2 = Unity.Mathematics.int2;
+using static CultMath.math;
+using int2 = CultMath.int2;
 
 public class InventoryPanel : MonoBehaviour, IPointerClickHandler
 {
@@ -166,33 +166,6 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
 
                 if(GameManager.DockingBay!=null && _displayedCargo!=GameManager.DockingBay)
                     ContextMenu.AddOption(GameManager.DockingBay.Name, () => Display(GameManager.DockingBay));
-                
-                ContextMenu.AddOption("Save Loadout",
-                    () =>
-                    {
-                        GameManager.SaveLoadout(EntitySerializer.Pack(_displayedEntity));
-                    });
-
-                if (GameManager.Loadouts.Any())
-                {
-                    ContextMenu.AddDropdown("Restore Loadout", 
-                        GameManager.Loadouts.Select<EntityPack, (string text, Action action, bool enabled)>(pack => 
-                            (
-                                $"{pack.Name} - {pack.Price(GameManager.ItemManager):n0}", () =>
-                                {
-                                    var entity = EntitySerializer.Unpack(GameManager.ItemManager, GameManager.Zone, pack, true);
-                                    entity.SetParent(GameManager.DockedEntity);
-                                    GameManager.Credits -= pack.Price(GameManager.ItemManager);
-                                    GameManager.CurrentEntity = entity;
-                                    if(entity is Ship ship)
-                                    {
-                                        ship.IsPlayerShip = true;
-                                        GameManager.DockingBay.DockedShip = ship;
-                                    }
-                                    Display(entity);
-                                }, pack.Price(GameManager.ItemManager) < GameManager.Credits
-                                )));
-                }
 
                 ContextMenu.Show();
             });
@@ -410,7 +383,7 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
                                 //Debug.Log("Entity Pointer Enter");
                                 if (!(GameManager.DragObject is ItemDragObject itemDragObject)) return;
                                 var item = itemDragObject.Item;
-                                var itemData = item.Data.Value;
+                                var itemData = GameManager.ItemManager.GetData(item);
                                 if (!(item is EquippableItem equippableItem)) return;
                                 var placementPosition = v + itemDragObject.OriginCellOffset;
                                 if (entity.ItemFits(equippableItem, placementPosition))
@@ -586,7 +559,7 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
                         if (item != null)
                         {
                             var itemPosition = cargo.Cargo[item];
-                            var itemData = item.Data.Value;
+                            var itemData = GameManager.ItemManager.GetData(item);
                             var originalOccupancy = cargo.Data.InteriorShape.Inset(itemData.Shape, itemPosition, item.Rotation);
                             _dragCells = originalOccupancy.Coordinates
                                 .Select(v1 => Instantiate(CellInstances[v1], DragParent, true).transform).ToArray();
@@ -633,7 +606,7 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
                         //Debug.Log("Inventory Pointer Enter");
                         if (!(GameManager.DragObject is ItemDragObject itemDragObject)) return;
                         var item = itemDragObject.Item;
-                        var itemData = item.Data.Value;
+                        var itemData = GameManager.ItemManager.GetData(item);
                         var placementPosition = v + itemDragObject.OriginCellOffset;
                         if (cargo.ItemFits(item, placementPosition))
                         {
@@ -851,7 +824,7 @@ public class InventoryPanel : MonoBehaviour, IPointerClickHandler
                 return Color.white * .25f;
 
             var c = float3(1);
-            if (item.Data.Value is EquippableItemData equippable)
+            if (GameManager.ItemManager.GetData(item) is EquippableItemData equippable)
                 c = HardpointData.GetColor(equippable.HardpointType);
             
             if(!highlight)

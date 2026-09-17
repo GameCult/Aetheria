@@ -51,31 +51,23 @@ ExportedObj/
 *.opendb
 *.VC.db
 
-# Unity3D generate project files
-Aetheria-Economy.sln
-Aetheria.Shared.Unity.csproj
-CultBase.csproj
-CultCache.csproj
-CultCache.Editor.csproj
-Assembly-CSharp.csproj
-Assembly-CSharp-Editor.csproj
-Assembly-CSharp-firstpass.csproj
-Assembly-CSharp-Editor-firstpass.csproj
-Substance.EditorHelper.csproj
-Substance.Platform.csproj
-RethinkDB.csproj
-MessagePack.csproj
-UniRx.csproj
-Ink.csproj
-Tests.csproj
-AK.Wwise.Unity.Timeline.Editor.csproj
-AK.Wwise.Unity.Timeline.csproj
-AK.Wwise.Unity.MonoBehaviour.Editor.csproj
-AK.Wwise.Unity.MonoBehaviour.csproj
-AK.Wwise.Unity.API.WwiseTypes.csproj
-AK.Wwise.Unity.API.Editor.csproj
-AK.Wwise.Unity.API.csproj
-Ak.Wwise.Api.WAAPI.csproj
+# Unity/IDE generated solution and project files
+/*.sln
+/*.csproj
+
+# CultCache single-file store locks
+GameData/*.lock
+
+# Per-user editor state
+/[Uu]ser[Ss]ettings/
+
+# .NET build output outside Unity
+/Aetheria.Shared/bin/
+/Aetheria.Shared/obj/
+/tools/**/bin/
+/tools/**/obj/
+/tests/**/bin/
+/tests/**/obj/
 
 # Unity3D generated meta files
 *.pidb.meta
@@ -92,12 +84,6 @@ sysinfo.txt
 # Crashlytics generated file
 crashlytics-build.properties
 
-# Server generated files
-Economy.Server/bin/
-Economy.Server/obj/
-Economy.Shared/bin/
-Economy.Shared/obj/
-
 # JetBrains Rider .idea folder
 .idea/
 
@@ -105,5 +91,20 @@ Economy.Shared/obj/
 *.blend1
 
 Packages/packages-lock.json
-GameData/PlayerSettings.msgpack
+GameData/run.cc
+GameData/player.cc
 Vault/Aetheria/.obsidian/plugins/copilot/data.json
+
+# Agent scratch, sandboxed toolchain caches, and throwaway checkouts. These had
+# grown to 47 untracked entries; the worktree must stay legible, so they never
+# come back.
+.scratch-*
+scratch-*
+.codex/
+.codex-tmp/
+.evepkg/
+.npm-cache*/
+.nuget-appdata/
+.nuget-sandbox/
+.dotnet-sandbox/
+.appdata-sandbox/

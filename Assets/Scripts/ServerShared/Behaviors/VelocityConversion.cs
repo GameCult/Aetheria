@@ -4,8 +4,8 @@
 
 using MessagePack;
 using Newtonsoft.Json;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
+using CultMath;
+using static CultMath.math;
 
 [MessagePackObject, JsonObject(MemberSerialization.OptIn), RuntimeInspectable]
 public class VelocityConversionData : BehaviorData
@@ -38,7 +38,7 @@ public class VelocityConversion : Behavior
 
     public override bool Execute(float dt)
     {
-        Entity.Velocity = AetheriaMath.Damp(Entity.Velocity, Entity.Direction * length(Entity.Velocity), Evaluate(_data.Lambda), dt);
+        Entity.Velocity = damp(Entity.Velocity, Entity.Direction * length(Entity.Velocity), Evaluate(_data.Lambda), dt);
         return true;
     }
 }

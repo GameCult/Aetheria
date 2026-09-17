@@ -1,7 +1,7 @@
 ﻿using UnityEngine;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
-using static Unity.Mathematics.noise;
+using CultMath;
+using CultMath.UnityBridge;
+using static CultMath.math;
 using static Noise1D;
 
 /// <summary>
@@ -58,7 +58,7 @@ public class PlaceUIElementWorldspace : MonoBehaviour
             Mathf.Clamp(screenPoint.x, BorderPixels, Screen.width - BorderPixels),
             Mathf.Clamp(screenPoint.y, BorderPixels, Screen.height - BorderPixels));
         var toEdge = _mainCamera.ScreenPointToRay(clampedPoint);
-        var edgeLerp = smoothstep(1 - EdgeMargin, 1, dot(toEdge.direction, toTarget));
+        var edgeLerp = smoothstep(1 - EdgeMargin, 1, dot(toEdge.direction.ToCultMath(), toTarget.ToCultMath()));
         if (PointAtTarget)
         {
             transform.rotation = Quaternion.Slerp(

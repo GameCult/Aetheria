@@ -4,7 +4,8 @@
 
 using System.Collections;
 using System.Collections.Generic;
-using Unity.Mathematics;
+using CultMath;
+using CultMath.UnityBridge;
 using UnityEngine;
 using UnityEngine.EventSystems;
 
@@ -26,22 +27,22 @@ public class MapMenuInput : MonoBehaviour, IBeginDragHandler, IDragHandler, IScr
     public void OnBeginDrag(PointerEventData eventData)
     {
         _startMousePosition = eventData.position;
-        _startMapPosition = Map.Position;
+        _startMapPosition = Map.Position.ToUnity();
     }
 
     public void OnDrag(PointerEventData eventData)
     {
-        Map.Position = _startMapPosition - (eventData.position - _startMousePosition) * Map.Scale;
+        Map.Position = (_startMapPosition - (eventData.position - _startMousePosition) * Map.Scale).ToCultMath();
     }
 
     public void OnScroll(PointerEventData eventData)
     {
         Vector3[] mapCorners = new Vector3[4];
         _mapRect.GetWorldCorners(mapCorners);
-        var mapCenter = ((float3)(mapCorners[2] + mapCorners[0]) / 2).xy;
-        var oldPointerPosition = Map.Position + ((float2)eventData.position - mapCenter) * Map.Scale;
+        var mapCenter = ((mapCorners[2] + mapCorners[0]).ToCultMath() / 2).xy;
+        var oldPointerPosition = Map.Position + (eventData.position.ToCultMath() - mapCenter) * Map.Scale;
         Map.Scale *= 1 - eventData.scrollDelta.y * ZoomSpeed;
-        var pointerPosition = Map.Position + ((float2)eventData.position - mapCenter) * Map.Scale;
+        var pointerPosition = Map.Position + (eventData.position.ToCultMath() - mapCenter) * Map.Scale;
         Map.Position += oldPointerPosition - pointerPosition;
     }
 }

@@ -157,27 +157,6 @@ public class Spreadsheet : MonoBehaviour
             row.ApplyColumnSizes(_columnSizes);
     }
     
-    void Start()
-    {
-        // ShowData(
-        //     new []{"Column 1", "Column 2", "Column 3", "Column 4", "Column 5"}, 
-        //     new []{2,1,1,1,1}, 
-        //     Enumerable.Range(0,10)
-        //         .Select(i=>new SpreadsheetEntryRow
-        //         {
-        //             Columns = Enumerable.Range(0,5).Select(j=>
-        //             {
-        //                 var value = Random.Range(0, 10000);
-        //                 return new SpreadsheetEntryColumn
-        //                 {
-        //                     Output = () => $"c{(j+1).ToString()}:{value.ToString()}",
-        //                     SortKey = value
-        //                 };
-        //             }).ToArray()
-        //         }).ToArray()
-        //     );
-    }
-
     void Update()
     {
         

@@ -4,7 +4,7 @@
 
 using MessagePack;
 using Newtonsoft.Json;
-using Unity.Mathematics;
+using CultMath;
 
 [Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]
 public class LauncherData : LockWeaponData

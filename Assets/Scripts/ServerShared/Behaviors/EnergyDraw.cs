@@ -7,7 +7,7 @@ using System.Linq;
 using MessagePack;
 using Newtonsoft.Json;
 
-[Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn), Order(-20), RuntimeInspectable]
+[Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn), RuntimeInspectable]
 public class EnergyDrawData : BehaviorData
 {
     [Inspectable, JsonProperty("draw"), Key(1), RuntimeInspectable]

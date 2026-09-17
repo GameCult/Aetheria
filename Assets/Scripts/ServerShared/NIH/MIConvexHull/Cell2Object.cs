@@ -1,8 +1,8 @@
 using System.Collections;
 using System.Linq;
 using MIConvexHull;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
+using CultMath;
+using static CultMath.math;
 
 /// <summary>
 /// A vertex is a simple class that stores the postion of a point, node or vertex.

@@ -6,12 +6,10 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using JsonKnownTypes;
 using MessagePack;
 using Newtonsoft.Json;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
-using static Unity.Mathematics.noise;
+using CultMath;
+using static CultMath.math;
 
 public abstract class Behavior
 {
@@ -131,22 +129,9 @@ public interface IOrderedBehavior
     int Order { get; }
 }
 
-public interface IPersistentBehavior//<T> where T : IBehavior
-{
-    PersistentBehaviorData Store();
-    void Restore(PersistentBehaviorData data);
-}
-
 public interface IPopulationAssignment
 {
     int AssignedPopulation { get; set; }
-}
-
-[MessagePackObject,
- JsonObject(MemberSerialization.OptIn),
- JsonConverter(typeof(JsonKnownTypesConverter<PersistentBehaviorData>))]
-public abstract class PersistentBehaviorData
-{
 }
 
 [Inspectable, 
@@ -188,7 +173,7 @@ public abstract class PersistentBehaviorData
  Union(36, typeof(ConstantWeaponData)),
  Union(37, typeof(ChargedWeaponData)),
  Union(38, typeof(AutoWeaponData)),
- JsonConverter(typeof(JsonKnownTypesConverter<BehaviorData>)), JsonObject(MemberSerialization.OptIn)]
+ JsonObject(MemberSerialization.OptIn)]
 public abstract class BehaviorData
 {
     [Inspectable, JsonProperty("group"), Key(0)]

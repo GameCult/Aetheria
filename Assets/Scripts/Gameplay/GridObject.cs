@@ -1,7 +1,8 @@
 using System;
-using Unity.Mathematics;
+using CultMath;
+using CultMath.UnityBridge;
 using UnityEngine;
-using static Unity.Mathematics.math;
+using static CultMath.math;
 using Random = UnityEngine.Random;
 
 public class GridObject : MonoBehaviour
@@ -32,10 +33,10 @@ public class GridObject : MonoBehaviour
         if (Zone == null) return;
 
         var position = t.position;
-        var gridHeight = Zone.GetHeight(position.Flatland()) + GridOffset;
+        var gridHeight = Zone.GetHeight(position.Flatland().ToCultMath()) + GridOffset;
         Velocity += Vector3.up * (sign(gridHeight - position.y) * GridAttraction * Time.deltaTime);
         Velocity *= max(0, 1 - LaunchDrag * Time.deltaTime);
-        var normal = Zone.GetNormal(position.Flatland());
+        var normal = Zone.GetNormal(position.Flatland().ToCultMath());
         var force = new float2(normal.x, normal.z);
         var forceMagnitude = lengthsq(force);
         if (forceMagnitude > .001f)

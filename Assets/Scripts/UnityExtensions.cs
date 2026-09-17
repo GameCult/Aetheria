@@ -5,11 +5,11 @@ using System.Linq;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using MessagePack;
-using Unity.Mathematics;
+using CultMath;
 using UnityEngine;
 using Random = UnityEngine.Random;
 
-using static Unity.Mathematics.math;
+using static CultMath.math;
 
 public static class UnitySceneExtensions
 {

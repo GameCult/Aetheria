@@ -3,8 +3,8 @@ using System.Collections;
 using System.Collections.Generic;
 using MessagePack;
 using Newtonsoft.Json;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
+using CultMath;
+using static CultMath.math;
 
 [Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn), RuntimeInspectable]
 public class LockWeaponData : InstantWeaponData
@@ -77,7 +77,7 @@ public class LockWeapon : InstantWeapon
             _target = Entity.Target.Value;
         }
 
-        if (Entity.Target.Value != null && Entity.Target.Value.IsHostileTo(Entity))
+        if (Entity.Target.Value != null && Entity.IsHostileTo(Entity.Target.Value))
         {
             LockSpeed = Evaluate(_data.LockSpeed);
             SensorImpact = Evaluate(_data.SensorImpact);

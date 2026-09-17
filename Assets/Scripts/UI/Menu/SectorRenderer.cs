@@ -5,9 +5,10 @@ using UniRx;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
-using float2 = Unity.Mathematics.float2;
+using CultMath;
+using CultMath.UnityBridge;
+using static CultMath.math;
+using float2 = CultMath.float2;
 
 public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IScrollHandler
 {
@@ -62,7 +63,7 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
             Properties.Title.text = zone.Name;
             Properties.AddProperty("Owner", () => zone.Owner?.Name ?? "None");
             var otherFactions = zone.Factions
-                .Where(f => f.ID != zone.Owner?.ID)
+                .Where(f => f != zone.Owner)
                 .Select(f=>f.Name).ToArray();
             if (otherFactions.Length > 0)
                 Properties.AddProperty("Factions Present", () => string.Join(", ", otherFactions));
@@ -77,69 +78,35 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
             }
             else
             {
-                var planetCount = zone.PackedContents.Planets.Count(body => body is PlanetData).ToString();
+                var planetCount = zone.PackedContents.Planets.Count(body => ActionGameManager.CultCache.Get(body) is PlanetData).ToString();
                 Properties.AddProperty("Planets", () => planetCount);
 
-                var beltCount = zone.PackedContents.Planets.Count(body => body is AsteroidBeltData).ToString();
+                var beltCount = zone.PackedContents.Planets.Count(body => ActionGameManager.CultCache.Get(body) is AsteroidBeltData).ToString();
                 Properties.AddProperty("Asteroid Belts", () => beltCount);
 
-                var giantCount = zone.PackedContents.Planets.Count(body => body is GasGiantData && !(body is SunData)).ToString();
+                var giantCount = zone.PackedContents.Planets.Count(body => ActionGameManager.CultCache.Get(body) is GasGiantData && !(ActionGameManager.CultCache.Get(body) is SunData)).ToString();
                 Properties.AddProperty("Gas Giants", () => giantCount);
 
-                var starCount = zone.PackedContents.Planets.Count(body => body is SunData).ToString();
+                var starCount = zone.PackedContents.Planets.Count(body => ActionGameManager.CultCache.Get(body) is SunData).ToString();
                 Properties.AddProperty("Stars", () => starCount);
                 
                 var stationCount = zone.PackedContents.Entities
-                    .Count(entity => ((HullData) entity.Hull.Data.Value).HullType == HullType.Station)
+                    .Count(entity => ((HullData) GameManager.ItemManager.GetData(entity.Hull)).HullType == HullType.Station)
                     .ToString();
                 Properties.AddProperty("Stations", () => stationCount);
                 
                 var turretCount = zone.PackedContents.Entities
-                    .Count(entity => ((HullData) entity.Hull.Data.Value).HullType == HullType.Turret)
+                    .Count(entity => ((HullData) GameManager.ItemManager.GetData(entity.Hull)).HullType == HullType.Turret)
                     .ToString();
                 Properties.AddProperty("Turrets", () => turretCount);
                 
                 var shipCount = zone.PackedContents.Entities
-                    .Count(entity => ((HullData) entity.Hull.Data.Value).HullType == HullType.Ship)
+                    .Count(entity => ((HullData) GameManager.ItemManager.GetData(entity.Hull)).HullType == HullType.Ship)
                     .ToString();
                 Properties.AddProperty("Ships", () => shipCount);
             }
         });
-
-        // PathAnimationButton.onClick.AddListener(() =>
-        // {
-        //     Map.StartCoroutine(AnimatePath());
-        // });
     }
-
-    // private IEnumerator AnimatePath()
-    // {
-    //     var pathZones = ActionGameManager.CurrentSector.ExitPath;
-    //     LegendPanel.SetActive(false);
-    //     PathAnimationButton.gameObject.SetActive(false);
-    //
-    //     var revealCount = ActionGameManager.CurrentSector.Entrance.Distance[ActionGameManager.CurrentSector.Exit];
-    //     Map.StartReveal(
-    //         PathAnimationDuration / revealCount * (LinkAnimationDuration / (IconAnimationDuration + LinkAnimationDuration)),
-    //         PathAnimationDuration / revealCount * (IconAnimationDuration / (IconAnimationDuration + LinkAnimationDuration)));
-    //     MainCamera.enabled = false;
-    //     SectorCamera.targetTexture = null;
-    //     Canvas.gameObject.SetActive(false);
-    //     SectorCamera.gameObject.SetActive(true);
-    //         
-    //     var pathAnimationLerp = 0f;
-    //     while (pathAnimationLerp < 1)
-    //     {
-    //         var currentTargetZone = pathZones[(int) (pathZones.Length * pathAnimationLerp)];
-    //         _position = lerp(_position, currentTargetZone.Position, PathAnimationDamping);
-    //         pathAnimationLerp += Time.deltaTime / (PathAnimationDuration * PathAnimationDurationPadding);
-    //         UpdateCamera();
-    //         yield return null;
-    //     }
-    //     
-    //     LegendPanel.SetActive(true);
-    //     PathAnimationButton.gameObject.SetActive(true);
-    // }
     
     private void OnEnable()
     {
@@ -193,26 +160,26 @@ public class SectorRenderer : MonoBehaviour, IBeginDragHandler, IDragHandler, IS
         _sectorBackgroundTransform.localScale = new Vector3(_aspectRatio * _viewSize, _viewSize);
         _sectorCameraTransform.position = new Vector3(_position.x, _position.y, _sectorCameraDepth);
         SectorCamera.orthographicSize = halfSize;
-        SectorBackgroundRenderer.material.SetVector("Extents", bounds);
+        SectorBackgroundRenderer.material.SetVector("Extents", bounds.ToUnity());
     }
 
     public void OnBeginDrag(PointerEventData eventData)
     {
-        _startMousePosition = eventData.position;
+        _startMousePosition = eventData.position.ToCultMath();
         _startMapPosition = _position;
     }
 
     public void OnDrag(PointerEventData eventData)
     {
-        _position = _startMapPosition - ((float2)eventData.position - _startMousePosition) / _size.y * _viewSize;
+        _position = _startMapPosition - (eventData.position.ToCultMath() - _startMousePosition) / _size.y * _viewSize;
     }
 
     public void OnScroll(PointerEventData eventData)
     {
         var mapCenter = float2((float)Screen.width / 2, (float)Screen.height / 2);
-        var oldPointerPosition = _position + ((float2)eventData.position - mapCenter) / Screen.height * _viewSize;
+        var oldPointerPosition = _position + (eventData.position.ToCultMath() - mapCenter) / Screen.height * _viewSize;
         _viewSize = clamp(_viewSize * (1 - eventData.scrollDelta.y * ZoomSpeed), MinViewSize, MaxViewSize);
-        var pointerPosition = _position + ((float2)eventData.position - mapCenter) / Screen.height * _viewSize;
+        var pointerPosition = _position + (eventData.position.ToCultMath() - mapCenter) / Screen.height * _viewSize;
         _position += oldPointerPosition - pointerPosition;
     }
 }

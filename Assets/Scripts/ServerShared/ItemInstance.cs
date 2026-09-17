@@ -1,4 +1,4 @@
-﻿/* This Source Code Form is subject to the terms of the Mozilla Public
+/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
@@ -7,42 +7,35 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using JsonKnownTypes;
+using GameCult.Caching;
 //using JM.LinqFaster;
 using MessagePack;
 using MessagePack.Formatters;
 using Newtonsoft.Json;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
+using CultMath;
+using static CultMath.math;
 
-[Union(0, typeof(SimpleCommodity)), 
- Union(1, typeof(CompoundCommodity)), 
+[Union(0, typeof(SimpleCommodity)),
+ Union(1, typeof(CompoundCommodity)),
  Union(2, typeof(EquippableItem)),
  Union(3, typeof(ConsumableItem)),
- JsonObject(MemberSerialization.OptIn), 
- JsonConverter(typeof(JsonKnownTypesConverter<ItemInstance>))]
+ JsonObject(MemberSerialization.OptIn)]
 public abstract class ItemInstance
 {
-    [JsonProperty("data"), Key(0)] public DatabaseLink<ItemData> Data;
+    [JsonProperty("data"), Key(0)] public CultRecordRef<ItemData> Data;
     [JsonProperty("rotation"), Key(1)] public ItemRotation Rotation;
 }
 
-[Union(0, typeof(CompoundCommodity)), 
- Union(1, typeof(EquippableItem)), 
- Union(2, typeof(ConsumableItem)), 
- JsonObject(MemberSerialization.OptIn),
- JsonConverter(typeof(JsonKnownTypesConverter<CraftedItemInstance>))]
+[Union(0, typeof(CompoundCommodity)),
+ Union(1, typeof(EquippableItem)),
+ Union(2, typeof(ConsumableItem)),
+ JsonObject(MemberSerialization.OptIn)]
 public abstract class CraftedItemInstance : ItemInstance
 {
-    [JsonProperty("quality"), Key(2)]  public float Quality;
+    // Keys 2 (Quality), 9 (Ingredients) and 10 (Product) belonged to fields moved to Lot; do not reuse them.
 
-    //[JsonProperty("ingredients"), Key(3)]  public List<ItemInstance> Ingredients = new List<ItemInstance>();
-    
-    //[JsonProperty("blueprint"), Key(4)]  public Guid Blueprint;
-    
-    //[JsonProperty("name"), Key(3)]  public string Name;
-    
-    //[JsonProperty("sourceEntity"), Key(4)]  public Guid SourceEntity;
+    // The lot this unit was minted from: its design, provenance, workmanship and role fills all live there.
+    [JsonProperty("lot"), Key(11)] public int Lot;
 }
 
 [MessagePackObject, JsonObject(MemberSerialization.OptIn)]

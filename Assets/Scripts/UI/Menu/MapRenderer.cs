@@ -7,10 +7,11 @@ using System.Collections;
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
-using Unity.Mathematics;
+using CultMath;
+using CultMath.UnityBridge;
 using UnityEngine.UI;
-using static Unity.Mathematics.math;
-using int2 = Unity.Mathematics.int2;
+using static CultMath.math;
+using int2 = CultMath.int2;
 
 public class MapRenderer : MonoBehaviour
 {
@@ -113,7 +114,7 @@ public class MapRenderer : MonoBehaviour
             InfluenceDisplay.material.SetTexture("_DetailTex", _influenceTexture);
         }
 
-        var pos = ((Vector2) Position).Flatland(1);
+        var pos = Position.ToUnity().Flatland(1);
         
         MapOverlayCamera.transform.position = pos;
         MapOverlayCamera.orthographicSize = _size.y * Scale * .5f;

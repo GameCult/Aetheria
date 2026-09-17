@@ -1,32 +1,76 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Numerics;
 using System.Reflection;
+using System.Text;
 using System.Text.RegularExpressions;
-using LiteNetLib;
 using MessagePack;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
-using Random = Unity.Mathematics.Random;
+using CultMath;
+using static CultMath.math;
+using Random = CultMath.Random;
 using Unity.Tiny;
-using float2 = Unity.Mathematics.float2;
+using float2 = CultMath.float2;
 
 public static class Extensions
 {
-    //public static IDatabaseEntry Get(this Guid entry) => Database.Get(entry);
-    //public static T Get<T>(this Guid entry) where T : class, IDatabaseEntry => Database.Get(entry) as T;
-
     public static bool IsImplementationOf(this Type baseType, Type interfaceType)
     {
         return baseType.GetInterfaces().Any(interfaceType.Equals);
     }
 
-    public static void Send<T>(this NetPeer peer, T message, DeliveryMethod method = DeliveryMethod.ReliableOrdered) where T : Message
+    // A string hash that is the same in every process and runtime, for seeding: string.GetHashCode is randomized per
+    // process on .NET Core. Folds the UTF-8 bytes through CultMath's PCG hash from the FNV-1a offset basis.
+    public static uint StableHash(this string s)
     {
-        peer.Send(MessagePackSerializer.Serialize(message as Message), method);
+        uint h = 0x811C9DC5;
+        foreach (var b in Encoding.UTF8.GetBytes(s)) h = pcg(h ^ b);
+        return h;
+    }
+
+    // Every loadable type assignable to this one. An assembly whose dependencies are missing (a Unity plugin
+    // referencing UnityEngine outside Unity) still yields the types that do load.
+    private static readonly Dictionary<Type, Type[]> ChildClasses = new Dictionary<Type, Type[]>();
+    public static Type[] GetAllChildClasses(this Type type)
+    {
+        if (ChildClasses.TryGetValue(type, out var children)) return children;
+        return ChildClasses[type] = AppDomain.CurrentDomain.GetAssemblies().SelectMany(assembly =>
+        {
+            try { return assembly.GetTypes(); }
+            catch (ReflectionTypeLoadException e) { return e.Types.Where(t => t != null); }
+        }).Where(type.IsAssignableFrom).ToArray();
+    }
+
+    public static string SplitCamelCase(this string str) =>
+        Regex.Replace(Regex.Replace(str, @"(\P{Ll})(\P{Ll}\p{Ll})", "$1 $2"), @"(\p{Ll})(\P{Ll})", "$1 $2");
+
+    public static string FormatTypeName(this string typeName) =>
+        (typeName.EndsWith("Data", StringComparison.InvariantCultureIgnoreCase)
+            ? typeName.Substring(0, typeName.Length - 4)
+            : typeName).SplitCamelCase();
+
+    public static T MaxBy<T, U>(this IEnumerable<T> items, Func<T, U> selector) => items.Best(selector, 1);
+    public static T MinBy<T, U>(this IEnumerable<T> items, Func<T, U> selector) => items.Best(selector, -1);
+
+    private static T Best<T, U>(this IEnumerable<T> items, Func<T, U> selector, int sign)
+    {
+        using var e = items.GetEnumerator();
+        if (!e.MoveNext()) throw new InvalidOperationException("Empty input sequence");
+        var best = e.Current;
+        var bestValue = selector(best);
+        var comparer = Comparer<U>.Default;
+        while (e.MoveNext())
+        {
+            var value = selector(e.Current);
+            if (comparer.Compare(value, bestValue) * sign > 0)
+            {
+                best = e.Current;
+                bestValue = value;
+            }
+        }
+        return best;
     }
 
     public static T[] WeightedRandomElements<T>(this IEnumerable<T> collection, ref Random random, Func<T, float> weightFunction, int count)
@@ -39,6 +83,10 @@ public static class Extensions
             weights[x] = weightFunction(x);
             totalWeight += weights[x];
         }
+
+        // Nothing can be drawn from a set whose weights all come to nothing. Returning an empty array says so,
+        // where a full array of unset elements would read as "found these" and hand the caller nulls.
+        if (totalWeight <= 0) return new T[0];
 
         var randomElements = new T[count];
         for (int i = 0; i < count; i++)
@@ -123,6 +171,15 @@ public static class Extensions
     // public static T RandomElement<T>(this IEnumerable<T> enumerable) => enumerable.ElementAt(Random.NextInt(0, enumerable.Count()));
     public static float NextPowerDistribution(this ref Random random, float min, float max, float exp, float randexp) =>
         pow((pow(max, exp + 1) - pow(min, exp + 1)) * pow(random.NextFloat(), randexp) + pow(min, exp + 1), 1 / (exp + 1));
+    // Box-Muller: two uniforms become a normal deviate. Used for part quality, where a manufacturer's mean is
+    // its technology in a role and its deviation is quality control. Callers clamp to their own valid range.
+    public static float NextGaussian(this ref Random random, float mean, float deviation)
+    {
+        var u1 = max(random.NextFloat(), 1e-6f);
+        var u2 = random.NextFloat();
+        return mean + deviation * sqrt(-2 * log(u1)) * cos(2 * PI * u2);
+    }
+
     public static float NextUnbounded(this ref Random random) => 1 / (1 - random.NextFloat()) - 1;
     public static float NextUnbounded(this ref Random random, float bias, float power, float ceiling) => 1 / (1 - pow(min(random.NextFloat(), ceiling), 1 - pow(clamp(bias,0,.99f), 1 / power))) - 1;
 

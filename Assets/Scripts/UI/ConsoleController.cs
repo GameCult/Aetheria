@@ -76,6 +76,10 @@ public class ConsoleController
 		
 		string[] commandSplit = ParseArguments(commandString);
 		string[] args = {"",""};
+		if (commandSplit == null) {
+			AppendLogLine("Refused: commands take only letters, digits, spaces and hyphens");
+			return;
+		}
 		if (commandSplit.Length < 1) {
 			AppendLogLine($"Unable to process command '{commandString}'");
 			return;
@@ -115,10 +119,7 @@ public class ConsoleController
 		var parmCharsArr = new char[parmChars.Count];
 		parmChars.CopyTo(parmCharsArr, 0);
 		var args = new string(parmCharsArr).Split(new[] {'\n'}, StringSplitOptions.RemoveEmptyEntries);
-		for (var i = 0; i < args.Length; i++)
-		{
-			args[i] = _permittedCharacters.Replace(args[i], "");
-		}
-		return args;
+		// An argument with any other character is refused (null), never silently stripped into a different one.
+		return args.Any(arg => _permittedCharacters.IsMatch(arg)) ? null : args;
 	}
 }

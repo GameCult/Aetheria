@@ -7,9 +7,8 @@ using System.Collections;
 using System.Collections.Generic;
 using MessagePack;
 using Newtonsoft.Json;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
-using static Unity.Mathematics.noise;
+using CultMath;
+using static CultMath.math;
 
 [Serializable, MessagePackObject(keyAsPropertyName:true), JsonObject]
 public class PlanetSettings
@@ -150,6 +149,11 @@ public class ZoneGenerationSettings
     public ExponentialLerp GasGiantBandBrightness;
 
     public string[] NameData;
+
+    // Non-hostile ships for hand-testing combat/targeting: belong to a galaxy faction that is
+    // neither the zone owner nor the zone's nearest faction, so derived hostility rules leave
+    // them non-hostile to the player. Zero eligible factions means none are spawned.
+    public int NeutralWandererCount = 2;
 }
 
 [Serializable, MessagePackObject(keyAsPropertyName: true), JsonObject]

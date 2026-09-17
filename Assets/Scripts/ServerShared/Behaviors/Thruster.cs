@@ -2,10 +2,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
+using GameCult.Caching;
 using MessagePack;
 using Newtonsoft.Json;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
+using CultMath;
+using static CultMath.math;
 
 [Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn), EntityTypeRestriction(HullType.Ship), RuntimeInspectable]
 public class ThrusterData : BehaviorData
@@ -22,7 +23,7 @@ public class ThrusterData : BehaviorData
     [Inspectable, JsonProperty("energy"), Key(4), RuntimeInspectable]  
     public PerformanceStat EnergyUsage = new PerformanceStat();
 
-    [InspectablePrefab, JsonProperty("Particles"), Key(5)]
+    [Inspectable, CultInspectorAssetPath, JsonProperty("Particles"), Key(5)]
     public string ParticlesPrefab;
     
     public override Behavior CreateInstance(EquippedItem item)
@@ -78,7 +79,7 @@ public class Thruster : Behavior, IAnalogBehavior
             Thrust = Evaluate(_data.Thrust);
             Entity.Velocity -= Direction.xz * _input * Thrust / Entity.Mass * dt;
             Entity.Direction = mul(Entity.Direction,
-                Unity.Mathematics.float2x2.Rotate(_input * Torque * Thrust * ItemManager.GameplaySettings.TorqueMultiplier / Entity.Mass * dt));
+                CultMath.float2x2.Rotate(_input * Torque * Thrust * ItemManager.GameplaySettings.TorqueMultiplier / Entity.Mass * dt));
             AddHeat(_input * Evaluate(_data.Heat) * dt);
             var vis = _input * Evaluate(_data.Visibility);
             if (!Entity.VisibilitySources.ContainsKey(this) || vis > Entity.VisibilitySources[this])

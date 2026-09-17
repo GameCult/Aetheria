@@ -5,7 +5,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using static Unity.Mathematics.math;
+using static CultMath.math;
 
 //[ExecuteInEditMode]
 public class SunMaterial : MonoBehaviour

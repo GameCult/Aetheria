@@ -3,8 +3,8 @@ using System.Collections;
 using System.Collections.Generic;
 using MessagePack;
 using Newtonsoft.Json;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
+using CultMath;
+using static CultMath.math;
 
 [Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn), RuntimeInspectable]
 public class InstantWeaponData : WeaponData
@@ -18,7 +18,7 @@ public class InstantWeaponData : WeaponData
     [Inspectable, JsonProperty("cooldown"), Key(19), RuntimeInspectable]
     public PerformanceStat Cooldown = new PerformanceStat();
     
-    [InspectablePrefab, JsonProperty("ammoInterval"), Key(20)]  
+    [Inspectable, JsonProperty("ammoInterval"), Key(20)]  
     public bool SingleAmmoBurst;
 
     public override Behavior CreateInstance(EquippedItem item)
@@ -90,6 +90,9 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior
 
     protected void Trigger()
     {
+        // Safed: shooter has a target and hasn't declared hostility toward it.
+        if (!StanceAllowsFire) return;
+
         // If 1 ammo is consumed per burst, perform ammo and energy consumption here
         // UseAmmo returns false when triggering reload; cancel firing if that is the case
         if(_data.SingleAmmoBurst && (!Entity.TryConsumeEnergy(Energy) || !UseAmmo())) return;
@@ -124,12 +127,12 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior
         }
         
         var hasAmmo = true;
-        if (_data.AmmoType != Guid.Empty)
+        if (_data.AmmoType.IsSet())
         {
-            var cargo = Entity.FindItemInCargo(_data.AmmoType);
+            var cargo = Entity.FindItemInCargo(_data.AmmoType.Key);
             if (cargo != null)
             {
-                var item = cargo.ItemsOfType[_data.AmmoType][0];
+                var item = cargo.ItemsOfType[_data.AmmoType.Key][0];
                 if (item is SimpleCommodity simpleCommodity)
                     cargo.Remove(simpleCommodity, 1);
             }

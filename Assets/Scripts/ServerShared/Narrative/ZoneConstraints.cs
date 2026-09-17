@@ -15,12 +15,12 @@ public interface IFactionResolver
 public abstract class ZoneConstraint
 {
     public bool Flip = false;
-    
+
     public bool Test(GalaxyZone zone)
     {
         return Flip ^ TestZone(zone);
     }
-    
+
     protected abstract bool TestZone(GalaxyZone zone);
 }
 
@@ -34,14 +34,14 @@ public class FactionPresenceConstraint : ZoneConstraint
 
     protected override bool TestZone(GalaxyZone zone)
     {
-        return zone.Factions.Any(f=>f.ID == TargetFaction?.ID);
+        return zone.Factions.Any(f => f == TargetFaction);
     }
 }
 
 public class FactionOwnerConstraint : ZoneConstraint
 {
     private Faction TargetFaction { get; }
-    
+
     public FactionOwnerConstraint(string[] args, IFactionResolver resolver)
     {
         TargetFaction = resolver.ResolveFaction(args[0]);
@@ -49,7 +49,7 @@ public class FactionOwnerConstraint : ZoneConstraint
 
     protected override bool TestZone(GalaxyZone zone)
     {
-        return zone.Owner.ID == TargetFaction?.ID;
+        return TargetFaction != null && zone.Owner == TargetFaction;
     }
 }
 
@@ -57,7 +57,7 @@ public class DistanceConstraint : ZoneConstraint
 {
     private GalaxyZone _targetZone;
     private Predicate<int> _test;
-    
+
     public DistanceConstraint(string[] args, IZoneResolver zoneResolver)
     {
         if (args.Length == 3)

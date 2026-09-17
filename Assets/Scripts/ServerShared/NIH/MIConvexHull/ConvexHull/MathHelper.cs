@@ -26,9 +26,9 @@
 
 using System;
 using System.Collections.Generic;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
-using Random = Unity.Mathematics.Random;
+using CultMath;
+using static CultMath.math;
+using Random = CultMath.Random;
 
 namespace MIConvexHull
 {

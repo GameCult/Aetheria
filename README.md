@@ -33,7 +33,6 @@ If you want to chat, please join [our Discord server](https://discord.gg/trbteNj
     - [Getting the Files](#Getting-the-Files)
     - [Choosing a Task](#Choosing-a-Task)
     - [Database Editor Tools](#Database-Editor-Tools)
-      - [Connecting to RethinkDB](#Connecting-to-RethinkDB)
       - [Editing Items](#Editing-Items)
     - [Testing Locally](#Testing-Locally)
     - [Debug Console](#Debug-Console)
@@ -70,7 +69,7 @@ There are two solutions in this repository. One is a Unity project containing th
 
 Client-Server communication is implemented using [LiteNetLib](https://github.com/RevenantX/LiteNetLib), a semi-reliable UDP transport library which we use to transmit [MessagePack](https://github.com/neuecc/MessagePack-CSharp) over the wire.
 
-Aetheria uses [RethinkDB](https://rethinkdb.com/) for data persistence. To make this possible, all persistent data is marked with attributes for both MessagePack and [JSON.Net](https://www.newtonsoft.com/json) serialization. During operation, the client does not communicate with the database server directly, only the game server does that; the game server caches data relevant to the game and sends it to the clients.
+Game content lives in `GameData/Aetheria.cc`, a [CultCache](https://github.com/GameCult/CultLib) store that is read-only at runtime. Run state and player state (settings and bindings) live in their own `.cc` stores in the same cache. Persistent data types carry MessagePack attributes; some also carry [JSON.Net](https://www.newtonsoft.com/json) attributes.
 
 ### Programming Paradigms
 
@@ -106,7 +105,7 @@ By pushing to this repository or submitting a pull request, you are implicitly p
 
 In order to checkout the project, you need a git client (Github's zip download will not work!). You also need to have installed [Git LFS (Large File Storage)](https://git-lfs.github.com/). This is necessary because assets in gamedev projects can get rather large, and Git is essentially a text versioning system that does not by itself support that use case well. After installing LFS you'll need a Git client. I recommend [Github Desktop](https://desktop.github.com/), which has a nice simplified workflow and integrates with the site. For more advanced users, there's nothing wrong with using the command line or a more comprehensive client like [GitKraken](https://www.gitkraken.com/), but beginners beware that it's easy to shoot yourself in the foot that way.
 
-When you have synced with the repository, you can open the project using Unity. The project uses Unity 2020.3.2f1 at the moment, and while it may work with newer or older versions, that cannot be guaranteed. You can open the project by opening the root of this repository either directly with the Unity Editor, or using [Unity Hub](https://public-cdn.cloud.unity3d.com/hub/prod/UnityHubSetup.exe), which will also take care of downloading the correct version of the Editor.
+When you have synced with the repository, you can open the project using Unity. The project uses Unity 6000.3.24f1 at the moment, and while it may work with newer or older versions, that cannot be guaranteed. You can open the project by opening the root of this repository either directly with the Unity Editor, or using [Unity Hub](https://public-cdn.cloud.unity3d.com/hub/prod/UnityHubSetup.exe), which will also take care of downloading the correct version of the Editor.
 
 ### Choosing a Task
 
@@ -116,21 +115,19 @@ You don't have to be a programmer to contribute, either! We have issue labels fo
 
 ### Database Editor Tools
 
-In order to facilitate the creation and maintenance of game data, there is a Unity editor utility which communicates directly with RethinkDB. You can access the tools by selecting Window/Aetheria Database Tools in Unity's menu. This will cause two windows to appear, the Database List View and the Database Inspector.
-
-#### Connecting to RethinkDB
-
-At the top of the list view there is a text field where you can enter the URL of the database server. When you click connect, the editor will download and cache all of the items in the game, as well as subscribe to the changefeed. The list should now populate with items. For access to our database servers and therefore live game data, please contact us; it would be dangerous to make our actual database URL public!
+Game content in `GameData/Aetheria.cc` is edited in Unity with CultCache Studio, from the `org.gamecult.caching.unity` package.
 
 #### Editing Items
 
-You can unfold the categories of items in the list view to see what items exist. If you select an item, the Database Inspector will populate with all of the available fields of that item. Any changes you make in the Inspector will automatically be pushed to RethinkDB. If you've connected to the production database, this will update the stats of in-game items in real-time!
+Studio lists records by type; selecting one opens its fields in the inspector, including references to other records. Save writes the store back to `GameData/Aetheria.cc`.
+
+#### Command Line
+
+`tools/AetherDb` is a console project for inspecting the catalog without Unity: `dotnet run --project tools/AetherDb -- <command>`. Commands are `census`, `factions`, `station-fit`, `hardpoint-fit`, `loadout [seed]`, `save`, `settings`, `settings-dump` and `dangling`. `dangling` lists references to records that do not exist; `dangling clear <Type.Member> apply` removes them for that member.
 
 ### Testing Locally
 
-Testing the game entirely offline doesn't require running the economy server, but you still need to download the database contents. In the database list view, click the "Connect" button. Once the tools are finished syncing, which can take a while (there's a progress bar), you can click "Save" to create a local backup of the entire database. If you enter Play mode in the "ARPG" scene, the game will use that local copy instead of requiring a connection to the master server.
-
-Note that this process needs to be repeated every time the data model changes or if you wish to test the game with updated database contents.
+The game reads the same `GameData/Aetheria.cc`, so saved edits show up the next time you enter Play mode. Start from the "Main Menu" scene: it sets up the world (loading or generating a galaxy) before loading the "ARPG" scene.
 
 ### Debug Console
 

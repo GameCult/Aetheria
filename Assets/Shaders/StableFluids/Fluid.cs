@@ -2,10 +2,10 @@
 // https://github.com/keijiro/StableFluids
 
 using System.Collections.Generic;
-using Unity.Mathematics;
+using CultMath;
 using UnityEngine;
-using static Unity.Mathematics.math;
-using int2 = Unity.Mathematics.int2;
+using static CultMath.math;
+using int2 = CultMath.int2;
 using Random = UnityEngine.Random;
 
 public class Fluid : MonoBehaviour

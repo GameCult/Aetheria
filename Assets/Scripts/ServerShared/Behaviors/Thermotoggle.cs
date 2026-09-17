@@ -7,7 +7,7 @@ using System.Linq;
 using MessagePack;
 using Newtonsoft.Json;
 
-[Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn), Order(-22)]
+[Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]
 public class ThermotoggleData : BehaviorData
 {
     [InspectableTemperature, JsonProperty("targetTemp"), Key(1)]

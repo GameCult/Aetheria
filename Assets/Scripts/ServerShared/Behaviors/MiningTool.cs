@@ -2,14 +2,15 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
+using GameCult.Caching;
 using System;
 using System.Linq;
 using MessagePack;
 using Newtonsoft.Json;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
+using CultMath;
+using static CultMath.math;
 
-[Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn), Order(10)]
+[Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]
 public class MiningToolData : BehaviorData
 {
     [Inspectable, JsonProperty("dps"), Key(1)]
@@ -36,7 +37,7 @@ public class MiningToolData : BehaviorData
 
 public class MiningTool : Behavior
 {
-    public Guid AsteroidBelt;
+    public CultRecordKey AsteroidBelt;
     public int Asteroid;
     
     private MiningToolData _data;
@@ -56,7 +57,7 @@ public class MiningTool : Behavior
     {
         Range = Evaluate(_data.Range);
         var belt = Entity.Zone.AsteroidBelts[AsteroidBelt];
-        if (AsteroidBelt != Guid.Empty && 
+        if (AsteroidBelt.IsSet() && 
             Entity.Zone.AsteroidExists(AsteroidBelt, Asteroid) && 
             length(Entity.Position.xz - belt.Transforms[Asteroid].xy) - belt.Transforms[Asteroid].w < Range)
         {

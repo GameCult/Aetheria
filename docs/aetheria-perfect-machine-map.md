@@ -2,6 +2,13 @@
 
 Date: 2026-06-12
 
+**Parked (2026-09-11).** This migration was built and then rolled back by
+commit `7006a6b0`. `F:\Projects\AetheriaEve` preserves that rebuild as a
+specimen; it is not direction or precedent. Current
+direction for this repo is [three-gates-scope.md](three-gates-scope.md). Read
+this document as a record of the deferred plan, not as current direction.
+The cache move alone is now [cultcache-migration-target.md](cultcache-migration-target.md).
+
 This is the Proprioception and Imagination pass for turning Aetheria from a
 Unity project with ancestral cache/network/UI machinery into a coherent
 GameCult machine: typed CultCache state, CultMesh networking, and Eve CultUI

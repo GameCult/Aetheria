@@ -2,8 +2,6 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
 
 public class MouseRotate : MonoBehaviour
 {

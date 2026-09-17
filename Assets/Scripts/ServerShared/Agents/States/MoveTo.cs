@@ -1,8 +1,9 @@
 
+using GameCult.Caching;
 using System;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
-using float2 = Unity.Mathematics.float2;
+using CultMath;
+using static CultMath.math;
+using float2 = CultMath.float2;
 
 public abstract class MoveToState : BaseState
 {
@@ -27,17 +28,9 @@ public abstract class MoveToState : BaseState
     }
 }
 
-public class MoveToEntityState : MoveToState
-{
-    public Entity TargetEntity { get; set; }
-    protected override float2 TargetPosition => TargetEntity?.Position.xz ?? float2.zero;
-
-    public MoveToEntityState(Agent agent) : base(agent) { }
-}
-
 public class MoveToOrbitState : MoveToState
 {
-    public Guid Orbit { get; set; }
+    public CultRecordKey Orbit { get; set; }
     public MoveToOrbitState(Agent agent) : base(agent) { }
 
     protected override float2 TargetPosition => _agent.Ship.Zone.GetOrbitPosition(Orbit);

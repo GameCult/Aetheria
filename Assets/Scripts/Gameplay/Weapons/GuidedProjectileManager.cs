@@ -2,9 +2,10 @@
 using System.Collections;
 using System.Collections.Generic;
 using UniRx;
-using Unity.Mathematics;
+using CultMath;
+using CultMath.UnityBridge;
 using UnityEngine;
-using static Unity.Mathematics.math;
+using static CultMath.math;
 
 public class GuidedProjectileManager : InstantWeaponEffectManager
 {
@@ -24,7 +25,7 @@ public class GuidedProjectileManager : InstantWeaponEffectManager
             p.Frequency = launcher.DodgeFrequency;
             var hp = source.Entity.Hardpoints[item.Position.x, item.Position.y];
             var barrel = source.GetBarrel(hp);
-            p.StartPosition = p.transform.position = barrel.position;
+            p.StartPosition = (p.transform.position = barrel.position).ToCultMath();
             p.Damage = weapon.Damage;
             p.Range = weapon.Range;
             p.Penetration = weapon.Penetration;
@@ -46,7 +47,7 @@ public class GuidedProjectileManager : InstantWeaponEffectManager
             p.Frequency = guidance.DodgeFrequency;
             var hp = source.Entity.Hardpoints[item.Position.x, item.Position.y];
             var barrel = source.GetBarrel(hp);
-            p.StartPosition = p.transform.position = barrel.position;
+            p.StartPosition = (p.transform.position = barrel.position).ToCultMath();
             p.Damage = weapon.Damage;
             p.Range = weapon.Range;
             p.Penetration = weapon.Penetration;
@@ -58,7 +59,7 @@ public class GuidedProjectileManager : InstantWeaponEffectManager
             p.Velocity = barrel.forward * weapon.Velocity;
             p.Thrust = item.Evaluate(guidance.Thrust);
             p.TopSpeed = item.Evaluate(guidance.MissileVelocity);
-            p.TargetPosition = () => source.Entity.Position + length( (float3)source.LookAtPoint.position - source.Entity.Position) * source.Entity.LookDirection;
+            p.TargetPosition = () => (source.Entity.Position + length(source.LookAtPoint.position.ToCultMath() - source.Entity.Position) * source.Entity.LookDirection).ToUnity();
         }
         else Debug.LogError($"Weapon {item.Data.Name} linked to {name} effect, but is not a Launcher!");
     }

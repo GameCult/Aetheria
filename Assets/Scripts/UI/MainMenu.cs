@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using TMPro;
@@ -9,8 +10,8 @@ using UniRx;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
-using static Unity.Mathematics.math;
-using float2 = Unity.Mathematics.float2;
+using static CultMath.math;
+using float2 = CultMath.float2;
 using Random = UnityEngine.Random;
 
 public class MainMenu : MonoBehaviour
@@ -37,7 +38,6 @@ public class MainMenu : MonoBehaviour
         // Start loading the database in the background 'cause it takes a few seconds
         //_databaseLoad = Task.Run(() => ActionGameManager.Database);
         
-        RegisterResolver.Register();
         _panelPosition = PanelPrototype.transform.position;
         
         var panel1 = PanelPrototype.Instantiate<PropertiesPanel>();
@@ -94,23 +94,22 @@ public class MainMenu : MonoBehaviour
         _nextMenu.panel.Title.text = TitleSubtitle("aetheria", "terminus");
         if (!InGame)
         {
-            if(ActionGameManager.PlayerSettings.SavedRun != null)
-                _nextMenu.panel.AddButton("Continue",
-                    () =>
-                    {
-                        ActionGameManager.IsTutorial = ActionGameManager.PlayerSettings.SavedRun.IsTutorial;
-                        ActionGameManager.CurrentGalaxy = new Galaxy(
-                            ActionGameManager.CultCache,
-                            ActionGameManager.PlayerSettings.SavedRun,
-                            Debug.Log);
-                        SceneManager.LoadScene("ARPG");
-                    });
-            else
-                _nextMenu.panel.AddButton("Continue", null);
+            // A run exists only as the run store's SavedGame global.
+            var cache = ActionGameManager.CultCache;
+            var saved = cache.GetGlobal<SavedGame>();
+            if (saved == null && cache.AllStoredDocuments.Any(stored => RunSave.IsRunRecord(stored.Descriptor.DocumentType)))
+                Debug.Log("run store has no SavedGame; Continue disabled");
+            _nextMenu.panel.AddButton("Continue", saved == null ? (Action) null : () =>
+            {
+                ActionGameManager.IsTutorial = saved.IsTutorial;
+                ActionGameManager.CurrentGalaxy = new Galaxy(cache, saved, Debug.Log);
+                SceneManager.LoadScene("ARPG");
+            });
         }
         _nextMenu.panel.AddButton("New Game",
             () =>
             {
+                RunSave.Clear(ActionGameManager.CultCache);
                 var generatorState = "Loading Database Contents";
                 Action<string> setState = s => generatorState = s;
 
@@ -136,11 +135,10 @@ public class MainMenu : MonoBehaviour
                             setState);
                         Observable.NextFrame().Subscribe(_ =>
                         {
-                            ActionGameManager.PlayerSettings.SavedRun = null;
                             ActionGameManager.CurrentGalaxy = sector;
                             SceneManager.LoadScene("ARPG");
                         });
-                    }).WrapErrors();
+                    }).ContinueWith(t => Debug.LogException(t.Exception), TaskContinuationOptions.OnlyOnFaulted);
                 }
                 else
                 {
@@ -165,11 +163,10 @@ public class MainMenu : MonoBehaviour
                             setState);
                         Observable.NextFrame().Subscribe(_ =>
                         {
-                            ActionGameManager.PlayerSettings.SavedRun = null;
                             ActionGameManager.CurrentGalaxy = sector;
                             SceneManager.LoadScene("ARPG");
                         });
-                    }).WrapErrors();
+                    }).ContinueWith(t => Debug.LogException(t.Exception), TaskContinuationOptions.OnlyOnFaulted);
                 }
             });
         _nextMenu.panel.AddButton("Settings",

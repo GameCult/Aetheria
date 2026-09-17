@@ -4,12 +4,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
 using MessagePack;
-using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;
 using Random = UnityEngine.Random;
-using static Unity.Mathematics.math;
+using static CultMath.math;
 
 public class Slime : MonoBehaviour
 {
@@ -161,8 +160,7 @@ public class Slime : MonoBehaviour
 
     void UpdateSettings()
     {
-        RegisterResolver.Register();
-        var hash = MessagePackSerializer.Serialize(SlimeSettings).GetHashSHA1();
+        var hash = System.Convert.ToBase64String(MessagePackSerializer.Serialize(SlimeSettings));
         if(hash != _settingsHash)
         {
             _settingsHash = hash;

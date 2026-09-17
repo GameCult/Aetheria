@@ -2,13 +2,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
+using GameCult.Caching;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using UniRx;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
-using int2 = Unity.Mathematics.int2;
+using CultMath;
+using static CultMath.math;
+using int2 = CultMath.int2;
 
 public abstract class Entity
 {
@@ -33,6 +34,11 @@ public abstract class Entity
     public readonly ReactiveDictionary<Entity, bool> EntityHostility = new ReactiveDictionary<Entity, bool>();
     public readonly ReactiveCollection<Entity> VisibleEnemies = new ReactiveCollection<Entity>();
     public readonly ReactiveCollection<Entity> VisibleFriendlies = new ReactiveCollection<Entity>();
+
+    // Runtime-only IFF overrides for testing/manual marking and grudges; not persisted in packs.
+    // When set for another entity, it decides IsHostileTo outright, ahead of the derived faction rules.
+    // Reactive so a change can update EntityHostility and dependent grudges immediately, not on the next tick.
+    private readonly ReactiveDictionary<Entity, bool> _iffOverrides = new ReactiveDictionary<Entity, bool>();
 
     public Entity Parent;
     public List<Entity> Children = new List<Entity>();
@@ -140,6 +146,10 @@ public abstract class Entity
 
     private List<IDisposable> _subscriptions = new List<IDisposable>();
     private Dictionary<Entity, List<IDisposable>> _watchedEntitySubscriptions = new Dictionary<Entity, List<IDisposable>>();
+    private Dictionary<Entity, List<IDisposable>> _grudgeSubscriptions = new Dictionary<Entity, List<IDisposable>>();
+
+    // Grudges are a non-player behavior only: a player's own stance is always the operator's explicit call.
+    private bool IsPlayerControlled => this is Ship {IsPlayerShip: true};
 
     public virtual void Activate()
     {
@@ -165,11 +175,13 @@ public abstract class Entity
         {
             EntityInfoGathered[entity] = 0;
             EntityHostility[entity] = IsHostileTo(entity);
+            if (!IsPlayerControlled) WatchForGrudge(entity);
         }
         _subscriptions.Add(Zone.Entities.ObserveAdd().Subscribe(add =>
         {
             EntityInfoGathered[add.Value] = 0;
             EntityHostility[add.Value] = IsHostileTo(add.Value);
+            if (!IsPlayerControlled) WatchForGrudge(add.Value);
         }));
         _subscriptions.Add(Zone.Entities.ObserveRemove().Subscribe(remove =>
         {
@@ -179,7 +191,24 @@ public abstract class Entity
             VisibleEntities.Remove(remove.Value);
             VisibleEnemies.Remove(remove.Value);
             VisibleFriendlies.Remove(remove.Value);
+            _iffOverrides.Remove(remove.Value);
+            if (_grudgeSubscriptions.TryGetValue(remove.Value, out var grudgeSubs))
+            {
+                foreach (var s in grudgeSubs) s.Dispose();
+                _grudgeSubscriptions.Remove(remove.Value);
+            }
         }));
+
+        // An override changing updates this entity's hostility toward that entity immediately,
+        // rather than waiting for the next per-tick derived-hostility refresh.
+        void RefreshHostilityFromOverride(Entity other)
+        {
+            if (EntityHostility.ContainsKey(other))
+                EntityHostility[other] = IsHostileTo(other);
+        }
+        _subscriptions.Add(_iffOverrides.ObserveAdd().Subscribe(add => RefreshHostilityFromOverride(add.Key)));
+        _subscriptions.Add(_iffOverrides.ObserveReplace().Subscribe(replace => RefreshHostilityFromOverride(replace.Key)));
+        _subscriptions.Add(_iffOverrides.ObserveRemove().Subscribe(remove => RefreshHostilityFromOverride(remove.Key)));
         _subscriptions.Add(VisibleEnemies.ObserveRemove().Subscribe(remove =>
         {
             if (Target.Value == remove.Value) Target.Value = null;
@@ -243,6 +272,53 @@ public abstract class Entity
             GenerateWeaponGroups();
     }
 
+    // Another entity's stance toward THIS one, as far as this entity can perceive it: unknown (null)
+    // until this entity detects them, mirroring the existing detection model (VisibleEntities, driven
+    // by EntityInfoGathered crossing TargetDetectionInfoThreshold). Detected but not yet hostility-rated
+    // by the other entity also reads as unknown.
+    public bool? PerceivedStanceOf(Entity other) =>
+        VisibleEntities.Contains(other) && other.EntityHostility.TryGetValue(this, out var hostile)
+            ? hostile
+            : (bool?) null;
+
+    // Non-player entities hold a grudge: once another entity's stance toward THIS one turns hostile
+    // (its own override or its derived rule) WHILE this entity detects it, this entity sets a sticky
+    // hostile override on it back, event-driven off that entity's own EntityHostility changes and off
+    // this entity's own detection (VisibleEntities) picking up an already-hostile entity. It never
+    // forgives on its own; only a future utility-evaluation pass is meant to lift a grudge. Leaving the
+    // zone clears overrides (see the Zone.Entities removal subscription above), so a grudge is also
+    // cleared then -- a known gap, flagged as a follow-up rather than solved here.
+    private void WatchForGrudge(Entity other)
+    {
+        void CheckGrudge(bool otherIsHostileToThis)
+        {
+            if (otherIsHostileToThis && VisibleEntities.Contains(other) && !_iffOverrides.ContainsKey(other))
+                SetIff(other, true);
+        }
+
+        var subscriptions = new List<IDisposable>
+        {
+            other.EntityHostility.ObserveAdd()
+                .Where(add => add.Key == this)
+                .Subscribe(add => CheckGrudge(add.Value)),
+            other.EntityHostility.ObserveReplace()
+                .Where(replace => replace.Key == this)
+                .Subscribe(replace => CheckGrudge(replace.NewValue)),
+            // Detecting an entity whose stance toward this one is already hostile grudges it immediately.
+            VisibleEntities.ObserveAdd()
+                .Where(add => add.Value == other)
+                .Subscribe(_ =>
+                {
+                    if (other.EntityHostility.TryGetValue(this, out var hostile))
+                        CheckGrudge(hostile);
+                })
+        };
+        _grudgeSubscriptions[other] = subscriptions;
+
+        if (other.EntityHostility.TryGetValue(this, out var currentlyHostile))
+            CheckGrudge(currentlyHostile);
+    }
+
     public virtual void Deactivate()
     {
         //ItemManager.Log($"Entity {Name} is deactivating!");
@@ -250,6 +326,8 @@ public abstract class Entity
         _subscriptions.Clear();
         foreach(var ss in _watchedEntitySubscriptions.Values) foreach(var s in ss) s.Dispose();
         _watchedEntitySubscriptions.Clear();
+        foreach(var ss in _grudgeSubscriptions.Values) foreach(var s in ss) s.Dispose();
+        _grudgeSubscriptions.Clear();
         _active = false;
         EntityInfoGathered.Clear();
         VisibleEntities.Clear();
@@ -281,14 +359,29 @@ public abstract class Entity
         //CurrentSecurityLevel.Value = SecurityLevel.Open;
     }
 
+    // Sets or clears a runtime-only IFF override deciding this entity's hostility toward another.
+    // Pass null to clear the override and restore the derived (faction-based) rule.
+    public void SetIff(Entity other, bool? hostile)
+    {
+        if (hostile.HasValue) _iffOverrides[other] = hostile.Value;
+        else _iffOverrides.Remove(other);
+    }
+
     public bool IsHostileTo(Entity other, bool recursive = false)
     {
+        // An override decides only the stance of the entity that holds it. The recursive=true calls
+        // below are the derived rule asking "is the other entity hostile to me" purely to compute ITS
+        // OWN reciprocal stance; skipping the override check there stops one entity's override (e.g. a
+        // player going neutral) from leaking into another entity's derived hostility.
+        if (!recursive && _iffOverrides.TryGetValue(other, out var overrideHostile))
+            return overrideHostile;
+
         if (Faction == null)
             return !recursive && other.Faction != null && other.IsHostileTo(this, true);
 
         // TODO: Inter-faction hostility
         // When the entity faction owns the zone, they are hostile to trespassers or those hostile to them
-        if (Faction.ID == Zone.GalaxyZone.Owner?.ID)
+        if (Faction == Zone.GalaxyZone.Owner)
             return recursive ? !(other.PresencePermitted?.Value ?? true) : !(other.PresencePermitted?.Value ?? true)|| other.IsHostileTo(this, true);
 
         return !recursive && other.IsHostileTo(this, true);
@@ -301,7 +394,7 @@ public abstract class Entity
             return FactionRelationship.Neutral;
         if (this is Ship {IsPlayerShip: true})
             return Zone.Galaxy.FactionRelationships[faction];
-        return faction.ID == Faction.ID ? FactionRelationship.Beloved : FactionRelationship.Neutral;
+        return faction == Faction ? FactionRelationship.Beloved : FactionRelationship.Neutral;
     }
 
     public static bool IsPresencePermitted(FactionRelationship relationship, SecurityLevel securityLevel) => 
@@ -316,7 +409,7 @@ public abstract class Entity
 
     public ConsumableItemEffect FindActiveConsumable(ConsumableItemData data)
     {
-        return _activeConsumables.FirstOrDefault(ac => ac.Data.ID == data.ID);
+        return _activeConsumables.FirstOrDefault(ac => ac.Data == data);
     }
 
     public bool CanActivateConsumable(ConsumableItemData data)
@@ -328,10 +421,11 @@ public abstract class Entity
     {
         if (!CanActivateConsumable(data)) return false;
         
-        var bay = FindItemInCargo(data.ID);
+        var key = ItemManager.ItemData.RefOf<ItemData>(data).Key;
+        var bay = FindItemInCargo(key);
         if (bay == null) return false;
         
-        var item = (ConsumableItem) bay.ItemsOfType[data.ID].First();
+        var item = (ConsumableItem) bay.ItemsOfType[key].First();
         ActivateConsumable(item);
         bay.Remove(item);
         return true;
@@ -377,7 +471,7 @@ public abstract class Entity
     public void GenerateWeaponGroups()
     {
         foreach (var group in Weapons
-            .GroupBy(w => w.Item.EquippableItem.Data.LinkID)
+            .GroupBy(w => w.Item.EquippableItem.Data.Key)
             .OrderBy(wg=>wg.Average(w=>w.Range))
             .Select((weapons, index) => (weapons, index)))
         {
@@ -394,7 +488,7 @@ public abstract class Entity
             Temperature[position.x, position.y] += heat / ThermalMass[position.x, position.y];
     }
 
-    public int CountItemsInCargo(Guid itemDataID)
+    public int CountItemsInCargo(CultRecordKey itemDataID)
     {
         int sum = 0;
         foreach (var x in CargoBays)
@@ -408,7 +502,7 @@ public abstract class Entity
         return sum;
     }
 
-    public EquippedCargoBay FindItemInCargo(Guid itemDataID)
+    public EquippedCargoBay FindItemInCargo(CultRecordKey itemDataID)
     {
         return CargoBays.FirstOrDefault(c => c.ItemsOfType.ContainsKey(itemDataID));
     }
@@ -420,7 +514,8 @@ public abstract class Entity
             var emptyShape = new Shape(HullData.Shape.Width, HullData.Shape.Height);
             foreach (var v in HullData.Shape.Coordinates)
             {
-                if (HullData.InteriorCells[v] && GearOccupancy[v.x, v.y] == null && Hardpoints[v.x,v.y] == null)
+                // Empty hardpoint cells count as free: general gear may use them until hardpoint gear claims them
+                if (HullData.InteriorCells[v] && GearOccupancy[v.x, v.y] == null)
                     emptyShape[v] = true;
             }
 
@@ -430,7 +525,7 @@ public abstract class Entity
 
     // Attempts to move a given number of items of the given type to the target Entity
     // Returns the number of items successfully transferred
-    public int TryTransferItems(Entity target, Guid itemDataID, int quantity)
+    public int TryTransferItems(Entity target, CultRecordKey itemDataID, int quantity)
     {
         int quantityTransferred = 0;
         while (quantityTransferred < quantity)
@@ -501,7 +596,10 @@ public abstract class Entity
         foreach (var b in item.Behaviors)
         {
             if (b is Weapon weapon)
+            {
                 _weapons.Remove(weapon);
+                foreach (var group in WeaponGroups) { group.items.Remove(item); group.weapons.Remove(weapon); }
+            }
             if (b is Capacitor capacitor)
                 _capacitors.Remove(capacitor);
             if (b is Reactor reactor)
@@ -531,13 +629,11 @@ public abstract class Entity
             // Check every cell of the item's shape
             foreach (var i in itemData.Shape.Coordinates)
             {
-                // If there is any gear already occupying that space, it won't fit
-                // If there's a hardpoint there, it won't fit
-                // Thermal items have their own layer and do not collide with gear
+                // An interior cell is usable when no gear occupies it. An empty hardpoint cell counts as usable:
+                // general gear may take it until hardpoint gear claims it, which is the same rule
+                // UnoccupiedSpace reports, so what generation is offered and what equipping accepts agree.
                 var itemCoord = hullCoord + itemData.Shape.Rotate(i, item.Rotation);
-                if (!hullData.InteriorCells[itemCoord] || 
-                    itemData.HardpointType == HardpointType.Tool && Hardpoints[itemCoord.x, itemCoord.y] != null || 
-                    GearOccupancy[itemCoord.x, itemCoord.y] != null) 
+                if (!hullData.InteriorCells[itemCoord] || GearOccupancy[itemCoord.x, itemCoord.y] != null)
                     return false;
             }
         }
@@ -845,42 +941,6 @@ public abstract class Entity
                     yield return b;
     }
 
-    // public IEnumerable<(T t, Switch s)> GetSwitch<T>() where T : class, IBehavior
-    // {
-    //     foreach (var equippedItem in Equipment)
-    //         foreach (var group in equippedItem.BehaviorGroups.Values)
-    //             foreach(var behavior in group.Behaviors)
-    //                 if (behavior is T t)
-    //                 {
-    //                     var s = group.GetExposed<Switch>();
-    //                     if (s != null) yield return (t, s);
-    //                 }
-    // }
-    //
-    // public IEnumerable<(T behavior, Trigger trigger)> GetTrigger<T>() where T : class, IBehavior
-    // {
-    //     foreach (var equippedItem in Equipment)
-    //         foreach (var group in equippedItem.BehaviorGroups.Values)
-    //             foreach(var behavior in group.Behaviors)
-    //                 if (behavior is T t)
-    //                 {
-    //                     var s = group.GetExposed<Trigger>();
-    //                     if (s != null) yield return (t, s);
-    //                 }
-    // }
-    //
-    // public IEnumerable<(T behavior, Axis axis)> GetAxis<T>() where T : class, IBehavior
-    // {
-    //     foreach (var equippedItem in Equipment)
-    //         foreach (var group in equippedItem.BehaviorGroups.Values)
-    //             foreach(var behavior in group.Behaviors)
-    //                 if (behavior is T t)
-    //                 {
-    //                     var s = group.GetExposed<Axis>();
-    //                     if (s != null) yield return (t, s);
-    //                 }
-    // }
-
     public virtual void Update(float delta)
     {
         var hullData = ItemManager.GetData(Hull) as HullData;
@@ -892,7 +952,7 @@ public abstract class Entity
 
         foreach (var v in VisibilitySources.Keys.ToArray())
         {
-            VisibilitySources[v] = AetheriaMath.Decay(VisibilitySources[v], ItemManager.GameplaySettings.VisibilityDecay, delta);
+            VisibilitySources[v] = decay(VisibilitySources[v], ItemManager.GameplaySettings.VisibilityDecay, delta);
  
             if (VisibilitySources[v] < 0.1f) VisibilitySources.Remove(v);
         }
@@ -1083,13 +1143,15 @@ public class ConsumableItemEffect
     public Entity Entity { get; }
     public ConsumableItem Item { get; }
     public ConsumableItemData Data { get; }
+    public Lot Lot { get; }
     public Behavior[] Behaviors { get; }
 
     public ConsumableItemEffect(ConsumableItem item, Entity entity)
     {
         Item = item;
         Entity = entity;
-        Data = (ConsumableItemData) item.Data.Value;
+        Data = (ConsumableItemData) entity.ItemManager.GetData(item);
+        Lot = entity.ItemManager.GetLot(item);
         RemainingDuration = Data.Duration;
 
         Behaviors = Data.Behaviors
@@ -1114,7 +1176,7 @@ public class ConsumableItemEffect
     public float Evaluate(PerformanceStat stat)
     {
         var effectiveness = Data.Effectiveness.Evaluate((Data.Duration - RemainingDuration) / Data.Duration);
-        var quality = pow(Item.Quality, stat.QualityExponent);
+        var quality = pow(Lot.QualityForRole(stat.FromRole), stat.QualityExponent);
 
         var result = lerp(stat.Min, stat.Max, effectiveness * quality);
         
@@ -1145,6 +1207,7 @@ public class EquippedItem
     public Shape InsetShape { get; }
     public Entity Entity { get; }
     public EquippableItemData Data { get; }
+    public Lot Lot { get; }
 
     public ReactiveProperty<bool> ThermalOnline { get; } = new ReactiveProperty<bool>(false);
     public ReactiveProperty<bool> DurabilityOnline { get; } = new ReactiveProperty<bool>(false);
@@ -1245,16 +1308,17 @@ public class EquippedItem
         Data = ItemManager.GetData(item);
         Entity = entity;
         EquippableItem = item;
+        Lot = ItemManager.GetLot(item);
         Position = position;
         Conductivity = Data.Conductivity;
         ThermalExponent = lerp(
             ItemManager.GameplaySettings.ThermalQualityMin,
             ItemManager.GameplaySettings.ThermalQualityMax,
-            pow(item.Quality, ItemManager.GameplaySettings.ThermalQualityExponent));
+            pow(Lot.Quality, ItemManager.GameplaySettings.ThermalQualityExponent));
         DurabilityExponent = lerp(
             ItemManager.GameplaySettings.DurabilityQualityMin,
             ItemManager.GameplaySettings.DurabilityQualityMax,
-            pow(item.Quality, ItemManager.GameplaySettings.DurabilityQualityExponent));
+            pow(Lot.Quality, ItemManager.GameplaySettings.DurabilityQualityExponent));
         var hullData = itemManager.GetData(entity.Hull);
         InsetShape = hullData.Shape.Inset(Data.Shape, position, item.Rotation);
         if (Entity.Temperature != null) oldTemperature = Temperature;
@@ -1290,7 +1354,7 @@ public class EquippedItem
     {
         var heat = pow(ThermalPerformance, ThermalExponent * stat.HeatExponentMultiplier);
         var durability = pow(DurabilityPerformance, DurabilityExponent * stat.DurabilityExponentMultiplier);
-        var quality = pow(EquippableItem.Quality, stat.QualityExponent);
+        var quality = pow(Lot.QualityForRole(stat.FromRole), stat.QualityExponent);
 
         var scaleModifier = 1.0f;
         var scaleModifiers = stat.GetScaleModifiers(Entity).Values;
@@ -1319,7 +1383,7 @@ public class EquippedItem
         DurabilityPerformance = EquippableItem.Durability / Data.Durability;
         var performanceThreshold = Entity.Settings.ShutdownPerformance;
         Wear = (1 - pow(ThermalPerformance,
-                (1 - pow(EquippableItem.Quality, ItemManager.GameplaySettings.QualityWearExponent)) *
+                (1 - pow(Lot.Quality, ItemManager.GameplaySettings.QualityWearExponent)) *
                 ItemManager.GameplaySettings.ThermalWearExponent) +
                 deltaTemp * ItemManager.GameplaySettings.DeltaTempWearExponent            
             ) * Data.Durability / Data.ThermalResilience;
@@ -1366,7 +1430,7 @@ public class EquippedCargoBay : EquippedItem
 
     public readonly ItemInstance[,] Occupancy;
 
-    public readonly Dictionary<Guid, List<ItemInstance>> ItemsOfType = new Dictionary<Guid, List<ItemInstance>>();
+    public readonly Dictionary<CultRecordKey, List<ItemInstance>> ItemsOfType = new Dictionary<CultRecordKey, List<ItemInstance>>();
 
     public new readonly CargoBayData Data;
     
@@ -1399,7 +1463,7 @@ public class EquippedCargoBay : EquippedItem
     // Check whether the given item will fit when its origin is placed at the given coordinate
     public bool ItemFits(ItemInstance item, int2 cargoCoord)
     {
-        var itemData = item.Data.Value;
+        var itemData = ItemManager.GetData(item);
         // Check every cell of the item's shape
         foreach (var i in itemData.Shape.Coordinates)
         {
@@ -1432,7 +1496,7 @@ public class EquippedCargoBay : EquippedItem
         // For simple commodities, search for existing item stacks to add to
         foreach (var cargoItem in Cargo.Keys)
         {
-            if (item.Data != cargoItem.Data) continue;
+            if (!item.Data.Key.Equals(cargoItem.Data.Key)) continue;
             
             var cargoCommodity = (SimpleCommodity) cargoItem;
             if (cargoCommodity.Quantity >= itemData.MaxStack) continue;
@@ -1523,11 +1587,11 @@ public class EquippedCargoBay : EquippedItem
             }
             Cargo[item] = cargoCoord;
             
-            if(!ItemsOfType.ContainsKey(item.Data.LinkID))
-                ItemsOfType[item.Data.LinkID] = new List<ItemInstance>();
-            ItemsOfType[item.Data.LinkID].Add(item);
+            if(!ItemsOfType.ContainsKey(item.Data.Key))
+                ItemsOfType[item.Data.Key] = new List<ItemInstance>();
+            ItemsOfType[item.Data.Key].Add(item);
         }
-        else if (Occupancy[cargoCoord.x, cargoCoord.y] is SimpleCommodity cargoCommodity && cargoCommodity.Data == item.Data)
+        else if (Occupancy[cargoCoord.x, cargoCoord.y] is SimpleCommodity cargoCommodity && cargoCommodity.Data.Key.Equals(item.Data.Key))
         {
             if (cargoCommodity.Quantity + item.Quantity <= itemData.MaxStack)
             {
@@ -1567,9 +1631,9 @@ public class EquippedCargoBay : EquippedItem
         }
         Cargo[item] = cargoCoord;
         
-        if(!ItemsOfType.ContainsKey(item.Data.LinkID))
-            ItemsOfType[item.Data.LinkID] = new List<ItemInstance>();
-        ItemsOfType[item.Data.LinkID].Add(item);
+        if(!ItemsOfType.ContainsKey(item.Data.Key))
+            ItemsOfType[item.Data.Key] = new List<ItemInstance>();
+        ItemsOfType[item.Data.Key].Add(item);
         
         Mass += ItemManager.GetMass(item);
         ThermalMass += ItemManager.GetThermalMass(item);
@@ -1592,9 +1656,9 @@ public class EquippedCargoBay : EquippedItem
                     Occupancy[v.x, v.y] = null;
 
             Cargo.Remove(item);
-            ItemsOfType[item.Data.LinkID].Remove(item);
-            if (!ItemsOfType[item.Data.LinkID].Any())
-                ItemsOfType.Remove(item.Data.LinkID);
+            ItemsOfType[item.Data.Key].Remove(item);
+            if (!ItemsOfType[item.Data.Key].Any())
+                ItemsOfType.Remove(item.Data.Key);
 
             Mass -= ItemManager.GetMass(item);
             ThermalMass -= ItemManager.GetThermalMass(item);
@@ -1621,9 +1685,9 @@ public class EquippedCargoBay : EquippedItem
                 Occupancy[v.x, v.y] = null;
         
         Cargo.Remove(item);
-        ItemsOfType[item.Data.LinkID].Remove(item);
-        if (!ItemsOfType[item.Data.LinkID].Any())
-            ItemsOfType.Remove(item.Data.LinkID);
+        ItemsOfType[item.Data.Key].Remove(item);
+        if (!ItemsOfType[item.Data.Key].Any())
+            ItemsOfType.Remove(item.Data.Key);
         
         Mass -= ItemManager.GetMass(item);
         ThermalMass -= ItemManager.GetThermalMass(item);

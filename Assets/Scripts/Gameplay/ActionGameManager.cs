@@ -2,6 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
+using GameCult.Caching;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -19,13 +20,14 @@ using UnityEngine.InputSystem;
 using UnityEngine.Rendering.PostProcessing;
 using UnityEngine.Serialization;
 using UnityEngine.UI;
-using Unity.Mathematics;
+using CultMath;
+using CultMath.UnityBridge;
 using UnityEngine.EventSystems;
-using static Unity.Mathematics.math;
-using float2 = Unity.Mathematics.float2;
-using float3 = Unity.Mathematics.float3;
+using static CultMath.math;
+using float2 = CultMath.float2;
+using float3 = CultMath.float3;
 using Path = System.IO.Path;
-using quaternion = Unity.Mathematics.quaternion;
+using quaternion = CultMath.quaternion;
 using Random = UnityEngine.Random;
 
 public class ActionGameManager : MonoBehaviour
@@ -40,44 +42,43 @@ public class ActionGameManager : MonoBehaviour
 
     private static CultCache _cultCache;
 
+    private static string CatalogPath => Path.Combine(GameDataDirectory.FullName, "Aetheria.cc");
+
     public static CultCache CultCache
     {
         get
         {
             if (_cultCache != null) return _cultCache;
 
-            _cultCache = new CultCache();
-            //RethinkConnection.RethinkConnect(_cultCache, "gamecult.org:28016", DatabaseName);
-            //_cultCache.AddBackingStore(new MultiFileJsonBackingStore(GameDataDirectory.FullName));
-            _cultCache.AddBackingStore(
-                new SingleFileMessagePackBackingStore(Path.Combine(GameDataDirectory.FullName, "AetherDB.msgpack")));
-            
-            // Particularly heavy objects should be stored in / retrieved from MsgPack files as it's much tighter than JSON
-            // Such as NameFiles, which are just huge collections of geonames used to condition Markov chains
-            _cultCache.AddBackingStore(new MultiFileMessagePackBackingStore(GameDataDirectory.FullName), typeof(NameFile));
-            
-            _cultCache.PullAllBackingStores();
-            
+            // All three stores attach once and stay attached until the process exits. The run lifecycle is record-level
+            // inside this cache; reopening would replace the catalog instances the galaxy and live entities hold.
+            // The catalog is read-only in every build; capturepreset writes through its own cache (Loadouts.Commit).
+            _cultCache = AetheriaStores.Open(
+                CatalogPath,
+                runPath: Path.Combine(GameDataDirectory.FullName, "run.cc"),
+                playerPath: Path.Combine(GameDataDirectory.FullName, "player.cc"));
+
             return _cultCache;
         }
     }
 
-    private static PlayerSettings _playerSettings;
+    // The only creator of PlayerSettings: an absent global means first launch, and the defaults are committed.
     public static PlayerSettings PlayerSettings
     {
         get
         {
-            RegisterResolver.Register();
-            return _playerSettings ??= File.Exists(_playerSettingsFilePath)
-                ? MessagePackSerializer.Deserialize<PlayerSettings>(File.ReadAllBytes(_playerSettingsFilePath))
-                : GetDefaultPlayerSettings();
+            var settings = CultCache.GetGlobal<PlayerSettings>();
+            if (settings != null) return settings;
+            settings = GetDefaultPlayerSettings();
+            CultCache.Commit(batch => batch.Upsert(settings));
+            return settings;
         }
     }
 
-    private static string _playerSettingsFilePath => Path.Combine(GameDataDirectory.FullName, "PlayerSettings.msgpack");
     public static void SavePlayerSettings()
     {
-        File.WriteAllBytes(_playerSettingsFilePath, MessagePackSerializer.Serialize(_playerSettings));
+        var settings = PlayerSettings;
+        CultCache.Commit(batch => batch.Upsert(settings));
     }
 
     private static PlayerSettings GetDefaultPlayerSettings()
@@ -97,7 +98,6 @@ public class ActionGameManager : MonoBehaviour
 
     public GameSettings Settings;
     //public string StarterShipTemplate = "Longinus";
-    public float2 Sensitivity;
     public int Credits = 15000000;
     public float TargetSpottedBlinkFrequency = 20;
     public float TargetSpottedBlinkOffset = -.25f;
@@ -169,7 +169,6 @@ public class ActionGameManager : MonoBehaviour
     // private CinemachineFramingTransposer _transposer;
     // private CinemachineComposer _composer;
     
-    private DirectoryInfo _loadoutPath;
     private bool _paused;
     private float _time;
     private int _zoomLevelIndex;
@@ -213,7 +212,6 @@ public class ActionGameManager : MonoBehaviour
     
     public ItemManager ItemManager { get; private set; }
     public Zone Zone { get; private set; }
-    public List<EntityPack> Loadouts { get; } = new List<EntityPack>();
 
     private readonly (float2 direction, string name)[] _directions = {
         (float2(0, 1), "Front"),
@@ -232,22 +230,21 @@ public class ActionGameManager : MonoBehaviour
         get => MessagePackSerializer.Deserialize<EntitySettings>(MessagePackSerializer.Serialize(Settings.GameplaySettings.DefaultEntitySettings));
     }
 
-    public void SaveLoadout(EntityPack pack)
+    private void OnApplicationQuit()
     {
-        File.WriteAllBytes(Path.Combine(_loadoutPath.FullName, $"{pack.Name}.loadout"), MessagePackSerializer.Serialize(pack));
+        SaveRun();
+        SavePlayerSettings();
     }
 
-    private void OnApplicationQuit() => SaveState();
-
-    public void SaveState()
+    // Wormhole arrival and quit save the run; a dead run has no galaxy, so it is not saved.
+    public void SaveRun()
     {
-        PlayerSettings.SavedRun = CurrentGalaxy == null ? null : new SavedGame(CurrentGalaxy, Zone, DockedEntity ?? CurrentEntity);
-        if(PlayerSettings.SavedRun != null)
+        if (CurrentGalaxy != null)
         {
-            PlayerSettings.SavedRun.IsTutorial = IsTutorial;
-            PlayerSettings.SavedRun.ActionBarBindings = _actionBarSlots.Select(slot => slot.Save()).ToArray();
+            var (game, zones) = RunSave.Capture(CultCache, CurrentGalaxy, Zone, DockedEntity ?? CurrentEntity, IsTutorial,
+                _actionBarSlots.Select(s => s.Save()).ToArray());
+            RunSave.Commit(CultCache, game, zones, ItemManager.Lots);
         }
-        SavePlayerSettings();
     }
 
     private void OnDisable()
@@ -263,7 +260,7 @@ public class ActionGameManager : MonoBehaviour
         EntityInstance.EffectManagerParent = EffectManagerParent;
         ConsoleController.MessageReceiver = this;
         
-        ItemManager = new ItemManager(CultCache, Settings.GameplaySettings, Debug.Log);
+        ItemManager = new ItemManager(CultCache, RunSave.Lots(CultCache), Settings.GameplaySettings, Debug.Log);
         ZoneRenderer.ItemManager = ItemManager;
         
         // If hiding minimap asteroids, turn them off to start with
@@ -272,14 +269,10 @@ public class ActionGameManager : MonoBehaviour
         
         // TODO: Process Stories
 
-        // _loadoutPath = GameDataDirectory.CreateSubdirectory("Loadouts");
-        // Loadouts.AddRange(_loadoutPath.EnumerateFiles("*.loadout")
-        //     .Select(fi => MessagePackSerializer.Deserialize<EntityPack>(File.ReadAllBytes(fi.FullName))));
-
         #region Input Handling
 
         Input = new AetheriaInput();
-        foreach (var x in PlayerSettings.InputSettings.InputActionMap) Input.asset[x.Key.action].ApplyBindingOverride(x.Key.binding, x.Value);
+        foreach (var action in PlayerSettings.InputSettings.InputActionMap) foreach (var binding in action.Value) Input.asset[action.Key].ApplyBindingOverride(binding.Key, binding.Value);
 
         InputDisplayLayout.Input = Input.asset;
         Input.Global.Enable();
@@ -367,37 +360,48 @@ public class ActionGameManager : MonoBehaviour
             }
         };
 
+        // Flips the player's own stance on the current target between hostile and neutral. Going
+        // neutral mid-fight safes weapons (Weapon.StanceAllowsFire); an unmarked/undetected target
+        // reads as non-hostile here, so the first press declares hostile.
+        Input.Player.ToggleStance.performed += context =>
+        {
+            var target = CurrentEntity.Target.Value;
+            if (target == null) return;
+            CurrentEntity.SetIff(target, !CurrentEntity.IsHostileTo(target));
+        };
+
         #region Targeting
 
         Input.Player.TargetReticle.performed += context =>
         {
-            if (!CurrentEntity.VisibleEnemies.Any()) return;
-            var underReticle = CurrentEntity.VisibleEnemies.Where(x => x != CurrentEntity)
+            if (!CurrentEntity.VisibleEntities.Any()) return;
+            var underReticle = CurrentEntity.VisibleEntities.Where(x => x != CurrentEntity)
                 .MaxBy(x => dot(normalize(x.Position - CurrentEntity.Position), CurrentEntity.LookDirection));
             CurrentEntity.Target.Value = CurrentEntity.Target.Value == underReticle ? null : underReticle;
         };
 
+        // Nearest is enemies-only (it drives weapon lock), and picks the closest target, not the farthest.
         Input.Player.TargetNearest.performed += context =>
         {
             if(CurrentEntity.VisibleEnemies.Any())
             {
                 CurrentEntity.Target.Value = CurrentEntity.VisibleEnemies.Where(x => x != CurrentEntity)
-                    .MaxBy(x => length(x.Position - CurrentEntity.Position));
+                    .MinBy(x => length(x.Position - CurrentEntity.Position));
             }
         };
 
         Input.Player.TargetNext.performed += context =>
         {
-            if (!CurrentEntity.VisibleEnemies.Any()) return;
-            var targets = CurrentEntity.VisibleEnemies.Where(x => x != CurrentEntity).OrderBy(x => length(x.Position - CurrentEntity.Position)).ToArray();
+            if (!CurrentEntity.VisibleEntities.Any()) return;
+            var targets = CurrentEntity.VisibleEntities.Where(x => x != CurrentEntity).OrderBy(x => length(x.Position - CurrentEntity.Position)).ToArray();
             var currentTargetIndex = Array.IndexOf(targets, CurrentEntity.Target.Value);
             CurrentEntity.Target.Value = targets[(currentTargetIndex + 1) % targets.Length];
         };
 
         Input.Player.TargetPrevious.performed += context =>
         {
-            if (!CurrentEntity.VisibleEnemies.Any()) return;
-            var targets = CurrentEntity.VisibleEnemies.Where(x => x != CurrentEntity).OrderBy(x => length(x.Position - CurrentEntity.Position)).ToArray();
+            if (!CurrentEntity.VisibleEntities.Any()) return;
+            var targets = CurrentEntity.VisibleEntities.Where(x => x != CurrentEntity).OrderBy(x => length(x.Position - CurrentEntity.Position)).ToArray();
             var currentTargetIndex = Array.IndexOf(targets, CurrentEntity.Target.Value);
             CurrentEntity.Target.Value = targets[(currentTargetIndex + targets.Length - 1) % targets.Length];
         };
@@ -444,7 +448,7 @@ public class ActionGameManager : MonoBehaviour
                             slot.Binding = new ActionBarGearBinding(CurrentEntity, slot, equippedItemDragAction.EquippedItem, trigger);
                             return true;
                         case ItemInstanceDragObject itemInstanceDragAction:
-                            if (!(itemInstanceDragAction.Item.Data.Value is ConsumableItemData consumable)) return false;
+                            if (!(ItemManager.GetData(itemInstanceDragAction.Item) is ConsumableItemData consumable)) return false;
                             slot.Binding = new ActionBarConsumableBinding(CurrentEntity, slot, consumable);
                             return true;
                         case WeaponGroupDragObject weaponGroupDragAction:
@@ -502,7 +506,7 @@ public class ActionGameManager : MonoBehaviour
                     .FirstOrDefault(itemData => string.Equals(itemData.Name, itemName, StringComparison.InvariantCultureIgnoreCase));
                 if (item != null)
                 {
-                    _currentEntity.CargoBays.First().TryStore(ItemManager.CreateInstance(item, .95f));
+                    _currentEntity.CargoBays.First().TryStore(ItemManager.CreateInstance(ItemManager.CreateLot(item, default, .95f)));
                 }
             });
         
@@ -543,7 +547,7 @@ public class ActionGameManager : MonoBehaviour
                     nearestFaction,
                     .5f);
 
-                var turret = EntitySerializer.Unpack(ItemManager, Zone, loadoutGenerator.GenerateTurretLoadout(), true);
+                var turret = EntitySerializer.Unpack(ItemManager, Zone, loadoutGenerator.GenerateTurretLoadout());
                 turret.Position.xz = _currentEntity.Position.xz +
                                      ItemManager.Random.NextFloat2Direction() * ItemManager.Random.NextFloat(50, 500);
                 turret.Zone = Zone;
@@ -553,47 +557,61 @@ public class ActionGameManager : MonoBehaviour
         //Temporary, or not
         ConsoleController.AddCommand("tow", _ => TowShip());
 
-        // ConsoleController.AddCommand("pingscene",
-        //     _ =>
-        //     {
-        //         var startTime = Time.time;
-        //         Observable.EveryUpdate().TakeWhile(_ => Time.time - startTime < 5).Subscribe(
-        //             _ => Debug.Log($"{(int) (Time.time - startTime)}"),
-        //             () =>
-        //             {
-        //                 var nearestFaction = CurrentSector.Factions.MinBy(f => CurrentSector.HomeZones[f].Distance[Zone.SectorZone]);
-        //                 var nearestFactionHomeZone = CurrentSector.HomeZones[nearestFaction];
-        //                 var factionPresence = nearestFaction.InfluenceDistance - nearestFactionHomeZone.Distance[Zone.SectorZone] + 1;
-        //
-        //                 var loadoutGenerator = new LoadoutGenerator(
-        //                     ref ItemManager.Random,
-        //                     ItemManager,
-        //                     CurrentSector,
-        //                     Zone.SectorZone,
-        //                     nearestFaction,
-        //                     .5f);
-        //
-        //                 for (int i = 0; i < 8; i++)
-        //                 {
-        //                     var ship = EntitySerializer.Unpack(ItemManager, Zone, loadoutGenerator.GenerateShipLoadout(), true);
-        //                     ship.Position.xz = _currentEntity.Position.xz +
-        //                                        ItemManager.Random.NextFloat2Direction() * ItemManager.Random.NextFloat(50, 500);
-        //                     ship.Zone = Zone;
-        //                     Zone.Entities.Add(ship);
-        //                     ship.Activate();
-        //                 }
-        //
-        //                 for (int i = 0; i < 8; i++)
-        //                 {
-        //                     var turret = EntitySerializer.Unpack(ItemManager, Zone, loadoutGenerator.GenerateTurretLoadout(), true);
-        //                     turret.Position.xz = _currentEntity.Position.xz +
-        //                                          ItemManager.Random.NextFloat2Direction() * ItemManager.Random.NextFloat(50, 500);
-        //                     turret.Zone = Zone;
-        //                     Zone.Entities.Add(turret);
-        //                     turret.Activate();
-        //                 }
-        //             });
-        //     });
+        // Manual IFF override for the player's current target, for hand-testing combat.
+        // "iff hostile"/"iff neutral" force a stance; "iff clear" restores the derived faction rule.
+        ConsoleController.AddCommand("iff", args =>
+        {
+            var console = ConsoleController.Instance;
+            var target = _currentEntity?.Target.Value;
+            if (target == null) { console.AppendLogLine("iff: no target selected"); return; }
+            var mode = args.Length > 0 ? args[0] : "";
+            if (mode != "hostile" && mode != "neutral" && mode != "clear")
+            {
+                console.AppendLogLine("usage: iff hostile|neutral|clear");
+                return;
+            }
+            switch (mode)
+            {
+                case "hostile":
+                    _currentEntity.SetIff(target, true);
+                    break;
+                case "neutral":
+                    _currentEntity.SetIff(target, false);
+                    break;
+                case "clear":
+                    _currentEntity.SetIff(target, null);
+                    break;
+            }
+            console.AppendLogLine($"{target.Name}: {(_currentEntity.IsHostileTo(target) ? "hostile" : "neutral")}");
+        });
+
+        // Editor only: capturepreset "<name>" [replace] writes the piloted ship as a catalog preset. A multi-word name must
+        // be quoted; any other second argument than replace is refused rather than dropped.
+        if (Application.isEditor)
+            ConsoleController.AddCommand("capturepreset", args =>
+            {
+                var console = ConsoleController.Instance;
+                var name = args.Length > 0 ? args[0] : "";
+                var replace = args.Length == 2 && args[1] == "replace";
+                if (string.IsNullOrWhiteSpace(name) || args.Length > 2 || args.Length == 2 && !replace)
+                {
+                    console.AppendLogLine("usage: capturepreset \"<name>\" [replace] (quote a name with spaces)");
+                    return;
+                }
+                if (!(_currentEntity is Ship ship)) { console.AppendLogLine("capturepreset: pilot a ship first"); return; }
+                try
+                {
+                    var written = Loadouts.Commit(CatalogPath, Loadouts.Capture(ItemManager, ship, name), replace);
+                    console.AppendLogLine(written
+                        ? $"Preset '{name}' written to {CatalogPath}. This session sees it after the catalog reloads (next launch). " +
+                          "Reopen CultCache Studio before saving there: a Studio session opened earlier overwrites captured presets."
+                        : $"Preset '{name}' changed on disk since load; nothing written");
+                }
+                catch (InvalidOperationException e)
+                {
+                    console.AppendLogLine(e.Message);
+                }
+            });
     }
 
     public void BeginDrag(DragObject dragObject)
@@ -652,7 +670,7 @@ public class ActionGameManager : MonoBehaviour
             ship.ExitWormhole(ZoneRenderer.WormholeInstances.Keys.First(w => w.Target == oldZone.GalaxyZone).Position,
                 Settings.GameplaySettings.WormholeExitVelocity * ItemManager.Random.NextFloat2Direction());
             CurrentEntity.Zone = Zone;
-            SaveState();
+            SaveRun();
         };
     }
 
@@ -746,17 +764,16 @@ public class ActionGameManager : MonoBehaviour
     {
         if (CurrentGalaxy != null)
         {
-            if (PlayerSettings.SavedRun == null)
+            var saved = CultCache.GetGlobal<SavedGame>();
+            if (saved == null)
             {
                 SectorMap.QueueZoneReveal(CurrentGalaxy.Entrance.AdjacentZones.Prepend(CurrentGalaxy.Entrance));
                 PopulateLevel(CurrentGalaxy.Entrance);
                 var loadoutGenerator = new LoadoutGenerator(ref ItemManager.Random, ItemManager, CurrentGalaxy, Zone.GalaxyZone, IsTutorial ? CurrentGalaxy.ResolveFaction(Settings.TutorialGenerationSettings.ProtagonistFaction) : null, 2);
                 var ship = EntitySerializer.Unpack(
-                    ItemManager, 
-                    Zone, 
-                    loadoutGenerator.GenerateShipLoadout(data => string.IsNullOrEmpty(Settings.StartingHullName) || data.Name==Settings.StartingHullName ), 
-                    true);
-                // EntitySerializer.Unpack(ItemManager, Zone, Loadouts.First(x => x.Name == StarterShipTemplate), true);
+                    ItemManager,
+                    Zone,
+                    loadoutGenerator.GenerateShipLoadout(data => string.IsNullOrEmpty(Settings.StartingHullName) || data.Name==Settings.StartingHullName ));
                 ((Ship) ship).IsPlayerShip = true;
                 ship.Position = float3.zero;
                 ship.Zone = Zone;
@@ -769,8 +786,8 @@ public class ActionGameManager : MonoBehaviour
                 foreach(var group in CurrentGalaxy.DiscoveredZones
                     .GroupBy(dz=>dz.Distance[CurrentGalaxy.Entrance]))
                     SectorMap.QueueZoneReveal(group);
-                PopulateLevel(CurrentGalaxy.Zones[PlayerSettings.SavedRun.CurrentZone]);
-                var targetEntity = Zone.Entities[PlayerSettings.SavedRun.CurrentZoneEntity];
+                PopulateLevel(CurrentGalaxy.Zones[saved.CurrentZone]);
+                var targetEntity = Zone.Entities[saved.CurrentZoneEntity];
                 if (targetEntity is OrbitalEntity orbitalEntity)
                 {
                     CurrentEntity = targetEntity.Children.First(c => c is Ship {IsPlayerShip: true});
@@ -784,7 +801,7 @@ public class ActionGameManager : MonoBehaviour
         
                 for (var i = 0; i < _actionBarSlots.Count; i++)
                 {
-                    _actionBarSlots[i].Restore(PlayerSettings.SavedRun.ActionBarBindings[i], CurrentEntity);
+                    _actionBarSlots[i].Restore(saved.ActionBarBindings[i], CurrentEntity);
                 }
             }
         }
@@ -795,12 +812,12 @@ public class ActionGameManager : MonoBehaviour
         ZoneRenderer.PerspectiveEntity = ship;
         var entityPosition = ship.Position.xz;
         var followOrbit = Zone.Orbits.Keys.MinBy(o => lengthsq(Zone.GetOrbitPosition(o) - entityPosition));
-        var followPlanet = ZoneRenderer.Planets[Zone.Planets.FirstOrDefault(p => p.Value.Orbit == followOrbit).Key];
+        var followPlanet = ZoneRenderer.Planets[Zone.Planets.FirstOrDefault(p => p.Value.Orbit.Key.Equals(followOrbit)).Key];
         DockCamera.Follow = followPlanet.Body.transform;
         var rootOrbit = followOrbit;
-        while (Zone.Orbits[rootOrbit].Data.Parent != Guid.Empty)
-            rootOrbit = Zone.Orbits[rootOrbit].Data.Parent;
-        var rootPlanet = ZoneRenderer.Planets[Zone.Planets.FirstOrDefault(p => p.Value.Orbit == rootOrbit).Key];
+        while (Zone.Orbits[rootOrbit].Data.Parent.IsSet())
+            rootOrbit = Zone.Orbits[rootOrbit].Data.Parent.Key;
+        var rootPlanet = ZoneRenderer.Planets[Zone.Planets.FirstOrDefault(p => p.Value.Orbit.Key.Equals(rootOrbit)).Key];
         DockCamera.LookAt = rootPlanet.Body.transform;
 
         var shipVelocity = ship.GetBehavior<VelocityLimit>().Limit;
@@ -853,9 +870,9 @@ public class ActionGameManager : MonoBehaviour
         FollowCamera.enabled = false;
         var orbital = (OrbitalEntity) entity;
         DockCamera.Follow = ZoneRenderer.EntityInstances[orbital].transform;
-        var parentOrbit = Zone.Orbits[orbital.OrbitData].Data.Parent;
-        var parentOrbitPlanet = Zone.Planets.FirstOrDefault(p => p.Value.Orbit == parentOrbit).Key;
-        if (ZoneRenderer.Planets.ContainsKey(parentOrbitPlanet))
+        var parentOrbit = Zone.Orbits[orbital.OrbitData].Data.Parent.Key;
+        var parentOrbitPlanet = Zone.Planets.FirstOrDefault(p => p.Value.Orbit.Key.Equals(parentOrbit)).Key;
+        if (parentOrbitPlanet.IsSet() && ZoneRenderer.Planets.ContainsKey(parentOrbitPlanet))
             DockCamera.LookAt = ZoneRenderer.Planets[parentOrbitPlanet].Body.transform;
         else DockCamera.LookAt = ZoneRenderer.ZoneRoot;
         if (entity is OrbitalEntity {CanTow: true})
@@ -1106,6 +1123,7 @@ public class ActionGameManager : MonoBehaviour
         MainMenu.gameObject.SetActive(true);
         Menu.gameObject.SetActive(false);
         CurrentGalaxy = null;
+        RunSave.Clear(CultCache);
         SavePlayerSettings();
         Observable.EveryUpdate()
             .Where(_ => Time.time - deathTime < DeathPostTransitionTime)
@@ -1133,9 +1151,6 @@ public class ActionGameManager : MonoBehaviour
                     DeathPost.weight = 1;
                 });
     }
-
-    public void SaveZone(string name) => File.WriteAllBytes(
-        Path.Combine(_gameDataDirectory.FullName, $"{name}.zone"), MessagePackSerializer.Serialize(Zone.PackZone()));
 
     // public void ToggleEditMode()
     // {
@@ -1184,7 +1199,7 @@ public class ActionGameManager : MonoBehaviour
                 foreach (var indicator in _visibleHostileIndicators)
                 {
                     indicator.Value.gameObject.SetActive(indicator.Key!=CurrentEntity.Target.Value);
-                    indicator.Value.Place.Target = indicator.Key.Position;
+                    indicator.Value.Place.Target = indicator.Key.Position.ToUnity();
                     if (!indicator.Key.Active)
                         indicator.Value.Fill.enabled = false;
                     else
@@ -1199,7 +1214,7 @@ public class ActionGameManager : MonoBehaviour
                 foreach (var indicator in _visibleFriendlyIndicators)
                 {
                     indicator.Value.gameObject.SetActive(indicator.Key!=CurrentEntity.Target.Value);
-                    indicator.Value.Place.Target = indicator.Key.Position;
+                    indicator.Value.Place.Target = indicator.Key.Position.ToUnity();
                     if (!indicator.Key.Active)
                         indicator.Value.Fill.enabled = false;
                     else
@@ -1210,8 +1225,9 @@ public class ActionGameManager : MonoBehaviour
                     }
                 }
                 var look = Input.Player.Look.ReadValue<Vector2>();
-                _entityYawPitch = float2(_entityYawPitch.x + look.x * Sensitivity.x, clamp(_entityYawPitch.y + look.y * Sensitivity.y, -.45f * PI, .45f * PI));
-                _viewDirection = mul(float3(0, 0, 1), Unity.Mathematics.float3x3.Euler(float3(_entityYawPitch.yx, 0), RotationOrder.YXZ));
+                var sensitivity = PlayerSettings.InputSettings.Sensitivity;
+                _entityYawPitch = float2(_entityYawPitch.x + look.x * sensitivity.x, clamp(_entityYawPitch.y + look.y * sensitivity.y, -.45f * PI, .45f * PI));
+                _viewDirection = mul(float3(0, 0, 1), CultMath.float3x3.Euler(float3(_entityYawPitch.yx, 0), RotationOrder.YXZ));
                 CurrentEntity.LookDirection = _viewDirection;
                 HeatstrokePost.weight = saturate(unlerp(0, Settings.GameplaySettings.SevereHeatstrokeRiskThreshold, CurrentEntity.Heatstroke));
                 var severeHeatstrokeLerp = saturate(unlerp(Settings.GameplaySettings.SevereHeatstrokeRiskThreshold, 1, CurrentEntity.Heatstroke));
@@ -1221,7 +1237,7 @@ public class ActionGameManager : MonoBehaviour
                 
                 if(CurrentEntity is Ship ship)
                 {
-                    ship.MovementDirection = Input.Player.Move.ReadValue<Vector2>();
+                    ship.MovementDirection = Input.Player.Move.ReadValue<Vector2>().ToCultMath();
                 }
 
                 var target = CurrentEntity.Target.Value;
@@ -1253,8 +1269,8 @@ public class ActionGameManager : MonoBehaviour
 
         ViewDot.Target = ZoneRenderer.EntityInstances[CurrentEntity].LookAtPoint.position;
         if (CurrentEntity.Target.Value != null)
-            TargetIndicator.Target = CurrentEntity.Target.Value.Position;
-        var distance = length((float3)ViewDot.Target - CurrentEntity.Position);
+            TargetIndicator.Target = CurrentEntity.Target.Value.Position.ToUnity();
+        var distance = length(ViewDot.Target.ToCultMath() - CurrentEntity.Position);
         foreach (var (_, barrels, crosshair) in _articulationGroups)
         {
             var averagePosition = Vector3.zero;
@@ -1266,11 +1282,11 @@ public class ActionGameManager : MonoBehaviour
         
         foreach (var (targetLock, indicator, spin) in _lockingIndicators)
         {
-            var showLockingIndicator = targetLock.Lock > .01f && CurrentEntity.Target.Value != null && CurrentEntity.Target.Value.IsHostileTo(CurrentEntity);
+            var showLockingIndicator = targetLock.Lock > .01f && CurrentEntity.Target.Value != null && CurrentEntity.IsHostileTo(CurrentEntity.Target.Value);
             indicator.gameObject.SetActive(showLockingIndicator);
             if(showLockingIndicator)
             {
-                indicator.Target = CurrentEntity.Target.Value.Position;
+                indicator.Target = CurrentEntity.Target.Value.Position.ToUnity();
                 indicator.NoiseAmplitude = Settings.GameplaySettings.LockIndicatorNoiseAmplitude * (1 - targetLock.Lock);
                 indicator.NoiseFrequency = Settings.GameplaySettings.LockIndicatorFrequency.Evaluate(targetLock.Lock);
                 spin.Speed = Settings.GameplaySettings.LockSpinSpeed.Evaluate(targetLock.Lock);

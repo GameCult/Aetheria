@@ -6,13 +6,13 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using JsonKnownTypes;
+using GameCult.Caching;
 using MessagePack;
 using Newtonsoft.Json;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
-using float2 = Unity.Mathematics.float2;
-using int2 = Unity.Mathematics.int2;
+using CultMath;
+using static CultMath.math;
+using float2 = CultMath.float2;
+using int2 = CultMath.int2;
 
 [Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]
 public class Shape
@@ -268,17 +268,17 @@ public class Shape
 
 }
 
-[MessagePackObject, JsonObject(MemberSerialization.OptIn), JsonConverter(typeof(JsonKnownTypesConverter<ItemData>))]
-public abstract class ItemData : DatabaseEntry, INamedEntry
+[JsonObject(MemberSerialization.OptIn)]
+public abstract class ItemData
 {
-    [Inspectable, JsonProperty("name"), Key(1)]
+    [Inspectable, CultName, JsonProperty("name"), Key(1)]
     public string Name;
     
-    [InspectableText, JsonProperty("description"), Key(2)]
+    [Inspectable, CultInspectorTextArea, JsonProperty("description"), Key(2)]
     public string Description;
-    
-    [InspectableDatabaseLink(typeof(Faction)), JsonProperty("creator"), Key(3)]
-    public Guid Manufacturer;
+
+    // MessagePack key 3 belonged to a removed creator/faction reference field; do not reuse it. That provenance
+    // now lives on FactionProductData, and branding is derived, never stored on the design.
 
     [Inspectable, JsonProperty("mass"), Key(4)]
     public float Mass;
@@ -295,33 +295,12 @@ public abstract class ItemData : DatabaseEntry, INamedEntry
     
     [Inspectable, JsonProperty("price"), Key(8)]
     public int Price = 0;
-    
-    [IgnoreMember] public string EntryName
-    {
-        get => Name;
-        set => Name = value;
-    }
-
 }
 
-[RethinkTable("Items"), Inspectable, MessagePackObject]
+[CultDocument("aetheria.simplecommoditydata", "1"), Inspectable, MessagePackObject]
 public class SimpleCommodityData : ItemData
 {
-    // // Types of body where this resource can be found
-    // [InspectableField, JsonProperty("resourceBodyType"), Key(6)]  
-    // public BodyType ResourceBodyType;
-    //
-    // // Link to map(s) controlling density of resource, multiplied together when more than one
-    // [InspectableDatabaseLink(typeof(GalaxyMapLayerData)), JsonProperty("resourceDensity"), Key(7)]  
-    // public List<Guid> ResourceDensity = new List<Guid>();
-    //
-    // // Controls the lowest value in the resource distribution curve
-    // [InspectableField, JsonProperty("distribution"), Key(8)]
-    // public ExponentialLerp Distribution;
-    //
-    // // Minimum amount of resources needed for presence to register
-    // [InspectableField, JsonProperty("floor"), Key(11)]
-    // public float Floor = 5f;
+    // MessagePack keys 6, 7, 8 and 11 belonged to removed resource-distribution fields; do not reuse them.
 
     [Inspectable, JsonProperty("maxStackSize"), Key(9)]
     public int MaxStack = 10;
@@ -330,24 +309,35 @@ public class SimpleCommodityData : ItemData
     public SimpleCommodityCategory Category;
 }
 
-[MessagePackObject, JsonObject(MemberSerialization.OptIn), JsonConverter(typeof(JsonKnownTypesConverter<CraftedItemData>))]
+[JsonObject(MemberSerialization.OptIn)]
 public abstract class CraftedItemData : ItemData
 {
-    // [Inspectable, JsonProperty("ingredientQualityWeight"), Key(9)]  
-    // public float IngredientQualityWeight = .5f;
+    // The named slots this design is assembled from. A stat may read the quality of the part filling one.
+    [Inspectable, JsonProperty("roles"), Key(9)]  
+    public List<ItemRole> Roles = new List<ItemRole>();
 }
 
-[RethinkTable("Items"), Inspectable, MessagePackObject]
+// One slot in a design: every laser has a focusing array. A role is a name and nothing else. What fills it is
+// a quality, authored per role by each manufacturer's product; the part itself earns a record when crafting
+// needs one to exist.
+[MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+public class ItemRole
+{
+    [Inspectable, JsonProperty("name"), Key(0)]
+    public string Name;
+}
+
+[CultDocument("aetheria.compoundcommoditydata", "1"), Inspectable, MessagePackObject]
 public class CompoundCommodityData : CraftedItemData
 {
-    [InspectableDatabaseLink(typeof(PersonalityAttribute)), JsonProperty("demandProfile"), Key(10)]
-    public Dictionary<Guid, float> DemandProfile = new Dictionary<Guid, float>();
+    [Inspectable, CultReference(typeof(PersonalityAttribute), many: true), JsonProperty("demandProfile"), Key(10)]
+    public Dictionary<CultRecordRef<PersonalityAttribute>, float> DemandProfile = new Dictionary<CultRecordRef<PersonalityAttribute>, float>();
 
     [Inspectable, JsonProperty("category"), Key(11)] 
     public CompoundCommodityCategory Category;
 }
 
-[RethinkTable("Items"), Inspectable, MessagePackObject]
+[CultDocument("aetheria.consumableitemdata", "1"), Inspectable, MessagePackObject]
 public class ConsumableItemData : CraftedItemData
 {
     [Inspectable, JsonProperty("behaviors"), Key(10)]
@@ -359,7 +349,7 @@ public class ConsumableItemData : CraftedItemData
     [Inspectable, JsonProperty("duration"), Key(12)]
     public float Duration;
 
-    [InspectableTexture, JsonProperty("icon"), Key(13)]
+    [Inspectable, CultInspectorAssetPath, JsonProperty("icon"), Key(13)]
     public string Icon;
 
     [Inspectable, JsonProperty("effectiveness"), Key(14)]
@@ -369,7 +359,7 @@ public class ConsumableItemData : CraftedItemData
 [JsonObject(MemberSerialization.OptIn)]
 public abstract class EquippableItemData : CraftedItemData
 {
-    [InspectableTexture, JsonProperty("schematic"), Key(10)]
+    [Inspectable, CultInspectorAssetPath, JsonProperty("schematic"), Key(10)]
     public string Schematic;
     
     [Inspectable, JsonProperty("behaviors"), Key(11)]  
@@ -399,10 +389,10 @@ public abstract class EquippableItemData : CraftedItemData
     // [Inspectable, JsonProperty("sfx"), Key(19)]
     // public string SoundEffectTrigger;
     
-    [InspectableTexture, JsonProperty("actionIcon"), Key(20)]
+    [Inspectable, CultInspectorAssetPath, JsonProperty("actionIcon"), Key(20)]
     public string ActionBarIcon;
 
-    [InspectableSoundBank, JsonProperty("soundBank"), Key(21)]
+    [Inspectable, JsonProperty("soundBank"), Key(21)]
     public uint SoundBank;
 
     [Inspectable, JsonProperty("audioStats"), Key(22)]
@@ -449,14 +439,14 @@ public abstract class EquippableItemData : CraftedItemData
 [Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]
 public class AudioStat
 {
-    [InspectableAudioParameter, JsonProperty("parameter"), Key(0)]
+    [Inspectable, JsonProperty("parameter"), Key(0)]
     public uint Parameter;
 
     [Inspectable, JsonProperty("stat"), Key(1)]
     public PerformanceStat Stat = new PerformanceStat();
 }
 
-[RethinkTable("Items"), Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+[CultDocument("aetheria.geardata", "1"), Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]
 public class GearData : EquippableItemData
 {
     [Inspectable, JsonProperty("hardpointType"), Key(23)]
@@ -465,7 +455,7 @@ public class GearData : EquippableItemData
     [IgnoreMember] public override HardpointType HardpointType => Hardpoint;
 }
 
-[RethinkTable("Items"), Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+[CultDocument("aetheria.cargobaydata", "1"), Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]
 public class CargoBayData : EquippableItemData
 {
     [Inspectable, JsonProperty("interiorShape"), Key(24)]
@@ -474,14 +464,14 @@ public class CargoBayData : EquippableItemData
     [IgnoreMember] public override HardpointType HardpointType => HardpointType.Tool;
 }
 
-[RethinkTable("Items"), Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+[CultDocument("aetheria.dockingbaydata", "1"), Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]
 public class DockingBayData : CargoBayData
 {
     [Inspectable, JsonProperty("maxSize"), Key(25)]
     public int2 MaxSize;
 }
 
-[RethinkTable("Items"), MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+[CultDocument("aetheria.weaponitemdata", "1"), MessagePackObject, JsonObject(MemberSerialization.OptIn)]
 public class WeaponItemData : GearData
 {
     [Inspectable, JsonProperty("range"), Key(24)]
@@ -500,13 +490,13 @@ public class WeaponItemData : GearData
     public WeaponModifiers WeaponModifiers;
 }
 
-[RethinkTable("Items"), Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+[CultDocument("aetheria.hulldata", "1"), Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]
 public class HullData : EquippableItemData
 {
     [Inspectable, JsonProperty("hardpoints"), Key(23)]  
     public List<HardpointData> Hardpoints = new List<HardpointData>();
 
-    [InspectablePrefab, JsonProperty("prefab"), Key(24)]  
+    [Inspectable, CultInspectorAssetPath, JsonProperty("prefab"), Key(24)]  
     public string Prefab;
 
     [Inspectable, JsonProperty("hullType"), Key(25)]
@@ -544,7 +534,7 @@ public class HullData : EquippableItemData
 }
 
 [Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]
-public class HardpointData : ITintInspector
+public class HardpointData
 {
     [Inspectable, JsonProperty("type"), Key(0)] public HardpointType Type;
     [Inspectable, JsonProperty("position"), Key(1)] public int2 Position;
@@ -598,9 +588,10 @@ public class PerformanceStat
     [JsonProperty("qualityExponent"), Key(4)] 
     public float QualityExponent;
     
-    //[JsonProperty("id"), Key(5)]  public Guid ID = Guid.NewGuid();
-
-    // [JsonProperty("ingredient"), Key(5)]  public Guid? Ingredient;
+    // The design role whose part quality this stat reads; unset reads the item's own workmanship quality.
+    // Njordr states the same rule as a derivation over dimensions; this is that rule with one dimension.
+    [Inspectable, JsonProperty("fromRole"), Key(5)]
+    public string FromRole;
     
     [IgnoreMember] private Dictionary<Entity,Dictionary<Behavior,float>> _scaleModifiers;
     [IgnoreMember] private Dictionary<Entity,Dictionary<Behavior,float>> _constantModifiers;
@@ -630,10 +621,10 @@ public class PerformanceStat
     }
 }
 
-[RethinkTable("Items"), Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]
-public class PersonalityAttribute : DatabaseEntry, INamedEntry
+[CultDocument("aetheria.personalityattribute", "1"), Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+public class PersonalityAttribute
 {
-    [Inspectable, JsonProperty("name"), Key(1)]
+    [Inspectable, CultName, JsonProperty("name"), Key(1)]
     public string Name;
     
     [Inspectable, JsonProperty("low"), Key(2)]
@@ -642,9 +633,4 @@ public class PersonalityAttribute : DatabaseEntry, INamedEntry
     [Inspectable, JsonProperty("high"), Key(3)]
     public string HighName;
     
-    [IgnoreMember] public string EntryName
-    {
-        get => Name;
-        set => Name = value;
-    }
 }

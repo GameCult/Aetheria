@@ -1,8 +1,9 @@
 using System;
 using TMPro;
-using Unity.Mathematics;
+using CultMath;
+using CultMath.UnityBridge;
 using UnityEngine;
-using static Unity.Mathematics.math;
+using static CultMath.math;
 
 public class ItemPickup : MonoBehaviour
 {
@@ -22,16 +23,16 @@ public class ItemPickup : MonoBehaviour
 
     private void Update()
     {
-        var diff = (float3) transform.position - ViewOrigin;
+        var diff = transform.position.ToCultMath() - ViewOrigin;
         var toThis = normalize(diff);
-        var viewAngle = acos(Vector3.Dot(toThis, ViewDirection)) * Mathf.Rad2Deg;
+        var viewAngle = acos(dot(toThis, ViewDirection)) * Mathf.Rad2Deg;
         if (length(diff) < LabelDisplayMaxDistance && viewAngle < LabelDisplayAngle)
             _displayTime = Time.time;
         var targetAlpha = Time.time - _displayTime < LabelPersistDuration ? 1 : 0;
         var c = ScanLabel.color;
         c.a = c.a + sign(targetAlpha - c.a) * (Time.deltaTime / LabelFadeDuration);
         ScanLabel.color = c;
-        ScanLabelContainer.rotation = Quaternion.LookRotation(-toThis);
+        ScanLabelContainer.rotation = Quaternion.LookRotation((-toThis).ToUnity());
     }
 
     private void OnDestroy()

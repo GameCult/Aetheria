@@ -1,10 +1,9 @@
 using System;
 using MessagePack;
 using Newtonsoft.Json;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
-using static Unity.Mathematics.noise;
-using float2 = Unity.Mathematics.float2;
+using CultMath;
+using static CultMath.math;
+using float2 = CultMath.float2;
 
 [Serializable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]
 public class ZoneEnvironment

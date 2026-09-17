@@ -7,8 +7,8 @@ using System.Runtime.Remoting.Contexts;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
+using CultMath;
+using static CultMath.math;
 
 public class TradeMenu : MonoBehaviour
 {
@@ -222,7 +222,7 @@ public class TradeMenu : MonoBehaviour
             data => data.Shape.Width*data.Shape.Height));
         
         var items = Inventory.Cargo.Keys
-            .Select<ItemInstance, (ItemInstance item, ItemData data)>(ii=>(ii, ii.Data.Value));
+            .Select<ItemInstance, (ItemInstance item, ItemData data)>(ii=>(ii, GameManager.ItemManager.GetData(ii)));
         
         if (MinimumSizeFilter.gameObject.activeSelf)
             items = items.Where(i =>
@@ -289,18 +289,18 @@ public class TradeMenu : MonoBehaviour
             x => () =>
             {
                 if (x.data is HullData)
-                    return GameManager.DockedEntity.Children.Count(s => s.Hull.Data.LinkID == x.data.ID && s is Ship {IsPlayerShip: true}).ToString();
+                    return GameManager.DockedEntity.Children.Count(s => s.Hull.Data.Key.Equals(GameManager.ItemManager.ItemData.RefOf(x.data).Key) && s is Ship {IsPlayerShip: true}).ToString();
                 if(x.data is SimpleCommodityData)
-                    return (_targetCargo.ItemsOfType.ContainsKey(x.data.ID) ? _targetCargo.ItemsOfType[x.data.ID].Cast<SimpleCommodity>().Sum(s=>s.Quantity) : 0).ToString();
-                return (_targetCargo.ItemsOfType.ContainsKey(x.data.ID) ? _targetCargo.ItemsOfType[x.data.ID].Count : 0).ToString();
+                    return (_targetCargo.ItemsOfType.ContainsKey(GameManager.ItemManager.ItemData.RefOf(x.data).Key) ? _targetCargo.ItemsOfType[GameManager.ItemManager.ItemData.RefOf(x.data).Key].Cast<SimpleCommodity>().Sum(s=>s.Quantity) : 0).ToString();
+                return (_targetCargo.ItemsOfType.ContainsKey(GameManager.ItemManager.ItemData.RefOf(x.data).Key) ? _targetCargo.ItemsOfType[GameManager.ItemManager.ItemData.RefOf(x.data).Key].Count : 0).ToString();
             }, 
             data =>
             {
                 if (data is HullData)
-                    return GameManager.DockedEntity.Children.Count(s => s.Hull.Data.LinkID == data.ID && s is Ship {IsPlayerShip: true});
+                    return GameManager.DockedEntity.Children.Count(s => s.Hull.Data.Key.Equals(GameManager.ItemManager.ItemData.RefOf(data).Key) && s is Ship {IsPlayerShip: true});
                 if(data is SimpleCommodityData)
-                    return _targetCargo.ItemsOfType.ContainsKey(data.ID) ? _targetCargo.ItemsOfType[data.ID].Cast<SimpleCommodity>().Sum(s=>s.Quantity) : 0;
-                return _targetCargo.ItemsOfType.ContainsKey(data.ID) ? _targetCargo.ItemsOfType[data.ID].Count : 0;
+                    return _targetCargo.ItemsOfType.ContainsKey(GameManager.ItemManager.ItemData.RefOf(data).Key) ? _targetCargo.ItemsOfType[GameManager.ItemManager.ItemData.RefOf(data).Key].Cast<SimpleCommodity>().Sum(s=>s.Quantity) : 0;
+                return _targetCargo.ItemsOfType.ContainsKey(GameManager.ItemManager.ItemData.RefOf(data).Key) ? _targetCargo.ItemsOfType[GameManager.ItemManager.ItemData.RefOf(data).Key].Count : 0;
             }));
         
         Spreadsheet.ShowData(

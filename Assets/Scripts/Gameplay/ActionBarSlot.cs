@@ -1,6 +1,5 @@
 using System;
 using System.Linq;
-using JsonKnownTypes;
 using MessagePack;
 using Newtonsoft.Json;
 using TMPro;
@@ -47,7 +46,7 @@ public class ActionBarSlot : MonoBehaviour
         {
             ActionBarConsumableBinding actionBarConsumableBinding => new SavedActionBarConsumableBinding
             {
-                Target = new DatabaseLink<ConsumableItemData>{LinkID = actionBarConsumableBinding.Target.ID}
+                Target = actionBarConsumableBinding.Entity.ItemManager.ItemData.RefOf(actionBarConsumableBinding.Target)
             },
             ActionBarGearBinding actionBarGearBinding => new SavedActionBarGearBinding
             {
@@ -70,7 +69,7 @@ public class ActionBarSlot : MonoBehaviour
                 new ActionBarConsumableBinding(
                     entity,
                     this,
-                    savedActionBarConsumableBinding.Target.Value),
+                    entity.ItemManager.ItemData.Get(savedActionBarConsumableBinding.Target)),
             SavedActionBarGearBinding savedActionBarGearBinding =>
                 new ActionBarGearBinding(
                     entity,
@@ -128,7 +127,7 @@ public class ActionBarConsumableBinding : ActionBarBinding
 
     public override void Update()
     {
-        Slot.QuantityRemaining.text = $"{Entity.CountItemsInCargo(Target.ID)}";
+        Slot.QuantityRemaining.text = $"{Entity.CountItemsInCargo(Entity.ItemManager.ItemData.RefOf<ItemData>(Target).Key)}";
         var instance = Entity.FindActiveConsumable(Target);
         if (instance == null) Slot.Fill.fillAmount = 0;
         else Slot.Fill.fillAmount = instance.RemainingDuration / instance.Data.Duration;
@@ -145,7 +144,7 @@ public class ActionBarGearBinding : ActionBarBinding
     public ActionBarGearBinding(Entity entity, ActionBarSlot slot, EquippedItem item, IActivatedBehavior behavior) : base(entity, slot)
     {
         Item = item;
-        var data = item.EquippableItem.Data.Value as EquippableItemData;
+        var data = Entity.ItemManager.GetData(item.EquippableItem);
         Behavior = behavior;
         Slot.QuantityRemaining.gameObject.SetActive(false);
         Slot.Icon.gameObject.SetActive(true);

@@ -7,7 +7,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using System.IO;
 using System.Linq;
-using static Unity.Mathematics.math;
+using static CultMath.math;
 
 #if UNITY_EDITOR
 using UnityEditor;

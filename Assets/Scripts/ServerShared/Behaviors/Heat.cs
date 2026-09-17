@@ -7,7 +7,7 @@ using System.Linq;
 using MessagePack;
 using Newtonsoft.Json;
 
-[Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn), Order(10)]
+[Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]
 public class HeatData : BehaviorData
 {
     [Inspectable, JsonProperty("heat"), Key(1), RuntimeInspectable]

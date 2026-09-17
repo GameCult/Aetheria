@@ -25,8 +25,8 @@ SOFTWARE.
 
 using System.Collections.Generic;
 using System;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
+using CultMath;
+using static CultMath.math;
 
 namespace DataStructures.ViliWonka.KDTree {
 

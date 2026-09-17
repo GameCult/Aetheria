@@ -1,15 +1,16 @@
+using GameCult.Caching;
 using System;
 
 public class PatrolOrbitsTask : AgentTask
 {
     public override TaskType Type => TaskType.Defend;
-    public Guid[] Circuit;
+    public CultRecordKey[] Circuit;
 }
 
 public class PatrolOrbitsState : BaseState
 {
     public PatrolOrbitsTask Task;
-    public Guid CurrentTarget
+    public CultRecordKey CurrentTarget
     {
         get => Task.Circuit[_currentTargetIndex];
     }

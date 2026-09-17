@@ -58,32 +58,4 @@ public class PropertiesList : PropertiesPanel
         }
         OnExpand?.Invoke(_expanded);
     }
-
-    // public override PropertyLabel AddProperty(string name, Func<string> read = null, Action<PointerEventData> onClick = null, bool radio = false)
-    // {
-    //     var prop = base.AddProperty(name, read, onClick, radio);
-    //     prop.gameObject.SetActive(false);
-    //     return prop;
-    // }
-    //
-    // public override PropertiesList AddList(string name)
-    // {
-    //     var list = base.AddList(name);
-    //     list.gameObject.SetActive(false);
-    //     return list;
-    // }
-    //
-    // public override RectTransform AddSection(string name)
-    // {
-    //     var section = base.AddSection(name);
-    //     section.gameObject.SetActive(false);
-    //     return section;
-    // }
-    //
-    // public override PropertyButton AddButton(string name, Action<PointerEventData> onClick)
-    // {
-    //     var button = base.AddButton(name, onClick);
-    //     button.gameObject.SetActive(false);
-    //     return button;
-    // }
 }

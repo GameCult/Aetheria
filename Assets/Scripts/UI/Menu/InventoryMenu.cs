@@ -9,7 +9,7 @@ using System.Linq;
 using UnityEngine;
 using UniRx;
 using UniRx.Triggers;
-using Unity.Mathematics;
+using CultMath;
 using UnityEngine.InputSystem;
 using UnityEngine.UI;
 
@@ -28,24 +28,6 @@ public class InventoryMenu : MonoBehaviour
     private InventoryPanel _selectedPanel;
     private ItemInstance _selectedItem;
     private ItemData _selectedItemData;
-    // private List<IDisposable> _backgroundSubscriptions;
-
-    // private ItemInstance _dragItem;
-    // private Transform[] _dragCells;
-    // private Vector2[] _dragOffsets;
-    // private int2 _dragCellOffset;
-    // private ItemRotation _originalRotation;
-    // //private Shape _previousFakeOccupancy;
-    // private Shape _originalOccupancy;
-    // private EquippedItem _originalEquippedItem;
-    // private InventoryPanel _originalPanel;
-    //
-    // private InventoryPanel _dragTargetPanel;
-    // private int2 _dragTargetPosition;
-    // private int2 _lastDragPosition;
-    // private bool _dragTargetValid;
-    // private bool _destroyItem;
-
     private void OnEnable()
     {
         // Background.gameObject.SetActive(true);
@@ -117,7 +99,7 @@ public class InventoryMenu : MonoBehaviour
                             _selectedPanel = panel;
                             _selectedPosition = cargoEvent.CargoBay.Cargo[item];
                             _selectedItem = item;
-                            _selectedItemData = item.Data.Value;
+                            _selectedItemData = GameManager.ItemManager.GetData(item);
                             foreach (var v in _selectedItemData.Shape.Coordinates)
                             {
                                 var v2 = _selectedItemData.Shape.Rotate(v, _selectedItem.Rotation) + _selectedPosition;

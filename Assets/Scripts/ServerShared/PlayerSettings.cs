@@ -1,13 +1,15 @@
+using GameCult.Caching;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using CultMath;
 using MessagePack;
+using static CultMath.math;
 
-[MessagePackObject]
+[CultDocument("aetheria.playersettings", "1"), CultGlobal, MessagePackObject]
 public class PlayerSettings
 {
     [Key(0)] public string Name = "Anonymous";
-    [Key(1)] public SavedGame SavedRun;
     [Key(2)] public bool TutorialPassed;
     [Key(3)] public Dictionary<string, string> HashedStoryFiles = new Dictionary<string, string>();
     [Key(4)] public PlayerGameplaySettings GameplaySettings = new PlayerGameplaySettings();
@@ -67,8 +69,11 @@ public class PlayerGraphicsSettings
 [MessagePackObject]
 public class PlayerInputSettings
 {
-    [Key(0)] public Dictionary<(string action, int binding), string> InputActionMap = new Dictionary<(string action, int binding), string>();
+    // Binding override paths by action name, then binding index. A tuple key has no hash-resistant comparer, so
+    // MessagePack's untrusted-data security refuses to read it back.
+    [Key(0)] public Dictionary<string, Dictionary<int, string>> InputActionMap = new Dictionary<string, Dictionary<int, string>>();
     [Key(1)] public List<string> ActionBarInputs = new List<string>();
+    [Key(2)] public float2 Sensitivity = float2(-0.001f, 0.001f);
 }
 
 public enum Quality

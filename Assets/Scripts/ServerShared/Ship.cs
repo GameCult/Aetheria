@@ -10,9 +10,9 @@ using System.Reflection;
 using MessagePack;
 using Newtonsoft.Json;
 using UniRx;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
-using quaternion = Unity.Mathematics.quaternion;
+using CultMath;
+using static CultMath.math;
+using quaternion = CultMath.quaternion;
 
 [MessagePackObject]
 public class Ship : Entity
@@ -293,7 +293,7 @@ public class Ship : Entity
 
         var velocityMagnitude = length(Velocity);
         if(velocityMagnitude > .01f)
-            Velocity = normalize(Velocity) * AetheriaMath.Decay(velocityMagnitude, HullData.Drag, delta);
+            Velocity = normalize(Velocity) * decay(velocityMagnitude, HullData.Drag, delta);
         
         Position.xz += Velocity * delta;
         
@@ -325,7 +325,7 @@ public class Ship : Entity
                 {
                     var exitLerp = (_wormholeAnimationProgress - ItemManager.GameplaySettings.WormholeExitCurveStart) /
                                    (1 - ItemManager.GameplaySettings.WormholeExitCurveStart);
-                    exitLerp = AetheriaMath.Smootherstep(exitLerp); // Square the interpolation variable to produce curve with zero slope at start
+                    exitLerp = smootherstep(exitLerp); // Square the interpolation variable to produce curve with zero slope at start
                     Position.xz = _wormholePosition + normalize(_wormholeExitVelocity) * exitLerp * ItemManager.GameplaySettings.WormholeExitRadius;
                     Rotation = quaternion.LookRotation(
                         lerp(float3(0, 1, 0), forward, exitLerp),
@@ -351,7 +351,7 @@ public class Ship : Entity
                 if (_wormholeAnimationProgress < 1 - ItemManager.GameplaySettings.WormholeExitCurveStart)
                 {
                     var enterLerp = _wormholeAnimationProgress / (1 - ItemManager.GameplaySettings.WormholeExitCurveStart);
-                    enterLerp = AetheriaMath.Smootherstep(enterLerp); // Square the interpolation variable to produce curve with zero slope at vertical
+                    enterLerp = smootherstep(enterLerp); // Square the interpolation variable to produce curve with zero slope at vertical
                     Position.xz = lerp(_wormholeEntryPosition, _wormholePosition, enterLerp);
                     Rotation = quaternion.LookRotation(
                         lerp(forward, float3(0, -1, 0), enterLerp),

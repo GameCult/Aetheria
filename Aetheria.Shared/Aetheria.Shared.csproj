@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The game simulation built without Unity: the headless counterpart of the Aetheria.Shared.Unity assembly.
+       Compiles ServerShared and its dependencies from source with no Unity defines, so a successful build is the
+       check that the simulation stays independent of the engine. Tools and test harnesses reference this project. -->
+  <PropertyGroup>
+    <!-- Unity compiles ServerShared against .NET Standard 2.1 -->
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <!-- UniRx's own switch for building outside Unity -->
+    <DefineConstants>$(DefineConstants);UniRxLibrary</DefineConstants>
+    <!-- Existing code warnings; the build is a Unity-independence check, not a lint pass -->
+    <NoWarn>$(NoWarn);CS0108;CS0114;CS0162;CS0168;CS0169;CS0219;CS0414;CS0618;CS0649;CS8321;CS8981;SYSLIB0021</NoWarn>
+    <Assets>$(MSBuildThisFileDirectory)..\Assets\</Assets>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(Assets)Scripts\ServerShared\**\*.cs" />
+    <Compile Include="$(Assets)Plugins\UniRx\Scripts\**\*.cs" Exclude="$(Assets)Plugins\UniRx\Scripts\UnityEngineBridge\**;$(Assets)Plugins\UniRx\Scripts\UnityWinRTBridge\**;$(Assets)Plugins\UniRx\Scripts\InternalUtil\MicroCoroutine.cs" />
+    <!-- The reactive collections live in UniRx's Unity bridge but fence their Unity parts behind UniRxLibrary -->
+    <Compile Include="$(Assets)Plugins\UniRx\Scripts\UnityEngineBridge\ReactiveProperty.cs;$(Assets)Plugins\UniRx\Scripts\UnityEngineBridge\ReactiveCollection.cs;$(Assets)Plugins\UniRx\Scripts\UnityEngineBridge\ReactiveDictionary.cs" />
+    <Compile Include="$(Assets)Plugins\Ink\**\*.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="$(CultLibRoot)\packages\cultmath\src\CultMath\CultMath.csproj" />
+    <ProjectReference Include="$(CultLibRoot)\src\GameCult.Caching\GameCult.Caching.csproj" />
+    <ProjectReference Include="$(CultLibRoot)\src\GameCult.Caching.MessagePack\GameCult.Caching.MessagePack.csproj" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+  </ItemGroup>
+</Project>

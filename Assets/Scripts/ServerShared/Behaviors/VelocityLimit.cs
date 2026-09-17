@@ -4,8 +4,8 @@
 
 using MessagePack;
 using Newtonsoft.Json;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
+using CultMath;
+using static CultMath.math;
 
 [Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn), RuntimeInspectable]
 public class VelocityLimitData : BehaviorData
@@ -23,7 +23,6 @@ public class VelocityLimitData : BehaviorData
     }
 }
 
-[Order(100)]
 public class VelocityLimit : Behavior
 {
     public float Limit { get; private set; }

@@ -2,16 +2,17 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
+using GameCult.Caching;
 using System;
 using System.Linq;
 using MessagePack;
 using Newtonsoft.Json;
 
-[Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn), Order(-5), RuntimeInspectable]
+[Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn), RuntimeInspectable]
 public class ItemUsageData : BehaviorData
 {
-    [InspectableDatabaseLink(typeof(SimpleCommodityData)), JsonProperty("item"), Key(1), RuntimeInspectable]  
-    public Guid Item;
+    [Inspectable, JsonProperty("item"), Key(1), RuntimeInspectable]  
+    public CultRecordRef<SimpleCommodityData> Item;
     
     public override Behavior CreateInstance(EquippedItem item)
     {
@@ -40,10 +41,10 @@ public class ItemUsage : Behavior
 
     public override bool Execute(float dt)
     {
-        var cargo = Entity.FindItemInCargo(_data.Item);
+        var cargo = Entity.FindItemInCargo(_data.Item.Key);
         if (cargo == null) return false;
 
-        var item = cargo.ItemsOfType[_data.Item][0];
+        var item = cargo.ItemsOfType[_data.Item.Key][0];
         if (item is SimpleCommodity simpleCommodity)
             cargo.Remove(simpleCommodity, 1);
         if (item is CraftedItemInstance craftedItemInstance)
