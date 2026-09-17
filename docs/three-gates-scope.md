@@ -57,6 +57,18 @@ gathered enough target data to reveal those subsystems".
 - Revealing a target's subsystems as that info accumulates does not exist yet.
 - Selecting a subsystem to aim for does not exist yet either.
 
+**Stance (IFF), rulings (operator, 2026-09-17):**
+- Each entity holds a stance toward another, and both directions are visible: you see a
+  target's stance toward you, and it sees yours.
+- One button toggles your stance on the current target between hostile and neutral.
+  Going neutral during a fight safes your weapons. Firing is gated by the shooter's own
+  stance.
+- No mirroring. Operator: "Mirroring isn't ideal because it would make them too easy to
+  exploit. They should respond to a hostile stance by immediately going after you and never
+  forgiving, not until we have a utility evaluation function that tells it to cut its
+  losses".
+- Future AI may read a neutral stance as a signal and change modes.
+
 - **Owner:** fire control in `ServerShared`. Decides hit, cell, and damage.
 - **Inputs:** target and selected item, sensor/detection quality, range,
   target deviation from the predicted intercept, lock time.
