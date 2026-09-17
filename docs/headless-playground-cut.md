@@ -769,6 +769,11 @@ chance falls with how far the target deviated from the predicted intercept.
   more factor. If "just roll the dice" meant dropping evasion, take (b).
 
 **A. Firing arc.** Blocks `CombatState` and how the player's ship feels.
+
+**Ruled (operator, 2026-09-17): per-hardpoint arcs.** "Firing arcs are determined per
+hardpoint, that data is unfortunately baked into the ship prefabs at the moment". None of
+(a)-(c) as written. The arc data has to become headless-readable hull data; being re-mapped.
+
 - (a) No arc; facing is presentation.
 - (b) Gate on `dot(weapon.Direction, toTarget) >= FireArcDot`, one authored setting. The
   ship must roughly face its target, and player and AI share the gate.
