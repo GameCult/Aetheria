@@ -1149,6 +1149,7 @@ Options as mapped before the ruling:
   playground cannot kill anything by the rules the game uses.
 
 **S. The two Unity-only lifecycle settings.**
+- **Superseded 2026-09-17** by `docs/settings-globals-cut.md` (operator: "All settings should be in globals"). Settings move to a catalog global read through CultCache; `AuthoredSettings` and the YAML reader are deleted, so the options below, the `Run.New` settings arguments and the `AuthoredSettings` uses above are history. Re-map this cut against that one before Hands.
 - (a) Move `StartingHullName`, `WormholeDistanceRatio` and (Cut 2) `LootDrop*` into
   `GameplaySettings`, with a text edit of `Settings.asset` while Unity is closed.
 - (b) Pass them as `Run` constructor arguments read from `GameSettings`; the playground
