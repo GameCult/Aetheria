@@ -361,37 +361,48 @@ public class ActionGameManager : MonoBehaviour
             }
         };
 
+        // Flips the player's own stance on the current target between hostile and neutral. Going
+        // neutral mid-fight safes weapons (Weapon.StanceAllowsFire); an unmarked/undetected target
+        // reads as non-hostile here, so the first press declares hostile.
+        Input.Player.ToggleStance.performed += context =>
+        {
+            var target = CurrentEntity.Target.Value;
+            if (target == null) return;
+            CurrentEntity.SetIff(target, !CurrentEntity.IsHostileTo(target));
+        };
+
         #region Targeting
 
         Input.Player.TargetReticle.performed += context =>
         {
-            if (!CurrentEntity.VisibleEnemies.Any()) return;
-            var underReticle = CurrentEntity.VisibleEnemies.Where(x => x != CurrentEntity)
+            if (!CurrentEntity.VisibleEntities.Any()) return;
+            var underReticle = CurrentEntity.VisibleEntities.Where(x => x != CurrentEntity)
                 .MaxBy(x => dot(normalize(x.Position - CurrentEntity.Position), CurrentEntity.LookDirection));
             CurrentEntity.Target.Value = CurrentEntity.Target.Value == underReticle ? null : underReticle;
         };
 
+        // Nearest is enemies-only (it drives weapon lock), and picks the closest target, not the farthest.
         Input.Player.TargetNearest.performed += context =>
         {
             if(CurrentEntity.VisibleEnemies.Any())
             {
                 CurrentEntity.Target.Value = CurrentEntity.VisibleEnemies.Where(x => x != CurrentEntity)
-                    .MaxBy(x => length(x.Position - CurrentEntity.Position));
+                    .MinBy(x => length(x.Position - CurrentEntity.Position));
             }
         };
 
         Input.Player.TargetNext.performed += context =>
         {
-            if (!CurrentEntity.VisibleEnemies.Any()) return;
-            var targets = CurrentEntity.VisibleEnemies.Where(x => x != CurrentEntity).OrderBy(x => length(x.Position - CurrentEntity.Position)).ToArray();
+            if (!CurrentEntity.VisibleEntities.Any()) return;
+            var targets = CurrentEntity.VisibleEntities.Where(x => x != CurrentEntity).OrderBy(x => length(x.Position - CurrentEntity.Position)).ToArray();
             var currentTargetIndex = Array.IndexOf(targets, CurrentEntity.Target.Value);
             CurrentEntity.Target.Value = targets[(currentTargetIndex + 1) % targets.Length];
         };
 
         Input.Player.TargetPrevious.performed += context =>
         {
-            if (!CurrentEntity.VisibleEnemies.Any()) return;
-            var targets = CurrentEntity.VisibleEnemies.Where(x => x != CurrentEntity).OrderBy(x => length(x.Position - CurrentEntity.Position)).ToArray();
+            if (!CurrentEntity.VisibleEntities.Any()) return;
+            var targets = CurrentEntity.VisibleEntities.Where(x => x != CurrentEntity).OrderBy(x => length(x.Position - CurrentEntity.Position)).ToArray();
             var currentTargetIndex = Array.IndexOf(targets, CurrentEntity.Target.Value);
             CurrentEntity.Target.Value = targets[(currentTargetIndex + targets.Length - 1) % targets.Length];
         };
@@ -546,6 +557,34 @@ public class ActionGameManager : MonoBehaviour
             });
         //Temporary, or not
         ConsoleController.AddCommand("tow", _ => TowShip());
+
+        // Manual IFF override for the player's current target, for hand-testing combat.
+        // "iff hostile"/"iff neutral" force a stance; "iff clear" restores the derived faction rule.
+        ConsoleController.AddCommand("iff", args =>
+        {
+            var console = ConsoleController.Instance;
+            var target = _currentEntity?.Target.Value;
+            if (target == null) { console.AppendLogLine("iff: no target selected"); return; }
+            var mode = args.Length > 0 ? args[0] : "";
+            if (mode != "hostile" && mode != "neutral" && mode != "clear")
+            {
+                console.AppendLogLine("usage: iff hostile|neutral|clear");
+                return;
+            }
+            switch (mode)
+            {
+                case "hostile":
+                    _currentEntity.SetIff(target, true);
+                    break;
+                case "neutral":
+                    _currentEntity.SetIff(target, false);
+                    break;
+                case "clear":
+                    _currentEntity.SetIff(target, null);
+                    break;
+            }
+            console.AppendLogLine($"{target.Name}: {(_currentEntity.IsHostileTo(target) ? "hostile" : "neutral")}");
+        });
 
         // Editor only: capturepreset "<name>" [replace] writes the piloted ship as a catalog preset. A multi-word name must
         // be quoted; any other second argument than replace is refused rather than dropped.
@@ -1243,7 +1282,7 @@ public class ActionGameManager : MonoBehaviour
         
         foreach (var (targetLock, indicator, spin) in _lockingIndicators)
         {
-            var showLockingIndicator = targetLock.Lock > .01f && CurrentEntity.Target.Value != null && CurrentEntity.Target.Value.IsHostileTo(CurrentEntity);
+            var showLockingIndicator = targetLock.Lock > .01f && CurrentEntity.Target.Value != null && CurrentEntity.IsHostileTo(CurrentEntity.Target.Value);
             indicator.gameObject.SetActive(showLockingIndicator);
             if(showLockingIndicator)
             {

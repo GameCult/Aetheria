@@ -87,6 +87,15 @@
                     "initialStateCheck": false
                 },
                 {
+                    "name": "Toggle Stance",
+                    "type": "Button",
+                    "id": "708d5aa5-3d0e-4ffe-920e-a4c95179d99c",
+                    "expectedControlType": "Button",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
+                },
+                {
                     "name": "Override Shutdown",
                     "type": "Button",
                     "id": "62a64686-4670-43c9-81ee-bbb8578e284b",
@@ -317,6 +326,17 @@
                     "processors": "",
                     "groups": "Keyboard&Mouse",
                     "action": "Toggle Shield",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "1f8c8f5e-4078-4066-b780-67d9c2261e46",
+                    "path": "<Keyboard>/n",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "Keyboard&Mouse",
+                    "action": "Toggle Stance",
                     "isComposite": false,
                     "isPartOfComposite": false
                 },

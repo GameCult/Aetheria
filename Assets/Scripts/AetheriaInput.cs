@@ -183,6 +183,16 @@ public partial class @AetheriaInput: IInputActionCollection2, IDisposable
                     ""priority"": 0
                 },
                 {
+                    ""name"": ""Toggle Stance"",
+                    ""type"": ""Button"",
+                    ""id"": ""708d5aa5-3d0e-4ffe-920e-a4c95179d99c"",
+                    ""expectedControlType"": ""Button"",
+                    ""processors"": """",
+                    ""interactions"": """",
+                    ""initialStateCheck"": false,
+                    ""priority"": 0
+                },
+                {
                     ""name"": ""Override Shutdown"",
                     ""type"": ""Button"",
                     ""id"": ""62a64686-4670-43c9-81ee-bbb8578e284b"",
@@ -418,6 +428,17 @@ public partial class @AetheriaInput: IInputActionCollection2, IDisposable
                     ""processors"": """",
                     ""groups"": ""Keyboard&Mouse"",
                     ""action"": ""Toggle Shield"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": false
+                },
+                {
+                    ""name"": """",
+                    ""id"": ""1f8c8f5e-4078-4066-b780-67d9c2261e46"",
+                    ""path"": ""<Keyboard>/n"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": ""Keyboard&Mouse"",
+                    ""action"": ""Toggle Stance"",
                     ""isComposite"": false,
                     ""isPartOfComposite"": false
                 },
@@ -1159,6 +1180,7 @@ public partial class @AetheriaInput: IInputActionCollection2, IDisposable
         m_Player_TargetNearest = m_Player.FindAction("Target Nearest", throwIfNotFound: true);
         m_Player_ToggleHeatsinks = m_Player.FindAction("Toggle Heatsinks", throwIfNotFound: true);
         m_Player_ToggleShield = m_Player.FindAction("Toggle Shield", throwIfNotFound: true);
+        m_Player_ToggleStance = m_Player.FindAction("Toggle Stance", throwIfNotFound: true);
         m_Player_OverrideShutdown = m_Player.FindAction("Override Shutdown", throwIfNotFound: true);
         m_Player_Ping = m_Player.FindAction("Ping", throwIfNotFound: true);
         m_Player_HideUI = m_Player.FindAction("Hide UI", throwIfNotFound: true);
@@ -1274,6 +1296,7 @@ public partial class @AetheriaInput: IInputActionCollection2, IDisposable
     private readonly InputAction m_Player_TargetNearest;
     private readonly InputAction m_Player_ToggleHeatsinks;
     private readonly InputAction m_Player_ToggleShield;
+    private readonly InputAction m_Player_ToggleStance;
     private readonly InputAction m_Player_OverrideShutdown;
     private readonly InputAction m_Player_Ping;
     private readonly InputAction m_Player_HideUI;
@@ -1326,6 +1349,10 @@ public partial class @AetheriaInput: IInputActionCollection2, IDisposable
         /// Provides access to the underlying input action "Player/ToggleShield".
         /// </summary>
         public InputAction @ToggleShield => m_Wrapper.m_Player_ToggleShield;
+        /// <summary>
+        /// Provides access to the underlying input action "Player/ToggleStance".
+        /// </summary>
+        public InputAction @ToggleStance => m_Wrapper.m_Player_ToggleStance;
         /// <summary>
         /// Provides access to the underlying input action "Player/OverrideShutdown".
         /// </summary>
@@ -1399,6 +1426,9 @@ public partial class @AetheriaInput: IInputActionCollection2, IDisposable
             @ToggleShield.started += instance.OnToggleShield;
             @ToggleShield.performed += instance.OnToggleShield;
             @ToggleShield.canceled += instance.OnToggleShield;
+            @ToggleStance.started += instance.OnToggleStance;
+            @ToggleStance.performed += instance.OnToggleStance;
+            @ToggleStance.canceled += instance.OnToggleStance;
             @OverrideShutdown.started += instance.OnOverrideShutdown;
             @OverrideShutdown.performed += instance.OnOverrideShutdown;
             @OverrideShutdown.canceled += instance.OnOverrideShutdown;
@@ -1452,6 +1482,9 @@ public partial class @AetheriaInput: IInputActionCollection2, IDisposable
             @ToggleShield.started -= instance.OnToggleShield;
             @ToggleShield.performed -= instance.OnToggleShield;
             @ToggleShield.canceled -= instance.OnToggleShield;
+            @ToggleStance.started -= instance.OnToggleStance;
+            @ToggleStance.performed -= instance.OnToggleStance;
+            @ToggleStance.canceled -= instance.OnToggleStance;
             @OverrideShutdown.started -= instance.OnOverrideShutdown;
             @OverrideShutdown.performed -= instance.OnOverrideShutdown;
             @OverrideShutdown.canceled -= instance.OnOverrideShutdown;
@@ -1944,6 +1977,13 @@ public partial class @AetheriaInput: IInputActionCollection2, IDisposable
         /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
         /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
         void OnToggleShield(InputAction.CallbackContext context);
+        /// <summary>
+        /// Method invoked when associated input action "Toggle Stance" is either <see cref="UnityEngine.InputSystem.InputAction.started" />, <see cref="UnityEngine.InputSystem.InputAction.performed" /> or <see cref="UnityEngine.InputSystem.InputAction.canceled" />.
+        /// </summary>
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.started" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
+        void OnToggleStance(InputAction.CallbackContext context);
         /// <summary>
         /// Method invoked when associated input action "Override Shutdown" is either <see cref="UnityEngine.InputSystem.InputAction.started" />, <see cref="UnityEngine.InputSystem.InputAction.performed" /> or <see cref="UnityEngine.InputSystem.InputAction.canceled" />.
         /// </summary>
