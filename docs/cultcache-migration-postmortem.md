@@ -34,8 +34,11 @@ the catalog.
   6 Mind Steward.
 
 **Still outstanding with the operator:**
-- the play smoke;
-- the Studio click-through, which also fixes three dangling `AmmoType` refs.
+- the play smoke.
+
+The Studio click-through passed on 2026-09-17. It also found that the cutover had
+dropped the Database Tools' record grouping and drag-and-drop without recording
+them, because the feature inventory counted attributes only.
 
 **CultLib missed its own size target.** The Caching core ended at 4,368 lines
 against a target of about 3,150, and `CultCache.cs` at 2,265 against about
@@ -333,8 +336,9 @@ These are applied to the Eureka skill and recorded in its changelog.
 
 ## Open follow-ups
 
-- **Operator:** play smoke; Studio click-through, including the three
-  `AmmoType` refs. Check `dangling` lists zero afterwards.
+- **Operator:** play smoke.
+- **Studio grouping and drag-and-drop:** restore as member attributes; owned by
+  `CultLib\docs\studio-grouping-cut.md`.
 - **CultLib:**
   - Studio detects on-disk changes before Save.
   - The release byte check is enforced by script.

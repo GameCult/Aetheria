@@ -147,10 +147,23 @@ history, so history is left alone.
 
 Awaiting:
 - the operator play smoke;
-- the Studio click-through, including the three AmmoType refs;
 - nothing else from agents. The preset rework's Soul findings were fixed in
   `d503f076`, `d90a65a9` and `20f0f3d7`: 29 tests, 18 of 19 mutations caught
   (the survivor is the one noted above), and Unity batchmode reports 0 errors.
+
+The Studio click-through passed (operator, 2026-09-17). The three AmmoType refs
+were repointed in `515859cf`, and `dangling` lists zero. The schematic underlay
+was drawn across the whole inspector width, because the port dropped the old
+drawer's `FlexibleSpace`; it was restored and checked by the operator in the
+commit after `515859cf`.
+
+The Database Tools' record grouping (foldout tree by category, hardpoint type,
+manufacturer and hull type, with create-in-group) and drag-and-drop of record
+references were dropped by the cutover without being recorded. The attribute
+inventory above counted attributes, and those features were code in the window
+and in `DatabaseLinkInspector`. They are being restored in CultLib's Studio as
+member attributes (operator, 2026-09-17); `CultLib\docs\studio-grouping-cut.md`
+owns that work.
 
 Presets are not yet used by any spawner. The candidates are enemy ships
 (`ZoneGenerator.cs:309`) and the starting player ship

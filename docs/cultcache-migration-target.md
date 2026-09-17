@@ -2,7 +2,7 @@
 
 Date: 2026-09-12
 
-Status: landed; awaiting operator play smoke and Studio click-through. Aetheria runs on CultLib's CultCache and CultMath, cut over on
+Status: landed; awaiting operator play smoke. Aetheria runs on CultLib's CultCache and CultMath, cut over on
 `codex/cultcache-cutover` from Cut 8a (`4f4beb0f`) through Cut 10 (`4a545469`
 to the commit that set this status). The means are in
 `docs/cultcache-migration-cut.md`.
