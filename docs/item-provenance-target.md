@@ -67,6 +67,25 @@ segmentation appropriate to the production quality achievable at that station."
   schema cut now so that the shape of the data reflects the shape of the game we
   want to build."
 
+- **Terminus mint sites write a placeholder origin (operator, 2026-09-17; F0 (a)).**
+  Generation starts from branded items with specific role spreads and synthesizes
+  whatever provenance is needed to hit those properties. This pass does not
+  generate the crafting pyramid, so there is nothing honest to name for where
+  and from what; the origin says only which faction made it. Operator's words:
+  "since we are starting from branded items with specific role spreads, we
+  synthesize whatever provenance is necessary to hit those properties. Since
+  we're not going to bother generating every level of the crafting pyramid for
+  this pass, that also means there's no honest thing to put there, so A, I guess?"
+- **Factories are built in place from raw materials (operator, 2026-09-17; F2,
+  next scope).** A factory's provenance terminates in extracted inputs at its own
+  station, not in another factory. Switching a factory to a different design
+  costs retooling, and so does a tech upgrade on a sub-assembly: a different
+  item filling the same role in an ingredient slot counts as a different design.
+  Operator's words: "these are things that should be buildable in-place out of
+  raw materials, with some cost for retooling every time you want to switch
+  designs (including tech upgrades on sub-assemblies, meaning a different item
+  with the same role filling an ingredient slot)".
+
 ## Consequences already visible
 
 - `FactionProductData` currently stores a manufacturer, a brand name and flavour
