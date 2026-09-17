@@ -43,13 +43,21 @@ public static class Program
         var products = db.Cache.GetAll<FactionProductData>()
             .OrderBy(p => db.Cache.RefOf(p).Key.Value, StringComparer.Ordinal).ToArray();
 
-        // The manufacturer no longer lives on the design: it is derived the way Brand() derives it, from the
-        // first product in record-key order that sells the design. A design no product sells shows "(none)".
+        // The manufacturer no longer lives on the design; a runtime item picks one via Brand()'s tie-break, but
+        // census must not invent that same attribution for a design with several sellers. Instead it lists every
+        // distinct maker that sells the design (via products), in record-key order. A design no product sells,
+        // or that only unset-manufacturer products sell, shows "(none)".
         string MakerOf(EquippableItemData item)
         {
             var design = db.Cache.RefOf(item).Key;
-            var product = products.FirstOrDefault(p => p.Design.Key.Equals(design));
-            return product == null ? "(none)" : db.Cache.Get(product.Manufacturer)?.ShortName ?? "(none)";
+            var makers = products
+                .Where(p => p.Design.Key.Equals(design) && p.Manufacturer.IsSet())
+                .Select(p => p.Manufacturer.Key)
+                .Distinct()
+                .OrderBy(k => k.Value, StringComparer.Ordinal)
+                .Select(k => db.Cache.Get<Faction>(k)?.ShortName ?? "(none)")
+                .ToArray();
+            return makers.Length == 0 ? "(none)" : string.Join(", ", makers);
         }
 
         var kinds = new Dictionary<string, List<string>>();
