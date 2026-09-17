@@ -900,6 +900,18 @@ targeted and refitted like any other item.
 - **Recommend (a).** Emissions already drive how fast info accumulates.
 
 **E. The six effect families no design uses.** Blocks only the Unity-side ledger.
+
+**Ruled: keep every weapon and behavior type (operator, 2026-09-17).** None of (a)-(c). Operator's words:
+"careful with the deletion beam, we had TONS of content in the game before the big breach, using every
+single behavior type. I rebuilt just the bare minimum content to make the game playable, that doesn't
+mean we want to delete all the weapon types we created".
+- Today's catalog is the minimum rebuilt after the breach, not the consumer set.
+ The consumers are the pre-breach content.
+ The consumer audit for weapon and behavior types reads that history, not the live catalog.
+- Fire control maps every weapon and behavior type: constant beams, hitscan, lightning, guided,
+ airburst, missile splits, mines and shields.
+ Cut 2 has nothing to delete or defer on the grounds that no current design uses a type.
+
 - (a) Strip their hit loops and keep them.
 - (b) Delete their scripts, managers and prefabs once a GUID grep shows no catalog or
   scene reference. That covers `ConstantLaser*`, `ConstantLightning*`,
