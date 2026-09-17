@@ -29,18 +29,6 @@ public static class EntitySerializer
 
         pack.Settings = entity.Settings;
 
-        // Filter item behavior collections by those with any persistent behaviors
-        // For each item create a (position, data) pair holding every one of its behaviors' persistent data.
-        // A dictionary keyed by int2 has no hash-resistant comparer under CultCache's untrusted-data security, so
-        // this is an array of pairs, matching Equipment/CargoBays/DockingBays.
-        pack.PersistedBehaviors = entity.Equipment
-            .Where(item => item.Behaviors.Any(b=>b is IPersistentBehavior))
-            .Select(item => (item.Position, item.Behaviors
-                .Where(b=>b is IPersistentBehavior)
-                .Cast<IPersistentBehavior>()
-                .Select(b => b.Store()).ToArray()))
-            .ToArray();
-
         pack.Hull = entity.Hull;
         pack.Name = entity.Name;
         pack.Faction = entity.Faction == null ? default : entity.ItemManager.ItemData.RefOf(entity.Faction);
@@ -122,18 +110,6 @@ public static class EntitySerializer
                 foreach (var (position, item) in pack.DockingBayContents[bayIndex])
                     entity.DockingBays[bayIndex].TryStore(item, position);
 
-        // Iterate only over the behaviors of items which contain persistent data
-        // Build a local lookup from the pairs array, then filter each item's behaviors for the persistent ones,
-        // cast them and combine with that item's persisted data array.
-        var persistedBehaviorsByPosition = pack.PersistedBehaviors.ToDictionary(x => x.position, x => x.data);
-        foreach (var persistentBehaviorData in entity.Equipment
-            .Where(item => persistedBehaviorsByPosition.ContainsKey(item.Position))
-            .SelectMany(item => item.Behaviors
-                .Where(b=> b is IPersistentBehavior)
-                .Cast<IPersistentBehavior>()
-                .Zip(persistedBehaviorsByPosition[item.Position], (behavior, data) => new{behavior, data})))
-            persistentBehaviorData.behavior.Restore(persistentBehaviorData.data);
-
         entity.Temperature = pack.Temperature;
 
         entity.Armor = pack.Armor;
@@ -201,7 +177,7 @@ public abstract class EntityPack
     [Key(2)] public (int2 position, EquippableItem item)[] Equipment;
     [Key(3)] public (int2 position, EquippableItem item)[] CargoBays;
     [Key(4)] public (int2 position, EquippableItem item)[] DockingBays;
-    [Key(5)] public (int2 position, PersistentBehaviorData[] data)[] PersistedBehaviors;
+    // Key(5) retired 2026-09-17; a deleted field used it. Do not reuse.
     [Key(6)] public float[,] Temperature;
     [Key(7)] public float[,] Armor;
     [Key(8)] public bool2[,] Conductivity;

@@ -357,7 +357,7 @@ public sealed class LoadoutTests : IDisposable
                 Equipment = Array.Empty<(int2, EquippableItem)>(), CargoBays = Array.Empty<(int2, EquippableItem)>(),
                 DockingBays = Array.Empty<(int2, EquippableItem)>(), CargoContents = Array.Empty<(int2, ItemInstance)[]>(),
                 DockingBayContents = Array.Empty<(int2, ItemInstance)[]>(), Children = Array.Empty<EntityPack>(),
-                PersistedBehaviors = Array.Empty<(int2, PersistentBehaviorData[])>(), Temperature = new float[0, 0],
+                Temperature = new float[0, 0],
                 Armor = new float[0, 0], Conductivity = new bool2[0, 0], DockingBayAssignments = Array.Empty<int>(),
                 Settings = new EntitySettings(), WeaponGroups = Array.Empty<int[]>()
             };
@@ -371,7 +371,7 @@ public sealed class LoadoutTests : IDisposable
                 DockingBayContents = new[] { new[] { (default(int2), (ItemInstance) dockingBayContent) } },
                 Children = new EntityPack[] { childPack },
                 DockingBayAssignments = new[] { 0 },
-                PersistedBehaviors = Array.Empty<(int2, PersistentBehaviorData[])>(), Temperature = new float[0, 0],
+                Temperature = new float[0, 0],
                 Armor = new float[0, 0], Conductivity = new bool2[0, 0],
                 Settings = new EntitySettings(), WeaponGroups = Array.Empty<int[]>()
             };

@@ -139,15 +139,6 @@ MUTATIONS: list[Mutation] = [
         test="LoadoutTests.StatsReadTheLot",
         expect="red",
     ),
-    # --- F1 (docs/headless-playground-cut.md Cut 0): PersistedBehaviors is a pairs array ---
-    # Cut 0 names two mutations here: "pack drops data" and "unpack ignores the lookup". Neither is reachable
-    # today. No IBehavior implements IPersistentBehavior (Behaviors.cs), so EntitySerializer.Pack's
-    # `.Where(item => item.Behaviors.Any(b=>b is IPersistentBehavior))` always filters every item out, and
-    # Restore's matching lookup is consulted by an always-empty SelectMany. A real ship built through Pack can
-    # never carry non-empty PersistedBehaviors, so mutating either body is unobservable through any live path;
-    # RunSaveTests.ReopenedPackKeepsPersistedBehaviors instead hand-builds the pairs array directly (bypassing
-    # Pack/Restore) to at least prove the wire format round-trips. Both mutations are not yet reached, pending a
-    # real IPersistentBehavior implementer, which is out of Cut 0's scope.
     # --- F2 (item-provenance-cut.md): the GC root walk must cover every EntityPack root ---
     Mutation(
         rule="Items yields the Equipment root, not just the hull",
