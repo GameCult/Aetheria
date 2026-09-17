@@ -68,6 +68,12 @@ gathered enough target data to reveal those subsystems".
   forgiving, not until we have a utility evaluation function that tells it to cut its
   losses".
 - Future AI may read a neutral stance as a signal and change modes.
+- Stance signals are events, not polling (operator: "signals like this should be events,
+  not polling").
+- Detection gates stance. You can only see a stance if you can see its holder: "I can only
+  see someone's stance if I can see them". An NPC reacts to a hostile stance when it detects
+  the entity holding it, either at the moment of the change or later, when detection
+  happens.
 
 - **Owner:** fire control in `ServerShared`. Decides hit, cell, and damage.
 - **Inputs:** target and selected item, sensor/detection quality, range,
