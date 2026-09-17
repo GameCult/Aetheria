@@ -135,6 +135,12 @@ generation (synthesizing provenance for existing goods down to mining), routes
 moving consumer goods, and piracy. The item provenance *schema* is cut now, so
 the data already has that shape; see `docs/item-provenance-target.md`.
 
+**Parked for an electronic warfare expansion (operator, 2026-09-17):**
+- Partial or misleading sensor traces that do not resolve a ship's identity.
+- IFF that resolves at its own target-data threshold, independent of the identity threshold.
+- Stance visibility is one detection-gated query today, so a separate IFF threshold can
+  replace its gate later.
+
 ## Items: roles now, Njordr later
 
 **Partly superseded (2026-09-17).** `docs/item-provenance-target.md` owns the
