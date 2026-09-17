@@ -40,6 +40,14 @@ station's inventory in Aetheria), and a set of item inputs, carrying their own
 provenance. That is enough to reconstruct the branding for that item, with market
 segmentation appropriate to the production quality achievable at that station."
 
+- **Terminus generates backwards (operator, 2026-09-17).** Terminus starts from the
+  output products that need to exist and synthesizes a fake economy to
+  materialize them: the product is chosen first, then a plausible faction,
+  station, factory and input lots that would have produced it. The forward
+  supply chain is Njordr's future direction, not Terminus scope. Operator's words:
+  "Right now, for Terminus, we want to go in the opposite direction: start with
+  the output products, and generate a fake economy to materialize those goods."
+
 ## Consequences already visible
 
 - `FactionProductData` currently stores a manufacturer, a brand name and flavour
