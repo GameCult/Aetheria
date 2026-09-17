@@ -90,6 +90,9 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior
 
     protected void Trigger()
     {
+        // Safed: shooter has a target and hasn't declared hostility toward it.
+        if (!StanceAllowsFire) return;
+
         // If 1 ammo is consumed per burst, perform ammo and energy consumption here
         // UseAmmo returns false when triggering reload; cancel firing if that is the case
         if(_data.SingleAmmoBurst && (!Entity.TryConsumeEnergy(Energy) || !UseAmmo())) return;

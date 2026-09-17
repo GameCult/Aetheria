@@ -94,7 +94,12 @@ public abstract class Weapon : Behavior, IActivatedBehavior
     {
         get => _firing;
     }
-    
+
+    // Single shared fire gate for player and AI shooters alike: weapons are safed by the
+    // shooter's OWN declared stance toward its target, not the target's stance toward the shooter.
+    // With no target set, behaviour is unchanged (nothing to be safe about).
+    public bool StanceAllowsFire => Entity.Target.Value == null || Entity.IsHostileTo(Entity.Target.Value);
+
     public Weapon(WeaponData data, EquippedItem item) : base(data, item)
     {
         _data = data;

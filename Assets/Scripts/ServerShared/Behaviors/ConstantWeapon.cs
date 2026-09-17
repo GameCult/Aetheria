@@ -75,6 +75,13 @@ public class ConstantWeapon : Weapon, IProgressBehavior, IEventBehavior
     public override bool Execute(float dt)
     {
         base.Execute(dt);
+        if (_firing && !StanceAllowsFire)
+        {
+            // Safed: shooter has a target and hasn't declared hostility toward it.
+            _firing = false;
+            OnStopFiring?.Invoke();
+            return false;
+        }
         if (_firing)
         {
             if (!Entity.TryConsumeEnergy(Evaluate(_data.Energy) * dt))

@@ -77,7 +77,7 @@ public class LockWeapon : InstantWeapon
             _target = Entity.Target.Value;
         }
 
-        if (Entity.Target.Value != null && Entity.Target.Value.IsHostileTo(Entity))
+        if (Entity.Target.Value != null && Entity.IsHostileTo(Entity.Target.Value))
         {
             LockSpeed = Evaluate(_data.LockSpeed);
             SensorImpact = Evaluate(_data.SensorImpact);
