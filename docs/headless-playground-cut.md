@@ -47,8 +47,8 @@ Invariants:
 
 Non-goals:
 - No rendering, no Unity, no new daemon, no CultMesh surface.
-- No headless ballistics. Whether a shot geometrically hits stays with Unity physics
-  (fork D).
+- No headless ballistics. Fire control does not detect hits; it rolls them, headless
+  (fork D ruling, Cut 2). Unity flies the shot to the outcome.
 - No trade menu, no action-bar UI, no input devices.
 - Tier colour, properties panel, input screen and CultCache Studio rendering stay
   operator checks.
@@ -271,7 +271,16 @@ Continue and death. There is one instance per run. It holds no Unity type.
   - `InventoryPanel` may not write `CurrentEntity` or `DockingBay.DockedShip`.
   - `ZoneRenderer` may not create `Wormhole` objects.
   - The playground may not write `Position`, `Velocity`, `Hull.Durability` or zone
-    membership directly. Its `hit` command goes through the damage owner (fork D).
+    membership directly. It has no `hit` command; damage comes only from fire control
+    (fork D ruling).
+- **Fire control (Cut 2).** `FireControl` (ServerShared) owns hit, cell and damage; `Zone`
+  owns death removal, loot drops and the pickup commit.
+  - `Entity.TargetItem` is a command, written only through `TrySelectTargetItem`. The
+    aimed item is derived from it plus reveal.
+  - Unity weapon effects and `HullCollider` are presentation of `ShotOutcome`.
+  - Forbidden deciders of hits or damage: Unity weapon effects, `HullCollider`, any
+    `Physics.*` query, `EntityInstance`, `ShieldManager` (it may only call
+    `Zone.TryPickUp`), the playground, and `Entity.HardpointTransforms` (deleted).
 - **Shared paths:**
   - Manual input and agent input write the same entity fields (§1), and both go before
     `Run.Step`. Unity writes input in `Update`, then calls `run.Step(Time.deltaTime)`.
@@ -304,14 +313,15 @@ Unity dependencies, each injected or cut:
 |---|---|---|
 | `Time.deltaTime` | `:1218` | injected: `Run.Step(float dt)` |
 | `Time.time` | `IntroCutscene`, `Die` post-fx | cutscene deleted; post-fx stays in Unity, on `Died` |
-| `UnityEngine.Random` | `MainMenu.cs:125,148` (background noise), `EntityInstance.cs:413-428` (loot) | noise stays in the menu as a galaxy-generation input; loot roll moves to ServerShared on `ItemManager.Random` (fork D) |
+| `UnityEngine.Random` | `MainMenu.cs:125,148` (background noise), `EntityInstance.cs:413-428` (loot) | noise stays in the menu as a galaxy-generation input; loot roll moves to `Zone` on `ItemManager.Random` (Cut 2); effect spread jitter (`ProjectileManager.cs:20-26`) stays visual |
 | Clock RNG | `ItemManager.cs:20` | cut; the seed is a constructor argument, and Unity passes a clock-derived one |
 | Coroutines | `IntroCutscene` | deleted (dead) |
 | UniRx | `Observable.NextFrame` in the menu, `EveryUpdate` in `Die` | stay in Unity; `Run` uses C# events, and `Entity.Death` (UniRx, headless-compiled) is what `Run` subscribes to |
 | `Debug.Log` | `:264`, `:657`, `MainMenu` | injected `Action<string>` |
 | Scene load | `MainMenu` | stays; the handoff static becomes `ActionGameManager.NewRun : (Galaxy, bool)?`, command-only, consumed once in `Start`; null means Continue |
 | MonoBehaviour state | `_currentEntity`, `DockedEntity`, `DockingBay`, `TowingStation`, `Zone`, `ItemManager` | projections of `Run` |
-| Barrel transforms | `EntityInstance.cs:516` -> `HardpointTransforms` | render-owned aim; `CombatState` stops depending on it (fork H) |
+| Barrel transforms | `EntityInstance.cs:516` -> `HardpointTransforms` | `HardpointTransforms` deleted (Cut 2); barrels are presentation only, `GetBarrel` |
+| `Physics.*` hit queries | `Projectile`, `GuidedProjectile`, `Laser`, `Lightning`, `HullCollider` subjects | deleted from damage paths; `FireControl` rolls (Cut 2) |
 
 ## 4. Cuts
 
@@ -472,45 +482,328 @@ This is subtraction first, then one new file.
   - Net production code is about +40. That buys the invariant: the lifecycle has one
     owner, and every rule it holds existed before in a MonoBehaviour.
 
-### Cut 2: combat and death resolve without Unity (forks H, D)
+### Cut 2: fire control rolls hits; death and loot resolve in `Zone` (forks F, A, T, V, E, L)
 
-- `Combat.cs:101`: `shouldFire` reads `testWeapon.Direction`, the same reader shots use
-  (`Behaviors.cs:24-43`). Its fallback is hull-relative item rotation; with Unity
-  running, the articulated barrel transform wins as today.
-- Damage owner: `EntityInstance.cs:276-314` (`DamageSchematic`) and `:330-395`
-  (hit-shape) move to `Entity`:
-  - `void ApplyHit(HullHit hit)` with `HullHit { Damage, Penetration, Spread, DamageType, Source, HullUv, LocalDirection }`;
-  - `void ApplySplash(float damage, DamageType type, Entity source, float2 localDirection)`.
-  - The only Unity-specific step, `transform.InverseTransformDirection`, becomes a
-    rotation by `Ship.Rotation` (`Ship.cs:71`) at the caller. `HullCollider` subscribers
-    call these methods.
-- Death owner: `Zone` subscribes each entity's `Death` when it is added. On death:
-  - remove the entity from `Entities` and its agent from `Agents`;
-  - roll drops with `ItemManager.Random` against `LootDropProbability`. That field moves
-    from `GameSettings.cs:19` to `GameplaySettings`, together with `LootDropVelocity`.
-  - Keep `Zone.Loot : ReactiveCollection<LootDrop { ItemInstance Item; float3 Position; float2 Velocity }>`.
-  - `EntityInstance.cs:405-437` keeps the destroy effect only. `ZoneRenderer.DropItem`
-    lowers `Loot.ObserveAdd`.
-- Pickup owner: `bool Zone.TryPickUp(Entity, LootDrop)` stores the item in the first
-  cargo bay that accepts it and removes the drop. `ShieldManager.cs:29` calls it.
-- Tests:
+Rulings, 2026-09-17: "Just roll the dice based on weapon stats, targeting system stats
+(new subsystem) and sensor state." And: "We want the player as well as the AI to be able
+to aim for specific subsystems once it has gathered enough target data to reveal those
+subsystems". Anchors are at HEAD `562cdcf2`. Hands' uncommitted `Behaviors.cs` edit
+moves the `BehaviorData` union list down by 10 lines.
+
+**Body facts this cut stands on** (**(probe)** of `GameData/Aetheria.cc` read-only, CultLib
+`a0813c6` worktree since removed, plus a GUID grep of effect prefabs):
+- 51 designs, 37 products. `LonginusX` is the only ship hull (ControlModule, Sensors,
+  Energy 2, Launcher 2, Radiator 2, Reactor, AetherDrive). `Turret` has Ballistic 2 and
+  Sensors 1. `Zenith` has no weapon hardpoints.
+- 18 weapon designs, all single-target, lowered by four effects: `ProjectileManager` 8,
+  `LaserManager` 3 (pulse, velocity 0), `GuidedProjectileManager` 5 (3 `GuidedWeaponData`
+  -> `InstantWeapon`, 2 `LauncherData` -> `LockWeapon`), `LightningGunManager` 1.
+- **No design uses** `ConstantWeaponData`, `ConstantLaser`, `ConstantLightning`,
+  `ConstantParticleWeapon`, `HitscanEffect`, `Mine`, airburst (`Flak Cannon`), MIRV
+  splits or `ShieldData`.
+- Sensor state exists: `Sensor.Execute` accumulates `Entity.EntityInfoGathered[other]` in
+  [0,1] with decay (`Sensor.cs:121-154`); `TargetDetectionInfoThreshold` (0.1) gates
+  `VisibleEntities` (`Entity.cs:196-207`); `LockWeapon.cs:92` scales lock by info.
+- **`TargetArmorInfoThreshold` (0.5) and `TargetGearInfoThreshold` (0.8) are authored and
+  read by no code** (`Settings.cs:207-208`, `Settings.asset:320-321`): the reveal tiers
+  the ruling describes, unwired.
+- Sensors-hardpoint designs are `not if i see you first`, `The Bat` and `Tractor Beam` (no
+  behaviors). `EquipHardpoints` (`LoadoutGenerator.cs:208-228`) can fit the Tractor Beam
+  into LonginusX's only Sensors slot; that ship gathers no info, so sees and hits nothing.
+
+**Owner: `FireControl`, a new ServerShared static class (`FireControl.cs`).**
+- It owns the engage gate, hit probability, reveal, the roll, cell choice and damage
+  application.
+- Its only state is the pending shots under fork F (b)/(c), and that state lives in
+  `Zone`.
+- Inputs:
+  - weapon stats `Damage`, `Penetration`, `DamageSpread`, `MinRange`, `Range`, `Spread`
+    and `Velocity` (`Weapon.cs:22-66`), with `LockWeapon.CanFire` (`:56`) as a gate;
+  - the firer's targeting system, or the unaided defaults when it has none;
+  - sensor state, `firer.EntityInfoGathered[target]`;
+  - `Target` and `TargetItem`;
+  - both entities' positions and directions;
+  - `ItemManager.Random`, seeded by Cut 1.
+- Outputs:
+  - `ShotOutcome { Source; Weapon; Target; bool Hit; bool Shielded; EquippedItem Aimed; int2 Cell; float FlightTime }`;
+  - shield `TakeHit`, or `Entity.DamageSchematic` plus `IncomingHit`.
+
+**Rules** (defaults unless a fork is named):
+- **Engage gate.** The probability is 0 and no draw is consumed when any of these holds:
+  - there is no target;
+  - the target is not in `VisibleEntities`;
+  - the range is outside [`MinRange`, `Range`];
+  - a `LockWeapon` is not locked;
+  - the target is outside the firing arc (fork A).
+- **Hit probability.** `p = Accuracy * pSensor * pSpread`, multiplied by `pDeviation`
+  under fork F (c).
+  - `pSensor = saturate(unlerp(TargetDetectionInfoThreshold, Resolution, info))`.
+  - `pSpread = Spread > 0 ? saturate(angularRadius / (Spread / 2)) : 1`.
+  - `angularRadius = degrees(atan(0.5 * max(Shape.Width, Shape.Height) * SchematicCellSize / range))`.
+  - `Spread` is already a cone in degrees (`ProjectileManager.cs:18-23`).
+  - `SchematicCellSize` is the one new tuning constant. Hands measures it on the
+    LonginusX prefab.
+- **Reveal.** `IsRevealed(observer, item)`:
+  1. Rank the target's non-hull equipment: hardpoint-mounted first, then size
+     descending, then equipment index.
+  2. Item `i` of `N` is revealed when
+     `info >= lerp(TargetArmorInfoThreshold, TargetGearInfoThreshold, i / max(1, N - 1))`.
+
+  Ordering is fork V.
+- **Roll.** One draw against `p`. On a hit, a second draw against `Precision` decides
+  where it lands:
+  - on success, on `Aimed`'s footprint cells;
+  - otherwise, on one cell drawn uniformly over the hull `Shape`.
+
+  `Aimed` is `TargetItem` only while that item belongs to `Target` and is revealed. It
+  is derived when read; no loop clears it.
+- **Damage.** The rule moves verbatim from `EntityInstance.cs:334-394`:
+  1. Expand the hit shape `round(DamageSpread)` times.
+  2. If `Penetration > .5`, march cells along firer->target, rotated into the target's
+     frame by `-target.Direction`. This replaces `transform.InverseTransformDirection`.
+  3. Apply `DamageSchematic(Damage, shape)` (`:277-314`, moved to `Entity`).
+
+  - An active shield that `CanTakeHit` takes the hit instead. Every effect repeats that
+    rule today (`Projectile.cs:60-71`).
+  - `Damage` stays raw. `DamageCurve` still feeds only DPS estimates.
+
+**Targeting system (new subsystem).**
+- `TargetingSystemData : BehaviorData` takes union 39. A `TargetingSystem` behavior sits
+  on a `GearData` item, mounted per fork T.
+- Its stats are `PerformanceStat`, so lot quality reaches them through
+  `EquippedItem.Evaluate`, as it does for weapon stats:
+  - `Accuracy` (0..1): the ceiling on hit probability.
+  - `Resolution` (detection threshold..1): the info level at which sensor state stops
+    limiting hits.
+  - `Precision` (0..1): the chance a hit lands on the aimed item.
+  - `Tracking`: how much deviation it forgives. Only under fork F (c).
+- Energy and heat come from the existing `EnergyDraw` and `Heat` behaviors on the item.
+- An entity with no targeting system, or with its system offline or destroyed:
+  - fires with `GameplaySettings.UnaidedAccuracy`, `Resolution = 1` and `Precision = 0`;
+  - can still select a revealed item, but its hits scatter.
+- A schematic hit on the targeting system degrades fire.
+
+**Target item: one selection path.**
+- `Entity.TargetItem : ReactiveProperty<EquippedItem>` sits beside `Target`
+  (`Entity.cs:40`).
+- `bool Entity.TrySelectTargetItem(EquippedItem)` is the only writer. It accepts null, or
+  an item of `Target.Value` that `IsRevealed`.
+- Changing `Target` nulls it.
+- Three callers use it:
+  - the player, from a select/cycle command beside `ActionGameManager.cs:366-397`; the
+    schematic HUD shows revealed items, which is presentation;
+  - the AI, from `CombatState`;
+  - the playground, from `aim`.
+
+**Per weapon kind.**
+- `InstantWeapon` family:
+  - `Execute` (`InstantWeapon.cs:181-191`) calls `FireControl.Fire` for each burst shot.
+  - `OnFire` becomes `event Action<ShotOutcome>`.
+  - Charge multipliers already fold into `Damage` and `Spread`.
+- Guided weapons (`GuidedWeaponData`, `LauncherData`) use the same roll.
+  - Lock time survives as the existing `LockWeapon.CanFire` gate.
+  - Flight is presentation.
+- Lightning (`plight`) makes one single-target roll. `HitRadius` is presentation.
+- `ConstantWeapon` rolls once per `GameplaySettings.BeamResolveInterval` for
+  `Damage * interval`, raised as `OnBeamShot(ShotOutcome)`. That is about 10 lines, and
+  no design uses it yet.
+- Deferred, because no design needs them: airburst splash, MIRV splits, and `Mine`.
+  - The earlier draft's `ApplySplash` is not added.
+- `TractorBeam` is not a hit. It stays Unity physics.
+
+**AI and turrets.**
+- `Combat.cs:100-102`:
+  - `shouldFire = FireControl.HitProbability(testWeapon, target) >= Settings.AgentMinHitProbability`.
+  - The `HardpointTransforms` read is deleted.
+  - `AgentMinHitProbability` replaces `AgentFiringMinDot`, which nothing reads.
+  - `:84-98` (looking at the predicted intercept) survives only under fork F (c).
+- Subsystem policy: through `TrySelectTargetItem`, select the revealed target `Weapon`
+  item with the highest `RangeDamagePerSecond(range)`, or null if there is none.
+- `TurretController.cs:80-83` uses the same gate and threshold.
+- `HardpointTransforms` is deleted everywhere:
+  - `Entity.HardpointTransforms` (`Entity.cs:52-53`);
+  - its writer, `EntityInstance.cs:514-517`;
+  - its reader branch in `Behavior.Direction` (`Behaviors.cs:28-35`).
+- `Direction` becomes hull-relative item rotation in both lowerings.
+- `Barrels` stay in Unity for `GetBarrel`.
+
+**Death, loot and pickup** (carried from the earlier draft).
+- `Zone` subscribes to the `Death` of each entity it adds. On death it:
+  - removes the entity and its agent;
+  - drops each non-hull item with probability `LootDropProbability`, and all cargo,
+    using `ItemManager.Random`;
+  - adds the drops to
+    `Zone.Loot : ReactiveCollection<LootDrop { ItemInstance Item; float3 Position; float2 Velocity }>`.
+- `LootDropProbability` and `LootDropVelocity` move from `GameSettings.cs:19-20` to
+  `GameplaySettings` (fork S).
+- `Run.Died` reads no zone membership, so subscription order does not matter.
+- `bool Zone.TryPickUp(Entity, LootDrop)` stores the item in the first bay that accepts
+  it and removes the drop. Contact detection is fork L.
+
+**Unity becomes presentation.**
+- `InstantWeaponEffectManager.Fire` (`:7`) takes the `ShotOutcome`.
+  - Effects fly to the rolled cell's world point, or to a miss offset, and play the
+    impact on arrival.
+  - They apply nothing.
+- Hit loops, `SendHit` and `TakeHit` are deleted from the four used effects:
+  - `Projectile.cs:57-93,99-112`;
+  - `GuidedProjectile.cs:152-189`;
+  - `Laser.cs:40-66`;
+  - `Lightning.cs:34-52`; its endpoint capture stays as a visual.
+- `HullCollider.cs:13-41,48-65`: `Hit`, `Splash`, `SendHit`, `SendSplash` and their
+  argument classes are deleted. `OnCollisionEnter` (ship collision) stays, deferred.
+- `EntityInstance.cs`:
+  - `:277-396` is deleted;
+  - `:405-437` keeps only the destroy effect.
+- `ZoneRenderer.DropItem` lowers `Loot.ObserveAdd`.
+- `ShieldManager.cs:25-41` calls `Zone.TryPickUp`. `Loot.ObserveRemove` destroys the
+  pickup.
+
+**Catalog and loadouts.**
+- Add two targeting-system designs, 1-cell and 2-cell.
+  - Each has products from at least the manufacturers that sell the capacitor.
+  - The capacitor is the existing required interior item, so this lets `IsAvailable` find
+    one in every galaxy.
+- `LoadoutGenerator.FillInterior` (after `:250-260`) picks one with `required: true` for
+  every entity that has `Weapons`:
+  - the starting LonginusX, which uses the same generator;
+  - NPC ships and turrets.
+
+  Zenith gets none.
+- Authoring follows the Cut C precedent:
+  - a Hands scratch console upserts the records;
+  - Unity and CultCache Studio are closed;
+  - whether Studio renders union 39 is an operator check.
+- **This lands after provenance Cut C.** Cut C re-upserts every `ItemData` and deletes
+  `ItemData.Manufacturer`.
+- `AetherDb` captures before and after:
+  - `census`: 2 more designs;
+  - `loadout 1`: 1 more interior item per armed entity;
+  - `dangling`: 0;
+  - on reopen: 0 schema reports.
+
+**Tests** (`FireControlTests`, `ZoneDeathTests`). Each is paired with the mutation that
+must kill it:
 
 | Test | Asserts | Mutation that must kill it |
 |---|---|---|
-| `CombatStateFiresHeadless` | a `Minion` ship with a target in range steps 10 s headless without throwing and raises at least one `OnFire` | revert `:101` |
-| `HardpointHitDamagesItemThenHull` | a hit on hardpoint index k with damage greater than armor plus item durability lowers that item's durability to 0 and the hull by the remainder | armor not subtracted; hull skipped |
-| `NpcDeathRemovesEntityAndAgent` | after hull death the entity and its agent are gone from the zone | removal omitted |
-| `LootDropsAreSeeded` | two zones from the same seed drop identical item lists | roll uses a clock RNG |
-| `PickUpStoresAndRemoves` | the item lands in cargo and the drop is gone; a full bay leaves the drop | drop removed on failure |
+| `RollsAreSeeded` | two identical zones, same seed, 50 shots: identical `ShotOutcome` sequences | `FireControl` draws from `new Random()` |
+| `ProbabilityFollowsInputs` | `p` is 0 below detection and outside range; rises with info up to `Resolution`; falls with `Spread`; is capped at `UnaidedAccuracy` with no system | drop `pSensor`; drop the range gate |
+| `AimedHitLandsOnSelectedItem` | with `Precision` 1 and `p` 1, only the aimed item's durability falls | the roll ignores `Aimed` |
+| `SelectionNeedsReveal` | below the item's tier `TrySelectTargetItem` is false; above it, true; a target change nulls it; info decaying below the tier makes `Aimed` null | `IsRevealed` returns true; the `Target` change skips the null |
+| `RevealOrder` | hardpoint items reveal before interior items, larger before smaller | ordering dropped |
+| `HardpointHitDamagesItemThenHull` | damage above armor plus item durability zeroes the item, and the remainder hits the hull | armor not subtracted; hull skipped |
+| `ShieldTakesHit` | an active shield fixture absorbs the hit; the schematic is untouched | shield branch removed |
+| `CombatStateKillsHeadless` | a `Minion` with a targeting system and a target in range steps headless without throwing and lowers target durability | restore `Combat.cs:101`; the threshold compares against 2 |
+| `NpcDeathRemovesEntityAndAgent` | entity and agent are gone after death | removal omitted |
+| `LootDropsAreSeeded` | same seed, identical drop lists | the drop roll uses a clock RNG |
+| `PickUpStoresAndRemoves` | the item is stored and the drop removed; a full bay keeps the drop | drop removed on failure |
+| `ShotResolvesOnArrival` (F (b)/(c)) | no damage before `range / Velocity`; a target removed before arrival takes none | damage applied at fire time |
 
-- Verification:
-  - Headless green; Unity batchmode has no `error CS`.
-  - Negative: `rg -n "Random\.value|onUnitSphere" Assets/Scripts/Gameplay/EntityInstance.cs`
-    matches only visual effects, not the drop decision.
-  - Negative: `rg -n "Entities\.Remove" Assets/Scripts --glob '!ServerShared/**'` is empty.
-  - Operator: a Unity fight still damages and drops loot.
-- Ledger: `EntityInstance` about -110 +12; `Entity` +95; `Zone` +45; `ShieldManager` ±3;
-  `Combat` ±1; tests +180. Net production about +40. It moves rules; it adds none.
+**Playground.** Cut 3's `hit` command is withdrawn (fork D).
+- New command `aim <item#>|none`, and new fact `target.revealed`.
+- `provenance-c.play` kills by fire:
+  1. `target nearest`
+  2. `pilot minion`
+  3. `step <s>`
+  4. `expect zone.entities == <n-1>`
+  5. `pickup all`
+  6. `expect cargo.count > 0`
+
+  Hands fixes `<s>` after the first seeded run.
+- In `lifecycle.play`, the pilot dies by parking unarmed at an armed NPC and stepping
+  until `expect ended == true`.
+
+**Verification.**
+- The headless build and tests are green, and each mutation above goes red.
+- Two playground runs give byte-identical traces.
+- These negative greps are each empty:
+  - `rg -n "HardpointTransforms" Assets/Scripts`
+  - `rg -n "SendHit|SendSplash|DamageSchematic|TakeHit\(|Durability\s*[-+]?=" Assets/Scripts --glob '!ServerShared/**'`
+  - `rg -n "Physics\." Assets/Scripts/Gameplay/Weapons Assets/Scripts/Gameplay/HullCollider.cs`
+  - `rg -n "Random\.value|onUnitSphere" Assets/Scripts/Gameplay/EntityInstance.cs`
+  - `rg -n "Entities\.Remove" Assets/Scripts --glob '!ServerShared/**'`
+- Unity batchmode with the editor closed (`docs/item-provenance-cut.md` §6) reports no
+  `error CS`.
+- Operator checks in Unity:
+  - shots show rolled impacts and misses;
+  - damage matches the HUD;
+  - reveal and selection work;
+  - kills drop loot, and pickup stores it;
+  - the tractor beam still pulls.
+
+**Risks.**
+- The Tractor Beam can take LonginusX's only Sensors slot; that NPC never sees or fights.
+  Check `loadout` over several seeds. The fix is data or `EquipHardpoints`, not fire
+  control.
+- Balance numbers (`UnaidedAccuracy`, `SchematicCellSize`, stat ranges) are first guesses;
+  the playground is the tuning harness.
+
+**Ledger.** `EntityInstance` about -155 +8; `HullCollider` -35; the four used effects
+-75 +35; `ShieldManager` -8 +3; `Combat` -5 +8; `TurretController` ±4; `Behaviors` -8;
+`Entity` -2 +70; `InstantWeapon`/`ConstantWeapon` ±15; `FireControl.cs` +160;
+`TargetingSystem.cs` +45; `Zone` +50; `LoadoutGenerator` +12; `Settings` +5 -1; tests
++320; catalog 2 designs plus products. Fork E (b) deletes a further ~560. Net production
+about +80, or -480 with E (b). It buys the invariant: combat resolves without Unity and
+every hit rule has one owner.
+
+**Cut 2 forks**, ranked by what they block:
+
+**F. When a shot resolves.** Blocks the `FireControl` API and the tests.
+- The scope doc says projectiles "resolve on arrival against how far the target
+  deviated". The ruling names only weapon, targeting and sensor inputs, and does not
+  settle this either way.
+- (a) Roll and apply at fire time. The smallest change; visuals arrive late, and
+  maneuvering does not evade.
+- (b) Roll at fire time, and apply after `range / Velocity` from a pending queue in
+  `Zone`. Visuals and damage agree, but there is still no evasion.
+- (c) (b), plus a deviation factor at arrival:
+  `pDeviation = saturate(1 - distance(target, predicted intercept) / (hullRadius + Tracking))`.
+  It keeps the scope doc's evasion and the look-at-intercept code, for about 25 more
+  lines.
+- **Recommend (c).** It is the scope doc's standing design, and it fits the ruling as one
+  more factor. If "just roll the dice" meant dropping evasion, take (b).
+
+**A. Firing arc.** Blocks `CombatState` and how the player's ship feels.
+- (a) No arc; facing is presentation.
+- (b) Gate on `dot(weapon.Direction, toTarget) >= FireArcDot`, one authored setting. The
+  ship must roughly face its target, and player and AI share the gate.
+- (c) The arc as a probability factor.
+- **Recommend (b), with a wide arc.** It keeps piloting meaningful without precision
+  aiming. (a) is right if articulated turrets are meant to cover every hardpoint.
+
+**T. Where the targeting system mounts.** Blocks the catalog and loadout work.
+- (a) Interior `GearData` (`HardpointType.Tool`), placed by `FillInterior` like the
+  capacitor. No hull or prefab edits.
+- (b) A behavior on the control-module designs (`Cockpit 2x2`, `Turret Control Module`).
+  No new item, but then it is not a separate subsystem to hit or refit.
+- (c) The Sensors hardpoint. It competes for the one sensor slot.
+- **Recommend (a).**
+
+**V. Reveal ordering.** Blocks `RevealOrder` only; a default exists.
+- (a) Hardpoint-mounted, then size, then index. Static, so reveal does not flicker.
+- (b) Rank by each item's current share of `VisibilitySources`, so emitters reveal first.
+  Reveal flickers as emissions change.
+- (c) Reveal every item at `TargetGearInfoThreshold`, with no ranking.
+- **Recommend (a).** Emissions already drive how fast info accumulates.
+
+**E. The six effect families no design uses.** Blocks only the Unity-side ledger.
+- (a) Strip their hit loops and keep them.
+- (b) Delete their scripts, managers and prefabs once a GUID grep shows no catalog or
+  scene reference. That covers `ConstantLaser*`, `ConstantLightning*`,
+  `ConstantParticleWeapon*`, `Hitscan*`, `Mine*`, and `ShieldManager`'s mine branch
+  (`:42-45`).
+- **Recommend (b).** About 560 lines that serve nothing.
+
+**L. Loot contact.** Low-blocking.
+- (a) `Zone.TryPickUp` is the one commit.
+  - Contact detection stays Unity collision, per the scope doc's deferral.
+  - The playground's `pickup all` matches drops by spawn position within
+    `DockingDistance`.
+- (b) `Zone` owns drop motion and proximity pickup every step, and Unity renders it. That
+  pulls `TractorBeam` headless too.
+- **Recommend (a).** Say plainly that contact has two detectors until the tractor beam
+  moves.
 
 ### Cut 3: `AetherDb play`
 
@@ -641,6 +934,10 @@ These are scenario files only; no code.
 - (c) The playground writes `HardpointTransforms`. Rejected: a second writer
   compensating for a missing owner.
 - **Recommend (a).**
+- **Superseded by the fire-control ruling (Cut 2).** Nothing reads barrel aim for
+  gameplay. `CombatState` fires when `FireControl.HitProbability` clears
+  `AgentMinHitProbability`, and `HardpointTransforms` is deleted. Fork A (firing arc)
+  replaces this question.
 
 **D. How far combat goes headless.**
 **Ruled (operator, 2026-09-17): none of (a)-(c).** Hit detection goes away entirely, as
@@ -649,6 +946,23 @@ detection anyway, remember? Just roll the dice based on weapon stats, targeting 
 stats (new subsystem) and sensor state." Cut 2 is re-mapped as fire control in
 `ServerShared`: a hit is a roll over weapon stats, the stats of a new targeting-system
 subsystem, and sensor state. The playground's `hit` stand-in is not needed.
+A second ruling the same day adds subsystem aim: "We want the player as well as the AI to be
+able to aim for specific subsystems once it has gathered enough target data to reveal those
+subsystems".
+
+Consequences:
+- Cut 2 is fire control plus the parts of (a) that survive: `DamageSchematic` moves to
+  `Entity`, and death removal, loot roll and the pickup commit move to `Zone`.
+- Effects and `HullCollider` stop deciding damage.
+- (b)'s "two truths about hits" cannot arise, because Unity detects nothing.
+- Cut 3's `hit <entity#>` command and its §3 forbidden-writer exception are withdrawn.
+  Cut 3's command table, `lifecycle.play` (`hit pilot 100000`) and Cut 4's
+  `provenance-c.play` ("kill an NPC with `hit`") still name it. They are to be re-mapped
+  to fire (`target`, `aim`, `fire`/`pilot minion`, `step`) per Cut 2's Playground note.
+- §7's "`hit` is not ballistics" risk becomes "rolled balance is not tuned".
+- New forks F, A, T, V, E and L live in Cut 2. Fork H is superseded.
+
+Options as mapped before the ruling:
 - (a) Move damage application, death removal, loot roll and pickup into ServerShared;
   Unity keeps hit detection; the playground's `hit` supplies hits.
 - (b) (a) plus headless ballistics. That is a projectile simulation Unity would have to
@@ -680,13 +994,17 @@ subsystem, and sensor state. The playground's `hit` stand-in is not needed.
 |---|---|---|---|
 | 0 | `Dictionary<int2,…>` field and map-building pack code, ~6 | pairs pack/unpack ~6; test ~25 | `EntityPack` key 5 wire shape map -> array; no new schema |
 | 1 | `ActionGameManager` ~190 (incl. dead `IntroCutscene` 28), 2 statics, `MainMenu` 4, `ZoneRenderer` 9, `InventoryPanel` 2, clock seed | `Run.cs` ~190; `Zone` +10; AGM handlers ~45; 1 static; tests ~200 | 0 targets; `Settings.asset` two keys move |
-| 2 | `EntityInstance` ~110 | `Entity` ~95; `Zone` ~45; tests ~180 | 0 targets; two settings keys move |
+| 2 | `EntityInstance` ~155, `HullCollider` ~35, used effects' hit loops ~75, `HardpointTransforms` and its readers ~15, `AgentFiringMinDot`; fork E (b) a further ~560 | `FireControl.cs` ~160; `TargetingSystem.cs` ~45; `Entity` ~70; `Zone` ~50; effects ~35; `LoadoutGenerator` ~12; tests ~320 | 0 targets; `BehaviorData` union 39; 2 catalog designs plus products (after provenance Cut C); `LootDrop*` keys move; `SchematicCellSize`, `UnaidedAccuracy`, `BeamResolveInterval`, `AgentMinHitProbability` added |
 | 3 | extracted duplicate of the `save` lot check | `Playground.cs` ~220; `MoveTo` +6; scenario 26 | 0 targets; `AetherDb` gains one command |
 | 4 | — | 2 scenario files | — |
 
-Net production code across Cuts 0-3 is about +300. Tests are about +400. No executable,
-package, daemon or store is added. Rules move from MonoBehaviours to ServerShared, and
-the only genuinely new behavior is `MoveToPositionState` and the scenario interpreter.
+Net production code across Cuts 0-3 is about +340, or about -220 if fork E (b) deletes the
+unused effects. Tests are about +540. No executable, package, daemon or store is added.
+Rules move from MonoBehaviours to ServerShared. The genuinely new behavior is:
+- `MoveToPositionState` and the scenario interpreter;
+- fire control's roll, which replaces physics hit detection per the operator's ruling;
+- subsystem reveal and selection;
+- the targeting-system item.
 In exchange, Continue works again (Cut 0), and agents can falsify lifecycle, save and
 provenance claims without the editor.
 
@@ -698,7 +1016,8 @@ provenance claims without the editor.
 - **`Zone` subscribing `Death` changes NPC death timing in Unity.** Removal now happens
   inside the damage call rather than in `EntityInstance`'s subscriber. The operator's
   fight check covers it.
-- **The playground's `hit` is not ballistics.** A scenario that passes proves damage,
-  death, loot and save. It does not prove that shots connect in the game.
+- **Rolled combat is untuned.** A passing scenario proves that the roll, damage, death,
+  loot and save follow the rules. It does not prove the rules are fun. The balance numbers
+  in Cut 2 are first guesses.
 - **Cut B's recorded green is contradicted by §2.5.** Soul should rerun the suite before
   trusting any provenance verification that reopens a store.
