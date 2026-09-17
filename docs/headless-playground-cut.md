@@ -643,6 +643,12 @@ These are scenario files only; no code.
 - **Recommend (a).**
 
 **D. How far combat goes headless.**
+**Ruled (operator, 2026-09-17): none of (a)-(c).** Hit detection goes away entirely, as
+`docs/three-gates-scope.md` "Fire control" already planned: "We wanted to get rid of hit
+detection anyway, remember? Just roll the dice based on weapon stats, targeting system
+stats (new subsystem) and sensor state." Cut 2 is re-mapped as fire control in
+`ServerShared`: a hit is a roll over weapon stats, the stats of a new targeting-system
+subsystem, and sensor state. The playground's `hit` stand-in is not needed.
 - (a) Move damage application, death removal, loot roll and pickup into ServerShared;
   Unity keeps hit detection; the playground's `hit` supplies hits.
 - (b) (a) plus headless ballistics. That is a projectile simulation Unity would have to

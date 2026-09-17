@@ -44,6 +44,10 @@ skill from aim to decisions: which subsystem to hit, when to commit fire
 against heat and visibility budgets, what each weapon group is for. Player and
 AI share it, so AI accuracy is no longer superhuman by construction.
 
+**Ruling (operator, 2026-09-17):** hit detection goes away entirely. A hit is a dice
+roll over weapon stats, the stats of a new targeting-system subsystem, and sensor
+state. Fire control is being mapped as Cut 2 of `docs/headless-playground-cut.md`.
+
 - **Owner:** fire control in `ServerShared`. Decides hit, cell, and damage.
 - **Inputs:** target and selected item, sensor/detection quality, range,
   target deviation from the predicted intercept, lock time.
