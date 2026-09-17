@@ -117,25 +117,30 @@ public sealed class InspectableSchematicShapeDrawer : ICultInspectorDrawer
             if (width != shape.Width || height != shape.Height) shape.Resize(width, height);
         }
 
-        using (var grid = new EditorGUILayout.VerticalScope())
+        // The flexible space shrinks the grid group to its toggles, so the texture fits the grid, not the inspector width.
+        using (new EditorGUILayout.HorizontalScope())
         {
-            if (schematic != null && Event.current.type == EventType.Repaint)
+            using (var grid = new EditorGUILayout.VerticalScope())
             {
-                _schematicMaterial ??= new Material(Shader.Find("Legacy Shaders/Particles/Additive"));
-                EditorGUI.DrawPreviewTexture(grid.rect, schematic, _schematicMaterial);
-            }
+                if (schematic != null && Event.current.type == EventType.Repaint)
+                {
+                    _schematicMaterial ??= new Material(Shader.Find("Legacy Shaders/Particles/Additive"));
+                    EditorGUI.DrawPreviewTexture(grid.rect, schematic, _schematicMaterial);
+                }
 
-            for (var y = shape.Height - 1; y >= 0; y--)
-                using (new EditorGUILayout.HorizontalScope())
-                    for (var x = 0; x < shape.Width; x++)
-                    {
-                        var hardpoint = hull?.Hardpoints.FirstOrDefault(hp => hp.Shape.Coordinates
-                            .Any(v => v.x + hp.Position.x == x && v.y + hp.Position.y == y));
-                        var previous = GUI.backgroundColor;
-                        if (hardpoint != null) GUI.backgroundColor = hardpoint.TintColor.ToColor();
-                        shape[int2(x, y)] = GUILayout.Toggle(shape[int2(x, y)], GUIContent.none, GUILayout.Width(16));
-                        GUI.backgroundColor = previous;
-                    }
+                for (var y = shape.Height - 1; y >= 0; y--)
+                    using (new EditorGUILayout.HorizontalScope())
+                        for (var x = 0; x < shape.Width; x++)
+                        {
+                            var hardpoint = hull?.Hardpoints.FirstOrDefault(hp => hp.Shape.Coordinates
+                                .Any(v => v.x + hp.Position.x == x && v.y + hp.Position.y == y));
+                            var previous = GUI.backgroundColor;
+                            if (hardpoint != null) GUI.backgroundColor = hardpoint.TintColor.ToColor();
+                            shape[int2(x, y)] = GUILayout.Toggle(shape[int2(x, y)], GUIContent.none, GUILayout.Width(16));
+                            GUI.backgroundColor = previous;
+                        }
+            }
+            GUILayout.FlexibleSpace();
         }
         return shape;
     }
