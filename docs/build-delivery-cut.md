@@ -24,6 +24,14 @@ Claims marked **(probe)** were run, not read off names. What was run:
 
 No remote host was contacted. No `ssh` was run.
 
+Rulings (operator, 2026-09-17): **F2, the Aetheria site** (`aetheria.gamecult.org`,
+repo `AetheriaLore`) owns the download and changelog pages ("That's the Aetheria site, of
+course"); `gamecult.org` links to them. **F1 no** (Idunn stays service-only; the artifact
+uses the host's existing static path), **F3** semver for builds, commit recorded beside it,
+**F4** hand-written changelog, **F5** agent builds, hashes and records while the operator runs
+the remote publish, **F6** zip, **F7** a new `aetheria.release` document: Self's defaults,
+stated to the operator, who did not object. Reopen any on request.
+
 ## 0. What the probes changed about the target
 
 Four findings move the design. Read these before the cuts.
