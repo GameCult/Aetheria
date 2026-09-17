@@ -59,8 +59,12 @@ Progress (Self updates this in each cut's landing commit):
     - The negative grep is empty, and the Unity code has no references.
     - The mutation run: control green, 17 of 17 killed.
     - Self read the diff; because it is pure deletion, no separate Soul pass.
-- **Cut C is next.** It needs Unity closed for the catalog rewrite and the batchmode
-  compile.
+- **Cut C landed** at `333a7370` (code) and `b2036fb8` (catalog rewrite). Soul pass pending.
+  - 115 records rewritten: 12,686,267 → 12,683,061 bytes, 0 ignored slots.
+  - The `AetherDb` outputs, including census, are byte-identical: no design's maker
+    disagreed with its products' maker.
+  - 41 of 41 tests pass; mutations: control green, 18 of 18 killed.
+  - Unity batchmode reports 0 `error CS` (log in the session scratchpad).
   - **Open, found while fixing F1:** nothing implements `IPersistentBehavior`, so
     `PersistedBehaviors` has no production writer or reader. To exercise the wire
     shape, Hands added a `MarkerPersistentBehaviorData` union case. That is a production
