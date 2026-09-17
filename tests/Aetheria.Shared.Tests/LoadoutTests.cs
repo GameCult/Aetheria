@@ -469,23 +469,43 @@ public sealed class LoadoutTests : IDisposable
     {
         using var cache = Open();
         var settings = RunSaveTests.TestSettings();
-        settings.Tiers = new[] { new RarityTier { Name = "Common", Quality = .2f, Rarity = 0, Color = new float3(1, 1, 1) } };
+        // Two tiers with distinct quality thresholds: a single-tier fixture cannot fail "GetTier ignores lot
+        // quality", since every lot would resolve to the only tier regardless of its own Quality.
+        settings.Tiers = new[]
+        {
+            new RarityTier { Name = "Common", Quality = .2f, Rarity = 0, Color = new float3(1, 1, 1) },
+            new RarityTier { Name = "Rare", Quality = .5f, Rarity = 1, Color = new float3(1, 1, 1) }
+        };
         var items = new ItemManager(cache, new ProvenanceLedger(), settings, _ => { });
         var lamp = cache.GetByName<GearData>("Lamp");
-        var lotId = items.Lots.Add(new Lot
+        var commonLot = items.Lots.Add(new Lot
         {
             Design = cache.RefOf<ItemData>(lamp),
             Origin = new Attributed(),
             Quality = .2f,
             Roles = new List<RoleFill> { new RoleFill { Role = "lens", Quality = .9f } }
         });
-        var instance = (EquippableItem) items.CreateInstance(lotId);
+        var rareLot = items.Lots.Add(new Lot
+        {
+            Design = cache.RefOf<ItemData>(lamp),
+            Origin = new Attributed(),
+            Quality = .6f,
+            Roles = new List<RoleFill>()
+        });
+        var instance = (EquippableItem) items.CreateInstance(commonLot);
+        var rareInstance = (EquippableItem) items.CreateInstance(rareLot);
 
         var withRole = new PerformanceStat { FromRole = "lens", Min = 0, Max = 1, QualityExponent = 1 };
         var noRole = new PerformanceStat { Min = 0, Max = 1, QualityExponent = 1 };
         Assert.Equal(.9f, items.Evaluate(withRole, instance), 3);
         Assert.Equal(.2f, items.Evaluate(noRole, instance), 3);
         Assert.Equal(.2f, items.GetTier(instance).tier.Quality, 3);
+        Assert.Equal(.5f, items.GetTier(rareInstance).tier.Quality, 3);
+
+        // Minting a second instance from an existing lot must not re-roll the lot's quality.
+        var secondInstance = (EquippableItem) items.CreateInstance(commonLot);
+        Assert.Equal(.2f, items.Lots[commonLot].Quality, 3);
+        Assert.Equal(.2f, items.GetTier(secondInstance).tier.Quality, 3);
     }
 
     [Fact]
