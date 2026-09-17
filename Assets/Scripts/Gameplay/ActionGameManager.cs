@@ -98,7 +98,6 @@ public class ActionGameManager : MonoBehaviour
 
     public GameSettings Settings;
     //public string StarterShipTemplate = "Longinus";
-    public float2 Sensitivity;
     public int Credits = 15000000;
     public float TargetSpottedBlinkFrequency = 20;
     public float TargetSpottedBlinkOffset = -.25f;
@@ -1226,7 +1225,8 @@ public class ActionGameManager : MonoBehaviour
                     }
                 }
                 var look = Input.Player.Look.ReadValue<Vector2>();
-                _entityYawPitch = float2(_entityYawPitch.x + look.x * Sensitivity.x, clamp(_entityYawPitch.y + look.y * Sensitivity.y, -.45f * PI, .45f * PI));
+                var sensitivity = PlayerSettings.InputSettings.Sensitivity;
+                _entityYawPitch = float2(_entityYawPitch.x + look.x * sensitivity.x, clamp(_entityYawPitch.y + look.y * sensitivity.y, -.45f * PI, .45f * PI));
                 _viewDirection = mul(float3(0, 0, 1), CultMath.float3x3.Euler(float3(_entityYawPitch.yx, 0), RotationOrder.YXZ));
                 CurrentEntity.LookDirection = _viewDirection;
                 HeatstrokePost.weight = saturate(unlerp(0, Settings.GameplaySettings.SevereHeatstrokeRiskThreshold, CurrentEntity.Heatstroke));

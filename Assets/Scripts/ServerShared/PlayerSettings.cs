@@ -2,7 +2,9 @@ using GameCult.Caching;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using CultMath;
 using MessagePack;
+using static CultMath.math;
 
 [CultDocument("aetheria.playersettings", "1"), CultGlobal, MessagePackObject]
 public class PlayerSettings
@@ -71,6 +73,7 @@ public class PlayerInputSettings
     // MessagePack's untrusted-data security refuses to read it back.
     [Key(0)] public Dictionary<string, Dictionary<int, string>> InputActionMap = new Dictionary<string, Dictionary<int, string>>();
     [Key(1)] public List<string> ActionBarInputs = new List<string>();
+    [Key(2)] public float2 Sensitivity = float2(-0.001f, 0.001f);
 }
 
 public enum Quality
