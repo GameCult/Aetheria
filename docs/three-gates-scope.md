@@ -74,6 +74,8 @@ gathered enough target data to reveal those subsystems".
   see someone's stance if I can see them". An NPC reacts to a hostile stance when it detects
   the entity holding it, either at the moment of the change or later, when detection
   happens.
+- Stance overrides and grudges clear when an entity leaves the zone (operator, 2026-09-17:
+  keep clearing). Making grudges persist belongs with the future utility-AI work.
 
 - **Owner:** fire control in `ServerShared`. Decides hit, cell, and damage.
 - **Inputs:** target and selected item, sensor/detection quality, range,
