@@ -284,6 +284,138 @@ MUTATIONS: list[Mutation] = [
         test="AetheriaStoresTests.FactionIsASingletonInstance",
         expect="red",
     ),
+    # --- Hand-testing combat (2026-09-17): IFF overrides, grudge, detection-gating, and the shooter-
+    # stance weapon fire gate on Entity/Weapon (docs not yet written; see IffAndCombatTests.cs). ---
+    Mutation(
+        rule="an IFF override decides IsHostileTo outright at the top level",
+        file="Assets/Scripts/ServerShared/Entity.cs",
+        anchor="        if (!recursive && _iffOverrides.TryGetValue(other, out var overrideHostile))\n            return overrideHostile;",
+        mutated="        if (false)\n            return default;",
+        test="IffAndCombatTests.OverrideDecidesOutrightOverDerivedRule",
+        expect="red",
+    ),
+    Mutation(
+        rule="the recursive reciprocity sub-query skips overrides (no mirroring another entity's stance)",
+        file="Assets/Scripts/ServerShared/Entity.cs",
+        anchor="        if (!recursive && _iffOverrides.TryGetValue(other, out var overrideHostile))\n            return overrideHostile;",
+        mutated="        if (_iffOverrides.TryGetValue(other, out var overrideHostile))\n            return overrideHostile;",
+        test="IffAndCombatTests.DerivedReciprocityDoesNotMirrorAnotherEntitysOverride",
+        expect="red",
+    ),
+    Mutation(
+        rule="leaving the zone clears this entity's IFF overrides on the departing entity",
+        file="Assets/Scripts/ServerShared/Entity.cs",
+        anchor="            _iffOverrides.Remove(remove.Value);\n            if (_grudgeSubscriptions.TryGetValue(remove.Value, out var grudgeSubs))",
+        mutated="            if (_grudgeSubscriptions.TryGetValue(remove.Value, out var grudgeSubs))",
+        test="IffAndCombatTests.LeavingZoneClearsOverrides",
+        expect="red",
+    ),
+    Mutation(
+        rule="an override change refreshes EntityHostility immediately (event-driven, no tick required)",
+        file="Assets/Scripts/ServerShared/Entity.cs",
+        anchor="        _subscriptions.Add(_iffOverrides.ObserveAdd().Subscribe(add => RefreshHostilityFromOverride(add.Key)));\n        _subscriptions.Add(_iffOverrides.ObserveReplace().Subscribe(replace => RefreshHostilityFromOverride(replace.Key)));",
+        mutated="        // _subscriptions.Add(_iffOverrides.ObserveAdd().Subscribe(add => RefreshHostilityFromOverride(add.Key)));\n        // _subscriptions.Add(_iffOverrides.ObserveReplace().Subscribe(replace => RefreshHostilityFromOverride(replace.Key)));",
+        test="IffAndCombatTests.OverrideDecidesOutrightOverDerivedRule",
+        expect="red",
+    ),
+    Mutation(
+        rule="non-player entities wire a grudge watch; player-controlled entities never do",
+        file="Assets/Scripts/ServerShared/Entity.cs",
+        anchor="            if (!IsPlayerControlled) WatchForGrudge(entity);",
+        mutated="            WatchForGrudge(entity);",
+        test="IffAndCombatTests.PlayerControlledEntitiesNeverAutoGrudge",
+        expect="red",
+    ),
+    Mutation(
+        rule="grudge only takes hold while this entity currently detects the marker",
+        file="Assets/Scripts/ServerShared/Entity.cs",
+        anchor="            if (otherIsHostileToThis && VisibleEntities.Contains(other) && !_iffOverrides.ContainsKey(other))",
+        mutated="            if (otherIsHostileToThis && !_iffOverrides.ContainsKey(other))",
+        test="IffAndCombatTests.NonPlayerEntityGrudgesOnlyWhileItDetectsTheHostileMarker",
+        expect="red",
+    ),
+    Mutation(
+        rule="detecting an already-hostile entity grudges it immediately (VisibleEntities.ObserveAdd wiring)",
+        file="Assets/Scripts/ServerShared/Entity.cs",
+        anchor=(
+            "            VisibleEntities.ObserveAdd()\n"
+            "                .Where(add => add.Value == other)\n"
+            "                .Subscribe(_ =>\n"
+            "                {\n"
+            "                    if (other.EntityHostility.TryGetValue(this, out var hostile))\n"
+            "                        CheckGrudge(hostile);\n"
+            "                })"
+        ),
+        mutated=(
+            "            VisibleEntities.ObserveAdd()\n"
+            "                .Where(add => false)\n"
+            "                .Subscribe(_ =>\n"
+            "                {\n"
+            "                    if (other.EntityHostility.TryGetValue(this, out var hostile))\n"
+            "                        CheckGrudge(hostile);\n"
+            "                })"
+        ),
+        test="IffAndCombatTests.NonPlayerEntityGrudgesOnlyWhileItDetectsTheHostileMarker",
+        expect="red",
+    ),
+    Mutation(
+        rule="a grudge is sticky: it never re-evaluates (mirrors current stance) once already grudged",
+        file="Assets/Scripts/ServerShared/Entity.cs",
+        anchor="            if (otherIsHostileToThis && VisibleEntities.Contains(other) && !_iffOverrides.ContainsKey(other))\n                SetIff(other, true);",
+        mutated="            if (VisibleEntities.Contains(other))\n                SetIff(other, otherIsHostileToThis);",
+        test="IffAndCombatTests.GrudgeIsStickyAndDoesNotForgiveWhenMarkerGoesNeutral",
+        expect="red",
+    ),
+    Mutation(
+        rule="PerceivedStanceOf is unknown (null) until this entity detects the other",
+        file="Assets/Scripts/ServerShared/Entity.cs",
+        anchor=(
+            "    public bool? PerceivedStanceOf(Entity other) =>\n"
+            "        VisibleEntities.Contains(other) && other.EntityHostility.TryGetValue(this, out var hostile)\n"
+            "            ? hostile\n"
+            "            : (bool?) null;"
+        ),
+        mutated=(
+            "    public bool? PerceivedStanceOf(Entity other) =>\n"
+            "        other.EntityHostility.TryGetValue(this, out var hostile)\n"
+            "            ? hostile\n"
+            "            : (bool?) null;"
+        ),
+        test="IffAndCombatTests.PerceivedStanceIsUnknownUntilDetectedThenReadsTheActualStance",
+        expect="red",
+    ),
+    Mutation(
+        rule="Weapon.StanceAllowsFire gates on the shooter's own stance, not an unconditional true",
+        file="Assets/Scripts/ServerShared/Behaviors/Weapon.cs",
+        anchor="    public bool StanceAllowsFire => Entity.Target.Value == null || Entity.IsHostileTo(Entity.Target.Value);",
+        mutated="    public bool StanceAllowsFire => true;",
+        test="IffAndCombatTests.WeaponDoesNotFireWhenShooterIsNotHostileToItsTarget",
+        expect="red",
+    ),
+    Mutation(
+        rule="InstantWeapon.Trigger is safed by StanceAllowsFire before it starts a burst",
+        file="Assets/Scripts/ServerShared/Behaviors/InstantWeapon.cs",
+        anchor="        if (!StanceAllowsFire) return;",
+        mutated="        if (false) return;",
+        test="IffAndCombatTests.WeaponDoesNotFireWhenShooterIsNotHostileToItsTarget",
+        expect="red",
+    ),
+    Mutation(
+        rule="LockWeapon builds lock on the shooter's own hostility toward the target, not the reverse",
+        file="Assets/Scripts/ServerShared/Behaviors/LockWeapon.cs",
+        anchor="        if (Entity.Target.Value != null && Entity.IsHostileTo(Entity.Target.Value))",
+        mutated="        if (Entity.Target.Value != null && Entity.Target.Value.IsHostileTo(Entity))",
+        test="IffAndCombatTests.LockWeaponBuildsLockOnTheShootersOwnStanceNotTheTargets",
+        expect="red",
+    ),
+    Mutation(
+        rule="ZoneGenerator's neutral-wanderer pool excludes the zone owner and the nearest faction",
+        file="Assets/Scripts/ServerShared/ZoneGenerator.cs",
+        anchor="\tpublic static Faction[] EligibleWandererFactions(Faction[] factions, Faction owner, Faction nearest) =>\n\t\tfactions.Where(f => f != owner && f != nearest).ToArray();",
+        mutated="\tpublic static Faction[] EligibleWandererFactions(Faction[] factions, Faction owner, Faction nearest) =>\n\t\tfactions.ToArray();",
+        test="IffAndCombatTests.EligibleWandererFactionsExcludesOwnerAndNearest",
+        expect="red",
+    ),
 ]
 
 
