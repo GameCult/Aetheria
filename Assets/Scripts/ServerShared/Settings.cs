@@ -149,6 +149,11 @@ public class ZoneGenerationSettings
     public ExponentialLerp GasGiantBandBrightness;
 
     public string[] NameData;
+
+    // Non-hostile ships for hand-testing combat/targeting: belong to a galaxy faction that is
+    // neither the zone owner nor the zone's nearest faction, so derived hostility rules leave
+    // them non-hostile to the player. Zero eligible factions means none are spawned.
+    public int NeutralWandererCount = 2;
 }
 
 [Serializable, MessagePackObject(keyAsPropertyName: true), JsonObject]

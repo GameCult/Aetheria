@@ -311,8 +311,30 @@ public static class ZoneGenerator
 	        pack.Entities.Add(ship);
         }
 
+        // Neutral wanderers: ships belonging to a faction that neither owns the zone nor is its
+        // nearest faction, so existing hostility rules leave them non-hostile to the player.
+        // Testing affordance for hand-testing combat/targeting; none spawn if no faction qualifies.
+        var eligibleWandererFactions = EligibleWandererFactions(galaxy.Factions, galaxyZone.Owner, nearestFaction);
+        if (zoneSettings.NeutralWandererCount > 0 && eligibleWandererFactions.Length > 0)
+        {
+	        var wandererFaction = eligibleWandererFactions[random.NextInt(eligibleWandererFactions.Length)];
+	        var wandererLoadoutGenerator = GetLoadoutGenerator(wandererFaction);
+	        for (int i = 0; i < zoneSettings.NeutralWandererCount; i++)
+	        {
+		        var ship = wandererLoadoutGenerator.GenerateShipLoadout();
+		        if (ship == null) continue;
+		        pack.Entities.Add(ship);
+	        }
+        }
+
         return pack;
 	}
+
+	// The neutral-wanderer faction pool: every galaxy faction except the zone owner and the nearest
+	// faction (whose ships are already the zone's hostile-when-trespassing/enemy spawns). Extracted so
+	// the selection rule is testable without running the full zone-generation pipeline.
+	public static Faction[] EligibleWandererFactions(Faction[] factions, Faction owner, Faction nearest) =>
+		factions.Where(f => f != owner && f != nearest).ToArray();
 
 	// static float ResourceValue(ref Random random, ZoneGenerationSettings settings, SimpleCommodityData resource, float density)
 	// {
