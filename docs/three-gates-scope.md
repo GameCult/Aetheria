@@ -140,6 +140,9 @@ the data already has that shape; see `docs/item-provenance-target.md`.
 - IFF that resolves at its own target-data threshold, independent of the identity threshold.
 - Stance visibility is one detection-gated query today, so a separate IFF threshold can
   replace its gate later.
+- Drones are the reason this matters (operator, 2026-09-17). Engaging an enemy with a drone
+  swarm is canonically the best way to smoke them out and kill them without them ever getting
+  close to spotting you. Drones can spoof their signatures too.
 
 ## Items: roles now, Njordr later
 
