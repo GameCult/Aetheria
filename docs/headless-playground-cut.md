@@ -880,6 +880,11 @@ ship hulls will also carry turret hardpoints, the override belongs to the hardpo
 the turret entity type.
 
 **T. Where the targeting system mounts.** Blocks the catalog and loadout work.
+
+**Ruled (a) (operator, 2026-09-17):** "absolutely as interior gear, Tool is fine". It is
+interior `GearData` with `HardpointType.Tool`, placed by `FillInterior`, and can be revealed,
+targeted and refitted like any other item.
+
 - (a) Interior `GearData` (`HardpointType.Tool`), placed by `FillInterior` like the
   capacitor. No hull or prefab edits.
 - (b) A behavior on the control-module designs (`Cockpit 2x2`, `Turret Control Module`).
