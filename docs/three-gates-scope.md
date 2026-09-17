@@ -156,6 +156,9 @@ What Aetheria authors now is the same shape, one dimension wide:
   and a part earns a record when crafting needs one.
 - Flavor text on products is most of the lore this release delivers.
 - Tier, color, and price stay projections of quality.
+- **Roles are required content for Terminus (operator, 2026-09-17).** Designs must
+  author roles, because without them every item is one-dimensional. Agents
+  generate the role data. See `docs/stats-and-power-target.md`.
 
 Migration to Njörðr widens quality into dimensions and turns designs into
 classes plus recipes, parts into lots, and faction competence into producer

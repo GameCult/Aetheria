@@ -64,6 +64,15 @@ Two current mechanisms need a better shape:
   upgrading its focusing array. The affordance exists today: `Lot.Roles` holds
   per-role quality, `Lot.QualityForRole` reads it, and a stat names its role.
   The catalog authors no roles yet.
+- **Authoring roles is required, not optional (operator, 2026-09-17).** Until
+  designs carry roles, every item is one-dimensional. Operator's words:
+  "authoring roles for the catalog is what creates generative depth in the item
+  selection for the game, until then every item is literally one-dimensional,
+  it's not optional."
+  - Agents generate the role data, and the operator reviews it.
+  - The data is written through the catalog's own types (AetherDb or a scratch
+    console over `Aetheria.Shared`), never through hand-copied schemas.
+  - Validation refuses a stat term that names a role its design lacks.
 - **Upgrade stations are exploration content.** Finding the station, and perhaps
   a small quest to unlock it, is something to discover in each boss-gated region
   of Terminus.
