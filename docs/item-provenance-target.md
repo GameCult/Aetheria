@@ -48,6 +48,19 @@ segmentation appropriate to the production quality achievable at that station."
   "Right now, for Terminus, we want to go in the opposite direction: start with
   the output products, and generate a fake economy to materialize those goods."
 
+- **Synthesis recurses to mining, includes consumer goods, and feeds routes**
+  **(operator, 2026-09-17).** Backward generation runs all the way down to
+  extraction. Consumer goods are part of it, and routes move them between places,
+  which is meant to give Aetheria piracy gameplay. The aim is a convincing economy
+  without simulating one. Njordr's interspersed profile (shipment materialization
+  and interception) is the shape precedent, adopted as local typed state. Operator's
+  words: "right now we have no rules whatsoever for generating what looks like
+  economic activity. If we recurse the backwards generation all the way down to the
+  level of mining, we can get a convincing enough economy without actually
+  simulating one. Especially if we're accounting for consumer goods. Just add some
+  routes to move consumer goods around, and we can get a lot of bang for our buck.
+  Some decent piracy gameplay, even, which Aetheria feels empty without."
+
 ## Consequences already visible
 
 - `FactionProductData` currently stores a manufacturer, a brand name and flavour
