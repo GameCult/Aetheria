@@ -374,7 +374,7 @@ public class TradeMenu : MonoBehaviour
             {
                 if (hullData.HullType != HullType.Ship) throw new ArgumentException("Attempted to buy non-ship hull from station, WTF are you doing?!");
 
-                var ship = new Ship(GameManager.ItemManager, GameManager.Zone, item as EquippableItem, GameManager.NewEntitySettings) { IsPlayerShip = true };
+                var ship = new Ship(GameManager.ItemManager, GameManager.Zone, item as EquippableItem, GameManager.ItemManager.GameplaySettings.DefaultEntitySettings) { IsPlayerShip = true };
                 ship.SetParent(GameManager.DockedEntity);
 
                 GameManager.Credits -= data.Price;

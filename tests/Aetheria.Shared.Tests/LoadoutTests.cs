@@ -715,6 +715,33 @@ public sealed class LoadoutTests : IDisposable
         }
     }
 
+    // Cut 0 (settings-globals-cut.md): Entity's ctor must copy the template it is given. No entity may alias
+    // GameplaySettings.DefaultEntitySettings, or a write through one ship (InventoryMenu's Shutdown Threshold
+    // edit) would silently move the default for every other ship, and once settings are a catalog global, the
+    // cached record itself.
+    [Fact]
+    public void EntitiesDoNotShareDefaultEntitySettings()
+    {
+        using var cache = Open();
+        var items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
+        var maker = cache.RefOf(cache.GetByName<Faction>("Maker"));
+        var hullData = cache.GetByName<HullData>("Skiff");
+        var template = items.GameplaySettings.DefaultEntitySettings;
+        var originalThreshold = template.ShutdownPerformance;
+
+        Ship BuildShip() => new Ship(items, null, (EquippableItem) items.CreateInstance(items.CreateLot(hullData, maker, .5f)), template);
+
+        var shipA = BuildShip();
+        var shipB = BuildShip();
+
+        shipA.Settings.ShutdownPerformance = originalThreshold + 1;
+
+        Assert.NotSame(template, shipA.Settings);
+        Assert.NotSame(shipA.Settings, shipB.Settings);
+        Assert.Equal(originalThreshold, shipB.Settings.ShutdownPerformance);
+        Assert.Equal(originalThreshold, template.ShutdownPerformance);
+    }
+
     // Everything available: for tests about placement and failure lists.
     private static Ship Build(ItemManager items, Loadout loadout, List<string> failures) =>
         Loadouts.Materialize(items, null, loadout, _ => true, failures);

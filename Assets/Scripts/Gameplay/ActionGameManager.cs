@@ -225,11 +225,6 @@ public class ActionGameManager : MonoBehaviour
 
     private List<Story> _stories = new List<Story>();
 
-    public EntitySettings NewEntitySettings
-    {
-        get => MessagePackSerializer.Deserialize<EntitySettings>(MessagePackSerializer.Serialize(Settings.GameplaySettings.DefaultEntitySettings));
-    }
-
     private void OnApplicationQuit()
     {
         SaveRun();

@@ -6,6 +6,7 @@ using GameCult.Caching;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using MessagePack;
 using UniRx;
 using CultMath;
 using static CultMath.math;
@@ -337,7 +338,7 @@ public abstract class Entity
 
     public Entity(ItemManager itemManager, Zone zone, EquippableItem hull, EntitySettings settings)
     {
-        Settings = settings;
+        Settings = MessagePackSerializer.Deserialize<EntitySettings>(MessagePackSerializer.Serialize(settings));
         ItemManager = itemManager;
         Zone = zone;
         Hull = hull;
