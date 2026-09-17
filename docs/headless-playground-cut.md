@@ -946,6 +946,17 @@ mean we want to delete all the weapon types we created".
   absorbed. `DamageType` (`Enums.cs:110`) is not a flags enum; the capability cut decides the
   mask's representation. Today `Shield.CanTakeHit` ignores the type entirely. The presentation
   seam's `AbsorbEvent` already carries the hit's `DamageType`.
+- **Simulation owns the grabbed object and its pose** (operator, 2026-09-17: "why would the grab
+  object not exist in the engine-free sim? It was floating free before, and the grab transition
+  moves it into the ship's local space").
+  - A loot object is simulation state in zone space.
+  - The grab phases move its pose from zone space into ship-local space. On completion the item
+    enters cargo; on cancellation it floats free again with its current velocity.
+  - `GrabEvent` names the loot object by a typed simulation identity, and presenters read the
+    simulated pose.
+  - Deletion line, in the pickup capability cut: the presentation seam's int target handle,
+    `IGrabPresenter`'s Transform and velocity parameters, the binder's grab resolver delegates,
+    and `FieldDriver` moving the grabbed transform itself.
 - (a) `Zone.TryPickUp` is the one commit.
   - Contact detection stays Unity collision, per the scope doc's deferral.
   - The playground's `pickup all` matches drops by spawn position within
