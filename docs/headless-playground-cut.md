@@ -920,6 +920,18 @@ mean we want to delete all the weapon types we created".
 - **Recommend (b).** About 560 lines that serve nothing.
 
 **L. Loot contact.** Low-blocking.
+
+**Ruled (operator, 2026-09-17): pickup is a capability behavior, a timed grab.**
+- **The owner is simulation.** A pickup is a timed grab of a selected item in range: extend,
+  envelop, pull. When it completes, the zone commits the item. Range, duration and
+  cancellation are rules in `ServerShared`, shared by the player, the AI and the playground.
+- **No Unity collision decides a pickup.** The collision path in `ShieldManager` is retired.
+- **Field shields are not universal.** Operator: "Each of the things that field shield can do
+  should be individual capabilities, which can be tied to a distinct visual presentation."
+  Impact absorption, pickup, melee blade and propulsion effect are separate capabilities.
+- **The tractor beam item provides only pickup.** Operator: "it might have some volumetric
+  glowy vfx but it would behave the same as the field shield's pickup ability".
+- **`FieldDriver` is one presentation** of these capabilities, not an owner of any.
 - (a) `Zone.TryPickUp` is the one commit.
   - Contact detection stays Unity collision, per the scope doc's deferral.
   - The playground's `pickup all` matches drops by spawn position within
