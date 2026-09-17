@@ -873,6 +873,12 @@ catalog record.
 - **Recommend (a).** It is the smallest shape that keeps the authored turret behaviour, and
   it leaves ships on the default.
 
+**Ruled (a) (operator, 2026-09-17):** "a, turrets get 360 degrees; we want turrets on some ships
+too, after all". `HardpointData.FiringArc` is an optional per-hardpoint override, where
+empty means the `GameplaySettings` default. It is set to 360 on turret hardpoints. Because
+ship hulls will also carry turret hardpoints, the override belongs to the hardpoint, not to
+the turret entity type.
+
 **T. Where the targeting system mounts.** Blocks the catalog and loadout work.
 - (a) Interior `GearData` (`HardpointType.Tool`), placed by `FillInterior` like the
   capacitor. No hull or prefab edits.
