@@ -21,7 +21,7 @@ Operator ruling (2026-09-17): engine asset references from CultCache data are Un
 Addressables, stored as the asset's `.meta` GUID and loaded through Addressables by GUID.
 One rule for every engine asset reference from data. No dual Resources/Addressables path.
 
-Rulings: none yet. Open: Q1 (blocks Cut 1).
+Rulings: Q1 (A), one `Assets/Content` folder entry (operator, 2026-09-17: "I take your recommendation"). Open: none.
 
 ## 0. Target
 

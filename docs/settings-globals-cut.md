@@ -191,6 +191,14 @@ Fork M decides whether any of this counts as "settings".
 
 ## 2. Global shape
 
+> **Superseded in part (2026-09-17):** wherever this map stores an engine asset as an
+> `Assets/Resources/...` path or loads it with `UnityHelpers.LoadAsset`/`Resources.Load`, read
+> instead: the asset's GUID under `[CultInspectorAssetGuid]`, loaded with `EngineAssets.Load<T>`,
+> the asset living under `Assets/Content` (`docs/addressables-cut.md`, which lands first). That
+> covers `ItemIcons`/`WeaponTypeIcons`/... (2.1), the 3.2 import's `{fileID, guid}` resolution (store
+> the guid directly, no path), the body presets (the 7 `CelestialBodySettings` assets move to
+> `Assets/Content`, not `Resources`), and Cut 1's picker check. Forks I and B are history.
+
 ### 2.1 Document
 
 This is fork D, recommended (a). One catalog global in a new file,
@@ -510,6 +518,14 @@ landed type differs from it by the one attribute.
 | 1 | `GameSettings.cs` 88, `GameplaySettingsEditor.cs` 100, `AuthoredSettings.cs` 174, `Program.cs` ~65, `Settings.asset` 477 YAML lines, 7 serialized fields plus 16 scene YAML lines, 2 `TestSettings` copies ~15, `TestCatalogGlobal` 4, 2 settings ctor parameters | `ServerShared/GameSettings.cs` ~45, icon extensions ~30, test helper ~15, tests ~70, +1 catalog record (~2.5 KB) | removes the `YamlDotNet` dependency and one Unity asset format (settings YAML); no targets added |
 
 ## 6. Operator forks (ordered by how much they block)
+
+> **Superseded in part (2026-09-17):** wherever this map stores an engine asset as an
+> `Assets/Resources/...` path or loads it with `UnityHelpers.LoadAsset`/`Resources.Load`, read
+> instead: the asset's GUID under `[CultInspectorAssetGuid]`, loaded with `EngineAssets.Load<T>`,
+> the asset living under `Assets/Content` (`docs/addressables-cut.md`, which lands first). That
+> covers `ItemIcons`/`WeaponTypeIcons`/... (2.1), the 3.2 import's `{fileID, guid}` resolution (store
+> the guid directly, no path), the body presets (the 7 `CelestialBodySettings` assets move to
+> `Assets/Content`, not `Resources`), and Cut 1's picker check. Forks I and B are history.
 
 **K. How the first catalog global gets written.** Blocks Cut 1.
 - (a) A scratch-only authoring build without `[CultGlobal]` writes the record under the
