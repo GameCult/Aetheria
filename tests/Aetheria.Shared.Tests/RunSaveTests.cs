@@ -40,13 +40,13 @@ public sealed class RunSaveTests : IDisposable
             using (var cache = Open())
             {
                 contents ??= StageZoneContents(cache);
-                RunSave.Commit(cache, Game(cache), Zones(3, contents, 0));
+                RunSave.Commit(cache, Game(cache), Zones(3, contents, 0), new ProvenanceLedger());
             }
 
             using (var cache = Open())
             {
-                Assert.Equal(7, RunRecordCount(cache));
-                Assert.Equal(7, RecordsIn(Run));
+                Assert.Equal(8, RunRecordCount(cache));
+                Assert.Equal(8, RecordsIn(Run));
                 Assert.Equal(new[] { "savedzone-0", "savedzone-1", "savedzone-2" }, SavedZoneKeys(cache));
             }
         }
@@ -57,8 +57,8 @@ public sealed class RunSaveTests : IDisposable
     {
         using (var cache = Open())
         {
-            RunSave.Commit(cache, Game(cache), Zones(3, null, -1));
-            RunSave.Commit(cache, Game(cache), Zones(2, null, -1));
+            RunSave.Commit(cache, Game(cache), Zones(3, null, -1), new ProvenanceLedger());
+            RunSave.Commit(cache, Game(cache), Zones(2, null, -1), new ProvenanceLedger());
         }
 
         using (var cache = Open())
@@ -73,25 +73,25 @@ public sealed class RunSaveTests : IDisposable
         var before = new[] { Catalog, Player }.Select(Hash).ToArray();
 
         using (var cache = Open())
-            RunSave.Commit(cache, Game(cache), Zones(3, StageZoneContents(cache), 0));
+            RunSave.Commit(cache, Game(cache), Zones(3, StageZoneContents(cache), 0), new ProvenanceLedger());
 
         Assert.Equal(before, new[] { Catalog, Player }.Select(Hash).ToArray());
-        Assert.Equal(7, RecordsIn(Run));
+        Assert.Equal(8, RecordsIn(Run));
     }
 
     [Fact]
     public void ResumeThenSaveKeepsUnloadedZoneContents()
     {
         using (var cache = Open())
-            RunSave.Commit(cache, Game(cache), Zones(2, StageZoneContents(cache), 1));
+            RunSave.Commit(cache, Game(cache), Zones(2, StageZoneContents(cache), 1), new ProvenanceLedger());
 
         using (var cache = Open())
         {
             var galaxy = new Galaxy(cache, cache.GetGlobal<SavedGame>(), _ => { });
-            var itemManager = new ItemManager(cache, TestSettings(), _ => { });
+            var itemManager = new ItemManager(cache, new ProvenanceLedger(), TestSettings(), _ => { });
             galaxy.Zones[0].Contents = new Zone(itemManager, new PlanetSettings(), new ZonePack(), galaxy.Zones[0], galaxy);
             var (game, zones) = RunSave.Capture(cache, galaxy, galaxy.Zones[0].Contents, null, false, new SavedActionBarBinding[0]);
-            RunSave.Commit(cache, game, zones);
+            RunSave.Commit(cache, game, zones, RunSave.Lots(cache));
         }
 
         using (var cache = Open())
@@ -109,7 +109,7 @@ public sealed class RunSaveTests : IDisposable
         using (var cache = Open())
         {
             cache.Commit(batch => batch.Upsert(new PlayerSettings()));
-            RunSave.Commit(cache, Game(cache), Zones(3, StageZoneContents(cache), 0));
+            RunSave.Commit(cache, Game(cache), Zones(3, StageZoneContents(cache), 0), new ProvenanceLedger());
         }
         var before = new[] { Catalog, Player }.Select(Hash).ToArray();
 
@@ -124,6 +124,80 @@ public sealed class RunSaveTests : IDisposable
         Assert.Equal(0, RecordsIn(Run));
         Assert.Equal(before, new[] { Catalog, Player }.Select(Hash).ToArray());
     }
+
+    // Lot 1 sits on the root ship's hull; lot 3 (Produced from facility 4, input 5) sits in a docked child's
+    // docking-bay contents; lots 2 and 6 are minted but referenced by nothing packed. Only the reachable closure
+    // {1, 3, 4, 5} survives into the written copy; the live ledger keeps every lot.
+    [Fact]
+    public void CommitKeepsOnlyReachableLots()
+    {
+        using (var cache = Open())
+        {
+            var lots = new ProvenanceLedger { NextLot = 7 };
+            lots.Lots[1] = new Lot { Origin = new Attributed() };
+            lots.Lots[2] = new Lot { Origin = new Attributed() };
+            lots.Lots[3] = new Lot { Origin = new Produced { Facility = 4, Inputs = new[] { 5 } } };
+            lots.Lots[4] = new Lot { Origin = new Attributed() };
+            lots.Lots[5] = new Lot { Origin = new Extracted() };
+            lots.Lots[6] = new Lot { Origin = new Attributed() };
+
+            var child = BarePack(hull: null, dockingBayContents: new (int2, ItemInstance)[][]
+            {
+                new (int2, ItemInstance)[] { (default, new CompoundCommodity { Lot = 3 }) }
+            });
+            var root = BarePack(hull: new EquippableItem { Lot = 1 }, children: new EntityPack[] { child });
+
+            var zones = new[]
+            {
+                new SavedZone
+                {
+                    Name = "Zone 0", AdjacentZones = Array.Empty<int>(), Factions = Array.Empty<int>(), Owner = -1,
+                    Contents = new ZonePack { Entities = new List<EntityPack> { root } }
+                }
+            };
+            RunSave.Commit(cache, Game(cache), zones, lots);
+
+            // The live ledger is never pruned.
+            Assert.Equal(new[] { 1, 2, 3, 4, 5, 6 }, lots.Lots.Keys.OrderBy(k => k));
+        }
+
+        using (var cache = Open())
+        {
+            var stored = RunSave.Lots(cache);
+            Assert.Equal(new[] { 1, 3, 4, 5 }, stored.Lots.Keys.OrderBy(k => k));
+            Assert.Equal(7, stored.NextLot);
+        }
+    }
+
+    [Fact]
+    public void MissingLotIsLoud()
+    {
+        var ledger = new ProvenanceLedger();
+        Assert.Throws<InvalidOperationException>(() => ledger[0]);
+        Assert.Throws<InvalidOperationException>(() => ledger.Reachable(new[] { 9 }));
+    }
+
+    // A minimal, valid EntityPack with every collection field non-null, for tests that build packs directly rather
+    // than through EntitySerializer.Pack.
+    private static ShipPack BarePack(EquippableItem hull, EntityPack[] children = null,
+        (int2, ItemInstance)[][] dockingBayContents = null) => new ShipPack
+    {
+        Name = "ship",
+        Hull = hull,
+        Equipment = Array.Empty<(int2, EquippableItem)>(),
+        CargoBays = Array.Empty<(int2, EquippableItem)>(),
+        DockingBays = Array.Empty<(int2, EquippableItem)>(),
+        CargoContents = Array.Empty<(int2, ItemInstance)[]>(),
+        DockingBayContents = dockingBayContents ?? Array.Empty<(int2, ItemInstance)[]>(),
+        Children = children ?? Array.Empty<EntityPack>(),
+        PersistedBehaviors = new Dictionary<int2, PersistentBehaviorData[]>(),
+        Temperature = new float[0, 0],
+        Armor = new float[0, 0],
+        Conductivity = new bool2[0, 0],
+        DockingBayAssignments = Array.Empty<int>(),
+        Settings = new EntitySettings(),
+        WeaponGroups = Array.Empty<int[]>()
+    };
 
     // Zone seeds hash names with this; string.GetHashCode differs per process on .NET Core. The literal was computed
     // once, from an independent transcription of CultMath's pcg over the UTF-8 bytes.

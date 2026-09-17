@@ -7,6 +7,7 @@ using CultMath;
 using GameCult.Caching;
 using GameCult.Caching.MessagePack;
 using Xunit;
+using Random = CultMath.Random;
 
 // Loadouts are ship presets: item designs only, authored into the catalog, materialized all-or-nothing against it.
 // The fixture hull is 3x3: InteriorCells is Shape.Shrink(), so a 2x2 hull has no interior cell a cargo bay could use.
@@ -84,7 +85,7 @@ public sealed class LoadoutTests : IDisposable
         Loadout hand;
         using (var cache = Open())
         {
-            var items = new ItemManager(cache, RunSaveTests.TestSettings(), _ => { });
+            var items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
             hand = Armed(cache);
             var failures = new List<string>();
             var ship = Build(items, hand, failures);
@@ -102,7 +103,7 @@ public sealed class LoadoutTests : IDisposable
             Assert.Equal(hand.Slots.Select(Describe), loaded.Slots.Select(Describe));
             Assert.Equal(hand.WeaponGroups, loaded.WeaponGroups);
 
-            var items = new ItemManager(cache, RunSaveTests.TestSettings(), _ => { });
+            var items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
             var failures = new List<string>();
             var ship = Build(items, loaded, failures);
             Assert.Empty(failures);
@@ -249,7 +250,7 @@ public sealed class LoadoutTests : IDisposable
 
         using (var cache = Open())
         {
-            var items = new ItemManager(cache, RunSaveTests.TestSettings(), _ => { });
+            var items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
             var missing = HandBuilt(cache);
             missing.Slots[1].Design = new CultRecordRef<EquippableItemData>(new CultRecordKey("absent-design"));
             var failures = new List<string>();
@@ -274,7 +275,7 @@ public sealed class LoadoutTests : IDisposable
     public void FailedFitBuildsNothing()
     {
         using var cache = Open();
-        var items = new ItemManager(cache, RunSaveTests.TestSettings(), _ => { });
+        var items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
         var clash = HandBuilt(cache);
         clash.Slots[1].Position = HardpointCell;
         var failures = new List<string>();
@@ -283,24 +284,28 @@ public sealed class LoadoutTests : IDisposable
         Assert.Contains("slot 0,0: Crate does not fit", failure);
     }
 
-    // Two more Lamp products, upserted into the live cache so its enumeration order (z before a) disagrees with
-    // record-key order; a reopened snapshot could already hand them back sorted.
+    // Two new makers, each with one Lamp product, upserted into the live cache so its enumeration order (z before a)
+    // disagrees with record-key order; a reopened snapshot could already hand them back sorted. Brand() requires at
+    // most one product per (maker, design), so each gets its own maker rather than sharing "Maker".
     [Fact]
     public void FirstAvailableProductInKeyOrderBuildsTheSlot()
     {
         using var cache = AetheriaStores.Open(Catalog, catalogWritable: true);
-        var maker = cache.RefOf(cache.GetByName<Faction>("Maker"));
         var lamp = new CultRecordRef<CraftedItemData>(cache.RefOf(cache.GetByName<GearData>("Lamp")).Key);
-        foreach (var key in new[] { "lamp-z", "lamp-a" })
-            cache.Commit(batch => batch.Upsert(typeof(FactionProductData), new FactionProductData { Name = key, Design = lamp, Manufacturer = maker }, new CultRecordKey(key)));
+        var zMaker = cache.Upsert(new Faction { Name = "Zeta", ShortName = "ZET" });
+        var aMaker = cache.Upsert(new Faction { Name = "Alpha", ShortName = "ALP" });
+        cache.Commit(batch => batch.Upsert(typeof(FactionProductData), new FactionProductData { Name = "lamp-z", Design = lamp, Manufacturer = zMaker }, new CultRecordKey("lamp-z")));
+        cache.Commit(batch => batch.Upsert(typeof(FactionProductData), new FactionProductData { Name = "lamp-a", Design = lamp, Manufacturer = aMaker }, new CultRecordKey("lamp-a")));
         Assert.Equal(new[] { "lamp-z", "lamp-a" }, cache.GetAll<FactionProductData>().Select(p => p.Name).Where(name => name.StartsWith("lamp-")));
 
-        var items = new ItemManager(cache, RunSaveTests.TestSettings(), _ => { });
+        var items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
         var hand = HandBuilt(cache);
         string LampProduct(Predicate<FactionProductData> available, List<string> failures)
         {
             var ship = Loadouts.Materialize(items, null, hand, available, failures);
-            return ship == null ? null : cache.Get(ship.Equipment.Single(item => item.EquippableItem != ship.Hull && item.Position.Equals(HardpointCell)).EquippableItem.Product).Name;
+            if (ship == null) return null;
+            var unit = ship.Equipment.Single(item => item.EquippableItem != ship.Hull && item.Position.Equals(HardpointCell)).EquippableItem;
+            return items.Brand(unit).Product.Name;
         }
 
         var failures = new List<string>();
@@ -311,11 +316,132 @@ public sealed class LoadoutTests : IDisposable
         Assert.Contains("slot 0,0: no available product of Lamp", Assert.Single(failures));
     }
 
+    // Materialize a hand-built ship, pack it into a zone, commit through Open() and reopen: every crafted instance
+    // still resolves in RunSave.Lots, its Data still equals the lot's Design, the origin is Attributed with the
+    // product's maker, and Quality is unchanged from the lot minted before the save.
+    [Fact]
+    public void MaterializedLotsSurviveSaveAndReload()
+    {
+        Dictionary<int, float> preSaveQuality;
+        CultRecordKey maker;
+        using (var cache = Open())
+        {
+            maker = cache.RefOf(cache.GetByName<Faction>("Maker")).Key;
+            var items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
+            var hand = HandBuilt(cache);
+            var failures = new List<string>();
+            var ship = Build(items, hand, failures);
+            Assert.Empty(failures);
+
+            preSaveQuality = items.Lots.Lots.ToDictionary(kv => kv.Key, kv => kv.Value.Quality);
+
+            var pack = EntitySerializer.Pack(ship);
+            var game = new SavedGame
+            {
+                Factions = Array.Empty<CultRecordRef<Faction>>(),
+                Relationships = Array.Empty<FactionRelationship>(),
+                HomeZones = new Dictionary<int, int>(),
+                BossZones = new Dictionary<int, int>(),
+                DiscoveredZones = new[] { 0 },
+                ActionBarBindings = new SavedActionBarBinding[0],
+                Exit = -1
+            };
+            var zones = new[]
+            {
+                new SavedZone
+                {
+                    Name = "Zone 0", AdjacentZones = Array.Empty<int>(), Factions = Array.Empty<int>(), Owner = -1,
+                    Contents = new ZonePack { Entities = new List<EntityPack> { pack } }
+                }
+            };
+            RunSave.Commit(cache, game, zones, items.Lots);
+        }
+
+        using (var cache = Open())
+        {
+            var lots = RunSave.Lots(cache);
+            var run = cache.GetGlobal<SavedGame>();
+            var zone = cache.Get(run.Zones[0]);
+            var crafted = EntitySerializer.Items(zone.Contents.Entities[0]).OfType<CraftedItemInstance>().ToArray();
+            Assert.NotEmpty(crafted);
+            foreach (var instance in crafted)
+            {
+                var lot = lots[instance.Lot];
+                Assert.Equal(instance.Data.Key, lot.Design.Key);
+                var attributed = Assert.IsType<Attributed>(lot.Origin);
+                Assert.Equal(maker, attributed.Faction.Key);
+                Assert.Equal(preSaveQuality[instance.Lot], lot.Quality);
+            }
+        }
+    }
+
+    // FillInterior requires a capacitor product; this fixture hull adds one alongside a 4x4 hull with two identical
+    // Sensors hardpoints.
+    [Fact]
+    public void MatchingHardpointsShareALot()
+    {
+        using var cache = AetheriaStores.Open(Catalog, catalogWritable: true);
+        var maker = cache.RefOf(cache.GetByName<Faction>("Maker"));
+        var hullShape = new Shape(4, 4);
+        foreach (var cell in hullShape.AllCoordinates) hullShape[cell] = true;
+        var hull = cache.Upsert(new HullData
+        {
+            Name = "Twin", HullType = HullType.Ship, Shape = hullShape, Price = 100,
+            Hardpoints =
+            {
+                new HardpointData { Type = HardpointType.Sensors, Position = new int2(0, 0), Shape = new Shape() },
+                new HardpointData { Type = HardpointType.Sensors, Position = new int2(1, 0), Shape = new Shape() }
+            }
+        });
+        var capacitor = cache.Upsert(new GearData { Name = "Cap", Hardpoint = HardpointType.Tool, Shape = new Shape(), Price = 1, Behaviors = { new CapacitorData() } });
+        foreach (var (name, design) in new[] { ("Twin by Maker", hull.Key), ("Cap by Maker", capacitor.Key) })
+            cache.Upsert(new FactionProductData { Name = name, Design = new CultRecordRef<CraftedItemData>(design), Manufacturer = maker });
+        cache.FlushAsync().Wait();
+
+        var random = new Random(1);
+        var items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
+        var generator = new LoadoutGenerator(ref random, items, null, null, null, .5f);
+        var pack = generator.GenerateShipLoadout(candidate => candidate.Name == "Twin");
+        Assert.NotNull(pack);
+
+        var hardpointItems = pack.Equipment
+            .Where(e => (cache.Get(e.item.Data) as GearData)?.Hardpoint == HardpointType.Sensors)
+            .ToArray();
+        Assert.Equal(2, hardpointItems.Length);
+        Assert.Equal(hardpointItems[0].item.Lot, hardpointItems[1].item.Lot);
+    }
+
+    // A Lamp lot with Quality .2 and one role fill (lens .9): a stat reading that role gets .9, one reading none
+    // gets .2, and GetTier reads .2.
+    [Fact]
+    public void StatsReadTheLot()
+    {
+        using var cache = Open();
+        var settings = RunSaveTests.TestSettings();
+        settings.Tiers = new[] { new RarityTier { Name = "Common", Quality = .2f, Rarity = 0, Color = new float3(1, 1, 1) } };
+        var items = new ItemManager(cache, new ProvenanceLedger(), settings, _ => { });
+        var lamp = cache.GetByName<GearData>("Lamp");
+        var lotId = items.Lots.Add(new Lot
+        {
+            Design = cache.RefOf<ItemData>(lamp),
+            Origin = new Attributed(),
+            Quality = .2f,
+            Roles = new List<RoleFill> { new RoleFill { Role = "lens", Quality = .9f } }
+        });
+        var instance = (EquippableItem) items.CreateInstance(lotId);
+
+        var withRole = new PerformanceStat { FromRole = "lens", Min = 0, Max = 1, QualityExponent = 1 };
+        var noRole = new PerformanceStat { Min = 0, Max = 1, QualityExponent = 1 };
+        Assert.Equal(.9f, items.Evaluate(withRole, instance), 3);
+        Assert.Equal(.2f, items.Evaluate(noRole, instance), 3);
+        Assert.Equal(.2f, items.GetTier(instance).tier.Quality, 3);
+    }
+
     [Fact]
     public void OutOfRangeWeaponGroupIndexBuildsNothing()
     {
         using var cache = Open();
-        var items = new ItemManager(cache, RunSaveTests.TestSettings(), _ => { });
+        var items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
         var stale = Armed(cache);
         stale.WeaponGroups = new[] { new[] { 0, 2 }, new[] { -1 } };
         var failures = new List<string>();
@@ -327,7 +453,7 @@ public sealed class LoadoutTests : IDisposable
     public void UnequippingAGroupedWeaponRemovesItFromItsGroups()
     {
         using var cache = Open();
-        var items = new ItemManager(cache, RunSaveTests.TestSettings(), _ => { });
+        var items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
         var ship = Build(items, Armed(cache), new List<string>());
         var item = Assert.Single(ship.WeaponGroups[0].items);
         Assert.NotNull(item.GetBehavior<Weapon>());
@@ -342,7 +468,7 @@ public sealed class LoadoutTests : IDisposable
     public void NonWeaponGroupIndexBuildsNothing()
     {
         using var cache = Open();
-        var items = new ItemManager(cache, RunSaveTests.TestSettings(), _ => { });
+        var items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
         var lampGrouped = WithDesign(Armed(cache), 0, cache, "Lamp");
         var failures = new List<string>();
         Assert.Null(Build(items, lampGrouped, failures));
@@ -353,7 +479,7 @@ public sealed class LoadoutTests : IDisposable
     public void MoreWeaponGroupsThanTheGameHasBuildsNothing()
     {
         using var cache = Open();
-        var items = new ItemManager(cache, RunSaveTests.TestSettings(), _ => { });
+        var items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
         var wide = Armed(cache);
         wide.WeaponGroups = wide.WeaponGroups.Append(new[] { 0 }).ToArray();
         var failures = new List<string>();
@@ -367,7 +493,7 @@ public sealed class LoadoutTests : IDisposable
     public void FewerWeaponGroupsArePaddedToTheGameCount()
     {
         using var cache = Open();
-        var items = new ItemManager(cache, RunSaveTests.TestSettings(), _ => { });
+        var items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
         var armed = Armed(cache);
         armed.WeaponGroups = new[] { new[] { 0 } };
         foreach (var groups in new[] { armed.WeaponGroups, null })
