@@ -141,9 +141,19 @@ public interface IPopulationAssignment
 }
 
 [MessagePackObject,
- JsonObject(MemberSerialization.OptIn)]
+ JsonObject(MemberSerialization.OptIn),
+ Union(0, typeof(MarkerPersistentBehaviorData))]
 public abstract class PersistentBehaviorData
 {
+}
+
+// No IBehavior implements IPersistentBehavior yet, so this abstract type has no production writer. This one
+// concrete leaf exists so the wire format (EntitySerializer's PersistedBehaviors pairs array) can be exercised by
+// tests ahead of a real persistent behavior landing.
+[MessagePackObject]
+public class MarkerPersistentBehaviorData : PersistentBehaviorData
+{
+    [Key(0)] public int Value;
 }
 
 [Inspectable, 
