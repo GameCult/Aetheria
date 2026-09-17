@@ -18,7 +18,16 @@ move). Claims marked **(probe)** were run, not read off names:
 Operator ruling, 2026-09-17: "We don't care for Unity's serializer, we have CultCache
 sitting right there. All settings should be in globals."
 
-Rulings: none yet. Open: forks K, I, B, D, P (these block Cut 1), then M and X.
+Rulings (2026-09-17):
+- **Engine asset references: Addressables, stored as asset GUIDs** (operator: "you got it",
+  to that proposal). This supersedes forks I and B: nothing moves under `Resources`, and the
+  existing `[CultInspectorAssetPath]` fields (`ItemData.Icon`/`ActionBarIcon`, `Weapon` effect,
+  `Thruster`/`AetherDrive` particles, `Corporations` logo) convert too, so there is one rule.
+  That conversion is its own cut, mapped in `docs/addressables-cut.md`, and lands before Cut 1;
+  Cut 1's icon and body-preset fields then use it.
+- **K (a), D (a), P (a), X (a), M (a): Self's defaults**, stated to the operator, who did not
+  object. Reopen any of them on request.
+- Open: none blocking Cut 0.
 Doc sweep for Self: this map supersedes the mechanism in `docs/headless-playground-cut.md`
 fork S ("a text edit of `Settings.asset`", `:1151-1159`, `:404-410`, `:693-694`). It also
 changes the `Run.New(CultCache, GameplaySettings, ZoneGenerationSettings, PlanetSettings, ...)`
