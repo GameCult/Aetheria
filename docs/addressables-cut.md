@@ -22,6 +22,13 @@ Addressables, stored as the asset's `.meta` GUID and loaded through Addressables
 One rule for every engine asset reference from data. No dual Resources/Addressables path.
 
 Rulings: Q1 (A), one `Assets/Content` folder entry (operator, 2026-09-17: "I take your recommendation"). Open: none.
+Ruling S (A), sub-assets (operator, 2026-09-17: "A"): a stored reference is the Addressables key,
+the bare GUID for a main asset and `guid[subAssetName]` when a sub-asset (e.g. one sprite of a
+sheet) is picked. It is what `AssetReference` keeps (GUID plus sub-object name), and
+Addressables loads both forms. The drawer writes and reads both; `EngineAssets.Load<T>` passes the
+key through. Found by Soul on CultLib `0155ba8`, before release.
+Correction: Cut 0's negative grep `AssetPath` also matches Unity's `GUIDToAssetPath`/
+`AssetPathToGUID`; the check is `git grep -n "CultInspectorAssetPath\|\.AssetPath"`.
 
 ## 0. Target
 
