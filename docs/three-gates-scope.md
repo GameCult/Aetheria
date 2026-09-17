@@ -48,6 +48,15 @@ AI share it, so AI accuracy is no longer superhuman by construction.
 roll over weapon stats, the stats of a new targeting-system subsystem, and sensor
 state. Fire control is being mapped as Cut 2 of `docs/headless-playground-cut.md`.
 
+**Ruling (operator, 2026-09-17):** the player and the AI can aim for a specific
+subsystem once they have gathered enough target data to reveal it. Operator's words: "We
+want the player as well as the AI to be able to aim for specific subsystems once it has
+gathered enough target data to reveal those subsystems".
+- Per-target info gathering already exists: `Entity.EntityInfoGathered`, accumulated
+  with decay by `Sensor`. One detection threshold makes a target visible.
+- Revealing a target's subsystems as that info accumulates does not exist yet.
+- Selecting a subsystem to aim for does not exist yet either.
+
 - **Owner:** fire control in `ServerShared`. Decides hit, cell, and damage.
 - **Inputs:** target and selected item, sensor/detection quality, range,
   target deviation from the predicted intercept, lock time.
