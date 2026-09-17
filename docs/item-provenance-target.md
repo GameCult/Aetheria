@@ -115,6 +115,16 @@ segmentation appropriate to the production quality achievable at that station."
   provenance resolves one and shows the design name as what the item is. Catalog designs
   currently carry brand names (the design itself is named Arctica); the content pass renames
   them.
+- **The content pass also consolidates designs.** Operator: "content pass should also
+  consolidate different items into one design if the behavior matches and its Role axes can
+  justifiably express both". Two catalog items whose behaviours match become one design with
+  roles, and their differences move into per-role quality on each product's lots.
+  - Roles are authored before merging, since they are what makes a merge justifiable.
+  - A merge repoints every reference to the retired design (products, loadouts, ammo,
+    blueprints, run and player saves) in the same commit, and the census proves none dangle.
+  - A difference roles cannot express (different behaviour, a changed member such as a
+    hardpoint layout) keeps a separate design, or waits for document variants
+    (`CultLib/docs/document-variants-target.md`).
 
 ## Not in scope
 
