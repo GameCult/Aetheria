@@ -59,7 +59,18 @@ Progress (Self updates this in each cut's landing commit):
     - The negative grep is empty, and the Unity code has no references.
     - The mutation run: control green, 17 of 17 killed.
     - Self read the diff; because it is pure deletion, no separate Soul pass.
-- **Cut C landed** at `333a7370` (code) and `b2036fb8` (catalog rewrite). Soul pass pending.
+- **Cut C landed** at `333a7370` (code) and `b2036fb8` (catalog rewrite).
+  - **Soul passed it.**
+    - A reflection dump of all 180 records before and after shows zero content changes.
+    - The game opens the catalog read-only; `dangling` lists 0.
+    - No reader of a design's manufacturer remains.
+    - An old `run.cc` fails loudly on lot 0.
+    - The batchmode log compiled the Cut C HEAD, which covers Cut B's Unity edits.
+  - **Two low findings, fixed in a follow-up:**
+    - Census's per-design maker is a second rule: the first product from any maker.
+      It diverges from `ItemManager.Brand` when two factions sell one design.
+    - `Brand`'s tie-break by record key has no test (`OrderBy` → `OrderByDescending`
+      survives).
   - 115 records rewritten: 12,686,267 → 12,683,061 bytes, 0 ignored slots.
   - The `AetherDb` outputs, including census, are byte-identical: no design's maker
     disagreed with its products' maker.
