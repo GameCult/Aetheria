@@ -50,8 +50,16 @@ Progress (Self updates this in each cut's landing commit):
   - **Open, found while fixing F1:** nothing implements `IPersistentBehavior`, so
     `PersistedBehaviors` has no production writer or reader. To exercise the wire
     shape, Hands added a `MarkerPersistentBehaviorData` union case. That is a production
-    type that exists only for tests. Whether to delete the dead feature goes to the
-    operator.
+    type that exists only for tests.
+    - **Ruled: delete the feature (operator, 2026-09-17).** "eh, fine, get rid of it, I'm
+      sure there's a better way to store it than the setup I had, anyway".
+    - Deleted: `PersistedBehaviors` (key 5 retired), `IPersistentBehavior`,
+      `PersistentBehaviorData`, `MarkerPersistentBehaviorData`, and the pack/restore
+      code with its tests and mutants.
+    - Behavior state that must persist gets designed later, with a real behavior as its
+      first consumer.
+    - The pairs-array ruling still stands as the shape for position-keyed persisted
+      maps.
 
 - Repo: `F:\Projects\Aetheria`, branch `codex/cultcache-cutover`, anchors against HEAD
   `b0df689d`. Commits since the substrate map (`dbe1dd83`) touch only the three docs, and
