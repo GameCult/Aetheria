@@ -936,6 +936,11 @@ mean we want to delete all the weapon types we created".
   on a generic tool item"). It is interior `HardpointType.Tool` gear, like the targeting system,
   so it no longer competes with the sensor for LonginusX's single Sensors slot. The catalog
   change lands with the pickup capability.
+- **Presentation is chosen per item, independently of capability** (operator, 2026-09-17). One
+  presentation, such as the field shield, can visualize any subset of an item's capabilities:
+  only propulsion, only shielding, or several at once. Other presentations (an IFS shatter
+  plane, flow particles) can visualize the same capability events. Simulation emits capability
+  events; presentations subscribe and decide nothing.
 - (a) `Zone.TryPickUp` is the one commit.
   - Contact detection stays Unity collision, per the scope doc's deferral.
   - The playground's `pickup all` matches drops by spawn position within
