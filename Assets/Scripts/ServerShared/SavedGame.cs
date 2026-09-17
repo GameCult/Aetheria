@@ -121,7 +121,7 @@ public static class RunSave
         });
     }
 
-    // Removes every run record (SavedGame, SavedZone, OrbitData, BodyData) in one Commit.
+    // Removes every run record (SavedGame, SavedZone, OrbitData, BodyData, ProvenanceLedger) in one Commit.
     public static void Clear(CultCache cache)
     {
         var run = cache.AllStoredDocuments
