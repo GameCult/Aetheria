@@ -41,6 +41,17 @@ Progress (Self updates this in each cut's landing commit):
       persisted dictionary key with no hash-resistant comparer, so a type that can be
       written but never read is loud on day one.
     - `docs/headless-playground-cut.md` Cut 0 is this same fix.
+  - **Fix batch landed** at `e4df73e4`, `4fc9070b`, `cb2febec`, `561c5b85`, `080d3b49`
+    and `c2ff5431`. Evidence:
+    - 42 of 42 tests pass.
+    - The mutation script ran on CRLF: the control stayed green and 16 of 16 mutants were
+      killed.
+    - The Soul pass on the batch is pending.
+  - **Open, found while fixing F1:** nothing implements `IPersistentBehavior`, so
+    `PersistedBehaviors` has no production writer or reader. To exercise the wire
+    shape, Hands added a `MarkerPersistentBehaviorData` union case. That is a production
+    type that exists only for tests. Whether to delete the dead feature goes to the
+    operator.
 
 - Repo: `F:\Projects\Aetheria`, branch `codex/cultcache-cutover`, anchors against HEAD
   `b0df689d`. Commits since the substrate map (`dbe1dd83`) touch only the three docs, and
