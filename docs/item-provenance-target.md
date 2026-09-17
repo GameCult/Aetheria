@@ -95,6 +95,20 @@ segmentation appropriate to the production quality achievable at that station."
 - CultCache Studio's grouping of `GearData` by manufacturer
   (`CultLib\docs\studio-grouping-cut.md`, Cut 4) is no longer the target.
 
+## Design text and product text (operator, 2026-09-17)
+
+- A design has no manufacturer field. Operator: "a design shouldn't have a manufacturer
+  field at all, and a product should show its manufacturer flavor text in addition to the
+  Design, which would be a dry description of functionality".
+- The item panel shows both: the design's description (what the item does) and, when the
+  item's provenance resolves a product, that product's flavour text. `PropertiesPanel`
+  already has this shape.
+- The catalog content does not. Products currently repeat their design's name and
+  description (seen on Arctica, 2026-09-17), and design descriptions are written as
+  flavour. Fixing it is a content pass: dry functional text on designs, manufacturer
+  voice on products, agent-drafted and operator-reviewed, written through the catalog's
+  own types.
+
 ## Not in scope
 
 - A Njordr daemon, CultMesh, or any service integration. Aetheria stays
