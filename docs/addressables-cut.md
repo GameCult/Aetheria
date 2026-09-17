@@ -28,7 +28,7 @@ sheet) is picked. It is what `AssetReference` keeps (GUID plus sub-object name),
 Addressables loads both forms. The drawer writes and reads both; `EngineAssets.Load<T>` passes the
 key through. Found by Soul on CultLib `0155ba8`, before release.
 Correction: Cut 0's negative grep `AssetPath` also matches Unity's `GUIDToAssetPath`/
-`AssetPathToGUID`; the check is `git grep -n "CultInspectorAssetPath\|\.AssetPath"`.
+`AssetPathToGUID`; the check is `git grep -n "CultInspectorAssetPath\|\.AssetPathb"`.
 
 ## 0. Target
 
