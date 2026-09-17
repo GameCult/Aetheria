@@ -61,6 +61,12 @@ segmentation appropriate to the production quality achievable at that station."
   routes to move consumer goods around, and we can get a lot of bang for our buck.
   Some decent piracy gameplay, even, which Aetheria feels empty without."
 
+- **Scope: schema now, generation later (operator, 2026-09-17).** Backward
+  generation, routes and piracy come after Terminus ships
+  (`docs/three-gates-scope.md` owns that). The schema cut lands now: "I want the
+  schema cut now so that the shape of the data reflects the shape of the game we
+  want to build."
+
 ## Consequences already visible
 
 - `FactionProductData` currently stores a manufacturer, a brand name and flavour

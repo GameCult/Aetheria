@@ -99,7 +99,18 @@ changes, story placement, multiplayer and `Economy.Server`, a headless
 server deployment, and the CultMesh/daemon rebuild (parked in
 `F:\Projects\AetheriaEve`).
 
+**Next scope after this ships (operator, 2026-09-17):** backward economy
+generation (synthesizing provenance for existing goods down to mining), routes
+moving consumer goods, and piracy. The item provenance *schema* is cut now, so
+the data already has that shape; see `docs/item-provenance-target.md`.
+
 ## Items: roles now, Njordr later
+
+**Partly superseded (2026-09-17).** `docs/item-provenance-target.md` owns the
+item model where they disagree: the manufacturer leaves the design, a crafted
+item carries lot provenance (faction, station and factory, input lots), and the
+brand and segment an item shows are derived from that provenance, not stored on
+the instance.
 
 Item property derivation belongs to Njörðr (`F:\Projects\Njordr`), the
 GameCult economy daemon: properties are a vector over authored dimensions,
