@@ -281,6 +281,11 @@ Continue and death. There is one instance per run. It holds no Unity type.
   - Forbidden deciders of hits or damage: Unity weapon effects, `HullCollider`, any
     `Physics.*` query, `EntityInstance`, `ShieldManager` (it may only call
     `Zone.TryPickUp`), the playground, and `Entity.HardpointTransforms` (deleted).
+  - Firing arc: the mount direction is `Behavior.Direction`, derived from the ship's
+    `Direction` and the mounted item's `ItemRotation` (itself `HardpointData.Rotation`,
+    `Entity.cs:559`); the arc width is `GameplaySettings.FiringArc` (fork W for overrides).
+    Prefab `WeaponHardpoint.FiringPoint` transforms and `ArticulationPoint` limits are
+    presentation: they aim barrels and place effects, and decide no shot.
 - **Shared paths:**
   - Manual input and agent input write the same entity fields (§1), and both go before
     `Run.Step`. Unity writes input in `Update`, then calls `run.Step(Time.deltaTime)`.
@@ -320,7 +325,7 @@ Unity dependencies, each injected or cut:
 | `Debug.Log` | `:264`, `:657`, `MainMenu` | injected `Action<string>` |
 | Scene load | `MainMenu` | stays; the handoff static becomes `ActionGameManager.NewRun : (Galaxy, bool)?`, command-only, consumed once in `Start`; null means Continue |
 | MonoBehaviour state | `_currentEntity`, `DockedEntity`, `DockingBay`, `TowingStation`, `Zone`, `ItemManager` | projections of `Run` |
-| Barrel transforms | `EntityInstance.cs:516` -> `HardpointTransforms` | `HardpointTransforms` deleted (Cut 2); barrels are presentation only, `GetBarrel` |
+| Barrel transforms | `EntityInstance.cs:516` -> `HardpointTransforms` | `HardpointTransforms` deleted (Cut 2); the arc is item rotation plus `FiringArc` (fork A); barrels and `ArticulationPoint` are presentation only, `GetBarrel` |
 | `Physics.*` hit queries | `Projectile`, `GuidedProjectile`, `Laser`, `Lightning`, `HullCollider` subjects | deleted from damage paths; `FireControl` rolls (Cut 2) |
 
 ## 4. Cuts
@@ -482,7 +487,7 @@ This is subtraction first, then one new file.
   - Net production code is about +40. That buys the invariant: the lifecycle has one
     owner, and every rule it holds existed before in a MonoBehaviour.
 
-### Cut 2: fire control rolls hits; death and loot resolve in `Zone` (forks F, A, T, V, E, L)
+### Cut 2: fire control rolls hits; death and loot resolve in `Zone` (forks F, A, W, T, V, E, L)
 
 Rulings, 2026-09-17: "Just roll the dice based on weapon stats, targeting system stats
 (new subsystem) and sensor state." And: "We want the player as well as the AI to be able
@@ -510,6 +515,44 @@ moves the `BehaviorData` union list down by 10 lines.
 - Sensors-hardpoint designs are `not if i see you first`, `The Bat` and `Tractor Beam` (no
   behaviors). `EquipHardpoints` (`LoadoutGenerator.cs:208-228`) can fit the Tractor Beam
   into LonginusX's only Sensors slot; that ship gathers no info, so sees and hits nothing.
+- **What decides a firing arc today** (**(probe)** of the prefab YAML, world transforms
+  composed from `m_LocalPosition`/`m_LocalRotation`/`m_Father`, plus a catalog read of
+  `HullData.Hardpoints`):
+  - Gameplay uses only the barrel's current world forward. `EntityInstance.cs:514-517`
+    copies `FiringPoint[0]` (`WeaponHardpoint.cs:7`, matched by name to
+    `HardpointData.Transform` at `:268`) into `HardpointTransforms`. `Combat.cs:100-102`
+    fires when `dot(barrel, toTarget) > .99` (about 8 degrees). `TurretController.cs:80-83`
+    does the same through `Behavior.Direction` (`Behaviors.cs:31-33`). The player's fire is
+    not gated at all.
+  - Barrels swing through `ArticulationPoint` (`ArticulationPoint.cs`). It yaws and
+    pitches toward `LookAtPoint` (`EntityInstance.cs:400-403`, `:519`), clamped to authored
+    `YawMin/YawMax/PitchMin/PitchMax` relative to its parent, at `Speed` degrees per
+    second. No other arc data exists: no angle field on `HardpointData`, `WeaponData` or any
+    effect.
+  - Catalog hulls and their weapon hardpoints (all `Rotation None`):
+    - `LonginusX` -> `Ships/Longinus.prefab`. `En.L`/`En.R` barrels sit under
+      `ArticulationPoint`s with yaw [-1, 1], pitch [-80, 80], speed 60: fixed forward.
+      `La.L`/`La.R` tubes have no articulation, forward (0,0,1). Both tubes are authored at
+      the same local position (-2.23, 0.35, 0.36), a presentation defect.
+    - `Turret` -> `Turrets/Turret.prefab`. `Left Gun`/`Right Gun` barrels sit under a
+      `Turret Yaw Pivot` with yaw [-720, 720] (unlimited) and a pitch point [-45, 28],
+      speed 15.
+    - `Zenith` -> `Stations/Zenith.prefab`: no weapon hardpoints.
+    - `Djinni.prefab` carries articulation but no catalog hull references it.
+  - `ShipInstance.cs:70` and `EntityInstance.cs:242,257` match thruster, sound and
+    radiator transforms by name. They are presentation and do not touch arcs.
+- **Mount direction convention** (matches thrusters). `Behavior.Direction`'s fallback
+  (`Behaviors.cs:37`) is `Entity.Direction.Rotate(item.Rotation)` (`Extensions.cs:152-166`):
+  `None` = forward, `Reversed` = aft, `Clockwise` = right, `CounterClockwise` = left
+  (`Agent.cs:72` takes `Clockwise` as right). A thruster pushes against that vector
+  (`Thruster.cs:79`): `None` thrusters are the reverse group and `Reversed` the forward group
+  (`Ship.cs:103-107`), `CounterClockwise` the right group (`:109`). A weapon fires along it.
+  `Thruster.cs:62`'s `float2(1,0).Rotate(...)` is the torque lever, not the mount direction.
+  A hardpoint-mounted item takes the hardpoint's rotation (`Entity.cs:559`), so the mount
+  direction is authored as `HardpointData.Rotation`, already catalog data.
+- **Aim is planar.** `Entity.Direction` is `float2`; steering reads `LookDirection.xz`
+  (`Ship.cs:278`). Height differences come from terrain and `GridOffset`; pitch exists
+  only in `ArticulationPoint`.
 
 **Owner: `FireControl`, a new ServerShared static class (`FireControl.cs`).**
 - It owns the engage gate, hit probability, reveal, the roll, cell choice and damage
@@ -523,6 +566,7 @@ moves the `BehaviorData` union list down by 10 lines.
   - sensor state, `firer.EntityInfoGathered[target]`;
   - `Target` and `TargetItem`;
   - both entities' positions and directions;
+  - the weapon's mount direction `Behavior.Direction` and `GameplaySettings.FiringArc`;
   - `ItemManager.Random`, seeded by Cut 1.
 - Outputs:
   - `ShotOutcome { Source; Weapon; Target; bool Hit; bool Shielded; EquippedItem Aimed; int2 Cell; float FlightTime }`;
@@ -534,7 +578,12 @@ moves the `BehaviorData` union list down by 10 lines.
   - the target is not in `VisibleEntities`;
   - the range is outside [`MinRange`, `Range`];
   - a `LockWeapon` is not locked;
-  - the target is outside the firing arc (fork A).
+  - the target is outside the firing arc (fork A, ruled):
+    `dot(normalize(weapon.Direction.xz), normalize(toTarget.xz)) < cos(radians(FiringArc / 2))`.
+    - The test is planar; target height does not enter it.
+    - `FiringArc` is full width in degrees, default 120. The boundary is 60 degrees off
+      the mount direction.
+    - It applies to player and AI fire alike, and to guided weapons.
 - **Hit probability.** `p = Accuracy * pSensor * pSpread`, multiplied by `pDeviation`
   under fork F (c).
   - `pSensor = saturate(unlerp(TargetDetectionInfoThreshold, Resolution, info))`.
@@ -619,13 +668,20 @@ moves the `BehaviorData` union list down by 10 lines.
   - `:84-98` (looking at the predicted intercept) survives only under fork F (c).
 - Subsystem policy: through `TrySelectTargetItem`, select the revealed target `Weapon`
   item with the highest `RangeDamagePerSecond(range)`, or null if there is none.
-- `TurretController.cs:80-83` uses the same gate and threshold.
+- `TurretController.cs:80-83` uses the same gate and threshold; its `.99f` dot is deleted.
 - `HardpointTransforms` is deleted everywhere:
   - `Entity.HardpointTransforms` (`Entity.cs:52-53`);
   - its writer, `EntityInstance.cs:514-517`;
-  - its reader branch in `Behavior.Direction` (`Behaviors.cs:28-35`).
-- `Direction` becomes hull-relative item rotation in both lowerings.
-- `Barrels` stay in Unity for `GetBarrel`.
+  - its reader branch in `Behavior.Direction` (`Behaviors.cs:31-34`).
+- `Behavior.Direction` keeps only its item-rotation path (`Behaviors.cs:37-38`). It is the
+  one mount-direction reader, the same in both lowerings, and nothing extracts direction
+  from prefabs.
+- `Barrels` and `ArticulationPoint` stay in Unity for `GetBarrel`, crosshairs and barrel
+  animation. A shot rolled 60 degrees off a fixed Longinus barrel still flies from that
+  barrel; that is presentation.
+- Under the default arc, turrets (hull `Direction` never rotates; `TurretController`
+  writes only `LookDirection`) engage only within 60 degrees of their spawn facing. That is
+  fork W.
 
 **Death, loot and pickup** (carried from the earlier draft).
 - `Zone` subscribes to the `Death` of each entity it adds. On death it:
@@ -694,6 +750,9 @@ must kill it:
 | `RevealOrder` | hardpoint items reveal before interior items, larger before smaller | ordering dropped |
 | `HardpointHitDamagesItemThenHull` | damage above armor plus item durability zeroes the item, and the remainder hits the hull | armor not subtracted; hull skipped |
 | `ShieldTakesHit` | an active shield fixture absorbs the hit; the schematic is untouched | shield branch removed |
+| `ArcFollowsMountRotation` | fixture hull with one weapon on a `None` hardpoint and one on a `Clockwise` hardpoint; target 90 degrees to the right: only the `Clockwise` weapon has `p > 0`; target dead ahead: only the `None` weapon | the gate uses `Entity.Direction` instead of `weapon.Direction`; `Rotate`'s `Clockwise`/`CounterClockwise` cases swapped |
+| `ArcBoundaryIsHalfWidth` | `FiringArc` 120: a target 59 degrees off the mount has `p > 0`, one at 61 degrees has `p == 0` and consumes no draw | compare against `cos(radians(FiringArc))`; drop the arc gate |
+| `ArcIsPlanar` | a target inside the arc horizontally but well above the firer still has `p > 0` | the gate uses the 3D `toTarget` |
 | `CombatStateKillsHeadless` | a `Minion` with a targeting system and a target in range steps headless without throwing and lowers target durability | restore `Combat.cs:101`; the threshold compares against 2 |
 | `NpcDeathRemovesEntityAndAgent` | entity and agent are gone after death | removal omitted |
 | `LootDropsAreSeeded` | same seed, identical drop lists | the drop roll uses a clock RNG |
@@ -719,6 +778,8 @@ must kill it:
 - Two playground runs give byte-identical traces.
 - These negative greps are each empty:
   - `rg -n "HardpointTransforms" Assets/Scripts`
+  - `rg -n "\.99f" Assets/Scripts/ServerShared/Agents/States/Combat.cs Assets/Scripts/ServerShared/Behaviors/TurretController.cs`
+  - `rg -n "ArticulationPoint|FiringPoint" Assets/Scripts/ServerShared`
   - `rg -n "SendHit|SendSplash|DamageSchematic|TakeHit\(|Durability\s*[-+]?=" Assets/Scripts --glob '!ServerShared/**'`
   - `rg -n "Physics\." Assets/Scripts/Gameplay/Weapons Assets/Scripts/Gameplay/HullCollider.cs`
   - `rg -n "Random\.value|onUnitSphere" Assets/Scripts/Gameplay/EntityInstance.cs`
@@ -741,9 +802,9 @@ must kill it:
 
 **Ledger.** `EntityInstance` about -155 +8; `HullCollider` -35; the four used effects
 -75 +35; `ShieldManager` -8 +3; `Combat` -5 +8; `TurretController` ±4; `Behaviors` -8;
-`Entity` -2 +70; `InstantWeapon`/`ConstantWeapon` ±15; `FireControl.cs` +160;
-`TargetingSystem.cs` +45; `Zone` +50; `LoadoutGenerator` +12; `Settings` +5 -1; tests
-+320; catalog 2 designs plus products. Fork E (b) deletes a further ~560. Net production
+`Entity` -2 +70; `InstantWeapon`/`ConstantWeapon` ±15; `FireControl.cs` +165 (arc gate);
+`TargetingSystem.cs` +45; `Zone` +50; `LoadoutGenerator` +12; `Settings` +6 -1; tests
++360; catalog 2 designs plus products. Fork E (b) deletes a further ~560. Net production
 about +80, or -480 with E (b). It buys the invariant: combat resolves without Unity and
 every hit rule has one owner.
 
@@ -770,20 +831,45 @@ chance falls with how far the target deviated from the predicted intercept.
 
 **A. Firing arc.** Blocks `CombatState` and how the player's ship feels.
 
-**Ruled (operator, 2026-09-17): per-hardpoint arcs.** "Firing arcs are determined per
-hardpoint, that data is unfortunately baked into the ship prefabs at the moment". None of
-(a)-(c) as written. The arc data has to become headless-readable hull data; being re-mapped.
-Refined the same day: "I'd say default to 120 degrees, use existing item rotation direction
-to determine the mount direction, like how the reaction thrusters work". A weapon's mount
-direction is its equipped item's `ItemRotation`, as in `Thruster.cs:61-63`, and its arc is
-120 degrees wide by default. Prefab firing points become presentation only.
+**Ruled (operator, 2026-09-17), in two steps.** First: "Firing arcs are determined per
+hardpoint, that data is unfortunately baked into the ship prefabs at the moment". Then: "I'd
+say default to 120 degrees, use existing item rotation direction to determine the mount
+direction, like how the reaction thrusters work".
 
+- The mount direction is the item's `ItemRotation` applied to the ship's `Direction`, the
+  thruster convention (Body facts above). It is per hardpoint because a mounted item takes
+  `HardpointData.Rotation`.
+- The arc is `GameplaySettings.FiringArc`, 120 degrees full width, one authored value.
+- Nothing is extracted from prefabs. `FiringPoint` and `ArticulationPoint` become
+  presentation. The prefabs carry no arc width a catalog field would preserve, except the
+  turret's unlimited yaw (fork W).
+- No `HardpointData` field is added unless fork W takes (a).
+
+Options as mapped before the ruling:
 - (a) No arc; facing is presentation.
 - (b) Gate on `dot(weapon.Direction, toTarget) >= FireArcDot`, one authored setting. The
   ship must roughly face its target, and player and AI share the gate.
 - (c) The arc as a probability factor.
 - **Recommend (b), with a wide arc.** It keeps piloting meaningful without precision
   aiming. (a) is right if articulated turrets are meant to cover every hardpoint.
+
+**W. Turret arcs under the 120 degree default.** Blocks `TurretController` and the turret
+catalog record.
+- The turret prefab yaws without limit (`Turret Yaw Pivot`, yaw [-720, 720]). Headless, the
+  turret hull's `Direction` stays at spawn facing, so a 120 degree arc on its `None` guns
+  turns today's all-round turret into a forward-only one.
+- (a) Per-hardpoint override: `HardpointData.FiringArc : float?` (`Key(6)`, absent means
+  `GameplaySettings.FiringArc`). Author 360 on the turret's `Left Gun` and `Right Gun` in
+  Cut 2's catalog upsert, after provenance Cut C. One field, with prefab evidence for its
+  one consumer. `AetherDb` reopen still reports 0 schemas; test
+  `ArcOverrideReplacesDefault` (a 360 hardpoint fires at a target behind; mutation: the
+  override is ignored).
+- (b) `TurretController` rotates the turret entity's `Direction` toward `LookDirection` at
+  a slew rate, so the default arc tracks. That adds headless articulation state, and turrets
+  that can be flanked by speed.
+- (c) Accept forward-only turrets.
+- **Recommend (a).** It is the smallest shape that keeps the authored turret behaviour, and
+  it leaves ships on the default.
 
 **T. Where the targeting system mounts.** Blocks the catalog and loadout work.
 - (a) Interior `GearData` (`HardpointType.Tool`), placed by `FillInterior` like the
@@ -1007,7 +1093,7 @@ Options as mapped before the ruling:
 |---|---|---|---|
 | 0 | `Dictionary<int2,…>` field and map-building pack code, ~6 | pairs pack/unpack ~6; test ~25 | `EntityPack` key 5 wire shape map -> array; no new schema |
 | 1 | `ActionGameManager` ~190 (incl. dead `IntroCutscene` 28), 2 statics, `MainMenu` 4, `ZoneRenderer` 9, `InventoryPanel` 2, clock seed | `Run.cs` ~190; `Zone` +10; AGM handlers ~45; 1 static; tests ~200 | 0 targets; `Settings.asset` two keys move |
-| 2 | `EntityInstance` ~155, `HullCollider` ~35, used effects' hit loops ~75, `HardpointTransforms` and its readers ~15, `AgentFiringMinDot`; fork E (b) a further ~560 | `FireControl.cs` ~160; `TargetingSystem.cs` ~45; `Entity` ~70; `Zone` ~50; effects ~35; `LoadoutGenerator` ~12; tests ~320 | 0 targets; `BehaviorData` union 39; 2 catalog designs plus products (after provenance Cut C); `LootDrop*` keys move; `SchematicCellSize`, `UnaidedAccuracy`, `BeamResolveInterval`, `AgentMinHitProbability` added |
+| 2 | `EntityInstance` ~155, `HullCollider` ~35, used effects' hit loops ~75, `HardpointTransforms` and its readers ~15, `AgentFiringMinDot`; fork E (b) a further ~560 | `FireControl.cs` ~160; `TargetingSystem.cs` ~45; `Entity` ~70; `Zone` ~50; effects ~35; `LoadoutGenerator` ~12; tests ~320 | 0 targets; `BehaviorData` union 39; 2 catalog designs plus products (after provenance Cut C); `LootDrop*` keys move; `SchematicCellSize`, `UnaidedAccuracy`, `BeamResolveInterval`, `AgentMinHitProbability`, `FiringArc` added; fork W (a) adds `HardpointData` key 6 and turret overrides |
 | 3 | extracted duplicate of the `save` lot check | `Playground.cs` ~220; `MoveTo` +6; scenario 26 | 0 targets; `AetherDb` gains one command |
 | 4 | — | 2 scenario files | — |
 
