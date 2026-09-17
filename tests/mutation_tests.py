@@ -139,10 +139,142 @@ MUTATIONS: list[Mutation] = [
         test="LoadoutTests.StatsReadTheLot",
         expect="red",
     ),
+    # --- F1 (docs/headless-playground-cut.md Cut 0): PersistedBehaviors is a pairs array ---
+    # Cut 0 names two mutations here: "pack drops data" and "unpack ignores the lookup". Neither is reachable
+    # today. No IBehavior implements IPersistentBehavior (Behaviors.cs), so EntitySerializer.Pack's
+    # `.Where(item => item.Behaviors.Any(b=>b is IPersistentBehavior))` always filters every item out, and
+    # Restore's matching lookup is consulted by an always-empty SelectMany. A real ship built through Pack can
+    # never carry non-empty PersistedBehaviors, so mutating either body is unobservable through any live path;
+    # RunSaveTests.ReopenedPackKeepsPersistedBehaviors instead hand-builds the pairs array directly (bypassing
+    # Pack/Restore) to at least prove the wire format round-trips. Both mutations are not yet reached, pending a
+    # real IPersistentBehavior implementer, which is out of Cut 0's scope.
+    # --- F2 (item-provenance-cut.md): the GC root walk must cover every EntityPack root ---
+    Mutation(
+        rule="Items yields the Equipment root, not just the hull",
+        file="Assets/Scripts/ServerShared/EntitySerializer.cs",
+        anchor=(
+            "        yield return pack.Hull;\n"
+            "        foreach (var (_, item) in pack.Equipment) yield return item;"
+        ),
+        mutated="        yield return pack.Hull;",
+        test="LoadoutTests.MaterializedLotsSurviveSaveAndReload",
+        expect="red",
+    ),
+    # --- F3: GetTier and CreateInstance(int) must read/preserve the lot's real quality ---
+    Mutation(
+        rule="GetTier reads the lot's quality, not a fixed value",
+        file="Assets/Scripts/ServerShared/ItemManager.cs",
+        anchor="        var quality = GetLot(item).Quality;",
+        mutated="        var quality = .999f;",
+        test="LoadoutTests.StatsReadTheLot",
+        expect="red",
+    ),
+    Mutation(
+        rule="CreateInstance(int) does not re-roll the lot's quality",
+        file="Assets/Scripts/ServerShared/ItemManager.cs",
+        anchor=(
+            "    public CraftedItemInstance CreateInstance(int lot)\n"
+            "    {\n"
+            "        var l = Lots[lot];"
+        ),
+        mutated=(
+            "    public CraftedItemInstance CreateInstance(int lot)\n"
+            "    {\n"
+            "        var l = Lots[lot];\n"
+            "        l.Quality = RollQuality();"
+        ),
+        test="LoadoutTests.StatsReadTheLot",
+        expect="red",
+    ),
+    # --- F4: GetPrice, the durability/thermal exponent paths, role fills, Produced brand, multi-zone roots ---
+    Mutation(
+        rule="GetPrice reads the lot's quality, not a fixed value",
+        file="Assets/Scripts/ServerShared/ItemManager.cs",
+        anchor="        return (int) (GameplaySettings.QualityPriceModifier.Evaluate(GetLot(item).Quality) * data.Price);",
+        mutated="        return (int) (GameplaySettings.QualityPriceModifier.Evaluate(.5f) * data.Price);",
+        test="LoadoutTests.GetPriceReadsLotQuality",
+        expect="red",
+    ),
+    Mutation(
+        rule="Evaluate's durability exponent reads the lot's quality",
+        file="Assets/Scripts/ServerShared/ItemManager.cs",
+        anchor=(
+            "        var durabilityExponent = lerp(\n"
+            "            GameplaySettings.DurabilityQualityMin,\n"
+            "            GameplaySettings.DurabilityQualityMax,\n"
+            "            pow(lot.Quality, GameplaySettings.DurabilityQualityExponent));"
+        ),
+        mutated=(
+            "        var durabilityExponent = lerp(\n"
+            "            GameplaySettings.DurabilityQualityMin,\n"
+            "            GameplaySettings.DurabilityQualityMax,\n"
+            "            .5f);"
+        ),
+        test="LoadoutTests.EvaluateDurabilityExponentReadsLotQuality",
+        expect="red",
+    ),
+    Mutation(
+        rule="EquippedItem's thermal exponent reads the lot's quality",
+        file="Assets/Scripts/ServerShared/Entity.cs",
+        anchor=(
+            "        ThermalExponent = lerp(\n"
+            "            ItemManager.GameplaySettings.ThermalQualityMin,\n"
+            "            ItemManager.GameplaySettings.ThermalQualityMax,\n"
+            "            pow(Lot.Quality, ItemManager.GameplaySettings.ThermalQualityExponent));"
+        ),
+        mutated=(
+            "        ThermalExponent = lerp(\n"
+            "            ItemManager.GameplaySettings.ThermalQualityMin,\n"
+            "            ItemManager.GameplaySettings.ThermalQualityMax,\n"
+            "            .5f);"
+        ),
+        test="LoadoutTests.EquippedItemThermalExponentReadsLotQuality",
+        expect="red",
+    ),
+    Mutation(
+        rule="CreateLot(product) fills roles from the product's own spread, not the design default",
+        file="Assets/Scripts/ServerShared/ItemManager.cs",
+        anchor="                var build = product.Roles?.FirstOrDefault(b => b.Role == role.Name) ?? new ProductRole();",
+        mutated="                var build = new ProductRole();",
+        test="LoadoutTests.CreateLotFillsRolesFromProductSpread",
+        expect="red",
+    ),
+    Mutation(
+        rule="Brand reads the maker off a Produced origin too, not only Attributed",
+        file="Assets/Scripts/ServerShared/ItemManager.cs",
+        anchor=(
+            "        var maker = lot.Origin switch\n"
+            "        {\n"
+            "            Attributed attributed => attributed.Faction,\n"
+            "            Produced produced => produced.Faction,\n"
+            "            _ => default\n"
+            "        };"
+        ),
+        mutated=(
+            "        var maker = lot.Origin switch\n"
+            "        {\n"
+            "            Attributed attributed => attributed.Faction,\n"
+            "            _ => default\n"
+            "        };"
+        ),
+        test="LoadoutTests.BrandReadsProducedFaction",
+        expect="red",
+    ),
+    Mutation(
+        rule="RunSave.Commit takes GC roots from every zone, not just the first",
+        file="Assets/Scripts/ServerShared/SavedGame.cs",
+        anchor="        var roots = zones\n            .SelectMany(zone => zone.Contents?.Entities ?? new List<EntityPack>())",
+        mutated="        var roots = zones.Take(1)\n            .SelectMany(zone => zone.Contents?.Entities ?? new List<EntityPack>())",
+        test="RunSaveTests.CommitTakesRootsFromEveryZone",
+        expect="red",
+    ),
 ]
 
 
-def run_test(cultlib_root: str, filter_expr: str) -> tuple[bool, str]:
+def run_test(cultlib_root: str, filter_expr: str) -> tuple[str, str]:
+    """Runs the one filtered test. Returns ("ERROR", ...) when the build itself failed (a
+    compile error is never a legitimate kill or survival — it means the mutation broke
+    something the test never got a chance to exercise), otherwise ("PASS"|"FAIL", output)."""
     proc = subprocess.run(
         [
             "dotnet", "test", str(TEST_PROJECT),
@@ -155,8 +287,16 @@ def run_test(cultlib_root: str, filter_expr: str) -> tuple[bool, str]:
         text=True,
     )
     output = proc.stdout + proc.stderr
+    # A build failure never reaches "Test run for ..."/"Passed!"/"Failed!"; it reports
+    # "Build FAILED." and one or more "error CS..." lines instead.
+    if "Build FAILED" in output or "error CS" in output:
+        return "ERROR", output
     passed = proc.returncode == 0 and "Failed!" not in output
-    return passed, output
+    return ("PASS" if passed else "FAIL"), output
+
+
+def detect_newline(original: bytes) -> bytes:
+    return b"\r\n" if b"\r\n" in original else b"\n"
 
 
 def main() -> int:
@@ -170,17 +310,22 @@ def main() -> int:
     for m in MUTATIONS:
         path = REPO_ROOT / m.file
         original = path.read_bytes()
+        newline = detect_newline(original).decode("ascii")
+        # Anchors are authored with plain "\n"; translate to the file's own line ending
+        # before matching, so CRLF-checked-out files (this repo's default) still match.
+        anchor = m.anchor.replace("\n", newline)
+        mutated = m.mutated.replace("\n", newline)
         text = original.decode("utf-8")
-        count = text.count(m.anchor)
+        count = text.count(anchor)
         if count != 1:
             print(f"[ABORT] anchor for '{m.rule}' matches {count} times in {m.file}, expected exactly 1")
             failures.append(m.rule)
             continue
 
-        mutated_text = text.replace(m.anchor, m.mutated, 1)
+        mutated_text = text.replace(anchor, mutated, 1)
         path.write_bytes(mutated_text.encode("utf-8"))
         try:
-            passed, output = run_test(args.cultlib_root, m.test)
+            status_code, output = run_test(args.cultlib_root, m.test)
         finally:
             # Reverse write: restore the exact original bytes regardless of outcome.
             path.write_bytes(original)
@@ -189,13 +334,16 @@ def main() -> int:
                 print(f"[FATAL] {m.file} did not restore byte-exact after '{m.rule}'!")
                 return 2
 
-        if m.expect == "red":
-            killed = not passed
+        if status_code == "ERROR":
+            status = "ERROR (build failure)"
+            failures.append(m.rule)
+        elif m.expect == "red":
+            killed = status_code == "FAIL"
             status = "KILLED" if killed else "SURVIVED (bad)"
             if not killed:
                 failures.append(m.rule)
         else:  # control: must stay green
-            killed = passed
+            passed = status_code == "PASS"
             status = "GREEN (ok)" if passed else "RED (bad: round trip corrupted something)"
             if not passed:
                 failures.append(m.rule)
