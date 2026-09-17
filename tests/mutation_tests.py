@@ -434,6 +434,25 @@ MUTATIONS: list[Mutation] = [
         test="CapabilityEventsTests.EachEventKindReachesOnlyItsOwnSubscribers",
         expect="red",
     ),
+    # --- Cut 0 (docs/settings-globals-cut.md): Entity must copy the EntitySettings it is given, so no
+    # entity aliases GameplaySettings.DefaultEntitySettings (or, once settings are a catalog global, the
+    # cached record itself). ---
+    Mutation(
+        rule="control (no-op round trip) for the entity-settings-copy test",
+        file="Assets/Scripts/ServerShared/Entity.cs",
+        anchor="        Settings = MessagePackSerializer.Deserialize<EntitySettings>(MessagePackSerializer.Serialize(settings));",
+        mutated="        Settings = MessagePackSerializer.Deserialize<EntitySettings>(MessagePackSerializer.Serialize(settings));",
+        test="LoadoutTests.EntitiesDoNotShareDefaultEntitySettings",
+        expect="green",
+    ),
+    Mutation(
+        rule="Entity's constructor copies the settings it is given, instead of aliasing the template",
+        file="Assets/Scripts/ServerShared/Entity.cs",
+        anchor="        Settings = MessagePackSerializer.Deserialize<EntitySettings>(MessagePackSerializer.Serialize(settings));",
+        mutated="        Settings = settings;",
+        test="LoadoutTests.EntitiesDoNotShareDefaultEntitySettings",
+        expect="red",
+    ),
 ]
 
 
