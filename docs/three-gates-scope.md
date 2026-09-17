@@ -145,6 +145,9 @@ the data already has that shape; see `docs/item-provenance-target.md`.
 - Drones are the reason this matters (operator, 2026-09-17). Engaging an enemy with a drone
   swarm is canonically the best way to smoke them out and kill them without them ever getting
   close to spotting you. Drones can spoof their signatures too.
+- Camouflage by clutter. A ship with good enough signature masking can float in a debris
+  field or asteroid belt and pass as junk. Every body presents a signature through the shared
+  detection interface, so clutter is part of what a sensor must resolve.
 
 ## Items: roles now, Njordr later
 

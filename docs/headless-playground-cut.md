@@ -957,6 +957,21 @@ mean we want to delete all the weapon types we created".
   - Deletion line, in the pickup capability cut: the presentation seam's int target handle,
     `IGrabPresenter`'s Transform and velocity parameters, the binder's grab resolver delegates,
     and `FieldDriver` moving the grabbed transform itself.
+- **Bodies, and one detection interface (operator, 2026-09-17).**
+  - **Kinematic bodies** are moved by forces. `ServerShared` gets a `Body` (position, velocity,
+    response to force, detection signature) that `Zone` steps under `GetForce`.
+    - `Entity` has a `Body`.
+    - Loot is a body plus an item instance.
+    - A mine is a body plus a payload, and carries its launcher's transponder credential.
+    - Hostility, stance, equipment and heat stay on `Entity`. A loot object or mine is not an
+      `Entity`, because `Entity` keeps pairwise state with every other entity in the zone.
+  - **Rail bodies** (planets, gas giants, suns, asteroids) keep analytic positions as a function
+    of time. They generate the gravity field and are not integrated.
+  - **Rail and kinematic bodies share one detection interface:** identity, position and
+    signature. Sensors detect through it, so the detection-gated stance query and later
+    electronic warfare cover every kind of body alike. Operator: "rail bodies and kinematic
+    bodies should share a detection interface. With good enough signature masking I should be
+    able to float along in a debris field pretending to be junk."
 - (a) `Zone.TryPickUp` is the one commit.
   - Contact detection stays Unity collision, per the scope doc's deferral.
   - The playground's `pickup all` matches drops by spawn position within
