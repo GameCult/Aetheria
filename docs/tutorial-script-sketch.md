@@ -44,7 +44,7 @@ on **events, never polling**.
   - dock and undock;
   - pickup completed;
   - warp arrival;
-  - Ink choice made.
+  - dialog closed, or a dialog choice made.
 
 Primitives, marked by whether they exist on `codex/item-provenance` today:
 
@@ -61,10 +61,11 @@ Primitives, marked by whether they exist on `codex/item-provenance` today:
 | Flee out of detection range | missing | a state steering away from a target |
 | Sweep a set of positions (a search pattern) | missing | a patrol over positions, not orbits |
 | Agent warps through a wormhole | missing | needs the `Run` lifecycle cut |
-| Ink beat hooks from the director | missing | `LocalMenu` plays stories bound to orbitals only |
+| In-game dialog that pauses the game | assumed (operator, 2026-09-17) | the director opens a dialog, the simulation step pauses, and closing it or making a choice is an event |
+| Ink beat hooks from the director | missing | `LocalMenu` plays stories bound to orbitals only; the dialog primitive can host Ink |
 
 The **missing** rows are the whole agent-side cost of the tutorial: four small states, one
-director, and an Ink hook. Everything else the script asks for already exists.
+director, and an Ink hook into the dialog primitive. Everything else the script asks for already exists.
 
 ## Beats
 
