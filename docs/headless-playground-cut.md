@@ -329,6 +329,10 @@ Build budget for every cut:
 
 ### Cut 0: make a run with entities reopenable (fork R)
 
+**Ruled (operator, 2026-09-17):** fork R is the pairs array. It lands with the provenance
+Cut B fix batch; see `docs/item-provenance-cut.md`.
+
+
 - `EntitySerializer.cs:200`: `PersistedBehaviors` becomes
   `(int2 position, PersistentBehaviorData[] data)[]`, matching `Equipment` at `:197-199`.
   - Key 5 is kept. The wire shape changes from a map to an array; saves are discarded

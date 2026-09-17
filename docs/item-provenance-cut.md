@@ -33,6 +33,14 @@ Progress (Self updates this in each cut's landing commit):
     kills.
   - **F6:** a stale `SavedGame.cs:124` comment.
   - With F1 bypassed in scratch, all 34 tests pass.
+  - **F1 ruling (operator, 2026-09-17: "ruling A is fine"):** `PersistedBehaviors`
+    becomes an array of `(int2 position, PersistentBehaviorData[] data)`, matching
+    `Equipment` and `CargoBays`. It lands on this branch; `codex/cultcache-cutover`
+    keeps the defect until this branch merges.
+    - Recorded CultLib follow-up: CultCache should refuse, at type registration, a
+      persisted dictionary key with no hash-resistant comparer, so a type that can be
+      written but never read is loud on day one.
+    - `docs/headless-playground-cut.md` Cut 0 is this same fix.
 
 - Repo: `F:\Projects\Aetheria`, branch `codex/cultcache-cutover`, anchors against HEAD
   `b0df689d`. Commits since the substrate map (`dbe1dd83`) touch only the three docs, and
