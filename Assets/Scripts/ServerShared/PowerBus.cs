@@ -16,9 +16,10 @@ using static CultMath.math;
 // (§0.5), not a replacement for it.
 //
 // Bus capacitors are charged and drained only here (§0b): Reactor no longer touches them, and neither does any
-// IPowerConsumer. The four instant draws the cut map names (a burst, a shot, a ping, a hit taken) are out of
-// scope for this cut and spend capacitor charge directly instead, through Entity.TrySpendCapacitorCharge -- a
-// named, temporary exception this cut accepts, closed by Cut 4.
+// IPowerConsumer. The four instant draws the cut map names (a burst, a shot, a ping, a hit taken) are
+// IPowerConsumers too as of Cut 4: each spends from its own InputCapacitor (InstantWeapon, Sensor, Shield),
+// never from these bus capacitors directly. Entity.TrySpendCapacitorCharge/CanSpendCapacitorCharge, Cut 3's
+// named, temporary exception, died with their last caller.
 public class PowerBus
 {
     private readonly Entity _entity;

@@ -9,9 +9,12 @@ using Xunit;
 // Cut 3 (docs/stats-and-power-cut.md): the power bus replaces Entity.TryConsumeEnergy/CanConsumeEnergy. At HEAD
 // every draw succeeded as long as one reactor was online, and any shortfall was silently taxed onto the reactor
 // as heat (§0.5) -- an assertion pinning "demand beyond supply is refused" was unwritable against that code.
-// This file pins PowerBus's three verification bullets from the cut map's Cut 3 section, plus the atomicity of
-// Entity.TrySpendCapacitorCharge, the named exception the four instant draws keep this cut. Each rule has a
+// This file pins PowerBus's three verification bullets from the cut map's Cut 3 section. Each rule has a
 // matching mutation in tests/mutation_tests_stats_power_cut3.py.
+//
+// Cut 4 (docs/stats-and-power-cut.md, Cut 4) deleted this file's Entity.TrySpendCapacitorCharge atomicity test
+// along with the method itself -- the named, temporary exception Cut 3 left standing for the four instant
+// draws is closed; see InputCapacitorTests.cs and mutation_tests_stats_power_cut4.py instead.
 public sealed class PowerBusTests : IDisposable
 {
     private readonly string _root = Path.Combine(Path.GetTempPath(), "aetheria-powerbus-" + Guid.NewGuid().ToString("N"));
@@ -204,21 +207,5 @@ public sealed class PowerBusTests : IDisposable
         Assert.True(ship.PowerBus.GrantRatio < 1f); // a real shortfall: 60 requested against 10 generated
         Assert.Equal(ship.PowerBus.GrantRatio, drainOne.PowerSupply, 5);
         Assert.Equal(ship.PowerBus.GrantRatio, drainTwo.PowerSupply, 5);
-    }
-
-    // --- Entity.TrySpendCapacitorCharge (the four instant draws' named, temporary exception, §Cut 3): atomic --
-    // --- either every capacitor together holds enough charge and it is spent, or nothing moves. This is the
-    // --- exact bug TryConsumeEnergy had (a partial drain-then-refuse) that the cut map calls out by name. ---
-    [Fact]
-    public void TrySpendCapacitorChargeMovesNothingWhenTheRequestCannotBeFullyCovered()
-    {
-        using var cache = OpenCatalog();
-        var (ship, _, _, capacitor) = BuildShip(cache, reactorCharge: 0, startingCapacitorCharge: 5, reactorFirst: true);
-
-        Assert.False(ship.TrySpendCapacitorCharge(10f));
-        Assert.Equal(5f, capacitor.Charge, 3); // untouched -- not partially drained toward the refused request
-
-        Assert.True(ship.TrySpendCapacitorCharge(5f));
-        Assert.Equal(0f, capacitor.Charge, 3);
     }
 }

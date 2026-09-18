@@ -94,21 +94,10 @@ MUTATIONS: list[Mutation] = [
         expect="red",
     ),
 
-    # --- Entity.TrySpendCapacitorCharge (the four instant draws' named, temporary exception, §Cut 3 per-file
-    # --- changes): atomic -- either every capacitor together holds enough charge and it is spent, or nothing
-    # --- moves. Deleting the upfront capacity check restores TryConsumeEnergy's old bug: the do/while below
-    # --- drains whatever charge exists toward a request it can never fully pay, then still reports failure. ---
-    Mutation(
-        rule="TrySpendCapacitorCharge must refuse before draining anything it cannot fully cover",
-        file="Assets/Scripts/ServerShared/Entity.cs",
-        anchor=(
-            "        if (energy < .01f) return true;\n"
-            "        if (!CanSpendCapacitorCharge(energy)) return false;"
-        ),
-        mutated="        if (energy < .01f) return true;",
-        test="PowerBusTests.TrySpendCapacitorChargeMovesNothingWhenTheRequestCannotBeFullyCovered",
-        expect="red",
-    ),
+    # Entity.TrySpendCapacitorCharge/CanSpendCapacitorCharge -- the four instant draws' named, temporary
+    # exception this file used to pin -- died with their last caller in Cut 4
+    # (docs/stats-and-power-cut.md, Cut 4). See mutation_tests_stats_power_cut4.py's InputCapacitor.TrySpend
+    # case for the same atomicity rule, now scoped to each behaviour's own buffer.
 ]
 
 

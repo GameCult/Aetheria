@@ -78,7 +78,6 @@ public abstract class Entity
     
     private EquippedItem[] _orderedEquipment;
     private List<Weapon> _weapons = new List<Weapon>();
-    private List<Capacitor> _capacitors = new List<Capacitor>();
     private List<Radiator> _heatsinks = new List<Radiator>();
 
     private List<ConsumableItemEffect> _activeConsumables = new List<ConsumableItemEffect>();
@@ -610,8 +609,6 @@ public abstract class Entity
                 _weapons.Remove(weapon);
                 foreach (var group in WeaponGroups) { group.items.Remove(item); group.weapons.Remove(weapon); }
             }
-            if (b is Capacitor capacitor)
-                _capacitors.Remove(capacitor);
             if (b is Radiator heatsink)
                 _heatsinks.Remove(heatsink);
             if (b is Shield)
@@ -793,8 +790,6 @@ public abstract class Entity
         {
             if (b is Weapon weapon)
                 _weapons.Add(weapon);
-            if(b is Capacitor capacitor)
-                _capacitors.Add(capacitor);
             if(b is Radiator heatsink)
                 _heatsinks.Add(heatsink);
             if (b is Shield shield)
@@ -858,37 +853,11 @@ public abstract class Entity
         return true;
     }
 
-    // Cut 3 (docs/stats-and-power-cut.md): replaces CanConsumeEnergy/TryConsumeEnergy for the four instant draws
-    // the cut map names as out of scope for the bus this cut (a burst, a shot, a ping, a hit taken) -- the named,
-    // temporary exception the map accepts, closed by Cut 4's input capacitors. Capacitor charge only: a reactor
-    // no longer bails out a draw it cannot cover for free, which is exactly the behaviour Cut 3 exists to remove
-    // (§0.5 -- "every draw succeeds while one reactor is online"). Atomic: either every capacitor together holds
-    // enough charge and it is spent, or nothing moves -- never TryConsumeEnergy's old partial drain-then-refuse.
-    public bool CanSpendCapacitorCharge(float energy) => _capacitors.Sum(cap => cap.Charge) >= energy;
-
-    public bool TrySpendCapacitorCharge(float energy)
-    {
-        if (energy < .01f) return true;
-        if (!CanSpendCapacitorCharge(energy)) return false;
-
-        var remaining = energy;
-        int chargedCapacitors;
-        do
-        {
-            chargedCapacitors = _capacitors.Count(capacitor => capacitor.Charge > .01f);
-            if (chargedCapacitors == 0) break;
-            var share = remaining / chargedCapacitors;
-            foreach (var cap in _capacitors)
-            {
-                if (cap.Charge <= .01f) continue;
-                var drawn = min(share, cap.Charge);
-                cap.AddCharge(-drawn);
-                remaining -= drawn;
-            }
-        } while (chargedCapacitors > 0 && remaining > .01f);
-
-        return true;
-    }
+    // Cut 4 (docs/stats-and-power-cut.md, Cut 4): CanSpendCapacitorCharge/TrySpendCapacitorCharge died here with
+    // their last caller. Cut 3 named them a temporary exception for the four instant draws (a burst, a shot, a
+    // ping, a hit taken); all four now spend from their own InputCapacitor instead (InstantWeapon, Sensor,
+    // Shield), fed continuously by PowerBus like every other consumer. The entity's shared bus capacitors are
+    // now touched only by PowerBus itself (§0b: "the bus fills; the owning behaviour spends").
 
     private void AddChild(Entity entity)
     {
