@@ -1,275 +1,553 @@
 #!/usr/bin/env python3
-"""Mutation tests for docs/addressables-cut.md Cut 2.
+"""Mutation tests for the Cut B and Cut C provenance rules (docs/item-provenance-cut.md).
 
-EngineAssetCheck (Assets/Scripts/Editor/EngineAssetCheck.cs) is the rule that keeps every stored
-[CultInspectorAssetGuid] value honest. A check nobody can break is a check nobody can trust: each
-case here mutates the *real* catalog (GameData/Aetheria.cc) or the source in one specific way the
-cut promises to catch, runs EngineAssetCheck.Run in Unity batchmode, asserts it fails naming the
-record, then restores the catalog/source exactly. A "control" case first proves the unmutated
-catalog passes, so a case that "fails" for the wrong reason (a bad harness, not a caught mutation)
-cannot hide.
+For each rule this applies its named mutation to an exact, unique anchor of
+source text, runs the one test that should catch it, restores the file
+byte-for-byte, and reports whether the mutant was killed. A no-op control
+mutation (anchor == replacement) proves the read/replace/write/restore path
+itself is transparent: every test it touches must stay green.
 
-Run from the repo root: python tests/mutation_tests.py
-Exit code 0 only if every case behaved as the cut's own verification section (Cut 2) demands.
+Usage:
+    python tests/mutation_tests.py --cultlib-root <path-to-CultLib-a0813c6-worktree>
+
+Requires the CultLib worktree described in docs/item-provenance-cut.md section 6.
+Only touches files under this repository; every mutation is reversed before
+the script exits, including on failure.
 """
-import os
-import re
-import shutil
+from __future__ import annotations
+
+import argparse
 import subprocess
 import sys
-import tempfile
+from dataclasses import dataclass
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-CATALOG = REPO_ROOT / "GameData" / "Aetheria.cc"
-UNITY_EXE = r"C:\Program Files\Unity\Hub\Editor\6000.3.24f1\Editor\Unity.exe"
-ITEM_DATA_CS = REPO_ROOT / "Assets" / "Scripts" / "ServerShared" / "ItemData.cs"
-DIRECTORY_BUILD_PROPS = REPO_ROOT / "Directory.Build.props"
-
-# A known-good record to mutate: HullData "LonginusX", whose Prefab already resolves (see the Cut 2
-# migration report). Texture2D guid is its own Schematic (schema_Longinus.png), still a real,
-# addressable asset, just the wrong type for Prefab (which wants a GameObject+EntityInstance).
-TEXTURE_GUID = "51702555e534a7a4fb39eb105b80bbaf"
-# A real, existing, non-addressable asset (a .cs script under Assets/Scripts, outside Assets/Content).
-NON_ADDRESSABLE_GUID = "3f3cca818d26268459d28af1cdb469a5"
-RANDOM_GUID = "deadbeefdeadbeefdeadbeefdeadbeef"
-OLD_PATH = "Assets/Resources/Prefabs/Ships/Longinus.prefab"
+REPO_ROOT = Path(__file__).resolve().parent.parent
+TEST_PROJECT = REPO_ROOT / "tests" / "Aetheria.Shared.Tests"
 
 
-def run(cmd, **kwargs):
-    print(f"$ {' '.join(str(c) for c in cmd)}")
-    return subprocess.run(cmd, capture_output=True, text=True, **kwargs)
+@dataclass
+class Mutation:
+    rule: str
+    file: str
+    anchor: str
+    mutated: str
+    test: str
+    expect: str  # "red" (mutant must be killed) or "green" (the no-op control)
 
 
-def pinned_cultlib_revision() -> str:
-    text = DIRECTORY_BUILD_PROPS.read_text(encoding="utf-8")
-    match = re.search(r"<CultLibRevision>([0-9a-f]{40})</CultLibRevision>", text)
-    if not match:
-        raise SystemExit("could not find CultLibRevision in Directory.Build.props")
-    return match.group(1)
+MUTATIONS: list[Mutation] = [
+    # --- No-op control: proves the anchor/replace/restore mechanism is transparent ---
+    Mutation(
+        rule="control (no-op round trip)",
+        file="Assets/Scripts/ServerShared/Provenance.cs",
+        anchor='    [Key(0)] public int NextLot = 1;',
+        mutated='    [Key(0)] public int NextLot = 1;',
+        test="RunSaveTests.MissingLotIsLoud",
+        expect="green",
+    ),
+    # --- MissingLotIsLoud: the indexer and Reachable must throw on an absent lot ---
+    Mutation(
+        rule="ProvenanceLedger indexer throws on an absent id",
+        file="Assets/Scripts/ServerShared/Provenance.cs",
+        anchor=(
+            "    public Lot this[int id]\n"
+            "    {\n"
+            "        get\n"
+            "        {\n"
+            "            if (!Lots.TryGetValue(id, out var lot))\n"
+            "                throw new InvalidOperationException($\"Lot {id} is not in the provenance ledger.\");\n"
+            "            return lot;\n"
+            "        }\n"
+            "    }"
+        ),
+        mutated=(
+            "    public Lot this[int id]\n"
+            "    {\n"
+            "        get\n"
+            "        {\n"
+            "            Lots.TryGetValue(id, out var lot);\n"
+            "            return lot;\n"
+            "        }\n"
+            "    }"
+        ),
+        test="RunSaveTests.MissingLotIsLoud",
+        expect="red",
+    ),
+    Mutation(
+        rule="Reachable throws on a missing root instead of skipping it",
+        file="Assets/Scripts/ServerShared/Provenance.cs",
+        anchor="            var lot = this[id];\n            reached[id] = lot;",
+        mutated="            if (!Lots.TryGetValue(id, out var lot)) continue;\n            reached[id] = lot;",
+        test="RunSaveTests.MissingLotIsLoud",
+        expect="red",
+    ),
+    # --- MatchingHardpointsShareALot: the second unit must mint from the first unit's lot ---
+    Mutation(
+        rule="matching hardpoints share a lot, not a fresh mint",
+        file="Assets/Scripts/ServerShared/LoadoutGenerator.cs",
+        anchor=(
+            "                    // Matching hardpoints carry matching units: same lot\n"
+            "                    var item = (previousItem != null\n"
+            "                        ? ItemManager.CreateInstance(previousItem.EquippableItem.Lot)\n"
+            "                        : ItemManager.CreateInstance(entry.product)) as EquippableItem;"
+        ),
+        mutated=(
+            "                    // Matching hardpoints carry matching units: same lot\n"
+            "                    var item = ItemManager.CreateInstance(entry.product) as EquippableItem;"
+        ),
+        test="LoadoutTests.MatchingHardpointsShareALot",
+        expect="red",
+    ),
+    # --- FirstAvailableProductInKeyOrderBuildsTheSlot: Brand and Materialize must both respect key order ---
+    Mutation(
+        rule="Brand matches the lot's maker, not just the design",
+        file="Assets/Scripts/ServerShared/ItemManager.cs",
+        anchor=(
+            "        var product = ItemData.GetAll<FactionProductData>()\n"
+            "            .Where(p => p.Manufacturer.Key.Equals(maker.Key) && p.Design.Key.Equals(item.Data.Key))"
+        ),
+        mutated=(
+            "        var product = ItemData.GetAll<FactionProductData>()\n"
+            "            .Where(p => p.Design.Key.Equals(item.Data.Key))"
+        ),
+        test="LoadoutTests.FirstAvailableProductInKeyOrderBuildsTheSlot",
+        expect="red",
+    ),
+    Mutation(
+        rule="Materialize resolves a design's product in record-key order",
+        file="Assets/Scripts/ServerShared/Loadout.cs",
+        anchor="var products = cache.GetAll<FactionProductData>().OrderBy(p => cache.RefOf(p).Key.Value, StringComparer.Ordinal).ToArray();",
+        mutated="var products = cache.GetAll<FactionProductData>().ToArray();",
+        test="LoadoutTests.FirstAvailableProductInKeyOrderBuildsTheSlot",
+        expect="red",
+    ),
+    # --- BrandPicksFirstProductInKeyOrderForSameMakerAndDesign: Brand's own tie-break must be ascending key order ---
+    Mutation(
+        rule="Brand's tie-break among a maker's products for one design is ascending record-key order",
+        file="Assets/Scripts/ServerShared/ItemManager.cs",
+        anchor="            .OrderBy(p => ItemData.RefOf(p).Key.Value, StringComparer.Ordinal)",
+        mutated="            .OrderByDescending(p => ItemData.RefOf(p).Key.Value, StringComparer.Ordinal)",
+        test="LoadoutTests.BrandPicksFirstProductInKeyOrderForSameMakerAndDesign",
+        expect="red",
+    ),
+    # --- StatsReadTheLot: stats must read the lot, including its per-role fills ---
+    Mutation(
+        rule="Evaluate reads the lot's per-role fill for a role stat",
+        file="Assets/Scripts/ServerShared/ItemManager.cs",
+        anchor="var quality = pow(lot.QualityForRole(stat.FromRole), stat.QualityExponent);",
+        mutated="var quality = pow(lot.Quality, stat.QualityExponent);",
+        test="LoadoutTests.StatsReadTheLot",
+        expect="red",
+    ),
+    Mutation(
+        rule="QualityForRole falls back to the lot's own workmanship, not a fixed value",
+        file="Assets/Scripts/ServerShared/Provenance.cs",
+        anchor="        if (string.IsNullOrEmpty(role) || Roles == null) return Quality;",
+        mutated="        if (string.IsNullOrEmpty(role) || Roles == null) return 1f;",
+        test="LoadoutTests.StatsReadTheLot",
+        expect="red",
+    ),
+    # --- F2 (item-provenance-cut.md): the GC root walk must cover every EntityPack root ---
+    Mutation(
+        rule="Items yields the Equipment root, not just the hull",
+        file="Assets/Scripts/ServerShared/EntitySerializer.cs",
+        anchor=(
+            "        yield return pack.Hull;\n"
+            "        foreach (var (_, item) in pack.Equipment) yield return item;"
+        ),
+        mutated="        yield return pack.Hull;",
+        test="LoadoutTests.MaterializedLotsSurviveSaveAndReload",
+        expect="red",
+    ),
+    # --- F3: GetTier and CreateInstance(int) must read/preserve the lot's real quality ---
+    Mutation(
+        rule="GetTier reads the lot's quality, not a fixed value",
+        file="Assets/Scripts/ServerShared/ItemManager.cs",
+        anchor="        var quality = GetLot(item).Quality;",
+        mutated="        var quality = .999f;",
+        test="LoadoutTests.StatsReadTheLot",
+        expect="red",
+    ),
+    Mutation(
+        rule="CreateInstance(int) does not re-roll the lot's quality",
+        file="Assets/Scripts/ServerShared/ItemManager.cs",
+        anchor=(
+            "    public CraftedItemInstance CreateInstance(int lot)\n"
+            "    {\n"
+            "        var l = Lots[lot];"
+        ),
+        mutated=(
+            "    public CraftedItemInstance CreateInstance(int lot)\n"
+            "    {\n"
+            "        var l = Lots[lot];\n"
+            "        l.Quality = RollQuality();"
+        ),
+        test="LoadoutTests.StatsReadTheLot",
+        expect="red",
+    ),
+    # --- F4: GetPrice, the durability/thermal exponent paths, role fills, Produced brand, multi-zone roots ---
+    Mutation(
+        rule="GetPrice reads the lot's quality, not a fixed value",
+        file="Assets/Scripts/ServerShared/ItemManager.cs",
+        anchor="        return (int) (GameplaySettings.QualityPriceModifier.Evaluate(GetLot(item).Quality) * data.Price);",
+        mutated="        return (int) (GameplaySettings.QualityPriceModifier.Evaluate(.5f) * data.Price);",
+        test="LoadoutTests.GetPriceReadsLotQuality",
+        expect="red",
+    ),
+    Mutation(
+        rule="Evaluate's durability exponent reads the lot's quality",
+        file="Assets/Scripts/ServerShared/ItemManager.cs",
+        anchor=(
+            "        var durabilityExponent = lerp(\n"
+            "            GameplaySettings.DurabilityQualityMin,\n"
+            "            GameplaySettings.DurabilityQualityMax,\n"
+            "            pow(lot.Quality, GameplaySettings.DurabilityQualityExponent));"
+        ),
+        mutated=(
+            "        var durabilityExponent = lerp(\n"
+            "            GameplaySettings.DurabilityQualityMin,\n"
+            "            GameplaySettings.DurabilityQualityMax,\n"
+            "            .5f);"
+        ),
+        test="LoadoutTests.EvaluateDurabilityExponentReadsLotQuality",
+        expect="red",
+    ),
+    Mutation(
+        rule="EquippedItem's thermal exponent reads the lot's quality",
+        file="Assets/Scripts/ServerShared/Entity.cs",
+        anchor=(
+            "        ThermalExponent = lerp(\n"
+            "            ItemManager.GameplaySettings.ThermalQualityMin,\n"
+            "            ItemManager.GameplaySettings.ThermalQualityMax,\n"
+            "            pow(Lot.Quality, ItemManager.GameplaySettings.ThermalQualityExponent));"
+        ),
+        mutated=(
+            "        ThermalExponent = lerp(\n"
+            "            ItemManager.GameplaySettings.ThermalQualityMin,\n"
+            "            ItemManager.GameplaySettings.ThermalQualityMax,\n"
+            "            .5f);"
+        ),
+        test="LoadoutTests.EquippedItemThermalExponentReadsLotQuality",
+        expect="red",
+    ),
+    Mutation(
+        rule="CreateLot(product) fills roles from the product's own spread, not the design default",
+        file="Assets/Scripts/ServerShared/ItemManager.cs",
+        anchor="                var build = product.Roles?.FirstOrDefault(b => b.Role == role.Name) ?? new ProductRole();",
+        mutated="                var build = new ProductRole();",
+        test="LoadoutTests.CreateLotFillsRolesFromProductSpread",
+        expect="red",
+    ),
+    Mutation(
+        rule="Brand reads the maker off a Produced origin too, not only Attributed",
+        file="Assets/Scripts/ServerShared/ItemManager.cs",
+        anchor=(
+            "        var maker = lot.Origin switch\n"
+            "        {\n"
+            "            Attributed attributed => attributed.Faction,\n"
+            "            Produced produced => produced.Faction,\n"
+            "            _ => default\n"
+            "        };"
+        ),
+        mutated=(
+            "        var maker = lot.Origin switch\n"
+            "        {\n"
+            "            Attributed attributed => attributed.Faction,\n"
+            "            _ => default\n"
+            "        };"
+        ),
+        test="LoadoutTests.BrandReadsProducedFaction",
+        expect="red",
+    ),
+    Mutation(
+        rule="RunSave.Commit takes GC roots from every zone, not just the first",
+        file="Assets/Scripts/ServerShared/SavedGame.cs",
+        anchor="        var roots = zones\n            .SelectMany(zone => zone.Contents?.Entities ?? new List<EntityPack>())",
+        mutated="        var roots = zones.Take(1)\n            .SelectMany(zone => zone.Contents?.Entities ?? new List<EntityPack>())",
+        test="RunSaveTests.CommitTakesRootsFromEveryZone",
+        expect="red",
+    ),
+    # --- Cut C: the manufacturer moves from the design to the product; the catalog fixture and its
+    # round-trip assertion (FactionIsASingletonInstance) must actually depend on that wiring. ---
+    Mutation(
+        rule="the catalog fixture's product carries the maker, not an unset reference",
+        file="tests/Aetheria.Shared.Tests/AetheriaStoresTests.cs",
+        anchor=(
+            'cache.Upsert(new FactionProductData { Name = "Lance", '
+            "Design = new CultRecordRef<CraftedItemData>(lance.Key), Manufacturer = cache.RefOf(faction) });"
+        ),
+        mutated=(
+            'cache.Upsert(new FactionProductData { Name = "Lance", '
+            "Design = new CultRecordRef<CraftedItemData>(lance.Key), Manufacturer = default });"
+        ),
+        test="AetheriaStoresTests.FactionIsASingletonInstance",
+        expect="red",
+    ),
+    # --- Hand-testing combat (2026-09-17): IFF overrides, grudge, detection-gating, and the shooter-
+    # stance weapon fire gate on Entity/Weapon (docs not yet written; see IffAndCombatTests.cs). ---
+    Mutation(
+        rule="an IFF override decides IsHostileTo outright at the top level",
+        file="Assets/Scripts/ServerShared/Entity.cs",
+        anchor="        if (!recursive && _iffOverrides.TryGetValue(other, out var overrideHostile))\n            return overrideHostile;",
+        mutated="        if (false)\n            return default;",
+        test="IffAndCombatTests.OverrideDecidesOutrightOverDerivedRule",
+        expect="red",
+    ),
+    Mutation(
+        rule="the recursive reciprocity sub-query skips overrides (no mirroring another entity's stance)",
+        file="Assets/Scripts/ServerShared/Entity.cs",
+        anchor="        if (!recursive && _iffOverrides.TryGetValue(other, out var overrideHostile))\n            return overrideHostile;",
+        mutated="        if (_iffOverrides.TryGetValue(other, out var overrideHostile))\n            return overrideHostile;",
+        test="IffAndCombatTests.DerivedReciprocityDoesNotMirrorAnotherEntitysOverride",
+        expect="red",
+    ),
+    Mutation(
+        rule="leaving the zone clears this entity's IFF overrides on the departing entity",
+        file="Assets/Scripts/ServerShared/Entity.cs",
+        anchor="            _iffOverrides.Remove(remove.Value);\n            if (_grudgeSubscriptions.TryGetValue(remove.Value, out var grudgeSubs))",
+        mutated="            if (_grudgeSubscriptions.TryGetValue(remove.Value, out var grudgeSubs))",
+        test="IffAndCombatTests.LeavingZoneClearsOverrides",
+        expect="red",
+    ),
+    Mutation(
+        rule="an override change refreshes EntityHostility immediately (event-driven, no tick required)",
+        file="Assets/Scripts/ServerShared/Entity.cs",
+        anchor="        _subscriptions.Add(_iffOverrides.ObserveAdd().Subscribe(add => RefreshHostilityFromOverride(add.Key)));\n        _subscriptions.Add(_iffOverrides.ObserveReplace().Subscribe(replace => RefreshHostilityFromOverride(replace.Key)));",
+        mutated="        // _subscriptions.Add(_iffOverrides.ObserveAdd().Subscribe(add => RefreshHostilityFromOverride(add.Key)));\n        // _subscriptions.Add(_iffOverrides.ObserveReplace().Subscribe(replace => RefreshHostilityFromOverride(replace.Key)));",
+        test="IffAndCombatTests.OverrideDecidesOutrightOverDerivedRule",
+        expect="red",
+    ),
+    Mutation(
+        rule="non-player entities wire a grudge watch; player-controlled entities never do",
+        file="Assets/Scripts/ServerShared/Entity.cs",
+        anchor="            if (!IsPlayerControlled) WatchForGrudge(entity);",
+        mutated="            WatchForGrudge(entity);",
+        test="IffAndCombatTests.PlayerControlledEntitiesNeverAutoGrudge",
+        expect="red",
+    ),
+    Mutation(
+        rule="grudge only takes hold while this entity currently detects the marker",
+        file="Assets/Scripts/ServerShared/Entity.cs",
+        anchor="            if (otherIsHostileToThis && VisibleEntities.Contains(other) && !_iffOverrides.ContainsKey(other))",
+        mutated="            if (otherIsHostileToThis && !_iffOverrides.ContainsKey(other))",
+        test="IffAndCombatTests.NonPlayerEntityGrudgesOnlyWhileItDetectsTheHostileMarker",
+        expect="red",
+    ),
+    Mutation(
+        rule="detecting an already-hostile entity grudges it immediately (VisibleEntities.ObserveAdd wiring)",
+        file="Assets/Scripts/ServerShared/Entity.cs",
+        anchor=(
+            "            VisibleEntities.ObserveAdd()\n"
+            "                .Where(add => add.Value == other)\n"
+            "                .Subscribe(_ =>\n"
+            "                {\n"
+            "                    if (other.EntityHostility.TryGetValue(this, out var hostile))\n"
+            "                        CheckGrudge(hostile);\n"
+            "                })"
+        ),
+        mutated=(
+            "            VisibleEntities.ObserveAdd()\n"
+            "                .Where(add => false)\n"
+            "                .Subscribe(_ =>\n"
+            "                {\n"
+            "                    if (other.EntityHostility.TryGetValue(this, out var hostile))\n"
+            "                        CheckGrudge(hostile);\n"
+            "                })"
+        ),
+        test="IffAndCombatTests.NonPlayerEntityGrudgesOnlyWhileItDetectsTheHostileMarker",
+        expect="red",
+    ),
+    Mutation(
+        rule="a grudge is sticky: it never re-evaluates (mirrors current stance) once already grudged",
+        file="Assets/Scripts/ServerShared/Entity.cs",
+        anchor="            if (otherIsHostileToThis && VisibleEntities.Contains(other) && !_iffOverrides.ContainsKey(other))\n                SetIff(other, true);",
+        mutated="            if (VisibleEntities.Contains(other))\n                SetIff(other, otherIsHostileToThis);",
+        test="IffAndCombatTests.GrudgeIsStickyAndDoesNotForgiveWhenMarkerGoesNeutral",
+        expect="red",
+    ),
+    Mutation(
+        rule="PerceivedStanceOf is unknown (null) until this entity detects the other",
+        file="Assets/Scripts/ServerShared/Entity.cs",
+        anchor=(
+            "    public bool? PerceivedStanceOf(Entity other) =>\n"
+            "        VisibleEntities.Contains(other) && other.EntityHostility.TryGetValue(this, out var hostile)\n"
+            "            ? hostile\n"
+            "            : (bool?) null;"
+        ),
+        mutated=(
+            "    public bool? PerceivedStanceOf(Entity other) =>\n"
+            "        other.EntityHostility.TryGetValue(this, out var hostile)\n"
+            "            ? hostile\n"
+            "            : (bool?) null;"
+        ),
+        test="IffAndCombatTests.PerceivedStanceIsUnknownUntilDetectedThenReadsTheActualStance",
+        expect="red",
+    ),
+    Mutation(
+        rule="Weapon.StanceAllowsFire gates on the shooter's own stance, not an unconditional true",
+        file="Assets/Scripts/ServerShared/Behaviors/Weapon.cs",
+        anchor="    public bool StanceAllowsFire => Entity.Target.Value == null || Entity.IsHostileTo(Entity.Target.Value);",
+        mutated="    public bool StanceAllowsFire => true;",
+        test="IffAndCombatTests.WeaponDoesNotFireWhenShooterIsNotHostileToItsTarget",
+        expect="red",
+    ),
+    Mutation(
+        rule="InstantWeapon.Trigger is safed by StanceAllowsFire before it starts a burst",
+        file="Assets/Scripts/ServerShared/Behaviors/InstantWeapon.cs",
+        anchor="        if (!StanceAllowsFire) return;",
+        mutated="        if (false) return;",
+        test="IffAndCombatTests.WeaponDoesNotFireWhenShooterIsNotHostileToItsTarget",
+        expect="red",
+    ),
+    Mutation(
+        rule="LockWeapon builds lock on the shooter's own hostility toward the target, not the reverse",
+        file="Assets/Scripts/ServerShared/Behaviors/LockWeapon.cs",
+        anchor="        if (Entity.Target.Value != null && Entity.IsHostileTo(Entity.Target.Value))",
+        mutated="        if (Entity.Target.Value != null && Entity.Target.Value.IsHostileTo(Entity))",
+        test="IffAndCombatTests.LockWeaponBuildsLockOnTheShootersOwnStanceNotTheTargets",
+        expect="red",
+    ),
+    Mutation(
+        rule="ZoneGenerator's neutral-wanderer pool excludes the zone owner and the nearest faction",
+        file="Assets/Scripts/ServerShared/ZoneGenerator.cs",
+        anchor="\tpublic static Faction[] EligibleWandererFactions(Faction[] factions, Faction owner, Faction nearest) =>\n\t\tfactions.Where(f => f != owner && f != nearest).ToArray();",
+        mutated="\tpublic static Faction[] EligibleWandererFactions(Faction[] factions, Faction owner, Faction nearest) =>\n\t\tfactions.ToArray();",
+        test="IffAndCombatTests.EligibleWandererFactionsExcludesOwnerAndNearest",
+        expect="red",
+    ),
+    # --- Capability event contract (docs/headless-playground-cut.md fork L, 2026-09-17): each event
+    # kind must reach only its own subscribers. ---
+    Mutation(
+        rule="control (no-op round trip) for the capability event routing test",
+        file="Assets/Scripts/ServerShared/CapabilityEvents.cs",
+        anchor="    public void PublishAbsorb(AbsorbEvent e) => _absorb.OnNext(e);",
+        mutated="    public void PublishAbsorb(AbsorbEvent e) => _absorb.OnNext(e);",
+        test="CapabilityEventsTests.EachEventKindReachesOnlyItsOwnSubscribers",
+        expect="green",
+    ),
+    Mutation(
+        rule="PublishAbsorb notifies only the Absorb stream, not Thrust as well",
+        file="Assets/Scripts/ServerShared/CapabilityEvents.cs",
+        anchor="    public void PublishAbsorb(AbsorbEvent e) => _absorb.OnNext(e);",
+        mutated="    public void PublishAbsorb(AbsorbEvent e) { _absorb.OnNext(e); _thrust.OnNext(default); }",
+        test="CapabilityEventsTests.EachEventKindReachesOnlyItsOwnSubscribers",
+        expect="red",
+    ),
+    # --- Cut 0 (docs/settings-globals-cut.md): Entity must copy the EntitySettings it is given, so no
+    # entity aliases GameplaySettings.DefaultEntitySettings (or, once settings are a catalog global, the
+    # cached record itself). ---
+    Mutation(
+        rule="control (no-op round trip) for the entity-settings-copy test",
+        file="Assets/Scripts/ServerShared/Entity.cs",
+        anchor="        Settings = MessagePackSerializer.Deserialize<EntitySettings>(MessagePackSerializer.Serialize(settings));",
+        mutated="        Settings = MessagePackSerializer.Deserialize<EntitySettings>(MessagePackSerializer.Serialize(settings));",
+        test="LoadoutTests.EntitiesDoNotShareDefaultEntitySettings",
+        expect="green",
+    ),
+    Mutation(
+        rule="Entity's constructor copies the settings it is given, instead of aliasing the template",
+        file="Assets/Scripts/ServerShared/Entity.cs",
+        anchor="        Settings = MessagePackSerializer.Deserialize<EntitySettings>(MessagePackSerializer.Serialize(settings));",
+        mutated="        Settings = settings;",
+        test="LoadoutTests.EntitiesDoNotShareDefaultEntitySettings",
+        expect="red",
+    ),
+]
 
 
-def resolve_cultlib_root(scratch: Path) -> str:
-    """The mutator (like the rest of the .NET build) must build against the exact CultLib
-    revision Directory.Build.props pins, not whatever CultLib main happens to be on disk right
-    now. Reuse CULTLIB_ROOT / the sibling checkout when it already matches; otherwise check out a
-    detached scratch worktree at the pinned revision, same as the cut's own verification pass."""
-    revision = pinned_cultlib_revision()
-
-    candidates = []
-    if os.environ.get("CULTLIB_ROOT"):
-        candidates.append(Path(os.environ["CULTLIB_ROOT"]))
-    candidates.append(REPO_ROOT.parent / "CultLib")
-
-    for candidate in candidates:
-        if not candidate.exists():
-            continue
-        head = run(["git", "-C", str(candidate), "rev-parse", "HEAD"]).stdout.strip()
-        dirty = run(["git", "-C", str(candidate), "status", "--porcelain"]).stdout.strip()
-        if head == revision and not dirty:
-            return str(candidate)
-
-    worktree = scratch / f"cultlib-{revision[:12]}"
-    if not worktree.exists():
-        result = run(["git", "-C", str(REPO_ROOT.parent / "CultLib"), "worktree", "add", "--detach", str(worktree), revision])
-        if result.returncode != 0:
-            print(result.stdout, result.stderr)
-            raise SystemExit("failed to create pinned CultLib worktree for the mutator build")
-    return str(worktree)
-
-
-def build_mutator(build_dir: Path, cultlib_root: str) -> Path:
-    build_dir.mkdir(parents=True, exist_ok=True)
-    (build_dir / "Mutate.csproj").write_text(
-        """<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <OutputType>Exe</OutputType>
-    <TargetFramework>net10.0</TargetFramework>
-    <Nullable>disable</Nullable>
-    <ImplicitUsings>disable</ImplicitUsings>
-  </PropertyGroup>
-  <ItemGroup>
-    <ProjectReference Include="%s" />
-  </ItemGroup>
-</Project>
-""" % (REPO_ROOT / "Aetheria.Shared" / "Aetheria.Shared.csproj"),
-        encoding="utf-8",
-    )
-    (build_dir / "Program.cs").write_text(
-        r"""using System;
-using System.IO;
-using System.Linq;
-using System.Reflection;
-using GameCult.Caching;
-
-// Scratch-only (not landed): sets HullData "LonginusX".Prefab to an arbitrary string in a copy of
-// the catalog, for tests/mutation_tests.py to feed to EngineAssetCheck and prove it fails.
-internal static class Program
-{
-    private static int Main(string[] args)
-    {
-        var catalogPath = args[0];
-        var newValue = args[1];
-        var cache = AetheriaStores.Open(catalogPath, catalogWritable: true);
-        try
-        {
-            var stored = cache.AllStoredDocuments.First(s =>
-                s.Descriptor.DocumentType.Name == "HullData" &&
-                (string)s.Descriptor.DocumentType.GetField("Name").GetValue(s.Document) == "LonginusX");
-            var field = stored.Descriptor.DocumentType.GetField("Prefab", BindingFlags.Public | BindingFlags.Instance);
-            field.SetValue(stored.Document, newValue);
-            cache.UpsertAsync(stored.Descriptor.DocumentType, stored.Document, stored.Key).Wait();
-            cache.FlushAllBackingStores();
-            Console.WriteLine($"Set HullData \"LonginusX\".Prefab = \"{newValue}\"");
-            return 0;
-        }
-        finally
-        {
-            cache.Dispose();
-        }
-    }
-}
-""",
-        encoding="utf-8",
-    )
-    build = run([
-        "dotnet", "build", str(build_dir / "Mutate.csproj"),
-        "-c", "Release", "-o", str(build_dir / "out"),
-        f"-p:CultLibRoot={cultlib_root}",
-    ])
-    if build.returncode != 0:
-        print(build.stdout, build.stderr)
-        raise SystemExit("mutator build failed")
-    return build_dir / "out" / "Mutate.dll"
-
-
-def mutate_catalog(mutator_dll: Path, scratch_catalog: Path, value: str):
-    shutil.copyfile(CATALOG, scratch_catalog)
-    result = run(["dotnet", str(mutator_dll), str(scratch_catalog), value])
-    if result.returncode != 0:
-        print(result.stdout, result.stderr)
-        raise SystemExit("mutation failed to apply")
-
-
-def run_engine_asset_check(log_path: Path) -> tuple[int, str]:
+def run_test(cultlib_root: str, filter_expr: str) -> tuple[str, str]:
+    """Runs the one filtered test. Returns ("ERROR", ...) when the build itself failed (a
+    compile error is never a legitimate kill or survival — it means the mutation broke
+    something the test never got a chance to exercise), otherwise ("PASS"|"FAIL", output)."""
     proc = subprocess.run(
-        [UNITY_EXE, "-batchmode", "-quit", "-projectPath", str(REPO_ROOT),
-         "-executeMethod", "EngineAssetCheck.Run", "-logFile", str(log_path)],
-        timeout=600,
+        [
+            "dotnet", "test", str(TEST_PROJECT),
+            f"-p:CultLibRoot={cultlib_root}",
+            "--filter", f"FullyQualifiedName~{filter_expr}",
+            "--nologo",
+        ],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
     )
-    text = log_path.read_text(encoding="utf-8", errors="replace")
-    return proc.returncode, text
+    output = proc.stdout + proc.stderr
+    # A build failure never reaches "Test run for ..."/"Passed!"/"Failed!"; it reports
+    # "Build FAILED." and one or more "error CS..." lines instead.
+    if "Build FAILED" in output or "error CS" in output:
+        return "ERROR", output
+    passed = proc.returncode == 0 and "Failed!" not in output
+    return ("PASS" if passed else "FAIL"), output
 
 
-def assert_contains(log_text: str, needle: str, case_name: str):
-    if needle not in log_text:
-        raise SystemExit(f"[{case_name}] FAIL: expected log to contain {needle!r}; it did not")
+def detect_newline(original: bytes) -> bytes:
+    return b"\r\n" if b"\r\n" in original else b"\n"
 
 
-def main():
-    if not CATALOG.exists():
-        raise SystemExit(f"catalog not found: {CATALOG}")
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--cultlib-root", required=True)
+    args = parser.parse_args()
 
-    original_catalog = CATALOG.read_bytes()
-    original_item_data = ITEM_DATA_CS.read_text(encoding="utf-8")
-    scratch = Path(tempfile.mkdtemp(prefix="aetheria-mutation-"))
+    results = []
     failures = []
 
-    try:
-        cultlib_root = resolve_cultlib_root(scratch)
-        print(f"CultLibRoot for the mutator build: {cultlib_root}")
-        mutator_dll = build_mutator(scratch / "mutator", cultlib_root)
+    for m in MUTATIONS:
+        path = REPO_ROOT / m.file
+        original = path.read_bytes()
+        newline = detect_newline(original).decode("ascii")
+        # Anchors are authored with plain "\n"; translate to the file's own line ending
+        # before matching, so CRLF-checked-out files (this repo's default) still match.
+        anchor = m.anchor.replace("\n", newline)
+        mutated = m.mutated.replace("\n", newline)
+        text = original.decode("utf-8")
+        count = text.count(anchor)
+        if count != 1:
+            print(f"[ABORT] anchor for '{m.rule}' matches {count} times in {m.file}, expected exactly 1")
+            failures.append(m.rule)
+            continue
 
-        # Control: the real, unmutated catalog must pass with 0 failures. If this fails, every
-        # other case below is meaningless (the harness itself, not the mutation, would be at fault).
-        print("\n=== control: unmutated catalog ===")
-        log = scratch / "control.log"
-        code, text = run_engine_asset_check(log)
-        if code != 0 or "0 failure" not in text and "stored reference(s) OK" not in text:
-            failures.append("control: expected exit 0 and a clean report on the real catalog")
-        else:
-            print("control OK: exit 0, no failures")
-
-        cases = [
-            ("wrong-type (Texture2D guid for a Prefab field)", TEXTURE_GUID, "not a GameObject"),
-            ("non-addressable guid (real asset outside Assets/Content)", NON_ADDRESSABLE_GUID, "is not addressable"),
-            ("random 32-hex guid (no such asset)", RANDOM_GUID, "names no existing file"),
-            ("old Resources path (pre-migration form)", OLD_PATH, "not 32 lowercase hex characters"),
-        ]
-
-        for name, value, expect in cases:
-            print(f"\n=== mutation: {name} ===")
-            try:
-                mutated = scratch / "mutated.cc"
-                mutate_catalog(mutator_dll, mutated, value)
-                shutil.copyfile(mutated, CATALOG)
-
-                log = scratch / (name.split()[0] + ".log")
-                code, text = run_engine_asset_check(log)
-
-                if code == 0:
-                    failures.append(f"{name}: EngineAssetCheck exited 0; the mutation was not caught")
-                    continue
-                if "LonginusX" not in text:
-                    failures.append(f"{name}: failure did not name the record (LonginusX)")
-                    continue
-                assert_contains(text, expect, name)
-                print(f"OK: caught, exit {code}, named LonginusX, mentioned {expect!r}")
-            except SystemExit as exc:
-                failures.append(f"{name}: {exc}")
-            finally:
-                CATALOG.write_bytes(original_catalog)
-
-        # Missing consumer contract: a new [CultInspectorAssetGuid] member EngineAssetCheck's table
-        # doesn't know about must fail loudly, not be silently skipped.
-        print("\n=== mutation: attributed member missing from the consumer contract table ===")
+        mutated_text = text.replace(anchor, mutated, 1)
+        path.write_bytes(mutated_text.encode("utf-8"))
         try:
-            marker = "    [Inspectable, JsonProperty(\"hardpoints\"), Key(23)]  \n    public List<HardpointData> Hardpoints = new List<HardpointData>();"
-            replacement = marker + (
-                "\n\n    // Scratch mutation (tests/mutation_tests.py): an attributed member with no "
-                "row in EngineAssetCheck.ConsumerContracts. Must fail the check, not be skipped.\n"
-                "    [Inspectable, CultInspectorAssetGuid, JsonProperty(\"scratchMutation\"), Key(30)]\n"
-                f"    public string ScratchMutationField = \"{TEXTURE_GUID}\";"
-            )
-            if marker not in original_item_data:
-                raise SystemExit("anchor text for the scratch field insertion was not found in ItemData.cs")
-            mutated_source = original_item_data.replace(marker, replacement, 1)
-            ITEM_DATA_CS.write_text(mutated_source, encoding="utf-8")
-
-            log = scratch / "missing-contract.log"
-            code, text = run_engine_asset_check(log)
-            if code == 0:
-                failures.append("missing-contract: EngineAssetCheck exited 0; an untabled member was not caught")
-            elif "ScratchMutationField" not in text or "no consumer contract registered" not in text:
-                failures.append("missing-contract: failure did not name the untabled member and reason")
-            else:
-                print("OK: caught, exit", code, "named ScratchMutationField with no registered contract")
+            status_code, output = run_test(args.cultlib_root, m.test)
         finally:
-            ITEM_DATA_CS.write_text(original_item_data, encoding="utf-8")
+            # Reverse write: restore the exact original bytes regardless of outcome.
+            path.write_bytes(original)
+            restored = path.read_bytes()
+            if restored != original:
+                print(f"[FATAL] {m.file} did not restore byte-exact after '{m.rule}'!")
+                return 2
 
-        # Restoration proof: after reverting the source, a fresh batchmode compile + check must be
-        # clean again — the mutation must leave no residue once undone.
-        print("\n=== restoration check: reverted source recompiles clean ===")
-        log = scratch / "restored.log"
-        code, text = run_engine_asset_check(log)
-        if code != 0:
-            failures.append("restoration: EngineAssetCheck did not exit 0 after reverting the scratch field")
-        else:
-            print("OK: restored source compiles and the check is clean again")
+        if status_code == "ERROR":
+            status = "ERROR (build failure)"
+            failures.append(m.rule)
+        elif m.expect == "red":
+            killed = status_code == "FAIL"
+            status = "KILLED" if killed else "SURVIVED (bad)"
+            if not killed:
+                failures.append(m.rule)
+        else:  # control: must stay green
+            passed = status_code == "PASS"
+            status = "GREEN (ok)" if passed else "RED (bad: round trip corrupted something)"
+            if not passed:
+                failures.append(m.rule)
 
-    finally:
-        CATALOG.write_bytes(original_catalog)
-        ITEM_DATA_CS.write_text(original_item_data, encoding="utf-8")
-        shutil.rmtree(scratch, ignore_errors=True)
-        print(f"\nrestored {CATALOG} and {ITEM_DATA_CS} to their original content.")
+        results.append((m.rule, m.test, status))
+        print(f"{status:22} | {m.test:55} | {m.rule}")
+
+    print()
+    print("Summary:")
+    for rule, test, status in results:
+        print(f"  {status:22} {test:55} {rule}")
 
     if failures:
-        print("\n=== MUTATION TESTS FAILED ===")
+        print(f"\n{len(failures)} mutation(s) did not behave as expected:")
         for f in failures:
-            print(" -", f)
+            print(f"  - {f}")
         return 1
 
-    print("\n=== all mutation tests passed ===")
+    print(f"\nAll {len(results)} mutations behaved as expected.")
     return 0
 
 
