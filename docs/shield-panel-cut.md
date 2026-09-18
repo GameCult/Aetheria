@@ -93,6 +93,22 @@ Q1 (does the first landing have to fracture) is **still open** and still first; 
 > what the shader eats. They agree only for a carrier at the origin with identity rotation,
 > which is the only `FieldDriver` carrier in the tree. Settle before a second one exists.
 
+> **Cut 3 landed 2026-09-18** (`0ef88419`, `0e2fe6dc`, `5ae5c518`). `ShieldInterceptor`
+> poses a pooled panel per absorb event on the envelope, reusing `Prototype`. D17/D20 fixed
+> (a panel absorbs the hit that spawned it, and the gate stays open after), D21 fixed
+> (`Round` not `Ceil+1` on the substitution count): Penrose is now 2.1-4.7x Hex's cell count
+> at the same radius and cell size, down from ~24x, and that residual is the quantisation
+> floor of "nearest edge length", not a knob. Reuse strikes a live panel within
+> `PanelRadius * ReuseFraction` without resetting it, so temper erosion survives; at the cap
+> (12) the oldest panel is recycled in place.
+>
+> Found beyond the map: `OnEnable`/`OnDisable` would have rebuilt the tiling and released
+> every buffer on each pooled activation, which would have made pooling cost more than
+> rebuilding and quietly voided §2.4's whole argument.
+>
+> Two yields with a background run still going cost a round trip each; the wait rule now
+> names the mechanism (`~/.claude/skills/eureka/references/briefs.md`).
+
 ## 1. What the repo actually has today
 
 The re-probe found the thing the first pass missed: **the ellipsoid envelope already exists
