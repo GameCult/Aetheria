@@ -47,6 +47,17 @@ what it did.
     operator to review, and it rides with Cut 1's catalog rewrite rather than being a second
     migration. Pre-breach history is not consulted for curves: the operator has ruled the
     shape is going regardless.
+  - **The balance change is intentional** (operator, 2026-09-18): "currently it's basically
+    impossible to run many items without damaging them due to low thermal performance.
+    Controlled wear is good, but we need a better lever for operational lifespan when an item
+    is managed well." Under R-heat the plateau means full performance, so the thermal term of
+    `Wear` (`Entity.cs:1386`) goes to zero inside it and only `deltaTemp` still costs
+    anything. **Plateau width is therefore the operational-lifespan lever**: it is the band
+    where careful operation is free, authored per item instead of emerging from a curve
+    nobody drew. A negent weapon still pays, because it is nothing but swings.
+  - Verification must show it: an item held inside its plateau takes no thermal wear, an item
+    outside it does, and a fast swing across the plateau still wears. Each under its own
+    mutation.
   - Wear reads `OptimalTemperature` (`Entity.cs:1386`), so the fit changes wear too. The
     verification must show wear unchanged for an item at its optimum and a sane curve
     elsewhere.
