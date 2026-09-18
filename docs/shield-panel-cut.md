@@ -42,6 +42,22 @@ same events over the same envelope.
 shield already has the ellipsoid, we'd just be standardizing that. Ship prefabs would need to
 define their ellipsoid envelope."
 
+**R5 (was Q3) — fix Penrose in this cut.** Operator: "definitely fix penrose". D18
+(`Penrose` ignores `panelRadius`) is a Cut 1 defect, not a follow-up: R2 makes panel size the
+item's to set, so a tiling that cannot be sized cannot ship. Hex remains the fallback while
+the fix is verified, and D19 (TriHex yields no dual edges) and D7 (Voronoi is 15 s at r10)
+stay recorded, not fixed.
+
+**R6 (was Q2) — the envelope is derived from the existing transform**, not authored as
+centre and radii. Operator: "derived; the simulation doesn't even use this collision, the
+hits we end up showing will be 'fake'". Two consequences worth holding on to:
+- The envelope has no second copy to drift from the `Shield` collider, which is the whole
+  point of collapsing the two implicit ellipsoids.
+- **Panel placement is cosmetic.** The simulation does not resolve hits against this
+  geometry; fire control rolls decide what happens (`docs/three-gates-scope.md`). The
+  intercept point is where the presentation says the shot arrived, and nothing downstream
+  may read it back as truth.
+
 Q1 (does the first landing have to fracture) is **still open** and still first; see §8.
 
 ## 1. What the repo actually has today
