@@ -96,6 +96,39 @@ what it did.
 > - The cut is net +55, not the ledger's ~+1: the interface and three contexts cost more than
 >   the 44 deleted lines of arithmetic. Accepted, recorded rather than argued away.
 
+> **Cut 1 landed 2026-09-18** (`05b5a209` schema+code, `38aec5dd` catalog+migration table).
+> Soul verified the rewrite lost nothing: 1,181,195 common leaf paths, 0 changed values; term
+> migration exact against the census; tombstoned keys absent from the bytes and the old reader
+> fails loudly; keys 30/31 collide with no subclass. 71 tests.
+>
+> Soul's findings, and what they cost:
+> - **S1 `Tractor Beam` is permanently dead** (`ItemData.cs:422`): min == max == optimum, width
+>   0, so performance is 0 at every temperature and every heat-dependent stat collapses to
+>   `Min`. Validation accepted it.
+> - **S2, 14 designs went from immune to fatal.** With no authored curve the old code returned
+>   1 at any temperature, below the minimum included; the new code returns 0 outside the
+>   bounds, so a cold `Autocannon` is offline and wearing. Nobody decided this and the
+>   migration doc claims the opposite.
+> - **S3 the migration table's old-value columns are wrong for 15 of 51 rows** (the old getter
+>   returned `MinimumTemperature` for curve-less designs; one design's old code threw), and
+>   **S4 the at-optimum slice understates the change ~80x** — at-optimum is where a trapezoid
+>   and its curve agree. Real band: 36 of 37 fitted designs up to +0.19, `Earp` down. No
+>   qualitative inversion.
+> - **S5/S6 validation is weaker than the ruling and than its own comment**: no plateau-clamp
+>   check, zero-span and NaN accepted, and `AetheriaStores.Open` validates on read, so the
+>   tools' writable path writes invalid catalogs (the migration relied on that).
+> - **S7 four of Soul's five mutations survived**, including a `Quality` term ignoring its own
+>   exponent — the migration's central equivalence claim is unpinned.
+> - **S8 the shield Cut 3 probe passes at HEAD**, twice. Hands' `KInit` failure did not
+>   reproduce; Cut 1 touched no shader.
+>
+> **Ruling (operator, 2026-09-18): re-author those items.** "reauthor those items". Bounds
+> mean the part is dead outside them, which is the point of the change; the 14 are unauthored
+> placeholders, not deliberate immunity. Zero-span ranges become an authoring error validation
+> refuses. Correction to R-heat: **wear does not read `OptimalTemperature`** — `UpdatePerformance`
+> reads `Data.Performance(temp)`, and the property had no reader at all before Cut 1. S3 is a
+> reporting defect, not a gameplay one.
+
 ## 0. What is there now
 
 ### 0.1 The stat, as it exists
