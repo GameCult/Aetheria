@@ -31,6 +31,9 @@ namespace ShieldField
         public float waveSpeed2 = 26f;
         public float damping = 1.6f;
         public float stressClamp = 4f;
+        [Tooltip("D9: bounds dU/dt so a hard hit cannot pin the field in compression forever. " +
+                 "Too low flattens the wave; too high reproduces the saturation defect.")]
+        public float velocityClamp = 100f;
         [Range(1, 16)] public int substeps = 6;
         public float fixedSubstepDt = 0.0025f;
 
@@ -41,14 +44,14 @@ namespace ShieldField
         public float echoReflect = -0.65f;
 
         [Header("Material (tempered)")]
-        public float tensileStrength = 0.9f;
+        public float tensileStrength = 0.2f;
         [Tooltip("Surface compression at full charge. This is the shield's hit budget.")]
         public float temperInit = 0.55f;
-        public float temperErosion = 2.2f;
+        public float temperErosion = 12f;
         [Tooltip("How much stored core energy a break dumps back into the field.")]
-        public float storedEnergyGain = 0.8f;
-        public float damageGain = 6f;
-        [Range(0.05f, 1f)] public float breakAt = 0.75f;
+        public float storedEnergyGain = 1f;
+        public float damageGain = 100f;
+        [Range(0.05f, 1f)] public float breakAt = 0.08f;
         [Range(0f, 0.9f)] public float crackStart = 0.18f;
         [Tooltip("Breaks permitted per frame. Without this the cascade finishes in one frame and you see nothing.")]
         [Range(0.001f, 1f)] public float breakBudgetFraction = 0.02f;
@@ -405,6 +408,7 @@ namespace ShieldField
             sim.SetFloat("_WaveSpeed2", waveSpeed2);
             sim.SetFloat("_Damping", damping);
             sim.SetFloat("_StressClamp", stressClamp);
+            sim.SetFloat("_VelClamp", velocityClamp);
             sim.SetInt("_EchoDelay", echoDelaySteps);
             sim.SetFloat("_EchoReflect", echoReflect);
 
@@ -426,6 +430,16 @@ namespace ShieldField
             var cur = uUsingA ? bUA : bUB;
 
             // ---- fracture
+            // D10: KFracture dispatches once per frame while KWaveStep just integrated
+            // `substeps` times at fixedSubstepDt. _Dt was still holding that substep dt from
+            // the injection/wave setup above, so damage and temper erosion accrued at 1/substeps
+            // of the intended rate. Fracture's clock is the frame, not the substep — it reads
+            // one settled `u` per frame regardless of how many substeps produced it — so hand it
+            // the frame dt here. (Dispatching KFracture inside the substep loop instead would be
+            // the "physically honest" alternative the map names, but at up to 12 live panels
+            // dispatch count is the measured cost (§2.3), and fracture only needs to see the
+            // post-wave state once a frame, not mid-integration.)
+            sim.SetFloat("_Dt", dt);
             sim.SetFloat("_TensileStrength", tensileStrength);
             sim.SetFloat("_TemperErosion", temperErosion);
             sim.SetFloat("_StoredEnergyGain", storedEnergyGain);

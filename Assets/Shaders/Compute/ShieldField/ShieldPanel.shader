@@ -158,7 +158,11 @@ Shader "ShieldField/Panel"
 
         LineVary BuildLine(float3 wa, float3 wb, uint k, float widthPx, float4 col)
         {
-            LineVary o;
+            // D15: every path below does set all four fields, but the compute compiler's
+            // dataflow analysis doesn't trust that across the early-return branch and warns
+            // "potentially uninitialized variable (BuildLine)". Zero-init once instead of
+            // relying on the analysis.
+            LineVary o = (LineVary)0;
             float4 ca = UnityWorldToClipPos(wa);
             float4 cb = UnityWorldToClipPos(wb);
 

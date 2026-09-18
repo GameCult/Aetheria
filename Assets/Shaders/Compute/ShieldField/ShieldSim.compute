@@ -45,6 +45,7 @@ float _Dt;
 float _WaveSpeed2;      // c^2
 float _Damping;
 float _StressClamp;
+float _VelClamp;        // D9: bounds v so a hard hit cannot pin u in compression forever
 
 // --- through-thickness echo
 uint  _EchoSlot;        // current write slot, advanced by the host each substep
@@ -217,14 +218,24 @@ void KWaveStep(uint3 id : SV_DispatchThreadID)
         flowMax = max(flowMax, f);
     }
 
-    // Rim edges have no arc at all, so their ghost term was precomputed.
-    lap += c.openW * (-2.0 * ui);
-
+    // R7: the rim used to be a free surface with a precomputed ghost term (openW) that
+    // reflected compression back as tension. It no longer contributes at all — the panel's
+    // emitters hold the edge, so an unshared boundary edge is simply not in the Laplacian.
+    // A broken cell's own faces are unaffected: the `solid` check above already treats a
+    // broken (or ungrown) neighbour as free regardless of position, so the dicing cascade
+    // survives untouched.
     lap /= max(c.area, 1e-5);
 
     float v = _V[i];
     v += _WaveSpeed2 * lap * _Dt;
     v *= exp(-_Damping * _Dt);
+
+    // D9: u was clamped but v was not, so a hard-enough hit drove v far past what one
+    // substep's u-clamp could absorb; u pinned at -_StressClamp every substep afterward and
+    // the field never swung back into tension (the measured collapse above energy ~60).
+    // Clamping v to the same scale keeps it a real integrator input instead of an unbounded
+    // accumulator.
+    v = clamp(v, -_VelClamp, _VelClamp);
 
     float u = ui + v * _Dt;
     u = clamp(u, -_StressClamp, _StressClamp);

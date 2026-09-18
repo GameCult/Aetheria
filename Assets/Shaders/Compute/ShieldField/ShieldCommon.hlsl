@@ -26,10 +26,11 @@ struct CellStatic
     uint   tileType;
     uint   splitSeed;
     float  area;       // Laplacian denominator
-    float  openW;      // free-surface ghost weight (rim edges)
+    // R7: openW (rim free-surface ghost weight) removed — the panel's emitters hold its edge.
     float  pad0;
     float  pad1;
     float  pad2;
+    float  pad3;
 };
 
 struct DualEdge

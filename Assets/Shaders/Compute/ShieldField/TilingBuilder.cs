@@ -22,10 +22,14 @@ namespace ShieldField
         public uint tileType;      // author-defined class (thin/fat rhomb, etc)
         public uint splitSeed;     // stable per-cell RNG seed for shard assignment
         public float area;         // cell area — denominator of the graph Laplacian
-        public float openW;        // summed weight of unshared edges (free-surface ghost term)
+        // R7 (docs/shield-panel-cut.md): openW (rim free-surface ghost weight) removed — the
+        // panel's emitters hold its edge, so the rim is no longer a stress-reflecting boundary.
+        // No other consumer read this field (grep confirmed); pad0 keeps the stride unchanged
+        // rather than reshuffling every offset downstream in the HLSL mirror.
         public float pad0;
         public float pad1;
         public float pad2;
+        public float pad3;
         public const int Stride = 4 * 16;
     }
 
@@ -216,7 +220,6 @@ namespace ShieldField
                 }
 
                 int eStart = edgePool.Count;
-                float openW = 0f;
                 for (int i = 0; i < n; i++)
                 {
                     int ia = ring[i], ib = ring[(i + 1) % n];
@@ -228,15 +231,13 @@ namespace ShieldField
                     if (len < 1e-6f) continue;
                     Vector2 mid = (pa + pb) * 0.5f;
 
-                    if (other < 0)
-                    {
-                        // Unshared edge: a free surface. Accumulate its ghost weight so the
-                        // wave kernel can impose stress = 0 there (Dirichlet -> sign-inverting
-                        // reflection, which is what turns the incoming compression into the
-                        // tension that spalls the rim).
-                        openW += len / Mathf.Max((mid - ctr).magnitude, 1e-4f);
-                        continue;
-                    }
+                    // R7 (operator, 2026-09-18): the emitters projecting the panel hold its
+                    // rim, so an unshared edge on the panel boundary is not a free surface —
+                    // it carries no ghost term and generates no reflected tension. A broken
+                    // cell's faces are a different case entirely: KWaveStep's per-edge `solid`
+                    // check still treats a broken neighbour as free, so the dicing cascade
+                    // (reflection off actual damage) is untouched by this.
+                    if (other < 0) continue;
 
                     float nbrDist = Mathf.Max((ctrs[other] - ctr).magnitude, 1e-4f);
                     edgePool.Add(new DualEdge
@@ -264,7 +265,6 @@ namespace ShieldField
                     tileType = (uint)Mathf.Max(0, keptTypes[c]),
                     splitSeed = (uint)rng.Next(int.MinValue, int.MaxValue),
                     area = Mathf.Max(areas[c], 1e-6f),
-                    openW = openW,
                     pad0 = 0f,
                     pad1 = 0f,
                     pad2 = 0f
