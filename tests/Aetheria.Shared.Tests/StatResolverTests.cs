@@ -121,6 +121,52 @@ public sealed class StatResolverTests : IDisposable
         Assert.Equal(1f, plainBattery.Evaluate(capacity), 3);   // untouched
     }
 
+    // Soul's Gate 2 finding on Cut 2 (docs/stats-and-power-cut.md): StatModifier.Initialize recomputes _targets
+    // by matching the *behaviour type* the modifier targets (here, any equipped item with a CapacitorData
+    // behaviour) fresh every time it runs -- but _applied was never reset alongside it. So after the modifier
+    // has already applied once, deactivating, unequipping its target, equipping a replacement with the same
+    // targeted behaviour, and reactivating used to leave the modifier permanently unattached: Update saw
+    // `_executed && _applied` (both still true from the stale attachment) and neither branch of its latch fired,
+    // so ApplyModifier never ran against the new target. Mutation: delete the `if (_applied) RemoveModifier();`
+    // line this cut adds to Initialize, and the final assertion goes red (the replacement reads 1f, unboosted).
+    [Fact]
+    public void ARefitTargetReattachesTheModifierAfterReactivation()
+    {
+        var capacity = new PerformanceStat { Min = 1, Max = 1 };
+        var modifier = new StatModifierData
+        {
+            Stat = new StatReference { Target = nameof(CapacitorData), Stat = nameof(CapacitorData.Capacity) },
+            Modifier = new PerformanceStat { Min = 5, Max = 5 },
+            Type = StatModifierType.Constant
+        };
+        using var cache = OpenCatalog(new CapacitorData { Capacity = capacity }, modifier);
+        var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
+
+        var ship = BuildActivatedShip(cache, items, withBooster: true);
+        var boosterEquipped = ship.Equipment.Single(e => e.Data.Name == "Booster");
+        var modifierBehavior = boosterEquipped.GetBehavior<StatModifier>();
+        Assert.NotNull(modifierBehavior);
+
+        // First activation: applies against the original Battery.
+        modifierBehavior.Execute(0f);
+        modifierBehavior.Update(0f);
+        var originalBattery = ship.Equipment.Single(e => e.Data.Name == "Battery");
+        Assert.Equal(6f, originalBattery.Evaluate(capacity), 3);
+
+        // Deactivate, unequip the target, equip a replacement with the same targeted behaviour, reactivate.
+        ship.Deactivate();
+        Assert.NotNull(ship.TryUnequip(originalBattery));
+        Assert.True(ship.TryEquip(Mint(cache, items, cache.GetByName<GearData>("Battery")), HardpointCell));
+        ship.Activate();
+
+        // The modifier behaviour re-executes on the new activation, exactly as it did on the first.
+        modifierBehavior.Execute(0f);
+        modifierBehavior.Update(0f);
+
+        var replacementBattery = ship.Equipment.Single(e => e.Data.Name == "Battery");
+        Assert.Equal(6f, replacementBattery.Evaluate(capacity), 3); // reattached; not stuck unboosted at 1f
+    }
+
     // §0.3's headline claim: the catalog used to keep every entity that ever evaluated one of its stats alive for
     // the life of the process, through PerformanceStat's own per-entity modifier dictionaries. This fails at HEAD
     // before Cut 2. Mutation: make Entity.Resolver static -- its dictionaries then live on a field the catalog's
@@ -269,5 +315,82 @@ public sealed class StatResolverTests : IDisposable
         Assert.Equal(5f, resolver.Resolve(owner, stat, context), 3);
         resolver.DetachModifier(owner, stat, "modifier-a");
         Assert.Equal(1f, resolver.Resolve(owner, stat, context), 3);
+    }
+
+    // Soul's Gate 1 finding on Cut 2 (docs/stats-and-power-cut.md §0b: a resolver entry is "destroyed at
+    // unequip / entity teardown"): nothing ever removed an owner from _cache/_modifiers/_generations, so an
+    // EquippedItem that was unequipped, evaluated, and replaced kept growing the resolver's retained set forever.
+    // This pins the fix at the retained-set level, not only via a WeakReference on one entity (which the existing
+    // UnequippingAndDroppingAnEntityLeavesItCollectible already covers): repeatedly equip, evaluate (populating
+    // _cache and, through UpdatePerformance, _generations), and unequip, then assert the resolver's own entry
+    // counts return to the same baseline they started at, cycle after cycle. Mutation: delete the
+    // Resolver.Forget(item) call in Entity.TryUnequip and this goes red because the counts climb instead.
+    [Fact]
+    public void UnequipReturnsTheResolversRetainedSetToBaseline()
+    {
+        var capacity = new PerformanceStat { Min = 1, Max = 1 };
+        using var cache = OpenCatalog(new CapacitorData { Capacity = capacity });
+        var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
+        var ship = BuildActivatedShip(cache, items, withBooster: false);
+        var resolver = ship.Resolver;
+
+        var baselineGenerations = resolver.GenerationOwnerCount;
+        var baselineCache = resolver.CacheEntryCount;
+        var baselineModifiers = resolver.ModifierEntryCount;
+
+        for (var i = 0; i < 20; i++)
+        {
+            var battery = ship.Equipment.Single(e => e.Data.Name == "Battery");
+            battery.UpdatePerformance(); // Cut 2: bumps this owner's Heat and Durability generations
+            battery.Evaluate(capacity); // populates a _cache entry keyed by (battery, capacity)
+
+            ship.Deactivate();
+            Assert.NotNull(ship.TryUnequip(battery));
+            Assert.True(ship.TryEquip(Mint(cache, items, cache.GetByName<GearData>("Battery")), HardpointCell));
+            ship.Activate();
+        }
+
+        Assert.Equal(baselineGenerations, resolver.GenerationOwnerCount);
+        Assert.Equal(baselineCache, resolver.CacheEntryCount);
+        Assert.Equal(baselineModifiers, resolver.ModifierEntryCount);
+    }
+
+    // The other half of Gate 1: a ConsumableItemEffect that expires drops out of Entity._activeConsumables
+    // (Entity.Update) without ever telling the resolver, so 20 activate/evaluate/expire cycles left 22 generation
+    // owners at HEAD (this ship's own EquippedItem owners plus one per expired consumable instance). Mutation:
+    // delete the Resolver.Forget(_activeConsumables[i]) call at expiry and this goes red.
+    [Fact]
+    public void ConsumableExpiryReturnsTheResolversRetainedSetToBaseline()
+    {
+        using var cache = OpenCatalog(new CapacitorData { Capacity = new PerformanceStat { Min = 1, Max = 1 } });
+        var boosterRef = cache.Upsert(new ConsumableItemData { Name = "Stim", Duration = 0.01f });
+        cache.FlushAsync().Wait();
+        var boosterData = cache.Get(boosterRef);
+
+        var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
+        var ship = BuildActivatedShip(cache, items, withBooster: false);
+        var resolver = ship.Resolver;
+
+        // A warm-up tick with no consumable active: the still-equipped Battery owns a permanent Heat/Durability
+        // generation entry from here on (correctly -- it is never unequipped in this test), so the baseline this
+        // test pins against must be taken after that entry exists, not before it.
+        ship.Update(0f);
+        var baselineGenerations = resolver.GenerationOwnerCount;
+        var baselineCache = resolver.CacheEntryCount;
+        var baselineModifiers = resolver.ModifierEntryCount;
+
+        for (var i = 0; i < 20; i++)
+        {
+            var lot = items.Lots.Add(new Lot { Design = cache.RefOf<ItemData>(boosterData), Origin = new Attributed(), Quality = .5f, Roles = new List<RoleFill>() });
+            var consumableItem = new ConsumableItem { Data = cache.RefOf<ItemData>(boosterData), Lot = lot };
+            ship.ActivateConsumable(consumableItem);
+
+            // Duration is 0.01s; one 1-second tick expires it and drives Entity.Update's expiry branch.
+            ship.Update(1f);
+        }
+
+        Assert.Equal(baselineGenerations, resolver.GenerationOwnerCount);
+        Assert.Equal(baselineCache, resolver.CacheEntryCount);
+        Assert.Equal(baselineModifiers, resolver.ModifierEntryCount);
     }
 }

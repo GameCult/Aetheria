@@ -73,7 +73,11 @@ MUTATIONS: list[Mutation] = [
         rule="a modifier must attach under the target item's own owner, not the modifying behaviour's owner",
         file="Assets/Scripts/ServerShared/Behaviors/StatModifier.cs",
         anchor="        foreach (var target in _targets)\n            Entity.Resolver.AttachModifier(target.Owner, target.Stat, this, _data.Type, value);",
-        mutated="        foreach (var target in _targets)\n            Entity.Resolver.AttachModifier(StatOwner, target.Stat, this, _data.Type, value);",
+        # F8 (Soul pass over Cut 2): this mutant used to reach for a dedicated `StatOwner` property on Behavior
+        # that had no production caller -- added only to make this one mutation expressible. Deleted; `Entity`
+        # is already a real accessible symbol on Behavior and is just as wrong an owner key for this mutant
+        # (neither the modifying item's own owner nor the target's), so it needs no dead code to stand in for it.
+        mutated="        foreach (var target in _targets)\n            Entity.Resolver.AttachModifier(Entity, target.Stat, this, _data.Type, value);",
         test="StatResolverTests.AModifierOnOneEntityDoesNotReachAnotherEntitysResolvedValue",
         expect="red",
     ),
@@ -128,6 +132,71 @@ MUTATIONS: list[Mutation] = [
         ),
         mutated="        (type == StatModifierType.Constant ? set.Constant : set.Scale)[modifierKey] = value;",
         test="StatResolverTests.AttachingAModifierInvalidatesImmediately",
+        expect="red",
+    ),
+
+    # --- Gate 1 (Soul pass over Cut 2), F1: nothing ever removed an owner from _cache/_modifiers/_generations,
+    # --- so the resolver's retained set grew without bound across unequip and consumable-expiry cycles even
+    # --- though §0b promises a resolver entry is "destroyed at unequip / entity teardown." Forget(owner) closes
+    # --- it; these two mutations delete each of its two call sites in turn. ---
+    Mutation(
+        rule="unequipping an item must forget it in the resolver (Entity.TryUnequip)",
+        file="Assets/Scripts/ServerShared/Entity.cs",
+        anchor=(
+            "        // Cut 2 Gate 1 fix (docs/stats-and-power-cut.md): the resolver's \xa70b lifecycle promise -- a resolver\n"
+            "        // entry is \"destroyed at unequip\" -- was never wired up. Without this, every unequipped item stayed\n"
+            "        // reachable from the resolver's dictionaries for the entity's whole remaining life.\n"
+            "        Resolver.Forget(item);"
+        ),
+        mutated=(
+            "        // Cut 2 Gate 1 fix (docs/stats-and-power-cut.md): the resolver's \xa70b lifecycle promise -- a resolver\n"
+            "        // entry is \"destroyed at unequip\" -- was never wired up. Without this, every unequipped item stayed\n"
+            "        // reachable from the resolver's dictionaries for the entity's whole remaining life."
+        ),
+        test="StatResolverTests.UnequipReturnsTheResolversRetainedSetToBaseline",
+        expect="red",
+    ),
+    Mutation(
+        rule="an expired consumable must forget itself in the resolver (Entity.Update)",
+        file="Assets/Scripts/ServerShared/Entity.cs",
+        anchor=(
+            "                    // Cut 2 Gate 1 fix (docs/stats-and-power-cut.md): an expired consumable dropped out of this\n"
+            "                    // list without ever telling the resolver, leaving its generation/cache/modifier entries\n"
+            "                    // reachable (keyed by this ConsumableItemEffect instance) for the rest of the process.\n"
+            "                    Resolver.Forget(_activeConsumables[i]);\n"
+            "                    _activeConsumables.RemoveAt(i--);"
+        ),
+        mutated=(
+            "                    // Cut 2 Gate 1 fix (docs/stats-and-power-cut.md): an expired consumable dropped out of this\n"
+            "                    // list without ever telling the resolver, leaving its generation/cache/modifier entries\n"
+            "                    // reachable (keyed by this ConsumableItemEffect instance) for the rest of the process.\n"
+            "                    _activeConsumables.RemoveAt(i--);"
+        ),
+        test="StatResolverTests.ConsumableExpiryReturnsTheResolversRetainedSetToBaseline",
+        expect="red",
+    ),
+
+    # --- Gate 2 (Soul pass over Cut 2), F2: _applied was never reset alongside the _targets recomputed on every
+    # --- Initialize, so a modifier that had already applied once stayed permanently latched after its target was
+    # --- unequipped, replaced and the entity reactivated -- Update saw `_executed && _applied` and neither branch
+    # --- of its own latch ever fired again. Deleting the detach-on-reinitialize line restores that split
+    # --- authority between Initialize and Update. ---
+    Mutation(
+        rule="Initialize must detach a stale attachment before new targets are computed, so Update's latch can reattach",
+        file="Assets/Scripts/ServerShared/Behaviors/StatModifier.cs",
+        anchor=(
+            "    public void Initialize()\n"
+            "    {\n"
+            "        if (_applied)\n"
+            "            RemoveModifier();\n"
+            "        _targets = TargetsOf(Entity, _data);"
+        ),
+        mutated=(
+            "    public void Initialize()\n"
+            "    {\n"
+            "        _targets = TargetsOf(Entity, _data);"
+        ),
+        test="StatResolverTests.ARefitTargetReattachesTheModifierAfterReactivation",
         expect="red",
     ),
 ]
