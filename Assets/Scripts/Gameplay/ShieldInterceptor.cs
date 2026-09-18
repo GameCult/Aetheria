@@ -16,7 +16,11 @@ public class ShieldInterceptor : MonoBehaviour, IAbsorbPresenter
     public int MaxLivePanels = 12;        // §2.3: ~0.12 ms CPU issuance per live panel
     public float PanelRadius = 2f;        // the SHIELD ITEM's size, not the hull's (R2)
     public float EnergyScale = 1f;
-    [Range(0f, 2f)] public float ReuseFraction = 1f;
+    // Cut 3 fix: capped at 1, not 2 -- ShieldPanel.ContainsWorldPoint (the one owner of "is this
+    // point within my own radius", shared by Hit's own strike gate) clamps the scale to at most 1,
+    // so a value above 1 was already silently inert. The old [0,2] range let you dial in a number
+    // that did nothing past 1; this range now tells the truth about what the knob controls.
+    [Range(0f, 1f)] public float ReuseFraction = 1f;
     [Tooltip("Margin added on top of growDuration + shardLife before a panel with no further " +
              "hits is released back to the pool (§3: a fixed lifetime, not a GPU readback).")]
     public float DeathMargin = 0.25f;
@@ -89,7 +93,14 @@ public class ShieldInterceptor : MonoBehaviour, IAbsorbPresenter
             // spawning a new one -- this is the rule that makes temper erosion (ShieldSim.compute's
             // multi-hit budget) visible at all. No ResetSim here: that would wipe the very state
             // this rule exists to preserve.
-            _live[reuseIndex].Panel.Hit(intercept, dir, energy, pattern);
+            var lp = _live[reuseIndex];
+            lp.Panel.Hit(intercept, dir, energy, pattern);
+            // Cut 3 fix: DieAt was set once at spawn time and never refreshed on reuse, so a panel
+            // that keeps getting struck could still expire and get pooled mid-fracture -- the
+            // operator's "pooling seems very rough". A struck-again panel is exactly as alive as one
+            // freshly spawned right now; give it the same margin from THIS hit.
+            lp.DieAt = Time.time + lp.Panel.growDuration + lp.Panel.shardLife + DeathMargin;
+            _live[reuseIndex] = lp;
             return;
         }
 
@@ -136,16 +147,24 @@ public class ShieldInterceptor : MonoBehaviour, IAbsorbPresenter
         });
     }
 
+    // Cut 3 fix: this used to compare a raw world-space chord distance from the panel's stale
+    // spawn-time Position against PanelRadius*ReuseFraction. On the envelope's own documented
+    // non-uniform ellipsoid (ShieldEnvelope.cs's Longinus/FieldShieldTest numbers), a chord across
+    // curvature is not the same length as the panel's own in-plane extent -- a click clearly outside
+    // the rendered tiling could still chord-measure inside the threshold and get routed to Hit(),
+    // which had no bounds check of its own and dutifully processed it (the operator's "clicking
+    // outside the hex still makes it tremble and shatter"). ShieldPanel.ContainsWorldPoint is the
+    // one owner of "is this point within my own radius" now (Hit() gates on it too), so reuse
+    // selection and the strike gate can never disagree.
     int FindReusable(Vector3 point)
     {
-        float threshold = PanelRadius * ReuseFraction;
-        float threshold2 = threshold * threshold;
         int best = -1;
         float bestDist2 = float.MaxValue;
         for (int i = 0; i < _live.Count; i++)
         {
+            if (!_live[i].Panel.ContainsWorldPoint(point, ReuseFraction)) continue;
             float d2 = (_live[i].Position - point).sqrMagnitude;
-            if (d2 < threshold2 && d2 < bestDist2)
+            if (d2 < bestDist2)
             {
                 bestDist2 = d2;
                 best = i;

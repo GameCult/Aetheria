@@ -338,12 +338,29 @@ namespace ShieldField
         public Vector2 DebugCellCenter(int i) => data.cells[i].centroid;
 
         // ==============================================================
+        // Cut 3 fix (operator's play report, docs/shield-panel-cut.md): the panel is the one owner
+        // of "is this point within my own radius" -- both the reuse decision (ShieldInterceptor.
+        // FindReusable) and the strike gate below (Hit) go through this so a hit outside a panel's
+        // own tiling can never reach it, however it got routed. `radiusScale` is clamped to at most
+        // 1 -- ReuseFraction's authored [0,1] range narrows the reuse catchment; it must never widen
+        // it past the panel's own physical radius, which is what Hit gates on.
+        public bool ContainsWorldPoint(Vector3 worldPoint, float radiusScale = 1f)
+        {
+            Vector3 local = transform.InverseTransformPoint(worldPoint);
+            float scale = Mathf.Clamp01(radiusScale);
+            float r = panelRadius * scale;
+            return local.x * local.x + local.y * local.y <= r * r;
+        }
+
         /// <summary>Strike the panel. worldDir is the projectile's travel direction.</summary>
         public void Hit(Vector3 worldPos, Vector3 worldDir, float energy,
                         FracturePattern pattern = FracturePattern.Radial,
                         float radius = -1f)
         {
             if (data == null) return;
+            // R (operator, playing FieldShieldTest): a hit outside the panel's own radius must not
+            // reach it at all -- no injection, no temper loss, no tremble. See ContainsWorldPoint.
+            if (!ContainsWorldPoint(worldPos)) return;
 
             Vector3 local = transform.InverseTransformPoint(worldPos);
             Vector3 ldir = transform.InverseTransformDirection(worldDir).normalized;

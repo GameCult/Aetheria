@@ -33,6 +33,13 @@ namespace Aetheria.EditorTools
             typeof(ShieldPanel).GetMethod("OnEnable", BindingFlags.NonPublic | BindingFlags.Instance);
         static readonly MethodInfo PanelOnDisable =
             typeof(ShieldPanel).GetMethod("OnDisable", BindingFlags.NonPublic | BindingFlags.Instance);
+        static readonly FieldInfo PanelPending =
+            typeof(ShieldPanel).GetField("pending", BindingFlags.NonPublic | BindingFlags.Instance);
+
+        // pending's element type (PendingHit) is a private nested struct, so this reads it through
+        // the non-generic ICollection Queue<T> also implements -- Count needs no knowledge of T.
+        static int PendingCount(ShieldPanel panel)
+            => ((System.Collections.ICollection)PanelPending.GetValue(panel)).Count;
 
         public static void Run()
         {
@@ -53,6 +60,7 @@ namespace Aetheria.EditorTools
             bool ok = true;
             ok &= CheckSpawnFrameInjectionAbsorbs();
             ok &= CheckReuseStrikesExistingPanel();
+            ok &= CheckHitOutsideRadiusDoesNotReachPanel();
             ok &= CheckPoolExhaustion();
             ok &= CheckNullGuardsDoNotThrow();
             ok &= CheckPoolReuseDoesNotRebuild();
@@ -268,6 +276,97 @@ namespace Aetheria.EditorTools
 
                 Debug.Log($"[ShieldPanelCut3Verify] reuse OK: temper {temperAfterFirst:F4} -> {temperAfterSecond:F4} on reuse; " +
                           "a far strike opened a second panel.");
+                return true;
+            }
+            finally { DestroyRig(rig); }
+        }
+
+        // ==============================================================
+        // Operator's play report (docs/shield-panel-cut.md), playing FieldShieldTest: "clicking
+        // outside the hex still makes it tremble and shatter". The rule this pins: a hit outside a
+        // panel's own radius must not reach that panel at all -- no tremble, no temper loss, no
+        // break -- whether it arrives as a direct Hit() call or is routed there by the interceptor's
+        // reuse search; the existing panel is left exactly as it was, and a genuinely-outside click
+        // opens its own panel instead.
+        // ==============================================================
+        static bool CheckHitOutsideRadiusDoesNotReachPanel()
+        {
+            var rig = BuildRig(maxLive: 4, panelRadius: 2f);
+            try
+            {
+                rig.interceptor.Absorb(Absorb(new Vector3(0, 0, 20), Vector3.back));
+                if (rig.interceptor.LiveCount != 1)
+                {
+                    Debug.LogError($"[ShieldPanelCut3Verify] out-of-radius: expected 1 live panel after the first strike, got {rig.interceptor.LiveCount}.");
+                    return false;
+                }
+                var panel = rig.interceptor.DebugPanelAt(0);
+                for (int i = 0; i < 40; i++) StepPanel(panel);
+
+                // §2.4/D10's own comment: breakBudgetFraction paces the fracture cascade over many
+                // frames on purpose, so min temper keeps drifting downward for a while even with zero
+                // NEW hits -- comparing temper before/after more stepping would be measuring that
+                // drift, not this rule. What must be verified deterministically instead: no PendingHit
+                // was ever enqueued for the rejected strike (Hit() returns before Enqueue), and the
+                // panel's own state buffer does not move at all across a call that does no stepping.
+                if (PendingCount(panel) != 0)
+                {
+                    Debug.LogError($"[ShieldPanelCut3Verify] out-of-radius: pending queue not drained before the probe " +
+                                    $"({PendingCount(panel)} left) -- test setup is unreliable.");
+                    return false;
+                }
+                float temperBefore = MinTemper(panel);
+
+                // Mutation target: ShieldPanel.ContainsWorldPoint / Hit's early-out. A point at local
+                // (5,0,0) is 5 units from panel-local origin against panelRadius 2 -- well outside.
+                Vector3 farAsWorld = panel.transform.TransformPoint(new Vector3(5f, 0f, 0f));
+                panel.Hit(farAsWorld, Vector3.back, 500f);
+                if (PendingCount(panel) != 0)
+                {
+                    Debug.LogError($"[ShieldPanelCut3Verify] out-of-radius: a direct Hit() 5 units outside panelRadius " +
+                                    $"(2) still enqueued a PendingHit -- Hit() is not gating on ContainsWorldPoint.");
+                    return false;
+                }
+                float temperAfterDirectFarHit = MinTemper(panel);
+                if (temperAfterDirectFarHit != temperBefore)
+                {
+                    Debug.LogError($"[ShieldPanelCut3Verify] out-of-radius: a rejected Hit() still changed panel state " +
+                                    $"({temperBefore:F6} -> {temperAfterDirectFarHit:F6}) with no Update() in between.");
+                    return false;
+                }
+
+                // Mutation target: ShieldInterceptor.FindReusable. A clearly-outside click routed
+                // through Absorb() must open its own panel, not disturb the existing one -- again
+                // checked with no intervening StepPanel, so any change can only be this call's doing.
+                rig.interceptor.Absorb(Absorb(new Vector3(20, 0, 0), Vector3.left));
+                if (rig.interceptor.LiveCount != 2)
+                {
+                    Debug.LogError($"[ShieldPanelCut3Verify] out-of-radius: a clearly-outside click should open its own " +
+                                    $"panel (live count {rig.interceptor.LiveCount}, expected 2).");
+                    return false;
+                }
+                if (rig.interceptor.DebugPanelAt(0) != panel)
+                {
+                    Debug.LogError("[ShieldPanelCut3Verify] out-of-radius: the original panel's identity changed from an out-of-radius strike.");
+                    return false;
+                }
+                if (PendingCount(panel) != 0)
+                {
+                    Debug.LogError($"[ShieldPanelCut3Verify] out-of-radius: a far Absorb() enqueued a PendingHit on the " +
+                                    "original panel instead of routing to a new one.");
+                    return false;
+                }
+                float temperAfterFarAbsorb = MinTemper(panel);
+                if (temperAfterFarAbsorb != temperBefore)
+                {
+                    Debug.LogError($"[ShieldPanelCut3Verify] out-of-radius: routing a far Absorb() changed the original " +
+                                    $"panel's state ({temperBefore:F6} -> {temperAfterFarAbsorb:F6}) instead of leaving it untouched.");
+                    return false;
+                }
+
+                Debug.Log($"[ShieldPanelCut3Verify] out-of-radius OK: a direct Hit() and a routed Absorb() outside " +
+                          $"panelRadius both enqueued nothing on the existing panel (temper held at {temperBefore:F6}), " +
+                          "and the far click opened its own panel.");
                 return true;
             }
             finally { DestroyRig(rig); }
