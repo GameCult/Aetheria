@@ -380,8 +380,8 @@ public abstract class EquippableItemData : CraftedItemData
     // [InspectableField, JsonProperty("heatExponent"), Key(16), SimplePerformanceStat]
     // public PerformanceStat HeatExponent = new PerformanceStat();
     
-    [InspectableAnimationCurve, JsonProperty("heatCurve"), Key(17)]
-    public BezierCurve HeatPerformanceCurve;
+    // MessagePack key 17 belonged to HeatPerformanceCurve, a BezierCurve; R-heat (docs/stats-and-power-cut.md)
+    // replaced the authored shape with minimum, maximum, optimum and plateau width. Do not reuse.
 
     [Inspectable, JsonProperty("resilience"), Key(18)]
     public float ThermalResilience = 1;
@@ -400,39 +400,33 @@ public abstract class EquippableItemData : CraftedItemData
     
     [IgnoreMember]
     public abstract HardpointType HardpointType { get; }
-    
-    [IgnoreMember] private const int STEPS = 64;
 
-    [IgnoreMember] private float? _optimum;
-    
-    [IgnoreMember]
-    public float OptimalTemperature
-    {
-        get
-        {
-            if (_optimum==null)
-            {
-                var samples = Enumerable.Range(0, STEPS).Select(i => (float) i / STEPS).ToArray();
-                float max = 0;
-                _optimum = 0;
-                foreach (var f in samples)
-                {
-                    var p = HeatPerformanceCurve?.Evaluate(f)??0;
-                    if (p > max)
-                    {
-                        max = p;
-                        _optimum = f;
-                    }
-                }
-            }
+    // R-heat (docs/stats-and-power-cut.md): the authored shape is minimum, maximum (both above), optimum and
+    // plateau width. Where the part likes to be, and how forgiving it is. Authored, not derived -- the 100-sample
+    // bezier scan that used to infer this from HeatPerformanceCurve is gone, and so is its cache.
+    [InspectableTemperature, JsonProperty("optimalTemperature"), Key(30)]
+    public float OptimalTemperature;
 
-            return (float) (MinimumTemperature + _optimum * (MaximumTemperature - MinimumTemperature));
-        }
-    }
+    // The band, centered on OptimalTemperature, across which performance is 1. Plateau width is the
+    // operational-lifespan lever: inside it, Wear's thermal term is zero (Performance() returns exactly 1), so a
+    // well-managed item takes wear only from deltaTemp (Entity.cs UpdatePerformance).
+    [Inspectable, JsonProperty("plateauWidth"), Key(31)]
+    public float PlateauWidth;
 
+    // Performance is 1 across the plateau and falls linearly to 0 at each bound -- asymmetric whenever the
+    // optimum is off-centre, which is how most gear behaves and how negent gear inverts. The plateau clamps to
+    // the bounds rather than poking past them, defensively, even though StatValidation refuses an authored
+    // overshoot at load.
     public float Performance(float temperature)
     {
-        return saturate(HeatPerformanceCurve?.Evaluate(unlerp(MinimumTemperature, MaximumTemperature, temperature))??1);
+        if (temperature <= MinimumTemperature || temperature >= MaximumTemperature) return 0f;
+        var halfPlateau = PlateauWidth * 0.5f;
+        var plateauLow = max(MinimumTemperature, OptimalTemperature - halfPlateau);
+        var plateauHigh = min(MaximumTemperature, OptimalTemperature + halfPlateau);
+        if (temperature >= plateauLow && temperature <= plateauHigh) return 1f;
+        if (temperature < plateauLow)
+            return saturate(unlerp(MinimumTemperature, plateauLow, temperature));
+        return saturate(unlerp(MaximumTemperature, plateauHigh, temperature));
     }
 }
 
@@ -572,17 +566,49 @@ public class HardpointData
     private static Dictionary<HardpointType, float3> _tintColors;
 }
 
-// What a PerformanceStat reads to resolve one number: the lot it prices quality against, and the three
-// per-context factors that used to be three separate Evaluate bodies. EquippedItem, ConsumableItemEffect and the
+// What a PerformanceStat reads to resolve one number: the lot it prices quality against, and the per-context
+// factors that used to be three separate Evaluate bodies. EquippedItem, ConsumableItemEffect and the
 // unequipped case (ItemManager's own private context) are the three implementations; each supplies only the
 // sources it has, and says so through what it returns rather than through a second, quietly different formula.
+// Cut 1 (docs/stats-and-power-cut.md): each factor now takes the declaring term's own exponent rather than
+// reading a fixed field off the stat, because the stat no longer carries one fixed field per source.
 public interface IStatContext
 {
     Lot Lot { get; }
-    float HeatFactor(PerformanceStat stat);
-    float DurabilityFactor(PerformanceStat stat);
+    float HeatFactor(float exponent);
+    float DurabilityFactor(float exponent);
+    // Progress through a consumable effect's duration, standing in for "condition" on a consumable the way heat
+    // does for equipped gear. Only ConsumableItemEffect has one; every other context is the identity (1).
+    float ConsumableProgressFactor(float exponent);
+    // Cut 6 (the power bus) wires this to a real brownout curve. Until then no catalog stat declares a
+    // PowerSupply term, and every context answers the identity so the enum member can exist now without a
+    // resolver to back it.
+    float PowerSupplyFactor(float exponent);
     float ScaleModifier(PerformanceStat stat);
     float ConstantModifier(PerformanceStat stat);
+}
+
+// The declared sources a stat term can read. Closed: adding a member is a schema change with a census
+// (docs/stats-and-power-cut.md §2).
+public enum StatSource
+{
+    Heat,
+    Durability,
+    Quality,
+    PowerSupply,
+    ConsumableProgress
+}
+
+// One declared dependency of a stat: a source and the exponent it is raised to inside the stat's Min/Max
+// interpolation. Role is meaningful only for Quality; PerformanceStat.Evaluate refuses it elsewhere.
+[MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+public class StatTerm
+{
+    [JsonProperty("source"), Key(0)] public StatSource Source;
+    [JsonProperty("exponent"), Key(1)] public float Exponent;
+    // The design role whose part quality this term reads; unset reads the item's own workmanship quality.
+    // Njordr states the same rule as a derivation over dimensions; this is that rule with one dimension.
+    [Inspectable, JsonProperty("role"), Key(2)] public string Role;
 }
 
 [MessagePackObject, JsonObject(MemberSerialization.OptIn)]
@@ -592,20 +618,13 @@ public class PerformanceStat
 
     [JsonProperty("max"), Key(1)]  public float Max;
 
-    [JsonProperty("heatExponentMultiplier"), Key(2)] 
-    public float HeatExponentMultiplier;
+    // MessagePack keys 2, 3, 4 and 5 belonged to fixed exponent fields (HeatExponentMultiplier,
+    // DurabilityExponentMultiplier, QualityExponent, FromRole) now expressed as declared Terms below; do not
+    // reuse them.
 
-    [JsonProperty("durabilityExponentMultiplier"), Key(3)] 
-    public float DurabilityExponentMultiplier;
+    [Inspectable, JsonProperty("terms"), Key(6)]
+    public List<StatTerm> Terms = new List<StatTerm>();
 
-    [JsonProperty("qualityExponent"), Key(4)] 
-    public float QualityExponent;
-    
-    // The design role whose part quality this stat reads; unset reads the item's own workmanship quality.
-    // Njordr states the same rule as a derivation over dimensions; this is that rule with one dimension.
-    [Inspectable, JsonProperty("fromRole"), Key(5)]
-    public string FromRole;
-    
     [IgnoreMember] private Dictionary<Entity,Dictionary<Behavior,float>> _scaleModifiers;
     [IgnoreMember] private Dictionary<Entity,Dictionary<Behavior,float>> _constantModifiers;
 
@@ -633,17 +652,44 @@ public class PerformanceStat
         return ConstantModifiers[entity];
     }
 
-    // The one evaluation path. Quality is read from the context's Lot the same way for everyone; heat,
-    // durability and modifiers are whatever the context has, and a context with none of those returns the
-    // identity for that term (1 for a multiplied factor, 0 for an added one) instead of a bespoke formula.
-    // Callers keep their own NaN handling: an unequipped read throws with diagnostic detail, an equipped or
-    // consumable read falls back to Min. That disagreement is not named as a defect, so it is not touched here.
+    // The one evaluation path. A stat with no terms resolves to Max (the identity factor, 1, times Min/Max
+    // interpolation lands on the top) -- that is the same number a stat with all-zero exponents produced before
+    // this cut, because pow(x, 0) == 1 regardless of x. Callers keep their own NaN handling: an unequipped read
+    // throws with diagnostic detail, an equipped or consumable read falls back to Min. That disagreement is not
+    // named as a defect, so it is not touched here.
     public float Evaluate(IStatContext context)
     {
-        var quality = pow(context.Lot.QualityForRole(FromRole), QualityExponent);
-        var durability = context.DurabilityFactor(this);
-        var heat = context.HeatFactor(this);
-        return lerp(Min, Max, quality * durability * heat) * context.ScaleModifier(this) + context.ConstantModifier(this);
+        var factor = 1f;
+        foreach (var term in Terms)
+        {
+            factor *= term.Source switch
+            {
+                StatSource.Quality => pow(context.Lot.QualityForRole(term.Role), term.Exponent),
+                StatSource.Heat => context.HeatFactor(term.Exponent),
+                StatSource.Durability => context.DurabilityFactor(term.Exponent),
+                StatSource.ConsumableProgress => context.ConsumableProgressFactor(term.Exponent),
+                StatSource.PowerSupply => context.PowerSupplyFactor(term.Exponent),
+                _ => throw new ArgumentOutOfRangeException(nameof(term.Source), term.Source, $"Unknown StatSource on {Min}-{Max} stat")
+            };
+        }
+        return lerp(Min, Max, factor) * context.ScaleModifier(this) + context.ConstantModifier(this);
+    }
+}
+
+// Cut 1's loud refusal: the heat-response shape (min, max, optimum, plateau width) must describe a coherent
+// range. Runs at catalog load (AetheriaStores.Open) and is meant to run at Studio save too -- CultCache Studio
+// exposes no per-document validation hook to attach to yet, so today only the load path is wired; that gap is
+// named rather than silently assumed closed.
+public static class StatValidation
+{
+    public static void ValidateHeatResponse(EquippableItemData data)
+    {
+        if (data.OptimalTemperature < data.MinimumTemperature || data.OptimalTemperature > data.MaximumTemperature)
+            throw new InvalidOperationException(
+                $"{data.Name}: OptimalTemperature {data.OptimalTemperature} lies outside its bounds " +
+                $"[{data.MinimumTemperature}, {data.MaximumTemperature}]");
+        if (data.PlateauWidth < 0)
+            throw new InvalidOperationException($"{data.Name}: PlateauWidth {data.PlateauWidth} is negative");
     }
 }
 

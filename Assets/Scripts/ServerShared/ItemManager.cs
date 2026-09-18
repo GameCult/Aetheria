@@ -102,9 +102,11 @@ public class ItemManager
                 pow(Lot.Quality, items.GameplaySettings.DurabilityQualityExponent));
         }
 
-        public float HeatFactor(PerformanceStat stat) => 1f;
-        public float DurabilityFactor(PerformanceStat stat) =>
-            pow(_item.Durability / _data.Durability, _durabilityExponent * stat.DurabilityExponentMultiplier);
+        public float HeatFactor(float exponent) => 1f;
+        public float DurabilityFactor(float exponent) =>
+            pow(_item.Durability / _data.Durability, _durabilityExponent * exponent);
+        public float ConsumableProgressFactor(float exponent) => 1f;
+        public float PowerSupplyFactor(float exponent) => 1f;
         public float ScaleModifier(PerformanceStat stat) => 1f;
         public float ConstantModifier(PerformanceStat stat) => 0f;
     }

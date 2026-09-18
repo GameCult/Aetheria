@@ -1183,9 +1183,15 @@ public class ConsumableItemEffect : IStatContext
         return float.IsNaN(result) ? stat.Min : result;
     }
 
-    public float HeatFactor(PerformanceStat stat) =>
-        Data.Effectiveness.Evaluate((Data.Duration - RemainingDuration) / Data.Duration);
-    public float DurabilityFactor(PerformanceStat stat) => 1f;
+    // Cut 1 (docs/stats-and-power-cut.md): progress-through-duration is now its own StatSource
+    // (ConsumableProgress) rather than a hard-coded override of "heat" that applied to every stat regardless of
+    // its declared terms. A consumable stat that wants this must declare a ConsumableProgress term; one that
+    // does not gets the identity (1), same as any other context reading a term it has no source for.
+    public float HeatFactor(float exponent) => 1f;
+    public float DurabilityFactor(float exponent) => 1f;
+    public float ConsumableProgressFactor(float exponent) =>
+        pow(Data.Effectiveness.Evaluate((Data.Duration - RemainingDuration) / Data.Duration), exponent);
+    public float PowerSupplyFactor(float exponent) => 1f;
     public float ScaleModifier(PerformanceStat stat) => 1f;
     public float ConstantModifier(PerformanceStat stat) => 0f;
 }
@@ -1362,8 +1368,10 @@ public class EquippedItem : IStatContext
         return float.IsNaN(result) ? stat.Min : result;
     }
 
-    public float HeatFactor(PerformanceStat stat) => pow(ThermalPerformance, ThermalExponent * stat.HeatExponentMultiplier);
-    public float DurabilityFactor(PerformanceStat stat) => pow(DurabilityPerformance, DurabilityExponent * stat.DurabilityExponentMultiplier);
+    public float HeatFactor(float exponent) => pow(ThermalPerformance, ThermalExponent * exponent);
+    public float DurabilityFactor(float exponent) => pow(DurabilityPerformance, DurabilityExponent * exponent);
+    public float ConsumableProgressFactor(float exponent) => 1f;
+    public float PowerSupplyFactor(float exponent) => 1f;
 
     public float ScaleModifier(PerformanceStat stat)
     {

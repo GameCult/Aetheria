@@ -29,6 +29,10 @@ public static class AetheriaStores
                 cache.AllStoredDocuments.All(stored => stored.Descriptor != descriptor));
             if (missing != null)
                 throw new InvalidOperationException($"Catalog {catalogPath} has no {missing.SchemaName} record; catalog globals are authored, never invented.");
+            // R-heat (docs/stats-and-power-cut.md): every equippable design's heat response must describe a
+            // coherent range before anything reads it. Fails loudly, naming the item.
+            foreach (var data in cache.GetAll<EquippableItemData>())
+                StatValidation.ValidateHeatResponse(data);
             return cache;
         }
         catch
