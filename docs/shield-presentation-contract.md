@@ -29,25 +29,32 @@ equipped.
   happened; the intercept point is where the presentation says the shot arrived
   (`docs/shield-panel-cut.md` R6).
 
-## The anticipation feed
+## The commit window, which is where anticipation comes from
 
-Capability events (`ServerShared/CapabilityEvents.cs`) report what happened.
-Anticipation needs what is *about to* happen, which is a different kind of
-signal and must never be mistaken for the first:
+Operator, 2026-09-18: "we get anticipation for free when we move to roll-based combat, where
+we fudge the presentation to show whatever the simulation rolled", and, on how that squares
+with resolution on arrival, "That hybrid is the way".
 
-- **It is speculative.** A threat may miss, be absorbed by something else, or
-  be destroyed in flight. A presentation that committed to it is simply wrong,
-  and a whip that lunges at a shot it does not block is characterful, not a bug.
-- **Nothing outside presentation may read it.** No gameplay decision, no
-  damage, no state change. If a consumer wants certainty it waits for the
-  capability event.
-- **Its source is the simulation's shots in flight**, not Unity's `Projectile`
-  instances, once fire control moves shot resolution into the sim
-  (`docs/three-gates-scope.md`). Until then a Unity-side feed stands in, and it
-  is the presentation layer's own business.
-- **It carries enough to aim at:** where the threat is, where it is going, when
-  it is expected to arrive, and how big it is. Not who fired it, not what it
-  will do.
+So a shot still **resolves on arrival**, and evasion still matters during flight
+(`docs/three-gates-scope.md`), but its outcome is **committed a short fixed time before
+impact**. That commit is the anticipation feed, and it changes the contract:
+
+- **A committed outcome is authoritative, not speculative.** A presentation that acts on it
+  is performing a decision the simulation has already made. The earlier framing of
+  anticipation as a guess that may be wrong is superseded: presentations do not predict.
+- **Evasion counts until the commit.** Deviation from the predicted intercept feeds the roll
+  right up to the commit horizon; after it, the result stands and the remaining flight is
+  choreography.
+- **The horizon is one authored number**, long enough for a whip to snap or a panel to
+  materialise, short enough that late evasion still covers most of the flight. It belongs
+  with the other fire-control settings, not in an effect.
+- **A commit carries what a presentation must perform:** what happens (hit, absorbed, miss),
+  where, when it arrives, and which capability answers it. Not who fired, not the damage
+  numbers.
+- **A miss is choreography too.** The presentation may show a near-miss, or a whip lunging
+  and failing, because the roll said miss — a deliberate performance, not an error.
+- **Nothing outside presentation reads a commit to change state.** Damage, pickups and
+  everything else still happen through the capability events on arrival.
 
 ## A presentation serving several capabilities
 
@@ -65,8 +72,9 @@ the single-capability presenters never needed:
 
 ## Open
 
-- Where the anticipation feed lives, what publishes it today, and what publishes
-  it after fire control.
+- Where the commit window lives (fire control's owner), its horizon value, and what
+  presentations read before fire control exists: there is no commit to read yet, so the
+  panel's first landing reacts on arrival and looks a beat late by construction.
 - Whether the Lariat is one item carrying both capabilities, or a presentation
   shared by two items. The item data has to say which.
 - The Lariat's strand: a node chain with distance and bending constraints, drawn
