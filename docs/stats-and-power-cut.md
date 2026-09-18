@@ -17,6 +17,44 @@ what it did.
 
 ---
 
+## Rulings (operator, 2026-09-18)
+
+- **Q1: stats and power land before fire control.** "Stats before". Fire control is the next
+  campaign and maps against the authority this builds (§8).
+- **New, R-heat: the heat performance curve is replaced by a range with falloffs.** Operator:
+  "Can we reuse most of the calculation and simultaneously simplify heat to remove the curve
+  calculation? I never ended up authoring those curves much even before the breach, we'd be
+  fine with a range and falloffs, which reduces to range checks and a lerp."
+  - `ItemData.HeatPerformanceCurve` (`ItemData.cs:384`, a `BezierCurve`) goes. The shape is a
+    plateau at full performance between two temperatures, falling linearly to zero at
+    `MinimumTemperature` and `MaximumTemperature`. `Performance` becomes comparisons and a
+    lerp; `OptimalTemperature` (`:409-430`) stops scanning 100 samples of a bezier and
+    becomes the middle of the plateau, so its cache and `_optimum` die with it.
+  - `BezierCurve` itself stays: `Sensor.SensitivityCurve` still uses it.
+  - **Migration is a fit, not a guess.** Each authored curve is sampled; the plateau is where
+    it holds near its maximum and the bounds are where it decays to near zero. The rewrite
+    reports a per-item table (old optimum and width against new plateau and bounds) for the
+    operator to review, and it rides with Cut 1's catalog rewrite rather than being a second
+    migration. Pre-breach history is not consulted for curves: the operator has ruled the
+    shape is going regardless.
+  - Wear reads `OptimalTemperature` (`Entity.cs:1386`), so the fit changes wear too. The
+    verification must show wear unchanged for an item at its optimum and a sane curve
+    elsewhere.
+- **Q4: the input capacitor is the charging one**, and it is derived from `Energy` and
+  `Cooldown` with an authored override. Operator: "Do you mean the charging capacitor that
+  we're putting in to convert discrete power draw to continuous? Derived from energy and
+  cooldown sounds convenient." Burst capacity and sustained rate stay separate levers.
+- **Q5: four or five tiers, defaulted per behaviour kind.**
+- **Q2, Q6, Q7: Self's defaults**, stated and not objected to — modifiers keep the name pair
+  resolved at load, the trade menu shows the evaluated value and sorts by the ceiling, and
+  negent needs nothing beyond `ConsumableProgress`.
+- **Q3 stands as recommended:** accept per-tick recomputation; do not quantise heat. It is
+  the recommendation most likely to be wrong (§9), on a three-hull sample.
+- **Products author quality, designs author roles.** `ProductRole` already carries a mean and
+  a standard deviation per role (`FactionProduct.cs:37-58`) — the manufacturer's technology
+  and their quality control — so a market segment is a second product with one role raised.
+  Zero designs declare roles today, so Cut 7 is what makes any of that reachable.
+
 ## 0. What is there now
 
 ### 0.1 The stat, as it exists
