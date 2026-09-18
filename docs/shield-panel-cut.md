@@ -773,7 +773,14 @@ today: the absorb capability owns no data yet (`CapabilityEvents.cs:17-20` parks
 
 **Q5 — How is the scene edited?** **A:** one-shot editor script run in batchmode, deleted in
 the same commit. **B:** hand-edited YAML. **C:** the operator clicks it together.
-**Recommended: A.** B is the failure mode that produced `1428ada3`. If the operator would
+**Ruled C (operator, 2026-09-18): "screw it, I'll do any editor shenanigans we need for
+now."** Cut 4 therefore ships no editor script and no YAML edit: it ships an exact rig recipe
+for the operator (object names, parents, components, transform values, which asset goes in
+which field) plus a batchmode check that reads the saved scene back and refuses a rig that is
+wrong. Agent-driven editor commands through Brokkr are parked
+(`F:\Projects\Brokkr\docsgent-access-cut.md`).
+
+Superseded reasoning: **Recommended: A.** B is the failure mode that produced `1428ada3`. If the operator would
 rather keep the script as a menu item, say so — that makes it a standing second authority over
 the rig and should be deliberate, not leftover.
 
