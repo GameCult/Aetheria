@@ -6,6 +6,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using GameCult.Caching;
 using MessagePack;
 using Newtonsoft.Json;
@@ -631,32 +632,11 @@ public class PerformanceStat
     [Inspectable, JsonProperty("terms"), Key(6)]
     public List<StatTerm> Terms = new List<StatTerm>();
 
-    [IgnoreMember] private Dictionary<Entity,Dictionary<Behavior,float>> _scaleModifiers;
-    [IgnoreMember] private Dictionary<Entity,Dictionary<Behavior,float>> _constantModifiers;
-
-    [IgnoreMember]
-    private Dictionary<Entity, Dictionary<Behavior, float>> ScaleModifiers =>
-        _scaleModifiers = _scaleModifiers ?? new Dictionary<Entity, Dictionary<Behavior, float>>();
-
-    [IgnoreMember]
-    private Dictionary<Entity, Dictionary<Behavior, float>> ConstantModifiers =>
-        _constantModifiers = _constantModifiers ?? new Dictionary<Entity, Dictionary<Behavior, float>>();
-
-    public Dictionary<Behavior, float> GetScaleModifiers(Entity entity)
-    {
-        if(!ScaleModifiers.ContainsKey(entity))
-            ScaleModifiers[entity] = new Dictionary<Behavior, float>();
-
-        return ScaleModifiers[entity];
-    }
-
-    public Dictionary<Behavior, float> GetConstantModifiers(Entity entity)
-    {
-        if(!ConstantModifiers.ContainsKey(entity))
-            ConstantModifiers[entity] = new Dictionary<Behavior, float>();
-
-        return ConstantModifiers[entity];
-    }
+    // Cut 2 (docs/stats-and-power-cut.md): this catalog object used to hold two Dictionary<Entity, ...> fields
+    // here, keyed by every entity that ever evaluated it, with no removal -- the leak (§0.3). A stat is shared;
+    // a resolved value, and the modifiers that shape it, are not. Both now live in the entity's own StatResolver
+    // (StatResolver.cs), reachable only from the entity, so they die when the entity does instead of when the
+    // process does. Do not reintroduce per-entity state here under any name.
 
     // The one evaluation path. A stat with no terms resolves to Max (the identity factor, 1, times Min/Max
     // interpolation lands on the top) -- that is the same number a stat with all-zero exponents produced before
@@ -670,6 +650,14 @@ public class PerformanceStat
         {
             factor *= term.Source switch
             {
+                // F6 (docs/stats-and-power-cut.md Cut 2 Soul pass): nothing ever calls Resolver.InvalidateSource
+                // for StatSource.Quality. Harmless today because EquippedItem.Lot is set once in the constructor
+                // and never reassigned, so the value this reads never actually moves under a live resolver entry.
+                // §0b designs an upgrade as a lot swap the resolver must see ("an upgrade mints a new lot and
+                // repoints the item, which the resolver sees as a quality-source change") -- that repoint does not
+                // exist yet. Whichever cut adds it must also call InvalidateSource(item, StatSource.Quality) at
+                // the point EquippedItem.Lot is reassigned, or every Quality-termed stat keeps the pre-upgrade
+                // value forever.
                 StatSource.Quality => pow(context.Lot.QualityForRole(term.Role), term.Exponent),
                 StatSource.Heat => context.HeatFactor(term.Exponent),
                 StatSource.Durability => context.DurabilityFactor(term.Exponent),
@@ -684,11 +672,17 @@ public class PerformanceStat
 
 // Cut 1's loud refusal: the heat-response shape (min, max, optimum, plateau width) must describe a coherent
 // range. Runs at catalog load (AetheriaStores.Open) and at every catalog write that goes through
-// CultRecordRefs.Upsert (AetheriaStores.cs) -- every tool, test and migration script in this repository writes
-// through that one path, so an authoring error is refused before it reaches disk, not just the next time
-// someone reopens the file. The one hole this does not close: CultCache Studio's generic document editor
-// writes straight through CultCache, bypassing Upsert, and Studio exposes no per-document validation hook to
-// attach to yet. That gap is named here rather than silently assumed closed.
+// CultRecordRefs.Upsert (AetheriaStores.cs). That is not, in fact, every catalog write in this repository: two
+// named holes exist, not one.
+// - CultCache Studio's generic document editor writes straight through CultCache, bypassing Upsert, and Studio
+//   exposes no per-document validation hook to attach to yet.
+// - tools/AetherDb/Program.cs's Dangling command (:271-274) lands its repaired records through
+//   `db.Cache.Commit(batch => batch.Upsert(document.GetType(), document, key))` -- CultCache's own batch API,
+//   keyed explicitly to preserve the record's existing identity, not the validating extension method above. A
+//   dangling-ref fixup can therefore land an EquippableItemData or ConsumableItemData with an invalid heat
+//   response or an unresolvable stat modifier reference, and `Open` would refuse it only the next time someone
+//   reopens the file, not at the moment `apply` writes it. Both gaps are named here rather than silently assumed
+//   closed.
 public static class StatValidation
 {
     public static void ValidateHeatResponse(EquippableItemData data)
@@ -716,6 +710,49 @@ public static class StatValidation
                 $"{data.Name}: plateau [{plateauLow}, {plateauHigh}] pokes past its bounds " +
                 $"[{data.MinimumTemperature}, {data.MaximumTemperature}] -- the plateau must clamp to the bounds, " +
                 "not exceed them");
+    }
+
+    // Cut 2 (docs/stats-and-power-cut.md): a StatReference names its target by (type name, field name) so a
+    // modifier can point at any design or behaviour without a hard type reference -- but before this cut an
+    // unresolvable reference failed silently: StatModifier.Initialize left `_stats` null and the first
+    // ApplyModifier threw an unhelpful NullReferenceException at random equip time. Resolving it here, once,
+    // memoized, and failing loudly at catalog load or Upsert (through ValidateStatModifiers below) names the
+    // record instead of leaving the bug for whoever equips the item first.
+    private static readonly Dictionary<(string Target, string Stat), (Type Type, FieldInfo Field)> _resolvedStatFields =
+        new Dictionary<(string, string), (Type, FieldInfo)>();
+
+    private static Type[] _statReferenceTypes;
+    private static Type[] StatReferenceTypes => _statReferenceTypes ??= typeof(BehaviorData).GetAllChildClasses()
+        .Concat(typeof(EquippableItemData).GetAllChildClasses()).ToArray();
+
+    public static (Type Type, FieldInfo Field) ResolveStatField(StatReference reference)
+    {
+        var key = (reference.Target, reference.Stat);
+        if (_resolvedStatFields.TryGetValue(key, out var cached)) return cached;
+        var targetType = StatReferenceTypes.FirstOrDefault(t => t.Name == reference.Target);
+        var field = targetType?.GetFields().FirstOrDefault(f => f.FieldType == typeof(PerformanceStat) && f.Name == reference.Stat);
+        if (targetType == null || field == null)
+            throw new InvalidOperationException(
+                $"stat modifier targets \"{reference.Target}.{reference.Stat}\", which does not resolve to a PerformanceStat field");
+        var resolved = (targetType, field);
+        _resolvedStatFields[key] = resolved;
+        return resolved;
+    }
+
+    // Runs wherever ValidateHeatResponse runs (AetheriaStores.Open, CultRecordRefs.Upsert): every StatModifierData
+    // authored on this design must resolve, named here rather than at whichever equip happens to hit it first.
+    public static void ValidateStatModifiers(string ownerName, IEnumerable<BehaviorData> behaviors)
+    {
+        foreach (var behavior in behaviors)
+            if (behavior is StatModifierData modifier)
+                try
+                {
+                    ResolveStatField(modifier.Stat);
+                }
+                catch (InvalidOperationException ex)
+                {
+                    throw new InvalidOperationException($"{ownerName}: {ex.Message}");
+                }
     }
 }
 
