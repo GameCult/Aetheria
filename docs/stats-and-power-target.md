@@ -103,3 +103,6 @@ heat is what limits sustained fire, so a free heat sink removes the limit.
 - **The pilot stays exposed.** Dying hot is the default failure and the cultural nightmare;
   negent moves a ship toward the other end, where hypothermia is waiting. The safe band
   narrows from both sides and the thing saving the ship is what kills the crew.
+
+- **A weapon is the sharpest case.** An Adrasteian gun whose ammunition is the
+  ship's thermal load inverts the whole heat loop: `docs/negent-weapons-concept.md`.
