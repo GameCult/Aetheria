@@ -25,14 +25,24 @@ what it did.
   "Can we reuse most of the calculation and simultaneously simplify heat to remove the curve
   calculation? I never ended up authoring those curves much even before the breach, we'd be
   fine with a range and falloffs, which reduces to range checks and a lerp."
-  - `ItemData.HeatPerformanceCurve` (`ItemData.cs:384`, a `BezierCurve`) goes. The shape is a
-    plateau at full performance between two temperatures, falling linearly to zero at
-    `MinimumTemperature` and `MaximumTemperature`. `Performance` becomes comparisons and a
-    lerp; `OptimalTemperature` (`:409-430`) stops scanning 100 samples of a bezier and
-    becomes the middle of the plateau, so its cache and `_optimum` die with it.
+  - `ItemData.HeatPerformanceCurve` (`ItemData.cs:384`, a `BezierCurve`) goes. **The authored
+    shape is minimum, maximum, optimum and plateau width** (operator, 2026-09-18: "Same shape,
+    more intuitive controls"): where the part likes to be, how forgiving it is, and where it
+    dies. Performance is 1 across the plateau and falls linearly to 0 at each bound, so the
+    two sides are asymmetric whenever the optimum is off-centre — which is how most gear
+    behaves, and how negent gear inverts.
+  - **`OptimalTemperature` becomes authored, not derived.** `:409-430` scans 100 samples of a
+    bezier to find it and caches the result; wear reads that inferred number
+    (`Entity.cs:1386`). The scan, the cache and `_optimum` all die, and the value wear reads
+    is one somebody typed.
+  - Validation (load and Studio save, with the campaign's other checks): the optimum lies
+    between the bounds, the width is not negative, and the plateau clamps to the bounds
+    rather than poking past them. Fails loudly naming the item.
+  - `Performance` becomes comparisons and a lerp.
   - `BezierCurve` itself stays: `Sensor.SensitivityCurve` still uses it.
-  - **Migration is a fit, not a guess.** Each authored curve is sampled; the plateau is where
-    it holds near its maximum and the bounds are where it decays to near zero. The rewrite
+  - **Migration is a fit, not a guess.** Each authored curve is sampled: the optimum is where
+    it peaks, the width is how far it holds near that peak, and the bounds are already
+    authored. The rewrite
     reports a per-item table (old optimum and width against new plateau and bounds) for the
     operator to review, and it rides with Cut 1's catalog rewrite rather than being a second
     migration. Pre-breach history is not consulted for curves: the operator has ruled the
