@@ -36,6 +36,20 @@ namespace Aetheria.EditorTools
 
         public static void Run()
         {
+            // This probe dispatches the panel's compute kernels, so it needs a graphics device.
+            // Under -batchmode -nographics the kernels cannot be looked up and every check dies
+            // with "Kernel 'KInit' not found", which reads like a broken shader and is not one:
+            // run this probe without -nographics. Verified 2026-09-18, both ways.
+            // SystemInfo.supportsComputeShaders still reports true against the null device, so the
+            // device type is what actually answers this (checked 2026-09-18).
+            if (SystemInfo.graphicsDeviceType == UnityEngine.Rendering.GraphicsDeviceType.Null)
+            {
+                Debug.LogError("[ShieldPanelCut3Verify] FAIL: no graphics device in this session. " +
+                               "This probe needs a graphics device; rerun batchmode without -nographics.");
+                EditorApplication.Exit(1);
+                return;
+            }
+
             bool ok = true;
             ok &= CheckSpawnFrameInjectionAbsorbs();
             ok &= CheckReuseStrikesExistingPanel();
