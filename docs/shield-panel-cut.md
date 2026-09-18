@@ -60,6 +60,21 @@ hits we end up showing will be 'fake'". Two consequences worth holding on to:
 
 Q1 (does the first landing have to fracture) is **still open** and still first; see §8.
 
+> **Cut 1 landed 2026-09-18** (`a935b965` sources+port+defects, `ff8b2ff7` probe and its
+> mutation harness). Batchmode: 0 C#, shader and compute errors; only D15's uninitialised-
+> variable warning survives. D1, D3, D4, D6, D12, D18 fixed; D2/D5 collapsed the draw to one
+> call; D7 and D19 recorded; D9/D10 to Cut 5, D17/D20 to Cut 3. The fix for D18 retired
+> `penroseIterations` and `subdivisions`. A repo-specific trap the map missed:
+> `UI/ContextMenu.cs` shadows `UnityEngine.ContextMenu`, so the attribute needs qualifying.
+>
+> **Open, found in Cut 1's own numbers (D21):** Penrose scales with radius now, but not with
+> `cellSize` the way Hex does — at r1.5/cellSize 0.35 it yields 460 cells where Hex yields 19,
+> and 8050 at r10 against Hex's 979. Iteration count is quantised (each substitution divides
+> edge length by phi), so a panel can only land near the requested density, and it currently
+> lands an order of magnitude denser. Cut 3 sizes panels from the item (R2) and pools them
+> (§2.4), so settle this before pooling: either the count is wrong, or `cellSize` means
+> something different for a quasiperiodic tiling and the item's knob must say which.
+
 ## 1. What the repo actually has today
 
 The re-probe found the thing the first pass missed: **the ellipsoid envelope already exists
