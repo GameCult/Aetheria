@@ -69,8 +69,20 @@ public class StatModifier : Behavior, IInitializableBehavior, IDisposable, IAlwa
     // fresh and silently at every equip, now goes through StatValidation.ResolveStatField -- resolved once,
     // memoized, and refused loudly (at catalog load, or here if a caller built one without going through the
     // catalog) instead of leaving `_stats` null for ApplyModifier to throw an opaque NullReferenceException on.
+    //
+    // Gate 2 fix (Soul pass over Cut 2): Initialize is the entity's own re-activation hook, called exactly once
+    // per (re)activation for every StatModifier on it -- it is the one place that already knows "this behaviour's
+    // targets are about to change." Detaching an old attachment, if any, belongs here, not in Update's _executed/
+    // _applied latch: that latch only tracks per-tick execution and was never told a re-Initialize had happened,
+    // so after deactivate -> unequip the target -> equip a replacement -> activate, _applied stayed true from the
+    // stale attachment and Update's `_executed && !_applied` guard never fired again -- the modifier silently
+    // stopped reaching anything. Making Initialize own the detach/reattach transition removes the split
+    // authority instead of just resetting the flag: whatever this modifier was attached to before is explicitly
+    // let go before new targets are computed, so the next Execute+Update reliably reapplies against them.
     public void Initialize()
     {
+        if (_applied)
+            RemoveModifier();
         _targets = TargetsOf(Entity, _data);
         ValidateNoCycle(Entity, _data, _targets);
     }
