@@ -23,7 +23,7 @@ public class ThrusterData : BehaviorData
     [Inspectable, JsonProperty("energy"), Key(4), RuntimeInspectable]  
     public PerformanceStat EnergyUsage = new PerformanceStat();
 
-    [Inspectable, CultInspectorAssetPath, JsonProperty("Particles"), Key(5)]
+    [Inspectable, CultInspectorAssetGuid, JsonProperty("Particles"), Key(5)]
     public string ParticlesPrefab;
     
     public override Behavior CreateInstance(EquippedItem item)

@@ -47,7 +47,7 @@ public class AetherDriveData : BehaviorData
     [Inspectable, JsonProperty("torqueAudio"), Key(12), RuntimeInspectable]
     public uint TorqueRatioAudioParameter;
 
-    [Inspectable, CultInspectorAssetPath, JsonProperty("particles"), Key(13)]
+    [Inspectable, CultInspectorAssetGuid, JsonProperty("particles"), Key(13)]
     public string Particles;
     
     public override Behavior CreateInstance(EquippedItem item)

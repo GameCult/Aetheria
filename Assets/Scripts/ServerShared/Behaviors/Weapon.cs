@@ -40,7 +40,7 @@ public abstract class WeaponData : BehaviorData
     [InspectableAnimationCurve, JsonProperty("damageCurve"), Key(7)]
     public BezierCurve DamageCurve;
     
-    [Inspectable, CultInspectorAssetPath, JsonProperty("effect"), Key(8)]  
+    [Inspectable, CultInspectorAssetGuid, JsonProperty("effect"), Key(8)]  
     public string EffectPrefab;
     
     [Inspectable, JsonProperty("energy"), Key(9), RuntimeInspectable]  

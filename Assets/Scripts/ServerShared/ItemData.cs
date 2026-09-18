@@ -349,7 +349,7 @@ public class ConsumableItemData : CraftedItemData
     [Inspectable, JsonProperty("duration"), Key(12)]
     public float Duration;
 
-    [Inspectable, CultInspectorAssetPath, JsonProperty("icon"), Key(13)]
+    [Inspectable, CultInspectorAssetGuid, JsonProperty("icon"), Key(13)]
     public string Icon;
 
     [Inspectable, JsonProperty("effectiveness"), Key(14)]
@@ -359,7 +359,7 @@ public class ConsumableItemData : CraftedItemData
 [JsonObject(MemberSerialization.OptIn)]
 public abstract class EquippableItemData : CraftedItemData
 {
-    [Inspectable, CultInspectorAssetPath, JsonProperty("schematic"), Key(10)]
+    [Inspectable, CultInspectorAssetGuid, JsonProperty("schematic"), Key(10)]
     public string Schematic;
     
     [Inspectable, JsonProperty("behaviors"), Key(11)]  
@@ -389,7 +389,7 @@ public abstract class EquippableItemData : CraftedItemData
     // [Inspectable, JsonProperty("sfx"), Key(19)]
     // public string SoundEffectTrigger;
     
-    [Inspectable, CultInspectorAssetPath, JsonProperty("actionIcon"), Key(20)]
+    [Inspectable, CultInspectorAssetGuid, JsonProperty("actionIcon"), Key(20)]
     public string ActionBarIcon;
 
     [Inspectable, JsonProperty("soundBank"), Key(21)]
@@ -496,7 +496,7 @@ public class HullData : EquippableItemData
     [Inspectable, JsonProperty("hardpoints"), Key(23)]  
     public List<HardpointData> Hardpoints = new List<HardpointData>();
 
-    [Inspectable, CultInspectorAssetPath, JsonProperty("prefab"), Key(24)]  
+    [Inspectable, CultInspectorAssetGuid, JsonProperty("prefab"), Key(24)]  
     public string Prefab;
 
     [Inspectable, JsonProperty("hullType"), Key(25)]

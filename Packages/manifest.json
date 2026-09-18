@@ -51,8 +51,8 @@
     "com.unity.modules.vr": "1.0.0",
     "com.unity.modules.wind": "1.0.0",
     "com.unity.modules.xr": "1.0.0",
-    "org.gamecult.caching.unity": "https://github.com/GameCult/CultLib.git?path=/src/GameCult.Unity/Assets/Caching#caching-unity-v1.3.1",
-    "org.gamecult.cultlib": "https://github.com/GameCult/CultLib.git?path=/unity/org.gamecult.cultlib#cultlib-unity-v1.0.59",
+    "org.gamecult.caching.unity": "https://github.com/GameCult/CultLib.git?path=/src/GameCult.Unity/Assets/Caching#caching-unity-v1.4.0",
+    "org.gamecult.cultlib": "https://github.com/GameCult/CultLib.git?path=/unity/org.gamecult.cultlib#cultlib-unity-v1.0.60",
     "org.gamecult.cultmath": "https://github.com/GameCult/CultLib.git?path=/packages/cultmath/unity/org.gamecult.cultmath#cultmath-unity-v0.2.3"
   }
 }

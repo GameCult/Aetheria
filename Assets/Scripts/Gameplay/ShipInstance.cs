@@ -50,7 +50,7 @@ public class ShipInstance : EntityInstance
         var drive = ship.GetBehavior<AetherDrive>();
         if (drive != null)
         {
-            var particles = Instantiate(UnityHelpers.LoadAsset<ParticleSystem>(drive.DriveData.Particles), transform, false);
+            var particles = Instantiate(EngineAssets.Load<ParticleSystem>(drive.DriveData.Particles), transform, false);
             var main = particles.main;
             main.customSimulationSpace = LocalSpace;
             _aetherDrive = new AetherDriveInstance
@@ -64,7 +64,7 @@ public class ShipInstance : EntityInstance
         _thrusters = ship.GetBehaviors<Thruster>().Select(thruster =>
             {
                 var effectData = (ThrusterData) thruster.Data;
-                var particles = Instantiate(UnityHelpers.LoadAsset<ParticleSystem>(effectData.ParticlesPrefab), transform, false);
+                var particles = Instantiate(EngineAssets.Load<ParticleSystem>(effectData.ParticlesPrefab), transform, false);
                 var particlesShape = particles.shape;
                 var thrusterHardpoint = ThrusterHardpoints
                     .FirstOrDefault(t => t.name == ship.Hardpoints[thruster.Item.Position.x, thruster.Item.Position.y].Transform);

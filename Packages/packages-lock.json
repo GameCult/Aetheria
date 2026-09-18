@@ -243,20 +243,20 @@
       "url": "https://packages.unity.com"
     },
     "org.gamecult.caching.unity": {
-      "version": "https://github.com/GameCult/CultLib.git?path=/src/GameCult.Unity/Assets/Caching#caching-unity-v1.3.1",
+      "version": "https://github.com/GameCult/CultLib.git?path=/src/GameCult.Unity/Assets/Caching#caching-unity-v1.4.0",
       "depth": 0,
       "source": "git",
       "dependencies": {
-        "org.gamecult.cultlib": "1.0.59"
+        "org.gamecult.cultlib": "1.0.60"
       },
-      "hash": "a0813c6eed24d30bf88073ef615b633c77ebfcd6"
+      "hash": "45c2f4006f5f7dab357426cabd3197e8d0a17f66"
     },
     "org.gamecult.cultlib": {
-      "version": "https://github.com/GameCult/CultLib.git?path=/unity/org.gamecult.cultlib#cultlib-unity-v1.0.59",
+      "version": "https://github.com/GameCult/CultLib.git?path=/unity/org.gamecult.cultlib#cultlib-unity-v1.0.60",
       "depth": 0,
       "source": "git",
       "dependencies": {},
-      "hash": "a0813c6eed24d30bf88073ef615b633c77ebfcd6"
+      "hash": "45c2f4006f5f7dab357426cabd3197e8d0a17f66"
     },
     "org.gamecult.cultmath": {
       "version": "https://github.com/GameCult/CultLib.git?path=/packages/cultmath/unity/org.gamecult.cultmath#cultmath-unity-v0.2.3",

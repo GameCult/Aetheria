@@ -101,7 +101,7 @@ public sealed class InspectableSchematicShapeDrawer : ICultInspectorDrawer
         var shape = value as Shape ?? new Shape();
         var item = inspector.Record as EquippableItemData;
         var hull = item as HullData;
-        var schematic = string.IsNullOrEmpty(item?.Schematic) ? null : AssetDatabase.LoadAssetAtPath<Texture2D>(item.Schematic);
+        var schematic = string.IsNullOrEmpty(item?.Schematic) ? null : AssetDatabase.LoadAssetAtPath<Texture2D>(AssetDatabase.GUIDToAssetPath(item.Schematic));
 
         EditorGUILayout.LabelField(label);
         using (new EditorGUILayout.HorizontalScope())
