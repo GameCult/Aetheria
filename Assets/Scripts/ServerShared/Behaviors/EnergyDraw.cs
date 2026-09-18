@@ -27,7 +27,7 @@ public class EnergyDrawData : BehaviorData
     }
 }
 
-public class EnergyDraw : Behavior
+public class EnergyDraw : Behavior, IPowerConsumer
 {
     private EnergyDrawData _data;
 
@@ -41,8 +41,15 @@ public class EnergyDraw : Behavior
         _data = data;
     }
 
+    // Cut 3 (docs/stats-and-power-cut.md): the request PowerBus needs before Execute runs, in place of the
+    // direct Entity.TryConsumeEnergy spend that used to happen inside Execute.
+    public float PowerRequest(float dt) => Evaluate(_data.EnergyDraw) * (_data.PerSecond ? dt : 1);
+
     public override bool Execute(float dt)
     {
-        return Entity.TryConsumeEnergy(Evaluate(_data.EnergyDraw) * (_data.PerSecond ? dt : 1));
+        // A consumable-hosted instance (Item null) has no PowerBus entry (§1.2's grants are keyed by
+        // EquippedItem); named rather than silently assumed away, it always succeeds here, the same way every
+        // other context-dependent factor a ConsumableItemEffect answers with the identity elsewhere in this cut.
+        return Item == null || Item.PowerSupply >= 1f;
     }
 }

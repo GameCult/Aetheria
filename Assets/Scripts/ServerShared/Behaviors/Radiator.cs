@@ -39,15 +39,15 @@ public class RadiatorData : BehaviorData
     }
 }
 
-public class Radiator : Behavior, IAlwaysUpdatedBehavior, IInitializableBehavior
+public class Radiator : Behavior, IAlwaysUpdatedBehavior, IInitializableBehavior, IPowerConsumer
 {
     public float RadiatorTemperature { get; private set; }
-    
+
     public float Emissivity { get; private set; }
     public float PumpedHeat { get; private set; }
     public float WasteHeat { get; private set; }
     public float EnergyUsage { get; private set; }
-    
+
     private RadiatorData _data;
 
     public Radiator(RadiatorData data, EquippedItem item) : base(data, item)
@@ -59,6 +59,17 @@ public class Radiator : Behavior, IAlwaysUpdatedBehavior, IInitializableBehavior
         _data = data;
     }
 
+    // Cut 3 (docs/stats-and-power-cut.md): mirrors Execute's own early-out below -- a radiator that would not
+    // even try to pump this tick (waste would outrun pump capacity) requests nothing, exactly like before.
+    public float PowerRequest(float dt)
+    {
+        var pumpedHeat = Evaluate(_data.PumpedHeat);
+        var wasteHeat = Evaluate(_data.WasteHeat);
+        var tempRatio = max(RadiatorTemperature / Temperature, 1);
+        if (tempRatio > pumpedHeat / wasteHeat) return 0f;
+        return Evaluate(_data.EnergyUsage) * tempRatio * dt;
+    }
+
     public override bool Execute(float dt)
     {
         PumpedHeat = Evaluate(_data.PumpedHeat);
@@ -67,12 +78,12 @@ public class Radiator : Behavior, IAlwaysUpdatedBehavior, IInitializableBehavior
 
         var itemTemperature = Temperature;
         var tempRatio = max(RadiatorTemperature / itemTemperature, 1);
-        
+
         // Temperature ratio would cause more waste heat than pump capacity, stop executing
         if (tempRatio > PumpedHeat / WasteHeat) return true;
 
-        if (!Entity.TryConsumeEnergy(EnergyUsage * tempRatio * dt)) return false;
-        
+        if (Item != null && Item.PowerSupply < 1f) return false;
+
         var pumpedHeat = PumpedHeat * max(itemTemperature - _data.TemperatureFloor, 0);
         
         // Radiator temperature is below temperature floor, stop executing

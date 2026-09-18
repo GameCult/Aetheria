@@ -25,7 +25,7 @@ public class ConstantWeaponData : WeaponData
     }
 }
 
-public class ConstantWeapon : Weapon, IProgressBehavior, IEventBehavior
+public class ConstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerConsumer
 {
     private ConstantWeaponData _data;
     private int _ammo = 1;
@@ -72,6 +72,11 @@ public class ConstantWeapon : Weapon, IProgressBehavior, IEventBehavior
         _data = data;
     }
 
+    // Cut 3 (docs/stats-and-power-cut.md): the request the bus needs before Execute runs -- what continuing to
+    // fire this tick would cost, or nothing when not firing or safed. _firing is set externally (Activate/
+    // Deactivate) before Entity.Update calls PowerBus.Step, so it is already current when this runs.
+    public float PowerRequest(float dt) => _firing && StanceAllowsFire ? Evaluate(_data.Energy) * dt : 0f;
+
     public override bool Execute(float dt)
     {
         base.Execute(dt);
@@ -84,7 +89,7 @@ public class ConstantWeapon : Weapon, IProgressBehavior, IEventBehavior
         }
         if (_firing)
         {
-            if (!Entity.TryConsumeEnergy(Evaluate(_data.Energy) * dt))
+            if (Item != null && Item.PowerSupply < 1f)
             {
                 _firing = false;
                 OnStopFiring?.Invoke();

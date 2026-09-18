@@ -49,14 +49,17 @@ public class Shield : Behavior, IProgressBehavior
         return true;
     }
 
+    // Cut 3 (docs/stats-and-power-cut.md): one of the four instant draws out of scope for the bus this cut (a
+    // hit taken, not a chosen activation) -- named, temporary exception, spending capacitor charge directly
+    // instead of through PowerBus. Cut 4 gives it a real continuous reserve model and closes this.
     public bool CanTakeHit(DamageType type, float damage)
     {
-        return Entity.CanConsumeEnergy(damage * EnergyUsage);
+        return Entity.CanSpendCapacitorCharge(damage * EnergyUsage);
     }
 
     public void TakeHit(DamageType type, float damage)
     {
-        Entity.TryConsumeEnergy(damage * EnergyUsage);
+        Entity.TrySpendCapacitorCharge(damage * EnergyUsage);
         AddHeat(damage / Efficiency);
     }
 

@@ -80,9 +80,11 @@ public class Sensor : Behavior, IEventBehavior
         OnPingEnd = null;
     }
 
+    // Cut 3 (docs/stats-and-power-cut.md): one of the four instant draws out of scope for the bus this cut (a
+    // ping) -- named, temporary exception, spending capacitor charge directly. Cut 4 closes this.
     public void Ping()
     {
-        if(_pingCooldown < 0 && Entity.TryConsumeEnergy(Evaluate(_data.PingEnergy)))
+        if(_pingCooldown < 0 && Entity.TrySpendCapacitorCharge(Evaluate(_data.PingEnergy)))
         {
             Entity.VisibilitySources[this] = Evaluate(_data.PingVisibility);
             _pinging = true;

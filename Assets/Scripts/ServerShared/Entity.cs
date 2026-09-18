@@ -67,6 +67,10 @@ public abstract class Entity
     // so it is collected with the entity instead of surviving it for the life of the process (§0.3, §1.1).
     public readonly StatResolver Resolver = new StatResolver();
 
+    // Cut 3 (docs/stats-and-power-cut.md): the sole owner of every power grant for this entity, same lifecycle
+    // reasoning as Resolver above (§1.2).
+    public readonly PowerBus PowerBus;
+
     public EquippedItem[,] GearOccupancy;
     public HardpointData[,] Hardpoints;
     public float[,] Armor;
@@ -75,7 +79,6 @@ public abstract class Entity
     private EquippedItem[] _orderedEquipment;
     private List<Weapon> _weapons = new List<Weapon>();
     private List<Capacitor> _capacitors = new List<Capacitor>();
-    private List<Reactor> _reactors = new List<Reactor>();
     private List<Radiator> _heatsinks = new List<Radiator>();
 
     private List<ConsumableItemEffect> _activeConsumables = new List<ConsumableItemEffect>();
@@ -349,6 +352,7 @@ public abstract class Entity
         Hull = hull;
         HullData = itemManager.GetData(hull) as HullData;
         Name = HullData.Name;
+        PowerBus = new PowerBus(this);
         MapEntity();
         WeaponGroups = new (List<Weapon> weapons, List<EquippedItem> items)[itemManager.GameplaySettings.WeaponGroupCount];
         for(int i=0; i<itemManager.GameplaySettings.WeaponGroupCount; i++)
@@ -608,8 +612,6 @@ public abstract class Entity
             }
             if (b is Capacitor capacitor)
                 _capacitors.Remove(capacitor);
-            if (b is Reactor reactor)
-                _reactors.Remove(reactor);
             if (b is Radiator heatsink)
                 _heatsinks.Remove(heatsink);
             if (b is Shield)
@@ -793,8 +795,6 @@ public abstract class Entity
                 _weapons.Add(weapon);
             if(b is Capacitor capacitor)
                 _capacitors.Add(capacitor);
-            if(b is Reactor reactor)
-                _reactors.Add(reactor);
             if(b is Radiator heatsink)
                 _heatsinks.Add(heatsink);
             if (b is Shield shield)
@@ -858,44 +858,36 @@ public abstract class Entity
         return true;
     }
 
-    public bool CanConsumeEnergy(float energy)
-    {
-        var capEnergy = _capacitors.Sum(cap => cap.Charge);
-        int onlineReactors = _reactors.Count(reactor=>reactor.Item.Online.Value);
-        return capEnergy > energy || onlineReactors > 0;
-    }
+    // Cut 3 (docs/stats-and-power-cut.md): replaces CanConsumeEnergy/TryConsumeEnergy for the four instant draws
+    // the cut map names as out of scope for the bus this cut (a burst, a shot, a ping, a hit taken) -- the named,
+    // temporary exception the map accepts, closed by Cut 4's input capacitors. Capacitor charge only: a reactor
+    // no longer bails out a draw it cannot cover for free, which is exactly the behaviour Cut 3 exists to remove
+    // (§0.5 -- "every draw succeeds while one reactor is online"). Atomic: either every capacitor together holds
+    // enough charge and it is spent, or nothing moves -- never TryConsumeEnergy's old partial drain-then-refuse.
+    public bool CanSpendCapacitorCharge(float energy) => _capacitors.Sum(cap => cap.Charge) >= energy;
 
-    public bool TryConsumeEnergy(float energy)
+    public bool TrySpendCapacitorCharge(float energy)
     {
         if (energy < .01f) return true;
+        if (!CanSpendCapacitorCharge(energy)) return false;
+
+        var remaining = energy;
         int chargedCapacitors;
         do
         {
             chargedCapacitors = _capacitors.Count(capacitor => capacitor.Charge > .01f);
-            var chargeToRemove = energy;
+            if (chargedCapacitors == 0) break;
+            var share = remaining / chargedCapacitors;
             foreach (var cap in _capacitors)
             {
-                if(cap.Charge > 0.01f)
-                {
-                    var chargeRemoved = min(chargeToRemove / chargedCapacitors, cap.Charge);
-                    cap.AddCharge(-chargeRemoved);
-                    energy -= chargeRemoved;
-                }
+                if (cap.Charge <= .01f) continue;
+                var drawn = min(share, cap.Charge);
+                cap.AddCharge(-drawn);
+                remaining -= drawn;
             }
-        } while (chargedCapacitors > 0 && energy > .01f);
+        } while (chargedCapacitors > 0 && remaining > .01f);
 
-        if (energy < .01f) return true;
-
-        int onlineReactors = _reactors.Count(reactor=>reactor.Item.Online.Value);
-        foreach (var reactor in _reactors)
-        {
-            if (reactor.Item.Online.Value)
-            {
-                reactor.ConsumeEnergy(energy / onlineReactors);
-            }
-        }
-
-        return onlineReactors > 0;
+        return true;
     }
 
     private void AddChild(Entity entity)
@@ -1038,6 +1030,10 @@ public abstract class Entity
                     _activeConsumables.RemoveAt(i--);
                 }
             }
+
+            // Cut 3 (docs/stats-and-power-cut.md §1.2): stepped once per tick, before any equipped item's
+            // Behaviors execute, so every IPowerConsumer's grant is decided before it acts on it.
+            PowerBus.Step(delta);
 
             foreach (var equippedItem in _orderedEquipment)
             {
@@ -1389,6 +1385,13 @@ public class EquippedItem : IStatContext
     public float DurabilityFactor(float exponent) => pow(DurabilityPerformance, DurabilityExponent * exponent);
     public float ConsumableProgressFactor(float exponent) => 1f;
     public float PowerSupplyFactor(float exponent) => 1f;
+
+    // Cut 3 (docs/stats-and-power-cut.md §1.2): PowerBus's grant ratio for this item, in [0,1], from whichever
+    // tick last ran its Step. Display-only and (once Cut 6 wires StatSource.PowerSupply into the resolver)
+    // stat-source-only: the only other reader is the very IPowerConsumer behaviour that declared the request this
+    // reflects. Forbidden writers: nothing but PowerBus sets this. Defaults to 1 (fully supplied) for an item
+    // that draws no power, or before the bus has run once.
+    public float PowerSupply { get; internal set; } = 1f;
 
     // Cut 2: these used to read the catalog stat's own per-entity dictionary (the leak, §0.3). A modifier now
     // attaches to this entity's resolver, keyed by (this item, stat); reading it here is unchanged.

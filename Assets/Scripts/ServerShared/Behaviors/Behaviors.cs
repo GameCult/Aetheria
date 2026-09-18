@@ -134,6 +134,17 @@ public interface IPopulationAssignment
     int AssignedPopulation { get; set; }
 }
 
+// Cut 3 (docs/stats-and-power-cut.md §1.2): a behaviour that wants to draw from its entity's PowerBus declares a
+// request instead of spending energy itself. PowerBus.Step calls this on every consumer once per tick, before
+// any behaviour's Execute runs, so PowerRequest must be computable from state that is already current at that
+// point -- a resolved stat and, where the map calls for one, a behaviour-supplied scalar such as Thruster's
+// throttle axis (set externally before the tick) -- never from work Execute itself would otherwise do. The
+// behaviour reads back how much of its own request was granted from Item.PowerSupply during its own Execute.
+public interface IPowerConsumer
+{
+    float PowerRequest(float dt);
+}
+
 [Inspectable, 
  Union(0, typeof(GuidedWeaponData)),
  Union(1, typeof(LauncherData)),
