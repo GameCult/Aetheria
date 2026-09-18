@@ -1,0 +1,367 @@
+// ShieldSim.compute
+//
+// Stress propagates as a wave on the dual graph of the tiling rather than as a
+// diffusion. The whole spall effect rests on one convention:
+//
+//   u > 0 is TENSION, u < 0 is COMPRESSION. An impact injects compression.
+//   Material fails on tension only.
+//
+// A free surface must hold stress at zero, which is a Dirichlet condition, and
+// Dirichlet boundaries reflect with INVERTED sign. So the compressive pulse
+// returns from the rim (and from the faces of already-broken cells) as tension,
+// and that reflected tension is what spalls. Imposing Neumann here instead --
+// which is what you get by default if you simply omit missing neighbours from
+// the Laplacian -- reflects compression as compression and nothing ever breaks.
+
+#pragma kernel KInit
+#pragma kernel KInject
+#pragma kernel KWaveStep
+#pragma kernel KEcho
+#pragma kernel KFracture
+#pragma kernel KUpdate
+
+#include "ShieldCommon.hlsl"
+
+#define ECHO_SLOTS 16
+
+StructuredBuffer<CellStatic>  _Cells;
+StructuredBuffer<DualEdge>    _Edges;
+RWStructuredBuffer<CellState> _State;
+
+// wave field, ping-ponged by the host
+StructuredBuffer<float>       _UIn;
+RWStructuredBuffer<float>     _UOut;
+RWStructuredBuffer<float>     _V;         // du/dt
+RWStructuredBuffer<float>     _Echo;      // [cell * ECHO_SLOTS + slot] through-thickness delay line
+RWStructuredBuffer<float>     _EdgeFlow;  // per-arc |gradient|, for conduit rendering
+AppendStructuredBuffer<uint>  _Visible;
+RWStructuredBuffer<uint>      _BreakBudget; // [0]=count this frame (atomic), [1]=cap; caps cascade rate per frame
+
+uint  _CellCount;
+float _Time;
+float _Dt;
+
+// --- wave
+float _WaveSpeed2;      // c^2
+float _Damping;
+float _StressClamp;
+
+// --- through-thickness echo
+uint  _EchoSlot;        // current write slot, advanced by the host each substep
+uint  _EchoDelay;       // slots to wait ~ 2 * thickness / c
+float _EchoReflect;     // negative: free back face inverts the pulse
+
+// --- hit
+float2 _HitPos;
+float2 _HitDir;         // in-plane component of the incoming direction
+float  _HitEnergy;
+float  _HitRadius;
+float  _HitObliquity;   // 0 head-on, 1 grazing
+uint   _Pattern;
+float  _StarArms;
+float  _PatternFocus;
+float  _HitSpin;
+float  _SpiralTwist;
+
+// --- material
+float _TensileStrength;
+float _TemperInit;        // surface compression at full charge
+float _TemperErosion;     // how fast sub-critical tension wears the temper down
+float _StoredEnergyGain;  // fraction of temper released back into the field on break
+float _DamageGain;
+float _BreakAt;
+float _CrackStart;
+
+// --- shards
+float _RadialKick;
+float _LateralKick;
+float _NormalKick;
+float _SpinKick;
+float _ShardLife;
+float _ShardDrag;
+
+// --- growth
+float _PanelSpawnTime;
+float _GrowDuration;
+float _GlowDecay;
+
+// ==================================================================
+[numthreads(64,1,1)]
+void KInit(uint3 id : SV_DispatchThreadID)
+{
+    uint i = id.x; if (i >= _CellCount) return;
+
+    CellState s = (CellState)0;
+    s.breakTime   = -1.0;
+    s.temper      = _TemperInit;
+    _State[i] = s;
+
+    _UOut[i] = 0.0;
+    _V[i]    = 0.0;
+    for (uint k = 0; k < ECHO_SLOTS; k++) _Echo[i * ECHO_SLOTS + k] = 0.0;
+}
+
+// ==================================================================
+// Stamp the initial pulse. The pattern shapes the pulse; the material's
+// own anisotropy (baked into the arc weights) decides how it spreads.
+// ==================================================================
+float InjectionProfile(float2 rel, float r)
+{
+    float2 rad = (r > 1e-5) ? rel / r : float2(1, 0);
+    float falloff = saturate(1.0 - r / max(_HitRadius, 1e-4));
+    falloff = falloff * falloff;
+
+    float shape = 1.0;
+    switch (_Pattern)
+    {
+    case PAT_RADIAL:
+        break;
+
+    case PAT_STAR:
+    {
+        float ang   = atan2(rad.y, rad.x) + _HitSpin;
+        float spoke = abs(frac(ang * _StarArms / TAU + 0.5) - 0.5) * 2.0;  // 0 on a spoke
+        shape = lerp(1.0, _PatternFocus, spoke);
+        break;
+    }
+    case PAT_LANCE:
+    {
+        float a = saturate(dot(rad, _HitDir) * 0.5 + 0.5);
+        shape = lerp(_PatternFocus, 1.0, a * a);
+        break;
+    }
+    case PAT_SPIRAL:
+    {
+        float ang    = atan2(rad.y, rad.x);
+        float target = _SpiralTwist * r;
+        float d      = abs(frac((ang - target) / TAU * _StarArms + 0.5) - 0.5) * 2.0;
+        shape = lerp(1.0, _PatternFocus, d);
+        break;
+    }
+    case PAT_CRYSTAL:
+        // leave the pulse round; the grain in the arc weights does the shaping
+        break;
+
+    case PAT_FIZZLE:
+        shape = lerp(0.35, 1.0, Hash01(asuint(r * 991.0) ^ asuint(rad.x * 577.0)));
+        break;
+    }
+
+    // A grazing hit couples less energy in and skews it downrange.
+    float oblique = lerp(1.0, saturate(dot(rad, _HitDir) * 0.5 + 0.5) * 1.6, _HitObliquity);
+    return falloff * shape * oblique;
+}
+
+[numthreads(64,1,1)]
+void KInject(uint3 id : SV_DispatchThreadID)
+{
+    uint i = id.x; if (i >= _CellCount) return;
+    CellState s = _State[i];
+    if (s.breakTime >= 0.0 || s.growth < 0.6) return;
+
+    CellStatic c = _Cells[i];
+    float2 rel = c.center - _HitPos;
+    float  r   = length(rel);
+    if (r > _HitRadius) return;
+
+    float amp = InjectionProfile(rel, r) * _HitEnergy;
+
+    // Negative: the strike puts the material into compression. Injecting into
+    // velocity rather than displacement gives a propagating pulse instead of a
+    // standing bump.
+    _V[i] -= amp / max(c.area, 1e-5);
+
+    // Seed the through-thickness delay line at the current slot.
+    _Echo[i * ECHO_SLOTS + (_EchoSlot % ECHO_SLOTS)] -= amp;
+}
+
+// ==================================================================
+// One substep of u_tt = c^2 * lap(u) - damping * u_t
+// ==================================================================
+[numthreads(64,1,1)]
+void KWaveStep(uint3 id : SV_DispatchThreadID)
+{
+    uint i = id.x; if (i >= _CellCount) return;
+
+    CellStatic c  = _Cells[i];
+    CellState  st = _State[i];
+    float ui = _UIn[i];
+
+    // A broken cell carries no stress and reflects everything back at its neighbours.
+    if (st.breakTime >= 0.0 || st.growth < 0.6)
+    {
+        _UOut[i] = 0.0;
+        _V[i]    = 0.0;
+        return;
+    }
+
+    float lap = 0.0;
+    float flowMax = 0.0;
+
+    for (uint k = 0; k < c.nbrCount; k++)
+    {
+        uint  ei = c.nbrStart + k;
+        DualEdge e = _Edges[ei];
+        CellState ns = _State[e.nbr];
+
+        // Ghost value: an intact neighbour contributes its own stress; a broken
+        // one (or an ungrown one) is a free surface, so the ghost is -ui, which
+        // pins the face to zero and inverts the reflected pulse.
+        bool solid = (ns.breakTime < 0.0) && (ns.growth >= 0.6);
+        float uj = solid ? _UIn[e.nbr] : -ui;
+
+        lap += e.w * (uj - ui);
+
+        float f = abs(uj - ui) * e.w;
+        _EdgeFlow[ei] = f;
+        flowMax = max(flowMax, f);
+    }
+
+    // Rim edges have no arc at all, so their ghost term was precomputed.
+    lap += c.openW * (-2.0 * ui);
+
+    lap /= max(c.area, 1e-5);
+
+    float v = _V[i];
+    v += _WaveSpeed2 * lap * _Dt;
+    v *= exp(-_Damping * _Dt);
+
+    float u = ui + v * _Dt;
+    u = clamp(u, -_StressClamp, _StressClamp);
+
+    _UOut[i] = u;
+    _V[i]    = v;
+}
+
+// ==================================================================
+// Through-thickness reflection: the compressive pulse that entered the
+// plate returns from the back face, inverted, one round trip later.
+// This is the delayed tensile spike co-located with the impact, which is
+// why the far face erupts a beat after the near face was struck.
+// ==================================================================
+[numthreads(64,1,1)]
+void KEcho(uint3 id : SV_DispatchThreadID)
+{
+    uint i = id.x; if (i >= _CellCount) return;
+    CellState s = _State[i];
+    if (s.breakTime >= 0.0) return;
+
+    uint base = i * ECHO_SLOTS;
+    uint read = (_EchoSlot + ECHO_SLOTS - (_EchoDelay % ECHO_SLOTS)) % ECHO_SLOTS;
+
+    float pulse = _Echo[base + read];
+    _Echo[base + read] = 0.0;
+    if (abs(pulse) < 1e-6) return;
+
+    _V[i] += _EchoReflect * pulse / max(_Cells[i].area, 1e-5);
+}
+
+// ==================================================================
+// Fracture. Tension is the only thing that breaks anything.
+//
+//   effective tension = u - temper
+//
+// temper is the tempered-glass surface compression: it must be cancelled
+// before a crack can start. Sub-critical tension erodes it, which is what
+// lets a sequence of weak hits eventually produce a break that no single
+// one of them could. When a cell finally goes, its stored core energy is
+// dumped back into the wave field, and that is the dicing cascade.
+// ==================================================================
+[numthreads(64,1,1)]
+void KFracture(uint3 id : SV_DispatchThreadID)
+{
+    uint i = id.x; if (i >= _CellCount) return;
+
+    CellState s = _State[i];
+    if (s.breakTime >= 0.0 || s.growth < 0.6) return;
+
+    CellStatic c = _Cells[i];
+    float u = _UIn[i];
+    if (u <= 0.0) return;                       // compression does nothing
+
+    s.peakTension = max(s.peakTension, u);
+
+    float strength = _TensileStrength * c.toughness;
+    float net      = u - s.temper;               // must out-pull the surface compression
+
+    if (net <= 0.0)
+    {
+        // Sub-critical: wears the temper down. This is the multi-hit budget.
+        s.temper = max(0.0, s.temper - u * _TemperErosion * _Dt);
+        s.glow   = max(s.glow, saturate(u / max(strength, 1e-4)) * 0.35);
+        _State[i] = s;
+        return;
+    }
+
+    s.damage = saturate(s.damage + (net / max(strength, 1e-4)) * _DamageGain * _Dt);
+    s.glow   = max(s.glow, saturate(net / max(strength, 1e-4)));
+    s.temper = max(0.0, s.temper - u * _TemperErosion * _Dt * 3.0);
+
+    if (s.damage >= _BreakAt && net >= strength)
+    {
+        uint slot;
+        InterlockedAdd(_BreakBudget[0], 1u, slot);
+        if (slot < _BreakBudget[1])              // budget caps the cascade rate per frame
+        {
+            s.breakTime = _Time;
+
+            // Stored core energy, released. Sets fragment fineness: a panel that
+            // was still heavily charged dices finely, a depleted one breaks into
+            // a few large pieces.
+            s.released = saturate((s.temper + net) * _StoredEnergyGain);
+
+            float2 rel = c.center - _HitPos;
+            float  r   = max(length(rel), 1e-4);
+            float2 rad = rel / r;
+
+            float2 lateral = rad * _RadialKick + _HitDir * _LateralKick * _HitObliquity;
+            float2 j       = (Hash2(c.splitSeed) - 0.5) * 0.6;
+
+            s.vel  = float3(lateral + j, _NormalKick * (0.4 + net));
+            s.vel *= (0.5 + saturate(net / max(strength, 1e-4)));
+            s.spin = (Hash01(c.splitSeed ^ 0x51ed2701u) - 0.5) * _SpinKick * (0.5 + net);
+
+            // Dump the released energy back into the neighbours as tension. This
+            // is the feedback loop that makes the panel dice rather than chip.
+            for (uint k = 0; k < c.nbrCount; k++)
+            {
+                DualEdge e = _Edges[c.nbrStart + k];
+                _V[e.nbr] += s.released * e.w / max(_Cells[e.nbr].area, 1e-5);
+            }
+        }
+    }
+
+    _State[i] = s;
+}
+
+// ==================================================================
+[numthreads(64,1,1)]
+void KUpdate(uint3 id : SV_DispatchThreadID)
+{
+    uint i = id.x; if (i >= _CellCount) return;
+
+    CellStatic c = _Cells[i];
+    CellState  s = _State[i];
+
+    s.growth = saturate((_Time - _PanelSpawnTime - c.spawnDelay) / max(_GrowDuration, 1e-3));
+    s.glow  *= exp(-_GlowDecay * _Dt);
+
+    if (s.breakTime >= 0.0)
+    {
+        float age = _Time - s.breakTime;
+        if (age > _ShardLife) return;            // dead: not appended, not drawn
+
+        s.pos  += s.vel * _Dt;
+        s.vel  *= exp(-_ShardDrag * _Dt);
+        s.vel.z -= 0.6 * _Dt;                    // gentle settle, not real gravity
+        s.rot  += s.spin * _Dt;
+    }
+    else if (s.growth <= 0.0)
+    {
+        _State[i] = s;
+        return;
+    }
+
+    _State[i] = s;
+    _Visible.Append(i);
+}
