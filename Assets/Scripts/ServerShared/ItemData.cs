@@ -6,6 +6,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using GameCult.Caching;
 using MessagePack;
 using Newtonsoft.Json;
@@ -631,32 +632,11 @@ public class PerformanceStat
     [Inspectable, JsonProperty("terms"), Key(6)]
     public List<StatTerm> Terms = new List<StatTerm>();
 
-    [IgnoreMember] private Dictionary<Entity,Dictionary<Behavior,float>> _scaleModifiers;
-    [IgnoreMember] private Dictionary<Entity,Dictionary<Behavior,float>> _constantModifiers;
-
-    [IgnoreMember]
-    private Dictionary<Entity, Dictionary<Behavior, float>> ScaleModifiers =>
-        _scaleModifiers = _scaleModifiers ?? new Dictionary<Entity, Dictionary<Behavior, float>>();
-
-    [IgnoreMember]
-    private Dictionary<Entity, Dictionary<Behavior, float>> ConstantModifiers =>
-        _constantModifiers = _constantModifiers ?? new Dictionary<Entity, Dictionary<Behavior, float>>();
-
-    public Dictionary<Behavior, float> GetScaleModifiers(Entity entity)
-    {
-        if(!ScaleModifiers.ContainsKey(entity))
-            ScaleModifiers[entity] = new Dictionary<Behavior, float>();
-
-        return ScaleModifiers[entity];
-    }
-
-    public Dictionary<Behavior, float> GetConstantModifiers(Entity entity)
-    {
-        if(!ConstantModifiers.ContainsKey(entity))
-            ConstantModifiers[entity] = new Dictionary<Behavior, float>();
-
-        return ConstantModifiers[entity];
-    }
+    // Cut 2 (docs/stats-and-power-cut.md): this catalog object used to hold two Dictionary<Entity, ...> fields
+    // here, keyed by every entity that ever evaluated it, with no removal -- the leak (§0.3). A stat is shared;
+    // a resolved value, and the modifiers that shape it, are not. Both now live in the entity's own StatResolver
+    // (StatResolver.cs), reachable only from the entity, so they die when the entity does instead of when the
+    // process does. Do not reintroduce per-entity state here under any name.
 
     // The one evaluation path. A stat with no terms resolves to Max (the identity factor, 1, times Min/Max
     // interpolation lands on the top) -- that is the same number a stat with all-zero exponents produced before
@@ -716,6 +696,49 @@ public static class StatValidation
                 $"{data.Name}: plateau [{plateauLow}, {plateauHigh}] pokes past its bounds " +
                 $"[{data.MinimumTemperature}, {data.MaximumTemperature}] -- the plateau must clamp to the bounds, " +
                 "not exceed them");
+    }
+
+    // Cut 2 (docs/stats-and-power-cut.md): a StatReference names its target by (type name, field name) so a
+    // modifier can point at any design or behaviour without a hard type reference -- but before this cut an
+    // unresolvable reference failed silently: StatModifier.Initialize left `_stats` null and the first
+    // ApplyModifier threw an unhelpful NullReferenceException at random equip time. Resolving it here, once,
+    // memoized, and failing loudly at catalog load or Upsert (through ValidateStatModifiers below) names the
+    // record instead of leaving the bug for whoever equips the item first.
+    private static readonly Dictionary<(string Target, string Stat), (Type Type, FieldInfo Field)> _resolvedStatFields =
+        new Dictionary<(string, string), (Type, FieldInfo)>();
+
+    private static Type[] _statReferenceTypes;
+    private static Type[] StatReferenceTypes => _statReferenceTypes ??= typeof(BehaviorData).GetAllChildClasses()
+        .Concat(typeof(EquippableItemData).GetAllChildClasses()).ToArray();
+
+    public static (Type Type, FieldInfo Field) ResolveStatField(StatReference reference)
+    {
+        var key = (reference.Target, reference.Stat);
+        if (_resolvedStatFields.TryGetValue(key, out var cached)) return cached;
+        var targetType = StatReferenceTypes.FirstOrDefault(t => t.Name == reference.Target);
+        var field = targetType?.GetFields().FirstOrDefault(f => f.FieldType == typeof(PerformanceStat) && f.Name == reference.Stat);
+        if (targetType == null || field == null)
+            throw new InvalidOperationException(
+                $"stat modifier targets \"{reference.Target}.{reference.Stat}\", which does not resolve to a PerformanceStat field");
+        var resolved = (targetType, field);
+        _resolvedStatFields[key] = resolved;
+        return resolved;
+    }
+
+    // Runs wherever ValidateHeatResponse runs (AetheriaStores.Open, CultRecordRefs.Upsert): every StatModifierData
+    // authored on this design must resolve, named here rather than at whichever equip happens to hit it first.
+    public static void ValidateStatModifiers(string ownerName, IEnumerable<BehaviorData> behaviors)
+    {
+        foreach (var behavior in behaviors)
+            if (behavior is StatModifierData modifier)
+                try
+                {
+                    ResolveStatField(modifier.Stat);
+                }
+                catch (InvalidOperationException ex)
+                {
+                    throw new InvalidOperationException($"{ownerName}: {ex.Message}");
+                }
     }
 }
 

@@ -62,6 +62,11 @@ public abstract class Entity
 
     public List<IPopulationAssignment> PopulationAssignments = new List<IPopulationAssignment>();
 
+    // Cut 2 (docs/stats-and-power-cut.md): the sole owner of every resolved (item, stat) value for this entity.
+    // Constructed with the entity and reachable only from it -- nothing on the catalog side ever points back --
+    // so it is collected with the entity instead of surviving it for the life of the process (§0.3, §1.1).
+    public readonly StatResolver Resolver = new StatResolver();
+
     public EquippedItem[,] GearOccupancy;
     public HardpointData[,] Hardpoints;
     public float[,] Armor;
@@ -1175,13 +1180,14 @@ public class ConsumableItemEffect : IStatContext
         }
 
         RemainingDuration -= delta;
+        // Progress moves every tick; a stat with a ConsumableProgress term must recompute against it, the same
+        // way EquippedItem signals Heat and Durability from UpdatePerformance below.
+        Entity.Resolver.InvalidateSource(this, StatSource.ConsumableProgress);
     }
 
-    public float Evaluate(PerformanceStat stat)
-    {
-        var result = stat.Evaluate(this);
-        return float.IsNaN(result) ? stat.Min : result;
-    }
+    // Cut 2 (docs/stats-and-power-cut.md): the resolver owns the value; this is the caller's read of it, keyed by
+    // this effect instance (never by Entity, so two active consumables never share an entry).
+    public float Evaluate(PerformanceStat stat) => Entity.Resolver.Resolve(this, stat, this);
 
     // Cut 1 (docs/stats-and-power-cut.md): progress-through-duration is now its own StatSource
     // (ConsumableProgress) rather than a hard-coded override of "heat" that applied to every stat regardless of
@@ -1192,6 +1198,7 @@ public class ConsumableItemEffect : IStatContext
     public float ConsumableProgressFactor(float exponent) =>
         pow(Data.Effectiveness.Evaluate((Data.Duration - RemainingDuration) / Data.Duration), exponent);
     public float PowerSupplyFactor(float exponent) => 1f;
+    // No modifiers: there is no entity's worth of equipment to modify against (comment above, unchanged by Cut 2).
     public float ScaleModifier(PerformanceStat stat) => 1f;
     public float ConstantModifier(PerformanceStat stat) => 0f;
 }
@@ -1362,30 +1369,19 @@ public class EquippedItem : IStatContext
         }
     }
 
-    public float Evaluate(PerformanceStat stat)
-    {
-        var result = stat.Evaluate(this);
-        return float.IsNaN(result) ? stat.Min : result;
-    }
+    // Cut 2 (docs/stats-and-power-cut.md): the resolver owns the value; this is the caller's read of it, keyed by
+    // this EquippedItem instance, so two ships equipping the same design never share a resolved value.
+    public float Evaluate(PerformanceStat stat) => Entity.Resolver.Resolve(this, stat, this);
 
     public float HeatFactor(float exponent) => pow(ThermalPerformance, ThermalExponent * exponent);
     public float DurabilityFactor(float exponent) => pow(DurabilityPerformance, DurabilityExponent * exponent);
     public float ConsumableProgressFactor(float exponent) => 1f;
     public float PowerSupplyFactor(float exponent) => 1f;
 
-    public float ScaleModifier(PerformanceStat stat)
-    {
-        var scaleModifier = 1.0f;
-        foreach (var value in stat.GetScaleModifiers(Entity).Values) scaleModifier *= value;
-        return scaleModifier;
-    }
-
-    public float ConstantModifier(PerformanceStat stat)
-    {
-        float constantModifier = 0;
-        foreach (var value in stat.GetConstantModifiers(Entity).Values) constantModifier += value;
-        return constantModifier;
-    }
+    // Cut 2: these used to read the catalog stat's own per-entity dictionary (the leak, §0.3). A modifier now
+    // attaches to this entity's resolver, keyed by (this item, stat); reading it here is unchanged.
+    public float ScaleModifier(PerformanceStat stat) => Entity.Resolver.ScaleModifier(this, stat);
+    public float ConstantModifier(PerformanceStat stat) => Entity.Resolver.ConstantModifier(this, stat);
 
     public void AddHeat(float heat, bool ignoreThermalMass = false)
     {
@@ -1394,16 +1390,18 @@ public class EquippedItem : IStatContext
     }
 
     public void UpdatePerformance()
-    {        
+    {
         var temp = Temperature;
         ThermalPerformance = Data.Performance(temp);
+        Entity.Resolver.InvalidateSource(this, StatSource.Heat);
         var deltaTemp = math.abs(temp - oldTemperature);
         DurabilityPerformance = EquippableItem.Durability / Data.Durability;
+        Entity.Resolver.InvalidateSource(this, StatSource.Durability);
         var performanceThreshold = Entity.Settings.ShutdownPerformance;
         Wear = (1 - pow(ThermalPerformance,
                 (1 - pow(Lot.Quality, ItemManager.GameplaySettings.QualityWearExponent)) *
                 ItemManager.GameplaySettings.ThermalWearExponent) +
-                deltaTemp * ItemManager.GameplaySettings.DeltaTempWearExponent            
+                deltaTemp * ItemManager.GameplaySettings.DeltaTempWearExponent
             ) * Data.Durability / Data.ThermalResilience;
         ThermalOnline.Value = ThermalPerformance > performanceThreshold || Entity.OverrideShutdown && EquippableItem.OverrideShutdown;
         DurabilityOnline.Value = EquippableItem.Durability > .01f;

@@ -32,7 +32,14 @@ public static class AetheriaStores
             // R-heat (docs/stats-and-power-cut.md): every equippable design's heat response must describe a
             // coherent range before anything reads it. Fails loudly, naming the item.
             foreach (var data in cache.GetAll<EquippableItemData>())
+            {
                 StatValidation.ValidateHeatResponse(data);
+                StatValidation.ValidateStatModifiers(data.Name, data.Behaviors);
+            }
+            // Cut 2 (docs/stats-and-power-cut.md): a consumable's own StatModifierData needs the same check;
+            // consumables carry no heat response, so this is not folded into the loop above.
+            foreach (var data in cache.GetAll<ConsumableItemData>())
+                StatValidation.ValidateStatModifiers(data.Name, data.Behaviors);
             return cache;
         }
         catch
@@ -64,7 +71,13 @@ public static class CultRecordRefs
     // before the write ever reaches disk, not just the next time someone reopens the file.
     public static CultRecordRef<T> Upsert<T>(this CultCache cache, T document) where T : class
     {
-        if (document is EquippableItemData data) StatValidation.ValidateHeatResponse(data);
+        if (document is EquippableItemData data)
+        {
+            StatValidation.ValidateHeatResponse(data);
+            StatValidation.ValidateStatModifiers(data.Name, data.Behaviors);
+        }
+        if (document is ConsumableItemData consumable)
+            StatValidation.ValidateStatModifiers(consumable.Name, consumable.Behaviors);
         return new CultRecordRef<T>(cache.UpsertAsync(document).Result.Key);
     }
 }

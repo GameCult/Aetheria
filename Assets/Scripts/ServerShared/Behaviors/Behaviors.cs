@@ -21,6 +21,10 @@ public abstract class Behavior
     protected Entity Entity => Item?.Entity ?? Consumable.Entity;
     public float Temperature => Item?.Temperature ?? Consumable.Entity.MaxTemp;
 
+    // The StatResolver key for whichever of Item/Consumable this behaviour has -- the two owners a resolved stat
+    // value or an attached modifier can belong to (StatResolver.cs, docs/stats-and-power-cut.md Cut 2).
+    protected object StatOwner => (object) Item ?? Consumable;
+
     public float3 Direction
     {
         get
