@@ -41,7 +41,7 @@ namespace ShieldField
         [Tooltip("Substeps for one round trip through the plate. Small = fast back-face spall.")]
         [Range(1, 15)] public int echoDelaySteps = 5;
         [Tooltip("Negative: a free back face returns the compressive pulse as tension.")]
-        public float echoReflect = -0.65f;
+        public float echoReflect = -0.9f;
 
         [Header("Material (tempered)")]
         public float tensileStrength = 0.2f;

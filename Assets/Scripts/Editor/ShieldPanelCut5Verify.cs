@@ -45,6 +45,7 @@ namespace Aetheria.EditorTools
             ok &= CheckMonotonicTensionSweep();
             ok &= CheckSolidHitBreaksWeakDoesNot();
             ok &= CheckRepeatedWeakHitsErodeIntoBreak();
+            ok &= CheckRepeatedWeakHitsBreakWhereOneDoesNot();
             ok &= CheckBreaksClusterNearImpactNotRim();
             ok &= CheckNeighboursMoreLikelyToBreak();
 
@@ -237,6 +238,92 @@ namespace Aetheria.EditorTools
         // strikes on one live instance that this cut did not chase to ground. Flagged for the
         // operator's own repeated-hit play check and for a follow-up investigation; not silently
         // asserted as passing. What IS pinned here, reliably: erosion itself measurably progresses.
+        // ==============================================================
+        // The operator-facing payoff Cut 5's own report could not pin (see the scope note on
+        // CheckRepeatedWeakHitsErodeIntoBreak above): N weak hits on one LIVE panel eventually
+        // break a cell where one weak hit -- even given the same total time to sit and do nothing
+        // -- does not. energy 15 is calibrated (not energy 8, which erodes temper to 0 but whose
+        // peak tension of ~0.14 never reaches tensileStrength=0.2, so no amount of repetition would
+        // ever cross the break threshold -- a genuine dead end at that energy, not a step-budget
+        // problem): at 15, single-hit peak tension (~0.26) sits below temperInit (0.55) so a cold
+        // panel absorbs it elastically, but once erosion (Cut 3's reuse mechanism) drops temper far
+        // enough, that same ~0.26 peak clears net >= tensileStrength and breaks.
+        static bool CheckRepeatedWeakHitsBreakWhereOneDoesNot()
+        {
+            const float weakEnergy = 15f;
+            const int settleSteps = 120;
+            const int maxHits = 6; // generous headroom over the 2 hits actually needed at this tuning
+
+            // Control first: one hit, then sit idle for the SAME total step budget the multi-hit
+            // run below could consume (maxHits * settleSteps) -- rules out "it just needed more
+            // time to ring out", which would be a timing artifact, not the reuse/erosion payoff.
+            var (controlGo, controlPanel) = BuildPanel();
+            int controlBroken;
+            float controlPeak;
+            try
+            {
+                Strike(controlPanel, Vector2.zero, weakEnergy);
+                Step(controlPanel, settleSteps * maxHits);
+                var raw = ReadState(controlPanel);
+                controlBroken = raw.Count(s => s.breakTime >= 0f);
+                controlPeak = raw.Max(s => s.peakTension);
+            }
+            finally { UnityEngine.Object.DestroyImmediate(controlGo); }
+
+            if (controlBroken > 0)
+            {
+                Debug.LogError($"{Tag} multi-hit control: a single energy-{weakEnergy:F0} hit broke " +
+                                $"{controlBroken} cells even after {settleSteps * maxHits} idle steps -- " +
+                                "not weak enough to be a control.");
+                return false;
+            }
+
+            // Repeated hits on ONE live panel, same energy, same strike point.
+            var (go, panel) = BuildPanel();
+            try
+            {
+                int hitsToBreak = -1;
+                int broken = 0;
+                float lastPeak = 0f;
+                for (int hit = 1; hit <= maxHits; hit++)
+                {
+                    Strike(panel, Vector2.zero, weakEnergy);
+                    Step(panel, settleSteps);
+                    var raw = ReadState(panel);
+                    broken = raw.Count(s => s.breakTime >= 0f);
+                    lastPeak = raw.Max(s => s.peakTension);
+                    if (broken > 0) { hitsToBreak = hit; break; }
+                }
+
+                Debug.Log($"{Tag} multi-hit reuse: control (1 hit + {settleSteps * maxHits} idle steps) " +
+                          $"broke 0 cells (peak tension {controlPeak:F3}); on a live reused panel the " +
+                          $"same energy-{weakEnergy:F0} hit broke through on hit {hitsToBreak} " +
+                          $"(peak tension {lastPeak:F3}, {broken} cell(s) broken).");
+
+                if (hitsToBreak < 0)
+                {
+                    Debug.LogError($"{Tag} multi-hit reuse not evident: {maxHits} repeated energy-" +
+                                    $"{weakEnergy:F0} hits on one live panel never broke a cell (control " +
+                                    "also did not break, so this is not merely 'nothing breaks at this " +
+                                    "energy' -- the reuse/erosion payoff did not materialise).");
+                    return false;
+                }
+                if (hitsToBreak < 2)
+                {
+                    Debug.LogError($"{Tag} multi-hit reuse not evident: the live panel broke on hit 1, " +
+                                    "same as a cold panel would -- this doesn't demonstrate reuse eroding " +
+                                    "toward a break, it demonstrates the energy alone already breaks fresh.");
+                    return false;
+                }
+
+                Debug.Log($"{Tag} multi-hit reuse OK: hit 1 alone (and a cold panel given equal idle time) " +
+                          $"do not break; hit {hitsToBreak} on the same live, reused panel does -- the Cut " +
+                          "3 reuse rule and the temper mechanism together produce the operator payoff.");
+                return true;
+            }
+            finally { UnityEngine.Object.DestroyImmediate(go); }
+        }
+
         // ==============================================================
         static bool CheckRepeatedWeakHitsErodeIntoBreak()
         {
