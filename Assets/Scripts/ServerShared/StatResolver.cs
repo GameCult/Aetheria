@@ -62,9 +62,14 @@ public class StatResolver
         return 0;
     }
 
-    // Called by an owner when one of its own sources moves: EquippedItem.UpdatePerformance every tick for Heat
-    // and Durability, ConsumableItemEffect.Update every tick for ConsumableProgress. Invalidates every cached
-    // value of this owner's that declared a term reading this source -- and only those.
+    // Called unconditionally, every tick, by EquippedItem.UpdatePerformance for Heat and Durability and by
+    // ConsumableItemEffect.Update for ConsumableProgress -- not only when the source's value actually moved. So
+    // the true invariant is not "recomputes only when a term's source changes": a Heat- or Durability-termed stat
+    // recomputes at most once per tick per (item, stat), every tick, regardless of whether the value moved.
+    // Quality is the one source this scheme still defends against a real no-op tick (F6: nothing invalidates it
+    // today, since EquippedItem.Lot is set once in the constructor -- harmless until an upgrade needs a lot swap
+    // to invalidate it, which §0b designs for but this cut does not yet wire up). Invalidates every cached value
+    // of this owner's that declared a term reading this source -- and only those.
     public void InvalidateSource(object owner, StatSource source)
     {
         if (!_generations.TryGetValue(owner, out var perSource))
@@ -139,4 +144,34 @@ public class StatResolver
         }
         _cache.Remove(entry);
     }
+
+    // Cut 2 gap (docs/stats-and-power-cut.md §0b: a resolver entry is "destroyed at unequip / entity teardown"):
+    // nothing ever dropped an owner from _cache, _modifiers or _generations, so every EquippedItem that was ever
+    // unequipped and every ConsumableItemEffect that ever expired stayed reachable from these three dictionaries
+    // for the life of the process -- the same shape of leak §0.3 named, one level down. Called from the unequip
+    // path (Entity.cs TryUnequip) and from consumable expiry (Entity.cs Update); an owner with nothing recorded is
+    // a harmless no-op.
+    public void Forget(object owner)
+    {
+        _generations.Remove(owner);
+        RemoveEntriesForOwner(_cache, owner);
+        RemoveEntriesForOwner(_modifiers, owner);
+    }
+
+    private static void RemoveEntriesForOwner<TValue>(Dictionary<Entry, TValue> dict, object owner)
+    {
+        List<Entry> stale = null;
+        foreach (var entry in dict.Keys)
+            if (ReferenceEquals(entry.Owner, owner))
+                (stale ??= new List<Entry>()).Add(entry);
+        if (stale == null) return;
+        foreach (var entry in stale)
+            dict.Remove(entry);
+    }
+
+    // Test/diagnostic surface only, never a hot path: the retained-set sizes a mutation test pins against a
+    // baseline after equip/evaluate/unequip and activate/evaluate/expire cycles (Cut 2 Gate 1).
+    public int GenerationOwnerCount => _generations.Count;
+    public int CacheEntryCount => _cache.Count;
+    public int ModifierEntryCount => _modifiers.Count;
 }

@@ -620,6 +620,11 @@ public abstract class Entity
                 Sensor = null;
         }
 
+        // Cut 2 Gate 1 fix (docs/stats-and-power-cut.md): the resolver's §0b lifecycle promise -- a resolver
+        // entry is "destroyed at unequip" -- was never wired up. Without this, every unequipped item stayed
+        // reachable from the resolver's dictionaries for the entity's whole remaining life.
+        Resolver.Forget(item);
+
         return item.EquippableItem;
     }
 
@@ -1024,7 +1029,14 @@ public abstract class Entity
             for (var i = 0; i < _activeConsumables.Count; i++)
             {
                 _activeConsumables[i].Update(delta);
-                if(_activeConsumables[i].RemainingDuration < 0) _activeConsumables.RemoveAt(i--);
+                if (_activeConsumables[i].RemainingDuration < 0)
+                {
+                    // Cut 2 Gate 1 fix (docs/stats-and-power-cut.md): an expired consumable dropped out of this
+                    // list without ever telling the resolver, leaving its generation/cache/modifier entries
+                    // reachable (keyed by this ConsumableItemEffect instance) for the rest of the process.
+                    Resolver.Forget(_activeConsumables[i]);
+                    _activeConsumables.RemoveAt(i--);
+                }
             }
 
             foreach (var equippedItem in _orderedEquipment)
