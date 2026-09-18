@@ -81,3 +81,25 @@ Two current mechanisms need a better shape:
   new lot whose provenance names the original lot, the station and the inputs,
   and the upgraded item points at it. The resolver treats a change of lot as a
   change to that item's quality terms.
+
+## Negentropy items (operator direction, 2026-09-18)
+
+Adrasteian **negent** gear cools below ambient. Untended it is an infinite-DPS exploit:
+heat is what limits sustained fire, so a free heat sink removes the limit.
+
+- **It runs on a consumable, and that is the balance.** Operator: "I like the consumable
+  option... That would make it expensive to run". The charge is a lot like any other, with a
+  maker, a process and a price (`docs/item-provenance-target.md`), so a damage ceiling
+  becomes a supply line, priced by the economy rather than by a cap.
+- **Embrittlement needs no new mechanic.** Operator: "embrittlement isn't a joke, either,
+  running gear that cold already causes rapid wear". `Entity.cs:1386` already derives `Wear`
+  from distance off `OptimalTemperature` (`ItemData.cs:409`) and from `deltaTemp`, so negent
+  wears gear twice: off-optimum, and by the speed of the swing. Weapons already spend that
+  wear as durability damage (`Behaviors.cs:77`, `InstantWeapon.cs:192`,
+  `ConstantWeapon.cs:135`). Do not author a negent-specific wear rule.
+- **Cooling is a change to a condition, not an effect on a stat.** It lowers temperature and
+  every stat that names heat responds on its own, the pilot included. That is the rule this
+  document already states for conditions; negent is its sharpest case, not an exception.
+- **The pilot stays exposed.** Dying hot is the default failure and the cultural nightmare;
+  negent moves a ship toward the other end, where hypothermia is waiting. The safe band
+  narrows from both sides and the thing saving the ship is what kills the crew.
