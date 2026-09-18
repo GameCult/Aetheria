@@ -30,6 +30,13 @@ key through. Found by Soul on CultLib `0155ba8`, before release.
 Correction: Cut 0's negative grep `AssetPath` also matches Unity's `GUIDToAssetPath`/
 `AssetPathToGUID`; the check is `git grep -n "CultInspectorAssetPath\|\.AssetPath\b"`.
 
+> **Landed (2026-09-18).** Cut 1 `491811bd`, Cut 2 `67cbf34b`, harness restore `2d348d64`.
+> The 587 asset moves out of `Resources` into `Assets/Content` are in `1fdf8151`, whose
+> message is about the shield map: Self committed a doc while Hands' `git mv`s were staged in
+> the same index, in the same working tree. History is pushed and shared, so it stands as is.
+> Catalog rewrite: 30 references, all resolved, 0 unresolved; `EngineAssetCheck.Run` reports
+> 30 stored references OK.
+
 ## 0. Target
 
 Ends:
