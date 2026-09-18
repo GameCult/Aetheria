@@ -75,6 +75,24 @@ Q1 (does the first landing have to fracture) is **still open** and still first; 
 > (§2.4), so settle this before pooling: either the count is wrong, or `cellSize` means
 > something different for a quasiperiodic tiling and the item's knob must say which.
 
+> **Cut 2 landed 2026-09-18** (`a454a5a7`, fallback fix `7848a8a8`). One owner,
+> `Gameplay/ShieldEnvelope.cs`; the hand-rolled projections in `FieldDriver` and
+> `ShieldManager` are gone. Radii are measured from the carrier's collider mesh, not assumed:
+> the map's `lossyScale * 0.5` guess was wrong, and Shield.prefab's icosphere collider is not
+> even isotropic. `SurfaceNormal` scales the gradient by the inverse of `lossyScale` (a normal
+> is a covector); the first implementation used `TransformDirection` and a finite-difference
+> probe caught it 5-20% out. It diverges from `normalize(p)` by dot 0.674 on the Longinus
+> flank, which is why the panel needs it and the two old consumers did not.
+>
+> Carriers without the component behave exactly as before Cut 2, warning once per object.
+> Self sent the first attempt back: its fallback degraded shield hits to a fixed direction
+> until the operator edited prefabs, which is a regression on working behaviour.
+>
+> **Open (D22):** `FieldDriver`'s two branches are not interchangeable in general —
+> `ProjectToSurface` returns a world point, the legacy fallback stays local because that is
+> what the shader eats. They agree only for a carrier at the origin with identity rotation,
+> which is the only `FieldDriver` carrier in the tree. Settle before a second one exists.
+
 ## 1. What the repo actually has today
 
 The re-probe found the thing the first pass missed: **the ellipsoid envelope already exists
