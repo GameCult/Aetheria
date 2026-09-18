@@ -65,6 +65,26 @@ what it did.
   and their quality control — so a market segment is a second product with one role raised.
   Zero designs declare roles today, so Cut 7 is what makes any of that reachable.
 
+> **Cut 0 landed 2026-09-18** (`e9b688de`, tests `67217ed9`). One evaluation path
+> (`PerformanceStat.Evaluate(IStatContext)`) with three contexts; the three arithmetic bodies
+> are gone. Equivalence over the real catalog: 3123/3123 unequipped values identical, max
+> delta 0. 64 tests, batchmode clean, the three shield probes still pass.
+>
+> Corrections to this map, from the Body:
+> - The Cut 0 negative grep contradicted the map's own keeps. Four `Evaluate(PerformanceStat`
+>   sites are legitimate wrappers, and `AetherDrive.cs:105` calls `Item.Evaluate` directly,
+>   which the map did not mention.
+> - **12 of 30 heat-bearing catalog stats disagree between the unequipped and at-optimum
+>   paths, by up to ~100 units**, because a real `HeatPerformanceCurve` rarely reaches 1.0 at
+>   its own reported optimum. That is R-heat's problem: the fit must decide whether the
+>   plateau means full performance (it does) and therefore that these items get slightly
+>   stronger at their optimum. Report that per-item in the migration table.
+> - `ItemManager.CreateInstance` has no `ConsumableItemData` branch, so it falls through to
+>   `CompoundCommodity` and a `ConsumableItem` is apparently never minted by the normal path.
+>   Look before Cut 1 touches consumables.
+> - The cut is net +55, not the ledger's ~+1: the interface and three contexts cost more than
+>   the 44 deleted lines of arithmetic. Accepted, recorded rather than argued away.
+
 ## 0. What is there now
 
 ### 0.1 The stat, as it exists
