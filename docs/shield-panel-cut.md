@@ -109,6 +109,21 @@ Q1 (does the first landing have to fracture) is **still open** and still first; 
 > Two yields with a background run still going cost a round trip each; the wait rule now
 > names the mechanism (`~/.claude/skills/eureka/references/briefs.md`).
 
+> **Ruling R7 (operator, 2026-09-18): a panel's rim is held, not free.** "held is probably
+> nicer even if free is more accurate". The emitters projecting the panel hold its edge, so the
+> rim stops being a tension source (`ShieldSim.compute`'s `openW` ghost term) and the only
+> spall left comes from the shot itself through the plate. Cracks radiate from the impact and
+> shards leave where the hit landed, and panel size stops being a fragility multiplier.
+> **A broken cell's faces stay free**: that reflection is the dicing cascade and it survives.
+>
+> Operator play evidence, 2026-09-18, on the rigged scene: a panel spawns, is reused, and
+> spiderwebs, but only shatters when hits are spammed near the rim — which is the free edge
+> reflecting compression back as tension exactly as designed, and confirms the wave, the
+> reflection and the temper erosion all work. The interior spall source (the through-thickness
+> echo) is too weak or mistimed to compete. That, D9 (velocity unclamped, so hard hits saturate
+> in compression) and D10 (fracture evaluated once per frame while the wave integrates several
+> times) are Cut 5's targets.
+
 ## 1. What the repo actually has today
 
 The re-probe found the thing the first pass missed: **the ellipsoid envelope already exists
