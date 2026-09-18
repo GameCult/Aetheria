@@ -98,56 +98,141 @@ shape moved.
 | 5ee2ff03-0ac4-4cdd-89bc-81e29223900b | Behaviors[0].Damage | 14-48 | 22.4994 | 22.5000 | +0.0006 |
 | 542169f2-363c-41f7-8d6d-60a5bd7578bd | Behaviors[1].EnergyUsage | 6-3 | 5.1086 | 5.1081 | -0.0005 |
 
-| Item | Type | Bounds | Old optimum | New optimum | New plateau width | Old value @ optimum | New value @ optimum | Delta |
-|---|---|---|---|---|---|---|---|---|
-| ClearPath | WeaponItemData | 223.15-473.15 | 285.65 | 286.9 | 30 | 0.9977 | 1.0000 | +0.0023 |
-| SafeStuff II | CargoBayData | 175-600 | 281.25 | 283.38 | 51 | 0.9977 | 1.0000 | +0.0023 |
-| CShot RainbowLite Lazer | WeaponItemData | 250-400 | 287.5 | 288.25 | 18 | 0.9977 | 1.0000 | +0.0023 |
-| deep space burnout | GearData | 200-400 | 250 | 251 | 24 | 0.9977 | 1.0000 | +0.0023 |
-| ChargeBlast SG | WeaponItemData | 223.15-473.15 | 285.65 | 286.9 | 30 | 0.9977 | 1.0000 | +0.0023 |
-| Autocannon | WeaponItemData | 173.15-473.15 | 323.15 | 323.15 | 300 | 1.0000 | 1.0000 | 0 |
-| Refinery | GearData | 273.15-373.15 | 323.15 | 323.15 | 100 | 1.0000 | 1.0000 | 0 |
-| SRMM72 | WeaponItemData | 223.15-473.15 | 348.15 | 348.15 | 250 | 1.0000 | 1.0000 | 0 |
-| Vulcan | GearData | 200-500 | 275 | 276.5 | 36 | 0.9977 | 1.0000 | +0.0023 |
-| cold like my heart | GearData | 223.15-473.15 | 285.65 | 286.9 | 30 | 0.9977 | 1.0000 | +0.0023 |
-| ColdFire | WeaponItemData | 263.15-398.15 | 296.9 | 297.58 | 16.2 | 0.9977 | 1.0000 | +0.0023 |
-| Arctica | GearData | 223.15-473.15 | 285.65 | 286.9 | 30 | 0.9977 | 1.0000 | +0.0023 |
-| Turret Control Module | GearData | 173.15-523.15 | 260.65 | 262.4 | 42 | 0.9977 | 1.0000 | +0.0023 |
-| Industrial Thermostatic Heater | GearData | 150-400 | 275 | 275 | 250 | 1.0000 | 1.0000 | 0 |
-| scorched void policy | WeaponItemData | 223.15-473.15 | 285.65 | 286.9 | 30 | 0.9977 | 1.0000 | +0.0023 |
-| Earp | WeaponItemData | 175-475 | 175 | 175 | 61.5 | 1.0000 | 1.0000 | 0 |
-| Cockpit 2x2 | GearData | 223.15-398.15 | 266.9 | 267.78 | 21 | 0.9977 | 1.0000 | +0.0023 |
-| LRMM72 | WeaponItemData | 223.15-473.15 | 348.15 | 348.15 | 250 | 1.0000 | 1.0000 | 0 |
-| PotaT+- | GearData | 200-500 | 275 | 276.5 | 36 | 0.9977 | 1.0000 | +0.0023 |
-| Surface Ore Extractor | GearData | 273.15-373.15 | 323.15 | 323.15 | 100 | 1.0000 | 1.0000 | 0 |
-| MoveOnPro | GearData | 200-500 | 275 | 276.5 | 36 | 0.9977 | 1.0000 | +0.0023 |
-| Notorious | GearData | 250-450 | 300 | 301 | 24 | 0.9977 | 1.0000 | +0.0023 |
-| pretty pretty bang bang | WeaponItemData | 223.15-473.15 | 285.65 | 286.9 | 30 | 0.9977 | 1.0000 | +0.0023 |
-| Manhattan | GearData | 200-450 | 262.5 | 263.75 | 30 | 0.9977 | 1.0000 | +0.0023 |
-| Medium Docking Bay | DockingBayData | -0-673.15 | 168.29 | 171.65 | 80.78 | 0.9977 | 1.0000 | +0.0023 |
-| Traction | GearData | 200-450 | 262.5 | 263.75 | 30 | 0.9977 | 1.0000 | +0.0023 |
-| LonginusX | HullData | 173.15-573.15 | 273.15 | 275.15 | 48 | 0.9977 | 1.0000 | +0.0023 |
-| FastBlast+- | WeaponItemData | 223.15-473.15 | 285.65 | 286.9 | 30 | 0.9977 | 1.0000 | +0.0023 |
-| Store-All Enterprise Edition | CargoBayData | 175-600 | 281.25 | 283.38 | 51 | 0.9977 | 1.0000 | +0.0023 |
-| not if i see you first | GearData | 200-400 | 250 | 251 | 24 | 0.9977 | 1.0000 | +0.0023 |
-| ChargeBlast+- | WeaponItemData | 223.15-473.15 | 285.65 | 286.9 | 30 | 0.9977 | 1.0000 | +0.0023 |
-| Store-All Plus | CargoBayData | 175-600 | 281.25 | 283.38 | 51 | 0.9977 | 1.0000 | +0.0023 |
-| Spectra | WeaponItemData | 263.15-398.15 | 296.9 | 297.58 | 16.2 | 0.9977 | 1.0000 | +0.0023 |
-| Skiron | GearData | 223.15-473.15 | 285.65 | 286.9 | 30 | 0.9977 | 1.0000 | +0.0023 |
-| Core Power | GearData | 200-450 | 325 | 325 | 250 | 1.0000 | 1.0000 | 0 |
-| Deep Ore Extractor | GearData | 273.15-373.15 | 323.15 | 323.15 | 100 | 1.0000 | 1.0000 | 0 |
-| OK Disperser | GearData | 223.15-473.15 | 285.65 | 286.9 | 30 | 0.9977 | 1.0000 | +0.0023 |
-| Large Drive | GearData | 200-400 | 300 | 300 | 200 | 1.0000 | 1.0000 | 0 |
-| GT 3K | WeaponItemData | 223.15-473.15 | 285.65 | 286.9 | 30 | 0.9977 | 1.0000 | +0.0023 |
-| plight | WeaponItemData | 263.15-398.15 | 330.65 | 330.65 | 135 | 1.0000 | 1.0000 | 0 |
-| 6k Shooter | WeaponItemData | 173.15-473.15 | 248.15 | 249.65 | 36 | 0.9977 | 1.0000 | +0.0023 |
-| The Bat | GearData | 200-400 | 209.38 | 209 | 33 | 1.0001 | 1.0000 | 0 |
-| Tractor Beam | GearData | -0--0 | -0 | -0 | 0 | 1.0000 | 1.0000 | 0 |
-| Zenith | HullData | 123.15-773.15 | 285.65 | 288.9 | 78 | 0.9977 | 1.0000 | +0.0023 |
-| DeathCluster | WeaponItemData | 223.15-473.15 | 285.65 | 286.9 | 30 | 0.9977 | 1.0000 | +0.0023 |
-| pswarm | WeaponItemData | 223.15-473.15 | 348.15 | 348.15 | 250 | 1.0000 | 1.0000 | 0 |
-| Assembly Line | GearData | 273.15-373.15 | 323.15 | 323.15 | 100 | 1.0000 | 1.0000 | 0 |
-| Store-All Plus Mini | CargoBayData | 175-600 | 281.25 | 283.38 | 51 | 0.9977 | 1.0000 | +0.0023 |
-| Turret | HullData | 123.15-773.15 | 285.65 | 288.9 | 78 | 0.9977 | 1.0000 | +0.0023 |
-| Iapyx | GearData | 223.15-473.15 | 285.65 | 286.9 | 30 | 0.9977 | 1.0000 | +0.0023 |
-| Shipyard | GearData | 273.15-373.15 | 323.15 | 323.15 | 100 | 1.0000 | 1.0000 | 0 |
+## Corrections to this table (Soul S3/S4; Hands, 2026-09-18)
+
+- **S3, wrong old-value columns.** Soul found the `Old optimum`/`Old value @ optimum` columns below wrong for 15
+  of 51 rows. The pre-Cut-1 `Performance()` was `saturate(HeatPerformanceCurve?.Evaluate(...) ?? 1)`: a design
+  with **no authored curve** evaluated to exactly 1 at every temperature, so its correct old optimum is simply
+  its `MinimumTemperature` (the whole range was equally "optimal") and its correct old value is `1.0000` -- not
+  whatever this table originally printed. That is 14 rows: Assembly Line, Autocannon, Deep Ore Extractor,
+  Industrial Thermostatic Heater, LRMM72, Large Drive, Refinery, SRMM72, Shipyard, Surface Ore Extractor,
+  Tractor Beam, plight, pswarm, and Earp (Earp's real reclassification is below). The 15th wrong row is **Core
+  Power**: its curve was non-null but authored with zero keys, so its old getter threw
+  `IndexOutOfRangeException` -- there is no old baseline for it, and the table says so instead of printing a
+  number.
+- **S4, at-optimum understates the change ~80x.** At-optimum is the one point a trapezoid and the curve it
+  replaces are made to agree (both are fitted to the same peak), so it is the smallest possible reading of the
+  shape change, not a representative one. The real size is the largest deviation anywhere inside the item's own
+  band -- added below as **Max |Δ| in band**, sampled at 2001 points across `[MinimumTemperature,
+  MaximumTemperature]`, old code (pre-Cut-1 catalog and curve-reading `Performance()`) against new (current
+  code, current catalog). 35 of the 37 originally-fitted designs share the exact same `+0.1923` -- one Bezier
+  template reused catalog-wide, evaluated identically regardless of hardpoint or behaviour -- and **The Bat**
+  moves by a different amount for a reason of its own (below). **Earp** does not belong in the "fitted, small
+  delta" group at all.
+
+### Earp and The Bat: found while closing S5/S6, not part of the operator's 15
+
+Enforcing the plateau-clamp rule this cut's validation now carries (`StatValidation.ValidateHeatResponse`,
+`ItemData.cs`; enforced on every catalog write through `CultRecordRefs.Upsert`, `AetheriaStores.cs`) breaks the
+catalog for exactly two already-fitted designs outside the operator's named 15: their authored plateau, built
+from the real curve's peak and near-peak width, pokes past a bound.
+
+- **Earp**'s real 2-key curve peaks at parameter 0 -- exactly at its own `MinimumTemperature` (175). That is the
+  same failure class as S1/S2: `Performance()` returns 0 *at* `MinimumTemperature`, not just below it, so a peak
+  sitting exactly on the boundary is dead at every temperature the design will ever reach. Soul's original "Earp
+  down" framing (`+0.0023 -> ~0` at-optimum) undersold this badly: the at-optimum sample landed exactly on the
+  one point where the old fit and the new trapezoid both happen to read close to 1, by construction of the old
+  curve peaking there too. Earp is re-authored the same way as the 14 (house-style fraction over its own
+  bounds -- see the table below); its Max |Δ| in band is now `-1.0000`, the same "went from immune to fatal"
+  shape as the unauthored designs, which is what it always was underneath the misleading at-optimum reading.
+- **The Bat** is different: its optimum (209) is a genuinely distinct fitted value, not a placeholder or an
+  edge artifact, and stays untouched. Only its `PlateauWidth` moves, from 33 (whose low edge, 192.5, poked 7.5
+  past `MinimumTemperature` 200) to **18**, the largest width whose plateau still clamps to the bounds with the
+  optimum held fixed. This moves The Bat's own Max |Δ| in band from Soul's originally-measured `+0.876` to
+  **`+0.968`** -- both computed the same way against the pre-Cut-1 curve; the difference is entirely the
+  narrower plateau, which now reaches full performance immediately above `MinimumTemperature` instead of only
+  within the old, poking width.
+
+| Item | Type | Bounds | Old optimum | New optimum | New plateau width | Old value @ old optimum | Max &#124;Δ&#124; in band @ temp (old&rarr;new) |
+|---|---|---|---|---|---|---|---|
+| 6k Shooter | WeaponItemData | 173.15-473.15 | 249.5 | 249.65 | 36 | 0.9977 | +0.1923 @ 356.15 (0.3770->0.5693) |
+| Arctica | GearData | 223.15-473.15 | 286.775 | 286.9 | 30 | 0.9977 | +0.1923 @ 375.65 (0.3770->0.5693) |
+| Assembly Line | GearData | 273.15-373.15 | 273.15 | 298.65 | 12 | 1.0000 | -1.0000 @ 273.15 (1.0000->0.0000) |
+| Autocannon | WeaponItemData | 173.15-473.15 | 173.15 | 249.65 | 36 | 1.0000 | -1.0000 @ 173.15 (1.0000->0.0000) |
+| CShot RainbowLite Lazer | WeaponItemData | 250-400 | 288.175 | 288.25 | 18 | 0.9977 | +0.1923 @ 341.5 (0.3770->0.5693) |
+| ChargeBlast SG | WeaponItemData | 223.15-473.15 | 286.775 | 286.9 | 30 | 0.9977 | +0.1923 @ 375.65 (0.3770->0.5693) |
+| ChargeBlast+- | WeaponItemData | 223.15-473.15 | 286.775 | 286.9 | 30 | 0.9977 | +0.1923 @ 375.65 (0.3770->0.5693) |
+| ClearPath | WeaponItemData | 223.15-473.15 | 286.775 | 286.9 | 30 | 0.9977 | +0.1923 @ 375.65 (0.3770->0.5693) |
+| Cockpit 2x2 | GearData | 223.15-398.15 | 267.688 | 267.775 | 21 | 0.9977 | +0.1923 @ 329.9 (0.3770->0.5693) |
+| ColdFire | WeaponItemData | 263.15-398.15 | 297.508 | 297.575 | 16.2 | 0.9977 | +0.1923 @ 345.5 (0.3770->0.5693) |
+| Core Power | GearData | 200-450 | N/A | 263.75 | 30 | N/A (threw IndexOutOfRangeException) | N/A |
+| DeathCluster | WeaponItemData | 223.15-473.15 | 286.775 | 286.9 | 30 | 0.9977 | +0.1923 @ 375.65 (0.3770->0.5693) |
+| Deep Ore Extractor | GearData | 273.15-373.15 | 273.15 | 298.65 | 12 | 1.0000 | -1.0000 @ 273.15 (1.0000->0.0000) |
+| Earp | WeaponItemData | 175-475 | 175 | 251.5 | 36 | 1.0000 | -1.0000 @ 175 (1.0000->0.0000) |
+| FastBlast+- | WeaponItemData | 223.15-473.15 | 286.775 | 286.9 | 30 | 0.9977 | +0.1923 @ 375.65 (0.3770->0.5693) |
+| GT 3K | WeaponItemData | 223.15-473.15 | 286.775 | 286.9 | 30 | 0.9977 | +0.1923 @ 375.65 (0.3770->0.5693) |
+| Iapyx | GearData | 223.15-473.15 | 286.775 | 286.9 | 30 | 0.9977 | +0.1923 @ 375.65 (0.3770->0.5693) |
+| Industrial Thermostatic Heater | GearData | 150-400 | 150 | 213.75 | 30 | 1.0000 | -1.0000 @ 150 (1.0000->0.0000) |
+| LRMM72 | WeaponItemData | 223.15-473.15 | 223.15 | 286.9 | 30 | 1.0000 | -1.0000 @ 223.15 (1.0000->0.0000) |
+| Large Drive | GearData | 200-400 | 200 | 251 | 24 | 1.0000 | -1.0000 @ 200 (1.0000->0.0000) |
+| LonginusX | HullData | 173.15-573.15 | 274.95 | 275.15 | 48 | 0.9977 | +0.1923 @ 417.15 (0.3770->0.5693) |
+| Manhattan | GearData | 200-450 | 263.625 | 263.75 | 30 | 0.9977 | +0.1923 @ 352.5 (0.3770->0.5693) |
+| Medium Docking Bay | DockingBayData | -0-673.15 | 171.317 | 171.653 | 80.778 | 0.9977 | +0.1923 @ 410.622 (0.3770->0.5693) |
+| MoveOnPro | GearData | 200-500 | 276.35 | 276.5 | 36 | 0.9977 | +0.1923 @ 383 (0.3770->0.5693) |
+| Notorious | GearData | 250-450 | 300.9 | 301 | 24 | 0.9977 | +0.1923 @ 372 (0.3770->0.5693) |
+| OK Disperser | GearData | 223.15-473.15 | 286.775 | 286.9 | 30 | 0.9977 | +0.1923 @ 375.65 (0.3770->0.5693) |
+| PotaT+- | GearData | 200-500 | 276.35 | 276.5 | 36 | 0.9977 | +0.1923 @ 383 (0.3770->0.5693) |
+| Refinery | GearData | 273.15-373.15 | 273.15 | 298.65 | 12 | 1.0000 | -1.0000 @ 273.15 (1.0000->0.0000) |
+| SRMM72 | WeaponItemData | 223.15-473.15 | 223.15 | 286.9 | 30 | 1.0000 | -1.0000 @ 223.15 (1.0000->0.0000) |
+| SafeStuff II | CargoBayData | 175-600 | 283.163 | 283.375 | 51 | 0.9977 | +0.1923 @ 434.25 (0.3770->0.5693) |
+| Shipyard | GearData | 273.15-373.15 | 273.15 | 298.65 | 12 | 1.0000 | -1.0000 @ 273.15 (1.0000->0.0000) |
+| Skiron | GearData | 223.15-473.15 | 286.775 | 286.9 | 30 | 0.9977 | +0.1923 @ 375.65 (0.3770->0.5693) |
+| Spectra | WeaponItemData | 263.15-398.15 | 297.508 | 297.575 | 16.2 | 0.9977 | +0.1923 @ 345.5 (0.3770->0.5693) |
+| Store-All Enterprise Edition | CargoBayData | 175-600 | 283.163 | 283.375 | 51 | 0.9977 | +0.1923 @ 434.25 (0.3770->0.5693) |
+| Store-All Plus | CargoBayData | 175-600 | 283.163 | 283.375 | 51 | 0.9977 | +0.1923 @ 434.25 (0.3770->0.5693) |
+| Store-All Plus Mini | CargoBayData | 175-600 | 283.163 | 283.375 | 51 | 0.9977 | +0.1923 @ 434.25 (0.3770->0.5693) |
+| Surface Ore Extractor | GearData | 273.15-373.15 | 273.15 | 298.65 | 12 | 1.0000 | -1.0000 @ 273.15 (1.0000->0.0000) |
+| The Bat | GearData | 200-400 | 208.8 | 209 | 18 | 1.0000 | +0.9680 @ 200.1 (0.0320->1.0000) |
+| Traction | GearData | 200-450 | 263.625 | 263.75 | 30 | 0.9977 | +0.1923 @ 352.5 (0.3770->0.5693) |
+| Tractor Beam | GearData | -0--0 -> **200-400** | -0 | 251 | 24 | 1.0000 | -1.0000 @ -0 (1.0000->0.0000) |
+| Turret | HullData | 123.15-773.15 | 288.575 | 288.9 | 78 | 0.9977 | +0.1923 @ 519.65 (0.3770->0.5693) |
+| Turret Control Module | GearData | 173.15-523.15 | 262.225 | 262.4 | 42 | 0.9977 | +0.1923 @ 386.65 (0.3770->0.5693) |
+| Vulcan | GearData | 200-500 | 276.35 | 276.5 | 36 | 0.9977 | +0.1923 @ 383 (0.3770->0.5693) |
+| Zenith | HullData | 123.15-773.15 | 288.575 | 288.9 | 78 | 0.9977 | +0.1923 @ 519.65 (0.3770->0.5693) |
+| cold like my heart | GearData | 223.15-473.15 | 286.775 | 286.9 | 30 | 0.9977 | +0.1923 @ 375.65 (0.3770->0.5693) |
+| deep space burnout | GearData | 200-400 | 250.9 | 251 | 24 | 0.9977 | +0.1923 @ 322 (0.3770->0.5693) |
+| not if i see you first | GearData | 200-400 | 250.9 | 251 | 24 | 0.9977 | +0.1923 @ 322 (0.3770->0.5693) |
+| plight | WeaponItemData | 263.15-398.15 | 263.15 | 297.575 | 16.2 | 1.0000 | -1.0000 @ 263.15 (1.0000->0.0000) |
+| pretty pretty bang bang | WeaponItemData | 223.15-473.15 | 286.775 | 286.9 | 30 | 0.9977 | +0.1923 @ 375.65 (0.3770->0.5693) |
+| pswarm | WeaponItemData | 223.15-473.15 | 223.15 | 286.9 | 30 | 1.0000 | -1.0000 @ 223.15 (1.0000->0.0000) |
+| scorched void policy | WeaponItemData | 223.15-473.15 | 286.775 | 286.9 | 30 | 0.9977 | +0.1923 @ 375.65 (0.3770->0.5693) |
+
+## Re-authoring: Tractor Beam, 13 curve-less designs, and Earp/The Bat (operator ruling: "reauthor those items")
+
+Written through the catalog's own types, in a scratch console over `Aetheria.Shared` (not committed; the
+committed `GameData/Aetheria.cc` diff is the artifact). Every already-fitted design in the catalog shares the
+exact same normalized curve shape -- optimum at 25.5% of the range above `MinimumTemperature`, plateau 12% of
+the range wide -- regardless of hardpoint or behaviour, matching five distinct bound ranges to 5+ significant
+figures. That is not rounding coincidence; it is one Bezier template authored once and reused catalog-wide, and
+the 14 unauthored designs are simply the ones nobody assigned it to. Each row below applies that same fraction
+to the design's own (unchanged, except Tractor Beam's) bounds, or points at the specific sibling design that
+carries the identical bounds and therefore the identical fitted curve. All 16 records were validated
+(`StatValidation.ValidateHeatResponse`) before any write reached disk; a failing record would have written
+nothing.
+
+| Item | What it is | Old bounds | Proposed (landed) | Why |
+|---|---|---|---|---|
+| Assembly Line | Tool-hardpoint facility gear, no active Behavior (a station production module) | 273.15-373.15, degenerate full-range plateau | Opt 298.65, PW 12 (bounds unchanged) | House-style fraction (25.5%/12%) over its own band; shares its exact bounds and prior placeholder shape with 4 sibling facility items below |
+| Deep Ore Extractor | Same Tool/no-Behavior facility family | 273.15-373.15, degenerate | Opt 298.65, PW 12 | Same as Assembly Line -- identical bounds, identical fraction |
+| Refinery | Same Tool/no-Behavior facility family | 273.15-373.15, degenerate | Opt 298.65, PW 12 | Same as Assembly Line |
+| Shipyard | Same Tool/no-Behavior facility family | 273.15-373.15, degenerate | Opt 298.65, PW 12 | Same as Assembly Line |
+| Surface Ore Extractor | Same Tool/no-Behavior facility family | 273.15-373.15, degenerate | Opt 298.65, PW 12 | Same as Assembly Line |
+| Autocannon | Ballistic weapon, `AutoWeaponData` | 173.15-473.15, degenerate | Opt 249.65, PW 36 | Matches 6k Shooter, the only other design sharing this exact 173.15-473.15 band |
+| Core Power | Reactor gear, `ReactorData`+`WearData` | 200-450, degenerate (old curve authored with 0 keys, old getter threw) | Opt 263.75, PW 30 | Matches Manhattan, the only other design sharing this exact 200-450 band |
+| Industrial Thermostatic Heater | Tool-hardpoint heater, `ThermotoggleData`+`EnergyDrawData`+`HeatData` (it generates heat) | 150-400, degenerate | Opt 213.75, PW 30 | House-style fraction skewed toward the cold end, matching a device meant to run best where it is needed (cold) and degrade once its own output overheats it |
+| LRMM72 | Launcher weapon, `LauncherData` | 223.15-473.15, degenerate | Opt 286.9, PW 30 | Matches GT 3K (`LauncherData`) and scorched void policy (`GuidedWeaponData`), both sharing this exact band with identical fitted curves |
+| SRMM72 | Launcher weapon, `GuidedWeaponData` | 223.15-473.15, degenerate | Opt 286.9, PW 30 | Matches scorched void policy, same hardpoint/behaviour/band |
+| pswarm | Launcher weapon, `GuidedWeaponData` | 223.15-473.15, degenerate | Opt 286.9, PW 30 | Matches scorched void policy, same hardpoint/behaviour/band |
+| Large Drive | Thruster gear, `ThrusterData`+`WearData` | 200-400, degenerate | Opt 251, PW 24 | Matches deep space burnout, the only other design sharing this exact 200-400 Thruster band |
+| plight | Energy weapon, `ChargedWeaponData` | 263.15-398.15, degenerate | Opt 297.575, PW 16.2 | Matches ColdFire and Spectra, both sharing this exact band with identical fitted curves (`AutoWeaponData`, but bounds -- not behaviour -- is what the shared template keys on) |
+| Tractor Beam | Sensors-hardpoint gear, no active Behavior | -0 to -0, min==max==optimum, width 0 (S1: dead at every temperature) | Bounds 200-400 (newly authored), Opt 251, PW 24 | Never had real bounds authored at all; 200-400 matches the other small Sensors/gear family already using that exact range (not if i see you first, The Bat, Large Drive, deep space burnout), and the fraction gives it not-if-i-see-you-first's exact curve |
+| Earp | Ballistic weapon, `InstantWeaponData` | 175-475, real 2-key curve peaking exactly at Minimum (dead at every temperature -- same bug class as S1, found while enforcing S5/S6's plateau-clamp rule) | Opt 251.5, PW 36 | House-style fraction over its own unique 175-475 band (no exact-bounds sibling exists); moves its peak off the lethal boundary the same way the 14 do |
+| The Bat | Sensors-hardpoint gear, `SensorData` | 200-400, real fitted optimum 209, PlateauWidth 33 (pokes 7.5 past Minimum -- found while enforcing S5/S6) | PlateauWidth 18 only; optimum 209 unchanged | Minimal fix: shrink only the plateau to the largest width that clamps to the bounds with the authored optimum held fixed, preserving the one genuinely distinct fitted curve in this list |
+
+## Zero consumables in the catalog
+
+Cut 0 flagged that `ItemManager.CreateInstance` has no `ConsumableItemData` branch, so a `ConsumableItem` is
+apparently never minted by the normal path, and asked whether Cut 1 should look before touching consumables.
+**(probe)** The catalog holds **zero** `ConsumableItemData` records (`cache.GetAll<ConsumableItemData>().Count()
+== 0` against `GameData/Aetheria.cc`). There is nothing to touch: no consumable design exists to migrate, to
+break, or to validate.

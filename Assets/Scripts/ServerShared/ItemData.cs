@@ -702,7 +702,7 @@ public static class StatValidation
             throw new InvalidOperationException(
                 $"{data.Name}: MinimumTemperature and MaximumTemperature are both {data.MinimumTemperature} -- a " +
                 "zero-span range is dead at every temperature, which is an authoring error, not an authored immunity");
-        if (false)
+        if (data.OptimalTemperature < data.MinimumTemperature || data.OptimalTemperature > data.MaximumTemperature)
             throw new InvalidOperationException(
                 $"{data.Name}: OptimalTemperature {data.OptimalTemperature} lies outside its bounds " +
                 $"[{data.MinimumTemperature}, {data.MaximumTemperature}]");
