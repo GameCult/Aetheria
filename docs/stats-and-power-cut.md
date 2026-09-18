@@ -128,6 +128,59 @@ what it did.
 > refuses. Correction to R-heat: **wear does not read `OptimalTemperature`** — `UpdatePerformance`
 > reads `Data.Performance(temp)`, and the property had no reader at all before Cut 1. S3 is a
 > reporting defect, not a gameplay one.
+>
+> **Findings closed 2026-09-18 (Hands, this pass):**
+> - **S1/S2 re-authored.** `Tractor Beam` (newly authored bounds 200-400, matching the small
+>   Sensors/gear family already using that exact range) and the 13 other curve-less designs got
+>   real optimum/plateau values, drawn from the catalog's own house style: every already-fitted
+>   design shares one Bezier template (peak at 25.5% of the range, plateau 12% wide), so each
+>   unauthored item gets that fraction over its own bounds, or mirrors the exact-bounds sibling
+>   that already carries it. Table, full reasoning and per-item "why":
+>   `docs/stats-power-cut1-migration.md`. **Beyond the named 15**: enforcing S5/S6's plateau-clamp
+>   rule broke the catalog for two more already-*fitted* designs whose plateau poked past a bound
+>   — `Earp` (a real curve peaking exactly at its own Minimum, the same "dead at every
+>   temperature" bug as S1) got the same re-authoring, and `The Bat` (a genuinely distinct fitted
+>   optimum, kept) had only its `PlateauWidth` shrunk to fit. Real fork, not silently patched
+>   around: the catalog cannot open at all without a decision here. Recorded, not asked, because
+>   the fix was mechanical once the rule was enforced — flag if that call should have gone to
+>   the operator instead.
+> - **S5/S6 closed.** `StatValidation.ValidateHeatResponse` now refuses NaN in any of the four
+>   heat-response fields, a zero-span range (`MinimumTemperature == MaximumTemperature`), and a
+>   plateau whose low or high edge pokes past its bounds — the exact rule the ruling names and the
+>   Performance() comment already claimed. The writable-path hole is closed for every path this
+>   repository owns: `CultRecordRefs.Upsert` (`AetheriaStores.cs`), the one function every tool,
+>   test and migration script writes catalog documents through, now validates before the write
+>   reaches disk. The one hole left, named in the code: CultCache Studio's generic document editor
+>   bypasses `Upsert` and exposes no per-document validation hook to attach to yet — that gap is
+>   CultLib's, not this repo's, and stays named rather than silently assumed closed. Giving
+>   `EquippableItemData`'s four heat fields non-degenerate default values (0/100/50/20, the same
+>   shape `HeatResponseTests` already hand-authored) was necessary alongside this: dozens of
+>   existing test fixtures across the suite construct designs that never cared about heat and
+>   defaulted to the same zero-span trap Tractor Beam shipped with; without a sane default, closing
+>   S5/S6 correctly would have required touching every one of those fixtures instead of the root
+>   cause.
+> - **S7 pinned.** Four new mutations, each with its own dedicated test (not a coincidentally-
+>   sensitive existing one): out-of-bounds semantics (`return 1f` instead of `0f` outside bounds,
+>   `HeatResponseTests.PerformanceIsZeroAtAndBeyondEachBound`); the plateau-clamp validation's two
+>   sides, low and high (`HeatResponseTests.UpsertRefusesAPlateauThatPokesPastItsBounds`); and a
+>   `Quality` term ignoring its own exponent (`LoadoutTests.QualityTermAppliesItsOwnExponent`,
+>   `Exponent = 2` where the prior suite's `Exponent = 1` everywhere could not distinguish "reads
+>   the term's exponent" from "always uses 1"). **A fifth, separate finding**: `Performance()`'s
+>   own runtime plateau clamp (`max`/`min` around `OptimalTemperature ± halfPlateau`) is provably
+>   dead code, not merely uncovered — exhaustively verified (a dense numeric sweep well outside
+>   both bounds, 0 mismatches) that the outer `<= Minimum || >= Maximum` guard makes the inner
+>   clamp unobservable at every input, validated or not. Recorded as unreachable, not worked
+>   around with a forced test; the comment at `ItemData.cs` already says so ("redundant, not
+>   load-bearing").
+> - **S8 corrected.** No comment or note in this repository claims the shield Cut 3 probe is a
+>   pre-existing environmental regression; the doc entry above already states, correctly, that it
+>   did not reproduce. Re-verified clean at HEAD (batchmode, this pass).
+> - **Zero `ConsumableItemData` records** in the catalog (Cut 0's question): nothing to touch.
+>
+> 9 new tests (80 total), 17 mutation cases in `tests/mutation_tests_stats_power_cut1.py` (all
+> behave as declared), catalog re-authored in place (`GameData/Aetheria.cc`, 16 records changed,
+> byte length unchanged), `AetherDb` census/factions/dangling/station-fit/hardpoint-fit/loadout-1
+> byte-identical before/after re-authoring.
 
 ## 0. What is there now
 
