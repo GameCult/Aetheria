@@ -597,6 +597,141 @@ public sealed class LoadoutTests : IDisposable
         Assert.NotEqual(lowEquipped.ThermalExponent, highEquipped.ThermalExponent);
     }
 
+    // Cut 0 (docs/stats-and-power-cut.md): the collapsed evaluation path (PerformanceStat.Evaluate(IStatContext))
+    // gives the unequipped and the equipped-at-full-health-and-optimal-temperature cases the same number, for a
+    // design whose heat curve genuinely reaches full performance at its plateau. Before the cut this equality was
+    // not even expressible: the two paths were separate hand-written formulas (ItemManager.Evaluate and
+    // EquippedItem.Evaluate) with no shared entry point to assert against. It is expressible now because both
+    // resolve through the one function via an IStatContext, which is the structural point of the cut.
+    //
+    // Real catalog curves rarely land on exactly 1.0 at their reported OptimalTemperature (64-sample search over
+    // an authored Bezier) -- a probe against GameData/Aetheria.cc found 12 of 30 heat-bearing stats disagreeing
+    // between the unequipped and full-health/optimal-temperature equipped reads, by up to ~100 units on a
+    // Min/Max=0/1e6 stat. That is real, current, and *not* fixed here: heat curve semantics are Cut 1's R-heat
+    // ruling, not Cut 0's. This test pins the design contract with a controlled fixture (a flat-topped curve
+    // whose plateau samples to exactly 1.0) rather than live data, so it is not a claim that every real item
+    // agrees today.
+    [Fact]
+    public void UnequippedAgreesWithEquippedAtFullHealthAndOptimalTemperature()
+    {
+        using var cache = AetheriaStores.Open(Catalog, catalogWritable: true);
+        var maker = cache.RefOf(cache.GetByName<Faction>("Maker"));
+        var hullData = cache.GetByName<HullData>("Skiff");
+
+        var flatCurve = new BezierCurve
+        {
+            Keys = new[]
+            {
+                new float4(0f, 0f, 0f, 0f),
+                new float4(.4f, 1f, 0f, 0f),
+                new float4(.6f, 1f, 0f, 0f),
+                new float4(1f, 0f, 0f, 0f),
+            }
+        };
+        var thermalGear = cache.Upsert(new GearData
+        {
+            Name = "Thermal", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Price = 10,
+            Durability = 100, MinimumTemperature = 0, MaximumTemperature = 100, HeatPerformanceCurve = flatCurve
+        });
+        cache.FlushAsync().Wait();
+        var thermalData = cache.Get(thermalGear);
+
+        var items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
+        var hullItem = (EquippableItem) items.CreateInstance(items.CreateLot(hullData, maker, .5f));
+        var ship = new Ship(items, null, hullItem, new EntitySettings());
+        var gearItem = (EquippableItem) items.CreateInstance(items.CreateLot(thermalData, maker, .5f));
+        Assert.True(ship.TryEquip(gearItem, HardpointCell));
+        var equipped = ship.Equipment.Single(e => e.Data is GearData);
+
+        // Drive the entity's temperature to the design's optimal, at full durability (CreateInstance's default).
+        foreach (var cell in equipped.InsetShape.Coordinates)
+            ship.Temperature[cell.x, cell.y] = thermalData.OptimalTemperature;
+        equipped.UpdatePerformance();
+        Assert.Equal(1f, equipped.ThermalPerformance, 4);
+        Assert.Equal(1f, equipped.DurabilityPerformance, 4);
+
+        var stat = new PerformanceStat { Min = 0, Max = 1, QualityExponent = 0, HeatExponentMultiplier = 1, DurabilityExponentMultiplier = 1 };
+        var equippedResult = equipped.Evaluate(stat);
+        var unequippedResult = items.Evaluate(stat, gearItem);
+        Assert.Equal(unequippedResult, equippedResult, 5);
+    }
+
+    // Cut 0: the unequipped context has no heat, by name (UnequippedStatContext.HeatFactor is a fixed 1),
+    // regardless of the item's actual temperature or the stat's HeatExponentMultiplier. This is one of the two
+    // named disagreements the cut preserves rather than resolves -- the trade menu shows the un-discounted value
+    // on purpose. Mutation: have HeatFactor read a real thermal performance instead of the constant 1; this goes
+    // red because the item is equipped far off its optimal temperature while unequipped stays unchanged.
+    [Fact]
+    public void UnequippedIgnoresHeatRegardlessOfTemperature()
+    {
+        using var cache = AetheriaStores.Open(Catalog, catalogWritable: true);
+        var maker = cache.RefOf(cache.GetByName<Faction>("Maker"));
+        var hullData = cache.GetByName<HullData>("Skiff");
+        var curve = new BezierCurve
+        {
+            Keys = new[] { new float4(0f, 0f, 0f, 0f), new float4(.5f, 1f, 0f, 0f), new float4(1f, 0f, 0f, 0f) }
+        };
+        var thermalGear = cache.Upsert(new GearData
+        {
+            Name = "ColdThermal", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Price = 10,
+            Durability = 100, MinimumTemperature = 0, MaximumTemperature = 100, HeatPerformanceCurve = curve
+        });
+        cache.FlushAsync().Wait();
+        var thermalData = cache.Get(thermalGear);
+
+        var items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
+        var hullItem = (EquippableItem) items.CreateInstance(items.CreateLot(hullData, maker, .5f));
+        var ship = new Ship(items, null, hullItem, new EntitySettings());
+        var gearItem = (EquippableItem) items.CreateInstance(items.CreateLot(thermalData, maker, .5f));
+        Assert.True(ship.TryEquip(gearItem, HardpointCell));
+        var equipped = ship.Equipment.Single(e => e.Data is GearData);
+
+        // Drive the item to the coldest end of its range -- far from optimal, ThermalPerformance -> 0.
+        foreach (var cell in equipped.InsetShape.Coordinates)
+            ship.Temperature[cell.x, cell.y] = thermalData.MinimumTemperature;
+        equipped.UpdatePerformance();
+        Assert.True(equipped.ThermalPerformance < 0.01f);
+
+        var stat = new PerformanceStat { Min = 0, Max = 1, QualityExponent = 0, HeatExponentMultiplier = 1 };
+        var equippedResult = equipped.Evaluate(stat);
+        var unequippedResult = items.Evaluate(stat, gearItem);
+        Assert.True(equippedResult < 0.01f); // heat tanks the equipped read
+        Assert.Equal(1f, unequippedResult, 3); // unequipped never reads heat at all
+    }
+
+    // Cut 0: ConsumableItemEffect.Evaluate substitutes progress-through-duration for heat -- applied
+    // unconditionally, not exponentiated by the stat's HeatExponentMultiplier the way EquippedItem's real heat
+    // performance is. That is the named "consumable substitutes progress for heat" disagreement, preserved
+    // exactly. Mutation: route consumable heat through pow(effectiveness, HeatExponentMultiplier) like the
+    // equipped path; this goes red because HeatExponentMultiplier is 0 here on purpose.
+    [Fact]
+    public void ConsumableEvaluateSubstitutesProgressForHeatUnconditionally()
+    {
+        using var cache = AetheriaStores.Open(Catalog, catalogWritable: true);
+        var maker = cache.RefOf(cache.GetByName<Faction>("Maker"));
+        var hullData = cache.GetByName<HullData>("Skiff");
+        var ramp = new BezierCurve { Keys = new[] { new float4(0f, 0f, 0f, 0f), new float4(1f, 1f, 0f, 0f) } };
+        var consumableRef = cache.Upsert(new ConsumableItemData { Name = "Booster", Duration = 10, Effectiveness = ramp });
+        cache.FlushAsync().Wait();
+        var consumableData = cache.Get(consumableRef);
+
+        var items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
+        var hullItem = (EquippableItem) items.CreateInstance(items.CreateLot(hullData, maker, .5f));
+        var ship = new Ship(items, null, hullItem, new EntitySettings());
+        // ItemManager.CreateInstance has no ConsumableItemData branch (it only special-cases EquippableItemData,
+        // falling back to CompoundCommodity otherwise); build the instance directly, as that method does for
+        // EquippableItem.
+        var consumableLot = items.CreateLot(consumableData, maker, .5f);
+        var consumableItem = new ConsumableItem { Data = cache.RefOf<ItemData>(consumableData), Lot = consumableLot };
+        var effect = new ConsumableItemEffect(consumableItem, ship);
+        effect.Update(5f); // half the duration elapsed -> progress .5 -> effectiveness .5 on a linear ramp
+
+        // HeatExponentMultiplier = 0: if consumable heat were exponentiated like the equipped path, progress
+        // would have no effect (pow(x, 0) == 1) and the result would be 1, not .5.
+        var stat = new PerformanceStat { Min = 0, Max = 1, QualityExponent = 0, HeatExponentMultiplier = 0 };
+        Assert.Equal(.5f, effect.Evaluate(stat), 3);
+    }
+
     // F4: CreateLot(product) fills each of the design's roles from the product's own per-role spread
     // (FactionProductData.Roles), not the design-wide default.
     [Fact]
