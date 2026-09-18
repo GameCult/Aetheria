@@ -40,6 +40,32 @@ namespace ShieldField
         public const int Stride = 4 * 7;
     }
 
+    /// <summary>
+    /// C# mirror of CellState in ShieldCommon.hlsl — field-for-field, same order, same 16-float
+    /// stride as `bState`'s allocation in ShieldPanel.cs. Cut 3 (docs/shield-panel-cut.md) needs
+    /// this on both sides of the boundary: ShieldPanel.ResetSim writes it directly to seed each
+    /// cell's `growth` at arm time (the D17/D20 fix — see the comment on ResetSim), and the Cut 3
+    /// batchmode probe reads it back to verify same-frame injection and reuse-driven temper erosion
+    /// without adding a readback path the running sim doesn't already need.
+    /// </summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct CellState
+    {
+        public Vector3 vel;
+        public float spin;
+        public Vector3 pos;
+        public float rot;
+        public float damage;
+        public float breakTime;
+        public float glow;
+        public float growth;
+        public float temper;
+        public float released;
+        public float peakTension;
+        public float pad2;
+        public const int Stride = 4 * 16;
+    }
+
     /// <summary>Raw output of a tiling generator: a bag of convex polygons, wound CCW.</summary>
     public class PolygonSoup
     {

@@ -91,6 +91,13 @@ namespace ShieldField
         Bounds worldBounds;
         uint[] budgetScratch;   // cached to avoid a per-frame allocation (D12)
 
+        // D17/D20 (Cut 3, docs/shield-panel-cut.md): the panel's own arm instant, backdated by
+        // one growDuration so a cell at the strike centre (spawnDelay ~= 0) is already past the
+        // KInject/KWaveStep/KFracture growth gate the moment it is struck. See ResetSim.
+        float panelSpawnTime;
+        CellState[] growthSeed;   // cached per-cell arm state; rebuilt only when the tiling is (re)built,
+                                  // re-uploaded (not reallocated) on every ResetSim — no interception allocation.
+
         const int EchoSlots = 16;
         static readonly int MaxV = Limits.MaxVerts;
 
@@ -109,12 +116,28 @@ namespace ShieldField
         static readonly int idBudget = Shader.PropertyToID("_BreakBudget");
 
         // ==============================================================
-        void OnEnable() { Rebuild(); }
-        void OnDisable() { ReleaseAll(); }
+        // Cut 3 (docs/shield-panel-cut.md §2.4): a pooled panel is SetActive(false)/(true) every
+        // time it is returned to and taken back out of Assets/Scripts/Prototype.cs's pool, which
+        // fires OnDisable/OnEnable on every reuse, not just once at load. The pool's entire reason
+        // for existing is that a rebuild is 1.3-21 ms and a ResetSim is 8-11 us (§2.4); OnEnable
+        // unconditionally rebuilding and OnDisable unconditionally releasing would pay the
+        // expensive path on every single interception, silently defeating the pool. So the tiling
+        // and buffers are built once (guarded by `data == null`) and released only when the
+        // GameObject is actually destroyed, not merely deactivated -- ShieldInterceptor.ResetSim()
+        // is what re-arms a reused instance (see ResetSim below), not OnEnable.
+        void OnEnable() { if (data == null) Rebuild(); }
+        void OnDisable() { }
+        void OnDestroy() { ReleaseAll(); }
+
+        // Cut 3 verification surface: counts real tiling builds so the pooling fix (OnEnable only
+        // rebuilds when data == null) can be pinned against a regression that rebuilds on every
+        // pooled reuse (see ShieldPanelCut3Verify.CheckPoolReuseDoesNotRebuild).
+        public int DebugRebuildCount { get; private set; }
 
         [UnityEngine.ContextMenu("Rebuild")]
         public void Rebuild()
         {
+            DebugRebuildCount++;
             ReleaseAll();
             if (sim == null || panelShader == null) return;
 
@@ -147,7 +170,7 @@ namespace ShieldField
             bCells = new GraphicsBuffer(GraphicsBuffer.Target.Structured, n, CellStatic.Stride);
             bVerts = new GraphicsBuffer(GraphicsBuffer.Target.Structured, data.verts.Length, sizeof(float) * 2);
             bEdges = new GraphicsBuffer(GraphicsBuffer.Target.Structured, Mathf.Max(data.EdgeCount, 1), DualEdge.Stride);
-            bState = new GraphicsBuffer(GraphicsBuffer.Target.Structured, n, sizeof(float) * 16);
+            bState = new GraphicsBuffer(GraphicsBuffer.Target.Structured, n, CellState.Stride);
 
             bUA = new GraphicsBuffer(GraphicsBuffer.Target.Structured, n, sizeof(float));
             bUB = new GraphicsBuffer(GraphicsBuffer.Target.Structured, n, sizeof(float));
@@ -178,6 +201,35 @@ namespace ShieldField
                                      b.size + Vector3.one * pad);
 
             budgetScratch ??= new uint[2];
+            BuildGrowthSeed();
+        }
+
+        // D17/D20: precompute the arm-time CellState for every cell once per tiling build, keyed
+        // only on each cell's baked `spawnDelay` (TilingBuilder.cs, itself derived from the
+        // wavefrontOrigin the tiling was built with -- always the panel centre, per Cut 1's note
+        // that one tiling serves every panel). ResetSim re-uploads this same array on every arm/
+        // reuse; nothing here runs at interception time (§3's "no allocation at interception").
+        void BuildGrowthSeed()
+        {
+            growthSeed ??= new CellState[data.CellCount];
+            if (growthSeed.Length != data.CellCount) growthSeed = new CellState[data.CellCount];
+
+            for (int i = 0; i < growthSeed.Length; i++)
+            {
+                growthSeed[i] = default;
+                growthSeed[i].breakTime = -1f;
+                growthSeed[i].temper = temperInit;
+                // Backdate the arm instant by one growDuration (panelSpawnTime, set alongside this
+                // in ResetSim) so a cell with spawnDelay ~= 0 -- the strike centre -- reads as
+                // already past the 0.6 growth gate the instant it is struck, while a cell whose
+                // baked spawnDelay is >= growDuration starts at 0 and grows forward normally as
+                // simTime advances past panelSpawnTime. This is what fixes D17 (the growth gate
+                // otherwise swallows the hit that created the panel, because KUpdate -- the only
+                // writer of `growth` -- does not run until after this same frame's KInject) without
+                // touching the gate itself or adding a per-interception dispatch.
+                growthSeed[i].growth = Mathf.Clamp01(
+                    (growDuration - data.cells[i].spawnDelay) / Mathf.Max(growDuration, 1e-3f));
+            }
         }
 
         static GraphicsBuffer MakeArgs(uint vertsPerInstance)
@@ -217,7 +269,16 @@ namespace ShieldField
         [UnityEngine.ContextMenu("Reset Simulation")]
         public void ResetSim()
         {
-            if (sim == null || data == null) return;
+            // Cut 3: a freshly-instantiated pool instance's OnEnable is not guaranteed to have run
+            // by the time the interceptor calls ResetSim() on it in the same call stack (observed in
+            // the batchmode probe: Object.Instantiate's Awake/OnEnable are not synchronous with the
+            // call that created the clone in every context this runs in). ResetSim is what every
+            // spawn and reuse already goes through, so it -- not OnEnable's timing -- is what
+            // guarantees "built before struck". This costs nothing on the pooled-reuse path that
+            // §2.4's budget is about: data is already non-null there, so this is one null check, not
+            // a second rebuild.
+            if (data == null) { Rebuild(); return; }   // Rebuild() ends by calling ResetSim() itself
+            if (sim == null) return;
             simTime = 0f;
             echoSlot = 0;
             uUsingA = true;
@@ -232,6 +293,17 @@ namespace ShieldField
             sim.SetBuffer(kInit, idUOut, bUB);
             sim.Dispatch(kInit, groups, 1, 1);
             sim.SetBuffer(kInit, idUOut, bUA);
+
+            // D17/D20: KInit above just zeroed every cell's `growth` (and this panel's own local
+            // clock, simTime, back to 0). Overwrite with the precomputed arm-time state instead of
+            // leaving it at 0 -- see BuildGrowthSeed's comment for why waiting on KUpdate to catch
+            // up is one frame too late for a hit queued this same call. `growDuration` may have
+            // changed in the inspector since the seed was built, but recomputing it here would be a
+            // per-arm allocation-shaped cost the pool's 8-11 us budget (§2.4) has no room for;
+            // Rebuild (a manual, non-pooled action) is what re-derives the seed from authored
+            // fields, matching CheckCfl's existing must-Rebuild-to-see-it contract.
+            panelSpawnTime = -growDuration;
+            bState.SetData(growthSeed);
         }
 
         void CheckCfl()
@@ -250,6 +322,17 @@ namespace ShieldField
                                  $"will likely diverge. Lower waveSpeed2 or fixedSubstepDt, or raise cellSize. " +
                                  $"(smallest cell area {minArea:E2}, max degree {maxDeg})", this);
         }
+
+        // ==============================================================
+        // Read-only verification surface for the Cut 3 batchmode probe (Tests.asmdef cannot see
+        // Assembly-CSharp -- the map's Q7 -- so this, like Cut 1/2's probes, is what stands in for
+        // a unit test). Nothing outside ShieldPanel may WRITE these buffers (the authority map's
+        // "nothing outside ShieldPanel touches its buffers" is about writers); GraphicsBuffer.
+        // GetData is a read.
+        public int DebugCellCount => data?.CellCount ?? 0;
+        public GraphicsBuffer DebugStateBuffer => bState;
+        public GraphicsBuffer DebugVField => bV;
+        public Vector2 DebugCellCenter(int i) => data.cells[i].centroid;
 
         // ==============================================================
         /// <summary>Strike the panel. worldDir is the projectile's travel direction.</summary>
@@ -358,7 +441,7 @@ namespace ShieldField
 
             // ---- per-frame state advance + visibility
             sim.SetFloat("_Dt", dt);
-            sim.SetFloat("_PanelSpawnTime", 0f);
+            sim.SetFloat("_PanelSpawnTime", panelSpawnTime);
             sim.SetFloat("_GrowDuration", growDuration);
             sim.SetFloat("_GlowDecay", 3.2f);
             sim.SetFloat("_ShardLife", shardLife);

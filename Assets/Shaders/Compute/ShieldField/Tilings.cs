@@ -149,8 +149,23 @@ namespace ShieldField
             // edges before the final `* scale` below, so solve for the iteration
             // count that brings a unit edge down to approximately cellSize once
             // scaled by `radius`.
+            //
+            // D21 fix: a quasiperiodic substitution can only land ON one of these
+            // phi-quantised edge lengths, never between them — `cellSize` for Penrose
+            // means "the target edge length", and the right answer is the iteration
+            // count whose resulting edge length is NEAREST that target, not the count
+            // that guarantees the tiling is at least as fine as requested. The
+            // original `CeilToInt(...) + 1` always rounded up AND added an extra
+            // substitution on top, which is why Penrose landed an order of magnitude
+            // denser than Hex at the same cellSize (D21, §2.2/§2.3): every fractional
+            // log rounded away from cellSize toward finer, and the +1 then halved the
+            // edge length again. Rounding to the nearest integer substitution count is
+            // the fix; every other tiling here already reports the density the caller
+            // asked for, and Penrose can only ever approximate it to within one
+            // phi step, same as it does now, just centred on the target instead of
+            // always overshooting it.
             int iterations = Mathf.Clamp(
-                Mathf.CeilToInt(Mathf.Log(Mathf.Max(radius / Mathf.Max(cellSize, 1e-4f), 1f), Phi)) + 1,
+                Mathf.RoundToInt(Mathf.Log(Mathf.Max(radius / Mathf.Max(cellSize, 1e-4f), 1f), Phi)),
                 1, 12);
             return Penrose(radius, iterations);
         }
