@@ -67,6 +67,13 @@ public class ChargedWeapon : InstantWeapon
     public float ChargeTime { get; protected set; }
     public float ChargeEnergy { get; protected set; }
     public float ChargeHeat { get; protected set; }
+
+    // Cut 4 (docs/stats-and-power-cut.md, Cut 4): "its charge cycle already is a buffer, and ChargeEnergy
+    // should become the fill rate rather than a separate concept." ChargeEnergy was authored but never spent
+    // by anything (Trigger() always paid the base Weapon.Energy per shot); it becomes this weapon's input
+    // capacitor rate instead of the InstantWeapon default (Capacity / Cooldown), so a charged weapon's own
+    // authored charge-up speed IS its sustained rate of fire, not a second, disconnected number.
+    protected override float RateOverride => Evaluate(_data.ChargeEnergy);
     
     public override float DamagePerSecond => Damage * _data.ChargeFiringDamageMultiplier / (Cooldown + ChargeTime);
     public override float RangeDamagePerSecond(float range)

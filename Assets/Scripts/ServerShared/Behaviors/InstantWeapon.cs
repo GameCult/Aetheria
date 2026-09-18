@@ -32,9 +32,13 @@ public class InstantWeaponData : WeaponData
     }
 }
 
-public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior
+public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerConsumer
 {
     private InstantWeaponData _data;
+
+    // Cut 4 (docs/stats-and-power-cut.md, Cut 4): replaces the direct Entity.TrySpendCapacitorCharge spend at
+    // both Trigger() and Execute() below -- the named, temporary exception Cut 3 left standing.
+    protected readonly InputCapacitor _capacitor = new InputCapacitor();
 
     protected int _burstRemaining;
     private float _burstTimer;
@@ -95,10 +99,7 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior
 
         // If 1 ammo is consumed per burst, perform ammo and energy consumption here
         // UseAmmo returns false when triggering reload; cancel firing if that is the case
-        // Cut 3 (docs/stats-and-power-cut.md): one of the four instant draws out of scope for the bus this cut
-        // (a burst) -- named, temporary exception, spending capacitor charge directly. Cut 4's input capacitor
-        // closes this.
-        if(_data.SingleAmmoBurst && (!Entity.TrySpendCapacitorCharge(Energy) || !UseAmmo())) return;
+        if(_data.SingleAmmoBurst && (!TrySpendActivationEnergy() || !UseAmmo())) return;
         
         _burstRemaining = (int) BurstCount;
         _burstInterval = BurstTime / _burstRemaining;
@@ -118,6 +119,36 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior
         Heat /= (int) BurstCount;
         Energy /= (int) BurstCount;
     }
+
+    // Cut 4 (docs/stats-and-power-cut.md §7 Q4): capacity and rate, resolved fresh rather than off the cached
+    // Energy/Cooldown properties above -- Capacitor.ResolveCapacity's precedent (PowerBus.Step, which calls
+    // PowerRequest below, runs before this behaviour's own Execute this tick, so those cached properties would
+    // still hold last tick's value). Capacity is one shot's own energy cost, exactly what the two deleted
+    // direct-spend call sites measured. Default rate keeps sustained fire exactly at Cooldown's pace when the
+    // bus grants the full request; RateOverride lets an owner replace that (ChargedWeapon does).
+    protected virtual float RateOverride => 0f;
+
+    protected void RefreshInputCapacitor()
+    {
+        var burstCount = max(1, (int) Evaluate(_data.Count));
+        var perShotEnergy = Evaluate(_data.Energy) / burstCount;
+        var cooldown = Evaluate(_data.Cooldown);
+        _capacitor.UpdateStats(perShotEnergy, cooldown, rateOverride: RateOverride);
+    }
+
+    // Cut 4: the request PowerBus needs before Execute runs, mirroring EnergyDraw's IPowerConsumer pattern.
+    public float PowerRequest(float dt)
+    {
+        RefreshInputCapacitor();
+        return _capacitor.RequestedFill(dt);
+    }
+
+    // Cut 4: whole-or-nothing against this behaviour's own input capacitor -- the operator's ruling ("no item
+    // ever receives a fraction of a shot") means a fire attempt only ever succeeds at full charge, so the cost
+    // spent is always exactly Capacity, never the possibly-stale cached Energy. A consumable-hosted instance
+    // (Item == null) has no PowerBus entry (Behaviors.cs: "no PowerBus entry ... always succeeds"), so nothing
+    // would ever fill this capacitor -- bypass it entirely rather than starving such an instance forever.
+    protected bool TrySpendActivationEnergy() => Item == null || _capacitor.TrySpend(_capacitor.Capacity);
 
     private bool UseAmmo()
     {
@@ -156,6 +187,10 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior
     public override bool Execute(float dt)
     {
         base.Execute(dt);
+        // Cut 4: this tick's grant, read back via Item.PowerSupply -- Item is non-null here because a null-Item
+        // instance never reaches PowerBus.Step (see TrySpendActivationEnergy) and so never accrues charge.
+        if (Item != null)
+            _capacitor.AddCharge(_capacitor.RequestedFill(dt) * Item.PowerSupply);
         if (_coolingDown)
         {
             _cooldown -= dt / (_data.MagazineSize > 0 && _ammo == 0 ? _data.ReloadTime : Cooldown);
@@ -178,9 +213,7 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior
         {
             // If multiple ammo is consumed per burst, perform ammo and energy consumption here
             // UseAmmo returns false when triggering reload; cancel firing if that is the case
-            // Cut 3 (docs/stats-and-power-cut.md): one of the four instant draws out of scope this cut (a shot);
-            // see Trigger()'s SingleAmmoBurst branch above for the same named exception.
-            if (!_data.SingleAmmoBurst && (!Entity.TrySpendCapacitorCharge(Energy) || !UseAmmo()))
+            if (!_data.SingleAmmoBurst && (!TrySpendActivationEnergy() || !UseAmmo()))
             {
                 _burstRemaining = 0;
                 return false;
