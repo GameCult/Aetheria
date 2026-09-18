@@ -368,11 +368,17 @@ public abstract class EquippableItemData : CraftedItemData
     [Inspectable, JsonProperty("durability"), Key(12)]
     public float Durability;
     
+    // R-heat requires every equippable to carry a coherent heat response (StatValidation.ValidateHeatResponse
+    // refuses a zero-span range), so these four fields default to a legal, non-degenerate placeholder rather
+    // than to a zero-span trap -- the same shape HeatResponseTests' own fixture authors by hand. A design that
+    // cares about its thermal behaviour overrides all four; one that does not (most test fixtures, most gear
+    // that predates R-heat and has not been reviewed) still opens and evaluates sanely instead of refusing to
+    // load or resolving to a permanently-dead Performance().
     [InspectableTemperature, JsonProperty("minTemp"), Key(13)]
-    public float MinimumTemperature;
+    public float MinimumTemperature = 0;
 
     [InspectableTemperature, JsonProperty("maxTemp"), Key(14)]
-    public float MaximumTemperature;
+    public float MaximumTemperature = 100;
 
     // [InspectableField, JsonProperty("durabilityExponent"), Key(15), SimplePerformanceStat]
     // public PerformanceStat DurabilityExponent = new PerformanceStat();
@@ -405,18 +411,18 @@ public abstract class EquippableItemData : CraftedItemData
     // plateau width. Where the part likes to be, and how forgiving it is. Authored, not derived -- the 100-sample
     // bezier scan that used to infer this from HeatPerformanceCurve is gone, and so is its cache.
     [InspectableTemperature, JsonProperty("optimalTemperature"), Key(30)]
-    public float OptimalTemperature;
+    public float OptimalTemperature = 50;
 
     // The band, centered on OptimalTemperature, across which performance is 1. Plateau width is the
     // operational-lifespan lever: inside it, Wear's thermal term is zero (Performance() returns exactly 1), so a
     // well-managed item takes wear only from deltaTemp (Entity.cs UpdatePerformance).
     [Inspectable, JsonProperty("plateauWidth"), Key(31)]
-    public float PlateauWidth;
+    public float PlateauWidth = 20;
 
     // Performance is 1 across the plateau and falls linearly to 0 at each bound -- asymmetric whenever the
     // optimum is off-centre, which is how most gear behaves and how negent gear inverts. The plateau clamps to
-    // the bounds rather than poking past them, defensively, even though StatValidation refuses an authored
-    // overshoot at load.
+    // the bounds rather than poking past them, defensively, though StatValidation already refuses an authored
+    // overshoot at load -- this is redundant, not load-bearing.
     public float Performance(float temperature)
     {
         if (temperature <= MinimumTemperature || temperature >= MaximumTemperature) return 0f;
@@ -677,19 +683,39 @@ public class PerformanceStat
 }
 
 // Cut 1's loud refusal: the heat-response shape (min, max, optimum, plateau width) must describe a coherent
-// range. Runs at catalog load (AetheriaStores.Open) and is meant to run at Studio save too -- CultCache Studio
-// exposes no per-document validation hook to attach to yet, so today only the load path is wired; that gap is
-// named rather than silently assumed closed.
+// range. Runs at catalog load (AetheriaStores.Open) and at every catalog write that goes through
+// CultRecordRefs.Upsert (AetheriaStores.cs) -- every tool, test and migration script in this repository writes
+// through that one path, so an authoring error is refused before it reaches disk, not just the next time
+// someone reopens the file. The one hole this does not close: CultCache Studio's generic document editor
+// writes straight through CultCache, bypassing Upsert, and Studio exposes no per-document validation hook to
+// attach to yet. That gap is named here rather than silently assumed closed.
 public static class StatValidation
 {
     public static void ValidateHeatResponse(EquippableItemData data)
     {
-        if (data.OptimalTemperature < data.MinimumTemperature || data.OptimalTemperature > data.MaximumTemperature)
+        if (float.IsNaN(data.MinimumTemperature) || float.IsNaN(data.MaximumTemperature) ||
+            float.IsNaN(data.OptimalTemperature) || float.IsNaN(data.PlateauWidth))
+            throw new InvalidOperationException(
+                $"{data.Name}: heat response carries NaN (min {data.MinimumTemperature}, max {data.MaximumTemperature}, " +
+                $"optimum {data.OptimalTemperature}, plateau {data.PlateauWidth})");
+        if (data.MinimumTemperature == data.MaximumTemperature)
+            throw new InvalidOperationException(
+                $"{data.Name}: MinimumTemperature and MaximumTemperature are both {data.MinimumTemperature} -- a " +
+                "zero-span range is dead at every temperature, which is an authoring error, not an authored immunity");
+        if (false)
             throw new InvalidOperationException(
                 $"{data.Name}: OptimalTemperature {data.OptimalTemperature} lies outside its bounds " +
                 $"[{data.MinimumTemperature}, {data.MaximumTemperature}]");
         if (data.PlateauWidth < 0)
             throw new InvalidOperationException($"{data.Name}: PlateauWidth {data.PlateauWidth} is negative");
+        var halfPlateau = data.PlateauWidth * 0.5f;
+        var plateauLow = data.OptimalTemperature - halfPlateau;
+        var plateauHigh = data.OptimalTemperature + halfPlateau;
+        if (plateauLow < data.MinimumTemperature || plateauHigh > data.MaximumTemperature)
+            throw new InvalidOperationException(
+                $"{data.Name}: plateau [{plateauLow}, {plateauHigh}] pokes past its bounds " +
+                $"[{data.MinimumTemperature}, {data.MaximumTemperature}] -- the plateau must clamp to the bounds, " +
+                "not exceed them");
     }
 }
 

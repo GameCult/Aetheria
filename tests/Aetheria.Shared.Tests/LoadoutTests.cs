@@ -532,6 +532,24 @@ public sealed class LoadoutTests : IDisposable
         Assert.Equal(.2f, items.GetTier(secondInstance).tier.Quality, 3);
     }
 
+    // S7 (docs/stats-and-power-cut.md Cut 1 findings): a Quality term must raise the lot's quality to its own
+    // declared Exponent, not always to 1. StatsReadTheLot uses Exponent = 1 throughout, which cannot distinguish
+    // "read the term's exponent" from "always use 1" -- pow(x, 1) == x either way. Exponent = 2 here can: a
+    // mutation that drops the term's own exponent (using 1f regardless of what is declared) reads .5 instead of
+    // the correct .25.
+    [Fact]
+    public void QualityTermAppliesItsOwnExponent()
+    {
+        using var cache = Open();
+        var items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
+        var lamp = cache.GetByName<GearData>("Lamp");
+        var lotId = items.Lots.Add(new Lot { Design = cache.RefOf<ItemData>(lamp), Origin = new Attributed(), Quality = .5f, Roles = new List<RoleFill>() });
+        var instance = (EquippableItem) items.CreateInstance(lotId);
+
+        var squared = new PerformanceStat { Min = 0, Max = 1, Terms = { new StatTerm { Source = StatSource.Quality, Exponent = 2 } } };
+        Assert.Equal(.25f, items.Evaluate(squared, instance), 3);
+    }
+
     // F4: GetPrice reads the lot's quality through GameplaySettings.QualityPriceModifier.
     [Fact]
     public void GetPriceReadsLotQuality()

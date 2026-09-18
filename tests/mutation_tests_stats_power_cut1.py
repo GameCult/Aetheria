@@ -146,6 +146,83 @@ MUTATIONS: list[Mutation] = [
         test="HeatResponseTests.AFastSwingAcrossThePlateauStillWears",
         expect="red",
     ),
+
+    # --- Soul's Cut 1 findings (docs/stats-and-power-cut.md), S7: four mutations that survived the original
+    # --- suite. Each gets a dedicated test here rather than reusing a coincidentally-sensitive one. ---
+
+    # S7: out-of-bounds semantics. The old curve returned 1 at any temperature it had no data for; R-heat's whole
+    # point is that a design is dead at and beyond its bounds. Restoring the old "1" must fail loudly, at the
+    # boundary itself and strictly beyond it.
+    Mutation(
+        rule="a design must be dead (0), not immune (1), at and beyond its bounds",
+        file="Assets/Scripts/ServerShared/ItemData.cs",
+        anchor="        if (temperature <= MinimumTemperature || temperature >= MaximumTemperature) return 0f;",
+        mutated="        if (temperature <= MinimumTemperature || temperature >= MaximumTemperature) return 1f;",
+        test="HeatResponseTests.PerformanceIsZeroAtAndBeyondEachBound",
+        expect="red",
+    ),
+    # S7: the low-side plateau clamp -- StatValidation must refuse a plateau whose low edge pokes past
+    # MinimumTemperature, not just an optimum outside the bounds outright.
+    Mutation(
+        rule="StatValidation must refuse a plateau whose low edge pokes past MinimumTemperature",
+        file="Assets/Scripts/ServerShared/ItemData.cs",
+        anchor="        if (plateauLow < data.MinimumTemperature || plateauHigh > data.MaximumTemperature)",
+        mutated="        if (false || plateauHigh > data.MaximumTemperature)",
+        test="HeatResponseTests.UpsertRefusesAPlateauThatPokesPastItsBounds",
+        expect="red",
+    ),
+    # S7: the high-side plateau clamp, the other half of the same rule.
+    Mutation(
+        rule="StatValidation must refuse a plateau whose high edge pokes past MaximumTemperature",
+        file="Assets/Scripts/ServerShared/ItemData.cs",
+        anchor="        if (plateauLow < data.MinimumTemperature || plateauHigh > data.MaximumTemperature)",
+        mutated="        if (plateauLow < data.MinimumTemperature || false)",
+        test="HeatResponseTests.UpsertRefusesAPlateauThatPokesPastItsBounds",
+        expect="red",
+    ),
+    # S7: a Quality term must raise the lot's quality to its own declared Exponent. StatsReadTheLot uses
+    # Exponent = 1 throughout (pow(x, 1) == x), which cannot distinguish "read the term's exponent" from "always
+    # use 1" -- that is exactly how this mutation survived the original suite.
+    Mutation(
+        rule="a Quality term must apply its own exponent, not always 1",
+        file="Assets/Scripts/ServerShared/ItemData.cs",
+        anchor="                StatSource.Quality => pow(context.Lot.QualityForRole(term.Role), term.Exponent),",
+        mutated="                StatSource.Quality => pow(context.Lot.QualityForRole(term.Role), 1f),",
+        test="LoadoutTests.QualityTermAppliesItsOwnExponent",
+        expect="red",
+    ),
+
+    # --- S5/S6: the validation gaps Soul found closed. Zero-span and NaN were silently accepted before. ---
+    Mutation(
+        rule="StatValidation must refuse a zero-span range (Tractor Beam's exact bug: Min == Max)",
+        file="Assets/Scripts/ServerShared/ItemData.cs",
+        anchor="        if (data.MinimumTemperature == data.MaximumTemperature)",
+        mutated="        if (false)",
+        test="HeatResponseTests.UpsertRefusesAZeroSpanRange",
+        expect="red",
+    ),
+    Mutation(
+        rule="StatValidation must refuse NaN in any of the four heat-response fields",
+        file="Assets/Scripts/ServerShared/ItemData.cs",
+        anchor=(
+            "        if (float.IsNaN(data.MinimumTemperature) || float.IsNaN(data.MaximumTemperature) ||\n"
+            "            float.IsNaN(data.OptimalTemperature) || float.IsNaN(data.PlateauWidth))"
+        ),
+        mutated="        if (false)",
+        test="HeatResponseTests.UpsertRefusesNaNInAnyHeatResponseField",
+        expect="red",
+    ),
+    # S6: the writable path used to trust Open()'s one-time check; a session that wrote an invalid record and
+    # committed it produced a catalog that only failed the *next* time somebody reopened it. Mutating away the
+    # Upsert-time validation call must fail a test that checks the record never reaches disk in the first place.
+    Mutation(
+        rule="CultRecordRefs.Upsert must validate an EquippableItemData's heat response before it reaches disk",
+        file="Assets/Scripts/ServerShared/AetheriaStores.cs",
+        anchor="        if (document is EquippableItemData data) StatValidation.ValidateHeatResponse(data);",
+        mutated="        if (false) { }",
+        test="HeatResponseTests.UpsertRefusesAnOptimumOutsideItsBounds",
+        expect="red",
+    ),
 ]
 
 

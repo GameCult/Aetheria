@@ -93,52 +93,136 @@ public sealed class HeatResponseTests : IDisposable
         Assert.Equal(0f, data.Performance(100), 5);
     }
 
-    // --- Validation: fails loudly at catalog load, naming the item ---
-
+    // S7 (docs/stats-and-power-cut.md Cut 1 findings): a design is dead at and beyond its bounds -- that is the
+    // point of R-heat's ruling, not an accident. A mutation restoring the old curve's "1 at any temperature"
+    // behaviour outside the bounds must fail this, at the boundary itself and strictly beyond it on both sides.
     [Fact]
-    public void LoadRefusesAnOptimumOutsideItsBounds()
+    public void PerformanceIsZeroAtAndBeyondEachBound()
+    {
+        using var cache = OpenCatalogWithThermalGear();
+        var data = cache.GetByName<GearData>("Thermal");
+        Assert.Equal(0f, data.Performance(0), 5);
+        Assert.Equal(0f, data.Performance(-10), 5);
+        Assert.Equal(0f, data.Performance(100), 5);
+        Assert.Equal(0f, data.Performance(150), 5);
+    }
+
+    // --- Validation: fails loudly at catalog load AND at every write through CultRecordRefs.Upsert (S6: the
+    // writable path used to trust Open()'s one-time check and could write an invalid catalog that only failed
+    // the next time somebody reopened it). Each test below proves the earlier refusal at Upsert time, then
+    // confirms the record never reached disk by reopening read-only and finding it absent. ---
+
+    private static string NewRoot()
     {
         var root = Path.Combine(Path.GetTempPath(), "aetheria-heatresponse-invalid-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
+        return root;
+    }
+
+    [Fact]
+    public void UpsertRefusesAnOptimumOutsideItsBounds()
+    {
+        var root = NewRoot();
         try
         {
             var catalog = Path.Combine(root, "Aetheria.cc");
-            using (var cache = AetheriaStores.Open(catalog, catalogWritable: true))
+            using var cache = AetheriaStores.Open(catalog, catalogWritable: true);
+            cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+            var ex = Assert.Throws<InvalidOperationException>(() => cache.Upsert(new GearData
             {
-                cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
-                cache.Upsert(new GearData
-                {
-                    Name = "BadOptimum", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Price = 1,
-                    MinimumTemperature = 0, MaximumTemperature = 100, OptimalTemperature = 150, PlateauWidth = 0
-                });
-                cache.FlushAsync().Wait();
-            }
-            var ex = Assert.Throws<InvalidOperationException>(() => AetheriaStores.Open(catalog));
+                Name = "BadOptimum", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Price = 1,
+                MinimumTemperature = 0, MaximumTemperature = 100, OptimalTemperature = 150, PlateauWidth = 0
+            }));
             Assert.Contains("BadOptimum", ex.Message);
+            cache.FlushAsync().Wait();
+            Assert.Null(cache.GetAll<GearData>().SingleOrDefault(g => g.Name == "BadOptimum"));
         }
         finally { Directory.Delete(root, true); }
     }
 
     [Fact]
-    public void LoadRefusesANegativePlateauWidth()
+    public void UpsertRefusesANegativePlateauWidth()
     {
-        var root = Path.Combine(Path.GetTempPath(), "aetheria-heatresponse-invalid-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(root);
+        var root = NewRoot();
         try
         {
             var catalog = Path.Combine(root, "Aetheria.cc");
-            using (var cache = AetheriaStores.Open(catalog, catalogWritable: true))
+            using var cache = AetheriaStores.Open(catalog, catalogWritable: true);
+            cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+            var ex = Assert.Throws<InvalidOperationException>(() => cache.Upsert(new GearData
             {
-                cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
-                cache.Upsert(new GearData
-                {
-                    Name = "BadPlateau", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Price = 1,
-                    MinimumTemperature = 0, MaximumTemperature = 100, OptimalTemperature = 50, PlateauWidth = -1
-                });
-                cache.FlushAsync().Wait();
-            }
-            var ex = Assert.Throws<InvalidOperationException>(() => AetheriaStores.Open(catalog));
+                Name = "BadPlateau", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Price = 1,
+                MinimumTemperature = 0, MaximumTemperature = 100, OptimalTemperature = 50, PlateauWidth = -1
+            }));
             Assert.Contains("BadPlateau", ex.Message);
+        }
+        finally { Directory.Delete(root, true); }
+    }
+
+    // S5/S6: a zero-span range (Tractor Beam's exact bug) is refused, not silently accepted as an authored
+    // immunity.
+    [Fact]
+    public void UpsertRefusesAZeroSpanRange()
+    {
+        var root = NewRoot();
+        try
+        {
+            var catalog = Path.Combine(root, "Aetheria.cc");
+            using var cache = AetheriaStores.Open(catalog, catalogWritable: true);
+            cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+            var ex = Assert.Throws<InvalidOperationException>(() => cache.Upsert(new GearData
+            {
+                Name = "ZeroSpan", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Price = 1,
+                MinimumTemperature = 50, MaximumTemperature = 50, OptimalTemperature = 50, PlateauWidth = 0
+            }));
+            Assert.Contains("ZeroSpan", ex.Message);
+        }
+        finally { Directory.Delete(root, true); }
+    }
+
+    // S5/S6: NaN in any of the four heat-response fields is refused.
+    [Theory]
+    [InlineData(float.NaN, 100f, 50f, 20f)]
+    [InlineData(0f, float.NaN, 50f, 20f)]
+    [InlineData(0f, 100f, float.NaN, 20f)]
+    [InlineData(0f, 100f, 50f, float.NaN)]
+    public void UpsertRefusesNaNInAnyHeatResponseField(float min, float max, float optimum, float plateau)
+    {
+        var root = NewRoot();
+        try
+        {
+            var catalog = Path.Combine(root, "Aetheria.cc");
+            using var cache = AetheriaStores.Open(catalog, catalogWritable: true);
+            cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+            var ex = Assert.Throws<InvalidOperationException>(() => cache.Upsert(new GearData
+            {
+                Name = "NaNHeat", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Price = 1,
+                MinimumTemperature = min, MaximumTemperature = max, OptimalTemperature = optimum, PlateauWidth = plateau
+            }));
+            Assert.Contains("NaNHeat", ex.Message);
+        }
+        finally { Directory.Delete(root, true); }
+    }
+
+    // S5/S6: the plateau clamps to the bounds rather than poking past them -- an authored half-width that would
+    // reach past Minimum or Maximum is refused at write time, naming the item, rather than silently clamped.
+    [Theory]
+    [InlineData(0f, 100f, 10f, 40f)]  // low edge: 10 - 20 = -10 < 0
+    [InlineData(0f, 100f, 90f, 40f)]  // high edge: 90 + 20 = 110 > 100
+    public void UpsertRefusesAPlateauThatPokesPastItsBounds(float min, float max, float optimum, float plateau)
+    {
+        var root = NewRoot();
+        try
+        {
+            var catalog = Path.Combine(root, "Aetheria.cc");
+            using var cache = AetheriaStores.Open(catalog, catalogWritable: true);
+            cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+            var ex = Assert.Throws<InvalidOperationException>(() => cache.Upsert(new GearData
+            {
+                Name = "PokingPlateau", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Price = 1,
+                MinimumTemperature = min, MaximumTemperature = max, OptimalTemperature = optimum, PlateauWidth = plateau
+            }));
+            Assert.Contains("PokingPlateau", ex.Message);
         }
         finally { Directory.Delete(root, true); }
     }

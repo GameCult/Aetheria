@@ -57,7 +57,14 @@ public static class CultRecordRefs
         new CultRecordRef<T>(cache.TryGetHandle(document)?.Key ??
                              throw new InvalidOperationException($"This cache holds no such {document.GetType().Name}."));
 
-    // Writes a document to its home store; the cache mints its key the first time.
-    public static CultRecordRef<T> Upsert<T>(this CultCache cache, T document) where T : class =>
-        new CultRecordRef<T>(cache.UpsertAsync(document).Result.Key);
+    // Writes a document to its home store; the cache mints its key the first time. Every catalog write in this
+    // repository (tools, tests, migration scripts) goes through this one function, so it is where R-heat's
+    // validation closes the gap AetheriaStores.Open leaves: Open only checks what is already on disk when a
+    // session starts, not what a session then writes. Validating here means an invalid heat response is refused
+    // before the write ever reaches disk, not just the next time someone reopens the file.
+    public static CultRecordRef<T> Upsert<T>(this CultCache cache, T document) where T : class
+    {
+        if (document is EquippableItemData data) StatValidation.ValidateHeatResponse(data);
+        return new CultRecordRef<T>(cache.UpsertAsync(document).Result.Key);
+    }
 }
