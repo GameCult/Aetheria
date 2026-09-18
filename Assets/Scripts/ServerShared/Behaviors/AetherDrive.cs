@@ -61,7 +61,7 @@ public class AetherDriveData : BehaviorData
     }
 }
 
-public class AetherDrive : Behavior
+public class AetherDrive : Behavior, IPowerConsumer
 {
     private AetherDriveData _data;
     private float3 _axis;
@@ -87,6 +87,28 @@ public class AetherDrive : Behavior
     public AetherDrive(AetherDriveData data, ConsumableItemEffect item) : base(data, item)
     {
         _data = data;
+    }
+
+    // Cut 3 (docs/stats-and-power-cut.md): the request PowerBus needs before Execute runs. Only the rotor
+    // spin-up (torque accelerating Rpm toward MaximumRpm) costs power -- spending existing spin into thrust
+    // (Execute's decay-to-thrust arithmetic below) is free, same as before. Pure and side-effect-free: it reads
+    // Rpm but does not write it, so Execute's own identical arithmetic a few lines later -- which does perform
+    // the real decay -- produces the same numbers Rpm actually moves by. Accepts the recompute (Q3's ruling).
+    public float PowerRequest(float dt)
+    {
+        var couplingLambda = _data.CouplingLambda * Item.Evaluate(_data.LambdaMultiplier) * max(abs(_axis), Evaluate(_data.PassiveCoupling));
+        var rpmAfterDecay = decay(Rpm, couplingLambda, dt);
+        var maximumRpm = Evaluate(_data.MaximumRpm);
+        var torqueProfile = float3(
+            _data.TorqueProfile.Evaluate(rpmAfterDecay.x / maximumRpm),
+            _data.TorqueProfile.Evaluate(rpmAfterDecay.y / maximumRpm),
+            _data.TorqueProfile.Evaluate(rpmAfterDecay.z / maximumRpm));
+        var potentialTorque = Evaluate(_data.Torque) * torqueProfile;
+        var potentialRpmDelta = potentialTorque / length(_data.RotorMass) * dt;
+        var actualRpmDelta = min(maximumRpm - rpmAfterDecay, potentialRpmDelta);
+        var torqueRatio = actualRpmDelta / potentialRpmDelta;
+        var draw = torqueRatio * Evaluate(_data.EnergyDraw) / 3;
+        return (draw.x + draw.y + draw.z) * dt;
     }
 
     public override bool Execute(float dt)
@@ -129,19 +151,18 @@ public class AetherDrive : Behavior
         var potentialRpmDelta = potentialTorque / length(_data.RotorMass) * dt;
         var actualRpmDelta = min(MaximumRpm - Rpm, potentialRpmDelta);
         var torqueRatio = actualRpmDelta / potentialRpmDelta;
-        var draw = torqueRatio * Evaluate(_data.EnergyDraw) / 3;
-        
+
         Item.SetAudioParameter(SpecialAudioParameter.Intensity, max(max(abs(_axis.x), abs(_axis.y)), abs(_axis.z)));
         Item.SetAudioParameter(_data.RpmAudioParameter, (Rpm.x + Rpm.y + Rpm.z) / 3 / MaximumRpm);
         Item.SetAudioParameter(_data.TorqueRatioAudioParameter, max(max(torqueRatio.x, torqueRatio.y), torqueRatio.z));
         
-        if (Entity.TryConsumeEnergy((draw.x + draw.y + draw.z)*dt))
+        if (Item.PowerSupply >= 1f)
         {
             Rpm += actualRpmDelta;
             return true;
         }
-        
-        
+
+
         return false;
     }
 }

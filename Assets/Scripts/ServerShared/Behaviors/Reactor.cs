@@ -2,12 +2,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
-using System;
-using System.Collections.Generic;
 using System.Linq;
 using MessagePack;
 using Newtonsoft.Json;
-using UniRx;
 using CultMath;
 using static CultMath.math;
 
@@ -37,118 +34,68 @@ public class ReactorData : BehaviorData
     }
 }
 
-public class Reactor : Behavior, IOrderedBehavior, IDisposable
+public class Reactor : Behavior, IOrderedBehavior
 {
     private ReactorData _data;
 
+    // Cut 3 (docs/stats-and-power-cut.md §1.2): reported total, not a sink. Nothing writes into this from
+    // outside any more -- PowerBus.NetDraw is the only input Execute reads to decide overload/throttle.
     public float Draw { get; private set; }
-    
+
     public float CurrentLoadRatio { get; private set; }
 
     public int Order => 100;
 
-    private List<Capacitor> _capacitors;
-
-    private List<IDisposable> _subscriptions = new List<IDisposable>();
-
     public Reactor(ReactorData data, EquippedItem item) : base(data, item)
     {
         _data = data;
-        FindCapacitors();
     }
     public Reactor(ReactorData data, ConsumableItemEffect item) : base(data, item)
     {
         _data = data;
-        FindCapacitors();
     }
 
-    private void FindCapacitors()
-    {
-        _capacitors = Entity.GetBehaviors<Capacitor>().ToList();
-        _subscriptions.Add(Entity.Equipment.ObserveAdd().Subscribe(onAdd =>
-        {
-            var capacitor = onAdd.Value.GetBehavior<Capacitor>();
-            if (capacitor != null) _capacitors.Add(capacitor);
-        }));
-        _subscriptions.Add(Entity.Equipment.ObserveRemove().Subscribe(onRemove =>
-        {
-            var capacitor = onRemove.Value.GetBehavior<Capacitor>();
-            if (capacitor != null) _capacitors.Remove(capacitor);
-        }));
-    }
-
-    public void ConsumeEnergy(float energy)
-    {
-        Draw += energy;
-    }
+    // Cut 3: the resolved generation PowerBus.Step needs before this behaviour's own Execute runs this tick.
+    public float Generation(float dt) => Evaluate(_data.Charge) * dt;
 
     public override bool Execute(float dt)
     {
-        var charge = Evaluate(_data.Charge) * dt;
+        var charge = Generation(dt);
         var efficiency = Evaluate(_data.Efficiency);
-
-        // This behavior executes last, so any components drawing power have already done so
-
-        // Subtract the baseline charge from draw
-        Draw -= charge;
-        
-        // Generate heat using baseline efficiency
         var heat = charge / efficiency;
 
-        // We have an energy deficit, have to overload the reactor
-        if (Draw > .01f)
+        // Cut 3: PowerBus already decided, for the whole entity, how much demand generation and stored charge
+        // could not cover (positive) or how much generation was left over after demand and after topping up
+        // every capacitor (negative). Split evenly across every online reactor, the same way
+        // Entity.TryConsumeEnergy used to divide unmet demand among reactors before this behaviour ever saw it.
+        var onlineReactors = Entity.GetBehaviors<Reactor>().Count(r => r.Item.Online.Value);
+        var share = onlineReactors > 0 ? Entity.PowerBus.NetDraw / onlineReactors : 0f;
+
+        if (share > .01f)
         {
-            CurrentLoadRatio = (Draw + charge) / max(charge, .01f);
+            // Deficit: the bus already drained every capacitor it could; this is what is left. Overload power
+            // always neutralizes it, at overload efficiency.
+            CurrentLoadRatio = (share + charge) / max(charge, .01f);
             var overloadEfficiency = Evaluate(_data.OverloadEfficiency);
-            
-            // Generate heat using overload efficiency, usually much less efficient!
-            heat += Draw / overloadEfficiency;
-            
-            // Overload power will always neutralize the energy deficit
-            Draw = 0;
+            heat += share / overloadEfficiency;
+            Draw = share;
         }
-
-        // We have an energy surplus, try to store energy in our capacitors
-        if (Draw < -.01f)
+        else if (share < -.01f)
         {
-            int nonFullCapacitorCount;
-            do
-            {
-                var chargeToAdd = -Draw;
-                nonFullCapacitorCount = _capacitors.Count(c => c.Charge < c.Capacity - .01f);
-                foreach (var capacitor in _capacitors)
-                {
-                    if (capacitor.Charge < capacitor.Capacity - .01f)
-                    {
-                        var chargeAdded = min(chargeToAdd / nonFullCapacitorCount, capacitor.Capacity - capacitor.Charge);
-                        capacitor.AddCharge(chargeAdded);
-                        Draw += chargeAdded;
-                    }
-                }
-            } while (nonFullCapacitorCount > 0 && Draw < -.01f);
-        }
-
-        // We still have an energy surplus, try to throttle the reactor to reduce heat generation
-        if (Draw < -.01f)
-        {
-            CurrentLoadRatio = (Draw + charge) / max(charge, .01f);
-            heat -= Draw / efficiency * (1 - 1 / Evaluate(_data.ThrottlingFactor));
+            // Surplus the bus could not absorb into any capacitor (all full): throttle to reduce heat generation.
+            CurrentLoadRatio = (share + charge) / max(charge, .01f);
+            heat -= share / efficiency * (1 - 1 / Evaluate(_data.ThrottlingFactor));
             Draw = 0;
         }
         else
         {
             CurrentLoadRatio = 1;
+            Draw = 0;
         }
-        
+
         Item.SetAudioParameter(SpecialAudioParameter.Intensity, max(.25f, 1 - 1 / CurrentLoadRatio));
-        
+
         AddHeat(heat);
         return true;
-    }
-
-    public void Dispose()
-    {
-        foreach(var sub in _subscriptions)
-            sub.Dispose();
     }
 }

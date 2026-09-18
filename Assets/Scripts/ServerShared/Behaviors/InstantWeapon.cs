@@ -95,7 +95,10 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior
 
         // If 1 ammo is consumed per burst, perform ammo and energy consumption here
         // UseAmmo returns false when triggering reload; cancel firing if that is the case
-        if(_data.SingleAmmoBurst && (!Entity.TryConsumeEnergy(Energy) || !UseAmmo())) return;
+        // Cut 3 (docs/stats-and-power-cut.md): one of the four instant draws out of scope for the bus this cut
+        // (a burst) -- named, temporary exception, spending capacitor charge directly. Cut 4's input capacitor
+        // closes this.
+        if(_data.SingleAmmoBurst && (!Entity.TrySpendCapacitorCharge(Energy) || !UseAmmo())) return;
         
         _burstRemaining = (int) BurstCount;
         _burstInterval = BurstTime / _burstRemaining;
@@ -175,7 +178,9 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior
         {
             // If multiple ammo is consumed per burst, perform ammo and energy consumption here
             // UseAmmo returns false when triggering reload; cancel firing if that is the case
-            if (!_data.SingleAmmoBurst && (!Entity.TryConsumeEnergy(Energy) || !UseAmmo()))
+            // Cut 3 (docs/stats-and-power-cut.md): one of the four instant draws out of scope this cut (a shot);
+            // see Trigger()'s SingleAmmoBurst branch above for the same named exception.
+            if (!_data.SingleAmmoBurst && (!Entity.TrySpendCapacitorCharge(Energy) || !UseAmmo()))
             {
                 _burstRemaining = 0;
                 return false;

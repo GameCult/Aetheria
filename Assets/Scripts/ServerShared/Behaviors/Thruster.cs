@@ -37,7 +37,7 @@ public class ThrusterData : BehaviorData
     }
 }
 
-public class Thruster : Behavior, IAnalogBehavior
+public class Thruster : Behavior, IAnalogBehavior, IPowerConsumer
 {
     public float Thrust { get; private set; }
     public float Torque { get; }
@@ -71,10 +71,15 @@ public class Thruster : Behavior, IAnalogBehavior
         Thrust = Evaluate(_data.Thrust);
     }
 
+    // Cut 3 (docs/stats-and-power-cut.md): the resolved stat times the behaviour-supplied throttle scalar (§1.2),
+    // exactly the shape the map names. _input is set externally (the ship's controls) before Entity.Update calls
+    // PowerBus.Step, so it is already current when this runs.
+    public float PowerRequest(float dt) => _input > .01f ? _input * Evaluate(_data.EnergyUsage) : 0f;
+
     public override bool Execute(float dt)
     {
         Item.SetAudioParameter(SpecialAudioParameter.Intensity, _input);
-        if(_input > .01f && Entity.TryConsumeEnergy(_input * Evaluate(_data.EnergyUsage)))
+        if(_input > .01f && Item.PowerSupply >= 1f)
         {
             Thrust = Evaluate(_data.Thrust);
             Entity.Velocity -= Direction.xz * _input * Thrust / Entity.Mass * dt;
