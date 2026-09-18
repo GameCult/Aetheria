@@ -139,6 +139,18 @@ public class FieldDriver : MonoBehaviour, IAbsorbPresenter, IGrabPresenter, IMel
         return transform.localScale;
     }
 
+    // Cut 2 note on the two branches below NOT being the same computation shape: envelope.
+    // ProjectToSurface returns a WORLD-space point (it transforms back through rotation and
+    // translation -- Cut 3's panel presenter needs that). The fallback reproduces the pre-Cut-2
+    // formula exactly instead, which stayed in LOCAL space with no rotation/translation applied,
+    // because that is what the shader consumes here (_Hits is uploaded and read in the field
+    // mesh's own local space, not world space). The two branches are only numerically identical
+    // when the carrier's transform has zero position and identity rotation -- true of the one
+    // FieldDriver carrier in the tree today (FieldShieldTest.unity's cubesphere), NOT true in
+    // general. This is an existing characteristic of Cut 2 as scoped by the map (FieldDriver.cs:125
+    // reads envelope.ProjectToSurface(position) directly, per the map's own Cut 2 text), not
+    // something introduced by this fallback -- flagging it so nobody assumes the two branches are
+    // interchangeable for a future non-origin, non-identity FieldDriver carrier.
     public void AddHit(float3 position, float3 direction, float magnitude)
     {
         if (_hits.Count >= MaxHits) return;
@@ -148,7 +160,7 @@ public class FieldDriver : MonoBehaviour, IAbsorbPresenter, IGrabPresenter, IMel
         else
         {
             WarnMissingEnvelopeOnce();
-            surfacePosition = (normalize(transform.InverseTransformPoint(position.ToUnity()).ToCultMath()) * transform.localScale.ToCultMath()).ToUnity();
+            surfacePosition = ShieldEnvelope.LegacyLocalSurfacePoint(transform, position.ToUnity());
         }
         var hit = new FieldHit
         {

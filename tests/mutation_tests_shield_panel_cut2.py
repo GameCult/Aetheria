@@ -145,6 +145,57 @@ def main() -> int:
         finally:
             SHIELD_ENVELOPE_CS.write_text(original_envelope, encoding="utf-8")
 
+        # --- the regression the coordinator flagged directly: ShieldManager's (and FieldDriver's)
+        # missing-envelope fallback must reproduce the deleted pre-Cut-2 formula, not silently swap
+        # in a fixed direction. This mutates the shared static SurfaceDirection entry point back to
+        # the fixed Vector3.forward every hit direction degraded to before the fix. ---
+        print("\n=== mutation: SurfaceDirection fallback collapses to a fixed Vector3.forward ===")
+        anchor = (
+            "    public static Vector3 SurfaceDirection(Transform transform, Vector3 worldPoint)\n"
+            "        => LocalUnitDirection(transform, worldPoint);"
+        )
+        mutated = (
+            "    // mutation_tests_shield_panel_cut2.py: reintroduce the exact regression the\n"
+            "    // coordinator flagged -- a fallback that silently changes behaviour instead of\n"
+            "    // reproducing the deleted formula.\n"
+            "    public static Vector3 SurfaceDirection(Transform transform, Vector3 worldPoint)\n"
+            "        => Vector3.forward;"
+        )
+        try:
+            replace_unique(SHIELD_ENVELOPE_CS, anchor, mutated)
+            code, text = run_probe(scratch / "fixed_forward.log")
+            caught = "SurfaceDirection(transform, p) fallback diverged" in text
+            if code == 0 or not caught:
+                failures.append("fixed-Vector3.forward regression: probe did not go red naming the SurfaceDirection divergence")
+            else:
+                print("OK: caught — probe exited non-zero, legacy fallback pin fired")
+        finally:
+            SHIELD_ENVELOPE_CS.write_text(original_envelope, encoding="utf-8")
+
+        # --- the other fallback static, mutated to the "wrong transform" shape the coordinator
+        # named: dropping the local-frame projection and returning the raw world point instead. ---
+        print("\n=== mutation: LegacyLocalSurfacePoint fallback returns the raw world point ===")
+        anchor = (
+            "    public static Vector3 LegacyLocalSurfacePoint(Transform transform, Vector3 worldPoint)\n"
+            "        => Vector3.Scale(LocalUnitDirection(transform, worldPoint), transform.localScale);"
+        )
+        mutated = (
+            "    // mutation_tests_shield_panel_cut2.py: the \"wrong transform\" mutation -- skip the\n"
+            "    // local-frame projection entirely and hand back the untransformed world point.\n"
+            "    public static Vector3 LegacyLocalSurfacePoint(Transform transform, Vector3 worldPoint)\n"
+            "        => worldPoint;"
+        )
+        try:
+            replace_unique(SHIELD_ENVELOPE_CS, anchor, mutated)
+            code, text = run_probe(scratch / "wrong_transform.log")
+            caught = "LegacyLocalSurfacePoint(transform, p) fallback diverged" in text
+            if code == 0 or not caught:
+                failures.append("raw-world-point regression: probe did not go red naming the LegacyLocalSurfacePoint divergence")
+            else:
+                print("OK: caught — probe exited non-zero, legacy fallback pin fired")
+        finally:
+            SHIELD_ENVELOPE_CS.write_text(original_envelope, encoding="utf-8")
+
     finally:
         # belt-and-suspenders: never leave a mutated file behind even if something above threw
         SHIELD_ENVELOPE_CS.write_text(original_envelope, encoding="utf-8")

@@ -71,14 +71,19 @@ public class ShieldEnvelope : MonoBehaviour
     }
 
     // Local-space unit direction from the envelope's centre toward worldPoint, accounting for the
-    // transform's rotation and (non-uniform) scale. This is the one primitive both ProjectToSurface
-    // and SurfaceDirection are built from, and the only place InverseTransformPoint may appear for
-    // shield-surface purposes (see the negative check in docs/shield-panel-cut.md Cut 2).
-    Vector3 LocalUnitDirection(Vector3 worldPoint)
+    // transform's rotation and (non-uniform) scale. This is the one primitive ProjectToSurface,
+    // SurfaceDirection, and both static fallback entry points below are built from, and the only
+    // place InverseTransformPoint may appear for shield-surface purposes (see the negative check
+    // in docs/shield-panel-cut.md Cut 2). Static and keyed on an explicit Transform so a caller
+    // with no ShieldEnvelope component can still go through this one owner instead of re-deriving
+    // the maths itself.
+    static Vector3 LocalUnitDirection(Transform t, Vector3 worldPoint)
     {
-        var local = transform.InverseTransformPoint(worldPoint);
+        var local = t.InverseTransformPoint(worldPoint);
         return local.sqrMagnitude > 1e-12f ? local.normalized : Vector3.forward;
     }
+
+    Vector3 LocalUnitDirection(Vector3 worldPoint) => LocalUnitDirection(transform, worldPoint);
 
     /// <summary>
     /// Projects a world-space point outward onto the ellipsoid surface, returning a world-space
@@ -135,5 +140,38 @@ public class ShieldEnvelope : MonoBehaviour
     /// negative check ("no shield-surface projection outside ShieldEnvelope.cs") stays true. This
     /// is a *direction*, not the true surface normal -- see the SurfaceNormal doc comment.
     /// </summary>
-    public Vector3 SurfaceDirection(Vector3 worldPoint) => LocalUnitDirection(worldPoint);
+    public Vector3 SurfaceDirection(Vector3 worldPoint) => LocalUnitDirection(transform, worldPoint);
+
+    // --- Fallback entry points for a carrier with no ShieldEnvelope component yet. ---
+    //
+    // Not every carrier gets the component in the same commit as this file (Q5: the operator rigs
+    // prefabs and scenes by hand, on their own schedule), so both FieldDriver and ShieldManager
+    // must keep working, unchanged, until their own object is rigged. "Unchanged" means byte-for-
+    // byte the pre-Cut-2 formula, not a plausible-looking replacement -- a silently different
+    // fallback is worse than either the old code or a hard failure. Rather than let each consumer
+    // re-derive that formula by hand (recreating the exact duplicate-authority problem this cut
+    // exists to remove), both fallback formulas are named, static, one-owner methods here, and
+    // ShieldPanelCut2Verify.CheckLegacyFallbackFormulas pins each one against an independent
+    // re-derivation of the original code.
+
+    /// <summary>
+    /// Compatibility path for a Transform with no ShieldEnvelope component: the exact direction
+    /// ShieldManager.ShowHit computed by hand before this cut (normalize(InverseTransformPoint),
+    /// no scale or mesh-extents factor at all -- a direction never needed one).
+    /// </summary>
+    public static Vector3 SurfaceDirection(Transform transform, Vector3 worldPoint)
+        => LocalUnitDirection(transform, worldPoint);
+
+    /// <summary>
+    /// Compatibility path for a Transform with no ShieldEnvelope component: the exact local-frame
+    /// value FieldDriver.AddHit computed by hand before this cut -- normalize(local) scaled by the
+    /// transform's own localScale, deliberately NOT transformed back through rotation/translation
+    /// (FieldDriver's shader consumes this in local mesh space, not world space; see the
+    /// ProjectToSurface-vs-this note in FieldDriver.cs). This is a legacy, local-space formula,
+    /// not a general "surface point in the world" API -- ProjectToSurface is that, and requires a
+    /// real ShieldEnvelope (it needs the mesh's local extents, which no mesh means no envelope to
+    /// read them from).
+    /// </summary>
+    public static Vector3 LegacyLocalSurfacePoint(Transform transform, Vector3 worldPoint)
+        => Vector3.Scale(LocalUnitDirection(transform, worldPoint), transform.localScale);
 }

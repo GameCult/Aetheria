@@ -22,6 +22,13 @@ public class ShieldManager : MonoBehaviour
         _envelope = GetComponent<ShieldEnvelope>();
     }
 
+    private void WarnMissingEnvelopeOnce()
+    {
+        if (_loggedMissingEnvelope) return;
+        _loggedMissingEnvelope = true;
+        Debug.LogWarning("ShieldManager has no ShieldEnvelope; falling back to its own transform for the hit direction.", this);
+    }
+
     private void OnCollisionEnter(Collision other)
     {
         var otherShield = other.collider.GetComponent<ShieldManager>();
@@ -90,19 +97,18 @@ public class ShieldManager : MonoBehaviour
         // of direction, not the true surface normal -- ShieldAnimation.Direction keeps its existing
         // meaning (R6's note that both existing consumers get away with normalize(p) because they
         // want a direction, not a normal).
-        // Unlike FieldDriver (a compatibility path is explicit in the map for that consumer),
-        // ShieldManager has no legitimate reason to be missing its envelope -- Cut 2 adds
-        // ShieldEnvelope to every "Shield" object that carries a ShieldManager. Recomputing the
-        // projection here "just in case" would recreate the exact duplicate authority this cut
-        // removes, so a missing envelope logs loudly and degrades to a fixed direction instead.
+        //
+        // Every "Shield" object gets a ShieldEnvelope in this cut, but the operator rigs prefabs by
+        // hand on their own schedule (Q5), so until Longinus.prefab/Djinni.prefab are actually
+        // edited, every ship in the game has none yet. A missing envelope must therefore behave
+        // exactly like the deleted code, not degrade -- a fallback that silently changes behaviour
+        // (this used to hard-fail to a fixed direction) is worse than either the old code or a
+        // loud failure. So this goes through ShieldEnvelope's own static fallback entry point
+        // (one owner, no second copy of the maths) rather than recomputing the projection here.
         if (_envelope == null)
         {
-            if (!_loggedMissingEnvelope)
-            {
-                Debug.LogError("ShieldManager has no ShieldEnvelope; the shield hit direction cannot be computed.", this);
-                _loggedMissingEnvelope = true;
-            }
-            shield.Direction = Vector3.forward;
+            WarnMissingEnvelopeOnce();
+            shield.Direction = ShieldEnvelope.SurfaceDirection(shield.transform, point);
         }
         else
         {

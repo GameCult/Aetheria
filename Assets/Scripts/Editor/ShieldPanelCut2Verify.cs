@@ -70,6 +70,13 @@ namespace Aetheria.EditorTools
                 // perfect cube of extents -- see IcosphereExtents above), not a guessed flat 0.5.
                 ok &= CheckRadiiUsesMeasuredExtents(longinus, new Vector3(395.3487f, 235.47029f, 990.37805f), IcosphereExtents, "Longinus");
                 ok &= CheckRadiiUsesMeasuredExtents(cubesphere, new Vector3(4f, 3f, 12f), Vector3.one, "FieldShieldTest cubesphere");
+
+                // Pin the fallback: a carrier with NO ShieldEnvelope component must produce exactly
+                // the pre-Cut-2 hit direction/position, for both FieldDriver's and ShieldManager's
+                // formulas. This is what a Longinus/Djinni prefab looks like before the operator
+                // adds the component (Q5) -- the fallback is not a courtesy, it is load-bearing for
+                // every ship in the game until then.
+                ok &= CheckLegacyFallbackFormulas();
             }
             catch (Exception e)
             {
@@ -235,6 +242,75 @@ namespace Aetheria.EditorTools
                     + $"actualLossyScale={envelopeObj.transform.lossyScale:F6} localScale={envelopeObj.transform.localScale:F6}");
             else
                 Debug.Log($"{Tag} {label}: Radii={actual:F6} matches lossyScale*measuredExtents.");
+            return ok;
+        }
+
+        /// <summary>
+        /// Pins ShieldEnvelope's two static fallback entry points (SurfaceDirection,
+        /// LegacyLocalSurfacePoint) against an INDEPENDENT re-derivation of the exact pre-Cut-2
+        /// formulas -- not a call into the production code under test -- on a carrier with no
+        /// ShieldEnvelope component and a non-trivial transform (nonzero position, non-identity
+        /// rotation), so the check is not vacuous the way it would be at the origin with identity
+        /// rotation. This is the regression the coordinator flagged: ShieldManager's fallback used
+        /// to silently change behaviour (hard-fail to Vector3.forward) instead of reproducing the
+        /// deleted formula, which would have shown every ship's shield hits in the wrong place
+        /// until the operator hand-edits Longinus.prefab/Djinni.prefab.
+        /// </summary>
+        static bool CheckLegacyFallbackFormulas()
+        {
+            var go = new GameObject("LegacyFallbackProbe");
+            bool ok = true;
+            try
+            {
+                go.transform.position = new Vector3(5f, -2f, 13f);
+                go.transform.rotation = Quaternion.Euler(15f, 40f, -8f);
+                go.transform.localScale = new Vector3(4f, 3f, 12f);
+                // Deliberately no MeshCollider/MeshFilter/ShieldEnvelope on this object -- this is
+                // exactly what Longinus.prefab's "Shield" object looks like before the operator
+                // rigs it (Q5), and what FieldShieldTest's cubesphere looked like before Cut 2.
+
+                var probePoints = new[]
+                {
+                    go.transform.position + new Vector3(10f, 2f, -6f),
+                    go.transform.position + new Vector3(-3f, 8f, 20f),
+                    go.transform.position + new Vector3(0.4f, -0.1f, 0.2f),
+                };
+
+                foreach (var worldPoint in probePoints)
+                {
+                    // Independent re-derivation of ShieldManager's deleted formula
+                    // (normalize(shield.transform.InverseTransformPoint(point))).
+                    var expectedDirection = go.transform.InverseTransformPoint(worldPoint).normalized;
+                    var actualDirection = ShieldEnvelope.SurfaceDirection(go.transform, worldPoint);
+                    if (Vector3.Distance(expectedDirection, actualDirection) > 1e-5f)
+                    {
+                        Debug.LogError($"{Tag} SurfaceDirection(transform, p) fallback diverged from "
+                            + $"ShieldManager's deleted formula: expected={expectedDirection:F6} actual={actualDirection:F6}");
+                        ok = false;
+                    }
+
+                    // Independent re-derivation of FieldDriver.AddHit's deleted formula
+                    // (normalize(InverseTransformPoint(p)) * transform.localScale).
+                    var expectedLocalSurface = Vector3.Scale(
+                        go.transform.InverseTransformPoint(worldPoint).normalized, go.transform.localScale);
+                    var actualLocalSurface = ShieldEnvelope.LegacyLocalSurfacePoint(go.transform, worldPoint);
+                    if (Vector3.Distance(expectedLocalSurface, actualLocalSurface) > 1e-3f)
+                    {
+                        Debug.LogError($"{Tag} LegacyLocalSurfacePoint(transform, p) fallback diverged from "
+                            + $"FieldDriver's deleted formula: expected={expectedLocalSurface:F6} actual={actualLocalSurface:F6}");
+                        ok = false;
+                    }
+                }
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(go);
+            }
+
+            if (ok)
+                Debug.Log($"{Tag} Legacy fallback statics (SurfaceDirection, LegacyLocalSurfacePoint) match "
+                    + "the pre-Cut-2 formulas exactly, for a carrier with no ShieldEnvelope component and a "
+                    + "non-trivial transform.");
             return ok;
         }
 
