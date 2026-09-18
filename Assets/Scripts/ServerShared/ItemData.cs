@@ -650,6 +650,14 @@ public class PerformanceStat
         {
             factor *= term.Source switch
             {
+                // F6 (docs/stats-and-power-cut.md Cut 2 Soul pass): nothing ever calls Resolver.InvalidateSource
+                // for StatSource.Quality. Harmless today because EquippedItem.Lot is set once in the constructor
+                // and never reassigned, so the value this reads never actually moves under a live resolver entry.
+                // §0b designs an upgrade as a lot swap the resolver must see ("an upgrade mints a new lot and
+                // repoints the item, which the resolver sees as a quality-source change") -- that repoint does not
+                // exist yet. Whichever cut adds it must also call InvalidateSource(item, StatSource.Quality) at
+                // the point EquippedItem.Lot is reassigned, or every Quality-termed stat keeps the pre-upgrade
+                // value forever.
                 StatSource.Quality => pow(context.Lot.QualityForRole(term.Role), term.Exponent),
                 StatSource.Heat => context.HeatFactor(term.Exponent),
                 StatSource.Durability => context.DurabilityFactor(term.Exponent),
@@ -664,11 +672,17 @@ public class PerformanceStat
 
 // Cut 1's loud refusal: the heat-response shape (min, max, optimum, plateau width) must describe a coherent
 // range. Runs at catalog load (AetheriaStores.Open) and at every catalog write that goes through
-// CultRecordRefs.Upsert (AetheriaStores.cs) -- every tool, test and migration script in this repository writes
-// through that one path, so an authoring error is refused before it reaches disk, not just the next time
-// someone reopens the file. The one hole this does not close: CultCache Studio's generic document editor
-// writes straight through CultCache, bypassing Upsert, and Studio exposes no per-document validation hook to
-// attach to yet. That gap is named here rather than silently assumed closed.
+// CultRecordRefs.Upsert (AetheriaStores.cs). That is not, in fact, every catalog write in this repository: two
+// named holes exist, not one.
+// - CultCache Studio's generic document editor writes straight through CultCache, bypassing Upsert, and Studio
+//   exposes no per-document validation hook to attach to yet.
+// - tools/AetherDb/Program.cs's Dangling command (:271-274) lands its repaired records through
+//   `db.Cache.Commit(batch => batch.Upsert(document.GetType(), document, key))` -- CultCache's own batch API,
+//   keyed explicitly to preserve the record's existing identity, not the validating extension method above. A
+//   dangling-ref fixup can therefore land an EquippableItemData or ConsumableItemData with an invalid heat
+//   response or an unresolvable stat modifier reference, and `Open` would refuse it only the next time someone
+//   reopens the file, not at the moment `apply` writes it. Both gaps are named here rather than silently assumed
+//   closed.
 public static class StatValidation
 {
     public static void ValidateHeatResponse(EquippableItemData data)
