@@ -71,22 +71,42 @@ public class ItemManager
     // The one resolution path from a crafted instance to the lot it was minted from.
     public Lot GetLot(CraftedItemInstance item) => Lots[item.Lot];
 
-    // Returns stat when not equipped
+    // Returns stat when not equipped: a null-entity context with no heat, no power and no modifiers. It says so
+    // in its own name (UnequippedStatContext) rather than being a third quiet dialect of the arithmetic.
     public float Evaluate(PerformanceStat stat, EquippableItem item)
     {
         var data = GetData(item);
-        var lot = GetLot(item);
-        var quality = pow(lot.QualityForRole(stat.FromRole), stat.QualityExponent);
-        var durabilityExponent = lerp(
-            GameplaySettings.DurabilityQualityMin,
-            GameplaySettings.DurabilityQualityMax,
-            pow(lot.Quality, GameplaySettings.DurabilityQualityExponent));
-        var durability = pow(item.Durability / data.Durability, durabilityExponent * stat.DurabilityExponentMultiplier);
-        var result = lerp(stat.Min, stat.Max, quality * durability);
+        var result = stat.Evaluate(new UnequippedStatContext(this, item, data));
         if (float.IsNaN(result))
             throw new InvalidOperationException($"Performance Stat on {data.Name} evaluating as NaN: input data is invalid! Durability: {item.Durability} / {data.Durability}");
         return result;
+    }
 
+    // The unequipped case: quality and durability read live off the item and its lot; heat and modifiers do not
+    // exist without an entity, so they resolve as the identity for their term rather than a bespoke formula.
+    private sealed class UnequippedStatContext : IStatContext
+    {
+        private readonly EquippableItem _item;
+        private readonly EquippableItemData _data;
+        private readonly float _durabilityExponent;
+        public Lot Lot { get; }
+
+        public UnequippedStatContext(ItemManager items, EquippableItem item, EquippableItemData data)
+        {
+            _item = item;
+            _data = data;
+            Lot = items.GetLot(item);
+            _durabilityExponent = lerp(
+                items.GameplaySettings.DurabilityQualityMin,
+                items.GameplaySettings.DurabilityQualityMax,
+                pow(Lot.Quality, items.GameplaySettings.DurabilityQualityExponent));
+        }
+
+        public float HeatFactor(PerformanceStat stat) => 1f;
+        public float DurabilityFactor(PerformanceStat stat) =>
+            pow(_item.Durability / _data.Durability, _durabilityExponent * stat.DurabilityExponentMultiplier);
+        public float ScaleModifier(PerformanceStat stat) => 1f;
+        public float ConstantModifier(PerformanceStat stat) => 0f;
     }
 
     public int GetPrice(CraftedItemInstance item)

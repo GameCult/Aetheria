@@ -572,6 +572,19 @@ public class HardpointData
     private static Dictionary<HardpointType, float3> _tintColors;
 }
 
+// What a PerformanceStat reads to resolve one number: the lot it prices quality against, and the three
+// per-context factors that used to be three separate Evaluate bodies. EquippedItem, ConsumableItemEffect and the
+// unequipped case (ItemManager's own private context) are the three implementations; each supplies only the
+// sources it has, and says so through what it returns rather than through a second, quietly different formula.
+public interface IStatContext
+{
+    Lot Lot { get; }
+    float HeatFactor(PerformanceStat stat);
+    float DurabilityFactor(PerformanceStat stat);
+    float ScaleModifier(PerformanceStat stat);
+    float ConstantModifier(PerformanceStat stat);
+}
+
 [MessagePackObject, JsonObject(MemberSerialization.OptIn)]
 public class PerformanceStat
 {
@@ -618,6 +631,19 @@ public class PerformanceStat
             ConstantModifiers[entity] = new Dictionary<Behavior, float>();
 
         return ConstantModifiers[entity];
+    }
+
+    // The one evaluation path. Quality is read from the context's Lot the same way for everyone; heat,
+    // durability and modifiers are whatever the context has, and a context with none of those returns the
+    // identity for that term (1 for a multiplied factor, 0 for an added one) instead of a bespoke formula.
+    // Callers keep their own NaN handling: an unequipped read throws with diagnostic detail, an equipped or
+    // consumable read falls back to Min. That disagreement is not named as a defect, so it is not touched here.
+    public float Evaluate(IStatContext context)
+    {
+        var quality = pow(context.Lot.QualityForRole(FromRole), QualityExponent);
+        var durability = context.DurabilityFactor(this);
+        var heat = context.HeatFactor(this);
+        return lerp(Min, Max, quality * durability * heat) * context.ScaleModifier(this) + context.ConstantModifier(this);
     }
 }
 

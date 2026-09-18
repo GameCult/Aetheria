@@ -1138,7 +1138,10 @@ public abstract class Entity
     }
 }
 
-public class ConsumableItemEffect
+// The consumable case: no durability, no modifiers (there is no entity's worth of equipment to modify against),
+// and progress-through-duration substitutes for heat rather than being exponentiated by the stat's heat field.
+// That substitution is the disagreement the map names, kept exactly as it behaved before the collapse.
+public class ConsumableItemEffect : IStatContext
 {
     public float RemainingDuration { get; private set; }
     public Entity Entity { get; }
@@ -1176,18 +1179,20 @@ public class ConsumableItemEffect
 
     public float Evaluate(PerformanceStat stat)
     {
-        var effectiveness = Data.Effectiveness.Evaluate((Data.Duration - RemainingDuration) / Data.Duration);
-        var quality = pow(Lot.QualityForRole(stat.FromRole), stat.QualityExponent);
-
-        var result = lerp(stat.Min, stat.Max, effectiveness * quality);
-        
-        if (float.IsNaN(result))
-            return stat.Min;
-        return result;
+        var result = stat.Evaluate(this);
+        return float.IsNaN(result) ? stat.Min : result;
     }
+
+    public float HeatFactor(PerformanceStat stat) =>
+        Data.Effectiveness.Evaluate((Data.Duration - RemainingDuration) / Data.Duration);
+    public float DurabilityFactor(PerformanceStat stat) => 1f;
+    public float ScaleModifier(PerformanceStat stat) => 1f;
+    public float ConstantModifier(PerformanceStat stat) => 0f;
 }
 
-public class EquippedItem
+// The equipped case: the only one with heat, live durability, and modifiers, because it is the only one with an
+// entity and a running simulation behind it.
+public class EquippedItem : IStatContext
 {
     public int SortPosition;
     public EquippableItem EquippableItem;
@@ -1353,21 +1358,25 @@ public class EquippedItem
 
     public float Evaluate(PerformanceStat stat)
     {
-        var heat = pow(ThermalPerformance, ThermalExponent * stat.HeatExponentMultiplier);
-        var durability = pow(DurabilityPerformance, DurabilityExponent * stat.DurabilityExponentMultiplier);
-        var quality = pow(Lot.QualityForRole(stat.FromRole), stat.QualityExponent);
+        var result = stat.Evaluate(this);
+        return float.IsNaN(result) ? stat.Min : result;
+    }
 
+    public float HeatFactor(PerformanceStat stat) => pow(ThermalPerformance, ThermalExponent * stat.HeatExponentMultiplier);
+    public float DurabilityFactor(PerformanceStat stat) => pow(DurabilityPerformance, DurabilityExponent * stat.DurabilityExponentMultiplier);
+
+    public float ScaleModifier(PerformanceStat stat)
+    {
         var scaleModifier = 1.0f;
-        var scaleModifiers = stat.GetScaleModifiers(Entity).Values;
-        foreach (var value in scaleModifiers) scaleModifier *= value;
+        foreach (var value in stat.GetScaleModifiers(Entity).Values) scaleModifier *= value;
+        return scaleModifier;
+    }
 
+    public float ConstantModifier(PerformanceStat stat)
+    {
         float constantModifier = 0;
         foreach (var value in stat.GetConstantModifiers(Entity).Values) constantModifier += value;
-
-        var result = lerp(stat.Min, stat.Max, durability * quality * heat) * scaleModifier + constantModifier;
-        if (float.IsNaN(result))
-            return stat.Min;
-        return result;
+        return constantModifier;
     }
 
     public void AddHeat(float heat, bool ignoreThermalMass = false)
