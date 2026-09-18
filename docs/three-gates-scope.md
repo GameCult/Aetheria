@@ -88,6 +88,13 @@ gathered enough target data to reveal those subsystems".
   `Physics.*` queries no longer decide damage.
 - **Projectiles still fly** toward the predicted intercept; the hit is resolved
   on arrival against how far the target deviated, so maneuvering is evasion.
+- **The outcome commits a short fixed time before impact** (operator,
+  2026-09-18: "That hybrid is the way"). Deviation feeds the roll up to that
+  horizon; after it the result stands and the rest of the flight is
+  choreography. The commit is what lets a presentation act before the hit —
+  a panel materialising, a whip snapping — and it is authoritative, not a
+  guess. Fire control owns the horizon, one authored setting. The rules that
+  bind presentations to it are `docs/shield-presentation-contract.md`.
 - **Deferred Unity-physics surfaces:** ship collision (`HullCollider`), loot
   pickup (`ShieldManager`), `TractorBeam`, `Mine`. Not blockers.
 

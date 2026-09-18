@@ -22,7 +22,7 @@ equipped.
   shield transform, not authored twice (`docs/shield-panel-cut.md` R6).
 - **Presentation may anticipate.** Operator: "anticipatory is great, and we'll
   want it for other one too". A presentation may begin reacting before a shot
-  lands, and may be wrong when it does.
+  lands, performing an outcome the simulation has already committed (below).
 - **One presentation may serve several capabilities.** Operator: "the Lariat
   would be a presentation for both pickup and shielding capabilities."
 - **The hits a presentation shows are cosmetic.** Fire control decides what
