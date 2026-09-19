@@ -883,3 +883,139 @@ rather than hit detection. **A:** leave it, alongside `TractorBeam` and ship col
 as a named deferred physics surface. **B:** move proximity into `Zone` too, so the last
 `Physics.*` in the weapons directory goes. **Recommended: A.** No design ships a mine,
 and B buys a clean grep rather than an invariant. Revisit when a mine is authored.
+
+---
+
+## Cut 5: the rules that landed in one path and not its twin
+
+Date: 2026-09-19. Branch `codex/fire-control-5` off `ca57819d`.
+
+Soul's pass over the whole campaign (2026-09-19) confirmed eleven findings. Most
+of them are the same shape: a rule this map declared, implemented on one path,
+and left off the path beside it. Splash breaks a shield the discrete roll does
+not. `InstantWeapon` gates on arc and `ConstantWeapon` does not. Unity removes a
+corpse from the zone and the simulation does not. This cut closes the twins.
+Catalog authoring (Soul's findings 1 and 2) is Cut 6; the shared-RNG stream
+(finding 6) and airburst (finding 5) are Cut 6 as well; the missing mutation
+harnesses (finding 8) are Cut 7.
+
+### 5.1 Tracking is a floor, not a cliff (Soul finding 3)
+
+`FireControl.cs:102-106` falls back to `Tracking = 0` with no targeting system,
+and `:273-275` turns that zero into `deviation < .01f ? 1f : 0f`. A probe fired
+334 shots at a target drifting at 5 u/s with `Accuracy` forced to 1 and landed
+none. Q4 asked for unaided fire to be really, really bad; this is a wall.
+
+- `Settings.cs`, beside `UnaidedAccuracy`: add `public float UnaidedTracking = 10f;`
+  with the same authoring note. Ten world units of deviation forgiveness is the
+  first guess and the operator's knob: a target that has strayed five units from
+  its fire-time projection halves an already-5% chance.
+- `FireControl.Tracking` falls back to `settings.UnaidedTracking`, exactly as
+  `Accuracy` falls back to `UnaidedAccuracy`. One shape for both.
+- `Commit` then deletes the zero branch outright: `p *= saturate(1f - deviation / shot.Tracking)`.
+  Tracking is now always positive, so the branch protects nothing.
+
+**Authority:** `Settings` owns the unaided figures; `FireControl.Tracking` is the
+only reader; `Commit` no longer carries a special case for a value that cannot occur.
+
+### 5.2 A shot the shield cannot absorb breaks it (Soul finding 4)
+
+`Commit:299-302` sets `Shielded` only when `CanTakeHit` passes, and `Apply:311-326`
+routes the rest to the hull -- neither calls `Break()`. `Splash:365` does. The
+deleted Unity path did (`git show b7743789^:Assets/Scripts/Gameplay/Weapons/Projectile.cs`).
+So the F4/F5 shield-break mechanic is unreachable for every weapon in the catalog:
+an unabsorbable 5000-damage hit leaves `Broken == false` and the shield absorbs the
+very next shot, refilling at `RefillDuration` instead of the punitive `RestoreDuration`.
+
+- `ShotOutcome` gains `public bool ShieldBroken;`.
+- `Commit` decides it where it already asks `CanTakeHit`: shield present, active,
+  and `CanTakeHit` false means `ShieldBroken = true`. The decision is frozen with
+  the rest of the outcome (R4) -- a shield that recharges during the flight does
+  not retroactively survive.
+- `Apply` performs it: `if (shot.Outcome.ShieldBroken) shot.Target.Shield.Break();`
+  before the hull damage. `CanTakeHit` is still called exactly once per shot.
+- Presentation gains the signal for free; nothing is required to read it yet.
+
+### 5.3 Continuous weapons obey their arc (Soul finding 9)
+
+`ConstantWeapon.cs:91,99` gate on `StanceAllowsFire` alone. A side-mounted beam
+fires forward. Q2 says manual and programmatic must not be two truths; instant and
+continuous currently are.
+
+- Both gates become `StanceAllowsFire && ArcAllowsFire`, matching `InstantWeapon.cs:105`.
+
+### 5.4 One bearing test, including at zero range (Soul finding 11)
+
+`Weapon.cs:117` allows a zero-length bearing; `FireControl.InArc:47` normalizes the
+zero vector into NaN and `HitProbability` returns 0. The player's trigger says fire
+and the probability says impossible, so AI and turrets refuse to fire at a
+co-located target.
+
+- `InArc` takes the rule: a planar bearing shorter than `1e-6` returns true --
+  point-blank cannot fail a bearing test.
+- `Weapon.ArcAllowsFire` drops its own `lengthsq` special case and simply calls
+  `InArc`. One owner, one answer.
+
+### 5.5 A destroyed subsystem stops being the aim point (Soul finding 10)
+
+A destroyed item is never removed from `Equipment` (`Entity.cs:475` only observes
+it), so `IsRevealed` still ranks it and `ResolvedTargetItem` still returns it --
+`Precision` keeps concentrating hits onto a dead item's footprint.
+
+- `FireControl.IsRevealed` returns false for an item whose
+  `EquippableItem.Durability < .01f`, and the ranking excludes destroyed items so
+  the reveal tiers of the survivors close up rather than leaving a gap.
+- `Entity.ResolvedTargetItem` therefore drops a destroyed aim point on its next
+  read. Nothing caches it, so no clearing pass is needed.
+
+### 5.6 Death removes the ship, in the simulation (Soul finding 7)
+
+Operator ruling Q3 says death removes the ship. `Zone.Entities.Remove` for death
+exists only at `EntityInstance.cs:324`, inside Unity's loot-drop subscription. So
+headless, `Step`'s `targetGone` guard never fires, shots land on corpses, `Splash`
+keeps hitting them, the AI keeps engaging them, and the tuning harness this map
+calls its arbiter cannot end a fight. `DeadEntityStopsTakingShots` passes only
+because it calls `Entities.Remove` by hand.
+
+- `Zone` subscribes each entity's `Death` observable when the entity joins, and
+  removes it from `Entities` on death. The simulation owns the corpse.
+- `EntityInstance.cs:324` deletes its `Entities.Remove` call and keeps the loot
+  drop and destroy effect, which are its own business. Forbidden writer: no
+  presentation removes an entity from the zone.
+
+### 5.7 Delete the two carried-and-unread fields (Soul finding 12)
+
+`PendingShot.PredictedIntercept` and `PendingShot.FlightTime` are written at
+`FireControl.cs:204-205` and read nowhere. The intercept in particular is
+carry-weight from Cut 3's named risk: `Combat.cs:109` and `Fire` do share
+`FireControl.PredictedIntercept`, but the roll judges deviation against a
+straight-line projection from fire position, so the stored copy decides nothing.
+
+- Both fields are deleted from the struct. The local `flightTime` stays; it still
+  computes `ArrivalTime` and `CommitTime`.
+
+### Verification
+
+Each of 5.1-5.7 gets a test that fails under its own mutation, and the mutation
+harness is committed as `tests/mutation_tests_fire_control_cut5.sh` with a no-op
+control. In addition this cut pins four of the five mutations that survived 197
+green tests in Soul's pass, because they are rules 5.1-5.6 touch:
+
+- `FireControl.cs:365` -- delete `shield.Break()` from `Splash`. Must die.
+- `Weapon.cs:117` -- `ArcAllowsFire => true`. Must die.
+- `InstantWeapon.cs:105` -- delete the `if (!ArcAllowsFire) return;` player arc gate
+  (Q2, the ruling Cut 1 deferred to Cut 3 and nothing verifies). Must die.
+- `FireControl.cs:270` -- `elapsed = shot.FlightTime` in place of `now - shot.FireTime`.
+  This is the map's own declared mutation for `EvasionCountsUntilCommitAndNotAfter`,
+  and it survives because that test's fixture gives the target zero velocity, so
+  `FireTargetVelocity * elapsed` is identically zero and the mutation is a no-op
+  inside it. Give the fixture a moving target. (After 5.7 deletes `FlightTime` the
+  mutation's spelling becomes `elapsed = shot.ArrivalTime - shot.FireTime`; the rule
+  it attacks is the same.)
+
+The fifth survivor -- freezing `source.TargetItem.Value` instead of
+`ResolvedTargetItem` at `FireControl.cs:193`, bypassing the reveal re-check -- is
+Cut 7's, alongside the missing Cut 1-3 harnesses.
+
+Negative checks: no `Entities.Remove` for death outside `Zone`; no `Tracking` read
+that can return zero; no `PredictedIntercept` or `FlightTime` field on `PendingShot`.
