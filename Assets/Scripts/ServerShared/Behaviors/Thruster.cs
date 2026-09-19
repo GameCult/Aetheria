@@ -49,8 +49,14 @@ public class Thruster : Behavior, IAnalogBehavior, IPowerConsumer
     }
 
     private ThrusterData _data;
-    
+
     private float _input;
+
+    // Cut 8 (operator ask 2026-09-19): presentation's read of "how healthy does this thruster actually look" --
+    // Thrust is the stat that governs this behaviour's real output, so it is the equivalent quantity to condition
+    // against. 1f for the ConsumableItemEffect constructor's item-less case; that path has no durability, heat or
+    // power-supply state to be broken by, so it always reads perfect.
+    public float Condition => Item?.ConditionRatio(_data.Thrust) ?? 1f;
 
     public Thruster(ThrusterData data, EquippedItem item) : base(data, item)
     {

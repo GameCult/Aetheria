@@ -73,6 +73,11 @@ public class AetherDrive : Behavior, IPowerConsumer
 
     public AetherDriveData DriveData => _data;
 
+    // Cut 8 (operator ask 2026-09-19): the equivalent quantity to Thruster.Condition -- Torque is the stat that
+    // actually governs this behaviour's rotor spin-up (PowerRequest/Execute above both read it), so it is what
+    // "broken" means for a drive. 1f for the item-less ConsumableItemEffect case, same reasoning as Thruster.
+    public float Condition => Item?.ConditionRatio(_data.Torque) ?? 1f;
+
     public float3 Axis
     {
         get => _axis;

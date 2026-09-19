@@ -123,16 +123,20 @@ public class ShipInstance : EntityInstance
             forceOverLifetime.xMultiplier = _aetherDrive.Drive.ThrustDirection.x * _aetherDrive.BaseForce;
             forceOverLifetime.zMultiplier = _aetherDrive.Drive.ThrustDirection.y * _aetherDrive.BaseForce;
             var emissionModule = _aetherDrive.Particles.emission;
-            emissionModule.rateOverTimeMultiplier = _aetherDrive.BaseEmission * thrust;
+            // Cut 8 (operator ask 2026-09-19): intent (thrust) times condition -- presentation reads the
+            // simulation's own ratio rather than recomputing any part of it. AetherDrive.Condition is the
+            // equivalent of Thruster.Condition below (Torque in place of Thrust).
+            emissionModule.rateOverTimeMultiplier = _aetherDrive.BaseEmission * thrust * _aetherDrive.Drive.Condition;
         }
-        
+
         foreach (var thrusterInstance in _thrusters)
         {
             var emissionModule = thrusterInstance.System.emission;
-            var item = thrusterInstance.Thruster.Item.EquippableItem;
-            var data = Entity.ItemManager.GetData(item);
             thrusterInstance.MaxParticleCount = thrusterInstance.System.particleCount;
-            emissionModule.rateOverTimeMultiplier = thrusterInstance.BaseEmission * thrusterInstance.Thruster.Axis * (item.Durability / data.Durability);
+            // Cut 8 (operator ask 2026-09-19): intent (Axis) times condition (Thruster.Condition, the item's
+            // resolved Thrust against its own perfect-conditions Thrust) -- no durability/heat/power arithmetic
+            // recomputed here, only the same emission math that already existed.
+            emissionModule.rateOverTimeMultiplier = thrusterInstance.BaseEmission * thrusterInstance.Thruster.Axis * thrusterInstance.Thruster.Condition;
         }
 
         transform.rotation = Ship.Rotation.ToUnity();
