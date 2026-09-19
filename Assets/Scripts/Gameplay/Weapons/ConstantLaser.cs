@@ -76,10 +76,19 @@ public class ConstantLaser : MonoBehaviour
             var shield = hit.collider.GetComponent<ShieldManager>();
             if (shield)
             {
-                if (!(shield.Entity.Shield != null && shield.Entity.Shield.Item.Active.Value && shield.Entity.Shield.CanTakeHit(DamageType, Damage))) continue;
+                var shieldBehavior = shield.Entity.Shield;
+                var shieldActive = shieldBehavior != null && shieldBehavior.Item.Active.Value;
+                var shieldAbsorbs = shieldActive && shieldBehavior.CanTakeHit(DamageType, Damage);
+                // F5 (docs/stats-and-power-cut.md, Soul pass 2026-09-19): CanTakeHit is a pure query now -- read
+                // once into shieldAbsorbs, and break the shield exactly once, right here, at the point this hit
+                // is actually decided to route past it (to the hull collider RaycastAll returns further down
+                // this same loop) instead of being absorbed. The hull branch below re-queries CanTakeHit safely
+                // -- it is side-effect-free -- and will see Broken already true.
+                if (shieldActive && !shieldAbsorbs) shieldBehavior.Break();
+                if (!shieldAbsorbs) continue;
                 if (shield.Entity != SourceEntity)
                 {
-                    shield.Entity.Shield.TakeHit(DamageType, Damage);
+                    shieldBehavior.TakeHit(DamageType, Damage);
                     shield.ShowHit(hit.point, sqrt(Damage));
                     LineRenderer.SetPosition(1, hit.point);
                     hitFound = true;

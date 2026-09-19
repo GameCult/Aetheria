@@ -92,10 +92,22 @@ public class Mine : MonoBehaviour
         foreach (var collider in Physics.OverlapSphere(position, BlastRange, 1 | (1 << 17)))
         {
             var shield = collider.GetComponent<ShieldManager>();
-            if (shield && (shield.Entity.Shield != null && shield.Entity.Shield.Item.Active.Value && shield.Entity.Shield.CanTakeHit(DamageType, Damage)))
+            if (shield)
             {
-                shield.Entity.Shield.TakeHit(DamageType, Damage);
-                shield.ShowHit(position, sqrt(Damage));
+                var shieldBehavior = shield.Entity.Shield;
+                var shieldActive = shieldBehavior != null && shieldBehavior.Item.Active.Value;
+                var shieldAbsorbs = shieldActive && shieldBehavior.CanTakeHit(DamageType, Damage);
+                // F5 (docs/stats-and-power-cut.md, Soul pass 2026-09-19): CanTakeHit is a pure query now -- read
+                // once into shieldAbsorbs, and break the shield exactly once, right here, at the point this hit
+                // is actually decided to route past it (to the hull collider OverlapSphere returns as a
+                // separate entry in this same loop) instead of being absorbed. The hull branch below re-queries
+                // CanTakeHit safely -- it is side-effect-free -- and will see Broken already true.
+                if (shieldActive && !shieldAbsorbs) shieldBehavior.Break();
+                if (shieldAbsorbs)
+                {
+                    shieldBehavior.TakeHit(DamageType, Damage);
+                    shield.ShowHit(position, sqrt(Damage));
+                }
             }
             var hull = collider.GetComponent<HullCollider>();
             if (hull && !(hull.Entity.Shield != null && hull.Entity.Shield.Item.Active.Value && hull.Entity.Shield.CanTakeHit(DamageType, Damage)))

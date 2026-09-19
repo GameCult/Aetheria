@@ -15,6 +15,12 @@ using Xunit;
 // broke. This file pins all of that; InputCapacitorTests.cs keeps pinning the surviving Cut 4 rules (a hit
 // within the reserve may draw a partial amount; TrySpend/AddCharge atomicity) against the same class. Each rule
 // here has a matching mutation in tests/mutation_tests_shield_reserve.py.
+//
+// F5 (docs/stats-and-power-cut.md, Soul pass 2026-09-19): CanTakeHit no longer breaks the shield as a side
+// effect of the query -- it did, on the false premise that every caller queries it exactly once per hit, but
+// RaycastAll hands every real caller both the shield and the hull collider for one shot, so it was queried
+// twice. Every test below that means to simulate a breaking hit now calls Shield.Break() explicitly, the same
+// way Assets/Scripts/Gameplay/Weapons/* now does at the point it decides to route a hit past the shield.
 public sealed class ShieldReserveTests : IDisposable
 {
     private readonly string _root = Path.Combine(Path.GetTempPath(), "aetheria-shieldreserve-" + Guid.NewGuid().ToString("N"));
@@ -113,8 +119,9 @@ public sealed class ShieldReserveTests : IDisposable
         // Proves the hit actually drew the reserve down (not a free absorb that left Charge at 5): a second hit
         // that would have fit inside the original 5 (4, with clear margin either side of the exact 2 left, to
         // stay clear of float rounding at the boundary) no longer fits inside what remains. Per the ruling that
-        // any refusal is itself a break, this also puts the shield into Broken.
+        // any refusal is itself a break, Break() (the caller's own next step, F5) puts the shield into Broken.
         Assert.False(shield.CanTakeHit(DamageType.Kinetic, 4f));
+        shield.Break();
         Assert.True(shield.Broken);
     }
 
@@ -128,6 +135,7 @@ public sealed class ShieldReserveTests : IDisposable
 
         Assert.False(shield.Broken);
         Assert.False(shield.CanTakeHit(DamageType.Kinetic, 6f)); // exceeds the 5 held
+        shield.Break();
         Assert.True(shield.Broken);
     }
 
@@ -145,7 +153,8 @@ public sealed class ShieldReserveTests : IDisposable
         using var cache = OpenCatalog();
         var (ship, shield) = BuildShipWithShield(cache, reactorGeneration: 20);
         ship.Update(1f); // Charge = 5
-        Assert.False(shield.CanTakeHit(DamageType.Kinetic, 6f)); // breaks; TakeHit must not run for this hit
+        Assert.False(shield.CanTakeHit(DamageType.Kinetic, 6f)); // would break; TakeHit must not run for this hit
+        shield.Break();
 
         ship.Update(3f); // from zero: 6 of 10 -- not yet full. From a surviving 5 (TakeHit ran, refused, kept it
                           // untouched): 5 + 6 clamped to 10 -- already full.
@@ -163,7 +172,8 @@ public sealed class ShieldReserveTests : IDisposable
         using var cache = OpenCatalog();
         var (ship, shield) = BuildShipWithShield(cache, reactorGeneration: 20);
         ship.Update(1f); // Charge = 5
-        Assert.False(shield.CanTakeHit(DamageType.Kinetic, 6f)); // breaks, reserve now 0
+        Assert.False(shield.CanTakeHit(DamageType.Kinetic, 6f)); // would break, reserve now emptied by Break()
+        shield.Break();
         Assert.True(shield.Broken);
 
         ship.Update(1f); // restoring at 2/s -> 2 of 10, still short of full -- still Broken
@@ -185,7 +195,8 @@ public sealed class ShieldReserveTests : IDisposable
         using var cache = OpenCatalog();
         var (ship, shield) = BuildShipWithShield(cache, reactorGeneration: 20);
         ship.Update(1f); // Charge = 5
-        Assert.False(shield.CanTakeHit(DamageType.Kinetic, 6f)); // breaks with 5 charge in play
+        Assert.False(shield.CanTakeHit(DamageType.Kinetic, 6f)); // would break with 5 charge in play
+        shield.Break();
 
         ship.Update(3f); // from zero: 6 of 10 -- not yet full. From a surviving 5: would already be full.
         Assert.True(shield.Broken);
@@ -204,7 +215,8 @@ public sealed class ShieldReserveTests : IDisposable
         using var cache = OpenCatalog();
         var (ship, shield) = BuildShipWithShield(cache, reactorGeneration: 20);
         ship.Update(1f); // Charge = 5
-        Assert.False(shield.CanTakeHit(DamageType.Kinetic, 6f)); // breaks, reserve now 0
+        Assert.False(shield.CanTakeHit(DamageType.Kinetic, 6f)); // would break, reserve now emptied by Break()
+        shield.Break();
 
         ship.Update(2f); // RefillDuration's span -- must not be enough to restore at RestoreDuration's rate
         Assert.True(shield.Broken);
@@ -231,14 +243,86 @@ public sealed class ShieldReserveTests : IDisposable
         var (halfShip, halfShield) = BuildShipWithShield(halfCache, reactorGeneration: 2.5f); // half of the 5/s request
         halfShip.Update(1f); // granted half -> Charge = 2.5
 
-        // Check the affordable amount FIRST: any refused CanTakeHit call breaks the shield (the ruling this
-        // file pins throughout), which would zero the reserve and make every later call read false regardless
-        // of grant. The half-grant reserve affords roughly its half share (2, with margin either side of the
-        // exact 2.5 to stay clear of float rounding at the boundary); only then do we spend the one refusal
-        // this test needs on a hit big enough that even the full-grant reserve could not have covered it more
-        // than four-fold over, to show the two really do differ.
+        // F5: CanTakeHit is a pure query now, so calling it more than once no longer risks the shield breaking
+        // itself out from under a later assertion -- these three reads can be in any order. The half-grant
+        // reserve affords roughly its half share (2, with margin either side of the exact 2.5 to stay clear of
+        // float rounding at the boundary); the final check is a hit big enough that even the full-grant reserve
+        // could not have covered it more than four-fold over, to show the two really do differ.
         Assert.True(halfShield.CanTakeHit(DamageType.Kinetic, 2f));
         Assert.True(fullShield.CanTakeHit(DamageType.Kinetic, 4f));
         Assert.False(halfShield.CanTakeHit(DamageType.Kinetic, 4f));
+    }
+
+    // --- F5 (docs/stats-and-power-cut.md, Soul pass 2026-09-19): "make the query a query." Calling CanTakeHit
+    // --- any number of times, in any mix of true/false answers, must never move the reserve or set Broken --
+    // --- exactly what every real caller under Assets/Scripts/Gameplay/Weapons now relies on (RaycastAll hands
+    // --- it both the shield and the hull collider for one shot, so it is queried twice per hit). ---
+    [Fact]
+    public void CanTakeHitNeverMutatesRegardlessOfHowManyTimesItIsCalled()
+    {
+        using var cache = OpenCatalog();
+        var (ship, shield) = BuildShipWithShield(cache, reactorGeneration: 20);
+        ship.Update(1f); // Charge = 5
+
+        Assert.True(shield.CanTakeHit(DamageType.Kinetic, 3f));
+        Assert.True(shield.CanTakeHit(DamageType.Kinetic, 3f)); // asked again -- still true, nothing spent
+        Assert.False(shield.Broken);
+
+        Assert.False(shield.CanTakeHit(DamageType.Kinetic, 6f)); // would refuse -- exceeds the 5 held
+        Assert.False(shield.CanTakeHit(DamageType.Kinetic, 6f)); // asked again -- still false, still not broken
+        Assert.False(shield.Broken);
+
+        // The reserve itself never moved either: a hit well within the original 5 still fits.
+        Assert.True(shield.CanTakeHit(DamageType.Kinetic, 4f));
+    }
+
+    // --- The mutation side of the same split: Break() is what a caller now invokes explicitly, and it must be
+    // --- safe to call more than once for one hit (a caller structure that cannot guarantee single-call
+    // --- discipline, per the six weapon files' own double-query shape) -- idempotent, not a double-drain or a
+    // --- crash on an already-empty reserve. ---
+    [Fact]
+    public void BreakIsIdempotentAcrossRepeatedCalls()
+    {
+        using var cache = OpenCatalog();
+        var (ship, shield) = BuildShipWithShield(cache, reactorGeneration: 20);
+        ship.Update(1f); // Charge = 5
+
+        shield.Break();
+        shield.Break(); // called again for the same hit (e.g. both the shield- and hull-collider branches)
+        shield.Break();
+        Assert.True(shield.Broken);
+
+        // Restores exactly on RestoreDuration from zero, same as a single Break() call -- proving the repeats
+        // did not re-empty an already-restoring reserve or otherwise disturb the clock.
+        ship.Update(3f);
+        Assert.True(shield.Broken);
+        ship.Update(2f); // total 5s -- exactly RestoreDuration
+        Assert.False(shield.Broken);
+    }
+
+    // --- F4 (docs/stats-and-power-cut.md, Soul pass 2026-09-19): "restoration must not depend on the item being
+    // --- active." A hit that breaks the shield usually also cooks it, which can knock the item Active.Value
+    // --- false in the same moment (thermal/durability shutdown) -- Entity only runs Execute (and, pre-F4, the
+    // --- unbreak check that lived inside it) while Active is true, so the shield could never come back no
+    // --- matter how long it stayed offline. Simulate that here directly (Enabled = false covers every reason
+    // --- Active can go false; the mechanism doesn't care which) and confirm the reserve keeps restoring and
+    // --- clears Broken on schedule regardless. ---
+    [Fact]
+    public void RestorationProceedsWhileTheItemIsInactive()
+    {
+        using var cache = OpenCatalog();
+        var (ship, shield) = BuildShipWithShield(cache, reactorGeneration: 20);
+        ship.Update(1f); // Charge = 5
+        Assert.False(shield.CanTakeHit(DamageType.Kinetic, 6f)); // would break
+        shield.Break();
+        Assert.True(shield.Broken);
+
+        shield.Item.Enabled.Value = false;
+        Assert.False(shield.Item.Active.Value);
+
+        // RestoreDuration (5s) entirely while inactive -- if restoration depended on Active (Execute-gated, the
+        // pre-F4 shape), none of this would move the reserve at all and Broken would still be true.
+        ship.Update(5f);
+        Assert.False(shield.Broken);
     }
 }
