@@ -54,10 +54,8 @@ public abstract class Entity
     
     public readonly Dictionary<string, float> Messages = new Dictionary<string, float>();
     public readonly Dictionary<object, float> VisibilitySources = new Dictionary<object, float>();
-    public readonly ReactiveDictionary<Entity, float> EntityInfoGathered = new ReactiveDictionary<Entity, float>(); 
-    public readonly Dictionary<HardpointData, (float3 position, float3 direction)> HardpointTransforms = 
-        new Dictionary<HardpointData, (float3 position, float3 direction)>();
-    
+    public readonly ReactiveDictionary<Entity, float> EntityInfoGathered = new ReactiveDictionary<Entity, float>();
+
     public (List<Weapon> weapons, List<EquippedItem> items)[] WeaponGroups;
 
     public List<IPopulationAssignment> PopulationAssignments = new List<IPopulationAssignment>();

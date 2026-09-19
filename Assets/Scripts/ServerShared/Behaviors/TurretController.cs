@@ -78,9 +78,7 @@ public class TurretController : Behavior, IInitializableBehavior
             foreach (var x in _weapons)
             {
                 var data = x.Data as WeaponData;
-                var fire = dot(
-                    x.Direction,
-                    Entity.LookDirection) > .99f;
+                var fire = FireControl.InArc(x.Item, Entity.LookDirection);
                 if (x.Evaluate(data.Range) > dist && fire)
                 {
                     x.Activate();

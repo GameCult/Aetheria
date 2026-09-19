@@ -511,11 +511,6 @@ public class EntityInstance : MonoBehaviour
             x.Value.material.SetFloat("_Emission", Entity.ItemManager.GameplaySettings.TemperatureEmissionCurve.Evaluate(x.Key.RadiatorTemperature));
         }
 
-        foreach (var x in Barrels)
-        {
-            Entity.HardpointTransforms[x.Key] = (x.Value[0].position.ToCultMath(), x.Value[0].forward.ToCultMath());
-        }
-
         LookAtPoint.position = transform.position + Entity.LookDirection.ToUnity() * 
             (Entity.Target.Value != null ? max(Entity.TargetRange,Entity.ItemManager.GameplaySettings.ConvergenceMinimumDistance) : 10000);
         LocalSpace.localPosition = transform.position = Entity.Position.ToUnity();

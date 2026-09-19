@@ -543,6 +543,9 @@ public class HardpointData
     [Inspectable, JsonProperty("transform"), Key(3)] public string Transform;
     [Inspectable, JsonProperty("rotation"), Key(4)] public ItemRotation Rotation;
     [Inspectable, JsonProperty("armor"), Key(5)] public float Armor;
+    // Full arc width in degrees a weapon on this hardpoint may bear across; 0 means "use
+    // GameplaySettings.FiringArc" (docs/fire-control-cut.md R6). Turrets author 360 (Q1).
+    [Inspectable, JsonProperty("firingArc"), Key(6)] public float FiringArc;
 
     public override string ToString()
     {
