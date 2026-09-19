@@ -39,8 +39,13 @@ public sealed class LoadoutTests : IDisposable
         var cargo = cache.Upsert(new CargoBayData { Name = "Crate", Shape = new Shape(), InteriorShape = new Shape(), Price = 5 });
         var gun = cache.Upsert(new GearData { Name = "Gun", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Price = 1, Behaviors = { new InstantWeaponData() } });
         cache.Upsert(new GearData { Name = "Orphan", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Price = 1 });
+        // Cut 2 (docs/fire-control-cut.md, Q4): required equipment for any entity with a weapon
+        // (LoadoutGenerator.FillInterior). "Gun" carries a weapon behaviour and shares this catalog's one
+        // Sensors hardpoint type with "Lamp"/"Orphan", so any generated loadout that happens to draw Gun
+        // needs a targeting-system product available or FillInterior throws.
+        var targeting = cache.Upsert(new GearData { Name = "Scope", Hardpoint = HardpointType.Tool, Shape = new Shape(), Price = 1, Behaviors = { new TargetingSystemData() } });
 
-        foreach (var (name, design) in new[] { ("Skiff by Maker", hull.Key), ("Lamp by Maker", gear.Key), ("Crate by Maker", cargo.Key), ("Gun by Maker", gun.Key) })
+        foreach (var (name, design) in new[] { ("Skiff by Maker", hull.Key), ("Lamp by Maker", gear.Key), ("Crate by Maker", cargo.Key), ("Gun by Maker", gun.Key), ("Scope by Maker", targeting.Key) })
             cache.Upsert(new FactionProductData { Name = name, Design = new CultRecordRef<CraftedItemData>(design), Manufacturer = maker });
         cache.FlushAsync().Wait();
     }

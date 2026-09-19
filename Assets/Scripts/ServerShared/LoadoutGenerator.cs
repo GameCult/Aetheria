@@ -258,6 +258,26 @@ public class LoadoutGenerator
         capacitor.Rotation = capacitorRotation;
         if (!entity.TryEquip(capacitor, capacitorPosition))
             throw new InvalidLoadoutException("Failed to equip selected capacitor!");
+
+        // Cut 2 (docs/fire-control-cut.md, Q4): required equipment for anything that can fire -- unaided
+        // fire is a last resort, not an alternative loadout choice. EquipHardpoints runs before FillInterior
+        // (OutfitEntity), so entity.Weapons is already populated here. Zenith and anything else with no
+        // weapon hardpoints gets none.
+        if (entity.Weapons.Any())
+        {
+            emptyShape = entity.UnoccupiedSpace;
+
+            var (targetingProduct, targetingData) = RandomProduct<GearData>(2, item =>
+                item.Behaviors.Any(b => b is TargetingSystemData) &&
+                item.Shape.FitsWithin(emptyShape, out _, out _), required: true);
+            if (targetingData == null) throw new InvalidLoadoutException("No compatible targeting system found for entity!");
+
+            targetingData.Shape.FitsWithin(emptyShape, out var targetingRotation, out var targetingPosition);
+            var targetingSystem = ItemManager.CreateInstance(targetingProduct) as EquippableItem;
+            targetingSystem.Rotation = targetingRotation;
+            if (!entity.TryEquip(targetingSystem, targetingPosition))
+                throw new InvalidLoadoutException("Failed to equip selected targeting system!");
+        }
     }
 
 }

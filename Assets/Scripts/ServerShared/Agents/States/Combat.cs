@@ -33,6 +33,25 @@ public class CombatState : BaseState
         
         var toTarget = target.Position - _agent.Ship.Position;
         var targetDistance = length(toTarget);
+
+        // Cut 2 (docs/fire-control-cut.md): aim at whichever revealed weapon on the target hits hardest at
+        // this range, or clear the aim point when nothing qualifies -- the same predicate
+        // (FireControl.IsRevealed) and the same writer (TrySelectTargetItem) the player path uses.
+        EquippedItem bestTargetItem = null;
+        var bestTargetDps = float.MinValue;
+        foreach (var targetItem in target.Equipment)
+        {
+            if (!(targetItem.Behaviors.FirstOrDefault(b => b is Weapon) is Weapon targetWeapon)) continue;
+            if (!FireControl.IsRevealed(_agent.Ship, targetItem)) continue;
+            var dps = targetWeapon.RangeDamagePerSecond(targetDistance);
+            if (dps > bestTargetDps)
+            {
+                bestTargetDps = dps;
+                bestTargetItem = targetItem;
+            }
+        }
+        _agent.Ship.TrySelectTargetItem(bestTargetItem);
+
         for (var i = 0; i < _agent.Ship.WeaponGroups.Length; i++)
         {
             var group = _agent.Ship.WeaponGroups[i];

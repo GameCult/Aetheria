@@ -400,7 +400,27 @@ public class ActionGameManager : MonoBehaviour
             var currentTargetIndex = Array.IndexOf(targets, CurrentEntity.Target.Value);
             CurrentEntity.Target.Value = targets[(currentTargetIndex + targets.Length - 1) % targets.Length];
         };
-        
+
+        // Cut 2 (docs/fire-control-cut.md): cycles the aim point among the current target's revealed
+        // subsystems -- decides nothing itself, only calls the one writer (TrySelectTargetItem), same
+        // predicate (FireControl.IsRevealed) the AI path uses. No generated typed accessor exists for this
+        // action yet (it was hand-authored into Aetheria.inputactions rather than regenerated through the
+        // Unity Input Actions editor, unavailable here), so it is looked up by name instead of through
+        // Input.Player.
+        Input.asset.FindAction("Player/Cycle Target Item").performed += context =>
+        {
+            var target = CurrentEntity.Target.Value;
+            if (target == null) return;
+            var revealed = target.Equipment.Where(x => FireControl.IsRevealed(CurrentEntity, x)).ToArray();
+            if (revealed.Length == 0)
+            {
+                CurrentEntity.TrySelectTargetItem(null);
+                return;
+            }
+            var currentItemIndex = Array.IndexOf(revealed, CurrentEntity.ResolvedTargetItem);
+            CurrentEntity.TrySelectTargetItem(revealed[(currentItemIndex + 1) % revealed.Length]);
+        };
+
         #endregion
 
 
