@@ -1019,3 +1019,281 @@ Cut 7's, alongside the missing Cut 1-3 harnesses.
 
 Negative checks: no `Entities.Remove` for death outside `Zone`; no `Tracking` read
 that can return zero; no `PredictedIntercept` or `FlightTime` field on `PendingShot`.
+
+---
+
+## Cut 6: the dice stop being shared, and the flak cannon works again
+
+Date: 2026-09-19. Branch `codex/fire-control-6` off Cut 5.
+
+Cut 6a (catalog authoring, worktree `Aetheria-catalog`, branch
+`codex/fire-control-6-catalog`) runs in parallel and is specified by Soul's
+findings 1 and 2 plus the Cut 2 authoring spec above. This section is Cut 6b, the
+two remaining code findings.
+
+### 6.1 A shot's dice belong to the shot (Soul finding 6)
+
+`Commit:266,304` draws from `ItemManager.Random`, a single stream shared with
+`ActionGameManager.cs:552,558,567,686,787` (wormhole exit velocity, loadout
+generation, travel) and `Combat.cs:144` (`SampleDps`, drawn per AI per
+evaluation). Q5's reproducible fight therefore holds only inside a hermetic
+fixture: in play, adding an NPC or opening a shop changes every subsequent die.
+Soul's determinism probes passed for exactly that reason, which makes them a
+demonstration of the fixture rather than of the rule.
+
+The fix is a deletion, not a second stream. A stream makes the roll depend on
+*how many* draws came before it; what this campaign actually promised is that a
+shot's outcome is a function of the shot. So make it one.
+
+- `Zone` exposes `public uint CombatSeed { get; }`, set in the constructor from
+  the same expression that already seeds `_random`:
+  `galaxyZone?.Name.StableHash() ?? 1337u`. One zone, one stable identity — a
+  galaxy seed reproduces it, and nothing else in the zone can perturb it.
+- `Commit` stops touching `ItemManager.Random` entirely. It builds its own local
+  `CultMath.Random` from the zone seed and the shot's own id:
+  `var random = new Random((zone.CombatSeed * 2654435761u) ^ (uint) shot.ShotId | 1u);`
+  The `| 1u` guards the degenerate zero seed. Every draw the commit makes — the
+  hit roll, the precision roll, the cell pick — comes from that one local
+  generator, and it dies with the call.
+- The write-back at `:304` (`shot.Source.ItemManager.Random = random;`) is
+  deleted with it.
+
+**Authority:** the roll's randomness is a pure function of `(zone identity, shot
+id)`. **Forbidden writers:** nothing outside `Commit` may seed or advance a
+combat draw, and `Commit` may not read a shared stream. **Consequence worth
+stating:** two shots that happen to share a `ShotId` across two zones roll
+differently, because the zone seed differs; two runs of the same fight from the
+same galaxy seed roll identically no matter what the UI did in between, which is
+the promise Q5 actually made.
+
+### 6.2 Airburst resolves in the simulation (Soul finding 5)
+
+Cut 4 deleted `Projectile.cs`'s `OverlapSphere`/`SendSplash` and added
+`FireControl.Splash` "because R9 keeps the flak cannon and the mine". Only the
+mine was wired (`Mine.cs:99`). `Projectile.cs:16-17` still carries
+`AirburstDistance`/`AirburstRange`, still written by `ProjectileManager.cs:32`,
+read by nothing — so a flak round flies and does nothing. The stale comment at
+`Projectile.cs:7-8` calls airburst "Cut 4's — untouched here".
+
+The wiring does **not** go back into `Projectile`. R8 says presentation does not
+decide damage, and a projectile MonoBehaviour calling `Splash` would be exactly
+the authority Cut 3 spent itself deleting. Airburst is a property of the weapon,
+so the simulation resolves it:
+
+- `PendingShot` regains a burst point — `public float3 BurstPosition;` — frozen
+  at fire like every other payload field, from `PredictedIntercept` (which Cut 5
+  deletes as unread; this is its live consumer, and it comes back named for what
+  it is rather than for what computed it).
+- `PendingShot` gains `public float BurstRadius;`, frozen from the weapon's
+  authored airburst range, and zero for a weapon without the `Airburst` flag
+  (`Enums.cs:101`).
+- `FireControl.Fire` sets both when the weapon's `WeaponData` carries `Airburst`.
+- `FireControl.Step`, at arrival, resolves an airburst shot by calling
+  `Splash(zone, shot.BurstPosition, shot.BurstRadius, shot.Damage, shot.DamageType)`
+  **instead of** `Apply`. An airburst round does not also roll a discrete hit:
+  it is an area effect, which is the whole point of the flag, and applying both
+  would be the double-application Soul was told to hunt for.
+- `Projectile.cs` deletes `AirburstDistance` and `AirburstRange` and the stale
+  comment; `ProjectileManager.cs:32` deletes the line that wrote one. The
+  projectile's remaining job is to fly and disappear, which is all presentation
+  should have been doing.
+
+**Open tuning question, recorded not asked:** the authored airburst radius has no
+sibling in the catalog to argue from, because no product has ever used it. Cut 6a
+or a later authoring pass sets it; until then the flag is wired and unexercised,
+and the report must say so rather than implying a working flak cannon.
+
+### Verification
+
+Committed harness `tests/mutation_tests_fire_control_cut6.sh`, no-op control
+required, same byte-exact I/O rules as Cut 5.
+
+- `SameFightRollsSameThroughUnrelatedDraws` pins 6.1: run a fixed fight twice from
+  one zone seed, drawing an arbitrary number of values from `ItemManager.Random`
+  between the two runs, and the outcomes must be identical. Mutation: restore the
+  `ItemManager.Random` draw. Must die — and note that this is the test Soul's own
+  probe could not be, because a hermetic fixture cannot see the defect.
+- `ShotIdDecidesTheDie` pins that the roll is a function of the shot: two shots
+  with the same frozen payload and different ids may differ; the same id in the
+  same zone always gives the same result. Mutation: drop `ShotId` from the seed.
+- `AirburstSplashesAndDoesNotAlsoRoll` pins 6.2: an airburst shot damages
+  everything in its radius, and its target takes area damage rather than a
+  discrete cell hit. Mutation: call `Apply` as well as `Splash`. Must die.
+- `NonAirburstNeverSplashes` pins the other side. Mutation: splash unconditionally.
+- negative: `ItemManager.Random` appears nowhere in `FireControl.cs`;
+  `Airburst` appears nowhere in `Assets/Scripts/Gameplay`.
+
+---
+
+## Cut 6c: the formula gets fixed, and the single point of failure
+
+Date: 2026-09-19. Branch off Cut 6a (`e5f1318a`) once Cut 5 has merged — this
+touches `FireControl.cs`, which Cut 5 owns until then.
+
+Cut 6a landed the catalog data that Cut 2 never shipped: 53 designs, 43 products,
+`loadout` green on ten seeds, turret arcs migrated. Reviewing it turned up two
+defects it introduced and one it inherited.
+
+### 6c.1 Resolution becomes reciprocal, so the name stops lying
+
+`HitProbability` computes `pSensor = saturate(unlerp(TargetDetectionInfoThreshold, Resolution(source), info))`.
+With the live `TargetDetectionInfoThreshold` of `.1`, a **higher** Resolution
+means **more** gathered info is needed before sensor state stops limiting hits.
+Resolution is a cost. The field's own comment says so accurately -- "the info
+level at which sensor state stops limiting hits" -- and the word "Resolution"
+says the opposite, because in every other context a higher resolution is a
+better instrument.
+
+Cut 6a authored the 1-cell `Targeting Computer` at `.3` and the 2-cell
+`Fire Control Array` at `.75`. Against a target scanned to info `.3`, that gives
+the cheap design `pSensor = 1.0` and the 150000c design `pSensor = 0.31`. The
+premium item is strictly worse until the player has scanned hard, which is not a
+tradeoff anyone authored -- it is the formula misleading an author who had read
+it and said so in the same paragraph.
+
+Operator ruling, 2026-09-19: "When the formula is unintuitive, we don't make the
+handle more opaque for correctness, we fix the formula. Plenty of core gameplay
+formulas are reciprocal just for this reason." An earlier draft of this cut
+proposed renaming the field to `SensorDemand`; that is superseded. The name
+stays `Resolution`, higher stays better, and the formula takes the reciprocal:
+
+- `HitProbability` derives the ceiling rather than reading it directly:
+  `var demandCeiling = detection + (1f - detection) / max(Resolution(source), 1e-3f);`
+  then `pSensor = saturate(unlerp(detection, demandCeiling, info))`.
+- Resolution `1` therefore means "needs complete information before sensor data
+  stops penalising this system" -- which is precisely what the unaided fallback
+  of `1f` should mean. That fallback stays as it is and is now the floor by
+  construction instead of by coincidence. The guard against a zero or negative
+  authored Resolution is the `max`, and no authored value should ever reach it.
+- Re-author both designs on the new scale: 1-cell `2` (sensor-limited until info
+  reaches `.55`), 2-cell `4` (until `.325`). Both comfortably better than unaided,
+  the premium one better than the cheap one, and the numbers now read the way a
+  designer reaching for the knob expects.
+- `TargetingSystemData.Resolution`'s comment gains one sentence naming the
+  direction and the reciprocal, so the next author does not have to derive it.
+
+### 6c.2 One seller is a die roll against ship generation
+
+Cut 6a sold both targeting designs from NiteLife Energy alone, satisfying the
+Cut 2 spec's letter ("at least the manufacturers that sell the capacitor") while
+missing what that clause was for. `Galaxy.cs:109` selects
+`factions.OrderBy(random).Take(settings.MegaCount)` — a **random subset** of the
+twelve factions — plus the quest faction and the authored neutrals. A galaxy that
+does not draw NiteLife has no targeting product, `IsAvailable`
+(`LoadoutGenerator.cs:154`) filters every candidate out, and
+`FillInterior`'s `required: true` throws `InvalidLoadoutException` again. Cut 6a's
+ten green seeds do not disprove this; they sample the draw.
+
+Two changes, because content coverage and structural fragility are different
+problems and only one of them is fixed by authoring:
+
+- **The generator degrades instead of throwing.** A `required: true` interior
+  item with no available product leaves the entity without one rather than
+  failing generation outright. This is only safe *because* Cut 5.1 gave unaided
+  fire a floor: such a ship now fires badly instead of not at all. The generator
+  logs the gap so it surfaces as content debt rather than silence, and `AetherDb
+  loadout` reports it per seed.
+- **Thematic sellers, which also buy coverage.** NiteLife Energy is the roster's
+  power-generation faction; targeting belongs to Finch Cybernetics (passive
+  sensors) and Lucent Media (active sensors), both of which the roster names for
+  exactly this. Each design gains products from both. That is three sellers per
+  design, and it puts the item in the hands of the factions whose brand explains
+  why they make it.
+
+### 6c.3 Recorded, not fixed
+
+`Large Drive`'s new product declares no roles because the design declares none.
+That is honest, and it is also a design with no role axes in a game where roles
+are how products differentiate. It belongs to the content pass, not here.
+
+### Verification
+
+- A test pins 6c.1's direction: two entities, identical but for `Resolution`, at
+  the same info level -- the **higher** Resolution has the higher
+  `HitProbability`, at every info level between detection and full. Mutation:
+  drop the reciprocal and read Resolution as the ceiling directly (the shipped
+  behaviour). Must die. This is the assertion whose absence let a premium item
+  ship strictly worse than a cheap one.
+- A test pins 6c.2: a galaxy containing no seller of any targeting design still
+  generates every hull, and those entities resolve `UnaidedAccuracy`. Mutation:
+  restore the throw. Must die.
+- `AetherDb loadout` across at least 50 seeds, plus a run with the faction set
+  forced to exclude all three sellers. Report the gap count, not just "no throw".
+- Census unchanged at 53 designs; products rise by 4 (two more sellers per design).
+
+---
+
+## Cut 7: the harnesses that were prose
+
+Date: 2026-09-19. Branch `codex/fire-control-7` off Cut 6.
+
+`git log --all -- tests/mutation_tests_fire_control*` returns exactly one commit,
+`034e8d3e`, adding `cut4` alone. §6 of this map declares `cut1..4`. So the Cut 3
+mutation table above (seeding, the commit horizon, the frozen snapshot, the
+shield branch, the penetration march, the roll itself) is prose: it names the
+mutations that should die and nothing has ever run them.
+
+That is not a paperwork gap. Soul wrote five mutations against rules this map
+claims to pin and **all five survived 197 green tests**, including
+`InstantWeapon.cs:105`, which is operator ruling Q2 — the one thing Cut 1
+explicitly deferred to Cut 3. Cut 5 pins four of them because it touches their
+rules. This cut pins the fifth and builds the harnesses that should have existed
+since Cut 1, so that every verdict this campaign has recorded becomes reproducible
+rather than remembered.
+
+### 7.1 The fifth survivor: the reveal re-check
+
+`FireControl.cs:193` freezes `Aimed = source.ResolvedTargetItem`. Mutating it to
+`source.TargetItem.Value` bypasses the reveal re-check — you could aim at a
+subsystem you have lost resolution on — and 197 tests stayed green.
+
+- A test pins that an aim point whose reveal has decayed below its tier is **not**
+  frozen into the shot: the shot still fires, at a random cell, with no `Aimed`.
+  Mutation: read the raw `TargetItem.Value`. Must die.
+- Note the interaction with Cut 5.5: a *destroyed* aimed item must fall out by the
+  same path, through `IsRevealed`, not through a second check. If pinning this
+  needs two tests, the rule has two owners and that is itself the finding.
+
+### 7.2 Harnesses for Cuts 1, 2 and 3
+
+Three committed scripts — `tests/mutation_tests_fire_control_cut1.sh`, `cut2.sh`,
+`cut3.sh` — each with a no-op control, byte-exact I/O, anchors matching exactly
+once, and a reverse-write restore. Each runs the mutation table its cut already
+declares in this document; do not invent a new table, and do not quietly
+substitute an easier mutation for one that will not die.
+
+**Every survivor is a finding to report, never a test to weaken.** The expected
+cause, seen twice in this campaign already, is a fixture too weak to distinguish
+the mutant: `EvasionCountsUntilCommitAndNotAfter` survived its own declared
+mutation because its target had zero velocity, so the sabotage was arithmetically
+a no-op. When a mutation survives, first ask whether the fixture differs from the
+rule's actual precondition, fix the fixture, and say so in the report.
+
+Where a declared mutation genuinely cannot be reached by the current suite, write
+it up as **not yet reached**, never as unreachable, and name what reaching it
+would take. Both times that call was made elsewhere in this project it was wrong,
+and a fifteen-line probe killed the mutant.
+
+### 7.3 What the harnesses are allowed to assume
+
+Cut 6a authors the first targeting-system designs into the catalog. A harness that
+depends on catalog content is a harness that breaks when content changes, so
+these suites build their own fixtures through the same synthetic-upsert path
+`TargetingSystemTests.cs:368-403` already uses. That file is also a cautionary
+example: it passes by upserting a synthetic design into a throwaway cache, which
+pins the generator and says nothing about whether the shipped catalog can
+generate a ship. Both are worth having; only one of them was, and the map claimed
+the other.
+
+So: **one test in this cut asserts against the live catalog** — that
+`AetheriaStores.Open` over `GameData/Aetheria.cc` yields a targeting system the
+player's own hull can be generated with. That is the assertion whose absence let
+Cut 2 ship code without data.
+
+### Verification
+
+- All four harnesses (cut1-3 plus the existing cut4) run clean: every declared
+  mutation dies, every no-op control leaves the suite green.
+- The report carries the full table — cut, mutation, died/survived, and for any
+  survivor the fixture defect behind it.
+- `dotnet test` green, with the count.
