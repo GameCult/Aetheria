@@ -1371,9 +1371,11 @@ public class EquippedItem : IStatContext
     public float HeatFactor(float exponent) => pow(ThermalPerformance, ThermalExponent * exponent);
     public float DurabilityFactor(float exponent) => pow(DurabilityPerformance, DurabilityExponent * exponent);
     public float ConsumableProgressFactor(float exponent) => 1f;
-    // Cut 6 (docs/stats-and-power-cut.md): the brownout curve. A stat with a PowerSupply term degrades as this
-    // tick's grant falls below 1 and is exactly unchanged at full supply (pow(1, exponent) == 1 regardless of
-    // exponent) -- the operator's "a continuous consumer that degrades instead of stopping." PowerBus writes
+    // Cut 6 (docs/stats-and-power-cut.md), applied per F1 (operator ruling 2026-09-19): PerformanceStat.Evaluate
+    // multiplies this straight onto the resolved value rather than blending it into the Min/Max interpolation, so
+    // a stat with a PowerSupply term is exactly unchanged at full supply (pow(1, exponent) == 1 regardless of
+    // exponent) and exactly zero at zero supply (pow(0, exponent) == 0 for any exponent > 0), no matter what Min
+    // is -- "a continuous consumer that degrades instead of stopping" down to genuinely nothing. PowerBus writes
     // PowerSupply below; the resolver invalidates this source once per tick from the same write (PowerBus.cs
     // AllocateTiers), so this read is always this tick's own grant, never a stale one.
     public float PowerSupplyFactor(float exponent) => pow(PowerSupply, exponent);

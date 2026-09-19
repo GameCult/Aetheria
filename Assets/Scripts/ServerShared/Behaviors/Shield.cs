@@ -41,7 +41,7 @@ public class ShieldData : BehaviorData
     }
 }
 
-public class Shield : Behavior, IProgressBehavior, IPowerConsumer
+public class Shield : Behavior, IProgressBehavior, IPowerConsumer, IAlwaysUpdatedBehavior
 {
     public float Efficiency { get; private set; }
     public float EnergyUsage { get; private set; }
@@ -56,9 +56,11 @@ public class Shield : Behavior, IProgressBehavior, IPowerConsumer
     //
     // Operator's second ruling, same date, on the fork the first ruling left open: the breaking hit passes
     // through in full -- no partial absorption. The reserve does not spend the portion it could have covered;
-    // TakeHit is never called for this hit at all (CanTakeHit's false branch below is the caller's sole signal
-    // to route the whole hit to the hull instead -- see every caller under Assets/Scripts/Gameplay/Weapons).
-    // The break is a distinct event the player feels, not a discount on an overkill hit.
+    // TakeHit is never called for this hit at all -- CanTakeHit's false return is the caller's signal to route
+    // the whole hit to the hull instead, and Break() below (F5, Soul pass 2026-09-19) is what the caller invokes
+    // at that same point to actually break the shield, since CanTakeHit itself is now a pure query (see every
+    // caller under Assets/Scripts/Gameplay/Weapons). The break is a distinct event the player feels, not a
+    // discount on an overkill hit.
     //
     // A second question the operator asked me to settle and state: what happens to whatever charge the reserve
     // held at the moment it broke. Chosen: emptied by the break, not left at its pre-hit charge. A reserve that
@@ -116,15 +118,30 @@ public class Shield : Behavior, IProgressBehavior, IPowerConsumer
         Capacity = Evaluate(_data.Capacity);
         RefillDuration = Evaluate(_data.RefillDuration);
         RestoreDuration = Evaluate(_data.RestoreDuration);
-        // This tick's grant, read back via Item.PowerSupply -- Item is non-null here because a null-Item
-        // instance never reaches PowerBus.Step (see CanTakeHit/TakeHit) and so never accrues charge.
-        if (Item != null)
-        {
-            _reserve.AddCharge(_reserve.RequestedFill(dt) * Item.PowerSupply);
-            // Restored to full on the restore duration: back up.
-            if (Broken && _reserve.Charge >= _reserve.Capacity - .01f) Broken = false;
-        }
         return true;
+    }
+
+    // F4 (docs/stats-and-power-cut.md, Soul pass 2026-09-19): the reserve's own recharge, and clearing Broken
+    // once it is full, used to live in Execute above -- which Entity.Update only calls while Item.Active is
+    // true. A hit that breaks the shield usually also cooks it (AddHeat in TakeHit below), which can knock the
+    // item thermally offline in the same moment it breaks -- Execute then stops running for as long as the item
+    // stays offline, so the shield could never come back no matter how long RestoreDuration allows for. Restoring
+    // must not depend on whether the item is currently Active, so it moved to IAlwaysUpdatedBehavior.Update,
+    // which Entity.Update calls every tick unconditionally (Cooldown.cs already relies on the same interface for
+    // exactly this reason -- see Entity.cs's own alwaysUpdatedBehavior loop, outside the `if (Active.Value)`
+    // block Execute lives in). PowerBus (F2) only bills and refreshes Item.PowerSupply while the item is Active,
+    // so while offline this keeps recharging at the last grant it actually received rather than freezing dead or
+    // fabricating a fresh one -- the punish window still runs down on its own clock instead of being held
+    // hostage by an unrelated shutdown.
+    public void Update(float dt)
+    {
+        // Item is non-null-checked the same way Execute's old version was: a null-Item (consumable-hosted)
+        // instance never reaches PowerBus.Step and so never accrues charge -- see CanTakeHit's own comment.
+        if (Item == null) return;
+        RefreshReserve();
+        _reserve.AddCharge(_reserve.RequestedFill(dt) * Item.PowerSupply);
+        // Restored to full on the restore duration: back up.
+        if (Broken && _reserve.Charge >= _reserve.Capacity - .01f) Broken = false;
     }
 
     // Cut 4 (docs/stats-and-power-cut.md, Cut 4): a hit taken, not a chosen activation, drawing from the
@@ -132,20 +149,31 @@ public class Shield : Behavior, IProgressBehavior, IPowerConsumer
     // temporary exception. A consumable-hosted instance (Item == null) has no PowerBus entry, so nothing would
     // ever fill this reserve; bypass it rather than starving such an instance forever.
     //
-    // Operator ruling, 2026-09-19: a broken shield absorbs nothing (Broken short-circuits to false). A hit the
-    // reserve cannot fully cover breaks the shield as a side effect of this same check -- see the Broken field
-    // comment above for why that mutation lives here rather than in TakeHit. Every caller queries CanTakeHit
-    // exactly once per hit and only calls TakeHit when it returns true (Assets/Scripts/Gameplay/Weapons/*), so
-    // this is not a repeated-query hazard in practice. Draining the reserve on break (rather than leaving its
-    // pre-hit charge, see the Broken field comment) happens here too, in the same atomic decision.
+    // F5 (docs/stats-and-power-cut.md, Soul pass 2026-09-19): this used to mutate -- breaking the shield and
+    // draining the reserve -- as a side effect of the query itself, on the premise that "every caller queries
+    // CanTakeHit exactly once per hit." That premise was false: RaycastAll returns both the shield collider and
+    // the hull collider for one shot, and every caller under Assets/Scripts/Gameplay/Weapons queries this twice
+    // per hit (once deciding whether the shield collider absorbs it, once deciding whether the hull collider is
+    // exposed). A caller must be able to ask without consequence, so this is now a pure read: Broken and the
+    // reserve's own CanSpend, nothing more. See Break() below for where the mutation moved.
     public bool CanTakeHit(DamageType type, float damage)
     {
         if (Item == null) return true;
         if (Broken) return false;
-        if (_reserve.CanSpend(damage * EnergyUsage)) return true;
+        return _reserve.CanSpend(damage * EnergyUsage);
+    }
+
+    // F5: the mutation CanTakeHit used to perform when it returned false, now a caller invokes explicitly at the
+    // one point damage is actually applied -- specifically, the point a caller decides to route a hit past this
+    // shield (to the hull) instead of absorbing it, which is also the only point that decision is made at all,
+    // so this is naturally called at most once per hit despite the double CanTakeHit query above. Idempotent
+    // (a no-op once Broken is already true) as a defense-in-depth against a caller structure that cannot
+    // guarantee single-call discipline, not as licence to call it more than once on purpose.
+    public void Break()
+    {
+        if (Item == null || Broken) return;
         Broken = true;
         _reserve.AddCharge(-_reserve.Charge); // emptied by the break, not left at its pre-hit charge
-        return false;
     }
 
     public void TakeHit(DamageType type, float damage)

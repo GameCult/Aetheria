@@ -145,6 +145,48 @@ public sealed class PowerCurveTests : IDisposable
         Assert.Equal(100f, engine.Evaluate(curve), 3);
     }
 
+    // --- F1 (docs/stats-and-power-cut.md, operator ruling 2026-09-19): "power supply multiplies, it does not
+    // --- interpolate." Before this fix PowerSupply was one more term feeding PerformanceStat's Min/Max lerp, so
+    // --- zero supply bottomed out at Min, not 0 -- Soul measured a radiator still pumping 19-25% of full heat at
+    // --- zero power. Min here is 1000 (nonzero), so lerp(1000, 4000, pow(0, 2)) would read 1000 under the old
+    // --- code; the multiplier form must read exactly 0 regardless of Min. ---
+    [Fact]
+    public void APowerSupplyTermedStatWithNonzeroMinResolvesToExactlyZeroAtZeroSupply()
+    {
+        var curve = new PerformanceStat { Min = 1000, Max = 4000, Terms = { new StatTerm { Source = StatSource.PowerSupply, Exponent = 2 } } };
+        using var cache = OpenCatalog(curve);
+        var ship = BuildShip(cache, reactorCharge: 0); // no generation, no stored charge -> demand of 100 is unmet
+
+        ship.Update(1f);
+
+        var engine = ship.Equipment.Single(e => e.Data.Name == "Engine");
+        Assert.Equal(0f, engine.PowerSupply, 4);
+        Assert.Equal(0f, engine.Evaluate(curve), 3); // NOT 1000 (Min) -- the old lerp-based bug's exact number
+    }
+
+    // --- The ruling's other named consequence: "a stat whose Min equals its Max still responds" -- three of Cut
+    // --- 7's eight authored terms were inert for exactly this reason, because lerp(x, x, anything) == x. The
+    // --- multiplier form has no interpolation to degenerate, so it must still move. ---
+    [Fact]
+    public void AMinEqualsMaxStatStillRespondsToItsPowerSupplyTerm()
+    {
+        var curve = new PerformanceStat { Min = 2500, Max = 2500, Terms = { new StatTerm { Source = StatSource.PowerSupply, Exponent = 1 } } };
+        using var cacheStarved = OpenCatalog(curve);
+        var starved = BuildShip(cacheStarved, reactorCharge: 0);
+        starved.Update(1f);
+        var starvedEngine = starved.Equipment.Single(e => e.Data.Name == "Engine");
+
+        var curve2 = new PerformanceStat { Min = 2500, Max = 2500, Terms = { new StatTerm { Source = StatSource.PowerSupply, Exponent = 1 } } };
+        using var cacheFed = OpenCatalog(curve2);
+        var fed = BuildShip(cacheFed, reactorCharge: 1000);
+        fed.Update(1f);
+        var fedEngine = fed.Equipment.Single(e => e.Data.Name == "Engine");
+
+        Assert.Equal(0f, starvedEngine.Evaluate(curve), 3);   // was inert (always 2500) before this fix
+        Assert.Equal(2500f, fedEngine.Evaluate(curve2), 3);
+        Assert.NotEqual(fedEngine.Evaluate(curve2), starvedEngine.Evaluate(curve));
+    }
+
     // A small, deliberately fake context (StatResolverTests' own pattern) so the "no cost when undeclared" rule
     // is provable without any catalog, entity or item plumbing -- and so it can count exactly how many times the
     // resolver ever asked for the power-supply factor.
@@ -251,6 +293,57 @@ public sealed class PowerCurveTests : IDisposable
         }));
         Assert.Contains("BadThruster", error.Message);
         Assert.Contains(nameof(ThrusterData.EnergyUsage), error.Message);
+    }
+
+    // --- F6 (docs/stats-and-power-cut.md, Soul pass 2026-09-19): the registry used to name only each consumer's
+    // --- top-level request field, so a PowerSupply term on a stat a request reads only indirectly -- here,
+    // --- Radiator.PowerRequest's own early-out gate on PumpedHeat, exactly the shape Soul reproduced against
+    // --- the shipped catalog's "OK Disperser" (SOUL_RadiatorRequestDependsOnItsOwnGrantAndOscillates) -- sailed
+    // --- straight through Upsert. PumpedHeat is now in PowerRequestFields, so this must be refused. ---
+    [Fact]
+    public void UpsertRefusesARadiatorWhosePumpedHeatCarriesAPowerSupplyTerm()
+    {
+        var badPumpedHeat = new PerformanceStat { Min = 1000, Max = 4000, Terms = { new StatTerm { Source = StatSource.PowerSupply, Exponent = 1 } } };
+        using var cache = AetheriaStores.Open(Catalog, catalogWritable: true);
+        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+
+        var error = Assert.Throws<InvalidOperationException>(() => cache.Upsert(new GearData
+        {
+            Name = "BadRadiator", Hardpoint = HardpointType.Tool, Shape = new Shape(), Durability = 10,
+            MinimumTemperature = 0, MaximumTemperature = 1000, OptimalTemperature = 280, PlateauWidth = 400,
+            Behaviors = { new RadiatorData
+            {
+                PumpedHeat = badPumpedHeat, WasteHeat = Constant(100), EnergyUsage = Constant(6),
+                Emissivity = Constant(.5f), ThermalMass = Constant(100), TemperatureFloor = 0
+            } }
+        }));
+        Assert.Contains("BadRadiator", error.Message);
+        Assert.Contains(nameof(RadiatorData.PumpedHeat), error.Message);
+    }
+
+    // --- The same hole on the other consumer the ruling names by field: Shield.PowerRequest calls RefreshReserve,
+    // --- which reads RefillDuration (or RestoreDuration while broken) to size the reserve's own fill rate -- a
+    // --- PowerSupply term there makes the reserve's own refill speed depend on how much of it was already
+    // --- granted, the same self-reference the rule exists to forbid. ---
+    [Fact]
+    public void UpsertRefusesAShieldWhoseRefillDurationCarriesAPowerSupplyTerm()
+    {
+        var badRefillDuration = new PerformanceStat { Min = 2, Max = 2, Terms = { new StatTerm { Source = StatSource.PowerSupply, Exponent = 1 } } };
+        using var cache = AetheriaStores.Open(Catalog, catalogWritable: true);
+        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+
+        var error = Assert.Throws<InvalidOperationException>(() => cache.Upsert(new GearData
+        {
+            Name = "BadShield", Hardpoint = HardpointType.Tool, Shape = new Shape(), Durability = 10,
+            MinimumTemperature = 0, MaximumTemperature = 1000, OptimalTemperature = 280, PlateauWidth = 400,
+            Behaviors = { new ShieldData
+            {
+                Efficiency = Constant(1), EnergyUsage = Constant(1), Capacity = Constant(100),
+                RefillDuration = badRefillDuration, RestoreDuration = Constant(5)
+            } }
+        }));
+        Assert.Contains("BadShield", error.Message);
+        Assert.Contains(nameof(ShieldData.RefillDuration), error.Message);
     }
 
     // --- Cut 6 verification bullet 3: "the same refusal through a modifier chain, at equip time, naming both

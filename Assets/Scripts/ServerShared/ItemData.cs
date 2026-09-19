@@ -587,9 +587,9 @@ public interface IStatContext
     // Progress through a consumable effect's duration, standing in for "condition" on a consumable the way heat
     // does for equipped gear. Only ConsumableItemEffect has one; every other context is the identity (1).
     float ConsumableProgressFactor(float exponent);
-    // Cut 6 (the power bus) wires this to a real brownout curve. Until then no catalog stat declares a
-    // PowerSupply term, and every context answers the identity so the enum member can exist now without a
-    // resolver to back it.
+    // Cut 6 (the power bus) wires this to the bus's grant ratio. F1 (docs/stats-and-power-cut.md, operator
+    // ruling 2026-09-19): this is not one of the terms blended into the Min/Max interpolation -- PerformanceStat
+    // applies it as a separate multiplier on the fully-resolved value, so zero supply always resolves to zero.
     float PowerSupplyFactor(float exponent);
     float ScaleModifier(PerformanceStat stat);
     float ConstantModifier(PerformanceStat stat);
@@ -643,11 +643,28 @@ public class PerformanceStat
     // this cut, because pow(x, 0) == 1 regardless of x. Callers keep their own NaN handling: an unequipped read
     // throws with diagnostic detail, an equipped or consumable read falls back to Min. That disagreement is not
     // named as a defect, so it is not touched here.
+    //
+    // F1 (docs/stats-and-power-cut.md, operator ruling 2026-09-19): PowerSupply is not folded into the
+    // interpolation factor with every other source. Heat, Durability and Quality all describe "how worn/hot/well
+    // made is this part" -- a part that is still there, just less good at its job, so blending toward Min is
+    // right for them. Power is not a degradation of the part; it is whether the part is receiving anything to
+    // work with at all, so it multiplies the fully-interpolated, fully-modified value instead: a PowerSupply term
+    // still lives in this stat's own Terms list (it is still authored per stat, still censused, still refused on
+    // a request stat by ValidateNoPowerSupplyOnRequest below), it is just applied as a separate multiplier rather
+    // than contributing to `factor`. Consequences named in the ruling: PowerSupply == 0 makes the whole
+    // expression 0 regardless of Min (pow(0, exponent) == 0 for any exponent > 0), and a Min == Max stat still
+    // responds to a PowerSupply term because the multiplier no longer has to move a degenerate interpolation.
     public float Evaluate(IStatContext context)
     {
         var factor = 1f;
+        var powerMultiplier = 1f;
         foreach (var term in Terms)
         {
+            if (term.Source == StatSource.PowerSupply)
+            {
+                powerMultiplier *= context.PowerSupplyFactor(term.Exponent);
+                continue;
+            }
             factor *= term.Source switch
             {
                 // F6 (docs/stats-and-power-cut.md Cut 2 Soul pass): nothing ever calls Resolver.InvalidateSource
@@ -662,27 +679,32 @@ public class PerformanceStat
                 StatSource.Heat => context.HeatFactor(term.Exponent),
                 StatSource.Durability => context.DurabilityFactor(term.Exponent),
                 StatSource.ConsumableProgress => context.ConsumableProgressFactor(term.Exponent),
-                StatSource.PowerSupply => context.PowerSupplyFactor(term.Exponent),
                 _ => throw new ArgumentOutOfRangeException(nameof(term.Source), term.Source, $"Unknown StatSource on {Min}-{Max} stat")
             };
         }
-        return lerp(Min, Max, factor) * context.ScaleModifier(this) + context.ConstantModifier(this);
+        return (lerp(Min, Max, factor) * context.ScaleModifier(this) + context.ConstantModifier(this)) * powerMultiplier;
     }
 }
 
 // Cut 1's loud refusal: the heat-response shape (min, max, optimum, plateau width) must describe a coherent
 // range. Runs at catalog load (AetheriaStores.Open) and at every catalog write that goes through
-// CultRecordRefs.Upsert (AetheriaStores.cs). That is not, in fact, every catalog write in this repository: two
-// named holes exist, not one.
+// CultRecordRefs.Upsert (AetheriaStores.cs). That is not, in fact, every catalog write in this repository. F7
+// (docs/stats-and-power-cut.md, Soul pass 2026-09-19) found four holes where the two named here left off, not
+// one:
 // - CultCache Studio's generic document editor writes straight through CultCache, bypassing Upsert, and Studio
-//   exposes no per-document validation hook to attach to yet.
-// - tools/AetherDb/Program.cs's Dangling command (:271-274) lands its repaired records through
-//   `db.Cache.Commit(batch => batch.Upsert(document.GetType(), document, key))` -- CultCache's own batch API,
-//   keyed explicitly to preserve the record's existing identity, not the validating extension method above. A
-//   dangling-ref fixup can therefore land an EquippableItemData or ConsumableItemData with an invalid heat
-//   response or an unresolvable stat modifier reference, and `Open` would refuse it only the next time someone
-//   reopens the file, not at the moment `apply` writes it. Both gaps are named here rather than silently assumed
-//   closed.
+//   exposes no per-document validation hook to attach to yet. Still open -- Studio is not this repository's to
+//   patch from here.
+// - tools/AetherDb/Program.cs's Dangling, ShieldMigrate and BrownoutMigrate commands each repair existing
+//   records in place and so cannot go through Upsert (its cache.UpsertAsync(document) does not accept a
+//   caller-supplied key -- see AetheriaStores.cs's own Validate comment); each lands its changes through
+//   `db.Cache.Commit(batch => batch.Upsert(document.GetType(), document, key))`, CultCache's own batch API,
+//   keyed explicitly to preserve the record's existing identity. `brownout-migrate apply` is how the shipped
+//   catalog's PowerSupply terms were actually written (Cut 7), and all three now call
+//   `AetheriaStores.Validate(document)` immediately before that commit -- the same checks Upsert runs, just
+//   invoked directly since the identity-preserving write path cannot call Upsert itself. Closed: a dangling-ref
+//   fixup, a shield migration or a brownout migration can no longer land an EquippableItemData or
+//   ConsumableItemData with an invalid heat response, an unresolvable stat modifier reference, or a power
+//   request that depends on its own supply.
 public static class StatValidation
 {
     public static void ValidateHeatResponse(EquippableItemData data)
@@ -785,24 +807,47 @@ public static class StatValidation
 
     // Cut 6 (docs/stats-and-power-cut.md): "a stat that decides a power request may not depend on power supply,
     // directly or through a modifier chain, and no stat may depend on itself." IPowerConsumer.PowerRequest(dt)
-    // never hands the bus a number it invented on the spot -- each implementation evaluates exactly one fixed
-    // PerformanceStat field on its own BehaviorData (Thruster reads EnergyUsage, EnergyDraw reads EnergyDraw, and
-    // so on). That field is a compile-time fact about the C# type, not something authored per catalog instance,
-    // so it is named here once -- the same (type, field) address ResolveStatField already uses for
-    // StatReference -- rather than adding a second reflection idiom or a per-instance flag. Naming it here (not a
-    // new interface member on IPowerConsumer) means the check needs no Behavior instance, no EquippedItem and no
-    // Entity: it can run over the catalog's own Data objects, at load and at Upsert, before anything is ever
-    // equipped.
+    // never hands the bus a number it invented on the spot -- each implementation evaluates a fixed set of
+    // PerformanceStat fields on its own BehaviorData. Those fields are a compile-time fact about the C# type, not
+    // something authored per catalog instance, so they are named here once -- the same (type, field) address
+    // ResolveStatField already uses for StatReference -- rather than adding a second reflection idiom or a
+    // per-instance flag. Naming it here (not a new interface member on IPowerConsumer) means the check needs no
+    // Behavior instance, no EquippedItem and no Entity: it can run over the catalog's own Data objects, at load
+    // and at Upsert, before anything is ever equipped.
+    //
+    // F6 (docs/stats-and-power-cut.md, Soul pass 2026-09-19): this used to name only each consumer's top-level
+    // request field ("Thruster reads EnergyUsage, EnergyDraw reads EnergyDraw, and so on") on the premise that
+    // PowerRequest reads exactly one PerformanceStat. That premise was false for five of the eight consumers --
+    // Radiator.PowerRequest also reads PumpedHeat and WasteHeat (to decide whether the pump can even run this
+    // tick), AetherDrive.PowerRequest also reads Torque, LambdaMultiplier, MaximumRpm and PassiveCoupling (its
+    // whole rotor spin-up arithmetic), Shield.PowerRequest (via RefreshReserve) also reads RefillDuration and
+    // RestoreDuration, InstantWeapon.PowerRequest (via RefreshInputCapacitor) also reads Cooldown and Count, and
+    // Sensor.PowerRequest (via RefreshInputCapacitor) also reads PingCooldown. Every one of those was free to
+    // carry a PowerSupply term and sail straight past ValidateNoPowerSupplyOnRequest below, corrupting the
+    // request it feeds exactly the way the rule exists to forbid. Audited directly against each PowerRequest
+    // method's own body (and RefreshReserve/RefreshInputCapacitor, which PowerRequest calls into) rather than
+    // guessed from the behaviour's public surface.
     public static readonly (Type Type, string Field)[] PowerRequestFields =
     {
         (typeof(EnergyDrawData), nameof(EnergyDrawData.EnergyDraw)),
         (typeof(ThrusterData), nameof(ThrusterData.EnergyUsage)),
         (typeof(ConstantWeaponData), nameof(WeaponData.Energy)),
         (typeof(InstantWeaponData), nameof(WeaponData.Energy)),
+        (typeof(InstantWeaponData), nameof(InstantWeaponData.Cooldown)),
+        (typeof(InstantWeaponData), nameof(InstantWeaponData.Count)),
         (typeof(SensorData), nameof(SensorData.PingEnergy)),
+        (typeof(SensorData), nameof(SensorData.PingCooldown)),
         (typeof(ShieldData), nameof(ShieldData.Capacity)),
+        (typeof(ShieldData), nameof(ShieldData.RefillDuration)),
+        (typeof(ShieldData), nameof(ShieldData.RestoreDuration)),
         (typeof(RadiatorData), nameof(RadiatorData.EnergyUsage)),
+        (typeof(RadiatorData), nameof(RadiatorData.PumpedHeat)),
+        (typeof(RadiatorData), nameof(RadiatorData.WasteHeat)),
         (typeof(AetherDriveData), nameof(AetherDriveData.EnergyDraw)),
+        (typeof(AetherDriveData), nameof(AetherDriveData.Torque)),
+        (typeof(AetherDriveData), nameof(AetherDriveData.LambdaMultiplier)),
+        (typeof(AetherDriveData), nameof(AetherDriveData.MaximumRpm)),
+        (typeof(AetherDriveData), nameof(AetherDriveData.PassiveCoupling)),
     };
 
     // The direct half of the rule: a request stat's own declared Terms must not name PowerSupply. Runs wherever

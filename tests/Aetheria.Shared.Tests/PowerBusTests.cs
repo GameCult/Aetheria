@@ -208,4 +208,46 @@ public sealed class PowerBusTests : IDisposable
         Assert.Equal(ship.PowerBus.GrantRatio, drainOne.PowerSupply, 5);
         Assert.Equal(ship.PowerBus.GrantRatio, drainTwo.PowerSupply, 5);
     }
+
+    // --- F2 (docs/stats-and-power-cut.md, Soul pass 2026-09-19): "one predicate, both directions." Step used to
+    // --- collect every equipped IPowerConsumer's request unconditionally, but Entity.Update only ever runs a
+    // --- behaviour's Execute when the item is Active (Enabled && Online) -- so a consumer the player switched
+    // --- off (Enabled = false) never executes, never spends anything, and yet was still billed here, starving
+    // --- every live consumer and draining the capacitors for energy nobody spent. A disabled consumer must
+    // --- contribute nothing to TotalDemand at all. ---
+    [Fact]
+    public void DisabledConsumerContributesNoDemand()
+    {
+        using var cache = OpenCatalog();
+        var (ship, _, _, capacitor) = BuildShip(cache, reactorCharge: 0, startingCapacitorCharge: 100, reactorFirst: true);
+        var drain = EquipDrain(cache, ship, rate: 50);
+        drain.Enabled.Value = false;
+        Assert.False(drain.Active.Value);
+
+        ship.Update(1f);
+
+        Assert.Equal(0f, ship.PowerBus.TotalDemand, 3);
+        Assert.Equal(100f, capacitor.Charge, 3); // nothing was spent on a request nobody will ever execute
+    }
+
+    // --- The other direction of the same rule: PowerBus.Step gated a reactor on Item.Online alone, but
+    // --- Reactor.Execute (the behaviour that actually produces the heat receipt) only runs when Item.Active --
+    // --- Enabled && Online -- is true. A reactor the player switched off stays Online (thermal/durability are
+    // --- fine) but is not Active, so it must not generate here either, or it supplies the whole ship for free
+    // --- with no heat cost at all. ---
+    [Fact]
+    public void DisabledReactorGeneratesNoPower()
+    {
+        using var cache = OpenCatalog();
+        var (ship, _, reactor, _) = BuildShip(cache, reactorCharge: 100, startingCapacitorCharge: 0, reactorFirst: true);
+        reactor.Item.Enabled.Value = false;
+        Assert.True(reactor.Item.Online.Value);
+        Assert.False(reactor.Item.Active.Value);
+        EquipDrain(cache, ship, rate: 100);
+
+        ship.Update(1f);
+
+        Assert.Equal(0f, ship.PowerBus.TotalGeneration, 3);
+        Assert.Equal(0f, ship.PowerBus.TotalGrant, 3);
+    }
 }

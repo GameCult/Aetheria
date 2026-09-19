@@ -35,14 +35,26 @@ public class Lightning : MonoBehaviour
         foreach (var hit in hits)
         {
             var shield = hit.collider.GetComponent<ShieldManager>();
-            if (shield && (shield.Entity.Shield != null && shield.Entity.Shield.Item.Active.Value && shield.Entity.Shield.CanTakeHit(DamageType, Damage)))
+            if (shield)
             {
-                if (shield.Entity == Source.Entity) continue;
-                LightningCompute.OnLeaderComplete = () =>
+                var shieldBehavior = shield.Entity.Shield;
+                var shieldActive = shieldBehavior != null && shieldBehavior.Item.Active.Value;
+                var shieldAbsorbs = shieldActive && shieldBehavior.CanTakeHit(DamageType, Damage);
+                // F5 (docs/stats-and-power-cut.md, Soul pass 2026-09-19): CanTakeHit is a pure query now -- read
+                // once into shieldAbsorbs, and break the shield exactly once, right here, at the point this hit
+                // is actually decided to route past it (to the hull collider SphereCastAll returns as a
+                // separate entry further down this same loop) instead of being absorbed. The hull branch below
+                // re-queries CanTakeHit safely -- it is side-effect-free -- and will see Broken already true.
+                if (shieldActive && !shieldAbsorbs) shieldBehavior.Break();
+                if (shieldAbsorbs)
                 {
-                    shield.Entity.Shield.TakeHit(DamageType, Damage);
-                    shield.ShowHit(hit.point, sqrt(Damage));
-                };
+                    if (shield.Entity == Source.Entity) continue;
+                    LightningCompute.OnLeaderComplete = () =>
+                    {
+                        shieldBehavior.TakeHit(DamageType, Damage);
+                        shield.ShowHit(hit.point, sqrt(Damage));
+                    };
+                }
             }
             var hull = hit.collider.GetComponent<HullCollider>();
             if (hull && !(hull.Entity.Shield != null && hull.Entity.Shield.Item.Active.Value && hull.Entity.Shield.CanTakeHit(DamageType, Damage)))

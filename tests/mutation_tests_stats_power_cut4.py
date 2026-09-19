@@ -116,12 +116,19 @@ MUTATIONS: list[Mutation] = [
     # --- Shield is the map's named exception: a hit is not a chosen activation, so its reserve is a continuous
     # --- one that may absorb an arbitrary fraction of a hit's cost, unlike a weapon's shot (always spent
     # --- whole). Requiring a hit to cover the WHOLE reserve before absorbing anything collapses that
-    # --- distinction back into an activation buffer, which the map explicitly says not to give it. ---
+    # --- distinction back into an activation buffer, which the map explicitly says not to give it.
+    # ---
+    # --- F8 (docs/stats-and-power-cut.md, Soul pass 2026-09-19) re-anchor: the shield reserve ruling
+    # --- (2026-09-19) gave Shield a Broken state, splitting CanTakeHit's old single-expression body
+    # --- (`return Item == null || _reserve.CanSpend(...)`) into an Item-null check, a Broken check, and this
+    # --- CanSpend call as its own line; F5 (the same Soul pass) then made the whole method a pure query. The
+    # --- rule under test -- CanSpend reads the hit's own cost, not a full-reserve requirement -- is unchanged
+    # --- and still reachable from this same line. ---
     Mutation(
         rule="the shield reserve must allow a partial draw, not require a full reserve before absorbing a hit",
         file="Assets/Scripts/ServerShared/Behaviors/Shield.cs",
-        anchor="        return Item == null || _reserve.CanSpend(damage * EnergyUsage);",
-        mutated="        return Item == null || _reserve.CanSpend(_reserve.Capacity);",
+        anchor="        return _reserve.CanSpend(damage * EnergyUsage);",
+        mutated="        return _reserve.CanSpend(_reserve.Capacity);",
         test="InputCapacitorTests.ShieldReserveAllowsAPartialDrawButRefusesAHitItCannotFullyCover",
         expect="red",
     ),

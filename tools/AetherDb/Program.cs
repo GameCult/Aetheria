@@ -575,6 +575,11 @@ public static class Program
             return 0;
         }
 
+        // F7 (docs/stats-and-power-cut.md, Soul pass 2026-09-19): this repair must preserve the record's existing
+        // key, which the validating CultRecordRefs.Upsert extension does not support (see AetheriaStores.cs's own
+        // Validate comment) -- so it calls the same validation directly, right before the identity-preserving
+        // write, instead of writing raw and unvalidated the way this line used to.
+        foreach (var (document, _) in changed) CultRecordRefs.Validate(document);
         db.Cache.Commit(batch =>
         {
             foreach (var (document, key) in changed) batch.Upsert(document.GetType(), document, key);
@@ -857,6 +862,11 @@ public static class Program
             return 0;
         }
 
+        // F7 (docs/stats-and-power-cut.md, Soul pass 2026-09-19): this repair must preserve the record's existing
+        // key, which the validating CultRecordRefs.Upsert extension does not support (see AetheriaStores.cs's own
+        // Validate comment) -- so it calls the same validation directly, right before the identity-preserving
+        // write, instead of writing raw and unvalidated the way this line used to.
+        foreach (var (document, _) in changed) CultRecordRefs.Validate(document);
         db.Cache.Commit(batch =>
         {
             foreach (var (document, key) in changed) batch.Upsert(document.GetType(), document, key);
@@ -948,6 +958,11 @@ public static class Program
             return 0;
         }
 
+        // F7 (docs/stats-and-power-cut.md, Soul pass 2026-09-19): this repair must preserve the record's existing
+        // key, which the validating CultRecordRefs.Upsert extension does not support (see AetheriaStores.cs's own
+        // Validate comment) -- so it calls the same validation directly, right before the identity-preserving
+        // write, instead of writing raw and unvalidated the way this line used to.
+        foreach (var (document, _) in changed) CultRecordRefs.Validate(document);
         db.Cache.Commit(batch =>
         {
             foreach (var (document, key) in changed) batch.Upsert(document.GetType(), document, key);

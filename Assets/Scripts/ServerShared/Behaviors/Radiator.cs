@@ -90,8 +90,10 @@ public class Radiator : Behavior, IAlwaysUpdatedBehavior, IInitializableBehavior
         // plain Evaluate() read, so a PumpedHeat stat carrying a PowerSupply term already pumps less under a
         // partial grant -- waste heat below is unaffected by the curve, so a starved radiator falls behind and
         // the ship heats up, which is the reduced-performance failure the ruling asks for instead of the pump
-        // simply refusing to run. At true zero supply PumpedHeat itself resolves to 0 (pow(0, exponent) == 0),
-        // so "produces nothing" already falls out of the curve below without a special case here.
+        // simply refusing to run. F1 (docs/stats-and-power-cut.md, operator ruling 2026-09-19): PowerSupply is a
+        // multiplier PerformanceStat.Evaluate applies to the whole resolved value, not a term blended into the
+        // Min/Max interpolation, so at true zero supply PumpedHeat resolves to exactly 0 regardless of Min -- so
+        // "produces nothing" already falls out of Evaluate() without a special case here.
         var pumpedHeat = PumpedHeat * max(itemTemperature - _data.TemperatureFloor, 0);
         
         // Radiator temperature is below temperature floor, stop executing
