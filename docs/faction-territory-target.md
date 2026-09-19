@@ -22,6 +22,14 @@ colonization timeline and supply chain, with names and backstories that match.
 Giving each faction such a mapping will also gives each faction a recognizable
 shape to their territory."
 
+## Where it sits
+
+**After fire control** (operator, 2026-09-19: "slot it in right after fire control, first step
+is to get the new shape of the combat working"). Combat's new shape — rolls from weapon,
+targeting and sensor stats, resolution on arrival, the pre-impact commit window — comes first;
+territory is the campaign after it. Territory is what finally makes the economy and provenance
+work visible in play, so it does not drift further than that.
+
 ## Ends
 
 - **A place has a job.** Every owned sector, and every station in it, carries a
