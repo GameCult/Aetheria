@@ -4,17 +4,16 @@ using static CultMath.math;
 
 // Cut 3 (docs/fire-control-cut.md): the raycast, shield branch and SendHit are deleted -- FireControl already
 // decided this shot's fate before this object was ever spawned (R8). What is left is pure flight-path
-// presentation: fly, and disappear at Range or ShotId's resolution, whichever comes first. Airburst
-// (AirburstDistance/AirburstRange) is Cut 4's -- untouched here.
+// presentation: fly, and disappear at Range or ShotId's resolution, whichever comes first.
+// Cut 6b, 6.2: airburst resolves in the simulation now (FireControl.Step calls Splash instead of Apply at
+// arrival) -- a MonoBehaviour calling Splash would be exactly the authority Cut 3 spent itself deleting, so
+// AirburstDistance/AirburstRange are gone. This object's job stays fly-and-disappear.
 public class Projectile : MonoBehaviour
 {
     public TrailRenderer Trail;
     public float Gravity;
     public float Drag = .1f;
     public Prototype HitEffect;
-
-    public float AirburstDistance;
-    public float AirburstRange;
 
     private bool _alive;
 
