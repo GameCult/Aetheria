@@ -219,8 +219,11 @@ public sealed class FireControlCut5Tests : IDisposable
         var settings = TestSettings();
         settings.UnaidedAccuracy = 1f; // isolate this test from Q4's own low ceiling
         settings.UnaidedTracking = 10f;
-        var e = Build(settings, damage: 5, velocity: 20, accuracy: 1, resolution: 1, spread: 0,
-            targetRange: 100, equipTargeting: false); // flight time 5s, well past the .5s commit horizon
+        // velocity: 0 keeps every shot's flight time (and so its commit horizon) at zero, so a single
+        // zone.Update call both commits and resolves it -- no multi-tick float accumulation to muddy exactly
+        // how much deviation each shot judges, unlike a long flight stepped in many small dt increments.
+        var e = Build(settings, damage: 5, velocity: 0, accuracy: 1, resolution: 1, spread: 0,
+            targetRange: 100, equipTargeting: false);
         e.Items.Random = new Random(9001u);
 
         var hits = 0;
@@ -229,10 +232,10 @@ public sealed class FireControlCut5Tests : IDisposable
         var basePosition = e.Target.Position;
         for (var i = 0; i < 30; i++)
         {
-            e.Target.Position = basePosition; // reset before each shot -- Fire captures this as FireTargetPosition
+            e.Target.Position = basePosition; // Fire captures this as FireTargetPosition
             FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
             e.Target.Position = basePosition + float3(3, 0, 0); // jink: a real, forgivable deviation (< Tracking)
-            while (e.Zone.PendingShots.Count > 0) e.Zone.Update(.1f);
+            e.Zone.Update(.01f); // flight time 0 -> commits and resolves in this one call
         }
 
         Assert.True(hits > 0);
