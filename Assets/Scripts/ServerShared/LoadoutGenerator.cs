@@ -263,20 +263,35 @@ public class LoadoutGenerator
         // fire is a last resort, not an alternative loadout choice. EquipHardpoints runs before FillInterior
         // (OutfitEntity), so entity.Weapons is already populated here. Zenith and anything else with no
         // weapon hardpoints gets none.
+        //
+        // Cut 6c, 6c.2: this used to be `required: true` and throw InvalidLoadoutException when no seller was
+        // available -- a galaxy that happened not to draw a targeting design's manufacturer failed entity
+        // generation outright, a single point of failure the ten-seed smoke never sampled. It degrades instead:
+        // required: false, so RandomProducts' own manufacturer-widening fallback never fires and an unmet
+        // requirement returns null quietly rather than searching outside the galaxy for one. An entity that
+        // ends up with no targeting system fires through FireControl's unaided fallback
+        // (GameplaySettings.UnaidedTracking, Cut 5.1) rather than not firing at all -- that floor is what makes
+        // this degrade safe. The gap is logged so it surfaces as content debt (AetherDb loadout reports it per
+        // seed) instead of vanishing silently.
         if (entity.Weapons.Any())
         {
             emptyShape = entity.UnoccupiedSpace;
 
             var (targetingProduct, targetingData) = RandomProduct<GearData>(2, item =>
                 item.Behaviors.Any(b => b is TargetingSystemData) &&
-                item.Shape.FitsWithin(emptyShape, out _, out _), required: true);
-            if (targetingData == null) throw new InvalidLoadoutException("No compatible targeting system found for entity!");
-
-            targetingData.Shape.FitsWithin(emptyShape, out var targetingRotation, out var targetingPosition);
-            var targetingSystem = ItemManager.CreateInstance(targetingProduct) as EquippableItem;
-            targetingSystem.Rotation = targetingRotation;
-            if (!entity.TryEquip(targetingSystem, targetingPosition))
-                throw new InvalidLoadoutException("Failed to equip selected targeting system!");
+                item.Shape.FitsWithin(emptyShape, out _, out _));
+            if (targetingData == null)
+            {
+                ItemManager.Log("No targeting system available for armed entity; it will fire unaided.");
+            }
+            else
+            {
+                targetingData.Shape.FitsWithin(emptyShape, out var targetingRotation, out var targetingPosition);
+                var targetingSystem = ItemManager.CreateInstance(targetingProduct) as EquippableItem;
+                targetingSystem.Rotation = targetingRotation;
+                if (!entity.TryEquip(targetingSystem, targetingPosition))
+                    throw new InvalidLoadoutException("Failed to equip selected targeting system!");
+            }
         }
     }
 

@@ -147,7 +147,15 @@ public static class FireControl
 
         var settings = source.ItemManager.GameplaySettings;
         var info = source.EntityInfoGathered.TryGetValue(target, out var gathered) ? gathered : 0f;
-        var pSensor = saturate(unlerp(settings.TargetDetectionInfoThreshold, Resolution(source), info));
+        // Cut 6c, 6c.1 (operator ruling 2026-09-19): Resolution stays a benefit -- higher is better -- so the
+        // formula takes its reciprocal to derive the actual info ceiling instead of reading Resolution as
+        // that ceiling directly. Resolution 1 (the unaided fallback above) yields a ceiling of 1: needs
+        // complete information, the floor by construction. A higher Resolution pulls the ceiling down toward
+        // the detection threshold, needing less info before sensor state stops limiting hits. The max guards
+        // a zero or negative authored Resolution; no authored value should ever reach it.
+        var demandCeiling = settings.TargetDetectionInfoThreshold +
+            (1f - settings.TargetDetectionInfoThreshold) / max(Resolution(source), 1e-3f);
+        var pSensor = saturate(unlerp(settings.TargetDetectionInfoThreshold, demandCeiling, info));
 
         float pSpread;
         if (weapon.Spread > 0)
