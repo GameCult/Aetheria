@@ -99,9 +99,12 @@ public sealed class FireControlCut4Tests : IDisposable
         {
             Name = "Targeting", Hardpoint = HardpointType.Tool, Shape = new Shape(), Durability = 1,
             MinimumTemperature = -1000, MaximumTemperature = 1000, OptimalTemperature = 0, PlateauWidth = 2000,
+            // Cut 6d (docs/fire-control-cut.md): Precision now feeds pOnHull (the dart-throw kernel's sigma)
+            // for every shot, aimed or not -- 0 would balloon sigma and starve this fixture's rolls, which
+            // don't care about aim placement. See FireAuthorityTests.Build's own comment on this same change.
             Behaviors = { new TargetingSystemData
             {
-                Accuracy = Constant(1), Resolution = Constant(1), Precision = Constant(0), Tracking = Constant(1000)
+                Accuracy = Constant(1), Resolution = Constant(1), Precision = Constant(2), Tracking = Constant(1000)
             } }
         });
         // Powers the beam: with no Reactor, PowerBus grants nothing and ConstantWeapon.Execute safes itself

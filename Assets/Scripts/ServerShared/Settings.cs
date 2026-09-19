@@ -227,6 +227,18 @@ public class GameplaySettings
     // fire-time-projection deviation forgiveness is the first guess and the operator's knob, the same shape
     // as UnaidedAccuracy: authored deliberately bad, not authored broken.
     public float UnaidedTracking = 10f;
+    // Cut 6d (docs/fire-control-cut.md): the unaided fallback for Precision, alongside UnaidedAccuracy and
+    // UnaidedTracking above -- FireControl.Precision falls back to this the same way it already falls back to
+    // UnaidedAccuracy/UnaidedTracking. Precision is now a grouping tightness (FireControl.Sigma = 1/Precision,
+    // in hull-schematic cell units), not the old coin-flip probability, so the unaided floor has to be
+    // authored on that scale. .3 -> sigma 3.33 cells: against the live catalog's own hulls (LonginusX 6x17,
+    // Zenith 12x12, Turret 8x8) that puts pOnHull at the hull's own centre of mass around .5-.84 -- broadly
+    // sprayed across the whole silhouette (sigma is a large fraction of the hull's own width) while still
+    // landing on the ship more often than not. A tighter floor (e.g. .1, sigma 10) was tried first and
+    // rejected: it drove pOnHull for the same hulls down to .08-.18, reading as "can't hit the broad side of a
+    // barn" rather than "sprays the silhouette." First guess, the same deliberately-bad shape as its two
+    // siblings; the operator rules the real figure in play.
+    public float UnaidedPrecision = .3f;
     public float AgentRangeExponent = .25f;
     public float AgentForwardLerp = .5f;
     public float AgentMaxForwardDistance = 50;

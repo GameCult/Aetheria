@@ -113,7 +113,10 @@ public sealed class FireControlCut6Tests : IDisposable
             MinimumTemperature = -1000, MaximumTemperature = 1000, OptimalTemperature = 0, PlateauWidth = 2000,
             Behaviors = { new TargetingSystemData
             {
-                Accuracy = Constant(accuracy), Resolution = Constant(resolution), Precision = Constant(0), Tracking = Constant(tracking)
+                // Cut 6d (docs/fire-control-cut.md): Precision now feeds pOnHull (the dart-throw kernel's
+                // sigma) for every shot, aimed or not -- 0 would balloon sigma and starve this fixture's hit
+                // tests, none of which care about aim placement. See FireAuthorityTests.Build's own comment.
+                Accuracy = Constant(accuracy), Resolution = Constant(resolution), Precision = Constant(1), Tracking = Constant(tracking)
             } }
         });
         cache.FlushAsync().Wait();

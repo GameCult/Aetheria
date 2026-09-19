@@ -264,7 +264,11 @@ public sealed class TargetingSystemTests : IDisposable
         // handle stays open per test -- BuildTarget is not called twice).
         var bareShip = BuildObserver(items, target.Zone);
         Assert.Equal(settings.UnaidedAccuracy, FireControl.Accuracy(bareShip), 4);
-        Assert.Equal(0f, FireControl.Precision(bareShip), 4);
+        // Cut 6d (docs/fire-control-cut.md): Precision now falls back to UnaidedPrecision, the same shape as
+        // Accuracy/Tracking above -- it used to fall back to a bare 0, which was fine when Precision only fed
+        // the old coin-flip's aimed-item branch and meant nothing to a shot with no aim point. Now it derives
+        // every shot's sigma, aimed or not, so the unaided floor has to be an authored number, not a bare zero.
+        Assert.Equal(settings.UnaidedPrecision, FireControl.Precision(bareShip), 4);
         Assert.Equal(1f, FireControl.Resolution(bareShip), 4);
 
         // Bring it online to prove the fixture can actually supply its own stats...
@@ -278,7 +282,7 @@ public sealed class TargetingSystemTests : IDisposable
         equippedTargeting.UpdatePerformance();
         Assert.False(equippedTargeting.Active.Value);
         Assert.Equal(settings.UnaidedAccuracy, FireControl.Accuracy(target), 4);
-        Assert.Equal(0f, FireControl.Precision(target), 4);
+        Assert.Equal(settings.UnaidedPrecision, FireControl.Precision(target), 4);
         Assert.Equal(1f, FireControl.Resolution(target), 4);
 
         // Repair it, then disable it directly instead: same fallback.
@@ -288,7 +292,7 @@ public sealed class TargetingSystemTests : IDisposable
         equippedTargeting.Enabled.Value = false;
         Assert.False(equippedTargeting.Active.Value);
         Assert.Equal(settings.UnaidedAccuracy, FireControl.Accuracy(target), 4);
-        Assert.Equal(0f, FireControl.Precision(target), 4);
+        Assert.Equal(settings.UnaidedPrecision, FireControl.Precision(target), 4);
     }
 
     // The brownout ruling (docs/stats-and-power-cut.md) applies to Accuracy same as any other stat: a

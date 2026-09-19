@@ -205,11 +205,14 @@ check_mutation \
   "red"
 
 # --- ProbabilityFollowsInputs, variant 1/3: drop pSensor -- probability stops depending on detection info. ---
+# Cut 6d (docs/fire-control-cut.md) added a fourth factor, pOnHull, to this same return line -- the anchor
+# below tracks the current line so this still targets the pSensor drop specifically, not a byte-exact copy of
+# the pre-Cut-6d line, which no longer exists.
 check_mutation \
   "ProbabilityFollowsInputs (1/3): HitProbability must scale with pSensor, not drop it" \
   "$FIRE_CONTROL_CS" \
-  'return Accuracy(source) * pSensor * pSpread;' \
-  'return Accuracy(source) * pSpread;' \
+  'return Accuracy(source) * pSensor * pSpread * pOnHull;' \
+  'return Accuracy(source) * pSpread * pOnHull;' \
   "FireAuthorityTests.ProbabilityFollowsInputs" \
   "red"
 
@@ -296,13 +299,17 @@ check_mutation \
   "FireAuthorityTests.OutcomeIsSnapshotNotReread" \
   "red"
 
-# --- AimedHitLandsOnSelectedItem (R5's payoff): with Precision 1, a hit must land on the aimed item's own
-# cells, not a uniform-random hull cell. ---
+# --- AimedHitLandsOnSelectedItem (R5's payoff): with Precision authored extremely tight (Cut 6d: the test now
+# passes precision: 1000, a sigma a tiny fraction of one cell), a hit must land on the aimed item's own cell,
+# not the hull's centre of mass. Cut 6d deleted the coin-flip branch this mutation used to sabotage
+# (`random.NextFloat() < shot.Precision` picking between the aimed cell and a uniform-random one); the
+# equivalent sabotage under the dart-throw kernel is feeding Commit's aim-point resolver a null Aimed, so it
+# falls back to the centre-of-mass path unconditionally -- the same "aim is ignored" defect, on the new code. ---
 check_mutation \
-  "AimedHitLandsOnSelectedItem: the roll must respect Aimed, not always pick a uniform random hull cell" \
+  "AimedHitLandsOnSelectedItem: the kernel's aim point must respect Aimed, not fall back to centre of mass" \
   "$FIRE_CONTROL_CS" \
-  'if (aimedCells != null && aimedCells.Length > 0 && random.NextFloat() < shot.Precision)' \
-  'if (false)' \
+  'var (aimPoint, aimedCells) = ResolveAimPoint(shot.Target, hullData, shot.Aimed);' \
+  'var (aimPoint, aimedCells) = ResolveAimPoint(shot.Target, hullData, null);' \
   "FireAuthorityTests.AimedHitLandsOnSelectedItem" \
   "red"
 

@@ -29,8 +29,11 @@ public class TargetingSystemData : BehaviorData
     [Inspectable, JsonProperty("resolution"), Key(2), RuntimeInspectable]
     public PerformanceStat Resolution = new PerformanceStat();
 
-    // The chance a hit lands on the item actually aimed at (Entity.TargetItem) rather than a random cell.
-    // Consumed by Cut 3's roll.
+    // Cut 6d (docs/fire-control-cut.md): grouping tightness, not a probability. FireControl.Sigma derives a
+    // Gaussian kernel's sigma as 1/Precision, in hull-schematic cell units -- a higher number groups tighter
+    // around whatever is aimed at (Entity.TargetItem's cells, or the hull's own centre of mass unaimed).
+    // Consumed by Cut 3's roll (folded into HitProbability as pOnHull) and by Commit's cell draw, both through
+    // the one kernel function -- never re-derived separately.
     [Inspectable, JsonProperty("precision"), Key(3), RuntimeInspectable]
     public PerformanceStat Precision = new PerformanceStat();
 

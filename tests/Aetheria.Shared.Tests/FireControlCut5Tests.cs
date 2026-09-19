@@ -47,6 +47,9 @@ public sealed class FireControlCut5Tests : IDisposable
         SchematicCellSize = 1f,
         UnaidedAccuracy = .05f,
         UnaidedTracking = 10f,
+        // Cut 6d (docs/fire-control-cut.md): high enough that pOnHull saturates to 1 at this fixture's 5x5
+        // hull's own centre of mass -- see FireAuthorityTests.TestSettings' own comment on this same value.
+        UnaidedPrecision = 2f,
         AgentMinHitProbability = 0f,
         BeamResolveInterval = .1f
     };
@@ -77,7 +80,10 @@ public sealed class FireControlCut5Tests : IDisposable
         GameplaySettings settings,
         float damage = 10, float range = 1000, float minRange = 0, float velocity = 0,
         float spread = 0, float damageSpread = 0, float penetration = 0,
-        float accuracy = 1, float resolution = 1, float precision = 0, float tracking = 1000,
+        // Cut 6d (docs/fire-control-cut.md): Precision now feeds every shot's pOnHull (the dart-throw kernel's
+        // sigma), aimed or not -- see FireAuthorityTests.Build's own comment on this same default change. 0
+        // would balloon sigma and starve this fixture's hit tests, which don't care about aim placement.
+        float accuracy = 1, float resolution = 1, float precision = 1, float tracking = 1000,
         float targetRange = 100, bool equipTargeting = true, float hullDurability = 1000, float armor = 0,
         bool equipShield = false, float shieldCapacity = 1000,
         Action<ItemManager, Ship, Ship> beforeActivate = null)

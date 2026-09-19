@@ -44,6 +44,11 @@ public sealed class FireAuthorityTests : IDisposable
         CommitHorizon = .5f,
         SchematicCellSize = 1f,
         UnaidedAccuracy = .05f,
+        // Cut 6d (docs/fire-control-cut.md): high enough that pOnHull saturates to 1 at this fixture's 5x5
+        // hull's own centre of mass -- these tests pin the Accuracy cap and hit/miss timing, not the dart-
+        // throw kernel, so the unaided floor here is authored to stay out of their way, the same reason
+        // Spread is authored 0 in most of these fixtures to keep pSpread pinned at 1.
+        UnaidedPrecision = 2f,
         AgentMinHitProbability = 0f
     };
 
@@ -67,7 +72,13 @@ public sealed class FireAuthorityTests : IDisposable
         GameplaySettings settings,
         float damage = 10, float range = 1000, float minRange = 0, float velocity = 0,
         float spread = 0, float damageSpread = 0, float penetration = 0,
-        float accuracy = 1, float resolution = 1, float precision = 0, float tracking = 1000,
+        // Cut 6d (docs/fire-control-cut.md): Precision now feeds HitProbability's pOnHull for every shot, aimed
+        // or not (the dart-throw kernel's sigma), where it used to matter only for the coin-flip aimed-item
+        // branch this cut deletes. The old default of 0 -- harmless when Precision only gated that branch --
+        // would now flatten pOnHull to nearly nothing against this fixture's 5x5 hull (sigma = 1/Precision
+        // balloons), starving every test in this file that doesn't care about aim placement. 1 keeps pOnHull
+        // close to its ceiling for an unaimed shot at this hull's centre of mass without pinning it exactly.
+        float accuracy = 1, float resolution = 1, float precision = 1, float tracking = 1000,
         float targetRange = 100, bool equipTargeting = true, float hullDurability = 1000, float armor = 0,
         Action<ItemManager, Ship, Ship> beforeActivate = null)
     {
@@ -430,13 +441,15 @@ public sealed class FireAuthorityTests : IDisposable
         Assert.True(dealt < 100f); // nowhere near the inflated 99999 value -- the original 10 landed
     }
 
-    // R5's payoff: with Precision 1 and p 1, only the aimed item's durability falls.
-    // Mutation: the roll ignores Aimed and always picks a uniform random hull cell.
+    // R5's payoff: with Precision authored extremely tight (Cut 6d: a sigma a tiny fraction of one cell) and
+    // p 1, only the aimed item's durability falls -- the dart-throw kernel still converges on a deterministic
+    // single-cell pick when the group is that tight, so this stays a same-cell-every-time assertion rather
+    // than a statistical one. Mutation: the draw ignores Aimed and always picks a uniform random hull cell.
     [Fact]
     public void AimedHitLandsOnSelectedItem()
     {
         EquippableItem aimedGear = null;
-        var e = Build(TestSettings(), damage: 50, velocity: 0, accuracy: 1, resolution: 1, spread: 0, precision: 1, armor: 0,
+        var e = Build(TestSettings(), damage: 50, velocity: 0, accuracy: 1, resolution: 1, spread: 0, precision: 1000, armor: 0,
             beforeActivate: (items, shooter, target) =>
             {
                 // A second, distinct interior item on the target to aim at, equipped before Activate() (Entity.
