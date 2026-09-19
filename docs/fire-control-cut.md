@@ -1297,3 +1297,121 @@ Cut 2 ship code without data.
 - The report carries the full table — cut, mutation, died/survived, and for any
   survivor the fixture defect behind it.
 - `dotnet test` green, with the count.
+
+---
+
+## Cut 6d: where a hit lands is a dart throw, not a coin flip
+
+Date: 2026-09-19. Operator direction, 2026-09-19.
+
+### The defect
+
+`FireControl.Commit` places a hit like this:
+
+```csharp
+if (aimedCells != null && aimedCells.Length > 0 && random.NextFloat() < shot.Precision)
+    cell = aimedCells[random.NextInt(aimedCells.Length)];
+else
+    cell = coords[random.NextInt(coords.Length)];
+```
+
+`Precision` is a coin flip between *exactly on the aimed item* and *uniformly
+anywhere on the hull*. Aim at a stern thruster with Precision `.35` and the 65%
+of hits that miss it are spread evenly over the bow, the cockpit and everything
+else — no nearer the thruster than if the player had never aimed at all. There is
+no spatial term anywhere in it.
+
+This is the same shape as 5.1's Tracking cliff: a quantity that should be a
+gradient implemented as a binary, so the failure case is maximally wrong rather
+than slightly wrong.
+
+Operator, 2026-09-19: "I would presume that aiming for an item in the stern would
+still tend hit in that general area even if it misses the item. Like throwing a
+dart at the grid."
+
+### The rule
+
+One Gaussian kernel over the target's hull schematic, in cell units:
+
+- **Aim point.** The centroid of the aimed item's cells, or the hull's
+  `CenterOfMass` when nothing is aimed at. One path — the uniform-random branch
+  is deleted, not demoted.
+- **Sigma.** Derived from the frozen `shot.Precision`, higher Precision giving a
+  tighter group. Authored so that the unaided floor (`UnaidedPrecision`, joining
+  `UnaidedAccuracy` and `UnaidedTracking` in `GameplaySettings`) is a sigma wide
+  enough to read as spraying at the silhouette.
+- **Weights.** `w(cell) = exp(-d² / 2σ²)` for each occupied hull cell, `d` the
+  distance from the aim point.
+
+### The tradeoff, and why it cannot be a second miss stage
+
+Operator, 2026-09-19: "It would also mean that aiming can be a tradeoff; if
+you're not precise enough, you're better off aiming center mass than risking
+misses on a thin limb."
+
+That tradeoff only exists if a stray dart can miss the ship. An earlier draft of
+this section clamped a stray to the nearest occupied cell, which destroys it:
+aiming at a wingtip would cost nothing and merely redistribute damage inward.
+
+But resolving the stray as a *second* miss stage would break R3 — one roll
+decides damage — and make `HitProbability` a lie, since a shot could pass the
+roll and then fizzle on placement. So the off-hull mass is priced into the single
+roll instead:
+
+```
+pOnHull = Σ w(cell) / (2πσ²)
+```
+
+the share of the kernel's total mass that lands on metal.
+
+- `HitProbability` gains `pOnHull` as a factor. Aiming at a thin limb with a
+  loose group drops the number **on the HUD, before the trigger** — the tradeoff
+  is legible at decision time rather than discovered afterwards.
+- `Commit` draws the cell as a weighted pick over the same `w(cell)`. A hit
+  always lands on metal, because the chance of not landing on metal was already
+  charged at the roll.
+
+One kernel, computed by one function, used for both the probability and the
+placement. Cut 3's named risk was two functions answering "where will this shot
+go" and eventually disagreeing; this does not reintroduce it.
+
+`pOnHull` depends only on the aim point, the hull shape and the frozen
+`Precision`, so it folds into `PBase` at fire time and the freeze discipline
+(R10, Q6) is unchanged.
+
+### Consequences, named rather than discovered
+
+- **Every hit in the game moves**, not only aimed ones: unaimed fire becomes
+  "aim at the centre of mass with the worst sigma", so big central sections soak
+  more fire than extremities. That is the intended change, and it is a balance
+  change.
+- **A fat hull is inherently easier to hit than a needle**, for free.
+- **The two targeting products' authored `Precision` values (`.05-.2` and
+  `.35-.55`) become meaningless as written**, because they are probabilities and
+  this makes Precision a grouping tightness. They are re-authored in the same
+  pass as Cut 6c's reciprocal `Resolution`.
+- **Double-charging risk.** `HitProbability` already carries `pSpread`, which
+  penalises a small target against a wide weapon spread. `pOnHull` also
+  penalises small targets. Check whether the two charge the same thing twice
+  before authoring numbers; if they do, one of them owns it and the other goes.
+- **AI willingness shifts.** `Combat.cs` and `TurretController.cs` gate on
+  `AgentMinHitProbability` against this number, so NPCs will hold fire more than
+  they used to the moment `pOnHull` lands. That is a tuning pass, not a bug, but
+  it will show up in the first smoke and should not be mistaken for broken AI.
+
+### Verification
+
+- `AimingAtTheSternHitsTheStern`: with a mid-range Precision, hits aimed at a
+  stern item land in the stern half far more often than the bow half. Mutation:
+  restore the uniform-random branch. Must die. This is the assertion the shipped
+  coin flip would fail.
+- `ThinLimbCostsHitChance`: `HitProbability` against an aim point on a
+  single-cell extremity is strictly lower than against the centre of mass, at the
+  same Precision — and the gap widens as Precision falls. Mutation: drop
+  `pOnHull` from the probability. Must die.
+- `PlacementAndProbabilityShareOneKernel`: the empirical on-hull rate over many
+  seeded draws matches the `pOnHull` the probability reported, within tolerance.
+  Mutation: perturb sigma in one of the two call sites only. Must die — this is
+  the test that would catch the two functions drifting apart.
+- `EveryHitLandsOnMetal`: no committed hit ever resolves to an unoccupied cell,
+  across seeds and aim points including extremities.
