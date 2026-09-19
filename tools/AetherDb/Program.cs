@@ -32,8 +32,9 @@ public static class Program
             case "shield-migrate": return ShieldMigrate(args.Contains("apply"));
             case "brownout-migrate": return BrownoutMigrate(args.Contains("apply"));
             case "roles-migrate": return RolesMigrate(args.Contains("apply"));
+            case "firing-arc-migrate": return FiringArcMigrate(args.Contains("apply"));
             default:
-                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply]");
+                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply]");
                 return 1;
         }
     }
@@ -966,6 +967,62 @@ public static class Program
         // key, which the validating CultRecordRefs.Upsert extension does not support (see AetheriaStores.cs's own
         // Validate comment) -- so it calls the same validation directly, right before the identity-preserving
         // write, instead of writing raw and unvalidated the way this line used to.
+        foreach (var (document, _) in changed) CultRecordRefs.Validate(document);
+        db.Cache.Commit(batch =>
+        {
+            foreach (var (document, key) in changed) batch.Upsert(document.GetType(), document, key);
+        });
+        Console.WriteLine($"Landed {changed.Count} changed records in Aetheria.cc");
+        return 0;
+    }
+
+    // Cut 1 (docs/fire-control-cut.md, "Catalog" under Cut 1 / Q1): a turret hardpoint authors
+    // FiringArc: 360 -- no new type for what a number already says (R6 already gives every other hardpoint
+    // the GameplaySettings.FiringArc default via 0). Scoped to the Turret hull's own hardpoints, the only
+    // ones the cut names; other hulls' hardpoints are left at 0 (default arc) until a design pass says
+    // otherwise. Dry run unless passed "apply", same contract as ShieldMigrate/BrownoutMigrate.
+    private static int FiringArcMigrate(bool apply)
+    {
+        var db = AetherDb.Open(catalogWritable: apply);
+
+        var hulls = db.Cache.GetAll<HullData>().Where(h => h.Name == "Turret").ToArray();
+        if (hulls.Length == 0)
+        {
+            Console.WriteLine("No hull named \"Turret\" found.");
+            return 1;
+        }
+
+        Console.WriteLine($"{"hull",-16} {"hardpoint",-10} {"position",-10} {"was",5} {"now",5}");
+        var changed = new List<(object Document, CultRecordKey Key)>();
+        foreach (var hull in hulls)
+        {
+            var key = db.Cache.RefOf(hull).Key;
+            var touchedThisHull = false;
+            foreach (var hardpoint in hull.Hardpoints)
+            {
+                if (hardpoint.Type != HardpointType.Ballistic) continue;
+                var position = $"({hardpoint.Position.x},{hardpoint.Position.y})";
+                var was = hardpoint.FiringArc;
+                if (was >= 360f)
+                {
+                    Console.WriteLine($"{hull.Name,-16} {hardpoint.Type,-10} {position,-10} {was,5:0} {was,5:0}  (already authored, left alone)");
+                    continue;
+                }
+                hardpoint.FiringArc = 360f;
+                Console.WriteLine($"{hull.Name,-16} {hardpoint.Type,-10} {position,-10} {was,5:0} {360,5:0}");
+                touchedThisHull = true;
+            }
+            if (touchedThisHull) changed.Add((hull, key));
+        }
+
+        Console.WriteLine($"\n{changed.Count} hull records migrated");
+        if (changed.Count == 0) return 0;
+        if (!apply)
+        {
+            Console.WriteLine($"Dry run. Pass \"apply\" to land {changed.Count} changed records.");
+            return 0;
+        }
+
         foreach (var (document, _) in changed) CultRecordRefs.Validate(document);
         db.Cache.Commit(batch =>
         {

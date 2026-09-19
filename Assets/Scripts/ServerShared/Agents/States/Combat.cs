@@ -97,9 +97,7 @@ public class CombatState : BaseState
                 toTarget = normalize(predictedPosition - _agent.Ship.Position);
             }
             
-            var shouldFire = dot(
-                _agent.Ship.HardpointTransforms[_agent.Ship.Hardpoints[testWeapon.Item.Position.x, testWeapon.Item.Position.y]].direction,
-                toTarget) > .99f;
+            var shouldFire = FireControl.InArc(testWeapon.Item, toTarget);
             foreach (var weapon in _agent.Ship.WeaponGroups[selectedGroup].weapons)
             {
                 if (shouldFire)

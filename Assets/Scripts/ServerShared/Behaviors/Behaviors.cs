@@ -27,16 +27,8 @@ public abstract class Behavior
         {
             if(Item != null)
             {
-                var hardpoint = Entity.Hardpoints[Item.Position.x, Item.Position.y];
-                if (hardpoint != null && Entity.HardpointTransforms.ContainsKey(hardpoint))
-                {
-                    return normalize(Entity.HardpointTransforms[hardpoint].direction);
-                }
-                else
-                {
-                    var itemDirection = Entity.Direction.Rotate(Item.EquippableItem.Rotation);
-                    return float3(itemDirection.x, 0, itemDirection.y);
-                }
+                var itemDirection = Entity.Direction.Rotate(Item.EquippableItem.Rotation);
+                return float3(itemDirection.x, 0, itemDirection.y);
             }
 
             return float3(Entity.Direction.x, 0, Entity.Direction.y);
