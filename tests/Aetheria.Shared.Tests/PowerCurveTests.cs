@@ -295,6 +295,57 @@ public sealed class PowerCurveTests : IDisposable
         Assert.Contains(nameof(ThrusterData.EnergyUsage), error.Message);
     }
 
+    // --- F6 (docs/stats-and-power-cut.md, Soul pass 2026-09-19): the registry used to name only each consumer's
+    // --- top-level request field, so a PowerSupply term on a stat a request reads only indirectly -- here,
+    // --- Radiator.PowerRequest's own early-out gate on PumpedHeat, exactly the shape Soul reproduced against
+    // --- the shipped catalog's "OK Disperser" (SOUL_RadiatorRequestDependsOnItsOwnGrantAndOscillates) -- sailed
+    // --- straight through Upsert. PumpedHeat is now in PowerRequestFields, so this must be refused. ---
+    [Fact]
+    public void UpsertRefusesARadiatorWhosePumpedHeatCarriesAPowerSupplyTerm()
+    {
+        var badPumpedHeat = new PerformanceStat { Min = 1000, Max = 4000, Terms = { new StatTerm { Source = StatSource.PowerSupply, Exponent = 1 } } };
+        using var cache = AetheriaStores.Open(Catalog, catalogWritable: true);
+        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+
+        var error = Assert.Throws<InvalidOperationException>(() => cache.Upsert(new GearData
+        {
+            Name = "BadRadiator", Hardpoint = HardpointType.Tool, Shape = new Shape(), Durability = 10,
+            MinimumTemperature = 0, MaximumTemperature = 1000, OptimalTemperature = 280, PlateauWidth = 400,
+            Behaviors = { new RadiatorData
+            {
+                PumpedHeat = badPumpedHeat, WasteHeat = Constant(100), EnergyUsage = Constant(6),
+                Emissivity = Constant(.5f), ThermalMass = Constant(100), TemperatureFloor = 0
+            } }
+        }));
+        Assert.Contains("BadRadiator", error.Message);
+        Assert.Contains(nameof(RadiatorData.PumpedHeat), error.Message);
+    }
+
+    // --- The same hole on the other consumer the ruling names by field: Shield.PowerRequest calls RefreshReserve,
+    // --- which reads RefillDuration (or RestoreDuration while broken) to size the reserve's own fill rate -- a
+    // --- PowerSupply term there makes the reserve's own refill speed depend on how much of it was already
+    // --- granted, the same self-reference the rule exists to forbid. ---
+    [Fact]
+    public void UpsertRefusesAShieldWhoseRefillDurationCarriesAPowerSupplyTerm()
+    {
+        var badRefillDuration = new PerformanceStat { Min = 2, Max = 2, Terms = { new StatTerm { Source = StatSource.PowerSupply, Exponent = 1 } } };
+        using var cache = AetheriaStores.Open(Catalog, catalogWritable: true);
+        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+
+        var error = Assert.Throws<InvalidOperationException>(() => cache.Upsert(new GearData
+        {
+            Name = "BadShield", Hardpoint = HardpointType.Tool, Shape = new Shape(), Durability = 10,
+            MinimumTemperature = 0, MaximumTemperature = 1000, OptimalTemperature = 280, PlateauWidth = 400,
+            Behaviors = { new ShieldData
+            {
+                Efficiency = Constant(1), EnergyUsage = Constant(1), Capacity = Constant(100),
+                RefillDuration = badRefillDuration, RestoreDuration = Constant(5)
+            } }
+        }));
+        Assert.Contains("BadShield", error.Message);
+        Assert.Contains(nameof(ShieldData.RefillDuration), error.Message);
+    }
+
     // --- Cut 6 verification bullet 3: "the same refusal through a modifier chain, at equip time, naming both
     // --- items." Drain's own EnergyDraw declares no PowerSupply term (so Upsert/Open both accept it on its own),
     // --- but Booster's StatModifier targets it with a magnitude that DOES carry one -- the request would inherit
