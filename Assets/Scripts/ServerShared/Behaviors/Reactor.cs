@@ -34,7 +34,7 @@ public class ReactorData : BehaviorData
     }
 }
 
-public class Reactor : Behavior, IOrderedBehavior
+public class Reactor : Behavior
 {
     private ReactorData _data;
 
@@ -44,8 +44,9 @@ public class Reactor : Behavior, IOrderedBehavior
 
     public float CurrentLoadRatio { get; private set; }
 
-    public int Order => 100;
-
+    // Cut 5 (docs/stats-and-power-cut.md §1.3): IOrderedBehavior/Order (was 100, the highest, so Reactor always
+    // ran last) is deleted -- the bus now steps before any equipment's Execute regardless of order, and nothing
+    // else claimed IOrderedBehavior, so the whole interface goes with its only implementer (§7 O3).
     public Reactor(ReactorData data, EquippedItem item) : base(data, item)
     {
         _data = data;

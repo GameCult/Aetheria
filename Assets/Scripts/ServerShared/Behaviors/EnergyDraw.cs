@@ -45,6 +45,10 @@ public class EnergyDraw : Behavior, IPowerConsumer
     // direct Entity.TryConsumeEnergy spend that used to happen inside Execute.
     public float PowerRequest(float dt) => Evaluate(_data.EnergyDraw) * (_data.PerSecond ? dt : 1);
 
+    // Cut 5 (docs/stats-and-power-cut.md §1.3, PowerTiers.cs): Utility -- the generic/unclassified draw. An item
+    // that declares power use without asking for a specific tier should not accidentally outrank a named one.
+    public int DefaultPowerTier => PowerTiers.Utility;
+
     public override bool Execute(float dt)
     {
         // A consumable-hosted instance (Item null) has no PowerBus entry (§1.2's grants are keyed by

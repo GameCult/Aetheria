@@ -111,6 +111,9 @@ public class AetherDrive : Behavior, IPowerConsumer
         return (draw.x + draw.y + draw.z) * dt;
     }
 
+    // Cut 5 (docs/stats-and-power-cut.md §1.3, PowerTiers.cs): Medium -- mobility, same as Thruster.
+    public int DefaultPowerTier => PowerTiers.Medium;
+
     public override bool Execute(float dt)
     {
         var rotorSpeed = Rpm * _data.RotorDiameter / 100;
