@@ -587,9 +587,9 @@ public interface IStatContext
     // Progress through a consumable effect's duration, standing in for "condition" on a consumable the way heat
     // does for equipped gear. Only ConsumableItemEffect has one; every other context is the identity (1).
     float ConsumableProgressFactor(float exponent);
-    // Cut 6 (the power bus) wires this to a real brownout curve. Until then no catalog stat declares a
-    // PowerSupply term, and every context answers the identity so the enum member can exist now without a
-    // resolver to back it.
+    // Cut 6 (the power bus) wires this to the bus's grant ratio. F1 (docs/stats-and-power-cut.md, operator
+    // ruling 2026-09-19): this is not one of the terms blended into the Min/Max interpolation -- PerformanceStat
+    // applies it as a separate multiplier on the fully-resolved value, so zero supply always resolves to zero.
     float PowerSupplyFactor(float exponent);
     float ScaleModifier(PerformanceStat stat);
     float ConstantModifier(PerformanceStat stat);
@@ -643,11 +643,28 @@ public class PerformanceStat
     // this cut, because pow(x, 0) == 1 regardless of x. Callers keep their own NaN handling: an unequipped read
     // throws with diagnostic detail, an equipped or consumable read falls back to Min. That disagreement is not
     // named as a defect, so it is not touched here.
+    //
+    // F1 (docs/stats-and-power-cut.md, operator ruling 2026-09-19): PowerSupply is not folded into the
+    // interpolation factor with every other source. Heat, Durability and Quality all describe "how worn/hot/well
+    // made is this part" -- a part that is still there, just less good at its job, so blending toward Min is
+    // right for them. Power is not a degradation of the part; it is whether the part is receiving anything to
+    // work with at all, so it multiplies the fully-interpolated, fully-modified value instead: a PowerSupply term
+    // still lives in this stat's own Terms list (it is still authored per stat, still censused, still refused on
+    // a request stat by ValidateNoPowerSupplyOnRequest below), it is just applied as a separate multiplier rather
+    // than contributing to `factor`. Consequences named in the ruling: PowerSupply == 0 makes the whole
+    // expression 0 regardless of Min (pow(0, exponent) == 0 for any exponent > 0), and a Min == Max stat still
+    // responds to a PowerSupply term because the multiplier no longer has to move a degenerate interpolation.
     public float Evaluate(IStatContext context)
     {
         var factor = 1f;
+        var powerMultiplier = 1f;
         foreach (var term in Terms)
         {
+            if (term.Source == StatSource.PowerSupply)
+            {
+                powerMultiplier *= context.PowerSupplyFactor(term.Exponent);
+                continue;
+            }
             factor *= term.Source switch
             {
                 // F6 (docs/stats-and-power-cut.md Cut 2 Soul pass): nothing ever calls Resolver.InvalidateSource
@@ -662,11 +679,10 @@ public class PerformanceStat
                 StatSource.Heat => context.HeatFactor(term.Exponent),
                 StatSource.Durability => context.DurabilityFactor(term.Exponent),
                 StatSource.ConsumableProgress => context.ConsumableProgressFactor(term.Exponent),
-                StatSource.PowerSupply => context.PowerSupplyFactor(term.Exponent),
                 _ => throw new ArgumentOutOfRangeException(nameof(term.Source), term.Source, $"Unknown StatSource on {Min}-{Max} stat")
             };
         }
-        return lerp(Min, Max, factor) * context.ScaleModifier(this) + context.ConstantModifier(this);
+        return (lerp(Min, Max, factor) * context.ScaleModifier(this) + context.ConstantModifier(this)) * powerMultiplier;
     }
 }
 
