@@ -52,16 +52,25 @@ public class PowerBus
     // TierGrantRatio or the item's own PowerSupply for that.
     public float GrantRatio { get; private set; } = 1f;
 
+    // F3 (docs/stats-and-power-cut.md, Soul pass 2026-09-19): the sentinel AllocateTiers writes for a tier with no
+    // consumers equipped in it at all. Distinct from 1f -- an empty tier has not been "fully supplied," there was
+    // nothing to supply, and reporting it as 1f is exactly the fully-satisfied signal a UI is meant to read as
+    // "this tier is fine," on a ship that may be fully blacked out. A reader must treat NaN as "nothing to report
+    // here," not as satisfied or starved.
+    public const float NoDemand = float.NaN;
+
     // Cut 5: this tick's within-tier grant ratio, indexed by PowerTiers.Critical..Utility. 1f means that tier's
-    // demand was fully met (including a tier with no demand at all, per the array's own default-init); anything
-    // below 1f is exactly the "starved" state a future UI (Cut 8) reads instead of reconstructing it from
+    // demand was fully met; NoDemand (NaN) means the tier has no consumers at all (see NoDemand above); anything
+    // else below 1f is exactly the "starved" state a future UI (Cut 8) reads instead of reconstructing it from
     // per-item PowerSupply. A tier below a starved one is always 0f -- §1.3's "a tier boundary does not leak".
     public float[] TierGrantRatio { get; } = InitFullTiers();
 
+    // Before the bus has ever run a Step, there is no grant information at all yet -- not "fully supplied,"
+    // "nothing to report" (NoDemand), same as an empty tier reads once Step does run.
     private static float[] InitFullTiers()
     {
         var ratios = new float[PowerTiers.Count];
-        for (var i = 0; i < ratios.Length; i++) ratios[i] = 1f;
+        for (var i = 0; i < ratios.Length; i++) ratios[i] = NoDemand;
         return ratios;
     }
 
@@ -157,14 +166,28 @@ public class PowerBus
     private void AllocateTiers(List<Draw> draws)
     {
         var tierDemand = new float[PowerTiers.Count];
-        foreach (var draw in draws) tierDemand[draw.Tier] += draw.Request;
+        // F3 (docs/stats-and-power-cut.md, Soul pass 2026-09-19): demand alone cannot tell "no consumer is
+        // equipped in this tier" from "a real consumer is equipped here and its own request happens to be 0 (or
+        // effectively 0) this tick" -- both sum to the same tierDemand. Only the first is actually empty; the
+        // second still has an item reading this tier's ratio back as its own PowerSupply, and that item is owed
+        // a real answer (trivially 1: it asked for nothing, so nothing it could be short of), not NoDemand.
+        var tierHasConsumer = new bool[PowerTiers.Count];
+        foreach (var draw in draws) { tierDemand[draw.Tier] += draw.Request; tierHasConsumer[draw.Tier] = true; }
 
         var remaining = TotalGrant;
         var ratios = TierGrantRatio;
         for (var tier = 0; tier < PowerTiers.Count; tier++)
         {
+            // A tier with genuinely no consumers is not satisfied, it is empty: report NoDemand, not the "fully
+            // supplied" signal 1f. Nothing to subtract from `remaining` either way.
+            if (!tierHasConsumer[tier]) { ratios[tier] = NoDemand; continue; }
             var demand = tierDemand[tier];
-            if (demand <= 1e-4f) { ratios[tier] = 1f; continue; }
+            // This used to short-circuit ANY demand at or below 1e-4 the same way as a genuinely empty tier,
+            // which both reported a grant nobody made (an item reading ratio 1 while the ship generates nothing,
+            // down to Soul's own probe at 5e-5) and leaked that tier's unsubtracted share to every lower one. A
+            // consumer requesting truly nothing (demand <= 0f exactly) is trivially fully met; anything above
+            // that, however tiny, is rationed like any other tier.
+            if (demand <= 0f) { ratios[tier] = 1f; continue; }
             var grant = min(demand, remaining);
             ratios[tier] = saturate(grant / demand);
             remaining -= grant;
