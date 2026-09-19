@@ -290,9 +290,14 @@ public static class FireControl
 
     // R3/R4: the one roll. p_base was frozen at fire; the only thing measured live is how far the target has
     // actually strayed, by now, from where a straight-line projection of its fire-time velocity said it would
-    // be -- forgiven by the targeting system's Tracking, likewise frozen at fire. A shot gated to zero at fire
-    // (out of arc, out of range, unlocked, undetected) draws nothing here (short-circuit below): the RNG
-    // sequence is exactly as if the shot had never queued.
+    // be -- forgiven by the targeting system's Tracking, likewise frozen at fire.
+    //
+    // Cut 7: the short-circuit below (`p > 0f &&`) is a guard, NOT an invariant. It used to be one -- a shot
+    // gated to zero at fire had to draw nothing so the shared stream advanced exactly as if it had never
+    // queued -- but Cut 6b gave every shot its own generator, seeded from (zone, shot id) and discarded here,
+    // so whether a gated shot draws is unobservable from anywhere. The claim this comment used to make is
+    // gone with the stream it was about, and the test that asserted it became vacuous the same moment; what
+    // replaced it pins the live rule instead (combat touches no shared stream, on any path).
     private static ShotOutcome Commit(Zone zone, PendingShot shot, float now)
     {
         // Cut 6b, 6.1 (Soul finding 6): a shot's dice belong to the shot, not to whatever else happened to

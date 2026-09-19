@@ -114,10 +114,17 @@ public sealed class TargetingSystemTests : IDisposable
         var hull = new EquippableItem { Data = hullRef, Durability = 1, Lot = 1 };
         var target = new Ship(items, zone, hull, new EntitySettings());
 
-        var gunRef = items.ItemData.RefOf<ItemData>(items.ItemData.GetByName<GearData>("Gun"));
-        var gun = new EquippableItem { Data = gunRef, Durability = 1, Lot = 2 };
-        Assert.True(target.TryEquip(gun, new int2(0, 0)));
-        var weapon = target.Equipment.Single(e => e.EquippableItem == gun);
+        // Cut 7 (docs/fire-control-cut.md, 7.2): equipped in size-ascending, hardpoint-last order -- the
+        // opposite of IsRevealed's own ranking (hardpoint-mounted first, then size descending) -- so that
+        // dropping the explicit ranking in FireControl.IsRevealed is actually observable. Equipping in
+        // rank order let a "drop the ordering, rank by equipment order alone" mutation pass: Entity.Equipment
+        // already happened to enumerate in the correct final order by sheer coincidence of authoring order,
+        // so RevealOrder's own assertions never distinguished the ranked read from the raw one.
+        var narrowRef = items.ItemData.RefOf<ItemData>(items.ItemData.GetByName<GearData>("Narrow"));
+        var narrow = new EquippableItem { Data = narrowRef, Durability = 1, Lot = 4 };
+        Assert.True(target.TryFindSpace(narrow, out var narrowPos));
+        Assert.True(target.TryEquip(narrow, narrowPos));
+        var narrowItem = target.Equipment.Single(e => e.EquippableItem == narrow);
 
         var wideRef = items.ItemData.RefOf<ItemData>(items.ItemData.GetByName<GearData>("Wide"));
         var wide = new EquippableItem { Data = wideRef, Durability = 1, Lot = 3 };
@@ -125,11 +132,10 @@ public sealed class TargetingSystemTests : IDisposable
         Assert.True(target.TryEquip(wide, widePos));
         var wideItem = target.Equipment.Single(e => e.EquippableItem == wide);
 
-        var narrowRef = items.ItemData.RefOf<ItemData>(items.ItemData.GetByName<GearData>("Narrow"));
-        var narrow = new EquippableItem { Data = narrowRef, Durability = 1, Lot = 4 };
-        Assert.True(target.TryFindSpace(narrow, out var narrowPos));
-        Assert.True(target.TryEquip(narrow, narrowPos));
-        var narrowItem = target.Equipment.Single(e => e.EquippableItem == narrow);
+        var gunRef = items.ItemData.RefOf<ItemData>(items.ItemData.GetByName<GearData>("Gun"));
+        var gun = new EquippableItem { Data = gunRef, Durability = 1, Lot = 2 };
+        Assert.True(target.TryEquip(gun, new int2(0, 0)));
+        var weapon = target.Equipment.Single(e => e.EquippableItem == gun);
 
         EquippedItem targetingItem = null;
         if (targetingData != null)

@@ -256,15 +256,20 @@ public sealed class FireAuthorityTests : IDisposable
         Assert.Equal(unaided.Items.GameplaySettings.UnaidedAccuracy, FireControl.HitProbability(unaided.Weapon, unaided.Shooter, unaided.Target), 3);
     }
 
-    // The gate is a gate, not a penalty: an out-of-arc commit consumes exactly zero draws from the shared RNG
-    // stream. Mutation: roll first and multiply the result by zero -- that still advances the stream by one
-    // draw, which this test would catch by seeing a different next value than an untouched stream produces.
-    [Fact]
-    public void OutOfArcConsumesNoDraw()
+    // Cut 7 (docs/fire-control-cut.md): this was OutOfArcConsumesNoDraw, which asserted that a shot gated to
+    // zero left ItemManager.Random untouched. Cut 6b (6.1) moved the roll onto a per-shot local generator, so
+    // Commit stopped touching that stream on EVERY path and the old test passed for a reason that had nothing
+    // to do with arcs -- it would have passed just as well with the target dead ahead, and no mutation of the
+    // short-circuit it named could ever turn it red. Rewritten to pin the rule that is actually live: no
+    // combat path draws from the shared stream, in arc or out. Mutation: restore the shared-stream read in
+    // Commit; the in-arc case then goes red.
+    [Theory]
+    [InlineData(100f, 0f)]   // directly abeam: gated to zero, outside the default arc
+    [InlineData(0f, 100f)]   // dead ahead: a real firing solution that actually rolls
+    public void CombatNeverDrawsFromTheSharedStream(float x, float z)
     {
-        var e = Build(TestSettings());
-        // Directly abeam -- outside even the wide 170-degree default arc dead ahead.
-        e.Target.Position = float3(100, 0, 0);
+        var e = Build(TestSettings(), accuracy: 1, resolution: 1, spread: 0);
+        e.Target.Position = float3(x, 0, z);
 
         const uint seed = 4242u;
         var untouched = new Random(seed);
@@ -284,14 +289,22 @@ public sealed class FireAuthorityTests : IDisposable
     public void ShotResolvesOnArrival()
     {
         var e = Build(TestSettings(), damage: 100, velocity: 10, accuracy: 1, resolution: 1, spread: 0, targetRange: 50);
-        // range 50, velocity 10 -> flight time 5s, well past the .5s commit horizon.
+        // range 50, velocity 10 -> flight time 5s, commit at 4.5s (.5s horizon), arrival at 5s.
         FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
         var before = e.Target.Hull.Durability;
 
-        e.Zone.Update(4f); // still short of arrival (5s)
+        e.Zone.Update(4f); // still short of commit (4.5s)
         Assert.Equal(before, e.Target.Hull.Durability);
 
-        e.Zone.Update(2f); // now past arrival
+        // Cut 7 (docs/fire-control-cut.md, 7.2): an intermediate check between commit and arrival -- without
+        // it, jumping straight from before-commit to past-arrival lets "apply as soon as committed, not only
+        // once also arrived" (Step's arrival gate collapsed to just `if (shot.Committed)`) go unnoticed, since
+        // a single wide Zone.Update spanning both CommitTime and ArrivalTime crosses both thresholds in one
+        // call either way.
+        e.Zone.Update(.55f); // t=4.55: past commit (4.5s), still short of arrival (5s)
+        Assert.Equal(before, e.Target.Hull.Durability);
+
+        e.Zone.Update(1f); // now past arrival
         Assert.True(e.Target.Hull.Durability < before);
     }
 
