@@ -1,8 +1,12 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using static CultMath.math;
 
+// Cut 4 (docs/fire-control-cut.md): the SphereCast, shield branch and SendHit are deleted -- FireControl
+// already rolls this weapon's damage once per GameplaySettings.BeamResolveInterval (ConstantWeapon.Execute)
+// before this bolt is ever drawn (R8). What is left is pure endpoint presentation: fixed to the target's
+// current position when there is one, out to Range otherwise -- the same convention Lightning.cs (Cut 3)
+// uses for a discrete shot.
 public class ConstantLightning : MonoBehaviour
 {
     public LightningCompute Lightning;
@@ -11,14 +15,11 @@ public class ConstantLightning : MonoBehaviour
     public float StartWidth = 1;
     public float EndWidth = 1;
     public float FadeDuration;
-    
+
     public Transform Barrel { get; set; }
-    public float Damage { get; set; }
-    public float Penetration { get; set; }
-    public float Spread { get; set; }
-    public DamageType DamageType { get; set; }
     public EntityInstance Source { get; set; }
     public float Range { get; set; }
+    public Transform TargetTransform { get; set; }
 
     private bool _stopping;
     private float _startTime;
@@ -50,31 +51,10 @@ public class ConstantLightning : MonoBehaviour
             Lightning.EndWidth = EndWidth;
         }
         
-        Lightning.FixedEndpoint = false;
-        var hits = Physics.SphereCastAll(Barrel.position, HitRadius, Barrel.forward, Range, 1 | (1 << 17));
-        foreach (var hit in hits)
-        {
-            var shield = hit.collider.GetComponent<ShieldManager>();
-            if (shield && (shield.Entity.Shield != null && shield.Entity.Shield.Item.Active.Value && shield.Entity.Shield.CanTakeHit(DamageType, Damage)))
-            {
-                if (shield.Entity == Source.Entity) continue;
-                shield.Entity.Shield.TakeHit(DamageType, Damage * Time.deltaTime);
-                shield.ShowHit(hit.point, sqrt(Damage));
-            }
-            var hull = hit.collider.GetComponent<HullCollider>();
-            if (hull && !(hull.Entity.Shield != null && hull.Entity.Shield.Item.Active.Value && hull.Entity.Shield.CanTakeHit(DamageType, Damage)))
-            {
-                if (hull.Entity == Source.Entity) continue;
-                hull.SendHit(Damage * Time.deltaTime, Penetration, Spread, DamageType, Source.Entity, hit.textureCoord, Barrel.forward);
-            }
-
-            Lightning.FixedEndpoint = true;
-            Lightning.EndPosition = hit.point;
-            
-            break;
-        }
-        if(!Lightning.FixedEndpoint)
-            Lightning.EndPosition = Barrel.position + Barrel.forward * Range;
+        Lightning.FixedEndpoint = TargetTransform != null;
+        Lightning.EndPosition = TargetTransform != null
+            ? TargetTransform.position
+            : Barrel.position + Barrel.forward * Range;
 
         Lightning.StartPosition = Barrel.position;
     }

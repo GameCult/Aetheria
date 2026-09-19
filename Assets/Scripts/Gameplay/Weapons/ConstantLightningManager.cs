@@ -16,11 +16,10 @@ public class ConstantLightningManager : ConstantWeaponEffectManager
         var hp = source.Entity.Hardpoints[item.Position.x, item.Position.y];
         var barrel = source.GetBarrel(hp);
         p.Barrel = barrel;
-        p.Damage = item.Evaluate(data.Damage);
         p.Range = item.Evaluate(data.Range);
-        p.Penetration = item.Evaluate(data.Penetration);
-        p.Spread = item.Evaluate(data.DamageSpread);
-        p.DamageType = data.DamageType;
+        // Cut 4 (docs/fire-control-cut.md): FireControl already rolls this weapon's damage; the presentation
+        // only needs to know where to draw the bolt.
+        p.TargetTransform = target != null ? target.transform : null;
         _bolts.Add(item, p);
     }
 

@@ -4,19 +4,19 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 
+// Cut 4 (docs/fire-control-cut.md): the trigger-collider plumbing and SendSplash are deleted -- FireControl
+// already rolls this weapon's damage once per GameplaySettings.BeamResolveInterval (ConstantWeapon.Execute)
+// before these particles ever collide with anything (R8). What is left is pure visual emission; nothing here
+// decides or applies damage any more.
 public class ConstantParticleWeapon : MonoBehaviour
 {
     public ParticleSystem[] Particles;
-    
-    public float Damage { get; set; }
-    public DamageType DamageType { get; set; }
+
     public EntityInstance Source { get; set; }
     public EntityInstance Target { get; set; }
 
     private bool _stopping;
     private float _emission;
-    private List<ParticleSystem.Particle> _collisionParticles = new List<ParticleSystem.Particle>();
-    private HullCollider _hull;
 
     private void Start()
     {
@@ -38,18 +38,10 @@ public class ConstantParticleWeapon : MonoBehaviour
             main.simulationSpace = ParticleSystemSimulationSpace.Custom;
             main.customSimulationSpace = Source.LocalSpace;
         }
-        
+
         var trigger = Particles[0].trigger;
         while(trigger.colliderCount > 0)
             trigger.RemoveCollider(0);
-        
-        if (Target == null) return;
-        
-        foreach (var collider in Target.HullColliders)
-        {
-            _hull = collider;
-            trigger.AddCollider(collider.GetComponent<Collider>());
-        }
     }
 
     private void Update()
@@ -59,21 +51,6 @@ public class ConstantParticleWeapon : MonoBehaviour
         {
             GetComponent<Prototype>().ReturnToPool();
             return;
-        }
-    }
-
-    private void OnParticleTrigger()
-    {
-        if (Target == null || !_hull) return;
-        _collisionParticles.Clear();
-        Particles[0].GetTriggerParticles(ParticleSystemTriggerEventType.Enter, _collisionParticles);
-        if(_collisionParticles.Count > 0)
-        {
-            _hull.SendSplash(
-                Damage * Time.deltaTime,
-                DamageType,
-                Source.Entity,
-                (transform.position - Target.transform.position).normalized);
         }
     }
 

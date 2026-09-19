@@ -240,7 +240,13 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
             // Cut 3: this is fire authority's one entry point. FireControl.Fire freezes the payload snapshot
             // (Q6 -- the gun's own stats at this exact instant, base.Execute(dt) above already refreshed them
             // this tick) and queues a PendingShot; nothing downstream re-evaluates a stat.
-            OnFire?.Invoke(FireControl.Fire(this, Item, Entity));
+            // Cut 4 fix: FireControl.Fire must run whether or not anything is listening -- inlined into
+            // `OnFire?.Invoke(...)` it looked equivalent but was not. C#'s null-conditional short-circuits the
+            // whole expression, argument included, whenever OnFire has no subscriber (a headless run with no
+            // Unity EntityInstance wiring, docs/headless-playground-cut.md), so a shot silently never fired.
+            // Evaluate it into a local first.
+            var shotId = FireControl.Fire(this, Item, Entity);
+            OnFire?.Invoke(shotId);
             if(!firedThisFrame)
             {
                 Item.FireAudioEvent(WeaponAudioEvent.Fire);

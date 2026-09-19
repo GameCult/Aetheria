@@ -32,6 +32,9 @@ public class ConstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerC
     private float _ammoInterval;
     private float _reload;
     private bool _reloading;
+    // Cut 4 (docs/fire-control-cut.md): accumulates while firing; rolled off every time it reaches
+    // GameplaySettings.BeamResolveInterval, through FireControl.Fire/Step exactly like a discrete shot.
+    private float _beamTimer;
     
     public override int Ammo
     {
@@ -53,13 +56,18 @@ public class ConstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerC
     public event Action OnReloadComplete;
     public event Action OnStartFiring;
     public event Action OnStopFiring;
-    
+    // Cut 4 (docs/fire-control-cut.md): carries the ShotId each beam roll's FireControl.Fire assigned, the
+    // same handle InstantWeapon.OnFire gives discrete shots. No presentation binds to it yet -- kept for a
+    // future pass, same as Laser.ShotId.
+    public event Action<int> OnBeamShot;
+
     public void ResetEvents()
     {
         OnReloadBegin = null;
         OnReloadComplete = null;
         OnStartFiring = null;
         OnStopFiring = null;
+        OnBeamShot = null;
     }
 
     public ConstantWeapon(ConstantWeaponData data, EquippedItem item) : base(data, item)
@@ -152,6 +160,23 @@ public class ConstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerC
             CauseWearDamage(dt);
             AddHeat(Evaluate(_data.Heat) * dt);
             Entity.VisibilitySources[this] = Evaluate(_data.Visibility);
+
+            // Cut 4 (docs/fire-control-cut.md): a beam is a sequence of rolls, not a continuous truth -- one
+            // FireControl.Fire per BeamResolveInterval, for that interval's worth of Damage, through the same
+            // freeze-and-queue path a discrete shot uses (a beam's authored Velocity is 0, so the flight
+            // commits and resolves in this same tick, R4's short-flight degradation).
+            var interval = Entity.ItemManager.GameplaySettings.BeamResolveInterval;
+            _beamTimer += dt;
+            while (_beamTimer >= interval)
+            {
+                _beamTimer -= interval;
+                // FireControl.Fire must run whether or not anything is listening: `OnBeamShot?.Invoke(FireControl.Fire(...))`
+                // looks equivalent but is not -- C#'s null-conditional short-circuits the whole expression,
+                // argument included, when OnBeamShot has no subscriber (true today, R9's "no design uses it
+                // yet"), so the roll would silently never happen. Evaluate it into a local first.
+                var shotId = FireControl.Fire(this, Item, Entity, Damage * interval);
+                OnBeamShot?.Invoke(shotId);
+            }
         }
         return true;
     }

@@ -19,8 +19,7 @@ public class ConstantParticleWeaponManager : ConstantWeaponEffectManager
         t.SetParent(barrel);
         t.forward = barrel.forward;
         t.position = barrel.position;
-        p.Damage = item.Evaluate(data.Damage);
-        p.DamageType = data.DamageType;
+        // Cut 4 (docs/fire-control-cut.md): FireControl already rolls this weapon's damage.
         _weapons.Add(item, p);
         p.Initialize();
     }
