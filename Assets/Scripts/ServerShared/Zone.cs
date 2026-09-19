@@ -53,6 +53,12 @@ public class Zone
     public GalaxyZone GalaxyZone { get; }
     public Galaxy Galaxy { get; }
 
+    // Cut 6b (docs/fire-control-cut.md, 6.1, Soul finding 6): one zone, one stable identity -- a galaxy seed
+    // reproduces it, and nothing else in the zone (an NPC joining, a shop opening, a wormhole exit) can
+    // perturb it. FireControl.Commit builds its own local generator from this and the shot's own id instead
+    // of touching a shared stream.
+    public uint CombatSeed { get; }
+
     public Zone(ItemManager itemManager, PlanetSettings settings, ZonePack pack, GalaxyZone galaxyZone, Galaxy galaxy)
     {
         _time = pack.Time;
@@ -61,7 +67,8 @@ public class Zone
         Pack = pack;
         _itemManager = itemManager;
         Settings = settings;
-        _random = new Random(galaxyZone?.Name.StableHash() ?? 1337u);
+        CombatSeed = galaxyZone?.Name.StableHash() ?? 1337u;
+        _random = new Random(CombatSeed);
         var cache = itemManager.ItemData;
 
         // Cut 5, 5.6 (docs/fire-control-cut.md, Soul finding 7; operator ruling Q3): death removes the ship,

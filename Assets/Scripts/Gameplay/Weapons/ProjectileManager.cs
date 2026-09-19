@@ -1,8 +1,6 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using CultMath;
-using static CultMath.math;
 using Random = UnityEngine.Random;
 
 public class ProjectileManager : InstantWeaponEffectManager
@@ -29,7 +27,6 @@ public class ProjectileManager : InstantWeaponEffectManager
             p.Velocity += new Vector3(source.Entity.Velocity.x, 0, source.Entity.Velocity.y);
         p.Range = weapon.Range;
         p.Zone = source.Entity.Zone;
-        p.AirburstDistance = target != null ? length(source.Entity.Position - target.Entity.Position) : (weapon.Range * .75f);
         p.Trail.Clear();
     }
 }

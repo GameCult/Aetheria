@@ -195,6 +195,15 @@ public static class FireControl
         }
 
         var commitHorizon = source.ItemManager.GameplaySettings.CommitHorizon;
+
+        // Cut 6b, 6.2 (Soul finding 5): airburst is a property of the weapon, resolved and frozen here like
+        // every other payload field -- never decided later by a Unity projectile. A weapon without the
+        // Airburst flag freezes a zero radius, which Step below reads as "resolve this shot with Apply."
+        var weaponItemData = item.Data as WeaponItemData;
+        var isAirburst = weaponItemData != null && weaponItemData.WeaponModifiers.HasFlag(WeaponModifiers.Airburst);
+        var burstPosition = isAirburst && target != null ? PredictedIntercept(weapon, source, target) : targetPosition;
+        var burstRadius = isAirburst ? weaponItemData.AirburstRange : 0f;
+
         var shot = new PendingShot
         {
             ShotId = zone.NextShotId(),
@@ -214,6 +223,8 @@ public static class FireControl
             FireTargetVelocity = targetVelocity,
             ArrivalTime = now + flightTime,
             CommitTime = now + max(0f, flightTime - commitHorizon),
+            BurstPosition = burstPosition,
+            BurstRadius = burstRadius,
             Committed = false
         };
 
@@ -258,7 +269,11 @@ public static class FireControl
 
             if (shot.Committed && now >= shot.ArrivalTime)
             {
-                Apply(shot);
+                // Cut 6b, 6.2: an airburst shot (frozen BurstRadius > 0) resolves as an area effect instead of
+                // a discrete hit -- Splash instead of Apply, never both, which is exactly the double-
+                // application Soul was told to hunt for.
+                if (shot.BurstRadius > 0f) Splash(zone, shot.BurstPosition, shot.BurstRadius, shot.Damage, shot.DamageType);
+                else Apply(shot);
                 zone.ShotResolved.OnNext(shot.Outcome);
                 shots.RemoveAt(i);
             }
@@ -272,7 +287,14 @@ public static class FireControl
     // sequence is exactly as if the shot had never queued.
     private static ShotOutcome Commit(Zone zone, PendingShot shot, float now)
     {
-        var random = shot.Source.ItemManager.Random;
+        // Cut 6b, 6.1 (Soul finding 6): a shot's dice belong to the shot, not to whatever else happened to
+        // draw from the engine-wide shared generator first. A pure function of (zone identity, shot id) --
+        // the `| 1u` guards
+        // the degenerate zero seed -- so two runs of the same fight from the same galaxy seed roll identically
+        // no matter what the UI drew from the shared stream in between. This generator is local and dies with
+        // the call: nothing outside Commit may seed or advance a combat draw, and Commit may not read or write
+        // a shared stream.
+        var random = new Random((zone.CombatSeed * 2654435761u) ^ (uint) shot.ShotId | 1u);
         var p = shot.PBase;
         if (p > 0f && shot.Target != null)
         {
@@ -312,7 +334,6 @@ public static class FireControl
             else if (shieldActive) shieldBroken = true;
         }
 
-        shot.Source.ItemManager.Random = random;
         return MakeOutcome(shot, hit, shielded, shieldBroken, cell, aimed, now);
     }
 
@@ -435,6 +456,12 @@ public struct PendingShot
     public float PBase;
     public float Tracking;
     public float Precision;
+
+    // Cut 6b, 6.2: the airburst payload, frozen at fire alongside everything else above. BurstRadius is zero
+    // for a weapon without the Airburst flag (WeaponModifiers, Enums.cs) -- Step reads that zero as "resolve
+    // with Apply," not a separate bool.
+    public float3 BurstPosition;
+    public float BurstRadius;
 
     public float3 FireTargetPosition;
     public float3 FireTargetVelocity;

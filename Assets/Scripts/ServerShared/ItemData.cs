@@ -489,6 +489,13 @@ public class WeaponItemData : GearData
     
     [Inspectable, JsonProperty("modifiers"), Key(28)]
     public WeaponModifiers WeaponModifiers;
+
+    // Cut 6b (docs/fire-control-cut.md, 6.2): the authored blast radius an Airburst-flagged weapon's shot
+    // splashes with at arrival, frozen into PendingShot.BurstRadius at fire. Zero (and unread) for a weapon
+    // without the Airburst flag. No authored value exists yet -- the flag is wired and unexercised until Cut
+    // 6a or a later authoring pass sets it.
+    [Inspectable, JsonProperty("airburstRange"), Key(29)]
+    public float AirburstRange;
 }
 
 [CultDocument("aetheria.hulldata", "1"), Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]
