@@ -1354,6 +1354,14 @@ public class EquippedItem : IStatContext
             if (consumerTiers.Length > 0)
                 EquippableItem.PowerTier = consumerTiers.Min();
         }
+
+        // Cut 6 (docs/stats-and-power-cut.md): "the validator runs at catalog load, at Studio save, and at
+        // equip." AetheriaStores.Open/CultRecordRefs.Upsert already refuse this at catalog write time; re-running
+        // the same static check here is what closes the gap for the two named bypasses (CultCache Studio's
+        // generic editor, AetherDb's dangling-ref apply) rather than silently trusting that every catalog on disk
+        // went through Upsert. The modifier-chain half of the rule is dynamic (it depends on what is actually
+        // equipped alongside this item) and lives in StatModifier.Initialize instead.
+        StatValidation.ValidateNoPowerSupplyOnRequest(Data.Name, Data.Behaviors);
     }
 
     // Cut 2 (docs/stats-and-power-cut.md): the resolver owns the value; this is the caller's read of it, keyed by
@@ -1363,13 +1371,18 @@ public class EquippedItem : IStatContext
     public float HeatFactor(float exponent) => pow(ThermalPerformance, ThermalExponent * exponent);
     public float DurabilityFactor(float exponent) => pow(DurabilityPerformance, DurabilityExponent * exponent);
     public float ConsumableProgressFactor(float exponent) => 1f;
-    public float PowerSupplyFactor(float exponent) => 1f;
+    // Cut 6 (docs/stats-and-power-cut.md): the brownout curve. A stat with a PowerSupply term degrades as this
+    // tick's grant falls below 1 and is exactly unchanged at full supply (pow(1, exponent) == 1 regardless of
+    // exponent) -- the operator's "a continuous consumer that degrades instead of stopping." PowerBus writes
+    // PowerSupply below; the resolver invalidates this source once per tick from the same write (PowerBus.cs
+    // AllocateTiers), so this read is always this tick's own grant, never a stale one.
+    public float PowerSupplyFactor(float exponent) => pow(PowerSupply, exponent);
 
     // Cut 3 (docs/stats-and-power-cut.md §1.2): PowerBus's grant ratio for this item, in [0,1], from whichever
-    // tick last ran its Step. Display-only and (once Cut 6 wires StatSource.PowerSupply into the resolver)
-    // stat-source-only: the only other reader is the very IPowerConsumer behaviour that declared the request this
-    // reflects. Forbidden writers: nothing but PowerBus sets this. Defaults to 1 (fully supplied) for an item
-    // that draws no power, or before the bus has run once.
+    // tick last ran its Step. Display-only and, as of Cut 6, stat-source-only: the only other reader is the
+    // resolver, through PowerSupplyFactor above, on behalf of whichever IPowerConsumer behaviour declared a
+    // PowerSupply term. Forbidden writers: nothing but PowerBus sets this. Defaults to 1 (fully supplied) for an
+    // item that draws no power, or before the bus has run once.
     public float PowerSupply { get; internal set; } = 1f;
 
     // Cut 2: these used to read the catalog stat's own per-entity dictionary (the leak, §0.3). A modifier now
