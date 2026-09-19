@@ -15,12 +15,9 @@ public class HitscanManager : InstantWeaponEffectManager
         t.localPosition = Vector3.zero;
         // t.position = barrel.position;
         // t.forward = barrel.forward;
+        p.ShotId = shotId;
         p.Range = weapon.Range;
-        p.Damage = weapon.Damage;
-        p.Penetration = weapon.Penetration;
-        p.Spread = weapon.DamageSpread;
-        p.DamageType = weapon.WeaponData.DamageType;
-        p.Zone = source.Entity.Zone;
+        p.TargetTransform = target != null ? target.transform : null;
         p.Fire();
     }
 }
