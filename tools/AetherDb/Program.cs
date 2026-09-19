@@ -31,8 +31,9 @@ public static class Program
             case "settings-dump": return SettingsDump();
             case "shield-migrate": return ShieldMigrate(args.Contains("apply"));
             case "brownout-migrate": return BrownoutMigrate(args.Contains("apply"));
+            case "roles-migrate": return RolesMigrate(args.Contains("apply"));
             default:
-                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply]");
+                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply]");
                 return 1;
         }
     }
@@ -91,6 +92,29 @@ public static class Program
                 string.Join(", ", product.Roles.Select(r => $"{r.Role} {r.Mean:0.00}±{r.StandardDeviation:0.00}")));
         if (authored.Length == 0) Console.WriteLine("  none yet: add roles to a design, then set each product's means");
 
+        // Cut 7 (docs/stats-and-power-cut.md): "adding a role to a shipped design changes nothing for existing
+        // lots... but a newly minted lot from a product with no spread for that role rolls new ProductRole() --
+        // mean .5 ... The census is where that is caught, and the two must land together." A design's roles and
+        // a selling product's role spread can drift independently (a role added after the product was authored,
+        // or a product added after roles landed), so every sold, role-bearing design is checked against every
+        // product that actually sells it, not only the ones this run's roles-migrate happened to touch.
+        var roleGaps = 0;
+        foreach (var item in items.Where(i => i.Roles != null && i.Roles.Count > 0))
+        {
+            var design = db.Cache.RefOf(item).Key;
+            var sellers = products.Where(p => p.Design.Key.Equals(design)).ToArray();
+            foreach (var product in sellers)
+            {
+                var covered = new HashSet<string>((product.Roles ?? new List<ProductRole>()).Select(r => r.Role));
+                var missing = item.Roles.Select(r => r.Name).Where(r => !covered.Contains(r)).ToArray();
+                if (missing.Length == 0) continue;
+                roleGaps++;
+                Console.WriteLine($"  GAP: {product.Name} sells {item.Name} but authors no spread for: {string.Join(", ", missing)}" +
+                    " -- a newly minted lot rolls the ProductRole default (mean .5) for these, not this maker's own quality");
+            }
+        }
+        Console.WriteLine($"\n{roleGaps} (product, role) pairs where a sold, role-bearing design's product authors no matching spread");
+
         // Brand() picks the first (maker, design) product in record-key order; more than one means the choice is
         // arbitrary rather than authored, which the rule until segment bands exist forbids.
         var duplicateBrands = products
@@ -107,6 +131,287 @@ public static class Program
                 string.Join(", ", group.Select(p => p.Name)));
         }
         return 0;
+    }
+
+    // Cut 7 (docs/stats-and-power-cut.md): "products author quality, designs author roles." Zero designs
+    // declared a role and zero products authored role quality before this command; every field->role table below
+    // is the one place that content is decided, so the operator reviews a legible table instead of hand-picking
+    // through 51 catalog records. Field names are matched against the concrete behaviour Type they appear on, not
+    // by name alone, so "Range" on a launcher's guidance system and "Range" on a mining tool never collide.
+    //
+    // A stat is only worth pointing at a role if it actually varies with Quality *and* the value moves (Min !=
+    // Max) -- Cut 1's flat placeholder stats (min == max, a bare "Heat^1" term the migration used as a harmless
+    // non-empty Terms list) carry no observable role-vs-workmanship difference, so authoring a role there would
+    // be authoring fiction. Fields the maps below do not mention keep generic quality; the report says why.
+    private static readonly Dictionary<string, string> BallisticWeaponRoles = new Dictionary<string, string>
+    {
+        ["Damage"] = "barrel", ["Range"] = "barrel", ["Velocity"] = "barrel", ["Penetration"] = "barrel",
+        ["Cooldown"] = "feed mechanism", ["Spread"] = "feed mechanism", ["Heat"] = "feed mechanism",
+        ["Visibility"] = "feed mechanism", ["Energy"] = "feed mechanism",
+    };
+
+    private static readonly Dictionary<string, string> EnergyWeaponRoles = new Dictionary<string, string>
+    {
+        ["Damage"] = "focusing array", ["Range"] = "focusing array", ["Velocity"] = "focusing array",
+        ["Penetration"] = "focusing array",
+        ["Energy"] = "power coupling", ["Heat"] = "power coupling", ["ChargeTime"] = "power coupling",
+        ["ChargeEnergy"] = "power coupling", ["ChargeHeat"] = "power coupling", ["Cooldown"] = "power coupling",
+        ["Spread"] = "power coupling", ["Visibility"] = "power coupling",
+    };
+
+    private static readonly Dictionary<string, string> LauncherRoles = new Dictionary<string, string>
+    {
+        ["Damage"] = "warhead", ["Penetration"] = "warhead", ["DamageSpread"] = "warhead",
+        ["LockSpeed"] = "guidance system", ["SensorImpact"] = "guidance system", ["LockAngle"] = "guidance system",
+        ["DirectionImpact"] = "guidance system", ["Decay"] = "guidance system", ["Range"] = "guidance system",
+        ["Cooldown"] = "guidance system", ["Spread"] = "guidance system", ["Visibility"] = "guidance system",
+        ["Energy"] = "guidance system", ["Heat"] = "guidance system",
+        ["Thrust"] = "thruster", ["MissileVelocity"] = "thruster", ["Velocity"] = "thruster",
+    };
+
+    private static readonly Dictionary<string, string> RadiatorRoles = new Dictionary<string, string>
+    {
+        ["Emissivity"] = "fins", ["WasteHeat"] = "fins",
+        ["PumpedHeat"] = "pump", ["EnergyUsage"] = "pump",
+        ["ThermalMass"] = "reservoir",
+    };
+
+    private static readonly Dictionary<string, string> ReactorRoles = new Dictionary<string, string>
+    {
+        ["Charge"] = "core", ["Efficiency"] = "core",
+        ["OverloadEfficiency"] = "regulator", ["ThrottlingFactor"] = "regulator",
+    };
+
+    private static readonly Dictionary<string, string> SensorRoles = new Dictionary<string, string>
+    {
+        ["Sensitivity"] = "receiver",
+        ["PingBoost"] = "emitter", ["PingEnergy"] = "emitter", ["PingRange"] = "emitter",
+        ["PingVisibility"] = "emitter", ["PingCooldown"] = "emitter",
+    };
+
+    private static readonly Dictionary<string, string> ThrusterRoles = new Dictionary<string, string>
+    {
+        ["Thrust"] = "nozzle", ["Visibility"] = "nozzle",
+        ["Heat"] = "injector", ["EnergyUsage"] = "injector",
+    };
+
+    private static readonly Dictionary<string, string> AetherDriveRoles = new Dictionary<string, string>
+    {
+        ["MaximumRpm"] = "rotor", ["Torque"] = "rotor",
+        ["CouplingEfficiency"] = "coupling", ["PassiveCoupling"] = "coupling", ["EnergyDraw"] = "coupling",
+    };
+
+    private static readonly Dictionary<string, string> HullShipRoles = new Dictionary<string, string>
+    {
+        ["CrossSection"] = "plating",
+    };
+
+    // Tool designs are not a shared kind the way a laser or a radiator is -- each is its own bespoke gadget, so
+    // its role map is keyed by design name rather than by behaviour field, same as the census already treats
+    // "Tool" as a catch-all HardpointType. A design with no entry here carries no field with a natural role
+    // (Assembly Line, Deep Ore Extractor, Refinery, Shipyard, Surface Ore Extractor carry no PerformanceStat
+    // behaviour at all in the current catalog).
+    private static readonly Dictionary<string, Dictionary<string, string>> ToolRolesByDesign =
+        new Dictionary<string, Dictionary<string, string>>
+        {
+            ["Industrial Thermostatic Heater"] = new Dictionary<string, string>
+            {
+                ["EnergyDraw"] = "heating element", ["Heat"] = "heating element",
+            },
+            ["PotaT+-"] = new Dictionary<string, string>
+            {
+                ["Capacity"] = "storage cell", ["Efficiency"] = "converter",
+            },
+        };
+
+    private static string KindOf(EquippableItemData item) =>
+        item is HullData hull ? $"Hull/{hull.HullType}"
+        : item is DockingBayData ? "DockingBay"
+        : item is CargoBayData ? "CargoBay"
+        : item is WeaponItemData weapon ? $"Weapon/{weapon.HardpointType}"
+        : item.HardpointType.ToString();
+
+    // The field->role map for one design, or null when its kind carries no per-part behaviour stat at all
+    // (CargoBay, DockingBay, ControlModule, Hull/Station, Hull/Turret -- none of their behaviours read
+    // StatSource.Quality today, so there is no natural role to author and the report says so per design).
+    private static Dictionary<string, string> RoleMapFor(EquippableItemData item, string kind) => kind switch
+    {
+        "Weapon/Ballistic" => BallisticWeaponRoles,
+        "Weapon/Energy" => EnergyWeaponRoles,
+        "Weapon/Launcher" => LauncherRoles,
+        "Radiator" => RadiatorRoles,
+        "Reactor" => ReactorRoles,
+        "Sensors" => SensorRoles,
+        "Thruster" => ThrusterRoles,
+        "AetherDrive" => AetherDriveRoles,
+        _ when kind == "Hull/Ship" => HullShipRoles,
+        "Tool" => ToolRolesByDesign.TryGetValue(item.Name, out var byName) ? byName : null,
+        _ => null,
+    };
+
+    private sealed record RoleAuthoring(
+        EquippableItemData Item, string Kind, List<(string Behavior, string Field, string Role)> StatsAssigned,
+        List<string> RolesDeclared, string SkipReason);
+
+    // The content pass itself: declares roles on designs, points each design's own StatTerm.Role at the role that
+    // governs it, and authors matching ProductRole quality on every product that sells a now-rolegetting design.
+    // Dry run unless passed "apply", which alone opens the catalog writable; every record must derive cleanly or
+    // nothing is written, the same all-or-nothing contract ShieldMigrate and BrownoutMigrate already use. Prints
+    // the operator review table (grouped by item kind) either way.
+    private static int RolesMigrate(bool apply)
+    {
+        var db = AetherDb.Open(catalogWritable: apply);
+        var items = db.Cache.GetAll<EquippableItemData>().ToArray();
+        var products = db.Cache.GetAll<FactionProductData>().ToArray();
+        var changedDesigns = new List<(object Document, CultRecordKey Key)>();
+        var changedProducts = new List<(object Document, CultRecordKey Key)>();
+        var report = new List<RoleAuthoring>();
+
+        foreach (var item in items.OrderBy(i => KindOf(i)).ThenBy(i => i.Name, StringComparer.Ordinal))
+        {
+            var kind = KindOf(item);
+            var map = RoleMapFor(item, kind);
+            if (map == null)
+            {
+                report.Add(new RoleAuthoring(item, kind, new List<(string, string, string)>(), new List<string>(),
+                    "kind carries no behaviour reading StatSource.Quality; generic quality stays"));
+                continue;
+            }
+
+            var rolesUsed = new SortedSet<string>(StringComparer.Ordinal);
+            var assigned = new List<(string Behavior, string Field, string Role)>();
+            foreach (var behavior in item.Behaviors ?? new List<BehaviorData>())
+            {
+                if (behavior == null) continue;
+                foreach (var field in behavior.GetType().GetFields().Where(f => f.FieldType == typeof(PerformanceStat)))
+                {
+                    if (!(field.GetValue(behavior) is PerformanceStat stat) || stat.Terms == null) continue;
+                    if (stat.Min == stat.Max) continue; // flat: no observable role-vs-workmanship difference
+                    var qualityTerm = stat.Terms.FirstOrDefault(t => t.Source == StatSource.Quality);
+                    if (qualityTerm == null || !string.IsNullOrEmpty(qualityTerm.Role)) continue;
+                    if (!map.TryGetValue(field.Name, out var role)) continue;
+                    qualityTerm.Role = role;
+                    rolesUsed.Add(role);
+                    assigned.Add((behavior.GetType().Name, field.Name, role));
+                }
+            }
+
+            if (rolesUsed.Count == 0)
+            {
+                report.Add(new RoleAuthoring(item, kind, assigned, new List<string>(),
+                    "no quality-bearing, non-flat stat matched this kind's role map"));
+                continue;
+            }
+
+            item.Roles = rolesUsed.Select(r => new ItemRole { Name = r }).ToList();
+            report.Add(new RoleAuthoring(item, kind, assigned, item.Roles.Select(r => r.Name).ToList(), null));
+            changedDesigns.Add((item, db.Cache.RefOf(item).Key));
+        }
+
+        // Products author quality for every role their design now declares. A design's Roles may also include
+        // roles authored on an earlier pass (none exist yet, but the loop is idempotent either way): every sold
+        // product is checked against the full current Roles list, not just what changed this run.
+        var productAuthoring = new List<(FactionProductData Product, string Design, List<(string Role, float Mean, float Dev, string Basis)> Added)>();
+        var byDesign = items.ToDictionary(i => db.Cache.RefOf(i).Key, i => i);
+        foreach (var product in products.OrderBy(p => p.Name, StringComparer.Ordinal))
+        {
+            if (!byDesign.TryGetValue(product.Design.Key, out var design) || design.Roles == null || design.Roles.Count == 0)
+                continue;
+            var existing = new HashSet<string>((product.Roles ?? new List<ProductRole>()).Select(r => r.Role));
+            var added = new List<(string, float, float, string)>();
+            foreach (var role in design.Roles)
+            {
+                if (existing.Contains(role.Name)) continue;
+                var (mean, dev, basis) = AuthorProductRole(db, product, design.Name, role.Name);
+                product.Roles.Add(new ProductRole { Role = role.Name, Mean = mean, StandardDeviation = dev });
+                added.Add((role.Name, mean, dev, basis));
+            }
+            if (added.Count == 0) continue;
+            productAuthoring.Add((product, design.Name, added));
+            changedProducts.Add((product, db.Cache.RefOf(product).Key));
+        }
+
+        PrintRolesReport(report, productAuthoring);
+
+        var totalDesigns = report.Count(r => r.SkipReason == null);
+        var totalStats = report.Sum(r => r.StatsAssigned.Count);
+        Console.WriteLine($"\n{totalDesigns} designs authored roles ({report.Count - totalDesigns} left at generic quality), " +
+            $"{totalStats} stats pointed at a role, {changedProducts.Count} products authored role quality.");
+
+        if (changedDesigns.Count == 0 && changedProducts.Count == 0) return 0;
+        if (!apply)
+        {
+            Console.WriteLine($"\nDry run. Pass \"apply\" to land {changedDesigns.Count} design(s) and {changedProducts.Count} product(s).");
+            return 0;
+        }
+
+        db.Cache.Commit(batch =>
+        {
+            foreach (var (document, key) in changedDesigns) batch.Upsert(document.GetType(), document, key);
+            foreach (var (document, key) in changedProducts) batch.Upsert(document.GetType(), document, key);
+        });
+        Console.WriteLine($"Landed {changedDesigns.Count} design(s) and {changedProducts.Count} product(s) in Aetheria.cc");
+        return 0;
+    }
+
+    // A stable (process-independent) hash: string.GetHashCode() is randomized per process, which would make a dry
+    // run and the later "apply" run author different numbers for the same product. Deterministic FNV-1a instead.
+    private static uint StableHash(string s)
+    {
+        unchecked
+        {
+            var h = 2166136261u;
+            foreach (var c in s) { h ^= c; h *= 16777619u; }
+            return h;
+        }
+    }
+
+    // Alakrita's Arctica is the one product the lore already speaks for (docs/item-provenance-target.md: "Arctica
+    // is Alakrita branding, by the name I presume they're optimizing for heat efficiency"): its radiating fins get
+    // a real premium and tight quality control, everything else on it stays near the design-wide default. Every
+    // other product has no established brand identity yet, so its means and deviations are derived deterministically
+    // from (product name, role) -- reproducible across a dry run and the later apply, and varied enough that two
+    // products of one design will not coincide by construction -- and are named as generic in the report rather
+    // than presented as lore. The operator review (O7) is exactly where a real identity replaces a generic one.
+    private static (float Mean, float Dev, string Basis) AuthorProductRole(AetherDb db, FactionProductData product, string designName, string role)
+    {
+        var maker = db.Cache.Get(product.Manufacturer)?.Name;
+        if (designName == "Arctica" && maker == "Alakrita" && role == "fins")
+            return (.78f, .07f, "lore: Alakrita brands on heat efficiency (item-provenance-target.md)");
+
+        var hash = StableHash($"{product.Name}|{role}");
+        var mean = .45f + (hash % 1000) / 1000f * .3f; // [.45, .75)
+        var dev = .08f + (hash / 1000 % 1000) / 1000f * .1f; // [.08, .18)
+        return (mean, dev, "generic: no established brand identity, needs operator review");
+    }
+
+    private static void PrintRolesReport(List<RoleAuthoring> report,
+        List<(FactionProductData Product, string Design, List<(string Role, float Mean, float Dev, string Basis)> Added)> productAuthoring)
+    {
+        Console.WriteLine("=== Cut 7: roles authored, by item kind ===");
+        foreach (var kindGroup in report.GroupBy(r => r.Kind).OrderBy(g => g.Key, StringComparer.Ordinal))
+        {
+            Console.WriteLine($"\n-- {kindGroup.Key} --");
+            foreach (var r in kindGroup.OrderBy(r => r.Item.Name, StringComparer.Ordinal))
+            {
+                if (r.SkipReason != null)
+                {
+                    Console.WriteLine($"  {r.Item.Name,-28} (none)  -- {r.SkipReason}");
+                    continue;
+                }
+                Console.WriteLine($"  {r.Item.Name,-28} roles: {string.Join(", ", r.RolesDeclared)}");
+                foreach (var (behavior, field, role) in r.StatsAssigned)
+                    Console.WriteLine($"      {behavior}.{field,-18} -> {role}");
+            }
+        }
+
+        Console.WriteLine("\n=== Cut 7: product role quality authored ===");
+        foreach (var (product, design, added) in productAuthoring.OrderBy(p => p.Product.Name, StringComparer.Ordinal))
+        {
+            Console.WriteLine($"  {product.Name,-28} ({design})");
+            foreach (var (role, mean, dev, basis) in added)
+                Console.WriteLine($"      {role,-18} mean {mean:0.00} dev {dev:0.00}  {basis}");
+        }
     }
 
     private static HashSet<GameCult.Caching.CultRecordKey> SoldDesigns(IEnumerable<FactionProductData> products) =>
