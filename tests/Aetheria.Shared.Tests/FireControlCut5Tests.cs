@@ -362,12 +362,21 @@ public sealed class FireControlCut5Tests : IDisposable
         e.Weapon.Activate();
         Assert.True(e.Weapon.Firing); // Activate() sets _firing unconditionally, same as InstantWeapon.Trigger
 
+        // Cut 5b (5b.1): pin PowerRequest's own arc term here, before Execute ever runs. _firing is still true
+        // and StanceAllowsFire is true, so ArcAllowsFire is the only thing this call can be testing -- asking
+        // only after Zone.Update (below) would be vacuous, because Execute's own gate already drives _firing
+        // to false first, and PowerRequest short-circuits on _firing regardless of what ArcAllowsFire mutates
+        // to. Without this line, a mutation that drops ArcAllowsFire from PowerRequest alone was a survivor:
+        // Execute's separate, correct gate still zeroed Firing and resolvedCount by the time the old
+        // post-Update PowerRequest assertion ran, so that assertion was trivially satisfied either way.
+        Assert.Equal(0f, e.Weapon.PowerRequest(.1f));
+
         var resolvedCount = 0;
         e.Zone.ShotResolved.Subscribe(_ => resolvedCount++);
-        e.Zone.Update(.1f); // ConstantWeapon.Execute runs -- the arc gate should safe it off on this tick
+        e.Zone.Update(.1f); // ConstantWeapon.Execute runs -- its own arc gate should safe it off on this tick
 
         Assert.False(e.Weapon.Firing);
-        Assert.Equal(0f, e.Weapon.PowerRequest(.1f));
+        Assert.Equal(0f, e.Weapon.PowerRequest(.1f)); // trivially 0 now (_firing is false) -- kept as a sanity check
         Assert.Equal(0, resolvedCount);
     }
 
