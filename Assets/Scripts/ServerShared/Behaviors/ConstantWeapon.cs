@@ -75,7 +75,12 @@ public class ConstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerC
     // Cut 3 (docs/stats-and-power-cut.md): the request the bus needs before Execute runs -- what continuing to
     // fire this tick would cost, or nothing when not firing or safed. _firing is set externally (Activate/
     // Deactivate) before Entity.Update calls PowerBus.Step, so it is already current when this runs.
-    public float PowerRequest(float dt) => _firing && StanceAllowsFire ? Evaluate(_data.Energy) * dt : 0f;
+    //
+    // Nominal-request ruling (docs/stats-and-power-cut.md, operator ruling 2026-09-19): Energy is a registered
+    // request field (StatValidation.PowerRequestFields) -- read nominally, same reasoning as every other
+    // IPowerConsumer in this cut. Damage (the field Cut 7 curves) is a separate stat base.Execute reads with the
+    // real Evaluate.
+    public float PowerRequest(float dt) => _firing && StanceAllowsFire ? EvaluateNominalPower(_data.Energy) * dt : 0f;
 
     // Cut 5 (docs/stats-and-power-cut.md §1.3, PowerTiers.cs): Low -- offense, same as InstantWeapon.
     public int DefaultPowerTier => PowerTiers.Low;

@@ -9,9 +9,20 @@ using Xunit;
 // Cut 6 (docs/stats-and-power-cut.md): "the power-supply term and the request-independence rule." Purely
 // additive -- StatSource.PowerSupply already existed as an identity everywhere (Cut 2), and the bus already wrote
 // EquippedItem.PowerSupply (Cut 3/5). This file pins the two things Cut 6 actually adds: a stat that declares a
-// PowerSupply term now really degrades as the grant falls, and a stat that decides a power request can never read
-// that same term back, directly or through a modifier chain. Each rule has a matching mutation in
+// PowerSupply term now really degrades as the grant falls, and a stat that decides a power request can never
+// have its OWN evaluation depend on that same term. Each rule has a matching mutation in
 // tests/mutation_tests_stats_power_cut6.py.
+//
+// Nominal-request ruling (docs/stats-and-power-cut.md, operator ruling 2026-09-19) narrowed the second half: a
+// PowerRequest implementation now reads a request field through EquippedItem.EvaluateNominalPower (Entity.cs),
+// which pins that stat's own PowerSupplyFactor to 1 -- so a direct PowerSupply term on a request field can no
+// longer make the request depend on its own answer, and StatValidation.ValidateNoPowerSupplyOnRequest (the
+// static check that used to refuse it) is deleted; the "OpenAccepts.../UpsertAccepts..." tests below pin that.
+// What EvaluateNominalPower does NOT pin is ScaleModifier/ConstantModifier (forwarded to the item's real,
+// non-nominal resolver entries, same as ConditionRatio's own NominalContext) -- a modifier CHAIN that reaches a
+// power-tainted magnitude stat still corrupts a nominal read too, and that half
+// (StatModifier.ValidateNoPowerSupplyChain) is unchanged; ActivateRefusesAModifierChainThatWouldCorruptAPowerRequest
+// below still pins it.
 public sealed class PowerCurveTests : IDisposable
 {
     private readonly string _root = Path.Combine(Path.GetTempPath(), "aetheria-powercurve-" + Guid.NewGuid().ToString("N"));
@@ -249,101 +260,101 @@ public sealed class PowerCurveTests : IDisposable
         Assert.Equal(2, context.PowerSupplyFactorCalls); // exactly one more -- not zero, not three again
     }
 
-    // --- Cut 6 verification bullet 2: "a catalog holding a thruster whose EnergyUsage carries a PowerSupply term
-    // --- is refused at load, naming the item and the stat." Written through the raw UpsertAsync (bypassing
-    // --- CultRecordRefs.Upsert's own validation, AetheriaStoresTests.WeaponWrittenThroughGearHandleReloadsAsWeapon's
-    // --- own pattern for reaching disk with something Upsert would refuse) so this pins AetheriaStores.Open's own
-    // --- half of the rule, not Upsert's. ---
+    // --- Nominal-request ruling (docs/stats-and-power-cut.md, operator ruling 2026-09-19), superseding Cut 6
+    // --- verification bullet 2: a request field's own Terms naming PowerSupply directly used to be refused here
+    // --- (StatValidation.ValidateNoPowerSupplyOnRequest, now deleted). PowerRequest now reads every
+    // --- PowerRequestFields stat through EquippedItem.EvaluateNominalPower, which pins that stat's own
+    // --- PowerSupplyFactor to 1 regardless of its Terms, so the request can no longer depend on its own answer
+    // --- -- a direct term on a request field is legal again, and Open must accept it (round-tripping through the
+    // --- raw UpsertAsync, bypassing CultRecordRefs.Upsert's own validation, the same reach-disk pattern the
+    // --- refusal version of this test used). ---
     [Fact]
-    public void OpenRefusesAThrusterWhoseEnergyUsageCarriesAPowerSupplyTerm()
+    public void OpenAcceptsAThrusterWhoseEnergyUsageCarriesAPowerSupplyTerm()
     {
-        var badEnergy = new PerformanceStat { Min = 1, Max = 1, Terms = { new StatTerm { Source = StatSource.PowerSupply, Exponent = 1 } } };
+        var goodEnergy = new PerformanceStat { Min = 1, Max = 1, Terms = { new StatTerm { Source = StatSource.PowerSupply, Exponent = 1 } } };
         using (var cache = AetheriaStores.Open(Catalog, catalogWritable: true))
         {
             cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
             cache.UpsertAsync(new GearData
             {
-                Name = "BadThruster", Hardpoint = HardpointType.Tool, Shape = new Shape(), Durability = 10,
+                Name = "CurvedThruster", Hardpoint = HardpointType.Tool, Shape = new Shape(), Durability = 10,
                 MinimumTemperature = 0, MaximumTemperature = 1000, OptimalTemperature = 280, PlateauWidth = 400,
-                Behaviors = { new ThrusterData { EnergyUsage = badEnergy } }
+                Behaviors = { new ThrusterData { EnergyUsage = goodEnergy } }
             }).Wait();
             cache.FlushAsync().Wait();
         }
 
-        var error = Assert.Throws<InvalidOperationException>(() => AetheriaStores.Open(Catalog));
-        Assert.Contains("BadThruster", error.Message);
-        Assert.Contains(nameof(ThrusterData), error.Message);
-        Assert.Contains(nameof(ThrusterData.EnergyUsage), error.Message);
+        using var reopened = AetheriaStores.Open(Catalog);
+        Assert.NotNull(reopened.GetByName<GearData>("CurvedThruster"));
     }
 
-    // The same rule at Upsert (the write path every tool, test and migration script actually goes through), so a
-    // bad record is refused before it ever reaches disk -- not just the next time someone reopens the catalog.
+    // The same acceptance at Upsert (the write path every tool, test and migration script actually goes through).
     [Fact]
-    public void UpsertRefusesAThrusterWhoseEnergyUsageCarriesAPowerSupplyTerm()
+    public void UpsertAcceptsAThrusterWhoseEnergyUsageCarriesAPowerSupplyTerm()
     {
-        var badEnergy = new PerformanceStat { Min = 1, Max = 1, Terms = { new StatTerm { Source = StatSource.PowerSupply, Exponent = 1 } } };
+        var goodEnergy = new PerformanceStat { Min = 1, Max = 1, Terms = { new StatTerm { Source = StatSource.PowerSupply, Exponent = 1 } } };
         using var cache = AetheriaStores.Open(Catalog, catalogWritable: true);
         cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
 
-        var error = Assert.Throws<InvalidOperationException>(() => cache.Upsert(new GearData
+        cache.Upsert(new GearData
         {
-            Name = "BadThruster", Hardpoint = HardpointType.Tool, Shape = new Shape(), Durability = 10,
+            Name = "CurvedThruster", Hardpoint = HardpointType.Tool, Shape = new Shape(), Durability = 10,
             MinimumTemperature = 0, MaximumTemperature = 1000, OptimalTemperature = 280, PlateauWidth = 400,
-            Behaviors = { new ThrusterData { EnergyUsage = badEnergy } }
-        }));
-        Assert.Contains("BadThruster", error.Message);
-        Assert.Contains(nameof(ThrusterData.EnergyUsage), error.Message);
+            Behaviors = { new ThrusterData { EnergyUsage = goodEnergy } }
+        });
+        Assert.NotNull(cache.GetByName<GearData>("CurvedThruster"));
     }
 
-    // --- F6 (docs/stats-and-power-cut.md, Soul pass 2026-09-19): the registry used to name only each consumer's
-    // --- top-level request field, so a PowerSupply term on a stat a request reads only indirectly -- here,
-    // --- Radiator.PowerRequest's own early-out gate on PumpedHeat, exactly the shape Soul reproduced against
-    // --- the shipped catalog's "OK Disperser" (SOUL_RadiatorRequestDependsOnItsOwnGrantAndOscillates) -- sailed
-    // --- straight through Upsert. PumpedHeat is now in PowerRequestFields, so this must be refused. ---
+    // --- F6 (docs/stats-and-power-cut.md, Soul pass 2026-09-19) named PumpedHeat as a Radiator request field
+    // --- (PowerRequest's own early-out gate reads it, the exact shape Soul reproduced against the shipped
+    // --- catalog's "OK Disperser": SOUL_RadiatorRequestDependsOnItsOwnGrantAndOscillates) and, at the time,
+    // --- refused a PowerSupply term there for exactly that reason. The nominal-request ruling above is what
+    // --- actually fixes the oscillation (the request no longer reads the live grant at all), so this shape is
+    // --- accepted now -- the six shipped records this ruling exists to make legal again include exactly this
+    // --- one (RadiatorData.PumpedHeat). BrownoutTests' own RunRadiator fixture exercises the resulting behaviour
+    // --- end to end; this pins acceptance at the catalog-write boundary. ---
     [Fact]
-    public void UpsertRefusesARadiatorWhosePumpedHeatCarriesAPowerSupplyTerm()
+    public void UpsertAcceptsARadiatorWhosePumpedHeatCarriesAPowerSupplyTerm()
     {
-        var badPumpedHeat = new PerformanceStat { Min = 1000, Max = 4000, Terms = { new StatTerm { Source = StatSource.PowerSupply, Exponent = 1 } } };
+        var curvedPumpedHeat = new PerformanceStat { Min = 1000, Max = 4000, Terms = { new StatTerm { Source = StatSource.PowerSupply, Exponent = 1 } } };
         using var cache = AetheriaStores.Open(Catalog, catalogWritable: true);
         cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
 
-        var error = Assert.Throws<InvalidOperationException>(() => cache.Upsert(new GearData
+        cache.Upsert(new GearData
         {
-            Name = "BadRadiator", Hardpoint = HardpointType.Tool, Shape = new Shape(), Durability = 10,
+            Name = "CurvedRadiator", Hardpoint = HardpointType.Tool, Shape = new Shape(), Durability = 10,
             MinimumTemperature = 0, MaximumTemperature = 1000, OptimalTemperature = 280, PlateauWidth = 400,
             Behaviors = { new RadiatorData
             {
-                PumpedHeat = badPumpedHeat, WasteHeat = Constant(100), EnergyUsage = Constant(6),
+                PumpedHeat = curvedPumpedHeat, WasteHeat = Constant(100), EnergyUsage = Constant(6),
                 Emissivity = Constant(.5f), ThermalMass = Constant(100), TemperatureFloor = 0
             } }
-        }));
-        Assert.Contains("BadRadiator", error.Message);
-        Assert.Contains(nameof(RadiatorData.PumpedHeat), error.Message);
+        });
+        Assert.NotNull(cache.GetByName<GearData>("CurvedRadiator"));
     }
 
-    // --- The same hole on the other consumer the ruling names by field: Shield.PowerRequest calls RefreshReserve,
-    // --- which reads RefillDuration (or RestoreDuration while broken) to size the reserve's own fill rate -- a
-    // --- PowerSupply term there makes the reserve's own refill speed depend on how much of it was already
-    // --- granted, the same self-reference the rule exists to forbid. ---
+    // --- The same acceptance on the other consumer the original refusal named by field: Shield.PowerRequest
+    // --- calls RefreshReserve, which reads RefillDuration (or RestoreDuration while broken) to size the
+    // --- reserve's own fill rate -- now read through EvaluateNominalPower, so a PowerSupply term there no
+    // --- longer makes the reserve's own refill speed depend on how much of it was already granted. ---
     [Fact]
-    public void UpsertRefusesAShieldWhoseRefillDurationCarriesAPowerSupplyTerm()
+    public void UpsertAcceptsAShieldWhoseRefillDurationCarriesAPowerSupplyTerm()
     {
-        var badRefillDuration = new PerformanceStat { Min = 2, Max = 2, Terms = { new StatTerm { Source = StatSource.PowerSupply, Exponent = 1 } } };
+        var curvedRefillDuration = new PerformanceStat { Min = 2, Max = 2, Terms = { new StatTerm { Source = StatSource.PowerSupply, Exponent = 1 } } };
         using var cache = AetheriaStores.Open(Catalog, catalogWritable: true);
         cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
 
-        var error = Assert.Throws<InvalidOperationException>(() => cache.Upsert(new GearData
+        cache.Upsert(new GearData
         {
-            Name = "BadShield", Hardpoint = HardpointType.Tool, Shape = new Shape(), Durability = 10,
+            Name = "CurvedShield", Hardpoint = HardpointType.Tool, Shape = new Shape(), Durability = 10,
             MinimumTemperature = 0, MaximumTemperature = 1000, OptimalTemperature = 280, PlateauWidth = 400,
             Behaviors = { new ShieldData
             {
                 Efficiency = Constant(1), EnergyUsage = Constant(1), Capacity = Constant(100),
-                RefillDuration = badRefillDuration, RestoreDuration = Constant(5)
+                RefillDuration = curvedRefillDuration, RestoreDuration = Constant(5)
             } }
-        }));
-        Assert.Contains("BadShield", error.Message);
-        Assert.Contains(nameof(ShieldData.RefillDuration), error.Message);
+        });
+        Assert.NotNull(cache.GetByName<GearData>("CurvedShield"));
     }
 
     // --- Cut 6 verification bullet 3: "the same refusal through a modifier chain, at equip time, naming both

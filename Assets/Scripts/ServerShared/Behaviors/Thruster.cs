@@ -80,7 +80,12 @@ public class Thruster : Behavior, IAnalogBehavior, IPowerConsumer
     // Cut 3 (docs/stats-and-power-cut.md): the resolved stat times the behaviour-supplied throttle scalar (§1.2),
     // exactly the shape the map names. _input is set externally (the ship's controls) before Entity.Update calls
     // PowerBus.Step, so it is already current when this runs.
-    public float PowerRequest(float dt) => _input > .01f ? _input * Evaluate(_data.EnergyUsage) : 0f;
+    //
+    // Nominal-request ruling (docs/stats-and-power-cut.md, operator ruling 2026-09-19): EnergyUsage is a
+    // registered request field (StatValidation.PowerRequestFields) -- read nominally, same reasoning as every
+    // other IPowerConsumer in this cut, though EnergyUsage carries no PowerSupply term in Thruster's own shipped
+    // catalog today; Thrust (the field Cut 7 curves) is a separate stat Execute reads with the real Evaluate.
+    public float PowerRequest(float dt) => _input > .01f ? _input * EvaluateNominalPower(_data.EnergyUsage) : 0f;
 
     // Cut 5 (docs/stats-and-power-cut.md §1.3, PowerTiers.cs): Medium -- mobility. Losing thrust for a tick
     // under brownout is an inconvenience, not the cascading failure a starved radiator or shield causes.

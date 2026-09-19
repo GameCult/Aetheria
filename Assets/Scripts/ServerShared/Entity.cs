@@ -1355,18 +1355,57 @@ public class EquippedItem : IStatContext
                 EquippableItem.PowerTier = consumerTiers.Min();
         }
 
-        // Cut 6 (docs/stats-and-power-cut.md): "the validator runs at catalog load, at Studio save, and at
-        // equip." AetheriaStores.Open/CultRecordRefs.Upsert already refuse this at catalog write time; re-running
-        // the same static check here is what closes the gap for the two named bypasses (CultCache Studio's
-        // generic editor, AetherDb's dangling-ref apply) rather than silently trusting that every catalog on disk
-        // went through Upsert. The modifier-chain half of the rule is dynamic (it depends on what is actually
-        // equipped alongside this item) and lives in StatModifier.Initialize instead.
-        StatValidation.ValidateNoPowerSupplyOnRequest(Data.Name, Data.Behaviors);
+        // Nominal-request ruling (docs/stats-and-power-cut.md, operator ruling 2026-09-19, superseding F6): Cut
+        // 6's static half of this check -- refusing any PowerRequestFields stat whose own Terms named
+        // PowerSupply -- assumed PowerRequest read those stats the same way Execute does. It does not any more:
+        // EvaluateNominalPower (below, and Behavior.EvaluateNominalPower) is what every PowerRequest/RefreshReserve/
+        // RefreshInputCapacitor implementation now calls for a request-field stat, and it pins that stat's own
+        // PowerSupplyFactor to 1 regardless of what Terms the stat declares -- so a direct PowerSupply term on a
+        // request field can no longer make the request depend on its own answer, and the six shipped records this
+        // ruling exists to make legal again (RadiatorData.PumpedHeat, AetherDriveData.Torque) are not an authoring
+        // error to refuse. What is still refused: a request field fed a PowerSupply-tainted value through a
+        // *modifier chain* (StatModifier.ValidateNoPowerSupplyChain, StatModifier.cs) -- EvaluateNominalPower
+        // forwards ScaleModifier/ConstantModifier to the item's real, non-nominal resolver entries (same as
+        // ConditionRatio's NominalContext already did), so a modifier chain that reaches a power-tainted magnitude
+        // stat still corrupts the nominal read too. That dynamic check is unchanged and still runs from
+        // Initialize below via StatModifier -- it is the only surviving half of Cut 6's rule.
     }
 
     // Cut 2 (docs/stats-and-power-cut.md): the resolver owns the value; this is the caller's read of it, keyed by
     // this EquippedItem instance, so two ships equipping the same design never share a resolved value.
     public float Evaluate(PerformanceStat stat) => Entity.Resolver.Resolve(this, stat, this);
+
+    // Nominal-request ruling (docs/stats-and-power-cut.md, operator ruling 2026-09-19): what this item wants at
+    // full power supply, not what it is currently managing -- the read every PowerRequest/RefreshReserve/
+    // RefreshInputCapacitor implementation uses for a stat named in StatValidation.PowerRequestFields, so a stat
+    // that is both what a request asks for and what it also produces (RadiatorData.PumpedHeat, AetherDriveData.
+    // Torque) stops being circular at the root instead of being forbidden outright. Only PowerSupply is pinned:
+    // Heat and Durability are NOT, because they are not the term a request would be circular through -- this
+    // tick's PowerBus.Step (which calls PowerRequest) always runs before this tick's grant exists, so nothing
+    // here could depend on an answer that has not been computed yet, and a hot or worn item honestly asking for
+    // less power is real degradation the ruling never objected to, only "the request depends on its own answer."
+    // Bypasses the resolver's (owner, stat) cache the same way ConditionRatio's NominalContext below does and for
+    // the same reason: the cache key is (this, stat) alone, so resolving a second, different context under that
+    // key would clobber whatever Execute's own real Evaluate(stat) call cached for this same tick.
+    public float EvaluateNominalPower(PerformanceStat stat) => stat.Evaluate(new PowerRequestContext(this));
+
+    // Real-condition view of this same item for EvaluateNominalPower above: everything but PowerSupply is
+    // forwarded to the real item, including ScaleModifier/ConstantModifier -- deliberately NOT pinned, so a
+    // modifier chain that reaches a power-tainted magnitude stat still taints a nominal read through them too.
+    // That is exactly the residual case StatModifier.ValidateNoPowerSupplyChain still refuses: nominalizing this
+    // item's own direct Terms cannot undo a value baked in by another item's modifier.
+    private readonly struct PowerRequestContext : IStatContext
+    {
+        private readonly EquippedItem _item;
+        public PowerRequestContext(EquippedItem item) => _item = item;
+        public Lot Lot => _item.Lot;
+        public float HeatFactor(float exponent) => _item.HeatFactor(exponent);
+        public float DurabilityFactor(float exponent) => _item.DurabilityFactor(exponent);
+        public float ConsumableProgressFactor(float exponent) => _item.ConsumableProgressFactor(exponent);
+        public float PowerSupplyFactor(float exponent) => 1f;
+        public float ScaleModifier(PerformanceStat stat) => _item.ScaleModifier(stat);
+        public float ConstantModifier(PerformanceStat stat) => _item.ConstantModifier(stat);
+    }
 
     public float HeatFactor(float exponent) => pow(ThermalPerformance, ThermalExponent * exponent);
     public float DurabilityFactor(float exponent) => pow(DurabilityPerformance, DurabilityExponent * exponent);

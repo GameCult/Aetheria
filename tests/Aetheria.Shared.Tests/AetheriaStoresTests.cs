@@ -169,22 +169,25 @@ public sealed class AetheriaStoresTests : IDisposable
         Assert.Contains("BadDangling", error.Message);
     }
 
-    // The same direct-call path must also catch F6's rule (a power request stat may not carry a PowerSupply
-    // term), not only R-heat -- a repair tool landing a bad ThrusterData.EnergyUsage is exactly as dangerous as
-    // one landing a bad heat response.
+    // Nominal-request ruling (docs/stats-and-power-cut.md, operator ruling 2026-09-19), superseding F6: this
+    // direct-call path used to also catch F6's static rule (a power request stat may not carry a PowerSupply
+    // term at all -- StatValidation.ValidateNoPowerSupplyOnRequest, since deleted). PowerRequest now reads a
+    // request field through EquippedItem.EvaluateNominalPower, which pins that stat's own PowerSupplyFactor to 1
+    // regardless of its Terms, so the term can no longer make the request depend on its own answer -- a repair
+    // tool landing a curved ThrusterData.EnergyUsage is no longer any more dangerous than R-heat's own check,
+    // which this still runs (see the sibling test above).
     [Fact]
-    public void ValidateRefusesAPowerRequestCarryingAPowerSupplyTermTheSameWayUpsertWould()
+    public void ValidateAcceptsAPowerRequestCarryingAPowerSupplyTermTheSameWayUpsertWould()
     {
-        var badEnergy = new PerformanceStat { Min = 1, Max = 1, Terms = { new StatTerm { Source = StatSource.PowerSupply, Exponent = 1 } } };
-        var badDesign = new GearData
+        var curvedEnergy = new PerformanceStat { Min = 1, Max = 1, Terms = { new StatTerm { Source = StatSource.PowerSupply, Exponent = 1 } } };
+        var goodDesign = new GearData
         {
-            Name = "BadMigratedThruster", Hardpoint = HardpointType.Tool, Shape = new Shape(), Durability = 10,
+            Name = "CurvedMigratedThruster", Hardpoint = HardpointType.Tool, Shape = new Shape(), Durability = 10,
             MinimumTemperature = 0, MaximumTemperature = 1000, OptimalTemperature = 280, PlateauWidth = 400,
-            Behaviors = { new ThrusterData { EnergyUsage = badEnergy } }
+            Behaviors = { new ThrusterData { EnergyUsage = curvedEnergy } }
         };
-        var error = Assert.Throws<InvalidOperationException>(() => CultRecordRefs.Validate(badDesign));
-        Assert.Contains("BadMigratedThruster", error.Message);
-        Assert.Contains(nameof(ThrusterData.EnergyUsage), error.Message);
+        var record = Record.Exception(() => CultRecordRefs.Validate(goodDesign));
+        Assert.Null(record);
     }
 
     // A document type Validate has no opinion about (neither EquippableItemData nor ConsumableItemData) must be

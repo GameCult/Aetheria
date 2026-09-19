@@ -649,9 +649,9 @@ public class PerformanceStat
     // made is this part" -- a part that is still there, just less good at its job, so blending toward Min is
     // right for them. Power is not a degradation of the part; it is whether the part is receiving anything to
     // work with at all, so it multiplies the fully-interpolated, fully-modified value instead: a PowerSupply term
-    // still lives in this stat's own Terms list (it is still authored per stat, still censused, still refused on
-    // a request stat by ValidateNoPowerSupplyOnRequest below), it is just applied as a separate multiplier rather
-    // than contributing to `factor`. Consequences named in the ruling: PowerSupply == 0 makes the whole
+    // still lives in this stat's own Terms list (it is still authored per stat, still censused in
+    // PowerRequestFields below), it is just applied as a separate multiplier rather than contributing to
+    // `factor`. Consequences named in the ruling: PowerSupply == 0 makes the whole
     // expression 0 regardless of Min (pow(0, exponent) == 0 for any exponent > 0), and a Min == Max stat still
     // responds to a PowerSupply term because the multiplier no longer has to move a degenerate interpolation.
     public float Evaluate(IStatContext context)
@@ -812,21 +812,32 @@ public static class StatValidation
     // something authored per catalog instance, so they are named here once -- the same (type, field) address
     // ResolveStatField already uses for StatReference -- rather than adding a second reflection idiom or a
     // per-instance flag. Naming it here (not a new interface member on IPowerConsumer) means the check needs no
-    // Behavior instance, no EquippedItem and no Entity: it can run over the catalog's own Data objects, at load
-    // and at Upsert, before anything is ever equipped.
+    // Behavior instance, no EquippedItem and no Entity: TryGetPowerRequestBehaviorName below can run over the
+    // catalog's own Data objects with nothing else in hand.
     //
-    // F6 (docs/stats-and-power-cut.md, Soul pass 2026-09-19): this used to name only each consumer's top-level
-    // request field ("Thruster reads EnergyUsage, EnergyDraw reads EnergyDraw, and so on") on the premise that
-    // PowerRequest reads exactly one PerformanceStat. That premise was false for five of the eight consumers --
-    // Radiator.PowerRequest also reads PumpedHeat and WasteHeat (to decide whether the pump can even run this
-    // tick), AetherDrive.PowerRequest also reads Torque, LambdaMultiplier, MaximumRpm and PassiveCoupling (its
-    // whole rotor spin-up arithmetic), Shield.PowerRequest (via RefreshReserve) also reads RefillDuration and
-    // RestoreDuration, InstantWeapon.PowerRequest (via RefreshInputCapacitor) also reads Cooldown and Count, and
-    // Sensor.PowerRequest (via RefreshInputCapacitor) also reads PingCooldown. Every one of those was free to
-    // carry a PowerSupply term and sail straight past ValidateNoPowerSupplyOnRequest below, corrupting the
-    // request it feeds exactly the way the rule exists to forbid. Audited directly against each PowerRequest
-    // method's own body (and RefreshReserve/RefreshInputCapacitor, which PowerRequest calls into) rather than
-    // guessed from the behaviour's public surface.
+    // F6 (docs/stats-and-power-cut.md, Soul pass 2026-09-19) named every field a PowerRequest implementation
+    // actually reads, not just each consumer's top-level request field: Radiator.PowerRequest also reads
+    // PumpedHeat and WasteHeat, AetherDrive.PowerRequest also reads Torque, LambdaMultiplier, MaximumRpm and
+    // PassiveCoupling, Shield.PowerRequest (via RefreshReserve) also reads RefillDuration and RestoreDuration,
+    // InstantWeapon.PowerRequest (via RefreshInputCapacitor) also reads Cooldown and Count, and Sensor.
+    // PowerRequest (via RefreshInputCapacitor) also reads PingCooldown. Audited directly against each
+    // PowerRequest method's own body (and RefreshReserve/RefreshInputCapacitor, which PowerRequest calls into)
+    // rather than guessed from the behaviour's public surface; still the complete census a modifier chain must
+    // be checked against (see TryGetPowerRequestBehaviorName and StatModifier.ValidateNoPowerSupplyChain below).
+    //
+    // Nominal-request ruling (docs/stats-and-power-cut.md, operator ruling 2026-09-19, superseding F6): F6 also
+    // added a static check here -- ValidateNoPowerSupplyOnRequest, refusing any of these fields whose own Terms
+    // named PowerSupply outright -- on the premise that PowerRequest reads these stats the same way Execute
+    // does. It does not any more: every PowerRequest/RefreshReserve/RefreshInputCapacitor implementation now
+    // calls EquippedItem.EvaluateNominalPower (Entity.cs) for a field named here, which pins that stat's own
+    // PowerSupplyFactor to 1 regardless of what Terms it declares -- so a direct PowerSupply term on one of
+    // these fields can no longer make the request depend on its own answer, and that static check was deleted
+    // rather than left enforcing an invariant nominal evaluation had already made false (it would otherwise
+    // still refuse the six shipped records this ruling exists to make legal again). The census below still has
+    // exactly one live reader: TryGetPowerRequestBehaviorName, for the modifier-chain half of the rule
+    // (StatModifier.ValidateNoPowerSupplyChain, StatModifier.cs) -- EvaluateNominalPower forwards
+    // ScaleModifier/ConstantModifier unchanged (real, not nominal), so a modifier chain that reaches a
+    // power-tainted magnitude stat still corrupts a nominal read too, and that is what remains forbidden.
     public static readonly (Type Type, string Field)[] PowerRequestFields =
     {
         (typeof(EnergyDrawData), nameof(EnergyDrawData.EnergyDraw)),
@@ -849,29 +860,6 @@ public static class StatValidation
         (typeof(AetherDriveData), nameof(AetherDriveData.MaximumRpm)),
         (typeof(AetherDriveData), nameof(AetherDriveData.PassiveCoupling)),
     };
-
-    // The direct half of the rule: a request stat's own declared Terms must not name PowerSupply. Runs wherever
-    // ValidateHeatResponse/ValidateStatModifiers run (AetheriaStores.Open, CultRecordRefs.Upsert) plus once more
-    // at equip (EquippedItem's constructor, Entity.cs) as defense against the two named bypasses that write a
-    // catalog document without going through Upsert (CultCache Studio's generic editor, AetherDb's dangling-ref
-    // apply -- see the comment above ValidateHeatResponse). The modifier-chain half of the rule is dynamic and
-    // lives in StatModifier.Initialize (StatModifier.cs), because a modifier's target only resolves against a
-    // concrete entity's actual equipment.
-    public static void ValidateNoPowerSupplyOnRequest(string ownerName, IEnumerable<BehaviorData> behaviors)
-    {
-        foreach (var behavior in behaviors)
-        foreach (var (type, field) in PowerRequestFields)
-        {
-            if (!type.IsInstanceOfType(behavior)) continue;
-            if (!(type.GetField(field)?.GetValue(behavior) is PerformanceStat stat)) continue;
-            foreach (var term in stat.Terms)
-                if (term.Source == StatSource.PowerSupply)
-                    throw new InvalidOperationException(
-                        $"{ownerName}: {behavior.GetType().Name}.{field} is a power request -- its own Terms may not " +
-                        "declare a PowerSupply term, or the request would depend on how much power it receives to " +
-                        "decide how much power it asks for");
-        }
-    }
 
     // Whether `stat` is the request stat of some IPowerConsumer behaviour on `data` -- used by StatModifier's
     // equip-time chain check to tell "an ordinary modifier target" from "a modifier target that would corrupt a

@@ -163,16 +163,25 @@ public class StatModifier : Behavior, IInitializableBehavior, IDisposable, IAlwa
                 "modifier chain reaches back to itself -- a stat cannot (even transitively) modify its own magnitude");
     }
 
-    // Cut 6 (docs/stats-and-power-cut.md): the dynamic half of "a stat that decides a power request may not
-    // depend on power supply, directly or through a modifier chain." StatValidation.ValidateNoPowerSupplyOnRequest
-    // already refuses a request stat's own declared Terms, at catalog load, at Upsert and at equip -- that check
-    // needs no entity. This one does: whether a given modifier's target is "a power request stat" is static (the
-    // (BehaviorData type, field) registry in StatValidation), but which items are actually feeding a modifier
-    // chain into it is a fact about this concrete ship's loadout. Walks the same magnitude->target edges
-    // ValidateNoCycle builds, in the other direction: is this modifier's own magnitude stat "power-tainted" --
-    // does it, or something feeding it through another modifier on this entity, carry a PowerSupply term -- and
-    // does it write onto a known request stat. Refused at equip, naming both the modifying item and the item
-    // whose request it would corrupt.
+    // Cut 6 (docs/stats-and-power-cut.md), narrowed by the nominal-request ruling (operator ruling 2026-09-19,
+    // ItemData.cs's own PowerRequestFields comment): this is now the ONLY surviving half of "a stat that decides
+    // a power request may not depend on power supply, directly or through a modifier chain." The direct half --
+    // a request stat's own declared Terms naming PowerSupply -- used to be refused statically
+    // (StatValidation.ValidateNoPowerSupplyOnRequest, at catalog load, Upsert and equip), but every
+    // PowerRequest/RefreshReserve/RefreshInputCapacitor implementation now reads a PowerRequestFields stat
+    // through EquippedItem.EvaluateNominalPower (Entity.cs), which pins that stat's own PowerSupplyFactor to 1
+    // regardless of its Terms -- so a direct term can no longer make the request depend on its own answer, and
+    // that static check was deleted. What EvaluateNominalPower does NOT pin is ScaleModifier/ConstantModifier --
+    // it forwards those to the item's real, non-nominal resolver entries (same as ConditionRatio's own
+    // NominalContext), so a modifier chain that reaches a power-tainted magnitude stat still corrupts a nominal
+    // read too. That is exactly what this check still catches, and it needs an entity to do it: whether a given
+    // modifier's target is "a power request stat" is static (the (BehaviorData type, field) registry in
+    // StatValidation), but which items are actually feeding a modifier chain into it is a fact about this
+    // concrete ship's loadout. Walks the same magnitude->target edges ValidateNoCycle builds, in the other
+    // direction: is this modifier's own magnitude stat "power-tainted" -- does it, or something feeding it
+    // through another modifier on this entity, carry a PowerSupply term -- and does it write onto a known
+    // request stat. Refused at equip, naming both the modifying item and the item whose request it would
+    // corrupt.
     private static void ValidateNoPowerSupplyChain(Entity entity, StatModifierData data, Target[] targets, EquippedItem modifyingItem)
     {
         if (data.Modifier == null) return;

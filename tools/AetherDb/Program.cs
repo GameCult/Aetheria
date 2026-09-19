@@ -882,19 +882,23 @@ public static class Program
     // a partial grant read exactly like a full one instead of a reduced one. This authors the term, once, on the
     // one performance stat each of the four curve-eligible behaviours (EnergyDraw has none -- see EnergyDraw.cs)
     // actually reads for its continuous effect: ThrusterData.Thrust, AetherDriveData.Torque,
-    // RadiatorData.PumpedHeat, ConstantWeaponData.Damage. None of the four is a power-request field
-    // (StatValidation.PowerRequestFields), so authoring the term here does not trip
-    // ValidateNoPowerSupplyOnRequest. Exponent 1 (linear) is the gentle default the ruling calls for -- half
-    // supply reads as half performance, not a cliff -- and is left for the operator to steepen per design later.
-    // Dry run unless passed "apply"; every record must derive cleanly or nothing is written, same contract as
-    // ShieldMigrate.
+    // RadiatorData.PumpedHeat, ConstantWeaponData.Damage. Two of the four (AetherDriveData.Torque,
+    // RadiatorData.PumpedHeat) are ALSO power-request fields (StatValidation.PowerRequestFields) -- at the time
+    // this tool authored the shipped catalog's curves that briefly made those two records illegal under F6's
+    // now-deleted static check (StatValidation.ValidateNoPowerSupplyOnRequest); the nominal-request ruling
+    // (docs/stats-and-power-cut.md, operator ruling 2026-09-19, see ItemData.cs's PowerRequestFields comment)
+    // resolved that by having PowerRequest read request fields nominally instead of forbidding the term, so
+    // authoring it here on a request field is legal again. Exponent 1 (linear) is the gentle default the ruling
+    // calls for -- half supply reads as half performance, not a cliff -- and is left for the operator to steepen
+    // per design later. Dry run unless passed "apply"; every record must derive cleanly or nothing is written,
+    // same contract as ShieldMigrate.
     private static int BrownoutMigrate(bool apply)
     {
         var db = AetherDb.Open(catalogWritable: apply);
         const float gentleExponent = 1f;
 
-        // (behaviour type, target performance-stat field, short label) -- deliberately NOT the request field
-        // (StatValidation.PowerRequestFields already forbids a PowerSupply term there for each of these types).
+        // (behaviour type, target performance-stat field, short label) -- two of these are also request fields
+        // (StatValidation.PowerRequestFields); that is legal under the nominal-request ruling above.
         var targets = new (Type BehaviorType, string Field, string Label)[]
         {
             (typeof(ThrusterData), nameof(ThrusterData.Thrust), "thrust"),

@@ -128,11 +128,16 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
     // bus grants the full request; RateOverride lets an owner replace that (ChargedWeapon does).
     protected virtual float RateOverride => 0f;
 
+    // Nominal-request ruling (docs/stats-and-power-cut.md, operator ruling 2026-09-19): Count, Energy and
+    // Cooldown are all registered request fields (StatValidation.PowerRequestFields) -- read nominally here so
+    // the capacitor's own Capacity/Rate this feeds into PowerRequest below never depends on this tick's own
+    // grant. Nothing here needs the real, curved value: PowerRequest only ever asks "how much would a full shot
+    // cost," and the actual charge added back in Execute is separately scaled by Item.PowerSupply.
     protected void RefreshInputCapacitor()
     {
-        var burstCount = max(1, (int) Evaluate(_data.Count));
-        var perShotEnergy = Evaluate(_data.Energy) / burstCount;
-        var cooldown = Evaluate(_data.Cooldown);
+        var burstCount = max(1, (int) EvaluateNominalPower(_data.Count));
+        var perShotEnergy = EvaluateNominalPower(_data.Energy) / burstCount;
+        var cooldown = EvaluateNominalPower(_data.Cooldown);
         _capacitor.UpdateStats(perShotEnergy, cooldown, rateOverride: RateOverride);
     }
 

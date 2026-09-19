@@ -43,7 +43,11 @@ public class EnergyDraw : Behavior, IPowerConsumer
 
     // Cut 3 (docs/stats-and-power-cut.md): the request PowerBus needs before Execute runs, in place of the
     // direct Entity.TryConsumeEnergy spend that used to happen inside Execute.
-    public float PowerRequest(float dt) => Evaluate(_data.EnergyDraw) * (_data.PerSecond ? dt : 1);
+    //
+    // Nominal-request ruling (docs/stats-and-power-cut.md, operator ruling 2026-09-19): EnergyDraw is a
+    // registered request field (StatValidation.PowerRequestFields) -- read nominally, same reasoning as every
+    // other IPowerConsumer in this cut.
+    public float PowerRequest(float dt) => EvaluateNominalPower(_data.EnergyDraw) * (_data.PerSecond ? dt : 1);
 
     // Cut 5 (docs/stats-and-power-cut.md §1.3, PowerTiers.cs): Utility -- the generic/unclassified draw. An item
     // that declares power use without asking for a specific tier should not accidentally outrank a named one.

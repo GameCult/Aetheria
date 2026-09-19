@@ -23,17 +23,25 @@ using static CultMath.math;
 // consumer's own top-level request field. Radiator.PowerRequest's own early-out reads PumpedHeat AND WasteHeat
 // (to decide whether the pump can keep up this tick); AetherDrive.PowerRequest's spin-up arithmetic reads
 // Torque, LambdaMultiplier, MaximumRpm and PassiveCoupling. Cut 7 asks for the brownout curve to live on exactly
-// the stats these two behaviours actually curve (PumpedHeat, Torque) -- but Cut 6 forbids a PowerSupply term on
-// any stat a request reads, on pain of the exact oscillation Soul measured against the shipped catalog's own "OK
-// Disperser" radiator (SOUL_RadiatorRequestDependsOnItsOwnGrantAndOscillates, docs/stats-and-power-cut.md). Every
-// field either behaviour's PowerRequest touches is now correctly refused for a PowerSupply term, and neither has
-// an untouched field left to curve instead -- there is no valid catalog shape today that gives Radiator or
-// AetherDrive a working brownout curve without also feeding it back into their own request. The six tests below
-// that authored one are marked Skip rather than deleted or silently reworked to hide the gap: reconciling Cut
-// 6 and Cut 7 for these two behaviours (most likely by having PowerRequest read a nominal/undegraded value
-// instead of the live curved one) is real, scoped work for a future pass, not a fix a registry correction should
-// smuggle in. Thruster and ConstantWeapon are unaffected -- their own PowerRequest reads only EnergyUsage/Energy,
-// never the separate Thrust/Damage field their tests curve.
+// the stats these two behaviours actually curve (PumpedHeat, Torque), but F6 forbade a PowerSupply term on any
+// stat a request reads at all, on pain of the exact oscillation Soul measured against the shipped catalog's own
+// "OK Disperser" radiator (SOUL_RadiatorRequestDependsOnItsOwnGrantAndOscillates, docs/stats-and-power-cut.md).
+// The six tests below that authored one were marked Skip rather than deleted or silently reworked to hide the
+// gap, naming the conflict as real, scoped work for a future pass rather than a fix a registry correction should
+// smuggle in.
+//
+// Nominal-request ruling (docs/stats-and-power-cut.md, operator ruling 2026-09-19) is that future pass: a power
+// request is evaluated nominally -- what the item wants at full supply, not what it is currently managing
+// (EquippedItem.EvaluateNominalPower, Entity.cs). Radiator.PowerRequest and AetherDrive.PowerRequest now read
+// PumpedHeat/Torque (and every other field in StatValidation.PowerRequestFields) through that nominal read, so
+// the same stat can carry a PowerSupply term (curved for Execute's real effect) AND be a request field, without
+// the request depending on its own answer -- there is no more oscillation to reproduce, because the request no
+// longer reads the live grant at all. StatValidation.ValidateNoPowerSupplyOnRequest (the static check F6 added
+// to forbid this) is deleted; only the dynamic modifier-chain half (StatModifier.ValidateNoPowerSupplyChain)
+// still refuses anything, and it was never what these six tests tripped. Un-skipped below. Thruster and
+// ConstantWeapon were never affected by F6 -- their own PowerRequest reads only EnergyUsage/Energy, never the
+// separate Thrust/Damage field their tests curve -- but now also read that field nominally, for the same reason
+// every other IPowerConsumer does.
 public sealed class BrownoutTests : IDisposable
 {
     private readonly string _root = Path.Combine(Path.GetTempPath(), "aetheria-brownout-" + Guid.NewGuid().ToString("N"));
@@ -194,9 +202,11 @@ public sealed class BrownoutTests : IDisposable
         return (drive.Rpm.x, drive);
     }
 
-    // F6: Torque is now a registered AetherDrive request field (PowerRequest's spin-up arithmetic reads it) --
-    // see this file's header comment. Curved(...) on Torque is no longer an authorable catalog shape.
-    [Fact(Skip = "F6 (docs/stats-and-power-cut.md): Torque is a request field now; a PowerSupply term on it is correctly refused. See file header.")]
+    // Nominal-request ruling (docs/stats-and-power-cut.md, operator ruling 2026-09-19, see file header): Torque
+    // is a registered AetherDrive request field (PowerRequest's spin-up arithmetic reads it), but PowerRequest now
+    // reads it through EvaluateNominalPower (full-supply, undegraded), so Curved(...) on Torque is a legal
+    // catalog shape again -- Execute's own real, curved Evaluate is what actually degrades the spin-up below.
+    [Fact]
     public void AetherDriveAtHalfGrantProducesReducedNotZeroNotFullSpinUp()
     {
         var (full, _) = RunAetherDrive(reactorCharge: 1000); // demand ~50, generation far exceeds it -> ratio 1
@@ -205,7 +215,7 @@ public sealed class BrownoutTests : IDisposable
         Assert.True(half > 0f && half < full, $"half={half} should sit strictly between 0 and full={full}");
     }
 
-    [Fact(Skip = "F6 (docs/stats-and-power-cut.md): Torque is a request field now; a PowerSupply term on it is correctly refused. See file header.")]
+    [Fact]
     public void AetherDriveAtFullGrantIsUnchangedFromToday()
     {
         var (full, drive) = RunAetherDrive(reactorCharge: 1000);
@@ -213,7 +223,7 @@ public sealed class BrownoutTests : IDisposable
         Assert.True(full > 0f);
     }
 
-    [Fact(Skip = "F6 (docs/stats-and-power-cut.md): Torque is a request field now; a PowerSupply term on it is correctly refused. See file header.")]
+    [Fact]
     public void AetherDriveAtZeroGrantProducesNothing()
     {
         var (zero, drive) = RunAetherDrive(reactorCharge: 0);
@@ -240,10 +250,11 @@ public sealed class BrownoutTests : IDisposable
         return (radiator.RadiatorTemperature - before, radiator);
     }
 
-    // F6: PumpedHeat and WasteHeat are now registered Radiator request fields (PowerRequest's own early-out
-    // reads both) -- see this file's header comment. Curved(...) on PumpedHeat is no longer an authorable
-    // catalog shape.
-    [Fact(Skip = "F6 (docs/stats-and-power-cut.md): PumpedHeat is a request field now; a PowerSupply term on it is correctly refused. See file header.")]
+    // Nominal-request ruling (docs/stats-and-power-cut.md, operator ruling 2026-09-19, see file header):
+    // PumpedHeat and WasteHeat are registered Radiator request fields (PowerRequest's own early-out reads both),
+    // but PowerRequest now reads them through EvaluateNominalPower, so Curved(...) on PumpedHeat is a legal
+    // catalog shape again -- Execute's own real, curved Evaluate is what actually degrades the pumping below.
+    [Fact]
     public void RadiatorAtHalfGrantPumpsReducedNotZeroNotFullHeat()
     {
         var (full, _) = RunRadiator(reactorCharge: 1000); // demand 50, generation far exceeds it -> ratio 1
@@ -252,7 +263,7 @@ public sealed class BrownoutTests : IDisposable
         Assert.True(half > 0f && half < full, $"half={half} should sit strictly between 0 and full={full}");
     }
 
-    [Fact(Skip = "F6 (docs/stats-and-power-cut.md): PumpedHeat is a request field now; a PowerSupply term on it is correctly refused. See file header.")]
+    [Fact]
     public void RadiatorAtFullGrantIsUnchangedFromToday()
     {
         var (full, radiator) = RunRadiator(reactorCharge: 1000);
@@ -260,7 +271,7 @@ public sealed class BrownoutTests : IDisposable
         Assert.True(full > 0f);
     }
 
-    [Fact(Skip = "F6 (docs/stats-and-power-cut.md): PumpedHeat is a request field now; a PowerSupply term on it is correctly refused. See file header.")]
+    [Fact]
     public void RadiatorAtZeroGrantProducesNothing()
     {
         var (zero, radiator) = RunRadiator(reactorCharge: 0);
@@ -371,4 +382,80 @@ public sealed class BrownoutTests : IDisposable
         capacitor.AddCharge(5); // now full
         Assert.True(capacitor.TrySpend(10)); // and only now does it fire, for the whole cost
     }
+
+    // --- Nominal-request ruling (docs/stats-and-power-cut.md, operator ruling 2026-09-19): a direct probe of
+    // --- EquippedItem.EvaluateNominalPower itself, decoupled from any behaviour's own physical state (Radiator's
+    // --- temperature, AetherDrive's Rpm) so the only thing that can make it diverge from the ordinary Evaluate
+    // --- is the item's own PowerSupply grant. Thruster's EnergyUsage carries the term here purely as a probe --
+    // --- not a shape BrownoutTests' other fixtures author -- because Thruster has no other tick-to-tick state
+    // --- that could confound the comparison the way Radiator's RadiatorTemperature or AetherDrive's Rpm would.
+    // --- Backs tests/mutation_tests_stats_power_nominal_request.py's own mutation of this exact method. ---
+    [Fact]
+    public void EvaluateNominalPowerIgnoresTheItemsCurrentPowerSupplyGrant()
+    {
+        var energyUsage = Curved(100, exponent: 1);
+        using var cache = OpenCatalog(new ThrusterData
+        {
+            Thrust = Constant(0), Visibility = Constant(0), Heat = Constant(0), EnergyUsage = energyUsage
+        });
+        var ship = BuildShip(cache, reactorCharge: 25); // demand 100 (nominal), generation 25 -> ratio .25
+        ship.MovementDirection = float2(0, -1);
+        ship.Update(1f);
+        var thruster = ship.GetBehavior<Thruster>();
+
+        // The fixture must actually land a partial grant, or this probe proves nothing.
+        Assert.True(thruster.Item.PowerSupply > 0f && thruster.Item.PowerSupply < 1f,
+            $"expected a partial grant, got {thruster.Item.PowerSupply}");
+
+        Assert.Equal(100f, thruster.Item.EvaluateNominalPower(energyUsage), 3); // full-supply value, always
+        Assert.True(thruster.Item.Evaluate(energyUsage) < 100f); // the real, curved value the grant actually shrank
+    }
+
+    // --- Wiring regression for Radiator.PowerRequest specifically: EvaluateNominalPowerIgnoresTheItemsCurrentPowerSupplyGrant
+    // --- above proves the underlying mechanism, but a single ship.Update never actually exercises it here --
+    // --- PumpedHeat/WasteHeat's own ratio (100/5, nominally) so outstrips tempRatio (pinned at 1 on a radiator
+    // --- that started at ambient) that a single tick's PowerRequest returns the same gate-open answer whether or
+    // --- not PowerRequest reads PumpedHeat nominally. Two ticks exposes it: tick 1 is identical either way (the
+    // --- item's PowerSupply has not been written yet, so Evaluate and EvaluateNominalPower agree), landing the
+    // --- same partial grant (ratio1 = 20/50 = .4) and so the same RadiatorTemperature going into tick 2 in both
+    // --- cases. Only starting at tick 2's own PowerRequest can the two implementations diverge: nominally,
+    // --- PumpedHeat/WasteHeat is still 10/5 = 2, comfortably above tempRatio, so tick 2 still requests (demand
+    // --- unchanged from tick 1); read through the ordinary curved Evaluate instead, PumpedHeat is now
+    // --- pow(.4, 1)*10 = 4, so PumpedHeat/WasteHeat drops to 4/5 = .8, BELOW tempRatio -- PowerRequest's own
+    // --- early-out fires and demand collapses to 0. A wiring regression (PowerRequest reverted to the ordinary
+    // --- Evaluate) is exactly what tests/mutation_tests_stats_power_nominal_request.py mutates and this catches.
+    [Fact]
+    public void RadiatorSecondTickDemandIsUnaffectedByTheFirstTicksPartialGrant()
+    {
+        using var cache = OpenCatalog(new RadiatorData
+        {
+            Emissivity = Constant(0), PumpedHeat = Curved(10, exponent: 1), TemperatureFloor = 0,
+            WasteHeat = Constant(5), EnergyUsage = Constant(50), ThermalMass = Constant(1000)
+        });
+        var ship = BuildShip(cache, reactorCharge: 20); // demand 50 (nominal, both ticks) -> ratio1 = .4
+        ship.Update(1f);
+        var firstDemand = ship.PowerBus.TotalDemand;
+        Assert.Equal(50f, firstDemand, 3); // tick 1: PowerSupply defaults to 1, so both readings agree
+
+        ship.Update(1f);
+        var secondDemand = ship.PowerBus.TotalDemand;
+        // Still the gate-open, EnergyUsage*tempRatio figure (tempRatio has crept up slightly from the radiator's
+        // own tick-1 heating, which is real and expected -- not the gate-closed 0 a reverted, non-nominal
+        // PowerRequest would produce once Item.PowerSupply < 1 curves PumpedHeat/WasteHeat below tempRatio).
+        Assert.True(secondDemand > 0f,
+            $"expected tick 2's gate to stay open on the nominal PumpedHeat/WasteHeat ratio, got demand {secondDemand}");
+    }
+
+    // --- The same wiring check attempted on AetherDrive.PowerRequest's own Torque read does not carry over
+    // --- cleanly: torqueRatio (actualRpmDelta/potentialRpmDelta) self-cancels Torque's own magnitude whenever
+    // --- the rotor is not yet rpm-capped (both numerator and denominator scale with Torque, so the ratio -- and
+    // --- so the final draw -- comes out identical whether Torque is read nominally or through the curved
+    // --- Evaluate; verified empirically while building this fixture: reverting AetherDrive.PowerRequest to
+    // --- Evaluate produced byte-identical TotalDemand across two ticks, including once the rotor was pushed
+    // --- into its rpm cap). A black-box demand comparison cannot discriminate this call site the way it can
+    // --- Radiator's binary gate above. Its correctness rests instead on the identical pattern to Radiator's
+    // --- (same EvaluateNominalPower call, same EquippedItem mechanism EvaluateNominalPowerIgnoresTheItemsCurrent
+    // --- PowerSupplyGrant already pins) and on AetherDriveAtHalfGrantProducesReducedNotZeroNotFullSpinUp/
+    // --- AtFullGrantIsUnchangedFromToday/AtZeroGrantProducesNothing above, which exercise the real end-to-end
+    // --- Execute path this ruling exists to keep legal. Not part of the mutation harness for that reason.
 }

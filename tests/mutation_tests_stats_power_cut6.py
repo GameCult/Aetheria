@@ -5,11 +5,19 @@ rule).
 Cut 6 is purely additive: StatSource.PowerSupply already existed as an identity everywhere (Cut 2), and the bus
 already wrote EquippedItem.PowerSupply (Cut 3/5). This cut wires the identity into a real curve
 (EquippedItem.PowerSupplyFactor), wires the bus's own per-tick write to invalidate the resolver
-(PowerBus.AllocateTiers), and adds the validation rule that a power request may not depend on power supply,
-directly (StatValidation.ValidateNoPowerSupplyOnRequest) or through a modifier chain
-(StatModifier.ValidateNoPowerSupplyChain). This script mutates each rule's own line of code and asserts the named
+(PowerBus.AllocateTiers), and added the validation rule that a power request may not depend on power supply,
+directly or through a modifier chain. This script mutates each rule's own line of code and asserts the named
 test in PowerCurveTests.cs goes red for exactly that reason. A no-op control mutation proves the read/replace/
 restore path is transparent.
+
+Nominal-request ruling (docs/stats-and-power-cut.md, operator ruling 2026-09-19) deleted the direct half of the
+request-independence rule (StatValidation.ValidateNoPowerSupplyOnRequest) -- PowerRequest now reads a request
+field through EquippedItem.EvaluateNominalPower, which pins that stat's own PowerSupplyFactor to 1, so a direct
+term can no longer make the request depend on its own answer. The three mutation cases that used to pin that
+static check (and the two PowerCurveTests it targeted, since renamed to OpenAccepts.../UpsertAccepts... in
+PowerCurveTests.cs) are removed below; see tests/mutation_tests_stats_power_nominal_request.py for that rule's
+own replacement check. The modifier-chain half (StatModifier.ValidateNoPowerSupplyChain) is unchanged and its
+two mutation cases below still apply.
 
 Usage:
     python tests/mutation_tests_stats_power_cut6.py --cultlib-root <path-to-CultLib-45c2f40-worktree>
@@ -96,42 +104,6 @@ MUTATIONS: list[Mutation] = [
         anchor="            _entity.Resolver.InvalidateSource(draw.Item, StatSource.PowerSupply);",
         mutated="            _entity.Resolver.InvalidateSource(draw.Item, StatSource.Heat);",
         test="PowerCurveTests.APowerSupplyTermedStatAtHalfGrantDegradesByItsAuthoredExponent",
-        expect="red",
-    ),
-
-    # --- The direct half of the request-independence rule: a request stat's own declared Terms must be checked
-    # --- for PowerSupply. Neutering the check into a no-op accepts the exact catalog record the rule exists to
-    # --- refuse. ---
-    Mutation(
-        rule="a request stat's own Terms must be checked for a PowerSupply term",
-        file="Assets/Scripts/ServerShared/ItemData.cs",
-        anchor="            foreach (var term in stat.Terms)\n                if (term.Source == StatSource.PowerSupply)\n                    throw new InvalidOperationException(\n                        $\"{ownerName}: {behavior.GetType().Name}.{field} is a power request -- its own Terms may not \" +\n                        \"declare a PowerSupply term, or the request would depend on how much power it receives to \" +\n                        \"decide how much power it asks for\");",
-        mutated="            foreach (var term in stat.Terms)\n                if (false)\n                    throw new InvalidOperationException(\n                        $\"{ownerName}: {behavior.GetType().Name}.{field} is a power request -- its own Terms may not \" +\n                        \"declare a PowerSupply term, or the request would depend on how much power it receives to \" +\n                        \"decide how much power it asks for\");",
-        test="PowerCurveTests.UpsertRefusesAThrusterWhoseEnergyUsageCarriesAPowerSupplyTerm",
-        expect="red",
-    ),
-
-    # --- The registry itself must actually name the field the mutant fixture exercises (ThrusterData.EnergyUsage)
-    # --- -- removing that one entry lets a catalog write straight past the check because nothing on the whole
-    # --- registry recognises it as a request stat any more. ---
-    Mutation(
-        rule="the request-field registry must include ThrusterData.EnergyUsage",
-        file="Assets/Scripts/ServerShared/ItemData.cs",
-        anchor="        (typeof(ThrusterData), nameof(ThrusterData.EnergyUsage)),\n",
-        mutated="",
-        test="PowerCurveTests.UpsertRefusesAThrusterWhoseEnergyUsageCarriesAPowerSupplyTerm",
-        expect="red",
-    ),
-
-    # --- AetheriaStores.Open must run the same check at catalog load, not only at Upsert -- otherwise a record
-    # --- written through the raw CultCache API (bypassing Upsert, exactly like AetherDb's own named dangling-ref
-    # --- hole) reopens silently invalid. ---
-    Mutation(
-        rule="AetheriaStores.Open must validate every EquippableItemData against the power-request rule",
-        file="Assets/Scripts/ServerShared/AetheriaStores.cs",
-        anchor="                StatValidation.ValidateStatModifiers(data.Name, data.Behaviors);\n                // Cut 6 (docs/stats-and-power-cut.md): a power request may not depend on power supply.\n                StatValidation.ValidateNoPowerSupplyOnRequest(data.Name, data.Behaviors);",
-        mutated="                StatValidation.ValidateStatModifiers(data.Name, data.Behaviors);",
-        test="PowerCurveTests.OpenRefusesAThrusterWhoseEnergyUsageCarriesAPowerSupplyTerm",
         expect="red",
     ),
 

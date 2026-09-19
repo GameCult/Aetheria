@@ -93,10 +93,17 @@ public class Shield : Behavior, IProgressBehavior, IPowerConsumer, IAlwaysUpdate
 
     // Resolved fresh (Capacitor.ResolveCapacity's precedent -- PowerBus.Step calls PowerRequest below before
     // this behaviour's own Execute runs this tick), reading Broken as it stood at the end of the previous tick.
+    //
+    // Nominal-request ruling (docs/stats-and-power-cut.md, operator ruling 2026-09-19): Capacity, RefillDuration
+    // and RestoreDuration are registered request fields (StatValidation.PowerRequestFields) -- read nominally.
+    // This also feeds Update's own real accumulation math below (RefreshReserve is called from both PowerRequest
+    // and Update), which is fine: the actual charge added is separately scaled by Item.PowerSupply there, so
+    // nominalizing the reserve's physical size/rate does not change how much of a partial grant it actually
+    // receives, only removes any dependency the size/rate calculation itself could have had on this tick's grant.
     private void RefreshReserve()
     {
-        var capacity = Evaluate(_data.Capacity);
-        var duration = Broken ? Evaluate(_data.RestoreDuration) : Evaluate(_data.RefillDuration);
+        var capacity = EvaluateNominalPower(_data.Capacity);
+        var duration = Broken ? EvaluateNominalPower(_data.RestoreDuration) : EvaluateNominalPower(_data.RefillDuration);
         _reserve.UpdateStats(capacity, cooldown: duration, capacityOverride: capacity);
     }
 

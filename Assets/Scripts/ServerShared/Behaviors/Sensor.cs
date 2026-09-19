@@ -86,10 +86,14 @@ public class Sensor : Behavior, IEventBehavior, IPowerConsumer
 
     // Cut 4: capacity/rate, resolved fresh (Capacitor.ResolveCapacity's precedent -- PowerBus.Step calls
     // PowerRequest below before this behaviour's own Execute runs this tick).
+    //
+    // Nominal-request ruling (docs/stats-and-power-cut.md, operator ruling 2026-09-19): PingEnergy and
+    // PingCooldown are registered request fields (StatValidation.PowerRequestFields) -- read nominally, same
+    // reasoning as InstantWeapon's own RefreshInputCapacitor.
     private void RefreshInputCapacitor()
     {
-        var energy = Evaluate(_data.PingEnergy);
-        var cooldown = Evaluate(_data.PingCooldown);
+        var energy = EvaluateNominalPower(_data.PingEnergy);
+        var cooldown = EvaluateNominalPower(_data.PingCooldown);
         _capacitor.UpdateStats(energy, cooldown);
     }
 
