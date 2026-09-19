@@ -182,6 +182,20 @@ what it did.
 > byte length unchanged), `AetherDb` census/factions/dangling/station-fit/hardpoint-fit/loadout-1
 > byte-identical before/after re-authoring.
 
+> **Ruling (operator, 2026-09-19), shield reserve.** "Shield capacitor energy should be an
+> authored number, and its charge rate should be two numbers, one duration for refilling from
+> partial and another for restoring a broken shield (games do this often, I guess for the punish
+> window?)" — yes, that is the reason: a shield that drops has to cost time or breaking it means
+> nothing. Supersedes Cut 4's derived sizing (Hands sized the reserve at `EnergyUsage`, refilling
+> every second, and flagged it as a guess).
+> - `ShieldData` authors a capacity (it has only `Efficiency` and `EnergyUsage` today), a refill
+>   duration and a restore duration.
+> - **A broken state, which the shield does not have.** Today it refuses a hit it cannot fully
+>   cover and keeps its remaining charge. Under this ruling that hit breaks the shield: it
+>   absorbs nothing while down and comes back on the restore duration, not the refill one.
+> - The two durations are the lever: refill is how fast it tops up while holding, restore is how
+>   long you are naked.
+
 ## 0. What is there now
 
 ### 0.1 The stat, as it exists
