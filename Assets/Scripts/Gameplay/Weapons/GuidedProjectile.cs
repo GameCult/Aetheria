@@ -2,6 +2,7 @@
 using System.Collections;
 using UnityEngine;
 using CultMath;
+using CultMath.UnityBridge;
 using static CultMath.math;
 using Random = UnityEngine.Random;
 using static Noise1D;
