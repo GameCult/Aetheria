@@ -1415,3 +1415,42 @@ go" and eventually disagreeing; this does not reintroduce it.
   the test that would catch the two functions drifting apart.
 - `EveryHitLandsOnMetal`: no committed hit ever resolves to an unoccupied cell,
   across seeds and aim points including extremities.
+
+### 7.4 Amendment (2026-09-19): the live-catalog test has a second job
+
+7.3 above asks for one test that opens the real `GameData/Aetheria.cc` through
+`AetheriaStores.Open`, because Cut 2 shipped a `required: true` rule with no data
+to satisfy it and every green suite in the campaign missed it.
+
+Merging Cuts 6b and 6c gave that test a second and larger job. 6b added
+`WeaponItemData.AirburstRange` as a non-nullable `float` at a new MessagePack
+key. Every weapon record in the shipped catalog was serialized before that key
+existed, so the reader was handed `nil` for the absent slot, a `float` cannot
+take nil, and `AetheriaStores.Open` threw outright — the game could not read its
+own catalog. Fixed at `c896489b` by making the field `float?`.
+
+Neither cut could have caught it. 6b verified with unit tests over synthetic
+fixtures and never opened the shipped catalog; 6c opened the catalog constantly
+but on a branch without the field. The defect existed only in the merge, and
+only when something read real data.
+
+So the live-catalog test is not a content check that happens to touch a file. It
+is **the campaign's only assertion that the shipped data is readable by the
+shipped code at all**, and it is the one test whose absence let a branch that
+bricks the catalog pass every gate. Write it so it fails loudly on a
+deserialization throw, not only on a missing design:
+
+- `ShippedCatalogOpensAndGeneratesAnArmedHull`: open the real catalog read-only
+  through `AetheriaStores.Open`, enumerate every `EquippableItemData` so every
+  document type is actually deserialized (a lazy read that never touches
+  `WeaponItemData` would have passed on the broken merge), and generate a
+  loadout for `LonginusX`. Any exception is a failure.
+- Mutation: none needed for the throw path — the shipped catalog either
+  deserializes or it does not. For the generation half, the Cut 2 mutation
+  applies: drop the targeting designs' products and the test must go red.
+
+**The standing rule this cut records**, because it will recur every time a field
+is added: a new non-nullable value-type field on a persisted CultCache document
+cannot read records written before it existed. Nullable, or a migration that
+rewrites every affected record — and the migration cannot run while the read
+still throws, so tolerant deserialization comes first either way.
