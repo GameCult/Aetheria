@@ -2,6 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using CultMath;
@@ -9,6 +10,7 @@ using static CultMath.math;
 using float2 = CultMath.float2;
 using float3 = CultMath.float3;
 using int2 = CultMath.int2;
+using Random = CultMath.Random;
 
 // Cut 1 (docs/fire-control-cut.md): geometry -- whether a weapon bears on a point is decided here and
 // nowhere else -- no prefab, transform, ArticulationPoint or renderer may influence it (R6, R7). Mount
@@ -102,10 +104,15 @@ public static class FireControl
         return system != null && system.Item.Active.Value ? system.Resolution : 1f;
     }
 
+    // Cut 6d (docs/fire-control-cut.md): falls back to GameplaySettings.UnaidedPrecision, the same shape
+    // Accuracy/Tracking already fall back to their own Unaided* floors. The old coin-flip rule could get away
+    // with a bare 0 here (0 meant "never draw the aimed-item branch," a legitimate value under that rule); the
+    // dart-throw kernel reads Precision as a grouping tightness, and 0 would ask Sigma for an infinite, division-
+    // guarded group -- not the authored "spraying at the silhouette" floor the spec asks for.
     public static float Precision(Entity entity)
     {
         var system = entity.GetBehavior<TargetingSystem>();
-        return system != null && system.Item.Active.Value ? system.Precision : 0f;
+        return system != null && system.Item.Active.Value ? system.Precision : entity.ItemManager.GameplaySettings.UnaidedPrecision;
     }
 
     // Cut 5, 5.1 (Soul finding 3): falls back to GameplaySettings.UnaidedTracking, exactly the shape Accuracy
@@ -157,17 +164,28 @@ public static class FireControl
             (1f - settings.TargetDetectionInfoThreshold) / max(Resolution(source), 1e-3f);
         var pSensor = saturate(unlerp(settings.TargetDetectionInfoThreshold, demandCeiling, info));
 
+        var targetHull = source.ItemManager.GetData(target.Hull) as HullData;
+
         float pSpread;
         if (weapon.Spread > 0)
         {
-            var targetHull = source.ItemManager.GetData(target.Hull) as HullData;
             var halfExtent = .5f * max(targetHull.Shape.Width, targetHull.Shape.Height) * settings.SchematicCellSize;
             var angularRadius = degrees(atan(halfExtent / range));
             pSpread = saturate(angularRadius / (weapon.Spread / 2f));
         }
         else pSpread = 1f;
 
-        return Accuracy(source) * pSensor * pSpread;
+        // Cut 6d (docs/fire-control-cut.md): the dart-throw kernel's other half. pSpread above prices whether
+        // the weapon's own barrel-dispersion cone even reaches the ship's silhouette at this range (weapon
+        // hardware, whole-hull bounding size, range-dependent, aim-point-blind). pOnHull prices whether the
+        // targeting system's own aim scatter, centred on whatever is actually aimed at, lands on the hull's
+        // real schematic footprint rather than open grid around it (targeting hardware, per-cell shape,
+        // range-blind, aim-point-aware). Different inputs, different failure modes; see Cut(0's report for the
+        // double-charging call). Aim point is source.ResolvedTargetItem, exactly what Fire freezes below --
+        // HitProbability and Fire read the same reveal-gated aim point, never two.
+        var pOnHull = HullKernel(targetHull, ResolveAimPoint(target, targetHull, source.ResolvedTargetItem).AimPoint, Precision(source)).POnHull;
+
+        return Accuracy(source) * pSensor * pSpread * pOnHull;
     }
 
     // Cut 3, R1: called once per burst step from InstantWeapon.Execute. Computes flight time, freezes the
@@ -328,18 +346,16 @@ public static class FireControl
 
         if (hit)
         {
+            // Cut 6d: the same kernel HitProbability's pOnHull drew its mass from -- same aim point (the
+            // frozen Aimed, or the hull's own centre of mass), same sigma (the frozen Precision). A shot that
+            // passed the roll always lands on metal (R3: one roll decides damage; the off-hull share was
+            // already priced into that roll, not resolved here as a second stage), so the draw is unconditional
+            // and always returns an occupied cell -- no fallback branch, uniform or otherwise.
             var hullData = shot.Source.ItemManager.GetData(shot.Target.Hull) as HullData;
-            var aimedCells = shot.Aimed != null ? CellsOf(shot.Target, shot.Aimed) : null;
-            if (aimedCells != null && aimedCells.Length > 0 && random.NextFloat() < shot.Precision)
-            {
-                aimed = shot.Aimed;
-                cell = aimedCells[random.NextInt(aimedCells.Length)];
-            }
-            else
-            {
-                var coords = hullData.Shape.Coordinates;
-                cell = coords[random.NextInt(coords.Length)];
-            }
+            var (aimPoint, aimedCells) = ResolveAimPoint(shot.Target, hullData, shot.Aimed);
+            var (cells, weights, totalWeight, _) = HullKernel(hullData, aimPoint, shot.Precision);
+            cell = WeightedPick(cells, weights, totalWeight, random);
+            if (aimedCells != null && Array.IndexOf(aimedCells, cell) >= 0) aimed = shot.Aimed;
 
             var shield = shot.Target.Shield;
             var shieldActive = shield != null && shield.Item.Active.Value;
@@ -433,6 +449,74 @@ public static class FireControl
 
             target.DamageSchematic(damage, hitShape);
         }
+    }
+
+    // Cut 6d (docs/fire-control-cut.md): the one kernel. HitProbability multiplies pOnHull; Commit draws the
+    // landing cell from the same per-cell weights. Nowhere else may compute a sigma or a weight -- this is the
+    // named risk from Cut 3 (two functions answering "where will this shot go" and eventually disagreeing),
+    // applied to placement instead of authority.
+    //
+    // Sigma is the frozen Precision's reciprocal, in hull-schematic cell units -- the same units
+    // Shape.CenterOfMass and GearOccupancy already use, so a sigma of 1 means "one cell's width of spread."
+    // Higher Precision (a tighter group) gives a smaller sigma; the 1e-3 floor only guards a stray zero or
+    // negative authored value; no authored Precision should ever reach it (GameplaySettings.UnaidedPrecision
+    // is the deliberately-bad floor Precision(Entity) itself falls back to, same shape as UnaidedAccuracy).
+    private static float Sigma(float precision) => 1f / max(precision, 1e-3f);
+
+    // w(cell) = exp(-d^2 / 2*sigma^2) over every occupied hull cell, `d` the planar cell-space distance from
+    // the aim point, plus pOnHull = (sum of those weights) / (2*pi*sigma^2) -- the share of the full continuous
+    // kernel's mass (a 2D Gaussian integrates to 2*pi*sigma^2 over the infinite plane) that a discrete sum over
+    // occupied cells actually captures. The off-hull share -- outside the schematic's bounding box, or on an
+    // unoccupied cell inside it (a hole, a thin limb's missing neighbour) -- is exactly 1 - pOnHull, and it
+    // never gets a second roll (see Commit below): pOnHull already told HitProbability the price.
+    private static (int2[] Cells, float[] Weights, float TotalWeight, float POnHull) HullKernel(HullData hullData, float2 aimPoint, float precision)
+    {
+        var sigma = Sigma(precision);
+        var coords = hullData.Shape.Coordinates;
+        var weights = new float[coords.Length];
+        var total = 0f;
+        for (var i = 0; i < coords.Length; i++)
+        {
+            var w = exp(-lengthsq((float2) coords[i] - aimPoint) / (2f * sigma * sigma));
+            weights[i] = w;
+            total += w;
+        }
+        // saturate: the discrete sum only approximates the continuous kernel's integral, and undershoots badly
+        // once sigma drops below about one cell (an extremely tight, well-authored Precision) -- the aim cell
+        // alone can then carry a weight whose share of the (now tiny) 2*pi*sigma^2 denominator exceeds 1. A
+        // share of a kernel's mass cannot exceed the whole kernel; clamped here so every other reader of
+        // pOnHull (HitProbability's product of factors, this cut's own tests) can keep treating it as a
+        // probability rather than re-deriving the same guard at every call site.
+        var pOnHull = saturate(total / (2f * PI * sigma * sigma));
+        return (coords, weights, total, pOnHull);
+    }
+
+    // The aim point the kernel is centred on (R10/Q6: the same frozen Aimed both HitProbability and Fire read)
+    // -- the aimed item's own cell centroid when it currently occupies cells on the target, else the hull's
+    // own centre of mass. One path; the uniform-random branch this replaces is deleted, not demoted (Cut 6d).
+    private static (float2 AimPoint, int2[] AimedCells) ResolveAimPoint(Entity target, HullData hullData, EquippedItem aimed)
+    {
+        var aimedCells = aimed != null ? CellsOf(target, aimed) : null;
+        if (aimedCells != null && aimedCells.Length > 0)
+            return (aimedCells.Aggregate(float2.zero, (total, c) => total + (float2) c) / aimedCells.Length, aimedCells);
+        return (hullData.Shape.CenterOfMass, null);
+    }
+
+    // A single weighted draw over the kernel's own occupied-cell weights -- the only way Commit picks a cell
+    // once a shot has already passed the roll (R3: one roll decides damage). totalWeight is passed in rather
+    // than resummed so this reads the identical mass HullKernel just computed. The trailing return guards only
+    // floating-point rounding at the very end of the accumulation; it can never fall through for a shot that
+    // reaches here, because the roll already established this hull has nonzero on-hull mass.
+    private static int2 WeightedPick(int2[] cells, float[] weights, float totalWeight, Random random)
+    {
+        var roll = random.NextFloat() * totalWeight;
+        var accumulated = 0f;
+        for (var i = 0; i < cells.Length; i++)
+        {
+            accumulated += weights[i];
+            if (roll < accumulated) return cells[i];
+        }
+        return cells[cells.Length - 1];
     }
 
     // The cells of the target's hull schematic actually occupied by `item` -- GearOccupancy is the one source

@@ -35,8 +35,9 @@ public static class Program
             case "firing-arc-migrate": return FiringArcMigrate(args.Contains("apply"));
             case "targeting-catalog": return TargetingCatalog(args.Contains("apply"));
             case "targeting-catalog-6c": return TargetingCatalog6c(args.Contains("apply"));
+            case "targeting-catalog-6d": return TargetingCatalog6d(args.Contains("apply"));
             default:
-                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], targeting-catalog [apply], targeting-catalog-6c [apply]");
+                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply]");
                 return 1;
         }
     }
@@ -1394,6 +1395,83 @@ public static class Program
         });
 
         Console.WriteLine($"\nLanded {resolutionChanges.Length} Resolution changes and {newProducts.Length} new products in Aetheria.cc");
+        return 0;
+    }
+
+    // Fire control Cut 6d (docs/fire-control-cut.md, "where a hit lands is a dart throw, not a coin flip").
+    //
+    // Precision stops being a probability (the old coin flip's "chance the hit lands exactly on the aimed
+    // item") and becomes a grouping tightness on FireControl.Sigma's own scale (sigma = 1/Precision, in hull-
+    // schematic cell units -- the same units Shape.CenterOfMass and GearOccupancy already use). The two
+    // designs' authored ranges (Cut 6a: 1-cell .05-.2, 2-cell .35-.55) were probabilities under the old rule
+    // and are meaningless as written under the new one -- re-authored here on the sigma-reciprocal scale
+    // instead, same convention as 6c.1's Resolution fix.
+    //
+    // Both ranges are chosen against real hull scale (GameData/Aetheria.cc's own hulls: LonginusX 6x17,
+    // Zenith 12x12, Turret 8x8) and the unaided floor this cut adds alongside them
+    // (GameplaySettings.UnaidedPrecision, .3 -> sigma 3.33 cells): a design that did not clear the unaided
+    // floor by a wide margin would make the required Tool item pointless to equip.
+    //
+    // 1-cell Targeting Computer: .5-.8 (sigma 2.0-1.25 cells) -- tight enough that aiming at a named subsystem
+    // meaningfully concentrates fire on it and its immediate neighbours, well past the unaided floor.
+    // 2-cell Fire Control Array: .9-1.3 (sigma 1.11-0.77 cells) -- strictly tighter than the 1-cell design at
+    // every point along both authored ranges, the same "premium item unambiguously ahead" shape 6c.1 restored
+    // for Resolution.
+    //
+    // Dry run unless passed "apply", same contract as the other *-migrate commands.
+    private static int TargetingCatalog6d(bool apply)
+    {
+        var db = AetherDb.Open(catalogWritable: apply);
+
+        GearData DesignByName(string name)
+        {
+            var design = db.Cache.GetAll<GearData>().FirstOrDefault(i => i.Name == name);
+            if (design == null) throw new InvalidOperationException($"No design named \"{name}\".");
+            return design;
+        }
+
+        var targetingComputer = DesignByName("Targeting Computer");
+        var fireControlArray = DesignByName("Fire Control Array");
+
+        var precisionChanges = new (GearData Design, (float Min, float Max) Old, (float Min, float Max) New)[]
+        {
+            (targetingComputer,
+                (targetingComputer.Behaviors.OfType<TargetingSystemData>().Single().Precision.Min,
+                 targetingComputer.Behaviors.OfType<TargetingSystemData>().Single().Precision.Max),
+                (.5f, .8f)),
+            (fireControlArray,
+                (fireControlArray.Behaviors.OfType<TargetingSystemData>().Single().Precision.Min,
+                 fireControlArray.Behaviors.OfType<TargetingSystemData>().Single().Precision.Max),
+                (.9f, 1.3f)),
+        };
+
+        Console.WriteLine("Precision re-authored from a coin-flip probability to a grouping-tightness scale (Cut 6d):");
+        foreach (var (design, old, @new) in precisionChanges)
+            Console.WriteLine($"  {design.Name,-20} {old.Min,4:0.##}-{old.Max,-4:0.##} -> {@new.Min,4:0.##}-{@new.Max,-4:0.##}");
+
+        if (!apply)
+        {
+            Console.WriteLine($"\nDry run. Pass \"apply\" to land {precisionChanges.Length} Precision changes.");
+            return 0;
+        }
+
+        foreach (var (design, _, @new) in precisionChanges)
+        {
+            var behavior = design.Behaviors.OfType<TargetingSystemData>().Single();
+            var terms = behavior.Precision.Terms;
+            behavior.Precision = new PerformanceStat { Min = @new.Min, Max = @new.Max, Terms = terms };
+        }
+
+        // Validate before staging, same contract as ShieldMigrate/TargetingCatalog/TargetingCatalog6c above.
+        foreach (var (design, _, _) in precisionChanges) CultRecordRefs.Validate(design);
+
+        db.Cache.Commit(batch =>
+        {
+            foreach (var (design, _, _) in precisionChanges)
+                batch.Upsert(typeof(GearData), design, db.Cache.RefOf(design).Key);
+        });
+
+        Console.WriteLine($"\nLanded {precisionChanges.Length} Precision changes in Aetheria.cc");
         return 0;
     }
 }

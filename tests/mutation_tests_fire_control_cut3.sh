@@ -3,22 +3,20 @@
 #
 # Fourteen check_mutation calls covering the cut's own thirteen declared tests (one, ProbabilityFollowsInputs,
 # carries three sub-mutations from its own declared list, so fifteen mutations run in total) against
-# tests/Aetheria.Shared.Tests/FireAuthorityTests.cs -- plus one test the harness deliberately does NOT attempt
-# a mutation for, documented below rather than silently skipped:
+# tests/Aetheria.Shared.Tests/FireAuthorityTests.cs, plus one more against the test Cut 7 rewrote in its place:
 #
-#   OutOfArcConsumesNoDraw -- NOT YET REACHED. The test asserts against ItemManager.Random (`e.Items.Random`),
-#   but Cut 6b (6.1) moved every shot's roll onto its own freshly-seeded, immediately-discarded
+#   OutOfArcConsumesNoDraw no longer exists. It asserted against ItemManager.Random (`e.Items.Random`), but
+#   Cut 6b (6.1) moved every shot's roll onto its own freshly-seeded, immediately-discarded
 #   `new Random((zone.CombatSeed * 2654435761u) ^ (uint) shot.ShotId | 1u)` local to Commit -- a deliberate,
-#   good change (reproducibility independent of unrelated draws elsewhere) that also means Commit never reads
-#   or writes ItemManager.Random at all, on any path, arc or no arc. Confirmed empirically: applying the
-#   declared mutation ("roll first and multiply by zero" -- `var hit = random.NextFloat() < p;` in place of
-#   `var hit = p > 0f && random.NextFloat() < p;`) leaves this test green, because the local generator that
-#   mutation actually touches is discarded before anything outside Commit could observe it, and nothing else
-#   in the Fire/Step path ever touches ItemManager.Random (Zone.NextShotId is a plain counter). This is not a
-#   fixable fixture defect -- there is no external observation point for "did Commit's own local generator
-#   draw" under the current per-shot-seeded design, short of instrumenting FireControl itself (an injectable
-#   call-counting random source, or reverting 6.1's shared-stream removal) -- a production-code seam change,
-#   not a test change, and out of this cut's scope. Reaching it takes that seam.
+#   good change (reproducibility independent of unrelated draws elsewhere) that also meant Commit stopped
+#   reading or writing ItemManager.Random on any path, arc or no arc, which made the old test's own declared
+#   mutation ("roll first and multiply by zero") pass for a reason that had nothing to do with arcs. Cut 7
+#   (fire-control-cut.md, 7.2's own header comment, and FireAuthorityTests.cs's comment on the replacement)
+#   rewrote it as CombatNeverDrawsFromTheSharedStream: no combat path draws from the shared stream, in arc or
+#   out. That rule IS externally observable (Commit has no reference to ItemManager to draw from at all under
+#   the current design, so the only way to make it "touch the shared stream" is to add a read that was not
+#   there before) -- this harness's own mutation below does exactly that, through the one handle Commit does
+#   hold (`shot.Source.ItemManager`, already read elsewhere in this same function for hull data).
 #
 # A no-op control (a byte-identical rewrite of one target file through this script's own read/write path)
 # proves the mechanism itself is transparent before any real mutation is trusted. Modelled on
@@ -205,11 +203,14 @@ check_mutation \
   "red"
 
 # --- ProbabilityFollowsInputs, variant 1/3: drop pSensor -- probability stops depending on detection info. ---
+# Cut 6d (docs/fire-control-cut.md) added a fourth factor, pOnHull, to this same return line -- the anchor
+# below tracks the current line so this still targets the pSensor drop specifically, not a byte-exact copy of
+# the pre-Cut-6d line, which no longer exists.
 check_mutation \
   "ProbabilityFollowsInputs (1/3): HitProbability must scale with pSensor, not drop it" \
   "$FIRE_CONTROL_CS" \
-  'return Accuracy(source) * pSensor * pSpread;' \
-  'return Accuracy(source) * pSpread;' \
+  'return Accuracy(source) * pSensor * pSpread * pOnHull;' \
+  'return Accuracy(source) * pSpread * pOnHull;' \
   "FireAuthorityTests.ProbabilityFollowsInputs" \
   "red"
 
@@ -296,13 +297,17 @@ check_mutation \
   "FireAuthorityTests.OutcomeIsSnapshotNotReread" \
   "red"
 
-# --- AimedHitLandsOnSelectedItem (R5's payoff): with Precision 1, a hit must land on the aimed item's own
-# cells, not a uniform-random hull cell. ---
+# --- AimedHitLandsOnSelectedItem (R5's payoff): with Precision authored extremely tight (Cut 6d: the test now
+# passes precision: 1000, a sigma a tiny fraction of one cell), a hit must land on the aimed item's own cell,
+# not the hull's centre of mass. Cut 6d deleted the coin-flip branch this mutation used to sabotage
+# (`random.NextFloat() < shot.Precision` picking between the aimed cell and a uniform-random one); the
+# equivalent sabotage under the dart-throw kernel is feeding Commit's aim-point resolver a null Aimed, so it
+# falls back to the centre-of-mass path unconditionally -- the same "aim is ignored" defect, on the new code. ---
 check_mutation \
-  "AimedHitLandsOnSelectedItem: the roll must respect Aimed, not always pick a uniform random hull cell" \
+  "AimedHitLandsOnSelectedItem: the kernel's aim point must respect Aimed, not fall back to centre of mass" \
   "$FIRE_CONTROL_CS" \
-  'if (aimedCells != null && aimedCells.Length > 0 && random.NextFloat() < shot.Precision)' \
-  'if (false)' \
+  'var (aimPoint, aimedCells) = ResolveAimPoint(shot.Target, hullData, shot.Aimed);' \
+  'var (aimPoint, aimedCells) = ResolveAimPoint(shot.Target, hullData, null);' \
   "FireAuthorityTests.AimedHitLandsOnSelectedItem" \
   "red"
 
@@ -336,14 +341,17 @@ check_mutation \
   "FireAuthorityTests.ShieldTakesHit" \
   "red"
 
-echo ""
-echo "=== OutOfArcConsumesNoDraw: NOT YET REACHED (see header comment) -- confirming the test itself is still green with no mutation applied ==="
-if run_test "FireAuthorityTests.OutOfArcConsumesNoDraw"; then
-  echo "OK: FireAuthorityTests.OutOfArcConsumesNoDraw passes on the unmutated tree"
-else
-  FAILURES+=("OutOfArcConsumesNoDraw: the unmutated test itself failed -- that is a real regression, not a not-yet-reached mutation")
-  echo "$LAST_OUTPUT" | tail -40
-fi
+# --- Cut 7's replacement for OutOfArcConsumesNoDraw: CombatNeverDrawsFromTheSharedStream. Mutation: Commit
+# reads shot.Source.ItemManager.Random (the shared stream FireAuthorityTests.cs's own Build exposes as
+# e.Items.Random) once per call, restoring exactly the kind of shared-stream touch Cut 6b (6.1) removed --
+# unconditionally, so both the theory's in-arc and out-of-arc cases go red. ---
+check_mutation \
+  "CombatNeverDrawsFromTheSharedStream: Commit must never read ItemManager's shared stream, on any path" \
+  "$FIRE_CONTROL_CS" \
+  'var random = new Random((zone.CombatSeed * 2654435761u) ^ (uint) shot.ShotId | 1u);' \
+  'var random = new Random((zone.CombatSeed * 2654435761u) ^ (uint) shot.ShotId | 1u); shot.Source.ItemManager.Random.NextFloat();' \
+  "FireAuthorityTests.CombatNeverDrawsFromTheSharedStream" \
+  "red"
 
 echo ""
 verify_tree_clean
@@ -362,5 +370,5 @@ if [ "${#FAILURES[@]}" -gt 0 ] || [ "$TREE_CLEAN_OK" != "1" ]; then
   exit 1
 fi
 
-echo "RESULT: All attempted mutations behaved as declared (OutOfArcConsumesNoDraw: not yet reached, see header). tree-clean: PASS"
+echo "RESULT: All mutations behaved as declared. tree-clean: PASS"
 exit 0

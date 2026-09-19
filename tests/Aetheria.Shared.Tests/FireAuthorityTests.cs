@@ -44,6 +44,11 @@ public sealed class FireAuthorityTests : IDisposable
         CommitHorizon = .5f,
         SchematicCellSize = 1f,
         UnaidedAccuracy = .05f,
+        // Cut 6d (docs/fire-control-cut.md): high enough that pOnHull saturates to 1 at this fixture's 5x5
+        // hull's own centre of mass -- these tests pin the Accuracy cap and hit/miss timing, not the dart-
+        // throw kernel, so the unaided floor here is authored to stay out of their way, the same reason
+        // Spread is authored 0 in most of these fixtures to keep pSpread pinned at 1.
+        UnaidedPrecision = 2f,
         AgentMinHitProbability = 0f
     };
 
@@ -67,7 +72,13 @@ public sealed class FireAuthorityTests : IDisposable
         GameplaySettings settings,
         float damage = 10, float range = 1000, float minRange = 0, float velocity = 0,
         float spread = 0, float damageSpread = 0, float penetration = 0,
-        float accuracy = 1, float resolution = 1, float precision = 0, float tracking = 1000,
+        // Cut 6d (docs/fire-control-cut.md): Precision now feeds HitProbability's pOnHull for every shot, aimed
+        // or not (the dart-throw kernel's sigma), where it used to matter only for the coin-flip aimed-item
+        // branch this cut deletes. The old default of 0 -- harmless when Precision only gated that branch --
+        // would now flatten pOnHull to nearly nothing against this fixture's 5x5 hull (sigma = 1/Precision
+        // balloons), starving every test in this file that doesn't care about aim placement. 1 keeps pOnHull
+        // close to its ceiling for an unaimed shot at this hull's centre of mass without pinning it exactly.
+        float accuracy = 1, float resolution = 1, float precision = 1, float tracking = 1000,
         float targetRange = 100, bool equipTargeting = true, float hullDurability = 1000, float armor = 0,
         Action<ItemManager, Ship, Ship> beforeActivate = null)
     {
@@ -430,13 +441,15 @@ public sealed class FireAuthorityTests : IDisposable
         Assert.True(dealt < 100f); // nowhere near the inflated 99999 value -- the original 10 landed
     }
 
-    // R5's payoff: with Precision 1 and p 1, only the aimed item's durability falls.
-    // Mutation: the roll ignores Aimed and always picks a uniform random hull cell.
+    // R5's payoff: with Precision authored extremely tight (Cut 6d: a sigma a tiny fraction of one cell) and
+    // p 1, only the aimed item's durability falls -- the dart-throw kernel still converges on a deterministic
+    // single-cell pick when the group is that tight, so this stays a same-cell-every-time assertion rather
+    // than a statistical one. Mutation: the draw ignores Aimed and always picks a uniform random hull cell.
     [Fact]
     public void AimedHitLandsOnSelectedItem()
     {
         EquippableItem aimedGear = null;
-        var e = Build(TestSettings(), damage: 50, velocity: 0, accuracy: 1, resolution: 1, spread: 0, precision: 1, armor: 0,
+        var e = Build(TestSettings(), damage: 50, velocity: 0, accuracy: 1, resolution: 1, spread: 0, precision: 1000, armor: 0,
             beforeActivate: (items, shooter, target) =>
             {
                 // A second, distinct interior item on the target to aim at, equipped before Activate() (Entity.
@@ -509,10 +522,20 @@ public sealed class FireAuthorityTests : IDisposable
 
     // The absorb rule now exists once, in FireControl: an active shield that CanTakeHit absorbs, and the
     // schematic is untouched. Mutation: remove the shield branch (the hit always reaches the hull).
+    //
+    // Cut 6d (docs/fire-control-cut.md): damage raised from 10 to 50, well above the Reactor/Shield gear's own
+    // Durability of 10. Unaimed fire now lands via the dart-throw kernel instead of a uniform pick over the
+    // whole hull, and Build's own default Precision groups shots tightly enough around this fixture's small
+    // hull's centre of mass that the deterministic draw for this exact seed lands on one of the two equipped
+    // Tool items. At damage 10 that coincidentally consumed the item's own durability with zero remainder,
+    // which left the hull's durability unchanged with or without the shield mutation applied -- the shield
+    // branch could be deleted outright and this test would not have noticed. Damage well past what any single
+    // item on this hull could fully absorb makes the assertion mean what it says regardless of which cell the
+    // kernel happens to land on.
     [Fact]
     public void ShieldTakesHit()
     {
-        var e = Build(TestSettings(), damage: 10, velocity: 0, accuracy: 1, resolution: 1, spread: 0, armor: 0,
+        var e = Build(TestSettings(), damage: 50, velocity: 0, accuracy: 1, resolution: 1, spread: 0, armor: 0,
             beforeActivate: (items, shooter, target) =>
             {
                 // The Reactor/Shield catalog entries are authored in Build's own upsert batch (see its
@@ -530,7 +553,7 @@ public sealed class FireAuthorityTests : IDisposable
         e.Target.Shield.Item.Enabled.Value = true;
 
         for (var i = 0; i < 20; i++) e.Zone.Update(.1f); // charge the reserve
-        Assert.True(e.Target.Shield.CanTakeHit(DamageType.Kinetic, 10));
+        Assert.True(e.Target.Shield.CanTakeHit(DamageType.Kinetic, 50));
 
         var beforeHull = e.Target.Hull.Durability;
         FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
