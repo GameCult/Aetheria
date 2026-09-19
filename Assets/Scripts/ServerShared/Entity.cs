@@ -45,6 +45,13 @@ public abstract class Entity
     public List<Entity> Children = new List<Entity>();
     public ReactiveProperty<Entity> Target = new ReactiveProperty<Entity>((Entity)null);
 
+    // Cut 2 (docs/fire-control-cut.md): the stored aim-point slot. Written only by TrySelectTargetItem
+    // below, and nulled whenever Target changes (subscribed in Activate). Do not read this field directly
+    // outside Entity -- read ResolvedTargetItem, which re-validates on every call, so decay (or the item
+    // leaving the target) drops the aim point the moment it is no longer earned, with no loop that has to
+    // notice and clear it.
+    public ReactiveProperty<EquippedItem> TargetItem = new ReactiveProperty<EquippedItem>((EquippedItem)null);
+
     public float3 LookDirection;
     
     public string Name;
@@ -273,10 +280,41 @@ public abstract class Entity
             foreach(var subscription in _watchedEntitySubscriptions[disappearingEntity.Value]) subscription.Dispose();
             _watchedEntitySubscriptions.Remove(disappearingEntity.Value);
         }));
-        
+
+        // Cut 2 (docs/fire-control-cut.md): a Target change nulls the aim point. Fires immediately on
+        // subscribe with whatever Target already holds, which is harmless -- TargetItem starts null anyway.
+        _subscriptions.Add(Target.Subscribe(_ => TargetItem.Value = null));
+
         if(WeaponGroups.All(wg=>!wg.items.Any()))
             GenerateWeaponGroups();
     }
+
+    // Cut 2 (docs/fire-control-cut.md): the only writer of TargetItem. Accepts null (clearing the aim
+    // point) or an item belonging to the current Target that FireControl.IsRevealed resolves true for this
+    // entity as observer. Returns whether the write took effect; a rejected non-null selection leaves
+    // TargetItem unchanged.
+    public bool TrySelectTargetItem(EquippedItem item)
+    {
+        if (item == null)
+        {
+            TargetItem.Value = null;
+            return true;
+        }
+
+        if (Target.Value == null || item.Entity != Target.Value || !FireControl.IsRevealed(this, item))
+            return false;
+
+        TargetItem.Value = item;
+        return true;
+    }
+
+    // The read path for TargetItem (see the field's own comment): null once the aimed item is no longer
+    // revealed to this entity, or no longer belongs to the current Target, even though nothing wrote
+    // TargetItem.Value at the moment that became true. Re-checked on every call; never cached.
+    public EquippedItem ResolvedTargetItem =>
+        TargetItem.Value != null && Target.Value == TargetItem.Value.Entity && FireControl.IsRevealed(this, TargetItem.Value)
+            ? TargetItem.Value
+            : null;
 
     // Another entity's stance toward THIS one, as far as this entity can perceive it: unknown (null)
     // until this entity detects them, mirroring the existing detection model (VisibleEntities, driven

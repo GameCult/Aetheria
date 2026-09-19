@@ -213,6 +213,14 @@ public class GameplaySettings
     public float TargetGearInfoThreshold;
     public float ConvergenceMinimumDistance;
     public float FiringArc = 120;
+    // Cut 2 (docs/fire-control-cut.md, Q4): what an entity with no working targeting system fires with --
+    // the ceiling FireControl.Accuracy falls back to (Resolution 1, Precision 0 alongside it). Authored low
+    // on purpose ("really, really bad," operator 2026-09-19): .05 against the two catalog designs' own
+    // Accuracy ranges (the authoring spec this cut produces proposes .45-.6 for the 1-cell design and
+    // .65-.85 for the 2-cell one) leaves unaided fire capable of hitting something close, slow and
+    // unaware, and little else. One authored setting, easy to find and turn -- the operator rules the real
+    // figure in play.
+    public float UnaidedAccuracy = .05f;
     public float AgentRangeExponent = .25f;
     public float AgentForwardLerp = .5f;
     public float AgentMaxForwardDistance = 50;
