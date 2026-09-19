@@ -83,7 +83,12 @@ public class Thruster : Behavior, IAnalogBehavior, IPowerConsumer
     public override bool Execute(float dt)
     {
         Item.SetAudioParameter(SpecialAudioParameter.Intensity, _input);
-        if(_input > .01f && Item.PowerSupply >= 1f)
+        // Cut 7 (docs/stats-and-power-target.md): "continuous consumers brown out ... through a power supply
+        // curve on their performance stats." Thrust below is a plain Evaluate() read, so once the catalog's own
+        // Thrust stat carries a PowerSupply term, a partial grant already comes back reduced -- this gate no
+        // longer demands a full grant, only that the thruster is being asked to do anything (_input) and that it
+        // has not been cut to true zero supply (the epsilon PowerBus itself already treats as "nothing granted").
+        if(_input > .01f && Item.PowerSupply > 1e-4f)
         {
             Thrust = Evaluate(_data.Thrust);
             Entity.Velocity -= Direction.xz * _input * Thrust / Entity.Mass * dt;

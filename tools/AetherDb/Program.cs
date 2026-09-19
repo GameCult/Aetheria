@@ -30,8 +30,9 @@ public static class Program
             case "settings": return Settings();
             case "settings-dump": return SettingsDump();
             case "shield-migrate": return ShieldMigrate(args.Contains("apply"));
+            case "brownout-migrate": return BrownoutMigrate(args.Contains("apply"));
             default:
-                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply]");
+                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply]");
                 return 1;
         }
     }
@@ -544,6 +545,97 @@ public static class Program
         }
 
         Console.WriteLine($"\n{changed.Count} designs migrated, {alreadyAuthored} already authored (left alone)");
+        if (changed.Count == 0) return 0;
+        if (!apply)
+        {
+            Console.WriteLine($"Dry run. Pass \"apply\" to land {changed.Count} changed records.");
+            return 0;
+        }
+
+        db.Cache.Commit(batch =>
+        {
+            foreach (var (document, key) in changed) batch.Upsert(document.GetType(), document, key);
+        });
+        Console.WriteLine($"Landed {changed.Count} changed records in Aetheria.cc");
+        return 0;
+    }
+
+    // Operator ruling, docs/stats-and-power-target.md: "Continuous consumers brown out through a power supply
+    // curve on their performance stats." The Cut 7 code change (PowerBus.cs's five continuous-consumer gates)
+    // only has anything to curve if some shipped stat actually declares a PowerSupply term -- otherwise every
+    // one of those stats keeps answering PowerSupplyFactor's identity (Entity.cs), and removing the gates makes
+    // a partial grant read exactly like a full one instead of a reduced one. This authors the term, once, on the
+    // one performance stat each of the four curve-eligible behaviours (EnergyDraw has none -- see EnergyDraw.cs)
+    // actually reads for its continuous effect: ThrusterData.Thrust, AetherDriveData.Torque,
+    // RadiatorData.PumpedHeat, ConstantWeaponData.Damage. None of the four is a power-request field
+    // (StatValidation.PowerRequestFields), so authoring the term here does not trip
+    // ValidateNoPowerSupplyOnRequest. Exponent 1 (linear) is the gentle default the ruling calls for -- half
+    // supply reads as half performance, not a cliff -- and is left for the operator to steepen per design later.
+    // Dry run unless passed "apply"; every record must derive cleanly or nothing is written, same contract as
+    // ShieldMigrate.
+    private static int BrownoutMigrate(bool apply)
+    {
+        var db = AetherDb.Open(catalogWritable: apply);
+        const float gentleExponent = 1f;
+
+        // (behaviour type, target performance-stat field, short label) -- deliberately NOT the request field
+        // (StatValidation.PowerRequestFields already forbids a PowerSupply term there for each of these types).
+        var targets = new (Type BehaviorType, string Field, string Label)[]
+        {
+            (typeof(ThrusterData), nameof(ThrusterData.Thrust), "thrust"),
+            (typeof(AetherDriveData), nameof(AetherDriveData.Torque), "torque"),
+            (typeof(RadiatorData), nameof(RadiatorData.PumpedHeat), "pumpedHeat"),
+            (typeof(ConstantWeaponData), nameof(WeaponData.Damage), "damage"),
+        };
+
+        var hosts = db.Cache.GetAll<GearData>().Select(g => (Name: g.Name, Document: (object) g, Key: db.Cache.RefOf(g).Key, Behaviors: g.Behaviors))
+            .Concat(db.Cache.GetAll<ConsumableItemData>().Select(c => (Name: c.Name, Document: (object) c, Key: db.Cache.RefOf(c).Key, Behaviors: c.Behaviors)));
+
+        Console.WriteLine($"{"design",-24} {"behaviour",-14} {"stat",-10} {"before",8} {"after",8}  exponent");
+        var changed = new List<(object Document, CultRecordKey Key)>();
+        var alreadyAuthored = 0;
+        var failures = 0;
+        foreach (var (name, document, key, behaviors) in hosts.OrderBy(h => h.Name, StringComparer.Ordinal))
+        {
+            foreach (var behavior in behaviors)
+            {
+                foreach (var (behaviorType, field, label) in targets)
+                {
+                    if (!behaviorType.IsInstanceOfType(behavior)) continue;
+                    PerformanceStat stat;
+                    try
+                    {
+                        stat = behaviorType.GetField(field)?.GetValue(behavior) as PerformanceStat
+                            ?? throw new InvalidOperationException($"{behaviorType.Name}.{field} is not a PerformanceStat field");
+                    }
+                    catch (Exception e)
+                    {
+                        Console.WriteLine($"FAILED reading {name} {behaviorType.Name}.{field}: {e.Message}");
+                        failures++;
+                        continue;
+                    }
+
+                    if (stat.Terms.Any(t => t.Source == StatSource.PowerSupply))
+                    {
+                        alreadyAuthored++;
+                        Console.WriteLine($"{name,-24} {behaviorType.Name,-14} {label,-10} {"(already authored, left alone)",-17}");
+                        continue;
+                    }
+
+                    var before = stat.Terms.Count;
+                    stat.Terms.Add(new StatTerm { Source = StatSource.PowerSupply, Exponent = gentleExponent });
+                    Console.WriteLine($"{name,-24} {behaviorType.Name,-14} {label,-10} {before,8} {stat.Terms.Count,8}  {gentleExponent:0.##}");
+                    changed.Add((document, key));
+                }
+            }
+        }
+
+        Console.WriteLine($"\n{changed.Count} stats authored a PowerSupply term, {alreadyAuthored} already authored (left alone), {failures} failures");
+        if (failures > 0)
+        {
+            Console.WriteLine("Refusing to write: at least one record failed to derive cleanly.");
+            return 1;
+        }
         if (changed.Count == 0) return 0;
         if (!apply)
         {

@@ -92,7 +92,11 @@ public class ConstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerC
         }
         if (_firing)
         {
-            if (Item != null && Item.PowerSupply < 1f)
+            // Cut 7 (docs/stats-and-power-target.md): base.Execute(dt) above already re-read Damage through
+            // Evaluate(_data.Damage), so a Damage stat carrying a PowerSupply term already fires this tick for
+            // less under a partial grant -- the weapon no longer safes itself off (the "flicking off gear" bug
+            // the ruling names) just because the grant fell short of 1. Only true zero supply still stops it.
+            if (Item != null && Item.PowerSupply <= 1e-4f)
             {
                 _firing = false;
                 OnStopFiring?.Invoke();
