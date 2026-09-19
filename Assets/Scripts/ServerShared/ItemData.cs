@@ -755,6 +755,34 @@ public static class StatValidation
                 }
     }
 
+    // Cut 7 (docs/stats-and-power-cut.md): "a stat naming a role its design lacks" must be refused, not silently
+    // fall back to the lot's own workmanship (Lot.QualityForRole already falls back for a role a lot never rolled
+    // -- that is the intended forward-compat path for an old lot meeting a newly-authored role. This is the other
+    // direction: a StatTerm naming a role the design itself never declared is an authoring mistake, not a lot
+    // predating the role, and must fail loudly rather than silently reading generic quality). Every PerformanceStat
+    // field on every behaviour is walked; only StatSource.Quality terms carry a Role at all (Evaluate ignores Role
+    // for every other source).
+    public static void ValidateRoleUsage(string ownerName, List<ItemRole> roles, IEnumerable<BehaviorData> behaviors)
+    {
+        var declared = new HashSet<string>((roles ?? new List<ItemRole>()).Select(r => r.Name));
+        foreach (var behavior in behaviors ?? Enumerable.Empty<BehaviorData>())
+        {
+            if (behavior == null) continue;
+            foreach (var field in behavior.GetType().GetFields().Where(f => f.FieldType == typeof(PerformanceStat)))
+            {
+                if (!(field.GetValue(behavior) is PerformanceStat stat) || stat.Terms == null) continue;
+                foreach (var term in stat.Terms)
+                {
+                    if (term.Source != StatSource.Quality || string.IsNullOrEmpty(term.Role)) continue;
+                    if (!declared.Contains(term.Role))
+                        throw new InvalidOperationException(
+                            $"{ownerName}: {behavior.GetType().Name}.{field.Name} names role \"{term.Role}\", " +
+                            $"which this design does not declare (declared: {(declared.Count == 0 ? "none" : string.Join(", ", declared))})");
+                }
+            }
+        }
+    }
+
     // Cut 6 (docs/stats-and-power-cut.md): "a stat that decides a power request may not depend on power supply,
     // directly or through a modifier chain, and no stat may depend on itself." IPowerConsumer.PowerRequest(dt)
     // never hands the bus a number it invented on the spot -- each implementation evaluates exactly one fixed
